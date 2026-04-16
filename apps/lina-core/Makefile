@@ -12,16 +12,26 @@ prepare-packed-assets:
 
 build: prepare-packed-assets
 
+define require_confirm
+	@if [ "$(confirm)" != "$(1)" ]; then \
+		echo "✗ 出于安全原因，执行 make $(1) 需要显式确认"; \
+		echo "  请使用: make $(1) confirm=$(1)"; \
+		exit 1; \
+	fi
+endef
+
 ## init: 初始化数据库（仅执行 DDL 建表和 Seed 数据）
 .PHONY: init
 init:
+	$(call require_confirm,init)
 	@echo "正在初始化数据库..."
-	@go run main.go init
+	@go run main.go init --confirm=$(confirm)
 	@echo "✓ 数据库初始化完成"
 
 ## mock: 加载 Mock 演示数据（需先执行 init）
 .PHONY: mock
 mock:
+	$(call require_confirm,mock)
 	@echo "正在加载 Mock 数据..."
-	@go run main.go mock
+	@go run main.go mock --confirm=$(confirm)
 	@echo "✓ Mock 数据加载完成"

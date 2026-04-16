@@ -25,12 +25,22 @@ test:
 ## init: 初始化数据库（仅执行 DDL 建表和 Seed 数据）
 .PHONY: init
 init:
-	@cd $(BACKEND_DIR) && make init
+	@if [ "$(confirm)" != "init" ]; then \
+		echo "✗ 出于安全原因，执行 make init 需要显式确认"; \
+		echo "  请使用: make init confirm=init"; \
+		exit 1; \
+	fi
+	@cd $(BACKEND_DIR) && $(MAKE) init confirm=$(confirm)
 
 ## mock: 加载 Mock 演示数据（需先执行 init）
 .PHONY: mock
 mock:
-	@cd $(BACKEND_DIR) && make mock
+	@if [ "$(confirm)" != "mock" ]; then \
+		echo "✗ 出于安全原因，执行 make mock 需要显式确认"; \
+		echo "  请使用: make mock confirm=mock"; \
+		exit 1; \
+	fi
+	@cd $(BACKEND_DIR) && $(MAKE) mock confirm=$(confirm)
 
 ## help: 显示帮助信息
 .PHONY: help
