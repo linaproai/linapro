@@ -1,11 +1,10 @@
 # 项目概述
 
-`Lina`是一个`AI驱动的全栈开发框架`，提供核心宿主服务、默认管理工作台、插件扩展机制与 AI 协作研发工作流。
+`Lina`是一个`AI驱动的全栈开发框架`，提供核心通用宿主服务、默认管理工作台、插件扩展机制与`AI`协作研发工作流。
 
-- **前端**: `Vben5 + Vue 3 + Ant Design Vue + TypeScript（pnpm monorepo）`
+- **前端**: `Vben5 + Vue 3 + Ant Design Vue + TypeScript`
 - **后端**: `GoFrame + MySQL + JWT + Wasm 插件运行时`
 - **研发流程**: `OpenSpec + SDD + AI 辅助协作`
-- **参考项目**: `/Users/john/Workspace/github/imdap/ruoyi-plus-vben5`（默认管理工作台的前端样式和功能交互参考）
 
 ## 默认账号
 
@@ -96,21 +95,21 @@ pnpm report            # 查看 HTML 报告
 
 # 文档编写规范
 
-`README.md`等技术文档编写需遵循规范 @.agents/instructions/markdown-format.instructions.md 。
+`README.md`等技术文档编写需遵循规范`.agents/instructions/markdown-format.instructions.md`。
 
 - 仓库内所有目录级主说明文档统一使用英文 `README.md`，并同步提供内容一致的中文镜像 `README.zh_CN.md`。
-- 新增目录说明文档时，必须在同一次变更中同步创建上述两份 README，不允许只维护单语版本。
+- 新增目录说明文档时，必须在同一次变更中同步创建上述两份`README`，不允许只维护单语版本。
 
 # 开发流程规范
 
 本项目采用`SDD`驱动开发，使用`OpenSpec`工具辅助落地。变更记录存放在 `openspec/changes/` 目录下。每个变更包含：`proposal.md`（提案）、`design.md`（设计）、`specs/`（增量规范）、`tasks.md`（任务清单）。
 
 **执行流程**：
-1. 通过`/opsx:explore`斜杠指令在给定需求描述的前提下进行探索式对话，分析问题、设计方案、评估风险。
-2. 当探索式对话结束，形成清晰的解决方案时，通过`/opsx:propose`斜杠指令将其转化为正式的`OpenSpec`变更提案文档。命令形如`/opsx:propose feature-name`，其中`feature-name`为当前变更的描述性名称（使用`kebab-case`格式，如`user-auth`、`data-export`）。随后会在`openspec/changes`目录下会自动生成一个新的变更文件夹，包含增量规范系列文档(`spec/`)、技术实现方案(`design.md`)、变更提案与思路(`proposal.md`)和实现任务清单(`tasks.md`)。
-3. 随后执行`/opsx:apply`开始按照`tasks.md`中的任务清单逐条执行，完成代码实现、测试、文档更新等工作。任务完成后需要调用`/openspec-review`技能进行代码和规范审查。如果涉及前端页面交互的功能，那么都需要创建`e2e`测试用例，并且在执行过程中自动运行测试用例，确保功能实现的正确性。
+1. 通过`/opsx:explore`斜杠指令`.agents/prompts/opsx/explore.md`在给定需求描述的前提下进行探索式对话，分析问题、设计方案、评估风险。
+2. 当探索式对话结束，形成清晰的解决方案时，通过`/opsx:propose`斜杠指令`.agents/prompts/opsx/propose.md`将其转化为正式的`OpenSpec`变更提案文档。命令形如`/opsx:propose feature-name`，其中`feature-name`为当前变更的描述性名称（使用`kebab-case`格式，如`user-auth`、`data-export`）。随后会在`openspec/changes`目录下会自动生成一个新的变更文件夹，包含增量规范系列文档(`spec/`)、技术实现方案(`design.md`)、变更提案与思路(`proposal.md`)和实现任务清单(`tasks.md`)。
+3. 随后执行`/opsx:apply`斜杠指令`.agents/prompts/opsx/apply.md`开始按照`tasks.md`中的任务清单逐条执行，完成代码实现、测试、文档更新等工作。任务完成后需要调用`/openspec-review`技能进行代码和规范审查。如果涉及前端页面交互的功能，那么都需要创建`e2e`测试用例，并且在执行过程中自动运行测试用例，确保功能实现的正确性。
 4. 用户反馈的问题或者改进点，需要调用`/openspec-feedback`技能进行修复和验证，并更新相关`OpenSpec`文档。任务完成后需要调用`/openspec-review`技能进行审查。
-5. 用户确认本次迭代功能已完成没有问题后，则执行`/opsx:archive`斜杠指令将本次变更归档。归档前需要调用`/openspec-review`技能进行全面的变更审查，确保代码质量和规范遵循。
+5. 用户确认本次迭代功能已完成没有问题后，则执行`/opsx:archive`斜杠指令`.agents/prompts/opsx/archive.md`将本次变更归档。归档前需要调用`/openspec-review`技能进行全面的变更审查，确保代码质量和规范遵循。
 
 **关键规则**：
 - 当用户报告问题缺陷/改进建议时（无论中文或英文），如果当前项目存在活跃的`OpenSpec`变更，那么必须调用`openspec-feedback`技能。**无论反馈内容是否与当前活跃迭代的主要功能相关，都必须追加到当前活跃迭代中**，便于统一管理和归档。
@@ -122,14 +121,14 @@ pnpm report            # 查看 HTML 报告
 
 ### 项目定位统一要求
 
-1. `Lina` 的统一项目定位是`AI驱动的全栈开发框架`。所有前端、后端、配置、脚本输出、OpenAPI 描述、系统信息页和项目文档中的项目介绍，都必须围绕这一定位展开。
+1. `Lina` 的统一项目定位是`AI驱动的全栈开发框架`。所有前端、后端、配置、脚本输出、`OpenAPI`描述、系统信息页和项目文档中的项目介绍，都必须围绕这一定位展开。
 2. 默认管理工作台、系统管理模块、用户权限模块等能力属于 `Lina` 提供的默认入口和内建通用能力，不构成项目的唯一产品边界。
 
 ### 核心宿主边界要求
 
 1. `apps/lina-core` 是全栈开发框架的核心宿主服务，负责提供通用模块接口能力、组件能力、系统治理能力与插件扩展能力。
 2. `lina-core` 的设计必须优先保证通用性、稳定性和可复用性，不得与具体管理工作台页面的展示结构、交互细节或前端框架实现强绑定。
-3. 若需求仅来源于表格列、筛选项、树选择器、路由装配、工作台聚合、下拉选项等工作台展示变化，应优先通过工作台适配接口或前端适配层解决，而不是直接修改 `lina-core` 的核心领域契约、通用 service 语义或存储模型。
+3. 若需求仅来源于表格列、筛选项、树选择器、路由装配、工作台聚合、下拉选项等工作台展示变化，应优先通过工作台适配接口或前端适配层解决，而不是直接修改 `lina-core` 的核心领域契约、通用`service`语义或存储模型。
 
 ## 模块设计规范
 
@@ -372,8 +371,6 @@ dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: id}).Delete()
 - 使用测试工具（如`Playwright`）在涉及创建文件的场景（如截图），应该将创建的文件放置到项目根目录的`temp/`目录下
 
 ## UI设计规范
-
-重要：所有前端`UI`设计和实现必须参考`ruoyi-plus-vben5`项目，保持`UI`的一致性和用户体验的一致性。
 
 在实现任何前端页面或组件时，必须遵循以下规范：
 
