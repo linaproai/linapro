@@ -184,8 +184,12 @@ export class PluginPage {
       .first();
   }
 
+  pluginMainRows(): Locator {
+    return this.page.locator(".vxe-table--main-wrapper .vxe-body--row");
+  }
+
   pluginRow(pluginId: string): Locator {
-    return this.page.locator(".vxe-body--row", { hasText: pluginId }).first();
+    return this.pluginMainRows().filter({ hasText: pluginId }).first();
   }
 
   hostServiceAuthModal(): Locator {
@@ -194,7 +198,9 @@ export class PluginPage {
 
   hostServiceAuthDialog(): Locator {
     return this.page
-      .getByRole("dialog", { name: /安装插件并确认权限|启用插件并确认权限/ })
+      .getByRole("dialog", {
+        name: /安装插件(?:并确认授权)?|启用插件(?:并确认授权)?/,
+      })
       .last();
   }
 
@@ -204,18 +210,6 @@ export class PluginPage {
 
   uninstallPurgeCheckbox(): Locator {
     return this.page.getByTestId("plugin-uninstall-purge-checkbox").last();
-  }
-
-  hostServiceAuthCheckbox(
-    pluginId: string,
-    service: string,
-    resourceRef: string,
-  ): Locator {
-    void pluginId;
-    void service;
-    return this.hostServiceAuthModal()
-      .getByRole("checkbox", { name: resourceRef })
-      .first();
   }
 
   pluginEnabledSwitch(pluginId: string): Locator {
@@ -409,11 +403,12 @@ export class PluginPage {
     const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
     await expect(installButton).toBeVisible();
     await installButton.click();
-    const confirmPopover = this.page.locator(".ant-popover:visible").last();
-    await expect(confirmPopover).toBeVisible();
-    await confirmPopover
+    await expect(this.hostServiceAuthDialog()).toBeVisible();
+    await this.hostServiceAuthDialog()
       .getByRole("button", { name: /确\s*定|确\s*认/i })
+      .last()
       .click();
+    await expect(this.hostServiceAuthDialog()).toHaveCount(0);
     await expect(
       await this.pluginActionButton(pluginId, /卸\s*载/),
     ).toBeVisible();
@@ -423,11 +418,6 @@ export class PluginPage {
     const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
     await expect(installButton).toBeVisible();
     await installButton.click();
-    const confirmPopover = this.page.locator(".ant-popover:visible").last();
-    await expect(confirmPopover).toBeVisible();
-    await confirmPopover
-      .getByRole("button", { name: /确\s*定|确\s*认/i })
-      .click();
     await expect(this.hostServiceAuthModal()).toBeVisible();
   }
 
@@ -588,24 +578,6 @@ export class PluginPage {
     await expect(this.hostServiceAuthModal()).toBeVisible();
   }
 
-  async setHostServiceAuthorization(
-    pluginId: string,
-    service: string,
-    resourceRef: string,
-    checked: boolean,
-  ) {
-    const checkbox = this.hostServiceAuthCheckbox(
-      pluginId,
-      service,
-      resourceRef,
-    );
-    await expect(checkbox).toBeVisible();
-    const isChecked = await checkbox.isChecked();
-    if (isChecked !== checked) {
-      await checkbox.click();
-    }
-  }
-
   async confirmHostServiceAuthorization() {
     await this.hostServiceAuthDialog()
       .getByRole("button", { name: /确\s*认|确\s*定/i })
@@ -618,18 +590,10 @@ export class PluginPage {
     const row = this.pluginRow(pluginId);
     await expect(row, `未找到插件行: ${pluginId}`).toBeVisible();
 
-    const rowIndex = await row.evaluate((element) => {
-      const parent = element.parentElement;
-      if (!parent) {
-        return -1;
-      }
-      return Array.from(parent.children).indexOf(element);
-    });
-
-    expect(rowIndex, `未找到插件行索引: ${pluginId}`).toBeGreaterThanOrEqual(0);
+    const rowID = await row.getAttribute("rowid");
+    expect(rowID, `未找到插件行 rowid: ${pluginId}`).toBeTruthy();
     return this.page
-      .locator(".vxe-table--fixed-right-wrapper .vxe-body--row")
-      .nth(rowIndex)
+      .locator(`.vxe-table--fixed-right-wrapper .vxe-body--row[rowid=\"${rowID}\"]`)
       .getByRole("button", { name })
       .first();
   }

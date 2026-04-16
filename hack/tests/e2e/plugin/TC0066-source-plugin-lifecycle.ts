@@ -412,7 +412,7 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.expectSidebarMenuHidden(pluginMenuName);
   });
 
-  test("TC-66b: 页面安装后进入已安装未启用态且仍不渲染额外 slots", async ({
+  test("TC-66b: 页面安装前先展示源码插件详情，安装后进入已安装未启用态且仍不渲染额外 slots", async ({
     page,
   }) => {
     const summaryBeforeInstall = await fetchPluginSummary(adminApi!);
@@ -424,7 +424,14 @@ test.describe("TC-66 源码插件生命周期", () => {
     await loginAsAdmin(page);
     const pluginPage = new PluginPage(page);
     await pluginPage.gotoManage();
-    await pluginPage.installPlugin(pluginID);
+    await pluginPage.openInstallAuthorization(pluginID);
+    await expect(pluginPage.hostServiceAuthModal()).toContainText(pluginMenuName);
+    await expect(pluginPage.hostServiceAuthModal()).toContainText(pluginID);
+    await expect(pluginPage.hostServiceAuthModal()).toContainText("源码插件");
+    await expect(pluginPage.hostServiceAuthModal()).toContainText(
+      "提供左侧菜单页面与公开/受保护路由示例的源码插件",
+    );
+    await pluginPage.confirmHostServiceAuthorization();
 
     const pluginAfterInstall = await findPlugin(adminApi!);
     expect(pluginAfterInstall, `安装后应发现 ${pluginID}`).toBeTruthy();

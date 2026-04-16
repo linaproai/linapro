@@ -10,23 +10,21 @@ import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import {
-  Alert,
-  Checkbox,
-  Descriptions,
-  DescriptionsItem,
-  Divider,
-  Tag,
-  message,
-} from 'ant-design-vue';
+import { Alert, Descriptions, DescriptionsItem, Tag, message } from 'ant-design-vue';
 
 import { pluginEnable, pluginInstall } from '#/api/system/plugin';
 
 type ReviewMode = 'enable' | 'install';
 
+const hostServiceOrder: Record<string, number> = {
+  data: 0,
+  storage: 1,
+  network: 2,
+  runtime: 3,
+};
+
 const emit = defineEmits<{ reload: [] }>();
 
-const selectedTargets = ref<Record<string, string[]>>({});
 const currentPlugin = ref<SystemPlugin | null>(null);
 const currentMode = ref<ReviewMode>('install');
 
@@ -37,7 +35,16 @@ const [BasicModal, modalApi] = useVbenModal({
 });
 
 const requestedServices = computed<HostServicePermissionItem[]>(() => {
-  return currentPlugin.value?.requestedHostServices ?? [];
+  const items = [...(currentPlugin.value?.requestedHostServices ?? [])];
+  return items.sort((left, right) => {
+    const leftOrder = hostServiceOrder[left.service] ?? Number.MAX_SAFE_INTEGER;
+    const rightOrder =
+      hostServiceOrder[right.service] ?? Number.MAX_SAFE_INTEGER;
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+    return left.service.localeCompare(right.service);
+  });
 });
 
 const authorizationRequired = computed(() => {
@@ -45,9 +52,26 @@ const authorizationRequired = computed(() => {
 });
 
 const currentTitle = computed(() => {
-  return currentMode.value === 'install'
-    ? '安装插件并确认权限'
-    : '启用插件并确认权限';
+  if (currentMode.value === 'install') {
+    return authorizationRequired.value ? '安装插件并确认授权' : '安装插件';
+  }
+  return authorizationRequired.value ? '启用插件并确认授权' : '启用插件';
+});
+
+const currentConfirmText = computed(() => {
+  if (currentMode.value === 'install') {
+    return authorizationRequired.value ? '确认授权并安装' : '确认安装';
+  }
+  return authorizationRequired.value ? '确认授权并启用' : '确认启用';
+});
+
+const currentBannerMessage = computed(() => {
+  if (currentMode.value === 'install') {
+    return authorizationRequired.value
+      ? '请先核对插件详情与宿主服务清单，确认后将默认授权该插件声明的全部服务。'
+      : '请先核对插件详情，确认后开始安装插件。';
+  }
+  return '该插件当前 release 尚未形成最终授权快照；确认后将默认授权该 release 声明的全部服务并继续启用。';
 });
 
 function formatServiceLabel(service: string) {
@@ -70,14 +94,24 @@ function formatServiceLabel(service: string) {
   }
 }
 
-function resolveServiceTargets(service: HostServicePermissionItem) {
+function formatPluginType(type: string) {
+  if (type === 'source') {
+    return '源码插件';
+  }
+  if (type === 'dynamic') {
+    return '动态插件';
+  }
+  return type || '-';
+}
+
+function hasServiceTargets(service: HostServicePermissionItem) {
   if (service.service === 'storage') {
-    return [...(service.paths ?? [])];
+    return (service.paths ?? []).length > 0;
   }
   if (service.service === 'data') {
-    return [...(service.tables ?? [])];
+    return (service.tables ?? []).length > 0;
   }
-  return (service.resources ?? []).map((item) => item.ref);
+  return (service.resources ?? []).length > 0;
 }
 
 function resolveDataTableItems(service: HostServicePermissionItem) {
@@ -91,21 +125,25 @@ function resolveDataTableItems(service: HostServicePermissionItem) {
   );
 }
 
-function resolveDefaultSelections(service: HostServicePermissionItem) {
-  const authorized = currentPlugin.value?.authorizedHostServices?.find(
-    (item) => item.service === service.service,
-  );
-  const requestedTargets = resolveServiceTargets(service);
-  const authorizedTargets =
-    service.service === 'storage'
-      ? [...(authorized?.paths ?? [])]
-      : service.service === 'data'
-        ? [...(authorized?.tables ?? [])]
-        : (authorized?.resources ?? []).map((item) => item.ref);
-  if (currentPlugin.value?.authorizationStatus === 'confirmed') {
-    return authorizedTargets;
+function formatDataTableLabel(table: HostServicePermissionTableItem) {
+  return table.comment ? `${table.name} (${table.comment})` : table.name;
+}
+
+function formatServiceResourceListLabel(service: HostServicePermissionItem) {
+  switch (service.service) {
+    case 'data': {
+      return '数据表列表';
+    }
+    case 'network': {
+      return 'URL 模式列表';
+    }
+    case 'storage': {
+      return '存储目录前缀列表';
+    }
+    default: {
+      return '资源列表';
+    }
   }
-  return requestedTargets;
 }
 
 async function handleOpenChange(open: boolean) {
@@ -115,20 +153,6 @@ async function handleOpenChange(open: boolean) {
   const data = modalApi.getData<{ mode: ReviewMode; row: SystemPlugin }>();
   currentPlugin.value = data?.row ?? null;
   currentMode.value = data?.mode ?? 'install';
-  selectedTargets.value = {};
-
-  for (const service of requestedServices.value) {
-    const hasTargets =
-      service.service === 'storage'
-        ? (service.paths ?? []).length > 0
-        : service.service === 'data'
-          ? (service.tables ?? []).length > 0
-          : (service.resources ?? []).length > 0;
-    if (!hasTargets) {
-      continue;
-    }
-    selectedTargets.value[service.service] = resolveDefaultSelections(service);
-  }
 }
 
 function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
@@ -138,26 +162,20 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
   return {
     authorization: {
       services: requestedServices.value
-        .filter((service) =>
-          service.service === 'storage'
-            ? (service.paths ?? []).length > 0
-            : service.service === 'data'
-              ? (service.tables ?? []).length > 0
-              : (service.resources ?? []).length > 0,
-        )
+        .filter((service) => hasServiceTargets(service))
         .map((service) => ({
           methods: service.methods,
           paths:
             service.service === 'storage'
-              ? [...(selectedTargets.value[service.service] ?? [])]
+              ? [...(service.paths ?? [])]
               : undefined,
           resourceRefs:
             service.service === 'storage' || service.service === 'data'
               ? undefined
-              : [...(selectedTargets.value[service.service] ?? [])],
+              : (service.resources ?? []).map((item) => item.ref),
           tables:
             service.service === 'data'
-              ? [...(selectedTargets.value[service.service] ?? [])]
+              ? [...(service.tables ?? [])]
               : undefined,
           service: service.service,
         })),
@@ -190,7 +208,6 @@ function handleClosed() {
   modalApi.close();
   currentPlugin.value = null;
   currentMode.value = 'install';
-  selectedTargets.value = {};
 }
 </script>
 
@@ -198,7 +215,9 @@ function handleClosed() {
   <BasicModal
     :close-on-click-modal="false"
     :fullscreen-button="false"
+    :confirm-text="currentConfirmText"
     :title="currentTitle"
+    class="w-[860px] max-w-[calc(100vw-32px)]"
   >
     <div
       v-if="currentPlugin"
@@ -206,189 +225,162 @@ function handleClosed() {
       class="flex flex-col gap-4"
     >
       <Alert
-        v-if="authorizationRequired"
         show-icon
-        type="info"
-        message="以下 hostServices 声明属于插件权限申请，安装/启用时需由宿主确认最终授权结果。"
-      />
-      <Alert
-        v-else
-        show-icon
-        type="success"
-        message="当前插件未声明需要额外确认的资源申请，本次仅展示宿主服务概览。"
+        :type="authorizationRequired ? 'info' : 'success'"
+        :message="currentBannerMessage"
       />
 
       <Descriptions bordered size="small" :column="2">
+        <DescriptionsItem label="插件名称">
+          {{ currentPlugin.name || '-' }}
+        </DescriptionsItem>
         <DescriptionsItem label="插件标识">
           {{ currentPlugin.id }}
+        </DescriptionsItem>
+        <DescriptionsItem label="插件类型">
+          {{ formatPluginType(currentPlugin.type) }}
         </DescriptionsItem>
         <DescriptionsItem label="插件版本">
           {{ currentPlugin.version }}
         </DescriptionsItem>
-        <DescriptionsItem label="当前授权状态" :span="2">
-          <Tag
-            :color="
-              currentPlugin.authorizationStatus === 'confirmed'
-                ? 'green'
-                : currentPlugin.authorizationStatus === 'pending'
-                  ? 'gold'
-                  : 'blue'
-            "
-          >
-            {{
-              currentPlugin.authorizationStatus === 'confirmed'
-                ? '已确认'
-                : currentPlugin.authorizationStatus === 'pending'
-                  ? '待确认'
-                  : '无需确认'
-            }}
-          </Tag>
+        <DescriptionsItem label="插件描述" :span="2">
+          {{ currentPlugin.description || '-' }}
         </DescriptionsItem>
       </Descriptions>
 
-      <div
-        v-for="service in requestedServices"
-        :key="service.service"
-        class="rounded-md border border-dashed border-[var(--ant-color-border)] p-4"
-      >
-        <div class="mb-3 flex flex-wrap items-center gap-2">
-          <span class="text-[15px] font-medium">
-            {{ formatServiceLabel(service.service) }}
-          </span>
-          <Tag color="blue">{{ service.service }}</Tag>
-          <Tag v-for="method in service.methods" :key="method">
-            {{ method }}
-          </Tag>
-          <Tag
-            v-if="
-              service.service === 'storage'
-                ? (service.paths ?? []).length === 0
-                : service.service === 'data'
-                  ? (service.tables ?? []).length === 0
-                  : (service.resources ?? []).length === 0
-            "
-            color="success"
-          >
-            无需额外确认
-          </Tag>
+      <template v-if="requestedServices.length > 0">
+        <div class="text-[13px] font-medium text-[var(--ant-color-text)]">
+          {{
+            authorizationRequired
+              ? '宿主服务授权范围'
+              : '宿主服务声明概览'
+          }}
         </div>
 
-        <template
-          v-if="
-            service.service === 'storage' && (service.paths ?? []).length > 0
-          "
+        <div
+          v-for="service in requestedServices"
+          :key="service.service"
+          class="rounded-md border border-[var(--ant-color-border)] p-4"
         >
           <div
-            class="mb-3 text-[13px] text-[var(--ant-color-text-description)]"
+            :class="[
+              'flex flex-wrap items-center gap-2',
+              hasServiceTargets(service) ? 'mb-3' : '',
+            ]"
           >
-            请选择允许该插件访问的逻辑路径或路径前缀。
+            <span class="text-[15px] font-medium">
+              {{ formatServiceLabel(service.service) }}
+            </span>
+            <Tag color="blue">{{ service.service }}</Tag>
+            <Tag v-for="method in service.methods" :key="method">
+              {{ method }}
+            </Tag>
           </div>
-          <Checkbox.Group
-            v-model:value="selectedTargets[service.service]"
-            class="flex w-full flex-col gap-3"
-          >
-            <div
-              v-for="storagePath in service.paths"
-              :key="storagePath"
-              class="rounded-md bg-[var(--ant-color-fill-quaternary)] p-3"
-            >
-              <Checkbox
-                :value="storagePath"
-                :data-testid="`plugin-host-service-auth-checkbox-${currentPlugin.id}-${service.service}-${storagePath}`"
-              >
-                {{ storagePath }}
-              </Checkbox>
-              <div
-                class="mt-2 text-[12px] text-[var(--ant-color-text-description)]"
-              >
-                允许方法: {{ service.methods.join(', ') || '-' }}
-              </div>
-            </div>
-          </Checkbox.Group>
-        </template>
 
-        <template
-          v-else-if="
-            service.service === 'data' && (service.tables ?? []).length > 0
-          "
-        >
-          <div
-            class="mb-3 text-[13px] text-[var(--ant-color-text-description)]"
-          >
-            请选择允许该插件访问的数据表。
-          </div>
-          <Checkbox.Group
-            v-model:value="selectedTargets[service.service]"
-            class="flex w-full flex-col gap-3"
+          <template
+            v-if="
+              service.service === 'storage' && (service.paths ?? []).length > 0
+            "
           >
             <div
-              v-for="table in resolveDataTableItems(service)"
-              :key="table.name"
-              class="rounded-md bg-[var(--ant-color-fill-quaternary)] p-3"
+              class="flex flex-col gap-2"
             >
-              <Checkbox
-                :value="table.name"
-                :data-testid="`plugin-host-service-auth-checkbox-${currentPlugin.id}-${service.service}-${table.name}`"
-              >
-                {{ table.name }}
-              </Checkbox>
               <div
-                class="mt-2 text-[12px] text-[var(--ant-color-text-description)]"
+                class="text-[12px] font-medium text-[var(--ant-color-text-description)]"
               >
-                <div v-if="table.comment">表说明: {{ table.comment }}</div>
-                允许方法: {{ service.methods.join(', ') || '-' }}
+                {{ formatServiceResourceListLabel(service) }}
               </div>
-            </div>
-          </Checkbox.Group>
-        </template>
-
-        <template v-else-if="(service.resources ?? []).length > 0">
-          <div
-            class="mb-3 text-[13px] text-[var(--ant-color-text-description)]"
-          >
-            {{
-              service.service === 'network'
-                ? '请选择允许该插件访问的 URL 模式。'
-                : '请选择允许该插件访问的逻辑资源。'
-            }}
-          </div>
-          <Checkbox.Group
-            v-model:value="selectedTargets[service.service]"
-            class="flex w-full flex-col gap-3"
-          >
-            <div
-              v-for="resource in service.resources"
-              :key="resource.ref"
-              class="rounded-md bg-[var(--ant-color-fill-quaternary)] p-3"
-            >
-              <Checkbox
-                :value="resource.ref"
-                :data-testid="`plugin-host-service-auth-checkbox-${currentPlugin.id}-${service.service}-${resource.ref}`"
+              <ul
+                :data-testid="`plugin-host-service-auth-list-${currentPlugin.id}-${service.service}`"
+                class="m-0 list-disc space-y-2 pl-5"
               >
-                {{ resource.ref }}
-              </Checkbox>
-              <div
-                class="mt-2 grid gap-2 text-[12px] text-[var(--ant-color-text-description)]"
-              >
-                <template v-if="service.service === 'network'">
-                  <div>
-                    该 URL 模式一旦授权，插件即可直接访问命中的 HTTP 地址。
+                <li
+                  v-for="storagePath in service.paths"
+                  :key="storagePath"
+                  class="rounded-md bg-[var(--ant-color-fill-quaternary)] px-3 py-2 marker:text-[var(--ant-color-primary)]"
+                >
+                  <div
+                    :data-testid="`plugin-host-service-auth-item-${currentPlugin.id}-${service.service}-${storagePath}`"
+                    class="break-all text-[14px] text-[var(--ant-color-text)]"
+                  >
+                    {{ storagePath }}
                   </div>
-                </template>
-                <template v-else>
-                  <div>治理目标: {{ resource.ref }}</div>
-                </template>
-              </div>
+                </li>
+              </ul>
             </div>
-          </Checkbox.Group>
-        </template>
-      </div>
+          </template>
 
-      <Divider class="my-0" />
-      <div class="text-[12px] text-[var(--ant-color-text-description)]">
-        未勾选的资源申请将不会进入当前 release
-        的最终授权快照，运行时调用会被宿主拒绝。
-      </div>
+          <template
+            v-else-if="
+              service.service === 'data' && (service.tables ?? []).length > 0
+            "
+          >
+            <div
+              class="flex flex-col gap-2"
+            >
+              <div
+                class="text-[12px] font-medium text-[var(--ant-color-text-description)]"
+              >
+                {{ formatServiceResourceListLabel(service) }}
+              </div>
+              <ul
+                :data-testid="`plugin-host-service-auth-list-${currentPlugin.id}-${service.service}`"
+                class="m-0 list-disc space-y-2 pl-5"
+              >
+                <li
+                  v-for="table in resolveDataTableItems(service)"
+                  :key="table.name"
+                  class="rounded-md bg-[var(--ant-color-fill-quaternary)] px-3 py-2 marker:text-[var(--ant-color-primary)]"
+                >
+                  <div
+                    :data-testid="`plugin-host-service-auth-item-${currentPlugin.id}-${service.service}-${table.name}`"
+                    class="break-all text-[14px] text-[var(--ant-color-text)]"
+                  >
+                    {{ formatDataTableLabel(table) }}
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </template>
+
+          <template v-else-if="(service.resources ?? []).length > 0">
+            <div
+              class="flex flex-col gap-2"
+            >
+              <div
+                class="text-[12px] font-medium text-[var(--ant-color-text-description)]"
+              >
+                {{ formatServiceResourceListLabel(service) }}
+              </div>
+              <ul
+                :data-testid="`plugin-host-service-auth-list-${currentPlugin.id}-${service.service}`"
+                class="m-0 list-disc space-y-2 pl-5"
+              >
+                <li
+                  v-for="resource in service.resources"
+                  :key="resource.ref"
+                  class="rounded-md bg-[var(--ant-color-fill-quaternary)] px-3 py-2 marker:text-[var(--ant-color-primary)]"
+                >
+                  <div
+                    :data-testid="`plugin-host-service-auth-item-${currentPlugin.id}-${service.service}-${resource.ref}`"
+                    class="break-all text-[14px] text-[var(--ant-color-text)]"
+                  >
+                    {{ resource.ref }}
+                  </div>
+                  <div
+                    v-if="service.service !== 'network'"
+                    class="mt-1 text-[12px] text-[var(--ant-color-text-description)]"
+                  >
+                    治理目标: {{ resource.ref }}
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </template>
+
+        </div>
+
+      </template>
     </div>
   </BasicModal>
 </template>

@@ -19,7 +19,9 @@ const mysqlDatabase = process.env.E2E_DB_NAME ?? "lina";
 
 const pluginID = "plugin-dynamic-host-auth-ui";
 const pluginVersion = "v0.1.0";
+const pluginName = "Host Service Authorization Review Plugin";
 const networkURLPattern = "https://*.example.com/api";
+const storagePath = "plugin-demo/records";
 const dataTableName = "sys_plugin_node_state";
 const dataTableComment = "插件节点状态表";
 
@@ -216,6 +218,13 @@ function writeAuthorizationReviewArtifact() {
         {
           methods: ["list", "get"],
           resources: {
+            paths: [storagePath],
+          },
+          service: "storage",
+        },
+        {
+          methods: ["list", "get"],
+          resources: {
             tables: [dataTableName],
           },
           service: "data",
@@ -244,7 +253,7 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     cleanupPluginWorkspace();
   });
 
-  test("TC-73a~c: 安装与启用弹窗展示申请权限并持久化最终授权结果", async ({
+  test("TC-73a~c: 安装弹窗展示插件详情与授权排序，安装时持久化授权结果，后续启用不再重复确认", async ({
     adminPage,
   }) => {
     const pluginPage = new PluginPage(adminPage);
@@ -252,16 +261,97 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await pluginPage.searchByPluginId(pluginID);
 
     await pluginPage.openInstallAuthorization(pluginID);
-    await expect(pluginPage.hostServiceAuthModal()).toContainText("网络服务");
-    await expect(pluginPage.hostServiceAuthModal()).toContainText(networkURLPattern);
-    await expect(pluginPage.hostServiceAuthModal()).toContainText("数据服务");
-    await expect(pluginPage.hostServiceAuthModal()).toContainText(dataTableName);
-    await expect(pluginPage.hostServiceAuthModal()).toContainText(dataTableComment);
-    await pluginPage.setHostServiceAuthorization(
-      pluginID,
-      "network",
-      networkURLPattern,
-      false,
+    const hostServiceAuthModal = pluginPage.hostServiceAuthModal();
+    await expect(hostServiceAuthModal).toContainText(pluginName);
+    await expect(hostServiceAuthModal).toContainText(pluginID);
+    await expect(hostServiceAuthModal).toContainText(pluginVersion);
+    await expect(hostServiceAuthModal).toContainText("动态插件");
+    await expect(hostServiceAuthModal).toContainText("数据服务");
+    await expect(hostServiceAuthModal).toContainText("存储服务");
+    await expect(hostServiceAuthModal).toContainText("网络服务");
+    await expect(hostServiceAuthModal).toContainText("运行时服务");
+    await expect(hostServiceAuthModal).toContainText("数据表列表");
+    await expect(hostServiceAuthModal).toContainText("存储目录前缀列表");
+    await expect(hostServiceAuthModal).toContainText("URL 模式列表");
+    await expect(hostServiceAuthModal).toContainText(storagePath);
+    await expect(hostServiceAuthModal).toContainText(
+      `${dataTableName} (${dataTableComment})`,
+    );
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        `plugin-host-service-auth-list-${pluginID}-storage`,
+      ),
+    ).toBeVisible();
+    expect(
+      await hostServiceAuthModal
+        .getByTestId(`plugin-host-service-auth-list-${pluginID}-storage`)
+        .evaluate((node) => node.tagName),
+    ).toBe("UL");
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        `plugin-host-service-auth-list-${pluginID}-data`,
+      ),
+    ).toBeVisible();
+    expect(
+      await hostServiceAuthModal
+        .getByTestId(`plugin-host-service-auth-list-${pluginID}-data`)
+        .evaluate((node) => node.tagName),
+    ).toBe("UL");
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        `plugin-host-service-auth-list-${pluginID}-network`,
+      ),
+    ).toBeVisible();
+    expect(
+      await hostServiceAuthModal
+        .getByTestId(`plugin-host-service-auth-list-${pluginID}-network`)
+        .evaluate((node) => node.tagName),
+    ).toBe("UL");
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        `plugin-host-service-auth-item-${pluginID}-storage-${storagePath}`,
+      ),
+    ).toBeVisible();
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        `plugin-host-service-auth-item-${pluginID}-data-${dataTableName}`,
+      ),
+    ).toBeVisible();
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        `plugin-host-service-auth-item-${pluginID}-network-${networkURLPattern}`,
+      ),
+    ).toBeVisible();
+    await expect(hostServiceAuthModal.getByRole("checkbox")).toHaveCount(0);
+    await expect(hostServiceAuthModal).not.toContainText(
+      "当前授权状态",
+    );
+    await expect(hostServiceAuthModal).not.toContainText(
+      "未勾选的资源将不会被授权",
+    );
+    await expect(hostServiceAuthModal).not.toContainText(
+      "请选择允许该插件访问",
+    );
+    await expect(hostServiceAuthModal).not.toContainText(
+      "该 URL 模式一旦授权，插件即可直接访问命中的 HTTP 地址。",
+    );
+    await expect(hostServiceAuthModal).not.toContainText(
+      "允许方法:",
+    );
+    await expect(hostServiceAuthModal).not.toContainText("无需额外确认");
+    await expect(hostServiceAuthModal).not.toContainText(
+      "当前服务未声明需要单独勾选的资源，宿主将按服务级方法摘要治理。",
+    );
+    const installModalText = await hostServiceAuthModal.innerText();
+    expect(installModalText.indexOf("数据服务")).toBeGreaterThanOrEqual(0);
+    expect(installModalText.indexOf("数据服务")).toBeLessThan(
+      installModalText.indexOf("存储服务"),
+    );
+    expect(installModalText.indexOf("存储服务")).toBeLessThan(
+      installModalText.indexOf("网络服务"),
+    );
+    expect(installModalText.indexOf("网络服务")).toBeLessThan(
+      installModalText.indexOf("运行时服务"),
     );
     await pluginPage.confirmHostServiceAuthorization();
     await expect
@@ -275,23 +365,18 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       installedPlugin?.authorizedHostServices?.some(
         (service) => service.service === "network",
       ) ?? false,
-    ).toBeFalsy();
+    ).toBeTruthy();
 
     await pluginPage.searchByPluginId(pluginID);
-    await pluginPage.openEnableAuthorization(pluginID);
-    await expect(pluginPage.hostServiceAuthModal()).toContainText("已确认");
-    await expect(pluginPage.hostServiceAuthModal()).toContainText(dataTableComment);
-    await expect(
-      pluginPage.hostServiceAuthCheckbox(pluginID, "network", networkURLPattern),
-    ).not.toBeChecked();
-    await expect(
-      pluginPage.hostServiceAuthCheckbox(pluginID, "data", dataTableName),
-    ).toBeChecked();
-    await pluginPage.confirmHostServiceAuthorization();
-    await expect(pluginPage.pluginEnabledSwitch(pluginID)).toHaveAttribute(
+    const pluginSwitch = pluginPage.pluginEnabledSwitch(pluginID);
+    await expect(pluginSwitch).toHaveAttribute("aria-checked", "false");
+    await pluginSwitch.click();
+    await expect(pluginPage.hostServiceAuthDialog()).toHaveCount(0);
+    await expect(pluginSwitch).toHaveAttribute(
       "aria-checked",
       "true",
     );
+    await expect(adminPage.getByText("插件已启用").last()).toBeVisible();
 
     const enabledPlugin = await findPlugin(adminApi, pluginID);
     expect(enabledPlugin?.enabled).toBe(1);
@@ -299,6 +384,6 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       enabledPlugin?.authorizedHostServices?.some(
         (service) => service.service === "network",
       ) ?? false,
-    ).toBeFalsy();
+    ).toBeTruthy();
   });
 });

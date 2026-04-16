@@ -5,13 +5,12 @@ import { useAccess } from '@vben/access';
 import { Page } from '@vben/common-ui';
 import { useVbenModal } from '@vben/common-ui';
 
-import { message, Popconfirm, Space, Switch, Tag } from 'ant-design-vue';
+import { message, Space, Switch, Tag } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
   pluginDisable,
   pluginEnable,
-  pluginInstall,
   pluginList,
   pluginSync,
 } from '#/api/system/plugin';
@@ -196,7 +195,11 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
     message.warning('当前账号缺少插件状态管理权限');
     return;
   }
-  if (checked && row.authorizationRequired === 1) {
+  if (
+    checked &&
+    row.authorizationRequired === 1 &&
+    row.authorizationStatus !== 'confirmed'
+  ) {
     hostServiceAuthModalApi.setData({ mode: 'enable', row });
     hostServiceAuthModalApi.open();
     return;
@@ -212,17 +215,8 @@ async function handleInstall(row: SystemPlugin) {
     message.warning('当前账号缺少插件安装权限');
     return;
   }
-  if (row.authorizationRequired === 1) {
-    hostServiceAuthModalApi.setData({ mode: 'install', row });
-    hostServiceAuthModalApi.open();
-    return;
-  }
-  await pluginInstall(row.id);
-  row.installed = 1;
-  row.enabled = 0;
-  await notifyPluginRegistryChanged();
-  message.success('插件已安装');
-  await gridApi.query();
+  hostServiceAuthModalApi.setData({ mode: 'install', row });
+  hostServiceAuthModalApi.open();
 }
 
 function handleOpenUninstall(row: SystemPlugin) {
@@ -323,13 +317,12 @@ async function handleUninstallReload() {
 
       <template #action="{ row }">
         <Space>
-          <Popconfirm
+          <ghost-button
             v-if="row.installed !== 1 && canInstallPlugin()"
-            title="确认安装该插件？"
-            @confirm="handleInstall(row)"
+            @click.stop="handleInstall(row)"
           >
-            <ghost-button @click.stop="">安装</ghost-button>
-          </Popconfirm>
+            安装
+          </ghost-button>
           <ghost-button
             v-else-if="canUninstallPlugin()"
             danger

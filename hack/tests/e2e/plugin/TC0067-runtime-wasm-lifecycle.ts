@@ -813,11 +813,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       )
       .toBe(1);
     await page.reload();
-    await pluginPage.openEnableAuthorization(bundledRuntimePluginID);
-    await pluginPage.confirmHostServiceAuthorization();
-    await expect(
-      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
-    ).toHaveAttribute("aria-checked", "true");
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
     await page.reload();
 
     await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
@@ -952,30 +948,12 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await pluginPage.gotoManage();
     await expect(pluginPage.pluginRow(bundledRuntimePluginID)).toBeVisible();
 
-    const confirmBundledRuntimeAuthorization = async (
-      mode: "enable" | "install",
-    ) => {
-      if (mode === "install") {
-        await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
-      } else {
-        await pluginPage.openEnableAuthorization(bundledRuntimePluginID);
-      }
-      await pluginPage.setHostServiceAuthorization(
-        bundledRuntimePluginID,
-        "data",
-        bundledRuntimeRecordTable,
-        true,
-      );
-      await pluginPage.setHostServiceAuthorization(
-        bundledRuntimePluginID,
-        "storage",
-        bundledRuntimeAttachmentPath,
-        true,
-      );
+    const confirmBundledRuntimeInstall = async () => {
+      await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
       await pluginPage.confirmHostServiceAuthorization();
     };
 
-    await confirmBundledRuntimeAuthorization("install");
+    await confirmBundledRuntimeInstall();
     await expect
       .poll(
         async () =>
@@ -983,10 +961,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       )
       .toBe(1);
     await page.reload();
-    await confirmBundledRuntimeAuthorization("enable");
-    await expect(
-      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
-    ).toHaveAttribute("aria-checked", "true");
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
     await page.reload();
 
     await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
@@ -1016,7 +991,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await pluginPage.expectSidebarMenuHidden(bundledRuntimeMenuName);
     expect(bundledRuntimeRecordCountByTitle(updatedRecordTitle)).toBe(1);
 
-    await confirmBundledRuntimeAuthorization("enable");
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
     await page.reload();
     await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
     await expect(
@@ -1028,7 +1003,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     expect(bundledRuntimeRecordCountByTitle(updatedRecordTitle)).toBe(1);
     expect(bundledRuntimeStoredFileCount()).toBeGreaterThan(0);
 
-    await confirmBundledRuntimeAuthorization("install");
+    await confirmBundledRuntimeInstall();
     await expect
       .poll(
         async () =>
@@ -1036,10 +1011,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       )
       .toBe(1);
     await page.reload();
-    await confirmBundledRuntimeAuthorization("enable");
-    await expect(
-      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
-    ).toHaveAttribute("aria-checked", "true");
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
     await page.reload();
     await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
     await expect(
@@ -1063,7 +1035,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     expect(bundledRuntimeRecordTableExists()).toBeFalsy();
     expect(bundledRuntimeStoredFileCount()).toBe(0);
 
-    await confirmBundledRuntimeAuthorization("install");
+    await confirmBundledRuntimeInstall();
     await expect
       .poll(
         async () =>
@@ -1071,10 +1043,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       )
       .toBe(1);
     await page.reload();
-    await confirmBundledRuntimeAuthorization("enable");
-    await expect(
-      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
-    ).toHaveAttribute("aria-checked", "true");
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
     await page.reload();
     await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
     await expect(
