@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Documentation</title>
+  <link rel="stylesheet" href="/stoplight/styles.min.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background-color: #fff; }
+
+    /* 减少侧边栏顶部空白：隐藏标题容器并去除多余间距 */
+    .sl-overflow-y-auto.sl-flex-col.sl-sticky {
+      padding-top: 0 !important;
+    }
+    /* FB-30: 隐藏侧边栏顶部的 API 文档标题容器（如 "Lina Framework API"） */
+    .sl-overflow-y-auto.sl-flex-col.sl-sticky > div.sl-flex.sl-items-center.sl-mb-5 {
+      display: none !important;
+    }
+    /* 去除 Overview 上方的额外间距 */
+    .sl-overflow-y-auto.sl-flex-col.sl-sticky .sl-my-3 {
+      margin-top: 20px !important;
+    }
+
+    /* 减少右侧接口详情顶部间距 */
+    .sl-py-16 {
+      padding-top: 20px !important;
+    }
+
+    /* FB-21: 只有模块名称（sl-pl-4）粗体，接口名称（sl-pl-8）不粗体 */
+    .sl-flex.sl-items-center.sl-h-md.sl-pl-4 > .sl-flex-1.sl-truncate,
+    .sl-flex.sl-items-center.sl-h-md.sl-pl-4 > .sl-flex-1.sl-items-center.sl-truncate {
+      font-weight: 700 !important;
+    }
+    .sl-flex.sl-items-center.sl-h-md.sl-pl-8 > .sl-flex-1.sl-truncate,
+    .sl-flex.sl-items-center.sl-h-md.sl-pl-8 > .sl-flex-1.sl-items-center.sl-truncate {
+      font-weight: 400 !important;
+    }
+
+    /* FB-22: 隐藏 "powered by Stoplight" */
+    a.sl-flex.sl-items-center.sl-px-4.sl-py-3.sl-border-t {
+      display: none !important;
+    }
+
+    /* FB-23: 接口地址背景块宽度与板块一致，GET 左侧、路径右侧 */
+    div[title].sl-inline-flex.sl-font-mono.sl-bg-canvas-50.sl-rounded-lg {
+      display: flex !important;
+      width: 100% !important;
+      justify-content: space-between !important;
+    }
+
+    /* FB-24: SCHEMAS 折叠区域样式 */
+    .schemas-section-header {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .schemas-section-header::before {
+      content: '';
+      display: inline-block;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 5px 0 5px 6px;
+      border-color: transparent transparent transparent currentColor;
+      transition: transform 0.2s;
+    }
+    .schemas-section-header.expanded::before {
+      transform: rotate(90deg);
+    }
+    .schemas-section-collapsed {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    // FB-32: Read JWT token from URL parameter and pre-fill Stoplight Try It auth
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var token = params.get('token');
+      if (token) {
+        localStorage.setItem('TryIt_securitySchemeValues', JSON.stringify({
+          BearerAuth: token
+        }));
+      }
+    })();
+  </script>
+  <elements-api
+    apiDescriptionUrl="/api.json"
+    router="memory"
+    layout="sidebar"
+    tryItCredentialsPolicy="same-origin"
+    hideInternal="true"
+  />
+  <script src="/stoplight/web-components.min.js"></script>
+  <script>
+    // FB-24: 将 SCHEMAS 区域做成可折叠（默认折叠）
+    function setupSchemasCollapse() {
+      var sidebar = document.querySelector('.sl-overflow-y-auto.sl-flex-col.sl-sticky');
+      if (!sidebar) return;
+
+      // 找到 Schemas 标题
+      var headings = sidebar.querySelectorAll('.sl-uppercase.sl-font-bold');
+      var schemasHeading = null;
+      headings.forEach(function(h) {
+        if (h.textContent.trim() === 'Schemas') schemasHeading = h;
+      });
+      if (!schemasHeading || schemasHeading.classList.contains('schemas-section-header')) return;
+
+      schemasHeading.classList.add('schemas-section-header');
+
+      // 收集 Schemas 标题之后的所有 schema 项
+      var schemaItems = [];
+      var sibling = schemasHeading.nextElementSibling;
+      while (sibling) {
+        if (sibling.classList.contains('sl-uppercase') && sibling.classList.contains('sl-font-bold')) break;
+        schemaItems.push(sibling);
+        sibling = sibling.nextElementSibling;
+      }
+
+      // 默认折叠
+      schemaItems.forEach(function(item) {
+        item.classList.add('schemas-section-collapsed');
+      });
+
+      // 点击切换
+      schemasHeading.addEventListener('click', function() {
+        var expanded = schemasHeading.classList.toggle('expanded');
+        schemaItems.forEach(function(item) {
+          if (expanded) {
+            item.classList.remove('schemas-section-collapsed');
+          } else {
+            item.classList.add('schemas-section-collapsed');
+          }
+        });
+      });
+    }
+
+    // 等待 Stoplight Elements 渲染完成后执行
+    var observer = new MutationObserver(function() {
+      var sidebar = document.querySelector('.sl-overflow-y-auto.sl-flex-col.sl-sticky');
+      if (sidebar && sidebar.querySelector('.sl-uppercase')) {
+        setupSchemasCollapse();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  </script>
+</body>
+</html>

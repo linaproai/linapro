@@ -1,0 +1,9 @@
+go 1.25.0
+
+use (
+	./apps/lina-core
+	./apps/lina-plugins
+	./apps/lina-plugins/plugin-demo-source
+	./apps/lina-plugins/plugin-demo-dynamic
+	./hack/build-wasm
+)

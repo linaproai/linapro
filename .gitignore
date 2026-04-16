@@ -1,0 +1,38 @@
+.buildpath
+.hgignore.swp
+.project
+.orig
+.swp
+.idea/
+.settings/
+.vscode/
+**/.DS_Store
+assets/
+.aiprompt.zh.md
+.codex/config.toml
+temp/
+
+
+# Backend
+apps/lina-core/temp/
+apps/lina-core/internal/packed/manifest/**
+!apps/lina-core/internal/packed/manifest/.gitkeep
+
+# Frontend
+**/node_modules/
+**/dist/
+**/dist.zip
+**/.turbo/
+
+# Testing
+.playwright-cli/
+.playwright-mcp/
+playwright-report/
+test-results/
+*.tar.zst
+
+# Build artifacts
+*.exe
+*.test
+*.out
+apps/lina-plugins/*/temp/

@@ -1,0 +1,13 @@
+{
+  "common": {
+    "search": "Search",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "reset": "Reset"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "common": {
+    "search": "搜索",
+    "add": "新增",
+    "edit": "编辑",
+    "delete": "删除",
+    "collapse": "折叠",
+    "expand": "展开",
+    "confirm": "确认",
+    "cancel": "取消",
+    "reset": "重置"
+  }
+}
