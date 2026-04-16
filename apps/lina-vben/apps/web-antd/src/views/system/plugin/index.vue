@@ -165,10 +165,6 @@ function getPluginTypeColor(type: string) {
   return typeColorMap[type === 'source' ? 'source' : 'dynamic'] || 'default';
 }
 
-function isSourcePlugin(row: SystemPlugin) {
-  return row.type === 'source';
-}
-
 function canInstallPlugin() {
   return hasAccessByCodes([pluginAccessCodes.install]);
 }
@@ -221,7 +217,7 @@ async function handleInstall(row: SystemPlugin) {
   row.installed = 1;
   row.enabled = 0;
   await notifyPluginRegistryChanged();
-  message.success('动态插件已安装');
+  message.success('插件已安装');
   await gridApi.query();
 }
 
@@ -234,7 +230,7 @@ async function handleUninstall(row: SystemPlugin) {
   row.installed = 0;
   row.enabled = 0;
   await notifyPluginRegistryChanged();
-  message.success('动态插件已卸载');
+  message.success('插件已卸载');
   await gridApi.query();
 }
 
@@ -321,19 +317,7 @@ async function handleHostServiceAuthReload() {
       </template>
 
       <template #action="{ row }">
-        <Space v-if="isSourcePlugin(row)">
-          <ghost-button
-            v-if="canUninstallPlugin()"
-            :data-testid="`plugin-source-uninstall-disabled-${row.id}`"
-            danger
-            disabled
-            title="源码插件不支持页面动态卸载，如需移除请在源码中取消注册后重新构建宿主。"
-            @click.stop=""
-          >
-            卸载
-          </ghost-button>
-        </Space>
-        <Space v-else>
+        <Space>
           <Popconfirm
             v-if="row.installed !== 1 && canInstallPlugin()"
             title="确认安装该插件？"

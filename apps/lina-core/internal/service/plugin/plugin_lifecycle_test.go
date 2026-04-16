@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/runtime"
@@ -260,5 +262,195 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	}
 	if _, ok := activeManifest.HostCapabilities[pluginbridge.CapabilityHTTPRequest]; ok {
 		t.Fatalf("expected network capability to be removed with rejected authorization")
+	}
+}
+
+func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
+	var (
+		service = newTestService()
+		ctx     = context.Background()
+	)
+
+	const (
+		pluginID = "plugin-source-explicit-lifecycle"
+		menuKey  = "plugin:plugin-source-explicit-lifecycle:entry"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	testutil.WriteTestFile(
+		t,
+		manifestPath,
+		"id: "+pluginID+"\n"+
+			"name: Source Explicit Lifecycle Plugin\n"+
+			"version: v0.1.0\n"+
+			"type: source\n"+
+			"menus:\n"+
+			"  - key: "+menuKey+"\n"+
+			"    name: Source Explicit Lifecycle Plugin\n"+
+			"    path: plugin-source-explicit-lifecycle\n"+
+			"    component: system/plugin/dynamic-page\n"+
+			"    perms: plugin-source-explicit-lifecycle:view\n"+
+			"    icon: ant-design:appstore-outlined\n"+
+			"    type: M\n"+
+			"    sort: -1\n",
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := service.SyncAndList(ctx); err != nil {
+		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatalf("expected source plugin registry row to exist after discovery")
+	}
+	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled {
+		t.Fatalf("expected source plugin to stay uninstalled+disabled after discovery, got installed=%d enabled=%d", registry.Installed, registry.Status)
+	}
+
+	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected source plugin menu query to succeed, got error: %v", err)
+	}
+	if menu != nil {
+		t.Fatalf("expected source plugin menu to remain absent before install")
+	}
+
+	release, err := service.getPluginRelease(ctx, pluginID, "v0.1.0")
+	if err != nil {
+		t.Fatalf("expected source plugin release lookup after discovery to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected source plugin release row after discovery")
+	}
+	if release.Status != catalog.ReleaseStatusUninstalled.String() {
+		t.Fatalf("expected discovered source plugin release to stay uninstalled, got %s", release.Status)
+	}
+
+	if err = service.Install(ctx, pluginID, nil); err != nil {
+		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
+	}
+
+	registry, err = service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup after install to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatalf("expected source plugin registry row after install")
+	}
+	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusDisabled {
+		t.Fatalf("expected source plugin install to yield installed+disabled, got installed=%d enabled=%d", registry.Installed, registry.Status)
+	}
+	if registry.InstalledAt == nil {
+		t.Fatalf("expected source plugin install to record installed_at")
+	}
+
+	menu, err = testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected source plugin menu query after install to succeed, got error: %v", err)
+	}
+	if menu == nil {
+		t.Fatalf("expected source plugin menu to be created on install")
+	}
+
+	release, err = service.getPluginRelease(ctx, pluginID, "v0.1.0")
+	if err != nil {
+		t.Fatalf("expected source plugin release lookup after install to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected source plugin release row after install")
+	}
+	if release.Status != catalog.ReleaseStatusInstalled.String() {
+		t.Fatalf("expected source plugin release to become installed, got %s", release.Status)
+	}
+
+	migrationCount, err := dao.SysPluginMigration.Ctx(ctx).
+		Where(do.SysPluginMigration{
+			PluginId: pluginID,
+			Phase:    catalog.MigrationDirectionInstall.String(),
+		}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected source plugin install migration count query to succeed, got error: %v", err)
+	}
+	if migrationCount != 1 {
+		t.Fatalf("expected one source plugin install migration row, got count=%d", migrationCount)
+	}
+
+	resourceCount, err := dao.SysPluginResourceRef.Ctx(ctx).
+		Where(do.SysPluginResourceRef{PluginId: pluginID, ReleaseId: release.Id}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected source plugin resource ref count query to succeed, got error: %v", err)
+	}
+	if resourceCount == 0 {
+		t.Fatalf("expected source plugin install to materialize governance resource refs")
+	}
+
+	if err = service.Uninstall(ctx, pluginID); err != nil {
+		t.Fatalf("expected source plugin uninstall to succeed, got error: %v", err)
+	}
+
+	registry, err = service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup after uninstall to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatalf("expected source plugin registry row after uninstall")
+	}
+	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled {
+		t.Fatalf("expected source plugin uninstall to yield uninstalled+disabled, got installed=%d enabled=%d", registry.Installed, registry.Status)
+	}
+
+	menu, err = testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected source plugin menu query after uninstall to succeed, got error: %v", err)
+	}
+	if menu != nil {
+		t.Fatalf("expected source plugin menu to be removed on uninstall")
+	}
+
+	release, err = service.getPluginRelease(ctx, pluginID, "v0.1.0")
+	if err != nil {
+		t.Fatalf("expected source plugin release lookup after uninstall to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected source plugin release row after uninstall")
+	}
+	if release.Status != catalog.ReleaseStatusUninstalled.String() {
+		t.Fatalf("expected source plugin release to become uninstalled, got %s", release.Status)
+	}
+
+	resourceCount, err = dao.SysPluginResourceRef.Ctx(ctx).
+		Where(do.SysPluginResourceRef{PluginId: pluginID, ReleaseId: release.Id}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected source plugin resource ref count query after uninstall to succeed, got error: %v", err)
+	}
+	if resourceCount != 0 {
+		t.Fatalf("expected source plugin uninstall to clear governance resource refs, got count=%d", resourceCount)
+	}
+
+	migrationCount, err = dao.SysPluginMigration.Ctx(ctx).
+		Where(do.SysPluginMigration{
+			PluginId: pluginID,
+			Phase:    catalog.MigrationDirectionUninstall.String(),
+		}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected source plugin uninstall migration count query to succeed, got error: %v", err)
+	}
+	if migrationCount != 1 {
+		t.Fatalf("expected one source plugin uninstall migration row, got count=%d", migrationCount)
 	}
 }

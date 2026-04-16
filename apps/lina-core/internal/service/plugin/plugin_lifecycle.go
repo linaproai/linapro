@@ -21,14 +21,24 @@ func (s *serviceImpl) Install(
 	if err != nil {
 		return err
 	}
+	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
+		return s.installSourcePlugin(ctx, manifest)
+	}
 	if err = s.persistDynamicPluginAuthorization(ctx, manifest, authorization); err != nil {
 		return err
 	}
 	return s.lifecycleSvc.Install(ctx, pluginID)
 }
 
-// Uninstall executes the uninstall lifecycle for an installed dynamic plugin.
+// Uninstall executes the uninstall lifecycle for an installed plugin.
 func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string) error {
+	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
+	if err != nil {
+		return err
+	}
+	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
+		return s.uninstallSourcePlugin(ctx, manifest)
+	}
 	return s.lifecycleSvc.Uninstall(ctx, pluginID)
 }
 

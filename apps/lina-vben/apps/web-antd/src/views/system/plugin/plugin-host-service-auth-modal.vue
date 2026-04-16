@@ -174,7 +174,7 @@ async function handleSubmit() {
     const payload = buildAuthorizationPayload();
     if (currentMode.value === 'install') {
       await pluginInstall(currentPlugin.value.id, payload);
-      message.success('动态插件已安装');
+      message.success('插件已安装');
     } else {
       await pluginEnable(currentPlugin.value.id, payload);
       message.success('插件已启用');

@@ -79,6 +79,19 @@ async function syncPlugins(adminApi: APIRequestContext) {
   assertOk(response, "同步源码插件失败");
 }
 
+async function installPlugin(adminApi: APIRequestContext, id = pluginID) {
+  const response = await adminApi.post(`plugins/${id}/install`);
+  assertOk(response, `安装插件失败: ${id}`);
+}
+
+async function installAndEnablePlugin(
+  adminApi: APIRequestContext,
+  id = pluginID,
+) {
+  await installPlugin(adminApi, id);
+  await updatePluginStatus(adminApi, id, true);
+}
+
 async function listPlugins(
   adminApi: APIRequestContext,
 ): Promise<PluginListItem[]> {
@@ -157,6 +170,9 @@ async function updatePluginStatus(
 }
 
 function resetPluginRegistryRow(id: string) {
+  const escapedID = id.replaceAll("'", "''");
+  const menuKeyPattern = `plugin:${escapedID}:%`;
+
   execFileSync(
     mysqlBin,
     [
@@ -164,7 +180,16 @@ function resetPluginRegistryRow(id: string) {
       `-p${mysqlPassword}`,
       mysqlDatabase,
       "-e",
-      `DELETE FROM sys_plugin WHERE plugin_id = '${id.replaceAll("'", "''")}';`,
+      [
+        `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM (SELECT id FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}') AS plugin_menu_ids);`,
+        `DELETE FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}';`,
+        `DELETE FROM sys_plugin_state WHERE plugin_id = '${escapedID}';`,
+        `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
+        `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
+        `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedID}';`,
+        `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedID}';`,
+        `DELETE FROM sys_plugin WHERE plugin_id = '${escapedID}';`,
+      ].join(" "),
     ],
     {
       stdio: "ignore",
@@ -185,47 +210,50 @@ test.describe("TC-66 源码插件生命周期", () => {
     adminApi = await createAdminApiContext();
   });
 
+  test.beforeEach(async () => {
+    resetPluginRegistryRow(pluginID);
+    await syncPlugins(adminApi!);
+  });
+
   test.afterAll(async () => {
+    resetPluginRegistryRow(pluginID);
     if (adminApi) {
       await adminApi.dispose();
     }
   });
 
-  test("TC-66a: 同步 source 插件后自动处于已集成且默认启用态", async ({
-    page,
-  }) => {
-    resetPluginRegistryRow(pluginID);
-    await syncPlugins(adminApi!);
-
+  test("TC-66a: 同步 source 插件后保持未安装且默认禁用态", async ({ page }) => {
     const pluginAfterSync = await findPlugin(adminApi!);
     expect(pluginAfterSync, `同步后应发现 ${pluginID}`).toBeTruthy();
-    expect(pluginAfterSync?.installed, "源码插件同步后应直接处于已集成态").toBe(
-      1,
-    );
+    expect(pluginAfterSync?.installed, "源码插件同步后应保持未安装").toBe(0);
     expect(
       "runtime" in ((pluginAfterSync ?? {}) as Record<string, unknown>),
       "插件列表接口不应再返回重复的 runtime 字段",
     ).toBeFalsy();
     expect(
-      pluginAfterSync?.installedAt,
-      "源码插件同步后应记录接入时间",
-    ).toBeTruthy();
+      pluginAfterSync?.installedAt ?? "",
+      "源码插件同步后不应记录安装时间",
+    ).toBeFalsy();
     expect(
       pluginAfterSync?.enabled ?? pluginAfterSync?.status,
-      "源码插件首次同步后应默认启用",
-    ).toBe(1);
+      "源码插件首次同步后应默认禁用",
+    ).toBe(0);
 
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await expect(loginPage.pluginLoginSlot).toHaveCount(0);
     await loginPage.loginAndWaitForRedirect(config.adminUser, config.adminPass);
+
     const pluginPage = new PluginPage(page);
+    await pluginPage.gotoWorkspace();
+    await pluginPage.expectWorkspaceSlotHidden();
     await pluginPage.gotoManage();
     await expect(pluginPage.pluginRow(pluginID)).toBeVisible();
     await expect(pluginPage.pluginEnabledSwitch(pluginID)).toHaveAttribute(
       "aria-checked",
-      "true",
+      "false",
     );
+    await pluginPage.expectPluginSwitchDisabled(pluginID);
     await pluginPage.expectTableColumnVisible("插件类型");
     await pluginPage.expectTableColumnVisible("安装时间");
     await pluginPage.expectTableColumnHidden("交付方式");
@@ -235,17 +263,64 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.expectTableColumnHidden("治理摘要");
     await pluginPage.expectTableColumnBetween("描述", "版本", "状态");
     await pluginPage.expectDescriptionUsesNativeTooltip(pluginID);
-    await expect(pluginPage.pluginInstallButton(pluginID)).toHaveCount(0);
-    await pluginPage.expectSourcePluginDisabledUninstall(pluginID);
+    await pluginPage.expectInstallActionVisible(pluginID);
+    await pluginPage.expectUninstallActionHidden(pluginID);
     await pluginPage.expectCrudSlotsHidden();
     await pluginPage.expectHeaderSlotsHidden();
+    await pluginPage.expectSidebarMenuHidden(pluginMenuName);
   });
 
-  test("TC-66b: 启用后仅左侧菜单页可正常展示，且不渲染额外 slots", async ({
+  test("TC-66b: 页面安装后进入已安装未启用态且仍不渲染额外 slots", async ({
     page,
   }) => {
-    await syncPlugins(adminApi!);
-    await updatePluginStatus(adminApi!, pluginID, true);
+    const summaryBeforeInstall = await fetchPluginSummary(adminApi!);
+    expect(
+      summaryBeforeInstall.status(),
+      "未安装时源码插件受保护路由应返回 404",
+    ).toBe(404);
+
+    await loginAsAdmin(page);
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await pluginPage.installPlugin(pluginID);
+
+    const pluginAfterInstall = await findPlugin(adminApi!);
+    expect(pluginAfterInstall, `安装后应发现 ${pluginID}`).toBeTruthy();
+    expect(pluginAfterInstall?.installed, "源码插件安装后应处于已安装态").toBe(
+      1,
+    );
+    expect(
+      pluginAfterInstall?.installedAt,
+      "源码插件安装后应记录安装时间",
+    ).toBeTruthy();
+    expect(
+      pluginAfterInstall?.enabled ?? pluginAfterInstall?.status,
+      "源码插件安装后应保持禁用，等待显式启用",
+    ).toBe(0);
+
+    await expect(pluginPage.pluginEnabledSwitch(pluginID)).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await pluginPage.expectInstallActionHidden(pluginID);
+    await pluginPage.expectUninstallActionVisible(pluginID);
+    await pluginPage.expectSidebarMenuHidden(pluginMenuName);
+    await pluginPage.expectHeaderSlotsHidden();
+    await pluginPage.expectCrudSlotsHidden();
+    await pluginPage.gotoWorkspace();
+    await pluginPage.expectWorkspaceSlotHidden();
+
+    const summaryAfterInstall = await fetchPluginSummary(adminApi!);
+    expect(
+      summaryAfterInstall.status(),
+      "已安装但未启用时源码插件受保护路由仍应返回 404",
+    ).toBe(404);
+  });
+
+  test("TC-66c: 启用后仅左侧菜单页可正常展示，且不渲染额外 slots", async ({
+    page,
+  }) => {
+    await installAndEnablePlugin(adminApi!);
 
     const pluginAfterEnable = await findPlugin(adminApi!);
     expect(pluginAfterEnable?.enabled ?? pluginAfterEnable?.status).toBe(1);
@@ -261,9 +336,8 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.openSidebarExampleFromMenu();
   });
 
-  test("TC-66c: 启用后可验证插件路由与鉴权访问控制", async ({ page }) => {
-    await syncPlugins(adminApi!);
-    await updatePluginStatus(adminApi!, pluginID, true);
+  test("TC-66d: 启用后可验证插件路由与鉴权访问控制", async () => {
+    await installAndEnablePlugin(adminApi!);
 
     const anonymousApi = await playwrightRequest.newContext({
       baseURL: apiBaseURL,
@@ -287,12 +361,10 @@ test.describe("TC-66 源码插件生命周期", () => {
       summaryPayload?.message,
       "插件摘要应仅返回页面实际使用的简介文案",
     ).toBe(pluginSummaryMessage);
-
-    await loginAsAdmin(page);
   });
 
-  test("TC-66d: 禁用后不渲染源码样例额外内容且隐藏菜单", async ({ page }) => {
-    await syncPlugins(adminApi!);
+  test("TC-66e: 禁用后不渲染源码样例额外内容且隐藏菜单", async ({ page }) => {
+    await installAndEnablePlugin(adminApi!);
     await updatePluginStatus(adminApi!, pluginID, false);
 
     const summaryResponse = await fetchPluginSummary(adminApi!);
@@ -316,10 +388,8 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.expectSidebarMenuHidden(pluginMenuName);
   });
 
-  test("TC-66e: 禁用后源码插件仍保留已集成态且无需重新安装", async ({
-    page,
-  }) => {
-    await syncPlugins(adminApi!);
+  test("TC-66f: 禁用后源码插件仍保留已安装态并支持卸载", async ({ page }) => {
+    await installAndEnablePlugin(adminApi!);
     await updatePluginStatus(adminApi!, pluginID, false);
 
     const pluginAfterDisable = await findPlugin(adminApi!);
@@ -329,7 +399,7 @@ test.describe("TC-66 源码插件生命周期", () => {
     ).toBeTruthy();
     expect(
       pluginAfterDisable?.installed ?? 0,
-      "源码插件禁用后仍应保持已集成态",
+      "源码插件禁用后仍应保持已安装态",
     ).toBe(1);
 
     await loginAsAdmin(page);
@@ -340,15 +410,14 @@ test.describe("TC-66 源码插件生命周期", () => {
       "aria-checked",
       "false",
     );
-    await expect(pluginPage.pluginInstallButton(pluginID)).toHaveCount(0);
-    await pluginPage.expectSourcePluginDisabledUninstall(pluginID);
+    await pluginPage.expectInstallActionHidden(pluginID);
+    await pluginPage.expectUninstallActionVisible(pluginID);
   });
 
-  test("TC-66f: 登录态在线启用后立即刷新左侧菜单且不渲染额外 slots", async ({
+  test("TC-66g: 登录态在线启用后立即刷新左侧菜单且不渲染额外 slots", async ({
     page,
   }) => {
-    await syncPlugins(adminApi!);
-    await updatePluginStatus(adminApi!, pluginID, false);
+    await installPlugin(adminApi!);
 
     await loginAsAdmin(page);
     const pluginPage = new PluginPage(page);
@@ -366,11 +435,10 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.expectWorkspaceSlotHidden();
   });
 
-  test("TC-66g: 登录态在线禁用后立即隐藏左侧菜单且保持无额外 slots", async ({
+  test("TC-66h: 登录态在线禁用后立即隐藏左侧菜单且保持无额外 slots", async ({
     page,
   }) => {
-    await syncPlugins(adminApi!);
-    await updatePluginStatus(adminApi!, pluginID, true);
+    await installAndEnablePlugin(adminApi!);
 
     await loginAsAdmin(page);
     const pluginPage = new PluginPage(page);
@@ -390,11 +458,10 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.expectWorkspaceSlotHidden();
   });
 
-  test("TC-66h: 当前会话重新获得焦点后自动同步外部插件状态变更", async ({
+  test("TC-66i: 当前会话重新获得焦点后自动同步外部插件状态变更", async ({
     page,
   }) => {
-    await syncPlugins(adminApi!);
-    await updatePluginStatus(adminApi!, pluginID, false);
+    await installPlugin(adminApi!);
 
     await loginAsAdmin(page);
     const pluginPage = new PluginPage(page);
@@ -416,7 +483,52 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.expectWorkspaceSlotHidden();
   });
 
-  test("TC-66i: 按钮权限不会被返回为左侧导航菜单或动态路由", async ({
+  test("TC-66j: 登录态在线卸载后立即回到未安装态并隐藏菜单", async ({
+    page,
+  }) => {
+    await installAndEnablePlugin(adminApi!);
+
+    await loginAsAdmin(page);
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await pluginPage.expectSidebarMenuVisible(pluginMenuName);
+
+    await pluginPage.uninstallPlugin(pluginID);
+
+    const pluginAfterUninstall = await findPlugin(adminApi!);
+    expect(
+      pluginAfterUninstall,
+      `卸载后仍应能看到 ${pluginID} 条目`,
+    ).toBeTruthy();
+    expect(
+      pluginAfterUninstall?.installed ?? 1,
+      "源码插件卸载后应回到未安装态",
+    ).toBe(0);
+    expect(
+      pluginAfterUninstall?.enabled ?? pluginAfterUninstall?.status ?? 1,
+      "源码插件卸载后应保持禁用",
+    ).toBe(0);
+
+    await expect(pluginPage.pluginEnabledSwitch(pluginID)).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await pluginPage.expectPluginSwitchDisabled(pluginID);
+    await pluginPage.expectInstallActionVisible(pluginID);
+    await pluginPage.expectUninstallActionHidden(pluginID);
+    await pluginPage.expectSidebarMenuHidden(pluginMenuName);
+    await pluginPage.expectHeaderSlotsHidden();
+    await pluginPage.expectCrudSlotsHidden();
+    await pluginPage.gotoWorkspace();
+    await pluginPage.expectWorkspaceSlotHidden();
+
+    const summaryResponse = await fetchPluginSummary(adminApi!);
+    expect(summaryResponse.status(), "插件卸载后插件自有路由应返回 404").toBe(
+      404,
+    );
+  });
+
+  test("TC-66k: 按钮权限不会被返回为左侧导航菜单或动态路由", async ({
     page,
   }) => {
     const currentUserMenus = await fetchCurrentUserMenus(adminApi!);
@@ -448,11 +560,10 @@ test.describe("TC-66 源码插件生命周期", () => {
     await pluginPage.expectSidebarMenuHidden("用户查询");
   });
 
-  test("TC-66j: 当前会话重新获得焦点但插件状态未变化时不重复刷新菜单", async ({
+  test("TC-66l: 当前会话重新获得焦点但插件状态未变化时不重复刷新菜单", async ({
     page,
   }) => {
-    await syncPlugins(adminApi!);
-    await updatePluginStatus(adminApi!, pluginID, true);
+    await installAndEnablePlugin(adminApi!);
 
     await loginAsAdmin(page);
     const pluginPage = new PluginPage(page);
@@ -483,11 +594,10 @@ test.describe("TC-66 源码插件生命周期", () => {
     ).toHaveLength(0);
   });
 
-  test("TC-66k: 登录后打开插件管理页时公共插件状态接口不重复重查", async ({
+  test("TC-66m: 登录后打开插件管理页时公共插件状态接口不重复重查", async ({
     page,
   }) => {
-    await syncPlugins(adminApi!);
-    await updatePluginStatus(adminApi!, pluginID, true);
+    await installAndEnablePlugin(adminApi!);
 
     const runtimeStateResponses: string[] = [];
     page.on("response", (response) => {

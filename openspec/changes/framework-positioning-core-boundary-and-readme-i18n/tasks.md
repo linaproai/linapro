@@ -37,3 +37,4 @@
 - [x] **FB-1**: 将宿主数据库初始化 SQL 目录收敛为固定约定 `manifest/sql`，移除 `config.template.yaml` 中的 `init.sqlDir` 显式配置
 - [x] **FB-2**: 修复宿主 `make init` / `make mock` 在重复执行场景下暴露的 SQL 语法与幂等性问题，确保初始化与 Mock 数据加载可稳定回归
 - [x] **FB-3**: 删除宿主 `manifest/sql/009-cleanup-dict-test-data.sql` 这类历史测试污染清理脚本，并同步清理嵌入副本中的陈旧 SQL 文件
+- [x] **FB-5**: 调整源码插件治理语义为默认未安装，并通过插件管理页显式执行安装、启用、卸载与对应生命周期校验

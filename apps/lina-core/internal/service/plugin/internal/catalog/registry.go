@@ -45,9 +45,6 @@ func (s *serviceImpl) ListAllRegistries(ctx context.Context) ([]*entity.SysPlugi
 // then synchronizes the release metadata snapshot and node state record.
 func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*entity.SysPlugin, error) {
 	installedState := InstalledNo
-	if NormalizeType(manifest.Type) == TypeSource {
-		installedState = InstalledYes
-	}
 
 	existing, err := s.GetRegistry(ctx, manifest.ID)
 	if err != nil {
@@ -70,13 +67,6 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 			Checksum:     s.BuildRegistryChecksum(manifest),
 			Remark:       manifest.Description,
 		}
-		if NormalizeType(manifest.Type) == TypeSource {
-			data.Status = StatusEnabled
-			data.DesiredState = HostStateEnabled.String()
-			data.CurrentState = HostStateEnabled.String()
-			data.InstalledAt = gtime.Now()
-			data.EnabledAt = gtime.Now()
-		}
 
 		_, err = dao.SysPlugin.Ctx(ctx).Data(data).Insert()
 		if err != nil {
@@ -85,11 +75,6 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 		registry, err := s.GetRegistry(ctx, manifest.ID)
 		if err != nil {
 			return nil, err
-		}
-		if NormalizeType(manifest.Type) == TypeSource && s.menuSyncer != nil {
-			if err = s.menuSyncer.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
-				return nil, err
-			}
 		}
 		if err = s.syncMetadata(ctx, manifest, registry, PluginNodeStateMessageManifestSynchronized); err != nil {
 			return nil, err
@@ -106,20 +91,21 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 		data.Version = manifest.Version
 		data.ManifestPath = manifest.ManifestPath
 		data.Checksum = s.BuildRegistryChecksum(manifest)
-		data.Installed = installedState
-		data.DesiredState = DeriveHostState(installedState, existing.Status)
-		data.CurrentState = DeriveHostState(installedState, existing.Status)
+		data.Installed = existing.Installed
+		if existing.Installed == InstalledYes {
+			data.Status = existing.Status
+			data.DesiredState = DeriveHostState(existing.Installed, existing.Status)
+			data.CurrentState = DeriveHostState(existing.Installed, existing.Status)
+			if existing.InstalledAt == nil {
+				data.InstalledAt = gtime.Now()
+			}
+		} else {
+			data.Status = StatusDisabled
+			data.DesiredState = DeriveHostState(InstalledNo, StatusDisabled)
+			data.CurrentState = DeriveHostState(InstalledNo, StatusDisabled)
+		}
 		if existing.Generation <= 0 {
 			data.Generation = int64(1)
-		}
-		if existing.InstalledAt == nil {
-			data.InstalledAt = gtime.Now()
-		}
-		if shouldAutoEnableSourcePlugin(existing) {
-			data.Status = StatusEnabled
-			data.DesiredState = HostStateEnabled.String()
-			data.CurrentState = HostStateEnabled.String()
-			data.EnabledAt = gtime.Now()
 		}
 	} else if !ShouldTrackStagedDynamicRelease(existing, manifest) {
 		data.Version = manifest.Version
@@ -151,7 +137,10 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 	if err != nil {
 		return nil, err
 	}
-	if NormalizeType(manifest.Type) == TypeSource && s.menuSyncer != nil {
+	if NormalizeType(manifest.Type) == TypeSource &&
+		registry != nil &&
+		registry.Installed == InstalledYes &&
+		s.menuSyncer != nil {
 		if err = s.menuSyncer.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
 			return nil, err
 		}
@@ -333,7 +322,7 @@ func (s *serviceImpl) syncMetadata(ctx context.Context, manifest *Manifest, regi
 	if err := s.syncReleaseMetadata(ctx, manifest, registry); err != nil {
 		return err
 	}
-	if s.resourceRefSyncer != nil {
+	if registry.Installed == InstalledYes && s.resourceRefSyncer != nil {
 		if err := s.resourceRefSyncer.SyncPluginResourceReferences(ctx, manifest); err != nil {
 			return err
 		}
@@ -342,18 +331,6 @@ func (s *serviceImpl) syncMetadata(ctx context.Context, manifest *Manifest, regi
 		return s.nodeStateSyncer.SyncPluginNodeState(ctx, registry.PluginId, registry.Version, registry.Installed, registry.Status, message)
 	}
 	return nil
-}
-
-// shouldAutoEnableSourcePlugin reports whether a source plugin should be automatically
-// enabled on first discovery (i.e., it has never been manually toggled).
-func shouldAutoEnableSourcePlugin(plugin *entity.SysPlugin) bool {
-	if plugin == nil {
-		return false
-	}
-	if plugin.Status == StatusEnabled {
-		return false
-	}
-	return plugin.EnabledAt == nil && plugin.DisabledAt == nil
 }
 
 func shouldDetachDynamicManifestGovernance(plugin *entity.SysPlugin) bool {

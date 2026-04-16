@@ -111,9 +111,7 @@ export class PluginPage {
   }
 
   dynamicUploadCloseButton(): Locator {
-    return this.dynamicUploadDialog()
-      .locator(".ant-modal-close")
-      .last();
+    return this.dynamicUploadDialog().locator(".ant-modal-close").last();
   }
 
   uploadSuccessDialog(): Locator {
@@ -130,18 +128,6 @@ export class PluginPage {
 
   pluginRow(pluginId: string): Locator {
     return this.page.locator(".vxe-body--row", { hasText: pluginId }).first();
-  }
-
-  pluginInstallButton(pluginId: string): Locator {
-    return this.pluginRow(pluginId)
-      .getByRole("button", { name: /安\s*装/ })
-      .first();
-  }
-
-  pluginUninstallButton(pluginId: string): Locator {
-    return this.pluginRow(pluginId)
-      .getByRole("button", { name: /卸\s*载/ })
-      .first();
   }
 
   hostServiceAuthModal(): Locator {
@@ -164,12 +150,6 @@ export class PluginPage {
     return this.hostServiceAuthModal()
       .getByRole("checkbox", { name: resourceRef })
       .first();
-  }
-
-  pluginSourceDisabledUninstallTrigger(pluginId: string): Locator {
-    return this.page.getByTestId(
-      `plugin-source-uninstall-disabled-${pluginId}`,
-    );
   }
 
   pluginEnabledSwitch(pluginId: string): Locator {
@@ -302,21 +282,23 @@ export class PluginPage {
   }
 
   async installPlugin(pluginId: string) {
-    const row = this.pluginRow(pluginId);
-    await expect(row).toBeVisible();
-    await this.page.getByRole("button", { name: /安\s*装/ }).last().click();
+    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    await expect(installButton).toBeVisible();
+    await installButton.click();
     const confirmPopover = this.page.locator(".ant-popover:visible").last();
     await expect(confirmPopover).toBeVisible();
     await confirmPopover
       .getByRole("button", { name: /确\s*定|确\s*认/i })
       .click();
-    await expect(await this.pluginActionButton(pluginId, /卸\s*载/)).toBeVisible();
+    await expect(
+      await this.pluginActionButton(pluginId, /卸\s*载/),
+    ).toBeVisible();
   }
 
   async openInstallAuthorization(pluginId: string) {
-    const row = this.pluginRow(pluginId);
-    await expect(row).toBeVisible();
-    await this.page.getByRole("button", { name: /安\s*装/ }).last().click();
+    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    await expect(installButton).toBeVisible();
+    await installButton.click();
     const confirmPopover = this.page.locator(".ant-popover:visible").last();
     await expect(confirmPopover).toBeVisible();
     await confirmPopover
@@ -326,15 +308,17 @@ export class PluginPage {
   }
 
   async uninstallPlugin(pluginId: string) {
-    const row = this.pluginRow(pluginId);
-    await expect(row).toBeVisible();
-    await this.page.getByRole("button", { name: /卸\s*载/ }).last().click();
+    const uninstallButton = await this.pluginActionButton(pluginId, /卸\s*载/);
+    await expect(uninstallButton).toBeVisible();
+    await uninstallButton.click();
     const confirmPopover = this.page.locator(".ant-popover:visible").last();
     await expect(confirmPopover).toBeVisible();
     await confirmPopover
       .getByRole("button", { name: /确\s*定|确\s*认/i })
       .click();
-    await expect(await this.pluginActionButton(pluginId, /安\s*装/)).toBeVisible();
+    await expect(
+      await this.pluginActionButton(pluginId, /安\s*装/),
+    ).toBeVisible();
   }
 
   async setPluginEnabled(pluginId: string, enabled: boolean) {
@@ -362,6 +346,36 @@ export class PluginPage {
     }
   }
 
+  async expectInstallActionVisible(pluginId: string) {
+    await expect(
+      await this.pluginActionButton(pluginId, /安\s*装/),
+    ).toBeVisible();
+  }
+
+  async expectInstallActionHidden(pluginId: string) {
+    await expect(
+      await this.pluginActionButton(pluginId, /安\s*装/),
+    ).toHaveCount(0);
+  }
+
+  async expectUninstallActionVisible(pluginId: string) {
+    await expect(
+      await this.pluginActionButton(pluginId, /卸\s*载/),
+    ).toBeVisible();
+  }
+
+  async expectUninstallActionHidden(pluginId: string) {
+    await expect(
+      await this.pluginActionButton(pluginId, /卸\s*载/),
+    ).toHaveCount(0);
+  }
+
+  async expectPluginSwitchDisabled(pluginId: string) {
+    await expect(this.pluginEnabledSwitch(pluginId)).toHaveClass(
+      /ant-switch-disabled/,
+    );
+  }
+
   async openEnableAuthorization(pluginId: string) {
     const switcher = this.pluginEnabledSwitch(pluginId);
     await expect(switcher).toBeVisible();
@@ -375,7 +389,11 @@ export class PluginPage {
     resourceRef: string,
     checked: boolean,
   ) {
-    const checkbox = this.hostServiceAuthCheckbox(pluginId, service, resourceRef);
+    const checkbox = this.hostServiceAuthCheckbox(
+      pluginId,
+      service,
+      resourceRef,
+    );
     await expect(checkbox).toBeVisible();
     const isChecked = await checkbox.isChecked();
     if (isChecked !== checked) {
@@ -392,20 +410,18 @@ export class PluginPage {
   }
 
   private async pluginActionButton(pluginId: string, name: RegExp) {
-    const rows = this.page.locator(".vxe-table--main-wrapper .vxe-body--row");
-    const rowCount = await rows.count();
-    let rowIndex = -1;
+    const row = this.pluginRow(pluginId);
+    await expect(row, `未找到插件行: ${pluginId}`).toBeVisible();
 
-    for (let index = 0; index < rowCount; index++) {
-      const row = rows.nth(index);
-      const text = (await row.textContent()) ?? "";
-      if (text.includes(pluginId)) {
-        rowIndex = index;
-        break;
+    const rowIndex = await row.evaluate((element) => {
+      const parent = element.parentElement;
+      if (!parent) {
+        return -1;
       }
-    }
+      return Array.from(parent.children).indexOf(element);
+    });
 
-    expect(rowIndex, `未找到插件行: ${pluginId}`).toBeGreaterThanOrEqual(0);
+    expect(rowIndex, `未找到插件行索引: ${pluginId}`).toBeGreaterThanOrEqual(0);
     return this.page
       .locator(".vxe-table--fixed-right-wrapper .vxe-body--row")
       .nth(rowIndex)
@@ -516,40 +532,6 @@ export class PluginPage {
         ).length;
       }, descriptionText);
     expect(delayedTitleCount, "描述列应只保留单一系统默认提示来源").toBe(1);
-  }
-
-  async expectSourcePluginDisabledUninstall(pluginId: string) {
-    const uninstallButton = this.pluginSourceDisabledUninstallTrigger(pluginId);
-    const tooltipText =
-      "源码插件不支持页面动态卸载，如需移除请在源码中取消注册后重新构建宿主。";
-
-    const hasVisibleDisabledButton = await uninstallButton.evaluateAll(
-      (elements, expectedTitle) => {
-        return elements.some((element) => {
-          if (!(element instanceof HTMLButtonElement)) {
-            return false;
-          }
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          const isVisible =
-            style.display !== "none" &&
-            style.visibility !== "hidden" &&
-            rect.width > 0 &&
-            rect.height > 0;
-          return (
-            isVisible &&
-            element.disabled &&
-            element.getAttribute("title") === expectedTitle
-          );
-        });
-      },
-      tooltipText,
-    );
-
-    expect(
-      hasVisibleDisabledButton,
-      "源码插件应显示一个可见的灰态卸载按钮，并携带动态卸载提示",
-    ).toBeTruthy();
   }
 
   async openSidebarExampleFromMenu() {

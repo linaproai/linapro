@@ -81,15 +81,27 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	})
 
 	if _, err := services.Catalog.SyncManifest(ctx, manifest); err != nil {
-		t.Fatalf("expected source plugin menu sync to succeed, got error: %v", err)
+		t.Fatalf("expected source plugin manifest sync to succeed, got error: %v", err)
 	}
 
 	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
 	if err != nil {
 		t.Fatalf("expected plugin menu query to succeed, got error: %v", err)
 	}
+	if menu != nil {
+		t.Fatalf("expected source plugin menu %s to stay absent before explicit install", menuKey)
+	}
+
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
+		t.Fatalf("expected explicit source plugin menu sync to succeed, got error: %v", err)
+	}
+
+	menu, err = testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected plugin menu query after explicit sync to succeed, got error: %v", err)
+	}
 	if menu == nil {
-		t.Fatalf("expected source plugin menu %s to be created", menuKey)
+		t.Fatalf("expected source plugin menu %s to be created after explicit sync", menuKey)
 	}
 	if menu.Path != "plugin-source-menu-sync" {
 		t.Fatalf("expected source plugin menu path to be synced, got %s", menu.Path)
@@ -117,7 +129,7 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	if err := services.Catalog.ValidateManifest(manifest, manifestPath); err != nil {
 		t.Fatalf("expected source plugin manifest without menus to stay valid, got error: %v", err)
 	}
-	if _, err := services.Catalog.SyncManifest(ctx, manifest); err != nil {
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
 		t.Fatalf("expected source plugin stale menu cleanup to succeed, got error: %v", err)
 	}
 
