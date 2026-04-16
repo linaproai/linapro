@@ -11,7 +11,7 @@ import (
 
 // ControllerV1 is the plugin-demo-source controller.
 type ControllerV1 struct {
-	demoSvc *demosvc.Service // demo service
+	demoSvc demosvc.Service // demo service
 }
 
 // NewV1 creates and returns a new plugin-demo-source controller instance.

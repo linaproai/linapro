@@ -1,3 +1,4 @@
+// demo_ping.go implements the public ping behavior for the demo service.
 package demo
 
 import "context"
@@ -11,7 +12,7 @@ type PingOutput struct {
 }
 
 // Ping returns one public plugin ping payload.
-func (s *Service) Ping(ctx context.Context) (out *PingOutput, err error) {
+func (s *serviceImpl) Ping(_ context.Context) (out *PingOutput, err error) {
 	return &PingOutput{
 		Message: pingMessage,
 	}, nil

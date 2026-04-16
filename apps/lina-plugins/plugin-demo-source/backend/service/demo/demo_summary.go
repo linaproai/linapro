@@ -1,3 +1,4 @@
+// demo_summary.go implements the summary payload for the demo service.
 package demo
 
 import (
@@ -13,7 +14,7 @@ type SummaryOutput struct {
 }
 
 // Summary returns one concise plugin summary payload.
-func (s *Service) Summary(ctx context.Context) (out *SummaryOutput, err error) {
+func (s *serviceImpl) Summary(_ context.Context) (out *SummaryOutput, err error) {
 	return &SummaryOutput{
 		Message: summaryMessage,
 	}, nil
