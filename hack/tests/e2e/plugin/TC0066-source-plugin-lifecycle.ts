@@ -1,4 +1,13 @@
 import { execFileSync } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import path from "node:path";
 import type { APIRequestContext, APIResponse, Page } from "@playwright/test";
 
 import { request as playwrightRequest } from "@playwright/test";
@@ -18,6 +27,22 @@ const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
 const mysqlUser = process.env.E2E_DB_USER ?? "root";
 const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
 const mysqlDatabase = process.env.E2E_DB_NAME ?? "lina";
+const pluginRecordSeedTitle = "源码插件 SQL 示例记录";
+const pluginRecordTableName = "plugin_demo_source_record";
+const repoRoot = path.resolve(process.cwd(), "../..");
+const pluginDemoSourceStorageRoot = path.resolve(
+  repoRoot,
+  "apps/lina-core/temp/upload/plugin-demo-source",
+);
+const pluginDemoSourceFixturePath = path.resolve(
+  repoRoot,
+  "temp/TC0066-plugin-demo-source-note.txt",
+);
+const pluginDemoSourceFixtureContent = "TC0066 plugin demo source attachment";
+const pluginDemoSourceDownloadPath = path.resolve(
+  repoRoot,
+  "temp/TC0066-plugin-demo-source-download.txt",
+);
 
 type PluginListItem = {
   id: string;
@@ -127,6 +152,39 @@ async function fetchPluginPing(apiContext: APIRequestContext) {
   return await apiContext.get(`plugins/${pluginID}/ping`);
 }
 
+async function listDemoRecords(adminApi: APIRequestContext) {
+  const response = await adminApi.get(`plugins/${pluginID}/records`);
+  assertOk(response, "查询源码插件示例记录失败");
+  const payload = unwrapApiData(await response.json());
+  return payload?.list ?? [];
+}
+
+async function createDemoRecord(
+  adminApi: APIRequestContext,
+  title: string,
+  content: string,
+  filePath?: string,
+) {
+  const multipart: Record<string, any> = {
+    title,
+    content,
+  };
+  if (filePath) {
+    multipart.file = {
+      buffer: readFileSync(filePath),
+      mimeType: "text/plain",
+      name: path.basename(filePath),
+    };
+  }
+  const response = await adminApi.post(`plugins/${pluginID}/records`, {
+    multipart,
+  });
+  assertOk(response, `创建源码插件示例记录失败: ${title}`);
+  const payload = unwrapApiData(await response.json());
+  expect(payload?.id, "创建源码插件示例记录成功后应返回记录ID").toBeTruthy();
+  return payload.id as number;
+}
+
 function hasMenuName(list: UserMenuNode[], name: string): boolean {
   return list.some((item) => {
     if (item.name === name) {
@@ -197,6 +255,85 @@ function resetPluginRegistryRow(id: string) {
   );
 }
 
+function resetPluginDemoSourceData() {
+  if (pluginDemoSourceTableExists()) {
+    execFileSync(
+      mysqlBin,
+      [
+        `-u${mysqlUser}`,
+        `-p${mysqlPassword}`,
+        mysqlDatabase,
+        "-e",
+        `DROP TABLE IF EXISTS \`${pluginRecordTableName}\`;`,
+      ],
+      {
+        stdio: "ignore",
+      },
+    );
+  }
+  rmSync(pluginDemoSourceStorageRoot, { force: true, recursive: true });
+  rmSync(pluginDemoSourceDownloadPath, { force: true });
+}
+
+function queryMysqlLines(sql: string) {
+  const output = execFileSync(
+    mysqlBin,
+    [
+      `-u${mysqlUser}`,
+      `-p${mysqlPassword}`,
+      "-N",
+      "-B",
+      mysqlDatabase,
+      "-e",
+      sql,
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function pluginDemoSourceTableExists() {
+  const escapedDatabase = mysqlDatabase.replaceAll("'", "''");
+  const lines = queryMysqlLines(
+    `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${escapedDatabase}' AND table_name = '${pluginRecordTableName}';`,
+  );
+  return lines[0] === "1";
+}
+
+function listPluginDemoSourceRecordTitles() {
+  if (!pluginDemoSourceTableExists()) {
+    return [];
+  }
+  return queryMysqlLines(
+    `SELECT title FROM \`${pluginRecordTableName}\` ORDER BY id ASC;`,
+  );
+}
+
+function hasPluginDemoSourceStoredFiles() {
+  return directoryContainsFiles(pluginDemoSourceStorageRoot);
+}
+
+function directoryContainsFiles(dirPath: string): boolean {
+  if (!existsSync(dirPath)) {
+    return false;
+  }
+  for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isFile()) {
+      return true;
+    }
+    if (entry.isDirectory() && directoryContainsFiles(fullPath)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function loginAsAdmin(page: Page) {
   const loginPage = new LoginPage(page);
   await loginPage.goto();
@@ -207,16 +344,21 @@ test.describe("TC-66 源码插件生命周期", () => {
   let adminApi: APIRequestContext | null = null;
 
   test.beforeAll(async () => {
+    mkdirSync(path.dirname(pluginDemoSourceFixturePath), { recursive: true });
+    writeFileSync(pluginDemoSourceFixturePath, pluginDemoSourceFixtureContent);
     adminApi = await createAdminApiContext();
   });
 
   test.beforeEach(async () => {
+    resetPluginDemoSourceData();
     resetPluginRegistryRow(pluginID);
     await syncPlugins(adminApi!);
   });
 
   test.afterAll(async () => {
+    resetPluginDemoSourceData();
     resetPluginRegistryRow(pluginID);
+    rmSync(pluginDemoSourceFixturePath, { force: true });
     if (adminApi) {
       await adminApi.dispose();
     }
@@ -619,5 +761,192 @@ test.describe("TC-66 源码插件生命周期", () => {
       runtimeStateResponses.length,
       "登录并打开插件管理页时，公共插件状态接口不应重复触发多次",
     ).toBeLessThanOrEqual(2);
+  });
+
+  test("TC-66n: 示例页面可对插件安装 SQL 创建的数据表执行增删改查并下载附件", async ({
+    page,
+  }) => {
+    const createdTitle = "TC0066-UI-新增记录";
+    const updatedTitle = "TC0066-UI-编辑后记录";
+
+    await installAndEnablePlugin(adminApi!);
+
+    const pluginPage = new PluginPage(page);
+    await loginAsAdmin(page);
+    await pluginPage.gotoManage();
+    await pluginPage.openSidebarExampleFromMenu();
+    await expect(
+      pluginPage.pluginSourceRecordRow(pluginRecordSeedTitle),
+    ).toBeVisible();
+
+    await pluginPage.createSourceDemoRecord(
+      createdTitle,
+      "TC0066 通过页面新增一条示例记录",
+      pluginDemoSourceFixturePath,
+    );
+
+    const recordsAfterCreate = await listDemoRecords(adminApi!);
+    expect(
+      recordsAfterCreate.map((item: { title: string }) => item.title),
+      "插件示例页面新增后应能从接口查询到对应记录",
+    ).toContain(createdTitle);
+
+    const download = await pluginPage.downloadSourceDemoAttachment(
+      path.basename(pluginDemoSourceFixturePath),
+    );
+    await download.saveAs(pluginDemoSourceDownloadPath);
+    expect(download.suggestedFilename(), "附件下载应保留原始文件名").toBe(
+      path.basename(pluginDemoSourceFixturePath),
+    );
+    expect(
+      readFileSync(pluginDemoSourceDownloadPath, "utf8"),
+      "下载后的附件内容应与上传文件一致",
+    ).toContain(pluginDemoSourceFixtureContent);
+
+    await pluginPage.editSourceDemoRecord(
+      createdTitle,
+      updatedTitle,
+      "TC0066 更新后的记录内容",
+    );
+    await expect(pluginPage.pluginSourceRecordRow(createdTitle)).toHaveCount(0);
+
+    await pluginPage.deleteSourceDemoRecord(updatedTitle);
+
+    const remainingTitles = (await listDemoRecords(adminApi!)).map(
+      (item: { title: string }) => item.title,
+    );
+    expect(remainingTitles).toContain(pluginRecordSeedTitle);
+    expect(remainingTitles).not.toContain(updatedTitle);
+    expect(
+      hasPluginDemoSourceStoredFiles(),
+      "删除带附件记录后应同步清理插件自有存储文件",
+    ).toBeFalsy();
+  });
+
+  test("TC-66o: 禁用源码插件后插件示例数据表记录和存储文件仍然保留", async ({
+    page,
+  }) => {
+    const customTitle = "TC0066-禁用后保留记录";
+
+    await installAndEnablePlugin(adminApi!);
+    await createDemoRecord(
+      adminApi!,
+      customTitle,
+      "禁用插件后该记录仍应保留",
+      pluginDemoSourceFixturePath,
+    );
+
+    expect(
+      pluginDemoSourceTableExists(),
+      "安装并写入后插件示例表应存在",
+    ).toBeTruthy();
+    expect(
+      hasPluginDemoSourceStoredFiles(),
+      "安装并上传附件后应存在插件自有文件",
+    ).toBeTruthy();
+
+    await loginAsAdmin(page);
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await pluginPage.setPluginEnabled(pluginID, false);
+
+    const pluginAfterDisable = await findPlugin(adminApi!);
+    expect(pluginAfterDisable?.installed ?? 0).toBe(1);
+    expect(pluginAfterDisable?.enabled ?? pluginAfterDisable?.status ?? 1).toBe(
+      0,
+    );
+    expect(
+      listPluginDemoSourceRecordTitles(),
+      "源码插件禁用后插件示例表数据应被保留",
+    ).toEqual(expect.arrayContaining([pluginRecordSeedTitle, customTitle]));
+    expect(
+      hasPluginDemoSourceStoredFiles(),
+      "源码插件禁用后插件自有存储文件应被保留",
+    ).toBeTruthy();
+  });
+
+  test("TC-66p: 卸载时不勾选清理存储数据会保留表数据和文件，并在重装后恢复展示", async ({
+    page,
+  }) => {
+    const customTitle = "TC0066-卸载保留记录";
+
+    await installAndEnablePlugin(adminApi!);
+    await createDemoRecord(
+      adminApi!,
+      customTitle,
+      "卸载时取消清理选项后应保留该记录",
+      pluginDemoSourceFixturePath,
+    );
+
+    await loginAsAdmin(page);
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await pluginPage.uninstallPluginWithOptions(pluginID, false);
+
+    expect(
+      pluginDemoSourceTableExists(),
+      "卸载时不清理存储数据应保留插件示例表",
+    ).toBeTruthy();
+    expect(
+      listPluginDemoSourceRecordTitles(),
+      "卸载时不清理存储数据应保留插件示例表中的业务记录",
+    ).toEqual(expect.arrayContaining([pluginRecordSeedTitle, customTitle]));
+    expect(
+      hasPluginDemoSourceStoredFiles(),
+      "卸载时不清理存储数据应保留插件自有存储文件",
+    ).toBeTruthy();
+
+    await pluginPage.installPlugin(pluginID);
+    await pluginPage.setPluginEnabled(pluginID, true);
+    await pluginPage.openSidebarExampleFromMenu();
+    await expect(
+      pluginPage.pluginSourceRecordRow(pluginRecordSeedTitle),
+    ).toBeVisible();
+    await expect(pluginPage.pluginSourceRecordRow(customTitle)).toBeVisible();
+  });
+
+  test("TC-66q: 卸载时勾选清理存储数据会删除表和文件，重装后仅恢复安装 SQL 初始数据", async ({
+    page,
+  }) => {
+    const customTitle = "TC0066-卸载清理记录";
+
+    await installAndEnablePlugin(adminApi!);
+    await createDemoRecord(
+      adminApi!,
+      customTitle,
+      "卸载时勾选清理选项后应删除该记录",
+      pluginDemoSourceFixturePath,
+    );
+
+    await loginAsAdmin(page);
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await pluginPage.uninstallPluginWithOptions(pluginID, true);
+
+    expect(
+      pluginDemoSourceTableExists(),
+      "卸载时勾选清理存储数据后应删除插件示例表",
+    ).toBeFalsy();
+    expect(
+      hasPluginDemoSourceStoredFiles(),
+      "卸载时勾选清理存储数据后应删除插件自有存储文件",
+    ).toBeFalsy();
+
+    await pluginPage.installPlugin(pluginID);
+    await pluginPage.setPluginEnabled(pluginID, true);
+    await pluginPage.openSidebarExampleFromMenu();
+
+    expect(
+      listPluginDemoSourceRecordTitles(),
+      "重新安装后只应恢复安装 SQL 初始化的种子记录",
+    ).toEqual([pluginRecordSeedTitle]);
+    expect(
+      hasPluginDemoSourceStoredFiles(),
+      "重新安装后在未重新上传附件前不应残留旧插件文件",
+    ).toBeFalsy();
+    await expect(
+      pluginPage.pluginSourceRecordRow(pluginRecordSeedTitle),
+    ).toBeVisible();
+    await expect(pluginPage.pluginSourceRecordRow(customTitle)).toHaveCount(0);
   });
 });

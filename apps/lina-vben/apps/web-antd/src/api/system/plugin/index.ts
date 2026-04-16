@@ -72,6 +72,13 @@ export function pluginDisable(pluginId: string) {
 }
 
 /** 卸载插件 */
-export function pluginUninstall(pluginId: string) {
-  return requestClient.delete(`/plugins/${pluginId}`);
+export function pluginUninstall(pluginId: string, purgeStorageData?: boolean) {
+  return requestClient.delete(`/plugins/${pluginId}`, {
+    params:
+      typeof purgeStorageData === 'boolean'
+        ? {
+            purgeStorageData: purgeStorageData ? 1 : 0,
+          }
+        : undefined,
+  });
 }

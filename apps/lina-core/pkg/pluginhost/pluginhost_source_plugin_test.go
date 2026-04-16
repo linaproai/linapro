@@ -47,6 +47,7 @@ func TestExtensionPointExecutionModes(t *testing.T) {
 func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 	assertInterfaceType(t, (*HookPayload)(nil), "HookPayload")
 	assertInterfaceType(t, (*AfterAuthInput)(nil), "AfterAuthInput")
+	assertInterfaceType(t, (*SourcePluginUninstallInput)(nil), "SourcePluginUninstallInput")
 	assertInterfaceType(t, (*RouteRegistrar)(nil), "RouteRegistrar")
 	assertInterfaceType(t, (*CronRegistrar)(nil), "CronRegistrar")
 	assertInterfaceType(t, (*MenuDescriptor)(nil), "MenuDescriptor")
@@ -139,6 +140,33 @@ func TestHookPayloadHelpersBuildPublishedKeys(t *testing.T) {
 	}
 	if HookPayloadStringValue(authValues, HookPayloadKeyClientType) != "web" {
 		t.Fatalf("expected auth payload clientType to be published")
+	}
+}
+
+func TestRegisterUninstallHandlerPublishesPolicySnapshot(t *testing.T) {
+	plugin := NewSourcePlugin("test-plugin-uninstall")
+	called := false
+
+	plugin.RegisterUninstallHandler(func(ctx context.Context, input SourcePluginUninstallInput) error {
+		called = true
+		if input.PluginID() != "test-plugin-uninstall" {
+			t.Fatalf("expected plugin id to be published, got %s", input.PluginID())
+		}
+		if !input.PurgeStorageData() {
+			t.Fatalf("expected purgeStorageData to be true")
+		}
+		return nil
+	})
+
+	handler := plugin.GetUninstallHandler()
+	if handler == nil {
+		t.Fatalf("expected uninstall handler to be registered")
+	}
+	if err := handler(context.Background(), NewSourcePluginUninstallInput("test-plugin-uninstall", true)); err != nil {
+		t.Fatalf("expected uninstall handler to execute without error, got %v", err)
+	}
+	if !called {
+		t.Fatalf("expected uninstall handler to be called")
 	}
 }
 

@@ -16,6 +16,7 @@ type SourcePlugin struct {
 	ID string
 
 	embeddedFiles     fs.FS
+	uninstallHandler  SourcePluginUninstallHandler
 	hookHandlers      []*HookHandlerRegistration
 	routeRegistrars   []*RouteHandlerRegistration
 	afterAuthHandlers []*AfterAuthHandlerRegistration
@@ -126,8 +127,25 @@ type afterAuthInput struct {
 	status   int
 }
 
+// SourcePluginUninstallInput exposes one host-confirmed uninstall policy snapshot to a source plugin.
+type SourcePluginUninstallInput interface {
+	// PluginID returns the source-plugin identifier being uninstalled.
+	PluginID() string
+	// PurgeStorageData reports whether the host expects the plugin to clear its
+	// own business data and stored files during uninstall.
+	PurgeStorageData() bool
+}
+
+type sourcePluginUninstallInput struct {
+	pluginID         string
+	purgeStorageData bool
+}
+
 // AfterAuthHandler defines one callback invoked after host authentication succeeds.
 type AfterAuthHandler func(ctx context.Context, input AfterAuthInput) error
+
+// SourcePluginUninstallHandler defines one callback invoked before the host executes source-plugin uninstall SQL.
+type SourcePluginUninstallHandler func(ctx context.Context, input SourcePluginUninstallInput) error
 
 // RouteRegisterHandler defines one callback that registers plugin-owned HTTP routes.
 type RouteRegisterHandler func(ctx context.Context, registrar RouteRegistrar) error
@@ -282,6 +300,28 @@ func NewPermissionDescriptor(menuKey string, menuName string, permission string)
 		menuName:   menuName,
 		permission: permission,
 	}
+}
+
+// NewSourcePluginUninstallInput creates one published source-plugin uninstall input wrapper.
+func NewSourcePluginUninstallInput(
+	pluginID string,
+	purgeStorageData bool,
+) SourcePluginUninstallInput {
+	return &sourcePluginUninstallInput{
+		pluginID:         pluginID,
+		purgeStorageData: purgeStorageData,
+	}
+}
+
+// RegisterUninstallHandler registers one source-plugin uninstall cleanup callback.
+func (p *SourcePlugin) RegisterUninstallHandler(handler SourcePluginUninstallHandler) {
+	if p == nil {
+		panic("pluginhost: source plugin is nil")
+	}
+	if handler == nil {
+		panic("pluginhost: uninstall handler is nil")
+	}
+	p.uninstallHandler = handler
 }
 
 // RegisterHook registers one callback-style host hook handler.
@@ -469,6 +509,14 @@ func (p *SourcePlugin) GetPermissionFilters() []*PermissionFilterHandlerRegistra
 	return items
 }
 
+// GetUninstallHandler returns the registered source-plugin uninstall cleanup callback.
+func (p *SourcePlugin) GetUninstallHandler() SourcePluginUninstallHandler {
+	if p == nil {
+		return nil
+	}
+	return p.uninstallHandler
+}
+
 func (p *hookPayload) ExtensionPoint() ExtensionPoint {
 	if p == nil {
 		return ""
@@ -530,6 +578,20 @@ func (i *afterAuthInput) Status() int {
 		return 0
 	}
 	return i.status
+}
+
+func (i *sourcePluginUninstallInput) PluginID() string {
+	if i == nil {
+		return ""
+	}
+	return i.pluginID
+}
+
+func (i *sourcePluginUninstallInput) PurgeStorageData() bool {
+	if i == nil {
+		return false
+	}
+	return i.purgeStorageData
 }
 
 func (d *menuDescriptor) ID() int {

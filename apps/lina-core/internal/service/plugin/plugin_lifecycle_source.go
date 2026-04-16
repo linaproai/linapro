@@ -89,7 +89,11 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 }
 
 // uninstallSourcePlugin performs the explicit lifecycle for one installed source plugin.
-func (s *serviceImpl) uninstallSourcePlugin(ctx context.Context, manifest *catalog.Manifest) error {
+func (s *serviceImpl) uninstallSourcePlugin(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	options UninstallOptions,
+) error {
 	if manifest == nil {
 		return gerror.New("源码插件清单不能为空")
 	}
@@ -113,8 +117,13 @@ func (s *serviceImpl) uninstallSourcePlugin(ctx context.Context, manifest *catal
 		}
 	}
 
-	if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionUninstall); err != nil {
-		return err
+	if options.PurgeStorageData {
+		if err = s.executeSourcePluginUninstallHandler(ctx, manifest, options); err != nil {
+			return err
+		}
+		if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionUninstall); err != nil {
+			return err
+		}
 	}
 	if err = s.integrationSvc.DeletePluginMenusByManifest(ctx, manifest); err != nil {
 		return err
@@ -154,6 +163,26 @@ func (s *serviceImpl) uninstallSourcePlugin(ctx context.Context, manifest *catal
 			Name:     manifest.Name,
 			Version:  manifest.Version,
 		}),
+	)
+}
+
+// executeSourcePluginUninstallHandler invokes one optional source-plugin cleanup callback
+// before uninstall SQL removes plugin-owned tables.
+func (s *serviceImpl) executeSourcePluginUninstallHandler(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+	options UninstallOptions,
+) error {
+	if manifest == nil || manifest.SourcePlugin == nil || !options.PurgeStorageData {
+		return nil
+	}
+	handler := manifest.SourcePlugin.GetUninstallHandler()
+	if handler == nil {
+		return nil
+	}
+	return handler(
+		ctx,
+		pluginhost.NewSourcePluginUninstallInput(manifest.ID, options.PurgeStorageData),
 	)
 }
 

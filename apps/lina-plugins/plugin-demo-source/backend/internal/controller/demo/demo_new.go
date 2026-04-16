@@ -16,6 +16,11 @@ type ControllerV1 struct {
 
 // NewV1 creates and returns a new plugin-demo-source controller instance.
 func NewV1() demoapi.IDemoV1 {
+	return NewControllerV1()
+}
+
+// NewControllerV1 creates and returns the concrete plugin-demo-source controller instance.
+func NewControllerV1() *ControllerV1 {
 	return &ControllerV1{
 		demoSvc: demosvc.New(),
 	}

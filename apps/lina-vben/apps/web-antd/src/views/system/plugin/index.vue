@@ -14,11 +14,11 @@ import {
   pluginInstall,
   pluginList,
   pluginSync,
-  pluginUninstall,
 } from '#/api/system/plugin';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
 import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
+import PluginUninstallModal from './plugin-uninstall-modal.vue';
 
 const [DynamicUploadModal, dynamicUploadModalApi] = useVbenModal({
   connectedComponent: PluginDynamicUploadModal,
@@ -26,6 +26,10 @@ const [DynamicUploadModal, dynamicUploadModalApi] = useVbenModal({
 
 const [HostServiceAuthModal, hostServiceAuthModalApi] = useVbenModal({
   connectedComponent: PluginHostServiceAuthModal,
+});
+
+const [UninstallModal, uninstallModalApi] = useVbenModal({
+  connectedComponent: PluginUninstallModal,
 });
 
 const typeColorMap: Record<string, string> = {
@@ -221,17 +225,13 @@ async function handleInstall(row: SystemPlugin) {
   await gridApi.query();
 }
 
-async function handleUninstall(row: SystemPlugin) {
+function handleOpenUninstall(row: SystemPlugin) {
   if (!canUninstallPlugin()) {
     message.warning('当前账号缺少插件卸载权限');
     return;
   }
-  await pluginUninstall(row.id);
-  row.installed = 0;
-  row.enabled = 0;
-  await notifyPluginRegistryChanged();
-  message.success('插件已卸载');
-  await gridApi.query();
+  uninstallModalApi.setData({ row });
+  uninstallModalApi.open();
 }
 
 async function handleSync() {
@@ -260,6 +260,11 @@ async function handleDynamicUploadReload() {
 }
 
 async function handleHostServiceAuthReload() {
+  await notifyPluginRegistryChanged();
+  await gridApi.query();
+}
+
+async function handleUninstallReload() {
   await notifyPluginRegistryChanged();
   await gridApi.query();
 }
@@ -325,17 +330,18 @@ async function handleHostServiceAuthReload() {
           >
             <ghost-button @click.stop="">安装</ghost-button>
           </Popconfirm>
-          <Popconfirm
+          <ghost-button
             v-else-if="canUninstallPlugin()"
-            title="确认卸载该插件？"
-            @confirm="handleUninstall(row)"
+            danger
+            @click.stop="handleOpenUninstall(row)"
           >
-            <ghost-button danger @click.stop="">卸载</ghost-button>
-          </Popconfirm>
+            卸载
+          </ghost-button>
         </Space>
       </template>
     </Grid>
     <DynamicUploadModal @reload="handleDynamicUploadReload" />
     <HostServiceAuthModal @reload="handleHostServiceAuthReload" />
+    <UninstallModal @reload="handleUninstallReload" />
   </Page>
 </template>

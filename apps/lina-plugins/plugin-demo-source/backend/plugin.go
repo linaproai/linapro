@@ -8,6 +8,7 @@ import (
 	"lina-core/pkg/pluginhost"
 	plugindemosource "lina-plugin-demo-source"
 	democtrl "lina-plugin-demo-source/backend/internal/controller/demo"
+	demosvc "lina-plugin-demo-source/backend/service/demo"
 )
 
 const (
@@ -17,6 +18,12 @@ const (
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
 	plugin.UseEmbeddedFiles(plugindemosource.EmbeddedFiles)
+	plugin.RegisterUninstallHandler(func(ctx context.Context, input pluginhost.SourcePluginUninstallInput) error {
+		if !input.PurgeStorageData() {
+			return nil
+		}
+		return demosvc.New().PurgeStorageData(ctx)
+	})
 	plugin.RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
@@ -28,7 +35,7 @@ func init() {
 func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) error {
 	var (
 		middlewares    = registrar.Middlewares()
-		demoController = democtrl.NewV1()
+		demoController = democtrl.NewControllerV1()
 	)
 	registrar.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.Middleware(
@@ -48,7 +55,15 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 				middlewares.OperLog(),
 				middlewares.Permission(),
 			)
-			group.Bind(demoController.Summary)
+			group.Bind(
+				demoController.Summary,
+				demoController.ListRecords,
+				demoController.GetRecord,
+				demoController.CreateRecord,
+				demoController.UpdateRecord,
+				demoController.DeleteRecord,
+				demoController.DownloadAttachment,
+			)
 		})
 	})
 	return nil

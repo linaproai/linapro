@@ -57,6 +57,13 @@ type (
 	HostServiceAuthorizationDecision = catalog.HostServiceAuthorizationDecision
 )
 
+// UninstallOptions defines one plugin uninstall policy snapshot.
+type UninstallOptions struct {
+	// PurgeStorageData reports whether source-plugin uninstall should also clear
+	// plugin-owned table data and stored files.
+	PurgeStorageData bool
+}
+
 // GetDynamicRouteOperLogMetadata returns dynamic-route operation-log metadata from the request.
 // This package-level function is retained for callers that cannot import the runtime sub-package.
 var GetDynamicRouteOperLogMetadata = runtime.GetDynamicRouteOperLogMetadata
@@ -155,6 +162,8 @@ type Service interface {
 	) error
 	// Uninstall executes the uninstall lifecycle for an installed dynamic plugin.
 	Uninstall(ctx context.Context, pluginID string) error
+	// UninstallWithOptions executes the uninstall lifecycle with one explicit policy snapshot.
+	UninstallWithOptions(ctx context.Context, pluginID string, options UninstallOptions) error
 	// UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
 	// and optionally persists one host-confirmed host service authorization snapshot
 	// before enabling a dynamic plugin.

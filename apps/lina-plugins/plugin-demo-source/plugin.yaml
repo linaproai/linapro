@@ -74,3 +74,24 @@ menus:
     sort: -1
     # 宿主菜单表中的备注说明。
     remark: 源码插件示例左侧菜单
+  - key: plugin:plugin-demo-source:record-create
+    parent_key: plugin:plugin-demo-source:sidebar-entry
+    name: 示例记录新增
+    perms: plugin-demo-source:example:create
+    type: B
+    sort: 1
+    remark: 源码插件示例记录新增权限
+  - key: plugin:plugin-demo-source:record-update
+    parent_key: plugin:plugin-demo-source:sidebar-entry
+    name: 示例记录修改
+    perms: plugin-demo-source:example:update
+    type: B
+    sort: 2
+    remark: 源码插件示例记录修改权限
+  - key: plugin:plugin-demo-source:record-delete
+    parent_key: plugin:plugin-demo-source:sidebar-entry
+    name: 示例记录删除
+    perms: plugin-demo-source:example:delete
+    type: B
+    sort: 3
+    remark: 源码插件示例记录删除权限

@@ -1,5 +1,10 @@
 # Manifest Resources
 
-This directory stores plugin-owned SQL migration assets for the source plugin sample.
+This directory stores plugin-owned `SQL` lifecycle assets for the source-plugin sample.
 
-Menus are declared in `plugin.yaml`; SQL is reserved for plugin-owned data lifecycle changes.
+## Contents
+
+- `sql/001-plugin-demo-source-records.sql`: creates the plugin-owned demo table and seeds one initial record during install
+- `sql/uninstall/001-plugin-demo-source-records.sql`: drops the plugin-owned demo table during uninstall when the user chooses to purge storage data
+
+Menus stay in `plugin.yaml`; `SQL` assets are reserved for plugin-owned data lifecycle changes.

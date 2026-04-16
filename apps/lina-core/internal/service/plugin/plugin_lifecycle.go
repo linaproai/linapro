@@ -32,12 +32,21 @@ func (s *serviceImpl) Install(
 
 // Uninstall executes the uninstall lifecycle for an installed plugin.
 func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string) error {
+	return s.UninstallWithOptions(ctx, pluginID, UninstallOptions{PurgeStorageData: true})
+}
+
+// UninstallWithOptions executes the uninstall lifecycle for an installed plugin using one explicit policy snapshot.
+func (s *serviceImpl) UninstallWithOptions(
+	ctx context.Context,
+	pluginID string,
+	options UninstallOptions,
+) error {
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		return s.uninstallSourcePlugin(ctx, manifest)
+		return s.uninstallSourcePlugin(ctx, manifest, options)
 	}
 	return s.lifecycleSvc.Uninstall(ctx, pluginID)
 }
