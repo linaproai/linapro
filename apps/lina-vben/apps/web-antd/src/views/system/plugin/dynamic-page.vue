@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { Result as AResult, Spin as ASpin } from 'ant-design-vue';
+import { useAccessStore } from '@vben/stores';
 
 import { getPluginPageByRoute } from '#/plugins/page-registry';
 
@@ -16,6 +17,7 @@ const dynamicEmbeddedAccessModeQueryKey = 'pluginAccessMode';
 type DynamicEmbeddedRouteQuery = Record<string, string>;
 
 type DynamicEmbeddedMountContext = {
+  accessToken: string;
   assetURL: string;
   baseURL: string;
   container: HTMLElement;
@@ -60,6 +62,7 @@ const dynamicEmbeddedLoading = ref(false);
 const dynamicEmbeddedError = ref('');
 const mountedDynamicEmbeddedModule =
   shallowRef<MountedDynamicEmbeddedModule | null>(null);
+const accessStore = useAccessStore();
 
 let dynamicEmbeddedMountToken = 0;
 
@@ -149,6 +152,7 @@ function buildDynamicEmbeddedMountContext(
   }
 
   return {
+    accessToken: accessStore.accessToken ?? '',
     assetURL,
     baseURL: assetURL.slice(0, assetURL.lastIndexOf('/') + 1),
     container,

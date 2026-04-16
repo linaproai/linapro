@@ -59,8 +59,8 @@ type (
 
 // UninstallOptions defines one plugin uninstall policy snapshot.
 type UninstallOptions struct {
-	// PurgeStorageData reports whether source-plugin uninstall should also clear
-	// plugin-owned table data and stored files.
+	// PurgeStorageData reports whether uninstall should also clear plugin-owned
+	// table data and stored files.
 	PurgeStorageData bool
 }
 
@@ -160,7 +160,7 @@ type Service interface {
 		pluginID string,
 		authorization *HostServiceAuthorizationInput,
 	) error
-	// Uninstall executes the uninstall lifecycle for an installed dynamic plugin.
+	// Uninstall executes the uninstall lifecycle for an installed plugin.
 	Uninstall(ctx context.Context, pluginID string) error
 	// UninstallWithOptions executes the uninstall lifecycle with one explicit policy snapshot.
 	UninstallWithOptions(ctx context.Context, pluginID string, options UninstallOptions) error

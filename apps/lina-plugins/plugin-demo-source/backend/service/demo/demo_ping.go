@@ -1,4 +1,5 @@
 // demo_ping.go implements the public ping behavior for the demo service.
+
 package demo
 
 import "context"

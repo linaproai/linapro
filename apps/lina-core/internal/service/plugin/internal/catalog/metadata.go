@@ -228,6 +228,7 @@ type ManifestSnapshot struct {
 	AuthorizedHostServices    []*pluginbridge.HostServiceSpec `yaml:"authorizedHostServices,omitempty"`
 	HostServiceAuthRequired   bool                            `yaml:"hostServiceAuthRequired,omitempty"`
 	HostServiceAuthConfirmed  bool                            `yaml:"hostServiceAuthConfirmed,omitempty"`
+	UninstallPurgeStorageData *bool                           `yaml:"uninstallPurgeStorageData,omitempty"`
 }
 
 // ResourceRefDescriptor represents one governance resource index entry derived

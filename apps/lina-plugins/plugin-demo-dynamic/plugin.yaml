@@ -17,7 +17,7 @@ version: v0.1.0
 type: dynamic
 
 # 插件说明。
-description: 提供独立的 dynamic wasm 插件样例，演示左侧菜单内嵌页面与独立静态页面跳转
+description: 提供独立的 dynamic wasm 插件样例，演示左侧菜单内嵌页面、插件自有 SQL 表 CRUD 与独立静态页面跳转
 
 # 插件作者或归属团队。
 # 可选。
@@ -69,6 +69,8 @@ hostServices:
       paths:
         # 申请在 `host-call-demo/` 前缀下读写样例对象，最终是否放行由宿主确认。
         - host-call-demo/
+        # 申请在 `demo-record-files/` 前缀下读写示例记录附件，最终是否放行由宿主确认。
+        - demo-record-files/
   # network 服务通过 `resources[].url` 声明申请访问的 URL 或 URL pattern。
   - service: network
     methods:
@@ -95,6 +97,8 @@ hostServices:
       tables:
         # 当前样例申请访问 `sys_plugin_node_state` 表，最终是否授权由宿主确认。
         - sys_plugin_node_state
+        # 当前样例申请访问安装 SQL 创建的示例记录表，最终是否授权由宿主确认。
+        - plugin_demo_dynamic_record
 
 # 插件菜单元数据。
 # 宿主会在动态插件安装时按这些声明写入 `sys_menu`，卸载时再按同一份声明删除菜单与角色关联。

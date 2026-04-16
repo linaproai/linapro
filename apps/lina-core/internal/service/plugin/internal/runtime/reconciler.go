@@ -493,6 +493,16 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 	if err != nil {
 		return err
 	}
+	purgeStorageData := true
+	if release != nil {
+		snapshot, parseErr := s.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
+		if parseErr != nil {
+			return parseErr
+		}
+		if snapshot != nil && snapshot.UninstallPurgeStorageData != nil {
+			purgeStorageData = *snapshot.UninstallPurgeStorageData
+		}
+	}
 
 	_, err = dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: registry.PluginId}).
@@ -505,8 +515,13 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 	if err != nil {
 		return err
 	}
-	if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionUninstall); err != nil {
-		return s.rollbackReleaseFailure(ctx, registry, 0, err)
+	if purgeStorageData {
+		if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionUninstall); err != nil {
+			return s.rollbackReleaseFailure(ctx, registry, 0, err)
+		}
+		if err = wasm.PurgeAuthorizedStoragePaths(ctx, manifest.ID, manifest.HostServices); err != nil {
+			return s.rollbackReleaseFailure(ctx, registry, 0, err)
+		}
 	}
 	if err = s.deletePluginMenusByManifest(ctx, manifest); err != nil {
 		return s.rollbackReleaseFailure(ctx, registry, 0, err)
@@ -647,6 +662,12 @@ func (s *serviceImpl) shouldRefreshInstalledRelease(
 
 // Uninstall executes uninstall lifecycle for an installed dynamic plugin.
 func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string) error {
+	return s.UninstallWithOptions(ctx, pluginID, true)
+}
+
+// UninstallWithOptions executes uninstall lifecycle for an installed dynamic
+// plugin using one explicit cleanup policy snapshot.
+func (s *serviceImpl) UninstallWithOptions(ctx context.Context, pluginID string, purgeStorageData bool) error {
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return err
@@ -661,6 +682,16 @@ func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string) error {
 	}
 	if registry == nil || registry.Installed != catalog.InstalledYes {
 		return nil
+	}
+	release, err := s.catalogSvc.GetRegistryRelease(ctx, registry)
+	if err != nil {
+		return err
+	}
+	if release == nil {
+		return gerror.Newf("动态插件缺少当前生效 release: %s", pluginID)
+	}
+	if _, err = s.catalogSvc.PersistReleaseUninstallPurgePolicy(ctx, release, purgeStorageData); err != nil {
+		return err
 	}
 	return s.reconcileDynamicPluginRequest(ctx, pluginID, catalog.HostStateUninstalled)
 }

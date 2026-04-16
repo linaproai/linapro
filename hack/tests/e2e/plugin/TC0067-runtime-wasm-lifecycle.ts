@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 import type { APIRequestContext, APIResponse, Page } from "@playwright/test";
@@ -31,6 +38,8 @@ const iframeMenuName = "运行时 iframe 示例";
 const embeddedMenuName = "运行时内嵌示例";
 const newWindowMenuName = "运行时新标签页示例";
 const bundledRuntimePluginID = "plugin-demo-dynamic";
+const bundledRuntimeRecordTable = "plugin_demo_dynamic_record";
+const bundledRuntimeAttachmentPath = "demo-record-files/";
 const bundledRuntimeLegacyArtifactPath = path.join(
   repoRoot(),
   "apps",
@@ -163,6 +172,39 @@ function bundledRuntimeStorageArtifactPath() {
   return path.join(runtimeStorageDir(), `${bundledRuntimePluginID}.wasm`);
 }
 
+function bundledRuntimeStorageRootDirs() {
+  // The backend resolves plugin.dynamic.storagePath from its own working
+  // directory. In local runs the host process usually starts from
+  // apps/lina-core, while artifact fixtures for this test are written under the
+  // repo-root temp/output directory. Cover both locations so the assertions
+  // track the real host-service storage root regardless of how the backend was
+  // launched.
+  return Array.from(
+    new Set([
+      path.join(
+        runtimeStorageDir(),
+        ".host-services",
+        "storage",
+        bundledRuntimePluginID,
+      ),
+      path.join(
+        repoRoot(),
+        "apps",
+        "lina-core",
+        "temp",
+        "output",
+        ".host-services",
+        "storage",
+        bundledRuntimePluginID,
+      ),
+    ]),
+  );
+}
+
+function bundledRuntimeAttachmentFixturePath() {
+  return path.join(tempDir(), "plugin-demo-dynamic-note.txt");
+}
+
 function pluginHostedAssetPath(relativePath = "index.html") {
   return `/plugin-assets/${pluginID}/${pluginVersion}/${relativePath}`;
 }
@@ -200,6 +242,90 @@ function cleanupRuntimePluginRows() {
       stdio: "ignore",
     },
   );
+}
+
+function cleanupBundledRuntimeDemoData() {
+  execFileSync(
+    mysqlBin,
+    [
+      `-u${mysqlUser}`,
+      `-p${mysqlPassword}`,
+      mysqlDatabase,
+      "-e",
+      `DROP TABLE IF EXISTS \`${bundledRuntimeRecordTable}\`;`,
+    ],
+    {
+      stdio: "ignore",
+    },
+  );
+  for (const storageRootDir of bundledRuntimeStorageRootDirs()) {
+    rmSync(storageRootDir, { force: true, recursive: true });
+  }
+  rmSync(bundledRuntimeAttachmentFixturePath(), { force: true });
+}
+
+function mysqlScalar(query: string) {
+  return execFileSync(
+    mysqlBin,
+    [`-u${mysqlUser}`, `-p${mysqlPassword}`, mysqlDatabase, "-Nse", query],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    },
+  ).trim();
+}
+
+function bundledRuntimeRecordTableExists() {
+  const count = mysqlScalar(
+    [
+      "SELECT COUNT(*)",
+      "FROM information_schema.tables",
+      `WHERE table_schema = '${mysqlDatabase.replaceAll("'", "''")}'`,
+      `AND table_name = '${bundledRuntimeRecordTable.replaceAll("'", "''")}'`,
+      ";",
+    ].join(" "),
+  );
+  return count === "1";
+}
+
+function bundledRuntimeRecordCountByTitle(title: string) {
+  if (!bundledRuntimeRecordTableExists()) {
+    return 0;
+  }
+  const escapedTitle = title.replaceAll("'", "''");
+  return Number(
+    mysqlScalar(
+      `SELECT COUNT(*) FROM \`${bundledRuntimeRecordTable}\` WHERE \`title\` = '${escapedTitle}';`,
+    ),
+  );
+}
+
+function countFilesRecursive(targetPath: string): number {
+  if (!existsSync(targetPath)) {
+    return 0;
+  }
+  const fileInfo = statSync(targetPath);
+  if (!fileInfo.isDirectory()) {
+    return 1;
+  }
+  return readdirSync(targetPath).reduce((total, item) => {
+    return total + countFilesRecursive(path.join(targetPath, item));
+  }, 0);
+}
+
+function bundledRuntimeStoredFileCount() {
+  return bundledRuntimeStorageRootDirs().reduce((total, storageRootDir) => {
+    return total + countFilesRecursive(storageRootDir);
+  }, 0);
+}
+
+function ensureBundledRuntimeAttachmentFixture() {
+  mkdirSync(tempDir(), { recursive: true });
+  writeFileSync(
+    bundledRuntimeAttachmentFixturePath(),
+    "plugin-demo-dynamic attachment fixture",
+  );
+  return bundledRuntimeAttachmentFixturePath();
 }
 
 function writeULEB128(buffer: number[], value: number) {
@@ -251,7 +377,8 @@ function buildRuntimeManifestMenus() {
       query: {
         pluginAccessMode: "embedded-mount",
       },
-      remark: "Runtime-hosted embedded mount entry used by Playwright verification.",
+      remark:
+        "Runtime-hosted embedded mount entry used by Playwright verification.",
     },
     {
       key: newWindowMenuKey,
@@ -262,7 +389,8 @@ function buildRuntimeManifestMenus() {
       type: "M",
       sort: -1,
       is_frame: 1,
-      remark: "Runtime-hosted new-window entry used by Playwright verification.",
+      remark:
+        "Runtime-hosted new-window entry used by Playwright verification.",
     },
   ];
 }
@@ -442,6 +570,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
   test.afterAll(async () => {
     cleanupRuntimePluginWorkspace();
     cleanupRuntimePluginRows();
+    cleanupBundledRuntimeDemoData();
     rmSync(bundledRuntimeStorageArtifactPath(), { force: true });
     rmSync(bundledRuntimeLegacyArtifactPath, { force: true });
     if (adminApi) {
@@ -452,12 +581,14 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
   test.beforeEach(async () => {
     cleanupRuntimePluginWorkspace();
     cleanupRuntimePluginRows();
+    cleanupBundledRuntimeDemoData();
     await resetBundledRuntimePlugin(adminApi!);
   });
 
   test.afterEach(async () => {
     cleanupRuntimePluginWorkspace();
     cleanupRuntimePluginRows();
+    cleanupBundledRuntimeDemoData();
     await resetBundledRuntimePlugin(adminApi!);
   });
 
@@ -673,9 +804,20 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await pluginPage.gotoManage();
     await expect(pluginPage.pluginRow(bundledRuntimePluginID)).toBeVisible();
 
-    await installPlugin(adminApi!, bundledRuntimePluginID);
+    await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
+    await pluginPage.confirmHostServiceAuthorization();
+    await expect
+      .poll(
+        async () =>
+          (await findPlugin(adminApi!, bundledRuntimePluginID))?.installed ?? 0,
+      )
+      .toBe(1);
     await page.reload();
-    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
+    await pluginPage.openEnableAuthorization(bundledRuntimePluginID);
+    await pluginPage.confirmHostServiceAuthorization();
+    await expect(
+      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
+    ).toHaveAttribute("aria-checked", "true");
     await page.reload();
 
     await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
@@ -751,10 +893,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await pluginPage.uploadDynamicPlugin(wasmPath);
 
     const pluginAfterReupload = await findPlugin(adminApi!);
-    expect(
-      pluginAfterReupload,
-      "重新上传后应重新识别动态插件",
-    ).toBeTruthy();
+    expect(pluginAfterReupload, "重新上传后应重新识别动态插件").toBeTruthy();
     expect(pluginAfterReupload?.installed).toBe(0);
     expect(pluginAfterReupload?.enabled).toBe(0);
     await expect(pluginPage.pluginRow(pluginID)).toBeVisible();
@@ -786,17 +925,163 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     );
 
     const payload = await response.json();
-    expect(payload.message).toContain("plugin-demo-dynamic Wasm bridge runtime");
+    expect(payload.message).toContain(
+      "plugin-demo-dynamic Wasm bridge runtime",
+    );
     expect(payload.pluginId).toBe(bundledRuntimePluginID);
     expect(payload.publicPath).toBe(
       `/api/v1/extensions/${bundledRuntimePluginID}/backend-summary`,
     );
     expect(payload.access).toBe("login");
-    expect(payload.permission).toBe(
-      "plugin-demo-dynamic:backend:view",
-    );
+    expect(payload.permission).toBe("plugin-demo-dynamic:backend:view");
     expect(payload.authenticated).toBeTruthy();
     expect(payload.username).toBe(config.adminUser);
     expect(payload.isSuperAdmin).toBeTruthy();
+  });
+
+  test("TC-67k: plugin-demo-dynamic 示例记录支持 CRUD，并在禁用与卸载时按选项保留或清理数据附件", async ({
+    page,
+  }) => {
+    const attachmentPath = ensureBundledRuntimeAttachmentFixture();
+    const recordTitle = `动态插件示例记录-${Date.now()}`;
+    const updatedRecordTitle = `${recordTitle}-更新`;
+    const cleanupRecordTitle = `${recordTitle}-清理`;
+    await loginAsAdmin(page);
+
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await expect(pluginPage.pluginRow(bundledRuntimePluginID)).toBeVisible();
+
+    const confirmBundledRuntimeAuthorization = async (
+      mode: "enable" | "install",
+    ) => {
+      if (mode === "install") {
+        await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
+      } else {
+        await pluginPage.openEnableAuthorization(bundledRuntimePluginID);
+      }
+      await pluginPage.setHostServiceAuthorization(
+        bundledRuntimePluginID,
+        "data",
+        bundledRuntimeRecordTable,
+        true,
+      );
+      await pluginPage.setHostServiceAuthorization(
+        bundledRuntimePluginID,
+        "storage",
+        bundledRuntimeAttachmentPath,
+        true,
+      );
+      await pluginPage.confirmHostServiceAuthorization();
+    };
+
+    await confirmBundledRuntimeAuthorization("install");
+    await expect
+      .poll(
+        async () =>
+          (await findPlugin(adminApi!, bundledRuntimePluginID))?.installed ?? 0,
+      )
+      .toBe(1);
+    await page.reload();
+    await confirmBundledRuntimeAuthorization("enable");
+    await expect(
+      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
+    ).toHaveAttribute("aria-checked", "true");
+    await page.reload();
+
+    await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
+    await expect(pluginPage.pluginDemoDynamicTitle()).toBeVisible();
+    await expect(pluginPage.pluginDemoDynamicRecordGrid()).toBeVisible();
+    await expect(
+      pluginPage.pluginDemoDynamicRecordRow("动态插件 SQL 示例记录"),
+    ).toBeVisible();
+
+    await pluginPage.createPluginDemoDynamicRecord({
+      title: recordTitle,
+      content: "首次创建的动态插件示例记录",
+      attachmentPath,
+    });
+    expect(bundledRuntimeRecordCountByTitle(recordTitle)).toBe(1);
+    expect(bundledRuntimeStoredFileCount()).toBeGreaterThan(0);
+
+    await pluginPage.updatePluginDemoDynamicRecord(recordTitle, {
+      title: updatedRecordTitle,
+      content: "更新后的动态插件示例记录内容",
+    });
+    expect(bundledRuntimeRecordCountByTitle(recordTitle)).toBe(0);
+    expect(bundledRuntimeRecordCountByTitle(updatedRecordTitle)).toBe(1);
+
+    await pluginPage.gotoManage();
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, false);
+    await pluginPage.expectSidebarMenuHidden(bundledRuntimeMenuName);
+    expect(bundledRuntimeRecordCountByTitle(updatedRecordTitle)).toBe(1);
+
+    await confirmBundledRuntimeAuthorization("enable");
+    await page.reload();
+    await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
+    await expect(
+      pluginPage.pluginDemoDynamicRecordRow(updatedRecordTitle),
+    ).toBeVisible();
+
+    await pluginPage.gotoManage();
+    await pluginPage.uninstallPluginWithOptions(bundledRuntimePluginID, false);
+    expect(bundledRuntimeRecordCountByTitle(updatedRecordTitle)).toBe(1);
+    expect(bundledRuntimeStoredFileCount()).toBeGreaterThan(0);
+
+    await confirmBundledRuntimeAuthorization("install");
+    await expect
+      .poll(
+        async () =>
+          (await findPlugin(adminApi!, bundledRuntimePluginID))?.installed ?? 0,
+      )
+      .toBe(1);
+    await page.reload();
+    await confirmBundledRuntimeAuthorization("enable");
+    await expect(
+      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
+    ).toHaveAttribute("aria-checked", "true");
+    await page.reload();
+    await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
+    await expect(
+      pluginPage.pluginDemoDynamicRecordRow(updatedRecordTitle),
+    ).toBeVisible();
+
+    await pluginPage.deletePluginDemoDynamicRecord(updatedRecordTitle);
+    expect(bundledRuntimeRecordCountByTitle(updatedRecordTitle)).toBe(0);
+    expect(bundledRuntimeStoredFileCount()).toBe(0);
+
+    await pluginPage.createPluginDemoDynamicRecord({
+      title: cleanupRecordTitle,
+      content: "用于验证卸载清理的数据与附件",
+      attachmentPath,
+    });
+    expect(bundledRuntimeRecordCountByTitle(cleanupRecordTitle)).toBe(1);
+    expect(bundledRuntimeStoredFileCount()).toBeGreaterThan(0);
+
+    await pluginPage.gotoManage();
+    await pluginPage.uninstallPluginWithOptions(bundledRuntimePluginID, true);
+    expect(bundledRuntimeRecordTableExists()).toBeFalsy();
+    expect(bundledRuntimeStoredFileCount()).toBe(0);
+
+    await confirmBundledRuntimeAuthorization("install");
+    await expect
+      .poll(
+        async () =>
+          (await findPlugin(adminApi!, bundledRuntimePluginID))?.installed ?? 0,
+      )
+      .toBe(1);
+    await page.reload();
+    await confirmBundledRuntimeAuthorization("enable");
+    await expect(
+      pluginPage.pluginEnabledSwitch(bundledRuntimePluginID),
+    ).toHaveAttribute("aria-checked", "true");
+    await page.reload();
+    await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
+    await expect(
+      pluginPage.pluginDemoDynamicRecordRow("动态插件 SQL 示例记录"),
+    ).toBeVisible();
+    await expect(
+      pluginPage.pluginDemoDynamicRecordRow(cleanupRecordTitle),
+    ).toHaveCount(0);
   });
 });

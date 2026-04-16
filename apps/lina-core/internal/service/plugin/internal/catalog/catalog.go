@@ -99,6 +99,13 @@ type Service interface {
 		manifest *Manifest,
 		input *HostServiceAuthorizationInput,
 	) (*ManifestSnapshot, error)
+	// PersistReleaseUninstallPurgePolicy writes one host-confirmed uninstall
+	// cleanup policy snapshot into the given release row.
+	PersistReleaseUninstallPurgePolicy(
+		ctx context.Context,
+		release *entity.SysPluginRelease,
+		purgeStorageData bool,
+	) (*ManifestSnapshot, error)
 	// SetBackendLoader wires the integration package's backend config loader.
 	SetBackendLoader(loader BackendConfigLoader)
 	// SetArtifactParser wires the runtime package's WASM artifact parser.

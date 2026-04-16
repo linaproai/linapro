@@ -1,3 +1,6 @@
+// This file defines the backend-summary route DTOs for the dynamic plugin
+// sample.
+
 package v1
 
 import "github.com/gogf/gf/v2/frame/g"

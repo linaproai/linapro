@@ -31,10 +31,10 @@ const (
 
 // BuildHostCallDemoPayload executes the host service demo and returns the
 // response payload.
-func (s *serviceImpl) BuildHostCallDemoPayload(request *pluginbridge.BridgeRequestEnvelopeV1) (*hostCallDemoPayload, error) {
+func (s *serviceImpl) BuildHostCallDemoPayload(input *HostCallDemoInput) (*hostCallDemoPayload, error) {
 	username := hostCallDemoAnonymousUser
-	if request.Identity != nil && request.Identity.Username != "" {
-		username = request.Identity.Username
+	if input != nil && strings.TrimSpace(input.Username) != "" {
+		username = strings.TrimSpace(input.Username)
 	}
 
 	nowValue, err := s.runtimeSvc.Now()
@@ -51,8 +51,8 @@ func (s *serviceImpl) BuildHostCallDemoPayload(request *pluginbridge.BridgeReque
 	}
 	if err = s.runtimeSvc.Log(int(pluginbridge.LogLevelInfo), "host service demo invoked", map[string]string{
 		"username":  username,
-		"requestId": request.RequestID,
-		"route":     request.Route.InternalPath,
+		"requestId": hostCallDemoRequestID(input),
+		"route":     hostCallDemoRoutePath(input),
 		"demoKey":   uuidValue,
 	}); err != nil {
 		return nil, err
@@ -65,19 +65,19 @@ func (s *serviceImpl) BuildHostCallDemoPayload(request *pluginbridge.BridgeReque
 	visitCount++
 	_ = s.runtimeSvc.StateSetInt(hostCallDemoStateKey, visitCount)
 
-	storageSummary, err := s.runHostCallDemoStorage(request.PluginID, uuidValue)
+	storageSummary, err := s.runHostCallDemoStorage(hostCallDemoPluginID(input), uuidValue)
 	if err != nil {
 		return nil, err
 	}
-	dataSummary, err := s.runHostCallDemoData(request.PluginID, uuidValue)
+	dataSummary, err := s.runHostCallDemoData(hostCallDemoPluginID(input), uuidValue)
 	if err != nil {
 		return nil, err
 	}
-	networkSummary := s.runHostCallDemoNetwork(request, uuidValue)
+	networkSummary := s.runHostCallDemoNetwork(input, uuidValue)
 
 	return &hostCallDemoPayload{
 		VisitCount: visitCount,
-		PluginID:   request.PluginID,
+		PluginID:   hostCallDemoPluginID(input),
 		Runtime: hostCallDemoRuntimePayload{
 			Now:  nowValue,
 			UUID: uuidValue,
@@ -225,7 +225,7 @@ func (s *serviceImpl) runHostCallDemoData(pluginID string, demoKey string) (*hos
 	}, nil
 }
 
-func (s *serviceImpl) runHostCallDemoNetwork(request *pluginbridge.BridgeRequestEnvelopeV1, demoKey string) *hostCallDemoNetworkPayload {
+func (s *serviceImpl) runHostCallDemoNetwork(input *HostCallDemoInput, demoKey string) *hostCallDemoNetworkPayload {
 	result := &hostCallDemoNetworkPayload{
 		URL:         hostCallDemoNetworkURL,
 		Skipped:     false,
@@ -234,7 +234,7 @@ func (s *serviceImpl) runHostCallDemoNetwork(request *pluginbridge.BridgeRequest
 		BodyPreview: "",
 		Error:       "",
 	}
-	if hasHostCallDemoFlag(request, "skipNetwork") {
+	if input != nil && input.SkipNetwork {
 		result.Skipped = true
 		return result
 	}
@@ -242,7 +242,7 @@ func (s *serviceImpl) runHostCallDemoNetwork(request *pluginbridge.BridgeRequest
 	response, err := s.httpSvc.Request(hostCallDemoNetworkURL, &pluginbridge.HostServiceNetworkRequest{
 		Method: hostCallDemoNetworkMethodGet,
 		Headers: map[string]string{
-			"x-request-id": request.RequestID + "-" + demoKey,
+			"x-request-id": hostCallDemoRequestID(input) + "-" + demoKey,
 		},
 	})
 	if err != nil {
@@ -255,18 +255,25 @@ func (s *serviceImpl) runHostCallDemoNetwork(request *pluginbridge.BridgeRequest
 	return result
 }
 
-func hasHostCallDemoFlag(request *pluginbridge.BridgeRequestEnvelopeV1, key string) bool {
-	if request == nil || request.Route == nil || len(request.Route.QueryValues) == 0 {
-		return false
+func hostCallDemoPluginID(input *HostCallDemoInput) string {
+	if input == nil {
+		return ""
 	}
-	values := request.Route.QueryValues[key]
-	for _, value := range values {
-		switch strings.ToLower(strings.TrimSpace(value)) {
-		case "1", "true", "yes", "on":
-			return true
-		}
+	return strings.TrimSpace(input.PluginID)
+}
+
+func hostCallDemoRequestID(input *HostCallDemoInput) string {
+	if input == nil {
+		return ""
 	}
-	return false
+	return strings.TrimSpace(input.RequestID)
+}
+
+func hostCallDemoRoutePath(input *HostCallDemoInput) string {
+	if input == nil {
+		return ""
+	}
+	return strings.TrimSpace(input.RoutePath)
 }
 
 func buildHostCallDemoBodyPreview(body []byte) string {

@@ -30,6 +30,12 @@ func BuildAuthorizedTableContract(
 	if err != nil {
 		return nil, err
 	}
+	// Dynamic-plugin install/uninstall SQL can create, drop, or reshape the
+	// governed table at runtime, so cached field metadata must be refreshed
+	// before rebuilding one authorized table contract.
+	if err = db.GetCore().ClearTableFields(ctx, normalizedTable); err != nil {
+		return nil, err
+	}
 	tableFields, err := db.TableFields(ctx, normalizedTable)
 	if err != nil {
 		return nil, err

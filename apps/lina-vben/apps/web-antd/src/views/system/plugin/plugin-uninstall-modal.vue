@@ -28,6 +28,10 @@ const [BasicModal, modalApi] = useVbenModal({
 });
 
 const isSourcePlugin = computed(() => currentPlugin.value?.type === 'source');
+const isDynamicPlugin = computed(() => currentPlugin.value?.type === 'dynamic');
+const supportsPurgeStorageData = computed(
+  () => isSourcePlugin.value || isDynamicPlugin.value,
+);
 
 async function handleOpenChange(open: boolean) {
   if (!open) {
@@ -35,7 +39,7 @@ async function handleOpenChange(open: boolean) {
   }
   const data = modalApi.getData<{ row: SystemPlugin }>();
   currentPlugin.value = data?.row ?? null;
-  purgeStorageData.value = currentPlugin.value?.type === 'source';
+  purgeStorageData.value = supportsPurgeStorageData.value;
 }
 
 async function handleConfirm() {
@@ -47,7 +51,7 @@ async function handleConfirm() {
     modalApi.lock(true);
     await pluginUninstall(
       currentPlugin.value.id,
-      isSourcePlugin.value ? purgeStorageData.value : undefined,
+      supportsPurgeStorageData.value ? purgeStorageData.value : undefined,
     );
     message.success('插件已卸载');
     emit('reload');
@@ -78,10 +82,16 @@ function handleClosed() {
         message="源码插件卸载时可选择是否同时执行卸载 SQL 与插件自定义清理逻辑。勾选后会同步清除示例数据表数据和插件自有存储文件。"
       />
       <Alert
+        v-else-if="isDynamicPlugin"
+        show-icon
+        type="warning"
+        message="动态插件卸载时可选择是否同时执行卸载 SQL，并清理该插件已授权 storage paths 下的自有存储文件。未勾选时仅移除治理挂载、菜单和运行时产物，业务数据会被保留。"
+      />
+      <Alert
         v-else
         show-icon
         type="info"
-        message="动态插件卸载默认仅移除治理挂载、菜单和运行时产物，不会删除插件业务数据。"
+        message="当前插件卸载将移除治理挂载、菜单和运行时产物。"
       />
 
       <Descriptions bordered size="small" :column="2">
@@ -104,7 +114,7 @@ function handleClosed() {
       </Descriptions>
 
       <Checkbox
-        v-if="isSourcePlugin"
+        v-if="supportsPurgeStorageData"
         v-model:checked="purgeStorageData"
         data-testid="plugin-uninstall-purge-checkbox"
       >

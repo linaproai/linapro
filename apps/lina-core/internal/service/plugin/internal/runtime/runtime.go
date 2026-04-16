@@ -144,6 +144,9 @@ type Service interface {
 	ReconcileRuntimePlugins(ctx context.Context) error
 	// Uninstall executes uninstall lifecycle for an installed dynamic plugin.
 	Uninstall(ctx context.Context, pluginID string) error
+	// UninstallWithOptions executes uninstall lifecycle for an installed dynamic
+	// plugin using one explicit cleanup policy snapshot.
+	UninstallWithOptions(ctx context.Context, pluginID string, purgeStorageData bool) error
 	// HasArtifactStorageFile is the exported form of hasArtifactStorageFile for cross-package access.
 	HasArtifactStorageFile(ctx context.Context, pluginID string) (bool, string, error)
 	// LoadActiveDynamicPluginManifest implements catalog.DynamicManifestLoader.

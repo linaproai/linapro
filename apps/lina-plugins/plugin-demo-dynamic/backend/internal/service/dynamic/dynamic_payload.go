@@ -20,6 +20,42 @@ type backendSummaryPayload struct {
 	IsSuperAdmin  *bool   `json:"isSuperAdmin,omitempty"`
 }
 
+type demoRecordListPayload struct {
+	List  []*demoRecordPayload `json:"list"`
+	Total int                  `json:"total"`
+}
+
+type demoRecordPayload struct {
+	Id             string `json:"id"`
+	Title          string `json:"title"`
+	Content        string `json:"content"`
+	AttachmentName string `json:"attachmentName"`
+	HasAttachment  bool   `json:"hasAttachment"`
+	CreatedAt      string `json:"createdAt"`
+	UpdatedAt      string `json:"updatedAt"`
+}
+
+type demoRecordDeletePayload struct {
+	Id      string `json:"id"`
+	Deleted bool   `json:"deleted"`
+}
+
+type demoRecordAttachmentDownloadPayload struct {
+	OriginalName string
+	ContentType  string
+	Body         []byte
+}
+
+type demoRecordEntity struct {
+	Id             string `json:"id"`
+	Title          string `json:"title"`
+	Content        string `json:"content"`
+	AttachmentName string `json:"attachmentName"`
+	AttachmentPath string `json:"attachmentPath"`
+	CreatedAt      string `json:"createdAt"`
+	UpdatedAt      string `json:"updatedAt"`
+}
+
 type hostCallDemoPayload struct {
 	VisitCount int                        `json:"visitCount"`
 	PluginID   string                     `json:"pluginId"`
@@ -101,4 +137,17 @@ func buildRecordMap(record any) (map[string]any, error) {
 		return nil, gerror.Wrap(err, "unmarshal demo record failed")
 	}
 	return payload, nil
+}
+
+func parseDemoRecordEntity(record map[string]any) (*demoRecordEntity, error) {
+	content, err := json.Marshal(record)
+	if err != nil {
+		return nil, gerror.Wrap(err, "marshal dynamic demo record failed")
+	}
+
+	entity := &demoRecordEntity{}
+	if err = json.Unmarshal(content, entity); err != nil {
+		return nil, gerror.Wrap(err, "unmarshal dynamic demo record failed")
+	}
+	return entity, nil
 }

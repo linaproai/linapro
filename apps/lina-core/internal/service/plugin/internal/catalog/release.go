@@ -201,6 +201,7 @@ func (s *serviceImpl) buildManifestSnapshot(manifest *Manifest, existing *entity
 		if existingSnapshot != nil {
 			snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
 			snapshot.HostServiceAuthConfirmed = existingSnapshot.HostServiceAuthConfirmed
+			snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
 		}
 	}
 	content, err := yaml.Marshal(snapshot)
@@ -247,6 +248,48 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) *ManifestSn
 		snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
 	}
 	return snapshot
+}
+
+// PersistReleaseUninstallPurgePolicy writes one host-confirmed uninstall cleanup
+// policy snapshot into the given dynamic-plugin release row.
+func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
+	ctx context.Context,
+	release *entity.SysPluginRelease,
+	purgeStorageData bool,
+) (*ManifestSnapshot, error) {
+	if release == nil {
+		return nil, gerror.New("插件 release 不能为空")
+	}
+
+	snapshot, err := s.ParseManifestSnapshot(release.ManifestSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	if snapshot == nil {
+		manifest, loadErr := s.LoadReleaseManifest(ctx, release)
+		if loadErr != nil {
+			return nil, loadErr
+		}
+		snapshot = s.buildManifestSnapshotModel(manifest)
+	}
+	if snapshot == nil {
+		return nil, gerror.New("插件 release manifest 快照不能为空")
+	}
+
+	purgeValue := purgeStorageData
+	snapshot.UninstallPurgeStorageData = &purgeValue
+
+	content, err := yaml.Marshal(snapshot)
+	if err != nil {
+		return nil, gerror.Wrap(err, "生成插件卸载策略快照失败")
+	}
+	if _, err = dao.SysPluginRelease.Ctx(ctx).
+		Where(do.SysPluginRelease{Id: release.Id}).
+		Data(do.SysPluginRelease{ManifestSnapshot: string(content)}).
+		Update(); err != nil {
+		return nil, err
+	}
+	return snapshot, nil
 }
 
 func (s *serviceImpl) applyReleaseAuthorizedHostServices(manifest *Manifest, release *entity.SysPluginRelease) error {

@@ -1,4 +1,5 @@
 // demo_summary.go implements the summary payload for the demo service.
+
 package demo
 
 import (

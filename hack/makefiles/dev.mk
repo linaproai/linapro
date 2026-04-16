@@ -95,7 +95,7 @@ stop:
 status:
 	@echo ""
 	@echo "╔══════════════════════════════════════════════╗"
-	@echo "║        LinaPro Framework Status             ║"
+	@echo "║         LinaPro Framework Status             ║"
 	@echo "╠══════════════════════════════════════════════╣"
 	@if lsof -ti :$(BACKEND_PORT) >/dev/null 2>&1; then \
 		echo "║  后端: ✓ 运行中  http://localhost:$(BACKEND_PORT)       ║"; \

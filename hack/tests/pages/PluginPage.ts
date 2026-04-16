@@ -76,6 +76,64 @@ export class PluginPage {
     return this.page.getByTestId("plugin-demo-dynamic-open-standalone").first();
   }
 
+  pluginDemoDynamicRecordGrid(): Locator {
+    return this.page.getByTestId("plugin-demo-dynamic-record-grid").first();
+  }
+
+  pluginDemoDynamicRecordAddButton(): Locator {
+    return this.page.getByTestId("plugin-demo-dynamic-record-add").first();
+  }
+
+  pluginDemoDynamicRecordModal(): Locator {
+    return this.page.getByTestId("plugin-demo-dynamic-record-modal").last();
+  }
+
+  pluginDemoDynamicRecordTitleInput(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-record-title-input")
+      .last();
+  }
+
+  pluginDemoDynamicRecordContentInput(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-record-content-input")
+      .last();
+  }
+
+  pluginDemoDynamicRecordFileInput(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-record-file-input")
+      .last();
+  }
+
+  pluginDemoDynamicRecordRemoveAttachment(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-record-remove-attachment")
+      .last();
+  }
+
+  pluginDemoDynamicRecordSubmitButton(): Locator {
+    return this.page.getByTestId("plugin-demo-dynamic-record-submit").last();
+  }
+
+  pluginDemoDynamicRecordRow(title: string): Locator {
+    return this.pluginDemoDynamicRecordGrid()
+      .locator("tbody tr", { hasText: title })
+      .first();
+  }
+
+  pluginDemoDynamicEditButton(title: string): Locator {
+    return this.pluginDemoDynamicRecordRow(title)
+      .getByRole("button", { name: "编辑" })
+      .first();
+  }
+
+  pluginDemoDynamicDeleteButton(title: string): Locator {
+    return this.pluginDemoDynamicRecordRow(title)
+      .getByRole("button", { name: "删除" })
+      .first();
+  }
+
   dynamicUploadDialog(): Locator {
     return this.page.getByRole("dialog", { name: "上传插件" }).last();
   }
@@ -404,6 +462,70 @@ export class PluginPage {
     ).toBeVisible();
   }
 
+  async createPluginDemoDynamicRecord(input: {
+    attachmentPath?: string;
+    content: string;
+    title: string;
+  }) {
+    await this.pluginDemoDynamicRecordAddButton().click();
+    await expect(this.pluginDemoDynamicRecordModal()).toBeVisible();
+    await this.pluginDemoDynamicRecordTitleInput().fill(input.title);
+    await this.pluginDemoDynamicRecordContentInput().fill(input.content);
+    if (input.attachmentPath) {
+      await this.pluginDemoDynamicRecordFileInput().setInputFiles(
+        input.attachmentPath,
+      );
+    }
+    await this.pluginDemoDynamicRecordSubmitButton().click();
+    await expect(this.pluginDemoDynamicRecordModal()).toHaveAttribute(
+      "data-open",
+      "false",
+    );
+    await expect(this.pluginDemoDynamicRecordRow(input.title)).toBeVisible();
+  }
+
+  async updatePluginDemoDynamicRecord(
+    currentTitle: string,
+    input: {
+      attachmentPath?: string;
+      content: string;
+      removeAttachment?: boolean;
+      title: string;
+    },
+  ) {
+    await this.pluginDemoDynamicEditButton(currentTitle).click();
+    await expect(this.pluginDemoDynamicRecordModal()).toBeVisible();
+    await this.pluginDemoDynamicRecordTitleInput().fill(input.title);
+    await this.pluginDemoDynamicRecordContentInput().fill(input.content);
+    if (input.removeAttachment) {
+      const checkbox = this.pluginDemoDynamicRecordRemoveAttachment().locator(
+        'input[type="checkbox"]',
+      );
+      if ((await checkbox.isChecked()) !== true) {
+        await checkbox.click();
+      }
+    }
+    if (input.attachmentPath) {
+      await this.pluginDemoDynamicRecordFileInput().setInputFiles(
+        input.attachmentPath,
+      );
+    }
+    await this.pluginDemoDynamicRecordSubmitButton().click();
+    await expect(this.pluginDemoDynamicRecordModal()).toHaveAttribute(
+      "data-open",
+      "false",
+    );
+    await expect(this.pluginDemoDynamicRecordRow(input.title)).toBeVisible();
+  }
+
+  async deletePluginDemoDynamicRecord(title: string) {
+    this.page.once("dialog", async (dialog) => {
+      await dialog.accept();
+    });
+    await this.pluginDemoDynamicDeleteButton(title).click();
+    await expect(this.pluginDemoDynamicRecordRow(title)).toHaveCount(0);
+  }
+
   async setPluginEnabled(pluginId: string, enabled: boolean) {
     const row = this.pluginRow(pluginId);
     await expect(row).toBeVisible();
@@ -725,8 +847,7 @@ export class PluginPage {
     expect(alertBox, "附件提示块应可见").toBeTruthy();
     expect(uploadSectionBox, "上传区域应可见").toBeTruthy();
 
-    const verticalGap =
-      uploadSectionBox!.y - (alertBox!.y + alertBox!.height);
+    const verticalGap = uploadSectionBox!.y - (alertBox!.y + alertBox!.height);
     expect(
       verticalGap,
       "附件提示块与上传区域之间应保留至少 16px 的垂直间距",

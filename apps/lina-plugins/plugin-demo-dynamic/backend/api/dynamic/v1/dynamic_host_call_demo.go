@@ -1,3 +1,5 @@
+// This file defines the host-call demo DTOs for the dynamic plugin sample.
+
 package v1
 
 import "github.com/gogf/gf/v2/frame/g"

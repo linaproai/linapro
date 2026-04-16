@@ -94,6 +94,7 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 	if existingSnapshot != nil {
 		snapshot.HostServiceAuthConfirmed = existingSnapshot.HostServiceAuthConfirmed
 		snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+		snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
 	}
 
 	if !snapshot.HostServiceAuthRequired {

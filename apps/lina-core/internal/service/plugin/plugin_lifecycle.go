@@ -48,7 +48,7 @@ func (s *serviceImpl) UninstallWithOptions(
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
 		return s.uninstallSourcePlugin(ctx, manifest, options)
 	}
-	return s.lifecycleSvc.Uninstall(ctx, pluginID)
+	return s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData)
 }
 
 // UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
