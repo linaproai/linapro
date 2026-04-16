@@ -7,7 +7,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const getDefaultPwaOptions = (name: string): Partial<PwaPluginOptions> => ({
   manifest: {
     description:
-      'Lina is an AI-driven full-stack development framework with core host services, a default management workspace, and plugin extensibility.',
+      'LinaPro is an AI-driven full-stack development framework with core host services, a default management workspace, and plugin extensibility.',
     icons: [
       {
         sizes: '192x192',

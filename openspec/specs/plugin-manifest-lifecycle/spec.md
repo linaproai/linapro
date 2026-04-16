@@ -63,7 +63,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 
 #### Scenario: 源码插件随宿主编译集成
 
-- **WHEN** 宿主编译源码插件所在的源码树并生成 Lina 二进制
+- **WHEN** 宿主编译源码插件所在的源码树并生成 LinaPro 二进制
 - **THEN** 源码插件的后端 Go 代码与宿主源码一起完成编译
 - **AND** 源码插件在插件注册表中视为已集成，不需要额外安装步骤
 - **AND** 管理员只需要管理源码插件的启用与禁用状态
@@ -245,4 +245,3 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **THEN** 宿主允许管理员批准、收窄或拒绝这些资源申请
 - **AND** 宿主将最终确认结果持久化为当前 release 的授权快照
 - **AND** 运行时后续只按这份最终快照解释宿主服务调用
-

@@ -202,7 +202,7 @@ async function mountDynamicEmbeddedModule() {
 
     // Dynamic embedded modules are delivered as hosted ESM assets. The host
     // imports them lazily so the plugin can use its own frontend stack while
-    // still being mounted inside the Lina content container.
+    // still being mounted inside the LinaPro content container.
     const importedModule = await import(/* @vite-ignore */ assetURL);
     if (currentMountToken !== dynamicEmbeddedMountToken) {
       return;

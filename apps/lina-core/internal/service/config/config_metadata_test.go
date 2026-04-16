@@ -58,7 +58,7 @@ func TestGetOpenApiUsesEmbeddedMetadataAsset(t *testing.T) {
 
 	cfg := New().GetOpenApi(context.Background())
 
-	if cfg.Title != "Lina Framework API" {
+	if cfg.Title != "LinaPro Framework API" {
 		t.Fatalf("expected embedded metadata title, got %q", cfg.Title)
 	}
 	if cfg.Version != "v0.5.0" {

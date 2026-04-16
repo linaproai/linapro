@@ -22,7 +22,7 @@ TBD - created by archiving change v0.5.0. Update Purpose after archive.
 
 #### Scenario: 展示项目基本信息
 - **WHEN** 系统信息页面加载完成
-- **THEN** "关于项目"区块显示项目名称"Lina"、项目描述、版本号、许可证类型，项目主页为可点击的外链
+- **THEN** "关于项目"区块显示项目名称"LinaPro"、项目描述、版本号、许可证类型，项目主页为可点击的外链
 
 ### Requirement: 基本信息区块
 基本信息区块 SHALL 展示从后端 API 获取的运行时数据，包括 Go 版本、GoFrame 版本、操作系统、数据库版本、启动时间、运行时长。
@@ -51,4 +51,3 @@ TBD - created by archiving change v0.5.0. Update Purpose after archive.
 #### Scenario: 修改外链地址
 - **WHEN** 开发者修改前端配置对象中某个组件的链接地址
 - **THEN** 系统信息页面对应组件的链接自动更新为新地址
-

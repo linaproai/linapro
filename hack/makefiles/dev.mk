@@ -1,4 +1,4 @@
-# Lina Development Server Targets
+# LinaPro Development Server Targets
 # ================================
 
 ## dev: 重启前后端开发服务器
@@ -95,7 +95,7 @@ stop:
 status:
 	@echo ""
 	@echo "╔══════════════════════════════════════════════╗"
-	@echo "║         Lina Framework Status               ║"
+	@echo "║        LinaPro Framework Status             ║"
 	@echo "╠══════════════════════════════════════════════╣"
 	@if lsof -ti :$(BACKEND_PORT) >/dev/null 2>&1; then \
 		echo "║  后端: ✓ 运行中  http://localhost:$(BACKEND_PORT)       ║"; \

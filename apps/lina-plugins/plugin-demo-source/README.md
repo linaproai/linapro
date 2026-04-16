@@ -1,6 +1,6 @@
 # plugin-demo-source
 
-`plugin-demo-source` is the source-plugin sample for Lina. It shows the smallest flow for a plugin that is developed in-repo and compiled into the host.
+`plugin-demo-source` is the source-plugin sample for LinaPro. It shows the smallest flow for a plugin that is developed in-repo and compiled into the host.
 
 ## Directory Layout
 

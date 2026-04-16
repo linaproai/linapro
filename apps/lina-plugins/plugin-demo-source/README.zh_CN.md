@@ -1,6 +1,6 @@
 # plugin-demo-source
 
-`plugin-demo-source` 是 Lina 的源码插件样例，用来展示一个在仓库内开发、并随宿主一起编译交付的最小插件闭环。
+`plugin-demo-source` 是 LinaPro 的源码插件样例，用来展示一个在仓库内开发、并随宿主一起编译交付的最小插件闭环。
 
 ## 目录结构
 

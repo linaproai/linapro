@@ -3,12 +3,12 @@
 ## Purpose
 TBD - created by archiving change plugin-framework. Update Purpose after archive.
 ## Requirements
-### Requirement: 插件菜单与权限复用 Lina 通用治理模块
-系统 SHALL 要求插件菜单、按钮权限与角色授权复用 Lina 现有的菜单管理和角色管理体系。
+### Requirement: 插件菜单与权限复用 LinaPro 通用治理模块
+系统 SHALL 要求插件菜单、按钮权限与角色授权复用 LinaPro 现有的菜单管理和角色管理体系。
 
 #### Scenario: 插件注册菜单与权限
 - **WHEN** 插件声明一组菜单、按钮权限和页面入口并完成运行时安装，或源码插件初始化 SQL 被宿主执行
-- **THEN** 宿主将这些治理资源注册到 Lina 的菜单与角色授权体系中
+- **THEN** 宿主将这些治理资源注册到 LinaPro 的菜单与角色授权体系中
 - **AND** 插件权限标识使用插件命名空间前缀
 - **AND** 插件菜单在授权前不会对无权限用户可见
 
@@ -31,7 +31,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **AND** 管理员不需要重新分配角色菜单关系
 
 ### Requirement: 插件运行时可获取宿主权限上下文
-系统 SHALL 为插件提供标准化的宿主权限上下文，使插件能够复用 Lina 的用户、角色、部门与数据权限范围。
+系统 SHALL 为插件提供标准化的宿主权限上下文，使插件能够复用 LinaPro 的用户、角色、部门与数据权限范围。
 
 #### Scenario: 插件后端处理请求
 - **WHEN** 一个插件后端 API、Hook 或任务需要读取当前用户权限上下文
@@ -46,4 +46,3 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **THEN** 宿主移除其菜单入口、资源引用、运行时产物和宿主挂载关系
 - **AND** 宿主清理插件相关的角色菜单生效关系
 - **AND** 宿主默认保留插件业务表和业务数据，除非管理员显式执行额外清理
-

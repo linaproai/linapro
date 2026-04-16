@@ -162,7 +162,7 @@ func (s *serviceImpl) GenerateImportTemplate() (data []byte, err error) {
 	if err = setCellValueByName(f, sheet, cellName(2, 2), "sys.app.name"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(3, 2), "Lina"); err != nil {
+	if err = setCellValueByName(f, sheet, cellName(3, 2), "LinaPro"); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, sheet, cellName(4, 2), "系统显示名称"); err != nil {

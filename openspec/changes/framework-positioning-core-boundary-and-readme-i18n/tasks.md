@@ -7,7 +7,7 @@
 
 ## 2. 项目级元数据与工作台边界文案调整
 
-- [x] 2.1 更新后端 `OpenAPI` 标题、说明、组件描述和相关配置模板，移除“`Lina Admin API`”“后台管理系统接口文档”等旧表述
+- [x] 2.1 更新后端 `OpenAPI` 标题、说明、组件描述和相关配置模板，移除“`LinaPro Admin API`”“后台管理系统接口文档”等旧表述
 - [x] 2.2 按现有打包流程同步校验或刷新 `apps/lina-core/internal/packed/manifest/` 中受影响的嵌入配置副本
 - [x] 2.3 更新前端登录页、系统信息页、入口 HTML meta、插件 Slot 描述、脚本 banner 等高曝光入口文案，使其统一反映新的项目定位
 - [x] 2.4 审核并调整关键工作台导向接口、DTO 注释和服务注释的表述，将菜单路由投影、当前用户工作台启动数据、树选择器和下拉选项输出明确归类为工作台适配语义
@@ -33,6 +33,7 @@
 
 ## Feedback
 
+- [x] **FB-4**: 将当前生效的项目品牌展示文案统一调整为 `LinaPro`，同步仓库说明、系统信息、登录页、OpenAPI 文案、插件说明与相关测试预期
 - [x] **FB-1**: 将宿主数据库初始化 SQL 目录收敛为固定约定 `manifest/sql`，移除 `config.template.yaml` 中的 `init.sqlDir` 显式配置
 - [x] **FB-2**: 修复宿主 `make init` / `make mock` 在重复执行场景下暴露的 SQL 语法与幂等性问题，确保初始化与 Mock 数据加载可稳定回归
 - [x] **FB-3**: 删除宿主 `manifest/sql/009-cleanup-dict-test-data.sql` 这类历史测试污染清理脚本，并同步清理嵌入副本中的陈旧 SQL 文件

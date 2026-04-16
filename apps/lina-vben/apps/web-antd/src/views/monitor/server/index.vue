@@ -165,7 +165,7 @@ const diskColumns = [
       <div class="card-box mt-6 p-5">
         <div class="flex items-center gap-2">
           <h5 class="text-lg text-foreground">服务器信息</h5>
-          <Tooltip title="Lina 支持多节点高可用部署，每个节点具有独立的服务器指标信息">
+          <Tooltip title="LinaPro 支持多节点高可用部署，每个节点具有独立的服务器指标信息">
             <span
               class="icon-[ant-design--question-circle-outlined] cursor-help text-foreground/40"
             ></span>

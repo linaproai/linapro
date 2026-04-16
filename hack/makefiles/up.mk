@@ -1,4 +1,4 @@
-# Lina Git Target
+# LinaPro Git Target
 # ================
 
 ## up: 自动生成commit message并推送 [tool|t=claude|codex] [model|m=模型名]

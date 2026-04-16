@@ -1,10 +1,10 @@
-# Lina Plugin System
+# LinaPro Plugin System
 
-`apps/lina-plugins/` is the primary reference entry for Lina's plugin system. It documents the conventions that are implemented in this repository today and points to the sample plugins that contributors should follow.
+`apps/lina-plugins/` is the primary reference entry for LinaPro's plugin system. It documents the conventions that are implemented in this repository today and points to the sample plugins that contributors should follow.
 
 ## Current Scope
 
-Lina currently supports two plugin shapes:
+LinaPro currently supports two plugin shapes:
 
 - `source`: source plugins that live under `apps/lina-plugins/<plugin-id>/` and are compiled together with the host.
 - `dynamic`: managed WASM plugins that ship as runtime artifacts with manifest, frontend assets, SQL assets, and governed host-service access.

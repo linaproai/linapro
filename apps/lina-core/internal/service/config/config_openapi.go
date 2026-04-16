@@ -16,8 +16,8 @@ type OpenApiConfig struct {
 
 func defaultOpenApiConfig() OpenApiConfig {
 	return OpenApiConfig{
-		Title:             "Lina Framework API",
-		Description:       "Lina core host service API reference.",
+		Title:             "LinaPro Framework API",
+		Description:       "LinaPro core host service API reference.",
 		Version:           "v1.0.0",
 		ServerDescription: "Core Host API Server",
 	}

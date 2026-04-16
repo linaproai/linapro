@@ -443,7 +443,7 @@ test.describe("TC-66 源码插件生命周期", () => {
     const pluginPage = new PluginPage(page);
     await pluginPage.gotoManage();
     await expect(page).toHaveURL(/\/system\/plugin$/);
-    await expect(page).toHaveTitle("插件管理 - Lina");
+    await expect(page).toHaveTitle("插件管理 - LinaPro");
     await pluginPage.expectSidebarMenuHidden("插件查询");
     await pluginPage.expectSidebarMenuHidden("用户查询");
   });

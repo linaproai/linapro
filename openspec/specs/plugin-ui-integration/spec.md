@@ -9,7 +9,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 #### Scenario: 以 iframe 模式接入插件页面
 - **WHEN** 插件菜单声明页面使用 `iframe` 模式
 - **THEN** 宿主在统一布局中以 iframe 加载插件页面地址
-- **AND** 宿主仍然使用 Lina 的菜单、权限与导航体系管理该页面入口
+- **AND** 宿主仍然使用 LinaPro 的菜单、权限与导航体系管理该页面入口
 
 #### Scenario: 以新标签页模式接入插件页面
 - **WHEN** 插件菜单声明页面使用新标签页模式
@@ -50,7 +50,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 #### Scenario: 宿主生成插件页面路由
 - **WHEN** 已启用插件声明可见菜单与页面入口
 - **THEN** 宿主将该入口加入当前用户可访问的菜单与动态路由集合
-- **AND** 插件页面是否可见仍受 Lina 角色权限控制
+- **AND** 插件页面是否可见仍受 LinaPro 角色权限控制
 
 #### Scenario: 插件向左侧主菜单插入顶级页面入口
 - **WHEN** 一个已启用插件声明左侧主菜单顶级入口
@@ -103,4 +103,3 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **WHEN** 管理员查看插件管理页列表
 - **THEN** 插件管理页不再展示“交付方式”“接入态”“入口”三列
 - **AND** 插件管理页在“更新时间”之前展示“安装时间”
-

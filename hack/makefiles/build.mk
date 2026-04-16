@@ -1,4 +1,4 @@
-# Lina Build Target
+# LinaPro Build Target
 # =================
 
 HOST_BINARY_NAME         := lina

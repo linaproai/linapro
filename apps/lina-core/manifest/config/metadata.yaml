@@ -4,9 +4,9 @@
 # OpenAPI 文档元数据
 openapi:
   # 文档标题
-  title: "Lina Framework API"
+  title: "LinaPro Framework API"
   # 文档说明
-  description: "Lina 核心宿主服务接口文档，覆盖通用模块能力、系统治理能力与默认管理工作台适配接口。"
+  description: "LinaPro 核心宿主服务接口文档，覆盖通用模块能力、系统治理能力与默认管理工作台适配接口。"
   # 文档版本
   version: "v0.5.0"
   # 后端服务访问地址

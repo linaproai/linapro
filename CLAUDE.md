@@ -1,6 +1,6 @@
 # 项目概述
 
-`Lina`是一个`AI驱动的全栈开发框架`，提供通用核心宿主服务、默认管理工作台、插件扩展机制与`AI`协作研发工作流。
+`LinaPro`是一个`AI驱动的全栈开发框架`，提供通用核心宿主服务、默认管理工作台、插件扩展机制与`AI`协作研发工作流。
 
 - **前端**: `Vben5 + Vue 3 + Ant Design Vue + TypeScript`
 - **后端**: `GoFrame + MySQL + JWT + Wasm 插件运行时`
@@ -121,8 +121,8 @@ pnpm report            # 查看 HTML 报告
 
 ### 项目定位统一要求
 
-1. `Lina` 的统一项目定位是`AI驱动的全栈开发框架`。所有前端、后端、配置、脚本输出、`OpenAPI`描述、系统信息页和项目文档中的项目介绍，都必须围绕这一定位展开。
-2. 默认管理工作台、系统管理模块、用户权限模块等能力属于 `Lina` 提供的默认入口和内建通用能力，不构成项目的唯一产品边界。
+1. `LinaPro` 的统一项目定位是`AI驱动的全栈开发框架`。所有前端、后端、配置、脚本输出、`OpenAPI`描述、系统信息页和项目文档中的项目介绍，都必须围绕这一定位展开。
+2. 默认管理工作台、系统管理模块、用户权限模块等能力属于 `LinaPro` 提供的默认入口和内建通用能力，不构成项目的唯一产品边界。
 
 ### 核心宿主边界要求
 
@@ -188,7 +188,7 @@ pnpm report            # 查看 HTML 报告
   - 主文件中的组件注释必须紧贴`package xxx`声明，中间不得有空行。例如：
   ```go
   // Package plugin implements plugin manifest discovery, lifecycle orchestration,
-  // governance metadata synchronization, and host integration for Lina plugins.
+  // governance metadata synchronization, and host integration for LinaPro plugins.
   package plugin
   ```
   - 其余实现文件必须只保留针对当前文件职责的文件注释（如`plugin_xxx.go`、`config_xxx.go`），文件注释与`package xxx`之间必须保留一个空行，禁止在非主文件中重复编写组件级说明。

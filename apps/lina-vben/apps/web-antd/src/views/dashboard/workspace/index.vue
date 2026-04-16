@@ -211,7 +211,7 @@ const trendItems: WorkbenchTrendItem[] = [
   },
   {
     avatar: 'svg:avatar-4',
-    content: `发表文章 <a>如何扩展 Lina 工作台</a> `,
+    content: `发表文章 <a>如何扩展 LinaPro 工作台</a> `,
     date: '2021-03-01 20:00',
     title: 'Vben',
   },

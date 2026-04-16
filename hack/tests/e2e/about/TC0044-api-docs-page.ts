@@ -36,7 +36,7 @@ test.describe('TC0044 系统接口页面', () => {
     await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
     // Verify the right panel shows API title and description
     await expect(
-      frame.locator('h1', { hasText: 'Lina Framework API' }),
+      frame.locator('h1', { hasText: 'LinaPro Framework API' }),
     ).toBeVisible({ timeout: 10_000 });
     await expect(frame.getByText('v0.5.0')).toBeVisible();
   });

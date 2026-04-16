@@ -1,6 +1,6 @@
-# Lina
+# LinaPro
 
-Lina 是一个 AI驱动的全栈开发框架。它结合了基于 GoFrame 的核心宿主服务、基于 Vue 3 + Vben 5 的默认管理工作台、插件扩展能力，以及基于 OpenSpec 的 AI 协作交付流程。
+LinaPro 是一个 AI驱动的全栈开发框架。它结合了基于 GoFrame 的核心宿主服务、基于 Vue 3 + Vben 5 的默认管理工作台、插件扩展能力，以及基于 OpenSpec 的 AI 协作交付流程。
 
 ## 核心特性
 
@@ -70,7 +70,7 @@ pnpm run build
 
 ## 交付流程
 
-Lina 使用 OpenSpec 作为结构化交付主线。
+LinaPro 使用 OpenSpec 作为结构化交付主线。
 
 1. 先探索需求与方案空间。
 2. 在 `openspec/changes/` 下创建 OpenSpec 提案。

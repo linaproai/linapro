@@ -1,6 +1,6 @@
 # plugin-demo-dynamic
 
-`plugin-demo-dynamic` 是 Lina 的动态 WASM 插件样例，用来演示一个受治理运行时插件的最小闭环。
+`plugin-demo-dynamic` 是 LinaPro 的动态 WASM 插件样例，用来演示一个受治理运行时插件的最小闭环。
 
 ## 样例覆盖内容
 

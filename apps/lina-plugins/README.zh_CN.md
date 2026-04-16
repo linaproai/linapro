@@ -1,10 +1,10 @@
-# Lina 插件系统
+# LinaPro 插件系统
 
-`apps/lina-plugins/` 是 Lina 插件系统的主要参考入口。它说明了当前仓库已经真实落地的插件约定，并指向贡献者应遵循的样例插件。
+`apps/lina-plugins/` 是 LinaPro 插件系统的主要参考入口。它说明了当前仓库已经真实落地的插件约定，并指向贡献者应遵循的样例插件。
 
 ## 当前范围
 
-Lina 当前支持两类插件形态：
+LinaPro 当前支持两类插件形态：
 
 - `source`：源码插件，位于 `apps/lina-plugins/<plugin-id>/` 下，并随宿主一起编译交付。
 - `dynamic`：动态 WASM 插件，以运行时产物形式交付，携带清单、前端资源、SQL 资源和受治理的宿主服务访问声明。

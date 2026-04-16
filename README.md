@@ -1,6 +1,6 @@
-# Lina
+# LinaPro
 
-Lina is an AI-driven full-stack development framework. It combines a GoFrame-based core host service, a Vue 3 + Vben 5 based default management workspace, plugin extensibility, and an OpenSpec-powered AI collaboration workflow.
+LinaPro is an AI-driven full-stack development framework. It combines a GoFrame-based core host service, a Vue 3 + Vben 5 based default management workspace, plugin extensibility, and an OpenSpec-powered AI collaboration workflow.
 
 ## Highlights
 
@@ -70,7 +70,7 @@ pnpm run build
 
 ## Delivery Workflow
 
-Lina uses OpenSpec as the structured delivery backbone.
+LinaPro uses OpenSpec as the structured delivery backbone.
 
 1. Explore the requirement and solution space.
 2. Create an OpenSpec proposal under `openspec/changes/`.

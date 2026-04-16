@@ -6,7 +6,6 @@ import path, { relative } from 'node:path';
 
 import { findMonorepoRoot } from '@vben/node-utils';
 
-import { NodePackageImporter } from 'sass';
 import { defineConfig, loadEnv, mergeConfig } from 'vite';
 
 import { defaultImportmapOptions, getDefaultPwaOptions } from '../options';
@@ -44,7 +43,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       nitroMockOptions: {},
       print: !isBuild,
       printInfoMap: {
-        'Lina Repository': 'https://github.com/gqcn/lina',
+        'LinaPro Repository': 'https://github.com/gqcn/lina',
       },
       pwa: true,
       pwaOptions: getDefaultPwaOptions(appTitle),
@@ -114,8 +113,6 @@ function createCssOptions(injectGlobalScss = true): CSSOptions {
               }
               return content;
             },
-            // api: 'modern',
-            importers: [new NodePackageImporter()],
           },
         }
       : {},
