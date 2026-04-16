@@ -1,6 +1,6 @@
 -- Mock data: 参数设置示例数据
 
-INSERT INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
+INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
 ('主框架页-默认皮肤样式名称', 'sys.index.skinName', 'skin-blue', '蓝色 skin-blue、绿色 skin-green、紫色 skin-purple、红色 skin-red、黄色 skin-yellow', NOW(), NOW()),
 ('用户管理-账号初始密码',      'sys.user.initPassword', '123456', '初始化密码 123456', NOW(), NOW()),
 ('主框架页-侧边栏主题',       'sys.index.sideTheme', 'theme-dark', '深色主题 theme-dark、浅色主题 theme-light', NOW(), NOW()),

@@ -36,17 +36,6 @@ CREATE TABLE IF NOT EXISTS sys_login_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='系统登录日志表';
 
 -- ============================================================
--- 字典数据表: 添加唯一约束防止重复数据
--- ============================================================
--- 先清理已有重复数据（保留每组 dict_type+value 中 id 最小的记录）
-DELETE t1 FROM sys_dict_data t1
-INNER JOIN sys_dict_data t2
-WHERE t1.id > t2.id AND t1.dict_type = t2.dict_type AND t1.value = t2.value;
-
--- MySQL 中 CREATE INDEX IF NOT EXISTS 需要通过存储过程或直接创建（忽略已存在错误）
-CREATE UNIQUE INDEX idx_sys_dict_data_type_value ON sys_dict_data(dict_type, value);
-
--- ============================================================
 -- 字典初始化数据：操作类型
 -- ============================================================
 INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)

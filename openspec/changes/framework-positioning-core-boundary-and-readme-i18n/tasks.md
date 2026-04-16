@@ -30,3 +30,9 @@
 - [x] 5.1 更新受项目文案影响的前端断言和 E2E 用例预期，至少覆盖登录页、系统信息页和系统接口页的关键文本变化
 - [x] 5.2 运行本次变更相关的校验或测试，确认新的项目定位、`OpenAPI` 文案、系统信息页展示和 README 双语镜像规则没有引入回归
 - [x] 5.3 进行一次人工 review，确认项目入口、活跃规范、核心边界要求与 README 体系对外传递的是同一套定位和术语
+
+## Feedback
+
+- [x] **FB-1**: 将宿主数据库初始化 SQL 目录收敛为固定约定 `manifest/sql`，移除 `config.template.yaml` 中的 `init.sqlDir` 显式配置
+- [x] **FB-2**: 修复宿主 `make init` / `make mock` 在重复执行场景下暴露的 SQL 语法与幂等性问题，确保初始化与 Mock 数据加载可稳定回归
+- [x] **FB-3**: 删除宿主 `manifest/sql/009-cleanup-dict-test-data.sql` 这类历史测试污染清理脚本，并同步清理嵌入副本中的陈旧 SQL 文件

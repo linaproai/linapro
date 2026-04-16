@@ -1,26 +1,30 @@
+// This file exposes OpenAPI document metadata sourced from the embedded
+// metadata asset.
+
 package config
 
-import (
-	"context"
-)
+import "context"
 
 // OpenApiConfig holds OpenAPI documentation configuration.
 type OpenApiConfig struct {
-	Title             string `json:"title"`             // API title
-	Description       string `json:"description"`       // API description
-	Version           string `json:"version"`           // API version
-	ServerUrl         string `json:"serverUrl"`         // Server URL
-	ServerDescription string `json:"serverDescription"` // Server description
+	Title             string `json:"title"`             // Title is the API document title.
+	Description       string `json:"description"`       // Description is the API document summary.
+	Version           string `json:"version"`           // Version is the API document version string.
+	ServerUrl         string `json:"serverUrl"`         // ServerUrl is the backend endpoint shown by OpenAPI viewers.
+	ServerDescription string `json:"serverDescription"` // ServerDescription is the display name for ServerUrl.
 }
 
-// GetOpenApi reads OpenAPI config from configuration file.
-func (s *serviceImpl) GetOpenApi(ctx context.Context) *OpenApiConfig {
-	cfg := &OpenApiConfig{
+func defaultOpenApiConfig() OpenApiConfig {
+	return OpenApiConfig{
 		Title:             "Lina Framework API",
 		Description:       "Lina core host service API reference.",
 		Version:           "v1.0.0",
 		ServerDescription: "Core Host API Server",
 	}
-	mustScanConfig(ctx, "openapi", cfg)
-	return cfg
+}
+
+// GetOpenApi reads OpenAPI config from embedded metadata.
+func (s *serviceImpl) GetOpenApi(ctx context.Context) *OpenApiConfig {
+	cfg := s.GetMetadata(ctx).OpenApi
+	return &cfg
 }

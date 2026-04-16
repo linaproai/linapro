@@ -1,21 +1,20 @@
+// Package config implements host configuration access for runtime settings,
+// embedded delivery metadata, and related normalization helpers.
 package config
 
-import
-
-// serviceImpl implements Service.
-"context"
+import "context"
 
 // Service defines the config service contract.
 type Service interface {
 	// GetCluster reads cluster config from configuration file.
 	GetCluster(ctx context.Context) *ClusterConfig
-	// GetInit reads initialization config from configuration file.
-	GetInit(ctx context.Context) *InitConfig
 	// GetJwt reads JWT config from configuration file.
 	GetJwt(ctx context.Context) *JwtConfig
+	// GetMetadata reads embedded delivery metadata from the packaged resource file.
+	GetMetadata(ctx context.Context) *MetadataConfig
 	// GetMonitor reads monitor config from configuration file.
 	GetMonitor(ctx context.Context) *MonitorConfig
-	// GetOpenApi reads OpenAPI config from configuration file.
+	// GetOpenApi reads OpenAPI config from embedded metadata.
 	GetOpenApi(ctx context.Context) *OpenApiConfig
 	// GetPlugin reads plugin config from configuration file.
 	GetPlugin(ctx context.Context) *PluginConfig
@@ -32,6 +31,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct{}
 
+// New creates one config service instance.
 func New() Service {
 	return &serviceImpl{}
 }

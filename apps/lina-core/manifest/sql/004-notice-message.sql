@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS sys_notice (
     title       VARCHAR(255)  NOT NULL DEFAULT '' COMMENT '公告标题',
     type        TINYINT       NOT NULL DEFAULT 1  COMMENT '公告类型（1通知 2公告）',
     content     LONGTEXT      NOT NULL             COMMENT '公告内容',
+    file_ids    VARCHAR(500)  NOT NULL DEFAULT '' COMMENT '附件文件ID列表，逗号分隔',
     status      TINYINT       NOT NULL DEFAULT 0  COMMENT '公告状态（0草稿 1已发布）',
     remark      VARCHAR(500)  NOT NULL DEFAULT '' COMMENT '备注',
     created_by  BIGINT        NOT NULL DEFAULT 0  COMMENT '创建者',

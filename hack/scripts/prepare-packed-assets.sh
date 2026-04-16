@@ -13,7 +13,7 @@ mkdir -p "$TARGET_DIR/config" "$TARGET_DIR/sql"
 # Only copy manifest assets that are meant to ship inside the host binary.
 # The local developer override config.yaml must stay out of the embedded bundle.
 cp "$SOURCE_DIR/config/config.template.yaml" "$TARGET_DIR/config/"
-cp "$SOURCE_DIR/config/components.yaml" "$TARGET_DIR/config/"
+cp "$SOURCE_DIR/config/metadata.yaml" "$TARGET_DIR/config/"
 cp -R "$SOURCE_DIR/sql/." "$TARGET_DIR/sql/"
 
 touch "$TARGET_DIR/.gitkeep"

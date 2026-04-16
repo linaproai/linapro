@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS sys_dict_type (
     status      TINYINT      NOT NULL DEFAULT 1  COMMENT '状态（0停用 1正常）',
     remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
     created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间'
-    UNIQUE(type)
+    updated_at  DATETIME                         COMMENT '更新时间',
+    UNIQUE KEY uk_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='字典类型表';
 
 -- ============================================================
@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS sys_dict_data (
     status      TINYINT      NOT NULL DEFAULT 1  COMMENT '状态（0停用 1正常）',
     remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
     created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间'
+    updated_at  DATETIME                         COMMENT '更新时间',
+    UNIQUE KEY uk_dict_type_value (dict_type, value)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='字典数据表';
 
 -- ============================================================

@@ -1,3 +1,6 @@
+// This file implements the host mock-data loading command that scans the
+// conventional mock SQL directories.
+
 package cmd
 
 import (
@@ -7,7 +10,6 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"lina-core/internal/service/config"
 	"lina-core/pkg/logger"
 )
 
@@ -17,8 +19,7 @@ type MockInput struct {
 type MockOutput struct{}
 
 func (m *Main) Mock(ctx context.Context, in MockInput) (out *MockOutput, err error) {
-	sqlDir := config.New().GetInit(ctx).SqlDir
-	files, err := scanMockSqlFiles(ctx, sqlDir)
+	files, err := scanMockSqlFiles(ctx)
 	if err != nil {
 		logger.Warningf(ctx, "failed to scan mock SQL files: %v", err)
 		return nil, nil
@@ -34,10 +35,10 @@ func (m *Main) Mock(ctx context.Context, in MockInput) (out *MockOutput, err err
 	return
 }
 
-func scanMockSqlFiles(ctx context.Context, sqlDir string) ([]string, error) {
+func scanMockSqlFiles(ctx context.Context) ([]string, error) {
 	var (
 		files      = make([]string, 0)
-		mockDir    = gfile.Join(sqlDir, "mock-data")
+		mockDir    = hostMockSqlDir()
 		pluginRoot = gfile.RealPath(gfile.Join("..", "lina-plugins"))
 	)
 

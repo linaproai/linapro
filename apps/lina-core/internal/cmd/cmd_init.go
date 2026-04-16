@@ -1,3 +1,6 @@
+// This file implements the host database initialization command that scans the
+// conventional manifest SQL directories.
+
 package cmd
 
 import (
@@ -7,7 +10,6 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"lina-core/internal/service/config"
 	"lina-core/pkg/logger"
 )
 
@@ -17,8 +19,7 @@ type InitInput struct {
 type InitOutput struct{}
 
 func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err error) {
-	sqlDir := config.New().GetInit(ctx).SqlDir
-	files, err := scanInitSqlFiles(ctx, sqlDir)
+	files, err := scanInitSqlFiles(ctx)
 	if err != nil {
 		logger.Warningf(ctx, "failed to scan SQL files: %v", err)
 		return nil, nil
@@ -47,10 +48,11 @@ func execSqlFiles(ctx context.Context, files []string) {
 	}
 }
 
-func scanInitSqlFiles(ctx context.Context, sqlDir string) ([]string, error) {
+func scanInitSqlFiles(ctx context.Context) ([]string, error) {
 	var (
 		files      = make([]string, 0)
 		pluginRoot = gfile.RealPath(gfile.Join("..", "lina-plugins"))
+		sqlDir     = hostInitSqlDir()
 	)
 
 	if gfile.Exists(sqlDir) {

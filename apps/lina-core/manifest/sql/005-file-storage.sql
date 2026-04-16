@@ -24,8 +24,3 @@ CREATE TABLE IF NOT EXISTS sys_file (
     INDEX idx_hash (hash),
     INDEX idx_scene (scene)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='文件管理表';
-
--- ============================================================
--- 通知公告表增加附件字段
--- ============================================================
-ALTER TABLE sys_notice ADD COLUMN file_ids VARCHAR(500) NOT NULL DEFAULT '' COMMENT '附件文件ID列表，逗号分隔' AFTER content;
