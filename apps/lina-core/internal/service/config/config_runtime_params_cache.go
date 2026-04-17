@@ -1,18 +1,20 @@
 // This file implements protected-config snapshot caching backed by one
-// process-local gcache entry and a shared revision stored in sys_kv_cache.
+// process-local gcache entry plus a deployment-aware revision source:
+// single-node mode keeps the revision in process memory, while clustered mode
+// synchronizes the revision through sys_kv_cache.
 
 package config
 
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/os/gcache"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/logger"
 )
 
@@ -36,31 +38,32 @@ type runtimeParamSnapshot struct {
 }
 
 type cachedRuntimeParamSnapshot struct {
-	Revision    int64                 // Revision is the shared revision used for this cache entry.
+	Revision    int64                 // Revision is the effective revision used for this cache entry.
 	RefreshedAt time.Time             // RefreshedAt records when this cache entry was rebuilt from sys_config.
 	Snapshot    *runtimeParamSnapshot // Snapshot is the immutable parsed runtime-parameter snapshot.
 }
 
 var runtimeParamSnapshotCache = gcache.New()
 
-// RuntimeParamSnapshotSyncInterval returns the shared runtime-parameter cache
-// watcher interval used by all nodes.
+// runtimeParamRevisionState records the latest revision currently visible to
+// this process so single-node mode can invalidate stale local snapshots
+// without paying the distributed shared-KV coordination cost.
+var runtimeParamRevisionState = struct {
+	sync.RWMutex
+	value       int64
+	initialized bool
+}{}
+
+// RuntimeParamSnapshotSyncInterval returns the runtime-parameter watcher
+// interval used when multi-node sync is enabled.
 func RuntimeParamSnapshotSyncInterval() time.Duration {
 	return runtimeParamRevisionSyncInterval
 }
 
-// MarkRuntimeParamsChanged bumps the shared revision and clears the current
-// process snapshot cache after one protected runtime parameter mutation.
+// MarkRuntimeParamsChanged bumps the effective runtime-parameter revision and
+// clears the current process snapshot cache after one protected mutation.
 func (s *serviceImpl) MarkRuntimeParamsChanged(ctx context.Context) error {
-	item, err := s.kvCacheSvc.Incr(
-		ctx,
-		kvcache.OwnerTypeModule,
-		runtimeParamRevisionOwnerKey,
-		runtimeParamRevisionNamespace,
-		runtimeParamRevisionCacheKey,
-		1,
-		0,
-	)
+	revision, err := s.runtimeParamRevisionCtrl.MarkChanged(ctx)
 	if err != nil {
 		return err
 	}
@@ -70,11 +73,11 @@ func (s *serviceImpl) MarkRuntimeParamsChanged(ctx context.Context) error {
 	if _, removeErr := runtimeParamSnapshotCache.Remove(ctx, runtimeParamSnapshotCacheKey); removeErr != nil {
 		logger.Warningf(ctx, "clear runtime param snapshot cache failed err=%v", removeErr)
 	}
-	logger.Debugf(ctx, "runtime param revision bumped revision=%d", item.IntValue)
+	logger.Debugf(ctx, "runtime param revision bumped revision=%d", revision)
 	return nil
 }
 
-// NotifyRuntimeParamsChanged best-effort refreshes the shared runtime-parameter revision.
+// NotifyRuntimeParamsChanged best-effort refreshes the effective runtime-parameter revision.
 func (s *serviceImpl) NotifyRuntimeParamsChanged(ctx context.Context) {
 	if err := s.MarkRuntimeParamsChanged(ctx); err != nil {
 		logger.Warningf(ctx, "update runtime param revision failed: %v", err)
@@ -82,14 +85,14 @@ func (s *serviceImpl) NotifyRuntimeParamsChanged(ctx context.Context) {
 }
 
 // SyncRuntimeParamSnapshot synchronizes the process-local runtime-parameter
-// snapshot cache with the latest shared revision.
+// snapshot cache with the latest effective revision.
 func (s *serviceImpl) SyncRuntimeParamSnapshot(ctx context.Context) error {
-	revision, err := s.getRuntimeParamRevision(ctx)
+	revision, err := s.runtimeParamRevisionCtrl.SyncRevision(ctx)
 	if err != nil {
 		return err
 	}
 
-	cached := s.getCachedRuntimeParamSnapshot(ctx)
+	cached := s.getCachedRuntimeParamSnapshot(ctx, revision)
 	if cached != nil && cached.Snapshot != nil && cached.Revision == revision {
 		// When watcher and shared revision are still aligned, only extend the
 		// local hard TTL to keep the hot path on process memory.
@@ -116,15 +119,25 @@ func (s *serviceImpl) getRuntimeParamSnapshot(ctx context.Context) (snapshot *ru
 		if recover() != nil {
 			// Keep runtime-parameter reads best-effort so config-only tests and
 			// degraded environments can still fall back to config.yaml/defaults.
-			if cached := s.getCachedRuntimeParamSnapshot(ctx); cached != nil {
+			if revision, err := s.getRuntimeParamRevision(ctx); err == nil {
+				if cached := s.getCachedRuntimeParamSnapshot(ctx, revision); cached != nil {
+					snapshot = cached.Snapshot
+				}
+			} else if cached := s.getCachedRuntimeParamSnapshot(ctx, 0); cached != nil {
 				snapshot = cached.Snapshot
 			}
 		}
 	}()
 
+	revision, err := s.getRuntimeParamRevision(ctx)
+	if err != nil {
+		logger.Warningf(ctx, "get runtime param revision failed: %v", err)
+		return nil
+	}
+
 	// Validate any existing local entry before entering GetOrSetFuncLock so
 	// corrupted values can be removed and rebuilt within the same request.
-	if cached := s.getCachedRuntimeParamSnapshot(ctx); cached != nil {
+	if cached := s.getCachedRuntimeParamSnapshot(ctx, revision); cached != nil {
 		return cached.Snapshot
 	}
 
@@ -134,10 +147,6 @@ func (s *serviceImpl) getRuntimeParamSnapshot(ctx context.Context) (snapshot *ru
 		func(ctx context.Context) (value any, err error) {
 			// This callback runs under the cache write lock, which suppresses
 			// same-process cache stampedes when the snapshot is cold or invalidated.
-			revision, revisionErr := s.getRuntimeParamRevision(ctx)
-			if revisionErr != nil {
-				return nil, revisionErr
-			}
 			return s.loadCachedRuntimeParamSnapshot(ctx, revision)
 		},
 		runtimeParamSnapshotCacheTTL,
@@ -154,19 +163,34 @@ func (s *serviceImpl) getRuntimeParamSnapshot(ctx context.Context) (snapshot *ru
 		}
 		return nil
 	}
+	latestRevision, revisionErr := s.getRuntimeParamRevision(ctx)
+	if revisionErr != nil {
+		logger.Warningf(ctx, "refresh runtime param revision failed: %v", revisionErr)
+		return nil
+	}
+	if cached.Revision != latestRevision {
+		if _, removeErr := runtimeParamSnapshotCache.Remove(ctx, runtimeParamSnapshotCacheKey); removeErr != nil {
+			logger.Warningf(ctx, "remove stale runtime param snapshot cache failed err=%v", removeErr)
+		}
+		reloaded, loadErr := s.loadCachedRuntimeParamSnapshot(ctx, latestRevision)
+		if loadErr != nil {
+			logger.Warningf(ctx, "reload stale runtime param snapshot failed: %v", loadErr)
+			return nil
+		}
+		if err = runtimeParamSnapshotCache.Set(
+			ctx, runtimeParamSnapshotCacheKey, reloaded, runtimeParamSnapshotCacheTTL,
+		); err != nil {
+			logger.Warningf(ctx, "store refreshed runtime param snapshot failed: %v", err)
+		}
+		return reloaded.Snapshot
+	}
 	return cached.Snapshot
 }
 
-// getRuntimeParamRevision returns the latest shared revision visible to the current node.
+// getRuntimeParamRevision delegates to the constructor-selected controller so
+// callers do not need to know whether the revision lives locally or in shared KV.
 func (s *serviceImpl) getRuntimeParamRevision(ctx context.Context) (int64, error) {
-	revision, _, err := s.kvCacheSvc.GetInt(
-		ctx,
-		kvcache.OwnerTypeModule,
-		runtimeParamRevisionOwnerKey,
-		runtimeParamRevisionNamespace,
-		runtimeParamRevisionCacheKey,
-	)
-	return revision, err
+	return s.runtimeParamRevisionCtrl.CurrentRevision(ctx)
 }
 
 // loadCachedRuntimeParamSnapshot rebuilds one immutable runtime-parameter
@@ -187,7 +211,7 @@ func (s *serviceImpl) loadCachedRuntimeParamSnapshot(
 }
 
 // loadRuntimeParamSnapshot rebuilds one immutable protected-config snapshot
-// from sys_config for the specified shared revision.
+// from sys_config for the specified effective revision.
 func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int64) (*runtimeParamSnapshot, error) {
 	cols := dao.SysConfig.Columns()
 
@@ -250,21 +274,60 @@ func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int
 
 // getCachedRuntimeParamSnapshot returns the local cache entry only when the
 // cached value still matches the expected snapshot wrapper type.
-func (s *serviceImpl) getCachedRuntimeParamSnapshot(ctx context.Context) *cachedRuntimeParamSnapshot {
+func (s *serviceImpl) getCachedRuntimeParamSnapshot(ctx context.Context, revision int64) *cachedRuntimeParamSnapshot {
 	cachedVar, err := runtimeParamSnapshotCache.Get(ctx, runtimeParamSnapshotCacheKey)
 	if err != nil || cachedVar == nil {
 		return nil
 	}
 	cached := extractCachedRuntimeParamSnapshot(cachedVar.Val())
-	if cached != nil {
+	if cached != nil && (revision <= 0 || cached.Revision == revision) {
 		return cached
 	}
 	// Remove the broken entry immediately so the next GetOrSetFuncLock call can
-	// treat it as a real miss and rebuild the snapshot in the same request.
+	// treat it as a real miss and rebuild the snapshot in the same request. A
+	// revision mismatch means a stale single-node rebuild or a watcher-detected
+	// cluster refresh already made this entry obsolete.
 	if _, removeErr := runtimeParamSnapshotCache.Remove(ctx, runtimeParamSnapshotCacheKey); removeErr != nil {
 		logger.Warningf(ctx, "remove invalid runtime param snapshot cache failed err=%v", removeErr)
 	}
 	return nil
+}
+
+func getLocalRuntimeParamRevision() (int64, bool) {
+	runtimeParamRevisionState.RLock()
+	defer runtimeParamRevisionState.RUnlock()
+
+	if !runtimeParamRevisionState.initialized {
+		return 0, false
+	}
+	return runtimeParamRevisionState.value, true
+}
+
+func storeLocalRuntimeParamRevision(revision int64) {
+	runtimeParamRevisionState.Lock()
+	runtimeParamRevisionState.value = revision
+	runtimeParamRevisionState.initialized = true
+	runtimeParamRevisionState.Unlock()
+}
+
+func bumpLocalRuntimeParamRevision() int64 {
+	runtimeParamRevisionState.Lock()
+	defer runtimeParamRevisionState.Unlock()
+
+	if !runtimeParamRevisionState.initialized {
+		runtimeParamRevisionState.value = 1
+		runtimeParamRevisionState.initialized = true
+		return runtimeParamRevisionState.value
+	}
+	runtimeParamRevisionState.value++
+	return runtimeParamRevisionState.value
+}
+
+func clearLocalRuntimeParamRevision() {
+	runtimeParamRevisionState.Lock()
+	runtimeParamRevisionState.value = 0
+	runtimeParamRevisionState.initialized = false
+	runtimeParamRevisionState.Unlock()
 }
 
 // extractCachedRuntimeParamSnapshot keeps cache reads defensive so future

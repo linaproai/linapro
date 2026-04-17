@@ -24,14 +24,27 @@ func defaultElectionConfig() *ElectionConfig {
 	}
 }
 
-// GetCluster reads cluster config from configuration file.
-func (s *serviceImpl) GetCluster(ctx context.Context) *ClusterConfig {
-	return cloneClusterConfig(processStaticConfigCaches.cluster.load(func() *ClusterConfig {
+// getStaticClusterConfig lazily loads the cluster deployment mode from
+// config.yaml so callers can branch on single-node vs multi-node behavior
+// without reparsing the config section on hot paths.
+func (s *serviceImpl) getStaticClusterConfig(ctx context.Context) *ClusterConfig {
+	return processStaticConfigCaches.cluster.load(func() *ClusterConfig {
 		cfg := &ClusterConfig{
 			Enabled:  false,
 			Election: *defaultElectionConfig(),
 		}
 		mustScanConfig(ctx, "cluster", cfg)
 		return cfg
-	}))
+	})
+}
+
+// GetCluster reads cluster config from configuration file.
+func (s *serviceImpl) GetCluster(ctx context.Context) *ClusterConfig {
+	return cloneClusterConfig(s.getStaticClusterConfig(ctx))
+}
+
+// IsClusterEnabled reports whether multi-node cluster mode is enabled.
+func (s *serviceImpl) IsClusterEnabled(ctx context.Context) bool {
+	cfg := s.getStaticClusterConfig(ctx)
+	return cfg != nil && cfg.Enabled
 }

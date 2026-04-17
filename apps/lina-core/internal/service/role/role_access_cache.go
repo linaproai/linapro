@@ -11,7 +11,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcache"
 
-	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/logger"
 )
 
@@ -107,29 +106,14 @@ func (s *serviceImpl) InvalidateUserAccessContexts(ctx context.Context, userID i
 	}
 }
 
-// MarkAccessTopologyChanged bumps the shared permission topology revision and clears local token caches.
+// MarkAccessTopologyChanged bumps the effective permission-topology revision and clears local token caches.
 func (s *serviceImpl) MarkAccessTopologyChanged(ctx context.Context) error {
 	s.clearLocalAccessCache(ctx)
-	s.clearLocalAccessRevision()
-
-	item, err := s.kvCacheSvc.Incr(
-		ctx,
-		kvcache.OwnerTypeModule,
-		accessRevisionOwnerKey,
-		accessRevisionNamespace,
-		accessRevisionCacheKey,
-		1,
-		0,
-	)
-	if err != nil {
-		return err
-	}
-
-	s.storeLocalAccessRevision(item.IntValue)
-	return nil
+	_, err := s.accessRevisionCtrl.MarkChanged(ctx)
+	return err
 }
 
-// NotifyAccessTopologyChanged best-effort refreshes the shared permission topology revision.
+// NotifyAccessTopologyChanged best-effort refreshes the effective permission-topology revision.
 func (s *serviceImpl) NotifyAccessTopologyChanged(ctx context.Context) {
 	if err := s.MarkAccessTopologyChanged(ctx); err != nil {
 		logger.Warningf(ctx, "update access topology revision failed: %v", err)
@@ -139,23 +123,17 @@ func (s *serviceImpl) NotifyAccessTopologyChanged(ctx context.Context) {
 // SyncAccessTopologyRevision synchronizes the process-local permission
 // topology revision and clears stale token snapshots after cross-node changes.
 func (s *serviceImpl) SyncAccessTopologyRevision(ctx context.Context) error {
-	revision, err := s.getSharedAccessRevision(ctx)
-	if err != nil {
-		return err
-	}
-
-	// The watcher only needs to clear token-scoped access snapshots when another
-	// node has already bumped the shared revision. Once the local revision catches
-	// up, requests can keep reading process memory until the next sync window.
-	if localRevision, ok := s.getLocalAccessRevisionForce(); ok && localRevision != revision {
+	_, err := s.accessRevisionCtrl.SyncRevision(ctx, func() {
+		// The watcher only needs to clear token-scoped access snapshots when another
+		// node has already bumped the shared revision. Once the local revision catches
+		// up, requests can keep reading process memory until the next sync window.
 		s.clearLocalAccessCache(ctx)
-	}
-	s.storeLocalAccessRevision(revision)
-	return nil
+	})
+	return err
 }
 
 // getTokenAccessContext returns one token-scoped access snapshot that stays
-// valid only while the shared topology revision matches the cached entry.
+// valid only while the effective topology revision matches the cached entry.
 func (s *serviceImpl) getTokenAccessContext(
 	ctx context.Context,
 	tokenID string,
@@ -247,6 +225,10 @@ func (s *serviceImpl) loadTokenAccessContextWithCacheLock(
 	}
 
 	cached := extractCachedUserAccessContext(cachedVar.Val())
+	latestRevision, revisionErr := s.getAccessRevision(ctx)
+	if revisionErr == nil {
+		revision = latestRevision
+	}
 	if cached == nil || cached.UserID != userID || cached.Revision != revision {
 		// The shared lock prevents duplicate cold loads for one token, but the
 		// entry can still become stale before this goroutine resumes, for example
@@ -382,43 +364,15 @@ func (s *serviceImpl) removeIndexedToken(tokenID string) {
 	}
 }
 
-// getAccessRevision returns the current permission-topology revision. It first
-// uses the short-lived local copy and falls back to the shared KV row when needed.
+// getAccessRevision delegates deployment-specific revision lookup to the
+// constructor-selected controller so permission reads keep one consistent path.
 func (s *serviceImpl) getAccessRevision(ctx context.Context) (int64, error) {
-	if revision, ok := s.getLocalAccessRevision(); ok {
-		return revision, nil
-	}
-
-	revision, err := s.getSharedAccessRevision(ctx)
-	if err != nil {
-		// Keep permission checks soft-degraded during transient shared-KV
-		// failures by reusing the last synchronized revision when one exists.
-		if revision, ok := s.getLocalAccessRevisionForce(); ok {
-			return revision, nil
-		}
-		return 0, err
-	}
-
-	s.storeLocalAccessRevision(revision)
-	return revision, nil
-}
-
-// getSharedAccessRevision returns the latest shared permission-topology
-// revision visible to the current node without mutating the KV row.
-func (s *serviceImpl) getSharedAccessRevision(ctx context.Context) (int64, error) {
-	revision, _, err := s.kvCacheSvc.GetInt(
-		ctx,
-		kvcache.OwnerTypeModule,
-		accessRevisionOwnerKey,
-		accessRevisionNamespace,
-		accessRevisionCacheKey,
-	)
-	return revision, err
+	return s.accessRevisionCtrl.CurrentRevision(ctx)
 }
 
 // getLocalAccessRevision returns the process-local revision only while its
 // refresh window is still valid.
-func (s *serviceImpl) getLocalAccessRevision() (int64, bool) {
+func getLocalAccessRevision() (int64, bool) {
 	accessRevisionState.RLock()
 	defer accessRevisionState.RUnlock()
 
@@ -430,7 +384,7 @@ func (s *serviceImpl) getLocalAccessRevision() (int64, bool) {
 
 // getLocalAccessRevisionForce returns the last known local revision even after
 // the refresh window expires so transient shared-cache failures can degrade softly.
-func (s *serviceImpl) getLocalAccessRevisionForce() (int64, bool) {
+func getLocalAccessRevisionForce() (int64, bool) {
 	accessRevisionState.RLock()
 	defer accessRevisionState.RUnlock()
 
@@ -442,16 +396,31 @@ func (s *serviceImpl) getLocalAccessRevisionForce() (int64, bool) {
 
 // storeLocalAccessRevision records the shared revision in process memory so hot
 // permission checks do not hit the shared KV cache on every request.
-func (s *serviceImpl) storeLocalAccessRevision(revision int64) {
+func storeLocalAccessRevision(revision int64) {
 	accessRevisionState.Lock()
 	accessRevisionState.value = revision
 	accessRevisionState.expireAt = time.Now().Add(accessRevisionRefreshInterval)
 	accessRevisionState.Unlock()
 }
 
+// bumpLocalAccessRevision advances the process-local revision while preserving
+// the same refresh TTL semantics used by clustered local snapshots.
+func bumpLocalAccessRevision() int64 {
+	accessRevisionState.Lock()
+	defer accessRevisionState.Unlock()
+
+	if accessRevisionState.expireAt.IsZero() {
+		accessRevisionState.value = 1
+	} else {
+		accessRevisionState.value++
+	}
+	accessRevisionState.expireAt = time.Now().Add(accessRevisionRefreshInterval)
+	return accessRevisionState.value
+}
+
 // clearLocalAccessRevision drops the process-local revision so the next read
 // must resynchronize after a local topology write.
-func (s *serviceImpl) clearLocalAccessRevision() {
+func clearLocalAccessRevision() {
 	accessRevisionState.Lock()
 	accessRevisionState.value = 0
 	accessRevisionState.expireAt = time.Time{}

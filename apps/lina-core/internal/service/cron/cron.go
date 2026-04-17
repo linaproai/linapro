@@ -31,18 +31,25 @@ type Service interface {
 	IsPrimary() bool
 }
 
+type startupJob interface {
+	// Start performs eager warmup and registers any required background watchers.
+	Start(ctx context.Context)
+}
+
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	sessionCfg   *config.SessionConfig // Session configuration
-	monCfg       *config.MonitorConfig // Monitor configuration
-	configSvc    config.Service        // Config service
-	roleSvc      rolesvc.Service       // Role service
-	serverMonSvc servermon.Service     // Server monitor service
-	sessionStore session.Store         // Session store
-	clusterSvc   cluster.Service       // Cluster topology service
-	pluginSvc    pluginsvc.Service     // Plugin service
+	sessionCfg            *config.SessionConfig // Session configuration
+	monCfg                *config.MonitorConfig // Monitor configuration
+	configSvc             config.Service        // Config service
+	roleSvc               rolesvc.Service       // Role service
+	serverMonSvc          servermon.Service     // Server monitor service
+	sessionStore          session.Store         // Session store
+	clusterSvc            cluster.Service       // Cluster topology service
+	pluginSvc             pluginsvc.Service     // Plugin service
+	runtimeParamSyncJob   startupJob            // Runtime-parameter sync startup job
+	accessTopologySyncJob startupJob            // Permission-topology sync startup job
 }
 
 // New creates and returns a new Service instance.
@@ -52,15 +59,31 @@ func New(
 	sessionStore session.Store,
 	clusterSvc cluster.Service,
 ) Service {
+	var (
+		configSvc      = config.New()
+		roleSvc        = rolesvc.New()
+		serverMonSvc   = servermon.New()
+		pluginSvc      = pluginsvc.New(clusterSvc)
+		clusterEnabled = clusterSvc != nil && clusterSvc.IsEnabled()
+	)
+
 	return &serviceImpl{
 		sessionCfg:   sessionCfg,
 		monCfg:       monCfg,
-		configSvc:    config.New(),
-		roleSvc:      rolesvc.New(),
-		serverMonSvc: servermon.New(),
+		configSvc:    configSvc,
+		roleSvc:      roleSvc,
+		serverMonSvc: serverMonSvc,
 		sessionStore: sessionStore,
 		clusterSvc:   clusterSvc,
-		pluginSvc:    pluginsvc.New(clusterSvc),
+		pluginSvc:    pluginSvc,
+		runtimeParamSyncJob: newRuntimeParamSnapshotSyncJob(
+			clusterEnabled,
+			configSvc,
+		),
+		accessTopologySyncJob: newAccessTopologyRevisionSyncJob(
+			clusterEnabled,
+			roleSvc,
+		),
 	}
 }
 

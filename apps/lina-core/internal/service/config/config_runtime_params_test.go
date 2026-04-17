@@ -5,15 +5,111 @@ package config
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/kvcache"
 )
+
+type fakeRuntimeParamKVCacheService struct {
+	getIntValue int64
+	getIntCalls int32
+	incrCalls   int32
+}
+
+func (f *fakeRuntimeParamKVCacheService) Get(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+) (*kvcache.Item, bool, error) {
+	return nil, false, nil
+}
+
+func (f *fakeRuntimeParamKVCacheService) GetInt(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+) (int64, bool, error) {
+	atomic.AddInt32(&f.getIntCalls, 1)
+	return f.getIntValue, true, nil
+}
+
+func (f *fakeRuntimeParamKVCacheService) Set(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+	_ string,
+	_ int64,
+) (*kvcache.Item, error) {
+	return nil, nil
+}
+
+func (f *fakeRuntimeParamKVCacheService) Delete(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+) error {
+	return nil
+}
+
+func (f *fakeRuntimeParamKVCacheService) Incr(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+	_ int64,
+	_ int64,
+) (*kvcache.Item, error) {
+	atomic.AddInt32(&f.incrCalls, 1)
+	return &kvcache.Item{IntValue: f.getIntValue}, nil
+}
+
+func (f *fakeRuntimeParamKVCacheService) Expire(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+	_ int64,
+) (bool, *gtime.Time, error) {
+	return false, nil, nil
+}
+
+func (f *fakeRuntimeParamKVCacheService) CleanupExpired(_ context.Context) error {
+	return nil
+}
+
+func TestNewRuntimeParamRevisionControllerSelectsByClusterMode(t *testing.T) {
+	if _, ok := newRuntimeParamRevisionController(
+		false,
+		&fakeRuntimeParamKVCacheService{},
+	).(*localRuntimeParamRevisionController); !ok {
+		t.Fatal("expected single-node mode to use local runtime-param revision controller")
+	}
+
+	if _, ok := newRuntimeParamRevisionController(
+		true,
+		&fakeRuntimeParamKVCacheService{},
+	).(*clusterRuntimeParamRevisionController); !ok {
+		t.Fatal("expected cluster mode to use shared runtime-param revision controller")
+	}
+}
 
 func TestValidateRuntimeParamValue(t *testing.T) {
 	testCases := []struct {
@@ -324,6 +420,70 @@ func TestSyncRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 	}
 }
 
+func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
+	ctx := context.Background()
+	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
+
+	svc := New().(*serviceImpl)
+	resetRuntimeParamCacheTestState(t)
+	fakeKV := &fakeRuntimeParamKVCacheService{getIntValue: 11}
+	svc.kvCacheSvc = fakeKV
+	svc.runtimeParamRevisionCtrl = newRuntimeParamRevisionController(false, fakeKV)
+
+	if err := svc.SyncRuntimeParamSnapshot(ctx); err != nil {
+		t.Fatalf("single-node runtime param sync failed: %v", err)
+	}
+	if atomic.LoadInt32(&fakeKV.getIntCalls) != 0 {
+		t.Fatalf("expected single-node sync to avoid GetInt, got %d calls", atomic.LoadInt32(&fakeKV.getIntCalls))
+	}
+	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+		t.Fatalf("expected initial jwt expire 12h, got %s", cfg.Expire)
+	}
+
+	original, err := queryRuntimeParam(ctx, RuntimeParamKeyJWTExpire)
+	if err != nil {
+		t.Fatalf("query jwt runtime param: %v", err)
+	}
+	if original == nil {
+		t.Fatal("expected jwt runtime param to exist")
+	}
+
+	_, err = dao.SysConfig.Ctx(ctx).
+		Unscoped().
+		Where(do.SysConfig{Id: original.Id}).
+		Data(do.SysConfig{Value: "6h"}).
+		Update()
+	if err != nil {
+		t.Fatalf("update jwt runtime param before local invalidation: %v", err)
+	}
+	t.Cleanup(func() {
+		_, cleanupErr := dao.SysConfig.Ctx(ctx).
+			Unscoped().
+			Where(do.SysConfig{Id: original.Id}).
+			Data(do.SysConfig{Value: original.Value}).
+			Update()
+		if cleanupErr != nil {
+			t.Fatalf("restore jwt runtime param after single-node test: %v", cleanupErr)
+		}
+		resetRuntimeParamCacheTestState(t)
+		markRuntimeParamChanged(t, ctx)
+	})
+
+	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+		t.Fatalf("expected cached jwt expire to stay 12h before local invalidation, got %s", cfg.Expire)
+	}
+
+	if err = svc.MarkRuntimeParamsChanged(ctx); err != nil {
+		t.Fatalf("mark runtime params changed in single-node mode: %v", err)
+	}
+	if atomic.LoadInt32(&fakeKV.incrCalls) != 0 {
+		t.Fatalf("expected single-node invalidation to avoid Incr, got %d calls", atomic.LoadInt32(&fakeKV.incrCalls))
+	}
+	if cfg := svc.GetJwt(ctx); cfg.Expire != 6*time.Hour {
+		t.Fatalf("expected jwt expire to reload to 6h after local invalidation, got %s", cfg.Expire)
+	}
+}
+
 func withRuntimeParamValue(t *testing.T, key string, value string) {
 	t.Helper()
 
@@ -430,6 +590,22 @@ func clearRuntimeParamSnapshotCache(t *testing.T, ctx context.Context) {
 	if _, err := runtimeParamSnapshotCache.Remove(ctx, runtimeParamSnapshotCacheKey); err != nil {
 		t.Fatalf("clear runtime param snapshot cache: %v", err)
 	}
+}
+
+func resetRuntimeParamCacheTestState(t *testing.T) {
+	t.Helper()
+
+	ctx := context.Background()
+	clearLocalRuntimeParamRevision()
+	if _, err := runtimeParamSnapshotCache.Remove(ctx, runtimeParamSnapshotCacheKey); err != nil {
+		t.Fatalf("reset runtime param snapshot cache: %v", err)
+	}
+	t.Cleanup(func() {
+		clearLocalRuntimeParamRevision()
+		if _, err := runtimeParamSnapshotCache.Remove(ctx, runtimeParamSnapshotCacheKey); err != nil {
+			t.Fatalf("cleanup runtime param snapshot cache: %v", err)
+		}
+	})
 }
 
 func queryRuntimeParam(ctx context.Context, key string) (*entity.SysConfig, error) {

@@ -13,6 +13,8 @@ import (
 type Service interface {
 	// GetCluster reads cluster config from configuration file.
 	GetCluster(ctx context.Context) *ClusterConfig
+	// IsClusterEnabled reports whether multi-node cluster mode is enabled.
+	IsClusterEnabled(ctx context.Context) bool
 	// GetJwt reads JWT config from configuration file.
 	GetJwt(ctx context.Context) *JwtConfig
 	// GetJwtSecret returns the static JWT signing secret loaded from config.yaml.
@@ -63,12 +65,18 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	kvCacheSvc kvcache.Service
+	kvCacheSvc               kvcache.Service
+	runtimeParamRevisionCtrl runtimeParamRevisionController
 }
 
 // New creates one config service instance.
 func New() Service {
-	return &serviceImpl{
+	svc := &serviceImpl{
 		kvCacheSvc: kvcache.New(),
 	}
+	svc.runtimeParamRevisionCtrl = newRuntimeParamRevisionController(
+		svc.IsClusterEnabled(context.Background()),
+		svc.kvCacheSvc,
+	)
+	return svc
 }

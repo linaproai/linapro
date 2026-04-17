@@ -81,18 +81,30 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc  bizctx.Service
-	configSvc  config.Service
-	kvCacheSvc kvcache.Service
-	pluginSvc  pluginsvc.Service
+	bizCtxSvc          bizctx.Service
+	configSvc          config.Service
+	kvCacheSvc         kvcache.Service
+	pluginSvc          pluginsvc.Service
+	accessRevisionCtrl accessRevisionController
 }
 
 func New() Service {
+	var (
+		bizCtxSvc  = bizctx.New()
+		configSvc  = config.New()
+		kvCacheSvc = kvcache.New()
+		pluginSvc  = pluginsvc.New()
+	)
+
 	return &serviceImpl{
-		bizCtxSvc:  bizctx.New(),
-		configSvc:  config.New(),
-		kvCacheSvc: kvcache.New(),
-		pluginSvc:  pluginsvc.New(),
+		bizCtxSvc:  bizCtxSvc,
+		configSvc:  configSvc,
+		kvCacheSvc: kvCacheSvc,
+		pluginSvc:  pluginSvc,
+		accessRevisionCtrl: newAccessRevisionController(
+			configSvc.IsClusterEnabled(context.Background()),
+			kvCacheSvc,
+		),
 	}
 }
 
