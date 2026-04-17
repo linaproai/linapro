@@ -76,7 +76,7 @@ func New() Service {
 	var (
 		ctx         = context.Background()
 		configSvc   = config.New()
-		storagePath = configSvc.GetUpload(ctx).Path
+		storagePath = configSvc.GetUploadPath(ctx)
 	)
 	return &serviceImpl{
 		configSvc: configSvc,
@@ -114,9 +114,9 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 	sanitizedFilename := sanitizeFilename(file.Filename)
 
 	// Validate file size (max from config, default 10MB)
-	uploadCfg := s.configSvc.GetUpload(ctx)
-	if file.Size > uploadCfg.MaxSize*1024*1024 {
-		return nil, gerror.Newf("文件大小不能超过%dMB", uploadCfg.MaxSize)
+	uploadMaxSize := s.configSvc.GetUploadMaxSize(ctx)
+	if file.Size > uploadMaxSize*1024*1024 {
+		return nil, gerror.Newf("文件大小不能超过%dMB", uploadMaxSize)
 	}
 
 	// Open uploaded file

@@ -8,8 +8,6 @@ import (
 )
 
 func TestGetMetadataMergesOpenApiAndComponentSections(t *testing.T) {
-	t.Parallel()
-
 	adapter, err := gcfg.NewAdapterContent(`
 openapi:
   title: "Embedded API"
@@ -54,8 +52,6 @@ frontend:
 }
 
 func TestGetOpenApiUsesEmbeddedMetadataAsset(t *testing.T) {
-	t.Parallel()
-
 	cfg := New().GetOpenApi(context.Background())
 
 	if cfg.Title != "LinaPro Framework API" {

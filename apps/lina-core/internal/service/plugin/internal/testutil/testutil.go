@@ -140,7 +140,7 @@ type jwtConfigAdapter struct {
 }
 
 func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
-	return a.svc.GetJwt(ctx).Secret
+	return a.svc.GetJwtSecret(ctx)
 }
 
 type userCtxAdapter struct {

@@ -1,9 +1,11 @@
+// This file implements Excel import and template generation for system
+// configuration records.
+
 package sysconfig
 
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -69,17 +71,11 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			})
 			continue
 		}
-
-		// Check if key exists (GoFrame auto-adds deleted_at IS NULL)
-		var existing *entity.SysConfig
-		err := dao.SysConfig.Ctx(ctx).
-			Where(do.SysConfig{Key: key}).
-			Scan(&existing)
-		if err != nil {
+		if validateErr := validateManagedConfigValue(key, value); validateErr != nil {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: fmt.Sprintf("数据库查询错误: %v", err),
+				Reason: validateErr.Error(),
 			})
 			continue
 		}
@@ -90,50 +86,55 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			remark = row[3]
 		}
 
-		if existing != nil {
-			// Key exists
-			if !updateSupport {
-				// Ignore mode: skip this record
-				result.Fail++
-				result.FailList = append(result.FailList, ImportFailItem{
-					Row:    rowNum,
-					Reason: fmt.Sprintf("参数键名 '%s' 已存在", key),
-				})
-				continue
+		err = s.withConfigMutation(ctx, func(ctx context.Context) error {
+			// Check if key exists (GoFrame auto-adds deleted_at IS NULL)
+			var existing *entity.SysConfig
+			scanErr := dao.SysConfig.Ctx(ctx).
+				Where(do.SysConfig{Key: key}).
+				Scan(&existing)
+			if scanErr != nil {
+				return gerror.Wrap(scanErr, "数据库查询错误")
 			}
-			// Overwrite mode: update existing record (GoFrame auto-fills updated_at)
-			_, err = dao.SysConfig.Ctx(ctx).
-				Where(do.SysConfig{Id: existing.Id}).
-				Data(do.SysConfig{
-					Name:   name,
-					Value:  value,
-					Remark: remark,
-				}).
-				Update()
-			if err != nil {
-				result.Fail++
-				result.FailList = append(result.FailList, ImportFailItem{
-					Row:    rowNum,
-					Reason: fmt.Sprintf("更新失败: %v", err),
-				})
-				continue
+
+			if existing != nil {
+				// Key exists
+				if !updateSupport {
+					return gerror.Newf("参数键名 '%s' 已存在", key)
+				}
+				// Overwrite mode: update existing record (GoFrame auto-fills updated_at)
+				_, updateErr := dao.SysConfig.Ctx(ctx).
+					Where(do.SysConfig{Id: existing.Id}).
+					Data(do.SysConfig{
+						Name:   name,
+						Value:  value,
+						Remark: remark,
+					}).
+					Update()
+				if updateErr != nil {
+					return gerror.Wrap(updateErr, "更新失败")
+				}
+				return s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, existing.Value, value, false)
 			}
-		} else {
+
 			// Create new record (GoFrame auto-fills created_at and updated_at)
-			_, err = dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
+			_, insertErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
 				Name:   name,
 				Key:    key,
 				Value:  value,
 				Remark: remark,
 			}).Insert()
-			if err != nil {
-				result.Fail++
-				result.FailList = append(result.FailList, ImportFailItem{
-					Row:    rowNum,
-					Reason: fmt.Sprintf("插入失败: %v", err),
-				})
-				continue
+			if insertErr != nil {
+				return gerror.Wrap(insertErr, "插入失败")
 			}
+			return s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, "", value, true)
+		})
+		if err != nil {
+			result.Fail++
+			result.FailList = append(result.FailList, ImportFailItem{
+				Row:    rowNum,
+				Reason: err.Error(),
+			})
+			continue
 		}
 
 		result.Success++
@@ -156,16 +157,16 @@ func (s *serviceImpl) GenerateImportTemplate() (data []byte, err error) {
 	}
 
 	// Example row
-	if err = setCellValueByName(f, sheet, cellName(1, 2), "系统名称"); err != nil {
+	if err = setCellValueByName(f, sheet, cellName(1, 2), "认证管理-JWT Token 有效期"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(2, 2), "sys.app.name"); err != nil {
+	if err = setCellValueByName(f, sheet, cellName(2, 2), "sys.jwt.expire"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(3, 2), "LinaPro"); err != nil {
+	if err = setCellValueByName(f, sheet, cellName(3, 2), "24h"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(4, 2), "系统显示名称"); err != nil {
+	if err = setCellValueByName(f, sheet, cellName(4, 2), "控制新签发 JWT Token 的有效期"); err != nil {
 		return nil, err
 	}
 

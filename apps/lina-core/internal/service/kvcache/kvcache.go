@@ -54,6 +54,26 @@ type Service interface {
 		namespace string,
 		cacheKey string,
 	) (*Item, bool, error)
+	// GetInt returns the current integer cache value identified by ownerType,
+	// ownerKey, namespace, and cacheKey.
+	// Parameters:
+	// - ctx: request-scoped context used for database access, tracing, and cancellation.
+	// - ownerType: cache owner category, used to isolate entries across different business scopes.
+	// - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
+	// - namespace: logical group name used to organize related cache entries for the same owner.
+	// - cacheKey: concrete key to read inside the namespace.
+	// Returns:
+	// - int64: the integer cache value when the entry exists and is stored as an integer.
+	// - bool: whether the cache entry exists after optional single-row expiration cleanup.
+	// - error: returned when identity parameters are invalid, the existing entry is not stored
+	// as an integer, or the database query/delete fails.
+	GetInt(
+		ctx context.Context,
+		ownerType OwnerType,
+		ownerKey string,
+		namespace string,
+		cacheKey string,
+	) (int64, bool, error)
 	// Set stores or replaces a string cache value for the specified owner, namespace,
 	// and cache key.
 	// Parameters:

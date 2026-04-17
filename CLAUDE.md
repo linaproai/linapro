@@ -211,6 +211,7 @@ pnpm report            # 查看 HTML 报告
 - **SQL文件版本管理**：每次迭代应新建`SQL`文件来维护数据库变更，而非修改旧迭代创建的`SQL`文件。例如：`001-project-init.sql`为旧版本迭代文件，当前迭代应新建如`008-user-auth.sql`而非修改`001-project-init.sql`。仅在用户明确要求时才允许修改旧迭代`SQL`文件。
 - **同迭代单文件原则**：宿主 `manifest/sql/` 目录下，同一个业务迭代只保留 **1 个** 版本`SQL`文件，不允许在同一迭代中拆分出多个编号不同但语义同属一次迭代的宿主`SQL`文件。若该迭代后续继续发生数据库变更，应继续追加或整理到当前迭代对应的同一个`SQL`文件中，而不是再新增第二个同迭代`SQL`文件。
 - **SQL数据分类管理**：迭代`SQL`文件（如 `002-dict-dept-post.sql`）中只允许包含`DDL`（建表/改表）和 `Seed DML`（系统运行所必需的初始化数据，如字典类型、管理员账号等）。演示/测试用的`Mock`数据（如测试用户、演示部门/岗位等）必须放到 `manifest/sql/mock-data/` 目录下的独立`SQL`文件中，文件名以数字前缀控制执行顺序（如 `01_mock_depts.sql`、`02_mock_posts.sql`）。
+- **SQL执行幂等性规范**：所有交付到 `manifest/sql/` 的建表、改表、索引变更和`Seed DML`脚本都必须满足**可重复执行且结果一致**的幂等性要求，确保版本升级、重试执行或初始化脚本重复运行时不会因为重复对象/重复数据而报错或造成数据不一致。编写`SQL`时应优先使用带存在性保护的语法，例如 `CREATE TABLE IF NOT EXISTS`、`CREATE INDEX IF NOT EXISTS`、`DROP ... IF EXISTS`、`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`、`INSERT IGNORE INTO`、`INSERT ... ON DUPLICATE KEY UPDATE` 等；若目标语句或数据库版本不支持直接的 `IF [NOT] EXISTS` / `IGNORE` / `upsert` 语法，则必须通过前置存在性判断或等价的安全重入方案实现幂等，禁止提交只能成功执行一次的`SQL`脚本。
 
 ### 接口层实现要求
 

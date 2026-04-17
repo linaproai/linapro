@@ -76,6 +76,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		sessionCfg = configSvc.GetSession(ctx)
 		monCfg     = configSvc.GetMonitor(ctx)
 		cronSvc    = cron.New(sessionCfg, monCfg, middlewareSvc.SessionStore(), clusterSvc)
+		uploadPath = configSvc.GetUploadPath(ctx)
 	)
 
 	clusterSvc.Start(ctx)
@@ -101,9 +102,8 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		group.Group("/uploads", func(group *ghttp.RouterGroup) {
 			group.ALL("/*any", func(r *ghttp.Request) {
 				var (
-					uploadCfg  = configSvc.GetUpload(r.Context())
 					pathSuffix = r.GetRouter("any").String()
-					filePath   = gfile.Join(uploadCfg.Path, pathSuffix)
+					filePath   = gfile.Join(uploadPath, pathSuffix)
 				)
 				if !gfile.Exists(filePath) {
 					r.Response.WriteStatus(404)

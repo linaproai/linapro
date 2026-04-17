@@ -61,6 +61,59 @@ func (s *serviceImpl) Get(
 	return buildCacheItem(row), true, nil
 }
 
+// GetInt returns the current integer cache value identified by ownerType,
+// ownerKey, namespace, and cacheKey.
+//
+// Parameters:
+//   - ctx: request-scoped context used for database access, tracing, and cancellation.
+//   - ownerType: cache owner category, used to isolate entries across different business scopes.
+//   - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
+//   - namespace: logical group name used to organize related cache entries for the same owner.
+//   - cacheKey: concrete key to read inside the namespace.
+//
+// Returns:
+//   - int64: the integer cache value when the entry exists and is stored as an integer.
+//   - bool: whether the cache entry exists after optional single-row expiration cleanup.
+//   - error: returned when identity parameters are invalid, the existing entry is not stored
+//     as an integer, or the database query/delete fails.
+func (s *serviceImpl) GetInt(
+	ctx context.Context,
+	ownerType OwnerType,
+	ownerKey string,
+	namespace string,
+	cacheKey string,
+) (int64, bool, error) {
+	if err := s.validateIdentity(ownerType, ownerKey, namespace, cacheKey); err != nil {
+		return 0, false, err
+	}
+
+	// Keep revision reads lightweight: unlike Get/Incr, this path intentionally
+	// skips global CleanupExpired so watcher polling stays read-dominant.
+	var row *entity.SysKvCache
+	err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+		OwnerType: ownerType.String(),
+		OwnerKey:  strings.TrimSpace(ownerKey),
+		Namespace: strings.TrimSpace(namespace),
+		CacheKey:  strings.TrimSpace(cacheKey),
+	}).Scan(&row)
+	if err != nil {
+		return 0, false, err
+	}
+	if row == nil {
+		return 0, false, nil
+	}
+	if row.ExpireAt != nil && row.ExpireAt.Before(gtime.Now()) {
+		// Lazily remove only the expired row we just touched so hot keys do not
+		// pay the cost of scanning unrelated cache entries.
+		_, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{Id: row.Id}).Delete()
+		return 0, false, err
+	}
+	if row.ValueKind != ValueKindInt {
+		return 0, false, gerror.New("缓存值不是整数，无法读取整数值")
+	}
+	return row.ValueInt, true, nil
+}
+
 // Set stores or replaces a string cache value for the specified owner, namespace,
 // and cache key.
 //

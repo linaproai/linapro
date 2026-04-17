@@ -40,35 +40,54 @@ test: 1
 
 func TestGetJwtUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
+database:
+  default:
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
 jwt:
   secret: "test-secret"
   expire: 36h
 `)
+	withRuntimeParamAbsent(t, RuntimeParamKeyJWTExpire)
 
-	cfg := New().GetJwt(context.Background())
+	svc := New()
+	cfg := svc.GetJwt(context.Background())
 
-	if cfg.Secret != "test-secret" {
-		t.Fatalf("expected jwt secret to be loaded, got %q", cfg.Secret)
-	}
 	if cfg.Expire != 36*time.Hour {
 		t.Fatalf("expected jwt expire to be 36h, got %s", cfg.Expire)
+	}
+	if cfg.Secret != "test-secret" {
+		t.Fatalf("expected jwt secret to be test-secret, got %q", cfg.Secret)
+	}
+	if expire := svc.GetJwtExpire(context.Background()); expire != 36*time.Hour {
+		t.Fatalf("expected GetJwtExpire to be 36h, got %s", expire)
+	}
+	if secret := svc.GetJwtSecret(context.Background()); secret != "test-secret" {
+		t.Fatalf("expected GetJwtSecret to be test-secret, got %q", secret)
 	}
 }
 
 func TestGetSessionUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
+database:
+  default:
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
 session:
   timeout: 36h
   cleanupInterval: 10m
 `)
+	withRuntimeParamAbsent(t, RuntimeParamKeySessionTimeout)
 
-	cfg := New().GetSession(context.Background())
+	svc := New()
+	cfg := svc.GetSession(context.Background())
 
 	if cfg.Timeout != 36*time.Hour {
 		t.Fatalf("expected session timeout to be 36h, got %s", cfg.Timeout)
 	}
 	if cfg.CleanupInterval != 10*time.Minute {
 		t.Fatalf("expected session cleanup interval to be 10m, got %s", cfg.CleanupInterval)
+	}
+	if timeout := svc.GetSessionTimeout(context.Background()); timeout != 36*time.Hour {
+		t.Fatalf("expected GetSessionTimeout to be 36h, got %s", timeout)
 	}
 }
 
@@ -86,6 +105,31 @@ monitor:
 	}
 	if cfg.RetentionMultiplier != 8 {
 		t.Fatalf("expected retention multiplier to be 8, got %d", cfg.RetentionMultiplier)
+	}
+}
+
+func TestGetUploadPathUsesStaticConfig(t *testing.T) {
+	setTestConfigContent(t, `
+upload:
+  path: runtime/uploads
+  maxSize: 32
+`)
+	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMaxSize)
+
+	svc := New()
+	if path := svc.GetUploadPath(context.Background()); path != "runtime/uploads" {
+		t.Fatalf("expected upload path to be runtime/uploads, got %s", path)
+	}
+
+	cfg := svc.GetUpload(context.Background())
+	if cfg.Path != "runtime/uploads" {
+		t.Fatalf("expected upload config path to be runtime/uploads, got %s", cfg.Path)
+	}
+	if cfg.MaxSize != 32 {
+		t.Fatalf("expected upload config max size to be 32, got %d", cfg.MaxSize)
+	}
+	if maxSize := svc.GetUploadMaxSize(context.Background()); maxSize != 32 {
+		t.Fatalf("expected upload runtime getter max size to be 32, got %d", maxSize)
 	}
 }
 

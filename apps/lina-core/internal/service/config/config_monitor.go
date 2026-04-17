@@ -15,12 +15,14 @@ type MonitorConfig struct {
 
 // GetMonitor reads monitor config from configuration file.
 func (s *serviceImpl) GetMonitor(ctx context.Context) *MonitorConfig {
-	cfg := &MonitorConfig{
-		Interval:            30 * time.Second,
-		RetentionMultiplier: 5,
-	}
-	mustScanConfig(ctx, "monitor", cfg)
-	cfg.Interval = mustLoadDurationConfig(ctx, "monitor.interval", cfg.Interval)
-	cfg.Interval = mustValidateSecondAlignedDuration("monitor.interval", cfg.Interval)
-	return cfg
+	return cloneMonitorConfig(processStaticConfigCaches.monitor.load(func() *MonitorConfig {
+		cfg := &MonitorConfig{
+			Interval:            30 * time.Second,
+			RetentionMultiplier: 5,
+		}
+		mustScanConfig(ctx, "monitor", cfg)
+		cfg.Interval = mustLoadDurationConfig(ctx, "monitor.interval", cfg.Interval)
+		cfg.Interval = mustValidateSecondAlignedDuration("monitor.interval", cfg.Interval)
+		return cfg
+	}))
 }

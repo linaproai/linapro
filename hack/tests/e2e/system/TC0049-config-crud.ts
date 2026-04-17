@@ -14,23 +14,23 @@ test.describe('TC0049 参数设置管理', () => {
     expect(rowCount).toBeGreaterThanOrEqual(1);
 
     // Search for a stable seed config instead of assuming it stays on the first page.
-    await configPage.fillSearchField('参数键名', 'sys.index.skinName');
+    await configPage.fillSearchField('参数键名', 'sys.jwt.expire');
     await configPage.clickSearch();
-    const hasSkinName = await configPage.hasConfig('sys.index.skinName');
-    expect(hasSkinName).toBeTruthy();
+    const hasJwtExpire = await configPage.hasConfig('sys.jwt.expire');
+    expect(hasJwtExpire).toBeTruthy();
   });
 
   test('TC0049b: 按参数名称搜索', async ({ adminPage }) => {
     const configPage = new ConfigPage(adminPage);
     await configPage.goto();
 
-    await configPage.fillSearchField('参数名称', '主框架页');
+    await configPage.fillSearchField('参数名称', '用户管理');
     await configPage.clickSearch();
 
     const rowCount = await configPage.getRowCount();
     expect(rowCount).toBeGreaterThanOrEqual(1);
 
-    const hasResult = await configPage.hasConfig('主框架页');
+    const hasResult = await configPage.hasConfig('sys.user.initPassword');
     expect(hasResult).toBeTruthy();
   });
 
@@ -53,7 +53,7 @@ test.describe('TC0049 参数设置管理', () => {
     await configPage.goto();
 
     // Search to narrow results
-    await configPage.fillSearchField('参数名称', '主框架页');
+    await configPage.fillSearchField('参数名称', '用户管理');
     await configPage.clickSearch();
     const filteredCount = await configPage.getRowCount();
 

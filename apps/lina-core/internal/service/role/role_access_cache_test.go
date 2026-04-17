@@ -1,4 +1,5 @@
-// This file covers local token access-context cache behavior and invalidation.
+// This file covers local token access-context cache behavior, invalidation,
+// and cloning safety for request-scoped mutations.
 
 package role
 
@@ -77,5 +78,57 @@ func TestInvalidateUserAccessContextsRemovesBoundTokensOnly(t *testing.T) {
 	}
 	if access := svc.getCachedTokenAccessContext(ctx, "user-2-token-a", 2, 3); access == nil {
 		t.Fatal("expected other users' cached tokens to remain available")
+	}
+}
+
+func TestCloneUserAccessContextCopiesSlices(t *testing.T) {
+	original := &UserAccessContext{
+		RoleIds:      []int{1, 2},
+		RoleNames:    []string{"admin", "ops"},
+		MenuIds:      []int{10, 20},
+		Permissions:  []string{"user:list", "user:update"},
+		IsSuperAdmin: true,
+	}
+
+	cloned := cloneUserAccessContext(original)
+	if cloned == nil {
+		t.Fatal("expected cloned access context")
+	}
+
+	cloned.RoleIds[0] = 99
+	cloned.RoleNames[0] = "guest"
+	cloned.MenuIds[0] = 88
+	cloned.Permissions[0] = "guest:list"
+	cloned.IsSuperAdmin = false
+
+	if original.RoleIds[0] != 1 {
+		t.Fatalf("expected original RoleIds to stay unchanged, got %v", original.RoleIds)
+	}
+	if original.RoleNames[0] != "admin" {
+		t.Fatalf("expected original RoleNames to stay unchanged, got %v", original.RoleNames)
+	}
+	if original.MenuIds[0] != 10 {
+		t.Fatalf("expected original MenuIds to stay unchanged, got %v", original.MenuIds)
+	}
+	if original.Permissions[0] != "user:list" {
+		t.Fatalf("expected original Permissions to stay unchanged, got %v", original.Permissions)
+	}
+	if !original.IsSuperAdmin {
+		t.Fatal("expected original IsSuperAdmin to stay unchanged")
+	}
+}
+
+func TestCloneSliceWithCopyPreservesNilAndValues(t *testing.T) {
+	if cloned := cloneSliceWithCopy[int](nil); cloned != nil {
+		t.Fatalf("expected nil clone for nil slice, got %#v", cloned)
+	}
+
+	values := []string{"a", "b"}
+	cloned := cloneSliceWithCopy(values)
+	if len(cloned) != len(values) {
+		t.Fatalf("expected cloned length %d, got %d", len(values), len(cloned))
+	}
+	if &cloned[0] == &values[0] {
+		t.Fatal("expected cloned slice to have independent backing array")
 	}
 }

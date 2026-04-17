@@ -1,3 +1,5 @@
+// Package cron implements host-level scheduled jobs such as cleanup,
+// monitoring, and local runtime-cache synchronization.
 package cron
 
 import (
@@ -14,6 +16,7 @@ import (
 // Cron job name constants.
 const (
 	CronSessionCleanup         = "session-cleanup"          // Session cleanup job name
+	CronRuntimeParamSync       = "runtime-param-sync"       // Runtime-parameter snapshot sync job name
 	CronServerMonitorCollector = "server-monitor-collector" // Server monitor collector job name
 	CronServerMonitorCleanup   = "server-monitor-cleanup"   // Server monitor cleanup job name
 )
@@ -32,6 +35,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	sessionCfg   *config.SessionConfig // Session configuration
 	monCfg       *config.MonitorConfig // Monitor configuration
+	configSvc    config.Service        // Config service
 	serverMonSvc servermon.Service     // Server monitor service
 	sessionStore session.Store         // Session store
 	clusterSvc   cluster.Service       // Cluster topology service
@@ -48,6 +52,7 @@ func New(
 	return &serviceImpl{
 		sessionCfg:   sessionCfg,
 		monCfg:       monCfg,
+		configSvc:    config.New(),
 		serverMonSvc: servermon.New(),
 		sessionStore: sessionStore,
 		clusterSvc:   clusterSvc,
@@ -59,6 +64,7 @@ func New(
 func (s *serviceImpl) Start(ctx context.Context) {
 	// All-Node Jobs: executed on every node
 	s.startServerMonitor(ctx)
+	s.startRuntimeParamSnapshotSync(ctx)
 
 	// Master-Only Jobs: only executed on the leader node
 	s.startSessionCleanup(ctx)

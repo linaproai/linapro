@@ -32,6 +32,11 @@ export function configInfo(id: number) {
   return requestClient.get<SysConfig>(`/config/${id}`);
 }
 
+/** 按键名获取参数设置 */
+export function configByKey(key: string) {
+  return requestClient.get<SysConfig>(`/config/key/${encodeURIComponent(key)}`);
+}
+
 /** 导出参数设置 */
 export function configExport(params?: ConfigListParams) {
   return requestClient.download<Blob>('/config/export', { params });
@@ -45,9 +50,9 @@ export function configImport(file: File, updateSupport?: boolean) {
     formData.append('updateSupport', '1');
   }
   return requestClient.post<{
-    success: number;
     fail: number;
-    failList: Array<{ row: number; reason: string }>;
+    failList: Array<{ reason: string; row: number }>;
+    success: number;
   }>('/config/import', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',

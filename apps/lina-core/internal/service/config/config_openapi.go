@@ -26,5 +26,5 @@ func defaultOpenApiConfig() OpenApiConfig {
 // GetOpenApi reads OpenAPI config from embedded metadata.
 func (s *serviceImpl) GetOpenApi(ctx context.Context) *OpenApiConfig {
 	cfg := s.GetMetadata(ctx).OpenApi
-	return &cfg
+	return cloneOpenApiConfig(&cfg)
 }

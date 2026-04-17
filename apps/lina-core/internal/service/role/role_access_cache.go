@@ -349,8 +349,8 @@ func (s *serviceImpl) resolveAccessCacheTTL(ctx context.Context) time.Duration {
 	}
 
 	var (
-		jwtTTL     = s.configSvc.GetJwt(ctx).Expire
-		sessionTTL = s.configSvc.GetSession(ctx).Timeout
+		jwtTTL     = s.configSvc.GetJwtExpire(ctx)
+		sessionTTL = s.configSvc.GetSessionTimeout(ctx)
 	)
 	if sessionTTL < jwtTTL {
 		return sessionTTL
@@ -363,6 +363,18 @@ func accessCacheKey(tokenID string) string {
 	return accessCacheKeyPrefix + tokenID
 }
 
+// cloneSliceWithCopy allocates the exact target length once and then copies the
+// slice content so hot-path access context cloning does not rely on append's
+// growth logic for every slice field.
+func cloneSliceWithCopy[T any](values []T) []T {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]T, len(values))
+	copy(cloned, values)
+	return cloned
+}
+
 // cloneUserAccessContext returns a deep-enough copy so request-scoped mutation
 // never leaks back into the shared token snapshot.
 func cloneUserAccessContext(access *UserAccessContext) *UserAccessContext {
@@ -370,10 +382,10 @@ func cloneUserAccessContext(access *UserAccessContext) *UserAccessContext {
 		return nil
 	}
 	return &UserAccessContext{
-		RoleIds:      append([]int(nil), access.RoleIds...),
-		RoleNames:    append([]string(nil), access.RoleNames...),
-		MenuIds:      append([]int(nil), access.MenuIds...),
-		Permissions:  append([]string(nil), access.Permissions...),
+		RoleIds:      cloneSliceWithCopy(access.RoleIds),
+		RoleNames:    cloneSliceWithCopy(access.RoleNames),
+		MenuIds:      cloneSliceWithCopy(access.MenuIds),
+		Permissions:  cloneSliceWithCopy(access.Permissions),
 		IsSuperAdmin: access.IsSuperAdmin,
 	}
 }

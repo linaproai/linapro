@@ -18,7 +18,9 @@ test.describe('TC0010 重置密码', () => {
     await expect(dialog).toBeVisible({ timeout: 5000 });
 
     // Verify password input exists
-    await expect(dialog.getByPlaceholder(/请输入新的密码/)).toBeVisible();
+    const passwordInput = dialog.getByPlaceholder(/请输入新的密码/);
+    await expect(passwordInput).toBeVisible();
+    await expect(passwordInput).toHaveValue('123456');
   });
 
   test('TC0010b: 重置密码API调用成功', async ({ adminPage }) => {

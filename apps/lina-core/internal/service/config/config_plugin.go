@@ -22,21 +22,23 @@ type PluginDynamicConfig struct {
 
 // GetPlugin reads plugin config from configuration file.
 func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
-	cfg := &PluginConfig{
-		Dynamic: PluginDynamicConfig{
-			StoragePath: "temp/output",
-		},
-	}
-	mustScanConfig(ctx, "plugin", cfg)
+	return clonePluginConfig(processStaticConfigCaches.plugin.load(func() *PluginConfig {
+		cfg := &PluginConfig{
+			Dynamic: PluginDynamicConfig{
+				StoragePath: "temp/output",
+			},
+		}
+		mustScanConfig(ctx, "plugin", cfg)
 
-	cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Dynamic.StoragePath)
-	if cfg.Dynamic.StoragePath == "" {
-		cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Runtime.StoragePath)
-	}
-	if cfg.Dynamic.StoragePath == "" {
-		cfg.Dynamic.StoragePath = "temp/output"
-	}
-	return cfg
+		cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Dynamic.StoragePath)
+		if cfg.Dynamic.StoragePath == "" {
+			cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Runtime.StoragePath)
+		}
+		if cfg.Dynamic.StoragePath == "" {
+			cfg.Dynamic.StoragePath = "temp/output"
+		}
+		return cfg
+	}))
 }
 
 // GetPluginDynamicStoragePath returns the normalized dynamic wasm storage directory.

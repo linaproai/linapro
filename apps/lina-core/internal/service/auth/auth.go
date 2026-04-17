@@ -1,3 +1,5 @@
+// Package auth implements authentication, JWT issuance, login auditing, and
+// online-session persistence for the Lina core host service.
 package auth
 
 import (
@@ -131,6 +133,12 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		}
 	}
 
+	if s.configSvc.IsLoginIPBlacklisted(ctx, ip) {
+		recordLoginLog(in.Username, loginlog.LoginStatusFail, "登录IP已被禁止")
+		dispatchLoginFailed(in.Username, "登录IP已被禁止")
+		return nil, gerror.New("登录IP已被禁止")
+	}
+
 	// Query user by username (GoFrame auto-adds deleted_at IS NULL condition)
 	var user *entity.SysUser
 	err := dao.SysUser.Ctx(ctx).
@@ -207,9 +215,9 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 
 // ParseToken parses and validates JWT token, returns claims.
 func (s *serviceImpl) ParseToken(ctx context.Context, tokenString string) (*Claims, error) {
-	jwtCfg := s.configSvc.GetJwt(ctx)
+	jwtSecret := s.configSvc.GetJwtSecret(ctx)
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(jwtCfg.Secret), nil
+		return []byte(jwtSecret), nil
 	})
 	if err != nil {
 		return nil, gerror.New("无效的Token")
@@ -280,8 +288,9 @@ func (s *serviceImpl) RevokeSession(ctx context.Context, tokenId string) error {
 // generateToken generates JWT token for given user, returns token string and tokenId.
 func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser) (string, string, error) {
 	var (
-		jwtCfg  = s.configSvc.GetJwt(ctx)
-		tokenId = guid.S()
+		jwtTTL    = s.configSvc.GetJwtExpire(ctx)
+		jwtSecret = s.configSvc.GetJwtSecret(ctx)
+		tokenId   = guid.S()
 	)
 	claims := Claims{
 		TokenId:  tokenId,
@@ -289,12 +298,12 @@ func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser) (
 		Username: user.Username,
 		Status:   user.Status,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtCfg.Expire)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte(jwtCfg.Secret))
+	signed, err := token.SignedString([]byte(jwtSecret))
 	if err != nil {
 		return "", "", err
 	}

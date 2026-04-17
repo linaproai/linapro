@@ -80,12 +80,14 @@ func setTestConfigContent(t *testing.T, content string) {
 
 	originalContent := adapter.GetContent()
 	adapter.SetContent(content)
+	resetStaticConfigCaches()
 
 	t.Cleanup(func() {
 		if originalContent != "" {
 			adapter.SetContent(originalContent)
-			return
+		} else {
+			adapter.RemoveContent()
 		}
-		adapter.RemoveContent()
+		resetStaticConfigCaches()
 	})
 }

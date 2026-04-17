@@ -62,14 +62,24 @@ Check against `CLAUDE.md` API design specifications.
 
 Check against `CLAUDE.md` architecture design specifications and code development specifications.
 
-### 6. E2E Test Review
+### 6. SQL Review
+
+**Trigger**: New or modified files under `apps/lina-core/manifest/sql/` or SQL snippets embedded in related delivery docs
+
+Check against `CLAUDE.md` SQL file management specifications, at minimum covering:
+1. File naming, versioning, and single-iteration single-file rules
+2. Seed DML vs mock data separation
+3. **Idempotent execution safety** — SQL must be safe to run multiple times without duplicate-object errors or duplicate seed data; verify use of `IF [NOT] EXISTS`, `IF EXISTS`, `INSERT IGNORE`, upsert, or equivalent safe re-entry patterns
+4. Whether schema/data changes still match the current change scope and deployment path
+
+### 7. E2E Test Review
 
 **Trigger**: New or modified E2E test files in `hack/tests/e2e/` directory
 
 1. Invoke `openspec-e2e` skill for test conventions
 2. Check against `CLAUDE.md` E2E test specifications
 
-### 7. Generate Review Report
+### 8. Generate Review Report
 
 ```markdown
 ## OpenSpec Review Report
@@ -86,6 +96,9 @@ Check against `CLAUDE.md` architecture design specifications and code developmen
 
 ### Project Spec Review
 ✓ Compliant with CLAUDE.md / ⚠ N violations found
+
+### SQL Review
+✓ No SQL changes / ✓ SQL changes compliant / ⚠ N SQL issues found
 
 ### E2E Test Review
 ✓ Tests follow conventions / ⚠ N issues found

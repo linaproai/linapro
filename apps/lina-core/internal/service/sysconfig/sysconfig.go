@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	hostconfig "lina-core/internal/service/config"
 )
 
 // Service defines the sysconfig service contract.
@@ -41,10 +42,14 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	configSvc hostconfig.Service
+}
 
 func New() Service {
-	return &serviceImpl{}
+	return &serviceImpl{
+		configSvc: hostconfig.New(),
+	}
 }
 
 type ListInput struct {
@@ -129,29 +134,42 @@ type CreateInput struct {
 
 // Create creates a new config record.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
-	// Check key uniqueness (GoFrame auto-adds deleted_at IS NULL)
-	count, err := dao.SysConfig.Ctx(ctx).
-		Where(do.SysConfig{Key: in.Key}).
-		Count()
-	if err != nil {
-		return 0, err
-	}
-	if count > 0 {
-		return 0, gerror.New("参数键名已存在")
-	}
-
-	// Insert config (GoFrame auto-fills created_at and updated_at)
-	id, err := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-		Name:   in.Name,
-		Key:    in.Key,
-		Value:  in.Value,
-		Remark: in.Remark,
-	}).InsertAndGetId()
-	if err != nil {
+	if err := validateManagedConfigValue(in.Key, in.Value); err != nil {
 		return 0, err
 	}
 
-	return int(id), nil
+	var createdID int64
+	err := s.withConfigMutation(ctx, func(ctx context.Context) error {
+		// Check key uniqueness (GoFrame auto-adds deleted_at IS NULL)
+		count, countErr := dao.SysConfig.Ctx(ctx).
+			Where(do.SysConfig{Key: in.Key}).
+			Count()
+		if countErr != nil {
+			return countErr
+		}
+		if count > 0 {
+			return gerror.New("参数键名已存在")
+		}
+
+		// Insert config (GoFrame auto-fills created_at and updated_at)
+		insertedID, insertErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
+			Name:   in.Name,
+			Key:    in.Key,
+			Value:  in.Value,
+			Remark: in.Remark,
+		}).InsertAndGetId()
+		if insertErr != nil {
+			return insertErr
+		}
+		createdID = insertedID
+
+		return s.refreshRuntimeParamSnapshotIfNeeded(ctx, in.Key, "", in.Value, true)
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return int(createdID), nil
 }
 
 // UpdateInput defines input for Update function.
@@ -165,56 +183,89 @@ type UpdateInput struct {
 
 // Update updates config information.
 func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
-	// Check config exists
-	if _, err := s.GetById(ctx, in.Id); err != nil {
-		return err
-	}
-
-	// Check key uniqueness (exclude self) - GoFrame auto-adds deleted_at IS NULL
-	if in.Key != nil {
-		cols := dao.SysConfig.Columns()
-		count, err := dao.SysConfig.Ctx(ctx).
-			Where(do.SysConfig{Key: *in.Key}).
-			WhereNot(cols.Id, in.Id).
-			Count()
+	return s.withConfigMutation(ctx, func(ctx context.Context) error {
+		// Check config exists
+		existing, err := s.GetById(ctx, in.Id)
 		if err != nil {
 			return err
 		}
-		if count > 0 {
-			return gerror.New("参数键名已存在")
+		if hostconfig.IsProtectedRuntimeParam(existing.Key) && in.Key != nil && *in.Key != existing.Key {
+			return gerror.New("内置运行时参数不允许修改键名")
 		}
-	}
 
-	data := do.SysConfig{}
-	if in.Name != nil {
-		data.Name = *in.Name
-	}
-	if in.Key != nil {
-		data.Key = *in.Key
-	}
-	if in.Value != nil {
-		data.Value = *in.Value
-	}
-	if in.Remark != nil {
-		data.Remark = *in.Remark
-	}
+		// Check key uniqueness (exclude self) - GoFrame auto-adds deleted_at IS NULL
+		if in.Key != nil {
+			cols := dao.SysConfig.Columns()
+			count, countErr := dao.SysConfig.Ctx(ctx).
+				Where(do.SysConfig{Key: *in.Key}).
+				WhereNot(cols.Id, in.Id).
+				Count()
+			if countErr != nil {
+				return countErr
+			}
+			if count > 0 {
+				return gerror.New("参数键名已存在")
+			}
+		}
 
-	_, err := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: in.Id}).Data(data).Update()
-	return err
+		finalKey := existing.Key
+		if in.Key != nil {
+			finalKey = *in.Key
+		}
+		finalValue := existing.Value
+		if in.Value != nil {
+			finalValue = *in.Value
+		}
+		if err = validateManagedConfigValue(finalKey, finalValue); err != nil {
+			return err
+		}
+
+		data := do.SysConfig{}
+		if in.Name != nil {
+			data.Name = *in.Name
+		}
+		if in.Key != nil {
+			data.Key = *in.Key
+		}
+		if in.Value != nil {
+			data.Value = *in.Value
+		}
+		if in.Remark != nil {
+			data.Remark = *in.Remark
+		}
+
+		_, err = dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: in.Id}).Data(data).Update()
+		if err != nil {
+			return err
+		}
+
+		return s.refreshRuntimeParamSnapshotIfNeeded(ctx, finalKey, existing.Value, finalValue, false)
+	})
 }
 
 // Delete soft-deletes a config record using GoFrame's auto soft-delete feature.
 func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 	// Check config exists
-	if _, err := s.GetById(ctx, id); err != nil {
+	existing, err := s.GetById(ctx, id)
+	if err != nil {
 		return err
+	}
+	if hostconfig.IsProtectedRuntimeParam(existing.Key) {
+		return gerror.New("内置运行时参数不允许删除")
 	}
 
 	// Soft delete
-	_, err := dao.SysConfig.Ctx(ctx).
+	_, err = dao.SysConfig.Ctx(ctx).
 		Where(do.SysConfig{Id: id}).
 		Delete()
 	return err
+}
+
+func validateManagedConfigValue(key string, value string) error {
+	if err := hostconfig.ValidateRuntimeParamValue(key, value); err != nil {
+		return gerror.Wrap(err, "运行时参数值校验失败")
+	}
+	return nil
 }
 
 // GetByKey retrieves config by key name.

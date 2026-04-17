@@ -30,7 +30,7 @@ func (a *integrationTopologyAdapter) IsPrimaryNode() bool { return a.t.IsPrimary
 type jwtConfigAdapter struct{ svc configsvc.Service }
 
 func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
-	return a.svc.GetJwt(ctx).Secret
+	return a.svc.GetJwtSecret(ctx)
 }
 
 // userCtxAdapter adapts bizctx.Service to runtime.UserContextSetter.

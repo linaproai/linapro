@@ -16,12 +16,14 @@ type LoggerConfig struct {
 
 // GetLogger reads logger config from configuration file.
 func (s *serviceImpl) GetLogger(ctx context.Context) *LoggerConfig {
-	cfg := &LoggerConfig{
-		Path:       "",
-		File:       defaultLoggerFilePattern,
-		Stdout:     true,
-		Structured: false,
-	}
-	mustScanConfig(ctx, "logger", cfg)
-	return cfg
+	return cloneLoggerConfig(processStaticConfigCaches.logger.load(func() *LoggerConfig {
+		cfg := &LoggerConfig{
+			Path:       "",
+			File:       defaultLoggerFilePattern,
+			Stdout:     true,
+			Structured: false,
+		}
+		mustScanConfig(ctx, "logger", cfg)
+		return cfg
+	}))
 }

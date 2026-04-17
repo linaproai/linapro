@@ -1,3 +1,5 @@
+// Package middleware implements HTTP authentication, authorization, audit, and
+// related request middleware for the Lina core host service.
 package middleware
 
 import (
@@ -9,6 +11,7 @@ import (
 	"lina-core/internal/model"
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/config"
 	"lina-core/internal/service/operlog"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
@@ -40,6 +43,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	authSvc    auth.Service      // Authentication service
 	bizCtxSvc  bizctx.Service    // Business context service
+	configSvc  config.Service    // Runtime configuration service
 	operLogSvc operlog.Service   // Operation log service
 	pluginSvc  pluginsvc.Service // Plugin service
 	roleSvc    role.Service      // Role and permission service
@@ -50,6 +54,7 @@ func New() Service {
 	return &serviceImpl{
 		authSvc:    auth.New(),
 		bizCtxSvc:  bizctx.New(),
+		configSvc:  config.New(),
 		operLogSvc: operlog.New(),
 		pluginSvc:  pluginsvc.New(),
 		roleSvc:    role.New(),
@@ -112,7 +117,11 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 	}
 
 	// Update last active time and validate session exists (supports forced logout and timeout cleanup)
-	exists, err := s.authSvc.SessionStore().TouchOrValidate(r.Context(), claims.TokenId)
+	exists, err := s.authSvc.SessionStore().TouchOrValidate(
+		r.Context(),
+		claims.TokenId,
+		s.configSvc.GetSessionTimeout(r.Context()),
+	)
 	if err != nil || !exists {
 		s.roleSvc.InvalidateTokenAccessContext(r.Context(), claims.TokenId)
 		r.Response.WriteStatus(http.StatusUnauthorized)

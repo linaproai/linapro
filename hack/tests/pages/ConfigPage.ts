@@ -72,8 +72,17 @@ export class ConfigPage {
     await this.fillSearchField('参数名称', configName);
     await this.clickSearch();
 
+    const targetRow = this.page.locator('.vxe-body--row').filter({ hasText: configName }).first();
+    await targetRow.waitFor({ state: 'visible', timeout: 5000 });
+    await targetRow.hover();
+
     // Click delete button
-    await this.page.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
+    const rowDeleteButton = targetRow.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first();
+    if (await rowDeleteButton.isVisible().catch(() => false)) {
+      await rowDeleteButton.click();
+    } else {
+      await this.page.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
+    }
 
     // Confirm deletion in Popconfirm
     await this.page.waitForTimeout(500);

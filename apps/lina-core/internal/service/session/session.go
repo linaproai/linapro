@@ -49,9 +49,9 @@ type Store interface {
 	List(ctx context.Context, filter *ListFilter) ([]*Session, error)
 	ListPage(ctx context.Context, filter *ListFilter, pageNum, pageSize int) (*ListResult, error)
 	Count(ctx context.Context) (int, error)
-	// TouchOrValidate updates last_active_time for the given tokenId.
-	// Returns true if the session exists (affected rows > 0), false otherwise.
-	TouchOrValidate(ctx context.Context, tokenId string) (bool, error)
+	// TouchOrValidate validates the session timeout and refreshes last_active_time
+	// for the given tokenId. It returns true when the session remains valid.
+	TouchOrValidate(ctx context.Context, tokenId string, timeout time.Duration) (bool, error)
 	// CleanupInactive deletes sessions whose last_active_time exceeds the given timeout duration.
 	CleanupInactive(ctx context.Context, timeout time.Duration) (int64, error)
 }
@@ -209,31 +209,35 @@ func (s *DBStore) Count(ctx context.Context) (int, error) {
 	return dao.SysOnlineSession.Ctx(ctx).Count()
 }
 
-// TouchOrValidate validates a session and refreshes its last active time.
-func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string) (bool, error) {
-	result, err := dao.SysOnlineSession.Ctx(ctx).
+// TouchOrValidate validates the session timeout and refreshes last_active_time.
+func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout time.Duration) (bool, error) {
+	var stored *entity.SysOnlineSession
+	err := dao.SysOnlineSession.Ctx(ctx).
+		Where(do.SysOnlineSession{TokenId: tokenId}).
+		Scan(&stored)
+	if err != nil {
+		return false, err
+	}
+	if stored == nil {
+		return false, nil
+	}
+	if timeout > 0 && stored.LastActiveTime != nil && stored.LastActiveTime.Before(gtime.Now().Add(-timeout)) {
+		if _, err = dao.SysOnlineSession.Ctx(ctx).
+			Where(do.SysOnlineSession{TokenId: tokenId}).
+			Delete(); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+
+	_, err = dao.SysOnlineSession.Ctx(ctx).
 		Where(do.SysOnlineSession{TokenId: tokenId}).
 		Data(do.SysOnlineSession{LastActiveTime: gtime.Now()}).
 		Update()
 	if err != nil {
 		return false, err
 	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	if affected > 0 {
-		return true, nil
-	}
-
-	count, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenId}).
-		Count()
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
+	return true, nil
 }
 
 // CleanupInactive removes sessions inactive longer than the configured threshold.

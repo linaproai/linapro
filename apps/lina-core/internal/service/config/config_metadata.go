@@ -33,23 +33,25 @@ type MetadataComponentInfo struct {
 
 // GetMetadata reads embedded delivery metadata from the packaged resource file.
 func (s *serviceImpl) GetMetadata(ctx context.Context) *MetadataConfig {
-	content, err := fs.ReadFile(packed.Files, metadataConfigPath)
-	if err != nil {
-		panic(gerror.Wrapf(err, "读取嵌入元数据配置 %s 失败", metadataConfigPath))
-	}
+	return cloneMetadataConfig(processStaticConfigCaches.metadata.load(func() *MetadataConfig {
+		content, err := fs.ReadFile(packed.Files, metadataConfigPath)
+		if err != nil {
+			panic(gerror.Wrapf(err, "读取嵌入元数据配置 %s 失败", metadataConfigPath))
+		}
 
-	adapter, err := gcfg.NewAdapterContent(string(content))
-	if err != nil {
-		panic(gerror.Wrap(err, "解析嵌入元数据配置失败"))
-	}
+		adapter, err := gcfg.NewAdapterContent(string(content))
+		if err != nil {
+			panic(gerror.Wrap(err, "解析嵌入元数据配置失败"))
+		}
 
-	cfg := &MetadataConfig{
-		OpenApi: defaultOpenApiConfig(),
-	}
-	mustScanMetadataConfig(ctx, adapter, "openapi", &cfg.OpenApi)
-	mustScanMetadataConfig(ctx, adapter, "backend", &cfg.Backend)
-	mustScanMetadataConfig(ctx, adapter, "frontend", &cfg.Frontend)
-	return cfg
+		cfg := &MetadataConfig{
+			OpenApi: defaultOpenApiConfig(),
+		}
+		mustScanMetadataConfig(ctx, adapter, "openapi", &cfg.OpenApi)
+		mustScanMetadataConfig(ctx, adapter, "backend", &cfg.Backend)
+		mustScanMetadataConfig(ctx, adapter, "frontend", &cfg.Frontend)
+		return cfg
+	}))
 }
 
 func mustScanMetadataConfig(ctx context.Context, adapter *gcfg.AdapterContent, key string, target any) {
