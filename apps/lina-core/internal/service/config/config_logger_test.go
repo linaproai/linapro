@@ -10,11 +10,23 @@ import (
 func TestGetLoggerUsesStructuredSwitch(t *testing.T) {
 	setTestConfigContent(t, `
 logger:
+  path: "/tmp/lina"
+  file: "lina-{Y-m-d}.log"
+  stdout: false
   structured: true
 `)
 
 	cfg := New().GetLogger(context.Background())
 
+	if cfg.Path != "/tmp/lina" {
+		t.Fatalf("expected log path to be loaded, got %q", cfg.Path)
+	}
+	if cfg.File != "lina-{Y-m-d}.log" {
+		t.Fatalf("expected log file pattern to be loaded, got %q", cfg.File)
+	}
+	if cfg.Stdout {
+		t.Fatal("expected stdout switch to be disabled")
+	}
 	if !cfg.Structured {
 		t.Fatal("expected structured logging switch to be enabled")
 	}
@@ -28,6 +40,15 @@ logger:
 
 	cfg := New().GetLogger(context.Background())
 
+	if cfg.Path != "" {
+		t.Fatalf("expected default log path to be empty, got %q", cfg.Path)
+	}
+	if cfg.File != defaultLoggerFilePattern {
+		t.Fatalf("expected default log file pattern %q, got %q", defaultLoggerFilePattern, cfg.File)
+	}
+	if !cfg.Stdout {
+		t.Fatal("expected stdout switch to be enabled by default")
+	}
 	if cfg.Structured {
 		t.Fatal("expected structured logging switch to be disabled by default")
 	}

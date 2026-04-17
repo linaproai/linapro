@@ -13,6 +13,10 @@ server:
 # 日志配置
 # https://goframe.org/docs/core/glog-config
 logger:
+  # 日志文件目录；为空时仅输出到终端
+  path: ""
+  # 业务日志与 HTTP Server 日志共享的文件名模式
+  file: "{Y-m-d}.log"
   # 日志级别
   level: "all"
   # 是否输出到标准输出

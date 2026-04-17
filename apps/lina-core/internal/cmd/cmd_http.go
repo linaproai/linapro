@@ -49,7 +49,16 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	var (
 		s         = g.Server()
 		configSvc = config.New()
+		loggerCfg = configSvc.GetLogger(ctx)
 	)
+
+	if err = logger.BindServer(s, logger.ServerOutputConfig{
+		Path:   loggerCfg.Path,
+		File:   loggerCfg.File,
+		Stdout: loggerCfg.Stdout,
+	}); err != nil {
+		return nil, err
+	}
 
 	var (
 		clusterCfg = configSvc.GetCluster(ctx)
