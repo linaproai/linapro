@@ -10,6 +10,8 @@ type Service interface {
 	GetCluster(ctx context.Context) *ClusterConfig
 	// GetJwt reads JWT config from configuration file.
 	GetJwt(ctx context.Context) *JwtConfig
+	// GetLogger reads logger config from configuration file.
+	GetLogger(ctx context.Context) *LoggerConfig
 	// GetMetadata reads embedded delivery metadata from the packaged resource file.
 	GetMetadata(ctx context.Context) *MetadataConfig
 	// GetMonitor reads monitor config from configuration file.

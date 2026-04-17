@@ -17,6 +17,8 @@ logger:
   level: "all"
   # 是否输出到标准输出
   stdout: true
+  # 是否开启 GoFrame 官方 JSON 结构化日志 Handler
+  structured: false
 
 # 数据库配置
 # https://goframe.org/docs/core/gdb-config-file
