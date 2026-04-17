@@ -97,8 +97,6 @@ func (c *clusterRuntimeParamRevisionController) MarkChanged(ctx context.Context)
 	item, err := c.kvCacheSvc.Incr(
 		ctx,
 		kvcache.OwnerTypeModule,
-		runtimeParamRevisionOwnerKey,
-		runtimeParamRevisionNamespace,
 		runtimeParamRevisionCacheKey,
 		1,
 		0,
@@ -117,8 +115,6 @@ func (c *clusterRuntimeParamRevisionController) getSharedRevision(ctx context.Co
 	revision, _, err := c.kvCacheSvc.GetInt(
 		ctx,
 		kvcache.OwnerTypeModule,
-		runtimeParamRevisionOwnerKey,
-		runtimeParamRevisionNamespace,
 		runtimeParamRevisionCacheKey,
 	)
 	return revision, err

@@ -15,16 +15,23 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/logger"
 )
 
 const (
 	runtimeParamRevisionOwnerKey     = "runtime-config"
 	runtimeParamRevisionNamespace    = "sys-config"
-	runtimeParamRevisionCacheKey     = "revision"
+	runtimeParamRevisionLogicalKey   = "revision"
 	runtimeParamSnapshotCacheKey     = "runtime-param-snapshot"
 	runtimeParamSnapshotCacheTTL     = time.Hour
 	runtimeParamRevisionSyncInterval = 10 * time.Second
+)
+
+var runtimeParamRevisionCacheKey = kvcache.BuildCacheKey(
+	runtimeParamRevisionOwnerKey,
+	runtimeParamRevisionNamespace,
+	runtimeParamRevisionLogicalKey,
 )
 
 type runtimeParamSnapshot struct {

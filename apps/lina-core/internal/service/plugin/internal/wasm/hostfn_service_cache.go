@@ -31,7 +31,11 @@ func dispatchCacheHostService(
 		if err != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
 		}
-		item, found, callErr := cacheHostService.Get(ctx, kvcache.OwnerTypePlugin, hcc.pluginID, namespace, request.Key)
+		item, found, callErr := cacheHostService.Get(
+			ctx,
+			kvcache.OwnerTypePlugin,
+			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+		)
 		if callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
 		}
@@ -45,7 +49,13 @@ func dispatchCacheHostService(
 		if err != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
 		}
-		item, callErr := cacheHostService.Set(ctx, kvcache.OwnerTypePlugin, hcc.pluginID, namespace, request.Key, request.Value, request.ExpireSeconds)
+		item, callErr := cacheHostService.Set(
+			ctx,
+			kvcache.OwnerTypePlugin,
+			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			request.Value,
+			request.ExpireSeconds,
+		)
 		if callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
 		}
@@ -57,7 +67,11 @@ func dispatchCacheHostService(
 		if err != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
 		}
-		if callErr := cacheHostService.Delete(ctx, kvcache.OwnerTypePlugin, hcc.pluginID, namespace, request.Key); callErr != nil {
+		if callErr := cacheHostService.Delete(
+			ctx,
+			kvcache.OwnerTypePlugin,
+			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+		); callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
 		}
 		return pluginbridge.NewHostCallEmptySuccessResponse()
@@ -66,7 +80,13 @@ func dispatchCacheHostService(
 		if err != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
 		}
-		item, callErr := cacheHostService.Incr(ctx, kvcache.OwnerTypePlugin, hcc.pluginID, namespace, request.Key, request.Delta, request.ExpireSeconds)
+		item, callErr := cacheHostService.Incr(
+			ctx,
+			kvcache.OwnerTypePlugin,
+			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			request.Delta,
+			request.ExpireSeconds,
+		)
 		if callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
 		}
@@ -78,7 +98,12 @@ func dispatchCacheHostService(
 		if err != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
 		}
-		found, expireAt, callErr := cacheHostService.Expire(ctx, kvcache.OwnerTypePlugin, hcc.pluginID, namespace, request.Key, request.ExpireSeconds)
+		found, expireAt, callErr := cacheHostService.Expire(
+			ctx,
+			kvcache.OwnerTypePlugin,
+			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			request.ExpireSeconds,
+		)
 		if callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
 		}

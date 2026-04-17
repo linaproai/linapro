@@ -6,7 +6,6 @@ import (
 	"context"
 
 	"github.com/gogf/gf/v2/os/gtime"
-	// OwnerType defines the supported cache owner types.
 )
 
 type OwnerType string
@@ -35,104 +34,82 @@ const (
 
 // Service defines the kvcache service contract.
 type Service interface {
-	// Get returns the current cache entry snapshot identified by ownerType, ownerKey,
-	// namespace, and cacheKey.
+	// Get returns the current cache entry snapshot identified by ownerType and
+	// one scoped cache key built by BuildCacheKey.
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
-	// - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-	// - namespace: logical group name used to organize related cache entries for the same owner.
-	// - cacheKey: concrete key to read inside the namespace.
+	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// Returns:
 	// - *Item: the cache entry snapshot when the entry exists, including value kind, value, and expiration time.
 	// - bool: whether the cache entry exists after expired data has been cleaned up.
-	// - error: returned when identity parameters are invalid, expired-entry cleanup fails, or the database query fails.
+	// - error: returned when the scoped cache key is invalid, expired-entry cleanup fails, or the database query fails.
 	Get(
 		ctx context.Context,
 		ownerType OwnerType,
-		ownerKey string,
-		namespace string,
 		cacheKey string,
 	) (*Item, bool, error)
-	// GetInt returns the current integer cache value identified by ownerType,
-	// ownerKey, namespace, and cacheKey.
+	// GetInt returns the current integer cache value identified by ownerType and
+	// one scoped cache key built by BuildCacheKey.
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
-	// - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-	// - namespace: logical group name used to organize related cache entries for the same owner.
-	// - cacheKey: concrete key to read inside the namespace.
+	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// Returns:
 	// - int64: the integer cache value when the entry exists and is stored as an integer.
 	// - bool: whether the cache entry exists after optional single-row expiration cleanup.
-	// - error: returned when identity parameters are invalid, the existing entry is not stored
+	// - error: returned when the scoped cache key is invalid, the existing entry is not stored
 	// as an integer, or the database query/delete fails.
 	GetInt(
 		ctx context.Context,
 		ownerType OwnerType,
-		ownerKey string,
-		namespace string,
 		cacheKey string,
 	) (int64, bool, error)
-	// Set stores or replaces a string cache value for the specified owner, namespace,
-	// and cache key.
+	// Set stores or replaces a string cache value for the specified scoped cache key.
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
-	// - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-	// - namespace: logical group name used to organize related cache entries for the same owner.
-	// - cacheKey: concrete key to write inside the namespace.
+	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// - value: string payload to persist in the cache entry.
 	// - expireSeconds: entry lifetime in seconds; 0 means never expire, and positive values create an absolute expiration time.
 	// Returns:
 	// - *Item: the latest cache entry snapshot after the value has been written successfully.
-	// - error: returned when identity parameters are invalid, the value exceeds the allowed size,
+	// - error: returned when the scoped cache key is invalid, the value exceeds the allowed size,
 	// expireSeconds is negative, expired-entry cleanup fails, or the upsert operation fails.
 	Set(
 		ctx context.Context,
 		ownerType OwnerType,
-		ownerKey string,
-		namespace string,
 		cacheKey string,
 		value string,
 		expireSeconds int64,
 	) (*Item, error)
-	// Delete removes the cache entry identified by ownerType, ownerKey, namespace,
-	// and cacheKey.
+	// Delete removes the cache entry identified by ownerType and one scoped cache key.
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
-	// - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-	// - namespace: logical group name used to organize related cache entries for the same owner.
-	// - cacheKey: concrete key to delete inside the namespace.
+	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// Returns:
-	// - error: returned when identity parameters are invalid or the delete statement fails.
+	// - error: returned when the scoped cache key is invalid or the delete statement fails.
 	// Deleting a non-existent entry is treated as a successful no-op.
 	Delete(
 		ctx context.Context,
 		ownerType OwnerType,
-		ownerKey string,
-		namespace string,
 		cacheKey string,
 	) error
 	// Incr increments an integer cache value by delta and returns the updated entry snapshot.
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
-	// - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-	// - namespace: logical group name used to organize related cache entries for the same owner.
-	// - cacheKey: concrete key to increment inside the namespace.
+	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// - delta: increment amount added to the current integer value; when the entry does not exist, delta becomes the initial value.
 	// - expireSeconds: new entry lifetime in seconds; 0 keeps the entry non-expiring when creating a new item and preserves the current expiration when updating an existing item.
 	// Returns:
 	// - *Item: the latest cache entry snapshot after the increment succeeds.
-	// - error: returned when identity parameters are invalid, expireSeconds is negative,
+	// - error: returned when the scoped cache key is invalid, expireSeconds is negative,
 	// expired-entry cleanup fails, the existing entry is not stored as an integer, or any database operation fails.
 	Incr(
 		ctx context.Context,
 		ownerType OwnerType,
-		ownerKey string,
-		namespace string,
 		cacheKey string,
 		delta int64,
 		expireSeconds int64,
@@ -141,20 +118,16 @@ type Service interface {
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
-	// - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-	// - namespace: logical group name used to organize related cache entries for the same owner.
-	// - cacheKey: concrete key whose expiration policy should be updated.
+	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// - expireSeconds: new lifetime in seconds; 0 clears the expiration and makes the entry persistent.
 	// Returns:
 	// - bool: whether an existing cache entry was found and updated.
 	// - *gtime.Time: the normalized absolute expiration time; nil means the entry will not expire.
-	// - error: returned when identity parameters are invalid, expireSeconds is negative,
+	// - error: returned when the scoped cache key is invalid, expireSeconds is negative,
 	// expired-entry cleanup fails, or the database update fails.
 	Expire(
 		ctx context.Context,
 		ownerType OwnerType,
-		ownerKey string,
-		namespace string,
 		cacheKey string,
 		expireSeconds int64,
 	) (bool, *gtime.Time, error)

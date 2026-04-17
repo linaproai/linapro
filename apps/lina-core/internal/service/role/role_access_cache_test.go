@@ -133,8 +133,6 @@ func (f *fakeKVCacheService) Get(
 	_ context.Context,
 	_ kvcache.OwnerType,
 	_ string,
-	_ string,
-	_ string,
 ) (*kvcache.Item, bool, error) {
 	return nil, false, nil
 }
@@ -142,8 +140,6 @@ func (f *fakeKVCacheService) Get(
 func (f *fakeKVCacheService) GetInt(
 	_ context.Context,
 	_ kvcache.OwnerType,
-	_ string,
-	_ string,
 	_ string,
 ) (int64, bool, error) {
 	atomic.AddInt32(&f.getIntCalls, 1)
@@ -155,8 +151,6 @@ func (f *fakeKVCacheService) Set(
 	_ kvcache.OwnerType,
 	_ string,
 	_ string,
-	_ string,
-	_ string,
 	_ int64,
 ) (*kvcache.Item, error) {
 	return nil, nil
@@ -166,8 +160,6 @@ func (f *fakeKVCacheService) Delete(
 	_ context.Context,
 	_ kvcache.OwnerType,
 	_ string,
-	_ string,
-	_ string,
 ) error {
 	return nil
 }
@@ -175,8 +167,6 @@ func (f *fakeKVCacheService) Delete(
 func (f *fakeKVCacheService) Incr(
 	_ context.Context,
 	_ kvcache.OwnerType,
-	_ string,
-	_ string,
 	_ string,
 	_ int64,
 	_ int64,
@@ -188,8 +178,6 @@ func (f *fakeKVCacheService) Incr(
 func (f *fakeKVCacheService) Expire(
 	_ context.Context,
 	_ kvcache.OwnerType,
-	_ string,
-	_ string,
 	_ string,
 	_ int64,
 ) (bool, *gtime.Time, error) {

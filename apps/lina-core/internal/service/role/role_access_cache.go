@@ -11,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcache"
 
+	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/logger"
 )
 
@@ -18,11 +19,17 @@ const (
 	accessCacheKeyPrefix       = "role:user-access:"
 	accessRevisionOwnerKey     = "authz"
 	accessRevisionNamespace    = "permission-access"
-	accessRevisionCacheKey     = "topology-revision"
+	accessRevisionLogicalKey   = "topology-revision"
 	accessRevisionSyncInterval = 3 * time.Second
 	// Refresh the shared revision infrequently because permission topology changes
 	// are rare, while local invalidation still takes effect immediately on writes.
 	accessRevisionRefreshInterval = accessRevisionSyncInterval
+)
+
+var accessRevisionCacheKey = kvcache.BuildCacheKey(
+	accessRevisionOwnerKey,
+	accessRevisionNamespace,
+	accessRevisionLogicalKey,
 )
 
 type cachedUserAccessContext struct {

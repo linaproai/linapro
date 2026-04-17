@@ -28,8 +28,6 @@ func (f *fakeRuntimeParamKVCacheService) Get(
 	_ context.Context,
 	_ kvcache.OwnerType,
 	_ string,
-	_ string,
-	_ string,
 ) (*kvcache.Item, bool, error) {
 	return nil, false, nil
 }
@@ -37,8 +35,6 @@ func (f *fakeRuntimeParamKVCacheService) Get(
 func (f *fakeRuntimeParamKVCacheService) GetInt(
 	_ context.Context,
 	_ kvcache.OwnerType,
-	_ string,
-	_ string,
 	_ string,
 ) (int64, bool, error) {
 	atomic.AddInt32(&f.getIntCalls, 1)
@@ -50,8 +46,6 @@ func (f *fakeRuntimeParamKVCacheService) Set(
 	_ kvcache.OwnerType,
 	_ string,
 	_ string,
-	_ string,
-	_ string,
 	_ int64,
 ) (*kvcache.Item, error) {
 	return nil, nil
@@ -61,8 +55,6 @@ func (f *fakeRuntimeParamKVCacheService) Delete(
 	_ context.Context,
 	_ kvcache.OwnerType,
 	_ string,
-	_ string,
-	_ string,
 ) error {
 	return nil
 }
@@ -70,8 +62,6 @@ func (f *fakeRuntimeParamKVCacheService) Delete(
 func (f *fakeRuntimeParamKVCacheService) Incr(
 	_ context.Context,
 	_ kvcache.OwnerType,
-	_ string,
-	_ string,
 	_ string,
 	_ int64,
 	_ int64,
@@ -83,8 +73,6 @@ func (f *fakeRuntimeParamKVCacheService) Incr(
 func (f *fakeRuntimeParamKVCacheService) Expire(
 	_ context.Context,
 	_ kvcache.OwnerType,
-	_ string,
-	_ string,
 	_ string,
 	_ int64,
 ) (bool, *gtime.Time, error) {

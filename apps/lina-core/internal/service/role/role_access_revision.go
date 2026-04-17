@@ -108,8 +108,6 @@ func (c *clusterAccessRevisionController) MarkChanged(ctx context.Context) (int6
 	item, err := c.kvCacheSvc.Incr(
 		ctx,
 		kvcache.OwnerTypeModule,
-		accessRevisionOwnerKey,
-		accessRevisionNamespace,
 		accessRevisionCacheKey,
 		1,
 		0,
@@ -128,8 +126,6 @@ func (c *clusterAccessRevisionController) getSharedRevision(ctx context.Context)
 	revision, _, err := c.kvCacheSvc.GetInt(
 		ctx,
 		kvcache.OwnerTypeModule,
-		accessRevisionOwnerKey,
-		accessRevisionNamespace,
 		accessRevisionCacheKey,
 	)
 	return revision, err

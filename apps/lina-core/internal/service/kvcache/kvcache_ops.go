@@ -17,28 +17,25 @@ import (
 	"lina-core/internal/model/entity"
 )
 
-// Get returns the current cache entry snapshot identified by ownerType, ownerKey,
-// namespace, and cacheKey.
+// Get returns the current cache entry snapshot identified by ownerType and one
+// scoped cache key.
 //
 // Parameters:
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
-//   - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-//   - namespace: logical group name used to organize related cache entries for the same owner.
-//   - cacheKey: concrete key to read inside the namespace.
+//   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //
 // Returns:
 //   - *Item: the cache entry snapshot when the entry exists, including value kind, value, and expiration time.
 //   - bool: whether the cache entry exists after expired data has been cleaned up.
-//   - error: returned when identity parameters are invalid, expired-entry cleanup fails, or the database query fails.
+//   - error: returned when the scoped cache key is invalid, expired-entry cleanup fails, or the database query fails.
 func (s *serviceImpl) Get(
 	ctx context.Context,
 	ownerType OwnerType,
-	ownerKey string,
-	namespace string,
 	cacheKey string,
 ) (*Item, bool, error) {
-	if err := s.validateIdentity(ownerType, ownerKey, namespace, cacheKey); err != nil {
+	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	if err != nil {
 		return nil, false, err
 	}
 	if err := s.CleanupExpired(ctx); err != nil {
@@ -46,11 +43,11 @@ func (s *serviceImpl) Get(
 	}
 
 	var row *entity.SysKvCache
-	err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
-		OwnerKey:  strings.TrimSpace(ownerKey),
-		Namespace: strings.TrimSpace(namespace),
-		CacheKey:  strings.TrimSpace(cacheKey),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
 	}).Scan(&row)
 	if err != nil {
 		return nil, false, err
@@ -61,40 +58,37 @@ func (s *serviceImpl) Get(
 	return buildCacheItem(row), true, nil
 }
 
-// GetInt returns the current integer cache value identified by ownerType,
-// ownerKey, namespace, and cacheKey.
+// GetInt returns the current integer cache value identified by ownerType and
+// one scoped cache key.
 //
 // Parameters:
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
-//   - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-//   - namespace: logical group name used to organize related cache entries for the same owner.
-//   - cacheKey: concrete key to read inside the namespace.
+//   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //
 // Returns:
 //   - int64: the integer cache value when the entry exists and is stored as an integer.
 //   - bool: whether the cache entry exists after optional single-row expiration cleanup.
-//   - error: returned when identity parameters are invalid, the existing entry is not stored
+//   - error: returned when the scoped cache key is invalid, the existing entry is not stored
 //     as an integer, or the database query/delete fails.
 func (s *serviceImpl) GetInt(
 	ctx context.Context,
 	ownerType OwnerType,
-	ownerKey string,
-	namespace string,
 	cacheKey string,
 ) (int64, bool, error) {
-	if err := s.validateIdentity(ownerType, ownerKey, namespace, cacheKey); err != nil {
+	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	if err != nil {
 		return 0, false, err
 	}
 
 	// Keep revision reads lightweight: unlike Get/Incr, this path intentionally
 	// skips global CleanupExpired so watcher polling stays read-dominant.
 	var row *entity.SysKvCache
-	err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
-		OwnerKey:  strings.TrimSpace(ownerKey),
-		Namespace: strings.TrimSpace(namespace),
-		CacheKey:  strings.TrimSpace(cacheKey),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
 	}).Scan(&row)
 	if err != nil {
 		return 0, false, err
@@ -114,32 +108,28 @@ func (s *serviceImpl) GetInt(
 	return row.ValueInt, true, nil
 }
 
-// Set stores or replaces a string cache value for the specified owner, namespace,
-// and cache key.
+// Set stores or replaces a string cache value for the specified scoped cache key.
 //
 // Parameters:
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
-//   - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-//   - namespace: logical group name used to organize related cache entries for the same owner.
-//   - cacheKey: concrete key to write inside the namespace.
+//   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //   - value: string payload to persist in the cache entry.
 //   - expireSeconds: entry lifetime in seconds; 0 means never expire, and positive values create an absolute expiration time.
 //
 // Returns:
 //   - *Item: the latest cache entry snapshot after the value has been written successfully.
-//   - error: returned when identity parameters are invalid, the value exceeds the allowed size,
+//   - error: returned when the scoped cache key is invalid, the value exceeds the allowed size,
 //     expireSeconds is negative, expired-entry cleanup fails, or the upsert operation fails.
 func (s *serviceImpl) Set(
 	ctx context.Context,
 	ownerType OwnerType,
-	ownerKey string,
-	namespace string,
 	cacheKey string,
 	value string,
 	expireSeconds int64,
 ) (*Item, error) {
-	if err := s.validateIdentity(ownerType, ownerKey, namespace, cacheKey); err != nil {
+	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	if err != nil {
 		return nil, err
 	}
 	if err := validateMaxByteLength("缓存值", value, maxValueBytes); err != nil {
@@ -154,7 +144,7 @@ func (s *serviceImpl) Set(
 		return nil, err
 	}
 
-	err = s.upsert(ctx, ownerType, ownerKey, namespace, cacheKey, do.SysKvCache{
+	err = s.upsert(ctx, ownerType, identity, do.SysKvCache{
 		ValueKind:  ValueKindString,
 		ValueBytes: []byte(value),
 		ValueInt:   0,
@@ -164,7 +154,7 @@ func (s *serviceImpl) Set(
 		return nil, err
 	}
 	return &Item{
-		Key:       strings.TrimSpace(cacheKey),
+		Key:       identity.cacheKey,
 		ValueKind: ValueKindString,
 		Value:     value,
 		IntValue:  0,
@@ -172,34 +162,30 @@ func (s *serviceImpl) Set(
 	}, nil
 }
 
-// Delete removes the cache entry identified by ownerType, ownerKey, namespace,
-// and cacheKey.
+// Delete removes the cache entry identified by ownerType and one scoped cache key.
 //
 // Parameters:
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
-//   - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-//   - namespace: logical group name used to organize related cache entries for the same owner.
-//   - cacheKey: concrete key to delete inside the namespace.
+//   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //
 // Returns:
-//   - error: returned when identity parameters are invalid or the delete statement fails.
+//   - error: returned when the scoped cache key is invalid or the delete statement fails.
 //     Deleting a non-existent entry is treated as a successful no-op.
 func (s *serviceImpl) Delete(
 	ctx context.Context,
 	ownerType OwnerType,
-	ownerKey string,
-	namespace string,
 	cacheKey string,
 ) error {
-	if err := s.validateIdentity(ownerType, ownerKey, namespace, cacheKey); err != nil {
+	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	if err != nil {
 		return err
 	}
-	_, err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	_, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
-		OwnerKey:  strings.TrimSpace(ownerKey),
-		Namespace: strings.TrimSpace(namespace),
-		CacheKey:  strings.TrimSpace(cacheKey),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
 	}).Delete()
 	return err
 }
@@ -209,26 +195,23 @@ func (s *serviceImpl) Delete(
 // Parameters:
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
-//   - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-//   - namespace: logical group name used to organize related cache entries for the same owner.
-//   - cacheKey: concrete key to increment inside the namespace.
+//   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //   - delta: increment amount added to the current integer value; when the entry does not exist, delta becomes the initial value.
 //   - expireSeconds: new entry lifetime in seconds; 0 keeps the entry non-expiring when creating a new item and preserves the current expiration when updating an existing item.
 //
 // Returns:
 //   - *Item: the latest cache entry snapshot after the increment succeeds.
-//   - error: returned when identity parameters are invalid, expireSeconds is negative,
+//   - error: returned when the scoped cache key is invalid, expireSeconds is negative,
 //     expired-entry cleanup fails, the existing entry is not stored as an integer, or any database operation fails.
 func (s *serviceImpl) Incr(
 	ctx context.Context,
 	ownerType OwnerType,
-	ownerKey string,
-	namespace string,
 	cacheKey string,
 	delta int64,
 	expireSeconds int64,
 ) (*Item, error) {
-	if err := s.validateIdentity(ownerType, ownerKey, namespace, cacheKey); err != nil {
+	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	if err != nil {
 		return nil, err
 	}
 
@@ -245,9 +228,9 @@ func (s *serviceImpl) Incr(
 		var row *entity.SysKvCache
 		if scanErr := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 			OwnerType: ownerType.String(),
-			OwnerKey:  strings.TrimSpace(ownerKey),
-			Namespace: strings.TrimSpace(namespace),
-			CacheKey:  strings.TrimSpace(cacheKey),
+			OwnerKey:  identity.ownerKey,
+			Namespace: identity.namespace,
+			CacheKey:  identity.cacheKey,
 		}).Scan(&row); scanErr != nil {
 			return scanErr
 		}
@@ -267,7 +250,7 @@ func (s *serviceImpl) Incr(
 			nextValue = row.ValueInt + delta
 		}
 
-		updateErr := s.upsert(ctx, ownerType, ownerKey, namespace, cacheKey, do.SysKvCache{
+		updateErr := s.upsert(ctx, ownerType, identity, do.SysKvCache{
 			ValueKind:  ValueKindInt,
 			ValueBytes: []byte{},
 			ValueInt:   nextValue,
@@ -278,7 +261,7 @@ func (s *serviceImpl) Incr(
 		}
 
 		updatedItem = &Item{
-			Key:       strings.TrimSpace(cacheKey),
+			Key:       identity.cacheKey,
 			ValueKind: ValueKindInt,
 			Value:     strconv.FormatInt(nextValue, 10),
 			IntValue:  nextValue,
@@ -297,25 +280,22 @@ func (s *serviceImpl) Incr(
 // Parameters:
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
-//   - ownerKey: concrete owner identifier within ownerType, such as a module key or plugin key.
-//   - namespace: logical group name used to organize related cache entries for the same owner.
-//   - cacheKey: concrete key whose expiration policy should be updated.
+//   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //   - expireSeconds: new lifetime in seconds; 0 clears the expiration and makes the entry persistent.
 //
 // Returns:
 //   - bool: whether an existing cache entry was found and updated.
 //   - *gtime.Time: the normalized absolute expiration time; nil means the entry will not expire.
-//   - error: returned when identity parameters are invalid, expireSeconds is negative,
+//   - error: returned when the scoped cache key is invalid, expireSeconds is negative,
 //     expired-entry cleanup fails, or the database update fails.
 func (s *serviceImpl) Expire(
 	ctx context.Context,
 	ownerType OwnerType,
-	ownerKey string,
-	namespace string,
 	cacheKey string,
 	expireSeconds int64,
 ) (bool, *gtime.Time, error) {
-	if err := s.validateIdentity(ownerType, ownerKey, namespace, cacheKey); err != nil {
+	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	if err != nil {
 		return false, nil, err
 	}
 
@@ -329,9 +309,9 @@ func (s *serviceImpl) Expire(
 
 	affected, err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
-		OwnerKey:  strings.TrimSpace(ownerKey),
-		Namespace: strings.TrimSpace(namespace),
-		CacheKey:  strings.TrimSpace(cacheKey),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
 	}).Data(do.SysKvCache{
 		ExpireAt: expireAt,
 	}).UpdateAndGetAffected()
@@ -362,17 +342,15 @@ func (s *serviceImpl) CleanupExpired(ctx context.Context) error {
 func (s *serviceImpl) upsert(
 	ctx context.Context,
 	ownerType OwnerType,
-	ownerKey string,
-	namespace string,
-	cacheKey string,
+	identity *cacheIdentity,
 	data do.SysKvCache,
 ) error {
 	var row *entity.SysKvCache
 	err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
-		OwnerKey:  strings.TrimSpace(ownerKey),
-		Namespace: strings.TrimSpace(namespace),
-		CacheKey:  strings.TrimSpace(cacheKey),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
 	}).Scan(&row)
 	if err != nil {
 		return err
@@ -381,9 +359,9 @@ func (s *serviceImpl) upsert(
 	if row == nil {
 		_, err = dao.SysKvCache.Ctx(ctx).Data(do.SysKvCache{
 			OwnerType:  ownerType.String(),
-			OwnerKey:   strings.TrimSpace(ownerKey),
-			Namespace:  strings.TrimSpace(namespace),
-			CacheKey:   strings.TrimSpace(cacheKey),
+			OwnerKey:   identity.ownerKey,
+			Namespace:  identity.namespace,
+			CacheKey:   identity.cacheKey,
 			ValueKind:  data.ValueKind,
 			ValueBytes: data.ValueBytes,
 			ValueInt:   data.ValueInt,
@@ -399,6 +377,20 @@ func (s *serviceImpl) upsert(
 		ExpireAt:   data.ExpireAt,
 	}).Update()
 	return err
+}
+
+func (s *serviceImpl) resolveIdentity(
+	ownerType OwnerType,
+	cacheKey string,
+) (*cacheIdentity, error) {
+	identity, err := parseCacheKey(cacheKey)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.validateIdentity(ownerType, identity.ownerKey, identity.namespace, identity.cacheKey); err != nil {
+		return nil, err
+	}
+	return identity, nil
 }
 
 func (s *serviceImpl) validateIdentity(
