@@ -94,9 +94,12 @@ func NewHostCallErrorResponse(status uint32, message string) *HostCallResponseEn
 
 // HostCallLogRequest carries a structured log entry from the guest.
 type HostCallLogRequest struct {
-	Level   int32             `json:"level"`
-	Message string            `json:"message"`
-	Fields  map[string]string `json:"fields,omitempty"`
+	// Level is the guest log severity encoded as an integer level.
+	Level int32 `json:"level"`
+	// Message is the primary log message emitted by the guest.
+	Message string `json:"message"`
+	// Fields carries structured key-value log attributes attached to the entry.
+	Fields map[string]string `json:"fields,omitempty"`
 }
 
 // MarshalHostCallLogRequest encodes a log request.
@@ -168,6 +171,7 @@ func UnmarshalHostCallLogRequest(data []byte) (*HostCallLogRequest, error) {
 
 // HostCallStateGetRequest carries a state read key.
 type HostCallStateGetRequest struct {
+	// Key is the plugin-scoped runtime state key to read.
 	Key string `json:"key"`
 }
 
@@ -211,8 +215,10 @@ func UnmarshalHostCallStateGetRequest(data []byte) (*HostCallStateGetRequest, er
 
 // HostCallStateGetResponse carries the state value and existence flag.
 type HostCallStateGetResponse struct {
+	// Value stores the runtime state value when the key exists.
 	Value string `json:"value"`
-	Found bool   `json:"found"`
+	// Found reports whether the requested runtime state key exists.
+	Found bool `json:"found"`
 }
 
 // MarshalHostCallStateGetResponse encodes a state get response.
@@ -269,7 +275,9 @@ func UnmarshalHostCallStateGetResponse(data []byte) (*HostCallStateGetResponse, 
 
 // HostCallStateSetRequest carries a state write key-value pair.
 type HostCallStateSetRequest struct {
-	Key   string `json:"key"`
+	// Key is the plugin-scoped runtime state key to write.
+	Key string `json:"key"`
+	// Value is the runtime state payload stored under Key.
 	Value string `json:"value"`
 }
 
@@ -327,6 +335,7 @@ func UnmarshalHostCallStateSetRequest(data []byte) (*HostCallStateSetRequest, er
 
 // HostCallStateDeleteRequest carries a state delete key.
 type HostCallStateDeleteRequest struct {
+	// Key is the plugin-scoped runtime state key to delete.
 	Key string `json:"key"`
 }
 

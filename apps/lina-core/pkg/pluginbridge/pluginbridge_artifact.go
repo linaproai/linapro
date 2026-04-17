@@ -32,9 +32,14 @@ const (
 
 // RuntimeArtifactMetadata stores the host-owned runtime metadata section.
 type RuntimeArtifactMetadata struct {
-	RuntimeKind        string `json:"runtimeKind" yaml:"runtimeKind"`
-	ABIVersion         string `json:"abiVersion" yaml:"abiVersion"`
-	FrontendAssetCount int    `json:"frontendAssetCount,omitempty" yaml:"frontendAssetCount,omitempty"`
-	SQLAssetCount      int    `json:"sqlAssetCount,omitempty" yaml:"sqlAssetCount,omitempty"`
-	RouteCount         int    `json:"routeCount,omitempty" yaml:"routeCount,omitempty"`
+	// RuntimeKind identifies the runtime family required by the artifact.
+	RuntimeKind string `json:"runtimeKind" yaml:"runtimeKind"`
+	// ABIVersion identifies the bridge ABI version embedded into the artifact.
+	ABIVersion string `json:"abiVersion" yaml:"abiVersion"`
+	// FrontendAssetCount reports the number of embedded frontend asset entries.
+	FrontendAssetCount int `json:"frontendAssetCount,omitempty" yaml:"frontendAssetCount,omitempty"`
+	// SQLAssetCount reports the number of embedded install or uninstall SQL assets.
+	SQLAssetCount int `json:"sqlAssetCount,omitempty" yaml:"sqlAssetCount,omitempty"`
+	// RouteCount reports the number of embedded backend route contracts.
+	RouteCount int `json:"routeCount,omitempty" yaml:"routeCount,omitempty"`
 }

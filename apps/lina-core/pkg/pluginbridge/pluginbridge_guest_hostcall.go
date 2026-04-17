@@ -218,8 +218,11 @@ func HostStateSetInt(key string, value int) error {
 // HostDBQueryResult preserves the previous guest-side result shape for callers
 // that have not yet migrated to the structured data service SDK.
 type HostDBQueryResult struct {
-	Columns  []string
-	Rows     [][]string
+	// Columns lists the result set column names in row order.
+	Columns []string
+	// Rows stores the tabular result values as string slices per row.
+	Rows [][]string
+	// RowCount reports the total number of rows returned by the legacy query.
 	RowCount int
 }
 
