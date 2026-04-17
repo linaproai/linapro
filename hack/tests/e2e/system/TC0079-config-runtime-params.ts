@@ -6,7 +6,6 @@ const runtimeParams = [
   { key: 'sys.session.timeout', name: '在线用户-会话超时时间' },
   { key: 'sys.upload.maxSize', name: '文件管理-上传大小上限' },
   { key: 'sys.login.blackIPList', name: '用户登录-IP 黑名单列表' },
-  { key: 'sys.user.initPassword', name: '用户管理-账号初始密码' },
 ];
 
 test.describe('TC0079 参数设置内置运行时参数', () => {
@@ -27,4 +26,15 @@ test.describe('TC0079 参数设置内置运行时参数', () => {
       );
     });
   }
+
+  test('TC0079e: 不再检索到已下线的 sys.user.initPassword', async ({ adminPage }) => {
+    const configPage = new ConfigPage(adminPage);
+    await configPage.goto();
+
+    await configPage.fillSearchField('参数键名', 'sys.user.initPassword');
+    await configPage.clickSearch();
+
+    const hasConfig = await configPage.hasConfig('sys.user.initPassword');
+    expect(hasConfig).toBeFalsy();
+  });
 });

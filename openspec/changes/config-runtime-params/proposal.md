@@ -6,9 +6,9 @@
 
 ## What Changes
 
-- 梳理并纳管当前宿主已实际接入的 5 项内置运行时参数：`sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize`、`sys.login.blackIPList`、`sys.user.initPassword`
+- 梳理并纳管当前宿主已实际接入的 4 项内置运行时参数：`sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize`、`sys.login.blackIPList`
 - 为上述内置参数补充初始化 SQL 元数据，包含名称、默认值与格式说明，并支持通过 upsert 刷新历史环境中的已有记录
-- 在宿主配置读取层增加运行时参数注册表与统一校验逻辑，使 JWT 有效期、会话超时、上传大小上限、登录 IP 黑名单和重置密码默认值真正由参数设置页驱动
+- 在宿主配置读取层增加运行时参数注册表与统一校验逻辑，使 JWT 有效期、会话超时、上传大小上限和登录 IP 黑名单真正由参数设置页驱动
 - 在宿主配置读取层补充多实例友好的本地快照缓存与共享 revision 同步，降低热点参数判断对 `sys_config` 的查询压力
 - 为内置运行时参数增加防误操作保护：创建、更新、导入时校验值格式；禁止修改已接入宿主的稳定键名；禁止删除内置运行时参数
 - 补充单元测试与 E2E 测试，覆盖内置参数元数据展示、格式校验、运行时生效和用户可观察行为
@@ -25,12 +25,10 @@
 - `config-management`: 参数设置模块新增内置运行时参数元数据、格式校验、导入约束和关键参数保护规则
 - `user-auth`: JWT 有效期与登录 IP 黑名单改为支持由参数设置模块在运行时控制
 - `online-user`: 在线会话超时阈值改为支持由参数设置模块在运行时控制，并在鉴权链路实时校验
-- `user-management`: 用户重置密码弹窗默认值改为支持由参数设置模块中的初始密码参数驱动
-
 ## Impact
 
-- **SQL**: 在 `apps/lina-core/manifest/sql/007-config-management.sql` 中补充 5 项内置运行时参数初始化元数据，避免在全新项目里额外拆分无历史兼容价值的 SQL 文件
+- **SQL**: 在 `apps/lina-core/manifest/sql/007-config-management.sql` 中维护 4 项内置运行时参数初始化元数据，并清理已下线的 `sys.user.initPassword`
 - **后端宿主配置**: 调整 `apps/lina-core/internal/service/config/` 读取逻辑与运行时参数注册/校验逻辑
 - **后端业务行为**: 调整认证、鉴权、在线会话与参数管理服务，使参数改动即时作用于宿主行为，并在多实例下通过共享 revision 传播
-- **前端**: 调整参数设置检索用例与用户重置密码弹窗默认值读取逻辑
+- **前端**: 调整参数设置检索用例，并移除用户重置密码弹窗对已下线参数的读取逻辑
 - **测试**: 新增/更新 Go 单测与 Playwright E2E 用例，确保参数元数据、校验和运行时行为可回归验证

@@ -51,7 +51,6 @@ func TestValidateManagedConfigValueRejectsInvalidValues(t *testing.T) {
 		{key: hostconfig.RuntimeParamKeySessionTimeout, value: "0s"},
 		{key: hostconfig.RuntimeParamKeyUploadMaxSize, value: "-1"},
 		{key: hostconfig.RuntimeParamKeyLoginBlackIPList, value: "invalid-ip"},
-		{key: hostconfig.RuntimeParamKeyUserInitPassword, value: "1234"},
 	}
 
 	for _, testCase := range testCases {

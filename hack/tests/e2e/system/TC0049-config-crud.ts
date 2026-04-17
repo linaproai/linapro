@@ -24,13 +24,13 @@ test.describe('TC0049 参数设置管理', () => {
     const configPage = new ConfigPage(adminPage);
     await configPage.goto();
 
-    await configPage.fillSearchField('参数名称', '用户管理');
+    await configPage.fillSearchField('参数名称', '用户登录');
     await configPage.clickSearch();
 
     const rowCount = await configPage.getRowCount();
     expect(rowCount).toBeGreaterThanOrEqual(1);
 
-    const hasResult = await configPage.hasConfig('sys.user.initPassword');
+    const hasResult = await configPage.hasConfig('sys.login.blackIPList');
     expect(hasResult).toBeTruthy();
   });
 
@@ -38,13 +38,13 @@ test.describe('TC0049 参数设置管理', () => {
     const configPage = new ConfigPage(adminPage);
     await configPage.goto();
 
-    await configPage.fillSearchField('参数键名', 'sys.user');
+    await configPage.fillSearchField('参数键名', 'sys.login');
     await configPage.clickSearch();
 
     const rowCount = await configPage.getRowCount();
     expect(rowCount).toBeGreaterThanOrEqual(1);
 
-    const hasResult = await configPage.hasConfig('sys.user.initPassword');
+    const hasResult = await configPage.hasConfig('sys.login.blackIPList');
     expect(hasResult).toBeTruthy();
   });
 
@@ -53,7 +53,7 @@ test.describe('TC0049 参数设置管理', () => {
     await configPage.goto();
 
     // Search to narrow results
-    await configPage.fillSearchField('参数名称', '用户管理');
+    await configPage.fillSearchField('参数名称', '用户登录');
     await configPage.clickSearch();
     const filteredCount = await configPage.getRowCount();
 

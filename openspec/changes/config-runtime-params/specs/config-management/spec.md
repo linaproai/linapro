@@ -5,14 +5,14 @@
 
 #### Scenario: 初始化内置运行时参数
 - **WHEN** 管理员执行宿主初始化 SQL
-- **THEN** `sys_config` 中包含 `sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize`、`sys.login.blackIPList`、`sys.user.initPassword` 五项内置运行时参数
+- **THEN** `sys_config` 中包含 `sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize`、`sys.login.blackIPList` 四项内置运行时参数
 - **AND** 每条记录包含可读名称、默认值与格式说明备注
 
 ### Requirement: 内置运行时参数保护规则
 系统 SHALL 对已接入宿主运行时行为的内置参数执行格式校验，并保护稳定键名不被误删或误改。
 
 #### Scenario: 拒绝非法的内置参数值
-- **WHEN** user creates, updates, or imports `sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize`、`sys.login.blackIPList` 或 `sys.user.initPassword` with an invalid value format
+- **WHEN** user creates, updates, or imports `sys.jwt.expire`、`sys.session.timeout`、`sys.upload.maxSize` 或 `sys.login.blackIPList` with an invalid value format
 - **THEN** system rejects the change and returns a validation error
 
 #### Scenario: 拒绝修改或删除内置参数键名

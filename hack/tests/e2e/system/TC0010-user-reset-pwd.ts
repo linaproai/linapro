@@ -20,7 +20,7 @@ test.describe('TC0010 重置密码', () => {
     // Verify password input exists
     const passwordInput = dialog.getByPlaceholder(/请输入新的密码/);
     await expect(passwordInput).toBeVisible();
-    await expect(passwordInput).toHaveValue('123456');
+    await expect(passwordInput).toHaveValue('');
   });
 
   test('TC0010b: 重置密码API调用成功', async ({ adminPage }) => {

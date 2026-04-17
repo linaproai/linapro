@@ -29,8 +29,6 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 		{key: RuntimeParamKeyUploadMaxSize, value: "0", shouldErr: true},
 		{key: RuntimeParamKeyLoginBlackIPList, value: "127.0.0.1;10.0.0.0/8"},
 		{key: RuntimeParamKeyLoginBlackIPList, value: "invalid-ip", shouldErr: true},
-		{key: RuntimeParamKeyUserInitPassword, value: "123456"},
-		{key: RuntimeParamKeyUserInitPassword, value: "1234", shouldErr: true},
 	}
 
 	for _, testCase := range testCases {

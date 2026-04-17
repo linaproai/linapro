@@ -8,7 +8,6 @@ import { useVbenModal, z } from '@vben/common-ui';
 import { Descriptions, DescriptionsItem, message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { configByKey } from '#/api/system/config';
 import { userResetPassword } from '#/api/system/user';
 
 const emit = defineEmits<{ reload: [] }>();
@@ -50,12 +49,7 @@ async function handleOpenChange(open: boolean) {
   if (data?.record) {
     currentUser.value = data.record;
   }
-  try {
-    const defaultConfig = await configByKey('sys.user.initPassword');
-    await formApi.setValues({ password: defaultConfig.value || '' });
-  } catch {
-    await formApi.resetForm();
-  }
+  await formApi.resetForm();
 }
 
 async function handleSubmit() {

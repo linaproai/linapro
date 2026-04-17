@@ -22,8 +22,6 @@ const (
 	RuntimeParamKeyUploadMaxSize = "sys.upload.maxSize"
 	// RuntimeParamKeyLoginBlackIPList stores the runtime login IP blacklist.
 	RuntimeParamKeyLoginBlackIPList = "sys.login.blackIPList"
-	// RuntimeParamKeyUserInitPassword stores the default reset-password value shown by the user module.
-	RuntimeParamKeyUserInitPassword = "sys.user.initPassword"
 )
 
 // RuntimeParamSpec describes one built-in runtime parameter managed through
@@ -60,12 +58,6 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 		DefaultValue: "",
 		Remark:       "禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。",
 	},
-	{
-		Key:          RuntimeParamKeyUserInitPassword,
-		Name:         "用户管理-账号初始密码",
-		DefaultValue: "123456",
-		Remark:       "用户重置密码弹窗默认回填值，长度必须为 5-20 个字符。",
-	},
 }
 
 var runtimeParamSpecByKey = map[string]RuntimeParamSpec{
@@ -73,7 +65,6 @@ var runtimeParamSpecByKey = map[string]RuntimeParamSpec{
 	RuntimeParamKeySessionTimeout:   runtimeParamSpecs[1],
 	RuntimeParamKeyUploadMaxSize:    runtimeParamSpecs[2],
 	RuntimeParamKeyLoginBlackIPList: runtimeParamSpecs[3],
-	RuntimeParamKeyUserInitPassword: runtimeParamSpecs[4],
 }
 
 var runtimeParamKeys = []string{
@@ -81,7 +72,6 @@ var runtimeParamKeys = []string{
 	RuntimeParamKeySessionTimeout,
 	RuntimeParamKeyUploadMaxSize,
 	RuntimeParamKeyLoginBlackIPList,
-	RuntimeParamKeyUserInitPassword,
 }
 
 // RuntimeParamSpecs returns all built-in runtime parameter specs.
@@ -121,9 +111,6 @@ func ValidateRuntimeParamValue(key string, value string) error {
 
 	case RuntimeParamKeyLoginBlackIPList:
 		return validateIPBlacklistValue(key, value)
-
-	case RuntimeParamKeyUserInitPassword:
-		return validatePasswordValue(key, value)
 	}
 	return nil
 }
@@ -229,14 +216,6 @@ func validateIPBlacklistValue(key string, value string) error {
 			continue
 		}
 		return gerror.Newf("参数 %s 包含非法 IP 或 CIDR：%s", key, item)
-	}
-	return nil
-}
-
-func validatePasswordValue(key string, value string) error {
-	length := len(strings.TrimSpace(value))
-	if length < 5 || length > 20 {
-		return gerror.Newf("参数 %s 的长度必须为 5-20 个字符", key)
 	}
 	return nil
 }
