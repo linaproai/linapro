@@ -11,6 +11,10 @@ export class LoginPage {
     return this.page.locator('h1').first();
   }
 
+  get loadingTitle() {
+    return this.page.locator('#__app-loading__ .title').first();
+  }
+
   get pageDescription() {
     return this.page.locator('p').filter({ hasText: /宿主|工作台|品牌|平台|能力/ }).first();
   }
@@ -65,6 +69,16 @@ export class LoginPage {
 
   async getDocumentTitle() {
     return this.page.evaluate(() => document.title);
+  }
+
+  async getLoadingTitleFontFamily() {
+    return this.loadingTitle.evaluate((node) => getComputedStyle(node).fontFamily);
+  }
+
+  async getRootFontFamily() {
+    return this.page.evaluate(() => {
+      return getComputedStyle(document.documentElement).fontFamily;
+    });
   }
 
   async login(username: string, password: string) {

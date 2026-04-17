@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 
 import { readPackageJSON } from '@vben/node-utils';
 
+const appLoadingFontFamily =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'";
+
 /**
  * 用于生成将loading样式注入到项目中
  * 为多app提供loading样式，无需在每个 app -> index.html单独引入
@@ -60,7 +63,14 @@ async function getLoadingRawByHtmlTemplate(loadingTemplate: string) {
     appLoadingPath = join(__dirname, './default-loading.html');
   }
 
-  return await fsp.readFile(appLoadingPath, 'utf8');
+  const loadingHtml = await fsp.readFile(appLoadingPath, 'utf8');
+
+  // Keep the injected splash screen font stack aligned with the application
+  // root font stack, so refresh-time branding does not visually jump.
+  return loadingHtml.replaceAll(
+    '__APP_LOADING_FONT_FAMILY__',
+    appLoadingFontFamily,
+  );
 }
 
 export { viteInjectAppLoadingPlugin };

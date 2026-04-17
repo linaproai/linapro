@@ -42,3 +42,9 @@
 - [x] **FB-16**: 在参数设置保存/导入后即时刷新公开前端配置，并补充 Go 单测与 Playwright E2E 覆盖登录页展示和主题切换行为
 - [x] **FB-17**: 修复浏览器本地 preferences 缓存覆盖 `sys.ui.theme.mode` 导致后台主题在当前浏览器不生效的问题
 - [x] **FB-18**: 下线 `sys.ui.theme.primaryColor` 公开前端参数，回收后端契约、前端消费与测试链路以简化系统管理复杂度
+- [x] **FB-19**: 为插件管理页增加“详情”按钮和详情弹窗，展示插件基础治理信息与宿主服务明细
+- [x] **FB-20**: 新增 `hack/tests/e2e/plugin/TC0078-plugin-detail-dialog.ts`，覆盖详情弹窗展示与空状态提示
+- [x] **FB-21**: 收敛 OpenSpec 文档语言治理：新建迭代文档跟随用户上下文语言生成，归档文档与同步主规范统一使用英文，并通过 `openspec/config.yaml` 与项目规范落地
+- [x] **FB-22**: 为 `lina-core` 增加结构化日志开关配置，启用后使用 GoFrame 官方 `HandlerJson` 输出单行 JSON 日志
+- [x] **FB-23**: 收敛 `ghttp.Server` 日志与业务日志到同一日志出口，文件输出时统一写入相同日志文件
+- [x] **FB-24**: 修复页面刷新时启动 Loading 画面中的 `LinaPro` 品牌文字字体闪变问题，确保启动阶段与应用渲染后的字体保持一致

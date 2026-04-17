@@ -1,4 +1,4 @@
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, Page, Route } from '@playwright/test';
 
 import { test, expect } from '../../fixtures/auth';
 import { config } from '../../fixtures/config';
@@ -72,6 +72,48 @@ async function updateConfigValue(
 
   const payload = await response.json();
   expect(payload.code).toBe(0);
+}
+
+function normalizeFontFamily(value: string): string {
+  return value.replaceAll(/["']/g, '').replaceAll(/\s+/g, ' ').trim().toLowerCase();
+}
+
+async function captureLoadingTitleFontOnRefresh(
+  page: Page,
+  loginPage: LoginPage,
+): Promise<string> {
+  const mainScriptPattern = '**/src/main.ts*';
+  let releaseMainScript: (() => void) | null = null;
+
+  const routeHandler = async (route: Route) => {
+    await new Promise<void>((resolve) => {
+      releaseMainScript = resolve;
+    });
+    await route.continue();
+  };
+
+  await page.route(mainScriptPattern, routeHandler);
+
+  try {
+    const reloadPromise = page.reload({ waitUntil: 'domcontentloaded' });
+
+    await expect(loginPage.loadingTitle).toBeVisible();
+    await expect
+      .poll(() => Boolean(releaseMainScript), {
+        message: '刷新后应拦截主入口脚本，确保能观测启动 Loading 文本样式',
+      })
+      .toBe(true);
+
+    const loadingFontFamily = await loginPage.getLoadingTitleFontFamily();
+
+    releaseMainScript?.();
+    await reloadPromise;
+
+    return loadingFontFamily;
+  } finally {
+    releaseMainScript?.();
+    await page.unroute(mainScriptPattern, routeHandler);
+  }
 }
 
 test.describe('TC0080 公开前端配置系统参数', () => {
@@ -194,5 +236,25 @@ test.describe('TC0080 公开前端配置系统参数', () => {
     } finally {
       await updateConfigValue(request, accessToken, original.id, original.value);
     }
+  });
+
+  test('TC0080d: 页面刷新时启动 Loading 品牌字体与应用字体保持一致', async ({
+    page,
+  }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+
+    const loadingFontFamily = await captureLoadingTitleFontOnRefresh(
+      page,
+      loginPage,
+    );
+
+    await loginPage.usernameInput.waitFor({ state: 'visible' });
+
+    const appFontFamily = await loginPage.getRootFontFamily();
+
+    expect(normalizeFontFamily(loadingFontFamily)).toBe(
+      normalizeFontFamily(appFontFamily),
+    );
   });
 });
