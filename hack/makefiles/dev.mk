@@ -36,17 +36,17 @@ dev: stop
 		echo "请查看日志：$$log_file"; \
 		exit 1; \
 	}; \
-	mkdir -p $(PID_DIR); \
-	> /tmp/lina-core.log; \
-	> /tmp/lina-vben.log; \
+	mkdir -p $(TEMP_DIR) $(PID_DIR); \
+	> $(BACKEND_LOG); \
+	> $(FRONTEND_LOG); \
 	echo "正在重启服务..."; \
 	$(MAKE) wasm; \
 	./hack/scripts/prepare-packed-assets.sh; \
 	(cd "$$root_dir/$(BACKEND_DIR)" && go build -o temp/bin/lina .) || { echo "后端编译失败"; exit 1; }; \
-	nohup sh -c 'cd "'"$$root_dir"'/$(BACKEND_DIR)" && exec ./temp/bin/lina' >> /tmp/lina-core.log 2>&1 < /dev/null & echo $$! > $(BACKEND_PID); \
-	nohup sh -c 'cd "'"$$root_dir"'/$(FRONTEND_DIR)" && exec pnpm --filter @lina/web-antd run dev' >> /tmp/lina-vben.log 2>&1 < /dev/null & echo $$! > $(FRONTEND_PID); \
-	_wait_http "后端" "$(BACKEND_PID)" "http://127.0.0.1:$(BACKEND_PORT)/" 60 "/tmp/lina-core.log"; \
-	_wait_http "前端" "$(FRONTEND_PID)" "http://127.0.0.1:$(FRONTEND_PORT)/" 60 "/tmp/lina-vben.log"; \
+	nohup sh -c 'cd "'"$$root_dir"'/$(BACKEND_DIR)" && exec ./temp/bin/lina' >> $(BACKEND_LOG) 2>&1 < /dev/null & echo $$! > $(BACKEND_PID); \
+	nohup sh -c 'cd "'"$$root_dir"'/$(FRONTEND_DIR)" && exec pnpm --filter @lina/web-antd run dev' >> $(FRONTEND_LOG) 2>&1 < /dev/null & echo $$! > $(FRONTEND_PID); \
+	_wait_http "后端" "$(BACKEND_PID)" "http://127.0.0.1:$(BACKEND_PORT)/" 60 "$(BACKEND_LOG)"; \
+	_wait_http "前端" "$(FRONTEND_PID)" "http://127.0.0.1:$(FRONTEND_PORT)/" 60 "$(FRONTEND_LOG)"; \
 	cd "$$root_dir"; \
 	$(MAKE) status
 
@@ -108,7 +108,7 @@ status:
 		echo "║  前端: ✗ 未运行  (端口 $(FRONTEND_PORT))                 ║"; \
 	fi
 	@echo "╠══════════════════════════════════════════════╣"
-	@echo "║  后端日志:  /tmp/lina-core.log               ║"
-	@echo "║  前端日志:  /tmp/lina-vben.log               ║"
+	@echo "║  后端日志:  temp/lina-core.log               ║"
+	@echo "║  前端日志:  temp/lina-vben.log               ║"
 	@echo "╚══════════════════════════════════════════════╝"
 	@echo ""

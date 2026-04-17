@@ -3,13 +3,16 @@
 
 BACKEND_DIR   := apps/lina-core
 FRONTEND_DIR  := apps/lina-vben
-PID_DIR       := /tmp/lina-pids
+TEMP_DIR      := temp
+PID_DIR       := $(TEMP_DIR)/pids
 BACKEND_PID   := $(PID_DIR)/backend.pid
 FRONTEND_PID  := $(PID_DIR)/frontend.pid
 BACKEND_PORT  := 8080
 FRONTEND_PORT := 5666
+BACKEND_LOG   := $(TEMP_DIR)/lina-core.log
+FRONTEND_LOG  := $(TEMP_DIR)/lina-vben.log
 EMBED_DIR     := $(BACKEND_DIR)/internal/packed/public
-OUTPUT_DIR    := temp/output
+OUTPUT_DIR    := $(TEMP_DIR)/output
 
 # 引用复杂指令子文件
 include hack/makefiles/up.mk
