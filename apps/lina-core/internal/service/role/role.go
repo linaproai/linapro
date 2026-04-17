@@ -70,6 +70,9 @@ type Service interface {
 	MarkAccessTopologyChanged(ctx context.Context) error
 	// NotifyAccessTopologyChanged best-effort refreshes the shared permission topology revision.
 	NotifyAccessTopologyChanged(ctx context.Context)
+	// SyncAccessTopologyRevision synchronizes the process-local permission
+	// topology revision and evicts stale token snapshots after cross-node changes.
+	SyncAccessTopologyRevision(ctx context.Context) error
 	// GetUserAccessContext loads the user's roles, menus, and permissions with token-aware caching when available.
 	GetUserAccessContext(ctx context.Context, userId int) (*UserAccessContext, error)
 }

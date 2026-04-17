@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcache"
 
 	"lina-core/internal/service/kvcache"
@@ -15,13 +16,14 @@ import (
 )
 
 const (
-	accessCacheKeyPrefix    = "role:user-access:"
-	accessRevisionOwnerKey  = "authz"
-	accessRevisionNamespace = "permission-access"
-	accessRevisionCacheKey  = "topology-revision"
+	accessCacheKeyPrefix       = "role:user-access:"
+	accessRevisionOwnerKey     = "authz"
+	accessRevisionNamespace    = "permission-access"
+	accessRevisionCacheKey     = "topology-revision"
+	accessRevisionSyncInterval = 3 * time.Second
 	// Refresh the shared revision infrequently because permission topology changes
 	// are rare, while local invalidation still takes effect immediately on writes.
-	accessRevisionRefreshInterval = 3 * time.Second
+	accessRevisionRefreshInterval = accessRevisionSyncInterval
 )
 
 type cachedUserAccessContext struct {
@@ -45,6 +47,14 @@ var accessRevisionState = struct {
 	expireAt time.Time
 }{}
 
+var accessContextCache = gcache.New()
+
+// AccessRevisionSyncInterval returns the watcher interval used to synchronize
+// process-local permission topology revision state on every node.
+func AccessRevisionSyncInterval() time.Duration {
+	return accessRevisionSyncInterval
+}
+
 // PrimeTokenAccessContext preloads the access context cache for one freshly issued login token.
 func (s *serviceImpl) PrimeTokenAccessContext(
 	ctx context.Context,
@@ -63,10 +73,7 @@ func (s *serviceImpl) InvalidateTokenAccessContext(ctx context.Context, tokenID 
 		return
 	}
 
-	if _, err := gcache.Remove(ctx, accessCacheKey(tokenID)); err != nil {
-		logger.Warningf(ctx, "remove token access cache failed tokenID=%s err=%v", tokenID, err)
-	}
-	s.removeIndexedToken(tokenID)
+	s.evictTokenAccessContext(ctx, tokenID)
 }
 
 // InvalidateUserAccessContexts removes all cached access contexts bound to one user.
@@ -95,7 +102,7 @@ func (s *serviceImpl) InvalidateUserAccessContexts(ctx context.Context, userID i
 	for _, tokenID := range tokenIDs {
 		keys = append(keys, accessCacheKey(tokenID))
 	}
-	if err := gcache.Removes(ctx, keys); err != nil {
+	if err := accessContextCache.Removes(ctx, keys); err != nil {
 		logger.Warningf(ctx, "remove user access caches failed userID=%d err=%v", userID, err)
 	}
 }
@@ -129,6 +136,24 @@ func (s *serviceImpl) NotifyAccessTopologyChanged(ctx context.Context) {
 	}
 }
 
+// SyncAccessTopologyRevision synchronizes the process-local permission
+// topology revision and clears stale token snapshots after cross-node changes.
+func (s *serviceImpl) SyncAccessTopologyRevision(ctx context.Context) error {
+	revision, err := s.getSharedAccessRevision(ctx)
+	if err != nil {
+		return err
+	}
+
+	// The watcher only needs to clear token-scoped access snapshots when another
+	// node has already bumped the shared revision. Once the local revision catches
+	// up, requests can keep reading process memory until the next sync window.
+	if localRevision, ok := s.getLocalAccessRevisionForce(); ok && localRevision != revision {
+		s.clearLocalAccessCache(ctx)
+	}
+	s.storeLocalAccessRevision(revision)
+	return nil
+}
+
 // getTokenAccessContext returns one token-scoped access snapshot that stays
 // valid only while the shared topology revision matches the cached entry.
 func (s *serviceImpl) getTokenAccessContext(
@@ -144,14 +169,15 @@ func (s *serviceImpl) getTokenAccessContext(
 	if cached := s.getCachedTokenAccessContext(ctx, tokenID, userID, revision); cached != nil {
 		return cached, nil
 	}
-
-	loaded, err := s.loadUserAccessContext(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.cacheTokenAccessContext(ctx, tokenID, userID, revision, loaded)
-	return cloneUserAccessContext(loaded), nil
+	return s.loadTokenAccessContextWithCacheLock(
+		ctx,
+		tokenID,
+		userID,
+		revision,
+		func(ctx context.Context) (*UserAccessContext, error) {
+			return s.loadUserAccessContext(ctx, userID)
+		},
+	)
 }
 
 // getCachedTokenAccessContext returns one cached snapshot only when the token,
@@ -162,19 +188,94 @@ func (s *serviceImpl) getCachedTokenAccessContext(
 	userID int,
 	revision int64,
 ) *UserAccessContext {
-	cachedVar, err := gcache.Get(ctx, accessCacheKey(tokenID))
+	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey(tokenID))
 	if err != nil || cachedVar == nil {
 		return nil
 	}
 
-	cached, ok := cachedVar.Val().(*cachedUserAccessContext)
-	if !ok || cached == nil || cached.Access == nil {
+	cached := extractCachedUserAccessContext(cachedVar.Val())
+	if cached == nil {
+		// Remove corrupted cache payloads eagerly so later requests rebuild a
+		// clean token snapshot instead of repeatedly re-reading the bad entry.
+		s.evictTokenAccessContext(ctx, tokenID)
 		return nil
 	}
 	if cached.UserID != userID || cached.Revision != revision {
+		// A token can only reuse the cached snapshot while both the owner and the
+		// topology revision stay aligned. Any mismatch means the cache entry is
+		// now stale for this request and should be discarded immediately.
+		s.evictTokenAccessContext(ctx, tokenID)
 		return nil
 	}
+	s.indexAccessToken(tokenID, userID)
 	return cloneUserAccessContext(cached.Access)
+}
+
+// loadTokenAccessContextWithCacheLock serializes same-token cold loads so
+// concurrent protected requests do not rebuild the same access snapshot.
+func (s *serviceImpl) loadTokenAccessContextWithCacheLock(
+	ctx context.Context,
+	tokenID string,
+	userID int,
+	revision int64,
+	loader func(context.Context) (*UserAccessContext, error),
+) (*UserAccessContext, error) {
+	cachedVar, err := accessContextCache.GetOrSetFuncLock(
+		ctx,
+		accessCacheKey(tokenID),
+		func(ctx context.Context) (value any, err error) {
+			// The loader runs under one cache-key write lock, so concurrent first
+			// requests for the same token share a single access-context rebuild.
+			loaded, loadErr := loader(ctx)
+			if loadErr != nil {
+				return nil, loadErr
+			}
+
+			cached := buildCachedUserAccessContext(userID, revision, loaded)
+			if cached == nil {
+				return nil, gerror.New("token access context loader returned empty snapshot")
+			}
+			return cached, nil
+		},
+		s.resolveAccessCacheTTL(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if cachedVar == nil {
+		return nil, gerror.New("token access context cache returned empty result")
+	}
+
+	cached := extractCachedUserAccessContext(cachedVar.Val())
+	if cached == nil || cached.UserID != userID || cached.Revision != revision {
+		// The shared lock prevents duplicate cold loads for one token, but the
+		// entry can still become stale before this goroutine resumes, for example
+		// when a concurrent topology write clears local token snapshots. Rebuild
+		// once more on the current revision so the caller always gets a fresh view.
+		s.evictTokenAccessContext(ctx, tokenID)
+		return s.rebuildTokenAccessContext(ctx, tokenID, userID, revision, loader)
+	}
+
+	s.indexAccessToken(tokenID, userID)
+	return cloneUserAccessContext(cached.Access), nil
+}
+
+// rebuildTokenAccessContext loads one fresh snapshot directly and writes it back
+// to cache after invalid or stale cache entries have been discarded.
+func (s *serviceImpl) rebuildTokenAccessContext(
+	ctx context.Context,
+	tokenID string,
+	userID int,
+	revision int64,
+	loader func(context.Context) (*UserAccessContext, error),
+) (*UserAccessContext, error) {
+	loaded, err := loader(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	s.cacheTokenAccessContext(ctx, tokenID, userID, revision, loaded)
+	return cloneUserAccessContext(loaded), nil
 }
 
 // cacheTokenAccessContext stores one detached access snapshot and indexes the
@@ -190,22 +291,17 @@ func (s *serviceImpl) cacheTokenAccessContext(
 		return
 	}
 
-	cached := &cachedUserAccessContext{
-		UserID:   userID,
-		Revision: revision,
-		Access:   cloneUserAccessContext(access),
+	cached := buildCachedUserAccessContext(userID, revision, access)
+	if cached == nil {
+		return
 	}
-	if err := gcache.Set(ctx, accessCacheKey(tokenID), cached, s.resolveAccessCacheTTL(ctx)); err != nil {
+	if err := accessContextCache.Set(
+		ctx, accessCacheKey(tokenID), cached, s.resolveAccessCacheTTL(ctx),
+	); err != nil {
 		logger.Warningf(ctx, "set token access cache failed tokenID=%s err=%v", tokenID, err)
+		return
 	}
-
-	accessCacheState.Lock()
-	accessCacheState.tokenUsers[tokenID] = userID
-	if _, ok := accessCacheState.userTokens[userID]; !ok {
-		accessCacheState.userTokens[userID] = make(map[string]struct{})
-	}
-	accessCacheState.userTokens[userID][tokenID] = struct{}{}
-	accessCacheState.Unlock()
+	s.indexAccessToken(tokenID, userID)
 }
 
 // clearLocalAccessCache drops all token snapshots held by the current process
@@ -230,9 +326,38 @@ func (s *serviceImpl) clearLocalAccessCache(ctx context.Context) {
 	for _, tokenID := range tokenIDs {
 		keys = append(keys, accessCacheKey(tokenID))
 	}
-	if err := gcache.Removes(ctx, keys); err != nil {
+	if err := accessContextCache.Removes(ctx, keys); err != nil {
 		logger.Warningf(ctx, "clear local access cache failed err=%v", err)
 	}
+}
+
+// evictTokenAccessContext removes one token snapshot from the local cache and
+// clears the reverse index so later bulk invalidation stays accurate.
+func (s *serviceImpl) evictTokenAccessContext(ctx context.Context, tokenID string) {
+	if tokenID == "" {
+		return
+	}
+
+	if _, err := accessContextCache.Remove(ctx, accessCacheKey(tokenID)); err != nil {
+		logger.Warningf(ctx, "remove token access cache failed tokenID=%s err=%v", tokenID, err)
+	}
+	s.removeIndexedToken(tokenID)
+}
+
+// indexAccessToken records the token-to-user relation for one cached access
+// snapshot so logout and user-level invalidation can remove all bound entries.
+func (s *serviceImpl) indexAccessToken(tokenID string, userID int) {
+	if tokenID == "" || userID <= 0 {
+		return
+	}
+
+	accessCacheState.Lock()
+	accessCacheState.tokenUsers[tokenID] = userID
+	if _, ok := accessCacheState.userTokens[userID]; !ok {
+		accessCacheState.userTokens[userID] = make(map[string]struct{})
+	}
+	accessCacheState.userTokens[userID][tokenID] = struct{}{}
+	accessCacheState.Unlock()
 }
 
 // removeIndexedToken removes one token from the local reverse indexes that map
@@ -264,26 +389,31 @@ func (s *serviceImpl) getAccessRevision(ctx context.Context) (int64, error) {
 		return revision, nil
 	}
 
-	// delta=0 means "read-or-initialize" for the shared integer key without
-	// bumping the revision, so readers can observe a stable cross-instance value.
-	item, err := s.kvCacheSvc.Incr(
-		ctx,
-		kvcache.OwnerTypeModule,
-		accessRevisionOwnerKey,
-		accessRevisionNamespace,
-		accessRevisionCacheKey,
-		0,
-		0,
-	)
+	revision, err := s.getSharedAccessRevision(ctx)
 	if err != nil {
+		// Keep permission checks soft-degraded during transient shared-KV
+		// failures by reusing the last synchronized revision when one exists.
 		if revision, ok := s.getLocalAccessRevisionForce(); ok {
 			return revision, nil
 		}
 		return 0, err
 	}
 
-	s.storeLocalAccessRevision(item.IntValue)
-	return item.IntValue, nil
+	s.storeLocalAccessRevision(revision)
+	return revision, nil
+}
+
+// getSharedAccessRevision returns the latest shared permission-topology
+// revision visible to the current node without mutating the KV row.
+func (s *serviceImpl) getSharedAccessRevision(ctx context.Context) (int64, error) {
+	revision, _, err := s.kvCacheSvc.GetInt(
+		ctx,
+		kvcache.OwnerTypeModule,
+		accessRevisionOwnerKey,
+		accessRevisionNamespace,
+		accessRevisionCacheKey,
+	)
+	return revision, err
 }
 
 // getLocalAccessRevision returns the process-local revision only while its
@@ -361,6 +491,33 @@ func (s *serviceImpl) resolveAccessCacheTTL(ctx context.Context) time.Duration {
 // accessCacheKey builds the token-scoped cache key used by gcache.
 func accessCacheKey(tokenID string) string {
 	return accessCacheKeyPrefix + tokenID
+}
+
+// buildCachedUserAccessContext detaches one access snapshot from request-local
+// slices before the cache stores it for token reuse.
+func buildCachedUserAccessContext(
+	userID int,
+	revision int64,
+	access *UserAccessContext,
+) *cachedUserAccessContext {
+	if userID <= 0 || access == nil {
+		return nil
+	}
+	return &cachedUserAccessContext{
+		UserID:   userID,
+		Revision: revision,
+		Access:   cloneUserAccessContext(access),
+	}
+}
+
+// extractCachedUserAccessContext keeps cache reads defensive so stale or
+// unexpected cache values do not crash permission checks.
+func extractCachedUserAccessContext(value any) *cachedUserAccessContext {
+	cached, ok := value.(*cachedUserAccessContext)
+	if !ok || cached == nil || cached.Access == nil {
+		return nil
+	}
+	return cached
 }
 
 // cloneSliceWithCopy allocates the exact target length once and then copies the

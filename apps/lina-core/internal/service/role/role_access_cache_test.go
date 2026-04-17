@@ -6,16 +6,113 @@ package role
 import (
 	"context"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/gogf/gf/v2/os/gcache"
+	"github.com/gogf/gf/v2/os/gtime"
+
+	"lina-core/internal/service/kvcache"
 )
+
+type fakeKVCacheService struct {
+	getIntValue int64
+	getIntErr   error
+	getIntCalls int32
+	incrCalls   int32
+}
+
+func (f *fakeKVCacheService) Get(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+) (*kvcache.Item, bool, error) {
+	return nil, false, nil
+}
+
+func (f *fakeKVCacheService) GetInt(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+) (int64, bool, error) {
+	atomic.AddInt32(&f.getIntCalls, 1)
+	return f.getIntValue, true, f.getIntErr
+}
+
+func (f *fakeKVCacheService) Set(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+	_ string,
+	_ int64,
+) (*kvcache.Item, error) {
+	return nil, nil
+}
+
+func (f *fakeKVCacheService) Delete(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+) error {
+	return nil
+}
+
+func (f *fakeKVCacheService) Incr(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+	_ int64,
+	_ int64,
+) (*kvcache.Item, error) {
+	atomic.AddInt32(&f.incrCalls, 1)
+	return &kvcache.Item{IntValue: f.getIntValue}, nil
+}
+
+func (f *fakeKVCacheService) Expire(
+	_ context.Context,
+	_ kvcache.OwnerType,
+	_ string,
+	_ string,
+	_ string,
+	_ int64,
+) (bool, *gtime.Time, error) {
+	return false, nil, nil
+}
+
+func (f *fakeKVCacheService) CleanupExpired(_ context.Context) error {
+	return nil
+}
+
+func resetRoleAccessCacheTestState(t *testing.T, svc *serviceImpl) {
+	t.Helper()
+
+	ctx := context.Background()
+	accessContextCache = gcache.New()
+	svc.clearLocalAccessCache(ctx)
+	svc.clearLocalAccessRevision()
+	t.Cleanup(func() {
+		accessContextCache = gcache.New()
+		svc.clearLocalAccessCache(ctx)
+		svc.clearLocalAccessRevision()
+	})
+}
 
 func TestTokenAccessContextCacheLifecycle(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
-	svc.clearLocalAccessCache(ctx)
-	t.Cleanup(func() {
-		svc.clearLocalAccessCache(ctx)
-	})
+	resetRoleAccessCacheTestState(t, svc)
 
 	tokenID := "token-cache-lifecycle"
 	userID := 101
@@ -55,10 +152,7 @@ func TestTokenAccessContextCacheLifecycle(t *testing.T) {
 func TestInvalidateUserAccessContextsRemovesBoundTokensOnly(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
-	svc.clearLocalAccessCache(ctx)
-	t.Cleanup(func() {
-		svc.clearLocalAccessCache(ctx)
-	})
+	resetRoleAccessCacheTestState(t, svc)
 
 	sharedAccess := &UserAccessContext{
 		Permissions: []string{"system:role:auth"},
@@ -130,5 +224,169 @@ func TestCloneSliceWithCopyPreservesNilAndValues(t *testing.T) {
 	}
 	if &cloned[0] == &values[0] {
 		t.Fatal("expected cloned slice to have independent backing array")
+	}
+}
+
+func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
+	ctx := context.Background()
+	svc := New().(*serviceImpl)
+	resetRoleAccessCacheTestState(t, svc)
+
+	fakeKV := &fakeKVCacheService{getIntValue: 9}
+	svc.kvCacheSvc = fakeKV
+
+	revision, err := svc.getAccessRevision(ctx)
+	if err != nil {
+		t.Fatalf("get access revision failed: %v", err)
+	}
+	if revision != 9 {
+		t.Fatalf("expected revision 9, got %d", revision)
+	}
+	if atomic.LoadInt32(&fakeKV.getIntCalls) != 1 {
+		t.Fatalf("expected exactly one GetInt call, got %d", atomic.LoadInt32(&fakeKV.getIntCalls))
+	}
+	if atomic.LoadInt32(&fakeKV.incrCalls) != 0 {
+		t.Fatalf("expected no Incr calls for read path, got %d", atomic.LoadInt32(&fakeKV.incrCalls))
+	}
+
+	revision, err = svc.getAccessRevision(ctx)
+	if err != nil {
+		t.Fatalf("second get access revision failed: %v", err)
+	}
+	if revision != 9 {
+		t.Fatalf("expected cached revision 9, got %d", revision)
+	}
+	if atomic.LoadInt32(&fakeKV.getIntCalls) != 1 {
+		t.Fatalf("expected cached local revision to avoid extra GetInt calls, got %d", atomic.LoadInt32(&fakeKV.getIntCalls))
+	}
+}
+
+func TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged(t *testing.T) {
+	ctx := context.Background()
+	svc := New().(*serviceImpl)
+	resetRoleAccessCacheTestState(t, svc)
+
+	fakeKV := &fakeKVCacheService{getIntValue: 7}
+	svc.kvCacheSvc = fakeKV
+	svc.storeLocalAccessRevision(7)
+	svc.cacheTokenAccessContext(ctx, "sync-same-revision", 1, 7, &UserAccessContext{
+		Permissions: []string{"system:user:list"},
+	})
+
+	if err := svc.SyncAccessTopologyRevision(ctx); err != nil {
+		t.Fatalf("sync access topology revision failed: %v", err)
+	}
+
+	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey("sync-same-revision"))
+	if err != nil {
+		t.Fatalf("get cached access context after unchanged sync: %v", err)
+	}
+	if cachedVar == nil {
+		t.Fatal("expected cached token access context to remain after unchanged revision sync")
+	}
+}
+
+func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) {
+	ctx := context.Background()
+	svc := New().(*serviceImpl)
+	resetRoleAccessCacheTestState(t, svc)
+
+	fakeKV := &fakeKVCacheService{getIntValue: 8}
+	svc.kvCacheSvc = fakeKV
+	svc.storeLocalAccessRevision(7)
+	svc.cacheTokenAccessContext(ctx, "sync-new-revision", 1, 7, &UserAccessContext{
+		Permissions: []string{"system:user:list"},
+	})
+
+	if err := svc.SyncAccessTopologyRevision(ctx); err != nil {
+		t.Fatalf("sync access topology revision failed: %v", err)
+	}
+
+	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey("sync-new-revision"))
+	if err != nil {
+		t.Fatalf("get cached access context after changed sync: %v", err)
+	}
+	if cachedVar != nil {
+		t.Fatal("expected stale token access context to be evicted after revision change")
+	}
+
+	revision, ok := svc.getLocalAccessRevision()
+	if !ok {
+		t.Fatal("expected synced revision to remain locally cached")
+	}
+	if revision != 8 {
+		t.Fatalf("expected local revision 8 after sync, got %d", revision)
+	}
+}
+
+func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.T) {
+	ctx := context.Background()
+	svc := New().(*serviceImpl)
+	resetRoleAccessCacheTestState(t, svc)
+
+	var loadCalls atomic.Int32
+	loader := func(context.Context) (*UserAccessContext, error) {
+		loadCalls.Add(1)
+		time.Sleep(30 * time.Millisecond)
+		return &UserAccessContext{
+			RoleIds:      []int{1},
+			RoleNames:    []string{"admin"},
+			MenuIds:      []int{101},
+			Permissions:  []string{"system:user:list"},
+			IsSuperAdmin: true,
+		}, nil
+	}
+
+	const workers = 8
+	results := make(chan *UserAccessContext, workers)
+	errs := make(chan error, workers)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			access, err := svc.loadTokenAccessContextWithCacheLock(
+				ctx,
+				"concurrent-token",
+				1,
+				3,
+				loader,
+			)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- access
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+	close(results)
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("load token access context with cache lock failed: %v", err)
+		}
+	}
+	if loadCalls.Load() != 1 {
+		t.Fatalf("expected exactly one cold-load execution, got %d", loadCalls.Load())
+	}
+
+	count := 0
+	for access := range results {
+		count++
+		if access == nil {
+			t.Fatal("expected non-nil access context from cache lock loader")
+		}
+		if len(access.Permissions) != 1 || access.Permissions[0] != "system:user:list" {
+			t.Fatalf("unexpected permissions from cached access context: %#v", access)
+		}
+	}
+	if count != workers {
+		t.Fatalf("expected %d access results, got %d", workers, count)
 	}
 }
