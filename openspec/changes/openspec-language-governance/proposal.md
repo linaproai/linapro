@@ -13,3 +13,20 @@
 
 - 仅涉及插件管理页前端交互与对应 E2E 测试
 - 复用现有插件列表接口返回数据，不新增后端接口
+
+## Feedback Addendum: OpenSpec 文档语言治理
+
+### Why
+
+`openspec/config.yaml` 当前将 OpenSpec 产物默认固定为简体中文，导致英文需求上下文下新建迭代仍可能生成中文文档；同时归档阶段缺少统一英文约束，不利于后续国际化支持和社区贡献者协作。
+
+### What Changes
+
+- 调整 OpenSpec 上下文约束：新建迭代时，`proposal.md`、`design.md`、`tasks.md` 与增量规范跟随用户输入的上下文语言生成
+- 在项目规范中补充同一规则，并明确归档目录文档及同步到 `openspec/specs/` 的主规范统一使用英文
+- 仅通过 `openspec/config.yaml` 与项目规范落地该治理要求，不修改现有 skill 与斜杠指令内容
+
+### Impact
+
+- 影响后续 `/opsx:propose` 与 `/opsx:archive` 的文档语言策略
+- 活跃 change 内文档语言保持一致，避免同一迭代中英文混写

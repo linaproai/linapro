@@ -25,3 +25,31 @@
 
 - 新增 `hack/tests/e2e/plugin/TC0078-plugin-detail-dialog.ts`
 - 回归执行 `hack/tests/e2e/plugin/TC0074-plugin-management-action-permissions.ts`
+
+## Feedback Follow-Ups
+
+### OpenSpec 文档语言治理
+
+当前 `openspec/config.yaml` 将 OpenSpec 产物整体固定为简体中文，这会让英文上下文下的新迭代文档语言失真；与此同时，归档流程没有统一英文要求，难以把归档后的 change 文档与主规范作为对外协作的稳定英文资产使用。
+
+### 决策一：新建迭代文档跟随用户上下文语言
+
+- 新建 active change 时生成的 `proposal.md`、`design.md`、`tasks.md` 和增量规范，统一跟随用户当前输入的上下文语言。
+- 语言判断优先级为：用户显式指定语言 > 当前需求描述的主语言。
+- 同一个 active change 内默认保持单一文档语言，避免在一次迭代中混入中英文内容，除非用户明确要求对整套文档切换语言。
+
+### 决策二：归档资产统一使用英文
+
+- 执行归档时，归档目录中的 `proposal.md`、`design.md`、`tasks.md` 和增量规范统一使用英文。
+- 若归档流程会将 delta spec 同步到 `openspec/specs/` 主规范，则同步后的主规范内容也统一使用英文，不再跟随当前会话语言。
+- 这样可以把 archive 与主规范都沉淀为面向国际化支持和社区贡献的稳定英文资产。
+
+### 决策三：仅通过配置与项目规范实现约束
+
+- 不修改现有 skill 或 `/opsx:*` 斜杠指令内容。
+- 通过 `openspec/config.yaml` 提供生成与归档阶段的语言约束，再由项目规范补充同一治理规则，确保后续执行时有统一依据。
+
+### 本次治理验证
+
+- 执行 `openspec validate openspec-language-governance --strict`
+- 执行 `openspec instructions proposal --change openspec-language-governance --json`，确认输出上下文已包含“新建迭代跟随上下文语言、归档统一英文”的规则

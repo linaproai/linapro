@@ -5,8 +5,21 @@ schema: spec-driven
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
 # Example:
 context: |
-  Output language: All artifact content must be written in Simplified Chinese,
-  including section titles, descriptions, scenario text, and task items.
+  OpenSpec artifact language governance:
+  1. When creating a new active change, generate the initial `proposal.md`,
+     `design.md`, `tasks.md`, and delta specs using the user's current request
+     language.
+  2. Determine the request language from the user's input context. If the user
+     writes primarily in Simplified Chinese, write the generated change
+     artifacts in Simplified Chinese. If the user writes primarily in English,
+     write the generated change artifacts in English. If the user explicitly
+     specifies a language, that explicit instruction overrides the default
+     inference.
+  3. Keep the document language consistent within the same active change unless
+     the user explicitly asks to rewrite that change in another language.
+  4. When archiving a change, all archived change documents and any synced
+     baseline specs under `openspec/specs/` must be written in English,
+     regardless of the current conversation language.
 
 # Per-artifact rules
 rules:
