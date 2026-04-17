@@ -6,11 +6,8 @@ import { useVbenModal } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import {
-  configAdd,
-  configInfo,
-  configUpdate,
-} from '#/api/system/config';
+import { configAdd, configInfo, configUpdate } from '#/api/system/config';
+import { syncPublicFrontendSettings } from '#/runtime/public-frontend';
 
 import { modalSchema } from './data';
 
@@ -58,9 +55,11 @@ async function handleConfirm() {
     const data = await formApi.getValues();
     if (isEdit.value) {
       await configUpdate(recordId.value, data);
+      await syncPublicFrontendSettings();
       message.success('更新成功');
     } else {
       await configAdd(data);
+      await syncPublicFrontendSettings();
       message.success('创建成功');
     }
     emit('reload');

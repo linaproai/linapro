@@ -3,6 +3,22 @@ import type { Page } from "@playwright/test";
 export class LoginPage {
   constructor(private page: Page) {}
 
+  get appName() {
+    return this.page.getByText(/LinaPro|Console|品牌/, { exact: false }).first();
+  }
+
+  get pageTitle() {
+    return this.page.locator('h1').first();
+  }
+
+  get pageDescription() {
+    return this.page.locator('p').filter({ hasText: /宿主|工作台|品牌|平台|能力/ }).first();
+  }
+
+  get loginSubtitle() {
+    return this.page.locator('span.text-muted-foreground').first();
+  }
+
   get usernameInput() {
     return this.page
       .locator(
@@ -37,10 +53,18 @@ export class LoginPage {
     );
   }
 
+  getText(text: string) {
+    return this.page.getByText(text, { exact: true }).first();
+  }
+
   async goto() {
     await this.page.goto("/auth/login");
     await this.usernameInput.waitFor({ state: "visible" });
     await this.loginButton.waitFor({ state: "visible" });
+  }
+
+  async getDocumentTitle() {
+    return this.page.evaluate(() => document.title);
   }
 
   async login(username: string, password: string) {

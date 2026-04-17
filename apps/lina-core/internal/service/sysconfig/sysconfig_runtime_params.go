@@ -1,5 +1,5 @@
-// This file coordinates protected runtime-parameter mutations with the host
-// runtime-parameter cache revision.
+// This file coordinates protected system-parameter mutations with the host
+// protected-config cache revision.
 
 package sysconfig
 
@@ -25,7 +25,7 @@ func (s *serviceImpl) refreshRuntimeParamSnapshotIfNeeded(
 	currentValue string,
 	created bool,
 ) error {
-	if !hostconfig.IsProtectedRuntimeParam(key) {
+	if !hostconfig.IsProtectedConfigParam(key) {
 		return nil
 	}
 	if !created && previousValue == currentValue {

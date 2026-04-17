@@ -19,6 +19,9 @@ type Service interface {
 	GetJwtSecret(ctx context.Context) string
 	// GetJwtExpire returns the runtime-effective JWT expiration duration.
 	GetJwtExpire(ctx context.Context) time.Duration
+	// GetPublicFrontend returns the public-safe frontend branding and display
+	// settings that can be consumed by login pages and the admin workspace.
+	GetPublicFrontend(ctx context.Context) *PublicFrontendConfig
 	// GetLogin reads runtime login parameters from sys_config.
 	GetLogin(ctx context.Context) *LoginConfig
 	// IsLoginIPBlacklisted reports whether the input IP is denied by the

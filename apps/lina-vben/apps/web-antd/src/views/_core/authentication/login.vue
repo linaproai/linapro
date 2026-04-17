@@ -8,11 +8,17 @@ import { $t } from '@vben/locales';
 
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
+import { publicFrontendSettings } from '#/runtime/public-frontend';
 import { useAuthStore } from '#/store';
 
 defineOptions({ name: 'Login' });
 
 const authStore = useAuthStore();
+const loginSubtitle = computed(
+  () =>
+    publicFrontendSettings.auth.loginSubtitle ||
+    $t('authentication.loginSubtitle'),
+);
 
 const formSchema = computed((): VbenFormSchema[] => {
   return [
@@ -43,11 +49,9 @@ const formSchema = computed((): VbenFormSchema[] => {
     <AuthenticationLogin
       :form-schema="formSchema"
       :loading="authStore.loginLoading"
+      :sub-title="loginSubtitle"
       @submit="authStore.authLogin"
     />
-    <PluginSlotOutlet
-      :slot-key="pluginSlotKeys.authLoginAfter"
-      class="mt-4"
-    />
+    <PluginSlotOutlet :slot-key="pluginSlotKeys.authLoginAfter" class="mt-4" />
   </div>
 </template>

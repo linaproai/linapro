@@ -9,6 +9,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Modal, Switch, Upload } from 'ant-design-vue';
 
 import { configImport, configImportTemplate } from '#/api/system/config';
+import { syncPublicFrontendSettings } from '#/runtime/public-frontend';
 import { downloadBlob } from '#/utils/download';
 
 const emit = defineEmits<{ reload: [] }>();
@@ -33,6 +34,7 @@ async function handleSubmit() {
     const file = fileList.value[0]!.originFileObj as File;
     const result = await configImport(file, updateSupport.value);
     const res = result as any;
+    await syncPublicFrontendSettings();
     let modal = Modal.success;
     if (res.fail > 0) {
       modal = Modal.error;
@@ -90,8 +92,11 @@ async function handleDownloadTemplate() {
       :show-upload-list="true"
       accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
     >
-      <p class="ant-upload-drag-icon flex items-center justify-center">
-        <IconifyIcon class="text-primary text-5xl" icon="ant-design:inbox-outlined" />
+      <p class="ant-upload-drag-icon flex-center">
+        <IconifyIcon
+          class="text-5xl text-primary"
+          icon="ant-design:inbox-outlined"
+        />
       </p>
       <p class="ant-upload-text">点击或者拖拽到此处上传文件</p>
     </UploadDragger>

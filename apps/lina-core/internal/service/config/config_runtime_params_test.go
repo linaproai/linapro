@@ -42,6 +42,33 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 	}
 }
 
+func TestValidatePublicFrontendSettingValue(t *testing.T) {
+	testCases := []struct {
+		key       string
+		value     string
+		shouldErr bool
+	}{
+		{key: PublicFrontendSettingKeyAppName, value: "LinaPro"},
+		{key: PublicFrontendSettingKeyAppName, value: "", shouldErr: true},
+		{key: PublicFrontendSettingKeyUIThemeMode, value: "dark"},
+		{key: PublicFrontendSettingKeyUIThemeMode, value: "night", shouldErr: true},
+		{key: PublicFrontendSettingKeyUILayout, value: "header-nav"},
+		{key: PublicFrontendSettingKeyUILayout, value: "invalid-layout", shouldErr: true},
+		{key: PublicFrontendSettingKeyUIWatermarkEnabled, value: "true"},
+		{key: PublicFrontendSettingKeyUIWatermarkEnabled, value: "yes", shouldErr: true},
+	}
+
+	for _, testCase := range testCases {
+		err := ValidatePublicFrontendSettingValue(testCase.key, testCase.value)
+		if testCase.shouldErr && err == nil {
+			t.Fatalf("expected validation error for %s=%q", testCase.key, testCase.value)
+		}
+		if !testCase.shouldErr && err != nil {
+			t.Fatalf("expected validation success for %s=%q, got %v", testCase.key, testCase.value, err)
+		}
+	}
+}
+
 func TestGetJwtPrefersRuntimeParamOverride(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
 
@@ -107,6 +134,47 @@ func TestGetLoginUsesRuntimeBlacklist(t *testing.T) {
 	}
 	if svc.IsLoginIPBlacklisted(context.Background(), "192.168.1.10") {
 		t.Fatal("expected runtime blacklist getter not to match 192.168.1.10")
+	}
+}
+
+func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
+	withRuntimeParamValue(t, PublicFrontendSettingKeyAppName, "LinaPro Console")
+	withRuntimeParamValue(
+		t,
+		PublicFrontendSettingKeyAuthPageTitle,
+		"统一品牌登录入口",
+	)
+	withRuntimeParamValue(
+		t,
+		PublicFrontendSettingKeyAuthLoginSubtitle,
+		"请使用管理员账号登录宿主工作区",
+	)
+	withRuntimeParamValue(t, PublicFrontendSettingKeyUIThemeMode, "dark")
+	withRuntimeParamValue(t, PublicFrontendSettingKeyUILayout, "header-nav")
+	withRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkEnabled, "true")
+	withRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkContent, "LinaPro Watermark")
+
+	cfg := New().GetPublicFrontend(context.Background())
+	if cfg.App.Name != "LinaPro Console" {
+		t.Fatalf("expected app name override, got %q", cfg.App.Name)
+	}
+	if cfg.Auth.PageTitle != "统一品牌登录入口" {
+		t.Fatalf("expected auth page title override, got %q", cfg.Auth.PageTitle)
+	}
+	if cfg.Auth.LoginSubtitle != "请使用管理员账号登录宿主工作区" {
+		t.Fatalf("expected auth login subtitle override, got %q", cfg.Auth.LoginSubtitle)
+	}
+	if cfg.UI.ThemeMode != "dark" {
+		t.Fatalf("expected dark theme mode, got %q", cfg.UI.ThemeMode)
+	}
+	if cfg.UI.Layout != "header-nav" {
+		t.Fatalf("expected header-nav layout, got %q", cfg.UI.Layout)
+	}
+	if !cfg.UI.WatermarkEnabled {
+		t.Fatal("expected watermark enabled override")
+	}
+	if cfg.UI.WatermarkContent != "LinaPro Watermark" {
+		t.Fatalf("expected watermark content override, got %q", cfg.UI.WatermarkContent)
 	}
 }
 

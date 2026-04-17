@@ -1,7 +1,11 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 export class ConfigPage {
   constructor(private page: Page) {}
+
+  private escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
 
   /** The modal dialog container */
   private get dialog() {
@@ -106,6 +110,16 @@ export class ConfigPage {
       .first()
       .isVisible({ timeout: 5000 })
       .catch(() => false);
+  }
+
+  findRowByExactKey(key: string): Locator {
+    const keyPattern = new RegExp(`^\\s*${this.escapeRegex(key)}\\s*$`);
+
+    return this.page
+      .locator('.vxe-body--row', {
+        has: this.page.locator('.vxe-cell').filter({ hasText: keyPattern }),
+      })
+      .first();
   }
 
   async getRowCount(): Promise<number> {

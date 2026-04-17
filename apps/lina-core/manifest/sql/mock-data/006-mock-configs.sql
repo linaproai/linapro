@@ -1,9 +1,8 @@
 -- Mock data: 参数设置示例数据
 
 DELETE FROM `sys_config` WHERE `key` = 'sys.user.initPassword';
+DELETE FROM `sys_config` WHERE `key` IN ('sys.index.skinName', 'sys.index.sideTheme', 'sys.account.registerUser');
 
 INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
-('主框架页-默认皮肤样式名称', 'sys.index.skinName', 'skin-blue', '蓝色 skin-blue、绿色 skin-green、紫色 skin-purple、红色 skin-red、黄色 skin-yellow', NOW(), NOW()),
-('主框架页-侧边栏主题',       'sys.index.sideTheme', 'theme-dark', '深色主题 theme-dark、浅色主题 theme-light', NOW(), NOW()),
-('账号自助-是否开启用户注册功能', 'sys.account.registerUser', 'false', '是否开启注册用户功能（true开启，false关闭）', NOW(), NOW()),
-('用户登录-黑名单列表',        'sys.login.blackIPList', '', '设置登录IP黑名单限制，多个匹配项以;分隔', NOW(), NOW());
+('演示-支持邮箱', 'demo.support.email', 'support@example.com', '仅用于演示自定义参数能力，不被宿主运行时直接消费。', NOW(), NOW()),
+('演示-首页公告文案', 'demo.notice.banner', '欢迎使用 LinaPro', '仅用于演示自定义参数能力，不被宿主运行时直接消费。', NOW(), NOW());

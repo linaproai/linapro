@@ -1,4 +1,4 @@
-// This file implements runtime-parameter snapshot caching backed by one
+// This file implements protected-config snapshot caching backed by one
 // process-local gcache entry and a shared revision stored in sys_kv_cache.
 
 package config
@@ -186,14 +186,14 @@ func (s *serviceImpl) loadCachedRuntimeParamSnapshot(
 	}, nil
 }
 
-// loadRuntimeParamSnapshot rebuilds one immutable runtime-parameter snapshot
+// loadRuntimeParamSnapshot rebuilds one immutable protected-config snapshot
 // from sys_config for the specified shared revision.
 func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int64) (*runtimeParamSnapshot, error) {
 	cols := dao.SysConfig.Columns()
 
 	var rows []*entity.SysConfig
 	err := dao.SysConfig.Ctx(ctx).
-		WhereIn(cols.Key, runtimeParamKeys).
+		WhereIn(cols.Key, protectedConfigKeys).
 		Scan(&rows)
 	if err != nil {
 		return nil, err
@@ -201,7 +201,7 @@ func (s *serviceImpl) loadRuntimeParamSnapshot(ctx context.Context, revision int
 
 	snapshot := &runtimeParamSnapshot{
 		revision:         revision,
-		values:           make(map[string]string, len(runtimeParamKeys)),
+		values:           make(map[string]string, len(protectedConfigKeys)),
 		durationValues:   make(map[string]time.Duration, 2),
 		int64Values:      make(map[string]int64, 1),
 		parseErrors:      make(map[string]error, 3),

@@ -189,7 +189,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		if err != nil {
 			return err
 		}
-		if hostconfig.IsProtectedRuntimeParam(existing.Key) && in.Key != nil && *in.Key != existing.Key {
+		if hostconfig.IsProtectedConfigParam(existing.Key) && in.Key != nil && *in.Key != existing.Key {
 			return gerror.New("内置运行时参数不允许修改键名")
 		}
 
@@ -250,7 +250,7 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	if hostconfig.IsProtectedRuntimeParam(existing.Key) {
+	if hostconfig.IsProtectedConfigParam(existing.Key) {
 		return gerror.New("内置运行时参数不允许删除")
 	}
 
@@ -262,8 +262,8 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 }
 
 func validateManagedConfigValue(key string, value string) error {
-	if err := hostconfig.ValidateRuntimeParamValue(key, value); err != nil {
-		return gerror.Wrap(err, "运行时参数值校验失败")
+	if err := hostconfig.ValidateProtectedConfigValue(key, value); err != nil {
+		return gerror.Wrap(err, "内置系统参数值校验失败")
 	}
 	return nil
 }

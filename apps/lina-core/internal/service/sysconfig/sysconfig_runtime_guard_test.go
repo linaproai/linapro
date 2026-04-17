@@ -28,6 +28,16 @@ func TestDeleteRejectsProtectedRuntimeParam(t *testing.T) {
 	}
 }
 
+func TestDeleteRejectsProtectedPublicFrontendSetting(t *testing.T) {
+	ctx := context.Background()
+	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
+
+	err := New().Delete(ctx, int(publicSetting.Id))
+	if err == nil {
+		t.Fatal("expected deleting protected public frontend setting to fail")
+	}
+}
+
 func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
 	ctx := context.Background()
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
@@ -42,6 +52,20 @@ func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
 	}
 }
 
+func TestUpdateRejectsProtectedPublicFrontendSettingRename(t *testing.T) {
+	ctx := context.Background()
+	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
+	newKey := "sys.app.name.renamed"
+
+	err := New().Update(ctx, UpdateInput{
+		Id:  int(publicSetting.Id),
+		Key: &newKey,
+	})
+	if err == nil {
+		t.Fatal("expected renaming protected public frontend setting to fail")
+	}
+}
+
 func TestValidateManagedConfigValueRejectsInvalidValues(t *testing.T) {
 	testCases := []struct {
 		key   string
@@ -51,6 +75,9 @@ func TestValidateManagedConfigValueRejectsInvalidValues(t *testing.T) {
 		{key: hostconfig.RuntimeParamKeySessionTimeout, value: "0s"},
 		{key: hostconfig.RuntimeParamKeyUploadMaxSize, value: "-1"},
 		{key: hostconfig.RuntimeParamKeyLoginBlackIPList, value: "invalid-ip"},
+		{key: hostconfig.PublicFrontendSettingKeyUIThemeMode, value: "night"},
+		{key: hostconfig.PublicFrontendSettingKeyUILayout, value: "invalid-layout"},
+		{key: hostconfig.PublicFrontendSettingKeyUIWatermarkEnabled, value: "yes"},
 	}
 
 	for _, testCase := range testCases {
@@ -105,6 +132,34 @@ func TestCreateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 
 	if cfg := cfgSvc.GetUpload(ctx); cfg.MaxSize != 3 {
 		t.Fatalf("expected upload max size to refresh to 3 after create, got %d", cfg.MaxSize)
+	}
+}
+
+func TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot(t *testing.T) {
+	ctx := context.Background()
+	publicSetting := ensureRuntimeParamRecord(
+		t,
+		ctx,
+		hostconfig.PublicFrontendSettingKeyAppName,
+		"LinaPro",
+	)
+
+	cfgSvc := hostconfig.New()
+	if cfg := cfgSvc.GetPublicFrontend(ctx); cfg.App.Name != "LinaPro" {
+		t.Fatalf("expected initial app name to be LinaPro, got %q", cfg.App.Name)
+	}
+
+	updatedValue := "LinaPro Console"
+	err := New().Update(ctx, UpdateInput{
+		Id:    int(publicSetting.Id),
+		Value: &updatedValue,
+	})
+	if err != nil {
+		t.Fatalf("update protected public frontend setting: %v", err)
+	}
+
+	if cfg := cfgSvc.GetPublicFrontend(ctx); cfg.App.Name != "LinaPro Console" {
+		t.Fatalf("expected app name to refresh after update, got %q", cfg.App.Name)
 	}
 }
 

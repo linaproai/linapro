@@ -70,6 +70,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		middlewareSvc = middleware.New()
 		authCtrl      = auth.NewV1()
 		pluginCtrl    = pluginctrl.NewV1(clusterSvc)
+		publicCfgCtrl = configctrl.NewPublicV1()
 	)
 
 	var (
@@ -120,6 +121,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 			group.Bind(
 				authCtrl.Login,
 				pluginCtrl.DynamicList,
+				publicCfgCtrl.Frontend,
 			)
 		})
 
