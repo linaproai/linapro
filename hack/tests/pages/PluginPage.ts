@@ -208,6 +208,18 @@ export class PluginPage {
     return this.page.getByRole("dialog", { name: "卸载插件" }).last();
   }
 
+  pluginDetailDialog(): Locator {
+    return this.page.getByRole("dialog", { name: "插件详情" }).last();
+  }
+
+  pluginDetailModal(): Locator {
+    return this.page.getByTestId("plugin-detail-modal").last();
+  }
+
+  pluginDetailEmptyHostServices(): Locator {
+    return this.page.getByTestId("plugin-detail-empty-host-services").last();
+  }
+
   uninstallPurgeCheckbox(): Locator {
     return this.page.getByTestId("plugin-uninstall-purge-checkbox").last();
   }
@@ -423,6 +435,13 @@ export class PluginPage {
 
   async uninstallPlugin(pluginId: string) {
     await this.uninstallPluginWithOptions(pluginId, true);
+  }
+
+  async openPluginDetail(pluginId: string) {
+    const detailButton = await this.pluginActionButton(pluginId, /详\s*情/);
+    await expect(detailButton).toBeVisible();
+    await detailButton.click();
+    await expect(this.pluginDetailDialog()).toBeVisible();
   }
 
   async uninstallPluginWithOptions(

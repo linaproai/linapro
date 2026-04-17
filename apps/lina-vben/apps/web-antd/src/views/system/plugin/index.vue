@@ -15,9 +15,14 @@ import {
   pluginSync,
 } from '#/api/system/plugin';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
+import PluginDetailModal from './plugin-detail-modal.vue';
 import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
 import PluginUninstallModal from './plugin-uninstall-modal.vue';
+
+const [DetailModal, detailModalApi] = useVbenModal({
+  connectedComponent: PluginDetailModal,
+});
 
 const [DynamicUploadModal, dynamicUploadModalApi] = useVbenModal({
   connectedComponent: PluginDynamicUploadModal,
@@ -130,7 +135,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
         fixed: 'right',
         slots: { default: 'action' },
         title: '操作',
-        width: 180,
+        width: 240,
       },
       { field: 'installedAt', title: '安装时间', width: 180 },
       { field: 'updatedAt', title: '更新时间', width: 180 },
@@ -184,6 +189,11 @@ function canTogglePluginStatus(row: SystemPlugin) {
   return row.enabled === 1
     ? hasAccessByCodes([pluginAccessCodes.disable])
     : hasAccessByCodes([pluginAccessCodes.enable]);
+}
+
+function handleDetail(row: SystemPlugin) {
+  detailModalApi.setData({ row });
+  detailModalApi.open();
 }
 
 async function handleStatusChange(row: SystemPlugin, checked: boolean) {
@@ -318,6 +328,12 @@ async function handleUninstallReload() {
       <template #action="{ row }">
         <Space>
           <ghost-button
+            :data-testid="`plugin-detail-button-${row.id}`"
+            @click.stop="handleDetail(row)"
+          >
+            详情
+          </ghost-button>
+          <ghost-button
             v-if="row.installed !== 1 && canInstallPlugin()"
             @click.stop="handleInstall(row)"
           >
@@ -333,6 +349,7 @@ async function handleUninstallReload() {
         </Space>
       </template>
     </Grid>
+    <DetailModal />
     <DynamicUploadModal @reload="handleDynamicUploadReload" />
     <HostServiceAuthModal @reload="handleHostServiceAuthReload" />
     <UninstallModal @reload="handleUninstallReload" />
