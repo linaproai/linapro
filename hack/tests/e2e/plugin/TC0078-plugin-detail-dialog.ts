@@ -32,10 +32,11 @@ test.describe("TC-78 插件详情弹窗", () => {
     await expect(modal).toContainText("更新时间");
   });
 
-  test("TC-78b: 未声明宿主服务时展示空状态提示", async () => {
+  test("TC-78b: 源码插件详情页不展示多余的宿主服务空状态提示", async () => {
     await pluginPage.openPluginDetail(pluginID);
-    await expect(pluginPage.pluginDetailEmptyHostServices()).toContainText(
-      "当前插件未声明额外宿主服务申请或授权快照。",
+    await expect(pluginPage.pluginDetailEmptyHostServices()).toHaveCount(0);
+    await expect(pluginPage.pluginDetailModal()).not.toContainText(
+      "当前动态插件未声明额外宿主服务。",
     );
   });
 });

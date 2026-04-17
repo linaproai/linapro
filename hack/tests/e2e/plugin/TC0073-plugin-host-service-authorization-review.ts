@@ -270,13 +270,15 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).toContainText("存储服务");
     await expect(hostServiceAuthModal).toContainText("网络服务");
     await expect(hostServiceAuthModal).toContainText("运行时服务");
-    await expect(hostServiceAuthModal).toContainText("数据表列表");
-    await expect(hostServiceAuthModal).toContainText("存储目录前缀列表");
-    await expect(hostServiceAuthModal).toContainText("URL 模式列表");
+    await expect(hostServiceAuthModal).toContainText("申请清单");
+    await expect(hostServiceAuthModal).toContainText("申请存储路径");
+    await expect(hostServiceAuthModal).toContainText("申请数据表名");
+    await expect(hostServiceAuthModal).toContainText("申请访问地址");
     await expect(hostServiceAuthModal).toContainText(storagePath);
     await expect(hostServiceAuthModal).toContainText(
       `${dataTableName} (${dataTableComment})`,
     );
+    await expect(hostServiceAuthModal).toContainText(networkURLPattern);
     await expect(
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-list-${pluginID}-storage`,
@@ -286,7 +288,7 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       await hostServiceAuthModal
         .getByTestId(`plugin-host-service-auth-list-${pluginID}-storage`)
         .evaluate((node) => node.tagName),
-    ).toBe("UL");
+    ).toBe("DIV");
     await expect(
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-list-${pluginID}-data`,
@@ -296,7 +298,7 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       await hostServiceAuthModal
         .getByTestId(`plugin-host-service-auth-list-${pluginID}-data`)
         .evaluate((node) => node.tagName),
-    ).toBe("UL");
+    ).toBe("DIV");
     await expect(
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-list-${pluginID}-network`,
@@ -306,22 +308,22 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       await hostServiceAuthModal
         .getByTestId(`plugin-host-service-auth-list-${pluginID}-network`)
         .evaluate((node) => node.tagName),
-    ).toBe("UL");
+    ).toBe("DIV");
     await expect(
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-item-${pluginID}-storage-${storagePath}`,
       ),
-    ).toBeVisible();
+    ).toHaveText(storagePath);
     await expect(
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-item-${pluginID}-data-${dataTableName}`,
       ),
-    ).toBeVisible();
+    ).toHaveText(`${dataTableName} (${dataTableComment})`);
     await expect(
       hostServiceAuthModal.getByTestId(
         `plugin-host-service-auth-item-${pluginID}-network-${networkURLPattern}`,
       ),
-    ).toBeVisible();
+    ).toHaveText(networkURLPattern);
     await expect(hostServiceAuthModal.getByRole("checkbox")).toHaveCount(0);
     await expect(hostServiceAuthModal).not.toContainText(
       "当前授权状态",
@@ -335,6 +337,10 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).not.toContainText(
       "该 URL 模式一旦授权，插件即可直接访问命中的 HTTP 地址。",
     );
+    await expect(hostServiceAuthModal).not.toContainText("数据表列表");
+    await expect(hostServiceAuthModal).not.toContainText("存储目录前缀列表");
+    await expect(hostServiceAuthModal).not.toContainText("URL 模式列表");
+    await expect(hostServiceAuthModal).not.toContainText("治理目标:");
     await expect(hostServiceAuthModal).not.toContainText(
       "允许方法:",
     );
@@ -385,5 +391,39 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
         (service) => service.service === "network",
       ) ?? false,
     ).toBeTruthy();
+
+    await pluginPage.openPluginDetail(pluginID);
+    const detailModal = pluginPage.pluginDetailModal();
+    await expect(detailModal).toContainText("宿主服务信息");
+    await expect(detailModal).toContainText("当前生效范围");
+    await expect(detailModal).toContainText("授权存储路径");
+    await expect(detailModal).toContainText("授权数据表名");
+    await expect(detailModal).toContainText("授权访问地址");
+    await expect(detailModal).toContainText(
+      "申请清单表示插件当前版本声明的宿主服务范围；授权快照表示宿主管理员对当前 release 最终确认并实际生效的授权结果。",
+    );
+    await expect(detailModal).toContainText(storagePath);
+    await expect(detailModal).toContainText(
+      `${dataTableName} (${dataTableComment})`,
+    );
+    await expect(detailModal).toContainText(networkURLPattern);
+    await expect(detailModal).not.toContainText("宿主服务申请清单");
+    await expect(detailModal).not.toContainText("宿主服务授权快照");
+    await expect(detailModal).not.toContainText("数据表边界");
+    await expect(detailModal).not.toContainText("与申请清单一致");
+    const effectiveScopeBackground = await detailModal
+      .getByTestId("plugin-host-service-scope-label-storage-storage-effective")
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
+    const summaryScopeBackground = await detailModal
+      .getByTestId("plugin-host-service-summary-label-storage-storage-effective")
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(summaryScopeBackground).not.toBe(effectiveScopeBackground);
+    const summaryTop = await detailModal
+      .getByTestId("plugin-host-service-summary-label-storage-storage-effective")
+      .evaluate((node) => node.getBoundingClientRect().top);
+    const firstStorageItemTop = await detailModal
+      .getByText(storagePath, { exact: true })
+      .evaluate((node) => node.getBoundingClientRect().top);
+    expect(Math.abs(summaryTop - firstStorageItemTop)).toBeLessThan(2);
   });
 });
