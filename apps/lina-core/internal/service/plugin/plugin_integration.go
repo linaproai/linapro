@@ -49,6 +49,11 @@ func (s *serviceImpl) FilterPermissionMenus(ctx context.Context, menus []*entity
 	return s.integrationSvc.FilterPermissionMenus(ctx, menus)
 }
 
+// ResolveResourcePermission resolves the plugin-scoped permission required by one plugin resource.
+func (s *serviceImpl) ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error) {
+	return s.integrationSvc.ResolveResourcePermission(ctx, pluginID, resourceID)
+}
+
 // ListResourceRecords queries plugin-owned backend resource rows.
 func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error) {
 	return s.integrationSvc.ListResourceRecords(ctx, in)

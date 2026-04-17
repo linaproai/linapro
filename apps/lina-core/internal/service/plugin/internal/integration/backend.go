@@ -44,6 +44,27 @@ type ResourceListOutput struct {
 	Total int
 }
 
+// ResolveResourcePermission resolves the plugin-scoped permission for one
+// plugin-owned backend resource exposed by the generic resource endpoint.
+func (s *serviceImpl) ResolveResourcePermission(
+	ctx context.Context,
+	pluginID string,
+	resourceID string,
+) (string, error) {
+	manifest, err := s.catalogSvc.GetActiveManifest(ctx, pluginID)
+	if err != nil {
+		return "", err
+	}
+	resource, ok := manifest.BackendResources[resourceID]
+	if !ok {
+		return "", gerror.New("插件资源不存在")
+	}
+	if permission := strings.TrimSpace(resource.Permission); permission != "" {
+		return permission, nil
+	}
+	return buildDefaultResourcePermission(pluginID, resourceID), nil
+}
+
 // LoadPluginBackendConfig loads plugin-owned hook and resource declarations into the manifest.
 // It implements catalog.BackendConfigLoader.
 func (s *serviceImpl) LoadPluginBackendConfig(manifest *catalog.Manifest) error {
@@ -208,6 +229,10 @@ func normalizePluginResourceValue(value interface{}) interface{} {
 	default:
 		return value
 	}
+}
+
+func buildDefaultResourcePermission(pluginID string, resourceID string) string {
+	return strings.TrimSpace(pluginID) + ":" + strings.TrimSpace(resourceID) + ":list"
 }
 
 // executePluginInsertHook executes a generic insert hook declared by a source plugin.

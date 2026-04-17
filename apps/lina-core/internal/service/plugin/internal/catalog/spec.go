@@ -262,6 +262,16 @@ func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) 
 	if NormalizeResourceAccessMode(spec.Access) == "" {
 		return gerror.Newf("插件资源 access 仅支持 request/system/both: %s", filePath)
 	}
+	if spec.Permission != "" {
+		spec.Permission = strings.TrimSpace(spec.Permission)
+		parts := strings.Split(spec.Permission, ":")
+		if len(parts) != 3 || strings.TrimSpace(parts[0]) != strings.TrimSpace(pluginID) {
+			return gerror.Newf("插件资源 permission 必须使用 %s:{resource}:{action} 格式: %s", pluginID, filePath)
+		}
+		if strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" {
+			return gerror.Newf("插件资源 permission 资源与动作不能为空: %s", filePath)
+		}
+	}
 	return nil
 }
 

@@ -618,9 +618,7 @@ export class PluginPage {
 
   async gotoWorkspace() {
     await this.page.goto("/dashboard/workspace");
-    await expect(
-      this.page.getByText("开始您一天的工作吧！").first(),
-    ).toBeVisible();
+    await expect(this.page.getByTestId("dashboard-workspace-page")).toBeVisible();
   }
 
   async expectWorkspaceSlotHidden() {

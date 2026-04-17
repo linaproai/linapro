@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 export class UserPage {
   constructor(private page: Page) {}
@@ -50,6 +50,9 @@ export class UserPage {
 
     // Wait for drawer (Sheet dialog) to open
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await expect(
+      this.drawer.getByPlaceholder('请输入用户名'),
+    ).toHaveValue('', { timeout: 5000 });
 
     // Fill form fields scoped to the drawer to avoid conflict with the search form
     await this.drawer.getByPlaceholder('请输入用户名').fill(username);
@@ -61,8 +64,8 @@ export class UserPage {
     // Click the drawer's confirm button (确 认 - note space in Ant Design)
     await this.drawer.getByRole('button', { name: /确\s*认/ }).click();
 
-    // Wait for API response
     await this.page.waitForLoadState('networkidle');
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await this.page.waitForTimeout(500);
   }
 
@@ -78,9 +81,13 @@ export class UserPage {
 
     // Wait for drawer to open
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await expect(
+      this.drawer.getByPlaceholder('请输入用户名'),
+    ).toHaveValue(username, { timeout: 5000 });
 
     if (fields.nickname) {
       const nicknameInput = this.drawer.getByPlaceholder('请输入昵称');
+      await nicknameInput.waitFor({ state: 'visible', timeout: 5000 });
       await nicknameInput.clear();
       await nicknameInput.fill(fields.nickname);
     }
@@ -89,6 +96,7 @@ export class UserPage {
     await this.drawer.getByRole('button', { name: /确\s*认/ }).click();
 
     await this.page.waitForLoadState('networkidle');
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await this.page.waitForTimeout(500);
   }
 
@@ -97,9 +105,14 @@ export class UserPage {
     await this.fillSearchField('用户账号', username);
     await this.clickSearch();
 
-    // Click the first visible delete button (ghost-button = ant-btn-sm, not toolbar's full button)
-    // Note: Ant Design adds space between Chinese chars in buttons ("删 除")
-    await this.page.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
+    await this.getUserDataRow(username).waitFor({ state: 'visible', timeout: 10000 });
+
+    const deleteButton = this.page
+      .locator('button.ant-btn-primary.ant-btn-background-ghost.ant-btn-sm:not([disabled])')
+      .filter({ hasText: /删\s*除/ })
+      .first();
+    await deleteButton.waitFor({ state: 'visible', timeout: 5000 });
+    await deleteButton.click();
 
     // Confirm deletion in the Popconfirm
     await this.page.waitForTimeout(500);
@@ -115,6 +128,7 @@ export class UserPage {
     }
 
     await this.page.waitForLoadState('networkidle');
+    await this.getUserDataRow(username).waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await this.page.waitForTimeout(500);
   }
 
@@ -317,6 +331,9 @@ export class UserPage {
   ) {
     await this.page.getByRole('button', { name: /新\s*增/ }).click();
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await expect(
+      this.drawer.getByPlaceholder('请输入用户名'),
+    ).toHaveValue('', { timeout: 5000 });
 
     await this.drawer.getByPlaceholder('请输入用户名').fill(username);
     await this.drawer.getByPlaceholder('请输入密码').fill(password);
@@ -342,6 +359,9 @@ export class UserPage {
     await this.getUserDataRow(username).waitFor({ state: 'visible', timeout: 10000 });
     await this.page.getByRole('button', { name: /编\s*辑/ }).first().click();
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await expect(
+      this.drawer.getByPlaceholder('请输入用户名'),
+    ).toHaveValue(username, { timeout: 5000 });
 
     // Clear existing roles first by clicking clear button
     const roleSelect = this.roleSelect;

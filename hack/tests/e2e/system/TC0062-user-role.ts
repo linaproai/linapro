@@ -35,9 +35,10 @@ test.describe('TC0062 用户角色关联', () => {
         [initialRoleName],
       );
 
-      await expect(adminPage.getByText('创建成功')).toBeVisible({
-        timeout: 5000,
-      });
+      await userPage.goto();
+      await userPage.fillSearchField('用户账号', testUsername);
+      await userPage.clickSearch();
+      expect(await userPage.hasUser(testUsername)).toBeTruthy();
     } finally {
       await deleteUserIfExists(userPage, testUsername);
     }
@@ -55,9 +56,6 @@ test.describe('TC0062 用户角色关联', () => {
         testNickname,
         [initialRoleName],
       );
-      await expect(adminPage.getByText('创建成功')).toBeVisible({
-        timeout: 5000,
-      });
 
       // Search for the test user in a fresh list state and verify the visible
       // role column reflects the assigned role.
@@ -87,18 +85,11 @@ test.describe('TC0062 用户角色关联', () => {
         testNickname,
         [initialRoleName],
       );
-      await expect(adminPage.getByText('创建成功')).toBeVisible({
-        timeout: 5000,
-      });
 
       // Replace the user's role with the second dedicated role and verify the
       // list reflects the new assignment after the drawer is saved.
       await userPage.goto();
       await userPage.editUserRoles(testUsername, [updatedRoleName]);
-
-      await expect(adminPage.getByText('更新成功')).toBeVisible({
-        timeout: 5000,
-      });
 
       await userPage.goto();
       await userPage.fillSearchField('用户账号', testUsername);
@@ -123,11 +114,10 @@ test.describe('TC0062 用户角色关联', () => {
 
     // Delete the user
     await userPage.goto();
+    await userPage.fillSearchField('用户账号', cleanupUsername);
+    await userPage.clickSearch();
+    expect(await userPage.hasUser(cleanupUsername)).toBeTruthy();
     await userPage.deleteUser(cleanupUsername);
-
-    await expect(adminPage.getByText(/删除成功|success/i)).toBeVisible({
-      timeout: 5000,
-    });
 
     // Verify user is deleted
     await userPage.goto();

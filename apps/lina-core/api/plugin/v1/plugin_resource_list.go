@@ -4,7 +4,7 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // ResourceListReq is the request for querying plugin-owned backend resources.
 type ResourceListReq struct {
-	g.Meta   `path:"/plugins/{id}/resources/{resource}" method:"get" tags:"插件管理" summary:"查询插件资源数据" permission:"plugin:query" dc:"按插件通用资源契约查询插件自有的后端资源数据，资源的字段、过滤条件与排序规则均由插件目录下的后端实现注册定义"`
+	g.Meta   `path:"/plugins/{id}/resources/{resource}" method:"get" tags:"插件管理" summary:"查询插件资源数据" dc:"按插件通用资源契约查询插件自有的后端资源数据。资源接口由控制器按资源声明的插件权限或默认推导出的插件资源权限执行校验，而不是额外要求插件管理后台的查询权限"`
 	Id       string `json:"id" v:"required|length:1,64" dc:"插件唯一标识" eg:"plugin-demo-source"`
 	Resource string `json:"resource" v:"required|length:1,64" dc:"插件资源标识，由插件自身在插件目录后端实现中注册" eg:"records"`
 	PageNum  int    `json:"pageNum" d:"1" v:"min:1" dc:"页码，从1开始" eg:"1"`

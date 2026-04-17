@@ -50,6 +50,9 @@ type Service interface {
 	// ListResourceRecords queries plugin-owned backend resource rows using the
 	// generic plugin resource contract.
 	ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error)
+	// ResolveResourcePermission resolves the permission required by the generic
+	// resource list endpoint for one plugin-owned backend resource.
+	ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error)
 	// RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 	RegisterHTTPRoutes(
 		ctx context.Context,

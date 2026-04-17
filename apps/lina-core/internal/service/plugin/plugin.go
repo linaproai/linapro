@@ -151,6 +151,9 @@ type Service interface {
 	FilterMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
 	// FilterPermissionMenus filters permission menus based on plugin enablement.
 	FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
+	// ResolveResourcePermission resolves the plugin-scoped permission required
+	// by the generic resource list endpoint for one plugin-owned resource.
+	ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error)
 	// ListResourceRecords queries plugin-owned backend resource rows.
 	ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error)
 	// Install executes the install lifecycle and optionally persists one host-confirmed

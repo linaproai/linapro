@@ -166,6 +166,9 @@ type ResourceSpec struct {
 	WritableFields []string `json:"writableFields,omitempty" yaml:"writableFields,omitempty"`
 	// Access limits which execution contexts may invoke this resource.
 	Access string `json:"access,omitempty" yaml:"access,omitempty"`
+	// Permission optionally overrides the default plugin-scoped permission used
+	// by the generic resource list endpoint for this resource.
+	Permission string `json:"permission,omitempty" yaml:"permission,omitempty"`
 	// DataScope optionally restricts results by role data scope.
 	DataScope *ResourceDataScopeSpec `json:"dataScope,omitempty" yaml:"dataScope,omitempty"`
 }

@@ -601,7 +601,7 @@ test.describe("TC-70 动态插件热升级与回滚", () => {
     await expect(adminPage).toHaveURL(/\/dashboard\/workspace(?:\/)?$/);
     await expect(pluginPage.pluginPageRefreshNotice()).toHaveCount(0);
     await expect(
-      adminPage.getByText("开始您一天的工作吧！").first(),
+      adminPage.getByTestId('dashboard-workspace-page'),
     ).toBeVisible();
   });
 
