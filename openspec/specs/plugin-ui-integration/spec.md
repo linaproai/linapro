@@ -14,7 +14,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 #### Scenario: 以新标签页模式接入插件页面
 - **WHEN** 插件菜单声明页面使用新标签页模式
 - **THEN** 宿主点击菜单时在新标签页打开对应插件页面
-- **AND** 宿主保持原宿主导航状态不受影响
+- **AND** 宿主保持原宿主工作区导航状态不受影响
 
 #### Scenario: 以内嵌挂载模式接入插件页面
 - **WHEN** 插件页面声明使用宿主内嵌挂载模式
@@ -59,7 +59,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **AND** 页面内容明确说明该入口来自插件扩展机制
 
 #### Scenario: 登录态在线启用插件后立即刷新左侧菜单
-- **WHEN** 管理员在当前已登录会话中启用一个已集成的源码插件
+- **WHEN** 管理员在当前已登录会话中启用一个已安装但当前禁用的源码插件
 - **THEN** 宿主无需重新登录即可刷新动态路由与左侧菜单
 - **AND** 插件新增的左侧主菜单入口立即可见
 - **AND** 当前页面仍保持在宿主工作区内页环境中
@@ -103,3 +103,4 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **WHEN** 管理员查看插件管理页列表
 - **THEN** 插件管理页不再展示“交付方式”“接入态”“入口”三列
 - **AND** 插件管理页在“更新时间”之前展示“安装时间”
+

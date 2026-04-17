@@ -31,12 +31,20 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **AND** 管理员不需要重新分配角色菜单关系
 
 ### Requirement: 插件运行时可获取宿主权限上下文
-系统 SHALL 为插件提供标准化的宿主权限上下文，使插件能够复用 LinaPro 的用户、角色、部门与数据权限范围。
+系统 SHALL 为插件提供标准化的宿主权限上下文，使插件能够复用 LinaPro 的用户、角色、菜单权限与数据权限范围；插件自有资源接口不得额外要求插件管理后台的通用治理权限。
 
-#### Scenario: 插件后端处理请求
-- **WHEN** 一个插件后端 API、Hook 或任务需要读取当前用户权限上下文
-- **THEN** 宿主向插件提供当前用户标识、角色标识、菜单权限码和数据权限范围
-- **AND** 插件读取到的上下文与宿主当前认证状态保持一致
+#### Scenario: 查询插件自有资源数据
+
+- **WHEN** 一个已登录用户访问 `/plugins/{pluginId}/resources/{resource}` 这类插件自有资源接口
+- **THEN** 宿主按该插件资源声明的权限或默认推导出的插件资源权限校验访问
+- **AND** 若用户拥有对应的插件菜单/按钮权限，则允许继续执行插件资源查询
+- **AND** 宿主不得额外要求用户拥有 `plugin:query` 这类插件管理后台查询权限
+
+#### Scenario: 缺少插件资源权限时拒绝访问
+
+- **WHEN** 一个用户请求插件自有资源接口但没有对应的插件资源权限
+- **THEN** 宿主返回权限不足错误
+- **AND** 不返回插件资源数据
 
 ### Requirement: 插件卸载时只清理治理资源，不默认删除业务数据
 系统 SHALL 在插件卸载时移除宿主治理资源，但默认保留插件业务数据与历史记录。
@@ -46,3 +54,4 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **THEN** 宿主移除其菜单入口、资源引用、运行时产物和宿主挂载关系
 - **AND** 宿主清理插件相关的角色菜单生效关系
 - **AND** 宿主默认保留插件业务表和业务数据，除非管理员显式执行额外清理
+
