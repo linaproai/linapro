@@ -42,12 +42,19 @@ type ListResult struct {
 // Current implementation uses MySQL MEMORY engine.
 // Future implementations may use gcache + Redis.
 type Store interface {
+	// Set persists one online session record.
 	Set(ctx context.Context, session *Session) error
+	// Get returns one online session by token ID.
 	Get(ctx context.Context, tokenId string) (*Session, error)
+	// Delete removes one online session by token ID.
 	Delete(ctx context.Context, tokenId string) error
+	// DeleteByUserId removes all online sessions that belong to one user.
 	DeleteByUserId(ctx context.Context, userId int) error
+	// List returns all online sessions that match the optional filter.
 	List(ctx context.Context, filter *ListFilter) ([]*Session, error)
+	// ListPage returns one paginated online-session list for the optional filter.
 	ListPage(ctx context.Context, filter *ListFilter, pageNum, pageSize int) (*ListResult, error)
+	// Count returns the total number of active online sessions.
 	Count(ctx context.Context) (int, error)
 	// TouchOrValidate validates the session timeout and refreshes last_active_time
 	// for the given tokenId. It returns true when the session remains valid.

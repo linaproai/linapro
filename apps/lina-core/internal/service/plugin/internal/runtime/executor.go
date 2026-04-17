@@ -14,6 +14,7 @@ import (
 
 // dynamicRouteExecutor executes one encoded bridge request against one active runtime.
 type dynamicRouteExecutor interface {
+	// Execute runs one bridge request against the selected runtime implementation.
 	Execute(ctx context.Context, manifest *catalog.Manifest, request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error)
 }
 

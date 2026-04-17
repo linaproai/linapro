@@ -232,9 +232,9 @@ pnpm report            # 查看 HTML 报告
 
 服务层代码（`internal/service/`）必须遵循以下模式：
 
-- **接口化封装**：使用`Service`作为组件对外暴露的默认接口名，使用`serviceImpl`作为组件实现的默认结构体名称。当服务层逻辑较复杂时应当解耦拆分为多个接口和具体实现的结构体来封装业务逻辑。如果接口逻辑再进一步复杂，可以在`service`层对应组件下创建`internal`目录，为该组件创建子组件来封装不同的业务逻辑。
+- **接口化封装**：默认使用`Service`作为组件对外暴露的默认接口名，使用`serviceImpl`作为组件实现的默认结构体名称。当服务层逻辑较复杂时应当解耦拆分为多个接口和具体实现的结构体来封装业务逻辑。如果接口逻辑再进一步复杂，可以在`service`层对应组件下创建`internal`目录，为该组件创建子组件来封装不同的业务逻辑。
 - **接口定义位置规范**：每个 `service` 组件的 `Service` 接口、`var _ Service = (*serviceImpl)(nil)` 断言、`serviceImpl` 主结构体以及 `New()` 构造函数，必须统一放在该组件的主文件中维护。主文件是与组件同名的文件，如 `auth/auth.go`、`plugin/plugin.go`、`dict/dict.go`；禁止将组件级 `Service` 接口定义放到 `dict_type.go`、`user_excel.go`、`plugin_runtime.go` 这类非主文件中
-- **接口注释规范**：`service` 组件 `Service` 接口中的每一个公开方法都必须紧邻方法声明提供注释，清晰说明该方法的职责、关键行为和必要的约束条件，禁止只给实现方法补注释而让接口方法裸露无说明
+- **接口注释规范**：`service/` 目录下每个组件声明的所有 `interface` 接口（不仅限于 `Service`，也包括 `Store`、`Storage`、`TopologyProvider`、`HookDispatcher` 等协作接口）中的每一个方法定义，都必须紧邻方法声明提供注释，清晰说明该方法的职责、关键行为和必要的约束条件；禁止只给实现方法补注释而让接口方法裸露无说明
 - **文件命名规范**：`service/`目录下每个组件（子目录）的源文件必须以组件名作为前缀，使用下划线`_`分割子模块。例如：`config`组件下的文件应命名为`config.go`（主文件）、`config_session.go`、`config_jwt.go`、`config_upload.go`等；`file`组件下应命名为`file.go`、`file_storage.go`、`file_storage_local.go`等。禁止使用无前缀的子模块文件名（如直接命名为`session.go`、`storage.go`）
 - **子模块拆分**：同一`service`组件下不同子模块的业务逻辑必须拆分到独立的`Go`文件中实现，不要将所有逻辑都写在单个文件中。例如：`config`组件应按配置分组拆分为`config_jwt.go`、`config_session.go`、`config_upload.go`等，每个文件只负责一个子模块的配置读取逻辑
 - **依赖初始化时机**：`service`依赖的其他`service`、存储后端或配置读取器，必须作为`Service`结构体字段在`New()`构造函数或服务启动装配阶段统一初始化并复用。**禁止在接口请求执行链路、业务方法内部或循环处理中临时调用其他`service.New()`创建依赖**；需要复用的依赖必须提前挂到结构体字段后再使用

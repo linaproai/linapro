@@ -31,6 +31,7 @@ type executionContext struct {
 }
 
 type modelProvider interface {
+	// Model returns one GoFrame model bound to the requested table or struct.
 	Model(tableNameOrStruct ...any) *gdb.Model
 }
 
