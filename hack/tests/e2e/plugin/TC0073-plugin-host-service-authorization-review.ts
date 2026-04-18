@@ -422,7 +422,8 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       .getByTestId("plugin-host-service-summary-label-storage-storage-effective")
       .evaluate((node) => node.getBoundingClientRect().top);
     const firstStorageItemTop = await detailModal
-      .getByText(storagePath, { exact: true })
+      .locator('.ant-tag', { hasText: storagePath })
+      .first()
       .evaluate((node) => node.getBoundingClientRect().top);
     expect(Math.abs(summaryTop - firstStorageItemTop)).toBeLessThan(2);
   });

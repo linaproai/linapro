@@ -59,6 +59,12 @@ type JwtConfigProvider interface {
 	GetJwtSecret(ctx context.Context) string
 }
 
+// UploadSizeProvider provides the runtime-effective upload size ceiling in MB.
+type UploadSizeProvider interface {
+	// GetUploadMaxSize returns the runtime-effective upload size ceiling in MB.
+	GetUploadMaxSize(ctx context.Context) int64
+}
+
 // UserContextSetter injects authenticated user information into the request context.
 type UserContextSetter interface {
 	// SetUser populates the context with the resolved token and user identity fields.
@@ -177,6 +183,8 @@ type Service interface {
 	SetHookDispatcher(d HookDispatcher)
 	// SetJwtConfigProvider wires the JWT configuration provider for route token validation.
 	SetJwtConfigProvider(p JwtConfigProvider)
+	// SetUploadSizeProvider wires the upload-size provider for dynamic package uploads.
+	SetUploadSizeProvider(p UploadSizeProvider)
 	// SetUserContextSetter wires the user-context injection provider.
 	SetUserContextSetter(p UserContextSetter)
 	// SetAfterAuthDispatcher wires the post-authentication callback dispatcher.
@@ -210,6 +218,8 @@ type serviceImpl struct {
 	hookDispatcher HookDispatcher
 	// jwtConfig provides the JWT signing secret for route token validation.
 	jwtConfig JwtConfigProvider
+	// uploadSize provides the runtime-effective upload size ceiling for package uploads.
+	uploadSize UploadSizeProvider
 	// userCtx injects the authenticated user identity into the request context.
 	userCtx UserContextSetter
 	// afterAuth dispatches post-authentication callbacks to registered source plugins.
@@ -251,6 +261,11 @@ func (s *serviceImpl) SetHookDispatcher(d HookDispatcher) {
 // SetJwtConfigProvider wires the JWT configuration provider for route token validation.
 func (s *serviceImpl) SetJwtConfigProvider(p JwtConfigProvider) {
 	s.jwtConfig = p
+}
+
+// SetUploadSizeProvider wires the upload-size provider for dynamic package uploads.
+func (s *serviceImpl) SetUploadSizeProvider(p UploadSizeProvider) {
+	s.uploadSize = p
 }
 
 // SetUserContextSetter wires the user-context injection provider.

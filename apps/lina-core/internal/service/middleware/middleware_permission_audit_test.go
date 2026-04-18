@@ -16,21 +16,22 @@ import (
 )
 
 var staticPermissionExemptionAllowlist = map[string]string{
-	"POST /auth/login":            "public login entrypoint",
-	"GET /plugins/dynamic":        "public shell plugin state bootstrap",
-	"POST /auth/logout":           "login-bound session logout",
-	"GET /menus/all":              "login-bound menu bootstrap",
-	"GET /user/info":              "login-bound permission bootstrap",
-	"GET /user/profile":           "login-bound current-user self profile query",
-	"PUT /user/profile":           "login-bound current-user self profile update",
-	"PUT /user/profile/avatar":    "login-bound current-user self avatar update",
-	"GET /user/message":           "login-bound current-user inbox list",
-	"GET /user/message/count":     "login-bound current-user inbox badge count",
+	"POST /auth/login":                       "public login entrypoint",
+	"GET /config/public/frontend":            "public frontend bootstrap whitelist",
+	"GET /plugins/dynamic":                   "public shell plugin state bootstrap",
+	"POST /auth/logout":                      "login-bound session logout",
+	"GET /menus/all":                         "login-bound menu bootstrap",
+	"GET /user/info":                         "login-bound permission bootstrap",
+	"GET /user/profile":                      "login-bound current-user self profile query",
+	"PUT /user/profile":                      "login-bound current-user self profile update",
+	"PUT /user/profile/avatar":               "login-bound current-user self avatar update",
+	"GET /user/message":                      "login-bound current-user inbox list",
+	"GET /user/message/count":                "login-bound current-user inbox badge count",
 	"GET /plugins/{id}/resources/{resource}": "login-bound plugin resource query with controller-level plugin permission enforcement",
-	"PUT /user/message/{id}/read": "login-bound current-user inbox single read",
-	"PUT /user/message/read-all":  "login-bound current-user inbox bulk read",
-	"DELETE /user/message/{id}":   "login-bound current-user inbox single delete",
-	"DELETE /user/message/clear":  "login-bound current-user inbox clear",
+	"PUT /user/message/{id}/read":            "login-bound current-user inbox single read",
+	"PUT /user/message/read-all":             "login-bound current-user inbox bulk read",
+	"DELETE /user/message/{id}":              "login-bound current-user inbox single delete",
+	"DELETE /user/message/clear":             "login-bound current-user inbox clear",
 }
 
 type staticPermissionAuditRoute struct {
@@ -42,6 +43,8 @@ type staticPermissionAuditRoute struct {
 	Summary    string
 }
 
+// TestStaticHostAPIRequestsDeclarePermissionOrAllowlistedExemption guards the
+// declarative permission policy for static host API request DTOs.
 func TestStaticHostAPIRequestsDeclarePermissionOrAllowlistedExemption(t *testing.T) {
 	t.Parallel()
 
@@ -125,6 +128,8 @@ func TestStaticHostAPIRequestsDeclarePermissionOrAllowlistedExemption(t *testing
 	t.Fatalf("static API permission audit failed:\n- %s", strings.Join(failures, "\n- "))
 }
 
+// loadStaticPermissionAuditRoutes parses all static API request DTO files and
+// collects the route metadata that participates in the permission audit.
 func loadStaticPermissionAuditRoutes(t *testing.T) []staticPermissionAuditRoute {
 	t.Helper()
 
@@ -149,6 +154,8 @@ func loadStaticPermissionAuditRoutes(t *testing.T) []staticPermissionAuditRoute 
 	return routes
 }
 
+// collectStaticPermissionAuditRoutes extracts audited request DTO metadata from
+// one parsed API source file.
 func collectStaticPermissionAuditRoutes(
 	t *testing.T,
 	fset *token.FileSet,
@@ -210,6 +217,8 @@ func collectStaticPermissionAuditRoutes(
 	return routes
 }
 
+// findEmbeddedMetaField returns the anonymous g.Meta field embedded in the DTO
+// struct, if present.
 func findEmbeddedMetaField(structType *ast.StructType) *ast.Field {
 	if structType == nil || structType.Fields == nil {
 		return nil
@@ -230,6 +239,8 @@ func findEmbeddedMetaField(structType *ast.StructType) *ast.Field {
 	return nil
 }
 
+// resolveMiddlewareModuleRoot locates the lina-core module root from the test
+// file location so the audit can scan API DTO files without hard-coded paths.
 func resolveMiddlewareModuleRoot(t *testing.T) string {
 	t.Helper()
 

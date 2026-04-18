@@ -1,3 +1,4 @@
+// Package backend wires the source demo plugin into the host plugin registry.
 package backend
 
 import (
@@ -15,6 +16,7 @@ const (
 	pluginID = "plugin-demo-source"
 )
 
+// init registers the embedded source demo plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
 	plugin.UseEmbeddedFiles(plugindemosource.EmbeddedFiles)
@@ -32,6 +34,9 @@ func init() {
 	pluginhost.RegisterSourcePlugin(plugin)
 }
 
+// registerRoutes binds the demo plugin HTTP routes using the published host
+// middleware directory so plugin traffic follows the same governance chain as
+// host-owned APIs.
 func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) error {
 	var (
 		middlewares    = registrar.Middlewares()
@@ -42,6 +47,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 			middlewares.NeverDoneCtx(),
 			middlewares.HandlerResponse(),
 			middlewares.CORS(),
+			middlewares.RequestBodyLimit(),
 			middlewares.Ctx(),
 		)
 

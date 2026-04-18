@@ -1,3 +1,6 @@
+// This file returns the authenticated user's bootstrap payload, including the
+// menu tree, permissions, and preferred landing route.
+
 package user
 
 import (
@@ -7,6 +10,8 @@ import (
 	v1 "lina-core/api/user/v1"
 	"lina-core/internal/service/menu"
 )
+
+const pluginHostedAssetPathPrefix = "/plugin-assets/"
 
 // GetInfo returns current logged-in user information
 func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1.GetInfoRes, err error) {
@@ -106,6 +111,7 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 	}, nil
 }
 
+// intPtr returns one query-friendly int pointer.
 func intPtr(i int) *int {
 	return &i
 }
@@ -134,23 +140,29 @@ func buildFilteredTree(items []*menu.MenuItem) []*menu.MenuItem {
 
 // resolveHomePath returns the first accessible internal route from the menu tree.
 func resolveHomePath(items []*menu.MenuItem) string {
-	if homePath := findFirstAccessiblePath(items, ""); homePath != "" {
+	if homePath := findFirstAccessiblePath(items, "", true); homePath != "" {
+		return homePath
+	}
+	if homePath := findFirstAccessiblePath(items, "", false); homePath != "" {
 		return homePath
 	}
 	return "/profile"
 }
 
 // findFirstAccessiblePath traverses the menu tree in order and returns the first accessible path.
-func findFirstAccessiblePath(items []*menu.MenuItem, parentPath string) string {
+// The preferred pass skips hosted plugin asset routes because those runtime-mounted
+// entries can require later router hydration and should not displace stable host
+// pages such as workspace or analytics as the default landing route.
+func findFirstAccessiblePath(items []*menu.MenuItem, parentPath string, preferStable bool) string {
 	for _, item := range items {
 		currentPath := joinMenuPath(parentPath, item.Path)
-		if item.Type == "M" && item.IsFrame == 0 && currentPath != "" && !isExternalPath(currentPath) {
+		if isHomePathCandidate(item, currentPath, preferStable) {
 			return currentPath
 		}
 		if len(item.Children) == 0 {
 			continue
 		}
-		if homePath := findFirstAccessiblePath(item.Children, currentPath); homePath != "" {
+		if homePath := findFirstAccessiblePath(item.Children, currentPath, preferStable); homePath != "" {
 			return homePath
 		}
 	}
@@ -177,6 +189,19 @@ func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://")
 }
 
+// isHomePathCandidate reports whether the current menu entry can be used as the
+// post-login landing route during the current selection pass.
+func isHomePathCandidate(item *menu.MenuItem, currentPath string, preferStable bool) bool {
+	if item == nil || item.Type != "M" || item.IsFrame != 0 || currentPath == "" || isExternalPath(currentPath) {
+		return false
+	}
+	if preferStable && strings.HasPrefix(currentPath, pluginHostedAssetPathPrefix) {
+		return false
+	}
+	return true
+}
+
+// convertToMenuTree projects internal menu items into API response DTO nodes.
 func convertToMenuTree(items []*menu.MenuItem) []*v1.MenuTree {
 	result := make([]*v1.MenuTree, 0, len(items))
 	for _, item := range items {

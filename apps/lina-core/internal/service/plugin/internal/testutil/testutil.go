@@ -36,6 +36,8 @@ var (
 	testDynamicStorageDir    string
 )
 
+// init allocates one isolated runtime storage directory so plugin tests do not
+// mutate developer or fixture storage paths.
 func init() {
 	var err error
 	testDynamicStorageDir, err = os.MkdirTemp("", "lina-plugin-dynamic-storage-*")
@@ -71,14 +73,17 @@ type RuntimeBuildOutput struct {
 
 type singleNodeTopology struct{}
 
+// IsClusterModeEnabled reports that package tests run in single-node mode.
 func (singleNodeTopology) IsClusterModeEnabled() bool {
 	return false
 }
 
+// IsPrimaryNode reports that the local test node owns primary-only work.
 func (singleNodeTopology) IsPrimaryNode() bool {
 	return true
 }
 
+// CurrentNodeID returns the fixed node identifier used by package tests.
 func (singleNodeTopology) CurrentNodeID() string {
 	return "test-node"
 }
@@ -117,6 +122,7 @@ func NewServices() *Services {
 	runtimeSvc.SetAfterAuthDispatcher(integrationSvc)
 	runtimeSvc.SetPermissionMenuFilter(integrationSvc)
 	runtimeSvc.SetJwtConfigProvider(&jwtConfigAdapter{svc: configProvider})
+	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{svc: configProvider})
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{svc: bizCtxProvider})
 	runtimeSvc.SetTopology(topology)
 
@@ -139,14 +145,25 @@ type jwtConfigAdapter struct {
 	svc configsvc.Service
 }
 
+// GetJwtSecret returns the configured JWT signing secret for test wiring.
 func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
 	return a.svc.GetJwtSecret(ctx)
+}
+
+type uploadSizeAdapter struct {
+	svc configsvc.Service
+}
+
+// GetUploadMaxSize returns the runtime-effective upload limit used in tests.
+func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) int64 {
+	return a.svc.GetUploadMaxSize(ctx)
 }
 
 type userCtxAdapter struct {
 	svc bizctx.Service
 }
 
+// SetUser injects authenticated user identity into the test request context.
 func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int, username string, status int) {
 	a.svc.SetUser(ctx, tokenID, userID, username, status)
 }
@@ -155,6 +172,7 @@ type bizCtxAdapter struct {
 	svc bizctx.Service
 }
 
+// GetUserId returns the current request user ID for integration-layer tests.
 func (a *bizCtxAdapter) GetUserId(ctx context.Context) int {
 	localCtx := a.svc.Get(ctx)
 	if localCtx == nil {
@@ -797,6 +815,9 @@ func QueryMenuByKey(ctx context.Context, menuKey string) (*entity.SysMenu, error
 	return menu, err
 }
 
+// buildTestRuntimeWasmArtifactContent assembles one synthetic WASM binary with
+// Lina custom sections for manifest, runtime metadata, routes, SQL, and bridge
+// contracts used by component tests.
 func buildTestRuntimeWasmArtifactContent(
 	t *testing.T,
 	manifest *catalog.ArtifactManifest,
@@ -866,6 +887,8 @@ func buildTestRuntimeWasmArtifactContent(
 	return wasm
 }
 
+// appendWasmCustomSection appends one custom section payload to the in-memory
+// WASM binary using the standard section-length encoding.
 func appendWasmCustomSection(content []byte, name string, payload []byte) []byte {
 	sectionPayload := append([]byte{}, encodeWasmULEB128(uint32(len(name)))...)
 	sectionPayload = append(sectionPayload, []byte(name)...)
@@ -878,6 +901,7 @@ func appendWasmCustomSection(content []byte, name string, payload []byte) []byte
 	return result
 }
 
+// encodeWasmULEB128 encodes one unsigned integer using the WASM ULEB128 format.
 func encodeWasmULEB128(value uint32) []byte {
 	result := make([]byte, 0, 5)
 	for {

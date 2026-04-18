@@ -23,6 +23,8 @@ type RouteMiddlewares interface {
 	HandlerResponse() RouteMiddleware
 	// CORS returns the host CORS middleware.
 	CORS() RouteMiddleware
+	// RequestBodyLimit returns the host request-body limit middleware.
+	RequestBodyLimit() RouteMiddleware
 	// Ctx returns the host business-context injection middleware.
 	Ctx() RouteMiddleware
 	// Auth returns the host JWT authentication middleware.
@@ -52,6 +54,7 @@ type routeMiddlewares struct {
 	neverDoneCtx    RouteMiddleware
 	handlerResponse RouteMiddleware
 	cors            RouteMiddleware
+	requestBody     RouteMiddleware
 	ctx             RouteMiddleware
 	auth            RouteMiddleware
 	operLog         RouteMiddleware
@@ -63,6 +66,7 @@ func NewRouteMiddlewares(
 	neverDoneCtx RouteMiddleware,
 	handlerResponse RouteMiddleware,
 	cors RouteMiddleware,
+	requestBody RouteMiddleware,
 	ctx RouteMiddleware,
 	auth RouteMiddleware,
 	operLog RouteMiddleware,
@@ -72,6 +76,7 @@ func NewRouteMiddlewares(
 		neverDoneCtx:    neverDoneCtx,
 		handlerResponse: handlerResponse,
 		cors:            cors,
+		requestBody:     requestBody,
 		ctx:             ctx,
 		auth:            auth,
 		operLog:         operLog,
@@ -119,6 +124,8 @@ func (r *routeRegistrar) Middlewares() RouteMiddlewares {
 	return r.middlewares
 }
 
+// allow rejects plugin route traffic when the owning plugin is not currently
+// enabled, matching the host-side plugin state governance used elsewhere.
 func (r *routeRegistrar) allow(req *ghttp.Request) bool {
 	if req == nil {
 		return false
@@ -131,6 +138,7 @@ func (r *routeRegistrar) allow(req *ghttp.Request) bool {
 	return true
 }
 
+// NeverDoneCtx returns the published never-done context middleware.
 func (m *routeMiddlewares) NeverDoneCtx() RouteMiddleware {
 	if m == nil {
 		return nil
@@ -138,6 +146,7 @@ func (m *routeMiddlewares) NeverDoneCtx() RouteMiddleware {
 	return m.neverDoneCtx
 }
 
+// HandlerResponse returns the published unified response middleware.
 func (m *routeMiddlewares) HandlerResponse() RouteMiddleware {
 	if m == nil {
 		return nil
@@ -145,6 +154,7 @@ func (m *routeMiddlewares) HandlerResponse() RouteMiddleware {
 	return m.handlerResponse
 }
 
+// CORS returns the published CORS middleware.
 func (m *routeMiddlewares) CORS() RouteMiddleware {
 	if m == nil {
 		return nil
@@ -152,6 +162,15 @@ func (m *routeMiddlewares) CORS() RouteMiddleware {
 	return m.cors
 }
 
+// RequestBodyLimit returns the published request-body limit middleware.
+func (m *routeMiddlewares) RequestBodyLimit() RouteMiddleware {
+	if m == nil {
+		return nil
+	}
+	return m.requestBody
+}
+
+// Ctx returns the published business-context injection middleware.
 func (m *routeMiddlewares) Ctx() RouteMiddleware {
 	if m == nil {
 		return nil
@@ -159,6 +178,7 @@ func (m *routeMiddlewares) Ctx() RouteMiddleware {
 	return m.ctx
 }
 
+// Auth returns the published authentication middleware.
 func (m *routeMiddlewares) Auth() RouteMiddleware {
 	if m == nil {
 		return nil
@@ -166,6 +186,7 @@ func (m *routeMiddlewares) Auth() RouteMiddleware {
 	return m.auth
 }
 
+// OperLog returns the published operation-log middleware.
 func (m *routeMiddlewares) OperLog() RouteMiddleware {
 	if m == nil {
 		return nil
@@ -173,6 +194,7 @@ func (m *routeMiddlewares) OperLog() RouteMiddleware {
 	return m.operLog
 }
 
+// Permission returns the published declarative permission middleware.
 func (m *routeMiddlewares) Permission() RouteMiddleware {
 	if m == nil {
 		return nil
@@ -180,6 +202,8 @@ func (m *routeMiddlewares) Permission() RouteMiddleware {
 	return m.permission
 }
 
+// normalizeRoutePrefix canonicalizes plugin-owned route group prefixes so
+// callers can register `/api/v1`, `api/v1/`, or `/` interchangeably.
 func normalizeRoutePrefix(prefix string) string {
 	trimmed := strings.TrimSpace(prefix)
 	if trimmed == "" || trimmed == "/" {

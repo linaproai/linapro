@@ -49,12 +49,16 @@ func (s *serviceImpl) BuildHostCallDemoPayload(input *HostCallDemoInput) (*hostC
 	if err != nil {
 		return nil, err
 	}
-	if err = s.runtimeSvc.Log(int(pluginbridge.LogLevelInfo), "host service demo invoked", map[string]string{
-		"username":  username,
-		"requestId": hostCallDemoRequestID(input),
-		"route":     hostCallDemoRoutePath(input),
-		"demoKey":   uuidValue,
-	}); err != nil {
+	if err = s.runtimeSvc.Log(
+		int(pluginbridge.LogLevelInfo),
+		"host service demo invoked",
+		map[string]string{
+			"username":  username,
+			"requestId": hostCallDemoRequestID(input),
+			"route":     hostCallDemoRoutePath(input),
+			"demoKey":   uuidValue,
+		},
+	); err != nil {
 		return nil, err
 	}
 

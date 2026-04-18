@@ -45,6 +45,8 @@ type HttpInput struct {
 }
 type HttpOutput struct{}
 
+// Http bootstraps the host HTTP server, static API routes, plugin routes, and
+// embedded frontend asset serving.
 func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err error) {
 	var (
 		s         = g.Server()
@@ -59,6 +61,10 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	}); err != nil {
 		return nil, err
 	}
+	// The host applies request-size limits in middleware so multipart uploads
+	// can follow the runtime-effective sys.upload.maxSize value per request
+	// instead of being clipped by GoFrame's static 8MB default at server entry.
+	s.SetClientMaxBodySize(0)
 
 	var (
 		clusterCfg = configSvc.GetCluster(ctx)
@@ -96,6 +102,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 			ghttp.MiddlewareNeverDoneCtx,
 			ghttp.MiddlewareHandlerResponse,
 			middlewareSvc.CORS,
+			middlewareSvc.RequestBodyLimit,
 			middlewareSvc.Ctx,
 		)
 
@@ -254,6 +261,8 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	return
 }
 
+// enhanceOpenAPIDocs enriches the generated OpenAPI document with configured
+// metadata, bearer security, and currently enabled dynamic plugin routes.
 func (m *Main) enhanceOpenAPIDocs(
 	ctx context.Context,
 	server *ghttp.Server,
@@ -300,6 +309,8 @@ func (m *Main) enhanceOpenAPIDocs(
 	}
 }
 
+// parsePluginAssetRequestPath splits one public `/plugin-assets/...` request
+// path into plugin identity, version, and relative asset path parts.
 func parsePluginAssetRequestPath(path string) (
 	pluginID string,
 	version string,

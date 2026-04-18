@@ -3,8 +3,9 @@
 package dynamicservice
 
 import (
-	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/plugindb"
+
+	"lina-core/pkg/pluginbridge"
 )
 
 // Service defines the dynamic service contract.
@@ -31,20 +32,53 @@ type Service interface {
 
 var _ Service = (*serviceImpl)(nil)
 
+type runtimeHostService interface {
+	// Log writes one structured runtime log entry through the host.
+	Log(level int, message string, fields map[string]string) error
+	// StateGetInt reads one integer runtime state value.
+	StateGetInt(key string) (int, bool, error)
+	// StateSetInt writes one integer runtime state value.
+	StateSetInt(key string, value int) error
+	// Now returns the current host time string.
+	Now() (string, error)
+	// UUID returns one host-generated unique identifier string.
+	UUID() (string, error)
+	// Node returns the current host node identity string.
+	Node() (string, error)
+}
+
+type storageHostService interface {
+	// Put writes one governed storage object.
+	Put(objectPath string, body []byte, contentType string, overwrite bool) (*pluginbridge.HostServiceStorageObject, error)
+	// Get reads one governed storage object.
+	Get(objectPath string) ([]byte, *pluginbridge.HostServiceStorageObject, bool, error)
+	// Delete removes one governed storage object.
+	Delete(objectPath string) error
+	// List lists governed storage objects under one prefix.
+	List(prefix string, limit uint32) ([]*pluginbridge.HostServiceStorageObject, error)
+	// Stat reads metadata for one governed storage object.
+	Stat(objectPath string) (*pluginbridge.HostServiceStorageObject, bool, error)
+}
+
+type networkHostService interface {
+	// Request executes one governed outbound HTTP request through the host.
+	Request(targetURL string, request *pluginbridge.HostServiceNetworkRequest) (*pluginbridge.HostServiceNetworkResponse, error)
+}
+
 // serviceImpl implements Service.
 type serviceImpl struct {
-	runtimeSvc pluginbridge.RuntimeHostService
-	storageSvc pluginbridge.StorageHostService
-	httpSvc    pluginbridge.HTTPHostService
+	runtimeSvc runtimeHostService
+	storageSvc storageHostService
+	httpSvc    networkHostService
 	dataSvc    *plugindb.DB
 }
 
 // New creates and returns a new dynamic plugin backend service.
 func New() Service {
 	return &serviceImpl{
-		runtimeSvc: pluginbridge.Runtime(),
-		storageSvc: pluginbridge.Storage(),
-		httpSvc:    pluginbridge.HTTP(),
+		runtimeSvc: newRuntimeHostService(),
+		storageSvc: newStorageHostService(),
+		httpSvc:    newNetworkHostService(),
 		dataSvc:    plugindb.Open(),
 	}
 }

@@ -84,6 +84,38 @@ export class PluginPage {
     return this.page.getByTestId("plugin-demo-dynamic-record-add").first();
   }
 
+  // Pagination locators keep the runtime demo list assertions readable across
+  // the pagination regression scenarios.
+  pluginDemoDynamicRecordPagination(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-record-pagination")
+      .first();
+  }
+
+  pluginDemoDynamicPaginationSummary(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-pagination-summary")
+      .first();
+  }
+
+  pluginDemoDynamicPaginationPage(pageNumber: number): Locator {
+    return this.page
+      .getByTestId(`plugin-demo-dynamic-pagination-page-${pageNumber}`)
+      .first();
+  }
+
+  pluginDemoDynamicPaginationPrevButton(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-pagination-prev")
+      .first();
+  }
+
+  pluginDemoDynamicPaginationNextButton(): Locator {
+    return this.page
+      .getByTestId("plugin-demo-dynamic-pagination-next")
+      .first();
+  }
+
   pluginDemoDynamicRecordModal(): Locator {
     return this.page.getByTestId("plugin-demo-dynamic-record-modal").last();
   }
@@ -149,6 +181,10 @@ export class PluginPage {
     );
   }
 
+  dynamicUploadListItem(): Locator {
+    return this.dynamicUploadDialog().locator(".ant-upload-list-item").last();
+  }
+
   dynamicOverwriteHint(): Locator {
     return this.dynamicUploadDialog().getByText(
       "允许覆盖同 ID 且未安装的插件工作区文件",
@@ -176,6 +212,13 @@ export class PluginPage {
     return this.dynamicUploadDialog()
       .getByTestId("plugin-dynamic-upload-success")
       .first();
+  }
+
+  messageNotice(text: string): Locator {
+    return this.page
+      .locator(".ant-message-notice")
+      .filter({ hasText: text })
+      .last();
   }
 
   tableColumn(title: string): Locator {
@@ -377,9 +420,7 @@ export class PluginPage {
     // Ant Design Upload updates the modal state asynchronously after the file
     // chooser closes. Waiting for the rendered upload item avoids clicking the
     // confirm button before the file is committed into the reactive file list.
-    await expect(
-      this.dynamicUploadDialog().locator(".ant-upload-list-item"),
-    ).toBeVisible();
+    await expect(this.dynamicUploadListItem()).toBeVisible();
     await this.page.waitForTimeout(1500);
 
     const uploadResponsePromise = this.page.waitForResponse(

@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -51,6 +53,10 @@ const bundledRuntimeLegacyArtifactPath = path.join(
 const bundledRuntimeMenuName = "动态插件示例";
 const bundledRuntimeStandalonePath =
   "/plugin-assets/plugin-demo-dynamic/v0.1.0/standalone.html";
+const defaultRequestBodyLimitBytes = 8 * 1024 * 1024;
+const defaultUploadMaxSizeBytes = 10 * 1024 * 1024;
+const multipartRequestProbeBytes = defaultRequestBodyLimitBytes + 256 * 1024;
+const multipartOversizedProbeBytes = defaultUploadMaxSizeBytes + 2 * 1024 * 1024;
 
 type PluginListItem = {
   id: string;
@@ -205,6 +211,10 @@ function bundledRuntimeAttachmentFixturePath() {
   return path.join(tempDir(), "plugin-demo-dynamic-note.txt");
 }
 
+function bundledRuntimeUploadProbePath() {
+  return path.join(tempDir(), `${bundledRuntimePluginID}-upload-probe.wasm`);
+}
+
 function pluginHostedAssetPath(relativePath = "index.html") {
   return `/plugin-assets/${pluginID}/${pluginVersion}/${relativePath}`;
 }
@@ -298,6 +308,50 @@ function bundledRuntimeRecordCountByTitle(title: string) {
       `SELECT COUNT(*) FROM \`${bundledRuntimeRecordTable}\` WHERE \`title\` = '${escapedTitle}';`,
     ),
   );
+}
+
+function seedBundledRuntimePaginationRecords(recordKey: string, count: number) {
+  const titles = Array.from({ length: count }, (_value, index) => {
+    return `动态插件分页记录-${recordKey}-${String(index + 1).padStart(2, "0")}`;
+  });
+  const statements = [`DELETE FROM \`${bundledRuntimeRecordTable}\`;`];
+  for (const [index, title] of titles.entries()) {
+    const sequence = String(index + 1).padStart(2, "0");
+    const escapedID = `${recordKey}-${sequence}`.replaceAll("'", "''");
+    const escapedTitle = title.replaceAll("'", "''");
+    const escapedContent = `用于分页验证的动态插件示例记录 ${sequence}`.replaceAll(
+      "'",
+      "''",
+    );
+    statements.push(
+      [
+        `INSERT INTO \`${bundledRuntimeRecordTable}\` (`,
+        "`id`, `title`, `content`, `attachment_name`, `attachment_path`, `created_at`, `updated_at`",
+        ") VALUES (",
+        `'${escapedID}',`,
+        `'${escapedTitle}',`,
+        `'${escapedContent}',`,
+        "'', '',",
+        `DATE_ADD('2026-04-17 09:00:00', INTERVAL ${index} MINUTE),`,
+        `DATE_ADD('2026-04-17 09:00:00', INTERVAL ${index} MINUTE)`,
+        ");",
+      ].join(" "),
+    );
+  }
+  execFileSync(
+    mysqlBin,
+    [
+      `-u${mysqlUser}`,
+      `-p${mysqlPassword}`,
+      mysqlDatabase,
+      "-e",
+      statements.join(" "),
+    ],
+    {
+      stdio: "ignore",
+    },
+  );
+  return titles;
 }
 
 function countFilesRecursive(targetPath: string): number {
@@ -524,6 +578,29 @@ async function uninstallPlugin(adminApi: APIRequestContext, id = pluginID) {
   assertOk(response, "卸载动态插件失败");
 }
 
+async function uploadDynamicPluginViaAPI(
+  adminApi: APIRequestContext,
+  artifactPath: string,
+  overwrite = false,
+  paddingBytes = 0,
+) {
+  const multipart: Record<string, any> = {
+    overwriteSupport: overwrite ? "1" : "0",
+    file: {
+      name: path.basename(artifactPath),
+      mimeType: "application/wasm",
+      buffer: readFileSync(artifactPath),
+    },
+  };
+  if (paddingBytes > 0) {
+    multipart.transportPadding = "x".repeat(paddingBytes);
+  }
+
+  const response = await adminApi.post("plugins/dynamic/package", { multipart });
+  assertOk(response, `上传动态插件失败: ${artifactPath}`);
+  return unwrapApiData(await response.json());
+}
+
 async function resetBundledRuntimePlugin(adminApi: APIRequestContext) {
   const plugin = await findPlugin(adminApi, bundledRuntimePluginID);
   if (!plugin) {
@@ -550,6 +627,21 @@ function ensureBundledRuntimePluginArtifact() {
   return bundledRuntimeStorageArtifactPath();
 }
 
+function ensureBundledRuntimeUploadFixture() {
+  const sourcePath = ensureBundledRuntimePluginArtifact();
+  const uploadPath = bundledRuntimeUploadProbePath();
+  copyFileSync(sourcePath, uploadPath);
+  return uploadPath;
+}
+
+function bundledRuntimeMultipartPaddingBytes(artifactPath: string) {
+  const artifactSize = statSync(artifactPath).size;
+  if (artifactSize >= multipartRequestProbeBytes) {
+    return 0;
+  }
+  return multipartRequestProbeBytes - artifactSize;
+}
+
 async function expectPluginAssetStatus(
   page: Page,
   expectedStatus: number,
@@ -571,6 +663,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     cleanupRuntimePluginWorkspace();
     cleanupRuntimePluginRows();
     cleanupBundledRuntimeDemoData();
+    rmSync(bundledRuntimeUploadProbePath(), { force: true });
     rmSync(bundledRuntimeStorageArtifactPath(), { force: true });
     rmSync(bundledRuntimeLegacyArtifactPath, { force: true });
     if (adminApi) {
@@ -582,6 +675,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     cleanupRuntimePluginWorkspace();
     cleanupRuntimePluginRows();
     cleanupBundledRuntimeDemoData();
+    rmSync(bundledRuntimeUploadProbePath(), { force: true });
     await resetBundledRuntimePlugin(adminApi!);
   });
 
@@ -589,6 +683,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     cleanupRuntimePluginWorkspace();
     cleanupRuntimePluginRows();
     cleanupBundledRuntimeDemoData();
+    rmSync(bundledRuntimeUploadProbePath(), { force: true });
     await resetBundledRuntimePlugin(adminApi!);
   });
 
@@ -1052,5 +1147,131 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await expect(
       pluginPage.pluginDemoDynamicRecordRow(cleanupRecordTitle),
     ).toHaveCount(0);
+  });
+
+  test("TC-67l: plugin-demo-dynamic 示例记录列表支持分页浏览并同步更新区间摘要", async ({
+    page,
+  }) => {
+    const paginationRecordKey = `${Date.now()}`;
+    let seededTitles: string[] = [];
+    await loginAsAdmin(page);
+
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await expect(pluginPage.pluginRow(bundledRuntimePluginID)).toBeVisible();
+
+    await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
+    await pluginPage.confirmHostServiceAuthorization();
+    await expect
+      .poll(
+        async () =>
+          (await findPlugin(adminApi!, bundledRuntimePluginID))?.installed ?? 0,
+      )
+      .toBe(1);
+    await page.reload();
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
+    await page.reload();
+
+    seededTitles = seedBundledRuntimePaginationRecords(paginationRecordKey, 12);
+    const newestTitle = seededTitles[seededTitles.length - 1];
+    const oldestTitle = seededTitles[0];
+
+    await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
+    await expect(pluginPage.pluginDemoDynamicRecordGrid()).toBeVisible();
+    await expect(pluginPage.pluginDemoDynamicRecordPagination()).toBeVisible();
+    await expect(pluginPage.pluginDemoDynamicPaginationSummary()).toHaveText(
+      "第 1 / 2 页，显示第 1-10 条，共 12 条",
+    );
+    await expect(pluginPage.pluginDemoDynamicPaginationPage(1)).toBeDisabled();
+    await expect(pluginPage.pluginDemoDynamicPaginationPage(2)).toBeEnabled();
+    await expect(pluginPage.pluginDemoDynamicRecordRow(newestTitle)).toBeVisible();
+    await expect(pluginPage.pluginDemoDynamicRecordRow(oldestTitle)).toHaveCount(
+      0,
+    );
+
+    await pluginPage.pluginDemoDynamicPaginationPage(2).click();
+    await expect(pluginPage.pluginDemoDynamicPaginationSummary()).toHaveText(
+      "第 2 / 2 页，显示第 11-12 条，共 12 条",
+    );
+    await expect(pluginPage.pluginDemoDynamicPaginationPage(2)).toBeDisabled();
+    await expect(pluginPage.pluginDemoDynamicRecordRow(oldestTitle)).toBeVisible();
+    await expect(pluginPage.pluginDemoDynamicRecordRow(newestTitle)).toHaveCount(
+      0,
+    );
+
+    await pluginPage.pluginDemoDynamicPaginationPrevButton().click();
+    await expect(pluginPage.pluginDemoDynamicPaginationSummary()).toHaveText(
+      "第 1 / 2 页，显示第 1-10 条，共 12 条",
+    );
+    await expect(pluginPage.pluginDemoDynamicRecordRow(newestTitle)).toBeVisible();
+  });
+
+  test("TC-67m: plugin-demo-dynamic 在 multipart 请求体超过默认 8MB 时仍按上传参数上限完成上传", async () => {
+    const artifactPath = ensureBundledRuntimeUploadFixture();
+    const paddingBytes = bundledRuntimeMultipartPaddingBytes(artifactPath);
+    const uploadPayload = await uploadDynamicPluginViaAPI(
+      adminApi!,
+      artifactPath,
+      true,
+      paddingBytes,
+    );
+
+    expect(
+      statSync(artifactPath).size + paddingBytes,
+      "探针请求体应超过默认 8MB 门槛，才能覆盖本次回归场景",
+    ).toBeGreaterThan(defaultRequestBodyLimitBytes);
+    expect(uploadPayload?.id).toBe(bundledRuntimePluginID);
+    expect(uploadPayload?.installed ?? 0).toBe(0);
+    expect(uploadPayload?.enabled ?? 0).toBe(0);
+
+    const pluginAfterUpload = await findPlugin(adminApi!, bundledRuntimePluginID);
+    expect(pluginAfterUpload, "上传后应保留 plugin-demo-dynamic 记录").toBeTruthy();
+    expect(pluginAfterUpload?.installed ?? 0).toBe(0);
+    expect(pluginAfterUpload?.enabled ?? 0).toBe(0);
+  });
+
+  test("TC-67n: 超过上传上限的 multipart 请求返回文件过大提示而不是 500", async ({
+    page,
+  }) => {
+    await loginAsAdmin(page);
+
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await pluginPage.dynamicUploadTrigger.click();
+    await expect(pluginPage.dynamicUploadDialog()).toBeVisible();
+
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      pluginPage.dynamicUploadDragger.click(),
+    ]);
+    await fileChooser.setFiles({
+      name: "plugin-demo-dynamic-oversized.wasm",
+      mimeType: "application/wasm",
+      buffer: Buffer.alloc(multipartOversizedProbeBytes, 0x61),
+    });
+    await expect(pluginPage.dynamicUploadListItem()).toBeVisible();
+    await page.waitForTimeout(1500);
+
+    const uploadResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/plugins/dynamic/package") &&
+        response.request().method() === "POST",
+      { timeout: 30000 },
+    );
+
+    await pluginPage.dynamicUploadConfirmButton().click();
+
+    const uploadResponse = await uploadResponsePromise;
+    const payload = (await uploadResponse.json()) as {
+      code?: number;
+      message?: string;
+    };
+
+    expect(uploadResponse.status(), "超限上传不应再返回服务器 500").toBe(200);
+    expect(payload.code ?? 0, "超限上传应返回业务错误码").not.toBe(0);
+    expect(payload.message ?? "").toContain("文件大小不能超过10MB");
+    await expect(pluginPage.messageNotice("文件大小不能超过10MB")).toBeVisible();
+    await expect(pluginPage.dynamicUploadDialog()).toBeVisible();
+    await expect(pluginPage.uploadSuccessDialog()).toHaveCount(0);
   });
 });

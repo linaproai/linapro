@@ -41,6 +41,8 @@ func (s *serviceImpl) StartRuntimeReconciler(ctx context.Context) {
 	})
 }
 
+// runReconciler executes the periodic background convergence loop used by
+// clustered deployments.
 func (s *serviceImpl) runReconciler(ctx context.Context) {
 	ticker := time.NewTicker(runtimeReconcilerInterval)
 	defer ticker.Stop()
@@ -72,43 +74,7 @@ func (s *serviceImpl) ReconcileRuntimePlugins(ctx context.Context) error {
 
 	var firstErr error
 	for _, registry := range registries {
-		if registry == nil {
-			continue
-		}
-
-		registry, err = s.reconcileRegistryArtifactState(ctx, registry)
-		if err != nil {
-			logger.Warningf(ctx, "reconcile runtime registry artifact state failed plugin=%s err=%v", registry.PluginId, err)
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
-		}
-		if registry == nil {
-			continue
-		}
-
-		if isPrimary {
-			if err = s.reconcilePluginIfNeeded(ctx, registry); err != nil {
-				logger.Warningf(ctx, "reconcile dynamic plugin failed plugin=%s err=%v", registry.PluginId, err)
-				if firstErr == nil {
-					firstErr = err
-				}
-			}
-			refreshedRegistry, getErr := s.catalogSvc.GetRegistry(ctx, registry.PluginId)
-			if getErr != nil {
-				logger.Warningf(ctx, "reload dynamic plugin registry failed plugin=%s err=%v", registry.PluginId, getErr)
-				if firstErr == nil {
-					firstErr = getErr
-				}
-			}
-			registry = refreshedRegistry
-		}
-		if registry == nil {
-			continue
-		}
-		if err = s.reconcileCurrentNodeProjection(ctx, registry); err != nil {
-			logger.Warningf(ctx, "reconcile current node projection failed plugin=%s err=%v", registry.PluginId, err)
+		if err = s.reconcileRuntimeRegistry(ctx, registry, isPrimary); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -117,6 +83,8 @@ func (s *serviceImpl) ReconcileRuntimePlugins(ctx context.Context) error {
 	return firstErr
 }
 
+// reconcileDynamicPluginRequest records the requested target state and lets the
+// primary node converge the addressed plugin immediately.
 func (s *serviceImpl) reconcileDynamicPluginRequest(
 	ctx context.Context,
 	pluginID string,
@@ -128,7 +96,75 @@ func (s *serviceImpl) reconcileDynamicPluginRequest(
 	if !s.isPrimaryNode() {
 		return nil
 	}
-	return s.ReconcileRuntimePlugins(ctx)
+	return s.reconcileRuntimePlugin(ctx, pluginID)
+}
+
+// reconcileRuntimePlugin converges one target plugin synchronously for
+// management requests. Unlike the background full scan, it must not fail a
+// user-triggered install/refresh because some unrelated staged dynamic plugin is
+// temporarily broken in the shared registry during other tests or uploads.
+func (s *serviceImpl) reconcileRuntimePlugin(ctx context.Context, pluginID string) error {
+	reconcileMu.Lock()
+	defer reconcileMu.Unlock()
+
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	if registry == nil {
+		return gerror.New("插件不存在")
+	}
+	return s.reconcileRuntimeRegistry(ctx, registry, true)
+}
+
+// reconcileRuntimeRegistry converges one runtime registry row, optionally
+// performing primary-only lifecycle work before updating current-node state.
+func (s *serviceImpl) reconcileRuntimeRegistry(
+	ctx context.Context,
+	registry *entity.SysPlugin,
+	isPrimary bool,
+) error {
+	if registry == nil {
+		return nil
+	}
+
+	pluginID := registry.PluginId
+
+	// Refresh the registry against current artifact presence before any lifecycle
+	// action so missing or newly restored packages are reflected consistently.
+	refreshedRegistry, err := s.reconcileRegistryArtifactState(ctx, registry)
+	if err != nil {
+		logger.Warningf(ctx, "reconcile runtime registry artifact state failed plugin=%s err=%v", pluginID, err)
+		return err
+	}
+	if refreshedRegistry == nil {
+		return nil
+	}
+	registry = refreshedRegistry
+
+	if isPrimary {
+		// Only the primary node mutates shared lifecycle state such as release
+		// activation, migrations, and desired/current host states.
+		if err = s.reconcilePluginIfNeeded(ctx, registry); err != nil {
+			logger.Warningf(ctx, "reconcile dynamic plugin failed plugin=%s err=%v", pluginID, err)
+			return err
+		}
+		// Reload after lifecycle work so node projection sees the latest release
+		// binding, generation, and stable host state.
+		registry, err = s.catalogSvc.GetRegistry(ctx, registry.PluginId)
+		if err != nil {
+			logger.Warningf(ctx, "reload dynamic plugin registry failed plugin=%s err=%v", pluginID, err)
+			return err
+		}
+	}
+	if registry == nil {
+		return nil
+	}
+	if err = s.reconcileCurrentNodeProjection(ctx, registry); err != nil {
+		logger.Warningf(ctx, "reconcile current node projection failed plugin=%s err=%v", pluginID, err)
+		return err
+	}
+	return nil
 }
 
 // reconcilePluginIfNeeded selects the smallest convergence action for the current
@@ -176,11 +212,15 @@ func (s *serviceImpl) reconcilePluginIfNeeded(ctx context.Context, registry *ent
 	return nil
 }
 
+// reconcileCurrentNodeProjection verifies the current node can serve the active
+// dynamic plugin state and then persists the node-local convergence snapshot.
 func (s *serviceImpl) reconcileCurrentNodeProjection(ctx context.Context, registry *entity.SysPlugin) error {
 	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
 		return nil
 	}
 
+	// Enabled dynamic plugins must prove their active manifest and optional
+	// frontend bundle still load on this node before we mark the node converged.
 	if registry.Installed == catalog.InstalledYes && registry.Status == catalog.StatusEnabled && registry.ReleaseId > 0 {
 		manifest, err := s.loadActiveManifest(ctx, registry)
 		if err != nil {
@@ -481,6 +521,9 @@ func (s *serviceImpl) applyRefresh(
 	return s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release refreshed on primary node.")
 }
 
+// applyUninstall removes live governance, runs uninstall cleanup according to
+// the stored uninstall snapshot, and returns the registry to the uninstalled
+// stable state.
 func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPlugin) error {
 	manifest, err := s.loadActiveManifest(ctx, registry)
 	if err != nil {
@@ -563,6 +606,8 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 	)
 }
 
+// rollbackInstallOrUpgrade attempts to restore the last stable plugin state
+// after install, upgrade, or refresh work fails midway through reconciliation.
 func (s *serviceImpl) rollbackInstallOrUpgrade(
 	ctx context.Context,
 	registry *entity.SysPlugin,
@@ -587,6 +632,8 @@ func (s *serviceImpl) rollbackInstallOrUpgrade(
 	return s.rollbackReleaseFailure(ctx, registry, failedReleaseID, reconcileErr)
 }
 
+// rollbackReleaseFailure marks the release and node projection as failed when a
+// reconciliation error cannot be hidden behind a fully restored stable state.
 func (s *serviceImpl) rollbackReleaseFailure(
 	ctx context.Context,
 	registry *entity.SysPlugin,

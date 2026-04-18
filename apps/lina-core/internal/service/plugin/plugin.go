@@ -269,6 +269,7 @@ func New(topologies ...Topology) Service {
 	runtimeSvc.SetAfterAuthDispatcher(integrationSvc)
 	runtimeSvc.SetPermissionMenuFilter(integrationSvc)
 	runtimeSvc.SetJwtConfigProvider(&jwtConfigAdapter{configProvider})
+	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{configProvider})
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{bizCtxProvider})
 
 	return &serviceImpl{

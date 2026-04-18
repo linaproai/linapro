@@ -7,6 +7,7 @@ const buttonLabel = "打开独立页面";
 const gridTitle = "示例记录";
 const emptyText =
   "当前只有安装 SQL 初始化的默认记录，你可以继续新增、编辑或删除自定义记录。";
+const defaultRecordPageSize = 10;
 
 const hostStyleId = "plugin-demo-dynamic-mount-style";
 
@@ -471,6 +472,80 @@ function ensureMountStyles(documentRef) {
       font-size: 16px;
     }
 
+    .plugin-demo-dynamic-page__pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+
+    .plugin-demo-dynamic-page__pagination-summary {
+      color: #64748b;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .plugin-demo-dynamic-page__pagination-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .plugin-demo-dynamic-page__pagination-button,
+    .plugin-demo-dynamic-page__pagination-ellipsis {
+      min-width: 36px;
+      min-height: 36px;
+      border-radius: 10px;
+      font-size: 13px;
+      line-height: 1;
+    }
+
+    .plugin-demo-dynamic-page__pagination-button {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      background: #ffffff;
+      color: #334155;
+      font-weight: 600;
+      cursor: pointer;
+      transition:
+        border-color 0.2s ease,
+        background-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease;
+    }
+
+    .plugin-demo-dynamic-page__pagination-button:hover,
+    .plugin-demo-dynamic-page__pagination-button:focus-visible {
+      border-color: rgba(22, 119, 255, 0.42);
+      color: var(--dynamic-shell-accent);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .plugin-demo-dynamic-page__pagination-button[data-active="true"] {
+      border-color: var(--dynamic-shell-accent);
+      background: var(--dynamic-shell-accent);
+      color: #ffffff;
+      box-shadow: 0 10px 22px rgba(22, 119, 255, 0.18);
+    }
+
+    .plugin-demo-dynamic-page__pagination-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .plugin-demo-dynamic-page__pagination-ellipsis {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
     .plugin-demo-dynamic-page__modal-mask {
       position: fixed;
       inset: 0;
@@ -648,6 +723,11 @@ function ensureMountStyles(documentRef) {
       .plugin-demo-dynamic-page__table {
         min-width: 760px;
       }
+
+      .plugin-demo-dynamic-page__pagination {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   `;
   documentRef.head.append(styleElement);
@@ -745,11 +825,15 @@ export function mount(context) {
   ensureMountStyles(documentRef);
 
   const accessToken = context.accessToken || "";
+  let recordFetchToken = 0;
   const state = {
     destroyed: false,
     loading: false,
     submitting: false,
     records: [],
+    pageNum: 1,
+    pageSize: defaultRecordPageSize,
+    total: 0,
     successMessage: "",
     errorMessage: "",
     modalOpen: false,
@@ -1044,6 +1128,152 @@ export function mount(context) {
     cancelButton.disabled = state.submitting;
   }
 
+  // getTotalPages derives the visible page count from the current total and
+  // guarantees the summary logic always has a minimum first page to render.
+  function getTotalPages(total = state.total) {
+    return Math.max(1, Math.ceil(total / state.pageSize));
+  }
+
+  // buildPaginationItems keeps the pagination control compact while still
+  // exposing the current page neighborhood and the first/last page anchors.
+  function buildPaginationItems(currentPage, totalPages) {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_value, index) => index + 1);
+    }
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 5, "...", totalPages];
+    }
+    if (currentPage >= totalPages - 3) {
+      return [
+        1,
+        "...",
+        totalPages - 4,
+        totalPages - 3,
+        totalPages - 2,
+        totalPages - 1,
+        totalPages,
+      ];
+    }
+    return [
+      1,
+      "...",
+      currentPage - 1,
+      currentPage,
+      currentPage + 1,
+      "...",
+      totalPages,
+    ];
+  }
+
+  // buildPaginationButton creates one interactive pagination control and binds
+  // it to the shared page-change handler when the item maps to a real page.
+  function buildPaginationButton(label, pageNumber, options = {}) {
+    const button = documentRef.createElement("button");
+    button.type = "button";
+    button.className = "plugin-demo-dynamic-page__pagination-button";
+    button.textContent = label;
+    button.disabled = !!options.disabled;
+    if (options.active) {
+      button.setAttribute("data-active", "true");
+      button.setAttribute("aria-current", "page");
+    }
+    if (typeof pageNumber === "number") {
+      button.setAttribute(
+        "data-testid",
+        `plugin-demo-dynamic-pagination-page-${pageNumber}`,
+      );
+      button.addEventListener("click", () => {
+        void changePage(pageNumber);
+      });
+    }
+    return button;
+  }
+
+  // buildPagination renders both the current-range summary and the page
+  // controls so the demo record list can be browsed page by page.
+  function buildPagination() {
+    if (state.total <= 0) {
+      return null;
+    }
+
+    const pagination = documentRef.createElement("div");
+    pagination.className = "plugin-demo-dynamic-page__pagination";
+    pagination.setAttribute(
+      "data-testid",
+      "plugin-demo-dynamic-record-pagination",
+    );
+
+    const totalPages = getTotalPages();
+    const rangeStart = (state.pageNum - 1) * state.pageSize + 1;
+    const rangeEnd = Math.min(
+      state.total,
+      rangeStart + Math.max(state.records.length - 1, 0),
+    );
+
+    const summary = documentRef.createElement("div");
+    summary.className = "plugin-demo-dynamic-page__pagination-summary";
+    summary.setAttribute(
+      "data-testid",
+      "plugin-demo-dynamic-pagination-summary",
+    );
+    summary.textContent = `第 ${state.pageNum} / ${totalPages} 页，显示第 ${rangeStart}-${rangeEnd} 条，共 ${state.total} 条`;
+    pagination.append(summary);
+
+    if (totalPages <= 1) {
+      return pagination;
+    }
+
+    const controls = documentRef.createElement("div");
+    controls.className = "plugin-demo-dynamic-page__pagination-controls";
+
+    const previousButton = buildPaginationButton("上一页", state.pageNum - 1, {
+      disabled: state.loading || state.pageNum <= 1,
+    });
+    previousButton.setAttribute(
+      "data-testid",
+      "plugin-demo-dynamic-pagination-prev",
+    );
+    controls.append(previousButton);
+
+    for (const item of buildPaginationItems(state.pageNum, totalPages)) {
+      if (item === "...") {
+        const ellipsis = documentRef.createElement("span");
+        ellipsis.className = "plugin-demo-dynamic-page__pagination-ellipsis";
+        ellipsis.textContent = "...";
+        controls.append(ellipsis);
+        continue;
+      }
+      controls.append(
+        buildPaginationButton(String(item), item, {
+          active: item === state.pageNum,
+          disabled: state.loading || item === state.pageNum,
+        }),
+      );
+    }
+
+    const nextButton = buildPaginationButton("下一页", state.pageNum + 1, {
+      disabled: state.loading || state.pageNum >= totalPages,
+    });
+    nextButton.setAttribute(
+      "data-testid",
+      "plugin-demo-dynamic-pagination-next",
+    );
+    controls.append(nextButton);
+
+    pagination.append(controls);
+    return pagination;
+  }
+
+  // changePage guards duplicate or invalid page transitions before requesting
+  // the next record slice from the backend.
+  async function changePage(pageNumber) {
+    const targetPage = Math.max(1, Math.min(pageNumber, getTotalPages()));
+    if (targetPage === state.pageNum || state.loading || state.submitting) {
+      return;
+    }
+    await fetchRecords({ pageNum: targetPage });
+  }
+
   function renderTable() {
     tableWrap.replaceChildren();
 
@@ -1157,6 +1387,11 @@ export function mount(context) {
 
     table.append(thead, tbody);
     tableWrap.append(table);
+
+    const pagination = buildPagination();
+    if (pagination) {
+      tableWrap.append(pagination);
+    }
   }
 
   function resetModalState() {
@@ -1237,35 +1472,66 @@ export function mount(context) {
     return response.json();
   }
 
-  async function fetchRecords() {
+  async function fetchRecords(options = {}) {
     if (state.destroyed) {
       return;
     }
+    const resetFeedback = options.resetFeedback !== false;
+    let nextPageNum = Number.isInteger(options.pageNum)
+      ? options.pageNum
+      : state.pageNum;
+    nextPageNum = Math.max(1, nextPageNum);
+    recordFetchToken += 1;
+    const currentFetchToken = recordFetchToken;
     state.loading = true;
-    clearFeedback();
+    if (resetFeedback) {
+      clearFeedback();
+    }
     updateActionState();
     renderTable();
 
     try {
-      const payload = await requestJSON(
-        `${apiBasePath}/demo-records?pageNum=1&pageSize=50`,
-      );
-      if (state.destroyed) {
-        return;
+      while (true) {
+        const query = new URLSearchParams({
+          pageNum: String(nextPageNum),
+          pageSize: String(state.pageSize),
+        });
+        const payload = await requestJSON(
+          `${apiBasePath}/demo-records?${query.toString()}`,
+        );
+        if (state.destroyed || currentFetchToken !== recordFetchToken) {
+          return;
+        }
+
+        const records = Array.isArray(payload?.list) ? payload.list : [];
+        const total = Number.isFinite(Number(payload?.total))
+          ? Number(payload.total)
+          : records.length;
+        const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+        if (total > 0 && nextPageNum > totalPages) {
+          nextPageNum = totalPages;
+          continue;
+        }
+
+        state.pageNum = nextPageNum;
+        state.total = total;
+        state.records = records;
+        break;
       }
-      state.records = Array.isArray(payload?.list) ? payload.list : [];
-      renderTable();
     } catch (error) {
-      if (state.destroyed) {
+      if (state.destroyed || currentFetchToken !== recordFetchToken) {
         return;
       }
       state.records = [];
-      renderTable();
+      state.total = 0;
       setFeedback(
         "error",
         error instanceof Error ? error.message : "示例记录加载失败",
       );
     } finally {
+      if (state.destroyed || currentFetchToken !== recordFetchToken) {
+        return;
+      }
       state.loading = false;
       updateActionState();
       renderTable();
@@ -1317,7 +1583,7 @@ export function mount(context) {
       });
       closeModal(true);
       setFeedback("success", isEditing ? "示例记录已更新" : "示例记录已创建");
-      await fetchRecords();
+      await fetchRecords({ pageNum: 1, resetFeedback: false });
     } catch (error) {
       modalFeedback.hidden = false;
       modalFeedback.setAttribute("data-kind", "warn");
@@ -1342,7 +1608,7 @@ export function mount(context) {
         method: "DELETE",
       });
       setFeedback("success", "示例记录已删除");
-      await fetchRecords();
+      await fetchRecords({ resetFeedback: false });
     } catch (error) {
       setFeedback(
         "error",

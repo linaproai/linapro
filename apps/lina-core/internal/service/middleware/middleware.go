@@ -29,6 +29,8 @@ type Service interface {
 	Ctx(r *ghttp.Request)
 	// CORS handles cross-origin requests.
 	CORS(r *ghttp.Request)
+	// RequestBodyLimit applies host request-body size limits before handlers parse form data.
+	RequestBodyLimit(r *ghttp.Request)
 	// Auth validates JWT token and injects user info into context.
 	Auth(r *ghttp.Request)
 	// OperLog records operation logs for write operations and specially tagged GET operations.
@@ -76,6 +78,7 @@ func (s *serviceImpl) PublishedRouteMiddlewares() pluginhost.RouteMiddlewares {
 		ghttp.MiddlewareNeverDoneCtx,
 		ghttp.MiddlewareHandlerResponse,
 		s.CORS,
+		s.RequestBodyLimit,
 		s.Ctx,
 		s.Auth,
 		s.OperLog,

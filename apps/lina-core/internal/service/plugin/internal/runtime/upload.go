@@ -18,6 +18,11 @@ import (
 	"lina-core/pkg/closeutil"
 )
 
+// bytesPerMegabyte converts the configured `sys.upload.maxSize` value from MB
+// into raw bytes when upload.go compares the runtime file-size ceiling against
+// the actual uploaded artifact size.
+const bytesPerMegabyte int64 = 1024 * 1024
+
 // DynamicUploadInput defines input for uploading a runtime wasm package.
 type DynamicUploadInput struct {
 	// File is the uploaded runtime wasm package.
@@ -52,6 +57,9 @@ func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploa
 	if in == nil || in.File == nil {
 		return nil, gerror.New("请上传动态插件文件")
 	}
+	if err = s.validateUploadedPackageSize(ctx, in.File.Size); err != nil {
+		return nil, err
+	}
 
 	source, err := in.File.Open()
 	if err != nil {
@@ -66,12 +74,31 @@ func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploa
 	if len(content) == 0 {
 		return nil, gerror.New("动态插件文件不能为空")
 	}
+	if err = s.validateUploadedPackageSize(ctx, int64(len(content))); err != nil {
+		return nil, err
+	}
 	return s.storeUploadedPackage(
 		ctx,
 		normalizeUploadFilename(in.File.Filename),
 		content,
 		in.OverwriteSupport,
 	)
+}
+
+// validateUploadedPackageSize enforces the runtime-effective upload ceiling for one package upload.
+func (s *serviceImpl) validateUploadedPackageSize(ctx context.Context, sizeBytes int64) error {
+	if sizeBytes <= 0 || s == nil || s.uploadSize == nil {
+		return nil
+	}
+
+	uploadMaxSizeMB := s.uploadSize.GetUploadMaxSize(ctx)
+	if uploadMaxSizeMB <= 0 {
+		return nil
+	}
+	if sizeBytes <= uploadMaxSizeMB*bytesPerMegabyte {
+		return nil
+	}
+	return gerror.Newf("文件大小不能超过%dMB", uploadMaxSizeMB)
 }
 
 // normalizeUploadFilename ensures the filename ends with .wasm.

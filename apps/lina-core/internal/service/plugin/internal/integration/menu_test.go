@@ -20,6 +20,8 @@ import (
 
 const testDefaultAdminRoleID = 1
 
+// TestSyncSourcePluginMenusFromManifest verifies source plugin menus are only
+// materialized on explicit sync and are deleted when removed from the manifest.
 func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -142,6 +144,8 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginInstallAndUninstallManageMenusFromManifest verifies dynamic
+// plugin install/uninstall creates and removes manifest-owned menus.
 func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -226,6 +230,8 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginRoutePermissionsMaterializeHiddenMenus verifies dynamic
+// route permissions are projected as hidden button menus.
 func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -297,6 +303,8 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh verifies a
+// same-version refresh cleans up superseded synthetic permission menus.
 func TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -386,6 +394,89 @@ func TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh(t *testing
 	}
 }
 
+// TestDynamicPluginRoutePermissionRefreshIgnoresUnrelatedBrokenRegistry
+// verifies target-plugin refresh still succeeds when another staged dynamic
+// registry row is broken.
+func TestDynamicPluginRoutePermissionRefreshIgnoresUnrelatedBrokenRegistry(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		targetPluginID = "plugin-route-refresh-ok"
+		brokenPluginID = "plugin-route-refresh-bad"
+		permissionKey  = "plugin-route-refresh-ok:review:view"
+		version        = "v0.3.0"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
+		t,
+		targetPluginID,
+		"Runtime Route Permission Refresh Target Plugin",
+		version,
+		nil,
+		nil,
+		nil,
+	)
+	writeRuntimeArtifactWithRoutePermissions(
+		t,
+		artifactPath,
+		targetPluginID,
+		"Runtime Route Permission Refresh Target Plugin",
+		version,
+		permissionKey,
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, targetPluginID)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, targetPluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, brokenPluginID)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, brokenPluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, brokenPluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, brokenPluginID)
+		testutil.CleanupPluginMenuRowsHard(t, ctx, targetPluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, targetPluginID)
+	})
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected target runtime manifest to load, got error: %v", err)
+	}
+	if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected target manifest sync to succeed, got error: %v", err)
+	}
+
+	_, err = dao.SysPlugin.Ctx(ctx).Data(do.SysPlugin{
+		PluginId:     brokenPluginID,
+		Name:         "Broken Dynamic Plugin",
+		Version:      "v0.0.1",
+		Type:         catalog.TypeDynamic.String(),
+		Installed:    catalog.InstalledNo,
+		Status:       catalog.StatusDisabled,
+		DesiredState: catalog.HostStateInstalled.String(),
+		CurrentState: catalog.HostStateReconciling.String(),
+		Generation:   int64(1),
+		Checksum:     "broken-dynamic-plugin-checksum",
+	}).Insert()
+	if err != nil {
+		t.Fatalf("expected broken dynamic registry seed to succeed, got error: %v", err)
+	}
+
+	if err = services.Lifecycle.Install(ctx, targetPluginID); err != nil {
+		t.Fatalf("expected target install to ignore unrelated broken registry, got error: %v", err)
+	}
+
+	menuKey := integration.BuildDynamicRoutePermissionMenuKey(targetPluginID, permissionKey)
+	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected target synthetic permission menu query to succeed, got error: %v", err)
+	}
+	if menu == nil {
+		t.Fatalf("expected target synthetic permission menu %s to exist", menuKey)
+	}
+}
+
+// TestDynamicRoutePermissionMenuKeyAvoidsCollisions verifies the synthetic menu
+// key builder preserves distinct permission identifiers.
 func TestDynamicRoutePermissionMenuKeyAvoidsCollisions(t *testing.T) {
 	const pluginID = "plugin-dynamic-route-key-collision"
 
@@ -396,6 +487,8 @@ func TestDynamicRoutePermissionMenuKeyAvoidsCollisions(t *testing.T) {
 	}
 }
 
+// TestFilterMenusHidesRuntimeMenusWhenArtifactIsMissing verifies runtime menus
+// disappear when the backing dynamic artifact has been removed.
 func TestFilterMenusHidesRuntimeMenusWhenArtifactIsMissing(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -449,6 +542,8 @@ func TestFilterMenusHidesRuntimeMenusWhenArtifactIsMissing(t *testing.T) {
 	}
 }
 
+// writeRuntimeArtifactWithRoutePermissions rewrites the test runtime artifact
+// so it declares the provided backend route permissions.
 func writeRuntimeArtifactWithRoutePermissions(
 	t *testing.T,
 	artifactPath string,
