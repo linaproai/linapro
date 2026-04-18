@@ -1,0 +1,52 @@
+// Package apidoc builds the host-managed OpenAPI document that powers the
+// system API documentation page.
+package apidoc
+
+import (
+	"context"
+
+	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/net/goai"
+
+	configsvc "lina-core/internal/service/config"
+	"lina-core/pkg/pluginhost"
+)
+
+// ConfigProvider provides host OpenAPI metadata configuration.
+type ConfigProvider interface {
+	// GetOpenApi returns the current OpenAPI document metadata.
+	GetOpenApi(ctx context.Context) *configsvc.OpenApiConfig
+}
+
+// PluginRouteProvider provides plugin route ownership and OpenAPI projection inputs.
+type PluginRouteProvider interface {
+	// ListSourceRouteBindings returns source-plugin route bindings captured during registration.
+	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
+	// IsEnabled reports whether the given plugin is currently enabled.
+	IsEnabled(ctx context.Context, pluginID string) bool
+	// ProjectDynamicRoutesToOpenAPI projects enabled dynamic-plugin routes into the OpenAPI paths.
+	ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error
+}
+
+// Service defines the apidoc service contract.
+type Service interface {
+	// Build builds one host-managed OpenAPI document from the current route table
+	// and current plugin enablement state.
+	Build(ctx context.Context, server *ghttp.Server) (*goai.OpenApiV3, error)
+}
+
+var _ Service = (*serviceImpl)(nil)
+
+// serviceImpl implements Service.
+type serviceImpl struct {
+	configSvc ConfigProvider
+	pluginSvc PluginRouteProvider
+}
+
+// New creates and returns a new apidoc Service.
+func New(configSvc ConfigProvider, pluginSvc PluginRouteProvider) Service {
+	return &serviceImpl{
+		configSvc: configSvc,
+		pluginSvc: pluginSvc,
+	}
+}

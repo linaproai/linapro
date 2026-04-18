@@ -48,6 +48,7 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 				return err
 			}
 		}
+		s.setSourceRouteBindings(manifest.ID, registrar.RouteBindings())
 	}
 	return nil
 }
@@ -222,6 +223,8 @@ func (s *serviceImpl) ShouldKeepPermission(ctx context.Context, menu *entity.Sys
 	return s.shouldKeepPermissionWithRuntime(ctx, menu, runtime)
 }
 
+// filterMenusWithRuntime filters plugin-owned menus using one preloaded
+// enablement/runtime snapshot to avoid repeated registry lookups.
 func (s *serviceImpl) filterMenusWithRuntime(
 	ctx context.Context,
 	menus []*entity.SysMenu,
@@ -243,6 +246,8 @@ func (s *serviceImpl) filterMenusWithRuntime(
 	return filtered
 }
 
+// filterMenusSlow filters menus by querying plugin state on demand when the
+// cached runtime snapshot cannot be built.
 func (s *serviceImpl) filterMenusSlow(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	filtered := make([]*entity.SysMenu, 0, len(menus))
 	for _, menu := range menus {
@@ -260,6 +265,8 @@ func (s *serviceImpl) filterMenusSlow(ctx context.Context, menus []*entity.SysMe
 	return filtered
 }
 
+// filterPermissionMenusSlow filters permission menus using the slow-path menu
+// and permission checks without a reusable runtime snapshot.
 func (s *serviceImpl) filterPermissionMenusSlow(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	filteredMenus := s.filterMenusSlow(ctx, menus)
 	filtered := make([]*entity.SysMenu, 0, len(filteredMenus))
@@ -274,6 +281,8 @@ func (s *serviceImpl) filterPermissionMenusSlow(ctx context.Context, menus []*en
 	return filtered
 }
 
+// shouldKeepMenuWithRuntime evaluates one menu against all enabled plugin menu
+// filters using the supplied runtime snapshot.
 func (s *serviceImpl) shouldKeepMenuWithRuntime(
 	ctx context.Context,
 	menu *entity.SysMenu,
@@ -321,6 +330,8 @@ func (s *serviceImpl) shouldKeepMenuWithRuntime(
 	return true
 }
 
+// shouldKeepMenuSlow evaluates one menu when the runtime snapshot is not
+// available and plugin state must be discovered inline.
 func (s *serviceImpl) shouldKeepMenuSlow(ctx context.Context, menu *entity.SysMenu) bool {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
@@ -377,6 +388,8 @@ func (s *serviceImpl) shouldKeepMenuSlow(ctx context.Context, menu *entity.SysMe
 	return true
 }
 
+// shouldKeepPermissionWithRuntime evaluates one permission menu against enabled
+// plugin permission filters using the supplied runtime snapshot.
 func (s *serviceImpl) shouldKeepPermissionWithRuntime(
 	ctx context.Context,
 	menu *entity.SysMenu,
@@ -417,6 +430,8 @@ func (s *serviceImpl) shouldKeepPermissionWithRuntime(
 	return true
 }
 
+// shouldKeepPermissionSlow evaluates one permission menu when the reusable
+// runtime snapshot is unavailable.
 func (s *serviceImpl) shouldKeepPermissionSlow(ctx context.Context, menu *entity.SysMenu) bool {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {

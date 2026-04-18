@@ -1,4 +1,18 @@
+import type { Page } from '@playwright/test';
+
 import { test, expect } from '../../fixtures/auth';
+import { PluginPage } from '../../pages/PluginPage';
+
+const sourcePluginID = 'plugin-demo-source';
+const sourcePluginTag = '源码插件示例';
+const sourcePluginPingSummary = '查询源码插件示例公开 ping';
+
+async function openApiDocsFrame(adminPage: Page) {
+  await adminPage.goto('/about/api-docs');
+  const frame = adminPage.frameLocator('iframe.api-docs-iframe');
+  await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
+  return frame;
+}
 
 test.describe('TC0044 系统接口页面', () => {
   test('TC0044a: 系统接口页面通过 iframe 加载 Stoplight Elements', async ({
@@ -114,5 +128,36 @@ test.describe('TC0044 系统接口页面', () => {
     // Click again to collapse
     await schemasHeader.click();
     await expect(firstSchema).toBeHidden();
+  });
+
+  test('TC0044h: 源码插件启停后系统接口文档同步更新', async ({
+    adminPage,
+  }) => {
+    const pluginPage = new PluginPage(adminPage);
+
+    await pluginPage.gotoManage();
+    await pluginPage.searchByPluginId(sourcePluginID);
+    await pluginPage.setPluginEnabled(sourcePluginID, true);
+
+    let frame = await openApiDocsFrame(adminPage);
+    await frame.locator(`[title="${sourcePluginTag}"]`).click();
+    await expect(
+      frame.locator(`[title="${sourcePluginPingSummary}"]`).first(),
+    ).toBeVisible({ timeout: 10_000 });
+
+    try {
+      await pluginPage.gotoManage();
+      await pluginPage.searchByPluginId(sourcePluginID);
+      await pluginPage.setPluginEnabled(sourcePluginID, false);
+
+      frame = await openApiDocsFrame(adminPage);
+      await expect(
+        frame.locator(`[title="${sourcePluginTag}"]`),
+      ).toHaveCount(0);
+    } finally {
+      await pluginPage.gotoManage();
+      await pluginPage.searchByPluginId(sourcePluginID);
+      await pluginPage.setPluginEnabled(sourcePluginID, true);
+    }
   });
 });

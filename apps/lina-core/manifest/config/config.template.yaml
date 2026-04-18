@@ -3,12 +3,12 @@
 server:
   # 服务监听地址
   address: ":8080"
-  # OpenAPI JSON 文档访问路径
-  openapiPath: "/api.json"
-  # Swagger UI 访问路径
-  swaggerPath: "/swagger"
   # 是否在启动时输出路由表
   dumpRouterMap: false
+  # LinaPro 对 GoFrame server 组件的扩展配置
+  extensions:
+    # 宿主自建 OpenAPI JSON 文档访问路径
+    apiDocPath: "/api.json"
 
 # 日志配置
 # https://goframe.org/docs/core/glog-config
@@ -21,8 +21,10 @@ logger:
   level: "all"
   # 是否输出到标准输出
   stdout: true
-  # 是否开启 GoFrame 官方 JSON 结构化日志 Handler
-  structured: false
+  # LinaPro 对 GoFrame logger 组件的扩展配置
+  extensions:
+    # 是否开启 GoFrame 官方 JSON 结构化日志 Handler
+    structured: false
 
 # 数据库配置
 # https://goframe.org/docs/core/gdb-config-file

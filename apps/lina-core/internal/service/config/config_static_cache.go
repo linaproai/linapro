@@ -25,14 +25,15 @@ func (box *staticConfigBox[T]) load(loader func() *T) *T {
 // staticConfigCaches groups all process-local static config boxes so
 // configuration loading and test resets can be managed in one place.
 type staticConfigCaches struct {
-	cluster  staticConfigBox[ClusterConfig]
-	jwt      staticConfigBox[JwtConfig]
-	logger   staticConfigBox[LoggerConfig]
-	metadata staticConfigBox[MetadataConfig]
-	monitor  staticConfigBox[MonitorConfig]
-	plugin   staticConfigBox[PluginConfig]
-	session  staticConfigBox[SessionConfig]
-	upload   staticConfigBox[UploadConfig]
+	cluster          staticConfigBox[ClusterConfig]
+	jwt              staticConfigBox[JwtConfig]
+	logger           staticConfigBox[LoggerConfig]
+	metadata         staticConfigBox[MetadataConfig]
+	monitor          staticConfigBox[MonitorConfig]
+	plugin           staticConfigBox[PluginConfig]
+	serverExtensions staticConfigBox[ServerExtensionsConfig]
+	session          staticConfigBox[SessionConfig]
+	upload           staticConfigBox[UploadConfig]
 }
 
 // processStaticConfigCaches is the singleton cache registry used by the config
@@ -73,6 +74,15 @@ func cloneJwtConfig(cfg *JwtConfig) *JwtConfig {
 
 // cloneLoggerConfig returns a detached copy of the cached logger config.
 func cloneLoggerConfig(cfg *LoggerConfig) *LoggerConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned := *cfg
+	return &cloned
+}
+
+// cloneServerExtensionsConfig returns a detached copy of the cached server extension config.
+func cloneServerExtensionsConfig(cfg *ServerExtensionsConfig) *ServerExtensionsConfig {
 	if cfg == nil {
 		return nil
 	}

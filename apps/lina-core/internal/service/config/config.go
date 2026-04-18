@@ -29,6 +29,8 @@ type Service interface {
 	// IsLoginIPBlacklisted reports whether the input IP is denied by the
 	// runtime-effective blacklist without constructing a full config object.
 	IsLoginIPBlacklisted(ctx context.Context, ip string) bool
+	// GetServerExtensions reads LinaPro-specific server extension settings from configuration file.
+	GetServerExtensions(ctx context.Context) *ServerExtensionsConfig
 	// GetLogger reads logger config from configuration file.
 	GetLogger(ctx context.Context) *LoggerConfig
 	// GetMetadata reads embedded delivery metadata from the packaged resource file.

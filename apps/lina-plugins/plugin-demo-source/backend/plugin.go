@@ -4,15 +4,15 @@ package backend
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/net/ghttp"
-
 	"lina-core/pkg/pluginhost"
 	plugindemosource "lina-plugin-demo-source"
 	democtrl "lina-plugin-demo-source/backend/internal/controller/demo"
 	demosvc "lina-plugin-demo-source/backend/service/demo"
 )
 
+// Source demo plugin constants.
 const (
+	// pluginID is the immutable identifier published by the embedded demo plugin.
 	pluginID = "plugin-demo-source"
 )
 
@@ -42,7 +42,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 		middlewares    = registrar.Middlewares()
 		demoController = democtrl.NewControllerV1()
 	)
-	registrar.Group("/api/v1", func(group *ghttp.RouterGroup) {
+	registrar.Group("/api/v1", func(group pluginhost.RouteGroup) {
 		group.Middleware(
 			middlewares.NeverDoneCtx(),
 			middlewares.HandlerResponse(),
@@ -51,11 +51,11 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 			middlewares.Ctx(),
 		)
 
-		group.Group("/", func(group *ghttp.RouterGroup) {
+		group.Group("/", func(group pluginhost.RouteGroup) {
 			group.Bind(demoController.Ping)
 		})
 
-		group.Group("/", func(group *ghttp.RouterGroup) {
+		group.Group("/", func(group pluginhost.RouteGroup) {
 			group.Middleware(
 				middlewares.Auth(),
 				middlewares.OperLog(),

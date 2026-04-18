@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
@@ -42,17 +43,27 @@ func (r *filterRuntime) isEnabled(pluginID string) bool {
 	return r.enabledByID[strings.TrimSpace(pluginID)]
 }
 
-// Service defines the integration service contract.
-type Service interface {
+// BackendConfigService defines manifest backend-declaration loading operations.
+type BackendConfigService interface {
 	// LoadPluginBackendConfig loads plugin-owned hook and resource declarations into the manifest.
 	// It implements catalog.BackendConfigLoader.
 	LoadPluginBackendConfig(manifest *catalog.Manifest) error
+}
+
+// ResourceQueryService defines plugin-owned backend resource query operations.
+type ResourceQueryService interface {
 	// ListResourceRecords queries plugin-owned backend resource rows using the
 	// generic plugin resource contract.
 	ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error)
 	// ResolveResourcePermission resolves the permission required by the generic
 	// resource list endpoint for one plugin-owned backend resource.
 	ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error)
+}
+
+// SourceRegistrationService defines source-plugin route and cron registration operations.
+type SourceRegistrationService interface {
+	// ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
+	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
 	// RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 	RegisterHTTPRoutes(
 		ctx context.Context,
@@ -61,6 +72,10 @@ type Service interface {
 	) error
 	// RegisterCrons registers callback-contributed cron jobs for source plugins.
 	RegisterCrons(ctx context.Context) error
+}
+
+// HookDispatchService defines plugin hook dispatch operations.
+type HookDispatchService interface {
 	// DispatchAfterAuth dispatches callback-style after-auth request handlers.
 	// It implements runtime.AfterAuthDispatcher.
 	DispatchAfterAuth(
@@ -74,6 +89,10 @@ type Service interface {
 		eventName pluginhost.ExtensionPoint,
 		payload map[string]interface{},
 	) error
+}
+
+// MenuFilterService defines menu filtering operations based on plugin state.
+type MenuFilterService interface {
 	// FilterMenus filters disabled plugin menus by menu_key prefix "plugin:<plugin-id>".
 	FilterMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
 	// FilterPermissionMenus filters permission menus based on plugin enablement and plugin-defined permission visibility.
@@ -88,12 +107,24 @@ type Service interface {
 		hook *catalog.HookSpec,
 		payload map[string]interface{},
 	) error
+}
+
+// DependencyWiringService defines provider wiring operations required by integration runtime.
+type DependencyWiringService interface {
 	// SetBizCtxProvider wires the business-context provider used by route handlers.
 	SetBizCtxProvider(p BizCtxProvider)
 	// SetTopologyProvider wires the cluster-topology provider used by plugin integrations.
 	SetTopologyProvider(t TopologyProvider)
+}
+
+// PluginStateService defines plugin enablement lookup operations.
+type PluginStateService interface {
 	// IsEnabled reports whether the plugin with the given ID is currently installed and enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
+}
+
+// MenuSyncService defines plugin menu synchronization operations.
+type MenuSyncService interface {
 	// SyncPluginMenusAndPermissions reconciles all manifest menus and dynamic route permission
 	// entries into sys_menu, then ensures the admin role has access to them.
 	// It implements runtime.MenuManager and catalog.MenuSyncer.
@@ -107,6 +138,10 @@ type Service interface {
 	DeletePluginMenusByManifest(ctx context.Context, manifest *catalog.Manifest) error
 	// ListPluginMenusByPlugin is the exported form of listPluginMenusByPlugin for cross-package access.
 	ListPluginMenusByPlugin(ctx context.Context, pluginID string) ([]*entity.SysMenu, error)
+}
+
+// ResourceReferenceService defines plugin resource-reference synchronization operations.
+type ResourceReferenceService interface {
 	// SyncPluginResourceReferences keeps sys_plugin_resource_ref aligned with the
 	// current governance resource index derived from the given manifest.
 	// It implements catalog.ResourceRefSyncer.
@@ -115,6 +150,19 @@ type Service interface {
 	ListPluginResourceRefs(ctx context.Context, pluginID string, releaseID int) ([]*entity.SysPluginResourceRef, error)
 	// BuildResourceRefDescriptors is the exported form of buildPluginResourceRefDescriptors for cross-package access.
 	BuildResourceRefDescriptors(manifest *catalog.Manifest) []*catalog.ResourceRefDescriptor
+}
+
+// Service defines the integration service contract by composing integration sub-capabilities.
+type Service interface {
+	BackendConfigService
+	ResourceQueryService
+	SourceRegistrationService
+	HookDispatchService
+	MenuFilterService
+	DependencyWiringService
+	PluginStateService
+	MenuSyncService
+	ResourceReferenceService
 }
 
 var _ Service = (*serviceImpl)(nil)
@@ -126,10 +174,17 @@ type serviceImpl struct {
 	bizCtxSvc BizCtxProvider
 
 	topology TopologyProvider
+
+	sourceRouteBindingsMu sync.RWMutex
+	sourceRouteBindings   map[string][]pluginhost.SourceRouteBinding
 }
 
+// New creates and returns a new integration Service.
 func New(catalogSvc catalog.Service) Service {
-	return &serviceImpl{catalogSvc: catalogSvc}
+	return &serviceImpl{
+		catalogSvc:          catalogSvc,
+		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
+	}
 }
 
 // SetBizCtxProvider wires the business-context provider used by route handlers.
@@ -149,6 +204,18 @@ func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 		return false
 	}
 	return registry.Installed == catalog.InstalledYes && registry.Status == catalog.StatusEnabled
+}
+
+// ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
+func (s *serviceImpl) ListSourceRouteBindings() []pluginhost.SourceRouteBinding {
+	s.sourceRouteBindingsMu.RLock()
+	defer s.sourceRouteBindingsMu.RUnlock()
+
+	items := make([]pluginhost.SourceRouteBinding, 0)
+	for _, bindings := range s.sourceRouteBindings {
+		items = append(items, pluginhost.CloneSourceRouteBindings(bindings)...)
+	}
+	return items
 }
 
 // buildFilterRuntime builds a filter runtime by scanning all manifests and loading
@@ -237,4 +304,12 @@ func (s *serviceImpl) buildPrimaryNodeChecker() pluginhost.PrimaryNodeChecker {
 		}
 		return s.topology.IsPrimaryNode()
 	}
+}
+
+// setSourceRouteBindings stores the latest host-captured route bindings for one
+// source plugin after registration completes.
+func (s *serviceImpl) setSourceRouteBindings(pluginID string, bindings []pluginhost.SourceRouteBinding) {
+	s.sourceRouteBindingsMu.Lock()
+	defer s.sourceRouteBindingsMu.Unlock()
+	s.sourceRouteBindings[strings.TrimSpace(pluginID)] = pluginhost.CloneSourceRouteBindings(bindings)
 }

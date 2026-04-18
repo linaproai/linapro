@@ -7,13 +7,16 @@ import (
 	"testing"
 )
 
+// TestGetLoggerUsesStructuredSwitch verifies the custom logger extension switch
+// is read from config content.
 func TestGetLoggerUsesStructuredSwitch(t *testing.T) {
 	setTestConfigContent(t, `
 logger:
   path: "/tmp/lina"
   file: "lina-{Y-m-d}.log"
   stdout: false
-  structured: true
+  extensions:
+    structured: true
 `)
 
 	cfg := New().GetLogger(context.Background())
@@ -27,11 +30,13 @@ logger:
 	if cfg.Stdout {
 		t.Fatal("expected stdout switch to be disabled")
 	}
-	if !cfg.Structured {
+	if !cfg.Extensions.Structured {
 		t.Fatal("expected structured logging switch to be enabled")
 	}
 }
 
+// TestGetLoggerUsesDefaultWhenSwitchMissing verifies logger defaults remain in
+// effect when the extension switch is not configured.
 func TestGetLoggerUsesDefaultWhenSwitchMissing(t *testing.T) {
 	setTestConfigContent(t, `
 logger:
@@ -49,7 +54,7 @@ logger:
 	if !cfg.Stdout {
 		t.Fatal("expected stdout switch to be enabled by default")
 	}
-	if cfg.Structured {
+	if cfg.Extensions.Structured {
 		t.Fatal("expected structured logging switch to be disabled by default")
 	}
 }

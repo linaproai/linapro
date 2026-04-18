@@ -16,9 +16,14 @@ import (
 	_ "lina-plugins"
 )
 
+// main loads bootstrap configuration, configures logging, and runs the command tree.
 func main() {
-	ctx := gctx.GetInitCtx()
-	logger.Configure(config.New().GetLogger(ctx).Structured)
+	var (
+		ctx          = gctx.GetInitCtx()
+		configSvc    = config.New()
+		loggerConfig = configSvc.GetLogger(ctx)
+	)
+	logger.Configure(loggerConfig.Extensions.Structured)
 
 	c, err := gcmd.NewFromObject(cmd.Main{})
 	if err != nil {

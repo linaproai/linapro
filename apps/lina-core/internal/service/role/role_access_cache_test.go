@@ -18,20 +18,24 @@ import (
 	"lina-core/internal/service/kvcache"
 )
 
+// fakeRoleConfigService provides deterministic config values for access-cache tests.
 type fakeRoleConfigService struct {
 	clusterEnabled bool
 	jwtExpire      time.Duration
 	sessionTimeout time.Duration
 }
 
+// GetCluster returns the cluster config used by the test service.
 func (f *fakeRoleConfigService) GetCluster(_ context.Context) *hostconfig.ClusterConfig {
 	return &hostconfig.ClusterConfig{Enabled: f.clusterEnabled}
 }
 
+// IsClusterEnabled reports the configured cluster mode for the test service.
 func (f *fakeRoleConfigService) IsClusterEnabled(_ context.Context) bool {
 	return f.clusterEnabled
 }
 
+// GetJwt returns a JWT config assembled from the test service fields.
 func (f *fakeRoleConfigService) GetJwt(_ context.Context) *hostconfig.JwtConfig {
 	return &hostconfig.JwtConfig{
 		Secret: "test-secret",
@@ -39,10 +43,12 @@ func (f *fakeRoleConfigService) GetJwt(_ context.Context) *hostconfig.JwtConfig 
 	}
 }
 
+// GetJwtSecret returns the fixed JWT secret used in tests.
 func (f *fakeRoleConfigService) GetJwtSecret(_ context.Context) string {
 	return "test-secret"
 }
 
+// GetJwtExpire returns the configured JWT expiration or the default test value.
 func (f *fakeRoleConfigService) GetJwtExpire(_ context.Context) time.Duration {
 	if f.jwtExpire > 0 {
 		return f.jwtExpire
@@ -50,42 +56,57 @@ func (f *fakeRoleConfigService) GetJwtExpire(_ context.Context) time.Duration {
 	return 24 * time.Hour
 }
 
+// GetPublicFrontend returns an empty frontend config for tests.
 func (f *fakeRoleConfigService) GetPublicFrontend(_ context.Context) *hostconfig.PublicFrontendConfig {
 	return &hostconfig.PublicFrontendConfig{}
 }
 
+// GetLogin returns an empty login config for tests.
 func (f *fakeRoleConfigService) GetLogin(_ context.Context) *hostconfig.LoginConfig {
 	return &hostconfig.LoginConfig{}
 }
 
+// IsLoginIPBlacklisted always reports false in tests.
 func (f *fakeRoleConfigService) IsLoginIPBlacklisted(_ context.Context, _ string) bool {
 	return false
 }
 
+// GetServerExtensions returns an empty server extensions config for tests.
+func (f *fakeRoleConfigService) GetServerExtensions(_ context.Context) *hostconfig.ServerExtensionsConfig {
+	return &hostconfig.ServerExtensionsConfig{}
+}
+
+// GetLogger returns an empty logger config for tests.
 func (f *fakeRoleConfigService) GetLogger(_ context.Context) *hostconfig.LoggerConfig {
 	return &hostconfig.LoggerConfig{}
 }
 
+// GetMetadata returns an empty metadata config for tests.
 func (f *fakeRoleConfigService) GetMetadata(_ context.Context) *hostconfig.MetadataConfig {
 	return &hostconfig.MetadataConfig{}
 }
 
+// GetMonitor returns an empty monitor config for tests.
 func (f *fakeRoleConfigService) GetMonitor(_ context.Context) *hostconfig.MonitorConfig {
 	return &hostconfig.MonitorConfig{}
 }
 
+// GetOpenApi returns an empty OpenAPI config for tests.
 func (f *fakeRoleConfigService) GetOpenApi(_ context.Context) *hostconfig.OpenApiConfig {
 	return &hostconfig.OpenApiConfig{}
 }
 
+// GetPlugin returns an empty plugin config for tests.
 func (f *fakeRoleConfigService) GetPlugin(_ context.Context) *hostconfig.PluginConfig {
 	return &hostconfig.PluginConfig{}
 }
 
+// GetPluginDynamicStoragePath returns an empty dynamic storage path for tests.
 func (f *fakeRoleConfigService) GetPluginDynamicStoragePath(_ context.Context) string {
 	return ""
 }
 
+// GetSession returns a session config assembled from the test service fields.
 func (f *fakeRoleConfigService) GetSession(_ context.Context) *hostconfig.SessionConfig {
 	return &hostconfig.SessionConfig{
 		Timeout:         f.GetSessionTimeout(context.Background()),
@@ -93,6 +114,7 @@ func (f *fakeRoleConfigService) GetSession(_ context.Context) *hostconfig.Sessio
 	}
 }
 
+// GetSessionTimeout returns the configured session timeout or the default test value.
 func (f *fakeRoleConfigService) GetSessionTimeout(_ context.Context) time.Duration {
 	if f.sessionTimeout > 0 {
 		return f.sessionTimeout
@@ -100,28 +122,35 @@ func (f *fakeRoleConfigService) GetSessionTimeout(_ context.Context) time.Durati
 	return 24 * time.Hour
 }
 
+// GetUpload returns an empty upload config for tests.
 func (f *fakeRoleConfigService) GetUpload(_ context.Context) *hostconfig.UploadConfig {
 	return &hostconfig.UploadConfig{}
 }
 
+// GetUploadPath returns an empty upload path for tests.
 func (f *fakeRoleConfigService) GetUploadPath(_ context.Context) string {
 	return ""
 }
 
+// GetUploadMaxSize returns zero because upload size is irrelevant to these tests.
 func (f *fakeRoleConfigService) GetUploadMaxSize(_ context.Context) int64 {
 	return 0
 }
 
+// MarkRuntimeParamsChanged is a no-op success stub for tests.
 func (f *fakeRoleConfigService) MarkRuntimeParamsChanged(_ context.Context) error {
 	return nil
 }
 
+// NotifyRuntimeParamsChanged is a no-op stub for tests.
 func (f *fakeRoleConfigService) NotifyRuntimeParamsChanged(_ context.Context) {}
 
+// SyncRuntimeParamSnapshot is a no-op success stub for tests.
 func (f *fakeRoleConfigService) SyncRuntimeParamSnapshot(_ context.Context) error {
 	return nil
 }
 
+// fakeKVCacheService tracks minimal cache interactions needed by access-cache tests.
 type fakeKVCacheService struct {
 	getIntValue int64
 	getIntErr   error
@@ -129,6 +158,7 @@ type fakeKVCacheService struct {
 	incrCalls   int32
 }
 
+// Get returns no cached string item because these tests only exercise int revision paths.
 func (f *fakeKVCacheService) Get(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -137,6 +167,7 @@ func (f *fakeKVCacheService) Get(
 	return nil, false, nil
 }
 
+// GetInt returns the configured revision value and tracks read calls.
 func (f *fakeKVCacheService) GetInt(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -146,6 +177,7 @@ func (f *fakeKVCacheService) GetInt(
 	return f.getIntValue, true, f.getIntErr
 }
 
+// Set is a no-op success stub for tests that do not inspect string values.
 func (f *fakeKVCacheService) Set(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -156,6 +188,7 @@ func (f *fakeKVCacheService) Set(
 	return nil, nil
 }
 
+// Delete is a no-op success stub for tests.
 func (f *fakeKVCacheService) Delete(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -164,6 +197,7 @@ func (f *fakeKVCacheService) Delete(
 	return nil
 }
 
+// Incr returns the configured integer value and tracks increment calls.
 func (f *fakeKVCacheService) Incr(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -175,6 +209,7 @@ func (f *fakeKVCacheService) Incr(
 	return &kvcache.Item{IntValue: f.getIntValue}, nil
 }
 
+// Expire is a no-op stub because expiration is not exercised by these tests.
 func (f *fakeKVCacheService) Expire(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -184,10 +219,13 @@ func (f *fakeKVCacheService) Expire(
 	return false, nil, nil
 }
 
+// CleanupExpired is a no-op success stub for tests.
 func (f *fakeKVCacheService) CleanupExpired(_ context.Context) error {
 	return nil
 }
 
+// resetRoleAccessCacheTestState clears process-local access cache state before
+// and after each test case.
 func resetRoleAccessCacheTestState(t *testing.T, svc *serviceImpl) {
 	t.Helper()
 
@@ -202,6 +240,8 @@ func resetRoleAccessCacheTestState(t *testing.T, svc *serviceImpl) {
 	})
 }
 
+// setAccessRevisionControllerForTest swaps the service revision controller with
+// one built from the supplied test configuration.
 func setAccessRevisionControllerForTest(
 	svc *serviceImpl,
 	clusterEnabled bool,
@@ -210,6 +250,8 @@ func setAccessRevisionControllerForTest(
 	svc.accessRevisionCtrl = newAccessRevisionController(clusterEnabled, kvCacheSvc)
 }
 
+// TestNewAccessRevisionControllerSelectsByClusterMode verifies controller
+// selection switches between local and cluster implementations.
 func TestNewAccessRevisionControllerSelectsByClusterMode(t *testing.T) {
 	if _, ok := newAccessRevisionController(
 		false,
@@ -226,6 +268,8 @@ func TestNewAccessRevisionControllerSelectsByClusterMode(t *testing.T) {
 	}
 }
 
+// TestTokenAccessContextCacheLifecycle verifies token cache reads, invalidation,
+// and revision mismatch eviction.
 func TestTokenAccessContextCacheLifecycle(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
@@ -266,6 +310,8 @@ func TestTokenAccessContextCacheLifecycle(t *testing.T) {
 	}
 }
 
+// TestInvalidateUserAccessContextsRemovesBoundTokensOnly verifies per-user
+// invalidation clears only the target user's cached token entries.
 func TestInvalidateUserAccessContextsRemovesBoundTokensOnly(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
@@ -292,6 +338,8 @@ func TestInvalidateUserAccessContextsRemovesBoundTokensOnly(t *testing.T) {
 	}
 }
 
+// TestCloneUserAccessContextCopiesSlices verifies cloned access contexts do not
+// share slice backing storage with the original value.
 func TestCloneUserAccessContextCopiesSlices(t *testing.T) {
 	original := &UserAccessContext{
 		RoleIds:      []int{1, 2},
@@ -329,6 +377,8 @@ func TestCloneUserAccessContextCopiesSlices(t *testing.T) {
 	}
 }
 
+// TestCloneSliceWithCopyPreservesNilAndValues verifies the generic slice clone
+// helper preserves nil semantics and copies values to a new backing array.
 func TestCloneSliceWithCopyPreservesNilAndValues(t *testing.T) {
 	if cloned := cloneSliceWithCopy[int](nil); cloned != nil {
 		t.Fatalf("expected nil clone for nil slice, got %#v", cloned)
@@ -344,6 +394,8 @@ func TestCloneSliceWithCopyPreservesNilAndValues(t *testing.T) {
 	}
 }
 
+// TestGetAccessRevisionUsesPureReadPath verifies reading the cluster revision
+// does not trigger mutation operations and benefits from local caching.
 func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
@@ -380,6 +432,8 @@ func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
 	}
 }
 
+// TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged verifies cache
+// contents survive synchronization when the shared revision is unchanged.
 func TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
@@ -407,6 +461,8 @@ func TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged(t *testing.T)
 	}
 }
 
+// TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges verifies stale
+// cached access contexts are evicted after a revision change is observed.
 func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
@@ -442,6 +498,8 @@ func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) 
 	}
 }
 
+// TestSingleNodeAccessRevisionStaysLocal verifies single-node mode maintains
+// revisions locally without calling the shared KV cache.
 func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)
@@ -485,6 +543,8 @@ func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	}
 }
 
+// TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads verifies one
+// cold load is shared across concurrent cache misses.
 func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.T) {
 	ctx := context.Background()
 	svc := New().(*serviceImpl)

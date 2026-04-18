@@ -11,7 +11,6 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/net/goai"
 	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/internal/controller/auth"
@@ -31,6 +30,7 @@ import (
 	"lina-core/internal/controller/user"
 	"lina-core/internal/controller/usermsg"
 	"lina-core/internal/packed"
+	"lina-core/internal/service/apidoc"
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/cron"
@@ -40,9 +40,12 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// HttpInput defines CLI input for the HTTP startup command.
 type HttpInput struct {
 	g.Meta `name:"http" brief:"start http server"`
 }
+
+// HttpOutput is the CLI output placeholder for the HTTP startup command.
 type HttpOutput struct{}
 
 // Http bootstraps the host HTTP server, static API routes, plugin routes, and
@@ -70,6 +73,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		clusterCfg = configSvc.GetCluster(ctx)
 		clusterSvc = cluster.New(clusterCfg)
 		pluginSvc  = pluginsvc.New(clusterSvc)
+		apiDocSvc  = apidoc.New(configSvc, pluginSvc)
 	)
 
 	var (
@@ -82,16 +86,16 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	var (
 		sessionCfg = configSvc.GetSession(ctx)
 		monCfg     = configSvc.GetMonitor(ctx)
+		serverCfg  = configSvc.GetServerExtensions(ctx)
 		cronSvc    = cron.New(sessionCfg, monCfg, middlewareSvc.SessionStore(), clusterSvc)
 		uploadPath = configSvc.GetUploadPath(ctx)
 	)
-
 	clusterSvc.Start(ctx)
+
 	// Start all cron jobs (session cleanup, server monitor, etc.)
 	cronSvc.Start(ctx)
 
-	// Enhance OpenAPI documentation with config values and JWT security scheme.
-	m.enhanceOpenAPIDocs(ctx, s, configSvc, pluginSvc)
+	m.bindHostedOpenAPIDocs(ctx, s, apiDocSvc, serverCfg.ApiDocPath)
 
 	// =============================================================================================
 	// Dynamic routes registering.
@@ -261,52 +265,38 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	return
 }
 
-// enhanceOpenAPIDocs enriches the generated OpenAPI document with configured
-// metadata, bearer security, and currently enabled dynamic plugin routes.
-func (m *Main) enhanceOpenAPIDocs(
-	ctx context.Context,
+// bindHostedOpenAPIDocs disables the GoFrame built-in OpenAPI and Swagger
+// endpoints, then binds the host-managed OpenAPI JSON handler at the configured path.
+func (m *Main) bindHostedOpenAPIDocs(
+	_ context.Context,
 	server *ghttp.Server,
-	configSvc config.Service,
-	pluginSvc pluginsvc.Service,
+	apiDocSvc apidoc.Service,
+	apiDocPath string,
 ) {
-	// Set OpenAPI info from configuration
-	oaiCfg := configSvc.GetOpenApi(ctx)
-	oai := server.GetOpenApi()
-	oai.Info.Title = oaiCfg.Title
-	oai.Info.Description = oaiCfg.Description
-	oai.Info.Version = oaiCfg.Version
-	oai.Config.CommonResponse = ghttp.DefaultHandlerResponse{}
-	oai.Config.CommonResponseDataField = "Data"
+	if server == nil {
+		return
+	}
 
-	// Set API server URL so documentation shows the correct backend address
-	if oaiCfg.ServerUrl != "" {
-		oai.Servers = &goai.Servers{
-			{
-				URL:         oaiCfg.ServerUrl,
-				Description: oaiCfg.ServerDescription,
-			},
+	server.SetOpenApiPath("")
+	server.SetSwaggerPath("")
+
+	apiDocPath = strings.TrimSpace(apiDocPath)
+	if apiDocPath == "" || apiDocSvc == nil {
+		return
+	}
+
+	server.BindHandler(apiDocPath, func(r *ghttp.Request) {
+		document, err := apiDocSvc.Build(r.Context(), server)
+		if err != nil {
+			logger.Warningf(r.Context(), "build hosted OpenAPI document failed: %v", err)
+			r.Response.WriteStatus(http.StatusInternalServerError)
+			r.Response.Write("build hosted OpenAPI document failed")
+			r.ExitAll()
+			return
 		}
-	}
-
-	// Add JWT Bearer security scheme for API documentation
-	oai.Components.SecuritySchemes = goai.SecuritySchemes{
-		"BearerAuth": goai.SecuritySchemeRef{
-			Value: &goai.SecurityScheme{
-				Type:         "http",
-				Scheme:       "bearer",
-				BearerFormat: "JWT",
-				Description:  "JWT Bearer Token Authentication",
-				In:           "header",
-				Name:         "Authorization",
-			},
-		},
-	}
-	oai.Security = &goai.SecurityRequirements{
-		{"BearerAuth": {}},
-	}
-	if err := pluginSvc.ProjectDynamicRoutesToOpenAPI(ctx, oai.Paths); err != nil {
-		logger.Warningf(ctx, "project dynamic plugin routes to OpenAPI failed: %v", err)
-	}
+		r.Response.WriteJson(document)
+		r.ExitAll()
+	})
 }
 
 // parsePluginAssetRequestPath splits one public `/plugin-assets/...` request

@@ -1,7 +1,66 @@
+// This file verifies hosted OpenAPI binding and plugin asset path parsing.
+
 package cmd
 
-import "testing"
+import (
+	"context"
+	"reflect"
+	"testing"
+	"unsafe"
 
+	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/net/goai"
+)
+
+// fakeApiDocService is the apidoc stub used by hosted OpenAPI binding tests.
+type fakeApiDocService struct {
+	document *goai.OpenApiV3
+}
+
+// Build returns the preconfigured OpenAPI document for hosted-doc binding tests.
+func (f *fakeApiDocService) Build(_ context.Context, _ *ghttp.Server) (*goai.OpenApiV3, error) {
+	return f.document, nil
+}
+
+// TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath
+// verifies the host-owned OpenAPI route replaces the built-in GoFrame endpoints.
+func TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath(t *testing.T) {
+	server := ghttp.GetServer("cmd-http-bind-openapi-" + t.Name())
+	server.SetOpenApiPath("/legacy-api.json")
+	server.SetSwaggerPath("/swagger")
+
+	mainCmd := &Main{}
+	mainCmd.bindHostedOpenAPIDocs(
+		context.Background(),
+		server,
+		&fakeApiDocService{document: &goai.OpenApiV3{}},
+		"/api.json",
+	)
+
+	if server.GetOpenApiPath() != "" {
+		t.Fatalf("expected built-in openapi path to be cleared, got %q", server.GetOpenApiPath())
+	}
+
+	configValue := reflect.ValueOf(server).Elem().FieldByName("config")
+	swaggerPath := unsafeFieldString(configValue.FieldByName("SwaggerPath"))
+	if swaggerPath != "" {
+		t.Fatalf("expected built-in swagger path to be cleared, got %q", swaggerPath)
+	}
+
+	foundHostedRoute := false
+	for _, route := range server.GetRoutes() {
+		if route.Route == "/api.json" {
+			foundHostedRoute = true
+			break
+		}
+	}
+	if !foundHostedRoute {
+		t.Fatal("expected hosted OpenAPI route to be bound at /api.json")
+	}
+}
+
+// TestParsePluginAssetRequestPath verifies hosted runtime asset URLs are parsed
+// into plugin ID, version, and relative asset path segments.
 func TestParsePluginAssetRequestPath(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -64,4 +123,9 @@ func TestParsePluginAssetRequestPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+// unsafeFieldString reads an unexported string field value for test assertions.
+func unsafeFieldString(value reflect.Value) string {
+	return reflect.NewAt(value.Type(), unsafe.Pointer(value.UnsafeAddr())).Elem().String()
 }
