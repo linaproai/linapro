@@ -4,6 +4,7 @@ package jobmgmt
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -160,6 +161,143 @@ func TestCreateJobValidatesTimeoutAndConcurrency(t *testing.T) {
 	}
 }
 
+// TestCreateJobRejectsInvalidCronAndManagedStatus verifies save-time validation
+// rejects unsupported cron formats, managed status values, and invalid runtime fields.
+func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
+	var (
+		ctx       = context.Background()
+		svc       = newTestService(t)
+		defaultID = defaultGroupID(t, ctx)
+	)
+
+	testCases := []struct {
+		name        string
+		input       SaveJobInput
+		wantMessage string
+	}{
+		{
+			name: "unsupported cron field count",
+			input: SaveJobInput{
+				GroupID:        defaultID,
+				Name:           uniqueTestName("invalid-cron-count"),
+				TaskType:       jobmeta.TaskTypeHandler,
+				HandlerRef:     "host:cleanup-job-logs",
+				Params:         map[string]any{},
+				Timeout:        5 * time.Minute,
+				CronExpr:       "* * * *",
+				Timezone:       "Asia/Shanghai",
+				Scope:          jobmeta.JobScopeMasterOnly,
+				Concurrency:    jobmeta.JobConcurrencySingleton,
+				MaxConcurrency: 1,
+				Status:         jobmeta.JobStatusDisabled,
+			},
+			wantMessage: "定时表达式仅支持5段或6段",
+		},
+		{
+			name: "manual hash seconds placeholder",
+			input: SaveJobInput{
+				GroupID:        defaultID,
+				Name:           uniqueTestName("invalid-cron-hash"),
+				TaskType:       jobmeta.TaskTypeHandler,
+				HandlerRef:     "host:cleanup-job-logs",
+				Params:         map[string]any{},
+				Timeout:        5 * time.Minute,
+				CronExpr:       "# 17 3 * * *",
+				Timezone:       "Asia/Shanghai",
+				Scope:          jobmeta.JobScopeMasterOnly,
+				Concurrency:    jobmeta.JobConcurrencySingleton,
+				MaxConcurrency: 1,
+				Status:         jobmeta.JobStatusDisabled,
+			},
+			wantMessage: "秒位必须填写具体值",
+		},
+		{
+			name: "timezone must be valid",
+			input: SaveJobInput{
+				GroupID:        defaultID,
+				Name:           uniqueTestName("invalid-timezone"),
+				TaskType:       jobmeta.TaskTypeHandler,
+				HandlerRef:     "host:cleanup-job-logs",
+				Params:         map[string]any{},
+				Timeout:        5 * time.Minute,
+				CronExpr:       "*/5 * * * *",
+				Timezone:       "Mars/Phobos",
+				Scope:          jobmeta.JobScopeMasterOnly,
+				Concurrency:    jobmeta.JobConcurrencySingleton,
+				MaxConcurrency: 1,
+				Status:         jobmeta.JobStatusDisabled,
+			},
+			wantMessage: "任务时区不合法",
+		},
+		{
+			name: "status is system managed",
+			input: SaveJobInput{
+				GroupID:        defaultID,
+				Name:           uniqueTestName("invalid-status"),
+				TaskType:       jobmeta.TaskTypeHandler,
+				HandlerRef:     "host:cleanup-job-logs",
+				Params:         map[string]any{},
+				Timeout:        5 * time.Minute,
+				CronExpr:       "*/5 * * * *",
+				Timezone:       "Asia/Shanghai",
+				Scope:          jobmeta.JobScopeMasterOnly,
+				Concurrency:    jobmeta.JobConcurrencySingleton,
+				MaxConcurrency: 1,
+				Status:         jobmeta.JobStatusPausedByPlugin,
+			},
+			wantMessage: "任务状态仅支持enabled或disabled",
+		},
+		{
+			name: "timeout must use whole seconds",
+			input: SaveJobInput{
+				GroupID:        defaultID,
+				Name:           uniqueTestName("invalid-timeout-seconds"),
+				TaskType:       jobmeta.TaskTypeHandler,
+				HandlerRef:     "host:cleanup-job-logs",
+				Params:         map[string]any{},
+				Timeout:        1500 * time.Millisecond,
+				CronExpr:       "*/5 * * * *",
+				Timezone:       "Asia/Shanghai",
+				Scope:          jobmeta.JobScopeMasterOnly,
+				Concurrency:    jobmeta.JobConcurrencySingleton,
+				MaxConcurrency: 1,
+				Status:         jobmeta.JobStatusDisabled,
+			},
+			wantMessage: "任务超时时间必须按秒配置",
+		},
+		{
+			name: "parallel max concurrency upper bound",
+			input: SaveJobInput{
+				GroupID:        defaultID,
+				Name:           uniqueTestName("invalid-max-concurrency"),
+				TaskType:       jobmeta.TaskTypeHandler,
+				HandlerRef:     "host:cleanup-job-logs",
+				Params:         map[string]any{},
+				Timeout:        5 * time.Minute,
+				CronExpr:       "*/5 * * * *",
+				Timezone:       "Asia/Shanghai",
+				Scope:          jobmeta.JobScopeMasterOnly,
+				Concurrency:    jobmeta.JobConcurrencyParallel,
+				MaxConcurrency: 101,
+				Status:         jobmeta.JobStatusDisabled,
+			},
+			wantMessage: "最大并发数必须为1-100之间的整数",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.CreateJob(ctx, tc.input)
+			if err == nil {
+				t.Fatalf("expected CreateJob to reject %s", tc.name)
+			}
+			if !strings.Contains(err.Error(), tc.wantMessage) {
+				t.Fatalf("expected error to contain %q, got %v", tc.wantMessage, err)
+			}
+		})
+	}
+}
+
 // TestPreviewCronSupportsFiveFieldAndTimezone verifies cron preview accepts 5-field expressions and applies the requested timezone.
 func TestPreviewCronSupportsFiveFieldAndTimezone(t *testing.T) {
 	var (
@@ -183,6 +321,46 @@ func TestPreviewCronSupportsFiveFieldAndTimezone(t *testing.T) {
 		}
 		if i > 0 && !item.After(times[i-1]) {
 			t.Fatalf("expected preview times to be strictly increasing, got %s then %s", times[i-1], item)
+		}
+	}
+}
+
+// TestPreviewCronRejectsInvalidFormats verifies preview shares the strict cron validation rules.
+func TestPreviewCronRejectsInvalidFormats(t *testing.T) {
+	var (
+		ctx = context.Background()
+		svc = newTestService(t)
+	)
+
+	testCases := []struct {
+		expr        string
+		timezone    string
+		wantMessage string
+	}{
+		{
+			expr:        "* * * *",
+			timezone:    "UTC",
+			wantMessage: "定时表达式仅支持5段或6段",
+		},
+		{
+			expr:        "# 17 3 * * *",
+			timezone:    "UTC",
+			wantMessage: "秒位必须填写具体值",
+		},
+		{
+			expr:        "17 3 * * *",
+			timezone:    "Invalid/Timezone",
+			wantMessage: "任务时区不合法",
+		},
+	}
+
+	for _, tc := range testCases {
+		_, err := svc.PreviewCron(ctx, tc.expr, tc.timezone)
+		if err == nil {
+			t.Fatalf("expected PreviewCron(%q, %q) to fail", tc.expr, tc.timezone)
+		}
+		if !strings.Contains(err.Error(), tc.wantMessage) {
+			t.Fatalf("expected error to contain %q, got %v", tc.wantMessage, err)
 		}
 	}
 }

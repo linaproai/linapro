@@ -26,7 +26,7 @@ type JobPayload struct {
 	Concurrency          string              `json:"concurrency" d:"singleton" v:"required|in:singleton,parallel" dc:"并发策略：singleton=单例 parallel=并行" eg:"singleton"`
 	MaxConcurrency       int                 `json:"maxConcurrency" d:"1" v:"min:1|max:100" dc:"最大并发数；concurrency=parallel 时生效" eg:"1"`
 	MaxExecutions        int                 `json:"maxExecutions" d:"0" v:"min:0" dc:"最大执行次数：0=无限制" eg:"0"`
-	Status               string              `json:"status" d:"disabled" v:"required|in:enabled,disabled,paused_by_plugin" dc:"任务状态：enabled=启用 disabled=停用 paused_by_plugin=插件处理器不可用" eg:"enabled"`
+	Status               string              `json:"status" d:"disabled" v:"required|in:enabled,disabled" dc:"任务状态：enabled=启用 disabled=停用；paused_by_plugin 为系统托管状态，不允许创建或编辑时写入" eg:"enabled"`
 	LogRetentionOverride *LogRetentionOption `json:"logRetentionOverride" dc:"任务级日志保留策略；不传则跟随系统参数 cron.log.retention" eg:"{\"mode\":\"days\",\"value\":60}"`
 }
 

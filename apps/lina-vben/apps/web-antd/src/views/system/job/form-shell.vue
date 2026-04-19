@@ -173,11 +173,13 @@ defineExpose({
 
 <template>
   <div class="space-y-4" data-testid="job-form-shell">
-    <Alert
-      message="Shell 任务会在宿主节点直接执行，请严格控制命令内容和环境变量。"
-      show-icon
-      type="warning"
-    />
+    <div class="py-[5px]" data-testid="job-shell-warning-alert">
+      <Alert
+        message="Shell 任务会在宿主节点直接执行，请严格控制命令内容和环境变量。"
+        show-icon
+        type="warning"
+      />
+    </div>
     <Form />
 
     <div class="rounded-md border border-border px-4 py-4">

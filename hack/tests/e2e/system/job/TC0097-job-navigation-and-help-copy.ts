@@ -8,10 +8,13 @@ import {
   createAdminApiContext,
   createJob,
   expectSuccess,
+  getConfigByKey,
   getAccessibleMenus,
   getDefaultGroup,
   listLogs,
+  setCronShellEnabled,
   type AccessibleMenuNode,
+  updateConfigValue,
 } from "./helpers";
 
 function findMenuByTitle(
@@ -47,9 +50,12 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
 
   let api: APIRequestContext;
   let jobId = 0;
+  let originalShellSwitch: { id: number; value: string } | null = null;
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
+    originalShellSwitch = await getConfigByKey(api, "cron.shell.enabled");
+    await setCronShellEnabled(api, true);
 
     const defaultGroup = await getDefaultGroup(api);
     const created = await createJob(
@@ -70,10 +76,17 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
     if (jobId) {
       await api.delete(`job/${jobId}`);
     }
+    if (originalShellSwitch) {
+      await updateConfigValue(
+        api,
+        originalShellSwitch.id,
+        originalShellSwitch.value,
+      );
+    }
     await api.dispose();
   });
 
-  test("TC-97a~i: 菜单分组、代码化表达式、帮助提示、内置任务说明与停用任务立即执行应清晰可理解", async ({
+  test("TC-97a~l: 菜单分组、代码化表达式、帮助提示、表单校验、Shell 提示间距与停用任务立即执行应清晰可理解", async ({
     adminPage,
   }) => {
     const accessibleMenus = await getAccessibleMenus(api);
@@ -163,6 +176,35 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
     await expect(
       await jobPage.isTooltipVisible("设置为 0 表示不限制执行次数"),
     ).toBe(true);
+
+    const cronEditor = await jobPage.getCronEditorMetrics();
+    expect(cronEditor.fontFamily.toLowerCase()).toContain("monospace");
+    expect(cronEditor.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(cronEditor.borderRadius).not.toBe("0px");
+
+    await jobPage.fillCommonFields({
+      cronExpr: "* * * *",
+      name: `${jobName}_invalid_cron`,
+    });
+    await jobPage.selectHandler("任务日志清理 (host:cleanup-job-logs)");
+    await jobPage.save();
+    await expect(
+      jobPage.messageNotice("定时表达式仅支持 5 段或 6 段"),
+    ).toBeVisible();
+
+    await jobPage.fillCommonFields({
+      cronExpr: "17 3 * * *",
+      timezone: "Mars/Phobos",
+    });
+    await jobPage.save();
+    await expect(jobPage.messageNotice("任务时区不合法")).toBeVisible();
+
+    await jobPage.selectTaskTab("Shell");
+    const shellWarningPadding = await jobPage.getElementVerticalPadding(
+      "job-shell-warning-alert",
+    );
+    expect(shellWarningPadding.paddingTop).toBeGreaterThanOrEqual(5);
+    expect(shellWarningPadding.paddingBottom).toBeGreaterThanOrEqual(5);
 
     await jobPage.closeDialog();
 

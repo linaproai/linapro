@@ -267,47 +267,48 @@ func (s *serviceImpl) normalizeJobRecord(
 	if name == "" {
 		return do.SysJob{}, gerror.New("任务名称不能为空")
 	}
+	if len(name) > 128 {
+		return do.SysJob{}, gerror.New("任务名称长度不能超过128个字符")
+	}
+	if in.Timeout%time.Second != 0 {
+		return do.SysJob{}, gerror.New("任务超时时间必须按秒配置")
+	}
 	if in.Timeout <= 0 {
-		return do.SysJob{}, gerror.New("任务超时时间必须大于0")
+		return do.SysJob{}, gerror.New("任务超时时间必须在1-86400秒之间")
 	}
 	if in.Timeout > 24*time.Hour {
-		return do.SysJob{}, gerror.New("任务超时时间不能超过24小时")
+		return do.SysJob{}, gerror.New("任务超时时间必须在1-86400秒之间")
 	}
-	if strings.TrimSpace(in.CronExpr) == "" {
-		return do.SysJob{}, gerror.New("Cron 表达式不能为空")
+	cronExpr, _, err := normalizeCronExpression(in.CronExpr)
+	if err != nil {
+		return do.SysJob{}, err
 	}
-	timezone := strings.TrimSpace(in.Timezone)
-	if timezone == "" {
-		timezone = "Asia/Shanghai"
-	}
-	if _, err = time.LoadLocation(timezone); err != nil {
-		return do.SysJob{}, gerror.Wrap(err, "任务时区不合法")
-	}
-	if _, err = s.PreviewCron(ctx, in.CronExpr, timezone); err != nil {
+	timezone, _, err := normalizeJobTimezone(in.Timezone)
+	if err != nil {
 		return do.SysJob{}, err
 	}
 	if !in.TaskType.IsValid() {
-		return do.SysJob{}, gerror.New("任务类型不受支持")
+		return do.SysJob{}, gerror.New("任务类型仅支持handler或shell")
 	}
 	if !in.Scope.IsValid() {
-		return do.SysJob{}, gerror.New("任务调度范围不受支持")
+		return do.SysJob{}, gerror.New("任务调度范围仅支持master_only或all_node")
 	}
 	if !in.Concurrency.IsValid() {
-		return do.SysJob{}, gerror.New("任务并发策略不受支持")
+		return do.SysJob{}, gerror.New("任务并发策略仅支持singleton或parallel")
 	}
 	if !in.Status.IsValid() || in.Status == jobmeta.JobStatusPausedByPlugin {
-		return do.SysJob{}, gerror.New("任务状态不受支持")
+		return do.SysJob{}, gerror.New("任务状态仅支持enabled或disabled")
 	}
 	if in.MaxExecutions < 0 {
-		return do.SysJob{}, gerror.New("最大执行次数不能小于0")
+		return do.SysJob{}, gerror.New("最大执行次数必须为大于等于0的整数")
 	}
 
 	maxConcurrency := in.MaxConcurrency
 	if in.Concurrency == jobmeta.JobConcurrencySingleton {
 		maxConcurrency = 1
 	}
-	if maxConcurrency <= 0 {
-		return do.SysJob{}, gerror.New("最大并发数必须大于0")
+	if maxConcurrency <= 0 || maxConcurrency > 100 {
+		return do.SysJob{}, gerror.New("最大并发数必须为1-100之间的整数")
 	}
 
 	paramsJSON := ""
@@ -371,7 +372,7 @@ func (s *serviceImpl) normalizeJobRecord(
 		ShellCmd:             shellCmd,
 		WorkDir:              workDir,
 		Env:                  envJSON,
-		CronExpr:             strings.TrimSpace(in.CronExpr),
+		CronExpr:             cronExpr,
 		Timezone:             timezone,
 		Scope:                string(in.Scope),
 		Concurrency:          string(in.Concurrency),

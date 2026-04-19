@@ -22,7 +22,7 @@ function renderJobHelpContent(content: string) {
     );
 }
 
-const jobCronCodeContainerStyle: CSSProperties = {
+export const JOB_CRON_CODE_CONTAINER_STYLE: CSSProperties = {
   background: 'var(--ant-color-fill-tertiary, #f5f5f5)',
   border: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
   borderRadius: '8px',
@@ -35,7 +35,7 @@ const jobCronCodeContainerStyle: CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-const jobCronCodeFieldStyle: CSSProperties = {
+export const JOB_CRON_CODE_FIELD_STYLE: CSSProperties = {
   alignItems: 'center',
   background: 'var(--ant-color-bg-container, #ffffff)',
   borderRadius: '6px',
@@ -87,7 +87,7 @@ export const JOB_CONCURRENCY_FIELD_HELP = renderJobHelpContent(
   '单例执行：本节点已有实例运行时，新触发会跳过。\n允许并行执行：本节点可同时运行多个实例，并受“最大并发”限制。',
 );
 
-function getCronTokenStyle(token: string): CSSProperties {
+export function getJobCronTokenStyle(token: string): CSSProperties {
   if (/^\d+$/.test(token)) {
     return {
       color: '#1677ff',
@@ -122,16 +122,27 @@ function getCronTokenStyle(token: string): CSSProperties {
   };
 }
 
+export function splitJobCronFields(expr?: string) {
+  const trimmedExpr = (expr || '').trim();
+  if (!trimmedExpr) {
+    return [];
+  }
+  return trimmedExpr.split(/\s+/);
+}
+
+export function splitJobCronSegments(field: string) {
+  return field.match(/(\d+|#|\*|[A-Za-z]+|[,/?LW-]+|\S)/g) || [field];
+}
+
 function renderCronFieldTokens(field: string, fieldIndex: number): VNodeChild[] {
-  const segments =
-    field.match(/(\d+|#|\*|[A-Za-z]+|[,/?LW-]+|\S)/g) || [field];
+  const segments = splitJobCronSegments(field);
 
   return segments.map((segment, segmentIndex) =>
     h(
       'span',
       {
         key: `cron-token-${fieldIndex}-${segmentIndex}`,
-        style: getCronTokenStyle(segment),
+        style: getJobCronTokenStyle(segment),
       },
       segment,
     ),
@@ -142,12 +153,11 @@ export function renderJobCronExpression(
   expr?: string,
   attrs?: Record<string, any>,
 ) {
-  const trimmedExpr = (expr || '').trim();
-  if (!trimmedExpr) {
+  const fields = splitJobCronFields(expr);
+  if (fields.length === 0) {
     return '-';
   }
 
-  const fields = trimmedExpr.split(/\s+/);
   const codeChildren: Array<string | VNodeChild> = [];
   for (const [fieldIndex, field] of fields.entries()) {
     if (fieldIndex > 0) {
@@ -158,7 +168,7 @@ export function renderJobCronExpression(
         'span',
         {
           key: `cron-field-${fieldIndex}`,
-          style: jobCronCodeFieldStyle,
+          style: JOB_CRON_CODE_FIELD_STYLE,
         },
         renderCronFieldTokens(field, fieldIndex),
       ),
@@ -169,8 +179,8 @@ export function renderJobCronExpression(
     'code',
     {
       ...attrs,
-      style: jobCronCodeContainerStyle,
-      title: trimmedExpr,
+      style: JOB_CRON_CODE_CONTAINER_STYLE,
+      title: fields.join(' '),
     },
     codeChildren,
   );

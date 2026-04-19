@@ -63,6 +63,7 @@ const COMMON_TIMEZONE_OPTIONS = [
   'America/New_York',
   'America/Los_Angeles',
 ] as const;
+const JOB_FORM_STATUS_OPTIONS = ['enabled', 'disabled'] as const;
 
 const { hasAccessByCodes } = useAccess();
 
@@ -183,6 +184,8 @@ function buildCommonSchema(
     {
       component: 'Input',
       componentProps: {
+        'aria-label': '定时表达式',
+        'data-testid': 'job-cron-editor',
         autocomplete: 'off',
         class: 'job-cron-code-input',
         placeholder: '支持 5 段或 6 段，如 17 3 * * *',
@@ -460,7 +463,9 @@ async function handlePreviewCron() {
   cronPreviewError.value = '';
   try {
     const values = await commonFormApi.getValues<Record<string, any>>();
-    const preview = await jobCronPreview(values.cronExpr, values.timezone);
+    const cronExpr = ensureCronExpressionValue(values.cronExpr);
+    const timezone = ensureTimezoneValue(values.timezone);
+    const preview = await jobCronPreview(cronExpr, timezone);
     cronPreviewTimes.value = preview.times || [];
   } catch (error) {
     cronPreviewTimes.value = [];
@@ -490,16 +495,161 @@ function buildRetentionOverride(values: Record<string, any>) {
   };
 }
 
+function splitCronExpressionFields(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return [];
+  }
+  return trimmedValue.split(/\s+/);
+}
+
+function ensureCronExpressionValue(value: unknown) {
+  const cronExpr = String(value || '').trim();
+  if (!cronExpr) {
+    throw new Error('定时表达式不能为空');
+  }
+  if (cronExpr.length > 128) {
+    throw new Error('定时表达式长度不能超过 128 个字符');
+  }
+
+  const fields = splitCronExpressionFields(cronExpr);
+  if (fields.length !== 5 && fields.length !== 6) {
+    throw new Error('定时表达式仅支持 5 段或 6 段');
+  }
+  if (fields.length === 6 && fields[0] === '#') {
+    throw new Error(
+      '6 段定时表达式的秒位必须填写具体值，5 段表达式无需手工填写 #',
+    );
+  }
+  return cronExpr;
+}
+
+function isValidTimezoneValue(value: string) {
+  const timezone = value.trim();
+  if (!timezone) {
+    return false;
+  }
+  try {
+    new Intl.DateTimeFormat('zh-CN', { timeZone: timezone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureTimezoneValue(value: unknown) {
+  const timezone = String(value || '').trim();
+  if (!timezone) {
+    throw new Error('任务时区不能为空');
+  }
+  if (!isValidTimezoneValue(timezone)) {
+    throw new Error('任务时区不合法');
+  }
+  return timezone;
+}
+
+function ensureIntegerRangeValue(
+  label: string,
+  value: unknown,
+  options: {
+    allowZero?: boolean;
+    max?: number;
+    min: number;
+  },
+) {
+  const numericValue = Number(value);
+  if (!Number.isInteger(numericValue)) {
+    throw new Error(`${label}必须为整数`);
+  }
+  if (options.allowZero && numericValue === 0) {
+    return numericValue;
+  }
+  if (numericValue < options.min) {
+    throw new Error(`${label}不能小于 ${options.min}`);
+  }
+  if (
+    typeof options.max === 'number' &&
+    Number.isFinite(options.max) &&
+    numericValue > options.max
+  ) {
+    throw new Error(`${label}不能大于 ${options.max}`);
+  }
+  return numericValue;
+}
+
+function ensureSelectValue(
+  label: string,
+  value: unknown,
+  supportedValues: readonly string[],
+) {
+  const text = String(value || '').trim();
+  if (!supportedValues.includes(text)) {
+    throw new Error(`${label}配置不合法`);
+  }
+  return text;
+}
+
+function validateCommonFormValues(values: Record<string, any>) {
+  const groupId = Number(values.groupId);
+  if (!Number.isInteger(groupId) || groupId <= 0) {
+    throw new Error('请选择任务分组');
+  }
+  const jobName = String(values.name || '').trim();
+  if (jobName === '') {
+    throw new Error('任务名称不能为空');
+  }
+  if (jobName.length > 128) {
+    throw new Error('任务名称长度不能超过 128 个字符');
+  }
+
+  ensureCronExpressionValue(values.cronExpr);
+  ensureTimezoneValue(values.timezone);
+  ensureSelectValue(
+    '调度范围',
+    values.scope,
+    JOB_SCOPE_OPTIONS.map((item) => String(item.value)),
+  );
+  ensureSelectValue(
+    '并发策略',
+    values.concurrency,
+    JOB_CONCURRENCY_OPTIONS.map((item) => String(item.value)),
+  );
+  ensureSelectValue('任务状态', values.status, JOB_FORM_STATUS_OPTIONS);
+  ensureIntegerRangeValue('超时时间(秒)', values.timeoutSeconds, {
+    max: 86400,
+    min: 1,
+  });
+  ensureIntegerRangeValue('最大执行次数', values.maxExecutions ?? 0, {
+    allowZero: true,
+    min: 0,
+  });
+  if (values.concurrency === 'parallel') {
+    ensureIntegerRangeValue('最大并发', values.maxConcurrency, {
+      max: 100,
+      min: 1,
+    });
+  }
+}
+
 async function buildPayload() {
-  const { valid } = await commonFormApi.validate();
+  const { errors, valid } = await commonFormApi.validate();
   if (!valid) {
-    throw new Error('请完善公共调度配置');
+    const firstError = Object.values(errors || {}).find((value) => !!value);
+    throw new Error(
+      typeof firstError === 'string' && firstError
+        ? firstError
+        : '请完善公共调度配置',
+    );
   }
   const values = await commonFormApi.getValues<Record<string, any>>();
+  validateCommonFormValues(values);
+
+  const cronExpr = ensureCronExpressionValue(values.cronExpr);
+  const timezone = ensureTimezoneValue(values.timezone);
 
   const commonPayload = {
     concurrency: values.concurrency,
-    cronExpr: values.cronExpr,
+    cronExpr,
     description: values.description || '',
     groupId: Number(values.groupId),
     logRetentionOverride: buildRetentionOverride(values),
@@ -512,7 +662,7 @@ async function buildPayload() {
     status: values.status,
     taskType: activeTaskType.value,
     timeoutSeconds: Number(values.timeoutSeconds),
-    timezone: values.timezone,
+    timezone,
     scope: values.scope,
   };
 
@@ -665,7 +815,10 @@ async function handleConfirm() {
 
 <style scoped>
 :deep(.job-cron-code-input) {
-  background: var(--ant-color-fill-tertiary, #fafafa);
+  background: var(--ant-color-fill-tertiary, #f5f5f5);
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 2%);
   font-family:
     ui-monospace, 'SFMono-Regular', SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;

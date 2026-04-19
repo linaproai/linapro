@@ -78,9 +78,7 @@ export class JobPage {
       await cron.fill(params.cronExpr);
     }
     if (params.timezone) {
-      const timezone = this.dialog
-        .getByPlaceholder("可选择常用时区或输入自定义 IANA 时区")
-        .first();
+      const timezone = this.dialog.getByLabel("任务时区").first();
       await timezone.waitFor({ state: "visible" });
       await this.replaceFieldValue(timezone, params.timezone);
     }
@@ -201,6 +199,19 @@ export class JobPage {
     });
   }
 
+  async getCronEditorMetrics() {
+    const editor = this.dialog.getByLabel("定时表达式").first();
+    await editor.waitFor({ state: "visible" });
+    return editor.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        backgroundColor: style.backgroundColor,
+        borderRadius: style.borderRadius,
+        fontFamily: style.fontFamily,
+      };
+    });
+  }
+
   async getElementVerticalPadding(testId: string) {
     const target = this.page.getByTestId(testId);
     await target.waitFor({ state: "visible" });
@@ -211,6 +222,10 @@ export class JobPage {
         paddingTop: Number.parseFloat(style.paddingTop),
       };
     });
+  }
+
+  messageNotice(text: string) {
+    return this.page.locator(".ant-message-notice").filter({ hasText: text }).last();
   }
 
   private async confirmPopconfirm() {
