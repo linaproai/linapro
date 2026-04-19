@@ -1,0 +1,128 @@
+## 1. 数据库与字典
+
+- [ ] 1.1 在 `apps/lina-core/manifest/sql/` 新增 `014-scheduled-job-management.sql`,包含 `sys_job_group / sys_job / sys_job_log` 三张表 DDL(带索引)、外键约束、幂等 `CREATE TABLE IF NOT EXISTS`
+- [ ] 1.2 在同一 SQL 中插入默认分组(`id=1, code=default, is_default=1`)、系统参数 `cron.shell.enabled=false`、`cron.log.retention={"mode":"days","value":30}`
+- [ ] 1.3 在同一 SQL 中插入菜单(任务管理 / 分组管理 / 执行日志)与按钮权限(`system:job:*`、`system:group:*`、`system:joblog:*`、`system:job:shell`),并将 `system:job:shell` 单独关联到内置 admin 角色
+- [ ] 1.4 在同一 SQL 中插入字典类型与字典数据:`cron_job_status / cron_job_task_type / cron_job_scope / cron_job_concurrency / cron_job_trigger / cron_job_log_status / cron_log_retention_mode`
+- [ ] 1.5 在同一 SQL 中 seed 一个内置任务 `host:cleanup-job-logs`(master-only、singleton、每日 03:17、is_builtin=1、seed_version=1)
+- [ ] 1.6 执行 `make init` 验证 SQL 幂等可重入;确认重复执行无报错
+
+## 2. 后端 DAO 与 API 骨架
+
+- [ ] 2.1 在 `apps/lina-core/internal/cmd/` 相关表配置处更新后运行 `make dao`,生成 `dao/sys_job.go`、`dao/sys_job_group.go`、`dao/sys_job_log.go` 及 DO/Entity
+- [ ] 2.2 在 `api/job/v1/` 按接口用途拆文件创建 DTO:`job_list.go / job_detail.go / job_create.go / job_update.go / job_delete.go / job_status.go / job_trigger.go / job_reset.go`
+- [ ] 2.3 在 `api/jobgroup/v1/` 创建分组 DTO:`group_list.go / group_create.go / group_update.go / group_delete.go`
+- [ ] 2.4 在 `api/joblog/v1/` 创建日志 DTO:`log_list.go / log_detail.go / log_cancel.go / log_clear.go`
+- [ ] 2.5 在 `api/jobhandler/v1/` 创建 handler 注册表查询 DTO:`handler_list.go / handler_detail.go`
+- [ ] 2.6 在 `api/job/v1/job_cron_preview.go` 添加 cron 表达式预览 DTO(入参 `expr / timezone`,出参最近 5 次触发时刻)
+- [ ] 2.7 所有 DTO `g.Meta` 带 `dc / permission` 标签、所有字段带 `dc / eg / json`,满足接口文档规范;修改后运行 `make ctrl` 生成控制器骨架
+
+## 3. 后端 Handler 注册表
+
+- [ ] 3.1 创建 `internal/service/jobhandler/jobhandler.go`(主文件):定义 `Registry / HandlerDef / HandlerInfo / HandlerSource` 接口与结构体、`serviceImpl`、`New()`;主文件承载组件包注释
+- [ ] 3.2 创建 `internal/service/jobhandler/jobhandler_host.go`:宿主内置 handler 注册入口 `RegisterHostHandlers()`,按命名 `host:xxx` 注册第一批 handler(清理日志、清理会话日志、重新生成会话指纹等 seed 内置任务所需)
+- [ ] 3.3 创建 `internal/service/jobhandler/jobhandler_plugin.go`:订阅 `service/plugin` 的启用/禁用事件,分别调 `Register / Unregister`
+- [ ] 3.4 创建 `internal/service/jobhandler/jobhandler_schema.go`:基于 gjson/go-playground validator 的 JSON Schema 校验封装 `ValidateParams(schemaText, paramsJSON) error`
+- [ ] 3.5 创建 `internal/service/jobhandler/jobhandler_test.go`:Register 冲突、Lookup 命中/未命中、Unregister 级联通知回调
+
+## 4. 后端任务持久化与调度核心
+
+- [ ] 4.1 创建 `internal/service/jobmgmt/jobmgmt.go`(主文件):定义 `Service / JobMgmt`、`New()`、基础依赖(DAO、handler registry、scheduler)
+- [ ] 4.2 创建 `internal/service/jobmgmt/jobmgmt_group.go`:分组 CRUD(默认分组不可删、删除时任务迁到默认分组)
+- [ ] 4.3 创建 `internal/service/jobmgmt/jobmgmt_job_crud.go`:任务 CRUD(组内唯一、内置任务字段锁定校验、开关联动、任务变更后通知 scheduler 刷新)
+- [ ] 4.4 创建 `internal/service/jobmgmt/jobmgmt_job_status.go`:启用/禁用/重置计数;启用时校验 handler 是否可用
+- [ ] 4.5 创建 `internal/service/jobmgmt/jobmgmt_log.go`:日志查询、清空、清理策略计算(全局 + 任务级覆盖)
+- [ ] 4.6 创建 `internal/service/jobmgmt/jobmgmt_cron_preview.go`:基于 `robfig/cron` parser 计算下一次触发时刻(按 timezone 解析)
+- [ ] 4.7 创建 `internal/service/jobmgmt/jobmgmt_test.go`:CRUD 单测覆盖内置任务锁定、分组删除迁移、并发策略校验
+
+## 5. 后端调度器组件(gcron 之上)
+
+- [ ] 5.1 创建 `internal/service/jobmgmt/scheduler/scheduler.go`(主文件):定义 `Scheduler` 接口、`New()`、启动时 `LoadAndRegister(ctx)`、per-job 互斥锁
+- [ ] 5.2 创建 `internal/service/jobmgmt/scheduler/scheduler_register.go`:`Add / Remove / Refresh` 对 gcron 的封装,含小容量 LRU 缓存与主动失效
+- [ ] 5.3 创建 `internal/service/jobmgmt/scheduler/scheduler_runner.go`:tick wrapper `runJob(jobID, trigger)` —— 判断 scope / concurrency / max_executions,分发到 handler 或 shell 执行器,捕获结果写日志
+- [ ] 5.4 创建 `internal/service/jobmgmt/scheduler/scheduler_cancel.go`:维护 `runningInstances map[logID]cancelFn`,支持 `CancelLog(logID)`
+- [ ] 5.5 创建 `internal/service/jobmgmt/scheduler/scheduler_test.go`:覆盖 Add/Remove 竞态、scope 守卫跳过、singleton/parallel 计数、max_executions 触发禁用
+
+## 6. 后端 Shell 执行器
+
+- [ ] 6.1 创建 `internal/service/jobmgmt/shellexec/shellexec.go`(主文件):定义 `Executor` 接口、`New()`、`cron.shell.enabled` 与 Windows 平台守卫
+- [ ] 6.2 创建 `internal/service/jobmgmt/shellexec/shellexec_process.go`:`/bin/sh -c` 启动子进程、`Setpgid`、work_dir/env 合并、stdout/stderr `LimitReader` 64KB 截留
+- [ ] 6.3 创建 `internal/service/jobmgmt/shellexec/shellexec_lifecycle.go`:超时 `kill -- -<pgid>`、手动终止 SIGTERM → 5 秒 → SIGKILL 升级路径
+- [ ] 6.4 创建 `internal/service/jobmgmt/shellexec/shellexec_test.go`:输出截断、超时终止、手动取消
+
+## 7. 后端控制器实现
+
+- [ ] 7.1 `controller/job/v1_new.go` 初始化依赖字段(`jobmgmt.Service / jobhandler.Registry / scheduler.Scheduler`),`NewV1()` 一次性注入
+- [ ] 7.2 `controller/job/v1_*.go` 按接口实现业务:列表/详情/创建/更新/删除/启停/触发/重置/日志级取消/cron 预览
+- [ ] 7.3 `controller/jobgroup/v1_*.go` 实现分组 CRUD
+- [ ] 7.4 `controller/joblog/v1_*.go` 实现日志查询/详情/清空/取消
+- [ ] 7.5 `controller/jobhandler/v1_*.go` 实现 handler 列表/详情
+- [ ] 7.6 所有涉及 shell 的接口(创建/修改/触发 shell 任务)在 `g.Meta.permission` 带 `system:job:shell`;其他接口按 `system:job:*` 系列声明
+- [ ] 7.7 所有 shell 创建/修改/触发/取消接口显式调用 `operlog` 写入审计记录
+
+## 8. 后端集成到启动流程
+
+- [ ] 8.1 修改 `internal/service/cron/cron.go`:在 `Start(ctx)` 末尾调用 `jobmgmtScheduler.LoadAndRegister(ctx)`;通过构造注入,不在 tick 内临时 `New`
+- [ ] 8.2 修改 `internal/service/plugin` 的启用/禁用事件总线,广播到 `jobhandler.Registry` 订阅者
+- [ ] 8.3 修改 `internal/service/config`(或 `sysconfig`)暴露 `cron.shell.enabled` 与 `cron.log.retention` 的读取入口,供 Shell Executor 与 handler 注册表使用
+- [ ] 8.4 在 `cmd` 启动装配处,完成 `jobhandler / jobmgmt / scheduler / shellexec` 的依赖注入
+
+## 9. 前端 API 与适配器
+
+- [ ] 9.1 在 `apps/lina-vben/apps/web-antd/src/api/system/` 新增 `job.ts / jobGroup.ts / jobLog.ts / jobHandler.ts`,覆盖 CRUD/触发/取消/日志/cron 预览/handler 列表接口
+- [ ] 9.2 在 `src/adapter/form/` 新增 handler 动态参数子表单适配器:根据 JSON Schema 生成 Vben form `schema` 数组(支持 string/number/boolean/enum/date/textarea)
+- [ ] 9.3 在 `src/adapter/vxe-table/` 注册任务列表、日志列表、分组列表列定义
+
+## 10. 前端页面:分组管理
+
+- [ ] 10.1 创建 `src/views/system/job-group/index.vue`:`Page + useVbenVxeGrid` 列表 + `GhostButton + Popconfirm` 操作列
+- [ ] 10.2 创建 `src/views/system/job-group/modal.vue`:`useVbenModal + useVbenForm` 新增/编辑弹窗
+- [ ] 10.3 默认分组行禁用删除按钮、显示"默认分组"标签
+
+## 11. 前端页面:任务管理
+
+- [ ] 11.1 创建 `src/views/system/job/index.vue`:列表页,顶部筛选含分组、状态、任务类型、关键字
+- [ ] 11.2 创建 `src/views/system/job/form.vue`:`useVbenModal` 主弹窗;顶部 Tab 切换 handler / shell 类型(shell tab 在 `cron.shell.enabled=false` 或无 `system:job:shell` 权限时隐藏)
+- [ ] 11.3 创建 `src/views/system/job/form-handler.vue`:handler 选择下拉 + 动态渲染参数子表单(基于 schema)+ cron 表达式 + timezone + scope + concurrency + max_concurrency + max_executions + log_retention_override
+- [ ] 11.4 创建 `src/views/system/job/form-shell.vue`:shell_cmd 多行 textarea + work_dir + env(KV 表格) + timeout_seconds + 告警色提示
+- [ ] 11.5 操作列:启用/禁用、立即执行、编辑、删除、重置计数;内置任务仅显示部分按钮
+- [ ] 11.6 `paused_by_plugin` 状态显式标红并展示"插件不可用"tooltip
+
+## 12. 前端页面:执行日志
+
+- [ ] 12.1 创建 `src/views/system/job-log/index.vue`:日志列表,顶部筛选含任务、状态、节点、时间范围
+- [ ] 12.2 创建 `src/views/system/job-log/detail.vue`:`useVbenModal` 详情弹窗,展示 trigger / params_snapshot / result_json(shell 任务含 stdout/stderr 代码高亮)
+- [ ] 12.3 正在运行的日志行显式"终止"按钮,确认后调 cancel 接口
+- [ ] 12.4 日志列表的批量清空功能(需 `system:joblog:remove` 权限)
+
+## 13. 前端路由与菜单
+
+- [ ] 13.1 在 `src/router/routes/modules/system.ts` 或等价路由模块中注册 `/system/job / /system/job-group / /system/job-log`
+- [ ] 13.2 菜单图标使用 `IconifyIcon`(`ant-design:clock-circle-outlined` 或同类图标)
+- [ ] 13.3 按钮权限对应 `system:job:*` 与 `system:job:shell`
+
+## 14. E2E 测试用例
+
+- [ ] 14.1 TC0081 定时任务分组 CRUD(新增、编辑、删除非默认组、默认组不可删)——`hack/tests/e2e/system/job/TC0081-job-group-crud.ts`
+- [ ] 14.2 TC0082 Handler 类型任务 CRUD + 参数动态表单渲染——`hack/tests/e2e/system/job/TC0082-job-handler-crud.ts`
+- [ ] 14.3 TC0083 Shell 类型任务创建(开启 `cron.shell.enabled` 前置)——`hack/tests/e2e/system/job/TC0083-job-shell-crud.ts`
+- [ ] 14.4 TC0084 Shell 全局开关关闭时前端隐藏 shell 类型选项、后端拒绝写入——`TC0084-job-shell-switch.ts`
+- [ ] 14.5 TC0085 任务启用/禁用、状态切换即时生效——`TC0085-job-enable-disable.ts`
+- [ ] 14.6 TC0086 手动触发一次执行 & 日志 trigger=manual、不计入 executed_count——`TC0086-job-manual-trigger.ts`
+- [ ] 14.7 TC0087 长任务手动终止 → 日志 status=cancelled——`TC0087-job-manual-cancel.ts`
+- [ ] 14.8 TC0088 `max_executions` 达上限自动禁用 + `stop_reason` 显示——`TC0088-job-max-executions.ts`
+- [ ] 14.9 TC0089 执行日志列表筛选、详情、清空——`TC0089-job-log-list.ts`
+- [ ] 14.10 TC0090 插件禁用导致任务 paused_by_plugin 标红、启用按钮禁用——`TC0090-job-plugin-cascade.ts`
+- [ ] 14.11 TC0091 系统内置任务 cron 可改、handler_ref 锁定、删除被拒——`TC0091-job-builtin-readonly.ts`
+- [ ] 14.12 TC0092 删除非默认分组时任务迁移到默认分组——`TC0092-job-group-migration.ts`
+- [ ] 14.13 TC0093 时区字段持久化与下一次执行时间预览——`TC0093-job-timezone-preview.ts`
+- [ ] 14.14 TC0094 shell 任务输出 stdout/stderr 截断后可查看——`TC0094-job-shell-output.ts`
+- [ ] 14.15 所有新增用例在执行过程中自动运行 `pnpm test -- TC008x` 验证通过;测试文件命名与 TC ID 严格对应
+
+## 15. 文档与收尾
+
+- [ ] 15.1 更新 `apps/lina-core/README.md / README.zh_CN.md`:在模块列表中新增"定时任务管理"章节(中英同步)
+- [ ] 15.2 更新 `apps/lina-vben/apps/web-antd/README.md / README.zh_CN.md`:新增路由与页面入口说明
+- [ ] 15.3 验证 `make init / make dao / make ctrl / make dev / make test` 全流程通过
+- [ ] 15.4 调用 `/openspec-review` 技能进行代码与规范审查,处理所有严重问题
+- [ ] 15.5 用户确认功能完成后,执行 `/opsx:archive scheduled-job-management`(归档时 proposal/design/tasks 与 specs 将被统一重写为英文,符合归档语言规范)

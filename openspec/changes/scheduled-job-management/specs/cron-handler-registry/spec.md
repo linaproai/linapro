@@ -1,0 +1,105 @@
+## ADDED Requirements
+
+### Requirement: Handler 注册表
+
+系统 SHALL 提供统一的定时任务 Handler 注册表,管理宿主与插件侧的可用 handler,并作为任务调度、UI 下拉与参数校验的唯一真理来源。
+
+#### Scenario: 注册 handler
+
+- **WHEN** 宿主或插件通过注册表 `Register(ref, def)` 注册 handler
+- **THEN** 系统 SHALL 将 handler 定义持久化到内存注册表
+- **AND** `ref` 形如 `host:<name>` 或 `plugin:<pluginID>/<name>`,且全局唯一
+- **AND** `def` 至少包含 `DisplayName / Description / ParamsSchema / Source / Invoke`
+
+#### Scenario: 重复注册冲突
+
+- **WHEN** 尝试注册已存在的 `ref`
+- **THEN** 系统 SHALL 返回明确错误
+- **AND** 不覆盖已注册 handler
+
+#### Scenario: 注销 handler
+
+- **WHEN** 宿主或插件调用 `Unregister(ref)`
+- **THEN** 系统 SHALL 从内存注册表移除该 handler
+- **AND** 触发任务状态级联
+
+### Requirement: Handler 参数 JSON Schema
+
+系统 SHALL 要求 handler 声明参数的 JSON Schema,供参数校验与 UI 动态渲染使用。
+
+#### Scenario: 创建任务时参数校验
+
+- **WHEN** 创建或修改 `task_type=handler` 的任务
+- **THEN** 系统 SHALL 按 handler 对应的 JSON Schema 校验 `params`
+- **AND** 校验失败时返回具体字段错误信息
+
+#### Scenario: 执行时参数校验
+
+- **WHEN** handler 执行前
+- **THEN** 系统 SHALL 再次按最新 Schema 校验 `params_snapshot`
+- **AND** 校验失败时记日志 `status=failed` 并终止本次执行
+
+#### Scenario: UI 下拉数据
+
+- **WHEN** 前端调用 `GET /job/handler`
+- **THEN** 系统 SHALL 返回所有已注册 handler 列表
+- **AND** 列表包含 `ref / displayName / description / source / pluginId`
+
+#### Scenario: UI 详情获取 Schema
+
+- **WHEN** 前端调用 `GET /job/handler/{ref}`
+- **THEN** 系统 SHALL 返回该 handler 的完整 `ParamsSchema`
+- **AND** 前端可据此动态渲染表单控件
+
+### Requirement: 插件 Handler 生命周期
+
+系统 SHALL 订阅插件启用/禁用/卸载事件,自动同步 handler 注册表与关联任务状态。
+
+#### Scenario: 插件启用时注册 handler
+
+- **WHEN** 插件启用
+- **THEN** 系统 SHALL 读取插件清单声明的 handler 列表
+- **AND** 按 `plugin:<pluginID>/<name>` 形式注册
+- **AND** 对 `stop_reason=plugin_unavailable` 的任务恢复为 `status=enabled` 并重新注册到调度器
+
+#### Scenario: 插件禁用时注销 handler 并级联任务
+
+- **WHEN** 插件被禁用
+- **THEN** 系统 SHALL 注销该插件所有 handler
+- **AND** 将 `handler_ref=plugin:<pluginID>/*` 且 `status=enabled` 的任务置为 `paused_by_plugin`
+- **AND** 在对应任务上写入 `stop_reason=plugin_unavailable`
+- **AND** 从调度器注销这些任务
+
+#### Scenario: 插件卸载时保留任务数据
+
+- **WHEN** 插件被卸载
+- **THEN** 系统 SHALL 执行与禁用相同的级联(标记 `paused_by_plugin`)
+- **AND** 不删除已有任务与历史日志
+- **AND** UI 明显标红任务并提示 handler 不可用
+
+#### Scenario: UI 可见性
+
+- **WHEN** 任务列表返回 `paused_by_plugin` 任务
+- **THEN** 前端 SHALL 在状态列显式提示"插件不可用"
+- **AND** 禁用"立即触发""启用"按钮
+
+### Requirement: Handler 执行契约
+
+系统 SHALL 在 handler 规范中要求所有 handler 支持 context 取消,并在取消时尽快退出。
+
+#### Scenario: Handler 接受 context
+
+- **WHEN** 系统调用 handler 的 `Invoke(ctx, params)` 方法
+- **THEN** handler SHALL 在长阻塞操作中检查 `ctx.Done()` 或把 `ctx` 透传到下游
+- **AND** 收到取消信号后应尽快返回 `ctx.Err()`
+
+#### Scenario: Handler 返回结构化结果
+
+- **WHEN** handler 执行成功
+- **THEN** handler SHALL 返回可 JSON 序列化的结果
+- **AND** 系统 SHALL 将结果写入 `sys_job_log.result_json`
+
+#### Scenario: Handler 抛错
+
+- **WHEN** handler 执行返回非 nil error
+- **THEN** 系统 SHALL 记 `status=failed` 且 `err_msg` 为 error.Error() 摘要

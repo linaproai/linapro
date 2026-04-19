@@ -1,0 +1,284 @@
+## ADDED Requirements
+
+### Requirement: 定时任务管理数据模型
+
+系统 SHALL 提供用户可管理的定时任务数据模型,至少包含 `sys_job_group`、`sys_job`、`sys_job_log` 三张表,并满足以下约束。
+
+#### Scenario: 任务分组平铺
+
+- **WHEN** 管理员新增、修改或查询分组
+- **THEN** 分组为平铺结构(不支持 parent 层级)
+- **AND** 系统 SHALL 保证有且仅有一个 `is_default=1` 的默认分组,不可删除
+
+#### Scenario: 分组删除时任务迁移
+
+- **WHEN** 管理员删除一个非默认分组
+- **THEN** 系统 SHALL 在删除前将该分组下的所有任务迁移到默认分组
+- **AND** 并在 UI 弹框提示影响范围与不可逆性
+
+#### Scenario: 任务名组内唯一
+
+- **WHEN** 在同一分组内创建或修改任务名
+- **THEN** 系统 SHALL 拒绝与该组下已存在任务同名
+- **AND** 不同分组下允许任务同名
+
+#### Scenario: 任务类型区分
+
+- **WHEN** 创建任务指定 `task_type=handler`
+- **THEN** 系统 SHALL 要求 `handler_ref` 非空、`params` 按 handler 的 JSON Schema 校验通过
+- **AND** `shell_cmd / work_dir / env / timeout_seconds` 忽略写入
+
+#### Scenario: Shell 任务字段
+
+- **WHEN** 创建任务指定 `task_type=shell`
+- **THEN** 系统 SHALL 要求 `shell_cmd` 非空、`timeout_seconds ∈ [1, 86400]`
+- **AND** `handler_ref / params` 忽略写入
+- **AND** `work_dir` 可空,非空时必须是宿主进程有权访问的存在目录
+
+### Requirement: 定时任务 CRUD 接口
+
+系统 SHALL 以 RESTful 方式提供定时任务的增删改查能力,符合项目 HTTP 方法语义规范。
+
+#### Scenario: 列表查询
+
+- **WHEN** 调用 `GET /job?groupId=&status=&taskType=&keyword=&page=&pageSize=`
+- **THEN** 系统 SHALL 返回匹配条件的任务分页列表
+- **AND** 返回字段包含任务基础信息、分组名称、handler 展示名(handler 类型)、最近一次执行状态
+
+#### Scenario: 创建
+
+- **WHEN** 调用 `POST /job` 提交符合 schema 的任务
+- **THEN** 系统 SHALL 持久化记录
+- **AND** 若 `status=enabled`,则立即在本节点调度器注册
+- **AND** `executed_count=0`、`stop_reason=null`
+
+#### Scenario: 更新
+
+- **WHEN** 调用 `PUT /job/{id}` 修改字段
+- **THEN** 系统 SHALL 从调度器注销旧记录并按新配置重新注册
+- **AND** 保留 `executed_count` 不变(除非显式调用重置接口)
+
+#### Scenario: 批量删除
+
+- **WHEN** 调用 `DELETE /job` 传入 id 列表
+- **THEN** 系统 SHALL 从调度器注销这些任务
+- **AND** 对 `is_builtin=1` 的任务拒绝删除并返回明确错误
+
+### Requirement: 定时任务启用与禁用
+
+系统 SHALL 允许管理员切换任务启停状态,并保证调度器注册表与数据库状态一致。
+
+#### Scenario: 启用任务
+
+- **WHEN** 调用 `PUT /job/{id}/status` 将 `status` 置为 `enabled`
+- **THEN** 系统 SHALL 将任务注册到调度器
+- **AND** 重置 `stop_reason` 为 `null`
+
+#### Scenario: 禁用任务
+
+- **WHEN** `status` 置为 `disabled`
+- **THEN** 系统 SHALL 从调度器注销任务
+- **AND** 运行中的实例不会被强制终止,但不再接受新的 tick
+
+#### Scenario: 插件不可用阻止启用
+
+- **WHEN** 尝试启用 `handler_ref` 来源插件已禁用/卸载的任务
+- **THEN** 系统 SHALL 拒绝启用操作并返回明确错误
+
+### Requirement: 执行次数策略
+
+系统 SHALL 支持"执行 N 次后退出"策略,并在达到上限时自动禁用任务。
+
+#### Scenario: 默认无限执行
+
+- **WHEN** 任务 `max_executions=0`
+- **THEN** 系统 SHALL 无执行次数上限
+
+#### Scenario: 达到上限自动禁用
+
+- **WHEN** 任务 `max_executions=N` 且 `executed_count` 达到 N
+- **THEN** 系统 SHALL 立即将该任务 `status` 置为 `disabled`
+- **AND** 写入 `stop_reason=max_executions_reached`
+- **AND** 从调度器注销
+- **AND** 在对应执行日志上保留该次完整记录
+
+#### Scenario: 重置执行计数
+
+- **WHEN** 调用 `POST /job/{id}/reset`
+- **THEN** 系统 SHALL 将 `executed_count` 归零
+- **AND** 清空 `stop_reason`
+
+#### Scenario: 手动触发不计入次数
+
+- **WHEN** 通过手动触发接口启动一次执行
+- **THEN** 系统 SHALL 不将本次执行计入 `executed_count`
+- **AND** 日志中 `trigger=manual`
+
+### Requirement: 集群调度范围
+
+系统 SHALL 支持每任务独立配置 `scope ∈ {master_only, all_node}`,并在调度时按范围语义执行。
+
+#### Scenario: master-only 任务在非主节点跳过
+
+- **WHEN** `scope=master_only` 且当前节点 `cluster.IsPrimary()=false`
+- **THEN** 系统 SHALL 跳过本次执行
+- **AND** 写入日志 `status=skipped_not_primary`
+
+#### Scenario: all-node 任务每节点独立执行
+
+- **WHEN** `scope=all_node`
+- **THEN** 每个运行节点 SHALL 各自执行一份
+- **AND** 日志中 `node_id` 字段记录执行节点
+
+### Requirement: 并发策略
+
+系统 SHALL 支持 `concurrency ∈ {singleton, parallel}`,并对 parallel 强制 `max_concurrency` 上限。
+
+#### Scenario: 单例执行跳过
+
+- **WHEN** `concurrency=singleton` 且本节点已有实例在 running
+- **THEN** 系统 SHALL 跳过本 tick
+- **AND** 写入日志 `status=skipped_singleton`
+
+#### Scenario: 并行超限跳过
+
+- **WHEN** `concurrency=parallel` 且本节点 running 实例数 ≥ `max_concurrency`
+- **THEN** 系统 SHALL 跳过本 tick
+- **AND** 写入日志 `status=skipped_max_concurrency`
+
+#### Scenario: 并行配额内触发
+
+- **WHEN** `concurrency=parallel` 且 running 实例数 < `max_concurrency`
+- **THEN** 系统 SHALL 启动新的执行实例,与已有实例并行
+
+### Requirement: 时区处理
+
+系统 SHALL 为每个任务保存独立 `timezone` 字段,调度器按该时区解析 `cron_expr`。
+
+#### Scenario: 任务按声明时区触发
+
+- **WHEN** 任务 `timezone=Asia/Shanghai` 且 `cron_expr` 表达每天 8 点
+- **THEN** 系统 SHALL 在 UTC+8 的每日 8 点触发该任务
+- **AND** 与服务器本地时区无关
+
+#### Scenario: 时区默认值
+
+- **WHEN** 创建任务时未指定 `timezone`
+- **THEN** 系统 SHALL 默认填入服务器进程时区
+- **AND** UI 表单默认选中服务器时区
+
+### Requirement: 手动触发与手动终止
+
+系统 SHALL 提供立即触发一次执行与终止正在执行实例的能力。
+
+#### Scenario: 立即触发
+
+- **WHEN** 调用 `POST /job/{id}/trigger`
+- **THEN** 系统 SHALL 跳过调度时钟直接启动一次执行
+- **AND** 日志 `trigger=manual`
+- **AND** 该次执行不计入 `executed_count`
+- **AND** 本次执行仍受 `concurrency / max_concurrency / scope / timeout` 约束
+
+#### Scenario: 终止运行中实例
+
+- **WHEN** 调用 `POST /job/log/{logId}/cancel` 且目标日志 `status=running`
+- **THEN** 系统 SHALL 向本次执行的 context 发送取消信号
+- **AND** 对 shell 任务 kill 其进程组
+- **AND** 日志最终状态置为 `cancelled`
+- **AND** `end_at` 写入取消时间
+
+#### Scenario: 终止已结束实例拒绝
+
+- **WHEN** 目标日志 `status` 已不是 `running`
+- **THEN** 系统 SHALL 返回明确错误
+
+### Requirement: 执行日志
+
+系统 SHALL 为每次触发(包括被跳过的触发)记录一条执行日志,记录执行快照与结果。
+
+#### Scenario: 日志字段
+
+- **WHEN** 一次执行产生日志
+- **THEN** 日志 SHALL 包含 `job_id / job_snapshot / node_id / trigger / params_snapshot / start_at / end_at / duration_ms / status / err_msg / result_json`
+
+#### Scenario: Shell 任务输出
+
+- **WHEN** 任务 `task_type=shell` 执行结束
+- **THEN** 日志 `result_json` SHALL 包含 `stdout / stderr / exit_code`
+- **AND** stdout 与 stderr 各自截留前 64KB,超出追加 `...[truncated]` 标记
+
+#### Scenario: Handler 任务返回
+
+- **WHEN** 任务 `task_type=handler` 执行成功并返回结构化结果
+- **THEN** 日志 `result_json` SHALL 序列化 handler 返回值
+
+#### Scenario: 执行失败
+
+- **WHEN** 任务执行抛出错误
+- **THEN** 日志 `status=failed`
+- **AND** `err_msg` 记录错误摘要
+
+### Requirement: 日志清理策略
+
+系统 SHALL 提供全局默认清理策略与任务级覆盖,由系统内置定时任务定期执行清理。
+
+#### Scenario: 全局默认策略
+
+- **WHEN** 任务 `log_retention_override` 为空
+- **THEN** 该任务日志 SHALL 按系统参数 `cron.log.retention` 的策略清理
+
+#### Scenario: 任务级覆盖
+
+- **WHEN** 任务 `log_retention_override` 配置为 `{mode: days, value: 60}` 或 `{mode: count, value: 500}`
+- **THEN** 系统 SHALL 按任务级策略清理该任务日志,忽略全局默认
+
+#### Scenario: 不清理策略
+
+- **WHEN** 策略 `mode=none`
+- **THEN** 系统 SHALL 不清理该任务对应日志
+
+#### Scenario: 内置清理任务
+
+- **WHEN** 系统初始化 seed
+- **THEN** 系统 SHALL 内置一个 `host:cleanup-job-logs` handler 任务
+- **AND** 默认 `cron_expr` 为每日凌晨触发
+- **AND** 该任务 `is_builtin=1`
+
+### Requirement: 系统内置任务的部分只读
+
+系统 SHALL 保护 `is_builtin=1` 的任务关键字段不被修改,但开放运维调整运行参数。
+
+#### Scenario: 可修改字段
+
+- **WHEN** 管理员修改 `is_builtin=1` 任务的 `cron_expr / timezone / status / max_executions / log_retention_override`
+- **THEN** 系统 SHALL 接受修改并应用
+
+#### Scenario: 锁定字段
+
+- **WHEN** 请求修改 `task_type / handler_ref / params / scope / concurrency / group_id / name` 任一字段
+- **THEN** 系统 SHALL 拒绝修改并返回明确错误
+
+#### Scenario: 禁止删除
+
+- **WHEN** 请求删除 `is_builtin=1` 任务
+- **THEN** 系统 SHALL 拒绝操作
+
+#### Scenario: 升级不覆盖用户修改
+
+- **WHEN** 新版本 seed SQL 再次执行且任务已存在
+- **THEN** 系统 SHALL 仅更新锁定字段(当 `seed_version` 较新时)
+- **AND** 不覆盖用户已修改的开放字段
+
+### Requirement: 权限与审计
+
+系统 SHALL 通过菜单权限与按钮权限约束任务管理操作,并对敏感操作记录审计日志。
+
+#### Scenario: 菜单与按钮权限
+
+- **WHEN** 管理员访问任务管理相关页面或操作
+- **THEN** 系统 SHALL 校验以下权限:菜单 `system:job:list / system:group:list / system:joblog:list`;按钮 `system:job:add / edit / remove / export / trigger / cancel / status / reset`
+
+#### Scenario: 操作审计
+
+- **WHEN** 执行任务创建/修改/删除/启停/手动触发/手动终止
+- **THEN** 系统 SHALL 写入 `oper_log`,记录操作人、操作类型、任务 ID 与关键字段快照
