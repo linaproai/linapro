@@ -38,6 +38,7 @@ type Service interface {
 	GetRoleMenuTree(ctx context.Context, roleId int) (*RoleMenuTreeOutput, error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -46,6 +47,7 @@ type serviceImpl struct {
 	roleSvc   role.Service
 }
 
+// New creates and returns a new menu service instance.
 func New() Service {
 	return &serviceImpl{
 		pluginSvc: pluginsvc.New(),
@@ -53,6 +55,7 @@ func New() Service {
 	}
 }
 
+// ListInput defines the supported filters for menu list queries.
 type ListInput struct {
 	Name    string
 	Status  *int

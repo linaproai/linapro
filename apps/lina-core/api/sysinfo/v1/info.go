@@ -6,6 +6,7 @@ import (
 
 // System Info API
 
+// GetInfoReq requests the current runtime system information payload.
 type GetInfoReq struct {
 	g.Meta `path:"/system/info" method:"get" tags:"系统信息" summary:"获取系统运行信息" dc:"获取系统运行时信息，包括Go版本、GoFrame版本、操作系统、数据库版本、启动时间、运行时长以及前后端组件列表" permission:"about:system:list"`
 }

@@ -10,8 +10,10 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// notifyHostService is the shared governed notification backend used by wasm host calls.
 var notifyHostService = notifysvc.New()
 
+// dispatchNotifyHostService routes notify host service methods to the governed notification backend.
 func dispatchNotifyHostService(
 	ctx context.Context,
 	hcc *hostCallContext,

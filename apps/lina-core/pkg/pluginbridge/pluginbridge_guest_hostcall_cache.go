@@ -18,8 +18,12 @@ type CacheHostService interface {
 	Expire(namespace string, key string, expireSeconds int64) (bool, string, error)
 }
 
+// cacheHostService is the default guest-side distributed cache host-service
+// client.
 type cacheHostService struct{}
 
+// defaultCacheHostService stores the singleton cache host-service client used
+// by package-level helpers.
 var defaultCacheHostService CacheHostService = &cacheHostService{}
 
 // Cache returns the distributed cache host service guest client.

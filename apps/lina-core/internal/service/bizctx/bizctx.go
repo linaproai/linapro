@@ -22,6 +22,7 @@ type Service interface {
 	SetUser(ctx context.Context, tokenId string, userId int, username string, status int)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

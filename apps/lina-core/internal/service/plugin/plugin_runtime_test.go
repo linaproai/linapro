@@ -18,6 +18,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestDynamicPluginUpgradeKeepsPreviousReleaseFrontendAssets verifies that
+// upgrade keeps archived frontend bundles available for drain and rollback.
 func TestDynamicPluginUpgradeKeepsPreviousReleaseFrontendAssets(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
@@ -120,6 +122,8 @@ func TestDynamicPluginUpgradeKeepsPreviousReleaseFrontendAssets(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginUpgradeFailureRollsBackStableRelease verifies that a failed
+// upgrade restores the previous active release and its governance projection.
 func TestDynamicPluginUpgradeFailureRollsBackStableRelease(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
@@ -265,6 +269,8 @@ func TestDynamicPluginUpgradeFailureRollsBackStableRelease(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginUninstallFailureRestoresStableRegistryFlags verifies that
+// uninstall rollback restores the previously active registry flags.
 func TestDynamicPluginUninstallFailureRestoresStableRegistryFlags(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
@@ -333,6 +339,8 @@ func TestDynamicPluginUninstallFailureRestoresStableRegistryFlags(t *testing.T) 
 	}
 }
 
+// TestDynamicPluginFollowerDefersUntilPrimaryReconciles verifies that follower
+// nodes only persist desired state until the primary reconciles the runtime.
 func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	topology := &testTopology{
 		enabled: true,
@@ -405,6 +413,8 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 	}
 }
 
+// TestBundledDynamicPluginEnableMakesDynamicRouteExecutable verifies that the
+// bundled demo runtime plugin can execute one registered dynamic route.
 func TestBundledDynamicPluginEnableMakesDynamicRouteExecutable(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()
@@ -486,6 +496,8 @@ func TestBundledDynamicPluginEnableMakesDynamicRouteExecutable(t *testing.T) {
 	}
 }
 
+// TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact verifies
+// that reinstalling the same version refreshes archived release content in place.
 func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()

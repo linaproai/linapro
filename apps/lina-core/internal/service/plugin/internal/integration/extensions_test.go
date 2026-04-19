@@ -13,6 +13,8 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// TestRunPluginDeclaredHookHonorsTimeoutAndErrorActions verifies that declared
+// hooks respect timeout and explicit error behavior during execution.
 func TestRunPluginDeclaredHookHonorsTimeoutAndErrorActions(t *testing.T) {
 	services := testutil.NewServices()
 

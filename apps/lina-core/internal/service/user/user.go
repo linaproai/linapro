@@ -22,6 +22,7 @@ import (
 // Status represents user account status.
 type Status int
 
+// User status and default account constants.
 const (
 	// StatusNormal represents a normal user status.
 	StatusNormal Status = 1
@@ -73,6 +74,7 @@ type Service interface {
 	GenerateImportTemplate() (data []byte, err error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

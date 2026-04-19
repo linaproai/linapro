@@ -14,11 +14,13 @@ type CategoryCode string
 // RecipientType defines the supported notify recipient types.
 type RecipientType string
 
+// Channel key constants identify built-in notify transport channels.
 const (
 	// ChannelKeyInbox is the built-in inbox channel key.
 	ChannelKeyInbox = "inbox"
 )
 
+// Channel type constants enumerate the supported notify transport families.
 const (
 	// ChannelTypeInbox identifies inbox deliveries.
 	ChannelTypeInbox ChannelType = "inbox"
@@ -28,6 +30,8 @@ const (
 	ChannelTypeWebhook ChannelType = "webhook"
 )
 
+// Source type constants enumerate the supported business origins of notify
+// messages.
 const (
 	// SourceTypeNotice identifies notice-originated messages.
 	SourceTypeNotice SourceType = "notice"
@@ -37,6 +41,7 @@ const (
 	SourceTypeSystem SourceType = "system"
 )
 
+// Category code constants enumerate the supported inbox message categories.
 const (
 	// CategoryCodeNotice identifies notice messages.
 	CategoryCodeNotice CategoryCode = "notice"
@@ -46,6 +51,7 @@ const (
 	CategoryCodeOther CategoryCode = "other"
 )
 
+// Recipient type constants enumerate the supported delivery recipient kinds.
 const (
 	// RecipientTypeUser identifies inbox user recipients.
 	RecipientTypeUser RecipientType = "user"
@@ -55,6 +61,7 @@ const (
 	RecipientTypeWebhook RecipientType = "webhook"
 )
 
+// Channel status constants reflect persisted notify channel enablement.
 const (
 	// ChannelStatusDisabled marks a disabled channel row.
 	ChannelStatusDisabled = 0
@@ -62,6 +69,7 @@ const (
 	ChannelStatusEnabled = 1
 )
 
+// Delivery status constants reflect persisted notify delivery outcomes.
 const (
 	// DeliveryStatusPending marks a queued delivery.
 	DeliveryStatusPending = 0
@@ -71,6 +79,8 @@ const (
 	DeliveryStatusFailed = 2
 )
 
+// Legacy inbox type constants preserve compatibility with the existing user
+// message facade.
 const (
 	// LegacyMessageTypeNotice maps inbox rows to the existing user message notice type.
 	LegacyMessageTypeNotice = 1
@@ -98,6 +108,8 @@ func (value RecipientType) String() string {
 	return string(value)
 }
 
+// categoryCodeToLegacyMessageType maps modern category codes to the legacy
+// inbox type values expected by current consumers.
 func categoryCodeToLegacyMessageType(categoryCode CategoryCode) int {
 	switch categoryCode {
 	case CategoryCodeAnnouncement:

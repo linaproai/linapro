@@ -9,6 +9,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestBuildRouteOpenAPIOperationUsesBridgeState verifies that projected
+// responses follow the runtime bridge execution flag.
 func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 	operation := BuildRouteOpenAPIOperation("plugin-demo-dynamic", &pluginbridge.RouteContract{
 		Path:    "/review-summary",
@@ -46,6 +48,8 @@ func TestBuildRouteOpenAPIOperationUsesBridgeState(t *testing.T) {
 	}
 }
 
+// TestBuildRoutePublicPathBuildsFixedPublicPath verifies that public route
+// projection always uses the host-managed extension prefix.
 func TestBuildRoutePublicPathBuildsFixedPublicPath(t *testing.T) {
 	actual := BuildRoutePublicPath("plugin-openapi-projection", "/review-summary")
 	if actual != "/api/v1/extensions/plugin-openapi-projection/review-summary" {

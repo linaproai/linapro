@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// Host data-scope levels reused by governed data-table access.
 const (
 	resourceDataScopeNone = 0
 	resourceDataScopeAll  = 1
@@ -22,6 +23,7 @@ const (
 	resourceDataScopeSelf = 3
 )
 
+// applyResourceDataScope injects host role data-scope constraints into one data-table query.
 func applyResourceDataScope(
 	ctx context.Context,
 	model *gdb.Model,
@@ -67,6 +69,7 @@ func applyResourceDataScope(
 	}
 }
 
+// getCurrentResourceDataScope resolves the effective host data scope for the user.
 func getCurrentResourceDataScope(ctx context.Context, userID int) (int, error) {
 	roleIDs, err := getCurrentResourceRoleIDs(ctx, userID)
 	if err != nil {
@@ -107,6 +110,7 @@ func getCurrentResourceDataScope(ctx context.Context, userID int) (int, error) {
 	return scope, nil
 }
 
+// getCurrentResourceRoleIDs returns the deduplicated role IDs assigned to the user.
 func getCurrentResourceRoleIDs(ctx context.Context, userID int) ([]int, error) {
 	var userRoles []*entity.SysUserRole
 	err := dao.SysUserRole.Ctx(ctx).
@@ -131,6 +135,7 @@ func getCurrentResourceRoleIDs(ctx context.Context, userID int) ([]int, error) {
 	return roleIDs, nil
 }
 
+// getCurrentResourceDeptIDs returns the deduplicated department IDs assigned to the user.
 func getCurrentResourceDeptIDs(ctx context.Context, userID int) ([]int, error) {
 	var userDepts []*entity.SysUserDept
 	err := dao.SysUserDept.Ctx(ctx).

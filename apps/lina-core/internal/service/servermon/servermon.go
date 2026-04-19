@@ -116,6 +116,7 @@ type Service interface {
 	CleanupStale(ctx context.Context, threshold time.Duration) (int64, error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -178,6 +179,7 @@ func (s *serviceImpl) Collect(ctx context.Context) *MonitorData {
 	return data
 }
 
+// collectServer gathers host-level OS, uptime, and service start information.
 func (s *serviceImpl) collectServer(ctx context.Context) *ServerInfo {
 	hostname := ""
 	if resolvedHostname, err := os.Hostname(); err == nil {
@@ -206,6 +208,7 @@ func (s *serviceImpl) collectServer(ctx context.Context) *ServerInfo {
 	}
 }
 
+// collectCPU gathers CPU topology and instantaneous utilization metrics.
 func (s *serviceImpl) collectCPU() *CPUInfo {
 	info := &CPUInfo{}
 	info.Cores = runtime.NumCPU()
@@ -220,6 +223,7 @@ func (s *serviceImpl) collectCPU() *CPUInfo {
 	return info
 }
 
+// collectMemory gathers virtual-memory totals and usage ratios.
 func (s *serviceImpl) collectMemory() *MemoryInfo {
 	v, err := mem.VirtualMemory()
 	if err != nil {
@@ -250,6 +254,8 @@ var virtualFsTypes = map[string]bool{
 	"fuse":     true,
 }
 
+// collectDisks gathers mounted physical-disk usage while skipping virtual
+// container-oriented filesystems.
 func (s *serviceImpl) collectDisks() []*DiskInfo {
 	partitions, err := disk.Partitions(false)
 	if err != nil {
@@ -277,6 +283,7 @@ func (s *serviceImpl) collectDisks() []*DiskInfo {
 	return disks
 }
 
+// collectNetwork gathers byte counters and derives rates from the previous sample.
 func (s *serviceImpl) collectNetwork() *NetworkInfo {
 	counters, err := netutil.IOCounters(false)
 	if err != nil || len(counters) == 0 {
@@ -301,6 +308,7 @@ func (s *serviceImpl) collectNetwork() *NetworkInfo {
 	return info
 }
 
+// collectGoRuntime gathers Go runtime, process resource, and service uptime metrics.
 func (s *serviceImpl) collectGoRuntime() *GoRuntimeInfo {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

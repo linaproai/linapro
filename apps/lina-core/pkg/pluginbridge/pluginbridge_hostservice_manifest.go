@@ -13,6 +13,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// hostServiceSpecWire is the JSON decoding shape that keeps legacy top-level
+// path/table fields available while capturing raw `resources` payloads.
 type hostServiceSpecWire struct {
 	Service   string          `json:"service" yaml:"service"`
 	Methods   []string        `json:"methods" yaml:"methods"`
@@ -21,14 +23,20 @@ type hostServiceSpecWire struct {
 	Resources json.RawMessage `json:"resources,omitempty" yaml:"-"`
 }
 
+// hostServiceStorageResourcesWire mirrors the manifest representation for
+// storage path declarations nested under `resources`.
 type hostServiceStorageResourcesWire struct {
 	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`
 }
 
+// hostServiceDataResourcesWire mirrors the manifest representation for data
+// table declarations nested under `resources`.
 type hostServiceDataResourcesWire struct {
 	Tables []string `json:"tables,omitempty" yaml:"tables,omitempty"`
 }
 
+// hostServiceNetworkResourceWire is the manifest-facing network resource item
+// that accepts either `url` or legacy `ref`.
 type hostServiceNetworkResourceWire struct {
 	URL string `json:"url,omitempty" yaml:"url,omitempty"`
 	Ref string `json:"ref,omitempty" yaml:"ref,omitempty"`
@@ -176,6 +184,8 @@ func (spec *HostServiceSpec) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// marshalNetworkResources converts normalized network resources back into the
+// manifest wire shape that exposes URL entries.
 func marshalNetworkResources(resources []*HostServiceResourceSpec) []*hostServiceNetworkResourceWire {
 	if len(resources) == 0 {
 		return nil
@@ -192,6 +202,8 @@ func marshalNetworkResources(resources []*HostServiceResourceSpec) []*hostServic
 	return items
 }
 
+// unmarshalJSONResourcesByService decodes service-specific JSON `resources`
+// payloads into normalized host resource declarations.
 func unmarshalJSONResourcesByService(service string, payload []byte) ([]*HostServiceResourceSpec, error) {
 	if normalizeHostServiceName(service) == HostServiceNetwork {
 		var resources []*hostServiceNetworkResourceWire
@@ -208,6 +220,8 @@ func unmarshalJSONResourcesByService(service string, payload []byte) ([]*HostSer
 	return resources, nil
 }
 
+// unmarshalYAMLResourcesByService decodes service-specific YAML `resources`
+// payloads into normalized host resource declarations.
 func unmarshalYAMLResourcesByService(service string, node *yaml.Node) ([]*HostServiceResourceSpec, error) {
 	if normalizeHostServiceName(service) == HostServiceNetwork {
 		var resources []*hostServiceNetworkResourceWire
@@ -224,6 +238,8 @@ func unmarshalYAMLResourcesByService(service string, node *yaml.Node) ([]*HostSe
 	return resources, nil
 }
 
+// normalizeNetworkWireResources converts manifest network URL entries into the
+// normalized resource spec shape used by validation and runtime code.
 func normalizeNetworkWireResources(resources []*hostServiceNetworkResourceWire) []*HostServiceResourceSpec {
 	if len(resources) == 0 {
 		return nil

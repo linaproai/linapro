@@ -12,6 +12,7 @@ import (
 	menusvc "lina-core/internal/service/menu"
 )
 
+// Runtime menu route conversion constants shared by hosted-asset menu items.
 const (
 	menuRuntimePageComponentPath      = "system/plugin/dynamic-page"
 	menuQueryKeyEmbeddedSource        = "embeddedSrc"
@@ -281,6 +282,8 @@ func normalizeMenuLinkTarget(path string) string {
 	return ""
 }
 
+// parseMenuQueryParams decodes the persisted JSON query payload into trimmed
+// string pairs used by route metadata.
 func parseMenuQueryParams(queryParam string) map[string]string {
 	trimmedQuery := strings.TrimSpace(queryParam)
 	if trimmedQuery == "" {
@@ -306,6 +309,8 @@ func parseMenuQueryParams(queryParam string) map[string]string {
 	return query
 }
 
+// mergeMenuQueryParams overlays non-empty query parameters onto an existing map
+// and returns nil when the merged result is empty.
 func mergeMenuQueryParams(base map[string]string, overrides map[string]string) map[string]string {
 	if len(base) == 0 && len(overrides) == 0 {
 		return nil
@@ -330,6 +335,8 @@ func mergeMenuQueryParams(base map[string]string, overrides map[string]string) m
 	return merged
 }
 
+// isRuntimeEmbeddedMountMenu reports whether the menu entry points at the
+// hosted runtime page component using embedded-mount semantics.
 func isRuntimeEmbeddedMountMenu(item *menusvc.MenuItem, menuQuery map[string]string) bool {
 	if normalizeMenuComponentPath(item.Component) != menuRuntimePageComponentPath {
 		return false
@@ -337,6 +344,8 @@ func isRuntimeEmbeddedMountMenu(item *menusvc.MenuItem, menuQuery map[string]str
 	return strings.TrimSpace(menuQuery[menuQueryKeyPluginAccessMode]) == menuPluginAccessModeEmbeddedMount
 }
 
+// normalizeMenuComponentPath normalizes one stored component path into the
+// canonical relative path used by runtime menu comparisons.
 func normalizeMenuComponentPath(component string) string {
 	normalizedComponent := strings.TrimSpace(component)
 	normalizedComponent = strings.TrimPrefix(normalizedComponent, "#")
@@ -361,6 +370,8 @@ func buildMenuLinkRouteName(item *menusvc.MenuItem) string {
 	return toPascalCase(buildMenuLinkRouteSlug(item))
 }
 
+// buildMenuLinkRouteSlug derives one stable router slug for menus that point
+// to hosted assets or external links.
 func buildMenuLinkRouteSlug(item *menusvc.MenuItem) string {
 	var builder strings.Builder
 	builder.WriteString("link-")
@@ -383,6 +394,8 @@ func buildMenuLinkRouteSlug(item *menusvc.MenuItem) string {
 	return slug
 }
 
+// collapseHyphen removes repeated hyphen runs while preserving single
+// separators in generated route slugs.
 func collapseHyphen(value string) string {
 	var (
 		builder      strings.Builder

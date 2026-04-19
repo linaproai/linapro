@@ -4,6 +4,8 @@ package pluginbridge
 
 import "testing"
 
+// TestHostServiceStoragePutRequestRoundTrip verifies storage put requests keep
+// path, content, and overwrite semantics through the codec.
 func TestHostServiceStoragePutRequestRoundTrip(t *testing.T) {
 	original := &HostServiceStoragePutRequest{
 		Path:        "reports/demo.json",
@@ -31,6 +33,8 @@ func TestHostServiceStoragePutRequestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceStorageGetResponseRoundTrip verifies storage get responses
+// keep found flags, object metadata, and body payloads through the codec.
 func TestHostServiceStorageGetResponseRoundTrip(t *testing.T) {
 	original := &HostServiceStorageGetResponse{
 		Found: true,
@@ -60,6 +64,8 @@ func TestHostServiceStorageGetResponseRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceStorageListResponseRoundTrip verifies storage list responses
+// preserve ordered object metadata snapshots.
 func TestHostServiceStorageListResponseRoundTrip(t *testing.T) {
 	original := &HostServiceStorageListResponse{
 		Objects: []*HostServiceStorageObject{
@@ -93,6 +99,8 @@ func TestHostServiceStorageListResponseRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceStorageStatResponseRoundTrip verifies storage stat responses
+// preserve found flags and object metadata snapshots.
 func TestHostServiceStorageStatResponseRoundTrip(t *testing.T) {
 	original := &HostServiceStorageStatResponse{
 		Found: true,

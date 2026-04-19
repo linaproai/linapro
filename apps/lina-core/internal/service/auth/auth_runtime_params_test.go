@@ -18,6 +18,8 @@ import (
 	hostconfig "lina-core/internal/service/config"
 )
 
+// TestLoginRejectsBlacklistedIP verifies managed login IP blacklist settings
+// are enforced before user lookup.
 func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	withRuntimeParamValue(t, hostconfig.RuntimeParamKeyLoginBlackIPList, "127.0.0.1")
 
@@ -44,6 +46,8 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	})
 }
 
+// newRequestContext builds one request-backed context carrying the supplied
+// remote address for auth service tests.
 func newRequestContext(t *testing.T, remoteAddr string) context.Context {
 	t.Helper()
 
@@ -58,6 +62,8 @@ func newRequestContext(t *testing.T, remoteAddr string) context.Context {
 	return req.Context()
 }
 
+// withRuntimeParamValue temporarily overrides one protected runtime parameter
+// and restores the original sys_config record during cleanup.
 func withRuntimeParamValue(t *testing.T, key string, value string) {
 	t.Helper()
 
@@ -114,6 +120,8 @@ func withRuntimeParamValue(t *testing.T, key string, value string) {
 	})
 }
 
+// markRuntimeParamChanged bumps the runtime-parameter revision for tests after
+// direct sys_config mutations.
 func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	t.Helper()
 
@@ -122,6 +130,7 @@ func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	}
 }
 
+// queryRuntimeParam loads one sys_config record by protected runtime-parameter key.
 func queryRuntimeParam(ctx context.Context, key string) (*entity.SysConfig, error) {
 	var runtimeParam *entity.SysConfig
 	err := dao.SysConfig.Ctx(ctx).

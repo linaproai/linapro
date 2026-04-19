@@ -14,6 +14,8 @@ import (
 	rolesvc "lina-core/internal/service/role"
 )
 
+// TestSingleNodeModeSkipsDistributedSyncCrons verifies startup warm-up does not
+// register distributed watcher crons when cluster mode is disabled.
 func TestSingleNodeModeSkipsDistributedSyncCrons(t *testing.T) {
 	ctx := context.Background()
 	gcron.Remove(CronRuntimeParamSync)
@@ -42,6 +44,8 @@ func TestSingleNodeModeSkipsDistributedSyncCrons(t *testing.T) {
 	}
 }
 
+// TestClusterModeRegistersDistributedSyncCrons verifies clustered startup
+// registers both distributed watcher crons.
 func TestClusterModeRegistersDistributedSyncCrons(t *testing.T) {
 	ctx := context.Background()
 	gcron.Remove(CronRuntimeParamSync)

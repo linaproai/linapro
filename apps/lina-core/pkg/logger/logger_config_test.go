@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 )
 
+// TestConfigureEnablesJsonHandler verifies structured logging enables the JSON handler.
 func TestConfigureEnablesJsonHandler(t *testing.T) {
 	oldHandler := glog.GetDefaultHandler()
 	t.Cleanup(func() {
@@ -29,6 +30,7 @@ func TestConfigureEnablesJsonHandler(t *testing.T) {
 	}
 }
 
+// TestConfigureDisablesCustomHandler verifies plain-text mode restores the default handler.
 func TestConfigureDisablesCustomHandler(t *testing.T) {
 	oldHandler := glog.GetDefaultHandler()
 	t.Cleanup(func() {
@@ -43,6 +45,8 @@ func TestConfigureDisablesCustomHandler(t *testing.T) {
 	}
 }
 
+// TestBindServerAlignsSharedOutput verifies the HTTP server inherits the
+// shared logger output directory and rolling file pattern.
 func TestBindServerAlignsSharedOutput(t *testing.T) {
 	server := ghttp.GetServer(fmt.Sprintf("logger-bind-%s", t.Name()))
 	tempDir := t.TempDir()
@@ -77,6 +81,8 @@ func TestBindServerAlignsSharedOutput(t *testing.T) {
 	}
 }
 
+// TestBindServerUsesDefaultPatternWhenFileMissing verifies empty file patterns
+// fall back to the project default rolling filename.
 func TestBindServerUsesDefaultPatternWhenFileMissing(t *testing.T) {
 	server := ghttp.GetServer(fmt.Sprintf("logger-bind-default-%s", t.Name()))
 
@@ -98,6 +104,8 @@ func TestBindServerUsesDefaultPatternWhenFileMissing(t *testing.T) {
 	}
 }
 
+// unsafeFieldString reads one unexported string field from a reflected struct
+// value for test assertions against GoFrame server config internals.
 func unsafeFieldString(value reflect.Value) string {
 	return reflect.NewAt(value.Type(), unsafe.Pointer(value.UnsafeAddr())).Elem().String()
 }

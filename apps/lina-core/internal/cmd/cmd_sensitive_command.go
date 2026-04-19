@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// Sensitive database command names that require explicit confirmation.
 const (
 	initCommandName = "init"
 	mockCommandName = "mock"

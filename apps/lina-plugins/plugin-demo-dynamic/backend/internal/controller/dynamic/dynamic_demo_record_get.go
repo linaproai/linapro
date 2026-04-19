@@ -23,6 +23,8 @@ func (c *Controller) DemoRecord(request *pluginbridge.BridgeRequestEnvelopeV1) (
 	return pluginbridge.NewJSONResponse(200, content), nil
 }
 
+// readDemoRecordIDFromDetailRoute reads the record identifier from the detail
+// route path parameters.
 func readDemoRecordIDFromDetailRoute(request *pluginbridge.BridgeRequestEnvelopeV1) string {
 	return readDynamicPathParam(request, "id")
 }

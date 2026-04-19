@@ -5,6 +5,7 @@ import (
 	dynamicbackend "lina-plugin-demo-dynamic/backend"
 )
 
+// guestRuntime owns the wasm guest bridge buffers and request execution helpers.
 var guestRuntime = pluginbridge.NewGuestRuntime(dynamicbackend.HandleRequest)
 
 //go:wasmexport lina_dynamic_route_alloc
@@ -27,4 +28,5 @@ func linaHostCallAlloc(size uint32) uint32 {
 	return guestRuntime.HostCallAlloc(size)
 }
 
+// main keeps the wasm module linkable without running any host-side process boot logic.
 func main() {}

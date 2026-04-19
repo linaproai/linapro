@@ -13,6 +13,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestHandleHostServiceInvokeDataLifecycle verifies governed data CRUD host calls.
 func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 	ctx := context.Background()
 	table := "sys_plugin_node_state"
@@ -105,6 +106,7 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeDataRejectsAnonymousRequestAccess verifies request-only data access needs identity.
 func TestHandleHostServiceInvokeDataRejectsAnonymousRequestAccess(t *testing.T) {
 	table := "sys_plugin_node_state"
 	hcc := &hostCallContext{
@@ -140,6 +142,7 @@ func TestHandleHostServiceInvokeDataRejectsAnonymousRequestAccess(t *testing.T) 
 	}
 }
 
+// invokeDataHostService marshals and dispatches one data host service request.
 func invokeDataHostService(
 	t *testing.T,
 	hcc *hostCallContext,
@@ -172,6 +175,7 @@ func invokeDataHostService(
 	return handleHostServiceInvoke(context.Background(), hcc, pluginbridge.MarshalHostServiceRequestEnvelope(envelope))
 }
 
+// cleanupWasmTestNodeStates removes sys_plugin_node_state rows created by wasm data tests.
 func cleanupWasmTestNodeStates(t *testing.T, ctx context.Context, pluginID string) {
 	t.Helper()
 	if _, err := dao.SysPluginNodeState.Ctx(ctx).
@@ -181,6 +185,7 @@ func cleanupWasmTestNodeStates(t *testing.T, ctx context.Context, pluginID strin
 	}
 }
 
+// mustMarshalWasmJSON marshals test values and fails on error.
 func mustMarshalWasmJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
@@ -190,6 +195,7 @@ func mustMarshalWasmJSON(t *testing.T, value any) []byte {
 	return data
 }
 
+// mustUnmarshalWasmRecord unmarshals JSON objects and fails on error.
 func mustUnmarshalWasmRecord(t *testing.T, data []byte) map[string]any {
 	t.Helper()
 	record := make(map[string]any)

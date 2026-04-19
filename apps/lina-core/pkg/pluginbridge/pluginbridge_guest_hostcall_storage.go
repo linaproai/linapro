@@ -22,8 +22,11 @@ type StorageHostService interface {
 	Stat(objectPath string) (*HostServiceStorageObject, bool, error)
 }
 
+// storageHostService is the default guest-side storage host-service client.
 type storageHostService struct{}
 
+// defaultStorageHostService stores the singleton storage host-service client
+// used by package-level helpers.
 var defaultStorageHostService StorageHostService = &storageHostService{}
 
 // Storage returns the storage host service guest client.

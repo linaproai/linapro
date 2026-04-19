@@ -10,6 +10,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// TestRequestBodyLimitForContentType verifies body-limit selection for
+// multipart and non-multipart requests.
 func TestRequestBodyLimitForContentType(t *testing.T) {
 	t.Parallel()
 
@@ -52,6 +54,8 @@ func TestRequestBodyLimitForContentType(t *testing.T) {
 	}
 }
 
+// TestIsMultipartContentType verifies multipart media types are detected
+// regardless of casing.
 func TestIsMultipartContentType(t *testing.T) {
 	t.Parallel()
 
@@ -63,6 +67,8 @@ func TestIsMultipartContentType(t *testing.T) {
 	}
 }
 
+// TestRequestBodyLimitFriendlyError verifies multipart overflows are converted
+// into user-facing upload-size validation errors.
 func TestRequestBodyLimitFriendlyError(t *testing.T) {
 	t.Parallel()
 
@@ -79,6 +85,8 @@ func TestRequestBodyLimitFriendlyError(t *testing.T) {
 	}
 }
 
+// TestRequestBodyLimitFriendlyErrorIgnoresNonMultipartRequests verifies
+// friendly overflow translation does not affect non-multipart requests.
 func TestRequestBodyLimitFriendlyErrorIgnoresNonMultipartRequests(t *testing.T) {
 	t.Parallel()
 

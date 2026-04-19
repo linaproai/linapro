@@ -17,6 +17,7 @@ import (
 // function on the given wazero runtime. This must be called after WASI
 // instantiation and before module compilation, because the guest module imports
 // from lina_env and wazero validates imports at compile time.
+// registerHostCallModule registers the lina_env host module and host_call export.
 func registerHostCallModule(ctx context.Context, rt wazero.Runtime) error {
 	_, err := rt.NewHostModuleBuilder(pluginbridge.HostModuleName).
 		NewFunctionBuilder().
@@ -35,6 +36,8 @@ func registerHostCallModule(ctx context.Context, rt wazero.Runtime) error {
 // dispatches to the appropriate capability handler, writes the response into
 // guest memory via the lina_host_call_alloc export, and returns the packed
 // (pointer << 32 | length) result.
+// hostCallHandler is the wazero callback that reads guest input, dispatches
+// the host call, and writes the encoded response back into guest memory.
 func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 	var (
 		opcode = uint32(stack[0])
@@ -79,6 +82,7 @@ func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 }
 
 // dispatchHostCall routes the opcode to the correct structured host service handler.
+// dispatchHostCall routes the opcode to the correct structured host service handler.
 func dispatchHostCall(ctx context.Context, hcc *hostCallContext, opcode uint32, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
 	switch opcode {
 	case pluginbridge.OpcodeServiceInvoke:
@@ -91,6 +95,8 @@ func dispatchHostCall(ctx context.Context, hcc *hostCallContext, opcode uint32, 
 
 // writeHostCallResponse writes encoded response bytes into guest memory via
 // the lina_host_call_alloc export and returns a packed (pointer << 32 | length).
+// writeHostCallResponse writes encoded response bytes into guest memory and
+// returns the packed pointer/length pair expected by the bridge ABI.
 func writeHostCallResponse(ctx context.Context, mod api.Module, respBytes []byte) uint64 {
 	if len(respBytes) == 0 {
 		return 0
@@ -116,6 +122,7 @@ func writeHostCallResponse(ctx context.Context, mod api.Module, respBytes []byte
 
 // writeHostCallError is a convenience wrapper that encodes an error response
 // and writes it to guest memory.
+// writeHostCallError encodes one error envelope and writes it to guest memory.
 func writeHostCallError(ctx context.Context, mod api.Module, status uint32, message string) uint64 {
 	envelope := pluginbridge.NewHostCallErrorResponse(status, message)
 	return writeHostCallResponse(ctx, mod, pluginbridge.MarshalHostCallResponse(envelope))

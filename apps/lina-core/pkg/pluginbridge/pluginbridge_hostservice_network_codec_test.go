@@ -4,6 +4,8 @@ package pluginbridge
 
 import "testing"
 
+// TestHostServiceNetworkRequestRoundTrip verifies network requests preserve
+// method, headers, and body payloads through the codec.
 func TestHostServiceNetworkRequestRoundTrip(t *testing.T) {
 	original := &HostServiceNetworkRequest{
 		Method: "POST",
@@ -29,6 +31,8 @@ func TestHostServiceNetworkRequestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceNetworkResponseRoundTrip verifies network responses preserve
+// status, headers, body, and content type through the codec.
 func TestHostServiceNetworkResponseRoundTrip(t *testing.T) {
 	original := &HostServiceNetworkResponse{
 		StatusCode:  201,

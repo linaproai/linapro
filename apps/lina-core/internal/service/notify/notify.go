@@ -1,12 +1,11 @@
-// This file defines the unified notify service component and shared transport models.
-
+// Package notify provides unified notification send, inbox query, and notice
+// publication services for host modules and plugins.
 package notify
 
 import (
 	"context"
 
 	"github.com/gogf/gf/v2/os/gtime"
-	// serviceImpl implements Service.
 )
 
 // Service defines the notify service contract.
@@ -31,24 +30,33 @@ type Service interface {
 	SendNoticePublication(ctx context.Context, in NoticePublishInput) (*SendOutput, error)
 }
 
+// Interface compliance assertion for the default notify service implementation.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct{}
 
+// SendInput defines one unified notification send request.
 type SendInput struct {
+	// ChannelKey is the target notify channel identifier.
 	ChannelKey string
 
+	// PluginID is the optional originating plugin identifier.
 	PluginID string
 
+	// SourceType is the originating business source type.
 	SourceType SourceType
 
+	// SourceID is the originating business record identifier.
 	SourceID string
 
+	// CategoryCode is the inbox category mapped to the outgoing message.
 	CategoryCode CategoryCode
 
+	// Title is the visible message title.
 	Title string
 
+	// Content is the visible message body.
 	Content string
 	// Payload carries optional structured message metadata.
 	Payload map[string]any

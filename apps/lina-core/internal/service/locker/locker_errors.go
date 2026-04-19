@@ -1,3 +1,5 @@
+// This file defines exported error values used by the locker service.
+
 package locker
 
 import "github.com/gogf/gf/v2/errors/gerror"

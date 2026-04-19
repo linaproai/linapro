@@ -10,6 +10,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// lockTicketClaims stores the serialized metadata required to renew or release
+// one acquired plugin lock safely.
 type lockTicketClaims struct {
 	LockID      int64  `json:"lockId"`
 	PluginID    string `json:"pluginId"`
@@ -18,6 +20,7 @@ type lockTicketClaims struct {
 	LeaseMillis int64  `json:"leaseMillis"`
 }
 
+// encodeLockTicket serializes one opaque lock ticket for plugin callers.
 func encodeLockTicket(claims lockTicketClaims) (string, error) {
 	content, err := json.Marshal(claims)
 	if err != nil {
@@ -26,6 +29,8 @@ func encodeLockTicket(claims lockTicketClaims) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(content), nil
 }
 
+// decodeAndValidateTicket decodes one opaque lock ticket and verifies it
+// matches the expected plugin and logical resource.
 func decodeAndValidateTicket(ticket string, pluginID string, resourceRef string) (*lockTicketClaims, error) {
 	normalizedTicket := strings.TrimSpace(ticket)
 	if normalizedTicket == "" {

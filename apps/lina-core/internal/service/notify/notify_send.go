@@ -55,6 +55,8 @@ func (s *serviceImpl) SendNoticePublication(ctx context.Context, in NoticePublis
 	})
 }
 
+// sendInbox validates inbox recipients and persists one notify message with
+// corresponding inbox delivery rows.
 func (s *serviceImpl) sendInbox(
 	ctx context.Context,
 	channel *entity.SysNotifyChannel,
@@ -127,6 +129,7 @@ func (s *serviceImpl) sendInbox(
 	}, nil
 }
 
+// getChannel loads one enabled notify channel by key.
 func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entity.SysNotifyChannel, error) {
 	normalizedChannelKey := strings.TrimSpace(channelKey)
 	if normalizedChannelKey == "" {
@@ -147,6 +150,8 @@ func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entit
 	return channel, nil
 }
 
+// listActiveInboxUserIDs returns all enabled user identifiers except the
+// optional excluded sender.
 func (s *serviceImpl) listActiveInboxUserIDs(ctx context.Context, excludedUserID int64) ([]int64, error) {
 	userCols := dao.SysUser.Columns()
 	model := dao.SysUser.Ctx(ctx).Fields(userCols.Id).Where(do.SysUser{Status: 1})
@@ -169,6 +174,8 @@ func (s *serviceImpl) listActiveInboxUserIDs(ctx context.Context, excludedUserID
 	return userIDs, nil
 }
 
+// marshalNotifyPayload serializes optional notify payload metadata into the
+// persisted JSON string form.
 func marshalNotifyPayload(payload map[string]any) (string, error) {
 	if len(payload) == 0 {
 		return "{}", nil
@@ -181,6 +188,8 @@ func marshalNotifyPayload(payload map[string]any) (string, error) {
 	return string(content), nil
 }
 
+// uniquePositiveUserIDs trims invalid IDs and de-duplicates the remaining
+// positive user identifiers while preserving order.
 func uniquePositiveUserIDs(userIDs []int64) []int64 {
 	if len(userIDs) == 0 {
 		return []int64{}
@@ -201,6 +210,8 @@ func uniquePositiveUserIDs(userIDs []int64) []int64 {
 	return result
 }
 
+// normalizeSourceType falls back to the system source type when the input is
+// empty.
 func normalizeSourceType(sourceType SourceType) SourceType {
 	if strings.TrimSpace(sourceType.String()) == "" {
 		return SourceTypeSystem
@@ -208,6 +219,8 @@ func normalizeSourceType(sourceType SourceType) SourceType {
 	return sourceType
 }
 
+// normalizeCategoryCode falls back to the generic category when the input is
+// empty.
 func normalizeCategoryCode(categoryCode CategoryCode) CategoryCode {
 	if strings.TrimSpace(categoryCode.String()) == "" {
 		return CategoryCodeOther

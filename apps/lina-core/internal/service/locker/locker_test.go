@@ -1,3 +1,6 @@
+// This file tests locker service acquisition and lock-function behavior
+// against the persistent lock table.
+
 package locker
 
 import (
@@ -13,6 +16,7 @@ import (
 	"github.com/gogf/gf/v2/test/gtest"
 )
 
+// testHolder is the holder token shared by locker integration tests.
 const testHolder = "test-node"
 
 // newTestService creates a new locker service for testing.
@@ -27,6 +31,7 @@ func cleanupLock(name string) {
 	}
 }
 
+// TestService_New verifies New returns a non-nil locker service.
 func TestService_New(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc := newTestService()
@@ -34,6 +39,8 @@ func TestService_New(t *testing.T) {
 	})
 }
 
+// TestService_Lock_NewLock verifies acquiring a missing lock creates one new
+// persistent lock row.
 func TestService_Lock_NewLock(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -61,6 +68,8 @@ func TestService_Lock_NewLock(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestService_Lock_ExistingExpiredLock verifies an expired lock can be taken
+// over and rewritten by the current holder.
 func TestService_Lock_ExistingExpiredLock(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -103,6 +112,8 @@ func TestService_Lock_ExistingExpiredLock(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestService_Lock_ExistingNonExpiredLock verifies a lock held by another node
+// cannot be acquired before expiry.
 func TestService_Lock_ExistingNonExpiredLock(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -133,6 +144,8 @@ func TestService_Lock_ExistingNonExpiredLock(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestService_Lock_SameHolder verifies the current holder can reacquire its
+// own lock and extend ownership.
 func TestService_Lock_SameHolder(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -161,6 +174,8 @@ func TestService_Lock_SameHolder(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestService_LockFunc verifies LockFunc executes the callback and releases the
+// lock afterward.
 func TestService_LockFunc(t *testing.T) {
 	var (
 		svc      = newTestService()
@@ -203,6 +218,8 @@ func TestService_LockFunc(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestService_LockFunc_AlreadyLocked verifies LockFunc does not execute the
+// callback when another holder already owns the lock.
 func TestService_LockFunc_AlreadyLocked(t *testing.T) {
 	var (
 		svc    = newTestService()

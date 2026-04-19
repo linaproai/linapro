@@ -23,6 +23,7 @@ type Service interface {
 	ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error
 }
 
+// Ensure serviceImpl satisfies the dynamic-route OpenAPI projection contract.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -112,6 +113,8 @@ func BuildRouteOpenAPIOperation(pluginID string, route *pluginbridge.RouteContra
 	return buildRouteOpenAPIOperation(pluginID, route, bridgeSpec)
 }
 
+// buildRouteOpenAPIOperation converts one runtime route contract into a host
+// OpenAPI operation while reflecting whether the bridge is executable.
 func buildRouteOpenAPIOperation(
 	pluginID string,
 	route *pluginbridge.RouteContract,

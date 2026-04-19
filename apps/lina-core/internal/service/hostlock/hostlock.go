@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/service/locker"
 )
 
+// Lock normalization constants shared by acquire, renew, and release paths.
 const (
 	defaultLease = 30 * time.Second
 	minLease     = 1 * time.Second
@@ -31,6 +32,7 @@ type Service interface {
 	Release(ctx context.Context, pluginID string, resourceRef string, ticket string) error
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -132,6 +134,8 @@ func (s *serviceImpl) Release(ctx context.Context, pluginID string, resourceRef 
 	return s.lockerSvc.Unlock(ctx, claims.LockID, claims.Holder)
 }
 
+// buildActualLockName combines the plugin identity and logical resource name
+// into one bounded lock key accepted by the underlying locker service.
 func buildActualLockName(pluginID string, resourceRef string) (string, error) {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	normalizedResourceRef := strings.TrimSpace(resourceRef)
@@ -149,6 +153,8 @@ func buildActualLockName(pluginID string, resourceRef string) (string, error) {
 	return actualLockName, nil
 }
 
+// normalizeLease converts the request lease in milliseconds into a validated
+// duration while enforcing host-level defaults and boundaries.
 func normalizeLease(leaseMillis int64) (time.Duration, error) {
 	if leaseMillis <= 0 {
 		return defaultLease, nil
@@ -164,10 +170,14 @@ func normalizeLease(leaseMillis int64) (time.Duration, error) {
 	return lease, nil
 }
 
+// buildLockHolder creates one unique holder token used by the distributed
+// locker implementation to identify the current caller.
 func buildLockHolder() string {
 	return "pl:" + guid.S()
 }
 
+// buildLockReason generates one audit-friendly lock reason string that records
+// the logical resource and optional request identifier.
 func buildLockReason(resourceRef string, requestID string) string {
 	normalizedResourceRef := strings.TrimSpace(resourceRef)
 	normalizedRequestID := strings.TrimSpace(requestID)

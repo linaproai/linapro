@@ -1,5 +1,6 @@
 // This file tests the shared host call entrypoint dispatch and error
 // propagation behavior.
+
 package wasm
 
 import (
@@ -8,6 +9,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestValidateCapabilitiesAcceptsValid verifies known capabilities pass schema
+// validation.
 func TestValidateCapabilitiesAcceptsValid(t *testing.T) {
 	err := pluginbridge.ValidateCapabilities([]string{
 		pluginbridge.CapabilityRuntime,
@@ -18,6 +21,8 @@ func TestValidateCapabilitiesAcceptsValid(t *testing.T) {
 	}
 }
 
+// TestValidateCapabilitiesRejectsUnknown verifies unknown capability names are
+// rejected by validation.
 func TestValidateCapabilitiesRejectsUnknown(t *testing.T) {
 	err := pluginbridge.ValidateCapabilities([]string{pluginbridge.CapabilityRuntime, "host:unknown"})
 	if err == nil {
@@ -25,6 +30,8 @@ func TestValidateCapabilitiesRejectsUnknown(t *testing.T) {
 	}
 }
 
+// TestValidateCapabilitiesRejectsEmpty verifies empty capability entries are
+// rejected during validation.
 func TestValidateCapabilitiesRejectsEmpty(t *testing.T) {
 	err := pluginbridge.ValidateCapabilities([]string{""})
 	if err == nil {
@@ -32,6 +39,8 @@ func TestValidateCapabilitiesRejectsEmpty(t *testing.T) {
 	}
 }
 
+// TestCapabilitiesFromHostServicesDerivesRuntimeCapability verifies runtime
+// host services imply the runtime capability grant.
 func TestCapabilitiesFromHostServicesDerivesRuntimeCapability(t *testing.T) {
 	capabilities := pluginbridge.CapabilitiesFromHostServices(
 		[]*pluginbridge.HostServiceSpec{
@@ -49,6 +58,8 @@ func TestCapabilitiesFromHostServicesDerivesRuntimeCapability(t *testing.T) {
 	}
 }
 
+// TestHostCallContextHasCapability verifies direct capability lookups against
+// the precomputed capability set.
 func TestHostCallContextHasCapability(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
@@ -64,6 +75,8 @@ func TestHostCallContextHasCapability(t *testing.T) {
 	}
 }
 
+// TestHostCallContextHasHostServiceAccess verifies host-service method
+// authorization honors the declared method allowlist.
 func TestHostCallContextHasHostServiceAccess(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
@@ -85,6 +98,8 @@ func TestHostCallContextHasHostServiceAccess(t *testing.T) {
 	}
 }
 
+// TestHostCallContextHasDataTableAccess verifies data-table authorization is
+// limited to explicitly granted tables.
 func TestHostCallContextHasDataTableAccess(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
@@ -104,6 +119,8 @@ func TestHostCallContextHasDataTableAccess(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeRejectsUnsupportedMethod verifies unknown handler
+// methods return a not-found response.
 func TestHandleHostServiceInvokeRejectsUnsupportedMethod(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
@@ -127,6 +144,8 @@ func TestHandleHostServiceInvokeRejectsUnsupportedMethod(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeRejectsUnauthorizedMethod verifies declared
+// capabilities alone do not bypass host-service method authorization.
 func TestHandleHostServiceInvokeRejectsUnauthorizedMethod(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
@@ -150,6 +169,8 @@ func TestHandleHostServiceInvokeRejectsUnauthorizedMethod(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeRejectsUnauthorizedResourceRef verifies resource
+// scoping is enforced before dispatching storage host-service calls.
 func TestHandleHostServiceInvokeRejectsUnauthorizedResourceRef(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",
@@ -178,6 +199,8 @@ func TestHandleHostServiceInvokeRejectsUnauthorizedResourceRef(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeReturnsRuntimeUUID verifies the runtime UUID
+// helper returns a non-empty value when authorized.
 func TestHandleHostServiceInvokeReturnsRuntimeUUID(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin",

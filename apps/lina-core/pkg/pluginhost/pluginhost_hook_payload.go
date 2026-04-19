@@ -1,8 +1,12 @@
+// This file declares published hook payload keys and helper constructors shared
+// by host hook dispatchers and source plugins.
+
 package pluginhost
 
 // HookPayloadKey defines one published field name inside a host hook payload.
 type HookPayloadKey string
 
+// Published hook payload field names.
 const (
 	// HookPayloadKeyPluginID identifies the current plugin targeted by lifecycle events.
 	HookPayloadKeyPluginID HookPayloadKey = "pluginId"

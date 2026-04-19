@@ -18,12 +18,16 @@ import (
 	"lina-core/internal/service/kvcache"
 )
 
+// fakeRuntimeParamKVCacheService provides deterministic revision reads and
+// counters for runtime-parameter cache tests.
 type fakeRuntimeParamKVCacheService struct {
 	getIntValue int64
 	getIntCalls int32
 	incrCalls   int32
 }
 
+// Get returns no cached string item because these tests only exercise integer
+// revision paths.
 func (f *fakeRuntimeParamKVCacheService) Get(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -32,6 +36,7 @@ func (f *fakeRuntimeParamKVCacheService) Get(
 	return nil, false, nil
 }
 
+// GetInt returns the configured revision value and tracks read calls.
 func (f *fakeRuntimeParamKVCacheService) GetInt(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -41,6 +46,7 @@ func (f *fakeRuntimeParamKVCacheService) GetInt(
 	return f.getIntValue, true, nil
 }
 
+// Set is a no-op success stub for tests.
 func (f *fakeRuntimeParamKVCacheService) Set(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -51,6 +57,7 @@ func (f *fakeRuntimeParamKVCacheService) Set(
 	return nil, nil
 }
 
+// Delete is a no-op success stub for tests.
 func (f *fakeRuntimeParamKVCacheService) Delete(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -59,6 +66,7 @@ func (f *fakeRuntimeParamKVCacheService) Delete(
 	return nil
 }
 
+// Incr returns the configured integer value and tracks increment calls.
 func (f *fakeRuntimeParamKVCacheService) Incr(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -70,6 +78,7 @@ func (f *fakeRuntimeParamKVCacheService) Incr(
 	return &kvcache.Item{IntValue: f.getIntValue}, nil
 }
 
+// Expire is a no-op stub because expiration is irrelevant to these tests.
 func (f *fakeRuntimeParamKVCacheService) Expire(
 	_ context.Context,
 	_ kvcache.OwnerType,
@@ -79,10 +88,13 @@ func (f *fakeRuntimeParamKVCacheService) Expire(
 	return false, nil, nil
 }
 
+// CleanupExpired is a no-op success stub for tests.
 func (f *fakeRuntimeParamKVCacheService) CleanupExpired(_ context.Context) error {
 	return nil
 }
 
+// TestNewRuntimeParamRevisionControllerSelectsByClusterMode verifies the
+// constructor selects the local or clustered revision strategy correctly.
 func TestNewRuntimeParamRevisionControllerSelectsByClusterMode(t *testing.T) {
 	if _, ok := newRuntimeParamRevisionController(
 		false,
@@ -99,6 +111,8 @@ func TestNewRuntimeParamRevisionControllerSelectsByClusterMode(t *testing.T) {
 	}
 }
 
+// TestValidateRuntimeParamValue verifies built-in runtime parameter validators
+// accept valid values and reject malformed ones.
 func TestValidateRuntimeParamValue(t *testing.T) {
 	testCases := []struct {
 		key       string
@@ -126,6 +140,8 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 	}
 }
 
+// TestValidatePublicFrontendSettingValue verifies protected public frontend
+// settings enforce their supported value formats.
 func TestValidatePublicFrontendSettingValue(t *testing.T) {
 	testCases := []struct {
 		key       string
@@ -153,6 +169,8 @@ func TestValidatePublicFrontendSettingValue(t *testing.T) {
 	}
 }
 
+// TestGetJwtPrefersRuntimeParamOverride verifies runtime JWT overrides win over
+// static config values.
 func TestGetJwtPrefersRuntimeParamOverride(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
 
@@ -167,6 +185,8 @@ func TestGetJwtPrefersRuntimeParamOverride(t *testing.T) {
 	}
 }
 
+// TestGetSessionPrefersRuntimeParamTimeout verifies the session timeout can be
+// overridden by runtime parameters without disturbing static cleanup interval.
 func TestGetSessionPrefersRuntimeParamTimeout(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeySessionTimeout, "2h")
 
@@ -184,6 +204,8 @@ func TestGetSessionPrefersRuntimeParamTimeout(t *testing.T) {
 	}
 }
 
+// TestGetUploadPrefersRuntimeParamMaxSize verifies runtime upload size
+// overrides flow into both structured config and convenience getters.
 func TestGetUploadPrefersRuntimeParamMaxSize(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyUploadMaxSize, "8")
 
@@ -198,6 +220,8 @@ func TestGetUploadPrefersRuntimeParamMaxSize(t *testing.T) {
 	}
 }
 
+// TestGetLoginUsesRuntimeBlacklist verifies runtime blacklist rules are parsed
+// once and reused by both config objects and convenience getters.
 func TestGetLoginUsesRuntimeBlacklist(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyLoginBlackIPList, "127.0.0.1;10.0.0.0/8")
 
@@ -221,6 +245,8 @@ func TestGetLoginUsesRuntimeBlacklist(t *testing.T) {
 	}
 }
 
+// TestGetPublicFrontendUsesProtectedConfigValues verifies protected public
+// frontend settings flow into the public frontend payload.
 func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	withRuntimeParamValue(t, PublicFrontendSettingKeyAppName, "LinaPro Console")
 	withRuntimeParamValue(
@@ -262,6 +288,8 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 }
 
+// TestRuntimeParamSnapshotReloadsAfterRevisionChange verifies direct reads
+// rebuild the cached snapshot after the protected-config revision changes.
 func TestRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 	ctx := context.Background()
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
@@ -311,6 +339,8 @@ func TestRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 	}
 }
 
+// TestSyncRuntimeParamSnapshotKeepsCachedValueWhenRevisionUnchanged verifies
+// watcher sync preserves the local snapshot when the revision does not change.
 func TestSyncRuntimeParamSnapshotKeepsCachedValueWhenRevisionUnchanged(t *testing.T) {
 	ctx := context.Background()
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
@@ -360,6 +390,8 @@ func TestSyncRuntimeParamSnapshotKeepsCachedValueWhenRevisionUnchanged(t *testin
 	}
 }
 
+// TestSyncRuntimeParamSnapshotReloadsAfterRevisionChange verifies watcher sync
+// reloads the local snapshot after the shared revision advances.
 func TestSyncRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 	ctx := context.Background()
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
@@ -408,6 +440,8 @@ func TestSyncRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 	}
 }
 
+// TestSingleNodeRuntimeParamSnapshotStaysLocal verifies single-node mode avoids
+// shared-KV traffic while still invalidating local snapshots.
 func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
 	ctx := context.Background()
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
@@ -472,6 +506,8 @@ func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
 	}
 }
 
+// withRuntimeParamValue writes one runtime parameter override for a test case
+// and restores the previous database state afterward.
 func withRuntimeParamValue(t *testing.T, key string, value string) {
 	t.Helper()
 
@@ -528,6 +564,8 @@ func withRuntimeParamValue(t *testing.T, key string, value string) {
 	})
 }
 
+// withRuntimeParamAbsent removes one runtime parameter row for a test case and
+// restores it afterward when necessary.
 func withRuntimeParamAbsent(t *testing.T, key string) {
 	t.Helper()
 
@@ -564,6 +602,7 @@ func withRuntimeParamAbsent(t *testing.T, key string) {
 	})
 }
 
+// markRuntimeParamChanged bumps the runtime-parameter revision for test setup changes.
 func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	t.Helper()
 
@@ -572,6 +611,7 @@ func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	}
 }
 
+// clearRuntimeParamSnapshotCache clears the process-local runtime snapshot cache.
 func clearRuntimeParamSnapshotCache(t *testing.T, ctx context.Context) {
 	t.Helper()
 
@@ -580,6 +620,8 @@ func clearRuntimeParamSnapshotCache(t *testing.T, ctx context.Context) {
 	}
 }
 
+// resetRuntimeParamCacheTestState resets revision and snapshot cache state
+// before and after a test case.
 func resetRuntimeParamCacheTestState(t *testing.T) {
 	t.Helper()
 
@@ -596,6 +638,7 @@ func resetRuntimeParamCacheTestState(t *testing.T) {
 	})
 }
 
+// queryRuntimeParam loads one runtime parameter row directly from sys_config.
 func queryRuntimeParam(ctx context.Context, key string) (*entity.SysConfig, error) {
 	var runtimeParam *entity.SysConfig
 	err := dao.SysConfig.Ctx(ctx).

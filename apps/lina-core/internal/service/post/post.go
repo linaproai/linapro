@@ -36,6 +36,7 @@ type Service interface {
 	Export(ctx context.Context, in ExportInput) (data []byte, err error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -43,12 +44,14 @@ type serviceImpl struct {
 	deptSvc dept.Service
 }
 
+// New creates and returns a new post service instance.
 func New() Service {
 	return &serviceImpl{
 		deptSvc: dept.New(),
 	}
 }
 
+// ListInput defines filters and pagination for post list queries.
 type ListInput struct {
 	PageNum  int
 	PageSize int

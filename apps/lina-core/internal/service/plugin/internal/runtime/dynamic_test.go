@@ -12,6 +12,8 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry verifies
+// that public runtime projections do not mutate registry state on missing artifacts.
 func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -86,6 +88,8 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	}
 }
 
+// TestUploadDynamicPackageAllowsRecoveryWhenArtifactIsMissing verifies that a
+// fresh upload can recover a dynamic plugin whose staged artifact disappeared.
 func TestUploadDynamicPackageAllowsRecoveryWhenArtifactIsMissing(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
@@ -153,6 +157,7 @@ func TestUploadDynamicPackageAllowsRecoveryWhenArtifactIsMissing(t *testing.T) {
 	}
 }
 
+// findRuntimeStateItem returns the matching runtime-state projection for one plugin ID.
 func findRuntimeStateItem(items []*runtime.PluginDynamicStateItem, pluginID string) *runtime.PluginDynamicStateItem {
 	for _, item := range items {
 		if item != nil && item.Id == pluginID {

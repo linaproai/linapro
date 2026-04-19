@@ -6,6 +6,9 @@ import (
 	menusvc "lina-core/internal/service/menu"
 )
 
+// TestConvertToRouteItemsBuildsIframeRouteForHostedPluginAssets verifies hosted
+// asset menus default to iframe routes when they are not marked as new-window
+// or embedded-mount entries.
 func TestConvertToRouteItemsBuildsIframeRouteForHostedPluginAssets(t *testing.T) {
 	routes := convertToRouteItems([]*menusvc.MenuItem{
 		{
@@ -35,6 +38,8 @@ func TestConvertToRouteItemsBuildsIframeRouteForHostedPluginAssets(t *testing.T)
 	}
 }
 
+// TestConvertToRouteItemsBuildsNewWindowRouteForHostedPluginAssets verifies
+// hosted asset menus marked as frames become new-window link routes.
 func TestConvertToRouteItemsBuildsNewWindowRouteForHostedPluginAssets(t *testing.T) {
 	routes := convertToRouteItems([]*menusvc.MenuItem{
 		{
@@ -64,6 +69,9 @@ func TestConvertToRouteItemsBuildsNewWindowRouteForHostedPluginAssets(t *testing
 	}
 }
 
+// TestConvertToRouteItemsBuildsEmbeddedMountRouteForHostedPluginAssets verifies
+// embedded-mount runtime menus keep the hosted shell component and forward the
+// target URL through query parameters.
 func TestConvertToRouteItemsBuildsEmbeddedMountRouteForHostedPluginAssets(t *testing.T) {
 	routes := convertToRouteItems([]*menusvc.MenuItem{
 		{
@@ -101,6 +109,8 @@ func TestConvertToRouteItemsBuildsEmbeddedMountRouteForHostedPluginAssets(t *tes
 	}
 }
 
+// TestConvertToRouteItemsKeepsRegularViewRouteUnchanged verifies normal
+// workspace views are not rewritten by hosted-link conversion logic.
 func TestConvertToRouteItemsKeepsRegularViewRouteUnchanged(t *testing.T) {
 	routes := convertToRouteItems([]*menusvc.MenuItem{
 		{

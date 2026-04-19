@@ -1,3 +1,6 @@
+// This file verifies SQL execution helpers stop on failure and ignore empty
+// files during manifest SQL processing.
+
 package cmd
 
 import (
@@ -10,6 +13,8 @@ import (
 	"testing"
 )
 
+// TestExecuteSQLFilesWithExecutorStopsAfterFirstError verifies execution halts
+// at the first failing SQL file and returns the failing file name.
 func TestExecuteSQLFilesWithExecutorStopsAfterFirstError(t *testing.T) {
 	t.Parallel()
 
@@ -39,6 +44,8 @@ func TestExecuteSQLFilesWithExecutorStopsAfterFirstError(t *testing.T) {
 	}
 }
 
+// TestExecuteSQLFilesWithExecutorSkipsEmptyFiles verifies blank SQL files are
+// ignored while non-empty files still execute in order.
 func TestExecuteSQLFilesWithExecutorSkipsEmptyFiles(t *testing.T) {
 	t.Parallel()
 
@@ -61,6 +68,7 @@ func TestExecuteSQLFilesWithExecutorSkipsEmptyFiles(t *testing.T) {
 	}
 }
 
+// writeTestSQLFile writes one temporary SQL file for command helper tests.
 func writeTestSQLFile(t *testing.T, dir string, name string, contents string) string {
 	t.Helper()
 

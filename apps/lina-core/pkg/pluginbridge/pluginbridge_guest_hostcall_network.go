@@ -10,8 +10,11 @@ type HTTPHostService interface {
 	Request(targetURL string, request *HostServiceNetworkRequest) (*HostServiceNetworkResponse, error)
 }
 
+// httpHostService is the default guest-side outbound HTTP host-service client.
 type httpHostService struct{}
 
+// defaultHTTPHostService stores the singleton outbound HTTP host-service
+// client used by package-level helpers.
 var defaultHTTPHostService HTTPHostService = &httpHostService{}
 
 // HTTP returns the outbound HTTP host service guest client.

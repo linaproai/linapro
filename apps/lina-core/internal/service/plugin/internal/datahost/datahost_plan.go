@@ -15,6 +15,8 @@ import (
 	"lina-core/pkg/plugindb/shared"
 )
 
+// decodeDataListPlan restores a typed plugindb list plan or synthesizes one
+// from the legacy list request fields.
 func decodeDataListPlan(table string, request *pluginbridge.HostServiceDataListRequest) (*shared.DataQueryPlan, error) {
 	plan, err := pluginbridge.DecodeHostServiceDataListPlan(request)
 	if err != nil {
@@ -71,6 +73,8 @@ func decodeDataListPlan(table string, request *pluginbridge.HostServiceDataListR
 	return plan, shared.ValidateDataQueryPlan(plan)
 }
 
+// decodeDataGetPlan restores a typed plugindb get plan or synthesizes one from
+// the legacy get request key.
 func decodeDataGetPlan(table string, request *pluginbridge.HostServiceDataGetRequest) (*shared.DataQueryPlan, error) {
 	plan, err := pluginbridge.DecodeHostServiceDataGetPlan(request)
 	if err != nil {
@@ -100,6 +104,7 @@ func decodeDataGetPlan(table string, request *pluginbridge.HostServiceDataGetReq
 	return plan, shared.ValidateDataQueryPlan(plan)
 }
 
+// applyPlanFilters applies typed plugindb filters against authorized resource fields.
 func applyPlanFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters []*shared.DataFilter) (*gdb.Model, error) {
 	if model == nil || resource == nil || len(filters) == 0 {
 		return model, nil
@@ -141,6 +146,7 @@ func applyPlanFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters 
 	return model, nil
 }
 
+// buildPlanFieldArgs builds select expressions for the requested field subset.
 func buildPlanFieldArgs(resource *catalog.ResourceSpec, selected []string) ([]any, error) {
 	if len(selected) == 0 {
 		return buildResourceFieldArgs(resource), nil
@@ -165,6 +171,7 @@ func buildPlanFieldArgs(resource *catalog.ResourceSpec, selected []string) ([]an
 	return fields, nil
 }
 
+// buildPlanOrderBy builds the ORDER BY clause for the typed query plan.
 func buildPlanOrderBy(resource *catalog.ResourceSpec, orders []*shared.DataOrder) (string, error) {
 	if len(orders) == 0 {
 		return buildResourceOrderBy(resource), nil
@@ -187,6 +194,7 @@ func buildPlanOrderBy(resource *catalog.ResourceSpec, orders []*shared.DataOrder
 	return strings.Join(parts, ", "), nil
 }
 
+// buildResourceRecordWithSelection projects only the selected logical fields from one row.
 func buildResourceRecordWithSelection(recordMap map[string]interface{}, resource *catalog.ResourceSpec, selected []string) map[string]interface{} {
 	if len(selected) == 0 {
 		return buildResourceRecord(recordMap, resource)

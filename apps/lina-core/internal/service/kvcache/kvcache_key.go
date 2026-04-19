@@ -10,8 +10,12 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// cacheKeyPartCount defines the number of encoded segments carried by one
+// public cache key.
 const cacheKeyPartCount = 3
 
+// cacheIdentity stores the decoded owner key, namespace, and logical cache
+// key parsed from a public cache key string.
 type cacheIdentity struct {
 	ownerKey  string
 	namespace string
@@ -32,6 +36,8 @@ func BuildCacheKey(ownerKey string, namespace string, cacheKey string) string {
 	return strings.Join(encodedParts, ".")
 }
 
+// parseCacheKey decodes one public cache key back into its owner-scoped
+// identity parts.
 func parseCacheKey(cacheKey string) (*cacheIdentity, error) {
 	parts := strings.Split(strings.TrimSpace(cacheKey), ".")
 	if len(parts) != cacheKeyPartCount {

@@ -23,8 +23,11 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// runtimeReconcilerInterval is the clustered background reconcile cadence.
 const runtimeReconcilerInterval = 2 * time.Second
 
+// Background reconciler singletons ensure only one reconcile loop and one
+// convergence pass run at a time inside the current process.
 var (
 	reconcilerOnce sync.Once
 	reconcileMu    sync.Mutex

@@ -16,6 +16,8 @@ import (
 	"lina-core/internal/model/entity"
 )
 
+// TestTouchOrValidateRejectsExpiredSession verifies expired online sessions are
+// removed during validation.
 func TestTouchOrValidateRejectsExpiredSession(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-expired-%d", time.Now().UnixNano())
@@ -43,6 +45,8 @@ func TestTouchOrValidateRejectsExpiredSession(t *testing.T) {
 	}
 }
 
+// TestTouchOrValidateRefreshesActiveSession verifies valid sessions keep their
+// record and refresh the last-active timestamp.
 func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-active-%d", time.Now().UnixNano())
@@ -74,6 +78,8 @@ func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 	}
 }
 
+// insertSessionRecord inserts one online-session row used by validation tests
+// and registers cleanup automatically.
 func insertSessionRecord(t *testing.T, ctx context.Context, tokenID string, lastActive *gtime.Time) {
 	t.Helper()
 

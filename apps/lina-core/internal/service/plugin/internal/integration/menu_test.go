@@ -18,6 +18,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// testDefaultAdminRoleID matches the seeded super-admin role used by menu sync tests.
 const testDefaultAdminRoleID = 1
 
 // TestSyncSourcePluginMenusFromManifest verifies source plugin menus are only

@@ -16,6 +16,7 @@ import (
 	"lina-core/pkg/plugindb/shared"
 )
 
+// TestExecuteCRUDLifecycle verifies governed create, list, get, update, and delete flows.
 func TestExecuteCRUDLifecycle(t *testing.T) {
 	ctx := context.Background()
 	resource := buildTestNodeStateResource()
@@ -141,6 +142,8 @@ func TestExecuteCRUDLifecycle(t *testing.T) {
 	}
 }
 
+// TestExecuteTransactionAppliesMutationsAtomically verifies transactional
+// mutations commit as one atomic unit.
 func TestExecuteTransactionAppliesMutationsAtomically(t *testing.T) {
 	ctx := context.Background()
 	resource := buildTestNodeStateResourceWithNodeKey()
@@ -214,6 +217,7 @@ func TestExecuteTransactionAppliesMutationsAtomically(t *testing.T) {
 	}
 }
 
+// TestExecuteListSupportsPlugindbPlan verifies typed plugindb list plans are honored.
 func TestExecuteListSupportsPlugindbPlan(t *testing.T) {
 	ctx := context.Background()
 	resource := buildTestNodeStateResource()
@@ -327,6 +331,8 @@ func TestExecuteListSupportsPlugindbPlan(t *testing.T) {
 	}
 }
 
+// TestExecuteGetSupportsPlugindbFieldSelection verifies typed get plans can
+// restrict the returned field selection.
 func TestExecuteGetSupportsPlugindbFieldSelection(t *testing.T) {
 	ctx := context.Background()
 	resource := buildTestNodeStateResource()
@@ -397,6 +403,8 @@ func TestExecuteGetSupportsPlugindbFieldSelection(t *testing.T) {
 	}
 }
 
+// TestPluginDataDBDoCommitRejectsUnauthorizedTable verifies unauthorized table
+// writes are rejected by the governed host database wrapper.
 func TestPluginDataDBDoCommitRejectsUnauthorizedTable(t *testing.T) {
 	db, err := getPluginDataDB()
 	if err != nil {
@@ -417,6 +425,7 @@ func TestPluginDataDBDoCommitRejectsUnauthorizedTable(t *testing.T) {
 	}
 }
 
+// buildTestNodeStateResource returns a broad CRUD resource contract for sys_plugin_node_state.
 func buildTestNodeStateResource() *catalog.ResourceSpec {
 	return &catalog.ResourceSpec{
 		Key:   "nodeStates",
@@ -461,12 +470,14 @@ func buildTestNodeStateResource() *catalog.ResourceSpec {
 	}
 }
 
+// buildTestNodeStateResourceWithNodeKey uses nodeKey as the logical key field for tests.
 func buildTestNodeStateResourceWithNodeKey() *catalog.ResourceSpec {
 	resource := buildTestNodeStateResource()
 	resource.KeyField = "nodeKey"
 	return resource
 }
 
+// cleanupNodeStates removes test rows for the given plugin marker.
 func cleanupNodeStates(t *testing.T, ctx context.Context, pluginID string) {
 	t.Helper()
 	if _, err := dao.SysPluginNodeState.Ctx(ctx).
@@ -476,6 +487,7 @@ func cleanupNodeStates(t *testing.T, ctx context.Context, pluginID string) {
 	}
 }
 
+// mustMarshalJSON marshals a value and fails the test on error.
 func mustMarshalJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
@@ -485,6 +497,7 @@ func mustMarshalJSON(t *testing.T, value any) []byte {
 	return data
 }
 
+// mustUnmarshalJSONValue decodes arbitrary JSON and fails the test on error.
 func mustUnmarshalJSONValue(t *testing.T, data []byte) any {
 	t.Helper()
 	var value any
@@ -494,6 +507,7 @@ func mustUnmarshalJSONValue(t *testing.T, data []byte) any {
 	return value
 }
 
+// mustUnmarshalJSONRecord decodes a JSON object and fails the test on error.
 func mustUnmarshalJSONRecord(t *testing.T, data []byte) map[string]any {
 	t.Helper()
 	record := make(map[string]any)
@@ -503,6 +517,7 @@ func mustUnmarshalJSONRecord(t *testing.T, data []byte) map[string]any {
 	return record
 }
 
+// mustNewEQFilter builds an equality filter and fails the test on validation error.
 func mustNewEQFilter(t *testing.T, field string, value any) *shared.DataFilter {
 	t.Helper()
 	filter, err := shared.NewEQFilter(field, value)
@@ -512,6 +527,7 @@ func mustNewEQFilter(t *testing.T, field string, value any) *shared.DataFilter {
 	return filter
 }
 
+// mustNewINFilter builds an IN filter and fails the test on validation error.
 func mustNewINFilter(t *testing.T, field string, values any) *shared.DataFilter {
 	t.Helper()
 	filter, err := shared.NewINFilter(field, values)
@@ -521,6 +537,7 @@ func mustNewINFilter(t *testing.T, field string, values any) *shared.DataFilter 
 	return filter
 }
 
+// mustNewLikeFilter builds a LIKE filter and fails the test on validation error.
 func mustNewLikeFilter(t *testing.T, field string, value any) *shared.DataFilter {
 	t.Helper()
 	filter, err := shared.NewLikeFilter(field, value)

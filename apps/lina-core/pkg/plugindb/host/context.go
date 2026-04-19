@@ -8,6 +8,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// auditContextKey is the private context key used to store AuditMetadata.
 type auditContextKey struct{}
 
 // AuditMetadata carries the governed execution metadata used by host-side

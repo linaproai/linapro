@@ -17,6 +17,7 @@ import (
 	"lina-core/pkg/gdbutil"
 )
 
+// Operation-log export limit and semantic constant groups.
 const MaxExportRows = 10000 // Maximum rows for export
 
 // Dict types used in operation log
@@ -89,6 +90,7 @@ type Service interface {
 	Export(ctx context.Context, in ExportInput) (data []byte, err error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

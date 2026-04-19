@@ -10,6 +10,8 @@ import (
 	"lina-core/internal/service/locker"
 )
 
+// Default election timing constants keep standalone construction deterministic
+// when config values are absent.
 const (
 	defaultElectionLease         = 30 * time.Second
 	defaultElectionRenewInterval = 10 * time.Second
@@ -29,6 +31,8 @@ type Service interface {
 	NodeID() string
 }
 
+// Interface compliance assertion for the default cluster service
+// implementation.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -93,6 +97,8 @@ func (s *serviceImpl) NodeID() string {
 	return s.nodeID
 }
 
+// normalizeClusterConfig applies default election settings while preserving the
+// caller-provided enablement flag and positive timing values.
 func normalizeClusterConfig(cfg *config.ClusterConfig) *config.ClusterConfig {
 	normalizedCfg := &config.ClusterConfig{
 		Enabled: false,

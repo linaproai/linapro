@@ -1,3 +1,5 @@
+// This file records operation logs for host and plugin-backed HTTP requests.
+
 package middleware
 
 import (
@@ -15,7 +17,9 @@ import (
 	"lina-core/pkg/logger"
 )
 
-const maxParamLen = 2000 // Max length for parameters and results
+// maxParamLen bounds serialized request and response snippets captured by
+// operation logs.
+const maxParamLen = 2000
 
 // OperLog records operation logs for write operations and specially tagged GET operations.
 func (s *serviceImpl) OperLog(r *ghttp.Request) {

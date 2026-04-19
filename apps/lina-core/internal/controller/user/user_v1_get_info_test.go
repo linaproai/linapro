@@ -9,6 +9,8 @@ import (
 	"lina-core/internal/service/menu"
 )
 
+// TestResolveHomePathPrefersStableHostRoutes verifies stable workspace routes
+// are chosen before hosted plugin-asset entries.
 func TestResolveHomePathPrefersStableHostRoutes(t *testing.T) {
 	items := []*menu.MenuItem{
 		{
@@ -28,6 +30,8 @@ func TestResolveHomePathPrefersStableHostRoutes(t *testing.T) {
 	}
 }
 
+// TestResolveHomePathFallsBackToHostedPluginAssetWhenNeeded verifies hosted
+// plugin assets are still used when no stable host route exists.
 func TestResolveHomePathFallsBackToHostedPluginAssetWhenNeeded(t *testing.T) {
 	items := []*menu.MenuItem{
 		{

@@ -20,6 +20,7 @@ type ExtensionPointDefinition struct {
 	Kind ExtensionKind
 }
 
+// Published extension point kinds.
 const (
 	// ExtensionKindHook defines one event-driven hook extension point.
 	ExtensionKindHook ExtensionKind = "hook"
@@ -27,6 +28,7 @@ const (
 	ExtensionKindRegistrar ExtensionKind = "registrar"
 )
 
+// Published callback execution modes.
 const (
 	// CallbackExecutionModeBlocking executes the callback in the current host flow.
 	CallbackExecutionModeBlocking CallbackExecutionMode = "blocking"
@@ -34,6 +36,7 @@ const (
 	CallbackExecutionModeAsync CallbackExecutionMode = "async"
 )
 
+// Published backend extension points.
 const (
 	// ExtensionPointAuthLoginSucceeded is fired after user login succeeds.
 	ExtensionPointAuthLoginSucceeded ExtensionPoint = "auth.login.succeeded"
@@ -66,6 +69,7 @@ const (
 // HookAction defines one supported plugin hook action.
 type HookAction string
 
+// Supported demo hook actions used by pluginhost validation and tests.
 const (
 	// HookActionInsert inserts one row into plugin-owned table.
 	HookActionInsert HookAction = "insert"
@@ -75,6 +79,8 @@ const (
 	HookActionError HookAction = "error"
 )
 
+// publishedExtensionPoints defines the extension points exposed by the host and
+// their default execution characteristics.
 var publishedExtensionPoints = map[ExtensionPoint]ExtensionPointDefinition{
 	ExtensionPointAuthLoginSucceeded:  {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointAuthLoginFailed:     {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
@@ -94,6 +100,8 @@ var publishedExtensionPoints = map[ExtensionPoint]ExtensionPointDefinition{
 	ExtensionPointPermissionFilter: {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
 }
 
+// supportedExtensionPointModes constrains which execution modes are accepted
+// for each published extension point.
 var supportedExtensionPointModes = map[ExtensionPoint]map[CallbackExecutionMode]struct{}{
 	ExtensionPointAuthLoginSucceeded: {
 		CallbackExecutionModeBlocking: {},
@@ -144,11 +152,14 @@ var supportedExtensionPointModes = map[ExtensionPoint]map[CallbackExecutionMode]
 	},
 }
 
+// publishedCallbackExecutionModes enumerates all callback execution modes
+// accepted by pluginhost validation.
 var publishedCallbackExecutionModes = map[CallbackExecutionMode]struct{}{
 	CallbackExecutionModeBlocking: {},
 	CallbackExecutionModeAsync:    {},
 }
 
+// publishedHookActions enumerates the demo hook actions understood by the host.
 var publishedHookActions = map[HookAction]struct{}{
 	HookActionInsert: {},
 	HookActionSleep:  {},

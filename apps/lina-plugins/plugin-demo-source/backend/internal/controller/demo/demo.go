@@ -4,6 +4,8 @@
 
 package demo
 
+// boolToInt converts one boolean flag into the integer shape expected by the
+// sample plugin response DTOs.
 func boolToInt(value bool) int {
 	if value {
 		return 1

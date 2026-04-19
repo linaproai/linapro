@@ -18,6 +18,8 @@ import (
 	hostconfig "lina-core/internal/service/config"
 )
 
+// TestDeleteRejectsProtectedRuntimeParam verifies built-in runtime parameters
+// cannot be deleted through sysconfig management.
 func TestDeleteRejectsProtectedRuntimeParam(t *testing.T) {
 	ctx := context.Background()
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
@@ -28,6 +30,8 @@ func TestDeleteRejectsProtectedRuntimeParam(t *testing.T) {
 	}
 }
 
+// TestDeleteRejectsProtectedPublicFrontendSetting verifies protected public
+// frontend settings cannot be deleted.
 func TestDeleteRejectsProtectedPublicFrontendSetting(t *testing.T) {
 	ctx := context.Background()
 	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
@@ -38,6 +42,8 @@ func TestDeleteRejectsProtectedPublicFrontendSetting(t *testing.T) {
 	}
 }
 
+// TestUpdateRejectsProtectedRuntimeParamRename verifies protected runtime
+// parameter keys cannot be renamed.
 func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
 	ctx := context.Background()
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
@@ -52,6 +58,8 @@ func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
 	}
 }
 
+// TestUpdateRejectsProtectedPublicFrontendSettingRename verifies protected
+// public frontend setting keys cannot be renamed.
 func TestUpdateRejectsProtectedPublicFrontendSettingRename(t *testing.T) {
 	ctx := context.Background()
 	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
@@ -66,6 +74,8 @@ func TestUpdateRejectsProtectedPublicFrontendSettingRename(t *testing.T) {
 	}
 }
 
+// TestValidateManagedConfigValueRejectsInvalidValues verifies protected config
+// values still honor host-level validation rules.
 func TestValidateManagedConfigValueRejectsInvalidValues(t *testing.T) {
 	testCases := []struct {
 		key   string
@@ -87,6 +97,8 @@ func TestValidateManagedConfigValueRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+// TestUpdateProtectedRuntimeParamRefreshesConfigSnapshot verifies updating a
+// protected runtime parameter refreshes the host config snapshot.
 func TestUpdateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	ctx := context.Background()
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
@@ -110,6 +122,8 @@ func TestUpdateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	}
 }
 
+// TestCreateProtectedRuntimeParamRefreshesConfigSnapshot verifies creating a
+// protected runtime parameter refreshes the host config snapshot.
 func TestCreateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	ctx := context.Background()
 	withRuntimeParamRemoved(t, ctx, hostconfig.RuntimeParamKeyUploadMaxSize)
@@ -135,6 +149,8 @@ func TestCreateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	}
 }
 
+// TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot verifies
+// updating a protected public frontend setting refreshes cached frontend config.
 func TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot(t *testing.T) {
 	ctx := context.Background()
 	publicSetting := ensureRuntimeParamRecord(
@@ -163,6 +179,8 @@ func TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot(t *testing.
 	}
 }
 
+// TestImportProtectedRuntimeParamRefreshesConfigSnapshot verifies import-based
+// updates also refresh the protected runtime-param snapshot.
 func TestImportProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	ctx := context.Background()
 	ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
@@ -192,6 +210,8 @@ func TestImportProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	}
 }
 
+// ensureRuntimeParamRecord upserts one runtime-param record for the test and
+// registers cleanup to restore prior state.
 func ensureRuntimeParamRecord(
 	t *testing.T,
 	ctx context.Context,
@@ -258,6 +278,8 @@ func ensureRuntimeParamRecord(
 	return inserted
 }
 
+// withRuntimeParamRemoved removes one runtime-param row for the test duration
+// and restores it during cleanup.
 func withRuntimeParamRemoved(t *testing.T, ctx context.Context, key string) {
 	t.Helper()
 
@@ -296,6 +318,8 @@ func withRuntimeParamRemoved(t *testing.T, ctx context.Context, key string) {
 	})
 }
 
+// buildConfigImportFile builds one in-memory sysconfig import workbook for a
+// single data row.
 func buildConfigImportFile(t *testing.T, row []string) []byte {
 	t.Helper()
 
@@ -332,6 +356,8 @@ func buildConfigImportFile(t *testing.T, row []string) []byte {
 	return buf.Bytes()
 }
 
+// markRuntimeParamChanged invalidates the protected config snapshot used by the
+// host config service.
 func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	t.Helper()
 
@@ -340,6 +366,8 @@ func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	}
 }
 
+// queryRuntimeParamRecord loads one sysconfig row by key without soft-delete
+// filtering.
 func queryRuntimeParamRecord(ctx context.Context, key string) (*entity.SysConfig, error) {
 	var runtimeParam *entity.SysConfig
 	err := dao.SysConfig.Ctx(ctx).

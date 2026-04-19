@@ -14,14 +14,18 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// fixedUploadSizeProvider lets tests override the runtime upload ceiling.
 type fixedUploadSizeProvider struct {
 	maxSizeMB int64
 }
 
+// GetUploadMaxSize returns the configured upload ceiling used by the test runtime.
 func (p fixedUploadSizeProvider) GetUploadMaxSize(_ context.Context) int64 {
 	return p.maxSizeMB
 }
 
+// TestUploadDynamicPackageRejectsFileExceedingRuntimeMaxSize verifies that the
+// runtime upload ceiling is enforced before parsing the artifact payload.
 func TestUploadDynamicPackageRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
 	services := testutil.NewServices()
 	services.Runtime.SetUploadSizeProvider(fixedUploadSizeProvider{maxSizeMB: 1})

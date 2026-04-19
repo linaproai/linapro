@@ -10,6 +10,8 @@ import (
 	"lina-core/internal/service/role"
 )
 
+// TestResolveDeclaredPermissions verifies primary and legacy permission tags
+// normalize into one ordered permission slice.
 func TestResolveDeclaredPermissions(t *testing.T) {
 	t.Parallel()
 
@@ -55,6 +57,8 @@ func TestResolveDeclaredPermissions(t *testing.T) {
 	}
 }
 
+// TestHasRequiredPermissions verifies static permission matching honors super
+// admin, wildcard, and all-of semantics.
 func TestHasRequiredPermissions(t *testing.T) {
 	t.Parallel()
 
@@ -119,6 +123,8 @@ func TestHasRequiredPermissions(t *testing.T) {
 	}
 }
 
+// TestFileSuffixesReqDeclaresPermission verifies one representative request DTO
+// still declares static permission metadata.
 func TestFileSuffixesReqDeclaresPermission(t *testing.T) {
 	t.Parallel()
 

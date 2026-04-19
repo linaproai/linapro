@@ -4,6 +4,8 @@ package pluginbridge
 
 import "testing"
 
+// TestHostServiceNotifySendRoundTrip verifies notify send requests and
+// responses preserve message metadata, recipients, and payload JSON.
 func TestHostServiceNotifySendRoundTrip(t *testing.T) {
 	original := &HostServiceNotifySendRequest{
 		Title:            "同步完成",

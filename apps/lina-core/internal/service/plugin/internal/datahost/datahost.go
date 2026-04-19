@@ -17,12 +17,14 @@ import (
 	"lina-core/pkg/plugindb/shared"
 )
 
+// Default pagination limits for governed list operations.
 const (
 	defaultDataListPageNum  = 1
 	defaultDataListPageSize = 10
 	maxDataListPageSize     = 100
 )
 
+// executionContext stores plugin, table, source, and identity data for one request.
 type executionContext struct {
 	pluginID        string
 	table           string
@@ -30,6 +32,7 @@ type executionContext struct {
 	identity        *pluginbridge.IdentitySnapshotV1
 }
 
+// modelProvider abstracts gdb.DB and gdb.TX so mutation helpers can share logic.
 type modelProvider interface {
 	// Model returns one GoFrame model bound to the requested table or struct.
 	Model(tableNameOrStruct ...any) *gdb.Model
@@ -334,6 +337,7 @@ func ExecuteTransaction(
 	return response, nil
 }
 
+// executeCreateWithProvider inserts one governed record using either DB or TX providers.
 func executeCreateWithProvider(
 	ctx context.Context,
 	execCtx *executionContext,
@@ -381,6 +385,7 @@ func executeCreateWithProvider(
 	return response, nil
 }
 
+// executeUpdateWithProvider updates one governed record using either DB or TX providers.
 func executeUpdateWithProvider(
 	ctx context.Context,
 	execCtx *executionContext,
@@ -437,6 +442,7 @@ func executeUpdateWithProvider(
 	return response, nil
 }
 
+// executeDeleteWithProvider deletes one governed record using either DB or TX providers.
 func executeDeleteWithProvider(
 	ctx context.Context,
 	execCtx *executionContext,
@@ -489,6 +495,8 @@ func executeDeleteWithProvider(
 	return response, nil
 }
 
+// validateExecutionAccess enforces declared operations and access mode before
+// executing one governed data-table request.
 func validateExecutionAccess(execCtx *executionContext, resource *catalog.ResourceSpec, method string) error {
 	if execCtx == nil {
 		return gerror.New("data service execution context is required")
@@ -523,6 +531,7 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 	return nil
 }
 
+// normalizeDataListRequest applies default and max pagination limits.
 func normalizeDataListRequest(request *pluginbridge.HostServiceDataListRequest) *pluginbridge.HostServiceDataListRequest {
 	if request == nil {
 		request = &pluginbridge.HostServiceDataListRequest{}
@@ -539,10 +548,13 @@ func normalizeDataListRequest(request *pluginbridge.HostServiceDataListRequest) 
 	return request
 }
 
+// buildResourceModel builds the base safe model for the governed table resource.
 func buildResourceModel(provider modelProvider, ctx context.Context, resource *catalog.ResourceSpec) *gdb.Model {
 	return provider.Model(resource.Table).Safe().Ctx(ctx)
 }
 
+// applyDeclaredFilters applies manifest-declared query filters using only
+// parameters authorized by the resource contract.
 func applyDeclaredFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters map[string]string) (*gdb.Model, error) {
 	if model == nil || resource == nil || len(filters) == 0 {
 		return model, nil
@@ -584,6 +596,7 @@ func applyDeclaredFilters(model *gdb.Model, resource *catalog.ResourceSpec, filt
 	return model, nil
 }
 
+// buildResourceFieldArgs builds aliased select expressions for all declared fields.
 func buildResourceFieldArgs(resource *catalog.ResourceSpec) []any {
 	fields := make([]any, 0, len(resource.Fields))
 	for _, field := range resource.Fields {
@@ -595,6 +608,7 @@ func buildResourceFieldArgs(resource *catalog.ResourceSpec) []any {
 	return fields
 }
 
+// buildResourceOrderBy builds the fallback ORDER BY expression from the resource spec.
 func buildResourceOrderBy(resource *catalog.ResourceSpec) string {
 	if resource == nil {
 		return ""
@@ -609,6 +623,7 @@ func buildResourceOrderBy(resource *catalog.ResourceSpec) string {
 	return orderBy + " ASC"
 }
 
+// buildResourceRecord projects one database row into the logical resource field map.
 func buildResourceRecord(recordMap map[string]interface{}, resource *catalog.ResourceSpec) map[string]interface{} {
 	if len(recordMap) == 0 || resource == nil {
 		return map[string]interface{}{}
@@ -623,6 +638,8 @@ func buildResourceRecord(recordMap map[string]interface{}, resource *catalog.Res
 	return row
 }
 
+// decodeMutationRecord decodes and validates one mutation payload against the
+// resource writable-field contract.
 func decodeMutationRecord(
 	resource *catalog.ResourceSpec,
 	request *pluginbridge.HostServiceDataMutationRequest,
@@ -670,10 +687,12 @@ func decodeMutationRecord(
 	return data, keyValue, nil
 }
 
+// resolveResourceKeyColumn returns the physical column bound to the logical key field.
 func resolveResourceKeyColumn(resource *catalog.ResourceSpec) string {
 	return resolveResourceFieldColumn(resource, resource.KeyField)
 }
 
+// resolveResourceFieldColumn maps one logical field name to its table column.
 func resolveResourceFieldColumn(resource *catalog.ResourceSpec, fieldName string) string {
 	if resource == nil {
 		return ""
@@ -687,6 +706,7 @@ func resolveResourceFieldColumn(resource *catalog.ResourceSpec, fieldName string
 	return ""
 }
 
+// resourceAllowsWritableField reports whether the logical field is writable.
 func resourceAllowsWritableField(resource *catalog.ResourceSpec, fieldName string) bool {
 	if resource == nil {
 		return false
@@ -700,6 +720,7 @@ func resourceAllowsWritableField(resource *catalog.ResourceSpec, fieldName strin
 	return false
 }
 
+// resourceAllowsOperation reports whether the resource authorizes the method.
 func resourceAllowsOperation(resource *catalog.ResourceSpec, method string) bool {
 	if resource == nil {
 		return false
@@ -713,6 +734,7 @@ func resourceAllowsOperation(resource *catalog.ResourceSpec, method string) bool
 	return false
 }
 
+// decodeJSONObject decodes a JSON object payload into a generic map.
 func decodeJSONObject(content []byte) (map[string]interface{}, error) {
 	if len(content) == 0 {
 		return nil, nil
@@ -724,6 +746,7 @@ func decodeJSONObject(content []byte) (map[string]interface{}, error) {
 	return result, nil
 }
 
+// decodeJSONScalar decodes a required scalar key payload.
 func decodeJSONScalar(content []byte) (interface{}, error) {
 	if len(content) == 0 {
 		return nil, gerror.New("data key 不能为空")
@@ -738,6 +761,7 @@ func decodeJSONScalar(content []byte) (interface{}, error) {
 	return value, nil
 }
 
+// encodeJSONValue marshals one optional scalar or structured response value.
 func encodeJSONValue(value interface{}) ([]byte, error) {
 	if value == nil {
 		return nil, nil
@@ -745,6 +769,7 @@ func encodeJSONValue(value interface{}) ([]byte, error) {
 	return json.Marshal(value)
 }
 
+// normalizeResourceValue converts GoFrame time values into JSON-safe strings.
 func normalizeResourceValue(value interface{}) interface{} {
 	switch typedValue := value.(type) {
 	case *gtime.Time:

@@ -55,6 +55,8 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 	return &v1.ListRes{List: items, Total: out.Total}, nil
 }
 
+// collectPluginDataAuthorizationTables gathers the unique host data-table names
+// referenced by requested and authorized plugin host-service specs.
 func collectPluginDataAuthorizationTables(items []*pluginsvc.PluginItem) []string {
 	tableSet := make(map[string]struct{})
 	tables := make([]string, 0)
@@ -68,6 +70,8 @@ func collectPluginDataAuthorizationTables(items []*pluginsvc.PluginItem) []strin
 	return tables
 }
 
+// collectHostServiceTables appends previously unseen table names from the
+// supplied host-service specs into the target slice.
 func collectHostServiceTables(
 	tableSet map[string]struct{},
 	tables *[]string,
@@ -87,6 +91,8 @@ func collectHostServiceTables(
 	}
 }
 
+// boolToInt converts a boolean flag into the legacy integer representation used
+// by list DTO fields.
 func boolToInt(value bool) int {
 	if value {
 		return 1

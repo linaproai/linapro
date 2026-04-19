@@ -22,6 +22,8 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// TestValidatePluginManifestAcceptsMinimalSourcePlugin verifies that the
+// minimal required source-plugin structure passes validation.
 func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-manifest-valid")
@@ -42,6 +44,8 @@ func TestValidatePluginManifestAcceptsMinimalSourcePlugin(t *testing.T) {
 	}
 }
 
+// TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin verifies
+// that source plugins must still provide backend/plugin.go.
 func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-missing-backend")
@@ -63,6 +67,8 @@ func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *test
 	}
 }
 
+// TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata verifies
+// that dynamic plugins validate from embedded runtime artifact metadata alone.
 func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -101,6 +107,8 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 	}
 }
 
+// TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedFrontendAssets verifies
+// that runtime artifacts carrying embedded frontend assets remain valid.
 func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedFrontendAssets(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDirWithFrontendAssets(
@@ -146,6 +154,8 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedFrontendAssets(t 
 	}
 }
 
+// TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest verifies that
+// embedded runtime manifest identity must match the outer plugin manifest.
 func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -196,6 +206,8 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 	}
 }
 
+// TestScanPluginManifestsRejectsDuplicatePluginIDs verifies that source-plugin
+// discovery fails fast when duplicate plugin IDs are found.
 func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-duplicate-id")
@@ -221,6 +233,8 @@ func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 	}
 }
 
+// TestScanPluginManifestsRejectsDuplicateRuntimeArtifactPluginIDs verifies that
+// runtime artifact discovery rejects duplicate dynamic plugin IDs.
 func TestScanPluginManifestsRejectsDuplicateRuntimeArtifactPluginIDs(t *testing.T) {
 	svcs := testutil.NewServices()
 
@@ -249,6 +263,8 @@ func TestScanPluginManifestsRejectsDuplicateRuntimeArtifactPluginIDs(t *testing.
 	}
 }
 
+// TestStoreUploadedRuntimePackageWritesCanonicalWasmIntoRuntimeStorage verifies
+// that uploaded runtime packages are persisted at the canonical storage path.
 func TestStoreUploadedRuntimePackageWritesCanonicalWasmIntoRuntimeStorage(t *testing.T) {
 	svcs := testutil.NewServices()
 	ctx := context.Background()
@@ -307,6 +323,8 @@ func TestStoreUploadedRuntimePackageWritesCanonicalWasmIntoRuntimeStorage(t *tes
 	}
 }
 
+// TestDiscoverPluginSQLPathsUsesDirectoryConvention verifies install and
+// uninstall SQL discovery follows the source-plugin directory convention.
 func TestDiscoverPluginSQLPathsUsesDirectoryConvention(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-sql-convention")
@@ -322,6 +340,8 @@ func TestDiscoverPluginSQLPathsUsesDirectoryConvention(t *testing.T) {
 	}
 }
 
+// TestDiscoverPluginVuePathsUseDirectoryConvention verifies page and slot
+// discovery follows the source-plugin frontend directory convention.
 func TestDiscoverPluginVuePathsUseDirectoryConvention(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-vue-convention")
@@ -343,6 +363,8 @@ func TestDiscoverPluginVuePathsUseDirectoryConvention(t *testing.T) {
 	}
 }
 
+// TestBuildPluginManifestSnapshotIncludesDirectoryDiscoveredAssets verifies
+// source-plugin snapshots include discovered page, slot, and SQL counts.
 func TestBuildPluginManifestSnapshotIncludesDirectoryDiscoveredAssets(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-snapshot")
@@ -385,6 +407,8 @@ func TestBuildPluginManifestSnapshotIncludesDirectoryDiscoveredAssets(t *testing
 	}
 }
 
+// TestBuildPluginManifestSnapshotIncludesRuntimeArtifactMetadata verifies that
+// dynamic snapshots include runtime artifact metadata and bridge settings.
 func TestBuildPluginManifestSnapshotIncludesRuntimeArtifactMetadata(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -428,6 +452,8 @@ func TestBuildPluginManifestSnapshotIncludesRuntimeArtifactMetadata(t *testing.T
 	}
 }
 
+// TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths verifies
+// that governance descriptors store abstract identities instead of file paths.
 func TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-resource-summary")
@@ -477,6 +503,8 @@ func TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths(t *testi
 	}
 }
 
+// TestBuildPluginResourceRefDescriptorsSummarizeRuntimeArtifact verifies that
+// runtime governance descriptors summarize artifact capabilities and assets.
 func TestBuildPluginResourceRefDescriptorsSummarizeRuntimeArtifact(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -522,6 +550,8 @@ func TestBuildPluginResourceRefDescriptorsSummarizeRuntimeArtifact(t *testing.T)
 	}
 }
 
+// TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL verifies that dynamic
+// plugins prefer embedded SQL assets over source-directory conventions.
 func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -567,6 +597,8 @@ func TestResolvePluginSQLAssetsPrefersEmbeddedRuntimeSQL(t *testing.T) {
 	}
 }
 
+// TestResolvePluginSQLAssetsFallsBackToDirectoryConvention verifies that
+// source plugins resolve SQL assets from their directory structure.
 func TestResolvePluginSQLAssetsFallsBackToDirectoryConvention(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-directory-sql-assets")
@@ -589,6 +621,8 @@ func TestResolvePluginSQLAssetsFallsBackToDirectoryConvention(t *testing.T) {
 	}
 }
 
+// TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles verifies that
+// embedded source plugins are scanned from their packaged file sets.
 func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) {
 	svcs := testutil.NewServices()
 
@@ -633,6 +667,8 @@ func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) 
 	}
 }
 
+// TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles verifies that
+// embedded source plugins resolve SQL assets from embedded filesystems.
 func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 	svcs := testutil.NewServices()
 
@@ -673,6 +709,8 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 	}
 }
 
+// TestDerivePluginLifecycleState verifies lifecycle-state derivation from
+// installed, enabled, and failure flags.
 func TestDerivePluginLifecycleState(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -728,6 +766,8 @@ func TestDerivePluginLifecycleState(t *testing.T) {
 	}
 }
 
+// TestDerivePluginNodeState verifies node-state derivation from install and
+// enablement signals exposed by governance projections.
 func TestDerivePluginNodeState(t *testing.T) {
 	testCases := []struct {
 		name      string

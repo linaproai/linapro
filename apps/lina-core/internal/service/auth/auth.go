@@ -25,6 +25,7 @@ import (
 	"lina-core/pkg/logger"
 )
 
+// Auth status constants used by login validation.
 const (
 	// statusDisabled represents a disabled user status.
 	// Mirrors user.StatusDisabled; duplicated here to avoid circular import.
@@ -47,6 +48,7 @@ type Service interface {
 	RevokeSession(ctx context.Context, tokenId string) error
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

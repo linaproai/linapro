@@ -15,6 +15,8 @@ import (
 	"lina-core/internal/model/do"
 )
 
+// inboxListRecord is the joined database projection used to build inbox list
+// response items.
 type inboxListRecord struct {
 	Id           int64       `json:"id"`
 	UserId       int64       `json:"userId"`
@@ -219,6 +221,8 @@ func (s *serviceImpl) DeleteBySource(ctx context.Context, sourceType SourceType,
 	})
 }
 
+// normalizeSourceIDs trims, de-duplicates, and preserves the input order of
+// business source identifiers.
 func normalizeSourceIDs(sourceIDs []string) []string {
 	if len(sourceIDs) == 0 {
 		return []string{}

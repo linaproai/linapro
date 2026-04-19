@@ -12,6 +12,8 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// TestBuildRuntimeWasmArtifactEmbedsBackendContracts verifies that hook and
+// resource declarations are embedded into the generated runtime artifact.
 func TestBuildRuntimeWasmArtifactEmbedsBackendContracts(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := t.TempDir()
@@ -89,6 +91,8 @@ func TestBuildRuntimeWasmArtifactEmbedsBackendContracts(t *testing.T) {
 	}
 }
 
+// TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts verifies
+// that runtime manifest loading restores embedded backend contracts.
 func TestLoadRuntimePluginManifestFromArtifactHydratesBackendContracts(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := t.TempDir()

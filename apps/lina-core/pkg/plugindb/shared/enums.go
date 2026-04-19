@@ -12,6 +12,7 @@ import (
 // DataPlanAction represents one governed data plan action.
 type DataPlanAction string
 
+// Data plan action constants.
 const (
 	// DataPlanActionList lists records from one authorized table.
 	DataPlanActionList DataPlanAction = "list"
@@ -32,6 +33,7 @@ const (
 // DataFilterOperator represents one supported filter operator.
 type DataFilterOperator string
 
+// Data filter operator constants.
 const (
 	// DataFilterOperatorEQ compares one field by equality.
 	DataFilterOperatorEQ DataFilterOperator = "eq"
@@ -44,6 +46,7 @@ const (
 // DataOrderDirection represents one supported order direction.
 type DataOrderDirection string
 
+// Data order direction constants.
 const (
 	// DataOrderDirectionASC orders records in ascending order.
 	DataOrderDirectionASC DataOrderDirection = "asc"
@@ -54,6 +57,7 @@ const (
 // DataMutationAction represents one transaction mutation action.
 type DataMutationAction string
 
+// Data mutation action constants.
 const (
 	// DataMutationActionCreate enqueues one insert mutation.
 	DataMutationActionCreate DataMutationAction = "create"
@@ -66,6 +70,7 @@ const (
 // DataAccessMode represents one runtime access requirement for a table contract.
 type DataAccessMode string
 
+// Data access mode constants.
 const (
 	// DataAccessModeRequest requires a request-bound execution context.
 	DataAccessModeRequest DataAccessMode = "request"

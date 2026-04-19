@@ -14,6 +14,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// createPluginLockerTableSQL prepares the governed lock table for tests.
 const createPluginLockerTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_locker (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS sys_locker (
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COMMENT='分布式锁表';
 `
 
+// TestHandleHostServiceInvokeLockLifecycle verifies acquire, renew, and release lock flows.
 func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginLockerTable(t, ctx)
@@ -125,6 +127,7 @@ func TestHandleHostServiceInvokeLockLifecycle(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeLockRejectsTicketMismatch verifies mismatched tickets are rejected.
 func TestHandleHostServiceInvokeLockRejectsTicketMismatch(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginLockerTable(t, ctx)
@@ -167,6 +170,7 @@ func TestHandleHostServiceInvokeLockRejectsTicketMismatch(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeLockRejectsUnauthorizedResource verifies unauthorized lock names are rejected.
 func TestHandleHostServiceInvokeLockRejectsUnauthorizedResource(t *testing.T) {
 	hcc := newLockHostCallContext("test-plugin-lock-denied", "orders-sync")
 	response := invokeLockHostService(
@@ -181,6 +185,7 @@ func TestHandleHostServiceInvokeLockRejectsUnauthorizedResource(t *testing.T) {
 	}
 }
 
+// ensurePluginLockerTable creates the lock table needed by lock host call tests.
 func ensurePluginLockerTable(t *testing.T, ctx context.Context) {
 	t.Helper()
 	if _, err := g.DB().Exec(ctx, createPluginLockerTableSQL); err != nil {
@@ -188,6 +193,7 @@ func ensurePluginLockerTable(t *testing.T, ctx context.Context) {
 	}
 }
 
+// cleanupPluginLock removes lock rows created by the current test.
 func cleanupPluginLock(t *testing.T, ctx context.Context, lockName string) {
 	t.Helper()
 	if _, err := dao.SysLocker.Ctx(ctx).Where(do.SysLocker{Name: lockName}).Delete(); err != nil {
@@ -195,10 +201,12 @@ func cleanupPluginLock(t *testing.T, ctx context.Context, lockName string) {
 	}
 }
 
+// buildPluginLockName builds the fully qualified lock name used by the backend.
 func buildPluginLockName(pluginID string, lockName string) string {
 	return "plugin:" + pluginID + ":" + lockName
 }
 
+// newLockHostCallContext builds a host call context authorized for the given lock names.
 func newLockHostCallContext(pluginID string, lockNames ...string) *hostCallContext {
 	resources := make([]*pluginbridge.HostServiceResourceSpec, 0, len(lockNames))
 	for _, lockName := range lockNames {
@@ -221,6 +229,7 @@ func newLockHostCallContext(pluginID string, lockNames ...string) *hostCallConte
 	}
 }
 
+// invokeLockHostService marshals and dispatches one lock host service request.
 func invokeLockHostService(
 	t *testing.T,
 	hcc *hostCallContext,

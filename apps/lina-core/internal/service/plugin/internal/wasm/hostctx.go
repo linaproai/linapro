@@ -12,9 +12,11 @@ import (
 )
 
 // hostCallContextKey is the private context key for host call state.
+// hostCallContextKey is the context key type for host call state values.
 type hostCallContextKey struct{}
 
 // hostCallContext carries per-request state into wazero host function callbacks.
+// hostCallContext carries per-request plugin identity and authorization state.
 type hostCallContext struct {
 	// pluginID identifies the calling plugin.
 	pluginID string
@@ -33,11 +35,13 @@ type hostCallContext struct {
 }
 
 // withHostCallContext attaches a host call context to the given context.
+// withHostCallContext attaches the host call context to the execution context.
 func withHostCallContext(ctx context.Context, hcc *hostCallContext) context.Context {
 	return context.WithValue(ctx, hostCallContextKey{}, hcc)
 }
 
 // hostCallContextFrom extracts the host call context from the given context.
+// hostCallContextFrom retrieves the host call context from the execution context.
 func hostCallContextFrom(ctx context.Context) *hostCallContext {
 	if hcc, ok := ctx.Value(hostCallContextKey{}).(*hostCallContext); ok {
 		return hcc
@@ -46,6 +50,7 @@ func hostCallContextFrom(ctx context.Context) *hostCallContext {
 }
 
 // hasCapability checks if the plugin has been granted a specific capability.
+// hasCapability reports whether the plugin execution was granted the capability.
 func (hcc *hostCallContext) hasCapability(capability string) bool {
 	if hcc == nil || hcc.capabilities == nil {
 		return false
@@ -55,6 +60,8 @@ func (hcc *hostCallContext) hasCapability(capability string) bool {
 }
 
 // hasHostServiceAccess checks whether the plugin may invoke one service method and governed target.
+// hasHostServiceAccess reports whether the plugin may invoke the governed
+// host-service target under the persisted authorization snapshot.
 func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, resourceRef string, table string) bool {
 	if hcc == nil || len(hcc.hostServices) == 0 {
 		return false
@@ -95,6 +102,7 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 }
 
 // hostServiceResource returns the authorized governed resource snapshot for one service/ref pair.
+// hostServiceResource returns the authorized resource snapshot for one service/ref pair.
 func (hcc *hostCallContext) hostServiceResource(service string, resourceRef string) *pluginbridge.HostServiceResourceSpec {
 	if hcc == nil || len(hcc.hostServices) == 0 {
 		return nil
@@ -129,6 +137,7 @@ func (hcc *hostCallContext) hostServiceResource(service string, resourceRef stri
 }
 
 // hostServiceSpec returns the authorized service snapshot for one logical service.
+// hostServiceSpec returns the authorized host-service specification for the service.
 func (hcc *hostCallContext) hostServiceSpec(service string) *pluginbridge.HostServiceSpec {
 	if hcc == nil || len(hcc.hostServices) == 0 {
 		return nil
@@ -145,6 +154,7 @@ func (hcc *hostCallContext) hostServiceSpec(service string) *pluginbridge.HostSe
 	return nil
 }
 
+// containsString reports whether target appears in the slice.
 func containsString(items []string, target string) bool {
 	for _, item := range items {
 		if item == target {

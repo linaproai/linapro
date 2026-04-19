@@ -13,6 +13,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// createPluginNotifyTablesSQL provisions the notify tables required by the host
+// service integration tests when they are absent in the test database.
 const createPluginNotifyTablesSQL = `
 CREATE TABLE IF NOT EXISTS sys_notify_channel (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
@@ -64,6 +66,8 @@ CREATE TABLE IF NOT EXISTS sys_notify_delivery (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='通知投递记录表';
 `
 
+// TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser verifies notify
+// sends default to the caller when no explicit recipients are provided.
 func TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginNotifyTables(t, ctx)
@@ -117,6 +121,8 @@ func TestHandleHostServiceInvokeNotifySendDefaultsToCurrentUser(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeNotifyRejectsInvalidPayloadJSON verifies malformed
+// payloadJson content is rejected before any persistence occurs.
 func TestHandleHostServiceInvokeNotifyRejectsInvalidPayloadJSON(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginNotifyTables(t, ctx)
@@ -137,6 +143,8 @@ func TestHandleHostServiceInvokeNotifyRejectsInvalidPayloadJSON(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeNotifyRejectsUnauthorizedChannel verifies plugins
+// cannot send through channels outside their granted resources.
 func TestHandleHostServiceInvokeNotifyRejectsUnauthorizedChannel(t *testing.T) {
 	hcc := newNotifyHostCallContext("test-plugin-notify-denied", "inbox", 1)
 	response := invokeNotifyHostService(
@@ -153,6 +161,8 @@ func TestHandleHostServiceInvokeNotifyRejectsUnauthorizedChannel(t *testing.T) {
 	}
 }
 
+// ensurePluginNotifyTables creates the notify schema and seeds the inbox
+// channel used by the notify host-service tests.
 func ensurePluginNotifyTables(t *testing.T, ctx context.Context) {
 	t.Helper()
 	if _, err := g.DB().Exec(ctx, createPluginNotifyTablesSQL); err != nil {
@@ -176,6 +186,8 @@ ON DUPLICATE KEY UPDATE
 	}
 }
 
+// cleanupPluginNotifyMessages removes notify messages and dependent deliveries
+// created for one plugin so tests stay isolated across reruns.
 func cleanupPluginNotifyMessages(t *testing.T, ctx context.Context, pluginID string) {
 	t.Helper()
 	if _, err := g.DB().Exec(ctx, `
@@ -189,6 +201,8 @@ WHERE message_id IN (SELECT id FROM sys_notify_message WHERE plugin_id = ?)
 	}
 }
 
+// newNotifyHostCallContext constructs a notify-capable host call context for
+// one authorized channel and caller identity snapshot.
 func newNotifyHostCallContext(pluginID string, channelKey string, userID int32) *hostCallContext {
 	return &hostCallContext{
 		pluginID: pluginID,
@@ -206,6 +220,8 @@ func newNotifyHostCallContext(pluginID string, channelKey string, userID int32) 
 	}
 }
 
+// invokeNotifyHostService routes a notify host-service request through the
+// shared dispatcher and returns its raw response envelope.
 func invokeNotifyHostService(
 	t *testing.T,
 	hcc *hostCallContext,

@@ -53,13 +53,16 @@ type Service interface {
 	EnsureBundle(ctx context.Context, manifest *catalog.Manifest) error
 }
 
+// Ensure serviceImpl satisfies the runtime frontend asset contract.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
+	// catalogSvc provides registry and release lookups for enabled runtime plugins.
 	catalogSvc catalog.Service
 }
 
+// New creates a frontend Service backed by the shared plugin catalog.
 func New(catalogSvc catalog.Service) Service {
 	return &serviceImpl{catalogSvc: catalogSvc}
 }

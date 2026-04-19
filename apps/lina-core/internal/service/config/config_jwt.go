@@ -15,6 +15,8 @@ type JwtConfig struct {
 	Expire time.Duration `json:"expire"` // Expire is the JWT token validity duration.
 }
 
+// getStaticJwtConfig lazily loads the config-file-backed JWT settings for reuse
+// across the process.
 func (s *serviceImpl) getStaticJwtConfig(ctx context.Context) *JwtConfig {
 	return processStaticConfigCaches.jwt.load(func() *JwtConfig {
 		cfg := &JwtConfig{

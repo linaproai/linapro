@@ -14,8 +14,12 @@ type LockHostService interface {
 	Release(lockName string, ticket string) error
 }
 
+// lockHostService is the default guest-side distributed lock host-service
+// client.
 type lockHostService struct{}
 
+// defaultLockHostService stores the singleton lock host-service client used by
+// package-level helpers.
 var defaultLockHostService LockHostService = &lockHostService{}
 
 // Lock returns the distributed lock host service guest client.

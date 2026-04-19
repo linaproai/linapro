@@ -4,6 +4,7 @@ package shared
 
 import "testing"
 
+// TestParseDataEnums verifies all typed plugindb enum parsers accept valid values.
 func TestParseDataEnums(t *testing.T) {
 	if _, err := ParseDataPlanAction("list"); err != nil {
 		t.Fatalf("expected valid action, got %v", err)
@@ -22,12 +23,16 @@ func TestParseDataEnums(t *testing.T) {
 	}
 }
 
+// TestMarshalValuesJSONRejectsNonSlice verifies only slice inputs are accepted
+// by the JSON value-list encoder.
 func TestMarshalValuesJSONRejectsNonSlice(t *testing.T) {
 	if _, err := MarshalValuesJSON("not-a-slice"); err == nil {
 		t.Fatal("expected MarshalValuesJSON to reject non-slice input")
 	}
 }
 
+// TestQueryPlanJSONRoundTrip verifies query plans keep their typed fields after
+// JSON marshal and unmarshal.
 func TestQueryPlanJSONRoundTrip(t *testing.T) {
 	plan := &DataQueryPlan{
 		Table:  "sys_plugin_node_state",

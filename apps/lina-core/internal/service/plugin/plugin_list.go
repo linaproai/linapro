@@ -72,6 +72,8 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	return &ListOutput{List: filtered, Total: len(filtered)}, nil
 }
 
+// matchPluginType compares normalized plugin types so list filtering accepts
+// user input that differs only by case or alias formatting.
 func matchPluginType(actual string, expected string) bool {
 	actualType := catalog.NormalizeType(actual)
 	expectedType := catalog.NormalizeType(expected)

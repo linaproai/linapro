@@ -28,6 +28,8 @@ func (c *Controller) BackendSummary(request *pluginbridge.BridgeRequestEnvelopeV
 	return response, nil
 }
 
+// buildBackendSummaryRouteInput extracts backend summary route metadata and
+// identity context from the bridge request.
 func buildBackendSummaryRouteInput(request *pluginbridge.BridgeRequestEnvelopeV1) *dynamicservice.BackendSummaryInput {
 	input := &dynamicservice.BackendSummaryInput{}
 	if request == nil {

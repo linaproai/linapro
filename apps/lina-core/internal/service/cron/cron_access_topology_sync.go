@@ -13,10 +13,14 @@ import (
 	"lina-core/pkg/logger"
 )
 
+// localAccessTopologyRevisionSyncJob warms the local permission-topology
+// revision snapshot without registering a distributed watcher.
 type localAccessTopologyRevisionSyncJob struct {
 	roleSvc rolesvc.Service
 }
 
+// clusterAccessTopologyRevisionSyncJob warms the local revision snapshot and
+// registers the cross-node watcher required in clustered deployments.
 type clusterAccessTopologyRevisionSyncJob struct {
 	roleSvc rolesvc.Service
 }

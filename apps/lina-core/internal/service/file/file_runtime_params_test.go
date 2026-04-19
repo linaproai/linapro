@@ -18,6 +18,8 @@ import (
 	hostconfig "lina-core/internal/service/config"
 )
 
+// TestUploadRejectsFileExceedingRuntimeMaxSize verifies managed upload size
+// settings are enforced before storage begins.
 func TestUploadRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
 	withRuntimeParamValue(t, hostconfig.RuntimeParamKeyUploadMaxSize, "1")
 
@@ -39,6 +41,8 @@ func TestUploadRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
 	}
 }
 
+// withRuntimeParamValue temporarily overrides one protected runtime parameter
+// and restores the original sys_config record during cleanup.
 func withRuntimeParamValue(t *testing.T, key string, value string) {
 	t.Helper()
 
@@ -95,6 +99,8 @@ func withRuntimeParamValue(t *testing.T, key string, value string) {
 	})
 }
 
+// markRuntimeParamChanged bumps the runtime-parameter revision for tests after
+// direct sys_config mutations.
 func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	t.Helper()
 
@@ -103,6 +109,7 @@ func markRuntimeParamChanged(t *testing.T, ctx context.Context) {
 	}
 }
 
+// queryRuntimeParam loads one sys_config record by protected runtime-parameter key.
 func queryRuntimeParam(ctx context.Context, key string) (*entity.SysConfig, error) {
 	var runtimeParam *entity.SysConfig
 	err := dao.SysConfig.Ctx(ctx).

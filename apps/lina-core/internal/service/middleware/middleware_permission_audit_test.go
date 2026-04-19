@@ -15,6 +15,8 @@ import (
 	"testing"
 )
 
+// staticPermissionExemptionAllowlist documents the static routes that are
+// intentionally exempt from request-level permission metadata.
 var staticPermissionExemptionAllowlist = map[string]string{
 	"POST /auth/login":                       "public login entrypoint",
 	"GET /config/public/frontend":            "public frontend bootstrap whitelist",
@@ -34,6 +36,8 @@ var staticPermissionExemptionAllowlist = map[string]string{
 	"DELETE /user/message/clear":             "login-bound current-user inbox clear",
 }
 
+// staticPermissionAuditRoute captures the metadata needed to audit one static
+// host API request DTO.
 type staticPermissionAuditRoute struct {
 	File       string
 	Line       int

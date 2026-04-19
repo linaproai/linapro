@@ -63,6 +63,7 @@ type Service interface {
 	BuildIntLabelMap(ctx context.Context, dictType string) map[int]string
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

@@ -1,3 +1,6 @@
+// This file tests automatic lease-renewal lifecycle behavior for locker lease
+// managers.
+
 package locker
 
 import (
@@ -12,6 +15,8 @@ import (
 	"github.com/gogf/gf/v2/test/gtest"
 )
 
+// TestLeaseManager_StartAndStop verifies a lease manager renews the lock and
+// stops cleanly.
 func TestLeaseManager_StartAndStop(t *testing.T) {
 	var (
 		svc    = New()
@@ -57,6 +62,8 @@ func TestLeaseManager_StartAndStop(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestLeaseManager_StopChan verifies StoppedChan transitions from open to
+// closed after stop.
 func TestLeaseManager_StopChan(t *testing.T) {
 	var (
 		svc    = New()
@@ -104,6 +111,8 @@ func TestLeaseManager_StopChan(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestLeaseManager_RenewalFailure verifies renewal failure stops the lease
+// manager loop.
 func TestLeaseManager_RenewalFailure(t *testing.T) {
 	var (
 		svc    = New()

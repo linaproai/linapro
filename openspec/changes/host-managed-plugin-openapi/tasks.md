@@ -26,3 +26,4 @@
 ## Feedback
 
 - [x] **FB-1**: 按职责拆分 `plugin` 与 `integration` 的 `Service` 接口，并通过接口嵌入组合总接口
+- [ ] **FB-2**: 继续审查并补齐宿主管理 OpenAPI、源码插件路由采集与相关测试代码的注释规范缺口

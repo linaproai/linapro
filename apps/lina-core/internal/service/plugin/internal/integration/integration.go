@@ -165,6 +165,7 @@ type Service interface {
 	ResourceReferenceService
 }
 
+// Ensure serviceImpl satisfies the composed integration contract.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

@@ -11,6 +11,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// buildAuthorizationInput converts the API request payload into the service
+// input model used by plugin authorization updates.
 func buildAuthorizationInput(req *v1.HostServiceAuthorizationReq) *pluginsvc.HostServiceAuthorizationInput {
 	if req == nil {
 		return nil
@@ -33,6 +35,8 @@ func buildAuthorizationInput(req *v1.HostServiceAuthorizationReq) *pluginsvc.Hos
 	return input
 }
 
+// buildHostServicePermissionItems projects host-service specs and resolved table
+// comments into the API response view used by plugin detail endpoints.
 func buildHostServicePermissionItems(
 	specs []*pluginbridge.HostServiceSpec,
 	tableComments map[string]string,
@@ -71,6 +75,8 @@ func buildHostServicePermissionItems(
 	return items
 }
 
+// buildHostServicePermissionTableItems converts authorized table names into the
+// table response view, enriching them with best-effort host comments.
 func buildHostServicePermissionTableItems(
 	tables []string,
 	tableComments map[string]string,
@@ -88,6 +94,8 @@ func buildHostServicePermissionTableItems(
 	return items
 }
 
+// cloneStringMap copies the resource attribute map so controller responses do
+// not alias service-owned state.
 func cloneStringMap(source map[string]string) map[string]string {
 	if len(source) == 0 {
 		return nil

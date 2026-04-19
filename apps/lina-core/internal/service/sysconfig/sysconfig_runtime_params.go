@@ -12,12 +12,16 @@ import (
 	hostconfig "lina-core/internal/service/config"
 )
 
+// withConfigMutation runs one sysconfig mutation inside the shared transaction
+// boundary used for runtime-param refresh coordination.
 func (s *serviceImpl) withConfigMutation(ctx context.Context, handler func(ctx context.Context) error) error {
 	return dao.SysConfig.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		return handler(ctx)
 	})
 }
 
+// refreshRuntimeParamSnapshotIfNeeded marks the protected runtime/public
+// frontend config snapshot dirty when a managed value changes.
 func (s *serviceImpl) refreshRuntimeParamSnapshotIfNeeded(
 	ctx context.Context,
 	key string,

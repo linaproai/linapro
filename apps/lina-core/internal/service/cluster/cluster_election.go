@@ -1,3 +1,6 @@
+// This file implements the distributed primary-election loop used when
+// clustered deployment mode is enabled.
+
 package cluster
 
 import (
@@ -14,6 +17,8 @@ import (
 // lockName is the distributed lock name used for leader election.
 const lockName = "leader-election"
 
+// electionService coordinates distributed leader election using the locker
+// service and a renewable lease.
 type electionService struct {
 	locker      locker.Service         // locker manages distributed lock ownership.
 	cfg         *config.ElectionConfig // cfg stores election lease and renew settings.
@@ -27,6 +32,8 @@ type electionService struct {
 	stoppedOnce sync.Once // stoppedOnce ensures stoppedChan is closed exactly once.
 }
 
+// newElectionService constructs one election service with safe stop semantics
+// before Start is ever called.
 func newElectionService(
 	lockerSvc locker.Service,
 	cfg *config.ElectionConfig,
@@ -45,6 +52,7 @@ func newElectionService(
 	return service
 }
 
+// Start launches the background election loop once.
 func (s *electionService) Start(ctx context.Context) {
 	s.once.Do(func() {
 		s.stoppedChan = make(chan struct{})
@@ -52,6 +60,7 @@ func (s *electionService) Start(ctx context.Context) {
 	})
 }
 
+// Stop signals the background election loop to exit and waits for shutdown.
 func (s *electionService) Stop(ctx context.Context) {
 	select {
 	case <-s.stopChan:
@@ -61,14 +70,19 @@ func (s *electionService) Stop(ctx context.Context) {
 	<-s.stoppedChan
 }
 
+// IsLeader reports whether the current node currently owns the leader lease.
 func (s *electionService) IsLeader() bool {
 	return s.isLeader.Load()
 }
 
+// Holder returns the node identifier that this service uses when competing for
+// leadership.
 func (s *electionService) Holder() string {
 	return s.holder
 }
 
+// run drives acquisition, renewal-failure recovery, and shutdown handling for
+// leader election.
 func (s *electionService) run(ctx context.Context) {
 	defer s.stoppedOnce.Do(func() { close(s.stoppedChan) })
 
@@ -98,6 +112,8 @@ func (s *electionService) run(ctx context.Context) {
 	}
 }
 
+// tryAcquire attempts to obtain the leader lock and starts lease renewal when
+// successful.
 func (s *electionService) tryAcquire(ctx context.Context) {
 	instance, ok, err := s.locker.Lock(ctx, lockName, s.holder, "leader election", s.cfg.Lease)
 	if err != nil {
@@ -120,6 +136,8 @@ func (s *electionService) tryAcquire(ctx context.Context) {
 	logger.Debugf(ctx, "[cluster] not leader, waiting for lease expiry")
 }
 
+// stepDown stops renewal and releases the leader lock when the node currently
+// holds it.
 func (s *electionService) stepDown(ctx context.Context) {
 	if s.leaseMgr != nil {
 		s.leaseMgr.Stop()
@@ -136,6 +154,8 @@ func (s *electionService) stepDown(ctx context.Context) {
 	logger.Infof(ctx, "[cluster] stepped down from leadership")
 }
 
+// leaseStoppedChan returns the renewal manager stop signal when leadership is
+// currently held.
 func (s *electionService) leaseStoppedChan() <-chan struct{} {
 	if s.leaseMgr != nil {
 		return s.leaseMgr.StoppedChan()

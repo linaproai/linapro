@@ -13,6 +13,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestHandleHostServiceInvokeNetworkRequestSuccess verifies successful network
+// proxying preserves method, path, headers, and response metadata.
 func TestHandleHostServiceInvokeNetworkRequestSuccess(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -73,6 +75,8 @@ func TestHandleHostServiceInvokeNetworkRequestSuccess(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeNetworkRejectsUnauthorizedURL verifies the host
+// service rejects outbound URLs outside the granted resource scope.
 func TestHandleHostServiceInvokeNetworkRejectsUnauthorizedURL(t *testing.T) {
 	hcc := newNetworkHostCallContext("https://api.example.com/v1")
 
@@ -88,6 +92,8 @@ func TestHandleHostServiceInvokeNetworkRejectsUnauthorizedURL(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeNetworkRejectsProtectedHeader verifies plugins
+// cannot override transport-controlled headers such as Host.
 func TestHandleHostServiceInvokeNetworkRejectsProtectedHeader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if _, err := writer.Write([]byte("ok")); err != nil {
@@ -115,6 +121,8 @@ func TestHandleHostServiceInvokeNetworkRejectsProtectedHeader(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeNetworkRejectsOversizedBody verifies the response
+// body limit is enforced before payloads are returned to plugins.
 func TestHandleHostServiceInvokeNetworkRejectsOversizedBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)
@@ -138,6 +146,8 @@ func TestHandleHostServiceInvokeNetworkRejectsOversizedBody(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeNetworkTimeout verifies request-scoped deadlines
+// propagate to upstream HTTP calls.
 func TestHandleHostServiceInvokeNetworkTimeout(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		time.Sleep(50 * time.Millisecond)
@@ -163,6 +173,8 @@ func TestHandleHostServiceInvokeNetworkTimeout(t *testing.T) {
 	}
 }
 
+// TestMatchAuthorizedNetworkResourceSupportsWildcardHost verifies wildcard host
+// patterns can authorize nested subdomains under the same base domain.
 func TestMatchAuthorizedNetworkResourceSupportsWildcardHost(t *testing.T) {
 	specs := []*pluginbridge.HostServiceSpec{
 		{
@@ -180,6 +192,8 @@ func TestMatchAuthorizedNetworkResourceSupportsWildcardHost(t *testing.T) {
 	}
 }
 
+// newNetworkHostCallContext builds a host call context with one authorized
+// network resource pattern for the test plugin.
 func newNetworkHostCallContext(pattern string) *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-plugin-network",
@@ -198,6 +212,8 @@ func newNetworkHostCallContext(pattern string) *hostCallContext {
 	}
 }
 
+// invokeNetworkHostService sends a network host-service request envelope through
+// the shared dispatcher and returns the raw response envelope.
 func invokeNetworkHostService(
 	t *testing.T,
 	ctx context.Context,

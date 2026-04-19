@@ -8,6 +8,8 @@ import (
 	"lina-core/pkg/plugindb/shared"
 )
 
+// TestTransactionRejectsMultipleTables verifies the transaction builder keeps
+// the single-table contract enforced.
 func TestTransactionRejectsMultipleTables(t *testing.T) {
 	tx := &Tx{}
 	_ = tx.Table("sys_plugin_node_state")
@@ -17,6 +19,8 @@ func TestTransactionRejectsMultipleTables(t *testing.T) {
 	}
 }
 
+// TestQueryBuilderBuildsTypedPlan verifies the fluent query builder records the
+// expected typed plan state.
 func TestQueryBuilderBuildsTypedPlan(t *testing.T) {
 	query := Open().
 		Table("sys_plugin_node_state").

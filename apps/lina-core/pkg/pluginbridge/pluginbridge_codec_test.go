@@ -8,6 +8,8 @@ import (
 	"testing"
 )
 
+// TestValidateBridgeSpecRejectsTextCodec verifies executable bridge specs only
+// accept protobuf request and response codecs.
 func TestValidateBridgeSpecRejectsTextCodec(t *testing.T) {
 	spec := &BridgeSpec{
 		ABIVersion:     ABIVersionV1,
@@ -21,6 +23,8 @@ func TestValidateBridgeSpecRejectsTextCodec(t *testing.T) {
 	}
 }
 
+// TestValidateRouteContractsRejectsInvalidPublicPermission verifies public
+// routes cannot retain permission requirements.
 func TestValidateRouteContractsRejectsInvalidPublicPermission(t *testing.T) {
 	routes := []*RouteContract{
 		{
@@ -35,6 +39,8 @@ func TestValidateRouteContractsRejectsInvalidPublicPermission(t *testing.T) {
 	}
 }
 
+// TestEncodeDecodeRequestEnvelopeRoundTrip verifies the manual protobuf codec
+// preserves nested route, request, and identity snapshots.
 func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 	input := &BridgeRequestEnvelopeV1{
 		PluginID: "plugin-demo-dynamic",
@@ -107,6 +113,8 @@ func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 	}
 }
 
+// TestGuestRuntimeRoundTrip verifies the guest runtime allocator and execute
+// path expose one decodable bridge response.
 func TestGuestRuntimeRoundTrip(t *testing.T) {
 	runtime := NewGuestRuntime(func(request *BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error) {
 		return NewJSONResponse(200, []byte(`{"ok":true}`)), nil

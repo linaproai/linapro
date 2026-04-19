@@ -221,6 +221,8 @@ func (q *TxQuery) Delete() (*MutationResult, error) {
 	return q.enqueueMutation(shared.DataMutationActionDelete, q.keyJSON, nil)
 }
 
+// enqueueMutation validates and appends one structured mutation plan to the
+// surrounding single-table transaction builder.
 func (q *TxQuery) enqueueMutation(action shared.DataMutationAction, keyJSON []byte, record map[string]any) (*MutationResult, error) {
 	if q.err != nil {
 		return nil, q.err

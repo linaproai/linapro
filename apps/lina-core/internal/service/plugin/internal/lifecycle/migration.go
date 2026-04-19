@@ -152,6 +152,8 @@ func buildMigrationKey(direction catalog.MigrationDirection, sequenceNo int) str
 	return fmt.Sprintf("%s-step-%03d", normalizedDirection, sequenceNo)
 }
 
+// getMigration loads one previously recorded migration attempt for the given
+// release and migration key.
 func (s *serviceImpl) getMigration(
 	ctx context.Context,
 	pluginID string,
@@ -171,6 +173,8 @@ func (s *serviceImpl) getMigration(
 	return migration, err
 }
 
+// recordMigration upserts the execution result for one SQL migration step so
+// install and uninstall attempts remain auditable and re-runnable.
 func (s *serviceImpl) recordMigration(
 	ctx context.Context,
 	pluginID string,

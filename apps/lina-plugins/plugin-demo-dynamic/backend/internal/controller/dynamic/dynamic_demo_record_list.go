@@ -24,6 +24,8 @@ func (c *Controller) DemoRecordList(request *pluginbridge.BridgeRequestEnvelopeV
 	return pluginbridge.NewJSONResponse(200, content), nil
 }
 
+// buildDemoRecordListRouteInput extracts list pagination and keyword filters
+// from bridge query parameters.
 func buildDemoRecordListRouteInput(request *pluginbridge.BridgeRequestEnvelopeV1) *dynamicservice.DemoRecordListInput {
 	return &dynamicservice.DemoRecordListInput{
 		PageNum:  readDynamicQueryInt(request, "pageNum"),

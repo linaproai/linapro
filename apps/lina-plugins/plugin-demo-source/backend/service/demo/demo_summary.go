@@ -6,6 +6,8 @@ import (
 	"context"
 )
 
+// summaryMessage is the static summary text returned by the sample source
+// plugin backend.
 const summaryMessage = "这是一条来自 plugin-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。"
 
 // SummaryOutput defines one concise plugin summary payload.

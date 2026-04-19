@@ -15,11 +15,10 @@ import (
 	"lina-core/pkg/pluginhost"
 
 	"github.com/gogf/gf/v2/net/ghttp"
-
-	// TopologyProvider abstracts cluster topology information needed by the reconciler.
 	"lina-core/pkg/pluginbridge"
 )
 
+// TopologyProvider abstracts cluster topology information needed by the reconciler.
 type TopologyProvider interface {
 	// IsClusterModeEnabled reports whether multi-node cluster mode is active.
 	IsClusterModeEnabled() bool
@@ -198,6 +197,7 @@ type Service interface {
 	StoreUploadedPackage(ctx context.Context, filename string, content []byte, overwriteSupport bool) (*DynamicUploadOutput, error)
 }
 
+// Ensure serviceImpl satisfies the runtime contract used by other plugin packages.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

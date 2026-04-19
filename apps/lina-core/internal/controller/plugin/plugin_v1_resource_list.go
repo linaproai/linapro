@@ -47,6 +47,8 @@ func (c *ControllerV1) ResourceList(ctx context.Context, req *v1.ResourceListReq
 	return &v1.ResourceListRes{List: out.List, Total: out.Total}, nil
 }
 
+// ensurePluginResourcePermission checks the current user's permission set
+// against the resolved plugin resource permission string.
 func (c *ControllerV1) ensurePluginResourcePermission(
 	ctx context.Context,
 	pluginID string,
@@ -80,6 +82,8 @@ func (c *ControllerV1) ensurePluginResourcePermission(
 	return false, nil
 }
 
+// hasPluginResourcePermission reports whether the resolved permission is empty,
+// granted explicitly, or covered by a super-admin/wildcard grant.
 func hasPluginResourcePermission(accessContext *role.UserAccessContext, requiredPermission string) bool {
 	if strings.TrimSpace(requiredPermission) == "" {
 		return true
@@ -106,6 +110,8 @@ func hasPluginResourcePermission(accessContext *role.UserAccessContext, required
 	return ok
 }
 
+// writePluginResourcePermissionError writes one standardized JSON permission
+// error response onto the current request context and aborts processing.
 func writePluginResourcePermissionError(
 	ctx context.Context,
 	status int,

@@ -1,12 +1,15 @@
+// This file implements automatic lease renewal for distributed lock instances.
+
 package locker
 
 import (
 	"context"
-	"lina-core/pkg/logger"
 	"time"
+
+	"lina-core/pkg/logger"
 )
 
-// LeaseManager manages automatic lease renewal for a lock.
+// LeaseManager manages automatic lease renewal for a held lock instance.
 type LeaseManager struct {
 	instance    *Instance
 	renewIntvl  time.Duration

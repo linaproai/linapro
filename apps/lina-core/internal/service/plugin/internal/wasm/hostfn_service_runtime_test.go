@@ -1,5 +1,6 @@
 // This file tests runtime host service methods including log/state/info
 // dispatch and capability validation.
+
 package wasm
 
 import (
@@ -12,6 +13,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// createPluginStateTableSQL provisions the plugin runtime state table required
+// by runtime host-service state lifecycle tests.
 const createPluginStateTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_plugin_state (
     id           INT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
@@ -24,6 +27,8 @@ CREATE TABLE IF NOT EXISTS sys_plugin_state (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='插件键值状态存储表';
 `
 
+// TestHandleHostServiceInvokeRuntimeStateLifecycle verifies runtime state
+// get/set/delete calls persist and remove plugin-scoped values correctly.
 func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	ctx := context.Background()
 	if _, err := g.DB().Exec(ctx, createPluginStateTableSQL); err != nil {
@@ -92,6 +97,8 @@ func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeRuntimeInfoNowAndNode verifies runtime info
+// methods return non-empty host metadata payloads.
 func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 	hcc := &hostCallContext{
 		pluginID: "test-plugin-runtime-info",
@@ -134,6 +141,8 @@ func TestHandleHostServiceInvokeRuntimeInfoNowAndNode(t *testing.T) {
 	}
 }
 
+// invokeRuntimeHostService dispatches one runtime host-service request and
+// returns the raw response envelope for assertions.
 func invokeRuntimeHostService(
 	t *testing.T,
 	hcc *hostCallContext,
@@ -150,6 +159,8 @@ func invokeRuntimeHostService(
 	return handleHostServiceInvoke(context.Background(), hcc, pluginbridge.MarshalHostServiceRequestEnvelope(request))
 }
 
+// cleanupRuntimeStateKey deletes one plugin runtime state row so lifecycle
+// tests can run repeatedly without leftover state.
 func cleanupRuntimeStateKey(t *testing.T, ctx context.Context, pluginID string, key string) {
 	t.Helper()
 	if _, err := g.DB().Model(pluginStateTable).Ctx(ctx).

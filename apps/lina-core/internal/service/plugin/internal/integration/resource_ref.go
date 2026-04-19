@@ -15,6 +15,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// Stable governance resource identities and remark templates used when
+// projecting plugin discoveries into sys_plugin_resource_ref.
 const (
 	pluginResourceIdentitySeparator = ":"
 
@@ -337,6 +339,7 @@ func buildPluginMenuResourceRemark(menu *catalog.MenuSpec) string {
 	)
 }
 
+// newResourceRefDescriptor constructs one normalized governance descriptor.
 func newResourceRefDescriptor(
 	kind catalog.ResourceKind,
 	key string,
@@ -353,6 +356,8 @@ func newResourceRefDescriptor(
 	}
 }
 
+// appendHostServiceResourceDescriptors adds governed host-service resources to
+// the descriptor set while de-duplicating by kind and key.
 func appendHostServiceResourceDescriptors(
 	descriptors []*catalog.ResourceRefDescriptor,
 	hostServices []*pluginbridge.HostServiceSpec,
@@ -444,6 +449,8 @@ func appendHostServiceResourceDescriptors(
 	return descriptors
 }
 
+// mapHostServiceResourceKind maps a host service name to the governance
+// resource kind used in sys_plugin_resource_ref.
 func mapHostServiceResourceKind(service string) catalog.ResourceKind {
 	switch strings.TrimSpace(service) {
 	case pluginbridge.HostServiceStorage:
@@ -469,6 +476,8 @@ func mapHostServiceResourceKind(service string) catalog.ResourceKind {
 	}
 }
 
+// buildHostServiceResourceRemark formats the review remark for one governed
+// host-service resource reference.
 func buildHostServiceResourceRemark(service string, ref string, methods []string) string {
 	methodSummary := buildMethodSummary(methods)
 	return fmt.Sprintf(
@@ -479,6 +488,8 @@ func buildHostServiceResourceRemark(service string, ref string, methods []string
 	)
 }
 
+// buildHostServicePathRemark formats the review remark for one governed
+// host-service path authorization.
 func buildHostServicePathRemark(service string, storagePath string, methods []string) string {
 	methodSummary := buildMethodSummary(methods)
 	return fmt.Sprintf(
@@ -489,6 +500,8 @@ func buildHostServicePathRemark(service string, storagePath string, methods []st
 	)
 }
 
+// buildHostServiceTableRemark formats the review remark for one governed
+// host-service table authorization.
 func buildHostServiceTableRemark(service string, table string, methods []string) string {
 	methodSummary := buildMethodSummary(methods)
 	return fmt.Sprintf(
@@ -499,6 +512,7 @@ func buildHostServiceTableRemark(service string, table string, methods []string)
 	)
 }
 
+// buildMethodSummary renders one readable method list for governance remarks.
 func buildMethodSummary(methods []string) string {
 	if len(methods) == 0 {
 		return pluginResourceMethodSummaryFallback

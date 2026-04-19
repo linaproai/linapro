@@ -11,8 +11,11 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// errDynamicHostCallsUnavailable reports that host-call clients are unavailable
+// outside guest Wasm builds.
 var errDynamicHostCallsUnavailable = gerror.New("plugin-demo-dynamic host calls are only available for wasip1 builds")
 
+// unsupportedRuntimeHostService is the host-build stub runtime client.
 type unsupportedRuntimeHostService struct{}
 
 // newRuntimeHostService returns the host-build stub runtime client.
@@ -50,6 +53,7 @@ func (unsupportedRuntimeHostService) Node() (string, error) {
 	return "", errDynamicHostCallsUnavailable
 }
 
+// unsupportedStorageHostService is the host-build stub storage client.
 type unsupportedStorageHostService struct{}
 
 // newStorageHostService returns the host-build stub storage client.
@@ -94,6 +98,7 @@ func (unsupportedStorageHostService) Stat(
 	return nil, false, errDynamicHostCallsUnavailable
 }
 
+// unsupportedNetworkHostService is the host-build stub network client.
 type unsupportedNetworkHostService struct{}
 
 // newNetworkHostService returns the host-build stub network client.

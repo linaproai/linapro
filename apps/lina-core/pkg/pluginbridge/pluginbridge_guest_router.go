@@ -10,6 +10,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// Reflected bridge envelope types reused during guest controller registration.
 var (
 	bridgeRequestEnvelopeType  = reflect.TypeOf(&BridgeRequestEnvelopeV1{})
 	bridgeResponseEnvelopeType = reflect.TypeOf(&BridgeResponseEnvelopeV1{})
@@ -162,6 +163,8 @@ func (d *GuestControllerRouteDispatcher) HandleRequest(
 	return handler(request)
 }
 
+// isGuestControllerHandlerMethod reports whether one reflected method matches
+// the bridge controller handler signature.
 func isGuestControllerHandlerMethod(methodType reflect.Type) bool {
 	return methodType.NumIn() == 2 &&
 		methodType.In(1) == bridgeRequestEnvelopeType &&
@@ -170,6 +173,8 @@ func isGuestControllerHandlerMethod(methodType reflect.Type) bool {
 		methodType.Out(1) == errorInterfaceType
 }
 
+// buildGuestControllerInternalPath converts a controller method name to the
+// kebab-case internal path used as the dispatcher fallback key.
 func buildGuestControllerInternalPath(methodName string) string {
 	if methodName == "" {
 		return "/"

@@ -265,6 +265,7 @@ type Service interface {
 	DynamicRouteService
 }
 
+// Ensure serviceImpl satisfies the composed plugin facade contract.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

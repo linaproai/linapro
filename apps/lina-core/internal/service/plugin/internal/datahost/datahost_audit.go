@@ -14,10 +14,12 @@ import (
 	plugindbhost "lina-core/pkg/plugindb/host"
 )
 
+// withPluginDataAudit attaches audit metadata for downstream plugindb host logging.
 func withPluginDataAudit(ctx context.Context, metadata *plugindbhost.AuditMetadata) context.Context {
 	return plugindbhost.WithAudit(ctx, metadata)
 }
 
+// buildPluginDataAuditMetadata builds the audit metadata snapshot for one governed request.
 func buildPluginDataAuditMetadata(
 	execCtx *executionContext,
 	resource *catalog.ResourceSpec,
@@ -42,6 +44,7 @@ func buildPluginDataAuditMetadata(
 	return metadata
 }
 
+// getPluginDataDB returns the governed plugindb host database handle.
 func getPluginDataDB() (gdb.DB, error) {
 	return plugindbhost.DB()
 }

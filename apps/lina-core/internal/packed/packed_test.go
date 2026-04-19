@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+// TestFilesEmbedPreparedManifestAssets verifies the packed embed FS contains
+// the prepared manifest assets expected by runtime startup.
 func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 	t.Parallel()
 
@@ -28,6 +30,8 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 	}
 }
 
+// TestFilesExcludeLocalConfig verifies developer-local config.yaml is not
+// embedded into the packed manifest asset set.
 func TestFilesExcludeLocalConfig(t *testing.T) {
 	t.Parallel()
 

@@ -13,6 +13,8 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState verifies that
+// missing runtime artifacts reconcile registry state without hiding the plugin.
 func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T) {
 	var (
 		service  = newTestService()
@@ -104,6 +106,8 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	}
 }
 
+// TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection verifies
+// that sync does not recreate release-bound governance after uninstall.
 func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *testing.T) {
 	var (
 		service  = newTestService()

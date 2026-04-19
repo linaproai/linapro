@@ -19,6 +19,8 @@ func (c *ControllerV1) Uninstall(ctx context.Context, req *v1.UninstallReq) (res
 	return &v1.UninstallRes{Id: req.Id, Installed: 0, Enabled: 0}, nil
 }
 
+// resolvePurgeStorageData converts the optional integer request flag into the
+// effective uninstall storage-purge behavior.
 func resolvePurgeStorageData(value *int) bool {
 	if value == nil {
 		return true

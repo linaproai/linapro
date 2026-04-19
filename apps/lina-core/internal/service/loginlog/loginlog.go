@@ -17,6 +17,7 @@ import (
 	"lina-core/pkg/gdbutil"
 )
 
+// Login-log export and dictionary constants.
 const MaxExportRows = 10000 // Maximum rows for export
 
 // Dict type used in login log
@@ -44,6 +45,7 @@ type Service interface {
 	Export(ctx context.Context, in ExportInput) (data []byte, err error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

@@ -4,6 +4,8 @@ package pluginbridge
 
 import "testing"
 
+// TestHostServiceCacheGetResponseRoundTrip verifies cache get responses
+// preserve found flags and typed cache values through the codec.
 func TestHostServiceCacheGetResponseRoundTrip(t *testing.T) {
 	original := &HostServiceCacheGetResponse{
 		Found: true,
@@ -31,6 +33,8 @@ func TestHostServiceCacheGetResponseRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceCacheSetRequestRoundTrip verifies cache set requests preserve
+// keys, values, and expiration settings through the codec.
 func TestHostServiceCacheSetRequestRoundTrip(t *testing.T) {
 	original := &HostServiceCacheSetRequest{
 		Key:           "profile",
@@ -54,6 +58,8 @@ func TestHostServiceCacheSetRequestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceCacheIncrAndExpireRoundTrip verifies increment and expiration
+// responses preserve numeric values and updated expiry metadata.
 func TestHostServiceCacheIncrAndExpireRoundTrip(t *testing.T) {
 	originalIncr := &HostServiceCacheIncrResponse{
 		Value: &HostServiceCacheValue{

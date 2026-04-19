@@ -1,3 +1,6 @@
+// This file verifies explicit confirmation is required before sensitive host
+// database commands execute.
+
 package cmd
 
 import (
@@ -5,6 +8,8 @@ import (
 	"testing"
 )
 
+// TestRequireCommandConfirmation verifies sensitive command confirmation tokens
+// are enforced for both init and mock operations.
 func TestRequireCommandConfirmation(t *testing.T) {
 	t.Parallel()
 

@@ -1,3 +1,6 @@
+// This file tests distributed leader-election lifecycle behavior for the
+// cluster service.
+
 package cluster
 
 import (
@@ -21,10 +24,14 @@ var testElectionCfg = &config.ElectionConfig{
 	RenewInterval: 1 * time.Second,
 }
 
+// newTestElectionService constructs one election service using the shared test
+// timing configuration.
 func newTestElectionService() *electionService {
 	return newElectionService(locker.New(), testElectionCfg, generateNodeIdentifier())
 }
 
+// TestElectionServiceNew verifies a new election service exposes an identifier
+// and starts in follower mode.
 func TestElectionServiceNew(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc := newTestElectionService()
@@ -35,6 +42,8 @@ func TestElectionServiceNew(t *testing.T) {
 	})
 }
 
+// TestElectionServiceStartAndBecomeLeader verifies an unlocked election starts
+// and transitions the current node into leader state.
 func TestElectionServiceStartAndBecomeLeader(t *testing.T) {
 	var (
 		svc = newTestElectionService()
@@ -62,6 +71,8 @@ func TestElectionServiceStartAndBecomeLeader(t *testing.T) {
 	cleanupLock()
 }
 
+// TestElectionServiceAlreadyLeader verifies an existing unexpired leader lock
+// prevents the current node from becoming leader.
 func TestElectionServiceAlreadyLeader(t *testing.T) {
 	var (
 		svc = newTestElectionService()
@@ -93,6 +104,8 @@ func TestElectionServiceAlreadyLeader(t *testing.T) {
 	cleanupLock()
 }
 
+// TestElectionServiceTakeOverExpiredLock verifies the service can take over an
+// expired leader lock left by another node.
 func TestElectionServiceTakeOverExpiredLock(t *testing.T) {
 	var (
 		svc = newTestElectionService()
@@ -129,6 +142,8 @@ func TestElectionServiceTakeOverExpiredLock(t *testing.T) {
 	cleanupLock()
 }
 
+// TestElectionServiceStepDown verifies Stop releases leadership after the node
+// has successfully become leader.
 func TestElectionServiceStepDown(t *testing.T) {
 	var (
 		svc = newTestElectionService()
@@ -152,6 +167,8 @@ func TestElectionServiceStepDown(t *testing.T) {
 	cleanupLock()
 }
 
+// TestElectionServiceStopWithoutStart verifies Stop is safe before Start is
+// called.
 func TestElectionServiceStopWithoutStart(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc := newTestElectionService()
@@ -159,6 +176,8 @@ func TestElectionServiceStopWithoutStart(t *testing.T) {
 	})
 }
 
+// TestElectionServiceNonLeaderRetry verifies the retry loop eventually acquires
+// leadership after a competing expired lock is observed.
 func TestElectionServiceNonLeaderRetry(t *testing.T) {
 	var (
 		retryCfg = &config.ElectionConfig{
@@ -194,6 +213,7 @@ func TestElectionServiceNonLeaderRetry(t *testing.T) {
 	cleanupLock()
 }
 
+// cleanupLock removes the shared election lock row between test runs.
 func cleanupLock() {
 	if _, err := g.DB().Model("sys_locker").Where("name", lockName).Delete(); err != nil {
 		panic(fmt.Sprintf("cleanup leader-election lock failed: %v", err))

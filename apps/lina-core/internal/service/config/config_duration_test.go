@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// TestDurationConfigsUseDefaultsWhenUnset verifies duration-based config getters
+// fall back to their baked-in defaults when config is absent.
 func TestDurationConfigsUseDefaultsWhenUnset(t *testing.T) {
 	setTestConfigContent(t, `
 test: 1
@@ -38,6 +40,7 @@ test: 1
 	}
 }
 
+// TestGetJwtUsesDurationConfig verifies JWT duration settings come from static config.
 func TestGetJwtUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
 database:
@@ -66,6 +69,7 @@ jwt:
 	}
 }
 
+// TestGetSessionUsesDurationConfig verifies session duration settings come from static config.
 func TestGetSessionUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
 database:
@@ -91,6 +95,8 @@ session:
 	}
 }
 
+// TestGetMonitorUsesDurationConfigAndRetentionMultiplier verifies monitor
+// interval parsing and retention multiplier loading.
 func TestGetMonitorUsesDurationConfigAndRetentionMultiplier(t *testing.T) {
 	setTestConfigContent(t, `
 monitor:
@@ -108,6 +114,8 @@ monitor:
 	}
 }
 
+// TestGetUploadPathUsesStaticConfig verifies static upload settings remain
+// available when runtime overrides are absent.
 func TestGetUploadPathUsesStaticConfig(t *testing.T) {
 	setTestConfigContent(t, `
 upload:
@@ -133,6 +141,8 @@ upload:
 	}
 }
 
+// TestGetSessionRejectsNonSecondAlignedCleanupInterval verifies invalid
+// fractional-second cleanup intervals panic during config load.
 func TestGetSessionRejectsNonSecondAlignedCleanupInterval(t *testing.T) {
 	setTestConfigContent(t, `
 session:
@@ -144,6 +154,8 @@ session:
 	_ = New().GetSession(context.Background())
 }
 
+// TestGetMonitorRejectsSubSecondInterval verifies monitor intervals shorter
+// than one second are rejected.
 func TestGetMonitorRejectsSubSecondInterval(t *testing.T) {
 	setTestConfigContent(t, `
 monitor:
@@ -155,6 +167,7 @@ monitor:
 	_ = New().GetMonitor(context.Background())
 }
 
+// assertConfigPanicContains verifies the current deferred panic contains the expected text.
 func assertConfigPanicContains(t *testing.T, expected string) {
 	t.Helper()
 

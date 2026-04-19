@@ -17,6 +17,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets verifies
+// that route-only runtime plugins can be enabled without bundled frontend files.
 func TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets(t *testing.T) {
 	var (
 		service  = newTestService()
@@ -64,6 +66,8 @@ func TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets(t *tes
 	}
 }
 
+// TestSyncAndListReportsPendingHostServiceAuthorization verifies that list
+// projections expose dynamic plugin authorization review requirements.
 func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 	var (
 		service  = newTestService()
@@ -147,6 +151,8 @@ func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 	}
 }
 
+// TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot verifies that
+// install and enable persist the host-confirmed authorization snapshot.
 func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T) {
 	var (
 		service  = newTestService()
@@ -265,6 +271,8 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 	}
 }
 
+// TestSourcePluginInstallAndUninstallRequireExplicitLifecycle verifies that
+// source plugins stay discovered-only until the host explicitly installs them.
 func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 	var (
 		service = newTestService()

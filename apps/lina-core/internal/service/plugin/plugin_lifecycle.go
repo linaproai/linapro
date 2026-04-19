@@ -63,6 +63,8 @@ func (s *serviceImpl) UpdateStatus(
 	return s.updateStatus(ctx, pluginID, status, authorization)
 }
 
+// updateStatus centralizes enable/disable validation so source and dynamic
+// plugins both honor installed-state checks before status transitions.
 func (s *serviceImpl) updateStatus(
 	ctx context.Context,
 	pluginID string,

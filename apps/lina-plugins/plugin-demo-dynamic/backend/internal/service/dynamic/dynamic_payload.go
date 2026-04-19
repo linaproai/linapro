@@ -9,6 +9,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// backendSummaryPayload defines the summary response returned by the dynamic
+// sample backend endpoint.
 type backendSummaryPayload struct {
 	Message       string  `json:"message"`
 	PluginID      string  `json:"pluginId"`
@@ -20,11 +22,15 @@ type backendSummaryPayload struct {
 	IsSuperAdmin  *bool   `json:"isSuperAdmin,omitempty"`
 }
 
+// demoRecordListPayload defines the paged list response returned by sample
+// record queries.
 type demoRecordListPayload struct {
 	List  []*demoRecordPayload `json:"list"`
 	Total int                  `json:"total"`
 }
 
+// demoRecordPayload defines one demo-record JSON payload returned by the
+// dynamic sample API.
 type demoRecordPayload struct {
 	Id             string `json:"id"`
 	Title          string `json:"title"`
@@ -35,17 +41,23 @@ type demoRecordPayload struct {
 	UpdatedAt      string `json:"updatedAt"`
 }
 
+// demoRecordDeletePayload defines the delete response returned by sample CRUD
+// endpoints.
 type demoRecordDeletePayload struct {
 	Id      string `json:"id"`
 	Deleted bool   `json:"deleted"`
 }
 
+// demoRecordAttachmentDownloadPayload describes one attachment download
+// response before controller serialization.
 type demoRecordAttachmentDownloadPayload struct {
 	OriginalName string
 	ContentType  string
 	Body         []byte
 }
 
+// demoRecordEntity is the internal sample record representation loaded from
+// structured data storage.
 type demoRecordEntity struct {
 	Id             string `json:"id"`
 	Title          string `json:"title"`
@@ -56,6 +68,7 @@ type demoRecordEntity struct {
 	UpdatedAt      string `json:"updatedAt"`
 }
 
+// hostCallDemoPayload defines the top-level host-service demo response.
 type hostCallDemoPayload struct {
 	VisitCount int                        `json:"visitCount"`
 	PluginID   string                     `json:"pluginId"`
@@ -66,12 +79,14 @@ type hostCallDemoPayload struct {
 	Message    string                     `json:"message"`
 }
 
+// hostCallDemoRuntimePayload summarizes runtime host-call results.
 type hostCallDemoRuntimePayload struct {
 	Now  string `json:"now"`
 	UUID string `json:"uuid"`
 	Node string `json:"node"`
 }
 
+// hostCallDemoStoragePayload summarizes storage host-call results.
 type hostCallDemoStoragePayload struct {
 	PathPrefix  string `json:"pathPrefix"`
 	ObjectPath  string `json:"objectPath"`
@@ -80,11 +95,14 @@ type hostCallDemoStoragePayload struct {
 	Deleted     bool   `json:"deleted"`
 }
 
+// hostCallDemoStorageRecord is the JSON object persisted into governed storage
+// during the demo.
 type hostCallDemoStorageRecord struct {
 	PluginID string `json:"pluginId"`
 	DemoKey  string `json:"demoKey"`
 }
 
+// hostCallDemoDataPayload summarizes structured-data host-call results.
 type hostCallDemoDataPayload struct {
 	Table      string `json:"table"`
 	RecordKey  string `json:"recordKey"`
@@ -94,6 +112,8 @@ type hostCallDemoDataPayload struct {
 	Deleted    bool   `json:"deleted"`
 }
 
+// hostCallDemoDataCreateRecord defines the sample record inserted during the
+// structured-data demo.
 type hostCallDemoDataCreateRecord struct {
 	PluginID     string `json:"pluginId"`
 	ReleaseID    int    `json:"releaseId"`
@@ -104,11 +124,14 @@ type hostCallDemoDataCreateRecord struct {
 	ErrorMessage string `json:"errorMessage"`
 }
 
+// hostCallDemoDataUpdateRecord defines the sample fields updated during the
+// structured-data demo.
 type hostCallDemoDataUpdateRecord struct {
 	CurrentState string `json:"currentState"`
 	ErrorMessage string `json:"errorMessage"`
 }
 
+// hostCallDemoNetworkPayload summarizes outbound network host-call results.
 type hostCallDemoNetworkPayload struct {
 	URL         string `json:"url"`
 	Skipped     bool   `json:"skipped"`
@@ -118,14 +141,18 @@ type hostCallDemoNetworkPayload struct {
 	Error       string `json:"error"`
 }
 
+// boolPointer allocates one boolean pointer for optional JSON response fields.
 func boolPointer(value bool) *bool {
 	return &value
 }
 
+// stringPointer allocates one string pointer for optional JSON response fields.
 func stringPointer(value string) *string {
 	return &value
 }
 
+// buildRecordMap marshals one typed record into a generic map used by the
+// structured-data client.
 func buildRecordMap(record any) (map[string]any, error) {
 	content, err := json.Marshal(record)
 	if err != nil {
@@ -139,6 +166,8 @@ func buildRecordMap(record any) (map[string]any, error) {
 	return payload, nil
 }
 
+// parseDemoRecordEntity converts one generic structured-data row into the
+// internal demoRecordEntity shape.
 func parseDemoRecordEntity(record map[string]any) (*demoRecordEntity, error) {
 	content, err := json.Marshal(record)
 	if err != nil {

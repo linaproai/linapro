@@ -16,6 +16,8 @@ import (
 	"lina-core/internal/model/do"
 )
 
+// TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange verifies
+// that second-level DATETIME precision does not invalidate an existing session.
 func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(t *testing.T) {
 	var (
 		ctx     = context.Background()
@@ -71,6 +73,7 @@ func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(
 	}
 }
 
+// waitForFreshSecond aligns the test clock with a new second to avoid flaky DATETIME updates.
 func waitForFreshSecond(t *testing.T) *gtime.Time {
 	t.Helper()
 

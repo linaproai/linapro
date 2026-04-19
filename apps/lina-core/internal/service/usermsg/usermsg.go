@@ -26,6 +26,7 @@ type Service interface {
 	Clear(ctx context.Context) error
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

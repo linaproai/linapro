@@ -4,6 +4,8 @@ package kvcache
 
 import "testing"
 
+// TestBuildCacheKeyRoundTrip verifies cache keys round-trip through the public
+// encoder and internal decoder.
 func TestBuildCacheKeyRoundTrip(t *testing.T) {
 	key := BuildCacheKey(" module.scope ", " runtime/config ", " revision.v1 ")
 
@@ -22,6 +24,8 @@ func TestBuildCacheKeyRoundTrip(t *testing.T) {
 	}
 }
 
+// TestParseCacheKeyRejectsInvalidFormat verifies non-encoded cache keys are
+// rejected with a validation error.
 func TestParseCacheKeyRejectsInvalidFormat(t *testing.T) {
 	if _, err := parseCacheKey("plain-cache-key"); err == nil {
 		t.Fatal("expected invalid cache key format to fail")

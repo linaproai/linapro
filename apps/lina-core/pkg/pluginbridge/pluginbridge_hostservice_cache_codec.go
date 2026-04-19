@@ -8,6 +8,8 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
+// Cache value kind constants describe the concrete payload representation
+// carried in cache response snapshots.
 const (
 	// HostServiceCacheValueKindString identifies string cache values.
 	HostServiceCacheValueKindString = 1
@@ -540,6 +542,8 @@ func UnmarshalHostServiceCacheExpireResponse(data []byte) (*HostServiceCacheExpi
 	return out, nil
 }
 
+// marshalHostServiceCacheValue encodes one cache value snapshot into protobuf
+// wire fields.
 func marshalHostServiceCacheValue(value *HostServiceCacheValue) []byte {
 	var content []byte
 	if value == nil {
@@ -560,6 +564,8 @@ func marshalHostServiceCacheValue(value *HostServiceCacheValue) []byte {
 	return content
 }
 
+// unmarshalHostServiceCacheValue decodes one cache value snapshot from
+// protobuf wire fields.
 func unmarshalHostServiceCacheValue(data []byte) (*HostServiceCacheValue, error) {
 	out := &HostServiceCacheValue{}
 	content := data

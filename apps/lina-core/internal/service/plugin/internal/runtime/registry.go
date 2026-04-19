@@ -282,6 +282,8 @@ func SortPluginItems(items []*PluginItem) {
 	})
 }
 
+// buildAuthorizationStatus maps manifest snapshot flags into one list-facing
+// authorization review state.
 func buildAuthorizationStatus(required bool, confirmed bool) AuthorizationStatus {
 	if !required {
 		return AuthorizationStatusNotRequired

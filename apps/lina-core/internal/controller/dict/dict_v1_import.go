@@ -61,6 +61,8 @@ func (c *ControllerV1) ImportTemplate(ctx context.Context, req *v1.ImportTemplat
 	return nil, nil
 }
 
+// convertFailList converts service-layer import failures into the API response
+// shape returned by dictionary import endpoints.
 func convertFailList(items []dictsvc.ImportFailItem) []v1.ImportFailItem {
 	result := make([]v1.ImportFailItem, len(items))
 	for i, item := range items {

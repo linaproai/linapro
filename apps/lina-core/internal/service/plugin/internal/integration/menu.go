@@ -20,6 +20,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 )
 
+// Plugin menu defaults and synthetic permission-menu settings used during menu sync.
 const (
 	pluginMenuDefaultVisible = 1
 	pluginMenuDefaultStatus  = 1
@@ -237,14 +238,20 @@ func buildDynamicRoutePermissionMenuKey(pluginID string, permission string) stri
 	return catalog.MenuKeyPrefix + strings.TrimSpace(pluginID) + catalog.DynamicRoutePermissionMenuKeySeparator + encodedPermission
 }
 
+// isDynamicRoutePermissionMenuKey reports whether a menu key belongs to one
+// synthetic dynamic-route permission menu.
 func isDynamicRoutePermissionMenuKey(menuKey string) bool {
 	return strings.Contains(strings.TrimSpace(menuKey), catalog.DynamicRoutePermissionMenuKeySeparator)
 }
 
+// buildDynamicRoutePermissionMenuRemark returns the stable remark used for
+// synthetic permission menus generated from dynamic routes.
 func buildDynamicRoutePermissionMenuRemark(pluginID string) string {
 	return catalog.MenuRemarkPrefix + strings.TrimSpace(pluginID) + catalog.DynamicRoutePermissionMenuRemarkSuffix
 }
 
+// listDeclaredPluginMenuKeys returns the normalized set of menu keys declared
+// directly by the manifest.
 func (s *serviceImpl) listDeclaredPluginMenuKeys(manifest *catalog.Manifest) map[string]struct{} {
 	declaredKeys := make(map[string]struct{}, len(manifest.Menus))
 	if manifest == nil {
@@ -259,6 +266,8 @@ func (s *serviceImpl) listDeclaredPluginMenuKeys(manifest *catalog.Manifest) map
 	return declaredKeys
 }
 
+// listPluginMenuExternalParents resolves manifest parent_key values that point
+// at menus owned outside the current plugin.
 func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifest *catalog.Manifest) (map[string]*entity.SysMenu, error) {
 	declaredKeys := s.listDeclaredPluginMenuKeys(manifest)
 	parentKeys := make([]string, 0)
@@ -279,6 +288,8 @@ func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifes
 	return s.listMenusByKeys(ctx, parentKeys, false)
 }
 
+// resolvePluginMenuParentID resolves the parent menu ID for one manifest menu
+// while supporting both intra-plugin and external parent references.
 func (s *serviceImpl) resolvePluginMenuParentID(
 	spec *catalog.MenuSpec,
 	declaredKeys map[string]struct{},
@@ -302,6 +313,8 @@ func (s *serviceImpl) resolvePluginMenuParentID(
 	return parent.Id, true, nil
 }
 
+// upsertPluginMenu inserts or updates one plugin-owned sys_menu row from a
+// normalized manifest menu specification.
 func (s *serviceImpl) upsertPluginMenu(
 	ctx context.Context,
 	spec *catalog.MenuSpec,
@@ -378,6 +391,8 @@ func (s *serviceImpl) upsertPluginMenu(
 	return existing.Id, nil
 }
 
+// ensurePluginMenuAdminBindings grants the default admin role access to every
+// plugin menu materialized during the current sync run.
 func (s *serviceImpl) ensurePluginMenuAdminBindings(ctx context.Context, resolvedIDs map[string]int) error {
 	menuIDs := make([]int, 0, len(resolvedIDs))
 	for _, menuID := range resolvedIDs {
@@ -401,6 +416,8 @@ func (s *serviceImpl) ensurePluginMenuAdminBindings(ctx context.Context, resolve
 	return nil
 }
 
+// listPluginMenusByPlugin loads all menus owned by the given plugin, including
+// soft-deleted rows when needed by cleanup flows.
 func (s *serviceImpl) listPluginMenusByPlugin(ctx context.Context, pluginID string) ([]*entity.SysMenu, error) {
 	pattern := fmt.Sprintf("%s%s:%%", catalog.MenuKeyPrefix, strings.TrimSpace(pluginID))
 	cols := dao.SysMenu.Columns()
@@ -413,6 +430,7 @@ func (s *serviceImpl) listPluginMenusByPlugin(ctx context.Context, pluginID stri
 	return items, err
 }
 
+// listMenusByKeys resolves menus by key and returns them as a lookup map.
 func (s *serviceImpl) listMenusByKeys(ctx context.Context, menuKeys []string, unscoped bool) (map[string]*entity.SysMenu, error) {
 	result := make(map[string]*entity.SysMenu, len(menuKeys))
 	if len(menuKeys) == 0 {
@@ -438,6 +456,8 @@ func (s *serviceImpl) listMenusByKeys(ctx context.Context, menuKeys []string, un
 	return result, nil
 }
 
+// deletePluginMenusByKeys deletes plugin-owned menus and their role bindings in
+// a deterministic order derived from the provided keys.
 func (s *serviceImpl) deletePluginMenusByKeys(ctx context.Context, menuKeys []string) error {
 	if len(menuKeys) == 0 {
 		return nil

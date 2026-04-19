@@ -12,6 +12,8 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
+// Bridge ABI constants define the stable runtime defaults shared between host,
+// builder, and guest implementations.
 const (
 	// CodecProtobuf is the only supported executable bridge envelope codec.
 	CodecProtobuf = "protobuf"
@@ -34,6 +36,8 @@ const (
 	DefaultGuestExecuteExport = "lina_dynamic_route_execute"
 )
 
+// Bridge failure codes normalize guest execution failures into stable
+// machine-readable categories.
 const (
 	bridgeFailureCodeUnauthorized = "UNAUTHORIZED"
 	bridgeFailureCodeForbidden    = "FORBIDDEN"
@@ -394,6 +398,8 @@ func NewInternalErrorResponse(message string) *BridgeResponseEnvelopeV1 {
 	return NewFailureResponse(500, bridgeFailureCodeInternal, messageOrDefault(message, "Internal Server Error"))
 }
 
+// messageOrDefault returns the trimmed message when present or the supplied
+// fallback otherwise.
 func messageOrDefault(value string, fallback string) string {
 	normalized := strings.TrimSpace(value)
 	if normalized == "" {
@@ -402,6 +408,8 @@ func messageOrDefault(value string, fallback string) string {
 	return normalized
 }
 
+// normalizeRouteContract trims and normalizes one route contract in-place
+// before validation or serialization.
 func normalizeRouteContract(route *RouteContract) {
 	route.Path = strings.TrimSpace(route.Path)
 	route.Method = strings.ToUpper(strings.TrimSpace(route.Method))
@@ -424,6 +432,8 @@ func normalizeRouteContract(route *RouteContract) {
 	}
 }
 
+// normalizeLower trims and lowercases one string, applying the default when
+// the normalized result is empty.
 func normalizeLower(value string, defaultValue string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	if normalized == "" {
@@ -432,6 +442,8 @@ func normalizeLower(value string, defaultValue string) string {
 	return normalized
 }
 
+// marshalRequestEnvelope encodes a bridge request envelope into protobuf wire
+// fields without relying on generated message types.
 func marshalRequestEnvelope(in *BridgeRequestEnvelopeV1) []byte {
 	var content []byte
 	if value := strings.TrimSpace(in.PluginID); value != "" {
@@ -452,6 +464,8 @@ func marshalRequestEnvelope(in *BridgeRequestEnvelopeV1) []byte {
 	return content
 }
 
+// unmarshalRequestEnvelope decodes protobuf wire fields into a bridge request
+// envelope in-place.
 func unmarshalRequestEnvelope(content []byte, out *BridgeRequestEnvelopeV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
@@ -515,6 +529,8 @@ func unmarshalRequestEnvelope(content []byte, out *BridgeRequestEnvelopeV1) erro
 	return nil
 }
 
+// marshalResponseEnvelope encodes a bridge response envelope into protobuf
+// wire fields.
 func marshalResponseEnvelope(in *BridgeResponseEnvelopeV1) []byte {
 	var content []byte
 	if in.StatusCode != 0 {
@@ -535,6 +551,8 @@ func marshalResponseEnvelope(in *BridgeResponseEnvelopeV1) []byte {
 	return content
 }
 
+// unmarshalResponseEnvelope decodes protobuf wire fields into a bridge
+// response envelope in-place.
 func unmarshalResponseEnvelope(content []byte, out *BridgeResponseEnvelopeV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
@@ -597,6 +615,8 @@ func unmarshalResponseEnvelope(content []byte, out *BridgeResponseEnvelopeV1) er
 	return nil
 }
 
+// marshalRouteSnapshot encodes matched route metadata into protobuf wire
+// fields.
 func marshalRouteSnapshot(in *RouteMatchSnapshotV1) []byte {
 	var content []byte
 	if value := strings.TrimSpace(in.Method); value != "" {
@@ -629,6 +649,8 @@ func marshalRouteSnapshot(in *RouteMatchSnapshotV1) []byte {
 	return content
 }
 
+// unmarshalRouteSnapshot decodes matched route metadata from protobuf wire
+// fields into the output structure.
 func unmarshalRouteSnapshot(content []byte, out *RouteMatchSnapshotV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
@@ -721,6 +743,8 @@ func unmarshalRouteSnapshot(content []byte, out *RouteMatchSnapshotV1) error {
 	return nil
 }
 
+// marshalRequestSnapshot encodes one sanitized HTTP request snapshot into
+// protobuf wire fields.
 func marshalRequestSnapshot(in *HTTPRequestSnapshotV1) []byte {
 	var content []byte
 	appendStringField := func(fieldNumber protowire.Number, value string) {
@@ -750,6 +774,8 @@ func marshalRequestSnapshot(in *HTTPRequestSnapshotV1) []byte {
 	return content
 }
 
+// unmarshalRequestSnapshot decodes one sanitized HTTP request snapshot from
+// protobuf wire fields.
 func unmarshalRequestSnapshot(content []byte, out *HTTPRequestSnapshotV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
@@ -870,6 +896,8 @@ func unmarshalRequestSnapshot(content []byte, out *HTTPRequestSnapshotV1) error 
 	return nil
 }
 
+// marshalIdentitySnapshot encodes authenticated identity context into protobuf
+// wire fields.
 func marshalIdentitySnapshot(in *IdentitySnapshotV1) []byte {
 	var content []byte
 	if value := strings.TrimSpace(in.TokenID); value != "" {
@@ -900,6 +928,8 @@ func marshalIdentitySnapshot(in *IdentitySnapshotV1) []byte {
 	return content
 }
 
+// unmarshalIdentitySnapshot decodes authenticated identity context from
+// protobuf wire fields.
 func unmarshalIdentitySnapshot(content []byte, out *IdentitySnapshotV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
@@ -968,6 +998,8 @@ func unmarshalIdentitySnapshot(content []byte, out *IdentitySnapshotV1) error {
 	return nil
 }
 
+// marshalFailure encodes normalized failure metadata into protobuf wire
+// fields.
 func marshalFailure(in *BridgeFailureV1) []byte {
 	var content []byte
 	if value := strings.TrimSpace(in.Code); value != "" {
@@ -979,6 +1011,8 @@ func marshalFailure(in *BridgeFailureV1) []byte {
 	return content
 }
 
+// unmarshalFailure decodes normalized failure metadata from protobuf wire
+// fields into the output structure.
 func unmarshalFailure(content []byte, out *BridgeFailureV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
@@ -1012,6 +1046,7 @@ func unmarshalFailure(content []byte, out *BridgeFailureV1) error {
 	return nil
 }
 
+// appendHeaderMap appends sorted header entries as repeated embedded messages.
 func appendHeaderMap(content []byte, fieldNumber protowire.Number, values map[string][]string) []byte {
 	keys := sortedKeys(values)
 	for _, key := range keys {
@@ -1021,6 +1056,8 @@ func appendHeaderMap(content []byte, fieldNumber protowire.Number, values map[st
 	return content
 }
 
+// appendStringMap appends sorted string map entries as repeated embedded
+// messages.
 func appendStringMap(content []byte, fieldNumber protowire.Number, values map[string]string) []byte {
 	keys := sortedKeys(values)
 	for _, key := range keys {
@@ -1030,6 +1067,8 @@ func appendStringMap(content []byte, fieldNumber protowire.Number, values map[st
 	return content
 }
 
+// appendStringListMap appends sorted repeated-string map entries as repeated
+// embedded messages.
 func appendStringListMap(content []byte, fieldNumber protowire.Number, values map[string][]string) []byte {
 	keys := sortedKeys(values)
 	for _, key := range keys {
@@ -1039,6 +1078,7 @@ func appendStringListMap(content []byte, fieldNumber protowire.Number, values ma
 	return content
 }
 
+// marshalStringPair encodes one string map entry into protobuf wire fields.
 func marshalStringPair(key string, value string) []byte {
 	var content []byte
 	content = appendStringField(content, 1, strings.TrimSpace(key))
@@ -1046,6 +1086,8 @@ func marshalStringPair(key string, value string) []byte {
 	return content
 }
 
+// marshalStringListPair encodes one repeated-string map entry into protobuf
+// wire fields.
 func marshalStringListPair(key string, values []string) []byte {
 	var content []byte
 	content = appendStringField(content, 1, strings.TrimSpace(key))
@@ -1055,25 +1097,32 @@ func marshalStringListPair(key string, values []string) []byte {
 	return content
 }
 
+// appendStringField appends one string field to the protobuf payload.
 func appendStringField(content []byte, fieldNumber protowire.Number, value string) []byte {
 	return appendStringFieldContent(content, fieldNumber, value)
 }
 
+// appendStringFieldContent appends the provided string content as a protobuf
+// bytes field.
 func appendStringFieldContent(content []byte, fieldNumber protowire.Number, value string) []byte {
 	content = protowire.AppendTag(content, fieldNumber, protowire.BytesType)
 	return protowire.AppendString(content, value)
 }
 
+// appendBytesField appends one bytes field to the protobuf payload.
 func appendBytesField(content []byte, fieldNumber protowire.Number, value []byte) []byte {
 	content = protowire.AppendTag(content, fieldNumber, protowire.BytesType)
 	return protowire.AppendBytes(content, value)
 }
 
+// appendVarintField appends one varint field to the protobuf payload.
 func appendVarintField(content []byte, fieldNumber protowire.Number, value uint64) []byte {
 	content = protowire.AppendTag(content, fieldNumber, protowire.VarintType)
 	return protowire.AppendVarint(content, value)
 }
 
+// unmarshalStringEntry decodes one embedded string map entry into the target
+// map.
 func unmarshalStringEntry(content []byte, output map[string]string) error {
 	var (
 		key   string
@@ -1114,6 +1163,8 @@ func unmarshalStringEntry(content []byte, output map[string]string) error {
 	return nil
 }
 
+// unmarshalStringListEntry decodes one embedded repeated-string map entry into
+// the target map.
 func unmarshalStringListEntry(content []byte, output map[string][]string) error {
 	var (
 		key    string
@@ -1154,10 +1205,13 @@ func unmarshalStringListEntry(content []byte, output map[string][]string) error 
 	return nil
 }
 
+// unmarshalHeaderEntry decodes one header entry into the output header map.
 func unmarshalHeaderEntry(content []byte, output map[string][]string) error {
 	return unmarshalStringListEntry(content, output)
 }
 
+// sortedKeys returns map keys in ascending order so manual protobuf encoding
+// stays deterministic.
 func sortedKeys[T any](values map[string]T) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {

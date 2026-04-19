@@ -77,6 +77,7 @@ type Service interface {
 	GetUserAccessContext(ctx context.Context, userId int) (*UserAccessContext, error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -88,6 +89,7 @@ type serviceImpl struct {
 	accessRevisionCtrl accessRevisionController
 }
 
+// New creates and returns a new role Service.
 func New() Service {
 	var (
 		bizCtxSvc  = bizctx.New()
@@ -108,6 +110,7 @@ func New() Service {
 	}
 }
 
+// ListInput defines filters and pagination for role list queries.
 type ListInput struct {
 	Name   string
 	Key    string
@@ -116,6 +119,7 @@ type ListInput struct {
 	Size   int
 }
 
+// ListOutput defines the paged role list result.
 type ListOutput struct {
 	List  []*RoleItem // Role list
 	Total int         // Total count

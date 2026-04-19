@@ -15,6 +15,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestScanPluginManifestsDiscoversRuntimePluginFromStorage verifies that
+// dynamic plugins are discovered directly from the runtime storage directory.
 func TestScanPluginManifestsDiscoversRuntimePluginFromStorage(t *testing.T) {
 	services := testutil.NewServices()
 
@@ -45,6 +47,8 @@ func TestScanPluginManifestsDiscoversRuntimePluginFromStorage(t *testing.T) {
 	t.Fatalf("expected dynamic plugin %s to be discovered from storage path", pluginID)
 }
 
+// TestScanPluginManifestsDropsRuntimePluginAfterArtifactRemoval verifies that
+// removing the staged artifact removes the plugin from fresh scans.
 func TestScanPluginManifestsDropsRuntimePluginAfterArtifactRemoval(t *testing.T) {
 	services := testutil.NewServices()
 
@@ -74,6 +78,8 @@ func TestScanPluginManifestsDropsRuntimePluginAfterArtifactRemoval(t *testing.T)
 	}
 }
 
+// TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm verifies that
+// lifecycle guards fail with actionable guidance when the wasm artifact is missing.
 func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T) {
 	services := testutil.NewServices()
 
@@ -116,6 +122,8 @@ func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T)
 	}
 }
 
+// TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec verifies that artifact
+// parsing restores routes, bridge metadata, and host-service capabilities.
 func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -188,6 +196,8 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	}
 }
 
+// TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection verifies that
+// legacy capability sections are rejected in favor of structured host services.
 func TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection(t *testing.T) {
 	services := testutil.NewServices()
 	pluginDir := testutil.CreateTestRuntimePluginDir(
@@ -249,6 +259,7 @@ func TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection(t *testing.T) 
 	}
 }
 
+// appendTestRuntimeCustomSection appends one synthetic custom section to a wasm payload.
 func appendTestRuntimeCustomSection(t *testing.T, content []byte, name string, payload any) []byte {
 	t.Helper()
 
@@ -268,6 +279,7 @@ func appendTestRuntimeCustomSection(t *testing.T, content []byte, name string, p
 	return result
 }
 
+// encodeTestRuntimeULEB128 encodes one uint32 using the wasm unsigned LEB128 format.
 func encodeTestRuntimeULEB128(value uint32) []byte {
 	result := make([]byte, 0, 5)
 	for {

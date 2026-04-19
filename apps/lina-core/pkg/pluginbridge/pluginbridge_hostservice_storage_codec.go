@@ -547,6 +547,8 @@ func UnmarshalHostServiceStorageStatResponse(data []byte) (*HostServiceStorageSt
 	return out, nil
 }
 
+// marshalHostServiceStorageObject encodes one storage object metadata snapshot
+// into protobuf wire fields.
 func marshalHostServiceStorageObject(object *HostServiceStorageObject) []byte {
 	var content []byte
 	if object == nil {
@@ -570,6 +572,8 @@ func marshalHostServiceStorageObject(object *HostServiceStorageObject) []byte {
 	return content
 }
 
+// unmarshalHostServiceStorageObject decodes one storage object metadata
+// snapshot from protobuf wire fields.
 func unmarshalHostServiceStorageObject(data []byte) (*HostServiceStorageObject, error) {
 	out := &HostServiceStorageObject{}
 	content := data

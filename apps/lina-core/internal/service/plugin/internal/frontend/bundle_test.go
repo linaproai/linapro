@@ -15,6 +15,8 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// TestEnsureBundleReaderReadsEmbeddedAssetsWithoutExtraction verifies that
+// runtime assets stay in memory and are not extracted to the plugin workspace.
 func TestEnsureBundleReaderReadsEmbeddedAssetsWithoutExtraction(t *testing.T) {
 	services := testutil.NewServices()
 	service := services.Frontend

@@ -13,6 +13,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// Built-in runtime parameter keys stored in sys_config.
 const (
 	// RuntimeParamKeyJWTExpire stores the runtime JWT token lifetime.
 	RuntimeParamKeyJWTExpire = "sys.jwt.expire"
@@ -33,6 +34,7 @@ type RuntimeParamSpec struct {
 	Remark       string // Remark explains the supported format and behavior.
 }
 
+// runtimeParamSpecs lists all built-in runtime parameters backed by sys_config.
 var runtimeParamSpecs = []RuntimeParamSpec{
 	{
 		Key:          RuntimeParamKeyJWTExpire,
@@ -60,6 +62,8 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 	},
 }
 
+// runtimeParamSpecByKey indexes runtimeParamSpecs by key for validation and
+// lookup operations on protected runtime settings.
 var runtimeParamSpecByKey = map[string]RuntimeParamSpec{
 	RuntimeParamKeyJWTExpire:        runtimeParamSpecs[0],
 	RuntimeParamKeySessionTimeout:   runtimeParamSpecs[1],
@@ -67,6 +71,7 @@ var runtimeParamSpecByKey = map[string]RuntimeParamSpec{
 	RuntimeParamKeyLoginBlackIPList: runtimeParamSpecs[3],
 }
 
+// runtimeParamKeys preserves the deterministic built-in runtime-parameter key order.
 var runtimeParamKeys = []string{
 	RuntimeParamKeyJWTExpire,
 	RuntimeParamKeySessionTimeout,
@@ -115,6 +120,8 @@ func ValidateRuntimeParamValue(key string, value string) error {
 	return nil
 }
 
+// lookupRuntimeParamValue reads one protected runtime parameter value from the
+// current immutable snapshot.
 func (s *serviceImpl) lookupRuntimeParamValue(ctx context.Context, key string) (value string, ok bool) {
 	snapshot := s.getRuntimeParamSnapshot(ctx)
 	if snapshot == nil {
@@ -123,6 +130,8 @@ func (s *serviceImpl) lookupRuntimeParamValue(ctx context.Context, key string) (
 	return snapshot.lookupValue(key)
 }
 
+// applyRuntimeDurationOverride replaces one static duration with the runtime
+// override value when the protected parameter exists.
 func (s *serviceImpl) applyRuntimeDurationOverride(
 	ctx context.Context,
 	key string,
@@ -142,6 +151,8 @@ func (s *serviceImpl) applyRuntimeDurationOverride(
 	return duration
 }
 
+// applyRuntimeInt64Override replaces one static integer with the runtime
+// override value when the protected parameter exists.
 func (s *serviceImpl) applyRuntimeInt64Override(
 	ctx context.Context,
 	key string,
@@ -161,6 +172,8 @@ func (s *serviceImpl) applyRuntimeInt64Override(
 	return parsed
 }
 
+// splitSemicolonValues splits one semicolon-delimited config value into
+// trimmed non-empty items.
 func splitSemicolonValues(raw string) []string {
 	if strings.TrimSpace(raw) == "" {
 		return nil
@@ -177,6 +190,7 @@ func splitSemicolonValues(raw string) []string {
 	return values
 }
 
+// validatePositiveDurationValue validates one duration-form runtime parameter.
 func validatePositiveDurationValue(key string, value string) (time.Duration, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -192,6 +206,7 @@ func validatePositiveDurationValue(key string, value string) (time.Duration, err
 	return duration, nil
 }
 
+// validatePositiveInt64Value validates one positive integer runtime parameter.
 func validatePositiveInt64Value(key string, value string) (int64, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -207,6 +222,8 @@ func validatePositiveInt64Value(key string, value string) (int64, error) {
 	return parsed, nil
 }
 
+// validateIPBlacklistValue validates one semicolon-delimited IP blacklist made
+// of individual IPs or CIDR ranges.
 func validateIPBlacklistValue(key string, value string) error {
 	for _, item := range splitSemicolonValues(value) {
 		if net.ParseIP(item) != nil {

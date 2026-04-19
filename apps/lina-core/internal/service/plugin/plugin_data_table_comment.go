@@ -11,6 +11,8 @@ import (
 	plugindbhost "lina-core/pkg/plugindb/host"
 )
 
+// pluginDataDriverTypePrefix marks plugin-owned database driver aliases that
+// wrap one real SQL driver underneath.
 const pluginDataDriverTypePrefix = "plugin-data-"
 
 // ResolveDataTableComments resolves host-side table comments for the given
@@ -73,6 +75,8 @@ func (s *serviceImpl) ResolveDataTableComments(ctx context.Context, tables []str
 	return comments
 }
 
+// normalizeDataTableNames trims blanks and de-duplicates table names before
+// they are used in metadata lookup queries.
 func normalizeDataTableNames(tables []string) []string {
 	if len(tables) == 0 {
 		return []string{}
@@ -93,6 +97,8 @@ func normalizeDataTableNames(tables []string) []string {
 	return normalized
 }
 
+// normalizePluginDataMetadataDBType strips plugin driver prefixes so host
+// metadata queries can match the actual database dialect.
 func normalizePluginDataMetadataDBType(dbType string) string {
 	normalized := strings.ToLower(strings.TrimSpace(dbType))
 	if strings.HasPrefix(normalized, pluginDataDriverTypePrefix) {

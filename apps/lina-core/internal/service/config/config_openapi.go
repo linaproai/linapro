@@ -14,6 +14,8 @@ type OpenApiConfig struct {
 	ServerDescription string `json:"serverDescription"` // ServerDescription is the display name for ServerUrl.
 }
 
+// defaultOpenApiConfig returns the fallback OpenAPI metadata used before the
+// embedded metadata asset is loaded.
 func defaultOpenApiConfig() OpenApiConfig {
 	return OpenApiConfig{
 		Title:             "LinaPro Framework API",

@@ -10,8 +10,11 @@ type NotifyHostService interface {
 	Send(channelKey string, request *HostServiceNotifySendRequest) (*HostServiceNotifySendResponse, error)
 }
 
+// notifyHostService is the default guest-side notify host-service client.
 type notifyHostService struct{}
 
+// defaultNotifyHostService stores the singleton notify host-service client used
+// by package-level helpers.
 var defaultNotifyHostService NotifyHostService = &notifyHostService{}
 
 // Notify returns the unified notify host service guest client.

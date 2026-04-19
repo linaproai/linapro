@@ -10,6 +10,8 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 )
 
+// defaultFilePattern is the fallback rolling file pattern used when the
+// project config omits an explicit shared log filename.
 const defaultFilePattern = "{Y-m-d}.log"
 
 // ServerOutputConfig defines the shared output target for business and server logs.
@@ -44,6 +46,8 @@ func BindServer(server *ghttp.Server, cfg ServerOutputConfig) error {
 	})
 }
 
+// normalizedFilePattern trims one configured rolling pattern and falls back to
+// the project default when the input is empty.
 func normalizedFilePattern(pattern string) string {
 	if strings.TrimSpace(pattern) == "" {
 		return defaultFilePattern

@@ -14,6 +14,8 @@ import (
 	"lina-core/internal/packed"
 )
 
+// metadataConfigPath is the embedded metadata asset consumed by version and
+// OpenAPI metadata readers.
 const metadataConfigPath = "manifest/config/metadata.yaml"
 
 // MetadataConfig holds embedded delivery metadata rendered by host pages.
@@ -54,6 +56,8 @@ func (s *serviceImpl) GetMetadata(ctx context.Context) *MetadataConfig {
 	}))
 }
 
+// mustScanMetadataConfig scans one embedded metadata section into the target
+// object and panics on malformed metadata.
 func mustScanMetadataConfig(ctx context.Context, adapter *gcfg.AdapterContent, key string, target any) {
 	if target == nil {
 		panic(gerror.Newf("元数据配置 %s 的扫描目标不能为空", key))

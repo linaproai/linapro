@@ -35,6 +35,7 @@ type Service interface {
 	Build(ctx context.Context, server *ghttp.Server) (*goai.OpenApiV3, error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

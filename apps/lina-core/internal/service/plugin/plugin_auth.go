@@ -23,6 +23,8 @@ func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input AuthL
 	return s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLogoutSucceeded, input, "登出成功")
 }
 
+// dispatchAuthHookEvent normalizes common auth payload defaults before
+// forwarding the event to the shared integration hook dispatcher.
 func (s *serviceImpl) dispatchAuthHookEvent(
 	ctx context.Context,
 	event pluginhost.ExtensionPoint,

@@ -39,6 +39,8 @@ type Service interface {
 	GenerateImportTemplate() (data []byte, err error)
 }
 
+// Interface compliance assertion for the default sysconfig service
+// implementation.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -46,12 +48,14 @@ type serviceImpl struct {
 	configSvc hostconfig.Service
 }
 
+// New creates and returns a new sysconfig Service instance.
 func New() Service {
 	return &serviceImpl{
 		configSvc: hostconfig.New(),
 	}
 }
 
+// ListInput defines the sysconfig list query input.
 type ListInput struct {
 	PageNum   int
 	PageSize  int
@@ -261,6 +265,8 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 	return err
 }
 
+// validateManagedConfigValue delegates validation for protected runtime and
+// public-frontend config keys to the host config service rules.
 func validateManagedConfigValue(key string, value string) error {
 	if err := hostconfig.ValidateProtectedConfigValue(key, value); err != nil {
 		return gerror.Wrap(err, "内置系统参数值校验失败")

@@ -9,8 +9,10 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// lockHostService is the shared governed lock backend used by wasm host calls.
 var lockHostService = hostlock.New()
 
+// dispatchLockHostService routes lock host service methods to the governed lock backend.
 func dispatchLockHostService(
 	ctx context.Context,
 	hcc *hostCallContext,

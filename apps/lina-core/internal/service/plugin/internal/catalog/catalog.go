@@ -231,6 +231,7 @@ type Service interface {
 	BuildPackagePath(manifest *Manifest) string
 }
 
+// Ensure serviceImpl satisfies the catalog contract used across plugin sub-packages.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

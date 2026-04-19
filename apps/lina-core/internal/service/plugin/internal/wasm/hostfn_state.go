@@ -12,9 +12,11 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// pluginStateTable is the backing table for plugin-scoped runtime state values.
 const pluginStateTable = "sys_plugin_state"
 
 // handleHostStateGet processes OpcodeStateGet requests.
+// handleHostStateGet loads one plugin-scoped runtime state value.
 func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
 	req, err := pluginbridge.UnmarshalHostCallStateGetRequest(reqBytes)
 	if err != nil {
@@ -42,6 +44,7 @@ func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 }
 
 // handleHostStateSet processes OpcodeStateSet requests.
+// handleHostStateSet upserts one plugin-scoped runtime state value.
 func handleHostStateSet(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
 	req, err := pluginbridge.UnmarshalHostCallStateSetRequest(reqBytes)
 	if err != nil {
@@ -66,6 +69,7 @@ func handleHostStateSet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 }
 
 // handleHostStateDelete processes OpcodeStateDelete requests.
+// handleHostStateDelete removes one plugin-scoped runtime state value.
 func handleHostStateDelete(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
 	req, err := pluginbridge.UnmarshalHostCallStateDeleteRequest(reqBytes)
 	if err != nil {

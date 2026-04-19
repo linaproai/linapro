@@ -9,6 +9,8 @@ import (
 	"lina-core/internal/service/kvcache"
 )
 
+// accessRevisionController hides the single-node and clustered revision
+// synchronization strategies behind one common contract.
 type accessRevisionController interface {
 	// CurrentRevision returns the effective permission-topology revision currently visible to the process.
 	CurrentRevision(ctx context.Context) (int64, error)

@@ -39,6 +39,8 @@ type Service interface {
 	Permission(r *ghttp.Request)
 }
 
+// Interface compliance assertion for the default middleware service
+// implementation.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

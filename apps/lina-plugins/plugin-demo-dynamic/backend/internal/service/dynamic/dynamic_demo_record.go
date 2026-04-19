@@ -13,6 +13,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// Demo-record constants define the sample table name, paging defaults, and
+// attachment limits used by the dynamic plugin sample.
 const (
 	demoRecordTable                  = "plugin_demo_dynamic_record"
 	demoRecordAttachmentPrefix       = "demo-record-files"
@@ -22,6 +24,7 @@ const (
 	demoRecordMaxAttachmentBytes int = 10 * 1024 * 1024
 )
 
+// Demo-record sentinel errors reused across CRUD and attachment operations.
 var (
 	errDemoRecordInvalidInput    = gerror.New("动态插件示例记录请求参数无效")
 	errDemoRecordNotFound        = gerror.New("动态插件示例记录不存在")
@@ -252,6 +255,7 @@ func (s *serviceImpl) BuildDemoRecordAttachmentDownload(recordID string) (*demoR
 	}, nil
 }
 
+// loadDemoRecord loads one sample record entity by its logical ID.
 func (s *serviceImpl) loadDemoRecord(recordID string) (*demoRecordEntity, error) {
 	recordMap, found, err := s.dataSvc.Table(demoRecordTable).
 		Fields("id", "title", "content", "attachmentName", "attachmentPath", "createdAt", "updatedAt").
@@ -266,6 +270,8 @@ func (s *serviceImpl) loadDemoRecord(recordID string) (*demoRecordEntity, error)
 	return parseDemoRecordEntity(recordMap)
 }
 
+// mapDemoRecordPayload converts one raw structured-data row into the response
+// payload shape.
 func mapDemoRecordPayload(record map[string]any) (*demoRecordPayload, error) {
 	entity, err := parseDemoRecordEntity(record)
 	if err != nil {
@@ -274,6 +280,8 @@ func mapDemoRecordPayload(record map[string]any) (*demoRecordPayload, error) {
 	return demoRecordEntityToPayload(entity), nil
 }
 
+// demoRecordEntityToPayload converts one internal record entity into the JSON
+// payload returned by the bridge controller.
 func demoRecordEntityToPayload(record *demoRecordEntity) *demoRecordPayload {
 	if record == nil {
 		return &demoRecordPayload{}
@@ -289,6 +297,8 @@ func demoRecordEntityToPayload(record *demoRecordEntity) *demoRecordPayload {
 	}
 }
 
+// normalizeDemoRecordListInput applies paging defaults and trims the keyword
+// filter for list requests.
 func normalizeDemoRecordListInput(input *DemoRecordListInput) (int, int, string) {
 	pageNum := demoRecordDefaultPageNum
 	pageSize := demoRecordDefaultPageSize
@@ -309,6 +319,8 @@ func normalizeDemoRecordListInput(input *DemoRecordListInput) (int, int, string)
 	return pageNum, pageSize, keyword
 }
 
+// normalizeDemoRecordMutationInput validates and trims create/update request
+// data for sample records.
 func normalizeDemoRecordMutationInput(input *DemoRecordMutationInput) (*DemoRecordMutationInput, error) {
 	if input == nil {
 		return nil, gerror.Wrap(errDemoRecordInvalidInput, "请求体不能为空")
@@ -338,6 +350,8 @@ func normalizeDemoRecordMutationInput(input *DemoRecordMutationInput) (*DemoReco
 	return normalizedInput, nil
 }
 
+// saveDemoRecordAttachment decodes and stores one optional Base64 attachment
+// into the governed plugin storage area.
 func (s *serviceImpl) saveDemoRecordAttachment(input *DemoRecordMutationInput) (string, string, error) {
 	if input == nil || strings.TrimSpace(input.AttachmentContentBase64) == "" {
 		return "", "", nil
@@ -376,6 +390,8 @@ func (s *serviceImpl) saveDemoRecordAttachment(input *DemoRecordMutationInput) (
 	return attachmentName, objectPath, nil
 }
 
+// deleteDemoRecordAttachment removes one governed attachment object when its
+// logical path is present.
 func (s *serviceImpl) deleteDemoRecordAttachment(objectPath string) error {
 	if strings.TrimSpace(objectPath) == "" {
 		return nil
@@ -383,6 +399,8 @@ func (s *serviceImpl) deleteDemoRecordAttachment(objectPath string) error {
 	return s.storageSvc.Delete(objectPath)
 }
 
+// validateDemoRecordID validates the logical record identifier used by sample
+// CRUD operations.
 func validateDemoRecordID(value string) (string, error) {
 	normalizedValue := strings.TrimSpace(value)
 	if normalizedValue == "" {
@@ -391,6 +409,8 @@ func validateDemoRecordID(value string) (string, error) {
 	return normalizedValue, nil
 }
 
+// sanitizeDemoRecordAttachmentName strips unsafe path characters from uploaded
+// attachment names.
 func sanitizeDemoRecordAttachmentName(filename string) string {
 	sanitizedName := filepath.Base(strings.ReplaceAll(strings.TrimSpace(filename), "\x00", ""))
 	if sanitizedName == "." || sanitizedName == "" {

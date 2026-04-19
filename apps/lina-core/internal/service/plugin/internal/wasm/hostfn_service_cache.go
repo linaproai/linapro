@@ -9,8 +9,10 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// cacheHostService is the shared governed cache backend used by wasm host calls.
 var cacheHostService = kvcache.New()
 
+// dispatchCacheHostService routes cache host service methods to the governed cache backend.
 func dispatchCacheHostService(
 	ctx context.Context,
 	hcc *hostCallContext,
@@ -120,6 +122,7 @@ func dispatchCacheHostService(
 	}
 }
 
+// buildCacheValueResponse maps one cache item into the protobuf response model.
 func buildCacheValueResponse(item *kvcache.Item) *pluginbridge.HostServiceCacheValue {
 	if item == nil {
 		return nil

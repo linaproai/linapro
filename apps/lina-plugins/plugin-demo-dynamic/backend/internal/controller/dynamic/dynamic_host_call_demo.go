@@ -26,6 +26,8 @@ func (c *Controller) HostCallDemo(request *pluginbridge.BridgeRequestEnvelopeV1)
 	return pluginbridge.NewJSONResponse(200, content), nil
 }
 
+// buildHostCallDemoRouteInput extracts host-call demo metadata and flags from
+// the bridge request envelope.
 func buildHostCallDemoRouteInput(request *pluginbridge.BridgeRequestEnvelopeV1) *dynamicservice.HostCallDemoInput {
 	input := &dynamicservice.HostCallDemoInput{}
 	if request == nil {

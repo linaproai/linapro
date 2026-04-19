@@ -56,6 +56,7 @@ type Service interface {
 	ResolvePluginSQLAssets(manifest *catalog.Manifest, direction catalog.MigrationDirection) ([]*catalog.ArtifactSQLAsset, error)
 }
 
+// Ensure serviceImpl satisfies the lifecycle contract used by the root facade.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

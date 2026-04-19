@@ -15,6 +15,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestMatchDynamicRoutePathSupportsParams verifies parameter placeholders are
+// extracted from public route paths.
 func TestMatchDynamicRoutePathSupportsParams(t *testing.T) {
 	params, ok := runtime.MatchDynamicRoutePath("/records/{id}/detail", "/records/42/detail")
 	if !ok {
@@ -25,6 +27,8 @@ func TestMatchDynamicRoutePathSupportsParams(t *testing.T) {
 	}
 }
 
+// TestBuildDynamicRouteOperLogMetadataMapsRouteGovernance verifies that
+// matched route metadata is projected into operation-log fields.
 func TestBuildDynamicRouteOperLogMetadataMapsRouteGovernance(t *testing.T) {
 	metadata := runtime.BuildDynamicRouteOperLogMetadata(&runtime.DynamicRouteRuntimeState{
 		Match: &runtime.DynamicRouteMatch{
@@ -49,6 +53,8 @@ func TestBuildDynamicRouteOperLogMetadataMapsRouteGovernance(t *testing.T) {
 	}
 }
 
+// TestExecuteDynamicWasmBridgeReturnsGuestResponse verifies that a bundled
+// runtime plugin route executes and returns the guest response unchanged.
 func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
 
@@ -103,6 +109,8 @@ func TestExecuteDynamicWasmBridgeReturnsGuestResponse(t *testing.T) {
 	}
 }
 
+// TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices verifies
+// that structured host-service declarations are available inside guest code.
 func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testing.T) {
 	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
 
@@ -194,6 +202,7 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 	}
 }
 
+// loadBundledDynamicSampleManifest loads the bundled demo runtime artifact from test storage.
 func loadBundledDynamicSampleManifest(t *testing.T, services *testutil.Services) (*catalog.Manifest, error) {
 	t.Helper()
 

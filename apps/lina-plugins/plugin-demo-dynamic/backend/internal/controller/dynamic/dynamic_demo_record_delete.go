@@ -23,6 +23,8 @@ func (c *Controller) DeleteDemoRecord(request *pluginbridge.BridgeRequestEnvelop
 	return pluginbridge.NewJSONResponse(200, content), nil
 }
 
+// readDemoRecordIDFromDeleteRoute reads the record identifier from the delete
+// route path parameters.
 func readDemoRecordIDFromDeleteRoute(request *pluginbridge.BridgeRequestEnvelopeV1) string {
 	return readDynamicPathParam(request, "id")
 }

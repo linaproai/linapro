@@ -19,6 +19,7 @@ const (
 	EmbeddedManifestPath = "plugin.yaml"
 )
 
+// Shared filename patterns and allowed asset extensions used by plugin path validation.
 var (
 	sqlFileNamePattern = regexp.MustCompile(`^\d{3}-[a-z0-9-]+\.sql$`)
 	vueFileExts        = map[string]struct{}{".vue": {}}
@@ -215,6 +216,8 @@ func IsValidSQLFileName(name string) bool {
 	return sqlFileNamePattern.MatchString(path.Base(strings.TrimSpace(name)))
 }
 
+// validateSQLPaths validates plugin SQL asset paths against directory, naming,
+// and existence rules for install or uninstall manifests.
 func validateSQLPaths(relativePaths []string, uninstall bool, exists func(normalizedPath string) bool) error {
 	var (
 		expectedDir    = "manifest/sql"
@@ -255,6 +258,8 @@ func validateSQLPaths(relativePaths []string, uninstall bool, exists func(normal
 	return nil
 }
 
+// validateFilePaths validates relative asset paths against the expected
+// directory prefix, extension allowlist, and existence contract.
 func validateFilePaths(
 	relativePaths []string,
 	expectedPrefix string,

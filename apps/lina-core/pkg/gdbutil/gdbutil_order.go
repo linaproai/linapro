@@ -13,6 +13,7 @@ import (
 // query helpers.
 type OrderDirection string
 
+// Supported order-direction constants.
 const (
 	// OrderDirectionASC sorts records in ascending order.
 	OrderDirectionASC OrderDirection = "asc"

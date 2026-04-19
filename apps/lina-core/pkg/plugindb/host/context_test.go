@@ -7,6 +7,7 @@ import (
 	"testing"
 )
 
+// TestWithAuditRoundTrip verifies audit metadata survives one context round trip.
 func TestWithAuditRoundTrip(t *testing.T) {
 	metadata := &AuditMetadata{PluginID: "plugin-demo", Table: "sys_plugin_node_state", Method: "list"}
 	ctx := WithAudit(context.Background(), metadata)

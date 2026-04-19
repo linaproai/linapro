@@ -20,11 +20,13 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// Default timeout and size limits for governed outbound network requests.
 const (
 	defaultNetworkTimeout      = 10 * time.Second
 	defaultNetworkMaxBodyBytes = 2 << 20
 )
 
+// protectedNetworkRequestHeaders lists hop-by-hop or host-controlled headers blocked from guest code.
 var protectedNetworkRequestHeaders = map[string]struct{}{
 	"connection":        {},
 	"content-length":    {},
@@ -36,6 +38,8 @@ var protectedNetworkRequestHeaders = map[string]struct{}{
 	"upgrade":           {},
 }
 
+// dispatchNetworkHostService routes network host service methods to the
+// governed outbound HTTP request handler.
 func dispatchNetworkHostService(
 	ctx context.Context,
 	hcc *hostCallContext,
@@ -61,6 +65,8 @@ func dispatchNetworkHostService(
 	}
 }
 
+// handleNetworkRequest validates and executes one outbound HTTP request against
+// the authorized upstream resource snapshot.
 func handleNetworkRequest(
 	ctx context.Context,
 	hcc *hostCallContext,
@@ -135,6 +141,7 @@ func handleNetworkRequest(
 	)
 }
 
+// normalizeNetworkTargetURL validates and canonicalizes the target URL.
 func normalizeNetworkTargetURL(rawValue string) (string, error) {
 	trimmed := strings.TrimSpace(rawValue)
 	if trimmed == "" {
@@ -157,6 +164,7 @@ func normalizeNetworkTargetURL(rawValue string) (string, error) {
 	return parsed.String(), nil
 }
 
+// applyNetworkRequestHeaders copies guest-requested headers while blocking protected ones.
 func applyNetworkRequestHeaders(
 	request *http.Request,
 	headers map[string]string,
@@ -178,6 +186,7 @@ func applyNetworkRequestHeaders(
 	return nil
 }
 
+// matchAuthorizedNetworkResource finds the authorized upstream resource that matches the target URL.
 func matchAuthorizedNetworkResource(
 	specs []*pluginbridge.HostServiceSpec,
 	targetURL string,
@@ -226,6 +235,7 @@ func matchAuthorizedNetworkResource(
 	return nil
 }
 
+// matchNetworkHostPattern matches exact hosts and leading-wildcard host patterns.
 func matchNetworkHostPattern(pattern string, target string) bool {
 	if pattern == "" || target == "" {
 		return false
@@ -237,6 +247,7 @@ func matchNetworkHostPattern(pattern string, target string) bool {
 	return err == nil && matched
 }
 
+// normalizeAuthorizedNetworkPath canonicalizes authorization paths for prefix matching.
 func normalizeAuthorizedNetworkPath(rawPath string) string {
 	trimmed := strings.TrimSpace(rawPath)
 	if trimmed == "" || trimmed == "/" {
@@ -249,6 +260,7 @@ func normalizeAuthorizedNetworkPath(rawPath string) string {
 	return normalized
 }
 
+// matchNetworkPathPrefix reports whether the target path is within the authorized path prefix.
 func matchNetworkPathPrefix(patternPath string, targetPath string) bool {
 	normalizedPattern := normalizeAuthorizedNetworkPath(patternPath)
 	normalizedTarget := normalizeAuthorizedNetworkPath(targetPath)
@@ -258,6 +270,7 @@ func matchNetworkPathPrefix(patternPath string, targetPath string) bool {
 	return normalizedTarget == normalizedPattern || strings.HasPrefix(normalizedTarget, normalizedPattern+"/")
 }
 
+// readNetworkResponseBody reads at most maxBodyBytes+1 bytes to enforce response size limits.
 func readNetworkResponseBody(reader io.Reader, maxBodyBytes int64) ([]byte, error) {
 	if reader == nil {
 		return nil, nil
@@ -277,6 +290,7 @@ func readNetworkResponseBody(reader io.Reader, maxBodyBytes int64) ([]byte, erro
 	return body, nil
 }
 
+// flattenResponseHeaders joins multi-value response headers into a string map.
 func flattenResponseHeaders(headers http.Header) map[string]string {
 	if len(headers) == 0 {
 		return nil
@@ -294,6 +308,7 @@ func flattenResponseHeaders(headers http.Header) map[string]string {
 	return result
 }
 
+// normalizeNetworkContentType trims parameters and lowercases the content type.
 func normalizeNetworkContentType(contentType string) string {
 	trimmed := strings.TrimSpace(contentType)
 	if trimmed == "" {

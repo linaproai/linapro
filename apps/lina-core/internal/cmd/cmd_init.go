@@ -47,6 +47,8 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 	return
 }
 
+// sqlExecutor executes one SQL statement for the init command and is injected
+// in tests so file scanning can be verified without touching a real database.
 type sqlExecutor func(ctx context.Context, sql string) error
 
 // executeSQLFiles runs the provided SQL files in order and stops immediately on

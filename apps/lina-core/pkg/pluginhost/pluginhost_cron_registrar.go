@@ -24,6 +24,8 @@ type CronRegistrar interface {
 	IsPrimaryNode() bool
 }
 
+// cronRegistrar is the host-owned CronRegistrar implementation for one source
+// plugin registration session.
 type cronRegistrar struct {
 	pluginID           string
 	enabledChecker     PluginEnabledChecker

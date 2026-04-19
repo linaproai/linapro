@@ -26,6 +26,7 @@ type Service interface {
 	PurgeStorageData(ctx context.Context) error
 }
 
+// Interface compliance assertion for the default demo service implementation.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

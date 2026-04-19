@@ -13,6 +13,7 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 )
 
+// Shared manifest validation regexes used during plugin catalog scanning.
 var (
 	// ManifestIDPattern is the allowed pattern for plugin IDs (kebab-case).
 	ManifestIDPattern     = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -55,6 +56,7 @@ func ValidateManifestSemanticVersion(value string) error {
 	return err
 }
 
+// parseSemanticVersion parses a manifest semantic version into comparable parts.
 func parseSemanticVersion(value string) (*semanticVersion, error) {
 	match := manifestSemverPattern.FindStringSubmatch(strings.TrimSpace(value))
 	if len(match) < 4 {

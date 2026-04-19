@@ -1,3 +1,6 @@
+// This file verifies cluster configuration loading and default election
+// fallback behavior.
+
 package config
 
 import (
@@ -9,6 +12,8 @@ import (
 	"github.com/gogf/gf/v2/os/gcfg"
 )
 
+// TestGetClusterUsesClusterElectionConfig verifies nested cluster election
+// settings are loaded from config content.
 func TestGetClusterUsesClusterElectionConfig(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
@@ -31,6 +36,8 @@ cluster:
 	}
 }
 
+// TestGetClusterUsesDefaultsWhenElectionConfigMissing verifies election timing
+// falls back to defaults when the nested section is absent.
 func TestGetClusterUsesDefaultsWhenElectionConfigMissing(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
@@ -50,6 +57,8 @@ cluster:
 	}
 }
 
+// TestGetClusterIgnoresLegacyElectionConfig verifies the deprecated root-level
+// election section no longer affects cluster defaults.
 func TestGetClusterIgnoresLegacyElectionConfig(t *testing.T) {
 	setTestConfigContent(t, `
 election:
@@ -70,6 +79,8 @@ election:
 	}
 }
 
+// setTestConfigContent swaps the config adapter content for one test case and
+// restores it afterward.
 func setTestConfigContent(t *testing.T, content string) {
 	t.Helper()
 

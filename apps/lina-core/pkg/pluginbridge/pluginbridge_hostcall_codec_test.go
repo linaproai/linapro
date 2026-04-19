@@ -6,6 +6,8 @@ import (
 	"testing"
 )
 
+// TestHostCallResponseEnvelopeRoundTrip verifies host call response envelopes
+// survive a marshal/unmarshal round trip.
 func TestHostCallResponseEnvelopeRoundTrip(t *testing.T) {
 	original := &HostCallResponseEnvelope{
 		Status:  HostCallStatusCapabilityDenied,
@@ -24,6 +26,8 @@ func TestHostCallResponseEnvelopeRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostCallSuccessResponseRoundTrip verifies the empty success helper
+// preserves the expected success status through codec round trips.
 func TestHostCallSuccessResponseRoundTrip(t *testing.T) {
 	original := NewHostCallEmptySuccessResponse()
 	data := MarshalHostCallResponse(original)
@@ -36,6 +40,8 @@ func TestHostCallSuccessResponseRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostCallLogRequestRoundTrip verifies structured log requests preserve
+// levels, messages, and fields through the codec.
 func TestHostCallLogRequestRoundTrip(t *testing.T) {
 	original := &HostCallLogRequest{
 		Level:   LogLevelWarning,
@@ -58,6 +64,8 @@ func TestHostCallLogRequestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceRequestEnvelopeRoundTrip verifies host service request
+// envelopes preserve service, method, table, and payload data.
 func TestHostServiceRequestEnvelopeRoundTrip(t *testing.T) {
 	original := &HostServiceRequestEnvelope{
 		Service: HostServiceData,
@@ -86,6 +94,8 @@ func TestHostServiceRequestEnvelopeRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceValueResponseRoundTrip verifies simple string-valued host
+// service responses round-trip through the codec.
 func TestHostServiceValueResponseRoundTrip(t *testing.T) {
 	original := &HostServiceValueResponse{Value: "node-a"}
 	data := MarshalHostServiceValueResponse(original)
@@ -98,6 +108,8 @@ func TestHostServiceValueResponseRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostCallStateGetRequestRoundTrip verifies runtime state get requests
+// round-trip through the codec.
 func TestHostCallStateGetRequestRoundTrip(t *testing.T) {
 	original := &HostCallStateGetRequest{Key: "counter"}
 	data := MarshalHostCallStateGetRequest(original)
@@ -110,6 +122,8 @@ func TestHostCallStateGetRequestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostCallStateGetResponseRoundTrip verifies runtime state get responses
+// preserve both value and found flag through the codec.
 func TestHostCallStateGetResponseRoundTrip(t *testing.T) {
 	original := &HostCallStateGetResponse{Value: "42", Found: true}
 	data := MarshalHostCallStateGetResponse(original)
@@ -125,6 +139,8 @@ func TestHostCallStateGetResponseRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostCallStateSetRequestRoundTrip verifies runtime state set requests
+// round-trip through the codec.
 func TestHostCallStateSetRequestRoundTrip(t *testing.T) {
 	original := &HostCallStateSetRequest{Key: "counter", Value: "43"}
 	data := MarshalHostCallStateSetRequest(original)
@@ -140,6 +156,8 @@ func TestHostCallStateSetRequestRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostCallStateDeleteRequestRoundTrip verifies runtime state delete
+// requests round-trip through the codec.
 func TestHostCallStateDeleteRequestRoundTrip(t *testing.T) {
 	original := &HostCallStateDeleteRequest{Key: "counter"}
 	data := MarshalHostCallStateDeleteRequest(original)

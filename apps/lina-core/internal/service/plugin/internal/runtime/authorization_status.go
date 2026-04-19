@@ -7,6 +7,7 @@ package runtime
 // for one plugin release.
 type AuthorizationStatus string
 
+// Host-service authorization review states exposed in plugin list projections.
 const (
 	// AuthorizationStatusNotRequired means the plugin does not request governed host-service targets.
 	AuthorizationStatusNotRequired AuthorizationStatus = "not_required"

@@ -13,6 +13,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// Host-call demo constants define the governed keys, paths, and sample values
+// used by the dynamic plugin host-service showcase.
 const (
 	hostCallDemoStateKey           = "host_call_demo_visit_count"
 	hostCallDemoStoragePath        = "host-call-demo/"
@@ -94,6 +96,8 @@ func (s *serviceImpl) BuildHostCallDemoPayload(input *HostCallDemoInput) (*hostC
 	}, nil
 }
 
+// runHostCallDemoStorage exercises governed storage APIs and summarizes the
+// round-trip result.
 func (s *serviceImpl) runHostCallDemoStorage(pluginID string, demoKey string) (*hostCallDemoStoragePayload, error) {
 	objectPath := fmt.Sprintf("%s/%s.json", hostCallDemoStoragePrefix, demoKey)
 	body, err := json.Marshal(&hostCallDemoStorageRecord{
@@ -143,6 +147,8 @@ func (s *serviceImpl) runHostCallDemoStorage(pluginID string, demoKey string) (*
 	}, nil
 }
 
+// runHostCallDemoData exercises governed structured-data APIs and summarizes
+// the create/list/update/delete flow.
 func (s *serviceImpl) runHostCallDemoData(pluginID string, demoKey string) (*hostCallDemoDataPayload, error) {
 	createRecord, err := buildRecordMap(&hostCallDemoDataCreateRecord{
 		PluginID:     pluginID,
@@ -229,6 +235,8 @@ func (s *serviceImpl) runHostCallDemoData(pluginID string, demoKey string) (*hos
 	}, nil
 }
 
+// runHostCallDemoNetwork exercises the governed outbound HTTP host service and
+// captures a bounded preview of the response.
 func (s *serviceImpl) runHostCallDemoNetwork(input *HostCallDemoInput, demoKey string) *hostCallDemoNetworkPayload {
 	result := &hostCallDemoNetworkPayload{
 		URL:         hostCallDemoNetworkURL,
@@ -259,6 +267,7 @@ func (s *serviceImpl) runHostCallDemoNetwork(input *HostCallDemoInput, demoKey s
 	return result
 }
 
+// hostCallDemoPluginID returns the normalized plugin identifier from the input.
 func hostCallDemoPluginID(input *HostCallDemoInput) string {
 	if input == nil {
 		return ""
@@ -266,6 +275,8 @@ func hostCallDemoPluginID(input *HostCallDemoInput) string {
 	return strings.TrimSpace(input.PluginID)
 }
 
+// hostCallDemoRequestID returns the normalized request identifier from the
+// input.
 func hostCallDemoRequestID(input *HostCallDemoInput) string {
 	if input == nil {
 		return ""
@@ -273,6 +284,7 @@ func hostCallDemoRequestID(input *HostCallDemoInput) string {
 	return strings.TrimSpace(input.RequestID)
 }
 
+// hostCallDemoRoutePath returns the normalized route path from the input.
 func hostCallDemoRoutePath(input *HostCallDemoInput) string {
 	if input == nil {
 		return ""
@@ -280,6 +292,8 @@ func hostCallDemoRoutePath(input *HostCallDemoInput) string {
 	return strings.TrimSpace(input.RoutePath)
 }
 
+// buildHostCallDemoBodyPreview truncates one response body to the configured
+// preview length.
 func buildHostCallDemoBodyPreview(body []byte) string {
 	preview := strings.TrimSpace(string(body))
 	if preview == "" {

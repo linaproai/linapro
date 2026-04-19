@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/model/entity"
 )
 
+// ListInput defines filters and pagination for dictionary-type queries.
 type ListInput struct {
 	PageNum  int
 	PageSize int
@@ -22,6 +23,7 @@ type ListInput struct {
 	Type     string
 }
 
+// ListOutput defines the paged dictionary-type query result.
 type ListOutput struct {
 	List  []*entity.SysDictType
 	Total int
@@ -60,6 +62,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}, nil
 }
 
+// CreateInput defines the fields required to create one dictionary type.
 type CreateInput struct {
 	Name   string
 	Type   string

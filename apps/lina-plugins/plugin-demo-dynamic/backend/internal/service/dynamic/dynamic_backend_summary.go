@@ -3,6 +3,8 @@
 
 package dynamicservice
 
+// backendSummaryMessage is the static intro text returned by the sample
+// backend summary endpoint.
 const backendSummaryMessage = "This backend example is executed through the plugin-demo-dynamic Wasm bridge runtime."
 
 // BuildBackendSummaryPayload builds the backend summary response payload.

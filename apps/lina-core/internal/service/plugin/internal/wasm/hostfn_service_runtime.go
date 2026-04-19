@@ -13,6 +13,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// dispatchRuntimeHostService routes runtime host service methods to log, state,
+// and lightweight runtime info handlers.
 func dispatchRuntimeHostService(
 	ctx context.Context,
 	hcc *hostCallContext,
@@ -46,6 +48,7 @@ func dispatchRuntimeHostService(
 	}
 }
 
+// buildRuntimeInfoValueResponse wraps one scalar runtime info value in a success envelope.
 func buildRuntimeInfoValueResponse(value string) *pluginbridge.HostCallResponseEnvelope {
 	payload := pluginbridge.MarshalHostServiceValueResponse(&pluginbridge.HostServiceValueResponse{
 		Value: value,

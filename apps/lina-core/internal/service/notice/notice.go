@@ -48,6 +48,7 @@ type Service interface {
 	Delete(ctx context.Context, ids string) error
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -339,6 +340,8 @@ func (s *serviceImpl) Delete(ctx context.Context, ids string) error {
 	return nil
 }
 
+// dispatchPublishedNotice delivers one published notice into the unified inbox
+// pipeline after the notice record is persisted.
 func (s *serviceImpl) dispatchPublishedNotice(
 	ctx context.Context,
 	noticeID int64,
@@ -357,6 +360,7 @@ func (s *serviceImpl) dispatchPublishedNotice(
 	return err
 }
 
+// noticeTypeToCategoryCode maps notice types to notify inbox category codes.
 func (s *serviceImpl) noticeTypeToCategoryCode(noticeType int) notifysvc.CategoryCode {
 	switch noticeType {
 	case NoticeTypeAnnouncement:

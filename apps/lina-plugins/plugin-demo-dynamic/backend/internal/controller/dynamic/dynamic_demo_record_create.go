@@ -29,6 +29,8 @@ func (c *Controller) CreateDemoRecord(request *pluginbridge.BridgeRequestEnvelop
 	return pluginbridge.NewJSONResponse(200, content), nil
 }
 
+// buildDemoRecordCreateRouteInput decodes the create request body into the
+// dynamic sample mutation input.
 func buildDemoRecordCreateRouteInput(request *pluginbridge.BridgeRequestEnvelopeV1) (*dynamicservice.DemoRecordMutationInput, error) {
 	return decodeDemoRecordMutationBody(request)
 }

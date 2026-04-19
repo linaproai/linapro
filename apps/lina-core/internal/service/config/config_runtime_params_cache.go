@@ -19,6 +19,7 @@ import (
 	"lina-core/pkg/logger"
 )
 
+// Runtime parameter snapshot cache keys and synchronization intervals.
 const (
 	runtimeParamRevisionOwnerKey     = "runtime-config"
 	runtimeParamRevisionNamespace    = "sys-config"
@@ -28,12 +29,16 @@ const (
 	runtimeParamRevisionSyncInterval = 10 * time.Second
 )
 
+// runtimeParamRevisionCacheKey is the shared KV key used to synchronize the
+// effective protected-config revision across nodes.
 var runtimeParamRevisionCacheKey = kvcache.BuildCacheKey(
 	runtimeParamRevisionOwnerKey,
 	runtimeParamRevisionNamespace,
 	runtimeParamRevisionLogicalKey,
 )
 
+// runtimeParamSnapshot stores one immutable parsed view of all protected
+// runtime parameters for a single effective revision.
 type runtimeParamSnapshot struct {
 	revision              int64
 	values                map[string]string
@@ -44,12 +49,16 @@ type runtimeParamSnapshot struct {
 	loginBlacklistMatcher *loginBlacklistMatcher
 }
 
+// cachedRuntimeParamSnapshot wraps one immutable runtime snapshot with local
+// cache metadata used by the process cache layer.
 type cachedRuntimeParamSnapshot struct {
 	Revision    int64                 // Revision is the effective revision used for this cache entry.
 	RefreshedAt time.Time             // RefreshedAt records when this cache entry was rebuilt from sys_config.
 	Snapshot    *runtimeParamSnapshot // Snapshot is the immutable parsed runtime-parameter snapshot.
 }
 
+// runtimeParamSnapshotCache stores the process-local immutable snapshot cache
+// for protected runtime parameters.
 var runtimeParamSnapshotCache = gcache.New()
 
 // runtimeParamRevisionState records the latest revision currently visible to
@@ -300,6 +309,7 @@ func (s *serviceImpl) getCachedRuntimeParamSnapshot(ctx context.Context, revisio
 	return nil
 }
 
+// getLocalRuntimeParamRevision returns the current process-local revision when initialized.
 func getLocalRuntimeParamRevision() (int64, bool) {
 	runtimeParamRevisionState.RLock()
 	defer runtimeParamRevisionState.RUnlock()
@@ -310,6 +320,7 @@ func getLocalRuntimeParamRevision() (int64, bool) {
 	return runtimeParamRevisionState.value, true
 }
 
+// storeLocalRuntimeParamRevision persists one revision in process-local state.
 func storeLocalRuntimeParamRevision(revision int64) {
 	runtimeParamRevisionState.Lock()
 	runtimeParamRevisionState.value = revision
@@ -317,6 +328,7 @@ func storeLocalRuntimeParamRevision(revision int64) {
 	runtimeParamRevisionState.Unlock()
 }
 
+// bumpLocalRuntimeParamRevision increments or initializes the process-local revision.
 func bumpLocalRuntimeParamRevision() int64 {
 	runtimeParamRevisionState.Lock()
 	defer runtimeParamRevisionState.Unlock()
@@ -330,6 +342,7 @@ func bumpLocalRuntimeParamRevision() int64 {
 	return runtimeParamRevisionState.value
 }
 
+// clearLocalRuntimeParamRevision removes the process-local revision marker.
 func clearLocalRuntimeParamRevision() {
 	runtimeParamRevisionState.Lock()
 	runtimeParamRevisionState.value = 0
@@ -347,6 +360,7 @@ func extractCachedRuntimeParamSnapshot(value any) *cachedRuntimeParamSnapshot {
 	return cached
 }
 
+// lookupValue returns the raw configured value for one protected parameter key.
 func (snapshot *runtimeParamSnapshot) lookupValue(key string) (string, bool) {
 	if snapshot == nil {
 		return "", false
@@ -356,6 +370,8 @@ func (snapshot *runtimeParamSnapshot) lookupValue(key string) (string, bool) {
 	return value, ok
 }
 
+// lookupDuration returns one parsed duration override or the parse error that
+// was captured while building the snapshot.
 func (snapshot *runtimeParamSnapshot) lookupDuration(key string) (time.Duration, bool, error) {
 	if snapshot == nil {
 		return 0, false, nil
@@ -372,6 +388,8 @@ func (snapshot *runtimeParamSnapshot) lookupDuration(key string) (time.Duration,
 	return value, true, nil
 }
 
+// lookupInt64 returns one parsed integer override or the parse error that was
+// captured while building the snapshot.
 func (snapshot *runtimeParamSnapshot) lookupInt64(key string) (int64, bool, error) {
 	if snapshot == nil {
 		return 0, false, nil
@@ -388,6 +406,7 @@ func (snapshot *runtimeParamSnapshot) lookupInt64(key string) (int64, bool, erro
 	return value, true, nil
 }
 
+// loginBlacklist returns a detached copy of the parsed login blacklist rules.
 func (snapshot *runtimeParamSnapshot) loginBlacklist() []string {
 	if snapshot == nil || len(snapshot.loginBlackIPList) == 0 {
 		return nil

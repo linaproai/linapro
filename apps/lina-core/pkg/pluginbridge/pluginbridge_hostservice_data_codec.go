@@ -566,6 +566,8 @@ func DecodeHostServiceDataGetPlan(request *HostServiceDataGetRequest) (*shared.D
 	return shared.UnmarshalQueryPlanJSON(request.PlanJSON)
 }
 
+// marshalHostServiceDataTransactionOperation encodes one transaction operation
+// step into protobuf wire fields.
 func marshalHostServiceDataTransactionOperation(operation *HostServiceDataTransactionOperation) []byte {
 	var content []byte
 	if operation == nil {
@@ -583,6 +585,8 @@ func marshalHostServiceDataTransactionOperation(operation *HostServiceDataTransa
 	return content
 }
 
+// unmarshalHostServiceDataTransactionOperation decodes one transaction
+// operation step from protobuf wire fields.
 func unmarshalHostServiceDataTransactionOperation(data []byte) (*HostServiceDataTransactionOperation, error) {
 	out := &HostServiceDataTransactionOperation{}
 	content := data

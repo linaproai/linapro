@@ -5,6 +5,7 @@ package pluginhost
 
 import "sync"
 
+// In-memory source-plugin registry shared by build-linked plugins.
 var (
 	sourcePluginRegistryMu sync.RWMutex
 	sourcePluginRegistry   = make(map[string]*SourcePlugin)

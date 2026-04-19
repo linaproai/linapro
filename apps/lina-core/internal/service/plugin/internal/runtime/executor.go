@@ -22,6 +22,7 @@ type dynamicRouteExecutor interface {
 // is available for the current plugin release.
 type dynamicPlaceholderExecutor struct{}
 
+// Execute returns a bridge-not-implemented response for non-executable releases.
 func (e *dynamicPlaceholderExecutor) Execute(
 	_ context.Context,
 	_ *catalog.Manifest,
@@ -37,6 +38,7 @@ func (e *dynamicPlaceholderExecutor) Execute(
 // dynamicWasmExecutor invokes the wasm bridge for the given plugin manifest.
 type dynamicWasmExecutor struct{}
 
+// Execute encodes the bridge request and dispatches it into the active WASM guest.
 func (e *dynamicWasmExecutor) Execute(
 	ctx context.Context,
 	manifest *catalog.Manifest,

@@ -14,6 +14,8 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// TestSingleNodeModeSkipsPluginNodeProjection verifies that single-node mode
+// does not materialize per-node runtime projections for dynamic plugins.
 func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 	service := newTestService()
 	ctx := context.Background()

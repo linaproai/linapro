@@ -12,6 +12,8 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
+// mustScanConfig scans one config section into the target object and panics on
+// invalid configuration.
 func mustScanConfig(ctx context.Context, key string, target any) {
 	if target == nil {
 		panic(gerror.New("配置扫描目标不能为空"))
@@ -26,6 +28,8 @@ func mustScanConfig(ctx context.Context, key string, target any) {
 	}
 }
 
+// mustLoadDurationConfig loads one duration config value or returns the given
+// default when the key is absent.
 func mustLoadDurationConfig(ctx context.Context, key string, defaultValue time.Duration) time.Duration {
 	if key == "" {
 		return defaultValue
@@ -39,6 +43,7 @@ func mustLoadDurationConfig(ctx context.Context, key string, defaultValue time.D
 	return mustParsePositiveDuration(key, value.String())
 }
 
+// mustParsePositiveDuration parses one positive Go duration string or panics.
 func mustParsePositiveDuration(key string, raw string) time.Duration {
 	duration, err := time.ParseDuration(strings.TrimSpace(raw))
 	if err != nil {
@@ -50,6 +55,8 @@ func mustParsePositiveDuration(key string, raw string) time.Duration {
 	return duration
 }
 
+// mustValidateSecondAlignedDuration validates that a duration is at least one
+// second and aligns to whole-second boundaries.
 func mustValidateSecondAlignedDuration(key string, duration time.Duration) time.Duration {
 	if duration < time.Second {
 		panic(gerror.Newf("配置 %s 必须至少为 1s", key))

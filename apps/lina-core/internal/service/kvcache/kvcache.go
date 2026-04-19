@@ -8,8 +8,11 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
+// OwnerType identifies the business scope that owns one cache entry.
 type OwnerType string
 
+// Cache owner type constants identify the supported cache-entry ownership
+// scopes.
 const (
 	// OwnerTypePlugin identifies dynamic plugin-owned cache entries.
 	OwnerTypePlugin OwnerType = "plugin"
@@ -17,6 +20,8 @@ const (
 	OwnerTypeModule OwnerType = "module"
 )
 
+// Cache value kind constants describe whether one entry stores string or
+// integer data.
 const (
 	// ValueKindString identifies string cache values.
 	ValueKindString = 1
@@ -24,6 +29,8 @@ const (
 	ValueKindInt = 2
 )
 
+// Cache-size constants bound the persisted identity and payload lengths for KV
+// cache entries.
 const (
 	maxOwnerTypeBytes = 16
 	maxOwnerKeyBytes  = 64
@@ -141,6 +148,8 @@ type Service interface {
 	CleanupExpired(ctx context.Context) error
 }
 
+// Interface compliance assertion for the default kvcache service
+// implementation.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

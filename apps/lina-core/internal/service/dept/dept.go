@@ -43,15 +43,18 @@ type Service interface {
 	GetDeptAndDescendantIds(ctx context.Context, deptId int) ([]int, error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct{}
 
+// New creates and returns a new department service instance.
 func New() Service {
 	return &serviceImpl{}
 }
 
+// TreeNode represents one department node in a tree response.
 type TreeNode struct {
 	Id        int         `json:"id"`
 	Label     string      `json:"label"`
@@ -59,6 +62,7 @@ type TreeNode struct {
 	Children  []*TreeNode `json:"children"`
 }
 
+// DeptUser represents one selectable department user entry.
 type DeptUser struct {
 	Id       int    `json:"id"`
 	Username string `json:"username"` // Username

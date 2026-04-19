@@ -15,6 +15,8 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes verifies that iframe,
+// new-window, and embedded mount menus can all bind valid hosted assets.
 func TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes(t *testing.T) {
 	services := testutil.NewServices()
 	service := services.Frontend
@@ -84,6 +86,8 @@ func TestValidateHostedMenuBindingsAcceptsHostedRuntimeModes(t *testing.T) {
 	}
 }
 
+// TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract verifies
+// that embedded mount menus require a JS or MJS entry asset.
 func TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract(t *testing.T) {
 	services := testutil.NewServices()
 	service := services.Frontend

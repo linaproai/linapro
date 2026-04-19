@@ -45,4 +45,5 @@ func (db *DB) Transaction(_ func(tx *Tx) error) error {
 	return gerror.New("plugindb guest execution is only available for wasip1 builds")
 }
 
+// Compile-time anchor to keep the shared enum package referenced in stub builds.
 var _ shared.DataPlanAction

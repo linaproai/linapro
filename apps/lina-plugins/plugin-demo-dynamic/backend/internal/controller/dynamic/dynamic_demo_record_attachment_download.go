@@ -21,6 +21,8 @@ func (c *Controller) DownloadDemoRecordAttachment(request *pluginbridge.BridgeRe
 	return response, nil
 }
 
+// readDemoRecordIDFromAttachmentDownloadRoute reads the record identifier from
+// the attachment download path parameters.
 func readDemoRecordIDFromAttachmentDownloadRoute(request *pluginbridge.BridgeRequestEnvelopeV1) string {
 	return readDynamicPathParam(request, "id")
 }

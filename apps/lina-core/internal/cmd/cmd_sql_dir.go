@@ -5,6 +5,7 @@ package cmd
 
 import "github.com/gogf/gf/v2/os/gfile"
 
+// hostManifestSqlDir is the canonical directory that stores host SQL delivery files.
 const hostManifestSqlDir = "manifest/sql"
 
 // hostInitSqlDir returns the conventional host SQL directory.

@@ -7,6 +7,8 @@ import (
 	"lina-core/pkg/plugindb/shared"
 )
 
+// TestHostServiceDataListCodecRoundTrip verifies list requests preserve
+// filters, pagination, and typed plan payloads through the codec.
 func TestHostServiceDataListCodecRoundTrip(t *testing.T) {
 	original := &HostServiceDataListRequest{
 		Filters: map[string]string{
@@ -33,6 +35,8 @@ func TestHostServiceDataListCodecRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceDataListResponseCodecRoundTrip verifies list responses
+// preserve record payloads and totals through the codec.
 func TestHostServiceDataListResponseCodecRoundTrip(t *testing.T) {
 	original := &HostServiceDataListResponse{
 		Records: [][]byte{
@@ -51,6 +55,8 @@ func TestHostServiceDataListResponseCodecRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceDataGetCodecRoundTrip verifies get requests and responses
+// preserve key and record payloads through the codec.
 func TestHostServiceDataGetCodecRoundTrip(t *testing.T) {
 	original := &HostServiceDataGetRequest{
 		KeyJSON:  []byte(`42`),
@@ -82,6 +88,8 @@ func TestHostServiceDataGetCodecRoundTrip(t *testing.T) {
 	}
 }
 
+// TestDecodeHostServiceDataPlanHelpers verifies typed query plan helpers decode
+// embedded plan JSON from list and get requests.
 func TestDecodeHostServiceDataPlanHelpers(t *testing.T) {
 	planJSON, err := shared.MarshalQueryPlanJSON(&shared.DataQueryPlan{
 		Table:  "sys_plugin_node_state",
@@ -109,6 +117,8 @@ func TestDecodeHostServiceDataPlanHelpers(t *testing.T) {
 	}
 }
 
+// TestHostServiceDataMutationCodecRoundTrip verifies mutation requests and
+// responses preserve key and affected-row data through the codec.
 func TestHostServiceDataMutationCodecRoundTrip(t *testing.T) {
 	original := &HostServiceDataMutationRequest{
 		KeyJSON:    []byte(`1`),
@@ -137,6 +147,8 @@ func TestHostServiceDataMutationCodecRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceDataTransactionCodecRoundTrip verifies transaction requests
+// and responses preserve ordered operations and per-step results.
 func TestHostServiceDataTransactionCodecRoundTrip(t *testing.T) {
 	original := &HostServiceDataTransactionRequest{
 		Operations: []*HostServiceDataTransactionOperation{

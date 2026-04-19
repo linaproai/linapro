@@ -1,3 +1,6 @@
+// This file tests top-level cluster service behavior in single-node and
+// clustered modes.
+
 package cluster
 
 import (
@@ -11,6 +14,8 @@ import (
 	"lina-core/internal/service/config"
 )
 
+// TestServiceDisabledTreatsCurrentNodeAsPrimary verifies single-node mode keeps
+// the local node primary without starting election infrastructure.
 func TestServiceDisabledTreatsCurrentNodeAsPrimary(t *testing.T) {
 	service := New(&config.ClusterConfig{Enabled: false})
 	ctx := context.Background()
@@ -26,6 +31,8 @@ func TestServiceDisabledTreatsCurrentNodeAsPrimary(t *testing.T) {
 	service.Stop(ctx)
 }
 
+// TestServiceEnabledStartsPrimaryElection verifies enabling cluster mode starts
+// election and promotes the current node when no competitor exists.
 func TestServiceEnabledStartsPrimaryElection(t *testing.T) {
 	ctx := context.Background()
 	cleanupElectionLock(t)
@@ -54,6 +61,8 @@ func TestServiceEnabledStartsPrimaryElection(t *testing.T) {
 	}
 }
 
+// cleanupElectionLock removes the leader-election row used by cluster service
+// integration tests.
 func cleanupElectionLock(t *testing.T) {
 	t.Helper()
 

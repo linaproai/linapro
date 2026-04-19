@@ -10,6 +10,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// Protected public frontend setting keys stored in sys_config.
 const (
 	// PublicFrontendSettingKeyAppName stores the public-facing application name.
 	PublicFrontendSettingKeyAppName = "sys.app.name"
@@ -33,6 +34,8 @@ const (
 	PublicFrontendSettingKeyUIWatermarkContent = "sys.ui.watermark.content"
 )
 
+// publicFrontendSettingSpecs lists the built-in public frontend settings that
+// can be overridden through protected sys_config entries.
 var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAppName,
@@ -96,6 +99,8 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	},
 }
 
+// publicFrontendSettingSpecByKey indexes publicFrontendSettingSpecs by key for
+// constant-time lookup in validation and projection paths.
 var publicFrontendSettingSpecByKey = map[string]RuntimeParamSpec{
 	PublicFrontendSettingKeyAppName:            publicFrontendSettingSpecs[0],
 	PublicFrontendSettingKeyAppLogo:            publicFrontendSettingSpecs[1],
@@ -109,6 +114,8 @@ var publicFrontendSettingSpecByKey = map[string]RuntimeParamSpec{
 	PublicFrontendSettingKeyUIWatermarkContent: publicFrontendSettingSpecs[9],
 }
 
+// publicFrontendSettingKeys keeps the deterministic key order for public
+// frontend protected-config queries.
 var publicFrontendSettingKeys = []string{
 	PublicFrontendSettingKeyAppName,
 	PublicFrontendSettingKeyAppLogo,
@@ -122,6 +129,8 @@ var publicFrontendSettingKeys = []string{
 	PublicFrontendSettingKeyUIWatermarkContent,
 }
 
+// protectedConfigKeys contains all built-in config keys whose lifecycle is
+// governed by the host and must not be renamed or deleted.
 var protectedConfigKeys = appendProtectedConfigKeys()
 
 // PublicFrontendConfig describes the safe frontend settings exposed by the host.
@@ -242,6 +251,8 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConf
 	}
 }
 
+// appendProtectedConfigKeys returns the full protected-config key list by
+// combining runtime backend settings and public frontend settings.
 func appendProtectedConfigKeys() []string {
 	keys := make([]string, 0, len(runtimeParamKeys)+len(publicFrontendSettingKeys))
 	keys = append(keys, runtimeParamKeys...)
@@ -249,6 +260,8 @@ func appendProtectedConfigKeys() []string {
 	return keys
 }
 
+// getProtectedConfigValueOrDefault returns the runtime override when present or
+// falls back to the built-in default from the protected setting spec.
 func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key string) string {
 	if value, ok := s.lookupRuntimeParamValue(ctx, key); ok {
 		trimmed := strings.TrimSpace(value)
@@ -267,6 +280,8 @@ func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key 
 	return ""
 }
 
+// getProtectedConfigBoolOrDefault returns one protected boolean setting using
+// the default-aware string lookup path first.
 func (s *serviceImpl) getProtectedConfigBoolOrDefault(ctx context.Context, key string) bool {
 	value := s.getProtectedConfigValueOrDefault(ctx, key)
 	parsed, err := parseStrictBoolValue(key, value)
@@ -276,6 +291,8 @@ func (s *serviceImpl) getProtectedConfigBoolOrDefault(ctx context.Context, key s
 	return parsed
 }
 
+// parseStrictBoolValue parses one protected boolean setting accepting only
+// explicit true or false literals.
 func parseStrictBoolValue(key string, value string) (bool, error) {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "true":
@@ -287,6 +304,8 @@ func parseStrictBoolValue(key string, value string) (bool, error) {
 	}
 }
 
+// validateAllowedStringValue validates one protected string against a fixed
+// whitelist of allowed values.
 func validateAllowedStringValue(key string, value string, allowed []string) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -300,6 +319,8 @@ func validateAllowedStringValue(key string, value string, allowed []string) erro
 	return gerror.Newf("参数 %s 不在支持范围内", key)
 }
 
+// validateRequiredTextValue validates one non-empty protected text value with
+// a maximum length constraint.
 func validateRequiredTextValue(key string, value string, maxLen int) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {

@@ -13,6 +13,8 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// TestExecuteManifestSQLFilesReplaysInstallSQL verifies that install SQL can be
+// replayed after uninstall and still records a clean migration sequence.
 func TestExecuteManifestSQLFilesReplaysInstallSQL(t *testing.T) {
 	services := testutil.NewServices()
 	service := services.Lifecycle
@@ -75,6 +77,7 @@ func TestExecuteManifestSQLFilesReplaysInstallSQL(t *testing.T) {
 	assertTestTableRowCount(t, ctx, tableName, 1)
 }
 
+// dropTestTableIfExists removes the temporary table used by migration replay tests.
 func dropTestTableIfExists(t *testing.T, ctx context.Context, tableName string) {
 	t.Helper()
 
@@ -83,6 +86,7 @@ func dropTestTableIfExists(t *testing.T, ctx context.Context, tableName string) 
 	}
 }
 
+// assertTestTableMissing verifies that the migration uninstall step removed the table.
 func assertTestTableMissing(t *testing.T, ctx context.Context, tableName string) {
 	t.Helper()
 
@@ -95,6 +99,7 @@ func assertTestTableMissing(t *testing.T, ctx context.Context, tableName string)
 	}
 }
 
+// assertTestTableRowCount verifies the row count produced by replayed migration SQL.
 func assertTestTableRowCount(t *testing.T, ctx context.Context, tableName string, expected int) {
 	t.Helper()
 

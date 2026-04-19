@@ -49,10 +49,12 @@ type artifactMissingError struct {
 	relativePath string
 }
 
+// Error returns the actionable missing-artifact message used by lifecycle guards.
 func (e *artifactMissingError) Error() string {
 	return fmt.Sprintf("动态插件目录缺少 %s: %s", e.relativePath, e.rootDir)
 }
 
+// buildArtifactFileName returns the canonical wasm filename for one plugin ID.
 func buildArtifactFileName(pluginID string) string {
 	normalizedID := strings.TrimSpace(pluginID)
 	if normalizedID == "" {
@@ -61,10 +63,13 @@ func buildArtifactFileName(pluginID string) string {
 	return normalizedID + ".wasm"
 }
 
+// buildArtifactRelativePath returns the canonical relative runtime artifact path.
 func buildArtifactRelativePath(pluginID string) string {
 	return filepath.Join("runtime", buildArtifactFileName(pluginID))
 }
 
+// resolveArtifactPath resolves the current or legacy runtime artifact path
+// inside a plugin root and reports a typed missing-artifact error otherwise.
 func resolveArtifactPath(rootDir string, pluginID string) (string, error) {
 	relativePath := filepath.ToSlash(buildArtifactRelativePath(pluginID))
 	candidatePath := filepath.Join(rootDir, buildArtifactRelativePath(pluginID))
@@ -83,6 +88,7 @@ func resolveArtifactPath(rootDir string, pluginID string) (string, error) {
 	}
 }
 
+// isMissingArtifactError reports whether the error indicates a missing wasm artifact.
 func isMissingArtifactError(err error) bool {
 	var target *artifactMissingError
 	return errors.As(err, &target)
@@ -333,6 +339,7 @@ func buildRuntimeArtifactRemark(manifest *catalog.Manifest) string {
 	)
 }
 
+// unmarshalRuntimeArtifactSection decodes one JSON-encoded custom section payload.
 func unmarshalRuntimeArtifactSection(content []byte, target interface{}) error {
 	if err := json.Unmarshal(content, target); err == nil {
 		return nil
@@ -340,6 +347,7 @@ func unmarshalRuntimeArtifactSection(content []byte, target interface{}) error {
 	return gerror.New("动态插件自定义节仅支持 JSON 编码")
 }
 
+// parseWasmCustomSections extracts custom sections from a wasm binary by name.
 func parseWasmCustomSections(content []byte) (map[string][]byte, error) {
 	if len(content) < 8 {
 		return nil, gerror.New("wasm 文件长度不足")
@@ -389,6 +397,7 @@ func parseWasmCustomSections(content []byte) (map[string][]byte, error) {
 	return sections, nil
 }
 
+// readWasmULEB128 decodes one unsigned LEB128 value from the wasm byte stream.
 func readWasmULEB128(content []byte, start int) (uint32, int, error) {
 	var (
 		value uint32
@@ -415,6 +424,7 @@ func readWasmULEB128(content []byte, start int) (uint32, int, error) {
 	}
 }
 
+// maxInt clamps value to the given lower bound.
 func maxInt(value int, lowerBound int) int {
 	if value < lowerBound {
 		return lowerBound
@@ -422,6 +432,8 @@ func maxInt(value int, lowerBound int) int {
 	return value
 }
 
+// parseRuntimeArtifactSQLAssets restores embedded SQL assets and validates
+// their canonical file-style keys.
 func parseRuntimeArtifactSQLAssets(
 	filePath string,
 	sections map[string][]byte,
@@ -455,6 +467,7 @@ func parseRuntimeArtifactSQLAssets(
 	return assets, nil
 }
 
+// parseRuntimeArtifactHookSpecs restores and validates embedded hook specs.
 func parseRuntimeArtifactHookSpecs(
 	filePath string,
 	pluginID string,
@@ -477,6 +490,7 @@ func parseRuntimeArtifactHookSpecs(
 	return catalog.CloneHookSpecs(items), nil
 }
 
+// parseRuntimeArtifactResourceSpecs restores and validates embedded resource specs.
 func parseRuntimeArtifactResourceSpecs(
 	filePath string,
 	pluginID string,
@@ -501,6 +515,7 @@ func parseRuntimeArtifactResourceSpecs(
 	return cloned, nil
 }
 
+// parseRuntimeArtifactRouteContracts restores and validates embedded route contracts.
 func parseRuntimeArtifactRouteContracts(
 	filePath string,
 	pluginID string,
@@ -521,6 +536,7 @@ func parseRuntimeArtifactRouteContracts(
 	return items, nil
 }
 
+// parseRuntimeArtifactBridgeSpec restores and validates the optional bridge spec.
 func parseRuntimeArtifactBridgeSpec(
 	filePath string,
 	sections map[string][]byte,
@@ -540,6 +556,8 @@ func parseRuntimeArtifactBridgeSpec(
 	return spec, nil
 }
 
+// rejectDeprecatedRuntimeArtifactCapabilities fails fast when old capability
+// sections are still embedded alongside the structured host-service contract.
 func rejectDeprecatedRuntimeArtifactCapabilities(
 	filePath string,
 	sections map[string][]byte,
@@ -568,6 +586,7 @@ func rejectDeprecatedRuntimeArtifactCapabilities(
 	)
 }
 
+// parseRuntimeArtifactHostServices restores and validates embedded host-service declarations.
 func parseRuntimeArtifactHostServices(
 	filePath string,
 	sections map[string][]byte,
@@ -587,6 +606,8 @@ func parseRuntimeArtifactHostServices(
 	return pluginbridge.NormalizeHostServiceSpecs(items), nil
 }
 
+// parseRuntimeArtifactFrontendAssets restores embedded frontend assets and
+// decodes their base64-encoded content payloads.
 func parseRuntimeArtifactFrontendAssets(
 	filePath string,
 	sections map[string][]byte,

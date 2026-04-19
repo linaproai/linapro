@@ -4,6 +4,7 @@ package demo
 
 import "context"
 
+// pingMessage is the static response returned by the public ping endpoint.
 const pingMessage = "pong"
 
 // PingOutput defines one public plugin ping payload.

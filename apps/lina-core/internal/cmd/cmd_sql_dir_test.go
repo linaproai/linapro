@@ -9,6 +9,8 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 )
 
+// TestHostSqlDirsFollowConvention verifies the init and mock SQL helpers keep
+// using the expected manifest directory layout.
 func TestHostSqlDirsFollowConvention(t *testing.T) {
 	t.Parallel()
 

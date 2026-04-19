@@ -30,6 +30,7 @@ import (
 	"lina-core/pkg/logger"
 )
 
+// File storage engine and export limit constants.
 const (
 	EngineLocal   = "local" // Local storage engine identifier
 	MaxExportRows = 10000   // Maximum rows for export
@@ -61,6 +62,7 @@ type Service interface {
 	Detail(ctx context.Context, id int64) (*DetailOutput, error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

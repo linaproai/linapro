@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/pluginfs"
 )
 
+// Default menu flag values applied when manifest menu fields are omitted.
 const (
 	menuDefaultVisible = 1
 	menuDefaultStatus  = 1

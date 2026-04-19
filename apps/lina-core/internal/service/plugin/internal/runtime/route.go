@@ -29,6 +29,7 @@ import (
 // RoutePublicPrefix is the fixed host URL prefix for all dynamic plugin routes.
 const RoutePublicPrefix = "/api/v1/extensions"
 
+// Request-context keys and sentinel values used by the dynamic route pipeline.
 const (
 	dynamicRouteCtxVarState    gctx.StrKey = "plugin_dynamic_route_state"
 	dynamicRouteCtxVarIdentity gctx.StrKey = "plugin_dynamic_route_identity"
@@ -59,6 +60,7 @@ type DynamicRouteOperLogMetadata struct {
 	ResponseContentType string
 }
 
+// dynamicRouteMatch stores the resolved plugin route and path parameters for one request.
 type dynamicRouteMatch struct {
 	PluginID     string
 	PublicPath   string
@@ -67,6 +69,7 @@ type dynamicRouteMatch struct {
 	PathParams   map[string]string
 }
 
+// dynamicRouteRuntimeState stores the active manifest and route match cached on the request.
 type dynamicRouteRuntimeState struct {
 	Manifest *catalog.Manifest
 	Match    *dynamicRouteMatch
@@ -88,6 +91,7 @@ func BuildDynamicRouteOperLogMetadata(runtimeState *DynamicRouteRuntimeState) *D
 	return buildDynamicRouteOperLogMetadata(runtimeState)
 }
 
+// dynamicRouteClaims mirrors the JWT claims needed by host-side dynamic route auth.
 type dynamicRouteClaims struct {
 	TokenId  string `json:"tokenId"`
 	UserId   int    `json:"userId"`
@@ -96,6 +100,7 @@ type dynamicRouteClaims struct {
 	jwt.RegisteredClaims
 }
 
+// dynamicRouteAccessContext stores role-derived access data used by permission checks.
 type dynamicRouteAccessContext struct {
 	Permissions  []string
 	RoleNames    []string
@@ -168,6 +173,8 @@ func (s *serviceImpl) AuthenticateDynamicRouteMiddleware(r *ghttp.Request) {
 	r.Middleware.Next()
 }
 
+// handleDynamicRouteRequest executes the prepared dynamic route after earlier
+// middleware stages cached route and identity state on the request.
 func (s *serviceImpl) handleDynamicRouteRequest(r *ghttp.Request) {
 	if r == nil {
 		return
@@ -272,6 +279,8 @@ func (s *serviceImpl) matchDynamicRoute(ctx context.Context, request *ghttp.Requ
 	return nil, nil
 }
 
+// matchDynamicRoutePath compares one declared route template against the
+// actual internal path and returns extracted path params when it matches.
 func matchDynamicRoutePath(routePath string, actualPath string) (map[string]string, bool) {
 	normalizedRoute := normalizeDynamicRoutePath(routePath)
 	normalizedActual := normalizeDynamicRoutePath(actualPath)
@@ -305,6 +314,7 @@ func matchDynamicRoutePath(routePath string, actualPath string) (map[string]stri
 	return params, true
 }
 
+// normalizeDynamicRoutePath canonicalizes route paths for matching.
 func normalizeDynamicRoutePath(path string) string {
 	normalized := strings.TrimSpace(path)
 	if normalized == "" {
@@ -319,6 +329,8 @@ func normalizeDynamicRoutePath(path string) string {
 	return normalized
 }
 
+// prepareDynamicRouteRuntime resolves the active manifest and matched route for
+// one incoming fixed-prefix request.
 func (s *serviceImpl) prepareDynamicRouteRuntime(
 	ctx context.Context,
 	request *ghttp.Request,
@@ -352,6 +364,8 @@ func (s *serviceImpl) prepareDynamicRouteRuntime(
 	}, nil, nil
 }
 
+// authorizeDynamicRouteRequest applies host-side login and permission checks
+// for the matched dynamic route.
 func (s *serviceImpl) authorizeDynamicRouteRequest(
 	ctx context.Context,
 	runtimeState *dynamicRouteRuntimeState,
@@ -366,6 +380,8 @@ func (s *serviceImpl) authorizeDynamicRouteRequest(
 	return s.buildDynamicRouteIdentitySnapshot(ctx, runtimeState.Match, request)
 }
 
+// executePreparedDynamicRoute builds the bridge request envelope and invokes
+// the runtime executor for the matched active route.
 func (s *serviceImpl) executePreparedDynamicRoute(
 	ctx context.Context,
 	runtimeState *dynamicRouteRuntimeState,
@@ -394,6 +410,8 @@ func (s *serviceImpl) executePreparedDynamicRoute(
 	return s.executeDynamicRoute(ctx, runtimeState.Manifest, requestEnvelope)
 }
 
+// buildDynamicRouteRequestEnvelopeWithIdentity snapshots the matched request
+// into the bridge payload forwarded to guest code.
 func (s *serviceImpl) buildDynamicRouteRequestEnvelopeWithIdentity(
 	match *dynamicRouteMatch,
 	request *ghttp.Request,
@@ -495,6 +513,7 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 	}, nil, nil
 }
 
+// parseDynamicRouteToken validates the bearer token and extracts route claims.
 func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString string) (*dynamicRouteClaims, error) {
 	secret := ""
 	if s.jwtConfig != nil {
@@ -513,6 +532,8 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 	return claims, nil
 }
 
+// touchDynamicRouteSession refreshes the last-active timestamp and tolerates
+// second-level DATETIME precision when no row is reported as updated.
 func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tokenID string) (bool, error) {
 	result, err := dao.SysOnlineSession.Ctx(ctx).
 		Where(do.SysOnlineSession{TokenId: tokenID}).
@@ -540,6 +561,7 @@ func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tokenID stri
 	return count > 0, nil
 }
 
+// getDynamicRouteAccessContext loads permissions and role names for one user ID.
 func (s *serviceImpl) getDynamicRouteAccessContext(ctx context.Context, userID int) (*dynamicRouteAccessContext, error) {
 	roleIDs, err := s.getDynamicRouteUserRoleIDs(ctx, userID)
 	if err != nil {
@@ -560,6 +582,7 @@ func (s *serviceImpl) getDynamicRouteAccessContext(ctx context.Context, userID i
 	}, nil
 }
 
+// getDynamicRouteUserRoleIDs returns the deduplicated role IDs assigned to the user.
 func (s *serviceImpl) getDynamicRouteUserRoleIDs(ctx context.Context, userID int) ([]int, error) {
 	items := make([]*entity.SysUserRole, 0)
 	if err := dao.SysUserRole.Ctx(ctx).
@@ -582,6 +605,7 @@ func (s *serviceImpl) getDynamicRouteUserRoleIDs(ctx context.Context, userID int
 	return roleIDs, nil
 }
 
+// getDynamicRouteRoleNames loads active role names for the given role IDs.
 func (s *serviceImpl) getDynamicRouteRoleNames(ctx context.Context, roleIDs []int) ([]string, error) {
 	if len(roleIDs) == 0 {
 		return []string{}, nil
@@ -653,6 +677,8 @@ func (s *serviceImpl) getDynamicRoutePermissionsByRoleIDs(ctx context.Context, r
 	return permissions, nil
 }
 
+// hasDynamicRoutePermission reports whether the access context satisfies the
+// route permission, with super-admin bypass support.
 func hasDynamicRoutePermission(accessContext *dynamicRouteAccessContext, permission string) bool {
 	if accessContext == nil {
 		return false
@@ -668,6 +694,7 @@ func hasDynamicRoutePermission(accessContext *dynamicRouteAccessContext, permiss
 	return false
 }
 
+// containsInt reports whether target appears in the slice.
 func containsInt(values []int, target int) bool {
 	for _, value := range values {
 		if value == target {
@@ -677,6 +704,7 @@ func containsInt(values []int, target int) bool {
 	return false
 }
 
+// intsToInterfaces converts role or menu IDs into interface values for WhereIn.
 func intsToInterfaces(values []int) []interface{} {
 	items := make([]interface{}, 0, len(values))
 	for _, value := range values {
@@ -685,6 +713,7 @@ func intsToInterfaces(values []int) []interface{} {
 	return items
 }
 
+// sanitizeDynamicRouteHeaders clones request headers while stripping bearer tokens.
 func sanitizeDynamicRouteHeaders(headers http.Header) map[string][]string {
 	result := make(map[string][]string)
 	if len(headers) == 0 {
@@ -708,6 +737,7 @@ func sanitizeDynamicRouteHeaders(headers http.Header) map[string][]string {
 	return result
 }
 
+// collectRequestCookies snapshots request cookies into a simple name-value map.
 func collectRequestCookies(request *ghttp.Request) map[string]string {
 	result := make(map[string]string)
 	if request == nil || request.Request == nil {
@@ -722,6 +752,7 @@ func collectRequestCookies(request *ghttp.Request) map[string]string {
 	return result
 }
 
+// cloneURLValues deep-copies URL query values for bridge payload serialization.
 func cloneURLValues(values url.Values) map[string][]string {
 	result := make(map[string][]string, len(values))
 	for key, items := range values {
@@ -730,6 +761,7 @@ func cloneURLValues(values url.Values) map[string][]string {
 	return result
 }
 
+// cloneStringMap deep-copies string maps used in request and route snapshots.
 func cloneStringMap(values map[string]string) map[string]string {
 	if len(values) == 0 {
 		return map[string]string{}
@@ -741,6 +773,7 @@ func cloneStringMap(values map[string]string) map[string]string {
 	return result
 }
 
+// buildDynamicRequestID derives a stable host-side request ID for bridge logging.
 func buildDynamicRequestID(match *dynamicRouteMatch, request *ghttp.Request) string {
 	if request == nil {
 		return match.PluginID + ":" + base64.StdEncoding.EncodeToString([]byte(match.InternalPath))
@@ -748,6 +781,7 @@ func buildDynamicRequestID(match *dynamicRouteMatch, request *ghttp.Request) str
 	return match.PluginID + ":" + request.Method + ":" + match.InternalPath
 }
 
+// setDynamicRouteRuntimeState stores the resolved runtime state on the request context.
 func setDynamicRouteRuntimeState(request *ghttp.Request, runtimeState *dynamicRouteRuntimeState) {
 	if request == nil {
 		return
@@ -755,6 +789,7 @@ func setDynamicRouteRuntimeState(request *ghttp.Request, runtimeState *dynamicRo
 	request.SetCtxVar(dynamicRouteCtxVarState, runtimeState)
 }
 
+// getDynamicRouteRuntimeState reads the cached runtime state from the request context.
 func getDynamicRouteRuntimeState(request *ghttp.Request) *dynamicRouteRuntimeState {
 	if request == nil {
 		return nil
@@ -767,6 +802,7 @@ func getDynamicRouteRuntimeState(request *ghttp.Request) *dynamicRouteRuntimeSta
 	return runtimeState
 }
 
+// setDynamicRouteIdentitySnapshot stores the resolved identity snapshot on the request.
 func setDynamicRouteIdentitySnapshot(request *ghttp.Request, identity *pluginbridge.IdentitySnapshotV1) {
 	if request == nil {
 		return
@@ -774,6 +810,7 @@ func setDynamicRouteIdentitySnapshot(request *ghttp.Request, identity *pluginbri
 	request.SetCtxVar(dynamicRouteCtxVarIdentity, identity)
 }
 
+// getDynamicRouteIdentitySnapshot reads the cached identity snapshot from the request.
 func getDynamicRouteIdentitySnapshot(request *ghttp.Request) *pluginbridge.IdentitySnapshotV1 {
 	if request == nil {
 		return nil
@@ -786,6 +823,7 @@ func getDynamicRouteIdentitySnapshot(request *ghttp.Request) *pluginbridge.Ident
 	return identity
 }
 
+// setDynamicRouteOperLogMetadata stores operation-log metadata on the request context.
 func setDynamicRouteOperLogMetadata(request *ghttp.Request, metadata *DynamicRouteOperLogMetadata) {
 	if request == nil || metadata == nil {
 		return
@@ -793,6 +831,8 @@ func setDynamicRouteOperLogMetadata(request *ghttp.Request, metadata *DynamicRou
 	request.SetCtxVar(dynamicRouteCtxVarOperLog, metadata)
 }
 
+// buildDynamicRouteOperLogMetadata maps matched route metadata into the host
+// operation-log structure reused by middleware.
 func buildDynamicRouteOperLogMetadata(runtimeState *dynamicRouteRuntimeState) *DynamicRouteOperLogMetadata {
 	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Match.Route == nil {
 		return nil

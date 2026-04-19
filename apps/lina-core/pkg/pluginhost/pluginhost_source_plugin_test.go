@@ -9,6 +9,8 @@ import (
 	"testing"
 )
 
+// TestExtensionPointExecutionModes verifies hook and registrar points publish
+// the expected execution-mode support matrix.
 func TestExtensionPointExecutionModes(t *testing.T) {
 	if !IsHookExtensionPoint(ExtensionPointAuthLoginSucceeded) {
 		t.Fatalf(
@@ -44,6 +46,8 @@ func TestExtensionPointExecutionModes(t *testing.T) {
 	}
 }
 
+// TestCallbackInputContractsUseInterfaces verifies published callback inputs are
+// exposed as interfaces rather than host concrete structs.
 func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 	assertInterfaceType(t, (*HookPayload)(nil), "HookPayload")
 	assertInterfaceType(t, (*AfterAuthInput)(nil), "AfterAuthInput")
@@ -54,6 +58,7 @@ func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 	assertInterfaceType(t, (*PermissionDescriptor)(nil), "PermissionDescriptor")
 }
 
+// TestRegisterHookAcceptsAsyncMode verifies async execution is allowed for hook callbacks.
 func TestRegisterHookAcceptsAsyncMode(t *testing.T) {
 	plugin := NewSourcePlugin("test-plugin-hook")
 	plugin.RegisterHook(
@@ -73,6 +78,8 @@ func TestRegisterHookAcceptsAsyncMode(t *testing.T) {
 	}
 }
 
+// TestRegisterRoutesRejectsAsyncMode verifies route registration remains a
+// blocking-only extension point.
 func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -90,6 +97,8 @@ func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
 	)
 }
 
+// TestCronRegistrarReportsPrimaryNode verifies cron registrars expose the
+// current primary-node status from the host callback.
 func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 	registrar := NewCronRegistrar(
 		"test-plugin",
@@ -110,6 +119,8 @@ func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 	}
 }
 
+// TestHookPayloadHelpersBuildPublishedKeys verifies published hook payload maps
+// contain the expected field names and values.
 func TestHookPayloadHelpersBuildPublishedKeys(t *testing.T) {
 	status := 1
 
@@ -143,6 +154,8 @@ func TestHookPayloadHelpersBuildPublishedKeys(t *testing.T) {
 	}
 }
 
+// TestRegisterUninstallHandlerPublishesPolicySnapshot verifies uninstall
+// handlers receive the host-confirmed policy snapshot interface.
 func TestRegisterUninstallHandlerPublishesPolicySnapshot(t *testing.T) {
 	plugin := NewSourcePlugin("test-plugin-uninstall")
 	called := false
@@ -170,6 +183,7 @@ func TestRegisterUninstallHandlerPublishesPolicySnapshot(t *testing.T) {
 	}
 }
 
+// assertInterfaceType verifies the reflected type under test is an interface.
 func assertInterfaceType(t *testing.T, value interface{}, name string) {
 	t.Helper()
 

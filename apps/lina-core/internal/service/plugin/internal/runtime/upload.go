@@ -118,6 +118,8 @@ func normalizeUploadFilename(filename string) string {
 	return filepath.Base(filename) + ".wasm"
 }
 
+// storeUploadedPackage validates one runtime artifact upload and writes it into
+// the canonical storage location after registry safety checks.
 func (s *serviceImpl) storeUploadedPackage(
 	ctx context.Context,
 	filename string,

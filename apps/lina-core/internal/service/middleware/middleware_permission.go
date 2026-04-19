@@ -12,6 +12,8 @@ import (
 	"lina-core/internal/service/role"
 )
 
+// Permission middleware constants define metadata tag names, wildcard grants,
+// and the normalized JSON error envelope code.
 const (
 	staticPermissionMetaTag      = "permission"
 	staticPermissionMetaTagAlias = "perms"
@@ -19,6 +21,8 @@ const (
 	staticPermissionErrorCode    = 1
 )
 
+// permissionErrorResponse defines the JSON payload returned when permission
+// middleware rejects a request.
 type permissionErrorResponse struct {
 	Code    int    `json:"code"`
 	Data    any    `json:"data"`

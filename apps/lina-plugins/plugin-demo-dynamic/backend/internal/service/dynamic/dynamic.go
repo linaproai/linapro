@@ -30,8 +30,12 @@ type Service interface {
 	BuildHostCallDemoPayload(input *HostCallDemoInput) (*hostCallDemoPayload, error)
 }
 
+// Interface compliance assertion for the default dynamic sample service
+// implementation.
 var _ Service = (*serviceImpl)(nil)
 
+// runtimeHostService abstracts guest runtime host-call helpers used by the
+// sample service.
 type runtimeHostService interface {
 	// Log writes one structured runtime log entry through the host.
 	Log(level int, message string, fields map[string]string) error
@@ -47,6 +51,8 @@ type runtimeHostService interface {
 	Node() (string, error)
 }
 
+// storageHostService abstracts guest storage host-call helpers used by the
+// sample service.
 type storageHostService interface {
 	// Put writes one governed storage object.
 	Put(objectPath string, body []byte, contentType string, overwrite bool) (*pluginbridge.HostServiceStorageObject, error)
@@ -60,6 +66,8 @@ type storageHostService interface {
 	Stat(objectPath string) (*pluginbridge.HostServiceStorageObject, bool, error)
 }
 
+// networkHostService abstracts guest outbound HTTP host-call helpers used by
+// the sample service.
 type networkHostService interface {
 	// Request executes one governed outbound HTTP request through the host.
 	Request(targetURL string, request *pluginbridge.HostServiceNetworkRequest) (*pluginbridge.HostServiceNetworkResponse, error)

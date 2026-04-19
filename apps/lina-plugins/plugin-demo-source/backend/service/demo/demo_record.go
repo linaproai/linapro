@@ -18,6 +18,8 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
+// Demo-record constants define the table schema fields and paging defaults
+// used by the source-plugin sample service.
 const (
 	demoRecordTableName           = "plugin_demo_source_record"
 	demoRecordColumnID            = "id"
@@ -122,6 +124,8 @@ type AttachmentDownloadOutput struct {
 	ContentType string
 }
 
+// demoRecordEntity is the internal record shape loaded from the source-plugin
+// sample table.
 type demoRecordEntity struct {
 	Id             int64       `json:"id"`
 	Title          string      `json:"title"`
@@ -132,6 +136,8 @@ type demoRecordEntity struct {
 	UpdatedAt      *gtime.Time `json:"updatedAt"`
 }
 
+// demoRecordMutation is the DB mutation shape used for create and update
+// operations.
 type demoRecordMutation struct {
 	Title          string  `json:"title"`
 	Content        string  `json:"content"`
@@ -334,6 +340,7 @@ func (s *serviceImpl) BuildAttachmentDownload(
 	}, nil
 }
 
+// getRecordEntity loads one sample record entity by primary key.
 func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecordEntity, error) {
 	if err := ensureDemoRecordTableReady(ctx); err != nil {
 		return nil, err
@@ -355,6 +362,8 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 	return record, nil
 }
 
+// ensureDemoRecordTableReady verifies the sample table exists before CRUD work
+// continues.
 func ensureDemoRecordTableReady(ctx context.Context) error {
 	fields, err := g.DB().TableFields(ctx, demoRecordTableName)
 	if err != nil {
@@ -366,6 +375,7 @@ func ensureDemoRecordTableReady(ctx context.Context) error {
 	return nil
 }
 
+// normalizeListPagination applies paging defaults and max-page-size limits.
 func normalizeListPagination(in *ListRecordsInput) (int, int) {
 	if in == nil {
 		return defaultPageNum, defaultPageSize
@@ -385,6 +395,7 @@ func normalizeListPagination(in *ListRecordsInput) (int, int) {
 	return pageNum, pageSize
 }
 
+// validateRecordTitle validates the required sample record title field.
 func validateRecordTitle(title string) error {
 	if strings.TrimSpace(title) == "" {
 		return gerror.New("记录标题不能为空")
@@ -392,6 +403,8 @@ func validateRecordTitle(title string) error {
 	return nil
 }
 
+// buildRecordListItemOutput converts one internal entity into the list item
+// response shape.
 func buildRecordListItemOutput(item *demoRecordEntity) *RecordListItemOutput {
 	if item == nil {
 		return &RecordListItemOutput{}
@@ -407,6 +420,7 @@ func buildRecordListItemOutput(item *demoRecordEntity) *RecordListItemOutput {
 	}
 }
 
+// formatRecordTime formats one optional GoFrame time value for API output.
 func formatRecordTime(value *gtime.Time) string {
 	if value == nil {
 		return ""
@@ -414,10 +428,13 @@ func formatRecordTime(value *gtime.Time) string {
 	return value.String()
 }
 
+// stringPointer allocates one string pointer for optional DB mutation fields.
 func stringPointer(value string) *string {
 	return &value
 }
 
+// listAllAttachmentPaths returns all persisted attachment paths stored by the
+// sample records table.
 func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 	fields, err := g.DB().TableFields(ctx, demoRecordTableName)
 	if err != nil {
@@ -444,10 +461,14 @@ func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 	return paths, nil
 }
 
+// withRecordTransaction runs one handler inside the shared source-plugin record
+// transaction boundary.
 func withRecordTransaction(ctx context.Context, handler func(ctx context.Context, tx gdb.TX) error) error {
 	return g.DB().Transaction(ctx, handler)
 }
 
+// fileExists reports whether the path exists and points to a regular
+// non-directory file.
 func fileExists(path string) bool {
 	fileInfo, err := os.Stat(path)
 	return err == nil && !fileInfo.IsDir()

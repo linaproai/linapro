@@ -7,23 +7,32 @@ import (
 	"testing"
 )
 
+// guestRouteTestController provides reflected handlers for guest route
+// dispatcher tests.
 type guestRouteTestController struct{}
 
+// BackendSummary returns a deterministic JSON payload for successful dispatch
+// assertions.
 func (c *guestRouteTestController) BackendSummary(
 	request *BridgeRequestEnvelopeV1,
 ) (*BridgeResponseEnvelopeV1, error) {
 	return NewJSONResponse(200, []byte(`{"requestId":"`+request.RequestID+`"}`)), nil
 }
 
+// Failure returns a controller error so dispatcher error propagation can be
+// asserted.
 func (c *guestRouteTestController) Failure(
-	request *BridgeRequestEnvelopeV1,
+	_ *BridgeRequestEnvelopeV1,
 ) (*BridgeResponseEnvelopeV1, error) {
-	_ = request
 	return nil, errors.New("boom")
 }
 
+// IgnoredMethod does not match the dispatcher signature and should be ignored
+// during controller reflection.
 func (c *guestRouteTestController) IgnoredMethod() {}
 
+// TestGuestControllerRouteDispatcherDispatchesByRequestType verifies reflected
+// request-type dispatch finds the matching controller method.
 func TestGuestControllerRouteDispatcherDispatchesByRequestType(t *testing.T) {
 	dispatcher, err := NewGuestControllerRouteDispatcher(&guestRouteTestController{})
 	if err != nil {
@@ -47,6 +56,8 @@ func TestGuestControllerRouteDispatcherDispatchesByRequestType(t *testing.T) {
 	}
 }
 
+// TestGuestControllerRouteDispatcherReturnsControllerError verifies controller
+// errors are returned without a synthesized bridge response.
 func TestGuestControllerRouteDispatcherReturnsControllerError(t *testing.T) {
 	dispatcher, err := NewGuestControllerRouteDispatcher(&guestRouteTestController{})
 	if err != nil {
@@ -66,6 +77,8 @@ func TestGuestControllerRouteDispatcherReturnsControllerError(t *testing.T) {
 	}
 }
 
+// TestGuestControllerRouteDispatcherRejectsMissingRequestType verifies the
+// dispatcher responds with a bad request when requestType is absent.
 func TestGuestControllerRouteDispatcherRejectsMissingRequestType(t *testing.T) {
 	dispatcher, err := NewGuestControllerRouteDispatcher(&guestRouteTestController{})
 	if err != nil {
@@ -83,6 +96,8 @@ func TestGuestControllerRouteDispatcherRejectsMissingRequestType(t *testing.T) {
 	}
 }
 
+// TestGuestControllerRouteDispatcherFallsBackToInternalPath verifies internal
+// path dispatch works when requestType is not supplied.
 func TestGuestControllerRouteDispatcherFallsBackToInternalPath(t *testing.T) {
 	dispatcher, err := NewGuestControllerRouteDispatcher(&guestRouteTestController{})
 	if err != nil {
@@ -103,6 +118,8 @@ func TestGuestControllerRouteDispatcherFallsBackToInternalPath(t *testing.T) {
 	}
 }
 
+// TestGuestControllerRouteDispatcherReturnsNotFound verifies unknown reflected
+// handlers return a not-found bridge response.
 func TestGuestControllerRouteDispatcherReturnsNotFound(t *testing.T) {
 	dispatcher, err := NewGuestControllerRouteDispatcher(&guestRouteTestController{})
 	if err != nil {

@@ -12,11 +12,15 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
+// Opcode constants identify structured host-call operation kinds exchanged
+// between guest and host runtimes.
 const (
 	// OpcodeServiceInvoke is the single structured host service invocation opcode.
 	OpcodeServiceInvoke uint32 = 0x0001
 )
 
+// Capability constants describe the coarse-grained permissions implied by host
+// service declarations.
 const (
 	// CapabilityRuntime grants access to runtime log/state/info host services.
 	CapabilityRuntime = "host:runtime"
@@ -42,6 +46,8 @@ const (
 	CapabilityNotify = "host:notify"
 )
 
+// Host service identifiers declare the logical service families exposed by the
+// host runtime to plugins.
 const (
 	// HostServiceRuntime is the runtime host service identifier.
 	HostServiceRuntime = "runtime"
@@ -65,6 +71,8 @@ const (
 	HostServiceNotify = "notify"
 )
 
+// Runtime host-service methods describe runtime logging, state, and info
+// operations available to authorized plugins.
 const (
 	// HostServiceMethodRuntimeLogWrite writes one structured runtime log entry.
 	HostServiceMethodRuntimeLogWrite = "log.write"
@@ -82,6 +90,8 @@ const (
 	HostServiceMethodRuntimeInfoNode = "info.node"
 )
 
+// Storage host-service methods describe governed file operations under the
+// plugin storage sandbox.
 const (
 	// HostServiceMethodStoragePut writes one governed storage object.
 	HostServiceMethodStoragePut = "put"
@@ -95,11 +105,14 @@ const (
 	HostServiceMethodStorageStat = "stat"
 )
 
+// Network host-service methods describe governed outbound HTTP operations.
 const (
 	// HostServiceMethodNetworkRequest executes one governed outbound HTTP request.
 	HostServiceMethodNetworkRequest = "request"
 )
 
+// Data host-service methods describe governed table operations authorized by
+// host manifest declarations.
 const (
 	// HostServiceMethodDataList executes one governed paged list query against an authorized data table.
 	HostServiceMethodDataList = "list"
@@ -115,6 +128,7 @@ const (
 	HostServiceMethodDataTransaction = "transaction"
 )
 
+// Cache host-service methods describe governed cache access primitives.
 const (
 	// HostServiceMethodCacheGet reads one governed cache value.
 	HostServiceMethodCacheGet = "get"
@@ -128,6 +142,7 @@ const (
 	HostServiceMethodCacheExpire = "expire"
 )
 
+// Lock host-service methods describe governed distributed lock operations.
 const (
 	// HostServiceMethodLockAcquire acquires one governed distributed lock.
 	HostServiceMethodLockAcquire = "acquire"
@@ -137,11 +152,15 @@ const (
 	HostServiceMethodLockRelease = "release"
 )
 
+// Notify host-service methods describe governed notification dispatch
+// operations.
 const (
 	// HostServiceMethodNotifySend sends one governed notification message.
 	HostServiceMethodNotifySend = "send"
 )
 
+// Storage visibility constants describe the serving posture attached to plugin
+// storage objects.
 const (
 	// HostServiceStorageVisibilityPrivate keeps storage objects internal to host-call access only.
 	HostServiceStorageVisibilityPrivate = "private"
@@ -181,6 +200,8 @@ type HostServiceResourceSpec struct {
 	Attributes map[string]string `json:"attributes,omitempty" yaml:"attributes,omitempty"`
 }
 
+// Shared host-service lookup tables drive capability derivation and per-service
+// validation rules used by manifest normalization.
 var (
 	hostServiceMethodCapabilityMap = map[string]map[string]string{
 		HostServiceRuntime: {
@@ -562,14 +583,18 @@ func CapabilitySliceToMap(capabilities []string) map[string]struct{} {
 	return result
 }
 
+// normalizeHostServiceName trims and lowercases one host service identifier.
 func normalizeHostServiceName(value string) string {
 	return normalizeLower(value, "")
 }
 
+// normalizeHostServiceMethod trims and lowercases one host service method name.
 func normalizeHostServiceMethod(value string) string {
 	return normalizeLower(value, "")
 }
 
+// normalizeStoragePathSlice normalizes declared storage paths and drops invalid
+// entries for clone-style normalization flows.
 func normalizeStoragePathSlice(paths []string) []string {
 	if len(paths) == 0 {
 		return nil
@@ -586,6 +611,8 @@ func normalizeStoragePathSlice(paths []string) []string {
 	return items
 }
 
+// normalizeStorageDeclaredPath validates one logical storage path and preserves
+// trailing-slash semantics for prefix grants.
 func normalizeStorageDeclaredPath(value string) (string, error) {
 	raw := strings.ReplaceAll(strings.TrimSpace(value), "\\", "/")
 	if raw == "" {
@@ -614,6 +641,8 @@ func normalizeStorageDeclaredPath(value string) (string, error) {
 	return normalized, nil
 }
 
+// validateNetworkURLPattern validates one authorized network URL pattern before
+// it is accepted into manifest state.
 func validateNetworkURLPattern(rawValue string) error {
 	trimmed := strings.TrimSpace(rawValue)
 	if trimmed == "" {
@@ -638,6 +667,8 @@ func validateNetworkURLPattern(rawValue string) error {
 	return nil
 }
 
+// normalizeLowerStringSlice trims, lowercases, de-duplicates, and sorts one
+// string slice.
 func normalizeLowerStringSlice(items []string) []string {
 	seen := make(map[string]struct{}, len(items))
 	result := make([]string, 0, len(items))
@@ -656,6 +687,8 @@ func normalizeLowerStringSlice(items []string) []string {
 	return result
 }
 
+// normalizeUpperStringSlice trims, uppercases, de-duplicates, and sorts one
+// string slice.
 func normalizeUpperStringSlice(items []string) []string {
 	seen := make(map[string]struct{}, len(items))
 	result := make([]string, 0, len(items))
@@ -674,6 +707,8 @@ func normalizeUpperStringSlice(items []string) []string {
 	return result
 }
 
+// normalizeTableSlice trims, de-duplicates, and sorts declared data table
+// names.
 func normalizeTableSlice(items []string) []string {
 	seen := make(map[string]struct{}, len(items))
 	result := make([]string, 0, len(items))
@@ -692,6 +727,8 @@ func normalizeTableSlice(items []string) []string {
 	return result
 }
 
+// normalizeStringMap trims keys and values while discarding empty keys from a
+// metadata map.
 func normalizeStringMap(items map[string]string) map[string]string {
 	if len(items) == 0 {
 		return nil

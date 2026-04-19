@@ -35,6 +35,7 @@ type HookPayload interface {
 	Values() map[string]interface{}
 }
 
+// hookPayload is the host-owned implementation of the published HookPayload view.
 type hookPayload struct {
 	point  ExtensionPoint
 	values map[string]interface{}
@@ -119,6 +120,7 @@ type AfterAuthInput interface {
 	Status() int
 }
 
+// afterAuthInput is the host-owned implementation of AfterAuthInput.
 type afterAuthInput struct {
 	request  *ghttp.Request
 	tokenID  string
@@ -136,6 +138,8 @@ type SourcePluginUninstallInput interface {
 	PurgeStorageData() bool
 }
 
+// sourcePluginUninstallInput is the host-owned implementation of the published
+// uninstall policy snapshot passed to source plugins.
 type sourcePluginUninstallInput struct {
 	pluginID         string
 	purgeStorageData bool
@@ -177,6 +181,7 @@ type MenuDescriptor interface {
 	Status() int
 }
 
+// menuDescriptor is the host-owned implementation of MenuDescriptor.
 type menuDescriptor struct {
 	id         int
 	parentID   int
@@ -203,6 +208,7 @@ type PermissionDescriptor interface {
 	Permission() string
 }
 
+// permissionDescriptor is the host-owned implementation of PermissionDescriptor.
 type permissionDescriptor struct {
 	menuKey    string
 	menuName   string
@@ -517,6 +523,7 @@ func (p *SourcePlugin) GetUninstallHandler() SourcePluginUninstallHandler {
 	return p.uninstallHandler
 }
 
+// ExtensionPoint returns the published extension point of the current hook payload.
 func (p *hookPayload) ExtensionPoint() ExtensionPoint {
 	if p == nil {
 		return ""
@@ -524,6 +531,7 @@ func (p *hookPayload) ExtensionPoint() ExtensionPoint {
 	return p.point
 }
 
+// Value returns one published payload field by key.
 func (p *hookPayload) Value(key string) interface{} {
 	if p == nil {
 		return nil
@@ -531,6 +539,7 @@ func (p *hookPayload) Value(key string) interface{} {
 	return p.values[key]
 }
 
+// Values returns a shallow copy of all published payload fields.
 func (p *hookPayload) Values() map[string]interface{} {
 	if p == nil {
 		return map[string]interface{}{}
@@ -538,6 +547,7 @@ func (p *hookPayload) Values() map[string]interface{} {
 	return cloneValueMap(p.values)
 }
 
+// Request returns the authenticated HTTP request exposed to after-auth callbacks.
 func (i *afterAuthInput) Request() *ghttp.Request {
 	if i == nil {
 		return nil
@@ -545,6 +555,7 @@ func (i *afterAuthInput) Request() *ghttp.Request {
 	return i.request
 }
 
+// SetResponseHeader writes one response header to the current HTTP response.
 func (i *afterAuthInput) SetResponseHeader(key string, value string) {
 	if i == nil || i.request == nil {
 		return
@@ -552,6 +563,7 @@ func (i *afterAuthInput) SetResponseHeader(key string, value string) {
 	i.request.Response.Header().Set(key, value)
 }
 
+// TokenID returns the current access token identifier.
 func (i *afterAuthInput) TokenID() string {
 	if i == nil {
 		return ""
@@ -559,6 +571,7 @@ func (i *afterAuthInput) TokenID() string {
 	return i.tokenID
 }
 
+// UserID returns the authenticated user identifier.
 func (i *afterAuthInput) UserID() int {
 	if i == nil {
 		return 0
@@ -566,6 +579,7 @@ func (i *afterAuthInput) UserID() int {
 	return i.userID
 }
 
+// Username returns the authenticated username.
 func (i *afterAuthInput) Username() string {
 	if i == nil {
 		return ""
@@ -573,6 +587,7 @@ func (i *afterAuthInput) Username() string {
 	return i.username
 }
 
+// Status returns the authenticated user status.
 func (i *afterAuthInput) Status() int {
 	if i == nil {
 		return 0
@@ -580,6 +595,7 @@ func (i *afterAuthInput) Status() int {
 	return i.status
 }
 
+// PluginID returns the source-plugin identifier being uninstalled.
 func (i *sourcePluginUninstallInput) PluginID() string {
 	if i == nil {
 		return ""
@@ -587,6 +603,7 @@ func (i *sourcePluginUninstallInput) PluginID() string {
 	return i.pluginID
 }
 
+// PurgeStorageData reports whether the host expects business data cleanup.
 func (i *sourcePluginUninstallInput) PurgeStorageData() bool {
 	if i == nil {
 		return false
@@ -594,6 +611,7 @@ func (i *sourcePluginUninstallInput) PurgeStorageData() bool {
 	return i.purgeStorageData
 }
 
+// ID returns the menu identifier.
 func (d *menuDescriptor) ID() int {
 	if d == nil {
 		return 0
@@ -601,6 +619,7 @@ func (d *menuDescriptor) ID() int {
 	return d.id
 }
 
+// ParentID returns the parent menu identifier.
 func (d *menuDescriptor) ParentID() int {
 	if d == nil {
 		return 0
@@ -608,6 +627,7 @@ func (d *menuDescriptor) ParentID() int {
 	return d.parentID
 }
 
+// Name returns the menu display name.
 func (d *menuDescriptor) Name() string {
 	if d == nil {
 		return ""
@@ -615,6 +635,7 @@ func (d *menuDescriptor) Name() string {
 	return d.name
 }
 
+// Path returns the menu route path.
 func (d *menuDescriptor) Path() string {
 	if d == nil {
 		return ""
@@ -622,6 +643,7 @@ func (d *menuDescriptor) Path() string {
 	return d.path
 }
 
+// Component returns the menu component binding.
 func (d *menuDescriptor) Component() string {
 	if d == nil {
 		return ""
@@ -629,6 +651,7 @@ func (d *menuDescriptor) Component() string {
 	return d.component
 }
 
+// Permissions returns the menu permission string.
 func (d *menuDescriptor) Permissions() string {
 	if d == nil {
 		return ""
@@ -636,6 +659,7 @@ func (d *menuDescriptor) Permissions() string {
 	return d.permission
 }
 
+// MenuKey returns the stable menu business key.
 func (d *menuDescriptor) MenuKey() string {
 	if d == nil {
 		return ""
@@ -643,6 +667,7 @@ func (d *menuDescriptor) MenuKey() string {
 	return d.menuKey
 }
 
+// Type returns the menu type code.
 func (d *menuDescriptor) Type() string {
 	if d == nil {
 		return ""
@@ -650,6 +675,7 @@ func (d *menuDescriptor) Type() string {
 	return d.menuType
 }
 
+// Visible returns the menu visibility status.
 func (d *menuDescriptor) Visible() int {
 	if d == nil {
 		return 0
@@ -657,6 +683,7 @@ func (d *menuDescriptor) Visible() int {
 	return d.visible
 }
 
+// Status returns the menu enabled status.
 func (d *menuDescriptor) Status() int {
 	if d == nil {
 		return 0
@@ -664,6 +691,7 @@ func (d *menuDescriptor) Status() int {
 	return d.status
 }
 
+// MenuKey returns the stable business key of the menu owning the permission.
 func (d *permissionDescriptor) MenuKey() string {
 	if d == nil {
 		return ""
@@ -671,6 +699,7 @@ func (d *permissionDescriptor) MenuKey() string {
 	return d.menuKey
 }
 
+// MenuName returns the display name of the menu owning the permission.
 func (d *permissionDescriptor) MenuName() string {
 	if d == nil {
 		return ""
@@ -678,6 +707,7 @@ func (d *permissionDescriptor) MenuName() string {
 	return d.menuName
 }
 
+// Permission returns the concrete permission string.
 func (d *permissionDescriptor) Permission() string {
 	if d == nil {
 		return ""
@@ -685,6 +715,8 @@ func (d *permissionDescriptor) Permission() string {
 	return d.permission
 }
 
+// normalizeCallbackExecutionMode validates one callback mode against the
+// published pluginhost contract for the given extension point.
 func normalizeCallbackExecutionMode(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
@@ -701,6 +733,8 @@ func normalizeCallbackExecutionMode(
 	return mode
 }
 
+// normalizeRegistrationPointMode validates a registration callback mode and
+// ensures the handler is registered against the expected extension point.
 func normalizeRegistrationPointMode(
 	point ExtensionPoint,
 	expected ExtensionPoint,
@@ -715,6 +749,7 @@ func normalizeRegistrationPointMode(
 	return normalizeCallbackExecutionMode(point, mode)
 }
 
+// cloneValueMap returns a shallow copy of the given payload value map.
 func cloneValueMap(values map[string]interface{}) map[string]interface{} {
 	if len(values) == 0 {
 		return map[string]interface{}{}

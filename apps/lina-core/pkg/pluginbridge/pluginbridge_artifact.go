@@ -3,6 +3,8 @@
 
 package pluginbridge
 
+// Wasm custom section constants define the metadata buckets embedded into
+// plugin artifacts for host discovery and execution.
 const (
 	// WasmSectionManifest stores plugin identity metadata.
 	WasmSectionManifest = "lina.plugin.manifest"

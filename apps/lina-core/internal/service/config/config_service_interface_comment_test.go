@@ -15,6 +15,8 @@ import (
 	"testing"
 )
 
+// TestAllServiceInterfaceMethodsHaveComments verifies every Service interface
+// method under internal/service keeps an adjacent explanatory comment.
 func TestAllServiceInterfaceMethodsHaveComments(t *testing.T) {
 	workingDir, err := os.Getwd()
 	if err != nil {

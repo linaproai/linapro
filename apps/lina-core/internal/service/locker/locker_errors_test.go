@@ -1,3 +1,5 @@
+// This file tests exported locker error values and their basic semantics.
+
 package locker
 
 import (
@@ -9,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2/test/gtest"
 )
 
+// TestErrors verifies locker error sentinels remain non-nil and stable.
 func TestErrors(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		// Verify error definitions

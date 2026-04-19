@@ -14,6 +14,8 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
+// Request-body limit constants define the default non-multipart ceiling and the
+// additional multipart envelope allowance.
 const (
 	defaultRequestBodyLimitBytes   int64 = 8 * 1024 * 1024
 	bytesPerMegabyte               int64 = 1024 * 1024

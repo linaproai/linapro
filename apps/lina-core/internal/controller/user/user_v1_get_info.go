@@ -11,6 +11,8 @@ import (
 	"lina-core/internal/service/menu"
 )
 
+// pluginHostedAssetPathPrefix marks runtime-mounted plugin asset menu entries
+// that should not be preferred over stable host routes as the default home path.
 const pluginHostedAssetPathPrefix = "/plugin-assets/"
 
 // GetInfo returns current logged-in user information

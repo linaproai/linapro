@@ -13,6 +13,7 @@ import (
 // MenuType defines the canonical display category for one plugin-declared menu entry.
 type MenuType string
 
+// Canonical menu type values used by plugin manifests and persisted menu rows.
 const (
 	// MenuTypeDirectory marks a directory/group menu.
 	MenuTypeDirectory MenuType = "D"

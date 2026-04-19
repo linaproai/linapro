@@ -12,6 +12,8 @@ import (
 	dynamicservice "lina-plugin-demo-dynamic/backend/internal/service/dynamic"
 )
 
+// decodeDemoRecordMutationBody decodes the JSON request body into the dynamic
+// sample mutation input.
 func decodeDemoRecordMutationBody(request *pluginbridge.BridgeRequestEnvelopeV1) (*dynamicservice.DemoRecordMutationInput, error) {
 	if request == nil || request.Request == nil || len(request.Request.Body) == 0 {
 		return nil, dynamicservice.NewDemoRecordInvalidInputError("请求体不能为空")
@@ -24,6 +26,8 @@ func decodeDemoRecordMutationBody(request *pluginbridge.BridgeRequestEnvelopeV1)
 	return input, nil
 }
 
+// readDynamicPathParam reads one trimmed path parameter from the bridge route
+// snapshot.
 func readDynamicPathParam(request *pluginbridge.BridgeRequestEnvelopeV1, key string) string {
 	if request == nil || request.Route == nil || len(request.Route.PathParams) == 0 {
 		return ""
@@ -31,6 +35,7 @@ func readDynamicPathParam(request *pluginbridge.BridgeRequestEnvelopeV1, key str
 	return strings.TrimSpace(request.Route.PathParams[key])
 }
 
+// readDynamicQueryValue reads the first trimmed query value for one key.
 func readDynamicQueryValue(request *pluginbridge.BridgeRequestEnvelopeV1, key string) string {
 	if request == nil || request.Route == nil || len(request.Route.QueryValues) == 0 {
 		return ""
@@ -43,6 +48,8 @@ func readDynamicQueryValue(request *pluginbridge.BridgeRequestEnvelopeV1, key st
 	return strings.TrimSpace(values[0])
 }
 
+// readDynamicQueryInt reads one query value and parses it as an integer,
+// returning zero on absence or parse failure.
 func readDynamicQueryInt(request *pluginbridge.BridgeRequestEnvelopeV1, key string) int {
 	value := readDynamicQueryValue(request, key)
 	if value == "" {
@@ -56,6 +63,8 @@ func readDynamicQueryInt(request *pluginbridge.BridgeRequestEnvelopeV1, key stri
 	return parsedValue
 }
 
+// hasDynamicQueryFlag reports whether one query key contains a truthy flag
+// value.
 func hasDynamicQueryFlag(request *pluginbridge.BridgeRequestEnvelopeV1, key string) bool {
 	if request == nil || request.Route == nil || len(request.Route.QueryValues) == 0 {
 		return false

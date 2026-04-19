@@ -48,16 +48,19 @@ type bundleFile struct {
 	Content []byte
 }
 
+// bundleOpenFile wraps one asset reader so bundleFS can satisfy fs.File.
 type bundleOpenFile struct {
 	name   string
 	reader *bytes.Reader
 }
 
+// bundleFileInfo exposes virtual file metadata for one in-memory asset.
 type bundleFileInfo struct {
 	name string
 	size int64
 }
 
+// frontendBundleCache stores cached frontend bundles keyed by plugin ID and version.
 var frontendBundleCache = struct {
 	items map[string]*bundle
 	mu    sync.RWMutex
@@ -84,10 +87,13 @@ func NormalizeAssetPath(relativePath string) string {
 	return normalized
 }
 
+// buildBundleCacheKey builds the stable cache key for one plugin release bundle.
 func buildBundleCacheKey(pluginID string, version string) string {
 	return strings.TrimSpace(pluginID) + "@" + strings.TrimSpace(version)
 }
 
+// buildBundle materializes one immutable in-memory bundle from the runtime
+// artifact assets embedded inside the manifest.
 func buildBundle(manifest *catalog.Manifest) (*bundle, error) {
 	if manifest == nil {
 		return nil, gerror.New("插件清单不能为空")
@@ -139,6 +145,8 @@ func buildBundle(manifest *catalog.Manifest) (*bundle, error) {
 	}, nil
 }
 
+// matchesManifest reports whether the cached bundle still matches the manifest
+// identity and artifact checksum.
 func (b *bundle) matchesManifest(manifest *catalog.Manifest) bool {
 	if b == nil || manifest == nil || manifest.RuntimeArtifact == nil {
 		return false
@@ -208,6 +216,7 @@ func (fsys *bundleFS) Open(name string) (fs.File, error) {
 	return &bundleOpenFile{name: name, reader: bytes.NewReader(content)}, nil
 }
 
+// Stat returns virtual file metadata for the opened in-memory asset.
 func (f *bundleOpenFile) Stat() (fs.FileInfo, error) {
 	if f == nil || f.reader == nil {
 		return nil, fs.ErrInvalid
@@ -215,6 +224,7 @@ func (f *bundleOpenFile) Stat() (fs.FileInfo, error) {
 	return bundleFileInfo{name: filepath.Base(f.name), size: f.reader.Size()}, nil
 }
 
+// Read streams bytes from the in-memory asset reader.
 func (f *bundleOpenFile) Read(p []byte) (int, error) {
 	if f == nil || f.reader == nil {
 		return 0, fs.ErrInvalid
@@ -222,15 +232,29 @@ func (f *bundleOpenFile) Read(p []byte) (int, error) {
 	return f.reader.Read(p)
 }
 
+// Close is a no-op because bundle assets are backed by immutable byte slices.
 func (f *bundleOpenFile) Close() error { return nil }
 
-func (fi bundleFileInfo) Name() string       { return fi.name }
-func (fi bundleFileInfo) Size() int64        { return fi.size }
-func (fi bundleFileInfo) Mode() fs.FileMode  { return 0o444 }
-func (fi bundleFileInfo) ModTime() time.Time { return time.Time{} }
-func (fi bundleFileInfo) IsDir() bool        { return false }
-func (fi bundleFileInfo) Sys() interface{}   { return nil }
+// Name returns the virtual file name.
+func (fi bundleFileInfo) Name() string { return fi.name }
 
+// Size returns the virtual file size in bytes.
+func (fi bundleFileInfo) Size() int64 { return fi.size }
+
+// Mode returns a read-only permission mask for virtual bundle assets.
+func (fi bundleFileInfo) Mode() fs.FileMode { return 0o444 }
+
+// ModTime returns the zero timestamp because bundle assets do not track mtime.
+func (fi bundleFileInfo) ModTime() time.Time { return time.Time{} }
+
+// IsDir reports false because bundle assets are always files.
+func (fi bundleFileInfo) IsDir() bool { return false }
+
+// Sys returns nil because bundle assets have no platform-specific metadata.
+func (fi bundleFileInfo) Sys() interface{} { return nil }
+
+// normalizeRequestedAssetPath converts browser-facing asset requests into the
+// canonical bundle key while guarding against path traversal.
 func normalizeRequestedAssetPath(relativePath string) (string, error) {
 	trimmedPath := strings.TrimSpace(relativePath)
 	if trimmedPath == "" || trimmedPath == "/" {
@@ -332,6 +356,7 @@ func invalidateBundle(ctx context.Context, pluginID string, reason string) {
 	logger.Debugf(ctx, "runtime frontend bundle invalidate skipped plugin=%s reason=%s cache=empty", normalizedPluginID, strings.TrimSpace(reason))
 }
 
+// ResetBundleCache clears all in-memory frontend bundles. Intended for use in tests.
 // ResetBundleCache clears all in-memory frontend bundles. Intended for use in tests.
 func ResetBundleCache() {
 	frontendBundleCache.mu.Lock()

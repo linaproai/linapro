@@ -231,6 +231,8 @@ func normalizePluginResourceValue(value interface{}) interface{} {
 	}
 }
 
+// buildDefaultResourcePermission derives the fallback permission when a plugin
+// resource does not declare one explicitly.
 func buildDefaultResourcePermission(pluginID string, resourceID string) string {
 	return strings.TrimSpace(pluginID) + ":" + strings.TrimSpace(resourceID) + ":list"
 }

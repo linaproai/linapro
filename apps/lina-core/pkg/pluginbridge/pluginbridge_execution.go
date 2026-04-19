@@ -8,6 +8,8 @@ import "strings"
 // ExecutionSource identifies what triggered one plugin execution.
 type ExecutionSource string
 
+// Execution source constants enumerate the stable execution origins used in
+// audit, governance, and runtime flows.
 const (
 	// ExecutionSourceRoute marks one request-bound dynamic route execution.
 	ExecutionSourceRoute ExecutionSource = "route"

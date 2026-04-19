@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 )
 
+// Package-level logger state initialized lazily on first use.
 var (
 	logger   *glog.Logger
 	initOnce = sync.Once{}

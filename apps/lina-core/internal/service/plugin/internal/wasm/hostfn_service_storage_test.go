@@ -13,6 +13,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestHandleHostServiceInvokeStorageLifecycle verifies storage put/get/list/
+// delete/stat behavior against the plugin-scoped storage root.
 func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	storageRoot := t.TempDir()
 	config.SetPluginDynamicStoragePathOverride(storageRoot)
@@ -131,6 +133,8 @@ func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeStorageLifecycleWithRelativeStorageRoot verifies
+// relative storage root overrides resolve correctly before file operations.
 func TestHandleHostServiceInvokeStorageLifecycleWithRelativeStorageRoot(t *testing.T) {
 	storageRoot := t.TempDir()
 	workingDir, err := os.Getwd()
@@ -181,6 +185,8 @@ func TestHandleHostServiceInvokeStorageLifecycleWithRelativeStorageRoot(t *testi
 	}
 }
 
+// TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath verifies requests
+// outside the authorized logical path set are denied.
 func TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath(t *testing.T) {
 	config.SetPluginDynamicStoragePathOverride(t.TempDir())
 	t.Cleanup(func() {
@@ -203,6 +209,8 @@ func TestHandleHostServiceInvokeStorageRejectsUnauthorizedPath(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeStorageRejectsTargetMismatch verifies the request
+// payload path must match the declared target resource reference.
 func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 	config.SetPluginDynamicStoragePathOverride(t.TempDir())
 	t.Cleanup(func() {
@@ -225,6 +233,8 @@ func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 	}
 }
 
+// TestMatchAuthorizedStoragePath verifies logical prefix and exact-file path
+// matching for authorized storage resources.
 func TestMatchAuthorizedStoragePath(t *testing.T) {
 	specs := []*pluginbridge.HostServiceSpec{{
 		Service: pluginbridge.HostServiceStorage,
@@ -243,6 +253,8 @@ func TestMatchAuthorizedStoragePath(t *testing.T) {
 	}
 }
 
+// newStorageHostCallContext constructs a storage-capable host call context for
+// the provided authorized logical paths.
 func newStorageHostCallContext(paths []string) *hostCallContext {
 	return &hostCallContext{
 		pluginID: "test-plugin-storage",
@@ -263,6 +275,8 @@ func newStorageHostCallContext(paths []string) *hostCallContext {
 	}
 }
 
+// invokeStorageHostService dispatches a storage host-service request through
+// the shared handler and returns the raw response envelope.
 func invokeStorageHostService(
 	t *testing.T,
 	hcc *hostCallContext,

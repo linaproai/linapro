@@ -13,6 +13,8 @@ import (
 	"lina-core/internal/service/plugin/internal/testutil"
 )
 
+// TestSyncPluginResourceReferencesRevivesSoftDeletedRows verifies that sync can
+// revive previously soft-deleted governance rows instead of colliding on insert.
 func TestSyncPluginResourceReferencesRevivesSoftDeletedRows(t *testing.T) {
 	services := testutil.NewServices()
 	service := services.Integration

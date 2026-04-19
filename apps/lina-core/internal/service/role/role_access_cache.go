@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/logger"
 )
 
+// Permission access-cache keys and synchronization intervals.
 const (
 	accessCacheKeyPrefix       = "role:user-access:"
 	accessRevisionOwnerKey     = "authz"
@@ -26,18 +27,24 @@ const (
 	accessRevisionRefreshInterval = accessRevisionSyncInterval
 )
 
+// accessRevisionCacheKey is the shared KV key used to synchronize permission
+// topology revision changes across nodes.
 var accessRevisionCacheKey = kvcache.BuildCacheKey(
 	accessRevisionOwnerKey,
 	accessRevisionNamespace,
 	accessRevisionLogicalKey,
 )
 
+// cachedUserAccessContext stores one token-bound permission snapshot together
+// with the topology revision used to build it.
 type cachedUserAccessContext struct {
 	UserID   int                // UserID owns the cached access context.
 	Revision int64              // Revision is the permission topology version used to build the cache entry.
 	Access   *UserAccessContext // Access is the effective access snapshot for the token.
 }
 
+// accessCacheState tracks token-to-user and user-to-token relationships so
+// invalidation can evict all related access snapshots efficiently.
 var accessCacheState = struct {
 	sync.RWMutex
 	tokenUsers map[string]int
@@ -47,12 +54,15 @@ var accessCacheState = struct {
 	userTokens: map[int]map[string]struct{}{},
 }
 
+// accessRevisionState stores the latest shared permission-topology revision
+// visible to the current process together with its refresh deadline.
 var accessRevisionState = struct {
 	sync.RWMutex
 	value    int64
 	expireAt time.Time
 }{}
 
+// accessContextCache stores token-scoped access snapshots keyed by login token.
 var accessContextCache = gcache.New()
 
 // AccessRevisionSyncInterval returns the watcher interval used to synchronize

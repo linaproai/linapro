@@ -11,6 +11,8 @@ import (
 )
 
 // handleHostServiceInvoke validates and dispatches one structured host service invocation.
+// handleHostServiceInvoke validates capability and authorization state before
+// dispatching one structured host service invocation.
 func handleHostServiceInvoke(
 	ctx context.Context,
 	hcc *hostCallContext,

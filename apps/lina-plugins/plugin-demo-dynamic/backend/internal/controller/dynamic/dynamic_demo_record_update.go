@@ -29,6 +29,8 @@ func (c *Controller) UpdateDemoRecord(request *pluginbridge.BridgeRequestEnvelop
 	return pluginbridge.NewJSONResponse(200, content), nil
 }
 
+// buildDemoRecordUpdateRouteInput decodes the update body and returns the
+// targeted record identifier from path parameters.
 func buildDemoRecordUpdateRouteInput(
 	request *pluginbridge.BridgeRequestEnvelopeV1,
 ) (string, *dynamicservice.DemoRecordMutationInput, error) {

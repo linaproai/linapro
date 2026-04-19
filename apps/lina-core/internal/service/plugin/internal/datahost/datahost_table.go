@@ -111,6 +111,7 @@ func BuildAuthorizedTableContract(
 	}, nil
 }
 
+// sortTableFields returns table fields in schema order with name tie-breaking.
 func sortTableFields(fields map[string]*gdb.TableField) []*gdb.TableField {
 	ordered := make([]*gdb.TableField, 0, len(fields))
 	for _, field := range fields {
@@ -127,6 +128,7 @@ func sortTableFields(fields map[string]*gdb.TableField) []*gdb.TableField {
 	return ordered
 }
 
+// normalizeAuthorizedTableMethods trims, lowercases, sorts, and returns authorized methods.
 func normalizeAuthorizedTableMethods(methods []string) []string {
 	allowed := make([]string, 0, len(methods))
 	for _, method := range methods {
@@ -142,6 +144,7 @@ func normalizeAuthorizedTableMethods(methods []string) []string {
 	return allowed
 }
 
+// isAutoManagedTableField reports whether the host manages the field automatically.
 func isAutoManagedTableField(field *gdb.TableField) bool {
 	if field == nil {
 		return true
@@ -159,6 +162,7 @@ func isAutoManagedTableField(field *gdb.TableField) bool {
 	}
 }
 
+// buildTableFieldAlias converts snake_case columns into logical camelCase field names.
 func buildTableFieldAlias(columnName string) string {
 	normalized := strings.TrimSpace(strings.ToLower(columnName))
 	if normalized == "" || !strings.Contains(normalized, "_") {

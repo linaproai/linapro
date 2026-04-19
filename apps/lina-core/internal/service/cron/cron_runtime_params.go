@@ -13,10 +13,14 @@ import (
 	"lina-core/pkg/logger"
 )
 
+// localRuntimeParamSnapshotSyncJob performs startup warm-up for protected
+// runtime-parameter snapshots in single-node mode.
 type localRuntimeParamSnapshotSyncJob struct {
 	configSvc hostconfig.Service
 }
 
+// clusterRuntimeParamSnapshotSyncJob performs warm-up and registers the
+// periodic cluster watcher for runtime-parameter revisions.
 type clusterRuntimeParamSnapshotSyncJob struct {
 	configSvc hostconfig.Service
 }

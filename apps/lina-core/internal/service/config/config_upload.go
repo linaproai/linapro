@@ -6,6 +6,7 @@ import (
 	"context"
 )
 
+// Upload config defaults used when config.yaml omits the upload section.
 const (
 	defaultUploadPath    = "temp/upload"
 	defaultUploadMaxSize = int64(10)

@@ -211,6 +211,8 @@ func (s *serviceImpl) buildManifestSnapshot(manifest *Manifest, existing *entity
 	return string(content), nil
 }
 
+// buildManifestSnapshotModel converts one manifest into the review-oriented
+// release snapshot model persisted in sys_plugin_release.
 func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) *ManifestSnapshot {
 	if manifest == nil {
 		return nil
@@ -292,6 +294,8 @@ func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
 	return snapshot, nil
 }
 
+// applyReleaseAuthorizedHostServices restores the host-confirmed service
+// snapshot from the persisted release metadata onto the active manifest.
 func (s *serviceImpl) applyReleaseAuthorizedHostServices(manifest *Manifest, release *entity.SysPluginRelease) error {
 	if manifest == nil || release == nil {
 		return nil
@@ -414,6 +418,7 @@ func (s *serviceImpl) countSQLAssets(manifest *Manifest, direction MigrationDire
 	return len(s.ListUninstallSQLPaths(manifest))
 }
 
+// buildFrontendPageCount counts discovered source-plugin frontend pages.
 func (s *serviceImpl) buildFrontendPageCount(manifest *Manifest) int {
 	if manifest == nil || NormalizeType(manifest.Type) != TypeSource {
 		return 0
@@ -421,6 +426,7 @@ func (s *serviceImpl) buildFrontendPageCount(manifest *Manifest) int {
 	return len(s.ListFrontendPagePaths(manifest))
 }
 
+// buildFrontendSlotCount counts discovered source-plugin frontend slot entries.
 func (s *serviceImpl) buildFrontendSlotCount(manifest *Manifest) int {
 	if manifest == nil || NormalizeType(manifest.Type) != TypeSource {
 		return 0
@@ -428,6 +434,7 @@ func (s *serviceImpl) buildFrontendSlotCount(manifest *Manifest) int {
 	return len(s.ListFrontendSlotPaths(manifest))
 }
 
+// buildDynamicKind returns the runtime kind recorded in the embedded artifact.
 func buildDynamicKind(manifest *Manifest) string {
 	if manifest == nil || manifest.RuntimeArtifact == nil {
 		return ""
@@ -435,6 +442,7 @@ func buildDynamicKind(manifest *Manifest) string {
 	return manifest.RuntimeArtifact.RuntimeKind
 }
 
+// buildDynamicABIVersion returns the ABI version recorded in the embedded artifact.
 func buildDynamicABIVersion(manifest *Manifest) string {
 	if manifest == nil || manifest.RuntimeArtifact == nil {
 		return ""
@@ -442,6 +450,7 @@ func buildDynamicABIVersion(manifest *Manifest) string {
 	return manifest.RuntimeArtifact.ABIVersion
 }
 
+// buildDynamicFrontendAssetCount returns the embedded frontend asset count.
 func buildDynamicFrontendAssetCount(manifest *Manifest) int {
 	if manifest == nil || manifest.RuntimeArtifact == nil {
 		return 0
@@ -449,6 +458,7 @@ func buildDynamicFrontendAssetCount(manifest *Manifest) int {
 	return manifest.RuntimeArtifact.FrontendAssetCount
 }
 
+// buildDynamicSQLAssetCount returns the embedded SQL asset count.
 func buildDynamicSQLAssetCount(manifest *Manifest) int {
 	if manifest == nil || manifest.RuntimeArtifact == nil {
 		return 0
@@ -456,6 +466,7 @@ func buildDynamicSQLAssetCount(manifest *Manifest) int {
 	return manifest.RuntimeArtifact.SQLAssetCount
 }
 
+// buildDynamicRouteExecutionEnabled reports whether the runtime bridge allows route execution.
 func buildDynamicRouteExecutionEnabled(manifest *Manifest) bool {
 	if manifest == nil || manifest.BridgeSpec == nil {
 		return false
@@ -463,6 +474,7 @@ func buildDynamicRouteExecutionEnabled(manifest *Manifest) bool {
 	return manifest.BridgeSpec.RouteExecution
 }
 
+// buildDynamicRouteRequestCodec returns the declared bridge request codec.
 func buildDynamicRouteRequestCodec(manifest *Manifest) string {
 	if manifest == nil || manifest.BridgeSpec == nil {
 		return ""
@@ -470,6 +482,7 @@ func buildDynamicRouteRequestCodec(manifest *Manifest) string {
 	return manifest.BridgeSpec.RequestCodec
 }
 
+// buildDynamicRouteResponseCodec returns the declared bridge response codec.
 func buildDynamicRouteResponseCodec(manifest *Manifest) string {
 	if manifest == nil || manifest.BridgeSpec == nil {
 		return ""

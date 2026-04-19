@@ -17,6 +17,8 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// TestPluginDemoRuntimePluginMatchesReviewSource verifies that the reviewed
+// demo source plugin still produces a runtime artifact aligned with its sources.
 func TestPluginDemoRuntimePluginMatchesReviewSource(t *testing.T) {
 	services := testutil.NewServices()
 
@@ -108,6 +110,8 @@ func TestPluginDemoRuntimePluginMatchesReviewSource(t *testing.T) {
 	}
 }
 
+// stageRuntimePluginForValidation builds the runtime artifact and stages it in
+// a temporary plugin directory for manifest validation.
 func stageRuntimePluginForValidation(t *testing.T, sourcePluginDir string) string {
 	t.Helper()
 
@@ -136,6 +140,8 @@ func stageRuntimePluginForValidation(t *testing.T, sourcePluginDir string) strin
 	return targetPluginDir
 }
 
+// mustCollectDynamicFrontendAssets loads the reviewed frontend source assets so
+// they can be compared with the embedded runtime artifact payload.
 func mustCollectDynamicFrontendAssets(t *testing.T, pluginDir string) []*catalog.ArtifactFrontendAsset {
 	t.Helper()
 
@@ -161,6 +167,8 @@ func mustCollectDynamicFrontendAssets(t *testing.T, pluginDir string) []*catalog
 	return assets
 }
 
+// mustCollectDynamicSQLAssets loads install or uninstall SQL files from the
+// reviewed source tree for artifact parity checks.
 func mustCollectDynamicSQLAssets(t *testing.T, pluginDir string, uninstall bool) []*catalog.ArtifactSQLAsset {
 	t.Helper()
 
@@ -192,6 +200,8 @@ func mustCollectDynamicSQLAssets(t *testing.T, pluginDir string, uninstall bool)
 	return assets
 }
 
+// assertRuntimeFrontendAssetsMatch verifies that embedded frontend assets match
+// the reviewed source files exactly by path and content.
 func assertRuntimeFrontendAssetsMatch(
 	t *testing.T,
 	expected []*catalog.ArtifactFrontendAsset,
@@ -219,6 +229,8 @@ func assertRuntimeFrontendAssetsMatch(
 	}
 }
 
+// assertRuntimeSQLAssetsMatch verifies that embedded SQL assets preserve source
+// order, file names, and trimmed content.
 func assertRuntimeSQLAssetsMatch(
 	t *testing.T,
 	expected []*catalog.ArtifactSQLAsset,

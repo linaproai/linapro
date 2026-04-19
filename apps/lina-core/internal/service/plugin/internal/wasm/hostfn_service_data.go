@@ -9,6 +9,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// dispatchDataHostService routes governed data service methods to the structured data host layer.
 func dispatchDataHostService(
 	ctx context.Context,
 	hcc *hostCallContext,

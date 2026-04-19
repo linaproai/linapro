@@ -22,6 +22,7 @@ import (
 	"lina-core/pkg/pluginfs"
 )
 
+// Local directory layout and pagination limits for the governed storage service.
 const (
 	storageHostServiceRootDirName = ".host-services"
 	storageHostServiceDirName     = "storage"
@@ -29,13 +30,17 @@ const (
 	maxStorageListLimit           = 1000
 )
 
+// storageConfigSvc provides the runtime storage root configuration.
 var storageConfigSvc = config.New()
 
+// storageResourceConfig stores the resolved storage root and visibility for one plugin.
 type storageResourceConfig struct {
 	rootDir    string
 	visibility string
 }
 
+// dispatchStorageHostService routes storage host service methods to the local
+// governed storage implementation.
 func dispatchStorageHostService(
 	ctx context.Context,
 	hcc *hostCallContext,
@@ -74,6 +79,7 @@ func dispatchStorageHostService(
 	}
 }
 
+// handleStoragePut writes one governed storage object.
 func handleStoragePut(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
@@ -133,6 +139,7 @@ func handleStoragePut(
 	)
 }
 
+// handleStorageGet reads one governed storage object.
 func handleStorageGet(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
@@ -186,6 +193,7 @@ func handleStorageGet(
 	)
 }
 
+// handleStorageDelete deletes one governed storage object.
 func handleStorageDelete(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
@@ -215,6 +223,7 @@ func handleStorageDelete(
 	return pluginbridge.NewHostCallEmptySuccessResponse()
 }
 
+// handleStorageList lists governed storage objects under the authorized prefix.
 func handleStorageList(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
@@ -250,6 +259,7 @@ func handleStorageList(
 	)
 }
 
+// handleStorageStat returns metadata for one governed storage object.
 func handleStorageStat(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
@@ -296,6 +306,7 @@ func handleStorageStat(
 	)
 }
 
+// buildStorageResourceConfig resolves the plugin-scoped storage root for the current host call.
 func buildStorageResourceConfig(
 	ctx context.Context,
 	hcc *hostCallContext,
@@ -321,6 +332,7 @@ func buildStorageResourceConfig(
 	}, nil
 }
 
+// validateWritePolicy enforces basic write constraints for storage uploads.
 func (resourceConfig *storageResourceConfig) validateWritePolicy(bodySize int64) error {
 	if resourceConfig == nil {
 		return gerror.New("storage resource config is nil")
@@ -331,6 +343,7 @@ func (resourceConfig *storageResourceConfig) validateWritePolicy(bodySize int64)
 	return nil
 }
 
+// resolveObjectPath resolves one logical object path under the plugin storage root.
 func (resourceConfig *storageResourceConfig) resolveObjectPath(objectPath string) (string, error) {
 	normalizedObjectPath, err := normalizeStorageObjectPath(objectPath)
 	if err != nil {
@@ -345,10 +358,12 @@ func (resourceConfig *storageResourceConfig) resolveObjectPath(objectPath string
 	return fullPath, nil
 }
 
+// normalizeStorageObjectPath canonicalizes one logical object path.
 func normalizeStorageObjectPath(rawPath string) (string, error) {
 	return pluginfs.NormalizeRelativePath(rawPath)
 }
 
+// normalizeStorageListPrefix canonicalizes one required list prefix.
 func normalizeStorageListPrefix(rawPrefix string) (string, error) {
 	trimmed := strings.TrimSpace(rawPrefix)
 	if trimmed == "" {
@@ -357,6 +372,7 @@ func normalizeStorageListPrefix(rawPrefix string) (string, error) {
 	return pluginfs.NormalizeRelativePath(trimmed)
 }
 
+// normalizeStorageAuthorizedPath canonicalizes one authorized storage target or prefix.
 func normalizeStorageAuthorizedPath(rawPath string) (string, error) {
 	trimmed := strings.ReplaceAll(strings.TrimSpace(rawPath), "\\", "/")
 	if trimmed == "" {
@@ -377,6 +393,7 @@ func normalizeStorageAuthorizedPath(rawPath string) (string, error) {
 	return normalized, nil
 }
 
+// matchAuthorizedStoragePath returns the authorized path pattern that matches the target.
 func matchAuthorizedStoragePath(specs []*pluginbridge.HostServiceSpec, targetPath string) string {
 	normalizedTarget, err := normalizeStorageAuthorizedPath(targetPath)
 	if err != nil {
@@ -398,6 +415,7 @@ func matchAuthorizedStoragePath(specs []*pluginbridge.HostServiceSpec, targetPat
 	return ""
 }
 
+// matchStoragePathPattern matches exact object paths and directory-prefix patterns.
 func matchStoragePathPattern(pattern string, target string) bool {
 	normalizedPattern, err := normalizeStorageAuthorizedPath(pattern)
 	if err != nil {
@@ -414,6 +432,7 @@ func matchStoragePathPattern(pattern string, target string) bool {
 	return normalizedTarget == normalizedPattern
 }
 
+// validateStorageRequestTarget ensures the guest request matches the authorized target exactly.
 func validateStorageRequestTarget(targetPath string, requestPath string) error {
 	normalizedTarget, err := normalizeStorageAuthorizedPath(targetPath)
 	if err != nil {
@@ -429,6 +448,7 @@ func validateStorageRequestTarget(targetPath string, requestPath string) error {
 	return nil
 }
 
+// listStorageObjects scans the plugin storage root and returns matching object snapshots.
 func listStorageObjects(
 	resourceConfig *storageResourceConfig,
 	prefix string,
@@ -479,6 +499,7 @@ func listStorageObjects(
 	return objects, nil
 }
 
+// lookupStorageFileInfo returns file metadata while rejecting directory targets.
 func lookupStorageFileInfo(absolutePath string) (os.FileInfo, bool, error) {
 	fileInfo, err := os.Stat(absolutePath)
 	if err != nil {
@@ -493,6 +514,7 @@ func lookupStorageFileInfo(absolutePath string) (os.FileInfo, bool, error) {
 	return fileInfo, true, nil
 }
 
+// buildStorageObjectSnapshot maps one file info record into the protobuf storage object model.
 func buildStorageObjectSnapshot(
 	objectPath string,
 	fileInfo os.FileInfo,
@@ -515,6 +537,7 @@ func buildStorageObjectSnapshot(
 	}
 }
 
+// detectStorageContentType derives the best content type from the request, body, or extension.
 func detectStorageContentType(rawContentType string, body []byte, objectPath string) string {
 	contentType := strings.TrimSpace(rawContentType)
 	if contentType != "" {

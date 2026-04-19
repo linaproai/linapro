@@ -283,6 +283,8 @@ func BuildAuthorizedHostServiceSpecs(
 	return pluginbridge.NormalizeHostServiceSpecs(authorized), nil
 }
 
+// buildHostServicePathSet normalizes declared path-scoped authorizations into
+// one lookup set for decision validation.
 func buildHostServicePathSet(paths []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(paths))
 	for _, item := range paths {
@@ -294,6 +296,8 @@ func buildHostServicePathSet(paths []string) map[string]struct{} {
 	return set
 }
 
+// buildHostServiceResourceSet normalizes declared resource refs into one
+// lookup set for authorization validation.
 func buildHostServiceResourceSet(resources []*pluginbridge.HostServiceResourceSpec) map[string]struct{} {
 	set := make(map[string]struct{}, len(resources))
 	for _, resource := range resources {
@@ -308,6 +312,8 @@ func buildHostServiceResourceSet(resources []*pluginbridge.HostServiceResourceSp
 	return set
 }
 
+// buildHostServiceTableSet normalizes declared table-scoped authorizations into
+// one lookup set for decision validation.
 func buildHostServiceTableSet(tables []string) map[string]struct{} {
 	set := make(map[string]struct{}, len(tables))
 	for _, table := range tables {
@@ -319,6 +325,7 @@ func buildHostServiceTableSet(tables []string) map[string]struct{} {
 	return set
 }
 
+// filterMethodsBySet narrows one ordered method slice to the confirmed set.
 func filterMethodsBySet(methods []string, allowed map[string]struct{}) []string {
 	if len(allowed) == 0 {
 		return []string{}
@@ -332,6 +339,8 @@ func filterMethodsBySet(methods []string, allowed map[string]struct{}) []string 
 	return filtered
 }
 
+// filterResourcesBySet narrows resource refs to the confirmed set while
+// cloning attribute data for the persisted authorization snapshot.
 func filterResourcesBySet(
 	resources []*pluginbridge.HostServiceResourceSpec,
 	allowed map[string]struct{},
@@ -359,6 +368,7 @@ func filterResourcesBySet(
 	return filtered
 }
 
+// filterPathsBySet narrows declared paths to the confirmed authorization set.
 func filterPathsBySet(paths []string, allowed map[string]struct{}) []string {
 	if len(allowed) == 0 {
 		return []string{}
@@ -376,6 +386,7 @@ func filterPathsBySet(paths []string, allowed map[string]struct{}) []string {
 	return filtered
 }
 
+// filterTablesBySet narrows declared tables to the confirmed authorization set.
 func filterTablesBySet(tables []string, allowed map[string]struct{}) []string {
 	if len(allowed) == 0 {
 		return []string{}
@@ -393,6 +404,7 @@ func filterTablesBySet(tables []string, allowed map[string]struct{}) []string {
 	return filtered
 }
 
+// cloneStringMap copies resource attribute maps for safe snapshot reuse.
 func cloneStringMap(source map[string]string) map[string]string {
 	if len(source) == 0 {
 		return nil
@@ -404,6 +416,7 @@ func cloneStringMap(source map[string]string) map[string]string {
 	return target
 }
 
+// containsString reports whether target appears in items without normalizing case.
 func containsString(items []string, target string) bool {
 	for _, item := range items {
 		if item == target {

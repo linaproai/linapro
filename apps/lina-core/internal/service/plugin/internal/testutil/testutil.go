@@ -30,6 +30,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// Shared plugin test bootstrap state reused across package-level test helpers.
 var (
 	bundledRuntimeSampleOnce sync.Once
 	bundledRuntimeSampleErr  error
@@ -71,6 +72,7 @@ type RuntimeBuildOutput struct {
 	Content []byte
 }
 
+// singleNodeTopology provides the default non-clustered topology for plugin tests.
 type singleNodeTopology struct{}
 
 // IsClusterModeEnabled reports that package tests run in single-node mode.
@@ -141,6 +143,7 @@ func TestDynamicStorageDir() string {
 	return testDynamicStorageDir
 }
 
+// jwtConfigAdapter exposes config service JWT settings through the runtime test seam.
 type jwtConfigAdapter struct {
 	svc configsvc.Service
 }
@@ -150,6 +153,7 @@ func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
 	return a.svc.GetJwtSecret(ctx)
 }
 
+// uploadSizeAdapter exposes upload-size config through the runtime test seam.
 type uploadSizeAdapter struct {
 	svc configsvc.Service
 }
@@ -159,6 +163,7 @@ func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) int64 {
 	return a.svc.GetUploadMaxSize(ctx)
 }
 
+// userCtxAdapter forwards authenticated user injection to the shared bizctx service.
 type userCtxAdapter struct {
 	svc bizctx.Service
 }
@@ -168,6 +173,7 @@ func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int
 	a.svc.SetUser(ctx, tokenID, userID, username, status)
 }
 
+// bizCtxAdapter exposes the current request user ID to integration-layer tests.
 type bizCtxAdapter struct {
 	svc bizctx.Service
 }

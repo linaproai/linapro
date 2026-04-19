@@ -20,6 +20,8 @@ import (
 	"github.com/gogf/gf/v2/util/grand"
 )
 
+// Attachment storage constants define the storage namespace and default upload
+// ceiling used by the sample source plugin.
 const (
 	demoAttachmentStorageNamespace = "plugin-demo-source"
 	defaultUploadMaxSizeMB         = 10
@@ -48,6 +50,8 @@ func (s *serviceImpl) PurgeStorageData(ctx context.Context) error {
 	return nil
 }
 
+// saveDemoAttachmentFile stores one optional uploaded attachment into the
+// plugin-owned storage area.
 func saveDemoAttachmentFile(
 	ctx context.Context,
 	file *ghttp.UploadFile,
@@ -109,6 +113,8 @@ func saveDemoAttachmentFile(
 	return sanitizedName, gfile.Join(dir, storedName), nil
 }
 
+// deleteDemoAttachmentFile removes one stored attachment when its relative path
+// is present.
 func deleteDemoAttachmentFile(ctx context.Context, relativePath string) error {
 	if strings.TrimSpace(relativePath) == "" {
 		return nil
@@ -126,6 +132,8 @@ func deleteDemoAttachmentFile(ctx context.Context, relativePath string) error {
 	return nil
 }
 
+// buildDemoAttachmentFullPath resolves one relative attachment path against the
+// plugin-owned storage root.
 func buildDemoAttachmentFullPath(ctx context.Context, relativePath string) (string, error) {
 	storageRoot, err := resolveDemoAttachmentStorageRoot(ctx)
 	if err != nil {
@@ -134,6 +142,8 @@ func buildDemoAttachmentFullPath(ctx context.Context, relativePath string) (stri
 	return gfile.Join(storageRoot, relativePath), nil
 }
 
+// resolveDemoAttachmentStorageRoot resolves the plugin-owned attachment storage
+// root under the configured upload path.
 func resolveDemoAttachmentStorageRoot(ctx context.Context) (string, error) {
 	uploadPath := strings.TrimSpace(g.Cfg().MustGet(ctx, "upload.path", "temp/upload").String())
 	if uploadPath == "" {
@@ -142,6 +152,8 @@ func resolveDemoAttachmentStorageRoot(ctx context.Context) (string, error) {
 	return filepath.Clean(gfile.Join(uploadPath, demoAttachmentStorageNamespace)), nil
 }
 
+// validateDemoAttachmentFileSize enforces the runtime-configured attachment
+// upload ceiling.
 func validateDemoAttachmentFileSize(ctx context.Context, file *ghttp.UploadFile) error {
 	if file == nil {
 		return nil
@@ -156,6 +168,8 @@ func validateDemoAttachmentFileSize(ctx context.Context, file *ghttp.UploadFile)
 	return nil
 }
 
+// sanitizeAttachmentFilename strips unsafe characters and truncates overly long
+// attachment filenames.
 func sanitizeAttachmentFilename(filename string) string {
 	filename = filepath.Base(filename)
 	filename = strings.ReplaceAll(filename, "\x00", "")

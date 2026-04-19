@@ -4,6 +4,8 @@ package pluginbridge
 
 import "testing"
 
+// TestHostServiceLockAcquireRoundTrip verifies lock acquire requests and
+// responses preserve lease, ticket, and expiration data.
 func TestHostServiceLockAcquireRoundTrip(t *testing.T) {
 	original := &HostServiceLockAcquireResponse{
 		Acquired: true,
@@ -30,6 +32,8 @@ func TestHostServiceLockAcquireRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceLockRenewRoundTrip verifies lock renew requests and responses
+// preserve ticket and expiration data through the codec.
 func TestHostServiceLockRenewRoundTrip(t *testing.T) {
 	requestData := MarshalHostServiceLockRenewRequest(&HostServiceLockRenewRequest{Ticket: "ticket-2"})
 	request, err := UnmarshalHostServiceLockRenewRequest(requestData)
@@ -51,6 +55,8 @@ func TestHostServiceLockRenewRoundTrip(t *testing.T) {
 	}
 }
 
+// TestHostServiceLockReleaseRequestRoundTrip verifies lock release requests
+// preserve the issued ticket through the codec.
 func TestHostServiceLockReleaseRequestRoundTrip(t *testing.T) {
 	original := &HostServiceLockReleaseRequest{Ticket: "ticket-3"}
 

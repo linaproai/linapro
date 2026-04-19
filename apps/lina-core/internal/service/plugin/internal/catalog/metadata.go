@@ -49,6 +49,8 @@ type ResourceOperation string
 // ResourceAccessMode defines which execution contexts may invoke one resource.
 type ResourceAccessMode string
 
+// Plugin governance enums and constants persisted across registry, release,
+// migration, and resource-reference tables.
 const (
 	// MigrationDirection values.
 	MigrationDirectionInstall   MigrationDirection = "install"

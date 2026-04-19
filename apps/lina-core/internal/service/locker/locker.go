@@ -1,3 +1,5 @@
+// Package locker provides distributed lock acquisition, renewal, and lease
+// management services for clustered host components.
 package locker
 
 import (
@@ -25,11 +27,13 @@ type Service interface {
 	Renew(ctx context.Context, lockID int64, holder string, lease time.Duration) error
 }
 
+// Interface compliance assertion for the default locker service implementation.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct{}
 
+// New creates and returns a new locker Service instance.
 func New() Service {
 	return &serviceImpl{}
 }

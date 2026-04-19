@@ -1,3 +1,6 @@
+// This file defines plugin storage-path configuration loading and test-time
+// storage-path overrides.
+
 package config
 
 import (
@@ -7,6 +10,8 @@ import (
 	"sync/atomic"
 )
 
+// pluginDynamicStoragePathOverride stores an optional process-wide test
+// override for the dynamic plugin storage root.
 var pluginDynamicStoragePathOverride atomic.Value
 
 // PluginConfig holds plugin-related host configuration.
@@ -55,6 +60,7 @@ func SetPluginDynamicStoragePathOverride(path string) {
 	pluginDynamicStoragePathOverride.Store(strings.TrimSpace(path))
 }
 
+// getPluginDynamicStoragePathOverride returns the normalized test override when set.
 func getPluginDynamicStoragePathOverride() string {
 	value := pluginDynamicStoragePathOverride.Load()
 	if value == nil {

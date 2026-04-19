@@ -39,8 +39,11 @@ type RuntimeHostService interface {
 	Node() (string, error)
 }
 
+// runtimeHostService is the default guest-side runtime host-service client.
 type runtimeHostService struct{}
 
+// defaultRuntimeHostService stores the singleton runtime host-service client
+// used by the package-level helpers.
 var defaultRuntimeHostService RuntimeHostService = &runtimeHostService{}
 
 // Runtime returns the runtime host service guest client.
@@ -84,6 +87,8 @@ func invokeHostCall(opcode uint32, reqBytes []byte) ([]byte, error) {
 	return envelope.Payload, nil
 }
 
+// invokeHostService builds one structured host-service request envelope and
+// dispatches it through the shared host call import.
 func invokeHostService(service string, method string, resourceRef string, table string, payload []byte) ([]byte, error) {
 	request := &HostServiceRequestEnvelope{
 		Service:     service,
@@ -170,6 +175,8 @@ func (s *runtimeHostService) Node() (string, error) {
 	return s.runtimeInfoValue(HostServiceMethodRuntimeInfoNode)
 }
 
+// runtimeInfoValue reads one runtime info method response and extracts the
+// string value payload.
 func (s *runtimeHostService) runtimeInfoValue(method string) (string, error) {
 	payload, err := invokeHostService(HostServiceRuntime, method, "", "", nil)
 	if err != nil {

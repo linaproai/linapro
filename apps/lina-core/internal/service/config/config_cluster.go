@@ -1,3 +1,6 @@
+// This file defines cluster topology configuration loading and default election
+// settings for single-node and multi-node deployments.
+
 package config
 
 import (
@@ -17,6 +20,7 @@ type ElectionConfig struct {
 	RenewInterval time.Duration `json:"renewInterval"` // Lease renewal interval
 }
 
+// defaultElectionConfig returns the host defaults for leader-election timing.
 func defaultElectionConfig() *ElectionConfig {
 	return &ElectionConfig{
 		Lease:         30 * time.Second,

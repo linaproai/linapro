@@ -153,6 +153,8 @@ func (s *serviceImpl) scanRuntimeManifests(ctx context.Context) ([]*Manifest, er
 	return manifests, nil
 }
 
+// buildDiscoveryLocation returns the most relevant source location string for
+// duplicate-discovery and error messages.
 func buildDiscoveryLocation(manifest *Manifest) string {
 	if manifest == nil {
 		return ""

@@ -1,3 +1,6 @@
+// This file tests distributed lock instance unlock, renewal, and held-state
+// behaviors.
+
 package locker
 
 import (
@@ -12,6 +15,8 @@ import (
 	"github.com/gogf/gf/v2/test/gtest"
 )
 
+// TestInstance_Unlock verifies unlocking an acquired instance clears the held
+// state.
 func TestInstance_Unlock(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -46,6 +51,8 @@ func TestInstance_Unlock(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestInstance_Renew verifies renewing an acquired instance extends or
+// preserves its expiration time.
 func TestInstance_Renew(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -92,6 +99,8 @@ func TestInstance_Renew(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestInstance_Renew_NotHeld verifies renewal fails once the held lock has
+// already expired.
 func TestInstance_Renew_NotHeld(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -122,6 +131,8 @@ func TestInstance_Renew_NotHeld(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestInstance_Renew_LostToOther verifies renewal fails after ownership has
+// been transferred to another holder.
 func TestInstance_Renew_LostToOther(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -153,6 +164,8 @@ func TestInstance_Renew_LostToOther(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestInstance_IsHeld verifies IsHeld distinguishes missing instances from
+// active acquired locks.
 func TestInstance_IsHeld(t *testing.T) {
 	var (
 		svc    = newTestService()
@@ -190,6 +203,8 @@ func TestInstance_IsHeld(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestInstance_IsHeld_Expired verifies IsHeld returns false after the lock has
+// expired.
 func TestInstance_IsHeld_Expired(t *testing.T) {
 	var (
 		svc    = newTestService()

@@ -11,6 +11,8 @@ import (
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 )
 
+// TestDBDoCommitRejectsUnauthorizedTable verifies the governed DB wrapper
+// rejects SQL targeting a table outside the authorized resource scope.
 func TestDBDoCommitRejectsUnauthorizedTable(t *testing.T) {
 	db, err := DB()
 	if err != nil {

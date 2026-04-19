@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/logger"
 )
 
+// Component section keys used when projecting metadata.yaml into the system-info response.
 const (
 	componentSectionBackend  = "backend"
 	componentSectionFrontend = "frontend"
@@ -26,6 +27,7 @@ type Service interface {
 	GetInfo(ctx context.Context) (*SystemInfo, error)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

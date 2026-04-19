@@ -3,6 +3,8 @@
 
 package pluginbridge
 
+// Host-call runtime constants define the module and export names shared by the
+// guest Wasm module and host bridge implementation.
 const (
 	// HostModuleName is the wazero host module namespace for Lina host functions.
 	HostModuleName = "lina_env"
@@ -14,6 +16,8 @@ const (
 	DefaultGuestHostCallAllocExport = "lina_host_call_alloc"
 )
 
+// Host-call status codes normalize host processing outcomes returned to guest
+// helper code.
 const (
 	// HostCallStatusSuccess indicates the host call completed successfully.
 	HostCallStatusSuccess uint32 = 0
@@ -27,6 +31,8 @@ const (
 	HostCallStatusInternalError uint32 = 4
 )
 
+// Runtime log levels define the structured severity values accepted by the
+// runtime host service.
 const (
 	// LogLevelDebug maps to logger.Debug.
 	LogLevelDebug int32 = 1

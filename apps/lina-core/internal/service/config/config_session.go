@@ -13,6 +13,8 @@ type SessionConfig struct {
 	CleanupInterval time.Duration `json:"cleanupInterval"` // CleanupInterval is the cleanup job execution interval.
 }
 
+// getStaticSessionConfig lazily loads the config-file-backed session settings
+// for reuse across the process.
 func (s *serviceImpl) getStaticSessionConfig(ctx context.Context) *SessionConfig {
 	return processStaticConfigCaches.session.load(func() *SessionConfig {
 		cfg := &SessionConfig{

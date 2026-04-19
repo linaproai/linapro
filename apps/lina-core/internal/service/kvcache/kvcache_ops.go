@@ -339,6 +339,8 @@ func (s *serviceImpl) CleanupExpired(ctx context.Context) error {
 	return err
 }
 
+// upsert inserts one cache entry when absent or updates the existing entry in
+// place.
 func (s *serviceImpl) upsert(
 	ctx context.Context,
 	ownerType OwnerType,
@@ -379,6 +381,8 @@ func (s *serviceImpl) upsert(
 	return err
 }
 
+// resolveIdentity parses and validates one public cache key under the provided
+// owner type.
 func (s *serviceImpl) resolveIdentity(
 	ownerType OwnerType,
 	cacheKey string,
@@ -393,6 +397,8 @@ func (s *serviceImpl) resolveIdentity(
 	return identity, nil
 }
 
+// validateIdentity validates the byte-length constraints for one decoded cache
+// identity.
 func (s *serviceImpl) validateIdentity(
 	ownerType OwnerType,
 	ownerKey string,
@@ -414,6 +420,8 @@ func (s *serviceImpl) validateIdentity(
 	return nil
 }
 
+// normalizeExpireAt converts an expiration duration in seconds into an
+// absolute expiration time, or nil for persistent entries.
 func normalizeExpireAt(expireSeconds int64) (*gtime.Time, error) {
 	if expireSeconds < 0 {
 		return nil, gerror.New("缓存过期秒数不能为负数")
@@ -424,6 +432,8 @@ func normalizeExpireAt(expireSeconds int64) (*gtime.Time, error) {
 	return gtime.Now().Add(time.Duration(expireSeconds) * time.Second), nil
 }
 
+// validateByteLength enforces a non-empty string field with a maximum byte
+// length.
 func validateByteLength(field string, value string, maxBytes int) error {
 	if strings.TrimSpace(value) == "" {
 		return gerror.Newf("%s不能为空", field)
@@ -434,6 +444,8 @@ func validateByteLength(field string, value string, maxBytes int) error {
 	return nil
 }
 
+// validateMaxByteLength enforces only the maximum byte length for an optional
+// string field.
 func validateMaxByteLength(field string, value string, maxBytes int) error {
 	if len([]byte(value)) > maxBytes {
 		return gerror.Newf("%s长度超出限制，最大允许 %d 字节", field, maxBytes)
@@ -441,6 +453,8 @@ func validateMaxByteLength(field string, value string, maxBytes int) error {
 	return nil
 }
 
+// buildCacheItem converts one persisted cache row into the public cache item
+// snapshot returned by the service.
 func buildCacheItem(row *entity.SysKvCache) *Item {
 	if row == nil {
 		return nil

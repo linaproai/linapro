@@ -15,6 +15,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// createPluginKVCacheTableSQL prepares the governed plugin cache table for tests.
 const createPluginKVCacheTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_kv_cache (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS sys_kv_cache (
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='宿主分布式KV缓存表';
 `
 
+// TestHandleHostServiceInvokeCacheLifecycle verifies cache get/set/incr/expire/delete flows.
 func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginKVCacheTable(t, ctx)
@@ -159,6 +161,7 @@ func TestHandleHostServiceInvokeCacheLifecycle(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeCacheRejectsOversizedValue verifies platform cache limits are enforced.
 func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
 	ctx := context.Background()
 	ensurePluginKVCacheTable(t, ctx)
@@ -179,6 +182,7 @@ func TestHandleHostServiceInvokeCacheRejectsOversizedValue(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace verifies unauthorized namespaces are rejected.
 func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) {
 	hcc := newCacheHostCallContext("test-plugin-cache-denied", "orders-cache")
 	response := invokeCacheHostService(
@@ -193,6 +197,7 @@ func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) 
 	}
 }
 
+// ensurePluginKVCacheTable creates the plugin cache table needed by cache host call tests.
 func ensurePluginKVCacheTable(t *testing.T, ctx context.Context) {
 	t.Helper()
 	if _, err := g.DB().Exec(ctx, createPluginKVCacheTableSQL); err != nil {
@@ -200,6 +205,7 @@ func ensurePluginKVCacheTable(t *testing.T, ctx context.Context) {
 	}
 }
 
+// cleanupPluginCacheNamespace removes cache rows for the plugin namespace used in tests.
 func cleanupPluginCacheNamespace(t *testing.T, ctx context.Context, pluginID string, namespace string) {
 	t.Helper()
 	if _, err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
@@ -211,6 +217,7 @@ func cleanupPluginCacheNamespace(t *testing.T, ctx context.Context, pluginID str
 	}
 }
 
+// newCacheHostCallContext builds a host call context authorized for one cache namespace.
 func newCacheHostCallContext(pluginID string, namespace string) *hostCallContext {
 	return &hostCallContext{
 		pluginID: pluginID,
@@ -233,6 +240,7 @@ func newCacheHostCallContext(pluginID string, namespace string) *hostCallContext
 	}
 }
 
+// invokeCacheHostService marshals and dispatches one cache host service request.
 func invokeCacheHostService(
 	t *testing.T,
 	hcc *hostCallContext,

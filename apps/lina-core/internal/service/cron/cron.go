@@ -31,11 +31,14 @@ type Service interface {
 	IsPrimary() bool
 }
 
+// startupJob abstracts warm-up and watcher registration logic selected during
+// service construction for single-node or clustered deployments.
 type startupJob interface {
 	// Start performs eager warmup and registers any required background watchers.
 	Start(ctx context.Context)
 }
 
+// Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.

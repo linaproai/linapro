@@ -18,6 +18,8 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 )
 
+// Hosted-menu validation constants keep the runtime frontend contract explicit
+// between plugin menu declarations and host-served asset URLs.
 const (
 	// hostedAssetURLPrefix is the public URL prefix for all plugin-hosted assets.
 	hostedAssetURLPrefix = "/plugin-assets/"
@@ -49,6 +51,8 @@ func (s *serviceImpl) ValidateRuntimeFrontendMenuBindings(ctx context.Context, m
 	return s.validateHostedMenuBindings(ctx, manifest, menus)
 }
 
+// listPluginOwnedMenus loads menus owned by the target plugin so hosted asset
+// validation can inspect persisted menu bindings.
 func (s *serviceImpl) listPluginOwnedMenus(ctx context.Context, pluginID string) ([]*entity.SysMenu, error) {
 	columns := dao.SysMenu.Columns()
 	prefixPattern := catalog.MenuKeyPrefix + pluginID + ":%"
@@ -65,6 +69,8 @@ func (s *serviceImpl) listPluginOwnedMenus(ctx context.Context, pluginID string)
 	return menus, nil
 }
 
+// validateHostedMenuBindings enforces that plugin menus only point at hosted
+// runtime assets that exist and satisfy the embedded-mount contract.
 func (s *serviceImpl) validateHostedMenuBindings(ctx context.Context, manifest *catalog.Manifest, menus []*entity.SysMenu) error {
 	if manifest == nil || manifest.RuntimeArtifact == nil || len(menus) == 0 {
 		return nil
@@ -108,6 +114,8 @@ func (s *serviceImpl) validateHostedMenuBindings(ctx context.Context, manifest *
 	return nil
 }
 
+// resolveHostedMenuAssetPath extracts the bundle-relative asset path when a
+// menu points at one host-served runtime frontend asset.
 func (s *serviceImpl) resolveHostedMenuAssetPath(
 	manifest *catalog.Manifest,
 	menuPath string,
@@ -137,6 +145,7 @@ func (s *serviceImpl) ValidateHostedMenuBindings(ctx context.Context, manifest *
 	return s.validateHostedMenuBindings(ctx, manifest, menus)
 }
 
+// wrapMenuValidationError enriches hosted-menu validation errors with menu identity.
 func wrapMenuValidationError(menu *entity.SysMenu, err error) error {
 	if menu == nil {
 		return err
@@ -144,6 +153,7 @@ func wrapMenuValidationError(menu *entity.SysMenu, err error) error {
 	return gerror.Wrapf(err, "插件菜单校验失败[%s/%s]", strings.TrimSpace(menu.Name), strings.TrimSpace(menu.MenuKey))
 }
 
+// normalizeHostedMenuPath normalizes menu paths into absolute-style paths.
 func normalizeHostedMenuPath(menuPath string) string {
 	trimmedPath := strings.TrimSpace(menuPath)
 	if trimmedPath == "" {
@@ -155,6 +165,8 @@ func normalizeHostedMenuPath(menuPath string) string {
 	return "/" + trimmedPath
 }
 
+// parseMenuQueryParams decodes stored menu query JSON into a string map used
+// by hosted-menu contract validation.
 func parseMenuQueryParams(rawQuery string) (map[string]string, error) {
 	trimmedQuery := strings.TrimSpace(rawQuery)
 	if trimmedQuery == "" {
@@ -176,6 +188,8 @@ func parseMenuQueryParams(rawQuery string) (map[string]string, error) {
 	return queryParams, nil
 }
 
+// validateHostedMenuMode enforces the extra constraints required by embedded
+// mount menus that load runtime ESM entry assets inside the host shell.
 func validateHostedMenuMode(
 	menu *entity.SysMenu,
 	queryParams map[string]string,

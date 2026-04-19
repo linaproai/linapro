@@ -5,6 +5,7 @@ import (
 	"lina-plugin-demo-dynamic/backend/internal/controller/dynamic"
 )
 
+// guestRouteDispatcher is the reflection-based bridge dispatcher for the demo plugin backend.
 var guestRouteDispatcher = pluginbridge.MustNewGuestControllerRouteDispatcher(dynamic.New())
 
 // HandleRequest dispatches bridge requests to the matching dynamic controller

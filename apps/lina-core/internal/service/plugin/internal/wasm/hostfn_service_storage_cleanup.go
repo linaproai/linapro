@@ -43,6 +43,7 @@ func PurgeAuthorizedStoragePaths(
 	return pruneEmptyStorageRoot(resourceConfig.rootDir)
 }
 
+// buildStorageResourceConfigForPlugin resolves the storage root for the given plugin ID.
 func buildStorageResourceConfigForPlugin(
 	ctx context.Context,
 	pluginID string,
@@ -68,6 +69,7 @@ func buildStorageResourceConfigForPlugin(
 	}, nil
 }
 
+// collectAuthorizedStoragePaths collects unique authorized storage paths from host services.
 func collectAuthorizedStoragePaths(hostServices []*pluginbridge.HostServiceSpec) []string {
 	seen := make(map[string]struct{})
 	paths := make([]string, 0)
@@ -90,6 +92,7 @@ func collectAuthorizedStoragePaths(hostServices []*pluginbridge.HostServiceSpec)
 	return paths
 }
 
+// purgeAuthorizedStoragePath removes the authorized path or prefix contents from storage.
 func purgeAuthorizedStoragePath(
 	resourceConfig *storageResourceConfig,
 	authorizedPath string,
@@ -113,6 +116,7 @@ func purgeAuthorizedStoragePath(
 	return gfile.Remove(absolutePath)
 }
 
+// pruneEmptyStorageRoot deletes the plugin storage root once it becomes empty.
 func pruneEmptyStorageRoot(rootDir string) error {
 	normalizedRoot := strings.TrimSpace(rootDir)
 	if normalizedRoot == "" || !gfile.Exists(normalizedRoot) {

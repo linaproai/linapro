@@ -18,9 +18,14 @@ import (
 // guestHostCallResponseBuffer is separate from guestResponseBuffer to avoid
 // conflicts when host functions are called during execute() processing, since
 // the host writes host call responses into this buffer via re-entrant alloc.
-var guestRequestBuffer []byte
-var guestResponseBuffer []byte
-var guestHostCallResponseBuffer []byte
+//
+// These globals intentionally remain package-level so the guest exports can
+// exchange stable pointers with the host runtime.
+var (
+	guestRequestBuffer          []byte
+	guestResponseBuffer         []byte
+	guestHostCallResponseBuffer []byte
+)
 
 // GuestHandler defines the guest-side dynamic route handler interface.
 type GuestHandler func(*BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)

@@ -14,6 +14,8 @@ import (
 	"lina-core/pkg/plugindb/shared"
 )
 
+// ensureExecutionReady validates the accumulated query plan before one governed
+// guest execution call.
 func (q *Query) ensureExecutionReady(action shared.DataPlanAction) error {
 	if q == nil {
 		return gerror.New("plugindb query is nil")
@@ -209,6 +211,8 @@ func (db *DB) Transaction(fn func(tx *Tx) error) error {
 	return err
 }
 
+// decodeMutationResult maps the host bridge mutation result into the guest
+// facade result type.
 func decodeMutationResult(result *pluginbridge.DataMutationResult) *MutationResult {
 	if result == nil {
 		return &MutationResult{}
@@ -216,6 +220,8 @@ func decodeMutationResult(result *pluginbridge.DataMutationResult) *MutationResu
 	return &MutationResult{AffectedRows: result.AffectedRows, Key: result.Key, Record: result.Record}
 }
 
+// decodeJSONRecordList decodes the JSON-encoded record list returned by the
+// host bridge list endpoint.
 func decodeJSONRecordList(items [][]byte) ([]map[string]any, error) {
 	if len(items) == 0 {
 		return []map[string]any{}, nil

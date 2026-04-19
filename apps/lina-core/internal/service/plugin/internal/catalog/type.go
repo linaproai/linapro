@@ -7,6 +7,7 @@ import "strings"
 // PluginType defines the recognized plugin types.
 type PluginType string
 
+// Canonical plugin type values supported by the host.
 const (
 	// TypeSource identifies a compiled-in source plugin.
 	TypeSource PluginType = "source"

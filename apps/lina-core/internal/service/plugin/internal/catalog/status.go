@@ -9,6 +9,7 @@ import (
 	"lina-core/internal/model/entity"
 )
 
+// Canonical plugin state constants shared by registry, menu, and runtime projections.
 const (
 	// StatusDisabled marks a plugin as disabled (enabled=0 in DB).
 	StatusDisabled = 0

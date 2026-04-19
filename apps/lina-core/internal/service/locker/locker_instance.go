@@ -1,3 +1,5 @@
+// This file implements operations on one acquired distributed lock instance.
+
 package locker
 
 import (

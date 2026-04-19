@@ -27,8 +27,12 @@ type DataHostService interface {
 	Transaction(table string, operations []*DataTransactionInput) (*DataTransactionResult, error)
 }
 
+// dataHostService is the default guest-side structured data host-service
+// client.
 type dataHostService struct{}
 
+// defaultDataHostService stores the singleton structured data host-service
+// client used by package-level helpers.
 var defaultDataHostService DataHostService = &dataHostService{}
 
 // DataListResult is the decoded guest-side result of one data list request.
@@ -249,6 +253,8 @@ func (s *dataHostService) Transaction(
 	}, nil
 }
 
+// mutate executes one structured data mutation method and decodes the returned
+// mutation result.
 func (s *dataHostService) mutate(
 	table string,
 	method string,
@@ -283,6 +289,8 @@ func (s *dataHostService) mutate(
 	return decodeDataMutationResult(response)
 }
 
+// decodeDataMutationResult converts the raw host-service mutation response into
+// the compatibility guest-side result shape.
 func decodeDataMutationResult(response *HostServiceDataMutationResponse) (*DataMutationResult, error) {
 	if response == nil {
 		return &DataMutationResult{}, nil
@@ -302,6 +310,8 @@ func decodeDataMutationResult(response *HostServiceDataMutationResponse) (*DataM
 	}, nil
 }
 
+// marshalJSONValue encodes one arbitrary JSON-compatible value for host-service
+// payload transport.
 func marshalJSONValue(value any) ([]byte, error) {
 	if value == nil {
 		return nil, nil
@@ -309,6 +319,8 @@ func marshalJSONValue(value any) ([]byte, error) {
 	return json.Marshal(value)
 }
 
+// unmarshalJSONValue decodes one arbitrary JSON value from host-service
+// payload bytes.
 func unmarshalJSONValue(data []byte) (any, error) {
 	if len(data) == 0 {
 		return nil, nil
@@ -320,6 +332,7 @@ func unmarshalJSONValue(data []byte) (any, error) {
 	return value, nil
 }
 
+// unmarshalJSONRecord decodes one JSON object payload into a record map.
 func unmarshalJSONRecord(data []byte) (map[string]any, error) {
 	if len(data) == 0 {
 		return nil, nil
@@ -331,6 +344,8 @@ func unmarshalJSONRecord(data []byte) (map[string]any, error) {
 	return record, nil
 }
 
+// unmarshalJSONRecordList decodes an ordered list of JSON object payloads into
+// record maps for compatibility helpers.
 func unmarshalJSONRecordList(items [][]byte) ([]map[string]any, error) {
 	if len(items) == 0 {
 		return []map[string]any{}, nil

@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 )
 
+// Host data-scope levels reused when filtering generic plugin resource queries.
 const (
 	pluginResourceDataScopeNone = 0
 	pluginResourceDataScopeAll  = 1

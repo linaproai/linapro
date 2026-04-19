@@ -7,6 +7,8 @@ import (
 	dynamicservice "lina-plugin-demo-dynamic/backend/internal/service/dynamic"
 )
 
+// buildDynamicErrorResponse maps sample business errors to normalized bridge
+// error responses.
 func buildDynamicErrorResponse(err error) *pluginbridge.BridgeResponseEnvelopeV1 {
 	if err == nil {
 		return pluginbridge.NewInternalErrorResponse("Dynamic plugin execution failed")

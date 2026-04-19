@@ -10,6 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TestValidateHostServiceSpecsNormalizesStoragePaths verifies validation trims,
+// sorts, and normalizes storage-style host service declarations.
 func TestValidateHostServiceSpecsNormalizesStoragePaths(t *testing.T) {
 	specs := []*HostServiceSpec{
 		{
@@ -43,6 +45,8 @@ func TestValidateHostServiceSpecsNormalizesStoragePaths(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsRuntimeResources verifies runtime service
+// declarations cannot carry resource entries.
 func TestValidateHostServiceSpecsRejectsRuntimeResources(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceRuntime,
@@ -56,6 +60,8 @@ func TestValidateHostServiceSpecsRejectsRuntimeResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsStorageLegacyResources verifies storage
+// services no longer accept legacy `resources.ref` declarations.
 func TestValidateHostServiceSpecsRejectsStorageLegacyResources(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceStorage,
@@ -69,6 +75,8 @@ func TestValidateHostServiceSpecsRejectsStorageLegacyResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsCoreServiceWithoutResource verifies
+// resource-bearing services fail validation when required scopes are absent.
 func TestValidateHostServiceSpecsRejectsCoreServiceWithoutResource(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceStorage,
@@ -79,6 +87,8 @@ func TestValidateHostServiceSpecsRejectsCoreServiceWithoutResource(t *testing.T)
 	}
 }
 
+// TestValidateHostServiceSpecsAcceptsDataTables verifies data service
+// declarations normalize and accept authorized table lists.
 func TestValidateHostServiceSpecsAcceptsDataTables(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceData,
@@ -90,6 +100,8 @@ func TestValidateHostServiceSpecsAcceptsDataTables(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsDataResources verifies data services must
+// use table authorization instead of generic resources.
 func TestValidateHostServiceSpecsRejectsDataResources(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceData,
@@ -103,6 +115,8 @@ func TestValidateHostServiceSpecsRejectsDataResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsAcceptsNetworkURLPatterns verifies network
+// services accept normalized URL-pattern resources.
 func TestValidateHostServiceSpecsAcceptsNetworkURLPatterns(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceNetwork,
@@ -116,6 +130,8 @@ func TestValidateHostServiceSpecsAcceptsNetworkURLPatterns(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources verifies generic
+// resource-based services normalize their declared refs.
 func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	specs := []*HostServiceSpec{
 		{
@@ -155,6 +171,8 @@ func TestValidateHostServiceSpecsAcceptsCacheLockNotifyResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsLegacyNetworkGovernanceFields verifies
+// network resources reject deprecated per-resource governance knobs.
 func TestValidateHostServiceSpecsRejectsLegacyNetworkGovernanceFields(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceNetwork,
@@ -169,6 +187,8 @@ func TestValidateHostServiceSpecsRejectsLegacyNetworkGovernanceFields(t *testing
 	}
 }
 
+// TestHostServiceSpecJSONUsesResourcePathsForStorage verifies storage services
+// marshal and unmarshal through `resources.paths`.
 func TestHostServiceSpecJSONUsesResourcePathsForStorage(t *testing.T) {
 	spec := &HostServiceSpec{
 		Service: HostServiceStorage,
@@ -206,6 +226,8 @@ func TestHostServiceSpecJSONUsesResourcePathsForStorage(t *testing.T) {
 	}
 }
 
+// TestHostServiceSpecJSONUsesResourceTablesForData verifies data services
+// marshal and unmarshal through `resources.tables`.
 func TestHostServiceSpecJSONUsesResourceTablesForData(t *testing.T) {
 	spec := &HostServiceSpec{
 		Service: HostServiceData,
@@ -243,6 +265,8 @@ func TestHostServiceSpecJSONUsesResourceTablesForData(t *testing.T) {
 	}
 }
 
+// TestHostServiceSpecYAMLUsesResourceTablesForData verifies YAML uses the same
+// `resources.tables` shape for data service declarations.
 func TestHostServiceSpecYAMLUsesResourceTablesForData(t *testing.T) {
 	spec := &HostServiceSpec{
 		Service: HostServiceData,
@@ -280,6 +304,8 @@ func TestHostServiceSpecYAMLUsesResourceTablesForData(t *testing.T) {
 	}
 }
 
+// TestHostServiceSpecYAMLUsesURLForNetworkResources verifies network services
+// marshal and unmarshal YAML resource URLs through the shared resources array.
 func TestHostServiceSpecYAMLUsesURLForNetworkResources(t *testing.T) {
 	spec := &HostServiceSpec{
 		Service: HostServiceNetwork,
@@ -316,6 +342,8 @@ func TestHostServiceSpecYAMLUsesURLForNetworkResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsRejectsDuplicateMethods verifies normalized
+// method duplicates are rejected during validation.
 func TestValidateHostServiceSpecsRejectsDuplicateMethods(t *testing.T) {
 	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
 		Service: HostServiceStorage,
@@ -327,6 +355,8 @@ func TestValidateHostServiceSpecsRejectsDuplicateMethods(t *testing.T) {
 	}
 }
 
+// TestCapabilitiesFromHostServicesDerivesCapabilitySet verifies capability
+// derivation expands service declarations into the expected sorted set.
 func TestCapabilitiesFromHostServicesDerivesCapabilitySet(t *testing.T) {
 	capabilities := CapabilitiesFromHostServices([]*HostServiceSpec{
 		{
@@ -347,6 +377,9 @@ func TestCapabilitiesFromHostServicesDerivesCapabilitySet(t *testing.T) {
 	}
 }
 
+// TestCapabilitiesFromHostServicesDerivesLowPriorityCapabilitySet verifies
+// derived capability ordering remains stable for cache, lock, and notify
+// services.
 func TestCapabilitiesFromHostServicesDerivesLowPriorityCapabilitySet(t *testing.T) {
 	capabilities := CapabilitiesFromHostServices([]*HostServiceSpec{
 		{

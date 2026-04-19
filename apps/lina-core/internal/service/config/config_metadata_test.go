@@ -1,3 +1,5 @@
+// This file verifies embedded metadata parsing for OpenAPI and component cards.
+
 package config
 
 import (
@@ -7,6 +9,8 @@ import (
 	"github.com/gogf/gf/v2/os/gcfg"
 )
 
+// TestGetMetadataMergesOpenApiAndComponentSections verifies metadata parsing can
+// load OpenAPI and component sections from one embedded payload.
 func TestGetMetadataMergesOpenApiAndComponentSections(t *testing.T) {
 	adapter, err := gcfg.NewAdapterContent(`
 openapi:
@@ -51,6 +55,8 @@ frontend:
 	}
 }
 
+// TestGetOpenApiUsesEmbeddedMetadataAsset verifies the embedded metadata asset
+// provides the public OpenAPI document metadata.
 func TestGetOpenApiUsesEmbeddedMetadataAsset(t *testing.T) {
 	cfg := New().GetOpenApi(context.Background())
 

@@ -13,6 +13,8 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// safePluginIdentifierPattern validates identifiers embedded into generated SQL
+// or query fragments for hook and resource specs.
 var safePluginIdentifierPattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
 // NormalizeResourceSpecType maps a raw string to the canonical ResourceSpecType constant.
@@ -363,6 +365,7 @@ func CloneResourceSpec(item *ResourceSpec) *ResourceSpec {
 	return &next
 }
 
+// resourceHasField reports whether the resource declares the given logical field name.
 func resourceHasField(spec *ResourceSpec, fieldName string) bool {
 	if spec == nil {
 		return false
@@ -379,6 +382,8 @@ func resourceHasField(spec *ResourceSpec, fieldName string) bool {
 	return false
 }
 
+// normalizeEnumStringSliceForResourceSpec trims, lowercases, and de-duplicates
+// enum-like string slices used by resource specs.
 func normalizeEnumStringSliceForResourceSpec(items []string) []string {
 	seen := make(map[string]struct{}, len(items))
 	result := make([]string, 0, len(items))
@@ -396,6 +401,8 @@ func normalizeEnumStringSliceForResourceSpec(items []string) []string {
 	return result
 }
 
+// normalizeFieldNameSliceForResourceSpec trims and de-duplicates field names
+// while preserving their original casing for output.
 func normalizeFieldNameSliceForResourceSpec(items []string) []string {
 	seen := make(map[string]struct{}, len(items))
 	result := make([]string, 0, len(items))

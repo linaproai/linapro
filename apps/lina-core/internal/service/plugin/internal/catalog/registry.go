@@ -333,6 +333,8 @@ func (s *serviceImpl) syncMetadata(ctx context.Context, manifest *Manifest, regi
 	return nil
 }
 
+// shouldDetachDynamicManifestGovernance reports whether metadata sync should
+// avoid reattaching release-bound governance for an uninstalled dynamic plugin.
 func shouldDetachDynamicManifestGovernance(plugin *entity.SysPlugin) bool {
 	if plugin == nil {
 		return false
