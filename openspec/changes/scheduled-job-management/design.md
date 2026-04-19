@@ -145,6 +145,7 @@ L3 审计        shell 任务的创建/修改/手动触发/手动终止复用宿
 **审计实现约束**:
 - shell 创建/修改/触发/终止四类 HTTP 接口继续走现有 `middleware.OperLog`;
 - 控制器通过 `operLog` 元标签与响应载荷补齐审计语义(如触发返回 `log_id`);
+- 宿主审计参数脱敏规则需要扩展到 shell 请求体中的 `env` 字段,仅保留键名或统一写 `[REDACTED]`,不得落原始环境变量值;
 - 实现不得在同一请求链路中再手写第二条语义重复的 `sys_oper_log` 记录。
 
 **Windows 下的处理**: 构建期不禁编,运行期如 `runtime.GOOS=="windows"` 则 `cron.shell.enabled` 强制视为 false,UI 提示"当前平台不支持 shell 模式"。
@@ -220,7 +221,7 @@ GET    /job/handler/{ref}   handler 详情(含 ParamsSchema)
 - 任务按钮:`system:job:add / edit / remove / status / trigger / reset`
 - 分组按钮:`system:jobgroup:add / edit / remove`
 - 日志按钮:`system:joblog:remove / cancel`
-- Shell 附加权限:`system:job:shell`,并与对应的 `system:job:add / edit / trigger` 组合校验
+- Shell 附加权限:`system:job:shell`,并与对应的 `system:job:add / edit / trigger` 组合校验;若终止目标实例属于 shell 任务,还需与 `system:joblog:cancel` 组合校验
 
 ### D12. 数据模型关键字段
 

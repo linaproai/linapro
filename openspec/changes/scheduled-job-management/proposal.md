@@ -13,7 +13,7 @@
 - **调度语义**: 每个任务独立配置 `scope`(master-only / all-node)、`concurrency`(singleton / parallel + max_concurrency)、`timezone`、`cron_expr`、`timeout_seconds`、`max_executions`、`log_retention`。
 - **Handler 注册表**: 新增 host-side handler 注册与插件 handler 订阅,插件禁用/卸载时关联任务自动置 `paused_by_plugin` 并在 UI 标红。
 - **系统内置任务**: 通过 seed SQL 入库的内置任务(`is_builtin=1`)允许用户修改 `cron_expr / timezone / status / timeout_seconds / max_executions / log_retention_override`,其余字段(handler_ref / params / scope / concurrency / task_type)锁死;升级时 seed 不覆盖用户改过的字段。
-- **Shell 安全治理**: 新增权限点 `system:job:shell`、系统参数 `cron.shell.enabled` 全局开关,并复用宿主现有 `oper_log` 中间件对 shell 任务创建/修改/手动触发/手动终止各写入且仅写入一条审计日志。
+- **Shell 安全治理**: 新增权限点 `system:job:shell`、系统参数 `cron.shell.enabled` 全局开关,并复用宿主现有 `oper_log` 中间件对 shell 任务创建/修改/手动触发/手动终止各写入且仅写入一条审计日志;审计中保留 `shell_cmd / work_dir / timeout_seconds` 快照,但不得落原始 `env` 值。
 - **人机交互**: UI 提供手动触发一次(`trigger=manual`,不计入 `executed_count`)和手动终止运行中实例(`ctx.Cancel` + 进程组 kill)。
 - **执行次数策略**: `max_executions>0` 时,达到上限自动禁用并在 `stop_reason` 记录原因;手动重置后可重新启用。
 - **日志清理**: 全局默认清理策略(保留条数或天数)+ 任务级覆盖;由系统内置定时任务负责执行清理。

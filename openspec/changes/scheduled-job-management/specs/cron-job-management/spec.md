@@ -303,6 +303,11 @@
 - **WHEN** 用户创建、修改或手动触发 `task_type=shell` 的任务
 - **THEN** 系统 SHALL 同时校验对应的基础任务权限(`system:job:add / edit / trigger`)与附加权限 `system:job:shell`
 
+#### Scenario: Shell 终止组合权限
+
+- **WHEN** 用户终止一个属于 `task_type=shell` 的 running 实例
+- **THEN** 系统 SHALL 同时校验 `system:joblog:cancel` 与附加权限 `system:job:shell`
+
 #### Scenario: 操作审计
 
 - **WHEN** 执行任务创建/修改/删除/启停/手动触发/手动终止

@@ -57,8 +57,9 @@
 - [ ] 7.3 `controller/jobgroup/v1_*.go` 实现分组 CRUD
 - [ ] 7.4 `controller/joblog/v1_*.go` 实现日志查询/详情/清空/取消
 - [ ] 7.5 `controller/jobhandler/v1_*.go` 实现 handler 列表/详情
-- [ ] 7.6 按资源声明 `g.Meta.permission`:任务接口使用 `system:job:*`,分组接口使用 `system:jobgroup:*`,日志接口使用 `system:joblog:*`;Shell 创建/修改/触发接口追加 `system:job:shell`
+- [ ] 7.6 按资源声明 `g.Meta.permission`:任务接口使用 `system:job:*`,分组接口使用 `system:jobgroup:*`,日志接口使用 `system:joblog:*`;Shell 创建/修改/触发接口追加 `system:job:shell`,Shell 日志取消接口需组合 `system:joblog:cancel + system:job:shell`
 - [ ] 7.7 为 shell 创建/修改/触发/取消接口声明 `operLog` 元标签并返回必要关联标识(如 `log_id`),复用宿主 `OperLog` 中间件完成单条审计记录写入
+- [ ] 7.8 扩展宿主审计请求参数脱敏规则,对 Shell 相关接口中的 `env` 载荷做值级遮罩,确保 `oper_log` 不落原始环境变量值
 
 ## 8. 后端集成到启动流程
 
@@ -93,7 +94,7 @@
 - [ ] 12.1 创建 `src/views/system/job-log/index.vue`:日志列表,顶部筛选含任务、状态、节点、时间范围
 - [ ] 12.2 创建 `src/views/system/job-log/detail.vue`:`useVbenModal` 详情弹窗,展示 trigger / params_snapshot / result_json(shell 任务含 stdout/stderr 代码高亮)
 - [ ] 12.3 正在运行的日志行显式"终止"按钮,确认后调 cancel 接口
-- [ ] 12.4 日志列表的批量清空功能(需 `system:joblog:remove` 权限),终止按钮需 `system:joblog:cancel`
+- [ ] 12.4 日志列表的批量清空功能(需 `system:joblog:remove` 权限),终止按钮需 `system:joblog:cancel`;终止 shell 实例时前端还需叠加 `system:job:shell`
 
 ## 13. 前端路由与菜单
 
@@ -118,7 +119,8 @@
 - [ ] 14.13 TC0093 时区字段持久化与下一次执行时间预览——`TC0093-job-timezone-preview.ts`
 - [ ] 14.14 TC0094 shell 任务输出 stdout/stderr 截断后可查看——`TC0094-job-shell-output.ts`
 - [ ] 14.15 TC0095 Handler 任务超时后日志 `status=timeout`、`err_msg` 含超时时长——`TC0095-job-handler-timeout.ts`
-- [ ] 14.16 所有新增用例在执行过程中自动运行 `pnpm test -- TC008x` / `pnpm test -- TC009x` 验证通过;测试文件命名与 TC ID 严格对应
+- [ ] 14.16 TC0096 无 `system:job:shell` 权限时禁止终止运行中的 shell 实例——`TC0096-job-shell-cancel-permission.ts`
+- [ ] 14.17 所有新增用例在执行过程中自动运行 `pnpm test -- TC008x` / `pnpm test -- TC009x` 验证通过;测试文件命名与 TC ID 严格对应
 
 ## 15. 文档与收尾
 
@@ -137,3 +139,5 @@
 - [x] **FB-5**: 明确 `cron.shell.enabled` 与 `cron.log.retention` 的运行时读取归属
 - [x] **FB-6**: 将插件 handler 联动从模糊事件总线改为显式生命周期回调
 - [x] **FB-7**: 明确 `timeout_seconds` 为所有任务的公共字段并补齐测试规划
+- [x] **FB-8**: 明确 shell `env` 审计脱敏边界并追加实现任务
+- [x] **FB-9**: 明确终止 shell 实例时的组合权限与测试覆盖

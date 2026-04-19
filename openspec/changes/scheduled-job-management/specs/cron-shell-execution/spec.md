@@ -47,6 +47,11 @@
 - **WHEN** 用户不具备 `system:job:shell` 权限而尝试修改或手动触发已存在 Shell 任务
 - **THEN** 系统 SHALL 拒绝操作
 
+#### Scenario: 手动终止 Shell 任务权限
+
+- **WHEN** 用户不具备 `system:job:shell` 权限而尝试终止 running 的 Shell 实例
+- **THEN** 系统 SHALL 拒绝操作
+
 #### Scenario: 默认权限分配
 
 - **WHEN** 系统初始化 seed
@@ -150,6 +155,7 @@
 - **WHEN** 创建或修改 Shell 任务
 - **THEN** 系统 SHALL 在 `oper_log` 写入一条记录
 - **AND** 记录操作人、IP、操作类型、shell_cmd 快照、work_dir、timeout_seconds
+- **AND** 不记录原始 `env` 值
 
 #### Scenario: 手动触发审计
 
@@ -162,3 +168,4 @@
 - **WHEN** 管理员终止运行中的 Shell 实例
 - **THEN** 系统 SHALL 在 `oper_log` 写入终止记录
 - **AND** 记录被终止的 log_id 与目标任务 ID
+- **AND** 不记录原始 `env` 值
