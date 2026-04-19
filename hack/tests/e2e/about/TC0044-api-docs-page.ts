@@ -134,9 +134,11 @@ test.describe('TC0044 系统接口页面', () => {
     adminPage,
   }) => {
     const pluginPage = new PluginPage(adminPage);
+    let installedDuringTest = false;
 
     await pluginPage.gotoManage();
     await pluginPage.searchByPluginId(sourcePluginID);
+    installedDuringTest = await pluginPage.ensurePluginInstalled(sourcePluginID);
     await pluginPage.setPluginEnabled(sourcePluginID, true);
 
     let frame = await openApiDocsFrame(adminPage);
@@ -157,7 +159,10 @@ test.describe('TC0044 系统接口页面', () => {
     } finally {
       await pluginPage.gotoManage();
       await pluginPage.searchByPluginId(sourcePluginID);
-      await pluginPage.setPluginEnabled(sourcePluginID, true);
+      await pluginPage.setPluginEnabled(sourcePluginID, false);
+      if (installedDuringTest) {
+        await pluginPage.ensurePluginUninstalled(sourcePluginID);
+      }
     }
   });
 });

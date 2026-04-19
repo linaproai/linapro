@@ -32,7 +32,7 @@ type JobPayload struct {
 
 // CreateReq defines the request for creating one scheduled job.
 type CreateReq struct {
-	g.Meta `path:"/job" method:"post" tags:"定时任务管理" summary:"创建任务" dc:"创建一个新的定时任务，支持 Handler 与 Shell 两种任务类型" permission:"system:job:add"`
+	g.Meta `path:"/job" method:"post" tags:"定时任务管理" summary:"创建任务" operLog:"create" dc:"创建一个新的定时任务，支持 Handler 与 Shell 两种任务类型" permission:"system:job:add"`
 	JobPayload
 }
 

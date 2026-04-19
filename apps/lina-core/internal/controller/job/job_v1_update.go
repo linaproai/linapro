@@ -1,17 +1,22 @@
-// This file declares the scheduled job update endpoint placeholder.
+// This file implements the scheduled job update endpoint.
 
 package job
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gcode"
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/api/job/v1"
+	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 )
 
 // Update handles scheduled job update requests.
 func (c *ControllerV1) Update(ctx context.Context, req *v1.UpdateReq) (res *v1.UpdateRes, err error) {
-	return nil, gerror.NewCode(gcode.CodeNotImplemented)
+	err = c.jobMgmtSvc.UpdateJob(ctx, jobmgmtsvc.UpdateJobInput{
+		ID:           req.Id,
+		SaveJobInput: buildSaveJobInput(req.JobPayload),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &v1.UpdateRes{}, nil
 }

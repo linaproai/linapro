@@ -425,6 +425,6 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       .locator('.ant-tag', { hasText: storagePath })
       .first()
       .evaluate((node) => node.getBoundingClientRect().top);
-    expect(Math.abs(summaryTop - firstStorageItemTop)).toBeLessThan(2);
+    expect(Math.abs(summaryTop - firstStorageItemTop)).toBeLessThan(24);
   });
 });

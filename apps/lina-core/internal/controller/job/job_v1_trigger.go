@@ -1,17 +1,18 @@
-// This file declares the scheduled job manual trigger endpoint placeholder.
+// This file implements the scheduled job manual trigger endpoint.
 
 package job
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gcode"
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/api/job/v1"
 )
 
 // Trigger handles requests that trigger one scheduled job immediately.
 func (c *ControllerV1) Trigger(ctx context.Context, req *v1.TriggerReq) (res *v1.TriggerRes, err error) {
-	return nil, gerror.NewCode(gcode.CodeNotImplemented)
+	logID, err := c.jobMgmtSvc.TriggerJob(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.TriggerRes{LogId: logID}, nil
 }

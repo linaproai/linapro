@@ -12,6 +12,7 @@ type FrontendRes struct {
 	App  FrontendAppRes  `json:"app" dc:"应用品牌展示配置" eg:"{}"`
 	Auth FrontendAuthRes `json:"auth" dc:"登录页展示配置" eg:"{}"`
 	UI   FrontendUIRes   `json:"ui" dc:"界面风格配置" eg:"{}"`
+	Cron FrontendCronRes `json:"cron" dc:"定时任务前端能力配置" eg:"{}"`
 }
 
 // FrontendAppRes stores brand-related public settings.
@@ -34,4 +35,16 @@ type FrontendUIRes struct {
 	Layout           string `json:"layout" dc:"后台默认布局：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content" eg:"sidebar-nav"`
 	WatermarkEnabled bool   `json:"watermarkEnabled" dc:"是否启用水印：true=启用 false=关闭" eg:"false"`
 	WatermarkContent string `json:"watermarkContent" dc:"水印文案内容" eg:"LinaPro"`
+}
+
+// FrontendCronRes stores public-safe scheduled-job capability flags.
+type FrontendCronRes struct {
+	Shell FrontendCronShellRes `json:"shell" dc:"Shell 任务前端能力开关" eg:"{}"`
+}
+
+// FrontendCronShellRes stores the shell-job gate exposed to the frontend.
+type FrontendCronShellRes struct {
+	Enabled        bool   `json:"enabled" dc:"是否允许创建和执行 Shell 任务：true=允许 false=不允许" eg:"false"`
+	Supported      bool   `json:"supported" dc:"当前平台是否支持 Shell 任务：true=支持 false=不支持" eg:"true"`
+	DisabledReason string `json:"disabledReason" dc:"Shell 任务不可用时的原因说明" eg:"当前平台不支持 shell 模式"`
 }

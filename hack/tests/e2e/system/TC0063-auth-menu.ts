@@ -231,6 +231,9 @@ test.describe("TC0063 登录后菜单显示", () => {
       "参数设置",
       "文件管理",
       "插件管理",
+      "任务管理",
+      "分组管理",
+      "执行日志",
     ]);
 
     const currentMenusResponse = await adminApi!.get("menu");
@@ -299,6 +302,10 @@ test.describe("TC0063 登录后菜单显示", () => {
       "通知公告",
       "参数设置",
       "文件管理",
+      "插件管理",
+      "任务管理",
+      "分组管理",
+      "执行日志",
     ];
 
     // First login as admin and check available menus

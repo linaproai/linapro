@@ -5,6 +5,7 @@ package pluginhost
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -116,6 +117,32 @@ func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 	)
 	if !registrar.IsPrimaryNode() {
 		t.Fatalf("expected current node to be primary")
+	}
+}
+
+// TestRegisterJobHandlerPublishesScheduledJobMetadata verifies source plugins
+// can publish scheduled-job handlers for host-side registration.
+func TestRegisterJobHandlerPublishesScheduledJobMetadata(t *testing.T) {
+	plugin := NewSourcePlugin("test-plugin-job-handler")
+	plugin.RegisterJobHandler(JobHandlerRegistration{
+		Name:         "echo",
+		DisplayName:  "Echo",
+		Description:  "Echoes the payload for scheduled-job tests.",
+		ParamsSchema: `{"type":"object","properties":{"message":{"type":"string"}},"required":["message"]}`,
+		Handler: func(ctx context.Context, params json.RawMessage) (result any, err error) {
+			return map[string]any{"params": string(params)}, nil
+		},
+	})
+
+	items := plugin.GetJobHandlers()
+	if len(items) != 1 {
+		t.Fatalf("expected one job handler, got %d", len(items))
+	}
+	if items[0].Name != "echo" {
+		t.Fatalf("expected handler name echo, got %s", items[0].Name)
+	}
+	if items[0].DisplayName != "Echo" {
+		t.Fatalf("expected handler display name Echo, got %s", items[0].DisplayName)
 	}
 }
 

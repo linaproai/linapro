@@ -7,6 +7,7 @@ import (
 
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
+	schedulerpkg "lina-core/internal/service/jobmgmt/scheduler"
 	pluginsvc "lina-core/internal/service/plugin"
 	rolesvc "lina-core/internal/service/role"
 	"lina-core/internal/service/servermon"
@@ -51,6 +52,7 @@ type serviceImpl struct {
 	sessionStore          session.Store         // Session store
 	clusterSvc            cluster.Service       // Cluster topology service
 	pluginSvc             pluginsvc.Service     // Plugin service
+	persistentScheduler   schedulerpkg.Scheduler // persistentScheduler loads and registers persisted jobs.
 	runtimeParamSyncJob   startupJob            // Runtime-parameter sync startup job
 	accessTopologySyncJob startupJob            // Permission-topology sync startup job
 }
@@ -61,6 +63,7 @@ func New(
 	monCfg *config.MonitorConfig,
 	sessionStore session.Store,
 	clusterSvc cluster.Service,
+	persistentScheduler schedulerpkg.Scheduler,
 ) Service {
 	var (
 		configSvc      = config.New()
@@ -79,6 +82,7 @@ func New(
 		sessionStore: sessionStore,
 		clusterSvc:   clusterSvc,
 		pluginSvc:    pluginSvc,
+		persistentScheduler: persistentScheduler,
 		runtimeParamSyncJob: newRuntimeParamSnapshotSyncJob(
 			clusterEnabled,
 			configSvc,
@@ -102,6 +106,11 @@ func (s *serviceImpl) Start(ctx context.Context) {
 	s.startServerMonitorCleanup(ctx)
 	if err := s.pluginSvc.RegisterCrons(ctx); err != nil {
 		logger.Warningf(ctx, "register plugin cron jobs failed: %v", err)
+	}
+	if s.persistentScheduler != nil {
+		if err := s.persistentScheduler.LoadAndRegister(ctx); err != nil {
+			logger.Warningf(ctx, "register persistent cron jobs failed: %v", err)
+		}
 	}
 }
 

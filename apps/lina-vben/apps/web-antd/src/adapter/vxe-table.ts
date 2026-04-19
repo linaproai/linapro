@@ -2,6 +2,7 @@ import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
 
 import { Fragment, defineComponent, h } from 'vue';
 
+import { Tag, Tooltip } from 'ant-design-vue';
 import {
   setupVbenVxeTable,
   useVbenVxeGrid as useBaseVbenVxeGrid,
@@ -136,3 +137,154 @@ export function vxeCheckboxChecked(
 }
 
 export type * from '@vben/plugins/vxe-table';
+
+/**
+ * 构建任务分组列表列定义。
+ */
+export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
+  return [
+    { type: 'checkbox', width: 56 },
+    { field: 'code', title: '分组编码', minWidth: 160 },
+    { field: 'name', title: '分组名称', minWidth: 180 },
+    { field: 'sortOrder', title: '排序', width: 90 },
+    { field: 'jobCount', title: '任务数', width: 100 },
+    {
+      field: 'isDefault',
+      title: '默认分组',
+      width: 110,
+      slots: {
+        default: ({ row }: any) =>
+          row.isDefault === 1 ? h(Tag, { color: 'gold' }, () => '默认分组') : '-',
+      },
+    },
+    { field: 'remark', title: '备注', minWidth: 200 },
+    { field: 'updatedAt', title: '更新时间', minWidth: 180 },
+    {
+      field: 'action',
+      fixed: 'right',
+      title: '操作',
+      width: 220,
+      slots: { default: 'action' },
+    },
+  ];
+}
+
+/**
+ * 构建任务列表列定义。
+ */
+export function buildJobColumns(): VxeTableGridOptions['columns'] {
+  return [
+    { type: 'checkbox', width: 56 },
+    { field: 'name', title: '任务名称', minWidth: 180 },
+    { field: 'groupName', title: '所属分组', minWidth: 140 },
+    {
+      field: 'taskType',
+      title: '任务类型',
+      width: 110,
+      slots: {
+        default: ({ row }: any) =>
+          h(Tag, { color: row.taskType === 'shell' ? 'volcano' : 'blue' }, () =>
+            row.taskType === 'shell' ? 'Shell' : 'Handler',
+          ),
+      },
+    },
+    {
+      field: 'status',
+      title: '状态',
+      minWidth: 180,
+      slots: {
+        default: ({ row }: any) => {
+          if (row.status === 'paused_by_plugin') {
+            return h(
+              Tooltip,
+              { title: '插件不可用' },
+              {
+                default: () =>
+                  h(Tag, { color: 'error' }, () => '插件不可用'),
+              },
+            );
+          }
+          if (row.status === 'enabled') {
+            return h(Tag, { color: 'success' }, () => '启用');
+          }
+          return h(Tag, {}, () => '停用');
+        },
+      },
+    },
+    { field: 'cronExpr', title: 'Cron 表达式', minWidth: 150 },
+    { field: 'timezone', title: '时区', width: 140 },
+    { field: 'scope', title: '范围', minWidth: 110 },
+    { field: 'concurrency', title: '并发策略', minWidth: 120 },
+    { field: 'executedCount', title: '已执行次数', width: 110 },
+    {
+      field: 'stopReason',
+      title: '停止原因',
+      minWidth: 150,
+      slots: {
+        default: ({ row }: any) =>
+          row.stopReason
+            ? h(
+                Tag,
+                { color: row.stopReason === 'max_executions_reached' ? 'warning' : 'default' },
+                () => row.stopReason,
+              )
+            : '-',
+      },
+    },
+    { field: 'updatedAt', title: '更新时间', minWidth: 180 },
+    {
+      field: 'action',
+      fixed: 'right',
+      title: '操作',
+      width: 320,
+      slots: { default: 'action' },
+    },
+  ];
+}
+
+/**
+ * 构建任务日志列表列定义。
+ */
+export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
+  return [
+    { type: 'checkbox', width: 56 },
+    { field: 'jobName', title: '任务名称', minWidth: 180 },
+    { field: 'trigger', title: '触发方式', width: 100 },
+    { field: 'nodeId', title: '执行节点', minWidth: 140 },
+    {
+      field: 'status',
+      title: '状态',
+      width: 160,
+      slots: {
+        default: ({ row }: any) => {
+          const colorMap: Record<string, string> = {
+            cancelled: 'default',
+            failed: 'error',
+            running: 'processing',
+            success: 'success',
+            timeout: 'warning',
+          };
+          return h(Tag, { color: colorMap[row.status] || 'default' }, () => row.status);
+        },
+      },
+    },
+    { field: 'startAt', title: '开始时间', minWidth: 180 },
+    { field: 'endAt', title: '结束时间', minWidth: 180 },
+    { field: 'durationMs', title: '耗时(ms)', width: 100 },
+    {
+      field: 'errMsg',
+      title: '错误摘要',
+      minWidth: 240,
+      slots: {
+        default: ({ row }: any) => row.errMsg || '-',
+      },
+    },
+    {
+      field: 'action',
+      fixed: 'right',
+      title: '操作',
+      width: 220,
+      slots: { default: 'action' },
+    },
+  ];
+}

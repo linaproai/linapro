@@ -94,6 +94,33 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'JobManagement',
+        path: '/system/job',
+        component: () => import('#/views/system/job/index.vue'),
+        meta: {
+          icon: 'ant-design:clock-circle-outlined',
+          title: '任务管理',
+        },
+      },
+      {
+        name: 'JobGroupManagement',
+        path: '/system/job-group',
+        component: () => import('#/views/system/job-group/index.vue'),
+        meta: {
+          icon: 'ant-design:clock-circle-outlined',
+          title: '分组管理',
+        },
+      },
+      {
+        name: 'JobLogManagement',
+        path: '/system/job-log',
+        component: () => import('#/views/system/job-log/index.vue'),
+        meta: {
+          icon: 'ant-design:clock-circle-outlined',
+          title: '执行日志',
+        },
+      },
+      {
         name: 'PluginManagement',
         path: '/system/plugin',
         component: () => import('#/views/system/plugin/index.vue'),

@@ -1,15 +1,15 @@
 // This file handles the public frontend-config whitelist endpoint.
 
-package config
+package publicconfig
 
 import (
 	"context"
 
-	v1 "lina-core/api/publicconfig/v1"
+	"lina-core/api/publicconfig/v1"
 )
 
 // Frontend returns the public-safe frontend display config whitelist.
-func (c *PublicControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1.FrontendRes, err error) {
+func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1.FrontendRes, err error) {
 	cfg := c.configSvc.GetPublicFrontend(ctx)
 	if cfg == nil {
 		return &v1.FrontendRes{}, nil
@@ -30,6 +30,13 @@ func (c *PublicControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (r
 			Layout:           cfg.UI.Layout,
 			WatermarkEnabled: cfg.UI.WatermarkEnabled,
 			WatermarkContent: cfg.UI.WatermarkContent,
+		},
+		Cron: v1.FrontendCronRes{
+			Shell: v1.FrontendCronShellRes{
+				Enabled:        cfg.Cron.Shell.Enabled,
+				Supported:      cfg.Cron.Shell.Supported,
+				DisabledReason: cfg.Cron.Shell.DisabledReason,
+			},
 		},
 	}, nil
 }

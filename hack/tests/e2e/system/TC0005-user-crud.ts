@@ -6,6 +6,23 @@ test.describe('TC0005 用户管理 CRUD', () => {
     return `e2e_user_${scope}_${Date.now()}`;
   }
 
+  async function expectUserVisible(userPage: UserPage, username: string) {
+    await expect
+      .poll(
+        async () => {
+          await userPage.goto();
+          await userPage.fillSearchField('用户账号', username);
+          await userPage.clickSearch();
+          return userPage.hasUser(username);
+        },
+        {
+          message: `expected user ${username} to appear in list`,
+          timeout: 20_000,
+        },
+      )
+      .toBeTruthy();
+  }
+
   async function deleteUserIfExists(userPage: UserPage, username: string) {
     await userPage.goto();
     await userPage.fillSearchField('用户账号', username);
@@ -21,11 +38,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
     try {
       await userPage.goto();
       await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
-
-      await userPage.goto();
-      await userPage.fillSearchField('用户账号', testUsername);
-      await userPage.clickSearch();
-      expect(await userPage.hasUser(testUsername)).toBeTruthy();
+      await expectUserVisible(userPage, testUsername);
     } finally {
       await deleteUserIfExists(userPage, testUsername);
     }
@@ -37,13 +50,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
     try {
       await userPage.goto();
       await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
-
-      await userPage.goto();
-      await userPage.fillSearchField('用户账号', testUsername);
-      await userPage.clickSearch();
-
-      const hasUser = await userPage.hasUser(testUsername);
-      expect(hasUser).toBeTruthy();
+      await expectUserVisible(userPage, testUsername);
     } finally {
       await deleteUserIfExists(userPage, testUsername);
     }
@@ -55,7 +62,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
     try {
       await userPage.goto();
       await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
-      await userPage.goto();
+      await expectUserVisible(userPage, testUsername);
       await userPage.editUser(testUsername, { nickname: '修改后的E2E用户' });
 
       await userPage.goto();
@@ -74,7 +81,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
     const userPage = new UserPage(adminPage);
     await userPage.goto();
     await userPage.createUser(testUsername, 'test123456', 'E2E测试用户');
-    await userPage.goto();
+    await expectUserVisible(userPage, testUsername);
     await userPage.deleteUser(testUsername);
 
     await userPage.goto();

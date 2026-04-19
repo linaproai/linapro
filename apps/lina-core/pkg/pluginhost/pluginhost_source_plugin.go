@@ -5,6 +5,7 @@ package pluginhost
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -21,6 +22,7 @@ type SourcePlugin struct {
 	routeRegistrars   []*RouteHandlerRegistration
 	afterAuthHandlers []*AfterAuthHandlerRegistration
 	cronRegistrars    []*CronHandlerRegistration
+	jobHandlers       []*JobHandlerRegistration
 	menuFilters       []*MenuFilterHandlerRegistration
 	permissionFilters []*PermissionFilterHandlerRegistration
 }
@@ -82,6 +84,23 @@ type CronHandlerRegistration struct {
 	Mode CallbackExecutionMode
 	// Point is the published backend extension point.
 	Point ExtensionPoint
+}
+
+// JobHandler defines one source-plugin scheduled-job callback.
+type JobHandler func(ctx context.Context, params json.RawMessage) (result any, err error)
+
+// JobHandlerRegistration defines one scheduled-job handler declared by a source plugin.
+type JobHandlerRegistration struct {
+	// Name is the plugin-local handler name appended after `plugin:<plugin-id>/`.
+	Name string
+	// DisplayName is exposed to the host scheduled-job UI.
+	DisplayName string
+	// Description explains the handler purpose in the host UI.
+	Description string
+	// ParamsSchema stores the supported JSON Schema subset for params validation.
+	ParamsSchema string
+	// Handler executes the scheduled job.
+	Handler JobHandler
 }
 
 // MenuFilterHandlerRegistration defines one menu-filter callback subscribed by a source plugin.
@@ -226,6 +245,7 @@ func NewSourcePlugin(id string) *SourcePlugin {
 		routeRegistrars:   make([]*RouteHandlerRegistration, 0),
 		afterAuthHandlers: make([]*AfterAuthHandlerRegistration, 0),
 		cronRegistrars:    make([]*CronHandlerRegistration, 0),
+		jobHandlers:       make([]*JobHandlerRegistration, 0),
 		menuFilters:       make([]*MenuFilterHandlerRegistration, 0),
 		permissionFilters: make([]*PermissionFilterHandlerRegistration, 0),
 	}
@@ -415,6 +435,23 @@ func (p *SourcePlugin) RegisterCron(
 	})
 }
 
+// RegisterJobHandler registers one scheduled-job handler exposed by a source plugin.
+func (p *SourcePlugin) RegisterJobHandler(registration JobHandlerRegistration) {
+	if p == nil {
+		panic("pluginhost: source plugin is nil")
+	}
+	if registration.Handler == nil {
+		panic("pluginhost: job handler is nil")
+	}
+	p.jobHandlers = append(p.jobHandlers, &JobHandlerRegistration{
+		Name:         registration.Name,
+		DisplayName:  registration.DisplayName,
+		Description:  registration.Description,
+		ParamsSchema: registration.ParamsSchema,
+		Handler:      registration.Handler,
+	})
+}
+
 // RegisterMenuFilter registers one callback that filters host menus.
 func (p *SourcePlugin) RegisterMenuFilter(
 	point ExtensionPoint,
@@ -492,6 +529,16 @@ func (p *SourcePlugin) GetCronRegistrars() []*CronHandlerRegistration {
 	}
 	items := make([]*CronHandlerRegistration, len(p.cronRegistrars))
 	copy(items, p.cronRegistrars)
+	return items
+}
+
+// GetJobHandlers returns the scheduled-job handlers declared by the source plugin.
+func (p *SourcePlugin) GetJobHandlers() []*JobHandlerRegistration {
+	if p == nil {
+		return []*JobHandlerRegistration{}
+	}
+	items := make([]*JobHandlerRegistration, len(p.jobHandlers))
+	copy(items, p.jobHandlers)
 	return items
 }
 

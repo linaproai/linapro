@@ -526,7 +526,7 @@ test.describe("TC-75 Runtime Wasm Lifecycle Boundaries", () => {
     const roleMenuCount = querySQLInt(
       `SELECT COUNT(*) FROM sys_role_menu WHERE menu_id IN (${menuIDs.join(",")});`,
     );
-    expect(roleMenuCount, "安装后应为管理员角色写入菜单绑定").toBeGreaterThan(0);
+    expect(roleMenuCount, "安装后不应再依赖管理员角色菜单绑定").toBe(0);
 
     const resourceRefCount = querySQLInt(
       `SELECT COUNT(*) FROM sys_plugin_resource_ref WHERE plugin_id = '${primaryPluginID}';`,

@@ -3,6 +3,7 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
 
 	"lina-core/pkg/pluginhost"
 	plugindemosource "lina-plugin-demo-source"
@@ -31,6 +32,13 @@ func init() {
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,
 	)
+	plugin.RegisterJobHandler(pluginhost.JobHandlerRegistration{
+		Name:         "echo",
+		DisplayName:  "源码插件示例回显",
+		Description:  "返回源码插件示例任务参数，用于验证插件处理器生命周期与定时任务调度链路",
+		ParamsSchema: `{"type":"object","properties":{"message":{"type":"string","description":"回显消息"}},"required":["message"]}`,
+		Handler:      invokeEchoJobHandler,
+	})
 	pluginhost.RegisterSourcePlugin(plugin)
 }
 
@@ -73,4 +81,22 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 		})
 	})
 	return nil
+}
+
+// echoJobHandlerParams stores the supported payload for the demo source-plugin job handler.
+type echoJobHandlerParams struct {
+	Message string `json:"message"`
+}
+
+// invokeEchoJobHandler returns the plugin identity and payload so tests can
+// verify plugin handler registration and execution end to end.
+func invokeEchoJobHandler(ctx context.Context, params json.RawMessage) (any, error) {
+	var input echoJobHandlerParams
+	if err := json.Unmarshal(params, &input); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"pluginId": pluginID,
+		"message":  input.Message,
+	}, nil
 }

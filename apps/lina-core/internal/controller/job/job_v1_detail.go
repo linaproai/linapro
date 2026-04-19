@@ -1,17 +1,22 @@
-// This file declares the scheduled job detail endpoint placeholder.
+// This file implements the scheduled job detail endpoint.
 
 package job
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gcode"
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/api/job/v1"
 )
 
 // Detail handles scheduled job detail lookup requests.
 func (c *ControllerV1) Detail(ctx context.Context, req *v1.DetailReq) (res *v1.DetailRes, err error) {
-	return nil, gerror.NewCode(gcode.CodeNotImplemented)
+	out, err := c.jobMgmtSvc.GetJob(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.DetailRes{
+		SysJob:    out.SysJob,
+		GroupCode: out.GroupCode,
+		GroupName: out.GroupName,
+	}, nil
 }

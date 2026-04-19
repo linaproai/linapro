@@ -11,7 +11,7 @@ export default defineConfig({
     timeout: 10000,
   },
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:5666',
+    baseURL: process.env.E2E_BASE_URL ?? 'http://127.0.0.1:5666',
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',

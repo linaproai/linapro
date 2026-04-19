@@ -22,9 +22,20 @@ interface PublicFrontendUISettings {
   watermarkEnabled: boolean;
 }
 
+interface PublicFrontendCronShellSettings {
+  disabledReason: string;
+  enabled: boolean;
+  supported: boolean;
+}
+
+interface PublicFrontendCronSettings {
+  shell: PublicFrontendCronShellSettings;
+}
+
 interface PublicFrontendSettings {
   app: PublicFrontendAppSettings;
   auth: PublicFrontendAuthSettings;
+  cron: PublicFrontendCronSettings;
   ui: PublicFrontendUISettings;
 }
 
@@ -47,6 +58,13 @@ const publicFrontendState = reactive<PublicFrontendSettings>({
     loginSubtitle: '',
     pageDesc: '',
     pageTitle: '',
+  },
+  cron: {
+    shell: {
+      disabledReason: '',
+      enabled: false,
+      supported: true,
+    },
   },
   ui: {
     layout: '',
@@ -72,6 +90,8 @@ function resolvePublicFrontendEndpoint(): string {
 function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
   const app = payload?.app ?? {};
   const auth = payload?.auth ?? {};
+  const cron = payload?.cron ?? {};
+  const shell = cron?.shell ?? {};
   const ui = payload?.ui ?? {};
 
   return {
@@ -84,6 +104,16 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
       loginSubtitle: normalizeString(auth.loginSubtitle),
       pageDesc: normalizeString(auth.pageDesc),
       pageTitle: normalizeString(auth.pageTitle),
+    },
+    cron: {
+      shell: {
+        disabledReason: normalizeString(shell.disabledReason),
+        enabled: normalizeBoolean(shell.enabled),
+        supported:
+          shell?.supported === undefined
+            ? true
+            : normalizeBoolean(shell.supported),
+      },
     },
     ui: {
       layout: normalizeString(ui.layout),
@@ -135,6 +165,7 @@ async function syncPublicFrontendSettings() {
 
     Object.assign(publicFrontendState.app, settings.app);
     Object.assign(publicFrontendState.auth, settings.auth);
+    Object.assign(publicFrontendState.cron.shell, settings.cron.shell);
     Object.assign(publicFrontendState.ui, settings.ui);
     applyPublicFrontendPreferences(settings);
 

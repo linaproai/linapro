@@ -1,17 +1,24 @@
-// This file declares the scheduled job group create endpoint placeholder.
+// This file implements the scheduled job group create endpoint.
 
 package jobgroup
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gcode"
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/api/jobgroup/v1"
+	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 )
 
 // Create handles scheduled job group creation requests.
 func (c *ControllerV1) Create(ctx context.Context, req *v1.CreateReq) (res *v1.CreateRes, err error) {
-	return nil, gerror.NewCode(gcode.CodeNotImplemented)
+	id, err := c.jobMgmtSvc.CreateGroup(ctx, jobmgmtsvc.SaveGroupInput{
+		Code:      req.Code,
+		Name:      req.Name,
+		Remark:    req.Remark,
+		SortOrder: req.SortOrder,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &v1.CreateRes{Id: id}, nil
 }

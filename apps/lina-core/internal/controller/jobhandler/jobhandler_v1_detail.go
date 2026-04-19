@@ -1,11 +1,10 @@
-// This file declares the scheduled job handler detail endpoint placeholder.
+// This file implements the scheduled job handler detail endpoint.
 
 package jobhandler
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/api/jobhandler/v1"
@@ -13,5 +12,16 @@ import (
 
 // Detail handles scheduled job handler detail lookup requests.
 func (c *ControllerV1) Detail(ctx context.Context, req *v1.DetailReq) (res *v1.DetailRes, err error) {
-	return nil, gerror.NewCode(gcode.CodeNotImplemented)
+	item, ok := c.registry.Lookup(req.Ref)
+	if !ok {
+		return nil, gerror.New("任务处理器不存在")
+	}
+	return &v1.DetailRes{
+		Ref:          item.Ref,
+		DisplayName:  item.DisplayName,
+		Description:  item.Description,
+		Source:       string(item.Source),
+		PluginId:     item.PluginID,
+		ParamsSchema: item.ParamsSchema,
+	}, nil
 }

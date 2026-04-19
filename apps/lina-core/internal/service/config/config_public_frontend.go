@@ -138,6 +138,7 @@ type PublicFrontendConfig struct {
 	App  PublicFrontendAppConfig  `json:"app"`  // App groups brand-related settings.
 	Auth PublicFrontendAuthConfig `json:"auth"` // Auth groups login-page copy settings.
 	UI   PublicFrontendUIConfig   `json:"ui"`   // UI groups theme, layout, and watermark settings.
+	Cron PublicFrontendCronConfig `json:"cron"` // Cron groups public-safe scheduled-job capability flags.
 }
 
 // PublicFrontendAppConfig stores brand-related public settings.
@@ -160,6 +161,18 @@ type PublicFrontendUIConfig struct {
 	Layout           string `json:"layout"`           // Layout is the default admin layout mode.
 	WatermarkEnabled bool   `json:"watermarkEnabled"` // WatermarkEnabled reports whether watermark is enabled.
 	WatermarkContent string `json:"watermarkContent"` // WatermarkContent is the watermark text.
+}
+
+// PublicFrontendCronConfig stores public-safe scheduled-job runtime settings.
+type PublicFrontendCronConfig struct {
+	Shell PublicFrontendCronShellConfig `json:"shell"` // Shell exposes whether shell jobs are available to the UI.
+}
+
+// PublicFrontendCronShellConfig stores the frontend-visible shell-job gate.
+type PublicFrontendCronShellConfig struct {
+	Enabled        bool   `json:"enabled"`                  // Enabled reports whether shell jobs are currently allowed.
+	Supported      bool   `json:"supported"`                // Supported reports whether the current platform supports shell jobs.
+	DisabledReason string `json:"disabledReason,omitempty"` // DisabledReason explains why shell jobs are unavailable.
 }
 
 // PublicFrontendSettingSpecs returns all built-in public frontend setting specs.
@@ -231,6 +244,7 @@ func ValidatePublicFrontendSettingValue(key string, value string) error {
 // GetPublicFrontend returns the public-safe frontend branding and display
 // configuration consumed by login pages and admin workspace startup.
 func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConfig {
+	cronCfg := s.GetCron(ctx)
 	return &PublicFrontendConfig{
 		App: PublicFrontendAppConfig{
 			Name:     s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppName),
@@ -247,6 +261,13 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConf
 			Layout:           s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUILayout),
 			WatermarkEnabled: s.getProtectedConfigBoolOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkEnabled),
 			WatermarkContent: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkContent),
+		},
+		Cron: PublicFrontendCronConfig{
+			Shell: PublicFrontendCronShellConfig{
+				Enabled:        cronCfg.Shell.Enabled,
+				Supported:      cronCfg.Shell.Supported,
+				DisabledReason: cronCfg.Shell.DisabledReason,
+			},
 		},
 	}
 }

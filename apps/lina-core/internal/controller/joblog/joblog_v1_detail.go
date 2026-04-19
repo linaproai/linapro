@@ -1,17 +1,21 @@
-// This file declares the scheduled job log detail endpoint placeholder.
+// This file implements the scheduled job log detail endpoint.
 
 package joblog
 
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gcode"
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/api/joblog/v1"
 )
 
 // Detail handles scheduled job log detail lookup requests.
 func (c *ControllerV1) Detail(ctx context.Context, req *v1.DetailReq) (res *v1.DetailRes, err error) {
-	return nil, gerror.NewCode(gcode.CodeNotImplemented)
+	out, err := c.jobMgmtSvc.GetLog(ctx, req.Id)
+	if err != nil {
+		return nil, err
+	}
+	return &v1.DetailRes{
+		SysJobLog: out.SysJobLog,
+		JobName:   out.JobName,
+	}, nil
 }

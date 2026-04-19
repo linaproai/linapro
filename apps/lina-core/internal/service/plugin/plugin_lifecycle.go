@@ -46,9 +46,15 @@ func (s *serviceImpl) UninstallWithOptions(
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		return s.uninstallSourcePlugin(ctx, manifest, options)
+		if err = s.uninstallSourcePlugin(ctx, manifest, options); err != nil {
+			return err
+		}
+		return notifyPluginUninstalled(ctx, pluginID)
 	}
-	return s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData)
+	if err = s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData); err != nil {
+		return err
+	}
+	return notifyPluginUninstalled(ctx, pluginID)
 }
 
 // UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
@@ -99,9 +105,21 @@ func (s *serviceImpl) updateStatus(
 				return err
 			}
 		}
-		return s.reconcileDynamicPluginStatus(ctx, pluginID, status)
+		if err = s.reconcileDynamicPluginStatus(ctx, pluginID, status); err != nil {
+			return err
+		}
+		if status == catalog.StatusEnabled {
+			return notifyPluginEnabled(ctx, pluginID)
+		}
+		return notifyPluginDisabled(ctx, pluginID)
 	}
-	return s.catalogSvc.SetPluginStatus(ctx, pluginID, status)
+	if err = s.catalogSvc.SetPluginStatus(ctx, pluginID, status); err != nil {
+		return err
+	}
+	if status == catalog.StatusEnabled {
+		return notifyPluginEnabled(ctx, pluginID)
+	}
+	return notifyPluginDisabled(ctx, pluginID)
 }
 
 // Enable enables the specified plugin.

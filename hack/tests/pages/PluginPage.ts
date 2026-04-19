@@ -467,6 +467,18 @@ export class PluginPage {
     ).toBeVisible();
   }
 
+  async ensurePluginInstalled(pluginId: string) {
+    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    const installVisible = await installButton
+      .isVisible({ timeout: 1500 })
+      .catch(() => false);
+    if (!installVisible) {
+      return false;
+    }
+    await this.installPlugin(pluginId);
+    return true;
+  }
+
   async openInstallAuthorization(pluginId: string) {
     const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
     await expect(installButton).toBeVisible();
@@ -476,6 +488,18 @@ export class PluginPage {
 
   async uninstallPlugin(pluginId: string) {
     await this.uninstallPluginWithOptions(pluginId, true);
+  }
+
+  async ensurePluginUninstalled(pluginId: string) {
+    const uninstallButton = await this.pluginActionButton(pluginId, /卸\s*载/);
+    const uninstallVisible = await uninstallButton
+      .isVisible({ timeout: 1500 })
+      .catch(() => false);
+    if (!uninstallVisible) {
+      return false;
+    }
+    await this.uninstallPlugin(pluginId);
+    return true;
   }
 
   async openPluginDetail(pluginId: string) {

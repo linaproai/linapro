@@ -54,3 +54,147 @@ export type { VbenFormProps };
 export type FormSchemaGetter = () =>
   | VbenFormSchema[]
   | Promise<VbenFormSchema[]>;
+
+export interface JobHandlerSchemaFieldOption {
+  label: string;
+  value: boolean | number | string;
+}
+
+export interface JobHandlerSchemaField {
+  component: ComponentType;
+  fieldName: string;
+  label: string;
+  description?: string;
+  defaultValue?: any;
+  format?: string;
+  options?: JobHandlerSchemaFieldOption[];
+  required?: boolean;
+}
+
+interface RawJsonSchemaProperty {
+  default?: any;
+  description?: string;
+  enum?: any[];
+  format?: string;
+  type?: string;
+}
+
+interface RawJsonSchemaRoot {
+  properties?: Record<string, RawJsonSchemaProperty>;
+  required?: string[];
+  type?: string;
+}
+
+const supportedJsonSchemaKeywords = new Set([
+  'default',
+  'description',
+  'enum',
+  'format',
+  'properties',
+  'required',
+  'type',
+]);
+
+function validateSchemaKeywords(
+  schemaText: string,
+  payload: unknown,
+  withinProperties = false,
+) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error(`处理器参数 Schema 不是合法对象: ${schemaText}`);
+  }
+  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+    if (withinProperties) {
+      validateSchemaKeywords(schemaText, value, false);
+      continue;
+    }
+    if (!supportedJsonSchemaKeywords.has(key)) {
+      throw new Error(`处理器参数 Schema 包含当前前端不支持的关键字: ${key}`);
+    }
+    if (key === 'properties') {
+      validateSchemaKeywords(schemaText, value, true);
+      continue;
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      validateSchemaKeywords(schemaText, value);
+    }
+  }
+}
+
+function resolveComponent(property: RawJsonSchemaProperty): ComponentType {
+  if (property.enum && property.enum.length > 0) {
+    return 'Select';
+  }
+  switch (property.type) {
+    case 'boolean': {
+      return 'Switch';
+    }
+    case 'integer':
+    case 'number': {
+      return 'InputNumber';
+    }
+    case 'string': {
+      if (property.format === 'textarea') {
+        return 'Textarea';
+      }
+      if (property.format === 'date') {
+        return 'DatePicker';
+      }
+      if (property.format === 'date-time') {
+        return 'Input';
+      }
+      return 'Input';
+    }
+    default: {
+      return 'Input';
+    }
+  }
+}
+
+function normalizeDefaultValue(property: RawJsonSchemaProperty) {
+  if (property.default !== undefined) {
+    return property.default;
+  }
+  if (property.type === 'boolean') {
+    return false;
+  }
+  return undefined;
+}
+
+function normalizeOptions(
+  values: any[] | undefined,
+): JobHandlerSchemaFieldOption[] | undefined {
+  if (!Array.isArray(values) || values.length === 0) {
+    return undefined;
+  }
+  return values.map((value) => ({
+    label: String(value),
+    value,
+  }));
+}
+
+/**
+ * 将受限 JSON Schema draft-07 子集映射为任务处理器动态参数字段描述。
+ */
+export function buildJobHandlerSchemaFields(schemaText?: string): JobHandlerSchemaField[] {
+  if (!schemaText) {
+    return [];
+  }
+  const payload = JSON.parse(schemaText) as RawJsonSchemaRoot;
+  validateSchemaKeywords(schemaText, payload);
+  if (payload.type !== 'object') {
+    throw new Error('处理器参数 Schema 根节点必须为 object');
+  }
+  const properties = payload.properties ?? {};
+  const requiredSet = new Set(payload.required ?? []);
+  return Object.entries(properties).map(([fieldName, property]) => ({
+    component: resolveComponent(property),
+    fieldName,
+    label: property.description || fieldName,
+    description: property.description,
+    defaultValue: normalizeDefaultValue(property),
+    format: property.format,
+    options: normalizeOptions(property.enum),
+    required: requiredSet.has(fieldName),
+  }));
+}

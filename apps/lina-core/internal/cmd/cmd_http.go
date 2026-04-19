@@ -18,6 +18,10 @@ import (
 	"lina-core/internal/controller/dept"
 	"lina-core/internal/controller/dict"
 	filectrl "lina-core/internal/controller/file"
+	jobctrl "lina-core/internal/controller/job"
+	jobgroupctrl "lina-core/internal/controller/jobgroup"
+	jobhandlerctrl "lina-core/internal/controller/jobhandler"
+	joblogctrl "lina-core/internal/controller/joblog"
 	"lina-core/internal/controller/loginlog"
 	"lina-core/internal/controller/menu"
 	monitorctrl "lina-core/internal/controller/monitor"
@@ -25,6 +29,7 @@ import (
 	"lina-core/internal/controller/operlog"
 	pluginctrl "lina-core/internal/controller/plugin"
 	"lina-core/internal/controller/post"
+	publicconfigctrl "lina-core/internal/controller/publicconfig"
 	"lina-core/internal/controller/role"
 	"lina-core/internal/controller/sysinfo"
 	"lina-core/internal/controller/user"
@@ -34,6 +39,10 @@ import (
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/cron"
+	jobhandlersvc "lina-core/internal/service/jobhandler"
+	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	schedulerpkg "lina-core/internal/service/jobmgmt/scheduler"
+	"lina-core/internal/service/jobmgmt/shellexec"
 	"lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
@@ -77,17 +86,34 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	)
 
 	var (
-		middlewareSvc = middleware.New()
-		authCtrl      = auth.NewV1()
-		pluginCtrl    = pluginctrl.NewV1(clusterSvc)
-		publicCfgCtrl = configctrl.NewPublicV1()
+		jobRegistry    = jobhandlersvc.New()
+		shellExecSvc   = shellexec.New(configSvc)
+		jobScheduler   = schedulerpkg.New(clusterSvc, jobRegistry, shellExecSvc)
+		jobMgmtSvc     = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler)
+		middlewareSvc  = middleware.New()
+		authCtrl       = auth.NewV1()
+		pluginCtrl     = pluginctrl.NewV1(clusterSvc)
+		publicCfgCtrl  = publicconfigctrl.NewV1()
+		jobCtrl        = jobctrl.NewV1(jobMgmtSvc)
+		jobGroupCtrl   = jobgroupctrl.NewV1(jobMgmtSvc)
+		jobLogCtrl     = joblogctrl.NewV1(jobMgmtSvc)
+		jobHandlerCtrl = jobhandlerctrl.NewV1(jobRegistry)
 	)
+	if err = jobhandlersvc.RegisterHostHandlers(jobRegistry, jobMgmtSvc); err != nil {
+		return nil, err
+	}
+	if err = pluginSvc.SyncSourcePlugins(ctx); err != nil {
+		return nil, err
+	}
+	if _, err = jobhandlersvc.AttachPluginLifecycle(ctx, jobRegistry, pluginSvc); err != nil {
+		return nil, err
+	}
 
 	var (
 		sessionCfg = configSvc.GetSession(ctx)
 		monCfg     = configSvc.GetMonitor(ctx)
 		serverCfg  = configSvc.GetServerExtensions(ctx)
-		cronSvc    = cron.New(sessionCfg, monCfg, middlewareSvc.SessionStore(), clusterSvc)
+		cronSvc    = cron.New(sessionCfg, monCfg, middlewareSvc.SessionStore(), clusterSvc, jobScheduler)
 		uploadPath = configSvc.GetUploadPath(ctx)
 	)
 	clusterSvc.Start(ctx)
@@ -159,6 +185,10 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 				filectrl.NewV1(),
 				monitorctrl.NewV1(),
 				configctrl.NewV1(),
+				jobCtrl,
+				jobGroupCtrl,
+				jobLogCtrl,
+				jobHandlerCtrl,
 				pluginCtrl.List,
 				pluginCtrl.Sync,
 				pluginCtrl.Install,
@@ -188,9 +218,6 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	})
 	if err = pluginSvc.RegisterHTTPRoutes(ctx, pluginGroup, middlewareSvc.PublishedRouteMiddlewares()); err != nil {
 		logger.Panicf(ctx, "register plugin routes failed: %v", err)
-	}
-	if err = pluginSvc.SyncSourcePlugins(ctx); err != nil {
-		logger.Panicf(ctx, "sync plugin manifests failed: %v", err)
 	}
 	if err = pluginSvc.PrewarmRuntimeFrontendBundles(ctx); err != nil {
 		logger.Warningf(ctx, "prewarm runtime frontend bundles failed: %v", err)

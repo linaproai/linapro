@@ -47,6 +47,13 @@ describe('public frontend runtime settings', () => {
             name: 'LinaPro Dark',
           },
           auth: {},
+          cron: {
+            shell: {
+              disabledReason: '',
+              enabled: true,
+              supported: true,
+            },
+          },
           ui: {
             themeMode: 'dark',
           },
@@ -68,6 +75,7 @@ describe('public frontend runtime settings', () => {
         method: 'GET',
       }),
     );
+    expect(publicFrontendSettings.cron.shell.enabled).toBe(true);
     expect(publicFrontendSettings.ui.themeMode).toBe('dark');
     expect(settings?.ui.themeMode).toBe('dark');
     expect(updatePreferences).toHaveBeenCalledWith(
