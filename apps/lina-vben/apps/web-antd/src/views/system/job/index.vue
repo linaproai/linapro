@@ -18,10 +18,7 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import {
-  buildJobColumns,
-  useVbenVxeGrid,
-} from '#/adapter/vxe-table';
+import { buildJobColumns, useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
   jobDelete,
   jobList,
@@ -29,6 +26,10 @@ import {
   jobTrigger,
   jobUpdateStatus,
 } from '#/api/system/job';
+import {
+  JOB_PLUGIN_PAUSED_TOOLTIP,
+  JOB_STATUS_FILTER_OPTIONS,
+} from '#/api/system/job/meta';
 import { jobGroupList } from '#/api/system/jobGroup';
 import { publicFrontendSettings } from '#/runtime/public-frontend';
 
@@ -78,11 +79,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       {
         component: 'Select',
         componentProps: {
-          options: [
-            { label: '启用', value: 'enabled' },
-            { label: '停用', value: 'disabled' },
-            { label: '插件不可用', value: 'paused_by_plugin' },
-          ],
+          options: JOB_STATUS_FILTER_OPTIONS,
           placeholder: '请选择状态',
         },
         fieldName: 'status',
@@ -207,7 +204,7 @@ function openEditModal(row: JobRecord) {
     return;
   }
   if (isPluginPaused(row)) {
-    message.warning('插件不可用时禁止编辑任务');
+    message.warning(JOB_PLUGIN_PAUSED_TOOLTIP);
     return;
   }
   jobFormApi.setData({ id: row.id });
@@ -232,7 +229,10 @@ function handleMultiDelete() {
   });
 }
 
-async function handleStatusChange(row: JobRecord, status: 'disabled' | 'enabled') {
+async function handleStatusChange(
+  row: JobRecord,
+  status: 'disabled' | 'enabled',
+) {
   if (status === 'enabled' && isShellBlocked(row)) {
     message.warning(shellBlockedReason());
     return;
@@ -275,31 +275,26 @@ function canEnableRow(row: JobRecord) {
 }
 
 function canDisableRow(row: JobRecord) {
-  return (
-    hasAccessByCodes([accessCodes.status]) &&
-    row.status === 'enabled'
-  );
+  return hasAccessByCodes([accessCodes.status]) && row.status === 'enabled';
 }
 
 function canTriggerRow(row: JobRecord) {
   return (
     hasAccessByCodes([accessCodes.trigger]) &&
-    row.status === 'enabled' &&
+    (row.status === 'enabled' || row.status === 'disabled') &&
     !isPluginPaused(row)
   );
 }
 
 function showPausedEnableDisabled(row: JobRecord) {
   return (
-    hasAccessByCodes([accessCodes.status]) &&
-    row.status === 'paused_by_plugin'
+    hasAccessByCodes([accessCodes.status]) && row.status === 'paused_by_plugin'
   );
 }
 
 function showPausedTriggerDisabled(row: JobRecord) {
   return (
-    hasAccessByCodes([accessCodes.trigger]) &&
-    row.status === 'paused_by_plugin'
+    hasAccessByCodes([accessCodes.trigger]) && row.status === 'paused_by_plugin'
   );
 }
 
@@ -341,12 +336,9 @@ function handleReload() {
         <Space>
           <Tooltip
             v-if="showPausedEnableDisabled(row)"
-            title="插件不可用时无法启用任务"
+            :title="JOB_PLUGIN_PAUSED_TOOLTIP"
           >
-            <ghost-button
-              disabled
-              :data-testid="`job-enable-${row.id}`"
-            >
+            <ghost-button disabled :data-testid="`job-enable-${row.id}`">
               启用
             </ghost-button>
           </Tooltip>
@@ -354,10 +346,7 @@ function handleReload() {
             v-if="canEnableRow(row) && isShellBlocked(row)"
             :title="shellBlockedReason()"
           >
-            <ghost-button
-              disabled
-              :data-testid="`job-enable-${row.id}`"
-            >
+            <ghost-button disabled :data-testid="`job-enable-${row.id}`">
               启用
             </ghost-button>
           </Tooltip>
@@ -379,12 +368,9 @@ function handleReload() {
 
           <Tooltip
             v-if="showPausedTriggerDisabled(row)"
-            title="插件不可用时无法立即执行"
+            :title="JOB_PLUGIN_PAUSED_TOOLTIP"
           >
-            <ghost-button
-              disabled
-              :data-testid="`job-trigger-${row.id}`"
-            >
+            <ghost-button disabled :data-testid="`job-trigger-${row.id}`">
               立即执行
             </ghost-button>
           </Tooltip>
@@ -392,10 +378,7 @@ function handleReload() {
             v-if="canTriggerRow(row) && isShellBlocked(row)"
             :title="shellBlockedReason()"
           >
-            <ghost-button
-              disabled
-              :data-testid="`job-trigger-${row.id}`"
-            >
+            <ghost-button disabled :data-testid="`job-trigger-${row.id}`">
               立即执行
             </ghost-button>
           </Tooltip>
@@ -412,10 +395,7 @@ function handleReload() {
             v-if="canEditRow(row) && isShellBlocked(row)"
             :title="shellBlockedReason()"
           >
-            <ghost-button
-              disabled
-              :data-testid="`job-edit-${row.id}`"
-            >
+            <ghost-button disabled :data-testid="`job-edit-${row.id}`">
               编辑
             </ghost-button>
           </Tooltip>
@@ -437,10 +417,7 @@ function handleReload() {
                 >
                   <span :data-testid="`job-reset-${row.id}`">重置计数</span>
                 </MenuItem>
-                <MenuItem
-                  v-if="canDeleteRow(row)"
-                  :key="`delete-${row.id}`"
-                >
+                <MenuItem v-if="canDeleteRow(row)" :key="`delete-${row.id}`">
                   <Popconfirm
                     placement="left"
                     title="确认删除该任务吗？"

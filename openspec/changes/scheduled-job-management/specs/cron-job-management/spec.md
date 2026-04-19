@@ -81,6 +81,81 @@
 - **THEN** 系统 SHALL 从调度器注销这些任务
 - **AND** 对 `is_builtin=1` 的任务拒绝删除并返回明确错误
 
+### Requirement: 定时任务导航与可解释文案
+
+系统 SHALL 在管理工作台中以更易理解的导航结构和文案呈现定时任务能力,降低首次使用成本。
+
+#### Scenario: 系统管理菜单分组
+
+- **WHEN** 管理员查看系统管理菜单
+- **THEN** 前端 SHALL 在 `系统管理` 下提供一个名为 `定时任务` 的目录菜单
+- **AND** `任务管理`、`分组管理`、`执行日志` SHALL 作为该目录下的子菜单展示
+
+#### Scenario: 目录入口默认落到任务管理
+
+- **WHEN** 用户访问 `定时任务` 目录入口路由
+- **THEN** 前端 SHALL 默认落到 `任务管理` 页面
+- **AND** 已存在的 `/system/job`、`/system/job-group`、`/system/job-log` 页面路由 SHALL 保持兼容可访问
+
+#### Scenario: 插件不可用状态解释
+
+- **WHEN** 任务列表返回 `status=paused_by_plugin`
+- **THEN** 前端 SHALL 使用明确的中文状态文案提示这是“插件处理器不可用”
+- **AND** SHALL 通过 tooltip 解释该状态表示任务依赖的插件处理器当前未注册、已被禁用或已被卸载
+
+#### Scenario: Cron 表达式帮助文案
+
+- **WHEN** 用户在新增或编辑任务时查看 `定时表达式` 字段
+- **THEN** 前端 SHALL 明确说明同时支持 5 段与 6 段 Cron 表达式
+- **AND** SHALL 说明 5 段表达式会自动按 `# 秒占位` 补齐为 6 段再交由调度器执行
+
+#### Scenario: 调度范围与并发策略中文展示
+
+- **WHEN** 任务列表渲染 `scope` 与 `concurrency` 字段
+- **THEN** 前端 SHALL 使用易理解的中文标签展示调度范围与并发策略
+- **AND** 不直接展示 `master_only / all_node / singleton / parallel` 等英文原始值
+- **AND** `all_node` 的中文标签 SHALL 展示为 `所有节点执行`
+
+#### Scenario: 公共调度字段帮助提示
+
+- **WHEN** 用户在新增或编辑任务时查看 `调度范围`、`并发策略`、`日志保留` 字段
+- **THEN** 前端 SHALL 在字段标签旁提供帮助提示入口
+- **AND** 帮助文案 SHALL 解释各选项的含义、差异和适用场景
+- **AND** 过长说明 SHALL 通过显式换行分段展示,避免提示浮层出现难以阅读的长行文本
+
+#### Scenario: 跟随系统的日志保留说明
+
+- **WHEN** 用户查看 `日志保留` 字段中的“跟随系统”选项
+- **THEN** 前端 SHALL 展示当前系统级日志保留策略的解释
+- **AND** SHALL 说明该任务未设置覆盖策略时会跟随系统默认策略执行清理
+
+#### Scenario: 定时表达式字段样式
+
+- **WHEN** 用户在新增或编辑任务时输入定时表达式
+- **THEN** 前端 SHALL 使用更接近代码输入框的单行样式呈现该字段
+- **AND** 至少提供等宽字体、代码框视觉样式与更适合表达式编辑的输入体验
+
+#### Scenario: 任务列表中的定时表达式代码化展示
+
+- **WHEN** 任务管理列表渲染 `cron_expr` 列
+- **THEN** 前端 SHALL 使用内联代码风格展示定时表达式
+- **AND** SHALL 通过分段高亮提升 `* / # / 数字` 等表达式片段的可读性
+- **AND** 不改变接口返回的原始表达式文本内容
+
+#### Scenario: 超时时间与最大执行次数帮助提示
+
+- **WHEN** 用户在新增或编辑任务时查看 `超时时间(秒)` 与 `最大执行次数` 字段
+- **THEN** 前端 SHALL 在字段标签旁提供帮助提示入口
+- **AND** 帮助文案 SHALL 解释超时时间的作用、任务超时后的影响以及最大执行次数的限制规则
+- **AND** `最大执行次数=0` SHALL 被明确说明为“不限制执行次数”
+
+#### Scenario: 时区字段支持常用选项与自定义输入
+
+- **WHEN** 用户在新增或编辑任务时配置时区
+- **THEN** 前端 SHALL 提供可搜索的常用时区下拉选项
+- **AND** SHALL 默认选中宿主当前系统时区
+- **AND** SHALL 允许用户输入自定义时区字符串,例如 `Asia/Shanghai` 或 `UTC`
+
 ### Requirement: 定时任务启用与禁用
 
 系统 SHALL 允许管理员切换任务启停状态,并保证调度器注册表与数据库状态一致。
@@ -196,6 +271,13 @@
 - **AND** 该次执行不计入 `executed_count`
 - **AND** 本次执行仍受 `concurrency / max_concurrency / scope / timeout` 约束
 
+#### Scenario: 停用任务也可手动触发
+
+- **WHEN** 任务当前 `status=disabled`
+- **THEN** 管理员仍 SHALL 能够通过 `立即执行` 手动触发该任务
+- **AND** 该操作不自动将任务状态切换为 `enabled`
+- **AND** 若任务处于 `paused_by_plugin` 或运行前校验失败,系统 SHALL 继续拒绝触发并返回明确原因
+
 #### Scenario: 终止运行中实例
 
 - **WHEN** 调用 `POST /job/log/{logId}/cancel` 且目标日志 `status=running`
@@ -212,6 +294,19 @@
 ### Requirement: 执行日志
 
 系统 SHALL 为每次触发(包括被跳过的触发)记录一条执行日志,记录执行快照与结果。
+
+#### Scenario: 清空全部日志
+
+- **WHEN** 管理员在执行日志页执行“清空全部日志”
+- **THEN** 后端 SHALL 在无 `jobId` 条件时安全删除全部执行日志
+- **AND** 不因 ORM 缺少 `WHERE` 条件保护而报错
+
+#### Scenario: 批量删除选中日志
+
+- **WHEN** 管理员在执行日志列表中勾选多条日志并执行批量删除
+- **THEN** 前端 SHALL 提供与监控管理-操作日志一致的批量删除入口
+- **AND** 后端 SHALL 仅删除选中的执行日志记录
+- **AND** 成功后列表与勾选状态 SHALL 同步刷新
 
 #### Scenario: 日志字段
 
@@ -274,6 +369,12 @@
 
 - **WHEN** 请求修改 `task_type / handler_ref / params / scope / concurrency / group_id / name` 任一字段
 - **THEN** 系统 SHALL 拒绝修改并返回明确错误
+
+#### Scenario: 编辑页锁定提示排版
+
+- **WHEN** 管理员打开系统内置任务的编辑弹窗
+- **THEN** 前端 SHALL 为“公共调度字段锁定说明”和“处理器引用与参数锁定说明”提示块保留清晰的上下留白
+- **AND** 提示块与相邻表单区域之间的上下间隔 SHALL 不小于 `5px`
 
 #### Scenario: 禁止删除
 

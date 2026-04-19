@@ -106,11 +106,22 @@ func (s *serviceImpl) GetLog(ctx context.Context, id uint64) (*LogDetailOutput, 
 }
 
 // ClearLogs deletes matching execution logs.
-func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64) error {
+func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64, ids string) error {
 	model := dao.SysJobLog.Ctx(ctx)
-	if jobID != nil && *jobID > 0 {
+	logIDs := parseUint64IDs(ids)
+	cols := dao.SysJobLog.Columns()
+
+	switch {
+	case len(logIDs) > 0:
+		model = model.WhereIn(cols.Id, logIDs)
+	case jobID != nil && *jobID > 0:
 		model = model.Where(do.SysJobLog{JobId: *jobID})
+	default:
+		// GoFrame blocks DELETE without WHERE by default, so explicit full-table
+		// cleanup must still provide a tautology condition.
+		model = model.Where("1 = 1")
 	}
+
 	_, err := model.Delete()
 	return err
 }

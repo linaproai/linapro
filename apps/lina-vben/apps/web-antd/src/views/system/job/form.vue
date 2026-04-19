@@ -21,11 +21,19 @@ import {
   jobDetail,
   jobUpdate,
 } from '#/api/system/job';
+import {
+  getJobRetentionFieldHelp,
+  JOB_CONCURRENCY_FIELD_HELP,
+  JOB_CONCURRENCY_OPTIONS,
+  JOB_CRON_FIELD_HELP,
+  JOB_MAX_EXECUTIONS_FIELD_HELP,
+  JOB_SCOPE_FIELD_HELP,
+  JOB_SCOPE_OPTIONS,
+  JOB_TIMEOUT_FIELD_HELP,
+} from '#/api/system/job/meta';
 import { jobHandlerList } from '#/api/system/jobHandler';
 import { jobGroupList } from '#/api/system/jobGroup';
-import {
-  publicFrontendSettings,
-} from '#/runtime/public-frontend';
+import { publicFrontendSettings } from '#/runtime/public-frontend';
 
 import JobFormHandler from './form-handler.vue';
 import JobFormShell from './form-shell.vue';
@@ -43,6 +51,18 @@ interface GroupOption {
   label: string;
   value: number;
 }
+
+const COMMON_TIMEZONE_OPTIONS = [
+  'Asia/Shanghai',
+  'Asia/Hong_Kong',
+  'Asia/Singapore',
+  'Asia/Tokyo',
+  'UTC',
+  'Europe/London',
+  'Europe/Berlin',
+  'America/New_York',
+  'America/Los_Angeles',
+] as const;
 
 const { hasAccessByCodes } = useAccess();
 
@@ -84,6 +104,12 @@ const title = computed(() =>
   currentRecord.value ? '编辑定时任务' : '新增定时任务',
 );
 const isBuiltin = computed(() => currentRecord.value?.isBuiltin === 1);
+const retentionHelp = computed(() =>
+  getJobRetentionFieldHelp(publicFrontendSettings.cron.logRetention),
+);
+const currentSystemTimezone = computed(
+  () => publicFrontendSettings.cron.timezone.current || 'Asia/Shanghai',
+);
 
 const [CommonForm, commonFormApi] = useVbenForm({
   commonConfig: {
@@ -91,16 +117,36 @@ const [CommonForm, commonFormApi] = useVbenForm({
       class: 'w-full',
     },
     formItemClass: 'col-span-1',
-    labelWidth: 96,
+    labelWidth: 112,
   },
-  schema: buildCommonSchema([], false),
+  schema: buildCommonSchema(
+    [],
+    false,
+    retentionHelp.value,
+    currentSystemTimezone.value,
+  ),
   showDefaultActions: false,
   wrapperClass: 'grid-cols-2',
 });
 
+function buildTimezoneOptions(currentTimezone: string) {
+  const values = new Set<string>(COMMON_TIMEZONE_OPTIONS);
+  const trimmedCurrentTimezone = currentTimezone.trim();
+  if (trimmedCurrentTimezone) {
+    values.add(trimmedCurrentTimezone);
+  }
+
+  return Array.from(values).map((value) => ({
+    label: value === trimmedCurrentTimezone ? `${value}（当前系统）` : value,
+    value,
+  }));
+}
+
 function buildCommonSchema(
   options: GroupOption[],
   builtin: boolean,
+  retentionHint: ReturnType<typeof getJobRetentionFieldHelp>,
+  currentTimezone: string,
 ): VbenFormSchema[] {
   return [
     {
@@ -137,18 +183,23 @@ function buildCommonSchema(
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入 Cron 表达式',
+        autocomplete: 'off',
+        class: 'job-cron-code-input',
+        placeholder: '支持 5 段或 6 段，如 17 3 * * *',
+        spellcheck: false,
       },
       fieldName: 'cronExpr',
-      label: 'Cron 表达式',
+      help: JOB_CRON_FIELD_HELP,
+      label: '定时表达式',
       rules: 'required',
     },
     {
-      component: 'Input',
+      component: 'AutoComplete',
       componentProps: {
-        placeholder: '请输入 IANA 时区，如 Asia/Shanghai',
+        options: buildTimezoneOptions(currentTimezone),
+        placeholder: '可选择常用时区或输入自定义 IANA 时区',
       },
-      defaultValue: 'Asia/Shanghai',
+      defaultValue: currentTimezone,
       fieldName: 'timezone',
       label: '任务时区',
       rules: 'required',
@@ -159,13 +210,11 @@ function buildCommonSchema(
         buttonStyle: 'solid',
         disabled: builtin,
         optionType: 'button',
-        options: [
-          { label: '主节点', value: 'master_only' },
-          { label: '所有节点', value: 'all_node' },
-        ],
+        options: JOB_SCOPE_OPTIONS,
       },
       defaultValue: 'master_only',
       fieldName: 'scope',
+      help: JOB_SCOPE_FIELD_HELP,
       label: '调度范围',
       rules: 'required',
     },
@@ -175,13 +224,11 @@ function buildCommonSchema(
         buttonStyle: 'solid',
         disabled: builtin,
         optionType: 'button',
-        options: [
-          { label: '单例执行', value: 'singleton' },
-          { label: '并行执行', value: 'parallel' },
-        ],
+        options: JOB_CONCURRENCY_OPTIONS,
       },
       defaultValue: 'singleton',
       fieldName: 'concurrency',
+      help: JOB_CONCURRENCY_FIELD_HELP,
       label: '并发策略',
       rules: 'required',
     },
@@ -211,6 +258,7 @@ function buildCommonSchema(
       },
       defaultValue: 300,
       fieldName: 'timeoutSeconds',
+      help: JOB_TIMEOUT_FIELD_HELP,
       label: '超时时间(秒)',
       rules: 'required',
     },
@@ -223,6 +271,7 @@ function buildCommonSchema(
       },
       defaultValue: 0,
       fieldName: 'maxExecutions',
+      help: JOB_MAX_EXECUTIONS_FIELD_HELP,
       label: '最大执行次数',
     },
     {
@@ -253,6 +302,7 @@ function buildCommonSchema(
       },
       defaultValue: '',
       fieldName: 'retentionMode',
+      help: retentionHint,
       label: '日志保留',
     },
     {
@@ -312,7 +362,12 @@ function getDefaultGroupId() {
 
 function rebuildCommonSchema() {
   commonFormApi.setState({
-    schema: buildCommonSchema(groupOptions.value, isBuiltin.value),
+    schema: buildCommonSchema(
+      groupOptions.value,
+      isBuiltin.value,
+      retentionHelp.value,
+      currentSystemTimezone.value,
+    ),
   });
 }
 
@@ -331,7 +386,7 @@ async function fillCommonForm(record?: JobRecord | null) {
       scope: 'master_only',
       status: 'disabled',
       timeoutSeconds: 300,
-      timezone: 'Asia/Shanghai',
+      timezone: currentSystemTimezone.value,
     });
     return;
   }
@@ -441,15 +496,8 @@ async function buildPayload() {
     throw new Error('请完善公共调度配置');
   }
   const values = await commonFormApi.getValues<Record<string, any>>();
-  const specific =
-    activeTaskType.value === 'handler'
-      ? await handlerFormRef.value?.validateAndBuild()
-      : await shellFormRef.value?.validateAndBuild();
-  if (!specific) {
-    throw new Error('请完善任务类型配置');
-  }
 
-  return {
+  const commonPayload = {
     concurrency: values.concurrency,
     cronExpr: values.cronExpr,
     description: values.description || '',
@@ -466,21 +514,34 @@ async function buildPayload() {
     timeoutSeconds: Number(values.timeoutSeconds),
     timezone: values.timezone,
     scope: values.scope,
-    ...(activeTaskType.value === 'handler'
-      ? {
-          env: {},
-          handlerRef: specific.handlerRef,
-          params: specific.params,
-          shellCmd: '',
-          workDir: '',
-        }
-      : {
-          env: specific.env,
-          handlerRef: '',
-          params: {},
-          shellCmd: specific.shellCmd,
-          workDir: specific.workDir,
-        }),
+  };
+
+  if (activeTaskType.value === 'handler') {
+    const handlerPayload = await handlerFormRef.value?.validateAndBuild();
+    if (!handlerPayload) {
+      throw new Error('请完善 Handler 配置');
+    }
+    return {
+      ...commonPayload,
+      env: {},
+      handlerRef: handlerPayload.handlerRef,
+      params: handlerPayload.params,
+      shellCmd: '',
+      workDir: '',
+    } satisfies JobPayload;
+  }
+
+  const shellPayload = await shellFormRef.value?.validateAndBuild();
+  if (!shellPayload) {
+    throw new Error('请完善 Shell 配置');
+  }
+  return {
+    ...commonPayload,
+    env: shellPayload.env,
+    handlerRef: '',
+    params: {},
+    shellCmd: shellPayload.shellCmd,
+    workDir: shellPayload.workDir,
   } satisfies JobPayload;
 }
 
@@ -498,8 +559,7 @@ async function handleConfirm() {
     emit('reload');
     modalApi.close();
   } catch (error) {
-    const msg =
-      error instanceof Error ? error.message : '保存定时任务失败';
+    const msg = error instanceof Error ? error.message : '保存定时任务失败';
     message.error(msg);
   } finally {
     modalApi.lock(false);
@@ -508,17 +568,19 @@ async function handleConfirm() {
 </script>
 
 <template>
-  <Modal
-    :title="title"
-    data-testid="job-form-modal"
-  >
+  <Modal :title="title" data-testid="job-form-modal">
     <div class="space-y-4">
-      <Alert
+      <div
         v-if="isBuiltin"
-        message="系统内置任务的分组、名称、任务类型、处理器引用、处理器参数、调度范围和并发策略已锁定。"
-        show-icon
-        type="info"
-      />
+        class="py-[5px]"
+        data-testid="job-builtin-common-lock-alert"
+      >
+        <Alert
+          message="系统内置任务的分组、名称、任务类型、处理器引用、处理器参数、调度范围和并发策略已锁定。"
+          show-icon
+          type="info"
+        />
+      </div>
 
       <CommonForm />
 
@@ -527,13 +589,10 @@ async function handleConfirm() {
           <div>
             <div class="text-sm font-medium">Cron 预览</div>
             <div class="text-xs text-foreground/60">
-              校验表达式与时区后，展示最近 5 次触发时间。
+              支持 5 段或 6 段 Cron；5 段表达式会在运行时自动补 # 秒占位。
             </div>
           </div>
-          <a-button
-            data-testid="job-cron-preview"
-            @click="handlePreviewCron"
-          >
+          <a-button data-testid="job-cron-preview" @click="handlePreviewCron">
             预 览
           </a-button>
         </div>
@@ -544,10 +603,7 @@ async function handleConfirm() {
           show-icon
           type="error"
         />
-        <ul
-          v-else-if="cronPreviewTimes.length > 0"
-          class="space-y-1 text-sm"
-        >
+        <ul v-else-if="cronPreviewTimes.length > 0" class="space-y-1 text-sm">
           <li
             v-for="item in cronPreviewTimes"
             :key="item"
@@ -606,3 +662,13 @@ async function handleConfirm() {
     </div>
   </Modal>
 </template>
+
+<style scoped>
+:deep(.job-cron-code-input) {
+  background: var(--ant-color-fill-tertiary, #fafafa);
+  font-family:
+    ui-monospace, 'SFMono-Regular', SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  letter-spacing: 0.02em;
+}
+</style>

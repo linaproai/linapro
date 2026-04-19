@@ -4,19 +4,13 @@ import type { JobLogRecord, JobRecord } from '#/api/system/job/model';
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
 
-import {
-  buildJobLogColumns,
-  useVbenVxeGrid,
-} from '#/adapter/vxe-table';
+import { buildJobLogColumns, useVbenVxeGrid } from '#/adapter/vxe-table';
 import { jobList } from '#/api/system/job';
-import {
-  jobLogCancel,
-  jobLogClear,
-} from '#/api/system/jobLog';
+import { jobLogCancel, jobLogClear, jobLogDelete } from '#/api/system/jobLog';
 
 import JobLogDetail from './detail.vue';
 
@@ -34,6 +28,8 @@ const [DetailModal, detailModalApi] = useVbenModal({
 });
 
 const jobOptions = ref<Array<{ label: string; value: number }>>([]);
+const checkedRows = ref<JobLogRecord[]>([]);
+const hasChecked = computed(() => checkedRows.value.length > 0);
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -120,6 +116,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     id: 'system-job-log-index',
   },
+  gridEvents: {
+    checkboxAll: syncCheckedRows,
+    checkboxChange: syncCheckedRows,
+  },
 });
 
 onMounted(async () => {
@@ -154,6 +154,11 @@ function isShellLog(row: JobLogRecord) {
   }
 }
 
+function syncCheckedRows() {
+  checkedRows.value = (gridApi.grid?.getCheckboxRecords() ||
+    []) as JobLogRecord[];
+}
+
 function canCancelRow(row: JobLogRecord) {
   if (row.status !== 'running') {
     return false;
@@ -178,6 +183,21 @@ async function handleCancel(row: JobLogRecord) {
   await gridApi.query();
 }
 
+function handleDelete() {
+  const ids = checkedRows.value.map((row) => row.id);
+  Modal.confirm({
+    title: '提示',
+    okType: 'danger',
+    content: `确认删除选中的 ${ids.length} 条执行日志吗？`,
+    onOk: async () => {
+      await jobLogDelete(ids);
+      checkedRows.value = [];
+      message.success('删除成功');
+      await gridApi.query();
+    },
+  });
+}
+
 function handleClear() {
   const formValues = gridApi.formApi.form.values as Record<string, any>;
   const jobId =
@@ -191,6 +211,7 @@ function handleClear() {
     content,
     onOk: async () => {
       await jobLogClear(jobId);
+      checkedRows.value = [];
       message.success('清空成功');
       await gridApi.query();
     },
@@ -207,6 +228,16 @@ function handleReload() {
     <Grid table-title="执行日志列表">
       <template #toolbar-tools>
         <Space>
+          <a-button
+            v-if="hasAccessByCodes([accessCodes.remove])"
+            :disabled="!hasChecked"
+            danger
+            type="primary"
+            data-testid="job-log-delete"
+            @click="handleDelete"
+          >
+            删 除
+          </a-button>
           <a-button
             v-if="hasAccessByCodes([accessCodes.remove])"
             data-testid="job-log-clear"

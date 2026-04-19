@@ -271,6 +271,7 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUILayout, "header-nav")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkEnabled, "true")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkContent, "LinaPro Watermark")
+	withRuntimeParamValue(t, RuntimeParamKeyCronLogRetention, `{"mode":"count","value":120}`)
 
 	cfg := New().GetPublicFrontend(context.Background())
 	if cfg.App.Name != "LinaPro Console" {
@@ -293,6 +294,16 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.UI.WatermarkContent != "LinaPro Watermark" {
 		t.Fatalf("expected watermark content override, got %q", cfg.UI.WatermarkContent)
+	}
+	if cfg.Cron.LogRetention.Mode != CronLogRetentionModeCount || cfg.Cron.LogRetention.Value != 120 {
+		t.Fatalf(
+			"expected public frontend cron log retention count/120, got mode=%q value=%d",
+			cfg.Cron.LogRetention.Mode,
+			cfg.Cron.LogRetention.Value,
+		)
+	}
+	if cfg.Cron.Timezone.Current == "" {
+		t.Fatal("expected public frontend cron timezone current value to be present")
 	}
 }
 

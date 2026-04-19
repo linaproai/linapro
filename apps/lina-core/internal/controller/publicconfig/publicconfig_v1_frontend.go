@@ -32,10 +32,17 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 			WatermarkContent: cfg.UI.WatermarkContent,
 		},
 		Cron: v1.FrontendCronRes{
+			LogRetention: v1.FrontendCronLogRetentionRes{
+				Mode:  string(cfg.Cron.LogRetention.Mode),
+				Value: cfg.Cron.LogRetention.Value,
+			},
 			Shell: v1.FrontendCronShellRes{
 				Enabled:        cfg.Cron.Shell.Enabled,
 				Supported:      cfg.Cron.Shell.Supported,
 				DisabledReason: cfg.Cron.Shell.DisabledReason,
+			},
+			Timezone: v1.FrontendCronTimezoneRes{
+				Current: cfg.Cron.Timezone.Current,
 			},
 		},
 	}, nil

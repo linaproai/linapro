@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page } from "@playwright/test";
 
 export class JobLogPage {
   constructor(private page: Page) {}
@@ -8,42 +8,71 @@ export class JobLogPage {
   }
 
   async goto() {
-    await this.page.goto('/system/job-log');
-    await this.page.waitForLoadState('networkidle');
-    await this.page.getByTestId('job-log-page').waitFor({ state: 'visible' });
+    await this.page.goto("/system/job-log");
+    await this.page.waitForLoadState("networkidle");
+    await this.page.getByTestId("job-log-page").waitFor({ state: "visible" });
   }
 
   async selectJob(jobName: string) {
-    const combobox = this.page.getByRole('combobox', { name: '任务名称', exact: true }).first();
+    const combobox = this.page
+      .getByRole("combobox", { name: "任务名称", exact: true })
+      .first();
     await combobox.click();
     await this.page.getByText(jobName, { exact: true }).last().click();
   }
 
   async clickSearch() {
-    await this.page.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
+    await this.page
+      .getByRole("button", { name: /搜\s*索/ })
+      .first()
+      .click();
+    await this.page.waitForLoadState("networkidle");
     await this.page.waitForTimeout(300);
   }
 
   async openFirstDetail() {
     await this.page.locator('[data-testid^="job-log-detail-"]').first().click();
-    await this.dialog.waitFor({ state: 'visible' });
-    await this.dialog.getByText('任务名称', { exact: true }).waitFor({ state: 'visible' });
+    await this.dialog.waitFor({ state: "visible" });
+    await this.dialog
+      .getByText("任务名称", { exact: true })
+      .waitFor({ state: "visible" });
   }
 
   async clearLogs() {
     if (await this.dialog.isVisible().catch(() => false)) {
-      await this.page.keyboard.press('Escape');
-      await this.dialog.waitFor({ state: 'hidden' });
+      await this.page.keyboard.press("Escape");
+      await this.dialog.waitFor({ state: "hidden" });
     }
-    await this.page.getByTestId('job-log-clear').click();
+    await this.page.getByTestId("job-log-clear").click();
     await this.confirmPopconfirm();
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState("networkidle");
+    await this.page.waitForTimeout(300);
+  }
+
+  async selectFirstRow() {
+    if (await this.dialog.isVisible().catch(() => false)) {
+      await this.page.keyboard.press("Escape");
+      await this.dialog.waitFor({ state: "hidden" });
+    }
+    const checkbox = this.page
+      .locator(".vxe-table--body .vxe-checkbox--icon")
+      .first();
+    await checkbox.click();
+  }
+
+  async deleteSelectedLogs() {
+    if (await this.dialog.isVisible().catch(() => false)) {
+      await this.page.keyboard.press("Escape");
+      await this.dialog.waitFor({ state: "hidden" });
+    }
+    await this.page.getByTestId("job-log-delete").click();
+    await this.confirmPopconfirm();
+    await this.page.waitForLoadState("networkidle");
     await this.page.waitForTimeout(300);
   }
 
   async getVisibleRowCount() {
-    return this.page.locator('.vxe-body--row').count();
+    return this.page.locator(".vxe-body--row").count();
   }
 
   async detailContains(text: string) {
@@ -51,8 +80,12 @@ export class JobLogPage {
   }
 
   private async confirmPopconfirm() {
-    const modal = this.page.locator('.ant-modal-confirm, .ant-popconfirm, .ant-popover').last();
-    const confirm = modal.getByRole('button', { name: /确\s*定|OK|是/i }).last();
+    const modal = this.page
+      .locator(".ant-modal-confirm, .ant-popconfirm, .ant-popover")
+      .last();
+    const confirm = modal
+      .getByRole("button", { name: /确\s*定|OK|是/i })
+      .last();
     await confirm.click();
   }
 }

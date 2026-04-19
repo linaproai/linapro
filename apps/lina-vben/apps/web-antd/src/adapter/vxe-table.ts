@@ -11,6 +11,13 @@ import {
 import { Button, Image } from 'ant-design-vue';
 
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
+import {
+  getJobConcurrencyLabel,
+  renderJobCronExpression,
+  getJobScopeLabel,
+  JOB_PLUGIN_PAUSED_LABEL,
+  JOB_PLUGIN_PAUSED_TOOLTIP,
+} from '#/api/system/job/meta';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
 
 import { useVbenForm } from './form';
@@ -154,7 +161,9 @@ export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
       width: 110,
       slots: {
         default: ({ row }: any) =>
-          row.isDefault === 1 ? h(Tag, { color: 'gold' }, () => '默认分组') : '-',
+          row.isDefault === 1
+            ? h(Tag, { color: 'gold' }, () => '默认分组')
+            : '-',
       },
     },
     { field: 'remark', title: '备注', minWidth: 200 },
@@ -183,8 +192,10 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
       width: 110,
       slots: {
         default: ({ row }: any) =>
-          h(Tag, { color: row.taskType === 'shell' ? 'volcano' : 'blue' }, () =>
-            row.taskType === 'shell' ? 'Shell' : 'Handler',
+          h(
+            Tag,
+            { color: row.taskType === 'shell' ? 'volcano' : 'blue' },
+            () => (row.taskType === 'shell' ? 'Shell' : 'Handler'),
           ),
       },
     },
@@ -197,10 +208,10 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
           if (row.status === 'paused_by_plugin') {
             return h(
               Tooltip,
-              { title: '插件不可用' },
+              { title: JOB_PLUGIN_PAUSED_TOOLTIP },
               {
                 default: () =>
-                  h(Tag, { color: 'error' }, () => '插件不可用'),
+                  h(Tag, { color: 'error' }, () => JOB_PLUGIN_PAUSED_LABEL),
               },
             );
           }
@@ -211,10 +222,41 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
         },
       },
     },
-    { field: 'cronExpr', title: 'Cron 表达式', minWidth: 150 },
+    {
+      field: 'cronExpr',
+      title: '定时表达式',
+      minWidth: 220,
+      slots: {
+        default: ({ row }: any) =>
+          h(
+            Tooltip,
+            { title: row.cronExpr || '-' },
+            {
+              default: () =>
+                renderJobCronExpression(row.cronExpr, {
+                  'data-testid': `job-cron-expr-${row.id}`,
+                }),
+            },
+          ),
+      },
+    },
     { field: 'timezone', title: '时区', width: 140 },
-    { field: 'scope', title: '范围', minWidth: 110 },
-    { field: 'concurrency', title: '并发策略', minWidth: 120 },
+    {
+      field: 'scope',
+      title: '调度范围',
+      minWidth: 140,
+      slots: {
+        default: ({ row }: any) => getJobScopeLabel(row.scope),
+      },
+    },
+    {
+      field: 'concurrency',
+      title: '并发策略',
+      minWidth: 140,
+      slots: {
+        default: ({ row }: any) => getJobConcurrencyLabel(row.concurrency),
+      },
+    },
     { field: 'executedCount', title: '已执行次数', width: 110 },
     {
       field: 'stopReason',
@@ -225,7 +267,12 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
           row.stopReason
             ? h(
                 Tag,
-                { color: row.stopReason === 'max_executions_reached' ? 'warning' : 'default' },
+                {
+                  color:
+                    row.stopReason === 'max_executions_reached'
+                      ? 'warning'
+                      : 'default',
+                },
                 () => row.stopReason,
               )
             : '-',
@@ -264,7 +311,11 @@ export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
             success: 'success',
             timeout: 'warning',
           };
-          return h(Tag, { color: colorMap[row.status] || 'default' }, () => row.status);
+          return h(
+            Tag,
+            { color: colorMap[row.status] || 'default' },
+            () => row.status,
+          );
         },
       },
     },

@@ -7,7 +7,7 @@ import (
 
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
-	schedulerpkg "lina-core/internal/service/jobmgmt/scheduler"
+	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	pluginsvc "lina-core/internal/service/plugin"
 	rolesvc "lina-core/internal/service/role"
 	"lina-core/internal/service/servermon"
@@ -52,7 +52,7 @@ type serviceImpl struct {
 	sessionStore          session.Store         // Session store
 	clusterSvc            cluster.Service       // Cluster topology service
 	pluginSvc             pluginsvc.Service     // Plugin service
-	persistentScheduler   schedulerpkg.Scheduler // persistentScheduler loads and registers persisted jobs.
+	persistentScheduler   jobmgmtsvc.Scheduler  // persistentScheduler loads and registers persisted jobs.
 	runtimeParamSyncJob   startupJob            // Runtime-parameter sync startup job
 	accessTopologySyncJob startupJob            // Permission-topology sync startup job
 }
@@ -63,7 +63,7 @@ func New(
 	monCfg *config.MonitorConfig,
 	sessionStore session.Store,
 	clusterSvc cluster.Service,
-	persistentScheduler schedulerpkg.Scheduler,
+	persistentScheduler jobmgmtsvc.Scheduler,
 ) Service {
 	var (
 		configSvc      = config.New()
@@ -74,14 +74,14 @@ func New(
 	)
 
 	return &serviceImpl{
-		sessionCfg:   sessionCfg,
-		monCfg:       monCfg,
-		configSvc:    configSvc,
-		roleSvc:      roleSvc,
-		serverMonSvc: serverMonSvc,
-		sessionStore: sessionStore,
-		clusterSvc:   clusterSvc,
-		pluginSvc:    pluginSvc,
+		sessionCfg:          sessionCfg,
+		monCfg:              monCfg,
+		configSvc:           configSvc,
+		roleSvc:             roleSvc,
+		serverMonSvc:        serverMonSvc,
+		sessionStore:        sessionStore,
+		clusterSvc:          clusterSvc,
+		pluginSvc:           pluginSvc,
 		persistentScheduler: persistentScheduler,
 		runtimeParamSyncJob: newRuntimeParamSnapshotSyncJob(
 			clusterEnabled,

@@ -5,7 +5,9 @@ package config
 
 import (
 	"context"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 )
@@ -165,7 +167,16 @@ type PublicFrontendUIConfig struct {
 
 // PublicFrontendCronConfig stores public-safe scheduled-job runtime settings.
 type PublicFrontendCronConfig struct {
-	Shell PublicFrontendCronShellConfig `json:"shell"` // Shell exposes whether shell jobs are available to the UI.
+	LogRetention PublicFrontendCronLogRetentionConfig `json:"logRetention"` // LogRetention exposes the system-wide job-log cleanup policy to the UI.
+	Shell        PublicFrontendCronShellConfig        `json:"shell"`        // Shell exposes whether shell jobs are available to the UI.
+	Timezone     PublicFrontendCronTimezoneConfig     `json:"timezone"`     // Timezone exposes the current host timezone to the UI.
+}
+
+// PublicFrontendCronLogRetentionConfig stores the frontend-visible default
+// job-log retention policy.
+type PublicFrontendCronLogRetentionConfig struct {
+	Mode  CronLogRetentionMode `json:"mode"`  // Mode selects days, count, or none.
+	Value int64                `json:"value"` // Value stores the current system threshold.
 }
 
 // PublicFrontendCronShellConfig stores the frontend-visible shell-job gate.
@@ -173,6 +184,11 @@ type PublicFrontendCronShellConfig struct {
 	Enabled        bool   `json:"enabled"`                  // Enabled reports whether shell jobs are currently allowed.
 	Supported      bool   `json:"supported"`                // Supported reports whether the current platform supports shell jobs.
 	DisabledReason string `json:"disabledReason,omitempty"` // DisabledReason explains why shell jobs are unavailable.
+}
+
+// PublicFrontendCronTimezoneConfig stores the frontend-visible default timezone.
+type PublicFrontendCronTimezoneConfig struct {
+	Current string `json:"current"` // Current is the current host timezone identifier.
 }
 
 // PublicFrontendSettingSpecs returns all built-in public frontend setting specs.
@@ -263,13 +279,35 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConf
 			WatermarkContent: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkContent),
 		},
 		Cron: PublicFrontendCronConfig{
+			LogRetention: PublicFrontendCronLogRetentionConfig{
+				Mode:  cronCfg.LogRetention.Mode,
+				Value: cronCfg.LogRetention.Value,
+			},
 			Shell: PublicFrontendCronShellConfig{
 				Enabled:        cronCfg.Shell.Enabled,
 				Supported:      cronCfg.Shell.Supported,
 				DisabledReason: cronCfg.Shell.DisabledReason,
 			},
+			Timezone: PublicFrontendCronTimezoneConfig{
+				Current: resolveCurrentSystemTimezone(),
+			},
 		},
 	}
+}
+
+// resolveCurrentSystemTimezone returns the host timezone identifier exposed to the frontend.
+func resolveCurrentSystemTimezone() string {
+	if timezone := strings.TrimSpace(os.Getenv("TZ")); timezone != "" && timezone != "Local" {
+		if _, err := time.LoadLocation(timezone); err == nil {
+			return timezone
+		}
+	}
+	if timezone := strings.TrimSpace(time.Now().Location().String()); timezone != "" && timezone != "Local" {
+		if _, err := time.LoadLocation(timezone); err == nil {
+			return timezone
+		}
+	}
+	return "Asia/Shanghai"
 }
 
 // appendProtectedConfigKeys returns the full protected-config key list by

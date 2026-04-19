@@ -38,7 +38,6 @@ test.describe('TC-82 Handler 类型任务 CRUD', () => {
       name: jobName,
       description: 'handler job before update',
       cronExpr: '0 0 1 1 *',
-      timezone: 'Asia/Shanghai',
     });
     await jobPage.selectHandler('等待指定时长 (host:wait)');
     await jobPage.fillHandlerParam('等待秒数', '1');

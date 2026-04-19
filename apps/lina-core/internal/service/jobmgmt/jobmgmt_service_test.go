@@ -18,14 +18,14 @@ import (
 // TestDeleteGroupsMigratesJobsToDefault verifies non-default group deletion migrates jobs to the default group.
 func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
 	var (
-		ctx          = context.Background()
-		svc          = newTestService(t)
-		defaultID    = defaultGroupID(t, ctx)
-		groupID      uint64
-		jobID        uint64
-		groupCode    = uniqueTestName("test-job-group")
-		groupName    = uniqueTestName("测试任务分组")
-		jobName      = uniqueTestName("测试任务")
+		ctx       = context.Background()
+		svc       = newTestService(t)
+		defaultID = defaultGroupID(t, ctx)
+		groupID   uint64
+		jobID     uint64
+		groupCode = uniqueTestName("test-job-group")
+		groupName = uniqueTestName("测试任务分组")
+		jobName   = uniqueTestName("测试任务")
 	)
 
 	groupID, err := svc.CreateGroup(ctx, SaveGroupInput{

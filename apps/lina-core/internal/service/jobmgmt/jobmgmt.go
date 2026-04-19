@@ -19,10 +19,12 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cluster"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
-	schedulerpkg "lina-core/internal/service/jobmgmt/scheduler"
+	internalscheduler "lina-core/internal/service/jobmgmt/internal/scheduler"
+	internalshellexec "lina-core/internal/service/jobmgmt/internal/shellexec"
 	"lina-core/pkg/logger"
 )
 
@@ -58,12 +60,27 @@ type Service interface {
 	ListLogs(ctx context.Context, in ListLogsInput) (*ListLogsOutput, error)
 	// GetLog returns one execution-log detail snapshot.
 	GetLog(ctx context.Context, id uint64) (*LogDetailOutput, error)
-	// ClearLogs deletes matching execution logs.
-	ClearLogs(ctx context.Context, jobID *uint64) error
+	// ClearLogs deletes matching execution logs by selected IDs, job, or all rows.
+	ClearLogs(ctx context.Context, jobID *uint64, ids string) error
 	// CancelLog cancels one currently running execution instance.
 	CancelLog(ctx context.Context, id uint64) error
 	// CleanupDueLogs removes logs that exceed the effective retention policies.
 	CleanupDueLogs(ctx context.Context) (int64, error)
+}
+
+// Scheduler defines the persistent scheduled-job runner contract exported to
+// host wiring code while the concrete implementation stays internal.
+type Scheduler interface {
+	// LoadAndRegister registers all currently enabled persistent jobs at startup.
+	LoadAndRegister(ctx context.Context) error
+	// Refresh removes and re-registers one job according to its latest persisted state.
+	Refresh(ctx context.Context, jobID uint64) error
+	// Remove unregisters one persistent job from gcron.
+	Remove(jobID uint64)
+	// Trigger starts one manual execution and returns the created log ID.
+	Trigger(ctx context.Context, jobID uint64) (uint64, error)
+	// CancelLog cancels one currently running job-log instance.
+	CancelLog(ctx context.Context, logID uint64) error
 }
 
 // Ensure serviceImpl implements Service.
@@ -71,17 +88,31 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc bizctx.Service         // bizCtxSvc resolves the current operator identity.
-	configSvc configsvc.Service      // configSvc exposes runtime cron-management parameters.
-	registry  jobhandler.Registry    // registry resolves handler definitions and validation schemas.
-	scheduler schedulerpkg.Scheduler // scheduler keeps persistent jobs registered with gcron.
+	bizCtxSvc bizctx.Service      // bizCtxSvc resolves the current operator identity.
+	configSvc configsvc.Service   // configSvc exposes runtime cron-management parameters.
+	registry  jobhandler.Registry // registry resolves handler definitions and validation schemas.
+	scheduler Scheduler           // scheduler keeps persistent jobs registered with gcron.
+}
+
+// NewScheduler creates the persistent scheduler plus its internal shell
+// executor so callers only depend on the jobmgmt component boundary.
+func NewScheduler(
+	clusterSvc cluster.Service,
+	registry jobhandler.Registry,
+	configSvc configsvc.Service,
+) Scheduler {
+	return internalscheduler.New(
+		clusterSvc,
+		registry,
+		internalshellexec.New(configSvc),
+	)
 }
 
 // New creates and returns one scheduled-job management service.
 func New(
 	configSvc configsvc.Service,
 	registry jobhandler.Registry,
-	scheduler schedulerpkg.Scheduler,
+	scheduler Scheduler,
 ) Service {
 	if configSvc == nil {
 		configSvc = configsvc.New()

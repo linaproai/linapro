@@ -112,6 +112,10 @@ test.describe('TC-90 插件处理器生命周期级联', () => {
     await jobPage.clickSearch();
     await expect(await jobPage.hasJob(jobName)).toBe(true);
     await expect(await jobPage.isPausedByPluginVisible()).toBe(true);
+    await jobPage.hoverPausedStatusTag();
+    await expect(
+      await jobPage.isTooltipVisible('该任务依赖插件提供的处理器'),
+    ).toBe(true);
     await expect(await jobPage.isActionDisabled('job-enable-')).toBe(true);
     await expect(await jobPage.isActionDisabled('job-trigger-')).toBe(true);
 

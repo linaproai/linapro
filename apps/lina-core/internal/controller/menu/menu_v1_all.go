@@ -211,14 +211,14 @@ func generateRoutePath(item *menusvc.MenuItem) string {
 	if item.Path == "" {
 		return ""
 	}
-	// For child routes (parentId != 0), return relative path without leading /
-	// Vue Router will append this to parent path
+	// Child routes normally use relative paths so Vue Router appends them to the
+	// parent path. When the menu explicitly stores an absolute path, keep it so
+	// grouped directory menus can preserve existing stable URLs.
 	if item.ParentId != 0 {
-		path := item.Path
-		if len(path) > 0 && path[0] == '/' {
-			path = path[1:]
+		if item.Path[0] == '/' {
+			return item.Path
 		}
-		return path
+		return item.Path
 	}
 	// For root routes, ensure path starts with /
 	if item.Path[0] != '/' {

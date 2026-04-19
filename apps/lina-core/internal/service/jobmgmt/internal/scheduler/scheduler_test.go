@@ -19,7 +19,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
-	"lina-core/internal/service/jobmgmt/shellexec"
+	"lina-core/internal/service/jobmgmt/internal/shellexec"
 )
 
 // fakeClusterService provides deterministic primary-node behavior for scheduler tests.
@@ -201,6 +201,18 @@ func latestLogs(t *testing.T, ctx context.Context, jobID uint64) []*entity.SysJo
 		t.Fatalf("expected scheduler test log query to succeed, got error: %v", err)
 	}
 	return logs
+}
+
+// TestNormalizeGcronPatternUsesHashPlaceholder verifies 5-field cron input is
+// normalized with GoFrame's `#` seconds placeholder instead of a fixed zero.
+func TestNormalizeGcronPatternUsesHashPlaceholder(t *testing.T) {
+	pattern, err := normalizeGcronPattern("17 3 * * *")
+	if err != nil {
+		t.Fatalf("expected 5-field cron normalization to succeed, got error: %v", err)
+	}
+	if pattern != "# 17 3 * * *" {
+		t.Fatalf("expected 5-field cron to normalize to '# 17 3 * * *', got %q", pattern)
+	}
 }
 
 // TestRefreshRegistersAndRemoveUnregistersJob verifies the scheduler wires persistent jobs into gcron.
@@ -514,7 +526,7 @@ func TestNormalizeGcronPatternSupportsFiveAndSixFields(t *testing.T) {
 		{
 			name:  "five fields",
 			input: "17 3 * * *",
-			want:  "0 17 3 * * *",
+			want:  "# 17 3 * * *",
 		},
 		{
 			name:  "six fields",

@@ -28,8 +28,19 @@ interface PublicFrontendCronShellSettings {
   supported: boolean;
 }
 
+interface PublicFrontendCronLogRetentionSettings {
+  mode: string;
+  value: number;
+}
+
+interface PublicFrontendCronTimezoneSettings {
+  current: string;
+}
+
 interface PublicFrontendCronSettings {
+  logRetention: PublicFrontendCronLogRetentionSettings;
   shell: PublicFrontendCronShellSettings;
+  timezone: PublicFrontendCronTimezoneSettings;
 }
 
 interface PublicFrontendSettings {
@@ -60,10 +71,17 @@ const publicFrontendState = reactive<PublicFrontendSettings>({
     pageTitle: '',
   },
   cron: {
+    logRetention: {
+      mode: 'days',
+      value: 30,
+    },
     shell: {
       disabledReason: '',
       enabled: false,
       supported: true,
+    },
+    timezone: {
+      current: 'Asia/Shanghai',
     },
   },
   ui: {
@@ -82,16 +100,47 @@ function normalizeBoolean(value: unknown): boolean {
   return value === true || value === 'true';
 }
 
+function normalizeNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function resolvePublicFrontendEndpoint(): string {
   const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
   return `${apiURL.replace(/\/$/, '')}/config/public/frontend`;
+}
+
+function normalizeCronLogRetentionSettings(payload: any) {
+  const mode = normalizeString(payload?.mode) || 'days';
+  const fallbackValue = mode === 'none' ? 0 : 30;
+  const value = normalizeNumber(payload?.value, fallbackValue);
+
+  if (mode === 'none') {
+    return {
+      mode,
+      value: 0,
+    };
+  }
+
+  return {
+    mode,
+    value: value > 0 ? value : fallbackValue,
+  };
+}
+
+function normalizeCronTimezoneSettings(payload: any) {
+  return {
+    current: normalizeString(payload?.current) || 'Asia/Shanghai',
+  };
 }
 
 function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
   const app = payload?.app ?? {};
   const auth = payload?.auth ?? {};
   const cron = payload?.cron ?? {};
+  const logRetention = cron?.logRetention ?? {};
   const shell = cron?.shell ?? {};
+  const timezone = cron?.timezone ?? {};
   const ui = payload?.ui ?? {};
 
   return {
@@ -106,6 +155,7 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
       pageTitle: normalizeString(auth.pageTitle),
     },
     cron: {
+      logRetention: normalizeCronLogRetentionSettings(logRetention),
       shell: {
         disabledReason: normalizeString(shell.disabledReason),
         enabled: normalizeBoolean(shell.enabled),
@@ -114,6 +164,7 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
             ? true
             : normalizeBoolean(shell.supported),
       },
+      timezone: normalizeCronTimezoneSettings(timezone),
     },
     ui: {
       layout: normalizeString(ui.layout),
@@ -165,7 +216,12 @@ async function syncPublicFrontendSettings() {
 
     Object.assign(publicFrontendState.app, settings.app);
     Object.assign(publicFrontendState.auth, settings.auth);
+    Object.assign(
+      publicFrontendState.cron.logRetention,
+      settings.cron.logRetention,
+    );
     Object.assign(publicFrontendState.cron.shell, settings.cron.shell);
+    Object.assign(publicFrontendState.cron.timezone, settings.cron.timezone);
     Object.assign(publicFrontendState.ui, settings.ui);
     applyPublicFrontendPreferences(settings);
 

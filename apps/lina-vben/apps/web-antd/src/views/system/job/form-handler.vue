@@ -294,12 +294,17 @@ defineExpose({
 
 <template>
   <div class="space-y-4" data-testid="job-form-handler">
-    <Alert
+    <div
       v-if="props.builtin"
-      message="系统内置任务的处理器引用和参数已锁定，只允许调整公共调度字段。"
-      type="info"
-      show-icon
-    />
+      class="py-[5px]"
+      data-testid="job-builtin-handler-lock-alert"
+    >
+      <Alert
+        message="系统内置任务的处理器引用和参数已锁定，只允许调整公共调度字段。"
+        type="info"
+        show-icon
+      />
+    </div>
     <Spin :spinning="props.loading || schemaLoading">
       <Form />
     </Spin>

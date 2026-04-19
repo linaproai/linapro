@@ -61,8 +61,8 @@ func (s *serviceImpl) storeRunningExecution(
 ) {
 	s.mu.Lock()
 	s.runningInstances[logID] = &runningExecution{
-		jobID:  jobID,
-		cancel: cancel,
+		jobID:   jobID,
+		cancel:  cancel,
 		release: release,
 	}
 	s.mu.Unlock()

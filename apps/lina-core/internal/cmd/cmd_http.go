@@ -41,8 +41,6 @@ import (
 	"lina-core/internal/service/cron"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
-	schedulerpkg "lina-core/internal/service/jobmgmt/scheduler"
-	"lina-core/internal/service/jobmgmt/shellexec"
 	"lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
@@ -87,8 +85,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 
 	var (
 		jobRegistry    = jobhandlersvc.New()
-		shellExecSvc   = shellexec.New(configSvc)
-		jobScheduler   = schedulerpkg.New(clusterSvc, jobRegistry, shellExecSvc)
+		jobScheduler   = jobmgmtsvc.NewScheduler(clusterSvc, jobRegistry, configSvc)
 		jobMgmtSvc     = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler)
 		middlewareSvc  = middleware.New()
 		authCtrl       = auth.NewV1()

@@ -17,7 +17,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
-	"lina-core/internal/service/jobmgmt/shellexec"
+	"lina-core/internal/service/jobmgmt/internal/shellexec"
 	"lina-core/pkg/logger"
 )
 

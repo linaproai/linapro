@@ -94,6 +94,15 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        name: 'ScheduledJobCatalog',
+        path: '/system/scheduled-job',
+        redirect: '/system/job',
+        meta: {
+          hideInMenu: true,
+          title: '定时任务',
+        },
+      },
+      {
         name: 'JobManagement',
         path: '/system/job',
         component: () => import('#/views/system/job/index.vue'),
@@ -107,7 +116,7 @@ const routes: RouteRecordRaw[] = [
         path: '/system/job-group',
         component: () => import('#/views/system/job-group/index.vue'),
         meta: {
-          icon: 'ant-design:clock-circle-outlined',
+          icon: 'ant-design:appstore-outlined',
           title: '分组管理',
         },
       },
@@ -116,7 +125,7 @@ const routes: RouteRecordRaw[] = [
         path: '/system/job-log',
         component: () => import('#/views/system/job-log/index.vue'),
         meta: {
-          icon: 'ant-design:clock-circle-outlined',
+          icon: 'ant-design:file-search-outlined',
           title: '执行日志',
         },
       },

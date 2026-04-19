@@ -48,10 +48,17 @@ describe('public frontend runtime settings', () => {
           },
           auth: {},
           cron: {
+            logRetention: {
+              mode: 'count',
+              value: 120,
+            },
             shell: {
               disabledReason: '',
               enabled: true,
               supported: true,
+            },
+            timezone: {
+              current: 'UTC',
             },
           },
           ui: {
@@ -62,9 +69,8 @@ describe('public frontend runtime settings', () => {
       ok: true,
     } as Response);
 
-    const { publicFrontendSettings, syncPublicFrontendSettings } = await import(
-      './public-frontend'
-    );
+    const { publicFrontendSettings, syncPublicFrontendSettings } =
+      await import('./public-frontend');
     const settings = await syncPublicFrontendSettings();
 
     expect(fetch).toHaveBeenCalledWith(
@@ -75,7 +81,10 @@ describe('public frontend runtime settings', () => {
         method: 'GET',
       }),
     );
+    expect(publicFrontendSettings.cron.logRetention.mode).toBe('count');
+    expect(publicFrontendSettings.cron.logRetention.value).toBe(120);
     expect(publicFrontendSettings.cron.shell.enabled).toBe(true);
+    expect(publicFrontendSettings.cron.timezone.current).toBe('UTC');
     expect(publicFrontendSettings.ui.themeMode).toBe('dark');
     expect(settings?.ui.themeMode).toBe('dark');
     expect(updatePreferences).toHaveBeenCalledWith(

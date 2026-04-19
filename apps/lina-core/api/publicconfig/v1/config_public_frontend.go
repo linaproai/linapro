@@ -39,7 +39,15 @@ type FrontendUIRes struct {
 
 // FrontendCronRes stores public-safe scheduled-job capability flags.
 type FrontendCronRes struct {
-	Shell FrontendCronShellRes `json:"shell" dc:"Shell 任务前端能力开关" eg:"{}"`
+	LogRetention FrontendCronLogRetentionRes `json:"logRetention" dc:"系统级定时任务日志保留策略" eg:"{}"`
+	Shell        FrontendCronShellRes        `json:"shell" dc:"Shell 任务前端能力开关" eg:"{}"`
+	Timezone     FrontendCronTimezoneRes     `json:"timezone" dc:"定时任务默认时区配置" eg:"{}"`
+}
+
+// FrontendCronLogRetentionRes stores the frontend-visible default log-retention policy.
+type FrontendCronLogRetentionRes struct {
+	Mode  string `json:"mode" dc:"系统级日志保留模式：days=按天保留 count=按条数保留 none=不自动清理" eg:"days"`
+	Value int64  `json:"value" dc:"系统级日志保留阈值；mode=days 或 count 时大于0，mode=none 时为0" eg:"30"`
 }
 
 // FrontendCronShellRes stores the shell-job gate exposed to the frontend.
@@ -47,4 +55,9 @@ type FrontendCronShellRes struct {
 	Enabled        bool   `json:"enabled" dc:"是否允许创建和执行 Shell 任务：true=允许 false=不允许" eg:"false"`
 	Supported      bool   `json:"supported" dc:"当前平台是否支持 Shell 任务：true=支持 false=不支持" eg:"true"`
 	DisabledReason string `json:"disabledReason" dc:"Shell 任务不可用时的原因说明" eg:"当前平台不支持 shell 模式"`
+}
+
+// FrontendCronTimezoneRes stores the default timezone exposed to the frontend.
+type FrontendCronTimezoneRes struct {
+	Current string `json:"current" dc:"当前宿主系统时区标识，作为新增任务时区的默认值" eg:"Asia/Shanghai"`
 }

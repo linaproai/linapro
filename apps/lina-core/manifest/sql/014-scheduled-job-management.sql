@@ -130,7 +130,7 @@ VALUES ('cron_job_status', '启用', 'enabled', 1, 'success', 1, NOW(), NOW());
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('cron_job_status', '停用', 'disabled', 2, 'default', 1, NOW(), NOW());
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_status', '插件不可用', 'paused_by_plugin', 3, 'danger', 1, NOW(), NOW());
+VALUES ('cron_job_status', '插件处理器不可用', 'paused_by_plugin', 3, 'danger', 1, NOW(), NOW());
 
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('cron_job_task_type', 'Handler 任务', 'handler', 1, 'primary', 1, NOW(), NOW());
@@ -138,14 +138,14 @@ INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, stat
 VALUES ('cron_job_task_type', 'Shell 任务', 'shell', 2, 'warning', 1, NOW(), NOW());
 
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_scope', '主节点执行', 'master_only', 1, 'primary', 1, NOW(), NOW());
+VALUES ('cron_job_scope', '仅主节点执行', 'master_only', 1, 'primary', 1, NOW(), NOW());
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_scope', '全节点执行', 'all_node', 2, 'success', 1, NOW(), NOW());
+VALUES ('cron_job_scope', '所有节点执行', 'all_node', 2, 'success', 1, NOW(), NOW());
 
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('cron_job_concurrency', '单例执行', 'singleton', 1, 'primary', 1, NOW(), NOW());
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_concurrency', '并行执行', 'parallel', 2, 'warning', 1, NOW(), NOW());
+VALUES ('cron_job_concurrency', '允许并行执行', 'parallel', 2, 'warning', 1, NOW(), NOW());
 
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('cron_job_trigger', 'Cron 调度', 'cron', 1, 'primary', 1, NOW(), NOW());
@@ -180,11 +180,13 @@ VALUES ('cron_log_retention_mode', '不清理', 'none', 3, 'warning', 1, NOW(), 
 -- 菜单与按钮权限
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system') AS parent), 'system:job:list', '任务管理', 'job', 'system/job/index', 'system:job:list', 'ant-design:clock-circle-outlined', 'M', 11, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system') AS parent), 'system:job:catalog', '定时任务', 'scheduled-job', '', '', 'ant-design:clock-circle-outlined', 'D', 11, 1, 1, 0, 0, NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system') AS parent), 'system:jobgroup:list', '分组管理', 'job-group', 'system/job-group/index', 'system:jobgroup:list', 'ant-design:appstore-outlined', 'M', 12, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:catalog') AS parent), 'system:job:list', '任务管理', '/system/job', 'system/job/index', 'system:job:list', 'ant-design:clock-circle-outlined', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system') AS parent), 'system:joblog:list', '执行日志', 'job-log', 'system/job-log/index', 'system:joblog:list', 'ant-design:file-search-outlined', 'M', 13, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:catalog') AS parent), 'system:jobgroup:list', '分组管理', '/system/job-group', 'system/job-group/index', 'system:jobgroup:list', 'ant-design:appstore-outlined', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
+INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:catalog') AS parent), 'system:joblog:list', '执行日志', '/system/job-log', 'system/job-log/index', 'system:joblog:list', 'ant-design:file-search-outlined', 'M', 3, 1, 1, 0, 0, NOW(), NOW());
 
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:list') AS parent), 'system:job:add', '任务新增', '', '', 'system:job:add', '', 'B', 2, 1, 1, 0, 0, NOW(), NOW());

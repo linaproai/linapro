@@ -45,10 +45,7 @@ export function jobDelete(ids: Array<number> | number | string) {
 }
 
 /** 更新任务状态 */
-export function jobUpdateStatus(
-  id: number,
-  status: 'disabled' | 'enabled',
-) {
+export function jobUpdateStatus(id: number, status: 'disabled' | 'enabled') {
   return requestClient.put(`/job/${id}/status`, { status });
 }
 
@@ -101,6 +98,14 @@ export function jobLogDetail(id: number) {
 export function jobLogClear(jobId?: number) {
   return requestClient.delete('/job/log', {
     params: typeof jobId === 'number' ? { jobId } : undefined,
+  });
+}
+
+/** 批量删除执行日志 */
+export function jobLogDelete(ids: Array<number> | number | string) {
+  const target = Array.isArray(ids) ? ids.join(',') : ids;
+  return requestClient.delete('/job/log', {
+    params: { logIds: target },
   });
 }
 

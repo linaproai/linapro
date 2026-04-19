@@ -54,10 +54,10 @@ type shellGate interface {
 
 // serviceImpl implements Executor.
 type serviceImpl struct {
-	configSvc            shellGate         // configSvc exposes runtime shell switches.
-	goos                 string            // goos stores the current runtime platform.
-	defaultWorkDir       string            // defaultWorkDir stores the host process working directory.
-	cancelGracePeriod    time.Duration     // cancelGracePeriod bounds SIGTERM-to-SIGKILL escalation.
+	configSvc         shellGate     // configSvc exposes runtime shell switches.
+	goos              string        // goos stores the current runtime platform.
+	defaultWorkDir    string        // defaultWorkDir stores the host process working directory.
+	cancelGracePeriod time.Duration // cancelGracePeriod bounds SIGTERM-to-SIGKILL escalation.
 }
 
 // Ensure serviceImpl implements Executor.

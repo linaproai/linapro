@@ -20,13 +20,13 @@ type JobPayload struct {
 	ShellCmd             string              `json:"shellCmd" dc:"Shell 脚本内容；taskType=shell 时必填" eg:"echo hello"`
 	WorkDir              string              `json:"workDir" dc:"Shell 工作目录，不传则使用宿主当前工作目录" eg:"/tmp"`
 	Env                  map[string]string   `json:"env" dc:"Shell 环境变量键值对，仅 Shell 任务使用" eg:"{\"FOO\":\"bar\"}"`
-	CronExpr             string              `json:"cronExpr" v:"required|length:1,128" dc:"Cron 表达式" eg:"17 3 * * *"`
+	CronExpr             string              `json:"cronExpr" v:"required|length:1,128" dc:"Cron 表达式，支持5段（分 时 日 月 周）与6段（秒 分 时 日 月 周）；5段保存时会自动补 # 秒占位" eg:"17 3 * * *"`
 	Timezone             string              `json:"timezone" d:"Asia/Shanghai" dc:"任务时区标识" eg:"Asia/Shanghai"`
-	Scope                string              `json:"scope" d:"master_only" v:"required|in:master_only,all_node" dc:"调度范围：master_only=主节点执行 all_node=全节点执行" eg:"master_only"`
+	Scope                string              `json:"scope" d:"master_only" v:"required|in:master_only,all_node" dc:"调度范围：master_only=仅主节点执行 all_node=所有节点执行" eg:"master_only"`
 	Concurrency          string              `json:"concurrency" d:"singleton" v:"required|in:singleton,parallel" dc:"并发策略：singleton=单例 parallel=并行" eg:"singleton"`
 	MaxConcurrency       int                 `json:"maxConcurrency" d:"1" v:"min:1|max:100" dc:"最大并发数；concurrency=parallel 时生效" eg:"1"`
 	MaxExecutions        int                 `json:"maxExecutions" d:"0" v:"min:0" dc:"最大执行次数：0=无限制" eg:"0"`
-	Status               string              `json:"status" d:"disabled" v:"required|in:enabled,disabled,paused_by_plugin" dc:"任务状态：enabled=启用 disabled=停用 paused_by_plugin=插件不可用" eg:"enabled"`
+	Status               string              `json:"status" d:"disabled" v:"required|in:enabled,disabled,paused_by_plugin" dc:"任务状态：enabled=启用 disabled=停用 paused_by_plugin=插件处理器不可用" eg:"enabled"`
 	LogRetentionOverride *LogRetentionOption `json:"logRetentionOverride" dc:"任务级日志保留策略；不传则跟随系统参数 cron.log.retention" eg:"{\"mode\":\"days\",\"value\":60}"`
 }
 

@@ -94,7 +94,7 @@
 #### Scenario: UI 可见性
 
 - **WHEN** 任务列表返回 `paused_by_plugin` 任务
-- **THEN** 前端 SHALL 在状态列显式提示"插件不可用"
+- **THEN** 前端 SHALL 在状态列显式提示"插件处理器不可用"
 - **AND** 禁用"立即触发""启用"按钮
 
 ### Requirement: Handler 执行契约

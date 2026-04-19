@@ -21,7 +21,7 @@ import (
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
-	"lina-core/internal/service/jobmgmt/shellexec"
+	"lina-core/internal/service/jobmgmt/internal/shellexec"
 )
 
 // Scheduler defines the persistent scheduled-job runner contract.
@@ -148,7 +148,7 @@ func normalizeGcronPattern(expr string) (string, error) {
 	fields := strings.Fields(strings.TrimSpace(expr))
 	switch len(fields) {
 	case 5:
-		return "0 " + strings.Join(fields, " "), nil
+		return "# " + strings.Join(fields, " "), nil
 	case 6:
 		return strings.Join(fields, " "), nil
 	}

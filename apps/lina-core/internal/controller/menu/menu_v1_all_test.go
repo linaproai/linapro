@@ -140,3 +140,40 @@ func TestConvertToRouteItemsKeepsRegularViewRouteUnchanged(t *testing.T) {
 		t.Fatalf("expected normal menu path, got %s", route.Path)
 	}
 }
+
+// TestConvertToRouteItemsKeepsAbsoluteChildPath verifies grouped directory
+// menus can keep child routes on their original absolute URLs.
+func TestConvertToRouteItemsKeepsAbsoluteChildPath(t *testing.T) {
+	routes := convertToRouteItems([]*menusvc.MenuItem{
+		{
+			Id:      201,
+			Name:    "定时任务",
+			Path:    "scheduled-job",
+			Type:    "D",
+			Visible: 1,
+			Status:  1,
+			Children: []*menusvc.MenuItem{
+				{
+					Id:        202,
+					ParentId:  201,
+					Name:      "任务管理",
+					Path:      "/system/job",
+					Component: "system/job/index",
+					Type:      "M",
+					Visible:   1,
+					Status:    1,
+				},
+			},
+		},
+	})
+
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 directory route, got %d", len(routes))
+	}
+	if len(routes[0].Children) != 1 {
+		t.Fatalf("expected 1 child route, got %#v", routes[0].Children)
+	}
+	if routes[0].Children[0].Path != "/system/job" {
+		t.Fatalf("expected absolute child path to be preserved, got %q", routes[0].Children[0].Path)
+	}
+}
