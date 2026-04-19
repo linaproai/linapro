@@ -25,8 +25,8 @@
 #### Scenario: 任务类型区分
 
 - **WHEN** 创建任务指定 `task_type=handler`
-- **THEN** 系统 SHALL 要求 `handler_ref` 非空、`params` 按 handler 的 JSON Schema 校验通过
-- **AND** `shell_cmd / work_dir / env / timeout_seconds` 忽略写入
+- **THEN** 系统 SHALL 要求 `handler_ref` 非空、`params` 按 handler 的 JSON Schema 校验通过、`timeout_seconds ∈ [1, 86400]`
+- **AND** `shell_cmd / work_dir / env` 忽略写入
 
 #### Scenario: Shell 任务字段
 
@@ -34,6 +34,23 @@
 - **THEN** 系统 SHALL 要求 `shell_cmd` 非空、`timeout_seconds ∈ [1, 86400]`
 - **AND** `handler_ref / params` 忽略写入
 - **AND** `work_dir` 可空,非空时必须是宿主进程有权访问的存在目录
+
+### Requirement: 任务执行超时
+
+系统 SHALL 为所有任务类型保存公共 `timeout_seconds` 字段,并由调度执行器统一生效。
+
+#### Scenario: 创建或修改任务时校验超时
+
+- **WHEN** 管理员创建或修改任意 `handler` 或 `shell` 任务
+- **THEN** 系统 SHALL 要求 `timeout_seconds ∈ [1, 86400]`
+- **AND** 缺失或越界时拒绝保存
+
+#### Scenario: Handler 任务超时
+
+- **WHEN** `task_type=handler` 的任务执行时间超过 `timeout_seconds`
+- **THEN** 系统 SHALL 取消该次执行的 `context`
+- **AND** 日志最终状态为 `timeout`
+- **AND** `err_msg` 记录超时时长
 
 ### Requirement: 定时任务 CRUD 接口
 
@@ -250,7 +267,7 @@
 
 #### Scenario: 可修改字段
 
-- **WHEN** 管理员修改 `is_builtin=1` 任务的 `cron_expr / timezone / status / max_executions / log_retention_override`
+- **WHEN** 管理员修改 `is_builtin=1` 任务的 `cron_expr / timezone / status / timeout_seconds / max_executions / log_retention_override`
 - **THEN** 系统 SHALL 接受修改并应用
 
 #### Scenario: 锁定字段
@@ -276,7 +293,15 @@
 #### Scenario: 菜单与按钮权限
 
 - **WHEN** 管理员访问任务管理相关页面或操作
-- **THEN** 系统 SHALL 校验以下权限:菜单 `system:job:list / system:group:list / system:joblog:list`;按钮 `system:job:add / edit / remove / export / trigger / cancel / status / reset`
+- **THEN** 系统 SHALL 校验以下权限:菜单 `system:job:list / system:jobgroup:list / system:joblog:list`
+- **AND** 任务按钮权限为 `system:job:add / edit / remove / status / trigger / reset`
+- **AND** 分组按钮权限为 `system:jobgroup:add / edit / remove`
+- **AND** 日志按钮权限为 `system:joblog:remove / cancel`
+
+#### Scenario: Shell 组合权限
+
+- **WHEN** 用户创建、修改或手动触发 `task_type=shell` 的任务
+- **THEN** 系统 SHALL 同时校验对应的基础任务权限(`system:job:add / edit / trigger`)与附加权限 `system:job:shell`
 
 #### Scenario: 操作审计
 

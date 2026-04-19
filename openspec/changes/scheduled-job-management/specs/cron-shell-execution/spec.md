@@ -56,6 +56,13 @@
 
 系统 SHALL 为 Shell 任务提供 `shell_cmd / work_dir / env / timeout_seconds` 四个维度的执行上下文,并保证行为可预测。
 
+#### Scenario: 环境变量存储边界
+
+- **WHEN** Shell 任务持久化 `env`
+- **THEN** 系统 SHALL 在 `sys_job.env` 中以明文 JSON 保存该 KV 集合
+- **AND** UI 在编辑既有 Shell 任务时 SHALL 对已保存值做遮罩显示
+- **AND** 审计日志 SHALL 不记录原始 `env` 载荷
+
 #### Scenario: 默认 Shell 解释器
 
 - **WHEN** 系统执行 Shell 任务
@@ -130,6 +137,13 @@
 ### Requirement: Shell 操作审计
 
 系统 SHALL 将 Shell 任务的敏感操作记录到操作日志,支持事后追责。
+
+#### Scenario: 复用宿主审计中间件
+
+- **WHEN** 创建、修改、手动触发或手动终止 Shell 任务通过宿主 HTTP API 执行
+- **THEN** 系统 SHALL 复用现有宿主 `OperLog` 中间件写入 `oper_log`
+- **AND** 对同一请求 SHALL 仅写入一条语义等价的审计记录
+- **AND** 实现 SHALL NOT 额外手写第二条重复的 `oper_log` 记录
 
 #### Scenario: 创建/修改审计
 

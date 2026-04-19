@@ -25,7 +25,15 @@
 
 ### Requirement: Handler 参数 JSON Schema
 
-系统 SHALL 要求 handler 声明参数的 JSON Schema,供参数校验与 UI 动态渲染使用。
+系统 SHALL 要求 handler 声明参数的 `JSON Schema draft-07` 受限标量子集,供参数校验与 UI 动态渲染使用。
+
+#### Scenario: 仅接受受限 Schema 子集
+
+- **WHEN** 宿主或插件注册一个 handler 的 `ParamsSchema`
+- **THEN** 根节点 SHALL 为 `type=object`
+- **AND** 字段类型仅支持 `string / integer / number / boolean`
+- **AND** 关键字仅支持 `properties / required / description / default / enum / format`
+- **AND** 系统 SHALL 拒绝 `array`、嵌套 `object`、`$ref`、`allOf`、`anyOf`、`oneOf`、`not`、`patternProperties` 等超出本迭代表单映射能力的结构
 
 #### Scenario: 创建任务时参数校验
 
@@ -54,6 +62,12 @@
 ### Requirement: 插件 Handler 生命周期
 
 系统 SHALL 订阅插件启用/禁用/卸载事件,自动同步 handler 注册表与关联任务状态。
+
+#### Scenario: 生命周期回调与响应边界
+
+- **WHEN** 插件启用、禁用或卸载请求成功
+- **THEN** 系统 SHALL 在同一请求链路内通过显式生命周期回调完成 handler 注册表与关联任务状态同步
+- **AND** 不依赖独立的 best-effort 异步事件总线再补偿
 
 #### Scenario: 插件启用时注册 handler
 

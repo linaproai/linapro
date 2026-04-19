@@ -31,7 +31,7 @@
 4. 插件 handler 在插件启/停事件中自动上/下线,关联任务自动级联状态而不丢数据。
 5. Shell 模式实现多层安全防护:独立权限点 + 全局开关 + 审计日志 + 进程组 kill + 输出截断。
 6. 集群模式下正确区分 `master-only` 与 `all-node` 调度范围,沿用 `cluster.IsPrimary()` 守卫。
-7. 内置任务通过 seed SQL 注入,允许运维修改 `cron_expr / timezone / status / max_executions / log_retention_override`,其他字段锁死且 seed 不覆盖用户修改。
+7. 内置任务通过 seed SQL 注入,允许运维修改 `cron_expr / timezone / status / timeout_seconds / max_executions / log_retention_override`,其他字段锁死且 seed 不覆盖用户修改。
 8. UI 遵循 Vben5 组件规范,参数区依据 handler 的 JSON Schema 动态渲染。
 
 **Non-Goals:**
@@ -112,10 +112,17 @@ type HandlerDef struct {
 ```
 
 - 宿主启动阶段调用 `Registry.Register("host:clean-session-logs", ...)` 注册内置 handler。
-- `service/plugin` 在插件启用事件中遍历清单并调 `Registry.Register`,禁用/卸载时调 `Unregister`。
+- `service/plugin` 在启用/禁用/卸载成功路径中通过显式注入的生命周期观察器同步调用 `Registry.Register` / `Unregister`,而不是依赖松散的异步事件总线。
 - `Registry.Unregister(ref)` 会触发 `JobScheduler` 级联:所有 `handler_ref=<ref>` 且 `status=enabled` 的任务置为 `paused_by_plugin`,UI 标红;重新 `Register` 时自动恢复为 `enabled`(仅恢复那些 `stop_reason=plugin_unavailable` 的任务)。
 
 **理由**: Registry 是唯一的真理来源,任务调度、UI 下拉、参数校验都走它;级联逻辑集中,避免散落在各调用方。
+
+**Schema 边界**:
+- `ParamsSchema` 固定采用 `JSON Schema draft-07` 的受限标量子集,根节点必须为 `type=object`。
+- 仅支持 `properties / required / description / default / enum / format` 以及字段类型 `string / integer / number / boolean`。
+- `format` 本迭代仅支持 `date / date-time / textarea` 三种前端映射语义。
+- 明确拒绝 `array`、嵌套 `object`、`$ref`、`allOf`、`anyOf`、`oneOf`、`not`、`patternProperties` 等超出本迭代表单映射能力的关键字。
+- 后端参数校验必须使用与 `draft-07` 兼容的专用 Schema 校验器,前端动态表单按同一子集做确定性映射。
 
 ### D6. Shell 安全分层
 
@@ -124,22 +131,27 @@ type HandlerDef struct {
 ```
 L1 权限        system:job:shell 权限点,默认仅 admin 拥有
 L2 全局开关    cron.shell.enabled = true/false,运维随时接管
-L3 审计        shell 任务的创建/修改/手动触发全部写 oper_log
+L3 审计        shell 任务的创建/修改/手动触发/手动终止复用宿主 HTTP OperLog 中间件各写入且仅写入一条 oper_log
 ```
 
 **执行时**:
 - 固定 `/bin/sh -c <shell_cmd>` 启动 `exec.CommandContext`。
 - `SysProcAttr.Setpgid = true`(Unix),超时/手动终止时 `kill -- -pgid`。
 - `work_dir` 为空时使用宿主进程工作目录;非空时先校验目录存在 + 非根路径。
-- `env` 为任务级 KV map,叠加在宿主进程环境之上(任务级覆盖进程级)。
+- `env` 为任务级 KV map,本迭代以明文 JSON 持久化到 `sys_job.env`,UI 编辑态默认遮罩既有值,且审计日志不记录原始 `env` 载荷;执行时叠加在宿主进程环境之上(任务级覆盖进程级)。
 - `stdout` / `stderr` 各自 `io.LimitReader` 截留前 64KB,超出追加 `...[truncated]` 标记。
 - `timeout` 为必填字段(秒),范围 `[1, 86400]`,`ctx, cancel := context.WithTimeout(parentCtx, timeout)`。
+
+**审计实现约束**:
+- shell 创建/修改/触发/终止四类 HTTP 接口继续走现有 `middleware.OperLog`;
+- 控制器通过 `operLog` 元标签与响应载荷补齐审计语义(如触发返回 `log_id`);
+- 实现不得在同一请求链路中再手写第二条语义重复的 `sys_oper_log` 记录。
 
 **Windows 下的处理**: 构建期不禁编,运行期如 `runtime.GOOS=="windows"` 则 `cron.shell.enabled` 强制视为 false,UI 提示"当前平台不支持 shell 模式"。
 
 ### D7. 系统内置任务的"部分只读"
 
-**决定**: 锁定 `is_builtin=1` 任务的 `task_type / handler_ref / params / scope / concurrency / group_id / name`;开放 `cron_expr / timezone / status / max_executions / log_retention_override` 可改。
+**决定**: 锁定 `is_builtin=1` 任务的 `task_type / handler_ref / params / scope / concurrency / group_id / name`;开放 `cron_expr / timezone / status / timeout_seconds / max_executions / log_retention_override` 可改。
 
 **seed 策略**: seed SQL 使用 `INSERT ... ON DUPLICATE KEY UPDATE` 的变体——只有 `last_seeded_at` 小于代码内置版本号时才更新锁定字段;开放字段只在首次插入时设定默认值,之后 seed 不覆盖。通过 `sys_job.seed_version` 列记录每次 seed 版本。
 
@@ -177,6 +189,7 @@ L3 审计        shell 任务的创建/修改/手动触发全部写 oper_log
 ```
 GET    /job                 列表(支持分组/状态/关键字/类型过滤)
 GET    /job/{id}            详情
+GET    /job/cron-preview    cron 表达式预览(最近 5 次触发时刻)
 POST   /job                 创建
 PUT    /job/{id}            更新
 DELETE /job                 批量删除
@@ -198,6 +211,17 @@ GET    /job/handler         handler 注册表列表(下拉用)
 GET    /job/handler/{ref}   handler 详情(含 ParamsSchema)
 ```
 
+**代码组织归属**:
+- DTO 与控制器按资源拆分为 `job / jobgroup / joblog / jobhandler` 四组目录,而不是引入新的 `jobmgmt` 汇总 API 包。
+- `/job/log/{id}/cancel` 由 `joblog` 控制器负责实现;/job 基础控制器只负责任务 CRUD、状态切换、手动触发、重置计数与 cron 预览。
+
+**权限矩阵**:
+- 菜单权限:`system:job:list`、`system:jobgroup:list`、`system:joblog:list`
+- 任务按钮:`system:job:add / edit / remove / status / trigger / reset`
+- 分组按钮:`system:jobgroup:add / edit / remove`
+- 日志按钮:`system:joblog:remove / cancel`
+- Shell 附加权限:`system:job:shell`,并与对应的 `system:job:add / edit / trigger` 组合校验
+
 ### D12. 数据模型关键字段
 
 ```
@@ -210,7 +234,8 @@ sys_job
   task_type (handler|shell)
   handler_ref (nullable, shell 任务为 null)
   params (json, handler 任务用)
-  shell_cmd (nullable), work_dir (nullable), env (json, nullable), timeout_seconds
+  timeout_seconds (全部任务必填, [1,86400])
+  shell_cmd (nullable), work_dir (nullable), env (json, nullable)
   cron_expr, timezone
   scope (master_only|all_node)
   concurrency (singleton|parallel)
@@ -265,9 +290,9 @@ sys_job_log
 - 数据回滚:本次变更只新增表与 seed,无破坏性 DDL;无需数据回滚。
 - 紧急停用:在系统参数页设 `cron.shell.enabled=false`,shell 任务立即被拦截。
 
-## Open Questions
+## Clarifications Locked
 
-1. Shell 任务的 `env` 是否需要支持加密存储(数据库密码等敏感值)?本迭代暂按明文存储,在 UI 表单上用 password 控件遮罩显示。→ 待用户反馈决定是否引入配置加密组件。
-2. Handler 执行超时字段要不要做成 handler 级别的默认值(由 Registry 提供),任务可以覆盖?本迭代任务表自带 `timeout_seconds`,handler 可以不声明默认。
-3. `max_concurrency` 在 `all_node` 模式下是"每节点上限"还是"全局上限"?本迭代按"每节点上限"实现(简单一致),如有全局需求再迭代。
-4. 是否需要暴露 "下次执行时间" 的预览(前端 cron 表达式实时解析)?本迭代在表单下方显示"最近 5 次下次执行时刻",基于后端接口 `GET /job/cron-preview?expr=...&tz=...`。
+1. `env` 在本迭代按明文 JSON 存储于 `sys_job.env`,UI 编辑态遮罩显示,审计日志不记录原始 `env` 载荷。
+2. `timeout_seconds` 是 `handler` 与 `shell` 两类任务共享的公共字段,handler 注册表不再额外声明默认超时覆盖链路。
+3. `max_concurrency` 在 `all_node` 模式下按"每节点上限"实现。
+4. cron 预览接口固定为 `GET /job/cron-preview?expr=...&tz=...`,由 `job` 资源提供。
