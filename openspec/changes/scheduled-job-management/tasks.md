@@ -1,21 +1,21 @@
 ## 1. 数据库与字典
 
-- [ ] 1.1 在 `apps/lina-core/manifest/sql/` 新增 `014-scheduled-job-management.sql`,包含 `sys_job_group / sys_job / sys_job_log` 三张表 DDL(带索引)、外键约束、幂等 `CREATE TABLE IF NOT EXISTS`
-- [ ] 1.2 在同一 SQL 中插入默认分组(`id=1, code=default, is_default=1`)、系统参数 `cron.shell.enabled=false`、`cron.log.retention={"mode":"days","value":30}`
-- [ ] 1.3 在同一 SQL 中插入菜单(任务管理 / 分组管理 / 执行日志)与按钮权限(`system:job:add/edit/remove/status/trigger/reset`、`system:jobgroup:add/edit/remove`、`system:joblog:remove/cancel`、`system:job:shell`),并注册菜单权限 `system:job:list / system:jobgroup:list / system:joblog:list`;将 `system:job:shell` 单独关联到内置 admin 角色
-- [ ] 1.4 在同一 SQL 中插入字典类型与字典数据:`cron_job_status / cron_job_task_type / cron_job_scope / cron_job_concurrency / cron_job_trigger / cron_job_log_status / cron_log_retention_mode`
-- [ ] 1.5 在同一 SQL 中 seed 一个内置任务 `host:cleanup-job-logs`(master-only、singleton、每日 03:17、is_builtin=1、seed_version=1)
-- [ ] 1.6 执行 `make init` 验证 SQL 幂等可重入;确认重复执行无报错
+- [x] 1.1 在 `apps/lina-core/manifest/sql/` 新增 `014-scheduled-job-management.sql`,包含 `sys_job_group / sys_job / sys_job_log` 三张表 DDL(带索引)、外键约束、幂等 `CREATE TABLE IF NOT EXISTS`
+- [x] 1.2 在同一 SQL 中插入默认分组(`code=default, is_default=1`)、系统参数 `cron.shell.enabled=false`、`cron.log.retention={"mode":"days","value":30}`
+- [x] 1.3 在同一 SQL 中插入菜单(任务管理 / 分组管理 / 执行日志)与按钮权限(`system:job:add/edit/remove/status/trigger/reset`、`system:jobgroup:add/edit/remove`、`system:joblog:remove/cancel`、`system:job:shell`),并注册菜单权限 `system:job:list / system:jobgroup:list / system:joblog:list`
+- [x] 1.4 在同一 SQL 中插入字典类型与字典数据:`cron_job_status / cron_job_task_type / cron_job_scope / cron_job_concurrency / cron_job_trigger / cron_job_log_status / cron_log_retention_mode`
+- [x] 1.5 在同一 SQL 中 seed 一个内置任务 `host:cleanup-job-logs`(master-only、singleton、每日 03:17、is_builtin=1、seed_version=1)
+- [x] 1.6 执行 `make init` 验证 SQL 幂等可重入;确认重复执行无报错
 
 ## 2. 后端 DAO 与 API 骨架
 
-- [ ] 2.1 在 `apps/lina-core/internal/cmd/` 相关表配置处更新后运行 `make dao`,生成 `dao/sys_job.go`、`dao/sys_job_group.go`、`dao/sys_job_log.go` 及 DO/Entity
-- [ ] 2.2 在 `api/job/v1/` 按接口用途拆文件创建 DTO:`job_list.go / job_detail.go / job_create.go / job_update.go / job_delete.go / job_status.go / job_trigger.go / job_reset.go`
-- [ ] 2.3 在 `api/jobgroup/v1/` 创建分组 DTO:`group_list.go / group_create.go / group_update.go / group_delete.go`
-- [ ] 2.4 在 `api/joblog/v1/` 创建日志 DTO:`log_list.go / log_detail.go / log_cancel.go / log_clear.go`
-- [ ] 2.5 在 `api/jobhandler/v1/` 创建 handler 注册表查询 DTO:`handler_list.go / handler_detail.go`
-- [ ] 2.6 在 `api/job/v1/job_cron_preview.go` 添加 cron 表达式预览 DTO(入参 `expr / timezone`,出参最近 5 次触发时刻)
-- [ ] 2.7 所有 DTO `g.Meta` 带 `dc / permission` 标签、所有字段带 `dc / eg / json`,满足接口文档规范;修改后运行 `make ctrl` 生成控制器骨架
+- [x] 2.1 在 `apps/lina-core/internal/cmd/` 相关表配置处更新后运行 `make dao`,生成 `dao/sys_job.go`、`dao/sys_job_group.go`、`dao/sys_job_log.go` 及 DO/Entity
+- [x] 2.2 在 `api/job/v1/` 按接口用途拆文件创建 DTO:`job_list.go / job_detail.go / job_create.go / job_update.go / job_delete.go / job_status.go / job_trigger.go / job_reset.go`
+- [x] 2.3 在 `api/jobgroup/v1/` 创建分组 DTO:`group_list.go / group_create.go / group_update.go / group_delete.go`
+- [x] 2.4 在 `api/joblog/v1/` 创建日志 DTO:`log_list.go / log_detail.go / log_cancel.go / log_clear.go`
+- [x] 2.5 在 `api/jobhandler/v1/` 创建 handler 注册表查询 DTO:`handler_list.go / handler_detail.go`
+- [x] 2.6 在 `api/job/v1/job_cron_preview.go` 添加 cron 表达式预览 DTO(入参 `expr / timezone`,出参最近 5 次触发时刻)
+- [x] 2.7 所有 DTO `g.Meta` 带 `dc / permission` 标签、所有字段带 `dc / eg / json`,满足接口文档规范;修改后运行 `make ctrl` 生成控制器骨架
 
 ## 3. 后端 Handler 注册表
 
@@ -59,13 +59,13 @@
 - [ ] 7.5 `controller/jobhandler/v1_*.go` 实现 handler 列表/详情
 - [ ] 7.6 按资源声明 `g.Meta.permission`:任务接口使用 `system:job:*`,分组接口使用 `system:jobgroup:*`,日志接口使用 `system:joblog:*`;Shell 创建/修改/触发接口追加 `system:job:shell`,Shell 日志取消接口需组合 `system:joblog:cancel + system:job:shell`
 - [ ] 7.7 为 shell 创建/修改/触发/取消接口声明 `operLog` 元标签并返回必要关联标识(如 `log_id`),复用宿主 `OperLog` 中间件完成单条审计记录写入
-- [ ] 7.8 扩展宿主审计请求参数脱敏规则,对 Shell 相关接口中的 `env` 载荷做值级遮罩,确保 `oper_log` 不落原始环境变量值
+- [x] 7.8 扩展宿主审计请求参数脱敏规则,对 Shell 相关接口中的 `env` 载荷做值级遮罩,确保 `oper_log` 不落原始环境变量值
 
 ## 8. 后端集成到启动流程
 
 - [ ] 8.1 修改 `internal/service/cron/cron.go`:在 `Start(ctx)` 末尾调用 `jobmgmtScheduler.LoadAndRegister(ctx)`;通过构造注入,不在 tick 内临时 `New`
 - [ ] 8.2 修改 `internal/service/plugin` 的启用/禁用/卸载成功路径,通过显式生命周期回调同步通知 `jobhandler` 观察器
-- [ ] 8.3 修改 `internal/service/config` 暴露 `cron.shell.enabled` 与 `cron.log.retention` 的类型化读取入口并复用现有 runtime param 刷新机制;`sysconfig` 继续负责参数数据管理
+- [x] 8.3 修改 `internal/service/config` 暴露 `cron.shell.enabled` 与 `cron.log.retention` 的类型化读取入口并复用现有 runtime param 刷新机制;`sysconfig` 继续负责参数数据管理
 - [ ] 8.4 在 `cmd` 启动装配处,完成 `jobhandler / jobmgmt / scheduler / shellexec` 的依赖注入
 
 ## 9. 前端 API 与适配器
@@ -141,3 +141,9 @@
 - [x] **FB-7**: 明确 `timeout_seconds` 为所有任务的公共字段并补齐测试规划
 - [x] **FB-8**: 明确 shell `env` 审计脱敏边界并追加实现任务
 - [x] **FB-9**: 明确终止 shell 实例时的组合权限与测试覆盖
+- [x] **FB-10**: 将 admin 用户权限放行与菜单查询逻辑从角色特判调整为用户特判，并移除对 `sys_role_menu` 的超管依赖
+- [x] **FB-11**: 统一 SQL seed 写法，移除 `ON DUPLICATE KEY UPDATE` 与显式自增主键写入；优先修正定时任务 SQL，并补充全仓库 SQL 审查任务
+- [x] **FB-12**: 移除 admin 角色菜单种子与插件菜单同步中的冗余 `sys_role_menu` 写入
+- [x] **FB-13**: 审查并同步其他 SQL 副本，移除残留的 admin 角色菜单绑定与旧版显式自增 `id` seed 写法
+- [x] **FB-14**: 将内置 admin 账号策略从 `pkg` 收拢到 `service/user` 组件内部，并消除跨组件误导性公共依赖
+- [x] **FB-15**: 补齐本次新增控制器骨架注释并修正审查遗漏，确保未跟踪控制器文件也纳入当前轮次检查

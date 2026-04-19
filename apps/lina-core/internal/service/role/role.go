@@ -54,7 +54,7 @@ type Service interface {
 	GetUserMenuIds(ctx context.Context, userId int) ([]int, error)
 	// GetUserPermissions returns effective menu and button permission strings for a user.
 	GetUserPermissions(ctx context.Context, userId int) ([]string, error)
-	// IsSuperAdmin checks if user is a super admin (has admin role).
+	// IsSuperAdmin checks whether the user is the built-in admin account.
 	IsSuperAdmin(ctx context.Context, userId int) bool
 	// PrimeTokenAccessContext preloads the access context cache for one freshly issued login token.
 	PrimeTokenAccessContext(
@@ -767,35 +767,33 @@ func (s *serviceImpl) GetUserRoleNames(ctx context.Context, userId int) ([]strin
 
 // GetUserMenuIds returns menu IDs accessible by a user through their roles.
 func (s *serviceImpl) GetUserMenuIds(ctx context.Context, userId int) ([]int, error) {
-	roleIds, err := s.GetUserRoleIds(ctx, userId)
+	accessContext, err := s.GetUserAccessContext(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
-	return s.getUserMenuIdsByRoleIds(ctx, roleIds)
+	if accessContext == nil {
+		return []int{}, nil
+	}
+	return cloneSliceWithCopy(accessContext.MenuIds), nil
 }
 
 // GetUserPermissions returns effective menu and button permission strings for a user.
 func (s *serviceImpl) GetUserPermissions(ctx context.Context, userId int) ([]string, error) {
-	menuIds, err := s.GetUserMenuIds(ctx, userId)
+	accessContext, err := s.GetUserAccessContext(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
-	return s.getUserPermissionsByMenuIds(ctx, menuIds)
+	if accessContext == nil {
+		return []string{}, nil
+	}
+	return cloneSliceWithCopy(accessContext.Permissions), nil
 }
 
-// IsSuperAdmin checks if user is a super admin (has admin role).
+// IsSuperAdmin checks whether the user is the built-in admin account.
 func (s *serviceImpl) IsSuperAdmin(ctx context.Context, userId int) bool {
-	roleIds, err := s.GetUserRoleIds(ctx, userId)
+	isSuperAdmin, err := s.isDefaultAdminUser(ctx, userId)
 	if err != nil {
 		return false
 	}
-
-	// Check if user has admin role (roleId = 1)
-	for _, roleId := range roleIds {
-		if roleId == 1 {
-			return true
-		}
-	}
-
-	return false
+	return isSuperAdmin
 }

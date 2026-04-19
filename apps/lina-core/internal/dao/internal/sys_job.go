@@ -21,40 +21,66 @@ type SysJobDao struct {
 
 // SysJobColumns defines and stores column names for the table sys_job.
 type SysJobColumns struct {
-	Id          string // 任务ID
-	Name        string // 任务名称
-	Command     string // 执行指令
-	CronExpr    string // Cron表达式
-	Description string // 任务描述
-	Status      string // 状态：1=启用 0=禁用
-	Singleton   string // 执行模式：1=单例 0=并行
-	MaxTimes    string // 最大执行次数，0表示无限制
-	ExecTimes   string // 已执行次数
-	IsSystem    string // 是否系统任务：1=是 0=否
-	CreateBy    string // 创建者
-	CreateTime  string // 创建时间
-	UpdateBy    string // 更新者
-	UpdateTime  string // 更新时间
-	Remark      string // 备注
+	Id                   string // 任务ID
+	GroupId              string // 所属分组ID
+	Name                 string // 任务名称
+	Description          string // 任务描述
+	TaskType             string // 任务类型（handler/shell）
+	HandlerRef           string // Handler 唯一引用
+	Params               string // Handler 参数JSON
+	TimeoutSeconds       string // 执行超时时间（秒）
+	ShellCmd             string // Shell 脚本内容
+	WorkDir              string // 工作目录
+	Env                  string // 环境变量JSON
+	CronExpr             string // Cron 表达式
+	Timezone             string // 时区标识
+	Scope                string // 调度范围（master_only/all_node）
+	Concurrency          string // 并发策略（singleton/parallel）
+	MaxConcurrency       string // 并发上限
+	MaxExecutions        string // 最大执行次数（0=无限）
+	ExecutedCount        string // 已执行次数
+	StopReason           string // 停止原因
+	LogRetentionOverride string // 日志保留策略覆盖JSON
+	Status               string // 任务状态（enabled/disabled/paused_by_plugin）
+	IsBuiltin            string // 是否内置任务（1=是 0=否）
+	SeedVersion          string // 种子版本号
+	CreatedBy            string // 创建者用户ID
+	UpdatedBy            string // 更新者用户ID
+	CreatedAt            string // 创建时间
+	UpdatedAt            string // 更新时间
+	DeletedAt            string // 删除时间
 }
 
 // sysJobColumns holds the columns for the table sys_job.
 var sysJobColumns = SysJobColumns{
-	Id:          "id",
-	Name:        "name",
-	Command:     "command",
-	CronExpr:    "cron_expr",
-	Description: "description",
-	Status:      "status",
-	Singleton:   "singleton",
-	MaxTimes:    "max_times",
-	ExecTimes:   "exec_times",
-	IsSystem:    "is_system",
-	CreateBy:    "create_by",
-	CreateTime:  "create_time",
-	UpdateBy:    "update_by",
-	UpdateTime:  "update_time",
-	Remark:      "remark",
+	Id:                   "id",
+	GroupId:              "group_id",
+	Name:                 "name",
+	Description:          "description",
+	TaskType:             "task_type",
+	HandlerRef:           "handler_ref",
+	Params:               "params",
+	TimeoutSeconds:       "timeout_seconds",
+	ShellCmd:             "shell_cmd",
+	WorkDir:              "work_dir",
+	Env:                  "env",
+	CronExpr:             "cron_expr",
+	Timezone:             "timezone",
+	Scope:                "scope",
+	Concurrency:          "concurrency",
+	MaxConcurrency:       "max_concurrency",
+	MaxExecutions:        "max_executions",
+	ExecutedCount:        "executed_count",
+	StopReason:           "stop_reason",
+	LogRetentionOverride: "log_retention_override",
+	Status:               "status",
+	IsBuiltin:            "is_builtin",
+	SeedVersion:          "seed_version",
+	CreatedBy:            "created_by",
+	UpdatedBy:            "updated_by",
+	CreatedAt:            "created_at",
+	UpdatedAt:            "updated_at",
+	DeletedAt:            "deleted_at",
 }
 
 // NewSysJobDao creates and returns a new DAO object for table data access.

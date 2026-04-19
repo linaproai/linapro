@@ -23,6 +23,10 @@ const (
 	RuntimeParamKeyUploadMaxSize = "sys.upload.maxSize"
 	// RuntimeParamKeyLoginBlackIPList stores the runtime login IP blacklist.
 	RuntimeParamKeyLoginBlackIPList = "sys.login.blackIPList"
+	// RuntimeParamKeyCronShellEnabled stores the global shell-job enable switch.
+	RuntimeParamKeyCronShellEnabled = "cron.shell.enabled"
+	// RuntimeParamKeyCronLogRetention stores the default cron-log retention policy.
+	RuntimeParamKeyCronLogRetention = "cron.log.retention"
 )
 
 // RuntimeParamSpec describes one built-in runtime parameter managed through
@@ -60,6 +64,18 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 		DefaultValue: "",
 		Remark:       "禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。",
 	},
+	{
+		Key:          RuntimeParamKeyCronShellEnabled,
+		Name:         "定时任务-Shell 模式开关",
+		DefaultValue: "false",
+		Remark:       "控制是否允许创建、修改和执行 Shell 类型定时任务，可选值：true、false。",
+	},
+	{
+		Key:          RuntimeParamKeyCronLogRetention,
+		Name:         "定时任务-日志保留策略",
+		DefaultValue: `{"mode":"days","value":30}`,
+		Remark:       "控制默认的定时任务日志清理策略，JSON 格式：{\"mode\":\"days|count|none\",\"value\":N}。",
+	},
 }
 
 // runtimeParamSpecByKey indexes runtimeParamSpecs by key for validation and
@@ -69,6 +85,8 @@ var runtimeParamSpecByKey = map[string]RuntimeParamSpec{
 	RuntimeParamKeySessionTimeout:   runtimeParamSpecs[1],
 	RuntimeParamKeyUploadMaxSize:    runtimeParamSpecs[2],
 	RuntimeParamKeyLoginBlackIPList: runtimeParamSpecs[3],
+	RuntimeParamKeyCronShellEnabled: runtimeParamSpecs[4],
+	RuntimeParamKeyCronLogRetention: runtimeParamSpecs[5],
 }
 
 // runtimeParamKeys preserves the deterministic built-in runtime-parameter key order.
@@ -77,6 +95,8 @@ var runtimeParamKeys = []string{
 	RuntimeParamKeySessionTimeout,
 	RuntimeParamKeyUploadMaxSize,
 	RuntimeParamKeyLoginBlackIPList,
+	RuntimeParamKeyCronShellEnabled,
+	RuntimeParamKeyCronLogRetention,
 }
 
 // RuntimeParamSpecs returns all built-in runtime parameter specs.
@@ -116,6 +136,13 @@ func ValidateRuntimeParamValue(key string, value string) error {
 
 	case RuntimeParamKeyLoginBlackIPList:
 		return validateIPBlacklistValue(key, value)
+
+	case RuntimeParamKeyCronShellEnabled:
+		_, err := parseStrictBoolValue(key, value)
+		return err
+
+	case RuntimeParamKeyCronLogRetention:
+		return validateCronLogRetentionValue(key, value)
 	}
 	return nil
 }

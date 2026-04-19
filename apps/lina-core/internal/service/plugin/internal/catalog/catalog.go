@@ -60,7 +60,7 @@ type NodeStateSyncer interface {
 // This interface is implemented by the integration sub-package and injected after
 // construction to avoid an import cycle (integration → catalog → integration).
 type MenuSyncer interface {
-	// SyncPluginMenusAndPermissions reconciles manifest menus into sys_menu and admin role.
+	// SyncPluginMenusAndPermissions reconciles manifest menus into sys_menu.
 	SyncPluginMenusAndPermissions(ctx context.Context, manifest *Manifest) error
 }
 

@@ -127,6 +127,14 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 		{key: RuntimeParamKeyUploadMaxSize, value: "0", shouldErr: true},
 		{key: RuntimeParamKeyLoginBlackIPList, value: "127.0.0.1;10.0.0.0/8"},
 		{key: RuntimeParamKeyLoginBlackIPList, value: "invalid-ip", shouldErr: true},
+		{key: RuntimeParamKeyCronShellEnabled, value: "true"},
+		{key: RuntimeParamKeyCronShellEnabled, value: "yes", shouldErr: true},
+		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"days","value":30}`},
+		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"count","value":200}`},
+		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"none","value":0}`},
+		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"none","value":-1}`, shouldErr: true},
+		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"days","value":0}`, shouldErr: true},
+		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"unknown","value":1}`, shouldErr: true},
 	}
 
 	for _, testCase := range testCases {

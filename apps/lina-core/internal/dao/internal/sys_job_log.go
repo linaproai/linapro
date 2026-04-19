@@ -21,30 +21,36 @@ type SysJobLogDao struct {
 
 // SysJobLogColumns defines and stores column names for the table sys_job_log.
 type SysJobLogColumns struct {
-	Id         string // 日志ID
-	JobId      string // 任务ID
-	JobName    string // 任务名称
-	Command    string // 执行指令
-	Status     string // 执行状态：1=成功 0=失败
-	StartTime  string // 开始时间
-	EndTime    string // 结束时间
-	Duration   string // 执行耗时(毫秒)
-	ErrorMsg   string // 错误信息
-	CreateTime string // 创建时间
+	Id             string // 日志ID
+	JobId          string // 所属任务ID
+	JobSnapshot    string // 执行时任务快照JSON
+	NodeId         string // 执行节点标识
+	Trigger        string // 触发方式（cron/manual）
+	ParamsSnapshot string // 执行时参数快照JSON
+	StartAt        string // 开始时间
+	EndAt          string // 结束时间
+	DurationMs     string // 执行耗时（毫秒）
+	Status         string // 执行状态
+	ErrMsg         string // 错误摘要
+	ResultJson     string // 执行结果JSON
+	CreatedAt      string // 创建时间
 }
 
 // sysJobLogColumns holds the columns for the table sys_job_log.
 var sysJobLogColumns = SysJobLogColumns{
-	Id:         "id",
-	JobId:      "job_id",
-	JobName:    "job_name",
-	Command:    "command",
-	Status:     "status",
-	StartTime:  "start_time",
-	EndTime:    "end_time",
-	Duration:   "duration",
-	ErrorMsg:   "error_msg",
-	CreateTime: "create_time",
+	Id:             "id",
+	JobId:          "job_id",
+	JobSnapshot:    "job_snapshot",
+	NodeId:         "node_id",
+	Trigger:        "trigger",
+	ParamsSnapshot: "params_snapshot",
+	StartAt:        "start_at",
+	EndAt:          "end_at",
+	DurationMs:     "duration_ms",
+	Status:         "status",
+	ErrMsg:         "err_msg",
+	ResultJson:     "result_json",
+	CreatedAt:      "created_at",
 }
 
 // NewSysJobLogDao creates and returns a new DAO object for table data access.

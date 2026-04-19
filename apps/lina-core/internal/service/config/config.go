@@ -26,6 +26,12 @@ type Service interface {
 	GetPublicFrontend(ctx context.Context) *PublicFrontendConfig
 	// GetLogin reads runtime login parameters from sys_config.
 	GetLogin(ctx context.Context) *LoginConfig
+	// GetCron reads runtime cron-management parameters from protected sys_config entries.
+	GetCron(ctx context.Context) *CronConfig
+	// IsCronShellEnabled reports whether shell-type cron jobs are currently allowed.
+	IsCronShellEnabled(ctx context.Context) bool
+	// GetCronLogRetention returns the runtime-effective default cron log retention policy.
+	GetCronLogRetention(ctx context.Context) *CronLogRetentionConfig
 	// IsLoginIPBlacklisted reports whether the input IP is denied by the
 	// runtime-effective blacklist without constructing a full config object.
 	IsLoginIPBlacklisted(ctx context.Context, ip string) bool

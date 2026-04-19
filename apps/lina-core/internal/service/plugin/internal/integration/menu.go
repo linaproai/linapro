@@ -1,5 +1,5 @@
 // This file synchronizes manifest-declared plugin menus and dynamic route
-// permission entries into sys_menu and ensures admin role access is granted.
+// permission entries into sys_menu.
 
 package integration
 
@@ -13,7 +13,6 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
@@ -26,11 +25,10 @@ const (
 	pluginMenuDefaultStatus  = 1
 	pluginMenuDefaultIsFrame = 0
 	pluginMenuDefaultIsCache = 0
-	pluginDefaultAdminRoleID = 1
 )
 
 // SyncPluginMenusAndPermissions reconciles all manifest menus and dynamic route permission
-// entries into sys_menu, then ensures the admin role has access to them.
+// entries into sys_menu.
 // It implements runtime.MenuManager and catalog.MenuSyncer.
 func (s *serviceImpl) SyncPluginMenusAndPermissions(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
@@ -147,9 +145,6 @@ func (s *serviceImpl) syncPluginMenusInTx(ctx context.Context, manifest *catalog
 		pendingMenus = nextPending
 	}
 
-	if err := s.ensurePluginMenuAdminBindings(ctx, resolvedIDs); err != nil {
-		return err
-	}
 	return s.deletePluginMenusByKeys(ctx, staleKeys)
 }
 
@@ -190,9 +185,6 @@ func (s *serviceImpl) syncDynamicRoutePermissionMenus(ctx context.Context, manif
 			continue
 		}
 		staleKeys = append(staleKeys, strings.TrimSpace(menu.MenuKey))
-	}
-	if err = s.ensurePluginMenuAdminBindings(ctx, resolvedIDs); err != nil {
-		return err
 	}
 	return s.deletePluginMenusByKeys(ctx, staleKeys)
 }
@@ -389,31 +381,6 @@ func (s *serviceImpl) upsertPluginMenu(
 		return 0, err
 	}
 	return existing.Id, nil
-}
-
-// ensurePluginMenuAdminBindings grants the default admin role access to every
-// plugin menu materialized during the current sync run.
-func (s *serviceImpl) ensurePluginMenuAdminBindings(ctx context.Context, resolvedIDs map[string]int) error {
-	menuIDs := make([]int, 0, len(resolvedIDs))
-	for _, menuID := range resolvedIDs {
-		if menuID <= 0 {
-			continue
-		}
-		menuIDs = append(menuIDs, menuID)
-	}
-	sort.Ints(menuIDs)
-
-	for _, menuID := range menuIDs {
-		if _, err := dao.SysRoleMenu.Ctx(ctx).
-			Data(do.SysRoleMenu{
-				RoleId: pluginDefaultAdminRoleID,
-				MenuId: menuID,
-			}).
-			Save(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // listPluginMenusByPlugin loads all menus owned by the given plugin, including

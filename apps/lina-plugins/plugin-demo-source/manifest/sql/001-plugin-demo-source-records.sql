@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `plugin_demo_source_record` (
     `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='源码插件示例记录表';
 
-INSERT INTO `plugin_demo_source_record` (
+INSERT IGNORE INTO `plugin_demo_source_record` (
     `title`,
     `content`,
     `attachment_name`,

@@ -21,6 +21,12 @@ import (
 // operation logs.
 const maxParamLen = 2000
 
+// Sensitive request-field masking tokens used by operation-log sanitization.
+const (
+	operLogMaskedPassword = "***"
+	operLogRedactedValue  = "[REDACTED]"
+)
+
 // OperLog records operation logs for write operations and specially tagged GET operations.
 func (s *serviceImpl) OperLog(r *ghttp.Request) {
 	startTime := time.Now()
@@ -76,7 +82,7 @@ func (s *serviceImpl) OperLog(r *ghttp.Request) {
 	if isBinaryContentType(reqContentType) {
 		operParam = "[二进制内容]"
 	} else {
-		operParam = truncate(maskPassword(getRequestParam(r)), maxParamLen)
+		operParam = truncate(sanitizeOperLogParam(getRequestParam(r)), maxParamLen)
 	}
 
 	// Get response result (skip binary content like xlsx exports)
@@ -182,31 +188,139 @@ func getRequestParam(r *ghttp.Request) string {
 	return ""
 }
 
-// maskPassword replaces password field values with ***.
-func maskPassword(param string) string {
+// sanitizeOperLogParam recursively masks sensitive request parameters before
+// operation-log persistence.
+func sanitizeOperLogParam(param string) string {
 	if param == "" {
 		return param
 	}
-	var data map[string]interface{}
+
+	var data any
 	if err := json.Unmarshal([]byte(param), &data); err != nil {
 		return param
 	}
-	masked := false
-	for k := range data {
-		lower := strings.ToLower(k)
-		if lower == "password" || lower == "newpassword" || lower == "oldpassword" {
-			data[k] = "***"
-			masked = true
-		}
-	}
-	if !masked {
+
+	sanitized, changed := sanitizeOperLogValue(data)
+	if !changed {
 		return param
 	}
-	b, err := json.Marshal(data)
+	b, err := json.Marshal(sanitized)
 	if err != nil {
 		return param
 	}
 	return string(b)
+}
+
+// sanitizeOperLogValue traverses one decoded JSON value and masks password and
+// shell-environment payloads.
+func sanitizeOperLogValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		sanitized := make(map[string]any, len(typed))
+		changed := false
+		for key, item := range typed {
+			switch {
+			case isOperLogPasswordField(key):
+				sanitized[key] = operLogMaskedPassword
+				changed = true
+
+			case isOperLogEnvField(key):
+				redacted, redactedChanged := redactOperLogEnvValue(item)
+				sanitized[key] = redacted
+				changed = changed || redactedChanged
+
+			default:
+				child, childChanged := sanitizeOperLogValue(item)
+				sanitized[key] = child
+				changed = changed || childChanged
+			}
+		}
+		if !changed {
+			return value, false
+		}
+		return sanitized, true
+
+	case []any:
+		sanitized := make([]any, len(typed))
+		changed := false
+		for index, item := range typed {
+			child, childChanged := sanitizeOperLogValue(item)
+			sanitized[index] = child
+			changed = changed || childChanged
+		}
+		if !changed {
+			return value, false
+		}
+		return sanitized, true
+	}
+
+	return value, false
+}
+
+// redactOperLogEnvValue masks one shell-environment payload while preserving
+// environment variable keys when the payload shape exposes them.
+func redactOperLogEnvValue(value any) (any, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if len(typed) == 0 {
+			return value, false
+		}
+		sanitized := make(map[string]any, len(typed))
+		for key := range typed {
+			sanitized[key] = operLogRedactedValue
+		}
+		return sanitized, true
+
+	case []any:
+		if len(typed) == 0 {
+			return value, false
+		}
+		sanitized := make([]any, len(typed))
+		for index, item := range typed {
+			sanitized[index] = redactOperLogEnvEntry(item)
+		}
+		return sanitized, true
+	}
+
+	return operLogRedactedValue, true
+}
+
+// redactOperLogEnvEntry masks one environment-variable entry inside an array
+// payload while keeping the variable key or name visible when possible.
+func redactOperLogEnvEntry(value any) any {
+	typed, ok := value.(map[string]any)
+	if !ok {
+		return operLogRedactedValue
+	}
+
+	sanitized := make(map[string]any, len(typed))
+	for key, item := range typed {
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "key", "name":
+			sanitized[key] = item
+		case "value":
+			sanitized[key] = operLogRedactedValue
+		default:
+			sanitized[key] = operLogRedactedValue
+		}
+	}
+	return sanitized
+}
+
+// isOperLogPasswordField reports whether the field name carries password
+// semantics and must be masked.
+func isOperLogPasswordField(field string) bool {
+	switch strings.ToLower(strings.TrimSpace(field)) {
+	case "password", "newpassword", "oldpassword":
+		return true
+	}
+	return false
+}
+
+// isOperLogEnvField reports whether the field name carries shell environment
+// variables and must be redacted.
+func isOperLogEnvField(field string) bool {
+	return strings.EqualFold(strings.TrimSpace(field), "env")
 }
 
 // isBinaryContentType checks if the content type represents binary data.

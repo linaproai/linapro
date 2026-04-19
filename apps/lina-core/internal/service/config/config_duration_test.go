@@ -16,6 +16,12 @@ func TestDurationConfigsUseDefaultsWhenUnset(t *testing.T) {
 	setTestConfigContent(t, `
 test: 1
 `)
+	withRuntimeParamAbsent(t, RuntimeParamKeyJWTExpire)
+	withRuntimeParamAbsent(t, RuntimeParamKeySessionTimeout)
+	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMaxSize)
+	withRuntimeParamAbsent(t, RuntimeParamKeyLoginBlackIPList)
+	withRuntimeParamAbsent(t, RuntimeParamKeyCronShellEnabled)
+	withRuntimeParamAbsent(t, RuntimeParamKeyCronLogRetention)
 
 	var (
 		jwtCfg     = New().GetJwt(context.Background())

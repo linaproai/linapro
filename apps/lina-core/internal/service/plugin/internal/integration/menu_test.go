@@ -18,14 +18,12 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
-// testDefaultAdminRoleID matches the seeded super-admin role used by menu sync tests.
-const testDefaultAdminRoleID = 1
-
 // TestSyncSourcePluginMenusFromManifest verifies source plugin menus are only
 // materialized on explicit sync and are deleted when removed from the manifest.
 func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
+	adminRoleID := mustQueryAdminRoleID(t, ctx)
 
 	const (
 		pluginID = "plugin-source-menu-sync"
@@ -112,15 +110,15 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 
 	roleMenuCount, err := dao.SysRoleMenu.Ctx(ctx).
 		Where(do.SysRoleMenu{
-			RoleId: testDefaultAdminRoleID,
+			RoleId: adminRoleID,
 			MenuId: menu.Id,
 		}).
 		Count()
 	if err != nil {
 		t.Fatalf("expected admin role binding query to succeed, got error: %v", err)
 	}
-	if roleMenuCount != 1 {
-		t.Fatalf("expected source plugin menu to be granted to admin role, got count=%d", roleMenuCount)
+	if roleMenuCount != 0 {
+		t.Fatalf("expected source plugin menu not to be granted to admin role, got count=%d", roleMenuCount)
 	}
 
 	testutil.WriteTestFile(
@@ -150,6 +148,7 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 	services := testutil.NewServices()
 	ctx := context.Background()
+	adminRoleID := mustQueryAdminRoleID(t, ctx)
 
 	const (
 		pluginID = "plugin-dynamic-menu-metadata"
@@ -207,15 +206,15 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 
 	roleMenuCount, err := dao.SysRoleMenu.Ctx(ctx).
 		Where(do.SysRoleMenu{
-			RoleId: testDefaultAdminRoleID,
+			RoleId: adminRoleID,
 			MenuId: menu.Id,
 		}).
 		Count()
 	if err != nil {
 		t.Fatalf("expected runtime admin role binding query to succeed, got error: %v", err)
 	}
-	if roleMenuCount != 1 {
-		t.Fatalf("expected runtime plugin menu to be granted to admin role, got count=%d", roleMenuCount)
+	if roleMenuCount != 0 {
+		t.Fatalf("expected runtime plugin menu not to be granted to admin role, got count=%d", roleMenuCount)
 	}
 
 	if err = services.Lifecycle.Uninstall(ctx, pluginID); err != nil {
@@ -229,6 +228,23 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 	if menu != nil {
 		t.Fatalf("expected runtime plugin menu %s to be deleted on uninstall", menuKey)
 	}
+}
+
+// mustQueryAdminRoleID resolves the built-in admin role ID for integration assertions.
+func mustQueryAdminRoleID(t *testing.T, ctx context.Context) int {
+	t.Helper()
+
+	var adminRole *entity.SysRole
+	err := dao.SysRole.Ctx(ctx).
+		Where(do.SysRole{Key: "admin"}).
+		Scan(&adminRole)
+	if err != nil {
+		t.Fatalf("expected admin role query to succeed, got error: %v", err)
+	}
+	if adminRole == nil {
+		t.Fatal("expected built-in admin role to exist")
+	}
+	return adminRole.Id
 }
 
 // TestDynamicPluginRoutePermissionsMaterializeHiddenMenus verifies dynamic

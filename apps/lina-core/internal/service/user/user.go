@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/dept"
 	"lina-core/internal/service/role"
+	"lina-core/internal/service/user/accountpolicy"
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
 )
@@ -29,9 +30,6 @@ const (
 
 	// StatusDisabled represents a disabled user status.
 	StatusDisabled Status = 0
-
-	// DefaultAdminUsername is the username of the default admin user.
-	DefaultAdminUsername = "admin"
 )
 
 // Service defines the user service contract.
@@ -652,7 +650,7 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	if user.Username == DefaultAdminUsername {
+	if accountpolicy.IsBuiltInAdminUsername(user.Username) {
 		return gerror.New("不能删除默认管理员")
 	}
 

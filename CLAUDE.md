@@ -19,7 +19,6 @@ apps/                → MonoRepo项目目录
     api/             → 请求/响应 DTO（g.Meta 路由定义）
     internal/        → 后端核心代码实现
       cmd/           → 服务启动 & 路由注册
-      consts/        → 全局常量定义
       controller/    → HTTP控制器（gf gen ctrl 自动生成骨架）
       dao/           → 数据访问层（gf gen dao 自动生成）
       model/         → 数据模型

@@ -66,6 +66,33 @@ func (f *fakeRoleConfigService) GetLogin(_ context.Context) *hostconfig.LoginCon
 	return &hostconfig.LoginConfig{}
 }
 
+// GetCron returns default cron settings for tests.
+func (f *fakeRoleConfigService) GetCron(_ context.Context) *hostconfig.CronConfig {
+	return &hostconfig.CronConfig{
+		Shell: hostconfig.CronShellConfig{
+			Enabled:   false,
+			Supported: true,
+		},
+		LogRetention: hostconfig.CronLogRetentionConfig{
+			Mode:  hostconfig.CronLogRetentionModeDays,
+			Value: 30,
+		},
+	}
+}
+
+// IsCronShellEnabled always reports false in tests.
+func (f *fakeRoleConfigService) IsCronShellEnabled(_ context.Context) bool {
+	return false
+}
+
+// GetCronLogRetention returns the default cron-log retention policy for tests.
+func (f *fakeRoleConfigService) GetCronLogRetention(_ context.Context) *hostconfig.CronLogRetentionConfig {
+	return &hostconfig.CronLogRetentionConfig{
+		Mode:  hostconfig.CronLogRetentionModeDays,
+		Value: 30,
+	}
+}
+
 // IsLoginIPBlacklisted always reports false in tests.
 func (f *fakeRoleConfigService) IsLoginIPBlacklisted(_ context.Context, _ string) bool {
 	return false

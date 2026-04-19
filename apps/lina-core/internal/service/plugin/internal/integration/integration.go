@@ -126,7 +126,7 @@ type PluginStateService interface {
 // MenuSyncService defines plugin menu synchronization operations.
 type MenuSyncService interface {
 	// SyncPluginMenusAndPermissions reconciles all manifest menus and dynamic route permission
-	// entries into sys_menu, then ensures the admin role has access to them.
+	// entries into sys_menu.
 	// It implements runtime.MenuManager and catalog.MenuSyncer.
 	SyncPluginMenusAndPermissions(ctx context.Context, manifest *catalog.Manifest) error
 	// SyncPluginMenus reconciles only the manifest-declared menus, skipping route-permission entries.
