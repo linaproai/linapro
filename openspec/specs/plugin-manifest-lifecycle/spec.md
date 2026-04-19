@@ -283,3 +283,11 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **AND** 不再先弹出一次通用安装确认，再弹出第二次授权确认
 - **AND** 管理员确认后宿主才开始执行动态插件安装流程
 
+### Requirement: `plugin.yaml` Remains Minimal and May Declare Menus
+The system SHALL keep `plugin.yaml` focused on stable plugin metadata and SHALL not require source plugins to declare backend route inventories in the manifest.
+
+#### Scenario: Source plugin backend routes are not duplicated in the manifest
+- **WHEN** the host parses a source plugin `plugin.yaml`
+- **THEN** the manifest does not need to list backend routes
+- **AND** backend route registration code plus DTO `g.Meta` remains the only source of truth for source-plugin routes
+- **AND** the host captures route ownership and documentation metadata during registration instead of reading a second route declaration model from `plugin.yaml`
