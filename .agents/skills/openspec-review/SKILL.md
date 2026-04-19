@@ -37,6 +37,27 @@ Determine what needs to be reviewed:
 2. **Before archive** — Review all changes in the current OpenSpec change
 3. **Manual invocation** — Ask user to specify scope or use current change
 
+**Mandatory scope collection rules:**
+
+1. Start with repository status, not `git diff` alone:
+   ```bash
+   git status --short
+   git ls-files --others --exclude-standard
+   ```
+2. Treat **all tracked and untracked changes** as review candidates, including:
+   - staged files
+   - unstaged files
+   - untracked files shown as `??`
+   - untracked directories shown as `?? path/`
+3. When `git status --short` reports an untracked directory, expand it to concrete files before review:
+   ```bash
+   find <path> -type f
+   # Or prefer:
+   rg --files <path>
+   ```
+4. If the task ran generators such as `make ctrl`, `make dao`, codegen scripts, or produced new test files, explicitly include the generated untracked files in review scope even if they do not appear in `git diff`.
+5. `git diff` may be used only as a secondary narrowing aid after status collection. It is **never sufficient by itself** for review scope definition.
+
 Run `openspec status --change "<name>" --json` to understand the current change state.
 
 ### 2. Load Specifications
@@ -87,6 +108,7 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 **Change:** <change-name>
 **Scope:** <task-specific / full change>
 **Files Reviewed:** <count>
+**Scope Source:** `git status --short` + `git ls-files --others --exclude-standard` + task/change context
 
 ### Backend Code Review
 ✓ All checks passed / ⚠ N issues found
@@ -136,6 +158,7 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 
 - **CLAUDE.md is the single source of truth** — All spec references point to it
 - Only check categories relevant to changed files
+- Scope identification MUST include untracked files and expanded untracked directories; never rely on `git diff` alone
 - Don't block on warnings — only critical issues block archive
 - Include file paths and line numbers in issue reports
 - Offer to fix issues automatically when straightforward
