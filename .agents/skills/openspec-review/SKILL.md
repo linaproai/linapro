@@ -85,13 +85,14 @@ Check against `CLAUDE.md` architecture design specifications and code developmen
 
 ### 6. SQL Review
 
-**Trigger**: New or modified files under `apps/lina-core/manifest/sql/` or SQL snippets embedded in related delivery docs
+**Trigger**: New or modified files under `apps/lina-core/manifest/sql/`、`apps/lina-core/manifest/sql/mock-data/`、`apps/lina-plugins/**/manifest/sql/` or SQL snippets embedded in related delivery docs
 
 Check against `CLAUDE.md` SQL file management specifications, at minimum covering:
 1. File naming, versioning, and single-iteration single-file rules
 2. Seed DML vs mock data separation
-3. **Idempotent execution safety** — SQL must be safe to run multiple times without duplicate-object errors or duplicate seed data; verify use of `IF [NOT] EXISTS`, `IF EXISTS`, `INSERT IGNORE`, upsert, or equivalent safe re-entry patterns
-4. Whether schema/data changes still match the current change scope and deployment path
+3. **Idempotent execution safety** — SQL must be safe to run multiple times without duplicate-object errors or duplicate seed data; verify use of `IF [NOT] EXISTS`, `IF EXISTS`, `INSERT IGNORE`, or equivalent safe re-entry patterns
+4. **Seed write style compliance** — delivered SQL must reject `INSERT ... ON DUPLICATE KEY UPDATE` and reject explicit writes to `AUTO_INCREMENT` `id` columns in seed/mock/install data
+5. Whether schema/data changes still match the current change scope and deployment path
 
 ### 7. E2E Test Review
 

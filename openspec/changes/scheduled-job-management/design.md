@@ -154,9 +154,9 @@ L3 审计        shell 任务的创建/修改/手动触发/手动终止复用宿
 
 **决定**: 锁定 `is_builtin=1` 任务的 `task_type / handler_ref / params / scope / concurrency / group_id / name`;开放 `cron_expr / timezone / status / timeout_seconds / max_executions / log_retention_override` 可改。
 
-**seed 策略**: seed SQL 使用 `INSERT ... ON DUPLICATE KEY UPDATE` 的变体——只有 `last_seeded_at` 小于代码内置版本号时才更新锁定字段;开放字段只在首次插入时设定默认值,之后 seed 不覆盖。通过 `sys_job.seed_version` 列记录每次 seed 版本。
+**seed 策略**: seed SQL 统一使用 `INSERT IGNORE INTO` 仅在首次缺失时写入内置任务,已存在记录一律不更新,避免覆盖用户修改过的 cron 表达式与运行参数。`sys_job.seed_version` 仅用于标识该内置任务的首次植入版本和后续新增内置任务的扩展位,不作为重复执行时的更新条件。
 
-**理由**: RuoYi 风格的"seed 完全覆盖"常导致升级时吞掉用户改过的 cron 表达式;版本号 gate 保证升级只推新内置任务与强制字段。
+**理由**: 内置任务 seed 的职责是"缺失补齐"而不是"覆盖纠偏";统一使用 `INSERT IGNORE INTO` 与项目 SQL 规范保持一致,同时避免升级脚本重跑时回写用户已调整过的配置。
 
 ### D8. 日志清理:全局默认 + 任务级覆盖 + 系统内置清理任务
 
