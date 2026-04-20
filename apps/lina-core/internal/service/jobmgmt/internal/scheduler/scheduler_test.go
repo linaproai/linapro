@@ -393,6 +393,31 @@ func TestRunCronJobMaxExecutionsDisablesJob(t *testing.T) {
 	})
 }
 
+// TestRunCronJobUnlimitedExecutionsStillAccumulatesCount verifies cron-triggered
+// runs still increment executed_count when max_executions is unlimited.
+func TestRunCronJobUnlimitedExecutionsStillAccumulatesCount(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		registry = newRegistryWithHandler(t, "host:scheduler-unlimited", func(ctx context.Context, params json.RawMessage) (any, error) {
+			return map[string]any{"ok": true}, nil
+		})
+		svc   = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
+		jobID = insertTestJob(t, ctx, "host:scheduler-unlimited", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+	)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
+
+	svc.runCronJob(ctx, jobID)
+	waitForCondition(t, 3*time.Second, func() bool {
+		var jobRow *entity.SysJob
+		if err := dao.SysJob.Ctx(ctx).Where(do.SysJob{Id: jobID}).Scan(&jobRow); err != nil || jobRow == nil {
+			return false
+		}
+		return jobRow.Status == string(jobmeta.JobStatusEnabled) &&
+			jobRow.StopReason == "" &&
+			jobRow.ExecutedCount == 1
+	})
+}
+
 // TestRunCronJobHandlerTimeoutMarksLogTimeout verifies handler executions that overrun their timeout persist timeout logs.
 func TestRunCronJobHandlerTimeoutMarksLogTimeout(t *testing.T) {
 	var (

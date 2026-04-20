@@ -32,6 +32,11 @@ func init() {
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,
 	)
+	plugin.RegisterCron(
+		pluginhost.ExtensionPointCronRegister,
+		pluginhost.CallbackExecutionModeBlocking,
+		registerBuiltinCrons,
+	)
 	plugin.RegisterJobHandler(pluginhost.JobHandlerRegistration{
 		Name:         "echo",
 		DisplayName:  "源码插件示例回显",
@@ -81,6 +86,15 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 		})
 	})
 	return nil
+}
+
+// registerBuiltinCrons contributes one plugin-owned builtin scheduled job so
+// the host can project source-plugin cron registrations into unified
+// scheduled-job management.
+func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistrar) error {
+	return registrar.Add(ctx, "0 */15 * * * *", "源码插件回显巡检", func(ctx context.Context) error {
+		return nil
+	})
 }
 
 // echoJobHandlerParams stores the supported payload for the demo source-plugin job handler.

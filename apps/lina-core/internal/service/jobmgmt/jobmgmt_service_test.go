@@ -41,10 +41,9 @@ func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
 	jobID, err = svc.CreateJob(ctx, SaveJobInput{
 		GroupID:        groupID,
 		Name:           jobName,
-		TaskType:       jobmeta.TaskTypeHandler,
-		HandlerRef:     "host:cleanup-job-logs",
-		Params:         map[string]any{},
+		TaskType:       jobmeta.TaskTypeShell,
 		Timeout:        5 * time.Minute,
+		ShellCmd:       "printf 'group-migration'",
 		CronExpr:       "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
 		Scope:          jobmeta.JobScopeMasterOnly,
@@ -112,7 +111,10 @@ func TestUpdateBuiltInJobRejectsLockedFields(t *testing.T) {
 		},
 	})
 	if err == nil {
-		t.Fatal("expected built-in job update to reject handler_ref mutation")
+		t.Fatal("expected built-in job update to be rejected")
+	}
+	if !strings.Contains(err.Error(), "源码注册任务不允许修改") {
+		t.Fatalf("expected read-only error, got %v", err)
 	}
 }
 
@@ -127,10 +129,9 @@ func TestCreateJobValidatesTimeoutAndConcurrency(t *testing.T) {
 	_, err := svc.CreateJob(ctx, SaveJobInput{
 		GroupID:        defaultID,
 		Name:           uniqueTestName("invalid-timeout"),
-		TaskType:       jobmeta.TaskTypeHandler,
-		HandlerRef:     "host:cleanup-job-logs",
-		Params:         map[string]any{},
+		TaskType:       jobmeta.TaskTypeShell,
 		Timeout:        0,
+		ShellCmd:       "printf 'timeout'",
 		CronExpr:       "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
 		Scope:          jobmeta.JobScopeMasterOnly,
@@ -145,10 +146,9 @@ func TestCreateJobValidatesTimeoutAndConcurrency(t *testing.T) {
 	_, err = svc.CreateJob(ctx, SaveJobInput{
 		GroupID:        defaultID,
 		Name:           uniqueTestName("invalid-concurrency"),
-		TaskType:       jobmeta.TaskTypeHandler,
-		HandlerRef:     "host:cleanup-job-logs",
-		Params:         map[string]any{},
+		TaskType:       jobmeta.TaskTypeShell,
 		Timeout:        5 * time.Minute,
+		ShellCmd:       "printf 'concurrency'",
 		CronExpr:       "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
 		Scope:          jobmeta.JobScopeMasterOnly,
@@ -180,10 +180,9 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 			input: SaveJobInput{
 				GroupID:        defaultID,
 				Name:           uniqueTestName("invalid-cron-count"),
-				TaskType:       jobmeta.TaskTypeHandler,
-				HandlerRef:     "host:cleanup-job-logs",
-				Params:         map[string]any{},
+				TaskType:       jobmeta.TaskTypeShell,
 				Timeout:        5 * time.Minute,
+				ShellCmd:       "printf 'cron-count'",
 				CronExpr:       "* * * *",
 				Timezone:       "Asia/Shanghai",
 				Scope:          jobmeta.JobScopeMasterOnly,
@@ -198,10 +197,9 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 			input: SaveJobInput{
 				GroupID:        defaultID,
 				Name:           uniqueTestName("invalid-cron-hash"),
-				TaskType:       jobmeta.TaskTypeHandler,
-				HandlerRef:     "host:cleanup-job-logs",
-				Params:         map[string]any{},
+				TaskType:       jobmeta.TaskTypeShell,
 				Timeout:        5 * time.Minute,
+				ShellCmd:       "printf 'cron-hash'",
 				CronExpr:       "# 17 3 * * *",
 				Timezone:       "Asia/Shanghai",
 				Scope:          jobmeta.JobScopeMasterOnly,
@@ -216,10 +214,9 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 			input: SaveJobInput{
 				GroupID:        defaultID,
 				Name:           uniqueTestName("invalid-timezone"),
-				TaskType:       jobmeta.TaskTypeHandler,
-				HandlerRef:     "host:cleanup-job-logs",
-				Params:         map[string]any{},
+				TaskType:       jobmeta.TaskTypeShell,
 				Timeout:        5 * time.Minute,
+				ShellCmd:       "printf 'timezone'",
 				CronExpr:       "*/5 * * * *",
 				Timezone:       "Mars/Phobos",
 				Scope:          jobmeta.JobScopeMasterOnly,
@@ -234,10 +231,9 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 			input: SaveJobInput{
 				GroupID:        defaultID,
 				Name:           uniqueTestName("invalid-status"),
-				TaskType:       jobmeta.TaskTypeHandler,
-				HandlerRef:     "host:cleanup-job-logs",
-				Params:         map[string]any{},
+				TaskType:       jobmeta.TaskTypeShell,
 				Timeout:        5 * time.Minute,
+				ShellCmd:       "printf 'status'",
 				CronExpr:       "*/5 * * * *",
 				Timezone:       "Asia/Shanghai",
 				Scope:          jobmeta.JobScopeMasterOnly,
@@ -252,10 +248,9 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 			input: SaveJobInput{
 				GroupID:        defaultID,
 				Name:           uniqueTestName("invalid-timeout-seconds"),
-				TaskType:       jobmeta.TaskTypeHandler,
-				HandlerRef:     "host:cleanup-job-logs",
-				Params:         map[string]any{},
+				TaskType:       jobmeta.TaskTypeShell,
 				Timeout:        1500 * time.Millisecond,
+				ShellCmd:       "printf 'timeout-seconds'",
 				CronExpr:       "*/5 * * * *",
 				Timezone:       "Asia/Shanghai",
 				Scope:          jobmeta.JobScopeMasterOnly,
@@ -270,10 +265,9 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 			input: SaveJobInput{
 				GroupID:        defaultID,
 				Name:           uniqueTestName("invalid-max-concurrency"),
-				TaskType:       jobmeta.TaskTypeHandler,
-				HandlerRef:     "host:cleanup-job-logs",
-				Params:         map[string]any{},
+				TaskType:       jobmeta.TaskTypeShell,
 				Timeout:        5 * time.Minute,
+				ShellCmd:       "printf 'max-concurrency'",
 				CronExpr:       "*/5 * * * *",
 				Timezone:       "Asia/Shanghai",
 				Scope:          jobmeta.JobScopeMasterOnly,

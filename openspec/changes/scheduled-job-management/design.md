@@ -4,7 +4,7 @@
 
 - `apps/lina-core/internal/service/cron` 已经存在,承载宿主侧代码内置任务:`session-cleanup`、`servermon-collector`、`servermon-cleanup`、`access-topology-sync`、`runtime-param-sync`,以及 `pluginSvc.RegisterCrons` 注入的插件级 cron。
 - 底层调度器是 GoFrame 的 `gcron`;选主能力来自 `service/cluster`;分布式锁能力来自 `service/locker` 与 `service/hostlock`。
-- 所有内置任务在进程启动时由代码直接注册,缺少任何用户可编辑入口与持久化。
+- 所有内置任务在进程启动时由代码直接注册,缺少任何用户可见入口与统一持久化投影。
 
 ### 需求概述
 
@@ -26,13 +26,13 @@
 **Goals:**
 
 1. 提供完整的用户可管理定时任务体系(CRUD、分组、启停、日志、清理策略)。
-2. 同时支持 handler 模式与 shell 模式,两种任务类型共享同一张任务表。
+2. 统一展示用户创建任务、宿主内置任务、插件内置任务,避免运行中的真实调度任务游离在管理页之外。
 3. 在现有 `service/cron` 之上复用 gcron,通过动态注册支持运行时 CRUD。
 4. 插件 handler 在插件启/停事件中自动上/下线,关联任务自动级联状态而不丢数据。
 5. Shell 模式实现多层安全防护:独立权限点 + 全局开关 + 审计日志 + 进程组 kill + 输出截断。
 6. 集群模式下正确区分 `master-only` 与 `all-node` 调度范围,沿用 `cluster.IsPrimary()` 守卫。
-7. 内置任务通过 seed SQL 注入,允许运维修改 `cron_expr / timezone / status / timeout_seconds / max_executions / log_retention_override`,其他字段锁死且 seed 不覆盖用户修改。
-8. UI 遵循 Vben5 组件规范,参数区依据 handler 的 JSON Schema 动态渲染。
+7. 源码注册任务以代码为唯一真理来源投影到 `sys_job`,管理员可查看与触发,但不能通过公共 UI/API 修改定义。
+8. UI 遵循 Vben5 组件规范,用户创建入口仅暴露 Shell 任务表单。
 
 **Non-Goals:**
 
@@ -43,7 +43,7 @@
 5. 不提供 handler 参数的前端自定义组件库,只从 JSON Schema 映射到 Vben 内置控件(输入框、数字、开关、下拉、日期等)。
 6. 不在本迭代实现"任务依赖 / DAG"语义。
 7. 不做 handler 脚本沙箱(Wasm/JS)——插件 handler 沿用已有 Wasm 插件体系。
-8. 不支持"一次性任务"(即给定绝对时间点执行一次);如有需要通过 `max_executions=1` + cron 近似实现。
+8. 不在本迭代开放通过公共 UI/API 创建 Handler 任务;此类任务仅允许由源码注册。
 
 ## Decisions
 
@@ -158,6 +158,30 @@ L3 审计        shell 任务的创建/修改/手动触发/手动终止复用宿
 
 **理由**: 内置任务 seed 的职责是"缺失补齐"而不是"覆盖纠偏";统一使用 `INSERT IGNORE INTO` 与项目 SQL 规范保持一致,同时避免升级脚本重跑时回写用户已调整过的配置。
 
+### D7A. 源码注册任务改为“完全只读 + 可触发”
+
+**决定**: 用户通过公共 UI/API 看见的源码注册任务统一视为“只读定义”:
+- 不允许编辑、删除、启停、重置计数;
+- 允许查看详情、查看日志、手动触发一次;
+- `status` 的变更只来自系统运行时(如插件不可用自动暂停)而不是人工修改。
+
+**理由**: 这类任务的定义来自宿主或插件源码,其安全性与正确性应由代码评审和发布流程保证,而不是运行期人工改写。手动触发保留给排障和验证场景。
+
+### D7B. 源码注册任务通过代码投影到 `sys_job`
+
+**决定**:
+- 宿主内置 cron 与插件内置 cron 不再绕开 `sys_job` 直接裸注册到 `gcron`;
+- 系统在启动阶段收集源码注册任务定义,将其 upsert 到 `sys_job`;
+- 调度执行统一回到持久化调度器 `jobmgmt/internal/scheduler`,确保列表、详情、日志、立即执行与运行态完全一致;
+- 用户创建任务继续直接写 `sys_job`,但仅允许 `shell` 类型。
+
+**理由**: 只有把所有真实运行任务投影到同一张任务表,管理页才不会出现“页面展示一套、进程实际运行另一套”的分裂状态。
+
+**实现边界**:
+- 用户创建任务的表达式继续严格限制为 5 段/6 段;
+- 源码注册任务允许保留 GoFrame 原生的 `@every ...` 表达式文本,因为这类任务不会经过公共表单校验;
+- 插件内置任务优先覆盖源码插件注册链路;若后续动态插件补充同类注册契约,沿用同一投影模型即可接入。
+
 ### D8. 日志清理:全局默认 + 任务级覆盖 + 系统内置清理任务
 
 **决定**:
@@ -171,6 +195,7 @@ L3 审计        shell 任务的创建/修改/手动触发/手动终止复用宿
 
 **决定**:
 - **手动触发**: UI "立即执行"按钮 → POST `/job/{id}/trigger` → scheduler 启动一次新执行,`trigger=manual`,**不计入 `executed_count`**。
+- **定时触发计数**: 由调度器正常触发的 `trigger=cron` 执行,无论 `max_executions` 是否为 `0`,都会累计 `executed_count`;`max_executions=0` 仅表示“不设上限”,不表示“不统计次数”。
 - **手动终止**: 正在 running 的日志行上 → POST `/job/log/{id}/cancel` → scheduler 查找对应 goroutine,调 `cancel()`。Handler 必须响应 `ctx.Done()`;Shell 执行 kill 进程组。
 - 终止后日志 status = `cancelled`,附上 `end_at`。
 
@@ -215,6 +240,11 @@ GET    /job/handler/{ref}   handler 详情(含 ParamsSchema)
 **代码组织归属**:
 - DTO 与控制器按资源拆分为 `job / jobgroup / joblog / jobhandler` 四组目录,而不是引入新的 `jobmgmt` 汇总 API 包。
 - `/job/log/{id}/cancel` 由 `joblog` 控制器负责实现;/job 基础控制器只负责任务 CRUD、状态切换、手动触发、重置计数与 cron 预览。
+
+**公共接口边界**:
+- `POST /job` 与 `PUT /job/{id}` 仅面向用户自建 Shell 任务;
+- 源码注册任务虽然同样通过 `/job` 资源对外展示,但其定义同步走内部投影流程,不走公共创建/编辑接口;
+- `PUT /job/{id}/status` 与 `POST /job/{id}/reset` 对源码注册任务返回只读错误。
 
 **权限矩阵**:
 - 菜单权限:`system:job:list`、`system:jobgroup:list`、`system:joblog:list`

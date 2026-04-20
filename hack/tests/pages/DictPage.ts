@@ -139,6 +139,10 @@ export class DictPage {
     await this.page.waitForTimeout(300);
   }
 
+  async clickCurrentTypeDeleteAction() {
+    await this.typePanel.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
+  }
+
   async clickTypeRow(typeName: string) {
     // Click a row in the type panel to load data in the right panel.
     const row = await this.resolveTypeRow(typeName);

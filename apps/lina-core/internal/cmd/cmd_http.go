@@ -110,7 +110,15 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		sessionCfg = configSvc.GetSession(ctx)
 		monCfg     = configSvc.GetMonitor(ctx)
 		serverCfg  = configSvc.GetServerExtensions(ctx)
-		cronSvc    = cron.New(sessionCfg, monCfg, middlewareSvc.SessionStore(), clusterSvc, jobScheduler)
+		cronSvc    = cron.New(
+			sessionCfg,
+			monCfg,
+			middlewareSvc.SessionStore(),
+			clusterSvc,
+			jobRegistry,
+			jobMgmtSvc,
+			jobScheduler,
+		)
 		uploadPath = configSvc.GetUploadPath(ctx)
 	)
 	clusterSvc.Start(ctx)

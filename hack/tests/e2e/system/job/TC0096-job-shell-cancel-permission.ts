@@ -87,6 +87,11 @@ test.describe('TC-96 Shell 终止权限校验', () => {
   });
 
   test('TC-96a~d: 缺少 system:job:shell 时禁止终止运行中的 Shell 实例', async () => {
+    if (!limitedApi) {
+      throw new Error('limitedApi should be initialized in beforeAll');
+    }
+    const limitedUserApi = limitedApi;
+
     const defaultGroup = await getDefaultGroup(adminApi);
     const created = await createJob(adminApi, buildShellJobPayload({
       groupId: defaultGroup.id,
@@ -107,7 +112,7 @@ test.describe('TC-96 Shell 终止权限校验', () => {
       .toBe('running');
 
     await expectBusinessError(
-      await limitedApi.post(`job/log/${triggered.logId}/cancel`),
+      await limitedUserApi.post(`job/log/${triggered.logId}/cancel`),
       'system:job:shell',
     );
 

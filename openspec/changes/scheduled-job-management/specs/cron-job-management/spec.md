@@ -25,7 +25,9 @@
 #### Scenario: 任务类型区分
 
 - **WHEN** 创建任务指定 `task_type=handler`
-- **THEN** 系统 SHALL 要求 `handler_ref` 非空、`params` 按 handler 的 JSON Schema 校验通过、`timeout_seconds ∈ [1, 86400]`
+- **THEN** 该任务 SHALL 仅允许由宿主或插件源码注册链路写入
+- **AND** 公共 UI/API SHALL 拒绝直接创建或编辑 `handler` 类型任务
+- **AND** 源码注册任务仍 SHALL 要求 `handler_ref` 非空、`params` 按 handler 的 JSON Schema 校验通过、`timeout_seconds ∈ [1, 86400]`
 - **AND** `shell_cmd / work_dir / env` 忽略写入
 
 #### Scenario: Shell 任务字段
@@ -66,13 +68,15 @@
 
 - **WHEN** 调用 `POST /job` 提交符合 schema 的任务
 - **THEN** 系统 SHALL 持久化记录
+- **AND** 公共创建接口 SHALL 仅接受 `task_type=shell` 的用户自建任务
 - **AND** 若 `status=enabled`,则立即在本节点调度器注册
 - **AND** `executed_count=0`、`stop_reason=null`
 
 #### Scenario: 更新
 
 - **WHEN** 调用 `PUT /job/{id}` 修改字段
-- **THEN** 系统 SHALL 从调度器注销旧记录并按新配置重新注册
+- **THEN** 系统 SHALL 仅允许更新用户自建任务
+- **AND** SHALL 从调度器注销旧记录并按新配置重新注册
 - **AND** 保留 `executed_count` 不变(除非显式调用重置接口)
 
 #### Scenario: 新增与编辑时严格校验公共调度字段
@@ -90,6 +94,44 @@
 - **THEN** 系统 SHALL 从调度器注销这些任务
 - **AND** 对 `is_builtin=1` 的任务拒绝删除并返回明确错误
 
+### Requirement: 源码注册任务投影与只读治理
+
+系统 SHALL 将宿主与插件通过源码注册链路声明的定时任务投影到统一的定时任务管理中,避免出现“部分任务只能在代码里看见、无法在管理页感知”的割裂体验。
+
+#### Scenario: 宿主内置任务统一可见
+
+- **WHEN** 宿主服务在启动阶段注册 `session-cleanup`、`server-monitor-collector`、`server-monitor-cleanup`、`access-topology-sync`、`runtime-param-sync`、`cleanup-job-logs` 等内置调度能力
+- **THEN** 系统 SHALL 将这些任务同步到 `sys_job`
+- **AND** 管理员 SHALL 能在任务管理列表中查看、搜索、查看详情、查看执行日志并手动触发这些任务
+
+#### Scenario: 插件内置任务统一可见
+
+- **WHEN** 插件通过宿主公开的定时任务注册链路声明定时任务
+- **THEN** 系统 SHALL 将该任务同步到 `sys_job`
+- **AND** 列表与详情 SHALL 标识其来源为 `插件内置`
+- **AND** 若当前环境不存在动态插件定时任务声明,则该来源仍 SHALL 保留统一投影模型,以便后续动态插件接入时无需再引入第二套管理入口
+
+#### Scenario: 源码注册任务只读
+
+- **WHEN** 管理员查看 `is_builtin=1` 的源码注册任务
+- **THEN** 前后端 SHALL 将其视为只读任务
+- **AND** 管理员仅可执行查看详情、查看日志与立即执行
+- **AND** 不允许通过公共 UI/API 删除、编辑、启停或重置执行次数
+
+#### Scenario: 源码注册任务表达式保留宿主原样
+
+- **WHEN** 系统同步源码注册任务的调度表达式
+- **THEN** SHALL 原样保留宿主注册时使用的表达式文本
+- **AND** 若源码任务使用 GoFrame 调度器原生支持的 `@every ...` 表达式,公共创建/编辑校验规则不受影响
+- **AND** 该能力仅用于源码注册任务投影,不放开给用户自建任务表单
+
+#### Scenario: 来源标签替代任务类型主展示
+
+- **WHEN** 管理员查看任务管理列表
+- **THEN** 前端 SHALL 以 `宿主内置 / 插件内置 / 用户创建` 作为主来源标签展示
+- **AND** 不再将 `Handler / Shell` 作为列表主展示列
+- **AND** 用户仍可在详情中查看任务的真实执行类型与处理器引用
+
 ### Requirement: 定时任务导航与可解释文案
 
 系统 SHALL 在管理工作台中以更易理解的导航结构和文案呈现定时任务能力,降低首次使用成本。
@@ -99,6 +141,12 @@
 - **WHEN** 管理员查看系统管理菜单
 - **THEN** 前端 SHALL 在 `系统管理` 下提供一个名为 `定时任务` 的目录菜单
 - **AND** `任务管理`、`分组管理`、`执行日志` SHALL 作为该目录下的子菜单展示
+
+#### Scenario: 菜单图标全局唯一
+
+- **WHEN** 前端与菜单种子为 `系统管理` 下的目录和菜单配置图标
+- **THEN** `定时任务` 目录、`任务管理`、`分组管理`、`执行日志` 的图标 SHALL 各不相同
+- **AND** 不与左侧已存在其他系统管理菜单复用相同图标,避免导航识别混淆
 
 #### Scenario: 目录入口默认落到任务管理
 
@@ -149,8 +197,14 @@
 
 - **WHEN** 任务管理列表渲染 `cron_expr` 列
 - **THEN** 前端 SHALL 使用内联代码风格展示定时表达式
-- **AND** SHALL 通过分段高亮提升 `* / # / 数字` 等表达式片段的可读性
+- **AND** SHALL 保持简单、稳定的代码块视觉样式,无需对 `* / # / 数字` 等片段做分段高亮
 - **AND** 不改变接口返回的原始表达式文本内容
+
+#### Scenario: 空操作下拉不展示“更多”按钮
+
+- **WHEN** 任务列表某一行不存在额外的二级操作项
+- **THEN** 前端 SHALL 不展示该行的 `更多` 按钮
+- **AND** 不渲染仅包含空菜单的下拉操作入口
 
 #### Scenario: 超时时间与最大执行次数帮助提示
 
@@ -175,6 +229,19 @@
 ### Requirement: 定时任务启用与禁用
 
 系统 SHALL 允许管理员切换任务启停状态,并保证调度器注册表与数据库状态一致。
+
+#### Scenario: 列表状态列保持只读展示
+
+- **WHEN** 管理员在任务列表查看任务状态
+- **THEN** `状态` 列 SHALL 仅负责展示当前状态
+- **AND** 不应在状态标签上直接绑定启用/停用切换交互
+
+#### Scenario: 通过编辑任务修改启停状态
+
+- **WHEN** 管理员需要修改用户创建任务的启用或停用状态
+- **THEN** 前端 SHALL 通过编辑弹窗中的 `任务状态` 字段完成修改
+- **AND** 列表页不再额外提供状态列点击切换能力
+- **AND** 源码注册任务仍 SHALL 保持只读详情,不开放状态修改
 
 #### Scenario: 启用任务
 
@@ -201,6 +268,13 @@
 
 - **WHEN** 任务 `max_executions=0`
 - **THEN** 系统 SHALL 无执行次数上限
+- **AND** 定时触发的执行仍 SHALL 持续累加 `executed_count`
+
+#### Scenario: 定时触发累计执行次数
+
+- **WHEN** 任务由调度器以 `trigger=cron` 实际启动一次执行
+- **THEN** 系统 SHALL 将该次执行计入 `executed_count`
+- **AND** 该累计规则 SHALL 独立于 `max_executions` 是否为 `0`
 
 #### Scenario: 达到上限自动禁用
 

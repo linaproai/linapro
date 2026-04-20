@@ -7,14 +7,43 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/pluginhost"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 )
+
+// ManagedCronJob describes one plugin-owned scheduled-job definition that the
+// host can project into the unified scheduled-job management table.
+type ManagedCronJob struct {
+	// PluginID identifies the owning plugin.
+	PluginID string
+	// Name is the stable plugin-local job name.
+	Name string
+	// DisplayName is the human-readable name shown in the UI.
+	DisplayName string
+	// Description explains the job purpose in the UI.
+	Description string
+	// Pattern stores the raw gcron pattern declared by the plugin.
+	Pattern string
+	// Timezone stores the UI display timezone when the pattern is cron-based.
+	Timezone string
+	// Scope selects master-only or all-node execution.
+	Scope jobmeta.JobScope
+	// Concurrency selects the overlap policy.
+	Concurrency jobmeta.JobConcurrency
+	// MaxConcurrency caps parallel overlap when Concurrency=parallel.
+	MaxConcurrency int
+	// Timeout bounds each execution.
+	Timeout time.Duration
+	// Handler executes the plugin-owned scheduled job.
+	Handler pluginhost.CronJobHandler
+}
 
 // BizCtxProvider abstracts the business context dependency for data-scope queries.
 type BizCtxProvider interface {
@@ -72,6 +101,10 @@ type SourceRegistrationService interface {
 	) error
 	// RegisterCrons registers callback-contributed cron jobs for source plugins.
 	RegisterCrons(ctx context.Context) error
+	// ListManagedCronJobs returns plugin-owned cron definitions for scheduled-job projection.
+	ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error)
+	// ListManagedCronJobsByPlugin returns cron definitions owned by one plugin.
+	ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
 }
 
 // HookDispatchService defines plugin hook dispatch operations.

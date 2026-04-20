@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type {
-  JobHandlerOption,
   JobPayload,
   JobRecord,
 } from '#/api/system/job/model';
@@ -12,7 +11,7 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { computed, ref } from 'vue';
 
-import { Alert, message, Tabs, TabPane } from 'ant-design-vue';
+import { Alert, Descriptions, DescriptionsItem, Tag, message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import {
@@ -30,12 +29,14 @@ import {
   JOB_SCOPE_FIELD_HELP,
   JOB_SCOPE_OPTIONS,
   JOB_TIMEOUT_FIELD_HELP,
+  getJobSourceColor,
+  getJobSourceKind,
+  getJobSourceLabel,
+  parsePluginIdFromHandlerRef,
 } from '#/api/system/job/meta';
-import { jobHandlerList } from '#/api/system/jobHandler';
 import { jobGroupList } from '#/api/system/jobGroup';
 import { publicFrontendSettings } from '#/runtime/public-frontend';
 
-import JobFormHandler from './form-handler.vue';
 import JobFormShell from './form-shell.vue';
 
 const emit = defineEmits<{ reload: [] }>();
@@ -43,8 +44,6 @@ const emit = defineEmits<{ reload: [] }>();
 const accessCodes = {
   shell: 'system:job:shell',
 } as const;
-
-type TaskTypeKey = 'handler' | 'shell';
 
 interface GroupOption {
   isDefault: boolean;
@@ -68,13 +67,10 @@ const JOB_FORM_STATUS_OPTIONS = ['enabled', 'disabled'] as const;
 const { hasAccessByCodes } = useAccess();
 
 const currentRecord = ref<JobRecord | null>(null);
-const activeTaskType = ref<TaskTypeKey>('handler');
 const cronPreviewError = ref('');
 const cronPreviewTimes = ref<string[]>([]);
 const groupOptions = ref<GroupOption[]>([]);
-const handlerOptions = ref<JobHandlerOption[]>([]);
 
-const handlerFormRef = ref<InstanceType<typeof JobFormHandler>>();
 const shellFormRef = ref<InstanceType<typeof JobFormShell>>();
 
 const hasShellPermission = computed(() =>
@@ -101,16 +97,32 @@ const shellUnavailableReason = computed(() => {
   return '';
 });
 
-const title = computed(() =>
-  currentRecord.value ? '编辑定时任务' : '新增定时任务',
-);
 const isBuiltin = computed(() => currentRecord.value?.isBuiltin === 1);
+const title = computed(() => {
+  if (isBuiltin.value) {
+    return '任务详情';
+  }
+  return currentRecord.value ? '编辑定时任务' : '新增定时任务';
+});
 const retentionHelp = computed(() =>
   getJobRetentionFieldHelp(publicFrontendSettings.cron.logRetention),
 );
 const currentSystemTimezone = computed(
   () => publicFrontendSettings.cron.timezone.current || 'Asia/Shanghai',
 );
+const currentSourceKind = computed(() => getJobSourceKind(currentRecord.value));
+const currentSourceLabel = computed(() => getJobSourceLabel(currentSourceKind.value));
+const currentPluginId = computed(() =>
+  parsePluginIdFromHandlerRef(currentRecord.value?.handlerRef),
+);
+const readonlyParamsText = computed(() => {
+  const raw = currentRecord.value?.params || '{}';
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw || '{}';
+  }
+});
 
 const [CommonForm, commonFormApi] = useVbenForm({
   commonConfig: {
@@ -174,6 +186,7 @@ function buildCommonSchema(
     {
       component: 'Textarea',
       componentProps: {
+        disabled: builtin,
         placeholder: '请输入任务描述',
         rows: 3,
       },
@@ -188,6 +201,7 @@ function buildCommonSchema(
         'data-testid': 'job-cron-editor',
         autocomplete: 'off',
         class: 'job-cron-code-input',
+        disabled: builtin,
         placeholder: '支持 5 段或 6 段，如 17 3 * * *',
         spellcheck: false,
       },
@@ -199,6 +213,7 @@ function buildCommonSchema(
     {
       component: 'AutoComplete',
       componentProps: {
+        disabled: builtin,
         options: buildTimezoneOptions(currentTimezone),
         placeholder: '可选择常用时区或输入自定义 IANA 时区',
       },
@@ -238,6 +253,7 @@ function buildCommonSchema(
     {
       component: 'InputNumber',
       componentProps: {
+        disabled: builtin,
         min: 1,
         precision: 0,
         style: { width: '100%' },
@@ -254,6 +270,7 @@ function buildCommonSchema(
     {
       component: 'InputNumber',
       componentProps: {
+        disabled: builtin,
         max: 86400,
         min: 1,
         precision: 0,
@@ -268,6 +285,7 @@ function buildCommonSchema(
     {
       component: 'InputNumber',
       componentProps: {
+        disabled: builtin,
         min: 0,
         precision: 0,
         style: { width: '100%' },
@@ -281,11 +299,18 @@ function buildCommonSchema(
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
+        disabled: builtin,
         optionType: 'button',
-        options: [
-          { label: '启用', value: 'enabled' },
-          { label: '停用', value: 'disabled' },
-        ],
+        options: builtin
+          ? [
+              { label: '启用', value: 'enabled' },
+              { label: '停用', value: 'disabled' },
+              { label: '插件不可用', value: 'paused_by_plugin' },
+            ]
+          : [
+              { label: '启用', value: 'enabled' },
+              { label: '停用', value: 'disabled' },
+            ],
       },
       defaultValue: 'disabled',
       fieldName: 'status',
@@ -295,6 +320,7 @@ function buildCommonSchema(
     {
       component: 'Select',
       componentProps: {
+        disabled: builtin,
         options: [
           { label: '跟随系统', value: '' },
           { label: '按天保留', value: 'days' },
@@ -311,6 +337,7 @@ function buildCommonSchema(
     {
       component: 'InputNumber',
       componentProps: {
+        disabled: builtin,
         min: 1,
         precision: 0,
         style: { width: '100%' },
@@ -406,32 +433,27 @@ async function fillCommonForm(record?: JobRecord | null) {
     retentionMode: retention.retentionMode,
     retentionValue: retention.retentionValue,
     scope: record.scope,
-    status: record.status === 'enabled' ? 'enabled' : 'disabled',
+    status:
+      record.status === 'paused_by_plugin'
+        ? 'paused_by_plugin'
+        : record.status === 'enabled'
+          ? 'enabled'
+          : 'disabled',
     timeoutSeconds: record.timeoutSeconds,
     timezone: record.timezone,
   });
 }
 
 async function loadModalData(id?: number) {
-  const [groupResult, handlerResult, record] = await Promise.all([
+  const [groupResult, record] = await Promise.all([
     jobGroupList({ pageNum: 1, pageSize: 100 }),
-    jobHandlerList(),
     typeof id === 'number' ? jobDetail(id) : Promise.resolve(null),
   ]);
 
   groupOptions.value = mapGroupOptions(groupResult.items || []);
-  handlerOptions.value = handlerResult.list || [];
   currentRecord.value = record;
   rebuildCommonSchema();
   await fillCommonForm(record);
-
-  if (record?.taskType === 'shell') {
-    activeTaskType.value = shellVisible.value ? 'shell' : 'handler';
-  } else {
-    activeTaskType.value = 'handler';
-  }
-
-  await handlerFormRef.value?.load(record);
   await shellFormRef.value?.load(record);
 }
 
@@ -442,9 +464,7 @@ const [Modal, modalApi] = useVbenModal({
     currentRecord.value = null;
     cronPreviewError.value = '';
     cronPreviewTimes.value = [];
-    activeTaskType.value = 'handler';
     await commonFormApi.resetForm();
-    await handlerFormRef.value?.reset();
     await shellFormRef.value?.reset();
   },
   onConfirm: handleConfirm,
@@ -660,26 +680,11 @@ async function buildPayload() {
     maxExecutions: Number(values.maxExecutions || 0),
     name: values.name,
     status: values.status,
-    taskType: activeTaskType.value,
+    taskType: 'shell',
     timeoutSeconds: Number(values.timeoutSeconds),
     timezone,
     scope: values.scope,
   };
-
-  if (activeTaskType.value === 'handler') {
-    const handlerPayload = await handlerFormRef.value?.validateAndBuild();
-    if (!handlerPayload) {
-      throw new Error('请完善 Handler 配置');
-    }
-    return {
-      ...commonPayload,
-      env: {},
-      handlerRef: handlerPayload.handlerRef,
-      params: handlerPayload.params,
-      shellCmd: '',
-      workDir: '',
-    } satisfies JobPayload;
-  }
 
   const shellPayload = await shellFormRef.value?.validateAndBuild();
   if (!shellPayload) {
@@ -696,6 +701,10 @@ async function buildPayload() {
 }
 
 async function handleConfirm() {
+  if (isBuiltin.value) {
+    modalApi.close();
+    return;
+  }
   try {
     modalApi.lock(true);
     const payload = await buildPayload();
@@ -718,7 +727,11 @@ async function handleConfirm() {
 </script>
 
 <template>
-  <Modal :title="title" data-testid="job-form-modal">
+  <Modal
+    :footer="isBuiltin ? false : undefined"
+    :title="title"
+    data-testid="job-form-modal"
+  >
     <div class="space-y-4">
       <div
         v-if="isBuiltin"
@@ -726,7 +739,7 @@ async function handleConfirm() {
         data-testid="job-builtin-common-lock-alert"
       >
         <Alert
-          message="系统内置任务的分组、名称、任务类型、处理器引用、处理器参数、调度范围和并发策略已锁定。"
+          message="源码注册任务的定义由宿主或插件代码维护，在管理页中仅允许查看详情、查看日志和立即执行。"
           show-icon
           type="info"
         />
@@ -734,7 +747,10 @@ async function handleConfirm() {
 
       <CommonForm />
 
-      <div class="rounded-md border border-border px-4 py-4">
+      <div
+        v-if="!isBuiltin"
+        class="rounded-md border border-border px-4 py-4"
+      >
         <div class="mb-3 flex items-center justify-between">
           <div>
             <div class="text-sm font-medium">Cron 预览</div>
@@ -767,12 +783,58 @@ async function handleConfirm() {
         </div>
       </div>
 
-      <div class="rounded-md border border-border px-4 py-4">
+      <div
+        v-if="isBuiltin"
+        class="rounded-md border border-border px-4 py-4"
+        data-testid="job-builtin-detail-card"
+      >
         <div class="mb-3 flex items-center justify-between">
           <div>
-            <div class="text-sm font-medium">任务类型配置</div>
+            <div class="text-sm font-medium">源码任务详情</div>
             <div class="text-xs text-foreground/60">
-              Handler 任务通过注册表执行，Shell 任务直接在宿主节点执行命令。
+              该任务由源码注册并投影到任务管理页面，以下信息用于排查与审计。
+            </div>
+          </div>
+        </div>
+
+        <Descriptions
+          :column="1"
+          bordered
+          class="job-builtin-descriptions"
+          size="small"
+        >
+          <DescriptionsItem label="任务来源">
+            <Tag :color="getJobSourceColor(currentSourceKind)">
+              {{ currentSourceLabel }}
+            </Tag>
+            <span
+              v-if="currentPluginId"
+              class="ml-2 text-xs text-foreground/60"
+            >
+              {{ currentPluginId }}
+            </span>
+          </DescriptionsItem>
+          <DescriptionsItem label="执行类型">
+            {{ currentRecord?.taskType === 'shell' ? 'Shell' : 'Handler' }}
+          </DescriptionsItem>
+          <DescriptionsItem label="处理器引用">
+            <code>{{ currentRecord?.handlerRef || '-' }}</code>
+          </DescriptionsItem>
+          <DescriptionsItem label="处理器参数">
+            <pre class="job-json-code">{{ readonlyParamsText }}</pre>
+          </DescriptionsItem>
+        </Descriptions>
+      </div>
+
+      <div
+        v-else
+        class="rounded-md border border-border px-4 py-4"
+      >
+        <div class="mb-3 flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium">Shell 任务配置</div>
+            <div class="text-xs text-foreground/60">
+              用户在界面中创建的定时任务统一使用 Shell 类型，由宿主节点直接执行命令。
             </div>
           </div>
           <Alert
@@ -783,31 +845,7 @@ async function handleConfirm() {
           />
         </div>
 
-        <Tabs
-          v-model:activeKey="activeTaskType"
-          data-testid="job-form-task-tabs"
-        >
-          <TabPane
-            key="handler"
-            tab="Handler"
-            data-testid="job-form-tab-handler"
-          >
-            <JobFormHandler
-              ref="handlerFormRef"
-              :builtin="isBuiltin"
-              :handler-options="handlerOptions"
-            />
-          </TabPane>
-
-          <TabPane
-            v-if="shellVisible && !isBuiltin"
-            key="shell"
-            tab="Shell"
-            data-testid="job-form-tab-shell"
-          >
-            <JobFormShell ref="shellFormRef" />
-          </TabPane>
-        </Tabs>
+        <JobFormShell ref="shellFormRef" />
       </div>
     </div>
   </Modal>
@@ -823,5 +861,13 @@ async function handleConfirm() {
     ui-monospace, 'SFMono-Regular', SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;
   letter-spacing: 0.02em;
+}
+
+.job-json-code {
+  margin: 0;
+  overflow-x: auto;
+  padding: 6px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

@@ -85,6 +85,12 @@ async function captureLoadingTitleFontOnRefresh(
   const mainScriptPattern = '**/src/main.ts*';
   let releaseMainScript: (() => void) | null = null;
 
+  const releaseInterceptedMainScript = () => {
+    const release = releaseMainScript;
+    releaseMainScript = null;
+    release?.();
+  };
+
   const routeHandler = async (route: Route) => {
     await new Promise<void>((resolve) => {
       releaseMainScript = resolve;
@@ -106,12 +112,12 @@ async function captureLoadingTitleFontOnRefresh(
 
     const loadingFontFamily = await loginPage.getLoadingTitleFontFamily();
 
-    releaseMainScript?.();
+    releaseInterceptedMainScript();
     await reloadPromise;
 
     return loadingFontFamily;
   } finally {
-    releaseMainScript?.();
+    releaseInterceptedMainScript();
     await page.unroute(mainScriptPattern, routeHandler);
   }
 }

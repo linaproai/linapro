@@ -113,6 +113,9 @@ func (s *serviceImpl) GetJob(ctx context.Context, id uint64) (*JobDetailOutput, 
 
 // CreateJob persists one new scheduled job and refreshes the scheduler when needed.
 func (s *serviceImpl) CreateJob(ctx context.Context, in SaveJobInput) (uint64, error) {
+	if in.TaskType != jobmeta.TaskTypeShell {
+		return 0, gerror.New("仅允许通过界面创建 Shell 类型定时任务")
+	}
 	jobRecord, err := s.normalizeJobRecord(ctx, nil, in)
 	if err != nil {
 		return 0, err
@@ -140,11 +143,11 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 	if existing == nil {
 		return gerror.New("定时任务不存在")
 	}
-
 	if existing.IsBuiltin == 1 {
-		if err = validateBuiltinMutableFields(existing, in.SaveJobInput); err != nil {
-			return err
-		}
+		return gerror.New("源码注册任务不允许修改")
+	}
+	if in.TaskType != jobmeta.TaskTypeShell {
+		return gerror.New("仅允许通过界面编辑 Shell 类型定时任务")
 	}
 
 	jobRecord, err := s.normalizeJobRecord(ctx, existing, in.SaveJobInput)
@@ -188,7 +191,7 @@ func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
 			continue
 		}
 		if job.IsBuiltin == 1 {
-			return gerror.New("系统内置任务不允许删除")
+			return gerror.New("源码注册任务不允许删除")
 		}
 	}
 
@@ -432,42 +435,4 @@ func (s *serviceImpl) ensureJobNameUnique(
 		return gerror.New("任务名称在当前分组下已存在")
 	}
 	return nil
-}
-
-// validateBuiltinMutableFields enforces built-in job field locks.
-func validateBuiltinMutableFields(existing *entity.SysJob, in SaveJobInput) error {
-	if existing == nil {
-		return nil
-	}
-	if existing.GroupId != in.GroupID {
-		return gerror.New("系统内置任务不允许修改所属分组")
-	}
-	if strings.TrimSpace(existing.Name) != strings.TrimSpace(in.Name) {
-		return gerror.New("系统内置任务不允许修改任务名称")
-	}
-	if jobmeta.NormalizeTaskType(existing.TaskType) != in.TaskType {
-		return gerror.New("系统内置任务不允许修改任务类型")
-	}
-	if strings.TrimSpace(existing.HandlerRef) != strings.TrimSpace(in.HandlerRef) {
-		return gerror.New("系统内置任务不允许修改处理器引用")
-	}
-	if strings.TrimSpace(existing.Params) != marshalInputMap(in.Params) {
-		return gerror.New("系统内置任务不允许修改处理器参数")
-	}
-	if jobmeta.NormalizeJobScope(existing.Scope) != in.Scope {
-		return gerror.New("系统内置任务不允许修改调度范围")
-	}
-	if jobmeta.NormalizeJobConcurrency(existing.Concurrency) != in.Concurrency {
-		return gerror.New("系统内置任务不允许修改并发策略")
-	}
-	return nil
-}
-
-// marshalInputMap serializes one map for built-in field comparison.
-func marshalInputMap(values map[string]any) string {
-	data, err := json.Marshal(values)
-	if err != nil {
-		return ""
-	}
-	return string(data)
 }

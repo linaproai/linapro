@@ -182,6 +182,35 @@ func retentionOverrideFromJob(raw string) *jobmeta.RetentionOption {
 	return option
 }
 
+// syncBuiltinHandlerJob projects one handler-based code-owned job into sys_job
+// and returns the persisted row ID for assertions.
+func syncBuiltinHandlerJob(
+	t *testing.T,
+	ctx context.Context,
+	svc *serviceImpl,
+	def BuiltinJobDef,
+) uint64 {
+	t.Helper()
+
+	if svc == nil {
+		t.Fatal("expected service to be initialized")
+	}
+	if err := svc.SyncBuiltinJobs(ctx, []BuiltinJobDef{def}); err != nil {
+		t.Fatalf("expected builtin job sync to succeed, got error: %v", err)
+	}
+
+	var job *entity.SysJob
+	if err := dao.SysJob.Ctx(ctx).
+		Where(do.SysJob{IsBuiltin: 1, HandlerRef: def.HandlerRef}).
+		Scan(&job); err != nil {
+		t.Fatalf("expected builtin job query to succeed, got error: %v", err)
+	}
+	if job == nil || job.Id == 0 {
+		t.Fatalf("expected builtin job %s to exist after sync", def.HandlerRef)
+	}
+	return job.Id
+}
+
 // uniqueTestName returns one collision-resistant identifier for DB-backed tests.
 func uniqueTestName(prefix string) string {
 	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())

@@ -113,16 +113,46 @@ export class JobPage {
   }
 
   async closeDialog() {
-    await this.dialog.getByRole("button", { name: /取\s*消|关\s*闭/ }).click();
+    const footerClose = this.dialog.getByRole("button", {
+      name: /取\s*消|关\s*闭/,
+    });
+    if (await footerClose.count()) {
+      await footerClose.click();
+    } else {
+      const iconClose = this.dialog.locator(".ant-modal-close").first();
+      if (await iconClose.count()) {
+        await iconClose.click();
+      } else {
+        await this.page.keyboard.press("Escape");
+      }
+    }
     await this.page.waitForTimeout(300);
   }
 
   async deleteSearchedJob() {
-    await this.page.getByRole("button", { name: "更多" }).first().click();
+    await this.page.locator('[data-testid^="job-more-"]').first().click();
     await this.page.locator('[data-testid^="job-delete-"]').first().click();
     await this.confirmPopconfirm();
     await this.page.waitForLoadState("networkidle");
     await this.page.waitForTimeout(300);
+  }
+
+  async setTaskStatus(statusLabel: "停用" | "启用") {
+    const option = this.dialog
+      .locator(".ant-radio-button-wrapper")
+      .filter({ hasText: statusLabel })
+      .first();
+    await option.waitFor({ state: "visible" });
+    await option.click();
+    await this.page.waitForTimeout(200);
+  }
+
+  async hasSearchedJobMoreButton() {
+    return this.page
+      .locator('[data-testid^="job-more-"]')
+      .first()
+      .isVisible({ timeout: 1500 })
+      .catch(() => false);
   }
 
   async isPausedByPluginVisible() {
@@ -133,7 +163,19 @@ export class JobPage {
   }
 
   async isActionDisabled(prefix: "job-enable-" | "job-trigger-") {
-    return this.page.locator(`[data-testid^="${prefix}"]`).first().isDisabled();
+    return this.page
+      .locator(`[data-testid^="${prefix}"]`)
+      .first()
+      .isDisabled()
+      .catch(() => false);
+  }
+
+  async hasAction(prefix: "job-enable-" | "job-more-" | "job-trigger-") {
+    return this.page
+      .locator(`[data-testid^="${prefix}"]`)
+      .first()
+      .isVisible({ timeout: 1500 })
+      .catch(() => false);
   }
 
   async triggerSearchedJob() {

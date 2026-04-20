@@ -4,9 +4,11 @@ package cron
 
 import (
 	"context"
+	"sync"
 
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
+	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	pluginsvc "lina-core/internal/service/plugin"
 	rolesvc "lina-core/internal/service/role"
@@ -32,6 +34,12 @@ type Service interface {
 	IsPrimary() bool
 }
 
+// builtinJobSyncer syncs code-owned scheduled-job definitions into sys_job.
+type builtinJobSyncer interface {
+	// SyncBuiltinJobs upserts code-owned scheduled-job definitions into sys_job.
+	SyncBuiltinJobs(ctx context.Context, jobs []jobmgmtsvc.BuiltinJobDef) error
+}
+
 // startupJob abstracts warm-up and watcher registration logic selected during
 // service construction for single-node or clustered deployments.
 type startupJob interface {
@@ -51,10 +59,13 @@ type serviceImpl struct {
 	serverMonSvc          servermon.Service     // Server monitor service
 	sessionStore          session.Store         // Session store
 	clusterSvc            cluster.Service       // Cluster topology service
+	registry              jobhandlersvc.Registry // registry stores managed host and plugin handlers.
 	pluginSvc             pluginsvc.Service     // Plugin service
+	builtinSyncer         builtinJobSyncer      // builtinSyncer persists code-owned job definitions.
 	persistentScheduler   jobmgmtsvc.Scheduler  // persistentScheduler loads and registers persisted jobs.
 	runtimeParamSyncJob   startupJob            // Runtime-parameter sync startup job
 	accessTopologySyncJob startupJob            // Permission-topology sync startup job
+	managedHandlersOnce   sync.Once             // managedHandlersOnce avoids duplicate handler registration.
 }
 
 // New creates and returns a new Service instance.
@@ -63,6 +74,8 @@ func New(
 	monCfg *config.MonitorConfig,
 	sessionStore session.Store,
 	clusterSvc cluster.Service,
+	registry jobhandlersvc.Registry,
+	builtinSyncer builtinJobSyncer,
 	persistentScheduler jobmgmtsvc.Scheduler,
 ) Service {
 	var (
@@ -81,7 +94,9 @@ func New(
 		serverMonSvc:        serverMonSvc,
 		sessionStore:        sessionStore,
 		clusterSvc:          clusterSvc,
+		registry:            registry,
 		pluginSvc:           pluginSvc,
+		builtinSyncer:       builtinSyncer,
 		persistentScheduler: persistentScheduler,
 		runtimeParamSyncJob: newRuntimeParamSnapshotSyncJob(
 			clusterEnabled,
@@ -96,16 +111,13 @@ func New(
 
 // Start registers and starts all cron jobs.
 func (s *serviceImpl) Start(ctx context.Context) {
-	// All-Node Jobs: executed on every node
-	s.startServerMonitor(ctx)
+	// Warmups that should still run immediately on startup.
+	s.warmServerMonitor(ctx)
 	s.startAccessTopologyRevisionSync(ctx)
 	s.startRuntimeParamSnapshotSync(ctx)
 
-	// Master-Only Jobs: only executed on the leader node
-	s.startSessionCleanup(ctx)
-	s.startServerMonitorCleanup(ctx)
-	if err := s.pluginSvc.RegisterCrons(ctx); err != nil {
-		logger.Warningf(ctx, "register plugin cron jobs failed: %v", err)
+	if err := s.syncBuiltinScheduledJobs(ctx); err != nil {
+		logger.Warningf(ctx, "sync builtin scheduled jobs failed: %v", err)
 	}
 	if s.persistentScheduler != nil {
 		if err := s.persistentScheduler.LoadAndRegister(ctx); err != nil {

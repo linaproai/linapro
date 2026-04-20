@@ -143,9 +143,13 @@ func jobEntryName(jobID uint64) string {
 	return fmt.Sprintf("scheduled-job:%d", jobID)
 }
 
-// normalizeGcronPattern converts stored 5-field cron expressions into the 6-field format required by gcron.
+// normalizeGcronPattern converts stored cron expressions into the format accepted by gcron.
 func normalizeGcronPattern(expr string) (string, error) {
-	fields := strings.Fields(strings.TrimSpace(expr))
+	trimmedExpr := strings.TrimSpace(expr)
+	if strings.HasPrefix(trimmedExpr, "@") {
+		return trimmedExpr, nil
+	}
+	fields := strings.Fields(trimmedExpr)
 	switch len(fields) {
 	case 5:
 		return "# " + strings.Join(fields, " "), nil

@@ -35,48 +35,58 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 				return map[string]any{"ok": true}, nil
 			},
 		}
+		disabledHandler = jobhandler.HandlerDef{
+			Ref:          "plugin:test-job-handler/wait-disabled",
+			DisplayName:  "Plugin Disabled Test Handler",
+			Description:  "Used to verify disabled builtin jobs stay untouched.",
+			ParamsSchema: `{"type":"object","properties":{}}`,
+			Source:       jobmeta.HandlerSourcePlugin,
+			PluginID:     "plugin:test-job-handler",
+			Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
+				return map[string]any{"ok": true}, nil
+			},
+		}
 	)
 
 	if err := registry.Register(handler); err != nil {
 		t.Fatalf("expected plugin handler registration to succeed, got error: %v", err)
 	}
+	if err := registry.Register(disabledHandler); err != nil {
+		t.Fatalf("expected disabled plugin handler registration to succeed, got error: %v", err)
+	}
 
-	enabledJobID, err := svc.CreateJob(ctx, SaveJobInput{
-		GroupID:        defaultGroupID(t, ctx),
+	enabledJobID := syncBuiltinHandlerJob(t, ctx, svc, BuiltinJobDef{
+		GroupCode:      "default",
 		Name:           uniqueTestName("plugin-enabled-job"),
+		Description:    "Enabled plugin builtin job.",
 		TaskType:       jobmeta.TaskTypeHandler,
 		HandlerRef:     handler.Ref,
 		Params:         map[string]any{},
 		Timeout:        5 * time.Minute,
-		CronExpr:       "*/5 * * * *",
+		Pattern:        "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
 		Scope:          jobmeta.JobScopeMasterOnly,
 		Concurrency:    jobmeta.JobConcurrencySingleton,
 		MaxConcurrency: 1,
 		Status:         jobmeta.JobStatusEnabled,
 	})
-	if err != nil {
-		t.Fatalf("expected enabled job create to succeed, got error: %v", err)
-	}
 	t.Cleanup(func() { cleanupJobHard(t, ctx, enabledJobID) })
 
-	disabledJobID, err := svc.CreateJob(ctx, SaveJobInput{
-		GroupID:        defaultGroupID(t, ctx),
+	disabledJobID := syncBuiltinHandlerJob(t, ctx, svc, BuiltinJobDef{
+		GroupCode:      "default",
 		Name:           uniqueTestName("plugin-disabled-job"),
+		Description:    "Disabled plugin builtin job.",
 		TaskType:       jobmeta.TaskTypeHandler,
-		HandlerRef:     handler.Ref,
+		HandlerRef:     disabledHandler.Ref,
 		Params:         map[string]any{},
 		Timeout:        5 * time.Minute,
-		CronExpr:       "*/5 * * * *",
+		Pattern:        "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
 		Scope:          jobmeta.JobScopeMasterOnly,
 		Concurrency:    jobmeta.JobConcurrencySingleton,
 		MaxConcurrency: 1,
 		Status:         jobmeta.JobStatusDisabled,
 	})
-	if err != nil {
-		t.Fatalf("expected disabled job create to succeed, got error: %v", err)
-	}
 	t.Cleanup(func() { cleanupJobHard(t, ctx, disabledJobID) })
 
 	scheduler.reset()
@@ -126,29 +136,27 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 		t.Fatalf("expected plugin handler registration to succeed, got error: %v", err)
 	}
 
-	jobID, err := svc.CreateJob(ctx, SaveJobInput{
-		GroupID:        defaultGroupID(t, ctx),
+	jobID := syncBuiltinHandlerJob(t, ctx, svc, BuiltinJobDef{
+		GroupCode:      "default",
 		Name:           uniqueTestName("plugin-restorable-job"),
+		Description:    "Restorable plugin builtin job.",
 		TaskType:       jobmeta.TaskTypeHandler,
 		HandlerRef:     handler.Ref,
 		Params:         map[string]any{},
 		Timeout:        5 * time.Minute,
-		CronExpr:       "*/5 * * * *",
+		Pattern:        "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
 		Scope:          jobmeta.JobScopeMasterOnly,
 		Concurrency:    jobmeta.JobConcurrencySingleton,
 		MaxConcurrency: 1,
 		Status:         jobmeta.JobStatusEnabled,
 	})
-	if err != nil {
-		t.Fatalf("expected job create to succeed, got error: %v", err)
-	}
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
 	registry.Unregister(handler.Ref)
 	scheduler.reset()
 
-	if err = registry.Register(handler); err != nil {
+	if err := registry.Register(handler); err != nil {
 		t.Fatalf("expected plugin handler re-registration to succeed, got error: %v", err)
 	}
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/jobmeta"
+	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -135,6 +136,15 @@ type testPluginStatusChecker struct {
 // IsEnabled reports whether one plugin is flagged enabled in the test snapshot.
 func (c testPluginStatusChecker) IsEnabled(ctx context.Context, pluginID string) bool {
 	return c.enabled[pluginID]
+}
+
+// ListManagedCronJobsByPlugin returns no synthetic cron jobs for registry tests
+// unless one test overrides the fixture explicitly.
+func (c testPluginStatusChecker) ListManagedCronJobsByPlugin(
+	ctx context.Context,
+	pluginID string,
+) ([]pluginsvc.ManagedCronJob, error) {
+	return nil, nil
 }
 
 // TestAttachPluginLifecycleSyncsEnabledSourcePluginHandlers verifies startup

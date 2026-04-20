@@ -1,4 +1,5 @@
-import type { CSSProperties, VNodeChild } from 'vue';
+import type { JobRecord } from './model';
+import type { CSSProperties } from 'vue';
 
 import { h } from 'vue';
 
@@ -35,17 +36,6 @@ export const JOB_CRON_CODE_CONTAINER_STYLE: CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-export const JOB_CRON_CODE_FIELD_STYLE: CSSProperties = {
-  alignItems: 'center',
-  background: 'var(--ant-color-bg-container, #ffffff)',
-  borderRadius: '6px',
-  boxShadow: 'inset 0 0 0 1px var(--ant-color-border-secondary, #f0f0f0)',
-  display: 'inline-flex',
-  gap: '1px',
-  minHeight: '24px',
-  padding: '0 6px',
-};
-
 export const JOB_PLUGIN_PAUSED_LABEL = '插件处理器不可用';
 
 export const JOB_PLUGIN_PAUSED_TOOLTIP =
@@ -67,6 +57,49 @@ export const JOB_CONCURRENCY_OPTIONS = [
   { label: '允许并行执行', value: 'parallel' },
 ];
 
+export type JobSourceKind =
+  | 'host_builtin'
+  | 'plugin_builtin'
+  | 'user_created';
+
+export function parsePluginIdFromHandlerRef(handlerRef?: string) {
+  const matched = (handlerRef || '').trim().match(/^plugin:([^/]+)\//);
+  return matched?.[1] || '';
+}
+
+export function getJobSourceKind(record?: Partial<JobRecord> | null): JobSourceKind {
+  if ((record?.isBuiltin || 0) !== 1) {
+    return 'user_created';
+  }
+  return (record?.handlerRef || '').trim().startsWith('plugin:')
+    ? 'plugin_builtin'
+    : 'host_builtin';
+}
+
+export function getJobSourceLabel(source: JobSourceKind) {
+  switch (source) {
+    case 'host_builtin':
+      return '宿主内置';
+    case 'plugin_builtin':
+      return '插件内置';
+    case 'user_created':
+    default:
+      return '用户创建';
+  }
+}
+
+export function getJobSourceColor(source: JobSourceKind) {
+  switch (source) {
+    case 'host_builtin':
+      return 'geekblue';
+    case 'plugin_builtin':
+      return 'purple';
+    case 'user_created':
+    default:
+      return 'gold';
+  }
+}
+
 export const JOB_CRON_FIELD_HELP = renderJobHelpContent(
   '支持 5 段或 6 段 Cron。\n5 段按“分 时 日 月 周”解析，运行时会自动补 # 秒占位。\n6 段可显式配置秒位。',
 );
@@ -87,92 +120,13 @@ export const JOB_CONCURRENCY_FIELD_HELP = renderJobHelpContent(
   '单例执行：本节点已有实例运行时，新触发会跳过。\n允许并行执行：本节点可同时运行多个实例，并受“最大并发”限制。',
 );
 
-export function getJobCronTokenStyle(token: string): CSSProperties {
-  if (/^\d+$/.test(token)) {
-    return {
-      color: '#1677ff',
-      fontWeight: 600,
-    };
-  }
-  if (token === '*') {
-    return {
-      color: '#d48806',
-      fontWeight: 600,
-    };
-  }
-  if (token === '#') {
-    return {
-      color: '#cf1322',
-      fontWeight: 600,
-    };
-  }
-  if (/^[A-Za-z]+$/.test(token)) {
-    return {
-      color: '#08979c',
-      fontWeight: 600,
-    };
-  }
-  if (/^[,/?LW-]+$/.test(token)) {
-    return {
-      color: '#595959',
-    };
-  }
-  return {
-    color: '#262626',
-  };
-}
-
-export function splitJobCronFields(expr?: string) {
-  const trimmedExpr = (expr || '').trim();
-  if (!trimmedExpr) {
-    return [];
-  }
-  return trimmedExpr.split(/\s+/);
-}
-
-export function splitJobCronSegments(field: string) {
-  return field.match(/(\d+|#|\*|[A-Za-z]+|[,/?LW-]+|\S)/g) || [field];
-}
-
-function renderCronFieldTokens(field: string, fieldIndex: number): VNodeChild[] {
-  const segments = splitJobCronSegments(field);
-
-  return segments.map((segment, segmentIndex) =>
-    h(
-      'span',
-      {
-        key: `cron-token-${fieldIndex}-${segmentIndex}`,
-        style: getJobCronTokenStyle(segment),
-      },
-      segment,
-    ),
-  );
-}
-
 export function renderJobCronExpression(
   expr?: string,
   attrs?: Record<string, any>,
 ) {
-  const fields = splitJobCronFields(expr);
-  if (fields.length === 0) {
+  const trimmedExpr = (expr || '').trim();
+  if (!trimmedExpr) {
     return '-';
-  }
-
-  const codeChildren: Array<string | VNodeChild> = [];
-  for (const [fieldIndex, field] of fields.entries()) {
-    if (fieldIndex > 0) {
-      codeChildren.push(' ');
-    }
-    codeChildren.push(
-      h(
-        'span',
-        {
-          key: `cron-field-${fieldIndex}`,
-          style: JOB_CRON_CODE_FIELD_STYLE,
-        },
-        renderCronFieldTokens(field, fieldIndex),
-      ),
-    );
   }
 
   return h(
@@ -180,9 +134,9 @@ export function renderJobCronExpression(
     {
       ...attrs,
       style: JOB_CRON_CODE_CONTAINER_STYLE,
-      title: fields.join(' '),
+      title: trimmedExpr,
     },
-    codeChildren,
+    trimmedExpr,
   );
 }
 

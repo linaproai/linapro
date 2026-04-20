@@ -7,11 +7,12 @@ import {
   createAdminApiContext,
   expectBusinessError,
   getJob,
+  getLog,
   listJobs,
-  updateJob,
+  triggerJob,
 } from './helpers';
 
-test.describe('TC-91 系统内置任务保护', () => {
+test.describe('TC-91 源码注册任务只读保护', () => {
   let api: APIRequestContext;
 
   test.beforeAll(async () => {
@@ -22,40 +23,61 @@ test.describe('TC-91 系统内置任务保护', () => {
     await api.dispose();
   });
 
-  test('TC-91a~d: 系统内置任务允许调整 cron，但锁定 handlerRef 并拒绝删除', async () => {
+  test('TC-91a~e: 源码注册任务拒绝更新、删除、状态切换与重置，但允许立即执行', async () => {
     const jobs = await listJobs(api);
     const builtinJob = jobs.list.find((item) => item.handlerRef === 'host:cleanup-job-logs');
     expect(builtinJob).toBeTruthy();
 
     const originalDetail = await getJob(api, builtinJob!.id);
     const originalPayload = buildPayloadFromJob(originalDetail);
-    const updatedCronExpr = originalDetail.cronExpr === '18 3 * * *' ? '19 3 * * *' : '18 3 * * *';
 
-    try {
-      await updateJob(api, builtinJob!.id, {
-        ...originalPayload,
-        cronExpr: updatedCronExpr,
-      });
+    await expectBusinessError(
+      await api.put(`job/${builtinJob!.id}`, {
+        data: {
+          ...originalPayload,
+          cronExpr: '18 3 * * *',
+          env: {},
+          handlerRef: '',
+          params: {},
+          shellCmd: "printf 'readonly update'",
+          taskType: 'shell',
+          workDir: '',
+        },
+      }),
+      '源码注册任务不允许修改',
+    );
 
-      const updatedDetail = await getJob(api, builtinJob!.id);
-      expect(updatedDetail.cronExpr).toBe(updatedCronExpr);
+    await expectBusinessError(
+      await api.delete(`job/${builtinJob!.id}`),
+      '源码注册任务不允许删除',
+    );
 
-      await expectBusinessError(
-        await api.put(`job/${builtinJob!.id}`, {
-          data: {
-            ...originalPayload,
-            handlerRef: 'host:forbidden-handler-change',
-          },
-        }),
-        '系统内置任务不允许修改处理器引用',
-      );
+    await expectBusinessError(
+      await api.put(`job/${builtinJob!.id}/status`, {
+        data: { status: 'disabled' },
+      }),
+      '源码注册任务不允许修改状态',
+    );
 
-      await expectBusinessError(
-        await api.delete(`job/${builtinJob!.id}`),
-        '系统内置任务不允许删除',
-      );
-    } finally {
-      await updateJob(api, builtinJob!.id, originalPayload);
-    }
+    await expectBusinessError(
+      await api.post(`job/${builtinJob!.id}/reset`),
+      '源码注册任务不允许重置执行次数',
+    );
+
+    const triggered = await triggerJob(api, builtinJob!.id);
+    expect(triggered.logId).toBeGreaterThan(0);
+
+    await expect
+      .poll(
+        async () => {
+          const detail = await getLog(api, triggered.logId);
+          return detail.status;
+        },
+        {
+          timeout: 10000,
+          message: '源码注册任务应仍支持手动执行',
+        },
+      )
+      .toBe('success');
   });
 });

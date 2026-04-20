@@ -13,9 +13,9 @@ type JobPayload struct {
 	GroupId              uint64              `json:"groupId" v:"required" dc:"所属分组ID" eg:"1"`
 	Name                 string              `json:"name" v:"required|length:1,128" dc:"任务名称，分组内唯一" eg:"任务日志清理"`
 	Description          string              `json:"description" dc:"任务描述" eg:"按策略清理执行日志"`
-	TaskType             string              `json:"taskType" v:"required|in:handler,shell" dc:"任务类型：handler=Handler 任务 shell=Shell 任务" eg:"handler"`
-	HandlerRef           string              `json:"handlerRef" dc:"Handler 唯一引用；taskType=handler 时必填" eg:"host:cleanup-job-logs"`
-	Params               map[string]any      `json:"params" dc:"Handler 参数对象；taskType=handler 时按处理器 Schema 校验" eg:"{}"`
+	TaskType             string              `json:"taskType" v:"required|in:shell" dc:"任务类型：公共创建/编辑接口仅允许 shell=Shell 任务；Handler 任务由源码注册" eg:"shell"`
+	HandlerRef           string              `json:"handlerRef" dc:"Handler 唯一引用；公共创建/编辑接口固定留空" eg:""`
+	Params               map[string]any      `json:"params" dc:"Handler 参数对象；公共创建/编辑接口固定为空对象" eg:"{}"`
 	TimeoutSeconds       int                 `json:"timeoutSeconds" d:"300" v:"required|min:1|max:86400" dc:"执行超时时间，单位为秒，范围 1-86400" eg:"300"`
 	ShellCmd             string              `json:"shellCmd" dc:"Shell 脚本内容；taskType=shell 时必填" eg:"echo hello"`
 	WorkDir              string              `json:"workDir" dc:"Shell 工作目录，不传则使用宿主当前工作目录" eg:"/tmp"`
@@ -32,7 +32,7 @@ type JobPayload struct {
 
 // CreateReq defines the request for creating one scheduled job.
 type CreateReq struct {
-	g.Meta `path:"/job" method:"post" tags:"定时任务管理" summary:"创建任务" operLog:"create" dc:"创建一个新的定时任务，支持 Handler 与 Shell 两种任务类型" permission:"system:job:add"`
+	g.Meta `path:"/job" method:"post" tags:"定时任务管理" summary:"创建任务" operLog:"create" dc:"创建一个新的用户自建 Shell 定时任务；Handler 类型任务仅允许由宿主或插件源码注册" permission:"system:job:add"`
 	JobPayload
 }
 

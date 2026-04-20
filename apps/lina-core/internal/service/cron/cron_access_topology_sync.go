@@ -5,9 +5,6 @@ package cron
 
 import (
 	"context"
-	"fmt"
-
-	"github.com/gogf/gf/v2/os/gcron"
 
 	rolesvc "lina-core/internal/service/role"
 	"lina-core/pkg/logger"
@@ -60,26 +57,13 @@ func (j *localAccessTopologyRevisionSyncJob) Start(ctx context.Context) {
 	}
 }
 
-// Start performs the same eager warmup as single-node mode and then adds the
-// all-node watcher required to detect topology mutations from other instances.
+// Start performs the same eager warmup as single-node mode. The periodic
+// watcher itself is projected into sys_job and executed by the persistent
+// scheduled-job scheduler.
 func (j *clusterAccessTopologyRevisionSyncJob) Start(ctx context.Context) {
 	if j == nil || j.roleSvc == nil {
 		return
 	}
 
 	(&localAccessTopologyRevisionSyncJob{roleSvc: j.roleSvc}).Start(ctx)
-
-	// Every node runs this watcher because permission checks happen locally on
-	// every instance and should converge without waiting for request traffic.
-	// The role service only stores the shared revision here; token-scoped access
-	// snapshots are then evicted lazily when the watcher detects a new revision.
-	cronPattern := fmt.Sprintf("@every %fs", rolesvc.AccessRevisionSyncInterval().Seconds())
-	_, err := gcron.Add(ctx, cronPattern, func(ctx context.Context) {
-		if syncErr := j.roleSvc.SyncAccessTopologyRevision(ctx); syncErr != nil {
-			logger.Warningf(ctx, "access topology sync failed: %v", syncErr)
-		}
-	}, CronAccessTopologySync)
-	if err != nil {
-		logger.Panicf(ctx, "failed to start access topology sync cron: %v", err)
-	}
 }

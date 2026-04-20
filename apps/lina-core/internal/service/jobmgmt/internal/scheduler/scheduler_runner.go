@@ -99,12 +99,9 @@ func (s *serviceImpl) prepareCronQuota(
 	if job == nil {
 		return nil, false, nil
 	}
-	if job.MaxExecutions <= 0 {
-		return job, false, nil
-	}
 
 	currentCount := job.ExecutedCount
-	if currentCount >= int64(job.MaxExecutions) {
+	if job.MaxExecutions > 0 && currentCount >= int64(job.MaxExecutions) {
 		removed, err := s.disableForMaxExecutions(ctx, job.Id)
 		return nil, removed, err
 	}
@@ -116,7 +113,7 @@ func (s *serviceImpl) prepareCronQuota(
 	}
 	nextCount := currentCount + 1
 	shouldRemove := false
-	if nextCount >= int64(job.MaxExecutions) {
+	if job.MaxExecutions > 0 && nextCount >= int64(job.MaxExecutions) {
 		data.Status = string(jobmeta.JobStatusDisabled)
 		data.StopReason = string(jobmeta.StopReasonMaxExecutionsReached)
 		shouldRemove = true

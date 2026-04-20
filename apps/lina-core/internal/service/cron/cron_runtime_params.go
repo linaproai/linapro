@@ -5,9 +5,6 @@ package cron
 
 import (
 	"context"
-	"fmt"
-
-	"github.com/gogf/gf/v2/os/gcron"
 
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/logger"
@@ -60,24 +57,12 @@ func (j *localRuntimeParamSnapshotSyncJob) Start(ctx context.Context) {
 	}
 }
 
-// Start reuses the local warmup first and then registers the periodic watcher
-// required for clustered deployments to converge after cross-node writes.
+// Start reuses the local warmup first. The periodic watcher is projected into
+// sys_job and executed by the persistent scheduled-job scheduler.
 func (j *clusterRuntimeParamSnapshotSyncJob) Start(ctx context.Context) {
 	if j == nil || j.configSvc == nil {
 		return
 	}
 
 	(&localRuntimeParamSnapshotSyncJob{configSvc: j.configSvc}).Start(ctx)
-
-	// Every node runs this watcher because runtime params are consumed locally on
-	// every instance and should converge without waiting for request traffic.
-	cronPattern := fmt.Sprintf("@every %fs", hostconfig.RuntimeParamSnapshotSyncInterval().Seconds())
-	_, err := gcron.Add(ctx, cronPattern, func(ctx context.Context) {
-		if syncErr := j.configSvc.SyncRuntimeParamSnapshot(ctx); syncErr != nil {
-			logger.Warningf(ctx, "runtime param snapshot sync failed: %v", syncErr)
-		}
-	}, CronRuntimeParamSync)
-	if err != nil {
-		logger.Panicf(ctx, "failed to start runtime param snapshot sync cron: %v", err)
-	}
 }

@@ -5,75 +5,66 @@ import { JobPage } from '../../../pages/JobPage';
 
 import {
   createAdminApiContext,
-  deleteJob,
-  getDefaultGroup,
-  getJob,
+  getConfigByKey,
   listJobs,
+  setCronShellEnabled,
+  updateConfigValue,
 } from './helpers';
 
-test.describe('TC-82 Handler 类型任务 CRUD', () => {
-  const jobName = `e2e_handler_job_${Date.now()}`;
+test.describe('TC-82 源码注册任务可见且只读', () => {
   let api: APIRequestContext;
-  let jobId = 0;
+  let originalShellSwitch: { id: number; value: string } | null = null;
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
+    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    await setCronShellEnabled(api, true);
   });
 
   test.afterAll(async () => {
-    if (jobId) {
-      await api.delete(`job/${jobId}`);
+    if (originalShellSwitch) {
+      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
     }
     await api.dispose();
   });
 
-  test('TC-82a~e: Handler 列表可查询，任务支持新增、详情、编辑、删除', async ({ adminPage }) => {
-    const defaultGroup = await getDefaultGroup(api);
+  test('TC-82a~e: 宿主内置任务应显示在列表中，公共新增入口不再支持 Handler，源码任务仅可查看详情', async ({
+    adminPage,
+  }) => {
+    const expectedBuiltinNames = ['任务日志清理', '在线会话清理', '服务监控采集'];
+
+    for (const name of expectedBuiltinNames) {
+      const result = await listJobs(api, name);
+      expect(
+        result.list.some((item) => item.name === name && item.isBuiltin === 1),
+      ).toBeTruthy();
+    }
+
     const jobPage = new JobPage(adminPage);
     await jobPage.goto();
 
     await jobPage.openCreate();
-    await jobPage.fillCommonFields({
-      groupName: defaultGroup.name,
-      name: jobName,
-      description: 'handler job before update',
-      cronExpr: '0 0 1 1 *',
-    });
-    await jobPage.selectHandler('等待指定时长 (host:wait)');
-    await jobPage.fillHandlerParam('等待秒数', '1');
-    await jobPage.save();
+    await expect(
+      adminPage.getByTestId('job-form-tab-handler'),
+    ).toHaveCount(0);
+    await expect(
+      adminPage.getByLabel('任务处理器', { exact: true }),
+    ).toHaveCount(0);
+    await jobPage.closeDialog();
 
-    await jobPage.fillSearchKeyword(jobName);
+    await jobPage.fillSearchKeyword('任务日志清理');
     await jobPage.clickSearch();
-    await expect(await jobPage.hasJob(jobName)).toBe(true);
-
-    const createdList = await listJobs(api, jobName);
-    const created = createdList.list.find((item) => item.name === jobName);
-    expect(created).toBeTruthy();
-    jobId = created!.id;
-
-    const detail = await getJob(api, jobId);
-    expect(detail.name).toBe(jobName);
-    expect(detail.handlerRef).toBe('host:wait');
-    expect(detail.status).toBe('disabled');
-    expect(JSON.parse(detail.params).seconds).toBe(1);
+    await expect(await jobPage.hasJob('任务日志清理')).toBe(true);
 
     await jobPage.openEditSearchedJob();
-    await jobPage.fillCommonFields({
-      description: 'handler job after update',
-    });
-    await jobPage.fillHandlerParam('等待秒数', '2');
-    await jobPage.save();
-
-    const updatedDetail = await getJob(api, jobId);
-    expect(updatedDetail.description).toBe('handler job after update');
-    expect(JSON.parse(updatedDetail.params).seconds).toBe(2);
-
-    await jobPage.deleteSearchedJob();
-    jobId = 0;
-
-    await jobPage.fillSearchKeyword(jobName);
-    await jobPage.clickSearch();
-    await expect(await jobPage.hasJob(jobName)).toBe(false);
+    await expect(
+      adminPage.getByText('宿主内置', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByText('host:cleanup-job-logs', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByRole('button', { name: /确\s*认/ }),
+    ).toHaveCount(0);
   });
 });

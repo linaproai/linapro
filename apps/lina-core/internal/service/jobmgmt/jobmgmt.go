@@ -66,6 +66,8 @@ type Service interface {
 	CancelLog(ctx context.Context, id uint64) error
 	// CleanupDueLogs removes logs that exceed the effective retention policies.
 	CleanupDueLogs(ctx context.Context) (int64, error)
+	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job.
+	SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
 }
 
 // Scheduler defines the persistent scheduled-job runner contract exported to
@@ -189,6 +191,25 @@ type SaveJobInput struct {
 	MaxExecutions        int                      // MaxExecutions caps cron-triggered runs.
 	Status               jobmeta.JobStatus        // Status selects enabled or disabled persistence state.
 	LogRetentionOverride *jobmeta.RetentionOption // LogRetentionOverride stores the optional per-job policy.
+}
+
+// BuiltinJobDef stores one code-owned scheduled-job definition projected into sys_job.
+type BuiltinJobDef struct {
+	GroupCode       string                 // GroupCode identifies the owning group by stable code.
+	Name            string                 // Name is the human-readable job name.
+	Description     string                 // Description explains the job purpose.
+	TaskType        jobmeta.TaskType       // TaskType selects handler or shell execution.
+	HandlerRef      string                 // HandlerRef selects the registered handler for handler jobs.
+	Params          map[string]any         // Params stores the handler payload snapshot.
+	Timeout         time.Duration          // Timeout bounds each execution.
+	Pattern         string                 // Pattern stores the raw scheduler expression.
+	Timezone        string                 // Timezone stores the display timezone for cron patterns.
+	Scope           jobmeta.JobScope       // Scope selects master-only or all-node execution.
+	Concurrency     jobmeta.JobConcurrency // Concurrency selects singleton or parallel execution.
+	MaxConcurrency  int                    // MaxConcurrency caps parallel overlap.
+	MaxExecutions   int                    // MaxExecutions caps cron-triggered runs.
+	Status          jobmeta.JobStatus      // Status stores the desired steady-state status.
+	LogRetentionRaw string                 // LogRetentionRaw stores the optional retention override JSON.
 }
 
 // UpdateJobInput stores one job update request.

@@ -25,6 +25,16 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 	return s.integrationSvc.RegisterCrons(ctx)
 }
 
+// ListManagedCronJobs returns plugin-owned cron definitions for scheduled-job projection.
+func (s *serviceImpl) ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
+	return s.integrationSvc.ListManagedCronJobs(ctx)
+}
+
+// ListManagedCronJobsByPlugin returns plugin-owned cron definitions for one plugin.
+func (s *serviceImpl) ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+	return s.integrationSvc.ListManagedCronJobsByPlugin(ctx, pluginID)
+}
+
 // DispatchAfterAuthRequest dispatches callback-style after-auth request handlers.
 func (s *serviceImpl) DispatchAfterAuthRequest(ctx context.Context, input pluginhost.AfterAuthInput) {
 	s.integrationSvc.DispatchAfterAuth(ctx, input)

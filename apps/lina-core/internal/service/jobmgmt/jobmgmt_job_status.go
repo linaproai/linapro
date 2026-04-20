@@ -25,6 +25,9 @@ func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id uint64, status job
 	if job == nil {
 		return gerror.New("定时任务不存在")
 	}
+	if job.IsBuiltin == 1 {
+		return gerror.New("源码注册任务不允许修改状态")
+	}
 	if status == jobmeta.JobStatusEnabled {
 		if err = s.validateExecutableJob(ctx, job); err != nil {
 			return err
@@ -64,6 +67,9 @@ func (s *serviceImpl) ResetJob(ctx context.Context, id uint64) error {
 	}
 	if job == nil {
 		return gerror.New("定时任务不存在")
+	}
+	if job.IsBuiltin == 1 {
+		return gerror.New("源码注册任务不允许重置执行次数")
 	}
 
 	_, err = dao.SysJob.Ctx(ctx).

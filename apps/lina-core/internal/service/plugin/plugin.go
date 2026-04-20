@@ -54,6 +54,10 @@ type (
 
 	// HostServiceAuthorizationDecision narrows one authorized service snapshot.
 	HostServiceAuthorizationDecision = catalog.HostServiceAuthorizationDecision
+
+	// ManagedCronJob describes one plugin-owned scheduled-job definition that
+	// the host can project into the unified scheduled-job management table.
+	ManagedCronJob = integration.ManagedCronJob
 )
 
 // UninstallOptions defines one plugin uninstall policy snapshot.
@@ -152,6 +156,10 @@ type SourceIntegrationService interface {
 	ListSourceRouteBindings() []pluginhost.SourceRouteBinding
 	// RegisterCrons registers callback-contributed cron jobs for source plugins.
 	RegisterCrons(ctx context.Context) error
+	// ListManagedCronJobs returns plugin-owned cron definitions for projection into sys_job.
+	ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error)
+	// ListManagedCronJobsByPlugin returns cron definitions owned by one plugin.
+	ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
 	// DispatchAfterAuthRequest dispatches callback-style after-auth request handlers.
 	DispatchAfterAuthRequest(ctx context.Context, input pluginhost.AfterAuthInput)
 	// DispatchHookEvent dispatches one named hook event to all enabled plugins.

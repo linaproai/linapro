@@ -4,29 +4,38 @@ import { test, expect } from "../../../fixtures/auth";
 import { JobLogPage } from "../../../pages/JobLogPage";
 
 import {
-  buildHandlerJobPayload,
+  buildShellJobPayload,
   clearLogs,
   createAdminApiContext,
   createJob,
+  getConfigByKey,
   getDefaultGroup,
   getLog,
   listLogs,
+  setCronShellEnabled,
   triggerJob,
+  updateConfigValue,
 } from "./helpers";
 
 test.describe("TC-89 执行日志查询与清理", () => {
   const jobName = `e2e_job_log_${Date.now()}`;
   let api: APIRequestContext;
   let jobId = 0;
+  let originalShellSwitch: { id: number; value: string } | null = null;
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
+    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    await setCronShellEnabled(api, true);
   });
 
   test.afterAll(async () => {
     if (jobId) {
       await clearLogs(api, jobId);
       await api.delete(`job/${jobId}`);
+    }
+    if (originalShellSwitch) {
+      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
     }
     await api.dispose();
   });
@@ -37,7 +46,7 @@ test.describe("TC-89 执行日志查询与清理", () => {
     const defaultGroup = await getDefaultGroup(api);
     const created = await createJob(
       api,
-      buildHandlerJobPayload({
+      buildShellJobPayload({
         groupId: defaultGroup.id,
         name: jobName,
         status: "enabled",

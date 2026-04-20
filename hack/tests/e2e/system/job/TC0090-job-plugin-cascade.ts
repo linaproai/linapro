@@ -4,29 +4,25 @@ import { test, expect } from '../../../fixtures/auth';
 import { JobPage } from '../../../pages/JobPage';
 
 import {
-  buildHandlerJobPayload,
-  clearLogs,
   createAdminApiContext,
-  createJob,
   disablePlugin,
   enablePlugin,
   expectBusinessError,
-  getDefaultGroup,
   getJob,
   getLog,
   getPlugin,
   installPlugin,
   listHandlers,
-  syncPlugins,
+  listJobs,
   triggerJob,
   uninstallPlugin,
-  updateJobStatus,
+  syncPlugins,
 } from './helpers';
 
-test.describe('TC-90 插件处理器生命周期级联', () => {
+test.describe('TC-90 插件内置任务生命周期级联', () => {
   const pluginID = 'plugin-demo-source';
-  const handlerRef = `plugin:${pluginID}/echo`;
-  const jobName = `e2e_plugin_handler_job_${Date.now()}`;
+  const jobName = '源码插件回显巡检';
+  const handlerRef = `plugin:${pluginID}/cron:${jobName}`;
 
   let api: APIRequestContext;
   let jobId = 0;
@@ -49,22 +45,39 @@ test.describe('TC-90 插件处理器生命周期级联', () => {
     }
 
     await expect
-      .poll(async () => {
-        const handlers = await listHandlers(api);
-        return handlers.list.some((item) => item.ref === handlerRef);
-      }, {
-        timeout: 10000,
-        message: '启用源码插件后应注册其定时任务处理器',
-      })
+      .poll(
+        async () => {
+          const handlers = await listHandlers(api);
+          return handlers.list.some((item) => item.ref === handlerRef);
+        },
+        {
+          timeout: 10000,
+          message: '启用源码插件后应注册其内置定时任务处理器',
+        },
+      )
       .toBeTruthy();
+
+    await expect
+      .poll(
+        async () => {
+          const jobs = await listJobs(api, jobName);
+          const builtinJob = jobs.list.find(
+            (item) => item.name === jobName && item.isBuiltin === 1,
+          );
+          jobId = builtinJob?.id ?? 0;
+          return builtinJob
+            ? `${builtinJob.status}:${builtinJob.handlerRef}:${builtinJob.isBuiltin}`
+            : '';
+        },
+        {
+          timeout: 10000,
+          message: '插件内置定时任务应投影到 sys_job 并恢复为 enabled',
+        },
+      )
+      .toBe(`enabled:${handlerRef}:1`);
   });
 
   test.afterAll(async () => {
-    if (jobId) {
-      await clearLogs(api, jobId);
-      await api.delete(`job/${jobId}`);
-    }
-
     if (originalInstalled !== 1) {
       await uninstallPlugin(api, pluginID);
     } else if (originalEnabled !== 1) {
@@ -76,37 +89,52 @@ test.describe('TC-90 插件处理器生命周期级联', () => {
     await api.dispose();
   });
 
-  test('TC-90a~d: 插件禁用时任务应暂停，重新启用后应自动恢复并可继续执行', async ({ adminPage }) => {
-    const defaultGroup = await getDefaultGroup(api);
-    const created = await createJob(api, buildHandlerJobPayload({
-      groupId: defaultGroup.id,
-      name: jobName,
-      handlerRef,
-      params: {
-        message: 'plugin lifecycle echo',
-      },
-      status: 'disabled',
-    }));
-    jobId = created.id;
+  test('TC-90a~f: 插件禁用时内置任务应暂停，恢复后应自动启用并支持手动执行', async ({
+    adminPage,
+  }) => {
+    const originalDetail = await getJob(api, jobId);
+    expect(originalDetail.isBuiltin).toBe(1);
+    expect(originalDetail.taskType).toBe('handler');
+    expect(originalDetail.handlerRef).toBe(handlerRef);
 
-    await updateJobStatus(api, jobId, 'enabled');
-    let detail = await getJob(api, jobId);
-    expect(detail.status).toBe('enabled');
-    expect(detail.handlerRef).toBe(handlerRef);
+    const jobPage = new JobPage(adminPage);
+    await jobPage.goto();
+    await jobPage.fillSearchKeyword(jobName);
+    await jobPage.clickSearch();
+
+    const initialRowText = await jobPage.getJobRowText(jobName);
+    expect(initialRowText).toContain('插件内置');
+
+    await jobPage.openEditSearchedJob();
+    const detailCard = adminPage.getByTestId('job-builtin-detail-card');
+    await expect(detailCard).toBeVisible();
+    await expect(detailCard.getByText('插件内置', { exact: true })).toBeVisible();
+    await expect(detailCard.getByText(pluginID, { exact: true })).toBeVisible();
+    await expect(
+      adminPage.getByRole('button', { name: /确\s*认/ }),
+    ).toHaveCount(0);
+    await jobPage.closeDialog();
 
     await disablePlugin(api, pluginID);
 
     await expect
-      .poll(async () => {
-        const current = await getJob(api, jobId);
-        return `${current.status}:${current.stopReason}`;
-      }, {
-        timeout: 10000,
-        message: '插件禁用后，关联任务应级联暂停并写入 plugin_unavailable',
-      })
+      .poll(
+        async () => {
+          const current = await getJob(api, jobId);
+          return `${current.status}:${current.stopReason}`;
+        },
+        {
+          timeout: 10000,
+          message: '插件禁用后，内置任务应级联暂停并写入 plugin_unavailable',
+        },
+      )
       .toBe('paused_by_plugin:plugin_unavailable');
 
-    const jobPage = new JobPage(adminPage);
+    const handlersAfterDisable = await listHandlers(api);
+    expect(
+      handlersAfterDisable.list.some((item) => item.ref === handlerRef),
+    ).toBeFalsy();
+
     await jobPage.goto();
     await jobPage.fillSearchKeyword(jobName);
     await jobPage.clickSearch();
@@ -116,50 +144,54 @@ test.describe('TC-90 插件处理器生命周期级联', () => {
     await expect(
       await jobPage.isTooltipVisible('该任务依赖插件提供的处理器'),
     ).toBe(true);
-    await expect(await jobPage.isActionDisabled('job-enable-')).toBe(true);
+    await expect(await jobPage.hasAction('job-enable-')).toBe(false);
     await expect(await jobPage.isActionDisabled('job-trigger-')).toBe(true);
 
-    const handlersAfterDisable = await listHandlers(api);
-    expect(handlersAfterDisable.list.some((item) => item.ref === handlerRef)).toBeFalsy();
+    const triggerWhilePaused = await api.post(`job/${jobId}/trigger`);
+    await expectBusinessError(triggerWhilePaused, '插件处理器当前不可用');
 
-    const triggerResponse = await api.post(`job/${jobId}/trigger`);
-    await expectBusinessError(triggerResponse, '插件处理器当前不可用');
-
-    const enableWhileMissing = await api.put(`job/${jobId}/status`, {
+    const enableWhileBuiltinReadonly = await api.put(`job/${jobId}/status`, {
       data: { status: 'enabled' },
     });
-    await expectBusinessError(enableWhileMissing, '任务处理器不存在');
+    await expectBusinessError(enableWhileBuiltinReadonly, '源码注册任务不允许修改状态');
 
     await enablePlugin(api, pluginID);
 
     await expect
-      .poll(async () => {
-        const current = await getJob(api, jobId);
-        return current.status;
-      }, {
-        timeout: 10000,
-        message: '插件重新启用后，关联任务应自动恢复为 enabled',
-      })
+      .poll(
+        async () => {
+          const current = await getJob(api, jobId);
+          return current.status;
+        },
+        {
+          timeout: 10000,
+          message: '插件重新启用后，内置任务应自动恢复为 enabled',
+        },
+      )
       .toBe('enabled');
 
     const handlersAfterEnable = await listHandlers(api);
-    expect(handlersAfterEnable.list.some((item) => item.ref === handlerRef)).toBeTruthy();
+    expect(
+      handlersAfterEnable.list.some((item) => item.ref === handlerRef),
+    ).toBeTruthy();
 
     const triggered = await triggerJob(api, jobId);
     expect(triggered.logId).toBeGreaterThan(0);
 
     await expect
-      .poll(async () => {
-        const logDetail = await getLog(api, triggered.logId);
-        return logDetail.status;
-      }, {
-        timeout: 10000,
-        message: '插件处理器任务重新启用后应可成功执行',
-      })
+      .poll(
+        async () => {
+          const logDetail = await getLog(api, triggered.logId);
+          return logDetail.status;
+        },
+        {
+          timeout: 10000,
+          message: '插件内置任务恢复后应可成功手动执行',
+        },
+      )
       .toBe('success');
 
     const successLog = await getLog(api, triggered.logId);
-    expect(successLog.resultJson ?? '').toContain(pluginID);
-    expect(successLog.resultJson ?? '').toContain('plugin lifecycle echo');
+    expect(successLog.resultJson ?? '').toContain('"executed":true');
   });
 });

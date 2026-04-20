@@ -24,11 +24,11 @@ import {
   jobList,
   jobReset,
   jobTrigger,
-  jobUpdateStatus,
 } from '#/api/system/job';
 import {
   JOB_PLUGIN_PAUSED_TOOLTIP,
   JOB_STATUS_FILTER_OPTIONS,
+  getJobSourceKind,
 } from '#/api/system/job/meta';
 import { jobGroupList } from '#/api/system/jobGroup';
 import { publicFrontendSettings } from '#/runtime/public-frontend';
@@ -41,7 +41,6 @@ const accessCodes = {
   remove: 'system:job:remove',
   reset: 'system:job:reset',
   shell: 'system:job:shell',
-  status: 'system:job:status',
   trigger: 'system:job:trigger',
 } as const;
 
@@ -57,6 +56,9 @@ const shellCapability = computed(() => publicFrontendSettings.cron.shell);
 const hasShellPermission = computed(() =>
   hasAccessByCodes([accessCodes.shell]),
 );
+const canCreateShellJob = computed(() => {
+  return hasAccessByCodes([accessCodes.add]) && shellBlockedReason() === '';
+});
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
@@ -84,18 +86,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
         },
         fieldName: 'status',
         label: '任务状态',
-      },
-      {
-        component: 'Select',
-        componentProps: {
-          options: [
-            { label: 'Handler', value: 'handler' },
-            { label: 'Shell', value: 'shell' },
-          ],
-          placeholder: '请选择类型',
-        },
-        fieldName: 'taskType',
-        label: '任务类型',
       },
       {
         component: 'Input',
@@ -199,6 +189,11 @@ function openCreateModal() {
 }
 
 function openEditModal(row: JobRecord) {
+  if (row.isBuiltin === 1) {
+    jobFormApi.setData({ id: row.id });
+    jobFormApi.open();
+    return;
+  }
   if (isShellBlocked(row)) {
     message.warning(shellBlockedReason());
     return;
@@ -229,19 +224,6 @@ function handleMultiDelete() {
   });
 }
 
-async function handleStatusChange(
-  row: JobRecord,
-  status: 'disabled' | 'enabled',
-) {
-  if (status === 'enabled' && isShellBlocked(row)) {
-    message.warning(shellBlockedReason());
-    return;
-  }
-  await jobUpdateStatus(row.id, status);
-  message.success(status === 'enabled' ? '任务已启用' : '任务已停用');
-  await gridApi.query();
-}
-
 async function handleTrigger(row: JobRecord) {
   if (isShellBlocked(row)) {
     message.warning(shellBlockedReason());
@@ -259,23 +241,22 @@ async function handleReset(row: JobRecord) {
 }
 
 function canEditRow(row: JobRecord) {
-  return hasAccessByCodes([accessCodes.edit]) && !isPluginPaused(row);
-}
-
-function canDeleteRow(row: JobRecord) {
-  return hasAccessByCodes([accessCodes.remove]) && row.isBuiltin !== 1;
-}
-
-function canEnableRow(row: JobRecord) {
   return (
-    hasAccessByCodes([accessCodes.status]) &&
-    row.status === 'disabled' &&
+    row.isBuiltin !== 1 &&
+    hasAccessByCodes([accessCodes.edit]) &&
     !isPluginPaused(row)
   );
 }
 
-function canDisableRow(row: JobRecord) {
-  return hasAccessByCodes([accessCodes.status]) && row.status === 'enabled';
+function canDeleteRow(row: JobRecord) {
+  return (
+    getJobSourceKind(row) === 'user_created' &&
+    hasAccessByCodes([accessCodes.remove])
+  );
+}
+
+function hasMoreActions(row: JobRecord) {
+  return canResetRow(row) || canDeleteRow(row);
 }
 
 function canTriggerRow(row: JobRecord) {
@@ -286,20 +267,18 @@ function canTriggerRow(row: JobRecord) {
   );
 }
 
-function showPausedEnableDisabled(row: JobRecord) {
-  return (
-    hasAccessByCodes([accessCodes.status]) && row.status === 'paused_by_plugin'
-  );
-}
-
 function showPausedTriggerDisabled(row: JobRecord) {
   return (
     hasAccessByCodes([accessCodes.trigger]) && row.status === 'paused_by_plugin'
   );
 }
 
-function canResetRow() {
-  return hasAccessByCodes([accessCodes.reset]);
+function canResetRow(row: JobRecord) {
+  return row.isBuiltin !== 1 && hasAccessByCodes([accessCodes.reset]);
+}
+
+function canViewRow(row: JobRecord) {
+  return row.isBuiltin === 1;
 }
 
 function handleReload() {
@@ -322,7 +301,7 @@ function handleReload() {
             删 除
           </a-button>
           <a-button
-            v-if="hasAccessByCodes([accessCodes.add])"
+            v-if="canCreateShellJob"
             data-testid="job-add"
             type="primary"
             @click="openCreateModal"
@@ -334,38 +313,6 @@ function handleReload() {
 
       <template #action="{ row }">
         <Space>
-          <Tooltip
-            v-if="showPausedEnableDisabled(row)"
-            :title="JOB_PLUGIN_PAUSED_TOOLTIP"
-          >
-            <ghost-button disabled :data-testid="`job-enable-${row.id}`">
-              启用
-            </ghost-button>
-          </Tooltip>
-          <Tooltip
-            v-if="canEnableRow(row) && isShellBlocked(row)"
-            :title="shellBlockedReason()"
-          >
-            <ghost-button disabled :data-testid="`job-enable-${row.id}`">
-              启用
-            </ghost-button>
-          </Tooltip>
-          <ghost-button
-            v-else-if="canEnableRow(row)"
-            :data-testid="`job-enable-${row.id}`"
-            @click.stop="handleStatusChange(row, 'enabled')"
-          >
-            启用
-          </ghost-button>
-
-          <ghost-button
-            v-if="canDisableRow(row)"
-            :data-testid="`job-disable-${row.id}`"
-            @click.stop="handleStatusChange(row, 'disabled')"
-          >
-            停用
-          </ghost-button>
-
           <Tooltip
             v-if="showPausedTriggerDisabled(row)"
             :title="JOB_PLUGIN_PAUSED_TOOLTIP"
@@ -400,6 +347,14 @@ function handleReload() {
             </ghost-button>
           </Tooltip>
           <ghost-button
+            v-if="canViewRow(row)"
+            :data-testid="`job-edit-${row.id}`"
+            @click.stop="openEditModal(row)"
+          >
+            详情
+          </ghost-button>
+
+          <ghost-button
             v-else-if="canEditRow(row)"
             :data-testid="`job-edit-${row.id}`"
             @click.stop="openEditModal(row)"
@@ -407,11 +362,14 @@ function handleReload() {
             编辑
           </ghost-button>
 
-          <Dropdown placement="bottomRight">
+          <Dropdown
+            v-if="hasMoreActions(row)"
+            placement="bottomRight"
+          >
             <template #overlay>
               <Menu>
                 <MenuItem
-                  v-if="canResetRow()"
+                  v-if="canResetRow(row)"
                   :key="`reset-${row.id}`"
                   @click="handleReset(row)"
                 >
@@ -428,7 +386,13 @@ function handleReload() {
                 </MenuItem>
               </Menu>
             </template>
-            <a-button size="small" type="link">更多</a-button>
+            <a-button
+              :data-testid="`job-more-${row.id}`"
+              size="small"
+              type="link"
+            >
+              更多
+            </a-button>
           </Dropdown>
         </Space>
       </template>

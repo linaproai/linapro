@@ -1,21 +1,22 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext } from '@playwright/test';
 
-import { test, expect } from "../../../fixtures/auth";
-import { JobPage } from "../../../pages/JobPage";
+import { test, expect } from '../../../fixtures/auth';
+import { JobPage } from '../../../pages/JobPage';
 
 import {
-  buildHandlerJobPayload,
+  buildShellJobPayload,
   createAdminApiContext,
   createJob,
+  deleteJob,
   expectSuccess,
-  getConfigByKey,
   getAccessibleMenus,
+  getConfigByKey,
   getDefaultGroup,
   listLogs,
   setCronShellEnabled,
   type AccessibleMenuNode,
   updateConfigValue,
-} from "./helpers";
+} from './helpers';
 
 function findMenuByTitle(
   list: AccessibleMenuNode[],
@@ -35,17 +36,17 @@ function findMenuByTitle(
 
 function formatRetentionSummary(mode: string, value: number) {
   switch (mode) {
-    case "count":
+    case 'count':
       return `按条数保留最近 ${value} 条日志`;
-    case "none":
-      return "不自动清理日志";
-    case "days":
+    case 'none':
+      return '不自动清理日志';
+    case 'days':
     default:
       return `按天保留最近 ${value} 天日志`;
   }
 }
 
-test.describe("TC-97 定时任务导航与帮助文案", () => {
+test.describe('TC-97 定时任务导航与帮助文案', () => {
   const jobName = `e2e_job_navigation_copy_${Date.now()}`;
 
   let api: APIRequestContext;
@@ -54,19 +55,21 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
-    originalShellSwitch = await getConfigByKey(api, "cron.shell.enabled");
+    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
     await setCronShellEnabled(api, true);
 
     const defaultGroup = await getDefaultGroup(api);
     const created = await createJob(
       api,
-      buildHandlerJobPayload({
-        concurrency: "parallel",
+      buildShellJobPayload({
+        concurrency: 'parallel',
+        env: {},
         groupId: defaultGroup.id,
         maxConcurrency: 2,
         name: jobName,
-        scope: "all_node",
-        status: "disabled",
+        scope: 'all_node',
+        shellCmd: "printf 'navigation help copy'",
+        status: 'disabled',
       }),
     );
     jobId = created.id;
@@ -74,7 +77,7 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
 
   test.afterAll(async () => {
     if (jobId) {
-      await api.delete(`job/${jobId}`);
+      await deleteJob(api, jobId);
     }
     if (originalShellSwitch) {
       await updateConfigValue(
@@ -86,19 +89,19 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
     await api.dispose();
   });
 
-  test("TC-97a~l: 菜单分组、代码化表达式、帮助提示、表单校验、Shell 提示间距与停用任务立即执行应清晰可理解", async ({
+  test('TC-97a~l: 菜单分组、代码化表达式、帮助提示、表单校验、Shell 提示间距与停用任务立即执行应清晰可理解', async ({
     adminPage,
   }) => {
     const accessibleMenus = await getAccessibleMenus(api);
-    const jobCatalog = findMenuByTitle(accessibleMenus.list, "定时任务");
+    const jobCatalog = findMenuByTitle(accessibleMenus.list, '定时任务');
 
     expect(jobCatalog).toBeTruthy();
     expect(
       (jobCatalog?.children ?? []).map((item) => item.meta?.title),
-    ).toEqual(["任务管理", "分组管理", "执行日志"]);
+    ).toEqual(['任务管理', '分组管理', '执行日志']);
 
-    await adminPage.goto("/system/scheduled-job");
-    await adminPage.waitForLoadState("networkidle");
+    await adminPage.goto('/system/scheduled-job');
+    await adminPage.waitForLoadState('networkidle');
     await expect(adminPage).toHaveURL(/\/system\/job(?:\/)?$/);
 
     const jobPage = new JobPage(adminPage);
@@ -107,16 +110,17 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
 
     await jobPage.fillSearchKeyword(jobName);
     await jobPage.clickSearch();
+    await expect(await jobPage.hasSearchedJobMoreButton()).toBe(true);
 
     const rowText = await jobPage.getJobRowText(jobName);
-    expect(rowText).toContain("所有节点执行");
-    expect(rowText).toContain("允许并行执行");
+    expect(rowText).toContain('所有节点执行');
+    expect(rowText).toContain('允许并行执行');
 
     const cronDisplay = await jobPage.getCronDisplayMetrics(jobId);
-    expect(cronDisplay.text).toBe("0 0 1 1 *");
-    expect(cronDisplay.fieldCount).toBeGreaterThanOrEqual(5);
-    expect(cronDisplay.fontFamily.toLowerCase()).toContain("monospace");
-    expect(cronDisplay.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(cronDisplay.text).toBe('0 0 1 1 *');
+    expect(cronDisplay.fieldCount).toBeLessThanOrEqual(1);
+    expect(cronDisplay.fontFamily.toLowerCase()).toContain('monospace');
+    expect(cronDisplay.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 
     await jobPage.triggerSearchedJob();
     await expect
@@ -127,7 +131,7 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
         },
         {
           timeout: 10000,
-          message: "停用状态任务也应支持立即执行并生成日志",
+          message: '停用状态任务也应支持立即执行并生成日志',
         },
       )
       .toBeGreaterThan(0);
@@ -139,89 +143,102 @@ test.describe("TC-97 定时任务导航与帮助文案", () => {
           value: number;
         };
       };
-    }>(await api.get("config/public/frontend"));
+    }>(await api.get('config/public/frontend'));
     const retentionSummary = formatRetentionSummary(
       publicConfig.cron.logRetention.mode,
       publicConfig.cron.logRetention.value,
     );
 
     await jobPage.openCreate();
+    await expect(
+      adminPage.getByRole('tab', { name: 'Handler', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      adminPage.getByRole('tab', { name: 'Shell', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      adminPage.getByLabel('任务处理器', { exact: true }),
+    ).toHaveCount(0);
 
-    await jobPage.hoverFieldHelp("定时表达式");
-    await expect(await jobPage.isTooltipVisible("支持 5 段或 6 段 Cron")).toBe(
+    await adminPage
+      .getByTestId('job-form-shell')
+      .locator('textarea')
+      .first()
+      .fill("printf 'validation shell'");
+
+    await jobPage.hoverFieldHelp('定时表达式');
+    await expect(await jobPage.isTooltipVisible('支持 5 段或 6 段 Cron')).toBe(
       true,
     );
 
-    await jobPage.hoverFieldHelp("调度范围");
+    await jobPage.hoverFieldHelp('调度范围');
     await expect(
-      await jobPage.isTooltipVisible("仅主节点执行：只有当前主节点会执行"),
+      await jobPage.isTooltipVisible('仅主节点执行：只有当前主节点会执行'),
     ).toBe(true);
 
-    await jobPage.hoverFieldHelp("并发策略");
+    await jobPage.hoverFieldHelp('并发策略');
     await expect(
-      await jobPage.isTooltipVisible("单例执行：本节点已有实例运行时"),
+      await jobPage.isTooltipVisible('单例执行：本节点已有实例运行时'),
     ).toBe(true);
 
-    await jobPage.hoverFieldHelp("日志保留");
+    await jobPage.hoverFieldHelp('日志保留');
     await expect(
       await jobPage.isTooltipVisible(`当前系统策略：${retentionSummary}`),
     ).toBe(true);
 
-    await jobPage.hoverFieldHelp("超时时间(秒)");
+    await jobPage.hoverFieldHelp('超时时间(秒)');
     await expect(
-      await jobPage.isTooltipVisible("任务实例单次运行允许的最长时长"),
+      await jobPage.isTooltipVisible('任务实例单次运行允许的最长时长'),
     ).toBe(true);
 
-    await jobPage.hoverFieldHelp("最大执行次数");
+    await jobPage.hoverFieldHelp('最大执行次数');
     await expect(
-      await jobPage.isTooltipVisible("设置为 0 表示不限制执行次数"),
+      await jobPage.isTooltipVisible('设置为 0 表示不限制执行次数'),
     ).toBe(true);
 
     const cronEditor = await jobPage.getCronEditorMetrics();
-    expect(cronEditor.fontFamily.toLowerCase()).toContain("monospace");
-    expect(cronEditor.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-    expect(cronEditor.borderRadius).not.toBe("0px");
+    expect(cronEditor.fontFamily.toLowerCase()).toContain('monospace');
+    expect(cronEditor.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    expect(cronEditor.borderRadius).not.toBe('0px');
 
     await jobPage.fillCommonFields({
-      cronExpr: "* * * *",
+      cronExpr: '* * * *',
       name: `${jobName}_invalid_cron`,
     });
-    await jobPage.selectHandler("任务日志清理 (host:cleanup-job-logs)");
     await jobPage.save();
     await expect(
-      jobPage.messageNotice("定时表达式仅支持 5 段或 6 段"),
+      jobPage.messageNotice('定时表达式仅支持 5 段或 6 段'),
     ).toBeVisible();
 
     await jobPage.fillCommonFields({
-      cronExpr: "17 3 * * *",
-      timezone: "Mars/Phobos",
+      cronExpr: '17 3 * * *',
+      timezone: 'Mars/Phobos',
     });
     await jobPage.save();
-    await expect(jobPage.messageNotice("任务时区不合法")).toBeVisible();
+    await expect(jobPage.messageNotice('任务时区不合法')).toBeVisible();
 
-    await jobPage.selectTaskTab("Shell");
     const shellWarningPadding = await jobPage.getElementVerticalPadding(
-      "job-shell-warning-alert",
+      'job-shell-warning-alert',
     );
     expect(shellWarningPadding.paddingTop).toBeGreaterThanOrEqual(5);
     expect(shellWarningPadding.paddingBottom).toBeGreaterThanOrEqual(5);
 
     await jobPage.closeDialog();
 
-    await jobPage.fillSearchKeyword("任务日志清理");
+    await jobPage.fillSearchKeyword('任务日志清理');
     await jobPage.clickSearch();
+    await expect(await jobPage.hasSearchedJobMoreButton()).toBe(false);
     await jobPage.openEditSearchedJob();
 
     const commonLockPadding = await jobPage.getElementVerticalPadding(
-      "job-builtin-common-lock-alert",
+      'job-builtin-common-lock-alert',
     );
     expect(commonLockPadding.paddingTop).toBeGreaterThanOrEqual(5);
     expect(commonLockPadding.paddingBottom).toBeGreaterThanOrEqual(5);
 
-    const handlerLockPadding = await jobPage.getElementVerticalPadding(
-      "job-builtin-handler-lock-alert",
-    );
-    expect(handlerLockPadding.paddingTop).toBeGreaterThanOrEqual(5);
-    expect(handlerLockPadding.paddingBottom).toBeGreaterThanOrEqual(5);
+    await expect(adminPage.getByTestId('job-builtin-detail-card')).toBeVisible();
+    await expect(
+      adminPage.getByRole('button', { name: /确\s*认/ }),
+    ).toHaveCount(0);
   });
 });

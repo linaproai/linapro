@@ -15,6 +15,9 @@ import {
   getJobConcurrencyLabel,
   renderJobCronExpression,
   getJobScopeLabel,
+  getJobSourceColor,
+  getJobSourceKind,
+  getJobSourceLabel,
   JOB_PLUGIN_PAUSED_LABEL,
   JOB_PLUGIN_PAUSED_TOOLTIP,
 } from '#/api/system/job/meta';
@@ -187,16 +190,18 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
     { field: 'name', title: '任务名称', minWidth: 180 },
     { field: 'groupName', title: '所属分组', minWidth: 140 },
     {
-      field: 'taskType',
-      title: '任务类型',
-      width: 110,
+      field: 'source',
+      title: '任务来源',
+      minWidth: 120,
       slots: {
-        default: ({ row }: any) =>
-          h(
+        default: ({ row }: any) => {
+          const source = getJobSourceKind(row);
+          return h(
             Tag,
-            { color: row.taskType === 'shell' ? 'volcano' : 'blue' },
-            () => (row.taskType === 'shell' ? 'Shell' : 'Handler'),
-          ),
+            { color: getJobSourceColor(source) },
+            () => getJobSourceLabel(source),
+          );
+        },
       },
     },
     {
@@ -283,7 +288,7 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
       field: 'action',
       fixed: 'right',
       title: '操作',
-      width: 320,
+      width: 260,
       slots: { default: 'action' },
     },
   ];

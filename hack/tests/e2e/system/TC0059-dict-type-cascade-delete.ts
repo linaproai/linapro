@@ -27,7 +27,7 @@ test.describe('TC0059 字典类型级联删除', () => {
     await dictPage.clickTypeSearch();
 
     // Click delete button
-    await dictPage.typePanel.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
+    await dictPage.clickCurrentTypeDeleteAction();
 
     // Wait for confirmation modal
     const modal = adminPage.locator('.ant-modal-confirm');
@@ -68,7 +68,7 @@ test.describe('TC0059 字典类型级联删除', () => {
     await adminPage.waitForTimeout(500);
 
     // Click single row delete button (ghost button in action column)
-    await dictPage.typePanel.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
+    await dictPage.clickCurrentTypeDeleteAction();
 
     // Wait for modal and verify cascade delete warning
     const modal = adminPage.locator('.ant-modal-confirm');

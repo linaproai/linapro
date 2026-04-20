@@ -3,13 +3,16 @@ import type { APIRequestContext } from '@playwright/test';
 import { test, expect } from '../../../fixtures/auth';
 
 import {
-  buildHandlerJobPayload,
+  buildShellJobPayload,
   createAdminApiContext,
   createGroup,
   createJob,
   deleteGroup,
+  getConfigByKey,
   getDefaultGroup,
   getJob,
+  setCronShellEnabled,
+  updateConfigValue,
 } from './helpers';
 
 test.describe('TC-92 删除分组自动迁移任务', () => {
@@ -19,9 +22,12 @@ test.describe('TC-92 删除分组自动迁移任务', () => {
   let api: APIRequestContext;
   let groupId = 0;
   let jobId = 0;
+  let originalShellSwitch: { id: number; value: string } | null = null;
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
+    originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    await setCronShellEnabled(api, true);
   });
 
   test.afterAll(async () => {
@@ -30,6 +36,9 @@ test.describe('TC-92 删除分组自动迁移任务', () => {
     }
     if (groupId) {
       await api.delete(`job-group/${groupId}`);
+    }
+    if (originalShellSwitch) {
+      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
     }
     await api.dispose();
   });
@@ -44,7 +53,7 @@ test.describe('TC-92 删除分组自动迁移任务', () => {
     });
     groupId = createdGroup.id;
 
-    const createdJob = await createJob(api, buildHandlerJobPayload({
+    const createdJob = await createJob(api, buildShellJobPayload({
       groupId,
       name: jobName,
       status: 'disabled',
