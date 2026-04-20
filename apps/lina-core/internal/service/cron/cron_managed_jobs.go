@@ -15,6 +15,7 @@ import (
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/pkg/pluginbridge"
 )
 
 const (
@@ -260,7 +261,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 	}
 	jobs := make([]jobmgmtsvc.BuiltinJobDef, 0, len(items))
 	for _, item := range items {
-		handlerRef, refErr := buildPluginManagedHandlerRef(item.PluginID, item.Name)
+		handlerRef, refErr := pluginbridge.BuildPluginCronHandlerRef(item.PluginID, item.Name)
 		if refErr != nil {
 			return nil, refErr
 		}
@@ -367,20 +368,6 @@ func (s *serviceImpl) invokeRuntimeParamSync(ctx context.Context, _ json.RawMess
 		return nil, err
 	}
 	return map[string]any{"synced": true}, nil
-}
-
-// buildPluginManagedHandlerRef returns the synthetic handler reference used to
-// execute plugin-owned projected cron jobs through the shared registry.
-func buildPluginManagedHandlerRef(pluginID string, name string) (string, error) {
-	trimmedPluginID := strings.TrimSpace(pluginID)
-	trimmedName := strings.TrimSpace(name)
-	if trimmedPluginID == "" {
-		return "", gerror.New("插件ID不能为空")
-	}
-	if trimmedName == "" {
-		return "", gerror.New("插件内置任务名称不能为空")
-	}
-	return fmt.Sprintf("plugin:%s/cron:%s", trimmedPluginID, trimmedName), nil
 }
 
 // formatEveryPattern converts one duration to the stable `@every` form stored

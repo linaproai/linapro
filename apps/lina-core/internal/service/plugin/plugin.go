@@ -213,6 +213,9 @@ type LifecycleManagementService interface {
 	IsInstalled(ctx context.Context, pluginID string) bool
 	// IsEnabled returns whether a plugin is enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
+	// ListEnabledPluginIDs returns the IDs of plugins that are currently
+	// installed and enabled.
+	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
 }
 
 // RegistryQueryService defines manifest synchronization and plugin list query operations.
@@ -327,6 +330,7 @@ func New(topologies ...Topology) Service {
 
 	integrationSvc.SetBizCtxProvider(&bizCtxAdapter{bizCtxProvider})
 	integrationSvc.SetTopologyProvider(&integrationTopologyAdapter{topo})
+	integrationSvc.SetDynamicCronExecutor(runtimeSvc)
 
 	runtimeSvc.SetTopology(&runtimeTopologyAdapter{topo})
 	runtimeSvc.SetMenuManager(integrationSvc)

@@ -190,6 +190,7 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")

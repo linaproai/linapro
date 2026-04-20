@@ -11,6 +11,9 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
+	"lina-core/internal/service/jobmeta"
+	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -54,7 +57,7 @@ func (c *managedCronCollector) Add(
 		DisplayName:    trimmedName,
 		Description:    fmt.Sprintf("插件 %s 注册的内置定时任务。", strings.TrimSpace(c.pluginID)),
 		Pattern:        trimmedPattern,
-		Timezone:       "Asia/Shanghai",
+		Timezone:       pluginbridge.DefaultCronContractTimezone,
 		Scope:          "", // Legacy RegisterCron callbacks do not expose scope metadata.
 		Concurrency:    "",
 		MaxConcurrency: 1,
@@ -71,7 +74,7 @@ func (c *managedCronCollector) IsPrimaryNode() bool {
 }
 
 // collectManagedCronJobs gathers plugin-owned cron definitions from matching
-// source plugins without registering them into gcron.
+// source and dynamic plugins without registering them into gcron.
 func (s *serviceImpl) collectManagedCronJobs(
 	ctx context.Context,
 	pluginID string,
@@ -90,26 +93,102 @@ func (s *serviceImpl) collectManagedCronJobs(
 		if trimmedPluginID != "" && manifest.ID != trimmedPluginID {
 			continue
 		}
-		sourcePlugin, ok := pluginhost.GetSourcePlugin(manifest.ID)
-		if !ok || sourcePlugin == nil {
-			continue
-		}
 
-		collector := &managedCronCollector{
-			pluginID: manifest.ID,
-			items:    make([]ManagedCronJob, 0),
+		sourceItems, err := s.collectSourceManagedCronJobs(ctx, manifest)
+		if err != nil {
+			return nil, err
 		}
-		for _, registration := range sourcePlugin.GetCronRegistrars() {
-			if registration == nil || registration.Handler == nil {
-				continue
-			}
-			if err = registration.Handler(ctx, collector); err != nil {
-				return nil, err
-			}
+		result = append(result, sourceItems...)
+
+		dynamicItems, err := s.collectDynamicManagedCronJobs(ctx, manifest)
+		if err != nil {
+			return nil, err
 		}
-		result = append(result, collector.items...)
+		result = append(result, dynamicItems...)
 	}
 	return result, nil
+}
+
+// collectSourceManagedCronJobs gathers source-plugin managed cron registrations
+// for one manifest.
+func (s *serviceImpl) collectSourceManagedCronJobs(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+) ([]ManagedCronJob, error) {
+	if manifest == nil {
+		return nil, nil
+	}
+	sourcePlugin, ok := pluginhost.GetSourcePlugin(manifest.ID)
+	if !ok || sourcePlugin == nil {
+		return nil, nil
+	}
+
+	collector := &managedCronCollector{
+		pluginID: manifest.ID,
+		items:    make([]ManagedCronJob, 0),
+	}
+	for _, registration := range sourcePlugin.GetCronRegistrars() {
+		if registration == nil || registration.Handler == nil {
+			continue
+		}
+		if err := registration.Handler(ctx, collector); err != nil {
+			return nil, err
+		}
+	}
+	return collector.items, nil
+}
+
+// collectDynamicManagedCronJobs gathers dynamic-plugin cron declarations from
+// the runtime registration entry point and binds them to the shared executor.
+func (s *serviceImpl) collectDynamicManagedCronJobs(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+) ([]ManagedCronJob, error) {
+	if manifest == nil {
+		return nil, nil
+	}
+	// Only runtime-loaded dynamic plugins expose cron contracts through the Wasm
+	// discovery entry point. Source plugins are handled by the callback-based
+	// collector above and must not be routed through dynamic discovery.
+	if catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic {
+		return nil, nil
+	}
+	if s.dynamicCronExecutor == nil {
+		return nil, gerror.Newf("动态插件定时任务执行器未注入: %s", manifest.ID)
+	}
+
+	contracts, err := s.dynamicCronExecutor.DiscoverCronContracts(ctx, manifest)
+	if err != nil {
+		return nil, err
+	}
+	if len(contracts) == 0 {
+		return nil, nil
+	}
+
+	items := make([]ManagedCronJob, 0, len(contracts))
+	for _, contract := range contracts {
+		if contract == nil {
+			continue
+		}
+		contractSnapshot := *contract
+		manifestSnapshot := manifest
+		items = append(items, ManagedCronJob{
+			PluginID:       strings.TrimSpace(manifest.ID),
+			Name:           strings.TrimSpace(contractSnapshot.Name),
+			DisplayName:    strings.TrimSpace(contractSnapshot.DisplayName),
+			Description:    strings.TrimSpace(contractSnapshot.Description),
+			Pattern:        strings.TrimSpace(contractSnapshot.Pattern),
+			Timezone:       strings.TrimSpace(contractSnapshot.Timezone),
+			Scope:          jobmeta.NormalizeJobScope(contractSnapshot.Scope.String()),
+			Concurrency:    jobmeta.NormalizeJobConcurrency(contractSnapshot.Concurrency.String()),
+			MaxConcurrency: contractSnapshot.MaxConcurrency,
+			Timeout:        time.Duration(contractSnapshot.TimeoutSeconds) * time.Second,
+			Handler: func(ctx context.Context) error {
+				return s.dynamicCronExecutor.ExecuteDeclaredCronJob(ctx, manifestSnapshot, &contractSnapshot)
+			},
+		})
+	}
+	return items, nil
 }
 
 // ListManagedCronJobs returns all plugin-owned cron definitions for

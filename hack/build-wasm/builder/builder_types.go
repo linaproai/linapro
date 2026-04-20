@@ -23,6 +23,7 @@ const (
 	pluginDynamicWasmSectionUninstallSQL        = pluginbridge.WasmSectionUninstallSQL
 	pluginDynamicWasmSectionBackendHooks        = pluginbridge.WasmSectionBackendHooks
 	pluginDynamicWasmSectionBackendRes          = pluginbridge.WasmSectionBackendResources
+	pluginDynamicWasmSectionBackendCrons        = pluginbridge.WasmSectionBackendCrons
 	pluginDynamicWasmSectionBackendRoutes       = pluginbridge.WasmSectionBackendRoutes
 	pluginDynamicWasmSectionBackendBridge       = pluginbridge.WasmSectionBackendBridge
 	pluginDynamicWasmSectionBackendHostServices = pluginbridge.WasmSectionBackendHostServices

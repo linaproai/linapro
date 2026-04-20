@@ -6,13 +6,13 @@ package jobhandler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -21,13 +21,16 @@ import (
 type PluginLifecycleBridge interface {
 	// IsEnabled reports whether the specified plugin is currently enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
+	// ListEnabledPluginIDs returns all currently enabled plugin identifiers so
+	// startup sync can restore synthetic handlers after host restart.
+	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
 	// ListManagedCronJobsByPlugin returns plugin-owned cron definitions for one plugin.
 	ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]pluginsvc.ManagedCronJob, error)
 }
 
 // pluginLifecycleObserver maps plugin lifecycle callbacks to registry mutations.
 type pluginLifecycleObserver struct {
-	registry Registry             // registry stores published handler definitions.
+	registry Registry              // registry stores published handler definitions.
 	bridge   PluginLifecycleBridge // bridge resolves plugin enablement and managed cron definitions.
 }
 
@@ -35,7 +38,7 @@ type pluginLifecycleObserver struct {
 var _ pluginsvc.LifecycleObserver = (*pluginLifecycleObserver)(nil)
 
 // AttachPluginLifecycle subscribes the registry to synchronous plugin
-// lifecycle callbacks and eagerly registers handlers for already-enabled source
+// lifecycle callbacks and eagerly registers handlers for already-enabled
 // plugins.
 func AttachPluginLifecycle(
 	ctx context.Context,
@@ -51,11 +54,17 @@ func AttachPluginLifecycle(
 
 	observer := &pluginLifecycleObserver{registry: registry, bridge: bridge}
 	unsubscribe := pluginsvc.RegisterLifecycleObserver(observer)
-	if err := observer.syncEnabledSourcePlugins(ctx, bridge); err != nil {
+	if err := observer.syncEnabledPlugins(ctx, bridge); err != nil {
 		unsubscribe()
 		return nil, err
 	}
 	return unsubscribe, nil
+}
+
+// OnPluginInstalled is a no-op for the handler registry because executable
+// handlers are only published once the plugin becomes enabled.
+func (o *pluginLifecycleObserver) OnPluginInstalled(ctx context.Context, pluginID string) error {
+	return nil
 }
 
 // OnPluginEnabled registers all scheduled-job handlers declared by one enabled plugin.
@@ -75,67 +84,71 @@ func (o *pluginLifecycleObserver) OnPluginUninstalled(ctx context.Context, plugi
 	return nil
 }
 
-// syncEnabledSourcePlugins registers handlers for all build-linked source
-// plugins that are already enabled when the host starts.
-func (o *pluginLifecycleObserver) syncEnabledSourcePlugins(
+// syncEnabledPlugins registers handlers for all plugins that are already
+// enabled when the host starts.
+func (o *pluginLifecycleObserver) syncEnabledPlugins(
 	ctx context.Context,
 	bridge PluginLifecycleBridge,
 ) error {
-	for _, sourcePlugin := range pluginhost.ListSourcePlugins() {
-		if sourcePlugin == nil || strings.TrimSpace(sourcePlugin.ID) == "" {
+	if bridge == nil {
+		return nil
+	}
+	pluginIDs, err := bridge.ListEnabledPluginIDs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, pluginID := range pluginIDs {
+		if !bridge.IsEnabled(ctx, pluginID) {
 			continue
 		}
-		if !bridge.IsEnabled(ctx, sourcePlugin.ID) {
-			continue
-		}
-		if err := o.registerPluginHandlers(sourcePlugin.ID); err != nil {
+		if err := o.registerPluginHandlers(strings.TrimSpace(pluginID)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// registerPluginHandlers publishes all scheduled-job handlers declared by one source plugin.
+// registerPluginHandlers publishes all scheduled-job handlers declared by one
+// plugin.
 func (o *pluginLifecycleObserver) registerPluginHandlers(pluginID string) error {
 	if o == nil || o.registry == nil || pluginID == "" {
 		return nil
 	}
 
 	sourcePlugin, ok := pluginhost.GetSourcePlugin(pluginID)
-	if !ok || sourcePlugin == nil {
-		return nil
-	}
-
 	// Remove any stale definitions first so repeated enable flows stay idempotent.
 	o.unregisterPluginHandlers(pluginID)
 
-	registeredRefs := make([]string, 0, len(sourcePlugin.GetJobHandlers()))
-	for _, item := range sourcePlugin.GetJobHandlers() {
-		if item == nil {
-			continue
-		}
-		ref, err := buildPluginHandlerRef(pluginID, item.Name)
-		if err != nil {
-			for _, registeredRef := range registeredRefs {
-				o.registry.Unregister(registeredRef)
+	registeredRefs := make([]string, 0)
+	if ok && sourcePlugin != nil {
+		registeredRefs = make([]string, 0, len(sourcePlugin.GetJobHandlers()))
+		for _, item := range sourcePlugin.GetJobHandlers() {
+			if item == nil {
+				continue
 			}
-			return err
-		}
-		if err = o.registry.Register(HandlerDef{
-			Ref:          ref,
-			DisplayName:  strings.TrimSpace(item.DisplayName),
-			Description:  strings.TrimSpace(item.Description),
-			ParamsSchema: strings.TrimSpace(item.ParamsSchema),
-			Source:       jobmeta.HandlerSourcePlugin,
-			PluginID:     pluginID,
-			Invoke:       InvokeFunc(item.Handler),
-		}); err != nil {
-			for _, registeredRef := range registeredRefs {
-				o.registry.Unregister(registeredRef)
+			ref, err := pluginbridge.BuildPluginHandlerRef(pluginID, item.Name)
+			if err != nil {
+				for _, registeredRef := range registeredRefs {
+					o.registry.Unregister(registeredRef)
+				}
+				return err
 			}
-			return err
+			if err = o.registry.Register(HandlerDef{
+				Ref:          ref,
+				DisplayName:  strings.TrimSpace(item.DisplayName),
+				Description:  strings.TrimSpace(item.Description),
+				ParamsSchema: strings.TrimSpace(item.ParamsSchema),
+				Source:       jobmeta.HandlerSourcePlugin,
+				PluginID:     pluginID,
+				Invoke:       InvokeFunc(item.Handler),
+			}); err != nil {
+				for _, registeredRef := range registeredRefs {
+					o.registry.Unregister(registeredRef)
+				}
+				return err
+			}
+			registeredRefs = append(registeredRefs, ref)
 		}
-		registeredRefs = append(registeredRefs, ref)
 	}
 
 	if o.bridge == nil {
@@ -150,7 +163,7 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(pluginID string) error 
 		return err
 	}
 	for _, item := range managedJobs {
-		ref, refErr := buildPluginCronHandlerRef(pluginID, item.Name)
+		ref, refErr := pluginbridge.BuildPluginCronHandlerRef(pluginID, item.Name)
 		if refErr != nil {
 			for _, registeredRef := range registeredRefs {
 				o.registry.Unregister(registeredRef)
@@ -197,34 +210,6 @@ func (o *pluginLifecycleObserver) unregisterPluginHandlers(pluginID string) {
 		}
 		o.registry.Unregister(item.Ref)
 	}
-}
-
-// buildPluginHandlerRef converts one plugin-local handler name into the public
-// `plugin:<plugin-id>/<name>` registry ref.
-func buildPluginHandlerRef(pluginID string, name string) (string, error) {
-	trimmedPluginID := strings.TrimSpace(pluginID)
-	trimmedName := strings.TrimSpace(name)
-	if trimmedPluginID == "" {
-		return "", gerror.New("插件ID不能为空")
-	}
-	if trimmedName == "" {
-		return "", gerror.New("插件处理器名称不能为空")
-	}
-	return fmt.Sprintf("plugin:%s/%s", trimmedPluginID, trimmedName), nil
-}
-
-// buildPluginCronHandlerRef converts one plugin cron callback name into the
-// public `plugin:<plugin-id>/cron:<name>` synthetic handler reference.
-func buildPluginCronHandlerRef(pluginID string, name string) (string, error) {
-	trimmedPluginID := strings.TrimSpace(pluginID)
-	trimmedName := strings.TrimSpace(name)
-	if trimmedPluginID == "" {
-		return "", gerror.New("插件ID不能为空")
-	}
-	if trimmedName == "" {
-		return "", gerror.New("插件内置定时任务名称不能为空")
-	}
-	return fmt.Sprintf("plugin:%s/cron:%s", trimmedPluginID, trimmedName), nil
 }
 
 // buildManagedCronDisplayName derives the UI display name for one plugin cron definition.

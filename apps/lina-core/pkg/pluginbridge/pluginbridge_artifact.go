@@ -22,6 +22,9 @@ const (
 	WasmSectionBackendHooks = "lina.plugin.backend.hooks"
 	// WasmSectionBackendResources stores backend resource contracts.
 	WasmSectionBackendResources = "lina.plugin.backend.resources"
+	// WasmSectionBackendCrons stores deprecated legacy backend scheduled-job
+	// contracts kept only for backward-tolerant artifact parsing tests.
+	WasmSectionBackendCrons = "lina.plugin.backend.crons"
 	// WasmSectionBackendRoutes stores backend dynamic route contracts.
 	WasmSectionBackendRoutes = "lina.plugin.backend.routes"
 	// WasmSectionBackendBridge stores backend bridge ABI contracts.

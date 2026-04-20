@@ -28,6 +28,12 @@ type Service interface {
 	// BuildHostCallDemoPayload executes the host service demo and returns the
 	// response payload.
 	BuildHostCallDemoPayload(input *HostCallDemoInput) (*hostCallDemoPayload, error)
+	// RegisterCrons publishes all built-in cron declarations for host-side
+	// discovery.
+	RegisterCrons() error
+	// BuildCronHeartbeatPayload executes the declared cron heartbeat task and
+	// returns a lightweight execution summary.
+	BuildCronHeartbeatPayload() (*cronHeartbeatPayload, error)
 }
 
 // Interface compliance assertion for the default dynamic sample service
@@ -73,11 +79,19 @@ type networkHostService interface {
 	Request(targetURL string, request *pluginbridge.HostServiceNetworkRequest) (*pluginbridge.HostServiceNetworkResponse, error)
 }
 
+// cronHostService abstracts guest cron registration host-call helpers used by
+// the sample service.
+type cronHostService interface {
+	// Register submits one built-in cron declaration for host-side discovery.
+	Register(contract *pluginbridge.CronContract) error
+}
+
 // serviceImpl implements Service.
 type serviceImpl struct {
 	runtimeSvc runtimeHostService
 	storageSvc storageHostService
 	httpSvc    networkHostService
+	cronSvc    cronHostService
 	dataSvc    *plugindb.DB
 }
 
@@ -87,6 +101,7 @@ func New() Service {
 		runtimeSvc: newRuntimeHostService(),
 		storageSvc: newStorageHostService(),
 		httpSvc:    newNetworkHostService(),
+		cronSvc:    newCronHostService(),
 		dataSvc:    plugindb.Open(),
 	}
 }

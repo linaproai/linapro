@@ -112,6 +112,7 @@ func TestSyncAndListReportsPendingHostServiceAuthorization(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
@@ -197,6 +198,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 				},
 			},
 		},
+		nil,
 		nil,
 		nil,
 		nil,

@@ -57,6 +57,10 @@ hostServices:
       - info.uuid
       # 读取当前宿主节点标识。
       - info.node
+  # cron 服务用于在宿主发现阶段通过代码注册动态插件内置定时任务。
+  - service: cron
+    methods:
+      - register
   # storage 服务通过 `resources.paths` 声明申请的逻辑路径或路径前缀。
   - service: storage
     methods:

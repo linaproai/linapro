@@ -49,10 +49,19 @@ func handleHostServiceInvoke(
 			),
 		)
 	}
+	if pluginbridge.NormalizeExecutionSource(hcc.executionSource) == pluginbridge.ExecutionSourceCronDiscovery &&
+		request.Service != pluginbridge.HostServiceCron {
+		return pluginbridge.NewHostCallErrorResponse(
+			pluginbridge.HostCallStatusCapabilityDenied,
+			fmt.Sprintf("cron discovery execution does not allow host service %s", request.Service),
+		)
+	}
 
 	switch request.Service {
 	case pluginbridge.HostServiceRuntime:
 		return dispatchRuntimeHostService(ctx, hcc, request.Method, request.Payload)
+	case pluginbridge.HostServiceCron:
+		return dispatchCronHostService(ctx, hcc, request.Method, request.Payload)
 	case pluginbridge.HostServiceStorage:
 		return dispatchStorageHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
 	case pluginbridge.HostServiceNetwork:

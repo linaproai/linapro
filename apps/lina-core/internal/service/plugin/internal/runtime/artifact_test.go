@@ -163,6 +163,7 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 		testutil.DefaultTestRuntimeFrontendAssets(),
 		nil,
 		nil,
+		nil,
 		[]*pluginbridge.RouteContract{
 			{
 				Path:        "/review-summary",
@@ -234,6 +235,7 @@ func TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection(t *testing.T) 
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	content, err := os.ReadFile(artifactPath)
@@ -256,6 +258,80 @@ func TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection(t *testing.T) 
 	}
 	if !strings.Contains(err.Error(), pluginbridge.WasmSectionBackendCapabilities) || !strings.Contains(err.Error(), "host:db:query") {
 		t.Fatalf("expected deprecated capabilities error to mention section name and capability, got %v", err)
+	}
+}
+
+// TestParseRuntimeArtifactIgnoresLegacyCronContractsSection verifies runtime
+// artifact loading no longer depends on the deprecated cron custom section.
+func TestParseRuntimeArtifactIgnoresLegacyCronContractsSection(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dynamic-crons",
+		"Runtime Cron Plugin",
+		"v0.3.2",
+		nil,
+		nil,
+	)
+
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-crons"))
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dynamic-crons",
+			Name:    "Runtime Cron Plugin",
+			Version: "v0.3.2",
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: pluginbridge.RuntimeKindWasm,
+			ABIVersion:  pluginbridge.SupportedABIVersion,
+			HostServices: []*pluginbridge.HostServiceSpec{
+				{
+					Service: pluginbridge.HostServiceRuntime,
+					Methods: []string{
+						pluginbridge.HostServiceMethodRuntimeLogWrite,
+						pluginbridge.HostServiceMethodRuntimeStateGet,
+						pluginbridge.HostServiceMethodRuntimeStateSet,
+					},
+				},
+			},
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		&pluginbridge.BridgeSpec{
+			ABIVersion:     pluginbridge.ABIVersionV1,
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   pluginbridge.CodecProtobuf,
+			ResponseCodec:  pluginbridge.CodecProtobuf,
+		},
+	)
+
+	content, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
+	}
+	content = appendTestRuntimeCustomSection(
+		t,
+		content,
+		pluginbridge.WasmSectionBackendCrons,
+		map[string]string{"legacy": "ignored"},
+	)
+	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
+		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
+	}
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact load to succeed, got error: %v", err)
+	}
+	if manifest.BridgeSpec == nil || !manifest.BridgeSpec.RouteExecution {
+		t.Fatalf("expected runtime artifact bridge spec to remain available, got %#v", manifest.BridgeSpec)
 	}
 }
 

@@ -113,3 +113,16 @@ func (unsupportedNetworkHostService) Request(
 ) (*pluginbridge.HostServiceNetworkResponse, error) {
 	return nil, errDynamicHostCallsUnavailable
 }
+
+// unsupportedCronHostService is the host-build stub cron registration client.
+type unsupportedCronHostService struct{}
+
+// newCronHostService returns the host-build stub cron registration client.
+func newCronHostService() cronHostService {
+	return unsupportedCronHostService{}
+}
+
+// Register reports that guest-only cron host calls are unavailable in host builds.
+func (unsupportedCronHostService) Register(_ *pluginbridge.CronContract) error {
+	return errDynamicHostCallsUnavailable
+}

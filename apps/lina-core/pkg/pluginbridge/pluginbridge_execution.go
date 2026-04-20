@@ -17,6 +17,9 @@ const (
 	ExecutionSourceHook ExecutionSource = "hook"
 	// ExecutionSourceCron marks one scheduled job execution.
 	ExecutionSourceCron ExecutionSource = "cron"
+	// ExecutionSourceCronDiscovery marks one host-driven cron declaration
+	// discovery call against a dynamic plugin runtime.
+	ExecutionSourceCronDiscovery ExecutionSource = "cron_discovery"
 	// ExecutionSourceLifecycle marks one install/enable/disable lifecycle execution.
 	ExecutionSourceLifecycle ExecutionSource = "lifecycle"
 )

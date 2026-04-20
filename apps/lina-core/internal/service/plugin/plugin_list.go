@@ -72,6 +72,30 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	return &ListOutput{List: filtered, Total: len(filtered)}, nil
 }
 
+// ListEnabledPluginIDs returns the IDs of plugins that are currently
+// installed and enabled.
+func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
+	statusEnabled := catalog.StatusEnabled
+	installedYes := catalog.InstalledYes
+
+	out, err := s.List(ctx, ListInput{
+		Status:    &statusEnabled,
+		Installed: &installedYes,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	pluginIDs := make([]string, 0, len(out.List))
+	for _, item := range out.List {
+		if item == nil || strings.TrimSpace(item.Id) == "" {
+			continue
+		}
+		pluginIDs = append(pluginIDs, strings.TrimSpace(item.Id))
+	}
+	return pluginIDs, nil
+}
+
 // matchPluginType compares normalized plugin types so list filtering accepts
 // user input that differs only by case or alias formatting.
 func matchPluginType(actual string, expected string) bool {

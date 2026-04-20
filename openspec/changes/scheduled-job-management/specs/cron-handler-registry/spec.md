@@ -61,13 +61,20 @@
 
 ### Requirement: 插件 Handler 生命周期
 
-系统 SHALL 订阅插件启用/禁用/卸载事件,自动同步 handler 注册表与关联任务状态。
+系统 SHALL 订阅插件安装/启用/禁用/卸载事件,自动同步 handler 注册表与关联任务状态。
 
 #### Scenario: 生命周期回调与响应边界
 
-- **WHEN** 插件启用、禁用或卸载请求成功
+- **WHEN** 插件安装、启用、禁用或卸载请求成功
 - **THEN** 系统 SHALL 在同一请求链路内通过显式生命周期回调完成 handler 注册表与关联任务状态同步
 - **AND** 不依赖独立的 best-effort 异步事件总线再补偿
+
+#### Scenario: 插件安装时补齐内置任务投影
+
+- **WHEN** 插件安装成功但尚未启用
+- **THEN** 系统 SHALL 先将该插件声明的内置定时任务同步到 `sys_job`
+- **AND** 若对应 handler 当前尚未可用,这些任务 SHALL 直接进入 `paused_by_plugin` 状态
+- **AND** 后续启用插件时再通过 handler 注册表恢复执行能力
 
 #### Scenario: 插件启用时注册 handler
 
@@ -96,6 +103,24 @@
 - **WHEN** 任务列表返回 `paused_by_plugin` 任务
 - **THEN** 前端 SHALL 在状态列显式提示"插件处理器不可用"
 - **AND** 禁用"立即触发""启用"按钮
+
+### Requirement: 动态插件定时任务声明契约
+
+系统 SHALL 为动态插件提供独立的定时任务声明契约,并将其与 runtime host service 边界分离。
+
+#### Scenario: 动态插件通过 cron host service 代码注册定时任务
+
+- **WHEN** 动态插件需要提供内置定时任务
+- **THEN** 插件 SHALL 通过独立 `cron` host service 在 guest 代码中调用 `pluginbridge.Cron().Register(...)` 提交任务元数据与 guest 处理器绑定信息
+- **AND** 宿主 SHALL 通过保留的 guest 注册入口执行一次受控 discovery 来收集这些声明
+- **AND** 收集到的声明 SHALL 纳入统一任务投影链路
+
+#### Scenario: runtime host service 保持聚焦
+
+- **WHEN** 宿主暴露 guest-side `runtime` host service SDK
+- **THEN** 其职责 SHALL 继续限定为运行时日志、状态与轻量信息查询
+- **AND** 不直接承担动态插件定时任务的注册治理入口
+- **AND** 若未来需要开放插件侧任务治理能力,应以独立 `cron`/`job` host service 形式扩展
 
 ### Requirement: Handler 执行契约
 

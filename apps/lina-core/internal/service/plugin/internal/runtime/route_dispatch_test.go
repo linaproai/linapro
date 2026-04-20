@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -202,10 +204,68 @@ func TestExecuteDynamicWasmBridgeHostCallDemoUsesStructuredHostServices(t *testi
 	}
 }
 
+// TestExecuteDeclaredCronJobUsesWasmBridge verifies that dynamic-plugin cron
+// discovery and execution both reuse the shared Wasm bridge.
+func TestExecuteDeclaredCronJobUsesWasmBridge(t *testing.T) {
+	testutil.EnsureBundledRuntimeSampleArtifactForTests(t)
+
+	services := testutil.NewServices()
+	manifest, err := loadBundledDynamicSampleManifest(t, services)
+	if err != nil {
+		t.Fatalf("expected bundled runtime artifact to load, got error: %v", err)
+	}
+
+	contracts, err := services.Runtime.DiscoverCronContracts(context.Background(), manifest)
+	if err != nil {
+		t.Fatalf("expected bundled runtime cron discovery to succeed, got error: %v", err)
+	}
+	contract := findCronContract(contracts, "heartbeat")
+	if contract == nil {
+		t.Fatalf("expected bundled runtime manifest to discover heartbeat cron contract, got %#v", contracts)
+	}
+
+	ctx := context.Background()
+	if _, err = dao.SysPluginState.Ctx(ctx).
+		Where(do.SysPluginState{
+			PluginId: manifest.ID,
+			StateKey: "cron_heartbeat_count",
+		}).
+		Delete(); err != nil {
+		t.Fatalf("expected cron state cleanup to succeed, got error: %v", err)
+	}
+
+	if err = services.Runtime.ExecuteDeclaredCronJob(ctx, manifest, contract); err != nil {
+		t.Fatalf("expected declared cron execution to succeed, got error: %v", err)
+	}
+
+	value, err := dao.SysPluginState.Ctx(ctx).
+		Where(do.SysPluginState{
+			PluginId: manifest.ID,
+			StateKey: "cron_heartbeat_count",
+		}).
+		Value("state_value")
+	if err != nil {
+		t.Fatalf("expected cron state query to succeed, got error: %v", err)
+	}
+	if value.IsEmpty() || value.String() != "1" {
+		t.Fatalf("expected cron heartbeat state value to be 1, got %#v", value)
+	}
+}
+
 // loadBundledDynamicSampleManifest loads the bundled demo runtime artifact from test storage.
 func loadBundledDynamicSampleManifest(t *testing.T, services *testutil.Services) (*catalog.Manifest, error) {
 	t.Helper()
 
 	artifactPath := filepath.Join(testutil.TestDynamicStorageDir(), runtime.BuildArtifactFileName("plugin-demo-dynamic"))
 	return services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+}
+
+// findCronContract locates one declared cron contract by stable plugin-local name.
+func findCronContract(contracts []*pluginbridge.CronContract, name string) *pluginbridge.CronContract {
+	for _, item := range contracts {
+		if item != nil && item.Name == name {
+			return item
+		}
+	}
+	return nil
 }

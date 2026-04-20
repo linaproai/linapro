@@ -52,20 +52,21 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	sessionCfg            *config.SessionConfig // Session configuration
-	monCfg                *config.MonitorConfig // Monitor configuration
-	configSvc             config.Service        // Config service
-	roleSvc               rolesvc.Service       // Role service
-	serverMonSvc          servermon.Service     // Server monitor service
-	sessionStore          session.Store         // Session store
-	clusterSvc            cluster.Service       // Cluster topology service
+	sessionCfg            *config.SessionConfig  // Session configuration
+	monCfg                *config.MonitorConfig  // Monitor configuration
+	configSvc             config.Service         // Config service
+	roleSvc               rolesvc.Service        // Role service
+	serverMonSvc          servermon.Service      // Server monitor service
+	sessionStore          session.Store          // Session store
+	clusterSvc            cluster.Service        // Cluster topology service
 	registry              jobhandlersvc.Registry // registry stores managed host and plugin handlers.
-	pluginSvc             pluginsvc.Service     // Plugin service
-	builtinSyncer         builtinJobSyncer      // builtinSyncer persists code-owned job definitions.
-	persistentScheduler   jobmgmtsvc.Scheduler  // persistentScheduler loads and registers persisted jobs.
-	runtimeParamSyncJob   startupJob            // Runtime-parameter sync startup job
-	accessTopologySyncJob startupJob            // Permission-topology sync startup job
-	managedHandlersOnce   sync.Once             // managedHandlersOnce avoids duplicate handler registration.
+	pluginSvc             pluginsvc.Service      // Plugin service
+	builtinSyncer         builtinJobSyncer       // builtinSyncer persists code-owned job definitions.
+	persistentScheduler   jobmgmtsvc.Scheduler   // persistentScheduler loads and registers persisted jobs.
+	runtimeParamSyncJob   startupJob             // Runtime-parameter sync startup job
+	accessTopologySyncJob startupJob             // Permission-topology sync startup job
+	managedHandlersOnce   sync.Once              // managedHandlersOnce avoids duplicate handler registration.
+	pluginObserverOnce    sync.Once              // pluginObserverOnce avoids duplicate lifecycle subscriptions.
 }
 
 // New creates and returns a new Service instance.
@@ -115,6 +116,7 @@ func (s *serviceImpl) Start(ctx context.Context) {
 	s.warmServerMonitor(ctx)
 	s.startAccessTopologyRevisionSync(ctx)
 	s.startRuntimeParamSnapshotSync(ctx)
+	s.attachPluginLifecycleObserver()
 
 	if err := s.syncBuiltinScheduledJobs(ctx); err != nil {
 		logger.Warningf(ctx, "sync builtin scheduled jobs failed: %v", err)

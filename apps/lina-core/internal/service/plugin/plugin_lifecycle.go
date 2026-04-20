@@ -22,12 +22,18 @@ func (s *serviceImpl) Install(
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		return s.installSourcePlugin(ctx, manifest)
+		if err = s.installSourcePlugin(ctx, manifest); err != nil {
+			return err
+		}
+		return notifyPluginInstalled(ctx, pluginID)
 	}
 	if err = s.persistDynamicPluginAuthorization(ctx, manifest, authorization); err != nil {
 		return err
 	}
-	return s.lifecycleSvc.Install(ctx, pluginID)
+	if err = s.lifecycleSvc.Install(ctx, pluginID); err != nil {
+		return err
+	}
+	return notifyPluginInstalled(ctx, pluginID)
 }
 
 // Uninstall executes the uninstall lifecycle for an installed plugin.

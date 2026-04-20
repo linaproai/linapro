@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
 
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -43,6 +44,24 @@ type ManagedCronJob struct {
 	Timeout time.Duration
 	// Handler executes the plugin-owned scheduled job.
 	Handler pluginhost.CronJobHandler
+}
+
+// DynamicCronExecutor executes one dynamic-plugin declared cron job through the
+// active runtime bridge.
+type DynamicCronExecutor interface {
+	// DiscoverCronContracts collects all dynamic-plugin cron declarations from
+	// the plugin runtime's reserved registration entry point.
+	DiscoverCronContracts(
+		ctx context.Context,
+		manifest *catalog.Manifest,
+	) ([]*pluginbridge.CronContract, error)
+	// ExecuteDeclaredCronJob runs one declared dynamic-plugin cron job against
+	// the active manifest/runtime.
+	ExecuteDeclaredCronJob(
+		ctx context.Context,
+		manifest *catalog.Manifest,
+		contract *pluginbridge.CronContract,
+	) error
 }
 
 // BizCtxProvider abstracts the business context dependency for data-scope queries.
@@ -148,6 +167,9 @@ type DependencyWiringService interface {
 	SetBizCtxProvider(p BizCtxProvider)
 	// SetTopologyProvider wires the cluster-topology provider used by plugin integrations.
 	SetTopologyProvider(t TopologyProvider)
+	// SetDynamicCronExecutor wires the runtime executor used by declared
+	// dynamic-plugin cron jobs.
+	SetDynamicCronExecutor(executor DynamicCronExecutor)
 }
 
 // PluginStateService defines plugin enablement lookup operations.
@@ -209,6 +231,8 @@ type serviceImpl struct {
 
 	topology TopologyProvider
 
+	dynamicCronExecutor DynamicCronExecutor
+
 	sourceRouteBindingsMu sync.RWMutex
 	sourceRouteBindings   map[string][]pluginhost.SourceRouteBinding
 }
@@ -229,6 +253,12 @@ func (s *serviceImpl) SetBizCtxProvider(p BizCtxProvider) {
 // SetTopologyProvider wires the cluster-topology provider used by plugin integrations.
 func (s *serviceImpl) SetTopologyProvider(t TopologyProvider) {
 	s.topology = t
+}
+
+// SetDynamicCronExecutor wires the runtime executor used by declared
+// dynamic-plugin cron jobs.
+func (s *serviceImpl) SetDynamicCronExecutor(executor DynamicCronExecutor) {
+	s.dynamicCronExecutor = executor
 }
 
 // IsEnabled reports whether the plugin with the given ID is currently installed and enabled.

@@ -101,6 +101,19 @@ type Service interface {
 		manifest *catalog.Manifest,
 		request *pluginbridge.BridgeRequestEnvelopeV1,
 	) (*pluginbridge.BridgeResponseEnvelopeV1, error)
+	// DiscoverCronContracts runs the reserved guest-side cron registration entry
+	// point and collects all declared dynamic-plugin cron contracts.
+	DiscoverCronContracts(
+		ctx context.Context,
+		manifest *catalog.Manifest,
+	) ([]*pluginbridge.CronContract, error)
+	// ExecuteDeclaredCronJob runs one declared dynamic-plugin cron job through
+	// the active runtime bridge.
+	ExecuteDeclaredCronJob(
+		ctx context.Context,
+		manifest *catalog.Manifest,
+		contract *pluginbridge.CronContract,
+	) error
 	// ReconcileDynamicPluginRequest implements lifecycle.ReconcileProvider.
 	// It submits a desired-state transition to the reconciler loop.
 	ReconcileDynamicPluginRequest(ctx context.Context, pluginID string, desiredState string) error

@@ -32,6 +32,9 @@ type hostCallContext struct {
 	requestID string
 	// identity carries the current user identity snapshot when available.
 	identity *pluginbridge.IdentitySnapshotV1
+	// cronCollector captures dynamic-plugin cron registrations during reserved
+	// discovery executions.
+	cronCollector CronRegistrationCollector
 }
 
 // withHostCallContext attaches a host call context to the given context.

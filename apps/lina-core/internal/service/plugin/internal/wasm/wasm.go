@@ -37,6 +37,9 @@ type ExecutionInput struct {
 	RequestID string
 	// Identity carries the sanitized user identity snapshot when available.
 	Identity *pluginbridge.IdentitySnapshotV1
+	// CronCollector receives dynamic-plugin cron registrations during reserved
+	// discovery executions.
+	CronCollector CronRegistrationCollector
 }
 
 // wasmCacheEntry holds a pre-compiled Wasm module bound to its wazero runtime.
@@ -126,6 +129,7 @@ func ExecuteBridge(
 		routePath:       input.RoutePath,
 		requestID:       input.RequestID,
 		identity:        input.Identity,
+		cronCollector:   input.CronCollector,
 	})
 
 	var (

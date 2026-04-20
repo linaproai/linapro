@@ -42,6 +42,8 @@ const newWindowMenuName = "运行时新标签页示例";
 const bundledRuntimePluginID = "plugin-demo-dynamic";
 const bundledRuntimeRecordTable = "plugin_demo_dynamic_record";
 const bundledRuntimeAttachmentPath = "demo-record-files/";
+const bundledRuntimeCronHandlerRef = `plugin:${bundledRuntimePluginID}/cron:heartbeat`;
+const bundledRuntimeCronStateKey = "cron_heartbeat_count";
 const bundledRuntimeLegacyArtifactPath = path.join(
   repoRoot(),
   "apps",
@@ -62,6 +64,14 @@ type PluginListItem = {
   id: string;
   enabled?: number;
   installed?: number;
+};
+
+type JobListItem = {
+  id: number;
+  handlerRef?: string;
+  isBuiltin?: number;
+  name?: string;
+  status?: string;
 };
 
 type UserRouteNode = {
@@ -262,7 +272,10 @@ function cleanupBundledRuntimeDemoData() {
       `-p${mysqlPassword}`,
       mysqlDatabase,
       "-e",
-      `DROP TABLE IF EXISTS \`${bundledRuntimeRecordTable}\`;`,
+      [
+        `DROP TABLE IF EXISTS \`${bundledRuntimeRecordTable}\`;`,
+        `DELETE FROM sys_plugin_state WHERE plugin_id = '${bundledRuntimePluginID.replaceAll("'", "''")}' AND state_key = '${bundledRuntimeCronStateKey.replaceAll("'", "''")}';`,
+      ].join(" "),
     ],
     {
       stdio: "ignore",
@@ -307,6 +320,20 @@ function bundledRuntimeRecordCountByTitle(title: string) {
     mysqlScalar(
       `SELECT COUNT(*) FROM \`${bundledRuntimeRecordTable}\` WHERE \`title\` = '${escapedTitle}';`,
     ),
+  );
+}
+
+function bundledRuntimeCronStateCount() {
+  return Number(
+    mysqlScalar(
+      [
+        "SELECT COALESCE(MAX(state_value), '0')",
+        "FROM sys_plugin_state",
+        `WHERE plugin_id = '${bundledRuntimePluginID.replaceAll("'", "''")}'`,
+        `AND state_key = '${bundledRuntimeCronStateKey.replaceAll("'", "''")}'`,
+        ";",
+      ].join(" "),
+    ) || "0",
   );
 }
 
@@ -576,6 +603,60 @@ async function installPlugin(adminApi: APIRequestContext, id = pluginID) {
 async function uninstallPlugin(adminApi: APIRequestContext, id = pluginID) {
   const response = await adminApi.delete(`plugins/${id}`);
   assertOk(response, "卸载动态插件失败");
+}
+
+async function listJobs(adminApi: APIRequestContext): Promise<JobListItem[]> {
+  const pageSize = 200;
+  let pageNum = 1;
+  const items: JobListItem[] = [];
+
+  while (true) {
+    const response = await adminApi.get("job", {
+      params: {
+        pageNum,
+        pageSize,
+      },
+    });
+    assertOk(response, "查询定时任务列表失败");
+    const payload = unwrapApiData(await response.json());
+    const currentItems = (payload?.list ?? []) as JobListItem[];
+    items.push(...currentItems);
+
+    const total = Number(payload?.total ?? 0);
+    if (items.length >= total || currentItems.length === 0) {
+      return items;
+    }
+    pageNum += 1;
+  }
+}
+
+async function findJobByHandlerRef(
+  adminApi: APIRequestContext,
+  handlerRef: string,
+  keyword?: string,
+): Promise<JobListItem | null> {
+  if (keyword) {
+    const response = await adminApi.get("job", {
+      params: {
+        keyword,
+        pageNum: 1,
+        pageSize: 20,
+      },
+    });
+    assertOk(response, `按关键字查询定时任务失败: ${keyword}`);
+    const payload = unwrapApiData(await response.json());
+    const jobs = (payload?.list ?? []) as JobListItem[];
+    return jobs.find((item) => item.handlerRef === handlerRef) ?? null;
+  }
+
+  const jobs = await listJobs(adminApi);
+  return jobs.find((item) => item.handlerRef === handlerRef) ?? null;
+}
+
+async function triggerJob(adminApi: APIRequestContext, jobID: number) {
+  const response = await adminApi.post(`job/${jobID}/trigger`);
+  assertOk(response, `立即执行定时任务失败: ${jobID}`);
+  return unwrapApiData(await response.json());
 }
 
 async function uploadDynamicPluginViaAPI(
@@ -1028,6 +1109,69 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     expect(payload.authenticated).toBeTruthy();
     expect(payload.username).toBe(config.adminUser);
     expect(payload.isSuperAdmin).toBeTruthy();
+  });
+
+  test("TC-67o: plugin-demo-dynamic 安装后其内置定时任务立即出现在任务管理中，启用后可手动执行", async ({
+    page,
+  }) => {
+    await loginAsAdmin(page);
+
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await expect(pluginPage.pluginRow(bundledRuntimePluginID)).toBeVisible();
+
+    await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
+    await pluginPage.confirmHostServiceAuthorization();
+    await expect
+      .poll(
+        async () =>
+          (await findPlugin(adminApi!, bundledRuntimePluginID))?.installed ?? 0,
+      )
+      .toBe(1);
+
+    await expect
+      .poll(async () => {
+        const job = await findJobByHandlerRef(
+          adminApi!,
+          bundledRuntimeCronHandlerRef,
+          "动态插件心跳",
+        );
+        return job?.status ?? "";
+      })
+      .toBe("paused_by_plugin");
+
+    const installedJob = await findJobByHandlerRef(
+      adminApi!,
+      bundledRuntimeCronHandlerRef,
+      "动态插件心跳",
+    );
+    expect(installedJob, "安装后应投影出动态插件内置定时任务").toBeTruthy();
+    expect(installedJob?.isBuiltin).toBe(1);
+
+    await page.reload();
+    await pluginPage.setPluginEnabled(bundledRuntimePluginID, true);
+
+    await expect
+      .poll(async () => {
+        const job = await findJobByHandlerRef(
+          adminApi!,
+          bundledRuntimeCronHandlerRef,
+          "动态插件心跳",
+        );
+        return job?.status ?? "";
+      })
+      .toBe("enabled");
+
+    const enabledJob = await findJobByHandlerRef(
+      adminApi!,
+      bundledRuntimeCronHandlerRef,
+      "动态插件心跳",
+    );
+    expect(enabledJob, "启用后应保留动态插件内置定时任务").toBeTruthy();
+    expect(enabledJob?.status).toBe("enabled");
+
+    await triggerJob(adminApi!, enabledJob!.id);
+    await expect.poll(() => bundledRuntimeCronStateCount()).toBe(1);
   });
 
   test("TC-67k: plugin-demo-dynamic 示例记录支持 CRUD，并在禁用与卸载时按选项保留或清理数据附件", async ({

@@ -180,7 +180,20 @@ L3 审计        shell 任务的创建/修改/手动触发/手动终止复用宿
 **实现边界**:
 - 用户创建任务的表达式继续严格限制为 5 段/6 段;
 - 源码注册任务允许保留 GoFrame 原生的 `@every ...` 表达式文本,因为这类任务不会经过公共表单校验;
-- 插件内置任务优先覆盖源码插件注册链路;若后续动态插件补充同类注册契约,沿用同一投影模型即可接入。
+- 插件内置任务统一覆盖源码插件与动态插件两类声明链路,最终都沿用同一投影模型进入 `sys_job` 与统一调度器。
+
+### D7C. 动态插件定时任务通过独立 cron host service 代码注册,不并入 runtime host service
+
+**决定**:
+- 动态插件通过独立的 `cron` host service 在代码中注册内置定时任务,guest 侧统一使用 `pluginbridge.Cron().Register(...)` 提交 `CronContract`;
+- 宿主在扫描/安装/启用动态插件时执行保留的 guest 注册入口（`RegisterCrons` / `/register-crons`）,把运行期收集到的 `CronContract` 投影为 `plugin:<pluginID>/cron:<name>` 形式的内置任务,并继续复用统一的 `sys_job`、handler registry、日志与立即执行链路;
+- guest-side `runtime` host service 继续只承载运行时日志、状态与轻量信息查询能力,SDK 形态上整理为与 `DataHostService` 一致的独立接口对象入口;
+- 若后续需要给动态插件开放“任务治理”类宿主调用能力,也应落到独立的 `cron`/`job` host service,而不是继续堆进 `runtime` service。
+
+**理由**:
+- 定时任务治理仍然保持独立边界,不会把声明能力堆进 `runtime` service,同时又允许动态插件像注册数据源一样通过代码集中维护声明逻辑;
+- 宿主通过保留注册入口在受控的 discovery 上下文内收集 `CronContract`,既能复用 guest 代码中的常量与条件逻辑,也避免继续维护单独的 YAML/custom section 管道;
+- `runtime` host service 保持聚焦于状态/日志/信息读取,边界更清晰,动态插件 SDK 也更容易理解与维护。
 
 ### D8. 日志清理:全局默认 + 任务级覆盖 + 系统内置清理任务
 

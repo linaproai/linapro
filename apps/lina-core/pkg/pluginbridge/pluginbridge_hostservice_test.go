@@ -60,6 +60,34 @@ func TestValidateHostServiceSpecsRejectsRuntimeResources(t *testing.T) {
 	}
 }
 
+// TestValidateHostServiceSpecsAcceptsCronWithoutResources verifies cron
+// registration service declarations use the same resource-less shape as
+// runtime host services.
+func TestValidateHostServiceSpecsAcceptsCronWithoutResources(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: HostServiceCron,
+		Methods: []string{HostServiceMethodCronRegister},
+	}})
+	if err != nil {
+		t.Fatalf("expected cron host service without resources to validate, got %v", err)
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsCronResources verifies cron registration
+// declarations do not accept resource refs.
+func TestValidateHostServiceSpecsRejectsCronResources(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: HostServiceCron,
+		Methods: []string{HostServiceMethodCronRegister},
+		Resources: []*HostServiceResourceSpec{{
+			Ref: "unexpected",
+		}},
+	}})
+	if err == nil {
+		t.Fatal("expected cron host service resources to be rejected")
+	}
+}
+
 // TestValidateHostServiceSpecsRejectsStorageLegacyResources verifies storage
 // services no longer accept legacy `resources.ref` declarations.
 func TestValidateHostServiceSpecsRejectsStorageLegacyResources(t *testing.T) {

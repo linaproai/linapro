@@ -46,6 +46,11 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
+		filepath.Join(pluginDir, "backend", "crons", "001-review-summary.yaml"),
+		"name: review-summary-sync\ndisplayName: Review Summary Sync\ndescription: refreshes plugin review summary state\npattern: \"@every 5m\"\nscope: all_node\nconcurrency: singleton\ntimeoutSeconds: 30\nrequestType: ReviewSummaryReq\ninternalPath: /review-summary\n",
+	)
+	mustWriteFile(
+		t,
 		filepath.Join(pluginDir, "backend", "api", "dynamic", "v1", "review_summary.go"),
 		"package v1\n\nimport \"github.com/gogf/gf/v2/frame/g\"\n\ntype ReviewSummaryReq struct {\n\tg.Meta `path:\"/review-summary\" method:\"get\" tags:\"动态插件示例\" summary:\"查询摘要\" dc:\"返回一个动态插件摘要\" access:\"login\" permission:\"plugin-dynamic-builder:review:view\" operLog:\"other\"`\n}\n",
 	)
@@ -122,6 +127,10 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	}
 	if resources[0].Access != "both" || len(resources[0].Operations) != 3 || resources[0].Operations[1] != "query" {
 		t.Fatalf("unexpected embedded resource governance fields: %#v", resources[0])
+	}
+
+	if _, ok := sections[pluginDynamicWasmSectionBackendCrons]; ok {
+		t.Fatalf("expected legacy cron declaration section to be omitted, got %#v", sections[pluginDynamicWasmSectionBackendCrons])
 	}
 
 	var routes []*pluginbridge.RouteContract

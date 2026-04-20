@@ -21,3 +21,8 @@ func newStorageHostService() storageHostService {
 func newNetworkHostService() networkHostService {
 	return pluginbridge.HTTP()
 }
+
+// newCronHostService returns the real guest-side cron registration host client.
+func newCronHostService() cronHostService {
+	return pluginbridge.Cron()
+}

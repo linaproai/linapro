@@ -599,6 +599,7 @@ func writeRuntimeArtifactWithRoutePermissions(
 		testutil.DefaultTestRuntimeFrontendAssets(),
 		nil,
 		nil,
+		nil,
 		routes,
 		&pluginbridge.BridgeSpec{
 			ABIVersion:     pluginbridge.ABIVersionV1,

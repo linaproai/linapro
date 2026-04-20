@@ -5,12 +5,15 @@ package plugin
 
 import (
 	"context"
+	"sort"
 	"sync"
 )
 
 // LifecycleObserver receives synchronous plugin lifecycle callbacks from the
 // host plugin service.
 type LifecycleObserver interface {
+	// OnPluginInstalled handles one successful plugin install transition.
+	OnPluginInstalled(ctx context.Context, pluginID string) error
 	// OnPluginEnabled handles one successful plugin enable transition.
 	OnPluginEnabled(ctx context.Context, pluginID string) error
 	// OnPluginDisabled handles one successful plugin disable transition.
@@ -50,14 +53,31 @@ func snapshotLifecycleObservers() []LifecycleObserver {
 	lifecycleObserverMu.RLock()
 	defer lifecycleObserverMu.RUnlock()
 
-	observers := make([]LifecycleObserver, 0, len(lifecycleObserverByID))
-	for _, observer := range lifecycleObserverByID {
+	ids := make([]int, 0, len(lifecycleObserverByID))
+	for id := range lifecycleObserverByID {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+
+	observers := make([]LifecycleObserver, 0, len(ids))
+	for _, id := range ids {
+		observer := lifecycleObserverByID[id]
 		if observer == nil {
 			continue
 		}
 		observers = append(observers, observer)
 	}
 	return observers
+}
+
+// notifyPluginInstalled dispatches one successful install transition to all observers.
+func notifyPluginInstalled(ctx context.Context, pluginID string) error {
+	for _, observer := range snapshotLifecycleObservers() {
+		if err := observer.OnPluginInstalled(ctx, pluginID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // notifyPluginEnabled dispatches one successful enable transition to all observers.

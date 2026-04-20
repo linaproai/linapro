@@ -117,6 +117,7 @@ func NewServices() *Services {
 	lifecycleSvc.SetTopology(topology)
 
 	integrationSvc.SetBizCtxProvider(&bizCtxAdapter{svc: bizCtxProvider})
+	integrationSvc.SetDynamicCronExecutor(runtimeSvc)
 	integrationSvc.SetTopologyProvider(topology)
 
 	runtimeSvc.SetMenuManager(integrationSvc)
@@ -411,6 +412,7 @@ func CreateTestRuntimePluginDirWithFrontendAssets(
 		uninstallSQLAssets,
 		nil,
 		nil,
+		nil,
 	)
 	return pluginDir
 }
@@ -481,6 +483,7 @@ func CreateTestRuntimeStorageArtifactWithFilename(
 		uninstallSQLAssets,
 		nil,
 		nil,
+		nil,
 	)
 	return artifactPath
 }
@@ -498,7 +501,17 @@ func BuildTestRuntimeWasmContent(
 	bridgeSpec *pluginbridge.BridgeSpec,
 ) []byte {
 	t.Helper()
-	return buildTestRuntimeWasmArtifactContent(t, manifest, runtimeMetadata, frontendAssets, installSQLAssets, uninstallSQLAssets, routeContracts, bridgeSpec)
+	return buildTestRuntimeWasmArtifactContent(
+		t,
+		manifest,
+		runtimeMetadata,
+		frontendAssets,
+		installSQLAssets,
+		uninstallSQLAssets,
+		nil,
+		routeContracts,
+		bridgeSpec,
+	)
 }
 
 // CreateTestRuntimeStorageArtifactWithFrontendAssets creates one runtime artifact with custom frontend assets.
@@ -569,6 +582,7 @@ func CreateTestRuntimeStorageArtifactWithMenus(
 		uninstallSQLAssets,
 		nil,
 		nil,
+		nil,
 	)
 	return artifactPath
 }
@@ -618,6 +632,7 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
 		frontendAssets,
 		installSQLAssets,
 		uninstallSQLAssets,
+		nil,
 		routeContracts,
 		bridgeSpec,
 	)
@@ -687,6 +702,7 @@ func WriteRuntimeWasmArtifact(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
+	cronContracts []*pluginbridge.CronContract,
 	routeContracts []*pluginbridge.RouteContract,
 	bridgeSpec *pluginbridge.BridgeSpec,
 ) {
@@ -699,6 +715,7 @@ func WriteRuntimeWasmArtifact(
 		frontendAssets,
 		installSQLAssets,
 		uninstallSQLAssets,
+		cronContracts,
 		routeContracts,
 		bridgeSpec,
 	)
@@ -831,6 +848,7 @@ func buildTestRuntimeWasmArtifactContent(
 	frontendAssets []*catalog.ArtifactFrontendAsset,
 	installSQLAssets []*catalog.ArtifactSQLAsset,
 	uninstallSQLAssets []*catalog.ArtifactSQLAsset,
+	cronContracts []*pluginbridge.CronContract,
 	routeContracts []*pluginbridge.RouteContract,
 	bridgeSpec *pluginbridge.BridgeSpec,
 ) []byte {
@@ -869,6 +887,7 @@ func buildTestRuntimeWasmArtifactContent(
 		}
 		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionUninstallSQL, uninstallContent)
 	}
+	_ = cronContracts
 	if len(routeContracts) > 0 {
 		routeContent, marshalErr := json.Marshal(routeContracts)
 		if marshalErr != nil {

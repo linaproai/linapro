@@ -24,6 +24,8 @@ const (
 const (
 	// CapabilityRuntime grants access to runtime log/state/info host services.
 	CapabilityRuntime = "host:runtime"
+	// CapabilityCron grants access to dynamic-plugin cron registration host services.
+	CapabilityCron = "host:cron"
 	// CapabilityStorage grants access to governed storage host services.
 	CapabilityStorage = "host:storage"
 	// CapabilityHTTPRequest grants access to governed outbound HTTP requests.
@@ -51,6 +53,8 @@ const (
 const (
 	// HostServiceRuntime is the runtime host service identifier.
 	HostServiceRuntime = "runtime"
+	// HostServiceCron is the cron host service identifier.
+	HostServiceCron = "cron"
 	// HostServiceStorage is the storage host service identifier.
 	HostServiceStorage = "storage"
 	// HostServiceNetwork is the network host service identifier.
@@ -88,6 +92,14 @@ const (
 	HostServiceMethodRuntimeInfoUUID = "info.uuid"
 	// HostServiceMethodRuntimeInfoNode returns host node identity information.
 	HostServiceMethodRuntimeInfoNode = "info.node"
+)
+
+// Cron host-service methods describe dynamic-plugin cron declaration
+// operations exposed during host-side discovery.
+const (
+	// HostServiceMethodCronRegister registers one dynamic-plugin cron contract
+	// with the current host-side discovery collector.
+	HostServiceMethodCronRegister = "register"
 )
 
 // Storage host-service methods describe governed file operations under the
@@ -213,6 +225,9 @@ var (
 			HostServiceMethodRuntimeInfoUUID:    CapabilityRuntime,
 			HostServiceMethodRuntimeInfoNode:    CapabilityRuntime,
 		},
+		HostServiceCron: {
+			HostServiceMethodCronRegister: CapabilityCron,
+		},
 		HostServiceStorage: {
 			HostServiceMethodStoragePut:    CapabilityStorage,
 			HostServiceMethodStorageGet:    CapabilityStorage,
@@ -259,6 +274,7 @@ var (
 
 	allCapabilities = map[string]struct{}{
 		CapabilityRuntime:      {},
+		CapabilityCron:         {},
 		CapabilityStorage:      {},
 		CapabilityHTTPRequest:  {},
 		CapabilityDataRead:     {},
@@ -273,6 +289,7 @@ var (
 
 	hostServicesWithoutResources = map[string]struct{}{
 		HostServiceRuntime: {},
+		HostServiceCron:    {},
 	}
 
 	hostServicesWithTables = map[string]struct{}{
