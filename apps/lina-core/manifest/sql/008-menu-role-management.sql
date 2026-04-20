@@ -339,7 +339,7 @@ VALUES (0, 'monitor', '系统监控', 'monitor', '', '', 'ant-design:monitor-out
 
 -- 系统监控 -> 在线用户（菜单）
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'monitor') AS parent), 'monitor:online:list', '在线用户', 'online', 'monitor/online/index', 'monitor:online:list', 'ant-design:user-outlined', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'monitor') AS parent), 'monitor:online:list', '在线用户', 'online', 'monitor/online/index', 'monitor:online:list', 'ant-design:user-switch-outlined', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
 
 -- 在线用户 -> 按钮权限
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
@@ -350,7 +350,7 @@ VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'monito
 
 -- 系统监控 -> 服务监控（菜单）
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'monitor') AS parent), 'monitor:server:list', '服务监控', 'server', 'monitor/server/index', 'monitor:server:list', 'ant-design:desktop-outlined', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'monitor') AS parent), 'monitor:server:list', '服务监控', 'server', 'monitor/server/index', 'monitor:server:list', 'ant-design:api-outlined', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
 
 -- 系统监控 -> 操作日志（菜单）
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
@@ -398,7 +398,7 @@ VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'about'
 
 -- 系统信息 -> 版本信息（菜单）
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'about') AS parent), 'about:system:list', '版本信息', 'system-info', 'about/system-info/index', 'about:system:list', 'ant-design:desktop-outlined', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'about') AS parent), 'about:system:list', '版本信息', 'system-info', 'about/system-info/index', 'about:system:list', 'ant-design:code-outlined', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
 
 -- ========================================
 -- 系统管理 -> 插件管理（菜单）
@@ -426,7 +426,7 @@ VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system
 -- 个人中心（隐藏菜单，不属于任何目录）
 -- ========================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES (0, 'profile:view', '个人中心', 'profile', '_core/profile/index', 'profile:view', 'ant-design:user-outlined', 'M', 99, 0, 1, 0, 0, NOW(), NOW());
+VALUES (0, 'profile:view', '个人中心', 'profile', '_core/profile/index', 'profile:view', 'ant-design:idcard-outlined', 'M', 99, 0, 1, 0, 0, NOW(), NOW());
 
 INSERT IGNORE INTO sys_user_role (user_id, role_id)
 SELECT u.id, r.id

@@ -620,4 +620,45 @@ test.describe("TC0060 菜单管理 CRUD", () => {
       await menuPage.expectSidebarContains(menuName);
     }
   });
+
+  test("TC0060q: 菜单图标重复时不允许保存", async ({ adminPage }) => {
+    const menuPage = new MenuPage(adminPage);
+    const duplicateMenuName = `e2e-duplicate-icon-${Date.now()}`;
+
+    await menuPage.goto();
+
+    await adminPage
+      .getByRole("button", { name: /新\s*增/ })
+      .first()
+      .click();
+
+    const drawer = adminPage.locator('[role="dialog"]');
+    await drawer.waitFor({ state: "visible", timeout: 10000 });
+    await drawer
+      .locator(".ant-skeleton")
+      .waitFor({ state: "hidden", timeout: 10000 });
+
+    await drawer
+      .locator('input[placeholder="请输入菜单名称"]')
+      .fill(duplicateMenuName);
+    await drawer
+      .locator(".ant-input-group-wrapper")
+      .filter({ hasText: "搜索图标" })
+      .locator("input")
+      .first()
+      .fill("ant-design:user-outlined");
+    await drawer
+      .locator('input[placeholder*="路由地址"]')
+      .fill(`e2e-duplicate-icon-${Date.now()}`);
+
+    await drawer.getByRole("button", { name: /确\s*认/ }).click();
+
+    await expect(
+      adminPage.getByText(/菜单图标.*已被其他目录或菜单使用/),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(drawer).toBeVisible();
+
+    await drawer.getByRole("button", { name: /取\s*消/ }).click();
+    await drawer.waitFor({ state: "hidden", timeout: 5000 });
+  });
 });

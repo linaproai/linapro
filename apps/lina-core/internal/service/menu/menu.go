@@ -220,6 +220,9 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 	if err := s.checkNameUnique(ctx, in.Name, in.ParentId, 0); err != nil {
 		return 0, err
 	}
+	if err := s.checkIconUnique(ctx, in.Type, in.Icon, 0); err != nil {
+		return 0, err
+	}
 
 	// Insert menu (GoFrame auto-fills created_at and updated_at)
 	id, err := dao.SysMenu.Ctx(ctx).Data(do.SysMenu{
@@ -228,7 +231,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		Path:       in.Path,
 		Component:  in.Component,
 		Perms:      in.Perms,
-		Icon:       in.Icon,
+		Icon:       normalizeMenuIcon(in.Icon),
 		Type:       in.Type,
 		Sort:       in.Sort,
 		Visible:    in.Visible,
@@ -293,6 +296,18 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		}
 	}
 
+	menuType := menu.Type
+	if in.Type != nil {
+		menuType = *in.Type
+	}
+	menuIcon := menu.Icon
+	if in.Icon != nil {
+		menuIcon = *in.Icon
+	}
+	if err := s.checkIconUnique(ctx, menuType, menuIcon, in.Id); err != nil {
+		return err
+	}
+
 	data := do.SysMenu{}
 	if in.ParentId != nil {
 		data.ParentId = *in.ParentId
@@ -310,7 +325,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		data.Perms = *in.Perms
 	}
 	if in.Icon != nil {
-		data.Icon = *in.Icon
+		data.Icon = normalizeMenuIcon(*in.Icon)
 	}
 	if in.Type != nil {
 		data.Type = *in.Type

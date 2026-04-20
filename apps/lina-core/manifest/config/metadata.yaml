@@ -19,7 +19,7 @@ backend:
   - name: "GoFrame"
     version: "auto"
     url: "https://goframe.org"
-    description: "Go语言应用开发框架"
+    description: "Go语言开发框架"
   - name: "MySQL"
     version: "auto"
     url: "https://www.mysql.com"

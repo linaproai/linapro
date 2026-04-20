@@ -16,6 +16,7 @@ type MenuNode = {
 type RouteNode = {
   children?: RouteNode[];
   meta?: {
+    icon?: string;
     hideInMenu?: boolean;
     title?: string;
   };
@@ -69,6 +70,27 @@ function getVisibleRootTitles(list: RouteNode[]): string[] {
     .filter((item) => !item.meta?.hideInMenu)
     .map((item) => item.meta?.title ?? "")
     .filter(Boolean);
+}
+
+function getVisibleMenuIcons(list: RouteNode[]): string[] {
+  return list.flatMap((item) => {
+    if (item.meta?.hideInMenu) {
+      return [];
+    }
+    const currentIcon = item.meta?.icon ? [item.meta.icon] : [];
+    return [...currentIcon, ...getVisibleMenuIcons(item.children ?? [])];
+  });
+}
+
+function findDuplicateIcons(icons: string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const icon of icons) {
+    counts.set(icon, (counts.get(icon) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([icon]) => icon)
+    .sort();
 }
 
 async function createAdminApiContext(): Promise<APIRequestContext> {
@@ -231,10 +253,25 @@ test.describe("TC0063 登录后菜单显示", () => {
       "参数设置",
       "文件管理",
       "插件管理",
+      "定时任务",
+    ]);
+
+    const scheduledJobRoute = findRouteNodeByTitle(
+      currentUserRoutes,
+      "定时任务",
+    );
+    const visibleScheduledJobChildren =
+      getVisibleChildTitles(scheduledJobRoute);
+    expect(visibleScheduledJobChildren).toEqual([
       "任务管理",
       "分组管理",
       "执行日志",
     ]);
+
+    const duplicateIcons = findDuplicateIcons(
+      getVisibleMenuIcons(currentUserRoutes),
+    );
+    expect(duplicateIcons).toEqual([]);
 
     const currentMenusResponse = await adminApi!.get("menu");
     expect(currentMenusResponse.ok()).toBeTruthy();

@@ -15,7 +15,7 @@ const routes: RouteRecordRaw[] = [
         path: '/monitor/online',
         component: () => import('#/views/monitor/online/index.vue'),
         meta: {
-          icon: 'lucide:users',
+          icon: 'ant-design:user-switch-outlined',
           title: '在线用户',
         },
       },

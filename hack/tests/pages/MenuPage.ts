@@ -160,6 +160,18 @@ export class MenuPage {
       await permsInput.fill(params.perms);
     }
 
+    // Fill icon for directory/menu type when provided.
+    if (params.icon && params.type !== "B") {
+      const iconInput = this.drawer
+        .locator(".ant-form-item")
+        .filter({ hasText: "菜单图标" })
+        .locator("input")
+        .first();
+      await iconInput.waitFor({ state: "visible", timeout: 5000 });
+      await iconInput.fill(params.icon);
+      await this.page.waitForTimeout(200);
+    }
+
     // Fill sort if provided - use spinbutton role for the input number
     if (params.sort !== undefined) {
       const sortInput = this.drawer

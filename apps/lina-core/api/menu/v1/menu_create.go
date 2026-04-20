@@ -6,13 +6,13 @@ import (
 
 // CreateReq defines the request for creating a menu.
 type CreateReq struct {
-	g.Meta     `path:"/menu" method:"post" tags:"菜单管理" summary:"创建菜单" dc:"创建新菜单，支持目录、菜单、按钮三种类型。菜单名称在同一父级下不能重复" permission:"system:menu:add"`
+	g.Meta     `path:"/menu" method:"post" tags:"菜单管理" summary:"创建菜单" dc:"创建新菜单，支持目录、菜单、按钮三种类型。菜单名称在同一父级下不能重复；左侧导航中的目录/菜单图标必须全局唯一，重复图标将拒绝保存" permission:"system:menu:add"`
 	ParentId   int    `json:"parentId" d:"0" dc:"父菜单ID（0=根菜单）" eg:"0"`
 	Name       string `json:"name" v:"required" dc:"菜单名称（支持i18n格式如 menu.system.user）" eg:"用户管理"`
 	Path       string `json:"path" dc:"路由地址（目录和菜单类型必填）" eg:"user"`
 	Component  string `json:"component" dc:"组件路径（菜单类型必填）" eg:"system/user/index"`
 	Perms      string `json:"perms" dc:"权限标识（菜单和按钮类型必填）" eg:"system:user:list"`
-	Icon       string `json:"icon" dc:"菜单图标" eg:"ant-design:user-outlined"`
+	Icon       string `json:"icon" dc:"菜单图标；目录和菜单类型保存时会校验左侧导航图标全局唯一，按钮类型忽略该约束" eg:"ant-design:user-outlined"`
 	Type       string `json:"type" v:"required|in:D,M,B" dc:"菜单类型：D=目录 M=菜单 B=按钮" eg:"M"`
 	Sort       int    `json:"sort" d:"0" dc:"显示排序（数字越小越靠前）" eg:"1"`
 	Visible    int    `json:"visible" d:"1" v:"in:0,1" dc:"是否显示：1=显示 0=隐藏" eg:"1"`
