@@ -335,7 +335,7 @@ VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system
 -- 系统监控（目录）
 -- ========================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES (0, 'monitor', '系统监控', 'monitor', '', '', 'ant-design:monitor-outlined', 'D', 2, 1, 1, 0, 0, NOW(), NOW());
+VALUES (0, 'monitor', '系统监控', 'monitor', '', '', 'solar:monitor-camera-outline', 'D', 2, 1, 1, 0, 0, NOW(), NOW());
 
 -- 系统监控 -> 在线用户（菜单）
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)

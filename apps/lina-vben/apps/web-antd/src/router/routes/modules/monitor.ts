@@ -3,7 +3,7 @@ import type { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
-      icon: 'lucide:monitor',
+      icon: 'solar:monitor-camera-outline',
       order: 20,
       title: '系统监控',
     },

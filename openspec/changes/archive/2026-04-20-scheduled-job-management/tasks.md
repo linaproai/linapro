@@ -128,7 +128,7 @@
 - [x] 15.2 更新 `apps/lina-vben/apps/web-antd/README.md / README.zh_CN.md`:新增路由与页面入口说明
 - [x] 15.3 验证 `make init / make dao / make ctrl / make dev / make test` 全流程通过
 - [x] 15.4 调用 `/openspec-review` 技能进行代码与规范审查,处理所有严重问题
-- [ ] 15.5 用户确认功能完成后,执行 `/opsx:archive scheduled-job-management`(归档时 proposal/design/tasks 与 specs 将被统一重写为英文,符合归档语言规范)
+- [x] 15.5 用户确认功能完成后,执行 `/opsx:archive scheduled-job-management`(归档时 proposal/design/tasks 与 specs 将被统一重写为英文,符合归档语言规范)
 
 ## Feedback
 
@@ -195,3 +195,4 @@
 - [x] **FB-61**: 调整动态插件授权页宿主服务排序与 cron 卡片样式，将运行时服务移到最底部、移除“定时任务”摘要标签，并将任务属性标题改为粗体展示
 - [x] **FB-62**: 统一插件授权页与详情页的宿主服务标签背景语义，并将详情页“当前生效范围”文案收敛为“生效范围”
 - [x] **FB-63**: 修复并约束左侧菜单目录/菜单图标全局唯一，补齐菜单管理保存校验与导航回归测试
+- [x] **FB-64**: 调整左侧菜单“系统监控”目录图标，使其语义更贴合监测场景

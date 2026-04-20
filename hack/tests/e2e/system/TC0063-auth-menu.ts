@@ -1,6 +1,7 @@
 import type { APIRequestContext } from "@playwright/test";
-import { test, expect, request as playwrightRequest } from "@playwright/test";
+import { request as playwrightRequest } from "@playwright/test";
 import { LoginPage } from "../../pages/LoginPage";
+import { test, expect } from "../../fixtures/auth";
 import { MainLayout } from "../../pages/MainLayout";
 import { config } from "../../fixtures/config";
 
@@ -267,6 +268,9 @@ test.describe("TC0063 登录后菜单显示", () => {
       "分组管理",
       "执行日志",
     ]);
+
+    const monitorRoute = findRouteNodeByTitle(currentUserRoutes, "系统监控");
+    expect(monitorRoute?.meta?.icon).toBe("solar:monitor-camera-outline");
 
     const duplicateIcons = findDuplicateIcons(
       getVisibleMenuIcons(currentUserRoutes),
