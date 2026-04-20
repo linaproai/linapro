@@ -4,6 +4,7 @@
 package plugin
 
 import (
+	"sort"
 	"strings"
 
 	"lina-core/api/plugin/v1"
@@ -40,6 +41,7 @@ func buildAuthorizationInput(req *v1.HostServiceAuthorizationReq) *pluginsvc.Hos
 func buildHostServicePermissionItems(
 	specs []*pluginbridge.HostServiceSpec,
 	tableComments map[string]string,
+	cronJobs []pluginsvc.ManagedCronJob,
 ) []*v1.HostServicePermissionItem {
 	items := make([]*v1.HostServicePermissionItem, 0, len(specs))
 	for _, spec := range specs {
@@ -55,6 +57,7 @@ func buildHostServicePermissionItems(
 				spec.Tables,
 				tableComments,
 			),
+			CronItems: buildHostServicePermissionCronItems(spec.Service, cronJobs),
 			Resources: make([]*v1.HostServicePermissionResourceItem, 0, len(spec.Resources)),
 		}
 		for _, resource := range spec.Resources {
@@ -72,6 +75,46 @@ func buildHostServicePermissionItems(
 		}
 		items = append(items, item)
 	}
+	return items
+}
+
+// buildHostServicePermissionCronItems converts discovered managed cron jobs into
+// one API response view for the cron host service block.
+func buildHostServicePermissionCronItems(
+	service string,
+	cronJobs []pluginsvc.ManagedCronJob,
+) []*v1.HostServicePermissionCronItem {
+	if service != pluginbridge.HostServiceCron || len(cronJobs) == 0 {
+		return nil
+	}
+
+	items := make([]*v1.HostServicePermissionCronItem, 0, len(cronJobs))
+	for _, cronJob := range cronJobs {
+		items = append(items, &v1.HostServicePermissionCronItem{
+			Name:           cronJob.Name,
+			DisplayName:    cronJob.DisplayName,
+			Description:    cronJob.Description,
+			Pattern:        cronJob.Pattern,
+			Timezone:       cronJob.Timezone,
+			Scope:          string(cronJob.Scope),
+			Concurrency:    string(cronJob.Concurrency),
+			MaxConcurrency: cronJob.MaxConcurrency,
+		})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		leftKey := strings.ToLower(strings.TrimSpace(items[i].DisplayName))
+		if leftKey == "" {
+			leftKey = strings.ToLower(strings.TrimSpace(items[i].Name))
+		}
+		rightKey := strings.ToLower(strings.TrimSpace(items[j].DisplayName))
+		if rightKey == "" {
+			rightKey = strings.ToLower(strings.TrimSpace(items[j].Name))
+		}
+		if leftKey != rightKey {
+			return leftKey < rightKey
+		}
+		return strings.TrimSpace(items[i].Name) < strings.TrimSpace(items[j].Name)
+	})
 	return items
 }
 

@@ -153,6 +153,9 @@ func (s *serviceImpl) collectDynamicManagedCronJobs(
 	if catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic {
 		return nil, nil
 	}
+	if !manifestDeclaresCronHostService(manifest) {
+		return nil, nil
+	}
 	if s.dynamicCronExecutor == nil {
 		return nil, gerror.Newf("动态插件定时任务执行器未注入: %s", manifest.ID)
 	}
@@ -189,6 +192,23 @@ func (s *serviceImpl) collectDynamicManagedCronJobs(
 		})
 	}
 	return items, nil
+}
+
+// manifestDeclaresCronHostService reports whether the manifest explicitly
+// authorizes the dedicated cron host service for dynamic cron discovery.
+func manifestDeclaresCronHostService(manifest *catalog.Manifest) bool {
+	if manifest == nil {
+		return false
+	}
+	for _, service := range manifest.HostServices {
+		if service == nil {
+			continue
+		}
+		if strings.TrimSpace(service.Service) == pluginbridge.HostServiceCron {
+			return true
+		}
+	}
+	return false
 }
 
 // ListManagedCronJobs returns all plugin-owned cron definitions for

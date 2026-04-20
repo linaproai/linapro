@@ -52,6 +52,7 @@ const hostServiceCards = computed(() => {
         ? `plugin-host-service-auth-item-${currentPlugin.value.id}-${service}`
         : undefined;
     },
+    targetSummaryBadgeColor: 'gold',
   });
 });
 

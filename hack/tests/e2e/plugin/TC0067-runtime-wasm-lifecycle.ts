@@ -981,6 +981,42 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await expect(pluginPage.pluginRow(bundledRuntimePluginID)).toBeVisible();
 
     await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
+    const hostServiceAuthModal = pluginPage.hostServiceAuthModal();
+    await expect(hostServiceAuthModal).toContainText("任务服务");
+    await expect(hostServiceAuthModal).not.toContainText("申请存储路径");
+    await expect(hostServiceAuthModal).not.toContainText("申请数据表名");
+    await expect(hostServiceAuthModal).not.toContainText("申请访问地址");
+    await expect(hostServiceAuthModal).toContainText("动态插件心跳");
+    await expect(hostServiceAuthModal).toContainText("heartbeat");
+    await expect(hostServiceAuthModal).toContainText("# */10 * * * *");
+    await expect(hostServiceAuthModal).toContainText("所有节点执行");
+    await expect(hostServiceAuthModal).toContainText("单例执行");
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        "plugin-host-service-summary-label-cron-cron-review",
+      ),
+    ).toHaveCount(0);
+    await expect(
+      hostServiceAuthModal.getByTestId(
+        `plugin-host-service-auth-list-${bundledRuntimePluginID}-cron`,
+      ),
+    ).toBeVisible();
+    const cronItem = hostServiceAuthModal.getByTestId(
+      `plugin-host-service-auth-item-${bundledRuntimePluginID}-cron-heartbeat`,
+    );
+    await expect(cronItem).toContainText("动态插件心跳");
+    await expect(cronItem).toContainText("表达式：");
+    await expect(cronItem).toContainText("调度范围：");
+    await expect(cronItem).toContainText("并发策略：");
+    const cronLabelFontWeight = await cronItem
+      .locator("span", { hasText: "表达式：" })
+      .first()
+      .evaluate((node) => Number.parseInt(getComputedStyle(node).fontWeight, 10));
+    expect(cronLabelFontWeight).toBeGreaterThanOrEqual(600);
+    const hostServiceAuthText = await hostServiceAuthModal.innerText();
+    expect(hostServiceAuthText.indexOf("任务服务")).toBeLessThan(
+      hostServiceAuthText.indexOf("运行时服务"),
+    );
     await pluginPage.confirmHostServiceAuthorization();
     await expect
       .poll(

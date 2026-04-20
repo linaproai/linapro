@@ -8,6 +8,10 @@ interface Props {
 }
 
 defineProps<Props>();
+
+function hasPanelTargets(card: HostServiceCardView['scopes'][number]) {
+  return card.targets.some((target) => target.variant === 'panel');
+}
 </script>
 
 <template>
@@ -50,9 +54,10 @@ defineProps<Props>();
 
           <div
             v-if="scope.targets.length > 0"
-            class="flex flex-wrap items-center gap-2"
+            :class="hasPanelTargets(scope) ? 'flex flex-col gap-2' : 'flex flex-wrap items-center gap-2'"
           >
             <Tag
+              v-if="scope.targetSummaryLabel"
               :data-testid="`plugin-host-service-summary-label-${card.service}-${scope.key}`"
               :color="scope.targetSummaryBadgeColor"
             >
@@ -60,19 +65,55 @@ defineProps<Props>();
             </Tag>
             <div
               :data-testid="scope.containerTestId"
-              class="flex flex-wrap items-center gap-2"
+              :class="
+                hasPanelTargets(scope)
+                  ? 'flex flex-wrap items-start gap-2'
+                  : 'flex flex-wrap items-center gap-2'
+              "
             >
-              <Tag
+              <template
                 v-for="target in scope.targets"
                 :key="`${scope.key}-${target.testIdValue}`"
-                :data-testid="
-                  scope.itemTestIdPrefix
-                    ? `${scope.itemTestIdPrefix}-${target.testIdValue}`
-                    : undefined
-                "
               >
-                {{ target.label }}
-              </Tag>
+                <div
+                  v-if="target.variant === 'panel'"
+                  :data-testid="
+                    scope.itemTestIdPrefix
+                      ? `${scope.itemTestIdPrefix}-${target.testIdValue}`
+                      : undefined
+                  "
+                  class="min-w-[260px] max-w-full rounded-md border border-[var(--ant-color-border-secondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2"
+                >
+                  <div class="text-[13px] font-medium text-[var(--ant-color-text)]">
+                    {{ target.label }}
+                  </div>
+                  <div
+                    v-if="target.details?.length"
+                    class="mt-1 flex flex-col gap-1 text-[12px] leading-6 text-[var(--ant-color-text-secondary)]"
+                  >
+                    <div
+                      v-for="detail in target.details"
+                      :key="`${target.testIdValue}-${detail.label}`"
+                      class="break-words"
+                    >
+                      <span class="font-semibold text-[var(--ant-color-text)]">
+                        {{ detail.label }}：
+                      </span>
+                      <span>{{ detail.value }}</span>
+                    </div>
+                  </div>
+                </div>
+                <Tag
+                  v-else
+                  :data-testid="
+                    scope.itemTestIdPrefix
+                      ? `${scope.itemTestIdPrefix}-${target.testIdValue}`
+                      : undefined
+                  "
+                >
+                  {{ target.label }}
+                </Tag>
+              </template>
             </div>
           </div>
 

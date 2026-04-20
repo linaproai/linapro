@@ -2,9 +2,11 @@ package plugin
 
 import (
 	"context"
+	"strings"
 
 	"lina-core/api/plugin/v1"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -25,9 +27,11 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		ctx,
 		collectPluginDataAuthorizationTables(out.List),
 	)
+	managedCronJobsByPlugin := c.buildManagedCronJobMap(ctx, out.List)
 
 	items := make([]*v1.PluginItem, 0, len(out.List))
 	for _, item := range out.List {
+		managedCronJobs := managedCronJobsByPlugin[item.Id]
 		items = append(items, &v1.PluginItem{
 			Id:                    item.Id,
 			Name:                  item.Name,
@@ -44,15 +48,48 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			RequestedHostServices: buildHostServicePermissionItems(
 				item.RequestedHostServices,
 				tableComments,
+				managedCronJobs,
 			),
 			AuthorizedHostServices: buildHostServicePermissionItems(
 				item.AuthorizedHostServices,
 				tableComments,
+				managedCronJobs,
 			),
 		})
 	}
 
 	return &v1.ListRes{List: items, Total: out.Total}, nil
+}
+
+// buildManagedCronJobMap loads plugin-owned cron declarations for plugins that
+// expose the cron host service, so the review UI can present the discovered
+// task summaries without blocking the list API on optional failures.
+func (c *ControllerV1) buildManagedCronJobMap(
+	ctx context.Context,
+	items []*pluginsvc.PluginItem,
+) map[string][]pluginsvc.ManagedCronJob {
+	result := make(map[string][]pluginsvc.ManagedCronJob)
+	for _, item := range items {
+		if item == nil || strings.TrimSpace(item.Id) == "" {
+			continue
+		}
+		if !pluginUsesCronHostService(item.RequestedHostServices) &&
+			!pluginUsesCronHostService(item.AuthorizedHostServices) {
+			continue
+		}
+		managedCronJobs, err := c.pluginSvc.ListManagedCronJobsByPlugin(ctx, item.Id)
+		if err != nil {
+			logger.Warningf(
+				ctx,
+				"load plugin managed cron jobs failed plugin=%s err=%v",
+				item.Id,
+				err,
+			)
+			continue
+		}
+		result[item.Id] = managedCronJobs
+	}
+	return result
 }
 
 // collectPluginDataAuthorizationTables gathers the unique host data-table names
@@ -89,6 +126,20 @@ func collectHostServiceTables(
 			*tables = append(*tables, table)
 		}
 	}
+}
+
+// pluginUsesCronHostService reports whether the supplied host-service set
+// contains the dedicated cron registration service.
+func pluginUsesCronHostService(specs []*pluginbridge.HostServiceSpec) bool {
+	for _, spec := range specs {
+		if spec == nil {
+			continue
+		}
+		if strings.TrimSpace(spec.Service) == pluginbridge.HostServiceCron {
+			return true
+		}
+	}
+	return false
 }
 
 // boolToInt converts a boolean flag into the legacy integer representation used

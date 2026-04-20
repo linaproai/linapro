@@ -33,12 +33,24 @@ export interface HostServicePermissionItem {
   paths?: string[];
   tables?: string[];
   tableItems?: HostServicePermissionTableItem[];
+  cronItems?: HostServicePermissionCronItem[];
   resources?: HostServicePermissionResourceItem[];
 }
 
 export interface HostServicePermissionTableItem {
   name: string;
   comment?: string;
+}
+
+export interface HostServicePermissionCronItem {
+  name: string;
+  displayName?: string;
+  description?: string;
+  pattern: string;
+  timezone?: string;
+  scope: string;
+  concurrency: string;
+  maxConcurrency?: number;
 }
 
 export interface HostServicePermissionResourceItem {

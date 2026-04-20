@@ -271,9 +271,12 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).toContainText("网络服务");
     await expect(hostServiceAuthModal).toContainText("运行时服务");
     await expect(hostServiceAuthModal).toContainText("申请清单");
-    await expect(hostServiceAuthModal).toContainText("申请存储路径");
-    await expect(hostServiceAuthModal).toContainText("申请数据表名");
-    await expect(hostServiceAuthModal).toContainText("申请访问地址");
+    await expect(hostServiceAuthModal).toContainText("存储路径");
+    await expect(hostServiceAuthModal).toContainText("数据表名");
+    await expect(hostServiceAuthModal).toContainText("访问地址");
+    await expect(hostServiceAuthModal).not.toContainText("申请存储路径");
+    await expect(hostServiceAuthModal).not.toContainText("申请数据表名");
+    await expect(hostServiceAuthModal).not.toContainText("申请访问地址");
     await expect(hostServiceAuthModal).toContainText(storagePath);
     await expect(hostServiceAuthModal).toContainText(
       `${dataTableName} (${dataTableComment})`,
@@ -348,6 +351,12 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).not.toContainText(
       "当前服务未声明需要单独勾选的资源，宿主将按服务级方法摘要治理。",
     );
+    const authEffectiveScopeBackground = await hostServiceAuthModal
+      .getByTestId("plugin-host-service-scope-label-storage-storage-review")
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
+    const authSummaryScopeBackground = await hostServiceAuthModal
+      .getByTestId("plugin-host-service-summary-label-storage-storage-review")
+      .evaluate((node) => getComputedStyle(node).backgroundColor);
     const installModalText = await hostServiceAuthModal.innerText();
     expect(installModalText.indexOf("数据服务")).toBeGreaterThanOrEqual(0);
     expect(installModalText.indexOf("数据服务")).toBeLessThan(
@@ -395,10 +404,14 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await pluginPage.openPluginDetail(pluginID);
     const detailModal = pluginPage.pluginDetailModal();
     await expect(detailModal).toContainText("宿主服务信息");
-    await expect(detailModal).toContainText("当前生效范围");
-    await expect(detailModal).toContainText("授权存储路径");
-    await expect(detailModal).toContainText("授权数据表名");
-    await expect(detailModal).toContainText("授权访问地址");
+    await expect(detailModal).toContainText("生效范围");
+    await expect(detailModal).not.toContainText("当前生效范围");
+    await expect(detailModal).toContainText("存储路径");
+    await expect(detailModal).toContainText("数据表名");
+    await expect(detailModal).toContainText("访问地址");
+    await expect(detailModal).not.toContainText("授权存储路径");
+    await expect(detailModal).not.toContainText("授权数据表名");
+    await expect(detailModal).not.toContainText("授权访问地址");
     await expect(detailModal).toContainText(
       "申请清单表示插件当前版本声明的宿主服务范围；授权快照表示宿主管理员对当前 release 最终确认并实际生效的授权结果。",
     );
@@ -417,6 +430,8 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     const summaryScopeBackground = await detailModal
       .getByTestId("plugin-host-service-summary-label-storage-storage-effective")
       .evaluate((node) => getComputedStyle(node).backgroundColor);
+    expect(authEffectiveScopeBackground).toBe(effectiveScopeBackground);
+    expect(authSummaryScopeBackground).toBe(summaryScopeBackground);
     expect(summaryScopeBackground).not.toBe(effectiveScopeBackground);
     const summaryTop = await detailModal
       .getByTestId("plugin-host-service-summary-label-storage-storage-effective")
