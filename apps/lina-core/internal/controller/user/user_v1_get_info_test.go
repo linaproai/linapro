@@ -14,19 +14,31 @@ import (
 func TestResolveHomePathPrefersStableHostRoutes(t *testing.T) {
 	items := []*menu.MenuItem{
 		{
+			Name: "工作台",
+			Path: "dashboard",
+			Type: "D",
+			Children: []*menu.MenuItem{
+				{
+					Name: "分析页",
+					Path: "analytics",
+					Type: "M",
+				},
+				{
+					Name: "工作台",
+					Path: "workspace",
+					Type: "M",
+				},
+			},
+		},
+		{
 			Name: "动态插件示例",
 			Path: "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js",
 			Type: "M",
 		},
-		{
-			Name: "工作台",
-			Path: "/workspace",
-			Type: "M",
-		},
 	}
 
-	if got := resolveHomePath(items); got != "/workspace" {
-		t.Fatalf("expected stable host route /workspace, got %s", got)
+	if got := resolveHomePath(items); got != "/dashboard/analytics" {
+		t.Fatalf("expected stable host route /dashboard/analytics, got %s", got)
 	}
 }
 

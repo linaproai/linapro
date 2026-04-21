@@ -1,6 +1,6 @@
 -- 001: monitor-operlog schema
 
-CREATE TABLE IF NOT EXISTS sys_oper_log (
+CREATE TABLE IF NOT EXISTS plugin_monitor_operlog (
     id              INT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
     title           VARCHAR(50)   NOT NULL DEFAULT '' COMMENT '模块标题',
     oper_summary    VARCHAR(200)  NOT NULL DEFAULT '' COMMENT '操作摘要',

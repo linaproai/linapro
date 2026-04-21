@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义服务器监控数据的采集、存储、清理与展示行为，确保系统能够持续观察各节点的运行状态并支持排障与容量分析。
+定义由 `monitor-server` 源码插件提供的服务器监控数据采集、存储、清理与展示行为，确保系统能够持续观察各节点的运行状态并支持排障与容量分析。
 ## Requirements
 ### Requirement: 服务器指标定时采集
 
@@ -10,7 +10,7 @@
 
 #### Scenario: 定时采集写入数据库
 - **WHEN** 定时任务触发（默认每 30 秒）
-- **THEN** 系统通过 gopsutil 采集当前节点的 CPU、内存、磁盘、网络流量指标，连同 Go 运行时信息和节点标识（hostname + IP），以 JSON 格式写入 `sys_server_monitor` 表的一条记录
+- **THEN** 系统通过 gopsutil 采集当前节点的 CPU、内存、磁盘、网络流量指标，连同 Go 运行时信息和节点标识（hostname + IP），以 JSON 格式写入 `plugin_monitor_server` 表的一条记录
 
 #### Scenario: 服务启动后立即采集
 - **WHEN** LinaPro 服务启动

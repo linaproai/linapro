@@ -12,7 +12,7 @@ menus:
     path: /monitor/server
     component: system/plugin/dynamic-page
     perms: monitor:server:list
-    icon: lucide:activity
+    icon: lucide:cpu
     type: M
     sort: 2
     remark: 系统监控插件-服务监控

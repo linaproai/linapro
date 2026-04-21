@@ -4,9 +4,9 @@ package backend
 import (
 	"context"
 
-	onlinecontroller "lina-core/pkg/plugincontroller/monitoronline"
 	"lina-core/pkg/pluginhost"
 	monitoronlineplugin "lina-plugin-monitor-online"
+	monitorcontroller "lina-plugin-monitor-online/backend/internal/controller/monitor"
 )
 
 // monitor-online plugin constants.
@@ -44,10 +44,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 				middlewares.OperLog(),
 				middlewares.Permission(),
 			)
-			group.Bind(
-				onlinecontroller.OnlineList(),
-				onlinecontroller.OnlineForceLogout(),
-			)
+			group.Bind(monitorcontroller.NewV1())
 		})
 	})
 	return nil

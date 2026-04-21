@@ -1,6 +1,6 @@
 -- 001: monitor-loginlog schema
 
-CREATE TABLE IF NOT EXISTS sys_login_log (
+CREATE TABLE IF NOT EXISTS plugin_monitor_loginlog (
     id          INT PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
     user_name   VARCHAR(50)  NOT NULL DEFAULT '' COMMENT '登录账号',
     status      TINYINT      NOT NULL DEFAULT 0  COMMENT '登录状态（0成功 1失败）',

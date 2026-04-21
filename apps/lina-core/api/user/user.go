@@ -21,6 +21,7 @@ type IUserV1 interface {
 	ImportTemplate(ctx context.Context, req *v1.ImportTemplateReq) (res *v1.ImportTemplateRes, err error)
 	GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1.GetInfoRes, err error)
 	List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error)
+	PostOptions(ctx context.Context, req *v1.PostOptionsReq) (res *v1.PostOptionsRes, err error)
 	GetProfile(ctx context.Context, req *v1.GetProfileReq) (res *v1.GetProfileRes, err error)
 	UpdateProfile(ctx context.Context, req *v1.UpdateProfileReq) (res *v1.UpdateProfileRes, err error)
 	ResetPassword(ctx context.Context, req *v1.ResetPasswordReq) (res *v1.ResetPasswordRes, err error)

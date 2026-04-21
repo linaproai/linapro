@@ -16,12 +16,15 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/gtime"
+
+	"lina-plugin-demo-source/backend/internal/dao"
+	"lina-plugin-demo-source/backend/internal/model/do"
+	entitymodel "lina-plugin-demo-source/backend/internal/model/entity"
 )
 
 // Demo-record constants define the table schema fields and paging defaults
 // used by the source-plugin sample service.
 const (
-	demoRecordTableName           = "plugin_demo_source_record"
 	demoRecordColumnID            = "id"
 	demoRecordColumnTitle         = "title"
 	demoRecordColumnContent       = "content"
@@ -124,26 +127,8 @@ type AttachmentDownloadOutput struct {
 	ContentType string
 }
 
-// demoRecordEntity is the internal record shape loaded from the source-plugin
-// sample table.
-type demoRecordEntity struct {
-	Id             int64       `json:"id"`
-	Title          string      `json:"title"`
-	Content        string      `json:"content"`
-	AttachmentName string      `json:"attachmentName"`
-	AttachmentPath string      `json:"attachmentPath"`
-	CreatedAt      *gtime.Time `json:"createdAt"`
-	UpdatedAt      *gtime.Time `json:"updatedAt"`
-}
-
-// demoRecordMutation is the DB mutation shape used for create and update
-// operations.
-type demoRecordMutation struct {
-	Title          string  `json:"title"`
-	Content        string  `json:"content"`
-	AttachmentName *string `json:"attachmentName"`
-	AttachmentPath *string `json:"attachmentPath"`
-}
+// demoRecordEntity reuses the plugin-local generated record entity.
+type demoRecordEntity = entitymodel.PluginDemoSourceRecord
 
 // ListRecords returns the paged demo records rendered by the source-plugin CRUD page.
 func (s *serviceImpl) ListRecords(ctx context.Context, in *ListRecordsInput) (out *ListRecordsOutput, err error) {
@@ -152,7 +137,7 @@ func (s *serviceImpl) ListRecords(ctx context.Context, in *ListRecordsInput) (ou
 	}
 
 	pageNum, pageSize := normalizeListPagination(in)
-	model := g.DB().Model(demoRecordTableName).Safe().Ctx(ctx)
+	model := dao.PluginDemoSourceRecord.Ctx(ctx)
 	keyword := strings.TrimSpace(in.Keyword)
 	if keyword != "" {
 		model = model.WhereLike(demoRecordColumnTitle, "%"+keyword+"%")
@@ -216,7 +201,7 @@ func (s *serviceImpl) CreateRecord(ctx context.Context, in *CreateRecordInput) (
 		}()
 	}
 
-	recordID, err := g.DB().Model(demoRecordTableName).Safe().Ctx(ctx).Data(demoRecordMutation{
+	recordID, err := dao.PluginDemoSourceRecord.Ctx(ctx).Data(do.PluginDemoSourceRecord{
 		Title:          strings.TrimSpace(in.Title),
 		Content:        strings.TrimSpace(in.Content),
 		AttachmentName: stringPointer(attachmentName),
@@ -242,7 +227,7 @@ func (s *serviceImpl) UpdateRecord(ctx context.Context, in *UpdateRecordInput) (
 		return nil, err
 	}
 
-	updateData := demoRecordMutation{
+	updateData := do.PluginDemoSourceRecord{
 		Title:          strings.TrimSpace(in.Title),
 		Content:        strings.TrimSpace(in.Content),
 		AttachmentName: stringPointer(record.AttachmentName),
@@ -271,7 +256,7 @@ func (s *serviceImpl) UpdateRecord(ctx context.Context, in *UpdateRecordInput) (
 		}()
 	}
 
-	_, err = g.DB().Model(demoRecordTableName).Safe().Ctx(ctx).
+	_, err = dao.PluginDemoSourceRecord.Ctx(ctx).
 		Where(demoRecordColumnID, in.Id).
 		Data(updateData).
 		Update()
@@ -294,7 +279,7 @@ func (s *serviceImpl) DeleteRecord(ctx context.Context, id int64) error {
 		return err
 	}
 
-	_, err = g.DB().Model(demoRecordTableName).Safe().Ctx(ctx).
+	_, err = dao.PluginDemoSourceRecord.Ctx(ctx).
 		Where(demoRecordColumnID, id).
 		Delete()
 	if err != nil {
@@ -350,7 +335,7 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 	}
 
 	var record *demoRecordEntity
-	err := g.DB().Model(demoRecordTableName).Safe().Ctx(ctx).
+	err := dao.PluginDemoSourceRecord.Ctx(ctx).
 		Where(demoRecordColumnID, id).
 		Scan(&record)
 	if err != nil {
@@ -365,7 +350,7 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 // ensureDemoRecordTableReady verifies the sample table exists before CRUD work
 // continues.
 func ensureDemoRecordTableReady(ctx context.Context) error {
-	fields, err := g.DB().TableFields(ctx, demoRecordTableName)
+	fields, err := g.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
 	if err != nil {
 		return gerror.Wrap(err, "检测源码插件示例数据表失败")
 	}
@@ -436,7 +421,7 @@ func stringPointer(value string) *string {
 // listAllAttachmentPaths returns all persisted attachment paths stored by the
 // sample records table.
 func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
-	fields, err := g.DB().TableFields(ctx, demoRecordTableName)
+	fields, err := g.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
 	if err != nil {
 		return nil, gerror.Wrap(err, "检测源码插件示例数据表失败")
 	}
@@ -444,7 +429,7 @@ func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 		return []string{}, nil
 	}
 
-	rows, err := g.DB().Model(demoRecordTableName).Safe().Ctx(ctx).
+	rows, err := dao.PluginDemoSourceRecord.Ctx(ctx).
 		Fields(demoRecordColumnAttachmentRef).
 		All()
 	if err != nil {
@@ -464,7 +449,7 @@ func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 // withRecordTransaction runs one handler inside the shared source-plugin record
 // transaction boundary.
 func withRecordTransaction(ctx context.Context, handler func(ctx context.Context, tx gdb.TX) error) error {
-	return g.DB().Transaction(ctx, handler)
+	return dao.PluginDemoSourceRecord.Transaction(ctx, handler)
 }
 
 // fileExists reports whether the path exists and points to a regular

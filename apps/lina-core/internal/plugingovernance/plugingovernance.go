@@ -45,8 +45,8 @@ func IsStableCatalogKey(menuKey string) bool {
 
 // Official source-plugin identifiers.
 const (
-	// OrgManagement provides department and post management.
-	OrgManagement = "org-management"
+	// OrgCenter provides department and post management.
+	OrgCenter = "org-center"
 	// ContentNotice provides notice management.
 	ContentNotice = "content-notice"
 	// MonitorOnline provides online-user query and force-logout governance.
@@ -60,7 +60,7 @@ const (
 )
 
 var stableParentKeys = map[string]string{
-	OrgManagement:   Org,
+	OrgCenter:       Org,
 	ContentNotice:   Content,
 	MonitorOnline:   Monitor,
 	MonitorServer:   Monitor,

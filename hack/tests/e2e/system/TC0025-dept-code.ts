@@ -4,7 +4,7 @@ import { DeptPage } from '../../pages/DeptPage';
 
 test.describe('TC0025 部门编码字段', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-management');
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
   });
 
   const suffix = Date.now();

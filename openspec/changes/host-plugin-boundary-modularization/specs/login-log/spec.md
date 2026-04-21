@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: 登录日志自动记录
-系统 SHALL 在登录成功、登录失败和登出成功等认证生命周期节点自动发射统一登录事件。`monitor-loginlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `sys_login_log` 表；插件不可用时，宿主认证链路仍正常执行。
+系统 SHALL 在登录成功、登录失败和登出成功等认证生命周期节点自动发射统一登录事件。`monitor-loginlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `plugin_monitor_loginlog` 表；插件不可用时，宿主认证链路仍正常执行。
 
 #### Scenario: 登录日志插件已启用
 - **WHEN** 用户发生登录成功、登录失败或登出成功事件，且 `monitor-loginlog` 已安装并启用

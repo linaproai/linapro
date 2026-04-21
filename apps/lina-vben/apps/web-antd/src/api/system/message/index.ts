@@ -1,4 +1,4 @@
-import type { UserMessage } from './model';
+import type { UserMessage, UserMessageDetail } from './model';
 
 import { requestClient } from '#/api/request';
 
@@ -20,6 +20,11 @@ export async function messageList(params?: {
     total: number;
   }>('/user/message', { params });
   return { items: res.list ?? [], total: res.total };
+}
+
+/** 获取消息详情 */
+export function messageInfo(id: number) {
+  return requestClient.get<UserMessageDetail>(`/user/message/${id}`);
 }
 
 /** 标记消息已读 */

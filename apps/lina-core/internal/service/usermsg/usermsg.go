@@ -12,6 +12,8 @@ import (
 
 // Service defines the usermsg service contract.
 type Service interface {
+	// Get returns one current-user message detail for preview consumption.
+	Get(ctx context.Context, id int64) (*MessageDetail, error)
 	// UnreadCount returns unread message count for current user.
 	UnreadCount(ctx context.Context) (int, error)
 	// List queries message list for current user with pagination.
@@ -84,6 +86,19 @@ type MessageItem struct {
 	IsRead     int         // Whether the message has been read
 	ReadAt     *gtime.Time // Read time
 	CreatedAt  *gtime.Time // Creation time
+}
+
+// MessageDetail defines one current-user message detail payload used by the
+// inbox preview dialog.
+type MessageDetail struct {
+	Id            int64       // Message ID
+	Title         string      // Message title
+	Type          int         // Message type: 1=Notice 2=Announcement
+	SourceType    string      // Message source type
+	SourceId      int64       // Message source ID
+	Content       string      // Renderable message body content
+	CreatedByName string      // Sender display name
+	CreatedAt     *gtime.Time // Message creation time
 }
 
 // List queries message list for current user with pagination.

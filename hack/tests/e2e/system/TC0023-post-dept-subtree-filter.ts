@@ -10,7 +10,7 @@ interface DeptTreeNode {
 
 test.describe('TC0023 岗位管理部门树子部门过滤与数量', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-management');
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
   });
 
   test('TC0023a: 选择父级部门时岗位列表包含子部门岗位', async ({

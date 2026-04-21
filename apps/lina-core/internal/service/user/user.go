@@ -158,7 +158,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	// Filter by dept via association table
 	if orgEnabled && in.DeptId != nil {
 		if *in.DeptId == 0 {
-			// Unassigned: users NOT in sys_user_dept
+			// Unassigned means users without any organization-assignment projection.
 			assignedUserIds, err := s.GetAllAssignedUserIds(ctx)
 			if err != nil {
 				return nil, err

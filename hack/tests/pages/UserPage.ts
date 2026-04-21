@@ -23,6 +23,24 @@ export class UserPage {
       .first();
   }
 
+  /** Wait until the user drawer has finished async schema/data initialization. */
+  private async waitForDrawerReady(expectedUsername: string) {
+    await this.drawer.waitFor({ state: 'visible', timeout: 10000 });
+    await this.drawer
+      .locator('.ant-spin-spinning, .ant-skeleton')
+      .waitFor({ state: 'hidden', timeout: 10000 })
+      .catch(() => {});
+
+    const usernameInput = this.drawer.getByPlaceholder('请输入用户名');
+    await usernameInput.waitFor({ state: 'visible', timeout: 10000 });
+    await expect(usernameInput).toHaveValue(expectedUsername, {
+      timeout: 10000,
+    });
+
+    await this.roleCombobox.waitFor({ state: 'visible', timeout: 10000 });
+    await this.page.waitForTimeout(200);
+  }
+
   /**
    * Resolve the main table row for the given username.
    *
@@ -30,7 +48,16 @@ export class UserPage {
    * need business data should always work with the primary data row first.
    */
   private getUserDataRow(username: string) {
-    return this.page.locator('.vxe-body--row', { hasText: username }).first();
+    return this.page.locator('.vxe-body--row:visible', { hasText: username }).first();
+  }
+
+  /** Wait for the VXE grid loading mask to settle before interacting. */
+  private async waitForGridIdle() {
+    await this.page
+      .locator('.vxe-grid.is--loading, .vxe-table.is--loading')
+      .waitFor({ state: 'hidden', timeout: 10000 })
+      .catch(() => {});
+    await this.page.waitForTimeout(300);
   }
 
   async goto() {
@@ -38,6 +65,7 @@ export class UserPage {
     await this.page.waitForLoadState('networkidle');
     // Wait for VxeGrid table to render
     await this.page.locator('.vxe-table').waitFor({ state: 'visible', timeout: 10000 });
+    await this.waitForGridIdle();
   }
 
   async createUser(
@@ -48,11 +76,7 @@ export class UserPage {
     // The "新 增" button is in the toolbar (spaced text)
     await this.page.getByRole('button', { name: /新\s*增/ }).click();
 
-    // Wait for drawer (Sheet dialog) to open
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
-    await expect(
-      this.drawer.getByPlaceholder('请输入用户名'),
-    ).toHaveValue('', { timeout: 5000 });
+    await this.waitForDrawerReady('');
 
     // Fill form fields scoped to the drawer to avoid conflict with the search form
     await this.drawer.getByPlaceholder('请输入用户名').fill(username);
@@ -65,25 +89,20 @@ export class UserPage {
     await this.drawer.getByRole('button', { name: /确\s*认/ }).click();
 
     await this.page.waitForLoadState('networkidle');
-    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await this.waitForGridIdle();
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 });
   }
 
   async editUser(username: string, fields: { nickname?: string }) {
     // VXE-Grid with fixed: 'right' action column renders buttons in a separate
     // fixed overlay DOM tree. Search for the user first to narrow to one row.
-    await this.fillSearchField('用户账号', username);
-    await this.clickSearch();
+    await this.searchByUsername(username);
 
     // With search filtering to one row, click the first visible edit button
     // Note: Ant Design adds space between Chinese chars in buttons ("编 辑")
     await this.page.getByRole('button', { name: /编\s*辑/ }).first().click();
 
-    // Wait for drawer to open
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
-    await expect(
-      this.drawer.getByPlaceholder('请输入用户名'),
-    ).toHaveValue(username, { timeout: 5000 });
+    await this.waitForDrawerReady(username);
 
     if (fields.nickname) {
       const nicknameInput = this.drawer.getByPlaceholder('请输入昵称');
@@ -96,14 +115,13 @@ export class UserPage {
     await this.drawer.getByRole('button', { name: /确\s*认/ }).click();
 
     await this.page.waitForLoadState('networkidle');
-    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await this.waitForGridIdle();
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 });
   }
 
   async deleteUser(username: string) {
     // VXE-Grid with fixed: 'right' action column - search to narrow to one row
-    await this.fillSearchField('用户账号', username);
-    await this.clickSearch();
+    await this.searchByUsername(username);
 
     await this.getUserDataRow(username).waitFor({ state: 'visible', timeout: 10000 });
 
@@ -128,15 +146,16 @@ export class UserPage {
     }
 
     await this.page.waitForLoadState('networkidle');
+    await this.waitForGridIdle();
     await this.getUserDataRow(username).waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
   }
 
   async hasUser(username: string): Promise<boolean> {
-    return this.page
-      .locator('.vxe-body--row', { hasText: username })
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
+    await this.waitForGridIdle();
+    const rowCount = await this.page
+      .locator('.vxe-body--row:visible', { hasText: username })
+      .count();
+    return rowCount > 0;
   }
 
   /** Click a column header to trigger sorting */
@@ -191,14 +210,21 @@ export class UserPage {
   async clickSearch() {
     await this.page.getByRole('button', { name: /搜\s*索/ }).first().click();
     await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await this.waitForGridIdle();
   }
 
   /** Click reset button */
   async clickReset() {
     await this.page.getByRole('button', { name: /重\s*置/ }).first().click();
     await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await this.waitForGridIdle();
+  }
+
+  /** Reset filters and search by username in a deterministic fresh state. */
+  async searchByUsername(username: string) {
+    await this.clickReset();
+    await this.fillSearchField('用户账号', username);
+    await this.clickSearch();
   }
 
   /** Click export button */
@@ -244,24 +270,21 @@ export class UserPage {
 
   /** Check if action buttons (edit/delete/more) are visible for a row */
   async hasActionButtons(username: string): Promise<boolean> {
-    await this.fillSearchField('用户账号', username);
-    await this.clickSearch();
+    await this.searchByUsername(username);
     const editBtn = this.page.getByRole('button', { name: /编\s*辑/ }).first();
     return editBtn.isVisible({ timeout: 2000 }).catch(() => false);
   }
 
   /** Check if the status switch is disabled for a row */
   async isStatusSwitchDisabled(username: string): Promise<boolean> {
-    await this.fillSearchField('用户账号', username);
-    await this.clickSearch();
+    await this.searchByUsername(username);
     const switchEl = this.page.locator('.vxe-body--row .ant-switch').first();
     return switchEl.evaluate((el) => el.classList.contains('ant-switch-disabled'));
   }
 
   /** Check if the row checkbox is disabled */
   async isCheckboxDisabled(username: string): Promise<boolean> {
-    await this.fillSearchField('用户账号', username);
-    await this.clickSearch();
+    await this.searchByUsername(username);
     const checkbox = this.page.locator('.vxe-body--row .vxe-cell--checkbox').first();
     return checkbox.evaluate((el) => el.classList.contains('is--disabled'));
   }
@@ -300,8 +323,7 @@ export class UserPage {
 
   /** Get visible role names from user list table */
   async getRoleNames(username: string): Promise<string> {
-    await this.fillSearchField('用户账号', username);
-    await this.clickSearch();
+    await this.searchByUsername(username);
 
     const row = this.getUserDataRow(username);
     await row.waitFor({ state: 'visible', timeout: 10000 });
@@ -330,10 +352,7 @@ export class UserPage {
     roleNames: string[],
   ) {
     await this.page.getByRole('button', { name: /新\s*增/ }).click();
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
-    await expect(
-      this.drawer.getByPlaceholder('请输入用户名'),
-    ).toHaveValue('', { timeout: 5000 });
+    await this.waitForDrawerReady('');
 
     await this.drawer.getByPlaceholder('请输入用户名').fill(username);
     await this.drawer.getByPlaceholder('请输入密码').fill(password);
@@ -344,24 +363,20 @@ export class UserPage {
 
     await this.drawer.getByRole('button', { name: /确\s*认/ }).click();
     await this.page.waitForLoadState('networkidle');
-    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await this.waitForGridIdle();
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 });
   }
 
   /** Edit user's roles */
   async editUserRoles(username: string, roleNames: string[]) {
-    await this.fillSearchField('用户账号', username);
-    await this.clickSearch();
+    await this.searchByUsername(username);
 
     // Ensure the searched row is rendered before interacting with the fixed
     // action column. The action buttons live in a separate fixed table, but the
     // visible edit button becomes unique once the main data row is filtered.
     await this.getUserDataRow(username).waitFor({ state: 'visible', timeout: 10000 });
     await this.page.getByRole('button', { name: /编\s*辑/ }).first().click();
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
-    await expect(
-      this.drawer.getByPlaceholder('请输入用户名'),
-    ).toHaveValue(username, { timeout: 5000 });
+    await this.waitForDrawerReady(username);
 
     // Clear existing roles first by clicking clear button
     const roleSelect = this.roleSelect;
@@ -376,7 +391,7 @@ export class UserPage {
 
     await this.drawer.getByRole('button', { name: /确\s*认/ }).click();
     await this.page.waitForLoadState('networkidle');
-    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await this.waitForGridIdle();
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 });
   }
 }

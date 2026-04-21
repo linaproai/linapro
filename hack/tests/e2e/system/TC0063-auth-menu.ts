@@ -158,6 +158,8 @@ test.describe("TC0063 登录后菜单显示", () => {
   test.beforeAll(async () => {
     const api = await createAdminApiContext();
     adminApi = api;
+    const syncResponse = await api.post('plugins/sync');
+    expect(syncResponse.ok()).toBeTruthy();
     roleMenuIds = await getMenuIdsByNames(api, ["权限管理", "用户管理"]);
     expandedRoleMenuIds = await getMenuIdsByNames(api, [
       "权限管理",
@@ -340,9 +342,14 @@ test.describe("TC0063 登录后菜单显示", () => {
     await loginPage.goto();
     await loginPage.loginAndWaitForRedirect(noRoleUsername, testUserPassword);
 
-    // Wait for page to load
     await page.waitForTimeout(2000);
-    await expect(page.getByText("未找到页面")).toBeVisible({ timeout: 5000 });
+    await expect(page).toHaveURL(/\/profile$/);
+    await expect(page.getByText("个人中心").first()).toBeVisible({
+      timeout: 5000,
+    });
+
+    const menuItems = page.getByRole("menuitem");
+    expect(await menuItems.count()).toBe(0);
   });
 
   test("TC0063d: 不同用户菜单权限差异", async ({ page }) => {

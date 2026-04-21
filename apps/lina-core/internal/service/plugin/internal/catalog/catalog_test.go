@@ -833,13 +833,13 @@ func TestValidateManifestMenusRejectsNonStableHostParent(t *testing.T) {
 // first-party source plugins are pinned to fixed host catalogs.
 func TestValidateManifestMenusRejectsOfficialPluginWrongStableParent(t *testing.T) {
 	manifest := &catalog.Manifest{
-		ID: plugingovernance.OrgManagement,
+		ID: plugingovernance.OrgCenter,
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:       "plugin:org-management:catalog",
+				Key:       "plugin:org-center:catalog",
 				Name:      "组织管理",
 				ParentKey: plugingovernance.Monitor,
-				Path:      "org-management-catalog",
+				Path:      "org-center-catalog",
 				Type:      catalog.MenuTypeDirectory.String(),
 			},
 		},
@@ -856,19 +856,19 @@ func TestValidateManifestMenusRejectsOfficialPluginWrongStableParent(t *testing.
 // children inside its own tree.
 func TestValidateManifestMenusAcceptsOfficialPluginStableParent(t *testing.T) {
 	manifest := &catalog.Manifest{
-		ID: plugingovernance.OrgManagement,
+		ID: plugingovernance.OrgCenter,
 		Menus: []*catalog.MenuSpec{
 			{
-				Key:       "plugin:org-management:catalog",
+				Key:       "plugin:org-center:catalog",
 				Name:      "组织管理",
 				ParentKey: plugingovernance.Org,
-				Path:      "org-management-catalog",
+				Path:      "org-center-catalog",
 				Type:      catalog.MenuTypeDirectory.String(),
 			},
 			{
-				Key:       "plugin:org-management:dept",
+				Key:       "plugin:org-center:dept",
 				Name:      "部门管理",
-				ParentKey: "plugin:org-management:catalog",
+				ParentKey: "plugin:org-center:catalog",
 				Path:      "/system/dept",
 				Component: "system/plugin/dynamic-page",
 				Type:      catalog.MenuTypePage.String(),

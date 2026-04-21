@@ -1,0 +1,369 @@
+// Package orgcapadapter provides the org-center implementation of the
+// host organization-capability provider contract.
+package orgcapadapter
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/gogf/gf/v2/database/gdb"
+
+	"lina-core/pkg/orgcap"
+	"lina-plugin-org-center/backend/internal/dao"
+	"lina-plugin-org-center/backend/internal/model/do"
+	entitymodel "lina-plugin-org-center/backend/internal/model/entity"
+	deptsvc "lina-plugin-org-center/backend/service/dept"
+	postsvc "lina-plugin-org-center/backend/service/post"
+)
+
+const (
+	postStatusEnabled = 1
+)
+
+// Provider implements the stable host organization-capability contract.
+type Provider struct {
+	deptSvc deptsvc.Service
+	postSvc postsvc.Service
+}
+
+// Ensure Provider implements the published organization-capability provider.
+var _ orgcap.Provider = (*Provider)(nil)
+
+// New creates and returns a new provider instance.
+func New() *Provider {
+	return &Provider{
+		deptSvc: deptsvc.New(),
+		postSvc: postsvc.New(),
+	}
+}
+
+// deptCountRow is the grouped user-count projection keyed by department.
+type deptCountRow struct {
+	DeptID int `json:"deptId"`
+	Cnt    int `json:"cnt"`
+}
+
+// ListUserDeptAssignments returns user -> department projections for the provided users.
+func (p *Provider) ListUserDeptAssignments(ctx context.Context, userIDs []int) (map[int]*orgcap.UserDeptAssignment, error) {
+	assignments := make(map[int]*orgcap.UserDeptAssignment)
+	if len(userIDs) == 0 {
+		return assignments, nil
+	}
+
+	var userDepts []*entitymodel.UserDept
+	if err := dao.UserDept.Ctx(ctx).
+		WhereIn(dao.UserDept.Columns().UserId, userIDs).
+		Scan(&userDepts); err != nil {
+		return nil, err
+	}
+
+	deptIDs := make([]int, 0, len(userDepts))
+	for _, item := range userDepts {
+		if item == nil {
+			continue
+		}
+		assignments[item.UserId] = &orgcap.UserDeptAssignment{DeptID: item.DeptId}
+		deptIDs = append(deptIDs, item.DeptId)
+	}
+	if len(deptIDs) == 0 {
+		return assignments, nil
+	}
+
+	var deptList []*entitymodel.Dept
+	if err := dao.Dept.Ctx(ctx).
+		WhereIn(dao.Dept.Columns().Id, deptIDs).
+		Scan(&deptList); err != nil {
+		return nil, err
+	}
+	for _, deptItem := range deptList {
+		if deptItem == nil {
+			continue
+		}
+		for userID, assignment := range assignments {
+			if assignment != nil && assignment.DeptID == deptItem.Id {
+				assignments[userID] = &orgcap.UserDeptAssignment{
+					DeptID:   deptItem.Id,
+					DeptName: deptItem.Name,
+				}
+			}
+		}
+	}
+	return assignments, nil
+}
+
+// GetUserIDsByDept returns user IDs associated with the given department subtree.
+func (p *Provider) GetUserIDsByDept(ctx context.Context, deptID int) ([]int, error) {
+	deptIDs, err := p.deptSvc.DescendantDeptIDs(ctx, deptID)
+	if err != nil {
+		return nil, err
+	}
+
+	var userDepts []*entitymodel.UserDept
+	if err = dao.UserDept.Ctx(ctx).
+		WhereIn(dao.UserDept.Columns().DeptId, deptIDs).
+		Scan(&userDepts); err != nil {
+		return nil, err
+	}
+
+	seen := make(map[int]struct{}, len(userDepts))
+	ids := make([]int, 0, len(userDepts))
+	for _, item := range userDepts {
+		if item == nil {
+			continue
+		}
+		if _, ok := seen[item.UserId]; ok {
+			continue
+		}
+		seen[item.UserId] = struct{}{}
+		ids = append(ids, item.UserId)
+	}
+	return ids, nil
+}
+
+// GetAllAssignedUserIDs returns all user IDs that currently hold department assignments.
+func (p *Provider) GetAllAssignedUserIDs(ctx context.Context) ([]int, error) {
+	var userDepts []*entitymodel.UserDept
+	if err := dao.UserDept.Ctx(ctx).
+		Fields(dao.UserDept.Columns().UserId).
+		Distinct().
+		Scan(&userDepts); err != nil {
+		return nil, err
+	}
+
+	ids := make([]int, 0, len(userDepts))
+	for _, item := range userDepts {
+		if item == nil {
+			continue
+		}
+		ids = append(ids, item.UserId)
+	}
+	return ids, nil
+}
+
+// GetUserDeptInfo returns one user's department projection.
+func (p *Provider) GetUserDeptInfo(ctx context.Context, userID int) (int, string, error) {
+	var userDept *entitymodel.UserDept
+	if err := dao.UserDept.Ctx(ctx).
+		Where(dao.UserDept.Columns().UserId, userID).
+		Scan(&userDept); err != nil || userDept == nil {
+		return 0, "", err
+	}
+
+	var deptItem *entitymodel.Dept
+	if err := dao.Dept.Ctx(ctx).
+		Where(dao.Dept.Columns().Id, userDept.DeptId).
+		Scan(&deptItem); err != nil || deptItem == nil {
+		return 0, "", err
+	}
+	return deptItem.Id, deptItem.Name, nil
+}
+
+// GetUserDeptIDs returns one user's department identifier list.
+func (p *Provider) GetUserDeptIDs(ctx context.Context, userID int) ([]int, error) {
+	var userDepts []*entitymodel.UserDept
+	if err := dao.UserDept.Ctx(ctx).
+		Where(dao.UserDept.Columns().UserId, userID).
+		Scan(&userDepts); err != nil {
+		return nil, err
+	}
+
+	deptIDs := make([]int, 0, len(userDepts))
+	seen := make(map[int]struct{}, len(userDepts))
+	for _, item := range userDepts {
+		if item == nil {
+			continue
+		}
+		if _, ok := seen[item.DeptId]; ok {
+			continue
+		}
+		seen[item.DeptId] = struct{}{}
+		deptIDs = append(deptIDs, item.DeptId)
+	}
+	return deptIDs, nil
+}
+
+// GetUserPostIDs returns one user's post association list.
+func (p *Provider) GetUserPostIDs(ctx context.Context, userID int) ([]int, error) {
+	var userPosts []*entitymodel.UserPost
+	if err := dao.UserPost.Ctx(ctx).
+		Where(dao.UserPost.Columns().UserId, userID).
+		Scan(&userPosts); err != nil {
+		return nil, err
+	}
+
+	ids := make([]int, 0, len(userPosts))
+	for _, item := range userPosts {
+		if item == nil {
+			continue
+		}
+		ids = append(ids, item.PostId)
+	}
+	return ids, nil
+}
+
+// ReplaceUserAssignments rewrites one user's department and post associations.
+func (p *Provider) ReplaceUserAssignments(ctx context.Context, userID int, deptID *int, postIDs []int) error {
+	return dao.UserDept.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		if _, err := tx.Model(dao.UserDept.Table()).
+			Ctx(ctx).
+			Where(dao.UserDept.Columns().UserId, userID).
+			Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Model(dao.UserPost.Table()).
+			Ctx(ctx).
+			Where(dao.UserPost.Columns().UserId, userID).
+			Delete(); err != nil {
+			return err
+		}
+
+		if deptID != nil && *deptID > 0 {
+			if _, err := tx.Model(dao.UserDept.Table()).
+				Ctx(ctx).
+				Data(do.UserDept{UserId: userID, DeptId: *deptID}).
+				Insert(); err != nil {
+				return err
+			}
+		}
+		for _, postID := range postIDs {
+			if _, err := tx.Model(dao.UserPost.Table()).
+				Ctx(ctx).
+				Data(do.UserPost{UserId: userID, PostId: postID}).
+				Insert(); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// CleanupUserAssignments deletes one user's optional organization associations.
+func (p *Provider) CleanupUserAssignments(ctx context.Context, userID int) error {
+	return dao.UserDept.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+		if _, err := tx.Model(dao.UserDept.Table()).
+			Ctx(ctx).
+			Where(dao.UserDept.Columns().UserId, userID).
+			Delete(); err != nil {
+			return err
+		}
+		if _, err := tx.Model(dao.UserPost.Table()).
+			Ctx(ctx).
+			Where(dao.UserPost.Columns().UserId, userID).
+			Delete(); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// UserDeptTree returns the optional department tree used by host user management.
+func (p *Provider) UserDeptTree(ctx context.Context) ([]*orgcap.DeptTreeNode, error) {
+	plainTree, err := p.deptSvc.Tree(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make([]deptCountRow, 0)
+	if err = dao.UserDept.Ctx(ctx).
+		Fields("dept_id, COUNT(*) AS cnt").
+		InnerJoin(
+			dao.SysUser.Table(),
+			fmt.Sprintf(
+				"%s.%s = %s.%s",
+				dao.UserDept.Table(), dao.UserDept.Columns().UserId,
+				dao.SysUser.Table(), dao.SysUser.Columns().Id,
+			),
+		).
+		Group("dept_id").
+		Scan(&counts); err != nil {
+		return nil, err
+	}
+
+	countMap := make(map[int]int, len(counts))
+	for _, item := range counts {
+		countMap[item.DeptID] = item.Cnt
+	}
+
+	nodes := convertDeptTreeNodes(plainTree)
+	applyDeptUserCount(nodes, countMap)
+
+	totalUsers, err := dao.SysUser.Ctx(ctx).Count()
+	if err != nil {
+		return nil, err
+	}
+
+	assignedUsers := 0
+	for _, item := range countMap {
+		assignedUsers += item
+	}
+
+	return append(nodes, &orgcap.DeptTreeNode{
+		Id:        0,
+		Label:     fmt.Sprintf("未分配部门(%d)", totalUsers-assignedUsers),
+		UserCount: totalUsers - assignedUsers,
+		Children:  make([]*orgcap.DeptTreeNode, 0),
+	}), nil
+}
+
+// ListPostOptions returns selectable post options for one department subtree.
+func (p *Provider) ListPostOptions(ctx context.Context, deptID *int) ([]*orgcap.PostOption, error) {
+	model := dao.Post.Ctx(ctx).Where(dao.Post.Columns().Status, postStatusEnabled)
+	if deptID != nil {
+		deptIDs, err := p.deptSvc.DescendantDeptIDs(ctx, *deptID)
+		if err != nil {
+			return nil, err
+		}
+		model = model.WhereIn(dao.Post.Columns().DeptId, deptIDs)
+	}
+
+	var posts []*entitymodel.Post
+	if err := model.OrderAsc(dao.Post.Columns().Sort).Scan(&posts); err != nil {
+		return nil, err
+	}
+
+	options := make([]*orgcap.PostOption, 0, len(posts))
+	for _, postItem := range posts {
+		if postItem == nil {
+			continue
+		}
+		options = append(options, &orgcap.PostOption{
+			PostID:   postItem.Id,
+			PostName: postItem.Name,
+		})
+	}
+	return options, nil
+}
+
+// convertDeptTreeNodes converts plugin-local tree nodes into the shared host contract.
+func convertDeptTreeNodes(nodes []*deptsvc.TreeNode) []*orgcap.DeptTreeNode {
+	result := make([]*orgcap.DeptTreeNode, 0, len(nodes))
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		result = append(result, &orgcap.DeptTreeNode{
+			Id:       node.Id,
+			Label:    node.Label,
+			Children: convertDeptTreeNodes(node.Children),
+		})
+	}
+	return result
+}
+
+// applyDeptUserCount rolls grouped department user counts up the tree and appends the count to labels.
+func applyDeptUserCount(nodes []*orgcap.DeptTreeNode, countMap map[int]int) {
+	for _, node := range nodes {
+		if node == nil {
+			continue
+		}
+		applyDeptUserCount(node.Children, countMap)
+		node.UserCount = countMap[node.Id]
+		for _, child := range node.Children {
+			if child == nil {
+				continue
+			}
+			node.UserCount += child.UserCount
+		}
+		node.Label = fmt.Sprintf("%s(%d)", node.Label, node.UserCount)
+	}
+}

@@ -4,7 +4,7 @@ import { DeptPage } from '../../pages/DeptPage';
 
 test.describe('TC0015 部门管理 CRUD', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-management');
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
   });
 
   const suffix = Date.now();

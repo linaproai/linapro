@@ -22,23 +22,37 @@ test.describe('TC0030 登录日志自动记录', () => {
     await expect(adminPage.locator('.vxe-body--row').first()).toContainText('admin');
   });
 
-  test('TC0030b: 登录失败后登录日志中记录失败日志', async ({ page }) => {
-    // First, attempt a failed login
+  test('TC0030b: 登录失败后登录日志中记录失败日志', async ({ browser }) => {
+    // The adminPage fixture used in beforeEach authenticates the default page.
+    // Use a fresh browser context here so the failed-login path starts truly
+    // unauthenticated and can reach /auth/login without redirecting away.
+    const context = await browser.newContext({ baseURL: config.baseURL });
+    const page = await context.newPage();
     const loginPage = new LoginPage(page);
-    await loginPage.goto();
-    await loginPage.login('admin', 'wrongpassword');
-    await page.waitForTimeout(2000);
 
-    // Now login correctly
-    await loginPage.loginAndWaitForRedirect(config.adminUser, config.adminPass);
+    try {
+      await loginPage.goto();
+      await loginPage.login('admin', 'wrongpassword');
+      await expect(loginPage.errorMessage).toBeVisible();
 
-    // Navigate to login log page
-    await page.goto('/monitor/loginlog');
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000);
+      // Now login correctly in the same fresh context.
+      await loginPage.loginAndWaitForRedirect(config.adminUser, config.adminPass);
 
-    // Should see login logs including the failed one
-    const rows = page.locator('.vxe-body--row');
-    await expect(rows.first()).toBeVisible();
+      // Navigate to login log page.
+      await page.goto('/monitor/loginlog');
+      await page.waitForLoadState('networkidle');
+      await page.waitForTimeout(1000);
+
+      // Should see login logs including failure-state rows.
+      const rows = page.locator('.vxe-body--row');
+      await expect(rows.first()).toBeVisible();
+      const failedRow = rows
+        .filter({ hasText: /失败|登录失败|用户名或密码错误/ })
+        .first();
+      await expect(failedRow).toBeVisible({ timeout: 10_000 });
+      await expect(failedRow).toContainText('admin');
+    } finally {
+      await context.close();
+    }
   });
 });

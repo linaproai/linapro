@@ -13,8 +13,11 @@ test.describe('TC0046 用户头像下拉菜单', () => {
     await avatarTrigger.click();
     await adminPage.waitForTimeout(500);
 
-    // Get all dropdown menu items text
-    const menuItems = adminPage.locator('[role="menuitem"]');
+    // Scope the query to the actual user dropdown so sidebar menu items do not
+    // leak into the assertion set when layout structure changes.
+    const dropdownContent = adminPage.locator('[data-reka-menu-content]');
+    await expect(dropdownContent).toBeVisible();
+    const menuItems = dropdownContent.locator('[role="menuitem"]');
     const count = await menuItems.count();
     const menuTexts: string[] = [];
     for (let i = 0; i < count; i++) {

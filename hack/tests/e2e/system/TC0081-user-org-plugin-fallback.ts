@@ -9,7 +9,7 @@ test.describe('TC-81 用户页面组织插件降级', () => {
   test('TC-81a: 组织插件停用时用户页面隐藏部门树与部门岗位字段', async ({
     adminPage,
   }) => {
-    await ensureSourcePluginDisabled(adminPage, 'org-management');
+    await ensureSourcePluginDisabled(adminPage, 'org-center');
 
     const userPage = new UserPage(adminPage);
     await userPage.goto();
@@ -27,7 +27,7 @@ test.describe('TC-81 用户页面组织插件降级', () => {
   test('TC-81b: 组织插件启用后用户页面恢复部门树与部门岗位字段', async ({
     adminPage,
   }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-management');
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
 
     const userPage = new UserPage(adminPage);
     await userPage.goto();

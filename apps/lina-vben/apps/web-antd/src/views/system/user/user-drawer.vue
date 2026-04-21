@@ -6,9 +6,14 @@ import { useVbenDrawer } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
-import { postOptionSelect } from '#/api/system/post';
 import { roleOptions } from '#/api/system/role';
-import { getDeptTree, userAdd, userInfo, userUpdate } from '#/api/system/user';
+import {
+  getDeptTree,
+  getUserPostOptions,
+  userAdd,
+  userInfo,
+  userUpdate,
+} from '#/api/system/user';
 import { useDictStore } from '#/store/dict';
 
 import { drawerSchema } from './data';
@@ -53,7 +58,7 @@ const [Form, formApi] = useVbenForm({
 });
 
 async function setupPostOptions(deptId: number | string) {
-  const postList = await postOptionSelect(Number(deptId));
+  const postList = await getUserPostOptions(Number(deptId));
   const options = postList.map((item) => ({
     label: item.postName,
     value: item.postId,

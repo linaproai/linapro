@@ -5,11 +5,11 @@ import (
 	"context"
 	"time"
 
-	servercontroller "lina-core/pkg/plugincontroller/monitorserver"
 	"lina-core/pkg/pluginhost"
 	configsvc "lina-core/pkg/pluginservice/config"
-	servermonsvc "lina-core/pkg/pluginservice/servermon"
 	monitorserverplugin "lina-plugin-monitor-server"
+	servercontroller "lina-plugin-monitor-server/backend/internal/controller/monitor"
+	monitorsvc "lina-plugin-monitor-server/backend/service/monitor"
 )
 
 // monitor-server plugin constants.
@@ -57,7 +57,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 				middlewares.OperLog(),
 				middlewares.Permission(),
 			)
-			group.Bind(servercontroller.ServerMonitor())
+			group.Bind(servercontroller.NewV1())
 		})
 	})
 	return nil
@@ -81,13 +81,13 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 
 // collectOnSystemStarted performs one eager collection after host startup so the page has an initial snapshot.
 func collectOnSystemStarted(ctx context.Context, payload pluginhost.HookPayload) error {
-	servermonsvc.New().CollectAndStore(ctx)
+	monitorsvc.New().CollectAndStore(ctx)
 	return nil
 }
 
 // collectSnapshot writes one fresh monitoring snapshot.
 func collectSnapshot(ctx context.Context) error {
-	servermonsvc.New().CollectAndStore(ctx)
+	monitorsvc.New().CollectAndStore(ctx)
 	return nil
 }
 
@@ -108,6 +108,6 @@ func cleanupSnapshots(ctx context.Context, registrar pluginhost.CronRegistrar) e
 		retentionMultiplier = 120
 	}
 
-	_, err := servermonsvc.New().CleanupStale(ctx, interval*time.Duration(retentionMultiplier))
+	_, err := monitorsvc.New().CleanupStale(ctx, interval*time.Duration(retentionMultiplier))
 	return err
 }

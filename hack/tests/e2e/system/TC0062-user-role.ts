@@ -1,7 +1,12 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { UserPage } from '../../pages/UserPage';
 
 test.describe('TC0062 用户角色关联', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
+  });
+
   const testPassword = 'test123456';
   const testNickname = 'E2E用户角色测试';
   const initialRoleName = '普通用户';
@@ -11,8 +16,13 @@ test.describe('TC0062 用户角色关联', () => {
     return `e2e_user_role_${scope}_${Date.now()}`;
   }
 
-  async function deleteUserIfExists(userPage: UserPage, username: string) {
+  async function searchUser(userPage: UserPage, username: string) {
     await userPage.goto();
+    await userPage.searchByUsername(username);
+  }
+
+  async function deleteUserIfExists(userPage: UserPage, username: string) {
+    await searchUser(userPage, username);
     const hasUser = await userPage.hasUser(username);
     if (hasUser) {
       await userPage.deleteUser(username);
@@ -35,9 +45,7 @@ test.describe('TC0062 用户角色关联', () => {
         [initialRoleName],
       );
 
-      await userPage.goto();
-      await userPage.fillSearchField('用户账号', testUsername);
-      await userPage.clickSearch();
+      await searchUser(userPage, testUsername);
       expect(await userPage.hasUser(testUsername)).toBeTruthy();
     } finally {
       await deleteUserIfExists(userPage, testUsername);
@@ -57,12 +65,7 @@ test.describe('TC0062 用户角色关联', () => {
         [initialRoleName],
       );
 
-      // Search for the test user in a fresh list state and verify the visible
-      // role column reflects the assigned role.
-      await userPage.goto();
-      await userPage.fillSearchField('用户账号', testUsername);
-      await userPage.clickSearch();
-
+      await searchUser(userPage, testUsername);
       const hasUser = await userPage.hasUser(testUsername);
       expect(hasUser).toBeTruthy();
 
@@ -91,9 +94,7 @@ test.describe('TC0062 用户角色关联', () => {
       await userPage.goto();
       await userPage.editUserRoles(testUsername, [updatedRoleName]);
 
-      await userPage.goto();
-      await userPage.fillSearchField('用户账号', testUsername);
-      await userPage.clickSearch();
+      await searchUser(userPage, testUsername);
       const hasUser = await userPage.hasUser(testUsername);
       expect(hasUser).toBeTruthy();
 
@@ -113,14 +114,12 @@ test.describe('TC0062 用户角色关联', () => {
     await userPage.createUser(cleanupUsername, testPassword, 'E2E清理测试');
 
     // Delete the user
-    await userPage.goto();
-    await userPage.fillSearchField('用户账号', cleanupUsername);
-    await userPage.clickSearch();
+    await searchUser(userPage, cleanupUsername);
     expect(await userPage.hasUser(cleanupUsername)).toBeTruthy();
     await userPage.deleteUser(cleanupUsername);
 
     // Verify user is deleted
-    await userPage.goto();
+    await searchUser(userPage, cleanupUsername);
     const hasUser = await userPage.hasUser(cleanupUsername);
     expect(hasUser).toBeFalsy();
   });

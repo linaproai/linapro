@@ -16,7 +16,7 @@ LinaPro currently ships three plugin references in this directory:
 
 The repository currently includes these first-party source plugins:
 
-- `org-management`: department management and post management
+- `org-center`: department management and post management
 - `content-notice`: notice management
 - `monitor-online`: online user query and force logout
 - `monitor-server`: server monitor collection, cleanup, and query
@@ -42,7 +42,7 @@ The host and source plugins are intentionally decoupled through stable seams ins
 
 - The host owns stable top-level menu catalogs such as `dashboard`, `iam`, `setting`, `scheduler`, `extension`, and `developer`.
 - Plugin menus may mount only under published host catalog keys or inside the plugin's own menu tree.
-- Official plugins have fixed mount points: `org-management -> org`, `content-notice -> content`, and all monitor plugins -> `monitor`.
+- Official plugins have fixed mount points: `org-center -> org`, `content-notice -> content`, and all monitor plugins -> `monitor`.
 - The host publishes stable capability seams for optional collaboration, such as auth events, audit events, org capability access, and plugin lifecycle hooks.
 - Plugin-owned tables, menus, pages, hooks, and cron jobs live in the plugin directory and are installed or removed through the plugin lifecycle.
 

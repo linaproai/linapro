@@ -18,7 +18,7 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 
 	expectedPaths := []string{
 		"manifest/sql/001-project-init.sql",
-		"manifest/sql/mock-data/001-mock-depts.sql",
+		"manifest/sql/mock-data/003-mock-users.sql",
 		"manifest/config/metadata.yaml",
 		"manifest/config/config.template.yaml",
 	}

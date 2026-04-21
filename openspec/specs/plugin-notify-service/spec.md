@@ -5,11 +5,11 @@ TBD - created by archiving change dynamic-plugin-host-service-extension. Update 
 ## Requirements
 ### Requirement: 宿主通知域与通知公告内容管理解耦
 
-系统 SHALL 将宿主通知域设计为独立于 `sys_notice` 的统一通知发送与投递模型；`sys_notice` 继续负责通知公告内容管理，消息中心与插件 `notify` 能力统一基于新的通知域表实现，不再继续使用 `sys_user_message`。
+系统 SHALL 将宿主通知域设计为独立于 `content-notice` 插件中 `plugin_content_notice` 公告内容模型的统一通知发送与投递模型；通知公告内容管理继续由该插件负责，消息中心与插件 `notify` 能力统一基于新的通知域表实现，不再继续使用 `sys_user_message`。
 
 #### Scenario: 发布通知公告时走统一通知域
 
-- **WHEN** 宿主将一条 `sys_notice` 从草稿发布为生效状态
+- **WHEN** `content-notice` 将一条 `plugin_content_notice` 从草稿发布为生效状态
 - **THEN** 宿主通过统一的 `notify` 服务创建消息主记录与 inbox 投递记录
 - **AND** 宿主不得继续直接写入 `sys_user_message`
 
@@ -34,4 +34,3 @@ TBD - created by archiving change dynamic-plugin-host-service-extension. Update 
 - **WHEN** 插件调用一个未授权的通知通道
 - **THEN** 宿主拒绝该调用
 - **AND** 宿主不向 guest 暴露宿主通知后端实现细节
-

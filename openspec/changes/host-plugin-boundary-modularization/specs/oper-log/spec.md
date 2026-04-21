@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: 操作日志自动记录
-系统 SHALL 在宿主审计链路中对所有写操作（POST/PUT/DELETE）以及标记了 `operLog` 标签的查询操作自动发射统一审计事件。`monitor-operlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `sys_oper_log` 表；插件不可用时，宿主核心请求链路仍正常执行。
+系统 SHALL 在宿主审计链路中对所有写操作（POST/PUT/DELETE）以及标记了 `operLog` 标签的查询操作自动发射统一审计事件。`monitor-operlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `plugin_monitor_operlog` 表；插件不可用时，宿主核心请求链路仍正常执行。
 
 #### Scenario: 操作日志插件已启用
 - **WHEN** 用户发起受审计的请求且 `monitor-operlog` 已安装并启用

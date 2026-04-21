@@ -2,36 +2,46 @@
 
 ## Purpose
 
-定义操作日志的自动记录、查询、删除与导出行为，确保系统关键写操作和指定读操作都具备可追踪、可审计的操作留痕能力。
+定义由 `monitor-operlog` 源码插件承接的操作日志自动记录、查询、删除与导出行为，确保系统关键写操作和指定读操作都具备可追踪、可审计的操作留痕能力。
 
 ## Requirements
 
 ### Requirement: 操作日志自动记录
-系统 SHALL 通过中间件自动记录所有写操作（POST/PUT/DELETE）以及标记了 `operLog` 标签的查询操作到 `sys_oper_log` 表。普通 GET 查询请求不记录。
+系统 SHALL 在宿主审计链路中对所有写操作（POST/PUT/DELETE）以及标记了 `operLog` 标签的查询操作自动发射统一审计事件。`monitor-operlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `plugin_monitor_operlog` 表；插件不可用时，宿主核心请求链路仍正常执行。
 
 #### Scenario: POST 请求自动记录为新增操作
-- **WHEN** 用户发起 `POST` 请求（如创建用户 `POST /api/v1/user`）
-- **THEN** 系统自动写入一条操作日志，`oper_type` 为 1（新增），`title` 从 `g.Meta` 的 `tags` 字段获取，`oper_name` 为当前登录用户名
+- **WHEN** 用户发起 `POST` 请求（如创建用户 `POST /api/v1/user`），且 `monitor-operlog` 已安装并启用
+- **THEN** 宿主发射统一审计事件
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 1（新增），`title` 从 `g.Meta` 的 `tags` 字段获取，`oper_name` 为当前登录用户名
 
 #### Scenario: PUT 请求自动记录为修改操作
-- **WHEN** 用户发起 `PUT` 请求（如修改用户 `PUT /api/v1/user/1`）
-- **THEN** 系统自动写入一条操作日志，`oper_type` 为 2（修改）
+- **WHEN** 用户发起 `PUT` 请求（如修改用户 `PUT /api/v1/user/1`），且 `monitor-operlog` 已安装并启用
+- **THEN** 宿主发射统一审计事件
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 2（修改）
 
 #### Scenario: DELETE 请求自动记录为删除操作
-- **WHEN** 用户发起 `DELETE` 请求（如删除用户 `DELETE /api/v1/user/1`）
-- **THEN** 系统自动写入一条操作日志，`oper_type` 为 3（删除）
+- **WHEN** 用户发起 `DELETE` 请求（如删除用户 `DELETE /api/v1/user/1`），且 `monitor-operlog` 已安装并启用
+- **THEN** 宿主发射统一审计事件
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 3（删除）
 
 #### Scenario: 标记的 GET 请求记录为导出操作
-- **WHEN** 用户发起带 `operLog` 标签的 GET 请求（如导出用户 `GET /api/v1/user/export`）
-- **THEN** 系统自动写入一条操作日志，`oper_type` 从 `operLog` 标签值获取（如 4=导出）
+- **WHEN** 用户发起带 `operLog` 标签的 GET 请求（如导出用户 `GET /api/v1/user/export`），且 `monitor-operlog` 已安装并启用
+- **THEN** 宿主发射统一审计事件
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 从 `operLog` 标签值获取（如 4=导出）
 
 #### Scenario: 普通 GET 请求不记录
 - **WHEN** 用户发起未标记 `operLog` 的 GET 请求（如查询用户列表 `GET /api/v1/user`）
 - **THEN** 系统不写入操作日志
 
 #### Scenario: 导入请求记录为导入操作
-- **WHEN** 用户发起 POST 请求且路径包含 `import`（如 `POST /api/v1/user/import`）
-- **THEN** 系统自动写入一条操作日志，`oper_type` 为 5（导入）
+- **WHEN** 用户发起 POST 请求且路径包含 `import`（如 `POST /api/v1/user/import`），且 `monitor-operlog` 已安装并启用
+- **THEN** 宿主发射统一审计事件
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 5（导入）
+
+#### Scenario: 操作日志插件缺失或停用
+- **WHEN** 用户发起受审计的请求，但 `monitor-operlog` 未安装、未启用或初始化失败
+- **THEN** 宿主仍然正常完成原始业务请求
+- **AND** 宿主不因缺少具体操作日志落库实现而返回错误
 
 ### Requirement: 操作日志记录内容
 系统 SHALL 记录以下操作信息：模块名称（title，来自 `g.Meta` 的 `tags` 标签）、操作名称（oper_summary，来自 `g.Meta` 的 `summary` 标签）、操作类型（oper_type）、请求方法（request_method）、请求路由（method）、请求URL（oper_url）、操作人用户名（oper_name）、操作IP（oper_ip）、请求参数（oper_param）、响应结果（json_result）、操作状态（status）、错误信息（error_msg）、耗时（cost_time）、操作时间（oper_time）。
@@ -104,7 +114,7 @@
 - **THEN** 返回包含所有操作日志的 xlsx 文件
 
 ### Requirement: 操作日志前端页面
-系统 SHALL 在前端系统监控菜单下提供操作日志管理页面。
+系统 SHALL 通过 `monitor-operlog` 源码插件在前端系统监控菜单下提供操作日志管理页面。
 
 #### Scenario: 操作日志列表页
 - **WHEN** 管理员访问操作日志页面

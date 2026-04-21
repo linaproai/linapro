@@ -70,8 +70,11 @@ export class NoticePage {
     await this.fillSearchField('公告标题', searchTitle);
     await this.clickSearch();
 
-    await this.page
-      .getByRole('button', { name: /编\s*辑/ })
+    const row = this.page.locator('.vxe-body--row:visible', { hasText: searchTitle });
+    await row.first().waitFor({ state: 'visible', timeout: 10000 });
+    await row
+      .locator('button:visible')
+      .filter({ hasText: /编\s*辑/ })
       .first()
       .click();
 
@@ -97,8 +100,10 @@ export class NoticePage {
     await this.fillSearchField('公告标题', title);
     await this.clickSearch();
 
-    await this.page
-      .locator('.ant-btn-sm')
+    const row = this.page.locator('.vxe-body--row:visible', { hasText: title });
+    await row.first().waitFor({ state: 'visible', timeout: 10000 });
+    await row
+      .locator('button:visible')
       .filter({ hasText: /删\s*除/ })
       .first()
       .click();
@@ -118,8 +123,10 @@ export class NoticePage {
 
   /** Check if a notice with the given title is visible */
   async hasNotice(title: string): Promise<boolean> {
+    await this.fillSearchField('公告标题', title);
+    await this.clickSearch();
     return this.page
-      .locator('.vxe-body--row', { hasText: title })
+      .locator('.vxe-body--row:visible', { hasText: title })
       .first()
       .isVisible({ timeout: 5000 })
       .catch(() => false);

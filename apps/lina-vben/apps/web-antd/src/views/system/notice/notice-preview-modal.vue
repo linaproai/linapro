@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { UserMessageDetail } from '#/api/system/message/model';
 import type { Notice } from '#/api/system/notice/model';
 
 import { computed, ref } from 'vue';
@@ -7,14 +8,38 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { Descriptions, DescriptionsItem } from 'ant-design-vue';
 
+import { messageInfo } from '#/api/system/message';
 import { noticeInfo } from '#/api/system/notice';
 import { DictTag } from '#/components/dict';
 import { useDictStore } from '#/store/dict';
 
-const notice = ref<Notice | null>(null);
+type PreviewNotice = Pick<
+  Notice,
+  'createdAt' | 'createdByName' | 'content' | 'title' | 'type'
+> & {
+  id: number;
+  sourceId?: UserMessageDetail['sourceId'];
+  sourceType?: UserMessageDetail['sourceType'];
+};
+
+const notice = ref<PreviewNotice | null>(null);
 const dictStore = useDictStore();
 const noticeTypeDicts = ref<any[]>([]);
 const title = computed(() => notice.value?.title ?? '预览通知公告');
+
+const fallbackNoticeTypeDicts = [
+  { label: '通知', value: '1' },
+  { label: '公告', value: '2' },
+];
+
+async function loadNoticeTypeDicts() {
+  try {
+    noticeTypeDicts.value =
+      await dictStore.getDictOptionsAsync('sys_notice_type');
+  } catch {
+    noticeTypeDicts.value = fallbackNoticeTypeDicts;
+  }
+}
 
 const [Modal, modalApi] = useVbenModal({
   class: 'w-[800px]',
@@ -23,12 +48,15 @@ const [Modal, modalApi] = useVbenModal({
   onOpenChange: async (isOpen: boolean) => {
     if (!isOpen) return;
     const data = modalApi.getData();
-    if (data?.id) {
+    if (data?.id || data?.messageId) {
       modalApi.setState({ loading: true });
       try {
-        noticeTypeDicts.value =
-          await dictStore.getDictOptionsAsync('sys_notice_type');
-        notice.value = await noticeInfo(data.id);
+        await loadNoticeTypeDicts();
+        if (data?.messageId) {
+          notice.value = await messageInfo(data.messageId);
+        } else {
+          notice.value = await noticeInfo(data.id);
+        }
       } finally {
         modalApi.setState({ loading: false });
       }

@@ -4,7 +4,7 @@ import { UserPage } from '../../pages/UserPage';
 
 test.describe('TC0020 用户表单部门岗位字段', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-management');
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
   });
 
   test('TC0020a: 用户编辑表单包含部门和岗位字段', async ({ adminPage }) => {
@@ -44,7 +44,9 @@ test.describe('TC0020 用户表单部门岗位字段', () => {
 
     // Set up request interception for post list when dept changes
     const requestPromise = adminPage.waitForRequest(
-      (req) => req.url().includes('/api/v1/post') && req.method() === 'GET',
+      (req) =>
+        req.url().includes('/api/v1/user/post-options') &&
+        req.method() === 'GET',
       { timeout: 15000 },
     );
 
@@ -62,6 +64,6 @@ test.describe('TC0020 用户表单部门岗位字段', () => {
 
     // Verify that a post-related API request was triggered after dept selection
     const request = await requestPromise;
-    expect(request.url()).toContain('/api/v1/post');
+    expect(request.url()).toContain('/api/v1/user/post-options');
   });
 });

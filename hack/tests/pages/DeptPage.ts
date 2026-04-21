@@ -26,6 +26,33 @@ export class DeptPage {
     await this.page.waitForTimeout(500);
   }
 
+  /** Fill the search form field by label */
+  async fillSearchField(label: string, value: string) {
+    const input = this.page.getByLabel(label, { exact: true }).first();
+    await input.clear();
+    await input.fill(value);
+  }
+
+  /** Click search/query button */
+  async clickSearch() {
+    await this.page
+      .getByRole('button', { name: /搜\s*索/ })
+      .first()
+      .click();
+    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForTimeout(500);
+  }
+
+  /** Click reset button */
+  async clickReset() {
+    await this.page
+      .getByRole('button', { name: /重\s*置/ })
+      .first()
+      .click();
+    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForTimeout(500);
+  }
+
   /** Click "折叠" toolbar button to collapse all tree nodes */
   async collapseAll() {
     await this.page
@@ -47,14 +74,12 @@ export class DeptPage {
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
 
     // Fill dept name (first text input in drawer)
-    const nameInput = this.drawer.locator('input[placeholder="请输入"]').first();
+    const nameInput = this.drawer.getByLabel('部门名称', { exact: true });
     await nameInput.fill(name);
 
-    // Fill dept code if provided (second text input in drawer)
+    // Fill dept code if provided.
     if (opts?.code) {
-      const codeInput = this.drawer
-        .locator('input[placeholder="请输入"]')
-        .nth(1);
+      const codeInput = this.drawer.getByLabel('部门编码', { exact: true });
       await codeInput.fill(opts.code);
     }
 
@@ -73,27 +98,29 @@ export class DeptPage {
     name: string,
     opts?: { code?: string },
   ) {
-    // Find the parent row and click the "新增" action button (green, btn-success)
-    const parentRow = this.page.locator('.vxe-body--row', {
+    await this.fillSearchField('部门名称', parentName);
+    await this.clickSearch();
+
+    const parentRow = this.page.locator('.vxe-body--row:visible', {
       hasText: parentName,
     });
+    await parentRow.first().waitFor({ state: 'visible', timeout: 10000 });
     await parentRow
-      .locator('.btn-success')
+      .locator('button:visible')
+      .filter({ hasText: /新\s*增/ })
       .first()
       .click();
 
     // Wait for drawer to open
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
 
-    // Fill dept name (first text input in drawer)
-    const nameInput = this.drawer.locator('input[placeholder="请输入"]').first();
+    // The drawer marks required labels with a leading "*", so match by role/name.
+    const nameInput = this.drawer.getByRole('textbox', { name: /部门名称/ });
     await nameInput.fill(name);
 
-    // Fill dept code if provided (second text input in drawer)
+    // Fill dept code if provided.
     if (opts?.code) {
-      const codeInput = this.drawer
-        .locator('input[placeholder="请输入"]')
-        .nth(1);
+      const codeInput = this.drawer.getByRole('textbox', { name: /部门编码/ });
       await codeInput.fill(opts.code);
     }
 
@@ -112,10 +139,14 @@ export class DeptPage {
     newName: string,
     opts?: { code?: string },
   ) {
-    // Find the row and click the edit button
-    const row = this.page.locator('.vxe-body--row', { hasText: deptName });
+    await this.fillSearchField('部门名称', deptName);
+    await this.clickSearch();
+
+    const row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
+    await row.first().waitFor({ state: 'visible', timeout: 10000 });
     await row
-      .getByRole('button', { name: /编\s*辑/ })
+      .locator('button:visible')
+      .filter({ hasText: /编\s*辑/ })
       .first()
       .click();
 
@@ -123,15 +154,13 @@ export class DeptPage {
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
 
     // Clear and fill the new name (first text input)
-    const nameInput = this.drawer.locator('input[placeholder="请输入"]').first();
+    const nameInput = this.drawer.getByRole('textbox', { name: /部门名称/ });
     await nameInput.clear();
     await nameInput.fill(newName);
 
-    // Fill dept code if provided (second text input)
+    // Fill dept code if provided.
     if (opts?.code) {
-      const codeInput = this.drawer
-        .locator('input[placeholder="请输入"]')
-        .nth(1);
+      const codeInput = this.drawer.getByRole('textbox', { name: /部门编码/ });
       await codeInput.clear();
       await codeInput.fill(opts.code);
     }
@@ -147,10 +176,25 @@ export class DeptPage {
 
   /** Delete a dept: find the row, click delete, confirm in Popconfirm */
   async deleteDept(deptName: string) {
-    // Find the row and click the delete ghost button
-    const row = this.page.locator('.vxe-body--row', { hasText: deptName });
+    await this.expandAll();
+    await this.fillSearchField('部门名称', deptName);
+    await this.clickSearch();
+
+    // Tree rows may be collapsed or mirrored in fixed columns; use a visible
+    // row plus a visible delete button inside that row.
+    let row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
+    const hasFilteredRow = await row
+      .first()
+      .isVisible({ timeout: 1500 })
+      .catch(() => false);
+    if (!hasFilteredRow) {
+      await this.clickReset();
+      await this.expandAll();
+      row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
+    }
+    await row.first().waitFor({ state: 'visible', timeout: 10000 });
     await row
-      .locator('.ant-btn-sm')
+      .locator('button:visible')
       .filter({ hasText: /删\s*除/ })
       .first()
       .click();
@@ -174,25 +218,43 @@ export class DeptPage {
 
   /** Check if a dept row with the given name is visible */
   async hasDept(deptName: string): Promise<boolean> {
-    return this.page
-      .locator('.vxe-body--row', { hasText: deptName })
+    await this.fillSearchField('部门名称', deptName);
+    await this.clickSearch();
+    let row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
+    const hasFilteredRow = await row
       .first()
-      .isVisible({ timeout: 5000 })
+      .isVisible({ timeout: 1500 })
       .catch(() => false);
+    if (!hasFilteredRow) {
+      await this.clickReset();
+      await this.expandAll();
+      row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
+    }
+    return row.first().isVisible({ timeout: 5000 }).catch(() => false);
   }
 
   /** Check if a dept row with the given name has the expected code */
   async hasDeptWithCode(deptName: string, code: string): Promise<boolean> {
-    const row = this.page.locator('.vxe-body--row', { hasText: deptName });
-    const hasRow = await row
+    await this.fillSearchField('部门名称', deptName);
+    await this.clickSearch();
+    let row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
+    let hasRow = await row
       .first()
-      .isVisible({ timeout: 5000 })
+      .isVisible({ timeout: 1500 })
       .catch(() => false);
-    if (!hasRow) return false;
-    return row
-      .locator('.vxe-body--column', { hasText: code })
-      .first()
-      .isVisible({ timeout: 2000 })
-      .catch(() => false);
+    if (!hasRow) {
+      await this.clickReset();
+      await this.expandAll();
+      row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
+      hasRow = await row
+        .first()
+        .isVisible({ timeout: 5000 })
+        .catch(() => false);
+      if (!hasRow) {
+        return false;
+      }
+    }
+    const rowText = await row.first().textContent();
+    return rowText?.includes(code) ?? false;
   }
 }

@@ -8,7 +8,7 @@ use (
 	./apps/lina-plugins/monitor-online
 	./apps/lina-plugins/monitor-operlog
 	./apps/lina-plugins/monitor-server
-	./apps/lina-plugins/org-management
+	./apps/lina-plugins/org-center
 	./apps/lina-plugins/plugin-demo-source
 	./apps/lina-plugins/plugin-demo-dynamic
 	./hack/build-wasm

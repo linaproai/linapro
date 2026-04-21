@@ -19,7 +19,6 @@ import {
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
-  getDeptTree,
   userDelete,
   userExport,
   userList,
@@ -38,7 +37,7 @@ import UserDrawer from './user-drawer.vue';
 import UserImportModal from './user-import-modal.vue';
 import UserResetPwdModal from './user-reset-pwd-modal.vue';
 
-const orgManagementPluginId = 'org-management';
+const orgCenterPluginId = 'org-center';
 
 const [UserDrawerRef, userDrawerApi] = useVbenDrawer({
   connectedComponent: UserDrawer,
@@ -175,7 +174,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
 
 async function syncOrgCapability(force = false) {
   const pluginStateMap = await getPluginStateMap(force);
-  const nextOrgEnabled = isPluginEnabled(orgManagementPluginId, pluginStateMap);
+  const nextOrgEnabled = isPluginEnabled(orgCenterPluginId, pluginStateMap);
   const capabilityChanged = orgEnabled.value !== nextOrgEnabled;
 
   orgEnabled.value = nextOrgEnabled;
@@ -305,7 +304,6 @@ function handleResetPwd(row: any) {
         v-if="orgEnabled"
         ref="deptTreeRef"
         v-model:select-dept-id="selectDeptId"
-        :api="getDeptTree"
         class="w-[260px] shrink-0"
         @reload="() => gridApi.reload()"
         @select="() => gridApi.reload()"

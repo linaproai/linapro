@@ -1,0 +1,11 @@
+# CLI tool, only in development environment.
+# https://goframe.org/docs/cli
+gfcli:
+  gen:
+    dao:
+      - link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local"
+        path: "internal"
+        tables: "plugin_demo_source_record"
+        importPrefix: "lina-plugin-demo-source/backend/internal"
+        descriptionTag: true
+        noModelComment: true

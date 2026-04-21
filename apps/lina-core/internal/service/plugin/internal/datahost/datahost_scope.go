@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	pkgorgcap "lina-core/pkg/orgcap"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -137,25 +138,9 @@ func getCurrentResourceRoleIDs(ctx context.Context, userID int) ([]int, error) {
 
 // getCurrentResourceDeptIDs returns the deduplicated department IDs assigned to the user.
 func getCurrentResourceDeptIDs(ctx context.Context, userID int) ([]int, error) {
-	var userDepts []*entity.SysUserDept
-	err := dao.SysUserDept.Ctx(ctx).
-		Where(dao.SysUserDept.Columns().UserId, userID).
-		Scan(&userDepts)
-	if err != nil {
-		return nil, err
+	provider := pkgorgcap.CurrentProvider()
+	if provider == nil {
+		return []int{}, nil
 	}
-
-	deptIDs := make([]int, 0, len(userDepts))
-	seen := make(map[int]struct{}, len(userDepts))
-	for _, item := range userDepts {
-		if item == nil {
-			continue
-		}
-		if _, ok := seen[item.DeptId]; ok {
-			continue
-		}
-		seen[item.DeptId] = struct{}{}
-		deptIDs = append(deptIDs, item.DeptId)
-	}
-	return deptIDs, nil
+	return provider.GetUserDeptIDs(ctx, userID)
 }

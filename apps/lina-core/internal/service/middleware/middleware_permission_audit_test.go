@@ -29,6 +29,7 @@ var staticPermissionExemptionAllowlist = map[string]string{
 	"PUT /user/profile/avatar":               "login-bound current-user self avatar update",
 	"GET /user/message":                      "login-bound current-user inbox list",
 	"GET /user/message/count":                "login-bound current-user inbox badge count",
+	"GET /user/message/{id}":                 "login-bound current-user inbox detail query",
 	"GET /plugins/{id}/resources/{resource}": "login-bound plugin resource query with controller-level plugin permission enforcement",
 	"PUT /user/message/{id}/read":            "login-bound current-user inbox single read",
 	"PUT /user/message/read-all":             "login-bound current-user inbox bulk read",

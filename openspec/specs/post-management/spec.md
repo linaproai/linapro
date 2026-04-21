@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义岗位管理模块的查询、维护、部门关联和选项读取行为，确保岗位数据能够与组织结构和用户管理能力稳定协同。
+定义由 `org-center` 源码插件提供的岗位管理查询、维护、部门关联和选项读取行为，确保岗位数据能够与组织结构和用户管理能力稳定协同。
 
 ## Requirements
 
@@ -64,7 +64,7 @@
 - **THEN** 所有指定岗位被软删除
 
 #### Scenario: 不能删除有关联用户的岗位
-- **WHEN** 删除一个在 sys_user_post 中有关联用户的岗位
+- **WHEN** 删除一个在 `plugin_org_center_user_post` 中有关联用户的岗位
 - **THEN** 系统返回错误信息，提示该岗位下存在用户，须先移除用户
 
 ### Requirement: 查看岗位详情
@@ -109,16 +109,16 @@
 - **THEN** 返回空列表
 
 ### Requirement: 岗位数据表设计
-系统 SHALL 提供 sys_post 表和 sys_user_post 关联表。
+系统 SHALL 提供 `plugin_org_center_post` 表和 `plugin_org_center_user_post` 关联表。
 
-#### Scenario: sys_post 表结构
-- **WHEN** 查看 sys_post 表结构
-- **THEN** 表包含：id、dept_id（INTEGER，引用 sys_dept.id）、code（VARCHAR，UNIQUE）、name、sort、status、remark、created_at、updated_at、deleted_at
+#### Scenario: plugin_org_center_post 表结构
+- **WHEN** 查看 `plugin_org_center_post` 表结构
+- **THEN** 表包含：id、dept_id（INTEGER，引用 `plugin_org_center_dept`.id）、code（VARCHAR，UNIQUE）、name、sort、status、remark、created_at、updated_at、deleted_at
 
-#### Scenario: sys_user_post 关联表结构
-- **WHEN** 查看 sys_user_post 表结构
+#### Scenario: plugin_org_center_user_post 关联表结构
+- **WHEN** 查看 `plugin_org_center_user_post` 表结构
 - **THEN** 表包含：user_id（INTEGER）、post_id（INTEGER），联合主键
-- **THEN** user_id 引用 sys_user.id，post_id 引用 sys_post.id
+- **THEN** user_id 引用 sys_user.id，post_id 引用 `plugin_org_center_post`.id
 
 ### Requirement: 岗位管理前端左树右表布局
 系统 SHALL 在岗位管理页面采用左侧部门树 + 右侧岗位列表的布局。

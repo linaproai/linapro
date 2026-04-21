@@ -16,7 +16,7 @@ type ComponentInfo struct {
 	Name        string `json:"name" dc:"组件名称" eg:"GoFrame"`
 	Version     string `json:"version" dc:"组件版本" eg:"v2.10.0"`
 	Url         string `json:"url" dc:"组件主页URL" eg:"https://goframe.org"`
-	Description string `json:"description" dc:"组件描述" eg:"Go语言应用开发框架"`
+	Description string `json:"description" dc:"组件描述" eg:"Go语言开发框架"`
 }
 
 // GetInfoRes System runtime info response

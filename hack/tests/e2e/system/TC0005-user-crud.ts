@@ -1,18 +1,26 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { UserPage } from '../../pages/UserPage';
 
 test.describe('TC0005 用户管理 CRUD', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
+  });
+
   function createTestUsername(scope: string) {
     return `e2e_user_${scope}_${Date.now()}`;
+  }
+
+  async function searchUser(userPage: UserPage, username: string) {
+    await userPage.goto();
+    await userPage.searchByUsername(username);
   }
 
   async function expectUserVisible(userPage: UserPage, username: string) {
     await expect
       .poll(
         async () => {
-          await userPage.goto();
-          await userPage.fillSearchField('用户账号', username);
-          await userPage.clickSearch();
+          await searchUser(userPage, username);
           return userPage.hasUser(username);
         },
         {
@@ -24,9 +32,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
   }
 
   async function deleteUserIfExists(userPage: UserPage, username: string) {
-    await userPage.goto();
-    await userPage.fillSearchField('用户账号', username);
-    await userPage.clickSearch();
+    await searchUser(userPage, username);
     if (await userPage.hasUser(username)) {
       await userPage.deleteUser(username);
     }
@@ -65,9 +71,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
       await expectUserVisible(userPage, testUsername);
       await userPage.editUser(testUsername, { nickname: '修改后的E2E用户' });
 
-      await userPage.goto();
-      await userPage.fillSearchField('用户账号', testUsername);
-      await userPage.clickSearch();
+      await searchUser(userPage, testUsername);
       await expect(
         adminPage.locator('.vxe-body--row', { hasText: testUsername }).first(),
       ).toContainText('修改后的E2E用户');
@@ -84,9 +88,7 @@ test.describe('TC0005 用户管理 CRUD', () => {
     await expectUserVisible(userPage, testUsername);
     await userPage.deleteUser(testUsername);
 
-    await userPage.goto();
-    await userPage.fillSearchField('用户账号', testUsername);
-    await userPage.clickSearch();
+    await searchUser(userPage, testUsername);
     expect(await userPage.hasUser(testUsername)).toBeFalsy();
   });
 });

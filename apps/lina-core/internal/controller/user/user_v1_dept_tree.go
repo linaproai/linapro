@@ -4,7 +4,7 @@ import (
 	"context"
 
 	v1 "lina-core/api/user/v1"
-	deptsvc "lina-core/internal/service/dept"
+	"lina-core/internal/service/orgcap"
 )
 
 // DeptTree returns user department tree structure
@@ -16,13 +16,16 @@ func (c *ControllerV1) DeptTree(ctx context.Context, req *v1.DeptTreeReq) (res *
 	return &v1.DeptTreeRes{List: convertDeptTreeNodes(nodes)}, nil
 }
 
-// convertDeptTreeNodes converts service layer TreeNode slice to API layer DeptTreeNode slice
-func convertDeptTreeNodes(nodes []*deptsvc.TreeNode) []*v1.DeptTreeNode {
+// convertDeptTreeNodes converts the host-owned orgcap tree projection into the API DTO layer.
+func convertDeptTreeNodes(nodes []*orgcap.DeptTreeNode) []*v1.DeptTreeNode {
 	if nodes == nil {
 		return nil
 	}
 	result := make([]*v1.DeptTreeNode, 0, len(nodes))
 	for _, n := range nodes {
+		if n == nil {
+			continue
+		}
 		result = append(result, &v1.DeptTreeNode{
 			Id:        n.Id,
 			Label:     n.Label,

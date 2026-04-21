@@ -11,7 +11,7 @@ interface DeptTreeNode {
 
 test.describe('TC0022 用户管理部门树含子部门用户', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-management');
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
   });
 
   test('TC0022a: 选择父级部门时用户列表包含子部门用户', async ({

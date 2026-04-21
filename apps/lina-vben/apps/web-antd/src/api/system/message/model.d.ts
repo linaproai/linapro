@@ -9,3 +9,14 @@ export interface UserMessage {
   readAt: string | null;
   createdAt: string;
 }
+
+export interface UserMessageDetail {
+  id: number;
+  title: string;
+  type: number;
+  sourceType: string;
+  sourceId: number;
+  content: string;
+  createdByName: string;
+  createdAt: string;
+}

@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import type { PropType } from 'vue';
 
-import type { DeptTree } from '#/api/system/dept/model';
-
 import { onMounted, ref } from 'vue';
 
 import { IconifyIcon } from '@vben/icons';
 import { Empty, InputSearch, Skeleton, Tree } from 'ant-design-vue';
 
-import { deptTree as getDeptTree } from '#/api/system/dept';
+import { getDeptTree, type DeptTree } from '#/api/system/user';
 
 defineOptions({ inheritAttrs: false });
 
@@ -98,7 +96,10 @@ defineExpose({ refreshTree });
           >
             <template #enterButton>
               <a-button @click="handleReload">
-                <IconifyIcon class="text-primary" icon="ant-design:sync-outlined" />
+                <IconifyIcon
+                  class="text-primary"
+                  icon="ant-design:sync-outlined"
+                />
               </a-button>
             </template>
           </InputSearch>

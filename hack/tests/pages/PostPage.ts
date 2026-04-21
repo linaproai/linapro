@@ -37,8 +37,8 @@ export class PostPage {
     // Wait for drawer to open
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
 
-    // Select dept in TreeSelect (first .ant-select-selector in the drawer)
-    await this.drawer.locator('.ant-select-selector').first().click();
+    // The drawer marks required labels with a leading "*", so match by role/name.
+    await this.drawer.getByRole('combobox', { name: /所属部门/ }).click();
     // Wait for tree dropdown to appear and select the dept
     await this.page.waitForTimeout(300);
     await this.page
@@ -47,11 +47,8 @@ export class PostPage {
       .click();
     await this.page.waitForTimeout(300);
 
-    // Form order: deptId(TreeSelect), name(Input), code(Input), sort(InputNumber)
-    // The "请输入" placeholder inputs: first is name, second is code
-    const inputs = this.drawer.locator('input[placeholder="请输入"]');
-    await inputs.nth(0).fill(name);
-    await inputs.nth(1).fill(code);
+    await this.drawer.getByRole('textbox', { name: /岗位名称/ }).fill(name);
+    await this.drawer.getByRole('textbox', { name: /岗位编码/ }).fill(code);
 
     // Click confirm button
     await this.drawer
@@ -68,18 +65,16 @@ export class PostPage {
     await this.fillSearchField('岗位编码', code);
     await this.clickSearch();
 
-    // Click the edit button - with fixed column, buttons are in a separate overlay
-    // Since we searched first, there's only one row, so click globally
     await this.page
-      .getByRole('button', { name: /编\s*辑/ })
+      .locator('button:visible:not([disabled])')
+      .filter({ hasText: /编\s*辑/ })
       .first()
       .click();
 
     // Wait for drawer to open
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
 
-    // Clear and fill the new name (first "请输入" input is name)
-    const nameInput = this.drawer.locator('input[placeholder="请输入"]').first();
+    const nameInput = this.drawer.getByRole('textbox', { name: /岗位名称/ });
     await nameInput.clear();
     await nameInput.fill(newName);
 
@@ -98,10 +93,8 @@ export class PostPage {
     await this.fillSearchField('岗位编码', code);
     await this.clickSearch();
 
-    // Click the delete button - with fixed column, buttons are in a separate overlay
-    // Since we searched first, there's only one row, so click globally
     await this.page
-      .locator('.ant-btn-sm')
+      .locator('button:visible:not([disabled])')
       .filter({ hasText: /删\s*除/ })
       .first()
       .click();
@@ -125,8 +118,10 @@ export class PostPage {
 
   /** Check if a post with the given code is visible in the table */
   async hasPost(code: string): Promise<boolean> {
+    await this.fillSearchField('岗位编码', code);
+    await this.clickSearch();
     return this.page
-      .locator('.vxe-body--row', { hasText: code })
+      .locator('.vxe-body--row:visible', { hasText: code })
       .first()
       .isVisible({ timeout: 5000 })
       .catch(() => false);

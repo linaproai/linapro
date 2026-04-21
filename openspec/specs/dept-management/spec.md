@@ -2,7 +2,7 @@
 
 ## Purpose
 
-定义部门管理模块的树形查询、创建、更新、删除和关联用户能力，确保组织结构能够被宿主一致维护并支持其他业务模块引用。
+定义由 `org-center` 源码插件提供的部门管理树形查询、创建、更新、删除和关联用户能力，确保组织结构能够被组织插件稳定维护并支持其他业务模块引用。
 
 ## Requirements
 
@@ -65,7 +65,7 @@
 - **THEN** 系统返回错误信息，提示该部门下存在子部门，须先删除子部门
 
 #### Scenario: 不能删除有关联用户的部门
-- **WHEN** 删除一个在 sys_user_dept 中有关联用户的部门
+- **WHEN** 删除一个在 `plugin_org_center_user_dept` 中有关联用户的部门
 - **THEN** 系统返回错误信息，提示该部门下存在用户，须先移除用户
 
 ### Requirement: 查看部门详情
@@ -88,16 +88,16 @@
 - **THEN** 用于编辑部门时选择上级部门（避免循环引用）
 
 ### Requirement: 部门数据表设计
-系统 SHALL 提供 sys_dept 表和 sys_user_dept 关联表。
+系统 SHALL 提供 `plugin_org_center_dept` 表和 `plugin_org_center_user_dept` 关联表。
 
-#### Scenario: sys_dept 表结构
-- **WHEN** 查看 sys_dept 表结构
+#### Scenario: plugin_org_center_dept 表结构
+- **WHEN** 查看 `plugin_org_center_dept` 表结构
 - **THEN** 表包含：id、parent_id、ancestors、name、order_num、leader（INTEGER，引用 sys_user.id）、phone、email、status、remark、created_at、updated_at、deleted_at
 
-#### Scenario: sys_user_dept 关联表结构
-- **WHEN** 查看 sys_user_dept 表结构
+#### Scenario: plugin_org_center_user_dept 关联表结构
+- **WHEN** 查看 `plugin_org_center_user_dept` 表结构
 - **THEN** 表包含：user_id（INTEGER）、dept_id（INTEGER），联合主键
-- **THEN** user_id 引用 sys_user.id，dept_id 引用 sys_dept.id
+- **THEN** user_id 引用 sys_user.id，dept_id 引用 `plugin_org_center_dept`.id
 
 ### Requirement: 部门管理前端树形表格
 系统 SHALL 在部门管理页面使用 VXE-Grid 的树形模式展示部门层级。
@@ -134,7 +134,7 @@
 #### Scenario: 编辑部门表单
 - **WHEN** 点击编辑按钮
 - **THEN** 打开 Drawer，加载现有数据
-- **THEN** 负责人字段变为可用（Select），选项列表为该部门下的用户（通过 sys_user_dept 查询）
+- **THEN** 负责人字段变为可用（Select），选项列表为该部门下的用户（通过 `plugin_org_center_user_dept` 查询）
 - **THEN** 上级部门 TreeSelect 排除自身及子部门节点
 
 ### Requirement: DeptTree 可复用组件

@@ -1,6 +1,7 @@
 import { test, expect } from '../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { config } from '../../fixtures/config';
+import { LoginPage } from '../../pages/LoginPage';
 
 const API_BASE = `${config.baseURL}/api/v1`;
 
@@ -25,34 +26,51 @@ async function apiClearMessages(token: string): Promise<void> {
   });
 }
 
+async function apiUnreadCount(token: string): Promise<number> {
+  const resp = await fetch(`${API_BASE}/user/message/count`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await resp.json();
+  return data.data.count;
+}
+
 test.describe('TC0042 用户消息列表页面', () => {
   test.beforeEach(async ({ adminPage }) => {
     await ensureSourcePluginEnabled(adminPage, 'content-notice');
   });
 
-  test('TC0042a: 消息列表页面可访问', async ({ adminPage }) => {
-    await adminPage.goto('/system/message');
-    await adminPage.waitForLoadState('networkidle');
+  test('TC0042a: 消息列表页面可访问', async ({ browser }) => {
+    const context = await browser.newContext({ baseURL: config.baseURL });
+    const page = await context.newPage();
+    const loginPage = new LoginPage(page);
 
-    // Should show the card with title
-    const card = adminPage.locator('.ant-card');
-    await expect(card).toBeVisible({ timeout: 10000 });
-    await expect(card.locator('.ant-card-head-title')).toHaveText('消息列表');
+    try {
+      await loginPage.goto();
+      await loginPage.loginAndWaitForRedirect('user001', config.adminPass);
 
-    // Should show action buttons
-    await expect(
-      adminPage.getByRole('button', { name: /全部已读/ }),
-    ).toBeVisible({ timeout: 5000 });
-    await expect(
-      adminPage.getByRole('button', { name: /清空消息/ }),
-    ).toBeVisible({ timeout: 5000 });
+      await page.goto('/system/message');
+      await page.waitForLoadState('networkidle');
+
+      const card = page.locator('.ant-card');
+      await expect(card).toBeVisible({ timeout: 10000 });
+      await expect(card.locator('.ant-card-head-title')).toHaveText('消息列表');
+
+      await expect(
+        page.getByRole('button', { name: /全部已读/ }),
+      ).toBeVisible({ timeout: 5000 });
+      await expect(
+        page.getByRole('button', { name: /清空消息/ }),
+      ).toBeVisible({ timeout: 5000 });
+    } finally {
+      await context.close();
+    }
   });
 
-  test('TC0042b: 消息列表展示通知消息', async ({ adminPage }) => {
-    // First create a notice to generate messages for admin's other users
+  test('TC0042b: 消息列表展示通知消息', async ({ browser }) => {
     const adminToken = await apiLogin(config.adminUser, config.adminPass);
+    const userToken = await apiLogin('user001', config.adminPass);
+    await apiClearMessages(userToken);
 
-    // Create a published notice that fans out to all users
     const title = `消息列表测试_${Date.now()}`;
     const resp = await fetch(`${API_BASE}/notice`, {
       method: 'POST',
@@ -70,22 +88,35 @@ test.describe('TC0042 用户消息列表页面', () => {
     const createData = await resp.json();
     expect(createData.code).toBe(0);
     const noticeId = createData.data.id;
+    const context = await browser.newContext({ baseURL: config.baseURL });
+    const page = await context.newPage();
+    const loginPage = new LoginPage(page);
 
-    // Check user001 has the message via the message list page
-    // Since we can only test with admin in the browser, and admin is excluded from fan-out,
-    // we verify the page works correctly with the admin session
-    await adminPage.goto('/system/message');
-    await adminPage.waitForLoadState('networkidle');
+    try {
+      await expect.poll(() => apiUnreadCount(userToken), {
+        message: 'expected recipient unread-count to include the published notice',
+        timeout: 10_000,
+      }).toBeGreaterThan(0);
 
-    // Verify the page renders without errors
-    const card = adminPage.locator('.ant-card');
-    await expect(card).toBeVisible({ timeout: 10000 });
-    await expect(card.locator('.ant-card-head-title')).toHaveText('消息列表');
+      await loginPage.goto();
+      await loginPage.loginAndWaitForRedirect('user001', config.adminPass);
 
-    // Cleanup: delete the notice
-    await fetch(`${API_BASE}/notice/${noticeId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+      await page.goto('/system/message');
+      await page.waitForLoadState('networkidle');
+
+      const card = page.locator('.ant-card');
+      await expect(card).toBeVisible({ timeout: 10000 });
+      await expect(card.locator('.ant-card-head-title')).toHaveText('消息列表');
+      await expect(page.getByText(title, { exact: true }).first()).toBeVisible({
+        timeout: 10_000,
+      });
+    } finally {
+      await fetch(`${API_BASE}/notice/${noticeId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      await apiClearMessages(userToken);
+      await context.close();
+    }
   });
 });

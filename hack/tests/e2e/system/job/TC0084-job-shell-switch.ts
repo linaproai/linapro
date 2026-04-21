@@ -36,8 +36,7 @@ test.describe('TC-84 Shell 全局开关关闭时拒绝写入', () => {
 
     const jobPage = new JobPage(adminPage);
     await jobPage.goto();
-    await jobPage.openCreate();
-    await expect(await jobPage.isShellTabVisible()).toBe(false);
+    await expect(adminPage.getByTestId('job-add')).toHaveCount(0);
 
     await expectBusinessError(
       await api.post('job', {

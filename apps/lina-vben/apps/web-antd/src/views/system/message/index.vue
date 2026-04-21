@@ -70,7 +70,7 @@ async function handleRead(item: UserMessage) {
     await messageStore.fetchUnreadCount();
   }
   if (item.sourceType === 'notice' && item.sourceId) {
-    previewModalApi.setData({ id: item.sourceId });
+    previewModalApi.setData({ messageId: item.id });
     previewModalApi.open();
   }
 }

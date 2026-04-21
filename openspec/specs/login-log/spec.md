@@ -2,20 +2,27 @@
 
 ## Purpose
 
-定义登录日志的自动记录、查询、清理与导出行为，确保系统能够对认证成功与失败事件进行追踪、审计和运维分析。
+定义由 `monitor-loginlog` 源码插件承接的登录日志自动记录、查询、清理与导出行为，确保系统能够对认证成功与失败事件进行追踪、审计和运维分析。
 
 ## Requirements
 
 ### Requirement: 登录日志自动记录
-系统 SHALL 在用户登录（成功或失败）时自动记录登录日志到 `sys_login_log` 表。
+系统 SHALL 在登录成功、登录失败和登出成功等认证生命周期节点自动发射统一登录事件。`monitor-loginlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `plugin_monitor_loginlog` 表；插件不可用时，宿主认证链路仍正常执行。
 
 #### Scenario: 登录成功记录
-- **WHEN** 用户通过 `POST /api/v1/auth/login` 成功登录
-- **THEN** 系统写入一条登录日志，`status` 为 0（成功），`msg` 为 "登录成功"，包含用户名、IP、浏览器、操作系统信息
+- **WHEN** 用户通过 `POST /api/v1/auth/login` 成功登录，且 `monitor-loginlog` 已安装并启用
+- **THEN** 宿主发射统一登录事件
+- **AND** `monitor-loginlog` 写入一条登录日志，`status` 为 0（成功），`msg` 为 "登录成功"，包含用户名、IP、浏览器、操作系统信息
 
 #### Scenario: 登录失败记录
-- **WHEN** 用户登录失败（密码错误、用户不存在、用户已停用等）
-- **THEN** 系统写入一条登录日志，`status` 为 1（失败），`msg` 为具体失败原因（如"用户名或密码错误"、"用户已停用"）
+- **WHEN** 用户登录失败（密码错误、用户不存在、用户已停用等），且 `monitor-loginlog` 已安装并启用
+- **THEN** 宿主发射统一登录事件
+- **AND** `monitor-loginlog` 写入一条登录日志，`status` 为 1（失败），`msg` 为具体失败原因（如"用户名或密码错误"、"用户已停用"）
+
+#### Scenario: 登录日志插件缺失或停用
+- **WHEN** 用户发生登录成功、登录失败或登出成功事件，但 `monitor-loginlog` 未安装、未启用或初始化失败
+- **THEN** 宿主仍然正常返回认证结果
+- **AND** 宿主不因缺少具体登录日志落库实现而返回错误
 
 ### Requirement: 登录日志记录内容
 系统 SHALL 记录以下登录信息：用户名（user_name）、登录状态（status）、登录IP（ip）、浏览器（browser）、操作系统（os）、登录消息（msg）、登录时间（login_time）。
@@ -72,7 +79,7 @@
 - **THEN** 返回包含符合条件的所有登录日志的 xlsx 文件
 
 ### Requirement: 登录日志前端页面
-系统 SHALL 在前端系统监控菜单下提供登录日志管理页面。
+系统 SHALL 通过 `monitor-loginlog` 源码插件在前端系统监控菜单下提供登录日志管理页面。
 
 #### Scenario: 登录日志列表页
 - **WHEN** 管理员访问登录日志页面

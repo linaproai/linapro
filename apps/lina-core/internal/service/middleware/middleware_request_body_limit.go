@@ -42,8 +42,10 @@ func (s *serviceImpl) RequestBodyLimit(r *ghttp.Request) {
 	// business-facing validation error.
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			if !applyRequestBodyLimitFriendlyError(r, recovered, uploadMaxSizeMB) {
+			if friendlyErr := applyRequestBodyLimitFriendlyError(r, recovered, uploadMaxSizeMB); friendlyErr == nil {
 				panic(recovered)
+			} else {
+				writeRequestBodyLimitError(r, friendlyErr)
 			}
 		}
 	}()
@@ -59,7 +61,9 @@ func (s *serviceImpl) RequestBodyLimit(r *ghttp.Request) {
 	r.Middleware.Next()
 	// Requests that do not panic still attach the overflow error to the request,
 	// so apply the same friendly translation after downstream middleware returns.
-	applyRequestBodyLimitFriendlyError(r, r.GetError(), uploadMaxSizeMB)
+	if friendlyErr := applyRequestBodyLimitFriendlyError(r, r.GetError(), uploadMaxSizeMB); friendlyErr != nil {
+		writeRequestBodyLimitError(r, friendlyErr)
+	}
 }
 
 // requestBodyLimitForContentType chooses the effective transport ceiling for
@@ -115,11 +119,11 @@ func requestBodyLimitFriendlyError(
 
 // applyRequestBodyLimitFriendlyError writes the normalized overflow error back
 // onto the request and clears any partially written transport response so the
-// unified response middleware can emit a business error payload instead of a
-// raw server failure.
-func applyRequestBodyLimitFriendlyError(r *ghttp.Request, recovered any, uploadMaxSizeMB int64) bool {
+// middleware can emit one stable business error payload instead of a raw server
+// failure or empty body.
+func applyRequestBodyLimitFriendlyError(r *ghttp.Request, recovered any, uploadMaxSizeMB int64) error {
 	if r == nil {
-		return false
+		return nil
 	}
 
 	friendlyErr := requestBodyLimitFriendlyError(
@@ -128,7 +132,7 @@ func applyRequestBodyLimitFriendlyError(r *ghttp.Request, recovered any, uploadM
 		uploadMaxSizeMB,
 	)
 	if friendlyErr == nil {
-		return false
+		return nil
 	}
 	if r.Response != nil {
 		// Reset the partially written response so later middleware can serialize
@@ -137,7 +141,29 @@ func applyRequestBodyLimitFriendlyError(r *ghttp.Request, recovered any, uploadM
 		r.Response.ClearBuffer()
 	}
 	r.SetError(friendlyErr)
-	return true
+	return friendlyErr
+}
+
+// writeRequestBodyLimitError serializes one stable JSON error payload for
+// multipart body-size overflows, ensuring the client sees a business error
+// message even when transport parsing aborted early.
+func writeRequestBodyLimitError(r *ghttp.Request, err error) {
+	if r == nil || err == nil || r.Response == nil {
+		return
+	}
+
+	var code = 1
+	if errorCode := gerror.Code(err); errorCode != gcode.CodeNil {
+		code = errorCode.Code()
+	}
+
+	r.Response.Status = http.StatusOK
+	r.Response.WriteJson(ghttp.DefaultHandlerResponse{
+		Code:    code,
+		Data:    nil,
+		Message: err.Error(),
+	})
+	r.ExitAll()
 }
 
 // recoveredToError normalizes panic payloads and request-attached error values

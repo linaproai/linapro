@@ -7,5 +7,5 @@ import (
 	_ "lina-plugin-monitor-online/backend"
 	_ "lina-plugin-monitor-operlog/backend"
 	_ "lina-plugin-monitor-server/backend"
-	_ "lina-plugin-org-management/backend"
+	_ "lina-plugin-org-center/backend"
 )

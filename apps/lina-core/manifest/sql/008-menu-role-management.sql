@@ -1,14 +1,5 @@
 -- 008: Menu Management, Role Management, Core Navigation Skeleton
 
--- ============================================================
--- 重建菜单与角色治理表
--- 说明：当前项目处于全新开源阶段，初始化时直接重建菜单/角色治理表，
--- 以确保新的宿主目录骨架和权限结构能够完全覆盖旧初始化数据。
--- ============================================================
-DROP TABLE IF EXISTS sys_role_menu;
-DROP TABLE IF EXISTS sys_user_role;
-DROP TABLE IF EXISTS sys_role;
-DROP TABLE IF EXISTS sys_menu;
 
 -- ============================================================
 -- 菜单表
@@ -138,9 +129,9 @@ VALUES (0, 'developer', '开发中心', 'developer', '', '', 'lucide:flask-conic
 -- 工作台菜单
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'dashboard') AS parent), 'dashboard:analytics:list', '分析页', '/analytics', 'dashboard/analytics/index', 'dashboard:analytics:list', 'lucide:area-chart', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'dashboard') AS parent), 'dashboard:analytics:list', '分析页', 'analytics', 'dashboard/analytics/index', 'dashboard:analytics:list', 'lucide:area-chart', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'dashboard') AS parent), 'dashboard:workspace:list', '工作台', '/workspace', 'dashboard/workspace/index', 'dashboard:workspace:list', 'carbon:workspace', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'dashboard') AS parent), 'dashboard:workspace:list', '工作台', 'workspace', 'dashboard/workspace/index', 'dashboard:workspace:list', 'carbon:workspace', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
 
 -- ============================================================
 -- 权限管理菜单

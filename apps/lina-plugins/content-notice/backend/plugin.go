@@ -4,9 +4,9 @@ package backend
 import (
 	"context"
 
-	noticecontroller "lina-core/pkg/plugincontroller/notice"
 	"lina-core/pkg/pluginhost"
 	contentnotice "lina-plugin-content-notice"
+	noticecontroller "lina-plugin-content-notice/backend/internal/controller/notice"
 )
 
 // content-notice plugin constants.

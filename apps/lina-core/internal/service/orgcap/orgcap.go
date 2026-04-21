@@ -1,23 +1,27 @@
-// Package orgcap implements the optional organization capability seam used by
-// host user-management and auth flows so the host depends on one stable
-// contract instead of directly coupling to the org-management plugin tables.
+// Package orgcap implements the optional host-side organization capability seam
+// used by user-management and auth flows. The host keeps only the stable
+// interface and delegates real organization behavior to one registered plugin
+// provider when the org-center plugin is enabled.
 package orgcap
 
 import (
 	"context"
 
 	"lina-core/internal/plugingovernance"
-	deptsvc "lina-core/internal/service/dept"
 	pluginsvc "lina-core/internal/service/plugin"
+	pkgorgcap "lina-core/pkg/orgcap"
 )
 
 // UserDeptAssignment describes one optional department projection for a user.
-type UserDeptAssignment struct {
-	// DeptID is the associated department identifier.
-	DeptID int
-	// DeptName is the associated department display name.
-	DeptName string
-}
+type UserDeptAssignment = pkgorgcap.UserDeptAssignment
+
+// DeptTreeNode is the host-owned department tree projection exposed through
+// the orgcap capability seam.
+type DeptTreeNode = pkgorgcap.DeptTreeNode
+
+// PostOption describes one selectable post projection exposed through the
+// organization capability seam for host-owned user-management flows.
+type PostOption = pkgorgcap.PostOption
 
 // Service defines the optional organization capability consumed by host core services.
 type Service interface {
@@ -33,6 +37,8 @@ type Service interface {
 	GetUserDeptInfo(ctx context.Context, userID int) (int, string, error)
 	// GetUserDeptName returns one user's department name for online-session projection.
 	GetUserDeptName(ctx context.Context, userID int) (string, error)
+	// GetUserDeptIDs returns one user's department identifier list.
+	GetUserDeptIDs(ctx context.Context, userID int) ([]int, error)
 	// GetUserPostIDs returns one user's post association list.
 	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
 	// ReplaceUserAssignments rewrites one user's department and post associations.
@@ -40,7 +46,9 @@ type Service interface {
 	// CleanupUserAssignments deletes one user's optional organization associations.
 	CleanupUserAssignments(ctx context.Context, userID int) error
 	// UserDeptTree returns the optional department tree used by host user management.
-	UserDeptTree(ctx context.Context) ([]*deptsvc.TreeNode, error)
+	UserDeptTree(ctx context.Context) ([]*DeptTreeNode, error)
+	// ListPostOptions returns selectable post options for one department subtree.
+	ListPostOptions(ctx context.Context, deptID *int) ([]*PostOption, error)
 }
 
 // Ensure serviceImpl implements Service.
@@ -48,14 +56,12 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	deptSvc   deptsvc.Service
 	pluginSvc pluginsvc.Service
 }
 
 // New creates and returns a new optional organization capability service.
 func New() Service {
 	return &serviceImpl{
-		deptSvc:   deptsvc.New(),
 		pluginSvc: pluginsvc.New(),
 	}
 }
@@ -65,14 +71,117 @@ func (s *serviceImpl) Enabled(ctx context.Context) bool {
 	if s == nil || s.pluginSvc == nil {
 		return false
 	}
-	return s.pluginSvc.IsEnabled(ctx, plugingovernance.OrgManagement)
-}
-
-// storageInstalled reports whether the organization plugin has already installed
-// its optional storage tables into the host.
-func (s *serviceImpl) storageInstalled(ctx context.Context) bool {
-	if s == nil || s.pluginSvc == nil {
+	if !s.pluginSvc.IsEnabled(ctx, plugingovernance.OrgCenter) {
 		return false
 	}
-	return s.pluginSvc.IsInstalled(ctx, plugingovernance.OrgManagement)
+	return pkgorgcap.HasProvider()
+}
+
+// currentProvider returns the currently registered organization-capability provider.
+func (s *serviceImpl) currentProvider(ctx context.Context) pkgorgcap.Provider {
+	if !s.Enabled(ctx) {
+		return nil
+	}
+	return pkgorgcap.CurrentProvider()
+}
+
+// ListUserDeptAssignments returns user -> department projections for the provided users.
+func (s *serviceImpl) ListUserDeptAssignments(ctx context.Context, userIDs []int) (map[int]*UserDeptAssignment, error) {
+	assignments := make(map[int]*UserDeptAssignment)
+	if len(userIDs) == 0 {
+		return assignments, nil
+	}
+
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return assignments, nil
+	}
+	return provider.ListUserDeptAssignments(ctx, userIDs)
+}
+
+// GetUserIDsByDept returns user IDs associated with the given department subtree.
+func (s *serviceImpl) GetUserIDsByDept(ctx context.Context, deptID int) ([]int, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return []int{}, nil
+	}
+	return provider.GetUserIDsByDept(ctx, deptID)
+}
+
+// GetAllAssignedUserIDs returns all user IDs that currently hold department assignments.
+func (s *serviceImpl) GetAllAssignedUserIDs(ctx context.Context) ([]int, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return []int{}, nil
+	}
+	return provider.GetAllAssignedUserIDs(ctx)
+}
+
+// GetUserDeptInfo returns one user's department projection.
+func (s *serviceImpl) GetUserDeptInfo(ctx context.Context, userID int) (int, string, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return 0, "", nil
+	}
+	return provider.GetUserDeptInfo(ctx, userID)
+}
+
+// GetUserDeptName returns one user's department name for online-session projection.
+func (s *serviceImpl) GetUserDeptName(ctx context.Context, userID int) (string, error) {
+	_, deptName, err := s.GetUserDeptInfo(ctx, userID)
+	return deptName, err
+}
+
+// GetUserDeptIDs returns one user's department identifier list.
+func (s *serviceImpl) GetUserDeptIDs(ctx context.Context, userID int) ([]int, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return []int{}, nil
+	}
+	return provider.GetUserDeptIDs(ctx, userID)
+}
+
+// GetUserPostIDs returns one user's post association list.
+func (s *serviceImpl) GetUserPostIDs(ctx context.Context, userID int) ([]int, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return []int{}, nil
+	}
+	return provider.GetUserPostIDs(ctx, userID)
+}
+
+// ReplaceUserAssignments rewrites one user's department and post associations.
+func (s *serviceImpl) ReplaceUserAssignments(ctx context.Context, userID int, deptID *int, postIDs []int) error {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return nil
+	}
+	return provider.ReplaceUserAssignments(ctx, userID, deptID, postIDs)
+}
+
+// CleanupUserAssignments deletes one user's optional organization associations.
+func (s *serviceImpl) CleanupUserAssignments(ctx context.Context, userID int) error {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return nil
+	}
+	return provider.CleanupUserAssignments(ctx, userID)
+}
+
+// UserDeptTree returns the optional department tree used by host user management.
+func (s *serviceImpl) UserDeptTree(ctx context.Context) ([]*DeptTreeNode, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return []*DeptTreeNode{}, nil
+	}
+	return provider.UserDeptTree(ctx)
+}
+
+// ListPostOptions returns selectable post options for one department subtree.
+func (s *serviceImpl) ListPostOptions(ctx context.Context, deptID *int) ([]*PostOption, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return []*PostOption{}, nil
+	}
+	return provider.ListPostOptions(ctx, deptID)
 }

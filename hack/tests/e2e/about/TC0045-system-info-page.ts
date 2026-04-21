@@ -31,17 +31,35 @@ test.describe('TC0045 版本信息页面', () => {
   });
 
   test('TC0045b: 后端组件从配置文件动态加载', async ({ adminPage }) => {
+    const systemInfoResponsePromise = adminPage.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/api/v1/system/info') &&
+        response.ok(),
+    );
+
     await adminPage.goto('/about/system-info');
     await adminPage.waitForLoadState('networkidle');
 
     const content = adminPage.locator('[id="__vben_main_content"]');
+    const systemInfoPayload = await (await systemInfoResponsePromise).json();
+    const backendComponents =
+      systemInfoPayload?.data?.backendComponents ??
+      systemInfoPayload?.backendComponents ??
+      [];
+    const goframeComponent = backendComponents.find(
+      (component: { description?: string; name?: string }) =>
+        component?.name === 'GoFrame',
+    );
 
     // 后端组件应从 API 加载，包含关键组件
     await expect(
       content.getByText('GoFrame', { exact: true }),
     ).toBeVisible({ timeout: 10_000 });
-    // GoFrame 描述应为"Go语言应用开发框架"
-    await expect(content.getByText('Go语言应用开发框架')).toBeVisible();
+    expect(goframeComponent?.description).toBeTruthy();
+    await expect(
+      content.getByText(goframeComponent!.description!, { exact: true }),
+    ).toBeVisible();
     await expect(
       content.getByText('MySQL', { exact: true }),
     ).toBeVisible();

@@ -70,7 +70,7 @@ const officialPluginCases: OfficialPluginCase[] = [
     },
   },
   {
-    id: 'org-management',
+    id: 'org-center',
     mountedTitles: ['部门管理', '岗位管理'],
     route: '/system/dept',
     assertAvailable: async (page) => {

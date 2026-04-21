@@ -2,16 +2,16 @@
 
 ## Purpose
 
-定义通知公告模块的数据结构、列表查询、详情维护和消息派发行为，确保公告内容能够被宿主统一管理并传递给目标用户。
+定义由 `content-notice` 源码插件提供的通知公告数据结构、列表查询、详情维护和消息派发行为，确保公告内容能够被插件管理并通过宿主通知域传递给目标用户。
 
 ## Requirements
 
 ### Requirement: 通知公告数据库表设计
-系统 SHALL 提供 `sys_notice` 表存储通知公告数据。
+系统 SHALL 提供 `plugin_content_notice` 表存储通知公告数据。
 
-#### Scenario: sys_notice 表结构
-- **WHEN** 查看 `sys_notice` 表结构
-- **THEN** 表包含：`id`（BIGINT PK AUTO_INCREMENT）、`title`（VARCHAR(255) 标题）、`type`（TINYINT 类型：1=通知 2=公告）、`content`（LONGTEXT 富文本内容）、`status`（TINYINT 状态：0=草稿 1=已发布）、`remark`（VARCHAR(500) 备注）、`created_by`（BIGINT 创建人ID）、`updated_by`（BIGINT 更新人ID）、`created_at`（DATETIME）、`updated_at`（DATETIME）、`deleted_at`（DATETIME 软删除）
+#### Scenario: plugin_content_notice 表结构
+- **WHEN** 查看 `plugin_content_notice` 表结构
+- **THEN** 表包含：`id`（BIGINT PK AUTO_INCREMENT）、`title`（VARCHAR(255) 标题）、`type`（TINYINT 类型：1=通知 2=公告）、`content`（LONGTEXT 富文本内容）、`file_ids`（VARCHAR(500) 附件文件ID列表）、`status`（TINYINT 状态：0=草稿 1=已发布）、`remark`（VARCHAR(500) 备注）、`created_by`（BIGINT 创建人ID）、`updated_by`（BIGINT 更新人ID）、`created_at`（DATETIME）、`updated_at`（DATETIME）、`deleted_at`（DATETIME 软删除）
 
 ### Requirement: 通知公告列表查询
 系统 SHALL 提供通知公告的分页列表查询接口。
@@ -33,7 +33,7 @@
 
 #### Scenario: 列表返回创建人名称
 - **WHEN** 查询通知公告列表
-- **THEN** 每条记录包含 `createdByName` 字段，为创建人的用户昵称
+- **THEN** 每条记录包含 `createdByName` 字段，为创建人的用户名
 
 ### Requirement: 获取通知公告详情
 系统 SHALL 提供通知公告详情查询接口。
@@ -56,7 +56,7 @@
 
 #### Scenario: 创建并直接发布通知
 - **WHEN** 创建通知公告时 `status` 为 1（已发布）
-- **THEN** 系统创建通知公告后，自动为所有活跃用户（status=1 且排除当前用户）创建 `sys_user_message` 消息记录
+- **THEN** 系统创建通知公告后，通过宿主统一 `notify` 服务为目标用户创建通知主记录与收件箱投递记录
 
 #### Scenario: 创建草稿通知
 - **WHEN** 创建通知公告时 `status` 为 0（草稿）
@@ -75,7 +75,7 @@
 
 #### Scenario: 草稿更新为已发布
 - **WHEN** 更新通知公告时将 `status` 从 0 改为 1
-- **THEN** 系统更新通知公告状态后，自动为所有活跃用户创建 `sys_user_message` 消息记录
+- **THEN** 系统更新通知公告状态后，通过宿主统一 `notify` 服务为目标用户创建通知主记录与收件箱投递记录
 
 #### Scenario: 已发布通知再次编辑
 - **WHEN** 更新一条已发布的通知公告内容（不改变 status）
@@ -133,11 +133,11 @@
 - **THEN** 弹出确认对话框，确认后批量删除选中的通知公告
 
 ### Requirement: 通知公告菜单与权限
-系统 SHALL 在系统管理菜单下新增通知公告菜单项。
+系统 SHALL 在内容管理菜单下提供通知公告菜单项。
 
 #### Scenario: 菜单显示
 - **WHEN** 用户登录后查看侧边栏
-- **THEN** 系统管理分组下显示"通知公告"菜单项
+- **THEN** 内容管理分组下显示"通知公告"菜单项
 
 #### Scenario: 权限控制
 - **WHEN** 通知公告页面渲染操作按钮

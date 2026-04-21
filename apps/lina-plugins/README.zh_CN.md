@@ -16,7 +16,7 @@
 
 当前仓库内置以下一方源码插件：
 
-- `org-management`：部门管理、岗位管理
+- `org-center`：部门管理、岗位管理
 - `content-notice`：通知公告管理
 - `monitor-online`：在线用户查询与强制下线治理
 - `monitor-server`：服务监控采集、清理与查询
@@ -42,7 +42,7 @@ apps/lina-plugins/<plugin-id>/
 
 - 宿主拥有稳定的一级目录骨架，例如 `dashboard`、`iam`、`setting`、`scheduler`、`extension`、`developer`。
 - 插件菜单只能挂载到宿主已发布的稳定目录，或者插件自身声明的内部菜单节点。
-- 官方插件挂载点固定：`org-management -> org`、`content-notice -> content`、全部监控插件 -> `monitor`。
+- 官方插件挂载点固定：`org-center -> org`、`content-notice -> content`、全部监控插件 -> `monitor`。
 - 宿主对插件发布稳定能力接缝，例如认证事件、审计事件、组织能力接口和插件生命周期 Hook。
 - 插件自有的数据表、菜单、页面、Hook 和定时任务都保留在插件目录内，并通过插件生命周期完成安装与卸载。
 

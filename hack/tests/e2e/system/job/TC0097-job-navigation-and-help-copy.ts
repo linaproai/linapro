@@ -93,7 +93,7 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
     adminPage,
   }) => {
     const accessibleMenus = await getAccessibleMenus(api);
-    const jobCatalog = findMenuByTitle(accessibleMenus.list, '定时任务');
+    const jobCatalog = findMenuByTitle(accessibleMenus.list, '任务调度');
 
     expect(jobCatalog).toBeTruthy();
     expect(
@@ -102,7 +102,7 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
 
     await adminPage.goto('/system/scheduled-job');
     await adminPage.waitForLoadState('networkidle');
-    await expect(adminPage).toHaveURL(/\/system\/job(?:\/)?$/);
+    await expect(adminPage).toHaveURL(/\/system\/scheduled-job(?:\/)?$/);
 
     const jobPage = new JobPage(adminPage);
     await jobPage.goto();

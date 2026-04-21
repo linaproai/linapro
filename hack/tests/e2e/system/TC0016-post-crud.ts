@@ -4,7 +4,7 @@ import { PostPage } from '../../pages/PostPage';
 
 test.describe('TC0016 岗位管理 CRUD', () => {
   test.beforeEach(async ({ adminPage }) => {
-    await ensureSourcePluginEnabled(adminPage, 'org-management');
+    await ensureSourcePluginEnabled(adminPage, 'org-center');
   });
 
   const testPostCode = `TEST_POST_${Date.now()}`;

@@ -6,7 +6,7 @@
 
 #### Scenario: 定义官方源码插件标识
 - **WHEN** 团队为开源阶段的官方源码插件命名
-- **THEN** 插件 ID 使用 `org-management`、`content-notice`、`monitor-online`、`monitor-server`、`monitor-operlog`、`monitor-loginlog`
+- **THEN** 插件 ID 使用 `org-center`、`content-notice`、`monitor-online`、`monitor-server`、`monitor-operlog`、`monitor-loginlog`
 - **AND** 不要求使用 `plugin-` 前缀
 
 #### Scenario: 校验插件 ID 合法性
@@ -19,7 +19,7 @@
 系统 SHALL 要求官方源码插件在 manifest 菜单声明中通过 `parent_key` 指向宿主稳定目录键，保证后台导航结构长期稳定。
 
 #### Scenario: 组织与内容插件声明父级目录
-- **WHEN** `org-management` 或 `content-notice` 声明菜单元数据
+- **WHEN** `org-center` 或 `content-notice` 声明菜单元数据
 - **THEN** 其顶层菜单 `parent_key` 分别指向宿主目录键 `org` 与 `content`
 - **AND** 插件内部子菜单仍可继续引用同插件已声明的父菜单 key
 
@@ -30,7 +30,7 @@
 
 #### Scenario: 官方插件使用固定父级目录键映射
 - **WHEN** 宿主校验官方源码插件 manifest
-- **THEN** `org-management` 的顶层 `parent_key` 必须为 `org`
+- **THEN** `org-center` 的顶层 `parent_key` 必须为 `org`
 - **AND** `content-notice` 的顶层 `parent_key` 必须为 `content`
 - **AND** `monitor-online`、`monitor-server`、`monitor-operlog`、`monitor-loginlog` 的顶层 `parent_key` 必须为 `monitor`
 

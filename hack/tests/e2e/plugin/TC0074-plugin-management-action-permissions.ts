@@ -332,8 +332,11 @@ async function getAdminDeptID(adminApi: APIRequestContext) {
     response,
     "查询管理员详情失败",
   );
-  expect(payload?.deptId, "管理员必须绑定部门").toBeTruthy();
-  return payload.deptId as number;
+  // When the org-center source plugin is disabled, the host now degrades
+  // dept capability lookups to zero values instead of forcing a hard failure.
+  // The query-only user in this suite only needs a valid role, so dept binding
+  // should remain optional.
+  return payload?.deptId && payload.deptId > 0 ? payload.deptId : undefined;
 }
 
 function lookupMenuID(menuKey: string) {
@@ -346,9 +349,9 @@ function lookupMenuID(menuKey: string) {
 
 async function createQueryOnlyRole(adminApi: APIRequestContext) {
   const menuIDs = [
-    lookupMenuID("system"),
-    lookupMenuID("system:plugin:list"),
-    lookupMenuID("system:plugin:query"),
+    lookupMenuID("extension"),
+    lookupMenuID("extension:plugin:list"),
+    lookupMenuID("extension:plugin:query"),
   ];
 
   const response = await adminApi.post("role", {
@@ -372,18 +375,22 @@ async function createQueryOnlyRole(adminApi: APIRequestContext) {
 
 async function createQueryOnlyUser(
   adminApi: APIRequestContext,
-  deptID: number,
+  deptID: number | undefined,
   roleID: number,
 ) {
+  const data: Record<string, any> = {
+    username: testUsername,
+    password: testPassword,
+    nickname: testNickname,
+    roleIds: [roleID],
+    status: 1,
+  };
+  if (deptID !== undefined) {
+    data.deptId = deptID;
+  }
+
   const response = await adminApi.post("user", {
-    data: {
-      username: testUsername,
-      password: testPassword,
-      nickname: testNickname,
-      deptId: deptID,
-      roleIds: [roleID],
-      status: 1,
-    },
+    data,
   });
   const payload = await expectApiSuccess<UserCreatePayload>(
     response,

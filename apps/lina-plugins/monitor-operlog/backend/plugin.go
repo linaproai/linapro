@@ -4,10 +4,10 @@ package backend
 import (
 	"context"
 
-	operlogcontroller "lina-core/pkg/plugincontroller/operlog"
 	"lina-core/pkg/pluginhost"
-	operlogsvc "lina-core/pkg/pluginservice/operlog"
 	monitoroperlogplugin "lina-plugin-monitor-operlog"
+	operlogcontroller "lina-plugin-monitor-operlog/backend/internal/controller/operlog"
+	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
 )
 
 // monitor-operlog plugin constants.

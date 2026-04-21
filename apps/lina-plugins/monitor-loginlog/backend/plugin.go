@@ -4,10 +4,10 @@ package backend
 import (
 	"context"
 
-	loginlogcontroller "lina-core/pkg/plugincontroller/loginlog"
 	"lina-core/pkg/pluginhost"
-	loginlogsvc "lina-core/pkg/pluginservice/loginlog"
 	monitorloginlogplugin "lina-plugin-monitor-loginlog"
+	loginlogcontroller "lina-plugin-monitor-loginlog/backend/internal/controller/loginlog"
+	loginlogsvc "lina-plugin-monitor-loginlog/backend/service/loginlog"
 )
 
 // monitor-loginlog plugin constants.

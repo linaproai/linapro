@@ -23,7 +23,13 @@ export interface SysUser {
 export interface DeptTree {
   id: number;
   label: string;
+  userCount?: number;
   children?: DeptTree[];
+}
+
+export interface UserPostOption {
+  postId: number;
+  postName: string;
 }
 
 export interface UserListParams {
@@ -159,7 +165,8 @@ export async function userUpdateAvatar(fileCallback: {
   filename: string;
 }) {
   const { file, filename } = fileCallback;
-  const uniqueName = filename || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}.png`;
+  const uniqueName =
+    filename || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}.png`;
   const uploadFile = new File([file], uniqueName);
   // Step 1: Upload file via generic upload API with scene=avatar
   const formData = new FormData();
@@ -178,5 +185,16 @@ export async function userUpdateAvatar(fileCallback: {
 /** 获取部门树 */
 export async function getDeptTree() {
   const res = await requestClient.get<{ list: DeptTree[] }>('/user/dept-tree');
+  return res.list;
+}
+
+/** 获取用户编辑用岗位选项 */
+export async function getUserPostOptions(deptId?: number) {
+  const res = await requestClient.get<{ list: UserPostOption[] }>(
+    '/user/post-options',
+    {
+      params: deptId === undefined ? {} : { deptId },
+    },
+  );
   return res.list;
 }

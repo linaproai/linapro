@@ -1,6 +1,7 @@
 import type {
   ComponentRecordType,
   GenerateMenuAndRoutesOptions,
+  RouteRecordRaw,
 } from '@vben/types';
 
 import { generateAccessible } from '@vben/access';
@@ -19,6 +20,7 @@ async function generateAccess(
   options: GenerateMenuAndRoutesOptions,
   { showLoadingToast = true }: { showLoadingToast?: boolean } = {},
 ) {
+  const hiddenFrontendRoutes = collectHiddenFrontendRoutes(options.routes);
   const hostPageMap: ComponentRecordType = import.meta.glob(
     '../views/**/*.vue',
   );
@@ -28,7 +30,7 @@ async function generateAccess(
     IFrameView,
   };
 
-  return await generateAccessible(preferences.app.accessMode, {
+  const result = await generateAccessible(preferences.app.accessMode, {
     ...options,
     fetchMenuListAsync: async () => {
       if (showLoadingToast) {
@@ -46,6 +48,58 @@ async function generateAccess(
     layoutMap,
     pageMap: hostPageMap,
   });
+
+  const registeredHiddenRoutes = registerHiddenRoutes(
+    options.router,
+    hiddenFrontendRoutes,
+  );
+
+  return {
+    ...result,
+    accessibleRoutes: [...result.accessibleRoutes, ...registeredHiddenRoutes],
+  };
+}
+
+function collectHiddenFrontendRoutes(routes: RouteRecordRaw[]): RouteRecordRaw[] {
+  return routes.flatMap((route) => {
+    const hiddenCurrent =
+      route.meta?.hideInMenu && route.component
+        ? [
+            {
+              ...route,
+              meta: route.meta ? { ...route.meta } : undefined,
+            },
+          ]
+        : [];
+
+    return [
+      ...hiddenCurrent,
+      ...collectHiddenFrontendRoutes(route.children ?? []),
+    ];
+  });
+}
+
+function registerHiddenRoutes(
+  router: GenerateMenuAndRoutesOptions['router'],
+  routes: RouteRecordRaw[],
+): RouteRecordRaw[] {
+  const registered: RouteRecordRaw[] = [];
+
+  for (const route of routes) {
+    const routeName = route.name;
+    if (typeof routeName !== 'string' || router.hasRoute(routeName)) {
+      continue;
+    }
+
+    const hiddenRoute: RouteRecordRaw = {
+      ...route,
+      meta: route.meta ? { ...route.meta } : undefined,
+    };
+    router.addRoute('Root', hiddenRoute);
+    registered.push(hiddenRoute);
+  }
+
+  return registered;
 }
 
 export { generateAccess };

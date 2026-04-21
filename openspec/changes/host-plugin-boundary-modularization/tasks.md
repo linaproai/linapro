@@ -8,7 +8,7 @@
 
 ## 2. 插件清单与挂载规则治理
 
-- [x] 2.1 固化官方源码插件 ID：`org-management`、`content-notice`、`monitor-online`、`monitor-server`、`monitor-operlog`、`monitor-loginlog`
+- [x] 2.1 固化官方源码插件 ID：`org-center`、`content-notice`、`monitor-online`、`monitor-server`、`monitor-operlog`、`monitor-loginlog`
 - [x] 2.2 为源码插件菜单挂载规则补充校验，限制其只能挂到宿主稳定目录或插件内部节点
 - [x] 2.3 在插件文档和样例中移除 `plugin-` 前缀示例，统一改为领域-能力命名
 - [x] 2.4 为插件治理菜单同步与父级挂载补充单元测试
@@ -37,9 +37,9 @@
 
 ## 5. 组织与内容能力源码插件化
 
-- [x] 5.1 创建源码插件 `org-management`
-- [x] 5.2 迁移部门管理到 `org-management`
-- [x] 5.3 迁移岗位管理到 `org-management`
+- [x] 5.1 创建源码插件 `org-center`
+- [x] 5.2 迁移部门管理到 `org-center`
+- [x] 5.3 迁移岗位管理到 `org-center`
 - [x] 5.4 实现用户管理在组织插件缺失时的 UI 与接口降级
 - [x] 5.5 创建源码插件 `content-notice`
 - [x] 5.6 迁移通知公告能力到 `content-notice`
@@ -67,7 +67,7 @@
 - [x] 8.4 新增 `monitor-loginlog` 生命周期与功能验证测试（`TC0098b` + 既有监控功能用例）
 - [x] 8.5 新增 `monitor-server` 生命周期与功能验证测试（`TC0098c` + 既有监控功能用例）
 - [x] 8.6 新增 `monitor-online` 生命周期与功能验证测试（`TC0098d` + 既有监控功能用例）
-- [x] 8.7 新增 `org-management` 生命周期与用户管理降级测试（`TC0098e`、`TC0081`）
+- [x] 8.7 新增 `org-center` 生命周期与用户管理降级测试（`TC0098e`、`TC0081`）
 - [x] 8.8 新增 `content-notice` 生命周期测试（`TC0098f`、`TC0037`）
 - [x] 8.9 新增 `monitor-online` 缺失或停用时登录、鉴权和会话超时仍正常的回归测试（`TC0099a`）
 - [x] 8.10 新增日志插件缺失或停用时登录流程与普通业务请求仍正常的回归测试（`TC0099b`）
@@ -87,3 +87,30 @@
 - [x] **FB-2**: 6 个官方源码插件必须完整落地到 `apps/lina-plugins/<plugin-id>/`，并对齐 `plugin-demo-source` 目录结构与显式接线方式
 - [x] **FB-3**: 删除未被任何插件或宿主代码使用的 `pkg` 桥接模块，避免暴露无效公共接口
 - [x] **FB-4**: 将宿主私有菜单挂载键与官方插件治理常量从 `apps/lina-core/pkg/` 回收到 `internal/`，避免 `pkg` 承载宿主治理规则
+- [x] **FB-5**: `orgcap` 能力接缝未密封——`internal/service/orgcap/orgcap.go` 直接 `import deptsvc` 并对外暴露 `[]*deptsvc.TreeNode`，`controller/user/user_v1_dept_tree.go` 因此被迫依赖 `deptsvc`；需让 `orgcap` 拥有自有 `DeptTreeNode` 并让宿主业务层彻底不再 `import deptsvc`
+- [x] **FB-6**: 清理残留工件——删除空目录 `apps/lina-core/pkg/officialplugin/` 与仅余注释的 SQL 残桩 `apps/lina-core/manifest/sql/003-oper-login-log.sql`、`004-notice-message.sql`
+- [x] **FB-7**: 插件前端真实化——6 个插件 `frontend/pages/*.vue` 目前全是 `import HostPage from '#/views/...'` 的薄包装；需把 `apps/lina-vben/apps/web-antd/src/views/{monitor,system}/...` 与 `src/api/{monitor,system}/...` 对应代码物理迁移到各插件 `frontend/` 下，同时在宿主新增 `/user/post-options` 能力端点（复用既有 `/user/dept-tree`）让 `user-drawer` 不再依赖插件前端 API
+  - 2026-04-21：宿主已补充 `/user/post-options`，`user-drawer` 已切换为依赖 `#/api/system/user`；`org-center`、`content-notice`、`monitor-online`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 的页面、弹窗与客户端 API 已物理迁入各自 `frontend/pages/`，不再通过 `HostPage` 薄包装依赖宿主视图与宿主前端 API 模块
+- [x] **FB-8**: 插件后端真正归属——`dept/post/notice/loginlog/operlog/servermon` 的 `api/`、`internal/controller/`、`internal/service/` 仍在 `apps/lina-core/` 并经 `pkg/plugincontroller/`、`pkg/pluginservice/` 桥接暴露；需参照 `apps/lina-plugins/plugin-demo-source/backend/` 迁入各插件 `backend/{api,internal/controller,service}`，并删除对应宿主 `internal/` 目录、桥接包与 `dao/sys_{dept,post,user_dept,user_post,notice,login_log,oper_log,server_monitor}.go`
+  - 2026-04-21：`org-center` 的 `dept/post`、`content-notice` 的 `notice`、`monitor-online`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 已全部迁入各插件 `backend/{api,internal/controller,service}`；宿主旧 `api/`、`internal/controller/`、`internal/service/`、`pkg/plugincontroller/`、`pkg/pluginservice/{loginlog,operlog,servermon}` 与对应 `dao/model` 工件已删除，数据库访问模式在后续反馈中继续收敛到插件本地 `gf gen dao` 生成的 `dao/do/entity`
+- [x] **FB-9**: 明确 `orgcap` 的宿主边界例外——组织能力接缝继续由宿主消费插件安装到宿主库中的 `sys_dept/sys_post/sys_user_dept/sys_user_post` 表作为只读/关联真相源，但该例外必须在 OpenSpec 文档与代码注释中显式声明，避免 `FB-8` 目标与实际实现语义不一致
+- [x] **FB-10**: 稳定 `pkg/pluginservice/session` 对外契约——移除对 `internal/service/session` 类型的直接别名发布，改为宿主自有的独立 `Session/ListFilter/ListResult` DTO，并让 `monitor-online` 仅依赖该稳定契约
+- [x] **FB-11**: 封死用户页对组织插件前端 API 的默认回退——`user/dept-tree` 与 `user/post-options` 已是宿主能力端点，`system/user/dept-tree.vue` 需默认依赖宿主用户 API/类型而非 `#/api/system/dept`，避免后续复用时重新引入插件前端耦合
+- [x] **FB-12**: 系统信息页 E2E 需跟随后端动态元数据校验当前组件描述，避免继续断言已变更的静态 GoFrame 文案
+- [x] **FB-13**: `TC0021c` 依赖固定 `testuser` 导致完整回归出现 skipped，需改为测试内自建用户并清理，保证用例独立可重复运行
+  - 2026-04-21：`hack/tests/e2e/system/TC0021-user-dept-tree-count.ts` 已改为测试内创建唯一用户名用户、通过 API 完成部门变更并在 `finally` 中清理，去除对固定 `testuser` 的前置依赖
+- [x] **FB-14**: 官方源码插件与 `plugin-demo-source` 的后端数据库访问需统一切换到插件本地 `gf gen dao` 生成的 `dao/do/entity`，并为每个源码插件 `backend/` 补齐 `hack/config.yaml`
+  - 2026-04-21：已为 `content-notice`、`monitor-loginlog`、`monitor-online`、`monitor-operlog`、`monitor-server`、`org-center`、`plugin-demo-source` 的 `backend/` 补齐 `hack/config.yaml`；并为当前存在数据库访问的源码插件生成本地 `internal/dao`、`internal/model/do`、`internal/model/entity` 工件，相关 service 已改造为通过插件本地 `dao/do/entity` 访问数据库
+- [x] **FB-15**: `middleware_request_body_limit` 在手写统一错误响应时仍使用裸 `g.Map`，需改为 `ghttp.DefaultHandlerResponse` 或宿主自有 typed DTO，保持与统一返回结构一致
+  - 2026-04-21：`apps/lina-core/internal/service/middleware/middleware_request_body_limit.go` 已统一改为输出 `ghttp.DefaultHandlerResponse`，保持超限上传错误响应与宿主默认 JSON 结构一致
+- [x] **FB-16**: 宿主默认数据库装载边界仍泄漏到插件——移除 `apps/lina-core/manifest/sql/mock-data/` 中对组织、公告等源码插件业务表的 DML，并补齐插件自有演示数据装载方案
+  - 2026-04-21：宿主已删除 `001-mock-depts.sql`、`002-mock-posts.sql`、`004-mock-associations.sql`、`005-mock-notices.sql`，并将组织/公告演示数据收敛到各插件 `manifest/sql/` 生命周期资源中随插件安装装载
+- [x] **FB-17**: 组织能力仍保留宿主持有插件表的存储例外——删除宿主对组织插件业务表的 `dao/do/entity` 与直接查表逻辑（含 `orgcap`、插件资源范围等路径），改为由 `org-center` 通过稳定 capability provider 提供实现，宿主仅保留接口、DTO 与空实现
+  - 2026-04-21：宿主已删除 `sys_dept`、`sys_post`、`sys_user_dept`、`sys_user_post` 的 `dao/do/entity` 与直接查表实现；`orgcap`、插件资源范围与用户管理路径统一改为通过 `pkg/orgcap` provider 获取组织能力，`FB-9` 中记录的宿主直查组织表例外已被移除
+- [x] **FB-18**: 官方源码插件业务表仍沿用 `sys_*` 命名——将 `org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 的插件自有表统一迁移到 `plugin_<plugin_id_snake_case>_` 作用域前缀，并同步更新安装/卸载 SQL、插件本地 `gf gen dao` 配置、后端实现、测试与文档
+  - 2026-04-21：`org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 的业务表已统一迁移为 `plugin_*` 前缀，插件安装/卸载 SQL、`backend/hack/config.yaml`、本地 `gf gen dao` 工件、后端实现与变更文档已同步更新
+- [x] **FB-19**: 官方组织源码插件命名从 `org-management` 调整为 `org-center`，并同步更新目录名、Go 模块名、插件治理常量、权限键、测试与文档引用
+- [x] **FB-20**: 单表官方源码插件的业务表名不应重复资源后缀——将 `content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 的物理表分别收敛为 `plugin_content_notice`、`plugin_monitor_loginlog`、`plugin_monitor_operlog`、`plugin_monitor_server`，并同步调整 `backend/hack/config.yaml` 的 `removePrefix` 避免 codegen 留下空表名或不必要的重复后缀
+  - 2026-04-21：已将 `content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 的安装/卸载 SQL、本地数据库表名、插件 `backend/hack/config.yaml` 与 `gf gen dao` 工件统一收敛到单表命名；其中 `content-notice` 使用 `removePrefix: "plugin_content_"` 生成 `Notice`，3 个监控插件使用 `removePrefix: "plugin_monitor_"`，对应生成 `Loginlog`、`Operlog`、`Server`
+- [x] **FB-21**: `openspec/specs/` 主规范仍残留旧 `sys_*` 插件表名和旧宿主边界表述——同步更新用户、组织、公告、日志、服务监控和通知域主规范，改为插件化后的最终表名与能力边界描述
+  - 2026-04-21：已更新 `openspec/specs/{user-management,dept-management,post-management,notice-management,login-log,oper-log,server-monitor,plugin-notify-service}/spec.md`，将旧 `sys_*` 插件表名、宿主直持有插件表描述与旧菜单边界表述统一收敛为当前插件化后的最终规范
