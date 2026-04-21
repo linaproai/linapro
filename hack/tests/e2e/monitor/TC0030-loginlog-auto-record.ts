@@ -1,8 +1,13 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { LoginPage } from '../../pages/LoginPage';
 import { config } from '../../fixtures/config';
 
 test.describe('TC0030 登录日志自动记录', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-loginlog');
+  });
+
   test('TC0030a: 登录成功后登录日志中记录成功日志', async ({ adminPage }) => {
     // The adminPage fixture already logged in, so a login log should exist
     await adminPage.goto('/monitor/loginlog');

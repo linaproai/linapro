@@ -3,12 +3,12 @@ import type { RouteRecordRaw } from 'vue-router';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
-      icon: 'lucide:info',
-      order: 30,
-      title: '系统信息',
+      icon: 'lucide:flask-conical',
+      order: 50,
+      title: '开发中心',
     },
-    name: 'About',
-    path: '/about',
+    name: 'Developer',
+    path: '/developer',
     children: [
       {
         name: 'ApiDocs',
@@ -16,7 +16,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/about/api-docs/index.vue'),
         meta: {
           icon: 'lucide:file-code',
-          title: '系统接口',
+          title: '接口文档',
         },
       },
       {
@@ -25,7 +25,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/about/system-info/index.vue'),
         meta: {
           icon: 'lucide:server',
-          title: '版本信息',
+          title: '系统信息',
         },
       },
     ],

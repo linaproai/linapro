@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/plugingovernance"
 	"lina-core/internal/service/plugin/internal/catalog"
 )
 
@@ -270,6 +271,12 @@ func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifes
 		}
 		if _, ok := declaredKeys[spec.ParentKey]; ok {
 			continue
+		}
+		if !plugingovernance.IsStableCatalogKey(spec.ParentKey) {
+			return nil, gerror.Newf("插件菜单 parent_key 仅允许挂载到宿主稳定目录: %s -> %s", spec.Key, spec.ParentKey)
+		}
+		if expectedParentKey, ok := plugingovernance.ExpectedStableParentKey(manifest.ID); ok && expectedParentKey != spec.ParentKey {
+			return nil, gerror.Newf("官方插件顶层菜单 parent_key 不合法: %s -> %s，期望 %s", spec.Key, spec.ParentKey, expectedParentKey)
 		}
 		if _, ok := seen[spec.ParentKey]; ok {
 			continue

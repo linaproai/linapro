@@ -12,7 +12,6 @@ import (
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
-	"lina-core/internal/service/operlog"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
@@ -45,23 +44,21 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	authSvc    auth.Service      // Authentication service
-	bizCtxSvc  bizctx.Service    // Business context service
-	configSvc  config.Service    // Runtime configuration service
-	operLogSvc operlog.Service   // Operation log service
-	pluginSvc  pluginsvc.Service // Plugin service
-	roleSvc    role.Service      // Role and permission service
+	authSvc   auth.Service      // Authentication service
+	bizCtxSvc bizctx.Service    // Business context service
+	configSvc config.Service    // Runtime configuration service
+	pluginSvc pluginsvc.Service // Plugin service
+	roleSvc   role.Service      // Role and permission service
 }
 
 // New creates and returns a new Service instance.
 func New() Service {
 	return &serviceImpl{
-		authSvc:    auth.New(),
-		bizCtxSvc:  bizctx.New(),
-		configSvc:  config.New(),
-		operLogSvc: operlog.New(),
-		pluginSvc:  pluginsvc.New(),
-		roleSvc:    role.New(),
+		authSvc:   auth.New(),
+		bizCtxSvc: bizctx.New(),
+		configSvc: config.New(),
+		pluginSvc: pluginsvc.New(),
+		roleSvc:   role.New(),
 	}
 }
 

@@ -24,8 +24,8 @@ type InitInput struct {
 // InitOutput carries the command result placeholder.
 type InitOutput struct{}
 
-// Init initializes host and plugin SQL resources after an explicit safety
-// confirmation is provided.
+// Init initializes host SQL resources after an explicit safety confirmation is
+// provided.
 func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err error) {
 	if err = requireCommandConfirmation(initCommandName, in.Confirm); err != nil {
 		return nil, err
@@ -78,13 +78,11 @@ func executeSQLFilesWithExecutor(ctx context.Context, files []string, executor s
 	return nil
 }
 
-// scanInitSqlFiles scans the conventional host and plugin initialization SQL
-// directories.
+// scanInitSqlFiles scans the conventional host initialization SQL directory.
 func scanInitSqlFiles(ctx context.Context) ([]string, error) {
 	var (
-		files      = make([]string, 0)
-		pluginRoot = gfile.RealPath(gfile.Join("..", "lina-plugins"))
-		sqlDir     = hostInitSqlDir()
+		files  = make([]string, 0)
+		sqlDir = hostInitSqlDir()
 	)
 
 	if gfile.Exists(sqlDir) {
@@ -95,26 +93,6 @@ func scanInitSqlFiles(ctx context.Context) ([]string, error) {
 		files = append(files, coreFiles...)
 	} else {
 		logger.Warningf(ctx, "SQL directory does not exist: %s", sqlDir)
-	}
-
-	if pluginRoot == "" || !gfile.Exists(pluginRoot) {
-		return files, nil
-	}
-
-	pluginEntries, err := gfile.ScanDir(pluginRoot, "*", false)
-	if err != nil {
-		return nil, err
-	}
-	for _, pluginPath := range pluginEntries {
-		pluginSqlDir := gfile.Join(pluginPath, "manifest", "sql")
-		if !gfile.Exists(pluginSqlDir) {
-			continue
-		}
-		pluginFiles, scanErr := gfile.ScanDirFile(pluginSqlDir, "*.sql", false)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		files = append(files, pluginFiles...)
 	}
 
 	return files, nil

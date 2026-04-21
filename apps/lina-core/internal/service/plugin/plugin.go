@@ -111,6 +111,36 @@ type AuthLoginSucceededInput struct {
 	Message string
 }
 
+// AuditRecordedInput defines input for request-audit hook events.
+type AuditRecordedInput struct {
+	// Title is the audit title derived from handler metadata.
+	Title string
+	// OperSummary is the audit summary derived from handler metadata.
+	OperSummary string
+	// OperType is the normalized audit operation type code.
+	OperType int
+	// Method is the routed handler path or method marker.
+	Method string
+	// RequestMethod is the HTTP request method.
+	RequestMethod string
+	// OperName is the operator username.
+	OperName string
+	// OperUrl is the full request URL.
+	OperUrl string
+	// OperIp is the client IP captured by the audit event.
+	OperIp string
+	// OperParam is the sanitized request payload.
+	OperParam string
+	// JsonResult is the serialized response snippet.
+	JsonResult string
+	// Status is the audit status code.
+	Status int
+	// ErrorMsg is the captured error summary.
+	ErrorMsg string
+	// CostTime is the request duration in milliseconds.
+	CostTime int
+}
+
 // AuthHookService defines auth-related plugin hook operations.
 type AuthHookService interface {
 	// HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
@@ -119,6 +149,8 @@ type AuthHookService interface {
 	HandleAuthLoginFailed(ctx context.Context, input AuthLoginSucceededInput) error
 	// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
 	HandleAuthLogoutSucceeded(ctx context.Context, input AuthLoginSucceededInput) error
+	// HandleAuditRecorded dispatches a request-audit hook to all enabled plugins.
+	HandleAuditRecorded(ctx context.Context, input AuditRecordedInput) error
 }
 
 // DataCommentService defines host data-table comment lookup operations.

@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { UserPage } from '../../pages/UserPage';
 
 interface DeptTreeNode {
@@ -9,6 +10,10 @@ interface DeptTreeNode {
 }
 
 test.describe('TC0021 用户管理部门树用户数量累加', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-management');
+  });
+
   test('TC0021a: 父部门用户数等于自身用户数加所有子部门用户数之和', async ({
     adminPage,
   }) => {

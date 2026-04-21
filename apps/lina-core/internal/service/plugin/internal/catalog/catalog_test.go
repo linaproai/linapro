@@ -15,6 +15,7 @@ import (
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/os/gfile"
 
+	"lina-core/internal/plugingovernance"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -803,5 +804,79 @@ func TestDerivePluginNodeState(t *testing.T) {
 				t.Fatalf("expected node state %s, got %s", testCase.expected, actual)
 			}
 		})
+	}
+}
+
+// TestValidateManifestMenusRejectsNonStableHostParent verifies plugin top-level
+// menus can mount only under published host catalog keys.
+func TestValidateManifestMenusRejectsNonStableHostParent(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID: "custom-parent-validation",
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       "plugin:custom-parent-validation:main",
+				Name:      "Custom Parent Validation",
+				ParentKey: "system",
+				Path:      "/custom-parent-validation",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	err := catalog.ValidateManifestMenus(manifest)
+	if err == nil || !strings.Contains(err.Error(), "仅允许挂载到宿主稳定目录") {
+		t.Fatalf("expected stable host parent validation error, got: %v", err)
+	}
+}
+
+// TestValidateManifestMenusRejectsOfficialPluginWrongStableParent verifies
+// first-party source plugins are pinned to fixed host catalogs.
+func TestValidateManifestMenusRejectsOfficialPluginWrongStableParent(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID: plugingovernance.OrgManagement,
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       "plugin:org-management:catalog",
+				Name:      "组织管理",
+				ParentKey: plugingovernance.Monitor,
+				Path:      "org-management-catalog",
+				Type:      catalog.MenuTypeDirectory.String(),
+			},
+		},
+	}
+
+	err := catalog.ValidateManifestMenus(manifest)
+	if err == nil || !strings.Contains(err.Error(), "期望 org") {
+		t.Fatalf("expected official plugin parent validation error, got: %v", err)
+	}
+}
+
+// TestValidateManifestMenusAcceptsOfficialPluginStableParent verifies one
+// first-party plugin may mount under its published stable host catalog and keep
+// children inside its own tree.
+func TestValidateManifestMenusAcceptsOfficialPluginStableParent(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID: plugingovernance.OrgManagement,
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       "plugin:org-management:catalog",
+				Name:      "组织管理",
+				ParentKey: plugingovernance.Org,
+				Path:      "org-management-catalog",
+				Type:      catalog.MenuTypeDirectory.String(),
+			},
+			{
+				Key:       "plugin:org-management:dept",
+				Name:      "部门管理",
+				ParentKey: "plugin:org-management:catalog",
+				Path:      "/system/dept",
+				Component: "system/plugin/dynamic-page",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	if err := catalog.ValidateManifestMenus(manifest); err != nil {
+		t.Fatalf("expected official plugin manifest menus to be valid, got: %v", err)
 	}
 }

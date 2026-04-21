@@ -1,6 +1,11 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0031 登录日志列表查询', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-loginlog');
+  });
+
   test.beforeEach(async ({ adminPage }) => {
     // Navigate to loginlog page and wait for data to load
     const responsePromise = adminPage.waitForResponse(

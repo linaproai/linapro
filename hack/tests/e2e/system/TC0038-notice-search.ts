@@ -1,7 +1,12 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { NoticePage } from '../../pages/NoticePage';
 
 test.describe('TC0038 通知公告搜索筛选', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'content-notice');
+  });
+
   test('TC0038a: 按标题搜索', async ({ adminPage }) => {
     const noticePage = new NoticePage(adminPage);
     await noticePage.goto();

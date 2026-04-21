@@ -23,15 +23,6 @@ const (
 	defaultManagedJobTimeout  = 5 * time.Minute
 )
 
-// warmServerMonitor performs the immediate startup collection before the
-// periodic collector is handed over to the persistent scheduler.
-func (s *serviceImpl) warmServerMonitor(ctx context.Context) {
-	if s == nil || s.serverMonSvc == nil {
-		return
-	}
-	s.serverMonSvc.CollectAndStore(ctx)
-}
-
 // syncBuiltinScheduledJobs ensures code-owned host and plugin jobs are synced
 // into sys_job before the persistent scheduler loads enabled rows.
 func (s *serviceImpl) syncBuiltinScheduledJobs(ctx context.Context) error {
@@ -48,7 +39,7 @@ func (s *serviceImpl) syncBuiltinScheduledJobs(ctx context.Context) error {
 		return err
 	}
 	jobs = append(jobs, pluginJobs...)
-	return s.builtinSyncer.SyncBuiltinJobs(ctx, jobs)
+	return s.builtinSyncer.ReconcileBuiltinJobs(ctx, jobs)
 }
 
 // ensureManagedHandlersRegistered registers host-owned handlers exactly once so
@@ -75,22 +66,6 @@ func (s *serviceImpl) registerManagedHandlers() error {
 			ParamsSchema: `{"type":"object","properties":{}}`,
 			Source:       jobmeta.HandlerSourceHost,
 			Invoke:       s.invokeSessionCleanup,
-		},
-		{
-			Ref:          "host:server-monitor-collector",
-			DisplayName:  "服务监控采集",
-			Description:  "采集当前节点的服务监控指标并写入监控快照。",
-			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourceHost,
-			Invoke:       s.invokeServerMonitorCollector,
-		},
-		{
-			Ref:          "host:server-monitor-cleanup",
-			DisplayName:  "服务监控清理",
-			Description:  "按监控保留窗口清理过期的服务监控数据。",
-			ParamsSchema: `{"type":"object","properties":{}}`,
-			Source:       jobmeta.HandlerSourceHost,
-			Invoke:       s.invokeServerMonitorCleanup,
 		},
 	}
 
@@ -135,12 +110,6 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 	if s.sessionCfg != nil && s.sessionCfg.CleanupInterval > 0 {
 		sessionCleanupInterval = s.sessionCfg.CleanupInterval
 	}
-	monitorInterval := 30 * time.Second
-	if s.monCfg != nil {
-		if s.monCfg.Interval > 0 {
-			monitorInterval = s.monCfg.Interval
-		}
-	}
 
 	jobs := []jobmgmtsvc.BuiltinJobDef{
 		{
@@ -168,38 +137,6 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 			Params:         map[string]any{},
 			Timeout:        defaultManagedJobTimeout,
 			Pattern:        formatEveryPattern(sessionCleanupInterval),
-			Timezone:       defaultManagedJobTimezone,
-			Scope:          jobmeta.JobScopeMasterOnly,
-			Concurrency:    jobmeta.JobConcurrencySingleton,
-			MaxConcurrency: 1,
-			MaxExecutions:  0,
-			Status:         jobmeta.JobStatusEnabled,
-		},
-		{
-			GroupCode:      "default",
-			Name:           "服务监控采集",
-			Description:    "采集当前节点的服务监控指标并写入监控快照。",
-			TaskType:       jobmeta.TaskTypeHandler,
-			HandlerRef:     "host:server-monitor-collector",
-			Params:         map[string]any{},
-			Timeout:        defaultManagedJobTimeout,
-			Pattern:        formatEveryPattern(monitorInterval),
-			Timezone:       defaultManagedJobTimezone,
-			Scope:          jobmeta.JobScopeAllNode,
-			Concurrency:    jobmeta.JobConcurrencySingleton,
-			MaxConcurrency: 1,
-			MaxExecutions:  0,
-			Status:         jobmeta.JobStatusEnabled,
-		},
-		{
-			GroupCode:      "default",
-			Name:           "服务监控清理",
-			Description:    "按监控保留窗口清理过期的服务监控数据。",
-			TaskType:       jobmeta.TaskTypeHandler,
-			HandlerRef:     "host:server-monitor-cleanup",
-			Params:         map[string]any{},
-			Timeout:        defaultManagedJobTimeout,
-			Pattern:        "# * * * * *",
 			Timezone:       defaultManagedJobTimezone,
 			Scope:          jobmeta.JobScopeMasterOnly,
 			Concurrency:    jobmeta.JobConcurrencySingleton,
@@ -321,31 +258,6 @@ func (s *serviceImpl) invokeSessionCleanup(ctx context.Context, _ json.RawMessag
 		return nil, err
 	}
 	return map[string]any{"cleanedCount": cleaned}, nil
-}
-
-// invokeServerMonitorCollector runs the monitor collector built-in handler.
-func (s *serviceImpl) invokeServerMonitorCollector(ctx context.Context, _ json.RawMessage) (any, error) {
-	if s == nil || s.serverMonSvc == nil {
-		return nil, gerror.New("服务监控采集依赖未初始化")
-	}
-	s.serverMonSvc.CollectAndStore(ctx)
-	return map[string]any{"collected": true}, nil
-}
-
-// invokeServerMonitorCleanup runs the monitor cleanup built-in handler.
-func (s *serviceImpl) invokeServerMonitorCleanup(ctx context.Context, _ json.RawMessage) (any, error) {
-	if s == nil || s.serverMonSvc == nil || s.monCfg == nil {
-		return nil, gerror.New("服务监控清理依赖未初始化")
-	}
-	staleThreshold := s.monCfg.Interval * time.Duration(s.monCfg.RetentionMultiplier)
-	cleaned, err := s.serverMonSvc.CleanupStale(ctx, staleThreshold)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{
-		"cleanedCount":   cleaned,
-		"staleThreshold": staleThreshold.String(),
-	}, nil
 }
 
 // invokeAccessTopologySync runs the access-topology watcher handler.

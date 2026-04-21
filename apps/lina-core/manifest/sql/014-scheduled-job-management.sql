@@ -180,13 +180,11 @@ VALUES ('cron_log_retention_mode', '不清理', 'none', 3, 'warning', 1, NOW(), 
 -- 菜单与按钮权限
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system') AS parent), 'system:job:catalog', '定时任务', 'scheduled-job', '', '', 'lucide:calendar-range', 'D', 11, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'scheduler') AS parent), 'system:job:list', '任务管理', '/system/job', 'system/job/index', 'system:job:list', 'lucide:clock-3', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:catalog') AS parent), 'system:job:list', '任务管理', '/system/job', 'system/job/index', 'system:job:list', 'lucide:clock-3', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'scheduler') AS parent), 'system:jobgroup:list', '分组管理', '/system/job-group', 'system/job-group/index', 'system:jobgroup:list', 'lucide:blocks', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:catalog') AS parent), 'system:jobgroup:list', '分组管理', '/system/job-group', 'system/job-group/index', 'system:jobgroup:list', 'lucide:blocks', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
-INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:catalog') AS parent), 'system:joblog:list', '执行日志', '/system/job-log', 'system/job-log/index', 'system:joblog:list', 'lucide:scroll-text', 'M', 3, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'scheduler') AS parent), 'system:joblog:list', '执行日志', '/system/job-log', 'system/job-log/index', 'system:joblog:list', 'lucide:scroll-text', 'M', 3, 1, 1, 0, 0, NOW(), NOW());
 
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:job:list') AS parent), 'system:job:add', '任务新增', '', '', 'system:job:add', '', 'B', 2, 1, 1, 0, 0, NOW(), NOW());

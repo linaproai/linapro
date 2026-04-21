@@ -6,7 +6,9 @@ import { h } from 'vue';
 import { DictTag } from '#/components/dict';
 import { useDictStore } from '#/store/dict';
 
-const dictStore = useDictStore();
+function resolveDictOptions(dictType: string) {
+  return useDictStore().dictOptionsMap.get(dictType) || [];
+}
 
 /** 查询表单schema */
 export const querySchema: VbenFormSchema[] = [
@@ -67,8 +69,7 @@ export const columns: VxeGridProps['columns'] = [
     minWidth: 100,
     slots: {
       default: ({ row }) => {
-        const dicts =
-          dictStore.dictOptionsMap.get('sys_oper_status') || [];
+        const dicts = resolveDictOptions('sys_login_status');
         return h(DictTag, { dicts: dicts as any, value: row.status });
       },
     },

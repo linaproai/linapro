@@ -1,6 +1,11 @@
 import { expect, test } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0024 部门负责人选择', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-management');
+  });
+
   test('TC0024a: 新增部门按钮文本为"新增"而非"新增部门"', async ({
     adminPage,
   }) => {

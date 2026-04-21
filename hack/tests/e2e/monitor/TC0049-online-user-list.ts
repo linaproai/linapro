@@ -1,6 +1,11 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0049 在线用户列表展示', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-online');
+  });
+
   test.beforeEach(async ({ adminPage }) => {
     const responsePromise = adminPage.waitForResponse(
       (res) =>

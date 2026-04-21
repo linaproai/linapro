@@ -108,6 +108,53 @@ func newRegistryWithHandler(
 	return registry
 }
 
+// registerEnabledHostHandlersAsNoop installs no-op callbacks for any enabled
+// host handler refs already persisted in sys_job so startup-load tests do not
+// depend on the surrounding database being pristine.
+func registerEnabledHostHandlersAsNoop(
+	t *testing.T,
+	ctx context.Context,
+	registry jobhandler.Registry,
+) {
+	t.Helper()
+
+	var jobs []*entity.SysJob
+	err := dao.SysJob.Ctx(ctx).
+		Fields(dao.SysJob.Columns().HandlerRef).
+		Where(do.SysJob{Status: string(jobmeta.JobStatusEnabled)}).
+		Distinct().
+		Scan(&jobs)
+	if err != nil {
+		t.Fatalf("expected enabled handler query to succeed, got error: %v", err)
+	}
+
+	for _, job := range jobs {
+		if job == nil {
+			continue
+		}
+		handlerRef := strings.TrimSpace(job.HandlerRef)
+		if !strings.HasPrefix(handlerRef, "host:") {
+			continue
+		}
+		if _, exists := registry.Lookup(handlerRef); exists {
+			continue
+		}
+		err = registry.Register(jobhandler.HandlerDef{
+			Ref:          handlerRef,
+			DisplayName:  handlerRef,
+			Description:  "scheduler test no-op host handler",
+			ParamsSchema: `{"type":"object","properties":{}}`,
+			Source:       jobmeta.HandlerSourceHost,
+			Invoke: func(ctx context.Context, params json.RawMessage) (any, error) {
+				return nil, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("expected no-op host handler registration to succeed for %s, got error: %v", handlerRef, err)
+		}
+	}
+}
+
 // insertTestJob stores one enabled job row for scheduler tests.
 func insertTestJob(
 	t *testing.T,
@@ -270,7 +317,12 @@ func TestLoadAndRegisterPausesMissingPluginHandlerJobs(t *testing.T) {
 	if err := jobhandler.RegisterHostHandlers(registry, schedulerTestCleaner{}); err != nil {
 		t.Fatalf("expected host handler registration to succeed, got error: %v", err)
 	}
-	svc = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
+	registerEnabledHostHandlersAsNoop(t, ctx, registry)
+	svc = New(fakeClusterService{primary: true}, registry, fakeShellExecutor{
+		execute: func(ctx context.Context, in shellexec.ExecuteInput) (*shellexec.ExecuteOutput, error) {
+			return &shellexec.ExecuteOutput{}, nil
+		},
+	}).(*serviceImpl)
 
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),

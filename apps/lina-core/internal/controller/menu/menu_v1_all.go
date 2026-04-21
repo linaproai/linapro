@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	v1 "lina-core/api/menu/v1"
+	"lina-core/internal/model/entity"
 	menusvc "lina-core/internal/service/menu"
 )
 
@@ -57,37 +58,7 @@ func (c *ControllerV1) GetAll(ctx context.Context, req *v1.GetAllReq) (res *v1.G
 			if err != nil {
 				return nil, err
 			}
-			// Filter menus by user's menu IDs
-			menuMap := make(map[int]bool)
-			for _, id := range menuIds {
-				menuMap[id] = true
-			}
-			filteredMenus := make([]*menusvc.MenuItem, 0)
-			for _, m := range allMenus.List {
-				if menuMap[m.Id] {
-					filteredMenus = append(filteredMenus, &menusvc.MenuItem{
-						Id:         m.Id,
-						ParentId:   m.ParentId,
-						Name:       m.Name,
-						Path:       m.Path,
-						Component:  m.Component,
-						Perms:      m.Perms,
-						Icon:       m.Icon,
-						Type:       m.Type,
-						Sort:       m.Sort,
-						Visible:    m.Visible,
-						Status:     m.Status,
-						IsFrame:    m.IsFrame,
-						IsCache:    m.IsCache,
-						QueryParam: m.QueryParam,
-						Remark:     m.Remark,
-						CreatedAt:  m.CreatedAt.String(),
-						UpdatedAt:  m.UpdatedAt.String(),
-						Children:   make([]*menusvc.MenuItem, 0),
-					})
-				}
-			}
-			menuTree = buildFilteredTree(filteredMenus)
+			menuTree = buildFilteredTree(allMenus.List, menuIds)
 		}
 	}
 
@@ -97,9 +68,49 @@ func (c *ControllerV1) GetAll(ctx context.Context, req *v1.GetAllReq) (res *v1.G
 	return &v1.GetAllRes{List: routes}, nil
 }
 
-// buildFilteredTree builds a tree from filtered menu items
-func buildFilteredTree(items []*menusvc.MenuItem) []*menusvc.MenuItem {
-	nodeMap := make(map[int]*menusvc.MenuItem)
+// buildFilteredTree builds a tree from one flat menu list and automatically
+// keeps ancestor directories required by the selected menu IDs.
+func buildFilteredTree(allMenus []*entity.SysMenu, selectedIDs []int) []*menusvc.MenuItem {
+	if len(allMenus) == 0 || len(selectedIDs) == 0 {
+		return []*menusvc.MenuItem{}
+	}
+
+	entityMap := make(map[int]*entity.SysMenu, len(allMenus))
+	for _, item := range allMenus {
+		if item == nil {
+			continue
+		}
+		entityMap[item.Id] = item
+	}
+
+	selectedMap := make(map[int]struct{}, len(selectedIDs))
+	for _, id := range selectedIDs {
+		currentID := id
+		for currentID > 0 {
+			if _, ok := selectedMap[currentID]; ok {
+				break
+			}
+			selectedMap[currentID] = struct{}{}
+			parent, ok := entityMap[currentID]
+			if !ok {
+				break
+			}
+			currentID = parent.ParentId
+		}
+	}
+
+	items := make([]*menusvc.MenuItem, 0, len(selectedMap))
+	for _, item := range allMenus {
+		if item == nil {
+			continue
+		}
+		if _, ok := selectedMap[item.Id]; !ok {
+			continue
+		}
+		items = append(items, cloneMenuItem(item))
+	}
+
+	nodeMap := make(map[int]*menusvc.MenuItem, len(items))
 	for _, m := range items {
 		nodeMap[m.Id] = m
 	}
@@ -115,6 +126,42 @@ func buildFilteredTree(items []*menusvc.MenuItem) []*menusvc.MenuItem {
 		}
 	}
 	return roots
+}
+
+// cloneMenuItem detaches one menu item from the service tree so controller-side
+// filtering can rebuild children without mutating shared slices.
+func cloneMenuItem(item *entity.SysMenu) *menusvc.MenuItem {
+	if item == nil {
+		return nil
+	}
+	createdAt := ""
+	if item.CreatedAt != nil {
+		createdAt = item.CreatedAt.String()
+	}
+	updatedAt := ""
+	if item.UpdatedAt != nil {
+		updatedAt = item.UpdatedAt.String()
+	}
+	return &menusvc.MenuItem{
+		Id:         item.Id,
+		ParentId:   item.ParentId,
+		Name:       item.Name,
+		Path:       item.Path,
+		Component:  item.Component,
+		Perms:      item.Perms,
+		Icon:       item.Icon,
+		Type:       item.Type,
+		Sort:       item.Sort,
+		Visible:    item.Visible,
+		Status:     item.Status,
+		IsFrame:    item.IsFrame,
+		IsCache:    item.IsCache,
+		QueryParam: item.QueryParam,
+		Remark:     item.Remark,
+		CreatedAt:  createdAt,
+		UpdatedAt:  updatedAt,
+		Children:   []*menusvc.MenuItem{},
+	}
 }
 
 // convertToRouteItems converts menu items to Vben route format
@@ -179,6 +226,12 @@ func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 		// Convert children recursively, excluding button-type nodes.
 		if len(item.Children) > 0 {
 			route.Children = convertToRouteItems(item.Children)
+		}
+
+		// Hide empty directory menus so stable host catalogs do not leave empty
+		// shells in navigation when all child menus are unavailable.
+		if item.Type == "D" && len(route.Children) == 0 {
+			continue
 		}
 
 		// Set redirect for directory type (D) with children.

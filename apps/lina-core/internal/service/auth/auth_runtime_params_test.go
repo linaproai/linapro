@@ -36,14 +36,6 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	if err.Error() != "登录IP已被禁止" {
 		t.Fatalf("expected blacklisted login error, got %v", err)
 	}
-
-	t.Cleanup(func() {
-		if _, cleanupErr := dao.SysLoginLog.Ctx(context.Background()).
-			Where(do.SysLoginLog{UserName: username}).
-			Delete(); cleanupErr != nil {
-			t.Fatalf("cleanup login logs for %s: %v", username, cleanupErr)
-		}
-	})
 }
 
 // newRequestContext builds one request-backed context carrying the supplied

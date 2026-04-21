@@ -1,7 +1,12 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { NoticePage } from '../../pages/NoticePage';
 
 test.describe('TC0037 通知公告 CRUD', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'content-notice');
+  });
+
   const testTitle = `测试通知_${Date.now()}`;
   const testTitleRenamed = `${testTitle}_修改`;
 

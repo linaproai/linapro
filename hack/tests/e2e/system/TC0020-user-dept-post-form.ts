@@ -1,7 +1,12 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { UserPage } from '../../pages/UserPage';
 
 test.describe('TC0020 用户表单部门岗位字段', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-management');
+  });
+
   test('TC0020a: 用户编辑表单包含部门和岗位字段', async ({ adminPage }) => {
     const userPage = new UserPage(adminPage);
     await userPage.goto();

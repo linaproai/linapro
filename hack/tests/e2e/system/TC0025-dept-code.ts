@@ -1,7 +1,12 @@
 import { expect, test } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { DeptPage } from '../../pages/DeptPage';
 
 test.describe('TC0025 部门编码字段', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-management');
+  });
+
   const suffix = Date.now();
   const deptName = `编码测试部_${suffix}`;
   const deptCode = `code_${suffix}`;

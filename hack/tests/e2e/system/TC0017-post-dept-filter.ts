@@ -1,7 +1,12 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { PostPage } from '../../pages/PostPage';
 
 test.describe('TC0017 岗位按部门过滤', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-management');
+  });
+
   test('TC0017a: 选择部门后岗位列表按部门过滤', async ({ adminPage }) => {
     const postPage = new PostPage(adminPage);
     await postPage.goto();

@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
+	"lina-core/internal/plugingovernance"
 	"lina-core/pkg/pluginfs"
 )
 
@@ -177,8 +178,17 @@ func ValidateManifestMenus(manifest *Manifest) error {
 		if pluginID == "" || pluginID != manifest.ID {
 			return gerror.Newf("插件菜单 key 必须使用当前插件前缀 plugin:%s:* : %s", manifest.ID, spec.Key)
 		}
-		if parentPluginID := parsePluginIDFromMenuKey(spec.ParentKey); parentPluginID != "" && parentPluginID != manifest.ID {
+		parentPluginID := parsePluginIDFromMenuKey(spec.ParentKey)
+		if parentPluginID != "" && parentPluginID != manifest.ID {
 			return gerror.Newf("插件菜单 parent_key 不允许引用其他插件菜单: %s -> %s", spec.Key, spec.ParentKey)
+		}
+		if spec.ParentKey != "" && parentPluginID == "" && !plugingovernance.IsStableCatalogKey(spec.ParentKey) {
+			return gerror.Newf("插件菜单 parent_key 仅允许挂载到宿主稳定目录: %s -> %s", spec.Key, spec.ParentKey)
+		}
+		if spec.ParentKey != "" && parentPluginID == "" {
+			if expectedParentKey, ok := plugingovernance.ExpectedStableParentKey(manifest.ID); ok && expectedParentKey != spec.ParentKey {
+				return gerror.Newf("官方插件顶层菜单 parent_key 不合法: %s -> %s，期望 %s", spec.Key, spec.ParentKey, expectedParentKey)
+			}
 		}
 		if _, ok := declaredKeys[spec.Key]; ok {
 			return gerror.Newf("插件菜单 key 重复: %s", spec.Key)

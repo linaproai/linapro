@@ -6,10 +6,13 @@ package jobmgmt
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -21,33 +24,171 @@ const (
 	defaultBuiltinGroupCode = "default"
 )
 
-// SyncBuiltinJobs upserts code-owned scheduled-job definitions into sys_job.
+// builtinJobPlan stores one reconciled code-owned job record together with the
+// desired identity set used to prune removed built-ins.
+type builtinJobPlan struct {
+	items       []builtinJobPlanItem
+	handlerRefs map[string]struct{}
+	nameKeys    map[string]struct{}
+}
+
+// builtinJobPlanItem stores one upsert-ready built-in job snapshot.
+type builtinJobPlanItem struct {
+	record   do.SysJob
+	existing *entity.SysJob
+}
+
+// SyncBuiltinJobs upserts code-owned scheduled-job definitions into sys_job
+// without pruning removed built-ins.
 func (s *serviceImpl) SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error {
 	if len(jobs) == 0 {
 		return nil
 	}
 
 	for _, job := range jobs {
-		if err := s.syncBuiltinJob(ctx, job); err != nil {
+		record, existing, err := s.buildBuiltinJobRecord(ctx, job)
+		if err != nil {
+			return err
+		}
+		if err = s.upsertBuiltinJobRecord(ctx, record, existing); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// syncBuiltinJob upserts one code-owned scheduled-job definition.
-func (s *serviceImpl) syncBuiltinJob(ctx context.Context, job BuiltinJobDef) error {
-	record, existing, err := s.buildBuiltinJobRecord(ctx, job)
+// ReconcileBuiltinJobs refreshes the full code-owned job projection and
+// removes stale built-ins before writing the current snapshot.
+func (s *serviceImpl) ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error {
+	if len(jobs) == 0 {
+		return nil
+	}
+
+	plan, err := s.buildBuiltinJobPlan(ctx, jobs)
 	if err != nil {
 		return err
 	}
+	if err = s.pruneRemovedBuiltinJobs(ctx, plan); err != nil {
+		return err
+	}
+	for _, item := range plan.items {
+		if err = s.upsertBuiltinJobRecord(ctx, item.record, item.existing); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-	if existing == nil {
-		_, err = dao.SysJob.Ctx(ctx).Data(record).Insert()
+// buildBuiltinJobPlan materializes one full synchronization plan so removed
+// built-ins can be pruned before the remaining records are upserted.
+func (s *serviceImpl) buildBuiltinJobPlan(
+	ctx context.Context,
+	jobs []BuiltinJobDef,
+) (*builtinJobPlan, error) {
+	plan := &builtinJobPlan{
+		items:       make([]builtinJobPlanItem, 0, len(jobs)),
+		handlerRefs: make(map[string]struct{}),
+		nameKeys:    make(map[string]struct{}),
+	}
+
+	for _, job := range jobs {
+		record, existing, err := s.buildBuiltinJobRecord(ctx, job)
+		if err != nil {
+			return nil, err
+		}
+		plan.items = append(plan.items, builtinJobPlanItem{
+			record:   record,
+			existing: existing,
+		})
+
+		nameKey := buildBuiltinJobNameKey(gconv.Uint64(record.GroupId), record.Name)
+		plan.nameKeys[nameKey] = struct{}{}
+
+		handlerRef := strings.TrimSpace(gconv.String(record.HandlerRef))
+		if handlerRef != "" {
+			plan.handlerRefs[handlerRef] = struct{}{}
+		}
+	}
+	return plan, nil
+}
+
+// pruneRemovedBuiltinJobs hard-deletes code-owned jobs that no longer exist in
+// the current host or plugin definitions so stale handler refs never leak into
+// scheduler startup or name uniqueness checks.
+func (s *serviceImpl) pruneRemovedBuiltinJobs(
+	ctx context.Context,
+	plan *builtinJobPlan,
+) error {
+	if plan == nil {
+		return nil
+	}
+
+	var jobs []*entity.SysJob
+	if err := dao.SysJob.Ctx(ctx).
+		Where(do.SysJob{IsBuiltin: 1}).
+		Scan(&jobs); err != nil {
 		return err
 	}
 
-	_, err = dao.SysJob.Ctx(ctx).
+	for _, job := range jobs {
+		if job == nil || job.Id == 0 {
+			continue
+		}
+		if _, ok := plan.handlerRefs[strings.TrimSpace(job.HandlerRef)]; ok {
+			continue
+		}
+		if _, ok := plan.nameKeys[buildBuiltinJobNameKey(job.GroupId, job.Name)]; ok {
+			continue
+		}
+		if err := s.deleteBuiltinJobHard(ctx, job.Id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deleteBuiltinJobHard removes one stale code-owned job and its execution logs.
+func (s *serviceImpl) deleteBuiltinJobHard(ctx context.Context, jobID uint64) error {
+	if jobID == 0 {
+		return nil
+	}
+
+	if s != nil && s.scheduler != nil {
+		s.scheduler.Remove(jobID)
+	}
+
+	return dao.SysJob.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		if _, err := dao.SysJobLog.Ctx(ctx).
+			Where(do.SysJobLog{JobId: jobID}).
+			Delete(); err != nil {
+			return err
+		}
+		_, err := dao.SysJob.Ctx(ctx).
+			Unscoped().
+			Where(do.SysJob{Id: jobID}).
+			Delete()
+		return err
+	})
+}
+
+// buildBuiltinJobNameKey returns the stable uniqueness key for one built-in
+// job inside the persistent sys_job table.
+func buildBuiltinJobNameKey(groupID uint64, name any) string {
+	return fmt.Sprintf("%d:%s", groupID, strings.TrimSpace(fmt.Sprint(name)))
+}
+
+// upsertBuiltinJobRecord writes one prepared code-owned scheduled-job snapshot.
+func (s *serviceImpl) upsertBuiltinJobRecord(
+	ctx context.Context,
+	record do.SysJob,
+	existing *entity.SysJob,
+) error {
+	if existing == nil {
+		_, err := dao.SysJob.Ctx(ctx).Data(record).Insert()
+		return err
+	}
+
+	_, err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{Id: existing.Id}).
 		Data(record).
 		Update()
@@ -157,6 +298,12 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 	if err != nil {
 		return do.SysJob{}, nil, err
 	}
+	if existing == nil {
+		existing, err = s.builtinJobByGroupAndName(ctx, group.Id, name)
+		if err != nil {
+			return do.SysJob{}, nil, err
+		}
+	}
 
 	stopReason := ""
 	effectiveStatus := status
@@ -225,6 +372,28 @@ func (s *serviceImpl) builtinJobByHandlerRef(ctx context.Context, handlerRef str
 	var job *entity.SysJob
 	err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{IsBuiltin: 1, HandlerRef: trimmedRef}).
+		Scan(&job)
+	return job, err
+}
+
+// builtinJobByGroupAndName queries one code-owned job by group and display name.
+func (s *serviceImpl) builtinJobByGroupAndName(
+	ctx context.Context,
+	groupID uint64,
+	name string,
+) (*entity.SysJob, error) {
+	trimmedName := strings.TrimSpace(name)
+	if groupID == 0 || trimmedName == "" {
+		return nil, nil
+	}
+
+	var job *entity.SysJob
+	err := dao.SysJob.Ctx(ctx).
+		Where(do.SysJob{
+			IsBuiltin: 1,
+			GroupId:   groupID,
+			Name:      trimmedName,
+		}).
 		Scan(&job)
 	return job, err
 }

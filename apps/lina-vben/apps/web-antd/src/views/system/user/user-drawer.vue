@@ -16,6 +16,7 @@ import { drawerSchema } from './data';
 const emit = defineEmits<{ success: [] }>();
 
 const isEdit = ref(false);
+const orgEnabled = ref(false);
 const userId = ref<number>(0);
 const title = computed(() => (isEdit.value ? '编辑用户' : '新增用户'));
 
@@ -46,14 +47,11 @@ const [Form, formApi] = useVbenForm({
     },
     labelWidth: 80,
   },
-  schema: drawerSchema(false),
+  schema: drawerSchema(false, false),
   showDefaultActions: false,
   wrapperClass: 'grid-cols-2',
 });
 
-/**
- * 岗位的加载
- */
 async function setupPostOptions(deptId: number | string) {
   const postList = await postOptionSelect(Number(deptId));
   const options = postList.map((item) => ({
@@ -69,9 +67,6 @@ async function setupPostOptions(deptId: number | string) {
   ]);
 }
 
-/**
- * 角色的加载
- */
 async function setupRoleOptions() {
   const roleList = await roleOptions();
   const options = roleList.map((item) => ({
@@ -86,9 +81,6 @@ async function setupRoleOptions() {
   ]);
 }
 
-/**
- * 初始化部门选择
- */
 async function setupDeptSelect() {
   const deptTree = await getDeptTree();
   addFullName(deptTree, 'label', ' / ');
@@ -102,9 +94,7 @@ async function setupDeptSelect() {
           children: 'children',
         },
         async onSelect(deptId: number | string) {
-          /** 根据部门ID加载岗位 */
           await setupPostOptions(deptId);
-          /** 变化后需要重新选择岗位 */
           formModel.postIds = [];
         },
         placeholder: '请选择',
@@ -123,34 +113,39 @@ async function setupDeptSelect() {
 const [Drawer, drawerApi] = useVbenDrawer({
   async onOpenChange(open) {
     if (!open) {
-      // 需要重置岗位选择
-      formApi.updateSchema([
-        {
-          componentProps: { options: [], placeholder: '请先选择部门' },
-          fieldName: 'postIds',
-        },
-      ]);
+      if (orgEnabled.value) {
+        formApi.updateSchema([
+          {
+            componentProps: { options: [], placeholder: '请先选择部门' },
+            fieldName: 'postIds',
+          },
+        ]);
+      }
       return;
     }
 
     drawerApi.setState({ loading: true });
 
-    const data = drawerApi.getData<{ isEdit: boolean; row?: any }>();
+    const data = drawerApi.getData<{
+      isEdit: boolean;
+      orgEnabled?: boolean;
+      row?: any;
+    }>();
     isEdit.value = data?.isEdit ?? false;
+    orgEnabled.value = data?.orgEnabled ?? false;
 
-    // Update schema based on mode
     formApi.setState({
-      schema: drawerSchema(isEdit.value),
+      schema: drawerSchema(isEdit.value, orgEnabled.value),
     });
 
-    // 加载部门树
-    await setupDeptSelect();
+    if (orgEnabled.value) {
+      await setupDeptSelect();
+    }
 
-    // 加载角色选项
     await setupRoleOptions();
 
-    // 加载字典：状态选项
-    const statusOptions = await dictStore.getDictOptionsAsync('sys_normal_disable');
+    const statusOptions =
+      await dictStore.getDictOptionsAsync('sys_normal_disable');
     formApi.updateSchema([
       {
         fieldName: 'status',
@@ -165,9 +160,8 @@ const [Drawer, drawerApi] = useVbenDrawer({
 
     if (isEdit.value && data?.row) {
       userId.value = data.row.id;
-      // Load user info
       const user = await userInfo(data.row.id);
-      await formApi.setValues({
+      const values: Record<string, any> = {
         username: user.username,
         nickname: user.nickname,
         email: user.email,
@@ -175,12 +169,16 @@ const [Drawer, drawerApi] = useVbenDrawer({
         sex: user.sex,
         status: user.status,
         remark: user.remark,
-        deptId: user.deptId,
-        postIds: user.postIds,
         roleIds: user.roleIds,
-      });
-      // 编辑时加载该部门下的岗位
-      if (user.deptId) {
+      };
+
+      if (orgEnabled.value) {
+        values.deptId = user.deptId;
+        values.postIds = user.postIds;
+      }
+
+      await formApi.setValues(values);
+      if (orgEnabled.value && user.deptId) {
         await setupPostOptions(user.deptId);
       }
     } else {
@@ -192,6 +190,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
   },
   async onConfirm() {
     const values = await formApi.getValues();
+    if (!orgEnabled.value) {
+      Reflect.deleteProperty(values, 'deptId');
+      Reflect.deleteProperty(values, 'postIds');
+    }
 
     if (isEdit.value) {
       await userUpdate({

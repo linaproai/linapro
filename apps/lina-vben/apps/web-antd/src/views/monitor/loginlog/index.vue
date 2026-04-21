@@ -14,8 +14,8 @@ import {
   loginLogExport,
   loginLogList,
 } from '#/api/monitor/loginlog';
-import { downloadBlob } from '#/utils/download';
 import { useDictStore } from '#/store/dict';
+import { downloadBlob } from '#/utils/download';
 
 import { columns, querySchema } from './data';
 import LoginlogDetailModal from './loginlog-detail-modal.vue';
@@ -23,8 +23,7 @@ import LoginlogDetailModal from './loginlog-detail-modal.vue';
 const dictStore = useDictStore();
 
 onMounted(async () => {
-  // Use the async helper so the select is populated after the dictionary API resolves.
-  const statusOptions = await dictStore.getDictOptionsAsync('sys_oper_status');
+  const statusOptions = await dictStore.getDictOptionsAsync('sys_login_status');
   gridApi.formApi.updateSchema([
     {
       fieldName: 'status',
@@ -69,7 +68,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
     proxyConfig: {
       sort: true,
       ajax: {
-        query: async ({ page, sorts }: any, formValues: Record<string, any> = {}) => {
+        query: async (
+          { page, sorts }: any,
+          formValues: Record<string, any> = {},
+        ) => {
           const sortParams: Record<string, string> = {};
           if (sorts && sorts.length > 0) {
             const sort = sorts[0];
@@ -86,7 +88,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
             ...sortParams,
           };
 
-          // Handle loginTime date range
           if (params.loginTime && Array.isArray(params.loginTime)) {
             params.beginTime = params.loginTime[0];
             params.endTime = params.loginTime[1];
@@ -110,10 +111,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridEvents: {
     checkboxChange: () => {
-      checkedRows.value = (gridApi.grid?.getCheckboxRecords() || []) as LoginLog[];
+      checkedRows.value = (gridApi.grid?.getCheckboxRecords() ||
+        []) as LoginLog[];
     },
     checkboxAll: () => {
-      checkedRows.value = (gridApi.grid?.getCheckboxRecords() || []) as LoginLog[];
+      checkedRows.value = (gridApi.grid?.getCheckboxRecords() ||
+        []) as LoginLog[];
     },
   },
 });
@@ -155,9 +158,10 @@ function handleDelete() {
 }
 
 async function handleExport() {
-  const content = checkedRows.value.length > 0
-    ? '是否导出选中的记录？'
-    : '是否导出全部数据？';
+  const content =
+    checkedRows.value.length > 0
+      ? '是否导出选中的记录？'
+      : '是否导出全部数据？';
 
   Modal.confirm({
     title: '提示',

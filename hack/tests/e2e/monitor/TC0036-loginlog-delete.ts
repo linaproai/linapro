@@ -1,6 +1,11 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0036 登录日志批量删除', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-loginlog');
+  });
+
   test('TC0036a: 删除按钮在未勾选记录时置灰', async ({ adminPage }) => {
     await adminPage.goto('/monitor/loginlog');
     await adminPage.waitForLoadState('networkidle');

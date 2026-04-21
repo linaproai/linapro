@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 async function expectPageHeightStable(page: any, pageName: string) {
   const samples: number[] = [];
@@ -19,6 +20,10 @@ async function expectPageHeightStable(page: any, pageName: string) {
 }
 
 test.describe('TC0026 操作日志列表查询与筛选', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-operlog');
+  });
+
   test.beforeEach(async ({ adminPage }) => {
     // Navigate to operlog page and wait for data to load
     const responsePromise = adminPage.waitForResponse(

@@ -1,6 +1,9 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
+type GridColumns = NonNullable<VxeGridProps['columns']>;
+type GridColumn = GridColumns[number];
+
 /** 查询表单schema */
 export const querySchema: VbenFormSchema[] = [
   {
@@ -30,93 +33,107 @@ export const querySchema: VbenFormSchema[] = [
   },
 ];
 
-/** 表格列定义 */
-export const columns: VxeGridProps['columns'] = [
-  { type: 'checkbox', width: 60 },
-  {
-    field: 'username',
-    title: '名称',
-    minWidth: 120,
-    sortable: true,
-  },
-  {
-    field: 'avatar',
-    title: '头像',
-    slots: { default: 'avatar' },
-    minWidth: 80,
-  },
-  {
-    field: 'nickname',
-    title: '昵称',
-    minWidth: 120,
-    sortable: true,
-  },
-  {
+function buildDeptColumn(): GridColumn {
+  return {
     field: 'deptName',
     title: '部门',
     minWidth: 120,
-    formatter({ cellValue }) {
+    formatter({ cellValue }: { cellValue?: string }) {
       return cellValue || '未分配部门';
     },
-  },
-  {
-    field: 'roleNames',
-    title: '角色',
-    minWidth: 120,
-    formatter({ cellValue }) {
-      return cellValue || '未分配角色';
+  };
+}
+
+/** 表格列定义 */
+export function buildColumns(orgEnabled: boolean): GridColumns {
+  const columns: GridColumns = [
+    { type: 'checkbox', width: 60 },
+    {
+      field: 'username',
+      title: '名称',
+      minWidth: 120,
+      sortable: true,
     },
-  },
-  {
-    field: 'phone',
-    title: '手机号码',
-    formatter({ cellValue }) {
-      return cellValue || '暂无';
+    {
+      field: 'avatar',
+      title: '头像',
+      slots: { default: 'avatar' },
+      minWidth: 80,
     },
-    minWidth: 130,
-    sortable: true,
-  },
-  {
-    field: 'sex',
-    title: '性别',
-    minWidth: 80,
-    formatter({ cellValue }) {
-      const map: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
-      return map[cellValue as number] ?? '未知';
+    {
+      field: 'nickname',
+      title: '昵称',
+      minWidth: 120,
+      sortable: true,
     },
-  },
-  {
-    field: 'email',
-    title: '邮箱',
-    minWidth: 160,
-    sortable: true,
-  },
-  {
-    field: 'status',
-    title: '状态',
-    minWidth: 100,
-    slots: { default: 'status' },
-    sortable: true,
-  },
-  {
-    field: 'createdAt',
-    title: '创建时间',
-    minWidth: 180,
-    sortable: true,
-  },
-  {
-    field: 'action',
-    slots: { default: 'action' },
-    title: '操作',
-    fixed: 'right',
-    resizable: false,
-    width: 'auto',
-  },
-];
+    {
+      field: 'roleNames',
+      title: '角色',
+      minWidth: 120,
+      formatter({ cellValue }) {
+        return cellValue || '未分配角色';
+      },
+    },
+    {
+      field: 'phone',
+      title: '手机号码',
+      formatter({ cellValue }) {
+        return cellValue || '暂无';
+      },
+      minWidth: 130,
+      sortable: true,
+    },
+    {
+      field: 'sex',
+      title: '性别',
+      minWidth: 80,
+      formatter({ cellValue }) {
+        const map: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
+        return map[cellValue as number] ?? '未知';
+      },
+    },
+    {
+      field: 'email',
+      title: '邮箱',
+      minWidth: 160,
+      sortable: true,
+    },
+    {
+      field: 'status',
+      title: '状态',
+      minWidth: 100,
+      slots: { default: 'status' },
+      sortable: true,
+    },
+    {
+      field: 'createdAt',
+      title: '创建时间',
+      minWidth: 180,
+      sortable: true,
+    },
+    {
+      field: 'action',
+      slots: { default: 'action' },
+      title: '操作',
+      fixed: 'right',
+      resizable: false,
+      width: 'auto',
+    },
+  ];
+
+  if (orgEnabled) {
+    columns.splice(4, 0, buildDeptColumn());
+  }
+
+  return columns;
+}
 
 /** 新增/编辑表单schema */
-export function drawerSchema(isEdit: boolean): VbenFormSchema[] {
-  return [
+export function drawerSchema(
+  isEdit: boolean,
+  orgEnabled: boolean,
+): VbenFormSchema[] {
+  const schema: VbenFormSchema[] = [
     {
       component: 'Input',
       fieldName: 'username',
@@ -186,36 +203,44 @@ export function drawerSchema(isEdit: boolean): VbenFormSchema[] {
         optionType: 'button',
       },
     },
-    {
-      component: 'TreeSelect',
-      defaultValue: undefined,
-      fieldName: 'deptId',
-      label: '部门',
-      componentProps: {
-        fieldNames: {
-          key: 'id',
-          value: 'id',
-          children: 'children',
+  ];
+
+  if (orgEnabled) {
+    schema.push(
+      {
+        component: 'TreeSelect',
+        defaultValue: undefined,
+        fieldName: 'deptId',
+        label: '部门',
+        componentProps: {
+          fieldNames: {
+            key: 'id',
+            value: 'id',
+            children: 'children',
+          },
+          showSearch: true,
+          treeDefaultExpandAll: true,
+          treeNodeLabelProp: 'fullName',
+          treeLine: { showLeafIcon: false },
+          treeNodeFilterProp: 'label',
+          placeholder: '请选择',
         },
-        showSearch: true,
-        treeDefaultExpandAll: true,
-        treeNodeLabelProp: 'fullName',
-        treeLine: { showLeafIcon: false },
-        treeNodeFilterProp: 'label',
-        placeholder: '请选择',
       },
-    },
-    {
-      component: 'Select',
-      fieldName: 'postIds',
-      label: '岗位',
-      help: '选择部门后, 将自动加载该部门下所有的岗位',
-      componentProps: {
-        mode: 'multiple',
-        optionFilterProp: 'label',
-        placeholder: '请先选择部门',
+      {
+        component: 'Select',
+        fieldName: 'postIds',
+        label: '岗位',
+        help: '选择部门后, 将自动加载该部门下所有的岗位',
+        componentProps: {
+          mode: 'multiple',
+          optionFilterProp: 'label',
+          placeholder: '请先选择部门',
+        },
       },
-    },
+    );
+  }
+
+  schema.push(
     {
       component: 'Select',
       fieldName: 'roleIds',
@@ -236,5 +261,7 @@ export function drawerSchema(isEdit: boolean): VbenFormSchema[] {
         rows: 3,
       },
     },
-  ];
+  );
+
+  return schema;
 }

@@ -185,7 +185,7 @@ test.describe('TC0061 角色管理 CRUD', () => {
     }
 
     // 编辑角色并分配菜单
-    await rolePage.assignMenusToRole(currentRoleName, ['系统管理']);
+    await rolePage.assignMenusToRole(currentRoleName, ['权限管理']);
 
     // 等待抽屉关闭
     const drawer = adminPage.locator('[role="dialog"]');

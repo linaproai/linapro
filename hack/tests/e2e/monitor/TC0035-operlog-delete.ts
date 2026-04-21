@@ -1,6 +1,11 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0035 操作日志批量删除', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-operlog');
+  });
+
   test('TC0035a: 删除按钮在未勾选记录时置灰', async ({ adminPage }) => {
     await adminPage.goto('/monitor/operlog');
     await adminPage.waitForLoadState('networkidle');

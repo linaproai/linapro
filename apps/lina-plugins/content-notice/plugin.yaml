@@ -1,0 +1,42 @@
+id: content-notice
+name: 内容管理-通知公告
+version: v0.1.0
+type: source
+description: 提供通知公告管理的官方源码插件
+author: lina-team
+license: Apache-2.0
+menus:
+  - key: plugin:content-notice:notice
+    parent_key: content
+    name: 通知公告
+    path: /system/notice
+    component: system/plugin/dynamic-page
+    perms: system:notice:list
+    icon: lucide:megaphone
+    type: M
+    sort: 1
+    remark: 内容管理插件-通知公告
+  - key: plugin:content-notice:notice:query
+    parent_key: plugin:content-notice:notice
+    name: 公告查询
+    perms: system:notice:query
+    type: B
+    sort: 1
+  - key: plugin:content-notice:notice:add
+    parent_key: plugin:content-notice:notice
+    name: 公告新增
+    perms: system:notice:add
+    type: B
+    sort: 2
+  - key: plugin:content-notice:notice:edit
+    parent_key: plugin:content-notice:notice
+    name: 公告修改
+    perms: system:notice:edit
+    type: B
+    sort: 3
+  - key: plugin:content-notice:notice:remove
+    parent_key: plugin:content-notice:notice
+    name: 公告删除
+    perms: system:notice:remove
+    type: B
+    sort: 4

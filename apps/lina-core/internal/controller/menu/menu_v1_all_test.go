@@ -3,6 +3,7 @@ package menu
 import (
 	"testing"
 
+	"lina-core/internal/model/entity"
 	menusvc "lina-core/internal/service/menu"
 )
 
@@ -175,5 +176,58 @@ func TestConvertToRouteItemsKeepsAbsoluteChildPath(t *testing.T) {
 	}
 	if routes[0].Children[0].Path != "/system/job" {
 		t.Fatalf("expected absolute child path to be preserved, got %q", routes[0].Children[0].Path)
+	}
+}
+
+// TestConvertToRouteItemsSkipsDirectoryWithoutVisibleChildren verifies host
+// directory menus disappear once all child nodes are filtered out.
+func TestConvertToRouteItemsSkipsDirectoryWithoutVisibleChildren(t *testing.T) {
+	routes := convertToRouteItems([]*menusvc.MenuItem{
+		{
+			Id:      301,
+			Name:    "系统监控",
+			Path:    "monitor",
+			Type:    "D",
+			Visible: 1,
+			Status:  1,
+			Children: []*menusvc.MenuItem{
+				{
+					Id:       302,
+					ParentId: 301,
+					Name:     "操作日志查看",
+					Path:     "monitor-operlog-view",
+					Type:     "B",
+					Visible:  1,
+					Status:   1,
+				},
+			},
+		},
+	})
+
+	if len(routes) != 0 {
+		t.Fatalf("expected empty directory route to be hidden, got %#v", routes)
+	}
+}
+
+// TestBuildFilteredTreeKeepsAncestors verifies selected leaf menus project the
+// full ancestor chain required by the stable host catalog tree.
+func TestBuildFilteredTreeKeepsAncestors(t *testing.T) {
+	menuTree := buildFilteredTree([]*entity.SysMenu{
+		{Id: 1, Name: "权限管理", Path: "iam", Type: "D", Visible: 1, Status: 1},
+		{Id: 2, ParentId: 1, Name: "用户治理", Path: "iam-user", Type: "D", Visible: 1, Status: 1},
+		{Id: 3, ParentId: 2, Name: "用户管理", Path: "/system/user", Component: "system/user/index", Type: "M", Visible: 1, Status: 1},
+	}, []int{3})
+
+	if len(menuTree) != 1 {
+		t.Fatalf("expected one root ancestor, got %#v", menuTree)
+	}
+	if len(menuTree[0].Children) != 1 {
+		t.Fatalf("expected one middle ancestor, got %#v", menuTree[0].Children)
+	}
+	if len(menuTree[0].Children[0].Children) != 1 {
+		t.Fatalf("expected selected leaf to remain attached, got %#v", menuTree[0].Children[0].Children)
+	}
+	if menuTree[0].Children[0].Children[0].Id != 3 {
+		t.Fatalf("expected selected leaf id=3, got %#v", menuTree[0].Children[0].Children[0])
 	}
 }

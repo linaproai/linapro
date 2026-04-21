@@ -158,9 +158,9 @@ test.describe("TC0063 登录后菜单显示", () => {
   test.beforeAll(async () => {
     const api = await createAdminApiContext();
     adminApi = api;
-    roleMenuIds = await getMenuIdsByNames(api, ["系统管理", "用户管理"]);
+    roleMenuIds = await getMenuIdsByNames(api, ["权限管理", "用户管理"]);
     expandedRoleMenuIds = await getMenuIdsByNames(api, [
-      "系统管理",
+      "权限管理",
       "用户管理",
       "角色管理",
     ]);
@@ -221,9 +221,9 @@ test.describe("TC0063 登录后菜单显示", () => {
     await page.waitForTimeout(2000);
     const sidebarMenu = page.getByRole("menu").first();
 
-    // Admin should see system management menu
-    const systemMenu = sidebarMenu.getByText("系统管理").first();
-    await expect(systemMenu).toBeVisible({ timeout: 5000 });
+    // Admin should see IAM catalog
+    const iamMenu = sidebarMenu.getByText("权限管理").first();
+    await expect(iamMenu).toBeVisible({ timeout: 5000 });
 
     // Admin should see menu management
     const menuManagement = sidebarMenu.getByText("菜单管理").first();
@@ -235,31 +235,43 @@ test.describe("TC0063 登录后菜单显示", () => {
 
     const currentUserRoutes = await getCurrentUserRouteTree(adminApi!);
     const visibleRootTitles = getVisibleRootTitles(currentUserRoutes);
-    expect(visibleRootTitles.indexOf("仪表盘")).toBeGreaterThanOrEqual(0);
-    expect(visibleRootTitles.indexOf("系统管理")).toBeGreaterThanOrEqual(0);
-    expect(visibleRootTitles.indexOf("仪表盘")).toBeLessThan(
-      visibleRootTitles.indexOf("系统管理"),
+    expect(visibleRootTitles.indexOf("工作台")).toBeGreaterThanOrEqual(0);
+    expect(visibleRootTitles.indexOf("权限管理")).toBeGreaterThanOrEqual(0);
+    expect(visibleRootTitles.indexOf("系统设置")).toBeGreaterThanOrEqual(0);
+    expect(visibleRootTitles.indexOf("任务调度")).toBeGreaterThanOrEqual(0);
+    expect(visibleRootTitles.indexOf("扩展中心")).toBeGreaterThanOrEqual(0);
+    expect(visibleRootTitles.indexOf("开发中心")).toBeGreaterThanOrEqual(0);
+    expect(visibleRootTitles.indexOf("工作台")).toBeLessThan(
+      visibleRootTitles.indexOf("权限管理"),
     );
 
-    const systemRoute = findRouteNodeByTitle(currentUserRoutes, "系统管理");
-    const visibleSystemChildren = getVisibleChildTitles(systemRoute);
-    expect(visibleSystemChildren).toEqual([
+    const iamRoute = findRouteNodeByTitle(currentUserRoutes, "权限管理");
+    const visibleIAMChildren = getVisibleChildTitles(iamRoute);
+    expect(visibleIAMChildren).toEqual([
       "用户管理",
       "角色管理",
       "菜单管理",
-      "部门管理",
-      "岗位管理",
+    ]);
+
+    const settingRoute = findRouteNodeByTitle(currentUserRoutes, "系统设置");
+    const visibleSettingChildren = getVisibleChildTitles(settingRoute);
+    expect(visibleSettingChildren).toEqual([
       "字典管理",
-      "通知公告",
       "参数设置",
       "文件管理",
-      "插件管理",
-      "定时任务",
     ]);
+
+    const extensionRoute = findRouteNodeByTitle(currentUserRoutes, "扩展中心");
+    const visibleExtensionChildren = getVisibleChildTitles(extensionRoute);
+    expect(visibleExtensionChildren).toEqual(["插件管理"]);
+
+    const developerRoute = findRouteNodeByTitle(currentUserRoutes, "开发中心");
+    const visibleDeveloperChildren = getVisibleChildTitles(developerRoute);
+    expect(visibleDeveloperChildren).toEqual(["接口文档", "系统信息"]);
 
     const scheduledJobRoute = findRouteNodeByTitle(
       currentUserRoutes,
-      "定时任务",
+      "任务调度",
     );
     const visibleScheduledJobChildren =
       getVisibleChildTitles(scheduledJobRoute);
@@ -270,7 +282,9 @@ test.describe("TC0063 登录后菜单显示", () => {
     ]);
 
     const monitorRoute = findRouteNodeByTitle(currentUserRoutes, "系统监控");
-    expect(monitorRoute?.meta?.icon).toBe("solar:monitor-camera-outline");
+    if (monitorRoute) {
+      expect(monitorRoute?.meta?.icon).toBe("lucide:activity");
+    }
 
     const duplicateIcons = findDuplicateIcons(
       getVisibleMenuIcons(currentUserRoutes),
@@ -280,15 +294,15 @@ test.describe("TC0063 登录后菜单显示", () => {
     const currentMenusResponse = await adminApi!.get("menu");
     expect(currentMenusResponse.ok()).toBeTruthy();
     const currentMenusResult = await currentMenusResponse.json();
-    const systemMenuNode = findMenuNodeByName(
+    const extensionMenuNode = findMenuNodeByName(
       currentMenusResult.data?.list ?? [],
-      "系统管理",
+      "扩展中心",
     );
-    expect(systemMenuNode, "系统管理菜单应存在").toBeTruthy();
-    const systemChildNames = (systemMenuNode?.children ?? []).map(
+    expect(extensionMenuNode, "扩展中心菜单应存在").toBeTruthy();
+    const extensionChildNames = (extensionMenuNode?.children ?? []).map(
       (item) => item.name,
     );
-    expect(systemChildNames).toContain("插件管理");
+    expect(extensionChildNames).toContain("插件管理");
 
     const rootPluginMenu = (currentMenusResult.data?.list ?? []).find(
       (item: MenuNode) => item.name === "插件管理",
@@ -307,7 +321,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     await page.waitForTimeout(2000);
     const sidebarMenu = page.getByRole("menu").first();
 
-    const systemMenu = sidebarMenu.getByText("系统管理").first();
+    const systemMenu = sidebarMenu.getByText("权限管理").first();
     await expect(systemMenu).toBeVisible({ timeout: 5000 });
 
     const userManagement = sidebarMenu.getByText("用户管理").first();
@@ -334,16 +348,17 @@ test.describe("TC0063 登录后菜单显示", () => {
   test("TC0063d: 不同用户菜单权限差异", async ({ page }) => {
     const loginPage = new LoginPage(page);
     const systemMenuEntries = [
+      "分析页",
+      "工作台",
       "用户管理",
       "角色管理",
       "菜单管理",
-      "部门管理",
-      "岗位管理",
       "字典管理",
-      "通知公告",
       "参数设置",
       "文件管理",
       "插件管理",
+      "接口文档",
+      "系统信息",
       "任务管理",
       "分组管理",
       "执行日志",

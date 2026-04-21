@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/plugingovernance"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -609,4 +610,61 @@ func writeRuntimeArtifactWithRoutePermissions(
 			ResponseCodec:  pluginbridge.CodecProtobuf,
 		},
 	)
+}
+
+// TestSyncPluginMenusResolvesStableHostParent verifies plugin menu sync maps a
+// manifest parent_key that targets one host catalog into the persisted parent_id.
+func TestSyncPluginMenusResolvesStableHostParent(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID = "plugin-stable-parent-sync"
+		menuKey  = "plugin:plugin-stable-parent-sync:main-entry"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	})
+
+	hostParent, err := testutil.QueryMenuByKey(ctx, plugingovernance.Monitor)
+	if err != nil {
+		t.Fatalf("expected host parent query to succeed, got error: %v", err)
+	}
+	if hostParent == nil {
+		t.Fatalf("expected host stable parent menu %s to exist", plugingovernance.Monitor)
+	}
+
+	manifest := &catalog.Manifest{
+		ID:      pluginID,
+		Name:    "Stable Parent Sync Plugin",
+		Version: "0.1.0",
+		Type:    catalog.TypeSource.String(),
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       menuKey,
+				Name:      "Stable Parent Sync Plugin",
+				ParentKey: plugingovernance.Monitor,
+				Path:      "plugin-stable-parent-sync",
+				Component: "system/plugin/dynamic-page",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	if err = services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
+		t.Fatalf("expected plugin menu sync to succeed, got error: %v", err)
+	}
+
+	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected synced plugin menu query to succeed, got error: %v", err)
+	}
+	if menu == nil {
+		t.Fatalf("expected plugin menu %s to be created", menuKey)
+	}
+	if menu.ParentId != hostParent.Id {
+		t.Fatalf("expected plugin menu parent_id=%d, got %d", hostParent.Id, menu.ParentId)
+	}
 }

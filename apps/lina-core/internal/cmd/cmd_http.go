@@ -15,20 +15,14 @@ import (
 
 	"lina-core/internal/controller/auth"
 	configctrl "lina-core/internal/controller/config"
-	"lina-core/internal/controller/dept"
 	"lina-core/internal/controller/dict"
 	filectrl "lina-core/internal/controller/file"
 	jobctrl "lina-core/internal/controller/job"
 	jobgroupctrl "lina-core/internal/controller/jobgroup"
 	jobhandlerctrl "lina-core/internal/controller/jobhandler"
 	joblogctrl "lina-core/internal/controller/joblog"
-	"lina-core/internal/controller/loginlog"
 	"lina-core/internal/controller/menu"
-	monitorctrl "lina-core/internal/controller/monitor"
-	"lina-core/internal/controller/notice"
-	"lina-core/internal/controller/operlog"
 	pluginctrl "lina-core/internal/controller/plugin"
-	"lina-core/internal/controller/post"
 	publicconfigctrl "lina-core/internal/controller/publicconfig"
 	"lina-core/internal/controller/role"
 	"lina-core/internal/controller/sysinfo"
@@ -108,11 +102,9 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 
 	var (
 		sessionCfg = configSvc.GetSession(ctx)
-		monCfg     = configSvc.GetMonitor(ctx)
 		serverCfg  = configSvc.GetServerExtensions(ctx)
 		cronSvc    = cron.New(
 			sessionCfg,
-			monCfg,
 			middlewareSvc.SessionStore(),
 			clusterSvc,
 			jobRegistry,
@@ -123,7 +115,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	)
 	clusterSvc.Start(ctx)
 
-	// Start all cron jobs (session cleanup, server monitor, etc.)
+	// Start host-owned cron jobs and plugin-owned cron registrations.
 	cronSvc.Start(ctx)
 
 	m.bindHostedOpenAPIDocs(ctx, s, apiDocSvc, serverCfg.ApiDocPath)
@@ -178,17 +170,11 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 				authCtrl.Logout,
 				user.NewV1(),
 				dict.NewV1(),
-				dept.NewV1(),
-				post.NewV1(),
 				menu.NewV1(),
 				role.NewV1(),
-				notice.NewV1(),
 				usermsg.NewV1(),
-				loginlog.NewV1(),
-				operlog.NewV1(),
 				sysinfo.NewV1(),
 				filectrl.NewV1(),
-				monitorctrl.NewV1(),
 				configctrl.NewV1(),
 				jobCtrl,
 				jobGroupCtrl,

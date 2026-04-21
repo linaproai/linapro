@@ -12,7 +12,6 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/grpool"
 
-	"lina-core/internal/service/operlog"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
 )
@@ -26,6 +25,29 @@ const (
 	operLogMaskedPassword = "***"
 	operLogRedactedValue  = "[REDACTED]"
 )
+
+// Local audit operation semantic constants mirror the published dictionary
+// values without making the host middleware depend on the optional operlog
+// plugin implementation package.
+const (
+	operLogTypeCreate    = 1
+	operLogTypeUpdate    = 2
+	operLogTypeDelete    = 3
+	operLogTypeExport    = 4
+	operLogTypeImport    = 5
+	operLogTypeOther     = 6
+	operLogStatusSuccess = 0
+	operLogStatusFail    = 1
+)
+
+var operLogTagToType = map[string]int{
+	"create": operLogTypeCreate,
+	"update": operLogTypeUpdate,
+	"delete": operLogTypeDelete,
+	"export": operLogTypeExport,
+	"import": operLogTypeImport,
+	"other":  operLogTypeOther,
+}
 
 // OperLog records operation logs for write operations and specially tagged GET operations.
 func (s *serviceImpl) OperLog(r *ghttp.Request) {
@@ -100,10 +122,10 @@ func (s *serviceImpl) OperLog(r *ghttp.Request) {
 		}
 	}
 
-	status := operlog.OperStatusSuccess
+	status := operLogStatusSuccess
 	errorMsg := ""
 	if r.Response.Status >= 400 || r.GetError() != nil {
-		status = operlog.OperStatusFail
+		status = operLogStatusFail
 		if r.GetError() != nil {
 			errorMsg = r.GetError().Error()
 		}
@@ -114,7 +136,7 @@ func (s *serviceImpl) OperLog(r *ghttp.Request) {
 		urlPath   = r.URL.Path
 		urlString = r.URL.String()
 		clientIp  = r.GetClientIp()
-		input     = operlog.CreateInput{
+		input     = pluginsvc.AuditRecordedInput{
 			Title:         title,
 			OperSummary:   operSummary,
 			OperType:      operType,
@@ -134,15 +156,15 @@ func (s *serviceImpl) OperLog(r *ghttp.Request) {
 	// Async write using grpool (goroutine pool) with NeverDoneCtx
 	ctx := r.GetNeverDoneCtx()
 	if err := grpool.AddWithRecover(ctx, func(ctx context.Context) {
-		if createErr := s.operLogSvc.Create(ctx, input); createErr != nil {
-			logger.Warningf(ctx, "create operation log failed err=%v", createErr)
+		if hookErr := s.pluginSvc.HandleAuditRecorded(ctx, input); hookErr != nil {
+			logger.Warningf(ctx, "dispatch operation audit hook failed err=%v", hookErr)
 		}
 	}, func(ctx context.Context, err error) {
 		logger.Errorf(ctx, "operlog middleware panic: %v", err)
 	}); err != nil {
-		logger.Warningf(ctx, "schedule operation log task failed err=%v", err)
-		if createErr := s.operLogSvc.Create(ctx, input); createErr != nil {
-			logger.Warningf(ctx, "fallback create operation log failed err=%v", createErr)
+		logger.Warningf(ctx, "schedule operation audit task failed err=%v", err)
+		if hookErr := s.pluginSvc.HandleAuditRecorded(ctx, input); hookErr != nil {
+			logger.Warningf(ctx, "fallback dispatch operation audit hook failed err=%v", hookErr)
 		}
 	}
 }
@@ -150,25 +172,32 @@ func (s *serviceImpl) OperLog(r *ghttp.Request) {
 // inferOperType determines operation type from HTTP method and path.
 func inferOperType(method, path, operLogTag string) int {
 	if operLogTag != "" {
-		if operType, ok := operlog.ResolveOperTag(operLogTag); ok {
+		if operType, ok := resolveOperLogTag(operLogTag); ok {
 			return operType
 		}
-		return operlog.OperTypeOther
+		return operLogTypeOther
 	}
 
 	switch method {
 	case http.MethodPost:
 		if strings.Contains(strings.ToLower(path), "import") {
-			return operlog.OperTypeImport
+			return operLogTypeImport
 		}
-		return operlog.OperTypeCreate
+		return operLogTypeCreate
 	case http.MethodPut:
-		return operlog.OperTypeUpdate
+		return operLogTypeUpdate
 	case http.MethodDelete:
-		return operlog.OperTypeDelete
+		return operLogTypeDelete
 	default:
-		return operlog.OperTypeOther
+		return operLogTypeOther
 	}
+}
+
+// resolveOperLogTag converts a semantic operLog tag to the published audit
+// operation type code used by audit events.
+func resolveOperLogTag(tag string) (int, bool) {
+	operType, ok := operLogTagToType[strings.TrimSpace(tag)]
+	return operType, ok
 }
 
 // getRequestParam extracts request parameters as JSON string.

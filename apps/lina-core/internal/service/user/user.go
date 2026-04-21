@@ -13,7 +13,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
-	"lina-core/internal/service/dept"
+	"lina-core/internal/service/orgcap"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/user/accountpolicy"
 	"lina-core/pkg/gdbutil"
@@ -79,7 +79,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	authSvc   auth.Service
 	bizCtxSvc bizctx.Service
-	deptSvc   dept.Service
+	orgCapSvc orgcap.Service
 	roleSvc   role.Service // Role service
 }
 
@@ -88,7 +88,7 @@ func New() Service {
 	return &serviceImpl{
 		authSvc:   auth.New(),
 		bizCtxSvc: bizctx.New(),
-		deptSvc:   dept.New(),
+		orgCapSvc: orgcap.New(),
 		roleSvc:   role.New(),
 	}
 }
@@ -127,8 +127,9 @@ type ListOutput struct {
 // List queries user list with pagination and filters.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
 	var (
-		cols = dao.SysUser.Columns()
-		m    = dao.SysUser.Ctx(ctx)
+		cols       = dao.SysUser.Columns()
+		m          = dao.SysUser.Ctx(ctx)
+		orgEnabled = s.orgCapSvc.Enabled(ctx)
 	)
 
 	// Apply filters
@@ -155,7 +156,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}
 
 	// Filter by dept via association table
-	if in.DeptId != nil {
+	if orgEnabled && in.DeptId != nil {
 		if *in.DeptId == 0 {
 			// Unassigned: users NOT in sys_user_dept
 			assignedUserIds, err := s.GetAllAssignedUserIds(ctx)
@@ -226,39 +227,20 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		userIds = append(userIds, u.Id)
 	}
 
-	// Batch query user-dept associations
-	udCols := dao.SysUserDept.Columns()
-	var userDepts []*entity.SysUserDept
-	err = dao.SysUserDept.Ctx(ctx).
-		WhereIn(udCols.UserId, userIds).
-		Scan(&userDepts)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build userId -> deptId map
 	userDeptMap := make(map[int]int)
-	deptIds := make([]int, 0)
-	for _, ud := range userDepts {
-		userDeptMap[ud.UserId] = ud.DeptId
-		deptIds = append(deptIds, ud.DeptId)
-	}
-
-	// Batch query dept info
-	var depts []*entity.SysDept
-	if len(deptIds) > 0 {
-		err = dao.SysDept.Ctx(ctx).
-			WhereIn(dao.SysDept.Columns().Id, deptIds).
-			Scan(&depts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Build deptId -> deptName map
 	deptNameMap := make(map[int]string)
-	for _, d := range depts {
-		deptNameMap[d.Id] = d.Name
+	if orgEnabled {
+		assignments, assignmentErr := s.orgCapSvc.ListUserDeptAssignments(ctx, userIds)
+		if assignmentErr != nil {
+			return nil, assignmentErr
+		}
+		for userID, assignment := range assignments {
+			if assignment == nil {
+				continue
+			}
+			userDeptMap[userID] = assignment.DeptID
+			deptNameMap[assignment.DeptID] = assignment.DeptName
+		}
 	}
 
 	// Build user-role associations
@@ -333,66 +315,17 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 
 // GetUserIdsByDeptId returns user IDs associated with a dept and all its descendants.
 func (s *serviceImpl) GetUserIdsByDeptId(ctx context.Context, deptId int) ([]int, error) {
-	// Use shared method from dept service to get dept and descendant IDs
-	deptIds, err := s.deptSvc.GetDeptAndDescendantIds(ctx, deptId)
-	if err != nil {
-		return nil, err
-	}
-
-	// Query users belonging to any of these depts
-	var userDepts []*entity.SysUserDept
-	err = dao.SysUserDept.Ctx(ctx).
-		WhereIn(dao.SysUserDept.Columns().DeptId, deptIds).
-		Scan(&userDepts)
-	if err != nil {
-		return nil, err
-	}
-	// Deduplicate user IDs (a user could belong to multiple depts in the subtree)
-	seen := make(map[int]struct{})
-	ids := make([]int, 0, len(userDepts))
-	for _, ud := range userDepts {
-		if _, ok := seen[ud.UserId]; !ok {
-			seen[ud.UserId] = struct{}{}
-			ids = append(ids, ud.UserId)
-		}
-	}
-	return ids, nil
+	return s.orgCapSvc.GetUserIDsByDept(ctx, deptId)
 }
 
 // GetAllAssignedUserIds returns all user IDs that have a dept association.
 func (s *serviceImpl) GetAllAssignedUserIds(ctx context.Context) ([]int, error) {
-	var userDepts []*entity.SysUserDept
-	err := dao.SysUserDept.Ctx(ctx).
-		Fields(dao.SysUserDept.Columns().UserId).
-		Distinct().
-		Scan(&userDepts)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int, 0, len(userDepts))
-	for _, ud := range userDepts {
-		ids = append(ids, ud.UserId)
-	}
-	return ids, nil
+	return s.orgCapSvc.GetAllAssignedUserIDs(ctx)
 }
 
 // GetUserDeptInfo returns the dept ID and name for a user.
 func (s *serviceImpl) GetUserDeptInfo(ctx context.Context, userId int) (int, string, error) {
-	var userDept *entity.SysUserDept
-	err := dao.SysUserDept.Ctx(ctx).
-		Where(dao.SysUserDept.Columns().UserId, userId).
-		Scan(&userDept)
-	if err != nil || userDept == nil {
-		return 0, "", err
-	}
-	var dept *entity.SysDept
-	err = dao.SysDept.Ctx(ctx).
-		Where(dao.SysDept.Columns().Id, userDept.DeptId).
-		Scan(&dept)
-	if err != nil || dept == nil {
-		return 0, "", err
-	}
-	return dept.Id, dept.Name, nil
+	return s.orgCapSvc.GetUserDeptInfo(ctx, userId)
 }
 
 // CreateInput defines input for Create function.
@@ -456,26 +389,8 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 		userId = int(id)
 
-		// Save dept association
-		if in.DeptId != nil && *in.DeptId > 0 {
-			_, err = dao.SysUserDept.Ctx(ctx).Data(do.SysUserDept{
-				UserId: userId,
-				DeptId: *in.DeptId,
-			}).Insert()
-			if err != nil {
-				return err
-			}
-		}
-
-		// Save post associations
-		for _, postId := range in.PostIds {
-			_, err = dao.SysUserPost.Ctx(ctx).Data(do.SysUserPost{
-				UserId: userId,
-				PostId: postId,
-			}).Insert()
-			if err != nil {
-				return err
-			}
+		if err = s.orgCapSvc.ReplaceUserAssignments(ctx, userId, in.DeptId, in.PostIds); err != nil {
+			return err
 		}
 
 		// Save role associations
@@ -583,37 +498,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			return err
 		}
 
-		// Update dept association (delete and re-insert)
-		if in.DeptId != nil {
-			_, err = dao.SysUserDept.Ctx(ctx).Where(dao.SysUserDept.Columns().UserId, in.Id).Delete()
-			if err != nil {
-				logger.Warningf(ctx, "failed to delete user dept association: %v", err)
-			}
-			if *in.DeptId > 0 {
-				_, err = dao.SysUserDept.Ctx(ctx).Data(do.SysUserDept{
-					UserId: in.Id,
-					DeptId: *in.DeptId,
-				}).Insert()
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		// Update post associations (delete and re-insert)
-		if in.PostIds != nil {
-			_, err = dao.SysUserPost.Ctx(ctx).Where(dao.SysUserPost.Columns().UserId, in.Id).Delete()
-			if err != nil {
-				logger.Warningf(ctx, "failed to delete user post association: %v", err)
-			}
-			for _, postId := range in.PostIds {
-				_, err = dao.SysUserPost.Ctx(ctx).Data(do.SysUserPost{
-					UserId: in.Id,
-					PostId: postId,
-				}).Insert()
-				if err != nil {
-					return err
-				}
+		if in.DeptId != nil || in.PostIds != nil {
+			if err = s.orgCapSvc.ReplaceUserAssignments(ctx, in.Id, in.DeptId, in.PostIds); err != nil {
+				return err
 			}
 		}
 
@@ -668,12 +555,9 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 		return err
 	}
 
-	// Clean up dept, post and role associations (log errors but don't fail)
-	if _, err := dao.SysUserDept.Ctx(ctx).Where(dao.SysUserDept.Columns().UserId, id).Delete(); err != nil {
-		logger.Warningf(ctx, "failed to delete user dept association for user %d: %v", id, err)
-	}
-	if _, err := dao.SysUserPost.Ctx(ctx).Where(dao.SysUserPost.Columns().UserId, id).Delete(); err != nil {
-		logger.Warningf(ctx, "failed to delete user post association for user %d: %v", id, err)
+	// Clean up optional organization associations only when org capability is enabled.
+	if err := s.orgCapSvc.CleanupUserAssignments(ctx, id); err != nil {
+		logger.Warningf(ctx, "failed to delete user organization associations for user %d: %v", id, err)
 	}
 	if _, err := dao.SysUserRole.Ctx(ctx).Where(dao.SysUserRole.Columns().UserId, id).Delete(); err != nil {
 		logger.Warningf(ctx, "failed to delete user role association for user %d: %v", id, err)
@@ -793,18 +677,7 @@ func (s *serviceImpl) UpdateAvatar(ctx context.Context, avatarUrl string) error 
 
 // GetUserPostIds returns the post IDs associated with a user.
 func (s *serviceImpl) GetUserPostIds(ctx context.Context, userId int) ([]int, error) {
-	var userPosts []*entity.SysUserPost
-	err := dao.SysUserPost.Ctx(ctx).
-		Where(dao.SysUserPost.Columns().UserId, userId).
-		Scan(&userPosts)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int, 0, len(userPosts))
-	for _, up := range userPosts {
-		ids = append(ids, up.PostId)
-	}
-	return ids, nil
+	return s.orgCapSvc.GetUserPostIDs(ctx, userId)
 }
 
 // GetUserRoleIds returns the role IDs associated with a user.

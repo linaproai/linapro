@@ -1,0 +1,82 @@
+id: org-management
+name: 组织管理
+version: v0.1.0
+type: source
+description: 提供部门管理与岗位管理的官方源码插件
+author: lina-team
+license: Apache-2.0
+menus:
+  - key: plugin:org-management:dept
+    parent_key: org
+    name: 部门管理
+    path: /system/dept
+    component: system/plugin/dynamic-page
+    perms: system:dept:list
+    icon: lucide:network
+    type: M
+    sort: 1
+    remark: 组织管理插件-部门管理
+  - key: plugin:org-management:dept:query
+    parent_key: plugin:org-management:dept
+    name: 部门查询
+    perms: system:dept:query
+    type: B
+    sort: 1
+  - key: plugin:org-management:dept:add
+    parent_key: plugin:org-management:dept
+    name: 部门新增
+    perms: system:dept:add
+    type: B
+    sort: 2
+  - key: plugin:org-management:dept:edit
+    parent_key: plugin:org-management:dept
+    name: 部门修改
+    perms: system:dept:edit
+    type: B
+    sort: 3
+  - key: plugin:org-management:dept:remove
+    parent_key: plugin:org-management:dept
+    name: 部门删除
+    perms: system:dept:remove
+    type: B
+    sort: 4
+  - key: plugin:org-management:post
+    parent_key: org
+    name: 岗位管理
+    path: /system/post
+    component: system/plugin/dynamic-page
+    perms: system:post:list
+    icon: lucide:briefcase
+    type: M
+    sort: 2
+    remark: 组织管理插件-岗位管理
+  - key: plugin:org-management:post:query
+    parent_key: plugin:org-management:post
+    name: 岗位查询
+    perms: system:post:query
+    type: B
+    sort: 1
+  - key: plugin:org-management:post:add
+    parent_key: plugin:org-management:post
+    name: 岗位新增
+    perms: system:post:add
+    type: B
+    sort: 2
+  - key: plugin:org-management:post:edit
+    parent_key: plugin:org-management:post
+    name: 岗位修改
+    perms: system:post:edit
+    type: B
+    sort: 3
+  - key: plugin:org-management:post:remove
+    parent_key: plugin:org-management:post
+    name: 岗位删除
+    perms: system:post:remove
+    type: B
+    sort: 4
+  - key: plugin:org-management:post:export
+    parent_key: plugin:org-management:post
+    name: 岗位导出
+    perms: system:post:export
+    type: B
+    sort: 5

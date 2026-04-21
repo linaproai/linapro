@@ -1,0 +1,82 @@
+// Package backend wires the monitor-operlog source plugin into the host plugin registry.
+package backend
+
+import (
+	"context"
+
+	operlogcontroller "lina-core/pkg/plugincontroller/operlog"
+	"lina-core/pkg/pluginhost"
+	operlogsvc "lina-core/pkg/pluginservice/operlog"
+	monitoroperlogplugin "lina-plugin-monitor-operlog"
+)
+
+// monitor-operlog plugin constants.
+const (
+	// pluginID is the immutable identifier published by the embedded source plugin.
+	pluginID = "monitor-operlog"
+)
+
+// init registers the monitor-operlog source plugin and its host callbacks.
+func init() {
+	plugin := pluginhost.NewSourcePlugin(pluginID)
+	plugin.UseEmbeddedFiles(monitoroperlogplugin.EmbeddedFiles)
+	plugin.RegisterRoutes(
+		pluginhost.ExtensionPointHTTPRouteRegister,
+		pluginhost.CallbackExecutionModeBlocking,
+		registerRoutes,
+	)
+	plugin.RegisterHook(
+		pluginhost.ExtensionPointAuditRecorded,
+		pluginhost.CallbackExecutionModeAsync,
+		handleAuditRecorded,
+	)
+	pluginhost.RegisterSourcePlugin(plugin)
+}
+
+// registerRoutes binds operation-log governance routes through the published host middleware set.
+func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) error {
+	middlewares := registrar.Middlewares()
+	registrar.Group("/api/v1", func(group pluginhost.RouteGroup) {
+		group.Middleware(
+			middlewares.NeverDoneCtx(),
+			middlewares.HandlerResponse(),
+			middlewares.CORS(),
+			middlewares.RequestBodyLimit(),
+			middlewares.Ctx(),
+		)
+		group.Group("/", func(group pluginhost.RouteGroup) {
+			group.Middleware(
+				middlewares.Auth(),
+				middlewares.OperLog(),
+				middlewares.Permission(),
+			)
+			group.Bind(operlogcontroller.NewV1())
+		})
+	})
+	return nil
+}
+
+// handleAuditRecorded persists one host audit event into the operation-log table owned by this plugin.
+func handleAuditRecorded(ctx context.Context, payload pluginhost.HookPayload) error {
+	values := payload.Values()
+
+	operType, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyOperType)
+	status, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
+	costTime, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyCostTime)
+
+	return operlogsvc.New().Create(ctx, operlogsvc.CreateInput{
+		Title:         pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyTitle),
+		OperSummary:   pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOperSummary),
+		OperType:      operType,
+		Method:        pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyMethod),
+		RequestMethod: pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyRequestMethod),
+		OperName:      pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOperName),
+		OperUrl:       pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOperURL),
+		OperIp:        pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyIP),
+		OperParam:     pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOperParam),
+		JsonResult:    pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyJSONResult),
+		Status:        status,
+		ErrorMsg:      pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyErrorMsg),
+		CostTime:      costTime,
+	})
+}

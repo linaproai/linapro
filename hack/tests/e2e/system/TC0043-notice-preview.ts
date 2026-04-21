@@ -1,7 +1,12 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { NoticePage } from '../../pages/NoticePage';
 
 test.describe('TC0043 通知公告预览', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'content-notice');
+  });
+
   test('TC0043a: 预览 Mock 通知公告内容', async ({ adminPage }) => {
     const noticePage = new NoticePage(adminPage);
     await noticePage.goto();

@@ -1,7 +1,12 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { UserPage } from '../../pages/UserPage';
 
 test.describe('TC0019 用户管理部门过滤', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'org-management');
+  });
+
   test('TC0019a: 用户管理页面左侧部门树可见', async ({ adminPage }) => {
     const userPage = new UserPage(adminPage);
     await userPage.goto();

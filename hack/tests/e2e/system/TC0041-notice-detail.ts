@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { config } from '../../fixtures/config';
 
 const API_BASE = `${config.baseURL}/api/v1`;
@@ -94,6 +95,10 @@ async function apiUpdateUserRoles(
 }
 
 test.describe('TC0041 消息列表预览弹窗查看通知详情', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'content-notice');
+  });
+
   test('TC0041a: 从消息列表点击消息弹出预览窗口', async ({ adminPage }) => {
     const adminToken = await apiLogin(config.adminUser, config.adminPass);
     await apiClearMessages(adminToken);

@@ -44,6 +44,9 @@ const (
 	ExtensionPointAuthLoginFailed ExtensionPoint = "auth.login.failed"
 	// ExtensionPointAuthLogoutSucceeded is fired after user logout succeeds.
 	ExtensionPointAuthLogoutSucceeded ExtensionPoint = "auth.logout.succeeded"
+	// ExtensionPointAuditRecorded is fired after one host request completes and
+	// should be persisted as an audit trail.
+	ExtensionPointAuditRecorded ExtensionPoint = "audit.recorded"
 	// ExtensionPointPluginInstalled is fired after a dynamic plugin is installed.
 	ExtensionPointPluginInstalled ExtensionPoint = "plugin.installed"
 	// ExtensionPointPluginEnabled is fired after a plugin is enabled.
@@ -85,6 +88,7 @@ var publishedExtensionPoints = map[ExtensionPoint]ExtensionPointDefinition{
 	ExtensionPointAuthLoginSucceeded:  {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointAuthLoginFailed:     {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointAuthLogoutSucceeded: {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
+	ExtensionPointAuditRecorded:       {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeAsync},
 	ExtensionPointPluginInstalled:     {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointPluginEnabled:       {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointPluginDisabled:      {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
@@ -112,6 +116,10 @@ var supportedExtensionPointModes = map[ExtensionPoint]map[CallbackExecutionMode]
 		CallbackExecutionModeAsync:    {},
 	},
 	ExtensionPointAuthLogoutSucceeded: {
+		CallbackExecutionModeBlocking: {},
+		CallbackExecutionModeAsync:    {},
+	},
+	ExtensionPointAuditRecorded: {
 		CallbackExecutionModeBlocking: {},
 		CallbackExecutionModeAsync:    {},
 	},

@@ -1,81 +1,65 @@
-# LinaPro 插件系统
+# LinaPro 插件目录
 
-`apps/lina-plugins/` 是 LinaPro 插件系统的主要参考入口。它说明了当前仓库已经真实落地的插件约定，并指向贡献者应遵循的样例插件。
+`apps/lina-plugins/` 是 LinaPro 官方源码插件工作区。
 
-## 当前范围
+在当前开源阶段，宿主只保留稳定的核心基础能力，例如用户管理、角色管理、菜单管理、字典管理、参数设置、文件管理、任务调度、插件治理和开发支持；非核心业务能力通过 `apps/lina-plugins/<plugin-id>/` 下的源码插件交付。
 
-LinaPro 当前支持两类插件形态：
+## 这里包含什么
 
-- `source`：源码插件，位于 `apps/lina-plugins/<plugin-id>/` 下，并随宿主一起编译交付。
-- `dynamic`：动态 WASM 插件，以运行时产物形式交付，携带清单、前端资源、SQL 资源和受治理的宿主服务访问声明。
+当前目录下包含三类参考内容：
 
-当前仓库已经包含：
+- `plugin-demo-source`：源码插件目录结构与开发方式样例
+- `plugin-demo-dynamic`：动态 WASM 插件结构与生命周期样例
+- 官方源码插件：通过显式接线编译进宿主的一方业务插件
 
-- 插件发现与治理元数据
-- 插件页面与插件 Slot
-- 插件管理流程
-- 安装 / 卸载 SQL 约定
-- 源码插件与动态插件样例
+## 官方源码插件列表
 
-## 目录结构
+当前仓库内置以下一方源码插件：
+
+- `org-management`：部门管理、岗位管理
+- `content-notice`：通知公告管理
+- `monitor-online`：在线用户查询与强制下线治理
+- `monitor-server`：服务监控采集、清理与查询
+- `monitor-operlog`：操作日志落库与治理
+- `monitor-loginlog`：登录日志落库与治理
+
+每个官方插件都使用统一的基础结构：
 
 ```text
-apps/lina-plugins/
-  lina-plugins.go/        宿主构建中的源码插件显式接线入口
-  plugin-demo-source/     源码插件样例
-  plugin-demo-dynamic/    动态 WASM 插件样例
-  OPERATIONS.md           运维与审查说明
+apps/lina-plugins/<plugin-id>/
+  backend/              插件后端入口与 Hook/资源声明
+  frontend/pages/       由宿主菜单挂载的插件页面包装层
+  manifest/sql/         插件自有的安装/卸载 SQL 资源
+  plugin.yaml           插件清单
+  plugin_embed.go       嵌入资源注册入口
+  README.md             英文说明
+  README.zh_CN.md       中文说明
 ```
 
-## 设计原则
+## 宿主与插件边界
 
-- **约定优于配置**：页面、Slot 和 SQL 资源通过稳定的目录约定发现。
-- **单一真相源**：插件元数据保存在 `plugin.yaml`，实现细节保存在真实源码中。
-- **显式接线**：源码插件通过显式方式接入，保证宿主构建图可见、可审查。
-- **治理优先**：动态插件通过宿主管控的契约安装与执行，而不是放开任意运行时代码执行能力。
+当前源码插件方案强调通过稳定接缝解耦，而不是在宿主里散落大量 `if pluginEnabled` 判断。
 
-## 插件类型
+- 宿主拥有稳定的一级目录骨架，例如 `dashboard`、`iam`、`setting`、`scheduler`、`extension`、`developer`。
+- 插件菜单只能挂载到宿主已发布的稳定目录，或者插件自身声明的内部菜单节点。
+- 官方插件挂载点固定：`org-management -> org`、`content-notice -> content`、全部监控插件 -> `monitor`。
+- 宿主对插件发布稳定能力接缝，例如认证事件、审计事件、组织能力接口和插件生命周期 Hook。
+- 插件自有的数据表、菜单、页面、Hook 和定时任务都保留在插件目录内，并通过插件生命周期完成安装与卸载。
 
-### 源码插件
-
-源码插件会被编译进宿主。当插件需要与仓库一起交付，并遵循同一套发布流程时，应使用这种形态。
-
-### 动态插件
-
-动态插件会构建成受治理的 WASM 产物。当插件生命周期需要由上传、安装、启用、停用、卸载和版本收敛流程来管理时，应使用这种形态。
-
-## 动态插件的宿主服务模型
-
-动态插件通过 `plugin.yaml` 中结构化的 `hostServices` 声明申请宿主能力。
-
-当前支持的宿主服务分组包括：
-
-- `runtime`
-- `storage`
-- `network`
-- `data`
-
-每组服务都由宿主根据声明的方法和资源边界进行授权与约束。
-
-## 常见开发流程
-
-### 源码插件流程
+## 源码插件开发流程
 
 1. 创建 `apps/lina-plugins/<plugin-id>/`。
-2. 在 `plugin.yaml` 中定义元数据。
-3. 增加后端、前端和可选 SQL 资源。
-4. 通过源码插件注册入口做显式接线。
+2. 参考 `plugin-demo-source/` 的目录结构。
+3. 在 `plugin.yaml` 中声明清单、菜单、页面、SQL 资源与可选 Hook。
+4. 插件后端代码保留在插件目录中，只依赖宿主公开包。
+5. 在 `apps/lina-plugins/lina-plugins.go` 中做显式接线。
 
-### 动态插件流程
+## 动态插件说明
 
-1. 创建插件源码目录。
-2. 嵌入清单与静态资源。
-3. 使用 `make wasm` 构建运行时产物。
-4. 上传产物或放入配置的存储目录。
-5. 通过宿主生命周期流程进行安装与管理。
+动态 WASM 插件仍然适用于运行时托管交付场景。如果插件需要通过上传、安装、启用、停用和卸载完成生命周期管理，请参考 `plugin-demo-dynamic/`。
 
 ## 参考入口
 
-- `plugin-demo-source/README.md`
-- `plugin-demo-dynamic/README.md`
-- `OPERATIONS.md`
+- `apps/lina-plugins/plugin-demo-source/README.md`
+- `apps/lina-plugins/plugin-demo-dynamic/README.md`
+- `apps/lina-plugins/OPERATIONS.md`

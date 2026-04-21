@@ -1,81 +1,65 @@
-# LinaPro Plugin System
+# LinaPro Plugins
 
-`apps/lina-plugins/` is the primary reference entry for LinaPro's plugin system. It documents the conventions that are implemented in this repository today and points to the sample plugins that contributors should follow.
+`apps/lina-plugins/` is the official source-plugin workspace for LinaPro.
 
-## Current Scope
+At the current open-source stage, the host keeps only stable core capabilities such as user management, role management, menu management, dictionary management, parameter settings, file management, scheduled job management, plugin governance, and developer support. Non-core business modules are delivered as source plugins under `apps/lina-plugins/<plugin-id>/`.
 
-LinaPro currently supports two plugin shapes:
+## What Lives Here
 
-- `source`: source plugins that live under `apps/lina-plugins/<plugin-id>/` and are compiled together with the host.
-- `dynamic`: managed WASM plugins that ship as runtime artifacts with manifest, frontend assets, SQL assets, and governed host-service access.
+LinaPro currently ships three plugin references in this directory:
 
-The repository already includes:
+- `plugin-demo-source`: sample source plugin structure and coding reference
+- `plugin-demo-dynamic`: sample dynamic WASM plugin structure and lifecycle reference
+- official source plugins: first-party business plugins compiled into the host through explicit wiring
 
-- plugin discovery and governance metadata
-- plugin pages and plugin slots
-- plugin management flows
-- install and uninstall SQL conventions
-- sample source and dynamic plugins
+## Official Source Plugins
 
-## Directory Layout
+The repository currently includes these first-party source plugins:
+
+- `org-management`: department management and post management
+- `content-notice`: notice management
+- `monitor-online`: online user query and force logout
+- `monitor-server`: server monitor collection, cleanup, and query
+- `monitor-operlog`: operation log persistence and governance
+- `monitor-loginlog`: login log persistence and governance
+
+Each official plugin has its own directory and follows the same baseline structure:
 
 ```text
-apps/lina-plugins/
-  lina-plugins.go/        Explicit source-plugin wiring entry in the host build
-  plugin-demo-source/     Source plugin sample
-  plugin-demo-dynamic/    Dynamic WASM plugin sample
-  OPERATIONS.md           Operations and review notes
+apps/lina-plugins/<plugin-id>/
+  backend/              Plugin backend entry and hook/resource declarations
+  frontend/pages/       Plugin page wrappers mounted by host menus
+  manifest/sql/         Plugin-owned install and uninstall SQL assets
+  plugin.yaml           Plugin manifest
+  plugin_embed.go       Embedded asset registration
+  README.md             English plugin guide
+  README.zh_CN.md       Chinese plugin guide
 ```
 
-## Design Principles
+## Host and Plugin Boundary
 
-- **Convention over configuration**: pages, slots, and SQL assets are discovered from stable directory conventions.
-- **Single source of truth**: plugin metadata lives in `plugin.yaml`; implementation details live in real source files.
-- **Explicit wiring**: source plugins are wired explicitly so the host build graph remains visible and reviewable.
-- **Governance first**: dynamic plugins are installed and executed through host-controlled contracts rather than unrestricted runtime code execution.
+The host and source plugins are intentionally decoupled through stable seams instead of scattered `if pluginEnabled` branches.
 
-## Plugin Types
+- The host owns stable top-level menu catalogs such as `dashboard`, `iam`, `setting`, `scheduler`, `extension`, and `developer`.
+- Plugin menus may mount only under published host catalog keys or inside the plugin's own menu tree.
+- Official plugins have fixed mount points: `org-management -> org`, `content-notice -> content`, and all monitor plugins -> `monitor`.
+- The host publishes stable capability seams for optional collaboration, such as auth events, audit events, org capability access, and plugin lifecycle hooks.
+- Plugin-owned tables, menus, pages, hooks, and cron jobs live in the plugin directory and are installed or removed through the plugin lifecycle.
 
-### Source Plugins
-
-Source plugins are compiled into the host. Use them when the plugin should ship together with the repository and follow the same delivery pipeline as the host application.
-
-### Dynamic Plugins
-
-Dynamic plugins are built as governed WASM artifacts. Use them when the plugin lifecycle must be managed at runtime through upload, install, enable, disable, uninstall, and release reconciliation flows.
-
-## Host Service Model for Dynamic Plugins
-
-Dynamic plugins request access to host capabilities through structured `hostServices` declarations in `plugin.yaml`.
-
-Current host service groups are:
-
-- `runtime`
-- `storage`
-- `network`
-- `data`
-
-Each service is authorized by the host and constrained by declared methods and governed resources.
-
-## Typical Development Flow
-
-### Source Plugin Flow
+## Source Plugin Development Flow
 
 1. Create `apps/lina-plugins/<plugin-id>/`.
-2. Define metadata in `plugin.yaml`.
-3. Add backend, frontend, and optional SQL assets.
-4. Wire the plugin explicitly through the source-plugin registration entry.
+2. Follow the structure used by `plugin-demo-source/`.
+3. Declare metadata, menus, frontend pages, SQL assets, and optional hooks in `plugin.yaml`.
+4. Keep plugin-owned backend code inside the plugin directory and depend only on published host packages.
+5. Register the plugin explicitly in `apps/lina-plugins/lina-plugins.go`.
 
-### Dynamic Plugin Flow
+## Dynamic Plugin Notes
 
-1. Create the plugin source tree.
-2. Embed manifest and static resources.
-3. Build the runtime artifact with `make wasm`.
-4. Upload or place the artifact in the configured storage path.
-5. Install and manage it through the host lifecycle flows.
+Dynamic WASM plugins remain supported for runtime-managed delivery scenarios. Use `plugin-demo-dynamic/` as the reference when the plugin must be uploaded, installed, enabled, disabled, and uninstalled without recompiling the host.
 
 ## References
 
-- `plugin-demo-source/README.md`
-- `plugin-demo-dynamic/README.md`
-- `OPERATIONS.md`
+- `apps/lina-plugins/plugin-demo-source/README.md`
+- `apps/lina-plugins/plugin-demo-dynamic/README.md`
+- `apps/lina-plugins/OPERATIONS.md`

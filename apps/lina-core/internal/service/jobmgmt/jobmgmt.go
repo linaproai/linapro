@@ -68,6 +68,9 @@ type Service interface {
 	CleanupDueLogs(ctx context.Context) (int64, error)
 	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job.
 	SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
+	// ReconcileBuiltinJobs refreshes the full code-owned job projection and
+	// prunes removed built-ins from sys_job.
+	ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
 }
 
 // Scheduler defines the persistent scheduled-job runner contract exported to

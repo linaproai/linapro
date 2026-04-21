@@ -1,6 +1,11 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0040 消息面板操作', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'content-notice');
+  });
+
   test('TC0040a: 铃铛图标可见', async ({ adminPage }) => {
     // The notification bell should be visible in the header
     const bell = adminPage.locator(

@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { NoticePage } from '../../pages/NoticePage';
 import { config } from '../../fixtures/config';
 
@@ -37,6 +38,10 @@ async function apiClearMessages(token: string): Promise<void> {
 }
 
 test.describe('TC0039 通知公告发布与消息分发', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'content-notice');
+  });
+
   const publishTitle = `发布测试_${Date.now()}`;
 
   test('TC0039a: 创建已发布通知后铃铛显示未读', async ({ adminPage }) => {

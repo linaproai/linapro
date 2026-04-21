@@ -1,0 +1,30 @@
+id: monitor-online
+name: 系统监控-在线用户
+version: v0.1.0
+type: source
+description: 提供在线用户查询与强制下线治理的官方源码插件
+author: lina-team
+license: Apache-2.0
+menus:
+  - key: plugin:monitor-online:online
+    parent_key: monitor
+    name: 在线用户
+    path: /monitor/online
+    component: system/plugin/dynamic-page
+    perms: monitor:online:list
+    icon: ant-design:user-switch-outlined
+    type: M
+    sort: 1
+    remark: 系统监控插件-在线用户
+  - key: plugin:monitor-online:online:query
+    parent_key: plugin:monitor-online:online
+    name: 在线查询
+    perms: monitor:online:query
+    type: B
+    sort: 1
+  - key: plugin:monitor-online:online:force-logout
+    parent_key: plugin:monitor-online:online
+    name: 强制退出
+    perms: monitor:online:forceLogout
+    type: B
+    sort: 2

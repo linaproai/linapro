@@ -1,0 +1,42 @@
+id: monitor-operlog
+name: 系统监控-操作日志
+version: v0.1.0
+type: source
+description: 提供操作日志持久化与治理界面的官方源码插件
+author: lina-team
+license: Apache-2.0
+menus:
+  - key: plugin:monitor-operlog:operlog
+    parent_key: monitor
+    name: 操作日志
+    path: /monitor/operlog
+    component: system/plugin/dynamic-page
+    perms: monitor:operlog:list
+    icon: lucide:file-text
+    type: M
+    sort: 3
+    remark: 系统监控插件-操作日志
+  - key: plugin:monitor-operlog:operlog:query
+    parent_key: plugin:monitor-operlog:operlog
+    name: 日志查询
+    perms: monitor:operlog:query
+    type: B
+    sort: 1
+  - key: plugin:monitor-operlog:operlog:remove
+    parent_key: plugin:monitor-operlog:operlog
+    name: 日志删除
+    perms: monitor:operlog:remove
+    type: B
+    sort: 2
+  - key: plugin:monitor-operlog:operlog:export
+    parent_key: plugin:monitor-operlog:operlog
+    name: 日志导出
+    perms: monitor:operlog:export
+    type: B
+    sort: 3
+  - key: plugin:monitor-operlog:operlog:clear
+    parent_key: plugin:monitor-operlog:operlog
+    name: 清空日志
+    perms: monitor:operlog:clear
+    type: B
+    sort: 4

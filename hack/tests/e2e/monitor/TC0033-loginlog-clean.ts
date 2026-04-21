@@ -1,6 +1,11 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0033 登录日志清理', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-loginlog');
+  });
+
   test('TC0033a: 点击清空按钮弹出确认对话框', async ({ adminPage }) => {
     await adminPage.goto('/monitor/loginlog');
     await adminPage.waitForLoadState('networkidle');

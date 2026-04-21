@@ -3,7 +3,7 @@ import { Page, useVbenDrawer, useVbenModal } from '@vben/common-ui';
 import { preferences } from '@vben/preferences';
 import { useUserStore } from '@vben/stores';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import {
   Avatar,
@@ -25,14 +25,20 @@ import {
   userList,
   userStatusChange,
 } from '#/api/system/user';
+import {
+  getPluginStateMap,
+  onPluginRegistryChanged,
+} from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
 import { downloadBlob } from '#/utils/download';
 
-import { columns, querySchema } from './data';
+import { buildColumns, querySchema } from './data';
 import DeptTree from './dept-tree.vue';
 import UserDrawer from './user-drawer.vue';
 import UserImportModal from './user-import-modal.vue';
 import UserResetPwdModal from './user-reset-pwd-modal.vue';
+
+const orgManagementPluginId = 'org-management';
 
 const [UserDrawerRef, userDrawerApi] = useVbenDrawer({
   connectedComponent: UserDrawer,
@@ -47,9 +53,13 @@ const [UserResetPwdModalRef, userResetPwdModalApi] = useVbenModal({
 });
 
 const userStore = useUserStore();
-
-// 加载字典数据
 const dictStore = useDictStore();
+
+const orgEnabled = ref(false);
+const selectDeptId = ref<string[]>([]);
+const deptTreeRef = ref<InstanceType<typeof DeptTree>>();
+const checkedRows = ref<any[]>([]);
+const hasChecked = computed(() => checkedRows.value.length > 0);
 const statusLabel = computed(() => {
   const opts = dictStore.dictOptionsMap.get('sys_normal_disable') || [];
   const checked = opts.find((d) => d.value === '1');
@@ -60,27 +70,15 @@ const statusLabel = computed(() => {
   };
 });
 
-onMounted(async () => {
-  const statusOptions = await dictStore.getDictOptionsAsync('sys_normal_disable');
-  gridApi.formApi.updateSchema([
-    {
-      fieldName: 'status',
-      componentProps: {
-        options: statusOptions.map((d) => ({
-          label: d.label,
-          value: Number(d.value),
-        })),
-      },
-    },
-  ]);
-});
-
-// 左边部门用
-const selectDeptId = ref<string[]>([]);
-const deptTreeRef = ref<InstanceType<typeof DeptTree>>();
+let disposePluginRegistryListener: null | (() => void) = null;
 
 function isSelf(row: any) {
   return row.id === Number(userStore.userInfo?.userId);
+}
+
+function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
+  const pluginState = pluginStateMap.get(pluginId);
+  return pluginState?.installed === 1 && pluginState?.enabled === 1;
 }
 
 const [Grid, gridApi] = useVbenVxeGrid({
@@ -109,7 +107,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       reserve: true,
       checkMethod: ({ row }: any) => !isSelf(row),
     },
-    columns,
+    columns: buildColumns(orgEnabled.value),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -120,7 +118,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
     proxyConfig: {
       sort: true,
       ajax: {
-        query: async ({ page, sorts }: any, formValues: Record<string, any> = {}) => {
+        query: async (
+          { page, sorts }: any,
+          formValues: Record<string, any> = {},
+        ) => {
           const sortParams: Record<string, string> = {};
           if (sorts && sorts.length > 0) {
             const sort = sorts[0];
@@ -130,14 +131,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
             }
           }
 
-          // 部门树选择处理
-          if (selectDeptId.value.length === 1) {
+          if (orgEnabled.value && selectDeptId.value.length === 1) {
             formValues.deptId = selectDeptId.value[0];
           } else {
             Reflect.deleteProperty(formValues, 'deptId');
           }
 
-          // Handle createdAt date range
           const params: Record<string, any> = {
             pageNum: page.currentPage,
             pageSize: page.pageSize,
@@ -174,16 +173,59 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
 });
 
-const checkedRows = ref<any[]>([]);
-const hasChecked = computed(() => checkedRows.value.length > 0);
+async function syncOrgCapability(force = false) {
+  const pluginStateMap = await getPluginStateMap(force);
+  const nextOrgEnabled = isPluginEnabled(orgManagementPluginId, pluginStateMap);
+  const capabilityChanged = orgEnabled.value !== nextOrgEnabled;
+
+  orgEnabled.value = nextOrgEnabled;
+  if (!nextOrgEnabled) {
+    selectDeptId.value = [];
+  }
+
+  gridApi.setGridOptions({
+    columns: buildColumns(nextOrgEnabled),
+  });
+
+  if (capabilityChanged) {
+    checkedRows.value = [];
+    await gridApi.reload();
+  }
+}
+
+onMounted(async () => {
+  const statusOptions =
+    await dictStore.getDictOptionsAsync('sys_normal_disable');
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'status',
+      componentProps: {
+        options: statusOptions.map((d) => ({
+          label: d.label,
+          value: Number(d.value),
+        })),
+      },
+    },
+  ]);
+
+  await syncOrgCapability();
+  disposePluginRegistryListener = onPluginRegistryChanged(async () => {
+    await syncOrgCapability(true);
+  });
+});
+
+onBeforeUnmount(() => {
+  disposePluginRegistryListener?.();
+  disposePluginRegistryListener = null;
+});
 
 function handleAdd() {
-  userDrawerApi.setData({ isEdit: false });
+  userDrawerApi.setData({ isEdit: false, orgEnabled: orgEnabled.value });
   userDrawerApi.open();
 }
 
 function handleEdit(row: any) {
-  userDrawerApi.setData({ isEdit: true, row });
+  userDrawerApi.setData({ isEdit: true, orgEnabled: orgEnabled.value, row });
   userDrawerApi.open();
 }
 
@@ -217,14 +259,15 @@ async function handleStatusChange(row: any) {
 }
 
 function onReload() {
-  gridApi.query();
+  void gridApi.query();
   deptTreeRef.value?.refreshTree();
 }
 
 async function handleExport() {
-  const content = checkedRows.value.length > 0
-    ? '是否导出选中的记录？'
-    : '是否导出全部数据？';
+  const content =
+    checkedRows.value.length > 0
+      ? '是否导出选中的记录？'
+      : '是否导出全部数据？';
 
   Modal.confirm({
     title: '提示',
@@ -259,19 +302,18 @@ function handleResetPwd(row: any) {
   <Page :auto-content-height="true">
     <div class="flex h-full gap-[8px]">
       <DeptTree
+        v-if="orgEnabled"
         ref="deptTreeRef"
         v-model:select-dept-id="selectDeptId"
         :api="getDeptTree"
-        class="w-[260px]"
+        class="w-[260px] shrink-0"
         @reload="() => gridApi.reload()"
         @select="() => gridApi.reload()"
       />
       <Grid class="flex-1 overflow-hidden" table-title="用户列表">
         <template #toolbar-tools>
           <Space>
-            <a-button @click="handleExport">
-              导 出
-            </a-button>
+            <a-button @click="handleExport"> 导 出 </a-button>
             <a-button @click="handleImport">导 入</a-button>
             <a-button
               :disabled="!hasChecked"

@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { config } from '../../fixtures/config';
 
 const API_BASE = `${config.baseURL}/api/v1`;
@@ -25,6 +26,10 @@ async function apiClearMessages(token: string): Promise<void> {
 }
 
 test.describe('TC0042 用户消息列表页面', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'content-notice');
+  });
+
   test('TC0042a: 消息列表页面可访问', async ({ adminPage }) => {
     await adminPage.goto('/system/message');
     await adminPage.waitForLoadState('networkidle');

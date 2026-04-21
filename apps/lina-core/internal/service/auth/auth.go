@@ -18,7 +18,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/config"
-	"lina-core/internal/service/loginlog"
+	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
@@ -30,6 +30,10 @@ const (
 	// statusDisabled represents a disabled user status.
 	// Mirrors user.StatusDisabled; duplicated here to avoid circular import.
 	statusDisabled = 0
+	// authLoginStatusSuccess marks a successful login lifecycle event.
+	authLoginStatusSuccess = 0
+	// authLoginStatusFail marks a failed login lifecycle event.
+	authLoginStatusFail = 1
 )
 
 // Service defines the auth service contract.
@@ -54,7 +58,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	configSvc    config.Service    // Configuration service
-	loginLogSvc  loginlog.Service  // Login log service
+	orgCapSvc    orgcap.Service    // Optional organization capability service
 	pluginSvc    pluginsvc.Service // Plugin service
 	roleSvc      role.Service      // Role service
 	sessionStore session.Store     // Session store
@@ -64,7 +68,7 @@ type serviceImpl struct {
 func New() Service {
 	return &serviceImpl{
 		configSvc:    config.New(),
-		loginLogSvc:  loginlog.New(),
+		orgCapSvc:    orgcap.New(),
 		pluginSvc:    pluginsvc.New(),
 		roleSvc:      role.New(),
 		sessionStore: session.NewDBStore(),
@@ -108,23 +112,10 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		osName = ua.OS()
 	}
 
-	recordLoginLog := func(username string, status int, msg string) {
-		if err := s.loginLogSvc.Create(ctx, loginlog.CreateInput{
-			UserName: username,
-			Status:   status,
-			Ip:       ip,
-			Browser:  browser,
-			Os:       osName,
-			Msg:      msg,
-		}); err != nil {
-			logger.Warningf(ctx, "record login log failed username=%s err=%v", username, err)
-		}
-	}
-
 	dispatchLoginFailed := func(username string, msg string) {
 		if hookErr := s.pluginSvc.HandleAuthLoginFailed(ctx, pluginsvc.AuthLoginSucceededInput{
 			UserName:   username,
-			Status:     loginlog.LoginStatusFail,
+			Status:     authLoginStatusFail,
 			Ip:         ip,
 			ClientType: "web",
 			Browser:    browser,
@@ -136,7 +127,6 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 
 	if s.configSvc.IsLoginIPBlacklisted(ctx, ip) {
-		recordLoginLog(in.Username, loginlog.LoginStatusFail, "登录IP已被禁止")
 		dispatchLoginFailed(in.Username, "登录IP已被禁止")
 		return nil, gerror.New("登录IP已被禁止")
 	}
@@ -150,21 +140,18 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		return nil, err
 	}
 	if user == nil {
-		recordLoginLog(in.Username, loginlog.LoginStatusFail, "用户名或密码错误")
 		dispatchLoginFailed(in.Username, "用户名或密码错误")
 		return nil, gerror.New("用户名或密码错误")
 	}
 
 	// Verify password
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
-		recordLoginLog(in.Username, loginlog.LoginStatusFail, "用户名或密码错误")
 		dispatchLoginFailed(in.Username, "用户名或密码错误")
 		return nil, gerror.New("用户名或密码错误")
 	}
 
 	// Check status
 	if user.Status == statusDisabled {
-		recordLoginLog(in.Username, loginlog.LoginStatusFail, "用户已停用")
 		dispatchLoginFailed(in.Username, "用户已停用")
 		return nil, gerror.New("用户已停用")
 	}
@@ -200,10 +187,9 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		logger.Warningf(ctx, "prime access context cache failed tokenId=%s err=%v", tokenId, err)
 	}
 
-	recordLoginLog(in.Username, loginlog.LoginStatusSuccess, "登录成功")
 	if err := s.pluginSvc.HandleAuthLoginSucceeded(ctx, pluginsvc.AuthLoginSucceededInput{
 		UserName:   in.Username,
-		Status:     loginlog.LoginStatusSuccess,
+		Status:     authLoginStatusSuccess,
 		Ip:         ip,
 		ClientType: "web",
 		Browser:    browser,
@@ -255,19 +241,9 @@ func (s *serviceImpl) Logout(ctx context.Context, username string, tokenId strin
 			logger.Warningf(ctx, "revoke session during logout failed tokenId=%s err=%v", tokenId, err)
 		}
 	}
-	if err := s.loginLogSvc.Create(ctx, loginlog.CreateInput{
-		UserName: username,
-		Status:   loginlog.LoginStatusSuccess,
-		Ip:       ip,
-		Browser:  browser,
-		Os:       osName,
-		Msg:      "登出成功",
-	}); err != nil {
-		logger.Warningf(ctx, "record logout log failed username=%s err=%v", username, err)
-	}
 	if err := s.pluginSvc.HandleAuthLogoutSucceeded(ctx, pluginsvc.AuthLoginSucceededInput{
 		UserName:   username,
-		Status:     loginlog.LoginStatusSuccess,
+		Status:     authLoginStatusSuccess,
 		Ip:         ip,
 		ClientType: "web",
 		Browser:    browser,
@@ -314,19 +290,12 @@ func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser) (
 
 // getUserDeptName queries the department name for a user by userId.
 func (s *serviceImpl) getUserDeptName(ctx context.Context, userId int) string {
-	var userDept *entity.SysUserDept
-	err := dao.SysUserDept.Ctx(ctx).
-		Where(dao.SysUserDept.Columns().UserId, userId).
-		Scan(&userDept)
-	if err != nil || userDept == nil {
+	if s == nil || s.orgCapSvc == nil {
 		return ""
 	}
-	var dept *entity.SysDept
-	err = dao.SysDept.Ctx(ctx).
-		Where(dao.SysDept.Columns().Id, userDept.DeptId).
-		Scan(&dept)
-	if err != nil || dept == nil {
+	deptName, err := s.orgCapSvc.GetUserDeptName(ctx, userId)
+	if err != nil {
 		return ""
 	}
-	return dept.Name
+	return deptName
 }

@@ -1,0 +1,18 @@
+id: monitor-server
+name: 系统监控-服务监控
+version: v0.1.0
+type: source
+description: 提供服务监控采集、清理与查询的官方源码插件
+author: lina-team
+license: Apache-2.0
+menus:
+  - key: plugin:monitor-server:server
+    parent_key: monitor
+    name: 服务监控
+    path: /monitor/server
+    component: system/plugin/dynamic-page
+    perms: monitor:server:list
+    icon: lucide:activity
+    type: M
+    sort: 2
+    remark: 系统监控插件-服务监控

@@ -270,10 +270,10 @@ test.describe("TC0060 菜单管理 CRUD", () => {
       await adminPage.waitForTimeout(500);
     }
 
-    // Find "系统管理" row (parent menu with children) and click its edit button
+    // Find "权限管理" row (parent menu with children) and click its edit button
     const systemManageRow = adminPage
       .locator(".vxe-body--row")
-      .filter({ hasText: "系统管理" })
+      .filter({ hasText: "权限管理" })
       .first();
 
     // Click edit button in that row's action column
@@ -456,10 +456,10 @@ test.describe("TC0060 菜单管理 CRUD", () => {
       .locator(".vxe-table")
       .waitFor({ state: "visible", timeout: 10000 });
 
-    // Find "系统管理" row and click its "新增" button (not the toolbar 新增)
+    // Find "权限管理" row and click its "新增" button (not the toolbar 新增)
     const systemManageRow = adminPage
       .locator(".vxe-body--row")
-      .filter({ hasText: "系统管理" })
+      .filter({ hasText: "权限管理" })
       .first();
 
     // Click the "新增" button in that row's action column (the green success button)
@@ -477,13 +477,13 @@ test.describe("TC0060 菜单管理 CRUD", () => {
     // Wait for form to be ready
     await adminPage.waitForTimeout(500);
 
-    // Find the parent menu selector and verify it shows "系统管理"
+    // Find the parent menu selector and verify it shows "权限管理"
     const parentSelect = drawer.locator(".ant-select-selector").first();
     await expect(parentSelect).toBeVisible({ timeout: 5000 });
 
-    // Get the selected value text - it should contain "系统管理"
+    // Get the selected value text - it should contain "权限管理"
     const selectedText = await parentSelect.textContent();
-    expect(selectedText).toContain("系统管理");
+    expect(selectedText).toContain("权限管理");
 
     // Close drawer
     await drawer.getByRole("button", { name: /取\s*消/ }).click();

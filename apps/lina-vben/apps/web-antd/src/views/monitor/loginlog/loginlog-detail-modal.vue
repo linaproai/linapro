@@ -27,8 +27,8 @@ const [BasicModal, modalApi] = useVbenModal({
 
 const loginInfo = ref<LoginLog>();
 
-const operStatusDicts = computed(() => {
-  return dictStore.dictOptionsMap.get('sys_oper_status') || [];
+const loginStatusDicts = computed(() => {
+  return dictStore.dictOptionsMap.get('sys_login_status') || [];
 });
 </script>
 
@@ -44,10 +44,7 @@ const operStatusDicts = computed(() => {
         {{ loginInfo.userName }}
       </DescriptionsItem>
       <DescriptionsItem label="登录状态">
-        <DictTag
-          :dicts="(operStatusDicts as any)"
-          :value="loginInfo.status"
-        />
+        <DictTag :dicts="loginStatusDicts as any" :value="loginInfo.status" />
       </DescriptionsItem>
       <DescriptionsItem label="IP地址">
         {{ loginInfo.ip }}

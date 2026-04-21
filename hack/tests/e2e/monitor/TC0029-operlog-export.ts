@@ -1,6 +1,11 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 
 test.describe('TC0029 操作日志导出', () => {
+  test.beforeEach(async ({ adminPage }) => {
+    await ensureSourcePluginEnabled(adminPage, 'monitor-operlog');
+  });
+
   test('TC0029a: 导出全部数据', async ({ adminPage }) => {
     await adminPage.goto('/monitor/operlog');
     await adminPage.waitForLoadState('networkidle');

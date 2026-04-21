@@ -5,12 +5,12 @@ import { $t } from '#/locales';
 const routes: RouteRecordRaw[] = [
   {
     meta: {
-      icon: 'lucide:settings',
+      icon: 'lucide:shield-check',
       order: 10,
-      title: '系统管理',
+      title: '权限管理',
     },
-    name: 'System',
-    path: '/system',
+    name: 'IAM',
+    path: '/iam',
     children: [
       {
         name: 'UserManagement',
@@ -40,23 +40,25 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        name: 'DeptManagement',
-        path: '/system/dept',
-        component: () => import('#/views/system/dept/index.vue'),
+        name: 'RoleAuthUser',
+        path: '/system/role-auth/user/:id',
+        component: () => import('#/views/system/role-auth/index.vue'),
         meta: {
-          icon: 'lucide:network',
-          title: '部门管理',
+          hideInMenu: true,
+          title: '角色授权用户',
         },
       },
-      {
-        name: 'PostManagement',
-        path: '/system/post',
-        component: () => import('#/views/system/post/index.vue'),
-        meta: {
-          icon: 'lucide:briefcase',
-          title: '岗位管理',
-        },
-      },
+    ],
+  },
+  {
+    meta: {
+      icon: 'lucide:settings-2',
+      order: 20,
+      title: '系统设置',
+    },
+    name: 'Setting',
+    path: '/setting',
+    children: [
       {
         name: 'DictManagement',
         path: '/system/dict',
@@ -64,15 +66,6 @@ const routes: RouteRecordRaw[] = [
         meta: {
           icon: 'lucide:book-open',
           title: '字典管理',
-        },
-      },
-      {
-        name: 'NoticeManagement',
-        path: '/system/notice',
-        component: () => import('#/views/system/notice/index.vue'),
-        meta: {
-          icon: 'lucide:megaphone',
-          title: '通知公告',
         },
       },
       {
@@ -94,14 +87,25 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        name: 'ScheduledJobCatalog',
-        path: '/system/scheduled-job',
-        redirect: '/system/job',
+        name: 'MessageList',
+        path: '/system/message',
+        component: () => import('#/views/system/message/index.vue'),
         meta: {
-          icon: 'lucide:calendar-range',
-          title: '定时任务',
+          hideInMenu: true,
+          title: '消息列表',
         },
       },
+    ],
+  },
+  {
+    meta: {
+      icon: 'lucide:calendar-range',
+      order: 30,
+      title: '任务调度',
+    },
+    name: 'Scheduler',
+    path: '/scheduler',
+    children: [
       {
         name: 'JobManagement',
         path: '/system/job',
@@ -129,31 +133,24 @@ const routes: RouteRecordRaw[] = [
           title: '执行日志',
         },
       },
+    ],
+  },
+  {
+    meta: {
+      icon: 'lucide:puzzle',
+      order: 40,
+      title: '扩展中心',
+    },
+    name: 'Extension',
+    path: '/extension',
+    children: [
       {
         name: 'PluginManagement',
         path: '/system/plugin',
         component: () => import('#/views/system/plugin/index.vue'),
         meta: {
-          icon: 'lucide:puzzle',
+          icon: 'lucide:plug',
           title: '插件管理',
-        },
-      },
-      {
-        name: 'MessageList',
-        path: '/system/message',
-        component: () => import('#/views/system/message/index.vue'),
-        meta: {
-          hideInMenu: true,
-          title: '消息列表',
-        },
-      },
-      {
-        name: 'RoleAuthUser',
-        path: '/system/role-auth/user/:id',
-        component: () => import('#/views/system/role-auth/index.vue'),
-        meta: {
-          hideInMenu: true,
-          title: '角色授权用户',
         },
       },
     ],
