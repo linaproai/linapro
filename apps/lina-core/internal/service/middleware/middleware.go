@@ -53,12 +53,13 @@ type serviceImpl struct {
 
 // New creates and returns a new Service instance.
 func New() Service {
+	pluginSvc := pluginsvc.New(nil)
 	return &serviceImpl{
-		authSvc:   auth.New(),
+		authSvc:   auth.New(nil),
 		bizCtxSvc: bizctx.New(),
 		configSvc: config.New(),
-		pluginSvc: pluginsvc.New(),
-		roleSvc:   role.New(),
+		pluginSvc: pluginSvc,
+		roleSvc:   role.New(pluginSvc),
 	}
 }
 

@@ -15,10 +15,13 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new plugin controller instance.
-func NewV1(topologies ...pluginsvc.Topology) pluginapi.IPluginV1 {
+// Pass a non-nil topology for cluster-aware plugin orchestration; pass nil to
+// use the default single-node plugin topology.
+func NewV1(topology pluginsvc.Topology) pluginapi.IPluginV1 {
+	pluginSvc := pluginsvc.New(topology)
 	return &ControllerV1{
-		pluginSvc: pluginsvc.New(topologies...),
+		pluginSvc: pluginSvc,
 		bizCtxSvc: bizctx.New(),
-		roleSvc:   role.New(),
+		roleSvc:   role.New(pluginSvc),
 	}
 }

@@ -7,8 +7,7 @@ package orgcap
 import (
 	"context"
 
-	"lina-core/internal/plugingovernance"
-	pluginsvc "lina-core/internal/service/plugin"
+	menusvc "lina-core/internal/service/menu"
 	pkgorgcap "lina-core/pkg/orgcap"
 )
 
@@ -22,6 +21,13 @@ type DeptTreeNode = pkgorgcap.DeptTreeNode
 // PostOption describes one selectable post projection exposed through the
 // organization capability seam for host-owned user-management flows.
 type PostOption = pkgorgcap.PostOption
+
+// PluginEnablementReader defines the narrow plugin state capability required by
+// orgcap to detect whether the org-center plugin is currently enabled.
+type PluginEnablementReader interface {
+	// IsEnabled returns whether the given plugin ID is currently enabled.
+	IsEnabled(ctx context.Context, pluginID string) bool
+}
 
 // Service defines the optional organization capability consumed by host core services.
 type Service interface {
@@ -56,25 +62,39 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	pluginSvc pluginsvc.Service
+	enablementReader PluginEnablementReader
 }
 
 // New creates and returns a new optional organization capability service.
-func New() Service {
+// Pass a non-nil enablementReader to couple orgcap to plugin enablement state;
+// pass nil to use the default reader that treats the capability as disabled.
+func New(enablementReader PluginEnablementReader) Service {
+	if enablementReader == nil {
+		enablementReader = noopPluginEnablementReader{}
+	}
 	return &serviceImpl{
-		pluginSvc: pluginsvc.New(),
+		enablementReader: enablementReader,
 	}
 }
 
 // Enabled reports whether organization capability is currently installed and enabled.
 func (s *serviceImpl) Enabled(ctx context.Context) bool {
-	if s == nil || s.pluginSvc == nil {
+	if s == nil || s.enablementReader == nil {
 		return false
 	}
-	if !s.pluginSvc.IsEnabled(ctx, plugingovernance.OrgCenter) {
+	if !s.enablementReader.IsEnabled(ctx, menusvc.OrgCenter) {
 		return false
 	}
 	return pkgorgcap.HasProvider()
+}
+
+// noopPluginEnablementReader reports all plugins as disabled when orgcap is
+// constructed without an explicit enablement reader.
+type noopPluginEnablementReader struct{}
+
+// IsEnabled always returns false.
+func (noopPluginEnablementReader) IsEnabled(_ context.Context, _ string) bool {
+	return false
 }
 
 // currentProvider returns the currently registered organization-capability provider.

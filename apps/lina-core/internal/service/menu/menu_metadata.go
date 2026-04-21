@@ -1,6 +1,6 @@
-// Package plugingovernance declares host-private plugin governance metadata
-// such as stable top-level mount keys and first-party plugin identifiers.
-package plugingovernance
+// menu_metadata.go declares host-owned menu mount metadata used to validate
+// plugin menu parent relationships and stable top-level catalog bindings.
+package menu
 
 // Stable host catalog menu keys.
 const (
@@ -43,7 +43,7 @@ func IsStableCatalogKey(menuKey string) bool {
 	return ok
 }
 
-// Official source-plugin identifiers.
+// Official source-plugin identifiers bound to stable host menu catalogs.
 const (
 	// OrgCenter provides department and post management.
 	OrgCenter = "org-center"

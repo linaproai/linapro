@@ -115,6 +115,7 @@ pnpm report            # 查看 HTML 报告
 5. 用户确认本次迭代功能已完成没有问题后，则执行`/opsx:archive`斜杠指令`.agents/prompts/opsx/archive.md`将本次变更归档。归档前需要调用`/openspec-review`技能进行全面的变更审查，确保代码质量和规范遵循。
 
 **关键规则**：
+- **活跃`OpenSpec`变更的判定以是否归档为准**：凡是仍位于`openspec/changes/`根目录下、且**未移动到**`openspec/changes/archive/`中的变更目录，都属于活跃变更；**即便该变更已经完成了全部任务、`openspec list --json`中显示为`status: complete`，只要尚未执行归档，仍然必须视为活跃变更**。
 - 当用户报告问题缺陷/改进建议时（无论中文或英文），如果当前项目存在活跃的`OpenSpec`变更，那么必须调用`openspec-feedback`技能。**无论反馈内容是否与当前活跃迭代的主要功能相关，都必须追加到当前活跃迭代中**，便于统一管理和归档。
 - 审查技能`/openspec-review`自动在以下节点触发：`/opsx:apply`任务完成后、`/opsx:feedback`任务完成后、`/opsx:archive`归档前。
 - 在执行开发任务时（如使用`Claude Code`、`Codex CLI`等开发工具完成编码、测试、文档整理与验证任务），如果存在适合通过`SubAgent`并行推进且能够明确提升执行效率的场景，必须优先评估并采用`SubAgent`协作方式执行；仅在任务强依赖串行上下文、拆分成本过高或引入明显协作风险时，才可不使用`SubAgent`。

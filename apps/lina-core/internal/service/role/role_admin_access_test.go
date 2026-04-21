@@ -20,7 +20,7 @@ import (
 // account still receives full access even if its admin-role association is missing.
 func TestAdminUserRetainsBypassWithoutRoleBinding(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 
 	adminUserID, adminRoleID := mustQueryAdminUserAndRoleID(t, ctx)
 
@@ -71,7 +71,7 @@ func TestAdminUserRetainsBypassWithoutRoleBinding(t *testing.T) {
 // non-admin username does not trigger the built-in admin bypass flag.
 func TestAdminRoleDoesNotUpgradeOtherUsers(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 
 	_, adminRoleID := mustQueryAdminUserAndRoleID(t, ctx)
 	username := fmt.Sprintf("role-admin-%d", time.Now().UnixNano())

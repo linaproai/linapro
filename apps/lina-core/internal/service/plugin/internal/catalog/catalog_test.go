@@ -15,7 +15,7 @@ import (
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"lina-core/internal/plugingovernance"
+	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -833,12 +833,12 @@ func TestValidateManifestMenusRejectsNonStableHostParent(t *testing.T) {
 // first-party source plugins are pinned to fixed host catalogs.
 func TestValidateManifestMenusRejectsOfficialPluginWrongStableParent(t *testing.T) {
 	manifest := &catalog.Manifest{
-		ID: plugingovernance.OrgCenter,
+		ID: menusvc.OrgCenter,
 		Menus: []*catalog.MenuSpec{
 			{
 				Key:       "plugin:org-center:catalog",
 				Name:      "组织管理",
-				ParentKey: plugingovernance.Monitor,
+				ParentKey: menusvc.Monitor,
 				Path:      "org-center-catalog",
 				Type:      catalog.MenuTypeDirectory.String(),
 			},
@@ -856,12 +856,12 @@ func TestValidateManifestMenusRejectsOfficialPluginWrongStableParent(t *testing.
 // children inside its own tree.
 func TestValidateManifestMenusAcceptsOfficialPluginStableParent(t *testing.T) {
 	manifest := &catalog.Manifest{
-		ID: plugingovernance.OrgCenter,
+		ID: menusvc.OrgCenter,
 		Menus: []*catalog.MenuSpec{
 			{
 				Key:       "plugin:org-center:catalog",
 				Name:      "组织管理",
-				ParentKey: plugingovernance.Org,
+				ParentKey: menusvc.Org,
 				Path:      "org-center-catalog",
 				Type:      catalog.MenuTypeDirectory.String(),
 			},

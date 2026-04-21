@@ -24,12 +24,19 @@ When users discover bugs or improvement points after implementation, this skill 
 
 **CRITICAL:** 
 1. Always append to existing active changes. Only create new change when none exist.
-2. Regardless of whether the feedback content is related to the main functionality of the current active iteration, it MUST be appended to the current active iteration.** This ensures all changes are tracked in a single change record for unified management and archiving.
+2. An **active change** is any change directory that still exists directly under `openspec/changes/` and has **not** been moved into `openspec/changes/archive/`. Do **not** treat `status: complete`, all tasks checked off, or similar completion signals as "inactive" until archive actually happens.
+3. Regardless of whether the feedback content is related to the main functionality of the current active iteration, it MUST be appended to the current active iteration. This ensures all changes are tracked in a single change record for unified management and archiving.
 
 ```bash
 openspec list --json
 # Or: ls openspec/changes/ | grep -v archive
 ```
+
+When the two signals disagree, prefer the filesystem rule:
+
+- If a change directory still exists under `openspec/changes/` and is not inside `archive/`, it is active.
+- `openspec list --json` may still report such a change as `status: complete`; that only means implementation tasks are done, **not** that the change is inactive.
+- Only archived changes under `openspec/changes/archive/` are inactive.
 
 | Active Changes | Action |
 |----------------|--------|

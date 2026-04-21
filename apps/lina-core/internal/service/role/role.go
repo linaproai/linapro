@@ -14,9 +14,16 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/kvcache"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
 )
+
+// PermissionMenuFilter defines the narrow dependency required by the role
+// service to hide plugin-owned permission menus that are not currently active.
+type PermissionMenuFilter interface {
+	// FilterPermissionMenus returns only the permission menus that should remain
+	// effective for the current host and plugin state.
+	FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
+}
 
 // Service defines the role service contract.
 type Service interface {
@@ -85,29 +92,42 @@ type serviceImpl struct {
 	bizCtxSvc          bizctx.Service
 	configSvc          config.Service
 	kvCacheSvc         kvcache.Service
-	pluginSvc          pluginsvc.Service
+	permissionFilter   PermissionMenuFilter
 	accessRevisionCtrl accessRevisionController
 }
 
 // New creates and returns a new role Service.
-func New() Service {
+// Pass a non-nil permissionFilter when role permission calculation must respect
+// plugin-owned permission menu visibility; pass nil to use the default no-op filter.
+func New(permissionFilter PermissionMenuFilter) Service {
 	var (
 		bizCtxSvc  = bizctx.New()
 		configSvc  = config.New()
 		kvCacheSvc = kvcache.New()
-		pluginSvc  = pluginsvc.New()
 	)
+	if permissionFilter == nil {
+		permissionFilter = noopPermissionMenuFilter{}
+	}
 
 	return &serviceImpl{
-		bizCtxSvc:  bizCtxSvc,
-		configSvc:  configSvc,
-		kvCacheSvc: kvCacheSvc,
-		pluginSvc:  pluginSvc,
+		bizCtxSvc:        bizCtxSvc,
+		configSvc:        configSvc,
+		kvCacheSvc:       kvCacheSvc,
+		permissionFilter: permissionFilter,
 		accessRevisionCtrl: newAccessRevisionController(
 			configSvc.IsClusterEnabled(context.Background()),
 			kvCacheSvc,
 		),
 	}
+}
+
+// noopPermissionMenuFilter keeps permission menus unchanged when no external
+// plugin-aware filter is injected into the role service.
+type noopPermissionMenuFilter struct{}
+
+// FilterPermissionMenus returns the original menu slice unchanged.
+func (noopPermissionMenuFilter) FilterPermissionMenus(_ context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
+	return menus
 }
 
 // ListInput defines filters and pagination for role list queries.

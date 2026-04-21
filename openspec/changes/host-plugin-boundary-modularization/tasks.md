@@ -114,3 +114,9 @@
   - 2026-04-21：已将 `content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 的安装/卸载 SQL、本地数据库表名、插件 `backend/hack/config.yaml` 与 `gf gen dao` 工件统一收敛到单表命名；其中 `content-notice` 使用 `removePrefix: "plugin_content_"` 生成 `Notice`，3 个监控插件使用 `removePrefix: "plugin_monitor_"`，对应生成 `Loginlog`、`Operlog`、`Server`
 - [x] **FB-21**: `openspec/specs/` 主规范仍残留旧 `sys_*` 插件表名和旧宿主边界表述——同步更新用户、组织、公告、日志、服务监控和通知域主规范，改为插件化后的最终表名与能力边界描述
   - 2026-04-21：已更新 `openspec/specs/{user-management,dept-management,post-management,notice-management,login-log,oper-log,server-monitor,plugin-notify-service}/spec.md`，将旧 `sys_*` 插件表名、宿主直持有插件表描述与旧菜单边界表述统一收敛为当前插件化后的最终规范
+- [x] **FB-22**: 合并误创建的活跃迭代 `host-plugin-boundary-followup` 回当前 `host-plugin-boundary-modularization`，恢复单一活跃变更治理状态
+  - 2026-04-21：已删除误创建且未承载有效文档的 `openspec/changes/host-plugin-boundary-followup/` 目录，并继续将后续反馈统一追加到当前未归档的 `host-plugin-boundary-modularization`
+- [x] **FB-23**: 将宿主业务组件中用于“可选依赖”的 variadic 构造函数改为显式参数签名；未显式注入时统一传 `nil`，并在构造函数注释中说明默认行为
+  - 2026-04-21：`auth.New`、`user.New`、`menu.New`、`orgcap.New`、`plugin.New` 与 `controller/plugin.NewV1` 已统一改为显式参数签名；宿主调用点与相关测试统一改为按需传入依赖或显式传 `nil`，并补充了默认行为注释
+- [x] **FB-24**: 将 `role` 对 `plugin` 的权限菜单过滤依赖改为窄接口注入，并在循环依赖解除后将菜单治理元数据从 `menu/metadata` 回收到 `menu` 根包内聚维护
+  - 2026-04-21：`role` 已改为依赖窄接口 `PermissionMenuFilter`，移除对 `plugin.Service` 的直接依赖；`menu` 稳定目录与官方插件挂载元数据已回收到 `internal/service/menu/menu_metadata.go`，`plugin/internal/{catalog,integration}`、`orgcap` 与相关测试已同步切换

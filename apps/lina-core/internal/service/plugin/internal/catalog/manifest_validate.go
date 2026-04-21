@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"lina-core/internal/plugingovernance"
+	menusvc "lina-core/internal/service/menu"
 	"lina-core/pkg/pluginfs"
 )
 
@@ -182,11 +182,11 @@ func ValidateManifestMenus(manifest *Manifest) error {
 		if parentPluginID != "" && parentPluginID != manifest.ID {
 			return gerror.Newf("插件菜单 parent_key 不允许引用其他插件菜单: %s -> %s", spec.Key, spec.ParentKey)
 		}
-		if spec.ParentKey != "" && parentPluginID == "" && !plugingovernance.IsStableCatalogKey(spec.ParentKey) {
+		if spec.ParentKey != "" && parentPluginID == "" && !menusvc.IsStableCatalogKey(spec.ParentKey) {
 			return gerror.Newf("插件菜单 parent_key 仅允许挂载到宿主稳定目录: %s -> %s", spec.Key, spec.ParentKey)
 		}
 		if spec.ParentKey != "" && parentPluginID == "" {
-			if expectedParentKey, ok := plugingovernance.ExpectedStableParentKey(manifest.ID); ok && expectedParentKey != spec.ParentKey {
+			if expectedParentKey, ok := menusvc.ExpectedStableParentKey(manifest.ID); ok && expectedParentKey != spec.ParentKey {
 				return gerror.Newf("官方插件顶层菜单 parent_key 不合法: %s -> %s，期望 %s", spec.Key, spec.ParentKey, expectedParentKey)
 			}
 		}

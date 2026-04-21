@@ -19,7 +19,7 @@ func TestSingleNodeModeSkipsDistributedSyncCrons(t *testing.T) {
 
 	svc := &serviceImpl{
 		configSvc:  hostconfig.New(),
-		roleSvc:    rolesvc.New(),
+		roleSvc:    rolesvc.New(nil),
 		clusterSvc: cluster.New(&hostconfig.ClusterConfig{Enabled: false}),
 	}
 	svc.runtimeParamSyncJob = newRuntimeParamSnapshotSyncJob(false, svc.configSvc)
@@ -45,7 +45,7 @@ func TestClusterModeRegistersDistributedSyncCrons(t *testing.T) {
 
 	svc := &serviceImpl{
 		configSvc:  hostconfig.New(),
-		roleSvc:    rolesvc.New(),
+		roleSvc:    rolesvc.New(nil),
 		clusterSvc: cluster.New(&hostconfig.ClusterConfig{Enabled: true}),
 	}
 	svc.runtimeParamSyncJob = newRuntimeParamSnapshotSyncJob(true, svc.configSvc)

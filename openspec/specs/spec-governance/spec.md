@@ -45,3 +45,12 @@ The system SHALL archive change documents and archived delta specs in English, r
 - **WHEN** a completed change is archived from a Chinese conversation context
 - **THEN** the archived proposal, design, tasks, and archived delta specs are written in English
 - **AND** any synced baseline spec updates introduced by the archive are written in English
+
+### Requirement: Active Change Status Is Determined By Archive State
+The system SHALL treat every unarchived change directory under `openspec/changes/` as an active change, regardless of whether its implementation tasks are already complete.
+
+#### Scenario: Completed but unarchived change still receives feedback
+- **WHEN** a change directory still exists under `openspec/changes/` and has not been moved into `openspec/changes/archive/`
+- **AND** the change reports all tasks completed or `openspec list --json` shows `status: complete`
+- **THEN** the workflow still treats that change as active
+- **AND** new feedback MUST be appended to that existing change instead of creating a new change

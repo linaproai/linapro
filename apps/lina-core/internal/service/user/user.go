@@ -84,12 +84,17 @@ type serviceImpl struct {
 }
 
 // New creates and returns a new Service instance.
-func New() Service {
+// Pass a non-nil orgCapSvc when user management should bind to a caller-owned
+// organization capability service; pass nil to use the default disabled reader.
+func New(orgCapSvc orgcap.Service) Service {
+	if orgCapSvc == nil {
+		orgCapSvc = orgcap.New(nil)
+	}
 	return &serviceImpl{
-		authSvc:   auth.New(),
+		authSvc:   auth.New(orgCapSvc),
 		bizCtxSvc: bizctx.New(),
-		orgCapSvc: orgcap.New(),
-		roleSvc:   role.New(),
+		orgCapSvc: orgCapSvc,
+		roleSvc:   role.New(nil),
 	}
 }
 

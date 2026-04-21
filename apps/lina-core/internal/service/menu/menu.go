@@ -11,7 +11,6 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/pkg/logger"
 )
@@ -43,15 +42,20 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	pluginSvc pluginsvc.Service
-	roleSvc   role.Service
+	menuFilter MenuFilter
+	roleSvc    role.Service
 }
 
 // New creates and returns a new menu service instance.
-func New() Service {
+// Pass a non-nil menuFilter when menu listing must respect plugin-driven menu
+// visibility; pass nil to use the default no-op filter.
+func New(menuFilter MenuFilter) Service {
+	if menuFilter == nil {
+		menuFilter = noopMenuFilter{}
+	}
 	return &serviceImpl{
-		pluginSvc: pluginsvc.New(),
-		roleSvc:   role.New(),
+		menuFilter: menuFilter,
+		roleSvc:    role.New(nil),
 	}
 }
 
@@ -91,7 +95,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
-	list = s.pluginSvc.FilterMenus(ctx, list)
+	list = s.menuFilter.FilterMenus(ctx, list)
 
 	return &ListOutput{
 		List: list,

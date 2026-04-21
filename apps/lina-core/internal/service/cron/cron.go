@@ -75,8 +75,8 @@ func New(
 ) Service {
 	var (
 		configSvc      = config.New()
-		roleSvc        = rolesvc.New()
 		pluginSvc      = pluginsvc.New(clusterSvc)
+		roleSvc        = rolesvc.New(pluginSvc)
 		clusterEnabled = clusterSvc != nil && clusterSvc.IsEnabled()
 	)
 

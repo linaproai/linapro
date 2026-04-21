@@ -12,7 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/plugingovernance"
+	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -628,12 +628,12 @@ func TestSyncPluginMenusResolvesStableHostParent(t *testing.T) {
 		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
 	})
 
-	hostParent, err := testutil.QueryMenuByKey(ctx, plugingovernance.Monitor)
+	hostParent, err := testutil.QueryMenuByKey(ctx, menusvc.Monitor)
 	if err != nil {
 		t.Fatalf("expected host parent query to succeed, got error: %v", err)
 	}
 	if hostParent == nil {
-		t.Fatalf("expected host stable parent menu %s to exist", plugingovernance.Monitor)
+		t.Fatalf("expected host stable parent menu %s to exist", menusvc.Monitor)
 	}
 
 	manifest := &catalog.Manifest{
@@ -645,7 +645,7 @@ func TestSyncPluginMenusResolvesStableHostParent(t *testing.T) {
 			{
 				Key:       menuKey,
 				Name:      "Stable Parent Sync Plugin",
-				ParentKey: plugingovernance.Monitor,
+				ParentKey: menusvc.Monitor,
 				Path:      "plugin-stable-parent-sync",
 				Component: "system/plugin/dynamic-page",
 				Type:      catalog.MenuTypePage.String(),

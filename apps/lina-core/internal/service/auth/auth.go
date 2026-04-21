@@ -65,12 +65,19 @@ type serviceImpl struct {
 }
 
 // New creates and returns a new Service instance.
-func New() Service {
+// Pass a non-nil orgCapSvc to reuse a caller-owned organization capability
+// service; pass nil to create the default orgcap service bound to the default
+// plugin service instance.
+func New(orgCapSvc orgcap.Service) Service {
+	pluginSvc := pluginsvc.New(nil)
+	if orgCapSvc == nil {
+		orgCapSvc = orgcap.New(pluginSvc)
+	}
 	return &serviceImpl{
 		configSvc:    config.New(),
-		orgCapSvc:    orgcap.New(),
-		pluginSvc:    pluginsvc.New(),
-		roleSvc:      role.New(),
+		orgCapSvc:    orgCapSvc,
+		pluginSvc:    pluginSvc,
+		roleSvc:      role.New(pluginSvc),
 		sessionStore: session.NewDBStore(),
 	}
 }

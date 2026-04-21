@@ -229,7 +229,7 @@ func (s *serviceImpl) loadAllEnabledMenuAccess(ctx context.Context) ([]int, []st
 func (s *serviceImpl) collectPermissionsFromMenus(ctx context.Context, menus []*entity.SysMenu) ([]string, error) {
 	// Plugin runtime state can hide permission menus even when the backing menu
 	// rows exist, so filtering must happen before permission strings are emitted.
-	menus = s.pluginSvc.FilterPermissionMenus(ctx, menus)
+	menus = s.permissionFilter.FilterPermissionMenus(ctx, menus)
 
 	perms := make([]string, 0, len(menus))
 	seen := make(map[string]struct{}, len(menus))

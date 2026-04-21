@@ -67,7 +67,7 @@ func ensureBundledRuntimeSampleArtifactForTests() error {
 
 // newTestService constructs the root plugin facade with default single-node topology.
 func newTestService() *serviceImpl {
-	return New().(*serviceImpl)
+	return New(nil).(*serviceImpl)
 }
 
 // newTestServiceWithTopology constructs the root plugin facade with one explicit topology.

@@ -26,7 +26,7 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	username := fmt.Sprintf("blacklist-test-%s", t.Name())
 	ctx := newRequestContext(t, "127.0.0.1:18080")
 
-	_, err := New().Login(ctx, LoginInput{
+	_, err := New(nil).Login(ctx, LoginInput{
 		Username: username,
 		Password: "ignored",
 	})

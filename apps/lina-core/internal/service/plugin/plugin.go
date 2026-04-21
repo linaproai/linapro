@@ -327,12 +327,13 @@ type serviceImpl struct {
 	openapiSvc openapi.Service
 }
 
-// New creates and returns a new plugin Service. An optional Topology may be
-// provided for cluster-aware deployments; single-node mode is the default.
-func New(topologies ...Topology) Service {
+// New creates and returns a new plugin Service.
+// Pass a non-nil topology for cluster-aware deployments; pass nil to use the
+// default single-node topology implementation.
+func New(topology Topology) Service {
 	var topo Topology = singleNodeTopology{}
-	if len(topologies) > 0 && topologies[0] != nil {
-		topo = topologies[0]
+	if topology != nil {
+		topo = topology
 	}
 
 	var (

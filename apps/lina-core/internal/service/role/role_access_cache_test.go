@@ -299,7 +299,7 @@ func TestNewAccessRevisionControllerSelectsByClusterMode(t *testing.T) {
 // and revision mismatch eviction.
 func TestTokenAccessContextCacheLifecycle(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
 	tokenID := "token-cache-lifecycle"
@@ -341,7 +341,7 @@ func TestTokenAccessContextCacheLifecycle(t *testing.T) {
 // invalidation clears only the target user's cached token entries.
 func TestInvalidateUserAccessContextsRemovesBoundTokensOnly(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
 	sharedAccess := &UserAccessContext{
@@ -425,7 +425,7 @@ func TestCloneSliceWithCopyPreservesNilAndValues(t *testing.T) {
 // does not trigger mutation operations and benefits from local caching.
 func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
 	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
@@ -463,7 +463,7 @@ func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
 // contents survive synchronization when the shared revision is unchanged.
 func TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
 	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
@@ -492,7 +492,7 @@ func TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged(t *testing.T)
 // cached access contexts are evicted after a revision change is observed.
 func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
 	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
@@ -529,7 +529,7 @@ func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) 
 // revisions locally without calling the shared KV cache.
 func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
 	fakeKV := &fakeKVCacheService{getIntValue: 9}
@@ -574,7 +574,7 @@ func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 // cold load is shared across concurrent cache misses.
 func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.T) {
 	ctx := context.Background()
-	svc := New().(*serviceImpl)
+	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
 	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
