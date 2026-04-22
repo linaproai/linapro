@@ -120,3 +120,7 @@
   - 2026-04-21：`auth.New`、`user.New`、`menu.New`、`orgcap.New`、`plugin.New` 与 `controller/plugin.NewV1` 已统一改为显式参数签名；宿主调用点与相关测试统一改为按需传入依赖或显式传 `nil`，并补充了默认行为注释
 - [x] **FB-24**: 将 `role` 对 `plugin` 的权限菜单过滤依赖改为窄接口注入，并在循环依赖解除后将菜单治理元数据从 `menu/metadata` 回收到 `menu` 根包内聚维护
   - 2026-04-21：`role` 已改为依赖窄接口 `PermissionMenuFilter`，移除对 `plugin.Service` 的直接依赖；`menu` 稳定目录与官方插件挂载元数据已回收到 `internal/service/menu/menu_metadata.go`，`plugin/internal/{catalog,integration}`、`orgcap` 与相关测试已同步切换
+- [x] **FB-25**: 宿主控制器构造函数未同步显式依赖注入签名，导致 `go test ./...` 与后端构建在 `auth`、`role`、`joblog` 控制器处直接编译失败
+  - 2026-04-22：`apps/lina-core/internal/controller/{auth,role,joblog}/*_new.go` 已同步改为显式构造 `pluginSvc` / `orgCapSvc` 并传入 `auth.New(...)`、`role.New(...)`；随后 `apps/lina-core/go test ./...`、插件/构建模块 `go test ./...` 与前端 `pnpm test:unit` 全部通过
+- [x] **FB-26**: `TC0069` 仍使用旧组织关联表 `sys_user_dept/sys_user_post` 做清理，导致全量 E2E 在动态插件权限治理用例收尾阶段失败
+  - 2026-04-22：`hack/tests/e2e/plugin/TC0069-plugin-permission-governance.ts` 已改为清理 `plugin_org_center_user_dept`、`plugin_org_center_user_post`；单测 `TC0069` 单独回归通过，随后 `npx playwright test` 全量 341 条全部通过
