@@ -4,7 +4,7 @@ export interface OperLog {
   id: number;
   title: string;
   operSummary: string;
-  operType: number;
+  operType: string;
   method: string;
   requestMethod: string;
   operName: string;
@@ -23,7 +23,7 @@ export interface OperLogListParams {
   pageSize?: number;
   title?: string;
   operName?: string;
-  operType?: number;
+  operType?: string;
   status?: number;
   beginTime?: string;
   endTime?: string;

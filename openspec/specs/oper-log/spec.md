@@ -12,22 +12,22 @@
 #### Scenario: POST 请求自动记录为新增操作
 - **WHEN** 用户发起 `POST` 请求（如创建用户 `POST /api/v1/user`），且 `monitor-operlog` 已安装并启用
 - **THEN** 宿主发射统一审计事件
-- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 1（新增），`title` 从 `g.Meta` 的 `tags` 字段获取，`oper_name` 为当前登录用户名
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 `create`（新增），`title` 从 `g.Meta` 的 `tags` 字段获取，`oper_name` 为当前登录用户名
 
 #### Scenario: PUT 请求自动记录为修改操作
 - **WHEN** 用户发起 `PUT` 请求（如修改用户 `PUT /api/v1/user/1`），且 `monitor-operlog` 已安装并启用
 - **THEN** 宿主发射统一审计事件
-- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 2（修改）
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 `update`（修改）
 
 #### Scenario: DELETE 请求自动记录为删除操作
 - **WHEN** 用户发起 `DELETE` 请求（如删除用户 `DELETE /api/v1/user/1`），且 `monitor-operlog` 已安装并启用
 - **THEN** 宿主发射统一审计事件
-- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 3（删除）
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 `delete`（删除）
 
 #### Scenario: 标记的 GET 请求记录为导出操作
 - **WHEN** 用户发起带 `operLog` 标签的 GET 请求（如导出用户 `GET /api/v1/user/export`），且 `monitor-operlog` 已安装并启用
 - **THEN** 宿主发射统一审计事件
-- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 从 `operLog` 标签值获取（如 4=导出）
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 从 `operLog` 标签值获取（如 `export`=导出）
 
 #### Scenario: 普通 GET 请求不记录
 - **WHEN** 用户发起未标记 `operLog` 的 GET 请求（如查询用户列表 `GET /api/v1/user`）
@@ -36,7 +36,7 @@
 #### Scenario: 导入请求记录为导入操作
 - **WHEN** 用户发起 POST 请求且路径包含 `import`（如 `POST /api/v1/user/import`），且 `monitor-operlog` 已安装并启用
 - **THEN** 宿主发射统一审计事件
-- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 5（导入）
+- **AND** `monitor-operlog` 写入一条操作日志，`oper_type` 为 `import`（导入）
 
 #### Scenario: 操作日志插件缺失或停用
 - **WHEN** 用户发起受审计的请求，但 `monitor-operlog` 未安装、未启用或初始化失败
@@ -62,6 +62,11 @@
 - **WHEN** 请求参数中包含 `password` 或 `Password` 字段
 - **THEN** 该字段值替换为 `***`
 
+#### Scenario: 操作类型使用语义字符串常量
+- **WHEN** 系统记录、查询或导出操作日志
+- **THEN** `oper_type` 使用 `create`、`update`、`delete`、`export`、`import`、`other` 这类语义字符串
+- **AND** 宿主与插件代码通过强类型常量复用这些取值，而不是散落硬编码或 `1~6` 整数编号
+
 ### Requirement: 操作日志列表查询
 系统 SHALL 提供操作日志分页查询接口 `GET /api/v1/operlog`，支持按操作模块、操作人、操作类型、状态、时间范围筛选。
 
@@ -70,7 +75,7 @@
 - **THEN** 返回操作日志分页列表，按操作时间倒序排列
 
 #### Scenario: 按条件筛选
-- **WHEN** 管理员请求带筛选条件的查询（如 `title=User&operName=admin&operType=1&status=0&beginTime=2026-01-01&endTime=2026-03-15`）
+- **WHEN** 管理员请求带筛选条件的查询（如 `title=User&operName=admin&operType=create&status=0&beginTime=2026-01-01&endTime=2026-03-15`）
 - **THEN** 返回符合所有条件的日志记录
 
 ### Requirement: 操作日志详情查看

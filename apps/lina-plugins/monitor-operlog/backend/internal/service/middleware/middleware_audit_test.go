@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
+	"lina-core/pkg/audittype"
 )
 
 // TestSanitizeOperLogParamMasksNestedSensitiveFields verifies password fields
@@ -121,27 +121,27 @@ func TestShouldRecordAuditRequest(t *testing.T) {
 	}
 }
 
-// TestInferOperType verifies the middleware reuses the shared operlog service constants.
+// TestInferOperType verifies the middleware reuses the shared semantic audit types.
 func TestInferOperType(t *testing.T) {
 	testCases := []struct {
 		name       string
 		method     string
 		path       string
 		operLogTag string
-		expected   int
+		expected   audittype.OperType
 	}{
-		{name: "operlog tag wins", method: http.MethodGet, path: "/api/v1/export", operLogTag: "export", expected: operlogsvc.OperTypeExport},
-		{name: "unknown operlog tag falls back to other", method: http.MethodGet, path: "/api/v1/query", operLogTag: "custom", expected: operlogsvc.OperTypeOther},
-		{name: "post import path maps to import", method: http.MethodPost, path: "/api/v1/file/import", expected: operlogsvc.OperTypeImport},
-		{name: "post create defaults to create", method: http.MethodPost, path: "/api/v1/file", expected: operlogsvc.OperTypeCreate},
-		{name: "put maps to update", method: http.MethodPut, path: "/api/v1/file", expected: operlogsvc.OperTypeUpdate},
-		{name: "delete maps to delete", method: http.MethodDelete, path: "/api/v1/file", expected: operlogsvc.OperTypeDelete},
+		{name: "operlog tag wins", method: http.MethodGet, path: "/api/v1/export", operLogTag: "export", expected: audittype.OperTypeExport},
+		{name: "unknown operlog tag falls back to other", method: http.MethodGet, path: "/api/v1/query", operLogTag: "custom", expected: audittype.OperTypeOther},
+		{name: "post import path maps to import", method: http.MethodPost, path: "/api/v1/file/import", expected: audittype.OperTypeImport},
+		{name: "post create defaults to create", method: http.MethodPost, path: "/api/v1/file", expected: audittype.OperTypeCreate},
+		{name: "put maps to update", method: http.MethodPut, path: "/api/v1/file", expected: audittype.OperTypeUpdate},
+		{name: "delete maps to delete", method: http.MethodDelete, path: "/api/v1/file", expected: audittype.OperTypeDelete},
 	}
 
 	for _, testCase := range testCases {
 		actual := inferOperType(testCase.method, testCase.path, testCase.operLogTag)
 		if actual != testCase.expected {
-			t.Fatalf("%s: expected %d, got %d", testCase.name, testCase.expected, actual)
+			t.Fatalf("%s: expected %s, got %s", testCase.name, testCase.expected, actual)
 		}
 	}
 }

@@ -9,16 +9,11 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
+	"lina-core/pkg/menutype"
 )
 
-const (
-	// menuTypeDirectory represents a directory node in the sidebar tree.
-	menuTypeDirectory = "D"
-	// menuTypeEntry represents a clickable menu node in the sidebar tree.
-	menuTypeEntry = "M"
-	// menuIconPlaceholder marks entries without a rendered icon.
-	menuIconPlaceholder = "#"
-)
+// menuIconPlaceholder marks entries without a rendered icon.
+const menuIconPlaceholder = "#"
 
 // normalizeMenuIcon trims menu icon input before validation or persistence.
 func normalizeMenuIcon(icon string) string {
@@ -33,7 +28,7 @@ func shouldValidateMenuIcon(menuType, icon string) bool {
 		return false
 	}
 
-	return menuType == menuTypeDirectory || menuType == menuTypeEntry
+	return menuType == menutype.Directory.String() || menuType == menutype.Menu.String()
 }
 
 // checkIconUnique ensures directory and menu icons remain globally unique so
@@ -47,7 +42,7 @@ func (s *serviceImpl) checkIconUnique(ctx context.Context, menuType, icon string
 	cols := dao.SysMenu.Columns()
 	m := dao.SysMenu.Ctx(ctx).
 		Where(cols.Icon, normalizedIcon).
-		WhereIn(cols.Type, []string{menuTypeDirectory, menuTypeEntry})
+		WhereIn(cols.Type, []string{menutype.Directory.String(), menutype.Menu.String()})
 	if excludeID > 0 {
 		m = m.WhereNot(cols.Id, excludeID)
 	}

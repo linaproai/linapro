@@ -13,7 +13,7 @@ type Operlog struct {
 	Id            int         `json:"id"            orm:"id"             description:"日志ID"`
 	Title         string      `json:"title"         orm:"title"          description:"模块标题"`
 	OperSummary   string      `json:"operSummary"   orm:"oper_summary"   description:"操作摘要"`
-	OperType      int         `json:"operType"      orm:"oper_type"      description:"操作类型（1新增 2修改 3删除 4导出 5导入 6其他）"`
+	OperType      string      `json:"operType"      orm:"oper_type"      description:"操作类型（create新增 update修改 delete删除 export导出 import导入 other其他）"`
 	Method        string      `json:"method"        orm:"method"         description:"方法名称"`
 	RequestMethod string      `json:"requestMethod" orm:"request_method" description:"请求方式（GET/POST/PUT/DELETE）"`
 	OperName      string      `json:"operName"      orm:"oper_name"      description:"操作人员"`

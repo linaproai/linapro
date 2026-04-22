@@ -5,6 +5,7 @@ import (
 
 	"lina-core/internal/model/entity"
 	menusvc "lina-core/internal/service/menu"
+	"lina-core/pkg/menutype"
 )
 
 // TestConvertToRouteItemsBuildsIframeRouteForHostedPluginAssets verifies hosted
@@ -16,7 +17,7 @@ func TestConvertToRouteItemsBuildsIframeRouteForHostedPluginAssets(t *testing.T)
 			Id:      101,
 			Name:    "Runtime Iframe Entry",
 			Path:    "/plugin-assets/plugin-runtime-demo/v0.1.0/index.html",
-			Type:    "M",
+			Type:    menutype.Menu.String(),
 			IsFrame: 0,
 			Visible: 1,
 			Status:  1,
@@ -47,7 +48,7 @@ func TestConvertToRouteItemsBuildsNewWindowRouteForHostedPluginAssets(t *testing
 			Id:      102,
 			Name:    "Runtime New Window Entry",
 			Path:    "/plugin-assets/plugin-runtime-demo/v0.1.0/index.html",
-			Type:    "M",
+			Type:    menutype.Menu.String(),
 			IsFrame: 1,
 			Visible: 1,
 			Status:  1,
@@ -80,7 +81,7 @@ func TestConvertToRouteItemsBuildsEmbeddedMountRouteForHostedPluginAssets(t *tes
 			Name:       "Runtime Embedded Entry",
 			Path:       "/plugin-assets/plugin-runtime-demo/v0.1.0/mount.js",
 			Component:  "system/plugin/dynamic-page",
-			Type:       "M",
+			Type:       menutype.Menu.String(),
 			IsFrame:    0,
 			Visible:    1,
 			Status:     1,
@@ -119,7 +120,7 @@ func TestConvertToRouteItemsKeepsRegularViewRouteUnchanged(t *testing.T) {
 			Name:      "Plugin Demo Source",
 			Path:      "plugin-demo-source-sidebar-entry",
 			Component: "system/plugin/dynamic-page",
-			Type:      "M",
+			Type:      menutype.Menu.String(),
 			IsFrame:   0,
 			Visible:   1,
 			Status:    1,
@@ -150,7 +151,7 @@ func TestConvertToRouteItemsKeepsAbsoluteChildPath(t *testing.T) {
 			Id:      201,
 			Name:    "定时任务",
 			Path:    "scheduled-job",
-			Type:    "D",
+			Type:    menutype.Directory.String(),
 			Visible: 1,
 			Status:  1,
 			Children: []*menusvc.MenuItem{
@@ -160,7 +161,7 @@ func TestConvertToRouteItemsKeepsAbsoluteChildPath(t *testing.T) {
 					Name:      "任务管理",
 					Path:      "/system/job",
 					Component: "system/job/index",
-					Type:      "M",
+					Type:      menutype.Menu.String(),
 					Visible:   1,
 					Status:    1,
 				},
@@ -187,7 +188,7 @@ func TestConvertToRouteItemsSkipsDirectoryWithoutVisibleChildren(t *testing.T) {
 			Id:      301,
 			Name:    "系统监控",
 			Path:    "monitor",
-			Type:    "D",
+			Type:    menutype.Directory.String(),
 			Visible: 1,
 			Status:  1,
 			Children: []*menusvc.MenuItem{
@@ -196,7 +197,7 @@ func TestConvertToRouteItemsSkipsDirectoryWithoutVisibleChildren(t *testing.T) {
 					ParentId: 301,
 					Name:     "操作日志查看",
 					Path:     "monitor-operlog-view",
-					Type:     "B",
+					Type:     menutype.Button.String(),
 					Visible:  1,
 					Status:   1,
 				},
@@ -213,9 +214,9 @@ func TestConvertToRouteItemsSkipsDirectoryWithoutVisibleChildren(t *testing.T) {
 // full ancestor chain required by the stable host catalog tree.
 func TestBuildFilteredTreeKeepsAncestors(t *testing.T) {
 	menuTree := buildFilteredTree([]*entity.SysMenu{
-		{Id: 1, Name: "权限管理", Path: "iam", Type: "D", Visible: 1, Status: 1},
-		{Id: 2, ParentId: 1, Name: "用户治理", Path: "iam-user", Type: "D", Visible: 1, Status: 1},
-		{Id: 3, ParentId: 2, Name: "用户管理", Path: "/system/user", Component: "system/user/index", Type: "M", Visible: 1, Status: 1},
+		{Id: 1, Name: "权限管理", Path: "iam", Type: menutype.Directory.String(), Visible: 1, Status: 1},
+		{Id: 2, ParentId: 1, Name: "用户治理", Path: "iam-user", Type: menutype.Directory.String(), Visible: 1, Status: 1},
+		{Id: 3, ParentId: 2, Name: "用户管理", Path: "/system/user", Component: "system/user/index", Type: menutype.Menu.String(), Visible: 1, Status: 1},
 	}, []int{3})
 
 	if len(menuTree) != 1 {

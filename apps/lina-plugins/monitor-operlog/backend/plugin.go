@@ -4,6 +4,7 @@ package backend
 import (
 	"context"
 
+	"lina-core/pkg/audittype"
 	"lina-core/pkg/pluginhost"
 	monitoroperlogplugin "lina-plugin-monitor-operlog"
 	operlogcontroller "lina-plugin-monitor-operlog/backend/internal/controller/operlog"
@@ -65,11 +66,14 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 // handleAuditRecorded persists one host audit event into the operation-log table owned by this plugin.
 func handleAuditRecorded(ctx context.Context, payload pluginhost.HookPayload) error {
 	var (
-		values      = payload.Values()
-		operType, _ = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyOperType)
-		status, _   = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
-		costTime, _ = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyCostTime)
+		values       = payload.Values()
+		operType, ok = pluginhost.HookPayloadOperTypeValue(values, pluginhost.HookPayloadKeyOperType)
+		status, _    = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
+		costTime, _  = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyCostTime)
 	)
+	if !ok {
+		operType = audittype.OperTypeOther
+	}
 	return operlogsvc.New().Create(ctx, operlogsvc.CreateInput{
 		Title:         pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyTitle),
 		OperSummary:   pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOperSummary),

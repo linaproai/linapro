@@ -23,7 +23,10 @@ func main() {
 		configSvc    = config.New()
 		loggerConfig = configSvc.GetLogger(ctx)
 	)
-	logger.Configure(loggerConfig.Extensions.Structured)
+	logger.Configure(logger.RuntimeConfig{
+		Structured:             loggerConfig.Extensions.Structured,
+		TraceIDEnabledResolver: configSvc.IsLoggerTraceIDEnabled,
+	})
 
 	c, err := gcmd.NewFromObject(cmd.Main{})
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	internalplugin "lina-core/internal/service/plugin"
+	"lina-core/pkg/audittype"
 )
 
 // RecordInput defines the request-audit payload published to source plugins.
@@ -17,8 +18,8 @@ type RecordInput struct {
 	Title string
 	// OperSummary is the audit summary derived from handler metadata.
 	OperSummary string
-	// OperType is the normalized audit operation type code.
-	OperType int
+	// OperType is the normalized semantic audit operation type.
+	OperType audittype.OperType
 	// Method is the routed handler path or method marker.
 	Method string
 	// RequestMethod is the HTTP request method.

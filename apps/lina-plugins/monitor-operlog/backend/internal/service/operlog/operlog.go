@@ -14,6 +14,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/xuri/excelize/v2"
 
+	"lina-core/pkg/audittype"
 	"lina-core/pkg/excelutil"
 	"lina-core/pkg/gdbutil"
 	"lina-plugin-monitor-operlog/backend/internal/dao"
@@ -52,31 +53,25 @@ const (
 	DictTypeOperStatus = "sys_oper_status"
 )
 
-// Operation type values stored in plugin_monitor_operlog.
-const (
-	OperTypeCreate = 1
-	OperTypeUpdate = 2
-	OperTypeDelete = 3
-	OperTypeExport = 4
-	OperTypeImport = 5
-	OperTypeOther  = 6
-)
-
 // Operation status values stored in plugin_monitor_operlog.
 const (
 	OperStatusSuccess = 0
 	OperStatusFail    = 1
 )
 
-var defaultOperTypeLabels = map[int]string{
-	OperTypeCreate: "新增",
-	OperTypeUpdate: "修改",
-	OperTypeDelete: "删除",
-	OperTypeExport: "导出",
-	OperTypeImport: "导入",
-	OperTypeOther:  "其他",
+// defaultOperTypeLabels provides a stable fallback when the dictionary module
+// is unavailable during export rendering.
+var defaultOperTypeLabels = map[audittype.OperType]string{
+	audittype.OperTypeCreate: "新增",
+	audittype.OperTypeUpdate: "修改",
+	audittype.OperTypeDelete: "删除",
+	audittype.OperTypeExport: "导出",
+	audittype.OperTypeImport: "导入",
+	audittype.OperTypeOther:  "其他",
 }
 
+// defaultOperStatusLabels provides a stable fallback when the dictionary module
+// is unavailable during export rendering.
 var defaultOperStatusLabels = map[int]string{
 	OperStatusSuccess: "成功",
 	OperStatusFail:    "失败",
@@ -119,7 +114,7 @@ type dictDataRow = entitymodel.SysDictData
 type CreateInput struct {
 	Title         string
 	OperSummary   string
-	OperType      int
+	OperType      audittype.OperType
 	Method        string
 	RequestMethod string
 	OperName      string
@@ -138,7 +133,7 @@ type ListInput struct {
 	PageSize       int
 	Title          string
 	OperName       string
-	OperType       *int
+	OperType       *audittype.OperType
 	Status         *int
 	BeginTime      string
 	EndTime        string
@@ -162,7 +157,7 @@ type CleanInput struct {
 type ExportInput struct {
 	Title          string
 	OperName       string
-	OperType       *int
+	OperType       *audittype.OperType
 	Status         *int
 	BeginTime      string
 	EndTime        string
@@ -173,10 +168,14 @@ type ExportInput struct {
 
 // Create inserts one operation-log record.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) error {
+	operType := in.OperType
+	if !audittype.IsSupported(operType) {
+		operType = audittype.OperTypeOther
+	}
 	_, err := dao.Operlog.Ctx(ctx).Data(do.Operlog{
 		Title:         in.Title,
 		OperSummary:   in.OperSummary,
-		OperType:      in.OperType,
+		OperType:      operType.String(),
 		Method:        in.Method,
 		RequestMethod: in.RequestMethod,
 		OperName:      in.OperName,
@@ -323,7 +322,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		}
 	}
 
-	operTypeMap := buildIntDictLabelMap(ctx, DictTypeOperType)
+	operTypeMap := buildStringDictLabelMap(ctx, DictTypeOperType)
 	statusMap := buildIntDictLabelMap(ctx, DictTypeOperStatus)
 	for index, log := range list {
 		row := index + 2
@@ -335,7 +334,10 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		}
 		operTypeText, ok := operTypeMap[log.OperType]
 		if !ok {
-			operTypeText = defaultOperTypeLabels[log.OperType]
+			operTypeText = defaultOperTypeLabels[audittype.Normalize(log.OperType)]
+		}
+		if operTypeText == "" {
+			operTypeText = log.OperType
 		}
 		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(3, row), operTypeText); setErr != nil {
 			return nil, setErr
@@ -386,7 +388,15 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 }
 
 // applyOperLogFilters wires the shared operation-log query filters onto one model.
-func applyOperLogFilters(model *gdb.Model, title string, operName string, operType *int, status *int, beginTime string, endTime string) *gdb.Model {
+func applyOperLogFilters(
+	model *gdb.Model,
+	title string,
+	operName string,
+	operType *audittype.OperType,
+	status *int,
+	beginTime string,
+	endTime string,
+) *gdb.Model {
 	if title != "" {
 		model = model.WhereLike(colTitle, "%"+title+"%")
 	}
@@ -394,7 +404,7 @@ func applyOperLogFilters(model *gdb.Model, title string, operName string, operTy
 		model = model.WhereLike(colOperName, "%"+operName+"%")
 	}
 	if operType != nil {
-		model = model.Where(colOperType, *operType)
+		model = model.Where(colOperType, operType.String())
 	}
 	if status != nil {
 		model = model.Where(colStatus, *status)
@@ -406,6 +416,26 @@ func applyOperLogFilters(model *gdb.Model, title string, operName string, operTy
 		model = model.WhereLTE(colOperTime, normalizeEndTime(endTime))
 	}
 	return model
+}
+
+// buildStringDictLabelMap builds one string-value dictionary label map.
+func buildStringDictLabelMap(ctx context.Context, dictType string) map[string]string {
+	rows := make([]*dictDataRow, 0)
+	err := dao.SysDictData.Ctx(ctx).
+		Fields(colDictValue, colDictLabel).
+		Where(colDictType, dictType).
+		Where(colStatus, 1).
+		OrderAsc(colDictSort).
+		Scan(&rows)
+	if err != nil || len(rows) == 0 {
+		return map[string]string{}
+	}
+
+	labels := make(map[string]string, len(rows))
+	for _, row := range rows {
+		labels[row.Value] = row.Label
+	}
+	return labels
 }
 
 // buildIntDictLabelMap builds one integer-value dictionary label map.

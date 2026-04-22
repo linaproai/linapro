@@ -11,6 +11,7 @@ import (
 	v1 "lina-core/api/menu/v1"
 	"lina-core/internal/model/entity"
 	menusvc "lina-core/internal/service/menu"
+	"lina-core/pkg/menutype"
 )
 
 // Runtime menu route conversion constants shared by hosted-asset menu items.
@@ -168,7 +169,7 @@ func cloneMenuItem(item *entity.SysMenu) *menusvc.MenuItem {
 func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 	result := make([]*v1.MenuRouteItem, 0, len(items))
 	for _, item := range items {
-		if item.Type == "B" {
+		if item.Type == menutype.Button.String() {
 			continue
 		}
 
@@ -199,7 +200,7 @@ func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 
 		// Runtime hosted assets and generic external links must be converted into
 		// router-level iframe/new-window semantics before normal view resolution.
-		if menuLinkTarget := normalizeMenuLinkTarget(item.Path); item.Type == "M" && menuLinkTarget != "" {
+		if menuLinkTarget := normalizeMenuLinkTarget(item.Path); item.Type == menutype.Menu.String() && menuLinkTarget != "" {
 			route.Name = buildMenuLinkRouteName(item)
 			route.Path = buildMenuLinkRoutePath(item)
 			if isRuntimeEmbeddedMountMenu(item, menuQuery) {
@@ -218,7 +219,7 @@ func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 				route.Component = "IFrameView"
 				route.Meta.IframeSrc = menuLinkTarget
 			}
-		} else if item.Type == "M" {
+		} else if item.Type == menutype.Menu.String() {
 			// Set component for menu type (M) - actual pages.
 			route.Component = generateComponentPath(item.Component)
 		}
@@ -230,12 +231,12 @@ func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 
 		// Hide empty directory menus so stable host catalogs do not leave empty
 		// shells in navigation when all child menus are unavailable.
-		if item.Type == "D" && len(route.Children) == 0 {
+		if item.Type == menutype.Directory.String() && len(route.Children) == 0 {
 			continue
 		}
 
 		// Set redirect for directory type (D) with children.
-		if item.Type == "D" && len(route.Children) > 0 {
+		if item.Type == menutype.Directory.String() && len(route.Children) > 0 {
 			route.Redirect = route.Children[0].Path
 		}
 

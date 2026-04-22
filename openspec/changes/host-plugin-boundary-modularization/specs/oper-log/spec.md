@@ -20,6 +20,20 @@
 - **THEN** 审计中间件在 `Next` 返回后仍可读取当前响应快照并发射匹配的审计事件
 - **AND** 提前结束请求不会导致本次操作日志漏记
 
+### Requirement: 操作日志类型使用语义字符串常量
+
+系统 SHALL 使用具备业务语义的字符串常量表达操作日志类型，而不是在宿主、插件、接口和存储层传播 `1~6` 这类位置敏感整数编码。
+
+#### Scenario: 审计事件落库时写入语义类型
+- **WHEN** 宿主发射一次操作日志审计事件
+- **THEN** `monitor-operlog` 使用强类型常量写入 `oper_type`
+- **AND** `oper_type` 的持久化值为 `create`、`update`、`delete`、`export`、`import`、`other` 之一
+
+#### Scenario: 操作日志接口返回语义类型
+- **WHEN** 管理员查询或导出操作日志
+- **THEN** 接口中的 `operType` 字段返回语义字符串值
+- **AND** 前端继续通过 `sys_oper_type` 字典渲染对应中文标签
+
 ## ADDED Requirements
 
 ### Requirement: 操作日志治理界面由源码插件交付

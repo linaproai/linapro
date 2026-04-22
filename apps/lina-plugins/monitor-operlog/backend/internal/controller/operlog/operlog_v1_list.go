@@ -14,7 +14,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		PageSize:       req.PageSize,
 		Title:          req.Title,
 		OperName:       req.OperName,
-		OperType:       req.OperType,
+		OperType:       normalizeOperTypePointer(req.OperType),
 		Status:         req.Status,
 		BeginTime:      req.BeginTime,
 		EndTime:        req.EndTime,

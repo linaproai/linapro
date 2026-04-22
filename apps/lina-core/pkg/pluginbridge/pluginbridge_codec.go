@@ -10,6 +10,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"google.golang.org/protobuf/encoding/protowire"
+
+	"lina-core/pkg/audittype"
 )
 
 // Bridge ABI constants define the stable runtime defaults shared between host,
@@ -48,16 +50,16 @@ const (
 
 // validOperLogTags defines all valid semantic operLog tag values for route contracts.
 var validOperLogTags = map[string]struct{}{
-	"create": {},
-	"update": {},
-	"delete": {},
-	"export": {},
-	"import": {},
-	"other":  {},
+	audittype.OperTypeCreate.String(): {},
+	audittype.OperTypeUpdate.String(): {},
+	audittype.OperTypeDelete.String(): {},
+	audittype.OperTypeExport.String(): {},
+	audittype.OperTypeImport.String(): {},
+	audittype.OperTypeOther.String():  {},
 }
 
 // validOperLogTagList lists all valid operLog tags for error messages.
-var validOperLogTagList = []string{"create", "update", "delete", "export", "import", "other"}
+var validOperLogTagList = audittype.PublishedValues()
 
 // RouteContract describes one dynamic plugin route contract embedded into the artifact.
 type RouteContract struct {
