@@ -3,34 +3,36 @@
 package dynamic
 
 import (
-	"encoding/json"
+	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
-	"lina-core/pkg/pluginbridge"
+	"lina-plugin-demo-dynamic/backend/api/dynamic/v1"
 	dynamicservice "lina-plugin-demo-dynamic/backend/internal/service/dynamic"
 )
 
 // CreateDemoRecord creates one plugin-owned demo record.
-func (c *Controller) CreateDemoRecord(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	input, err := buildDemoRecordCreateRouteInput(request)
+func (c *Controller) CreateDemoRecord(
+	_ context.Context,
+	req *v1.CreateDemoRecordReq,
+) (res *v1.CreateDemoRecordRes, err error) {
+	payload, err := c.dynamicSvc.CreateDemoRecordPayload(&dynamicservice.DemoRecordMutationInput{
+		Title:                   req.Title,
+		Content:                 req.Content,
+		AttachmentName:          req.AttachmentName,
+		AttachmentContentBase64: req.AttachmentContentBase64,
+		AttachmentContentType:   req.AttachmentContentType,
+	})
 	if err != nil {
-		return buildDynamicErrorResponse(err), nil
+		return nil, wrapDynamicError(err)
 	}
-
-	payload, err := c.dynamicSvc.CreateDemoRecordPayload(input)
-	if err != nil {
-		return buildDynamicErrorResponse(err), nil
-	}
-	content, err := json.Marshal(payload)
-	if err != nil {
-		return nil, gerror.Wrap(err, "marshal created demo record payload failed")
-	}
-	return pluginbridge.NewJSONResponse(200, content), nil
-}
-
-// buildDemoRecordCreateRouteInput decodes the create request body into the
-// dynamic sample mutation input.
-func buildDemoRecordCreateRouteInput(request *pluginbridge.BridgeRequestEnvelopeV1) (*dynamicservice.DemoRecordMutationInput, error) {
-	return decodeDemoRecordMutationBody(request)
+	return &v1.CreateDemoRecordRes{
+		DemoRecordItem: v1.DemoRecordItem{
+			Id:             payload.Id,
+			Title:          payload.Title,
+			Content:        payload.Content,
+			AttachmentName: payload.AttachmentName,
+			HasAttachment:  payload.HasAttachment,
+			CreatedAt:      payload.CreatedAt,
+			UpdatedAt:      payload.UpdatedAt,
+		},
+	}, nil
 }

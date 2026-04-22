@@ -2,11 +2,12 @@
 
 package v1
 
-import "github.com/gogf/gf/v2/frame/g"
+import "github.com/gogf/gf/v2/util/gmeta"
 
 // HostCallDemoReq is the request for invoking the host call demo endpoint.
 type HostCallDemoReq struct {
-	g.Meta `path:"/host-call-demo" method:"get" tags:"动态插件示例" summary:"宿主调用能力演示" dc:"演示动态插件通过统一宿主服务模型调用 runtime、storage、network 和 data 四类核心能力。接口会写入运行时日志、读写插件隔离存储、访问受治理上游并对宿主确认授权的数据表执行结构化 CRUD。若 query 中传 skipNetwork=1，则跳过外部网络请求，便于离线验证其他能力。" access:"login" permission:"plugin-demo-dynamic:backend:view" operLog:"other"`
+	gmeta.Meta  `path:"/host-call-demo" method:"get" tags:"动态插件示例" summary:"宿主调用能力演示" dc:"演示动态插件通过统一宿主服务模型调用 runtime、storage、network 和 data 四类核心能力。接口会写入运行时日志、读写插件隔离存储、访问受治理上游并对宿主确认授权的数据表执行结构化 CRUD。若 query 中传 skipNetwork=1，则跳过外部网络请求，便于离线验证其他能力。" access:"login" permission:"plugin-demo-dynamic:backend:view" operLog:"other"`
+	SkipNetwork bool `json:"skipNetwork" dc:"是否跳过外部网络请求：true=跳过 false=正常访问，不传默认为 false" eg:"false"`
 }
 
 // HostCallDemoRes is the response for the host call demo endpoint.

@@ -3,33 +3,39 @@
 package dynamic
 
 import (
-	"encoding/json"
+	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
-	"lina-core/pkg/pluginbridge"
+	"lina-plugin-demo-dynamic/backend/api/dynamic/v1"
 	dynamicservice "lina-plugin-demo-dynamic/backend/internal/service/dynamic"
 )
 
 // DemoRecordList returns one paged list of plugin-owned demo records.
-func (c *Controller) DemoRecordList(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	payload, err := c.dynamicSvc.ListDemoRecordsPayload(buildDemoRecordListRouteInput(request))
+func (c *Controller) DemoRecordList(
+	_ context.Context,
+	req *v1.DemoRecordListReq,
+) (res *v1.DemoRecordListRes, err error) {
+	payload, err := c.dynamicSvc.ListDemoRecordsPayload(&dynamicservice.DemoRecordListInput{
+		PageNum:  req.PageNum,
+		PageSize: req.PageSize,
+		Keyword:  req.Keyword,
+	})
 	if err != nil {
-		return buildDynamicErrorResponse(err), nil
+		return nil, wrapDynamicError(err)
 	}
-	content, err := json.Marshal(payload)
-	if err != nil {
-		return nil, gerror.Wrap(err, "marshal demo record list payload failed")
+	items := make([]*v1.DemoRecordItem, 0, len(payload.List))
+	for _, item := range payload.List {
+		items = append(items, &v1.DemoRecordItem{
+			Id:             item.Id,
+			Title:          item.Title,
+			Content:        item.Content,
+			AttachmentName: item.AttachmentName,
+			HasAttachment:  item.HasAttachment,
+			CreatedAt:      item.CreatedAt,
+			UpdatedAt:      item.UpdatedAt,
+		})
 	}
-	return pluginbridge.NewJSONResponse(200, content), nil
-}
-
-// buildDemoRecordListRouteInput extracts list pagination and keyword filters
-// from bridge query parameters.
-func buildDemoRecordListRouteInput(request *pluginbridge.BridgeRequestEnvelopeV1) *dynamicservice.DemoRecordListInput {
-	return &dynamicservice.DemoRecordListInput{
-		PageNum:  readDynamicQueryInt(request, "pageNum"),
-		PageSize: readDynamicQueryInt(request, "pageSize"),
-		Keyword:  readDynamicQueryValue(request, "keyword"),
-	}
+	return &v1.DemoRecordListRes{
+		List:  items,
+		Total: payload.Total,
+	}, nil
 }

@@ -3,29 +3,39 @@
 package dynamic
 
 import (
-	"encoding/json"
+	"context"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/pkg/pluginbridge"
+	"lina-plugin-demo-dynamic/backend/api/dynamic/v1"
 	dynamicservice "lina-plugin-demo-dynamic/backend/internal/service/dynamic"
 )
 
 // BackendSummary returns plugin bridge execution summary including plugin
 // identity, route metadata, and current user context.
-func (c *Controller) BackendSummary(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	payload := c.dynamicSvc.BuildBackendSummaryPayload(buildBackendSummaryRouteInput(request))
-	content, err := json.Marshal(payload)
-	if err != nil {
-		return nil, gerror.Wrap(err, "marshal backend summary payload failed")
+func (c *Controller) BackendSummary(
+	ctx context.Context,
+	_ *v1.BackendSummaryReq,
+) (res *v1.BackendSummaryRes, err error) {
+	payload := c.dynamicSvc.BuildBackendSummaryPayload(
+		buildBackendSummaryRouteInput(pluginbridge.RequestEnvelopeFromContext(ctx)),
+	)
+	if err = pluginbridge.SetResponseHeader(ctx, "X-Lina-Plugin-Bridge", "plugin-demo-dynamic"); err != nil {
+		return nil, err
 	}
-	response := pluginbridge.NewJSONResponse(200, content)
-	response.Headers = map[string][]string{
-		"X-Lina-Plugin-Bridge":     {"plugin-demo-dynamic"},
-		"X-Lina-Plugin-Middleware": {"backend-summary"},
+	if err = pluginbridge.SetResponseHeader(ctx, "X-Lina-Plugin-Middleware", "backend-summary"); err != nil {
+		return nil, err
 	}
-	return response, nil
+	return &v1.BackendSummaryRes{
+		Message:       payload.Message,
+		PluginID:      payload.PluginID,
+		PublicPath:    payload.PublicPath,
+		Access:        payload.Access,
+		Permission:    payload.Permission,
+		Authenticated: payload.Authenticated,
+		Username:      payload.Username,
+		IsSuperAdmin:  payload.IsSuperAdmin,
+	}, nil
 }
 
 // buildBackendSummaryRouteInput extracts backend summary route metadata and

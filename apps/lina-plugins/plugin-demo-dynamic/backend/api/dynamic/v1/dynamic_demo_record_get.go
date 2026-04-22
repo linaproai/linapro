@@ -2,12 +2,12 @@
 
 package v1
 
-import "github.com/gogf/gf/v2/frame/g"
+import "github.com/gogf/gf/v2/util/gmeta"
 
 // DemoRecordReq is the request for querying one dynamic demo record detail.
 type DemoRecordReq struct {
-	g.Meta `path:"/demo-records/{id}" method:"get" tags:"动态插件示例" summary:"查询动态插件示例记录详情" dc:"查询一条 plugin-demo-dynamic 示例记录详情，用于动态插件页面编辑表单回填和附件下载前检查" access:"login" permission:"plugin-demo-dynamic:record:view" operLog:"other"`
-	Id     string `json:"id" v:"required|length:1,64" dc:"记录唯一标识" eg:"demo-record-1"`
+	gmeta.Meta `path:"/demo-records/{id}" method:"get" tags:"动态插件示例" summary:"查询动态插件示例记录详情" dc:"查询一条 plugin-demo-dynamic 示例记录详情，用于动态插件页面编辑表单回填和附件下载前检查" access:"login" permission:"plugin-demo-dynamic:record:view" operLog:"other"`
+	Id         string `json:"id" v:"required|length:1,64" dc:"记录唯一标识" eg:"demo-record-1"`
 }
 
 // DemoRecordRes is the response for querying one dynamic demo record detail.

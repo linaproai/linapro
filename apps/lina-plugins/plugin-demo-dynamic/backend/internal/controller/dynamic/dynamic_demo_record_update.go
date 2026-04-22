@@ -3,40 +3,37 @@
 package dynamic
 
 import (
-	"encoding/json"
+	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
-	"lina-core/pkg/pluginbridge"
+	"lina-plugin-demo-dynamic/backend/api/dynamic/v1"
 	dynamicservice "lina-plugin-demo-dynamic/backend/internal/service/dynamic"
 )
 
 // UpdateDemoRecord updates one plugin-owned demo record.
-func (c *Controller) UpdateDemoRecord(request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	recordID, input, err := buildDemoRecordUpdateRouteInput(request)
+func (c *Controller) UpdateDemoRecord(
+	_ context.Context,
+	req *v1.UpdateDemoRecordReq,
+) (res *v1.UpdateDemoRecordRes, err error) {
+	payload, err := c.dynamicSvc.UpdateDemoRecordPayload(req.Id, &dynamicservice.DemoRecordMutationInput{
+		Title:                   req.Title,
+		Content:                 req.Content,
+		AttachmentName:          req.AttachmentName,
+		AttachmentContentBase64: req.AttachmentContentBase64,
+		AttachmentContentType:   req.AttachmentContentType,
+		RemoveAttachment:        req.RemoveAttachment,
+	})
 	if err != nil {
-		return buildDynamicErrorResponse(err), nil
+		return nil, wrapDynamicError(err)
 	}
-
-	payload, err := c.dynamicSvc.UpdateDemoRecordPayload(recordID, input)
-	if err != nil {
-		return buildDynamicErrorResponse(err), nil
-	}
-	content, err := json.Marshal(payload)
-	if err != nil {
-		return nil, gerror.Wrap(err, "marshal updated demo record payload failed")
-	}
-	return pluginbridge.NewJSONResponse(200, content), nil
-}
-
-// buildDemoRecordUpdateRouteInput decodes the update body and returns the
-// targeted record identifier from path parameters.
-func buildDemoRecordUpdateRouteInput(
-	request *pluginbridge.BridgeRequestEnvelopeV1,
-) (string, *dynamicservice.DemoRecordMutationInput, error) {
-	input, err := decodeDemoRecordMutationBody(request)
-	if err != nil {
-		return "", nil, err
-	}
-	return readDynamicPathParam(request, "id"), input, nil
+	return &v1.UpdateDemoRecordRes{
+		DemoRecordItem: v1.DemoRecordItem{
+			Id:             payload.Id,
+			Title:          payload.Title,
+			Content:        payload.Content,
+			AttachmentName: payload.AttachmentName,
+			HasAttachment:  payload.HasAttachment,
+			CreatedAt:      payload.CreatedAt,
+			UpdatedAt:      payload.UpdatedAt,
+		},
+	}, nil
 }
