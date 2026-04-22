@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS `sys_config` (
 DELETE FROM `sys_config` WHERE `key` = 'sys.user.initPassword';
 DELETE FROM `sys_config` WHERE `key` IN ('sys.index.skinName', 'sys.index.sideTheme', 'sys.account.registerUser');
 DELETE FROM `sys_config` WHERE `key` = 'sys.ui.theme.primaryColor';
+DELETE FROM `sys_config` WHERE `key` = 'sys.logger.traceID.enabled';
 
 INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
 ('品牌展示-应用名称', 'sys.app.name', 'LinaPro', '控制浏览器标题、登录页品牌名称和工作台Logo文案展示，建议填写简洁的产品名称。', NOW(), NOW()),
@@ -36,7 +37,6 @@ INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`,
 ('在线用户-会话超时时间', 'sys.session.timeout', '24h', '控制在线会话无活动超时时长，支持 Go duration 格式，如 30m、24h。', NOW(), NOW()),
 ('文件管理-上传大小上限', 'sys.upload.maxSize', '10', '控制单个上传文件大小上限，单位为 MB，必须为正整数。', NOW(), NOW()),
 ('用户登录-IP 黑名单列表', 'sys.login.blackIPList', '', '禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。', NOW(), NOW()),
-('日志-TraceID 输出开关', 'sys.logger.traceID.enabled', 'inherit', '控制日志是否输出 TraceID；inherit=跟随 config.yaml 中 logger.extensions.traceIDEnabled，true=强制开启，false=强制关闭。', NOW(), NOW()),
 ('界面风格-主题模式', 'sys.ui.theme.mode', 'light', '控制默认主题模式，可选值：light、dark、auto。', NOW(), NOW()),
 ('界面风格-工作台布局', 'sys.ui.layout', 'sidebar-nav', '控制后台默认布局，可选值：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content。', NOW(), NOW()),
 ('界面风格-是否启用水印', 'sys.ui.watermark.enabled', 'false', '控制工作台是否启用水印，可选值：true、false。', NOW(), NOW()),

@@ -135,9 +135,6 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"none","value":-1}`, shouldErr: true},
 		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"days","value":0}`, shouldErr: true},
 		{key: RuntimeParamKeyCronLogRetention, value: `{"mode":"unknown","value":1}`, shouldErr: true},
-		{key: RuntimeParamKeyLoggerTraceIDEnabled, value: "inherit"},
-		{key: RuntimeParamKeyLoggerTraceIDEnabled, value: "true"},
-		{key: RuntimeParamKeyLoggerTraceIDEnabled, value: "auto", shouldErr: true},
 	}
 
 	for _, testCase := range testCases {
@@ -148,6 +145,17 @@ func TestValidateRuntimeParamValue(t *testing.T) {
 		if !testCase.shouldErr && err != nil {
 			t.Fatalf("expected validation success for %s=%q, got %v", testCase.key, testCase.value, err)
 		}
+	}
+}
+
+// TestRuntimeParamSpecsExcludeLoggerTraceIDSwitch verifies the TraceID switch
+// is no longer exposed as one protected sys_config runtime parameter.
+func TestRuntimeParamSpecsExcludeLoggerTraceIDSwitch(t *testing.T) {
+	if _, ok := LookupRuntimeParamSpec("sys.logger.traceID.enabled"); ok {
+		t.Fatal("expected logger TraceID switch to be removed from protected runtime params")
+	}
+	if IsProtectedRuntimeParam("sys.logger.traceID.enabled") {
+		t.Fatal("expected logger TraceID switch not to be treated as protected")
 	}
 }
 
@@ -307,66 +315,6 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.Cron.Timezone.Current == "" {
 		t.Fatal("expected public frontend cron timezone current value to be present")
-	}
-}
-
-// TestIsLoggerTraceIDEnabledUsesStaticConfigFallback verifies the runtime
-// getter falls back to config.yaml when no runtime override exists.
-func TestIsLoggerTraceIDEnabledUsesStaticConfigFallback(t *testing.T) {
-	setTestConfigContent(t, `
-logger:
-  extensions:
-    traceIDEnabled: true
-`)
-	resetRuntimeParamCacheTestState(t)
-
-	if !New().IsLoggerTraceIDEnabled(context.Background()) {
-		t.Fatal("expected logger TraceID switch to inherit enabled static config")
-	}
-}
-
-// TestIsLoggerTraceIDEnabledUsesRuntimeOverride verifies sys_config can
-// override the static logger TraceID switch without restart.
-func TestIsLoggerTraceIDEnabledUsesRuntimeOverride(t *testing.T) {
-	setTestConfigContent(t, `
-logger:
-  extensions:
-    traceIDEnabled: true
-`)
-	withCachedRuntimeParamValue(t, RuntimeParamKeyLoggerTraceIDEnabled, "false")
-
-	if New().IsLoggerTraceIDEnabled(context.Background()) {
-		t.Fatal("expected runtime override to disable logger TraceID output")
-	}
-}
-
-// TestIsLoggerTraceIDEnabledSupportsRuntimeEnableOverride verifies sys_config
-// can force-enable TraceID output even when static config keeps it disabled.
-func TestIsLoggerTraceIDEnabledSupportsRuntimeEnableOverride(t *testing.T) {
-	setTestConfigContent(t, `
-logger:
-  extensions:
-    traceIDEnabled: false
-`)
-	withCachedRuntimeParamValue(t, RuntimeParamKeyLoggerTraceIDEnabled, "true")
-
-	if !New().IsLoggerTraceIDEnabled(context.Background()) {
-		t.Fatal("expected runtime override to enable logger TraceID output")
-	}
-}
-
-// TestIsLoggerTraceIDEnabledSupportsInheritMode verifies inherit mode falls
-// back to the static logger config even when the runtime row exists.
-func TestIsLoggerTraceIDEnabledSupportsInheritMode(t *testing.T) {
-	setTestConfigContent(t, `
-logger:
-  extensions:
-    traceIDEnabled: true
-`)
-	withCachedRuntimeParamValue(t, RuntimeParamKeyLoggerTraceIDEnabled, "inherit")
-
-	if !New().IsLoggerTraceIDEnabled(context.Background()) {
-		t.Fatal("expected inherit mode to keep the static logger TraceID switch")
 	}
 }
 

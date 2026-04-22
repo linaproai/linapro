@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/gogf/gf/contrib/drivers/mysql/v2 v2.10.0
-	github.com/gogf/gf/v2 v2.10.0
+	github.com/gogf/gf/v2 v2.10.1-0.20260422124457-cb7cfa58abb7
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/mssola/useragent v1.0.0
 	github.com/robfig/cron/v3 v3.0.1

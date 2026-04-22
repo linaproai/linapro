@@ -108,11 +108,6 @@ func (f *fakeRoleConfigService) GetLogger(_ context.Context) *hostconfig.LoggerC
 	return &hostconfig.LoggerConfig{}
 }
 
-// IsLoggerTraceIDEnabled always reports false in tests.
-func (f *fakeRoleConfigService) IsLoggerTraceIDEnabled(_ context.Context) bool {
-	return false
-}
-
 // GetMetadata returns an empty metadata config for tests.
 func (f *fakeRoleConfigService) GetMetadata(_ context.Context) *hostconfig.MetadataConfig {
 	return &hostconfig.MetadataConfig{}

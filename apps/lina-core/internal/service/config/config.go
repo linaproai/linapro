@@ -39,9 +39,6 @@ type Service interface {
 	GetServerExtensions(ctx context.Context) *ServerExtensionsConfig
 	// GetLogger reads logger config from configuration file.
 	GetLogger(ctx context.Context) *LoggerConfig
-	// IsLoggerTraceIDEnabled reports whether log output should include TraceID
-	// for the current runtime-effective configuration snapshot.
-	IsLoggerTraceIDEnabled(ctx context.Context) bool
 	// GetMetadata reads embedded delivery metadata from the packaged resource file.
 	GetMetadata(ctx context.Context) *MetadataConfig
 	// GetMonitor reads monitor config from configuration file.

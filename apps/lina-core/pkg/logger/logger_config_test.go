@@ -19,15 +19,15 @@ import (
 // LinaPro wrapper handler instead of relying on GoFrame's raw defaults.
 func TestConfigureInstallsCustomHandler(t *testing.T) {
 	oldHandler := glog.GetDefaultHandler()
-	previousResolver, _ := traceIDEnabledResolverStore.Load().(TraceIDEnabledResolver)
+	previousEnabled := traceIDEnabledStore.Load()
 	t.Cleanup(func() {
 		glog.SetDefaultHandler(oldHandler)
-		setTraceIDEnabledResolver(previousResolver)
+		setTraceIDEnabled(previousEnabled)
 	})
 
 	Configure(RuntimeConfig{
-		Structured:             true,
-		TraceIDEnabledResolver: func(context.Context) bool { return true },
+		Structured:     true,
+		TraceIDEnabled: true,
 	})
 
 	currentHandler := glog.GetDefaultHandler()
@@ -40,11 +40,9 @@ func TestConfigureInstallsCustomHandler(t *testing.T) {
 }
 
 // TestStructuredTraceIDAwareHandlerDropsTraceID verifies structured logs omit
-// TraceID when the resolver reports the feature disabled.
+// TraceID when the startup switch keeps the feature disabled.
 func TestStructuredTraceIDAwareHandlerDropsTraceID(t *testing.T) {
-	withTraceIDResolver(t, func(context.Context) bool {
-		return false
-	})
+	withTraceIDEnabled(t, false)
 
 	input := &glog.HandlerInput{
 		Logger:      glog.New(),
@@ -67,11 +65,9 @@ func TestStructuredTraceIDAwareHandlerDropsTraceID(t *testing.T) {
 }
 
 // TestTextTraceIDAwareHandlerKeepsTraceID verifies plain-text logs retain
-// TraceID when the resolver reports the feature enabled.
+// TraceID when the startup switch enables the feature.
 func TestTextTraceIDAwareHandlerKeepsTraceID(t *testing.T) {
-	withTraceIDResolver(t, func(context.Context) bool {
-		return true
-	})
+	withTraceIDEnabled(t, true)
 
 	input := &glog.HandlerInput{
 		Logger:      glog.New(),
@@ -158,13 +154,13 @@ func unsafeFieldString(value reflect.Value) string {
 	return reflect.NewAt(value.Type(), unsafe.Pointer(value.UnsafeAddr())).Elem().String()
 }
 
-// withTraceIDResolver swaps the package-level TraceID resolver for one test.
-func withTraceIDResolver(t *testing.T, resolver TraceIDEnabledResolver) {
+// withTraceIDEnabled swaps the package-level TraceID switch for one test.
+func withTraceIDEnabled(t *testing.T, enabled bool) {
 	t.Helper()
 
-	previousResolver, _ := traceIDEnabledResolverStore.Load().(TraceIDEnabledResolver)
-	setTraceIDEnabledResolver(resolver)
+	previousEnabled := traceIDEnabledStore.Load()
+	setTraceIDEnabled(enabled)
 	t.Cleanup(func() {
-		setTraceIDEnabledResolver(previousResolver)
+		setTraceIDEnabled(previousEnabled)
 	})
 }

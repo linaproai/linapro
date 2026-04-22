@@ -24,8 +24,8 @@ func main() {
 		loggerConfig = configSvc.GetLogger(ctx)
 	)
 	logger.Configure(logger.RuntimeConfig{
-		Structured:             loggerConfig.Extensions.Structured,
-		TraceIDEnabledResolver: configSvc.IsLoggerTraceIDEnabled,
+		Structured:     loggerConfig.Extensions.Structured,
+		TraceIDEnabled: loggerConfig.Extensions.TraceIDEnabled,
 	})
 
 	c, err := gcmd.NewFromObject(cmd.Main{})

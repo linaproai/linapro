@@ -27,8 +27,6 @@ const (
 	RuntimeParamKeyCronShellEnabled = "cron.shell.enabled"
 	// RuntimeParamKeyCronLogRetention stores the default cron-log retention policy.
 	RuntimeParamKeyCronLogRetention = "cron.log.retention"
-	// RuntimeParamKeyLoggerTraceIDEnabled stores the runtime logger TraceID override mode.
-	RuntimeParamKeyLoggerTraceIDEnabled = "sys.logger.traceID.enabled"
 )
 
 // RuntimeParamSpec describes one built-in runtime parameter managed through
@@ -78,24 +76,17 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 		DefaultValue: `{"mode":"days","value":30}`,
 		Remark:       "控制默认的定时任务日志清理策略，JSON 格式：{\"mode\":\"days|count|none\",\"value\":N}。",
 	},
-	{
-		Key:          RuntimeParamKeyLoggerTraceIDEnabled,
-		Name:         "日志-TraceID 输出开关",
-		DefaultValue: string(LoggerTraceIDRuntimeModeInherit),
-		Remark:       "控制日志是否输出 TraceID；inherit=跟随 config.yaml 中 logger.extensions.traceIDEnabled，true=强制开启，false=强制关闭。",
-	},
 }
 
 // runtimeParamSpecByKey indexes runtimeParamSpecs by key for validation and
 // lookup operations on protected runtime settings.
 var runtimeParamSpecByKey = map[string]RuntimeParamSpec{
-	RuntimeParamKeyJWTExpire:            runtimeParamSpecs[0],
-	RuntimeParamKeySessionTimeout:       runtimeParamSpecs[1],
-	RuntimeParamKeyUploadMaxSize:        runtimeParamSpecs[2],
-	RuntimeParamKeyLoginBlackIPList:     runtimeParamSpecs[3],
-	RuntimeParamKeyCronShellEnabled:     runtimeParamSpecs[4],
-	RuntimeParamKeyCronLogRetention:     runtimeParamSpecs[5],
-	RuntimeParamKeyLoggerTraceIDEnabled: runtimeParamSpecs[6],
+	RuntimeParamKeyJWTExpire:        runtimeParamSpecs[0],
+	RuntimeParamKeySessionTimeout:   runtimeParamSpecs[1],
+	RuntimeParamKeyUploadMaxSize:    runtimeParamSpecs[2],
+	RuntimeParamKeyLoginBlackIPList: runtimeParamSpecs[3],
+	RuntimeParamKeyCronShellEnabled: runtimeParamSpecs[4],
+	RuntimeParamKeyCronLogRetention: runtimeParamSpecs[5],
 }
 
 // runtimeParamKeys preserves the deterministic built-in runtime-parameter key order.
@@ -106,7 +97,6 @@ var runtimeParamKeys = []string{
 	RuntimeParamKeyLoginBlackIPList,
 	RuntimeParamKeyCronShellEnabled,
 	RuntimeParamKeyCronLogRetention,
-	RuntimeParamKeyLoggerTraceIDEnabled,
 }
 
 // RuntimeParamSpecs returns all built-in runtime parameter specs.
@@ -153,9 +143,6 @@ func ValidateRuntimeParamValue(key string, value string) error {
 
 	case RuntimeParamKeyCronLogRetention:
 		return validateCronLogRetentionValue(key, value)
-
-	case RuntimeParamKeyLoggerTraceIDEnabled:
-		return validateLoggerTraceIDRuntimeValue(key, value)
 	}
 	return nil
 }

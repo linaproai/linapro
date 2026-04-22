@@ -16,19 +16,9 @@ import (
 // project config omits an explicit shared log filename.
 const defaultFilePattern = "{Y-m-d}.log"
 
-// defaultTraceIDEnabledResolver keeps TraceID output disabled unless one
-// caller explicitly wires a runtime-effective enable switch.
-func defaultTraceIDEnabledResolver(context.Context) bool {
-	return false
-}
-
-// traceIDEnabledResolverStore keeps the runtime-effective TraceID resolver for
-// the package-level default logging handler.
-var traceIDEnabledResolverStore atomic.Value
-
-func init() {
-	traceIDEnabledResolverStore.Store(TraceIDEnabledResolver(defaultTraceIDEnabledResolver))
-}
+// traceIDEnabledStore keeps the process-wide TraceID output switch loaded from
+// the static logger configuration file at startup.
+var traceIDEnabledStore atomic.Bool
 
 // ServerOutputConfig defines the shared output target for business and server logs.
 type ServerOutputConfig struct {
@@ -37,43 +27,32 @@ type ServerOutputConfig struct {
 	Stdout bool   // Stdout controls whether logs are also written to stdout.
 }
 
-// TraceIDEnabledResolver reports whether one log entry should include TraceID.
-type TraceIDEnabledResolver func(ctx context.Context) bool
-
 // RuntimeConfig defines project-wide logger handler behavior.
 type RuntimeConfig struct {
-	Structured             bool                   // Structured controls JSON log formatting.
-	TraceIDEnabledResolver TraceIDEnabledResolver // TraceIDEnabledResolver returns the runtime-effective TraceID switch.
+	Structured     bool // Structured controls JSON log formatting.
+	TraceIDEnabled bool // TraceIDEnabled controls whether log output keeps TraceID fields.
 }
 
 // Configure applies the project-wide GoFrame log handler with the current
-// structured-format and TraceID visibility switches.
+// structured-format and TraceID visibility switches loaded from config.yaml.
 func Configure(cfg RuntimeConfig) {
-	setTraceIDEnabledResolver(cfg.TraceIDEnabledResolver)
+	setTraceIDEnabled(cfg.TraceIDEnabled)
 	glog.SetDefaultHandler(newDefaultHandler(cfg.Structured))
 }
 
-// setTraceIDEnabledResolver stores one runtime-effective TraceID resolver for
-// later handler invocations.
-func setTraceIDEnabledResolver(resolver TraceIDEnabledResolver) {
-	if resolver == nil {
-		resolver = defaultTraceIDEnabledResolver
-	}
-	traceIDEnabledResolverStore.Store(resolver)
+// setTraceIDEnabled stores the process-wide TraceID output switch for later
+// handler invocations.
+func setTraceIDEnabled(enabled bool) {
+	traceIDEnabledStore.Store(enabled)
 }
 
-// traceIDEnabled reports whether the current log entry should retain its
-// TraceID field.
-func traceIDEnabled(ctx context.Context) bool {
-	resolver, ok := traceIDEnabledResolverStore.Load().(TraceIDEnabledResolver)
-	if !ok || resolver == nil {
-		return false
-	}
-	return resolver(ctx)
+// traceIDEnabled reports whether log output should retain TraceID fields.
+func traceIDEnabled() bool {
+	return traceIDEnabledStore.Load()
 }
 
 // newDefaultHandler creates the package-level default log handler while still
-// allowing LinaPro to suppress TraceID output dynamically.
+// allowing LinaPro to suppress TraceID output based on static startup config.
 func newDefaultHandler(structured bool) glog.Handler {
 	if structured {
 		return structuredTraceIDAwareHandler
@@ -82,25 +61,25 @@ func newDefaultHandler(structured bool) glog.Handler {
 }
 
 // structuredTraceIDAwareHandler renders JSON logs after applying the
-// runtime-effective TraceID visibility switch.
+// configured TraceID visibility switch.
 func structuredTraceIDAwareHandler(ctx context.Context, in *glog.HandlerInput) {
-	stripTraceIDIfDisabled(ctx, in)
+	stripTraceIDIfDisabled(in)
 	glog.HandlerJson(ctx, in)
 }
 
 // textTraceIDAwareHandler renders the default text log format after applying
-// the runtime-effective TraceID visibility switch.
+// the configured TraceID visibility switch.
 func textTraceIDAwareHandler(ctx context.Context, in *glog.HandlerInput) {
-	stripTraceIDIfDisabled(ctx, in)
+	stripTraceIDIfDisabled(in)
 	in.Buffer.WriteString(in.String())
 	in.Buffer.WriteByte('\n')
 	in.Next(ctx)
 }
 
-// stripTraceIDIfDisabled clears the handler input TraceID when the current
-// runtime-effective logger switch is disabled.
-func stripTraceIDIfDisabled(ctx context.Context, in *glog.HandlerInput) {
-	if in == nil || traceIDEnabled(ctx) {
+// stripTraceIDIfDisabled clears the handler input TraceID when the configured
+// logger switch is disabled.
+func stripTraceIDIfDisabled(in *glog.HandlerInput) {
+	if in == nil || traceIDEnabled() {
 		return
 	}
 	in.TraceId = ""

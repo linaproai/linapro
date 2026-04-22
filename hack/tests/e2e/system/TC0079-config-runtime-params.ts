@@ -6,7 +6,11 @@ const runtimeParams = [
   { key: 'sys.session.timeout', name: '在线用户-会话超时时间' },
   { key: 'sys.upload.maxSize', name: '文件管理-上传大小上限' },
   { key: 'sys.login.blackIPList', name: '用户登录-IP 黑名单列表' },
+];
+
+const removedParams = [
   { key: 'sys.logger.traceID.enabled', name: '日志-TraceID 输出开关' },
+  { key: 'sys.user.initPassword', name: '已下线的初始化密码参数' },
 ];
 
 test.describe('TC0079 参数设置内置运行时参数', () => {
@@ -28,14 +32,20 @@ test.describe('TC0079 参数设置内置运行时参数', () => {
     });
   }
 
-  test('TC0079f: 不再检索到已下线的 sys.user.initPassword', async ({ adminPage }) => {
-    const configPage = new ConfigPage(adminPage);
-    await configPage.goto();
+  for (const [index, removedParam] of removedParams.entries()) {
+    const subCase = String.fromCharCode(
+      'a'.charCodeAt(0) + runtimeParams.length + index,
+    );
 
-    await configPage.fillSearchField('参数键名', 'sys.user.initPassword');
-    await configPage.clickSearch();
+    test(`TC0079${subCase}: 不再检索到 ${removedParam.key}`, async ({ adminPage }) => {
+      const configPage = new ConfigPage(adminPage);
+      await configPage.goto();
 
-    const hasConfig = await configPage.hasConfig('sys.user.initPassword');
-    expect(hasConfig).toBeFalsy();
-  });
+      await configPage.fillSearchField('参数键名', removedParam.key);
+      await configPage.clickSearch();
+
+      const hasConfig = await configPage.hasConfig(removedParam.key);
+      expect(hasConfig).toBeFalsy();
+    });
+  }
 });
