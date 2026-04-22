@@ -8,7 +8,7 @@ import (
 
 // DetailReq defines the request for querying one scheduled job log detail.
 type DetailReq struct {
-	g.Meta `path:"/job/log/{id}" method:"get" tags:"任务执行日志" summary:"获取日志详情" dc:"根据日志ID查询任务执行日志详情，返回任务快照、执行结果和错误摘要" permission:"system:joblog:list"`
+	g.Meta `path:"/job/log/{id}" method:"get" tags:"任务调度/执行日志" summary:"获取日志详情" dc:"根据日志ID查询任务执行日志详情，返回任务快照、执行结果和错误摘要" permission:"system:joblog:list"`
 	Id     uint64 `json:"id" v:"required" dc:"日志ID" eg:"1001"`
 }
 

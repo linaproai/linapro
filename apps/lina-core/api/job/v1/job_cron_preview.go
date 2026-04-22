@@ -4,7 +4,7 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // CronPreviewReq defines the request for previewing one cron expression.
 type CronPreviewReq struct {
-	g.Meta   `path:"/job/cron-preview" method:"get" tags:"定时任务管理" summary:"预览定时表达式" dc:"根据输入的5段或6段 Cron 表达式和时区预览最近5次触发时间，用于任务表单校验与展示；5段表达式按分钟粒度解析，运行时会补 # 秒占位" permission:"system:job:list"`
+	g.Meta   `path:"/job/cron-preview" method:"get" tags:"任务调度/定时任务" summary:"预览定时表达式" dc:"根据输入的5段或6段 Cron 表达式和时区预览最近5次触发时间，用于任务表单校验与展示；5段表达式按分钟粒度解析，运行时会补 # 秒占位" permission:"system:job:list"`
 	Expr     string `json:"expr" v:"required|length:1,128" dc:"待预览的 Cron 表达式，支持5段与6段写法" eg:"17 3 * * *"`
 	Timezone string `json:"timezone" d:"Asia/Shanghai" dc:"Cron 解析时使用的时区标识" eg:"Asia/Shanghai"`
 }

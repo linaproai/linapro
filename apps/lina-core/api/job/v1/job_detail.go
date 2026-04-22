@@ -8,7 +8,7 @@ import (
 
 // DetailReq defines the request for querying one scheduled job detail.
 type DetailReq struct {
-	g.Meta `path:"/job/{id}" method:"get" tags:"定时任务管理" summary:"获取任务详情" dc:"根据任务ID查询定时任务详情，返回基础配置、分组信息以及当前策略字段" permission:"system:job:list"`
+	g.Meta `path:"/job/{id}" method:"get" tags:"任务调度/定时任务" summary:"获取任务详情" dc:"根据任务ID查询定时任务详情，返回基础配置、分组信息以及当前策略字段" permission:"system:job:list"`
 	Id     uint64 `json:"id" v:"required" dc:"任务ID" eg:"1"`
 }
 

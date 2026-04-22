@@ -8,7 +8,7 @@ import (
 
 // ListReq defines the request for querying scheduled job logs.
 type ListReq struct {
-	g.Meta         `path:"/job/log" method:"get" tags:"任务执行日志" summary:"获取执行日志列表" dc:"分页查询任务执行日志，支持按任务、状态、触发方式、节点与时间范围筛选" permission:"system:joblog:list"`
+	g.Meta         `path:"/job/log" method:"get" tags:"任务调度/执行日志" summary:"获取执行日志列表" dc:"分页查询任务执行日志，支持按任务、状态、触发方式、节点与时间范围筛选" permission:"system:joblog:list"`
 	PageNum        int     `json:"pageNum" d:"1" v:"min:1" dc:"页码" eg:"1"`
 	PageSize       int     `json:"pageSize" d:"10" v:"min:1|max:100" dc:"每页条数" eg:"10"`
 	JobId          *uint64 `json:"jobId" dc:"按任务ID筛选，不传则查询全部" eg:"1"`

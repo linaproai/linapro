@@ -4,7 +4,7 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // DetailReq defines the request for querying one registered job handler detail.
 type DetailReq struct {
-	g.Meta `path:"/job/handler/{ref}" method:"get" tags:"任务处理器注册表" summary:"获取处理器详情" dc:"根据处理器引用查询详情，返回描述信息和参数 Schema；包含斜杠的 ref 需进行 URL 编码" permission:"system:job:list"`
+	g.Meta `path:"/job/handler/{ref}" method:"get" tags:"任务调度/插件处理器" summary:"获取处理器详情" dc:"根据处理器引用查询详情，返回描述信息和参数 Schema；包含斜杠的 ref 需进行 URL 编码" permission:"system:job:list"`
 	Ref    string `json:"ref" v:"required" dc:"处理器唯一引用" eg:"host:cleanup-job-logs"`
 }
 

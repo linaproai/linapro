@@ -8,7 +8,7 @@ import (
 
 // ListReq defines the request for querying scheduled jobs.
 type ListReq struct {
-	g.Meta         `path:"/job" method:"get" tags:"定时任务管理" summary:"获取任务列表" dc:"分页查询定时任务列表，支持按分组、状态、任务类型、关键字、调度范围与并发策略筛选" permission:"system:job:list"`
+	g.Meta         `path:"/job" method:"get" tags:"任务调度/定时任务" summary:"获取任务列表" dc:"分页查询定时任务列表，支持按分组、状态、任务类型、关键字、调度范围与并发策略筛选" permission:"system:job:list"`
 	PageNum        int     `json:"pageNum" d:"1" v:"min:1" dc:"页码" eg:"1"`
 	PageSize       int     `json:"pageSize" d:"10" v:"min:1|max:100" dc:"每页条数" eg:"10"`
 	GroupId        *uint64 `json:"groupId" dc:"按任务分组ID筛选，不传则查询全部" eg:"1"`

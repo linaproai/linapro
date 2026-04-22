@@ -4,7 +4,7 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // ListReq defines the request for querying registered job handlers.
 type ListReq struct {
-	g.Meta  `path:"/job/handler" method:"get" tags:"任务处理器注册表" summary:"获取处理器列表" dc:"查询当前宿主与插件已注册的任务处理器定义，供任务表单下拉选择" permission:"system:job:list"`
+	g.Meta  `path:"/job/handler" method:"get" tags:"任务调度/插件处理器" summary:"获取处理器列表" dc:"查询当前宿主与插件已注册的任务处理器定义，供任务表单下拉选择" permission:"system:job:list"`
 	Source  string `json:"source" dc:"按处理器来源筛选：host=宿主 plugin=插件，不传则查询全部" eg:"host"`
 	Keyword string `json:"keyword" dc:"按处理器引用或展示名称关键字筛选" eg:"cleanup"`
 }

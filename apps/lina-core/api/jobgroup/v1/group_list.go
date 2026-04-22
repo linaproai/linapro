@@ -8,7 +8,7 @@ import (
 
 // ListReq defines the request for querying scheduled job groups.
 type ListReq struct {
-	g.Meta         `path:"/job-group" method:"get" tags:"任务分组管理" summary:"获取分组列表" dc:"分页查询任务分组列表，支持按编码与名称关键字筛选" permission:"system:jobgroup:list"`
+	g.Meta         `path:"/job-group" method:"get" tags:"任务调度/任务分组" summary:"获取分组列表" dc:"分页查询任务分组列表，支持按编码与名称关键字筛选" permission:"system:jobgroup:list"`
 	PageNum        int    `json:"pageNum" d:"1" v:"min:1" dc:"页码" eg:"1"`
 	PageSize       int    `json:"pageSize" d:"10" v:"min:1|max:100" dc:"每页条数" eg:"10"`
 	Code           string `json:"code" dc:"按分组编码筛选（模糊匹配）" eg:"default"`
