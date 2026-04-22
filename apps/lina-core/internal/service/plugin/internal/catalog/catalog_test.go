@@ -387,7 +387,7 @@ func TestBuildPluginManifestSnapshotIncludesDirectoryDiscoveredAssets(t *testing
 			{
 				Key:  "plugin:plugin-snapshot:sidebar-entry",
 				Name: "Snapshot Plugin",
-				Type: "M",
+				Type: catalog.MenuTypePage.String(),
 			},
 		},
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),
@@ -475,7 +475,7 @@ func TestBuildPluginResourceRefDescriptorsDoNotPersistConcreteFilePaths(t *testi
 			{
 				Key:  "plugin:plugin-resource-summary:sidebar-entry",
 				Name: "Resource Summary Plugin",
-				Type: "M",
+				Type: catalog.MenuTypePage.String(),
 			},
 		},
 		ManifestPath: filepath.Join(pluginDir, "plugin.yaml"),

@@ -14,7 +14,7 @@ func (c *ControllerV1) Export(ctx context.Context, req *v1.ExportReq) (res *v1.E
 	data, err := c.operLogSvc.Export(ctx, operlogsvc.ExportInput{
 		Title:          req.Title,
 		OperName:       req.OperName,
-		OperType:       req.OperType,
+		OperType:       normalizeOperTypePointer(req.OperType),
 		Status:         req.Status,
 		BeginTime:      req.BeginTime,
 		EndTime:        req.EndTime,

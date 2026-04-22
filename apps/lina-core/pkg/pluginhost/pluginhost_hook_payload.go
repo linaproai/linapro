@@ -3,6 +3,8 @@
 
 package pluginhost
 
+import "lina-core/pkg/audittype"
+
 // HookPayloadKey defines one published field name inside a host hook payload.
 type HookPayloadKey string
 
@@ -32,7 +34,7 @@ const (
 	HookPayloadKeyTitle HookPayloadKey = "title"
 	// HookPayloadKeyOperSummary stores the audit operation summary.
 	HookPayloadKeyOperSummary HookPayloadKey = "operSummary"
-	// HookPayloadKeyOperType stores the audit operation type code.
+	// HookPayloadKeyOperType stores the audit operation type value.
 	HookPayloadKeyOperType HookPayloadKey = "operType"
 	// HookPayloadKeyMethod stores the routed handler path or method marker.
 	HookPayloadKeyMethod HookPayloadKey = "method"
@@ -75,7 +77,7 @@ type PluginLifecycleHookPayloadInput struct {
 type AuditHookPayloadInput struct {
 	Title         string
 	OperSummary   string
-	OperType      int
+	OperType      audittype.OperType
 	Method        string
 	RequestMethod string
 	OperName      string
@@ -124,7 +126,7 @@ func BuildAuditHookPayloadValues(input AuditHookPayloadInput) map[string]interfa
 	return map[string]interface{}{
 		HookPayloadKeyTitle.String():         input.Title,
 		HookPayloadKeyOperSummary.String():   input.OperSummary,
-		HookPayloadKeyOperType.String():      input.OperType,
+		HookPayloadKeyOperType.String():      input.OperType.String(),
 		HookPayloadKeyMethod.String():        input.Method,
 		HookPayloadKeyRequestMethod.String(): input.RequestMethod,
 		HookPayloadKeyOperName.String():      input.OperName,
@@ -159,4 +161,11 @@ func HookPayloadIntValue(values map[string]interface{}, key HookPayloadKey) (int
 	}
 	value, ok := values[key.String()].(int)
 	return value, ok
+}
+
+// HookPayloadOperTypeValue extracts one audit operation type from the published map.
+func HookPayloadOperTypeValue(values map[string]interface{}, key HookPayloadKey) (audittype.OperType, bool) {
+	value := HookPayloadStringValue(values, key)
+	operType := audittype.Normalize(value)
+	return operType, audittype.IsSupported(operType)
 }

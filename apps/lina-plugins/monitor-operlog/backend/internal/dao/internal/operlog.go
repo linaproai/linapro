@@ -24,7 +24,7 @@ type OperlogColumns struct {
 	Id            string // 日志ID
 	Title         string // 模块标题
 	OperSummary   string // 操作摘要
-	OperType      string // 操作类型（1新增 2修改 3删除 4导出 5导入 6其他）
+	OperType      string // 操作类型（create新增 update修改 delete删除 export导出 import导入 other其他）
 	Method        string // 方法名称
 	RequestMethod string // 请求方式（GET/POST/PUT/DELETE）
 	OperName      string // 操作人员

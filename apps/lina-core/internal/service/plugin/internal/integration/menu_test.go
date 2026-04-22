@@ -64,7 +64,7 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 				Component: "system/plugin/dynamic-page",
 				Perms:     "plugin-source-menu-sync:view",
 				Icon:      "ant-design:appstore-outlined",
-				Type:      "M",
+				Type:      catalog.MenuTypePage.String(),
 				Sort:      -1,
 			},
 		},
@@ -168,7 +168,7 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 				Path:      "/plugin-assets/plugin-dynamic-menu-metadata/v0.3.0/index.html",
 				Perms:     "plugin-dynamic-menu-metadata:view",
 				Icon:      "ant-design:deployment-unit-outlined",
-				Type:      "M",
+				Type:      catalog.MenuTypePage.String(),
 				Sort:      -1,
 				Query:     map[string]interface{}{"pluginAccessMode": "embedded-mount"},
 				Component: "system/plugin/dynamic-page",
@@ -304,7 +304,7 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	if menu == nil {
 		t.Fatal("expected synthetic permission menu to be created")
 	}
-	if menu.Type != "B" || menu.Visible != 0 {
+	if menu.Type != catalog.MenuTypeButton.String() || menu.Visible != 0 {
 		t.Fatalf("expected synthetic permission menu to be hidden button, got %#v", menu)
 	}
 
@@ -550,7 +550,7 @@ func TestFilterMenusHidesRuntimeMenusWhenArtifactIsMissing(t *testing.T) {
 			Id:      1,
 			MenuKey: "plugin:" + pluginID + ":entry",
 			Name:    "runtime menu",
-			Type:    "M",
+			Type:    catalog.MenuTypePage.String(),
 			Status:  1,
 			Visible: 1,
 		},

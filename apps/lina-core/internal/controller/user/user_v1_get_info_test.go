@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"lina-core/internal/service/menu"
+	"lina-core/pkg/menutype"
 )
 
 // TestResolveHomePathPrefersStableHostRoutes verifies stable workspace routes
@@ -16,24 +17,24 @@ func TestResolveHomePathPrefersStableHostRoutes(t *testing.T) {
 		{
 			Name: "工作台",
 			Path: "dashboard",
-			Type: "D",
+			Type: menutype.Directory.String(),
 			Children: []*menu.MenuItem{
 				{
 					Name: "分析页",
 					Path: "analytics",
-					Type: "M",
+					Type: menutype.Menu.String(),
 				},
 				{
 					Name: "工作台",
 					Path: "workspace",
-					Type: "M",
+					Type: menutype.Menu.String(),
 				},
 			},
 		},
 		{
 			Name: "动态插件示例",
 			Path: "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js",
-			Type: "M",
+			Type: menutype.Menu.String(),
 		},
 	}
 
@@ -49,7 +50,7 @@ func TestResolveHomePathFallsBackToHostedPluginAssetWhenNeeded(t *testing.T) {
 		{
 			Name: "动态插件示例",
 			Path: "/plugin-assets/plugin-demo-dynamic/v0.1.0/mount.js",
-			Type: "M",
+			Type: menutype.Menu.String(),
 		},
 	}
 

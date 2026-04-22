@@ -134,7 +134,7 @@ func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *test
 				Path:   "plugin-dynamic-uninstall-governance-entry",
 				Perms:  "plugin-dynamic-uninstall-governance:view",
 				Icon:   "ant-design:appstore-outlined",
-				Type:   "M",
+				Type:   catalog.MenuTypePage.String(),
 				Sort:   1,
 				Remark: "Runtime uninstall governance verification menu.",
 			},

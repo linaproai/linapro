@@ -9,6 +9,7 @@ import (
 
 	v1 "lina-core/api/user/v1"
 	"lina-core/internal/service/menu"
+	"lina-core/pkg/menutype"
 )
 
 // pluginHostedAssetPathPrefix marks runtime-mounted plugin asset menu entries
@@ -194,7 +195,7 @@ func isExternalPath(path string) bool {
 // isHomePathCandidate reports whether the current menu entry can be used as the
 // post-login landing route during the current selection pass.
 func isHomePathCandidate(item *menu.MenuItem, currentPath string, preferStable bool) bool {
-	if item == nil || item.Type != "M" || item.IsFrame != 0 || currentPath == "" || isExternalPath(currentPath) {
+	if item == nil || item.Type != menutype.Menu.String() || item.IsFrame != 0 || currentPath == "" || isExternalPath(currentPath) {
 		return false
 	}
 	if preferStable && strings.HasPrefix(currentPath, pluginHostedAssetPathPrefix) {
@@ -207,7 +208,7 @@ func isHomePathCandidate(item *menu.MenuItem, currentPath string, preferStable b
 func convertToMenuTree(items []*menu.MenuItem) []*v1.MenuTree {
 	result := make([]*v1.MenuTree, 0, len(items))
 	for _, item := range items {
-		if item.Type == "B" {
+		if item.Type == menutype.Button.String() {
 			continue
 		}
 

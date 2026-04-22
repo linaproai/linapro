@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/grpool"
 
+	"lina-core/pkg/audittype"
 	"lina-core/pkg/logger"
 	hostaudit "lina-core/pkg/pluginservice/audit"
 	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
@@ -26,16 +27,6 @@ const (
 	operLogRedactedValue  = "[REDACTED]"
 	operLogBinaryContent  = "[二进制内容]"
 )
-
-// operLogTagToType maps semantic operLog tags to the published audit operation codes.
-var operLogTagToType = map[string]int{
-	"create": operlogsvc.OperTypeCreate,
-	"update": operlogsvc.OperTypeUpdate,
-	"delete": operlogsvc.OperTypeDelete,
-	"export": operlogsvc.OperTypeExport,
-	"import": operlogsvc.OperTypeImport,
-	"other":  operlogsvc.OperTypeOther,
-}
 
 // auditRouteMetadata stores the route-level audit metadata collected from the
 // static handler declaration and the dynamic-route runtime projection.
@@ -188,33 +179,33 @@ func (s *serviceImpl) recordAuditEvent(ctx context.Context, input hostaudit.Reco
 }
 
 // inferOperType determines the audit operation type from HTTP method, path, and operLog tag.
-func inferOperType(method string, path string, operLogTag string) int {
+func inferOperType(method string, path string, operLogTag string) audittype.OperType {
 	if strings.TrimSpace(operLogTag) != "" {
 		if operType, ok := resolveOperLogTag(operLogTag); ok {
 			return operType
 		}
-		return operlogsvc.OperTypeOther
+		return audittype.OperTypeOther
 	}
 
 	switch method {
 	case http.MethodPost:
 		if strings.Contains(strings.ToLower(path), "import") {
-			return operlogsvc.OperTypeImport
+			return audittype.OperTypeImport
 		}
-		return operlogsvc.OperTypeCreate
+		return audittype.OperTypeCreate
 	case http.MethodPut:
-		return operlogsvc.OperTypeUpdate
+		return audittype.OperTypeUpdate
 	case http.MethodDelete:
-		return operlogsvc.OperTypeDelete
+		return audittype.OperTypeDelete
 	default:
-		return operlogsvc.OperTypeOther
+		return audittype.OperTypeOther
 	}
 }
 
 // resolveOperLogTag converts a semantic operLog tag to the published audit operation type code.
-func resolveOperLogTag(tag string) (int, bool) {
-	operType, ok := operLogTagToType[strings.TrimSpace(tag)]
-	return operType, ok
+func resolveOperLogTag(tag string) (audittype.OperType, bool) {
+	operType := audittype.Normalize(tag)
+	return operType, audittype.IsSupported(operType)
 }
 
 // buildAuditRequestParam extracts the request payload snippet suitable for operation logging.

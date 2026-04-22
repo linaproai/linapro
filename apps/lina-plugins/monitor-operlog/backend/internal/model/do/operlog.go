@@ -15,7 +15,7 @@ type Operlog struct {
 	Id            any         // 日志ID
 	Title         any         // 模块标题
 	OperSummary   any         // 操作摘要
-	OperType      any         // 操作类型（1新增 2修改 3删除 4导出 5导入 6其他）
+	OperType      any         // 操作类型（create新增 update修改 delete删除 export导出 import导入 other其他）
 	Method        any         // 方法名称
 	RequestMethod any         // 请求方式（GET/POST/PUT/DELETE）
 	OperName      any         // 操作人员
