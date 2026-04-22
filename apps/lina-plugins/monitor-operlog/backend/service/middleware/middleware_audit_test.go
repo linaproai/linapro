@@ -1,11 +1,13 @@
-// This file verifies operation-log request-parameter sanitization for
-// passwords and shell environment variables.
+// This file verifies operation-log audit middleware helper behavior.
 
-package backend
+package middleware
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
+
+	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
 )
 
 // TestSanitizeOperLogParamMasksNestedSensitiveFields verifies password fields
@@ -41,7 +43,7 @@ func TestSanitizeOperLogParamMasksNestedSensitiveFields(t *testing.T) {
 
 	env, ok := nested["env"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected nested env object, got %#v", nested["env"])
+		t.Fatalf("expected nested env object, got %#v", payload["nested"])
 	}
 	if env["TOKEN"] != operLogRedactedValue || env["SECRET"] != operLogRedactedValue {
 		t.Fatalf("expected nested env values redacted, got %#v", env)
@@ -92,5 +94,54 @@ func TestSanitizeOperLogParamLeavesInvalidJSONUntouched(t *testing.T) {
 	input := `{"password":"secret"`
 	if sanitized := sanitizeOperLogParam(input); sanitized != input {
 		t.Fatalf("expected invalid JSON to stay unchanged, got %q", sanitized)
+	}
+}
+
+// TestShouldRecordAuditRequest verifies audit capture rules stay aligned with the HTTP semantics.
+func TestShouldRecordAuditRequest(t *testing.T) {
+	testCases := []struct {
+		name       string
+		method     string
+		operLogTag string
+		expected   bool
+	}{
+		{name: "post always records", method: http.MethodPost, expected: true},
+		{name: "put always records", method: http.MethodPut, expected: true},
+		{name: "delete always records", method: http.MethodDelete, expected: true},
+		{name: "get requires operlog tag", method: http.MethodGet, expected: false},
+		{name: "get with operlog tag records", method: http.MethodGet, operLogTag: "export", expected: true},
+		{name: "patch never records", method: http.MethodPatch, expected: false},
+	}
+
+	for _, testCase := range testCases {
+		actual := shouldRecordAuditRequest(testCase.method, testCase.operLogTag)
+		if actual != testCase.expected {
+			t.Fatalf("%s: expected %v, got %v", testCase.name, testCase.expected, actual)
+		}
+	}
+}
+
+// TestInferOperType verifies the middleware reuses the shared operlog service constants.
+func TestInferOperType(t *testing.T) {
+	testCases := []struct {
+		name       string
+		method     string
+		path       string
+		operLogTag string
+		expected   int
+	}{
+		{name: "operlog tag wins", method: http.MethodGet, path: "/api/v1/export", operLogTag: "export", expected: operlogsvc.OperTypeExport},
+		{name: "unknown operlog tag falls back to other", method: http.MethodGet, path: "/api/v1/query", operLogTag: "custom", expected: operlogsvc.OperTypeOther},
+		{name: "post import path maps to import", method: http.MethodPost, path: "/api/v1/file/import", expected: operlogsvc.OperTypeImport},
+		{name: "post create defaults to create", method: http.MethodPost, path: "/api/v1/file", expected: operlogsvc.OperTypeCreate},
+		{name: "put maps to update", method: http.MethodPut, path: "/api/v1/file", expected: operlogsvc.OperTypeUpdate},
+		{name: "delete maps to delete", method: http.MethodDelete, path: "/api/v1/file", expected: operlogsvc.OperTypeDelete},
+	}
+
+	for _, testCase := range testCases {
+		actual := inferOperType(testCase.method, testCase.path, testCase.operLogTag)
+		if actual != testCase.expected {
+			t.Fatalf("%s: expected %d, got %d", testCase.name, testCase.expected, actual)
+		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"lina-core/pkg/pluginhost"
 	monitoroperlogplugin "lina-plugin-monitor-operlog"
 	operlogcontroller "lina-plugin-monitor-operlog/backend/internal/controller/operlog"
+	middlewaresvc "lina-plugin-monitor-operlog/backend/service/middleware"
 	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
 )
 
@@ -35,7 +36,8 @@ func init() {
 
 // registerRoutes binds operation-log governance routes and audit middleware through the published host HTTP registrars.
 func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
-	registrar.GlobalMiddlewares().Bind("/*", auditMiddleware)
+	auditMiddlewareSvc := middlewaresvc.New()
+	registrar.GlobalMiddlewares().Bind("/*", auditMiddlewareSvc.Audit)
 
 	var (
 		routes      = registrar.Routes()
