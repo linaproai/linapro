@@ -223,6 +223,12 @@ func ValidateProtectedConfigValue(key string, value string) error {
 	return ValidatePublicFrontendSettingValue(trimmedKey, value)
 }
 
+// normalizeProtectedConfigValue trims whitespace and lowercases one protected
+// config value before enum-style comparisons.
+func normalizeProtectedConfigValue(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
 // ValidatePublicFrontendSettingValue validates one built-in public frontend setting value.
 func ValidatePublicFrontendSettingValue(key string, value string) error {
 	switch strings.TrimSpace(key) {
@@ -353,7 +359,7 @@ func (s *serviceImpl) getProtectedConfigBoolOrDefault(ctx context.Context, key s
 // parseStrictBoolValue parses one protected boolean setting accepting only
 // explicit true or false literals.
 func parseStrictBoolValue(key string, value string) (bool, error) {
-	switch strings.ToLower(strings.TrimSpace(value)) {
+	switch normalizeProtectedConfigValue(value) {
 	case "true":
 		return true, nil
 	case "false":

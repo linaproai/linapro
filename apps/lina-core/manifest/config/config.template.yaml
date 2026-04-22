@@ -25,6 +25,8 @@ logger:
   extensions:
     # 是否开启 GoFrame 官方 JSON 结构化日志 Handler
     structured: false
+    # 是否在日志中输出 TraceID；默认 false，仅显式开启时输出
+    traceIDEnabled: false
 
 # 数据库配置
 # https://goframe.org/docs/core/gdb-config-file

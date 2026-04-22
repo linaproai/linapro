@@ -13,6 +13,8 @@ const defaultLoggerFilePattern = "{Y-m-d}.log"
 type LoggerExtensionsConfig struct {
 	// Structured enables GoFrame JSON structured logging.
 	Structured bool `json:"structured"`
+	// TraceIDEnabled controls whether log output includes the request TraceID.
+	TraceIDEnabled bool `json:"traceIDEnabled"`
 }
 
 // LoggerConfig holds logger behavior switches loaded from configuration.
@@ -25,16 +27,23 @@ type LoggerConfig struct {
 
 // GetLogger reads logger config from configuration file.
 func (s *serviceImpl) GetLogger(ctx context.Context) *LoggerConfig {
-	return cloneLoggerConfig(processStaticConfigCaches.logger.load(func() *LoggerConfig {
+	return cloneLoggerConfig(s.getStaticLoggerConfig(ctx))
+}
+
+// getStaticLoggerConfig returns the cached logger config loaded from
+// config.yaml without cloning it.
+func (s *serviceImpl) getStaticLoggerConfig(ctx context.Context) *LoggerConfig {
+	return processStaticConfigCaches.logger.load(func() *LoggerConfig {
 		cfg := &LoggerConfig{
 			Path:   "",
 			File:   defaultLoggerFilePattern,
 			Stdout: true,
 			Extensions: LoggerExtensionsConfig{
-				Structured: false,
+				Structured:     false,
+				TraceIDEnabled: false,
 			},
 		}
 		mustScanConfig(ctx, "logger", cfg)
 		return cfg
-	}))
+	})
 }

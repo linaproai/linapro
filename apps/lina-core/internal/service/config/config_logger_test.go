@@ -17,6 +17,7 @@ logger:
   stdout: false
   extensions:
     structured: true
+    traceIDEnabled: true
 `)
 
 	cfg := New().GetLogger(context.Background())
@@ -32,6 +33,9 @@ logger:
 	}
 	if !cfg.Extensions.Structured {
 		t.Fatal("expected structured logging switch to be enabled")
+	}
+	if !cfg.Extensions.TraceIDEnabled {
+		t.Fatal("expected TraceID logging switch to be enabled")
 	}
 }
 
@@ -56,5 +60,8 @@ logger:
 	}
 	if cfg.Extensions.Structured {
 		t.Fatal("expected structured logging switch to be disabled by default")
+	}
+	if cfg.Extensions.TraceIDEnabled {
+		t.Fatal("expected TraceID logging switch to be disabled by default")
 	}
 }
