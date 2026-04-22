@@ -67,8 +67,8 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 		return gerror.Wrapf(err, "插件菜单元数据不合法: %s", fileLabel)
 	}
 	if NormalizeType(manifest.Type) == TypeSource {
-		if manifest.SourcePlugin != nil && strings.TrimSpace(manifest.SourcePlugin.ID) != "" && manifest.ID != manifest.SourcePlugin.ID {
-			return gerror.Newf("源码插件嵌入清单 ID 与注册插件 ID 不一致: %s != %s", manifest.ID, manifest.SourcePlugin.ID)
+		if manifest.SourcePlugin != nil && strings.TrimSpace(manifest.SourcePlugin.ID()) != "" && manifest.ID != manifest.SourcePlugin.ID() {
+			return gerror.Newf("源码插件嵌入清单 ID 与注册插件 ID 不一致: %s != %s", manifest.ID, manifest.SourcePlugin.ID())
 		}
 		goModPath := filepath.Join(rootDir, "go.mod")
 		if !HasSourcePluginEmbeddedFiles(manifest) && !gfile.Exists(goModPath) {

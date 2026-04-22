@@ -70,12 +70,6 @@ type UserContextSetter interface {
 	SetUser(ctx context.Context, tokenID string, userID int, username string, status int)
 }
 
-// AfterAuthDispatcher fires post-authentication callbacks registered by source plugins.
-type AfterAuthDispatcher interface {
-	// DispatchAfterAuth invokes all registered after-auth hook handlers.
-	DispatchAfterAuth(ctx context.Context, input pluginhost.AfterAuthInput)
-}
-
 // PermissionMenuFilter filters button-type permission menus based on plugin enablement.
 type PermissionMenuFilter interface {
 	// FilterPermissionMenus returns only the menus that pass plugin-level enablement checks.
@@ -199,8 +193,6 @@ type Service interface {
 	SetUploadSizeProvider(p UploadSizeProvider)
 	// SetUserContextSetter wires the user-context injection provider.
 	SetUserContextSetter(p UserContextSetter)
-	// SetAfterAuthDispatcher wires the post-authentication callback dispatcher.
-	SetAfterAuthDispatcher(d AfterAuthDispatcher)
 	// SetPermissionMenuFilter wires the plugin-level permission menu filter.
 	SetPermissionMenuFilter(f PermissionMenuFilter)
 	// UploadDynamicPackage validates one runtime wasm package and writes it into the
@@ -235,8 +227,6 @@ type serviceImpl struct {
 	uploadSize UploadSizeProvider
 	// userCtx injects the authenticated user identity into the request context.
 	userCtx UserContextSetter
-	// afterAuth dispatches post-authentication callbacks to registered source plugins.
-	afterAuth AfterAuthDispatcher
 	// menuFilter filters button-type permission menus by plugin enablement.
 	menuFilter PermissionMenuFilter
 }
@@ -284,11 +274,6 @@ func (s *serviceImpl) SetUploadSizeProvider(p UploadSizeProvider) {
 // SetUserContextSetter wires the user-context injection provider.
 func (s *serviceImpl) SetUserContextSetter(p UserContextSetter) {
 	s.userCtx = p
-}
-
-// SetAfterAuthDispatcher wires the post-authentication callback dispatcher.
-func (s *serviceImpl) SetAfterAuthDispatcher(d AfterAuthDispatcher) {
-	s.afterAuth = d
 }
 
 // SetPermissionMenuFilter wires the plugin-level permission menu filter.

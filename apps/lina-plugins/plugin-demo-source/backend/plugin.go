@@ -3,7 +3,6 @@ package backend
 
 import (
 	"context"
-	"encoding/json"
 
 	"lina-core/pkg/pluginhost"
 	plugindemosource "lina-plugin-demo-source"
@@ -20,30 +19,23 @@ const (
 // init registers the embedded source demo plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.UseEmbeddedFiles(plugindemosource.EmbeddedFiles)
-	plugin.RegisterUninstallHandler(func(ctx context.Context, input pluginhost.SourcePluginUninstallInput) error {
+	plugin.Assets().UseEmbeddedFiles(plugindemosource.EmbeddedFiles)
+	plugin.Lifecycle().RegisterUninstallHandler(func(ctx context.Context, input pluginhost.SourcePluginUninstallInput) error {
 		if !input.PurgeStorageData() {
 			return nil
 		}
 		return demosvc.New().PurgeStorageData(ctx)
 	})
-	plugin.RegisterRoutes(
+	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,
 	)
-	plugin.RegisterCron(
+	plugin.Cron().RegisterCron(
 		pluginhost.ExtensionPointCronRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerBuiltinCrons,
 	)
-	plugin.RegisterJobHandler(pluginhost.JobHandlerRegistration{
-		Name:         "echo",
-		DisplayName:  "源码插件示例回显",
-		Description:  "返回源码插件示例任务参数，用于验证插件处理器生命周期与定时任务调度链路",
-		ParamsSchema: `{"type":"object","properties":{"message":{"type":"string","description":"回显消息"}},"required":["message"]}`,
-		Handler:      invokeEchoJobHandler,
-	})
 	pluginhost.RegisterSourcePlugin(plugin)
 }
 
@@ -95,22 +87,4 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 	return registrar.Add(ctx, "0 */15 * * * *", "源码插件回显巡检", func(ctx context.Context) error {
 		return nil
 	})
-}
-
-// echoJobHandlerParams stores the supported payload for the demo source-plugin job handler.
-type echoJobHandlerParams struct {
-	Message string `json:"message"`
-}
-
-// invokeEchoJobHandler returns the plugin identity and payload so tests can
-// verify plugin handler registration and execution end to end.
-func invokeEchoJobHandler(ctx context.Context, params json.RawMessage) (any, error) {
-	var input echoJobHandlerParams
-	if err := json.Unmarshal(params, &input); err != nil {
-		return nil, err
-	}
-	return map[string]any{
-		"pluginId": pluginID,
-		"message":  input.Message,
-	}, nil
 }

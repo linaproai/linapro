@@ -19,23 +19,23 @@ const (
 // init registers the monitor-loginlog source plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.UseEmbeddedFiles(monitorloginlogplugin.EmbeddedFiles)
-	plugin.RegisterRoutes(
+	plugin.Assets().UseEmbeddedFiles(monitorloginlogplugin.EmbeddedFiles)
+	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,
 	)
-	plugin.RegisterHook(
+	plugin.Hooks().RegisterHook(
 		pluginhost.ExtensionPointAuthLoginSucceeded,
 		pluginhost.CallbackExecutionModeAsync,
 		handleAuthEvent,
 	)
-	plugin.RegisterHook(
+	plugin.Hooks().RegisterHook(
 		pluginhost.ExtensionPointAuthLoginFailed,
 		pluginhost.CallbackExecutionModeAsync,
 		handleAuthEvent,
 	)
-	plugin.RegisterHook(
+	plugin.Hooks().RegisterHook(
 		pluginhost.ExtensionPointAuthLogoutSucceeded,
 		pluginhost.CallbackExecutionModeAsync,
 		handleAuthEvent,

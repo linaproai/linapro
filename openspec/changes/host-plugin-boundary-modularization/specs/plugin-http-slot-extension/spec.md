@@ -12,7 +12,7 @@
 #### Scenario: 宿主维护正式的后端回调扩展点目录
 - **WHEN** 宿主对外发布源码插件后端扩展能力
 - **THEN** 宿主必须提供统一的 Go 注册入口与回调注册方法
-- **AND** 一期至少提供 `http.route.register`、`http.request.after-auth`、`cron.register`、`menu.filter`、`permission.filter`
+- **AND** 一期至少提供 `http.route.register`、`cron.register`、`menu.filter`、`permission.filter`
 - **AND** 这些扩展点必须与已发布 Hook 一样纳入技术文档维护
 
 #### Scenario: 宿主以统一的 Go 类型目录管理所有后端扩展点
@@ -29,7 +29,7 @@
 - **AND** 不支持的执行模式必须在注册阶段被拒绝
 
 #### Scenario: 宿主以接口类型暴露回调输入对象
-- **WHEN** 宿主向插件暴露 Hook、After-Auth、HTTP 注册、Cron、菜单过滤或权限过滤这类回调输入对象
+- **WHEN** 宿主向插件暴露 Hook、HTTP 注册、Cron、菜单过滤或权限过滤这类回调输入对象
 - **THEN** 宿主必须优先暴露抽象接口而不是具体结构体指针
 - **AND** 插件回调只依赖宿主公开的方法契约
 - **AND** 宿主后续扩展字段或能力时不应要求插件直接耦合内部结构体实现
@@ -73,12 +73,6 @@
 - **AND** 路由分组注册方式必须与宿主主服务保持一致，支持 `group.Group(prefix, func(group *ghttp.RouterGroup) { ... })` 风格
 - **AND** 每个路由分组都可以自行选择宿主已发布中间件的任意子集与组合顺序
 - **AND** 每个路由分组都可以继续追加自己的子路径前缀
-
-#### Scenario: 插件在鉴权完成后参与请求扩展
-- **WHEN** 一个受保护请求通过 JWT 鉴权并完成用户上下文注入
-- **THEN** 宿主向已启用插件分发 `http.request.after-auth` 回调
-- **AND** 插件可以读取宿主公开的用户身份与请求对象
-- **AND** 插件失败不会中断当前请求主流程
 
 #### Scenario: 插件注册受宿主启停控制的定时任务
 - **WHEN** 一个源码插件注册自己的定时任务

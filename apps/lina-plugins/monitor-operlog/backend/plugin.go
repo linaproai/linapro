@@ -19,13 +19,13 @@ const (
 // init registers the monitor-operlog source plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.UseEmbeddedFiles(monitoroperlogplugin.EmbeddedFiles)
-	plugin.RegisterRoutes(
+	plugin.Assets().UseEmbeddedFiles(monitoroperlogplugin.EmbeddedFiles)
+	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,
 	)
-	plugin.RegisterHook(
+	plugin.Hooks().RegisterHook(
 		pluginhost.ExtensionPointAuditRecorded,
 		pluginhost.CallbackExecutionModeAsync,
 		handleAuditRecorded,
@@ -62,12 +62,12 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 
 // handleAuditRecorded persists one host audit event into the operation-log table owned by this plugin.
 func handleAuditRecorded(ctx context.Context, payload pluginhost.HookPayload) error {
-	values := payload.Values()
-
-	operType, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyOperType)
-	status, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
-	costTime, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyCostTime)
-
+	var (
+		values      = payload.Values()
+		operType, _ = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyOperType)
+		status, _   = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
+		costTime, _ = pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyCostTime)
+	)
 	return operlogsvc.New().Create(ctx, operlogsvc.CreateInput{
 		Title:         pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyTitle),
 		OperSummary:   pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOperSummary),

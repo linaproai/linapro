@@ -5,7 +5,6 @@ package pluginhost
 
 import (
 	"context"
-	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -50,8 +49,15 @@ func TestExtensionPointExecutionModes(t *testing.T) {
 // TestCallbackInputContractsUseInterfaces verifies published callback inputs are
 // exposed as interfaces rather than host concrete structs.
 func TestCallbackInputContractsUseInterfaces(t *testing.T) {
+	assertInterfaceType(t, (*SourcePlugin)(nil), "SourcePlugin")
+	assertInterfaceType(t, (*SourcePluginAssets)(nil), "SourcePluginAssets")
+	assertInterfaceType(t, (*SourcePluginLifecycle)(nil), "SourcePluginLifecycle")
+	assertInterfaceType(t, (*SourcePluginHooks)(nil), "SourcePluginHooks")
+	assertInterfaceType(t, (*SourcePluginHTTP)(nil), "SourcePluginHTTP")
+	assertInterfaceType(t, (*SourcePluginCron)(nil), "SourcePluginCron")
+	assertInterfaceType(t, (*SourcePluginGovernance)(nil), "SourcePluginGovernance")
+	assertInterfaceType(t, (*SourcePluginDefinition)(nil), "SourcePluginDefinition")
 	assertInterfaceType(t, (*HookPayload)(nil), "HookPayload")
-	assertInterfaceType(t, (*AfterAuthInput)(nil), "AfterAuthInput")
 	assertInterfaceType(t, (*SourcePluginUninstallInput)(nil), "SourcePluginUninstallInput")
 	assertInterfaceType(t, (*HTTPRegistrar)(nil), "HTTPRegistrar")
 	assertInterfaceType(t, (*RouteRegistrar)(nil), "RouteRegistrar")
@@ -64,7 +70,7 @@ func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 // TestRegisterHookAcceptsAsyncMode verifies async execution is allowed for hook callbacks.
 func TestRegisterHookAcceptsAsyncMode(t *testing.T) {
 	plugin := NewSourcePlugin("test-plugin-hook")
-	plugin.RegisterHook(
+	plugin.Hooks().RegisterHook(
 		ExtensionPointAuthLoginSucceeded,
 		CallbackExecutionModeAsync,
 		func(ctx context.Context, payload HookPayload) error {
@@ -72,7 +78,7 @@ func TestRegisterHookAcceptsAsyncMode(t *testing.T) {
 		},
 	)
 
-	items := plugin.GetHookHandlers()
+	items := mustSourcePluginDefinition(t, plugin).GetHookHandlers()
 	if len(items) != 1 {
 		t.Fatalf("expected one hook handler, got %d", len(items))
 	}
@@ -91,7 +97,7 @@ func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
 	}()
 
 	plugin := NewSourcePlugin("test-plugin-route")
-	plugin.RegisterRoutes(
+	plugin.HTTP().RegisterRoutes(
 		ExtensionPointHTTPRouteRegister,
 		CallbackExecutionModeAsync,
 		func(ctx context.Context, registrar HTTPRegistrar) error {
@@ -119,32 +125,6 @@ func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 	)
 	if !registrar.IsPrimaryNode() {
 		t.Fatalf("expected current node to be primary")
-	}
-}
-
-// TestRegisterJobHandlerPublishesScheduledJobMetadata verifies source plugins
-// can publish scheduled-job handlers for host-side registration.
-func TestRegisterJobHandlerPublishesScheduledJobMetadata(t *testing.T) {
-	plugin := NewSourcePlugin("test-plugin-job-handler")
-	plugin.RegisterJobHandler(JobHandlerRegistration{
-		Name:         "echo",
-		DisplayName:  "Echo",
-		Description:  "Echoes the payload for scheduled-job tests.",
-		ParamsSchema: `{"type":"object","properties":{"message":{"type":"string"}},"required":["message"]}`,
-		Handler: func(ctx context.Context, params json.RawMessage) (result any, err error) {
-			return map[string]any{"params": string(params)}, nil
-		},
-	})
-
-	items := plugin.GetJobHandlers()
-	if len(items) != 1 {
-		t.Fatalf("expected one job handler, got %d", len(items))
-	}
-	if items[0].Name != "echo" {
-		t.Fatalf("expected handler name echo, got %s", items[0].Name)
-	}
-	if items[0].DisplayName != "Echo" {
-		t.Fatalf("expected handler display name Echo, got %s", items[0].DisplayName)
 	}
 }
 
@@ -189,7 +169,7 @@ func TestRegisterUninstallHandlerPublishesPolicySnapshot(t *testing.T) {
 	plugin := NewSourcePlugin("test-plugin-uninstall")
 	called := false
 
-	plugin.RegisterUninstallHandler(func(ctx context.Context, input SourcePluginUninstallInput) error {
+	plugin.Lifecycle().RegisterUninstallHandler(func(ctx context.Context, input SourcePluginUninstallInput) error {
 		called = true
 		if input.PluginID() != "test-plugin-uninstall" {
 			t.Fatalf("expected plugin id to be published, got %s", input.PluginID())
@@ -200,7 +180,7 @@ func TestRegisterUninstallHandlerPublishesPolicySnapshot(t *testing.T) {
 		return nil
 	})
 
-	handler := plugin.GetUninstallHandler()
+	handler := mustSourcePluginDefinition(t, plugin).GetUninstallHandler()
 	if handler == nil {
 		t.Fatalf("expected uninstall handler to be registered")
 	}
@@ -219,4 +199,16 @@ func assertInterfaceType(t *testing.T, value interface{}, name string) {
 	if reflect.TypeOf(value).Elem().Kind() != reflect.Interface {
 		t.Fatalf("expected %s to be declared as interface", name)
 	}
+}
+
+// mustSourcePluginDefinition narrows one published SourcePlugin to the host
+// definition view used by registry and integration code.
+func mustSourcePluginDefinition(t *testing.T, plugin SourcePlugin) SourcePluginDefinition {
+	t.Helper()
+
+	definition, ok := plugin.(SourcePluginDefinition)
+	if !ok {
+		t.Fatalf("expected source plugin to implement SourcePluginDefinition")
+	}
+	return definition
 }

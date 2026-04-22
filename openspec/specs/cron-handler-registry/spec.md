@@ -11,7 +11,7 @@ TBD - created by archiving change scheduled-job-management. Update Purpose after
 
 - **WHEN** 宿主或插件通过注册表 `Register(ref, def)` 注册 handler
 - **THEN** 系统 SHALL 将 handler 定义持久化到内存注册表
-- **AND** `ref` 形如 `host:<name>` 或 `plugin:<pluginID>/<name>`,且全局唯一
+- **AND** `ref` 形如 `host:<name>` 或 `plugin:<pluginID>/cron:<name>`,且全局唯一
 - **AND** `def` 至少包含 `DisplayName / Description / ParamsSchema / Source / Invoke`
 
 #### Scenario: 重复注册冲突
@@ -62,7 +62,7 @@ TBD - created by archiving change scheduled-job-management. Update Purpose after
 - **THEN** 系统 SHALL 返回该 handler 的完整 `ParamsSchema`
 - **AND** 前端可据此动态渲染表单控件
 
-### Requirement: 插件 Handler 生命周期
+### Requirement: 插件内置任务 Handler 生命周期
 
 系统 SHALL 订阅插件安装/启用/禁用/卸载事件,自动同步 handler 注册表与关联任务状态。
 
@@ -79,18 +79,18 @@ TBD - created by archiving change scheduled-job-management. Update Purpose after
 - **AND** 若对应 handler 当前尚未可用,这些任务 SHALL 直接进入 `paused_by_plugin` 状态
 - **AND** 后续启用插件时再通过 handler 注册表恢复执行能力
 
-#### Scenario: 插件启用时注册 handler
+#### Scenario: 插件启用时恢复内置任务 handler
 
 - **WHEN** 插件启用
-- **THEN** 系统 SHALL 读取插件清单声明的 handler 列表
-- **AND** 按 `plugin:<pluginID>/<name>` 形式注册
+- **THEN** 系统 SHALL 读取该插件声明的内置定时任务投影结果
+- **AND** 仅按 `plugin:<pluginID>/cron:<name>` 形式注册对应 handler
 - **AND** 对 `stop_reason=plugin_unavailable` 的任务恢复为 `status=enabled` 并重新注册到调度器
 
 #### Scenario: 插件禁用时注销 handler 并级联任务
 
 - **WHEN** 插件被禁用
 - **THEN** 系统 SHALL 注销该插件所有 handler
-- **AND** 将 `handler_ref=plugin:<pluginID>/*` 且 `status=enabled` 的任务置为 `paused_by_plugin`
+- **AND** 将 `handler_ref=plugin:<pluginID>/cron:*` 且 `status=enabled` 的任务置为 `paused_by_plugin`
 - **AND** 在对应任务上写入 `stop_reason=plugin_unavailable`
 - **AND** 从调度器注销这些任务
 
@@ -157,4 +157,3 @@ TBD - created by archiving change scheduled-job-management. Update Purpose after
 
 - **WHEN** handler 执行返回非 nil error
 - **THEN** 系统 SHALL 记 `status=failed` 且 `err_msg` 为 error.Error() 摘要
-

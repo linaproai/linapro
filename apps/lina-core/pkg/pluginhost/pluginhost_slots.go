@@ -59,8 +59,6 @@ const (
 	ExtensionPointSystemStarted ExtensionPoint = "system.started"
 	// ExtensionPointHTTPRouteRegister registers plugin-owned HTTP routes at host startup.
 	ExtensionPointHTTPRouteRegister ExtensionPoint = "http.route.register"
-	// ExtensionPointHTTPRequestAfterAuth dispatches one callback after host authentication succeeds.
-	ExtensionPointHTTPRequestAfterAuth ExtensionPoint = "http.request.after-auth"
 	// ExtensionPointCronRegister registers plugin-owned cron jobs.
 	ExtensionPointCronRegister ExtensionPoint = "cron.register"
 	// ExtensionPointMenuFilter filters host menus.
@@ -95,13 +93,9 @@ var publishedExtensionPoints = map[ExtensionPoint]ExtensionPointDefinition{
 	ExtensionPointPluginUninstalled:   {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointSystemStarted:       {Kind: ExtensionKindHook, DefaultMode: CallbackExecutionModeBlocking},
 	ExtensionPointHTTPRouteRegister:   {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
-	ExtensionPointHTTPRequestAfterAuth: {
-		Kind:        ExtensionKindRegistrar,
-		DefaultMode: CallbackExecutionModeBlocking,
-	},
-	ExtensionPointCronRegister:     {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
-	ExtensionPointMenuFilter:       {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
-	ExtensionPointPermissionFilter: {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
+	ExtensionPointCronRegister:        {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
+	ExtensionPointMenuFilter:          {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
+	ExtensionPointPermissionFilter:    {Kind: ExtensionKindRegistrar, DefaultMode: CallbackExecutionModeBlocking},
 }
 
 // supportedExtensionPointModes constrains which execution modes are accepted
@@ -144,9 +138,6 @@ var supportedExtensionPointModes = map[ExtensionPoint]map[CallbackExecutionMode]
 		CallbackExecutionModeAsync:    {},
 	},
 	ExtensionPointHTTPRouteRegister: {
-		CallbackExecutionModeBlocking: {},
-	},
-	ExtensionPointHTTPRequestAfterAuth: {
 		CallbackExecutionModeBlocking: {},
 	},
 	ExtensionPointCronRegister: {

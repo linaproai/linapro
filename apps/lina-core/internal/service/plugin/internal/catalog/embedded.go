@@ -24,7 +24,7 @@ func (s *serviceImpl) ScanEmbeddedSourceManifests() ([]*Manifest, error) {
 	}
 
 	sort.Slice(sourcePlugins, func(i, j int) bool {
-		return sourcePlugins[i].ID < sourcePlugins[j].ID
+		return sourcePlugins[i].ID() < sourcePlugins[j].ID()
 	})
 
 	manifests := make([]*Manifest, 0, len(sourcePlugins))
@@ -35,20 +35,20 @@ func (s *serviceImpl) ScanEmbeddedSourceManifests() ([]*Manifest, error) {
 
 		embeddedFiles := sourcePlugin.GetEmbeddedFiles()
 		if embeddedFiles == nil {
-			return nil, gerror.Newf("源码插件缺少内嵌资源声明: %s", sourcePlugin.ID)
+			return nil, gerror.Newf("源码插件缺少内嵌资源声明: %s", sourcePlugin.ID())
 		}
 
 		manifestContent, err := fs.ReadFile(embeddedFiles, pluginfs.EmbeddedManifestPath)
 		if err != nil {
-			return nil, gerror.Wrapf(err, "读取源码插件内嵌清单失败: %s", sourcePlugin.ID)
+			return nil, gerror.Wrapf(err, "读取源码插件内嵌清单失败: %s", sourcePlugin.ID())
 		}
 
 		manifest := &Manifest{
-			ManifestPath: pluginfs.BuildEmbeddedManifestPath(sourcePlugin.ID, pluginfs.EmbeddedManifestPath),
+			ManifestPath: pluginfs.BuildEmbeddedManifestPath(sourcePlugin.ID(), pluginfs.EmbeddedManifestPath),
 			SourcePlugin: sourcePlugin,
 		}
 		if err = yaml.Unmarshal(manifestContent, manifest); err != nil {
-			return nil, gerror.Wrapf(err, "解析源码插件内嵌清单失败: %s", sourcePlugin.ID)
+			return nil, gerror.Wrapf(err, "解析源码插件内嵌清单失败: %s", sourcePlugin.ID())
 		}
 		if err = s.ValidateManifest(manifest, manifest.ManifestPath); err != nil {
 			return nil, err

@@ -17,17 +17,26 @@ var (
 	errorInterfaceType         = reflect.TypeOf((*error)(nil)).Elem()
 )
 
-// GuestControllerRouteDispatcher dispatches guest bridge requests to controller
-// methods registered by reflection.
-type GuestControllerRouteDispatcher struct {
+// GuestControllerRouteDispatcher exposes reflected guest controller
+// registration and request dispatch published to dynamic plugins.
+type GuestControllerRouteDispatcher interface {
+	// RegisterController registers all exported controller methods whose signature matches the guest bridge contract.
+	RegisterController(controller any) error
+	// HandleRequest dispatches the guest bridge request to the registered controller method.
+	HandleRequest(request *BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)
+}
+
+// guestControllerRouteDispatcher dispatches guest bridge requests to
+// controller methods registered by reflection.
+type guestControllerRouteDispatcher struct {
 	handlersByRequestType map[string]GuestHandler
 	handlersByPath        map[string]GuestHandler
 }
 
 // NewGuestControllerRouteDispatcher creates one reflection-based dispatcher for
 // the provided controller object.
-func NewGuestControllerRouteDispatcher(controller any) (*GuestControllerRouteDispatcher, error) {
-	dispatcher := &GuestControllerRouteDispatcher{
+func NewGuestControllerRouteDispatcher(controller any) (GuestControllerRouteDispatcher, error) {
+	dispatcher := &guestControllerRouteDispatcher{
 		handlersByRequestType: make(map[string]GuestHandler),
 		handlersByPath:        make(map[string]GuestHandler),
 	}
@@ -39,7 +48,7 @@ func NewGuestControllerRouteDispatcher(controller any) (*GuestControllerRouteDis
 
 // MustNewGuestControllerRouteDispatcher creates one reflection-based
 // dispatcher and panics when registration fails.
-func MustNewGuestControllerRouteDispatcher(controller any) *GuestControllerRouteDispatcher {
+func MustNewGuestControllerRouteDispatcher(controller any) GuestControllerRouteDispatcher {
 	dispatcher, err := NewGuestControllerRouteDispatcher(controller)
 	if err != nil {
 		panic(err)
@@ -51,7 +60,7 @@ func MustNewGuestControllerRouteDispatcher(controller any) *GuestControllerRoute
 // signature matches `func(*BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)`.
 // Each matching method is exposed under `{MethodName}Req`, which aligns with
 // the build-time route contract RequestType extracted from backend API DTOs.
-func (d *GuestControllerRouteDispatcher) RegisterController(controller any) error {
+func (d *guestControllerRouteDispatcher) RegisterController(controller any) error {
 	if d == nil {
 		return gerror.New("guest controller route dispatcher is nil")
 	}
@@ -125,7 +134,7 @@ func (d *GuestControllerRouteDispatcher) RegisterController(controller any) erro
 
 // HandleRequest dispatches the guest bridge request to the registered
 // controller method resolved from request.Route.RequestType.
-func (d *GuestControllerRouteDispatcher) HandleRequest(
+func (d *guestControllerRouteDispatcher) HandleRequest(
 	request *BridgeRequestEnvelopeV1,
 ) (*BridgeResponseEnvelopeV1, error) {
 	if request == nil || request.Route == nil {

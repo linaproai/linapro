@@ -21,9 +21,9 @@ const (
 // init registers the org-center source plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.UseEmbeddedFiles(orgcenter.EmbeddedFiles)
+	plugin.Assets().UseEmbeddedFiles(orgcenter.EmbeddedFiles)
 	hostorgcap.RegisterProvider(orgcapadapter.New())
-	plugin.RegisterRoutes(
+	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,

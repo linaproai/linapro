@@ -36,11 +36,6 @@ func (s *serviceImpl) ListManagedCronJobsByPlugin(ctx context.Context, pluginID 
 	return s.integrationSvc.ListManagedCronJobsByPlugin(ctx, pluginID)
 }
 
-// DispatchAfterAuthRequest dispatches callback-style after-auth request handlers.
-func (s *serviceImpl) DispatchAfterAuthRequest(ctx context.Context, input pluginhost.AfterAuthInput) {
-	s.integrationSvc.DispatchAfterAuth(ctx, input)
-}
-
 // DispatchHookEvent dispatches one named hook event to all enabled plugins.
 func (s *serviceImpl) DispatchHookEvent(
 	ctx context.Context,

@@ -18,8 +18,8 @@ const (
 // init registers the monitor-online source plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.UseEmbeddedFiles(monitoronlineplugin.EmbeddedFiles)
-	plugin.RegisterRoutes(
+	plugin.Assets().UseEmbeddedFiles(monitoronlineplugin.EmbeddedFiles)
+	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,

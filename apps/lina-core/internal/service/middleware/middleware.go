@@ -128,17 +128,7 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 		return
 	}
 
-	// Inject user info into business context
+	// Inject user info into business context.
 	s.bizCtxSvc.SetUser(r.Context(), claims.TokenId, claims.UserId, claims.Username, claims.Status)
-	s.pluginSvc.DispatchAfterAuthRequest(
-		r.Context(),
-		pluginhost.NewAfterAuthInput(
-			r,
-			claims.TokenId,
-			claims.UserId,
-			claims.Username,
-			claims.Status,
-		),
-	)
 	r.Middleware.Next()
 }

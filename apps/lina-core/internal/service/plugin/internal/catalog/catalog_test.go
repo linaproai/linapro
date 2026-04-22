@@ -630,7 +630,7 @@ func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) 
 
 	const pluginID = "plugin-embedded-manifest"
 	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
-	sourcePlugin.UseEmbeddedFiles(fstest.MapFS{
+	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 		"plugin.yaml":                                &fstest.MapFile{Data: []byte("id: plugin-embedded-manifest\nname: Embedded Manifest Plugin\nversion: 0.1.0\ntype: source\n")},
 		"frontend/pages/main-entry.vue":              &fstest.MapFile{Data: []byte("<template><div /></template>\n")},
 		"frontend/slots/layout.header.after/tip.vue": &fstest.MapFile{Data: []byte("<template><div /></template>\n")},
@@ -679,9 +679,9 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 		Name:    "Embedded SQL Assets Plugin",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
-		SourcePlugin: func() *pluginhost.SourcePlugin {
+		SourcePlugin: func() pluginhost.SourcePluginDefinition {
 			sourcePlugin := pluginhost.NewSourcePlugin("plugin-embedded-sql-assets")
-			sourcePlugin.UseEmbeddedFiles(fstest.MapFS{
+			sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
 				"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-embedded-sql-assets\nname: Embedded SQL Assets Plugin\nversion: 0.1.0\ntype: source\n")},
 				"manifest/sql/001-plugin-embedded-sql-assets.sql": &fstest.MapFile{
 					Data: []byte("SELECT 1;\n"),
@@ -690,7 +690,11 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 					Data: []byte("SELECT 2;\n"),
 				},
 			})
-			return sourcePlugin
+			definition, ok := sourcePlugin.(pluginhost.SourcePluginDefinition)
+			if !ok {
+				t.Fatalf("expected embedded source plugin to expose host definition view")
+			}
+			return definition
 		}(),
 	}
 

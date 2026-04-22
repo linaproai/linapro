@@ -1,28 +1,36 @@
-// This file defines the public source-plugin contract, callback registration
-// APIs, and wrapper interfaces that isolate plugins from host internals.
+// This file defines the host-owned source-plugin registration storage plus the
+// callback input wrappers that isolate plugins from host internals.
 
 package pluginhost
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
-
-	"github.com/gogf/gf/v2/net/ghttp"
 )
 
-// SourcePlugin defines one compile-time source plugin contribution.
-type SourcePlugin struct {
-	// ID is the stable plugin id and must match `plugin.yaml`.
-	ID string
+// sourcePlugin stores one compile-time source plugin definition behind the
+// published grouped SourcePlugin interfaces.
+type sourcePlugin struct {
+	// id is the stable plugin id and must match `plugin.yaml`.
+	id string
+	// assets exposes grouped asset registration helpers.
+	assets SourcePluginAssets
+	// lifecycle exposes grouped lifecycle registration helpers.
+	lifecycle SourcePluginLifecycle
+	// hooks exposes grouped hook registration helpers.
+	hooks SourcePluginHooks
+	// http exposes grouped HTTP registration helpers.
+	http SourcePluginHTTP
+	// cron exposes grouped cron registration helpers.
+	cron SourcePluginCron
+	// governance exposes grouped menu and permission governance helpers.
+	governance SourcePluginGovernance
 
 	embeddedFiles     fs.FS
 	uninstallHandler  SourcePluginUninstallHandler
 	hookHandlers      []*HookHandlerRegistration
 	routeRegistrars   []*RouteHandlerRegistration
-	afterAuthHandlers []*AfterAuthHandlerRegistration
 	cronRegistrars    []*CronHandlerRegistration
-	jobHandlers       []*JobHandlerRegistration
 	menuFilters       []*MenuFilterHandlerRegistration
 	permissionFilters []*PermissionFilterHandlerRegistration
 }
@@ -66,16 +74,6 @@ type RouteHandlerRegistration struct {
 	Point ExtensionPoint
 }
 
-// AfterAuthHandlerRegistration defines one after-auth callback subscribed by a source plugin.
-type AfterAuthHandlerRegistration struct {
-	// Handler is the callback invoked by the host.
-	Handler AfterAuthHandler
-	// Mode is the declared callback execution mode.
-	Mode CallbackExecutionMode
-	// Point is the published backend extension point.
-	Point ExtensionPoint
-}
-
 // CronHandlerRegistration defines one cron-registration callback subscribed by a source plugin.
 type CronHandlerRegistration struct {
 	// Handler is the callback invoked by the host cron registrar.
@@ -84,23 +82,6 @@ type CronHandlerRegistration struct {
 	Mode CallbackExecutionMode
 	// Point is the published backend extension point.
 	Point ExtensionPoint
-}
-
-// JobHandler defines one source-plugin scheduled-job callback.
-type JobHandler func(ctx context.Context, params json.RawMessage) (result any, err error)
-
-// JobHandlerRegistration defines one scheduled-job handler declared by a source plugin.
-type JobHandlerRegistration struct {
-	// Name is the plugin-local handler name appended after `plugin:<plugin-id>/`.
-	Name string
-	// DisplayName is exposed to the host scheduled-job UI.
-	DisplayName string
-	// Description explains the handler purpose in the host UI.
-	Description string
-	// ParamsSchema stores the supported JSON Schema subset for params validation.
-	ParamsSchema string
-	// Handler executes the scheduled job.
-	Handler JobHandler
 }
 
 // MenuFilterHandlerRegistration defines one menu-filter callback subscribed by a source plugin.
@@ -123,31 +104,6 @@ type PermissionFilterHandlerRegistration struct {
 	Point ExtensionPoint
 }
 
-// AfterAuthInput exposes the published request context after host authentication succeeds.
-type AfterAuthInput interface {
-	// Request returns the current authenticated HTTP request.
-	Request() *ghttp.Request
-	// SetResponseHeader writes one response header to the current request.
-	SetResponseHeader(key string, value string)
-	// TokenID returns the current access token identifier.
-	TokenID() string
-	// UserID returns the authenticated user id.
-	UserID() int
-	// Username returns the authenticated username.
-	Username() string
-	// Status returns the authenticated user status.
-	Status() int
-}
-
-// afterAuthInput is the host-owned implementation of AfterAuthInput.
-type afterAuthInput struct {
-	request  *ghttp.Request
-	tokenID  string
-	userID   int
-	username string
-	status   int
-}
-
 // SourcePluginUninstallInput exposes one host-confirmed uninstall policy snapshot to a source plugin.
 type SourcePluginUninstallInput interface {
 	// PluginID returns the source-plugin identifier being uninstalled.
@@ -163,9 +119,6 @@ type sourcePluginUninstallInput struct {
 	pluginID         string
 	purgeStorageData bool
 }
-
-// AfterAuthHandler defines one callback invoked after host authentication succeeds.
-type AfterAuthHandler func(ctx context.Context, input AfterAuthInput) error
 
 // SourcePluginUninstallHandler defines one callback invoked before the host executes source-plugin uninstall SQL.
 type SourcePluginUninstallHandler func(ctx context.Context, input SourcePluginUninstallInput) error
@@ -238,22 +191,27 @@ type permissionDescriptor struct {
 // PermissionFilterHandler defines one callback that decides whether a permission should stay effective.
 type PermissionFilterHandler func(ctx context.Context, permission PermissionDescriptor) (bool, error)
 
-// NewSourcePlugin creates and returns a new source plugin definition.
-func NewSourcePlugin(id string) *SourcePlugin {
-	return &SourcePlugin{
-		ID:                id,
+// NewSourcePlugin creates and returns a new grouped source plugin definition.
+func NewSourcePlugin(id string) SourcePlugin {
+	plugin := &sourcePlugin{
+		id:                id,
 		hookHandlers:      make([]*HookHandlerRegistration, 0),
 		routeRegistrars:   make([]*RouteHandlerRegistration, 0),
-		afterAuthHandlers: make([]*AfterAuthHandlerRegistration, 0),
 		cronRegistrars:    make([]*CronHandlerRegistration, 0),
-		jobHandlers:       make([]*JobHandlerRegistration, 0),
 		menuFilters:       make([]*MenuFilterHandlerRegistration, 0),
 		permissionFilters: make([]*PermissionFilterHandlerRegistration, 0),
 	}
+	plugin.assets = &sourcePluginAssets{plugin: plugin}
+	plugin.lifecycle = &sourcePluginLifecycle{plugin: plugin}
+	plugin.hooks = &sourcePluginHooks{plugin: plugin}
+	plugin.http = &sourcePluginHTTP{plugin: plugin}
+	plugin.cron = &sourcePluginCron{plugin: plugin}
+	plugin.governance = &sourcePluginGovernance{plugin: plugin}
+	return plugin
 }
 
-// UseEmbeddedFiles binds one plugin-owned embedded filesystem to the source plugin.
-func (p *SourcePlugin) UseEmbeddedFiles(fileSystem fs.FS) {
+// useEmbeddedFiles binds one plugin-owned embedded filesystem to the source plugin.
+func (p *sourcePlugin) useEmbeddedFiles(fileSystem fs.FS) {
 	if p == nil {
 		return
 	}
@@ -261,7 +219,7 @@ func (p *SourcePlugin) UseEmbeddedFiles(fileSystem fs.FS) {
 }
 
 // GetEmbeddedFiles returns the plugin-owned embedded filesystem when declared.
-func (p *SourcePlugin) GetEmbeddedFiles() fs.FS {
+func (p *sourcePlugin) GetEmbeddedFiles() fs.FS {
 	if p == nil {
 		return nil
 	}
@@ -273,23 +231,6 @@ func NewHookPayload(point ExtensionPoint, values map[string]interface{}) HookPay
 	return &hookPayload{
 		point:  point,
 		values: cloneValueMap(values),
-	}
-}
-
-// NewAfterAuthInput creates one published after-auth input wrapper for plugins.
-func NewAfterAuthInput(
-	request *ghttp.Request,
-	tokenID string,
-	userID int,
-	username string,
-	status int,
-) AfterAuthInput {
-	return &afterAuthInput{
-		request:  request,
-		tokenID:  tokenID,
-		userID:   userID,
-		username: username,
-		status:   status,
 	}
 }
 
@@ -341,7 +282,7 @@ func NewSourcePluginUninstallInput(
 }
 
 // RegisterUninstallHandler registers one source-plugin uninstall cleanup callback.
-func (p *SourcePlugin) RegisterUninstallHandler(handler SourcePluginUninstallHandler) {
+func (p *sourcePlugin) registerUninstallHandler(handler SourcePluginUninstallHandler) {
 	if p == nil {
 		panic("pluginhost: source plugin is nil")
 	}
@@ -352,7 +293,7 @@ func (p *SourcePlugin) RegisterUninstallHandler(handler SourcePluginUninstallHan
 }
 
 // RegisterHook registers one callback-style host hook handler.
-func (p *SourcePlugin) RegisterHook(
+func (p *sourcePlugin) registerHook(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler HookHandler,
@@ -377,7 +318,7 @@ func (p *SourcePlugin) RegisterHook(
 }
 
 // RegisterRoutes registers one callback that contributes plugin-owned HTTP routes.
-func (p *SourcePlugin) RegisterRoutes(
+func (p *sourcePlugin) registerRoutes(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler RouteRegisterHandler,
@@ -396,28 +337,8 @@ func (p *SourcePlugin) RegisterRoutes(
 	})
 }
 
-// RegisterAfterAuthHandler registers one callback invoked after host authentication succeeds.
-func (p *SourcePlugin) RegisterAfterAuthHandler(
-	point ExtensionPoint,
-	mode CallbackExecutionMode,
-	handler AfterAuthHandler,
-) {
-	if p == nil {
-		panic("pluginhost: source plugin is nil")
-	}
-	if handler == nil {
-		panic("pluginhost: after-auth handler is nil")
-	}
-	mode = normalizeRegistrationPointMode(point, ExtensionPointHTTPRequestAfterAuth, mode)
-	p.afterAuthHandlers = append(p.afterAuthHandlers, &AfterAuthHandlerRegistration{
-		Handler: handler,
-		Mode:    mode,
-		Point:   point,
-	})
-}
-
 // RegisterCron registers one callback that contributes plugin-owned cron jobs.
-func (p *SourcePlugin) RegisterCron(
+func (p *sourcePlugin) registerCron(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler CronRegisterHandler,
@@ -436,25 +357,8 @@ func (p *SourcePlugin) RegisterCron(
 	})
 }
 
-// RegisterJobHandler registers one scheduled-job handler exposed by a source plugin.
-func (p *SourcePlugin) RegisterJobHandler(registration JobHandlerRegistration) {
-	if p == nil {
-		panic("pluginhost: source plugin is nil")
-	}
-	if registration.Handler == nil {
-		panic("pluginhost: job handler is nil")
-	}
-	p.jobHandlers = append(p.jobHandlers, &JobHandlerRegistration{
-		Name:         registration.Name,
-		DisplayName:  registration.DisplayName,
-		Description:  registration.Description,
-		ParamsSchema: registration.ParamsSchema,
-		Handler:      registration.Handler,
-	})
-}
-
 // RegisterMenuFilter registers one callback that filters host menus.
-func (p *SourcePlugin) RegisterMenuFilter(
+func (p *sourcePlugin) registerMenuFilter(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler MenuFilterHandler,
@@ -474,7 +378,7 @@ func (p *SourcePlugin) RegisterMenuFilter(
 }
 
 // RegisterPermissionFilter registers one callback that filters host permissions.
-func (p *SourcePlugin) RegisterPermissionFilter(
+func (p *sourcePlugin) registerPermissionFilter(
 	point ExtensionPoint,
 	mode CallbackExecutionMode,
 	handler PermissionFilterHandler,
@@ -494,7 +398,7 @@ func (p *SourcePlugin) RegisterPermissionFilter(
 }
 
 // GetHookHandlers returns the registered callback-style hook handlers.
-func (p *SourcePlugin) GetHookHandlers() []*HookHandlerRegistration {
+func (p *sourcePlugin) GetHookHandlers() []*HookHandlerRegistration {
 	if p == nil {
 		return []*HookHandlerRegistration{}
 	}
@@ -504,7 +408,7 @@ func (p *SourcePlugin) GetHookHandlers() []*HookHandlerRegistration {
 }
 
 // GetRouteRegistrars returns the registered route contribution callbacks.
-func (p *SourcePlugin) GetRouteRegistrars() []*RouteHandlerRegistration {
+func (p *sourcePlugin) GetRouteRegistrars() []*RouteHandlerRegistration {
 	if p == nil {
 		return []*RouteHandlerRegistration{}
 	}
@@ -513,18 +417,8 @@ func (p *SourcePlugin) GetRouteRegistrars() []*RouteHandlerRegistration {
 	return items
 }
 
-// GetAfterAuthHandlers returns the registered after-auth callbacks.
-func (p *SourcePlugin) GetAfterAuthHandlers() []*AfterAuthHandlerRegistration {
-	if p == nil {
-		return []*AfterAuthHandlerRegistration{}
-	}
-	items := make([]*AfterAuthHandlerRegistration, len(p.afterAuthHandlers))
-	copy(items, p.afterAuthHandlers)
-	return items
-}
-
 // GetCronRegistrars returns the registered cron contribution callbacks.
-func (p *SourcePlugin) GetCronRegistrars() []*CronHandlerRegistration {
+func (p *sourcePlugin) GetCronRegistrars() []*CronHandlerRegistration {
 	if p == nil {
 		return []*CronHandlerRegistration{}
 	}
@@ -533,18 +427,8 @@ func (p *SourcePlugin) GetCronRegistrars() []*CronHandlerRegistration {
 	return items
 }
 
-// GetJobHandlers returns the scheduled-job handlers declared by the source plugin.
-func (p *SourcePlugin) GetJobHandlers() []*JobHandlerRegistration {
-	if p == nil {
-		return []*JobHandlerRegistration{}
-	}
-	items := make([]*JobHandlerRegistration, len(p.jobHandlers))
-	copy(items, p.jobHandlers)
-	return items
-}
-
 // GetMenuFilters returns the registered menu filter callbacks.
-func (p *SourcePlugin) GetMenuFilters() []*MenuFilterHandlerRegistration {
+func (p *sourcePlugin) GetMenuFilters() []*MenuFilterHandlerRegistration {
 	if p == nil {
 		return []*MenuFilterHandlerRegistration{}
 	}
@@ -554,7 +438,7 @@ func (p *SourcePlugin) GetMenuFilters() []*MenuFilterHandlerRegistration {
 }
 
 // GetPermissionFilters returns the registered permission filter callbacks.
-func (p *SourcePlugin) GetPermissionFilters() []*PermissionFilterHandlerRegistration {
+func (p *sourcePlugin) GetPermissionFilters() []*PermissionFilterHandlerRegistration {
 	if p == nil {
 		return []*PermissionFilterHandlerRegistration{}
 	}
@@ -564,7 +448,7 @@ func (p *SourcePlugin) GetPermissionFilters() []*PermissionFilterHandlerRegistra
 }
 
 // GetUninstallHandler returns the registered source-plugin uninstall cleanup callback.
-func (p *SourcePlugin) GetUninstallHandler() SourcePluginUninstallHandler {
+func (p *sourcePlugin) GetUninstallHandler() SourcePluginUninstallHandler {
 	if p == nil {
 		return nil
 	}
@@ -593,54 +477,6 @@ func (p *hookPayload) Values() map[string]interface{} {
 		return map[string]interface{}{}
 	}
 	return cloneValueMap(p.values)
-}
-
-// Request returns the authenticated HTTP request exposed to after-auth callbacks.
-func (i *afterAuthInput) Request() *ghttp.Request {
-	if i == nil {
-		return nil
-	}
-	return i.request
-}
-
-// SetResponseHeader writes one response header to the current HTTP response.
-func (i *afterAuthInput) SetResponseHeader(key string, value string) {
-	if i == nil || i.request == nil {
-		return
-	}
-	i.request.Response.Header().Set(key, value)
-}
-
-// TokenID returns the current access token identifier.
-func (i *afterAuthInput) TokenID() string {
-	if i == nil {
-		return ""
-	}
-	return i.tokenID
-}
-
-// UserID returns the authenticated user identifier.
-func (i *afterAuthInput) UserID() int {
-	if i == nil {
-		return 0
-	}
-	return i.userID
-}
-
-// Username returns the authenticated username.
-func (i *afterAuthInput) Username() string {
-	if i == nil {
-		return ""
-	}
-	return i.username
-}
-
-// Status returns the authenticated user status.
-func (i *afterAuthInput) Status() int {
-	if i == nil {
-		return 0
-	}
-	return i.status
 }
 
 // PluginID returns the source-plugin identifier being uninstalled.

@@ -122,7 +122,6 @@ func NewServices() *Services {
 
 	runtimeSvc.SetMenuManager(integrationSvc)
 	runtimeSvc.SetHookDispatcher(integrationSvc)
-	runtimeSvc.SetAfterAuthDispatcher(integrationSvc)
 	runtimeSvc.SetPermissionMenuFilter(integrationSvc)
 	runtimeSvc.SetJwtConfigProvider(&jwtConfigAdapter{svc: configProvider})
 	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{svc: configProvider})

@@ -30,18 +30,39 @@ var (
 // GuestHandler defines the guest-side dynamic route handler interface.
 type GuestHandler func(*BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)
 
-// GuestRuntime hosts one guest-side request dispatcher.
-type GuestRuntime struct {
+// GuestRuntime exposes the guest-side request buffer and execution contract
+// published to dynamic plugin entrypoints.
+type GuestRuntime interface {
+	// HandleEncodedRequest decodes one host request, executes the guest handler, and returns encoded response bytes.
+	HandleEncodedRequest(content []byte) ([]byte, error)
+	// Alloc reserves guest memory for the next incoming request.
+	Alloc(size uint32) uint32
+	// RequestBuffer returns the mutable request buffer currently exposed to the host.
+	RequestBuffer() []byte
+	// Execute handles the currently written request buffer and exposes the encoded response buffer.
+	Execute(length uint32) (uint32, uint32, error)
+	// ResponseBuffer returns the current encoded response buffer.
+	ResponseBuffer() []byte
+	// ExposeResponseBuffer publishes one encoded response payload through the shared guest response buffer.
+	ExposeResponseBuffer(content []byte) (uint32, uint32, error)
+	// HostCallAlloc reserves guest memory for an incoming host call response.
+	HostCallAlloc(size uint32) uint32
+	// HostCallResponseBuffer returns the current host call response buffer.
+	HostCallResponseBuffer() []byte
+}
+
+// guestRuntime hosts one guest-side request dispatcher.
+type guestRuntime struct {
 	handler GuestHandler
 }
 
 // NewGuestRuntime creates one guest runtime wrapper around a business handler.
-func NewGuestRuntime(handler GuestHandler) *GuestRuntime {
-	return &GuestRuntime{handler: handler}
+func NewGuestRuntime(handler GuestHandler) GuestRuntime {
+	return &guestRuntime{handler: handler}
 }
 
 // HandleEncodedRequest decodes one host request, executes the guest handler, and returns encoded response bytes.
-func (r *GuestRuntime) HandleEncodedRequest(content []byte) ([]byte, error) {
+func (r *guestRuntime) HandleEncodedRequest(content []byte) ([]byte, error) {
 	if r == nil || r.handler == nil {
 		return EncodeResponseEnvelope(NewInternalErrorResponse("Dynamic guest runtime is not initialized"))
 	}
@@ -61,7 +82,7 @@ func (r *GuestRuntime) HandleEncodedRequest(content []byte) ([]byte, error) {
 }
 
 // Alloc reserves guest memory for the next incoming request.
-func (*GuestRuntime) Alloc(size uint32) uint32 {
+func (*guestRuntime) Alloc(size uint32) uint32 {
 	if cap(guestRequestBuffer) < int(size) {
 		guestRequestBuffer = make([]byte, size)
 	} else {
@@ -74,12 +95,12 @@ func (*GuestRuntime) Alloc(size uint32) uint32 {
 }
 
 // RequestBuffer returns the mutable request buffer currently exposed to the host.
-func (*GuestRuntime) RequestBuffer() []byte {
+func (*guestRuntime) RequestBuffer() []byte {
 	return guestRequestBuffer
 }
 
 // Execute handles the currently written request buffer and exposes the encoded response buffer.
-func (r *GuestRuntime) Execute(length uint32) (uint32, uint32, error) {
+func (r *guestRuntime) Execute(length uint32) (uint32, uint32, error) {
 	if int(length) > len(guestRequestBuffer) {
 		return 0, 0, gerror.New("guest request length exceeds allocated buffer")
 	}
@@ -91,13 +112,13 @@ func (r *GuestRuntime) Execute(length uint32) (uint32, uint32, error) {
 }
 
 // ResponseBuffer returns the current encoded response buffer.
-func (*GuestRuntime) ResponseBuffer() []byte {
+func (*guestRuntime) ResponseBuffer() []byte {
 	return guestResponseBuffer
 }
 
 // ExposeResponseBuffer publishes one encoded response payload through the
 // shared guest response buffer and returns the stable pointer-length pair.
-func (*GuestRuntime) ExposeResponseBuffer(content []byte) (uint32, uint32, error) {
+func (*guestRuntime) ExposeResponseBuffer(content []byte) (uint32, uint32, error) {
 	guestResponseBuffer = append(guestResponseBuffer[:0], content...)
 	if len(guestResponseBuffer) == 0 {
 		return 0, 0, nil
@@ -108,7 +129,7 @@ func (*GuestRuntime) ExposeResponseBuffer(content []byte) (uint32, uint32, error
 // HostCallAlloc reserves guest memory for an incoming host call response.
 // This uses a separate buffer from Alloc to avoid overwriting the in-flight
 // request data during re-entrant host function calls.
-func (*GuestRuntime) HostCallAlloc(size uint32) uint32 {
+func (*guestRuntime) HostCallAlloc(size uint32) uint32 {
 	if cap(guestHostCallResponseBuffer) < int(size) {
 		guestHostCallResponseBuffer = make([]byte, size)
 	} else {
@@ -121,6 +142,6 @@ func (*GuestRuntime) HostCallAlloc(size uint32) uint32 {
 }
 
 // HostCallResponseBuffer returns the current host call response buffer.
-func (*GuestRuntime) HostCallResponseBuffer() []byte {
+func (*guestRuntime) HostCallResponseBuffer() []byte {
 	return guestHostCallResponseBuffer
 }

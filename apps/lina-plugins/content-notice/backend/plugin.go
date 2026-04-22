@@ -18,8 +18,8 @@ const (
 // init registers the content-notice source plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.UseEmbeddedFiles(contentnotice.EmbeddedFiles)
-	plugin.RegisterRoutes(
+	plugin.Assets().UseEmbeddedFiles(contentnotice.EmbeddedFiles)
+	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,

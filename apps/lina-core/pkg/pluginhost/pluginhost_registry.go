@@ -8,29 +8,33 @@ import "sync"
 // In-memory source-plugin registry shared by build-linked plugins.
 var (
 	sourcePluginRegistryMu sync.RWMutex
-	sourcePluginRegistry   = make(map[string]*SourcePlugin)
+	sourcePluginRegistry   = make(map[string]SourcePluginDefinition)
 )
 
 // RegisterSourcePlugin registers one compile-time source plugin into the host registry.
-func RegisterSourcePlugin(plugin *SourcePlugin) {
+func RegisterSourcePlugin(plugin SourcePlugin) {
 	if plugin == nil {
 		panic("pluginhost: source plugin is nil")
 	}
-	if plugin.ID == "" {
+	definition, ok := plugin.(SourcePluginDefinition)
+	if !ok {
+		panic("pluginhost: source plugin does not implement SourcePluginDefinition")
+	}
+	if definition.ID() == "" {
 		panic("pluginhost: source plugin id is empty")
 	}
 
 	sourcePluginRegistryMu.Lock()
 	defer sourcePluginRegistryMu.Unlock()
 
-	if _, ok := sourcePluginRegistry[plugin.ID]; ok {
-		panic("pluginhost: duplicate source plugin registration: " + plugin.ID)
+	if _, exists := sourcePluginRegistry[definition.ID()]; exists {
+		panic("pluginhost: duplicate source plugin registration: " + definition.ID())
 	}
-	sourcePluginRegistry[plugin.ID] = plugin
+	sourcePluginRegistry[definition.ID()] = definition
 }
 
 // GetSourcePlugin returns one registered compile-time source plugin by id.
-func GetSourcePlugin(id string) (*SourcePlugin, bool) {
+func GetSourcePlugin(id string) (SourcePluginDefinition, bool) {
 	sourcePluginRegistryMu.RLock()
 	defer sourcePluginRegistryMu.RUnlock()
 
@@ -39,11 +43,11 @@ func GetSourcePlugin(id string) (*SourcePlugin, bool) {
 }
 
 // ListSourcePlugins returns all registered compile-time source plugins.
-func ListSourcePlugins() []*SourcePlugin {
+func ListSourcePlugins() []SourcePluginDefinition {
 	sourcePluginRegistryMu.RLock()
 	defer sourcePluginRegistryMu.RUnlock()
 
-	items := make([]*SourcePlugin, 0, len(sourcePluginRegistry))
+	items := make([]SourcePluginDefinition, 0, len(sourcePluginRegistry))
 	for _, plugin := range sourcePluginRegistry {
 		if plugin == nil {
 			continue

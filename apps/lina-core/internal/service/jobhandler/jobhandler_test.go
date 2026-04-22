@@ -10,7 +10,6 @@ import (
 
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
-	"lina-core/pkg/pluginhost"
 )
 
 // testLogCleaner satisfies RegisterHostHandlers for registry tests.
@@ -160,37 +159,40 @@ func (c testPluginStatusChecker) ListManagedCronJobsByPlugin(
 	return c.managedJobs[pluginID], nil
 }
 
-// TestAttachPluginLifecycleSyncsEnabledSourcePluginHandlers verifies startup
-// sync registers source-plugin handlers for already-enabled plugins.
-func TestAttachPluginLifecycleSyncsEnabledSourcePluginHandlers(t *testing.T) {
+// TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers verifies startup
+// sync registers projected plugin cron handlers for already-enabled plugins.
+func TestAttachPluginLifecycleSyncsEnabledPluginCronHandlers(t *testing.T) {
 	const pluginID = "jobhandler-lifecycle-enabled-sync"
-
-	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
-	sourcePlugin.RegisterJobHandler(pluginhost.JobHandlerRegistration{
-		Name:         "echo",
-		DisplayName:  "Echo",
-		Description:  "Echo handler for lifecycle sync tests.",
-		ParamsSchema: `{"type":"object","properties":{"message":{"type":"string"}},"required":["message"]}`,
-		Handler: func(ctx context.Context, params json.RawMessage) (result any, err error) {
-			return map[string]any{"params": string(params)}, nil
-		},
-	})
-	pluginhost.RegisterSourcePlugin(sourcePlugin)
 
 	registry := New()
 	unsubscribe, err := AttachPluginLifecycle(
 		context.Background(),
 		registry,
-		testPluginStatusChecker{enabled: map[string]bool{pluginID: true}},
+		testPluginStatusChecker{
+			enabled: map[string]bool{pluginID: true},
+			managedJobs: map[string][]pluginsvc.ManagedCronJob{
+				pluginID: {
+					{
+						PluginID:    pluginID,
+						Name:        "echo",
+						DisplayName: "Echo",
+						Description: "Projected builtin cron handler for lifecycle sync tests.",
+						Handler: func(ctx context.Context) error {
+							return nil
+						},
+					},
+				},
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("expected plugin lifecycle attachment to succeed, got error: %v", err)
 	}
 	defer unsubscribe()
 
-	definition, ok := registry.Lookup("plugin:" + pluginID + "/echo")
+	definition, ok := registry.Lookup("plugin:" + pluginID + "/cron:echo")
 	if !ok {
-		t.Fatal("expected enabled source-plugin handler to be registered during startup sync")
+		t.Fatal("expected enabled plugin cron handler to be registered during startup sync")
 	}
 	if definition.Source != jobmeta.HandlerSourcePlugin {
 		t.Fatalf("expected plugin handler source, got %s", definition.Source)
@@ -200,50 +202,56 @@ func TestAttachPluginLifecycleSyncsEnabledSourcePluginHandlers(t *testing.T) {
 	}
 }
 
-// TestPluginLifecycleObserverRegistersAndUnregistersHandlers verifies plugin
-// lifecycle callbacks keep registry state in sync with plugin handler ownership.
-func TestPluginLifecycleObserverRegistersAndUnregistersHandlers(t *testing.T) {
+// TestPluginLifecycleObserverRegistersAndUnregistersPluginCronHandlers
+// verifies plugin lifecycle callbacks keep projected cron handlers in sync.
+func TestPluginLifecycleObserverRegistersAndUnregistersPluginCronHandlers(t *testing.T) {
 	const pluginID = "jobhandler-lifecycle-transition"
 
-	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
-	sourcePlugin.RegisterJobHandler(pluginhost.JobHandlerRegistration{
-		Name:         "echo",
-		DisplayName:  "Echo",
-		Description:  "Echo handler for lifecycle transition tests.",
-		ParamsSchema: `{"type":"object","properties":{"message":{"type":"string"}},"required":["message"]}`,
-		Handler: func(ctx context.Context, params json.RawMessage) (result any, err error) {
-			return map[string]any{"params": string(params)}, nil
+	observer := &pluginLifecycleObserver{
+		registry: New(),
+		bridge: testPluginStatusChecker{
+			enabled: map[string]bool{pluginID: true},
+			managedJobs: map[string][]pluginsvc.ManagedCronJob{
+				pluginID: {
+					{
+						PluginID:    pluginID,
+						Name:        "echo",
+						DisplayName: "Echo",
+						Description: "Projected builtin cron handler for lifecycle transition tests.",
+						Handler: func(ctx context.Context) error {
+							return nil
+						},
+					},
+				},
+			},
 		},
-	})
-	pluginhost.RegisterSourcePlugin(sourcePlugin)
-
-	observer := &pluginLifecycleObserver{registry: New()}
+	}
 	if err := observer.OnPluginEnabled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin enable callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/echo"); !ok {
-		t.Fatal("expected plugin handler to be registered after enable callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); !ok {
+		t.Fatal("expected plugin cron handler to be registered after enable callback")
 	}
 
 	if err := observer.OnPluginDisabled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin disable callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/echo"); ok {
-		t.Fatal("expected plugin handler to be removed after disable callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); ok {
+		t.Fatal("expected plugin cron handler to be removed after disable callback")
 	}
 
 	if err := observer.OnPluginEnabled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin re-enable callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/echo"); !ok {
-		t.Fatal("expected plugin handler to be re-registered after re-enable callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); !ok {
+		t.Fatal("expected plugin cron handler to be re-registered after re-enable callback")
 	}
 
 	if err := observer.OnPluginUninstalled(context.Background(), pluginID); err != nil {
 		t.Fatalf("expected plugin uninstall callback to succeed, got error: %v", err)
 	}
-	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/echo"); ok {
-		t.Fatal("expected plugin handler to be removed after uninstall callback")
+	if _, ok := observer.registry.Lookup("plugin:" + pluginID + "/cron:echo"); ok {
+		t.Fatal("expected plugin cron handler to be removed after uninstall callback")
 	}
 }
 

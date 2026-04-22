@@ -307,7 +307,7 @@ func TestRunCronJobSkipsOnNonPrimaryNode(t *testing.T) {
 }
 
 // TestLoadAndRegisterPausesMissingPluginHandlerJobs verifies startup loading
-// downgrades enabled plugin-handler jobs when their handler is unavailable.
+// downgrades enabled plugin cron jobs when their handler is unavailable.
 func TestLoadAndRegisterPausesMissingPluginHandlerJobs(t *testing.T) {
 	var (
 		ctx      = context.Background()
@@ -328,7 +328,7 @@ func TestLoadAndRegisterPausesMissingPluginHandlerJobs(t *testing.T) {
 		GroupId:        testDefaultGroupID(t, ctx),
 		Name:           fmt.Sprintf("scheduler-missing-plugin-%d", time.Now().UnixNano()),
 		TaskType:       string(jobmeta.TaskTypeHandler),
-		HandlerRef:     "plugin:test-missing/cleanup",
+		HandlerRef:     "plugin:test-missing/cron:cleanup",
 		Params:         `{}`,
 		TimeoutSeconds: 30,
 		CronExpr:       "* * * * *",

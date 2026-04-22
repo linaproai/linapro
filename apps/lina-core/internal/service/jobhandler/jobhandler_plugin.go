@@ -13,7 +13,6 @@ import (
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
 )
 
 // PluginLifecycleBridge exposes plugin enablement state and plugin-owned cron
@@ -108,48 +107,17 @@ func (o *pluginLifecycleObserver) syncEnabledPlugins(
 	return nil
 }
 
-// registerPluginHandlers publishes all scheduled-job handlers declared by one
-// plugin.
+// registerPluginHandlers publishes all projected builtin cron handlers declared
+// by one enabled plugin.
 func (o *pluginLifecycleObserver) registerPluginHandlers(pluginID string) error {
 	if o == nil || o.registry == nil || pluginID == "" {
 		return nil
 	}
 
-	sourcePlugin, ok := pluginhost.GetSourcePlugin(pluginID)
 	// Remove any stale definitions first so repeated enable flows stay idempotent.
 	o.unregisterPluginHandlers(pluginID)
 
 	registeredRefs := make([]string, 0)
-	if ok && sourcePlugin != nil {
-		registeredRefs = make([]string, 0, len(sourcePlugin.GetJobHandlers()))
-		for _, item := range sourcePlugin.GetJobHandlers() {
-			if item == nil {
-				continue
-			}
-			ref, err := pluginbridge.BuildPluginHandlerRef(pluginID, item.Name)
-			if err != nil {
-				for _, registeredRef := range registeredRefs {
-					o.registry.Unregister(registeredRef)
-				}
-				return err
-			}
-			if err = o.registry.Register(HandlerDef{
-				Ref:          ref,
-				DisplayName:  strings.TrimSpace(item.DisplayName),
-				Description:  strings.TrimSpace(item.Description),
-				ParamsSchema: strings.TrimSpace(item.ParamsSchema),
-				Source:       jobmeta.HandlerSourcePlugin,
-				PluginID:     pluginID,
-				Invoke:       InvokeFunc(item.Handler),
-			}); err != nil {
-				for _, registeredRef := range registeredRefs {
-					o.registry.Unregister(registeredRef)
-				}
-				return err
-			}
-			registeredRefs = append(registeredRefs, ref)
-		}
-	}
 
 	if o.bridge == nil {
 		return nil

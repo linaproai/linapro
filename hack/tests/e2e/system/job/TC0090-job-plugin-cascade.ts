@@ -23,6 +23,7 @@ test.describe('TC-90 插件内置任务生命周期级联', () => {
   const pluginID = 'plugin-demo-source';
   const jobName = '源码插件回显巡检';
   const handlerRef = `plugin:${pluginID}/cron:${jobName}`;
+  const removedGenericHandlerRef = `plugin:${pluginID}/echo`;
 
   let api: APIRequestContext;
   let jobId = 0;
@@ -48,14 +49,18 @@ test.describe('TC-90 插件内置任务生命周期级联', () => {
       .poll(
         async () => {
           const handlers = await listHandlers(api);
-          return handlers.list.some((item) => item.ref === handlerRef);
+          const hasCronHandler = handlers.list.some((item) => item.ref === handlerRef);
+          const hasRemovedGenericHandler = handlers.list.some(
+            (item) => item.ref === removedGenericHandlerRef,
+          );
+          return `${hasCronHandler}:${hasRemovedGenericHandler}`;
         },
         {
           timeout: 10000,
-          message: '启用源码插件后应注册其内置定时任务处理器',
+          message: '启用源码插件后应只注册其内置 cron 处理器，不再暴露 plugin.jobs 处理器',
         },
       )
-      .toBeTruthy();
+      .toBe('true:false');
 
     await expect
       .poll(
@@ -78,6 +83,10 @@ test.describe('TC-90 插件内置任务生命周期级联', () => {
   });
 
   test.afterAll(async () => {
+    if (!api) {
+      return;
+    }
+
     if (originalInstalled !== 1) {
       await uninstallPlugin(api, pluginID);
     } else if (originalEnabled !== 1) {
@@ -134,6 +143,11 @@ test.describe('TC-90 插件内置任务生命周期级联', () => {
     expect(
       handlersAfterDisable.list.some((item) => item.ref === handlerRef),
     ).toBeFalsy();
+    expect(
+      handlersAfterDisable.list.some(
+        (item) => item.ref === removedGenericHandlerRef,
+      ),
+    ).toBeFalsy();
 
     await jobPage.goto();
     await jobPage.fillSearchKeyword(jobName);
@@ -174,6 +188,11 @@ test.describe('TC-90 插件内置任务生命周期级联', () => {
     expect(
       handlersAfterEnable.list.some((item) => item.ref === handlerRef),
     ).toBeTruthy();
+    expect(
+      handlersAfterEnable.list.some(
+        (item) => item.ref === removedGenericHandlerRef,
+      ),
+    ).toBeFalsy();
 
     const triggered = await triggerJob(api, jobId);
     expect(triggered.logId).toBeGreaterThan(0);

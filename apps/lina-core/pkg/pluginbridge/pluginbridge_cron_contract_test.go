@@ -98,18 +98,10 @@ func TestNormalizeCronConcurrency(t *testing.T) {
 	}
 }
 
-// TestBuildPluginHandlerRefs verifies shared handler reference helpers return
-// stable protocol strings.
-func TestBuildPluginHandlerRefs(t *testing.T) {
+// TestBuildPluginCronHandlerRef verifies projected cron handlers return stable
+// protocol strings.
+func TestBuildPluginCronHandlerRef(t *testing.T) {
 	t.Parallel()
-
-	handlerRef, err := BuildPluginHandlerRef("plugin-demo", "sync")
-	if err != nil {
-		t.Fatalf("expected generic handler ref to build, got error: %v", err)
-	}
-	if handlerRef != "plugin:plugin-demo/sync" {
-		t.Fatalf("expected generic handler ref, got %s", handlerRef)
-	}
 
 	cronRef, err := BuildPluginCronHandlerRef("plugin-demo", "heartbeat")
 	if err != nil {

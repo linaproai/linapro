@@ -25,23 +25,23 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 		scheduler = &trackingScheduler{}
 		svc       = newTestServiceWithRegistry(t, registry, scheduler)
 		handler   = jobhandler.HandlerDef{
-			Ref:          "plugin:test-job-handler/wait",
+			Ref:          "plugin:test-job-handler/cron:wait",
 			DisplayName:  "Plugin Test Wait Handler",
 			Description:  "Used to verify registry cascade behavior.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
 			Source:       jobmeta.HandlerSourcePlugin,
-			PluginID:     "plugin:test-job-handler",
+			PluginID:     "test-job-handler",
 			Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 				return map[string]any{"ok": true}, nil
 			},
 		}
 		disabledHandler = jobhandler.HandlerDef{
-			Ref:          "plugin:test-job-handler/wait-disabled",
+			Ref:          "plugin:test-job-handler/cron:wait-disabled",
 			DisplayName:  "Plugin Disabled Test Handler",
 			Description:  "Used to verify disabled builtin jobs stay untouched.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
 			Source:       jobmeta.HandlerSourcePlugin,
-			PluginID:     "plugin:test-job-handler",
+			PluginID:     "test-job-handler",
 			Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 				return map[string]any{"ok": true}, nil
 			},
@@ -120,12 +120,12 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 		scheduler = &trackingScheduler{}
 		svc       = newTestServiceWithRegistry(t, registry, scheduler)
 		handler   = jobhandler.HandlerDef{
-			Ref:          "plugin:test-job-handler/restore",
+			Ref:          "plugin:test-job-handler/cron:restore",
 			DisplayName:  "Plugin Restore Handler",
 			Description:  "Used to verify paused job restoration.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
 			Source:       jobmeta.HandlerSourcePlugin,
-			PluginID:     "plugin:test-job-handler",
+			PluginID:     "test-job-handler",
 			Invoke: func(ctx context.Context, params json.RawMessage) (result any, err error) {
 				return map[string]any{"restored": true}, nil
 			},

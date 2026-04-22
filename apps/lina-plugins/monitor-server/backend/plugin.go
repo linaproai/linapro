@@ -21,18 +21,18 @@ const (
 // init registers the monitor-server source plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
-	plugin.UseEmbeddedFiles(monitorserverplugin.EmbeddedFiles)
-	plugin.RegisterRoutes(
+	plugin.Assets().UseEmbeddedFiles(monitorserverplugin.EmbeddedFiles)
+	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerRoutes,
 	)
-	plugin.RegisterCron(
+	plugin.Cron().RegisterCron(
 		pluginhost.ExtensionPointCronRegister,
 		pluginhost.CallbackExecutionModeBlocking,
 		registerBuiltinCrons,
 	)
-	plugin.RegisterHook(
+	plugin.Hooks().RegisterHook(
 		pluginhost.ExtensionPointSystemStarted,
 		pluginhost.CallbackExecutionModeAsync,
 		collectOnSystemStarted,

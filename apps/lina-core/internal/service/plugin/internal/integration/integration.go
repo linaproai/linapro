@@ -129,12 +129,6 @@ type SourceRegistrationService interface {
 
 // HookDispatchService defines plugin hook dispatch operations.
 type HookDispatchService interface {
-	// DispatchAfterAuth dispatches callback-style after-auth request handlers.
-	// It implements runtime.AfterAuthDispatcher.
-	DispatchAfterAuth(
-		ctx context.Context,
-		input pluginhost.AfterAuthInput,
-	)
 	// DispatchPluginHookEvent dispatches one named hook event to all enabled plugins.
 	// It implements catalog.HookDispatcher and runtime.HookDispatcher.
 	DispatchPluginHookEvent(

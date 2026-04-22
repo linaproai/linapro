@@ -1,5 +1,5 @@
 // This file bridges pluginhost callback registrations into host route, cron,
-// after-auth, menu-filter, and permission-filter integration flows.
+// menu-filter, and permission-filter integration flows.
 
 package integration
 
@@ -89,49 +89,6 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-// DispatchAfterAuth dispatches callback-style after-auth request handlers.
-// It implements runtime.AfterAuthDispatcher.
-func (s *serviceImpl) DispatchAfterAuth(
-	ctx context.Context,
-	input pluginhost.AfterAuthInput,
-) {
-	if input == nil {
-		return
-	}
-
-	manifests, err := s.catalogSvc.ScanManifests()
-	if err != nil {
-		logger.Warningf(ctx, "scan plugin manifests for after-auth dispatch failed: %v", err)
-		return
-	}
-	runtime, runtimeErr := s.buildFilterRuntimeFromManifests(ctx, manifests)
-	if runtimeErr != nil {
-		logger.Warningf(ctx, "load plugin enablement runtime for after-auth dispatch failed: %v", runtimeErr)
-	}
-
-	for _, manifest := range manifests {
-		if runtime != nil {
-			if !runtime.isEnabled(manifest.ID) {
-				continue
-			}
-		} else if !s.IsEnabled(ctx, manifest.ID) {
-			continue
-		}
-		sourcePlugin, ok := pluginhost.GetSourcePlugin(manifest.ID)
-		if !ok {
-			continue
-		}
-		for _, handler := range sourcePlugin.GetAfterAuthHandlers() {
-			if handler == nil || handler.Handler == nil {
-				continue
-			}
-			if err = handler.Handler(ctx, input); err != nil {
-				logger.Warningf(ctx, "plugin after-auth handler failed plugin=%s err=%v", manifest.ID, err)
-			}
-		}
-	}
 }
 
 // DispatchPluginHookEvent dispatches one named hook event to all enabled plugins.

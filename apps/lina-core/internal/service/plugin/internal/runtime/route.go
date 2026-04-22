@@ -23,7 +23,6 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginbridge"
-	"lina-core/pkg/pluginhost"
 )
 
 // RoutePublicPrefix is the fixed host URL prefix for all dynamic plugin routes.
@@ -481,18 +480,6 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 
 	if s.userCtx != nil {
 		s.userCtx.SetUser(ctx, claims.TokenId, claims.UserId, claims.Username, claims.Status)
-	}
-	if s.afterAuth != nil {
-		s.afterAuth.DispatchAfterAuth(
-			ctx,
-			pluginhost.NewAfterAuthInput(
-				request,
-				claims.TokenId,
-				claims.UserId,
-				claims.Username,
-				claims.Status,
-			),
-		)
 	}
 	accessContext, err := s.getDynamicRouteAccessContext(ctx, claims.UserId)
 	if err != nil {

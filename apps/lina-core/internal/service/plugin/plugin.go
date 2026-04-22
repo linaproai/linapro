@@ -193,8 +193,6 @@ type SourceIntegrationService interface {
 	ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error)
 	// ListManagedCronJobsByPlugin returns cron definitions owned by one plugin.
 	ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error)
-	// DispatchAfterAuthRequest dispatches callback-style after-auth request handlers.
-	DispatchAfterAuthRequest(ctx context.Context, input pluginhost.AfterAuthInput)
 	// DispatchHookEvent dispatches one named hook event to all enabled plugins.
 	DispatchHookEvent(
 		ctx context.Context,
@@ -369,7 +367,6 @@ func New(topology Topology) Service {
 	runtimeSvc.SetTopology(&runtimeTopologyAdapter{topo})
 	runtimeSvc.SetMenuManager(integrationSvc)
 	runtimeSvc.SetHookDispatcher(integrationSvc)
-	runtimeSvc.SetAfterAuthDispatcher(integrationSvc)
 	runtimeSvc.SetPermissionMenuFilter(integrationSvc)
 	runtimeSvc.SetJwtConfigProvider(&jwtConfigAdapter{configProvider})
 	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{configProvider})

@@ -86,7 +86,7 @@ type Manifest struct {
 	// RuntimeArtifact holds the validated WASM artifact for dynamic plugins.
 	RuntimeArtifact *ArtifactSpec
 	// SourcePlugin is the embedded source-plugin registration for source plugins.
-	SourcePlugin *pluginhost.SourcePlugin
+	SourcePlugin pluginhost.SourcePluginDefinition
 }
 
 // MenuSpec defines one manifest-declared host menu entry.

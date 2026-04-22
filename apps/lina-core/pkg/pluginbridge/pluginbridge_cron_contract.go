@@ -164,20 +164,6 @@ func NormalizeCronContract(contract *CronContract) {
 	}
 }
 
-// BuildPluginHandlerRef returns the public handler reference used for one
-// plugin-local registered handler.
-func BuildPluginHandlerRef(pluginID string, name string) (string, error) {
-	trimmedPluginID := strings.TrimSpace(pluginID)
-	trimmedName := strings.TrimSpace(name)
-	if trimmedPluginID == "" {
-		return "", gerror.New("插件ID不能为空")
-	}
-	if trimmedName == "" {
-		return "", gerror.New("插件处理器名称不能为空")
-	}
-	return fmt.Sprintf("plugin:%s/%s", trimmedPluginID, trimmedName), nil
-}
-
 // BuildPluginCronHandlerRef returns the synthetic handler reference used for
 // one plugin-owned built-in cron job.
 func BuildPluginCronHandlerRef(pluginID string, name string) (string, error) {
