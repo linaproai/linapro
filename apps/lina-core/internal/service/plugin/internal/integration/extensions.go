@@ -20,11 +20,15 @@ import (
 // RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 func (s *serviceImpl) RegisterHTTPRoutes(
 	ctx context.Context,
+	server *ghttp.Server,
 	pluginGroup *ghttp.RouterGroup,
 	middlewares pluginhost.RouteMiddlewares,
 ) error {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
+		return err
+	}
+	if err = s.RefreshEnabledSnapshot(ctx); err != nil {
 		return err
 	}
 
@@ -34,7 +38,8 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 		if !ok {
 			continue
 		}
-		registrar := pluginhost.NewRouteRegistrar(
+		registrar := pluginhost.NewHTTPRegistrar(
+			server,
 			pluginGroup,
 			manifest.ID,
 			checker,
@@ -48,7 +53,7 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 				return err
 			}
 		}
-		s.setSourceRouteBindings(manifest.ID, registrar.RouteBindings())
+		s.setSourceRouteBindings(manifest.ID, registrar.Routes().RouteBindings())
 	}
 	return nil
 }
@@ -57,6 +62,9 @@ func (s *serviceImpl) RegisterHTTPRoutes(
 func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
+		return err
+	}
+	if err = s.RefreshEnabledSnapshot(ctx); err != nil {
 		return err
 	}
 

@@ -14,10 +14,11 @@ import (
 // RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 func (s *serviceImpl) RegisterHTTPRoutes(
 	ctx context.Context,
+	server *ghttp.Server,
 	pluginGroup *ghttp.RouterGroup,
 	middlewares pluginhost.RouteMiddlewares,
 ) error {
-	return s.integrationSvc.RegisterHTTPRoutes(ctx, pluginGroup, middlewares)
+	return s.integrationSvc.RegisterHTTPRoutes(ctx, server, pluginGroup, middlewares)
 }
 
 // RegisterCrons registers callback-contributed cron jobs for source plugins.

@@ -181,6 +181,7 @@ type SourceIntegrationService interface {
 	// RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 	RegisterHTTPRoutes(
 		ctx context.Context,
+		server *ghttp.Server,
 		pluginGroup *ghttp.RouterGroup,
 		middlewares pluginhost.RouteMiddlewares,
 	) error

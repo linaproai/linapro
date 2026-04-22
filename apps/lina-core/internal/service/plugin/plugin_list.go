@@ -41,6 +41,9 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 	}
 	items = append(items, runtimeItems...)
 	runtime.SortPluginItems(items)
+	if err = s.integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
+		return nil, err
+	}
 	return &ListOutput{List: items, Total: len(items)}, nil
 }
 

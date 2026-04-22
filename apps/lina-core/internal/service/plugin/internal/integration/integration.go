@@ -115,6 +115,7 @@ type SourceRegistrationService interface {
 	// RegisterHTTPRoutes registers callback-contributed HTTP routes for source plugins.
 	RegisterHTTPRoutes(
 		ctx context.Context,
+		server *ghttp.Server,
 		pluginGroup *ghttp.RouterGroup,
 		middlewares pluginhost.RouteMiddlewares,
 	) error
@@ -176,6 +177,12 @@ type DependencyWiringService interface {
 type PluginStateService interface {
 	// IsEnabled reports whether the plugin with the given ID is currently installed and enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
+	// RefreshEnabledSnapshot rebuilds the in-memory enablement snapshot used by runtime guards.
+	RefreshEnabledSnapshot(ctx context.Context) error
+	// SetPluginEnabledState updates one plugin entry in the in-memory enablement snapshot.
+	SetPluginEnabledState(pluginID string, enabled bool)
+	// DeletePluginEnabledState removes one plugin entry from the in-memory enablement snapshot.
+	DeletePluginEnabledState(pluginID string)
 }
 
 // MenuSyncService defines plugin menu synchronization operations.
@@ -235,6 +242,10 @@ type serviceImpl struct {
 
 	sourceRouteBindingsMu sync.RWMutex
 	sourceRouteBindings   map[string][]pluginhost.SourceRouteBinding
+
+	enabledSnapshotMu     sync.RWMutex
+	enabledSnapshot       map[string]bool
+	enabledSnapshotLoaded bool
 }
 
 // New creates and returns a new integration Service.
@@ -242,6 +253,7 @@ func New(catalogSvc catalog.Service) Service {
 	return &serviceImpl{
 		catalogSvc:          catalogSvc,
 		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
+		enabledSnapshot:     make(map[string]bool),
 	}
 }
 
@@ -268,6 +280,47 @@ func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 		return false
 	}
 	return registry.Installed == catalog.InstalledYes && registry.Status == catalog.StatusEnabled
+}
+
+// RefreshEnabledSnapshot rebuilds the in-memory enablement snapshot used by runtime guards.
+func (s *serviceImpl) RefreshEnabledSnapshot(ctx context.Context) error {
+	manifests, err := s.catalogSvc.ScanManifests()
+	if err != nil {
+		return err
+	}
+	enabledByID, err := s.buildEnabledPluginMap(ctx, manifests)
+	if err != nil {
+		return err
+	}
+	s.enabledSnapshotMu.Lock()
+	defer s.enabledSnapshotMu.Unlock()
+	s.enabledSnapshot = enabledByID
+	s.enabledSnapshotLoaded = true
+	return nil
+}
+
+// SetPluginEnabledState updates one plugin entry in the in-memory enablement snapshot.
+func (s *serviceImpl) SetPluginEnabledState(pluginID string, enabled bool) {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return
+	}
+	s.enabledSnapshotMu.Lock()
+	defer s.enabledSnapshotMu.Unlock()
+	s.enabledSnapshot[normalizedPluginID] = enabled
+	s.enabledSnapshotLoaded = true
+}
+
+// DeletePluginEnabledState removes one plugin entry from the in-memory enablement snapshot.
+func (s *serviceImpl) DeletePluginEnabledState(pluginID string) {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return
+	}
+	s.enabledSnapshotMu.Lock()
+	defer s.enabledSnapshotMu.Unlock()
+	delete(s.enabledSnapshot, normalizedPluginID)
+	s.enabledSnapshotLoaded = true
 }
 
 // ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
@@ -356,7 +409,19 @@ func (s *serviceImpl) buildEnabledPluginMap(
 // route and cron registrars that need to guard runtime access.
 func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledChecker {
 	return func(pluginID string) bool {
-		return s.IsEnabled(context.Background(), pluginID)
+		normalizedPluginID := strings.TrimSpace(pluginID)
+		if normalizedPluginID == "" {
+			return false
+		}
+
+		s.enabledSnapshotMu.RLock()
+		enabled, ok := s.enabledSnapshot[normalizedPluginID]
+		loaded := s.enabledSnapshotLoaded
+		s.enabledSnapshotMu.RUnlock()
+		if ok || loaded {
+			return enabled
+		}
+		return s.IsEnabled(context.Background(), normalizedPluginID)
 	}
 }
 

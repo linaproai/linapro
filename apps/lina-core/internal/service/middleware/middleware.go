@@ -1,5 +1,5 @@
-// Package middleware implements HTTP authentication, authorization, audit, and
-// related request middleware for the Lina core host service.
+// Package middleware implements HTTP authentication, authorization, and related
+// request middleware for the Lina core host service.
 package middleware
 
 import (
@@ -32,8 +32,6 @@ type Service interface {
 	RequestBodyLimit(r *ghttp.Request)
 	// Auth validates JWT token and injects user info into context.
 	Auth(r *ghttp.Request)
-	// OperLog records operation logs for write operations and specially tagged GET operations.
-	OperLog(r *ghttp.Request)
 	// Permission enforces declarative permission requirements declared on static host API handlers.
 	Permission(r *ghttp.Request)
 }
@@ -81,7 +79,6 @@ func (s *serviceImpl) PublishedRouteMiddlewares() pluginhost.RouteMiddlewares {
 		s.RequestBodyLimit,
 		s.Ctx,
 		s.Auth,
-		s.OperLog,
 		s.Permission,
 	)
 }

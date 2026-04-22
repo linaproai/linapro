@@ -30,8 +30,6 @@ type RouteMiddlewares interface {
 	Ctx() RouteMiddleware
 	// Auth returns the host JWT authentication middleware.
 	Auth() RouteMiddleware
-	// OperLog returns the host operation-log middleware.
-	OperLog() RouteMiddleware
 	// Permission returns the host declarative permission middleware.
 	Permission() RouteMiddleware
 }
@@ -106,7 +104,6 @@ type routeMiddlewares struct {
 	requestBody     RouteMiddleware
 	ctx             RouteMiddleware
 	auth            RouteMiddleware
-	operLog         RouteMiddleware
 	permission      RouteMiddleware
 }
 
@@ -118,7 +115,6 @@ func NewRouteMiddlewares(
 	requestBody RouteMiddleware,
 	ctx RouteMiddleware,
 	auth RouteMiddleware,
-	operLog RouteMiddleware,
 	permission RouteMiddleware,
 ) RouteMiddlewares {
 	return &routeMiddlewares{
@@ -128,7 +124,6 @@ func NewRouteMiddlewares(
 		requestBody:     requestBody,
 		ctx:             ctx,
 		auth:            auth,
-		operLog:         operLog,
 		permission:      permission,
 	}
 }
@@ -249,14 +244,6 @@ func (m *routeMiddlewares) Auth() RouteMiddleware {
 		return nil
 	}
 	return m.auth
-}
-
-// OperLog returns the published operation-log middleware.
-func (m *routeMiddlewares) OperLog() RouteMiddleware {
-	if m == nil {
-		return nil
-	}
-	return m.operLog
 }
 
 // Permission returns the published declarative permission middleware.

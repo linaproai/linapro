@@ -50,12 +50,13 @@ func init() {
 // registerRoutes binds the demo plugin HTTP routes using the published host
 // middleware directory so plugin traffic follows the same governance chain as
 // host-owned APIs.
-func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) error {
+func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
 	var (
-		middlewares    = registrar.Middlewares()
+		routes         = registrar.Routes()
+		middlewares    = routes.Middlewares()
 		demoController = democtrl.NewControllerV1()
 	)
-	registrar.Group("/api/v1", func(group pluginhost.RouteGroup) {
+	routes.Group("/api/v1", func(group pluginhost.RouteGroup) {
 		group.Middleware(
 			middlewares.NeverDoneCtx(),
 			middlewares.HandlerResponse(),
@@ -71,7 +72,6 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 		group.Group("/", func(group pluginhost.RouteGroup) {
 			group.Middleware(
 				middlewares.Auth(),
-				middlewares.OperLog(),
 				middlewares.Permission(),
 			)
 			group.Bind(

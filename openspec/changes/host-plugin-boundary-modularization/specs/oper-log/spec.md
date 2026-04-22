@@ -1,17 +1,24 @@
 ## MODIFIED Requirements
 
 ### Requirement: 操作日志自动记录
-系统 SHALL 在宿主审计链路中对所有写操作（POST/PUT/DELETE）以及标记了 `operLog` 标签的查询操作自动发射统一审计事件。`monitor-operlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `plugin_monitor_operlog` 表；插件不可用时，宿主核心请求链路仍正常执行。
+系统 SHALL 通过 `monitor-operlog` 源码插件在宿主统一 HTTP 注册入口上声明的全局审计中间件，对所有写操作（POST/PUT/DELETE）以及标记了 `operLog` 标签的查询操作自动发射统一审计事件。宿主只提供受治理的全局中间件注册接缝与统一事件分发，不保留固定的操作日志业务中间件。`monitor-operlog` 已安装并启用时，插件中间件参与请求链并将日志持久化到 `plugin_monitor_operlog` 表；插件不可用时，宿主核心请求链路必须旁路该采集逻辑并继续正常执行。
 
 #### Scenario: 操作日志插件已启用
 - **WHEN** 用户发起受审计的请求且 `monitor-operlog` 已安装并启用
-- **THEN** 宿主发射统一审计事件
-- **AND** `monitor-operlog` 订阅该事件后写入一条对应的操作日志记录
+- **THEN** `monitor-operlog` 通过宿主封装的全局 HTTP 中间件注册器包裹匹配请求
+- **AND** 宿主发射统一审计事件
+- **AND** `monitor-operlog` 写入一条对应的操作日志记录
 
 #### Scenario: 操作日志插件缺失或停用
 - **WHEN** 用户发起受审计的请求但 `monitor-operlog` 未安装、未启用或初始化失败
-- **THEN** 宿主仍然正常完成原始业务请求
+- **THEN** 宿主旁路插件自注册的审计中间件逻辑
+- **AND** 宿主仍然正常完成原始业务请求
 - **AND** 宿主不因缺少具体操作日志落库实现而返回错误
+
+#### Scenario: 下游中间件提前结束请求
+- **WHEN** `monitor-operlog` 的全局审计中间件已经包裹一个请求，且后续中间件或处理器写出响应后提前结束当前请求
+- **THEN** 审计中间件在 `Next` 返回后仍可读取当前响应快照并发射匹配的审计事件
+- **AND** 提前结束请求不会导致本次操作日志漏记
 
 ## ADDED Requirements
 

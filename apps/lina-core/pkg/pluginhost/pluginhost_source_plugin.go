@@ -170,8 +170,9 @@ type AfterAuthHandler func(ctx context.Context, input AfterAuthInput) error
 // SourcePluginUninstallHandler defines one callback invoked before the host executes source-plugin uninstall SQL.
 type SourcePluginUninstallHandler func(ctx context.Context, input SourcePluginUninstallInput) error
 
-// RouteRegisterHandler defines one callback that registers plugin-owned HTTP routes.
-type RouteRegisterHandler func(ctx context.Context, registrar RouteRegistrar) error
+// RouteRegisterHandler defines one callback that registers plugin-owned HTTP routes
+// and global middleware through the published HTTP registrar.
+type RouteRegisterHandler func(ctx context.Context, registrar HTTPRegistrar) error
 
 // CronRegisterHandler defines one callback that registers plugin-owned cron jobs.
 type CronRegisterHandler func(ctx context.Context, registrar CronRegistrar) error

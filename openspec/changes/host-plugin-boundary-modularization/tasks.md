@@ -124,3 +124,5 @@
   - 2026-04-22：`apps/lina-core/internal/controller/{auth,role,joblog}/*_new.go` 已同步改为显式构造 `pluginSvc` / `orgCapSvc` 并传入 `auth.New(...)`、`role.New(...)`；随后 `apps/lina-core/go test ./...`、插件/构建模块 `go test ./...` 与前端 `pnpm test:unit` 全部通过
 - [x] **FB-26**: `TC0069` 仍使用旧组织关联表 `sys_user_dept/sys_user_post` 做清理，导致全量 E2E 在动态插件权限治理用例收尾阶段失败
   - 2026-04-22：`hack/tests/e2e/plugin/TC0069-plugin-permission-governance.ts` 已改为清理 `plugin_org_center_user_dept`、`plugin_org_center_user_post`；单测 `TC0069` 单独回归通过，随后 `npx playwright test` 全量 341 条全部通过
+- [x] **FB-27**: 操作日志需改为源码插件通过宿主封装的全局 HTTP middleware 注册器自注册审计链路，插件停用时完全旁路采集逻辑并移除宿主专用 `OperLog` 业务中间件
+  - 2026-04-22：宿主已发布统一 `HTTPRegistrar`（路由注册器 + 全局 middleware 注册器），`monitor-operlog` 改为自注册 `/api/v1/*` 审计 middleware 并通过稳定 `pkg/pluginservice/audit` 接缝发射审计事件；宿主静态/动态路由链路已移除专用 `OperLog` 中间件，插件启停运行时通过集成层内存快照即时旁路对应全局 middleware / 路由守卫 / cron 守卫；已回归 `apps/lina-core` 与受影响源码插件后端 `go test ./...`，并通过 Playwright 用例 `TC0026`、`TC0098`、`TC0099`

@@ -163,7 +163,6 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		group.Group("/", func(group *ghttp.RouterGroup) {
 			group.Middleware(
 				middlewareSvc.Auth,
-				middlewareSvc.OperLog,
 				middlewareSvc.Permission,
 			)
 			group.Bind(
@@ -197,7 +196,6 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 			group.Middleware(
 				pluginSvc.PrepareDynamicRouteMiddleware,
 				pluginSvc.AuthenticateDynamicRouteMiddleware,
-				middlewareSvc.OperLog,
 			)
 			pluginSvc.RegisterDynamicRouteDispatcher(group)
 		})
@@ -207,7 +205,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	s.Group("/", func(group *ghttp.RouterGroup) {
 		pluginGroup = group
 	})
-	if err = pluginSvc.RegisterHTTPRoutes(ctx, pluginGroup, middlewareSvc.PublishedRouteMiddlewares()); err != nil {
+	if err = pluginSvc.RegisterHTTPRoutes(ctx, s, pluginGroup, middlewareSvc.PublishedRouteMiddlewares()); err != nil {
 		logger.Panicf(ctx, "register plugin routes failed: %v", err)
 	}
 	if err = pluginSvc.PrewarmRuntimeFrontendBundles(ctx); err != nil {

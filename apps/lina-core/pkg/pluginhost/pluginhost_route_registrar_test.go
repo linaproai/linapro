@@ -28,7 +28,7 @@ func testPluginPingHandler(ctx context.Context, req *testPluginPingReq) (*testPl
 // registrar exposes the root group and the published middleware directory.
 func TestNewRouteRegistrarExposeRootGroupAndPublishedMiddlewares(t *testing.T) {
 	noop := func(r *ghttp.Request) {}
-	middlewares := NewRouteMiddlewares(noop, noop, noop, noop, noop, noop, noop, noop)
+	middlewares := NewRouteMiddlewares(noop, noop, noop, noop, noop, noop, noop)
 	server := g.Server("pluginhost-route-registrar-test")
 
 	var rootGroup *ghttp.RouterGroup

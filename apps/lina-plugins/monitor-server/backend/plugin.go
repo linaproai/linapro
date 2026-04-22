@@ -41,9 +41,10 @@ func init() {
 }
 
 // registerRoutes binds server-monitor query routes through the published host middleware set.
-func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) error {
-	middlewares := registrar.Middlewares()
-	registrar.Group("/api/v1", func(group pluginhost.RouteGroup) {
+func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
+	routes := registrar.Routes()
+	middlewares := routes.Middlewares()
+	routes.Group("/api/v1", func(group pluginhost.RouteGroup) {
 		group.Middleware(
 			middlewares.NeverDoneCtx(),
 			middlewares.HandlerResponse(),
@@ -54,7 +55,6 @@ func registerRoutes(ctx context.Context, registrar pluginhost.RouteRegistrar) er
 		group.Group("/", func(group pluginhost.RouteGroup) {
 			group.Middleware(
 				middlewares.Auth(),
-				middlewares.OperLog(),
 				middlewares.Permission(),
 			)
 			group.Bind(servercontroller.NewV1())

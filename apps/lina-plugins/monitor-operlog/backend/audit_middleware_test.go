@@ -1,7 +1,7 @@
 // This file verifies operation-log request-parameter sanitization for
 // passwords and shell environment variables.
 
-package middleware
+package backend
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 )
 
 // TestSanitizeOperLogParamMasksNestedSensitiveFields verifies password fields
-// and shell environment payloads are recursively sanitized before logging.
+// and shell-environment payloads are recursively sanitized before logging.
 func TestSanitizeOperLogParamMasksNestedSensitiveFields(t *testing.T) {
 	input := `{
 		"password":"secret",

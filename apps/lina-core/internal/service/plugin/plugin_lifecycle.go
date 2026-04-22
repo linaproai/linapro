@@ -25,12 +25,18 @@ func (s *serviceImpl) Install(
 		if err = s.installSourcePlugin(ctx, manifest); err != nil {
 			return err
 		}
+		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
+			return err
+		}
 		return notifyPluginInstalled(ctx, pluginID)
 	}
 	if err = s.persistDynamicPluginAuthorization(ctx, manifest, authorization); err != nil {
 		return err
 	}
 	if err = s.lifecycleSvc.Install(ctx, pluginID); err != nil {
+		return err
+	}
+	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
 	}
 	return notifyPluginInstalled(ctx, pluginID)
@@ -55,9 +61,15 @@ func (s *serviceImpl) UninstallWithOptions(
 		if err = s.uninstallSourcePlugin(ctx, manifest, options); err != nil {
 			return err
 		}
+		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
+			return err
+		}
 		return notifyPluginUninstalled(ctx, pluginID)
 	}
 	if err = s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData); err != nil {
+		return err
+	}
+	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
 	}
 	return notifyPluginUninstalled(ctx, pluginID)
@@ -114,12 +126,18 @@ func (s *serviceImpl) updateStatus(
 		if err = s.reconcileDynamicPluginStatus(ctx, pluginID, status); err != nil {
 			return err
 		}
+		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
+			return err
+		}
 		if status == catalog.StatusEnabled {
 			return notifyPluginEnabled(ctx, pluginID)
 		}
 		return notifyPluginDisabled(ctx, pluginID)
 	}
 	if err = s.catalogSvc.SetPluginStatus(ctx, pluginID, status); err != nil {
+		return err
+	}
+	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
 	}
 	if status == catalog.StatusEnabled {

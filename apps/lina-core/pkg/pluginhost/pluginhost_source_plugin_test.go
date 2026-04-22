@@ -53,7 +53,9 @@ func TestCallbackInputContractsUseInterfaces(t *testing.T) {
 	assertInterfaceType(t, (*HookPayload)(nil), "HookPayload")
 	assertInterfaceType(t, (*AfterAuthInput)(nil), "AfterAuthInput")
 	assertInterfaceType(t, (*SourcePluginUninstallInput)(nil), "SourcePluginUninstallInput")
+	assertInterfaceType(t, (*HTTPRegistrar)(nil), "HTTPRegistrar")
 	assertInterfaceType(t, (*RouteRegistrar)(nil), "RouteRegistrar")
+	assertInterfaceType(t, (*GlobalMiddlewareRegistrar)(nil), "GlobalMiddlewareRegistrar")
 	assertInterfaceType(t, (*CronRegistrar)(nil), "CronRegistrar")
 	assertInterfaceType(t, (*MenuDescriptor)(nil), "MenuDescriptor")
 	assertInterfaceType(t, (*PermissionDescriptor)(nil), "PermissionDescriptor")
@@ -92,7 +94,7 @@ func TestRegisterRoutesRejectsAsyncMode(t *testing.T) {
 	plugin.RegisterRoutes(
 		ExtensionPointHTTPRouteRegister,
 		CallbackExecutionModeAsync,
-		func(ctx context.Context, registrar RouteRegistrar) error {
+		func(ctx context.Context, registrar HTTPRegistrar) error {
 			return nil
 		},
 	)
