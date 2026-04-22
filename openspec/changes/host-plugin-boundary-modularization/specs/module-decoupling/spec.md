@@ -87,7 +87,7 @@
 - **AND** 生成结果落在该插件本地的 `internal/dao`、`internal/model/do` 与 `internal/model/entity`
 
 #### Scenario: 插件服务访问插件自有表或共享读表
-- **WHEN** `org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 或 `plugin-demo-source` 的后端 service 访问数据库
+- **WHEN** `org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 或 `plugin-demo-source` 的 `backend/internal/service/` 访问数据库
 - **THEN** 插件 service 使用该插件本地生成的 `dao/do/entity`
 - **AND** 对 `sys_user`、`sys_dict_data` 等共享读表的访问也通过插件本地生成工件完成
 - **AND** 插件后端不直接依赖宿主 `dao/model` 包

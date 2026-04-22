@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-plugin-demo-source/backend/api/demo/v1"
-	demosvc "lina-plugin-demo-source/backend/service/demo"
+	demosvc "lina-plugin-demo-source/backend/internal/service/demo"
 )
 
 // CreateRecord creates one demo record with an optional attachment.

@@ -4,7 +4,7 @@ package operlog
 import (
 	operlogapi "lina-plugin-monitor-operlog/backend/api/operlog"
 	v1 "lina-plugin-monitor-operlog/backend/api/operlog/v1"
-	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
+	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
 
 // ControllerV1 is the operation-log controller.

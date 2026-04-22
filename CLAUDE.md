@@ -37,6 +37,22 @@ apps/                → MonoRepo项目目录
     apps/web-antd/   → 默认管理工作台应用（Ant Design Vue）
     packages/        → 共享库（@core, effects, stores, utils 等）
   lina-plugins/      → 插件样例与插件开发参考入口
+    <plugin-id>/     → 源码插件目录（统一结构）
+      backend/       → 插件后端入口与实现
+        api/         → 插件 API DTO 与路由接口定义
+        internal/    → 插件后端内部实现
+          controller/ → HTTP控制器
+          service/    → 业务逻辑层
+          dao/        → 数据访问层（gf gen dao 自动生成，按需生成）
+          model/      → 数据模型（按需生成）
+            do/       → 数据操作对象（自动生成）
+            entity/   → 数据库实体（自动生成）
+        hack/        → 插件 codegen 与开发配置（如 hack/config.yaml）
+        plugin.go    → 插件后端注册入口
+      frontend/      → 插件前端页面与资源
+      manifest/      → 插件安装/卸载与交付资源
+      plugin.yaml    → 插件清单
+      plugin_embed.go → 插件嵌入资源入口
 hack/                → 项目脚本及测试用例文件
   tests/             → E2E 测试（Playwright）
     e2e/             → 测试用例文件
@@ -143,6 +159,14 @@ pnpm report            # 查看 HTML 报告
 ### 模块功能设计规范
 
 1. 业务模块的枚举值都应当使用字典模块维护其对应的字典类型和字典数据，而不是在代码中硬编码枚举值。比如：操作日志中的操作类型、操作结果，登录日志中的登录状态、文件管理的业务场景等都应该使用字典类型进行维护。
+
+### 源码插件目录结构规范
+
+1. 所有源码插件统一放在 `apps/lina-plugins/<plugin-id>/` 下，并且必须同时维护 `plugin.yaml`、`plugin_embed.go`、`backend/`、`frontend/` 与 `manifest/`。
+2. 源码插件后端统一采用 `backend/api/`、`backend/plugin.go`、`backend/internal/controller/`、`backend/internal/service/` 的结构；**禁止**再将业务 `service` 目录直接放在 `backend/service/` 下。
+3. 插件若需要数据库访问，必须在插件自己的 `backend/` 下维护 `hack/config.yaml`，并将 `gf gen dao` 生成结果放在 `backend/internal/dao/` 与 `backend/internal/model/{do,entity}/`；禁止重新依赖宿主的 `dao/do/entity` 工件。
+4. 只有实现宿主稳定能力接缝的 provider/adapter 才允许放在 `backend/provider/` 等非 `internal` 目录中；插件业务编排、领域逻辑和中间件实现仍必须收敛到 `backend/internal/service/`。
+5. 插件前端页面统一放在 `frontend/pages/`，安装 SQL 放在 `manifest/sql/`，卸载 SQL 放在 `manifest/sql/uninstall/`；不得把插件生命周期资源回流到宿主目录中。
 
 ### 模块解耦设计原则
 

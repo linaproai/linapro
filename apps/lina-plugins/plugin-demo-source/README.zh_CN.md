@@ -7,9 +7,22 @@
 ```text
 plugin-demo-source/
   plugin.yaml
+  plugin_embed.go
   backend/
+    api/
+    internal/
+      controller/
+      service/
+      dao/
+      model/do/
+      model/entity/
+    hack/config.yaml
+    plugin.go
   frontend/
+    pages/
   manifest/
+    sql/
+    sql/uninstall/
 ```
 
 ## 样例覆盖点
@@ -28,7 +41,8 @@ plugin-demo-source/
 ## 后端接入
 
 - 在 `backend/` 中实现插件后端入口
-- 将业务逻辑保留在 `backend/service/` 下
+- 将业务逻辑保留在 `backend/internal/service/` 下
+- 插件访问数据库时，将本地 ORM 生成工件维护在 `backend/internal/dao` 与 `backend/internal/model/{do,entity}` 下
 - 通过宿主构建使用的源码插件注册入口显式接线安装、启用、禁用和卸载生命周期
 - 将插件自有清理逻辑保留在插件服务中，便于在卸载 `SQL` 删除表之前按需清理附件文件
 

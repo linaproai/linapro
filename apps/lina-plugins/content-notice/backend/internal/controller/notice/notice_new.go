@@ -7,7 +7,7 @@ package notice
 import (
 	noticeapi "lina-plugin-content-notice/backend/api/notice"
 	v1 "lina-plugin-content-notice/backend/api/notice/v1"
-	noticesvc "lina-plugin-content-notice/backend/service/notice"
+	noticesvc "lina-plugin-content-notice/backend/internal/service/notice"
 )
 
 // ControllerV1 is the notice controller.

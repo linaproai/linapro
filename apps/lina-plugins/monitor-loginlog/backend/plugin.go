@@ -7,7 +7,7 @@ import (
 	"lina-core/pkg/pluginhost"
 	monitorloginlogplugin "lina-plugin-monitor-loginlog"
 	loginlogcontroller "lina-plugin-monitor-loginlog/backend/internal/controller/loginlog"
-	loginlogsvc "lina-plugin-monitor-loginlog/backend/service/loginlog"
+	loginlogsvc "lina-plugin-monitor-loginlog/backend/internal/service/loginlog"
 )
 
 // monitor-loginlog plugin constants.

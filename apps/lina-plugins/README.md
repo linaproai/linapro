@@ -27,14 +27,26 @@ Each official plugin has its own directory and follows the same baseline structu
 
 ```text
 apps/lina-plugins/<plugin-id>/
-  backend/              Plugin backend entry and hook/resource declarations
-  frontend/pages/       Plugin page wrappers mounted by host menus
-  manifest/sql/         Plugin-owned install and uninstall SQL assets
+  backend/
+    api/                Plugin API DTOs and route contracts
+    internal/
+      controller/       Plugin HTTP controllers
+      service/          Plugin business services
+      dao/              Plugin-local generated DAO objects when database access exists
+      model/do/         Plugin-local generated DO objects when database access exists
+      model/entity/     Plugin-local generated entity objects when database access exists
+    hack/config.yaml    Plugin-local GoFrame codegen config
+    plugin.go           Plugin backend registration entry
+  frontend/pages/       Plugin pages mounted by host menus
+  manifest/sql/         Plugin-owned install SQL assets
+  manifest/sql/uninstall/ Plugin-owned uninstall SQL assets
   plugin.yaml           Plugin manifest
   plugin_embed.go       Embedded asset registration
   README.md             English plugin guide
   README.zh_CN.md       Chinese plugin guide
 ```
+
+`backend/internal/service/` is the only valid location for plugin service components. Do not create `backend/service/`.
 
 ## Host and Plugin Boundary
 
@@ -51,7 +63,7 @@ The host and source plugins are intentionally decoupled through stable seams ins
 1. Create `apps/lina-plugins/<plugin-id>/`.
 2. Follow the structure used by `plugin-demo-source/`.
 3. Declare metadata, menus, frontend pages, SQL assets, and optional hooks in `plugin.yaml`.
-4. Keep plugin-owned backend code inside the plugin directory and depend only on published host packages.
+4. Keep plugin-owned backend code inside the plugin directory, place service logic under `backend/internal/service/`, and depend only on published host packages.
 5. Register the plugin explicitly in `apps/lina-plugins/lina-plugins.go`.
 
 ## Dynamic Plugin Notes

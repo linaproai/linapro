@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"lina-plugin-demo-source/backend/api/demo/v1"
-	demosvc "lina-plugin-demo-source/backend/service/demo"
+	demosvc "lina-plugin-demo-source/backend/internal/service/demo"
 )
 
 // ListRecords returns one paged record list for the source-plugin CRUD page.

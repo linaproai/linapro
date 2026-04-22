@@ -7,9 +7,22 @@
 ```text
 plugin-demo-source/
   plugin.yaml
+  plugin_embed.go
   backend/
+    api/
+    internal/
+      controller/
+      service/
+      dao/
+      model/do/
+      model/entity/
+    hack/config.yaml
+    plugin.go
   frontend/
+    pages/
   manifest/
+    sql/
+    sql/uninstall/
 ```
 
 ## What This Sample Demonstrates
@@ -28,7 +41,8 @@ plugin-demo-source/
 ## Backend Integration
 
 - implement backend entry points under `backend/`
-- keep service logic under `backend/service/`
+- keep service logic under `backend/internal/service/`
+- keep plugin-local ORM codegen output under `backend/internal/dao` and `backend/internal/model/{do,entity}` when the plugin accesses database tables
 - register install, enable, disable, and uninstall lifecycle hooks through the source-plugin registration entry used by the host build
 - keep plugin-owned cleanup logic in the plugin service so uninstall can optionally purge files before uninstall SQL drops the table
 

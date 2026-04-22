@@ -4,7 +4,7 @@ import (
 	"context"
 
 	v1 "lina-plugin-monitor-online/backend/api/monitor/v1"
-	monitorsvc "lina-plugin-monitor-online/backend/service/monitor"
+	monitorsvc "lina-plugin-monitor-online/backend/internal/service/monitor"
 )
 
 // OnlineList queries the online-user list through the published host session seam.

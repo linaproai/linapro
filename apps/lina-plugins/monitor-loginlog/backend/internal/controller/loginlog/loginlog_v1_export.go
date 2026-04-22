@@ -6,7 +6,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	v1 "lina-plugin-monitor-loginlog/backend/api/loginlog/v1"
-	loginlogsvc "lina-plugin-monitor-loginlog/backend/service/loginlog"
+	loginlogsvc "lina-plugin-monitor-loginlog/backend/internal/service/loginlog"
 )
 
 // Export exports login logs.

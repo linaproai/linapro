@@ -14,7 +14,7 @@ import (
 
 	"lina-core/pkg/logger"
 	hostaudit "lina-core/pkg/pluginservice/audit"
-	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
+	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
 
 // maxParamLen bounds serialized request and response snippets captured by operation logs.

@@ -4,7 +4,7 @@ package loginlog
 import (
 	loginlogapi "lina-plugin-monitor-loginlog/backend/api/loginlog"
 	v1 "lina-plugin-monitor-loginlog/backend/api/loginlog/v1"
-	loginlogsvc "lina-plugin-monitor-loginlog/backend/service/loginlog"
+	loginlogsvc "lina-plugin-monitor-loginlog/backend/internal/service/loginlog"
 )
 
 // ControllerV1 is the login-log controller.

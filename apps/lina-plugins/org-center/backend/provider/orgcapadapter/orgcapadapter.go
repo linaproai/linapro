@@ -12,8 +12,8 @@ import (
 	"lina-plugin-org-center/backend/internal/dao"
 	"lina-plugin-org-center/backend/internal/model/do"
 	entitymodel "lina-plugin-org-center/backend/internal/model/entity"
-	deptsvc "lina-plugin-org-center/backend/service/dept"
-	postsvc "lina-plugin-org-center/backend/service/post"
+	deptsvc "lina-plugin-org-center/backend/internal/service/dept"
+	postsvc "lina-plugin-org-center/backend/internal/service/post"
 )
 
 const (

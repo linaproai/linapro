@@ -6,7 +6,7 @@ package demo
 
 import (
 	demoapi "lina-plugin-demo-source/backend/api/demo"
-	demosvc "lina-plugin-demo-source/backend/service/demo"
+	demosvc "lina-plugin-demo-source/backend/internal/service/demo"
 )
 
 // ControllerV1 is the plugin-demo-source controller.

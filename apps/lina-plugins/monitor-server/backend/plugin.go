@@ -9,7 +9,7 @@ import (
 	configsvc "lina-core/pkg/pluginservice/config"
 	monitorserverplugin "lina-plugin-monitor-server"
 	servercontroller "lina-plugin-monitor-server/backend/internal/controller/monitor"
-	monitorsvc "lina-plugin-monitor-server/backend/service/monitor"
+	monitorsvc "lina-plugin-monitor-server/backend/internal/service/monitor"
 )
 
 // monitor-server plugin constants.

@@ -38,3 +38,25 @@
 - **WHEN** 上述官方源码插件在其顶层菜单声明中使用了与约定不一致的 `parent_key`
 - **THEN** 宿主拒绝同步该插件菜单
 - **AND** 向管理员提供可诊断的挂载校验错误
+
+### Requirement: 源码插件后端目录结构必须收敛到 backend/internal
+
+系统 SHALL 要求源码插件将后端业务实现收敛在 `backend/internal/` 下，避免在 `backend/` 根目录直接暴露业务服务目录，保证插件私有实现边界清晰且与宿主约定一致。
+
+#### Scenario: 规划源码插件标准目录
+- **WHEN** 团队创建或重构一个源码插件
+- **THEN** 插件后端至少按 `backend/api/`、`backend/plugin.go`、`backend/internal/controller/`、`backend/internal/service/` 组织
+- **AND** 插件前端页面保留在 `frontend/pages/`
+- **AND** 插件清单与嵌入资源保留在 `plugin.yaml`、`plugin_embed.go`、`manifest/sql/` 与 `manifest/sql/uninstall/`
+
+#### Scenario: 放置插件 service 组件
+- **WHEN** 团队为源码插件新增或迁移业务服务
+- **THEN** 所有 service 组件 MUST 放在 `backend/internal/service/<component>/`
+- **AND** 不得再创建 `backend/service/<component>/`
+- **AND** `backend/provider/` 等非 `internal` 目录仅用于稳定 capability provider / adapter，不承载主要业务编排
+
+#### Scenario: 插件需要本地 ORM 工件
+- **WHEN** 源码插件需要访问数据库
+- **THEN** `backend/hack/config.yaml` 作为该插件本地 `gf gen dao` 配置入口
+- **AND** 生成结果落在 `backend/internal/dao/`、`backend/internal/model/do/` 与 `backend/internal/model/entity/`
+- **AND** 对宿主共享表的访问也继续沿用该插件本地生成工件

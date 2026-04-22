@@ -6,7 +6,7 @@ import (
 	"context"
 
 	v1 "lina-plugin-org-center/backend/api/dept/v1"
-	deptsvc "lina-plugin-org-center/backend/service/dept"
+	deptsvc "lina-plugin-org-center/backend/internal/service/dept"
 )
 
 // Create creates a new department.

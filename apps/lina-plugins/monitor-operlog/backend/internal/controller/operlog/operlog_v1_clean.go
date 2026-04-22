@@ -4,7 +4,7 @@ import (
 	"context"
 
 	v1 "lina-plugin-monitor-operlog/backend/api/operlog/v1"
-	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
+	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
 
 // Clean clears operation logs.

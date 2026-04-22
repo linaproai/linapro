@@ -27,14 +27,26 @@
 
 ```text
 apps/lina-plugins/<plugin-id>/
-  backend/              插件后端入口与 Hook/资源声明
-  frontend/pages/       由宿主菜单挂载的插件页面包装层
-  manifest/sql/         插件自有的安装/卸载 SQL 资源
+  backend/
+    api/                插件 API DTO 与路由契约
+    internal/
+      controller/       插件 HTTP 控制器
+      service/          插件业务服务
+      dao/              插件存在数据库访问时生成的本地 DAO 工件
+      model/do/         插件存在数据库访问时生成的本地 DO 工件
+      model/entity/     插件存在数据库访问时生成的本地实体工件
+    hack/config.yaml    插件本地 GoFrame codegen 配置
+    plugin.go           插件后端注册入口
+  frontend/pages/       由宿主菜单挂载的插件页面
+  manifest/sql/         插件自有安装 SQL 资源
+  manifest/sql/uninstall/ 插件自有卸载 SQL 资源
   plugin.yaml           插件清单
   plugin_embed.go       嵌入资源注册入口
   README.md             英文说明
   README.zh_CN.md       中文说明
 ```
+
+`backend/internal/service/` 是源码插件业务 `service` 的唯一合法目录，禁止再创建 `backend/service/`。
 
 ## 宿主与插件边界
 
@@ -51,7 +63,7 @@ apps/lina-plugins/<plugin-id>/
 1. 创建 `apps/lina-plugins/<plugin-id>/`。
 2. 参考 `plugin-demo-source/` 的目录结构。
 3. 在 `plugin.yaml` 中声明清单、菜单、页面、SQL 资源与可选 Hook。
-4. 插件后端代码保留在插件目录中，只依赖宿主公开包。
+4. 插件后端代码保留在插件目录中，业务逻辑统一放在 `backend/internal/service/` 下，并且只依赖宿主公开包。
 5. 在 `apps/lina-plugins/lina-plugins.go` 中做显式接线。
 
 ## 动态插件说明

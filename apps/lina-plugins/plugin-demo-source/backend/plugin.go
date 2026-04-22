@@ -7,7 +7,7 @@ import (
 	"lina-core/pkg/pluginhost"
 	plugindemosource "lina-plugin-demo-source"
 	democtrl "lina-plugin-demo-source/backend/internal/controller/demo"
-	demosvc "lina-plugin-demo-source/backend/service/demo"
+	demosvc "lina-plugin-demo-source/backend/internal/service/demo"
 )
 
 // Source demo plugin constants.

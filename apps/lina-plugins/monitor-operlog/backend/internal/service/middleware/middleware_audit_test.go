@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
+	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
 
 // TestSanitizeOperLogParamMasksNestedSensitiveFields verifies password fields

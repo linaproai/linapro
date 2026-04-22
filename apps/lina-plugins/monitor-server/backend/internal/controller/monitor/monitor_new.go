@@ -3,7 +3,7 @@ package monitor
 
 import (
 	monitorapi "lina-plugin-monitor-server/backend/api/monitor"
-	monitorsvc "lina-plugin-monitor-server/backend/service/monitor"
+	monitorsvc "lina-plugin-monitor-server/backend/internal/service/monitor"
 )
 
 // ControllerV1 is the server-monitor controller.

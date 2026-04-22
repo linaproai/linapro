@@ -7,8 +7,8 @@ import (
 	"lina-core/pkg/pluginhost"
 	monitoroperlogplugin "lina-plugin-monitor-operlog"
 	operlogcontroller "lina-plugin-monitor-operlog/backend/internal/controller/operlog"
-	middlewaresvc "lina-plugin-monitor-operlog/backend/service/middleware"
-	operlogsvc "lina-plugin-monitor-operlog/backend/service/operlog"
+	middlewaresvc "lina-plugin-monitor-operlog/backend/internal/service/middleware"
+	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
 
 // monitor-operlog plugin constants.

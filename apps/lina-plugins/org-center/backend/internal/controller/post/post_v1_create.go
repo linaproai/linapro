@@ -6,7 +6,7 @@ import (
 	"context"
 
 	v1 "lina-plugin-org-center/backend/api/post/v1"
-	postsvc "lina-plugin-org-center/backend/service/post"
+	postsvc "lina-plugin-org-center/backend/internal/service/post"
 )
 
 // Create creates a post.
