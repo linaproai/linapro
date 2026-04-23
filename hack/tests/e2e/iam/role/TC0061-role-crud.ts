@@ -2,16 +2,18 @@ import { test, expect } from '../../../fixtures/auth';
 import { RolePage } from '../../../pages/RolePage';
 
 async function expectPageHeightStable(page: any, pageName: string) {
-  const samples: number[] = [];
-
-  for (let index = 0; index < 4; index += 1) {
-    samples.push(
-      await page.evaluate(() => document.documentElement.scrollHeight),
-    );
-    if (index < 3) {
-      await page.waitForTimeout(400);
+  const samples = await page.evaluate(async () => {
+    const values: number[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      values.push(document.documentElement.scrollHeight);
+      if (index < 3) {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+      }
     }
-  }
+    return values;
+  });
 
   expect(
     Math.max(...samples) - Math.min(...samples),
@@ -54,20 +56,7 @@ test.describe('TC0061 角色管理 CRUD', () => {
     await rolePage.goto();
 
     // 点击新增按钮
-    await adminPage
-      .getByRole('button', { name: /新\s*增/ })
-      .first()
-      .click();
-
-    const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'visible', timeout: 10000 });
-
-    // Dismiss any tour overlay if present
-    const endTourBtn = adminPage.getByRole('button', { name: '结束导览' });
-    if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await endTourBtn.click();
-      await adminPage.waitForTimeout(500);
-    }
+    const drawer = await rolePage.openCreateDrawer();
 
     // 验证表单字段存在
     await expect(
@@ -115,7 +104,6 @@ test.describe('TC0061 角色管理 CRUD', () => {
         code: testRoleCode,
         sort: 999,
       });
-      await adminPage.waitForTimeout(500);
     }
 
     // 编辑角色

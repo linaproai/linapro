@@ -1,5 +1,6 @@
 import { test, expect } from '../../../fixtures/auth';
 import { UserPage } from '../../../pages/UserPage';
+import { waitForDialogReady } from '../../../support/ui';
 
 test.describe('TC0010 重置密码', () => {
   test('TC0010a: 点击更多菜单中的重置密码打开弹窗', async ({ adminPage }) => {
@@ -8,14 +9,16 @@ test.describe('TC0010 重置密码', () => {
 
     // Click "更多" dropdown on first row
     await adminPage.getByRole('button', { name: '更多' }).first().click();
-    await adminPage.waitForTimeout(300);
 
     // Click "重置密码"
-    await adminPage.getByText('重置密码').click();
+    const resetPasswordItem = adminPage.getByText('重置密码');
+    await expect(resetPasswordItem).toBeVisible();
+    await resetPasswordItem.click();
 
     // Verify the reset password dialog opens
-    const dialog = adminPage.getByRole('dialog').filter({ hasText: '重置密码' });
-    await expect(dialog).toBeVisible({ timeout: 5000 });
+    const dialog = await waitForDialogReady(
+      adminPage.getByRole('dialog').filter({ hasText: '重置密码' }),
+    );
 
     // Verify password input exists
     const passwordInput = dialog.getByPlaceholder(/请输入新的密码/);
@@ -35,13 +38,15 @@ test.describe('TC0010 重置密码', () => {
 
     // Click "更多" dropdown on first row
     await adminPage.getByRole('button', { name: '更多' }).first().click();
-    await adminPage.waitForTimeout(300);
 
     // Click "重置密码"
-    await adminPage.getByText('重置密码').click();
+    const resetPasswordItem = adminPage.getByText('重置密码');
+    await expect(resetPasswordItem).toBeVisible();
+    await resetPasswordItem.click();
 
-    const dialog = adminPage.getByRole('dialog').filter({ hasText: '重置密码' });
-    await expect(dialog).toBeVisible({ timeout: 5000 });
+    const dialog = await waitForDialogReady(
+      adminPage.getByRole('dialog').filter({ hasText: '重置密码' }),
+    );
 
     // Fill new password
     await dialog.getByPlaceholder(/请输入新的密码/).fill('NewPass12345');

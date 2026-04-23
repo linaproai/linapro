@@ -112,9 +112,6 @@ test.describe('TC0056 字典管理导出', () => {
     await dictPage.fillTypeSearchField('字典名称', '性别');
     await dictPage.clickTypeSearch();
 
-    // Wait for results to filter
-    await adminPage.waitForTimeout(500);
-
     // Click export button
     const exportBtn = adminPage.getByRole('button', { name: /导\s*出/ }).first();
     await expect(exportBtn).toBeVisible({ timeout: 10000 });

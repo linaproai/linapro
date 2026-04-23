@@ -1,14 +1,16 @@
 import type { Page } from '@playwright/test';
 
+import {
+  waitForDialogReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class FilePage {
   constructor(private page: Page) {}
 
   async goto() {
     await this.page.goto('/system/file');
-    await this.page.waitForLoadState('networkidle');
-    await this.page
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
   }
 
   /** Get the count of rows in the file list table */
@@ -32,9 +34,7 @@ export class FilePage {
     await this.page
       .getByRole('button', { name: '文件上传' })
       .click();
-    await this.page
-      .locator('[role="dialog"]')
-      .waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.page.locator('[role="dialog"]'));
   }
 
   /** Click the image upload button to open upload modal */
@@ -42,9 +42,7 @@ export class FilePage {
     await this.page
       .getByRole('button', { name: '图片上传' })
       .click();
-    await this.page
-      .locator('[role="dialog"]')
-      .waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.page.locator('[role="dialog"]'));
   }
 
   /** Delete a file row by original name */

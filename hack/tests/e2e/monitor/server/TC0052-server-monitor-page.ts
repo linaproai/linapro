@@ -1,5 +1,6 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import { waitForRouteReady } from '../../../support/ui';
 
 test.describe('TC0052 服务监控页面展示', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -16,7 +17,7 @@ test.describe('TC0052 服务监控页面展示', () => {
     );
     await adminPage.goto('/monitor/server');
     await responsePromise;
-    await adminPage.waitForTimeout(1000);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0052a: 服务信息在节点展开内容中展示', async ({ adminPage }) => {
@@ -82,20 +83,19 @@ test.describe('TC0052 服务监控页面展示', () => {
     // Nodes should be expanded by default - CPU should be visible
     await expect(adminPage.getByText('CPU').first()).toBeVisible();
 
-    // Get the first node's content area (contains CPU info)
-    const firstNodeContent = adminPage.locator('.cursor-pointer').first().locator('..').locator('.grid');
-
     // Click node header to collapse
     const nodeHeader = adminPage
       .locator('.cursor-pointer')
       .filter({ hasText: /\(/ })
       .first();
+    const firstNodeContent = nodeHeader.locator('xpath=following-sibling::div[1]');
+    await expect(firstNodeContent).toBeVisible();
     await nodeHeader.click();
-    await adminPage.waitForTimeout(500);
+    await expect(firstNodeContent).toBeHidden();
 
     // Click again to expand
     await nodeHeader.click();
-    await adminPage.waitForTimeout(500);
+    await expect(firstNodeContent).toBeVisible();
 
     // CPU should be visible again after expand
     await expect(adminPage.getByText('CPU').first()).toBeVisible();

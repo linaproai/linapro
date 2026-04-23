@@ -1,5 +1,6 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import { waitForRouteReady } from '../../../support/ui';
 
 test.describe('TC0049 在线用户列表展示', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -16,7 +17,7 @@ test.describe('TC0049 在线用户列表展示', () => {
     );
     await adminPage.goto('/monitor/online');
     await responsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0049a: 在线用户页面加载并展示表格', async ({ adminPage }) => {

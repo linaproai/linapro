@@ -134,10 +134,18 @@ test.describe('TC-99 宿主与监控插件边界回归', () => {
         assertOk(userInfoResponse, 'monitor-online 缺失时 user/info 鉴权失败');
 
         expireOnlineSession(session.tokenId);
-        await adminPage.waitForTimeout(300);
-
-        const expiredResponse = await session.api.get('user/info');
-        expect(expiredResponse.status()).toBe(401);
+        await expect
+          .poll(
+            async () => {
+              const expiredResponse = await session.api.get('user/info');
+              return expiredResponse.status();
+            },
+            {
+              intervals: [100, 200, 500, 1000],
+              timeout: 5000,
+            },
+          )
+          .toBe(401);
       } finally {
         await session.api.dispose();
       }

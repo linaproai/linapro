@@ -1,6 +1,7 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
 import { NoticePage } from '../../../pages/NoticePage';
+import { waitForDropdown } from '../../../support/ui';
 
 test.describe('TC0038 通知公告搜索筛选', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -23,8 +24,8 @@ test.describe('TC0038 通知公告搜索筛选', () => {
 
     // Select type filter
     await adminPage.getByLabel('公告类型', { exact: true }).first().click();
-    await adminPage.waitForTimeout(300);
-    await adminPage.getByTitle('通知').click();
+    const dropdown = await waitForDropdown(adminPage);
+    await dropdown.getByText('通知', { exact: true }).click();
     await noticePage.clickSearch();
 
     // Results should only contain type=通知

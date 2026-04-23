@@ -1,5 +1,9 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  waitForConfirmOverlay,
+  waitForRouteReady,
+} from '../../../support/ui';
 
 test.describe('TC0051 在线用户强制下线', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -16,7 +20,7 @@ test.describe('TC0051 在线用户强制下线', () => {
     );
     await adminPage.goto('/monitor/online');
     await responsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0051a: 强制下线按钮显示确认弹窗', async ({ adminPage }) => {
@@ -43,11 +47,12 @@ test.describe('TC0051 在线用户强制下线', () => {
       .click();
 
     // Cancel the popconfirm
+    const overlay = await waitForConfirmOverlay(adminPage);
     const cancelBtn = adminPage.getByRole('button', { name: /取\s*消/ }).or(
       adminPage.locator('.ant-popconfirm .ant-btn:not(.ant-btn-primary)'),
     );
     await cancelBtn.first().click();
-    await adminPage.waitForTimeout(500);
+    await overlay.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
     // Row count should remain the same
     const rowsAfter = await adminPage.locator('.vxe-body--row').count();

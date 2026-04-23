@@ -19,9 +19,6 @@ test.describe('TC0017 岗位按部门过滤', () => {
 
     // After selecting a dept, the grid should reload with filtered results
     // Verify the request includes deptId by checking the grid reloaded
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
-
     // The table should have rendered (may have fewer or equal rows)
     const filteredCount = await postPage.getTotalCount();
     // Filtered count should be <= initial count (or 0 if no posts in that dept)
@@ -34,7 +31,6 @@ test.describe('TC0017 岗位按部门过滤', () => {
 
     // Select a dept first
     await postPage.selectDept('研发部门');
-    await adminPage.waitForTimeout(500);
 
     // Click reset to clear dept selection and show all
     await postPage.clickReset();

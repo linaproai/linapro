@@ -773,9 +773,24 @@ export class PluginPage {
     await descriptionCell.hover();
     await expect(this.vxeTooltip()).toHaveCount(0);
     await expect(this.antTooltip()).toHaveCount(0);
-    await this.page.waitForTimeout(5000);
-    await expect(this.vxeTooltip()).toHaveCount(0);
-    await expect(this.antTooltip()).toHaveCount(0);
+    const [vxeTooltipAppeared, antTooltipAppeared] = await Promise.all([
+      this.vxeTooltip()
+        .waitFor({ state: "visible", timeout: 5000 })
+        .then(() => true)
+        .catch(() => false),
+      this.antTooltip()
+        .waitFor({ state: "visible", timeout: 5000 })
+        .then(() => true)
+        .catch(() => false),
+    ]);
+    expect(
+      vxeTooltipAppeared,
+      "描述列悬浮后不应回退到 VXE 浮层提示",
+    ).toBeFalsy();
+    expect(
+      antTooltipAppeared,
+      "描述列悬浮后不应额外弹出 Ant Design Tooltip",
+    ).toBeFalsy();
     const delayedTitleCount = await this.page
       .locator("[title]")
       .evaluateAll((elements, text) => {

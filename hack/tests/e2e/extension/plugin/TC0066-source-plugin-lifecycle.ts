@@ -340,6 +340,33 @@ async function loginAsAdmin(page: Page) {
   await loginPage.loginAndWaitForRedirect(config.adminUser, config.adminPass);
 }
 
+async function waitForCounterStable(
+  readCounter: () => number,
+  stableMs: number,
+) {
+  let lastValue = readCounter();
+  let lastChangedAt = Date.now();
+
+  await expect
+    .poll(
+      () => {
+        const currentValue = readCounter();
+        if (currentValue !== lastValue) {
+          lastValue = currentValue;
+          lastChangedAt = Date.now();
+        }
+        return Date.now() - lastChangedAt;
+      },
+      {
+        timeout: stableMs + 2000,
+        intervals: [100, 100, 200, 200, 500],
+      },
+    )
+    .toBeGreaterThanOrEqual(stableMs);
+
+  return lastValue;
+}
+
 test.describe("TC-66 源码插件生命周期", () => {
   let adminApi: APIRequestContext | null = null;
 
@@ -714,12 +741,6 @@ test.describe("TC-66 源码插件生命周期", () => {
   }) => {
     await installAndEnablePlugin(adminApi!);
 
-    await loginAsAdmin(page);
-    const pluginPage = new PluginPage(page);
-    await pluginPage.gotoManage();
-    await pluginPage.expectSidebarMenuVisible(pluginMenuName);
-    await page.waitForTimeout(1200);
-
     const menuResponses: string[] = [];
     page.on("response", (response) => {
       if (
@@ -730,17 +751,29 @@ test.describe("TC-66 源码插件生命周期", () => {
       }
     });
 
+    await loginAsAdmin(page);
+    const pluginPage = new PluginPage(page);
+    await pluginPage.gotoManage();
+    await pluginPage.expectSidebarMenuVisible(pluginMenuName);
+    const baselineMenuResponseCount = await waitForCounterStable(
+      () => menuResponses.length,
+      1200,
+    );
+
     await page.evaluate(() => {
       window.dispatchEvent(new Event("focus"));
       document.dispatchEvent(new Event("visibilitychange"));
     });
 
-    await page.waitForTimeout(1200);
+    const focusMenuResponseCount = await waitForCounterStable(
+      () => menuResponses.length,
+      1200,
+    );
     await pluginPage.expectSidebarMenuVisible(pluginMenuName);
     expect(
-      menuResponses,
+      focusMenuResponseCount,
       "插件状态未变化时，焦点恢复不应重复拉取菜单",
-    ).toHaveLength(0);
+    ).toBe(baselineMenuResponseCount);
   });
 
   test("TC-66m: 登录后打开插件管理页时公共插件状态接口不重复重查", async ({
@@ -762,10 +795,13 @@ test.describe("TC-66 源码插件生命周期", () => {
     const pluginPage = new PluginPage(page);
     await pluginPage.gotoManage();
     await pluginPage.expectSidebarMenuVisible(pluginMenuName);
-    await page.waitForTimeout(1500);
+    const runtimeStateResponseCount = await waitForCounterStable(
+      () => runtimeStateResponses.length,
+      1500,
+    );
 
     expect(
-      runtimeStateResponses.length,
+      runtimeStateResponseCount,
       "登录并打开插件管理页时，公共插件状态接口不应重复触发多次",
     ).toBeLessThanOrEqual(2);
   });

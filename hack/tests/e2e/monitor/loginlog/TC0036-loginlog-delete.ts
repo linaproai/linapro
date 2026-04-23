@@ -1,5 +1,10 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  waitForConfirmOverlay,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../../../support/ui';
 
 test.describe('TC0036 登录日志批量删除', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -8,8 +13,7 @@ test.describe('TC0036 登录日志批量删除', () => {
 
   test('TC0036a: 删除按钮在未勾选记录时置灰', async ({ adminPage }) => {
     await adminPage.goto('/monitor/loginlog');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
+    await waitForTableReady(adminPage);
 
     const deleteBtn = adminPage.getByRole('button', { name: /删\s*除/ });
     await expect(deleteBtn).toBeDisabled();
@@ -17,8 +21,7 @@ test.describe('TC0036 登录日志批量删除', () => {
 
   test('TC0036b: 勾选记录后删除按钮可点击并执行删除', async ({ adminPage }) => {
     await adminPage.goto('/monitor/loginlog');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
+    await waitForTableReady(adminPage);
 
     // Click the first row checkbox
     const firstCheckbox = adminPage.locator('.vxe-table--body .vxe-checkbox--icon').first();
@@ -30,13 +33,12 @@ test.describe('TC0036 登录日志批量删除', () => {
 
     // Click delete, expect confirmation modal
     await deleteBtn.click();
-    const modal = adminPage.locator('.ant-modal-confirm');
-    await expect(modal).toBeVisible();
+    const modal = await waitForConfirmOverlay(adminPage);
     await expect(modal).toContainText('确认删除');
 
     // Confirm delete
     const okBtn = modal.getByRole('button', { name: /确\s*定/ });
     await okBtn.click();
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 });

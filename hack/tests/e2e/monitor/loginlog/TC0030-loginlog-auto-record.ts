@@ -2,6 +2,7 @@ import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
 import { LoginPage } from '../../../pages/LoginPage';
 import { config } from '../../../fixtures/config';
+import { waitForRouteReady } from '../../../support/ui';
 
 test.describe('TC0030 登录日志自动记录', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -10,9 +11,16 @@ test.describe('TC0030 登录日志自动记录', () => {
 
   test('TC0030a: 登录成功后登录日志中记录成功日志', async ({ adminPage }) => {
     // The adminPage fixture already logged in, so a login log should exist
+    const responsePromise = adminPage.waitForResponse(
+      (res) =>
+        res.url().includes('/api/v1/loginlog') &&
+        res.request().method() === 'GET' &&
+        res.status() === 200,
+      { timeout: 15000 },
+    );
     await adminPage.goto('/monitor/loginlog');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(1000);
+    await responsePromise;
+    await waitForRouteReady(adminPage);
 
     // Should see at least one login log row
     const rows = adminPage.locator('.vxe-body--row');
@@ -39,9 +47,16 @@ test.describe('TC0030 登录日志自动记录', () => {
       await loginPage.loginAndWaitForRedirect(config.adminUser, config.adminPass);
 
       // Navigate to login log page.
+      const responsePromise = page.waitForResponse(
+        (res) =>
+          res.url().includes('/api/v1/loginlog') &&
+          res.request().method() === 'GET' &&
+          res.status() === 200,
+        { timeout: 15000 },
+      );
       await page.goto('/monitor/loginlog');
-      await page.waitForLoadState('networkidle');
-      await page.waitForTimeout(1000);
+      await responsePromise;
+      await waitForRouteReady(page);
 
       // Should see login logs including failure-state rows.
       const rows = page.locator('.vxe-body--row');

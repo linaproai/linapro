@@ -1,10 +1,36 @@
 import { test, expect } from '../fixtures/auth';
+import {
+  waitForBusyIndicatorsToClear,
+  waitForDialogReady,
+  waitForTableReady,
+} from '../support/ui';
+
+async function waitForCounterStable(readCounter: () => number, stableMs: number) {
+  let lastValue = readCounter();
+  let lastChangedAt = Date.now();
+
+  await expect
+    .poll(
+      () => {
+        const currentValue = readCounter();
+        if (currentValue !== lastValue) {
+          lastValue = currentValue;
+          lastChangedAt = Date.now();
+        }
+        return Date.now() - lastChangedAt;
+      },
+      {
+        timeout: stableMs + 2000,
+        intervals: [100, 100, 200, 200, 500],
+      },
+    )
+    .toBeGreaterThanOrEqual(stableMs);
+}
 
 test.describe('Debug Export', () => {
   test('debug export flow with network logging', async ({ adminPage }) => {
     await adminPage.goto('/monitor/operlog');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
+    await waitForTableReady(adminPage);
 
     // Find the export button
     const exportBtn = adminPage.getByRole('button', { name: /导\s*出/ });
@@ -12,6 +38,7 @@ test.describe('Debug Export', () => {
 
     // Set up network listener before clicking
     const exportRequests: any[] = [];
+    const exportResponseLogs: Promise<void>[] = [];
     adminPage.on('request', (request) => {
       if (request.url().includes('export')) {
         console.log('REQUEST:', request.method(), request.url());
@@ -19,32 +46,35 @@ test.describe('Debug Export', () => {
       }
     });
 
-    adminPage.on('response', async (response) => {
+    adminPage.on('response', (response) => {
       if (response.url().includes('export')) {
-        console.log('RESPONSE:', response.status(), response.url());
-        console.log('CONTENT-TYPE:', response.headers()['content-type']);
-        try {
-          const body = await response.body();
-          console.log('BODY LENGTH:', body.length);
-          console.log('BODY FIRST 100 BYTES:', body.slice(0, 100));
-        } catch (e) {
-          console.log('ERROR reading body:', e);
-        }
+        exportResponseLogs.push((async () => {
+          console.log('RESPONSE:', response.status(), response.url());
+          console.log('CONTENT-TYPE:', response.headers()['content-type']);
+          try {
+            const body = await response.body();
+            console.log('BODY LENGTH:', body.length);
+            console.log('BODY FIRST 100 BYTES:', body.slice(0, 100));
+          } catch (e) {
+            console.log('ERROR reading body:', e);
+          }
+        })());
       }
     });
 
     // Click export button
     await exportBtn.click();
-    await adminPage.waitForTimeout(500);
 
     // Check if modal appeared
-    const modalContent = adminPage.locator('.ant-modal-content');
-    const modalVisible = await modalContent.isVisible().catch(() => false);
+    const modalContent = await waitForDialogReady(adminPage.locator('.ant-modal-wrap'))
+      .then((dialog) => dialog.locator('.ant-modal-content').first())
+      .catch(() => null);
+    const modalVisible = modalContent !== null;
     console.log('MODAL VISIBLE:', modalVisible);
 
-    if (modalVisible) {
+    if (modalContent) {
       // Find confirm button in modal
-      const confirmBtn = adminPage.locator('.ant-modal-content').getByRole('button', { name: /确\s*认/ });
+      const confirmBtn = modalContent.getByRole('button', { name: /确\s*认/ });
       console.log('CONFIRM BTN COUNT:', await confirmBtn.count());
 
       if (await confirmBtn.count() > 0) {
@@ -57,17 +87,20 @@ test.describe('Debug Export', () => {
           return null;
         });
 
-        await confirmBtn.first().click();
-
-        const response = await responsePromise;
+        const response = await Promise.all([
+          responsePromise,
+          confirmBtn.first().click(),
+        ]).then(([capturedResponse]) => capturedResponse);
         if (response) {
           console.log('GOT RESPONSE:', response.status(), response.url());
           console.log('CONTENT-TYPE:', response.headers()['content-type']);
         }
+        await waitForBusyIndicatorsToClear(adminPage);
       }
     }
 
-    await adminPage.waitForTimeout(2000);
+    await waitForCounterStable(() => exportRequests.length, 500);
+    await Promise.allSettled(exportResponseLogs);
     console.log('EXPORT REQUESTS:', JSON.stringify(exportRequests, null, 2));
   });
 });

@@ -11,27 +11,7 @@ test.describe('TC0064 角色表单默认值', () => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
-    // Wait for page to be ready
-    await adminPage.waitForLoadState('load');
-    await adminPage.waitForTimeout(2000);
-
-    // Click the "新增" button
-    await adminPage
-      .getByRole('button', { name: /新\s*增/ })
-      .first()
-      .click();
-
-    // Wait for drawer to open
-    const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'visible', timeout: 10000 });
-    await adminPage.waitForTimeout(1000);
-
-    // Dismiss tour overlay if present
-    const endTourBtn = adminPage.getByRole('button', { name: '结束导览' });
-    if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await endTourBtn.click();
-      await adminPage.waitForTimeout(500);
-    }
+    const drawer = await rolePage.openCreateDrawer();
 
     // 1. 验证排序字段默认值为 0
     const sortInput = drawer.getByRole('spinbutton');

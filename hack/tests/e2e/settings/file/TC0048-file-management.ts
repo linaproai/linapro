@@ -2,6 +2,12 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { test, expect } from '../../../fixtures/auth';
 import { FilePage } from '../../../pages/FilePage';
+import {
+  waitForBusyIndicatorsToClear,
+  waitForDropdown,
+  waitForRouteReady,
+  waitForUploadReady,
+} from '../../../support/ui';
 
 test.describe('TC0048 文件管理', () => {
   // Create a temporary test file
@@ -53,11 +59,6 @@ test.describe('TC0048 文件管理', () => {
     const filePage = new FilePage(adminPage);
     await filePage.goto();
 
-    // Upload via API to avoid complex file input interaction
-    const token = await adminPage.evaluate(() => {
-      return localStorage.getItem('preferences') || '';
-    });
-
     // Use file chooser for upload
     await filePage.openFileUploadModal();
 
@@ -66,15 +67,26 @@ test.describe('TC0048 文件管理', () => {
     await modal.locator('.ant-upload-drag').click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(testFilePath);
+    await waitForUploadReady(modal);
 
     // Wait for upload success
     await expect(
       adminPage.getByText(/上传成功/),
     ).toBeVisible({ timeout: 10000 });
 
-    // Close modal via the X button (last button in dialog)
-    await modal.locator('button').last().click();
-    await adminPage.waitForTimeout(1000);
+    // 上传成功后弹窗可能自动关闭；若未关闭再手动收起。
+    const closedAutomatically = await modal
+      .waitFor({ state: 'hidden', timeout: 2000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!closedAutomatically) {
+      const closeButton = modal.locator('.ant-modal-close').first();
+      if (await closeButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+        await closeButton.click();
+      }
+      await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    }
+    await filePage.goto();
 
     // Verify file appears in the list
     const hasFile = await filePage.hasFile(testFileName);
@@ -91,14 +103,13 @@ test.describe('TC0048 文件管理', () => {
     await suffixSelect.click();
 
     // Wait for dropdown and select 'png' which should exist
-    const dropdown = adminPage.locator('.ant-select-dropdown').last();
-    await expect(dropdown).toBeVisible({ timeout: 5000 });
+    const dropdown = await waitForDropdown(adminPage);
     const pngOption = dropdown.getByText('png', { exact: true });
     const hasPng = await pngOption.count();
     if (hasPng > 0) {
       await pngOption.click();
       await adminPage.getByRole('button', { name: /搜\s*索/ }).first().click();
-      await adminPage.waitForTimeout(1000);
+      await waitForRouteReady(adminPage);
 
       // All results should have png suffix
       const rowCount = await filePage.getRowCount();
@@ -285,10 +296,6 @@ test.describe('TC0048 文件管理', () => {
     const filePage = new FilePage(adminPage);
     await filePage.goto();
 
-    // Wait for the form to fully load (the scene select is populated via API)
-    // The scene field should have a label "使用场景"
-    await adminPage.waitForTimeout(2000);
-
     // Find the scene select by looking for the Ant Design select with aria-label or by form item
     // VbenForm uses form items, so we look for the select near the "使用场景" text
     const sceneLabel = adminPage.locator('label').filter({ hasText: '使用场景' });
@@ -306,8 +313,8 @@ test.describe('TC0048 文件管理', () => {
     await sceneFormItem.click();
 
     // Wait for dropdown to open and check for predefined options
-    const dropdown = adminPage.locator('.ant-select-dropdown').last();
-    await expect(dropdown).toBeVisible({ timeout: 5000 });
+    const dropdown = await waitForDropdown(adminPage);
+    await waitForBusyIndicatorsToClear(dropdown);
 
     // Should have predefined scene options
     await expect(dropdown.getByText('用户头像')).toBeVisible();

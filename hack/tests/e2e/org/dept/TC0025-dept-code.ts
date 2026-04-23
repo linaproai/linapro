@@ -63,7 +63,6 @@ test.describe('TC0025 部门编码字段', () => {
 
     // Delete test depts
     await deptPage.deleteDept(deptName);
-    await adminPage.waitForTimeout(1000);
 
     const hasDept = await deptPage.hasDept(deptName);
     expect(hasDept).toBeFalsy();

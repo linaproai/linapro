@@ -1,6 +1,11 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
 import { UserPage } from '../../../pages/UserPage';
+import {
+  waitForBusyIndicatorsToClear,
+  waitForDialogReady,
+  waitForDropdown,
+} from '../../../support/ui';
 
 test.describe('TC0020 用户表单部门岗位字段', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -17,8 +22,7 @@ test.describe('TC0020 用户表单部门岗位字段', () => {
       .click();
 
     // Wait for drawer to open
-    const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'visible', timeout: 5000 });
+    const drawer = await waitForDialogReady(adminPage.locator('[role="dialog"]'));
 
     // Verify dept TreeSelect field exists
     const deptField = drawer.getByLabel('部门', { exact: false }).first();
@@ -39,8 +43,7 @@ test.describe('TC0020 用户表单部门岗位字段', () => {
       .click();
 
     // Wait for drawer to open
-    const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'visible', timeout: 5000 });
+    const drawer = await waitForDialogReady(adminPage.locator('[role="dialog"]'));
 
     // Set up request interception for post list when dept changes
     const requestPromise = adminPage.waitForRequest(
@@ -53,17 +56,19 @@ test.describe('TC0020 用户表单部门岗位字段', () => {
     // Click on the dept TreeSelect to open it
     const deptField = drawer.getByLabel('部门', { exact: false }).first();
     await deptField.click();
-    await adminPage.waitForTimeout(300);
+    const deptDropdown = await waitForDropdown(adminPage);
 
     // Select the first available dept node in the tree dropdown
-    const deptOption = adminPage
+    const deptOption = deptDropdown
       .locator('.ant-select-tree-node-content-wrapper')
       .first();
-    await deptOption.click();
-    await adminPage.waitForTimeout(500);
+    const request = await Promise.all([
+      requestPromise,
+      deptOption.click(),
+    ]).then(([capturedRequest]) => capturedRequest);
+    await waitForBusyIndicatorsToClear(adminPage);
 
     // Verify that a post-related API request was triggered after dept selection
-    const request = await requestPromise;
     expect(request.url()).toContain('/api/v1/user/post-options');
   });
 });

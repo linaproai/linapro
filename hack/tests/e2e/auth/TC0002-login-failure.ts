@@ -16,8 +16,6 @@ test.describe('TC0002 登录失败', () => {
     await loginPage.goto();
     await loginPage.login(config.adminUser, 'wrongpassword');
 
-    // Wait a bit for any redirect attempt
-    await page.waitForTimeout(2000);
-    expect(page.url()).toContain('/auth/login');
+    await expect(page).toHaveURL(/\/auth\/login/, { timeout: 5000 });
   });
 });

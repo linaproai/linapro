@@ -57,11 +57,9 @@ test.describe('TC0015 部门管理 CRUD', () => {
 
     // 先删子部门
     await deptPage.deleteDept(subDeptRenamed);
-    await adminPage.waitForTimeout(1000);
 
     // 再删父部门
     await deptPage.deleteDept(testDeptName);
-    await adminPage.waitForTimeout(1000);
 
     const hasDept = await deptPage.hasDept(testDeptName);
     expect(hasDept).toBeFalsy();

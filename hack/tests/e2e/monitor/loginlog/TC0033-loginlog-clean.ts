@@ -1,5 +1,10 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  waitForConfirmOverlay,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../../../support/ui';
 
 test.describe('TC0033 登录日志清理', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -8,34 +13,28 @@ test.describe('TC0033 登录日志清理', () => {
 
   test('TC0033a: 点击清空按钮弹出确认对话框', async ({ adminPage }) => {
     await adminPage.goto('/monitor/loginlog');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
+    await waitForTableReady(adminPage);
 
     const cleanBtn = adminPage.getByRole('button', { name: /清\s*空/ });
     await cleanBtn.click();
-    await adminPage.waitForTimeout(300);
 
-    // Confirm modal should appear
-    const modal = adminPage.locator('.ant-modal-confirm');
-    await expect(modal).toBeVisible();
+    const modal = await waitForConfirmOverlay(adminPage);
     await expect(modal.locator('text=确认要清空所有登录日志数据吗')).toBeVisible();
 
     // Cancel to close
     const cancelBtn = modal.getByRole('button', { name: /取\s*消/ });
     await cancelBtn.click();
+    await modal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
   });
 
   test('TC0033b: 确认清空操作成功执行', async ({ adminPage }) => {
     await adminPage.goto('/monitor/loginlog');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
+    await waitForTableReady(adminPage);
 
     const cleanBtn = adminPage.getByRole('button', { name: /清\s*空/ });
     await cleanBtn.click();
-    await adminPage.waitForTimeout(300);
 
-    const modal = adminPage.locator('.ant-modal-confirm');
-    await expect(modal).toBeVisible();
+    const modal = await waitForConfirmOverlay(adminPage);
 
     // Set up response interception before clicking OK
     const responsePromise = adminPage.waitForResponse(
@@ -50,5 +49,6 @@ test.describe('TC0033 登录日志清理', () => {
 
     const response = await responsePromise;
     expect(response.status()).toBe(200);
+    await waitForRouteReady(adminPage);
   });
 });

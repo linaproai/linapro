@@ -10,12 +10,11 @@ test.describe('TC0046 用户头像下拉菜单', () => {
     // Click the user avatar/name in the header to open the dropdown
     const header = adminPage.locator('header');
     const avatarTrigger = header.locator('button').last();
+    const dropdownContent = adminPage.locator('[data-reka-menu-content]');
     await avatarTrigger.click();
-    await adminPage.waitForTimeout(500);
 
     // Scope the query to the actual user dropdown so sidebar menu items do not
     // leak into the assertion set when layout structure changes.
-    const dropdownContent = adminPage.locator('[data-reka-menu-content]');
     await expect(dropdownContent).toBeVisible();
     const menuItems = dropdownContent.locator('[role="menuitem"]');
     const count = await menuItems.count();
@@ -43,8 +42,8 @@ test.describe('TC0046 用户头像下拉菜单', () => {
     // Click the user avatar/name in the header to open the dropdown
     const header = adminPage.locator('header');
     const avatarTrigger = header.locator('button').last();
+    const dropdownContent = adminPage.locator('[data-reka-menu-content]');
     await avatarTrigger.click();
-    await adminPage.waitForTimeout(500);
 
     // Check that hardcoded "ann.vben@gmail.com" is NOT displayed anywhere
     await expect(
@@ -53,7 +52,6 @@ test.describe('TC0046 用户头像下拉菜单', () => {
 
     // admin user has nickname "管理员", so it should be displayed
     // Use the dropdown content (data-reka-menu-content) to scope
-    const dropdownContent = adminPage.locator('[data-reka-menu-content]');
     await expect(dropdownContent).toBeVisible();
     await expect(dropdownContent.getByText(/管\s*理\s*员/)).toBeVisible();
   });

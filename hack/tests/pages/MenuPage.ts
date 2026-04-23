@@ -513,21 +513,25 @@ export class MenuPage {
   ) {
     const samples: number[] = [];
 
-    for (let index = 0; index < sampleCount; index += 1) {
-      const height = await this.page.evaluate(() => {
-        return document.documentElement.scrollHeight;
-      });
-      samples.push(height);
-      if (index < sampleCount - 1) {
-        await this.page.waitForTimeout(intervalMs);
-      }
-    }
-
-    const minHeight = Math.min(...samples);
-    const maxHeight = Math.max(...samples);
-
-    if (maxHeight - minHeight > 16) {
-      throw new Error(`菜单管理页高度未稳定，采样结果: ${samples.join(", ")}`);
-    }
+    await expect.poll(
+      async () => {
+        const height = await this.page.evaluate(() => {
+          return document.documentElement.scrollHeight;
+        });
+        samples.push(height);
+        if (samples.length > sampleCount) {
+          samples.shift();
+        }
+        if (samples.length < sampleCount) {
+          return Number.MAX_SAFE_INTEGER;
+        }
+        return Math.max(...samples) - Math.min(...samples);
+      },
+      {
+        intervals: Array(sampleCount + 2).fill(intervalMs),
+        message: `菜单管理页高度未稳定，采样结果: ${samples.join(", ")}`,
+        timeout: intervalMs * (sampleCount + 3),
+      },
+    ).toBeLessThanOrEqual(16);
   }
 }

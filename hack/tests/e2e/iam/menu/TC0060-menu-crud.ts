@@ -292,12 +292,16 @@ test.describe("TC0060 菜单管理 CRUD", () => {
     const skeleton = drawer.locator(".ant-skeleton");
     await skeleton.waitFor({ state: "hidden", timeout: 10000 });
 
-    // Wait for form to be ready
-    await adminPage.waitForTimeout(1000);
+    // Wait for the tree-select field to finish async hydration before opening it.
+    await waitForBusyIndicatorsToClear(drawer);
+    await expect(drawer.locator(".ant-select").first()).toBeVisible({
+      timeout: 5000,
+    });
 
     // Find the parent menu selector and click it
     const parentSelect = drawer.locator(".ant-select").first();
-    await parentSelect.click({ force: true });
+    await parentSelect.scrollIntoViewIfNeeded();
+    await parentSelect.locator(".ant-select-selector").first().click();
 
     // The tree is rendered in a portal
     await waitForDropdown(adminPage);
