@@ -4,12 +4,19 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
+	"path"
+	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
 
+	"lina-core/internal/packed"
 	"lina-core/pkg/logger"
 )
 
@@ -20,13 +27,28 @@ type Main struct {
 
 // Sensitive command names that require explicit confirmation.
 const (
-	initCommandName    = "init"
-	mockCommandName    = "mock"
-	upgradeCommandName = "upgrade"
+	initCommandName = "init"
+	mockCommandName = "mock"
 )
 
-// hostManifestSqlDir is the canonical directory that stores host SQL delivery files.
-const hostManifestSqlDir = "manifest/sql"
+// sqlAssetSource identifies where init/mock should load SQL assets from.
+type sqlAssetSource string
+
+const (
+	// sqlAssetSourceEmbedded loads SQL assets from the packaged embedded manifest.
+	sqlAssetSourceEmbedded sqlAssetSource = "embedded"
+	// sqlAssetSourceLocal loads SQL assets directly from the local source tree.
+	sqlAssetSourceLocal sqlAssetSource = "local"
+)
+
+// hostManifestSQLDir is the canonical slash-based directory that stores host SQL delivery files.
+const hostManifestSQLDir = "manifest/sql"
+
+// sqlAsset stores one resolved SQL resource ready for execution.
+type sqlAsset struct {
+	Path    string // Path stores the logical or filesystem path used for logging.
+	Content string // Content stores the SQL body to execute.
+}
 
 // sqlExecutor executes one SQL statement for shared command SQL processing.
 type sqlExecutor func(ctx context.Context, sql string) error
@@ -62,39 +84,118 @@ func goRunConfirmationExample(commandName string) string {
 	return fmt.Sprintf("go run main.go %s --confirm=%s", commandName, expectedCommandConfirmation(commandName))
 }
 
-// hostInitSqlDir returns the conventional host SQL directory.
-func hostInitSqlDir() string {
-	return hostManifestSqlDir
+// hostInitSQLDir returns the conventional slash-based host SQL directory.
+func hostInitSQLDir() string {
+	return hostManifestSQLDir
 }
 
-// hostMockSqlDir returns the conventional host mock-data SQL directory.
-func hostMockSqlDir() string {
-	return gfile.Join(hostManifestSqlDir, "mock-data")
+// hostMockSQLDir returns the conventional slash-based host mock-data SQL directory.
+func hostMockSQLDir() string {
+	return path.Join(hostManifestSQLDir, "mock-data")
 }
 
-// executeSQLFiles runs the provided SQL files in order and stops immediately on
+// resolveSQLAssetSource validates the requested SQL asset source and applies the
+// runtime default when the caller does not explicitly specify one.
+func resolveSQLAssetSource(value string) (sqlAssetSource, error) {
+	normalized := sqlAssetSource(strings.TrimSpace(value))
+	if normalized == "" {
+		return sqlAssetSourceEmbedded, nil
+	}
+	switch normalized {
+	case sqlAssetSourceEmbedded, sqlAssetSourceLocal:
+		return normalized, nil
+	default:
+		return "", gerror.Newf("不支持的 SQL 资源来源: %s，可选值为 embedded 或 local", value)
+	}
+}
+
+// executeSQLAssets runs the provided SQL assets in order and stops immediately on
 // the first execution failure.
-func executeSQLFiles(ctx context.Context, files []string) error {
-	return executeSQLFilesWithExecutor(ctx, files, func(ctx context.Context, sql string) error {
+func executeSQLAssets(ctx context.Context, assets []sqlAsset) error {
+	return executeSQLAssetsWithExecutor(ctx, assets, func(ctx context.Context, sql string) error {
 		_, err := g.DB().Exec(ctx, sql)
 		return err
 	})
 }
 
-// executeSQLFilesWithExecutor reads SQL files and delegates execution to the
-// provided executor, which allows unit tests to verify stop-on-error behavior
-// without touching a real database.
-func executeSQLFilesWithExecutor(ctx context.Context, files []string, executor sqlExecutor) error {
-	for _, file := range files {
-		sql := gfile.GetContents(file)
-		if sql == "" {
+// executeSQLAssetsWithExecutor executes prepared SQL assets through the provided
+// executor, allowing unit tests to verify stop-on-error behavior without a real DB.
+func executeSQLAssetsWithExecutor(ctx context.Context, assets []sqlAsset, executor sqlExecutor) error {
+	for _, asset := range assets {
+		if strings.TrimSpace(asset.Content) == "" {
 			continue
 		}
-		logger.Infof(ctx, "Executing SQL file: %s", gfile.Basename(file))
-		if err := executor(ctx, sql); err != nil {
-			logger.Warningf(ctx, "execute %s: %v", gfile.Basename(file), err)
-			return gerror.Wrapf(err, "执行 SQL 文件 %s 失败", gfile.Basename(file))
+		baseName := sqlAssetBaseName(asset.Path)
+		logger.Infof(ctx, "Executing SQL file: %s", baseName)
+		if err := executor(ctx, asset.Content); err != nil {
+			logger.Warningf(ctx, "execute %s: %v", baseName, err)
+			return gerror.Wrapf(err, "执行 SQL 文件 %s 失败", baseName)
 		}
 	}
 	return nil
+}
+
+// scanLocalSQLAssets loads SQL assets from one source-tree directory.
+func scanLocalSQLAssets(ctx context.Context, slashDir string) ([]sqlAsset, error) {
+	localDir := filepath.FromSlash(slashDir)
+	if !gfile.Exists(localDir) {
+		logger.Warningf(ctx, "SQL directory does not exist: %s", localDir)
+		return nil, nil
+	}
+	files, err := gfile.ScanDirFile(localDir, "*.sql", false)
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(files)
+
+	assets := make([]sqlAsset, 0, len(files))
+	for _, file := range files {
+		assets = append(assets, sqlAsset{
+			Path:    file,
+			Content: gfile.GetContents(file),
+		})
+	}
+	return assets, nil
+}
+
+// scanEmbeddedSQLAssets loads SQL assets from the packaged manifest embedded in the host binary.
+func scanEmbeddedSQLAssets(ctx context.Context, slashDir string) ([]sqlAsset, error) {
+	entries, err := fs.ReadDir(packed.Files, slashDir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			logger.Warningf(ctx, "embedded SQL directory does not exist: %s", slashDir)
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	assets := make([]sqlAsset, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || path.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		assetPath := path.Join(slashDir, entry.Name())
+		content, readErr := fs.ReadFile(packed.Files, assetPath)
+		if readErr != nil {
+			return nil, readErr
+		}
+		assets = append(assets, sqlAsset{
+			Path:    assetPath,
+			Content: string(content),
+		})
+	}
+	sort.SliceStable(assets, func(i int, j int) bool {
+		return assets[i].Path < assets[j].Path
+	})
+	return assets, nil
+}
+
+// sqlAssetBaseName returns the basename rendered in command logs and errors.
+func sqlAssetBaseName(assetPath string) string {
+	normalized := strings.TrimSpace(strings.ReplaceAll(assetPath, `\\`, "/"))
+	if normalized == "" {
+		return ""
+	}
+	parts := strings.Split(normalized, "/")
+	return parts[len(parts)-1]
 }

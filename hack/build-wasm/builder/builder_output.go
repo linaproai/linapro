@@ -114,7 +114,7 @@ func resolveGuestRuntimeOutputPath(pluginDir string, pluginID string, outputDir 
 		}
 	}
 
-	tempDir, err := os.MkdirTemp("", "lina-build-wasm-")
+	tempDir, err := os.MkdirTemp("", "build-wasm-")
 	if err != nil {
 		return "", err
 	}

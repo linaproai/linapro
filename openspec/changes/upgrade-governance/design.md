@@ -12,7 +12,7 @@
 ## Goals / Non-Goals
 
 **Goals**
-- 为框架源码升级提供一个正式且可执行的 CLI 命令。
+- 为框架源码升级提供一个正式且可执行的开发态命令入口。
 - 在升级开始前完成备份提醒、Git 工作区脏检查和版本比较。
 - 通过当前项目 `metadata.yaml` 与目标标签 `metadata.yaml` 完成版本判断。
 - 在升级时用目标标签代码覆盖本地框架代码，并从第一条宿主 SQL 开始按顺序全部执行。
@@ -81,19 +81,50 @@
 
 这样可以保证升级后前后端展示信息一致，并且升级命令也能直接读取同一份版本元数据。
 
+### 8. 开发态源码升级逻辑必须收敛到仓库根目录 `hack/upgrade-framework/`
+
+`make upgrade` 属于开发阶段的工程动作，不属于 `lina-core` 宿主运行时能力。因此升级入口和实现都应位于仓库根目录 `hack/upgrade-framework/` 下：
+
+- `Makefile` 继续提供 `make upgrade` 入口；
+- 实际命令改为调用仓库根目录 `hack/upgrade-framework` 下的开发态 Go 工具；
+- `internal/cmd/` 与 `internal/service/` 不再承载源码升级实现，避免把开发工具链逻辑混入宿主运行时二进制。
+
+这样可以明确宿主运行时与开发工具链的边界，避免发布产物暴露无意义的运行时升级命令。
+
+### 9. 升级工具必须只读取 `apps/lina-core/hack/config.yaml`
+
+源码升级需要数据库连接和上游仓库等开发态元数据，但这些信息不应从宿主运行时配置读取。因此升级工具统一读取 `apps/lina-core/hack/config.yaml`：
+
+- `database` 段提供升级 SQL 回放所需的数据库连接；
+- `frameworkUpgrade` 段提供升级使用的框架版本与仓库地址；
+- 目标标签版本也从目标代码树的 `apps/lina-core/hack/config.yaml` 中读取。
+
+由于系统信息页仍然需要读取运行时 `metadata.yaml`，开发态升级元数据会在当前仓库中增加一致性校验，确保 `hack/config.yaml` 与 `manifest/config/metadata.yaml` 中的关键版本/仓库信息不发生漂移。
+
+### 10. `init` / `mock` 需要显式区分 SQL 资产来源
+
+`init` 与 `mock` 同时服务两个阶段：
+
+- 开发阶段：`make init` / `make mock` 应直接读取源码树中的本地 SQL 文件；
+- 运行时阶段：`lina init` / `lina mock` 应默认读取打包进二进制的 embedded FS 资产。
+
+这里不采用“根据当前目录猜测环境”的隐式判断，而是通过命令参数显式选择 SQL 资产来源，并让开发态 `Makefile` 固定传入本地源。这样可以避免在源码目录内执行运行时二进制时误读本地文件。
+
 ## Risks / Trade-offs
 
 - **全量重放 SQL 依赖幂等性**：宿主 `manifest/sql/` 中的 DDL 和 Seed DML 必须保持可重复执行，否则升级时会失败。
 - **覆盖代码但不自动删除上游已移除文件**：可以降低误删用户文件的风险，但会留下少量需要人工清理的旧文件。
 - **升级失败后代码可能已被覆盖、SQL 部分执行**：本轮不做自动回滚，因此必须在升级前提醒用户备份。
-- **默认上游仓库取框架仓库地址**：如果下游项目的上游仓库不等于主页地址，操作者需要通过命令参数显式传入仓库地址。
+- **运行时与开发态配置分离后存在元数据漂移风险**：`hack/config.yaml` 与 `metadata.yaml` 都会保存版本/仓库相关信息，因此需要自动化校验确保两者保持一致。
 
 ## Migration Plan
 
 1. 先为宿主新增框架元数据段，并更新系统信息接口/页面展示。
-2. 新增 `upgrade` 命令和 `make upgrade` 入口。
-3. 实现目标标签解析、Git 脏检查、版本比较、代码覆盖与宿主 SQL 全量执行。
-4. 增加版本比较、目标标签解析、Git 工作区检查等自动化测试。
+2. 新增 `make upgrade` 入口，并将升级实现迁移到仓库根目录 `hack/upgrade-framework/`。
+3. 在 `hack/config.yaml` 中补齐数据库连接和升级元数据配置。
+4. 实现目标标签解析、Git 脏检查、版本比较、代码覆盖与宿主 SQL 全量执行。
+5. 为 `init` / `mock` 增加本地/embedded SQL 资产来源切换，并让 `Makefile` 固定使用本地源。
+6. 增加版本比较、目标标签解析、Git 工作区检查、配置一致性和 SQL 资产来源切换等自动化测试。
 
 ## Open Questions
 

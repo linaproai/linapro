@@ -45,6 +45,19 @@ mock:
 	fi
 	@cd $(BACKEND_DIR) && $(MAKE) mock confirm=$(confirm)
 
+## upgrade: 升级框架版本（开发态工具，目标标签代码覆盖 + 全量重放宿主 SQL）
+.PHONY: upgrade
+upgrade:
+	@if [ "$(confirm)" != "upgrade" ]; then \
+		echo "✗ 出于安全原因，执行 make upgrade 需要显式确认"; \
+		echo "  请使用: make upgrade confirm=upgrade"; \
+		exit 1; \
+	fi
+	@go run ./hack/upgrade-framework --confirm=$(confirm) \
+		$(if $(repo),--repo=$(repo),) \
+		$(if $(target),--target=$(target),) \
+		$(if $(dry_run),--dry-run,)
+
 ## help: 显示帮助信息
 .PHONY: help
 help:

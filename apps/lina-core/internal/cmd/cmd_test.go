@@ -1,5 +1,5 @@
 // This file verifies shared command helpers for explicit confirmations, SQL
-// directory conventions, and SQL file execution behavior.
+// asset source selection, and SQL execution behavior.
 
 package cmd
 
@@ -7,16 +7,15 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/gogf/gf/v2/os/gfile"
 )
 
 // TestRequireCommandConfirmation verifies sensitive command confirmation tokens
-// are enforced for init, mock, and upgrade operations.
+// are enforced for init and mock operations.
 func TestRequireCommandConfirmation(t *testing.T) {
 	t.Parallel()
 
@@ -36,11 +35,6 @@ func TestRequireCommandConfirmation(t *testing.T) {
 			name:         "mock accepts matching confirmation",
 			commandName:  mockCommandName,
 			confirmValue: mockCommandName,
-		},
-		{
-			name:         "upgrade accepts matching confirmation",
-			commandName:  upgradeCommandName,
-			confirmValue: upgradeCommandName,
 		},
 		{
 			name:         "init rejects missing confirmation",
@@ -90,33 +84,71 @@ func TestRequireCommandConfirmation(t *testing.T) {
 	}
 }
 
-// TestHostSqlDirsFollowConvention verifies the init and mock SQL helpers keep
+// TestHostSQLDirsFollowConvention verifies the init and mock SQL helpers keep
 // using the expected manifest directory layout.
-func TestHostSqlDirsFollowConvention(t *testing.T) {
+func TestHostSQLDirsFollowConvention(t *testing.T) {
 	t.Parallel()
 
-	if got := hostInitSqlDir(); got != "manifest/sql" {
+	if got := hostInitSQLDir(); got != "manifest/sql" {
 		t.Fatalf("expected init sql dir %q, got %q", "manifest/sql", got)
 	}
-	if got := hostMockSqlDir(); got != gfile.Join("manifest/sql", "mock-data") {
-		t.Fatalf("expected mock sql dir %q, got %q", gfile.Join("manifest/sql", "mock-data"), got)
+	if got := hostMockSQLDir(); got != path.Join("manifest/sql", "mock-data") {
+		t.Fatalf("expected mock sql dir %q, got %q", path.Join("manifest/sql", "mock-data"), got)
 	}
 }
 
-// TestExecuteSQLFilesWithExecutorStopsAfterFirstError verifies execution halts
-// at the first failing SQL file and returns the failing file name.
-func TestExecuteSQLFilesWithExecutorStopsAfterFirstError(t *testing.T) {
+// TestResolveSQLAssetSource verifies the command source selection is explicit
+// and defaults to embedded assets for runtime execution.
+func TestResolveSQLAssetSource(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	files := []string{
-		writeTestSQLFile(t, tempDir, "001-first.sql", "FIRST"),
-		writeTestSQLFile(t, tempDir, "002-second.sql", "SECOND"),
-		writeTestSQLFile(t, tempDir, "003-third.sql", "THIRD"),
+	tests := []struct {
+		name    string
+		input   string
+		want    sqlAssetSource
+		wantErr bool
+	}{
+		{name: "default embedded", input: "", want: sqlAssetSourceEmbedded},
+		{name: "explicit embedded", input: "embedded", want: sqlAssetSourceEmbedded},
+		{name: "explicit local", input: "local", want: sqlAssetSourceLocal},
+		{name: "reject unknown", input: "filesystem", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := resolveSQLAssetSource(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolve source: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
+// TestExecuteSQLAssetsWithExecutorStopsAfterFirstError verifies execution halts
+// at the first failing SQL asset and returns the failing file name.
+func TestExecuteSQLAssetsWithExecutorStopsAfterFirstError(t *testing.T) {
+	t.Parallel()
+
+	assets := []sqlAsset{
+		{Path: "manifest/sql/001-first.sql", Content: "FIRST"},
+		{Path: "manifest/sql/002-second.sql", Content: "SECOND"},
+		{Path: "manifest/sql/003-third.sql", Content: "THIRD"},
 	}
 
 	var executedSQL []string
-	err := executeSQLFilesWithExecutor(context.Background(), files, func(ctx context.Context, sql string) error {
+	err := executeSQLAssetsWithExecutor(context.Background(), assets, func(ctx context.Context, sql string) error {
 		executedSQL = append(executedSQL, sql)
 		if sql == "SECOND" {
 			return errors.New("boom")
@@ -134,19 +166,18 @@ func TestExecuteSQLFilesWithExecutorStopsAfterFirstError(t *testing.T) {
 	}
 }
 
-// TestExecuteSQLFilesWithExecutorSkipsEmptyFiles verifies blank SQL files are
-// ignored while non-empty files still execute in order.
-func TestExecuteSQLFilesWithExecutorSkipsEmptyFiles(t *testing.T) {
+// TestExecuteSQLAssetsWithExecutorSkipsEmptyFiles verifies blank SQL assets are
+// ignored while non-empty assets still execute in order.
+func TestExecuteSQLAssetsWithExecutorSkipsEmptyFiles(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	files := []string{
-		writeTestSQLFile(t, tempDir, "001-empty.sql", ""),
-		writeTestSQLFile(t, tempDir, "002-seed.sql", "SEED"),
+	assets := []sqlAsset{
+		{Path: "manifest/sql/001-empty.sql", Content: ""},
+		{Path: "manifest/sql/002-seed.sql", Content: "SEED"},
 	}
 
 	var executedSQL []string
-	err := executeSQLFilesWithExecutor(context.Background(), files, func(ctx context.Context, sql string) error {
+	err := executeSQLAssetsWithExecutor(context.Background(), assets, func(ctx context.Context, sql string) error {
 		executedSQL = append(executedSQL, sql)
 		return nil
 	})
@@ -158,13 +189,114 @@ func TestExecuteSQLFilesWithExecutorSkipsEmptyFiles(t *testing.T) {
 	}
 }
 
+// TestScanLocalSQLAssetsSortsFiles verifies development-mode local SQL loading
+// keeps lexical order.
+func TestScanLocalSQLAssetsSortsFiles(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	sqlDir := filepath.Join(tempDir, "manifest", "sql")
+	writeTestSQLFile(t, filepath.Join(sqlDir, "010-third.sql"), "THIRD")
+	writeTestSQLFile(t, filepath.Join(sqlDir, "001-first.sql"), "FIRST")
+	writeTestSQLFile(t, filepath.Join(sqlDir, "002-second.sql"), "SECOND")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err = os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp dir: %v", err)
+	}
+	defer func() {
+		if chdirErr := os.Chdir(cwd); chdirErr != nil {
+			t.Fatalf("restore cwd: %v", chdirErr)
+		}
+	}()
+
+	assets, err := scanLocalSQLAssets(context.Background(), hostInitSQLDir())
+	if err != nil {
+		t.Fatalf("scan local sql assets: %v", err)
+	}
+	got := []string{assets[0].Content, assets[1].Content, assets[2].Content}
+	if !reflect.DeepEqual(got, []string{"FIRST", "SECOND", "THIRD"}) {
+		t.Fatalf("expected ordered contents %v, got %v", []string{"FIRST", "SECOND", "THIRD"}, got)
+	}
+}
+
+// TestScanEmbeddedSQLAssetsReadsPreparedFiles verifies runtime-mode SQL loading
+// reads packaged manifest assets from the embedded filesystem.
+func TestScanEmbeddedSQLAssetsReadsPreparedFiles(t *testing.T) {
+	t.Parallel()
+
+	assets, err := scanEmbeddedSQLAssets(context.Background(), hostInitSQLDir())
+	if err != nil {
+		t.Fatalf("scan embedded sql assets: %v", err)
+	}
+	if len(assets) == 0 {
+		t.Fatal("expected embedded init sql assets")
+	}
+	if assets[0].Path != path.Join("manifest/sql", "001-project-init.sql") {
+		t.Fatalf("expected first embedded sql asset %q, got %q", path.Join("manifest/sql", "001-project-init.sql"), assets[0].Path)
+	}
+}
+
+// TestInitRuntimeDefaultUsesEmbeddedAssets verifies runtime `lina init`
+// behavior defaults to the embedded manifest SQL assets.
+func TestInitRuntimeDefaultUsesEmbeddedAssets(t *testing.T) {
+	t.Parallel()
+
+	source, err := resolveSQLAssetSource("")
+	if err != nil {
+		t.Fatalf("resolve default init source: %v", err)
+	}
+
+	assets, err := scanInitSQLAssets(context.Background(), source)
+	if err != nil {
+		t.Fatalf("scan init sql assets: %v", err)
+	}
+	if len(assets) == 0 {
+		t.Fatal("expected embedded init sql assets")
+	}
+	if assets[0].Path != path.Join("manifest/sql", "001-project-init.sql") {
+		t.Fatalf("expected first embedded init sql asset %q, got %q", path.Join("manifest/sql", "001-project-init.sql"), assets[0].Path)
+	}
+}
+
+// TestMockRuntimeDefaultUsesEmbeddedAssets verifies runtime `lina mock`
+// behavior defaults to the embedded mock-data SQL assets.
+func TestMockRuntimeDefaultUsesEmbeddedAssets(t *testing.T) {
+	t.Parallel()
+
+	source, err := resolveSQLAssetSource("")
+	if err != nil {
+		t.Fatalf("resolve default mock source: %v", err)
+	}
+
+	assets, err := scanMockSQLAssets(context.Background(), source)
+	if err != nil {
+		t.Fatalf("scan mock sql assets: %v", err)
+	}
+	if len(assets) == 0 {
+		t.Fatal("expected embedded mock sql assets")
+	}
+	if assets[0].Path != path.Join("manifest/sql", "mock-data", "003-mock-users.sql") {
+		t.Fatalf(
+			"expected first embedded mock sql asset %q, got %q",
+			path.Join("manifest/sql", "mock-data", "003-mock-users.sql"),
+			assets[0].Path,
+		)
+	}
+}
+
 // writeTestSQLFile writes one temporary SQL file for shared command helper tests.
-func writeTestSQLFile(t *testing.T, dir string, name string, contents string) string {
+func writeTestSQLFile(t *testing.T, path string, contents string) string {
 	t.Helper()
 
-	path := filepath.Join(dir, name)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
 	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
-		t.Fatalf("write %s: %v", name, err)
+		t.Fatalf("write %s: %v", path, err)
 	}
 	return path
 }

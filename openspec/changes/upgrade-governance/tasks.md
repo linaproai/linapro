@@ -5,7 +5,7 @@
 
 ## 2. P0 正式源码升级命令
 
-- [x] 2.1 新增 `upgrade` CLI 命令和 `make upgrade` 入口，并沿用显式确认机制。
+- [x] 2.1 新增仓库根目录 `hack/upgrade-framework` 开发态工具和 `make upgrade` 入口，并沿用显式确认机制。
 - [x] 2.2 在升级前完成备份提醒、Git 工作区脏检查、当前项目版本读取和目标版本比较。
 - [x] 2.3 实现目标标签代码拉取与覆盖本地框架代码。
 - [x] 2.4 实现从第一条宿主 SQL 开始按顺序执行全部宿主 SQL。
@@ -22,6 +22,10 @@
 
 ## Feedback
 
+- [x] **FB-6**: `make upgrade` 的实现必须迁移到仓库根目录 `hack/upgrade-framework/`，并且只读取 `apps/lina-core/hack/config.yaml` 中的数据库连接与升级元数据，禁止继续依赖运行时配置文件。
+- [x] **FB-7**: `init` / `mock` 必须支持按阶段切换 SQL 资产来源，运行时默认读取 embedded FS，开发态 `Makefile` 显式读取本地 SQL 文件。
+- [x] **FB-8**: 将开发态升级工具目录从 `hack/upgrade/` 重命名为 `hack/upgrade-framework/`，并同步更新所有构建、模块与文档引用。
+- [x] **FB-9**: 去掉仓库根目录 `hack/build-wasm/` 与 `hack/upgrade-framework/` 工具模块名中的 `lina-` 前缀，并同步更新内部导入与辅助命名。
 - [x] **FB-5**: 框架元数据中的 `homepage` 应表示官网地址，并新增独立的仓库地址字段供系统信息展示和升级命令使用。
 - [x] **FB-4**: `internal/cmd` 的单元测试文件应按命令组件职责重新内聚，避免保留已删除 helper 文件对应的测试文件名。
 - [x] **FB-3**: `internal/cmd` 中与 `init`、`mock`、`upgrade` 相关的非测试逻辑应尽量内聚到对应命令文件或 `cmd.go`，减少零散辅助文件。

@@ -105,27 +105,20 @@ func TestExecuteUpgradeSQLFilesWithExecutorStopsAfterFirstError(t *testing.T) {
 	}
 }
 
-// TestReadTargetFrameworkMetadata verifies framework metadata can be loaded from one target checkout.
-func TestReadTargetFrameworkMetadata(t *testing.T) {
+// TestReadTargetUpgradeMetadata verifies upgrade metadata can be loaded from one target checkout.
+func TestReadTargetUpgradeMetadata(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
-	metadataPath := filepath.Join(tempDir, "apps", "lina-core", "manifest", "config", "metadata.yaml")
-	writeFrameworkUpgradeFile(t, metadataPath, `framework:
-  name: "LinaPro"
+	metadataPath := filepath.Join(tempDir, "apps", "lina-core", "hack", "config.yaml")
+	writeFrameworkUpgradeFile(t, metadataPath, `frameworkUpgrade:
   version: "v1.2.3"
-  description: "Framework"
-  homepage: "https://linapro.ai"
   repositoryUrl: "https://github.com/example/linapro"
-  license: "MIT"
 `)
 
-	info, err := readTargetFrameworkMetadata(tempDir)
+	info, err := readTargetUpgradeMetadata(tempDir)
 	if err != nil {
-		t.Fatalf("read target framework metadata: %v", err)
-	}
-	if info.Name != "LinaPro" {
-		t.Fatalf("expected name LinaPro, got %q", info.Name)
+		t.Fatalf("read target upgrade metadata: %v", err)
 	}
 	if info.Version != "v1.2.3" {
 		t.Fatalf("expected version v1.2.3, got %q", info.Version)

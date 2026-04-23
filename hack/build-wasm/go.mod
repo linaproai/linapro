@@ -1,4 +1,4 @@
-module lina-build-wasm
+module build-wasm
 
 go 1.25.0
 

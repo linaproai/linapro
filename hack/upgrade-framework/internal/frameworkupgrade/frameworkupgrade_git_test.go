@@ -11,11 +11,11 @@ import (
 func TestParseGitStatusPorcelain(t *testing.T) {
 	t.Parallel()
 
-	output := " M apps/lina-core/Makefile\n?? apps/lina-core/internal/service/frameworkupgrade/\nM  hack/tests/e2e/iam/role/TC0061-role-crud.ts\n"
+	output := " M apps/lina-core/Makefile\n?? hack/upgrade-framework/internal/frameworkupgrade/\nM  hack/tests/e2e/iam/role/TC0061-role-crud.ts\n"
 	items := parseGitStatusPorcelain(output)
 	expected := []string{
 		"apps/lina-core/Makefile",
-		"apps/lina-core/internal/service/frameworkupgrade/",
+		"hack/upgrade-framework/internal/frameworkupgrade/",
 		"hack/tests/e2e/iam/role/TC0061-role-crud.ts",
 	}
 	if !reflect.DeepEqual(items, expected) {

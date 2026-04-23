@@ -13,17 +13,18 @@
 
 - 在 `apps/lina-core/manifest/config/metadata.yaml` 中新增框架元数据，统一维护：名称、版本号、介绍、项目官网、仓库地址、开源协议。
 - 系统信息接口与系统信息页面顶部项目卡片改为读取上述框架元数据，避免前后端各自硬编码。
-- 新增 `upgrade` 命令和 `make upgrade` 入口，作为正式的框架源码升级命令。
+- 新增 `make upgrade` 入口，并将实际升级逻辑收敛到仓库根目录 `hack/upgrade-framework/` 下的开发态升级工具，不再作为 `lina-core` 运行时命令的一部分。
+- 升级工具统一读取 `apps/lina-core/hack/config.yaml` 中的数据库连接和源码升级元数据（如框架版本、上游仓库地址），不再依赖宿主运行时配置文件。
 - 升级流程固定为：
   - 先提醒备份；
   - 检查当前 Git 工作区是否干净；
-  - 读取当前项目 `metadata.yaml` 中的框架版本；
-  - 解析目标标签版本并比较大小；
+  - 读取当前项目 `hack/config.yaml` 中的升级元数据；
+  - 解析目标标签 `hack/config.yaml` 中的升级版本并比较大小；
   - 若目标版本不高于当前版本，则直接退出；
   - 拉取目标标签代码覆盖本地框架代码；
   - 从 `manifest/sql/` 第一条 SQL 开始按顺序执行全部宿主 SQL。
 - 不新增任何框架升级状态表、升级记录表或 SQL 游标表。
-- `init` 与 `mock` 继续保持显式确认机制，但 `init` 不承担建立升级账本的职责。
+- `init` 与 `mock` 继续保持显式确认机制，但运行时 `lina init` / `lina mock` 默认读取 embedded FS 中的宿主 SQL 资产；开发态 `make init` / `make mock` 显式切换为本地文件系统 SQL 源。
 
 ## Capabilities
 
@@ -35,8 +36,9 @@
 
 ## Impact
 
-- `apps/lina-core` 需要新增升级服务和 CLI 命令，但不需要新增升级元数据表、DAO/DO/Entity。
+- `apps/lina-core/hack` 需要新增开发态升级工具和升级元数据配置，但不需要新增升级元数据表、DAO/DO/Entity。
 - `apps/lina-core/manifest/config/metadata.yaml` 需要承载统一框架元数据。
+- `apps/lina-core/hack/config.yaml` 继续承载源码升级所需的数据库连接和升级元数据，并与运行时展示元数据保持一致性校验。
 - `apps/lina-vben` 的系统信息页需要改为展示后端返回的框架元数据。
 - 宿主 SQL 需要继续满足可重复执行且结果一致的幂等性要求，以支撑升级时从头执行全部 SQL。
 - 当前这轮变更只覆盖 P0 源码升级；P1 业务系统运行时升级机制在后续迭代推进。

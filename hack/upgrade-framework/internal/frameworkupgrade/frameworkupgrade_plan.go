@@ -4,6 +4,7 @@ package frameworkupgrade
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -14,10 +15,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
-	"gopkg.in/yaml.v3"
-
-	"lina-core/internal/service/config"
-	"lina-core/pkg/logger"
 )
 
 // sqlExecutor executes one SQL statement during framework upgrade.
@@ -27,6 +24,9 @@ type sqlExecutor func(ctx context.Context, sql string) error
 func (s *serviceImpl) BuildPlan(ctx context.Context, input BuildPlanInput) (*Plan, error) {
 	repoRoot, err := detectRepoRoot(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err = ConfigureGoFrameConfig(repoRoot); err != nil {
 		return nil, err
 	}
 	dirtyGitFiles, err := listDirtyGitFiles(ctx, repoRoot)
@@ -40,12 +40,12 @@ func (s *serviceImpl) BuildPlan(ctx context.Context, input BuildPlanInput) (*Pla
 		)
 	}
 
-	currentFramework, err := readCurrentFrameworkMetadata(repoRoot)
+	currentFramework, err := readCurrentUpgradeMetadata(repoRoot)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(currentFramework.Version) == "" {
-		return nil, gerror.New("当前项目 metadata.yaml 缺少 framework.version，无法执行升级")
+		return nil, gerror.New("当前项目 apps/lina-core/hack/config.yaml 缺少 frameworkUpgrade.version，无法执行升级")
 	}
 	if _, err = parseSemanticVersion(currentFramework.Version); err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func (s *serviceImpl) BuildPlan(ctx context.Context, input BuildPlanInput) (*Pla
 	if err != nil {
 		return nil, err
 	}
-	targetFramework, err := readTargetFrameworkMetadata(targetCloneDir)
+	targetFramework, err := readTargetUpgradeMetadata(targetCloneDir)
 	if err != nil {
 		_ = os.RemoveAll(targetCloneDir)
 		return nil, err
@@ -105,6 +105,9 @@ func (s *serviceImpl) BuildPlan(ctx context.Context, input BuildPlanInput) (*Pla
 func (s *serviceImpl) ExecutePlan(ctx context.Context, plan *Plan) (*ExecuteResult, error) {
 	if plan == nil {
 		return nil, gerror.New("升级计划不能为空")
+	}
+	if err := ConfigureGoFrameConfig(plan.RepoRoot); err != nil {
+		return nil, err
 	}
 
 	result := &ExecuteResult{
@@ -144,49 +147,13 @@ func executeUpgradeSQLFilesWithExecutor(ctx context.Context, files []string, exe
 		if strings.TrimSpace(sqlContent) == "" {
 			continue
 		}
-		logger.Infof(ctx, "Executing framework upgrade SQL file: %s", fileBaseName(file))
+		fmt.Printf("Executing framework upgrade SQL file: %s\n", fileBaseName(file))
 		if err := executor(ctx, sqlContent); err != nil {
 			return executed, gerror.Wrapf(err, "执行升级 SQL 文件失败: %s", fileBaseName(file))
 		}
 		executed = append(executed, fileBaseName(file))
 	}
 	return executed, nil
-}
-
-// readCurrentFrameworkMetadata reads framework metadata from the current project source tree.
-func readCurrentFrameworkMetadata(repoRoot string) (config.MetadataFrameworkInfo, error) {
-	metadataPath := filepath.Join(repoRoot, "apps", "lina-core", "manifest", "config", "metadata.yaml")
-	framework, err := readFrameworkMetadataFile(metadataPath)
-	if err != nil {
-		return config.MetadataFrameworkInfo{}, err
-	}
-	return *framework, nil
-}
-
-// readTargetFrameworkMetadata reads framework metadata from the target release checkout.
-func readTargetFrameworkMetadata(targetCloneDir string) (*config.MetadataFrameworkInfo, error) {
-	metadataPath := filepath.Join(targetCloneDir, "apps", "lina-core", "manifest", "config", "metadata.yaml")
-	return readFrameworkMetadataFile(metadataPath)
-}
-
-// readFrameworkMetadataFile reads one metadata.yaml file and returns the framework section.
-func readFrameworkMetadataFile(metadataPath string) (*config.MetadataFrameworkInfo, error) {
-	content, err := os.ReadFile(metadataPath)
-	if err != nil {
-		return nil, gerror.Wrapf(err, "读取框架元数据失败: %s", metadataPath)
-	}
-
-	cfg := &config.MetadataConfig{}
-	if err = yaml.Unmarshal(content, cfg); err != nil {
-		return nil, gerror.Wrap(err, "解析 metadata.yaml 失败")
-	}
-	if strings.TrimSpace(cfg.Framework.Version) == "" {
-		return nil, gerror.New("metadata.yaml 缺少 framework.version")
-	}
-	if _, err = parseSemanticVersion(cfg.Framework.Version); err != nil {
-		return nil, err
-	}
-	return &cfg.Framework, nil
 }
 
 // scanTargetSQLFiles scans target-release host SQL files in stable lexical order.

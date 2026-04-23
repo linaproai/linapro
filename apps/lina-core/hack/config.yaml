@@ -1,3 +1,16 @@
+# Development-only configuration used by local build/codegen tools and the
+# repository-root framework upgrade tool. Runtime binaries must not read this file.
+
+# Database config consumed by development-only SQL bootstrap/upgrade flows.
+database:
+  default:
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    debug: true
+
+# Source-upgrade metadata consumed by `hack/upgrade-framework`.
+frameworkUpgrade:
+  version: "v0.1.0"
+  repositoryUrl: "https://github.com/gqcn/linapro"
 
 # CLI tool, only in development environment.
 # https://goframe.org/docs/cli

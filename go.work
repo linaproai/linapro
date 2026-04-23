@@ -12,4 +12,5 @@ use (
 	./apps/lina-plugins/plugin-demo-source
 	./apps/lina-plugins/plugin-demo-dynamic
 	./hack/build-wasm
+	./hack/upgrade-framework
 )

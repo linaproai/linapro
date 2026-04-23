@@ -1,15 +1,13 @@
-// This file implements the host mock-data loading command that scans the
-// conventional mock SQL directories.
+// This file implements the host mock-data loading command with explicit SQL
+// asset source selection for development and runtime execution.
 
 package cmd
 
 import (
 	"context"
-	"sort"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/pkg/logger"
 )
@@ -17,8 +15,9 @@ import (
 // MockInput defines the command-line options for the sensitive mock-data
 // loading command.
 type MockInput struct {
-	g.Meta  `name:"mock" brief:"load mock/demo data from manifest/sql/mock-data/, requires --confirm=mock"`
-	Confirm string `name:"confirm" brief:"explicit confirmation value, must be 'mock'"`
+	g.Meta    `name:"mock" brief:"load mock/demo data from manifest/sql/mock-data/, requires --confirm=mock"`
+	Confirm   string `name:"confirm" brief:"explicit confirmation value, must be 'mock'"`
+	SQLSource string `name:"sql-source" brief:"SQL asset source: embedded or local; defaults to embedded"`
 }
 
 // MockOutput carries the command result placeholder.
@@ -30,16 +29,19 @@ func (m *Main) Mock(ctx context.Context, in MockInput) (out *MockOutput, err err
 	if err = requireCommandConfirmation(mockCommandName, in.Confirm); err != nil {
 		return nil, err
 	}
-	files, err := scanMockSqlFiles(ctx)
+	source, err := resolveSQLAssetSource(in.SQLSource)
+	if err != nil {
+		return nil, err
+	}
+	assets, err := scanMockSQLAssets(ctx, source)
 	if err != nil {
 		return nil, gerror.Wrap(err, "扫描 Mock SQL 文件失败")
 	}
-	if len(files) == 0 {
+	if len(assets) == 0 {
 		logger.Warning(ctx, "no mock SQL files found")
 		return
 	}
-	sort.Strings(files)
-	if err = executeSQLFiles(ctx, files); err != nil {
+	if err = executeSQLAssets(ctx, assets); err != nil {
 		return nil, err
 	}
 
@@ -47,22 +49,14 @@ func (m *Main) Mock(ctx context.Context, in MockInput) (out *MockOutput, err err
 	return
 }
 
-// scanMockSqlFiles scans the conventional host mock-data SQL directory.
-func scanMockSqlFiles(ctx context.Context) ([]string, error) {
-	var (
-		files   = make([]string, 0)
-		mockDir = hostMockSqlDir()
-	)
-
-	if gfile.Exists(mockDir) {
-		coreFiles, err := gfile.ScanDirFile(mockDir, "*.sql", false)
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, coreFiles...)
-	} else {
-		logger.Warningf(ctx, "mock-data directory does not exist: %s", mockDir)
+// scanMockSQLAssets loads host mock-data SQL assets from the selected source.
+func scanMockSQLAssets(ctx context.Context, source sqlAssetSource) ([]sqlAsset, error) {
+	switch source {
+	case sqlAssetSourceLocal:
+		return scanLocalSQLAssets(ctx, hostMockSQLDir())
+	case sqlAssetSourceEmbedded:
+		return scanEmbeddedSQLAssets(ctx, hostMockSQLDir())
+	default:
+		return nil, gerror.Newf("不支持的 mock SQL 资源来源: %s", source)
 	}
-
-	return files, nil
 }

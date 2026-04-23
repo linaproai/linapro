@@ -25,7 +25,7 @@ endef
 init:
 	$(call require_confirm,init)
 	@echo "正在初始化数据库..."
-	@go run main.go init --confirm=$(confirm)
+	@go run main.go init --confirm=$(confirm) --sql-source=local
 	@echo "✓ 数据库初始化完成"
 
 ## mock: 加载 Mock 演示数据（需先执行 init）
@@ -33,16 +33,16 @@ init:
 mock:
 	$(call require_confirm,mock)
 	@echo "正在加载 Mock 数据..."
-	@go run main.go mock --confirm=$(confirm)
+	@go run main.go mock --confirm=$(confirm) --sql-source=local
 	@echo "✓ Mock 数据加载完成"
 
-## upgrade: 升级框架版本（目标标签代码覆盖 + 全量重放宿主 SQL）
+## upgrade: 升级框架版本（调用仓库根目录 hack 下的开发态升级工具）
 .PHONY: upgrade
 upgrade:
 	$(call require_confirm,upgrade)
 	@echo "正在执行框架升级..."
-	@go run main.go upgrade --confirm=$(confirm) \
-		$(if $(repo),--repo=$(repo),) \
-		$(if $(target),--target=$(target),) \
-		$(if $(dry_run),--dry-run,)
+	@$(MAKE) -C ../.. upgrade confirm=$(confirm) \
+		$(if $(repo),repo=$(repo),) \
+		$(if $(target),target=$(target),) \
+		$(if $(dry_run),dry_run=$(dry_run),)
 	@echo "✓ 框架升级命令执行完成"

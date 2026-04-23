@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"lina-build-wasm/builder"
+	"build-wasm/builder"
 )
 
 func main() {
