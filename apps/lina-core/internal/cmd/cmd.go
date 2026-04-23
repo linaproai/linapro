@@ -109,8 +109,8 @@ func resolveSQLAssetSource(value string) (sqlAssetSource, error) {
 	}
 }
 
-// executeSQLAssets runs the provided SQL assets in order and stops immediately on
-// the first execution failure.
+// executeSQLAssets runs the provided SQL assets in order, splitting each file
+// into executable statements and stopping immediately on the first failure.
 func executeSQLAssets(ctx context.Context, assets []sqlAsset) error {
 	return executeSQLAssetsWithExecutor(ctx, assets, func(ctx context.Context, sql string) error {
 		_, err := g.DB().Exec(ctx, sql)
@@ -118,18 +118,23 @@ func executeSQLAssets(ctx context.Context, assets []sqlAsset) error {
 	})
 }
 
-// executeSQLAssetsWithExecutor executes prepared SQL assets through the provided
-// executor, allowing unit tests to verify stop-on-error behavior without a real DB.
+// executeSQLAssetsWithExecutor executes prepared SQL assets statement by
+// statement through the provided executor, allowing unit tests to verify
+// stop-on-error behavior without a real DB.
 func executeSQLAssetsWithExecutor(ctx context.Context, assets []sqlAsset, executor sqlExecutor) error {
 	for _, asset := range assets {
-		if strings.TrimSpace(asset.Content) == "" {
+		statements := splitSQLStatements(asset.Content)
+		if len(statements) == 0 {
 			continue
 		}
 		baseName := sqlAssetBaseName(asset.Path)
 		logger.Infof(ctx, "Executing SQL file: %s", baseName)
-		if err := executor(ctx, asset.Content); err != nil {
-			logger.Warningf(ctx, "execute %s: %v", baseName, err)
-			return gerror.Wrapf(err, "执行 SQL 文件 %s 失败", baseName)
+		for index, statement := range statements {
+			if err := executor(ctx, statement); err != nil {
+				statementIndex := index + 1
+				logger.Warningf(ctx, "execute %s statement %d: %v", baseName, statementIndex, err)
+				return gerror.Wrapf(err, "执行 SQL 文件 %s 的第 %d 条语句失败", baseName, statementIndex)
+			}
 		}
 	}
 	return nil

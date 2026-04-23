@@ -12,6 +12,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Alert, Descriptions, DescriptionsItem, message } from 'ant-design-vue';
 
 import { pluginEnable, pluginInstall } from '#/api/system/plugin';
+
 import PluginHostServiceCards from './plugin-host-service-cards.vue';
 import {
   buildPluginAuthorizationHostServiceCards,
@@ -19,15 +20,18 @@ import {
 } from './plugin-host-service-view';
 
 type ReviewMode = 'enable' | 'install';
+type SubmitAction = 'default' | 'install-and-enable';
 
 const emit = defineEmits<{ reload: [] }>();
 
-const currentPlugin = ref<SystemPlugin | null>(null);
+const currentPlugin = ref<null | SystemPlugin>(null);
 const currentMode = ref<ReviewMode>('install');
+const allowInstallAndEnable = ref(false);
+const submittingAction = ref<null | SubmitAction>(null);
 
 const [BasicModal, modalApi] = useVbenModal({
   onClosed: handleClosed,
-  onConfirm: handleSubmit,
+  onConfirm: () => handleSubmit('default'),
   onOpenChange: handleOpenChange,
 });
 
@@ -54,6 +58,10 @@ const hostServiceCards = computed(() => {
     },
     targetSummaryBadgeColor: 'gold',
   });
+});
+
+const showInstallAndEnableAction = computed(() => {
+  return currentMode.value === 'install' && allowInstallAndEnable.value;
 });
 
 const currentTitle = computed(() => {
@@ -83,9 +91,14 @@ async function handleOpenChange(open: boolean) {
   if (!open) {
     return;
   }
-  const data = modalApi.getData<{ mode: ReviewMode; row: SystemPlugin }>();
+  const data = modalApi.getData<{
+    allowInstallAndEnable?: boolean;
+    mode: ReviewMode;
+    row: SystemPlugin;
+  }>();
   currentPlugin.value = data?.row ?? null;
   currentMode.value = data?.mode ?? 'install';
+  allowInstallAndEnable.value = data?.allowInstallAndEnable === true;
 }
 
 function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
@@ -116,24 +129,39 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
   };
 }
 
-async function handleSubmit() {
-  if (!currentPlugin.value) {
+async function handleSubmit(action: SubmitAction) {
+  if (!currentPlugin.value || submittingAction.value) {
     return;
   }
+  submittingAction.value = action;
   try {
     modalApi.lock(true);
+    const pluginID = currentPlugin.value.id;
     const payload = buildAuthorizationPayload();
     if (currentMode.value === 'install') {
-      await pluginInstall(currentPlugin.value.id, payload);
-      message.success('插件已安装');
+      await pluginInstall(pluginID, payload);
+      if (action === 'install-and-enable') {
+        try {
+          await pluginEnable(pluginID);
+          message.success('插件已安装并启用');
+        } catch {
+          emit('reload');
+          handleClosed();
+          message.warning('插件已安装，但启用失败，请稍后重试。');
+          return;
+        }
+      } else {
+        message.success('插件已安装');
+      }
     } else {
-      await pluginEnable(currentPlugin.value.id, payload);
+      await pluginEnable(pluginID, payload);
       message.success('插件已启用');
     }
     emit('reload');
     handleClosed();
   } finally {
     modalApi.lock(false);
+    submittingAction.value = null;
   }
 }
 
@@ -141,6 +169,8 @@ function handleClosed() {
   modalApi.close();
   currentPlugin.value = null;
   currentMode.value = 'install';
+  allowInstallAndEnable.value = false;
+  submittingAction.value = null;
 }
 
 function formatPluginType(type: string) {
@@ -170,6 +200,18 @@ function hasServiceTargets(service: HostServicePermissionItem) {
     :title="currentTitle"
     class="w-[860px] max-w-[calc(100vw-32px)]"
   >
+    <template #append-footer>
+      <a-button
+        v-if="showInstallAndEnableAction"
+        data-testid="plugin-install-enable-button"
+        type="primary"
+        :disabled="submittingAction !== null"
+        :loading="submittingAction === 'install-and-enable'"
+        @click="() => handleSubmit('install-and-enable')"
+      >
+        安装并启用
+      </a-button>
+    </template>
     <div
       v-if="currentPlugin"
       data-testid="plugin-host-service-auth-modal"
@@ -200,12 +242,8 @@ function hasServiceTargets(service: HostServicePermissionItem) {
       </Descriptions>
 
       <template v-if="requestedServices.length > 0">
-        <div class="text-[13px] font-medium text-[var(--ant-color-text)]">
-          {{
-            authorizationRequired
-              ? '宿主服务授权范围'
-              : '宿主服务声明概览'
-          }}
+        <div class="text-[13px] font-medium text-(--ant-color-text)">
+          {{ authorizationRequired ? '宿主服务授权范围' : '宿主服务声明概览' }}
         </div>
 
         <PluginHostServiceCards :cards="hostServiceCards" />

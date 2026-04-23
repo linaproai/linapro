@@ -47,6 +47,9 @@ type Service interface {
 	GetOpenApi(ctx context.Context) *OpenApiConfig
 	// GetPlugin reads plugin config from configuration file.
 	GetPlugin(ctx context.Context) *PluginConfig
+	// GetPluginAutoEnable returns the plugin IDs that the host should
+	// automatically install and enable during startup bootstrap.
+	GetPluginAutoEnable(ctx context.Context) []string
 	// GetPluginDynamicStoragePath returns the normalized dynamic wasm storage directory.
 	GetPluginDynamicStoragePath(ctx context.Context) string
 	// GetSession reads session config from configuration file.

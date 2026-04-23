@@ -22,63 +22,51 @@
 
 **Goals:**
 
-- 提供宿主级 `plugin.startup` 配置，让运维或开发者按 `pluginId` 声明插件在启动期至少应达到的目标状态。
+- 提供宿主主配置文件中的简化配置 `plugin.autoEnable`，让运维或开发者只用插件 ID 列表声明哪些插件需要在启动期自动启用。
 - 同时覆盖源码插件和动态插件，避免形成两套独立的启动自动化机制。
 - 让启动期 bootstrap 发生在插件路由、插件 cron、动态前端 bundle 预热之前，保证系统对外服务前已经尽可能接近目标插件状态。
-- 复用动态插件现有授权快照模型，使需要 host service 授权的动态插件也能参与启动自动化。
-- 在单节点和集群模式下都具备可预测的失败处理：支持可选插件降级启动，也支持关键插件 fail-fast。
+- 复用动态插件现有授权快照模型，使需要 host service 授权的动态插件也能参与启动自动化，同时不把复杂授权结构写进主配置文件。
+- 在单节点和集群模式下都具备可预测的失败处理：`plugin.autoEnable` 命中的插件未启用成功时直接 fail-fast。
 
 **Non-Goals:**
 
 - 不在本次变更中实现“自动下载/自动构建”动态插件产物；启动期只消费已经可被宿主发现的源码插件目录或动态产物文件。
 - 不在本次变更中把启动策略写入 `plugin.yaml`；该策略是环境级部署决策，而不是插件源码契约。
 - 不在本次变更中提供插件管理页面对启动策略的可视化编辑；本轮仅定义宿主静态配置和后端启动行为。
-- 不把启动策略做成“强制精确状态收敛”的破坏性控制器；移除策略或降低目标状态时，不自动替用户执行卸载/禁用。
+- 不在本次变更中支持 `manual` / `installed` / `enabled` 多档启动目标状态，也不支持每个插件单独配置 `required`、超时或授权明细。
 
 ## Decisions
 
-### 决策一：以宿主静态配置 `plugin.startup` 作为唯一启动策略入口
+### 决策一：以宿主主配置文件中的 `plugin.autoEnable` 作为唯一入口
 
-宿主在 `apps/lina-core/manifest/config/config.template.yaml` 下新增 `plugin.startup` 配置段，并在 `apps/lina-core/internal/service/config/config_plugin.go` 中统一解析。建议结构如下：
+宿主在主配置文件 `apps/lina-core/manifest/config/config.template.yaml` 下新增 `plugin.autoEnable` 配置，并在 `apps/lina-core/internal/service/config/config_plugin.go` 中统一解析。建议结构如下：
 
 ```yaml
 plugin:
   dynamic:
     storagePath: "temp/output"
-  startup:
-    blockUntilReady: true
-    readyTimeout: "30s"
-    policies:
-      - pluginId: "demo-control"
-        desiredState: "enabled"
-        required: true
-      - pluginId: "report-runtime"
-        desiredState: "installed"
-        required: false
-        authorization:
-          services:
-            - service: "data"
-              methods: ["list", "get"]
-              tables: ["plugin_report_runtime_record"]
+  autoEnable:
+    - "demo-control"
+    - "report-runtime"
 ```
 
 配置语义：
 
-- `desiredState` 只允许 `manual` / `installed` / `enabled`。
-- `required=true` 表示该插件未达到目标状态时，宿主启动必须失败；否则只记录告警并继续启动。
-- `blockUntilReady` 与 `readyTimeout` 控制宿主是否在启动期间等待插件收敛结果；时间长度使用带单位字符串并解析为 `time.Duration`。
-- `authorization` 复用现有 `HostServiceAuthorizationInput` 结构，避免为动态插件再定义第二套授权描述模型。
+- `plugin.autoEnable` 是字符串数组，每一项都是需要在宿主启动时自动启用的插件 ID。
+- 自动启用语义固定为“若尚未安装则先安装，随后启用”。
+- `plugin.autoEnable` 命中的插件视为宿主启动期必需插件；宿主在完成其启用前不得进入对外服务态。
 
 这样设计的原因：
 
 - 静态配置能在宿主开放 HTTP 服务前直接读取，满足“启动即生效”。
-- 启动策略是环境部署决策，不应该固化进插件 `plugin.yaml`；同一个插件在开发、演示、生产环境可能需要不同启动策略。
-- 复用已有授权模型可以降低认知成本，也能直接对接当前动态插件授权快照持久化逻辑。
+- 启动自动化的核心场景是“少量插件开机即启用”，用插件 ID 列表就足够表达，没必要暴露过重的策略 DSL。
+- 直接放在宿主主配置文件的 `plugin` 节点下，符合运维直觉，也方便与 `plugin.dynamic.storagePath` 一起管理。
 
 备选方案与取舍：
 
 - 把 `autoInstall/autoEnable` 写进 `plugin.yaml`：会把环境策略固化到插件源码，且无法区分不同部署环境，放弃。
 - 把启动策略存入 `sys_config`：首次启动和插件未安装时无法稳定依赖，且会让“启动前决策”变成“启动后读取”，放弃。
+- 继续使用 `plugin.startup.policies[].desiredState` 这类多层结构：表达力过强但使用成本偏高，不适合当前“自动启用少量插件”的主要诉求，放弃。
 
 ### 决策二：增加独立的插件启动期 bootstrap 阶段，并前移到插件接线之前
 
@@ -86,16 +74,16 @@ plugin:
 
 1. 启动 cluster 选主。
 2. 扫描并同步插件 manifest 到注册表。
-3. 执行 `plugin startup bootstrap`：解析 `plugin.startup.policies`，对命中的插件推进安装/启用。
+3. 执行 `plugin startup bootstrap`：解析 `plugin.autoEnable`，对命中的插件推进安装/启用。
 4. 刷新 enabled snapshot。
 5. 再进行插件 cron 接线、源码插件 HTTP 路由注册、动态 bundle 预热和 runtime reconciler 启动。
 
-对应到实现层，新增类似 `pluginSvc.BootstrapStartupPolicies(ctx)` 的总入口，由它负责：
+对应到实现层，新增类似 `pluginSvc.BootstrapAutoEnable(ctx)` 的总入口，由它负责：
 
-- 拉取配置并构建 `pluginId -> policy` 映射。
+- 拉取 `plugin.autoEnable` 配置并构建插件 ID 集合。
 - 对源码插件执行同步的安装/启用推进。
-- 对动态插件写入授权快照与目标状态，并在主节点上同步触发一次 targeted reconcile。
-- 在 `blockUntilReady=true` 时等待目标插件达到可接受状态或超时。
+- 对动态插件复用既有授权快照与目标状态，并在主节点上同步触发一次 targeted reconcile。
+- 在内部固定等待窗口内等待目标插件达到启用态或失败。
 - 最终统一刷新 enabled snapshot，确保后续路由和 cron 注册看到的是 bootstrap 之后的状态。
 
 这样设计的原因：
@@ -108,38 +96,37 @@ plugin:
 - 继续复用列表页/API 被动触发安装：不能满足“启动即就绪”，放弃。
 - 让 runtime reconciler 后台慢慢收敛，不阻塞启动：对演示控制、启动期 Hook、首个请求即依赖插件的场景不可接受，放弃作为默认方案。
 
-### 决策三：启动策略采用“最低目标状态”语义，而不是破坏性精确收敛
+### 决策三：`plugin.autoEnable` 固定表达“确保启用”，隐式包含自动安装
 
-`desiredState` 被定义为启动期的“最低目标状态”而非“绝对最终状态”：
+`plugin.autoEnable` 只表达一件事：配置中的插件在宿主启动期间必须处于启用状态。执行语义为：
 
-- `manual`：宿主不做任何启动期动作。
-- `installed`：若插件当前未安装，则推进到已安装；若当前已经启用，不会把它降回已安装。
-- `enabled`：若插件当前未安装则先安装，再推进到启用；若当前已启用则保持现状。
-
-同时，移除策略或把 `desiredState` 从 `enabled` 改为 `installed/manual` 时，宿主不会自动执行禁用或卸载。真正的降级动作仍由管理员显式操作触发。
+- 若插件当前未安装，则先安装。
+- 若插件已安装但未启用，则继续启用。
+- 若插件已经启用，则保持现状。
+- 若插件未列入 `plugin.autoEnable`，宿主不因启动流程自动对其执行安装、启用、禁用或卸载。
 
 这样设计的原因：
 
-- 启动策略的核心目标是“减少人工补操作”，不是替代完整生命周期治理。
-- 避免配置变更在下一次重启时产生破坏性副作用，例如误卸载插件、误关闭正在使用的扩展能力。
-- 与现有动态插件 `desired_state/current_state` 机制兼容：只有当当前状态低于策略目标时，才需要写入新的 reconcile 目标。
+- 用户当前的核心诉求是“自动启用配置更简单”，而不是构建一个完整的启动状态编排系统。
+- “自动启用隐式包含自动安装”更符合直觉，也覆盖了源码插件首次发现和动态插件首次安装的真实场景。
+- 插件不在列表中时保持人工治理，可以避免重启带来的破坏性反向动作。
 
 备选方案与取舍：
 
-- 使用“精确目标状态”语义：虽然更简单，但会让重启变成潜在的破坏性操作，风险过高，放弃。
+- 暴露 `installed` 这类中间目标状态：虽然更灵活，但不符合“配置简化”的要求，放弃。
 
 ### 决策四：源码插件与动态插件采用不同推进路径，但共享同一策略模型
 
-同一份 `plugin.startup.policies` 对两类插件都生效，但具体执行分流如下：
+同一份 `plugin.autoEnable` 对两类插件都生效，但具体执行分流如下：
 
 - 源码插件：
-  - `installed`：调用现有源码插件安装编排。
-  - `enabled`：若未安装则先安装，再更新源码插件启用状态。
+  - 若未安装则调用现有源码插件安装编排。
+  - 安装完成后更新源码插件启用状态。
   - 集群模式下，共享副作用（SQL、菜单、资源索引）只由主节点执行；从节点只读取主节点写入后的稳定状态并刷新本地 snapshot。
 
 - 动态插件：
-  - `installed`：必要时持久化授权快照，然后把运行时目标推进到 `installed`。
-  - `enabled`：若低于启用态，则写入授权快照并把运行时目标推进到 `enabled`；主节点同步触发 targeted reconcile，从节点只等待共享状态收敛。
+  - 若未安装则先推进到安装态。
+  - 若低于启用态，则把运行时目标推进到 `enabled`；主节点同步触发 targeted reconcile，从节点只等待共享状态收敛。
   - 继续复用现有 `desired_state/current_state/generation/release_id` 机制，不新增第二套启动专用状态表。
 
 这样设计的原因：
@@ -152,49 +139,47 @@ plugin:
 - 强行把源码插件也改造成完全 reconcile 化：会引入额外复杂度，且当前并无必要，放弃。
 - 为源码插件和动态插件定义两套配置：会增加理解成本和配置重复，放弃。
 
-### 决策五：动态插件授权缺失时，允许按 required 语义选择 fail-fast 或降级到“仅安装”
+### 决策五：动态插件自动启用只复用既有授权快照，不在主配置文件中声明授权明细
 
-动态插件如果声明了受治理 host services，且启动策略目标是 `enabled`，则必须满足以下规则：
+动态插件如果声明了受治理 host services，且被列入 `plugin.autoEnable`，则必须满足以下规则：
 
-- 若配置中提供了 `authorization`，宿主在启动期先持久化 release 授权快照，再推进到启用。
-- 若未提供 `authorization`：
-  - `required=true` 时，认为无法达到目标状态，宿主启动失败。
-  - `required=false` 时，宿主记录告警，最多把插件推进到 `installed`，并保留待人工确认授权的状态。
+- 若当前 release 已经存在宿主确认过的授权快照，宿主复用该快照推进自动启用。
+- 若当前 release 尚未形成授权快照，则宿主启动失败，并明确要求管理员先通过一次常规安装/启用审核流程形成授权基线。
 
 这样设计的原因：
 
 - 启动即启用的前提，是宿主已经明确允许该动态插件访问哪些受治理资源。
-- 对非关键插件允许“安装成功但待授权”的降级路径，可以避免把所有动态插件都绑定为 fail-fast。
-- 这与当前管理页中的授权确认语义一致，只是把“人工点击确认”换成“静态配置提供确认结果”。
+- 把授权结构直接写进主配置文件会让“简化配置”目标落空。
+- 先通过管理流程形成一次授权快照，再由启动期复用，是复杂度与可治理性的更好平衡。
 
 备选方案与取舍：
 
+- 把完整授权明细写进主配置文件：配置负担过重，且容易漂移，放弃。
 - 缺少授权也允许直接启用：会让插件以不完整授权快照运行，运行时表现不确定，放弃。
-- 缺少授权一律启动失败：对可选插件过于严格，放弃。
 
 ## Risks / Trade-offs
 
-- [Risk] 集群模式下选主尚未稳定，启动期 bootstrap 可能等不到主节点完成共享动作。→ Mitigation：引入 `readyTimeout`，主节点负责同步推进，共享动作超时则按 `required` 语义 fail-fast 或降级告警。
-- [Risk] 启动策略与管理员手工操作可能产生认知偏差。→ Mitigation：采用“最低目标状态”语义，不做破坏性反向收敛，并在日志/插件详情中明确记录“本次启动由 startup policy 推进”的结果。
-- [Risk] 动态插件授权配置较长，手工维护容易出错。→ Mitigation：复用现有授权数据结构和校验逻辑，配置解析阶段即校验 service/method/path/table 的合法性。
-- [Risk] 把 bootstrap 前移会延长宿主冷启动耗时。→ Mitigation：只对命中策略的插件执行动作；非必需插件允许降级；`blockUntilReady` 可控。
+- [Risk] 集群模式下选主尚未稳定，启动期 bootstrap 可能等不到主节点完成共享动作。→ Mitigation：采用内部固定等待窗口，主节点负责同步推进，共享动作超时则直接 fail-fast。
+- [Risk] `plugin.autoEnable` 与管理员手工治理可能产生认知偏差。→ Mitigation：把语义收敛为“仅确保启用、且不负责反向降级”，并在日志/插件详情中明确记录“本次启动由 `plugin.autoEnable` 推进”的结果。
+- [Risk] 动态插件缺少既有授权快照时会阻断启动。→ Mitigation：在文档中明确要求对这类动态插件先走一次人工审核启用，之后才能交给 `plugin.autoEnable` 接管。
+- [Risk] 把 bootstrap 前移会延长宿主冷启动耗时。→ Mitigation：只对 `plugin.autoEnable` 命中的少量插件执行动作，其余插件保持人工治理。
 - [Risk] 源码插件安装流程在集群场景中改为主节点独占后，从节点第一次启动时可能短暂看不到启用态。→ Mitigation：从节点在 bootstrap 后增加一次等待/刷新，再进行路由与 cron 注册。
 
 ## Migration Plan
 
-1. 扩展 `plugin.startup` 配置模型与模板，但默认不配置任何 policy，使现有项目升级后行为保持不变。
-2. 在 `plugin` 服务中新增 startup bootstrap 入口和 source/dynamic 分流逻辑，并补充配置校验。
+1. 扩展宿主主配置文件中的 `plugin.autoEnable` 模型与模板，但默认保持空列表，使现有项目升级后行为保持不变。
+2. 在 `plugin` 服务中新增 auto-enable bootstrap 入口和 source/dynamic 分流逻辑，并补充配置校验。
 3. 调整 `cmd_http.go` 启动顺序，把 bootstrap 插入到插件路由、cron、bundle 预热之前。
 4. 补充测试：
-   - 源码插件 `manual/installed/enabled` 三种策略；
-   - 动态插件安装/启用、授权缺失、授权命中；
-   - `required=true/false`；
+   - `plugin.autoEnable` 配置解析；
+   - 源码插件自动安装与自动启用；
+   - 动态插件安装/启用、已存在授权快照与缺少授权快照；
    - cluster 主从节点下的共享动作与等待逻辑。
 5. 发布与回滚：
-   - 发布时默认无策略，不会自动改变线上插件状态；
-   - 若需要回滚该能力，只需移除 `plugin.startup` 配置并回退代码版本；已自动安装/启用的插件状态不会被回滚逻辑自动破坏，仍可通过管理 API 显式治理。
+   - 发布时默认空列表，不会自动改变线上插件状态；
+   - 若需要回滚该能力，只需移除 `plugin.autoEnable` 配置并回退代码版本；已自动安装/启用的插件状态不会被回滚逻辑自动破坏，仍可通过管理 API 显式治理。
 
 ## Open Questions
 
-- 是否需要在插件管理列表或详情接口中增加“启动策略命中结果/最近一次 bootstrap 来源”的只读展示字段？本轮实现并不依赖该 UI，但运维可观测性会因此更好。
-- 非必需动态插件在缺少授权时，是否需要明确把列表态投影为“已安装待授权（来源：startup policy）”而不是普通 installed？如果需要，可能要补充更细的状态文案，但不一定需要新增底层状态机。
+- 是否需要在插件管理列表或详情接口中增加“最近一次由 `plugin.autoEnable` 自动拉起”的只读展示字段？本轮实现并不依赖该 UI，但运维可观测性会因此更好。
+- 后续若出现更复杂的启动治理需求，是否再补充第二层高级配置，而保持 `plugin.autoEnable` 作为最常用的简化入口？

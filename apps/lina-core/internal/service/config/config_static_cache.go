@@ -135,6 +135,9 @@ func clonePluginConfig(cfg *PluginConfig) *PluginConfig {
 		return nil
 	}
 	cloned := *cfg
+	if len(cfg.AutoEnable) > 0 {
+		cloned.AutoEnable = append([]string(nil), cfg.AutoEnable...)
+	}
 	return &cloned
 }
 

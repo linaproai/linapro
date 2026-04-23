@@ -2,8 +2,7 @@
 import type { SystemPlugin } from '#/api/system/plugin/model';
 
 import { useAccess } from '@vben/access';
-import { Page } from '@vben/common-ui';
-import { useVbenModal } from '@vben/common-ui';
+import { Page, useVbenModal } from '@vben/common-ui';
 
 import { message, Space, Switch, Tag } from 'ant-design-vue';
 
@@ -15,9 +14,10 @@ import {
   pluginSync,
 } from '#/api/system/plugin';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
+
 import PluginDetailModal from './plugin-detail-modal.vue';
-import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
+import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginUninstallModal from './plugin-uninstall-modal.vue';
 
 const [DetailModal, detailModalApi] = useVbenModal({
@@ -177,6 +177,12 @@ function canInstallPlugin() {
   return hasAccessByCodes([pluginAccessCodes.install]);
 }
 
+function canInstallAndEnablePlugin() {
+  return [pluginAccessCodes.install, pluginAccessCodes.enable].every((code) =>
+    hasAccessByCodes([code]),
+  );
+}
+
 function canSyncPlugins() {
   return hasAccessByCodes([pluginAccessCodes.install]);
 }
@@ -225,7 +231,11 @@ async function handleInstall(row: SystemPlugin) {
     message.warning('当前账号缺少插件安装权限');
     return;
   }
-  hostServiceAuthModalApi.setData({ mode: 'install', row });
+  hostServiceAuthModalApi.setData({
+    allowInstallAndEnable: canInstallAndEnablePlugin(),
+    mode: 'install',
+    row,
+  });
   hostServiceAuthModalApi.open();
 }
 

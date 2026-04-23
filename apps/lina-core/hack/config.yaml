@@ -1,10 +1,14 @@
 # Development-only configuration used by local build/codegen tools and the
 # repository-root framework upgrade tool. Runtime binaries must not read this file.
 
+# Shared local database connection reused by development-only tools.
+shared:
+  localDatabaseLink: &localDatabaseLink "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local"
+
 # Database config consumed by development-only SQL bootstrap/upgrade flows.
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: *localDatabaseLink
     debug: true
 
 # Source-upgrade metadata consumed by `hack/upgrade-framework`.
@@ -17,7 +21,7 @@ frameworkUpgrade:
 gfcli:
   gen:
     dao:
-      - link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local"
+      - link: *localDatabaseLink
         tables: "sys_*"
         descriptionTag: true
         noModelComment: true

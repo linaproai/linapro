@@ -249,6 +249,18 @@ export class PluginPage {
       .last();
   }
 
+  hostServiceAuthConfirmButton(): Locator {
+    return this.hostServiceAuthDialog()
+      .getByRole("button", { name: /确\s*认|确\s*定/i })
+      .last();
+  }
+
+  hostServiceAuthInstallAndEnableButton(): Locator {
+    return this.hostServiceAuthDialog()
+      .getByTestId("plugin-install-enable-button")
+      .last();
+  }
+
   uninstallDialog(): Locator {
     return this.page.getByRole("dialog", { name: "卸载插件" }).last();
   }
@@ -458,14 +470,18 @@ export class PluginPage {
     await expect(installButton).toBeVisible();
     await installButton.click();
     await expect(this.hostServiceAuthDialog()).toBeVisible();
-    await this.hostServiceAuthDialog()
-      .getByRole("button", { name: /确\s*定|确\s*认/i })
-      .last()
-      .click();
+    await this.hostServiceAuthConfirmButton().click();
     await expect(this.hostServiceAuthDialog()).toHaveCount(0);
     await expect(
       await this.pluginActionButton(pluginId, /卸\s*载/),
     ).toBeVisible();
+  }
+
+  async installAndEnablePlugin(pluginId: string) {
+    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    await expect(installButton).toBeVisible();
+    await installButton.click();
+    await this.confirmInstallAndEnable();
   }
 
   async ensurePluginInstalled(pluginId: string) {
@@ -664,10 +680,14 @@ export class PluginPage {
   }
 
   async confirmHostServiceAuthorization() {
-    await this.hostServiceAuthDialog()
-      .getByRole("button", { name: /确\s*认|确\s*定/i })
-      .last()
-      .click();
+    await this.hostServiceAuthConfirmButton().click();
+    await expect(this.hostServiceAuthDialog()).toHaveCount(0);
+  }
+
+  async confirmInstallAndEnable() {
+    await expect(this.hostServiceAuthDialog()).toBeVisible();
+    await expect(this.hostServiceAuthInstallAndEnableButton()).toBeVisible();
+    await this.hostServiceAuthInstallAndEnableButton().click();
     await expect(this.hostServiceAuthDialog()).toHaveCount(0);
   }
 
