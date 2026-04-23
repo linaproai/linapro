@@ -1,57 +1,57 @@
 ## ADDED Requirements
 
-### Requirement: 宿主必须提供默认关闭的演示控制静态配置
+### Requirement: 宿主必须通过`plugin.autoEnable`控制演示能力开关
 
-系统 MUST 在宿主主配置文件中提供演示控制开关，并默认保持关闭状态。
+系统 MUST 以`plugin.autoEnable`是否包含`demo-control`作为演示能力的唯一开关入口。
 
-#### Scenario: 默认配置关闭演示控制
+#### Scenario: 默认配置保持演示能力关闭
 - **WHEN** 宿主使用默认交付配置启动
-- **THEN** `demo.control.enabled` 的默认值为 `false`
-- **AND** 未显式开启演示控制的实例不会因为该能力默认阻断写操作
+- **THEN** 默认配置不会强制把`demo-control`加入`plugin.autoEnable`
+- **AND** 未启用`demo-control`的实例不会因为该能力默认阻断写操作
 
-#### Scenario: 显式覆盖配置启用演示控制
-- **WHEN** 部署环境把宿主主配置文件中的 `demo.control.enabled` 设置为 `true`
-- **THEN** 宿主能够读取到演示控制开启状态
-- **AND** 已启用的演示控制插件会按开启状态对请求链路生效
+#### Scenario: 在自动启用列表中开启演示能力
+- **WHEN** 部署环境把`demo-control`加入宿主主配置文件中的`plugin.autoEnable`
+- **THEN** 宿主在启动阶段自动安装并启用该插件
+- **AND** 演示控制中间件会在请求链路中生效
 
-### Requirement: 宿主默认交付必须自动启用演示控制源码插件
+### Requirement: 宿主必须随源码树交付演示控制源码插件
 
-系统 MUST 随源码树交付官方源码插件`demo-control`，并把它加入宿主默认启动自动启用列表。
+系统 MUST 随源码树交付官方源码插件`demo-control`，使部署环境可以通过`plugin.autoEnable`启用该能力。
 
-#### Scenario: 宿主启动时自动启用演示控制插件
-- **WHEN** 宿主使用默认交付配置启动并完成插件启动期 bootstrap
-- **THEN** `demo-control` 会被自动安装并启用
-- **AND** 该插件的全局 HTTP 中间件在宿主对外服务前已经接入统一请求链路
+#### Scenario: 宿主发现演示控制源码插件
+- **WHEN** 宿主扫描源码插件目录并同步插件注册表
+- **THEN** 宿主能够发现`demo-control`源码插件
+- **AND** 运维可以通过`plugin.autoEnable`决定是否在启动阶段启用该插件
 
-### Requirement: 演示控制插件必须在开启时阻断系统写操作
+### Requirement: 演示控制插件必须在启用时阻断系统写操作
 
-系统 MUST 在演示控制开关开启时，基于系统 API 的`HTTP Method`阻断写操作请求，并保留查询型请求能力。
+系统 MUST 在`demo-control`启用时，基于系统 API 的`HTTP Method`阻断写操作请求，并保留查询型请求能力。
 
-#### Scenario: 演示控制关闭时不拦截写操作
-- **WHEN** `demo.control.enabled` 为 `false`
+#### Scenario: 演示控制插件未启用时不拦截写操作
+- **WHEN** `demo-control` 未被宿主启用
 - **THEN** `POST`、`PUT`、`DELETE` 请求不会因为演示控制插件被额外拒绝
 
-#### Scenario: 演示控制开启时允许查询型请求
-- **WHEN** `demo.control.enabled` 为 `true`
+#### Scenario: 演示控制插件启用时允许查询型请求
+- **WHEN** `demo-control` 已被宿主启用
 - **AND** 请求命中系统 API 链路且`HTTP Method`为 `GET`、`HEAD` 或 `OPTIONS`
 - **THEN** 演示控制插件允许请求继续进入后续处理链路
 
-#### Scenario: 演示控制开启时拒绝写操作请求
-- **WHEN** `demo.control.enabled` 为 `true`
+#### Scenario: 演示控制插件启用时拒绝写操作请求
+- **WHEN** `demo-control` 已被宿主启用
 - **AND** 请求命中系统 API 链路且`HTTP Method`为 `POST`、`PUT` 或 `DELETE`
 - **THEN** 演示控制插件拒绝该请求并返回明确的只读演示提示
 - **AND** 请求不会继续进入后续业务处理链路
 
 ### Requirement: 演示控制插件必须保留最小会话白名单
 
-系统 MUST 在演示控制开关开启时保留登录和登出能力，避免演示环境失去基本可用性。
+系统 MUST 在`demo-control`启用时保留登录和登出能力，避免演示环境失去基本可用性。
 
-#### Scenario: 演示控制开启时允许登录接口
-- **WHEN** `demo.control.enabled` 为 `true`
+#### Scenario: 演示控制插件启用时允许登录接口
+- **WHEN** `demo-control` 已被宿主启用
 - **AND** 请求为 `POST /api/v1/auth/login`
 - **THEN** 演示控制插件允许请求继续进入认证处理链路
 
-#### Scenario: 演示控制开启时允许登出接口
-- **WHEN** `demo.control.enabled` 为 `true`
+#### Scenario: 演示控制插件启用时允许登出接口
+- **WHEN** `demo-control` 已被宿主启用
 - **AND** 请求为 `POST /api/v1/auth/logout`
 - **THEN** 演示控制插件允许请求继续进入后续处理链路

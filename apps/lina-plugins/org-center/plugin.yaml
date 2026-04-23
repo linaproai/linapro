@@ -3,7 +3,7 @@ name: 组织管理
 version: v0.1.0
 type: source
 description: 提供部门管理与岗位管理的官方源码插件
-author: lina-team
+author: linapro
 license: Apache-2.0
 menus:
   - key: plugin:org-center:dept

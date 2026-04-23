@@ -16,6 +16,7 @@
 
 当前仓库内置以下一方源码插件：
 
+- `demo-control`：演示环境只读保护
 - `org-center`：部门管理、岗位管理
 - `content-notice`：通知公告管理
 - `monitor-online`：在线用户查询与强制下线治理

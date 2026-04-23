@@ -1,0 +1,7 @@
+id: demo-control
+name: 演示控制
+version: v0.1.0
+type: source
+description: 提供演示环境只读保护与全局写操作拦截的官方源码插件
+author: linapro
+license: Apache-2.0

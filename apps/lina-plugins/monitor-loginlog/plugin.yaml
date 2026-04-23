@@ -3,7 +3,7 @@ name: 系统监控-登录日志
 version: v0.1.0
 type: source
 description: 提供登录日志持久化与治理界面的官方源码插件
-author: lina-team
+author: linapro
 license: Apache-2.0
 menus:
   - key: plugin:monitor-loginlog:loginlog

@@ -24,6 +24,12 @@ func TestGetPluginUsesDefaultStoragePathAndClonesCachedConfig(t *testing.T) {
 	if cfg.Dynamic.StoragePath != "temp/output" {
 		t.Fatalf("expected default dynamic storage path, got %q", cfg.Dynamic.StoragePath)
 	}
+	if len(cfg.AutoEnable) != 0 {
+		t.Fatalf("expected default auto-enable list to stay empty, got %#v", cfg.AutoEnable)
+	}
+	if autoEnable := svc.GetPluginAutoEnable(context.Background()); autoEnable != nil {
+		t.Fatalf("expected default GetPluginAutoEnable result to be nil, got %#v", autoEnable)
+	}
 
 	cfg.Dynamic.StoragePath = "mutated/by/test"
 	refreshed := svc.GetPlugin(context.Background())
@@ -96,6 +102,8 @@ func TestGetPluginAutoEnableNormalizesListAndAppliesOverrides(t *testing.T) {
 	setTestConfigContent(t, `
 plugin:
   autoEnable:
+    - " demo-control "
+    - "demo-control"
     - " plugin-demo-source "
     - "plugin-demo-source"
     - "plugin-demo-dynamic"
@@ -107,16 +115,16 @@ plugin:
 
 	svc := New()
 	cfg := svc.GetPlugin(context.Background())
-	if len(cfg.AutoEnable) != 2 {
-		t.Fatalf("expected two normalized plugin IDs, got %#v", cfg.AutoEnable)
+	if len(cfg.AutoEnable) != 3 {
+		t.Fatalf("expected three normalized plugin IDs, got %#v", cfg.AutoEnable)
 	}
-	if cfg.AutoEnable[0] != "plugin-demo-source" || cfg.AutoEnable[1] != "plugin-demo-dynamic" {
+	if cfg.AutoEnable[0] != "demo-control" || cfg.AutoEnable[1] != "plugin-demo-source" || cfg.AutoEnable[2] != "plugin-demo-dynamic" {
 		t.Fatalf("expected normalized auto-enable IDs, got %#v", cfg.AutoEnable)
 	}
 
 	cfg.AutoEnable[0] = "mutated"
 	refreshed := svc.GetPlugin(context.Background())
-	if refreshed.AutoEnable[0] != "plugin-demo-source" {
+	if refreshed.AutoEnable[0] != "demo-control" {
 		t.Fatalf("expected cached auto-enable IDs to stay immutable, got %#v", refreshed.AutoEnable)
 	}
 

@@ -3,7 +3,7 @@ name: 内容管理-通知公告
 version: v0.1.0
 type: source
 description: 提供通知公告管理的官方源码插件
-author: lina-team
+author: linapro
 license: Apache-2.0
 menus:
   - key: plugin:content-notice:notice

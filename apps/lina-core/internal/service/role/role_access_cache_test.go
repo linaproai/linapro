@@ -128,6 +128,11 @@ func (f *fakeRoleConfigService) GetPlugin(_ context.Context) *hostconfig.PluginC
 	return &hostconfig.PluginConfig{}
 }
 
+// GetPluginAutoEnable returns no startup auto-enable plugin IDs for tests.
+func (f *fakeRoleConfigService) GetPluginAutoEnable(_ context.Context) []string {
+	return nil
+}
+
 // GetPluginDynamicStoragePath returns an empty dynamic storage path for tests.
 func (f *fakeRoleConfigService) GetPluginDynamicStoragePath(_ context.Context) string {
 	return ""

@@ -3,7 +3,7 @@ name: 系统监控-在线用户
 version: v0.1.0
 type: source
 description: 提供在线用户查询与强制下线治理的官方源码插件
-author: lina-team
+author: linapro
 license: Apache-2.0
 menus:
   - key: plugin:monitor-online:online

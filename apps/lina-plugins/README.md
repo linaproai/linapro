@@ -16,6 +16,7 @@ LinaPro currently ships three plugin references in this directory:
 
 The repository currently includes these first-party source plugins:
 
+- `demo-control`: demo-environment read-only request guard
 - `org-center`: department management and post management
 - `content-notice`: notice management
 - `monitor-online`: online user query and force logout

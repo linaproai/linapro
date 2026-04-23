@@ -5,7 +5,7 @@
 
 ## 2. P0 正式源码升级命令
 
-- [x] 2.1 新增仓库根目录 `hack/upgrade-framework` 开发态工具和 `make upgrade` 入口，并沿用显式确认机制。
+- [x] 2.1 新增仓库根目录 `hack/upgrade` 开发态工具和 `make upgrade` 入口，并沿用显式确认机制。
 - [x] 2.2 在升级前完成备份提醒、Git 工作区脏检查、当前项目版本读取和目标版本比较。
 - [x] 2.3 实现目标标签代码拉取与覆盖本地框架代码。
 - [x] 2.4 实现从第一条宿主 SQL 开始按顺序执行全部宿主 SQL。
@@ -20,12 +20,26 @@
 
 - [x] 4.1 在当前变更中保留业务系统运行时升级的后续方向说明，但不在本轮实现。
 
+## 5. P0 源码插件升级治理
+
+- [ ] 5.1 扩展 `make upgrade` 与仓库根目录开发态升级工具参数，支持 `scope=framework|source-plugin`、`plugin=<id|all>` 与统一的 `dry-run` 计划输出。
+- [ ] 5.2 调整源码插件扫描与治理同步逻辑，确保 `sys_plugin.version` / `release_id` 只表示当前生效版本；源码树发现的更高版本只能写入待应用 release，不能直接覆盖当前生效版本。
+- [ ] 5.3 实现源码插件开发态显式升级流程：版本比较、单插件/批量计划、`phase=upgrade` SQL 执行、菜单权限同步、资源引用同步，以及 release / registry 状态切换。
+- [ ] 5.4 在宿主启动流程增加源码插件待升级校验；若已安装源码插件发现更高版本但未升级完成，则阻断启动并输出可执行的 `make upgrade` 提示。
+- [ ] 5.5 明确动态插件升级边界：继续保留 upload + install/reconcile 运行时升级模型，不纳入 `make upgrade`，并同步修正文档与接口说明中的边界描述。
+- [ ] 5.6 补充相关文档：更新当前变更的 OpenSpec 文档，并在实现阶段同步更新 `apps/lina-core/README.md`、`apps/lina-core/README.zh_CN.md`、命令帮助文本与插件治理说明。
+
+## 6. 验证
+
+- [ ] 6.1 为源码插件“当前生效版本 / 源码发现版本”拆分逻辑补充单元测试，覆盖未安装、已安装同版本、已安装高版本漂移三类场景。
+- [ ] 6.2 为源码插件升级命令补充测试，覆盖单插件升级、`plugin=all`、dry-run、低版本拒绝和未安装插件处理。
+- [ ] 6.3 为宿主启动前待升级校验补充测试，验证在存在待升级源码插件时服务启动会 fail fast。
+- [ ] 6.4 为动态插件边界说明补充回归验证，确保开发态升级命令不会错误介入动态插件运行时升级流程。
+
 ## Feedback
 
-- [x] **FB-6**: `make upgrade` 的实现必须迁移到仓库根目录 `hack/upgrade-framework/`，并且只读取 `apps/lina-core/hack/config.yaml` 中的数据库连接与升级元数据，禁止继续依赖运行时配置文件。
+- [x] **FB-6**: `make upgrade` 的实现必须迁移到仓库根目录 `hack/upgrade/`，并且只读取 `apps/lina-core/hack/config.yaml` 中的数据库连接与升级元数据，禁止继续依赖运行时配置文件。
 - [x] **FB-7**: `init` / `mock` 必须支持按阶段切换 SQL 资产来源，运行时默认读取 embedded FS，开发态 `Makefile` 显式读取本地 SQL 文件。
-- [x] **FB-8**: 将开发态升级工具目录从 `hack/upgrade/` 重命名为 `hack/upgrade-framework/`，并同步更新所有构建、模块与文档引用。
-- [x] **FB-9**: 去掉仓库根目录 `hack/build-wasm/` 与 `hack/upgrade-framework/` 工具模块名中的 `lina-` 前缀，并同步更新内部导入与辅助命名。
 - [x] **FB-5**: 框架元数据中的 `homepage` 应表示官网地址，并新增独立的仓库地址字段供系统信息展示和升级命令使用。
 - [x] **FB-4**: `internal/cmd` 的单元测试文件应按命令组件职责重新内聚，避免保留已删除 helper 文件对应的测试文件名。
 - [x] **FB-3**: `internal/cmd` 中与 `init`、`mock`、`upgrade` 相关的非测试逻辑应尽量内聚到对应命令文件或 `cmd.go`，减少零散辅助文件。

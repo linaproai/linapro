@@ -81,5 +81,7 @@ plugin:
     storagePath: "temp/output"
   # 启动时自动安装并启用的插件 ID 列表
   autoEnable:
+    # 将 "demo-control" 加入列表即可开启演示环境只读保护
+    # - "demo-control"
     # - "plugin-demo-source"
     # - "plugin-demo-dynamic"
