@@ -15,12 +15,10 @@ test.describe('TC0059 字典类型级联删除', () => {
 
     // Create a new dict type for testing
     await dictPage.createType(testTypeName, testTypeCode);
-    await adminPage.waitForTimeout(500);
 
     // Create dict data for this type
     await dictPage.clickTypeRow(testTypeName);
     await dictPage.createData(testDataLabel1, testDataValue1);
-    await adminPage.waitForTimeout(500);
 
     // Search for the type
     await dictPage.fillTypeSearchField('字典名称', testTypeName);
@@ -49,13 +47,11 @@ test.describe('TC0059 字典类型级联删除', () => {
     const typeName = `级联删除_${Date.now()}`;
     const typeCode = `cascade_del_${Date.now()}`;
     await dictPage.createType(typeName, typeCode);
-    await adminPage.waitForTimeout(500);
 
     // Create dict data for this type
     await dictPage.clickTypeRow(typeName);
     const dataLabelA = `数据A_${Date.now()}`;
     await dictPage.createData(dataLabelA, 'data_a');
-    await adminPage.waitForTimeout(500);
 
     // Verify data exists
     await dictPage.fillDataSearchField('字典标签', dataLabelA.split('_')[0]);
@@ -65,7 +61,6 @@ test.describe('TC0059 字典类型级联删除', () => {
     // Now delete the type - search first
     await dictPage.fillTypeSearchField('字典名称', typeName);
     await dictPage.clickTypeSearch();
-    await adminPage.waitForTimeout(500);
 
     // Click single row delete button (ghost button in action column)
     await dictPage.clickCurrentTypeDeleteAction();
@@ -101,7 +96,6 @@ test.describe('TC0059 字典类型级联删除', () => {
 
     // Verify the associated data is also deleted
     await dictPage.clickTypeReset();
-    await adminPage.waitForTimeout(500);
 
     // Try to search for the deleted data - it should not exist
     await dictPage.fillDataSearchField('字典标签', dataLabelA.split('_')[0]);
@@ -120,22 +114,15 @@ test.describe('TC0059 字典类型级联删除', () => {
     const typeCode2 = `batch_del_2_${Date.now()}`;
 
     await dictPage.createType(typeName1, typeCode1);
-    await adminPage.waitForTimeout(300);
     await dictPage.createType(typeName2, typeCode2);
-    await adminPage.waitForTimeout(500);
 
     // Search and select both types
     await dictPage.fillTypeSearchField('字典名称', '批量删除');
     await dictPage.clickTypeSearch();
 
-    // Wait for search results to appear
-    await adminPage.waitForTimeout(500);
-
     // Select first two rows
     await dictPage.selectTypeRow(0);
-    await adminPage.waitForTimeout(200);
     await dictPage.selectTypeRow(1);
-    await adminPage.waitForTimeout(300);
 
     // Click batch delete button - it's the danger button in toolbar (not the small action column buttons)
     // The toolbar button does NOT have the .ant-btn-sm class - use .first() to select the toolbar button

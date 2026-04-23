@@ -1,17 +1,24 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  waitForBusyIndicatorsToClear,
+  waitForDropdown,
+  waitForRouteReady,
+} from '../../../support/ui';
 
 async function expectPageHeightStable(page: any, pageName: string) {
-  const samples: number[] = [];
-
-  for (let index = 0; index < 4; index += 1) {
-    samples.push(
-      await page.evaluate(() => document.documentElement.scrollHeight),
-    );
-    if (index < 3) {
-      await page.waitForTimeout(400);
+  const samples = await page.evaluate(async () => {
+    const values: number[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      values.push(document.documentElement.scrollHeight);
+      if (index < 3) {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
+      }
     }
-  }
+    return values;
+  });
 
   expect(
     Math.max(...samples) - Math.min(...samples),
@@ -35,7 +42,7 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
     );
     await adminPage.goto('/monitor/operlog');
     await responsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0026a: 操作日志页面加载并展示表格', async ({ adminPage }) => {
@@ -69,7 +76,7 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
     const request = await requestPromise;
 
     expect(request.url()).toContain('title=');
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0026c: 按操作人员搜索', async ({ adminPage }) => {
@@ -91,7 +98,7 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
     const request = await requestPromise;
 
     expect(request.url()).toContain('operName=');
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0026d: 按操作类型下拉选择搜索', async ({ adminPage }) => {
@@ -108,17 +115,14 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
       .getByLabel('操作类型', { exact: true })
       .first();
     await selectTrigger.click();
-    await adminPage.waitForTimeout(300);
 
-    // Should see dropdown options from dict
-    const dropdown = adminPage.locator('.ant-select-dropdown:visible');
-    await expect(dropdown).toBeVisible();
+    const dropdown = await waitForDropdown(adminPage);
 
     // Select the first available option
     const firstOption = dropdown.locator('.ant-select-item-option').first();
     const optionText = await firstOption.textContent();
     await firstOption.click();
-    await adminPage.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(adminPage);
 
     // Click search and verify request includes operType parameter
     const requestPromise = adminPage.waitForRequest(
@@ -141,16 +145,13 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
       .getByLabel('操作结果', { exact: true })
       .first();
     await selectTrigger.click();
-    await adminPage.waitForTimeout(300);
 
-    // Should see dropdown options from dict
-    const dropdown = adminPage.locator('.ant-select-dropdown:visible');
-    await expect(dropdown).toBeVisible();
+    const dropdown = await waitForDropdown(adminPage);
 
     // Select the first available option
     const firstOption = dropdown.locator('.ant-select-item-option').first();
     await firstOption.click();
-    await adminPage.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(adminPage);
 
     // Click search and verify request includes status parameter
     const requestPromise = adminPage.waitForRequest(
@@ -177,8 +178,7 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
       .first()
       .fill('不存在的模块名称');
     await adminPage.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // After filtering, row count should be different (likely 0)
     const filteredCount = await adminPage.locator('.vxe-body--row').count();
@@ -193,7 +193,7 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
     );
     await adminPage.getByRole('button', { name: /重\s*置/ }).first().click();
     await resetResponsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Row count should restore
     const resetCount = await adminPage.locator('.vxe-body--row').count();
@@ -212,15 +212,15 @@ test.describe('TC0026 操作日志列表查询与筛选', () => {
       '.ant-picker-range input[placeholder]',
     );
     await rangeInputs.first().click();
-    await adminPage.waitForTimeout(300);
+    const pickerDropdown = adminPage.locator('.ant-picker-dropdown:visible').last();
+    await pickerDropdown.waitFor({ state: 'visible', timeout: 5000 });
 
     // Select today in the date picker popup
     const today = adminPage.locator('.ant-picker-cell-today').first();
     await today.click();
-    await adminPage.waitForTimeout(200);
     // Select the same day as end date
     await today.click();
-    await adminPage.waitForTimeout(300);
+    await pickerDropdown.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
     // Click search and verify request includes time range params
     const requestPromise = adminPage.waitForRequest(

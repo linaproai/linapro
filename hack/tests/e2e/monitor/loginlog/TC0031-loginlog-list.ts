@@ -1,5 +1,10 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  waitForBusyIndicatorsToClear,
+  waitForDropdown,
+  waitForRouteReady,
+} from '../../../support/ui';
 
 test.describe('TC0031 登录日志列表查询', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -17,7 +22,7 @@ test.describe('TC0031 登录日志列表查询', () => {
     );
     await adminPage.goto('/monitor/loginlog');
     await responsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0031a: 登录日志页面加载并展示表格', async ({ adminPage }) => {
@@ -64,7 +69,7 @@ test.describe('TC0031 登录日志列表查询', () => {
     const request = await requestPromise;
 
     expect(request.url()).toContain('userName=');
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Results should still contain admin entries
     const rows = adminPage.locator('.vxe-body--row');
@@ -99,16 +104,13 @@ test.describe('TC0031 登录日志列表查询', () => {
       .getByLabel('登录状态', { exact: true })
       .first();
     await selectTrigger.click();
-    await adminPage.waitForTimeout(300);
 
-    // Should see dropdown options from dict
-    const dropdown = adminPage.locator('.ant-select-dropdown:visible');
-    await expect(dropdown).toBeVisible();
+    const dropdown = await waitForDropdown(adminPage);
 
     // Select the first available option (e.g., "成功")
     const firstOption = dropdown.locator('.ant-select-item-option').first();
     await firstOption.click();
-    await adminPage.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(adminPage);
 
     // Click search and verify request includes status parameter
     const requestPromise = adminPage.waitForRequest(
@@ -135,8 +137,7 @@ test.describe('TC0031 登录日志列表查询', () => {
       .first()
       .fill('不存在的用户名称');
     await adminPage.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Reset
     const resetResponsePromise = adminPage.waitForResponse(
@@ -148,7 +149,7 @@ test.describe('TC0031 登录日志列表查询', () => {
     );
     await adminPage.getByRole('button', { name: /重\s*置/ }).first().click();
     await resetResponsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Row count should restore
     const resetCount = await adminPage.locator('.vxe-body--row').count();
@@ -161,15 +162,15 @@ test.describe('TC0031 登录日志列表查询', () => {
       '.ant-picker-range input[placeholder]',
     );
     await rangeInputs.first().click();
-    await adminPage.waitForTimeout(300);
+    const pickerDropdown = adminPage.locator('.ant-picker-dropdown:visible').last();
+    await pickerDropdown.waitFor({ state: 'visible', timeout: 5000 });
 
     // Select today in the date picker popup
     const today = adminPage.locator('.ant-picker-cell-today').first();
     await today.click();
-    await adminPage.waitForTimeout(200);
     // Select the same day as end date
     await today.click();
-    await adminPage.waitForTimeout(300);
+    await pickerDropdown.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
     // Click search and verify request includes time range params
     const requestPromise = adminPage.waitForRequest(

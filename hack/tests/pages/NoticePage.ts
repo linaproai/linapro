@@ -1,5 +1,12 @@
 import type { Page } from '@playwright/test';
 
+import {
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class NoticePage {
   constructor(private page: Page) {}
 
@@ -10,10 +17,7 @@ export class NoticePage {
 
   async goto() {
     await this.page.goto('/system/notice');
-    await this.page.waitForLoadState('networkidle');
-    await this.page
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
   }
 
   /** Create a new notice */
@@ -28,9 +32,7 @@ export class NoticePage {
       .first()
       .click();
 
-    // Wait for modal to open
-    await this.modal.waitFor({ state: 'visible', timeout: 5000 });
-    await this.page.waitForTimeout(500);
+    await waitForDialogReady(this.modal);
 
     // Fill title - use placeholder to find the input inside the modal
     const titleInput = this.modal
@@ -61,8 +63,8 @@ export class NoticePage {
       .getByRole('button', { name: /确\s*认/ })
       .click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await this.modal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   /** Edit a notice: search by title, click edit, update title */
@@ -78,8 +80,7 @@ export class NoticePage {
       .first()
       .click();
 
-    await this.modal.waitFor({ state: 'visible', timeout: 5000 });
-    await this.page.waitForTimeout(1000);
+    await waitForDialogReady(this.modal);
 
     const titleInput = this.modal
       .getByPlaceholder('请输入公告标题')
@@ -91,8 +92,8 @@ export class NoticePage {
       .getByRole('button', { name: /确\s*认/ })
       .click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await this.modal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   /** Delete a notice: search by title, click delete, confirm */
@@ -108,8 +109,7 @@ export class NoticePage {
       .first()
       .click();
 
-    await this.page.waitForTimeout(500);
-    const popconfirm = this.page.locator('.ant-popconfirm, .ant-popover');
+    const popconfirm = await waitForConfirmOverlay(this.page);
     const confirmBtn = popconfirm.getByRole('button', {
       name: /确\s*定|OK|是/i,
     });
@@ -117,8 +117,7 @@ export class NoticePage {
       await confirmBtn.click();
     }
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Check if a notice with the given title is visible */
@@ -142,8 +141,7 @@ export class NoticePage {
       .first()
       .click();
 
-    await this.modal.waitFor({ state: 'visible', timeout: 5000 });
-    await this.page.waitForTimeout(500);
+    await waitForDialogReady(this.modal);
   }
 
   /** Fill search form field by label */
@@ -159,8 +157,7 @@ export class NoticePage {
       .getByRole('button', { name: /搜\s*索/ })
       .first()
       .click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Click reset button */
@@ -169,8 +166,7 @@ export class NoticePage {
       .getByRole('button', { name: /重\s*置/ })
       .first()
       .click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Get total count from pager */

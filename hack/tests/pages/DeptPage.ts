@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test';
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class DeptPage {
   constructor(private page: Page) {}
 
@@ -10,11 +18,7 @@ export class DeptPage {
 
   async goto() {
     await this.page.goto('/system/dept');
-    await this.page.waitForLoadState('networkidle');
-    // Wait for VxeGrid table to render
-    await this.page
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
   }
 
   /** Click "展开" toolbar button to expand all tree nodes */
@@ -23,7 +27,7 @@ export class DeptPage {
       .getByRole('button', { name: /展\s*开/ })
       .first()
       .click();
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Fill the search form field by label */
@@ -39,8 +43,7 @@ export class DeptPage {
       .getByRole('button', { name: /搜\s*索/ })
       .first()
       .click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Click reset button */
@@ -49,8 +52,7 @@ export class DeptPage {
       .getByRole('button', { name: /重\s*置/ })
       .first()
       .click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Click "折叠" toolbar button to collapse all tree nodes */
@@ -59,7 +61,7 @@ export class DeptPage {
       .getByRole('button', { name: /折\s*叠/ })
       .first()
       .click();
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Create a root dept by clicking "新增" toolbar button */
@@ -70,8 +72,7 @@ export class DeptPage {
       .getByRole('button', { name: /新\s*增/ })
       .click();
 
-    // Wait for drawer to open
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.drawer);
 
     // Fill dept name (first text input in drawer)
     const nameInput = this.drawer.getByLabel('部门名称', { exact: true });
@@ -88,8 +89,7 @@ export class DeptPage {
       .getByRole('button', { name: /确\s*认/ })
       .click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await this.waitForDrawerSubmitToSettle();
   }
 
   /** Create a sub dept under the specified parent row */
@@ -111,8 +111,7 @@ export class DeptPage {
       .first()
       .click();
 
-    // Wait for drawer to open
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.drawer);
 
     // The drawer marks required labels with a leading "*", so match by role/name.
     const nameInput = this.drawer.getByRole('textbox', { name: /部门名称/ });
@@ -129,8 +128,7 @@ export class DeptPage {
       .getByRole('button', { name: /确\s*认/ })
       .click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await this.waitForDrawerSubmitToSettle();
   }
 
   /** Edit a dept: find the row, click edit, update fields in drawer */
@@ -150,8 +148,7 @@ export class DeptPage {
       .first()
       .click();
 
-    // Wait for drawer to open
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.drawer);
 
     // Clear and fill the new name (first text input)
     const nameInput = this.drawer.getByRole('textbox', { name: /部门名称/ });
@@ -170,8 +167,7 @@ export class DeptPage {
       .getByRole('button', { name: /确\s*认/ })
       .click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await this.waitForDrawerSubmitToSettle();
   }
 
   /** Delete a dept: find the row, click delete, confirm in Popconfirm */
@@ -190,6 +186,8 @@ export class DeptPage {
     if (!hasFilteredRow) {
       await this.clickReset();
       await this.expandAll();
+      await this.fillSearchField('部门名称', deptName);
+      await this.clickSearch();
       row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
     }
     await row.first().waitFor({ state: 'visible', timeout: 10000 });
@@ -199,9 +197,7 @@ export class DeptPage {
       .first()
       .click();
 
-    // Confirm in Popconfirm
-    await this.page.waitForTimeout(500);
-    const popconfirm = this.page.locator('.ant-popconfirm, .ant-popover');
+    const popconfirm = await waitForConfirmOverlay(this.page);
     const confirmBtn = popconfirm.getByRole('button', {
       name: /确\s*定|OK|是/i,
     });
@@ -212,8 +208,7 @@ export class DeptPage {
       await modal.getByRole('button', { name: /确\s*定|OK/i }).click();
     }
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Check if a dept row with the given name is visible */
@@ -228,6 +223,8 @@ export class DeptPage {
     if (!hasFilteredRow) {
       await this.clickReset();
       await this.expandAll();
+      await this.fillSearchField('部门名称', deptName);
+      await this.clickSearch();
       row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
     }
     return row.first().isVisible({ timeout: 5000 }).catch(() => false);
@@ -245,6 +242,8 @@ export class DeptPage {
     if (!hasRow) {
       await this.clickReset();
       await this.expandAll();
+      await this.fillSearchField('部门名称', deptName);
+      await this.clickSearch();
       row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
       hasRow = await row
         .first()
@@ -256,5 +255,16 @@ export class DeptPage {
     }
     const rowText = await row.first().textContent();
     return rowText?.includes(code) ?? false;
+  }
+
+  private async waitForDrawerSubmitToSettle() {
+    await waitForRouteReady(this.page);
+    const closed = await this.drawer
+      .waitFor({ state: 'hidden', timeout: 1500 })
+      .then(() => true)
+      .catch(() => false);
+    if (!closed) {
+      await waitForBusyIndicatorsToClear(this.drawer);
+    }
   }
 }

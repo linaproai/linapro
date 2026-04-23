@@ -1,5 +1,13 @@
 import type { Locator, Page } from "@playwright/test";
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForRouteReady,
+  waitForTableReady,
+} from "../support/ui";
+
 export class JobPage {
   constructor(private page: Page) {}
 
@@ -9,8 +17,7 @@ export class JobPage {
 
   async goto() {
     await this.page.goto("/system/job");
-    await this.page.waitForLoadState("networkidle");
-    await this.page.getByTestId("job-page").waitFor({ state: "visible" });
+    await waitForTableReady(this.page, '[data-testid="job-page"]');
   }
 
   async fillSearchKeyword(keyword: string) {
@@ -24,19 +31,18 @@ export class JobPage {
       .getByRole("button", { name: /搜\s*索/ })
       .first()
       .click();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async openCreate() {
     await this.page.getByTestId("job-add").click();
-    await this.dialog.waitFor({ state: "visible" });
+    await waitForDialogReady(this.dialog);
     await this.dialog.getByLabel("任务名称").waitFor({ state: "visible" });
   }
 
   async openEditSearchedJob() {
     await this.page.locator('[data-testid^="job-edit-"]').first().click();
-    await this.dialog.waitFor({ state: "visible" });
+    await waitForDialogReady(this.dialog);
     await this.dialog.getByLabel("任务名称").waitFor({ state: "visible" });
   }
 
@@ -85,8 +91,9 @@ export class JobPage {
   }
 
   async selectTaskTab(tabName: "Handler" | "Shell") {
-    await this.dialog.getByRole("tab", { name: tabName, exact: true }).click();
-    await this.page.waitForTimeout(200);
+    const tab = this.dialog.getByRole("tab", { name: tabName, exact: true });
+    await tab.click();
+    await waitForBusyIndicatorsToClear(this.dialog);
   }
 
   async isShellTabVisible() {
@@ -108,8 +115,14 @@ export class JobPage {
 
   async save() {
     await this.dialog.getByRole("button", { name: /确\s*认/ }).click();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
+    const closed = await this.dialog
+      .waitFor({ state: "hidden", timeout: 1500 })
+      .then(() => true)
+      .catch(() => false);
+    if (!closed) {
+      await waitForBusyIndicatorsToClear(this.dialog);
+    }
   }
 
   async closeDialog() {
@@ -126,15 +139,15 @@ export class JobPage {
         await this.page.keyboard.press("Escape");
       }
     }
-    await this.page.waitForTimeout(300);
+    await this.dialog.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   async deleteSearchedJob() {
     await this.page.locator('[data-testid^="job-more-"]').first().click();
     await this.page.locator('[data-testid^="job-delete-"]').first().click();
     await this.confirmPopconfirm();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async setTaskStatus(statusLabel: "停用" | "启用") {
@@ -144,7 +157,7 @@ export class JobPage {
       .first();
     await option.waitFor({ state: "visible" });
     await option.click();
-    await this.page.waitForTimeout(200);
+    await option.waitFor({ state: "visible" });
   }
 
   async hasSearchedJobMoreButton() {
@@ -180,8 +193,7 @@ export class JobPage {
 
   async triggerSearchedJob() {
     await this.page.locator('[data-testid^="job-trigger-"]').first().click();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async hoverPausedStatusTag() {
@@ -189,7 +201,13 @@ export class JobPage {
       .getByText("插件处理器不可用", { exact: true })
       .first()
       .hover();
-    await this.page.waitForTimeout(150);
+    await this.page
+      .locator(
+        '[role="tooltip"]:visible, .side-content:visible, .ant-tooltip:visible, .ant-popover:visible',
+      )
+      .first()
+      .waitFor({ state: "visible", timeout: 1500 })
+      .catch(() => {});
   }
 
   async hasJob(name: string) {
@@ -213,7 +231,13 @@ export class JobPage {
       .first();
     await trigger.waitFor({ state: "visible" });
     await trigger.hover();
-    await this.page.waitForTimeout(400);
+    await this.page
+      .locator(
+        '[role="tooltip"]:visible, .side-content:visible, .ant-tooltip:visible, .ant-popover:visible',
+      )
+      .first()
+      .waitFor({ state: "visible", timeout: 1500 })
+      .catch(() => {});
   }
 
   async isTooltipVisible(text: string) {
@@ -271,9 +295,7 @@ export class JobPage {
   }
 
   private async confirmPopconfirm() {
-    const popconfirm = this.page
-      .locator(".ant-popconfirm, .ant-popover")
-      .last();
+    const popconfirm = await waitForConfirmOverlay(this.page);
     await popconfirm.getByRole("button", { name: /确\s*定|OK|是/i }).click();
   }
 

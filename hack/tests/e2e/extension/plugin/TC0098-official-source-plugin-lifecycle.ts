@@ -11,6 +11,7 @@ import {
   ensureSourcePluginUninstalled,
   findPlugin,
   installPlugin,
+  refreshPluginProjection,
   syncPlugins,
   uninstallPlugin,
   updatePluginStatus,
@@ -177,29 +178,25 @@ test.describe('TC-98 官方源码插件生命周期', () => {
         await expectPluginRouteMissing(adminPage, item.route);
 
         await installPlugin(adminApi, item.id);
-        await adminPage.reload({ waitUntil: 'networkidle' });
-        await adminPage.waitForTimeout(300);
+        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 1, 0);
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);
 
         await updatePluginStatus(adminApi, item.id, true);
-        await adminPage.reload({ waitUntil: 'networkidle' });
-        await adminPage.waitForTimeout(300);
+        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 1, 1);
         await expectMountedTitles(adminApi, item.mountedTitles, true);
         await expectPluginRouteAvailable(adminPage, item);
 
         await updatePluginStatus(adminApi, item.id, false);
-        await adminPage.reload({ waitUntil: 'networkidle' });
-        await adminPage.waitForTimeout(300);
+        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 1, 0);
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);
 
         await uninstallPlugin(adminApi, item.id);
-        await adminPage.reload({ waitUntil: 'networkidle' });
-        await adminPage.waitForTimeout(300);
+        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 0, 0);
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);

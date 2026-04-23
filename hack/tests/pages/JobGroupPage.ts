@@ -1,5 +1,12 @@
 import type { Locator, Page } from '@playwright/test';
 
+import {
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class JobGroupPage {
   constructor(private page: Page) {}
 
@@ -9,8 +16,7 @@ export class JobGroupPage {
 
   async goto() {
     await this.page.goto('/system/job-group');
-    await this.page.waitForLoadState('networkidle');
-    await this.page.getByTestId('job-group-page').waitFor({ state: 'visible' });
+    await waitForTableReady(this.page, '[data-testid="job-group-page"]');
   }
 
   async fillSearchField(label: string, value: string) {
@@ -21,14 +27,12 @@ export class JobGroupPage {
 
   async clickSearch() {
     await this.page.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async clickReset() {
     await this.page.getByRole('button', { name: /重\s*置/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async createGroup(params: {
@@ -38,7 +42,7 @@ export class JobGroupPage {
     sortOrder?: number;
   }) {
     await this.page.getByTestId('job-group-add').click();
-    await this.dialog.waitFor({ state: 'visible' });
+    await waitForDialogReady(this.dialog);
 
     await this.dialog.getByLabel('分组编码').fill(params.code);
     await this.dialog.getByLabel('分组名称').fill(params.name);
@@ -50,8 +54,8 @@ export class JobGroupPage {
     }
 
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
+    await this.dialog.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   async editSearchedGroup(fields: {
@@ -60,7 +64,7 @@ export class JobGroupPage {
     sortOrder?: number;
   }) {
     await this.page.locator('[data-testid^="job-group-edit-"]').first().click();
-    await this.dialog.waitFor({ state: 'visible' });
+    await waitForDialogReady(this.dialog);
 
     if (fields.name) {
       const input = this.dialog.getByLabel('分组名称');
@@ -78,15 +82,14 @@ export class JobGroupPage {
     }
 
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
+    await this.dialog.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   async deleteSearchedGroup() {
     await this.page.locator('[data-testid^="job-group-delete-"]').first().click();
     await this.confirmPopconfirm();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async isDefaultDeleteDisabled(code = 'default') {
@@ -107,7 +110,7 @@ export class JobGroupPage {
   }
 
   private async confirmPopconfirm() {
-    const popconfirm = this.page.locator('.ant-popconfirm, .ant-popover').last();
+    const popconfirm = await waitForConfirmOverlay(this.page);
     await popconfirm.getByRole('button', { name: /确\s*定|OK|是/i }).click();
   }
 }

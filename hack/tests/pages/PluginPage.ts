@@ -1,5 +1,7 @@
 import { Page, Locator, expect } from "@playwright/test";
 
+import { waitForUploadReady } from "../support/ui";
+
 export class PluginPage {
   readonly page: Page;
 
@@ -420,8 +422,7 @@ export class PluginPage {
     // Ant Design Upload updates the modal state asynchronously after the file
     // chooser closes. Waiting for the rendered upload item avoids clicking the
     // confirm button before the file is committed into the reactive file list.
-    await expect(this.dynamicUploadListItem()).toBeVisible();
-    await this.page.waitForTimeout(1500);
+    await waitForUploadReady(this.dynamicUploadDialog());
 
     const uploadResponsePromise = this.page.waitForResponse(
       (response) =>

@@ -115,7 +115,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 	// Sanitize filename to prevent path traversal attacks
 	sanitizedFilename := sanitizeFilename(file.Filename)
 
-	// Validate file size (max from config, default 10MB)
+	// Validate file size against the runtime-effective upload ceiling.
 	uploadMaxSize := s.configSvc.GetUploadMaxSize(ctx)
 	if file.Size > uploadMaxSize*1024*1024 {
 		return nil, gerror.Newf("文件大小不能超过%dMB", uploadMaxSize)

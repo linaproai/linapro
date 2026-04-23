@@ -6,7 +6,6 @@ package integration
 import (
 	"context"
 	"strings"
-	"sync"
 	"time"
 
 	"lina-core/internal/dao"
@@ -234,20 +233,14 @@ type serviceImpl struct {
 
 	dynamicCronExecutor DynamicCronExecutor
 
-	sourceRouteBindingsMu sync.RWMutex
-	sourceRouteBindings   map[string][]pluginhost.SourceRouteBinding
-
-	enabledSnapshotMu     sync.RWMutex
-	enabledSnapshot       map[string]bool
-	enabledSnapshotLoaded bool
+	sharedState *sharedState
 }
 
 // New creates and returns a new integration Service.
 func New(catalogSvc catalog.Service) Service {
 	return &serviceImpl{
-		catalogSvc:          catalogSvc,
-		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
-		enabledSnapshot:     make(map[string]bool),
+		catalogSvc:  catalogSvc,
+		sharedState: defaultSharedState,
 	}
 }
 
@@ -286,10 +279,10 @@ func (s *serviceImpl) RefreshEnabledSnapshot(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.enabledSnapshotMu.Lock()
-	defer s.enabledSnapshotMu.Unlock()
-	s.enabledSnapshot = enabledByID
-	s.enabledSnapshotLoaded = true
+	s.sharedState.enabledSnapshotMu.Lock()
+	defer s.sharedState.enabledSnapshotMu.Unlock()
+	s.sharedState.enabledSnapshot = enabledByID
+	s.sharedState.enabledSnapshotLoaded = true
 	return nil
 }
 
@@ -299,10 +292,10 @@ func (s *serviceImpl) SetPluginEnabledState(pluginID string, enabled bool) {
 	if normalizedPluginID == "" {
 		return
 	}
-	s.enabledSnapshotMu.Lock()
-	defer s.enabledSnapshotMu.Unlock()
-	s.enabledSnapshot[normalizedPluginID] = enabled
-	s.enabledSnapshotLoaded = true
+	s.sharedState.enabledSnapshotMu.Lock()
+	defer s.sharedState.enabledSnapshotMu.Unlock()
+	s.sharedState.enabledSnapshot[normalizedPluginID] = enabled
+	s.sharedState.enabledSnapshotLoaded = true
 }
 
 // DeletePluginEnabledState removes one plugin entry from the in-memory enablement snapshot.
@@ -311,19 +304,19 @@ func (s *serviceImpl) DeletePluginEnabledState(pluginID string) {
 	if normalizedPluginID == "" {
 		return
 	}
-	s.enabledSnapshotMu.Lock()
-	defer s.enabledSnapshotMu.Unlock()
-	delete(s.enabledSnapshot, normalizedPluginID)
-	s.enabledSnapshotLoaded = true
+	s.sharedState.enabledSnapshotMu.Lock()
+	defer s.sharedState.enabledSnapshotMu.Unlock()
+	delete(s.sharedState.enabledSnapshot, normalizedPluginID)
+	s.sharedState.enabledSnapshotLoaded = true
 }
 
 // ListSourceRouteBindings returns the source-plugin route bindings captured during registration.
 func (s *serviceImpl) ListSourceRouteBindings() []pluginhost.SourceRouteBinding {
-	s.sourceRouteBindingsMu.RLock()
-	defer s.sourceRouteBindingsMu.RUnlock()
+	s.sharedState.sourceRouteBindingsMu.RLock()
+	defer s.sharedState.sourceRouteBindingsMu.RUnlock()
 
 	items := make([]pluginhost.SourceRouteBinding, 0)
-	for _, bindings := range s.sourceRouteBindings {
+	for _, bindings := range s.sharedState.sourceRouteBindings {
 		items = append(items, pluginhost.CloneSourceRouteBindings(bindings)...)
 	}
 	return items
@@ -408,10 +401,10 @@ func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledCh
 			return false
 		}
 
-		s.enabledSnapshotMu.RLock()
-		enabled, ok := s.enabledSnapshot[normalizedPluginID]
-		loaded := s.enabledSnapshotLoaded
-		s.enabledSnapshotMu.RUnlock()
+		s.sharedState.enabledSnapshotMu.RLock()
+		enabled, ok := s.sharedState.enabledSnapshot[normalizedPluginID]
+		loaded := s.sharedState.enabledSnapshotLoaded
+		s.sharedState.enabledSnapshotMu.RUnlock()
 		if ok || loaded {
 			return enabled
 		}
@@ -432,7 +425,7 @@ func (s *serviceImpl) buildPrimaryNodeChecker() pluginhost.PrimaryNodeChecker {
 // setSourceRouteBindings stores the latest host-captured route bindings for one
 // source plugin after registration completes.
 func (s *serviceImpl) setSourceRouteBindings(pluginID string, bindings []pluginhost.SourceRouteBinding) {
-	s.sourceRouteBindingsMu.Lock()
-	defer s.sourceRouteBindingsMu.Unlock()
-	s.sourceRouteBindings[strings.TrimSpace(pluginID)] = pluginhost.CloneSourceRouteBindings(bindings)
+	s.sharedState.sourceRouteBindingsMu.Lock()
+	defer s.sharedState.sourceRouteBindingsMu.Unlock()
+	s.sharedState.sourceRouteBindings[strings.TrimSpace(pluginID)] = pluginhost.CloneSourceRouteBindings(bindings)
 }

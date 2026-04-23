@@ -1,5 +1,9 @@
 import { test, expect } from "../../../fixtures/auth";
 import { MenuPage } from "../../../pages/MenuPage";
+import {
+  waitForBusyIndicatorsToClear,
+  waitForDropdown,
+} from "../../../support/ui";
 
 test.describe("TC0060 菜单管理 CRUD", () => {
   test("TC0060a: 菜单列表页面正常加载", async ({ adminPage }) => {
@@ -56,11 +60,12 @@ test.describe("TC0060 菜单管理 CRUD", () => {
 
     // Toggle the switch
     await cascadeSwitch.click();
-    await adminPage.waitForTimeout(500);
 
     // Verify state changed
-    const newState = await cascadeSwitch.getAttribute("aria-checked");
-    expect(newState).not.toBe(initialState);
+    await expect(cascadeSwitch).not.toHaveAttribute(
+      "aria-checked",
+      initialState ?? "false",
+    );
   });
 
   test("TC0060d: 折叠按钮功能", async ({ adminPage }) => {
@@ -80,7 +85,7 @@ test.describe("TC0060 菜单管理 CRUD", () => {
       .getByRole("button", { name: /折\s*叠/ })
       .first();
     await collapseBtn.click({ force: true });
-    await adminPage.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(adminPage);
 
     // Test passes if no errors thrown
     expect(true).toBeTruthy();
@@ -221,9 +226,6 @@ test.describe("TC0060 菜单管理 CRUD", () => {
       const firstExpandable = expandableNodes.first();
       await firstExpandable.click();
 
-      // Wait a moment for expansion
-      await adminPage.waitForTimeout(500);
-
       // Verify expanded node - look for minus-square icon (expanded state)
       const expandedNode = tree
         .getByRole("img", { name: "minus-square" })
@@ -233,9 +235,11 @@ test.describe("TC0060 菜单管理 CRUD", () => {
 
     // Close dropdown by pressing Escape
     await adminPage.keyboard.press("Escape");
-
-    // Wait for dropdown to close
-    await adminPage.waitForTimeout(500);
+    await adminPage
+      .locator(".ant-select-dropdown:visible")
+      .last()
+      .waitFor({ state: "hidden", timeout: 5000 })
+      .catch(() => {});
 
     // Close drawer - use Escape key as backup if button click fails
     try {
@@ -267,7 +271,7 @@ test.describe("TC0060 菜单管理 CRUD", () => {
       .first();
     if (await expandBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await expandBtn.click();
-      await adminPage.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(adminPage);
     }
 
     // Find "权限管理" row (parent menu with children) and click its edit button
@@ -295,15 +299,11 @@ test.describe("TC0060 菜单管理 CRUD", () => {
     const parentSelect = drawer.locator(".ant-select").first();
     await parentSelect.click({ force: true });
 
-    // Wait for dropdown to open
-    await adminPage.waitForTimeout(800);
-
     // The tree is rendered in a portal
+    await waitForDropdown(adminPage);
     const tree = adminPage.locator('[role="tree"]').first();
     await expect(tree).toBeVisible({ timeout: 5000 });
-
-    // Wait for tree to render
-    await adminPage.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(tree);
 
     // Verify the feature: check that some nodes are disabled
     // TreeSelect uses ant-select-tree-treenode class prefix
@@ -332,7 +332,11 @@ test.describe("TC0060 菜单管理 CRUD", () => {
 
     // Close dropdown
     await adminPage.keyboard.press("Escape");
-    await adminPage.waitForTimeout(300);
+    await adminPage
+      .locator(".ant-select-dropdown:visible")
+      .last()
+      .waitFor({ state: "hidden", timeout: 5000 })
+      .catch(() => {});
 
     // Close drawer
     try {
@@ -390,7 +394,11 @@ test.describe("TC0060 菜单管理 CRUD", () => {
 
     // Close dropdown
     await adminPage.keyboard.press("Escape");
-    await adminPage.waitForTimeout(300);
+    await adminPage
+      .locator(".ant-select-dropdown:visible")
+      .last()
+      .waitFor({ state: "hidden", timeout: 5000 })
+      .catch(() => {});
 
     // Close drawer
     try {
@@ -473,9 +481,6 @@ test.describe("TC0060 菜单管理 CRUD", () => {
     // Wait for skeleton to disappear
     const skeleton = drawer.locator(".ant-skeleton");
     await skeleton.waitFor({ state: "hidden", timeout: 10000 });
-
-    // Wait for form to be ready
-    await adminPage.waitForTimeout(500);
 
     // Find the parent menu selector and verify it shows "权限管理"
     const parentSelect = drawer.locator(".ant-select-selector").first();

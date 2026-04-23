@@ -74,13 +74,13 @@ func TestRequestBodyLimitFriendlyError(t *testing.T) {
 
 	err := requestBodyLimitFriendlyError(
 		"multipart/form-data; boundary=abc",
-		gerror.Wrap(&http.MaxBytesError{Limit: 11 * bytesPerMegabyte}, "r.ParseMultipartForm failed"),
-		10,
+		gerror.Wrap(&http.MaxBytesError{Limit: 17 * bytesPerMegabyte}, "r.ParseMultipartForm failed"),
+		16,
 	)
 	if err == nil {
 		t.Fatal("expected multipart size overflow to map to friendly error")
 	}
-	if !strings.Contains(err.Error(), "文件大小不能超过10MB") {
+	if !strings.Contains(err.Error(), "文件大小不能超过16MB") {
 		t.Fatalf("expected friendly size error, got %v", err)
 	}
 }

@@ -106,7 +106,7 @@ export async function updatePluginStatus(
   assertOk(response, `更新插件状态失败: ${pluginId}`);
 }
 
-async function refreshPluginProjection(page: Page) {
+export async function refreshPluginProjection(page: Page) {
   // Always land on a stable host route before reloading so plugin lifecycle
   // changes do not leave the current page stranded on a stale dynamic route.
   await page.goto('/dashboard/analytics', { waitUntil: 'networkidle' });

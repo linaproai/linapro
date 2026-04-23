@@ -1,5 +1,14 @@
 import type { Page } from '@playwright/test';
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForDropdown,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class PostPage {
   constructor(private page: Page) {}
 
@@ -10,11 +19,7 @@ export class PostPage {
 
   async goto() {
     await this.page.goto('/system/post');
-    await this.page.waitForLoadState('networkidle');
-    // Wait for VxeGrid table to render
-    await this.page
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
   }
 
   /** Click a dept node in the left DeptTree sidebar */
@@ -23,8 +28,7 @@ export class PostPage {
       .locator('.ant-tree-node-content-wrapper', { hasText: deptName })
       .first();
     await treeNode.click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Create a new post by clicking toolbar "新增", filling the drawer */
@@ -35,17 +39,17 @@ export class PostPage {
       .click();
 
     // Wait for drawer to open
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.drawer);
 
     // The drawer marks required labels with a leading "*", so match by role/name.
     await this.drawer.getByRole('combobox', { name: /所属部门/ }).click();
     // Wait for tree dropdown to appear and select the dept
-    await this.page.waitForTimeout(300);
-    await this.page
+    const dropdown = await waitForDropdown(this.page);
+    await dropdown
       .locator('.ant-select-tree-node-content-wrapper', { hasText: deptName })
       .first()
       .click();
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
 
     await this.drawer.getByRole('textbox', { name: /岗位名称/ }).fill(name);
     await this.drawer.getByRole('textbox', { name: /岗位编码/ }).fill(code);
@@ -55,8 +59,8 @@ export class PostPage {
       .getByRole('button', { name: /确\s*认/ })
       .click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   /** Edit a post: search by code, click edit, update name in drawer */
@@ -72,7 +76,7 @@ export class PostPage {
       .click();
 
     // Wait for drawer to open
-    await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.drawer);
 
     const nameInput = this.drawer.getByRole('textbox', { name: /岗位名称/ });
     await nameInput.clear();
@@ -83,8 +87,8 @@ export class PostPage {
       .getByRole('button', { name: /确\s*认/ })
       .click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   /** Delete a post: search by code, click delete, confirm */
@@ -100,8 +104,7 @@ export class PostPage {
       .click();
 
     // Confirm in Popconfirm
-    await this.page.waitForTimeout(500);
-    const popconfirm = this.page.locator('.ant-popconfirm, .ant-popover');
+    const popconfirm = await waitForConfirmOverlay(this.page);
     const confirmBtn = popconfirm.getByRole('button', {
       name: /确\s*定|OK|是/i,
     });
@@ -112,8 +115,7 @@ export class PostPage {
       await modal.getByRole('button', { name: /确\s*定|OK/i }).click();
     }
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Check if a post with the given code is visible in the table */
@@ -132,7 +134,7 @@ export class PostPage {
     await this.page
       .getByRole('button', { name: /导\s*出/ })
       .click();
-    await this.page.waitForTimeout(2000);
+    await waitForDialogReady(this.page.locator('[role="dialog"]'));
   }
 
   /** Select a row by clicking its checkbox (search by code first) */
@@ -144,7 +146,7 @@ export class PostPage {
       .locator('.vxe-body--row .vxe-checkbox--icon')
       .first();
     await checkbox.click();
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Click the toolbar batch delete button */
@@ -154,16 +156,20 @@ export class PostPage {
       .locator('.vxe-grid--toolbar, .vxe-toolbar')
       .getByRole('button', { name: /删\s*除/ })
       .click();
-    await this.page.waitForTimeout(500);
 
     // Confirm in Modal.confirm
-    const modal = this.page.locator('.ant-modal-confirm');
-    await modal
-      .getByRole('button', { name: /确\s*定|OK/i })
-      .click();
+    const overlay = await waitForConfirmOverlay(this.page);
+    const modalConfirm = overlay.getByRole('button', { name: /确\s*定|OK/i }).last();
+    if (await modalConfirm.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await modalConfirm.click();
+    } else {
+      const modal = this.page.locator('.ant-modal-confirm');
+      await modal
+        .getByRole('button', { name: /确\s*定|OK/i })
+        .click();
+    }
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Fill the search form field by label */
@@ -179,8 +185,7 @@ export class PostPage {
       .getByRole('button', { name: /搜\s*索/ })
       .first()
       .click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Click reset button */
@@ -189,8 +194,7 @@ export class PostPage {
       .getByRole('button', { name: /重\s*置/ })
       .first()
       .click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Get the total count from the pager */

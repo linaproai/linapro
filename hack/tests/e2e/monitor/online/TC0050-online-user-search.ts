@@ -1,5 +1,6 @@
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import { waitForRouteReady } from '../../../support/ui';
 
 test.describe('TC0050 在线用户搜索过滤', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -16,7 +17,7 @@ test.describe('TC0050 在线用户搜索过滤', () => {
     );
     await adminPage.goto('/monitor/online');
     await responsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
   });
 
   test('TC0050a: 按用户名搜索能过滤结果', async ({ adminPage }) => {
@@ -34,7 +35,7 @@ test.describe('TC0050 在线用户搜索过滤', () => {
     );
     await adminPage.getByRole('button', { name: /搜\s*索/ }).click();
     await requestPromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Results should still show admin
     const rows = adminPage.locator('.vxe-body--row');
@@ -57,7 +58,7 @@ test.describe('TC0050 在线用户搜索过滤', () => {
     );
     await adminPage.getByRole('button', { name: /搜\s*索/ }).click();
     await responsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Should show empty or no rows
     const rows = adminPage.locator('.vxe-body--row');
@@ -72,7 +73,7 @@ test.describe('TC0050 在线用户搜索过滤', () => {
       .first()
       .fill('nonexistent_user_xyz');
     await adminPage.getByRole('button', { name: /搜\s*索/ }).click();
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Reset
     const responsePromise = adminPage.waitForResponse(
@@ -82,7 +83,7 @@ test.describe('TC0050 在线用户搜索过滤', () => {
     );
     await adminPage.getByRole('button', { name: /重\s*置/ }).click();
     await responsePromise;
-    await adminPage.waitForTimeout(500);
+    await waitForRouteReady(adminPage);
 
     // Should have results again
     const rows = adminPage.locator('.vxe-body--row');

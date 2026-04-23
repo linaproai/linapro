@@ -23,12 +23,20 @@
 - [x] 4.1 在 `hack/tests/support/` 或等价公共层新增表格、弹窗、提示反馈、路由稳定等状态型等待工具
 - [x] 4.2 优先重构固定等待最密集的页面对象,至少覆盖菜单、角色、字典、用户、配置等高频页面,将主要 `waitForTimeout` 替换为状态型等待
 - [x] 4.3 审查插件治理、权限治理、导入导出、运行参数等共享状态明显的测试文件,明确哪些进入串行池,哪些在修复隔离后可以进入并行池
-- [ ] 4.4 对迁移后仍存在的高频固定等待进行第二轮清理,仅保留有明确业务理由的少量兜底等待并补充注释说明
+- [x] 4.4 对迁移后仍存在的高频固定等待进行第二轮清理,仅保留有明确业务理由的少量兜底等待并补充注释说明
+  - 已对 `NoticePage`、`DeptPage`、`JobPage`、`JobLogPage`、`JobGroupPage` 以及 `TC0024`、`TC0026`、`TC0031`、`TC0050`、`TC0059`、`TC0060`、`TC0063` 做第二轮固定等待清理; 当前仓库剩余 `waitForTimeout` 热点已降至单文件最多 4 处,主要保留在少量低频业务断言与 `hack/tests/debug/` 调试脚本中
 
 ## 5. 文档与验证
 
 - [x] 5.1 为 `hack/tests/` 新增 `README.md` 与 `README.zh_CN.md`,说明目录边界、执行入口、清单机制和治理脚本使用方式
-- [ ] 5.2 运行治理校验脚本、`pnpm test:smoke`、至少两个模块定向回归以及 `pnpm test`/`pnpm test:full`,记录迁移前后耗时和稳定性基线
-  - 已完成 `pnpm run test:validate`、`pnpm test:smoke`、`pnpm run test:module -- iam:user`、`pnpm run test:module -- settings:config` 与多轮 `pnpm run test:full` 验证; 当前完整回归阻塞于 `TC0066-source-plugin-lifecycle` 与 `TC0067-runtime-wasm-lifecycle` 的既有插件用例失败,需在后续迭代单独跟进
+- [x] 5.2 运行治理校验脚本、`pnpm test:smoke`、至少两个模块定向回归以及 `pnpm test`/`pnpm test:full`,记录迁移前后耗时和稳定性基线
+  - 已完成 `pnpm run test:validate`、`pnpm test:smoke`、`pnpm run test:module -- iam:user`、`pnpm run test:module -- settings:config`、`pnpm run test:module -- settings:dict` 与 `pnpm run test:full`
+  - `pnpm run test:full` 已于 2026-04-23 全量通过,结果为并行池 80 个用例全部通过、串行池 262 个用例全部通过
+  - 针对第二轮固定等待清理与插件回归修复,又补跑公告、部门、菜单、在线用户、操作/登录日志、字典级联删除及调度任务相关定向回归,包含 `TC0024`、`TC0025`、`TC0026`、`TC0031`、`TC0037~TC0039`、`TC0043`、`TC0050`、`TC0059`、`TC0060`、`TC0063`、`TC0081`、`TC0082`、`TC0084`、`TC0085`、`TC0089`、`TC0090`、`TC0097`,均已通过
 - [x] 5.3 对照本次 OpenSpec 设计与规范检查目录结构、执行分层、登录态复用和并行边界是否全部落地,为后续 `/opsx:apply` 与实现评审做好准备
   - 已完成目录边界、执行清单、`storageState` 复用、认证主题真实登录路径与并行/串行分层的实现自查; 当前遗留项仅剩完整回归中的插件既有失败与部分固定等待二轮清理
+
+## Feedback
+
+- [x] **FB-1**: `TC-66d` 启用源码插件后公开 `ping` 与受保护 `summary` 路由返回 404
+- [x] **FB-2**: `TC-67m` bundled runtime 插件上传探针在请求体超过 8MB 时未返回成功 payload

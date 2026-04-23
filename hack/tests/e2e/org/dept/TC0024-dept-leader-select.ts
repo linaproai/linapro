@@ -1,5 +1,12 @@
 import { expect, test } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  closeDialogWithEscape,
+  waitForDialogReady,
+  waitForDropdown,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../../../support/ui';
 
 test.describe('TC0024 部门负责人选择', () => {
   test.beforeEach(async ({ adminPage }) => {
@@ -10,10 +17,7 @@ test.describe('TC0024 部门负责人选择', () => {
     adminPage,
   }) => {
     await adminPage.goto('/system/dept');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(adminPage);
 
     // The primary button should say "新增" not "新增部门"
     const addBtn = adminPage
@@ -29,10 +33,7 @@ test.describe('TC0024 部门负责人选择', () => {
     adminPage,
   }) => {
     await adminPage.goto('/system/dept');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(adminPage);
 
     // Click the toolbar "新增" primary button (first match, the non-ghost one)
     await adminPage
@@ -43,13 +44,7 @@ test.describe('TC0024 部门负责人选择', () => {
       .click();
 
     const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'visible', timeout: 5000 });
-    // Wait for the loading overlay to disappear
-    await drawer
-      .locator('.bg-overlay-content')
-      .waitFor({ state: 'hidden', timeout: 10000 })
-      .catch(() => {});
-    await adminPage.waitForTimeout(500);
+    await waitForDialogReady(drawer);
 
     // The leader combobox should be accessible
     const leaderCombobox = drawer.getByRole('combobox', { name: '负责人' });
@@ -60,31 +55,22 @@ test.describe('TC0024 部门负责人选择', () => {
 
     // Click to open dropdown
     await leaderCombobox.click();
-    await adminPage.waitForTimeout(500);
+    const dropdown = await waitForDropdown(adminPage);
 
     // Should show user options
-    const dropdown = adminPage.locator(
-      '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',
-    );
-    await expect(dropdown).toBeVisible({ timeout: 5000 });
     const options = dropdown.locator('.ant-select-item-option');
     const count = await options.count();
     expect(count).toBeGreaterThan(0);
     expect(count).toBeLessThanOrEqual(10);
 
-    // Close drawer
-    await adminPage.keyboard.press('Escape');
-    await adminPage.waitForTimeout(500);
+    await closeDialogWithEscape(adminPage, drawer);
   });
 
   test('TC0024c: 编辑部门时未设置负责人显示为空白', async ({
     adminPage,
   }) => {
     await adminPage.goto('/system/dept');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(adminPage);
 
     // Click edit on the first dept row
     const firstRow = adminPage.locator('.vxe-body--row').first();
@@ -94,13 +80,7 @@ test.describe('TC0024 部门负责人选择', () => {
       .click();
 
     const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'visible', timeout: 5000 });
-    // Wait for the loading overlay to disappear
-    await drawer
-      .locator('.bg-overlay-content')
-      .waitFor({ state: 'hidden', timeout: 10000 })
-      .catch(() => {});
-    await adminPage.waitForTimeout(500);
+    await waitForDialogReady(drawer);
 
     // The leader combobox should NOT show "0" value
     const leaderCombobox = drawer.getByRole('combobox', { name: '负责人' });
@@ -118,19 +98,14 @@ test.describe('TC0024 部门负责人选择', () => {
       expect(text).not.toBe('0');
     }
 
-    // Close drawer
-    await adminPage.keyboard.press('Escape');
-    await adminPage.waitForTimeout(500);
+    await closeDialogWithEscape(adminPage, drawer);
   });
 
   test('TC0024d: 编辑部门时负责人下拉支持搜索', async ({
     adminPage,
   }) => {
     await adminPage.goto('/system/dept');
-    await adminPage.waitForLoadState('networkidle');
-    await adminPage
-      .locator('.vxe-table')
-      .waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(adminPage);
 
     // Click edit on the first dept row
     const firstRow = adminPage.locator('.vxe-body--row').first();
@@ -140,12 +115,7 @@ test.describe('TC0024 部门负责人选择', () => {
       .click();
 
     const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'visible', timeout: 5000 });
-    // Wait for the loading overlay to disappear
-    await drawer
-      .locator('.bg-overlay-content')
-      .waitFor({ state: 'hidden', timeout: 10000 });
-    await adminPage.waitForTimeout(500);
+    await waitForDialogReady(drawer);
 
     // Leader combobox should be enabled and searchable
     const leaderCombobox = drawer.getByRole('combobox', { name: '负责人' });
@@ -155,13 +125,10 @@ test.describe('TC0024 部门负责人选择', () => {
     // Type to search
     await leaderCombobox.click();
     await leaderCombobox.fill('admin');
-    await adminPage.waitForTimeout(1000);
+    await waitForRouteReady(adminPage);
 
     // Should show filtered results
-    const dropdown = adminPage.locator(
-      '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',
-    );
-    await expect(dropdown).toBeVisible({ timeout: 5000 });
+    const dropdown = await waitForDropdown(adminPage);
     const options = dropdown.locator('.ant-select-item-option');
     const count = await options.count();
     expect(count).toBeGreaterThan(0);
@@ -170,8 +137,6 @@ test.describe('TC0024 部门负责人选择', () => {
     const firstOption = await options.first().textContent();
     expect(firstOption?.toLowerCase()).toContain('admin');
 
-    // Close drawer
-    await adminPage.keyboard.press('Escape');
-    await adminPage.waitForTimeout(500);
+    await closeDialogWithEscape(adminPage, drawer);
   });
 });

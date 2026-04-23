@@ -57,11 +57,13 @@ test.describe('TC-82 源码注册任务可见且只读', () => {
     await expect(await jobPage.hasJob('任务日志清理')).toBe(true);
 
     await jobPage.openEditSearchedJob();
+    const builtinDetailCard = adminPage.getByTestId('job-builtin-detail-card');
+    await expect(builtinDetailCard).toBeVisible();
     await expect(
-      adminPage.getByText('宿主内置', { exact: true }),
+      builtinDetailCard.getByText('宿主内置', { exact: true }),
     ).toBeVisible();
     await expect(
-      adminPage.getByText('host:cleanup-job-logs', { exact: true }),
+      builtinDetailCard.getByText('host:cleanup-job-logs', { exact: true }),
     ).toBeVisible();
     await expect(
       adminPage.getByRole('button', { name: /确\s*认/ }),

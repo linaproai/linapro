@@ -1,7 +1,14 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from '../../../fixtures/auth';
 import { ConfigPage } from '../../../pages/ConfigPage';
+import {
+  closeDialogWithEscape,
+  dismissResultDialog,
+  setSwitchChecked,
+  waitForUploadReady,
+} from '../../../support/ui';
 import * as XLSX from 'xlsx';
 
 // XLSX module functions
@@ -29,6 +36,30 @@ test.describe('TC0058 参数设置导入完整流程', () => {
 
     // Write to file
     (XLSX as any).writeFile(workbook, filePath);
+  }
+
+  async function uploadImportFile(filePath: string, adminPage: Page, modal: Locator) {
+    const [fileChooser] = await Promise.all([
+      adminPage.waitForEvent('filechooser', { timeout: 5000 }),
+      modal.locator('.ant-upload-drag').click(),
+    ]);
+    await fileChooser.setFiles(filePath);
+    await waitForUploadReady(modal);
+  }
+
+  async function submitImport(adminPage: Page, modal: Locator) {
+    const importResponsePromise = adminPage.waitForResponse(
+      (res) => res.url().includes('/config/import') && res.request().method() === 'POST',
+      { timeout: 30000 },
+    );
+    await modal.getByRole('button', { name: /确\s*认/ }).click();
+    const importResponse = await importResponsePromise;
+    await expect(modal).not.toBeVisible({ timeout: 5000 });
+    const responseJson = await importResponse.json();
+    return {
+      importResponse,
+      responseBody: responseJson.data || responseJson,
+    };
   }
 
   test.beforeAll(() => {
@@ -62,8 +93,7 @@ test.describe('TC0058 参数设置导入完整流程', () => {
     await download.saveAs(templatePath);
 
     // Close modal
-    await adminPage.keyboard.press('Escape');
-    await adminPage.waitForTimeout(500);
+    await closeDialogWithEscape(adminPage, modal);
 
     // Verify template file exists and is a valid Excel
     expect(fs.existsSync(templatePath)).toBeTruthy();
@@ -123,49 +153,12 @@ test.describe('TC0058 参数设置导入完整流程', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     // Upload file using file chooser
-    const fileChooserPromise = adminPage.waitForEvent('filechooser', { timeout: 5000 });
-    await modal.locator('.ant-upload-drag').click();
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles(importFilePath);
-
-    // Wait for file to appear in upload list
-    const uploadItem = modal.locator('.ant-upload-list-item');
-    await expect(uploadItem).toBeVisible({ timeout: 10000 });
-
-    // Wait for Vue reactivity to process the file
-    await adminPage.waitForTimeout(1500);
-
-    // Click confirm button
-    const confirmBtn = modal.getByRole('button', { name: /确\s*认/ });
-
-    // Set up response listener before clicking
-    const importResponsePromise = adminPage.waitForResponse(
-      (res) => res.url().includes('/config/import') && res.request().method() === 'POST',
-      { timeout: 30000 },
-    );
-
-    await confirmBtn.click();
-
-    // Wait for response
-    const importResponse = await importResponsePromise;
+    await uploadImportFile(importFilePath, adminPage, modal);
+    const { importResponse, responseBody } = await submitImport(adminPage, modal);
     expect(importResponse.status()).toBe(200);
-
-    // Parse response - handle wrapped response format { code, message, data }
-    const responseJson = await importResponse.json();
-    const responseBody = responseJson.data || responseJson;
     expect(responseBody.success).toBe(2);
     expect(responseBody.fail).toBe(0);
-
-    // Wait for import modal to close
-    await expect(modal).not.toBeVisible({ timeout: 5000 });
-
-    // Close the success modal if visible
-    await adminPage.waitForTimeout(500);
-    const successModal = adminPage.locator('.ant-modal-wrap').filter({ hasText: '成功导入' });
-    if (await successModal.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await successModal.getByRole('button', { name: /确\s*定|OK|知道了/i }).click();
-      await adminPage.waitForTimeout(300);
-    }
+    await dismissResultDialog(adminPage, '成功导入');
 
     // Verify data appears in list - search for first config
     await configPage.fillSearchField('参数键名', testKey1);
@@ -213,45 +206,15 @@ test.describe('TC0058 参数设置导入完整流程', () => {
     expect(await switchEl.isChecked()).toBe(false);
 
     // Upload file using file chooser
-    const fileChooserPromise = adminPage.waitForEvent('filechooser', { timeout: 5000 });
-    await modal.locator('.ant-upload-drag').click();
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles(importFilePath);
-
-    // Wait for file to appear
-    const uploadItem = modal.locator('.ant-upload-list-item');
-    await expect(uploadItem).toBeVisible({ timeout: 10000 });
-    await adminPage.waitForTimeout(1500);
-
-    // Submit import
-    const importResponsePromise = adminPage.waitForResponse(
-      (res) => res.url().includes('/config/import') && res.request().method() === 'POST',
-      { timeout: 30000 },
-    );
-    await modal.getByRole('button', { name: /确\s*认/ }).click();
-
-    // Wait for response
-    const importResponse = await importResponsePromise;
-    const responseJson = await importResponse.json();
-    const responseBody = responseJson.data || responseJson;
+    await uploadImportFile(importFilePath, adminPage, modal);
+    const { responseBody } = await submitImport(adminPage, modal);
 
     // Should have 1 failure (duplicate key)
     expect(responseBody.success).toBe(0);
     expect(responseBody.fail).toBe(1);
     expect(responseBody.failList[0].reason).toContain('已存在');
 
-    // Wait for import modal to close
-    await expect(modal).not.toBeVisible({ timeout: 5000 });
-
-    // Wait for error/success modal to appear
-    await adminPage.waitForTimeout(500);
-    const resultModal = adminPage.locator('.ant-modal-wrap').filter({ hasText: '失败' });
-
-    // Close result modal if visible
-    if (await resultModal.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await resultModal.getByRole('button', { name: /确\s*定|OK|知道了/i }).click();
-      await adminPage.waitForTimeout(300);
-    }
+    await dismissResultDialog(adminPage, '失败');
 
     // Verify original value unchanged
     await configPage.fillSearchField('参数键名', testKey);
@@ -290,47 +253,17 @@ test.describe('TC0058 参数设置导入完整流程', () => {
 
     // Enable overwrite mode
     const switchEl = modal.locator('.ant-switch');
-    await switchEl.click();
-    await adminPage.waitForTimeout(300);
+    await setSwitchChecked(switchEl, true);
     expect(await switchEl.isChecked()).toBe(true);
 
-    // Upload file using file chooser
-    const fileChooserPromise = adminPage.waitForEvent('filechooser', { timeout: 5000 });
-    await modal.locator('.ant-upload-drag').click();
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles(importFilePath);
-
-    // Wait for file to appear
-    const uploadItem = modal.locator('.ant-upload-list-item');
-    await expect(uploadItem).toBeVisible({ timeout: 10000 });
-    await adminPage.waitForTimeout(1500);
-
-    // Submit import
-    const importResponsePromise = adminPage.waitForResponse(
-      (res) => res.url().includes('/config/import') && res.request().method() === 'POST',
-      { timeout: 30000 },
-    );
-    await modal.getByRole('button', { name: /确\s*认/ }).click();
-
-    // Wait for response
-    const importResponse = await importResponsePromise;
-    const responseJson = await importResponse.json();
-    const responseBody = responseJson.data || responseJson;
+    await uploadImportFile(importFilePath, adminPage, modal);
+    const { responseBody } = await submitImport(adminPage, modal);
 
     // Should succeed with 1 update
     expect(responseBody.success).toBe(1);
     expect(responseBody.fail).toBe(0);
 
-    // Wait for modals to close
-    await expect(modal).not.toBeVisible({ timeout: 5000 });
-
-    // Close success modal if visible
-    await adminPage.waitForTimeout(500);
-    const successModal = adminPage.locator('.ant-modal-wrap').filter({ hasText: '成功导入' });
-    if (await successModal.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await successModal.getByRole('button', { name: /确\s*定|OK|知道了/i }).click();
-      await adminPage.waitForTimeout(300);
-    }
+    await dismissResultDialog(adminPage, '成功导入');
 
     // Verify the config was updated - search by key
     await configPage.fillSearchField('参数键名', testKey);
@@ -361,13 +294,11 @@ test.describe('TC0058 参数设置导入完整流程', () => {
     expect(initialState).toBe(false);
 
     // Toggle ON
-    await switchEl.click();
-    await adminPage.waitForTimeout(300);
+    await setSwitchChecked(switchEl, true);
     expect(await switchEl.isChecked()).toBe(true);
 
     // Toggle back OFF
-    await switchEl.click();
-    await adminPage.waitForTimeout(300);
+    await setSwitchChecked(switchEl, false);
     expect(await switchEl.isChecked()).toBe(false);
 
     // Close modal
@@ -412,41 +343,13 @@ test.describe('TC0058 参数设置导入完整流程', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     // Upload file using file chooser
-    const fileChooserPromise = adminPage.waitForEvent('filechooser', { timeout: 5000 });
-    await modal.locator('.ant-upload-drag').click();
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles(importFilePath);
-
-    // Wait for file to appear
-    const uploadItem = modal.locator('.ant-upload-list-item');
-    await expect(uploadItem).toBeVisible({ timeout: 10000 });
-    await adminPage.waitForTimeout(1500);
-
-    // Submit import
-    const importResponsePromise = adminPage.waitForResponse(
-      (res) => res.url().includes('/config/import') && res.request().method() === 'POST',
-      { timeout: 30000 },
-    );
-    await modal.getByRole('button', { name: /确\s*认/ }).click();
-
-    // Wait for response
-    const importResponse = await importResponsePromise;
-    const responseJson = await importResponse.json();
-    const responseBody = responseJson.data || responseJson;
+    await uploadImportFile(importFilePath, adminPage, modal);
+    const { responseBody } = await submitImport(adminPage, modal);
 
     // All 3 records should fail due to missing required fields
     expect(responseBody.success).toBe(0);
     expect(responseBody.fail).toBe(3);
 
-    // Wait for import modal to close
-    await expect(modal).not.toBeVisible({ timeout: 5000 });
-
-    // Verify error modal shows failure details
-    await adminPage.waitForTimeout(500);
-    const resultModal = adminPage.locator('.ant-modal-wrap').filter({ hasText: '失败' });
-    if (await resultModal.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await resultModal.getByRole('button', { name: /确\s*定|OK|知道了/i }).click();
-      await adminPage.waitForTimeout(300);
-    }
+    await dismissResultDialog(adminPage, '失败');
   });
 });

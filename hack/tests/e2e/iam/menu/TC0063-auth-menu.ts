@@ -1,9 +1,10 @@
-import type { APIRequestContext } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 import { request as playwrightRequest } from "@playwright/test";
 import { LoginPage } from "../../../pages/LoginPage";
 import { test, expect } from "../../../fixtures/auth";
 import { MainLayout } from "../../../pages/MainLayout";
 import { config } from "../../../fixtures/config";
+import { waitForRouteReady } from "../../../support/ui";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://localhost:8080/api/v1/";
@@ -141,6 +142,18 @@ async function getCurrentUserRouteTree(
   return result.data?.list ?? [];
 }
 
+async function waitForSidebarMenu(page: Page, expectedLabels: string[] = []) {
+  await waitForRouteReady(page);
+  const sidebarMenu = page.getByRole("menu").first();
+  await sidebarMenu.waitFor({ state: "visible", timeout: 10000 });
+  for (const label of expectedLabels) {
+    await expect(sidebarMenu.getByText(label).first()).toBeVisible({
+      timeout: 5000,
+    });
+  }
+  return sidebarMenu;
+}
+
 test.describe("TC0063 登录后菜单显示", () => {
   const uniqueSuffix = Date.now().toString();
   const testRoleName = `e2e_menu_role_${Date.now()}`;
@@ -217,11 +230,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     await loginPage.goto();
     await loginPage.loginAndWaitForRedirect(config.adminUser, config.adminPass);
     await page.goto("/system/menu");
-    await page.waitForLoadState("networkidle");
-
-    // Wait for sidebar/menu to render
-    await page.waitForTimeout(2000);
-    const sidebarMenu = page.getByRole("menu").first();
+    const sidebarMenu = await waitForSidebarMenu(page, ["权限管理"]);
 
     // Admin should see IAM catalog
     const iamMenu = sidebarMenu.getByText("权限管理").first();
@@ -317,11 +326,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     await loginPage.goto();
     await loginPage.loginAndWaitForRedirect(testUserUsername, testUserPassword);
     await page.goto("/system/user");
-    await page.waitForLoadState("networkidle");
-
-    // Wait for sidebar/menu to render
-    await page.waitForTimeout(2000);
-    const sidebarMenu = page.getByRole("menu").first();
+    const sidebarMenu = await waitForSidebarMenu(page, ["权限管理"]);
 
     const systemMenu = sidebarMenu.getByText("权限管理").first();
     await expect(systemMenu).toBeVisible({ timeout: 5000 });
@@ -342,7 +347,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     await loginPage.goto();
     await loginPage.loginAndWaitForRedirect(noRoleUsername, testUserPassword);
 
-    await page.waitForTimeout(2000);
+    await waitForRouteReady(page);
     await expect(page).toHaveURL(/\/profile$/);
     await expect(page.getByText("个人中心").first()).toBeVisible({
       timeout: 5000,
@@ -375,10 +380,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     await loginPage.goto();
     await loginPage.loginAndWaitForRedirect(config.adminUser, config.adminPass);
     await page.goto("/system/menu");
-    await page.waitForLoadState("networkidle");
-
-    await page.waitForTimeout(2000);
-    const adminSidebar = page.getByRole("menu").first();
+    const adminSidebar = await waitForSidebarMenu(page, ["权限管理"]);
 
     const adminMenuCount = (
       await Promise.all(
@@ -400,10 +402,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     await loginPage.goto();
     await loginPage.loginAndWaitForRedirect(testUserUsername, testUserPassword);
     await page.goto("/system/user");
-    await page.waitForLoadState("networkidle");
-
-    await page.waitForTimeout(2000);
-    const testSidebar = page.getByRole("menu").first();
+    const testSidebar = await waitForSidebarMenu(page, ["权限管理"]);
 
     const testMenuCount = (
       await Promise.all(
@@ -446,10 +445,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     await testLogin.goto();
     await testLogin.loginAndWaitForRedirect(testUserUsername, testUserPassword);
     await testPage.goto("/system/user");
-    await testPage.waitForLoadState("networkidle");
-
-    await testPage.waitForTimeout(2000);
-    const sidebarMenu = testPage.getByRole("menu").first();
+    const sidebarMenu = await waitForSidebarMenu(testPage, ["角色管理"]);
 
     const roleManagement = sidebarMenu.getByText("角色管理").first();
     await expect(roleManagement).toBeVisible({ timeout: 5000 });
@@ -475,8 +471,7 @@ test.describe("TC0063 登录后菜单显示", () => {
     });
 
     await page.reload();
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(500);
+    await waitForRouteReady(page);
 
     expect(menuResponses, "刷新页面时不应重复拉取菜单").toHaveLength(1);
   });

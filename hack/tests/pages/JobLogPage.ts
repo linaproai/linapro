@@ -1,5 +1,12 @@
 import type { Locator, Page } from "@playwright/test";
 
+import {
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForRouteReady,
+  waitForTableReady,
+} from "../support/ui";
+
 export class JobLogPage {
   constructor(private page: Page) {}
 
@@ -9,8 +16,7 @@ export class JobLogPage {
 
   async goto() {
     await this.page.goto("/system/job-log");
-    await this.page.waitForLoadState("networkidle");
-    await this.page.getByTestId("job-log-page").waitFor({ state: "visible" });
+    await waitForTableReady(this.page, '[data-testid="job-log-page"]');
   }
 
   async selectJob(jobName: string) {
@@ -26,13 +32,12 @@ export class JobLogPage {
       .getByRole("button", { name: /搜\s*索/ })
       .first()
       .click();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async openFirstDetail() {
     await this.page.locator('[data-testid^="job-log-detail-"]').first().click();
-    await this.dialog.waitFor({ state: "visible" });
+    await waitForDialogReady(this.dialog);
     await this.dialog
       .getByText("任务名称", { exact: true })
       .waitFor({ state: "visible" });
@@ -45,8 +50,7 @@ export class JobLogPage {
     }
     await this.page.getByTestId("job-log-clear").click();
     await this.confirmPopconfirm();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async selectFirstRow() {
@@ -67,8 +71,7 @@ export class JobLogPage {
     }
     await this.page.getByTestId("job-log-delete").click();
     await this.confirmPopconfirm();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(300);
+    await waitForRouteReady(this.page);
   }
 
   async getVisibleRowCount() {
@@ -80,10 +83,8 @@ export class JobLogPage {
   }
 
   private async confirmPopconfirm() {
-    const modal = this.page
-      .locator(".ant-modal-confirm, .ant-popconfirm, .ant-popover")
-      .last();
-    const confirm = modal
+    const overlay = await waitForConfirmOverlay(this.page);
+    const confirm = overlay
       .getByRole("button", { name: /确\s*定|OK|是/i })
       .last();
     await confirm.click();

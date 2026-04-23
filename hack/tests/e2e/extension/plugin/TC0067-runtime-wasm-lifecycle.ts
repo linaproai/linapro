@@ -19,6 +19,7 @@ import { test } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { LoginPage } from "../../../pages/LoginPage";
 import { PluginPage } from "../../../pages/PluginPage";
+import { waitForUploadReady } from "../../../support/ui";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
@@ -56,7 +57,7 @@ const bundledRuntimeMenuName = "动态插件示例";
 const bundledRuntimeStandalonePath =
   "/plugin-assets/plugin-demo-dynamic/v0.1.0/standalone.html";
 const defaultRequestBodyLimitBytes = 8 * 1024 * 1024;
-const defaultUploadMaxSizeBytes = 10 * 1024 * 1024;
+const defaultUploadMaxSizeBytes = 16 * 1024 * 1024;
 const multipartRequestProbeBytes = defaultRequestBodyLimitBytes + 256 * 1024;
 const multipartOversizedProbeBytes = defaultUploadMaxSizeBytes + 2 * 1024 * 1024;
 
@@ -1429,8 +1430,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       mimeType: "application/wasm",
       buffer: Buffer.alloc(multipartOversizedProbeBytes, 0x61),
     });
-    await expect(pluginPage.dynamicUploadListItem()).toBeVisible();
-    await page.waitForTimeout(1500);
+    await waitForUploadReady(pluginPage.dynamicUploadDialog());
 
     const uploadResponsePromise = page.waitForResponse(
       (response) =>
@@ -1449,8 +1449,8 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
 
     expect(uploadResponse.status(), "超限上传不应再返回服务器 500").toBe(200);
     expect(payload.code ?? 0, "超限上传应返回业务错误码").not.toBe(0);
-    expect(payload.message ?? "").toContain("文件大小不能超过10MB");
-    await expect(pluginPage.messageNotice("文件大小不能超过10MB")).toBeVisible();
+    expect(payload.message ?? "").toContain("文件大小不能超过16MB");
+    await expect(pluginPage.messageNotice("文件大小不能超过16MB")).toBeVisible();
     await expect(pluginPage.dynamicUploadDialog()).toBeVisible();
     await expect(pluginPage.uploadSuccessDialog()).toHaveCount(0);
   });
