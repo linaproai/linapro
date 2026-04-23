@@ -4,7 +4,8 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: /TC\d{4}.*\.ts$/,
   fullyParallel: false,
-  workers: 1,
+  globalSetup: './global-setup.ts',
+  workers: Number.parseInt(process.env.E2E_WORKERS ?? '1', 10),
   retries: 0,
   timeout: 60000,
   expect: {

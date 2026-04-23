@@ -1,0 +1,75 @@
+{
+  "legacyDirectoryMap": {
+    "e2e/system": [
+      "e2e/iam",
+      "e2e/settings",
+      "e2e/org",
+      "e2e/content",
+      "e2e/scheduler"
+    ],
+    "e2e/monitor": [
+      "e2e/monitor/operlog",
+      "e2e/monitor/loginlog",
+      "e2e/monitor/online",
+      "e2e/monitor/server"
+    ],
+    "e2e/plugin": [
+      "e2e/extension/plugin"
+    ],
+    "e2e/debug": [
+      "debug"
+    ],
+    "e2e/system/job/helpers.ts": [
+      "support/api/job.ts"
+    ]
+  },
+  "moduleScopes": {
+    "auth": ["e2e/auth"],
+    "dashboard": ["e2e/dashboard"],
+    "about": ["e2e/about"],
+    "iam": ["e2e/iam"],
+    "iam:user": ["e2e/iam/user"],
+    "iam:role": ["e2e/iam/role"],
+    "iam:menu": ["e2e/iam/menu"],
+    "settings": ["e2e/settings"],
+    "settings:dict": ["e2e/settings/dict"],
+    "settings:config": ["e2e/settings/config"],
+    "settings:file": ["e2e/settings/file"],
+    "org": ["e2e/org"],
+    "org:dept": ["e2e/org/dept"],
+    "org:post": ["e2e/org/post"],
+    "org:user-org": ["e2e/org/user-org"],
+    "content": ["e2e/content"],
+    "content:notice": ["e2e/content/notice"],
+    "content:message": ["e2e/content/message"],
+    "monitor": ["e2e/monitor"],
+    "monitor:operlog": ["e2e/monitor/operlog"],
+    "monitor:loginlog": ["e2e/monitor/loginlog"],
+    "monitor:online": ["e2e/monitor/online"],
+    "monitor:server": ["e2e/monitor/server"],
+    "scheduler": ["e2e/scheduler"],
+    "scheduler:job": ["e2e/scheduler/job"],
+    "extension": ["e2e/extension"],
+    "extension:plugin": ["e2e/extension/plugin"]
+  },
+  "smoke": [
+    "e2e/auth/TC0001-login-success.ts",
+    "e2e/dashboard/TC0077-workspace-navigation.ts",
+    "e2e/iam/user/TC0005-user-crud.ts",
+    "e2e/settings/config/TC0100-config-crud.ts",
+    "e2e/settings/file/TC0048-file-management.ts",
+    "e2e/scheduler/job/TC0097-job-navigation-and-help-copy.ts",
+    "e2e/extension/plugin/TC0099-host-plugin-boundary-regression.ts"
+  ],
+  "serial": [
+    "e2e/auth/TC0003-logout.ts",
+    "e2e/content",
+    "e2e/extension/plugin",
+    "e2e/iam/menu",
+    "e2e/monitor",
+    "e2e/org",
+    "e2e/scheduler/job",
+    "e2e/settings/config",
+    "e2e/settings/dict"
+  ]
+}

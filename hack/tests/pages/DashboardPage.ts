@@ -1,32 +1,10 @@
 import type { Locator, Page } from '@playwright/test';
 
-export type AnalyticsRangeKey = 'today' | 'week' | 'month';
-
 export class DashboardPage {
   constructor(private page: Page) {}
 
   get analyticsPage(): Locator {
     return this.page.getByTestId('dashboard-analytics-page');
-  }
-
-  get analyticsInsightCards(): Locator {
-    return this.page.getByTestId('dashboard-analytics-insight');
-  }
-
-  get analyticsSummary(): Locator {
-    return this.page.getByTestId('dashboard-analytics-summary');
-  }
-
-  get touchpointCardTitle(): Locator {
-    return this.page.getByRole('heading', { name: /触点覆盖/ }).first();
-  }
-
-  get sourceCardTitle(): Locator {
-    return this.page.getByRole('heading', { name: '来源结构' }).first();
-  }
-
-  get salesCardTitle(): Locator {
-    return this.page.getByRole('heading', { name: '交付构成' }).first();
   }
 
   get workspacePage(): Locator {
@@ -37,16 +15,28 @@ export class DashboardPage {
     return this.page.getByTestId('dashboard-workspace-description');
   }
 
-  get workspaceQuickActions(): Locator {
-    return this.page.locator('button[data-testid^="dashboard-workspace-quick-"]');
+  get workspaceProjects(): Locator {
+    return this.page.getByTestId('dashboard-workspace-projects');
   }
 
-  analyticsRangeButton(range: AnalyticsRangeKey): Locator {
-    return this.page.getByTestId(`dashboard-range-${range}`);
+  get workspaceQuickNav(): Locator {
+    return this.page.getByTestId('dashboard-workspace-quick-nav');
   }
 
-  workspaceQuickAction(key: string): Locator {
-    return this.page.getByTestId(`dashboard-workspace-quick-${key}`);
+  analyticsMetric(title: string): Locator {
+    return this.page.getByTestId('dashboard-analytics-overview').getByText(title, { exact: true });
+  }
+
+  analyticsTab(label: string): Locator {
+    return this.page.getByTestId('dashboard-analytics-tabs').getByText(label, { exact: true });
+  }
+
+  analyticsCardTitle(title: string): Locator {
+    return this.page.getByRole('heading', { name: title }).first();
+  }
+
+  workspaceQuickNavItem(title: string): Locator {
+    return this.workspaceQuickNav.getByText(title, { exact: true }).first();
   }
 
   async gotoAnalytics() {
@@ -61,12 +51,8 @@ export class DashboardPage {
     await this.workspacePage.waitFor({ state: 'visible' });
   }
 
-  async selectAnalyticsRange(range: AnalyticsRangeKey) {
-    await this.analyticsRangeButton(range).click();
-  }
-
-  async clickWorkspaceQuickAction(key: string) {
-    await this.workspaceQuickAction(key).click();
+  async clickWorkspaceQuickNav(title: string) {
+    await this.workspaceQuickNavItem(title).click();
     await this.page.waitForLoadState('networkidle');
   }
 }

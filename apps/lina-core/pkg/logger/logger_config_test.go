@@ -89,6 +89,30 @@ func TestTextTraceIDAwareHandlerKeepsTraceID(t *testing.T) {
 	}
 }
 
+// TestTextTraceIDAwareHandlerAvoidsExtraBlankLine verifies plain-text logs keep
+// GoFrame's single trailing newline instead of appending a second blank line.
+func TestTextTraceIDAwareHandlerAvoidsExtraBlankLine(t *testing.T) {
+	withTraceIDEnabled(t, false)
+
+	input := &glog.HandlerInput{
+		Logger:      glog.New(),
+		Buffer:      bytes.NewBuffer(nil),
+		TimeFormat:  "2026-04-22 10:00:00",
+		LevelFormat: "INFO",
+		Content:     "hello",
+	}
+
+	newDefaultHandler(false)(context.Background(), input)
+
+	output := input.Buffer.String()
+	if strings.Count(output, "\n") != 1 {
+		t.Fatalf("expected plain-text output to end with a single newline, got %q", output)
+	}
+	if strings.Contains(output, "\n\n") {
+		t.Fatalf("expected plain-text output without blank lines, got %q", output)
+	}
+}
+
 // TestBindServerAlignsSharedOutput verifies the HTTP server inherits the
 // shared logger output directory and rolling file pattern.
 func TestBindServerAlignsSharedOutput(t *testing.T) {

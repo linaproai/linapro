@@ -2,176 +2,89 @@
 
 ## Purpose
 
-定义宿主用户管理模块的查询、维护、角色关联以及对 `org-center` 可选组织能力的协同规则，确保组织插件启用或缺失时用户管理都能稳定工作。
-
+Define the query, maintenance, role association and collaboration rules for the `org-center` optional organizational capabilities of the host user management module to ensure that user management can work stably when the organization plugin is enabled or missing.
 ## Requirements
+### Requirement: User list query
+The system SHALL provides a paging query interface for user lists, supporting multi-field sorting, enhanced conditional filtering, and role information aggregation. When `org-center` is installed and enabled, the system additionally supports filtering by department and returns department fields; when the plugin is missing, the host ignores the organization extended filtering and keeps the user list main function available.
 
-### Requirement: 用户列表查询
-系统 SHALL 提供用户列表分页查询接口，支持多字段排序、增强的条件筛选和按部门过滤，并包含角色信息。
+#### Scenario: Filter user list by department when organization plugin is available
+- **WHEN** `org-center` is installed and enabled, and `deptId` is passed in when querying
+- **THEN** The system filters users belonging to this department through the organizational relationship provided by the organization plugin.
+- **AND** The returned user data can contain the `deptId` and `deptName` fields
 
-#### Scenario: 用户列表支持字段排序
-- **WHEN** 调用 `GET /api/v1/user` 并传入排序参数 `orderBy`（字段名）和 `orderDirection`（`asc` 或 `desc`）
-- **THEN** 返回按指定字段和方向排序的用户列表
-- **THEN** 支持排序的字段包括：`id`、`username`、`nickname`、`phone`、`email`、`status`、`created_at`
+#### Scenario: Query the user list when the organization plugin is missing
+- **WHEN** `org-center` is not installed or enabled, and the user list is queried
+- **THEN** The system still returns the user paginated list and role information
+- **AND** Department-related filters and fields are safely ignored or omitted
 
-#### Scenario: 默认排序
-- **WHEN** 调用 `GET /api/v1/user` 未传入排序参数
-- **THEN** 默认按 `id` 降序排列
+### Requirement: Create user
+The system SHALL provides a user interface for creation and always supports role association; when `org-center` is installed and enabled, the system additionally supports associated departments and positions; when the plugin is missing, these organization extension fields do not block user creation.
 
-#### Scenario: 用户列表支持增强条件筛选
-- **WHEN** 查询时传入筛选参数（`username`、`nickname`、`status`、`phone`、`beginTime`、`endTime`）
-- **THEN** `username` 和 `nickname` 使用模糊匹配（LIKE）
-- **THEN** `phone` 使用模糊匹配（LIKE）
-- **THEN** `status` 使用精确匹配
-- **THEN** `beginTime` 和 `endTime` 筛选 `created_at` 在该时间范围内的用户
+#### Scenario: Create users when organization plugin is missing
+- **WHEN** `org-center` is not installed or enabled and the administrator created the user
+- **THEN** The system still successfully created the user and processed the role association
+- **AND** Lack of department and position information will not cause creation failure
 
-#### Scenario: 按部门过滤用户列表
-- **WHEN** 查询时传入 `deptId` 参数
-- **THEN** 当 `org-center` 已安装并启用时，系统通过组织能力关联筛选属于该部门的用户
-- **AND** 返回的用户数据中可包含 `deptId` 和 `deptName` 字段
+### Requirement: Update user information
+The system SHALL provides an interface for updating user information and always supports role association; when `org-center` is installed and enabled, the system additionally supports updating department and position associations; when the plugin is missing, these organization extension fields do not block user updates.
 
-#### Scenario: 用户列表返回部门名称
-- **WHEN** 查询用户列表
-- **THEN** 当 `org-center` 已安装并启用时，每条用户数据中可包含 `deptName` 字段（通过组织能力投影获取）
+#### Scenario: Update users when organization plugin is missing
+- **WHEN** `org-center` is not installed or enabled and the administrator updates the user
+- **THEN** The system still successfully updated the user's basic information and role association
+- **AND** Fields related to departments and positions are safely ignored
 
-#### Scenario: 用户列表包含角色信息
-- **WHEN** 用户请求用户列表
-- **THEN** 系统通过 sys_user_role 表查询用户的角色关联
-- **AND** 系统通过 sys_role 表查询角色名称
-- **AND** 返回的 roleIds 为角色ID数组
-- **AND** 返回的 roleNames 为角色名称数组
+### Requirement: View user details
+The system SHALL provides user details query interface. When `org-center` is installed and enabled, the associated department and position information is returned; when the plugin is missing, basic user information and role information are still returned.
 
-### Requirement: 创建用户
-系统 SHALL 提供创建用户接口，始终支持角色关联；当 `org-center` 已安装并启用时，额外支持关联部门和岗位。
+#### Scenario: Query user details when the organization plugin is missing
+- **WHEN** `org-center` is not installed or enabled and calling `GET /api/v1/user/{id}`
+- **THEN** The system returns the complete basic information (excluding password) and role information of the user
+- **AND** `deptId`, `deptName`, `postIds` and other organization extension fields are omitted, set to zero values or set to empty sets
 
-#### Scenario: 创建用户成功
-- **WHEN** 调用 `POST /api/v1/user` 并提交用户名、密码、昵称等信息
-- **THEN** 系统创建用户并返回用户 ID
+### Requirement: Delete user
 
-#### Scenario: 创建用户关联部门
-- **WHEN** 创建用户时提交 deptId 参数
-- **THEN** 当 `org-center` 已安装并启用时，系统通过组织能力写入用户与部门的关联关系
+System SHALL supports clearing all associated data when deleting a user.
 
-#### Scenario: 创建用户关联岗位
-- **WHEN** 创建用户时提交 postIds 参数（数组）
-- **THEN** 当 `org-center` 已安装并启用时，系统通过组织能力写入用户与各岗位的关联关系
+#### Scenario: Delete user to clean associated data
+- **WHEN** User deletes a user
+- **THEN** System soft delete user records
+- **AND** When `org-center` is installed and enabled, the system deletes department and position related records in organizational capabilities
+- **AND** The system deletes the associated records in sys_user_role
 
-#### Scenario: 创建用户关联角色
-- **WHEN** 创建用户时提交 roleIds 参数（数组）
-- **THEN** 系统在 sys_user_role 表中创建用户与各角色的关联记录
+### Requirement: User department tree interface
+The system SHALL provides a department tree interface for user management left filtering when `org-center` is installed and enabled; when the plugin is missing, the host no longer exposes the organization extension interface.
 
-#### Scenario: 用户名重复
-- **WHEN** 创建用户时提交已存在的用户名
-- **THEN** 系统返回错误信息，提示用户名已存在
+#### Scenario: Get user department tree when organization plugin is available
+- **WHEN** `org-center` is installed and enabled, and calls `GET /api/v1/user/dept-tree`
+- **THEN** The system returns department tree structure data, each node contains id, label, children, userCount
+- **AND** The first level of the tree can still contain `Unassigned Department` virtual nodes
 
-#### Scenario: 必填字段校验
-- **WHEN** 创建用户时缺少用户名或密码
-- **THEN** 系统返回参数校验错误
+#### Scenario: User department tree is unavailable when the organization plugin is missing
+- **WHEN** `org-center` is not installed or not enabled
+- **THEN** The host no longer exposes `GET /api/v1/user/dept-tree` as the default user management dependency interface
+- **AND** The user management main process does not depend on this interface to work properly.
 
-### Requirement: 更新用户信息
-系统 SHALL 提供更新用户信息接口，始终支持更新角色关联；当 `org-center` 已安装并启用时，额外支持更新部门和岗位关联。
+### Requirement: User management frontend department tree filtering
+The system SHALL only displays the `DeptTree` filter area on the left side of the user management page when `org-center` is installed and enabled; when the plugin is missing, the page degrades to a full-width user list.
 
-#### Scenario: 更新用户成功
-- **WHEN** 调用 `PUT /api/v1/user/{id}` 并提交要更新的字段
-- **THEN** 系统更新对应用户信息并返回成功
+#### Scenario: Page layout degraded when organization plugin is missing
+- **WHEN** `org-center` is not installed or enabled, and the administrator opens the user management page
+- **THEN** The page does not display the `DeptTree` component
+- **AND** The user list area is displayed in a single-column full-width layout
 
-#### Scenario: 更新用户部门关联
-- **WHEN** 更新用户时提交 deptId 参数
-- **THEN** 当 `org-center` 已安装并启用时，系统更新组织能力中的部门关联记录
+### Requirement: User edit form to add department and position fields
+The system SHALL only displays department selection and position multi-select fields in user edit forms when `org-center` is installed and enabled; these fields are hidden when the plugin is missing.
 
-#### Scenario: 更新用户岗位关联
-- **WHEN** 更新用户时提交 postIds 参数（数组）
-- **THEN** 当 `org-center` 已安装并启用时，系统更新组织能力中的岗位关联记录
+#### Scenario: Hide the department position field when the organization plugin is missing
+- **WHEN** `org-center` is not installed or enabled and the administrator opens the user edit drawer
+- **THEN** Department fields and position fields are not displayed in the form
+- **AND** Users can still complete editing of basic information and role information
 
-#### Scenario: 更新用户角色关联
-- **WHEN** 更新用户时提交 roleIds 参数（数组）
-- **THEN** 系统更新 sys_user_role 表中的关联记录（先删后插）
+### Requirement: Add a department name column to the user list
+The system SHALL only displays the department name column in the user list table when `org-center` is installed and enabled; the column is hidden when the plugin is missing.
 
-#### Scenario: 更新不存在的用户
-- **WHEN** 更新一个不存在的用户 ID
-- **THEN** 系统返回错误信息，提示用户不存在
+#### Scenario: Hide department column when organization plugin is missing
+- **WHEN** `org-center` is not installed or enabled and the administrator views the user list table
+- **THEN** The `Department` column is not displayed in the table
+- **AND** The remaining core user columns continue to display normally
 
-#### Scenario: 更新用户事务处理
-- **WHEN** 更新用户时发生错误
-- **THEN** 系统回滚所有操作（用户基本信息、部门关联、岗位关联、角色关联）
-
-### Requirement: 查看用户详情
-系统 SHALL 提供用户详情查询接口，返回用户基础信息与角色信息；当 `org-center` 已安装并启用时，额外返回关联的部门和岗位信息。
-
-#### Scenario: 查询用户详情
-- **WHEN** 调用 `GET /api/v1/user/{id}`
-- **THEN** 返回该用户的完整信息（不含密码）
-- **THEN** 包含 deptId（关联部门 ID）、deptName（部门名称）
-- **THEN** 包含 postIds（关联岗位 ID 数组）
-- **THEN** 包含 roleIds（关联角色 ID 数组）
-
-### Requirement: 删除用户
-
-系统 SHALL 支持删除用户时清理所有关联数据。
-
-#### Scenario: 删除用户清理关联数据
-- **WHEN** 用户删除一个用户
-- **THEN** 系统软删除用户记录
-- **AND** 当 `org-center` 已安装并启用时，系统删除组织能力中的部门和岗位关联记录
-- **AND** 系统删除 sys_user_role 中的关联记录
-
-### Requirement: 用户部门树接口
-系统 SHALL 在 `org-center` 已安装并启用时提供用于用户管理左侧筛选的部门树接口，包含"未分配部门"虚拟节点和各节点用户数量；插件缺失时宿主主体功能仍正常工作。
-
-#### Scenario: 获取用户部门树
-- **WHEN** 调用 `GET /api/v1/user/dept-tree`
-- **THEN** 返回部门树形结构数据，每个节点包含 id、label、children、userCount
-- **THEN** 每个部门节点的 label 格式为"部门名(N)"，N 为该部门关联的用户数量
-- **THEN** 树的第一层（与根节点同级）包含一个"未分配部门"虚拟节点（id 为 -1）
-
-#### Scenario: 未分配部门虚拟节点
-- **WHEN** 部门树返回数据
-- **THEN** 包含一个 id 为 -1 的"未分配部门"虚拟节点
-- **THEN** 该节点的 userCount 为未关联任何部门的用户总数
-
-#### Scenario: 按未分配部门过滤用户
-- **WHEN** 查询用户列表时传入 `deptId=-1`
-- **THEN** 当 `org-center` 已安装并启用时，返回所有当前未关联任何部门的用户
-
-### Requirement: 用户管理前端部门树筛选
-系统 SHALL 仅在 `org-center` 已安装并启用时在用户管理页面左侧展示 `DeptTree` 组件用于按部门筛选用户；插件缺失时页面退化为全宽用户列表。
-
-#### Scenario: 左树右表布局
-- **WHEN** 打开用户管理页面
-- **THEN** 左侧显示 DeptTree 组件，右侧显示用户列表
-- **THEN** 布局与岗位管理页面一致
-
-#### Scenario: 部门筛选联动
-- **WHEN** 在左侧选择某个部门
-- **THEN** 右侧用户列表自动按该部门过滤（传入 deptId 参数）
-- **WHEN** 取消部门选择
-- **THEN** 右侧显示全部用户
-
-### Requirement: 用户编辑表单增加部门和岗位字段
-系统 SHALL 仅在 `org-center` 已安装并启用时在用户编辑表单中展示部门选择和岗位多选字段；插件缺失时这些字段被隐藏。
-
-#### Scenario: 部门选择字段
-- **WHEN** 打开用户编辑抽屉
-- **THEN** 表单中包含部门字段（TreeSelect 组件）
-- **THEN** TreeSelect 显示完整部门路径（如 "Lina科技 / 研发部门"）
-- **THEN** 支持搜索、展开全部节点
-
-#### Scenario: 岗位联动选择
-- **WHEN** 用户选择了部门
-- **THEN** 自动加载该部门下的岗位选项到岗位多选字段
-- **THEN** 清空之前选择的岗位
-- **WHEN** 部门下无岗位
-- **THEN** 岗位字段 placeholder 显示"该部门下暂无岗位"
-
-#### Scenario: 编辑时回显
-- **WHEN** 编辑已有用户
-- **THEN** 自动回显用户关联的部门和岗位
-- **THEN** 岗位选项列表为该用户所属部门下的岗位
-
-### Requirement: 用户列表增加部门名称列
-系统 SHALL 仅在 `org-center` 已安装并启用时在用户列表表格中展示部门名称列；插件缺失时该列被隐藏。
-
-#### Scenario: 显示部门名称
-- **WHEN** 查看用户列表表格
-- **THEN** 表格中包含"部门"列，显示用户所属部门名称
-- **THEN** 未关联部门的用户该列为空

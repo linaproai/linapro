@@ -2,29 +2,28 @@ import { test, expect } from '../../fixtures/auth';
 import { DashboardPage } from '../../pages/DashboardPage';
 
 test.describe('TC0076 默认分析页', () => {
-  test('TC0076a: 分析页默认展示宿主概览与关键洞察', async ({ adminPage }) => {
+  test('TC0076a: 分析页恢复参考项目的默认概览与图表卡片', async ({ adminPage }) => {
     const dashboardPage = new DashboardPage(adminPage);
 
     await dashboardPage.gotoAnalytics();
 
-    await expect(dashboardPage.analyticsSummary).toContainText('最近 7 天');
-    await expect(dashboardPage.analyticsInsightCards).toHaveCount(3);
-    await expect(dashboardPage.touchpointCardTitle).toContainText('近 7 天触点覆盖');
-    await expect(dashboardPage.sourceCardTitle).toBeVisible();
-    await expect(dashboardPage.salesCardTitle).toBeVisible();
+    await expect(dashboardPage.analyticsMetric('用户量')).toBeVisible();
+    await expect(dashboardPage.analyticsMetric('访问量')).toBeVisible();
+    await expect(dashboardPage.analyticsMetric('下载量')).toBeVisible();
+    await expect(dashboardPage.analyticsMetric('使用量')).toBeVisible();
+    await expect(dashboardPage.analyticsCardTitle('访问数量')).toBeVisible();
+    await expect(adminPage.getByRole('heading', { name: '访问来源' })).toHaveCount(2);
   });
 
-  test('TC0076b: 切换时间范围时同步刷新摘要与图表标题', async ({ adminPage }) => {
+  test('TC0076b: 分析页标签切换仍可正常工作', async ({ adminPage }) => {
     const dashboardPage = new DashboardPage(adminPage);
 
     await dashboardPage.gotoAnalytics();
 
-    await dashboardPage.selectAnalyticsRange('month');
-    await expect(dashboardPage.analyticsSummary).toContainText('最近 30 天');
-    await expect(dashboardPage.touchpointCardTitle).toContainText('近 30 天触点覆盖');
+    await dashboardPage.analyticsTab('月访问量').click();
+    await expect(dashboardPage.analyticsTab('月访问量')).toHaveAttribute('data-state', 'active');
 
-    await dashboardPage.selectAnalyticsRange('today');
-    await expect(dashboardPage.analyticsSummary).toContainText('近 24 小时');
-    await expect(dashboardPage.touchpointCardTitle).toContainText('今日触点覆盖');
+    await dashboardPage.analyticsTab('流量趋势').click();
+    await expect(dashboardPage.analyticsTab('流量趋势')).toHaveAttribute('data-state', 'active');
   });
 });

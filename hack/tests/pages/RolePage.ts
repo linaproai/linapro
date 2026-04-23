@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test';
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class RolePage {
   constructor(private page: Page) {}
 
@@ -10,8 +18,7 @@ export class RolePage {
 
   async goto() {
     await this.page.goto('/system/role');
-    await this.page.waitForLoadState('networkidle');
-    await this.page.locator('.vxe-table').first().waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
     await this.page.getByLabel('角色名称', { exact: true }).first().waitFor({
       state: 'visible',
       timeout: 10000,
@@ -28,7 +35,7 @@ export class RolePage {
   }) {
     // Wait for page to be ready first
     await this.page.waitForLoadState('load');
-    await this.page.waitForTimeout(2000);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Click the primary "新增" button in toolbar (use first() as there may be multiple buttons)
     await this.page
@@ -38,7 +45,7 @@ export class RolePage {
 
     // Wait for drawer to open
     await this.drawer.waitFor({ state: 'visible', timeout: 10000 });
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Fill text fields first (these work even with tour overlay present)
     const nameInput = this.drawer.locator('input[placeholder="请输入角色名称"]');
@@ -59,18 +66,18 @@ export class RolePage {
     }
 
     // Wait for form to fully render
-    await this.page.waitForTimeout(1000);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Dismiss tour overlay if present
     const endTourBtn = this.page.getByRole('button', { name: '结束导览' });
     if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await endTourBtn.click({ force: true });
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
     }
     const tourClose = this.page.locator('.ant-tour-close');
     if (await tourClose.isVisible({ timeout: 300 }).catch(() => false)) {
       await tourClose.click({ force: true });
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Select status - RadioGroup with button style
@@ -79,7 +86,7 @@ export class RolePage {
     if (statusValue === 0) {
       // Click on "停用" radio button
       await this.drawer.locator('.ant-radio-button-wrapper').filter({ hasText: '停用' }).click();
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Select data scope (required field) - click the label text to select
@@ -87,7 +94,7 @@ export class RolePage {
     const dataScopeLabel = this.drawer.getByText('全部数据权限', { exact: true });
     await dataScopeLabel.waitFor({ state: 'visible', timeout: 5000 });
     await dataScopeLabel.click({ force: true });
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Verify the radio is selected (ant-radio-button-wrapper-checked class)
     const checkedRadio = this.drawer.locator('.ant-radio-button-wrapper-checked');
@@ -106,7 +113,7 @@ export class RolePage {
 
     await this.page.waitForLoadState('load');
     await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Edit a role: find the row, click edit, update fields in drawer */
@@ -117,18 +124,18 @@ export class RolePage {
 
     // Wait for drawer to open
     await this.drawer.waitFor({ state: 'visible', timeout: 5000 });
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Dismiss any tour overlay that might block clicks
     const endTourBtn = this.page.getByRole('button', { name: '结束导览' });
     if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await endTourBtn.click({ force: true });
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
     }
     const tourClose = this.page.locator('.ant-tour-close');
     if (await tourClose.isVisible({ timeout: 300 }).catch(() => false)) {
       await tourClose.click({ force: true });
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Clear and fill the new name
@@ -143,7 +150,7 @@ export class RolePage {
 
     await this.page.waitForLoadState('load');
     await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Delete a role: find the row, click delete, confirm in Popconfirm */
@@ -156,21 +163,21 @@ export class RolePage {
       .first()
       .click();
 
-    // Confirm in Popconfirm
-    await this.page.waitForTimeout(500);
-    const popconfirm = this.page.locator('.ant-popconfirm, .ant-popover');
-    const confirmBtn = popconfirm.getByRole('button', {
-      name: /确\s*定|OK|是/i,
+    // Wait for whichever Ant Design confirm overlay the page renders and then
+    // prefer the semantic confirm label, falling back to the primary action.
+    await waitForBusyIndicatorsToClear(this.page);
+    const confirmOverlay = await waitForConfirmOverlay(this.page);
+    const confirmBtn = confirmOverlay.getByRole('button', {
+      name: /确\s*认|确\s*定|OK|是/i,
     });
-    if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await confirmBtn.click();
+    if (await confirmBtn.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+      await confirmBtn.first().click();
     } else {
-      const modal = this.page.locator('.ant-modal-confirm');
-      await modal.getByRole('button', { name: /确\s*定|OK/i }).click();
+      await confirmOverlay.locator('button.ant-btn-primary').last().click();
     }
 
     await this.page.waitForLoadState('load');
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Check if a role row with the given name is visible */
@@ -185,22 +192,22 @@ export class RolePage {
   /** Search role by name */
   async searchRole(name: string) {
     // Prefer the accessible label because it stays stable even when the form DOM is re-created.
-    await this.page.waitForLoadState('networkidle');
+    await waitForRouteReady(this.page);
     const searchInput = this.page.getByLabel('角色名称', { exact: true }).first();
     await searchInput.waitFor({ state: 'visible', timeout: 10000 });
     await searchInput.fill(name);
 
     // Click search button
     await this.page.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Reset search */
   async resetSearch() {
     await this.page.getByRole('button', { name: /重\s*置/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Toggle role status */
@@ -209,7 +216,7 @@ export class RolePage {
     const switchBtn = row.locator('.ant-switch');
     await switchBtn.click();
     await this.page.waitForLoadState('load');
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Click assign button to go to role-auth page */
@@ -217,7 +224,7 @@ export class RolePage {
     const row = this.page.locator('.vxe-body--row', { hasText: roleName });
     await row.getByRole('button', { name: /分\s*配/ }).first().click();
     await this.page.waitForLoadState('load');
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Check menu in the menu tree table (for role edit) */
@@ -226,7 +233,7 @@ export class RolePage {
     const menuRow = menuTree.locator('.vxe-body--row', { hasText: menuName });
     const checkbox = menuRow.locator('.vxe-checkbox--icon');
     await checkbox.click({ force: true });
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Uncheck menu in the menu tree table (for role edit) */
@@ -235,7 +242,7 @@ export class RolePage {
     const menuRow = menuTree.locator('.vxe-body--row', { hasText: menuName });
     const checkbox = menuRow.locator('.vxe-checkbox--icon');
     await checkbox.click({ force: true });
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Get checked menu count in drawer */
@@ -254,7 +261,7 @@ export class RolePage {
     menuNames?: string[];
   }) {
     await this.page.waitForLoadState('load');
-    await this.page.waitForTimeout(2000);
+    await waitForBusyIndicatorsToClear(this.page);
 
     await this.page
       .getByRole('button', { name: /新\s*增/ })
@@ -262,7 +269,7 @@ export class RolePage {
       .click({ force: true });
 
     await this.drawer.waitFor({ state: 'visible', timeout: 10000 });
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     const nameInput = this.drawer.locator('input[placeholder="请输入角色名称"]');
     await nameInput.waitFor({ state: 'visible', timeout: 5000 });
@@ -284,18 +291,18 @@ export class RolePage {
     const endTourBtn = this.page.getByRole('button', { name: '结束导览' });
     if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await endTourBtn.click({ force: true });
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
     }
     const tourClose = this.page.locator('.ant-tour-close');
     if (await tourClose.isVisible({ timeout: 300 }).catch(() => false)) {
       await tourClose.click({ force: true });
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     const dataScopeLabel = this.drawer.getByText('全部数据权限', { exact: true });
     await dataScopeLabel.waitFor({ state: 'visible', timeout: 5000 });
     await dataScopeLabel.click({ force: true });
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     if (params.menuNames && params.menuNames.length > 0) {
       await this.drawer.locator('.vxe-table').waitFor({ state: 'visible', timeout: 5000 });
@@ -310,7 +317,7 @@ export class RolePage {
 
     await this.page.waitForLoadState('load');
     await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Assign menus to existing role */
@@ -333,7 +340,7 @@ export class RolePage {
       const isChecked = await row.evaluate((el) => el.classList.contains('is--checked'));
       if (isChecked) {
         await checkbox.click();
-        await this.page.waitForTimeout(100);
+        await waitForBusyIndicatorsToClear(this.page);
       }
     }
 
@@ -345,7 +352,7 @@ export class RolePage {
     await this.drawer.getByRole('button', { name: /确\s*认/ }).click();
     await this.page.waitForLoadState('load');
     await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Navigate to role management page */

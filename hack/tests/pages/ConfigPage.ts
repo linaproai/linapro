@@ -1,5 +1,14 @@
 import type { Locator, Page } from '@playwright/test';
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForDropdown,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class ConfigPage {
   constructor(private page: Page) {}
 
@@ -14,15 +23,14 @@ export class ConfigPage {
 
   async goto() {
     await this.page.goto('/system/config');
-    await this.page.waitForLoadState('networkidle');
-    await this.page.locator('.vxe-table').first().waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
   }
 
   // ========== CRUD operations ==========
 
   async create(name: string, key: string, value: string, remark?: string) {
     await this.page.getByRole('button', { name: /新\s*增/ }).click();
-    await this.dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.dialog);
 
     await this.dialog.getByLabel('参数名称').fill(name);
     await this.dialog.getByLabel('参数键名').fill(key);
@@ -32,8 +40,8 @@ export class ConfigPage {
     }
 
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await this.dialog.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   async edit(configName: string, fields: { name?: string; key?: string; value?: string; remark?: string }) {
@@ -43,7 +51,7 @@ export class ConfigPage {
 
     // Click edit button
     await this.page.locator('.ant-btn-sm').filter({ hasText: /编\s*辑/ }).first().click();
-    await this.dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.dialog);
 
     if (fields.name) {
       const input = this.dialog.getByLabel('参数名称');
@@ -67,8 +75,8 @@ export class ConfigPage {
     }
 
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await this.dialog.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   async delete(configName: string) {
@@ -89,8 +97,7 @@ export class ConfigPage {
     }
 
     // Confirm deletion in Popconfirm
-    await this.page.waitForTimeout(500);
-    const popconfirm = this.page.locator('.ant-popconfirm, .ant-popover');
+    const popconfirm = await waitForConfirmOverlay(this.page);
     const confirmBtn = popconfirm.getByRole('button', { name: /确\s*定|OK|是/i });
     if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await confirmBtn.click();
@@ -99,8 +106,7 @@ export class ConfigPage {
       await modal.getByRole('button', { name: /确\s*定|OK/i }).click();
     }
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   async hasConfig(text: string): Promise<boolean> {
@@ -136,14 +142,12 @@ export class ConfigPage {
 
   async clickSearch() {
     await this.page.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   async clickReset() {
     await this.page.getByRole('button', { name: /重\s*置/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   // ========== Row Selection ==========
@@ -154,27 +158,27 @@ export class ConfigPage {
     // Click the first checkbox in the body rows
     const checkbox = this.page.locator('.vxe-body--row .vxe-checkbox--icon').first();
     await checkbox.click();
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   // ========== Export ==========
 
   async clickExport() {
     await this.page.getByRole('button', { name: /导\s*出/ }).click();
-    await this.page.waitForTimeout(1000);
+    await waitForDialogReady(this.page.locator('[role="dialog"]'));
   }
 
   /** Click confirm button in the export confirm modal */
   async clickExportConfirm() {
     const modal = this.page.locator('[role="dialog"]');
     await modal.getByRole('button', { name: /确\s*认/ }).click();
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   // ========== Import ==========
 
   async clickImport() {
     await this.page.getByRole('button', { name: /导\s*入/ }).click();
-    await this.page.waitForTimeout(500);
+    await waitForDialogReady(this.dialog);
   }
 }

@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "baseUrl": ".",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -11,5 +12,12 @@
       "@fixtures/*": ["./fixtures/*"]
     }
   },
-  "include": ["e2e/**/*.ts", "fixtures/**/*.ts", "pages/**/*.ts", "playwright.config.ts"]
+  "include": [
+    "e2e/**/*.ts",
+    "fixtures/**/*.ts",
+    "pages/**/*.ts",
+    "support/**/*.ts",
+    "global-setup.ts",
+    "playwright.config.ts"
+  ]
 }

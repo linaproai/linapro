@@ -2,6 +2,15 @@ import type { Page } from "@playwright/test";
 
 import { expect } from "@playwright/test";
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForDropdown,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class MenuPage {
   constructor(private page: Page) {}
 
@@ -16,13 +25,8 @@ export class MenuPage {
   }
 
   async goto() {
-    await this.page.goto("/system/menu");
-    await this.page.waitForLoadState("networkidle");
-    // Wait for VxeGrid table to render - short timeout, continue if not found
-    await this.page
-      .locator(".vxe-table")
-      .waitFor({ state: "visible", timeout: 5000 })
-      .catch(() => {});
+    await this.page.goto('/system/menu');
+    await waitForTableReady(this.page);
   }
 
   /** Click "展开" toolbar button to expand all tree nodes */
@@ -32,7 +36,7 @@ export class MenuPage {
       .first();
     if (await expandButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await expandButton.click();
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
       return;
     }
 
@@ -40,7 +44,7 @@ export class MenuPage {
       .getByRole("button", { name: /折\s*叠/ })
       .first();
     if (await collapseButton.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
       return;
     }
 
@@ -54,7 +58,7 @@ export class MenuPage {
       .first();
     if (await collapseButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await collapseButton.click();
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
       return;
     }
 
@@ -62,7 +66,7 @@ export class MenuPage {
       .getByRole("button", { name: /展\s*开/ })
       .first();
     if (await expandButton.isVisible({ timeout: 1000 }).catch(() => false)) {
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
       return;
     }
 
@@ -97,7 +101,7 @@ export class MenuPage {
     await skeleton.waitFor({ state: "hidden", timeout: 10000 });
 
     // Small additional wait for form to fully render
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // First select parent menu - click the 上级菜单 TreeSelect
     // Use a more specific selector for the visible TreeSelect
@@ -106,7 +110,7 @@ export class MenuPage {
       .first();
     await parentSelect.waitFor({ state: "visible", timeout: 5000 });
     await parentSelect.click();
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Wait for tree dropdown and select "根菜单" (root option)
     // The tree has role="tree" attribute
@@ -114,12 +118,12 @@ export class MenuPage {
     await treeDropdown.waitFor({ state: "visible", timeout: 5000 });
     // Click on "根菜单" text which is the first/root option
     await treeDropdown.getByText("根菜单", { exact: true }).click();
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Fill menu name
     const nameInput = drawer.locator('input[placeholder="请输入菜单名称"]');
     await nameInput.fill(params.name);
-    await this.page.waitForTimeout(200);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Select menu type (RadioGroup with buttons) - click on the visible button label
     // Default is 'D' (目录), only click if different type is needed
@@ -130,7 +134,7 @@ export class MenuPage {
         .locator(".ant-radio-button-wrapper")
         .filter({ hasText: typeLabels[params.type] })
         .click();
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Fill path for directory/menu type (in createRootMenu)
@@ -139,7 +143,7 @@ export class MenuPage {
       const pathInput = this.drawer.locator('input[placeholder*="路由地址"]');
       await pathInput.waitFor({ state: "visible", timeout: 5000 });
       await pathInput.fill(params.path);
-      await this.page.waitForTimeout(200);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Fill component for menu type
@@ -169,7 +173,7 @@ export class MenuPage {
         .first();
       await iconInput.waitFor({ state: "visible", timeout: 5000 });
       await iconInput.fill(params.icon);
-      await this.page.waitForTimeout(200);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Fill sort if provided - use spinbutton role for the input number
@@ -179,14 +183,14 @@ export class MenuPage {
         .first();
       await sortInput.waitFor({ state: "visible", timeout: 5000 });
       await sortInput.fill(String(params.sort));
-      await this.page.waitForTimeout(200);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Fill visible if provided
     if (params.visible !== undefined) {
       const visibleSelect = this.drawer.locator(".ant-select").nth(1);
       await visibleSelect.click();
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
       const visibleLabel = params.visible === 1 ? "显示" : "隐藏";
       await this.page
         .locator(".ant-select-dropdown")
@@ -198,7 +202,7 @@ export class MenuPage {
     if (params.status !== undefined) {
       const statusSelect = this.drawer.locator(".ant-select").nth(2);
       await statusSelect.click();
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
       const statusLabel = params.status === 1 ? "正常" : "停用";
       await this.page
         .locator(".ant-select-dropdown")
@@ -209,8 +213,8 @@ export class MenuPage {
     // Click confirm button
     await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
 
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Create a sub menu under the specified parent row */
@@ -240,7 +244,7 @@ export class MenuPage {
     await this.drawer.waitFor({ state: "visible", timeout: 5000 });
     const skeleton = this.drawer.locator(".ant-skeleton");
     await skeleton.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Fill menu name
     const nameInput = this.drawer.locator(
@@ -255,7 +259,7 @@ export class MenuPage {
         .locator(".ant-radio-button-wrapper")
         .filter({ hasText: typeLabels[params.type] })
         .click();
-      await this.page.waitForTimeout(500);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Fill path for directory/menu type
@@ -292,14 +296,14 @@ export class MenuPage {
         .first();
       await sortInput.waitFor({ state: "visible", timeout: 5000 });
       await sortInput.fill(String(params.sort));
-      await this.page.waitForTimeout(200);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Click confirm button
     await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
 
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Edit a menu: find the row, click edit, update fields in drawer */
@@ -324,8 +328,8 @@ export class MenuPage {
     // Click confirm button
     await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
 
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Delete a menu: find the row, click delete, confirm in Popconfirm */
@@ -337,7 +341,7 @@ export class MenuPage {
       const cascadeSwitchInContainer = switchContainer.locator(".ant-switch");
       if (!(await cascadeSwitchInContainer.isChecked())) {
         await cascadeSwitchInContainer.click();
-        await this.page.waitForTimeout(300);
+        await waitForBusyIndicatorsToClear(this.page);
       }
     }
 
@@ -350,7 +354,7 @@ export class MenuPage {
       .click();
 
     // Confirm in Popconfirm
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
     const popconfirm = this.page.locator(".ant-popconfirm, .ant-popover");
     const confirmBtn = popconfirm.getByRole("button", {
       name: /确\s*定|OK|是/i,
@@ -362,8 +366,8 @@ export class MenuPage {
       await modal.getByRole("button", { name: /确\s*定|OK/i }).click();
     }
 
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Delete menu by name with optional cascade */
@@ -377,13 +381,13 @@ export class MenuPage {
       );
       if (!isChecked) {
         await cascadeSwitchInContainer.click();
-        await this.page.waitForTimeout(300);
+        await waitForBusyIndicatorsToClear(this.page);
       }
     }
 
     // Search for the menu first to narrow down
     await this.searchMenu(menuName);
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Find and click delete
     const row = this.page.locator(".vxe-body--row", { hasText: menuName });
@@ -394,7 +398,7 @@ export class MenuPage {
       .click();
 
     // Confirm deletion
-    await this.page.waitForTimeout(500);
+    await waitForBusyIndicatorsToClear(this.page);
     const popconfirm = this.page.locator(".ant-popconfirm, .ant-popover");
     const confirmBtn = popconfirm.getByRole("button", {
       name: /确\s*定|OK|是/i,
@@ -406,8 +410,8 @@ export class MenuPage {
       await modal.getByRole("button", { name: /确\s*定|OK/i }).click();
     }
 
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
 
     // Reset search to show all menus
     await this.resetSearch();
@@ -435,8 +439,8 @@ export class MenuPage {
       .getByRole("button", { name: /搜\s*索/ })
       .first()
       .click();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Reset search */
@@ -445,14 +449,14 @@ export class MenuPage {
       .getByRole("button", { name: /重\s*置/ })
       .first()
       .click();
-    await this.page.waitForLoadState("networkidle");
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Navigate to menu management page */
   async navigateTo() {
     await this.page.goto("/system/menu");
-    await this.page.waitForLoadState("networkidle");
+    await waitForRouteReady(this.page);
     await this.page
       .locator(".vxe-table")
       .waitFor({ state: "visible", timeout: 10000 });
@@ -484,8 +488,8 @@ export class MenuPage {
 
       await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
       await this.drawer.waitFor({ state: "hidden", timeout: 15000 });
-      await this.page.waitForLoadState("networkidle");
-      await this.page.waitForTimeout(500);
+      await waitForRouteReady(this.page);
+      await waitForBusyIndicatorsToClear(this.page);
     } finally {
       if (!this.page.isClosed()) {
         await this.resetSearch().catch(() => {});

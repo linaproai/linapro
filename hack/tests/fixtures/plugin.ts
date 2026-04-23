@@ -3,6 +3,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import { request as playwrightRequest } from '@playwright/test';
 
 import { config } from './config';
+import { waitForRouteReady } from '../support/ui';
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:8080/api/v1/';
@@ -110,7 +111,7 @@ async function refreshPluginProjection(page: Page) {
   // changes do not leave the current page stranded on a stale dynamic route.
   await page.goto('/dashboard/analytics', { waitUntil: 'networkidle' });
   await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(300);
+  await waitForRouteReady(page);
 }
 
 export async function ensureSourcePluginInstalled(page: Page, pluginId: string) {

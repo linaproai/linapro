@@ -1,5 +1,13 @@
 import type { Page } from '@playwright/test';
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class DictPage {
   constructor(private page: Page) {}
 
@@ -20,9 +28,7 @@ export class DictPage {
 
   async goto() {
     await this.page.goto('/system/dict');
-    await this.page.waitForLoadState('networkidle');
-    // Wait for at least one VxeGrid table to render
-    await this.page.locator('.vxe-table').first().waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
   }
 
   /**
@@ -61,7 +67,7 @@ export class DictPage {
     await this.typePanel.getByRole('button', { name: /新\s*增/ }).click();
 
     // Wait for modal to open
-    await this.dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.dialog);
 
     // Fill form fields - modal form uses labels
     await this.dialog.getByLabel('字典名称').fill(name);
@@ -73,8 +79,7 @@ export class DictPage {
     // Click confirm button
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   async hasType(typeName: string): Promise<boolean> {
@@ -93,7 +98,7 @@ export class DictPage {
     await this.typePanel.locator('.ant-btn-sm').filter({ hasText: /编\s*辑/ }).first().click();
 
     // Wait for modal to open
-    await this.dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.dialog);
 
     if (fields.name) {
       const nameInput = this.dialog.getByLabel('字典名称');
@@ -109,8 +114,7 @@ export class DictPage {
     // Click confirm button
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   async deleteType(typeName: string) {
@@ -126,17 +130,16 @@ export class DictPage {
     await this.typePanel.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
 
     // Confirm the visible modal directly instead of relying on a global DOM query.
-    const modal = this.page.locator('.ant-modal-confirm:visible').last();
-    await modal.waitFor({ state: 'visible', timeout: 3000 });
+    const modal = await waitForConfirmOverlay(this.page);
     await modal
       .getByRole('button', { name: /确\s*定|确\s*认|OK/i })
       .last()
       .click({ force: true });
 
-    await this.page.waitForLoadState('networkidle');
+    await waitForRouteReady(this.page);
     await modal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
     await deletedRow.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   async clickCurrentTypeDeleteAction() {
@@ -147,8 +150,7 @@ export class DictPage {
     // Click a row in the type panel to load data in the right panel.
     const row = await this.resolveTypeRow(typeName);
     await row.click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   // ========== Data operations (right panel) ==========
@@ -158,7 +160,7 @@ export class DictPage {
     await this.dataPanel.getByRole('button', { name: /新\s*增/ }).click();
 
     // Wait for drawer to open
-    await this.dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.dialog);
 
     // Fill drawer form fields
     await this.dialog.getByLabel('数据标签').fill(label);
@@ -175,8 +177,7 @@ export class DictPage {
     // Click confirm button
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   async editData(label: string, fields: { label?: string; value?: string }) {
@@ -188,7 +189,7 @@ export class DictPage {
     await this.dataPanel.locator('.ant-btn-sm').filter({ hasText: /编\s*辑/ }).first().click();
 
     // Wait for drawer to open
-    await this.dialog.waitFor({ state: 'visible', timeout: 5000 });
+    await waitForDialogReady(this.dialog);
 
     if (fields.label) {
       const labelInput = this.dialog.getByLabel('数据标签');
@@ -204,8 +205,7 @@ export class DictPage {
     // Click confirm button
     await this.dialog.getByRole('button', { name: /确\s*认/ }).click();
 
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   async deleteData(label: string) {
@@ -216,11 +216,8 @@ export class DictPage {
     // Click delete button in data panel
     await this.dataPanel.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
 
-    // Wait for either Popconfirm or modal to appear
-    await this.page.waitForTimeout(500);
-
     // Try Popconfirm first (more common pattern)
-    const popconfirm = this.page.locator('.ant-popconfirm:visible, .ant-popover:visible').first();
+    const popconfirm = await waitForConfirmOverlay(this.page);
     const modal = this.page.locator('.ant-modal-confirm:visible').first();
 
     const isPopconfirm = await popconfirm.isVisible({ timeout: 1000 }).catch(() => false);
@@ -236,8 +233,7 @@ export class DictPage {
     }
 
     // Wait for success message
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   async hasData(label: string): Promise<boolean> {
@@ -251,19 +247,19 @@ export class DictPage {
 
   async clickTypeExport() {
     await this.typePanel.getByRole('button', { name: /导\s*出/ }).click();
-    await this.page.waitForTimeout(1000);
+    await waitForDialogReady(this.dialog);
   }
 
   async clickDataExport() {
     await this.dataPanel.getByRole('button', { name: /导\s*出/ }).click();
-    await this.page.waitForTimeout(1000);
+    await waitForDialogReady(this.dialog);
   }
 
   /** Click confirm button in the export confirm modal */
   async clickExportConfirm() {
     const modal = this.page.locator('[role="dialog"]');
     await modal.getByRole('button', { name: /确\s*认/ }).click();
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   // ========== Search helpers ==========
@@ -278,15 +274,13 @@ export class DictPage {
   /** Click search button in the type panel */
   async clickTypeSearch() {
     await this.typePanel.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Click reset button in the type panel */
   async clickTypeReset() {
     await this.typePanel.getByRole('button', { name: /重\s*置/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Fill search field in the data panel (right) */
@@ -299,15 +293,13 @@ export class DictPage {
   /** Click search button in the data panel */
   async clickDataSearch() {
     await this.dataPanel.getByRole('button', { name: /搜\s*索/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Click reset button in the data panel */
   async clickDataReset() {
     await this.dataPanel.getByRole('button', { name: /重\s*置/ }).first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Get visible row count in the data panel */
@@ -324,14 +316,14 @@ export class DictPage {
   async selectTypeRow(index: number = 0) {
     const checkbox = this.typePanel.locator('.vxe-body--row .vxe-checkbox--icon').nth(index);
     await checkbox.click();
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Select a row checkbox in the data panel by clicking its checkbox */
   async selectDataRow(index: number = 0) {
     const checkbox = this.dataPanel.locator('.vxe-body--row .vxe-checkbox--icon').nth(index);
     await checkbox.click();
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   // ========== Import ==========
@@ -339,12 +331,12 @@ export class DictPage {
   /** Click import button in the type panel */
   async clickTypeImport() {
     await this.typePanel.getByRole('button', { name: /导\s*入/ }).click();
-    await this.page.waitForTimeout(500);
+    await waitForDialogReady(this.dialog);
   }
 
   /** Click import button in the data panel */
   async clickDataImport() {
     await this.dataPanel.getByRole('button', { name: /导\s*入/ }).click();
-    await this.page.waitForTimeout(500);
+    await waitForDialogReady(this.dialog);
   }
 }

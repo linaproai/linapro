@@ -3,285 +3,285 @@
 ## Purpose
 TBD - created by archiving change plugin-framework. Update Purpose after archive.
 ## Requirements
-### Requirement: 插件目录与清单契约统一
+### Requirement: Unify the plugin directory and manifest contract
 
-系统 SHALL 为所有插件提供统一的目录结构与清单契约。源码插件 MUST 放置在 `apps/lina-plugins/<plugin-id>/` 目录下；当前 `dynamic` 动态 `wasm` 插件 MUST 能从 `plugin.dynamic.storagePath` 中被发现，并解析出与源码插件等价的 manifest 信息。
+The system SHALL provides a unified directory structure and manifest contract for all plugins. The source plugin MUST be placed in the `apps/lina-plugins/<plugin-id>/` directory; the current `dynamic` dynamic `wasm` plugin MUST be discovered from `plugin.dynamic.storagePath` and parse the manifest information equivalent to the source plugin.
 
-#### Scenario: 发现源码插件目录
+#### Scenario: Discover the source plugin directory
 
-- **WHEN** 宿主扫描 `apps/lina-plugins/` 下的插件目录
-- **THEN** 仅将包含合法清单文件的目录识别为插件
-- **AND** 每个插件的 `plugin-id` 在宿主范围内唯一
-- **AND** 清单仅需包含插件基础信息与一级插件类型
+- **WHEN** The host scans the plugin directory under `apps/lina-plugins/`
+- **THEN** Only identify directories containing legitimate manifest files as plugins
+- **AND** Each plugin's `plugin-id` is unique within the host scope
+- **AND** The list only needs to contain plugin basic information and first-level plugin type
 
-#### Scenario: `plugin.yaml` 保持精简且可声明插件菜单
+#### Scenario: `plugin.yaml` keeps the plugin menu simple and declarative
 
-- **WHEN** 宿主解析 `plugin.yaml`
-- **THEN** 清单只强制要求 `id`、`name`、`version`、`type` 等基础字段
-- **AND** 宿主不再要求 `schemaVersion`、`compatibility`、`entry` 等扩展元数据
-- **AND** 插件若需要向宿主注册菜单或按钮权限，必须在清单 `menus` 元数据中声明
-- **AND** 前端页面、`Slot` 与 SQL 文件位置仍优先按照目录与代码约定推导，而不是在清单中重复配置
+- **WHEN** Host parses `plugin.yaml`
+- **THEN** The manifest only requires basic fields such as `id`, `name`, `version`, `type` etc.
+- **AND** The host no longer requires extended metadata such as `schemaVersion`, `compatibility`, `entry`, etc.
+- **AND** If the plugin needs to register menu or button permissions with the host, it MUST be declared in the manifest `menus` metadata
+- **AND** The locations of frontend pages, `Slot` and SQL files are still deduced according to directory and code conventions instead of being configured repeatedly in the manifest.
 
-#### Scenario: 清单一级类型只保留源码与动态两类
+#### Scenario: Only source and dynamic types are reserved for the list-level type.
 
-- **WHEN** 宿主解析 `plugin.yaml` 中的 `type`
-- **THEN** `type` 仅允许 `source` 或 `dynamic`
-- **AND** 当前仅 `wasm` 作为动态插件的产物语义，不再作为一级插件类型
-- **AND** 对历史上的 `wasm` 一级类型值，宿主在治理视角下统一按 `dynamic` 处理
+- **WHEN** The host parses the `type` in `plugin.yaml`
+- **THEN** `type` only allows `source` or `dynamic`
+- **AND** Currently only `wasm` is used as the product semantics of dynamic plugins, and is no longer used as a first-level plugin type.
+- **AND** For historical `wasm` first-level type values, the host will treat them as `dynamic` from the governance perspective.
 
-#### Scenario: 安装动态插件产物
+#### Scenario: Install dynamic plugin products
 
-- **WHEN** 管理员上传一个 `wasm` 文件安装动态插件
-- **THEN** 宿主能够解析出与源码模式一致的插件标识、名称、版本与一级插件类型
-- **AND** 对缺少这些基础字段的动态插件拒绝安装
-- **AND** 宿主将上传产物写入 `plugin.dynamic.storagePath/<plugin-id>.wasm`
+- **WHEN** The administrator uploads a `wasm` file to install dynamic plugins
+- **THEN** The host can parse the plugin ID, name, version and first-level plugin type that are consistent with the source mode.
+- **AND** deny installation of dynamic plugins missing these basic fields
+- **AND** The host writes the uploaded product to `plugin.dynamic.storagePath/<plugin-id>.wasm`
 
-#### Scenario: 动态插件通过嵌入资源声明生成清单与 SQL 快照
+#### Scenario: Dynamic plugin generates manifests and SQL snapshots by embedding resource declarations
 
-- **WHEN** 动态插件作者使用 `go:embed` 声明 `plugin.yaml`、`manifest/sql` 与 `manifest/sql/uninstall`
-- **THEN** 构建器必须从该嵌入文件系统中读取这些资源
-- **AND** 运行时产物中嵌入的 manifest 与 SQL 快照必须继续作为宿主安装、上传和生命周期治理的真相源
-- **AND** 宿主不得改为通过 guest 运行时方法动态获取这些治理资源
+- **WHEN** Dynamic plugin authors use `go:embed` to declare `plugin.yaml`, `manifest/sql` and `manifest/sql/uninstall`
+- **THEN** The builder MUST read these resources from the embedded file system
+- **AND** Manifests and SQL snapshots embedded in runtime artifacts MUST continue to be the source of truth for host installation, upload, and lifecycle management
+- **AND** The host MUST NOT dynamically obtain these governance resources via guest runtime methods instead
 
-#### Scenario: 动态插件产物使用独立存储目录
+#### Scenario: Dynamic plugin products use independent storage directories
 
-- **WHEN** 宿主发现、上传或同步一个 `dynamic` `wasm` 动态插件产物
-- **THEN** 运行时产物 MUST 使用 `plugin.dynamic.storagePath/<plugin-id>.wasm` 作为宿主侧规范落盘路径
-- **AND** 宿主不得再依赖 `apps/lina-plugins/<plugin-id>/plugin.yaml` 作为 runtime 发现入口
-- **AND** 运行时样例插件的可读源码目录 SHOULD 与源码插件一样继续收敛在 `backend/`、`frontend/` 与 `manifest/` 下维护
+- **WHEN** The host discovers, uploads or synchronizes a `dynamic` `wasm` dynamic plugin product
+- **THEN** The runtime product MUST use `plugin.dynamic.storagePath/<plugin-id>.wasm` as the host-side standard disk path
+- **AND** The host MUST no longer rely on `apps/lina-plugins/<plugin-id>/plugin.yaml` as the runtime discovery entry
+- **AND** The readable source directory of the runtime sample plugin SHOULD continues to be maintained under `backend/`, `frontend/` and `manifest/` like the source plugin
 
-#### Scenario: 当前生效 release 从稳定归档重载
+#### Scenario: The current effective release is reloaded from the stable archive.
 
-- **WHEN** 一个动态插件已经存在当前生效的 release，且宿主需要再次加载其 active manifest
-- **THEN** 宿主从 `plugin.dynamic.storagePath/releases/<plugin-id>/<version>/<plugin-id>.wasm` 这类稳定归档路径重载该 release
-- **AND** 宿主不会因为 staging 目录里出现更新的 `wasm` 文件就立即替换当前服务中的 active release
-- **AND** active manifest 在重载后仍然包含该 release 内嵌声明的 Hook、通用资源契约与菜单元数据
+- **WHEN** A dynamic plugin already has a currently effective release, and the host needs to load its active manifest again
+- **THEN** The host reloads the release from a stable archive path such as `plugin.dynamic.storagePath/releases/<plugin-id>/<version>/<plugin-id>.wasm`
+- **AND** The host will not immediately replace the active release in the current service just because an updated `wasm` file appears in the staging directory.
+- **AND** active manifest still contains hooks, universal resource contracts and menu metadata declared inline in this release after reloading
 
-### Requirement: 插件生命周期状态机可治理
+### Requirement: The plugin life cycle state machine can be managed
 
-系统 SHALL 为插件提供可审计的生命周期状态机，并按源码插件与动态插件区分生命周期语义。
+The system SHALL provides an auditable life cycle state machine for plugins, and distinguishes life cycle semantics between source plugins and dynamic plugins.
 
-#### Scenario: 源码插件随宿主编译集成
+#### Scenario: Source code plugin is compiled and integrated with the host
 
-- **WHEN** 宿主编译源码插件所在的源码树并生成 LinaPro 二进制
-- **THEN** 源码插件的后端 Go 代码与宿主源码一起完成编译
-- **AND** 源码插件在插件注册表中视为已集成，不需要额外安装步骤
-- **AND** 管理员只需要管理源码插件的启用与禁用状态
+- **WHEN** The host compiles the source tree where the source plugin is located and generates the LinaPro binary
+- **THEN** The backend Go code of the source plugin is compiled together with the host source.
+- **AND** Source code plugins are considered integrated in the plugin registry and do not require additional installation steps.
+- **AND** Administrators only need to manage the enabled and disabled status of source plugins
 
-#### Scenario: 源码插件首次同步后默认启用
+#### Scenario: The source plugin is enabled by default after the first synchronization.
 
-- **WHEN** 宿主首次发现一个源码插件并将其写入插件注册表
-- **THEN** 该源码插件默认处于“已集成且已启用”状态
-- **AND** 宿主后续同步不会覆盖管理员对该源码插件做出的显式禁用操作
+- **WHEN** The host discovers a source plugin for the first time and writes it to the plugin registry
+- **THEN** This source plugin is in the "Integrated and Enabled" state by default
+- **AND** Subsequent synchronization of the host will not overwrite the administrator's explicit disabling of the source plugin.
 
-#### Scenario: 安装动态插件
+#### Scenario: Install dynamic plugins
 
-- **WHEN** 管理员安装一个合法的 `wasm` 动态插件
-- **THEN** 宿主创建插件安装记录与当前版本记录
-- **AND** 宿主按清单依次处理迁移、资源注册、权限接入与前后端装载准备
-- **AND** 插件在显式启用前不会对普通用户可见
+- **WHEN** The administrator installs a valid `wasm` dynamic plugin
+- **THEN** The host creates plugin installation records and current version records
+- **AND** The host handles migration, resource registration, permission access and frontend and backend loading preparation in sequence according to the list
+- **AND** Plugins will not be visible to normal users until explicitly enabled
 
-#### Scenario: 禁用插件
+#### Scenario: Disable plugin
 
-- **WHEN** 管理员将已启用插件切换为禁用状态
-- **THEN** 宿主停止该插件的 Hook、Slot、页面与菜单暴露
-- **AND** 宿主保留插件业务数据、角色授权关系与安装记录
-- **AND** 插件重新启用后可以恢复既有治理关系
+- **WHEN** Administrator switches enabled plugin to disabled state
+- **THEN** The host stops the plugin’s Hook, Slot, page and menu exposure
+- **AND** The host retains plugin business data, role authorization relationships and installation records
+- **AND** The existing governance relationship can be restored after the plugin is re-enabled
 
-#### Scenario: 卸载动态插件
+#### Scenario: Uninstall dynamic plugins
 
-- **WHEN** 管理员卸载一个动态插件
-- **THEN** 宿主移除该插件在宿主侧注册的菜单、资源引用、运行时产物与挂载信息
-- **AND** 宿主默认不删除插件自己的业务数据表或业务数据
-- **AND** 宿主保留卸载审计信息
+- **WHEN** The administrator uninstalls a dynamic plugin
+- **THEN** The host removes the menu, resource references, runtime products and mounting information registered by the plugin on the host side.
+- **AND** The host does not delete the plugin's own business data table or business data by default
+- **AND** Host retains uninstall audit information
 
-### Requirement: 插件菜单通过清单元数据治理
+### Requirement: Plug-in menu is managed through manifest metadata
 
-系统 SHALL 使用 `plugin.yaml` 或动态产物嵌入 manifest 中的 `menus` 元数据管理插件菜单和按钮权限，而不是要求插件通过 SQL 直接操作 `sys_menu` 与 `sys_role_menu`。
+The system SHALL uses `plugin.yaml` or `menus` metadata embedded in the manifest of dynamic products to manage plugin menu and button permissions, instead of requiring the plugin to directly operate `sys_menu` and `sys_role_menu` through SQL.
 
-#### Scenario: 源码插件同步菜单
+#### Scenario: Source plugin synchronization menu
 
-- **WHEN** 宿主同步一个源码插件清单
-- **THEN** 宿主依据该插件 `menus` 元数据幂等写入或更新对应的 `sys_menu`
-- **AND** 宿主依据 `parent_key` 解析真实 `parent_id`
-- **AND** 宿主为这些菜单补齐默认管理员角色授权，而不要求插件 SQL 再手工写入 `sys_role_menu`
+- **WHEN** The host synchronizes a source plugin list
+- **THEN** The host writes or updates the corresponding `sys_menu` idempotently based on the plugin `menus` metadata.
+- **AND** The host parses the real `parent_id` based on `parent_key`
+- **AND** The host completes the default administrator role authorization for these menus without requiring the plugin SQL to manually write `sys_role_menu`
 
-#### Scenario: 安装动态插件注册菜单
+#### Scenario: Install dynamic plugin registration menu
 
-- **WHEN** 管理员安装一个动态插件
-- **THEN** 宿主在执行插件安装 SQL 后，继续依据 manifest `menus` 元数据幂等写入或更新对应的 `sys_menu`
-- **AND** 插件安装 SQL 可以继续负责业务表与业务种子数据，但不再承担插件菜单注册职责
+- **WHEN** Administrator installs a dynamic plugin
+- **THEN** After executing the plugin installation SQL, the host continues to write or update the corresponding `sys_menu` based on the manifest `menus` metadata idempotently.
+- **AND** After plugin installation, SQL can continue to be responsible for business tables and business seed data, but it will no longer be responsible for plugin menu registration.
 
-#### Scenario: 卸载动态插件删除菜单
+#### Scenario: Uninstall dynamic plugin delete menu
 
-- **WHEN** 管理员卸载一个动态插件
-- **THEN** 宿主在插件卸载 SQL 成功执行后，依据 manifest `menus` 元数据删除对应的 `sys_role_menu` 关联与 `sys_menu`
-- **AND** 删除范围仅限该插件 manifest 中声明的菜单键，不依赖插件 SQL 手工维护删除语句
-- **AND** 若插件未声明任何菜单，宿主跳过菜单删除步骤
+- **WHEN** The administrator uninstalls a dynamic plugin
+- **THEN** After the plugin uninstall SQL is successfully executed, the host deletes the corresponding `sys_role_menu` association and `sys_menu` based on the manifest `menus` metadata.
+- **AND** The deletion scope is limited to the menu keys declared in the plugin manifest, and does not rely on the plugin SQL to manually maintain the deletion statement.
+- **AND** If the plugin does not declare any menu, the host skips the menu deletion step
 
-#### Scenario: 升级插件
+#### Scenario: Upgrade plugin
 
-- **WHEN** 管理员为已安装插件安装更高版本的 release
-- **THEN** 宿主为插件创建新的 release 记录与代际信息
-- **AND** 旧 release 在新 release 生效前保持可回退
-- **AND** 升级失败时宿主能够回滚到上一个可用 release
+- **WHEN** The administrator installs a higher release version for the installed plugin
+- **THEN** The host creates new release records and generation information for the plugin
+- **AND** The old release remains reversible before the new release takes effect
+- **AND** When the upgrade fails, the host can roll back to the last available release.
 
-#### Scenario: 升级失败 release 保持隔离
+#### Scenario: Upgrade failed release remains isolated
 
-- **WHEN** 一个动态插件在升级、迁移或前端资源切换过程中失败并触发回滚
-- **THEN** 宿主将失败 release 标记为 `failed`
-- **AND** 宿主恢复注册表指针到上一个稳定 release
-- **AND** 失败 release 的公共前端资源不会继续通过 `/plugin-assets/<plugin-id>/<version>/...` 对外提供
+- **WHEN** A dynamic plugin fails and triggers a rollback during an upgrade, migration, or frontend resource switch
+- **THEN** The host will mark the failed release as `failed`
+- **AND** The host restores the registry pointer to the last stable release
+- **AND** The public frontend resources of failed release will no longer be provided externally through `/plugin-assets/<plugin-id>/<version>/...`
 
-#### Scenario: 源码插件不暴露安装卸载操作
+#### Scenario: The source plugin does not expose the installation and uninstallation operations
 
-- **WHEN** 管理员查看源码插件的插件管理操作项
-- **THEN** 宿主不会为源码插件展示安装或卸载操作
-- **AND** 源码插件仅暴露同步发现、启用和禁用等适用操作
+- **WHEN** The administrator views the plugin management operation items of the source plugin
+- **THEN** The host will not display installation or uninstallation operations for source plugins.
+- **AND** The source plugin only exposes applicable operations such as sync discovery, enablement and disabling
 
-### Requirement: 插件资源归属与迁移记录可追踪
+### Requirement: Plug-in resource ownership and migration records can be tracked
 
-系统 SHALL 记录插件对宿主资源与迁移的占用关系，以支持卸载、重装、升级、审计与故障恢复。
+The system SHALL records the plugin's occupation of host resources and migration to support uninstallation, reinstallation, upgrade, auditing and fault recovery.
 
-#### Scenario: 插件注册宿主资源
+#### Scenario: Plug-in registration host resource
 
-- **WHEN** 插件在安装期间创建或声明菜单、权限、配置、字典、静态资源或其他宿主治理资源
-- **THEN** 宿主记录该资源与插件、release 的归属关系
-- **AND** 这些引用关系可以被查询、审计和用于卸载清理
+- **WHEN** Plugins create or declare menus, permissions, configurations, dictionaries, static resources or other host-managed resources during installation
+- **THEN** The host records the ownership relationship between the resource, plugin and release
+- **AND** These reference relationships can be queried, audited and used for uninstall cleanup
 
-#### Scenario: 执行插件迁移
+#### Scenario: Perform plugin migration
 
-- **WHEN** 插件安装或升级需要执行 SQL 或其他迁移步骤
-- **THEN** 宿主记录每个迁移项的执行顺序、版本、校验摘要、执行结果与时间
-- **AND** 同一个 release 的同一个迁移项不会被重复执行
+- **WHEN** Plug-in installation or upgrade requires SQL or other migration steps
+- **THEN** The host records the execution order, version, verification summary, execution results and time of each migration item
+- **AND** The same migration item of the same release will not be executed repeatedly
 
-#### Scenario: 插件版本 SQL 命名与目录约束
+#### Scenario: Plug-in version SQL naming and directory constraints
 
-- **WHEN** 插件在 `manifest/sql/` 目录下提供安装阶段 SQL
-- **THEN** 安装 SQL 文件 MUST 使用与宿主一致的命名格式 `{序号}-{当前迭代名称}.sql`
-- **AND** 这些安装 SQL 文件 MUST 放在插件的 `manifest/sql/` 根目录下，供宿主按顺序扫描执行
-- **AND** 插件卸载 SQL MUST 独立放在 `manifest/sql/uninstall/` 目录下
-- **AND** 宿主初始化顺序执行流程 MUST 只扫描 `manifest/sql/` 根目录，不得误执行 `manifest/sql/uninstall/` 下的卸载 SQL
+- **WHEN** plugin provides installation phase SQL in the `manifest/sql/` directory
+- **THEN** Install SQL files MUST use the naming format consistent with the host `{serial number}-{current iteration name}.sql`
+- **AND** These installation SQL files MUST be placed in the `manifest/sql/` root directory of the plugin for the host to scan and execute in sequence
+- **AND** Plug-in uninstallation SQL MUST be placed independently in the `manifest/sql/uninstall/` directory
+- **AND** Host initialization sequence execution process MUST only scan the `manifest/sql/` root directory, and MUST not mistakenly execute the uninstall SQL under `manifest/sql/uninstall/`
 
-#### Scenario: 插件菜单治理不依赖整型菜单 ID
+#### Scenario: Plug-in menu management does not rely on integer menu ID
 
-- **WHEN** 宿主根据插件 manifest `menus` 元数据同步宿主菜单与按钮权限
-- **THEN** 菜单记录 MUST 使用 `menu_key` 作为菜单稳定标识
-- **AND** 父子关系 MUST 通过 `parent_key` 解析真实 `parent_id`，而不是写死固定整型 `parent_id`
-- **AND** 插件安装、升级与卸载流程 MUST 不依赖固定整型 `id`
+- **WHEN** The host synchronizes the host menu and button permissions based on the plugin manifest `menus` metadata.
+- **THEN** Menu records MUST use `menu_key` as menu stable identifier
+- **AND** The parent-child relationship MUST parse the real `parent_id` through `parent_key` instead of hard-coding the fixed integer `parent_id`
+- **AND** The plugin installation, upgrade and uninstall process MUST not rely on the fixed integer `id`
 
-#### Scenario: 安装过程部分失败
+#### Scenario: Partial failure of installation process
 
-- **WHEN** 插件在迁移、资源注册或产物准备过程中任一步骤失败
-- **THEN** 宿主将插件状态标记为失败或待人工介入
-- **AND** 宿主回滚尚未生效的宿主治理资源
-- **AND** 宿主保留失败上下文供后续诊断
+- **WHEN** The plugin failed at any step during migration, resource registration, or product preparation.
+- **THEN** The host marks the plugin status as failed or pending manual intervention
+- **AND** Host rollback of host management resources that have not yet taken effect
+- **AND** The host retains the failure context for subsequent diagnostics
 
-### Requirement: 动态插件清单可声明结构化宿主服务策略
+### Requirement: Dynamic plugin manifest can declare structured hosting service strategy
 
-系统 SHALL 允许动态插件在`plugin.yaml`中仅声明结构化`hostServices`策略，用于描述需要的宿主 service、method、资源申请和治理参数；宿主内部 capability 分类必须根据这些声明自动推导，而不是要求作者重复维护顶层`capabilities`字段。其中`storage`服务当前通过`resources.paths`声明逻辑路径申请，`data`服务当前通过`resources.tables`声明数据表申请。
+The system SHALL allows dynamic plugins to declare only the structured `hostServices` policy in `plugin.yaml`, which is used to describe the required host services, methods, resource application and governance parameters; the host's internal capability classification MUST be automatically derived based on these declarations, rather than requiring the author to repeatedly maintain the top-level `capabilities` field. The `storage` service currently declares logical path requests through `resources.paths`, and the `data` service currently declares data table requests through `resources.tables`.
 
-#### Scenario: 插件声明宿主服务策略
+#### Scenario: Plug-in declares host service strategy
 
-- **WHEN** 开发者编写动态插件清单
-- **THEN** 清单可以声明`hostServices`元数据
-- **AND** 每个声明至少包含 service、method 集合以及资源申请或策略参数
-- **AND** 清单不再需要单独声明顶层`capabilities`
-- **AND** 构建器对未知 service、未知 method 和非法策略直接报错
+- **WHEN** Developers write dynamic plugin lists
+- **THEN** Manifest can declare `hostServices` metadata
+- **AND** Each statement contains at least service, method collection and resource application or policy parameters
+- **AND** Manifest no longer needs to declare top-level `capabilities` separately
+- **AND** The builder directly reports errors for unknown services, unknown methods and illegal strategies.
 
-#### Scenario: 宿主读取宿主服务策略快照
+#### Scenario: Host reads host service policy snapshot
 
-- **WHEN** 宿主查看一个动态插件的 manifest 快照或 release 快照
-- **THEN** 宿主可以恢复该插件声明的宿主服务策略
-- **AND** 管理员可以据此审查插件计划访问的宿主能力范围
+- **WHEN** The host views the manifest snapshot or release snapshot of a dynamic plugin
+- **THEN** The host can restore the host service policy declared by the plugin
+- **AND** Administrators can use this to review the scope of host capabilities that plugins plan to access.
 
-#### Scenario: 插件声明资源申请而非宿主底层连接
+#### Scenario: Plug-in declares resource request instead of hosting underlying connection
 
-- **WHEN** 开发者在清单中声明宿主服务依赖
-- **THEN** 对`storage`服务，插件只声明稳定的逻辑路径或路径前缀`resources.paths`
-- **AND** 对`network`服务，插件只声明 URL 模式列表
-- **AND** 对`data`服务，插件在`resources`节点下声明需要访问的表名列表`tables`
-- **AND** 对`cache`、`lock`和`notify`等低优先级服务，当前仍可继续使用逻辑`resourceRef`规划，其中分别表示缓存命名空间、逻辑锁名和通知通道标识
-- **AND** 插件清单不得固化数据库连接、宿主文件绝对路径、缓存地址或密钥明文
-- **AND** 真实资源绑定由宿主安装流程或管理员配置完成
+- **WHEN** Developer declares host service dependencies in the manifest
+- **THEN** For the `storage` service, the plugin only declares stable logical paths or path prefixes `resources.paths`
+- **AND** For the `network` service, the plugin only declares a list of URL patterns
+- **AND** For the `data` service, the plugin declares the list of table names `tables` that needs to be accessed under the `resources` node.
+- **AND** For low-priority services such as `cache`, `lock` and `notify`, you can still continue to use logical `resourceRef` planning, which respectively represent the cache namespace, logical lock name and notification channel identifier.
+- **AND** Plug-in manifest MUST not solidify database connection, host file absolute path, cache address or key plain text
+- **AND** Real resource binding is completed by the host installation process or administrator configuration
 
-### Requirement: 宿主服务资源申请纳入插件治理资源索引
+### Requirement: Host service resource application is included in the plugin management resource index
 
-系统 SHALL 将动态插件声明的宿主服务资源申请统一纳入`sys_plugin_resource_ref`治理资源索引；该表用于承载 release 级别的插件治理资源投影，而不只是镜像某个名为`resourceRef`的作者侧字段。对`storage`记录逻辑路径申请，对`network`记录 URL 模式申请，对`data`记录表名申请，对`cache`、`lock`、`notify`等低优先级服务继续记录逻辑资源引用。
+The system SHALL integrates the host service resource applications declared by dynamic plugins into the `sys_plugin_resource_ref` governance resource index; this table is used to carry release-level plugin governance resource projections, rather than just mirroring an author-side field named `resourceRef`. Record logical path requests for `storage`, record URL pattern requests for `network`, record table name requests for `data`, and continue to record logical resource references for low-priority services such as `cache`, `lock`, and `notify`.
 
-#### Scenario: 安装或升级动态插件同步治理资源索引
+#### Scenario: Install or upgrade dynamic plugins to synchronize management resource indexes
 
-- **WHEN** 宿主安装或升级一个声明了宿主服务资源的动态插件
-- **THEN** 宿主将这些资源申请同步为插件资源归属记录
-- **AND** 资源类型能够区分`host-storage`、`host-upstream`、`host-data-table`、`host-cache`、`host-lock`和`host-notify-channel`
-- **AND** 这些记录可以参与审计、卸载和回滚治理
+- **WHEN** The host installs or upgrades a dynamic plugin that declares the host service resources
+- **THEN** The host synchronizes these resource applications into plugin resource ownership records
+- **AND** resource types can distinguish between `host-storage`, `host-upstream`, `host-data-table`, `host-cache`, `host-lock` and `host-notify-channel`
+- **AND** These records can participate in audit, offload and rollback governance
 
-#### Scenario: 卸载或回滚动态插件更新治理资源索引
+#### Scenario: Uninstall or rollback dynamic plugin update management resource index
 
-- **WHEN** 宿主卸载一个动态插件或将其回滚到旧 release
-- **THEN** 宿主同步更新对应的宿主服务资源申请记录
-- **AND** 当前 release 不再使用的逻辑路径、URL 模式、低优先级服务逻辑`resourceRef`或数据表声明不得继续保留为生效态
+- **WHEN** The host uninstalls a dynamic plugin or rolls it back to an old release
+- **THEN** The host synchronizes and updates the corresponding host service resource application record
+- **AND** Logical paths, URL patterns, low-priority service logic `resourceRef` or data table declarations that are no longer used in the current release MUST not remain in the valid state
 
-#### Scenario: 激活 release 时恢复逻辑引用绑定
+#### Scenario: Restore logical reference binding when release is activated
 
-- **WHEN** 宿主激活一个动态插件 release
-- **THEN** 宿主根据 release 快照恢复资源申请的最终授权状态
-- **AND** 运行时后续只按该快照解释宿主服务调用
+- **WHEN** The host activates a dynamic plugin release
+- **THEN** The host restores the final authorization status of the resource application based on the release snapshot
+- **AND** At runtime, host service calls will only be interpreted based on this snapshot.
 
-### Requirement: 资源型宿主服务申请在安装或启用时需要宿主确认授权
+### Requirement: Resource hosting service application requires host confirmation authorization when installing or enabling it.
 
-系统 SHALL 在动态插件安装阶段展示所有资源型宿主服务权限申请，并由宿主管理员确认当前 release 的最终授权结果；对于已经形成确认授权快照的 release，后续启用时必须直接复用该快照，不再重复弹出授权窗口。
+The system SHALL displays all resource-based host service permission applications during the dynamic plugin installation phase, and the host administrator confirms the final authorization result of the current release; for a release that has already formed a confirmed authorization snapshot, the snapshot MUST be directly reused during subsequent activation, and the authorization window will not pop up repeatedly.
 
-#### Scenario: 安装时展示宿主服务权限申请
+#### Scenario: Display host service permission application during installation
 
-- **WHEN** 宿主准备安装一个声明了资源型 hostServices 的动态插件
-- **THEN** 宿主在安装审查窗口中展示插件申请的 service、method、资源标识（如`path`、URL 模式、`resourceRef`或`table`）及其治理参数摘要
-- **AND** 授权项按“数据服务 → 存储服务 → 网络服务 → 运行时服务”的顺序展示；未命中的其他 service 排在已知顺序之后
-- **AND** service 级方法摘要展示在对应服务标题区域，不在每个数据表或存储路径条目下重复展示同一组方法
-- **AND** 当申请项属于`data` service 且宿主可解析表级说明时，宿主在表名后直接展示对应的人类可读说明，避免管理员只能依赖裸表名判断用途
-- **AND** 审查窗口不再提供逐项勾选裁剪交互，而是只读展示当前插件声明的完整服务清单
-- **AND** 管理员可以基于该清单审查插件计划访问的宿主资源范围
-- **AND** 对于已声明细分资源的 service，宿主继续使用无序列表逐项展示对应资源列表，只是不再提供勾选控件
-- **AND** 对于仅按 service 级方法摘要治理且没有细分资源条目的 service，宿主只展示服务标题与方法摘要，不再额外展示“无需额外确认”等提示文案
+- **WHEN** The host is preparing to install a dynamic plugin that declares resource type hostServices
+- **THEN** The host displays the service, method, resource identifier (such as `path`, URL pattern, `resourceRef` or `table`) applied by the plugin and its management parameter summary in the installation review window
+- **AND** Authorization items are displayed in the order of "data service → storage service → network service → runtime service"; other services that are not hit are ranked after the known order
+- **AND** The service-level method summary is displayed in the corresponding service title area, and the same set of methods is not repeatedly displayed under each data table or storage path entry.
+- **AND** When the application item belongs to the `data` service and the host can parse the table-level description, the host will display the corresponding human-readable description directly after the table name, preventing the administrator from having to rely on the bare table name to determine the purpose.
+- **AND** The inspection window no longer provides item-by-item check-cut interaction, but instead displays the complete service list declared by the current plugin in a read-only manner.
+- **AND** Administrators can review the scope of host resources that the plugin plans to access based on this list
+- **AND** For services that have declared subdivided resources, the host continues to use an unordered list to display the corresponding resource list item by item, but no longer provides a check control.
+- **AND** For services that are managed only by service-level method summary and do not have subdivided resource entries, the host will only display the service title and method summary, and will no longer display additional prompt copy such as "No additional confirmation required"
 
-#### Scenario: 安装时持久化最终授权快照
+#### Scenario: Persist the final authorized snapshot during installation
 
-- **WHEN** 管理员确认动态插件安装审查窗口
-- **THEN** 宿主将最终确认结果持久化为当前 release 的授权快照
-- **AND** 默认将该插件当前声明的全部宿主服务资源申请写入授权快照
-- **AND** 运行时后续按该完整授权快照解释宿主服务调用
+- **WHEN** Administrator confirms dynamic plugin installation review window
+- **THEN** The host will persist the final confirmation result as an authorized snapshot of the current release
+- **AND** By default, all host service resource applications currently declared by the plugin will be written into the authorization snapshot.
+- **AND** The runtime subsequently interprets host service calls according to this complete authorization snapshot
 
-#### Scenario: 已确认授权的 release 启用时直接复用快照
+#### Scenario: Directly reuse the snapshot when the authorized release is enabled
 
-- **WHEN** 一个动态插件 release 已在安装阶段形成确认授权快照，管理员随后启用该插件
-- **THEN** 宿主直接按该快照启用插件
-- **AND** 不再重复弹出授权确认窗口
-- **AND** 运行时继续只按这份最终快照解释宿主服务调用
+- **WHEN** A dynamic plugin release has taken a confirmed authorization snapshot during the installation phase and the administrator subsequently enables the plugin
+- **THEN** The host directly activates the plugin according to the snapshot
+- **AND** No more repeated authorization confirmation windows popping up
+- **AND** The runtime continues to interpret host service calls only according to this final snapshot
 
-#### Scenario: 历史待确认 release 启用时补做确认
+#### Scenario: History needs to be confirmed, and confirmation will be made when release is enabled.
 
-- **WHEN** 一个动态插件 release 尚未形成确认授权快照，但管理员尝试启用该插件
-- **THEN** 宿主仍允许在启用前补做一次授权确认
-- **AND** 启用审查窗口继续只读展示该 release 声明的完整服务清单
-- **AND** 宿主将这次确认结果写回当前 release 的授权快照，供后续启用直接复用
+- **WHEN** A dynamic plugin release has not yet formed a confirmed authorization snapshot, but the administrator attempted to enable the plugin
+- **THEN** The host still allows an additional authorization confirmation before activation.
+- **AND** Enable the review window to continue to read-only display the complete service list declared by this release
+- **AND** The host will write the confirmation result back to the authorization snapshot of the current release for direct reuse in subsequent activations.
 
-### Requirement: 插件安装前统一展示详情确认窗口
+### Requirement: Uniformly display the details confirmation window before plugin installation
 
-系统 SHALL 在源码插件和动态插件执行安装前统一展示单一安装审查窗口，让管理员先查看插件详情，再决定是否继续安装。
+The system SHALL displays a single installation review window before installing source plugins and dynamic plugins, allowing administrators to view plugin details before deciding whether to continue the installation.
 
-#### Scenario: 安装源码插件前查看详情
+#### Scenario: View details before installing the source plugin
 
-- **WHEN** 管理员在插件管理页点击一个未安装源码插件的“安装”操作
-- **THEN** 宿主先弹出源码插件安装详情窗口，而不是直接执行安装
-- **AND** 窗口至少展示插件名称、插件标识、插件类型、版本和描述
-- **AND** 管理员确认后宿主才开始执行源码插件安装流程
+- **WHEN** The administrator clicks the "Install" operation on the plugin management page for an uninstalled source plugin.
+- **THEN** The host first pops up the source plugin installation details window instead of directly executing the installation.
+- **AND** The window displays at least the plugin name, plugin ID, plugin type, version and description
+- **AND** After the administrator confirms, the host will start the source plugin installation process.
 
-#### Scenario: 安装动态插件时使用单一审查窗口
+#### Scenario: Use a single review window when installing dynamic plugins
 
-- **WHEN** 管理员在插件管理页点击一个未安装动态插件的“安装”操作
-- **THEN** 宿主直接弹出同一个安装审查窗口，并在该窗口内同时展示插件详情和需要确认的宿主服务授权范围
-- **AND** 不再先弹出一次通用安装确认，再弹出第二次授权确认
-- **AND** 管理员确认后宿主才开始执行动态插件安装流程
+- **WHEN** The administrator clicks the "Install" operation on the plugin management page that does not have a dynamic plugin installed.
+- **THEN** The host directly pops up the same installation review window, and displays the plugin details and the host service authorization scope that need to be confirmed in the window.
+- **AND** No longer pops up a general installation confirmation first, and then pops up a second authorization confirmation
+- **AND** The host will start the dynamic plugin installation process only after the administrator confirms
 
 ### Requirement: `plugin.yaml` Remains Minimal and May Declare Menus
 The system SHALL keep `plugin.yaml` focused on stable plugin metadata and SHALL not require source plugins to declare backend route inventories in the manifest.
@@ -291,3 +291,65 @@ The system SHALL keep `plugin.yaml` focused on stable plugin metadata and SHALL 
 - **THEN** the manifest does not need to list backend routes
 - **AND** backend route registration code plus DTO `g.Meta` remains the only source of truth for source-plugin routes
 - **AND** the host captures route ownership and documentation metadata during registration instead of reading a second route declaration model from `plugin.yaml`
+
+### Requirement: Official source plugin usage field-capability plugin ID
+
+The system SHALL uses domain-capability style `kebab-case` flags without the `plugin-` prefix for official source plugins to improve readability and avoid semantic duplication.
+
+#### Scenario: Define the official source plugin identifier
+- **WHEN** team named the official source plugin in the open source stage
+- **THEN** Plugin ID uses `org-center`, `content-notice`, `monitor-online`, `monitor-server`, `monitor-operlog`, `monitor-loginlog`
+- **AND** does not require the `plugin-` prefix
+
+#### Scenario: Verify the validity of the plugin ID
+- **WHEN** The host parses the `plugin.yaml` of the above official plugin
+- **THEN** These plugin IDs only need to satisfy globally unique and `kebab-case` rules
+- **AND** not illegal due to missing `plugin-` prefix
+
+### Requirement: The source plugin menu MUST be mounted to the host stable directory
+
+The system SHALL requires the official source plugin to point to the host stable directory key through `parent_key` in the manifest menu statement to ensure the long-term stability of the background navigation structure.
+
+#### Scenario: Organization and content plugin declares parent directory
+- **WHEN** `org-center` or `content-notice` declare menu metadata
+- **THEN** Its top-level menu `parent_key` points to the host directory keys `org` and `content` respectively
+- **AND** The internal submenu of the plugin can still continue to refer to the parent menu key declared by the same plugin.
+
+#### Scenario: Monitoring plugin declares parent directory
+- **WHEN** `monitor-online`, `monitor-server`, `monitor-operlog`, `monitor-loginlog` declare menu metadata
+- **THEN** Its top menu `parent_key` points to the host directory key `monitor`
+- **AND** The host presses the parent key to complete menu synchronization and start-stop linkage visibility management
+
+#### Scenario: Official plugin uses fixed parent directory key mapping
+- **WHEN** The host verifies the official source plugin manifest
+- **THEN** The top-level `parent_key` of `org-center` MUST be `org`
+- **AND** The top-level `parent_key` of `content-notice` MUST be `content`
+- **AND** The top-level `parent_key` of `monitor-online`, `monitor-server`, `monitor-operlog`, `monitor-loginlog` MUST be `monitor`
+
+#### Scenario: The official plugin declares an unsupported top-level mount key
+- **WHEN** The above official source plugin uses `parent_key` that is inconsistent with the convention in its top-level menu declaration.
+- **THEN** The host refuses to synchronize the plugin menu
+- **AND** Provide administrators with diagnosable mount verification errors
+
+### Requirement: The source plugin backend directory structure MUST converge to backend/internal
+
+The system SHALL requires the source plugin to converge the backend business implementation under `backend/internal/`, avoid directly exposing the business service directory in the `backend/` root directory, and ensure that the private implementation boundary of the plugin is clear and consistent with the host agreement.
+
+#### Scenario: Planning the standard directory of source plugins
+- **WHEN** Team creates or refactors a source plugin
+- **THEN** The plugin backend is organized by at least `backend/api/`, `backend/plugin.go`, `backend/internal/controller/`, `backend/internal/service/`
+- **AND** Plugin frontend pages remain in `frontend/pages/`
+- **AND** Plugin manifests and embedded resources are kept in `plugin.yaml`, `plugin_embed.go`, `manifest/sql/` and `manifest/sql/uninstall/`
+
+#### Scenario: Place the plugin service component
+- **WHEN** team adds or migrates business services for source plugins
+- **THEN** All service components MUST be placed in `backend/internal/service/<component>/`
+- **AND** MUST NOT CREATE `backend/service/<component>/`
+- **AND** Non-`internal` directories such as `backend/provider/` are only used for stable capability provider / adapter and do not carry main business orchestration
+
+#### Scenario: Plugin requires local ORM artifacts
+- **WHEN** Source code plugin needs to access the database
+- **THEN** `backend/hack/config.yaml` serves as the plugin’s local `gf gen dao` configuration entry
+- **AND** The generated results fall into `backend/internal/dao/`, `backend/internal/model/do/` and `backend/internal/model/entity/`
+- **AND** Access to the host shared table also continues to use the plugin's local generation of artifacts
+

@@ -2,148 +2,133 @@
 
 ## Purpose
 
-用户认证功能负责系统登录、登出、会话校验、登录态维护以及登录后用户信息与权限数据返回，确保前后端鉴权流程稳定一致。
+The user authentication function is responsible for system login, logout, session verification, login state maintenance, and user information and permission data return after login to ensure stable and consistent frontend and backend authentication processes.
 ## Requirements
-### Requirement: 用户名密码登录
-系统 SHALL 支持用户名 + 密码登录，验证成功后返回 JWT Token。登录过程（无论成功或失败）SHALL 自动记录登录日志。登录成功后 SHALL 在 `sys_online_session` 表中创建会话记录。
+### Requirement: Username Password Login
+The system SHALL supports username + password login, and returns JWT Token after successful verification. SHALL emits unified login lifecycle events during the login process (whether successful or failed). After successful login, SHALL creates session records in the `sys_online_session` table maintained by the host; if `monitor-loginlog` is enabled, the plugin completes the login log entry based on login events.
 
-#### Scenario: 登录成功
-- **WHEN** 用户提交正确的用户名和密码到 `POST /api/v1/auth/login`
-- **THEN** 系统返回 JWT Token，响应格式为 `{code: 0, message: "ok", data: {token: "..."}}`，写入一条状态为成功的登录日志，并在 `sys_online_session` 表中创建会话记录（包含 token_id、用户信息、IP、浏览器、操作系统等）
+#### Scenario: Login successful
+- **WHEN** User submits correct username and password to `POST /api/v1/auth/login`
+- **THEN** The system returns JWT Token, and the response format is `{code: 0, message: "ok", data: {token: "..."}}`
+- **AND** The host creates session records (including token_id, user information, IP, browser, operating system, etc.) in the `sys_online_session` table
+- **AND** The host emits a successful login event; if `monitor-loginlog` is enabled, the plugin writes a successful login log
 
-#### Scenario: 用户名不存在
-- **WHEN** 用户提交不存在的用户名
-- **THEN** 系统返回错误信息，提示用户名或密码错误，并写入一条状态为失败的登录日志
+#### Scenario: Login failed and log plugin missing
+- **WHEN** User login failed and `monitor-loginlog` is not installed, not enabled or failed to initialize
+- **THEN** The system still returns the correct login failure result
+- **AND** The host does not report an error due to lack of specific login log persistence implementation
 
-#### Scenario: 密码错误
-- **WHEN** 用户提交错误的密码
-- **THEN** 系统返回错误信息，提示用户名或密码错误（不区分用户名还是密码错误），并写入一条状态为失败的登录日志
+### Requirement: User logs out
+The system SHALL supports user logout operations. The logout operation SHALL emits unified login life cycle events and deletes the online session records maintained by the host.
 
-#### Scenario: 用户已停用
-- **WHEN** 状态为停用的用户尝试登录
-- **THEN** 系统返回错误信息，提示用户已停用，并写入一条状态为失败的登录日志
+#### Scenario: Logout successful
+- **WHEN** Logged in user calls `POST /api/v1/auth/logout`
+- **THEN** The system returns a successful response, deletes the user's session record from the `sys_online_session` table, and the front end clears the locally stored Token
+- **AND** The host emits a successful logout event; if `monitor-loginlog` is enabled, the plugin will write the corresponding log
 
-### Requirement: 用户登出
-系统 SHALL 支持用户登出操作。登出操作 SHALL 自动记录登录日志，并删除对应的在线会话记录。
+### Requirement: Certified Middleware
+The system SHALL provides authentication middleware to protect APIs that require login to access. The middleware MUST verify both the JWT signature and the validity of the session maintained by the host, and MUST not rely on whether `monitor-online` is installed.
 
-#### Scenario: 登出成功
-- **WHEN** 已登录用户调用 `POST /api/v1/auth/logout`
-- **THEN** 系统返回成功响应，从 `sys_online_session` 表中删除该用户的会话记录，前端清除本地存储的 Token，并写入一条状态为成功的登录日志（msg 为"登出成功"）
+#### Scenario: Access protected interface when online user plugin is not installed
+- **WHEN** The request header carries a valid `Authorization: Bearer <token>`, the corresponding session record exists in `sys_online_session`, and `monitor-online` is not installed or enabled
+- **THEN** The middleware still updates the session's `last_active_time` to the current time through the UPDATE operation
+- **AND** The request is processed normally and user information is injected into the request context.
 
-### Requirement: 认证中间件
-系统 SHALL 提供认证中间件，保护需要登录才能访问的 API。中间件 MUST 同时校验 JWT 签名和会话有效性。
+### Requirement: Log in and return user information
 
-#### Scenario: 携带有效 Token 且会话存在
-- **WHEN** 请求头携带有效的 `Authorization: Bearer <token>` 且 `sys_online_session` 表中存在对应会话记录
-- **THEN** 中间件通过 UPDATE 操作更新会话的 `last_active_time` 为当前时间，通过受影响行数（>0）判断会话存在，请求正常处理，用户信息注入到请求上下文中
+The system SHALL returns user information, including roles and menu trees, after a successful user login.
 
-#### Scenario: 携带有效 Token 但会话不存在（已被强制下线或超时清理）
-- **WHEN** 请求头携带有效的 JWT Token，但 `sys_online_session` 表中不存在对应会话记录（已被强制下线或因不活跃超时被自动清理）
-- **THEN** UPDATE 操作受影响行数为 0，系统返回 401 状态码
+#### Scenario: Login successful User information returned
+- **WHEN** User logs in with correct username and password
+- **THEN** The system returns userId, username, realName, email, avatar
+- **AND** The system returns a roles field containing a list of keys for all roles of the user
+- **AND** The system returns a menus field containing a user-accessible menu tree
+- **AND** The system returns a permissions field containing a list of permission identifiers owned by the user
+- **AND** The system returns the homePath field, specifying the user's home page path
 
-#### Scenario: 未携带 Token 访问受保护接口
-- **WHEN** 请求未携带 Authorization 头访问受保护 API
-- **THEN** 系统返回 401 状态码
+#### Scenario: Super Admin Login
+- User login for the **WHEN** admin role
+- **THEN** The system returns all menus (without checking the sys_role_menu association)
+- **AND** roles contain "admin"
+- **AND** permissions contain "*: *: *" for all permissions
 
-#### Scenario: 携带无效 Token 访问受保护接口
-- **WHEN** 请求携带无效或过期的 Token
-- **THEN** 系统返回 401 状态码
+#### Scenario: Normal user login
+- **WHEN** Non-Super Admin User Login
+- **THEN** The system queries sys_role_menu based on the user's role to get a list of menu IDs
+- **AND** The system builds a menu tree based on a list of menu IDs
+- **AND** The system filters out menus with inactive status (status = 0)
+- **AND** The system filters out hidden menus (visible = 0)
 
-### Requirement: 登录后返回用户信息
+#### Scenario: User is logged in without role
+- **WHEN** User logged in without assigning any role
+- **THEN** The system returns an empty menu tree
+- **AND** roles is an empty array
+- **AND** permissions is an empty array
 
-系统 SHALL 在用户登录成功后返回用户信息，包括角色和菜单树。
+#### Scenario: Deactivate all user roles
+- **WHEN** All roles of the user are deactivated
+- **THEN** The system returns an empty menu tree
+- **AND** roles is an empty array
+- **AND** permissions is an empty array
 
-#### Scenario: 登录成功返回用户信息
-- **WHEN** 用户使用正确的用户名和密码登录
-- **THEN** 系统返回 userId、username、realName、email、avatar
-- **AND** 系统返回 roles 字段，包含用户所有角色的 key 列表
-- **AND** 系统返回 menus 字段，包含用户可访问的菜单树
-- **AND** 系统返回 permissions 字段，包含用户所有的权限标识列表
-- **AND** 系统返回 homePath 字段，指定用户的首页路径
+### Requirement: Certified Lifecycle Events Available for Plugin Subscription
+The system SHALL publishes authentication lifecycle events such as login success and logout success as controlled hooks to enabled plugins.
 
-#### Scenario: 超级管理员登录
-- **WHEN** admin 角色的用户登录
-- **THEN** 系统返回所有菜单（不检查 sys_role_menu 关联）
-- **AND** roles 包含 "admin"
-- **AND** permissions 包含 "*:*:*" 表示所有权限
+#### Scenario: Publish authentication event after successful login
+- **WHEN** User logged in successfully
+- **THEN** Host distributes events to plugins subscribed to `auth.login.succeeded'
+- **AND** The event contains the host's exposed user identity and client context
 
-#### Scenario: 普通用户登录
-- **WHEN** 非超级管理员用户登录
-- **THEN** 系统根据用户的角色查询 sys_role_menu 获取菜单ID列表
-- **AND** 系统根据菜单ID列表构建菜单树
-- **AND** 系统过滤掉停用状态（status=0）的菜单
-- **AND** 系统过滤掉隐藏状态（visible=0）的菜单
+#### Scenario: Post certification event after successful logout
+- **WHEN** User logged out successfully
+- **THEN** Host distributes events to plugins subscribed to `auth.logout.succeeded'
+- **AND** Event distribution does not change the original logout success semantics
 
-#### Scenario: 用户无角色登录
-- **WHEN** 没有分配任何角色的用户登录
-- **THEN** 系统返回空的菜单树
-- **AND** roles 为空数组
-- **AND** permissions 为空数组
+### Requirement: Plugin Authentication Extension Failure Does Not Affect Authentication Results
+The system SHALL guarantees that the extension failure of the plugin on the authentication event will not change the final result of the login or logout.
 
-#### Scenario: 用户角色全部停用
-- **WHEN** 用户的所有角色都被停用
-- **THEN** 系统返回空的菜单树
-- **AND** roles 为空数组
-- **AND** permissions 为空数组
+#### Scenario: Login successful Plugin error in Hook
+- **WHEN** A plugin failed in logon success event handling
+- **THEN** users still receive successful login results
+- **AND** The system logs the plugin failure information for troubleshooting purposes
 
-### Requirement: 认证生命周期事件可供插件订阅
-系统 SHALL 将登录成功与登出成功等认证生命周期事件作为受控 Hook 发布给已启用插件。
+### Requirement: JWT Token validity period configuration
+System SHALL supports configuring the JWT Token validity period through the `jwt.expire` duration string in `config.yaml`.
 
-#### Scenario: 登录成功后发布认证事件
-- **WHEN** 用户登录成功
-- **THEN** 宿主向订阅 `auth.login.succeeded` 的插件分发事件
-- **AND** 事件包含宿主公开的用户身份与客户端上下文
-
-#### Scenario: 登出成功后发布认证事件
-- **WHEN** 用户登出成功
-- **THEN** 宿主向订阅 `auth.logout.succeeded` 的插件分发事件
-- **AND** 事件分发不改变原有登出成功语义
-
-### Requirement: 插件认证扩展失败不影响认证结果
-系统 SHALL 保证插件在认证事件上的扩展失败不会改变登录或登出的最终结果。
-
-#### Scenario: 登录成功 Hook 中插件报错
-- **WHEN** 某插件在登录成功事件处理中失败
-- **THEN** 用户仍然收到登录成功结果
-- **AND** 系统记录该插件失败信息用于排查
-
-### Requirement: JWT Token 有效期配置
-系统 SHALL 支持通过 `config.yaml` 中的 `jwt.expire` duration 字符串配置 JWT Token 有效期。
-
-#### Scenario: 使用新的 duration 配置 Token 有效期
-- **WHEN** 管理员在 `config.yaml` 中设置 `jwt.expire=24h`
-- **THEN** 系统 MUST 使用该 duration 值作为 JWT Token 有效期
+#### Scenario: Use the new duration to configure the Token validity period
+- **WHEN** Administrator sets `jwt.expire=24h` in `config.yaml`
+- **THEN** The system MUST use this duration value as the JWT Token validity period
 
 ## ADDED Requirements
 
-### Requirement: 菜单树结构
+### Requirement: Menu tree structure
 
-系统返回的菜单树必须符合前端路由生成要求。
+The menu tree returned by the system MUST meet the requirements for frontend route generation.
 
-#### Scenario: 菜单树包含必要字段
-- **WHEN** 系统返回菜单树
-- **THEN** 每个菜单节点包含 id、parentId、name、path、component、icon、type、sort、visible、status 字段
-- **AND** 目录类型（type="D"）的菜单包含 children 子节点
-- **AND** 菜单类型（type="M"）的菜单为叶子节点
-- **AND** 按钮类型（type="B"）不在菜单树中返回
+#### Scenario: Menu tree contains necessary fields
+- **WHEN** The system returns to the menu tree
+- **THEN** Each menu node contains id, parentId, name, path, component, icon, type, sort, visible, status fields
+- **AND** The menu of directory type (type="D") contains children child nodes
+- **AND** The menu of menu type (type="M") is a leaf node
+- **AND** Button type (type="B") is not returned in the menu tree
 
-#### Scenario: 菜单树按排序字段排序
-- **WHEN** 系统返回菜单树
-- **THEN** 同级菜单按 sort 字段升序排列
+#### Scenario: Menu tree sorted by sort field
+- **WHEN** The system returns to the menu tree
+- **THEN** The same level menu is sorted in ascending order by the sort field.
 
-### Requirement: 权限标识列表
+### Requirement: List of permission identifiers
 
-系统 SHALL 返回用户的所有权限标识。
+System SHALL returns all permission IDs of the user.
 
-#### Scenario: 权限标识聚合
-- **WHEN** 用户有多个角色
-- **THEN** 系统聚合所有角色的权限标识（去重）
-- **AND** 权限标识来自菜单表中 type="M" 或 type="B" 的 perms 字段
+#### Scenario: Permission ID aggregation
+- **WHEN** User has multiple roles
+- **THEN** The system aggregates the permission identifiers of all roles (removal of duplicates)
+- **AND** The permission ID comes from the perms field of type="M" or type="B" in the menu table
 
-#### Scenario: 超级管理员权限
-- **WHEN** 用户是超级管理员（有 admin 角色）
-- **THEN** permissions 返回 ["*:*:*"]
-- **AND** 前端判断此权限标识为拥有所有权限
+#### Scenario: Super administrator privileges
+- **WHEN** The user is a super administrator (has admin role)
+- **THEN** permissions returns ["*:*:*"]
+- **AND** The front end determines that this permission mark has all permissions
 
 ### Requirement: Runtime-Configured JWT Expiry
 The system SHALL allow `sys.jwt.expire` to control the lifetime of newly issued JWT tokens at runtime and SHALL fall back to static configuration when no runtime override exists.

@@ -1,64 +1,78 @@
 <script lang="ts" setup>
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
-import { ref, watch } from 'vue';
-
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
-
-import type { AnalyticsRadarItem } from './data';
-
-const props = defineProps<{
-  indicators: string[];
-  label: string;
-  series: AnalyticsRadarItem[];
-}>();
+import { onMounted, ref } from 'vue';
 
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
-watch(
-  () => props,
-  (value) => {
-    renderEcharts({
-      legend: {
-        bottom: 0,
-        data: value.series.map((item) => item.name),
-      },
-      radar: {
-        indicator: value.indicators.map((item) => ({ name: item })),
-        radius: '60%',
-        splitNumber: 5,
-      },
-      series: [
+onMounted(() => {
+  renderEcharts({
+    legend: {
+      bottom: 0,
+      data: ['访问', '趋势'],
+    },
+    radar: {
+      indicator: [
         {
-          areaStyle: {
-            opacity: 0.22,
-            shadowBlur: 0,
-            shadowColor: 'rgba(0,0,0,.2)',
-            shadowOffsetX: 0,
-            shadowOffsetY: 10,
-          },
-          data: value.series.map((item, index) => ({
-            itemStyle: {
-              color: index === 0 ? '#1677ff' : '#13c2c2',
-            },
-            name: item.name,
-            value: item.value,
-          })),
-          itemStyle: {
-            borderRadius: 10,
-            borderWidth: 2,
-          },
-          name: value.label,
-          symbolSize: 0,
-          type: 'radar',
+          name: '网页',
+        },
+        {
+          name: '移动端',
+        },
+        {
+          name: 'Ipad',
+        },
+        {
+          name: '客户端',
+        },
+        {
+          name: '第三方',
+        },
+        {
+          name: '其它',
         },
       ],
-      tooltip: {},
-    });
-  },
-  { deep: true, immediate: true },
-);
+      radius: '60%',
+      splitNumber: 8,
+    },
+    series: [
+      {
+        areaStyle: {
+          opacity: 1,
+          shadowBlur: 0,
+          shadowColor: 'rgba(0,0,0,.2)',
+          shadowOffsetX: 0,
+          shadowOffsetY: 10,
+        },
+        data: [
+          {
+            itemStyle: {
+              color: '#b6a2de',
+            },
+            name: '访问',
+            value: [90, 50, 86, 40, 50, 20],
+          },
+          {
+            itemStyle: {
+              color: '#5ab1ef',
+            },
+            name: '趋势',
+            value: [70, 75, 70, 76, 20, 85],
+          },
+        ],
+        itemStyle: {
+          borderRadius: 10,
+          borderWidth: 2,
+        },
+        symbolSize: 0,
+        type: 'radar',
+      },
+    ],
+    tooltip: {},
+  });
+});
 </script>
 
 <template>

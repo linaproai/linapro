@@ -1,5 +1,14 @@
 import { expect, type Page } from '@playwright/test';
 
+import {
+  waitForBusyIndicatorsToClear,
+  waitForConfirmOverlay,
+  waitForDialogReady,
+  waitForDropdown,
+  waitForRouteReady,
+  waitForTableReady,
+} from '../support/ui';
+
 export class UserPage {
   constructor(private page: Page) {}
 
@@ -25,11 +34,7 @@ export class UserPage {
 
   /** Wait until the user drawer has finished async schema/data initialization. */
   private async waitForDrawerReady(expectedUsername: string) {
-    await this.drawer.waitFor({ state: 'visible', timeout: 10000 });
-    await this.drawer
-      .locator('.ant-spin-spinning, .ant-skeleton')
-      .waitFor({ state: 'hidden', timeout: 10000 })
-      .catch(() => {});
+    await waitForDialogReady(this.drawer);
 
     const usernameInput = this.drawer.getByPlaceholder('请输入用户名');
     await usernameInput.waitFor({ state: 'visible', timeout: 10000 });
@@ -38,7 +43,7 @@ export class UserPage {
     });
 
     await this.roleCombobox.waitFor({ state: 'visible', timeout: 10000 });
-    await this.page.waitForTimeout(200);
+    await waitForBusyIndicatorsToClear(this.drawer);
   }
 
   /**
@@ -53,18 +58,12 @@ export class UserPage {
 
   /** Wait for the VXE grid loading mask to settle before interacting. */
   private async waitForGridIdle() {
-    await this.page
-      .locator('.vxe-grid.is--loading, .vxe-table.is--loading')
-      .waitFor({ state: 'hidden', timeout: 10000 })
-      .catch(() => {});
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   async goto() {
     await this.page.goto('/system/user');
-    await this.page.waitForLoadState('networkidle');
-    // Wait for VxeGrid table to render
-    await this.page.locator('.vxe-table').waitFor({ state: 'visible', timeout: 10000 });
+    await waitForTableReady(this.page);
     await this.waitForGridIdle();
   }
 
@@ -133,9 +132,8 @@ export class UserPage {
     await deleteButton.click();
 
     // Confirm deletion in the Popconfirm
-    await this.page.waitForTimeout(500);
     // Popconfirm uses ant-popover
-    const popconfirm = this.page.locator('.ant-popconfirm, .ant-popover');
+    const popconfirm = await waitForConfirmOverlay(this.page);
     const confirmBtn = popconfirm.getByRole('button', { name: /确\s*定|OK|是/i });
     if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await confirmBtn.click();
@@ -163,8 +161,7 @@ export class UserPage {
     // VXE-Grid has duplicate headers (visible + fixed-hidden), use .first() for visible one
     const header = this.page.locator('.vxe-header--column.fixed--visible', { hasText: columnTitle }).first();
     await header.click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Get all cell values for a column by field name */
@@ -202,8 +199,9 @@ export class UserPage {
     const form = this.page.locator('.vxe-grid--form-wrapper, .vben-form-wrapper').first();
     const select = form.locator('.ant-select').first();
     await select.click();
-    await this.page.getByText(statusLabel, { exact: true }).click();
-    await this.page.waitForTimeout(300);
+    const dropdown = await waitForDropdown(this.page);
+    await dropdown.getByText(statusLabel, { exact: true }).click();
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Click search/query button */
@@ -230,14 +228,14 @@ export class UserPage {
   /** Click export button */
   async clickExport() {
     await this.page.getByRole('button', { name: /导\s*出/ }).click();
-    await this.page.waitForTimeout(2000);
+    await waitForDialogReady(this.page.locator('[role="dialog"]'));
   }
 
   /** Click confirm button in the export confirm modal */
   async clickExportConfirm() {
     const modal = this.page.locator('[role="dialog"]');
     await modal.getByRole('button', { name: /确\s*认/ }).click();
-    await this.page.waitForTimeout(500);
+    await waitForRouteReady(this.page);
   }
 
   /** Select a row by clicking its checkbox (search for the user first) */
@@ -247,7 +245,7 @@ export class UserPage {
     // Click the first checkbox in the body rows
     const checkbox = this.page.locator('.vxe-body--row .vxe-checkbox--icon').first();
     await checkbox.click();
-    await this.page.waitForTimeout(300);
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Check if the export button is visible */
@@ -292,7 +290,7 @@ export class UserPage {
   /** Click import button to open import modal */
   async clickImport() {
     await this.page.getByRole('button', { name: /导\s*入/ }).first().click();
-    await this.page.waitForTimeout(500);
+    await waitForDialogReady(this.drawer);
   }
 
   /** Get the total count from the pager */
@@ -309,15 +307,15 @@ export class UserPage {
 
     for (const roleName of roleNames) {
       await this.roleCombobox.click();
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
       // Filter the dropdown first so we do not depend on the option already being in view.
       await this.roleCombobox.fill(roleName);
 
-      const dropdown = this.page.locator('.ant-select-dropdown:visible').last();
+      const dropdown = await waitForDropdown(this.page);
       const option = dropdown.getByText(roleName, { exact: true }).first();
       await option.waitFor({ state: 'visible', timeout: 5000 });
       await option.click();
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
     }
   }
 
@@ -383,7 +381,7 @@ export class UserPage {
     const clearBtn = roleSelect.locator('.ant-select-clear');
     if (await clearBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await clearBtn.click();
-      await this.page.waitForTimeout(300);
+      await waitForBusyIndicatorsToClear(this.page);
     }
 
     // Select new roles

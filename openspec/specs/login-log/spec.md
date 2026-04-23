@@ -2,97 +2,105 @@
 
 ## Purpose
 
-定义由 `monitor-loginlog` 源码插件承接的登录日志自动记录、查询、清理与导出行为，确保系统能够对认证成功与失败事件进行追踪、审计和运维分析。
-
+Define the automatic logging, querying, cleaning, and exporting behavior undertaken by the `monitor-loginlog` source plugin to ensure that the system can track, audit, and analyze authentication successes and failures.
 ## Requirements
+### Requirement: Automatic logging of login logs
+The system SHALL automatically emits unified login events at authentication life cycle nodes such as successful login, failed login, and successful logout. When `monitor-loginlog` is installed and enabled, the plugin subscribes to events and persists logs to the `plugin_monitor_loginlog` table; when the plugin is unavailable, the host authentication link still executes normally.
 
-### Requirement: 登录日志自动记录
-系统 SHALL 在登录成功、登录失败和登出成功等认证生命周期节点自动发射统一登录事件。`monitor-loginlog` 已安装并启用时，该插件订阅事件并将日志持久化到 `plugin_monitor_loginlog` 表；插件不可用时，宿主认证链路仍正常执行。
+#### Scenario: Login log plugin is enabled
+- **WHEN** The user has successfully logged in, failed to log in, or successfully logged out, and `monitor-loginlog` has been installed and enabled
+- **THEN** The host launches a unified login event
+- **AND** `monitor-loginlog` writes the corresponding login log record after subscribing to the event
 
-#### Scenario: 登录成功记录
-- **WHEN** 用户通过 `POST /api/v1/auth/login` 成功登录，且 `monitor-loginlog` 已安装并启用
-- **THEN** 宿主发射统一登录事件
-- **AND** `monitor-loginlog` 写入一条登录日志，`status` 为 0（成功），`msg` 为 "登录成功"，包含用户名、IP、浏览器、操作系统信息
+#### Scenario: Login log plugin is missing or disabled
+- **WHEN** The user has successfully logged in, failed to log in, or successfully logged out, but `monitor-loginlog` is not installed, not enabled, or fails to initialize
+- **THEN** The host still returns the authentication result normally.
+- **AND** The host does not return an error due to lack of specific login log implementation.
 
-#### Scenario: 登录失败记录
-- **WHEN** 用户登录失败（密码错误、用户不存在、用户已停用等），且 `monitor-loginlog` 已安装并启用
-- **THEN** 宿主发射统一登录事件
-- **AND** `monitor-loginlog` 写入一条登录日志，`status` 为 1（失败），`msg` 为具体失败原因（如"用户名或密码错误"、"用户已停用"）
+### Requirement: Login Log Contents
+The system SHALL record the following login information: user name (user_name), login status (status), login IP (ip), browser (browser), operating system (os), login message (msg), login time (login_time).
 
-#### Scenario: 登录日志插件缺失或停用
-- **WHEN** 用户发生登录成功、登录失败或登出成功事件，但 `monitor-loginlog` 未安装、未启用或初始化失败
-- **THEN** 宿主仍然正常返回认证结果
-- **AND** 宿主不因缺少具体登录日志落库实现而返回错误
+#### Scenario: parsing browsers and operating systems
+- **WHEN** Logging
+- **THEN** Resolves the browser name and operating system name from the HTTP request header `User-Agent` field
 
-### Requirement: 登录日志记录内容
-系统 SHALL 记录以下登录信息：用户名（user_name）、登录状态（status）、登录IP（ip）、浏览器（browser）、操作系统（os）、登录消息（msg）、登录时间（login_time）。
+### Requirement: Login Log List Query
+The system SHALL provides the login log paging query interface `get/api/v1/loginlog`, which supports filtering by user name, IP, status, and time range.
 
-#### Scenario: 解析浏览器和操作系统
-- **WHEN** 记录登录日志
-- **THEN** 从 HTTP 请求头 `User-Agent` 字段解析出浏览器名称和操作系统名称
+#### Scenario: Paging Log Logs
+- **WHEN** Admin request `get/api/v1/loginlog? pageNum = 1 & pageSize = 10`
+- **THEN** Return to the login log pagination list, arranged in reverse order by login time
 
-### Requirement: 登录日志列表查询
-系统 SHALL 提供登录日志分页查询接口 `GET /api/v1/loginlog`，支持按用户名、IP、状态、时间范围筛选。
+#### Scenario: Filter by criteria
+- **WHEN** Admin requests a query with filters (e.g. `userName = admin&status = 0 & beginTime = 2026-01-01 & endTime = 2026-03-15`)
+- **THEN** Returns login log records that meet all conditions
 
-#### Scenario: 分页查询登录日志
-- **WHEN** 管理员请求 `GET /api/v1/loginlog?pageNum=1&pageSize=10`
-- **THEN** 返回登录日志分页列表，按登录时间倒序排列
+### Requirement: Login Log Details View
+The system SHALL provides the login log details interface `get/api/v1/loginlog/{id}` and returns the complete login log information.
 
-#### Scenario: 按条件筛选
-- **WHEN** 管理员请求带筛选条件的查询（如 `userName=admin&status=0&beginTime=2026-01-01&endTime=2026-03-15`）
-- **THEN** 返回符合所有条件的登录日志记录
+#### Scenario: View login log details
+- **WHEN** admin request `get/api/v1/loginlog/1`
+- **THEN** returns all field information for this login log
 
-### Requirement: 登录日志详情查看
-系统 SHALL 提供登录日志详情接口 `GET /api/v1/loginlog/{id}`，返回完整的登录日志信息。
+### Requirement: Login logs are cleaned up by time range
+The system SHALL provides the login log cleaning interface `delete/api/v1/loginlog/clean`, which supports hard deletion of log records by time range.
 
-#### Scenario: 查看登录日志详情
-- **WHEN** 管理员请求 `GET /api/v1/loginlog/1`
-- **THEN** 返回该登录日志的所有字段信息
+#### Scenario: Clean up logs by timeframe
+- **WHEN** Admin request `delete/api/v1/loginlog/clean? beginTime = 2026-01-01 & endTime = 2026-01-31`
+- **THEN** Hard delete all login log records within this timeframe, returning the number of deleted records
 
-### Requirement: 登录日志按时间范围清理
-系统 SHALL 提供登录日志清理接口 `DELETE /api/v1/loginlog/clean`，支持按时间范围硬删除日志记录。
+#### Scenario: Clean up all login logs
+- **WHEN** Admin request `delete/api/v1/loginlog/clean` (without time parameter)
+- **THEN** hard delete all login log records
 
-#### Scenario: 按时间范围清理登录日志
-- **WHEN** 管理员请求 `DELETE /api/v1/loginlog/clean?beginTime=2026-01-01&endTime=2026-01-31`
-- **THEN** 硬删除该时间范围内的所有登录日志记录，返回删除的记录数
+### Requirement: Login log batch deletion
+The system SHALL provides the login log batch deletion interface `delete/api/v1/loginlog/{ids}`, which supports hard deletion of log records by ID list.
 
-#### Scenario: 清理全部登录日志
-- **WHEN** 管理员请求 `DELETE /api/v1/loginlog/clean`（不带时间参数）
-- **THEN** 硬删除所有登录日志记录
+#### Scenario: Bulk delete by ID
+- **WHEN** admin request `delete/api/v1/loginlog/1,2,3`
+- **THEN** Hard delete the login log record with the specified ID, and return the number of deleted records
 
-### Requirement: 登录日志批量删除
-系统 SHALL 提供登录日志批量删除接口 `DELETE /api/v1/loginlog/{ids}`，支持按 ID 列表硬删除日志记录。
+#### Scenario: frontend bulk delete operation
+- **WHEN** Admin checks one or more login logs and clicks the "Delete" button
+- **THEN** pops up a confirmation dialog box showing the selected number, confirming and performing batch deletion
 
-#### Scenario: 按 ID 批量删除
-- **WHEN** 管理员请求 `DELETE /api/v1/loginlog/1,2,3`
-- **THEN** 硬删除指定 ID 的登录日志记录，返回删除的记录数
+### Requirement: Login Log Export
+The system SHALL provides the login log export interface `get/api/v1/loginlog/export`, which is exported to the xlsx format according to the current filters.
 
-#### Scenario: 前端批量删除操作
-- **WHEN** 管理员勾选一条或多条登录日志后点击"删除"按钮
-- **THEN** 弹出确认对话框显示选中数量，确认后执行批量删除
+#### Scenario: Export by filter
+- **WHEN** Admin request `get/api/v1/loginlog/export? userName = admin&status = 0`
+- **THEN** returns an xlsx file containing all eligible login logs
 
-### Requirement: 登录日志导出
-系统 SHALL 提供登录日志导出接口 `GET /api/v1/loginlog/export`，按当前筛选条件导出为 xlsx 格式文件。
+### Requirement: Login log frontend page
+The system SHALL provides a login log management page under the frontend system monitoring menu through the `monitor-loginlog` source plugin.
 
-#### Scenario: 按筛选条件导出
-- **WHEN** 管理员请求 `GET /api/v1/loginlog/export?userName=admin&status=0`
-- **THEN** 返回包含符合条件的所有登录日志的 xlsx 文件
+#### Scenario: Login Log List Page
+- **WHEN** Admin accesses login log page
+- **THEN** displays the login log form, including the filter area (username, IP address, status, time range), table columns (username, IP address, browser, operating system, login result, prompt message, login time), toolbar (empty, export, delete buttons), line actions (view details button).The delete button is grayed out when no record is checked.
 
-### Requirement: 登录日志前端页面
-系统 SHALL 通过 `monitor-loginlog` 源码插件在前端系统监控菜单下提供登录日志管理页面。
+#### Scenario: View details popup
+- **WHEN** Admin clicks "Details" button on a log
+- **THEN** Open Modal with full login log information
 
-#### Scenario: 登录日志列表页
-- **WHEN** 管理员访问登录日志页面
-- **THEN** 展示登录日志表格，包含筛选区域（用户名、IP地址、状态、时间范围），表格列（用户名、IP地址、浏览器、操作系统、登录结果、提示消息、登录时间），工具栏（清空、导出、删除按钮），行操作（查看详情按钮）。删除按钮在未勾选任何记录时置灰不可点击。
+#### Scenario: Cleanup actions
+- **WHEN** Admin clicks "Clean" button
+- **THEN** pops up a confirmation dialog box with a time range selector, confirmation and cleanup
 
-#### Scenario: 查看详情弹窗
-- **WHEN** 管理员点击某条日志的"详情"按钮
-- **THEN** 打开弹窗（Modal），展示登录日志的完整信息
+#### Scenario: Export Actions
+- **WHEN** Admin clicks "Export" button
+- **THEN** Export the login log as an xlsx file with the current filters and download it
 
-#### Scenario: 清理操作
-- **WHEN** 管理员点击"清理"按钮
-- **THEN** 弹出确认对话框，包含时间范围选择器，确认后执行清理
+### Requirement: The login log management interface is delivered by the source plugin
 
-#### Scenario: 导出操作
-- **WHEN** 管理员点击"导出"按钮
-- **THEN** 按当前筛选条件导出登录日志为 xlsx 文件并下载
+The The system SHALL deliver login log query, details, export, cleaning and page capabilities as the `monitor-loginlog` source plugin.
+
+#### Scenario: Expose the management entrance when the plugin is enabled
+- **WHEN** `monitor-loginlog` is installed and enabled
+- **THEN** The host exposes login log query, details, export, cleanup interface and frontend page
+- **AND** The plugin menu is mounted to the host `system monitoring` directory, and the top-level `parent_key` is `monitor`
+
+#### Scenario: Hide the management entrance when the plugin is missing
+- **WHEN** `monitor-loginlog` is not installed or not enabled
+- **THEN** The host does not display the login log menu and page entry
+- **AND** Login and logout processes continue to function normally
+

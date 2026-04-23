@@ -2,10 +2,8 @@
 
 ## Purpose
 
-定义系统参数设置模块的查询、维护、导入导出与按键读取行为，确保运行时配置能够被宿主统一管理、被业务模块稳定消费并支持后续扩展。
-
+Define the query, maintenance, import and export, and key reading behaviors of the system parameter setting module to ensure that the runtime configuration can be uniformly managed by the host, stably consumed by the business module, and support subsequent expansion.
 ## Requirements
-
 ### Requirement: Config list query with pagination and filters
 The system SHALL provide a paginated list query for system config parameters. The list SHALL support filtering by config name (fuzzy match), config key (fuzzy match), and creation time range. The list SHALL return config records sorted by ID descending by default.
 
@@ -14,8 +12,8 @@ The system SHALL provide a paginated list query for system config parameters. Th
 - **THEN** system returns the first 10 config records sorted by ID descending, along with total count
 
 #### Scenario: Query config list with name filter
-- **WHEN** user requests GET `/config` with name="邮件"
-- **THEN** system returns only config records whose name contains "邮件"
+- **WHEN** user requests GET `/config` with name="mail"
+- **THEN** system returns only config records whose name contains "mail"
 
 #### Scenario: Query config list with key filter
 - **WHEN** user requests GET `/config` with key="smtp"
@@ -40,7 +38,7 @@ The system SHALL provide an endpoint to retrieve a single config record by its I
 The system SHALL allow creating a new config parameter with name, key, value, and optional remark. The key field MUST be unique across all non-deleted config records.
 
 #### Scenario: Create config with valid data
-- **WHEN** user requests POST `/config` with name="邮件服务地址", key="sys.mail.host", value="smtp.example.com"
+- **WHEN** user requests POST `/config` with name="Mail service address", key="sys.mail.host", value="smtp.example.com"
 - **THEN** system creates the config record and returns the new record ID
 
 #### Scenario: Create config with duplicate key
@@ -81,14 +79,14 @@ The system SHALL provide an endpoint to retrieve a config value by its key name,
 - **THEN** system returns an error indicating the config key does not exist
 
 ### Requirement: Export configs to Excel
-The system SHALL support exporting config records to an Excel file. The export SHALL apply the same filters as the list query (name, key, time range). Export file name SHALL be "参数设置导出.xlsx".
+The The system SHALL support exporting config records to an Excel file. The export SHALL apply the same filters as the list query (name, key, time range). Export file name SHALL be "parameter settings export.xlsx".
 
 #### Scenario: Export all configs
 - **WHEN** user requests GET `/config/export` without filters
 - **THEN** system generates and returns an Excel file containing all non-deleted config records
 
 #### Scenario: Export filtered configs
-- **WHEN** user requests GET `/config/export` with name="邮件"
+- **WHEN** user requests GET `/config/export` with name="mail"
 - **THEN** system generates an Excel file containing only config records whose name matches the filter
 
 #### Scenario: Export selected configs
@@ -103,43 +101,43 @@ The frontend SHALL provide a config management page under system management menu
 - **THEN** page displays a search bar (name, key, time range), toolbar (export, batch delete, add), and a VXE-Grid table with columns: checkbox, name, key, value, remark, updated_at, actions (edit/delete)
 
 #### Scenario: Create config via modal
-- **WHEN** user clicks "新增" button and fills in the form (name, key, value, remark)
+- **WHEN** user clicks "New" button and fills in the form (name, key, value, remark)
 - **THEN** system creates the config and refreshes the table
 
 #### Scenario: Edit config via modal
-- **WHEN** user clicks "编辑" on a row
+- **WHEN** user clicks "edit" on a row
 - **THEN** system opens a pre-filled modal, user edits and saves, table refreshes
 
 #### Scenario: Delete config via popconfirm
-- **WHEN** user clicks "删除" on a row and confirms
+- **WHEN** user clicks "delete" on a row and confirms
 - **THEN** system deletes the config and refreshes the table
 
 #### Scenario: Batch delete configs
-- **WHEN** user selects multiple rows and clicks "批量删除" and confirms
+- **WHEN** user selects multiple rows and clicks "bulk delete" and confirms
 - **THEN** system deletes all selected configs and refreshes the table
 
 #### Scenario: Export configs with confirmation
-- **WHEN** user clicks "导出" button
+- **WHEN** user clicks "Export" button
 - **THEN** system shows export confirmation modal (selected N records or all records)
-- **THEN** system downloads an Excel file named "参数设置导出.xlsx" with current filter conditions applied
+- **THEN** system downloads an Excel file named "parameter settings export.xlsx" with current filter conditions applied
 
 ### Requirement: Config menu and permissions
-The system SHALL include a "参数设置" menu item under system management. Access to config operations SHALL be controlled by permissions.
+The The system SHALL include a "Parameter Settings" menu item under system management. Access to config operations SHALL be controlled by permissions.
 
 #### Scenario: Menu visibility
 - **WHEN** user has system:config:list permission
-- **THEN** "参数设置" menu item is visible in the system management menu
+- **THEN** "Parameter Settings" menu item is visible in the system management menu
 
 #### Scenario: Permission-controlled operations
 - **WHEN** user lacks system:config:add permission
-- **THEN** the "新增" button is hidden on the config page
+- **THEN** the "Add" button is hidden on the config page
 
 ### Requirement: Import configs from Excel
 The system SHALL support importing config records from an Excel file. The system SHALL provide a template download endpoint and validate imported data before persisting.
 
 #### Scenario: Download import template
 - **WHEN** user requests GET `/config/import-template`
-- **THEN** system returns an Excel template with example data showing required columns: 参数名称、参数键名、参数键值、备注
+- **THEN** system returns an Excel template with example data showing required columns: parameter name, parameter key name, parameter key value, remarks
 
 #### Scenario: Import with valid data
 - **WHEN** user uploads a valid Excel file to POST `/config/import`
@@ -158,7 +156,7 @@ The system SHALL support importing config records from an Excel file. The system
 - **THEN** system skips existing records and only creates new records
 
 #### Scenario: Import modal UI
-- **WHEN** user clicks "导入" button on the config management page
+- **WHEN** user clicks "Import" button on the config management page
 - **THEN** system displays a modal with template download link, drag-and-drop upload area, file type hint (xlsx/xls), and overwrite/ignore mode switch
 
 ### Requirement: Config table design
@@ -238,3 +236,20 @@ The system SHALL expose a safe whitelist endpoint for public frontend settings a
 #### Scenario: Updated branding is reflected after refresh
 - **WHEN** an administrator updates public frontend settings and a user refreshes the login page or workspace
 - **THEN** the refreshed UI shows the updated branding, copy, and theme defaults
+
+### Requirement: Log TraceID output switch is only controlled by static configuration files
+
+The The system SHALL turns off TraceID output in the log by default, and only allows the control of whether to output TraceID through the `logger.extensions.traceIDEnabled` static switch in `config.yaml`.
+
+#### Scenario: The log does not output TraceID by default when it is not explicitly enabled.
+- **WHEN** `logger.extensions.traceIDEnabled` is not declared in the configuration file
+- **THEN** Host logs and HTTP Server logs do not output the TraceID field by default
+
+#### Scenario: Configuration file explicitly enables TraceID output
+- **WHEN** `logger.extensions.traceIDEnabled` is explicitly set to `true` in the configuration file
+- **THEN** Host log and HTTP Server log output TraceID field
+
+#### Scenario: TraceID system parameters are no longer exposed when initializing built-in parameters.
+- **WHEN** Administrator executes host initialization SQL
+- **THEN** `sys_config` does not contain `sys.logger.traceID.enabled` records
+

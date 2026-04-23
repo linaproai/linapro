@@ -2,43 +2,43 @@
 
 ## Purpose
 
-定义由 `monitor-server` 源码插件提供的服务器监控数据采集、存储、清理与展示行为，确保系统能够持续观察各节点的运行状态并支持排障与容量分析。
+Define the server monitoring data acquisition, storage, cleaning and display behavior provided by the `monitor-server` source plugin to ensure that the system can continuously observe the operation status of each node and support troubleshooting and capacity analysis.
 ## Requirements
-### Requirement: 服务器指标定时采集
+### Requirement: Timed collection of server metrics
 
-系统 SHALL 在每个 LinaPro 服务节点上启动定时任务，周期性采集本机服务器指标并写入数据库。采集频率默认 30 秒，可通过配置调整。监控数据清理责任必须根据部署模式确定：单节点模式由当前节点执行，集群模式仅由主节点执行。
+The system SHALL starts a timing task on each LinaPro service node, periodically collects the local server indicators and writes them to the database. The acquisition frequency defaults to 30 seconds, which can be adjusted through configuration. The responsibility for cleaning up the monitoring data MUST be determined according to the deployment mode: the single node mode is performed by the current node, and the cluster mode is performed by the master node only.
 
-#### Scenario: 定时采集写入数据库
-- **WHEN** 定时任务触发（默认每 30 秒）
-- **THEN** 系统通过 gopsutil 采集当前节点的 CPU、内存、磁盘、网络流量指标，连同 Go 运行时信息和节点标识（hostname + IP），以 JSON 格式写入 `plugin_monitor_server` 表的一条记录
+#### Scenario: Timed Acquisition Write Database
+- **WHEN** timed task triggers (default every 30 seconds)
+- **THEN** The system collects CPU, memory, disk, network traffic indicators of the current node through gopsutil, along with Go runtime information and node identification (hostname + IP), and writes a record of the `plugin_monitor_server` table in JSON format
 
-#### Scenario: 服务启动后立即采集
-- **WHEN** LinaPro 服务启动
-- **THEN** 系统立即执行一次指标采集并写入数据库
-- **AND** 不等待第一个定时周期
+#### Scenario: Collect immediately after the service starts
+- **WHEN** LinaPro service startup
+- **THEN** The system immediately performs an index acquisition and writes to the database
+- **AND** Don't wait for the first timing period
 
-#### Scenario: 单节点模式执行旧数据清理
-- **WHEN** `cluster.enabled=false` 且监控清理任务触发
-- **THEN** 当前节点清理超过保留阈值的历史监控数据
+#### Scenario: Single node mode for old data cleanup
+- **WHEN** `cluster.enabled = false` and monitor cleanup task triggered
+- **THEN** The current node cleans up the historical monitoring data that exceeds the retention threshold
 
-#### Scenario: 集群模式由主节点执行旧数据清理
-- **WHEN** `cluster.enabled=true` 且监控清理任务触发
-- **THEN** 仅主节点执行历史监控数据清理
+#### Scenario: Cluster Mode Old Data Cleanup Performed by Masternode
+- **WHEN** `cluster.enabled = true` and monitor cleanup task triggered
+- **THEN** Historical monitoring data cleansing performed by masternodes only
 
-#### Scenario: 清理过期记录（K8S/动态环境）
-- **GIVEN** 监控采集间隔为 N 秒
-- **WHEN** 监控清理任务执行
-- **THEN** 系统删除 `updated_at < now - N * retention_multiplier` 的记录
-- **AND** `retention_multiplier` 默认值为 5
+#### Scenario: Clean up expired records (K8S/dynamic environment)
+- **GIVEN** Monitoring acquisition interval is N seconds
+- **WHEN** monitoring cleanup task execution
+- **THEN** System deletes` updated_at < now - N * retention_multiplier `record
+- **AND** `retention_multiplier` defaults to 5
 
 ### Requirement: Monitor Configuration
-系统 SHALL 支持可配置的监控参数。其中采集周期 MUST 使用 duration 字符串配置 `monitor.interval`；保留倍数 `monitor.retentionMultiplier` 继续使用整数配置。
+System SHALL supports configurable monitoring parameters. where the acquisition period MUST uses the duration string to configure `monitor.interval`; the retention multiple `monitor.retentionMultiplier` continues to use the integer configuration.
 
-#### Scenario: 使用新配置采集周期
-- **GIVEN** 配置文件包含 `monitor.interval`
-- **WHEN** 服务启动
-- **THEN** 系统 SHALL 使用该 duration 值作为采集周期
-- **OR** 未配置时默认使用 30 秒
+#### Scenario: Use the new configuration acquisition cycle
+- **GIVEN** Configuration file contains` monitor.interval `
+- **WHEN** service start
+- **THEN** system SHALL use this duration value as the acquisition period
+- **OR** Used by default for 30 seconds when not configured
 
 #### Scenario: Configure retention multiplier
 - **GIVEN** the configuration file contains `monitor.retentionMultiplier`
@@ -46,70 +46,85 @@
 - **THEN** the system SHALL use the configured multiplier
 - **OR** default to 5 if not configured
 
-### Requirement: 多节点支持
+### Requirement: Multi-node support
 
-系统 SHALL 支持多个 LinaPro 服务节点独立采集并上报监控数据，每个节点仅采集自身指标。
+The system SHALL supports multiple LinaPro service nodes to independently collect and report monitoring data, and each node only collects its own indicators.
 
-#### Scenario: 多节点数据隔离
-- **WHEN** Node A 和 Node B 同时运行 LinaPro 服务
-- **THEN** 数据库中存在两个节点各自的监控记录，通过 node_name（hostname）和 node_ip 字段区分
+#### Scenario: Multi-Node Data Isolation
+- **WHEN** Node A and Node B run the LinaPro service at the same time
+- **THEN** There are two node's respective monitoring records in the database, distinguished by the node_name (hostname) and node_ip fields
 
-#### Scenario: 新增节点自动上报
-- **WHEN** 在新服务器上部署并启动 LinaPro 服务
-- **THEN** 该节点自动开始采集自身指标并写入数据库，无需额外配置
+#### Scenario: New node auto escalation
+- **WHEN** Deploy and start the LinaPro service on the new server
+- **THEN** This node automatically starts collecting its own metrics and writing them to the database without additional configuration
 
-### Requirement: 服务监控 API
+### Requirement: Service Monitoring API
 
-系统 SHALL 提供 API 查询服务器监控数据，支持按节点查询。
+The system SHALL provides API query server monitoring data, and supports query by node.
 
-#### Scenario: 查询所有节点列表
-- **WHEN** 管理员调用 `GET /api/v1/monitor/server`
-- **THEN** 系统返回所有节点的最新一条监控数据，每条包含：node_name、node_ip、cpu 信息（核心数、型号、使用率）、内存信息（总量、已用、可用、使用率）、磁盘信息（各分区总量、已用、可用、使用率）、网络信息（发送/接收字节数、速率）、Go 运行时信息（版本、goroutine 数、堆内存分配）、服务器信息（操作系统、架构、启动时间）、采集时间
+#### Scenario: Query a list of all nodes
+- **WHEN** Admin calls` get/api/v1/monitor/server `
+- **THEN** The system returns the latest monitoring data for all nodes, each containing: node_name, node_ip, cpu information (number of cores, model, usage), memory information (total, used, available, usage), disk information (total, used, available, usage for each partition), network information (number of bytes sent/received, rate), Go runtime information (version, number of goroutines, heap memory allocation), server information (operating system, architecture, startup time), acquisition time
 
-#### Scenario: 按节点查询
-- **WHEN** 管理员调用 `GET /api/v1/monitor/server?nodeName=xxx`
-- **THEN** 系统仅返回指定节点的最新监控数据
+#### Scenario: Query by node
+- **WHEN** Admin calls` get/api/v1/monitor/server? nodeName = xxx `
+- **THEN** The system only returns the latest monitoring data for the specified node
 
-### Requirement: 采集指标内容
+### Requirement: Collect metric content
 
-系统 SHALL 采集以下服务器指标：
+The system SHALL collect the following server metrics:
 
-#### Scenario: CPU 指标
-- **WHEN** 系统采集 CPU 指标
-- **THEN** 包含：CPU 核心数、CPU 型号名称、CPU 使用率（百分比）
+#### Scenario: CPU metrics
+- **WHEN** CPU metrics captured by the system
+- **THEN** includes: number of CPU cores, CPU model name, CPU usage (percentage)
 
-#### Scenario: 内存指标
-- **WHEN** 系统采集内存指标
-- **THEN** 包含：总内存、已用内存、可用内存、内存使用率（百分比）
+#### Scenario: Memory Metrics
+- **WHEN** system collects memory metrics
+- **THEN** includes: total memory, used memory, available memory, memory usage (percentage)
 
-#### Scenario: 磁盘指标
-- **WHEN** 系统采集磁盘指标
-- **THEN** 包含各挂载点的：路径、总容量、已用容量、可用容量、使用率（百分比）
+#### Scenario: Disk Metrics
+- **WHEN** disk metrics captured by the system
+- **THEN** includes each mount point: path, total capacity, used capacity, available capacity, utilization (percentage)
 
-#### Scenario: 网络指标
-- **WHEN** 系统采集网络指标
-- **THEN** 包含：总发送字节数、总接收字节数；通过与上一次采集数据对比计算发送速率和接收速率（字节/秒）
+#### Scenario: Network Metrics
+- **WHEN** system collects network metrics
+- **THEN** includes: the total number of bytes sent, the total number of bytes received; the transmission rate and the reception rate (bytes/second) are calculated by comparing the data collected last time
 
-#### Scenario: Go 运行时指标
-- **WHEN** 系统采集 Go 运行时指标
-- **THEN** 包含：Go 版本、Goroutine 数量、堆内存分配量、GC 暂停时间、GoFrame 版本
+#### Scenario: Go runtime metrics
+- **WHEN** System collects Go runtime metrics
+- **THEN** includes: Go version, number of Goroutines, heap memory allocation, GC pause time, GoFrame version
 
-#### Scenario: 服务器基本信息
-- **WHEN** 系统采集服务器基本信息
-- **THEN** 包含：主机名、操作系统名称、系统架构、服务启动时间、系统运行时长
+#### Scenario: Server Basics
+- **WHEN** System collects basic server information
+- **THEN** includes: host name, operating system name, system architecture, service start time, system run time
 
-### Requirement: 服务监控前端页面
+### Requirement: Service monitoring frontend page
 
-系统 SHALL 提供服务监控页面，以卡片和表格形式展示服务器各项指标。
+The system SHALL provides a service monitoring page that displays server metrics in the form of cards and tables.
 
-#### Scenario: 页面整体布局
-- **WHEN** 管理员访问服务监控页面
-- **THEN** 页面展示以下区域：服务器基本信息卡片、CPU 指标卡片（含进度条）、内存指标卡片（含进度条）、Go 运行时信息卡片、磁盘使用表格（含进度条）、网络流量信息
+#### Scenario: Overall Page Layout
+- **WHEN** Admin access service monitoring page
+- **THEN** page displays the following areas: Server basic information card, CPU indicator card (including progress bar), memory indicator card (including progress bar), Go runtime information card, disk usage table (including progress bar), network traffic information
 
-#### Scenario: 多节点切换
-- **WHEN** 数据库中存在多个节点的监控数据
-- **THEN** 页面顶部显示节点选择下拉框，切换节点后刷新所有指标展示
+#### Scenario: Multi-Node Switching
+- **WHEN** There is monitoring data for multiple nodes in the database
+- **THEN** The top of the page shows the node selection drop-down box. After switching nodes, refresh all indicator displays.
 
-#### Scenario: 单节点展示
-- **WHEN** 数据库中仅有一个节点的监控数据
-- **THEN** 页面直接展示该节点指标，不显示节点选择器
+#### Scenario: Single node presentation
+- **WHEN** monitoring data for only one node in the database
+- **THEN** page directly displays the node metric without the node selector
+
+### Requirement: Service monitoring is delivered by an independent source plugin
+
+System SHALL delivers the service monitoring capability as a `monitor-server` source plugin instead of continuing as the host's default built-in module.
+
+#### Scenario: Provides capabilities when the service monitoring plugin is enabled
+- **WHEN** `monitor-server` is installed and enabled
+- **THEN** Host exposure service monitoring collection, cleaning, query and page capabilities
+- **AND** The plugin menu is mounted to the host `system monitoring` directory, and the top-level `parent_key` is `monitor`
+
+#### Scenario: Smooth degradation when service monitoring plugin is missing
+- **WHEN** `monitor-server` is not installed or not enabled
+- **THEN** The host does not display the service monitoring menu and page entry
+- **AND** Other monitoring plugins and host core capabilities continue to operate normally
+

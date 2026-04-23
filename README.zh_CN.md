@@ -150,7 +150,7 @@ graph TB
 ```text
 apps/
   lina-core/      核心宿主服务（Go）
-  lina-vben/      默认管理工作台（Vue 3 + Vben 5）
+  lina-vben/      默认管理工作台（Vue3 + Vben5）
   lina-plugins/   内置插件与插件开发样例
 hack/
   tests/          Playwright E2E 测试集
@@ -165,7 +165,6 @@ openspec/
 
 - Go 1.21+
 - Node.js 18+
-- pnpm 9+
 - MySQL 8.0+
 
 ### 启动步骤

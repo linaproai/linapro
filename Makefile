@@ -23,7 +23,7 @@ include hack/makefiles/build.mk
 .PHONY: test
 test:
 	@echo "🧪 运行 E2E 测试套件..."
-	cd hack/tests && npx playwright test
+	cd hack/tests && pnpm test
 
 ## init: 初始化数据库（仅执行 DDL 建表和 Seed 数据）
 .PHONY: init

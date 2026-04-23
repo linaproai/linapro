@@ -71,8 +71,8 @@ func structuredTraceIDAwareHandler(ctx context.Context, in *glog.HandlerInput) {
 // the configured TraceID visibility switch.
 func textTraceIDAwareHandler(ctx context.Context, in *glog.HandlerInput) {
 	stripTraceIDIfDisabled(in)
+	// HandlerInput.String already appends the trailing newline for text logs.
 	in.Buffer.WriteString(in.String())
-	in.Buffer.WriteByte('\n')
 	in.Next(ctx)
 }
 
