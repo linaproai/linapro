@@ -39,6 +39,26 @@ func TestPublicFrontendSettingSpecsReturnsCopy(t *testing.T) {
 	}
 }
 
+// TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults verifies the host
+// exposes the latest login copy and layout defaults through spec lookup.
+func TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults(t *testing.T) {
+	descSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthPageDesc)
+	if !ok {
+		t.Fatal("expected login page description spec to be present")
+	}
+	if descSpec.DefaultValue != "面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制" {
+		t.Fatalf("unexpected login page description default: %q", descSpec.DefaultValue)
+	}
+
+	layoutSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthLoginPanelLayout)
+	if !ok {
+		t.Fatal("expected login panel layout spec to be present")
+	}
+	if layoutSpec.DefaultValue != string(PublicFrontendAuthPanelLayoutRight) {
+		t.Fatalf("unexpected login panel layout default: %q", layoutSpec.DefaultValue)
+	}
+}
+
 // TestIsProtectedConfigParamRecognizesRuntimeAndFrontendKeys verifies both
 // protected-key families are visible through one helper.
 func TestIsProtectedConfigParamRecognizesRuntimeAndFrontendKeys(t *testing.T) {

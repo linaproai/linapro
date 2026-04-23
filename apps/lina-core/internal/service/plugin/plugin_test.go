@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
@@ -130,6 +131,7 @@ func (s *serviceImpl) executeDynamicRoute(ctx context.Context, manifest *catalog
 
 // testTopology lets root-package tests simulate clustered primary/follower behavior.
 type testTopology struct {
+	mu      sync.RWMutex
 	enabled bool
 	primary bool
 	nodeID  string
@@ -137,7 +139,12 @@ type testTopology struct {
 
 // IsEnabled reports whether the simulated topology should behave as clustered.
 func (t *testTopology) IsEnabled() bool {
-	return t != nil && t.enabled
+	if t == nil {
+		return false
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.enabled
 }
 
 // IsPrimary reports whether the simulated node owns primary reconciliation duties.
@@ -145,15 +152,32 @@ func (t *testTopology) IsPrimary() bool {
 	if t == nil {
 		return true
 	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
 	return t.primary
 }
 
 // NodeID returns the simulated node identifier used in cluster-state assertions.
 func (t *testTopology) NodeID() string {
-	if t == nil || t.nodeID == "" {
+	if t == nil {
+		return "test-node"
+	}
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if t.nodeID == "" {
 		return "test-node"
 	}
 	return t.nodeID
+}
+
+// SetPrimary updates the simulated primary flag used by cluster-aware tests.
+func (t *testTopology) SetPrimary(primary bool) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.primary = primary
 }
 
 // buildVersionedRuntimeFrontendAssets creates one marker-bearing asset set so

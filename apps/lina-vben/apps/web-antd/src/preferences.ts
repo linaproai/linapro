@@ -9,7 +9,7 @@ export const overridesPreferences = defineOverridesPreferences({
   // overrides
   app: {
     accessMode: 'backend',
-    authPageLayout: 'panel-center',
+    authPageLayout: 'panel-right',
     enableRefreshToken: false,
     name: import.meta.env.VITE_APP_TITLE,
   },

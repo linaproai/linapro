@@ -79,3 +79,7 @@ plugin:
   dynamic:
     # 动态插件构建产物存储目录
     storagePath: "temp/output"
+  # 启动时自动安装并启用的插件 ID 列表
+  autoEnable:
+    # - "plugin-demo-source"
+    # - "plugin-demo-dynamic"

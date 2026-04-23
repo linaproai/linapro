@@ -93,12 +93,6 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	if err = jobhandlersvc.RegisterHostHandlers(jobRegistry, jobMgmtSvc); err != nil {
 		return nil, err
 	}
-	if err = pluginSvc.SyncSourcePlugins(ctx); err != nil {
-		return nil, err
-	}
-	if _, err = jobhandlersvc.AttachPluginLifecycle(ctx, jobRegistry, pluginSvc); err != nil {
-		return nil, err
-	}
 
 	var (
 		sessionCfg = configSvc.GetSession(ctx)
@@ -113,7 +107,15 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		)
 		uploadPath = configSvc.GetUploadPath(ctx)
 	)
+
 	clusterSvc.Start(ctx)
+
+	if err = pluginSvc.BootstrapAutoEnable(ctx); err != nil {
+		return nil, err
+	}
+	if _, err = jobhandlersvc.AttachPluginLifecycle(ctx, jobRegistry, pluginSvc); err != nil {
+		return nil, err
+	}
 
 	// Start host-owned cron jobs and plugin-owned cron registrations.
 	cronSvc.Start(ctx)

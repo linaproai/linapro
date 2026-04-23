@@ -9,7 +9,55 @@ import (
 	"lina-core/internal/model/entity"
 )
 
-// Canonical plugin state constants shared by registry, menu, and runtime projections.
+// Status defines the typed plugin enablement enum used by status derivation logic.
+type Status int
+
+// InstalledStatus defines the typed plugin installation enum used by status derivation logic.
+type InstalledStatus int
+
+// Typed plugin status enums used by catalog-level state derivation helpers.
+const (
+	// PluginStatusDisabled means the plugin is currently disabled.
+	PluginStatusDisabled Status = 0
+	// PluginStatusEnabled means the plugin is currently enabled.
+	PluginStatusEnabled Status = 1
+
+	// PluginInstalledNo means the plugin is currently not installed.
+	PluginInstalledNo InstalledStatus = 0
+	// PluginInstalledYes means the plugin is currently installed.
+	PluginInstalledYes InstalledStatus = 1
+)
+
+// Int returns the database-compatible integer code for one plugin enablement status.
+func (value Status) Int() int {
+	return int(value)
+}
+
+// Int returns the database-compatible integer code for one plugin installation status.
+func (value InstalledStatus) Int() int {
+	return int(value)
+}
+
+// NormalizeStatus converts one raw database/entity integer into the typed
+// plugin enablement enum used by catalog helpers.
+func NormalizeStatus(value int) Status {
+	if value == PluginStatusEnabled.Int() {
+		return PluginStatusEnabled
+	}
+	return PluginStatusDisabled
+}
+
+// NormalizeInstalledStatus converts one raw database/entity integer into the
+// typed plugin installation enum used by catalog helpers.
+func NormalizeInstalledStatus(value int) InstalledStatus {
+	if value == PluginInstalledYes.Int() {
+		return PluginInstalledYes
+	}
+	return PluginInstalledNo
+}
+
+// Database projection constants shared by DAO/entity integration points that
+// still persist raw integer fields.
 const (
 	// StatusDisabled marks a plugin as disabled (enabled=0 in DB).
 	StatusDisabled = 0
@@ -19,7 +67,12 @@ const (
 	InstalledNo = 0
 	// InstalledYes marks a plugin as installed (installed=1 in DB).
 	InstalledYes = 1
+)
 
+// Stable string markers and message templates shared by registry, menu, and
+// runtime projections. These values are identifiers or messages rather than
+// enum-style state sets, so they remain ordinary string constants.
+const (
 	// MenuKeyPrefix is the common prefix for plugin-owned menu keys in sys_menu.menu_key.
 	MenuKeyPrefix = "plugin:"
 	// MenuRemarkPrefix is the legacy plugin marker prefix stored in sys_menu.remark.
@@ -41,10 +94,10 @@ const (
 // BuildReleaseStatus builds the composite release status string from installation
 // and enablement flags using the canonical format "<installed>_<enabled>".
 func BuildReleaseStatus(installed int, enabled int) ReleaseStatus {
-	if installed != InstalledYes {
+	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
 		return ReleaseStatusUninstalled
 	}
-	if enabled == StatusEnabled {
+	if NormalizeStatus(enabled) == PluginStatusEnabled {
 		return ReleaseStatusActive
 	}
 	return ReleaseStatusInstalled

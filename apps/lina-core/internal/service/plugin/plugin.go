@@ -217,6 +217,9 @@ type ResourceQueryService interface {
 
 // LifecycleManagementService defines plugin lifecycle and status management operations.
 type LifecycleManagementService interface {
+	// BootstrapAutoEnable synchronizes manifests and ensures every plugin listed
+	// in plugin.autoEnable is installed and enabled before later host wiring runs.
+	BootstrapAutoEnable(ctx context.Context) error
 	// Install executes the install lifecycle and optionally persists one host-confirmed
 	// host service authorization snapshot when the target is a dynamic plugin.
 	Install(
@@ -313,6 +316,11 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
+	// configSvc reads host startup configuration such as plugin.autoEnable.
+	configSvc configsvc.Service
+	// topology reports whether the current host instance should execute shared
+	// lifecycle actions or wait for another primary node to converge them.
+	topology Topology
 	// catalogSvc provides manifest discovery, registry, and release governance.
 	catalogSvc catalog.Service
 	// lifecycleSvc provides install/uninstall lifecycle orchestration.
@@ -374,6 +382,8 @@ func New(topology Topology) Service {
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{bizCtxProvider})
 
 	return &serviceImpl{
+		configSvc:      configProvider,
+		topology:       topo,
 		catalogSvc:     catalogSvc,
 		lifecycleSvc:   lifecycleSvc,
 		runtimeSvc:     runtimeSvc,

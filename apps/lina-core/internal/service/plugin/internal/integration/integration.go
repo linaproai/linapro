@@ -353,8 +353,10 @@ func (s *serviceImpl) buildEnabledPluginMap(
 	ctx context.Context,
 	manifests []*catalog.Manifest,
 ) (map[string]bool, error) {
-	enabledByID := make(map[string]bool, len(manifests))
-	pluginIDs := make([]string, 0, len(manifests))
+	var (
+		enabledByID = make(map[string]bool, len(manifests))
+		pluginIDs   = make([]string, 0, len(manifests))
+	)
 	for _, manifest := range manifests {
 		if manifest == nil {
 			continue

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 )
@@ -80,7 +81,7 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAuthPageDesc,
 		Name:         "登录展示-页面说明",
-		DefaultValue: "核心宿主服务、默认管理工作台与插件扩展能力",
+		DefaultValue: "面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制",
 		Remark:       "控制登录页顶部说明文案。",
 	},
 	{
@@ -92,7 +93,7 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAuthLoginPanelLayout,
 		Name:         "登录展示-登录框位置",
-		DefaultValue: string(PublicFrontendAuthPanelLayoutCenter),
+		DefaultValue: string(PublicFrontendAuthPanelLayoutRight),
 		Remark:       "控制登录框默认布局，可选值：panel-left、panel-center、panel-right。",
 	},
 	{
@@ -251,7 +252,6 @@ func ValidatePublicFrontendSettingValue(key string, value string) error {
 	switch strings.TrimSpace(key) {
 	case PublicFrontendSettingKeyAppName,
 		PublicFrontendSettingKeyAuthPageTitle,
-		PublicFrontendSettingKeyAuthPageDesc,
 		PublicFrontendSettingKeyAuthLoginSubtitle,
 		PublicFrontendSettingKeyUIWatermarkContent:
 		return validateRequiredTextValue(key, value, 120)
@@ -263,7 +263,9 @@ func ValidatePublicFrontendSettingValue(key string, value string) error {
 			string(PublicFrontendAuthPanelLayoutRight),
 		})
 
-	case PublicFrontendSettingKeyAppLogo, PublicFrontendSettingKeyAppLogoDark:
+	case PublicFrontendSettingKeyAuthPageDesc,
+		PublicFrontendSettingKeyAppLogo,
+		PublicFrontendSettingKeyAppLogoDark:
 		return validateRequiredTextValue(key, value, 500)
 
 	case PublicFrontendSettingKeyUIThemeMode:
@@ -412,13 +414,13 @@ func validateAllowedStringValue(key string, value string, allowed []string) erro
 }
 
 // validateRequiredTextValue validates one non-empty protected text value with
-// a maximum length constraint.
+// a maximum character-length constraint.
 func validateRequiredTextValue(key string, value string, maxLen int) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return gerror.Newf("参数 %s 不能为空", key)
 	}
-	if len(trimmed) > maxLen {
+	if utf8.RuneCountInString(trimmed) > maxLen {
 		return gerror.Newf("参数 %s 长度不能超过 %d 个字符", key, maxLen)
 	}
 	return nil

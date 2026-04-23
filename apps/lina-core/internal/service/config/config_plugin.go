@@ -6,10 +6,12 @@ package config
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 // pluginDynamicStoragePathOverride stores an optional process-wide test
@@ -41,12 +43,13 @@ type PluginDynamicConfig struct {
 
 // GetPlugin reads plugin config from configuration file.
 func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
-	return clonePluginConfig(processStaticConfigCaches.plugin.load(func() *PluginConfig {
+	cfg := clonePluginConfig(processStaticConfigCaches.plugin.load(func() *PluginConfig {
 		cfg := &PluginConfig{
 			Dynamic: PluginDynamicConfig{
 				StoragePath: "temp/output",
 			},
 		}
+		validatePluginAutoEnableRawValue(ctx)
 		mustScanConfig(ctx, "plugin", cfg)
 
 		cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Dynamic.StoragePath)
@@ -57,11 +60,12 @@ func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 			cfg.Dynamic.StoragePath = "temp/output"
 		}
 		cfg.AutoEnable = normalizePluginAutoEnableIDs(cfg.AutoEnable)
-		if override, ok := getPluginAutoEnableOverride(); ok {
-			cfg.AutoEnable = override
-		}
 		return cfg
 	}))
+	if override, ok := getPluginAutoEnableOverride(); ok {
+		cfg.AutoEnable = override
+	}
+	return cfg
 }
 
 // GetPluginAutoEnable returns the configured startup auto-enable plugin IDs.
@@ -157,4 +161,37 @@ func normalizePluginAutoEnableIDs(pluginIDs []string) []string {
 		normalized = append(normalized, trimmedID)
 	}
 	return normalized
+}
+
+// validatePluginAutoEnableRawValue rejects scalar or non-string-array forms so
+// host startup fails fast with one clear configuration error.
+func validatePluginAutoEnableRawValue(ctx context.Context) {
+	value := g.Cfg().MustGet(ctx, "plugin.autoEnable")
+	if value == nil || value.IsEmpty() {
+		return
+	}
+
+	rawValue := value.Val()
+	if rawValue == nil {
+		return
+	}
+
+	rawKind := reflect.TypeOf(rawValue).Kind()
+	if rawKind != reflect.Slice && rawKind != reflect.Array {
+		panic(gerror.New("配置 plugin.autoEnable 必须为字符串数组"))
+	}
+
+	rawSlice := reflect.ValueOf(rawValue)
+	for index := 0; index < rawSlice.Len(); index++ {
+		itemValue := rawSlice.Index(index)
+		for itemValue.IsValid() && itemValue.Kind() == reflect.Interface {
+			if itemValue.IsNil() {
+				panic(gerror.Newf("配置 plugin.autoEnable 第 %d 项必须为字符串", index+1))
+			}
+			itemValue = itemValue.Elem()
+		}
+		if !itemValue.IsValid() || itemValue.Kind() != reflect.String {
+			panic(gerror.Newf("配置 plugin.autoEnable 第 %d 项必须为字符串", index+1))
+		}
+	}
 }

@@ -3,6 +3,7 @@ package plugin
 import (
 	pluginapi "lina-core/api/plugin"
 	"lina-core/internal/service/bizctx"
+	configsvc "lina-core/internal/service/config"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 )
@@ -11,6 +12,7 @@ import (
 type ControllerV1 struct {
 	pluginSvc pluginsvc.Service // plugin service
 	bizCtxSvc bizctx.Service    // business context service
+	configSvc configsvc.Service // config service
 	roleSvc   role.Service      // role service
 }
 
@@ -22,6 +24,7 @@ func NewV1(topology pluginsvc.Topology) pluginapi.IPluginV1 {
 	return &ControllerV1{
 		pluginSvc: pluginSvc,
 		bizCtxSvc: bizctx.New(),
+		configSvc: configsvc.New(),
 		roleSvc:   role.New(pluginSvc),
 	}
 }

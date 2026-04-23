@@ -32,6 +32,10 @@ const showHostServiceSection = computed(() => {
   return currentPlugin.value?.type === 'dynamic';
 });
 
+const isAutoEnableManaged = computed(() => {
+  return currentPlugin.value?.autoEnableManaged === 1;
+});
+
 async function handleOpenChange(open: boolean) {
   if (!open) {
     return;
@@ -109,6 +113,14 @@ function getAuthorizationStatusColor(status: string) {
     }
   }
 }
+
+function formatAutoEnableManaged(managed: boolean) {
+  return managed ? 'plugin.autoEnable' : '人工治理';
+}
+
+function getAutoEnableManagedColor(managed: boolean) {
+  return managed ? 'gold' : 'default';
+}
 </script>
 
 <template>
@@ -147,6 +159,11 @@ function getAuthorizationStatusColor(status: string) {
             {{ formatEnabledStatus(currentPlugin.enabled) }}
           </Tag>
         </DescriptionsItem>
+        <DescriptionsItem label="启动管理">
+          <Tag :color="getAutoEnableManagedColor(isAutoEnableManaged)">
+            {{ formatAutoEnableManaged(isAutoEnableManaged) }}
+          </Tag>
+        </DescriptionsItem>
         <DescriptionsItem label="授权要求">
           <Tag
             :color="
@@ -156,13 +173,17 @@ function getAuthorizationStatusColor(status: string) {
             "
           >
             {{
-              formatAuthorizationRequirement(currentPlugin.authorizationRequired)
+              formatAuthorizationRequirement(
+                currentPlugin.authorizationRequired,
+              )
             }}
           </Tag>
         </DescriptionsItem>
         <DescriptionsItem label="授权状态">
           <Tag
-            :color="getAuthorizationStatusColor(currentPlugin.authorizationStatus)"
+            :color="
+              getAuthorizationStatusColor(currentPlugin.authorizationStatus)
+            "
           >
             {{ formatAuthorizationStatus(currentPlugin.authorizationStatus) }}
           </Tag>
@@ -177,6 +198,14 @@ function getAuthorizationStatusColor(status: string) {
           {{ currentPlugin.description || '-' }}
         </DescriptionsItem>
       </Descriptions>
+
+      <Alert
+        v-if="isAutoEnableManaged"
+        data-testid="plugin-auto-enable-detail-alert"
+        show-icon
+        type="warning"
+        message="该插件当前由宿主主配置 plugin.autoEnable 管理。本次运行期禁用或卸载会立即生效，但若配置不变，宿主下次重启后会再次安装并启用该插件。若需永久停用，请先修改宿主配置中的 plugin.autoEnable。"
+      />
 
       <template v-if="showHostServiceSection">
         <Alert

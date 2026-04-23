@@ -390,7 +390,7 @@ func TestDynamicPluginFollowerDefersUntilPrimaryReconciles(t *testing.T) {
 		t.Fatalf("expected follower current state to remain uninstalled before primary reconciliation, got %s", registryBeforePrimary.CurrentState)
 	}
 
-	topology.primary = true
+	topology.SetPrimary(true)
 	if err = service.ReconcileRuntimePlugins(ctx); err != nil {
 		t.Fatalf("expected primary reconciliation to succeed, got error: %v", err)
 	}

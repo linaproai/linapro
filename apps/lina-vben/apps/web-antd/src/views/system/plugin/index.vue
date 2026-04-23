@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { SystemPlugin } from '#/api/system/plugin/model';
 
+import { h } from 'vue';
+
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 
-import { message, Space, Switch, Tag } from 'ant-design-vue';
+import { message, Modal, Space, Switch, Tag, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
@@ -47,6 +49,8 @@ const pluginAccessCodes = {
   install: 'plugin:install',
   uninstall: 'plugin:uninstall',
 } as const;
+
+const autoEnableManagedBadgeLabel = '启动自动启用';
 
 const { hasAccessByCodes } = useAccess();
 
@@ -108,7 +112,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
   gridOptions: {
     columns: [
       { field: 'id', minWidth: 160, title: '插件标识' },
-      { field: 'name', minWidth: 160, title: '插件名称' },
+      {
+        field: 'name',
+        minWidth: 220,
+        slots: { default: 'name' },
+        title: '插件名称',
+      },
       {
         field: 'type',
         slots: { default: 'type' },
@@ -173,6 +182,33 @@ function getPluginTypeColor(type: string) {
   return typeColorMap[type === 'source' ? 'source' : 'dynamic'] || 'default';
 }
 
+function isAutoEnableManaged(row: SystemPlugin) {
+  return row.autoEnableManaged === 1;
+}
+
+function buildAutoEnableManagedTooltip(row: SystemPlugin) {
+  return `插件 ${row.id} 当前由宿主主配置 plugin.autoEnable 管理。`;
+}
+
+function buildAutoEnableManagedRuntimeHint(actionLabel: string) {
+  return `该插件当前由宿主主配置 plugin.autoEnable 管理。本次${actionLabel}会立即生效，但若配置不变，宿主下次重启后会再次安装并启用该插件。若需永久停用，请先修改宿主配置中的 plugin.autoEnable。`;
+}
+
+async function confirmAutoEnableManagedAction(actionLabel: string) {
+  return await new Promise<boolean>((resolve) => {
+    Modal.confirm({
+      cancelText: '取消',
+      content: h('div', { class: 'whitespace-pre-line leading-6' }, [
+        buildAutoEnableManagedRuntimeHint(actionLabel),
+      ]),
+      okText: `继续${actionLabel}`,
+      title: `${actionLabel}启动自动启用插件`,
+      onCancel: () => resolve(false),
+      onOk: () => resolve(true),
+    });
+  });
+}
+
 function canInstallPlugin() {
   return hasAccessByCodes([pluginAccessCodes.install]);
 }
@@ -219,6 +255,12 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
     hostServiceAuthModalApi.setData({ mode: 'enable', row });
     hostServiceAuthModalApi.open();
     return;
+  }
+  if (!checked && isAutoEnableManaged(row)) {
+    const confirmed = await confirmAutoEnableManagedAction('禁用');
+    if (!confirmed) {
+      return;
+    }
   }
   await (checked ? pluginEnable : pluginDisable)(row.id);
   row.enabled = checked ? 1 : 0;
@@ -313,6 +355,20 @@ async function handleUninstallReload() {
         </Tag>
       </template>
 
+      <template #name="{ row }">
+        <Space :size="6" wrap>
+          <span>{{ row.name }}</span>
+          <Tooltip
+            v-if="isAutoEnableManaged(row)"
+            :title="buildAutoEnableManagedTooltip(row)"
+          >
+            <Tag :data-testid="`plugin-auto-enable-tag-${row.id}`" color="gold">
+              {{ autoEnableManagedBadgeLabel }}
+            </Tag>
+          </Tooltip>
+        </Space>
+      </template>
+
       <template #description="{ row, isHidden }">
         <div
           v-if="!isHidden"
@@ -326,13 +382,21 @@ async function handleUninstallReload() {
       </template>
 
       <template #enabled="{ row }">
-        <Switch
-          :checked="row.enabled === 1"
-          :disabled="row.installed !== 1 || !canTogglePluginStatus(row)"
-          checked-children="启用"
-          un-checked-children="禁用"
-          @change="(checked) => handleStatusChange(row, !!checked)"
-        />
+        <Tooltip
+          :title="
+            isAutoEnableManaged(row)
+              ? buildAutoEnableManagedRuntimeHint('禁用')
+              : undefined
+          "
+        >
+          <Switch
+            :checked="row.enabled === 1"
+            :disabled="row.installed !== 1 || !canTogglePluginStatus(row)"
+            checked-children="启用"
+            un-checked-children="禁用"
+            @change="(checked) => handleStatusChange(row, !!checked)"
+          />
+        </Tooltip>
       </template>
 
       <template #action="{ row }">
@@ -349,6 +413,14 @@ async function handleUninstallReload() {
           >
             安装
           </ghost-button>
+          <Tooltip
+            v-else-if="canUninstallPlugin() && isAutoEnableManaged(row)"
+            :title="buildAutoEnableManagedRuntimeHint('卸载')"
+          >
+            <ghost-button danger @click.stop="handleOpenUninstall(row)">
+              卸载
+            </ghost-button>
+          </Tooltip>
           <ghost-button
             v-else-if="canUninstallPlugin()"
             danger

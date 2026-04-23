@@ -77,3 +77,23 @@
 - **WHEN** 动态插件出现在 `plugin.autoEnable` 列表中、声明了受治理 host services，但当前 release 尚未形成授权快照
 - **THEN** 宿主 MUST 终止启动
 - **AND** 错误信息 MUST 明确指出需要先通过常规审核流程生成授权快照
+
+### Requirement: 插件管理界面必须标识启动自动启用插件并提示临时治理后果
+系统 SHALL 在插件管理列表与详情视图中，以只读方式标识当前插件是否被宿主主配置文件中的 `plugin.autoEnable` 命中；当管理员在界面中对这类插件执行禁用或卸载时，界面 MUST 在请求提交前明确说明“本次操作立即生效，但若配置不变，宿主下次重启后会再次安装并启用该插件”。
+
+#### Scenario: 列表与详情展示启动自动启用标识
+- **WHEN** 某插件当前插件 ID 存在于宿主主配置文件的 `plugin.autoEnable` 列表中
+- **THEN** 插件管理列表 SHALL 展示该插件由 `plugin.autoEnable` 管理的只读标识
+- **AND** 插件详情视图 SHALL 展示相同语义的只读说明
+
+#### Scenario: 禁用启动自动启用插件前提示重启后果
+- **WHEN** 管理员尝试在插件管理页面禁用一个命中 `plugin.autoEnable` 的插件
+- **THEN** 界面 MUST 在真正发起禁用请求前先展示风险确认提示
+- **AND** 提示内容 MUST 明确指出“本次禁用立即生效，但若 `plugin.autoEnable` 配置不变，则宿主重启后会再次启用该插件”
+- **AND** 提示内容 MUST 明确指出“若要永久停用，需要先修改宿主主配置文件中的 `plugin.autoEnable`”
+
+#### Scenario: 卸载启动自动启用插件时提示重启后果
+- **WHEN** 管理员尝试在插件管理页面卸载一个命中 `plugin.autoEnable` 的插件
+- **THEN** 卸载确认界面 MUST 展示风险提示
+- **AND** 提示内容 MUST 明确指出“本次卸载立即生效，但若 `plugin.autoEnable` 配置不变，则宿主重启后会再次安装并启用该插件”
+- **AND** 提示内容 MUST 明确指出“若要永久停用，需要先修改宿主主配置文件中的 `plugin.autoEnable`”

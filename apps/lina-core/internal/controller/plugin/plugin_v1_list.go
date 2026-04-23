@@ -28,6 +28,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		collectPluginDataAuthorizationTables(out.List),
 	)
 	managedCronJobsByPlugin := c.buildManagedCronJobMap(ctx, out.List)
+	autoEnableManagedSet := buildAutoEnableManagedSet(c.configSvc.GetPluginAutoEnable(ctx))
 
 	items := make([]*v1.PluginItem, 0, len(out.List))
 	for _, item := range out.List {
@@ -41,6 +42,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			Installed:             item.Installed,
 			InstalledAt:           item.InstalledAt,
 			Enabled:               item.Enabled,
+			AutoEnableManaged:     boolToInt(autoEnableManagedSet[strings.TrimSpace(item.Id)]),
 			StatusKey:             item.StatusKey,
 			UpdatedAt:             item.UpdatedAt,
 			AuthorizationRequired: boolToInt(item.AuthorizationRequired),
@@ -59,6 +61,20 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 	}
 
 	return &v1.ListRes{List: items, Total: out.Total}, nil
+}
+
+// buildAutoEnableManagedSet converts the normalized plugin.autoEnable list into
+// one lookup map that the controller can reuse while projecting list rows.
+func buildAutoEnableManagedSet(pluginIDs []string) map[string]bool {
+	managedSet := make(map[string]bool, len(pluginIDs))
+	for _, pluginID := range pluginIDs {
+		normalizedPluginID := strings.TrimSpace(pluginID)
+		if normalizedPluginID == "" {
+			continue
+		}
+		managedSet[normalizedPluginID] = true
+	}
+	return managedSet
 }
 
 // buildManagedCronJobMap loads plugin-owned cron declarations for plugins that

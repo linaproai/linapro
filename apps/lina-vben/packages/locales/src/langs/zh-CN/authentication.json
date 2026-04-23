@@ -1,7 +1,7 @@
 {
   "welcomeBack": "欢迎回来",
   "pageTitle": "AI驱动的全栈开发框架",
-  "pageDesc": "核心宿主服务、默认管理工作台与插件扩展能力",
+  "pageDesc": "面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制",
   "loginSuccess": "登录成功",
   "loginSuccessDesc": "欢迎回来",
   "loginSubtitle": "请输入您的帐户信息以进入 LinaPro 宿主工作区",

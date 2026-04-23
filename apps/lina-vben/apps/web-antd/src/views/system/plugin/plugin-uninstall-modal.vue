@@ -29,6 +29,9 @@ const [BasicModal, modalApi] = useVbenModal({
 
 const isSourcePlugin = computed(() => currentPlugin.value?.type === 'source');
 const isDynamicPlugin = computed(() => currentPlugin.value?.type === 'dynamic');
+const isAutoEnableManaged = computed(
+  () => currentPlugin.value?.autoEnableManaged === 1,
+);
 const supportsPurgeStorageData = computed(
   () => isSourcePlugin.value || isDynamicPlugin.value,
 );
@@ -75,6 +78,13 @@ function handleClosed() {
       data-testid="plugin-uninstall-modal"
       class="flex flex-col gap-4"
     >
+      <Alert
+        v-if="isAutoEnableManaged"
+        data-testid="plugin-auto-enable-uninstall-alert"
+        show-icon
+        type="warning"
+        message="该插件当前由宿主主配置 plugin.autoEnable 管理。本次卸载会立即生效，但若配置不变，宿主下次重启后会再次安装并启用该插件。若需永久停用，请先修改宿主配置中的 plugin.autoEnable。"
+      />
       <Alert
         v-if="isSourcePlugin"
         show-icon

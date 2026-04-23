@@ -19,6 +19,7 @@ export interface SystemPlugin {
   installed: number;
   installedAt: string;
   enabled: number;
+  autoEnableManaged: number;
   statusKey: string;
   updatedAt: string;
   authorizationRequired: number;

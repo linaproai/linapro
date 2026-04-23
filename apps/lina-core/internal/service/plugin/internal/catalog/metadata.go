@@ -246,10 +246,10 @@ type ResourceRefDescriptor struct {
 // DeriveNodeState converts installation and enablement flags into one
 // stable node-state key for the governance projection.
 func DeriveNodeState(installed int, enabled int) string {
-	if installed != InstalledYes {
+	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
 		return NodeStateUninstalled.String()
 	}
-	if enabled == StatusEnabled {
+	if NormalizeStatus(enabled) == PluginStatusEnabled {
 		return NodeStateEnabled.String()
 	}
 	return NodeStateInstalled.String()
@@ -258,10 +258,10 @@ func DeriveNodeState(installed int, enabled int) string {
 // DeriveHostState converts install and enablement flags into the stable
 // host lifecycle state stored in sys_plugin desired_state/current_state.
 func DeriveHostState(installed int, enabled int) string {
-	if installed != InstalledYes {
+	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
 		return HostStateUninstalled.String()
 	}
-	if enabled == StatusEnabled {
+	if NormalizeStatus(enabled) == PluginStatusEnabled {
 		return HostStateEnabled.String()
 	}
 	return HostStateInstalled.String()
@@ -271,15 +271,15 @@ func DeriveHostState(installed int, enabled int) string {
 // lifecycle state exposed by the management API.
 func DeriveLifecycleState(pluginType string, installed int, enabled int) string {
 	if NormalizeType(pluginType) == TypeSource {
-		if enabled == StatusEnabled {
+		if NormalizeStatus(enabled) == PluginStatusEnabled {
 			return LifecycleStateSourceEnabled.String()
 		}
 		return LifecycleStateSourceDisabled.String()
 	}
-	if installed != InstalledYes {
+	if NormalizeInstalledStatus(installed) != PluginInstalledYes {
 		return LifecycleStateRuntimeUninstalled.String()
 	}
-	if enabled == StatusEnabled {
+	if NormalizeStatus(enabled) == PluginStatusEnabled {
 		return LifecycleStateRuntimeEnabled.String()
 	}
 	return LifecycleStateRuntimeInstalled.String()

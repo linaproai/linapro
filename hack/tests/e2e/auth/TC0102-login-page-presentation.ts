@@ -45,25 +45,25 @@ test.describe("TC-102 登录页展示收口与布局", () => {
     }
   });
 
-  test("TC-102b: 登录页默认使用居中登录框布局", async ({ loginPage }) => {
-    await updateConfigValue(api, originalLayout.id, "panel-center");
+  test("TC-102b: 登录页默认使用居右登录框布局", async ({ loginPage }) => {
+    await updateConfigValue(api, originalLayout.id, "panel-right");
 
     await loginPage.goto();
 
-    await expect(loginPage.centerAuthPanel).toBeVisible();
+    await expect(loginPage.rightAuthPanel).toBeVisible();
     await expect(loginPage.leftAuthPanel).toBeHidden();
-    await expect(loginPage.rightAuthPanel).toBeHidden();
+    await expect(loginPage.centerAuthPanel).toBeHidden();
   });
 
   test("TC-102c: 修改系统参数后登录页按配置切换布局", async ({ loginPage }) => {
-    await updateConfigValue(api, originalLayout.id, "panel-right");
-    await loginPage.goto();
-    await expect(loginPage.rightAuthPanel).toBeVisible();
-    await expect(loginPage.centerAuthPanel).toBeHidden();
-
     await updateConfigValue(api, originalLayout.id, "panel-left");
     await loginPage.goto();
     await expect(loginPage.leftAuthPanel).toBeVisible();
     await expect(loginPage.rightAuthPanel).toBeHidden();
+
+    await updateConfigValue(api, originalLayout.id, "panel-center");
+    await loginPage.goto();
+    await expect(loginPage.centerAuthPanel).toBeVisible();
+    await expect(loginPage.leftAuthPanel).toBeHidden();
   });
 });

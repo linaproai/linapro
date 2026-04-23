@@ -715,6 +715,23 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 	}
 }
 
+// TestNormalizePluginStatusEnums verifies raw database flags are normalized
+// into the new strongly typed plugin status enums before state derivation runs.
+func TestNormalizePluginStatusEnums(t *testing.T) {
+	if status := catalog.NormalizeStatus(1); status != catalog.PluginStatusEnabled {
+		t.Fatalf("expected enabled status enum, got %#v", status)
+	}
+	if status := catalog.NormalizeStatus(99); status != catalog.PluginStatusDisabled {
+		t.Fatalf("expected unknown status to normalize to disabled, got %#v", status)
+	}
+	if installed := catalog.NormalizeInstalledStatus(1); installed != catalog.PluginInstalledYes {
+		t.Fatalf("expected installed status enum, got %#v", installed)
+	}
+	if installed := catalog.NormalizeInstalledStatus(-1); installed != catalog.PluginInstalledNo {
+		t.Fatalf("expected unknown install flag to normalize to uninstalled, got %#v", installed)
+	}
+}
+
 // TestDerivePluginLifecycleState verifies lifecycle-state derivation from
 // installed, enabled, and failure flags.
 func TestDerivePluginLifecycleState(t *testing.T) {

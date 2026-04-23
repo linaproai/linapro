@@ -107,15 +107,11 @@ export class PluginPage {
   }
 
   pluginDemoDynamicPaginationPrevButton(): Locator {
-    return this.page
-      .getByTestId("plugin-demo-dynamic-pagination-prev")
-      .first();
+    return this.page.getByTestId("plugin-demo-dynamic-pagination-prev").first();
   }
 
   pluginDemoDynamicPaginationNextButton(): Locator {
-    return this.page
-      .getByTestId("plugin-demo-dynamic-pagination-next")
-      .first();
+    return this.page.getByTestId("plugin-demo-dynamic-pagination-next").first();
   }
 
   pluginDemoDynamicRecordModal(): Locator {
@@ -275,6 +271,26 @@ export class PluginPage {
 
   pluginDetailEmptyHostServices(): Locator {
     return this.page.getByTestId("plugin-detail-empty-host-services").last();
+  }
+
+  pluginAutoEnableTag(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-auto-enable-tag-${pluginId}`).first();
+  }
+
+  pluginAutoEnableDetailAlert(): Locator {
+    return this.page.getByTestId("plugin-auto-enable-detail-alert").last();
+  }
+
+  pluginAutoEnableUninstallAlert(): Locator {
+    return this.page.getByTestId("plugin-auto-enable-uninstall-alert").last();
+  }
+
+  pluginManagedActionDialog(): Locator {
+    return this.page
+      .locator(".ant-modal-confirm", {
+        hasText: "plugin.autoEnable",
+      })
+      .last();
   }
 
   uninstallPurgeCheckbox(): Locator {
@@ -507,6 +523,21 @@ export class PluginPage {
     await this.uninstallPluginWithOptions(pluginId, true);
   }
 
+  async openUninstallDialog(pluginId: string) {
+    const uninstallButton = await this.pluginActionButton(pluginId, /卸\s*载/);
+    await expect(uninstallButton).toBeVisible();
+    await uninstallButton.click();
+    await expect(this.uninstallDialog()).toBeVisible();
+  }
+
+  async cancelUninstallDialog() {
+    await this.uninstallDialog()
+      .getByRole("button", { name: /取\s*消|cancel/i })
+      .last()
+      .click();
+    await expect(this.uninstallDialog()).toHaveCount(0);
+  }
+
   async ensurePluginUninstalled(pluginId: string) {
     const uninstallButton = await this.pluginActionButton(pluginId, /卸\s*载/);
     const uninstallVisible = await uninstallButton
@@ -642,6 +673,24 @@ export class PluginPage {
     }
   }
 
+  async cancelManagedActionWarning() {
+    await expect(this.pluginManagedActionDialog()).toBeVisible();
+    await this.pluginManagedActionDialog()
+      .getByRole("button", { name: /取\s*消|cancel/i })
+      .last()
+      .click();
+    await expect(this.pluginManagedActionDialog()).toHaveCount(0);
+  }
+
+  async confirmManagedActionWarning() {
+    await expect(this.pluginManagedActionDialog()).toBeVisible();
+    await this.pluginManagedActionDialog()
+      .getByRole("button", { name: /继续禁用|继续卸载|确\s*认|确\s*定/i })
+      .last()
+      .click();
+    await expect(this.pluginManagedActionDialog()).toHaveCount(0);
+  }
+
   async expectInstallActionVisible(pluginId: string) {
     await expect(
       await this.pluginActionButton(pluginId, /安\s*装/),
@@ -698,7 +747,9 @@ export class PluginPage {
     const rowID = await row.getAttribute("rowid");
     expect(rowID, `未找到插件行 rowid: ${pluginId}`).toBeTruthy();
     return this.page
-      .locator(`.vxe-table--fixed-right-wrapper .vxe-body--row[rowid=\"${rowID}\"]`)
+      .locator(
+        `.vxe-table--fixed-right-wrapper .vxe-body--row[rowid=\"${rowID}\"]`,
+      )
       .getByRole("button", { name })
       .first();
   }
@@ -723,7 +774,9 @@ export class PluginPage {
 
   async gotoWorkspace() {
     await this.page.goto("/dashboard/workspace");
-    await expect(this.page.getByTestId("dashboard-workspace-page")).toBeVisible();
+    await expect(
+      this.page.getByTestId("dashboard-workspace-page"),
+    ).toBeVisible();
   }
 
   async expectWorkspaceSlotHidden() {

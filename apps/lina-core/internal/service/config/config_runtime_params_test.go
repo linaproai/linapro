@@ -5,6 +5,7 @@ package config
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -190,6 +191,23 @@ func TestValidatePublicFrontendSettingValue(t *testing.T) {
 	}
 }
 
+// TestValidatePublicFrontendSettingValueAllowsFiveHundredCharacterLoginDescription
+// verifies the login-page description accepts up to 500 characters and rejects
+// longer protected text values.
+func TestValidatePublicFrontendSettingValueAllowsFiveHundredCharacterLoginDescription(
+	t *testing.T,
+) {
+	validDesc := strings.Repeat("能力", 250)
+	if err := ValidatePublicFrontendSettingValue(PublicFrontendSettingKeyAuthPageDesc, validDesc); err != nil {
+		t.Fatalf("expected 500-character login description to pass validation, got %v", err)
+	}
+
+	tooLongDesc := validDesc + "扩"
+	if err := ValidatePublicFrontendSettingValue(PublicFrontendSettingKeyAuthPageDesc, tooLongDesc); err == nil {
+		t.Fatal("expected login description longer than 500 characters to fail validation")
+	}
+}
+
 // TestGetJwtPrefersRuntimeParamOverride verifies runtime JWT overrides win over
 // static config values.
 func TestGetJwtPrefersRuntimeParamOverride(t *testing.T) {
@@ -277,6 +295,11 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	)
 	withRuntimeParamValue(
 		t,
+		PublicFrontendSettingKeyAuthPageDesc,
+		"面向业务演进的宿主入口，支持灵活扩展与统一治理",
+	)
+	withRuntimeParamValue(
+		t,
 		PublicFrontendSettingKeyAuthLoginSubtitle,
 		"请使用管理员账号登录宿主工作区",
 	)
@@ -293,6 +316,9 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.Auth.PageTitle != "统一品牌登录入口" {
 		t.Fatalf("expected auth page title override, got %q", cfg.Auth.PageTitle)
+	}
+	if cfg.Auth.PageDesc != "面向业务演进的宿主入口，支持灵活扩展与统一治理" {
+		t.Fatalf("expected auth page description override, got %q", cfg.Auth.PageDesc)
 	}
 	if cfg.Auth.LoginSubtitle != "请使用管理员账号登录宿主工作区" {
 		t.Fatalf("expected auth login subtitle override, got %q", cfg.Auth.LoginSubtitle)

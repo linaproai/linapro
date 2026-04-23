@@ -5,6 +5,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 )
@@ -87,4 +88,95 @@ func TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues(t *testing.T) {
 	if path := getPluginDynamicStoragePathOverride(); path != "" {
 		t.Fatalf("expected blank override to be treated as absent, got %q", path)
 	}
+}
+
+// TestGetPluginAutoEnableNormalizesListAndAppliesOverrides verifies startup
+// auto-enable IDs are trimmed, de-duplicated, cloned, and overrideable in tests.
+func TestGetPluginAutoEnableNormalizesListAndAppliesOverrides(t *testing.T) {
+	setTestConfigContent(t, `
+plugin:
+  autoEnable:
+    - " plugin-demo-source "
+    - "plugin-demo-source"
+    - "plugin-demo-dynamic"
+`)
+	SetPluginAutoEnableOverride(nil)
+	t.Cleanup(func() {
+		SetPluginAutoEnableOverride(nil)
+	})
+
+	svc := New()
+	cfg := svc.GetPlugin(context.Background())
+	if len(cfg.AutoEnable) != 2 {
+		t.Fatalf("expected two normalized plugin IDs, got %#v", cfg.AutoEnable)
+	}
+	if cfg.AutoEnable[0] != "plugin-demo-source" || cfg.AutoEnable[1] != "plugin-demo-dynamic" {
+		t.Fatalf("expected normalized auto-enable IDs, got %#v", cfg.AutoEnable)
+	}
+
+	cfg.AutoEnable[0] = "mutated"
+	refreshed := svc.GetPlugin(context.Background())
+	if refreshed.AutoEnable[0] != "plugin-demo-source" {
+		t.Fatalf("expected cached auto-enable IDs to stay immutable, got %#v", refreshed.AutoEnable)
+	}
+
+	SetPluginAutoEnableOverride([]string{" override-plugin ", "override-plugin", "second-plugin"})
+	overridden := svc.GetPlugin(context.Background())
+	if len(overridden.AutoEnable) != 2 {
+		t.Fatalf("expected override to replace auto-enable IDs, got %#v", overridden.AutoEnable)
+	}
+	if overridden.AutoEnable[0] != "override-plugin" || overridden.AutoEnable[1] != "second-plugin" {
+		t.Fatalf("expected normalized override IDs, got %#v", overridden.AutoEnable)
+	}
+
+	autoEnable := svc.GetPluginAutoEnable(context.Background())
+	if len(autoEnable) != 2 {
+		t.Fatalf("expected cloned auto-enable list, got %#v", autoEnable)
+	}
+	autoEnable[0] = "mutated-again"
+	reloaded := svc.GetPluginAutoEnable(context.Background())
+	if reloaded[0] != "override-plugin" {
+		t.Fatalf("expected GetPluginAutoEnable to clone result, got %#v", reloaded)
+	}
+}
+
+// TestGetPluginRejectsBlankAutoEnableEntry verifies plugin.autoEnable rejects
+// blank plugin IDs during host startup.
+func TestGetPluginRejectsBlankAutoEnableEntry(t *testing.T) {
+	setTestConfigContent(t, `
+plugin:
+  autoEnable:
+    - "plugin-demo-source"
+    - "   "
+`)
+
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			t.Fatal("expected blank plugin.autoEnable entry to panic")
+		}
+		if message := fmt.Sprint(recovered); message == "" {
+			t.Fatal("expected blank plugin.autoEnable panic message")
+		}
+	}()
+
+	_ = New().GetPlugin(context.Background())
+}
+
+// TestGetPluginRejectsInvalidAutoEnableType verifies plugin.autoEnable must be
+// configured as a string array instead of a scalar value.
+func TestGetPluginRejectsInvalidAutoEnableType(t *testing.T) {
+	setTestConfigContent(t, `
+plugin:
+  autoEnable: "plugin-demo-source"
+`)
+
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			t.Fatal("expected invalid plugin.autoEnable type to panic")
+		}
+	}()
+
+	_ = New().GetPlugin(context.Background())
 }

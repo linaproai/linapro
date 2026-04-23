@@ -70,7 +70,7 @@ const publicFrontendState = reactive<PublicFrontendSettings>({
   },
   auth: {
     loginSubtitle: '',
-    panelLayout: 'panel-center',
+    panelLayout: 'panel-right',
     pageDesc: '',
     pageTitle: '',
   },
@@ -117,7 +117,7 @@ function normalizeAuthPanelLayout(value: unknown): AuthPageLayoutType {
     case 'panel-right':
       return normalized;
     default:
-      return 'panel-center';
+      return 'panel-right';
   }
 }
 

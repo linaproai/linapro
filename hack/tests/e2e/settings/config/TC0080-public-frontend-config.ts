@@ -307,4 +307,50 @@ test.describe("TC0080 公开前端配置系统参数", () => {
       normalizeFontFamily(appFontFamily),
     );
   });
+
+  test("TC0080e: 系统参数页支持保存 500 字符的登录页说明文案", async ({
+    adminPage,
+    page,
+    request,
+  }) => {
+    const accessToken = await loginAsAdmin(request);
+    const original = await getConfigByKey(
+      request,
+      accessToken,
+      "sys.auth.pageDesc",
+    );
+    const longDescription = "能力".repeat(250);
+    const configPage = new ConfigPage(adminPage);
+    const loginPage = new LoginPage(page);
+
+    try {
+      await configPage.goto();
+      await configPage.edit("登录展示-页面说明", {
+        value: longDescription,
+      });
+
+      const saved = await getConfigByKey(
+        request,
+        accessToken,
+        "sys.auth.pageDesc",
+      );
+      expect(saved.value).toBe(longDescription);
+
+      const publicResponse = await request.get("/api/v1/config/public/frontend");
+      expect(publicResponse.ok()).toBeTruthy();
+      const publicPayload = await publicResponse.json();
+      expect(publicPayload.code).toBe(0);
+      expect(publicPayload.data.auth.pageDesc).toBe(longDescription);
+
+      await loginPage.goto();
+      await expect(loginPage.usernameInput).toBeVisible();
+    } finally {
+      await updateConfigValue(
+        request,
+        accessToken,
+        original.id,
+        original.value,
+      );
+    }
+  });
 });

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const updatePreferences = vi.fn();
 const getInitialPreferences = vi.fn(() => ({
   app: {
-    authPageLayout: 'panel-center',
+    authPageLayout: 'panel-right',
     layout: 'sidebar-nav',
     name: 'LinaPro',
     watermarkContent: '',
@@ -102,6 +102,34 @@ describe('public frontend runtime settings', () => {
           builtinType: 'default',
           colorPrimary: '#1677ff',
           mode: 'dark',
+        }),
+      }),
+    );
+  });
+
+  it('falls back to panel-right when the server omits auth panel layout', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      json: async () => ({
+        data: {
+          app: {},
+          auth: {},
+          cron: {},
+          ui: {},
+        },
+      }),
+      ok: true,
+    } as Response);
+
+    const { publicFrontendSettings, syncPublicFrontendSettings } =
+      await import('./public-frontend');
+    const settings = await syncPublicFrontendSettings();
+
+    expect(publicFrontendSettings.auth.panelLayout).toBe('panel-right');
+    expect(settings?.auth.panelLayout).toBe('panel-right');
+    expect(updatePreferences).toHaveBeenCalledWith(
+      expect.objectContaining({
+        app: expect.objectContaining({
+          authPageLayout: 'panel-right',
         }),
       }),
     );
