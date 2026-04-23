@@ -1,3 +1,5 @@
+// This file defines the public frontend-config API DTOs exposed to unauthenticated clients.
+
 package v1
 
 import "github.com/gogf/gf/v2/frame/g"
@@ -27,6 +29,7 @@ type FrontendAuthRes struct {
 	PageTitle     string `json:"pageTitle" dc:"登录页主标题文案" eg:"AI驱动的全栈开发框架"`
 	PageDesc      string `json:"pageDesc" dc:"登录页说明文案" eg:"核心宿主服务、默认管理工作台与插件扩展能力"`
 	LoginSubtitle string `json:"loginSubtitle" dc:"登录表单副标题文案" eg:"请输入您的帐户信息以进入 LinaPro 宿主工作区"`
+	PanelLayout   string `json:"panelLayout" dc:"登录框布局：panel-left=居左 panel-center=居中 panel-right=居右" eg:"panel-center"`
 }
 
 // FrontendUIRes stores public-safe theme and layout preferences.

@@ -88,6 +88,7 @@ func TestValidateManagedConfigValueRejectsInvalidValues(t *testing.T) {
 		{key: hostconfig.RuntimeParamKeyCronShellEnabled, value: "yes"},
 		{key: hostconfig.RuntimeParamKeyCronLogRetention, value: `{"mode":"days","value":0}`},
 		{key: hostconfig.PublicFrontendSettingKeyUIThemeMode, value: "night"},
+		{key: hostconfig.PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-bottom"},
 		{key: hostconfig.PublicFrontendSettingKeyUILayout, value: "invalid-layout"},
 		{key: hostconfig.PublicFrontendSettingKeyUIWatermarkEnabled, value: "yes"},
 	}

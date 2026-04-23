@@ -7,7 +7,17 @@ export interface ComponentInfo {
   description: string;
 }
 
+export interface FrameworkInfo {
+  name: string;
+  version: string;
+  description: string;
+  homepage: string;
+  repositoryUrl: string;
+  license: string;
+}
+
 export interface SystemInfoResult {
+  framework: FrameworkInfo;
   goVersion: string;
   gfVersion: string;
   os: string;

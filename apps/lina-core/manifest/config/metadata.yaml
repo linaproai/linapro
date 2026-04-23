@@ -1,6 +1,21 @@
 # 接口文档与版本信息页元数据配置
 # `version` 为 `auto` 时会在运行时自动填充实际版本
 
+# 框架元数据
+framework:
+  # 框架名称
+  name: "LinaPro"
+  # 框架版本
+  version: "v0.1.0"
+  # 框架介绍
+  description: "AI驱动的全栈开发框架，提供通用核心宿主服务、默认管理工作台、插件扩展能力与 AI 协作研发工作流。"
+  # 项目官网
+  homepage: "https://linapro.ai"
+  # 仓库地址
+  repositoryUrl: "https://github.com/gqcn/linapro"
+  # 开源协议
+  license: "Apache 2.0"
+
 # OpenAPI 文档元数据
 openapi:
   # 文档标题

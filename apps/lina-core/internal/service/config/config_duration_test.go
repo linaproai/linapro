@@ -14,7 +14,9 @@ import (
 // fall back to their baked-in defaults when config is absent.
 func TestDurationConfigsUseDefaultsWhenUnset(t *testing.T) {
 	setTestConfigContent(t, `
-test: 1
+database:
+  default:
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
 `)
 	withRuntimeParamAbsent(t, RuntimeParamKeyJWTExpire)
 	withRuntimeParamAbsent(t, RuntimeParamKeySessionTimeout)
@@ -27,6 +29,7 @@ test: 1
 		jwtCfg     = New().GetJwt(context.Background())
 		sessionCfg = New().GetSession(context.Background())
 		monitorCfg = New().GetMonitor(context.Background())
+		uploadCfg  = New().GetUpload(context.Background())
 	)
 
 	if jwtCfg.Expire != 24*time.Hour {
@@ -43,6 +46,9 @@ test: 1
 	}
 	if monitorCfg.RetentionMultiplier != 5 {
 		t.Fatalf("expected default retention multiplier to be 5, got %d", monitorCfg.RetentionMultiplier)
+	}
+	if uploadCfg.MaxSize != 20 {
+		t.Fatalf("expected default upload max size to be 20, got %d", uploadCfg.MaxSize)
 	}
 }
 

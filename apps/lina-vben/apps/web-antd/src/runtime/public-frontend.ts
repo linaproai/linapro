@@ -1,3 +1,5 @@
+import type { AuthPageLayoutType } from '@vben/types';
+
 import { reactive, readonly } from 'vue';
 
 import { useAppConfig } from '@vben/hooks';
@@ -11,6 +13,7 @@ interface PublicFrontendAppSettings {
 
 interface PublicFrontendAuthSettings {
   loginSubtitle: string;
+  panelLayout: AuthPageLayoutType;
   pageDesc: string;
   pageTitle: string;
 }
@@ -67,6 +70,7 @@ const publicFrontendState = reactive<PublicFrontendSettings>({
   },
   auth: {
     loginSubtitle: '',
+    panelLayout: 'panel-center',
     pageDesc: '',
     pageTitle: '',
   },
@@ -103,6 +107,18 @@ function normalizeBoolean(value: unknown): boolean {
 function normalizeNumber(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeAuthPanelLayout(value: unknown): AuthPageLayoutType {
+  const normalized = normalizeString(value);
+  switch (normalized) {
+    case 'panel-left':
+    case 'panel-center':
+    case 'panel-right':
+      return normalized;
+    default:
+      return 'panel-center';
+  }
 }
 
 function resolvePublicFrontendEndpoint(): string {
@@ -151,6 +167,7 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
     },
     auth: {
       loginSubtitle: normalizeString(auth.loginSubtitle),
+      panelLayout: normalizeAuthPanelLayout(auth.panelLayout),
       pageDesc: normalizeString(auth.pageDesc),
       pageTitle: normalizeString(auth.pageTitle),
     },
@@ -183,6 +200,7 @@ function applyPublicFrontendPreferences(settings: PublicFrontendSettings) {
 
   updatePreferences({
     app: {
+      authPageLayout: settings.auth.panelLayout,
       layout: (settings.ui.layout || initial.app.layout) as any,
       name: settings.app.name || initial.app.name,
       watermark: settings.ui.watermarkEnabled,

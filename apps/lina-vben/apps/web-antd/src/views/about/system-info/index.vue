@@ -3,9 +3,7 @@ import { h, onMounted, ref } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
-import { type ComponentInfo, getSystemInfo } from '#/api/about';
-
-import { PROJECT_INFO } from '../config';
+import { type ComponentInfo, type FrameworkInfo, getSystemInfo } from '#/api/about';
 
 defineOptions({ name: 'SystemInfo' });
 
@@ -21,25 +19,25 @@ const renderLink = (href: string, text: string) =>
     { default: () => text },
   );
 
-// 关于项目 - 第一行：名称 + 主页 + 版本号 + 许可
-const projectRow1: DescriptionItem[] = [
-  { title: '项目名称', content: PROJECT_INFO.name },
-  {
-    title: '项目主页',
-    content: renderLink(PROJECT_INFO.homepage, '点击查看'),
-  },
-  { title: '版本号', content: PROJECT_INFO.version },
-  { title: '开源许可', content: PROJECT_INFO.license },
-];
-
-// 关于项目 - 第二行：项目介绍
-const projectRow2: DescriptionItem[] = [
-  { title: '项目介绍', content: PROJECT_INFO.description },
-];
-
+const frameworkItems = ref<DescriptionItem[]>([]);
+const frameworkDescription = ref('');
 const backendItems = ref<DescriptionItem[]>([]);
 const frontendItems = ref<DescriptionItem[]>([]);
 const loading = ref(true);
+
+const mapFramework = (framework: FrameworkInfo): DescriptionItem[] => [
+  { title: '项目名称', content: framework.name },
+  {
+    title: '项目官网',
+    content: renderLink(framework.homepage, '点击查看'),
+  },
+  {
+    title: '仓库地址',
+    content: renderLink(framework.repositoryUrl, '点击查看'),
+  },
+  { title: '版本号', content: framework.version },
+  { title: '开源许可', content: framework.license },
+];
 
 const mapComponents = (components: ComponentInfo[]): DescriptionItem[] =>
   (components || []).map((item) => ({
@@ -54,6 +52,8 @@ const mapComponents = (components: ComponentInfo[]): DescriptionItem[] =>
 onMounted(async () => {
   try {
     const info = await getSystemInfo();
+    frameworkItems.value = mapFramework(info.framework);
+    frameworkDescription.value = info.framework.description;
     backendItems.value = mapComponents(info.backendComponents);
     frontendItems.value = mapComponents(info.frontendComponents);
   } finally {
@@ -68,8 +68,11 @@ onMounted(async () => {
     <div class="card-box p-5">
       <h5 class="text-lg text-foreground">关于项目</h5>
       <div class="mt-4">
-        <dl class="grid grid-cols-2 md:grid-cols-4">
-          <template v-for="item in projectRow1" :key="item.title">
+        <dl
+          v-if="!loading"
+          class="grid grid-cols-2 md:grid-cols-4"
+        >
+          <template v-for="item in frameworkItems" :key="item.title">
             <div
               class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
             >
@@ -86,20 +89,19 @@ onMounted(async () => {
             </div>
           </template>
         </dl>
-        <dl class="grid">
-          <template v-for="item in projectRow2" :key="item.title">
-            <div
-              class="border-t border-border px-4 py-3 sm:px-0"
-            >
-              <dt class="text-sm/6 font-medium text-foreground">
-                {{ item.title }}
-              </dt>
-              <dd class="mt-1 text-sm/6 text-foreground">
-                <span>{{ item.content }}</span>
-              </dd>
-            </div>
-          </template>
+        <dl v-if="!loading" class="grid">
+          <div
+            class="border-t border-border px-4 py-3 sm:px-0"
+          >
+            <dt class="text-sm/6 font-medium text-foreground">
+              项目介绍
+            </dt>
+            <dd class="mt-1 text-sm/6 text-foreground">
+              <span>{{ frameworkDescription }}</span>
+            </dd>
+          </div>
         </dl>
+        <div v-else class="py-8 text-center text-foreground/60">加载中...</div>
       </div>
     </div>
 

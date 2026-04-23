@@ -169,6 +169,8 @@ func TestValidatePublicFrontendSettingValue(t *testing.T) {
 	}{
 		{key: PublicFrontendSettingKeyAppName, value: "LinaPro"},
 		{key: PublicFrontendSettingKeyAppName, value: "", shouldErr: true},
+		{key: PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-center"},
+		{key: PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-bottom", shouldErr: true},
 		{key: PublicFrontendSettingKeyUIThemeMode, value: "dark"},
 		{key: PublicFrontendSettingKeyUIThemeMode, value: "night", shouldErr: true},
 		{key: PublicFrontendSettingKeyUILayout, value: "header-nav"},
@@ -278,6 +280,7 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 		PublicFrontendSettingKeyAuthLoginSubtitle,
 		"请使用管理员账号登录宿主工作区",
 	)
+	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthLoginPanelLayout, "panel-right")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIThemeMode, "dark")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUILayout, "header-nav")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkEnabled, "true")
@@ -293,6 +296,9 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.Auth.LoginSubtitle != "请使用管理员账号登录宿主工作区" {
 		t.Fatalf("expected auth login subtitle override, got %q", cfg.Auth.LoginSubtitle)
+	}
+	if cfg.Auth.PanelLayout != PublicFrontendAuthPanelLayoutRight {
+		t.Fatalf("expected auth panel layout override, got %q", cfg.Auth.PanelLayout)
 	}
 	if cfg.UI.ThemeMode != "dark" {
 		t.Fatalf("expected dark theme mode, got %q", cfg.UI.ThemeMode)

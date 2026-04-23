@@ -4,23 +4,60 @@ export class LoginPage {
   constructor(private page: Page) {}
 
   get appName() {
-    return this.page.getByText(/LinaPro|Console|品牌/, { exact: false }).first();
+    return this.page
+      .getByText(/LinaPro|Console|品牌/, { exact: false })
+      .first();
   }
 
   get pageTitle() {
-    return this.page.locator('h1').first();
+    return this.page.locator("h1").first();
   }
 
   get loadingTitle() {
-    return this.page.locator('#__app-loading__ .title').first();
+    return this.page.locator("#__app-loading__ .title").first();
   }
 
   get pageDescription() {
-    return this.page.locator('p').filter({ hasText: /宿主|工作台|品牌|平台|能力/ }).first();
+    return this.page
+      .locator("p")
+      .filter({ hasText: /宿主|工作台|品牌|平台|能力/ })
+      .first();
   }
 
   get loginSubtitle() {
-    return this.page.locator('span.text-muted-foreground').first();
+    return this.page.locator("span.text-muted-foreground").first();
+  }
+
+  get forgotPasswordEntry() {
+    return this.page.getByText("忘记密码?", { exact: true }).first();
+  }
+
+  get createAccountEntry() {
+    return this.page.getByText("创建账号", { exact: true }).first();
+  }
+
+  get mobileLoginButton() {
+    return this.page.getByRole("button", { name: "手机号登录" });
+  }
+
+  get qrCodeLoginButton() {
+    return this.page.getByRole("button", { name: "扫码登录" });
+  }
+
+  get thirdPartyLoginTitle() {
+    return this.page.getByText("其他登录方式", { exact: true }).first();
+  }
+
+  get leftAuthPanel() {
+    return this.page.locator('.side-content[data-side="left"]').first();
+  }
+
+  get centerAuthPanel() {
+    return this.page.locator('.side-content[data-side="bottom"]').first();
+  }
+
+  get rightAuthPanel() {
+    return this.page.locator('.side-content[data-side="right"]').first();
   }
 
   get usernameInput() {
@@ -62,7 +99,11 @@ export class LoginPage {
   }
 
   async goto() {
-    await this.page.goto("/auth/login");
+    await this.gotoPath("/auth/login");
+  }
+
+  async gotoPath(path: string) {
+    await this.page.goto(path);
     await this.usernameInput.waitFor({ state: "visible" });
     await this.loginButton.waitFor({ state: "visible" });
   }
@@ -72,7 +113,9 @@ export class LoginPage {
   }
 
   async getLoadingTitleFontFamily() {
-    return this.loadingTitle.evaluate((node) => getComputedStyle(node).fontFamily);
+    return this.loadingTitle.evaluate(
+      (node) => getComputedStyle(node).fontFamily,
+    );
   }
 
   async getRootFontFamily() {

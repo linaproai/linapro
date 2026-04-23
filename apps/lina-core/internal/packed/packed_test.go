@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -42,5 +43,31 @@ func TestFilesExcludeLocalConfig(t *testing.T) {
 	_, err := fs.ReadFile(Files, "manifest/config/config.yaml")
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("expected local config to be excluded from embedded assets, got err=%v", err)
+	}
+}
+
+// TestFilesEmbedUpdatedUploadDefaults verifies the packed manifest assets keep
+// the upload-size defaults aligned with the host source defaults.
+func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
+	t.Parallel()
+
+	if _, err := os.Stat("manifest/config/config.template.yaml"); errors.Is(err, os.ErrNotExist) {
+		t.Skip("packed manifest assets have not been prepared")
+	}
+
+	configContent, err := fs.ReadFile(Files, "manifest/config/config.template.yaml")
+	if err != nil {
+		t.Fatalf("read packed config template: %v", err)
+	}
+	if !strings.Contains(string(configContent), "maxSize: 20") {
+		t.Fatalf("expected packed config template to keep 20MB upload default, got %q", string(configContent))
+	}
+
+	sqlContent, err := fs.ReadFile(Files, "manifest/sql/007-config-management.sql")
+	if err != nil {
+		t.Fatalf("read packed config-management sql: %v", err)
+	}
+	if !strings.Contains(string(sqlContent), "'sys.upload.maxSize', '20'") {
+		t.Fatalf("expected packed config-management sql to keep 20MB upload default, got %q", string(sqlContent))
 	}
 }

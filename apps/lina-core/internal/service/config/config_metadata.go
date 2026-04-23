@@ -20,9 +20,20 @@ const metadataConfigPath = "manifest/config/metadata.yaml"
 
 // MetadataConfig holds embedded delivery metadata rendered by host pages.
 type MetadataConfig struct {
-	OpenApi  OpenApiConfig           `json:"openapi"`  // OpenApi contains OpenAPI document metadata.
-	Backend  []MetadataComponentInfo `json:"backend"`  // Backend contains backend component cards for the version page.
-	Frontend []MetadataComponentInfo `json:"frontend"` // Frontend contains frontend component cards for the version page.
+	Framework MetadataFrameworkInfo   `json:"framework"` // Framework contains top-level framework metadata used by host pages.
+	OpenApi   OpenApiConfig           `json:"openapi"`   // OpenApi contains OpenAPI document metadata.
+	Backend   []MetadataComponentInfo `json:"backend"`   // Backend contains backend component cards for the version page.
+	Frontend  []MetadataComponentInfo `json:"frontend"`  // Frontend contains frontend component cards for the version page.
+}
+
+// MetadataFrameworkInfo holds framework-level metadata from metadata.yaml.
+type MetadataFrameworkInfo struct {
+	Name          string `json:"name" yaml:"name"`                   // Name is the framework display name.
+	Version       string `json:"version" yaml:"version"`             // Version is the current framework version.
+	Description   string `json:"description" yaml:"description"`     // Description is the framework summary.
+	Homepage      string `json:"homepage" yaml:"homepage"`           // Homepage is the project website URL.
+	RepositoryURL string `json:"repositoryUrl" yaml:"repositoryUrl"` // RepositoryURL is the framework source repository URL.
+	License       string `json:"license" yaml:"license"`             // License is the open-source license label.
 }
 
 // MetadataComponentInfo holds one component entry from metadata.yaml.
@@ -49,6 +60,7 @@ func (s *serviceImpl) GetMetadata(ctx context.Context) *MetadataConfig {
 		cfg := &MetadataConfig{
 			OpenApi: defaultOpenApiConfig(),
 		}
+		mustScanMetadataConfig(ctx, adapter, "framework", &cfg.Framework)
 		mustScanMetadataConfig(ctx, adapter, "openapi", &cfg.OpenApi)
 		mustScanMetadataConfig(ctx, adapter, "backend", &cfg.Backend)
 		mustScanMetadataConfig(ctx, adapter, "frontend", &cfg.Frontend)

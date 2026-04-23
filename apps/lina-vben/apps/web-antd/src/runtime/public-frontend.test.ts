@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const updatePreferences = vi.fn();
 const getInitialPreferences = vi.fn(() => ({
   app: {
+    authPageLayout: 'panel-center',
     layout: 'sidebar-nav',
     name: 'LinaPro',
     watermarkContent: '',
@@ -46,7 +47,9 @@ describe('public frontend runtime settings', () => {
           app: {
             name: 'LinaPro Dark',
           },
-          auth: {},
+          auth: {
+            panelLayout: 'panel-right',
+          },
           cron: {
             logRetention: {
               mode: 'count',
@@ -85,11 +88,14 @@ describe('public frontend runtime settings', () => {
     expect(publicFrontendSettings.cron.logRetention.value).toBe(120);
     expect(publicFrontendSettings.cron.shell.enabled).toBe(true);
     expect(publicFrontendSettings.cron.timezone.current).toBe('UTC');
+    expect(publicFrontendSettings.auth.panelLayout).toBe('panel-right');
     expect(publicFrontendSettings.ui.themeMode).toBe('dark');
+    expect(settings?.auth.panelLayout).toBe('panel-right');
     expect(settings?.ui.themeMode).toBe('dark');
     expect(updatePreferences).toHaveBeenCalledWith(
       expect.objectContaining({
         app: expect.objectContaining({
+          authPageLayout: 'panel-right',
           name: 'LinaPro Dark',
         }),
         theme: expect.objectContaining({

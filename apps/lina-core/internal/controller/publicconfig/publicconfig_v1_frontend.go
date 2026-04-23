@@ -24,6 +24,7 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 			PageTitle:     cfg.Auth.PageTitle,
 			PageDesc:      cfg.Auth.PageDesc,
 			LoginSubtitle: cfg.Auth.LoginSubtitle,
+			PanelLayout:   string(cfg.Auth.PanelLayout),
 		},
 		UI: v1.FrontendUIRes{
 			ThemeMode:        cfg.UI.ThemeMode,

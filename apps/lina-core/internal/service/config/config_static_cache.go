@@ -99,7 +99,8 @@ func cloneMetadataConfig(cfg *MetadataConfig) *MetadataConfig {
 	}
 
 	cloned := &MetadataConfig{
-		OpenApi: cfg.OpenApi,
+		Framework: cfg.Framework,
+		OpenApi:   cfg.OpenApi,
 	}
 	if len(cfg.Backend) > 0 {
 		cloned.Backend = append([]MetadataComponentInfo(nil), cfg.Backend...)

@@ -47,37 +47,6 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 	return
 }
 
-// sqlExecutor executes one SQL statement for the init command and is injected
-// in tests so file scanning can be verified without touching a real database.
-type sqlExecutor func(ctx context.Context, sql string) error
-
-// executeSQLFiles runs the provided SQL files in order and stops immediately on
-// the first execution failure.
-func executeSQLFiles(ctx context.Context, files []string) error {
-	return executeSQLFilesWithExecutor(ctx, files, func(ctx context.Context, sql string) error {
-		_, err := g.DB().Exec(ctx, sql)
-		return err
-	})
-}
-
-// executeSQLFilesWithExecutor reads SQL files and delegates execution to the
-// provided executor, which allows unit tests to verify stop-on-error behavior
-// without touching a real database.
-func executeSQLFilesWithExecutor(ctx context.Context, files []string, executor sqlExecutor) error {
-	for _, file := range files {
-		sql := gfile.GetContents(file)
-		if sql == "" {
-			continue
-		}
-		logger.Infof(ctx, "Executing SQL file: %s", gfile.Basename(file))
-		if err := executor(ctx, sql); err != nil {
-			logger.Warningf(ctx, "execute %s: %v", gfile.Basename(file), err)
-			return gerror.Wrapf(err, "执行 SQL 文件 %s 失败", gfile.Basename(file))
-		}
-	}
-	return nil
-}
-
 // scanInitSqlFiles scans the conventional host initialization SQL directory.
 func scanInitSqlFiles(ctx context.Context) ([]string, error) {
 	var (

@@ -46,6 +46,7 @@ func New() Service {
 
 // SystemInfo holds the system runtime information.
 type SystemInfo struct {
+	Framework          FrameworkInfo   // Framework contains top-level framework metadata.
 	GoVersion          string          // GoVersion is the active Go runtime version.
 	GfVersion          string          // GfVersion is the active GoFrame runtime version.
 	Os                 string          // Os is the operating system name.
@@ -55,6 +56,16 @@ type SystemInfo struct {
 	RunDuration        string          // RunDuration is the formatted uptime string.
 	BackendComponents  []ComponentInfo // BackendComponents lists backend technology cards.
 	FrontendComponents []ComponentInfo // FrontendComponents lists frontend technology cards.
+}
+
+// FrameworkInfo holds framework-level project information.
+type FrameworkInfo struct {
+	Name          string // Name is the framework display name.
+	Version       string // Version is the current framework version.
+	Description   string // Description is the framework summary.
+	Homepage      string // Homepage is the framework website.
+	RepositoryURL string // RepositoryURL is the framework source repository URL.
+	License       string // License is the framework license label.
 }
 
 // ComponentInfo holds component display information.
@@ -67,7 +78,16 @@ type ComponentInfo struct {
 
 // GetInfo returns system runtime information.
 func (s *serviceImpl) GetInfo(ctx context.Context) (*SystemInfo, error) {
+	metadata := s.configSvc.GetMetadata(ctx)
 	info := &SystemInfo{
+		Framework: FrameworkInfo{
+			Name:          metadata.Framework.Name,
+			Version:       metadata.Framework.Version,
+			Description:   metadata.Framework.Description,
+			Homepage:      metadata.Framework.Homepage,
+			RepositoryURL: metadata.Framework.RepositoryURL,
+			License:       metadata.Framework.License,
+		},
 		GoVersion: runtime.Version(),
 		GfVersion: gf.VERSION,
 		Os:        runtime.GOOS,
@@ -95,16 +115,14 @@ func (s *serviceImpl) GetInfo(ctx context.Context) (*SystemInfo, error) {
 		info.DbVersion = dbVersion
 	}
 
-	info.BackendComponents = s.loadComponents(ctx, componentSectionBackend, dbVersion)
-	info.FrontendComponents = s.loadComponents(ctx, componentSectionFrontend, "")
+	info.BackendComponents = s.loadComponents(metadata, componentSectionBackend, dbVersion)
+	info.FrontendComponents = s.loadComponents(metadata, componentSectionFrontend, "")
 
 	return info, nil
 }
 
 // loadComponents reads version-page component metadata from metadata.yaml.
-func (s *serviceImpl) loadComponents(ctx context.Context, sectionKey string, dbVersion string) []ComponentInfo {
-	metadata := s.configSvc.GetMetadata(ctx)
-
+func (s *serviceImpl) loadComponents(metadata *config.MetadataConfig, sectionKey string, dbVersion string) []ComponentInfo {
 	var source []config.MetadataComponentInfo
 	switch sectionKey {
 	case componentSectionBackend:

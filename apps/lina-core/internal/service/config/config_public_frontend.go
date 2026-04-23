@@ -26,6 +26,8 @@ const (
 	PublicFrontendSettingKeyAuthPageDesc = "sys.auth.pageDesc"
 	// PublicFrontendSettingKeyAuthLoginSubtitle stores the login-form subtitle.
 	PublicFrontendSettingKeyAuthLoginSubtitle = "sys.auth.loginSubtitle"
+	// PublicFrontendSettingKeyAuthLoginPanelLayout stores the login-form panel layout.
+	PublicFrontendSettingKeyAuthLoginPanelLayout = "sys.auth.loginPanelLayout"
 	// PublicFrontendSettingKeyUIThemeMode stores the frontend theme mode.
 	PublicFrontendSettingKeyUIThemeMode = "sys.ui.theme.mode"
 	// PublicFrontendSettingKeyUILayout stores the admin layout mode.
@@ -34,6 +36,18 @@ const (
 	PublicFrontendSettingKeyUIWatermarkEnabled = "sys.ui.watermark.enabled"
 	// PublicFrontendSettingKeyUIWatermarkContent stores the watermark content.
 	PublicFrontendSettingKeyUIWatermarkContent = "sys.ui.watermark.content"
+)
+
+// PublicFrontendAuthPanelLayout defines the supported login-form panel layouts.
+type PublicFrontendAuthPanelLayout string
+
+const (
+	// PublicFrontendAuthPanelLayoutLeft aligns the login panel to the left.
+	PublicFrontendAuthPanelLayoutLeft PublicFrontendAuthPanelLayout = "panel-left"
+	// PublicFrontendAuthPanelLayoutCenter centers the login panel.
+	PublicFrontendAuthPanelLayoutCenter PublicFrontendAuthPanelLayout = "panel-center"
+	// PublicFrontendAuthPanelLayoutRight aligns the login panel to the right.
+	PublicFrontendAuthPanelLayoutRight PublicFrontendAuthPanelLayout = "panel-right"
 )
 
 // publicFrontendSettingSpecs lists the built-in public frontend settings that
@@ -76,6 +90,12 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 		Remark:       "控制登录表单上方的提示说明文案。",
 	},
 	{
+		Key:          PublicFrontendSettingKeyAuthLoginPanelLayout,
+		Name:         "登录展示-登录框位置",
+		DefaultValue: string(PublicFrontendAuthPanelLayoutCenter),
+		Remark:       "控制登录框默认布局，可选值：panel-left、panel-center、panel-right。",
+	},
+	{
 		Key:          PublicFrontendSettingKeyUIThemeMode,
 		Name:         "界面风格-主题模式",
 		DefaultValue: "light",
@@ -103,18 +123,13 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 
 // publicFrontendSettingSpecByKey indexes publicFrontendSettingSpecs by key for
 // constant-time lookup in validation and projection paths.
-var publicFrontendSettingSpecByKey = map[string]RuntimeParamSpec{
-	PublicFrontendSettingKeyAppName:            publicFrontendSettingSpecs[0],
-	PublicFrontendSettingKeyAppLogo:            publicFrontendSettingSpecs[1],
-	PublicFrontendSettingKeyAppLogoDark:        publicFrontendSettingSpecs[2],
-	PublicFrontendSettingKeyAuthPageTitle:      publicFrontendSettingSpecs[3],
-	PublicFrontendSettingKeyAuthPageDesc:       publicFrontendSettingSpecs[4],
-	PublicFrontendSettingKeyAuthLoginSubtitle:  publicFrontendSettingSpecs[5],
-	PublicFrontendSettingKeyUIThemeMode:        publicFrontendSettingSpecs[6],
-	PublicFrontendSettingKeyUILayout:           publicFrontendSettingSpecs[7],
-	PublicFrontendSettingKeyUIWatermarkEnabled: publicFrontendSettingSpecs[8],
-	PublicFrontendSettingKeyUIWatermarkContent: publicFrontendSettingSpecs[9],
-}
+var publicFrontendSettingSpecByKey = func() map[string]RuntimeParamSpec {
+	specByKey := make(map[string]RuntimeParamSpec, len(publicFrontendSettingSpecs))
+	for _, spec := range publicFrontendSettingSpecs {
+		specByKey[spec.Key] = spec
+	}
+	return specByKey
+}()
 
 // publicFrontendSettingKeys keeps the deterministic key order for public
 // frontend protected-config queries.
@@ -125,6 +140,7 @@ var publicFrontendSettingKeys = []string{
 	PublicFrontendSettingKeyAuthPageTitle,
 	PublicFrontendSettingKeyAuthPageDesc,
 	PublicFrontendSettingKeyAuthLoginSubtitle,
+	PublicFrontendSettingKeyAuthLoginPanelLayout,
 	PublicFrontendSettingKeyUIThemeMode,
 	PublicFrontendSettingKeyUILayout,
 	PublicFrontendSettingKeyUIWatermarkEnabled,
@@ -152,9 +168,10 @@ type PublicFrontendAppConfig struct {
 
 // PublicFrontendAuthConfig stores login-page copy settings.
 type PublicFrontendAuthConfig struct {
-	PageTitle     string `json:"pageTitle"`     // PageTitle is the login-page headline.
-	PageDesc      string `json:"pageDesc"`      // PageDesc is the login-page description.
-	LoginSubtitle string `json:"loginSubtitle"` // LoginSubtitle is the form subtitle.
+	PageTitle     string                        `json:"pageTitle"`     // PageTitle is the login-page headline.
+	PageDesc      string                        `json:"pageDesc"`      // PageDesc is the login-page description.
+	LoginSubtitle string                        `json:"loginSubtitle"` // LoginSubtitle is the form subtitle.
+	PanelLayout   PublicFrontendAuthPanelLayout `json:"panelLayout"`   // PanelLayout selects the login-panel placement.
 }
 
 // PublicFrontendUIConfig stores safe theme and layout preferences.
@@ -239,6 +256,13 @@ func ValidatePublicFrontendSettingValue(key string, value string) error {
 		PublicFrontendSettingKeyUIWatermarkContent:
 		return validateRequiredTextValue(key, value, 120)
 
+	case PublicFrontendSettingKeyAuthLoginPanelLayout:
+		return validateAllowedStringValue(key, value, []string{
+			string(PublicFrontendAuthPanelLayoutLeft),
+			string(PublicFrontendAuthPanelLayoutCenter),
+			string(PublicFrontendAuthPanelLayoutRight),
+		})
+
 	case PublicFrontendSettingKeyAppLogo, PublicFrontendSettingKeyAppLogoDark:
 		return validateRequiredTextValue(key, value, 500)
 
@@ -277,6 +301,9 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConf
 			PageTitle:     s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthPageTitle),
 			PageDesc:      s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthPageDesc),
 			LoginSubtitle: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthLoginSubtitle),
+			PanelLayout: PublicFrontendAuthPanelLayout(
+				s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthLoginPanelLayout),
+			),
 		},
 		UI: PublicFrontendUIConfig{
 			ThemeMode:        s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIThemeMode),

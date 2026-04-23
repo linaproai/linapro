@@ -12,10 +12,11 @@ test.describe('TC0045 版本信息页面', () => {
     await expect(content.getByText('项目名称')).toBeVisible();
     await expect(content.getByText('项目介绍')).toBeVisible();
 
-    // 关于项目区块 - 第二行：版本号、开源许可、项目主页
+    // 关于项目区块 - 第二行：版本号、开源许可、项目官网、仓库地址
     await expect(content.getByText('版本号')).toBeVisible();
-    await expect(content.getByText('v0.5.0')).toBeVisible();
     await expect(content.getByText('开源许可')).toBeVisible();
+    await expect(content.getByText('项目官网')).toBeVisible();
+    await expect(content.getByText('仓库地址')).toBeVisible();
 
     // 后端组件区块（从 API 加载）
     await expect(content.getByText('后端组件')).toBeVisible();
@@ -84,5 +85,36 @@ test.describe('TC0045 版本信息页面', () => {
     // 第一个 card-box 应直接是"关于项目"
     const firstCard = content.locator('.card-box').first();
     await expect(firstCard.getByText('关于项目')).toBeVisible();
+  });
+
+  test('TC0045d: 关于项目区块展示官网和仓库地址', async ({ adminPage }) => {
+    const systemInfoResponsePromise = adminPage.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/api/v1/system/info') &&
+        response.ok(),
+    );
+
+    await adminPage.goto('/about/system-info');
+    await adminPage.waitForLoadState('networkidle');
+
+    const content = adminPage.locator('[id="__vben_main_content"]');
+    const aboutCard = content.locator('.card-box').first();
+    const systemInfoPayload = await (await systemInfoResponsePromise).json();
+    const framework =
+      systemInfoPayload?.data?.framework ??
+      systemInfoPayload?.framework ??
+      {};
+
+    await expect(aboutCard.getByText('项目官网')).toBeVisible();
+    await expect(aboutCard.getByText('仓库地址')).toBeVisible();
+    await expect(aboutCard.getByRole('link', { name: '点击查看' }).first()).toHaveAttribute(
+      'href',
+      framework.homepage,
+    );
+    await expect(aboutCard.getByRole('link', { name: '点击查看' }).nth(1)).toHaveAttribute(
+      'href',
+      framework.repositoryUrl,
+    );
   });
 });

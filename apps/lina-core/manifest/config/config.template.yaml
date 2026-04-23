@@ -71,7 +71,7 @@ upload:
   # 上传文件保存目录
   path: "temp/upload"
   # 单个上传文件大小上限（MB）
-  maxSize: 16
+  maxSize: 20
 
 # 插件配置
 plugin:

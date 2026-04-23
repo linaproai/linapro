@@ -1,3 +1,5 @@
+// This file maps sysinfo service output into the v1 system-info response.
+
 package sysinfo
 
 import (
@@ -14,6 +16,14 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 	}
 
 	res = &v1.GetInfoRes{
+		Framework: v1.FrameworkInfo{
+			Name:          info.Framework.Name,
+			Version:       info.Framework.Version,
+			Description:   info.Framework.Description,
+			Homepage:      info.Framework.Homepage,
+			RepositoryURL: info.Framework.RepositoryURL,
+			License:       info.Framework.License,
+		},
 		GoVersion:   info.GoVersion,
 		GfVersion:   info.GfVersion,
 		Os:          info.Os,

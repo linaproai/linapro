@@ -35,3 +35,14 @@ mock:
 	@echo "正在加载 Mock 数据..."
 	@go run main.go mock --confirm=$(confirm)
 	@echo "✓ Mock 数据加载完成"
+
+## upgrade: 升级框架版本（目标标签代码覆盖 + 全量重放宿主 SQL）
+.PHONY: upgrade
+upgrade:
+	$(call require_confirm,upgrade)
+	@echo "正在执行框架升级..."
+	@go run main.go upgrade --confirm=$(confirm) \
+		$(if $(repo),--repo=$(repo),) \
+		$(if $(target),--target=$(target),) \
+		$(if $(dry_run),--dry-run,)
+	@echo "✓ 框架升级命令执行完成"

@@ -1,3 +1,5 @@
+// This file defines DTOs for the system information API payloads.
+
 package v1
 
 import (
@@ -19,8 +21,19 @@ type ComponentInfo struct {
 	Description string `json:"description" dc:"组件描述" eg:"Go语言开发框架"`
 }
 
+// FrameworkInfo Framework information
+type FrameworkInfo struct {
+	Name          string `json:"name" dc:"框架名称" eg:"LinaPro"`
+	Version       string `json:"version" dc:"框架版本号" eg:"v0.5.0"`
+	Description   string `json:"description" dc:"框架介绍" eg:"AI驱动的全栈开发框架"`
+	Homepage      string `json:"homepage" dc:"项目官网" eg:"https://linapro.ai"`
+	RepositoryURL string `json:"repositoryUrl" dc:"仓库地址" eg:"https://github.com/gqcn/linapro"`
+	License       string `json:"license" dc:"开源协议" eg:"MIT"`
+}
+
 // GetInfoRes System runtime info response
 type GetInfoRes struct {
+	Framework          FrameworkInfo   `json:"framework" dc:"框架信息" eg:"{}"`
 	GoVersion          string          `json:"goVersion" dc:"Go版本" eg:"go1.22.0"`
 	GfVersion          string          `json:"gfVersion" dc:"GoFrame版本" eg:"v2.10.0"`
 	Os                 string          `json:"os" dc:"操作系统" eg:"linux"`
