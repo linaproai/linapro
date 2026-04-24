@@ -147,10 +147,11 @@ func splitDemoControlPathSegments(path string) []string {
 func writeDemoControlError(request *ghttp.Request) {
 	err := gerror.New(demoControlMessage)
 	request.SetError(err)
-	request.Response.WriteStatus(http.StatusForbidden)
+	request.Response.Status = http.StatusForbidden
 	request.Response.WriteJson(demoControlErrorResponse{
 		Code:    demoControlErrorCode,
 		Data:    nil,
 		Message: demoControlMessage,
 	})
+	request.ExitAll()
 }

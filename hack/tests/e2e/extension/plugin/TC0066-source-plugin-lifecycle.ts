@@ -19,6 +19,7 @@ import { PluginPage } from "../../../pages/PluginPage";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
+const demoControlPluginID = "demo-control";
 const pluginID = "plugin-demo-source";
 const pluginMenuName = "源码插件示例";
 const pluginSummaryMessage =
@@ -378,6 +379,11 @@ test.describe("TC-66 源码插件生命周期", () => {
 
   test.beforeEach(async () => {
     resetPluginDemoSourceData();
+    resetPluginRegistryRow(demoControlPluginID);
+    // `GET /plugins` re-syncs source manifests and refreshes the host-side
+    // enabled snapshot. This lets the suite clear a previously enabled
+    // demo-control guard before the write-heavy lifecycle scenarios begin.
+    await listPlugins(adminApi!);
     resetPluginRegistryRow(pluginID);
     await syncPlugins(adminApi!);
   });

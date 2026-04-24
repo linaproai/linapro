@@ -29,3 +29,8 @@
 - **AND** 前端或 API 客户端发起 `POST /api/v1/config`、`PUT /api/v1/config/{id}` 或 `DELETE /api/v1/config/{id}` 请求
 - **THEN** `demo-control` 拒绝该请求
 - **AND** 响应返回明确的演示只读提示
+
+#### Scenario: 拦截错误消息明确说明演示模式原因
+- **WHEN** `demo-control` 拦截任一系统写请求
+- **THEN** 返回的错误消息必须明确说明请求因“演示模式已开启”而被拒绝
+- **AND** 前端不得将该场景展示为通用的“没有权限访问此资源”

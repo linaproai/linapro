@@ -189,16 +189,29 @@ if (enableShortcutKey.value) {
   </LogoutModal>
 
   <DropdownMenu v-model:open="openPopover">
-    <DropdownMenuTrigger ref="refTrigger" :disabled="props.trigger === 'hover'">
+    <DropdownMenuTrigger
+      ref="refTrigger"
+      :disabled="props.trigger === 'hover'"
+      data-testid="layout-user-dropdown-trigger"
+    >
       <div class="mr-2 ml-1 cursor-pointer rounded-full p-1.5 hover:bg-accent">
-        <div class="flex-center hover:text-accent-foreground">
+        <div
+          class="flex-center hover:text-accent-foreground"
+          data-testid="layout-user-dropdown-trigger-avatar"
+        >
           <VbenAvatar :alt="text" :src="avatar" class="size-8" dot />
         </div>
       </div>
     </DropdownMenuTrigger>
-    <DropdownMenuContent class="mr-2 min-w-[240px] p-0 pb-1">
+    <DropdownMenuContent
+      class="mr-2 min-w-[240px] p-0 pb-1"
+      data-testid="layout-user-dropdown-menu"
+    >
       <div ref="refContent">
-        <DropdownMenuLabel class="flex items-center p-3">
+        <DropdownMenuLabel
+          class="flex items-center p-3"
+          data-testid="layout-user-dropdown-profile"
+        >
           <VbenAvatar
             :alt="text"
             :src="avatar"
@@ -210,15 +223,23 @@ if (enableShortcutKey.value) {
             <div
               v-if="tagText || text || $slots.tagText"
               class="mb-1 flex items-center text-sm font-medium text-foreground"
+              data-testid="layout-user-dropdown-name-row"
             >
-              {{ text }}
+              <span data-testid="layout-user-dropdown-name">{{ text }}</span>
               <slot name="tagText">
-                <Badge v-if="tagText" class="ml-2 text-green-400">
+                <Badge
+                  v-if="tagText"
+                  class="ml-2 text-green-400"
+                  data-testid="layout-user-dropdown-tag"
+                >
                   {{ tagText }}
                 </Badge>
               </slot>
             </div>
-            <div class="text-xs font-normal text-muted-foreground">
+            <div
+              class="text-xs font-normal text-muted-foreground"
+              data-testid="layout-user-dropdown-description"
+            >
               {{ description }}
             </div>
           </div>

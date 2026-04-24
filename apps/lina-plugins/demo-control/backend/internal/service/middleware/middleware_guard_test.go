@@ -3,6 +3,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -53,9 +54,7 @@ plugin:
 	if response.status != http.StatusForbidden {
 		t.Fatalf("expected PUT to be rejected after manual enable without autoEnable, got %d", response.status)
 	}
-	if !strings.Contains(response.body, demoControlMessage) {
-		t.Fatalf("expected rejection body to mention demo-control message, got %q", response.body)
-	}
+	assertDemoControlRejectedResponse(t, response, http.MethodPut, "/api/v1/resource")
 }
 
 // TestGuardAllowsSafeReadMethods verifies an enabled plugin still allows read-only methods.
@@ -82,9 +81,7 @@ func TestGuardRejectsWriteRequestsWhenPluginEnabled(t *testing.T) {
 	if response.status != http.StatusForbidden {
 		t.Fatalf("expected PUT to be rejected, got %d", response.status)
 	}
-	if !strings.Contains(response.body, demoControlMessage) {
-		t.Fatalf("expected rejection body to mention demo-control message, got %q", response.body)
-	}
+	assertDemoControlRejectedResponse(t, response, http.MethodPut, "/api/v1/resource")
 }
 
 // TestGuardCoversWholeSystemScope verifies the plugin guards non-API write
@@ -97,9 +94,7 @@ func TestGuardCoversWholeSystemScope(t *testing.T) {
 	if response.status != http.StatusForbidden {
 		t.Fatalf("expected whole-system POST to be rejected, got %d", response.status)
 	}
-	if !strings.Contains(response.body, demoControlMessage) {
-		t.Fatalf("expected whole-system rejection body to mention demo-control message, got %q", response.body)
-	}
+	assertDemoControlRejectedResponse(t, response, http.MethodPost, "/system/write")
 }
 
 // TestGuardAllowsLoginAndLogoutWhitelist verifies the plugin preserves the
@@ -168,9 +163,7 @@ func TestGuardRejectsDemoControlSelfManagementRequests(t *testing.T) {
 		if response.status != http.StatusForbidden {
 			t.Fatalf("expected %s %s to be rejected, got %d", item.method, item.path, response.status)
 		}
-		if !strings.Contains(response.body, demoControlMessage) {
-			t.Fatalf("expected rejection body to mention demo-control message for %s %s, got %q", item.method, item.path, response.body)
-		}
+		assertDemoControlRejectedResponse(t, response, item.method, item.path)
 	}
 }
 
@@ -256,6 +249,33 @@ func doDemoControlRequest(t *testing.T, method string, targetURL string) demoCon
 		t.Fatalf("read response body: %v", err)
 	}
 	return demoControlTestResponse{status: response.StatusCode, body: string(body)}
+}
+
+// assertDemoControlRejectedResponse verifies one blocked demo-control response
+// stays as valid JSON so the frontend can surface the explicit demo-mode
+// message instead of falling back to a generic 403 string.
+func assertDemoControlRejectedResponse(
+	t *testing.T,
+	response demoControlTestResponse,
+	method string,
+	path string,
+) {
+	t.Helper()
+
+	if !strings.Contains(response.body, demoControlMessage) {
+		t.Fatalf("expected rejection body to mention demo-control message for %s %s, got %q", method, path, response.body)
+	}
+
+	var payload demoControlErrorResponse
+	if err := json.Unmarshal([]byte(response.body), &payload); err != nil {
+		t.Fatalf("expected valid JSON rejection body for %s %s, got %q (err=%v)", method, path, response.body, err)
+	}
+	if payload.Code != demoControlErrorCode {
+		t.Fatalf("expected rejection code %d for %s %s, got %d", demoControlErrorCode, method, path, payload.Code)
+	}
+	if payload.Message != demoControlMessage {
+		t.Fatalf("expected rejection message %q for %s %s, got %q", demoControlMessage, method, path, payload.Message)
+	}
 }
 
 // setDemoControlTestConfig replaces the process config adapter for one test
