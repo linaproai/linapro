@@ -2,9 +2,13 @@
 .PHONY: wasm
 wasm:
 	@set -e; \
+	repo_root="$$(cd ../.. && pwd)"; \
+	builder_dir="$$repo_root/hack/tools/build-wasm"; \
 	output_dir="$(out)"; \
 	if [ -z "$$output_dir" ]; then \
-		output_dir="../../temp/output"; \
+		output_dir="$$repo_root/temp/output"; \
+	elif [ "$${output_dir#/}" = "$$output_dir" ]; then \
+		output_dir="$$PWD/$$output_dir"; \
 	fi; \
 	plugin_list=""; \
 	if [ -n "$(p)" ]; then \
@@ -31,5 +35,5 @@ wasm:
 			exit 1; \
 		fi; \
 		echo "构建 dynamic wasm 插件: $$plugin"; \
-		(cd ../../hack/build-wasm && go run . --plugin-dir ../../apps/lina-plugins/$$plugin --output-dir "$$output_dir"); \
+		(cd "$$builder_dir" && go run . --plugin-dir "$$repo_root/apps/lina-plugins/$$plugin" --output-dir "$$output_dir"); \
 	done

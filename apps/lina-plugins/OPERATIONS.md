@@ -104,7 +104,7 @@ make wasm p=plugin-demo-dynamic
 
 - 运行 `make dev` 或 `make build` 前后，宿主都会复用同一个通用构建入口
 - 如需单独验证某个动态样例目录，优先使用 `make wasm p=<plugin-id>`
-- 通用构建入口当前由根级 `hack/build-wasm/` 独立 Go 工具负责，该工具自身维护 `go.mod`，不依赖主服务模块
+- 通用构建入口当前由根级 `hack/tools/build-wasm/` 独立 Go 工具负责，该工具自身维护 `go.mod`，不依赖主服务模块
 - 标准仓库构建流程会把动态插件产物和 guest runtime 中间 `wasm` 统一收敛到仓库根 `temp/output/`，不再回写 `apps/lina-plugins/*/temp/`
 
 ## 运行时前端资源访问

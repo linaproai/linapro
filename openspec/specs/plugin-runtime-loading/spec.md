@@ -164,7 +164,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 
 ### Requirement: 宿主运行时插件组件不承载编译阶段逻辑
 
-系统 SHALL 保持`lina-core`的`plugin`组件为运行时业务组件，只消费动态插件运行时产物和嵌入合同；源码扫描、`g.Meta`静态提取、`Wasm`编译和自定义区段写入等编译阶段逻辑必须收敛到`hack/build-wasm`或`hack/`下的独立工具。
+系统 SHALL 保持`lina-core`的`plugin`组件为运行时业务组件，只消费动态插件运行时产物和嵌入合同；源码扫描、`g.Meta`静态提取、`Wasm`编译和自定义区段写入等编译阶段逻辑必须收敛到`hack/tools/build-wasm`或`hack/tools/`下的独立工具。
 
 #### Scenario: 宿主只消费运行时产物
 
@@ -175,7 +175,7 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 #### Scenario: 构建阶段由独立工具完成
 
 - **WHEN** 开发者构建动态插件运行时产物
-- **THEN** `hack/build-wasm`或`hack/`下的独立工具负责源码扫描、合同提取、`Wasm`编译和自定义区段写入
+- **THEN** `hack/tools/build-wasm`或`hack/tools/`下的独立工具负责源码扫描、合同提取、`Wasm`编译和自定义区段写入
 - **AND** `apps/lina-core/internal/service/plugin`中不包含编译阶段调用链路
 
 ### Requirement: 动态插件支持 Host Functions 宿主回调

@@ -12,6 +12,6 @@ use (
 	./apps/lina-plugins/org-center
 	./apps/lina-plugins/plugin-demo-source
 	./apps/lina-plugins/plugin-demo-dynamic
-	./hack/build-wasm
-	./hack/upgrade-source
+	./hack/tools/build-wasm
+	./hack/tools/upgrade-source
 )

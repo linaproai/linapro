@@ -59,7 +59,7 @@ upgrade:
 		echo "  请使用: make upgrade confirm=upgrade"; \
 		exit 1; \
 	fi
-	@go run ./hack/upgrade-source --confirm=$(confirm) \
+	@go run ./hack/tools/upgrade-source --confirm=$(confirm) \
 		$(if $(scope),--scope=$(scope),) \
 		$(if $(repo),--repo=$(repo),) \
 		$(if $(target),--target=$(target),) \

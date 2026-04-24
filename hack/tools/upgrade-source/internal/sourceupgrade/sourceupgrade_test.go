@@ -248,5 +248,5 @@ func mustResolveUpgradeRepoRoot(t *testing.T) string {
 	if !ok {
 		t.Fatal("resolve current file path failed")
 	}
-	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", "..", ".."))
+	return filepath.Clean(filepath.Join(filepath.Dir(currentFile), "..", "..", "..", "..", ".."))
 }

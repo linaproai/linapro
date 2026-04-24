@@ -44,7 +44,7 @@ function buildOutputDir() {
 }
 
 function builderDir() {
-  return path.join(repoRoot(), "hack", "build-wasm");
+  return path.join(repoRoot(), "hack", "tools", "build-wasm");
 }
 
 function runtimeStorageDir() {

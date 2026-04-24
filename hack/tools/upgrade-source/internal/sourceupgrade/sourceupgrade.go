@@ -127,7 +127,7 @@ func requireCommandConfirmation(confirmValue string) error {
 		return nil
 	}
 	return gerror.Newf(
-		"命令 %s 涉及敏感升级或数据库操作，必须显式确认后才能执行。请使用 make %s confirm=%s 或 go run ./hack/upgrade-source --confirm=%s",
+		"命令 %s 涉及敏感升级或数据库操作，必须显式确认后才能执行。请使用 make %s confirm=%s 或 go run ./hack/tools/upgrade-source --confirm=%s",
 		upgradeCommandName,
 		upgradeCommandName,
 		upgradeCommandName,
