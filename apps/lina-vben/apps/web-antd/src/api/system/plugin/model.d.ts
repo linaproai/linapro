@@ -26,6 +26,16 @@ export interface SystemPlugin {
   authorizationStatus: 'confirmed' | 'not_required' | 'pending' | string;
   requestedHostServices?: HostServicePermissionItem[];
   authorizedHostServices?: HostServicePermissionItem[];
+  declaredRoutes?: PluginRouteReviewItem[];
+}
+
+export interface PluginRouteReviewItem {
+  method: string;
+  publicPath: string;
+  access: string;
+  permission?: string;
+  summary?: string;
+  description?: string;
 }
 
 export interface HostServicePermissionItem {

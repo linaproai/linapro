@@ -56,10 +56,10 @@ const bundledRuntimeLegacyArtifactPath = path.join(
 const bundledRuntimeMenuName = "动态插件示例";
 const bundledRuntimeStandalonePath =
   "/plugin-assets/plugin-demo-dynamic/v0.1.0/standalone.html";
-const defaultRequestBodyLimitBytes = 8 * 1024 * 1024;
-const defaultUploadMaxSizeBytes = 16 * 1024 * 1024;
+const bytesPerMegabyte = 1024 * 1024;
+const defaultRequestBodyLimitBytes = 8 * bytesPerMegabyte;
+const fallbackUploadMaxSizeMB = 20;
 const multipartRequestProbeBytes = defaultRequestBodyLimitBytes + 256 * 1024;
-const multipartOversizedProbeBytes = defaultUploadMaxSizeBytes + 2 * 1024 * 1024;
 
 type PluginListItem = {
   id: string;
@@ -297,6 +297,24 @@ function mysqlScalar(query: string) {
       stdio: ["ignore", "pipe", "ignore"],
     },
   ).trim();
+}
+
+function runtimeUploadMaxSizeMB() {
+  const rawValue = mysqlScalar(
+    [
+      "SELECT `value`",
+      "FROM sys_config",
+      "WHERE `key` = 'sys.upload.maxSize'",
+      "AND `deleted_at` IS NULL",
+      "ORDER BY `id` DESC",
+      "LIMIT 1;",
+    ].join(" "),
+  );
+  const parsedValue = Number.parseInt(rawValue, 10);
+  if (Number.isFinite(parsedValue) && parsedValue > 0) {
+    return parsedValue;
+  }
+  return fallbackUploadMaxSizeMB;
 }
 
 function bundledRuntimeRecordTableExists() {
@@ -1416,6 +1434,30 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
   }) => {
     await loginAsAdmin(page);
 
+    const uploadMaxSizeMB = runtimeUploadMaxSizeMB();
+    const oversizedProbeBytes = uploadMaxSizeMB * bytesPerMegabyte + 2 * bytesPerMegabyte;
+    const expectedMessage = `文件大小不能超过${uploadMaxSizeMB}MB`;
+    const oversizedBuffer = Buffer.alloc(oversizedProbeBytes, 0x61);
+
+    const apiResponse = await adminApi!.post("plugins/dynamic/package", {
+      multipart: {
+        overwriteSupport: "0",
+        file: {
+          name: "plugin-demo-dynamic-oversized.wasm",
+          mimeType: "application/wasm",
+          buffer: oversizedBuffer,
+        },
+      },
+    });
+    const apiPayload = (await apiResponse.json()) as {
+      code?: number;
+      message?: string;
+    };
+
+    expect(apiResponse.status(), "超限上传不应再返回服务器 500").toBe(200);
+    expect(apiPayload.code ?? 0, "超限上传应返回业务错误码").not.toBe(0);
+    expect(apiPayload.message ?? "").toContain(expectedMessage);
+
     const pluginPage = new PluginPage(page);
     await pluginPage.gotoManage();
     await pluginPage.dynamicUploadTrigger.click();
@@ -1428,7 +1470,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await fileChooser.setFiles({
       name: "plugin-demo-dynamic-oversized.wasm",
       mimeType: "application/wasm",
-      buffer: Buffer.alloc(multipartOversizedProbeBytes, 0x61),
+      buffer: oversizedBuffer,
     });
     await waitForUploadReady(pluginPage.dynamicUploadDialog());
 
@@ -1442,15 +1484,8 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await pluginPage.dynamicUploadConfirmButton().click();
 
     const uploadResponse = await uploadResponsePromise;
-    const payload = (await uploadResponse.json()) as {
-      code?: number;
-      message?: string;
-    };
-
     expect(uploadResponse.status(), "超限上传不应再返回服务器 500").toBe(200);
-    expect(payload.code ?? 0, "超限上传应返回业务错误码").not.toBe(0);
-    expect(payload.message ?? "").toContain("文件大小不能超过16MB");
-    await expect(pluginPage.messageNotice("文件大小不能超过16MB")).toBeVisible();
+    await expect(pluginPage.messageNotice(expectedMessage)).toBeVisible();
     await expect(pluginPage.dynamicUploadDialog()).toBeVisible();
     await expect(pluginPage.uploadSuccessDialog()).toHaveCount(0);
   });

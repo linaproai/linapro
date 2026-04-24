@@ -23,13 +23,16 @@ test.describe("TC-78 插件详情弹窗", () => {
     await expect(modal).toContainText(pluginID);
     await expect(modal).toContainText("源码插件");
     await expect(modal).toContainText(pluginVersion);
-    await expect(modal).toContainText(pluginDescription);
     await expect(modal).toContainText("接入状态");
     await expect(modal).toContainText("当前状态");
-    await expect(modal).toContainText("授权要求");
     await expect(modal).toContainText("授权状态");
     await expect(modal).toContainText("安装时间");
     await expect(modal).toContainText("更新时间");
+    await expect(modal).not.toContainText("授权要求");
+    await expect(pluginPage.pluginDetailDescriptionRow()).toBeVisible();
+    await expect(pluginPage.pluginDetailDescriptionRow()).toContainText(
+      pluginDescription,
+    );
   });
 
   test("TC-78b: 源码插件详情页不展示多余的宿主服务空状态提示", async () => {

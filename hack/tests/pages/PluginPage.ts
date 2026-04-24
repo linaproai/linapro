@@ -269,6 +269,14 @@ export class PluginPage {
     return this.page.getByTestId("plugin-detail-modal").last();
   }
 
+  pluginRouteReviewToggle(): Locator {
+    return this.page.getByTestId("plugin-route-review-toggle").last();
+  }
+
+  pluginDetailDescriptionRow(): Locator {
+    return this.page.getByTestId("plugin-detail-description-row").last();
+  }
+
   pluginDetailEmptyHostServices(): Locator {
     return this.page.getByTestId("plugin-detail-empty-host-services").last();
   }

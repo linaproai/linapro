@@ -1,0 +1,37 @@
+// This file clones and projects dynamic-route review metadata so management
+// responses can expose current release route declarations without aliasing
+// manifest-owned state.
+
+package runtime
+
+import "lina-core/pkg/pluginbridge"
+
+// cloneRouteContracts deep-copies dynamic route contracts for management-list
+// projections so response models do not alias catalog manifest slices.
+func cloneRouteContracts(routes []*pluginbridge.RouteContract) []*pluginbridge.RouteContract {
+	if len(routes) == 0 {
+		return nil
+	}
+
+	items := make([]*pluginbridge.RouteContract, 0, len(routes))
+	for _, route := range routes {
+		if route == nil {
+			continue
+		}
+		items = append(items, &pluginbridge.RouteContract{
+			Path:        route.Path,
+			Method:      route.Method,
+			Tags:        append([]string(nil), route.Tags...),
+			Summary:     route.Summary,
+			Description: route.Description,
+			Access:      route.Access,
+			Permission:  route.Permission,
+			OperLog:     route.OperLog,
+			RequestType: route.RequestType,
+		})
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	return items
+}

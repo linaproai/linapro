@@ -35,4 +35,5 @@ type PluginItem struct {
 	AuthorizationStatus    string                       `json:"authorizationStatus" dc:"当前授权状态：not_required=无需确认 pending=待确认 confirmed=已确认" eg:"confirmed"`
 	RequestedHostServices  []*HostServicePermissionItem `json:"requestedHostServices,omitempty" dc:"插件当前版本声明的 hostServices 申请清单" eg:"[]"`
 	AuthorizedHostServices []*HostServicePermissionItem `json:"authorizedHostServices,omitempty" dc:"宿主对当前 release 最终确认后的 hostServices 授权快照" eg:"[]"`
+	DeclaredRoutes         []*PluginRouteReviewItem     `json:"declaredRoutes,omitempty" dc:"当前 release 声明的动态路由审查清单，仅动态插件返回；用于在安装或启用前展示插件即将对外暴露的真实公开路由" eg:"[]"`
 }

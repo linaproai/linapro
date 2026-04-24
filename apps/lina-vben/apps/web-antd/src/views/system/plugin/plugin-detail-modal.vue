@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import type { SystemPlugin } from '#/api/system/plugin/model';
+import type {
+  PluginRouteReviewItem,
+  SystemPlugin,
+} from '#/api/system/plugin/model';
 
 import { computed, ref } from 'vue';
 
@@ -9,6 +12,8 @@ import { Alert, Descriptions, DescriptionsItem, Tag } from 'ant-design-vue';
 
 import PluginHostServiceCards from './plugin-host-service-cards.vue';
 import { buildPluginDetailHostServiceCards } from './plugin-host-service-view';
+import PluginRouteReviewList from './plugin-route-review-list.vue';
+import PluginSectionTitle from './plugin-section-title.vue';
 
 const currentPlugin = ref<SystemPlugin | null>(null);
 
@@ -26,6 +31,14 @@ const hostServiceCards = computed(() => {
 
 const hasHostServiceDetails = computed(() => {
   return hostServiceCards.value.length > 0;
+});
+
+const declaredRoutes = computed<PluginRouteReviewItem[]>(() => {
+  return currentPlugin.value?.declaredRoutes ?? [];
+});
+
+const showDeclaredRoutes = computed(() => {
+  return currentPlugin.value?.type === 'dynamic' && declaredRoutes.value.length > 0;
 });
 
 const showHostServiceSection = computed(() => {
@@ -73,14 +86,6 @@ function formatEnabledStatus(enabled: number) {
 
 function getEnabledStatusColor(enabled: number) {
   return enabled === 1 ? 'green' : 'default';
-}
-
-function formatAuthorizationRequirement(required: number) {
-  return required === 1 ? '需要确认' : '无需确认';
-}
-
-function getAuthorizationRequirementColor(required: number) {
-  return required === 1 ? 'gold' : 'default';
 }
 
 function formatAuthorizationStatus(status: string) {
@@ -164,21 +169,6 @@ function getAutoEnableManagedColor(managed: boolean) {
             {{ formatAutoEnableManaged(isAutoEnableManaged) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="授权要求">
-          <Tag
-            :color="
-              getAuthorizationRequirementColor(
-                currentPlugin.authorizationRequired,
-              )
-            "
-          >
-            {{
-              formatAuthorizationRequirement(
-                currentPlugin.authorizationRequired,
-              )
-            }}
-          </Tag>
-        </DescriptionsItem>
         <DescriptionsItem label="授权状态">
           <Tag
             :color="
@@ -195,7 +185,12 @@ function getAutoEnableManagedColor(managed: boolean) {
           {{ currentPlugin.updatedAt || '-' }}
         </DescriptionsItem>
         <DescriptionsItem label="插件描述" :span="2">
-          {{ currentPlugin.description || '-' }}
+          <div
+            data-testid="plugin-detail-description-row"
+            class="whitespace-pre-wrap break-words text-[13px] leading-6 text-[var(--ant-color-text-secondary)]"
+          >
+            {{ currentPlugin.description || '-' }}
+          </div>
         </DescriptionsItem>
       </Descriptions>
 
@@ -223,11 +218,19 @@ function getAutoEnableManagedColor(managed: boolean) {
             message="申请清单表示插件当前版本声明的宿主服务范围；授权快照表示宿主管理员对当前 release 最终确认并实际生效的授权结果。"
           />
 
-          <div class="text-[13px] font-medium text-[var(--ant-color-text)]">
+          <PluginSectionTitle test-id="plugin-host-service-section-title">
             宿主服务信息
-          </div>
+          </PluginSectionTitle>
 
           <PluginHostServiceCards :cards="hostServiceCards" />
+        </template>
+
+        <template v-if="showDeclaredRoutes">
+          <PluginSectionTitle test-id="plugin-route-section-title">
+            注册路由列表
+          </PluginSectionTitle>
+
+          <PluginRouteReviewList :routes="declaredRoutes" />
         </template>
       </template>
     </div>

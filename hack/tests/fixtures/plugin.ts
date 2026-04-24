@@ -109,9 +109,10 @@ export async function updatePluginStatus(
 export async function refreshPluginProjection(page: Page) {
   // Always land on a stable host route before reloading so plugin lifecycle
   // changes do not leave the current page stranded on a stale dynamic route.
-  await page.goto('/dashboard/analytics', { waitUntil: 'networkidle' });
-  await page.reload({ waitUntil: 'networkidle' });
-  await waitForRouteReady(page);
+  await page.goto('/dashboard/analytics', { waitUntil: 'domcontentloaded' });
+  await waitForRouteReady(page, 15000);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForRouteReady(page, 15000);
 }
 
 export async function ensureSourcePluginInstalled(page: Page, pluginId: string) {

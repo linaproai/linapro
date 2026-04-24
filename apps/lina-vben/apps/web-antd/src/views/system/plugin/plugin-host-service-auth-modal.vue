@@ -2,6 +2,7 @@
 import type {
   HostServicePermissionItem,
   PluginAuthorizationPayload,
+  PluginRouteReviewItem,
   SystemPlugin,
 } from '#/api/system/plugin/model';
 
@@ -14,6 +15,8 @@ import { Alert, Descriptions, DescriptionsItem, message } from 'ant-design-vue';
 import { pluginEnable, pluginInstall } from '#/api/system/plugin';
 
 import PluginHostServiceCards from './plugin-host-service-cards.vue';
+import PluginRouteReviewList from './plugin-route-review-list.vue';
+import PluginSectionTitle from './plugin-section-title.vue';
 import {
   buildPluginAuthorizationHostServiceCards,
   sortHostServices,
@@ -37,6 +40,10 @@ const [BasicModal, modalApi] = useVbenModal({
 
 const requestedServices = computed<HostServicePermissionItem[]>(() => {
   return sortHostServices(currentPlugin.value?.requestedHostServices);
+});
+
+const declaredRoutes = computed<PluginRouteReviewItem[]>(() => {
+  return currentPlugin.value?.declaredRoutes ?? [];
 });
 
 const authorizationRequired = computed(() => {
@@ -64,6 +71,10 @@ const showInstallAndEnableAction = computed(() => {
   return currentMode.value === 'install' && allowInstallAndEnable.value;
 });
 
+const showDeclaredRoutes = computed(() => {
+  return declaredRoutes.value.length > 0;
+});
+
 const currentTitle = computed(() => {
   if (currentMode.value === 'install') {
     return authorizationRequired.value ? '安装插件并确认授权' : '安装插件';
@@ -81,7 +92,7 @@ const currentConfirmText = computed(() => {
 const currentBannerMessage = computed(() => {
   if (currentMode.value === 'install') {
     return authorizationRequired.value
-      ? '请先核对插件详情与宿主服务清单，确认后将默认授权该插件声明的全部服务。'
+      ? '请先核对插件详情、宿主服务清单与注册路由列表，确认后将默认授权该插件声明的全部服务。'
       : '请先核对插件详情，确认后开始安装插件。';
   }
   return '该插件当前 release 尚未形成最终授权快照；确认后将默认授权该 release 声明的全部服务并继续启用。';
@@ -242,11 +253,19 @@ function hasServiceTargets(service: HostServicePermissionItem) {
       </Descriptions>
 
       <template v-if="requestedServices.length > 0">
-        <div class="text-[13px] font-medium text-(--ant-color-text)">
+        <PluginSectionTitle test-id="plugin-host-service-section-title">
           {{ authorizationRequired ? '宿主服务授权范围' : '宿主服务声明概览' }}
-        </div>
+        </PluginSectionTitle>
 
         <PluginHostServiceCards :cards="hostServiceCards" />
+      </template>
+
+      <template v-if="showDeclaredRoutes">
+        <PluginSectionTitle test-id="plugin-route-section-title">
+          注册路由列表
+        </PluginSectionTitle>
+
+        <PluginRouteReviewList :routes="declaredRoutes" />
       </template>
     </div>
   </BasicModal>

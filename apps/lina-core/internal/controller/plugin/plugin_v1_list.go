@@ -57,6 +57,10 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 				tableComments,
 				managedCronJobs,
 			),
+			DeclaredRoutes: buildPluginRouteReviewItems(
+				item.Id,
+				item.DeclaredRoutes,
+			),
 		})
 	}
 

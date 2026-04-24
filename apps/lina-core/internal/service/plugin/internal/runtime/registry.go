@@ -52,6 +52,9 @@ type PluginItem struct {
 	RequestedHostServices []*pluginbridge.HostServiceSpec
 	// AuthorizedHostServices is the host-confirmed host service snapshot.
 	AuthorizedHostServices []*pluginbridge.HostServiceSpec
+	// DeclaredRoutes is the current release route-declaration snapshot used by
+	// install and enable review UIs for dynamic plugins.
+	DeclaredRoutes []*pluginbridge.RouteContract
 }
 
 // listRuntimeRegistries returns all dynamic-type plugin registry rows.
@@ -144,6 +147,7 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		authorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(nil)
 		authorizationRequired  bool
 		authorizationStatus    = AuthorizationStatusNotRequired
+		declaredRoutes         []*pluginbridge.RouteContract
 	)
 
 	if snapshot != nil {
@@ -159,6 +163,9 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		} else {
 			authorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(manifest.HostServices)
 		}
+	}
+	if manifest != nil {
+		declaredRoutes = cloneRouteContracts(manifest.Routes)
 	}
 
 	return &PluginItem{
@@ -176,6 +183,7 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		AuthorizationStatus:    authorizationStatus,
 		RequestedHostServices:  requestedHostServices,
 		AuthorizedHostServices: authorizedHostServices,
+		DeclaredRoutes:         declaredRoutes,
 	}
 }
 

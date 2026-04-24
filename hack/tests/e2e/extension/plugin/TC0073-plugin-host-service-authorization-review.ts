@@ -20,15 +20,29 @@ const mysqlDatabase = process.env.E2E_DB_NAME ?? "lina";
 const pluginID = "plugin-dynamic-host-auth-ui";
 const pluginVersion = "v0.1.0";
 const pluginName = "Host Service Authorization Review Plugin";
+const pluginDescription =
+  "用于演示动态插件在授权审查与详情弹窗中同时展示宿主服务范围、注册路由清单，以及较长描述信息时的治理体验优化。";
 const networkURLPattern = "https://*.example.com/api";
 const storagePath = "plugin-demo/records";
 const dataTableName = "sys_plugin_node_state";
 const dataTableComment = "插件节点状态表";
+const routeSummaryPath = `/api/v1/extensions/${pluginID}/review-summary`;
+const routeHealthPath = `/api/v1/extensions/${pluginID}/healthz`;
+const routeAuditPath = `/api/v1/extensions/${pluginID}/audit-log`;
+const routePermission = `${pluginID}:review:query`;
+const routeAuditPermission = `${pluginID}:audit:query`;
 
 type PluginListItem = {
   authorizedHostServices?: Array<{
     resources?: Array<{ ref: string }>;
     service: string;
+  }>;
+  declaredRoutes?: Array<{
+    access?: string;
+    method?: string;
+    permission?: string;
+    publicPath?: string;
+    summary?: string;
   }>;
   authorizationStatus?: string;
   enabled?: number;
@@ -177,7 +191,7 @@ function writeAuthorizationReviewArtifact() {
     "lina.plugin.manifest",
     Buffer.from(
       JSON.stringify({
-        description: "Host service authorization review plugin.",
+        description: pluginDescription,
         id: pluginID,
         name: "Host Service Authorization Review Plugin",
         type: "dynamic",
@@ -232,6 +246,37 @@ function writeAuthorizationReviewArtifact() {
       ]),
     ),
   );
+  appendCustomSection(
+    bytes,
+    "lina.plugin.backend.routes",
+    Buffer.from(
+      JSON.stringify([
+        {
+          access: "login",
+          description: "返回当前插件版本的评审摘要。",
+          method: "GET",
+          path: "/review-summary",
+          permission: routePermission,
+          summary: "查询评审摘要",
+        },
+        {
+          access: "public",
+          description: "返回动态插件公开探活结果。",
+          method: "GET",
+          path: "/healthz",
+          summary: "公开健康检查",
+        },
+        {
+          access: "login",
+          description: "返回动态插件审计日志回放结果。",
+          method: "GET",
+          path: "/audit-log",
+          permission: routeAuditPermission,
+          summary: "审计日志回放",
+        },
+      ]),
+    ),
+  );
 
   writeFileSync(artifactPath(), Buffer.from(bytes));
 }
@@ -266,6 +311,16 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).toContainText(pluginID);
     await expect(hostServiceAuthModal).toContainText(pluginVersion);
     await expect(hostServiceAuthModal).toContainText("动态插件");
+    await expect(hostServiceAuthModal).toContainText(pluginDescription);
+    await expect(hostServiceAuthModal).toContainText("宿主服务授权范围");
+    await expect(hostServiceAuthModal).toContainText("注册路由列表");
+    await expect(hostServiceAuthModal).toContainText("查询评审摘要");
+    await expect(hostServiceAuthModal).toContainText("公开健康检查");
+    await expect(hostServiceAuthModal).toContainText(routeSummaryPath);
+    await expect(hostServiceAuthModal).toContainText(routeHealthPath);
+    await expect(hostServiceAuthModal).toContainText(routePermission);
+    await expect(hostServiceAuthModal).toContainText("登录访问");
+    await expect(hostServiceAuthModal).toContainText("公开访问");
     await expect(hostServiceAuthModal).toContainText("数据服务");
     await expect(hostServiceAuthModal).toContainText("存储服务");
     await expect(hostServiceAuthModal).toContainText("网络服务");
@@ -351,6 +406,17 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).not.toContainText(
       "当前服务未声明需要单独勾选的资源，宿主将按服务级方法摘要治理。",
     );
+    await expect(
+      hostServiceAuthModal.getByTestId("plugin-route-review-item-0"),
+    ).toBeVisible();
+    await expect(
+      hostServiceAuthModal.getByTestId("plugin-route-review-item-1"),
+    ).toBeVisible();
+    await expect(
+      hostServiceAuthModal.getByTestId("plugin-route-review-item-2"),
+    ).toHaveCount(0);
+    await expect(hostServiceAuthModal).not.toContainText("审计日志回放");
+    await expect(hostServiceAuthModal).not.toContainText(routeAuditPath);
     const authEffectiveScopeBackground = await hostServiceAuthModal
       .getByTestId("plugin-host-service-scope-label-storage-storage-review")
       .evaluate((node) => getComputedStyle(node).backgroundColor);
@@ -368,6 +434,38 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     expect(installModalText.indexOf("网络服务")).toBeLessThan(
       installModalText.indexOf("运行时服务"),
     );
+    const authHostServiceTitleTop = await hostServiceAuthModal
+      .getByTestId("plugin-host-service-section-title")
+      .evaluate((node) => node.getBoundingClientRect().top);
+    const authRouteTitleTop = await hostServiceAuthModal
+      .getByTestId("plugin-route-section-title")
+      .evaluate((node) => node.getBoundingClientRect().top);
+    const authHostServiceTitleFontWeight = await hostServiceAuthModal
+      .getByTestId("plugin-host-service-section-title")
+      .evaluate((node) => Number.parseInt(getComputedStyle(node).fontWeight, 10));
+    const authRouteTitleFontWeight = await hostServiceAuthModal
+      .getByTestId("plugin-route-section-title")
+      .evaluate((node) => Number.parseInt(getComputedStyle(node).fontWeight, 10));
+    const authHostServiceTitleFontSize = await hostServiceAuthModal
+      .getByTestId("plugin-host-service-section-title")
+      .evaluate((node) => getComputedStyle(node).fontSize);
+    const authRouteTitleFontSize = await hostServiceAuthModal
+      .getByTestId("plugin-route-section-title")
+      .evaluate((node) => getComputedStyle(node).fontSize);
+    expect(authHostServiceTitleTop).toBeLessThan(authRouteTitleTop);
+    expect(authHostServiceTitleFontWeight).toBeGreaterThanOrEqual(600);
+    expect(authRouteTitleFontWeight).toBeGreaterThanOrEqual(600);
+    expect(authHostServiceTitleFontSize).toBe("15px");
+    expect(authRouteTitleFontSize).toBe("15px");
+    await expect(pluginPage.pluginRouteReviewToggle()).toHaveText("展开");
+    await pluginPage.pluginRouteReviewToggle().click();
+    await expect(pluginPage.pluginRouteReviewToggle()).toHaveText("收起");
+    await expect(hostServiceAuthModal).toContainText("审计日志回放");
+    await expect(hostServiceAuthModal).toContainText(routeAuditPath);
+    await expect(hostServiceAuthModal).toContainText(routeAuditPermission);
+    await expect(
+      hostServiceAuthModal.getByTestId("plugin-route-review-item-2"),
+    ).toBeVisible();
     await pluginPage.confirmHostServiceAuthorization();
     await expect
       .poll(async () => (await findPlugin(adminApi, pluginID))?.installed ?? 0)
@@ -376,6 +474,16 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     const installedPlugin = await findPlugin(adminApi, pluginID);
     expect(installedPlugin?.installed).toBe(1);
     expect(installedPlugin?.authorizationStatus).toBe("confirmed");
+    expect(installedPlugin?.declaredRoutes?.length ?? 0).toBe(3);
+    expect(
+      installedPlugin?.declaredRoutes?.some(
+        (route) =>
+          route.publicPath === routeSummaryPath &&
+          route.access === "login" &&
+          route.permission === routePermission &&
+          route.summary === "查询评审摘要",
+      ) ?? false,
+    ).toBeTruthy();
     expect(
       installedPlugin?.authorizedHostServices?.some(
         (service) => service.service === "network",
@@ -404,6 +512,7 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await pluginPage.openPluginDetail(pluginID);
     const detailModal = pluginPage.pluginDetailModal();
     await expect(detailModal).toContainText("宿主服务信息");
+    await expect(detailModal).toContainText("注册路由列表");
     await expect(detailModal).toContainText("生效范围");
     await expect(detailModal).not.toContainText("当前生效范围");
     await expect(detailModal).toContainText("存储路径");
@@ -424,6 +533,45 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(detailModal).not.toContainText("宿主服务授权快照");
     await expect(detailModal).not.toContainText("数据表边界");
     await expect(detailModal).not.toContainText("与申请清单一致");
+    await expect(detailModal).not.toContainText("授权要求");
+    await expect(pluginPage.pluginDetailDescriptionRow()).toBeVisible();
+    await expect(pluginPage.pluginDetailDescriptionRow()).toContainText(
+      pluginDescription,
+    );
+    await expect(detailModal).toContainText("查询评审摘要");
+    await expect(detailModal).toContainText("公开健康检查");
+    await expect(detailModal).toContainText(routeSummaryPath);
+    await expect(detailModal).toContainText(routeHealthPath);
+    await expect(detailModal).not.toContainText("审计日志回放");
+    await expect(detailModal).not.toContainText(routeAuditPath);
+    const detailHostServiceTitleTop = await detailModal
+      .getByTestId("plugin-host-service-section-title")
+      .evaluate((node) => node.getBoundingClientRect().top);
+    const detailRouteTitleTop = await detailModal
+      .getByTestId("plugin-route-section-title")
+      .evaluate((node) => node.getBoundingClientRect().top);
+    const detailHostServiceTitleFontWeight = await detailModal
+      .getByTestId("plugin-host-service-section-title")
+      .evaluate((node) => Number.parseInt(getComputedStyle(node).fontWeight, 10));
+    const detailRouteTitleFontWeight = await detailModal
+      .getByTestId("plugin-route-section-title")
+      .evaluate((node) => Number.parseInt(getComputedStyle(node).fontWeight, 10));
+    const detailHostServiceTitleFontSize = await detailModal
+      .getByTestId("plugin-host-service-section-title")
+      .evaluate((node) => getComputedStyle(node).fontSize);
+    const detailRouteTitleFontSize = await detailModal
+      .getByTestId("plugin-route-section-title")
+      .evaluate((node) => getComputedStyle(node).fontSize);
+    expect(detailHostServiceTitleTop).toBeLessThan(detailRouteTitleTop);
+    expect(detailHostServiceTitleFontWeight).toBeGreaterThanOrEqual(600);
+    expect(detailRouteTitleFontWeight).toBeGreaterThanOrEqual(600);
+    expect(detailHostServiceTitleFontSize).toBe("15px");
+    expect(detailRouteTitleFontSize).toBe("15px");
+    await expect(pluginPage.pluginRouteReviewToggle()).toHaveText("展开");
+    await pluginPage.pluginRouteReviewToggle().click();
+    await expect(detailModal).toContainText("审计日志回放");
+    await expect(detailModal).toContainText(routeAuditPath);
+    await expect(detailModal).toContainText(routeAuditPermission);
     const effectiveScopeBackground = await detailModal
       .getByTestId("plugin-host-service-scope-label-storage-storage-effective")
       .evaluate((node) => getComputedStyle(node).backgroundColor);

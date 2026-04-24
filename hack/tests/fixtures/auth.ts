@@ -4,6 +4,7 @@ import { adminStorageStatePath } from './auth-state';
 import { LoginPage } from '../pages/LoginPage';
 import { MainLayout } from '../pages/MainLayout';
 import { config } from './config';
+import { waitForRouteReady } from '../support/ui';
 
 export type AuthFixtures = {
   adminContext: BrowserContext;
@@ -23,7 +24,8 @@ export const test = base.extend<AuthFixtures>({
   },
   adminPage: async ({ adminContext }, use) => {
     const page = await adminContext.newPage();
-    await page.goto('/dashboard/analytics', { waitUntil: 'networkidle' });
+    await page.goto('/dashboard/analytics', { waitUntil: 'domcontentloaded' });
+    await waitForRouteReady(page, 15000);
     await use(page);
     await page.close();
   },
