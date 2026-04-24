@@ -203,14 +203,10 @@ if (enableShortcutKey.value) {
         </div>
       </div>
     </DropdownMenuTrigger>
-    <DropdownMenuContent
-      class="mr-2 min-w-[240px] p-0 pb-1"
-      data-testid="layout-user-dropdown-menu"
-    >
-      <div ref="refContent">
+    <DropdownMenuContent class="mr-2 min-w-[240px] p-0 pb-1">
+      <div ref="refContent" data-testid="layout-user-dropdown-menu">
         <DropdownMenuLabel
           class="flex items-center p-3"
-          data-testid="layout-user-dropdown-profile"
         >
           <VbenAvatar
             :alt="text"
@@ -219,7 +215,7 @@ if (enableShortcutKey.value) {
             dot
             dot-class="bottom-0 right-1 border-2 size-4 bg-green-500"
           />
-          <div class="ml-2 w-full">
+          <div class="ml-2 w-full" data-testid="layout-user-dropdown-profile">
             <div
               v-if="tagText || text || $slots.tagText"
               class="mb-1 flex items-center text-sm font-medium text-foreground"
