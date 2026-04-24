@@ -38,13 +38,19 @@ const listen = computed(() => {
   for (const [key, value] of Object.entries(preferences)) {
     if (typeof value === 'object') {
       for (const subKey of Object.keys(value)) {
-        result[`update:${key}${capitalizeFirstLetter(subKey)}`] = (
+        result[`update:${key}${capitalizeFirstLetter(subKey)}`] = async (
           val: any,
         ) => {
-          updatePreferences({ [key]: { [subKey]: val } });
           if (key === 'app' && subKey === 'locale') {
-            loadLocaleMessages(val);
+            updatePreferences({ [key]: { [subKey]: val } });
+            await loadLocaleMessages(val);
+            if (!window.location.pathname.startsWith('/auth/')) {
+              updatePreferences({ [key]: { [subKey]: val } });
+              window.location.reload();
+              return;
+            }
           }
+          updatePreferences({ [key]: { [subKey]: val } });
         };
       }
     } else {

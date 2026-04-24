@@ -21,17 +21,28 @@ async function handleUpdate(value: string | undefined) {
     },
   });
   await loadLocaleMessages(locale);
+  updatePreferences({
+    app: {
+      locale,
+    },
+  });
+  if (!window.location.pathname.startsWith('/auth/')) {
+    window.location.reload();
+  }
 }
 </script>
 
 <template>
-  <div>
+  <div data-testid="language-toggle">
     <VbenDropdownRadioMenu
       :menus="SUPPORT_LANGUAGES"
       :model-value="preferences.app.locale"
       @update:model-value="handleUpdate"
     >
-      <VbenIconButton class="hover:animate-[shrink_0.3s_ease-in-out]">
+      <VbenIconButton
+        class="hover:animate-[shrink_0.3s_ease-in-out]"
+        data-testid="language-toggle-trigger"
+      >
         <Languages class="size-4 text-foreground" />
       </VbenIconButton>
     </VbenDropdownRadioMenu>

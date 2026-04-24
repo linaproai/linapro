@@ -273,13 +273,19 @@ export class DictPage {
 
   /** Click search button in the type panel */
   async clickTypeSearch() {
-    await this.typePanel.getByRole('button', { name: /搜\s*索/ }).first().click();
+    await this.typePanel
+      .getByRole('button', { name: /搜\s*索|Search/i })
+      .first()
+      .click();
     await waitForRouteReady(this.page);
   }
 
   /** Click reset button in the type panel */
   async clickTypeReset() {
-    await this.typePanel.getByRole('button', { name: /重\s*置/ }).first().click();
+    await this.typePanel
+      .getByRole('button', { name: /重\s*置|Reset/i })
+      .first()
+      .click();
     await waitForRouteReady(this.page);
   }
 
@@ -292,13 +298,19 @@ export class DictPage {
 
   /** Click search button in the data panel */
   async clickDataSearch() {
-    await this.dataPanel.getByRole('button', { name: /搜\s*索/ }).first().click();
+    await this.dataPanel
+      .getByRole('button', { name: /搜\s*索|Search/i })
+      .first()
+      .click();
     await waitForRouteReady(this.page);
   }
 
   /** Click reset button in the data panel */
   async clickDataReset() {
-    await this.dataPanel.getByRole('button', { name: /重\s*置/ }).first().click();
+    await this.dataPanel
+      .getByRole('button', { name: /重\s*置|Reset/i })
+      .first()
+      .click();
     await waitForRouteReady(this.page);
   }
 

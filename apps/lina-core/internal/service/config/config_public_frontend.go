@@ -87,7 +87,7 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAuthLoginSubtitle,
 		Name:         "登录展示-登录副标题",
-		DefaultValue: "请输入您的帐户信息以进入 LinaPro 宿主工作区",
+		DefaultValue: "请输入您的帐户信息以开始管理您的项目",
 		Remark:       "控制登录表单上方的提示说明文案。",
 	},
 	{

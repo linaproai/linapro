@@ -6,11 +6,11 @@
 
 ## 目录约定
 
-| 路径 | 用途 |
-| --- | --- |
-| `manifest/i18n/zh-CN.json` | 简体中文基线语言包 |
-| `manifest/i18n/en-US.json` | 英文基线语言包 |
-| `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | 插件自有语言包 |
+| 路径                                                        | 用途               |
+| ----------------------------------------------------------- | ------------------ |
+| `manifest/i18n/zh-CN.json`                                  | 简体中文基线语言包 |
+| `manifest/i18n/en-US.json`                                  | 英文基线语言包     |
+| `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | 插件自有语言包     |
 
 规则如下：
 
@@ -37,18 +37,18 @@
 
 ## 键命名规范
 
-| 范围 | `key`模式 | 示例 |
-| --- | --- | --- |
-| 框架元数据 | `framework.<field>` | `framework.description` |
-| 菜单标题 | `menu.<menu_key>.title` | `menu.dashboard.title` |
-| 字典类型名称 | `dict.<dict_type>.name` | `dict.sys_normal_disable.name` |
-| 字典选项标签 | `dict.<dict_type>.<value>.label` | `dict.sys_normal_disable.1.label` |
-| 配置元数据 | `config.<config_key>.name` | `config.sys.account.captchaEnabled.name` |
-| 公共前端文案 | `publicFrontend.<group>.<field>` | `publicFrontend.login.title` |
-| 插件名称 | `plugin.<plugin_id>.name` | `plugin.org-center.name` |
-| 插件描述 | `plugin.<plugin_id>.description` | `plugin.org-center.description` |
-| 语言显示名 | `locale.<locale>.name` | `locale.en-US.name` |
-| 语言原生名 | `locale.<locale>.nativeName` | `locale.en-US.nativeName` |
+| 范围           | `key`模式                                                     | 示例                                      |
+| -------------- | ------------------------------------------------------------- | ----------------------------------------- |
+| 框架元数据     | `framework.<field>`                                           | `framework.description`                   |
+| 菜单标题       | `menu.<menu_key>.title`                                       | `menu.dashboard.title`                    |
+| 字典类型名称   | `dict.<dict_type>.name`                                       | `dict.sys_normal_disable.name`            |
+| 字典选项标签   | `dict.<dict_type>.<value>.label`                              | `dict.sys_normal_disable.1.label`         |
+| 配置元数据     | `config.<config_key>.name`                                    | `config.sys.account.captchaEnabled.name`  |
+| 公共前端文案   | `publicFrontend.<group>.<field>`                              | `publicFrontend.login.title`              |
+| 插件名称       | `plugin.<plugin_id>.name`                                     | `plugin.org-center.name`                  |
+| 插件描述       | `plugin.<plugin_id>.description`                              | `plugin.org-center.description`           |
+| 语言显示名     | `locale.<locale>.name`                                        | `locale.en-US.name`                       |
+| 语言原生名     | `locale.<locale>.nativeName`                                  | `locale.en-US.nativeName`                 |
 | 校验或错误消息 | `validation.<module>.<field>.<rule>`或`error.<module>.<code>` | `validation.auth.login.username.required` |
 
 建议：
@@ -76,6 +76,40 @@
 - 目标语言相对默认语言的缺失翻译检查必须通过。
 - 插件自有文案默认使用`plugin.<plugin_id>.`前缀，除非该插件明确提供共享框架元数据。
 - 新增的后端用户可见错误消息和校验消息必须使用翻译键，而不是直接硬编码文案。
+
+## 业务内容接入约束
+
+`sys_i18n_content`用于承载“绑定具体业务记录”的多语言标题、摘要、描述或正文内容。
+
+业务模块接入时请遵循以下锚点约束：
+
+| 字段            | 约束                                         | 示例                       |
+| --------------- | -------------------------------------------- | -------------------------- |
+| `business_type` | 使用稳定的模块级标识，不使用会变化的展示名称 | `notice`、`cms_article`    |
+| `business_id`   | 使用稳定主键或不可变业务编码                 | `42`、`article-homepage`   |
+| `field`         | 使用业务聚合中的稳定字段名                   | `title`、`summary`、`body` |
+| `locale`        | 使用规范化运行时语言编码                     | `zh-CN`、`en-US`           |
+| `content_type`  | 仅使用 `plain`、`markdown`、`html`、`json`   | `markdown`                 |
+
+推荐读取策略：
+
+1. 业务主表保留源语言字段，作为最终兜底值。
+2. 业务服务按 `business_type + business_id + field + locale` 查询 `sys_i18n_content`。
+3. 若目标语言缺失，则回退到运行时默认语言。
+4. 若默认语言也缺失，则回退到业务主表中的原始字段值。
+
+缓存规范：
+
+- 缓存粒度使用完整锚点 `business_type + business_id + field`。
+- 缓存内容按“同一锚点下的全部语言变体”存储，而不是每个 locale 单独缓存，便于一次失效后整体刷新。
+- 业务模块在新增、修改、删除、导入、发布多语言内容后，必须立即失效对应锚点缓存。
+- 禁止在没有显式失效策略的前提下永久缓存“未命中”结果，否则后续写入无法及时生效。
+
+使用边界：
+
+- 可复用的界面文案和元数据标签使用`sys_i18n_message`。
+- 只有“绑定具体业务记录”的内容才接入`sys_i18n_content`。
+- 附件或富媒体引用继续放在业务主表或关联表中，`sys_i18n_content`只存放多语言文本载荷。
 
 ## 编写示例
 

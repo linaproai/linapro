@@ -1,35 +1,353 @@
 const pluginID = "plugin-demo-dynamic";
 const apiBasePath = `/api/v1/extensions/${pluginID}`;
-const pageTitle = "动态插件示例已生效";
-const pageDescription =
-  "该页面来自 plugin-demo-dynamic 的动态挂载入口，用于验证宿主主内容区展示与独立静态页面跳转。";
-const buttonLabel = "打开独立页面";
-const gridTitle = "示例记录";
-const emptyText =
-  "当前只有安装 SQL 初始化的默认记录，你可以继续新增、编辑或删除自定义记录。";
 const defaultRecordPageSize = 10;
 
 const hostStyleId = "plugin-demo-dynamic-mount-style";
 
-const featureItems = [
-  {
-    label: "接入方式",
-    value: "宿主内嵌挂载",
-    description:
-      "通过宿主页壳动态加载页面入口，并沿用宿主登录态访问后端动态路由。",
-  },
-  {
-    label: "数据示例",
-    value: "安装 SQL + CRUD",
-    description: "安装时创建插件自有业务表，页面可直接完成增删查改和附件下载。",
-  },
-  {
-    label: "卸载治理",
-    value: "可选清理数据",
-    description:
-      "禁用不删数据，卸载时由宿主弹窗决定是否同时清理表数据和存储文件。",
-  },
-];
+function translate(context, key, fallback) {
+  if (context && typeof context.t === "function") {
+    const translated = context.t(key, fallback);
+    if (translated) {
+      return translated;
+    }
+  }
+  return fallback;
+}
+
+function formatTemplate(template, parameters = {}) {
+  return template.replace(/\{(\w+)\}/g, (_match, key) => {
+    const value = parameters[key];
+    return value == null ? "" : String(value);
+  });
+}
+
+function buildPageCopy(context) {
+  const t = (key, fallback) => translate(context, key, fallback);
+
+  const paginationSummaryTemplate = t(
+    "plugin.plugin-demo-dynamic.page.pagination.summary",
+    "第 {page} / {pages} 页，显示第 {start}-{end} 条，共 {total} 条",
+  );
+  const createdAtTemplate = t(
+    "plugin.plugin-demo-dynamic.page.table.createdAt",
+    "创建时间: {value}",
+  );
+  const pendingAttachmentTemplate = t(
+    "plugin.plugin-demo-dynamic.page.modal.pendingAttachment",
+    "待上传附件: {name}",
+  );
+  const currentAttachmentTemplate = t(
+    "plugin.plugin-demo-dynamic.page.modal.currentAttachment",
+    "当前附件: {name}",
+  );
+  const deleteConfirmTemplate = t(
+    "plugin.plugin-demo-dynamic.page.message.deleteRecordConfirm",
+    "确认删除记录“{title}”吗？",
+  );
+
+  return {
+    actions: {
+      addRecord: t(
+        "plugin.plugin-demo-dynamic.page.action.addRecord",
+        "新增记录",
+      ),
+      cancel: t("plugin.plugin-demo-dynamic.page.action.cancel", "取消"),
+      createRecord: t(
+        "plugin.plugin-demo-dynamic.page.action.createRecord",
+        "创建记录",
+      ),
+      deleteRecord: t(
+        "plugin.plugin-demo-dynamic.page.action.deleteRecord",
+        "删除",
+      ),
+      downloadAttachment: t(
+        "plugin.plugin-demo-dynamic.page.action.downloadAttachment",
+        "下载附件",
+      ),
+      editRecord: t(
+        "plugin.plugin-demo-dynamic.page.action.editRecord",
+        "编辑",
+      ),
+      nextPage: t("plugin.plugin-demo-dynamic.page.action.nextPage", "下一页"),
+      previousPage: t(
+        "plugin.plugin-demo-dynamic.page.action.previousPage",
+        "上一页",
+      ),
+      reloadList: t(
+        "plugin.plugin-demo-dynamic.page.action.reloadList",
+        "刷新列表",
+      ),
+      saveEdit: t(
+        "plugin.plugin-demo-dynamic.page.action.saveEdit",
+        "保存修改",
+      ),
+      savePending: t(
+        "plugin.plugin-demo-dynamic.page.action.savePending",
+        "保存中...",
+      ),
+    },
+    badge: t("plugin.plugin-demo-dynamic.page.badge", "WASM 插件示例"),
+    emptyText: t(
+      "plugin.plugin-demo-dynamic.page.emptyText",
+      "当前只有安装 SQL 初始化的默认记录，你可以继续新增、编辑或删除自定义记录。",
+    ),
+    emptyTitle: t(
+      "plugin.plugin-demo-dynamic.page.emptyTitle",
+      "暂无示例记录",
+    ),
+    featureItems: [
+      {
+        description: t(
+          "plugin.plugin-demo-dynamic.page.feature.integration.description",
+          "通过宿主页壳动态加载页面入口，并沿用宿主登录态访问后端动态路由。",
+        ),
+        label: t(
+          "plugin.plugin-demo-dynamic.page.feature.integration.label",
+          "接入方式",
+        ),
+        value: t(
+          "plugin.plugin-demo-dynamic.page.feature.integration.value",
+          "宿主内嵌挂载",
+        ),
+      },
+      {
+        description: t(
+          "plugin.plugin-demo-dynamic.page.feature.data.description",
+          "安装时创建插件自有业务表，页面可直接完成增删查改和附件下载。",
+        ),
+        label: t("plugin.plugin-demo-dynamic.page.feature.data.label", "数据示例"),
+        value: t(
+          "plugin.plugin-demo-dynamic.page.feature.data.value",
+          "安装 SQL + CRUD",
+        ),
+      },
+      {
+        description: t(
+          "plugin.plugin-demo-dynamic.page.feature.lifecycle.description",
+          "禁用不删数据，卸载时由宿主弹窗决定是否同时清理表数据和存储文件。",
+        ),
+        label: t(
+          "plugin.plugin-demo-dynamic.page.feature.lifecycle.label",
+          "卸载治理",
+        ),
+        value: t(
+          "plugin.plugin-demo-dynamic.page.feature.lifecycle.value",
+          "可选清理数据",
+        ),
+      },
+    ],
+    gridTitle: t("plugin.plugin-demo-dynamic.page.gridTitle", "示例记录"),
+    metrics: [
+      {
+        description: t(
+          "plugin.plugin-demo-dynamic.page.metric.loader.description",
+          "由宿主页壳动态导入并挂载页面入口",
+        ),
+        label: t(
+          "plugin.plugin-demo-dynamic.page.metric.loader.label",
+          "动态加载",
+        ),
+        value: t(
+          "plugin.plugin-demo-dynamic.page.metric.loader.value",
+          "由宿主页壳动态导入并挂载页面入口",
+        ),
+      },
+      {
+        description: t(
+          "plugin.plugin-demo-dynamic.page.metric.schema.description",
+          "安装时生成插件自有业务表示例数据",
+        ),
+        label: t("plugin.plugin-demo-dynamic.page.metric.schema.label", "SQL 创建"),
+        value: t(
+          "plugin.plugin-demo-dynamic.page.metric.schema.value",
+          "安装时生成插件自有业务表示例数据",
+        ),
+      },
+      {
+        description: t(
+          "plugin.plugin-demo-dynamic.page.metric.storage.description",
+          "示例记录可绑定插件自有存储文件",
+        ),
+        label: t(
+          "plugin.plugin-demo-dynamic.page.metric.storage.label",
+          "附件存储",
+        ),
+        value: t(
+          "plugin.plugin-demo-dynamic.page.metric.storage.value",
+          "示例记录可绑定插件自有存储文件",
+        ),
+      },
+      {
+        description: t(
+          "plugin.plugin-demo-dynamic.page.metric.lifecycle.description",
+          "卸载时可选保留或清理数据与文件",
+        ),
+        label: t(
+          "plugin.plugin-demo-dynamic.page.metric.lifecycle.label",
+          "治理卸载",
+        ),
+        value: t(
+          "plugin.plugin-demo-dynamic.page.metric.lifecycle.value",
+          "卸载时可选保留或清理数据与文件",
+        ),
+      },
+    ],
+    messages: {
+      deleteConfirm: (title) =>
+        formatTemplate(deleteConfirmTemplate, {
+          title,
+        }),
+      downloadFailed: t(
+        "plugin.plugin-demo-dynamic.page.message.downloadFailed",
+        "附件下载失败",
+      ),
+      downloadStarted: t(
+        "plugin.plugin-demo-dynamic.page.message.downloadStarted",
+        "附件下载已开始",
+      ),
+      fetchRecordsFailed: t(
+        "plugin.plugin-demo-dynamic.page.message.fetchRecordsFailed",
+        "示例记录加载失败",
+      ),
+      fileReadFailed: t(
+        "plugin.plugin-demo-dynamic.page.message.fileReadFailed",
+        "附件读取失败",
+      ),
+      recordCreated: t(
+        "plugin.plugin-demo-dynamic.page.message.recordCreated",
+        "示例记录已创建",
+      ),
+      recordDeleted: t(
+        "plugin.plugin-demo-dynamic.page.message.recordDeleted",
+        "示例记录已删除",
+      ),
+      recordUpdated: t(
+        "plugin.plugin-demo-dynamic.page.message.recordUpdated",
+        "示例记录已更新",
+      ),
+      requestFailed: t(
+        "plugin.plugin-demo-dynamic.page.message.requestFailed",
+        "请求失败 ({status})",
+      ),
+      saveRecordFailed: t(
+        "plugin.plugin-demo-dynamic.page.message.saveRecordFailed",
+        "示例记录保存失败",
+      ),
+      titleRequired: t(
+        "plugin.plugin-demo-dynamic.page.message.titleRequired",
+        "记录标题不能为空",
+      ),
+      deleteRecordFailed: t(
+        "plugin.plugin-demo-dynamic.page.message.deleteRecordFailed",
+        "示例记录删除失败",
+      ),
+    },
+    modal: {
+      attachmentFieldHint: t(
+        "plugin.plugin-demo-dynamic.page.modal.attachmentFieldHint",
+        "支持上传一个示例附件。卸载插件时若勾选清理存储数据，附件文件也会一并删除。",
+      ),
+      attachmentFieldLabel: t(
+        "plugin.plugin-demo-dynamic.page.modal.attachmentFieldLabel",
+        "附件",
+      ),
+      contentFieldLabel: t(
+        "plugin.plugin-demo-dynamic.page.modal.contentFieldLabel",
+        "记录内容",
+      ),
+      createTitle: t(
+        "plugin.plugin-demo-dynamic.page.modal.createTitle",
+        "新增示例记录",
+      ),
+      currentAttachment: (name) =>
+        formatTemplate(currentAttachmentTemplate, {
+          name,
+        }),
+      editTitle: t(
+        "plugin.plugin-demo-dynamic.page.modal.editTitle",
+        "编辑示例记录",
+      ),
+      pendingAttachment: (name) =>
+        formatTemplate(pendingAttachmentTemplate, {
+          name,
+        }),
+      removeAttachment: t(
+        "plugin.plugin-demo-dynamic.page.modal.removeAttachment",
+        "提交时移除当前附件",
+      ),
+      summary: t(
+        "plugin.plugin-demo-dynamic.page.modal.summary",
+        "记录内容会写入 plugin-demo-dynamic 安装 SQL 创建的数据表；若上传附件，文件会存入该插件授权的 storage path。",
+      ),
+      titleFieldLabel: t(
+        "plugin.plugin-demo-dynamic.page.modal.titleFieldLabel",
+        "记录标题",
+      ),
+    },
+    pageDescription: t(
+      "plugin.plugin-demo-dynamic.page.description",
+      "该页面来自 plugin-demo-dynamic 的动态挂载入口，用于验证宿主主内容区展示与独立静态页面跳转。",
+    ),
+    pageTitle: t("plugin.plugin-demo-dynamic.page.title", "动态插件示例已生效"),
+    panelTitle: t("plugin.plugin-demo-dynamic.page.panelTitle", "当前验证范围"),
+    standaloneButton: t(
+      "plugin.plugin-demo-dynamic.page.standaloneButton",
+      "打开独立页面",
+    ),
+    standaloneHint: t(
+      "plugin.plugin-demo-dynamic.page.standaloneHint",
+      "点击后将在新窗口打开托管的纯静态页面，用于验证插件资源公开访问能力。",
+    ),
+    table: {
+      createdAt: (value) =>
+        formatTemplate(createdAtTemplate, {
+          value,
+        }),
+      headers: {
+        actions: t(
+          "plugin.plugin-demo-dynamic.page.table.header.actions",
+          "操作",
+        ),
+        attachment: t(
+          "plugin.plugin-demo-dynamic.page.table.header.attachment",
+          "附件",
+        ),
+        content: t(
+          "plugin.plugin-demo-dynamic.page.table.header.content",
+          "内容",
+        ),
+        title: t(
+          "plugin.plugin-demo-dynamic.page.table.header.title",
+          "标题",
+        ),
+        updatedAt: t(
+          "plugin.plugin-demo-dynamic.page.table.header.updatedAt",
+          "更新时间",
+        ),
+      },
+      loading: t(
+        "plugin.plugin-demo-dynamic.page.table.loading",
+        "正在加载示例记录...",
+      ),
+      noAttachment: t(
+        "plugin.plugin-demo-dynamic.page.table.noAttachment",
+        "无附件",
+      ),
+      paginationSummary: (page, pages, start, end, total) =>
+        formatTemplate(paginationSummaryTemplate, {
+          end,
+          page,
+          pages,
+          start,
+          total,
+        }),
+    },
+    workspaceSummary: t(
+      "plugin.plugin-demo-dynamic.page.workspaceSummary",
+      "该区域读取 plugin-demo-dynamic 安装 SQL 创建的数据表，并通过动态插件后端路由完成新增、编辑、删除与附件下载。禁用插件不会清空这些数据。",
+    ),
+  };
+}
 
 function ensureMountStyles(documentRef) {
   if (documentRef.getElementById(hostStyleId)) {
@@ -769,19 +1087,24 @@ function buildFeatureCard(item, documentRef) {
   return card;
 }
 
-function createJSONHeaders(accessToken, extraHeaders = {}) {
+function createJSONHeaders(accessToken, locale, extraHeaders = {}) {
   const headers = {
     Accept: "application/json",
     ...extraHeaders,
   };
+  if (locale) {
+    headers["Accept-Language"] = locale;
+  }
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
   return headers;
 }
 
-async function parseErrorMessage(response) {
-  const fallback = `请求失败 (${response.status})`;
+async function parseErrorMessage(response, fallbackTemplate) {
+  const fallback = formatTemplate(fallbackTemplate, {
+    status: response.status,
+  });
   const contentType = response.headers.get("content-type") || "";
 
   try {
@@ -802,7 +1125,7 @@ async function parseErrorMessage(response) {
   }
 }
 
-function readFileAsBase64(file) {
+function readFileAsBase64(file, errorMessage) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -810,12 +1133,12 @@ function readFileAsBase64(file) {
       const marker = "base64,";
       const markerIndex = content.indexOf(marker);
       if (markerIndex < 0) {
-        reject(new Error("附件读取失败"));
+        reject(new Error(errorMessage));
         return;
       }
       resolve(content.slice(markerIndex + marker.length));
     };
-    reader.onerror = () => reject(new Error("附件读取失败"));
+    reader.onerror = () => reject(new Error(errorMessage));
     reader.readAsDataURL(file);
   });
 }
@@ -823,8 +1146,10 @@ function readFileAsBase64(file) {
 export function mount(context) {
   const documentRef = context.container.ownerDocument;
   ensureMountStyles(documentRef);
+  const pageCopy = buildPageCopy(context);
 
   const accessToken = context.accessToken || "";
+  const currentLocale = context.locale || "";
   let recordFetchToken = 0;
   const state = {
     destroyed: false,
@@ -855,15 +1180,17 @@ export function mount(context) {
 
   const badge = documentRef.createElement("span");
   badge.className = "plugin-demo-dynamic-page__badge";
-  badge.textContent = "WASM 插件示例";
+  badge.textContent = pageCopy.badge;
 
   const heading = documentRef.createElement("h1");
   heading.className = "plugin-demo-dynamic-page__title";
-  heading.textContent = pageTitle;
+  heading.setAttribute("data-testid", "plugin-demo-dynamic-title");
+  heading.textContent = pageCopy.pageTitle;
 
   const description = documentRef.createElement("p");
   description.className = "plugin-demo-dynamic-page__description";
-  description.textContent = pageDescription;
+  description.setAttribute("data-testid", "plugin-demo-dynamic-description");
+  description.textContent = pageCopy.pageDescription;
 
   const actions = documentRef.createElement("div");
   actions.className = "plugin-demo-dynamic-page__cta";
@@ -875,7 +1202,7 @@ export function mount(context) {
     "data-testid",
     "plugin-demo-dynamic-open-standalone",
   );
-  actionButton.textContent = buttonLabel;
+  actionButton.textContent = pageCopy.standaloneButton;
   actionButton.addEventListener("click", () => {
     const standaloneURL = new URL(
       "./standalone.html",
@@ -886,8 +1213,7 @@ export function mount(context) {
 
   const hint = documentRef.createElement("span");
   hint.className = "plugin-demo-dynamic-page__hint";
-  hint.textContent =
-    "点击后将在新窗口打开托管的纯静态页面，用于验证插件资源公开访问能力。";
+  hint.textContent = pageCopy.standaloneHint;
 
   actions.append(actionButton, hint);
   intro.append(badge, heading, description, actions);
@@ -897,15 +1223,14 @@ export function mount(context) {
 
   const panelTitle = documentRef.createElement("h2");
   panelTitle.className = "plugin-demo-dynamic-page__panel-title";
-  panelTitle.textContent = "当前验证范围";
+  panelTitle.textContent = pageCopy.panelTitle;
 
   const metrics = documentRef.createElement("div");
   metrics.className = "plugin-demo-dynamic-page__panel-metrics";
   metrics.append(
-    buildMetric("动态加载", "由宿主页壳动态导入并挂载页面入口", documentRef),
-    buildMetric("SQL 创建", "安装时生成插件自有业务表示例数据", documentRef),
-    buildMetric("附件存储", "示例记录可绑定插件自有存储文件", documentRef),
-    buildMetric("治理卸载", "卸载时可选保留或清理数据与文件", documentRef),
+    ...pageCopy.metrics.map((item) =>
+      buildMetric(item.label, item.description, documentRef),
+    ),
   );
   sidePanel.append(panelTitle, metrics);
 
@@ -913,7 +1238,7 @@ export function mount(context) {
 
   const featureGrid = documentRef.createElement("div");
   featureGrid.className = "plugin-demo-dynamic-page__grid";
-  for (const item of featureItems) {
+  for (const item of pageCopy.featureItems) {
     featureGrid.append(buildFeatureCard(item, documentRef));
   }
 
@@ -929,12 +1254,11 @@ export function mount(context) {
   const workspaceHeadingBlock = documentRef.createElement("div");
   const workspaceTitle = documentRef.createElement("h2");
   workspaceTitle.className = "plugin-demo-dynamic-page__workspace-title";
-  workspaceTitle.textContent = gridTitle;
+  workspaceTitle.textContent = pageCopy.gridTitle;
 
   const workspaceSummary = documentRef.createElement("p");
   workspaceSummary.className = "plugin-demo-dynamic-page__workspace-summary";
-  workspaceSummary.textContent =
-    "该区域读取 plugin-demo-dynamic 安装 SQL 创建的数据表，并通过动态插件后端路由完成新增、编辑、删除与附件下载。禁用插件不会清空这些数据。";
+  workspaceSummary.textContent = pageCopy.workspaceSummary;
 
   workspaceHeadingBlock.append(workspaceTitle, workspaceSummary);
 
@@ -945,12 +1269,12 @@ export function mount(context) {
   addButton.type = "button";
   addButton.className = "plugin-demo-dynamic-page__button";
   addButton.setAttribute("data-testid", "plugin-demo-dynamic-record-add");
-  addButton.textContent = "新增记录";
+  addButton.textContent = pageCopy.actions.addRecord;
 
   const reloadButton = documentRef.createElement("button");
   reloadButton.type = "button";
   reloadButton.className = "plugin-demo-dynamic-page__ghost-button";
-  reloadButton.textContent = "刷新列表";
+  reloadButton.textContent = pageCopy.actions.reloadList;
 
   toolbar.append(addButton, reloadButton);
   workspaceHeader.append(workspaceHeadingBlock, toolbar);
@@ -979,8 +1303,7 @@ export function mount(context) {
 
   const modalSummary = documentRef.createElement("p");
   modalSummary.className = "plugin-demo-dynamic-page__modal-summary";
-  modalSummary.textContent =
-    "记录内容会写入 plugin-demo-dynamic 安装 SQL 创建的数据表；若上传附件，文件会存入该插件授权的 storage path。";
+  modalSummary.textContent = pageCopy.modal.summary;
   modalHeader.append(modalTitle, modalSummary);
 
   const modalBody = documentRef.createElement("div");
@@ -990,7 +1313,7 @@ export function mount(context) {
   titleField.className = "plugin-demo-dynamic-page__field";
   const titleLabel = documentRef.createElement("span");
   titleLabel.className = "plugin-demo-dynamic-page__field-label";
-  titleLabel.textContent = "记录标题";
+  titleLabel.textContent = pageCopy.modal.titleFieldLabel;
   const titleInput = documentRef.createElement("input");
   titleInput.className = "plugin-demo-dynamic-page__input";
   titleInput.setAttribute(
@@ -1004,7 +1327,7 @@ export function mount(context) {
   contentField.className = "plugin-demo-dynamic-page__field";
   const contentLabel = documentRef.createElement("span");
   contentLabel.className = "plugin-demo-dynamic-page__field-label";
-  contentLabel.textContent = "记录内容";
+  contentLabel.textContent = pageCopy.modal.contentFieldLabel;
   const contentInput = documentRef.createElement("textarea");
   contentInput.className = "plugin-demo-dynamic-page__textarea";
   contentInput.setAttribute(
@@ -1018,11 +1341,10 @@ export function mount(context) {
   attachmentField.className = "plugin-demo-dynamic-page__field";
   const attachmentLabel = documentRef.createElement("span");
   attachmentLabel.className = "plugin-demo-dynamic-page__field-label";
-  attachmentLabel.textContent = "附件";
+  attachmentLabel.textContent = pageCopy.modal.attachmentFieldLabel;
   const attachmentHint = documentRef.createElement("div");
   attachmentHint.className = "plugin-demo-dynamic-page__field-hint";
-  attachmentHint.textContent =
-    "支持上传一个示例附件。卸载插件时若勾选清理存储数据，附件文件也会一并删除。";
+  attachmentHint.textContent = pageCopy.modal.attachmentFieldHint;
   const fileInput = documentRef.createElement("input");
   fileInput.type = "file";
   fileInput.className = "plugin-demo-dynamic-page__input";
@@ -1045,7 +1367,7 @@ export function mount(context) {
   const removeAttachmentInput = documentRef.createElement("input");
   removeAttachmentInput.type = "checkbox";
   const removeAttachmentText = documentRef.createElement("span");
-  removeAttachmentText.textContent = "提交时移除当前附件";
+  removeAttachmentText.textContent = pageCopy.modal.removeAttachment;
   removeAttachmentLabel.append(removeAttachmentInput, removeAttachmentText);
   attachmentField.append(
     attachmentLabel,
@@ -1068,13 +1390,13 @@ export function mount(context) {
   cancelButton.type = "button";
   cancelButton.className = "plugin-demo-dynamic-page__ghost-button";
   cancelButton.setAttribute("data-testid", "plugin-demo-dynamic-record-cancel");
-  cancelButton.textContent = "取消";
+  cancelButton.textContent = pageCopy.actions.cancel;
 
   const submitButton = documentRef.createElement("button");
   submitButton.type = "button";
   submitButton.className = "plugin-demo-dynamic-page__button";
   submitButton.setAttribute("data-testid", "plugin-demo-dynamic-record-submit");
-  submitButton.textContent = "保存";
+  submitButton.textContent = pageCopy.actions.createRecord;
 
   modalFooter.append(cancelButton, submitButton);
   modal.append(modalHeader, modalBody, modalFooter);
@@ -1216,7 +1538,13 @@ export function mount(context) {
       "data-testid",
       "plugin-demo-dynamic-pagination-summary",
     );
-    summary.textContent = `第 ${state.pageNum} / ${totalPages} 页，显示第 ${rangeStart}-${rangeEnd} 条，共 ${state.total} 条`;
+    summary.textContent = pageCopy.table.paginationSummary(
+      state.pageNum,
+      totalPages,
+      rangeStart,
+      rangeEnd,
+      state.total,
+    );
     pagination.append(summary);
 
     if (totalPages <= 1) {
@@ -1226,9 +1554,13 @@ export function mount(context) {
     const controls = documentRef.createElement("div");
     controls.className = "plugin-demo-dynamic-page__pagination-controls";
 
-    const previousButton = buildPaginationButton("上一页", state.pageNum - 1, {
-      disabled: state.loading || state.pageNum <= 1,
-    });
+    const previousButton = buildPaginationButton(
+      pageCopy.actions.previousPage,
+      state.pageNum - 1,
+      {
+        disabled: state.loading || state.pageNum <= 1,
+      },
+    );
     previousButton.setAttribute(
       "data-testid",
       "plugin-demo-dynamic-pagination-prev",
@@ -1251,9 +1583,13 @@ export function mount(context) {
       );
     }
 
-    const nextButton = buildPaginationButton("下一页", state.pageNum + 1, {
-      disabled: state.loading || state.pageNum >= totalPages,
-    });
+    const nextButton = buildPaginationButton(
+      pageCopy.actions.nextPage,
+      state.pageNum + 1,
+      {
+        disabled: state.loading || state.pageNum >= totalPages,
+      },
+    );
     nextButton.setAttribute(
       "data-testid",
       "plugin-demo-dynamic-pagination-next",
@@ -1280,7 +1616,7 @@ export function mount(context) {
     if (state.loading) {
       const loading = documentRef.createElement("div");
       loading.className = "plugin-demo-dynamic-page__empty";
-      loading.textContent = "正在加载示例记录...";
+      loading.textContent = pageCopy.table.loading;
       tableWrap.append(loading);
       return;
     }
@@ -1289,7 +1625,7 @@ export function mount(context) {
       const empty = documentRef.createElement("div");
       empty.className = "plugin-demo-dynamic-page__empty";
       empty.setAttribute("data-testid", "plugin-demo-dynamic-record-empty");
-      empty.innerHTML = `<strong>暂无示例记录</strong>${emptyText}`;
+      empty.innerHTML = `<strong>${pageCopy.emptyTitle}</strong>${pageCopy.emptyText}`;
       tableWrap.append(empty);
       return;
     }
@@ -1300,11 +1636,11 @@ export function mount(context) {
     const thead = documentRef.createElement("thead");
     thead.innerHTML = `
       <tr>
-        <th style="width: 24%">标题</th>
-        <th style="width: 30%">内容</th>
-        <th style="width: 18%">附件</th>
-        <th style="width: 16%">更新时间</th>
-        <th style="width: 12%">操作</th>
+        <th style="width: 24%">${pageCopy.table.headers.title}</th>
+        <th style="width: 30%">${pageCopy.table.headers.content}</th>
+        <th style="width: 18%">${pageCopy.table.headers.attachment}</th>
+        <th style="width: 16%">${pageCopy.table.headers.updatedAt}</th>
+        <th style="width: 12%">${pageCopy.table.headers.actions}</th>
       </tr>
     `;
 
@@ -1322,7 +1658,7 @@ export function mount(context) {
       titleBlock.textContent = record.title;
       const createdMeta = documentRef.createElement("div");
       createdMeta.className = "plugin-demo-dynamic-page__cell-meta";
-      createdMeta.textContent = `创建时间: ${record.createdAt || "-"}`;
+      createdMeta.textContent = pageCopy.table.createdAt(record.createdAt || "-");
       titleCell.append(titleBlock, createdMeta);
 
       const contentCell = documentRef.createElement("td");
@@ -1336,13 +1672,14 @@ export function mount(context) {
         const downloadButton = documentRef.createElement("button");
         downloadButton.type = "button";
         downloadButton.className = "plugin-demo-dynamic-page__attachment-link";
-        downloadButton.textContent = record.attachmentName || "下载附件";
+        downloadButton.textContent =
+          record.attachmentName || pageCopy.actions.downloadAttachment;
         downloadButton.addEventListener("click", () => {
           void downloadAttachment(record);
         });
         attachmentCell.append(downloadButton);
       } else {
-        attachmentCell.textContent = "无附件";
+        attachmentCell.textContent = pageCopy.table.noAttachment;
       }
 
       const updatedCell = documentRef.createElement("td");
@@ -1358,7 +1695,7 @@ export function mount(context) {
       const editButton = documentRef.createElement("button");
       editButton.type = "button";
       editButton.className = "plugin-demo-dynamic-page__inline-button";
-      editButton.textContent = "编辑";
+      editButton.textContent = pageCopy.actions.editRecord;
       editButton.disabled = state.submitting;
       editButton.addEventListener("click", () => openModal(record));
 
@@ -1366,7 +1703,7 @@ export function mount(context) {
       deleteButton.type = "button";
       deleteButton.className = "plugin-demo-dynamic-page__inline-button";
       deleteButton.setAttribute("data-variant", "danger");
-      deleteButton.textContent = "删除";
+      deleteButton.textContent = pageCopy.actions.deleteRecord;
       deleteButton.disabled = state.submitting;
       deleteButton.addEventListener("click", () => {
         void deleteRecord(record);
@@ -1417,15 +1754,19 @@ export function mount(context) {
     }
 
     const isEditing = !!state.editingRecord;
-    modalTitle.textContent = isEditing ? "编辑示例记录" : "新增示例记录";
+    modalTitle.textContent = isEditing
+      ? pageCopy.modal.editTitle
+      : pageCopy.modal.createTitle;
     submitButton.textContent = state.submitting
-      ? "保存中..."
+      ? pageCopy.actions.savePending
       : isEditing
-        ? "保存修改"
-        : "创建记录";
+        ? pageCopy.actions.saveEdit
+        : pageCopy.actions.createRecord;
 
     if (state.selectedFile) {
-      selectedAttachment.textContent = `待上传附件: ${state.selectedFile.name}`;
+      selectedAttachment.textContent = pageCopy.modal.pendingAttachment(
+        state.selectedFile.name,
+      );
     } else {
       selectedAttachment.textContent = "";
     }
@@ -1442,7 +1783,9 @@ export function mount(context) {
       titleInput.value = record.title || "";
       contentInput.value = record.content || "";
       if (record.hasAttachment) {
-        existingAttachment.textContent = `当前附件: ${record.attachmentName}`;
+        existingAttachment.textContent = pageCopy.modal.currentAttachment(
+          record.attachmentName,
+        );
         removeAttachmentLabel.hidden = false;
       }
     }
@@ -1463,11 +1806,17 @@ export function mount(context) {
       new URL(path, window.location.origin).toString(),
       {
         ...options,
-        headers: createJSONHeaders(accessToken, options.headers || {}),
+        headers: createJSONHeaders(
+          accessToken,
+          currentLocale,
+          options.headers || {},
+        ),
       },
     );
     if (!response.ok) {
-      throw new Error(await parseErrorMessage(response));
+      throw new Error(
+        await parseErrorMessage(response, pageCopy.messages.requestFailed),
+      );
     }
     return response.json();
   }
@@ -1526,7 +1875,9 @@ export function mount(context) {
       state.total = 0;
       setFeedback(
         "error",
-        error instanceof Error ? error.message : "示例记录加载失败",
+        error instanceof Error
+          ? error.message
+          : pageCopy.messages.fetchRecordsFailed,
       );
     } finally {
       if (state.destroyed || currentFetchToken !== recordFetchToken) {
@@ -1549,12 +1900,13 @@ export function mount(context) {
     };
 
     if (!payload.title) {
-      throw new Error("记录标题不能为空");
+      throw new Error(pageCopy.messages.titleRequired);
     }
     if (state.selectedFile) {
       payload.attachmentName = state.selectedFile.name;
       payload.attachmentContentBase64 = await readFileAsBase64(
         state.selectedFile,
+        pageCopy.messages.fileReadFailed,
       );
       payload.attachmentContentType =
         state.selectedFile.type || "application/octet-stream";
@@ -1582,13 +1934,18 @@ export function mount(context) {
         body: JSON.stringify(payload),
       });
       closeModal(true);
-      setFeedback("success", isEditing ? "示例记录已更新" : "示例记录已创建");
+      setFeedback(
+        "success",
+        isEditing
+          ? pageCopy.messages.recordUpdated
+          : pageCopy.messages.recordCreated,
+      );
       await fetchRecords({ pageNum: 1, resetFeedback: false });
     } catch (error) {
       modalFeedback.hidden = false;
       modalFeedback.setAttribute("data-kind", "warn");
       modalFeedback.textContent =
-        error instanceof Error ? error.message : "示例记录保存失败";
+        error instanceof Error ? error.message : pageCopy.messages.saveRecordFailed;
     } finally {
       state.submitting = false;
       updateActionState();
@@ -1598,7 +1955,7 @@ export function mount(context) {
   }
 
   async function deleteRecord(record) {
-    const confirmed = window.confirm(`确认删除记录“${record.title}”吗？`);
+    const confirmed = window.confirm(pageCopy.messages.deleteConfirm(record.title));
     if (!confirmed) {
       return;
     }
@@ -1607,12 +1964,14 @@ export function mount(context) {
       await requestJSON(`${apiBasePath}/demo-records/${record.id}`, {
         method: "DELETE",
       });
-      setFeedback("success", "示例记录已删除");
+      setFeedback("success", pageCopy.messages.recordDeleted);
       await fetchRecords({ resetFeedback: false });
     } catch (error) {
       setFeedback(
         "error",
-        error instanceof Error ? error.message : "示例记录删除失败",
+        error instanceof Error
+          ? error.message
+          : pageCopy.messages.deleteRecordFailed,
       );
     }
   }
@@ -1626,11 +1985,13 @@ export function mount(context) {
           window.location.origin,
         ).toString(),
         {
-          headers: createJSONHeaders(accessToken),
+          headers: createJSONHeaders(accessToken, currentLocale),
         },
       );
       if (!response.ok) {
-        throw new Error(await parseErrorMessage(response));
+        throw new Error(
+          await parseErrorMessage(response, pageCopy.messages.requestFailed),
+        );
       }
       const blob = await response.blob();
       const objectURL = URL.createObjectURL(blob);
@@ -1641,11 +2002,11 @@ export function mount(context) {
       link.click();
       link.remove();
       URL.revokeObjectURL(objectURL);
-      setFeedback("success", "附件下载已开始");
+      setFeedback("success", pageCopy.messages.downloadStarted);
     } catch (error) {
       setFeedback(
         "error",
-        error instanceof Error ? error.message : "附件下载失败",
+        error instanceof Error ? error.message : pageCopy.messages.downloadFailed,
       );
     }
   }

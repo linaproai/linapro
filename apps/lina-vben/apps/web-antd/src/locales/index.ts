@@ -8,8 +8,8 @@ import { ref } from 'vue';
 
 import {
   $t,
+  loadLocaleMessages,
   setupI18n as coreSetup,
-  loadLocalesMapFromDir,
 } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 
@@ -19,17 +19,42 @@ import dayjs from 'dayjs';
 
 import { syncPublicFrontendSettings } from '#/runtime/public-frontend';
 import {
+  clearRuntimeLocaleMessagesCache,
   loadRuntimeLocaleMessages,
   mergeMessages,
 } from '#/runtime/runtime-i18n';
 
 const antdLocale = ref<Locale>(antdDefaultLocale);
 
-const modules = import.meta.glob('./langs/**/*.json');
+const localeModules = import.meta.glob('./langs/**/*.json', {
+  eager: true,
+  import: 'default',
+});
 
-const localesMap = loadLocalesMapFromDir(
-  /\.\/langs\/([^/]+)\/(.*)\.json$/,
-  modules,
+function buildAppLocalesMap(
+  modules: Record<string, Record<string, any>>,
+): Record<string, Record<string, any>> {
+  const messagesMap: Record<string, Record<string, any>> = {};
+
+  for (const [path, content] of Object.entries(modules)) {
+    const match = path.match(/\.\/langs\/([^/]+)\/(.*)\.json$/);
+    if (!match?.[1] || !match[2]) {
+      continue;
+    }
+
+    const locale = match[1];
+    const messageNamespace = match[2];
+    if (!messagesMap[locale]) {
+      messagesMap[locale] = {};
+    }
+    messagesMap[locale][messageNamespace] = content;
+  }
+
+  return messagesMap;
+}
+
+const appLocalesMap = buildAppLocalesMap(
+  localeModules as Record<string, Record<string, any>>,
 );
 /**
  * 加载应用特有的语言包
@@ -37,13 +62,19 @@ const localesMap = loadLocalesMapFromDir(
  * @param lang
  */
 async function loadMessages(lang: SupportedLanguagesType) {
-  const [appLocaleMessages, runtimeMessages] = await Promise.all([
-    localesMap[lang]?.(),
+  const [runtimeMessages] = await Promise.all([
     loadRuntimeLocaleMessages(lang),
     syncPublicFrontendSettings(lang),
     loadThirdPartyMessage(lang),
   ]);
-  return mergeMessages(appLocaleMessages?.default || {}, runtimeMessages);
+  return mergeMessages(appLocalesMap[lang] || {}, runtimeMessages);
+}
+
+async function reloadActiveLocaleMessages(
+  lang: SupportedLanguagesType = preferences.app.locale,
+) {
+  clearRuntimeLocaleMessagesCache();
+  await loadLocaleMessages(lang);
 }
 
 /**
@@ -108,3 +139,4 @@ async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
 }
 
 export { $t, antdLocale, setupI18n };
+export { reloadActiveLocaleMessages };

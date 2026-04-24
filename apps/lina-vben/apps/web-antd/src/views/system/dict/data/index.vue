@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import type { DictData } from '#/api/system/dict/dict-data-model';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
+import { preferences } from '@vben/preferences';
 
 import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import {
-  dictDataDelete,
-  dictDataList,
-} from '#/api/system/dict/dict-data';
+import { dictDataDelete, dictDataList } from '#/api/system/dict/dict-data';
 import { useDictStore } from '#/store/dict';
 
 import { emitter } from '../mitt';
@@ -43,7 +41,10 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
     pagerConfig: {},
     proxyConfig: {
       ajax: {
-        query: async ({ page }: { page: { currentPage: number; pageSize: number } }, formValues = {}) => {
+        query: async (
+          { page }: { page: { currentPage: number; pageSize: number } },
+          formValues = {},
+        ) => {
           if (!dictType.value) {
             return { items: [], total: 0 };
           }
@@ -63,10 +64,12 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
   },
   gridEvents: {
     checkboxChange: () => {
-      checkedRows.value = (tableApi.grid?.getCheckboxRecords() || []) as DictData[];
+      checkedRows.value = (tableApi.grid?.getCheckboxRecords() ||
+        []) as DictData[];
     },
     checkboxAll: () => {
-      checkedRows.value = (tableApi.grid?.getCheckboxRecords() || []) as DictData[];
+      checkedRows.value = (tableApi.grid?.getCheckboxRecords() ||
+        []) as DictData[];
     },
   },
 });
@@ -122,6 +125,17 @@ emitter.on('rowClick', async (value: string) => {
   dictType.value = value;
   await tableApi.query();
 });
+
+watch(
+  () => preferences.app.locale,
+  async () => {
+    if (!dictType.value) {
+      return;
+    }
+    dictStore.resetCache();
+    await tableApi.query();
+  },
+);
 </script>
 
 <template>

@@ -1,13 +1,11 @@
 import type { RouteRecordRaw } from 'vue-router';
 
-import { $t } from '#/locales';
-
 const routes: RouteRecordRaw[] = [
   {
     meta: {
       icon: 'lucide:shield-check',
       order: 10,
-      title: '权限管理',
+      title: 'page.routes.system.accessManagement',
     },
     name: 'IAM',
     path: '/iam',
@@ -18,7 +16,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/user/index.vue'),
         meta: {
           icon: 'ant-design:user-outlined',
-          title: '用户管理',
+          title: 'page.routes.system.userManagement',
         },
       },
       {
@@ -27,7 +25,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/role/index.vue'),
         meta: {
           icon: 'lucide:shield',
-          title: '角色管理',
+          title: 'page.routes.system.roleManagement',
         },
       },
       {
@@ -36,7 +34,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/menu/index.vue'),
         meta: {
           icon: 'lucide:menu',
-          title: '菜单管理',
+          title: 'page.routes.system.menuManagement',
         },
       },
       {
@@ -45,7 +43,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/role-auth/index.vue'),
         meta: {
           hideInMenu: true,
-          title: '角色授权用户',
+          title: 'page.routes.system.roleUserManagement',
         },
       },
     ],
@@ -54,7 +52,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:settings-2',
       order: 20,
-      title: '系统设置',
+      title: 'page.routes.system.systemSettings',
     },
     name: 'Setting',
     path: '/setting',
@@ -64,8 +62,8 @@ const routes: RouteRecordRaw[] = [
         path: '/system/dict',
         component: () => import('#/views/system/dict/index.vue'),
         meta: {
-          icon: 'lucide:book-open',
-          title: '字典管理',
+          icon: 'lucide:book-a',
+          title: 'page.routes.system.dictManagement',
         },
       },
       {
@@ -74,7 +72,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/config/index.vue'),
         meta: {
           icon: 'lucide:sliders-horizontal',
-          title: '参数设置',
+          title: 'page.routes.system.configManagement',
         },
       },
       {
@@ -83,7 +81,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/file/index.vue'),
         meta: {
           icon: 'lucide:folder-open',
-          title: '文件管理',
+          title: 'page.routes.system.fileManagement',
         },
       },
       {
@@ -92,7 +90,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/message/index.vue'),
         meta: {
           hideInMenu: true,
-          title: '消息列表',
+          title: 'page.routes.system.messageList',
         },
       },
     ],
@@ -101,7 +99,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:calendar-range',
       order: 30,
-      title: '任务调度',
+      title: 'page.routes.system.scheduler',
     },
     name: 'Scheduler',
     path: '/scheduler',
@@ -112,7 +110,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/job/index.vue'),
         meta: {
           icon: 'lucide:clock-3',
-          title: '任务管理',
+          title: 'page.routes.system.jobManagement',
         },
       },
       {
@@ -121,7 +119,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/job-group/index.vue'),
         meta: {
           icon: 'lucide:blocks',
-          title: '分组管理',
+          title: 'page.routes.system.jobGroupManagement',
         },
       },
       {
@@ -130,7 +128,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/job-log/index.vue'),
         meta: {
           icon: 'lucide:scroll-text',
-          title: '执行日志',
+          title: 'page.routes.system.jobLogManagement',
         },
       },
     ],
@@ -139,7 +137,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:puzzle',
       order: 40,
-      title: '扩展中心',
+      title: 'page.routes.system.extensionCenter',
     },
     name: 'Extension',
     path: '/extension',
@@ -150,7 +148,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/system/plugin/index.vue'),
         meta: {
           icon: 'lucide:plug',
-          title: '插件管理',
+          title: 'page.routes.system.pluginManagement',
         },
       },
     ],
@@ -162,7 +160,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:user',
       hideInMenu: true,
-      title: $t('page.auth.profile'),
+      title: 'page.auth.profile',
     },
   },
 ];

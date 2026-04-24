@@ -13,6 +13,11 @@ func (s *serviceImpl) InvalidateRuntimeBundleCache() {
 	invalidateRuntimeBundleCache()
 }
 
+// InvalidateContentCache clears cached sys_i18n_content lookup results.
+func (s *serviceImpl) InvalidateContentCache() {
+	invalidateContentCache()
+}
+
 // invalidateRuntimeBundleCache resets the in-memory runtime bundle cache.
 func invalidateRuntimeBundleCache() {
 	runtimeBundleCache.Lock()
@@ -23,4 +28,11 @@ func invalidateRuntimeBundleCache() {
 	runtimeLocaleCache.loaded = false
 	runtimeLocaleCache.locales = nil
 	runtimeLocaleCache.Unlock()
+}
+
+// invalidateContentCache resets the in-memory business-content cache.
+func invalidateContentCache() {
+	runtimeContentCache.Lock()
+	runtimeContentCache.variants = make(map[string]map[string]ContentVariant)
+	runtimeContentCache.Unlock()
 }

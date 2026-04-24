@@ -315,6 +315,9 @@ func (s *serviceImpl) applyInstall(
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release installed on primary node."); err != nil {
 		return err
 	}
+	if enabled == catalog.StatusEnabled {
+		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_installed")
+	}
 	if err = s.dispatchHookEvent(
 		ctx,
 		pluginhost.ExtensionPointPluginInstalled,
@@ -407,6 +410,9 @@ func (s *serviceImpl) applyUpgrade(
 	if err = s.catalogSvc.UpdateReleaseState(ctx, release.Id, catalog.BuildReleaseStatus(catalog.InstalledYes, enabled), archivedPath); err != nil {
 		return err
 	}
+	if enabled == catalog.StatusEnabled {
+		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_upgraded")
+	}
 	return s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release upgraded on primary node.")
 }
 
@@ -452,6 +458,8 @@ func (s *serviceImpl) applyStateToggle(
 	}
 	if enabled == catalog.StatusDisabled {
 		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_disabled")
+	} else {
+		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_enabled")
 	}
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin status converged on primary node."); err != nil {
 		return err
@@ -520,6 +528,9 @@ func (s *serviceImpl) applyRefresh(
 	}
 	if err = s.catalogSvc.UpdateReleaseState(ctx, release.Id, catalog.BuildReleaseStatus(catalog.InstalledYes, enabled), archivedPath); err != nil {
 		return err
+	}
+	if enabled == catalog.StatusEnabled {
+		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_refreshed")
 	}
 	return s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release refreshed on primary node.")
 }

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { DictType } from '#/api/system/dict/dict-type-model';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { preferences } from '@vben/preferences';
 
 import { message, Modal, Space } from 'ant-design-vue';
 
@@ -52,7 +53,10 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
     pagerConfig: {},
     proxyConfig: {
       ajax: {
-        query: async ({ page }: { page: { currentPage: number; pageSize: number } }, formValues = {}) => {
+        query: async (
+          { page }: { page: { currentPage: number; pageSize: number } },
+          formValues = {},
+        ) => {
           return await dictTypeList({
             pageNum: page.currentPage,
             pageSize: page.pageSize,
@@ -78,10 +82,12 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
       lastDictType.value = row.type;
     },
     checkboxChange: () => {
-      checkedRows.value = (tableApi.grid?.getCheckboxRecords() || []) as DictType[];
+      checkedRows.value = (tableApi.grid?.getCheckboxRecords() ||
+        []) as DictType[];
     },
     checkboxAll: () => {
-      checkedRows.value = (tableApi.grid?.getCheckboxRecords() || []) as DictType[];
+      checkedRows.value = (tableApi.grid?.getCheckboxRecords() ||
+        []) as DictType[];
     },
   },
 });
@@ -151,9 +157,10 @@ function onImportReload() {
 }
 
 async function handleExport() {
-  const content = checkedRows.value.length > 0
-    ? '是否导出选中的字典类型及其关联的字典数据？'
-    : '是否导出全部字典类型和字典数据？';
+  const content =
+    checkedRows.value.length > 0
+      ? '是否导出选中的字典类型及其关联的字典数据？'
+      : '是否导出全部字典类型和字典数据？';
 
   Modal.confirm({
     title: '提示',
@@ -181,6 +188,16 @@ async function handleExport() {
 function handleImport() {
   importModalApi.open();
 }
+
+watch(
+  () => preferences.app.locale,
+  async () => {
+    await tableApi.query();
+    if (lastDictType.value) {
+      emitter.emit('rowClick', lastDictType.value);
+    }
+  },
+);
 </script>
 
 <template>
@@ -204,7 +221,9 @@ function handleImport() {
       <template #action="{ row }">
         <Space>
           <ghost-button @click.stop="handleEdit(row)">编辑</ghost-button>
-          <ghost-button danger @click.stop="handleDelete(row)">删除</ghost-button>
+          <ghost-button danger @click.stop="handleDelete(row)"
+            >删除</ghost-button
+          >
         </Space>
       </template>
     </BasicTable>

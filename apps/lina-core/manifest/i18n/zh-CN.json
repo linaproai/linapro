@@ -82,7 +82,7 @@
   "menu.system:role:list.title": "角色管理",
   "menu.system:user:list.title": "用户管理",
   "publicFrontend.app.name": "LinaPro",
-  "publicFrontend.auth.loginSubtitle": "请输入您的帐户信息以进入 LinaPro 宿主工作区",
+  "publicFrontend.auth.loginSubtitle": "请输入您的帐户信息以开始管理您的项目",
   "publicFrontend.auth.pageDesc": "面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制",
   "publicFrontend.auth.pageTitle": "AI驱动的全栈开发框架",
   "publicFrontend.ui.watermarkContent": "LinaPro",

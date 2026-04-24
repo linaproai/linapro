@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { h, onMounted, ref } from 'vue';
+import { h, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
+import { preferences } from '@vben/preferences';
 
-import { type ComponentInfo, type FrameworkInfo, getSystemInfo } from '#/api/about';
+import {
+  type ComponentInfo,
+  type FrameworkInfo,
+  getSystemInfo,
+} from '#/api/about';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'SystemInfo' });
 
@@ -26,17 +32,23 @@ const frontendItems = ref<DescriptionItem[]>([]);
 const loading = ref(true);
 
 const mapFramework = (framework: FrameworkInfo): DescriptionItem[] => [
-  { title: '项目名称', content: framework.name },
   {
-    title: '项目官网',
-    content: renderLink(framework.homepage, '点击查看'),
+    title: $t('page.about.systemInfo.items.frameworkName'),
+    content: framework.name,
   },
   {
-    title: '仓库地址',
-    content: renderLink(framework.repositoryUrl, '点击查看'),
+    title: $t('page.about.systemInfo.items.homepage'),
+    content: renderLink(framework.homepage, $t('page.about.systemInfo.viewLink')),
   },
-  { title: '版本号', content: framework.version },
-  { title: '开源许可', content: framework.license },
+  {
+    title: $t('page.about.systemInfo.items.repositoryUrl'),
+    content: renderLink(
+      framework.repositoryUrl,
+      $t('page.about.systemInfo.viewLink'),
+    ),
+  },
+  { title: $t('page.about.systemInfo.items.version'), content: framework.version },
+  { title: $t('page.about.systemInfo.items.license'), content: framework.license },
 ];
 
 const mapComponents = (components: ComponentInfo[]): DescriptionItem[] =>
@@ -49,7 +61,8 @@ const mapComponents = (components: ComponentInfo[]): DescriptionItem[] =>
     ]),
   }));
 
-onMounted(async () => {
+async function loadSystemInfo() {
+  loading.value = true;
   try {
     const info = await getSystemInfo();
     frameworkItems.value = mapFramework(info.framework);
@@ -59,23 +72,31 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+}
+
+onMounted(async () => {
+  await loadSystemInfo();
 });
+
+watch(
+  () => preferences.app.locale,
+  async () => {
+    await loadSystemInfo();
+  },
+);
 </script>
 
 <template>
   <Page>
     <!-- 关于项目 -->
     <div class="card-box p-5">
-      <h5 class="text-lg text-foreground">关于项目</h5>
+      <h5 class="text-lg text-foreground">
+        {{ $t('page.about.systemInfo.sections.framework') }}
+      </h5>
       <div class="mt-4">
-        <dl
-          v-if="!loading"
-          class="grid grid-cols-2 md:grid-cols-4"
-        >
+        <dl v-if="!loading" class="grid grid-cols-2 md:grid-cols-4">
           <template v-for="item in frameworkItems" :key="item.title">
-            <div
-              class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
-            >
+            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
               <dt class="text-sm/6 font-medium text-foreground">
                 {{ item.title }}
               </dt>
@@ -90,33 +111,33 @@ onMounted(async () => {
           </template>
         </dl>
         <dl v-if="!loading" class="grid">
-          <div
-            class="border-t border-border px-4 py-3 sm:px-0"
-          >
+          <div class="border-t border-border px-4 py-3 sm:px-0">
             <dt class="text-sm/6 font-medium text-foreground">
-              项目介绍
+              {{ $t('page.about.systemInfo.items.description') }}
             </dt>
             <dd class="mt-1 text-sm/6 text-foreground">
               <span>{{ frameworkDescription }}</span>
             </dd>
           </div>
         </dl>
-        <div v-else class="py-8 text-center text-foreground/60">加载中...</div>
+        <div v-else class="py-8 text-center text-foreground/60">
+          {{ $t('page.about.systemInfo.loading') }}
+        </div>
       </div>
     </div>
 
     <!-- 后端组件 -->
     <div class="card-box mt-6 p-5">
-      <h5 class="text-lg text-foreground">后端组件</h5>
+      <h5 class="text-lg text-foreground">
+        {{ $t('page.about.systemInfo.sections.backend') }}
+      </h5>
       <div class="mt-4">
         <dl
           v-if="!loading"
           class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
         >
           <template v-for="item in backendItems" :key="item.title">
-            <div
-              class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
-            >
+            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
               <dt class="text-sm text-foreground">
                 {{ item.title }}
               </dt>
@@ -130,22 +151,24 @@ onMounted(async () => {
             </div>
           </template>
         </dl>
-        <div v-else class="py-8 text-center text-foreground/60">加载中...</div>
+        <div v-else class="py-8 text-center text-foreground/60">
+          {{ $t('page.about.systemInfo.loading') }}
+        </div>
       </div>
     </div>
 
     <!-- 前端组件 -->
     <div class="card-box mt-6 p-5">
-      <h5 class="text-lg text-foreground">前端组件</h5>
+      <h5 class="text-lg text-foreground">
+        {{ $t('page.about.systemInfo.sections.frontend') }}
+      </h5>
       <div class="mt-4">
         <dl
           v-if="!loading"
           class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
         >
           <template v-for="item in frontendItems" :key="item.title">
-            <div
-              class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
-            >
+            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
               <dt class="text-sm text-foreground">
                 {{ item.title }}
               </dt>
@@ -159,7 +182,9 @@ onMounted(async () => {
             </div>
           </template>
         </dl>
-        <div v-else class="py-8 text-center text-foreground/60">加载中...</div>
+        <div v-else class="py-8 text-center text-foreground/60">
+          {{ $t('page.about.systemInfo.loading') }}
+        </div>
       </div>
     </div>
   </Page>

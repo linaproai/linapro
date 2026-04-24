@@ -63,15 +63,11 @@ export class PluginPage {
   }
 
   pluginDemoDynamicTitle(): Locator {
-    return this.page
-      .getByRole("heading", { name: "动态插件示例已生效" })
-      .first();
+    return this.page.getByTestId("plugin-demo-dynamic-title").first();
   }
 
   pluginDemoDynamicDescription(): Locator {
-    return this.page.getByText(
-      "该页面来自 plugin-demo-dynamic 的动态挂载入口，用于验证宿主主内容区展示与独立静态页面跳转。",
-    );
+    return this.page.getByTestId("plugin-demo-dynamic-description").first();
   }
 
   pluginDemoDynamicOpenStandaloneButton(): Locator {
@@ -766,7 +762,10 @@ export class PluginPage {
     const menuItem = this.sidebarMenuItem(menuName);
     const visible = await menuItem.isVisible().catch(() => false);
     if (!visible) {
-      await this.sidebarMenuItem("插件管理").click();
+      await this.sidebarMenu
+        .getByText(/插件管理|Plugin Management/, { exact: true })
+        .first()
+        .click();
     }
     await expect(menuItem).toBeVisible();
   }

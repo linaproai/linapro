@@ -24,7 +24,7 @@ import {
 import { Button, Modal, notification } from 'ant-design-vue';
 
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
-import { $t } from '#/locales';
+import { $t, reloadActiveLocaleMessages } from '#/locales';
 import {
   clearPendingPluginPageRefresh,
   detectPendingPluginPageRefresh,
@@ -265,7 +265,9 @@ function syncCurrentRouteTabState(tab = buildCurrentRouteTab()) {
   tabbarStore.addTab(tab);
 }
 
-async function remountCurrentPluginRoute(tab?: ReturnType<typeof buildCurrentRouteTab>) {
+async function remountCurrentPluginRoute(
+  tab?: ReturnType<typeof buildCurrentRouteTab>,
+) {
   syncCurrentRouteTabState(tab);
   await nextTick();
   await tabbarStore.refresh(router);
@@ -382,7 +384,11 @@ function findPluginRefreshPath(pluginId: string, version = '') {
       route.meta?.link,
       (route.meta?.query as Record<string, unknown> | undefined)?.embeddedSrc,
     ];
-    if (dynamicSources.some((item) => resolvePluginIdFromAssetURL(item) === pluginId)) {
+    if (
+      dynamicSources.some(
+        (item) => resolvePluginIdFromAssetURL(item) === pluginId,
+      )
+    ) {
       if (!fallbackPath) {
         fallbackPath = route.path;
       }
@@ -445,8 +451,8 @@ async function handlePluginPageRefreshNow() {
 function showPluginPageRefreshNotice(version: string) {
   notification.warning({
     key: pluginPageRefreshNotificationKey,
-    message: '插件已更新',
-    description: `当前插件页面已有新代际生效（${version || 'latest'}），请刷新当前页面以切换到最新版本。`,
+    message: $t('page.plugin.dynamicPage.refreshNoticeTitle'),
+    description: `${$t('page.plugin.dynamicPage.refreshNoticeDescription')} (${version || 'latest'})`,
     duration: 0,
     btn: () =>
       h(
@@ -458,7 +464,7 @@ function showPluginPageRefreshNotice(version: string) {
             void handlePluginPageRefreshNow();
           },
         },
-        { default: () => '刷新当前页面' },
+        { default: () => $t('page.plugin.dynamicPage.refreshNoticeAction') },
       ),
   });
 }
@@ -496,6 +502,7 @@ onMounted(() => {
   void getPluginStateMap();
   void syncPluginPageGenerationBaseline();
   disposePluginRegistryListener = onPluginRegistryChanged(async () => {
+    await reloadActiveLocaleMessages(preferences.app.locale);
     const pluginStateMap = await getPluginStateMap();
     const pending = detectPendingPluginPageRefresh(
       router.currentRoute.value,

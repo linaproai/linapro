@@ -125,6 +125,16 @@ class PreferenceManager {
     // 根据更新的值执行更新
     this.handleUpdates(updates);
 
+    // Locale switches must survive immediate full-page navigations triggered by
+    // route jumps or hard reloads, so persist locale/theme changes eagerly.
+    if (
+      (updates.app && Reflect.has(updates.app, 'locale')) ||
+      (updates.theme && Reflect.has(updates.theme, 'mode'))
+    ) {
+      this.saveToCache(this.state);
+      return;
+    }
+
     // 保存到缓存
     this.debouncedSave(this.state);
   };

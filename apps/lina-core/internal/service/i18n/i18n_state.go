@@ -71,6 +71,30 @@ const (
 	messageOriginTypeDatabase messageOriginType = "database"
 )
 
+// contentStatus represents the enablement status stored in sys_i18n_content.
+type contentStatus int
+
+const (
+	// contentStatusDisabled means the business-content variant is disabled.
+	contentStatusDisabled contentStatus = 0
+	// contentStatusEnabled means the business-content variant is enabled.
+	contentStatusEnabled contentStatus = 1
+)
+
+// ContentType represents the persisted content payload format in sys_i18n_content.
+type ContentType string
+
+const (
+	// ContentTypePlain stores simple plain-text content.
+	ContentTypePlain ContentType = "plain"
+	// ContentTypeMarkdown stores Markdown content.
+	ContentTypeMarkdown ContentType = "markdown"
+	// ContentTypeHTML stores HTML content.
+	ContentTypeHTML ContentType = "html"
+	// ContentTypeJSON stores structured JSON content serialized as a string.
+	ContentTypeJSON ContentType = "json"
+)
+
 const (
 	// hostMessageScopeKey is the stable host scope key used for host-owned overrides.
 	hostMessageScopeKey = "core"

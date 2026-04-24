@@ -19,6 +19,13 @@ import { useAuthStore } from '#/store';
 
 const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 
+function resolveRequestLocale() {
+  if (typeof document === 'undefined') {
+    return preferences.app.locale;
+  }
+  return document.documentElement.lang || preferences.app.locale;
+}
+
 function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   const client = new RequestClient({
     ...options,
@@ -60,7 +67,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       const accessStore = useAccessStore();
 
       config.headers.Authorization = formatToken(accessStore.accessToken);
-      config.headers['Accept-Language'] = preferences.app.locale;
+      config.headers['Accept-Language'] = resolveRequestLocale();
       return config;
     },
   });

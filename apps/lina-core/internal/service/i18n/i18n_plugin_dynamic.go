@@ -215,7 +215,59 @@ func (s *serviceImpl) resolveDynamicPluginPackagePath(ctx context.Context, packa
 	if err != nil {
 		return "", err
 	}
-	return filepath.Clean(filepath.Join(workingDir, storagePath, filepath.FromSlash(trimmedPath))), nil
+	storageRoot := resolveDynamicPluginStorageRoot(workingDir, storagePath)
+	return filepath.Clean(filepath.Join(storageRoot, filepath.FromSlash(trimmedPath))), nil
+}
+
+// resolveDynamicPluginStorageRoot resolves the configured dynamic-plugin
+// storage root. Relative storage paths prefer the repository root when the
+// backend is started from a subdirectory such as apps/lina-core.
+func resolveDynamicPluginStorageRoot(workingDir string, storagePath string) string {
+	trimmedStoragePath := strings.TrimSpace(storagePath)
+	if trimmedStoragePath == "" {
+		return filepath.Clean(workingDir)
+	}
+	if filepath.IsAbs(trimmedStoragePath) {
+		return filepath.Clean(trimmedStoragePath)
+	}
+
+	candidates := make([]string, 0, 4)
+	if repoRoot, err := findRepoRootForDynamicPluginI18N(workingDir); err == nil {
+		candidates = append(candidates, filepath.Join(repoRoot, trimmedStoragePath))
+	}
+	candidates = append(
+		candidates,
+		filepath.Join(workingDir, trimmedStoragePath),
+		filepath.Join(workingDir, "..", trimmedStoragePath),
+		filepath.Join(workingDir, "..", "..", trimmedStoragePath),
+	)
+	for _, candidate := range candidates {
+		cleanPath := filepath.Clean(candidate)
+		if _, err := os.Stat(cleanPath); err == nil {
+			return cleanPath
+		}
+	}
+	return filepath.Clean(candidates[0])
+}
+
+// findRepoRootForDynamicPluginI18N walks upward until it finds the repository
+// go.work marker so relative runtime storage paths can be anchored consistently.
+func findRepoRootForDynamicPluginI18N(startDir string) (string, error) {
+	currentDir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", err
+	}
+	for {
+		if _, statErr := os.Stat(filepath.Join(currentDir, "go.work")); statErr == nil {
+			return currentDir, nil
+		}
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			break
+		}
+		currentDir = parentDir
+	}
+	return "", gerror.Newf("未找到仓库根目录: %s", startDir)
 }
 
 // parseWasmCustomSectionsForI18N extracts wasm custom sections by name for dynamic-plugin i18n loading.

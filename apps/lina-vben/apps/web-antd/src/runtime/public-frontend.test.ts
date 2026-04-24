@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { preferencesState } = vi.hoisted(() => ({
+  preferencesState: {
+    app: {
+      locale: 'zh-CN',
+    },
+  },
+}));
+
 const updatePreferences = vi.fn();
 const getInitialPreferences = vi.fn(() => ({
   app: {
@@ -26,6 +34,7 @@ vi.mock('@vben/hooks', () => ({
 }));
 
 vi.mock('@vben/preferences', () => ({
+  preferences: preferencesState,
   preferencesManager: {
     getInitialPreferences,
   },
@@ -35,6 +44,7 @@ vi.mock('@vben/preferences', () => ({
 describe('public frontend runtime settings', () => {
   beforeEach(() => {
     vi.resetModules();
+    preferencesState.app.locale = 'zh-CN';
     updatePreferences.mockReset();
     getInitialPreferences.mockClear();
     vi.stubGlobal('fetch', vi.fn());
@@ -81,6 +91,9 @@ describe('public frontend runtime settings', () => {
       expect.objectContaining({
         cache: 'no-store',
         credentials: 'same-origin',
+        headers: {
+          'Accept-Language': 'zh-CN',
+        },
         method: 'GET',
       }),
     );

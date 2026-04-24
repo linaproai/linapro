@@ -5,9 +5,16 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { Result as AResult, Spin as ASpin } from 'ant-design-vue';
+import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
 
+import { $t } from '#/locales';
 import { getPluginPageByRoute } from '#/plugins/page-registry';
+import {
+  getRuntimeLocaleMessagesSnapshot,
+  lookupRuntimeMessageString,
+  runtimeI18nVersion,
+} from '#/runtime/runtime-i18n';
 
 const dynamicEmbeddedMountMode = 'embedded-mount';
 const dynamicEmbeddedHostTestId = 'plugin-dynamic-embedded-host';
@@ -21,9 +28,12 @@ type DynamicEmbeddedMountContext = {
   assetURL: string;
   baseURL: string;
   container: HTMLElement;
+  locale: string;
+  messages: Record<string, any>;
   query: DynamicEmbeddedRouteQuery;
   route: RouteLocationNormalizedLoaded;
   routePath: string;
+  t: (key: string, fallback?: string) => string;
   title: string;
 };
 
@@ -150,15 +160,21 @@ function buildDynamicEmbeddedMountContext(
   if (!container) {
     throw new Error('Dynamic embedded mount container is not ready.');
   }
+  const locale = preferences.app.locale;
+  const messages = getRuntimeLocaleMessagesSnapshot();
 
   return {
     accessToken: accessStore.accessToken ?? '',
     assetURL,
     baseURL: assetURL.slice(0, assetURL.lastIndexOf('/') + 1),
     container,
+    locale,
+    messages,
     query: normalizedRouteQuery.value,
     route,
     routePath: currentRoutePath.value,
+    t: (key: string, fallback = key) =>
+      lookupRuntimeMessageString(messages, key) || fallback,
     title: String(route.meta.title ?? currentRoutePath.value),
   };
 }
@@ -243,8 +259,49 @@ async function mountDynamicEmbeddedModule() {
   }
 }
 
+async function refreshMountedDynamicEmbeddedModule() {
+  const mounted = mountedDynamicEmbeddedModule.value;
+  if (!mounted || !isDynamicEmbeddedMountMode.value) {
+    await mountDynamicEmbeddedModule();
+    return;
+  }
+
+  try {
+    const assetURL = toAbsoluteDynamicEmbeddedAssetURL(
+      dynamicEmbeddedSource.value,
+    );
+    if (assetURL !== mounted.context.assetURL) {
+      await mountDynamicEmbeddedModule();
+      return;
+    }
+
+    const nextContext = buildDynamicEmbeddedMountContext(assetURL);
+    const updateHandler =
+      mounted.instance?.update ?? mounted.module.update ?? null;
+    if (!updateHandler) {
+      await mountDynamicEmbeddedModule();
+      return;
+    }
+
+    mounted.context = nextContext;
+    await updateHandler(nextContext);
+  } catch (error) {
+    dynamicEmbeddedError.value =
+      error instanceof Error
+        ? error.message
+        : 'Dynamic embedded plugin mount failed.';
+    await mountDynamicEmbeddedModule();
+  }
+}
+
 watch(
-  [() => route.fullPath, isDynamicEmbeddedMountMode, dynamicEmbeddedHost],
+  [
+    currentRoutePath,
+    () => route.fullPath,
+    dynamicEmbeddedSource,
+    isDynamicEmbeddedMountMode,
+    dynamicEmbeddedHost,
+  ],
   async () => {
     if (pageEntry.value) {
       dynamicEmbeddedError.value = '';
@@ -255,6 +312,20 @@ watch(
     await mountDynamicEmbeddedModule();
   },
   { immediate: true },
+);
+
+watch(
+  [
+    () => route.meta.title,
+    () => preferences.app.locale,
+    () => runtimeI18nVersion.value,
+  ],
+  async () => {
+    if (pageEntry.value || !isDynamicEmbeddedMountMode.value) {
+      return;
+    }
+    await refreshMountedDynamicEmbeddedModule();
+  },
 );
 
 onBeforeUnmount(() => {
@@ -283,7 +354,7 @@ onBeforeUnmount(() => {
       >
         <a-result
           status="error"
-          title="Dynamic plugin mount failed"
+          :title="$t('page.plugin.dynamicPage.mountFailedTitle')"
           :sub-title="dynamicEmbeddedError"
         />
       </div>
@@ -292,8 +363,8 @@ onBeforeUnmount(() => {
   <a-result
     v-else
     status="404"
-    title="插件页面未找到"
-    sub-title="当前路由没有匹配到已注册的源码插件前端页面，也没有声明可用的 动态插件内嵌挂载入口。"
+    :title="$t('page.plugin.dynamicPage.notFoundTitle')"
+    :sub-title="$t('page.plugin.dynamicPage.notFoundSubtitle')"
   />
 </template>
 

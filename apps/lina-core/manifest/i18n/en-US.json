@@ -82,7 +82,7 @@
   "menu.system:role:list.title": "Roles",
   "menu.system:user:list.title": "Users",
   "publicFrontend.app.name": "LinaPro",
-  "publicFrontend.auth.loginSubtitle": "Enter your account credentials to access the LinaPro host workspace",
+  "publicFrontend.auth.loginSubtitle": "Enter your account credentials to start managing your projects",
   "publicFrontend.auth.pageDesc": "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
   "publicFrontend.auth.pageTitle": "AI-driven full-stack development framework",
   "publicFrontend.ui.watermarkContent": "LinaPro",

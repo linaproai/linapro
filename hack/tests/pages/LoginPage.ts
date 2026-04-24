@@ -1,7 +1,31 @@
 import type { Page } from "@playwright/test";
 
+import { expect } from "@playwright/test";
+
+import { waitForRouteReady } from "../support/ui";
+
 export class LoginPage {
   constructor(private page: Page) {}
+
+  private async waitForLocalePersistence(locale: string) {
+    await expect
+      .poll(async () => {
+        return await this.page.evaluate(() => {
+          const key = Object.keys(localStorage).find((item) =>
+            item.endsWith('preferences-locale'),
+          );
+          if (!key) {
+            return '';
+          }
+          try {
+            return JSON.parse(localStorage.getItem(key) || '{}')?.value || '';
+          } catch {
+            return '';
+          }
+        });
+      })
+      .toBe(locale);
+  }
 
   get appName() {
     return this.page
@@ -98,6 +122,10 @@ export class LoginPage {
     return this.page.getByText(text, { exact: true }).first();
   }
 
+  get languageToggleTrigger() {
+    return this.page.getByTestId("language-toggle-trigger").first();
+  }
+
   async goto() {
     await this.gotoPath("/auth/login");
   }
@@ -122,6 +150,18 @@ export class LoginPage {
     return this.page.evaluate(() => {
       return getComputedStyle(document.documentElement).fontFamily;
     });
+  }
+
+  async switchLanguage(label: "English" | "简体中文") {
+    const locale = label === "English" ? "en-US" : "zh-CN";
+    await this.languageToggleTrigger.click();
+    await this.page.getByText(label, { exact: true }).last().click();
+    await this.waitForLocalePersistence(locale);
+    await expect
+      .poll(async () => await this.page.locator("html").getAttribute("lang"))
+      .toBe(locale);
+    await this.page.waitForLoadState("networkidle");
+    await waitForRouteReady(this.page);
   }
 
   async login(username: string, password: string) {

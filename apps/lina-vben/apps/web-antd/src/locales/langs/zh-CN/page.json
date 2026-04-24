@@ -11,5 +11,59 @@
     "title": "概览",
     "analytics": "分析页",
     "workspace": "工作台"
+  },
+  "about": {
+    "systemInfo": {
+      "loading": "加载中...",
+      "viewLink": "点击查看",
+      "sections": {
+        "framework": "关于项目",
+        "backend": "后端组件",
+        "frontend": "前端组件"
+      },
+      "items": {
+        "frameworkName": "项目名称",
+        "homepage": "项目官网",
+        "repositoryUrl": "仓库地址",
+        "version": "版本号",
+        "license": "开源许可",
+        "description": "项目介绍"
+      }
+    }
+  },
+  "plugin": {
+    "dynamicPage": {
+      "mountFailedTitle": "动态插件挂载失败",
+      "notFoundTitle": "插件页面未找到",
+      "notFoundSubtitle": "当前路由没有匹配到已注册的源码插件前端页面，也没有声明可用的动态插件内嵌挂载入口。",
+      "refreshNoticeTitle": "插件已更新",
+      "refreshNoticeDescription": "当前插件页面已有新代际生效，请刷新当前页面以切换到最新版本。",
+      "refreshNoticeAction": "刷新当前页面"
+    }
+  },
+  "routes": {
+    "about": {
+      "developerCenter": "开发中心",
+      "apiDocs": "接口文档",
+      "systemInfo": "系统信息"
+    },
+    "system": {
+      "accessManagement": "权限管理",
+      "userManagement": "用户管理",
+      "roleManagement": "角色管理",
+      "menuManagement": "菜单管理",
+      "roleUserManagement": "角色授权用户",
+      "systemSettings": "系统设置",
+      "dictManagement": "字典管理",
+      "configManagement": "参数设置",
+      "fileManagement": "文件管理",
+      "messageList": "消息列表",
+      "scheduler": "任务调度",
+      "jobManagement": "任务管理",
+      "jobGroupManagement": "分组管理",
+      "jobLogManagement": "执行日志",
+      "extensionCenter": "扩展中心",
+      "pluginManagement": "插件管理"
+    }
   }
 }

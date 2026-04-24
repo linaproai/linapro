@@ -5,7 +5,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       icon: 'lucide:flask-conical',
       order: 50,
-      title: '开发中心',
+      title: 'page.routes.about.developerCenter',
     },
     name: 'Developer',
     path: '/developer',
@@ -16,7 +16,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/about/api-docs/index.vue'),
         meta: {
           icon: 'lucide:file-code',
-          title: '接口文档',
+          title: 'page.routes.about.apiDocs',
         },
       },
       {
@@ -25,7 +25,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('#/views/about/system-info/index.vue'),
         meta: {
           icon: 'lucide:server',
-          title: '系统信息',
+          title: 'page.routes.about.systemInfo',
         },
       },
     ],

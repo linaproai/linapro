@@ -11,5 +11,59 @@
     "title": "Dashboard",
     "analytics": "Analytics",
     "workspace": "Workspace"
+  },
+  "about": {
+    "systemInfo": {
+      "loading": "Loading...",
+      "viewLink": "View",
+      "sections": {
+        "framework": "About LinaPro",
+        "backend": "Backend Components",
+        "frontend": "Frontend Components"
+      },
+      "items": {
+        "frameworkName": "Framework Name",
+        "homepage": "Homepage",
+        "repositoryUrl": "Repository",
+        "version": "Version",
+        "license": "License",
+        "description": "Description"
+      }
+    }
+  },
+  "plugin": {
+    "dynamicPage": {
+      "mountFailedTitle": "Dynamic plugin mount failed",
+      "notFoundTitle": "Plugin page not found",
+      "notFoundSubtitle": "The current route does not match a registered source-plugin page or a valid dynamic embedded entry.",
+      "refreshNoticeTitle": "Plugin updated",
+      "refreshNoticeDescription": "A newer plugin generation is ready for this page. Refresh now to switch to the latest version.",
+      "refreshNoticeAction": "Refresh current page"
+    }
+  },
+  "routes": {
+    "about": {
+      "developerCenter": "Developer Center",
+      "apiDocs": "API Docs",
+      "systemInfo": "System Info"
+    },
+    "system": {
+      "accessManagement": "Access Management",
+      "userManagement": "Users",
+      "roleManagement": "Roles",
+      "menuManagement": "Menus",
+      "roleUserManagement": "Role User Assignment",
+      "systemSettings": "System Settings",
+      "dictManagement": "Dictionaries",
+      "configManagement": "Parameter Settings",
+      "fileManagement": "File Management",
+      "messageList": "Messages",
+      "scheduler": "Scheduler",
+      "jobManagement": "Jobs",
+      "jobGroupManagement": "Groups",
+      "jobLogManagement": "Execution Logs",
+      "extensionCenter": "Extensions",
+      "pluginManagement": "Plugins"
+    }
   }
 }

@@ -56,6 +56,8 @@ type Service interface {
 	LocalizeError(ctx context.Context, err error) string
 	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles.
 	InvalidateRuntimeBundleCache()
+	// InvalidateContentCache clears cached sys_i18n_content lookup results.
+	InvalidateContentCache()
 	// ExportMessages exports flat runtime messages for one locale.
 	ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
 	// CheckMissingMessages reports translation keys missing from one locale.
@@ -64,6 +66,11 @@ type Service interface {
 	DiagnoseMessages(ctx context.Context, locale string, keyPrefix string) []MessageDiagnosticItem
 	// ImportMessages writes flat translation messages into sys_i18n_message.
 	ImportMessages(ctx context.Context, input MessageImportInput) (MessageImportOutput, error)
+	// GetContent resolves one business-content translation from sys_i18n_content and
+	// falls back to the runtime default locale or caller-provided default content.
+	GetContent(ctx context.Context, input ContentLookupInput) (ContentLookupOutput, error)
+	// ListContentVariants lists all enabled locale variants for one business-content anchor.
+	ListContentVariants(ctx context.Context, businessType string, businessID string, field string) ([]ContentVariant, error)
 	// ListRuntimeLocales returns the runtime locales supported by the host.
 	ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
 	// BuildRuntimeMessages returns the effective runtime translation bundle for one locale.

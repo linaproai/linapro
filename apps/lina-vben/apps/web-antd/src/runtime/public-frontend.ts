@@ -3,7 +3,11 @@ import type { AuthPageLayoutType } from '@vben/types';
 import { reactive, readonly } from 'vue';
 
 import { useAppConfig } from '@vben/hooks';
-import { preferencesManager, updatePreferences } from '@vben/preferences';
+import {
+  preferences,
+  preferencesManager,
+  updatePreferences,
+} from '@vben/preferences';
 
 interface PublicFrontendAppSettings {
   logo: string;

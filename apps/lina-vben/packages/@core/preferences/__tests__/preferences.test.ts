@@ -22,6 +22,8 @@ describe('preferences', () => {
     })),
   );
   beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
     preferenceManager = new PreferenceManager();
   });
 
