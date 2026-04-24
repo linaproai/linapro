@@ -1,56 +1,80 @@
 # database-bootstrap-commands Specification
 
 ## Purpose
-TBD - created by archiving change framework-positioning-core-boundary-and-readme-i18n. Update Purpose after archive.
+Define the safety and execution rules for host bootstrap database commands, including confirmation, SQL asset sourcing, and fail-fast behavior.
+
 ## Requirements
-### Requirement: 敏感数据库启动命令必须显式确认
-系统 SHALL 要求宿主`init`和`mock`命令在执行任何`SQL`之前接收与命令名一一对应的显式确认值；未提供或提供错误确认值时，命令 MUST 拒绝执行。
+### Requirement: Sensitive database bootstrap commands require explicit confirmation
 
-#### Scenario: `init`命令缺少确认值
-- **WHEN** 操作者执行`go run main.go init`，但未传入`--confirm=init`
-- **THEN** 命令拒绝执行数据库初始化`SQL`
-- **AND** 命令输出明确的失败原因和正确示例
+The system SHALL require the host `init` and `mock` commands to receive an explicit confirmation value that matches the command name before executing any SQL. If the confirmation is missing or incorrect, the command MUST refuse to run. `init` and `mock` are limited to bootstrap initialization and must not act as formal upgrade commands.
 
-#### Scenario: `mock`命令收到错误确认值
-- **WHEN** 操作者执行`go run main.go mock --confirm=init`
-- **THEN** 命令拒绝执行任何`mock-data`目录下的`SQL`
-- **AND** 命令要求使用与`mock`命令匹配的确认值
+#### Scenario: The `init` command is missing confirmation
+- **WHEN** an operator runs `go run main.go init` without `--confirm=init`
+- **THEN** the command refuses to execute initialization SQL
+- **AND** the command prints a clear failure reason and a correct example
 
-#### Scenario: 命令收到正确确认值
-- **WHEN** 操作者执行`go run main.go init --confirm=init`或`go run main.go mock --confirm=mock`
-- **THEN** 命令允许进入对应的`SQL`扫描与执行流程
+#### Scenario: The `mock` command receives the wrong confirmation value
+- **WHEN** an operator runs `go run main.go mock --confirm=init`
+- **THEN** the command refuses to execute any SQL under `mock-data`
+- **AND** the command explains that the confirmation value must match `mock`
 
-### Requirement: `Makefile`入口必须复用同等确认语义
-系统 SHALL 要求仓库根目录和`apps/lina-core`目录下的`make init`、`make mock`入口使用与命令实现一致的`confirm`确认值，并在缺失或错误时提前失败。
+#### Scenario: The command receives the correct confirmation value
+- **WHEN** an operator runs `go run main.go init --confirm=init` or `go run main.go mock --confirm=mock`
+- **THEN** the command may enter the matching SQL scan and execution flow
 
-#### Scenario: 根目录`make init`缺少确认变量
-- **WHEN** 操作者在仓库根目录执行`make init`
-- **THEN** `Makefile`拒绝继续调用后端初始化命令
-- **AND** 输出正确示例`make init confirm=init`
+#### Scenario: `init` does not create framework-upgrade bookkeeping
+- **WHEN** an operator runs `go run main.go init --confirm=init` and every host SQL file succeeds
+- **THEN** the command performs only host bootstrap initialization
+- **AND** it does not write framework upgrade state, upgrade records, or SQL cursor metadata
 
-#### Scenario: 后端`make mock`使用正确确认变量
-- **WHEN** 操作者在`apps/lina-core`目录执行`make mock confirm=mock`
-- **THEN** `Makefile`将确认值透传给后端命令实现
-- **AND** 后端命令继续按`mock`语义校验并执行
+### Requirement: `Makefile` entries must reuse the same confirmation semantics
 
-### Requirement: 数据库启动`SQL`执行失败必须立即返回失败状态
-系统 SHALL 在`init`或`mock`进入执行阶段后，于任一`SQL`文件执行失败时立即停止后续文件执行，并向调用方返回失败状态。
+The system SHALL require `make init` and `make mock` in both the repository root and `apps/lina-core` to use the same confirmation values as the command implementation, and to fail early when the confirmation value is missing or incorrect.
 
-#### Scenario: 某个`SQL`文件执行失败
-- **WHEN** `init`或`mock`执行过程中某个`SQL`文件返回执行错误
-- **THEN** 系统立即停止执行后续`SQL`文件
-- **AND** 命令返回失败状态给`make`或直接调用方
-- **AND** 日志包含失败文件名和错误信息
+#### Scenario: Repository-root `make init` is missing confirmation
+- **WHEN** an operator runs `make init` from the repository root without `confirm=init`
+- **THEN** the `Makefile` refuses to continue
+- **AND** it prints the correct example `make init confirm=init`
 
-#### Scenario: 所有`SQL`文件执行成功
-- **WHEN** `init`或`mock`执行阶段内的所有目标`SQL`文件都成功执行
-- **THEN** 命令返回成功状态
-- **AND** 日志输出对应的完成提示
+#### Scenario: Backend `make mock` uses the correct confirmation variable
+- **WHEN** an operator runs `make mock confirm=mock` from `apps/lina-core`
+- **THEN** the `Makefile` passes the confirmation value through to the backend command implementation
+- **AND** the backend command continues with `mock`-specific validation and execution
+
+### Requirement: Database bootstrap commands must choose SQL asset sources explicitly by execution phase
+
+The system SHALL make SQL asset sourcing explicit. Runtime `lina init` and `lina mock` commands read host SQL assets from embedded FS by default, while development-time `make init` and `make mock` commands must explicitly switch to local SQL files in the source tree. The implementation MUST not infer the source from the current working directory.
+
+#### Scenario: Runtime `init` reads embedded SQL by default
+- **WHEN** an operator runs `lina init --confirm=init` from a released binary
+- **THEN** the command reads embedded SQL assets from `manifest/sql/`
+- **AND** it does not require a local source tree to exist
+
+#### Scenario: Development-time `make mock` reads local SQL explicitly
+- **WHEN** a developer runs `make mock confirm=mock`
+- **THEN** the `Makefile` explicitly switches the command to the local SQL source
+- **AND** the command reads SQL from `manifest/sql/mock-data/` in the source tree
+
+### Requirement: Database bootstrap SQL execution must fail fast
+
+The system SHALL stop execution immediately when any SQL file fails during `init` or `mock`, and it shall return a failure result to the caller.
+
+#### Scenario: A SQL file fails during execution
+- **WHEN** one SQL file returns an execution error during `init` or `mock`
+- **THEN** the system stops executing later SQL files immediately
+- **AND** the command returns a failure status to `make` or the direct caller
+- **AND** logs include the failing file name and the error details
+
+#### Scenario: Every SQL file succeeds
+- **WHEN** every target SQL file succeeds during `init` or `mock`
+- **THEN** the command returns a success status
+- **AND** logs print the corresponding completion message
 
 ### Requirement: SQL bootstrap commands must not depend on driver multi-statement execution
-The system SHALL parse each SQL file used by the host `init` and `mock` commands into an ordered list of independent SQL statements and execute them one by one instead of relying on driver-level `multiStatements` support in the database connection string. If any statement fails, the system MUST stop the remaining statements in the current file and all later SQL files, and return a failure result to the caller.
 
-#### Scenario: Multi-statement SQL files run statement by statement in order
+The system SHALL parse each SQL file used by `init` and `mock` into an ordered list of independent statements and execute them one by one instead of relying on driver-level multi-statement support in the database connection string.
+
+#### Scenario: Multi-statement files run statement by statement in order
 - **WHEN** `init` or `mock` reads a target file that contains multiple SQL statements
 - **THEN** the system executes those statements one by one in the same order they appear in the file
 - **AND** blank fragments and pure comment fragments are not treated as executable statements
@@ -60,4 +84,3 @@ The system SHALL parse each SQL file used by the host `init` and `mock` commands
 - **THEN** the system immediately stops the remaining statements in that file and all later SQL files
 - **AND** the command returns a failure status
 - **AND** the error message still includes the failing file name so the issue can be located quickly
-
