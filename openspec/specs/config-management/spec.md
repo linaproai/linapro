@@ -253,3 +253,88 @@ The The system SHALL turns off TraceID output in the log by default, and only al
 - **WHEN** Administrator executes host initialization SQL
 - **THEN** `sys_config` does not contain `sys.logger.traceID.enabled` records
 
+### Requirement: Built-in metadata for the login-panel position parameter
+
+The system MUST provide a protected built-in public-frontend parameter named `sys.auth.loginPanelLayout` to maintain the default login-panel layout.
+
+#### Scenario: Initialize the login-panel position parameter
+- **WHEN** an administrator runs the host initialization SQL
+- **THEN** `sys_config` contains a built-in parameter record with key `sys.auth.loginPanelLayout`
+- **AND** the default value of that record is `panel-right`
+- **AND** the record includes a readable name and value descriptions for `panel-left`, `panel-center`, and `panel-right`
+
+### Requirement: Validate the login-panel position parameter and expose it through the public-frontend config endpoint
+
+The system MUST validate the value domain of `sys.auth.loginPanelLayout` and expose the effective value through the public-frontend config endpoint for unauthenticated pages.
+
+#### Scenario: Reject invalid login-panel position values
+- **WHEN** a user creates, updates, or imports `sys.auth.loginPanelLayout` with a value other than `panel-left`, `panel-center`, or `panel-right`
+- **THEN** the system rejects the change and returns a parameter-validation error
+
+#### Scenario: Public frontend config returns the login-panel position
+- **WHEN** a browser requests `GET /config/public/frontend`
+- **THEN** `auth.panelLayout` in the response equals the effective value of `sys.auth.loginPanelLayout`
+- **AND** unauthenticated pages can consume that value without reading any other `sys_config` data
+
+### Requirement: Default value and length rules for the login-page description parameter
+
+The system MUST provide a default description value for the protected built-in public-frontend parameter `sys.auth.pageDesc`, and MUST allow a non-empty description of up to 500 characters so the login page can show richer product copy.
+
+#### Scenario: Initialize the login-page description parameter
+- **WHEN** an administrator runs the host initialization SQL
+- **THEN** `sys_config` contains a built-in parameter record with key `sys.auth.pageDesc`
+- **AND** the default value of that record is `Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model`
+
+#### Scenario: Save a login-page description within 500 characters
+- **WHEN** an administrator creates, updates, or imports `sys.auth.pageDesc` through system-parameter management and the value length is between 1 and 500 characters
+- **THEN** the system accepts and stores the value
+- **AND** `auth.pageDesc` returned by the public-frontend config endpoint matches the saved value
+
+#### Scenario: Reject an overlong login-page description
+- **WHEN** an administrator creates, updates, or imports `sys.auth.pageDesc` through system-parameter management and the value length exceeds 500 characters
+- **THEN** the system rejects the change and returns a parameter-validation error
+
+### Requirement: The default upload size must be unified at 20 MB
+The system SHALL set the platform default value of `sys.upload.maxSize` to `20`, and database initialization, config-template defaults, and runtime upload fallbacks SHALL all use that same value unless an administrator explicitly overrides it.
+
+#### Scenario: Host initialization writes the 20 MB default
+- **WHEN** an administrator runs the host initialization SQL
+- **THEN** the default value of `sys.upload.maxSize` in `sys_config` is `20`
+- **AND** the default value read by config management for that built-in parameter is also `20`
+
+#### Scenario: Runtime default remains 20 MB when no override is provided
+- **WHEN** the host handles a `multipart` upload request without any administrator override for the upload-size setting
+- **THEN** file-upload validation enforces a 20 MB limit
+- **AND** the friendly error message triggered by the default limit returns wording equivalent to "file size cannot exceed 20 MB"
+
+### Requirement: All default upload-size sources must stay consistent
+The system SHALL keep the database seed value, config-template default, and host static fallback value for `sys.upload.maxSize` consistent so different startup paths do not expose different default upload limits.
+
+#### Scenario: The host starts from the default template
+- **WHEN** an operator generates runtime config from the host default `config.template.yaml` and does not change the upload limit separately
+- **THEN** the host reads a default upload size of 20 MB
+- **AND** that default matches the `sys.upload.maxSize` default written by the host initialization SQL
+
+### Requirement: The config-management component must have a unit-test coverage gate
+The system SHALL maintain repeatable unit tests for the `apps/lina-core/internal/service/config` config-management component, and SHALL use package-level coverage verification as a delivery gate before that component is considered ready.
+
+#### Scenario: Package-level coverage meets the delivery bar
+- **WHEN** a maintainer runs `go test ./internal/service/config -cover` from `apps/lina-core`
+- **THEN** the command succeeds
+- **AND** the reported package-level statement coverage is not lower than `80%`
+
+### Requirement: Critical config-management branches must have automated regression protection
+The system SHALL add automated unit tests for critical helper logic inside the config-management component, including high-risk branches around defaults and fallbacks, cache or snapshot reuse, and invalid input or error propagation.
+
+#### Scenario: Plugin and public-frontend config helper logic changes
+- **WHEN** a change touches plugin dynamic storage paths, protected public-frontend config key checks, or the shared validation entry point
+- **THEN** unit tests cover the normal read path
+- **AND** cover default-value or compatibility-fallback behavior
+- **AND** cover invalid input or empty-value defensive behavior
+
+#### Scenario: Runtime-parameter cache and revision synchronization logic changes
+- **WHEN** a change touches runtime-parameter snapshot caches, the revision controller, or shared-KV synchronization logic
+- **THEN** unit tests cover cache-hit or local-reuse behavior
+- **AND** cover rebuilds after revision changes
+- **AND** cover error propagation and defensive behavior for shared-KV read failures, invalid cached values, or equivalent exceptional cases
+
