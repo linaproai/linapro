@@ -4,8 +4,8 @@
 
 ## What Changes
 
-- 新增官方源码插件`demo-control`，通过宿主发布的全局 HTTP 中间件注册能力接入统一请求治理链路。
-- 当`demo-control`被宿主启用时，插件基于`RESTful API`的`HTTP Method`拦截系统写操作请求，仅保留查询型请求能力。
+- 新增官方源码插件`demo-control`，通过宿主发布的全局 HTTP 中间件注册能力接入整个系统请求治理链路。
+- 当`demo-control`被宿主启用时，插件在`/*`作用域下基于`RESTful API`的`HTTP Method`拦截系统写操作请求，仅保留查询型请求能力。
 - 为保证演示环境仍可正常进入与退出系统，会为登录、登出等必要会话入口保留最小白名单。
 - 通过宿主主配置文件中的`plugin.autoEnable`控制`demo-control`是否在启动期自动启用，以此作为演示能力的开关入口。
 

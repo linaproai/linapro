@@ -367,6 +367,15 @@ func (s *serviceImpl) buildReleaseStatusForManifest(manifest *Manifest, registry
 	if manifest == nil || registry == nil {
 		return ReleaseStatusPrepared
 	}
+	if NormalizeType(manifest.Type) == TypeSource {
+		if strings.TrimSpace(registry.Version) == strings.TrimSpace(manifest.Version) {
+			return BuildReleaseStatus(registry.Installed, registry.Status)
+		}
+		if registry.Installed != InstalledYes {
+			return BuildReleaseStatus(registry.Installed, registry.Status)
+		}
+		return ReleaseStatusPrepared
+	}
 	if NormalizeType(manifest.Type) != TypeDynamic {
 		return BuildReleaseStatus(registry.Installed, registry.Status)
 	}

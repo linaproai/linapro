@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
@@ -23,6 +24,12 @@ type demoControlTestResponse struct {
 // TestGuardBypassesWriteRequestsWhenPluginDisabled verifies an unenabled
 // plugin does not interfere with downstream write handlers.
 func TestGuardBypassesWriteRequestsWhenPluginDisabled(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  dynamic:
+    storagePath: "temp/output"
+`)
+
 	baseURL, shutdown := startDemoControlTestServer(t, false)
 	defer shutdown()
 
@@ -35,8 +42,36 @@ func TestGuardBypassesWriteRequestsWhenPluginDisabled(t *testing.T) {
 	}
 }
 
+// TestGuardBypassesWriteRequestsWhenDemoControlNotConfigured verifies the
+// mounted middleware becomes a no-op when plugin.autoEnable does not include
+// demo-control.
+func TestGuardBypassesWriteRequestsWhenDemoControlNotConfigured(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  dynamic:
+    storagePath: "temp/output"
+`)
+
+	baseURL, shutdown := startDemoControlTestServer(t, true)
+	defer shutdown()
+
+	response := doDemoControlRequest(t, http.MethodPost, baseURL+"/api/v1/resource")
+	if response.status != http.StatusOK {
+		t.Fatalf("expected POST to pass when demo-control is not configured, got %d", response.status)
+	}
+	if response.body != "mutated" {
+		t.Fatalf("expected downstream POST handler body, got %q", response.body)
+	}
+}
+
 // TestGuardAllowsSafeReadMethods verifies an enabled plugin still allows read-only methods.
 func TestGuardAllowsSafeReadMethods(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  autoEnable:
+    - "demo-control"
+`)
+
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -49,9 +84,15 @@ func TestGuardAllowsSafeReadMethods(t *testing.T) {
 	}
 }
 
-// TestGuardRejectsWriteRequestsWhenDemoControlEnabled verifies an enabled
-// plugin blocks write methods outside the session whitelist.
+// TestGuardRejectsWriteRequestsWhenPluginEnabled verifies an enabled plugin
+// blocks write methods outside the session whitelist.
 func TestGuardRejectsWriteRequestsWhenPluginEnabled(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  autoEnable:
+    - "demo-control"
+`)
+
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -64,9 +105,36 @@ func TestGuardRejectsWriteRequestsWhenPluginEnabled(t *testing.T) {
 	}
 }
 
+// TestGuardCoversWholeSystemScope verifies the plugin guards non-API write
+// routes as well when it is mounted on the whole system scope.
+func TestGuardCoversWholeSystemScope(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  autoEnable:
+    - "demo-control"
+`)
+
+	baseURL, shutdown := startDemoControlTestServer(t, true)
+	defer shutdown()
+
+	response := doDemoControlRequest(t, http.MethodPost, baseURL+"/system/write")
+	if response.status != http.StatusForbidden {
+		t.Fatalf("expected whole-system POST to be rejected, got %d", response.status)
+	}
+	if !strings.Contains(response.body, demoControlMessage) {
+		t.Fatalf("expected whole-system rejection body to mention demo-control message, got %q", response.body)
+	}
+}
+
 // TestGuardAllowsLoginAndLogoutWhitelist verifies the plugin preserves the
 // minimal session whitelist needed for usable demos.
 func TestGuardAllowsLoginAndLogoutWhitelist(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  autoEnable:
+    - "demo-control"
+`)
+
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -81,8 +149,75 @@ func TestGuardAllowsLoginAndLogoutWhitelist(t *testing.T) {
 	}
 }
 
+// TestGuardAllowsPluginManagementWhitelist verifies demo mode preserves
+// install/uninstall/enable/disable actions for plugins other than demo-control.
+func TestGuardAllowsPluginManagementWhitelist(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  autoEnable:
+    - "demo-control"
+`)
+
+	baseURL, shutdown := startDemoControlTestServer(t, true)
+	defer shutdown()
+
+	allowedRequests := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{method: http.MethodPost, path: "/api/v1/plugins/plugin-demo-source/install", body: "plugin-install-ok"},
+		{method: http.MethodPut, path: "/api/v1/plugins/plugin-demo-source/enable", body: "plugin-enable-ok"},
+		{method: http.MethodPut, path: "/api/v1/plugins/plugin-demo-source/disable", body: "plugin-disable-ok"},
+		{method: http.MethodDelete, path: "/api/v1/plugins/plugin-demo-source", body: "plugin-uninstall-ok"},
+	}
+
+	for _, item := range allowedRequests {
+		response := doDemoControlRequest(t, item.method, baseURL+item.path)
+		if response.status != http.StatusOK {
+			t.Fatalf("expected %s %s to stay allowed, got %d", item.method, item.path, response.status)
+		}
+		if response.body != item.body {
+			t.Fatalf("expected downstream whitelist body %q for %s %s, got %q", item.body, item.method, item.path, response.body)
+		}
+	}
+}
+
+// TestGuardRejectsDemoControlSelfManagementRequests verifies demo-control keeps
+// protecting itself even when plugin governance actions are otherwise whitelisted.
+func TestGuardRejectsDemoControlSelfManagementRequests(t *testing.T) {
+	setDemoControlTestConfig(t, `
+plugin:
+  autoEnable:
+    - "demo-control"
+`)
+
+	baseURL, shutdown := startDemoControlTestServer(t, true)
+	defer shutdown()
+
+	rejectedRequests := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodPost, path: "/api/v1/plugins/demo-control/install"},
+		{method: http.MethodPut, path: "/api/v1/plugins/demo-control/enable"},
+		{method: http.MethodPut, path: "/api/v1/plugins/demo-control/disable"},
+		{method: http.MethodDelete, path: "/api/v1/plugins/demo-control"},
+	}
+
+	for _, item := range rejectedRequests {
+		response := doDemoControlRequest(t, item.method, baseURL+item.path)
+		if response.status != http.StatusForbidden {
+			t.Fatalf("expected %s %s to be rejected, got %d", item.method, item.path, response.status)
+		}
+		if !strings.Contains(response.body, demoControlMessage) {
+			t.Fatalf("expected rejection body to mention demo-control message for %s %s, got %q", item.method, item.path, response.body)
+		}
+	}
+}
+
 // startDemoControlTestServer boots one ephemeral HTTP server with the
-// demo-control middleware mounted on `/api/v1/*`.
+// demo-control middleware mounted on `/*`.
 func startDemoControlTestServer(t *testing.T, enabled bool) (string, func()) {
 	t.Helper()
 
@@ -92,7 +227,7 @@ func startDemoControlTestServer(t *testing.T, enabled bool) (string, func()) {
 
 	if enabled {
 		guardSvc := New()
-		server.BindMiddleware("/api/v1/*", guardSvc.Guard)
+		server.BindMiddleware("/*", guardSvc.Guard)
 	}
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.ALL("/ping", func(request *ghttp.Request) {
@@ -107,6 +242,33 @@ func startDemoControlTestServer(t *testing.T, enabled bool) (string, func()) {
 		group.ALL("/auth/logout", func(request *ghttp.Request) {
 			request.Response.Write("logout-ok")
 		})
+		group.ALL("/plugins/plugin-demo-source/install", func(request *ghttp.Request) {
+			request.Response.Write("plugin-install-ok")
+		})
+		group.ALL("/plugins/plugin-demo-source/enable", func(request *ghttp.Request) {
+			request.Response.Write("plugin-enable-ok")
+		})
+		group.ALL("/plugins/plugin-demo-source/disable", func(request *ghttp.Request) {
+			request.Response.Write("plugin-disable-ok")
+		})
+		group.ALL("/plugins/plugin-demo-source", func(request *ghttp.Request) {
+			request.Response.Write("plugin-uninstall-ok")
+		})
+		group.ALL("/plugins/demo-control/install", func(request *ghttp.Request) {
+			request.Response.Write("demo-control-install-ok")
+		})
+		group.ALL("/plugins/demo-control/enable", func(request *ghttp.Request) {
+			request.Response.Write("demo-control-enable-ok")
+		})
+		group.ALL("/plugins/demo-control/disable", func(request *ghttp.Request) {
+			request.Response.Write("demo-control-disable-ok")
+		})
+		group.ALL("/plugins/demo-control", func(request *ghttp.Request) {
+			request.Response.Write("demo-control-uninstall-ok")
+		})
+	})
+	server.BindHandler("/system/write", func(request *ghttp.Request) {
+		request.Response.Write("system-write-ok")
 	})
 
 	server.Start()
@@ -136,4 +298,21 @@ func doDemoControlRequest(t *testing.T, method string, targetURL string) demoCon
 		t.Fatalf("read response body: %v", err)
 	}
 	return demoControlTestResponse{status: response.StatusCode, body: string(body)}
+}
+
+// setDemoControlTestConfig replaces the process config adapter for one test
+// case so demo-control can verify plugin.autoEnable as its only switch.
+func setDemoControlTestConfig(t *testing.T, content string) {
+	t.Helper()
+
+	adapter, err := gcfg.NewAdapterContent(content)
+	if err != nil {
+		t.Fatalf("create content adapter: %v", err)
+	}
+
+	originalAdapter := g.Cfg().GetAdapter()
+	g.Cfg().SetAdapter(adapter)
+	t.Cleanup(func() {
+		g.Cfg().SetAdapter(originalAdapter)
+	})
 }

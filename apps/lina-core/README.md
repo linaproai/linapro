@@ -39,7 +39,19 @@ make build
 make dao
 make ctrl
 make init confirm=init
+make upgrade confirm=upgrade scope=framework
+make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo-source
 ```
+
+## Source Plugin Upgrade
+
+Source plugins now follow an explicit development-time upgrade flow instead of
+silently switching versions during startup.
+
+- Use `make upgrade confirm=upgrade scope=source-plugin plugin=<plugin-id>` to upgrade one installed source plugin.
+- Use `make upgrade confirm=upgrade scope=source-plugin plugin=all` to upgrade every installed source plugin with a newer discovered version.
+- Host startup scans source plugins first, but if an installed source plugin still has a higher discovered `plugin.yaml` version than the effective `sys_plugin.version`, startup fails fast until the upgrade command has been completed.
+- Dynamic plugins keep their existing runtime-managed `upload + install/reconcile` upgrade model and are not handled by `make upgrade`.
 
 ## Related Entry Points
 

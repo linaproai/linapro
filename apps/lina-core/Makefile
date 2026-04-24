@@ -36,13 +36,15 @@ mock:
 	@go run main.go mock --confirm=$(confirm) --sql-source=local
 	@echo "✓ Mock 数据加载完成"
 
-## upgrade: 升级框架版本（调用仓库根目录 hack 下的开发态升级工具）
+## upgrade: 统一开发态升级入口（scope=framework|source-plugin；源码插件需配合 plugin=<id|all>）
 .PHONY: upgrade
 upgrade:
 	$(call require_confirm,upgrade)
-	@echo "正在执行框架升级..."
+	@echo "正在执行开发态升级..."
 	@$(MAKE) -C ../.. upgrade confirm=$(confirm) \
+		$(if $(scope),scope=$(scope),) \
 		$(if $(repo),repo=$(repo),) \
 		$(if $(target),target=$(target),) \
+		$(if $(plugin),plugin=$(plugin),) \
 		$(if $(dry_run),dry_run=$(dry_run),)
-	@echo "✓ 框架升级命令执行完成"
+	@echo "✓ 开发态升级命令执行完成"

@@ -1,4 +1,4 @@
-module upgrade-framework
+module upgrade-source
 
 go 1.25.0
 

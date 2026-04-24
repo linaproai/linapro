@@ -45,7 +45,7 @@ mock:
 	fi
 	@cd $(BACKEND_DIR) && $(MAKE) mock confirm=$(confirm)
 
-## upgrade: 升级框架版本（开发态工具，目标标签代码覆盖 + 全量重放宿主 SQL）
+## upgrade: 统一开发态升级入口（scope=framework|source-plugin；源码插件需配合 plugin=<id|all>）
 .PHONY: upgrade
 upgrade:
 	@if [ "$(confirm)" != "upgrade" ]; then \
@@ -53,9 +53,11 @@ upgrade:
 		echo "  请使用: make upgrade confirm=upgrade"; \
 		exit 1; \
 	fi
-	@go run ./hack/upgrade-framework --confirm=$(confirm) \
+	@go run ./hack/upgrade-source --confirm=$(confirm) \
+		$(if $(scope),--scope=$(scope),) \
 		$(if $(repo),--repo=$(repo),) \
 		$(if $(target),--target=$(target),) \
+		$(if $(plugin),--plugin=$(plugin),) \
 		$(if $(dry_run),--dry-run,)
 
 ## help: 显示帮助信息

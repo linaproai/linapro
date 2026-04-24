@@ -4,10 +4,12 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
@@ -16,6 +18,7 @@ import (
 const (
 	demoControlErrorCode = 1
 	demoControlMessage   = "演示模式已开启，禁止执行写操作"
+	demoControlPluginID  = "demo-control"
 )
 
 // demoControlErrorResponse defines the JSON payload returned for blocked demo writes.
@@ -25,9 +28,13 @@ type demoControlErrorResponse struct {
 	Message string `json:"message"`
 }
 
-// Guard enforces the demo-mode read-only policy on API requests.
+// Guard enforces the demo-mode read-only policy on whole-system requests.
 func (s *serviceImpl) Guard(request *ghttp.Request) {
 	if request == nil {
+		return
+	}
+	if !isDemoControlConfigured() {
+		request.Middleware.Next()
 		return
 	}
 	if isDemoControlAllowedRequest(request) {
@@ -35,6 +42,19 @@ func (s *serviceImpl) Guard(request *ghttp.Request) {
 		return
 	}
 	writeDemoControlError(request)
+}
+
+// isDemoControlConfigured reports whether the host runtime configuration keeps
+// demo-control in plugin.autoEnable, which is the only activation switch for
+// demo-mode protection.
+func isDemoControlConfigured() bool {
+	autoEnableIDs := g.Cfg().MustGet(context.Background(), "plugin.autoEnable").Strings()
+	for _, pluginID := range autoEnableIDs {
+		if strings.TrimSpace(pluginID) == demoControlPluginID {
+			return true
+		}
+	}
+	return false
 }
 
 // isDemoControlAllowedRequest reports whether the incoming request should bypass
@@ -45,10 +65,14 @@ func isDemoControlAllowedRequest(request *ghttp.Request) bool {
 	}
 
 	method := normalizeDemoControlMethod(request.Method)
+	path := normalizeDemoControlPath(request.URL.Path)
 	if isDemoControlSafeMethod(method) {
 		return true
 	}
-	return isDemoControlSessionWhitelist(method, request.URL.Path)
+	if isDemoControlSessionWhitelist(method, path) {
+		return true
+	}
+	return isDemoControlPluginManagementWhitelist(method, path)
 }
 
 // normalizeDemoControlMethod trims and uppercases one request method.
@@ -82,6 +106,34 @@ func isDemoControlSessionWhitelist(method string, path string) bool {
 	}
 }
 
+// isDemoControlPluginManagementWhitelist reports whether the request belongs to
+// the minimal plugin-governance whitelist preserved for demo environments.
+func isDemoControlPluginManagementWhitelist(method string, path string) bool {
+	segments := splitDemoControlPathSegments(path)
+	if len(segments) < 4 {
+		return false
+	}
+	if segments[0] != "api" || segments[1] != "v1" || segments[2] != "plugins" {
+		return false
+	}
+
+	pluginID := strings.TrimSpace(segments[3])
+	if pluginID == "" || pluginID == demoControlPluginID {
+		return false
+	}
+
+	switch method {
+	case http.MethodPost:
+		return len(segments) == 5 && segments[4] == "install"
+	case http.MethodPut:
+		return len(segments) == 5 && (segments[4] == "enable" || segments[4] == "disable")
+	case http.MethodDelete:
+		return len(segments) == 4
+	default:
+		return false
+	}
+}
+
 // normalizeDemoControlPath canonicalizes one request path for whitelist matching.
 func normalizeDemoControlPath(path string) string {
 	trimmed := strings.TrimSpace(path)
@@ -98,6 +150,16 @@ func normalizeDemoControlPath(path string) string {
 		}
 	}
 	return trimmed
+}
+
+// splitDemoControlPathSegments converts one canonical request path into ordered
+// non-empty path segments for whitelist classification.
+func splitDemoControlPathSegments(path string) []string {
+	normalizedPath := normalizeDemoControlPath(path)
+	if normalizedPath == "/" {
+		return nil
+	}
+	return strings.Split(strings.TrimPrefix(normalizedPath, "/"), "/")
 }
 
 // writeDemoControlError writes one JSON error response for blocked write requests.

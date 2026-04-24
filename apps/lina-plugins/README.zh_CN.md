@@ -67,6 +67,15 @@ apps/lina-plugins/<plugin-id>/
 4. 插件后端代码保留在插件目录中，业务逻辑统一放在 `backend/internal/service/` 下，并且只依赖宿主公开包。
 5. 在 `apps/lina-plugins/lina-plugins.go` 中做显式接线。
 
+## 源码插件版本升级
+
+当某个源码插件已经在宿主中安装完成，而你又提升了它的 `plugin.yaml` 版本时，源码扫描不再自动替换当前生效版本。
+
+- 当前生效版本仍然固定在 `sys_plugin.version` 与 `release_id`。
+- 新发现的更高源码版本会写入一个 `prepared` 状态的 `sys_plugin_release`。
+- 在宿主允许启动前，必须显式执行 `make upgrade confirm=upgrade scope=source-plugin plugin=<plugin-id>`，或者使用 `plugin=all` 批量处理。
+- 如果跳过这一步，宿主启动会直接失败，并输出需要执行的升级命令。
+
 ## 动态插件说明
 
 动态 WASM 插件仍然适用于运行时托管交付场景。如果插件需要通过上传、安装、启用、停用和卸载完成生命周期管理，请参考 `plugin-demo-dynamic/`。

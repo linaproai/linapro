@@ -39,7 +39,18 @@ make build
 make dao
 make ctrl
 make init confirm=init
+make upgrade confirm=upgrade scope=framework
+make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo-source
 ```
+
+## 源码插件升级
+
+源码插件现在采用显式的开发阶段升级流程，不再允许在宿主启动期间静默切换版本。
+
+- 使用 `make upgrade confirm=upgrade scope=source-plugin plugin=<plugin-id>` 升级单个已安装源码插件。
+- 使用 `make upgrade confirm=upgrade scope=source-plugin plugin=all` 批量升级全部已安装且发现了更高版本的源码插件。
+- 宿主启动前会先扫描源码插件；如果某个已安装源码插件的 `plugin.yaml` 发现版本高于当前生效的 `sys_plugin.version`，启动会直接失败，直到显式升级命令执行完成。
+- 动态插件继续使用现有的运行时 `upload + install/reconcile` 升级模型，不纳入 `make upgrade`。
 
 ## 相关入口
 

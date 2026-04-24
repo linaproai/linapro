@@ -9,5 +9,6 @@ Enable this plugin by adding `demo-control` to the host `plugin.autoEnable` list
 This plugin owns:
 
 - environment-level demo request guarding based on `HTTP Method`
-- write-operation interception for host and plugin APIs under `/api/v1`
+- whole-system request interception on the host `/*` scope
+- write-operation interception for host and plugin write endpoints across the system
 - the minimal session whitelist required for login and logout in demo mode

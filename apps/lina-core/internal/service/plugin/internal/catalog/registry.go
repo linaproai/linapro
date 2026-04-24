@@ -88,11 +88,13 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 		Remark: manifest.Description,
 	}
 	if NormalizeType(manifest.Type) == TypeSource {
-		data.Version = manifest.Version
 		data.ManifestPath = manifest.ManifestPath
 		data.Checksum = s.BuildRegistryChecksum(manifest)
 		data.Installed = existing.Installed
 		if existing.Installed == InstalledYes {
+			if strings.TrimSpace(existing.Version) == "" {
+				data.Version = manifest.Version
+			}
 			data.Status = existing.Status
 			data.DesiredState = DeriveHostState(existing.Installed, existing.Status)
 			data.CurrentState = DeriveHostState(existing.Installed, existing.Status)
@@ -100,6 +102,7 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 				data.InstalledAt = gtime.Now()
 			}
 		} else {
+			data.Version = manifest.Version
 			data.Status = StatusDisabled
 			data.DesiredState = DeriveHostState(InstalledNo, StatusDisabled)
 			data.CurrentState = DeriveHostState(InstalledNo, StatusDisabled)
@@ -140,6 +143,7 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 	if NormalizeType(manifest.Type) == TypeSource &&
 		registry != nil &&
 		registry.Installed == InstalledYes &&
+		strings.TrimSpace(registry.Version) == strings.TrimSpace(manifest.Version) &&
 		s.menuSyncer != nil {
 		if err = s.menuSyncer.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
 			return nil, err

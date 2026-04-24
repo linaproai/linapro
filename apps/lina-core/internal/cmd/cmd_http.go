@@ -113,6 +113,9 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	if err = pluginSvc.BootstrapAutoEnable(ctx); err != nil {
 		return nil, err
 	}
+	if err = pluginSvc.ValidateSourcePluginUpgradeReadiness(ctx); err != nil {
+		return nil, err
+	}
 	if _, err = jobhandlersvc.AttachPluginLifecycle(ctx, jobRegistry, pluginSvc); err != nil {
 		return nil, err
 	}

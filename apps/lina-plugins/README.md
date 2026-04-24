@@ -67,6 +67,17 @@ The host and source plugins are intentionally decoupled through stable seams ins
 4. Keep plugin-owned backend code inside the plugin directory, place service logic under `backend/internal/service/`, and depend only on published host packages.
 5. Register the plugin explicitly in `apps/lina-plugins/lina-plugins.go`.
 
+## Source Plugin Version Upgrade
+
+When a source plugin has already been installed in the host and you bump its
+`plugin.yaml` version, discovery no longer replaces the effective host version
+automatically.
+
+- The current effective version stays pinned in `sys_plugin.version` and `release_id`.
+- The higher discovered source version is stored as a prepared `sys_plugin_release`.
+- Before the host is allowed to start, you must run `make upgrade confirm=upgrade scope=source-plugin plugin=<plugin-id>` or `plugin=all`.
+- If you skip that step, host startup fails fast and prints the required upgrade command.
+
 ## Dynamic Plugin Notes
 
 Dynamic WASM plugins remain supported for runtime-managed delivery scenarios. Use `plugin-demo-dynamic/` as the reference when the plugin must be uploaded, installed, enabled, disabled, and uninstalled without recompiling the host.

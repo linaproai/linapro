@@ -1,12 +1,15 @@
-// Package frameworkupgrade implements the development-only source-upgrade tool
-// that lives under the repository-root hack workspace for LinaPro framework releases.
+// Package frameworkupgrade implements framework planning and execution for the
+// development-only source-upgrade tool used by LinaPro source trees.
 package frameworkupgrade
 
 import (
 	"context"
+	"strings"
+
+	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-// Service defines the framework source-upgrade service contract.
+// Service defines the framework-upgrade service contract.
 type Service interface {
 	// BuildPlan resolves the target framework release and calculates the upgrade work.
 	BuildPlan(ctx context.Context, input BuildPlanInput) (*Plan, error)
@@ -19,6 +22,13 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct{}
+
+// WorkspacePrecheck stores the repository root and any dirty working-tree files
+// discovered before an upgrade command is allowed to continue.
+type WorkspacePrecheck struct {
+	RepoRoot      string   // RepoRoot is the current project repository root.
+	DirtyGitFiles []string // DirtyGitFiles stores current git working-tree changes when precheck fails.
+}
 
 // BuildPlanInput describes one framework-upgrade planning request.
 type BuildPlanInput struct {
@@ -52,4 +62,28 @@ type ExecuteResult struct {
 // New creates and returns a new framework-upgrade service instance.
 func New() Service {
 	return &serviceImpl{}
+}
+
+// PrecheckWorkspace resolves the current repository root and verifies that the
+// Git working tree is clean before an upgrade command proceeds.
+func PrecheckWorkspace(ctx context.Context) (*WorkspacePrecheck, error) {
+	repoRoot, err := detectRepoRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dirtyGitFiles, err := listDirtyGitFiles(ctx, repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	result := &WorkspacePrecheck{
+		RepoRoot:      repoRoot,
+		DirtyGitFiles: dirtyGitFiles,
+	}
+	if len(dirtyGitFiles) > 0 {
+		return result, gerror.Newf(
+			"检测到当前 Git 工作区存在未提交修改，请先提交或 stash 后再升级: %s",
+			strings.Join(dirtyGitFiles, ", "),
+		)
+	}
+	return result, nil
 }

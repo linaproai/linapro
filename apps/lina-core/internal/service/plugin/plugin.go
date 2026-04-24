@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
+	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
 
 	"lina-core/internal/model/entity"
 
@@ -20,6 +21,7 @@ import (
 
 	"lina-core/pkg/audittype"
 	"lina-core/pkg/pluginhost"
+	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
 )
 
 type (
@@ -253,6 +255,20 @@ type LifecycleManagementService interface {
 	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
 }
 
+// SourceUpgradeGovernanceService defines source-plugin upgrade discovery,
+// execution, and startup validation operations.
+type SourceUpgradeGovernanceService interface {
+	// ListSourceUpgradeStatuses scans source manifests and returns one
+	// effective-versus-discovered upgrade-status item per source plugin.
+	ListSourceUpgradeStatuses(ctx context.Context) ([]*sourceupgradecontract.SourcePluginStatus, error)
+	// UpgradeSourcePlugin applies one explicit source-plugin upgrade from the
+	// current effective version to the newer discovered source version.
+	UpgradeSourcePlugin(ctx context.Context, pluginID string) (*sourceupgradecontract.SourcePluginUpgradeResult, error)
+	// ValidateSourcePluginUpgradeReadiness fails fast when any installed source
+	// plugin still has a newer discovered source version waiting to be upgraded.
+	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
+}
+
 // RegistryQueryService defines manifest synchronization and plugin list query operations.
 type RegistryQueryService interface {
 	// SyncSourcePlugins scans source plugin manifests and synchronizes default status.
@@ -304,6 +320,7 @@ type Service interface {
 	SourceIntegrationService
 	ResourceQueryService
 	LifecycleManagementService
+	SourceUpgradeGovernanceService
 	RegistryQueryService
 	OpenAPIProjectionService
 	RuntimeManagementService
@@ -329,6 +346,8 @@ type serviceImpl struct {
 	runtimeSvc runtime.Service
 	// integrationSvc provides host extension, menu, hook, and resource integration.
 	integrationSvc integration.Service
+	// sourceUpgradeSvc provides source-plugin upgrade discovery, execution, and startup validation.
+	sourceUpgradeSvc sourceupgradeinternal.Service
 	// frontendSvc manages in-memory frontend bundles for dynamic plugins.
 	frontendSvc frontend.Service
 	// openapiSvc projects dynamic routes into the host OpenAPI document.
@@ -345,14 +364,15 @@ func New(topology Topology) Service {
 	}
 
 	var (
-		configProvider = configsvc.New()
-		bizCtxProvider = bizctx.New()
-		catalogSvc     = catalog.New(configProvider)
-		lifecycleSvc   = lifecycle.New(catalogSvc)
-		frontendSvc    = frontend.New(catalogSvc)
-		openapiSvc     = openapi.New(catalogSvc)
-		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc)
-		integrationSvc = integration.New(catalogSvc)
+		configProvider   = configsvc.New()
+		bizCtxProvider   = bizctx.New()
+		catalogSvc       = catalog.New(configProvider)
+		lifecycleSvc     = lifecycle.New(catalogSvc)
+		frontendSvc      = frontend.New(catalogSvc)
+		openapiSvc       = openapi.New(catalogSvc)
+		runtimeSvc       = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc)
+		integrationSvc   = integration.New(catalogSvc)
+		sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc)
 	)
 
 	// Wire cross-package dependencies via setter injection so each sub-package
@@ -382,13 +402,14 @@ func New(topology Topology) Service {
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{bizCtxProvider})
 
 	return &serviceImpl{
-		configSvc:      configProvider,
-		topology:       topo,
-		catalogSvc:     catalogSvc,
-		lifecycleSvc:   lifecycleSvc,
-		runtimeSvc:     runtimeSvc,
-		integrationSvc: integrationSvc,
-		frontendSvc:    frontendSvc,
-		openapiSvc:     openapiSvc,
+		configSvc:        configProvider,
+		topology:         topo,
+		catalogSvc:       catalogSvc,
+		lifecycleSvc:     lifecycleSvc,
+		runtimeSvc:       runtimeSvc,
+		integrationSvc:   integrationSvc,
+		sourceUpgradeSvc: sourceUpgradeSvc,
+		frontendSvc:      frontendSvc,
+		openapiSvc:       openapiSvc,
 	}
 }

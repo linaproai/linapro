@@ -1,50 +1,64 @@
-// This file boots the development-only framework upgrade tool invoked by
-// `make upgrade`.
-
-package main
+// Package sourceupgrade implements the development-only source upgrade command
+// that powers framework and source-plugin upgrades invoked by `make upgrade`.
+package sourceupgrade
 
 import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"upgrade-framework/internal/frameworkupgrade"
+	"upgrade-source/internal/frameworkupgrade"
 )
 
 // upgradeCommandName stores the confirmation token and display name for the tool.
 const upgradeCommandName = "upgrade"
 
+// Supported development-only upgrade scopes.
+const (
+	upgradeScopeFramework    = "framework"
+	upgradeScopeSourcePlugin = "source-plugin"
+)
+
 // cliOptions stores the parsed upgrade command-line options.
 type cliOptions struct {
 	confirm string
+	scope   string
 	repoURL string
 	target  string
+	plugin  string
 	dryRun  bool
 }
 
-// main parses flags, validates confirmation, and executes the upgrade plan.
-func main() {
-	if err := run(context.Background(), parseOptions()); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
+// Main parses command-line arguments and executes the requested source-upgrade flow.
+func Main(ctx context.Context, args []string) error {
+	options, err := parseOptions(args)
+	if err != nil {
+		return err
 	}
+	return run(ctx, options)
 }
 
 // parseOptions parses the development-only upgrade flags.
-func parseOptions() cliOptions {
+func parseOptions(args []string) (cliOptions, error) {
 	var options cliOptions
 
-	flag.StringVar(&options.confirm, "confirm", "", "explicit confirmation value, must be 'upgrade'")
-	flag.StringVar(&options.repoURL, "repo", "", "upstream framework git repository URL, default uses apps/lina-core/hack/config.yaml")
-	flag.StringVar(&options.target, "target", "", "target framework tag or git reference, default uses the latest semantic version tag")
-	flag.BoolVar(&options.dryRun, "dry-run", false, "only print the upgrade plan without modifying code or database")
-	flag.Parse()
-	return options
+	flagSet := flag.NewFlagSet(upgradeCommandName, flag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+	flagSet.StringVar(&options.confirm, "confirm", "", "explicit confirmation value, must be 'upgrade'")
+	flagSet.StringVar(&options.scope, "scope", upgradeScopeFramework, "upgrade scope: framework or source-plugin")
+	flagSet.StringVar(&options.repoURL, "repo", "", "upstream framework git repository URL, default uses apps/lina-core/hack/config.yaml")
+	flagSet.StringVar(&options.target, "target", "", "target framework tag or git reference, only used by scope=framework")
+	flagSet.StringVar(&options.plugin, "plugin", "", "source plugin ID or all, only used by scope=source-plugin")
+	flagSet.BoolVar(&options.dryRun, "dry-run", false, "only print the upgrade plan without modifying code or database")
+	if err := flagSet.Parse(args); err != nil {
+		return cliOptions{}, gerror.Wrap(err, "解析升级命令参数失败")
+	}
+	return options, nil
 }
 
 // run executes the full upgrade tool flow.
@@ -53,6 +67,31 @@ func run(ctx context.Context, options cliOptions) error {
 		return err
 	}
 	fmt.Println("升级前请先确认已经完成代码仓库和数据库备份。")
+
+	workspace, err := frameworkupgrade.PrecheckWorkspace(ctx)
+	if err != nil {
+		return err
+	}
+
+	scope := strings.TrimSpace(options.scope)
+	if scope == "" {
+		scope = upgradeScopeFramework
+	}
+	switch scope {
+	case upgradeScopeFramework:
+		return runFrameworkUpgrade(ctx, options)
+	case upgradeScopeSourcePlugin:
+		return runSourcePluginUpgrade(ctx, workspace.RepoRoot, options)
+	default:
+		return gerror.Newf("不支持的升级范围: %s，仅支持 framework 或 source-plugin", scope)
+	}
+}
+
+// runFrameworkUpgrade executes the framework-upgrade workflow.
+func runFrameworkUpgrade(ctx context.Context, options cliOptions) error {
+	if strings.TrimSpace(options.plugin) != "" {
+		return gerror.New("scope=framework 不支持 --plugin 参数，请仅在源码插件升级时使用")
+	}
 
 	svc := frameworkupgrade.New()
 	plan, err := svc.BuildPlan(ctx, frameworkupgrade.BuildPlanInput{
@@ -88,7 +127,7 @@ func requireCommandConfirmation(confirmValue string) error {
 		return nil
 	}
 	return gerror.Newf(
-		"命令 %s 涉及敏感升级或数据库操作，必须显式确认后才能执行。请使用 make %s confirm=%s 或 go run ./hack/upgrade-framework --confirm=%s",
+		"命令 %s 涉及敏感升级或数据库操作，必须显式确认后才能执行。请使用 make %s confirm=%s 或 go run ./hack/upgrade-source --confirm=%s",
 		upgradeCommandName,
 		upgradeCommandName,
 		upgradeCommandName,
@@ -96,7 +135,7 @@ func requireCommandConfirmation(confirmValue string) error {
 	)
 }
 
-// printUpgradePlan writes the resolved upgrade plan summary to stdout.
+// printUpgradePlan writes the resolved framework-upgrade plan summary to stdout.
 func printUpgradePlan(plan *frameworkupgrade.Plan) {
 	if plan == nil {
 		return
@@ -118,7 +157,7 @@ func printUpgradePlan(plan *frameworkupgrade.Plan) {
 	}
 }
 
-// printUpgradeResult writes the final upgrade result summary to stdout.
+// printUpgradeResult writes the final framework-upgrade result summary to stdout.
 func printUpgradeResult(result *frameworkupgrade.ExecuteResult) {
 	if result == nil {
 		return

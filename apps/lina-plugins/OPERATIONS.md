@@ -35,14 +35,15 @@
 
 1. 宿主扫描插件目录。
 2. 宿主校验 `plugin.yaml`、`go.mod`、`backend/plugin.go`、SQL 命名规则以及前端页面/`Slot` 目录约定。
-3. 宿主同步 `sys_plugin` 插件注册表。
-4. 宿主将当前清单基础字段和资源数量摘要写入 `sys_plugin_release`。
+3. 宿主同步 `sys_plugin` 插件注册表；`sys_plugin.version` 与 `release_id` 只表示**当前生效版本**。
+4. 宿主将当前清单基础字段和资源数量摘要写入 `sys_plugin_release`；如果源码目录发现了更高版本，则新 release 先保持 `prepared`，不会自动切到当前生效版本。
 5. 宿主将目录发现到的资源类型与抽象 owner 信息写入 `sys_plugin_resource_ref`。
 6. 宿主将当前节点的插件状态投影写入 `sys_plugin_node_state`。
 
 当前约束如下：
 
-- 源码插件视为“随宿主编译即已集成”，不走安装/卸载流程。
+- 源码插件已经支持显式安装、卸载与升级治理，但**版本升级必须在开发阶段通过** `make upgrade confirm=upgrade scope=source-plugin plugin=<plugin-id|all>` **完成**。
+- 如果某个已安装源码插件发现了更高版本但尚未执行显式升级，宿主启动会直接失败，并提示需要执行的升级命令。
 - 源码插件禁用后，只会隐藏路由、菜单、页面和 `Slot`，不会删除历史业务数据。
 - 当前仓库至少保留 `plugin-demo-source` 与 `plugin-demo-dynamic` 两个样例目录，分别用于 source / dynamic 两种接入模式的 review。
 - 当前源码样例 `plugin-demo-source` 只保留一个左侧菜单页，不再额外演示登录页、工作台、CRUD 或右上角 `Slot` 扩展。
@@ -88,8 +89,8 @@ curl -X POST "http://127.0.0.1:8080/api/v1/plugins/dynamic/package" \
 - 只能上传 `.wasm` 文件。
 - 宿主会从上传包中解析插件 ID，因此不接受额外手工指定插件 ID。
 - 宿主会把上传产物规范化写入 `plugin.dynamic.storagePath/<plugin-id>.wasm`。
-- 若同 ID 动态插件文件已存在，只有在 `overwriteSupport=1` 且该插件尚未安装时才允许覆盖。
-- 若目标插件已经处于已安装状态，当前上传接口会拒绝覆盖，因为正式 upgrade/release 切换能力仍未实现。
+- 若同 ID 动态插件文件已存在，只有在 `overwriteSupport=1` 且该插件尚未安装时才允许覆盖原文件。
+- 若目标插件已经处于已安装状态，上传更高版本时会把新版本作为待切换 release 暂存；后续仍需通过 install 或 reconcile 流程完成正式升级。
 - 若 `storagePath` 下存在多个嵌入相同 plugin ID 的 `.wasm` 文件，宿主会在同步阶段直接报冲突错误，要求先人工清理。
 
 当前仓库中的动态样例插件不再提交编译后的 `.wasm` 文件，而是统一通过通用命令生成：

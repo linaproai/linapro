@@ -22,22 +22,19 @@ type sqlExecutor func(ctx context.Context, sql string) error
 
 // BuildPlan resolves the target release and calculates the pending upgrade work.
 func (s *serviceImpl) BuildPlan(ctx context.Context, input BuildPlanInput) (*Plan, error) {
-	repoRoot, err := detectRepoRoot(ctx)
+	workspace, err := PrecheckWorkspace(ctx)
 	if err != nil {
+		if workspace != nil {
+			return &Plan{
+				RepoRoot:      workspace.RepoRoot,
+				DirtyGitFiles: workspace.DirtyGitFiles,
+			}, err
+		}
 		return nil, err
 	}
+	repoRoot := workspace.RepoRoot
 	if err = ConfigureGoFrameConfig(repoRoot); err != nil {
 		return nil, err
-	}
-	dirtyGitFiles, err := listDirtyGitFiles(ctx, repoRoot)
-	if err != nil {
-		return nil, err
-	}
-	if len(dirtyGitFiles) > 0 {
-		return &Plan{RepoRoot: repoRoot, DirtyGitFiles: dirtyGitFiles}, gerror.Newf(
-			"检测到当前 Git 工作区存在未提交修改，请先提交或 stash 后再升级: %s",
-			strings.Join(dirtyGitFiles, ", "),
-		)
 	}
 
 	currentFramework, err := readCurrentUpgradeMetadata(repoRoot)
