@@ -19,6 +19,7 @@ const (
 	pluginDynamicWasmSectionManifest            = pluginbridge.WasmSectionManifest
 	pluginDynamicWasmSectionDynamic             = pluginbridge.WasmSectionRuntime
 	pluginDynamicWasmSectionFrontend            = pluginbridge.WasmSectionFrontendAssets
+	pluginDynamicWasmSectionI18N                = pluginbridge.WasmSectionI18NAssets
 	pluginDynamicWasmSectionInstallSQL          = pluginbridge.WasmSectionInstallSQL
 	pluginDynamicWasmSectionUninstallSQL        = pluginbridge.WasmSectionUninstallSQL
 	pluginDynamicWasmSectionBackendHooks        = pluginbridge.WasmSectionBackendHooks
@@ -73,6 +74,11 @@ type frontendAsset struct {
 	Path          string `json:"path" yaml:"path"`
 	ContentBase64 string `json:"contentBase64" yaml:"contentBase64"`
 	ContentType   string `json:"contentType,omitempty" yaml:"contentType,omitempty"`
+}
+
+type i18nAsset struct {
+	Locale  string `json:"locale" yaml:"locale"`
+	Content string `json:"content" yaml:"content"`
 }
 
 type sqlAsset struct {

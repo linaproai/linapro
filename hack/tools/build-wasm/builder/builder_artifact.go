@@ -14,6 +14,7 @@ import (
 func buildRuntimeArtifactContent(
 	manifest *pluginManifest,
 	frontendAssets []*frontendAsset,
+	i18nAssets []*i18nAsset,
 	installSQLAssets []*sqlAsset,
 	uninstallSQLAssets []*sqlAsset,
 	hookSpecs []*hookSpec,
@@ -37,6 +38,7 @@ func buildRuntimeArtifactContent(
 		RuntimeKind:        pluginDynamicKindWasm,
 		ABIVersion:         pluginDynamicSupportedABIVersion,
 		FrontendAssetCount: len(frontendAssets),
+		I18NAssetCount:     len(i18nAssets),
 		SQLAssetCount:      len(installSQLAssets) + len(uninstallSQLAssets),
 		RouteCount:         len(routeContracts),
 	})
@@ -61,6 +63,13 @@ func buildRuntimeArtifactContent(
 			return nil, err
 		}
 		content = appendWasmCustomSection(content, pluginDynamicWasmSectionFrontend, payload)
+	}
+	if len(i18nAssets) > 0 {
+		payload, err := json.Marshal(i18nAssets)
+		if err != nil {
+			return nil, err
+		}
+		content = appendWasmCustomSection(content, pluginDynamicWasmSectionI18N, payload)
 	}
 	if len(installSQLAssets) > 0 {
 		payload, err := json.Marshal(installSQLAssets)

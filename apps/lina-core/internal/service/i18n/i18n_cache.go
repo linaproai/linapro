@@ -16,7 +16,11 @@ func (s *serviceImpl) InvalidateRuntimeBundleCache() {
 // invalidateRuntimeBundleCache resets the in-memory runtime bundle cache.
 func invalidateRuntimeBundleCache() {
 	runtimeBundleCache.Lock()
-	defer runtimeBundleCache.Unlock()
-
 	runtimeBundleCache.bundles = make(map[string]map[string]string)
+	runtimeBundleCache.Unlock()
+
+	runtimeLocaleCache.Lock()
+	runtimeLocaleCache.loaded = false
+	runtimeLocaleCache.locales = nil
+	runtimeLocaleCache.Unlock()
 }

@@ -31,6 +31,11 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
+		filepath.Join(pluginDir, "manifest", "i18n", "en-US.json"),
+		"{\n  \"plugin.plugin-dynamic-builder.name\": \"Dynamic Builder\"\n}\n",
+	)
+	mustWriteFile(
+		t,
 		filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-plugin-dynamic-builder.sql"),
 		"SELECT 2;",
 	)
@@ -95,8 +100,8 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionDynamic], metadata); err != nil {
 		t.Fatalf("expected dynamic section json to unmarshal, got error: %v", err)
 	}
-	if metadata.FrontendAssetCount != 1 || metadata.SQLAssetCount != 2 {
-		t.Fatalf("expected dynamic metadata counts 1/2, got %#v", metadata)
+	if metadata.FrontendAssetCount != 1 || metadata.I18NAssetCount != 1 || metadata.SQLAssetCount != 2 {
+		t.Fatalf("expected dynamic metadata counts 1/1/2, got %#v", metadata)
 	}
 
 	var frontend []*frontendAsset
@@ -105,6 +110,14 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	}
 	if len(frontend) != 1 || frontend[0].Path != "standalone.html" {
 		t.Fatalf("unexpected embedded frontend assets: %#v", frontend)
+	}
+
+	var i18n []*i18nAsset
+	if err = json.Unmarshal(sections[pluginDynamicWasmSectionI18N], &i18n); err != nil {
+		t.Fatalf("expected i18n section json to unmarshal, got error: %v", err)
+	}
+	if len(i18n) != 1 || i18n[0].Locale != "en-US" || !strings.Contains(i18n[0].Content, "plugin.plugin-dynamic-builder.name") {
+		t.Fatalf("unexpected embedded i18n assets: %#v", i18n)
 	}
 
 	var hooks []*hookSpec

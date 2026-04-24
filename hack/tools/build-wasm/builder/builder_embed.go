@@ -275,6 +275,56 @@ func collectFrontendAssets(pluginDir string, embeddedResources *embeddedStaticRe
 	return assets, nil
 }
 
+func collectI18NAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*i18nAsset, error) {
+	if embeddedResources != nil {
+		paths := embeddedResources.ListFiles("manifest/i18n", ".json")
+		assets := make([]*i18nAsset, 0, len(paths))
+		for _, filePath := range paths {
+			content, ok := embeddedResources.ReadFile(filePath)
+			if !ok {
+				return nil, fmt.Errorf("embedded i18n asset not found: %s", filePath)
+			}
+			assets = append(assets, &i18nAsset{
+				Locale:  strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)),
+				Content: strings.TrimSpace(string(content)),
+			})
+		}
+		return assets, nil
+	}
+
+	i18nDir := filepath.Join(pluginDir, "manifest", "i18n")
+	entries, err := os.ReadDir(i18nDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*i18nAsset{}, nil
+		}
+		return nil, err
+	}
+
+	fileNames := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		fileNames = append(fileNames, entry.Name())
+	}
+	sort.Strings(fileNames)
+
+	assets := make([]*i18nAsset, 0, len(fileNames))
+	for _, name := range fileNames {
+		i18nPath := filepath.Join(i18nDir, name)
+		content, readErr := os.ReadFile(i18nPath)
+		if readErr != nil {
+			return nil, readErr
+		}
+		assets = append(assets, &i18nAsset{
+			Locale:  strings.TrimSuffix(name, filepath.Ext(name)),
+			Content: strings.TrimSpace(string(content)),
+		})
+	}
+	return assets, nil
+}
+
 func collectSQLAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet, uninstall bool) ([]*sqlAsset, error) {
 	if embeddedResources != nil {
 		searchPrefix := "manifest/sql"

@@ -14,6 +14,8 @@ const (
 	WasmSectionLegacyRuntime = "lina.plugin.runtime"
 	// WasmSectionFrontendAssets stores embedded frontend assets.
 	WasmSectionFrontendAssets = "lina.plugin.frontend.assets"
+	// WasmSectionI18NAssets stores embedded plugin i18n message assets.
+	WasmSectionI18NAssets = "lina.plugin.i18n.assets"
 	// WasmSectionInstallSQL stores install-time SQL assets.
 	WasmSectionInstallSQL = "lina.plugin.install.sql"
 	// WasmSectionUninstallSQL stores uninstall-time SQL assets.
@@ -43,6 +45,8 @@ type RuntimeArtifactMetadata struct {
 	ABIVersion string `json:"abiVersion" yaml:"abiVersion"`
 	// FrontendAssetCount reports the number of embedded frontend asset entries.
 	FrontendAssetCount int `json:"frontendAssetCount,omitempty" yaml:"frontendAssetCount,omitempty"`
+	// I18NAssetCount reports the number of embedded i18n locale asset entries.
+	I18NAssetCount int `json:"i18nAssetCount,omitempty" yaml:"i18nAssetCount,omitempty"`
 	// SQLAssetCount reports the number of embedded install or uninstall SQL assets.
 	SQLAssetCount int `json:"sqlAssetCount,omitempty" yaml:"sqlAssetCount,omitempty"`
 	// RouteCount reports the number of embedded backend route contracts.

@@ -64,7 +64,7 @@ type Services struct {
 	OpenAPI openapi.Service
 }
 
-// RuntimeBuildOutput describes one artifact produced by the build-wasm helper in tests.
+// RuntimeBuildOutput describes one artifact produced by the hack/tools/build-wasm helper in tests.
 type RuntimeBuildOutput struct {
 	// ArtifactPath is the on-disk path of the produced wasm artifact.
 	ArtifactPath string
@@ -239,7 +239,7 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 			return
 		}
 
-		builderDir := filepath.Join(repoRoot, "hack", "build-wasm")
+		builderDir := filepath.Join(repoRoot, "hack", "tools", "build-wasm")
 		cmd := exec.Command(
 			"go",
 			"run",
@@ -253,7 +253,7 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 		cmd.Env = append(os.Environ(), "GOWORK="+filepath.Join(repoRoot, "go.work"))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			bundledRuntimeSampleErr = fmt.Errorf("run hack/build-wasm failed: %w output=%s", err, string(output))
+			bundledRuntimeSampleErr = fmt.Errorf("run hack/tools/build-wasm failed: %w output=%s", err, string(output))
 		}
 	})
 
@@ -262,7 +262,7 @@ func EnsureBundledRuntimeSampleArtifactForTests(t *testing.T) {
 	}
 }
 
-// BuildRuntimeArtifactWithHackTool runs hack/build-wasm for one plugin source directory.
+// BuildRuntimeArtifactWithHackTool runs hack/tools/build-wasm for one plugin source directory.
 func BuildRuntimeArtifactWithHackTool(t *testing.T, pluginDir string) *RuntimeBuildOutput {
 	t.Helper()
 
@@ -270,14 +270,14 @@ func BuildRuntimeArtifactWithHackTool(t *testing.T, pluginDir string) *RuntimeBu
 	if err != nil {
 		t.Fatalf("failed to resolve repo root: %v", err)
 	}
-	builderDir := filepath.Join(repoRoot, "hack", "build-wasm")
+	builderDir := filepath.Join(repoRoot, "hack", "tools", "build-wasm")
 	outputDir := filepath.Join(t.TempDir(), "output")
 	cmd := exec.Command("go", "run", ".", "--plugin-dir", pluginDir, "--output-dir", outputDir)
 	cmd.Dir = builderDir
 	cmd.Env = append(os.Environ(), "GOWORK="+filepath.Join(repoRoot, "go.work"))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("failed to run hack/build-wasm: %v output=%s", err, string(output))
+		t.Fatalf("failed to run hack/tools/build-wasm: %v output=%s", err, string(output))
 	}
 
 	type manifestIDHolder struct {

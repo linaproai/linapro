@@ -16,6 +16,7 @@ import (
 
 	"lina-core/internal/packed"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/config"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -55,6 +56,14 @@ type Service interface {
 	LocalizeError(ctx context.Context, err error) string
 	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles.
 	InvalidateRuntimeBundleCache()
+	// ExportMessages exports flat runtime messages for one locale.
+	ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
+	// CheckMissingMessages reports translation keys missing from one locale.
+	CheckMissingMessages(ctx context.Context, locale string, keyPrefix string) []MissingMessageItem
+	// DiagnoseMessages reports the effective source of runtime messages for one locale.
+	DiagnoseMessages(ctx context.Context, locale string, keyPrefix string) []MessageDiagnosticItem
+	// ImportMessages writes flat translation messages into sys_i18n_message.
+	ImportMessages(ctx context.Context, input MessageImportInput) (MessageImportOutput, error)
 	// ListRuntimeLocales returns the runtime locales supported by the host.
 	ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
 	// BuildRuntimeMessages returns the effective runtime translation bundle for one locale.
@@ -67,6 +76,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
+	configSvc config.Service
 }
 
 // runtimeBundleCache stores flat per-locale message bundles discovered from host
@@ -88,40 +98,48 @@ var supportedRuntimeLocales = []string{
 func New() Service {
 	return &serviceImpl{
 		bizCtxSvc: bizctx.New(),
+		configSvc: config.New(),
 	}
 }
 
 // ResolveRequestLocale resolves the effective locale for the current HTTP request.
 func (s *serviceImpl) ResolveRequestLocale(r *ghttp.Request) string {
 	if r == nil {
-		return DefaultLocale
+		return s.getDefaultRuntimeLocale(context.Background())
 	}
 
-	if locale := normalizeLocale(r.Get(localeQueryKey).String()); locale != "" {
+	ctx := r.Context()
+	if rawLocale := strings.TrimSpace(r.Get(localeQueryKey).String()); rawLocale != "" {
+		if locale, ok := s.lookupSupportedLocale(ctx, rawLocale); ok {
+			return locale
+		}
+		return s.getDefaultRuntimeLocale(ctx)
+	}
+	if locale := s.resolveAcceptLanguageLocale(ctx, r.Header.Get(acceptLanguageKey)); locale != "" {
 		return locale
 	}
-	if locale := normalizeAcceptLanguage(r.Header.Get(acceptLanguageKey)); locale != "" {
-		return locale
-	}
-	return DefaultLocale
+	return s.getDefaultRuntimeLocale(ctx)
 }
 
 // ResolveLocale resolves one explicit locale override against the current request locale.
 func (s *serviceImpl) ResolveLocale(ctx context.Context, locale string) string {
-	if normalizedLocale := normalizeLocale(locale); normalizedLocale != "" {
+	if strings.TrimSpace(locale) == "" {
+		return s.GetLocale(ctx)
+	}
+	if normalizedLocale, ok := s.lookupSupportedLocale(ctx, locale); ok {
 		return normalizedLocale
 	}
-	return s.GetLocale(ctx)
+	return s.getDefaultRuntimeLocale(ctx)
 }
 
 // GetLocale returns the locale stored in request business context.
 func (s *serviceImpl) GetLocale(ctx context.Context) string {
 	if bizCtx := s.bizCtxSvc.Get(ctx); bizCtx != nil {
-		if locale := normalizeLocale(bizCtx.Locale); locale != "" {
+		if locale, ok := s.lookupSupportedLocale(ctx, bizCtx.Locale); ok {
 			return locale
 		}
 	}
-	return DefaultLocale
+	return s.getDefaultRuntimeLocale(ctx)
 }
 
 // Translate returns the localized value for one translation key.
@@ -132,13 +150,22 @@ func (s *serviceImpl) Translate(ctx context.Context, key string, fallback string
 // ListRuntimeLocales returns the runtime locales supported by the host.
 func (s *serviceImpl) ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor {
 	displayLocale := s.ResolveLocale(ctx, locale)
-	items := make([]LocaleDescriptor, 0, len(supportedRuntimeLocales))
-	for _, supportedLocale := range supportedRuntimeLocales {
+	records := s.loadEnabledRuntimeLocales(ctx)
+	items := make([]LocaleDescriptor, 0, len(records))
+	for _, supportedLocale := range records {
+		nameFallback := strings.TrimSpace(supportedLocale.Name)
+		if nameFallback == "" {
+			nameFallback = supportedLocale.Locale
+		}
+		nativeNameFallback := strings.TrimSpace(supportedLocale.NativeName)
+		if nativeNameFallback == "" {
+			nativeNameFallback = supportedLocale.Locale
+		}
 		items = append(items, LocaleDescriptor{
-			Locale:     supportedLocale,
-			Name:       s.translateForLocale(ctx, displayLocale, buildLocaleNameKey(supportedLocale), supportedLocale),
-			NativeName: s.translateForLocale(ctx, supportedLocale, buildLocaleNativeNameKey(supportedLocale), supportedLocale),
-			IsDefault:  supportedLocale == DefaultLocale,
+			Locale:     supportedLocale.Locale,
+			Name:       s.translateForLocale(ctx, displayLocale, buildLocaleNameKey(supportedLocale.Locale), nameFallback),
+			NativeName: s.translateForLocale(ctx, supportedLocale.Locale, buildLocaleNativeNameKey(supportedLocale.Locale), nativeNameFallback),
+			IsDefault:  supportedLocale.IsDefault,
 		})
 	}
 	return items
@@ -151,13 +178,11 @@ func (s *serviceImpl) BuildRuntimeMessages(ctx context.Context, locale string) m
 
 // buildRuntimeMessageCatalog returns the effective flat translation catalog for one locale.
 func (s *serviceImpl) buildRuntimeMessageCatalog(ctx context.Context, locale string) map[string]string {
-	normalizedLocale := normalizeLocale(locale)
-	if normalizedLocale == "" {
-		normalizedLocale = DefaultLocale
-	}
+	normalizedLocale := s.ResolveLocale(ctx, locale)
+	defaultLocale := s.getDefaultRuntimeLocale(ctx)
 
-	defaultBundle := s.loadRawLocaleBundle(ctx, DefaultLocale)
-	if normalizedLocale == DefaultLocale {
+	defaultBundle := s.loadRawLocaleBundle(ctx, defaultLocale)
+	if normalizedLocale == defaultLocale {
 		return cloneFlatMessageMap(defaultBundle)
 	}
 
@@ -181,10 +206,7 @@ func (s *serviceImpl) translateForLocale(ctx context.Context, locale string, key
 
 // loadRawLocaleBundle loads the non-fallback flat runtime messages for one locale.
 func (s *serviceImpl) loadRawLocaleBundle(ctx context.Context, locale string) map[string]string {
-	normalizedLocale := normalizeLocale(locale)
-	if normalizedLocale == "" {
-		normalizedLocale = DefaultLocale
-	}
+	normalizedLocale := s.ResolveLocale(ctx, locale)
 
 	runtimeBundleCache.RLock()
 	cached := runtimeBundleCache.bundles[normalizedLocale]
@@ -196,6 +218,8 @@ func (s *serviceImpl) loadRawLocaleBundle(ctx context.Context, locale string) ma
 	bundle := make(map[string]string)
 	mergeFlatMessageMaps(bundle, loadEmbeddedHostLocaleBundle(normalizedLocale))
 	mergeFlatMessageMaps(bundle, loadSourcePluginLocaleBundle(normalizedLocale))
+	mergeFlatMessageMaps(bundle, s.loadDynamicPluginLocaleBundle(ctx, normalizedLocale))
+	mergeFlatMessageMaps(bundle, s.loadDatabaseLocaleBundle(ctx, normalizedLocale))
 
 	runtimeBundleCache.Lock()
 	runtimeBundleCache.bundles[normalizedLocale] = cloneFlatMessageMap(bundle)
@@ -371,7 +395,7 @@ func setNestedMessageValue(output map[string]interface{}, key string, value stri
 	}
 }
 
-// normalizeAcceptLanguage converts an Accept-Language header into one supported locale.
+// normalizeAcceptLanguage converts an Accept-Language header into the first valid locale tag.
 func normalizeAcceptLanguage(header string) string {
 	for _, part := range strings.Split(header, ",") {
 		languageTag := strings.TrimSpace(strings.Split(part, ";")[0])
@@ -382,20 +406,34 @@ func normalizeAcceptLanguage(header string) string {
 	return ""
 }
 
-// normalizeLocale canonicalizes one raw locale value to the host-supported locale set.
+// normalizeLocale canonicalizes one raw locale value into a stable locale code.
 func normalizeLocale(value string) string {
 	normalized := strings.TrimSpace(strings.ReplaceAll(value, "_", "-"))
 	if normalized == "" {
 		return ""
 	}
-	switch strings.ToLower(normalized) {
-	case "zh", "zh-cn", "zh-hans", "zh-hans-cn":
-		return DefaultLocale
-	case "en", "en-us", "en-gb":
-		return EnglishLocale
-	default:
+
+	segments := strings.Split(normalized, "-")
+	if len(segments) == 0 {
 		return ""
 	}
+	for index, segment := range segments {
+		segment = strings.TrimSpace(segment)
+		if segment == "" || !isAlphaNumericLocaleSegment(segment) {
+			return ""
+		}
+		switch {
+		case index == 0:
+			segments[index] = strings.ToLower(segment)
+		case len(segment) == 4:
+			segments[index] = strings.ToUpper(segment[:1]) + strings.ToLower(segment[1:])
+		case len(segment) == 2 || len(segment) == 3:
+			segments[index] = strings.ToUpper(segment)
+		default:
+			segments[index] = strings.ToLower(segment)
+		}
+	}
+	return strings.Join(segments, "-")
 }
 
 // buildLocaleNameKey builds the runtime translation key used for one locale display name.
@@ -406,4 +444,18 @@ func buildLocaleNameKey(locale string) string {
 // buildLocaleNativeNameKey builds the runtime translation key used for one locale native display name.
 func buildLocaleNativeNameKey(locale string) string {
 	return "locale." + locale + ".nativeName"
+}
+
+// isAlphaNumericLocaleSegment reports whether one locale segment contains only ASCII letters or digits.
+func isAlphaNumericLocaleSegment(segment string) bool {
+	for _, char := range segment {
+		switch {
+		case char >= 'a' && char <= 'z':
+		case char >= 'A' && char <= 'Z':
+		case char >= '0' && char <= '9':
+		default:
+			return false
+		}
+	}
+	return true
 }

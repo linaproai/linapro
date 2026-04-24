@@ -7,6 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/gvalid"
@@ -35,13 +36,10 @@ func init() {
 
 // resetRuntimeBundleCache clears the in-memory runtime bundle cache between tests.
 func resetRuntimeBundleCache() {
-	runtimeBundleCache.Lock()
-	defer runtimeBundleCache.Unlock()
-
-	runtimeBundleCache.bundles = make(map[string]map[string]string)
+	invalidateRuntimeBundleCache()
 }
 
-// TestNormalizeLocale verifies that supported locale aliases normalize to host canonical values.
+// TestNormalizeLocale verifies that raw locale aliases normalize to canonical locale codes.
 func TestNormalizeLocale(t *testing.T) {
 	t.Parallel()
 
@@ -50,11 +48,13 @@ func TestNormalizeLocale(t *testing.T) {
 		raw      string
 		expected string
 	}{
-		{name: "zh short tag", raw: "zh", expected: DefaultLocale},
+		{name: "zh short tag", raw: "zh", expected: "zh"},
 		{name: "zh underscore", raw: "zh_CN", expected: DefaultLocale},
 		{name: "english us", raw: "en-US", expected: EnglishLocale},
-		{name: "english gb", raw: "en-GB", expected: EnglishLocale},
-		{name: "unsupported", raw: "fr-FR", expected: ""},
+		{name: "english gb", raw: "en-gb", expected: "en-GB"},
+		{name: "french", raw: "fr-fr", expected: "fr-FR"},
+		{name: "script tag", raw: "zh_hans_cn", expected: "zh-Hans-CN"},
+		{name: "invalid", raw: "zh-中文", expected: ""},
 	}
 
 	for _, testCase := range testCases {
@@ -69,13 +69,24 @@ func TestNormalizeLocale(t *testing.T) {
 	}
 }
 
-// TestNormalizeAcceptLanguage verifies that the first supported language tag wins.
+// TestNormalizeAcceptLanguage verifies that the first valid language tag is normalized.
 func TestNormalizeAcceptLanguage(t *testing.T) {
 	t.Parallel()
 
 	header := "fr-FR, en-GB;q=0.8, zh-CN;q=0.6"
-	if actual := normalizeAcceptLanguage(header); actual != EnglishLocale {
-		t.Fatalf("expected accept-language locale %q, got %q", EnglishLocale, actual)
+	if actual := normalizeAcceptLanguage(header); actual != "fr-FR" {
+		t.Fatalf("expected accept-language locale %q, got %q", "fr-FR", actual)
+	}
+}
+
+// TestResolveLocaleFallsBackToDefault verifies that explicit unsupported locales
+// fall back to the configured runtime default language.
+func TestResolveLocaleFallsBackToDefault(t *testing.T) {
+	resetRuntimeBundleCache()
+
+	svc := New()
+	if actual := svc.ResolveLocale(context.Background(), "fr-FR"); actual != DefaultLocale {
+		t.Fatalf("expected unsupported locale to fall back to %q, got %q", DefaultLocale, actual)
 	}
 }
 

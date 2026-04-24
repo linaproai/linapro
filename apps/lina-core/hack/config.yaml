@@ -11,7 +11,7 @@ database:
     link: *localDatabaseLink
     debug: true
 
-# Source-upgrade metadata consumed by `hack/upgrade-source`.
+# Source-upgrade metadata consumed by `hack/tools/upgrade-source`.
 frameworkUpgrade:
   version: "v0.1.0"
   repositoryUrl: "https://github.com/gqcn/linapro"

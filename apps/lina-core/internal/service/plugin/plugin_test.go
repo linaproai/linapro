@@ -47,7 +47,7 @@ func ensureBundledRuntimeSampleArtifactForTests() error {
 		return statErr
 	}
 
-	builderDir := filepath.Join(repoRoot, "hack", "build-wasm")
+	builderDir := filepath.Join(repoRoot, "hack", "tools", "build-wasm")
 	cmd := exec.Command(
 		"go",
 		"run",
@@ -61,7 +61,7 @@ func ensureBundledRuntimeSampleArtifactForTests() error {
 	cmd.Env = append(os.Environ(), "GOWORK="+filepath.Join(repoRoot, "go.work"))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("run hack/build-wasm failed: %w: %s", err, string(output))
+		return fmt.Errorf("run hack/tools/build-wasm failed: %w: %s", err, string(output))
 	}
 	return nil
 }

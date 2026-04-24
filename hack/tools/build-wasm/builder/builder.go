@@ -36,6 +36,10 @@ func buildRuntimeWasmArtifactFromSource(pluginDir string, outputDir string) (*Ru
 	if err != nil {
 		return nil, err
 	}
+	i18nAssets, err := collectI18NAssets(pluginDir, embeddedResources)
+	if err != nil {
+		return nil, err
+	}
 	installSQLAssets, err := collectSQLAssets(pluginDir, embeddedResources, false)
 	if err != nil {
 		return nil, err
@@ -68,6 +72,7 @@ func buildRuntimeWasmArtifactFromSource(pluginDir string, outputDir string) (*Ru
 	content, err := buildRuntimeArtifactContent(
 		manifest,
 		frontendAssets,
+		i18nAssets,
 		installSQLAssets,
 		uninstallSQLAssets,
 		hookSpecs,
