@@ -4,12 +4,10 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
@@ -33,28 +31,11 @@ func (s *serviceImpl) Guard(request *ghttp.Request) {
 	if request == nil {
 		return
 	}
-	if !isDemoControlConfigured() {
-		request.Middleware.Next()
-		return
-	}
 	if isDemoControlAllowedRequest(request) {
 		request.Middleware.Next()
 		return
 	}
 	writeDemoControlError(request)
-}
-
-// isDemoControlConfigured reports whether the host runtime configuration keeps
-// demo-control in plugin.autoEnable, which is the only activation switch for
-// demo-mode protection.
-func isDemoControlConfigured() bool {
-	autoEnableIDs := g.Cfg().MustGet(context.Background(), "plugin.autoEnable").Strings()
-	for _, pluginID := range autoEnableIDs {
-		if strings.TrimSpace(pluginID) == demoControlPluginID {
-			return true
-		}
-	}
-	return false
 }
 
 // isDemoControlAllowedRequest reports whether the incoming request should bypass

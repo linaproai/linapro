@@ -17,7 +17,7 @@ const pluginID = "demo-control";
 const lifecyclePluginID = "plugin-demo-source";
 const demoControlMessage = "演示模式已开启，禁止执行写操作";
 const demoControlSkipReason =
-  "requires demo-control to be enabled via plugin.autoEnable";
+  "requires demo-control to be installed and enabled";
 
 type PluginListItem = {
   autoEnableManaged?: number;
@@ -82,7 +82,8 @@ async function expectPluginState(
 
 test.describe("TC-105 demo-control 全局只读保护", () => {
   let adminApi: APIRequestContext;
-  let demoControlManaged = false;
+  let demoControlEnabled = false;
+  let demoControlAutoEnableManaged = false;
 
   test.beforeAll(async () => {
     adminApi = await createAdminApiContext();
@@ -95,7 +96,10 @@ test.describe("TC-105 demo-control 全局只读保护", () => {
     const demoControl = (pluginPayload?.list ?? []).find(
       (item: Record<string, unknown>) => item.id === pluginID,
     );
-    demoControlManaged =
+    demoControlEnabled =
+      demoControl?.installed === 1 &&
+      demoControl?.enabled === 1;
+    demoControlAutoEnableManaged =
       demoControl?.installed === 1 &&
       demoControl?.enabled === 1 &&
       demoControl?.autoEnableManaged === 1;
@@ -105,10 +109,10 @@ test.describe("TC-105 demo-control 全局只读保护", () => {
     await adminApi.dispose();
   });
 
-  test("TC-105a: 插件管理页展示 demo-control 已被 plugin.autoEnable 管理并处于启用状态", async ({
+  test("TC-105a: 插件管理页展示 demo-control 已启用，并在 autoEnable 托管时显示对应提示", async ({
     adminPage,
   }) => {
-    test.skip(!demoControlManaged, demoControlSkipReason);
+    test.skip(!demoControlEnabled, demoControlSkipReason);
 
     const pluginPage = new PluginPage(adminPage);
     await pluginPage.gotoManage();
@@ -119,22 +123,27 @@ test.describe("TC-105 demo-control 全局只读保护", () => {
       "aria-checked",
       "true",
     );
-    await expect(pluginPage.pluginAutoEnableTag(pluginID)).toBeVisible();
 
     await pluginPage.openPluginDetail(pluginID);
     await expect(pluginPage.pluginDetailModal()).toContainText(pluginID);
-    await expect(pluginPage.pluginDetailModal()).toContainText(
-      "plugin.autoEnable",
-    );
-    await expect(pluginPage.pluginAutoEnableDetailAlert()).toContainText(
-      "宿主下次重启后会再次安装并启用该插件",
-    );
+    if (demoControlAutoEnableManaged) {
+      await expect(pluginPage.pluginAutoEnableTag(pluginID)).toBeVisible();
+      await expect(pluginPage.pluginDetailModal()).toContainText(
+        "plugin.autoEnable",
+      );
+      await expect(pluginPage.pluginAutoEnableDetailAlert()).toContainText(
+        "宿主下次重启后会再次安装并启用该插件",
+      );
+    } else {
+      await expect(pluginPage.pluginAutoEnableTag(pluginID)).toHaveCount(0);
+      await expect(pluginPage.pluginAutoEnableDetailAlert()).toHaveCount(0);
+    }
   });
 
   test("TC-105b: 演示模式仍允许管理员通过登录页登录并登出", async ({
     page,
   }) => {
-    test.skip(!demoControlManaged, demoControlSkipReason);
+    test.skip(!demoControlEnabled, demoControlSkipReason);
 
     const loginPage = new LoginPage(page);
     const mainLayout = new MainLayout(page);
@@ -148,7 +157,7 @@ test.describe("TC-105 demo-control 全局只读保护", () => {
   });
 
   test("TC-105c: 演示模式继续放行已认证查询请求", async () => {
-    test.skip(!demoControlManaged, demoControlSkipReason);
+    test.skip(!demoControlEnabled, demoControlSkipReason);
 
     const infoResponse = await adminApi.get("system/info");
     const infoPayload = await expectApiOK(infoResponse, "查询系统信息失败");
@@ -159,11 +168,10 @@ test.describe("TC-105 demo-control 全局只读保护", () => {
     expect(demoControl, `未找到插件 ${pluginID}`).toBeTruthy();
     expect(demoControl?.installed).toBe(1);
     expect(demoControl?.enabled).toBe(1);
-    expect(demoControl?.autoEnableManaged).toBe(1);
   });
 
   test("TC-105d: 演示模式拒绝宿主 API 写操作并返回只读提示", async () => {
-    test.skip(!demoControlManaged, demoControlSkipReason);
+    test.skip(!demoControlEnabled, demoControlSkipReason);
 
     await expectDemoControlRejected(
       await adminApi.post("config", {
@@ -196,7 +204,7 @@ test.describe("TC-105 demo-control 全局只读保护", () => {
   });
 
   test("TC-105e: 演示模式在 /* 作用域下拦截非 API 写请求并放行只读访问", async () => {
-    test.skip(!demoControlManaged, demoControlSkipReason);
+    test.skip(!demoControlEnabled, demoControlSkipReason);
 
     const publicRequest = await playwrightRequest.newContext({
       baseURL: publicBaseURL,
@@ -223,7 +231,7 @@ test.describe("TC-105 demo-control 全局只读保护", () => {
   });
 
   test("TC-105f: 演示模式允许其他插件治理白名单操作但拒绝修改 demo-control 自身", async () => {
-    test.skip(!demoControlManaged, demoControlSkipReason);
+    test.skip(!demoControlEnabled, demoControlSkipReason);
 
     const originalLifecyclePlugin = await fetchPlugin(adminApi, lifecyclePluginID);
     expect(originalLifecyclePlugin, `未找到插件 ${lifecyclePluginID}`).toBeTruthy();

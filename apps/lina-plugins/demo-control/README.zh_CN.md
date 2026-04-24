@@ -2,7 +2,7 @@
 
 `demo-control` 是 LinaPro 官方提供的演示环境只读保护源码插件。
 
-当目标环境需要开启演示只读模式时，可在宿主`plugin.autoEnable`列表中加入`demo-control`来启用该插件。
+只要该插件处于已安装且已启用状态，演示环境只读模式就会生效；如果希望宿主在启动时自动启用它，可再将`demo-control`加入`plugin.autoEnable`列表。
 
 ## 能力范围
 

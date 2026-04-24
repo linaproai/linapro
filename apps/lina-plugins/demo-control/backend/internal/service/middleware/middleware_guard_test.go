@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/gcfg"
 )
 
 // demoControlTestResponse stores one HTTP response snapshot used by the tests.
@@ -24,12 +24,6 @@ type demoControlTestResponse struct {
 // TestGuardBypassesWriteRequestsWhenPluginDisabled verifies an unenabled
 // plugin does not interfere with downstream write handlers.
 func TestGuardBypassesWriteRequestsWhenPluginDisabled(t *testing.T) {
-	setDemoControlTestConfig(t, `
-plugin:
-  dynamic:
-    storagePath: "temp/output"
-`)
-
 	baseURL, shutdown := startDemoControlTestServer(t, false)
 	defer shutdown()
 
@@ -42,10 +36,10 @@ plugin:
 	}
 }
 
-// TestGuardBypassesWriteRequestsWhenDemoControlNotConfigured verifies the
-// mounted middleware becomes a no-op when plugin.autoEnable does not include
-// demo-control.
-func TestGuardBypassesWriteRequestsWhenDemoControlNotConfigured(t *testing.T) {
+// TestGuardRejectsWriteRequestsWhenPluginEnabledWithoutAutoEnable verifies
+// runtime interception no longer depends on plugin.autoEnable once the plugin
+// has already been enabled.
+func TestGuardRejectsWriteRequestsWhenPluginEnabledWithoutAutoEnable(t *testing.T) {
 	setDemoControlTestConfig(t, `
 plugin:
   dynamic:
@@ -55,23 +49,17 @@ plugin:
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
-	response := doDemoControlRequest(t, http.MethodPost, baseURL+"/api/v1/resource")
-	if response.status != http.StatusOK {
-		t.Fatalf("expected POST to pass when demo-control is not configured, got %d", response.status)
+	response := doDemoControlRequest(t, http.MethodPut, baseURL+"/api/v1/resource")
+	if response.status != http.StatusForbidden {
+		t.Fatalf("expected PUT to be rejected after manual enable without autoEnable, got %d", response.status)
 	}
-	if response.body != "mutated" {
-		t.Fatalf("expected downstream POST handler body, got %q", response.body)
+	if !strings.Contains(response.body, demoControlMessage) {
+		t.Fatalf("expected rejection body to mention demo-control message, got %q", response.body)
 	}
 }
 
 // TestGuardAllowsSafeReadMethods verifies an enabled plugin still allows read-only methods.
 func TestGuardAllowsSafeReadMethods(t *testing.T) {
-	setDemoControlTestConfig(t, `
-plugin:
-  autoEnable:
-    - "demo-control"
-`)
-
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -87,12 +75,6 @@ plugin:
 // TestGuardRejectsWriteRequestsWhenPluginEnabled verifies an enabled plugin
 // blocks write methods outside the session whitelist.
 func TestGuardRejectsWriteRequestsWhenPluginEnabled(t *testing.T) {
-	setDemoControlTestConfig(t, `
-plugin:
-  autoEnable:
-    - "demo-control"
-`)
-
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -108,12 +90,6 @@ plugin:
 // TestGuardCoversWholeSystemScope verifies the plugin guards non-API write
 // routes as well when it is mounted on the whole system scope.
 func TestGuardCoversWholeSystemScope(t *testing.T) {
-	setDemoControlTestConfig(t, `
-plugin:
-  autoEnable:
-    - "demo-control"
-`)
-
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -129,12 +105,6 @@ plugin:
 // TestGuardAllowsLoginAndLogoutWhitelist verifies the plugin preserves the
 // minimal session whitelist needed for usable demos.
 func TestGuardAllowsLoginAndLogoutWhitelist(t *testing.T) {
-	setDemoControlTestConfig(t, `
-plugin:
-  autoEnable:
-    - "demo-control"
-`)
-
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -152,12 +122,6 @@ plugin:
 // TestGuardAllowsPluginManagementWhitelist verifies demo mode preserves
 // install/uninstall/enable/disable actions for plugins other than demo-control.
 func TestGuardAllowsPluginManagementWhitelist(t *testing.T) {
-	setDemoControlTestConfig(t, `
-plugin:
-  autoEnable:
-    - "demo-control"
-`)
-
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -186,12 +150,6 @@ plugin:
 // TestGuardRejectsDemoControlSelfManagementRequests verifies demo-control keeps
 // protecting itself even when plugin governance actions are otherwise whitelisted.
 func TestGuardRejectsDemoControlSelfManagementRequests(t *testing.T) {
-	setDemoControlTestConfig(t, `
-plugin:
-  autoEnable:
-    - "demo-control"
-`)
-
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -301,7 +259,8 @@ func doDemoControlRequest(t *testing.T, method string, targetURL string) demoCon
 }
 
 // setDemoControlTestConfig replaces the process config adapter for one test
-// case so demo-control can verify plugin.autoEnable as its only switch.
+// case so the middleware can prove runtime interception no longer depends on
+// plugin.autoEnable.
 func setDemoControlTestConfig(t *testing.T, content string) {
 	t.Helper()
 

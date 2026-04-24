@@ -2,7 +2,7 @@
 
 `demo-control` is the official LinaPro source plugin for demo-environment read-only protection.
 
-Enable this plugin by adding `demo-control` to the host `plugin.autoEnable` list when the target environment should run in read-only demo mode.
+Read-only demo mode becomes active whenever this plugin is installed and enabled. If you want the host to auto-enable it at startup, add `demo-control` to the host `plugin.autoEnable` list.
 
 ## Scope
 
