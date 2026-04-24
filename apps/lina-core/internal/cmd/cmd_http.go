@@ -17,6 +17,7 @@ import (
 	configctrl "lina-core/internal/controller/config"
 	"lina-core/internal/controller/dict"
 	filectrl "lina-core/internal/controller/file"
+	i18nctrl "lina-core/internal/controller/i18n"
 	jobctrl "lina-core/internal/controller/job"
 	jobgroupctrl "lina-core/internal/controller/jobgroup"
 	jobhandlerctrl "lina-core/internal/controller/jobhandler"
@@ -83,6 +84,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		jobMgmtSvc     = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler)
 		middlewareSvc  = middleware.New()
 		authCtrl       = auth.NewV1()
+		i18nCtrl       = i18nctrl.NewV1()
 		pluginCtrl     = pluginctrl.NewV1(clusterSvc)
 		publicCfgCtrl  = publicconfigctrl.NewV1()
 		jobCtrl        = jobctrl.NewV1(jobMgmtSvc)
@@ -132,7 +134,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	s.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.Middleware(
 			ghttp.MiddlewareNeverDoneCtx,
-			ghttp.MiddlewareHandlerResponse,
+			middlewareSvc.Response,
 			middlewareSvc.CORS,
 			middlewareSvc.RequestBodyLimit,
 			middlewareSvc.Ctx,
@@ -159,6 +161,8 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		group.Group("/", func(group *ghttp.RouterGroup) {
 			group.Bind(
 				authCtrl.Login,
+				i18nCtrl.RuntimeLocales,
+				i18nCtrl.RuntimeMessages,
 				pluginCtrl.DynamicList,
 				publicCfgCtrl.Frontend,
 			)

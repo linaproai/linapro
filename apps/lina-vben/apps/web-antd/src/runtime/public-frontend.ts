@@ -59,6 +59,7 @@ const publicFrontendFetchInit: RequestInit = {
   // and branding values after backend updates.
   cache: 'no-store',
   credentials: 'same-origin',
+  headers: {},
   method: 'GET',
 };
 
@@ -219,11 +220,18 @@ function applyPublicFrontendPreferences(settings: PublicFrontendSettings) {
   });
 }
 
-async function syncPublicFrontendSettings() {
+async function syncPublicFrontendSettings(locale?: string) {
   try {
+    const activeLocale = locale || preferences.app.locale;
+    const requestInit: RequestInit = {
+      ...publicFrontendFetchInit,
+      headers: {
+        'Accept-Language': activeLocale,
+      },
+    };
     const response = await fetch(
       resolvePublicFrontendEndpoint(),
-      publicFrontendFetchInit,
+      requestInit,
     );
     if (!response.ok) {
       return null;

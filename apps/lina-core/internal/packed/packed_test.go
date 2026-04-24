@@ -22,6 +22,8 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 		"manifest/sql/mock-data/003-mock-users.sql",
 		"manifest/config/metadata.yaml",
 		"manifest/config/config.template.yaml",
+		"manifest/i18n/zh-CN.json",
+		"manifest/i18n/en-US.json",
 	}
 
 	for _, path := range expectedPaths {

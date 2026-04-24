@@ -1,3 +1,5 @@
+// This file provides localized dictionary-label lookup helpers shared by host services.
+
 package dict
 
 import (
@@ -29,6 +31,7 @@ func (s *serviceImpl) GetLabelByValue(ctx context.Context, in GetLabelByValueInp
 	if err != nil || dictData == nil {
 		return in.Value
 	}
+	s.localizeDictDataEntity(ctx, dictData)
 	return dictData.Label
 }
 

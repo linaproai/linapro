@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // Service defines the dict service contract.
@@ -67,9 +68,13 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	i18nSvc i18nsvc.Service
+}
 
 // New creates and returns a new Service instance.
 func New() Service {
-	return &serviceImpl{}
+	return &serviceImpl{
+		i18nSvc: i18nsvc.New(),
+	}
 }

@@ -1,0 +1,5 @@
+{
+  "menu.plugin:monitor-server:server.title": "Server Monitor",
+  "plugin.monitor-server.description": "Official source plugin for server-metric collection, cleanup, and queries.",
+  "plugin.monitor-server.name": "Monitoring - Server Monitor"
+}

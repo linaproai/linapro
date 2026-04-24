@@ -1,0 +1,4 @@
+{
+  "plugin.demo-control.description": "Official source plugin that enforces read-only protection in demo environments.",
+  "plugin.demo-control.name": "Demo Control"
+}

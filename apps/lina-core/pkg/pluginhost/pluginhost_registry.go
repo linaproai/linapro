@@ -9,6 +9,7 @@ import "sync"
 var (
 	sourcePluginRegistryMu sync.RWMutex
 	sourcePluginRegistry   = make(map[string]SourcePluginDefinition)
+	sourcePluginListeners  []func()
 )
 
 // RegisterSourcePlugin registers one compile-time source plugin into the host registry.
@@ -25,12 +26,27 @@ func RegisterSourcePlugin(plugin SourcePlugin) {
 	}
 
 	sourcePluginRegistryMu.Lock()
-	defer sourcePluginRegistryMu.Unlock()
-
 	if _, exists := sourcePluginRegistry[definition.ID()]; exists {
+		sourcePluginRegistryMu.Unlock()
 		panic("pluginhost: duplicate source plugin registration: " + definition.ID())
 	}
 	sourcePluginRegistry[definition.ID()] = definition
+	listeners := append([]func(){}, sourcePluginListeners...)
+	sourcePluginRegistryMu.Unlock()
+	notifySourcePluginListeners(listeners)
+}
+
+// RegisterSourcePluginRegistryListener adds one listener that is invoked after
+// compile-time source-plugin registrations change the registry content.
+func RegisterSourcePluginRegistryListener(listener func()) {
+	if listener == nil {
+		return
+	}
+
+	sourcePluginRegistryMu.Lock()
+	defer sourcePluginRegistryMu.Unlock()
+
+	sourcePluginListeners = append(sourcePluginListeners, listener)
 }
 
 // GetSourcePlugin returns one registered compile-time source plugin by id.
@@ -55,4 +71,14 @@ func ListSourcePlugins() []SourcePluginDefinition {
 		items = append(items, plugin)
 	}
 	return items
+}
+
+// notifySourcePluginListeners invokes the current registry listeners outside
+// the registry lock so callbacks may safely query other pluginhost APIs.
+func notifySourcePluginListeners(listeners []func()) {
+	for _, listener := range listeners {
+		if listener != nil {
+			listener()
+		}
+	}
 }

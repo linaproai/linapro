@@ -55,6 +55,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictTypeEntities(ctx, list)
 
 	return &ListOutput{
 		List:  list,
@@ -107,6 +108,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysDictType,
 	if dictType == nil {
 		return nil, gerror.New("字典类型不存在")
 	}
+	s.localizeDictTypeEntity(ctx, dictType)
 	return dictType, nil
 }
 
@@ -212,6 +214,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictTypeEntities(ctx, list)
 
 	// Create Excel file
 	f := excelize.NewFile()
@@ -276,6 +279,7 @@ func (s *serviceImpl) Options(ctx context.Context) ([]*OptionItem, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictTypeEntities(ctx, list)
 
 	options := make([]*OptionItem, 0, len(list))
 	for _, dt := range list {

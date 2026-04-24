@@ -17,6 +17,12 @@ import antdEnLocale from 'ant-design-vue/es/locale/en_US';
 import antdDefaultLocale from 'ant-design-vue/es/locale/zh_CN';
 import dayjs from 'dayjs';
 
+import { syncPublicFrontendSettings } from '#/runtime/public-frontend';
+import {
+  loadRuntimeLocaleMessages,
+  mergeMessages,
+} from '#/runtime/runtime-i18n';
+
 const antdLocale = ref<Locale>(antdDefaultLocale);
 
 const modules = import.meta.glob('./langs/**/*.json');
@@ -31,11 +37,13 @@ const localesMap = loadLocalesMapFromDir(
  * @param lang
  */
 async function loadMessages(lang: SupportedLanguagesType) {
-  const [appLocaleMessages] = await Promise.all([
+  const [appLocaleMessages, runtimeMessages] = await Promise.all([
     localesMap[lang]?.(),
+    loadRuntimeLocaleMessages(lang),
+    syncPublicFrontendSettings(lang),
     loadThirdPartyMessage(lang),
   ]);
-  return appLocaleMessages?.default;
+  return mergeMessages(appLocaleMessages?.default || {}, runtimeMessages);
 }
 
 /**

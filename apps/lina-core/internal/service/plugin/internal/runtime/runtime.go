@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/lifecycle"
@@ -229,6 +230,8 @@ type serviceImpl struct {
 	userCtx UserContextSetter
 	// menuFilter filters button-type permission menus by plugin enablement.
 	menuFilter PermissionMenuFilter
+	// i18nSvc localizes plugin metadata display fields.
+	i18nSvc i18nsvc.Service
 }
 
 // New creates a new runtime Service with the given sub-service dependencies.
@@ -243,6 +246,7 @@ func New(
 		lifecycleSvc: lifecycleSvc,
 		frontendSvc:  frontendSvc,
 		openapiSvc:   openapiSvc,
+		i18nSvc:      i18nsvc.New(),
 	}
 }
 
@@ -357,9 +361,13 @@ func (s *serviceImpl) validateFrontendMenuBindings(ctx context.Context, manifest
 	return s.frontendSvc.ValidateRuntimeFrontendMenuBindings(ctx, manifest)
 }
 
-// invalidateFrontendBundle removes all cached frontend bundle entries for a plugin.
-func (s *serviceImpl) invalidateFrontendBundle(ctx context.Context, pluginID string, reason string) {
+// invalidateRuntimeCaches removes cached runtime frontend assets and runtime i18n
+// bundles after one plugin lifecycle change.
+func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, pluginID string, reason string) {
 	if s.frontendSvc != nil {
 		s.frontendSvc.InvalidateBundle(ctx, pluginID, reason)
+	}
+	if s.i18nSvc != nil {
+		s.i18nSvc.InvalidateRuntimeBundleCache()
 	}
 }

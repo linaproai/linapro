@@ -6,17 +6,20 @@ package sysinfo
 
 import (
 	"lina-core/api/sysinfo"
+	i18nsvc "lina-core/internal/service/i18n"
 	sysinfosvc "lina-core/internal/service/sysinfo"
 )
 
 // ControllerV1 is the system info controller.
 type ControllerV1 struct {
 	sysInfoSvc sysinfosvc.Service // system info service
+	i18nSvc    i18nsvc.Service    // i18nSvc localizes project and component descriptions.
 }
 
 // NewV1 creates and returns a new system info controller instance.
 func NewV1() sysinfo.ISysinfoV1 {
 	return &ControllerV1{
 		sysInfoSvc: sysinfosvc.New(),
+		i18nSvc:    i18nsvc.New(),
 	}
 }

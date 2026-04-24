@@ -1,3 +1,5 @@
+// Package bizctx stores and mutates request-scoped host business context values
+// such as authenticated user identity and resolved locale.
 package bizctx
 
 import (
@@ -18,6 +20,8 @@ type Service interface {
 	Init(r *ghttp.Request, ctx *model.Context)
 	// Get retrieves business context from context.
 	Get(ctx context.Context) *model.Context
+	// SetLocale sets locale info into business context.
+	SetLocale(ctx context.Context, locale string)
 	// SetUser sets user info into business context.
 	SetUser(ctx context.Context, tokenId string, userId int, username string, status int)
 }
@@ -48,6 +52,13 @@ func (s *serviceImpl) Get(ctx context.Context) *model.Context {
 		return localCtx
 	}
 	return nil
+}
+
+// SetLocale sets locale info into business context.
+func (s *serviceImpl) SetLocale(ctx context.Context, locale string) {
+	if c := s.Get(ctx); c != nil {
+		c.Locale = locale
+	}
 }
 
 // SetUser sets user info into business context.

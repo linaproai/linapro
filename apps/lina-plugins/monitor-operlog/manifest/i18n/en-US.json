@@ -1,0 +1,9 @@
+{
+  "menu.plugin:monitor-operlog:operlog.title": "Operation Logs",
+  "menu.plugin:monitor-operlog:operlog:clear.title": "Clear Logs",
+  "menu.plugin:monitor-operlog:operlog:export.title": "Export Logs",
+  "menu.plugin:monitor-operlog:operlog:query.title": "Query Logs",
+  "menu.plugin:monitor-operlog:operlog:remove.title": "Delete Logs",
+  "plugin.monitor-operlog.description": "Official source plugin for operation-log persistence and governance.",
+  "plugin.monitor-operlog.name": "Monitoring - Operation Logs"
+}

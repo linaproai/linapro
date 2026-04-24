@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gogf/gf/v2/i18n/gi18n"
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model"
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
@@ -24,6 +26,8 @@ type Service interface {
 	SessionStore() session.Store
 	// PublishedRouteMiddlewares returns the published host middleware directory for plugin route composition.
 	PublishedRouteMiddlewares() pluginhost.RouteMiddlewares
+	// Response serializes the unified JSON response payload.
+	Response(r *ghttp.Request)
 	// Ctx injects business context into request.
 	Ctx(r *ghttp.Request)
 	// CORS handles cross-origin requests.
@@ -45,6 +49,7 @@ type serviceImpl struct {
 	authSvc   auth.Service      // Authentication service
 	bizCtxSvc bizctx.Service    // Business context service
 	configSvc config.Service    // Runtime configuration service
+	i18nSvc   i18nsvc.Service   // i18nSvc resolves request locale and translation context.
 	pluginSvc pluginsvc.Service // Plugin service
 	roleSvc   role.Service      // Role and permission service
 }
@@ -56,6 +61,7 @@ func New() Service {
 		authSvc:   auth.New(nil),
 		bizCtxSvc: bizctx.New(),
 		configSvc: config.New(),
+		i18nSvc:   i18nsvc.New(),
 		pluginSvc: pluginSvc,
 		roleSvc:   role.New(pluginSvc),
 	}
@@ -74,7 +80,7 @@ func (s *serviceImpl) PublishedRouteMiddlewares() pluginhost.RouteMiddlewares {
 
 	return pluginhost.NewRouteMiddlewares(
 		ghttp.MiddlewareNeverDoneCtx,
-		ghttp.MiddlewareHandlerResponse,
+		s.Response,
 		s.CORS,
 		s.RequestBodyLimit,
 		s.Ctx,
@@ -87,6 +93,10 @@ func (s *serviceImpl) PublishedRouteMiddlewares() pluginhost.RouteMiddlewares {
 func (s *serviceImpl) Ctx(r *ghttp.Request) {
 	customCtx := &model.Context{}
 	s.bizCtxSvc.Init(r, customCtx)
+	locale := s.i18nSvc.ResolveRequestLocale(r)
+	r.SetCtx(gi18n.WithLanguage(r.Context(), locale))
+	s.bizCtxSvc.SetLocale(r.Context(), locale)
+	r.Response.Header().Set("Content-Language", locale)
 	r.Middleware.Next()
 }
 

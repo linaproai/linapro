@@ -12,6 +12,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
+
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // Request-body limit constants define the default non-multipart ceiling and the
@@ -45,7 +47,7 @@ func (s *serviceImpl) RequestBodyLimit(r *ghttp.Request) {
 			if friendlyErr := applyRequestBodyLimitFriendlyError(r, recovered, uploadMaxSizeMB); friendlyErr == nil {
 				panic(recovered)
 			} else {
-				writeRequestBodyLimitError(r, friendlyErr)
+				writeRequestBodyLimitError(r, s.i18nSvc, friendlyErr)
 			}
 		}
 	}()
@@ -62,7 +64,7 @@ func (s *serviceImpl) RequestBodyLimit(r *ghttp.Request) {
 	// Requests that do not panic still attach the overflow error to the request,
 	// so apply the same friendly translation after downstream middleware returns.
 	if friendlyErr := applyRequestBodyLimitFriendlyError(r, r.GetError(), uploadMaxSizeMB); friendlyErr != nil {
-		writeRequestBodyLimitError(r, friendlyErr)
+		writeRequestBodyLimitError(r, s.i18nSvc, friendlyErr)
 	}
 }
 
@@ -110,11 +112,11 @@ func requestBodyLimitFriendlyError(
 	if uploadMaxSizeMB > 0 {
 		return gerror.NewCodef(
 			gcode.CodeInvalidParameter,
-			"文件大小不能超过%dMB",
+			"error.upload.fileTooLarge",
 			uploadMaxSizeMB,
 		)
 	}
-	return gerror.NewCode(gcode.CodeInvalidParameter, "上传文件过大")
+	return gerror.NewCode(gcode.CodeInvalidParameter, "error.upload.requestBodyTooLarge")
 }
 
 // applyRequestBodyLimitFriendlyError writes the normalized overflow error back
@@ -147,7 +149,7 @@ func applyRequestBodyLimitFriendlyError(r *ghttp.Request, recovered any, uploadM
 // writeRequestBodyLimitError serializes one stable JSON error payload for
 // multipart body-size overflows, ensuring the client sees a business error
 // message even when transport parsing aborted early.
-func writeRequestBodyLimitError(r *ghttp.Request, err error) {
+func writeRequestBodyLimitError(r *ghttp.Request, i18nSvc i18nsvc.Service, err error) {
 	if r == nil || err == nil || r.Response == nil {
 		return
 	}
@@ -158,10 +160,16 @@ func writeRequestBodyLimitError(r *ghttp.Request, err error) {
 	}
 
 	r.Response.Status = http.StatusOK
+	message := err.Error()
+	if i18nSvc != nil {
+		if localized := i18nSvc.LocalizeError(r.Context(), err); localized != "" {
+			message = localized
+		}
+	}
 	r.Response.WriteJson(ghttp.DefaultHandlerResponse{
 		Code:    code,
 		Data:    nil,
-		Message: err.Error(),
+		Message: message,
 	})
 	r.ExitAll()
 }

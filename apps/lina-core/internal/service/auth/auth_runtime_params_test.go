@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // TestLoginRejectsBlacklistedIP verifies managed login IP blacklist settings
@@ -33,8 +34,8 @@ func TestLoginRejectsBlacklistedIP(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected blacklisted login attempt to fail")
 	}
-	if err.Error() != "登录IP已被禁止" {
-		t.Fatalf("expected blacklisted login error, got %v", err)
+	if localized := i18nsvc.New().LocalizeError(context.Background(), err); localized != "登录IP已被禁止" {
+		t.Fatalf("expected blacklisted login error %q, got %q", "登录IP已被禁止", localized)
 	}
 }
 

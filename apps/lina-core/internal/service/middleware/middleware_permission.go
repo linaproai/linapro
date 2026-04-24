@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
 
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
 )
 
@@ -47,9 +48,9 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 	if businessCtx == nil || businessCtx.UserId <= 0 {
 		writePermissionError(
 			r,
+			s.i18nSvc,
 			http.StatusUnauthorized,
-			gerror.New("未获取到当前登录用户"),
-			"未获取到当前登录用户",
+			gerror.New("error.permission.currentUserMissing"),
 		)
 		return
 	}
@@ -58,9 +59,9 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 	if err != nil {
 		writePermissionError(
 			r,
+			s.i18nSvc,
 			http.StatusInternalServerError,
-			gerror.Wrap(err, "加载接口权限上下文失败"),
-			"加载接口权限上下文失败",
+			gerror.Wrap(err, "error.permission.contextLoadFailed"),
 		)
 		return
 	}
@@ -69,8 +70,12 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 		return
 	}
 
-	message := permissionDeniedMessage(requiredPermissions)
-	writePermissionError(r, http.StatusForbidden, gerror.New(message), message)
+	writePermissionError(
+		r,
+		s.i18nSvc,
+		http.StatusForbidden,
+		gerror.Newf("error.permission.denied.required", strings.Join(requiredPermissions, ", ")),
+	)
 }
 
 // extractDeclaredPermissions reads the permission metadata declared on the
@@ -160,14 +165,21 @@ func hasRequiredPermissions(accessContext *role.UserAccessContext, required []st
 	return true
 }
 
-// permissionDeniedMessage formats the operator-facing permission denial message.
-func permissionDeniedMessage(required []string) string {
-	return "当前用户缺少接口权限: " + strings.Join(required, ", ")
-}
-
 // writePermissionError writes one JSON error payload and binds the error onto
 // the request so upper layers can still observe the failure cause.
-func writePermissionError(r *ghttp.Request, status int, err error, message string) {
+func writePermissionError(r *ghttp.Request, i18nSvc i18nsvc.Service, status int, err error) {
+	if r == nil {
+		return
+	}
+
+	message := ""
+	if i18nSvc != nil {
+		message = i18nSvc.LocalizeError(r.Context(), err)
+	}
+	if message == "" && err != nil {
+		message = err.Error()
+	}
+
 	r.SetError(err)
 	r.Response.WriteStatus(status)
 	r.Response.WriteJson(permissionErrorResponse{

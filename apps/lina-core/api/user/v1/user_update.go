@@ -1,3 +1,5 @@
+// This file defines the user-update DTOs and validation rules.
+
 package v1
 
 import (
@@ -10,7 +12,7 @@ type UpdateReq struct {
 	Id       int     `json:"id" v:"required" dc:"用户ID" eg:"1"`
 	Username *string `json:"username" dc:"用户名" eg:"zhangsan"`
 	Password *string `json:"password" dc:"密码（为空则不修改）" eg:"newpass123"`
-	Nickname *string `json:"nickname" v:"required#请输入昵称" dc:"昵称" eg:"张三"`
+	Nickname *string `json:"nickname" v:"required#validation.user.nickname.required" dc:"昵称" eg:"张三"`
 	Email    *string `json:"email" dc:"邮箱" eg:"zhangsan@example.com"`
 	Phone    *string `json:"phone" dc:"手机号" eg:"13800138000"`
 	Sex      *int    `json:"sex" dc:"性别：0=未知 1=男 2=女" eg:"1"`

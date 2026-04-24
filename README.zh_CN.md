@@ -153,6 +153,7 @@ apps/
   lina-vben/      默认管理工作台（Vue3 + Vben5）
   lina-plugins/   内置插件与插件开发样例
 hack/
+  scripts/install/ 快速安装脚本（`macOS`、`Linux`、`Windows`）
   tests/          Playwright E2E 测试集
 openspec/
   changes/        活跃与已归档的变更记录
@@ -165,16 +166,40 @@ openspec/
 
 - Go 1.21+
 - Node.js 18+
+- pnpm 9+
 - MySQL 8.0+
+
+### 快速安装
+
+| 平台 | 推荐命令 |
+|------|---------|
+| `macOS` / `Linux` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
+| `Windows PowerShell` | `irm https://linapro.ai/install.ps1 \| iex` |
+
+仓库内对应的正式脚本入口位于 `hack/scripts/install/install.sh` 和 `hack/scripts/install/install.ps1`。
+
+- 默认会在当前工作目录下新建一个 `./linapro` 子目录并将源码落地到其中。
+- 当你不传 `--ref` 或 `-Ref` 时，脚本会优先解析仓库最新稳定标签版本；只有在无法识别稳定标签时，才回退到 `main`。
+- 使用 `--dir` 或 `-Dir` 可以把项目安装到指定目录。
+- 使用 `--current-dir` 或 `-CurrentDir` 可以直接解压到当前目录；只有在你明确要覆盖非空目录时，才追加 `--force` 或 `-Force`。
+- 安装脚本只负责下载 `GitHub/Codeload` 源码归档并执行环境体检，不会自动安装依赖，也不会自动执行 `make init`、`make mock`、`make dev`。
+- 使用 `make test-install` 可以在本地或 `CI` 中复用安装脚本的 `smoke test`。
+
+本地执行示例：
+
+```bash
+bash ./hack/scripts/install/install.sh
+bash ./hack/scripts/install/install.sh --ref v0.1.0 --dir ~/Workspace/linapro
+```
 
 ### 启动步骤
 
 ```bash
 # 1. 初始化数据库
-make init
+make init confirm=init
 
 # 2. 加载演示数据（可选）
-make mock
+make mock confirm=mock
 
 # 3. 启动前后端服务
 make dev
@@ -188,6 +213,7 @@ make dev
 ```bash
 make stop         # 停止所有本地服务
 make status       # 查看服务运行状态
+make test-install # 运行安装脚本 smoke test
 make test         # 运行完整 E2E 测试套件
 ```
 

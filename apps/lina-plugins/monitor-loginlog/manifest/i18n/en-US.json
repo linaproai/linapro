@@ -1,0 +1,9 @@
+{
+  "menu.plugin:monitor-loginlog:loginlog.title": "Login Logs",
+  "menu.plugin:monitor-loginlog:loginlog:clear.title": "Clear Logs",
+  "menu.plugin:monitor-loginlog:loginlog:export.title": "Export Logs",
+  "menu.plugin:monitor-loginlog:loginlog:query.title": "Query Logs",
+  "menu.plugin:monitor-loginlog:loginlog:remove.title": "Delete Logs",
+  "plugin.monitor-loginlog.description": "Official source plugin for login-log persistence and governance.",
+  "plugin.monitor-loginlog.name": "Monitoring - Login Logs"
+}

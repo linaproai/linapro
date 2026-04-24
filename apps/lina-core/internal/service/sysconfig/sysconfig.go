@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // Service defines the sysconfig service contract.
@@ -46,12 +47,14 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	configSvc hostconfig.Service
+	i18nSvc   i18nsvc.Service
 }
 
 // New creates and returns a new sysconfig Service instance.
 func New() Service {
 	return &serviceImpl{
 		configSvc: hostconfig.New(),
+		i18nSvc:   i18nsvc.New(),
 	}
 }
 
@@ -106,6 +109,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
+	s.localizeConfigEntities(ctx, list)
 
 	return &ListOutput{
 		List:  list,
@@ -125,6 +129,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysConfig, e
 	if cfg == nil {
 		return nil, gerror.New("参数设置不存在")
 	}
+	s.localizeConfigEntity(ctx, cfg)
 	return cfg, nil
 }
 
@@ -286,6 +291,7 @@ func (s *serviceImpl) GetByKey(ctx context.Context, key string) (*entity.SysConf
 	if cfg == nil {
 		return nil, gerror.New("参数键名不存在")
 	}
+	s.localizeConfigEntity(ctx, cfg)
 	return cfg, nil
 }
 
@@ -325,6 +331,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	if err != nil {
 		return nil, err
 	}
+	s.localizeConfigEntities(ctx, list)
 
 	// Create Excel file
 	f := excelize.NewFile()

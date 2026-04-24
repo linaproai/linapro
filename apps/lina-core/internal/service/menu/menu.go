@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
 	"lina-core/pkg/logger"
 )
@@ -43,6 +44,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	menuFilter MenuFilter
+	i18nSvc    i18nsvc.Service
 	roleSvc    role.Service
 }
 
@@ -55,6 +57,7 @@ func New(menuFilter MenuFilter) Service {
 	}
 	return &serviceImpl{
 		menuFilter: menuFilter,
+		i18nSvc:    i18nsvc.New(),
 		roleSvc:    role.New(nil),
 	}
 }
@@ -96,6 +99,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		return nil, err
 	}
 	list = s.menuFilter.FilterMenus(ctx, list)
+	s.localizeMenuEntities(ctx, list)
 
 	return &ListOutput{
 		List: list,
@@ -185,6 +189,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysMenu, err
 	if menu == nil {
 		return nil, gerror.New("菜单不存在")
 	}
+	s.localizeMenuEntity(ctx, menu)
 	return menu, nil
 }
 

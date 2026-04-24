@@ -167,6 +167,10 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	if manifest != nil {
 		declaredRoutes = cloneRouteContracts(manifest.Routes)
 	}
+	if s.i18nSvc != nil {
+		name = s.i18nSvc.Translate(ctx, "plugin."+id+".name", name)
+		description = s.i18nSvc.Translate(ctx, "plugin."+id+".description", description)
+	}
 
 	return &PluginItem{
 		Id:                     id,
@@ -252,7 +256,7 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 		return nil, err
 	}
 
-	s.invalidateFrontendBundle(ctx, registry.PluginId, "runtime_artifact_missing")
+	s.invalidateRuntimeCaches(ctx, registry.PluginId, "runtime_artifact_missing")
 
 	updated, err := s.catalogSvc.GetRegistry(ctx, registry.PluginId)
 	if err != nil {

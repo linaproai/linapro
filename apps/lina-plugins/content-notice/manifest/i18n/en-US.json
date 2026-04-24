@@ -1,0 +1,9 @@
+{
+  "menu.plugin:content-notice:notice.title": "Notices",
+  "menu.plugin:content-notice:notice:add.title": "Create Notice",
+  "menu.plugin:content-notice:notice:edit.title": "Edit Notice",
+  "menu.plugin:content-notice:notice:query.title": "Query Notices",
+  "menu.plugin:content-notice:notice:remove.title": "Delete Notice",
+  "plugin.content-notice.description": "Official source plugin for notice and announcement management.",
+  "plugin.content-notice.name": "Content - Notices"
+}

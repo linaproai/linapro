@@ -451,7 +451,7 @@ func (s *serviceImpl) applyStateToggle(
 		}
 	}
 	if enabled == catalog.StatusDisabled {
-		s.invalidateFrontendBundle(ctx, manifest.ID, "plugin_disabled")
+		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_disabled")
 	}
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin status converged on primary node."); err != nil {
 		return err
@@ -581,7 +581,7 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 			return err
 		}
 	}
-	s.invalidateFrontendBundle(ctx, manifest.ID, "plugin_uninstalled")
+	s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_uninstalled")
 	if _, err = dao.SysPluginResourceRef.Ctx(ctx).
 		Unscoped().
 		Where(do.SysPluginResourceRef{PluginId: manifest.ID}).

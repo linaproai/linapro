@@ -25,6 +25,12 @@ test:
 	@echo "🧪 运行 E2E 测试套件..."
 	cd hack/tests && pnpm test
 
+## test-install: 运行安装脚本 smoke test（适用于本地与 CI）
+.PHONY: test-install
+test-install:
+	@echo "🧪 运行安装脚本 smoke test..."
+	@python3 hack/scripts/install/test_install.py
+
 ## init: 初始化数据库（仅执行 DDL 建表和 Seed 数据）
 .PHONY: init
 init:

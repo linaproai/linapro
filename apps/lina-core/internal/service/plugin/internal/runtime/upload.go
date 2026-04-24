@@ -203,7 +203,7 @@ func (s *serviceImpl) storeUploadedPackage(
 		}
 		return nil, err
 	}
-	s.invalidateFrontendBundle(ctx, reloadedManifest.ID, "runtime_package_uploaded")
+	s.invalidateRuntimeCaches(ctx, reloadedManifest.ID, "runtime_package_uploaded")
 
 	syncedRegistry, err := s.catalogSvc.SyncManifest(ctx, reloadedManifest)
 	if err != nil {

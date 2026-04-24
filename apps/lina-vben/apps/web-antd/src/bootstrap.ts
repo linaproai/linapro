@@ -1,4 +1,4 @@
-import { createApp, watchEffect } from 'vue';
+import { createApp, watch, watchEffect } from 'vue';
 
 import { registerAccessDirective } from '@vben/access';
 import { registerLoadingDirective } from '@vben/common-ui/es/loading';
@@ -13,6 +13,8 @@ import { $t, setupI18n } from '#/locales';
 
 import { initComponentAdapter } from './adapter/component';
 import { initSetupVbenForm } from './adapter/form';
+import { refreshAccessibleState } from './router/access-refresh';
+import { syncPublicFrontendSettings } from './runtime/public-frontend';
 import App from './app.vue';
 import { setupGlobalComponent } from './components/global';
 import { router } from './router';
@@ -73,6 +75,19 @@ async function bootstrap(namespace: string) {
       useTitle(pageTitle);
     }
   });
+
+  watch(
+    () => preferences.app.locale,
+    async (locale, previousLocale) => {
+      if (!previousLocale || locale === previousLocale) {
+        return;
+      }
+      await syncPublicFrontendSettings(locale);
+      await refreshAccessibleState(router, {
+        showLoadingToast: false,
+      });
+    },
+  );
 
   app.mount('#app');
 }

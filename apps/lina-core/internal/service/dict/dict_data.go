@@ -58,6 +58,7 @@ func (s *serviceImpl) DataList(ctx context.Context, in DataListInput) (*DataList
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictDataEntities(ctx, list)
 
 	return &DataListOutput{
 		List:  list,
@@ -108,6 +109,7 @@ func (s *serviceImpl) DataGetById(ctx context.Context, id int) (*entity.SysDictD
 	if dictData == nil {
 		return nil, gerror.New("字典数据不存在")
 	}
+	s.localizeDictDataEntity(ctx, dictData)
 	return dictData, nil
 }
 
@@ -206,6 +208,7 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictDataEntities(ctx, list)
 
 	// Create Excel file
 	f := excelize.NewFile()
@@ -272,5 +275,6 @@ func (s *serviceImpl) DataByType(ctx context.Context, dictType string) ([]*entit
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictDataEntities(ctx, list)
 	return list, nil
 }

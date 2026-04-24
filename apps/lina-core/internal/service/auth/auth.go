@@ -135,7 +135,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 
 	if s.configSvc.IsLoginIPBlacklisted(ctx, ip) {
 		dispatchLoginFailed(in.Username, "登录IP已被禁止")
-		return nil, gerror.New("登录IP已被禁止")
+		return nil, gerror.New("error.auth.login.ipBlacklisted")
 	}
 
 	// Query user by username (GoFrame auto-adds deleted_at IS NULL condition)
@@ -148,19 +148,19 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 	}
 	if user == nil {
 		dispatchLoginFailed(in.Username, "用户名或密码错误")
-		return nil, gerror.New("用户名或密码错误")
+		return nil, gerror.New("error.auth.login.invalidCredentials")
 	}
 
 	// Verify password
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
 		dispatchLoginFailed(in.Username, "用户名或密码错误")
-		return nil, gerror.New("用户名或密码错误")
+		return nil, gerror.New("error.auth.login.invalidCredentials")
 	}
 
 	// Check status
 	if user.Status == statusDisabled {
 		dispatchLoginFailed(in.Username, "用户已停用")
-		return nil, gerror.New("用户已停用")
+		return nil, gerror.New("error.auth.login.userDisabled")
 	}
 
 	// Generate JWT token
@@ -174,7 +174,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		Where(do.SysUser{Id: user.Id}).
 		Data(do.SysUser{LoginDate: gtime.Now()}).
 		Update(); err != nil {
-		return nil, gerror.Wrap(err, "更新最后登录时间失败")
+		return nil, gerror.Wrap(err, "error.auth.login.updateLastLoginFailed")
 	}
 
 	// Create online session
@@ -215,19 +215,19 @@ func (s *serviceImpl) ParseToken(ctx context.Context, tokenString string) (*Clai
 		return []byte(jwtSecret), nil
 	})
 	if err != nil {
-		return nil, gerror.New("无效的Token")
+		return nil, gerror.New("error.auth.token.invalid")
 	}
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
 		return claims, nil
 	}
-	return nil, gerror.New("无效的Token")
+	return nil, gerror.New("error.auth.token.invalid")
 }
 
 // HashPassword hashes password using bcrypt.
 func (s *serviceImpl) HashPassword(password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", gerror.Wrap(err, "密码加密失败")
+		return "", gerror.Wrap(err, "error.auth.password.hashFailed")
 	}
 	return string(hash), nil
 }

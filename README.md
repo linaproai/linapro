@@ -153,6 +153,7 @@ apps/
   lina-vben/      Default management workspace (Vue 3 + Vben 5)
   lina-plugins/   Built-in and sample plugins
 hack/
+  scripts/install/ Bootstrap installers for macOS/Linux and Windows
   tests/          Playwright E2E test suite
 openspec/
   changes/        Active and archived change records
@@ -168,14 +169,37 @@ openspec/
 - pnpm 9+
 - MySQL 8.0+
 
+### Quick Install
+
+| Platform | Recommended Command |
+|----------|---------------------|
+| `macOS` / `Linux` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
+| `Windows PowerShell` | `irm https://linapro.ai/install.ps1 \| iex` |
+
+The repository-backed implementations live at `hack/scripts/install/install.sh` and `hack/scripts/install/install.ps1`.
+
+- By default, the installer creates a new `./linapro` directory under the current working path.
+- Without `--ref` or `-Ref`, the installer resolves the latest stable tag first and falls back to `main` only when no stable tag can be detected.
+- Use `--dir` or `-Dir` to install into a specific directory.
+- Use `--current-dir` or `-CurrentDir` to unpack directly into the current directory. Add `--force` or `-Force` only when you intentionally want an overlay install into a non-empty directory.
+- The installer downloads a GitHub/Codeload source archive and runs an environment check only. It does not auto-install dependencies or execute `make init`, `make mock`, or `make dev`.
+- Run `make test-install` to execute the installer smoke test locally or from `CI`.
+
+Example local usage:
+
+```bash
+bash ./hack/scripts/install/install.sh
+bash ./hack/scripts/install/install.sh --ref v0.1.0 --dir ~/Workspace/linapro
+```
+
 ### Quick Start
 
 ```bash
 # 1. Initialise the database
-make init
+make init confirm=init
 
 # 2. Load demo data (optional)
-make mock
+make mock confirm=mock
 
 # 3. Start backend and frontend
 make dev
@@ -189,6 +213,7 @@ The backend API is available at `http://localhost:8080`.
 ```bash
 make stop         # Stop all local services
 make status       # Show service status
+make test-install # Run installer smoke tests
 make test         # Run the full E2E suite
 ```
 

@@ -1,0 +1,8 @@
+{
+  "menu.plugin:plugin-demo-source:record-create.title": "Create Demo Record",
+  "menu.plugin:plugin-demo-source:record-delete.title": "Delete Demo Record",
+  "menu.plugin:plugin-demo-source:record-update.title": "Update Demo Record",
+  "menu.plugin:plugin-demo-source:sidebar-entry.title": "Source Plugin Demo",
+  "plugin.plugin-demo-source.description": "Source plugin sample with hosted pages and public/protected route examples.",
+  "plugin.plugin-demo-source.name": "Source Plugin Demo"
+}

@@ -1,0 +1,15 @@
+{
+  "menu.plugin:org-center:dept.title": "Departments",
+  "menu.plugin:org-center:dept:add.title": "Create Department",
+  "menu.plugin:org-center:dept:edit.title": "Edit Department",
+  "menu.plugin:org-center:dept:query.title": "Query Departments",
+  "menu.plugin:org-center:dept:remove.title": "Delete Department",
+  "menu.plugin:org-center:post.title": "Positions",
+  "menu.plugin:org-center:post:add.title": "Create Position",
+  "menu.plugin:org-center:post:edit.title": "Edit Position",
+  "menu.plugin:org-center:post:export.title": "Export Positions",
+  "menu.plugin:org-center:post:query.title": "Query Positions",
+  "menu.plugin:org-center:post:remove.title": "Delete Position",
+  "plugin.org-center.description": "Official source plugin for department and position management.",
+  "plugin.org-center.name": "Organization Management"
+}
