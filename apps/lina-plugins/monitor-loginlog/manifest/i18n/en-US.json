@@ -1,5 +1,5 @@
 {
-  "menu.plugin:monitor-loginlog:loginlog.title": "Login Logs",
+  "menu.plugin:monitor-loginlog:loginlog.title": "Login History",
   "menu.plugin:monitor-loginlog:loginlog:clear.title": "Clear Logs",
   "menu.plugin:monitor-loginlog:loginlog:export.title": "Export Logs",
   "menu.plugin:monitor-loginlog:loginlog:query.title": "Query Logs",

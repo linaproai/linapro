@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/server',
-  title: 'Server Monitor',
+  title: 'Server Metrics',
 };
 </script>
 

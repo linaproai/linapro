@@ -1,5 +1,5 @@
 {
-  "menu.plugin:monitor-operlog:operlog.title": "Operation Logs",
+  "menu.plugin:monitor-operlog:operlog.title": "Audit Logs",
   "menu.plugin:monitor-operlog:operlog:clear.title": "Clear Logs",
   "menu.plugin:monitor-operlog:operlog:export.title": "Export Logs",
   "menu.plugin:monitor-operlog:operlog:query.title": "Query Logs",

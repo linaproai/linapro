@@ -42,6 +42,7 @@
     "content": ["e2e/content"],
     "content:notice": ["e2e/content/notice"],
     "content:message": ["e2e/content/message"],
+    "i18n": ["e2e/i18n"],
     "monitor": ["e2e/monitor"],
     "monitor:operlog": ["e2e/monitor/operlog"],
     "monitor:loginlog": ["e2e/monitor/loginlog"],

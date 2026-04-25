@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/loginlog',
-  title: 'Login Logs',
+  title: 'Login History',
 };
 </script>
 

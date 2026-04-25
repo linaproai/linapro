@@ -43,25 +43,25 @@
   },
   "routes": {
     "about": {
-      "developerCenter": "Developer Center",
+      "developerCenter": "Dev Tools",
       "apiDocs": "API Docs",
       "systemInfo": "System Info"
     },
     "system": {
-      "accessManagement": "Access Management",
+      "accessManagement": "Access",
       "userManagement": "Users",
       "roleManagement": "Roles",
       "menuManagement": "Menus",
-      "roleUserManagement": "Role User Assignment",
-      "systemSettings": "System Settings",
+      "roleUserManagement": "Role Members",
+      "systemSettings": "Settings",
       "dictManagement": "Dictionaries",
-      "configManagement": "Parameter Settings",
-      "fileManagement": "File Management",
+      "configManagement": "Parameters",
+      "fileManagement": "Files",
       "messageList": "Messages",
       "scheduler": "Scheduler",
       "jobManagement": "Jobs",
       "jobGroupManagement": "Groups",
-      "jobLogManagement": "Execution Logs",
+      "jobLogManagement": "Run Logs",
       "extensionCenter": "Extensions",
       "pluginManagement": "Plugins"
     }

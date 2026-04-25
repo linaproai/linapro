@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/operlog',
-  title: 'Operation Logs',
+  title: 'Audit Logs',
 };
 </script>
 

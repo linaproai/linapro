@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/online',
-  title: 'Online Users',
+  title: 'Sessions',
 };
 </script>
 

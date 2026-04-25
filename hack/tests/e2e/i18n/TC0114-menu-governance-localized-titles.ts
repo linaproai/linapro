@@ -48,7 +48,7 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     await adminApi.dispose();
   });
 
-  test('TC0114a: 英文环境下菜单管理列表显示本地化菜单标题', async ({
+  test('TC-114a: 英文环境下菜单管理列表显示本地化菜单标题', async ({
     adminPage,
     mainLayout,
   }) => {
@@ -67,7 +67,7 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     ).toBeVisible();
   });
 
-  test('TC0114b: 英文环境下菜单树与角色菜单树接口返回本地化标题', async () => {
+  test('TC-114b: 英文环境下菜单树与角色菜单树接口返回本地化标题', async () => {
     const localizedList = await expectSuccess<{ list: MenuListItem[] }>(
       await adminApi.get('menu', {
         headers: {
@@ -78,7 +78,7 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     const flatMenus = flattenMenuList(localizedList.list);
 
     const settingsCatalog = flatMenus.find((item) => item.path === 'setting');
-    expect(settingsCatalog?.name).toBe('System Settings');
+    expect(settingsCatalog?.name).toBe('Settings');
 
     const menuManagement = flatMenus.find((item) => item.perms === 'system:menu:list');
     expect(menuManagement?.name).toBe('Menus');
@@ -121,7 +121,7 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     expect(localizedRoleNode?.label).toBe('Menus');
   });
 
-  test('TC0114c: 英文环境下菜单详情保留可编辑原值并本地化父级名称', async () => {
+  test('TC-114c: 英文环境下菜单详情保留可编辑原值并本地化父级名称', async () => {
     const localizedList = await expectSuccess<{ list: MenuListItem[] }>(
       await adminApi.get('menu', {
         headers: {
@@ -143,6 +143,6 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     );
 
     expect(detail.name).toBe('菜单管理');
-    expect(detail.parentName).toBe('Access Management');
+    expect(detail.parentName).toBe('Access');
   });
 });

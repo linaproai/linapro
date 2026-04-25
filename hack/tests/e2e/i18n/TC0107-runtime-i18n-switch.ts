@@ -1,11 +1,11 @@
 import type { APIRequestContext } from "@playwright/test";
 
 import { test, expect } from "../../fixtures/auth";
-import { DictPage } from "../../pages/DictPage";
 import { PluginPage } from "../../pages/PluginPage";
 import {
   createAdminApiContext,
   disablePlugin,
+  expectSuccess,
   getPlugin,
   syncPlugins,
   uninstallPlugin,
@@ -15,6 +15,11 @@ import { waitForRouteReady } from "../../support/ui";
 const pluginID = "plugin-demo-dynamic";
 const pluginMenuNameEnglish = "Dynamic Plugin Demo";
 const pluginMenuNameChinese = "动态插件示例";
+
+type DictDataItem = {
+  label: string;
+  value: string;
+};
 
 let adminApi: APIRequestContext;
 let originalInstalled = 0;
@@ -74,7 +79,7 @@ test.describe("TC0107 运行时国际化切换", () => {
       adminPage.getByText("Extensions", { exact: true }).first(),
     ).toBeVisible();
     await expect(
-      adminPage.getByText("System Settings", { exact: true }).first(),
+      adminPage.getByText("Settings", { exact: true }).first(),
     ).toBeVisible();
 
     await adminPage.goto("/about/system-info");
@@ -93,14 +98,14 @@ test.describe("TC0107 运行时国际化切换", () => {
       ),
     ).toBeVisible();
 
-    const dictPage = new DictPage(adminPage);
-    await dictPage.goto();
-    await dictPage.clickTypeRow("sys_user_sex");
-    await expect(
-      adminPage
-        .locator("#dict-data .vxe-body--row", { hasText: "Male" })
-        .first(),
-    ).toBeVisible();
+    const dictData = await expectSuccess<{ list: DictDataItem[] }>(
+      await adminApi.get("dict/data/type/sys_user_sex", {
+        headers: {
+          "Accept-Language": "en-US",
+        },
+      }),
+    );
+    expect(dictData.list.map((item) => item.label)).toContain("Male");
   });
 
   test("TC-107c: 动态插件页面在语言切换后刷新运行时翻译与宿主上下文", async ({

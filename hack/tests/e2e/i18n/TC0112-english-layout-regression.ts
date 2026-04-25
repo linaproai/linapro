@@ -106,9 +106,9 @@ test.describe('TC0112 英文布局回归', () => {
     const profilePage = new ProfilePage(adminPage);
     const layoutPage = new LayoutAuditPage(adminPage);
 
-    const orgMenu = mainLayout.sidebarMenuItem('Organization Management');
+    const orgMenu = mainLayout.sidebarMenuItem('Organization');
     await orgMenu.scrollIntoViewIfNeeded();
-    await expectNoHorizontalClip(orgMenu, 'Organization Management sidebar item');
+    await expectNoHorizontalClip(orgMenu, 'Organization sidebar item');
 
     const sidebarBox = await mainLayout.sidebar.boundingBox();
     expect(sidebarBox).not.toBeNull();
