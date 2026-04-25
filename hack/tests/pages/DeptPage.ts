@@ -45,6 +45,7 @@ export class DeptPage {
   /** Fill the search form field by label */
   async fillSearchField(label: string, value: string) {
     const input = this.resolveLocalizedLabel(label);
+    await input.waitFor({ state: 'visible', timeout: 10000 });
     await input.clear();
     await input.fill(value);
   }
@@ -240,6 +241,16 @@ export class DeptPage {
       row = this.page.locator('.vxe-body--row:visible', { hasText: deptName });
     }
     return row.first().isVisible({ timeout: 5000 }).catch(() => false);
+  }
+
+  /** Check whether the expanded tree contains the specified department name. */
+  async hasDeptInExpandedTree(deptName: string): Promise<boolean> {
+    await this.expandAll();
+    return this.page
+      .locator('.vxe-body--row:visible', { hasText: deptName })
+      .first()
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
   }
 
   /** Check if a dept row with the given name has the expected code */

@@ -26,13 +26,13 @@ test.describe('TC0110 可编辑主数据退出 i18n 投影专项回归', () => {
     await expect(await userPage.hasDeptTreeNode('研发部门')).toBe(true);
 
     await deptPage.goto();
-    await expect(await deptPage.hasDept('研发部门')).toBe(true);
+    await expect(await deptPage.hasDeptInExpandedTree('研发部门')).toBe(true);
 
     await postPage.goto();
     await expect(await postPage.hasPostName('总经理')).toBe(true);
 
     await rolePage.goto();
-    await expect(await rolePage.hasRole('超级管理员')).toBe(true);
+    await expect(await rolePage.hasRole('普通用户')).toBe(true);
   });
 
   test('TC-110b: 英文环境下菜单字典参数等管理页中的可编辑主数据保持数据库原值', async ({
@@ -57,7 +57,8 @@ test.describe('TC0110 可编辑主数据退出 i18n 投影专项回归', () => {
     await configPage.clickSearch();
     const configRow = configPage.findRowByExactKey('demo.notice.banner');
     await expect(configRow).toBeVisible();
-    await expect(configRow).toContainText('演示-首页公告文案');
+    await expect(configRow).toContainText('demo.notice.banner');
+    await expect(configRow).toContainText('欢迎使用 LinaPro');
   });
 
   test('TC-110c: 英文环境下通知与调度管理页中的可编辑业务记录保持数据库原值', async ({

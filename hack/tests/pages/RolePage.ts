@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import {
   waitForBusyIndicatorsToClear,
@@ -170,6 +170,11 @@ export class RolePage {
       .first()
       .isVisible({ timeout: 5000 })
       .catch(() => false);
+  }
+
+  /** Find the first role row containing the specified permission key. */
+  roleRowByKey(roleKey: string): Locator {
+    return this.page.locator('.vxe-body--row', { hasText: roleKey }).first();
   }
 
   /** Search role by name */
