@@ -30,7 +30,7 @@ const [BasicModal, modalApi] = useVbenModal({
 const loginInfo = ref<LoginLog>();
 
 const loginStatusDicts = computed(() => {
-  return dictStore.dictOptionsMap.get('sys_login_status') || [];
+  return dictStore.getDictOptions('sys_login_status');
 });
 </script>
 

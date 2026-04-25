@@ -45,6 +45,10 @@ export class LoginPage {
     return this.page.locator("#__app-loading__ .title").first();
   }
 
+  get brandLogoImage() {
+    return this.page.locator('img[alt="LinaPro"]').first();
+  }
+
   get pageDescription() {
     return this.page
       .locator("p")
@@ -154,6 +158,19 @@ export class LoginPage {
     return this.page.evaluate(() => {
       return getComputedStyle(document.documentElement).fontFamily;
     });
+  }
+
+  async getBrandLogoInfo() {
+    return this.brandLogoImage.evaluate((img) => ({
+      currentSrc: img.currentSrc,
+      height: img.clientHeight,
+      naturalHeight: img.naturalHeight,
+      naturalWidth: img.naturalWidth,
+      parentText:
+        (img.closest("a") ?? img.parentElement)?.textContent?.trim() ?? "",
+      src: img.getAttribute("src") ?? "",
+      width: img.clientWidth,
+    }));
   }
 
   async switchLanguage(label: "English" | "简体中文") {

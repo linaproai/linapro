@@ -55,6 +55,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictTypeEntities(ctx, list)
 
 	return &ListOutput{
 		List:  list,

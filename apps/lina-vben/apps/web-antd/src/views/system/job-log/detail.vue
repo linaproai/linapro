@@ -10,6 +10,7 @@ import { Descriptions, DescriptionsItem, Spin, Tag } from 'ant-design-vue';
 
 import { jobLogDetail } from '#/api/system/jobLog';
 import JsonPreview from '#/components/json-preview/index.vue';
+import { localizeSeedJobName } from '#/utils/display-l10n';
 
 const currentLog = ref<JobLogRecord | null>(null);
 const loading = ref(false);
@@ -43,8 +44,18 @@ function parseJSON(raw?: string) {
   }
 }
 
-const paramsSnapshot = computed(() => parseJSON(currentLog.value?.paramsSnapshot));
+const paramsSnapshot = computed(() =>
+  parseJSON(currentLog.value?.paramsSnapshot),
+);
 const resultSnapshot = computed(() => parseJSON(currentLog.value?.resultJson));
+const jobSnapshot = computed(() => parseJSON(currentLog.value?.jobSnapshot));
+const localizedJobName = computed(() => {
+  const handlerRef =
+    jobSnapshot.value && typeof jobSnapshot.value === 'object'
+      ? (jobSnapshot.value as Record<string, any>).handlerRef
+      : '';
+  return localizeSeedJobName(handlerRef, currentLog.value?.jobName || '');
+});
 const shellResult = computed(() => {
   const result = resultSnapshot.value;
   if (!result || typeof result !== 'object') {
@@ -79,7 +90,9 @@ function statusLabel(status?: string) {
     cancelled: $t('pages.system.jobLog.status.cancelled'),
     failed: $t('pages.system.jobLog.status.failed'),
     running: $t('pages.system.jobLog.status.running'),
-    skipped_max_concurrency: $t('pages.system.jobLog.status.skippedMaxConcurrency'),
+    skipped_max_concurrency: $t(
+      'pages.system.jobLog.status.skippedMaxConcurrency',
+    ),
     skipped_not_primary: $t('pages.system.jobLog.status.skippedNotPrimary'),
     skipped_singleton: $t('pages.system.jobLog.status.skippedSingleton'),
     success: $t('pages.system.jobLog.status.success'),
@@ -97,17 +110,12 @@ function statusLabel(status?: string) {
     :title="$t('pages.system.jobLog.detail.title')"
   >
     <Spin :spinning="loading">
-      <Descriptions
-        v-if="currentLog"
-        :column="2"
-        bordered
-        size="small"
-      >
+      <Descriptions v-if="currentLog" :column="2" bordered size="small">
         <DescriptionsItem :label="$t('pages.system.jobLog.detail.logId')">
           {{ currentLog.id }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.jobLog.fields.jobName')">
-          {{ currentLog.jobName || '-' }}
+          {{ localizedJobName || '-' }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.jobLog.fields.status')">
           <Tag :color="statusColor(currentLog.status)">
@@ -138,34 +146,43 @@ function statusLabel(status?: string) {
             {{ currentLog.errMsg }}
           </span>
         </DescriptionsItem>
-        <DescriptionsItem :span="2" :label="$t('pages.system.jobLog.detail.jobSnapshot')">
+        <DescriptionsItem
+          :span="2"
+          :label="$t('pages.system.jobLog.detail.jobSnapshot')"
+        >
           <div class="max-h-[260px] overflow-auto">
-            <JsonPreview
-              v-if="parseJSON(currentLog.jobSnapshot)"
-              :data="parseJSON(currentLog.jobSnapshot)"
-            />
+            <JsonPreview v-if="jobSnapshot" :data="jobSnapshot" />
             <span v-else>{{ currentLog.jobSnapshot || '-' }}</span>
           </div>
         </DescriptionsItem>
-        <DescriptionsItem :span="2" :label="$t('pages.system.jobLog.detail.paramsSnapshot')">
+        <DescriptionsItem
+          :span="2"
+          :label="$t('pages.system.jobLog.detail.paramsSnapshot')"
+        >
           <div class="max-h-[260px] overflow-auto">
-            <JsonPreview
-              v-if="paramsSnapshot"
-              :data="paramsSnapshot"
-            />
+            <JsonPreview v-if="paramsSnapshot" :data="paramsSnapshot" />
             <span v-else>{{ currentLog.paramsSnapshot || '-' }}</span>
           </div>
         </DescriptionsItem>
-        <DescriptionsItem :span="2" :label="$t('pages.system.jobLog.detail.result')">
+        <DescriptionsItem
+          :span="2"
+          :label="$t('pages.system.jobLog.detail.result')"
+        >
           <div class="space-y-3">
             <template v-if="shellResult">
               <div>
                 <div class="mb-1 text-xs text-foreground/60">stdout</div>
-                <pre class="max-h-[220px] overflow-auto rounded bg-accent px-3 py-2 text-xs">{{ shellResult.stdout || '' }}</pre>
+                <pre
+                  class="max-h-[220px] overflow-auto rounded bg-accent px-3 py-2 text-xs"
+                  >{{ shellResult.stdout || '' }}</pre
+                >
               </div>
               <div>
                 <div class="mb-1 text-xs text-foreground/60">stderr</div>
-                <pre class="max-h-[220px] overflow-auto rounded bg-accent px-3 py-2 text-xs">{{ shellResult.stderr || '' }}</pre>
+                <pre
+                  class="max-h-[220px] overflow-auto rounded bg-accent px-3 py-2 text-xs"
+                  >{{ shellResult.stderr || '' }}</pre
+                >
               </div>
               <div class="text-xs text-foreground/60">
                 exitCode={{ shellResult.exitCode ?? '-' }}
@@ -173,10 +190,7 @@ function statusLabel(status?: string) {
             </template>
             <template v-else>
               <div class="max-h-[260px] overflow-auto">
-                <JsonPreview
-                  v-if="resultSnapshot"
-                  :data="resultSnapshot"
-                />
+                <JsonPreview v-if="resultSnapshot" :data="resultSnapshot" />
                 <span v-else>{{ currentLog.resultJson || '-' }}</span>
               </div>
             </template>

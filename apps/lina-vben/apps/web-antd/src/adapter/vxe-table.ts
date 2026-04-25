@@ -24,6 +24,11 @@ import {
   renderJobCronExpression,
 } from '#/api/system/job/meta';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
+import {
+  localizeSeedJobGroupName,
+  localizeSeedJobGroupRemark,
+  localizeSeedJobName,
+} from '#/utils/display-l10n';
 
 import { useVbenForm } from './form';
 
@@ -102,9 +107,9 @@ function normalizeEnglishColumns(columns: any[] = []) {
   });
 }
 
-function adaptEnglishGridOptions<T extends Parameters<typeof useBaseVbenVxeGrid>[0]>(
-  options: T,
-) {
+function adaptEnglishGridOptions<
+  T extends Parameters<typeof useBaseVbenVxeGrid>[0],
+>(options: T) {
   if (preferences.app.locale !== 'en-US') {
     return options;
   }
@@ -235,9 +240,7 @@ export function useVbenVxeGrid(...args: Parameters<typeof useBaseVbenVxeGrid>) {
   const normalizedArgs = args.map((arg) =>
     adaptEnglishGridOptions(arg),
   ) as Parameters<typeof useBaseVbenVxeGrid>;
-  const [BaseGrid, gridApi] = useBaseVbenVxeGrid(
-    ...normalizedArgs,
-  );
+  const [BaseGrid, gridApi] = useBaseVbenVxeGrid(...normalizedArgs);
 
   const Grid = defineComponent(
     (props, { attrs, slots }) => {
@@ -289,14 +292,24 @@ export type * from '@vben/plugins/vxe-table';
 export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
   return [
     { type: 'checkbox', width: 56 },
-    { field: 'code', title: $t('pages.system.jobGroup.fields.code'), minWidth: 160 },
+    {
+      field: 'code',
+      title: $t('pages.system.jobGroup.fields.code'),
+      minWidth: 160,
+    },
     {
       field: 'name',
       title: $t('pages.system.jobGroup.fields.name'),
       minWidth: 180,
+      formatter: ({ row }: any) =>
+        localizeSeedJobGroupName(row?.code, row?.name),
     },
     { field: 'sortOrder', title: $t('pages.fields.sort'), width: 90 },
-    { field: 'jobCount', title: $t('pages.system.jobGroup.fields.jobCount'), width: 100 },
+    {
+      field: 'jobCount',
+      title: $t('pages.system.jobGroup.fields.jobCount'),
+      width: 100,
+    },
     {
       field: 'isDefault',
       title: $t('pages.system.jobGroup.fields.defaultGroup'),
@@ -304,11 +317,19 @@ export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
       slots: {
         default: ({ row }: any) =>
           row.isDefault === 1
-            ? h(Tag, { color: 'gold' }, () => $t('pages.system.jobGroup.fields.defaultGroup'))
+            ? h(Tag, { color: 'gold' }, () =>
+                $t('pages.system.jobGroup.fields.defaultGroup'),
+              )
             : '-',
       },
     },
-    { field: 'remark', title: $t('pages.common.remark'), minWidth: 200 },
+    {
+      field: 'remark',
+      title: $t('pages.common.remark'),
+      minWidth: 200,
+      formatter: ({ row }: any) =>
+        localizeSeedJobGroupRemark(row?.code, row?.remark),
+    },
     { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
     {
       field: 'action',
@@ -330,11 +351,15 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
       field: 'name',
       title: $t('pages.system.job.fields.name'),
       minWidth: 180,
+      formatter: ({ row }: any) =>
+        localizeSeedJobName(row?.handlerRef, row?.name),
     },
     {
       field: 'groupName',
       title: $t('pages.system.job.fields.group'),
       minWidth: 140,
+      formatter: ({ row }: any) =>
+        localizeSeedJobGroupName(row?.groupCode, row?.groupName),
     },
     {
       field: 'source',
@@ -343,10 +368,8 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
       slots: {
         default: ({ row }: any) => {
           const source = getJobSourceKind(row);
-          return h(
-            Tag,
-            { color: getJobSourceColor(source) },
-            () => getJobSourceLabel(source),
+          return h(Tag, { color: getJobSourceColor(source) }, () =>
+            getJobSourceLabel(source),
           );
         },
       },
@@ -363,9 +386,7 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
               { title: getJobPluginPausedTooltip() },
               {
                 default: () =>
-                  h(Tag, { color: 'error' }, () =>
-                    getJobPluginPausedLabel(),
-                  ),
+                  h(Tag, { color: 'error' }, () => getJobPluginPausedLabel()),
               },
             );
           }
@@ -396,7 +417,11 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
           ),
       },
     },
-    { field: 'timezone', title: $t('pages.system.job.fields.timezone'), width: 140 },
+    {
+      field: 'timezone',
+      title: $t('pages.system.job.fields.timezone'),
+      width: 140,
+    },
     {
       field: 'scope',
       title: $t('pages.system.job.fields.scope'),
@@ -413,7 +438,11 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
         default: ({ row }: any) => getJobConcurrencyLabel(row.concurrency),
       },
     },
-    { field: 'executedCount', title: $t('pages.system.job.fields.executedCount'), width: 110 },
+    {
+      field: 'executedCount',
+      title: $t('pages.system.job.fields.executedCount'),
+      width: 110,
+    },
     {
       field: 'stopReason',
       title: $t('pages.system.job.fields.stopReason'),
@@ -455,11 +484,24 @@ export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
       field: 'jobName',
       title: $t('pages.system.jobLog.fields.jobName'),
       minWidth: 180,
-      formatter: ({ row }: any) =>
-        String(row?.jobName || resolveJobHandlerRef(String(row?.jobSnapshot || '')) || ''),
+      formatter: ({ row }: any) => {
+        const handlerRef = resolveJobHandlerRef(String(row?.jobSnapshot || ''));
+        return localizeSeedJobName(
+          handlerRef,
+          String(row?.jobName || handlerRef || ''),
+        );
+      },
     },
-    { field: 'trigger', title: $t('pages.system.jobLog.fields.trigger'), width: 100 },
-    { field: 'nodeId', title: $t('pages.system.jobLog.fields.nodeId'), minWidth: 140 },
+    {
+      field: 'trigger',
+      title: $t('pages.system.jobLog.fields.trigger'),
+      width: 100,
+    },
+    {
+      field: 'nodeId',
+      title: $t('pages.system.jobLog.fields.nodeId'),
+      minWidth: 140,
+    },
     {
       field: 'status',
       title: $t('pages.system.jobLog.fields.status'),
@@ -473,20 +515,29 @@ export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
             success: 'success',
             timeout: 'warning',
           };
-          return h(
-            Tag,
-            { color: colorMap[row.status] || 'default' },
-            () =>
-              $t(`pages.system.jobLog.status.${row.status}`, {
-                defaultValue: row.status,
-              }),
+          return h(Tag, { color: colorMap[row.status] || 'default' }, () =>
+            $t(`pages.system.jobLog.status.${row.status}`, {
+              defaultValue: row.status,
+            }),
           );
         },
       },
     },
-    { field: 'startAt', title: $t('pages.system.jobLog.fields.startAt'), minWidth: 180 },
-    { field: 'endAt', title: $t('pages.system.jobLog.fields.endAt'), minWidth: 180 },
-    { field: 'durationMs', title: $t('pages.system.jobLog.fields.durationMs'), width: 100 },
+    {
+      field: 'startAt',
+      title: $t('pages.system.jobLog.fields.startAt'),
+      minWidth: 180,
+    },
+    {
+      field: 'endAt',
+      title: $t('pages.system.jobLog.fields.endAt'),
+      minWidth: 180,
+    },
+    {
+      field: 'durationMs',
+      title: $t('pages.system.jobLog.fields.durationMs'),
+      width: 100,
+    },
     {
       field: 'errMsg',
       title: $t('pages.system.jobLog.fields.errorSummary'),

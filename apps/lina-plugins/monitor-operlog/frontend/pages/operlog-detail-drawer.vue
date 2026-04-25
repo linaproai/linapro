@@ -16,7 +16,6 @@ import {
   localizeSeedOperLogTitle,
 } from '#/utils/display-l10n';
 
-
 const dictStore = useDictStore();
 
 const [BasicDrawer, drawerApi] = useVbenDrawer({
@@ -37,11 +36,11 @@ function handleOpenChange(open: boolean) {
 }
 
 const operTypeDicts = computed(() => {
-  return dictStore.dictOptionsMap.get('sys_oper_type') || [];
+  return dictStore.getDictOptions('sys_oper_type');
 });
 
 const operStatusDicts = computed(() => {
-  return dictStore.dictOptionsMap.get('sys_oper_status') || [];
+  return dictStore.getDictOptions('sys_oper_status');
 });
 
 function parseJson(str: string): any {
@@ -62,12 +61,7 @@ function parseJson(str: string): any {
     class="w-[600px]"
     :title="$t('plugin.monitor-operlog.detail.title')"
   >
-    <Descriptions
-      v-if="currentLog"
-      size="small"
-      bordered
-      :column="1"
-    >
+    <Descriptions v-if="currentLog" size="small" bordered :column="1">
       <DescriptionsItem
         :label="$t('plugin.monitor-operlog.fields.logId')"
         :label-style="{ minWidth: '120px' }"
@@ -75,22 +69,18 @@ function parseJson(str: string): any {
         {{ currentLog.id }}
       </DescriptionsItem>
       <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operResult')">
-        <DictTag
-          :dicts="(operStatusDicts as any)"
-          :value="currentLog.status"
-        />
+        <DictTag :dicts="operStatusDicts as any" :value="currentLog.status" />
       </DescriptionsItem>
       <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.moduleName')">
         {{ localizeSeedOperLogTitle(currentLog.title) }}
       </DescriptionsItem>
-      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operSummary')">
+      <DescriptionsItem
+        :label="$t('plugin.monitor-operlog.fields.operSummary')"
+      >
         {{ localizeSeedOperLogSummary(currentLog.operSummary) }}
       </DescriptionsItem>
       <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operType')">
-        <DictTag
-          :dicts="(operTypeDicts as any)"
-          :value="currentLog.operType"
-        />
+        <DictTag :dicts="operTypeDicts as any" :value="currentLog.operType" />
       </DescriptionsItem>
       <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operator')">
         {{ currentLog.operName }}

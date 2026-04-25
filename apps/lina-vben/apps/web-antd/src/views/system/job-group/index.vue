@@ -7,13 +7,21 @@ import { $t } from '@vben/locales';
 
 import { computed, h, ref } from 'vue';
 
-import { message, Modal, Popconfirm, Space, Tag, Tooltip } from 'ant-design-vue';
+import {
+  message,
+  Modal,
+  Popconfirm,
+  Space,
+  Tag,
+  Tooltip,
+} from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { jobGroupDelete, jobGroupList } from '#/api/system/jobGroup';
 import {
-  jobGroupDelete,
-  jobGroupList,
-} from '#/api/system/jobGroup';
+  localizeSeedJobGroupName,
+  localizeSeedJobGroupRemark,
+} from '#/utils/display-l10n';
 
 import JobGroupModal from './modal.vue';
 
@@ -60,14 +68,24 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     columns: [
       { type: 'checkbox', width: 56 },
-      { field: 'code', title: $t('pages.system.jobGroup.fields.code'), minWidth: 160 },
+      {
+        field: 'code',
+        title: $t('pages.system.jobGroup.fields.code'),
+        minWidth: 160,
+      },
       {
         field: 'name',
         title: $t('pages.system.jobGroup.fields.name'),
         minWidth: 180,
+        formatter: ({ row }: { row: JobGroupRecord }) =>
+          localizeSeedJobGroupName(row.code, row.name),
       },
       { field: 'sortOrder', title: $t('pages.fields.sort'), width: 90 },
-      { field: 'jobCount', title: $t('pages.system.jobGroup.fields.jobCount'), width: 90 },
+      {
+        field: 'jobCount',
+        title: $t('pages.system.jobGroup.fields.jobCount'),
+        width: 90,
+      },
       {
         field: 'isDefault',
         title: $t('pages.system.jobGroup.fields.defaultGroup'),
@@ -90,8 +108,14 @@ const [Grid, gridApi] = useVbenVxeGrid({
         field: 'remark',
         title: $t('pages.common.remark'),
         minWidth: 220,
+        formatter: ({ row }: { row: JobGroupRecord }) =>
+          localizeSeedJobGroupRemark(row.code, row.remark),
       },
-      { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
+      {
+        field: 'updatedAt',
+        title: $t('pages.common.updatedAt'),
+        minWidth: 180,
+      },
       {
         field: 'action',
         fixed: 'right',
@@ -132,7 +156,8 @@ const checkedRows = ref<JobGroupRecord[]>([]);
 const hasChecked = computed(() => checkedRows.value.length > 0);
 
 function syncCheckedRows() {
-  checkedRows.value = (gridApi.grid?.getCheckboxRecords() || []) as JobGroupRecord[];
+  checkedRows.value = (gridApi.grid?.getCheckboxRecords() ||
+    []) as JobGroupRecord[];
 }
 
 function openCreateModal() {
@@ -213,7 +238,11 @@ function handleReload() {
             {{ $t('pages.common.edit') }}
           </ghost-button>
           <template v-if="row.isDefault === 1">
-            <Tooltip :title="$t('pages.system.jobGroup.messages.defaultDeleteDisabled')">
+            <Tooltip
+              :title="
+                $t('pages.system.jobGroup.messages.defaultDeleteDisabled')
+              "
+            >
               <ghost-button
                 danger
                 disabled

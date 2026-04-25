@@ -43,13 +43,13 @@ export function localizeSeedDeptName(
   rawValue: string | null | undefined,
 ) {
   const mappedByCode = localizeByMap(rawValue, {
-    'Lina科技': 'LinaTech',
-    '研发部门': 'R&D Department',
-    '市场部门': 'Marketing Department',
-    '测试部门': 'QA Department',
-    '财务部门': 'Finance Department',
-    '运维部门': 'Operations Department',
-    '未分配部门': 'Unassigned Department',
+    Lina科技: 'LinaTech',
+    研发部门: 'R&D Department',
+    市场部门: 'Marketing Department',
+    测试部门: 'QA Department',
+    财务部门: 'Finance Department',
+    运维部门: 'Operations Department',
+    未分配部门: 'Unassigned Department',
   });
 
   if (!mappedByCode || !isEnglishLocale()) {
@@ -106,11 +106,11 @@ export function localizeSeedPostName(
   }
 
   return localizeByMap(rawValue, {
-    '总经理': 'Chief Executive Officer',
-    '技术总监': 'Chief Technology Officer',
-    '项目经理': 'Project Manager',
-    '开发工程师': 'Software Engineer',
-    '测试工程师': 'QA Engineer',
+    总经理: 'Chief Executive Officer',
+    技术总监: 'Chief Technology Officer',
+    项目经理: 'Project Manager',
+    开发工程师: 'Software Engineer',
+    测试工程师: 'QA Engineer',
   });
 }
 
@@ -131,8 +131,8 @@ export function localizeSeedRoleName(
   }
 
   return localizeByMap(rawValue, {
-    '超级管理员': 'Administrator',
-    '普通用户': 'Standard User',
+    超级管理员: 'Administrator',
+    普通用户: 'Standard User',
   });
 }
 
@@ -154,8 +154,9 @@ export function localizeSeedRoleRemark(
 
   return localizeByMap(rawValue, {
     '超级管理员，拥有所有权限': 'Administrator with full permissions.',
-    '普通用户，仅查看本人数据': 'Standard user with access to personal data only.',
-    'E2E测试角色': 'E2E Test Role',
+    '普通用户，仅查看本人数据':
+      'Standard user with access to personal data only.',
+    E2E测试角色: 'E2E Test Role',
   });
 }
 
@@ -318,7 +319,10 @@ export function localizeSeedJobGroupRemark(
   return rawValue;
 }
 
-const seedJobByHandlerRef: Record<string, { description: string; name: string }> = {
+const seedJobByHandlerRef: Record<
+  string,
+  { description: string; name: string }
+> = {
   'host:cleanup-job-logs': {
     description:
       'Cleans up scheduled-job execution logs according to global and job-level retention policies.',
@@ -330,15 +334,18 @@ const seedJobByHandlerRef: Record<string, { description: string; name: string }>
     name: 'Online Session Cleanup',
   },
   'plugin:monitor-server/cron:服务监控采集': {
-    description: 'Built-in scheduled job registered by the monitor-server plugin.',
+    description:
+      'Built-in scheduled job registered by the monitor-server plugin.',
     name: 'Server Monitor Collection',
   },
   'plugin:monitor-server/cron:服务监控清理': {
-    description: 'Built-in scheduled job registered by the monitor-server plugin.',
+    description:
+      'Built-in scheduled job registered by the monitor-server plugin.',
     name: 'Server Monitor Cleanup',
   },
   'plugin:plugin-demo-source/cron:源码插件回显巡检': {
-    description: 'Built-in scheduled job registered by the plugin-demo-source plugin.',
+    description:
+      'Built-in scheduled job registered by the plugin-demo-source plugin.',
     name: 'Source Plugin Echo Inspection',
   },
   'plugin:plugin-demo-dynamic/cron:heartbeat': {
@@ -355,7 +362,18 @@ export function localizeSeedJobName(
   if (!rawValue || !isEnglishLocale()) {
     return rawValue || '';
   }
-  return seedJobByHandlerRef[handlerRef || '']?.name || rawValue;
+  const mappedByHandler = seedJobByHandlerRef[handlerRef || '']?.name;
+  if (mappedByHandler) {
+    return mappedByHandler;
+  }
+  return localizeByMap(rawValue, {
+    任务日志清理: 'Job Log Cleanup',
+    在线会话清理: 'Online Session Cleanup',
+    服务监控采集: 'Server Monitor Collection',
+    服务监控清理: 'Server Monitor Cleanup',
+    源码插件回显巡检: 'Source Plugin Echo Inspection',
+    动态插件心跳: 'Dynamic Plugin Heartbeat',
+  });
 }
 
 export function localizeSeedJobDescription(
@@ -365,7 +383,22 @@ export function localizeSeedJobDescription(
   if (!rawValue || !isEnglishLocale()) {
     return rawValue || '';
   }
-  return seedJobByHandlerRef[handlerRef || '']?.description || rawValue;
+  const mappedByHandler = seedJobByHandlerRef[handlerRef || '']?.description;
+  if (mappedByHandler) {
+    return mappedByHandler;
+  }
+  return localizeByMap(rawValue, {
+    '按会话超时策略清理宿主中的失活在线会话。':
+      'Cleans up inactive online sessions in the host according to the session-timeout policy.',
+    '按全局与任务级日志保留策略清理定时任务执行日志。':
+      'Cleans up scheduled-job execution logs according to global and job-level retention policies.',
+    '插件 monitor-server 注册的内置定时任务。':
+      'Built-in scheduled job registered by the monitor-server plugin.',
+    '插件 plugin-demo-source 注册的内置定时任务。':
+      'Built-in scheduled job registered by the plugin-demo-source plugin.',
+    '通过 Wasm bridge 执行动态插件内置定时任务，并累计心跳执行次数。':
+      'Runs the dynamic plugin built-in job through the Wasm bridge and accumulates heartbeat executions.',
+  });
 }
 
 export function localizeSeedNoticeTitle(
@@ -399,12 +432,9 @@ export function localizeSeedNoticeContent(
   }
 
   const byID: Record<string, string> = {
-    '1':
-      '<p>The system will undergo maintenance this Saturday from 2:00 AM to 4:00 AM and will be unavailable during that window.</p><p><strong>Upgrade scope:</strong></p><ul><li>Performance improvements</li><li>Security patch updates</li><li>New feature rollout</li></ul>',
-    '2':
-      '<p>To keep the system secure and stable, please follow these guidelines:</p><ol><li>Update your password regularly and keep it at least 8 characters long</li><li>Do not share your account credentials with others</li><li>Lock your screen when you leave your desk</li></ol><p>Thank you for your cooperation.</p>',
-    '3':
-      '<p>The following new capabilities are coming soon:</p><ul><li>Notice management</li><li>Message center</li><li>Rich-text editor</li></ul><p>Stay tuned.</p>',
+    '1': '<p>The system will undergo maintenance this Saturday from 2:00 AM to 4:00 AM and will be unavailable during that window.</p><p><strong>Upgrade scope:</strong></p><ul><li>Performance improvements</li><li>Security patch updates</li><li>New feature rollout</li></ul>',
+    '2': '<p>To keep the system secure and stable, please follow these guidelines:</p><ol><li>Update your password regularly and keep it at least 8 characters long</li><li>Do not share your account credentials with others</li><li>Lock your screen when you leave your desk</li></ol><p>Thank you for your cooperation.</p>',
+    '3': '<p>The following new capabilities are coming soon:</p><ul><li>Notice management</li><li>Message center</li><li>Rich-text editor</li></ul><p>Stay tuned.</p>',
   };
   return byID[String(noticeID ?? '')] || rawValue;
 }
@@ -412,15 +442,28 @@ export function localizeSeedNoticeContent(
 export function localizeSeedOperLogTitle(rawValue: string | null | undefined) {
   return localizeByMap(rawValue, {
     动态插件示例: 'Dynamic Plugin Demo',
+    参数设置: 'Parameters',
     插件管理: 'Plugin Management',
+    操作日志: 'Audit Logs',
+    登录日志: 'Login History',
+    岗位管理: 'Positions',
+    任务调度: 'Scheduler',
+    '任务调度/定时任务': 'Scheduled Jobs',
+    '任务调度/执行日志': 'Job Run Logs',
+    认证管理: 'Authentication',
     用户管理: 'User Management',
     角色管理: 'Role Management',
+    字典管理: 'Dictionaries',
   });
 }
 
-export function localizeSeedOperLogSummary(rawValue: string | null | undefined) {
+export function localizeSeedOperLogSummary(
+  rawValue: string | null | undefined,
+) {
   return localizeByMap(rawValue, {
     分页查询动态插件示例记录: 'Paged query for dynamic plugin demo records',
+    查询动态插件后端执行摘要: 'Query dynamic plugin backend execution summary',
+    宿主调用能力演示: 'Host service capability demo',
     同步源码插件: 'Synchronize source plugins',
     安装插件: 'Install Plugin',
     启用插件: 'Enable Plugin',
@@ -428,12 +471,32 @@ export function localizeSeedOperLogSummary(rawValue: string | null | undefined) 
     卸载插件: 'Uninstall Plugin',
     创建用户: 'Create User',
     创建角色: 'Create Role',
+    用户登录: 'User Login',
+    用户登出: 'User Logout',
+    创建任务: 'Create Job',
+    更新任务: 'Update Job',
+    手动触发任务: 'Trigger Job Manually',
+    终止运行实例: 'Terminate Running Instance',
+    导出用户数据: 'Export User Data',
+    导出岗位数据: 'Export Position Data',
+    导出参数设置: 'Export Parameters',
+    导出字典管理数据: 'Export Dictionary Management Data',
+    导出字典类型: 'Export Dictionary Types',
+    导出字典数据: 'Export Dictionary Data',
+    导出操作日志: 'Export Audit Logs',
+    导出登录日志: 'Export Login Logs',
   });
 }
 
-export function localizeSeedLoginLogMessage(rawValue: string | null | undefined) {
+export function localizeSeedLoginLogMessage(
+  rawValue: string | null | undefined,
+) {
   return localizeByMap(rawValue, {
+    登录失败: 'Login failed',
     登录成功: 'Login successful',
+    登出成功: 'Logout successful',
+    用户名或密码错误: 'Invalid username or password',
+    用户已停用: 'User account is disabled',
   });
 }
 
@@ -591,6 +654,9 @@ export function localizeSeedMenuName(rawValue: string | null | undefined) {
   }
 
   return replaceByPatterns(mapped, [
-    [/^动态路由权限:(.+)$/, (permission) => `Dynamic Route Permission:${permission}`],
+    [
+      /^动态路由权限:(.+)$/,
+      (permission) => `Dynamic Route Permission:${permission}`,
+    ],
   ]);
 }

@@ -12,7 +12,7 @@ import {
 } from '#/utils/display-l10n';
 
 function resolveDictOptions(dictType: string) {
-  return useDictStore().dictOptionsMap.get(dictType) || [];
+  return useDictStore().getDictOptions(dictType);
 }
 
 /** 查询表单schema */

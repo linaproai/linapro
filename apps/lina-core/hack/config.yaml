@@ -14,7 +14,7 @@ database:
 # Source-upgrade metadata consumed by `hack/tools/upgrade-source`.
 frameworkUpgrade:
   version: "v0.1.0"
-  repositoryUrl: "https://github.com/gqcn/linapro"
+  repositoryUrl: "https://github.com/linaproai/linapro"
 
 # CLI tool, only in development environment.
 # https://goframe.org/docs/cli

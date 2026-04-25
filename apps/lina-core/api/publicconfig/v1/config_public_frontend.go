@@ -20,8 +20,8 @@ type FrontendRes struct {
 // FrontendAppRes stores brand-related public settings.
 type FrontendAppRes struct {
 	Name     string `json:"name" dc:"应用名称，用于浏览器标题和工作台 Logo 文案" eg:"LinaPro"`
-	Logo     string `json:"logo" dc:"默认 Logo 图片地址" eg:"https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp"`
-	LogoDark string `json:"logoDark" dc:"深色主题 Logo 图片地址" eg:"https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp"`
+	Logo     string `json:"logo" dc:"默认 Logo 图片地址" eg:"/linapro-mark.png"`
+	LogoDark string `json:"logoDark" dc:"深色主题 Logo 图片地址" eg:"/linapro-mark.png"`
 }
 
 // FrontendAuthRes stores login-page public copy settings.

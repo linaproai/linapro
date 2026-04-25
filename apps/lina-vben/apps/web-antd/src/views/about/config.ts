@@ -7,9 +7,9 @@
 export const PROJECT_INFO = {
   name: 'LinaPro',
   description:
-    '一个基于 GoFrame、Vue 3 和 Vben 5 的 AI驱动的全栈开发框架，提供核心宿主服务、默认管理工作台、插件扩展能力与 AI 协作研发工作流。',
-  version: 'v0.5.0',
-  license: 'MIT',
+    '一个基于 GoFrame、Vue 3 和 Vben 5 的 AI驱动的全栈开发框架，提供核心宿主服务、默认管理工作台、插件扩展能力与 AI 原生研发工作流。',
+  version: 'v0.1.0',
+  license: 'Apcache 2.0',
   homepage: 'https://linapro.ai',
-  repositoryUrl: 'https://github.com/gqcn/linapro',
+  repositoryUrl: 'https://github.com/linaproai/linapro',
 };

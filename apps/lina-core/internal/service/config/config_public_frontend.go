@@ -63,13 +63,13 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAppLogo,
 		Name:         "品牌展示-应用 Logo",
-		DefaultValue: "https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp",
+		DefaultValue: "/linapro-mark.png",
 		Remark:       "控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogoDark,
 		Name:         "品牌展示-深色 Logo",
-		DefaultValue: "https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp",
+		DefaultValue: "/linapro-mark.png",
 		Remark:       "控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。",
 	},
 	{

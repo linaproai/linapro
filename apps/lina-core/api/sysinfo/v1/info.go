@@ -27,7 +27,7 @@ type FrameworkInfo struct {
 	Version       string `json:"version" dc:"框架版本号" eg:"v0.5.0"`
 	Description   string `json:"description" dc:"框架介绍" eg:"AI驱动的全栈开发框架"`
 	Homepage      string `json:"homepage" dc:"项目官网" eg:"https://linapro.ai"`
-	RepositoryURL string `json:"repositoryUrl" dc:"仓库地址" eg:"https://github.com/gqcn/linapro"`
+	RepositoryURL string `json:"repositoryUrl" dc:"仓库地址" eg:"https://github.com/linaproai/linapro"`
 	License       string `json:"license" dc:"开源协议" eg:"MIT"`
 }
 

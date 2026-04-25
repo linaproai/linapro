@@ -14,9 +14,9 @@ export const overridesPreferences = defineOverridesPreferences({
     name: import.meta.env.VITE_APP_TITLE,
   },
   copyright: {
-    companyName: 'LinaPro',
-    companySiteLink: 'https://github.com/gqcn/lina',
-    date: '2024-2026',
+    companyName: 'LinaPro.AI',
+    companySiteLink: 'https://linapro.ai',
+    date: String(new Date().getFullYear()),
   },
   theme: {
     mode: 'light',

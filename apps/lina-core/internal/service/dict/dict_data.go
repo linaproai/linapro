@@ -58,6 +58,7 @@ func (s *serviceImpl) DataList(ctx context.Context, in DataListInput) (*DataList
 	if err != nil {
 		return nil, err
 	}
+	s.localizeDictDataEntities(ctx, list)
 
 	return &DataListOutput{
 		List:  list,

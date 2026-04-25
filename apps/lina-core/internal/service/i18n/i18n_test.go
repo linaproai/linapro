@@ -126,6 +126,12 @@ func TestBuildRuntimeMessagesIncludesHostAndSourcePlugin(t *testing.T) {
 	if actual, ok := lookupMessageString(messages, "menu.dashboard.title"); !ok || actual != "Dashboard" {
 		t.Fatalf("expected host menu translation %q, got %q (exists=%v)", "Dashboard", actual, ok)
 	}
+	if actual, ok := lookupMessageString(messages, "dict.cron_job_status.name"); !ok || actual != "Scheduled Job Status" {
+		t.Fatalf("expected scheduled-job dict translation %q, got %q (exists=%v)", "Scheduled Job Status", actual, ok)
+	}
+	if actual, ok := lookupMessageString(messages, "dict.sys_menu_type.B.label"); !ok || actual != "Button" {
+		t.Fatalf("expected built-in menu-type translation %q, got %q (exists=%v)", "Button", actual, ok)
+	}
 	if actual, ok := lookupMessageString(messages, "plugin.plugin-i18n-test.name"); !ok || actual != "Runtime Test Plugin" {
 		t.Fatalf("expected plugin translation %q, got %q (exists=%v)", "Runtime Test Plugin", actual, ok)
 	}

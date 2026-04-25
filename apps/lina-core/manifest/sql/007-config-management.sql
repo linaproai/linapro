@@ -25,13 +25,14 @@ DELETE FROM `sys_config` WHERE `key` = 'sys.user.initPassword';
 DELETE FROM `sys_config` WHERE `key` IN ('sys.index.skinName', 'sys.index.sideTheme', 'sys.account.registerUser');
 DELETE FROM `sys_config` WHERE `key` = 'sys.ui.theme.primaryColor';
 DELETE FROM `sys_config` WHERE `key` = 'sys.logger.traceID.enabled';
+DELETE FROM `sys_config` WHERE `key` IN ('sys.app.logo', 'sys.app.logoDark') AND `value` IN ('https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp', '/logo-banner.png');
 
 INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
 ('品牌展示-应用名称', 'sys.app.name', 'LinaPro', '控制浏览器标题、登录页品牌名称和工作台Logo文案展示，建议填写简洁的产品名称。', NOW(), NOW()),
-('品牌展示-应用 Logo', 'sys.app.logo', 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp', '控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
-('品牌展示-深色 Logo', 'sys.app.logoDark', 'https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp', '控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
-('登录展示-页面标题', 'sys.auth.pageTitle', 'AI驱动的全栈开发框架', '控制登录页顶部主标题文案。', NOW(), NOW()),
-('登录展示-页面说明', 'sys.auth.pageDesc', '面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制', '控制登录页顶部说明文案。', NOW(), NOW()),
+('品牌展示-应用 Logo', 'sys.app.logo', '/logo.png', '控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
+('品牌展示-深色 Logo', 'sys.app.logoDark', '/logo.png', '控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
+('登录展示-页面标题', 'sys.auth.pageTitle', '面向可持续交付的 AI 驱动全栈框架', '控制登录页顶部主标题文案。', NOW(), NOW()),
+('登录展示-页面说明', 'sys.auth.pageDesc', '帮助团队快速交付生产级应用，同时保持架构、权限、测试与扩展边界可治理', '控制登录页顶部说明文案。', NOW(), NOW()),
 ('登录展示-登录副标题', 'sys.auth.loginSubtitle', '请输入您的帐户信息以开始管理您的项目', '控制登录表单上方的提示说明文案。', NOW(), NOW()),
 ('登录展示-登录框位置', 'sys.auth.loginPanelLayout', 'panel-right', '控制登录框默认布局，可选值：panel-left、panel-center、panel-right。', NOW(), NOW()),
 ('认证管理-JWT Token 有效期', 'sys.jwt.expire', '24h', '控制新签发 JWT Token 的有效期，支持 Go duration 格式如 12h、24h。', NOW(), NOW()),

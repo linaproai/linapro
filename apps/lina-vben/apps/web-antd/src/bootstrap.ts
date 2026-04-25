@@ -10,6 +10,7 @@ import '@vben/styles/antd';
 import { useTitle } from '@vueuse/core';
 
 import { $t, setupI18n } from '#/locales';
+import { useDictStore } from '#/store/dict';
 
 import { initComponentAdapter } from './adapter/component';
 import { initSetupVbenForm } from './adapter/form';
@@ -83,6 +84,7 @@ async function bootstrap(namespace: string) {
         return;
       }
       await syncPublicFrontendSettings(locale);
+      useDictStore().resetCache();
       await refreshAccessibleState(router, {
         showLoadingToast: false,
       });

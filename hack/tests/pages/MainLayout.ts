@@ -41,6 +41,10 @@ export class MainLayout {
     return this.page.getByTestId("language-toggle-trigger").first();
   }
 
+  get brandLogoImage() {
+    return this.page.locator('img[alt="LinaPro"]').first();
+  }
+
   sidebarMenuItem(label: string) {
     return this.sidebar.getByText(label, { exact: true }).first();
   }
@@ -88,6 +92,19 @@ export class MainLayout {
       .toBe(locale);
     await this.page.waitForLoadState("networkidle");
     await waitForRouteReady(this.page);
+  }
+
+  async getBrandLogoInfo() {
+    return this.brandLogoImage.evaluate((img) => ({
+      currentSrc: img.currentSrc,
+      height: img.clientHeight,
+      naturalHeight: img.naturalHeight,
+      naturalWidth: img.naturalWidth,
+      parentText:
+        (img.closest("a") ?? img.parentElement)?.textContent?.trim() ?? "",
+      src: img.getAttribute("src") ?? "",
+      width: img.clientWidth,
+    }));
   }
 
   async openUserDropdown() {

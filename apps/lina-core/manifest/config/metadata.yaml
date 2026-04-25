@@ -8,11 +8,11 @@ framework:
   # 框架版本
   version: "v0.1.0"
   # 框架介绍
-  description: "AI驱动的全栈开发框架，提供通用核心宿主服务、默认管理工作台、插件扩展能力与 AI 协作研发工作流。"
+  description: "面向可持续交付的AI驱动全栈框架，提供通用核心宿主服务、默认管理工作台、插件扩展能力与AI原生研发工作流。"
   # 项目官网
   homepage: "https://linapro.ai"
   # 仓库地址
-  repositoryUrl: "https://github.com/gqcn/linapro"
+  repositoryUrl: "https://github.com/linaproai/linapro"
   # 开源协议
   license: "Apache 2.0"
 
