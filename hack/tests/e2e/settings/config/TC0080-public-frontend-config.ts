@@ -9,6 +9,7 @@ const publicFrontendParams = [
   { key: "sys.app.name", name: "品牌展示-应用名称" },
   { key: "sys.app.logo", name: "品牌展示-应用 Logo" },
   { key: "sys.app.logoDark", name: "品牌展示-深色 Logo" },
+  { key: "sys.user.defaultAvatar", name: "用户管理-默认头像" },
   { key: "sys.auth.pageTitle", name: "登录展示-页面标题" },
   { key: "sys.auth.pageDesc", name: "登录展示-页面说明" },
   { key: "sys.auth.loginSubtitle", name: "登录展示-登录副标题" },
@@ -152,6 +153,7 @@ test.describe("TC0080 公开前端配置系统参数", () => {
       "sys.auth.pageDesc": "宿主工作台与插件能力统一从系统参数读取展示信息",
       "sys.auth.loginSubtitle": "请使用管理员账号登录当前宿主工作区",
       "sys.auth.loginPanelLayout": "panel-right",
+      "sys.user.defaultAvatar": "/avatar.webp",
       "sys.ui.theme.mode": "dark",
       "sys.ui.layout": "header-nav",
       "sys.ui.watermark.enabled": "true",
@@ -185,6 +187,9 @@ test.describe("TC0080 公开前端配置系统参数", () => {
         overrides["sys.auth.pageTitle"],
       );
       expect(publicPayload.data.auth.panelLayout).toBe("panel-right");
+      expect(publicPayload.data.user.defaultAvatar).toBe(
+        overrides["sys.user.defaultAvatar"],
+      );
       expect(publicPayload.data.ui.themeMode).toBe("dark");
       expect(publicPayload.data.ui.layout).toBe("header-nav");
       expect(publicPayload.data.ui.watermarkEnabled).toBe(true);

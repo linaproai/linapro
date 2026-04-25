@@ -57,6 +57,14 @@ func TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults(t *testing.T) {
 	if layoutSpec.DefaultValue != string(PublicFrontendAuthPanelLayoutRight) {
 		t.Fatalf("unexpected login panel layout default: %q", layoutSpec.DefaultValue)
 	}
+
+	avatarSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyUserDefaultAvatar)
+	if !ok {
+		t.Fatal("expected default avatar spec to be present")
+	}
+	if avatarSpec.DefaultValue != "/avatar.webp" {
+		t.Fatalf("unexpected default avatar value: %q", avatarSpec.DefaultValue)
+	}
 }
 
 // TestIsProtectedConfigParamRecognizesRuntimeAndFrontendKeys verifies both

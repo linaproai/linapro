@@ -193,6 +193,9 @@ test.describe('TC0046 用户头像下拉菜单', () => {
       const src = await avatarImages.first().getAttribute('src');
       expect(src).toBeTruthy();
       expect(src!.length).toBeGreaterThan(0);
+      if (!currentUserProfile.avatar) {
+        expect(src).toContain('/avatar.webp');
+      }
     }
   });
 });

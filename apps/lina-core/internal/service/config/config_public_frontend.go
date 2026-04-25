@@ -21,6 +21,8 @@ const (
 	PublicFrontendSettingKeyAppLogo = "sys.app.logo"
 	// PublicFrontendSettingKeyAppLogoDark stores the dark-theme logo source.
 	PublicFrontendSettingKeyAppLogoDark = "sys.app.logoDark"
+	// PublicFrontendSettingKeyUserDefaultAvatar stores the fallback user avatar source.
+	PublicFrontendSettingKeyUserDefaultAvatar = "sys.user.defaultAvatar"
 	// PublicFrontendSettingKeyAuthPageTitle stores the login-page headline.
 	PublicFrontendSettingKeyAuthPageTitle = "sys.auth.pageTitle"
 	// PublicFrontendSettingKeyAuthPageDesc stores the login-page description.
@@ -71,6 +73,12 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 		Name:         "品牌展示-深色 Logo",
 		DefaultValue: "/linapro-mark.png",
 		Remark:       "控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。",
+	},
+	{
+		Key:          PublicFrontendSettingKeyUserDefaultAvatar,
+		Name:         "用户管理-默认头像",
+		DefaultValue: "/avatar.webp",
+		Remark:       "控制用户未设置头像时的默认头像地址，支持 http(s) 或站内绝对路径。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthPageTitle,
@@ -138,6 +146,7 @@ var publicFrontendSettingKeys = []string{
 	PublicFrontendSettingKeyAppName,
 	PublicFrontendSettingKeyAppLogo,
 	PublicFrontendSettingKeyAppLogoDark,
+	PublicFrontendSettingKeyUserDefaultAvatar,
 	PublicFrontendSettingKeyAuthPageTitle,
 	PublicFrontendSettingKeyAuthPageDesc,
 	PublicFrontendSettingKeyAuthLoginSubtitle,
@@ -156,6 +165,7 @@ var protectedConfigKeys = appendProtectedConfigKeys()
 type PublicFrontendConfig struct {
 	App  PublicFrontendAppConfig  `json:"app"`  // App groups brand-related settings.
 	Auth PublicFrontendAuthConfig `json:"auth"` // Auth groups login-page copy settings.
+	User PublicFrontendUserConfig `json:"user"` // User groups user-facing fallback settings.
 	UI   PublicFrontendUIConfig   `json:"ui"`   // UI groups theme, layout, and watermark settings.
 	Cron PublicFrontendCronConfig `json:"cron"` // Cron groups public-safe scheduled-job capability flags.
 }
@@ -173,6 +183,11 @@ type PublicFrontendAuthConfig struct {
 	PageDesc      string                        `json:"pageDesc"`      // PageDesc is the login-page description.
 	LoginSubtitle string                        `json:"loginSubtitle"` // LoginSubtitle is the form subtitle.
 	PanelLayout   PublicFrontendAuthPanelLayout `json:"panelLayout"`   // PanelLayout selects the login-panel placement.
+}
+
+// PublicFrontendUserConfig stores user-facing fallback settings.
+type PublicFrontendUserConfig struct {
+	DefaultAvatar string `json:"defaultAvatar"` // DefaultAvatar is used when a user has no profile avatar.
 }
 
 // PublicFrontendUIConfig stores safe theme and layout preferences.
@@ -265,7 +280,8 @@ func ValidatePublicFrontendSettingValue(key string, value string) error {
 
 	case PublicFrontendSettingKeyAuthPageDesc,
 		PublicFrontendSettingKeyAppLogo,
-		PublicFrontendSettingKeyAppLogoDark:
+		PublicFrontendSettingKeyAppLogoDark,
+		PublicFrontendSettingKeyUserDefaultAvatar:
 		return validateRequiredTextValue(key, value, 500)
 
 	case PublicFrontendSettingKeyUIThemeMode:
@@ -306,6 +322,9 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConf
 			PanelLayout: PublicFrontendAuthPanelLayout(
 				s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthLoginPanelLayout),
 			),
+		},
+		User: PublicFrontendUserConfig{
+			DefaultAvatar: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUserDefaultAvatar),
 		},
 		UI: PublicFrontendUIConfig{
 			ThemeMode:        s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIThemeMode),

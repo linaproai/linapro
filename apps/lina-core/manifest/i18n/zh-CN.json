@@ -31,6 +31,8 @@
   "config.sys.ui.watermark.content.remark": "控制工作台水印文案内容。",
   "config.sys.ui.watermark.enabled.name": "界面风格-是否启用水印",
   "config.sys.ui.watermark.enabled.remark": "控制工作台是否启用水印，可选值：true、false。",
+  "config.sys.user.defaultAvatar.name": "用户管理-默认头像",
+  "config.sys.user.defaultAvatar.remark": "控制用户未设置头像时的默认头像地址，支持 http(s) 或站内绝对路径。",
   "config.sys.upload.maxSize.name": "文件管理-上传大小上限",
   "config.sys.upload.maxSize.remark": "控制单个上传文件大小上限，单位为 MB，必须为正整数。",
   "dict.sys_data_scope.1.label": "全部数据",

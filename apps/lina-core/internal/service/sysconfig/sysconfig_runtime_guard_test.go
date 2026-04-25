@@ -91,6 +91,7 @@ func TestValidateManagedConfigValueRejectsInvalidValues(t *testing.T) {
 		{key: hostconfig.PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-bottom"},
 		{key: hostconfig.PublicFrontendSettingKeyUILayout, value: "invalid-layout"},
 		{key: hostconfig.PublicFrontendSettingKeyUIWatermarkEnabled, value: "yes"},
+		{key: hostconfig.PublicFrontendSettingKeyUserDefaultAvatar, value: ""},
 	}
 
 	for _, testCase := range testCases {

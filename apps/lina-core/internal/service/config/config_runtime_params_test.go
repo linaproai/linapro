@@ -170,6 +170,8 @@ func TestValidatePublicFrontendSettingValue(t *testing.T) {
 	}{
 		{key: PublicFrontendSettingKeyAppName, value: "LinaPro"},
 		{key: PublicFrontendSettingKeyAppName, value: "", shouldErr: true},
+		{key: PublicFrontendSettingKeyUserDefaultAvatar, value: "/avatar.webp"},
+		{key: PublicFrontendSettingKeyUserDefaultAvatar, value: "", shouldErr: true},
 		{key: PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-center"},
 		{key: PublicFrontendSettingKeyAuthLoginPanelLayout, value: "panel-bottom", shouldErr: true},
 		{key: PublicFrontendSettingKeyUIThemeMode, value: "dark"},
@@ -303,6 +305,7 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 		PublicFrontendSettingKeyAuthLoginSubtitle,
 		"请使用管理员账号登录宿主工作区",
 	)
+	withRuntimeParamValue(t, PublicFrontendSettingKeyUserDefaultAvatar, "/avatar.webp")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyAuthLoginPanelLayout, "panel-right")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIThemeMode, "dark")
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUILayout, "header-nav")
@@ -322,6 +325,9 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	}
 	if cfg.Auth.LoginSubtitle != "请使用管理员账号登录宿主工作区" {
 		t.Fatalf("expected auth login subtitle override, got %q", cfg.Auth.LoginSubtitle)
+	}
+	if cfg.User.DefaultAvatar != "/avatar.webp" {
+		t.Fatalf("expected user default avatar override, got %q", cfg.User.DefaultAvatar)
 	}
 	if cfg.Auth.PanelLayout != PublicFrontendAuthPanelLayoutRight {
 		t.Fatalf("expected auth panel layout override, got %q", cfg.Auth.PanelLayout)

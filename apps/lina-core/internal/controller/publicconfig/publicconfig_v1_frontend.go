@@ -28,6 +28,9 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 			LoginSubtitle: c.localizePublicFrontendText(ctx, hostconfig.PublicFrontendSettingKeyAuthLoginSubtitle, "publicFrontend.auth.loginSubtitle", cfg.Auth.LoginSubtitle),
 			PanelLayout:   string(cfg.Auth.PanelLayout),
 		},
+		User: v1.FrontendUserRes{
+			DefaultAvatar: cfg.User.DefaultAvatar,
+		},
 		UI: v1.FrontendUIRes{
 			ThemeMode:        cfg.UI.ThemeMode,
 			Layout:           cfg.UI.Layout,

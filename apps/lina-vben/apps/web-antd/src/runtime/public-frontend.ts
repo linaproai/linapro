@@ -22,6 +22,10 @@ interface PublicFrontendAuthSettings {
   pageTitle: string;
 }
 
+interface PublicFrontendUserSettings {
+  defaultAvatar: string;
+}
+
 interface PublicFrontendUISettings {
   layout: string;
   themeMode: string;
@@ -54,6 +58,7 @@ interface PublicFrontendSettings {
   app: PublicFrontendAppSettings;
   auth: PublicFrontendAuthSettings;
   cron: PublicFrontendCronSettings;
+  user: PublicFrontendUserSettings;
   ui: PublicFrontendUISettings;
 }
 
@@ -92,6 +97,9 @@ const publicFrontendState = reactive<PublicFrontendSettings>({
     timezone: {
       current: 'Asia/Shanghai',
     },
+  },
+  user: {
+    defaultAvatar: '',
   },
   ui: {
     layout: '',
@@ -162,6 +170,7 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
   const logRetention = cron?.logRetention ?? {};
   const shell = cron?.shell ?? {};
   const timezone = cron?.timezone ?? {};
+  const user = payload?.user ?? {};
   const ui = payload?.ui ?? {};
 
   return {
@@ -188,6 +197,9 @@ function normalizePublicFrontendSettings(payload: any): PublicFrontendSettings {
       },
       timezone: normalizeCronTimezoneSettings(timezone),
     },
+    user: {
+      defaultAvatar: normalizeString(user.defaultAvatar),
+    },
     ui: {
       layout: normalizeString(ui.layout),
       themeMode: normalizeString(ui.themeMode),
@@ -206,6 +218,7 @@ function applyPublicFrontendPreferences(settings: PublicFrontendSettings) {
   updatePreferences({
     app: {
       authPageLayout: settings.auth.panelLayout,
+      defaultAvatar: settings.user.defaultAvatar || initial.app.defaultAvatar,
       layout: (settings.ui.layout || initial.app.layout) as any,
       name: settings.app.name || initial.app.name,
       watermark: settings.ui.watermarkEnabled,
@@ -233,10 +246,7 @@ async function syncPublicFrontendSettings(locale?: string) {
         'Accept-Language': activeLocale,
       },
     };
-    const response = await fetch(
-      resolvePublicFrontendEndpoint(),
-      requestInit,
-    );
+    const response = await fetch(resolvePublicFrontendEndpoint(), requestInit);
     if (!response.ok) {
       return null;
     }
@@ -252,6 +262,7 @@ async function syncPublicFrontendSettings(locale?: string) {
     );
     Object.assign(publicFrontendState.cron.shell, settings.cron.shell);
     Object.assign(publicFrontendState.cron.timezone, settings.cron.timezone);
+    Object.assign(publicFrontendState.user, settings.user);
     Object.assign(publicFrontendState.ui, settings.ui);
     applyPublicFrontendPreferences(settings);
 

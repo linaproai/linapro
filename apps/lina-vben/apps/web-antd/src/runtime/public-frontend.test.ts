@@ -12,6 +12,7 @@ const updatePreferences = vi.fn();
 const getInitialPreferences = vi.fn(() => ({
   app: {
     authPageLayout: 'panel-right',
+    defaultAvatar: '/avatar.webp',
     layout: 'sidebar-nav',
     name: 'LinaPro',
     watermarkContent: '',
@@ -74,6 +75,9 @@ describe('public frontend runtime settings', () => {
               current: 'UTC',
             },
           },
+          user: {
+            defaultAvatar: '/avatar.webp',
+          },
           ui: {
             themeMode: 'dark',
           },
@@ -102,13 +106,16 @@ describe('public frontend runtime settings', () => {
     expect(publicFrontendSettings.cron.shell.enabled).toBe(true);
     expect(publicFrontendSettings.cron.timezone.current).toBe('UTC');
     expect(publicFrontendSettings.auth.panelLayout).toBe('panel-right');
+    expect(publicFrontendSettings.user.defaultAvatar).toBe('/avatar.webp');
     expect(publicFrontendSettings.ui.themeMode).toBe('dark');
     expect(settings?.auth.panelLayout).toBe('panel-right');
+    expect(settings?.user.defaultAvatar).toBe('/avatar.webp');
     expect(settings?.ui.themeMode).toBe('dark');
     expect(updatePreferences).toHaveBeenCalledWith(
       expect.objectContaining({
         app: expect.objectContaining({
           authPageLayout: 'panel-right',
+          defaultAvatar: '/avatar.webp',
           name: 'LinaPro Dark',
         }),
         theme: expect.objectContaining({
@@ -138,11 +145,14 @@ describe('public frontend runtime settings', () => {
     const settings = await syncPublicFrontendSettings();
 
     expect(publicFrontendSettings.auth.panelLayout).toBe('panel-right');
+    expect(publicFrontendSettings.user.defaultAvatar).toBe('');
     expect(settings?.auth.panelLayout).toBe('panel-right');
+    expect(settings?.user.defaultAvatar).toBe('');
     expect(updatePreferences).toHaveBeenCalledWith(
       expect.objectContaining({
         app: expect.objectContaining({
           authPageLayout: 'panel-right',
+          defaultAvatar: '/avatar.webp',
         }),
       }),
     );

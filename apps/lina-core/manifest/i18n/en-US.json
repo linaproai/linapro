@@ -31,6 +31,8 @@
   "config.sys.ui.watermark.content.remark": "Controls the workspace watermark text.",
   "config.sys.ui.watermark.enabled.name": "UI - Watermark Enabled",
   "config.sys.ui.watermark.enabled.remark": "Controls whether the workspace watermark is enabled.",
+  "config.sys.user.defaultAvatar.name": "User Management - Default Avatar",
+  "config.sys.user.defaultAvatar.remark": "Controls the fallback avatar URL used when a user has not set an avatar.",
   "config.sys.upload.maxSize.name": "File Management - Upload Size Limit",
   "config.sys.upload.maxSize.remark": "Controls the maximum size of a single uploaded file in MB.",
   "dict.sys_data_scope.1.label": "All Data",

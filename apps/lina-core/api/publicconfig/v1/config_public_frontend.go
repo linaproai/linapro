@@ -13,6 +13,7 @@ type FrontendReq struct {
 type FrontendRes struct {
 	App  FrontendAppRes  `json:"app" dc:"应用品牌展示配置" eg:"{}"`
 	Auth FrontendAuthRes `json:"auth" dc:"登录页展示配置" eg:"{}"`
+	User FrontendUserRes `json:"user" dc:"用户展示兜底配置" eg:"{}"`
 	UI   FrontendUIRes   `json:"ui" dc:"界面风格配置" eg:"{}"`
 	Cron FrontendCronRes `json:"cron" dc:"定时任务前端能力配置" eg:"{}"`
 }
@@ -30,6 +31,11 @@ type FrontendAuthRes struct {
 	PageDesc      string `json:"pageDesc" dc:"登录页说明文案" eg:"面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制"`
 	LoginSubtitle string `json:"loginSubtitle" dc:"登录表单副标题文案" eg:"请输入您的帐户信息以进入 LinaPro 宿主工作区"`
 	PanelLayout   string `json:"panelLayout" dc:"登录框布局：panel-left=居左 panel-center=居中 panel-right=居右" eg:"panel-right"`
+}
+
+// FrontendUserRes stores user-facing public fallback settings.
+type FrontendUserRes struct {
+	DefaultAvatar string `json:"defaultAvatar" dc:"用户未设置头像时使用的默认头像地址" eg:"/avatar.webp"`
 }
 
 // FrontendUIRes stores public-safe theme and layout preferences.

@@ -19,6 +19,11 @@
 - **THEN** 配置返回的默认 Logo 地址使用项目本地 `linapro-mark.png` 资源
 - **AND** 配置返回值不得将 Logo 覆盖为 Vben 默认远程地址
 
+#### Scenario: 加载默认用户头像配置
+- **WHEN** 默认管理工作台启动并成功读取宿主公开前端配置
+- **THEN** 配置返回的用户默认头像地址为 `/avatar.webp`
+- **AND** 用户未设置头像时，前端头像兜底资源使用该用户默认头像地址
+
 ### Requirement: 默认管理工作台使用 LinaPro favicon
 系统 SHALL 使用项目提供的 `favicon.ico` 作为默认管理工作台浏览器标签页图标。
 

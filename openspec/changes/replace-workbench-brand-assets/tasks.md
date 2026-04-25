@@ -19,3 +19,4 @@
 
 - [x] **FB-1**: 使用 Playwright 验证并修复登录页与管理后台左上角仍未显示新横向 Logo 的问题
 - [x] **FB-2**: 使用纯图标 `linapro-mark.png` 替换横向 Logo，并恢复登录页与工作台 Logo 右侧应用名文本
+- [x] **FB-3**: 系统参数新增用户默认头像并默认指向 `/avatar.webp`
