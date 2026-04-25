@@ -1,7 +1,7 @@
 {
   "menu.plugin:monitor-online:online.title": "Sessions",
   "menu.plugin:monitor-online:online:force-logout.title": "Force Logout",
-  "menu.plugin:monitor-online:online:query.title": "Search Sessions",
+  "menu.plugin:monitor-online:online:query.title": "Search",
   "plugin.monitor-online.description": "Official source plugin for online-user queries and forced logout governance.",
   "plugin.monitor-online.name": "Monitoring - Online Users",
   "plugin.monitor-online.page.tableTitlePrefix": "Online Users (",

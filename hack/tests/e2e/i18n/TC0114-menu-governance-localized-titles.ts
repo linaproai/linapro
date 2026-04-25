@@ -9,6 +9,7 @@ type MenuListItem = {
   name: string;
   path: string;
   perms: string;
+  type: string;
   children?: MenuListItem[];
 };
 
@@ -38,11 +39,21 @@ const pluginButtonChineseNames = [
 ];
 
 const pluginButtonEnglishNames = [
-  'Query Plugins',
-  'Enable Plugin',
-  'Disable Plugin',
-  'Install Plugin',
-  'Uninstall Plugin',
+  'Query',
+  'Enable',
+  'Disable',
+  'Install',
+  'Uninstall',
+];
+
+const userButtonEnglishNames = [
+  'Query',
+  'Create',
+  'Update',
+  'Delete',
+  'Export',
+  'Import',
+  'Reset Password',
 ];
 
 function flattenMenuList(list: MenuListItem[]): MenuListItem[] {
@@ -99,11 +110,27 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     const menuManagement = flatMenus.find((item) => item.perms === 'system:menu:list');
     expect(menuManagement?.name).toBe('Menus');
 
+    const userManagement = flatMenus.find((item) => item.perms === 'system:user:list');
+    expect(userManagement?.name).toBe('Users');
+    expect(userManagement?.children?.map((item) => item.name)).toEqual(
+      userButtonEnglishNames,
+    );
+
     const pluginManagement = flatMenus.find((item) => item.perms === 'plugin:list');
     expect(pluginManagement?.name).toBe('Plugins');
     expect(pluginManagement?.children?.map((item) => item.name)).toEqual(
       pluginButtonEnglishNames,
     );
+
+    const buttonMenus = flatMenus.filter((item) => item.type === 'B');
+    for (const buttonMenu of buttonMenus) {
+      expect(buttonMenu.name, `${buttonMenu.perms} should not contain CJK text`).not.toMatch(
+        /[\u4e00-\u9fff]/,
+      );
+      expect(buttonMenu.name, `${buttonMenu.perms} should use a concise action title`).not.toMatch(
+        /^(?:Query|Create|Update|Delete|Export|Edit|Clear|Search|Enable|Disable|Install|Uninstall|Upload|Download|Import) .+/,
+      );
+    }
 
     const treeSelect = await expectSuccess<{ list: MenuTreeSelectItem[] }>(
       await adminApi.get('menu/treeselect', {
