@@ -126,14 +126,14 @@ pnpm report            # 查看 HTML 报告
 **执行流程**：
 1. 通过`/opsx:explore`斜杠指令`.agents/prompts/opsx/explore.md`在给定需求描述的前提下进行探索式对话，分析问题、设计方案、评估风险。
 2. 当探索式对话结束，形成清晰的解决方案时，通过`/opsx:propose`斜杠指令`.agents/prompts/opsx/propose.md`将其转化为正式的`OpenSpec`变更提案文档。命令形如`/opsx:propose feature-name`，其中`feature-name`为当前变更的描述性名称（使用`kebab-case`格式，如`user-auth`、`data-export`）。随后会在`openspec/changes`目录下会自动生成一个新的变更文件夹，包含增量规范系列文档(`spec/`)、技术实现方案(`design.md`)、变更提案与思路(`proposal.md`)和实现任务清单(`tasks.md`)。
-3. 随后执行`/opsx:apply`斜杠指令`.agents/prompts/opsx/apply.md`开始按照`tasks.md`中的任务清单逐条执行，完成代码实现、测试、文档更新等工作。任务完成后需要调用`/openspec-review`技能进行代码和规范审查。如果涉及前端页面交互的功能，那么都需要创建`e2e`测试用例，并且在执行过程中自动运行测试用例，确保功能实现的正确性。
-4. 用户反馈的问题或者改进点，需要调用`/openspec-feedback`技能进行修复和验证，并更新相关`OpenSpec`文档。任务完成后需要调用`/openspec-review`技能进行审查。
-5. 用户确认本次迭代功能已完成没有问题后，则执行`/opsx:archive`斜杠指令`.agents/prompts/opsx/archive.md`将本次变更归档。归档前需要调用`/openspec-review`技能进行全面的变更审查，确保代码质量和规范遵循。
+3. 随后执行`/opsx:apply`斜杠指令`.agents/prompts/opsx/apply.md`开始按照`tasks.md`中的任务清单逐条执行，完成代码实现、测试、文档更新等工作。任务完成后需要调用`/lina-review`技能进行代码和规范审查。如果涉及前端页面交互的功能，那么都需要创建`e2e`测试用例，并且在执行过程中自动运行测试用例，确保功能实现的正确性。
+4. 用户反馈的问题或者改进点，需要调用`/lina-feedback`技能进行修复和验证，并更新相关`OpenSpec`文档。任务完成后需要调用`/lina-review`技能进行审查。
+5. 用户确认本次迭代功能已完成没有问题后，则执行`/opsx:archive`斜杠指令`.agents/prompts/opsx/archive.md`将本次变更归档。归档前需要调用`/lina-review`技能进行全面的变更审查，确保代码质量和规范遵循。
 
 **关键规则**：
 - **活跃`OpenSpec`变更的判定以是否归档为准**：凡是仍位于`openspec/changes/`根目录下、且**未移动到**`openspec/changes/archive/`中的变更目录，都属于活跃变更；**即便该变更已经完成了全部任务、`openspec list --json`中显示为`status: complete`，只要尚未执行归档，仍然必须视为活跃变更**。
-- 当用户报告问题缺陷/改进建议时（无论中文或英文），如果当前项目存在活跃的`OpenSpec`变更，那么必须调用`openspec-feedback`技能。**在用户未明确要求新建变更的前提下，无论反馈内容是否与当前活跃迭代的主要功能相关，都必须追加到当前活跃迭代中**，便于统一管理和归档。
-- 审查技能`/openspec-review`自动在以下节点触发：`/opsx:apply`任务完成后、`/opsx:feedback`任务完成后、`/opsx:archive`归档前。
+- 当用户报告问题缺陷/改进建议时（无论中文或英文），如果当前项目存在活跃的`OpenSpec`变更，那么必须调用`lina-feedback`技能。**在用户未明确要求新建变更的前提下，无论反馈内容是否与当前活跃迭代的主要功能相关，都必须追加到当前活跃迭代中**，便于统一管理和归档。
+- 审查技能`/lina-review`自动在以下节点触发：`/opsx:apply`任务完成后、`/opsx:feedback`任务完成后、`/opsx:archive`归档前。
 - 在执行开发任务时（如使用`Claude Code`、`Codex CLI`等开发工具完成编码、测试、文档整理与验证任务），如果存在适合通过`SubAgent`并行推进且能够明确提升执行效率的场景，必须优先评估并采用`SubAgent`协作方式执行；仅在任务强依赖串行上下文、拆分成本过高或引入明显协作风险时，才可不使用`SubAgent`。
 - 新建迭代文档时，`proposal.md`、`design.md`、`tasks.md` 与增量规范的内容语言必须跟随用户输入的上下文语言：用户以中文描述需求或明确要求中文时，文档使用中文；用户以英文描述需求或明确要求英文时，文档使用英文；若用户明确指定输出语言，则以该指定为准。
 - 同一个活跃`OpenSpec`变更中的文档默认保持同一语言，避免在一次迭代内出现中英文混写；除非用户明确要求对当前变更文档执行整体语言切换。
@@ -399,7 +399,7 @@ dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: id}).Delete()
 ## E2E测试规范
 
 - 测试用例必须要完整覆盖业务模块的各项操作（如增删改查等操作），保证功能的完整性和可用性
-- 所有的用例需要在`tasks.md`中有工作记录，并且使用`openspec-e2e`技能生成和管理对应的测试用例
+- 所有的用例需要在`tasks.md`中有工作记录，并且使用`lina-e2e`技能生成和管理对应的测试用例
 - 修复`bug`或新增功能涉及**用户可观察行为变化**时，必须编写或更新对应的`E2E`测试用例
 - 修改完成后必须运行相关`E2E`测试并确认通过，再标记任务完成
 - 纯内部重构（无`UI`变化）可豁免，但需运行已有测试套件确认无回归

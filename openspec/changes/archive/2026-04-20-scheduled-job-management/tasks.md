@@ -127,7 +127,7 @@
 - [x] 15.1 更新 `apps/lina-core/README.md / README.zh_CN.md`:在模块列表中新增"定时任务管理"章节(中英同步)
 - [x] 15.2 更新 `apps/lina-vben/apps/web-antd/README.md / README.zh_CN.md`:新增路由与页面入口说明
 - [x] 15.3 验证 `make init / make dao / make ctrl / make dev / make test` 全流程通过
-- [x] 15.4 调用 `/openspec-review` 技能进行代码与规范审查,处理所有严重问题
+- [x] 15.4 调用 `/lina-review` 技能进行代码与规范审查,处理所有严重问题
 - [x] 15.5 用户确认功能完成后,执行 `/opsx:archive scheduled-job-management`(归档时 proposal/design/tasks 与 specs 将被统一重写为英文,符合归档语言规范)
 
 ## Feedback
@@ -147,7 +147,7 @@
 - [x] **FB-13**: 审查并同步其他 SQL 副本，移除残留的 admin 角色菜单绑定与旧版显式自增 `id` seed 写法
 - [x] **FB-14**: 将内置 admin 账号策略从 `pkg` 收拢到 `service/user` 组件内部，并消除跨组件误导性公共依赖
 - [x] **FB-15**: 补齐本次新增控制器骨架注释并修正审查遗漏，确保未跟踪控制器文件也纳入当前轮次检查
-- [x] **FB-16**: 改进 `openspec-review` 技能范围识别流程，将未跟踪文件纳入规范审查范围并禁止仅依赖 `git diff`
+- [x] **FB-16**: 改进 `lina-review` 技能范围识别流程，将未跟踪文件纳入规范审查范围并禁止仅依赖 `git diff`
 - [x] **FB-17**: 将 SQL seed 禁止 `ON DUPLICATE KEY UPDATE` 与禁止显式写入自增 `id` 上升为项目规范，并同步审查技能与活跃设计文档
 - [x] **FB-18**: 将定时任务调度能力视为当前迭代核心功能，补齐关键执行链路的单元测试与 E2E 覆盖并完成通过验证
 - [x] **FB-19**: 在系统管理下增加“定时任务”目录菜单，并保持原有页面入口兼容可访问

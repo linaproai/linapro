@@ -20,7 +20,7 @@
 
 - [ ] 4.1 为高耦合业务模块引入启用/禁用配置与后端降级处理
 - [x] 4.2 执行 `go test ./...`、OpenSpec 校验和相关 E2E 回归测试
-- [x] 4.3 完成 `openspec-review` 审查并准备归档
+- [x] 4.3 完成 `lina-review` 审查并准备归档
 
 ## Feedback
 

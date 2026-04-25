@@ -1,13 +1,13 @@
 ---
-name: openspec-review
+name: lina-review
 description: >-
   Code and specification review for OpenSpec workflow. Triggers automatically after /opsx:apply
   task completion, after /opsx:feedback task completion, and before /opsx:archive. Use when
-  user requests code review, spec compliance check, or when explicitly invoked via /openspec-review.
-compatibility: Requires OpenSpec CLI, GoFrame v2 skill, openspec-e2e skill.
+  user requests code review, spec compliance check, or when explicitly invoked via /lina-review.
+compatibility: Requires OpenSpec CLI, GoFrame v2 skill, lina-e2e skill.
 ---
 
-# OpenSpec Review
+# Lina Review
 
 Structured code and specification review for the OpenSpec development workflow.
 
@@ -19,11 +19,11 @@ Structured code and specification review for the OpenSpec development workflow.
 
 **Automatic triggers:**
 - After completing each task in `/opsx:apply`
-- After completing each task in `/opspec-feedback`
+- After completing each task in `lina-feedback`
 - Before executing `/opsx:archive`
 
 **Manual trigger:**
-- User explicitly requests: "review this code", "check spec compliance", "/openspec-review"
+- User explicitly requests: "review this code", "check spec compliance", "/lina-review"
 
 ---
 
@@ -98,13 +98,13 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 
 **Trigger**: New or modified E2E test files in `hack/tests/e2e/` directory
 
-1. Invoke `openspec-e2e` skill for test conventions
+1. Invoke `lina-e2e` skill for test conventions
 2. Check against `CLAUDE.md` E2E test specifications
 
 ### 8. Generate Review Report
 
 ```markdown
-## OpenSpec Review Report
+## Lina Review Report
 
 **Change:** <change-name>
 **Scope:** <task-specific / full change>
@@ -150,7 +150,7 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 | Workflow Step | Behavior |
 |---------------|----------|
 | `/opsx:apply` task done | Review, offer to fix issues before next task |
-| `/opspec-feedback` task done | Review, fix before marking complete |
+| `lina-feedback` task done | Review, fix before marking complete |
 | `/opsx:archive` | Review all changes, block on critical issues |
 
 ---

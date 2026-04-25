@@ -1,13 +1,13 @@
 ---
-name: openspec-feedback
+name: lina-feedback
 description: >-
   Track, fix, verify, and test any bugs, improvements, or gaps reported against an OpenSpec change.
   MUST use this skill whenever user reports problems, defects, issues, bugs, or gaps related to
   existing implementations, even if they don't explicitly say "feedback" or mention OpenSpec.
-compatibility: Requires openspec CLI, openspec-e2e skill, openspec-review skill.
+compatibility: Requires openspec CLI, lina-e2e skill, lina-review skill.
 ---
 
-# Feedback: Structured Fix, Verification & Test Coverage Loop
+# Lina Feedback: Structured Fix, Verification & Test Coverage Loop
 
 When users discover bugs or improvement points after implementation, this skill captures those issues, organizes them into a traceable task list in `tasks.md`, systematically fixes and verifies each one, and ensures every fix is covered by E2E tests.
 
@@ -169,7 +169,7 @@ For each task:
 
 **c. Implement** — Minimal, focused fix following existing patterns
 
-**d. Write/update E2E tests** — Follow `openspec-e2e` conventions
+**d. Write/update E2E tests** — Follow `lina-e2e` conventions
 
 **e. Assess Impact Scope (MANDATORY)**
 
@@ -206,7 +206,7 @@ If regression fails:
 - Fix inline if related to current change
 - Add as new FB task if separate issue
 
-**g. Run review** — Invoke `openspec-review` skill after completion
+**g. Run review** — Invoke `lina-review` skill after completion
 
 ---
 

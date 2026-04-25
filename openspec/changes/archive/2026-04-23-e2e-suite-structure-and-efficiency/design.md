@@ -10,7 +10,7 @@
 
 ### Constraints
 
-- The suite must continue to follow the `openspec-e2e` conventions: `TC{NNNN}-{brief-name}.ts`, globally unique TC IDs, and each file being independently runnable.
+- The suite must continue to follow the `lina-e2e` conventions: `TC{NNNN}-{brief-name}.ts`, globally unique TC IDs, and each file being independently runnable.
 - `make test` and `pnpm test` must keep their meaning as a full E2E regression entrypoint.
 - Reorganizing the suite must not reduce valuable coverage, especially for plugin lifecycle, permission governance, task scheduling, and system configuration.
 - This is a greenfield project, so there is no need to preserve long-term compatibility with the old test directory shape. The suite can converge directly to the target structure.

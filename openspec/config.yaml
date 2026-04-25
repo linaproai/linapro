@@ -25,4 +25,4 @@ context: |
 rules:
   tasks:
     - |
-      When a task involves E2E test cases, the TC ID generating should follow the openspec-e2e skill conventions.
+      When a task involves E2E test cases, the TC ID generating should follow the lina-e2e skill conventions.

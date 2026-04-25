@@ -77,7 +77,7 @@
 2. 按模块批次整改后端代码中的 GoFrame 和项目规范违规项
 3. 对涉及接口合同变化的模块同步调整前端调用与 E2E 用例
 4. 执行 `openspec validate`、`go test ./...` 以及相关 E2E，确认整改未引入回归
-5. 完成整改后执行 `openspec-review`，再进入归档流程
+5. 完成整改后执行 `lina-review`，再进入归档流程
 
 ## Open Questions
 

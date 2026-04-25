@@ -61,7 +61,7 @@
 
 ## 8. E2E Testing
 
-- [x] 8.1 Use `openspec-e2e` to plan E2E use cases after menu reconstruction and pluginization
+- [x] 8.1 Use `lina-e2e` to plan E2E use cases after menu reconstruction and pluginization
 - [x] 8.2 Added menu skeleton and empty parent directory hiding test
 - [x] 8.3 Added `monitor-operlog` life cycle and functional verification test (`TC0098a` + existing monitoring function use cases)
 - [x] 8.4 Added `monitor-loginlog` life cycle and functional verification test (`TC0098b` + existing monitoring function use cases)
@@ -79,7 +79,7 @@
 - [x] 9.2 Running frontend type checking and build verification
 - [x] 9.3 E2E suite related to running plugin start, stop and menu refresh
 - [x] 9.4 Check whether the host still only retains core capabilities against the specifications
-- [x] 9.5 Call `openspec-review` for change review
+- [x] 9.5 Call `lina-review` for change review
 
 ## Feedback
 
