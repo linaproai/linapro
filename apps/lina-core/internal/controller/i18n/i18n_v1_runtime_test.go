@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/model"
 	i18nsvc "lina-core/internal/service/i18n"
 
+	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/os/gctx"
 )
 
@@ -38,8 +39,8 @@ func TestRuntimeMessagesUsesExplicitLangOverride(t *testing.T) {
 	if !ok {
 		t.Fatal("expected menu.dashboard.title to exist in runtime messages")
 	}
-	if actual != "Workbench" {
-		t.Fatalf("expected English runtime message %q, got %q", "Workbench", actual)
+	if actual != "Dashboard" {
+		t.Fatalf("expected English runtime message %q, got %q", "Dashboard", actual)
 	}
 }
 

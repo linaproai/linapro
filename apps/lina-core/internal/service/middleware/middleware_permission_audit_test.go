@@ -19,6 +19,7 @@ import (
 // intentionally exempt from request-level permission metadata.
 var staticPermissionExemptionAllowlist = map[string]string{
 	"POST /auth/login":                       "public login entrypoint",
+	"GET /i18n/runtime/locales":              "public runtime i18n locale bootstrap",
 	"GET /i18n/runtime/messages":             "public runtime i18n message bootstrap",
 	"GET /config/public/frontend":            "public frontend bootstrap whitelist",
 	"GET /plugins/dynamic":                   "public shell plugin state bootstrap",

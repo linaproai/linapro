@@ -123,8 +123,8 @@ func TestBuildRuntimeMessagesIncludesHostAndSourcePlugin(t *testing.T) {
 	svc := New()
 	messages := svc.BuildRuntimeMessages(context.Background(), EnglishLocale)
 
-	if actual, ok := lookupMessageString(messages, "menu.dashboard.title"); !ok || actual != "Workbench" {
-		t.Fatalf("expected host menu translation %q, got %q (exists=%v)", "Workbench", actual, ok)
+	if actual, ok := lookupMessageString(messages, "menu.dashboard.title"); !ok || actual != "Dashboard" {
+		t.Fatalf("expected host menu translation %q, got %q (exists=%v)", "Dashboard", actual, ok)
 	}
 	if actual, ok := lookupMessageString(messages, "plugin.plugin-i18n-test.name"); !ok || actual != "Runtime Test Plugin" {
 		t.Fatalf("expected plugin translation %q, got %q (exists=%v)", "Runtime Test Plugin", actual, ok)
