@@ -223,15 +223,15 @@ VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension') AS parent), 'extension:plugin:list', '插件管理', '/system/plugin', 'system/plugin/index', 'plugin:list', 'lucide:plug', 'M', 1, 1, 1, 0, 0, '插件管理菜单', NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:query', '', '', '', 'plugin:query', '', 'B', 1, 1, 1, 0, 0, '插件查询按钮', NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:query', '插件查询', '', '', 'plugin:query', '', 'B', 1, 1, 1, 0, 0, '插件查询按钮', NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:enable', '', '', '', 'plugin:enable', '', 'B', 2, 1, 1, 0, 0, '插件启用按钮', NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:enable', '插件启用', '', '', 'plugin:enable', '', 'B', 2, 1, 1, 0, 0, '插件启用按钮', NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:disable', '', '', '', 'plugin:disable', '', 'B', 3, 1, 1, 0, 0, '插件禁用按钮', NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:disable', '插件禁用', '', '', 'plugin:disable', '', 'B', 3, 1, 1, 0, 0, '插件禁用按钮', NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:install', '', '', '', 'plugin:install', '', 'B', 4, 1, 1, 0, 0, '插件安装按钮', NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:install', '插件安装', '', '', 'plugin:install', '', 'B', 4, 1, 1, 0, 0, '插件安装按钮', NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:uninstall', '', '', '', 'plugin:uninstall', '', 'B', 5, 1, 1, 0, 0, '插件卸载按钮', NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:uninstall', '插件卸载', '', '', 'plugin:uninstall', '', 'B', 5, 1, 1, 0, 0, '插件卸载按钮', NOW(), NOW());
 
 -- ============================================================
 -- 开发中心菜单

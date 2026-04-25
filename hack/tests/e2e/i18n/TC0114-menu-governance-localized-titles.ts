@@ -29,6 +29,22 @@ type RoleListItem = {
   key: string;
 };
 
+const pluginButtonChineseNames = [
+  '插件查询',
+  '插件启用',
+  '插件禁用',
+  '插件安装',
+  '插件卸载',
+];
+
+const pluginButtonEnglishNames = [
+  'Query Plugins',
+  'Enable Plugin',
+  'Disable Plugin',
+  'Install Plugin',
+  'Uninstall Plugin',
+];
+
 function flattenMenuList(list: MenuListItem[]): MenuListItem[] {
   return list.flatMap((item) => [item, ...flattenMenuList(item.children ?? [])]);
 }
@@ -83,6 +99,12 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     const menuManagement = flatMenus.find((item) => item.perms === 'system:menu:list');
     expect(menuManagement?.name).toBe('Menus');
 
+    const pluginManagement = flatMenus.find((item) => item.perms === 'plugin:list');
+    expect(pluginManagement?.name).toBe('Plugins');
+    expect(pluginManagement?.children?.map((item) => item.name)).toEqual(
+      pluginButtonEnglishNames,
+    );
+
     const treeSelect = await expectSuccess<{ list: MenuTreeSelectItem[] }>(
       await adminApi.get('menu/treeselect', {
         headers: {
@@ -93,6 +115,11 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     const flatTreeSelect = flattenMenuTreeSelect(treeSelect.list);
     const localizedTreeNode = flatTreeSelect.find((item) => item.id === menuManagement?.id);
     expect(localizedTreeNode?.label).toBe('Menus');
+
+    const pluginTreeNode = flatTreeSelect.find((item) => item.label === 'Plugins');
+    expect(pluginTreeNode?.children?.map((item) => item.label)).toEqual(
+      pluginButtonEnglishNames,
+    );
 
     const roles = await expectSuccess<{ list: RoleListItem[]; total: number }>(
       await adminApi.get('role', {
@@ -119,6 +146,11 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
     const flatRoleMenus = flattenMenuTreeSelect(roleMenuTree.menus);
     const localizedRoleNode = flatRoleMenus.find((item) => item.id === menuManagement?.id);
     expect(localizedRoleNode?.label).toBe('Menus');
+
+    const pluginRoleNode = flatRoleMenus.find((item) => item.label === 'Plugins');
+    expect(pluginRoleNode?.children?.map((item) => item.label)).toEqual(
+      pluginButtonEnglishNames,
+    );
   });
 
   test('TC-114c: 英文环境下菜单详情保留可编辑原值并本地化父级名称', async () => {
@@ -144,5 +176,22 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
 
     expect(detail.name).toBe('菜单管理');
     expect(detail.parentName).toBe('Access');
+  });
+
+  test('TC-114d: 中文环境下插件管理按钮菜单显示可读名称', async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    const menuPage = new MenuPage(adminPage);
+
+    await mainLayout.switchLanguage('简体中文');
+    await menuPage.goto();
+
+    for (const buttonName of pluginButtonChineseNames) {
+      await menuPage.searchMenu(buttonName);
+      await expect(
+        adminPage.locator('.vxe-body--row', { hasText: buttonName }).first(),
+      ).toBeVisible();
+    }
   });
 });
