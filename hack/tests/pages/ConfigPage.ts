@@ -184,7 +184,7 @@ export class ConfigPage {
   // ========== Export ==========
 
   async clickExport() {
-    await this.page.getByRole('button', { name: /导\s*出/ }).click();
+    await this.page.getByRole('button', { name: /导\s*出|Export/i }).click();
     await waitForDialogReady(this.page.locator('[role="dialog"]'));
   }
 
@@ -198,7 +198,7 @@ export class ConfigPage {
   // ========== Import ==========
 
   async clickImport() {
-    await this.page.getByRole('button', { name: /导\s*入/ }).click();
+    await this.page.getByRole('button', { name: /导\s*入|Import/i }).click();
     await waitForDialogReady(this.dialog);
   }
 }

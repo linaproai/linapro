@@ -1,12 +1,23 @@
 ## ADDED Requirements
 
 ### Requirement: 配置元数据必须支持按当前语言返回本地化名称与备注
-The system SHALL return localized config metadata for config list, detail, import/export templates, and protected-setting projections. Config metadata localization MUST use stable config keys as translation anchors and MUST NOT change the actual config key or stored config value.
+The system SHALL return localized config metadata for config list, import/export templates, and protected-setting projections. Config metadata localization MUST use stable config keys as translation anchors and MUST NOT change the actual config key or stored config value.
 
 #### Scenario: 查询配置列表时返回英文元数据
-- **WHEN** 管理员以 `en-US` 查询配置列表或配置详情
+- **WHEN** 管理员以 `en-US` 查询配置列表
 - **THEN** 返回结果中的配置名称和备注使用英文本地化值
 - **AND** `configKey` 与 `configValue` 仍保持原始治理语义
+
+#### Scenario: 配置管理页保持配置原始值不被多语言改写
+- **WHEN** 管理员以 `en-US` 打开参数设置编辑弹窗、导出数据或执行导入回填，且某个配置项的 `configValue` 为中文种子文案
+- **THEN** 系统不得把当前语言的投影值回写为配置治理原值
+- **AND** `configKey` 与 `configValue` 继续以数据库中的原始值参与编辑、导入、导出与审计链路
+- **AND** 参数设置详情回填默认保持数据库原值，避免仅因语言切换而改写可编辑主数据
+
+#### Scenario: 导入模板与导出表头返回本地化元数据
+- **WHEN** 管理员以 `en-US` 下载参数设置导入模板或导出参数设置数据
+- **THEN** 模板说明、表头标题与元数据相关提示使用英文本地化文案
+- **AND** 模板中的 `configKey`、`configValue` 列语义与实际导出内容保持原始治理语义
 
 #### Scenario: 配置元数据翻译缺失时回退默认语言
 - **WHEN** 某个配置项在当前语言下缺少名称或备注翻译
@@ -20,6 +31,11 @@ The system SHALL let the public frontend config endpoint return localized brand 
 - **WHEN** 浏览器以 `en-US` 请求公共前端配置接口
 - **THEN** 返回的应用名称、登录页标题、登录页说明和登录副标题均为英文本地化结果
 - **AND** `panelLayout`、`themeMode`、`layout` 等非文案字段保持原值
+
+#### Scenario: 文案型公共参数仅在消费端接口投影
+- **WHEN** `sys.app.name`、`sys.auth.pageTitle`、`sys.auth.pageDesc`、`sys.auth.loginSubtitle` 或 `sys.ui.watermark.content` 仍保存默认种子值，且浏览器以 `en-US` 请求公共前端配置接口
+- **THEN** 公共前端配置接口返回对应的英文本地化展示文案
+- **AND** 参数设置管理接口中的同一 `configValue` 仍保持数据库原始值，不额外提供显示态翻译字段
 
 #### Scenario: 工作台刷新后显示最新本地化品牌文案
 - **WHEN** 管理员更新了某语言下的公共前端文案并刷新登录页或工作台

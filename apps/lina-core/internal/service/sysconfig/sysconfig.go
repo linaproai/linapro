@@ -37,7 +37,7 @@ type Service interface {
 	// If updateSupport is true, existing records (matched by key) will be updated; otherwise, they will be skipped.
 	Import(ctx context.Context, fileReader io.Reader, updateSupport bool) (result *ImportResult, err error)
 	// GenerateImportTemplate creates an Excel template for config import.
-	GenerateImportTemplate() (data []byte, err error)
+	GenerateImportTemplate(ctx context.Context) (data []byte, err error)
 }
 
 // Interface compliance assertion for the default sysconfig service
@@ -109,6 +109,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
+	s.localizeConfigEntities(ctx, list)
 
 	return &ListOutput{
 		List:  list,
@@ -329,14 +330,13 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	if err != nil {
 		return nil, err
 	}
-	s.localizeConfigEntities(ctx, list)
 
 	// Create Excel file
 	f := excelize.NewFile()
 	defer closeExcelFile(f, &err)
 	sheet := "Sheet1"
 
-	headers := []string{"参数名称", "参数键名", "参数键值", "备注", "创建时间", "修改时间"}
+	headers := s.buildLocalizedExportHeaders(ctx)
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err

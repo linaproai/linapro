@@ -144,12 +144,12 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 }
 
 // GenerateImportTemplate creates an Excel template for config import.
-func (s *serviceImpl) GenerateImportTemplate() (data []byte, err error) {
+func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, err error) {
 	f := excelize.NewFile()
 	defer closeExcelFile(f, &err)
 	sheet := "Sheet1"
 
-	headers := []string{"参数名称", "参数键名", "参数键值", "备注"}
+	headers := s.buildLocalizedImportTemplateHeaders(ctx)
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -157,7 +157,12 @@ func (s *serviceImpl) GenerateImportTemplate() (data []byte, err error) {
 	}
 
 	// Example row
-	if err = setCellValueByName(f, sheet, cellName(1, 2), "认证管理-JWT Token 有效期"); err != nil {
+	if err = setCellValueByName(
+		f,
+		sheet,
+		cellName(1, 2),
+		s.localizedConfigName(ctx, "sys.jwt.expire", "认证管理-JWT Token 有效期"),
+	); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, sheet, cellName(2, 2), "sys.jwt.expire"); err != nil {
@@ -166,7 +171,12 @@ func (s *serviceImpl) GenerateImportTemplate() (data []byte, err error) {
 	if err = setCellValueByName(f, sheet, cellName(3, 2), "24h"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(4, 2), "控制新签发 JWT Token 的有效期"); err != nil {
+	if err = setCellValueByName(
+		f,
+		sheet,
+		cellName(4, 2),
+		s.localizedConfigRemark(ctx, "sys.jwt.expire", "控制新签发 JWT Token 的有效期"),
+	); err != nil {
 		return nil, err
 	}
 
