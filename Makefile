@@ -15,7 +15,6 @@ EMBED_DIR     := $(BACKEND_DIR)/internal/packed/public
 OUTPUT_DIR    := $(TEMP_DIR)/output
 
 # 引用复杂指令子文件
-include hack/makefiles/up.mk
 include hack/makefiles/dev.mk
 include hack/makefiles/build.mk
 
