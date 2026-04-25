@@ -12,7 +12,8 @@ test.describe('TC0076 默认分析页', () => {
     await expect(dashboardPage.analyticsMetric('下载量')).toBeVisible();
     await expect(dashboardPage.analyticsMetric('使用量')).toBeVisible();
     await expect(dashboardPage.analyticsCardTitle('访问数量')).toBeVisible();
-    await expect(adminPage.getByRole('heading', { name: '访问来源' })).toHaveCount(2);
+    await expect(dashboardPage.analyticsCardTitle('访问来源')).toBeVisible();
+    await expect(dashboardPage.analyticsCardTitle('商业占比')).toBeVisible();
   });
 
   test('TC0076b: 分析页标签切换仍可正常工作', async ({ adminPage }) => {

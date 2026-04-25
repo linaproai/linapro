@@ -186,7 +186,7 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
       await jobPage.isTooltipVisible(`当前系统策略：${retentionSummary}`),
     ).toBe(true);
 
-    await jobPage.hoverFieldHelp('超时时间(秒)');
+    await jobPage.hoverFieldHelp('超时时间（秒）');
     await expect(
       await jobPage.isTooltipVisible('任务实例单次运行允许的最长时长'),
     ).toBe(true);
@@ -207,7 +207,7 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
     });
     await jobPage.save();
     await expect(
-      jobPage.messageNotice('定时表达式仅支持 5 段或 6 段'),
+      jobPage.messageNotice('Cron 表达式必须为 5 段或 6 段'),
     ).toBeVisible();
 
     await jobPage.fillCommonFields({
@@ -215,7 +215,7 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
       timezone: 'Mars/Phobos',
     });
     await jobPage.save();
-    await expect(jobPage.messageNotice('任务时区不合法')).toBeVisible();
+    await expect(jobPage.messageNotice('请输入有效的时区')).toBeVisible();
 
     const shellWarningPadding = await jobPage.getElementVerticalPadding(
       'job-shell-warning-alert',

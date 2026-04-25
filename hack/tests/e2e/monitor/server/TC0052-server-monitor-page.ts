@@ -118,8 +118,8 @@ test.describe('TC0052 服务监控页面展示', () => {
     await expect(adminPage.getByText(/使用中\s*\/\s*空闲/).first()).toBeVisible();
   });
 
-  test('TC0052h: 数据更新时间在节点信息中展示', async ({ adminPage }) => {
+  test('TC0052h: 采集时间在节点信息中展示', async ({ adminPage }) => {
     // collectAt should be inside node expanded content, not in service info
-    await expect(adminPage.getByText('数据更新时间').first()).toBeVisible();
+    await expect(adminPage.getByText(/数据更新时间|采集时间/).first()).toBeVisible();
   });
 });

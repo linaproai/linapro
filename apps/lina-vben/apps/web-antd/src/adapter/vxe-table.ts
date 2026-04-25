@@ -15,13 +15,13 @@ import { Button, Image } from 'ant-design-vue';
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
 import {
   getJobConcurrencyLabel,
-  renderJobCronExpression,
+  getJobPluginPausedLabel,
+  getJobPluginPausedTooltip,
   getJobScopeLabel,
   getJobSourceColor,
   getJobSourceKind,
   getJobSourceLabel,
-  JOB_PLUGIN_PAUSED_LABEL,
-  JOB_PLUGIN_PAUSED_TOOLTIP,
+  renderJobCronExpression,
 } from '#/api/system/job/meta';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
 
@@ -360,10 +360,12 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
           if (row.status === 'paused_by_plugin') {
             return h(
               Tooltip,
-              { title: JOB_PLUGIN_PAUSED_TOOLTIP },
+              { title: getJobPluginPausedTooltip() },
               {
                 default: () =>
-                  h(Tag, { color: 'error' }, () => JOB_PLUGIN_PAUSED_LABEL),
+                  h(Tag, { color: 'error' }, () =>
+                    getJobPluginPausedLabel(),
+                  ),
               },
             );
           }

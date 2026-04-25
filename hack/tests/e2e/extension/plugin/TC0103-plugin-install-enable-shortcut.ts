@@ -439,7 +439,7 @@ test.describe('TC-103 插件安装弹窗快捷启用', () => {
       await pluginPage.installAndEnablePlugin(dynamicPluginID);
 
       await expect(
-        pluginPage.messageNotice('插件已安装，但启用失败，请稍后重试。'),
+        pluginPage.messageNotice('安装成功，但启用失败'),
       ).toBeVisible();
       await expect(pluginPage.messageNotice('模拟启用失败')).toBeVisible();
       await expect

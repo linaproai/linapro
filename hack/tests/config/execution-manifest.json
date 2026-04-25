@@ -63,10 +63,12 @@
     "e2e/extension/plugin/TC0099-host-plugin-boundary-regression.ts"
   ],
   "serial": [
+    "e2e/about/TC0044-api-docs-page.ts",
     "e2e/auth/TC0003-logout.ts",
     "e2e/content",
     "e2e/extension/plugin",
     "e2e/iam/menu",
+    "e2e/i18n/TC0108-english-runtime-page-audit.ts",
     "e2e/monitor",
     "e2e/org",
     "e2e/scheduler/job",

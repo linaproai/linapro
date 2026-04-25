@@ -80,7 +80,7 @@ test.describe('TC0031 登录日志列表查询', () => {
   test('TC0031d: 按IP地址搜索', async ({ adminPage }) => {
     // Fill IP address search field
     await adminPage
-      .getByLabel('IP地址', { exact: true })
+      .getByLabel(/IP\s*地址/)
       .first()
       .fill('127.0.0.1');
 

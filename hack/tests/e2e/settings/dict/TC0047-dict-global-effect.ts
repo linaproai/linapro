@@ -1,16 +1,77 @@
 import { test, expect } from '../../../fixtures/auth';
 import { DictPage } from '../../../pages/DictPage';
+import {
+  createAdminApiContext,
+  expectSuccess,
+} from '../../../support/api/job';
+import type { APIRequestContext } from '@playwright/test';
+
+type DictDataItem = {
+  id: number;
+  dictType: string;
+  label: string;
+  value: string;
+  sort: number;
+  tagStyle: string;
+  cssClass: string;
+  status: number;
+  remark: string;
+};
+
+const dictType = 'sys_normal_disable';
+const normalValue = '1';
+
+async function getNormalStatusData(api: APIRequestContext) {
+  const result = await expectSuccess<{ list: DictDataItem[]; total: number }>(
+    await api.get(
+      `dict/data?pageNum=1&pageSize=100&dictType=${encodeURIComponent(dictType)}`,
+    ),
+  );
+  const item = result.list.find((entry) => entry.value === normalValue);
+  expect(item, `missing ${dictType} value ${normalValue}`).toBeTruthy();
+  return item!;
+}
+
+async function setNormalStatusLabel(api: APIRequestContext, label: string) {
+  const item = await getNormalStatusData(api);
+  await expectSuccess<unknown>(
+    await api.put(`dict/data/${item.id}`, {
+      data: { label },
+    }),
+  );
+}
 
 test.describe('TC0047 字典修改全局生效', () => {
+  test.describe.configure({ mode: 'serial' });
+
   const originalLabel = '正常';
   const modifiedLabel = `测试状态_${Date.now()}`;
+  let adminApi: APIRequestContext;
+
+  test.beforeAll(async () => {
+    adminApi = await createAdminApiContext();
+    await setNormalStatusLabel(adminApi, originalLabel);
+  });
+
+  test.afterAll(async () => {
+    if (!adminApi) {
+      return;
+    }
+    try {
+      await setNormalStatusLabel(adminApi, originalLabel);
+    } finally {
+      await adminApi.dispose();
+    }
+  });
 
   test('TC0047a: 修改字典标签后部门管理页面同步更新', async ({ adminPage }) => {
+    await setNormalStatusLabel(adminApi, originalLabel);
+
     const dictPage = new DictPage(adminPage);
     await dictPage.goto();
 
     // 选择 sys_normal_disable 字典类型
-    await dictPage.clickTypeRow('sys_normal_disable');
+    await dictPage.clickTypeRow(dictType);
 
     // 修改"正常"标签为临时名称
     await dictPage.editData(originalLabel, { label: modifiedLabel });
@@ -27,6 +88,8 @@ test.describe('TC0047 字典修改全局生效', () => {
   });
 
   test('TC0047b: 修改字典标签后用户管理页面查询表单同步更新', async ({ adminPage }) => {
+    await setNormalStatusLabel(adminApi, modifiedLabel);
+
     // 导航到用户管理页面
     await adminPage.goto('/system/user');
     await adminPage.waitForLoadState('networkidle');
@@ -45,11 +108,13 @@ test.describe('TC0047 字典修改全局生效', () => {
   });
 
   test('TC0047c: 还原字典标签确保测试环境干净', async ({ adminPage }) => {
+    await setNormalStatusLabel(adminApi, modifiedLabel);
+
     const dictPage = new DictPage(adminPage);
     await dictPage.goto();
 
     // 选择 sys_normal_disable 字典类型
-    await dictPage.clickTypeRow('sys_normal_disable');
+    await dictPage.clickTypeRow(dictType);
 
     // 还原标签
     await dictPage.editData(modifiedLabel, { label: originalLabel });

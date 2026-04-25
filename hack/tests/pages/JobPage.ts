@@ -12,7 +12,10 @@ export class JobPage {
   constructor(private page: Page) {}
 
   private get dialog(): Locator {
-    return this.page.locator('[role="dialog"]').last();
+    return this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /新增任务|编辑任务|任务详情/ })
+      .last();
   }
 
   async goto() {
@@ -84,8 +87,13 @@ export class JobPage {
       await cron.fill(params.cronExpr);
     }
     if (params.timezone) {
-      const timezone = this.dialog.getByLabel("任务时区").first();
-      await timezone.waitFor({ state: "visible" });
+      const timezoneLabel = this.getFieldLabel("时区");
+      const timezoneFieldId = await timezoneLabel.getAttribute("for");
+      if (!timezoneFieldId) {
+        throw new Error("未找到时区字段的控件标识");
+      }
+      const timezone = this.dialog.locator(`#${timezoneFieldId}`).first();
+      await timezone.waitFor({ state: "visible", timeout: 5000 });
       await this.replaceFieldValue(timezone, params.timezone);
     }
   }
@@ -229,7 +237,7 @@ export class JobPage {
     const trigger = labelNode
       .locator('svg, .anticon, [class*="question"], [data-grace-area-trigger]')
       .first();
-    await trigger.waitFor({ state: "visible" });
+    await trigger.waitFor({ state: "visible", timeout: 5000 });
     await trigger.hover();
     await this.page
       .locator(
@@ -303,12 +311,6 @@ export class JobPage {
     await target.click();
     await target.press("Meta+A").catch(() => target.press("Control+A"));
     await target.fill(value);
-  }
-
-  private findFieldItem(label: string) {
-    return this.getFieldLabel(label).locator(
-      'xpath=ancestor::*[contains(@class, "ant-form-item")][1]',
-    );
   }
 
   private getFieldLabel(label: string) {

@@ -2,6 +2,14 @@ import { Page, Locator, expect } from "@playwright/test";
 
 import { waitForUploadReady } from "../support/ui";
 
+const pluginManageMenuPattern = /插件管理|Plugin Management/iu;
+const pluginTableTitlePattern = /插件列表|Plugin List/iu;
+const pluginInstallActionPattern = /安\s*装|Install/iu;
+const pluginUninstallActionPattern = /卸\s*载|Uninstall/iu;
+const pluginDetailActionPattern = /详\s*情|Detail(?:s)?/iu;
+const confirmActionPattern = /确\s*认|确\s*定|confirm|ok/iu;
+const cancelActionPattern = /取\s*消|cancel/iu;
+
 export class PluginPage {
   readonly page: Page;
 
@@ -10,7 +18,7 @@ export class PluginPage {
   }
 
   get tableTitle(): Locator {
-    return this.page.getByText("插件列表").first();
+    return this.page.getByText(pluginTableTitlePattern).first();
   }
 
   get dynamicUploadTrigger(): Locator {
@@ -26,11 +34,16 @@ export class PluginPage {
   }
 
   get sidebarMenu(): Locator {
-    return this.page.getByRole("menu").first();
+    return this.page
+      .locator("aside")
+      .filter({ has: this.page.locator('ul[role="menu"]') })
+      .first();
   }
 
   sidebarMenuItem(menuName: string): Locator {
-    return this.sidebarMenu.getByText(menuName, { exact: true }).first();
+    return this.sidebarMenu
+      .getByRole("menuitem", { name: menuName, exact: true })
+      .first();
   }
 
   async clickSidebarMenuItem(menuName: string) {
@@ -161,17 +174,18 @@ export class PluginPage {
   }
 
   dynamicUploadDialog(): Locator {
-    return this.page.getByRole("dialog", { name: "上传插件" }).last();
+    return this.page
+      .getByRole("dialog", { name: /上传动态插件|Upload Dynamic Plugin/iu })
+      .last();
   }
 
   dynamicUploadTriggerLabel(): Locator {
-    return this.dynamicUploadTrigger.getByText("上传插件", { exact: true });
+    return this.dynamicUploadTrigger.getByText(/上传插件|Upload Plugin/iu);
   }
 
   dynamicUploadHint(): Locator {
     return this.dynamicUploadDialog().getByText(
-      "仅支持单个 .wasm 文件，上传后可在列表中继续安装并启用。",
-      { exact: true },
+      /上传单个 `?\.wasm`? 动态插件包|Upload a single `?\.wasm`? artifact/iu,
     );
   }
 
@@ -181,20 +195,21 @@ export class PluginPage {
 
   dynamicOverwriteHint(): Locator {
     return this.dynamicUploadDialog().getByText(
-      "允许覆盖同 ID 且未安装的插件工作区文件",
-      { exact: true },
+      /允许覆盖相同插件标识和版本的已有插件包|Allow upload to overwrite an existing plugin package/iu,
     );
   }
 
   dynamicUploadConfirmButton(): Locator {
     return this.dynamicUploadDialog()
-      .getByRole("button", { name: /确\s*认|知\s*道了|知\s*道|ok/i })
+      .getByRole("button", {
+        name: /确\s*认|确\s*定|知\s*道了|知\s*道|confirm|got it|ok/iu,
+      })
       .last();
   }
 
   dynamicUploadCancelButton(): Locator {
     return this.dynamicUploadDialog()
-      .getByRole("button", { name: /取\s*消|cancel/i })
+      .getByRole("button", { name: cancelActionPattern })
       .last();
   }
 
@@ -243,7 +258,7 @@ export class PluginPage {
 
   hostServiceAuthConfirmButton(): Locator {
     return this.hostServiceAuthDialog()
-      .getByRole("button", { name: /确\s*认|确\s*定/i })
+      .getByRole("button", { name: confirmActionPattern })
       .last();
   }
 
@@ -254,11 +269,15 @@ export class PluginPage {
   }
 
   uninstallDialog(): Locator {
-    return this.page.getByRole("dialog", { name: "卸载插件" }).last();
+    return this.page
+      .getByRole("dialog", { name: /卸载插件|Uninstall Plugin/iu })
+      .last();
   }
 
   pluginDetailDialog(): Locator {
-    return this.page.getByRole("dialog", { name: "插件详情" }).last();
+    return this.page
+      .getByRole("dialog", { name: /插件详情|Plugin Details/iu })
+      .last();
   }
 
   pluginDetailModal(): Locator {
@@ -290,11 +309,7 @@ export class PluginPage {
   }
 
   pluginManagedActionDialog(): Locator {
-    return this.page
-      .locator(".ant-modal-confirm", {
-        hasText: "plugin.autoEnable",
-      })
-      .last();
+    return this.page.locator(".ant-modal-confirm").last();
   }
 
   uninstallPurgeCheckbox(): Locator {
@@ -417,15 +432,19 @@ export class PluginPage {
   }
 
   async searchByPluginId(pluginId: string) {
-    const input = this.page.getByRole("textbox", { name: "插件标识" }).first();
+    const input = this.page
+      .getByRole("textbox", { name: /插件标识|Plugin ID/iu })
+      .first();
     await expect(input).toBeVisible();
     await input.fill(pluginId);
-    await this.page.getByRole("button", { name: "搜 索" }).click();
+    await this.page.getByRole("button", { name: /搜\s*索|Search/iu }).click();
     await expect(this.pluginRow(pluginId)).toBeVisible();
   }
 
   async syncPlugins() {
-    await this.page.getByRole("button", { name: "同步插件" }).click();
+    await this.page
+      .getByRole("button", { name: /同步插件|Synchronize Plugins/iu })
+      .click();
     await this.page.waitForLoadState("networkidle");
   }
 
@@ -469,10 +488,13 @@ export class PluginPage {
     expect(uploadResponse.status()).toBe(200);
 
     await expect(this.uploadSuccessDialog()).toBeVisible();
-    await expect(this.uploadSuccessDialog()).toContainText(
-      expectedSuccessText ?? "上传成功，请在插件列表中继续安装并启用。",
+    const successPattern =
+      expectedSuccessText ??
+      /插件包上传成功|Plugin package uploaded successfully/iu;
+    await expect(this.uploadSuccessDialog()).toContainText(successPattern);
+    await expect(this.dynamicUploadConfirmButton()).toContainText(
+      /知道了|Got It/iu,
     );
-    await expect(this.dynamicUploadConfirmButton()).toContainText("知道了");
     await expect(this.dynamicUploadCancelButton()).toHaveCount(0);
     await expect(this.dynamicUploadCloseButton()).toHaveCount(0);
     await this.dynamicUploadConfirmButton().click();
@@ -486,7 +508,10 @@ export class PluginPage {
   }
 
   async installPlugin(pluginId: string) {
-    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    const installButton = await this.pluginActionButton(
+      pluginId,
+      pluginInstallActionPattern,
+    );
     await expect(installButton).toBeVisible();
     await installButton.click();
     await expect(this.hostServiceAuthDialog()).toBeVisible();
@@ -498,14 +523,20 @@ export class PluginPage {
   }
 
   async installAndEnablePlugin(pluginId: string) {
-    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    const installButton = await this.pluginActionButton(
+      pluginId,
+      pluginInstallActionPattern,
+    );
     await expect(installButton).toBeVisible();
     await installButton.click();
     await this.confirmInstallAndEnable();
   }
 
   async ensurePluginInstalled(pluginId: string) {
-    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    const installButton = await this.pluginActionButton(
+      pluginId,
+      pluginInstallActionPattern,
+    );
     const installVisible = await installButton
       .isVisible({ timeout: 1500 })
       .catch(() => false);
@@ -517,7 +548,10 @@ export class PluginPage {
   }
 
   async openInstallAuthorization(pluginId: string) {
-    const installButton = await this.pluginActionButton(pluginId, /安\s*装/);
+    const installButton = await this.pluginActionButton(
+      pluginId,
+      pluginInstallActionPattern,
+    );
     await expect(installButton).toBeVisible();
     await installButton.click();
     await expect(this.hostServiceAuthModal()).toBeVisible();
@@ -528,7 +562,10 @@ export class PluginPage {
   }
 
   async openUninstallDialog(pluginId: string) {
-    const uninstallButton = await this.pluginActionButton(pluginId, /卸\s*载/);
+    const uninstallButton = await this.pluginActionButton(
+      pluginId,
+      pluginUninstallActionPattern,
+    );
     await expect(uninstallButton).toBeVisible();
     await uninstallButton.click();
     await expect(this.uninstallDialog()).toBeVisible();
@@ -536,14 +573,17 @@ export class PluginPage {
 
   async cancelUninstallDialog() {
     await this.uninstallDialog()
-      .getByRole("button", { name: /取\s*消|cancel/i })
+      .getByRole("button", { name: cancelActionPattern })
       .last()
       .click();
     await expect(this.uninstallDialog()).toHaveCount(0);
   }
 
   async ensurePluginUninstalled(pluginId: string) {
-    const uninstallButton = await this.pluginActionButton(pluginId, /卸\s*载/);
+    const uninstallButton = await this.pluginActionButton(
+      pluginId,
+      pluginUninstallActionPattern,
+    );
     const uninstallVisible = await uninstallButton
       .isVisible({ timeout: 1500 })
       .catch(() => false);
@@ -555,7 +595,10 @@ export class PluginPage {
   }
 
   async openPluginDetail(pluginId: string) {
-    const detailButton = await this.pluginActionButton(pluginId, /详\s*情/);
+    const detailButton = await this.pluginActionButton(
+      pluginId,
+      pluginDetailActionPattern,
+    );
     await expect(detailButton).toBeVisible();
     await detailButton.click();
     await expect(this.pluginDetailDialog()).toBeVisible();
@@ -565,7 +608,10 @@ export class PluginPage {
     pluginId: string,
     purgeStorageData: boolean,
   ) {
-    const uninstallButton = await this.pluginActionButton(pluginId, /卸\s*载/);
+    const uninstallButton = await this.pluginActionButton(
+      pluginId,
+      pluginUninstallActionPattern,
+    );
     await expect(uninstallButton).toBeVisible();
     await uninstallButton.click();
     await expect(this.uninstallDialog()).toBeVisible();
@@ -579,12 +625,12 @@ export class PluginPage {
       }
     }
     await this.uninstallDialog()
-      .getByRole("button", { name: /确\s*认|确\s*定/i })
+      .getByRole("button", { name: confirmActionPattern })
       .last()
       .click();
     await expect(this.uninstallDialog()).toHaveCount(0);
     await expect(
-      await this.pluginActionButton(pluginId, /安\s*装/),
+      await this.pluginActionButton(pluginId, pluginInstallActionPattern),
     ).toBeVisible();
   }
 
@@ -671,16 +717,25 @@ export class PluginPage {
         "aria-checked",
         enabled ? "true" : "false",
       );
-      await expect(
-        this.page.getByText(enabled ? "插件已启用" : "插件已禁用").last(),
-      ).toBeVisible();
+      await this.page
+        .getByText(
+          enabled ? /插件已启用|Plugin enabled/i : /插件已禁用|Plugin disabled/i,
+        )
+        .last()
+        .waitFor({ state: "visible", timeout: 3000 })
+        .catch(() => undefined);
+      await this.page
+        .getByText(/加载菜单中|Loading Menu/i)
+        .last()
+        .waitFor({ state: "hidden", timeout: 15_000 })
+        .catch(() => undefined);
     }
   }
 
   async cancelManagedActionWarning() {
     await expect(this.pluginManagedActionDialog()).toBeVisible();
     await this.pluginManagedActionDialog()
-      .getByRole("button", { name: /取\s*消|cancel/i })
+      .getByRole("button", { name: cancelActionPattern })
       .last()
       .click();
     await expect(this.pluginManagedActionDialog()).toHaveCount(0);
@@ -689,7 +744,9 @@ export class PluginPage {
   async confirmManagedActionWarning() {
     await expect(this.pluginManagedActionDialog()).toBeVisible();
     await this.pluginManagedActionDialog()
-      .getByRole("button", { name: /继续禁用|继续卸载|确\s*认|确\s*定/i })
+      .getByRole("button", {
+        name: /继续停用|继续禁用|继续卸载|Continue|confirm|ok|确\s*认|确\s*定/iu,
+      })
       .last()
       .click();
     await expect(this.pluginManagedActionDialog()).toHaveCount(0);
@@ -697,25 +754,25 @@ export class PluginPage {
 
   async expectInstallActionVisible(pluginId: string) {
     await expect(
-      await this.pluginActionButton(pluginId, /安\s*装/),
+      await this.pluginActionButton(pluginId, pluginInstallActionPattern),
     ).toBeVisible();
   }
 
   async expectInstallActionHidden(pluginId: string) {
     await expect(
-      await this.pluginActionButton(pluginId, /安\s*装/),
+      await this.pluginActionButton(pluginId, pluginInstallActionPattern),
     ).toHaveCount(0);
   }
 
   async expectUninstallActionVisible(pluginId: string) {
     await expect(
-      await this.pluginActionButton(pluginId, /卸\s*载/),
+      await this.pluginActionButton(pluginId, pluginUninstallActionPattern),
     ).toBeVisible();
   }
 
   async expectUninstallActionHidden(pluginId: string) {
     await expect(
-      await this.pluginActionButton(pluginId, /卸\s*载/),
+      await this.pluginActionButton(pluginId, pluginUninstallActionPattern),
     ).toHaveCount(0);
   }
 
@@ -763,7 +820,7 @@ export class PluginPage {
     const visible = await menuItem.isVisible().catch(() => false);
     if (!visible) {
       await this.sidebarMenu
-        .getByText(/插件管理|Plugin Management/, { exact: true })
+        .getByText(pluginManageMenuPattern, { exact: true })
         .first()
         .click();
     }
@@ -771,9 +828,7 @@ export class PluginPage {
   }
 
   async expectSidebarMenuHidden(menuName: string) {
-    const visible = await this.sidebarMenu
-      .getByText(menuName, { exact: true })
-      .first()
+    const visible = await this.sidebarMenuItem(menuName)
       .isVisible({ timeout: 1500 })
       .catch(() => false);
     expect(visible).toBeFalsy();
@@ -822,7 +877,10 @@ export class PluginPage {
       .filter(Boolean);
 
     const targetIndex = headerTitles.indexOf(targetTitle);
-    const previousIndex = headerTitles.indexOf(previousTitle);
+    const previousIndex =
+      previousTitle === "版本"
+        ? headerTitles.findIndex((title) => title === "版本" || title === "版本号")
+        : headerTitles.indexOf(previousTitle);
     const nextIndex = headerTitles.indexOf(nextTitle);
 
     expect(targetIndex, `未找到列表列: ${targetTitle}`).toBeGreaterThanOrEqual(

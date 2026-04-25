@@ -27,8 +27,8 @@ import {
   jobTrigger,
 } from '#/api/system/job';
 import {
-  JOB_PLUGIN_PAUSED_TOOLTIP,
   JOB_STATUS_FILTER_OPTIONS,
+  getJobPluginPausedTooltip,
   getJobSourceKind,
 } from '#/api/system/job/meta';
 import { jobGroupList } from '#/api/system/jobGroup';
@@ -206,7 +206,7 @@ function openEditModal(row: JobRecord) {
     return;
   }
   if (isPluginPaused(row)) {
-    message.warning(JOB_PLUGIN_PAUSED_TOOLTIP);
+    message.warning(getJobPluginPausedTooltip());
     return;
   }
   jobFormApi.setData({ id: row.id });
@@ -324,7 +324,7 @@ function handleReload() {
         <Space>
           <Tooltip
             v-if="showPausedTriggerDisabled(row)"
-            :title="JOB_PLUGIN_PAUSED_TOOLTIP"
+            :title="getJobPluginPausedTooltip()"
           >
             <ghost-button disabled :data-testid="`job-trigger-${row.id}`">
               {{ $t('pages.system.job.actions.runNow') }}

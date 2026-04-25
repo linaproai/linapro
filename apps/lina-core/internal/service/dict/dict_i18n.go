@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // localizeDictTypeEntities localizes one dictionary-type entity list in place.
@@ -23,6 +24,10 @@ func (s *serviceImpl) localizeDictTypeEntity(ctx context.Context, item *entity.S
 	}
 	trimmedType := strings.TrimSpace(item.Type)
 	if trimmedType == "" {
+		return
+	}
+	// The default locale is edited directly through dictionary management.
+	if s.i18nSvc.ResolveLocale(ctx, "") == i18nsvc.DefaultLocale {
 		return
 	}
 	item.Name = s.i18nSvc.Translate(ctx, "dict."+trimmedType+".name", item.Name)
@@ -44,6 +49,10 @@ func (s *serviceImpl) localizeDictDataEntity(ctx context.Context, item *entity.S
 	trimmedType := strings.TrimSpace(item.DictType)
 	trimmedValue := strings.TrimSpace(item.Value)
 	if trimmedType == "" || trimmedValue == "" {
+		return
+	}
+	// The default locale is edited directly through dictionary management.
+	if s.i18nSvc.ResolveLocale(ctx, "") == i18nsvc.DefaultLocale {
 		return
 	}
 	prefix := "dict." + trimmedType + "." + trimmedValue

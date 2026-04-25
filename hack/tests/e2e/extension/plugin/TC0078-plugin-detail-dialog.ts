@@ -23,8 +23,9 @@ test.describe("TC-78 插件详情弹窗", () => {
     await expect(modal).toContainText(pluginID);
     await expect(modal).toContainText("源码插件");
     await expect(modal).toContainText(pluginVersion);
-    await expect(modal).toContainText("接入状态");
-    await expect(modal).toContainText("当前状态");
+    await expect(modal).toContainText("安装状态");
+    await expect(modal).toContainText("状态");
+    await expect(modal).toContainText("启动管理");
     await expect(modal).toContainText("授权状态");
     await expect(modal).toContainText("安装时间");
     await expect(modal).toContainText("更新时间");

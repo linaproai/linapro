@@ -6,11 +6,11 @@ const untranslatedKeyPattern = /\b(?:plugin|pages)\.[A-Za-z0-9_.:-]+\b/g;
 const pluginAuditCases = [
   {
     path: '/system/dept',
-    visibleTexts: ['Department Name', 'Actions'],
+    visibleTexts: ['Dept Name', 'Actions'],
   },
   {
     path: '/system/post',
-    visibleTexts: ['Position Name', 'Actions'],
+    visibleTexts: ['Position List', 'Actions'],
   },
   {
     path: '/system/notice',

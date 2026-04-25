@@ -19,7 +19,7 @@ test.describe('TC0033 登录日志清理', () => {
     await cleanBtn.click();
 
     const modal = await waitForConfirmOverlay(adminPage);
-    await expect(modal.locator('text=确认要清空所有登录日志数据吗')).toBeVisible();
+    await expect(modal.getByText(/确认清空所有登录日志吗[?？]?/)).toBeVisible();
 
     // Cancel to close
     const cancelBtn = modal.getByRole('button', { name: /取\s*消/ });

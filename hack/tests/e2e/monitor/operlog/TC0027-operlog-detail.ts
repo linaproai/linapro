@@ -29,7 +29,7 @@ test.describe('TC0027 操作日志详情查看', () => {
     await expect(drawer.getByText('日志编号')).toBeVisible();
     await expect(drawer.getByText('操作结果').first()).toBeVisible();
     await expect(drawer.getByText('模块名称').first()).toBeVisible();
-    await expect(drawer.getByText('操作名称').first()).toBeVisible();
+    await expect(drawer.getByText('操作摘要').first()).toBeVisible();
     await expect(drawer.getByText('操作类型').first()).toBeVisible();
     // "方法"字段应已移除
     await expect(drawer.getByText('方法')).not.toBeVisible();

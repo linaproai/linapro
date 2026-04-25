@@ -9,7 +9,7 @@ interface CronLogRetentionLike {
   value?: number;
 }
 
-function renderJobHelpContent(content: string) {
+function renderJobHelpContent(resolveContent: () => string) {
   return () =>
     h(
       'div',
@@ -20,7 +20,7 @@ function renderJobHelpContent(content: string) {
           whiteSpace: 'pre-line',
         },
       },
-      content,
+      resolveContent(),
     );
 }
 
@@ -37,27 +37,28 @@ export const JOB_CRON_CODE_CONTAINER_STYLE: CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-export const JOB_PLUGIN_PAUSED_LABEL = $t(
-  'pages.system.job.status.pluginUnavailable',
-);
+export function getJobPluginPausedLabel() {
+  return $t('pages.system.job.status.pluginUnavailable');
+}
 
-export const JOB_PLUGIN_PAUSED_TOOLTIP =
-  $t('pages.system.job.messages.pluginPausedTooltip');
+export function getJobPluginPausedTooltip() {
+  return $t('pages.system.job.messages.pluginPausedTooltip');
+}
 
 export const JOB_STATUS_FILTER_OPTIONS = [
-  { label: $t('pages.system.job.status.enabled'), value: 'enabled' },
-  { label: $t('pages.system.job.status.disabled'), value: 'disabled' },
-  { label: JOB_PLUGIN_PAUSED_LABEL, value: 'paused_by_plugin' },
+  { get label() { return $t('pages.system.job.status.enabled'); }, value: 'enabled' },
+  { get label() { return $t('pages.system.job.status.disabled'); }, value: 'disabled' },
+  { get label() { return getJobPluginPausedLabel(); }, value: 'paused_by_plugin' },
 ];
 
 export const JOB_SCOPE_OPTIONS = [
-  { label: $t('pages.system.job.scope.masterOnly'), value: 'master_only' },
-  { label: $t('pages.system.job.scope.allNodes'), value: 'all_node' },
+  { get label() { return $t('pages.system.job.scope.masterOnly'); }, value: 'master_only' },
+  { get label() { return $t('pages.system.job.scope.allNodes'); }, value: 'all_node' },
 ];
 
 export const JOB_CONCURRENCY_OPTIONS = [
-  { label: $t('pages.system.job.concurrency.singleton'), value: 'singleton' },
-  { label: $t('pages.system.job.concurrency.parallel'), value: 'parallel' },
+  { get label() { return $t('pages.system.job.concurrency.singleton'); }, value: 'singleton' },
+  { get label() { return $t('pages.system.job.concurrency.parallel'); }, value: 'parallel' },
 ];
 
 export type JobSourceKind =
@@ -103,23 +104,23 @@ export function getJobSourceColor(source: JobSourceKind) {
   }
 }
 
-export const JOB_CRON_FIELD_HELP = renderJobHelpContent(
+export const JOB_CRON_FIELD_HELP = renderJobHelpContent(() =>
   $t('pages.system.job.help.cron'),
 );
 
-export const JOB_TIMEOUT_FIELD_HELP = renderJobHelpContent(
+export const JOB_TIMEOUT_FIELD_HELP = renderJobHelpContent(() =>
   $t('pages.system.job.help.timeout'),
 );
 
-export const JOB_MAX_EXECUTIONS_FIELD_HELP = renderJobHelpContent(
+export const JOB_MAX_EXECUTIONS_FIELD_HELP = renderJobHelpContent(() =>
   $t('pages.system.job.help.maxExecutions'),
 );
 
-export const JOB_SCOPE_FIELD_HELP = renderJobHelpContent(
+export const JOB_SCOPE_FIELD_HELP = renderJobHelpContent(() =>
   $t('pages.system.job.help.scope'),
 );
 
-export const JOB_CONCURRENCY_FIELD_HELP = renderJobHelpContent(
+export const JOB_CONCURRENCY_FIELD_HELP = renderJobHelpContent(() =>
   $t('pages.system.job.help.concurrency'),
 );
 
@@ -178,7 +179,7 @@ export function formatCronLogRetentionSummary(
 }
 
 export function getJobRetentionFieldHelp(logRetention?: CronLogRetentionLike) {
-  return renderJobHelpContent(
+  return renderJobHelpContent(() =>
     $t('pages.system.job.retention.followSystemHelp', {
       currentPolicy: formatCronLogRetentionSummary(logRetention),
     }),

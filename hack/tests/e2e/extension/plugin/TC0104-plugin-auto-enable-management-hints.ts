@@ -111,15 +111,17 @@ test.describe("TC-104 plugin.autoEnable 管理提示", () => {
 
     await expect(pluginPage.pluginAutoEnableTag(pluginID)).toBeVisible();
     await pluginPage.pluginAutoEnableTag(pluginID).hover();
-    await expect(pluginPage.antTooltip()).toContainText("plugin.autoEnable");
+    await expect(pluginPage.antTooltip()).toContainText(
+      "宿主自动启用策略管理",
+    );
 
     await pluginPage.openPluginDetail(pluginID);
     await expect(pluginPage.pluginDetailModal()).toContainText("启动管理");
     await expect(pluginPage.pluginDetailModal()).toContainText(
-      "plugin.autoEnable",
+      "宿主管理自动启用",
     );
     await expect(pluginPage.pluginAutoEnableDetailAlert()).toContainText(
-      "宿主下次重启后会再次安装并启用该插件",
+      "手动变更可能在下一次同步时被运行时恢复",
     );
   });
 
@@ -133,7 +135,7 @@ test.describe("TC-104 plugin.autoEnable 管理提示", () => {
 
     await pluginSwitch.click();
     await expect(pluginPage.pluginManagedActionDialog()).toContainText(
-      "宿主下次重启后会再次安装并启用该插件",
+      "运行时仍可能重新应用宿主管理的自动启用策略",
     );
     await pluginPage.cancelManagedActionWarning();
     await expect(pluginSwitch).toHaveAttribute("aria-checked", "true");
@@ -141,11 +143,11 @@ test.describe("TC-104 plugin.autoEnable 管理提示", () => {
     await pluginSwitch.click();
     await pluginPage.confirmManagedActionWarning();
     await expect(pluginSwitch).toHaveAttribute("aria-checked", "false");
-    await expect(pluginPage.messageNotice("插件已禁用")).toBeVisible();
+    await expect(pluginPage.messageNotice("插件已停用")).toBeVisible();
 
     await pluginPage.openUninstallDialog(pluginID);
     await expect(pluginPage.pluginAutoEnableUninstallAlert()).toContainText(
-      "宿主下次重启后会再次安装并启用该插件",
+      "运行时仍可能按宿主策略重新安装或启用",
     );
     await pluginPage.cancelUninstallDialog();
   });

@@ -1,5 +1,9 @@
 import type { APIRequestContext } from "@playwright/test";
 
+import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
+import path from "node:path";
+
 import { test, expect } from "../../fixtures/auth";
 import { NoticePage } from "../../pages/NoticePage";
 import { PluginPage } from "../../pages/PluginPage";
@@ -15,10 +19,27 @@ import {
 import { waitForRouteReady } from "../../support/ui";
 
 const pluginID = "plugin-demo-dynamic";
+const repoRoot = path.resolve(process.cwd(), "../..");
+const legacyRuntimeArtifactPath = path.join(
+  repoRoot,
+  "apps",
+  "lina-plugins",
+  pluginID,
+  "runtime",
+  `${pluginID}.wasm`,
+);
 
 let adminApi: APIRequestContext;
 let originalInstalled = 0;
 let originalEnabled = 0;
+
+function ensureRuntimePluginArtifact() {
+  execFileSync("make", ["wasm", `p=${pluginID}`, "out=../../temp/output"], {
+    cwd: path.join(repoRoot, "apps", "lina-plugins"),
+    stdio: "inherit",
+  });
+  rmSync(legacyRuntimeArtifactPath, { force: true });
+}
 
 async function ensurePluginInstalledAndEnabled() {
   const plugin = await getPlugin(adminApi, pluginID);
@@ -53,6 +74,7 @@ async function restorePluginState() {
 
 test.describe("TC0108 英文运行时页面巡检", () => {
   test.beforeAll(async () => {
+    ensureRuntimePluginArtifact();
     adminApi = await createAdminApiContext();
     await syncPlugins(adminApi);
     const plugin = await getPlugin(adminApi, pluginID);

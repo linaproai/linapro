@@ -814,7 +814,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await pluginPage.uploadDynamicPlugin(
       wasmPath,
       false,
-      "上传成功，请在插件列表中继续安装并启用。",
+      "插件包上传成功",
     );
 
     const pluginAfterUpload = await findPlugin(adminApi!);
@@ -1001,7 +1001,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
 
     await pluginPage.openInstallAuthorization(bundledRuntimePluginID);
     const hostServiceAuthModal = pluginPage.hostServiceAuthModal();
-    await expect(hostServiceAuthModal).toContainText("任务服务");
+    await expect(hostServiceAuthModal).toContainText("Cron");
     await expect(hostServiceAuthModal).not.toContainText("申请存储路径");
     await expect(hostServiceAuthModal).not.toContainText("申请数据表名");
     await expect(hostServiceAuthModal).not.toContainText("申请访问地址");
@@ -1033,8 +1033,8 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       .evaluate((node) => Number.parseInt(getComputedStyle(node).fontWeight, 10));
     expect(cronLabelFontWeight).toBeGreaterThanOrEqual(600);
     const hostServiceAuthText = await hostServiceAuthModal.innerText();
-    expect(hostServiceAuthText.indexOf("任务服务")).toBeLessThan(
-      hostServiceAuthText.indexOf("运行时服务"),
+    expect(hostServiceAuthText.indexOf("Cron")).toBeLessThan(
+      hostServiceAuthText.indexOf("运行时"),
     );
     await pluginPage.confirmHostServiceAuthorization();
     await expect

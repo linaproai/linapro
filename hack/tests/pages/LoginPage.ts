@@ -10,19 +10,23 @@ export class LoginPage {
   private async waitForLocalePersistence(locale: string) {
     await expect
       .poll(async () => {
-        return await this.page.evaluate(() => {
-          const key = Object.keys(localStorage).find((item) =>
-            item.endsWith('preferences-locale'),
-          );
-          if (!key) {
-            return '';
-          }
-          try {
-            return JSON.parse(localStorage.getItem(key) || '{}')?.value || '';
-          } catch {
-            return '';
-          }
-        });
+        try {
+          return await this.page.evaluate(() => {
+            const key = Object.keys(localStorage).find((item) =>
+              item.endsWith('preferences-locale'),
+            );
+            if (!key) {
+              return '';
+            }
+            try {
+              return JSON.parse(localStorage.getItem(key) || '{}')?.value || '';
+            } catch {
+              return '';
+            }
+          });
+        } catch {
+          return '';
+        }
       })
       .toBe(locale);
   }

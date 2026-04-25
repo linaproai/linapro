@@ -12,6 +12,7 @@ type PluginListItem = {
   enabled?: number;
   id: string;
   installed?: number;
+  version?: string;
 };
 
 function unwrapApiData(payload: any) {
