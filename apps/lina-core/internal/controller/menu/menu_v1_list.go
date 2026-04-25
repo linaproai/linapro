@@ -1,3 +1,6 @@
+// This file implements the localized menu tree list endpoint for the menu
+// management page.
+
 package menu
 
 import (
@@ -11,9 +14,10 @@ import (
 func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error) {
 	// Query flat list
 	out, err := c.menuSvc.List(ctx, menusvc.ListInput{
-		Name:    req.Name,
-		Status:  req.Status,
-		Visible: req.Visible,
+		Name:      req.Name,
+		Status:    req.Status,
+		Visible:   req.Visible,
+		Localized: true,
 	})
 	if err != nil {
 		return nil, err

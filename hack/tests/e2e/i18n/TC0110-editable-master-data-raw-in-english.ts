@@ -4,7 +4,6 @@ import { DeptPage } from '../../pages/DeptPage';
 import { DictPage } from '../../pages/DictPage';
 import { JobGroupPage } from '../../pages/JobGroupPage';
 import { JobPage } from '../../pages/JobPage';
-import { MenuPage } from '../../pages/MenuPage';
 import { NoticePage } from '../../pages/NoticePage';
 import { PostPage } from '../../pages/PostPage';
 import { RolePage } from '../../pages/RolePage';
@@ -35,19 +34,14 @@ test.describe('TC0110 可编辑主数据退出 i18n 投影专项回归', () => {
     await expect(await rolePage.hasRole('普通用户')).toBe(true);
   });
 
-  test('TC-110b: 英文环境下菜单字典参数等管理页中的可编辑主数据保持数据库原值', async ({
+  test('TC-110b: 英文环境下字典参数等管理页中的可编辑主数据保持数据库原值', async ({
     adminPage,
     mainLayout,
   }) => {
-    const menuPage = new MenuPage(adminPage);
     const dictPage = new DictPage(adminPage);
     const configPage = new ConfigPage(adminPage);
 
     await mainLayout.switchLanguage('English');
-
-    await menuPage.goto();
-    await menuPage.expandAll();
-    await expect(await menuPage.hasMenu('系统设置')).toBe(true);
 
     await dictPage.goto();
     await expect(await dictPage.hasType('定时任务状态')).toBe(true);

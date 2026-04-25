@@ -259,6 +259,7 @@ test.describe("TC0060 菜单管理 CRUD", () => {
   }) => {
     const menuPage = new MenuPage(adminPage);
     await menuPage.goto();
+    await menuPage.searchMenu("权限管理");
 
     // Wait for table to load
     await adminPage
@@ -462,6 +463,7 @@ test.describe("TC0060 菜单管理 CRUD", () => {
   }) => {
     const menuPage = new MenuPage(adminPage);
     await menuPage.goto();
+    await menuPage.searchMenu("权限管理");
 
     // Wait for table to load
     await adminPage

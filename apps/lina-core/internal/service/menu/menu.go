@@ -4,6 +4,7 @@ package menu
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -78,13 +79,15 @@ type ListOutput struct {
 // List queries menu list with filters.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
 	var (
-		cols = dao.SysMenu.Columns()
-		m    = dao.SysMenu.Ctx(ctx)
+		cols             = dao.SysMenu.Columns()
+		m                = dao.SysMenu.Ctx(ctx)
+		nameKeyword      = strings.TrimSpace(in.Name)
+		normalizedSearch = strings.ToLower(nameKeyword)
 	)
 
 	// Apply filters
-	if in.Name != "" {
-		m = m.WhereLike(cols.Name, "%"+in.Name+"%")
+	if nameKeyword != "" && !in.Localized {
+		m = m.WhereLike(cols.Name, "%"+nameKeyword+"%")
 	}
 	if in.Status != nil {
 		m = m.Where(cols.Status, *in.Status)
@@ -101,7 +104,15 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}
 	list = s.menuFilter.FilterMenus(ctx, list)
 	if in.Localized {
-		s.localizeMenuEntities(ctx, list)
+		localizedList := make([]*entity.SysMenu, 0, len(list))
+		for _, menu := range list {
+			rawName := strings.ToLower(menu.Name)
+			s.localizeMenuEntity(ctx, menu)
+			if nameKeyword == "" || strings.Contains(rawName, normalizedSearch) || strings.Contains(strings.ToLower(menu.Name), normalizedSearch) {
+				localizedList = append(localizedList, menu)
+			}
+		}
+		list = localizedList
 	}
 
 	return &ListOutput{
@@ -204,6 +215,7 @@ func (s *serviceImpl) GetParentName(ctx context.Context, parentId int) string {
 	if err != nil {
 		return ""
 	}
+	s.localizeMenuEntity(ctx, parent)
 	return parent.Name
 }
 
@@ -459,6 +471,7 @@ func (s *serviceImpl) GetTreeSelect(ctx context.Context) ([]*MenuTreeNode, error
 	if err != nil {
 		return nil, err
 	}
+	s.localizeMenuEntities(ctx, list)
 
 	// Build map
 	nodeMap := make(map[int]*MenuTreeNode)
