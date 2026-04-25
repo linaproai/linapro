@@ -7,6 +7,7 @@ import type { Editor } from '@tiptap/vue-3';
 import { Button, Input, message, Modal, Space, Tooltip } from 'ant-design-vue';
 
 import { uploadApi } from '#/api';
+import { $t } from '#/locales';
 
 const props = defineProps<{
   editor: Editor | undefined;
@@ -77,7 +78,7 @@ function handleImageUpload() {
         const result = await uploadApi(file, { scene: props.scene || 'other' });
         props.editor?.chain().focus().setImage({ src: result.url }).run();
       } catch {
-        message.error('图片上传失败');
+        message.error($t('pages.editor.messages.imageUploadFailed'));
       }
     }
   };
@@ -110,12 +111,12 @@ const disabled = computed(() => props.disabled);
 <template>
   <div class="tiptap-toolbar" v-if="!disabled">
     <Space :size="2" wrap>
-      <Tooltip title="撤销">
+      <Tooltip :title="$t('pages.editor.actions.undo')">
         <Button size="small" type="text" @click="undo">
           <template #icon><IconifyIcon icon="ant-design:undo-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="重做">
+      <Tooltip :title="$t('pages.editor.actions.redo')">
         <Button size="small" type="text" @click="redo">
           <template #icon><IconifyIcon icon="ant-design:redo-outlined" /></template>
         </Button>
@@ -123,7 +124,7 @@ const disabled = computed(() => props.disabled);
 
       <span class="toolbar-divider" />
 
-      <Tooltip title="加粗">
+      <Tooltip :title="$t('pages.editor.actions.bold')">
         <Button
           size="small"
           :type="isActive('bold') ? 'primary' : 'text'"
@@ -132,7 +133,7 @@ const disabled = computed(() => props.disabled);
           <template #icon><IconifyIcon icon="ant-design:bold-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="斜体">
+      <Tooltip :title="$t('pages.editor.actions.italic')">
         <Button
           size="small"
           :type="isActive('italic') ? 'primary' : 'text'"
@@ -141,7 +142,7 @@ const disabled = computed(() => props.disabled);
           <template #icon><IconifyIcon icon="ant-design:italic-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="下划线">
+      <Tooltip :title="$t('pages.editor.actions.underline')">
         <Button
           size="small"
           :type="isActive('underline') ? 'primary' : 'text'"
@@ -150,7 +151,7 @@ const disabled = computed(() => props.disabled);
           <template #icon><IconifyIcon icon="ant-design:underline-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="删除线">
+      <Tooltip :title="$t('pages.editor.actions.strike')">
         <Button
           size="small"
           :type="isActive('strike') ? 'primary' : 'text'"
@@ -162,7 +163,7 @@ const disabled = computed(() => props.disabled);
 
       <span class="toolbar-divider" />
 
-      <Tooltip title="标题1">
+      <Tooltip :title="$t('pages.editor.actions.heading1')">
         <Button
           size="small"
           :type="isActive('heading', { level: 1 }) ? 'primary' : 'text'"
@@ -171,7 +172,7 @@ const disabled = computed(() => props.disabled);
           H1
         </Button>
       </Tooltip>
-      <Tooltip title="标题2">
+      <Tooltip :title="$t('pages.editor.actions.heading2')">
         <Button
           size="small"
           :type="isActive('heading', { level: 2 }) ? 'primary' : 'text'"
@@ -180,7 +181,7 @@ const disabled = computed(() => props.disabled);
           H2
         </Button>
       </Tooltip>
-      <Tooltip title="标题3">
+      <Tooltip :title="$t('pages.editor.actions.heading3')">
         <Button
           size="small"
           :type="isActive('heading', { level: 3 }) ? 'primary' : 'text'"
@@ -192,7 +193,7 @@ const disabled = computed(() => props.disabled);
 
       <span class="toolbar-divider" />
 
-      <Tooltip title="无序列表">
+      <Tooltip :title="$t('pages.editor.actions.bulletList')">
         <Button
           size="small"
           :type="isActive('bulletList') ? 'primary' : 'text'"
@@ -201,7 +202,7 @@ const disabled = computed(() => props.disabled);
           <template #icon><IconifyIcon icon="ant-design:unordered-list-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="有序列表">
+      <Tooltip :title="$t('pages.editor.actions.orderedList')">
         <Button
           size="small"
           :type="isActive('orderedList') ? 'primary' : 'text'"
@@ -210,7 +211,7 @@ const disabled = computed(() => props.disabled);
           <template #icon><IconifyIcon icon="ant-design:ordered-list-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="引用">
+      <Tooltip :title="$t('pages.editor.actions.blockquote')">
         <Button
           size="small"
           :type="isActive('blockquote') ? 'primary' : 'text'"
@@ -219,7 +220,7 @@ const disabled = computed(() => props.disabled);
           &ldquo;
         </Button>
       </Tooltip>
-      <Tooltip title="代码块">
+      <Tooltip :title="$t('pages.editor.actions.codeBlock')">
         <Button
           size="small"
           :type="isActive('codeBlock') ? 'primary' : 'text'"
@@ -231,17 +232,17 @@ const disabled = computed(() => props.disabled);
 
       <span class="toolbar-divider" />
 
-      <Tooltip title="分割线">
+      <Tooltip :title="$t('pages.editor.actions.horizontalRule')">
         <Button size="small" type="text" @click="setHorizontalRule">
           <template #icon><IconifyIcon icon="ant-design:minus-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="图片">
+      <Tooltip :title="$t('pages.editor.actions.image')">
         <Button size="small" type="text" @click="handleImageUpload">
           <template #icon><IconifyIcon icon="ant-design:picture-outlined" /></template>
         </Button>
       </Tooltip>
-      <Tooltip title="链接">
+      <Tooltip :title="$t('pages.editor.actions.link')">
         <Button
           size="small"
           :type="isActive('link') ? 'primary' : 'text'"
@@ -254,13 +255,13 @@ const disabled = computed(() => props.disabled);
 
     <Modal
       v-model:open="linkModalVisible"
-      title="插入链接"
+      :title="$t('pages.editor.link.title')"
       :width="400"
       @ok="confirmLink"
     >
       <Input
         v-model:value="linkUrl"
-        placeholder="请输入链接地址"
+        :placeholder="$t('pages.editor.link.placeholder')"
         @press-enter="confirmLink"
       />
     </Modal>

@@ -4,5 +4,22 @@
   "menu.plugin:plugin-demo-source:record-update.title": "Update Demo Record",
   "menu.plugin:plugin-demo-source:sidebar-entry.title": "Source Plugin Demo",
   "plugin.plugin-demo-source.description": "Source plugin sample with hosted pages and public/protected route examples.",
-  "plugin.plugin-demo-source.name": "Source Plugin Demo"
+  "plugin.plugin-demo-source.name": "Source Plugin Demo",
+  "plugin.plugin-demo-source.page.tableTitle": "Demo Records",
+  "plugin.plugin-demo-source.page.fields.title": "Record Title",
+  "plugin.plugin-demo-source.page.fields.content": "Record Content",
+  "plugin.plugin-demo-source.page.fields.attachment": "Attachment",
+  "plugin.plugin-demo-source.page.fields.updatedAt": "Updated At",
+  "plugin.plugin-demo-source.page.placeholders.title": "Please enter a record title",
+  "plugin.plugin-demo-source.page.placeholders.content": "Please enter record content",
+  "plugin.plugin-demo-source.page.validation.title": "Please enter a record title",
+  "plugin.plugin-demo-source.page.messages.deleteConfirm": "Delete this record?",
+  "plugin.plugin-demo-source.page.messages.attachmentHint": "Attachments are stored together with the source-plugin demo record. If plugin storage is purged during uninstall, the attached file is removed as well.",
+  "plugin.plugin-demo-source.page.messages.currentAttachment": "Current attachment: {name}",
+  "plugin.plugin-demo-source.page.messages.removeAttachment": "Remove the current attachment on submit",
+  "plugin.plugin-demo-source.page.messages.uploadText": "Click or drag a file here to upload a single attachment",
+  "plugin.plugin-demo-source.page.messages.uploadHint": "Skip upload to keep the current attachment. Uploading a new file replaces the existing attachment automatically.",
+  "plugin.plugin-demo-source.page.modal.createTitle": "Create Demo Record",
+  "plugin.plugin-demo-source.page.modal.editTitle": "Edit Demo Record",
+  "plugin.plugin-demo-source.page.attachmentFallback": "plugin-demo-source-attachment"
 }

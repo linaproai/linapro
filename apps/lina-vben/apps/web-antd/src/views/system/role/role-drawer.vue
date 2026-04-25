@@ -104,7 +104,11 @@ async function handleConfirm() {
     const data = cloneDeep(await formApi.getValues());
     data.menuIds = menuIds;
     await (isUpdate.value ? roleUpdate(data.id, data) : roleAdd(data));
-    message.success(isUpdate.value ? '更新成功' : '创建成功');
+    message.success(
+      isUpdate.value
+        ? $t('pages.common.updateSuccess')
+        : $t('pages.common.createSuccess'),
+    );
     emit('reload');
     resetInitialized();
     drawerApi.close();

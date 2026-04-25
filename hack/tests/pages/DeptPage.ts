@@ -11,6 +11,18 @@ import {
 export class DeptPage {
   constructor(private page: Page) {}
 
+  private resolveLocalizedLabel(label: string) {
+    const labelMap: Record<string, RegExp> = {
+      部门名称: /部门名称|Department Name|plugin\.org-center\.dept\.fields\.name/i,
+      部门编码: /部门编码|Department Code|plugin\.org-center\.dept\.fields\.code/i,
+    };
+    const localizedLabel = labelMap[label];
+    if (localizedLabel) {
+      return this.page.getByLabel(localizedLabel).first();
+    }
+    return this.page.getByLabel(label, { exact: true }).first();
+  }
+
   /** The Vben drawer container */
   private get drawer() {
     return this.page.locator('[role="dialog"]');
@@ -24,7 +36,7 @@ export class DeptPage {
   /** Click "展开" toolbar button to expand all tree nodes */
   async expandAll() {
     await this.page
-      .getByRole('button', { name: /展\s*开/ })
+      .getByRole('button', { name: /展\s*开|Expand/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -32,7 +44,7 @@ export class DeptPage {
 
   /** Fill the search form field by label */
   async fillSearchField(label: string, value: string) {
-    const input = this.page.getByLabel(label, { exact: true }).first();
+    const input = this.resolveLocalizedLabel(label);
     await input.clear();
     await input.fill(value);
   }
@@ -40,7 +52,7 @@ export class DeptPage {
   /** Click search/query button */
   async clickSearch() {
     await this.page
-      .getByRole('button', { name: /搜\s*索/ })
+      .getByRole('button', { name: /搜\s*索|Search/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -49,7 +61,7 @@ export class DeptPage {
   /** Click reset button */
   async clickReset() {
     await this.page
-      .getByRole('button', { name: /重\s*置/ })
+      .getByRole('button', { name: /重\s*置|Reset/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -58,7 +70,7 @@ export class DeptPage {
   /** Click "折叠" toolbar button to collapse all tree nodes */
   async collapseAll() {
     await this.page
-      .getByRole('button', { name: /折\s*叠/ })
+      .getByRole('button', { name: /折\s*叠|Collapse/i })
       .first()
       .click();
     await waitForRouteReady(this.page);

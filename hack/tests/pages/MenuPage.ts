@@ -32,7 +32,7 @@ export class MenuPage {
   /** Click "展开" toolbar button to expand all tree nodes */
   async expandAll() {
     const expandButton = this.page
-      .getByRole("button", { name: /展\s*开/ })
+      .getByRole("button", { name: /展\s*开|Expand/i })
       .first();
     if (await expandButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await expandButton.click();
@@ -41,7 +41,7 @@ export class MenuPage {
     }
 
     const collapseButton = this.page
-      .getByRole("button", { name: /折\s*叠/ })
+      .getByRole("button", { name: /折\s*叠|Collapse/i })
       .first();
     if (await collapseButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await waitForBusyIndicatorsToClear(this.page);
@@ -54,7 +54,7 @@ export class MenuPage {
   /** Click "折叠" toolbar button to collapse all tree nodes */
   async collapseAll() {
     const collapseButton = this.page
-      .getByRole("button", { name: /折\s*叠/ })
+      .getByRole("button", { name: /折\s*叠|Collapse/i })
       .first();
     if (await collapseButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await collapseButton.click();
@@ -63,7 +63,7 @@ export class MenuPage {
     }
 
     const expandButton = this.page
-      .getByRole("button", { name: /展\s*开/ })
+      .getByRole("button", { name: /展\s*开|Expand/i })
       .first();
     if (await expandButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await waitForBusyIndicatorsToClear(this.page);

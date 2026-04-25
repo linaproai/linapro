@@ -25,6 +25,7 @@ import {
   messageRead,
   messageReadAll,
 } from '#/api/system/message';
+import { $t } from '#/locales';
 import { useMessageStore } from '#/store/message';
 
 import NoticePreviewModal from '../notice/notice-preview-modal.vue';
@@ -89,8 +90,8 @@ async function handleMarkAllRead() {
 
 function handleClearAll() {
   Modal.confirm({
-    title: '提示',
-    content: '确认清空所有消息？清空后不可恢复。',
+    title: $t('pages.common.confirmTitle'),
+    content: $t('pages.system.message.messages.clearAllConfirm'),
     onOk: async () => {
       await messageClear();
       messageStore.unreadCount = 0;
@@ -100,7 +101,7 @@ function handleClearAll() {
 }
 
 function getTypeLabel(type: number) {
-  return type === 1 ? '通知' : '公告';
+  return type === 1 ? $t('pages.status.notice') : $t('pages.status.announcement');
 }
 
 function getTypeColor(type: number) {
@@ -114,14 +115,14 @@ onMounted(() => {
 
 <template>
   <Page :auto-content-height="true">
-    <Card title="消息列表">
+    <Card :title="$t('pages.system.message.tableTitle')">
       <template #extra>
         <Space>
           <Button :disabled="!hasMessages" @click="handleMarkAllRead">
-            全部已读
+            {{ $t('pages.system.message.actions.markAllRead') }}
           </Button>
           <Button :disabled="!hasMessages" danger @click="handleClearAll">
-            清空消息
+            {{ $t('pages.system.message.actions.clearAll') }}
           </Button>
         </Space>
       </template>
@@ -159,7 +160,7 @@ onMounted(() => {
                 size="small"
                 @click.stop="handleDelete(item)"
               >
-                删除
+                {{ $t('pages.common.delete') }}
               </Button>
             </template>
           </ListItem>
@@ -173,7 +174,9 @@ onMounted(() => {
           :total="total"
           show-size-changer
           show-quick-jumper
-          :show-total="(t: number) => `共 ${t} 条`"
+          :show-total="
+            (t: number) => $t('pages.system.message.pagination.total', { total: t })
+          "
           @change="handlePageChange"
         />
       </div>

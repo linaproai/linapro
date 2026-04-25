@@ -2,13 +2,13 @@
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
-import { $t } from '@vben/locales';
 import { cloneDeep, getPopupContainer } from '@vben/utils';
 
 import { Skeleton } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { menuAdd, menuInfo, menuList, menuUpdate } from '#/api/system/menu';
+import { $t } from '#/locales';
 import { addFullName, getDescendantIds, listToTree, treeToList } from '#/utils/tree';
 import { defaultFormValueGetter, useBeforeCloseDiff } from '#/utils/popup';
 
@@ -24,7 +24,9 @@ const emit = defineEmits<{ reload: [] }>();
 
 const isUpdate = ref(false);
 const title = computed(() => {
-  return isUpdate.value ? $t('pages.common.edit') : $t('pages.common.add');
+  return isUpdate.value
+    ? $t('pages.system.menu.drawer.editTitle')
+    : $t('pages.system.menu.drawer.createTitle');
 });
 const loading = ref(false);
 
@@ -42,7 +44,6 @@ const [BasicForm, formApi] = useVbenForm({
 });
 
 async function setupMenuSelect(currentId?: number | string) {
-  // menu API returns tree structure
   const menuTree = await menuList();
   /**
    * 过滤掉按钮类型
@@ -73,7 +74,7 @@ async function setupMenuSelect(currentId?: number | string) {
   const fullMenuTree = [
     {
       id: 0,
-      name: '根菜单',
+      name: $t('pages.system.menu.messages.rootMenu'),
       children: rebuiltTree,
     },
   ];
@@ -125,7 +126,6 @@ const [BasicDrawer, drawerApi] = useVbenDrawer({
     const data = drawerApi.getData() as ModalProps;
     isUpdate.value = data?.update ?? false;
 
-    // 加载菜单树选择，编辑时传入当前菜单ID以禁用自身及子孙节点
     const currentId = data?.update && data.id ? Number(data.id) : undefined;
     await setupMenuSelect(currentId);
 
@@ -134,7 +134,6 @@ const [BasicDrawer, drawerApi] = useVbenDrawer({
       await formApi.setValues(record);
     } else {
       await formApi.resetForm();
-      // 新增子菜单时，设置上级菜单（必须在 resetForm 之后设置，否则会被重置）
       if (data?.parentId) {
         await formApi.setFieldValue('parentId', data.parentId);
       }

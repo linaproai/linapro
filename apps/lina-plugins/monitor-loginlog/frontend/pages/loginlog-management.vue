@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/loginlog',
-  title: '登录日志',
+  title: 'Login Logs',
 };
 </script>
 
@@ -21,10 +21,11 @@ import {
   loginLogExport,
   loginLogList,
 } from './loginlog-client';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 import { downloadBlob } from '#/utils/download';
 
-import { columns, querySchema } from './data';
+import { buildColumns, buildQuerySchema } from './data';
 import LoginlogDetailModal from './loginlog-detail-modal.vue';
 
 const dictStore = useDictStore();
@@ -50,7 +51,7 @@ const [DetailModalRef, detailModalApi] = useVbenModal({
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: querySchema,
+    schema: buildQuerySchema(),
     commonConfig: {
       labelWidth: 80,
       componentProps: {
@@ -64,7 +65,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       highlight: true,
       reserve: true,
     },
-    columns,
+    columns: buildColumns(),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -138,12 +139,12 @@ function handlePreview(row: LoginLog) {
 
 function handleClean() {
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: '确认要清空所有登录日志数据吗？',
+    content: $t('plugin.monitor-loginlog.messages.clearConfirm'),
     onOk: async () => {
       await loginLogClean();
-      message.success('清空成功');
+      message.success($t('plugin.monitor-loginlog.messages.clearSuccess'));
       await gridApi.reload();
     },
   });
@@ -153,12 +154,14 @@ function handleDelete() {
   const rows = gridApi.grid.getCheckboxRecords() as LoginLog[];
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条登录日志吗？`,
+    content: $t('plugin.monitor-loginlog.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       await loginLogDelete(ids);
-      message.success('删除成功');
+      message.success($t('pages.common.deleteSuccess'));
       await gridApi.query();
     },
   });
@@ -167,15 +170,15 @@ function handleDelete() {
 async function handleExport() {
   const content =
     checkedRows.value.length > 0
-      ? '是否导出选中的记录？'
-      : '是否导出全部数据？';
+      ? $t('pages.exportConfirm.selected')
+      : $t('pages.exportConfirm.all');
 
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'primary',
     content,
-    okText: '确认',
-    cancelText: '取消',
+    okText: $t('pages.common.confirm'),
+    cancelText: $t('pages.common.cancel'),
     onOk: async () => {
       try {
         const formValues = gridApi.formApi.form.values;
@@ -192,10 +195,10 @@ async function handleExport() {
         }
 
         const data = await loginLogExport(params);
-        downloadBlob(data, '登录日志导出.xlsx');
-        message.success('导出成功');
+        downloadBlob(data, $t('plugin.monitor-loginlog.exportFileName'));
+        message.success($t('pages.common.exportSuccess'));
       } catch {
-        message.error('导出失败');
+        message.error($t('pages.common.exportFailed'));
       }
     },
   });
@@ -204,24 +207,26 @@ async function handleExport() {
 
 <template>
   <Page :auto-content-height="true">
-    <Grid table-title="登录日志列表">
+    <Grid :table-title="$t('plugin.monitor-loginlog.tableTitle')">
       <template #toolbar-tools>
         <Space>
-          <a-button @click="handleClean">清 空</a-button>
-          <a-button @click="handleExport">导 出</a-button>
+          <a-button @click="handleClean">{{ $t('pages.common.clear') }}</a-button>
+          <a-button @click="handleExport">{{ $t('pages.common.export') }}</a-button>
           <a-button
             :disabled="!hasChecked"
             danger
             type="primary"
             @click="handleDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
         </Space>
       </template>
 
       <template #action="{ row }">
-        <ghost-button @click.stop="handlePreview(row)">详情</ghost-button>
+        <ghost-button @click.stop="handlePreview(row)">
+          {{ $t('pages.common.detail') }}
+        </ghost-button>
       </template>
     </Grid>
 

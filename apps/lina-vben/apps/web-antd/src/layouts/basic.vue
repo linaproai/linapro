@@ -68,7 +68,8 @@ const notifications = computed<NotificationItem[]>(() =>
     date: msg.createdAt,
     isRead: msg.isRead === 1,
     message: msg.title,
-    title: msg.type === 1 ? '通知' : '公告',
+    title:
+      msg.type === 1 ? $t('pages.status.notice') : $t('pages.status.announcement'),
     sourceType: msg.sourceType,
     sourceId: msg.sourceId,
   })),
@@ -95,6 +96,8 @@ const avatar = computed(() => {
   return userStore.userInfo?.avatar || preferences.app.defaultAvatar;
 });
 
+const displayRealName = computed(() => userStore.userInfo?.realName || '');
+
 async function handleLogout() {
   messageStore.stopPolling();
   await authStore.logout(false);
@@ -102,8 +105,8 @@ async function handleLogout() {
 
 async function handleNoticeClear() {
   Modal.confirm({
-    title: '提示',
-    content: '确认清空所有消息通知？',
+    title: $t('pages.common.confirmTitle'),
+    content: $t('pages.layout.notifications.clearAllConfirm'),
     onOk: async () => {
       await messageStore.clearAll();
     },
@@ -540,7 +543,7 @@ watch(
       await updateWatermark({
         content:
           content ||
-          `${userStore.userInfo?.username} - ${userStore.userInfo?.realName}`,
+          `${userStore.userInfo?.username} - ${displayRealName.value}`,
       });
     } else {
       destroyWatermark();
@@ -583,7 +586,7 @@ watch(
         <UserDropdown
           :avatar
           :menus
-          :text="userStore.userInfo?.realName"
+          :text="displayRealName"
           :description="userStore.userInfo?.email || ''"
           :tag-text="userStore.userInfo?.username"
           @logout="handleLogout"

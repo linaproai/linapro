@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import {
   waitForBusyIndicatorsToClear,
@@ -10,6 +10,20 @@ import {
 
 export class DictPage {
   constructor(private page: Page) {}
+
+  private resolveLocalizedLabel(scope: Locator, label: string) {
+    const labelMap: Record<string, RegExp> = {
+      字典名称: /字典名称|Dictionary Name/i,
+      字典类型: /字典类型|Dictionary Type/i,
+      字典标签: /字典标签|Dictionary Label/i,
+      数据标签: /数据标签|Data Label/i,
+    };
+    const localizedLabel = labelMap[label];
+    if (localizedLabel) {
+      return scope.getByLabel(localizedLabel).first();
+    }
+    return scope.getByLabel(label, { exact: true }).first();
+  }
 
   /** The modal/drawer dialog container */
   private get dialog() {
@@ -83,10 +97,12 @@ export class DictPage {
   }
 
   async hasType(typeName: string): Promise<boolean> {
-    return this.typePanel
-      .locator('.vxe-body--row', { hasText: typeName })
-      .isVisible({ timeout: 5000 })
-      .catch(() => false);
+    try {
+      await this.resolveTypeRow(typeName);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async editType(typeName: string, fields: { name?: string; type?: string }) {
@@ -266,7 +282,7 @@ export class DictPage {
 
   /** Fill search field in the type panel (left) */
   async fillTypeSearchField(label: string, value: string) {
-    const input = this.typePanel.getByLabel(label, { exact: true }).first();
+    const input = this.resolveLocalizedLabel(this.typePanel, label);
     await input.clear();
     await input.fill(value);
   }
@@ -291,7 +307,7 @@ export class DictPage {
 
   /** Fill search field in the data panel (right) */
   async fillDataSearchField(label: string, value: string) {
-    const input = this.dataPanel.getByLabel(label, { exact: true }).first();
+    const input = this.resolveLocalizedLabel(this.dataPanel, label);
     await input.clear();
     await input.fill(value);
   }

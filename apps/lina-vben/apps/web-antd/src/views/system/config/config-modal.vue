@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { message } from 'ant-design-vue';
 
@@ -15,7 +16,11 @@ const emit = defineEmits<{ reload: [] }>();
 
 const isEdit = ref(false);
 const recordId = ref<number>(0);
-const title = computed(() => (isEdit.value ? '编辑参数设置' : '新增参数设置'));
+const title = computed(() =>
+  isEdit.value
+    ? $t('pages.system.config.drawer.editTitle')
+    : $t('pages.system.config.drawer.createTitle'),
+);
 
 const [BasicForm, formApi] = useVbenForm({
   schema: modalSchema,
@@ -56,11 +61,11 @@ async function handleConfirm() {
     if (isEdit.value) {
       await configUpdate(recordId.value, data);
       await syncPublicFrontendSettings();
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await configAdd(data);
       await syncPublicFrontendSettings();
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
     emit('reload');
     modalApi.close();

@@ -13,6 +13,7 @@ import { cloneDeep } from '@vben/utils';
 import { Alert, Checkbox, RadioGroup, Space } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { $t } from '#/locales';
 import { findGroupParentIds } from '#/utils/tree';
 
 /**
@@ -270,11 +271,11 @@ defineExpose({
         <Alert class="mx-2" type="info">
           <template #message>
             <div>
-              已选中
+              {{ $t('pages.tree.messages.selectedPrefix') }}
               <span class="text-primary mx-1 font-semibold">
                 {{ checkedNum }}
               </span>
-              个节点
+              {{ $t('pages.tree.messages.selectedSuffix') }}
             </div>
           </template>
         </Alert>
@@ -282,10 +283,10 @@ defineExpose({
       <template #toolbar-tools>
         <Space>
           <a-button @click="setExpandOrCollapse(false)">
-            折叠
+            {{ $t('pages.common.collapse') }}
           </a-button>
           <a-button @click="setExpandOrCollapse(true)">
-            展开
+            {{ $t('pages.common.expand') }}
           </a-button>
         </Space>
       </template>

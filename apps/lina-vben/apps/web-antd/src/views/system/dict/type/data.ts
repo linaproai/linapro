@@ -1,6 +1,8 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
+import { $t } from '#/locales';
+
 import { z } from '#/adapter/form';
 
 /** 查询表单schema */
@@ -8,12 +10,12 @@ export const querySchema: VbenFormSchema[] = [
   {
     component: 'Input',
     fieldName: 'name',
-    label: '字典名称',
+    label: $t('pages.system.dict.type.fields.name'),
   },
   {
     component: 'Input',
     fieldName: 'type',
-    label: '字典类型',
+    label: $t('pages.system.dict.type.fields.type'),
   },
 ];
 
@@ -21,26 +23,26 @@ export const querySchema: VbenFormSchema[] = [
 export const columns: VxeGridProps['columns'] = [
   { type: 'checkbox', width: 60 },
   {
-    title: '字典名称',
+    title: $t('pages.system.dict.type.fields.name'),
     field: 'name',
   },
   {
-    title: '字典类型',
+    title: $t('pages.system.dict.type.fields.type'),
     field: 'type',
   },
   {
-    title: '备注',
+    title: $t('pages.common.remark'),
     field: 'remark',
   },
   {
-    title: '创建时间',
+    title: $t('pages.common.createdAt'),
     field: 'createdAt',
   },
   {
     field: 'action',
     fixed: 'right',
     slots: { default: 'action' },
-    title: '操作',
+    title: $t('pages.common.actions'),
     resizable: false,
     width: 'auto',
   },
@@ -51,22 +53,24 @@ export const modalSchema: VbenFormSchema[] = [
   {
     component: 'Input',
     fieldName: 'name',
-    label: '字典名称',
+    label: $t('pages.system.dict.type.fields.name'),
     rules: 'required',
   },
   {
     component: 'Input',
     fieldName: 'type',
-    label: '字典类型',
-    help: '使用英文/数字/下划线命名, 如:sys_normal_disable',
+    label: $t('pages.system.dict.type.fields.type'),
+    help: $t('pages.system.dict.type.help.typeRule'),
     rules: z
       .string()
-      .regex(/^[a-z0-9_]+$/i, { message: '字典类型只能使用英文/数字/下划线命名' }),
+      .regex(/^[a-z0-9_]+$/i, {
+        message: $t('pages.system.dict.type.messages.typeRule'),
+      }),
   },
   {
     component: 'Textarea',
     fieldName: 'remark',
-    label: '备注',
+    label: $t('pages.common.remark'),
     componentProps: {
       rows: 3,
     },

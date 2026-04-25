@@ -8,6 +8,7 @@ import { useVbenDrawer } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { $t } from '#/locales';
 import {
   deptAdd,
   deptExclude,
@@ -31,7 +32,11 @@ interface DrawerProps {
 
 const isUpdate = ref(false);
 const deptId = ref<number>(0);
-const title = computed(() => (isUpdate.value ? '编辑部门' : '新增部门'));
+const title = computed(() =>
+  isUpdate.value
+    ? $t('plugin.org-center.dept.drawer.editTitle')
+    : $t('plugin.org-center.dept.drawer.createTitle'),
+);
 
 const [BasicForm, formApi] = useVbenForm({
   commonConfig: {
@@ -103,7 +108,7 @@ async function loadLeaderUsers(targetDeptId: number, keyword?: string) {
         filterOption: false,
         onSearch: (val: string) => loadLeaderUsers(targetDeptId, val),
         options,
-        placeholder: '请选择部门负责人',
+        placeholder: $t('plugin.org-center.dept.placeholders.selectLeader'),
         showSearch: true,
       },
       fieldName: 'leader',
@@ -174,15 +179,18 @@ async function handleConfirm() {
     const data = await formApi.getValues();
     if (isUpdate.value) {
       await deptUpdate(deptId.value, data);
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await deptAdd(data);
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
     emit('reload');
     drawerApi.close();
   } catch (error) {
-    const messageText = error instanceof Error ? error.message : '保存部门失败';
+    const messageText =
+      error instanceof Error
+        ? error.message
+        : $t('plugin.org-center.dept.messages.saveFailed');
     message.error(messageText);
   } finally {
     drawerApi.lock(false);

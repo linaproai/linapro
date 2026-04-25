@@ -8,7 +8,9 @@ import { useVbenModal } from '@vben/common-ui';
 import { Descriptions, DescriptionsItem } from 'ant-design-vue';
 
 import { DictTag } from '#/components/dict';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
+import { localizeSeedLoginLogMessage } from '#/utils/display-l10n';
 
 const dictStore = useDictStore();
 
@@ -37,33 +39,36 @@ const loginStatusDicts = computed(() => {
     :footer="false"
     :fullscreen-button="false"
     class="w-[550px]"
-    title="登录日志详情"
+    :title="$t('plugin.monitor-loginlog.detail.title')"
   >
     <Descriptions v-if="loginInfo" size="small" :column="1" bordered>
-      <DescriptionsItem label="用户账号" :label-style="{ minWidth: '100px' }">
+      <DescriptionsItem
+        :label="$t('plugin.monitor-loginlog.fields.userName')"
+        :label-style="{ minWidth: '100px' }"
+      >
         {{ loginInfo.userName }}
       </DescriptionsItem>
-      <DescriptionsItem label="登录状态">
+      <DescriptionsItem :label="$t('plugin.monitor-loginlog.fields.status')">
         <DictTag :dicts="loginStatusDicts as any" :value="loginInfo.status" />
       </DescriptionsItem>
-      <DescriptionsItem label="IP地址">
+      <DescriptionsItem :label="$t('plugin.monitor-loginlog.fields.ipAddress')">
         {{ loginInfo.ip }}
       </DescriptionsItem>
-      <DescriptionsItem label="浏览器">
+      <DescriptionsItem :label="$t('plugin.monitor-loginlog.fields.browser')">
         {{ loginInfo.browser }}
       </DescriptionsItem>
-      <DescriptionsItem label="操作系统">
+      <DescriptionsItem :label="$t('plugin.monitor-loginlog.fields.os')">
         {{ loginInfo.os }}
       </DescriptionsItem>
-      <DescriptionsItem label="提示信息">
+      <DescriptionsItem :label="$t('plugin.monitor-loginlog.fields.message')">
         <span
           class="font-semibold"
           :class="{ 'text-red-500': loginInfo.status !== 0 }"
         >
-          {{ loginInfo.msg }}
+          {{ localizeSeedLoginLogMessage(loginInfo.msg) }}
         </span>
       </DescriptionsItem>
-      <DescriptionsItem label="登录时间">
+      <DescriptionsItem :label="$t('plugin.monitor-loginlog.fields.loginTime')">
         {{ loginInfo.loginTime }}
       </DescriptionsItem>
     </Descriptions>

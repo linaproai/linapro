@@ -10,6 +10,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Avatar, message, Space, Tooltip, Upload } from 'ant-design-vue';
 
 import { dataURLtoBlob } from '#/utils/file/base64Conver';
+import { $t } from '#/locales';
 
 import CropperImage from './cropper.vue';
 
@@ -55,7 +56,7 @@ function modalLoading(loading: boolean) {
 
 function handleBeforeUpload(file: File) {
   if (props.size > 0 && file.size > 1024 * 1024 * props.size) {
-    emit('uploadError', { msg: '图片太大' });
+    emit('uploadError', { msg: $t('pages.cropper.tooLarge') });
     return false;
   }
   const reader = new FileReader();
@@ -96,7 +97,7 @@ async function handleOk() {
   const uploadApi = props.uploadApi;
   if (uploadApi && typeof uploadApi === 'function') {
     if (!previewSource.value) {
-      message.warn('未选择图片');
+      message.warn($t('pages.cropper.noImageSelected'));
       return;
     }
     const blob = dataURLtoBlob(previewSource.value);
@@ -114,9 +115,9 @@ async function handleOk() {
 <template>
   <BasicModal
     v-bind="$attrs"
-    confirm-text="确认"
+    :confirm-text="$t('pages.common.confirm')"
     :fullscreen-button="false"
-    title="头像裁剪"
+    :title="$t('pages.cropper.title')"
     class="w-[800px]"
   >
     <div :class="prefixCls">
@@ -140,7 +141,7 @@ async function handleOk() {
             :file-list="[]"
             accept="image/*"
           >
-            <Tooltip title="选择图片" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.selectImage')" placement="bottom">
               <a-button size="small" type="primary">
                 <template #icon>
                   <div class="flex items-center justify-center">
@@ -151,7 +152,7 @@ async function handleOk() {
             </Tooltip>
           </Upload>
           <Space>
-            <Tooltip title="重置" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.reset')" placement="bottom">
               <a-button
                 :disabled="!src"
                 size="small"
@@ -165,7 +166,7 @@ async function handleOk() {
                 </template>
               </a-button>
             </Tooltip>
-            <Tooltip title="向左旋转" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.rotateLeft')" placement="bottom">
               <a-button
                 :disabled="!src"
                 size="small"
@@ -181,7 +182,7 @@ async function handleOk() {
                 </template>
               </a-button>
             </Tooltip>
-            <Tooltip title="向右旋转" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.rotateRight')" placement="bottom">
               <a-button
                 :disabled="!src"
                 size="small"
@@ -197,7 +198,7 @@ async function handleOk() {
                 </template>
               </a-button>
             </Tooltip>
-            <Tooltip title="水平翻转" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.flipHorizontal')" placement="bottom">
               <a-button
                 :disabled="!src"
                 size="small"
@@ -211,7 +212,7 @@ async function handleOk() {
                 </template>
               </a-button>
             </Tooltip>
-            <Tooltip title="垂直翻转" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.flipVertical')" placement="bottom">
               <a-button
                 :disabled="!src"
                 size="small"
@@ -225,7 +226,7 @@ async function handleOk() {
                 </template>
               </a-button>
             </Tooltip>
-            <Tooltip title="放大" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.zoomIn')" placement="bottom">
               <a-button
                 :disabled="!src"
                 size="small"
@@ -239,7 +240,7 @@ async function handleOk() {
                 </template>
               </a-button>
             </Tooltip>
-            <Tooltip title="缩小" placement="bottom">
+            <Tooltip :title="$t('pages.cropper.actions.zoomOut')" placement="bottom">
               <a-button
                 :disabled="!src"
                 size="small"
@@ -260,7 +261,7 @@ async function handleOk() {
         <div :class="`${prefixCls}-preview`">
           <img
             v-if="previewSource"
-            alt="预览"
+            :alt="$t('pages.common.preview')"
             :src="previewSource"
           />
         </div>

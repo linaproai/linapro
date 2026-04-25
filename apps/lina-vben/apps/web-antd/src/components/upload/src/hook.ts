@@ -12,6 +12,7 @@ import type { FileInfo } from '#/api/system/file/model';
 
 import { onUnmounted, ref, watch } from 'vue';
 
+import { $t } from '@vben/locales';
 import { message, Upload } from 'ant-design-vue';
 
 import { fileInfoByIds } from '#/api/system/file';
@@ -124,7 +125,7 @@ export function useUpload(
   function beforeUpload(file: FileType) {
     const isLtMax = file.size / 1024 / 1024 < props.maxSize;
     if (!isLtMax) {
-      message.error(`文件大小不能超过${props.maxSize}MB`);
+      message.error($t('pages.upload.tooLarge', { maxSize: props.maxSize }));
       return Upload.LIST_IGNORE;
     }
     return file;
@@ -145,7 +146,7 @@ export function useUpload(
       });
       info.onSuccess!(res);
       if (props.showSuccessMsg !== false) {
-        message.success('上传成功');
+        message.success($t('pages.upload.success'));
       }
       emit('success', info.file as File, res);
     } catch (error: any) {

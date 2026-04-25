@@ -64,9 +64,10 @@ func New(menuFilter MenuFilter) Service {
 
 // ListInput defines the supported filters for menu list queries.
 type ListInput struct {
-	Name    string
-	Status  *int
-	Visible *int // Visible: 1=Show 0=Hide
+	Name      string
+	Status    *int
+	Visible   *int // Visible: 1=Show 0=Hide
+	Localized bool // Localized controls whether list results are translated for runtime navigation surfaces.
 }
 
 // ListOutput defines output for List function.
@@ -99,7 +100,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		return nil, err
 	}
 	list = s.menuFilter.FilterMenus(ctx, list)
-	s.localizeMenuEntities(ctx, list)
+	if in.Localized {
+		s.localizeMenuEntities(ctx, list)
+	}
 
 	return &ListOutput{
 		List: list,
@@ -189,7 +192,6 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysMenu, err
 	if menu == nil {
 		return nil, gerror.New("菜单不存在")
 	}
-	s.localizeMenuEntity(ctx, menu)
 	return menu, nil
 }
 

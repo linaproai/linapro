@@ -1,0 +1,58 @@
+import { test, expect } from '../../fixtures/auth';
+import { waitForTableReady } from '../../support/ui';
+
+const untranslatedKeyPattern = /\b(?:plugin|pages)\.[A-Za-z0-9_.:-]+\b/g;
+
+const pluginAuditCases = [
+  {
+    path: '/system/dept',
+    visibleTexts: ['Department Name', 'Actions'],
+  },
+  {
+    path: '/system/post',
+    visibleTexts: ['Position Name', 'Actions'],
+  },
+  {
+    path: '/system/notice',
+    visibleTexts: ['Notice Title', 'Created By'],
+  },
+  {
+    path: '/monitor/loginlog',
+    visibleTexts: ['User Account', 'Actions'],
+  },
+  {
+    path: '/monitor/online',
+    visibleTexts: ['Login Account', 'Actions'],
+  },
+  {
+    path: '/monitor/operlog',
+    visibleTexts: ['Module Name', 'Actions'],
+  },
+] as const;
+
+test.describe('TC0111 源插件静态文案不再泄漏原始 i18n key', () => {
+  test('TC-111a: 英文环境下部门岗位与监控插件页展示翻译后的静态文案', async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    await mainLayout.switchLanguage('English');
+
+    for (const pluginAuditCase of pluginAuditCases) {
+      await test.step(pluginAuditCase.path, async () => {
+        await adminPage.goto(pluginAuditCase.path);
+        await waitForTableReady(adminPage);
+
+        const bodyText = await adminPage.locator('body').innerText();
+        for (const text of pluginAuditCase.visibleTexts) {
+          expect(bodyText).toContain(text);
+        }
+
+        const rawKeys = [...new Set(bodyText.match(untranslatedKeyPattern) || [])];
+        expect(
+          rawKeys,
+          `${pluginAuditCase.path} still shows raw i18n keys: ${rawKeys.join(', ')}`,
+        ).toEqual([]);
+      });
+    }
+  });
+});

@@ -2,6 +2,7 @@ import type { JobRecord } from './model';
 import type { CSSProperties } from 'vue';
 
 import { h } from 'vue';
+import { $t } from '@vben/locales';
 
 interface CronLogRetentionLike {
   mode?: string;
@@ -36,25 +37,27 @@ export const JOB_CRON_CODE_CONTAINER_STYLE: CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-export const JOB_PLUGIN_PAUSED_LABEL = '插件处理器不可用';
+export const JOB_PLUGIN_PAUSED_LABEL = $t(
+  'pages.system.job.status.pluginUnavailable',
+);
 
 export const JOB_PLUGIN_PAUSED_TOOLTIP =
-  '该任务依赖插件提供的处理器；当插件被禁用、卸载或处理器未注册时，系统会自动暂停任务，待插件恢复后可重新启用。';
+  $t('pages.system.job.messages.pluginPausedTooltip');
 
 export const JOB_STATUS_FILTER_OPTIONS = [
-  { label: '启用', value: 'enabled' },
-  { label: '停用', value: 'disabled' },
+  { label: $t('pages.system.job.status.enabled'), value: 'enabled' },
+  { label: $t('pages.system.job.status.disabled'), value: 'disabled' },
   { label: JOB_PLUGIN_PAUSED_LABEL, value: 'paused_by_plugin' },
 ];
 
 export const JOB_SCOPE_OPTIONS = [
-  { label: '仅主节点执行', value: 'master_only' },
-  { label: '所有节点执行', value: 'all_node' },
+  { label: $t('pages.system.job.scope.masterOnly'), value: 'master_only' },
+  { label: $t('pages.system.job.scope.allNodes'), value: 'all_node' },
 ];
 
 export const JOB_CONCURRENCY_OPTIONS = [
-  { label: '单例执行', value: 'singleton' },
-  { label: '允许并行执行', value: 'parallel' },
+  { label: $t('pages.system.job.concurrency.singleton'), value: 'singleton' },
+  { label: $t('pages.system.job.concurrency.parallel'), value: 'parallel' },
 ];
 
 export type JobSourceKind =
@@ -79,12 +82,12 @@ export function getJobSourceKind(record?: Partial<JobRecord> | null): JobSourceK
 export function getJobSourceLabel(source: JobSourceKind) {
   switch (source) {
     case 'host_builtin':
-      return '宿主内置';
+      return $t('pages.system.job.source.hostBuiltin');
     case 'plugin_builtin':
-      return '插件内置';
+      return $t('pages.system.job.source.pluginBuiltin');
     case 'user_created':
     default:
-      return '用户创建';
+      return $t('pages.system.job.source.userCreated');
   }
 }
 
@@ -101,23 +104,23 @@ export function getJobSourceColor(source: JobSourceKind) {
 }
 
 export const JOB_CRON_FIELD_HELP = renderJobHelpContent(
-  '支持 5 段或 6 段 Cron。\n5 段按“分 时 日 月 周”解析，运行时会自动补 # 秒占位。\n6 段可显式配置秒位。',
+  $t('pages.system.job.help.cron'),
 );
 
 export const JOB_TIMEOUT_FIELD_HELP = renderJobHelpContent(
-  '任务实例单次运行允许的最长时长。\n超过该时长后，系统会尝试中断本次执行，并将执行日志标记为超时。\n建议按任务正常耗时预留一定余量，避免误判。',
+  $t('pages.system.job.help.timeout'),
 );
 
 export const JOB_MAX_EXECUTIONS_FIELD_HELP = renderJobHelpContent(
-  '用于限制会计入执行计数的累计执行次数。\n达到上限后，任务会自动停用并记录停止原因。\n设置为 0 表示不限制执行次数；手动“立即执行”不会计入该次数。',
+  $t('pages.system.job.help.maxExecutions'),
 );
 
 export const JOB_SCOPE_FIELD_HELP = renderJobHelpContent(
-  '仅主节点执行：只有当前主节点会执行。\n所有节点执行：每个在线节点都会各自执行一次。',
+  $t('pages.system.job.help.scope'),
 );
 
 export const JOB_CONCURRENCY_FIELD_HELP = renderJobHelpContent(
-  '单例执行：本节点已有实例运行时，新触发会跳过。\n允许并行执行：本节点可同时运行多个实例，并受“最大并发”限制。',
+  $t('pages.system.job.help.concurrency'),
 );
 
 export function renderJobCronExpression(
@@ -158,20 +161,26 @@ export function formatCronLogRetentionSummary(
 
   switch (mode) {
     case 'count': {
-      return value > 0 ? `按条数保留最近 ${value} 条日志` : '按条数保留日志';
+      return value > 0
+        ? $t('pages.system.job.retention.summary.countWithValue', { value })
+        : $t('pages.system.job.retention.summary.count');
     }
     case 'none': {
-      return '不自动清理日志';
+      return $t('pages.system.job.retention.summary.none');
     }
     case 'days':
     default: {
-      return value > 0 ? `按天保留最近 ${value} 天日志` : '按天保留日志';
+      return value > 0
+        ? $t('pages.system.job.retention.summary.daysWithValue', { value })
+        : $t('pages.system.job.retention.summary.days');
     }
   }
 }
 
 export function getJobRetentionFieldHelp(logRetention?: CronLogRetentionLike) {
   return renderJobHelpContent(
-    `跟随系统：任务会按系统级日志保留策略执行清理。\n当前系统策略：${formatCronLogRetentionSummary(logRetention)}。\n如果任务单独设置了覆盖策略，则优先使用任务级配置。`,
+    $t('pages.system.job.retention.followSystemHelp', {
+      currentPolicy: formatCronLogRetentionSummary(logRetention),
+    }),
   );
 }

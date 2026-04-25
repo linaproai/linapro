@@ -4,6 +4,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import StarterKit from '@tiptap/starter-kit';
 
+import { $t } from '#/locales';
+
 export function getExtensions(placeholder?: string) {
   return [
     StarterKit,
@@ -16,7 +18,7 @@ export function getExtensions(placeholder?: string) {
       openOnClick: false,
     }),
     Placeholder.configure({
-      placeholder: placeholder || '请输入内容...',
+      placeholder: placeholder || $t('pages.editor.placeholder'),
     }),
   ];
 }

@@ -15,6 +15,7 @@ import {
 } from 'ant-design-vue';
 
 import { pluginUninstall } from '#/api/system/plugin';
+import { $t } from '#/locales';
 
 const emit = defineEmits<{ reload: [] }>();
 
@@ -56,7 +57,7 @@ async function handleConfirm() {
       currentPlugin.value.id,
       supportsPurgeStorageData.value ? purgeStorageData.value : undefined,
     );
-    message.success('插件已卸载');
+    message.success($t('pages.system.plugin.messages.uninstalled'));
     emit('reload');
     handleClosed();
   } finally {
@@ -72,7 +73,7 @@ function handleClosed() {
 </script>
 
 <template>
-  <BasicModal title="卸载插件">
+  <BasicModal :title="$t('pages.system.plugin.uninstall.title')">
     <div
       v-if="currentPlugin"
       data-testid="plugin-uninstall-modal"
@@ -83,42 +84,50 @@ function handleClosed() {
         data-testid="plugin-auto-enable-uninstall-alert"
         show-icon
         type="warning"
-        message="该插件当前由宿主主配置 plugin.autoEnable 管理。本次卸载会立即生效，但若配置不变，宿主下次重启后会再次安装并启用该插件。若需永久停用，请先修改宿主配置中的 plugin.autoEnable。"
+        :message="$t('pages.system.plugin.messages.autoEnableUninstallAlert')"
       />
       <Alert
         v-if="isSourcePlugin"
         show-icon
         type="warning"
-        message="源码插件卸载时可选择是否同时执行卸载 SQL 与插件自定义清理逻辑。勾选后会同步清除示例数据表数据和插件自有存储文件。"
+        :message="$t('pages.system.plugin.uninstall.sourceWarning')"
       />
       <Alert
         v-else-if="isDynamicPlugin"
         show-icon
         type="warning"
-        message="动态插件卸载时可选择是否同时执行卸载 SQL，并清理该插件已授权 storage paths 下的自有存储文件。未勾选时仅移除治理挂载、菜单和运行时产物，业务数据会被保留。"
+        :message="$t('pages.system.plugin.uninstall.dynamicWarning')"
       />
       <Alert
         v-else
         show-icon
         type="info"
-        message="当前插件卸载将移除治理挂载、菜单和运行时产物。"
+        :message="$t('pages.system.plugin.uninstall.defaultWarning')"
       />
 
       <Descriptions bordered size="small" :column="2">
-        <DescriptionsItem label="插件标识">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.id')">
           {{ currentPlugin.id }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件版本">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
           {{ currentPlugin.version }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件类型">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.type')">
           <Tag :color="isSourcePlugin ? 'blue' : 'green'">
-            {{ isSourcePlugin ? '源码插件' : '动态插件' }}
+            {{
+              isSourcePlugin
+                ? $t('pages.system.plugin.type.source')
+                : $t('pages.system.plugin.type.dynamic')
+            }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="当前状态">
+        <DescriptionsItem :label="$t('pages.common.status')">
           <Tag :color="currentPlugin.enabled === 1 ? 'green' : 'default'">
-            {{ currentPlugin.enabled === 1 ? '启用' : '禁用' }}
+            {{
+              currentPlugin.enabled === 1
+                ? $t('pages.status.enabled')
+                : $t('pages.status.disabled')
+            }}
           </Tag>
         </DescriptionsItem>
       </Descriptions>
@@ -128,7 +137,7 @@ function handleClosed() {
         v-model:checked="purgeStorageData"
         data-testid="plugin-uninstall-purge-checkbox"
       >
-        卸载时同时清除插件存储数据（数据表数据与插件自有文件）
+        {{ $t('pages.system.plugin.uninstall.purgeStorage') }}
       </Checkbox>
     </div>
   </BasicModal>

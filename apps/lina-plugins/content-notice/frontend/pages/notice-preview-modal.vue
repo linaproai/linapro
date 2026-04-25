@@ -9,12 +9,17 @@ import { Descriptions, DescriptionsItem } from 'ant-design-vue';
 
 import { noticeInfo } from './notice-client';
 import { DictTag } from '#/components/dict';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 
 const notice = ref<Notice | null>(null);
 const dictStore = useDictStore();
 const noticeTypeDicts = ref<any[]>([]);
-const title = computed(() => notice.value?.title ?? '预览通知公告');
+const title = computed(() =>
+  notice.value
+    ? notice.value.title
+    : $t('plugin.content-notice.preview.title'),
+);
 
 const [Modal, modalApi] = useVbenModal({
   class: 'w-[800px]',
@@ -28,7 +33,8 @@ const [Modal, modalApi] = useVbenModal({
       try {
         noticeTypeDicts.value =
           await dictStore.getDictOptionsAsync('sys_notice_type');
-        notice.value = await noticeInfo(data.id);
+        const record = await noticeInfo(data.id);
+        notice.value = record;
       } finally {
         modalApi.setState({ loading: false });
       }
@@ -41,13 +47,13 @@ const [Modal, modalApi] = useVbenModal({
   <Modal :title="title">
     <div v-if="notice" class="p-2">
       <Descriptions :column="3" size="small" bordered class="mb-4">
-        <DescriptionsItem label="公告类型">
+        <DescriptionsItem :label="$t('plugin.content-notice.fields.type')">
           <DictTag :dicts="noticeTypeDicts" :value="String(notice.type)" />
         </DescriptionsItem>
-        <DescriptionsItem label="创建人">
+        <DescriptionsItem :label="$t('plugin.content-notice.fields.createdBy')">
           {{ notice.createdByName || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="创建时间">
+        <DescriptionsItem :label="$t('pages.common.createdAt')">
           {{ notice.createdAt }}
         </DescriptionsItem>
       </Descriptions>

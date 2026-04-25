@@ -10,6 +10,7 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { Alert, Descriptions, DescriptionsItem, Tag } from 'ant-design-vue';
 
+import { $t } from '#/locales';
 import PluginHostServiceCards from './plugin-host-service-cards.vue';
 import { buildPluginDetailHostServiceCards } from './plugin-host-service-view';
 import PluginRouteReviewList from './plugin-route-review-list.vue';
@@ -64,16 +65,18 @@ function handleClosed() {
 
 function formatPluginType(type: string) {
   if (type === 'source') {
-    return '源码插件';
+    return $t('pages.system.plugin.type.source');
   }
   if (type === 'dynamic') {
-    return '动态插件';
+    return $t('pages.system.plugin.type.dynamic');
   }
   return type || '-';
 }
 
 function formatInstalledStatus(installed: number) {
-  return installed === 1 ? '已接入' : '未安装';
+  return installed === 1
+    ? $t('pages.system.plugin.installed.connected')
+    : $t('pages.system.plugin.installed.notInstalled');
 }
 
 function getInstalledStatusColor(installed: number) {
@@ -81,7 +84,7 @@ function getInstalledStatusColor(installed: number) {
 }
 
 function formatEnabledStatus(enabled: number) {
-  return enabled === 1 ? '启用' : '禁用';
+  return enabled === 1 ? $t('pages.status.enabled') : $t('pages.status.disabled');
 }
 
 function getEnabledStatusColor(enabled: number) {
@@ -91,13 +94,13 @@ function getEnabledStatusColor(enabled: number) {
 function formatAuthorizationStatus(status: string) {
   switch (status) {
     case 'confirmed': {
-      return '已确认';
+      return $t('pages.system.plugin.authorization.confirmed');
     }
     case 'not_required': {
-      return '无需确认';
+      return $t('pages.system.plugin.authorization.notRequired');
     }
     case 'pending': {
-      return '待确认';
+      return $t('pages.system.plugin.authorization.pending');
     }
     default: {
       return status || '-';
@@ -120,7 +123,9 @@ function getAuthorizationStatusColor(status: string) {
 }
 
 function formatAutoEnableManaged(managed: boolean) {
-  return managed ? 'plugin.autoEnable' : '人工治理';
+  return managed
+    ? $t('pages.system.plugin.autoEnableManaged')
+    : $t('pages.system.plugin.manualManaged');
 }
 
 function getAutoEnableManagedColor(managed: boolean) {
@@ -131,7 +136,7 @@ function getAutoEnableManagedColor(managed: boolean) {
 <template>
   <BasicModal
     :footer="false"
-    title="插件详情"
+    :title="$t('pages.system.plugin.detail.title')"
     class="w-[860px] max-w-[calc(100vw-32px)]"
   >
     <div
@@ -140,36 +145,36 @@ function getAutoEnableManagedColor(managed: boolean) {
       class="flex flex-col gap-4"
     >
       <Descriptions bordered size="small" :column="2">
-        <DescriptionsItem label="插件名称">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.name')">
           {{ currentPlugin.name || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件标识">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.id')">
           {{ currentPlugin.id || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件类型">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.type')">
           <Tag color="blue">
             {{ formatPluginType(currentPlugin.type) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="插件版本">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
           {{ currentPlugin.version || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="接入状态">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.installed')">
           <Tag :color="getInstalledStatusColor(currentPlugin.installed)">
             {{ formatInstalledStatus(currentPlugin.installed) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="当前状态">
+        <DescriptionsItem :label="$t('pages.common.status')">
           <Tag :color="getEnabledStatusColor(currentPlugin.enabled)">
             {{ formatEnabledStatus(currentPlugin.enabled) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="启动管理">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.startupManagement')">
           <Tag :color="getAutoEnableManagedColor(isAutoEnableManaged)">
             {{ formatAutoEnableManaged(isAutoEnableManaged) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="授权状态">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.authorizationStatus')">
           <Tag
             :color="
               getAuthorizationStatusColor(currentPlugin.authorizationStatus)
@@ -178,13 +183,13 @@ function getAutoEnableManagedColor(managed: boolean) {
             {{ formatAuthorizationStatus(currentPlugin.authorizationStatus) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="安装时间">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.installedAt')">
           {{ currentPlugin.installedAt || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="更新时间">
+        <DescriptionsItem :label="$t('pages.common.updatedAt')">
           {{ currentPlugin.updatedAt || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件描述" :span="2">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.description')" :span="2">
           <div
             data-testid="plugin-detail-description-row"
             class="whitespace-pre-wrap break-words text-[13px] leading-6 text-[var(--ant-color-text-secondary)]"
@@ -199,7 +204,7 @@ function getAutoEnableManagedColor(managed: boolean) {
         data-testid="plugin-auto-enable-detail-alert"
         show-icon
         type="warning"
-        message="该插件当前由宿主主配置 plugin.autoEnable 管理。本次运行期禁用或卸载会立即生效，但若配置不变，宿主下次重启后会再次安装并启用该插件。若需永久停用，请先修改宿主配置中的 plugin.autoEnable。"
+        :message="$t('pages.system.plugin.messages.autoEnableDetailAlert')"
       />
 
       <template v-if="showHostServiceSection">
@@ -208,18 +213,18 @@ function getAutoEnableManagedColor(managed: boolean) {
           data-testid="plugin-detail-empty-host-services"
           show-icon
           type="info"
-          message="当前动态插件未声明额外宿主服务。"
+          :message="$t('pages.system.plugin.messages.emptyHostServices')"
         />
 
         <template v-else>
           <Alert
             show-icon
             type="info"
-            message="申请清单表示插件当前版本声明的宿主服务范围；授权快照表示宿主管理员对当前 release 最终确认并实际生效的授权结果。"
+            :message="$t('pages.system.plugin.messages.hostServiceSnapshot')"
           />
 
           <PluginSectionTitle test-id="plugin-host-service-section-title">
-            宿主服务信息
+            {{ $t('pages.system.plugin.detail.hostServicesTitle') }}
           </PluginSectionTitle>
 
           <PluginHostServiceCards :cards="hostServiceCards" />
@@ -227,7 +232,7 @@ function getAutoEnableManagedColor(managed: boolean) {
 
         <template v-if="showDeclaredRoutes">
           <PluginSectionTitle test-id="plugin-route-section-title">
-            注册路由列表
+            {{ $t('pages.system.plugin.detail.routeListTitle') }}
           </PluginSectionTitle>
 
           <PluginRouteReviewList :routes="declaredRoutes" />

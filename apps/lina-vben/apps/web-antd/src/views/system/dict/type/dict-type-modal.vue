@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { message } from 'ant-design-vue';
 
@@ -18,7 +19,11 @@ const emit = defineEmits<{ reload: [] }>();
 
 const isEdit = ref(false);
 const recordId = ref<number>(0);
-const title = computed(() => (isEdit.value ? '编辑字典类型' : '新增字典类型'));
+const title = computed(() =>
+  isEdit.value
+    ? $t('pages.system.dict.type.drawer.editTitle')
+    : $t('pages.system.dict.type.drawer.createTitle'),
+);
 
 const [BasicForm, formApi] = useVbenForm({
   schema: modalSchema,
@@ -58,10 +63,10 @@ async function handleConfirm() {
     const data = await formApi.getValues();
     if (isEdit.value) {
       await dictTypeUpdate(recordId.value, data);
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await dictTypeAdd(data);
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
     emit('reload');
     modalApi.close();

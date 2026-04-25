@@ -236,7 +236,7 @@ export class PluginPage {
   hostServiceAuthDialog(): Locator {
     return this.page
       .getByRole("dialog", {
-        name: /安装插件(?:并确认授权)?|启用插件(?:并确认授权)?/,
+        name: /安装前审核插件授权|启用前审核插件授权|安装插件(?:并确认授权)?|启用插件(?:并确认授权)?|Install Plugin|Enable Plugin/i,
       })
       .last();
   }

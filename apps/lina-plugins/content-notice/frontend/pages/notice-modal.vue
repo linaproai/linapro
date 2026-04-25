@@ -7,6 +7,7 @@ import { Form, FormItem, Input, message, RadioGroup } from 'ant-design-vue';
 
 import { noticeAdd, noticeInfo, noticeUpdate } from './notice-client';
 import { FileUpload } from '#/components/upload';
+import { $t } from '#/locales';
 import { TiptapEditor } from '#/components/tiptap';
 
 const emit = defineEmits<{ reload: [] }>();
@@ -31,13 +32,17 @@ const defaultValues: FormData = {
 
 const isEdit = computed(() => !!formData.value.id);
 const formData = ref<FormData>({ ...defaultValues });
-const title = computed(() => (isEdit.value ? '编辑通知公告' : '新增通知公告'));
+const title = computed(() =>
+  isEdit.value
+    ? $t('plugin.content-notice.drawer.editTitle')
+    : $t('plugin.content-notice.drawer.createTitle'),
+);
 
 const formRules = reactive({
-  title: [{ message: '请输入公告标题', required: true }],
-  status: [{ message: '请选择公告状态', required: true }],
-  type: [{ message: '请选择公告类型', required: true }],
-  content: [{ message: '请输入公告内容', required: true }],
+  title: [{ message: $t('plugin.content-notice.validation.title'), required: true }],
+  status: [{ message: $t('plugin.content-notice.validation.status'), required: true }],
+  type: [{ message: $t('plugin.content-notice.validation.type'), required: true }],
+  content: [{ message: $t('plugin.content-notice.validation.content'), required: true }],
 });
 
 const { validate, validateInfos, resetFields } = Form.useForm(
@@ -89,10 +94,10 @@ async function handleConfirm() {
     };
     if (isEdit.value && id) {
       await noticeUpdate(id, submitData);
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await noticeAdd(submitData);
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
     emit('reload');
     modalApi.close();
@@ -107,40 +112,40 @@ async function handleConfirm() {
 <template>
   <Modal :title="title">
     <Form layout="vertical">
-      <FormItem label="公告标题" v-bind="validateInfos.title">
+      <FormItem :label="$t('plugin.content-notice.fields.title')" v-bind="validateInfos.title">
         <Input
           v-model:value="formData.title"
-          placeholder="请输入公告标题"
+          :placeholder="$t('plugin.content-notice.placeholders.title')"
         />
       </FormItem>
       <div class="grid lg:grid-cols-2 sm:grid-cols-1">
-        <FormItem label="公告状态" v-bind="validateInfos.status">
+        <FormItem :label="$t('plugin.content-notice.fields.status')" v-bind="validateInfos.status">
           <RadioGroup
             v-model:value="formData.status"
             button-style="solid"
             option-type="button"
             :options="[
-              { label: '草稿', value: 0 },
-              { label: '已发布', value: 1 },
+              { label: $t('plugin.content-notice.status.draft'), value: 0 },
+              { label: $t('plugin.content-notice.status.published'), value: 1 },
             ]"
           />
         </FormItem>
-        <FormItem label="公告类型" v-bind="validateInfos.type">
+        <FormItem :label="$t('plugin.content-notice.fields.type')" v-bind="validateInfos.type">
           <RadioGroup
             v-model:value="formData.type"
             button-style="solid"
             option-type="button"
             :options="[
-              { label: '通知', value: 1 },
-              { label: '公告', value: 2 },
+              { label: $t('pages.status.notice'), value: 1 },
+              { label: $t('pages.status.announcement'), value: 2 },
             ]"
           />
         </FormItem>
       </div>
-      <FormItem label="公告内容" v-bind="validateInfos.content">
+      <FormItem :label="$t('plugin.content-notice.fields.content')" v-bind="validateInfos.content">
         <TiptapEditor v-model="formData.content" :height="300" scene="notice_image" />
       </FormItem>
-      <FormItem label="附件">
+      <FormItem :label="$t('plugin.content-notice.fields.attachments')">
         <FileUpload
           v-model:value="formData.fileIds"
           :max-count="5"

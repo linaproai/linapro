@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/online',
-  title: '在线用户',
+  title: 'Online Users',
 };
 </script>
 
@@ -15,15 +15,16 @@ import { Page } from '@vben/common-ui';
 import { Popconfirm } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { $t } from '#/locales';
 import { forceLogout, onlineList } from './online-client';
 
-import { columns, querySchema } from './data';
+import { buildColumns, buildQuerySchema } from './data';
 
 const onlineCount = ref(0);
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: querySchema,
+    schema: buildQuerySchema(),
     commonConfig: {
       labelWidth: 80,
       componentProps: {
@@ -33,7 +34,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
   },
   gridOptions: {
-    columns,
+    columns: buildColumns(),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -74,19 +75,25 @@ async function handleForceOffline(row: OnlineUser) {
       <template #toolbar-actions>
         <div class="mr-1 pl-1 text-[1rem]">
           <div>
-            在线用户列表 (共
+            {{ $t('plugin.monitor-online.page.tableTitlePrefix') }}
             <span class="text-primary font-bold">{{ onlineCount }}</span>
-            人在线)
+            {{ $t('plugin.monitor-online.page.tableTitleSuffix') }}
           </div>
         </div>
       </template>
       <template #action="{ row }">
         <Popconfirm
-          :title="`确认强制下线[${row.username}]?`"
+          :title="
+            $t('plugin.monitor-online.page.messages.forceLogoutConfirm', {
+              username: row.username,
+            })
+          "
           placement="left"
           @confirm="handleForceOffline(row)"
         >
-          <ghost-button danger>强制下线</ghost-button>
+          <ghost-button danger>
+            {{ $t('plugin.monitor-online.page.actions.forceLogout') }}
+          </ghost-button>
         </Popconfirm>
       </template>
     </Grid>

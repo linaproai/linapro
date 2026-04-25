@@ -3,6 +3,7 @@ import type { VxeGridProps } from '#/adapter/vxe-table';
 import type { DictData } from '#/api/system/dict/dict-data-model';
 
 import { h } from 'vue';
+import { $t } from '#/locales';
 
 import { Tag } from 'ant-design-vue';
 
@@ -13,7 +14,7 @@ export const querySchema: VbenFormSchema[] = [
   {
     component: 'Input',
     fieldName: 'label',
-    label: '字典标签',
+    label: $t('pages.system.dict.data.fields.label'),
   },
 ];
 
@@ -21,7 +22,7 @@ export const querySchema: VbenFormSchema[] = [
 export const columns: VxeGridProps['columns'] = [
   { type: 'checkbox', width: 60 },
   {
-    title: '字典标签',
+    title: $t('pages.system.dict.data.fields.label'),
     field: 'label',
     slots: {
       default: ({ row }) => {
@@ -36,26 +37,26 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '字典键值',
+    title: $t('pages.system.dict.data.fields.value'),
     field: 'value',
   },
   {
-    title: '排序',
+    title: $t('pages.fields.sort'),
     field: 'sort',
   },
   {
-    title: '备注',
+    title: $t('pages.common.remark'),
     field: 'remark',
   },
   {
-    title: '创建时间',
+    title: $t('pages.common.createdAt'),
     field: 'createdAt',
   },
   {
     field: 'action',
     fixed: 'right',
     slots: { default: 'action' },
-    title: '操作',
+    title: $t('pages.common.actions'),
     resizable: false,
     width: 'auto',
   },
@@ -69,48 +70,48 @@ export const drawerSchema: VbenFormSchema[] = [
       disabled: true,
     },
     fieldName: 'dictType',
-    label: '字典类型',
+    label: $t('pages.system.dict.type.fields.type'),
   },
   {
     component: 'Input',
     fieldName: 'tagStyle',
-    label: '标签样式',
+    label: $t('pages.system.dict.data.fields.tagStyle'),
   },
   {
     component: 'Input',
     fieldName: 'label',
-    label: '数据标签',
+    label: $t('pages.system.dict.data.fields.dataLabel'),
     rules: 'required',
   },
   {
     component: 'Input',
     fieldName: 'value',
-    label: '数据键值',
+    label: $t('pages.system.dict.data.fields.dataValue'),
     rules: 'required',
   },
   {
     component: 'InputNumber',
     fieldName: 'sort',
-    label: '显示排序',
+    label: $t('pages.system.dict.data.fields.sortOrder'),
     defaultValue: 0,
   },
   {
     component: 'Input',
     fieldName: 'cssClass',
-    label: 'CSS类名',
-    help: '标签的css样式, 可添加已经编译的css类名',
+    label: $t('pages.system.dict.data.fields.cssClass'),
+    help: $t('pages.system.dict.data.help.cssClass'),
   },
   {
     component: 'RadioGroup',
     fieldName: 'status',
-    label: '状态',
+    label: $t('pages.common.status'),
     defaultValue: 1,
     componentProps: {
       buttonStyle: 'solid',
       optionType: 'button',
       options: [
-        { label: '正常', value: 1 },
-        { label: '停用', value: 0 },
+        { label: $t('pages.status.enabled'), value: 1 },
+        { label: $t('pages.status.disabled'), value: 0 },
       ],
     },
   },
@@ -118,7 +119,7 @@ export const drawerSchema: VbenFormSchema[] = [
     component: 'Textarea',
     fieldName: 'remark',
     formItemClass: 'items-start col-span-2',
-    label: '备注',
+    label: $t('pages.common.remark'),
     componentProps: {
       rows: 3,
     },

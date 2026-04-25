@@ -8,6 +8,1072 @@
     "expand": "展开",
     "confirm": "确认",
     "cancel": "取消",
-    "reset": "重置"
+    "reset": "重置",
+    "export": "导出",
+    "import": "导入",
+    "more": "更多",
+    "back": "返回",
+    "preview": "预览",
+    "detail": "详情",
+    "upload": "上传",
+    "download": "下载",
+    "clear": "清空",
+    "actions": "操作",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "remark": "备注",
+    "status": "状态",
+    "confirmTitle": "提示",
+    "deleteConfirm": "确认删除？",
+    "deleteSuccess": "删除成功",
+    "createSuccess": "创建成功",
+    "updateSuccess": "更新成功",
+    "exportSuccess": "导出成功",
+    "exportFailed": "导出失败",
+    "yes": "是",
+    "no": "否"
+  },
+  "fields": {
+    "username": "用户名",
+    "nickname": "昵称",
+    "email": "邮箱",
+    "phone": "手机号码",
+    "dept": "部门",
+    "role": "角色",
+    "roles": "角色",
+    "avatar": "头像",
+    "sex": "性别",
+    "password": "密码",
+    "newPassword": "新的密码",
+    "sort": "排序",
+    "name": "名称",
+    "code": "编码",
+    "type": "类型",
+    "description": "描述"
+  },
+  "status": {
+    "enabled": "正常",
+    "disabled": "停用",
+    "unknown": "未知",
+    "male": "男",
+    "female": "女",
+    "notice": "通知",
+    "announcement": "公告"
+  },
+  "layout": {
+    "notifications": {
+      "clearAllConfirm": "确认清空所有消息通知？"
+    }
+  },
+  "dashboard": {
+    "analytics": {
+      "overview": {
+        "users": {
+          "title": "用户量",
+          "total": "总用户量"
+        },
+        "visits": {
+          "title": "访问量",
+          "total": "总访问量"
+        },
+        "downloads": {
+          "title": "下载量",
+          "total": "总下载量"
+        },
+        "usage": {
+          "title": "使用量",
+          "total": "总使用量"
+        }
+      },
+      "tabs": {
+        "trends": "流量趋势",
+        "visits": "月访问量"
+      },
+      "cards": {
+        "channels": "访问数量",
+        "sources": "访问来源"
+      },
+      "sources": {
+        "search": "搜索引擎",
+        "direct": "直接访问",
+        "email": "邮件营销",
+        "ads": "联盟广告"
+      },
+      "channels": {
+        "visits": "访问",
+        "trend": "趋势",
+        "web": "网页",
+        "mobile": "移动端",
+        "client": "客户端",
+        "thirdParty": "第三方",
+        "other": "其它"
+      },
+      "sales": {
+        "title": "商业占比",
+        "outsourcing": "外包",
+        "customDevelopment": "定制",
+        "technicalSupport": "技术支持",
+        "remote": "远程"
+      }
+    },
+    "workspace": {
+      "greeting": "早安, {name}, 开始您一天的工作吧！",
+      "defaultName": "管理员",
+      "weather": "今日晴，20℃ - 32℃！",
+      "sections": {
+        "projects": "项目",
+        "trends": "最新动态",
+        "quickNav": "快捷导航",
+        "todos": "待办事项",
+        "trafficSources": "访问来源"
+      },
+      "quickNav": {
+        "home": "首页",
+        "dashboard": "仪表盘",
+        "components": "组件",
+        "system": "系统管理",
+        "access": "权限管理",
+        "charts": "图表"
+      },
+      "projects": {
+        "github": {
+          "group": "开源组",
+          "content": "不要等待机会，而要创造机会。"
+        },
+        "vue": {
+          "group": "算法组",
+          "content": "现在的你决定将来的你。"
+        },
+        "html5": {
+          "group": "上班摸鱼",
+          "content": "没有什么才能比努力更重要。"
+        },
+        "angular": {
+          "group": "UI",
+          "content": "热情和欲望可以突破一切难关。"
+        },
+        "react": {
+          "group": "技术牛",
+          "content": "健康的身体是实现目标的基石。"
+        },
+        "js": {
+          "group": "架构组",
+          "content": "路是走出来的，而不是空想出来的。"
+        }
+      },
+      "todos": {
+        "reviewFrontend": {
+          "title": "审查前端代码提交",
+          "content": "审查最近提交到Git仓库的前端代码，确保代码质量和规范。"
+        },
+        "optimizePerformance": {
+          "title": "系统性能优化",
+          "content": "检查并优化系统性能，降低CPU使用率。"
+        },
+        "securityReview": {
+          "title": "安全检查",
+          "content": "进行系统安全检查，确保没有安全漏洞或未授权的访问。"
+        },
+        "updateDependencies": {
+          "title": "更新项目依赖",
+          "content": "更新项目中的所有npm依赖包，确保使用最新版本。"
+        },
+        "fixUiIssues": {
+          "title": "修复UI显示问题",
+          "content": "修复用户报告的页面UI显示问题，确保在不同浏览器中显示一致。"
+        }
+      },
+      "trends": {
+        "justNow": "刚刚",
+        "oneHourAgo": "1个小时前",
+        "oneDayAgo": "1天前",
+        "twoDaysAgo": "2天前",
+        "threeDaysAgo": "3天前",
+        "oneWeekAgo": "1周前",
+        "people": {
+          "william": "威廉",
+          "evan": "艾文",
+          "chris": "克里斯",
+          "peter": "皮特",
+          "jack": "杰克"
+        },
+        "items": {
+          "createdVue": "在 <a>开源组</a> 创建了项目 <a>Vue</a>",
+          "followedWilliam": "关注了 <a>威廉</a>",
+          "postedUpdate": "发布了 <a>个人动态</a>",
+          "viteArticle": "发表文章 <a>如何编写一个Vite插件</a>",
+          "answeredOptimization": "回复了 <a>杰克</a> 的问题 <a>如何进行项目优化？</a>",
+          "closedRunProject": "关闭了问题 <a>如何运行项目</a>",
+          "pushedGithub": "推送了代码到 <a>Github</a>",
+          "adminVbenArticle": "发表文章 <a>如何编写使用 Admin Vben</a>"
+        }
+      }
+    }
+  },
+  "system": {
+    "user": {
+      "tableTitle": "用户列表",
+      "placeholders": {
+        "username": "请输入用户名",
+        "nickname": "请输入昵称",
+        "email": "请输入邮箱",
+        "phone": "请输入手机号码",
+        "password": "请输入密码",
+        "passwordKeep": "留空则不修改",
+        "selectDept": "请选择",
+        "selectDeptFirst": "请先选择部门",
+        "selectRole": "请选择角色",
+        "remark": "请输入备注"
+      },
+      "labels": {
+        "account": "名称",
+        "userAccount": "用户账号",
+        "userNickname": "用户昵称",
+        "userStatus": "用户状态",
+        "unassignedDept": "未分配部门",
+        "unassignedRole": "未分配角色",
+        "na": "暂无",
+        "positions": "岗位"
+      },
+      "help": {
+        "positions": "选择部门后, 将自动加载该部门下所有的岗位",
+        "roles": "可分配多个角色给该用户"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",
+        "exportSelectedConfirm": "是否导出选中的记录？",
+        "exportAllConfirm": "是否导出全部数据？",
+        "deleteConfirm": "删除该用户吗？",
+        "noPosts": "该部门下暂无岗位",
+        "noDepartments": "无部门数据",
+        "passwordLength": "密码长度为5-20",
+        "resetPasswordSuccess": "重置密码成功"
+      },
+      "actions": {
+        "resetPassword": "重置密码"
+      },
+      "more": "更多",
+      "drawer": {
+        "createTitle": "新增用户",
+        "editTitle": "编辑用户"
+      },
+      "import": {
+        "title": "用户导入",
+        "resultTitle": "提示",
+        "uploadHint": "点击或者拖拽到此处上传文件",
+        "fileHint": "允许导入xlsx, xls文件",
+        "downloadTemplate": "下载模板",
+        "overwrite": "是否更新/覆盖已存在的用户数据",
+        "downloadTemplateFailed": "下载模板失败",
+        "success": "成功导入 {count} 条用户数据",
+        "summary": "成功 {success} 条，失败 {fail} 条",
+        "rowReason": "第{row}行: {reason}"
+      },
+      "resetPassword": {
+        "title": "重置密码",
+        "newPassword": "新的密码",
+        "placeholder": "请输入新的密码，密码长度为5-20",
+        "userId": "用户ID"
+      },
+      "exportFileName": "用户数据导出.xlsx"
+    },
+    "role": {
+      "tableTitle": "角色列表",
+      "fields": {
+        "roleId": "角色ID",
+        "roleName": "角色名称",
+        "permissionKey": "权限字符",
+        "dataScope": "数据权限",
+        "roleSort": "角色排序",
+        "roleStatus": "角色状态",
+        "menuPermissions": "菜单权限"
+      },
+      "placeholders": {
+        "roleName": "请输入角色名称",
+        "permissionKey": "请输入权限字符",
+        "status": "请选择状态",
+        "sort": "请输入排序",
+        "remark": "请输入备注",
+        "permissionExample": "如: admin, user等",
+        "permissionHelp": "如: admin, simpleUser等"
+      },
+      "dataScope": {
+        "all": "全部数据权限",
+        "dept": "本部门数据权限",
+        "self": "仅本人数据权限"
+      },
+      "help": {
+        "status": "修改后, 拥有该角色的用户将自动下线",
+        "dataScope": "更改后需要用户重新登录才能生效"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",
+        "deleteConfirm": "删除该角色吗？",
+        "statusUpdated": "状态更新成功"
+      },
+      "actions": {
+        "assign": "分配"
+      },
+      "roleAuth": {
+        "tableTitle": "已分配的用户列表",
+        "removeAssignment": "取消授权",
+        "back": "返回",
+        "removeConfirm": "确认取消授权用户[{username} - {nickname}]?",
+        "removeSelectedConfirm": "确认取消选中的{count}条授权记录吗？",
+        "removeSuccess": "取消授权成功",
+        "removeSelectedSuccess": "批量取消授权成功"
+      }
+    },
+    "config": {
+      "tableTitle": "参数设置列表",
+      "exportFileName": "参数设置导出.xlsx",
+      "fields": {
+        "name": "参数名称",
+        "key": "参数键名",
+        "value": "参数键值"
+      },
+      "drawer": {
+        "createTitle": "新增参数设置",
+        "editTitle": "编辑参数设置"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",
+        "exportSelectedConfirm": "是否导出选中的记录？",
+        "exportAllConfirm": "是否导出全部数据？"
+      },
+      "import": {
+        "title": "参数设置导入",
+        "resultTitle": "提示",
+        "uploadHint": "点击或者拖拽到此处上传文件",
+        "fileHint": "允许导入xlsx, xls文件",
+        "downloadTemplate": "下载模板",
+        "overwrite": "是否更新/覆盖已存在的参数设置数据",
+        "downloadTemplateFailed": "下载模板失败",
+        "success": "成功导入 {count} 条参数设置数据",
+        "summary": "成功 {success} 条，失败 {fail} 条",
+        "rowReason": "第{row}行: {reason}"
+      }
+    },
+    "dict": {
+      "type": {
+        "tableTitle": "字典类型列表",
+        "exportFileName": "字典管理导出.xlsx",
+        "fields": {
+          "name": "字典名称",
+          "type": "字典类型"
+        },
+        "drawer": {
+          "createTitle": "新增字典类型",
+          "editTitle": "编辑字典类型"
+        },
+        "help": {
+          "typeRule": "使用英文/数字/下划线命名, 如:sys_normal_disable"
+        },
+        "messages": {
+          "typeRule": "字典类型只能使用英文/数字/下划线命名",
+          "deleteConfirm": "删除字典类型将同时删除该类型下的所有字典数据，确认删除？",
+          "deleteSelectedConfirm": "删除字典类型将同时删除该类型下的所有字典数据，确认删除选中的{count}条记录吗？",
+          "deleteFailed": "删除失败",
+          "exportSelectedConfirm": "是否导出选中的字典类型及其关联的字典数据？",
+          "exportAllConfirm": "是否导出全部字典类型和字典数据？"
+        },
+        "import": {
+          "title": "字典管理导入",
+          "resultTitle": "提示",
+          "uploadHint": "点击或者拖拽到此处上传文件",
+          "fileHint": "允许导入xlsx, xls文件",
+          "downloadTemplate": "下载模板",
+          "overwrite": "是否更新/覆盖已存在的字典类型和字典数据",
+          "downloadTemplateFailed": "下载模板失败",
+          "success": "成功导入 {typeCount} 条字典类型，{dataCount} 条字典数据",
+          "summary": "字典类型: 成功 {typeSuccess} 条，失败 {typeFail} 条。字典数据: 成功 {dataSuccess} 条，失败 {dataFail} 条。",
+          "rowReason": "[{sheet}] 第{row}行: {reason}"
+        }
+      },
+      "data": {
+        "tableTitle": "字典数据列表",
+        "fields": {
+          "label": "字典标签",
+          "value": "字典键值",
+          "tagStyle": "标签样式",
+          "dataLabel": "数据标签",
+          "dataValue": "数据键值",
+          "sortOrder": "显示排序",
+          "cssClass": "CSS类名"
+        },
+        "drawer": {
+          "createTitle": "新增字典数据",
+          "editTitle": "编辑字典数据"
+        },
+        "help": {
+          "cssClass": "标签的css样式, 可添加已经编译的css类名"
+        },
+        "messages": {
+          "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？"
+        },
+        "import": {
+          "title": "字典数据导入",
+          "resultTitle": "提示",
+          "uploadHint": "点击或者拖拽到此处上传文件",
+          "fileHint": "允许导入xlsx, xls文件",
+          "downloadTemplate": "下载模板",
+          "overwrite": "是否更新/覆盖已存在的字典数据",
+          "downloadTemplateFailed": "下载模板失败",
+          "success": "成功导入 {count} 条字典数据",
+          "summary": "成功 {success} 条，失败 {fail} 条",
+          "rowReason": "第{row}行: {reason}"
+        },
+        "tagStyle": {
+          "options": {
+            "default": "默认颜色",
+            "custom": "自定义颜色"
+          },
+          "placeholders": {
+            "select": "请选择标签样式",
+            "custom": "输入十六进制颜色值，如 #1677ff"
+          },
+          "presets": {
+            "cyan": "青色",
+            "danger": "危险",
+            "default": "默认",
+            "green": "绿色",
+            "info": "信息",
+            "orange": "橙色",
+            "pink": "粉色",
+            "primary": "主要",
+            "purple": "紫色",
+            "red": "红色",
+            "success": "成功",
+            "warning": "警告"
+          }
+        }
+      }
+    },
+    "file": {
+      "tableTitle": "文件列表",
+      "fields": {
+        "originalName": "原始文件名",
+        "fileType": "文件类型",
+        "scene": "使用场景",
+        "preview": "文件预览",
+        "size": "文件大小",
+        "uploadedAt": "上传时间",
+        "uploader": "上传者"
+      },
+      "actions": {
+        "fileUpload": "文件上传",
+        "imageUpload": "图片上传"
+      },
+      "detail": {
+        "title": "文件详情",
+        "fileId": "文件ID",
+        "engine": "存储引擎",
+        "storedName": "存储文件名",
+        "url": "文件URL",
+        "hash": "文件哈希"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",
+        "previewImages": "预览图片",
+        "pdfPreview": "PDF 预览"
+      }
+    },
+    "job": {
+      "tableTitle": "定时任务列表",
+      "fields": {
+        "group": "任务分组",
+        "status": "任务状态",
+        "keyword": "关键字",
+        "name": "任务名称",
+        "source": "任务来源",
+        "cronExpr": "定时表达式",
+        "timezone": "时区",
+        "scope": "调度范围",
+        "concurrency": "并发策略",
+        "executedCount": "已执行次数",
+        "stopReason": "停止原因",
+        "maxConcurrency": "最大并发数",
+        "maxExecutions": "最大执行次数",
+        "retention": "日志保留策略",
+        "retentionValue": "保留值",
+        "timeoutSeconds": "超时时间（秒）"
+      },
+      "placeholders": {
+        "selectGroup": "请选择分组",
+        "selectStatus": "请选择状态",
+        "cronExpr": "请输入 Cron 表达式",
+        "currentTimezone": "当前系统时区：{value}",
+        "description": "请输入描述",
+        "name": "请输入任务名称",
+        "selectRetention": "请选择保留策略",
+        "timezone": "请输入或选择时区"
+      },
+      "actions": {
+        "runNow": "立即执行",
+        "resetCount": "重置计数",
+        "preview": "预览"
+      },
+      "status": {
+        "enabled": "启用",
+        "disabled": "停用",
+        "pluginUnavailable": "插件处理器不可用"
+      },
+      "source": {
+        "hostBuiltin": "宿主内置",
+        "pluginBuiltin": "插件内置",
+        "userCreated": "用户创建"
+      },
+      "scope": {
+        "masterOnly": "仅主节点执行",
+        "allNodes": "所有节点执行"
+      },
+      "concurrency": {
+        "singleton": "单例执行",
+        "parallel": "允许并行执行"
+      },
+      "retention": {
+        "summary": {
+          "count": "按条数保留日志",
+          "countWithValue": "按条数保留最近 {value} 条日志",
+          "days": "按天保留日志",
+          "daysWithValue": "按天保留最近 {value} 天日志",
+          "none": "不自动清理日志"
+        },
+        "followSystemHelp": "跟随系统：任务会按系统级日志保留策略执行清理。\n当前系统策略：{currentPolicy}。\n如果任务单独设置了覆盖策略，则优先使用任务级配置。",
+        "count": "按数量保留",
+        "days": "按天数保留",
+        "followSystem": "跟随系统策略",
+        "none": "不自动清理"
+      },
+      "help": {
+        "cron": "支持 5 段或 6 段 Cron。\n5 段按“分 时 日 月 周”解析，运行时会自动补 # 秒占位。\n6 段可显式配置秒位。",
+        "timeout": "任务实例单次运行允许的最长时长。\n超过该时长后，系统会尝试中断本次执行，并将执行日志标记为超时。\n建议按任务正常耗时预留一定余量，避免误判。",
+        "maxExecutions": "用于限制会计入执行计数的累计执行次数。\n达到上限后，任务会自动停用并记录停止原因。\n设置为 0 表示不限制执行次数；手动“立即执行”不会计入该次数。",
+        "scope": "仅主节点执行：只有当前主节点会执行。\n所有节点执行：每个在线节点都会各自执行一次。",
+        "concurrency": "单例执行：本节点已有实例运行时，新触发会跳过。\n允许并行执行：本节点可同时运行多个实例，并受“最大并发”限制。"
+      },
+      "messages": {
+        "pluginPausedTooltip": "该任务依赖插件提供的处理器；当插件被禁用、卸载或处理器未注册时，系统会自动暂停任务，待插件恢复后可重新启用。",
+        "noShellPermission": "当前账号缺少 Shell 任务权限",
+        "platformUnsupported": "当前平台不支持 Shell 任务",
+        "environmentDisabled": "当前环境未启用 Shell 任务",
+        "deleteSelectedConfirm": "确认删除选中的 {count} 个任务吗？",
+        "deleteConfirm": "确认删除该任务吗？",
+        "triggerSuccess": "已触发执行，日志编号 {logId}",
+        "resetSuccess": "执行次数已重置",
+        "builtinReadonly": "内建任务不允许在表单中直接修改。",
+        "formInvalid": "请先完善任务配置后再保存。",
+        "previewFailed": "预览后续执行时间失败。",
+        "saveFailed": "保存任务失败。",
+        "shellConfigInvalid": "Shell 任务配置无效。"
+      },
+      "builtin": {
+        "title": "内建任务详情",
+        "description": "内建任务由宿主或插件提供，此处仅支持查看配置详情。",
+        "handlerParams": "处理器参数",
+        "handlerRef": "处理器引用",
+        "taskType": "任务类型"
+      },
+      "drawer": {
+        "createTitle": "新增任务",
+        "detailTitle": "任务详情",
+        "editTitle": "编辑任务"
+      },
+      "handler": {
+        "fields": {
+          "handler": "处理器"
+        },
+        "help": {
+          "readonly": "内建任务使用固定处理器，此处仅展示处理器参数结构供查看。"
+        },
+        "messages": {
+          "empty": "请选择处理器以加载参数结构预览。",
+          "invalid": "请完善处理器配置。",
+          "loadFailed": "加载处理器结构失败。",
+          "readonly": "内建任务处理器为只读。"
+        },
+        "placeholders": {
+          "inputField": "请输入{label}",
+          "select": "请选择处理器",
+          "selectField": "请选择{label}"
+        }
+      },
+      "preview": {
+        "title": "执行预览",
+        "description": "保存前先预览接下来的执行时间。",
+        "empty": "点击预览以加载后续执行时间。"
+      },
+      "shell": {
+        "actions": {
+          "addEnv": "新增变量"
+        },
+        "description": "配置可选的 Shell 步骤，运行时会结合当前任务上下文执行命令。",
+        "envHelp": "环境变量名必须唯一。若值当前被掩码，留空即可保持不变。",
+        "fields": {
+          "command": "命令",
+          "env": "环境变量",
+          "workDir": "工作目录"
+        },
+        "messages": {
+          "currentValueMasked": "当前值出于安全原因已隐藏，留空即可保持不变。",
+          "masked": "保留当前值"
+        },
+        "placeholders": {
+          "command": "请输入 Shell 命令",
+          "envKey": "变量名",
+          "envValue": "变量值",
+          "envValueMasked": "留空则保持当前值",
+          "workDir": "请输入工作目录"
+        },
+        "title": "Shell 任务配置",
+        "validation": {
+          "envKeyDuplicated": "存在重复的环境变量名：{keys}",
+          "envKeyRequired": "当填写了变量值时，变量名不能为空"
+        },
+        "warning": "Shell 任务会在宿主节点上执行命令，请在保存前仔细检查命令和环境变量。"
+      },
+      "validation": {
+        "cronInvalidCount": "Cron 表达式必须为 5 段或 6 段。",
+        "cronRequired": "请输入 Cron 表达式。",
+        "cronSecondInvalid": "秒字段必须为 `*` 或 0 到 59 之间的数值。",
+        "cronTooLong": "Cron 表达式过长。",
+        "groupRequired": "请选择任务分组。",
+        "integerRequired": "{label} 必须为整数。",
+        "invalidOption": "请选择有效的{label}。",
+        "maxValue": "{label} 不能大于 {max}。",
+        "minValue": "{label} 不能小于 {min}。",
+        "nameRequired": "请输入任务名称。",
+        "nameTooLong": "任务名称不能超过 128 个字符。",
+        "retentionValuePositive": "保留值必须大于 0。",
+        "timezoneInvalid": "请输入有效的时区，例如 `Asia/Shanghai`。",
+        "timezoneRequired": "请输入时区。"
+      }
+    },
+    "jobGroup": {
+      "tableTitle": "任务分组列表",
+      "fields": {
+        "code": "分组编码",
+        "name": "分组名称",
+        "sortOrder": "显示排序",
+        "jobCount": "任务数",
+        "defaultGroup": "默认分组"
+      },
+      "drawer": {
+        "createTitle": "新增任务分组",
+        "editTitle": "编辑任务分组"
+      },
+      "placeholders": {
+        "code": "请输入分组编码",
+        "name": "请输入分组名称",
+        "remark": "请输入备注"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "确认删除选中的 {count} 个任务分组吗？分组下的任务将自动迁移到默认分组。",
+        "defaultDeleteDisabled": "默认分组不可删除",
+        "deleteConfirm": "确认删除该分组吗？任务将自动迁移到默认分组。"
+      }
+    },
+    "jobLog": {
+      "tableTitle": "执行日志列表",
+      "fields": {
+        "jobName": "任务名称",
+        "status": "执行状态",
+        "nodeId": "执行节点",
+        "startAt": "开始时间",
+        "endAt": "结束时间",
+        "trigger": "触发方式",
+        "durationMs": "耗时(ms)",
+        "errorSummary": "错误摘要"
+      },
+      "placeholders": {
+        "selectJob": "请选择任务",
+        "selectStatus": "请选择状态"
+      },
+      "actions": {
+        "terminate": "终止"
+      },
+      "detail": {
+        "title": "执行日志详情",
+        "logId": "日志编号",
+        "duration": "执行耗时",
+        "error": "异常信息",
+        "jobSnapshot": "任务快照",
+        "paramsSnapshot": "参数快照",
+        "result": "执行结果"
+      },
+      "status": {
+        "running": "运行中",
+        "success": "成功",
+        "failed": "失败",
+        "cancelled": "取消",
+        "timeout": "超时",
+        "skippedMaxConcurrency": "跳过：达到最大并发",
+        "skippedNotPrimary": "跳过：非主节点",
+        "skippedSingleton": "跳过：单例运行中"
+      },
+      "messages": {
+        "cancelSent": "终止指令已发送",
+        "deleteSelectedConfirm": "确认删除选中的 {count} 条执行日志吗？",
+        "clearCurrentConfirm": "确认清空当前任务的执行日志吗？",
+        "clearAllConfirm": "确认清空全部执行日志吗？",
+        "clearSuccess": "清空成功",
+        "terminateConfirm": "确认终止当前任务实例吗？"
+      }
+    },
+    "menu": {
+      "tableTitle": "菜单列表",
+      "tableTitleHelp": "双击行可展开或折叠子菜单，修改后会立即刷新侧边栏和页签标题。",
+      "drawer": {
+        "createTitle": "新增菜单",
+        "editTitle": "编辑菜单"
+      },
+      "actions": {
+        "searchIcons": "搜索图标"
+      },
+      "fields": {
+        "parentMenu": "上级菜单",
+        "menuType": "菜单类型",
+        "menuIcon": "菜单图标",
+        "menuName": "菜单名称",
+        "permissionKey": "权限标识",
+        "displaySort": "显示排序",
+        "routePath": "路由地址",
+        "componentPath": "组件路径",
+        "icon": "图标",
+        "type": "类型",
+        "menuStatus": "菜单状态",
+        "visibleStatus": "显示状态",
+        "visible": "是否显示",
+        "isExternalLink": "是否外链",
+        "cache": "是否缓存",
+        "cascadeDelete": "级联删除",
+        "routeParams": "路由参数",
+        "componentType": "组件类型"
+      },
+      "help": {
+        "cache": "开启后使用 KeepAlive 缓存该路由页面，保留页面状态。",
+        "component": "填写相对于 views 目录的前端组件路径，例如 `system/user/index`。",
+        "externalLink": "外链地址必须使用以 http:// 或 https:// 开头的完整 URL。",
+        "icon": "填写 Iconify 图标名称，用于侧边栏和路由展示。",
+        "name": "用于侧边栏、面包屑和页签标题显示。",
+        "path": "内部页面使用相对路由地址，外链请填写完整 URL。",
+        "permission": "请使用唯一的权限标识，参与统一菜单和按钮鉴权。",
+        "queryParam": "可选的路由附加参数，例如 `id=1&type=detail`。",
+        "sort": "同级菜单中，值越小越靠前。",
+        "status": "停用后菜单将不会在正常导航中显示，也无法正常打开。",
+        "visible": "隐藏后仍保留路由访问能力，但不会出现在侧边栏中。"
+      },
+      "messages": {
+        "cascadeDeleteTooltip": "开启后，删除菜单时会同时删除其所有子孙菜单和按钮。",
+        "deleteConfirm": "确认删除菜单“{menuName}”吗？",
+        "deleteWithChildrenConfirm": "确认删除菜单“{menuName}”及其 {childCount} 个子项吗？",
+        "rootMenu": "根菜单"
+      },
+      "placeholders": {
+        "externalPath": "请输入完整外链地址",
+        "menuName": "请输入菜单名称",
+        "permissionKey": "请输入权限标识",
+        "queryParam": "请输入路由参数",
+        "remark": "请输入备注",
+        "routePath": "请输入路由地址"
+      },
+      "validation": {
+        "componentNoSlash": "组件路径不能以 / 开头",
+        "componentRequired": "请输入组件路径",
+        "linkInvalid": "外链地址必须以 http:// 或 https:// 开头",
+        "linkRequired": "请输入外链地址",
+        "permissionRequired": "请输入权限标识",
+        "routeRequired": "请输入路由地址"
+      },
+      "type": {
+        "directory": "目录",
+        "menu": "菜单",
+        "button": "按钮"
+      },
+      "visible": {
+        "shown": "显示",
+        "hidden": "隐藏"
+      }
+    },
+    "plugin": {
+      "tableTitle": "插件列表",
+      "fields": {
+        "id": "插件标识",
+        "name": "插件名称",
+        "type": "插件类型",
+        "description": "插件说明",
+        "installed": "安装状态",
+        "installedAt": "安装时间",
+        "version": "版本号",
+        "authorizationStatus": "授权状态",
+        "startupManagement": "启动管理"
+      },
+      "type": {
+        "source": "源码插件",
+        "dynamic": "动态插件"
+      },
+      "installed": {
+        "connected": "已安装",
+        "notInstalled": "未安装"
+      },
+      "actions": {
+        "syncPlugins": "同步插件",
+        "uploadPlugin": "上传插件",
+        "install": "安装",
+        "installAndEnable": "安装并启用",
+        "uninstall": "卸载",
+        "continueAction": "继续{actionLabel}"
+      },
+      "auth": {
+        "installTitle": "安装插件",
+        "installWithAuthTitle": "安装前审核插件授权",
+        "enableTitle": "启用插件",
+        "enableWithAuthTitle": "启用前审核插件授权",
+        "confirmInstall": "确认安装",
+        "confirmInstallWithAuth": "确认安装",
+        "confirmEnable": "确认启用",
+        "confirmEnableWithAuth": "确认启用",
+        "enableBanner": "启用前请先确认当前宿主服务授权快照。",
+        "hostServiceAuthTitle": "宿主服务授权审核",
+        "hostServiceDeclareTitle": "声明的宿主服务",
+        "installBanner": "安装前请先确认以下插件元数据。",
+        "installBannerWithAuth": "该插件申请了宿主服务能力，请先确认申请范围后再安装。"
+      },
+      "authorization": {
+        "confirmed": "已确认",
+        "notRequired": "无需授权",
+        "pending": "待审核"
+      },
+      "autoEnableBadge": "自动启用",
+      "autoEnableManaged": "宿主管理自动启用",
+      "manualManaged": "手动控制",
+      "detail": {
+        "title": "插件详情",
+        "hostServicesTitle": "宿主服务范围",
+        "routeListTitle": "声明的路由"
+      },
+      "hostServices": {
+        "cron": {
+          "pattern": "表达式",
+          "parallelLimit": "{label}（上限 {value}）"
+        },
+        "messages": {
+          "cronEmpty": "未声明 Cron 资源",
+          "defaultEmpty": "未声明受限资源"
+        },
+        "scope": {
+          "authorized": "已授权范围",
+          "effective": "生效范围",
+          "requested": "申请范围"
+        },
+        "service": {
+          "cron": "Cron",
+          "data": "数据",
+          "network": "网络",
+          "runtime": "运行时",
+          "storage": "存储"
+        },
+        "summary": {
+          "path": "路径",
+          "resource": "资源",
+          "storage": "存储路径",
+          "table": "数据表"
+        }
+      },
+      "messages": {
+        "autoEnableConfirmTitle": "确认{actionLabel}",
+        "autoEnableDetailAlert": "该插件由宿主自动启用策略管理，手动变更可能在下一次同步时被运行时恢复。",
+        "autoEnableRuntimeHint": "{actionLabel} 可能只是临时状态，运行时仍可能重新应用宿主管理的自动启用策略。",
+        "autoEnableTooltip": "插件 {pluginId} 由宿主自动启用策略管理。",
+        "autoEnableUninstallAlert": "该插件由宿主自动启用策略管理，后续若再次同步，运行时仍可能按宿主策略重新安装或启用。",
+        "disabled": "插件已停用",
+        "emptyHostServices": "当前插件暂未暴露任何宿主服务范围。",
+        "enabled": "插件已启用",
+        "hostServiceSnapshot": "以下范围展示的是当前插件元数据与授权快照。",
+        "installFirst": "请先安装该插件",
+        "installSucceededEnableFailed": "安装成功，但启用失败，请检查授权结果和插件状态。",
+        "installed": "插件安装成功",
+        "installedAndEnabled": "插件已安装并启用",
+        "noInstallPermission": "当前账号没有安装或同步插件的权限",
+        "noStatusPermission": "当前账号没有修改插件状态的权限",
+        "noUninstallPermission": "当前账号没有卸载插件的权限",
+        "syncSuccess": "已同步 {total} 条插件记录",
+        "uninstalled": "插件已卸载"
+      },
+      "routes": {
+        "authenticated": "登录访问",
+        "collapse": "收起",
+        "expand": "展开",
+        "public": "公开访问"
+      },
+      "uninstall": {
+        "title": "卸载插件",
+        "defaultWarning": "卸载该插件会移除其运行时注册信息，请先确认影响范围。",
+        "dynamicWarning": "卸载动态插件会移除已上传产物，并可选择同时清理插件自有数据和存储文件。",
+        "purgeStorage": "同时清理插件自有存储数据",
+        "sourceWarning": "卸载源码插件会移除其同步到宿主的治理记录，并可选择同时清理插件自有数据和存储文件。"
+      },
+      "upload": {
+        "acknowledge": "知道了",
+        "dragHint": "上传单个 `.wasm` 动态插件包，宿主会校验清单并注册插件产物。",
+        "dragText": "点击或拖拽 `.wasm` 插件包到此处上传",
+        "overwriteHint": "允许覆盖相同插件标识和版本的已有插件包",
+        "selectFile": "请先选择 `.wasm` 插件包",
+        "success": "插件包上传成功",
+        "title": "上传动态插件"
+      }
+    },
+    "message": {
+      "tableTitle": "消息列表",
+      "actions": {
+        "markAllRead": "全部已读",
+        "clearAll": "清空消息"
+      },
+      "messages": {
+        "clearAllConfirm": "确认清空所有消息？清空后不可恢复。"
+      },
+      "pagination": {
+        "total": "共 {total} 条"
+      }
+    }
+  },
+  "upload": {
+    "button": "上传",
+    "dragHint": "点击或拖拽文件到此区域上传",
+    "formatHint": "支持 {accept} 格式，单个文件不超过 {maxSize}MB",
+    "success": "上传成功",
+    "tooLarge": "文件大小不能超过{maxSize}MB"
+  },
+  "exportConfirm": {
+    "selected": "是否导出选中的记录？",
+    "all": "是否导出全部数据？"
+  },
+  "cropper": {
+    "title": "上传并裁剪图片",
+    "tooLarge": "所选图片超过大小限制",
+    "noImageSelected": "请先选择图片",
+    "avatarUploadSuccess": "头像更新成功",
+    "actions": {
+      "selectImage": "选择图片",
+      "reset": "重置",
+      "rotateLeft": "向左旋转",
+      "rotateRight": "向右旋转",
+      "flipHorizontal": "水平翻转",
+      "flipVertical": "垂直翻转",
+      "zoomIn": "放大",
+      "zoomOut": "缩小"
+    }
+  },
+  "editor": {
+    "placeholder": "请输入内容...",
+    "actions": {
+      "undo": "撤销",
+      "redo": "重做",
+      "bold": "加粗",
+      "italic": "斜体",
+      "underline": "下划线",
+      "strike": "删除线",
+      "heading1": "标题1",
+      "heading2": "标题2",
+      "heading3": "标题3",
+      "bulletList": "无序列表",
+      "orderedList": "有序列表",
+      "blockquote": "引用",
+      "codeBlock": "代码块",
+      "horizontalRule": "分割线",
+      "image": "图片",
+      "link": "链接"
+    },
+    "link": {
+      "title": "插入链接",
+      "placeholder": "请输入链接地址"
+    },
+    "messages": {
+      "imageUploadFailed": "图片上传失败"
+    }
+  },
+  "profile": {
+    "tabs": {
+      "basic": "基本资料",
+      "password": "修改密码"
+    },
+    "actions": {
+      "updateProfile": "更新资料"
+    },
+    "placeholders": {
+      "nickname": "请输入昵称",
+      "email": "请输入邮箱地址",
+      "phone": "请输入手机号码"
+    },
+    "validation": {
+      "email": "请输入正确的邮箱地址",
+      "phone": "请输入正确的手机号码"
+    },
+    "panel": {
+      "account": "账号",
+      "lastLogin": "最后登录",
+      "noLoginRecord": "暂无登录记录",
+      "unboundEmail": "未绑定邮箱",
+      "unboundPhone": "未绑定手机号",
+      "uploadAvatar": "上传头像"
+    },
+    "password": {
+      "oldPassword": "当前密码",
+      "newPassword": "新密码",
+      "confirmPassword": "确认密码",
+      "submit": "修改密码",
+      "success": "密码修改成功",
+      "placeholders": {
+        "oldPassword": "请输入当前密码",
+        "newPassword": "请输入新密码",
+        "confirmPassword": "请再次输入新密码"
+      },
+      "validation": {
+        "oldPassword": "请输入当前密码",
+        "newPassword": "请输入新密码",
+        "confirmPassword": "请再次输入新密码",
+        "passwordLength": "密码长度至少 5 位",
+        "passwordMismatch": "两次输入的密码不一致"
+      }
+    },
+    "security": {
+      "accountPassword": "账户密码",
+      "accountPasswordDesc": "设置高强度密码并定期更新，保护账号安全。",
+      "securityPhone": "安全手机",
+      "securityPhoneDesc": "绑定手机号，用于安全验证和消息通知。",
+      "securityQuestion": "安全问题",
+      "securityQuestionDesc": "配置安全问题，用于找回账号时校验身份。",
+      "securityEmail": "安全邮箱",
+      "securityEmailDesc": "绑定恢复邮箱，用于接收验证码和安全提醒。",
+      "securityMfa": "多因素认证",
+      "securityMfaDesc": "为登录和敏感操作增加第二重验证。"
+    },
+    "notification": {
+      "accountPassword": "账号安全",
+      "accountPasswordDesc": "当密码或关键账号设置发生变化时接收提醒。",
+      "systemMessage": "系统消息",
+      "systemMessageDesc": "接收公告、维护通知和其他系统级更新。",
+      "todoTask": "待办任务",
+      "todoTaskDesc": "接收待办事项和工作流提醒。"
+    }
+  },
+  "tree": {
+    "association": {
+      "linked": "父子联动",
+      "independent": "独立选择"
+    },
+    "expandCollapseAll": "展开/折叠全部",
+    "selectAll": "全选",
+    "parentChildLinked": "父子节点联动",
+    "nodeStatus": "选择模式",
+    "messages": {
+      "fullscreenHint": "点击这里进入全屏模式，方便查看和选择权限。",
+      "selectedPrefix": "已选择",
+      "selectedSuffix": "项"
+    },
+    "validation": {
+      "menuChildInvalid": "菜单节点“{childLabel}”不能挂到菜单“{menuLabel}”下。",
+      "buttonChildInvalid": "节点“{childLabel}”不能挂到按钮“{menuLabel}”下。"
+    }
   }
 }

@@ -94,7 +94,7 @@ const defaultPreferences: Preferences = {
     fixedButton: true,
     hidden: false,
     mixedWidth: 80,
-    width: 224,
+    width: 240,
   },
   tabbar: {
     draggable: true,

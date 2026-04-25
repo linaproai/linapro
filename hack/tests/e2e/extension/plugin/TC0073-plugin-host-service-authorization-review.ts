@@ -9,6 +9,7 @@ import { request as playwrightRequest, expect } from "@playwright/test";
 import { test } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { PluginPage } from "../../../pages/PluginPage";
+import { RolePage } from "../../../pages/RolePage";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
@@ -298,7 +299,7 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     cleanupPluginWorkspace();
   });
 
-  test("TC-73a~c: 安装弹窗展示插件详情与授权排序，安装时持久化授权结果，后续启用不再重复确认", async ({
+  test("TC-73a~d: 安装弹窗展示插件详情与授权排序，安装时持久化授权结果，后续启用不再重复确认，并校验角色授权中的动态路由权限文案", async ({
     adminPage,
   }) => {
     const pluginPage = new PluginPage(adminPage);
@@ -312,8 +313,8 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).toContainText(pluginVersion);
     await expect(hostServiceAuthModal).toContainText("动态插件");
     await expect(hostServiceAuthModal).toContainText(pluginDescription);
-    await expect(hostServiceAuthModal).toContainText("宿主服务授权范围");
-    await expect(hostServiceAuthModal).toContainText("注册路由列表");
+    await expect(hostServiceAuthModal).toContainText("宿主服务授权审核");
+    await expect(hostServiceAuthModal).toContainText("声明的路由");
     await expect(hostServiceAuthModal).toContainText("查询评审摘要");
     await expect(hostServiceAuthModal).toContainText("公开健康检查");
     await expect(hostServiceAuthModal).toContainText(routeSummaryPath);
@@ -321,14 +322,14 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
     await expect(hostServiceAuthModal).toContainText(routePermission);
     await expect(hostServiceAuthModal).toContainText("登录访问");
     await expect(hostServiceAuthModal).toContainText("公开访问");
-    await expect(hostServiceAuthModal).toContainText("数据服务");
-    await expect(hostServiceAuthModal).toContainText("存储服务");
-    await expect(hostServiceAuthModal).toContainText("网络服务");
-    await expect(hostServiceAuthModal).toContainText("运行时服务");
-    await expect(hostServiceAuthModal).toContainText("申请清单");
+    await expect(hostServiceAuthModal).toContainText("数据");
+    await expect(hostServiceAuthModal).toContainText("存储");
+    await expect(hostServiceAuthModal).toContainText("网络");
+    await expect(hostServiceAuthModal).toContainText("运行时");
+    await expect(hostServiceAuthModal).toContainText("申请范围");
     await expect(hostServiceAuthModal).toContainText("存储路径");
-    await expect(hostServiceAuthModal).toContainText("数据表名");
-    await expect(hostServiceAuthModal).toContainText("访问地址");
+    await expect(hostServiceAuthModal).toContainText("数据表");
+    await expect(hostServiceAuthModal).toContainText("路径");
     await expect(hostServiceAuthModal).not.toContainText("申请存储路径");
     await expect(hostServiceAuthModal).not.toContainText("申请数据表名");
     await expect(hostServiceAuthModal).not.toContainText("申请访问地址");
@@ -424,15 +425,15 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       .getByTestId("plugin-host-service-summary-label-storage-storage-review")
       .evaluate((node) => getComputedStyle(node).backgroundColor);
     const installModalText = await hostServiceAuthModal.innerText();
-    expect(installModalText.indexOf("数据服务")).toBeGreaterThanOrEqual(0);
-    expect(installModalText.indexOf("数据服务")).toBeLessThan(
-      installModalText.indexOf("存储服务"),
+    expect(installModalText.indexOf("数据")).toBeGreaterThanOrEqual(0);
+    expect(installModalText.indexOf("数据")).toBeLessThan(
+      installModalText.indexOf("存储"),
     );
-    expect(installModalText.indexOf("存储服务")).toBeLessThan(
-      installModalText.indexOf("网络服务"),
+    expect(installModalText.indexOf("存储")).toBeLessThan(
+      installModalText.indexOf("网络"),
     );
-    expect(installModalText.indexOf("网络服务")).toBeLessThan(
-      installModalText.indexOf("运行时服务"),
+    expect(installModalText.indexOf("网络")).toBeLessThan(
+      installModalText.indexOf("运行时"),
     );
     const authHostServiceTitleTop = await hostServiceAuthModal
       .getByTestId("plugin-host-service-section-title")
@@ -511,18 +512,18 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
 
     await pluginPage.openPluginDetail(pluginID);
     const detailModal = pluginPage.pluginDetailModal();
-    await expect(detailModal).toContainText("宿主服务信息");
-    await expect(detailModal).toContainText("注册路由列表");
+    await expect(detailModal).toContainText("宿主服务范围");
+    await expect(detailModal).toContainText("声明的路由");
     await expect(detailModal).toContainText("生效范围");
     await expect(detailModal).not.toContainText("当前生效范围");
     await expect(detailModal).toContainText("存储路径");
-    await expect(detailModal).toContainText("数据表名");
-    await expect(detailModal).toContainText("访问地址");
+    await expect(detailModal).toContainText("数据表");
+    await expect(detailModal).toContainText("路径");
     await expect(detailModal).not.toContainText("授权存储路径");
     await expect(detailModal).not.toContainText("授权数据表名");
     await expect(detailModal).not.toContainText("授权访问地址");
     await expect(detailModal).toContainText(
-      "申请清单表示插件当前版本声明的宿主服务范围；授权快照表示宿主管理员对当前 release 最终确认并实际生效的授权结果。",
+      "以下范围展示的是当前插件元数据与授权快照。",
     );
     await expect(detailModal).toContainText(storagePath);
     await expect(detailModal).toContainText(
@@ -589,5 +590,13 @@ test.describe("TC-73 插件安装/启用时审查 hostServices 授权", () => {
       .first()
       .evaluate((node) => node.getBoundingClientRect().top);
     expect(Math.abs(summaryTop - firstStorageItemTop)).toBeLessThan(24);
+
+    const rolePage = new RolePage(adminPage);
+    await rolePage.goto();
+    const roleDrawer = await rolePage.openCreateDrawer();
+    await expect(roleDrawer).toContainText("动态路由权限（资源：审核，动作：查询）");
+    await expect(roleDrawer).toContainText("动态路由权限（资源：审计，动作：查询）");
+    await expect(roleDrawer).not.toContainText(routePermission);
+    await expect(roleDrawer).not.toContainText(routeAuditPermission);
   });
 });

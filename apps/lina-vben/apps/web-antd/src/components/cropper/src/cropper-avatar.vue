@@ -9,6 +9,7 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { message } from 'ant-design-vue';
 
+import { $t } from '#/locales';
 import cropperModal from './cropper-modal.vue';
 
 defineOptions({ name: 'CropperAvatar' });
@@ -71,7 +72,7 @@ watch(
 function handleUploadSuccess({ data, source }: any) {
   sourceValue.value = source;
   emit('change', { data, source });
-  message.success('头像上传成功');
+  message.success($t('pages.cropper.avatarUploadSuccess'));
 }
 
 const closeModal = () => modalApi.close();
@@ -108,7 +109,7 @@ defineExpose({
       @click="openModal"
       v-bind="btnProps"
     >
-      {{ btnText ? btnText : '选择图片' }}
+      {{ btnText ? btnText : $t('pages.cropper.actions.selectImage') }}
     </a-button>
 
     <CropperModal

@@ -129,6 +129,15 @@ export class PostPage {
       .catch(() => false);
   }
 
+  /** Check if a post row with the given display name is visible in the table. */
+  async hasPostName(name: string): Promise<boolean> {
+    return this.page
+      .locator('.vxe-body--row:visible', { hasText: name })
+      .first()
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
+  }
+
   /** Click export button */
   async clickExport() {
     await this.page

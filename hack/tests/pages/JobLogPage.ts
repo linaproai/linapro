@@ -21,7 +21,7 @@ export class JobLogPage {
 
   async selectJob(jobName: string) {
     const combobox = this.page
-      .getByRole("combobox", { name: "任务名称", exact: true })
+      .getByRole("combobox", { name: /任务名称|Job Name/i })
       .first();
     await combobox.click();
     await this.page.getByText(jobName, { exact: true }).last().click();
@@ -29,7 +29,7 @@ export class JobLogPage {
 
   async clickSearch() {
     await this.page
-      .getByRole("button", { name: /搜\s*索/ })
+      .getByRole("button", { name: /搜\s*索|Search/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -39,7 +39,7 @@ export class JobLogPage {
     await this.page.locator('[data-testid^="job-log-detail-"]').first().click();
     await waitForDialogReady(this.dialog);
     await this.dialog
-      .getByText("任务名称", { exact: true })
+      .getByText(/任务名称|Job Name/i)
       .waitFor({ state: "visible" });
   }
 
@@ -78,8 +78,12 @@ export class JobLogPage {
     return this.page.locator(".vxe-body--row").count();
   }
 
-  async detailContains(text: string) {
-    return this.dialog.getByText(text).first().isVisible();
+  async detailContains(text: RegExp | string) {
+    const matcher =
+      typeof text === 'string'
+        ? new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+        : text;
+    return this.dialog.getByText(matcher).first().isVisible();
   }
 
   private async confirmPopconfirm() {

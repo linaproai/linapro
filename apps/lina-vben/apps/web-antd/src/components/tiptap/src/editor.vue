@@ -3,6 +3,8 @@ import { onBeforeUnmount, watch } from 'vue';
 
 import { EditorContent, useEditor } from '@tiptap/vue-3';
 
+import { $t } from '#/locales';
+
 import { getExtensions } from './extensions';
 import Toolbar from './toolbar.vue';
 
@@ -20,7 +22,7 @@ const props = withDefaults(
     modelValue: '',
     disabled: false,
     height: 300,
-    placeholder: '请输入内容...',
+    placeholder: $t('pages.editor.placeholder'),
   },
 );
 

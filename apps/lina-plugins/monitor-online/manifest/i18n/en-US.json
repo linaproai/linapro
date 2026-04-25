@@ -3,5 +3,17 @@
   "menu.plugin:monitor-online:online:force-logout.title": "Force Logout",
   "menu.plugin:monitor-online:online:query.title": "Query Online Users",
   "plugin.monitor-online.description": "Official source plugin for online-user queries and forced logout governance.",
-  "plugin.monitor-online.name": "Monitoring - Online Users"
+  "plugin.monitor-online.name": "Monitoring - Online Users",
+  "plugin.monitor-online.page.tableTitlePrefix": "Online Users (",
+  "plugin.monitor-online.page.tableTitleSuffix": " online)",
+  "plugin.monitor-online.page.actions.forceLogout": "Force Logout",
+  "plugin.monitor-online.page.messages.forceLogoutConfirm": "Force logout [{username}]?",
+  "plugin.monitor-online.page.fields.userAccount": "User Account",
+  "plugin.monitor-online.page.fields.ipAddress": "IP Address",
+  "plugin.monitor-online.page.fields.loginAccount": "Login Account",
+  "plugin.monitor-online.page.fields.departmentName": "Department Name",
+  "plugin.monitor-online.page.fields.browser": "Browser",
+  "plugin.monitor-online.page.fields.os": "Operating System",
+  "plugin.monitor-online.page.fields.loginTime": "Login Time",
+  "plugin.monitor-online.page.fields.actions": "Actions"
 }

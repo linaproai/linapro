@@ -14,6 +14,7 @@ import { Modal, Popconfirm, Space, Switch, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid, vxeCheckboxChecked } from '#/adapter/vxe-table';
 import { roleList, roleRemove, roleStatusChange } from '#/api/system/role';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 
 import { columns, querySchema } from './data';
@@ -28,7 +29,7 @@ const formOptions: VbenFormProps = {
       allowClear: true,
     },
   },
-  schema: querySchema,
+  schema: querySchema(),
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
 };
 
@@ -38,7 +39,7 @@ const gridOptions: VxeGridProps = {
     reserve: true,
     checkMethod: ({ row }) => row.id !== 1,
   },
-  columns,
+  columns: columns(),
   height: 'auto',
   keepSource: true,
   pagerConfig: {},
@@ -69,15 +70,18 @@ const [RoleDrawerRef, drawerApi] = useVbenDrawer({
 
 // 加载字典数据
 const dictStore = useDictStore();
-const statusLabel = ref({ checked: '正常', unchecked: '停用' });
+const statusLabel = ref({
+  checked: $t('pages.status.enabled'),
+  unchecked: $t('pages.status.disabled'),
+});
 
 onMounted(async () => {
   const statusOptions = await dictStore.getDictOptionsAsync('sys_normal_disable');
   const checked = statusOptions.find((d) => d.value === '1');
   const unchecked = statusOptions.find((d) => d.value === '0');
   statusLabel.value = {
-    checked: checked?.label || '正常',
-    unchecked: unchecked?.label || '停用',
+    checked: checked?.label || $t('pages.status.enabled'),
+    unchecked: unchecked?.label || $t('pages.status.disabled'),
   };
   tableApi.formApi.updateSchema([
     {
@@ -104,7 +108,7 @@ async function handleEdit(record: Role) {
 
 async function handleDelete(row: Role) {
   await roleRemove(row.id);
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   await tableApi.query();
 }
 
@@ -113,14 +117,16 @@ function handleMultiDelete() {
   if (rows.length === 0) return;
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
+    content: $t('pages.system.role.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       for (const id of ids) {
         await roleRemove(id);
       }
-      message.success('删除成功');
+      message.success($t('pages.common.deleteSuccess'));
       await tableApi.query();
     },
   });
@@ -128,7 +134,7 @@ function handleMultiDelete() {
 
 async function handleStatusChange(row: Role) {
   await roleStatusChange(row.id, row.status);
-  message.success('状态更新成功');
+  message.success($t('pages.system.role.messages.statusUpdated'));
 }
 
 function onReload() {
@@ -142,7 +148,7 @@ function handleAssignRole(record: Role) {
 
 <template>
   <Page :auto-content-height="true">
-    <BasicTable table-title="角色列表">
+    <BasicTable :table-title="$t('pages.system.role.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -151,9 +157,11 @@ function handleAssignRole(record: Role) {
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
-          <a-button type="primary" @click="handleAdd">新 增</a-button>
+          <a-button type="primary" @click="handleAdd">
+            {{ $t('pages.common.add') }}
+          </a-button>
         </Space>
       </template>
       <template #status="{ row }">
@@ -171,19 +179,19 @@ function handleAssignRole(record: Role) {
         <template v-if="row.id !== 1">
           <Space>
             <ghost-button @click.stop="handleEdit(row)">
-              编 辑
+              {{ $t('pages.common.edit') }}
             </ghost-button>
             <ghost-button @click.stop="handleAssignRole(row)">
-              分 配
+              {{ $t('pages.system.role.actions.assign') }}
             </ghost-button>
             <Popconfirm
               :get-popup-container="getPopupContainer"
               placement="left"
-              title="确认删除？"
+              :title="$t('pages.system.role.messages.deleteConfirm')"
               @confirm="handleDelete(row)"
             >
               <ghost-button danger @click.stop="">
-                删 除
+                {{ $t('pages.common.delete') }}
               </ghost-button>
             </Popconfirm>
           </Space>

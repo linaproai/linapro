@@ -58,7 +58,6 @@ func (s *serviceImpl) DataList(ctx context.Context, in DataListInput) (*DataList
 	if err != nil {
 		return nil, err
 	}
-	s.localizeDictDataEntities(ctx, list)
 
 	return &DataListOutput{
 		List:  list,
@@ -109,7 +108,6 @@ func (s *serviceImpl) DataGetById(ctx context.Context, id int) (*entity.SysDictD
 	if dictData == nil {
 		return nil, gerror.New("字典数据不存在")
 	}
-	s.localizeDictDataEntity(ctx, dictData)
 	return dictData, nil
 }
 

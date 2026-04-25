@@ -7,48 +7,57 @@ import { message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
 import { updateProfile } from '#/api/system/user';
+import { $t } from '#/locales';
 
 const emit = defineEmits<{ updated: [] }>();
 
 const formSchema: VbenFormSchema[] = [
   {
     fieldName: 'oldPassword',
-    label: '旧密码',
+    label: $t('pages.profile.password.oldPassword'),
     component: 'VbenInputPassword',
     componentProps: {
-      placeholder: '请输入旧密码',
+      placeholder: $t('pages.profile.password.placeholders.oldPassword'),
     },
     rules: z
-      .string({ required_error: '请输入旧密码' })
-      .min(1, { message: '请输入旧密码' }),
+      .string({
+        required_error: $t('pages.profile.password.validation.oldPassword'),
+      })
+      .min(1, { message: $t('pages.profile.password.validation.oldPassword') }),
   },
   {
     fieldName: 'newPassword',
-    label: '新密码',
+    label: $t('pages.profile.password.newPassword'),
     component: 'VbenInputPassword',
     componentProps: {
       passwordStrength: true,
-      placeholder: '请输入新密码',
+      placeholder: $t('pages.profile.password.placeholders.newPassword'),
     },
     rules: z
-      .string({ required_error: '请输入新密码' })
-      .min(5, { message: '密码长度至少5个字符' }),
+      .string({
+        required_error: $t('pages.profile.password.validation.newPassword'),
+      })
+      .min(5, { message: $t('pages.profile.password.validation.passwordLength') }),
   },
   {
     fieldName: 'confirmPassword',
-    label: '确认密码',
+    label: $t('pages.profile.password.confirmPassword'),
     component: 'VbenInputPassword',
     componentProps: {
-      placeholder: '请再次输入新密码',
+      placeholder: $t('pages.profile.password.placeholders.confirmPassword'),
     },
     dependencies: {
       rules(values) {
         const { newPassword } = values;
         return z
-          .string({ required_error: '请再次输入新密码' })
-          .min(1, { message: '请再次输入新密码' })
+          .string({
+            required_error: $t('pages.profile.password.validation.confirmPassword'),
+          })
+          .min(1, {
+            message: $t('pages.profile.password.validation.confirmPassword'),
+          })
           .refine((value) => value === newPassword, {
-            message: '两次输入的密码不一致',
+            message: $t('pages.profile.password.validation.passwordMismatch'),
           });
       },
       triggerFields: ['newPassword'],
@@ -63,19 +72,19 @@ function buttonLoading(loading: boolean) {
 const [Form, formApi] = useVbenForm({
   schema: formSchema,
   commonConfig: {
-    labelWidth: 90,
+    labelWidth: 140,
     componentProps: {
       class: 'w-full',
     },
   },
   wrapperClass: 'grid-cols-1',
   resetButtonOptions: { show: false },
-  submitButtonOptions: { content: '修改密码' },
+  submitButtonOptions: { content: $t('pages.profile.password.submit') },
   async handleSubmit(values) {
     buttonLoading(true);
     try {
       await updateProfile({ password: values.newPassword });
-      message.success('密码修改成功');
+      message.success($t('pages.profile.password.success'));
       formApi.resetForm();
       emit('updated');
     } finally {
@@ -85,7 +94,7 @@ const [Form, formApi] = useVbenForm({
 });
 </script>
 <template>
-  <div class="mt-[16px] md:w-full lg:w-1/2 2xl:w-2/5">
+  <div data-testid="profile-password-form" class="mt-[16px] w-full max-w-[30rem]">
     <Form />
   </div>
 </template>

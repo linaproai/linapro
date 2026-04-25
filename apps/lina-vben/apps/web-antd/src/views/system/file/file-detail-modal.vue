@@ -4,6 +4,7 @@ import type { FileDetail } from '#/api/system/file/model';
 import { ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { Descriptions, DescriptionsItem, Spin, Tag } from 'ant-design-vue';
 
@@ -38,37 +39,37 @@ function formatFileSize(bytes: number): string {
 </script>
 
 <template>
-  <Modal :footer="false" title="文件详情" class="w-[650px]">
+  <Modal :footer="false" :title="$t('pages.system.file.detail.title')" class="w-[650px]">
     <Spin :spinning="loading">
       <template v-if="detail">
         <Descriptions :column="2" bordered size="middle" :label-style="{ minWidth: '120px' }" :content-style="{ minWidth: '120px' }">
-          <DescriptionsItem label="文件ID">{{ detail.id }}</DescriptionsItem>
-          <DescriptionsItem label="存储引擎">{{ detail.engine }}</DescriptionsItem>
-          <DescriptionsItem label="原始文件名" :span="2">
+          <DescriptionsItem :label="$t('pages.system.file.detail.fileId')">{{ detail.id }}</DescriptionsItem>
+          <DescriptionsItem :label="$t('pages.system.file.detail.engine')">{{ detail.engine }}</DescriptionsItem>
+          <DescriptionsItem :label="$t('pages.system.file.fields.originalName')" :span="2">
             {{ detail.original }}
           </DescriptionsItem>
-          <DescriptionsItem label="存储文件名" :span="2">
+          <DescriptionsItem :label="$t('pages.system.file.detail.storedName')" :span="2">
             {{ detail.name }}
           </DescriptionsItem>
-          <DescriptionsItem label="文件类型">{{ detail.suffix }}</DescriptionsItem>
-          <DescriptionsItem label="文件大小">
+          <DescriptionsItem :label="$t('pages.system.file.fields.fileType')">{{ detail.suffix }}</DescriptionsItem>
+          <DescriptionsItem :label="$t('pages.system.file.fields.size')">
             {{ formatFileSize(detail.size) }}
           </DescriptionsItem>
-          <DescriptionsItem label="使用场景" :span="2">
+          <DescriptionsItem :label="$t('pages.system.file.fields.scene')" :span="2">
             <Tag color="blue">{{ detail.sceneLabel }}</Tag>
           </DescriptionsItem>
-          <DescriptionsItem label="文件URL" :span="2">
+          <DescriptionsItem :label="$t('pages.system.file.detail.url')" :span="2">
             <a :href="detail.url" target="_blank" rel="noopener noreferrer">
               {{ detail.url }}
             </a>
           </DescriptionsItem>
-          <DescriptionsItem label="文件哈希" :span="2">
+          <DescriptionsItem :label="$t('pages.system.file.detail.hash')" :span="2">
             {{ detail.hash }}
           </DescriptionsItem>
-          <DescriptionsItem label="上传者">
+          <DescriptionsItem :label="$t('pages.system.file.fields.uploader')">
             {{ detail.createdByName || '-' }}
           </DescriptionsItem>
-          <DescriptionsItem label="上传时间">
+          <DescriptionsItem :label="$t('pages.system.file.fields.uploadedAt')">
             {{ detail.createdAt }}
           </DescriptionsItem>
         </Descriptions>

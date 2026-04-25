@@ -6,6 +6,7 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 
 import { Checkbox, Tree } from 'ant-design-vue';
 
+import { $t } from '#/locales';
 import { treeToList } from '#/utils/tree';
 
 defineOptions({ inheritAttrs: false });
@@ -28,7 +29,9 @@ const expandStatus = ref(false);
 const selectAllStatus = ref(false);
 
 const associationText = computed(() => {
-  return checkStrictly.value ? '父子节点关联' : '父子节点独立';
+  return checkStrictly.value
+    ? $t('pages.tree.association.linked')
+    : $t('pages.tree.association.independent');
 });
 
 const checkedKeys = defineModel<(number | string)[]>('value', {
@@ -91,7 +94,7 @@ onMounted(async () => {
   <div class="bg-background w-full rounded-lg border-[1px] p-[12px]">
     <div class="flex items-center justify-between gap-2 border-b-[1px] pb-2">
       <div class="opacity-75">
-        <span>节点状态: </span>
+        <span>{{ $t('pages.tree.nodeStatus') }}: </span>
         <span :class="[checkStrictly ? 'text-primary' : 'text-red-500']">
           {{ associationText }}
         </span>
@@ -101,19 +104,19 @@ onMounted(async () => {
       class="flex flex-wrap items-center justify-between border-b-[1px] py-2"
     >
       <a-button size="small" @click="handleExpandOrCollapseAll">
-        展开/折叠全部
+        {{ $t('pages.tree.expandCollapseAll') }}
       </a-button>
       <Checkbox
         v-model:checked="selectAllStatus"
         @change="handleCheckedAllChange"
       >
-        全选/取消全选
+        {{ $t('pages.tree.selectAll') }}
       </Checkbox>
       <Checkbox
         v-model:checked="checkStrictly"
         @change="handleCheckStrictlyChange"
       >
-        父子节点关联
+        {{ $t('pages.tree.parentChildLinked') }}
       </Checkbox>
     </div>
     <div class="py-2">

@@ -6,6 +6,7 @@ import { onMounted } from 'vue';
 
 import { useVbenForm, z } from '#/adapter/form';
 import { updateProfile } from '#/api/system/user';
+import { $t } from '#/locales';
 
 import { message } from 'ant-design-vue';
 
@@ -17,46 +18,50 @@ const formSchema: VbenFormSchema[] = [
   {
     fieldName: 'nickname',
     component: 'Input',
-    label: '昵称',
+    label: $t('pages.fields.nickname'),
     rules: 'required',
     componentProps: {
-      placeholder: '请输入昵称',
+      placeholder: $t('pages.profile.placeholders.nickname'),
     },
   },
   {
     fieldName: 'email',
     component: 'Input',
-    label: '邮箱',
-    rules: z.string().email('请输入正确的邮箱').optional().or(z.literal('')),
+    label: $t('pages.fields.email'),
+    rules: z
+      .string()
+      .email($t('pages.profile.validation.email'))
+      .optional()
+      .or(z.literal('')),
     componentProps: {
-      placeholder: '请输入邮箱',
+      placeholder: $t('pages.profile.placeholders.email'),
     },
   },
   {
     fieldName: 'phone',
     component: 'Input',
-    label: '手机号码',
+    label: $t('pages.fields.phone'),
     rules: z
       .string()
-      .regex(/^1[3-9]\d{9}$/, '请输入正确的手机号')
+      .regex(/^1[3-9]\d{9}$/, $t('pages.profile.validation.phone'))
       .optional()
       .or(z.literal('')),
     componentProps: {
-      placeholder: '请输入手机号码',
+      placeholder: $t('pages.profile.placeholders.phone'),
     },
   },
   {
     fieldName: 'sex',
     component: 'RadioGroup',
-    label: '性别',
+    label: $t('pages.fields.sex'),
     defaultValue: 0,
     componentProps: {
       buttonStyle: 'solid',
       optionType: 'button',
       options: [
-        { label: '未知', value: 0 },
-        { label: '男', value: 1 },
-        { label: '女', value: 2 },
+        { label: $t('pages.status.unknown'), value: 0 },
+        { label: $t('pages.status.male'), value: 1 },
+        { label: $t('pages.status.female'), value: 2 },
       ],
     },
   },
@@ -69,19 +74,19 @@ function buttonLoading(loading: boolean) {
 const [Form, formApi] = useVbenForm({
   schema: formSchema,
   commonConfig: {
-    labelWidth: 80,
+    labelWidth: 140,
     componentProps: {
       class: 'w-full',
     },
   },
   wrapperClass: 'grid-cols-1',
   resetButtonOptions: { show: false },
-  submitButtonOptions: { content: '更新信息' },
+  submitButtonOptions: { content: $t('pages.profile.actions.updateProfile') },
   async handleSubmit(values) {
     buttonLoading(true);
     try {
       await updateProfile(values);
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
       emit('updated');
     } finally {
       buttonLoading(false);
@@ -99,7 +104,7 @@ onMounted(() => {
 });
 </script>
 <template>
-  <div class="mt-[16px] md:w-full lg:w-1/2 2xl:w-2/5">
+  <div data-testid="profile-base-form" class="mt-[16px] w-full max-w-[30rem]">
     <Form />
   </div>
 </template>

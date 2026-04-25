@@ -37,6 +37,37 @@ export class MainLayout {
     return this.page.getByTestId("language-toggle-trigger").first();
   }
 
+  sidebarMenuItem(label: string) {
+    return this.sidebar.getByText(label, { exact: true }).first();
+  }
+
+  tabTitle(label: string) {
+    return this.page
+      .locator('[data-tab-item="true"] span[title]')
+      .filter({ hasText: label })
+      .first();
+  }
+
+  activeTabTitle() {
+    return this.page.locator('[data-tab-item="true"].is-active span[title]').first();
+  }
+
+  get userDropdownTrigger() {
+    return this.page.getByTestId('layout-user-dropdown-trigger').first();
+  }
+
+  get userDropdownMenu() {
+    return this.page.getByTestId('layout-user-dropdown-menu');
+  }
+
+  get userDropdownProfile() {
+    return this.page.getByTestId('layout-user-dropdown-profile');
+  }
+
+  get userDropdownName() {
+    return this.page.getByTestId('layout-user-dropdown-name');
+  }
+
   async navigateTo(menuGroup: string, menuItem: string) {
     await this.page.getByText(menuGroup).click();
     await this.page.getByText(menuItem).click();
@@ -53,6 +84,11 @@ export class MainLayout {
       .toBe(locale);
     await this.page.waitForLoadState("networkidle");
     await waitForRouteReady(this.page);
+  }
+
+  async openUserDropdown() {
+    await this.userDropdownTrigger.click();
+    await expect(this.userDropdownMenu).toBeVisible();
   }
 
   async logout() {

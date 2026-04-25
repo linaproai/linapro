@@ -4,6 +4,7 @@ import type { SysUser } from '#/api/system/user';
 import { ref } from 'vue';
 
 import { useVbenModal, z } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { Descriptions, DescriptionsItem, message } from 'ant-design-vue';
 
@@ -19,14 +20,14 @@ const [BasicForm, formApi] = useVbenForm({
     {
       component: 'InputPassword',
       componentProps: {
-        placeholder: '请输入新的密码，密码长度为5-20',
+        placeholder: $t('pages.system.user.resetPassword.placeholder'),
       },
       fieldName: 'password',
-      label: '新的密码',
+      label: $t('pages.system.user.resetPassword.newPassword'),
       rules: z
         .string()
-        .min(5, { message: '密码长度为5-20' })
-        .max(20, { message: '密码长度为5-20' }),
+        .min(5, { message: $t('pages.system.user.messages.passwordLength') })
+        .max(20, { message: $t('pages.system.user.messages.passwordLength') }),
     },
   ],
   showDefaultActions: false,
@@ -64,7 +65,7 @@ async function handleSubmit() {
     }
     const values = await formApi.getValues();
     await userResetPassword(currentUser.value.id, values.password);
-    message.success('重置密码成功');
+    message.success($t('pages.system.user.messages.resetPasswordSuccess'));
     emit('reload');
     handleClosed();
   } catch (error) {
@@ -85,17 +86,17 @@ async function handleClosed() {
   <BasicModal
     :close-on-click-modal="false"
     :fullscreen-button="false"
-    title="重置密码"
+    :title="$t('pages.system.user.resetPassword.title')"
   >
     <div class="flex flex-col gap-[12px]">
       <Descriptions v-if="currentUser" size="small" :column="1" bordered>
-        <DescriptionsItem label="用户ID">
+        <DescriptionsItem :label="$t('pages.system.user.resetPassword.userId')">
           {{ currentUser.id }}
         </DescriptionsItem>
-        <DescriptionsItem label="用户名">
+        <DescriptionsItem :label="$t('pages.fields.username')">
           {{ currentUser.username }}
         </DescriptionsItem>
-        <DescriptionsItem label="昵称">
+        <DescriptionsItem :label="$t('pages.fields.nickname')">
           {{ currentUser.nickname }}
         </DescriptionsItem>
       </Descriptions>

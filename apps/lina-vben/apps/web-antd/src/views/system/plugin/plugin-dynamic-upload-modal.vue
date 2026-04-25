@@ -9,6 +9,7 @@ import { IconifyIcon } from '@vben/icons';
 import { Alert, Modal, Switch, Upload } from 'ant-design-vue';
 
 import { pluginDynamicUpload } from '#/api/system/plugin';
+import { $t } from '#/locales';
 
 const emit = defineEmits<{ reload: [] }>();
 
@@ -32,7 +33,7 @@ async function handleSubmit() {
   try {
     modalApi.setState({ loading: true });
     if (fileList.value.length !== 1) {
-      Modal.warning({ title: '请选择一个插件文件' });
+      Modal.warning({ title: $t('pages.system.plugin.upload.selectFile') });
       return;
     }
 
@@ -48,7 +49,7 @@ async function handleSubmit() {
             type: rawFile.type || 'application/wasm',
           });
     await pluginDynamicUpload(file, overwriteSupport.value);
-    successMessage.value = '上传成功，请在插件列表中继续安装并启用。';
+    successMessage.value = $t('pages.system.plugin.upload.success');
   } catch (error) {
     console.warn(error);
   } finally {
@@ -70,9 +71,13 @@ function handleCancel() {
     :close-on-press-escape="!successMessage"
     :closable="!successMessage"
     :fullscreen-button="false"
-    :confirm-text="successMessage ? '知道了' : '确认'"
+    :confirm-text="
+      successMessage
+        ? $t('pages.system.plugin.upload.acknowledge')
+        : $t('pages.common.confirm')
+    "
     :show-cancel-button="!successMessage"
-    title="上传插件"
+    :title="$t('pages.system.plugin.upload.title')"
   >
     <template v-if="!successMessage">
       <UploadDragger
@@ -89,14 +94,16 @@ function handleCancel() {
             icon="ant-design:inbox-outlined"
           />
         </p>
-        <p class="ant-upload-text">点击或拖拽上传 .wasm 插件包</p>
+        <p class="ant-upload-text">
+          {{ $t('pages.system.plugin.upload.dragText') }}
+        </p>
         <p class="ant-upload-hint">
-          仅支持单个 .wasm 文件，上传后可在列表中继续安装并启用。
+          {{ $t('pages.system.plugin.upload.dragHint') }}
         </p>
       </UploadDragger>
       <div class="mt-2 flex items-center gap-2">
         <span :class="{ 'text-red-500': overwriteSupport }">
-          允许覆盖同 ID 且未安装的插件工作区文件
+          {{ $t('pages.system.plugin.upload.overwriteHint') }}
         </span>
         <div class="flex items-center gap-2">
           <Switch

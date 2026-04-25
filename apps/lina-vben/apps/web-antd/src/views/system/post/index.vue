@@ -142,12 +142,15 @@ function onReload() {
 </script>
 
 <template>
-  <Page :auto-content-height="true" content-class="flex gap-[8px] w-full">
+  <Page
+    :auto-content-height="true"
+    content-class="flex flex-col gap-[8px] w-full 2xl:flex-row"
+  >
     <DeptTree
       ref="deptTreeRef"
       :api="postDeptTree"
       v-model:select-dept-id="selectDeptId"
-      class="w-[260px]"
+      class="w-full 2xl:w-[240px]"
       @reload="() => gridApi.reload()"
       @select="() => gridApi.reload()"
     />

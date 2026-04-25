@@ -8,13 +8,13 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
-import { $t } from '@vben/locales';
 import { getPopupContainer } from '@vben/utils';
 
 import { Popconfirm, Space, Switch, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { menuList, menuRemove } from '#/api/system/menu';
+import { $t } from '#/locales';
 import { refreshAccessibleState } from '#/router/access-refresh';
 import { eachTree, treeToList } from '#/utils/tree';
 
@@ -126,13 +126,16 @@ async function handleDelete(row: Menu) {
 function removeConfirmTitle(row: Menu) {
   const menuName = row.name;
   if (!cascadingDeletion.value) {
-    return `是否确认删除 [${menuName}] ?`;
+    return $t('pages.system.menu.messages.deleteConfirm', { menuName });
   }
   const menuAndChildren = treeToList([row], { childProp: 'children' });
   if (menuAndChildren.length === 1) {
-    return `是否确认删除 [${menuName}] ?`;
+    return $t('pages.system.menu.messages.deleteConfirm', { menuName });
   }
-  return `是否确认删除 [${menuName}] 及 [${menuAndChildren.length - 1}]个子项目 ?`;
+  return $t('pages.system.menu.messages.deleteWithChildrenConfirm', {
+    childCount: menuAndChildren.length - 1,
+    menuName,
+  });
 }
 
 /**
@@ -164,14 +167,16 @@ const canAccess = ref(true);
   <Page v-if="canAccess" :auto-content-height="true">
     <BasicTable
       id="system-menu-table"
-      table-title="菜单列表"
-      table-title-help="双击展开/收起子菜单"
+      :table-title="$t('pages.system.menu.tableTitle')"
+      :table-title-help="$t('pages.system.menu.tableTitleHelp')"
     >
       <template #toolbar-tools>
         <Space>
-          <Tooltip title="删除菜单以及子菜单">
+          <Tooltip :title="$t('pages.system.menu.messages.cascadeDeleteTooltip')">
             <div class="mr-2 flex items-center">
-              <span class="mr-2 text-sm text-[#666666]">级联删除</span>
+              <span class="mr-2 text-sm text-[#666666]">
+                {{ $t('pages.system.menu.fields.cascadeDelete') }}
+              </span>
               <Switch v-model:checked="cascadingDeletion" />
             </div>
           </Tooltip>

@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/system/notice',
-  title: '通知公告',
+  title: 'Notices',
 };
 </script>
 
@@ -15,11 +15,12 @@ import { Page, useVbenModal } from '@vben/common-ui';
 import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { $t } from '#/locales';
 import { noticeDelete, noticeList } from './notice-client';
 import { DictTag } from '#/components/dict';
 import { useDictStore } from '#/store/dict';
 
-import { columns, querySchema } from './data';
+import { buildColumns, buildQuerySchema } from './data';
 import NoticeModal from './notice-modal.vue';
 import NoticePreviewModal from './notice-preview-modal.vue';
 
@@ -44,7 +45,7 @@ const [NoticePreviewModalRef, noticePreviewModalApi] = useVbenModal({
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: querySchema,
+    schema: buildQuerySchema(),
     commonConfig: {
       labelWidth: 80,
       componentProps: {
@@ -58,7 +59,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       highlight: true,
       reserve: true,
     },
-    columns,
+    columns: buildColumns(),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -111,7 +112,7 @@ function handleEdit(row: Notice) {
 
 async function handleDelete(row: Notice) {
   await noticeDelete(String(row.id));
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   await gridApi.query();
 }
 
@@ -119,9 +120,11 @@ function handleMultiDelete() {
   const rows = gridApi.grid.getCheckboxRecords() as Notice[];
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
+    content: $t('plugin.content-notice.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       await noticeDelete(ids.join(','));
       checkedRows.value = [];
@@ -137,7 +140,7 @@ function onReload() {
 
 <template>
   <Page :auto-content-height="true">
-    <Grid table-title="通知公告列表">
+    <Grid :table-title="$t('plugin.content-notice.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -146,9 +149,11 @@ function onReload() {
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
-          <a-button type="primary" @click="handleAdd">新 增</a-button>
+          <a-button type="primary" @click="handleAdd">
+            {{ $t('pages.common.add') }}
+          </a-button>
         </Space>
       </template>
 
@@ -162,14 +167,20 @@ function onReload() {
 
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handlePreview(row)">预览</ghost-button>
-          <ghost-button @click.stop="handleEdit(row)">编辑</ghost-button>
+          <ghost-button @click.stop="handlePreview(row)">
+            {{ $t('pages.common.preview') }}
+          </ghost-button>
+          <ghost-button @click.stop="handleEdit(row)">
+            {{ $t('pages.common.edit') }}
+          </ghost-button>
           <Popconfirm
             placement="left"
-            title="确认删除？"
+            :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">删除</ghost-button>
+            <ghost-button danger @click.stop="">
+              {{ $t('pages.common.delete') }}
+            </ghost-button>
           </Popconfirm>
         </Space>
       </template>

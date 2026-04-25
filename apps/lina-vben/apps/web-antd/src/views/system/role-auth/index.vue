@@ -14,6 +14,7 @@ import { Modal, Popconfirm, Space, Tag, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid, vxeCheckboxChecked } from '#/adapter/vxe-table';
 import { roleInfo, roleUnassignUser, roleUnassignUsers, roleUsers } from '#/api/system/role';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 
 const route = useRoute();
@@ -41,27 +42,27 @@ const formOptions: VbenFormProps = {
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入用户账号',
+        placeholder: $t('pages.system.user.placeholders.username'),
       },
       fieldName: 'username',
-      label: '用户账号',
+      label: $t('pages.system.user.labels.userAccount'),
     },
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入手机号码',
+        placeholder: $t('pages.system.user.placeholders.phone'),
       },
       fieldName: 'phone',
-      label: '手机号码',
+      label: $t('pages.fields.phone'),
     },
     {
       component: 'Select',
       componentProps: {
-        placeholder: '请选择状态',
+        placeholder: $t('pages.system.role.placeholders.status'),
         options: [],
       },
       fieldName: 'status',
-      label: '状态',
+      label: $t('pages.common.status'),
     },
   ],
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
@@ -75,33 +76,33 @@ const gridOptions: VxeGridProps = {
   columns: [
     { type: 'checkbox', width: 60 },
     {
-      title: '用户账号',
+      title: $t('pages.system.user.labels.userAccount'),
       field: 'username',
       minWidth: 100,
     },
     {
-      title: '用户昵称',
+      title: $t('pages.system.user.labels.userNickname'),
       field: 'nickname',
       minWidth: 100,
     },
     {
-      title: '邮箱',
+      title: $t('pages.fields.email'),
       field: 'email',
       minWidth: 120,
     },
     {
-      title: '手机号码',
+      title: $t('pages.fields.phone'),
       field: 'phone',
       minWidth: 110,
     },
     {
-      title: '状态',
+      title: $t('pages.common.status'),
       field: 'status',
       width: 80,
       slots: { default: 'status' },
     },
     {
-      title: '创建时间',
+      title: $t('pages.common.createdAt'),
       field: 'createdAt',
       width: 170,
     },
@@ -109,7 +110,7 @@ const gridOptions: VxeGridProps = {
       field: 'action',
       fixed: 'right',
       slots: { default: 'action' },
-      title: '操作',
+      title: $t('pages.common.actions'),
       resizable: false,
       width: 'auto',
     },
@@ -142,15 +143,18 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
 
 // 加载字典数据
 const dictStore = useDictStore();
-const statusLabel = ref({ checked: '正常', unchecked: '停用' });
+const statusLabel = ref({
+  checked: $t('pages.status.enabled'),
+  unchecked: $t('pages.status.disabled'),
+});
 
 onMounted(async () => {
   const statusOptions = await dictStore.getDictOptionsAsync('sys_normal_disable');
   const checked = statusOptions.find((d) => d.value === '1');
   const unchecked = statusOptions.find((d) => d.value === '0');
   statusLabel.value = {
-    checked: checked?.label || '正常',
-    unchecked: unchecked?.label || '停用',
+    checked: checked?.label || $t('pages.status.enabled'),
+    unchecked: unchecked?.label || $t('pages.status.disabled'),
   };
   tableApi.formApi.updateSchema([
     {
@@ -167,7 +171,7 @@ onMounted(async () => {
 
 async function handleUnassignUser(row: RoleUser) {
   await roleUnassignUser(roleId, row.id);
-  message.success('取消授权成功');
+  message.success($t('pages.system.role.roleAuth.removeSuccess'));
   await tableApi.query();
 }
 
@@ -176,12 +180,14 @@ function handleMultiUnassignUsers() {
   if (rows.length === 0) return;
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认取消选中的${ids.length}条授权记录吗？`,
+    content: $t('pages.system.role.roleAuth.removeSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       await roleUnassignUsers(roleId, ids);
-      message.success('批量取消授权成功');
+      message.success($t('pages.system.role.roleAuth.removeSelectedSuccess'));
       await tableApi.query();
       tableApi.grid?.clearCheckboxRow?.();
     },
@@ -195,7 +201,7 @@ function handleBack() {
 
 <template>
   <Page :auto-content-height="true">
-    <BasicTable :table-title="`已分配的用户列表`">
+    <BasicTable :table-title="$t('pages.system.role.roleAuth.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -204,9 +210,11 @@ function handleBack() {
             type="primary"
             @click="handleMultiUnassignUsers"
           >
-            取消授权
+            {{ $t('pages.system.role.roleAuth.removeAssignment') }}
           </a-button>
-          <a-button @click="handleBack">返 回</a-button>
+          <a-button @click="handleBack">
+            {{ $t('pages.system.role.roleAuth.back') }}
+          </a-button>
         </Space>
       </template>
       <template #status="{ row }">
@@ -218,11 +226,14 @@ function handleBack() {
         <Popconfirm
           :get-popup-container="getPopupContainer"
           placement="left"
-          :title="`确认取消授权用户[${row.username} - ${row.nickname}]?`"
+          :title="$t('pages.system.role.roleAuth.removeConfirm', {
+            username: row.username,
+            nickname: row.nickname,
+          })"
           @confirm="handleUnassignUser(row)"
         >
           <ghost-button danger @click.stop="">
-            取消授权
+            {{ $t('pages.system.role.roleAuth.removeAssignment') }}
           </ghost-button>
         </Popconfirm>
       </template>

@@ -5,6 +5,7 @@ import type { UploadApiFn, UploadResult } from '#/api';
 
 import { computed } from 'vue';
 
+import { $t } from '@vben/locales';
 import { Upload } from 'ant-design-vue';
 
 import { uploadApi } from '#/api';
@@ -69,24 +70,26 @@ const { customRequest, acceptStr, handleChange, handleRemove, beforeUpload, inne
       <div v-if="!enableDragUpload && innerFileList?.length < maxCount">
         <a-button :disabled="disabled">
           <span class="icon-[ant-design--upload-outlined] mr-1"></span>
-          上传
+          {{ $t('pages.upload.button') }}
         </a-button>
       </div>
       <div v-if="enableDragUpload">
         <p class="ant-upload-drag-icon">
           <span class="icon-[ant-design--inbox-outlined] text-4xl text-primary"></span>
         </p>
-        <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
+        <p class="ant-upload-text">{{ $t('pages.upload.dragHint') }}</p>
       </div>
     </CurrentUploadComponent>
     <div
       v-if="true"
       class="mt-2 text-[14px] leading-[1.5] text-black/45 dark:text-white/45"
     >
-      支持
-      <span class="text-primary mx-1 font-medium">{{ acceptStr }}</span>
-      格式，单个文件不超过
-      <span class="text-primary mx-1 font-medium">{{ maxSize }}MB</span>
+      {{
+        $t('pages.upload.formatHint', {
+          accept: acceptStr,
+          maxSize,
+        })
+      }}
     </div>
   </div>
 </template>

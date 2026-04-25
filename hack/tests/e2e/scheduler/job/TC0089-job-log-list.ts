@@ -99,7 +99,7 @@ test.describe("TC-89 执行日志查询与清理", () => {
     await jobLogPage.openFirstDetail();
     await expect(await jobLogPage.detailContains(jobName)).toBe(true);
     await expect(await jobLogPage.detailContains("manual")).toBe(true);
-    await expect(await jobLogPage.detailContains("success")).toBe(true);
+    await expect(await jobLogPage.detailContains(/success|成功/i)).toBe(true);
 
     await jobLogPage.selectFirstRow();
     await jobLogPage.deleteSelectedLogs();

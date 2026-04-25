@@ -11,6 +11,7 @@ import { Descriptions, DescriptionsItem } from 'ant-design-vue';
 import { messageInfo } from '#/api/system/message';
 import { noticeInfo } from '#/api/system/notice';
 import { DictTag } from '#/components/dict';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 
 type PreviewNotice = Pick<
@@ -25,11 +26,13 @@ type PreviewNotice = Pick<
 const notice = ref<PreviewNotice | null>(null);
 const dictStore = useDictStore();
 const noticeTypeDicts = ref<any[]>([]);
-const title = computed(() => notice.value?.title ?? '预览通知公告');
+const title = computed(
+  () => notice.value?.title || $t('plugin.content-notice.preview.title'),
+);
 
 const fallbackNoticeTypeDicts = [
-  { label: '通知', value: '1' },
-  { label: '公告', value: '2' },
+  { label: $t('pages.status.notice'), value: '1' },
+  { label: $t('pages.status.announcement'), value: '2' },
 ];
 
 async function loadNoticeTypeDicts() {
@@ -69,17 +72,20 @@ const [Modal, modalApi] = useVbenModal({
   <Modal :title="title">
     <div v-if="notice" class="p-2">
       <Descriptions :column="3" size="small" bordered class="mb-4">
-        <DescriptionsItem label="公告类型">
+        <DescriptionsItem :label="$t('plugin.content-notice.fields.type')">
           <DictTag :dicts="noticeTypeDicts" :value="String(notice.type)" />
         </DescriptionsItem>
-        <DescriptionsItem label="创建人">
+        <DescriptionsItem :label="$t('plugin.content-notice.fields.createdBy')">
           {{ notice.createdByName || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="创建时间">
+        <DescriptionsItem :label="$t('pages.common.createdAt')">
           {{ notice.createdAt }}
         </DescriptionsItem>
       </Descriptions>
-      <div class="notice-content prose mt-6 max-w-none" v-html="notice.content" />
+      <div
+        class="notice-content prose mt-6 max-w-none"
+        v-html="notice.content"
+      />
     </div>
   </Modal>
 </template>

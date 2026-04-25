@@ -16,6 +16,20 @@ export class ConfigPage {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  private resolveLocalizedLabel(scope: Page | Locator, label: string) {
+    const labelMap: Record<string, RegExp> = {
+      参数名称: /参数名称|Parameter Name/i,
+      参数键名: /参数键名|Parameter Key/i,
+      参数键值: /参数键值|Parameter Value/i,
+      备注: /备注|Remark/i,
+    };
+    const localizedLabel = labelMap[label];
+    if (localizedLabel) {
+      return scope.getByLabel(localizedLabel).first();
+    }
+    return scope.getByLabel(label, { exact: true }).first();
+  }
+
   /** The modal dialog container */
   private get dialog() {
     return this.page.locator('[role="dialog"]');
@@ -135,18 +149,24 @@ export class ConfigPage {
   // ========== Search helpers ==========
 
   async fillSearchField(label: string, value: string) {
-    const input = this.page.getByLabel(label, { exact: true }).first();
+    const input = this.resolveLocalizedLabel(this.page, label);
     await input.clear();
     await input.fill(value);
   }
 
   async clickSearch() {
-    await this.page.getByRole('button', { name: /搜\s*索/ }).first().click();
+    await this.page
+      .getByRole('button', { name: /搜\s*索|Search/i })
+      .first()
+      .click();
     await waitForRouteReady(this.page);
   }
 
   async clickReset() {
-    await this.page.getByRole('button', { name: /重\s*置/ }).first().click();
+    await this.page
+      .getByRole('button', { name: /重\s*置|Reset/i })
+      .first()
+      .click();
     await waitForRouteReady(this.page);
   }
 

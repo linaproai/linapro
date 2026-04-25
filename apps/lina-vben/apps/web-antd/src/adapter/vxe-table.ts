@@ -3,6 +3,8 @@ import type { VxeTableGridOptions } from '@vben/plugins/vxe-table';
 import { Fragment, defineComponent, h } from 'vue';
 
 import { Tag, Tooltip } from 'ant-design-vue';
+import { $t } from '@vben/locales';
+import { preferences } from '@vben/preferences';
 import {
   setupVbenVxeTable,
   useVbenVxeGrid as useBaseVbenVxeGrid,
@@ -24,6 +26,122 @@ import {
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
 
 import { useVbenForm } from './form';
+
+const ENGLISH_SEARCH_LABEL_WIDTH = 120;
+
+function normalizeClassName(value = '') {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeEnglishSearchWrapperClass(wrapperClass = '') {
+  const normalized = normalizeClassName(wrapperClass);
+  if (!normalized) {
+    return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4';
+  }
+
+  const widened = normalized.replace(
+    /\bxl:grid-cols-4\b/g,
+    'xl:grid-cols-3 2xl:grid-cols-4',
+  );
+
+  if (/\b2xl:grid-cols-\d+\b/.test(widened)) {
+    return normalizeClassName(widened);
+  }
+  if (/\bxl:grid-cols-3\b/.test(widened)) {
+    return normalizeClassName(`${widened} 2xl:grid-cols-4`);
+  }
+  if (/\blg:grid-cols-3\b/.test(widened)) {
+    return normalizeClassName(`${widened} xl:grid-cols-3 2xl:grid-cols-4`);
+  }
+  return normalizeClassName(widened);
+}
+
+function estimateEnglishColumnWidth(title: string) {
+  const normalized = title.trim().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return 0;
+  }
+  return Math.min(220, Math.max(96, Math.ceil(normalized.length * 7.5 + 32)));
+}
+
+function normalizeEnglishColumns(columns: any[] = []) {
+  return columns.map((column) => {
+    if (!column || typeof column !== 'object') {
+      return column;
+    }
+
+    const nextColumn = { ...column };
+    if (Array.isArray(nextColumn.children)) {
+      nextColumn.children = normalizeEnglishColumns(nextColumn.children);
+    }
+
+    if (nextColumn.showHeaderOverflow === undefined) {
+      nextColumn.showHeaderOverflow = 'tooltip';
+    }
+
+    const title = typeof nextColumn.title === 'string' ? nextColumn.title : '';
+    const estimatedWidth = estimateEnglishColumnWidth(title);
+    if (!estimatedWidth) {
+      return nextColumn;
+    }
+
+    if (typeof nextColumn.width === 'number') {
+      nextColumn.width = Math.max(nextColumn.width, estimatedWidth);
+      return nextColumn;
+    }
+
+    if (typeof nextColumn.minWidth === 'number') {
+      nextColumn.minWidth = Math.max(nextColumn.minWidth, estimatedWidth);
+      return nextColumn;
+    }
+
+    if (!nextColumn.type) {
+      nextColumn.minWidth = estimatedWidth;
+    }
+    return nextColumn;
+  });
+}
+
+function adaptEnglishGridOptions<T extends Parameters<typeof useBaseVbenVxeGrid>[0]>(
+  options: T,
+) {
+  if (preferences.app.locale !== 'en-US') {
+    return options;
+  }
+
+  const nextOptions = { ...options };
+
+  if (nextOptions.formOptions) {
+    nextOptions.formOptions = { ...nextOptions.formOptions };
+    nextOptions.formOptions.commonConfig = {
+      ...(nextOptions.formOptions.commonConfig ?? {}),
+      labelWidth: Math.max(
+        nextOptions.formOptions.commonConfig?.labelWidth ?? 0,
+        ENGLISH_SEARCH_LABEL_WIDTH,
+      ),
+    };
+    nextOptions.formOptions.wrapperClass = normalizeEnglishSearchWrapperClass(
+      nextOptions.formOptions.wrapperClass,
+    );
+  }
+
+  if (nextOptions.gridOptions) {
+    nextOptions.gridOptions = {
+      ...nextOptions.gridOptions,
+      showHeaderOverflow:
+        nextOptions.gridOptions.showHeaderOverflow ?? 'tooltip',
+      showOverflow: nextOptions.gridOptions.showOverflow ?? 'tooltip',
+    };
+
+    if (Array.isArray(nextOptions.gridOptions.columns)) {
+      nextOptions.gridOptions.columns = normalizeEnglishColumns(
+        nextOptions.gridOptions.columns as any[],
+      ) as any;
+    }
+  }
+
+  return nextOptions;
+}
 
 setupVbenVxeTable({
   configVxeTable: (vxeUI) => {
@@ -101,8 +219,25 @@ setupVbenVxeTable({
   useVbenForm,
 });
 
+function resolveJobHandlerRef(jobSnapshot?: string) {
+  if (!jobSnapshot) {
+    return '';
+  }
+  try {
+    const parsed = JSON.parse(jobSnapshot) as { handlerRef?: string };
+    return parsed?.handlerRef || '';
+  } catch {
+    return '';
+  }
+}
+
 export function useVbenVxeGrid(...args: Parameters<typeof useBaseVbenVxeGrid>) {
-  const [BaseGrid, gridApi] = useBaseVbenVxeGrid(...args);
+  const normalizedArgs = args.map((arg) =>
+    adaptEnglishGridOptions(arg),
+  ) as Parameters<typeof useBaseVbenVxeGrid>;
+  const [BaseGrid, gridApi] = useBaseVbenVxeGrid(
+    ...normalizedArgs,
+  );
 
   const Grid = defineComponent(
     (props, { attrs, slots }) => {
@@ -154,27 +289,31 @@ export type * from '@vben/plugins/vxe-table';
 export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
   return [
     { type: 'checkbox', width: 56 },
-    { field: 'code', title: '分组编码', minWidth: 160 },
-    { field: 'name', title: '分组名称', minWidth: 180 },
-    { field: 'sortOrder', title: '排序', width: 90 },
-    { field: 'jobCount', title: '任务数', width: 100 },
+    { field: 'code', title: $t('pages.system.jobGroup.fields.code'), minWidth: 160 },
+    {
+      field: 'name',
+      title: $t('pages.system.jobGroup.fields.name'),
+      minWidth: 180,
+    },
+    { field: 'sortOrder', title: $t('pages.fields.sort'), width: 90 },
+    { field: 'jobCount', title: $t('pages.system.jobGroup.fields.jobCount'), width: 100 },
     {
       field: 'isDefault',
-      title: '默认分组',
+      title: $t('pages.system.jobGroup.fields.defaultGroup'),
       width: 110,
       slots: {
         default: ({ row }: any) =>
           row.isDefault === 1
-            ? h(Tag, { color: 'gold' }, () => '默认分组')
+            ? h(Tag, { color: 'gold' }, () => $t('pages.system.jobGroup.fields.defaultGroup'))
             : '-',
       },
     },
-    { field: 'remark', title: '备注', minWidth: 200 },
-    { field: 'updatedAt', title: '更新时间', minWidth: 180 },
+    { field: 'remark', title: $t('pages.common.remark'), minWidth: 200 },
+    { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
     {
       field: 'action',
       fixed: 'right',
-      title: '操作',
+      title: $t('pages.common.actions'),
       width: 220,
       slots: { default: 'action' },
     },
@@ -187,11 +326,19 @@ export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
 export function buildJobColumns(): VxeTableGridOptions['columns'] {
   return [
     { type: 'checkbox', width: 56 },
-    { field: 'name', title: '任务名称', minWidth: 180 },
-    { field: 'groupName', title: '所属分组', minWidth: 140 },
+    {
+      field: 'name',
+      title: $t('pages.system.job.fields.name'),
+      minWidth: 180,
+    },
+    {
+      field: 'groupName',
+      title: $t('pages.system.job.fields.group'),
+      minWidth: 140,
+    },
     {
       field: 'source',
-      title: '任务来源',
+      title: $t('pages.system.job.fields.source'),
       minWidth: 120,
       slots: {
         default: ({ row }: any) => {
@@ -206,7 +353,7 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
     },
     {
       field: 'status',
-      title: '状态',
+      title: $t('pages.common.status'),
       minWidth: 180,
       slots: {
         default: ({ row }: any) => {
@@ -221,15 +368,17 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
             );
           }
           if (row.status === 'enabled') {
-            return h(Tag, { color: 'success' }, () => '启用');
+            return h(Tag, { color: 'success' }, () =>
+              $t('pages.system.job.status.enabled'),
+            );
           }
-          return h(Tag, {}, () => '停用');
+          return h(Tag, {}, () => $t('pages.system.job.status.disabled'));
         },
       },
     },
     {
       field: 'cronExpr',
-      title: '定时表达式',
+      title: $t('pages.system.job.fields.cronExpr'),
       minWidth: 220,
       slots: {
         default: ({ row }: any) =>
@@ -245,10 +394,10 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
           ),
       },
     },
-    { field: 'timezone', title: '时区', width: 140 },
+    { field: 'timezone', title: $t('pages.system.job.fields.timezone'), width: 140 },
     {
       field: 'scope',
-      title: '调度范围',
+      title: $t('pages.system.job.fields.scope'),
       minWidth: 140,
       slots: {
         default: ({ row }: any) => getJobScopeLabel(row.scope),
@@ -256,16 +405,16 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
     },
     {
       field: 'concurrency',
-      title: '并发策略',
+      title: $t('pages.system.job.fields.concurrency'),
       minWidth: 140,
       slots: {
         default: ({ row }: any) => getJobConcurrencyLabel(row.concurrency),
       },
     },
-    { field: 'executedCount', title: '已执行次数', width: 110 },
+    { field: 'executedCount', title: $t('pages.system.job.fields.executedCount'), width: 110 },
     {
       field: 'stopReason',
-      title: '停止原因',
+      title: $t('pages.system.job.fields.stopReason'),
       minWidth: 150,
       slots: {
         default: ({ row }: any) =>
@@ -283,11 +432,11 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
             : '-',
       },
     },
-    { field: 'updatedAt', title: '更新时间', minWidth: 180 },
+    { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
     {
       field: 'action',
       fixed: 'right',
-      title: '操作',
+      title: $t('pages.common.actions'),
       width: 260,
       slots: { default: 'action' },
     },
@@ -300,12 +449,18 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
 export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
   return [
     { type: 'checkbox', width: 56 },
-    { field: 'jobName', title: '任务名称', minWidth: 180 },
-    { field: 'trigger', title: '触发方式', width: 100 },
-    { field: 'nodeId', title: '执行节点', minWidth: 140 },
+    {
+      field: 'jobName',
+      title: $t('pages.system.jobLog.fields.jobName'),
+      minWidth: 180,
+      formatter: ({ row }: any) =>
+        String(row?.jobName || resolveJobHandlerRef(String(row?.jobSnapshot || '')) || ''),
+    },
+    { field: 'trigger', title: $t('pages.system.jobLog.fields.trigger'), width: 100 },
+    { field: 'nodeId', title: $t('pages.system.jobLog.fields.nodeId'), minWidth: 140 },
     {
       field: 'status',
-      title: '状态',
+      title: $t('pages.system.jobLog.fields.status'),
       width: 160,
       slots: {
         default: ({ row }: any) => {
@@ -319,17 +474,20 @@ export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
           return h(
             Tag,
             { color: colorMap[row.status] || 'default' },
-            () => row.status,
+            () =>
+              $t(`pages.system.jobLog.status.${row.status}`, {
+                defaultValue: row.status,
+              }),
           );
         },
       },
     },
-    { field: 'startAt', title: '开始时间', minWidth: 180 },
-    { field: 'endAt', title: '结束时间', minWidth: 180 },
-    { field: 'durationMs', title: '耗时(ms)', width: 100 },
+    { field: 'startAt', title: $t('pages.system.jobLog.fields.startAt'), minWidth: 180 },
+    { field: 'endAt', title: $t('pages.system.jobLog.fields.endAt'), minWidth: 180 },
+    { field: 'durationMs', title: $t('pages.system.jobLog.fields.durationMs'), width: 100 },
     {
       field: 'errMsg',
-      title: '错误摘要',
+      title: $t('pages.system.jobLog.fields.errorSummary'),
       minWidth: 240,
       slots: {
         default: ({ row }: any) => row.errMsg || '-',
@@ -338,7 +496,7 @@ export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
     {
       field: 'action',
       fixed: 'right',
-      title: '操作',
+      title: $t('pages.common.actions'),
       width: 220,
       slots: { default: 'action' },
     },

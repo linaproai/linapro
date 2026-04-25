@@ -5,6 +5,8 @@ import { computed, ref, watch } from 'vue';
 
 import { Button, Tag } from 'ant-design-vue';
 
+import { $t } from '#/locales';
+
 interface Props {
   collapsedCount?: number;
   routes: PluginRouteReviewItem[];
@@ -36,7 +38,9 @@ watch(
 );
 
 function getAccessLabel(access: string) {
-  return access === 'public' ? '公开访问' : '登录访问';
+  return access === 'public'
+    ? $t('pages.system.plugin.routes.public')
+    : $t('pages.system.plugin.routes.authenticated');
 }
 
 function getAccessColor(access: string) {
@@ -100,7 +104,11 @@ function toggleExpanded() {
         type="link"
         @click="toggleExpanded"
       >
-        {{ expanded ? '收起' : '展开' }}
+        {{
+          expanded
+            ? $t('pages.system.plugin.routes.collapse')
+            : $t('pages.system.plugin.routes.expand')
+        }}
       </Button>
     </div>
   </div>

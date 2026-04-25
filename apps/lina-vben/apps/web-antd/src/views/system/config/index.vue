@@ -4,6 +4,7 @@ import type { SysConfig } from '#/api/system/config/model';
 import { computed, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
 
@@ -91,7 +92,7 @@ function handleEdit(row: SysConfig) {
 
 async function handleDelete(row: SysConfig) {
   await configDelete(row.id);
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   await gridApi.query();
 }
 
@@ -99,9 +100,11 @@ function handleMultiDelete() {
   const rows = gridApi.grid.getCheckboxRecords() as SysConfig[];
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
+    content: $t('pages.system.config.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       for (const id of ids) {
         await configDelete(id);
@@ -114,15 +117,15 @@ function handleMultiDelete() {
 
 async function handleExport() {
   const content = checkedRows.value.length > 0
-    ? '是否导出选中的记录？'
-    : '是否导出全部数据？';
+    ? $t('pages.system.config.messages.exportSelectedConfirm')
+    : $t('pages.system.config.messages.exportAllConfirm');
 
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'primary',
     content,
-    okText: '确认',
-    cancelText: '取消',
+    okText: $t('pages.common.confirm'),
+    cancelText: $t('pages.common.cancel'),
     onOk: async () => {
       try {
         const formValues = gridApi.formApi.form.values;
@@ -134,10 +137,10 @@ async function handleExport() {
           params.ids = checkedRows.value.map((row) => row.id);
         }
         const data = await configExport(params);
-        downloadBlob(data, '参数设置导出.xlsx');
-        message.success('导出成功');
+        downloadBlob(data, $t('pages.system.config.exportFileName'));
+        message.success($t('pages.common.exportSuccess'));
       } catch {
-        message.error('导出失败');
+        message.error($t('pages.common.exportFailed'));
       }
     },
   });
@@ -154,32 +157,32 @@ function handleImport() {
 
 <template>
   <Page :auto-content-height="true">
-    <Grid table-title="参数设置列表">
+    <Grid :table-title="$t('pages.system.config.tableTitle')">
       <template #toolbar-tools>
         <Space>
-          <a-button @click="handleExport">导 出</a-button>
-          <a-button @click="handleImport">导 入</a-button>
+          <a-button @click="handleExport">{{ $t('pages.common.export') }}</a-button>
+          <a-button @click="handleImport">{{ $t('pages.common.import') }}</a-button>
           <a-button
             :disabled="!hasChecked"
             danger
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
-          <a-button type="primary" @click="handleAdd">新 增</a-button>
+          <a-button type="primary" @click="handleAdd">{{ $t('pages.common.add') }}</a-button>
         </Space>
       </template>
 
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">编辑</ghost-button>
+          <ghost-button @click.stop="handleEdit(row)">{{ $t('pages.common.edit') }}</ghost-button>
           <Popconfirm
             placement="left"
-            title="确认删除？"
+            :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">删除</ghost-button>
+            <ghost-button danger @click.stop="">{{ $t('pages.common.delete') }}</ghost-button>
           </Popconfirm>
         </Space>
       </template>

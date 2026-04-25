@@ -4,6 +4,7 @@ import type { DictData } from '#/api/system/dict/dict-data-model';
 import { computed, ref, watch } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 
 import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
@@ -93,7 +94,7 @@ function handleEdit(row: DictData) {
 
 async function handleDelete(row: DictData) {
   await dictDataDelete(row.id);
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   dictStore.resetCache();
   await tableApi.query();
 }
@@ -102,9 +103,11 @@ function handleMultiDelete() {
   const rows = tableApi.grid.getCheckboxRecords() as DictData[];
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
+    content: $t('pages.system.dict.data.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       for (const id of ids) {
         await dictDataDelete(id);
@@ -140,7 +143,7 @@ watch(
 
 <template>
   <div>
-    <BasicTable id="dict-data" table-title="字典数据列表">
+    <BasicTable id="dict-data" :table-title="$t('pages.system.dict.data.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -149,26 +152,26 @@ watch(
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
           <a-button
             :disabled="dictType === ''"
             type="primary"
             @click="handleAdd"
           >
-            新 增
+            {{ $t('pages.common.add') }}
           </a-button>
         </Space>
       </template>
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">编辑</ghost-button>
+          <ghost-button @click.stop="handleEdit(row)">{{ $t('pages.common.edit') }}</ghost-button>
           <Popconfirm
             placement="left"
-            title="确认删除？"
+            :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">删除</ghost-button>
+            <ghost-button danger @click.stop="">{{ $t('pages.common.delete') }}</ghost-button>
           </Popconfirm>
         </Space>
       </template>

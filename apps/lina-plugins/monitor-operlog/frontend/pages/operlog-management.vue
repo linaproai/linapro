@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/operlog',
-  title: '操作日志',
+  title: 'Operation Logs',
 };
 </script>
 
@@ -21,10 +21,11 @@ import {
   operLogExport,
   operLogList,
 } from './operlog-client';
+import { $t } from '#/locales';
 import { downloadBlob } from '#/utils/download';
 import { useDictStore } from '#/store/dict';
 
-import { columns, querySchema } from './data';
+import { buildColumns, buildQuerySchema } from './data';
 import OperlogDetailDrawer from './operlog-detail-drawer.vue';
 
 const dictStore = useDictStore();
@@ -63,7 +64,7 @@ const [DetailDrawerRef, detailDrawerApi] = useVbenDrawer({
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: querySchema,
+    schema: buildQuerySchema(),
     commonConfig: {
       labelWidth: 80,
       componentProps: {
@@ -77,7 +78,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       highlight: true,
       reserve: true,
     },
-    columns,
+    columns: buildColumns(),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -147,12 +148,12 @@ function handlePreview(row: OperLog) {
 
 function handleClean() {
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: '确认要清空所有操作日志数据吗？',
+    content: $t('plugin.monitor-operlog.messages.clearConfirm'),
     onOk: async () => {
       await operLogClean();
-      message.success('清空成功');
+      message.success($t('plugin.monitor-operlog.messages.clearSuccess'));
       await gridApi.reload();
     },
   });
@@ -162,12 +163,14 @@ function handleDelete() {
   const rows = gridApi.grid.getCheckboxRecords() as OperLog[];
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条操作日志吗？`,
+    content: $t('plugin.monitor-operlog.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       await operLogDelete(ids);
-      message.success('删除成功');
+      message.success($t('pages.common.deleteSuccess'));
       await gridApi.query();
     },
   });
@@ -175,15 +178,15 @@ function handleDelete() {
 
 async function handleExport() {
   const content = checkedRows.value.length > 0
-    ? '是否导出选中的记录？'
-    : '是否导出全部数据？';
+    ? $t('pages.exportConfirm.selected')
+    : $t('pages.exportConfirm.all');
 
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'primary',
     content,
-    okText: '确认',
-    cancelText: '取消',
+    okText: $t('pages.common.confirm'),
+    cancelText: $t('pages.common.cancel'),
     onOk: async () => {
       try {
         const formValues = gridApi.formApi.form.values;
@@ -200,10 +203,10 @@ async function handleExport() {
         }
 
         const data = await operLogExport(params);
-        downloadBlob(data, '操作日志导出.xlsx');
-        message.success('导出成功');
+        downloadBlob(data, $t('plugin.monitor-operlog.exportFileName'));
+        message.success($t('pages.common.exportSuccess'));
       } catch {
-        message.error('导出失败');
+        message.error($t('pages.common.exportFailed'));
       }
     },
   });
@@ -212,24 +215,26 @@ async function handleExport() {
 
 <template>
   <Page :auto-content-height="true">
-    <Grid table-title="操作日志列表">
+    <Grid :table-title="$t('plugin.monitor-operlog.tableTitle')">
       <template #toolbar-tools>
         <Space>
-          <a-button @click="handleClean">清 空</a-button>
-          <a-button @click="handleExport">导 出</a-button>
+          <a-button @click="handleClean">{{ $t('pages.common.clear') }}</a-button>
+          <a-button @click="handleExport">{{ $t('pages.common.export') }}</a-button>
           <a-button
             :disabled="!hasChecked"
             danger
             type="primary"
             @click="handleDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
         </Space>
       </template>
 
       <template #action="{ row }">
-        <ghost-button @click.stop="handlePreview(row)">详情</ghost-button>
+        <ghost-button @click.stop="handlePreview(row)">
+          {{ $t('pages.common.detail') }}
+        </ghost-button>
       </template>
     </Grid>
 

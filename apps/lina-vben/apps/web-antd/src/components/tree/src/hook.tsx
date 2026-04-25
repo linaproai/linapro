@@ -6,6 +6,8 @@ import { defineComponent, ref } from 'vue';
 import { useLocalStorage } from '@vueuse/core';
 import { Tour } from 'ant-design-vue';
 
+import { $t } from '#/locales';
+
 /**
  * 全屏引导
  * @returns value
@@ -30,12 +32,10 @@ export function useFullScreenGuide() {
 
   const steps: TourProps['steps'] = [
     {
-      title: '提示',
-      description: '点击这里可以全屏',
+      title: $t('pages.common.confirmTitle'),
+      description: $t('pages.tree.messages.fullscreenHint'),
       target: () =>
-        document.querySelector(
-          'div#menu-select-table .vxe-tools--operate > button[title="全屏"]',
-        )!,
+        document.querySelector('div#menu-select-table .vxe-tools--operate > button')!,
     },
   ];
 

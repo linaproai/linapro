@@ -4,6 +4,7 @@ import type { FileInfo } from '#/api/system/file/model';
 import { computed, onMounted, ref } from 'vue';
 
 import { Page, useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { Image, Modal, Popconfirm, Space, Spin, Switch, Tag, Tooltip } from 'ant-design-vue';
 
@@ -182,9 +183,11 @@ function handleMultiDelete() {
   const rows = gridApi.grid.getCheckboxRecords() as FileInfo[];
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
+    content: $t('pages.system.file.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       await fileRemove(ids);
       checkedRows.value = [];
@@ -217,10 +220,10 @@ function onReload() {
 
 <template>
   <Page :auto-content-height="true">
-    <Grid table-title="文件列表">
+    <Grid :table-title="$t('pages.system.file.tableTitle')">
       <template #toolbar-tools>
         <Space>
-          <Tooltip title="预览图片">
+          <Tooltip :title="$t('pages.system.file.messages.previewImages')">
             <Switch v-model:checked="preview" />
           </Tooltip>
           <a-button
@@ -229,10 +232,10 @@ function onReload() {
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
-          <a-button @click="fileUploadApi.open">文件上传</a-button>
-          <a-button @click="imageUploadApi.open">图片上传</a-button>
+          <a-button @click="fileUploadApi.open">{{ $t('pages.system.file.actions.fileUpload') }}</a-button>
+          <a-button @click="imageUploadApi.open">{{ $t('pages.system.file.actions.imageUpload') }}</a-button>
         </Space>
       </template>
 
@@ -254,7 +257,7 @@ function onReload() {
           class="cursor-pointer text-primary"
           @click.stop="pdfPreview(row.url)"
         >
-          PDF 预览
+          {{ $t('pages.system.file.messages.pdfPreview') }}
         </span>
         <span v-else>
           <Tooltip :title="row.url">
@@ -273,14 +276,14 @@ function onReload() {
 
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleDetail(row)">详情</ghost-button>
-          <ghost-button @click.stop="handleDownload(row)">下载</ghost-button>
+          <ghost-button @click.stop="handleDetail(row)">{{ $t('pages.common.detail') }}</ghost-button>
+          <ghost-button @click.stop="handleDownload(row)">{{ $t('pages.common.download') }}</ghost-button>
           <Popconfirm
             placement="left"
-            title="确认删除？"
+            :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">删除</ghost-button>
+            <ghost-button danger @click.stop="">{{ $t('pages.common.delete') }}</ghost-button>
           </Popconfirm>
         </Space>
       </template>

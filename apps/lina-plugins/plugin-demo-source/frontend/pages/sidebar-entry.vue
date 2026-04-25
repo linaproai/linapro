@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: "plugin-demo-source-sidebar-entry",
-  title: "源码插件示例",
+  title: "Source Plugin Demo",
 };
 </script>
 
@@ -14,6 +14,7 @@ import { useAccess } from "@vben/access";
 import { useVbenModal } from "@vben/common-ui";
 
 import { useVbenVxeGrid } from "#/adapter/vxe-table";
+import { $t } from "#/locales";
 import { Page } from "#/plugins/dynamic";
 import { downloadBlob } from "#/utils/download";
 
@@ -42,7 +43,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       {
         component: "Input",
         fieldName: "keyword",
-        label: "记录标题",
+        label: $t("plugin.plugin-demo-source.page.fields.title"),
       },
     ],
     commonConfig: {
@@ -55,25 +56,33 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     columns: [
-      { field: "title", minWidth: 180, title: "记录标题" },
+      {
+        field: "title",
+        minWidth: 180,
+        title: $t("plugin.plugin-demo-source.page.fields.title"),
+      },
       {
         field: "content",
         minWidth: 260,
         showOverflow: "ellipsis",
-        title: "记录内容",
+        title: $t("plugin.plugin-demo-source.page.fields.content"),
       },
       {
         field: "attachmentName",
         minWidth: 180,
         slots: { default: "attachment" },
-        title: "附件",
+        title: $t("plugin.plugin-demo-source.page.fields.attachment"),
       },
-      { field: "updatedAt", title: "更新时间", width: 180 },
+      {
+        field: "updatedAt",
+        title: $t("plugin.plugin-demo-source.page.fields.updatedAt"),
+        width: 180,
+      },
       {
         field: "action",
         fixed: "right",
         slots: { default: "action" },
-        title: "操作",
+        title: $t("pages.common.actions"),
         width: 180,
       },
     ],
@@ -130,7 +139,10 @@ async function handleDeleteRecord(row: DemoRecordItem) {
 
 async function handleDownloadAttachment(row: DemoRecordItem) {
   const data = await downloadDemoRecordAttachment(row.id);
-  downloadBlob(data, row.attachmentName || "plugin-demo-source-attachment");
+  downloadBlob(
+    data,
+    row.attachmentName || $t("plugin.plugin-demo-source.page.attachmentFallback"),
+  );
 }
 
 function handleReload() {
@@ -140,7 +152,7 @@ function handleReload() {
 
 <template>
   <Page :auto-content-height="true">
-    <Grid table-title="示例记录">
+    <Grid :table-title="$t('plugin.plugin-demo-source.page.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -149,7 +161,7 @@ function handleReload() {
             type="primary"
             @click="handleAddRecord"
           >
-            新 增
+            {{ $t("pages.common.add") }}
           </a-button>
         </Space>
       </template>
@@ -172,11 +184,11 @@ function handleReload() {
             :data-testid="`plugin-demo-source-record-edit-${row.id}`"
             @click.stop="handleEditRecord(row)"
           >
-            编辑
+            {{ $t("pages.common.edit") }}
           </ghost-button>
           <Popconfirm
             v-if="canDeleteRecord()"
-            title="确认删除该记录？"
+            :title="$t('plugin.plugin-demo-source.page.messages.deleteConfirm')"
             @confirm="handleDeleteRecord(row)"
           >
             <ghost-button
@@ -184,7 +196,7 @@ function handleReload() {
               :data-testid="`plugin-demo-source-record-delete-${row.id}`"
               @click.stop=""
             >
-              删除
+              {{ $t("pages.common.delete") }}
             </ghost-button>
           </Popconfirm>
         </Space>

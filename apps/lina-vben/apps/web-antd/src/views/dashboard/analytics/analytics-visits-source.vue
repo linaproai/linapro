@@ -1,13 +1,16 @@
 <script lang="ts" setup>
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
+import { preferences } from '@vben/preferences';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
+
+import { $t } from '#/locales';
 
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
-onMounted(() => {
+function renderChart() {
   renderEcharts({
     legend: {
       bottom: '2%',
@@ -23,10 +26,10 @@ onMounted(() => {
         avoidLabelOverlap: false,
         color: ['#5ab1ef', '#b6a2de', '#67e0e3', '#2ec7c9'],
         data: [
-          { name: '搜索引擎', value: 1048 },
-          { name: '直接访问', value: 735 },
-          { name: '邮件营销', value: 580 },
-          { name: '联盟广告', value: 484 },
+          { name: $t('pages.dashboard.analytics.sources.search'), value: 1048 },
+          { name: $t('pages.dashboard.analytics.sources.direct'), value: 735 },
+          { name: $t('pages.dashboard.analytics.sources.email'), value: 580 },
+          { name: $t('pages.dashboard.analytics.sources.ads'), value: 484 },
         ],
         emphasis: {
           label: {
@@ -46,7 +49,7 @@ onMounted(() => {
         labelLine: {
           show: false,
         },
-        name: '访问来源',
+        name: $t('pages.dashboard.analytics.cards.sources'),
         radius: ['40%', '65%'],
         type: 'pie',
       },
@@ -55,7 +58,16 @@ onMounted(() => {
       trigger: 'item',
     },
   });
-});
+}
+
+onMounted(renderChart);
+
+watch(
+  () => preferences.app.locale,
+  () => {
+    renderChart();
+  },
+);
 </script>
 
 <template>

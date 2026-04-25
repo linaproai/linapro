@@ -51,7 +51,6 @@ async function loadTree() {
   selectDeptId.value = [];
 
   const ret = await props.api();
-
   deptTreeArray.value = ret;
   showTreeSkeleton.value = false;
 }
@@ -134,7 +133,7 @@ defineExpose({ refreshTree });
           <div v-else class="mt-5">
             <Empty
               :image="Empty.PRESENTED_IMAGE_SIMPLE"
-              description="无部门数据"
+              :description="$t('pages.system.user.messages.noDepartments')"
             />
           </div>
         </div>

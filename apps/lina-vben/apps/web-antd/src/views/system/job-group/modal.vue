@@ -4,6 +4,7 @@ import type { JobGroupPayload, JobGroupRecord } from '#/api/system/jobGroup/mode
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { message } from 'ant-design-vue';
 
@@ -17,7 +18,9 @@ const emit = defineEmits<{ reload: [] }>();
 
 const currentRecord = ref<JobGroupRecord | null>(null);
 const title = computed(() =>
-  currentRecord.value ? '编辑任务分组' : '新增任务分组',
+  currentRecord.value
+    ? $t('pages.system.jobGroup.drawer.editTitle')
+    : $t('pages.system.jobGroup.drawer.createTitle'),
 );
 
 const [Form, formApi] = useVbenForm({
@@ -32,19 +35,19 @@ const [Form, formApi] = useVbenForm({
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入分组编码',
+        placeholder: $t('pages.system.jobGroup.placeholders.code'),
       },
       fieldName: 'code',
-      label: '分组编码',
+      label: $t('pages.system.jobGroup.fields.code'),
       rules: 'required',
     },
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入分组名称',
+        placeholder: $t('pages.system.jobGroup.placeholders.name'),
       },
       fieldName: 'name',
-      label: '分组名称',
+      label: $t('pages.system.jobGroup.fields.name'),
       rules: 'required',
     },
     {
@@ -56,18 +59,18 @@ const [Form, formApi] = useVbenForm({
       },
       defaultValue: 0,
       fieldName: 'sortOrder',
-      label: '显示排序',
+      label: $t('pages.system.jobGroup.fields.sortOrder'),
       rules: 'required',
     },
     {
       component: 'Textarea',
       componentProps: {
-        placeholder: '请输入备注',
+        placeholder: $t('pages.system.jobGroup.placeholders.remark'),
         rows: 3,
       },
       fieldName: 'remark',
       formItemClass: 'col-span-2',
-      label: '备注',
+      label: $t('pages.common.remark'),
     },
   ],
   showDefaultActions: false,
@@ -99,7 +102,7 @@ const [Modal, modalApi] = useVbenModal({
         {
           componentProps: {
             disabled: currentRecord.value.isDefault === 1,
-            placeholder: '请输入分组编码',
+            placeholder: $t('pages.system.jobGroup.placeholders.code'),
           },
           fieldName: 'code',
         },
@@ -109,7 +112,7 @@ const [Modal, modalApi] = useVbenModal({
         {
           componentProps: {
             disabled: false,
-            placeholder: '请输入分组编码',
+            placeholder: $t('pages.system.jobGroup.placeholders.code'),
           },
           fieldName: 'code',
         },
@@ -135,10 +138,10 @@ async function handleConfirm() {
     const values = await formApi.getValues<JobGroupPayload>();
     if (currentRecord.value) {
       await jobGroupUpdate(currentRecord.value.id, values);
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await jobGroupCreate(values);
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
     emit('reload');
     modalApi.close();

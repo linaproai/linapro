@@ -5,6 +5,7 @@ import { h, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 import { IconifyIcon } from '@vben/icons';
+import { $t } from '@vben/locales';
 
 import { Modal, Switch, Upload } from 'ant-design-vue';
 
@@ -43,17 +44,25 @@ async function handleSubmit() {
     handleCancel();
     const content =
       res.fail > 0
-        ? `成功 ${res.success} 条，失败 ${res.fail} 条\n${res.failList
+        ? `${$t('pages.system.config.import.summary', {
+            fail: res.fail,
+            success: res.success,
+          })}\n${res.failList
             .slice(0, 5)
-            .map((item: any) => `第${item.row}行: ${item.reason}`)
+            .map((item: any) =>
+              $t('pages.system.config.import.rowReason', {
+                reason: item.reason,
+                row: item.row,
+              }),
+            )
             .join('\n')}${res.failList.length > 5 ? '\n...' : ''}`
-        : `成功导入 ${res.success} 条参数设置数据`;
+        : $t('pages.system.config.import.success', { count: res.success });
     modal({
       content: h('div', {
         class: 'max-h-[260px] overflow-y-auto whitespace-pre-wrap',
         innerHTML: content,
       }),
-      title: '提示',
+      title: $t('pages.system.config.import.resultTitle'),
     });
   } catch (error) {
     console.warn(error);
@@ -74,7 +83,7 @@ async function handleDownloadTemplate() {
     const data = await configImportTemplate();
     downloadBlob(data, 'config-import-template.xlsx');
   } catch {
-    Modal.error({ title: '下载模板失败' });
+    Modal.error({ title: $t('pages.system.config.import.downloadTemplateFailed') });
   }
 }
 </script>
@@ -83,7 +92,7 @@ async function handleDownloadTemplate() {
   <BasicModal
     :close-on-click-modal="false"
     :fullscreen-button="false"
-    title="参数设置导入"
+    :title="$t('pages.system.config.import.title')"
   >
     <UploadDragger
       v-model:file-list="fileList"
@@ -91,28 +100,28 @@ async function handleDownloadTemplate() {
       :max-count="1"
       :show-upload-list="true"
       accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-    >
-      <p class="ant-upload-drag-icon flex-center">
+      >
+        <p class="ant-upload-drag-icon flex-center">
         <IconifyIcon
           class="text-5xl text-primary"
           icon="ant-design:inbox-outlined"
         />
       </p>
-      <p class="ant-upload-text">点击或者拖拽到此处上传文件</p>
+      <p class="ant-upload-text">{{ $t('pages.system.config.import.uploadHint') }}</p>
     </UploadDragger>
     <div class="mt-2 flex flex-col gap-2">
       <div class="flex items-center gap-2">
-        <span>允许导入xlsx, xls文件</span>
+        <span>{{ $t('pages.system.config.import.fileHint') }}</span>
         <a-button type="link" @click="handleDownloadTemplate">
           <div class="flex items-center gap-[4px]">
             <IconifyIcon icon="ant-design:file-excel-outlined" />
-            <span>下载模板</span>
+            <span>{{ $t('pages.system.config.import.downloadTemplate') }}</span>
           </div>
         </a-button>
       </div>
       <div class="flex items-center gap-2">
         <span :class="{ 'text-red-500': updateSupport }">
-          是否更新/覆盖已存在的参数设置数据
+          {{ $t('pages.system.config.import.overwrite') }}
         </span>
         <Switch v-model:checked="updateSupport" />
       </div>

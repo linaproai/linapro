@@ -10,6 +10,19 @@ import {
 export class NoticePage {
   constructor(private page: Page) {}
 
+  private resolveLocalizedLabel(label: string) {
+    const labelMap: Record<string, RegExp> = {
+      公告标题: /公告标题|Title|plugin\.content-notice\.fields\.title/i,
+      公告类型: /公告类型|Type|plugin\.content-notice\.fields\.type/i,
+      创建者: /创建者|Created By|plugin\.content-notice\.fields\.createdBy/i,
+    };
+    const localizedLabel = labelMap[label];
+    if (localizedLabel) {
+      return this.page.getByLabel(localizedLabel).first();
+    }
+    return this.page.getByLabel(label, { exact: true }).first();
+  }
+
   /** The Vben modal container */
   private get modal() {
     return this.page.locator('[role="dialog"]');
@@ -146,7 +159,7 @@ export class NoticePage {
 
   /** Fill search form field by label */
   async fillSearchField(label: string, value: string) {
-    const input = this.page.getByLabel(label, { exact: true }).first();
+    const input = this.resolveLocalizedLabel(label);
     await input.clear();
     await input.fill(value);
   }
@@ -154,7 +167,7 @@ export class NoticePage {
   /** Click search button */
   async clickSearch() {
     await this.page
-      .getByRole('button', { name: /搜\s*索/ })
+      .getByRole('button', { name: /搜\s*索|Search/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -163,7 +176,7 @@ export class NoticePage {
   /** Click reset button */
   async clickReset() {
     await this.page
-      .getByRole('button', { name: /重\s*置/ })
+      .getByRole('button', { name: /重\s*置|Reset/i })
       .first()
       .click();
     await waitForRouteReady(this.page);

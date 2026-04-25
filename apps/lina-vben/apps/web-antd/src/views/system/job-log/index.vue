@@ -3,6 +3,7 @@ import type { JobLogRecord, JobRecord } from '#/api/system/job/model';
 
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { computed, onMounted, ref } from 'vue';
 
@@ -44,30 +45,30 @@ const [Grid, gridApi] = useVbenVxeGrid({
         component: 'Select',
         componentProps: {
           options: [],
-          placeholder: '请选择任务',
+          placeholder: $t('pages.system.jobLog.placeholders.selectJob'),
         },
         fieldName: 'jobId',
-        label: '任务名称',
+        label: $t('pages.system.jobLog.fields.jobName'),
       },
       {
         component: 'Select',
         componentProps: {
           options: [
-            { label: '运行中', value: 'running' },
-            { label: '成功', value: 'success' },
-            { label: '失败', value: 'failed' },
-            { label: '取消', value: 'cancelled' },
-            { label: '超时', value: 'timeout' },
+            { label: $t('pages.system.jobLog.status.running'), value: 'running' },
+            { label: $t('pages.system.jobLog.status.success'), value: 'success' },
+            { label: $t('pages.system.jobLog.status.failed'), value: 'failed' },
+            { label: $t('pages.system.jobLog.status.cancelled'), value: 'cancelled' },
+            { label: $t('pages.system.jobLog.status.timeout'), value: 'timeout' },
           ],
-          placeholder: '请选择状态',
+          placeholder: $t('pages.system.jobLog.placeholders.selectStatus'),
         },
         fieldName: 'status',
-        label: '执行状态',
+        label: $t('pages.system.jobLog.fields.status'),
       },
       {
         component: 'Input',
         fieldName: 'nodeId',
-        label: '执行节点',
+        label: $t('pages.system.jobLog.fields.nodeId'),
       },
       {
         component: 'RangePicker',
@@ -75,7 +76,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
           valueFormat: 'YYYY-MM-DD HH:mm:ss',
         },
         fieldName: 'startTime',
-        label: '开始时间',
+        label: $t('pages.system.jobLog.fields.startAt'),
       },
     ],
     wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
@@ -135,7 +136,7 @@ onMounted(async () => {
     {
       componentProps: {
         options: jobOptions.value,
-        placeholder: '请选择任务',
+        placeholder: $t('pages.system.jobLog.placeholders.selectJob'),
       },
       fieldName: 'jobId',
     },
@@ -179,20 +180,22 @@ function handleOpenDetail(row: JobLogRecord) {
 
 async function handleCancel(row: JobLogRecord) {
   await jobLogCancel(row.id);
-  message.success('终止指令已发送');
+  message.success($t('pages.system.jobLog.messages.cancelSent'));
   await gridApi.query();
 }
 
 function handleDelete() {
   const ids = checkedRows.value.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的 ${ids.length} 条执行日志吗？`,
+    content: $t('pages.system.jobLog.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       await jobLogDelete(ids);
       checkedRows.value = [];
-      message.success('删除成功');
+      message.success($t('pages.common.deleteSuccess'));
       await gridApi.query();
     },
   });
@@ -203,16 +206,16 @@ function handleClear() {
   const jobId =
     typeof formValues.jobId === 'number' ? formValues.jobId : undefined;
   const content = jobId
-    ? '确认清空当前任务的执行日志吗？'
-    : '确认清空全部执行日志吗？';
+    ? $t('pages.system.jobLog.messages.clearCurrentConfirm')
+    : $t('pages.system.jobLog.messages.clearAllConfirm');
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
     content,
     onOk: async () => {
       await jobLogClear(jobId);
       checkedRows.value = [];
-      message.success('清空成功');
+      message.success($t('pages.system.jobLog.messages.clearSuccess'));
       await gridApi.query();
     },
   });
@@ -225,7 +228,7 @@ function handleReload() {
 
 <template>
   <Page :auto-content-height="true" data-testid="job-log-page">
-    <Grid table-title="执行日志列表">
+    <Grid :table-title="$t('pages.system.jobLog.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -236,14 +239,14 @@ function handleReload() {
             data-testid="job-log-delete"
             @click="handleDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
           <a-button
             v-if="hasAccessByCodes([accessCodes.remove])"
             data-testid="job-log-clear"
             @click="handleClear"
           >
-            清 空
+            {{ $t('pages.common.clear') }}
           </a-button>
         </Space>
       </template>
@@ -254,12 +257,12 @@ function handleReload() {
             :data-testid="`job-log-detail-${row.id}`"
             @click.stop="handleOpenDetail(row)"
           >
-            详情
+            {{ $t('pages.common.detail') }}
           </ghost-button>
           <Popconfirm
             v-if="canCancelRow(row)"
             placement="left"
-            title="确认终止当前任务实例吗？"
+            :title="$t('pages.system.jobLog.messages.terminateConfirm')"
             @confirm="handleCancel(row)"
           >
             <ghost-button
@@ -267,7 +270,7 @@ function handleReload() {
               :data-testid="`job-log-cancel-${row.id}`"
               @click.stop=""
             >
-              终止
+              {{ $t('pages.system.jobLog.actions.terminate') }}
             </ghost-button>
           </Popconfirm>
         </Space>

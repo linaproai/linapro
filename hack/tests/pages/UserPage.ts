@@ -20,6 +20,11 @@ export class UserPage {
     return this.page.locator('[role="dialog"]');
   }
 
+  /** Username search input in the list filter form. */
+  private get usernameSearchInput() {
+    return this.page.getByLabel(/用户账号|User Account/i).first();
+  }
+
   /** User drawer role combobox */
   private get roleCombobox() {
     return this.drawer.getByRole('combobox', { name: '角色', exact: true }).first();
@@ -54,6 +59,21 @@ export class UserPage {
    */
   private getUserDataRow(username: string) {
     return this.page.locator('.vxe-body--row:visible', { hasText: username }).first();
+  }
+
+  /** Public row locator for assertions after filtering. */
+  getUserRow(username: string) {
+    return this.getUserDataRow(username);
+  }
+
+  /** Check whether the left department tree shows the expected raw department label. */
+  async hasDeptTreeNode(label: string): Promise<boolean> {
+    return this.page
+      .locator('.ant-tree')
+      .getByText(label, { exact: false })
+      .first()
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
   }
 
   /** Wait for the VXE grid loading mask to settle before interacting. */
@@ -206,14 +226,14 @@ export class UserPage {
 
   /** Click search/query button */
   async clickSearch() {
-    await this.page.getByRole('button', { name: /搜\s*索/ }).first().click();
+    await this.page.getByRole('button', { name: /搜\s*索|Search/i }).first().click();
     await this.page.waitForLoadState('networkidle');
     await this.waitForGridIdle();
   }
 
   /** Click reset button */
   async clickReset() {
-    await this.page.getByRole('button', { name: /重\s*置/ }).first().click();
+    await this.page.getByRole('button', { name: /重\s*置|Reset/i }).first().click();
     await this.page.waitForLoadState('networkidle');
     await this.waitForGridIdle();
   }
@@ -221,7 +241,9 @@ export class UserPage {
   /** Reset filters and search by username in a deterministic fresh state. */
   async searchByUsername(username: string) {
     await this.clickReset();
-    await this.fillSearchField('用户账号', username);
+    await this.usernameSearchInput.waitFor({ state: 'visible', timeout: 10000 });
+    await this.usernameSearchInput.clear();
+    await this.usernameSearchInput.fill(username);
     await this.clickSearch();
   }
 

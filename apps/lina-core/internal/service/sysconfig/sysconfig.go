@@ -109,7 +109,6 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
-	s.localizeConfigEntities(ctx, list)
 
 	return &ListOutput{
 		List:  list,
@@ -129,7 +128,6 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysConfig, e
 	if cfg == nil {
 		return nil, gerror.New("参数设置不存在")
 	}
-	s.localizeConfigEntity(ctx, cfg)
 	return cfg, nil
 }
 

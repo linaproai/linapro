@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { ImageUpload } from '#/components/upload';
 
@@ -24,7 +25,7 @@ const [BasicModal, modalApi] = useVbenModal({
     :close-on-click-modal="false"
     :footer="false"
     :fullscreen-button="false"
-    title="图片上传"
+    :title="$t('pages.system.file.actions.imageUpload')"
   >
     <div class="flex flex-col gap-4">
       <ImageUpload v-model:value="fileList" :max-count="3" scene="other" />

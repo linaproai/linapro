@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/monitor/server',
-  title: '服务监控',
+  title: 'Server Monitor',
 };
 </script>
 
@@ -17,6 +17,7 @@ import { Page } from '@vben/common-ui';
 
 import { Progress, Table, Tooltip } from 'ant-design-vue';
 
+import { $t } from '#/locales';
 import { getServerMonitor } from './server-client';
 
 defineOptions({ name: 'ServerMonitor' });
@@ -78,10 +79,34 @@ function formatUptime(seconds: number): string {
   const hours = Math.floor((seconds % 86400) / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const parts: string[] = [];
-  if (days > 0) parts.push(`${days}天`);
-  if (hours > 0) parts.push(`${hours}小时`);
-  if (mins > 0) parts.push(`${mins}分钟`);
-  return parts.join(' ') || '刚启动';
+  if (days > 0) parts.push($t('plugin.monitor-server.time.days', { value: days }));
+  if (hours > 0) parts.push($t('plugin.monitor-server.time.hours', { value: hours }));
+  if (mins > 0) parts.push($t('plugin.monitor-server.time.minutes', { value: mins }));
+  return parts.join(' ') || $t('plugin.monitor-server.time.justStarted');
+}
+
+function formatServiceUptime(rawValue?: string): string {
+  const normalizedValue = String(rawValue ?? '').trim();
+  if (!normalizedValue || normalizedValue === '刚启动') {
+    return formatUptime(0);
+  }
+
+  if (/^\d+$/.test(normalizedValue)) {
+    return formatUptime(Number(normalizedValue));
+  }
+
+  const legacyMatch =
+    normalizedValue.match(
+      /^(?:(\d+)\s*天)?\s*(?:(\d+)\s*小时)?\s*(?:(\d+)\s*分钟)?$/,
+    ) ?? [];
+  if (legacyMatch.length > 0) {
+    const days = Number(legacyMatch[1] ?? 0);
+    const hours = Number(legacyMatch[2] ?? 0);
+    const mins = Number(legacyMatch[3] ?? 0);
+    return formatUptime(days * 86400 + hours * 3600 + mins * 60);
+  }
+
+  return normalizedValue;
 }
 
 function getProgressColor(percent: number): string {
@@ -91,28 +116,36 @@ function getProgressColor(percent: number): string {
 }
 
 const diskColumns = [
-  { title: '盘符', dataIndex: 'path', key: 'path' },
-  { title: '文件系统', dataIndex: 'fsType', key: 'fsType' },
   {
-    title: '总容量',
+    title: $t('plugin.monitor-server.disk.path'),
+    dataIndex: 'path',
+    key: 'path',
+  },
+  {
+    title: $t('plugin.monitor-server.disk.fsType'),
+    dataIndex: 'fsType',
+    key: 'fsType',
+  },
+  {
+    title: $t('plugin.monitor-server.disk.total'),
     dataIndex: 'total',
     key: 'total',
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
-    title: '已用',
+    title: $t('plugin.monitor-server.disk.used'),
     dataIndex: 'used',
     key: 'used',
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
-    title: '可用',
+    title: $t('plugin.monitor-server.disk.free'),
     dataIndex: 'free',
     key: 'free',
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
-    title: '使用率',
+    title: $t('plugin.monitor-server.disk.usage'),
     dataIndex: 'usagePercent',
     key: 'usagePercent',
     width: 200,
@@ -123,15 +156,18 @@ const diskColumns = [
 <template>
   <Page>
     <template v-if="hasData">
-      <!-- 数据库信息 -->
       <div v-if="dbInfo" class="card-box p-5">
-        <h5 class="text-lg text-foreground">数据库信息</h5>
+        <h5 class="text-lg text-foreground">
+          {{ $t('plugin.monitor-server.sections.database') }}
+        </h5>
         <div class="mt-4">
           <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             <div
               class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
             >
-              <dt class="text-sm/6 font-medium text-foreground">数据库版本</dt>
+              <dt class="text-sm/6 font-medium text-foreground">
+                {{ $t('plugin.monitor-server.fields.dbVersion') }}
+              </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.version }}
               </dd>
@@ -139,7 +175,9 @@ const diskColumns = [
             <div
               class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
             >
-              <dt class="text-sm/6 font-medium text-foreground">最大连接数</dt>
+              <dt class="text-sm/6 font-medium text-foreground">
+                {{ $t('plugin.monitor-server.fields.maxConnections') }}
+              </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.maxOpenConns }}
               </dd>
@@ -148,7 +186,7 @@ const diskColumns = [
               class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
             >
               <dt class="text-sm/6 font-medium text-foreground">
-                当前打开连接
+                {{ $t('plugin.monitor-server.fields.openConnections') }}
               </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.openConns }}
@@ -158,7 +196,7 @@ const diskColumns = [
               class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
             >
               <dt class="text-sm/6 font-medium text-foreground">
-                使用中 / 空闲
+                {{ $t('plugin.monitor-server.fields.inUseIdle') }}
               </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.inUse }} / {{ dbInfo.idle }}
@@ -168,11 +206,12 @@ const diskColumns = [
         </div>
       </div>
 
-      <!-- 服务器信息 -->
       <div class="card-box mt-6 p-5">
         <div class="flex items-center gap-2">
-          <h5 class="text-lg text-foreground">服务器信息</h5>
-          <Tooltip title="LinaPro 支持多节点高可用部署，每个节点具有独立的服务器指标信息">
+          <h5 class="text-lg text-foreground">
+            {{ $t('plugin.monitor-server.sections.server') }}
+          </h5>
+          <Tooltip :title="$t('plugin.monitor-server.messages.multiNodeHint')">
             <span
               class="icon-[ant-design--question-circle-outlined] cursor-help text-foreground/40"
             ></span>
@@ -184,7 +223,6 @@ const diskColumns = [
             :key="`${node.nodeName}|${node.nodeIp}`"
             :class="{ 'mt-3': index > 0 }"
           >
-            <!-- Node header (tree-like) -->
             <div
               class="flex cursor-pointer items-center gap-2 rounded px-2 py-2 hover:bg-accent"
               @click="toggleNode(`${node.nodeName}|${node.nodeIp}`)"
@@ -205,22 +243,20 @@ const diskColumns = [
               </span>
             </div>
 
-            <!-- Expanded content -->
             <div
               v-if="isExpanded(`${node.nodeName}|${node.nodeIp}`)"
               class="ml-6 border-l border-border pl-4"
             >
-              <!-- 服务信息 -->
               <div class="py-2">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  服务信息
+                  {{ $t('plugin.monitor-server.sections.service') }}
                 </h6>
                 <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   <div
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      Go 版本
+                      {{ $t('plugin.monitor-server.fields.goVersion') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.goInfo?.version }}
@@ -230,7 +266,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      GoFrame 版本
+                      {{ $t('plugin.monitor-server.fields.goframeVersion') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.goInfo?.gfVersion }}
@@ -250,7 +286,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      GC 暂停
+                      {{ $t('plugin.monitor-server.fields.gcPause') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{
@@ -265,7 +301,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      服务启动时间
+                      {{ $t('plugin.monitor-server.fields.serviceStartTime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.startTime }}
@@ -275,20 +311,18 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      服务运行时长
+                      {{ $t('plugin.monitor-server.fields.serviceUptime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
-                      {{ node.goInfo?.serviceUptime }}
+                      {{ formatServiceUptime(node.goInfo?.serviceUptime) }}
                     </dd>
                   </div>
                 </dl>
 
-                <!-- 服务 CPU + 服务内存 -->
                 <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <!-- 服务 CPU -->
                   <div class="rounded-lg border border-border p-4">
                     <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                      服务 CPU
+                      {{ $t('plugin.monitor-server.sections.processCpu') }}
                     </h6>
                     <div class="flex items-center gap-6">
                       <Progress
@@ -305,7 +339,9 @@ const diskColumns = [
                       />
                       <dl class="flex-1">
                         <div class="py-1">
-                          <dt class="text-xs text-foreground/50">已使用</dt>
+                          <dt class="text-xs text-foreground/50">
+                            {{ $t('plugin.monitor-server.fields.used') }}
+                          </dt>
                           <dd class="text-sm text-foreground">
                             {{
                               (
@@ -314,23 +350,24 @@ const diskColumns = [
                                 100
                               ).toFixed(2)
                             }}
-                            核
+                            {{ $t('plugin.monitor-server.units.cores') }}
                           </dd>
                         </div>
                         <div class="py-1">
-                          <dt class="text-xs text-foreground/50">总核心数</dt>
+                          <dt class="text-xs text-foreground/50">
+                            {{ $t('plugin.monitor-server.fields.totalCores') }}
+                          </dt>
                           <dd class="text-sm text-foreground">
-                            {{ node.cpu?.cores }} 核
+                            {{ node.cpu?.cores }} {{ $t('plugin.monitor-server.units.cores') }}
                           </dd>
                         </div>
                       </dl>
                     </div>
                   </div>
 
-                  <!-- 服务内存 -->
                   <div class="rounded-lg border border-border p-4">
                     <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                      服务内存
+                      {{ $t('plugin.monitor-server.sections.processMemory') }}
                     </h6>
                     <div class="flex items-center gap-6">
                       <Progress
@@ -349,7 +386,9 @@ const diskColumns = [
                       />
                       <dl class="flex-1">
                         <div class="py-1">
-                          <dt class="text-xs text-foreground/50">已使用</dt>
+                          <dt class="text-xs text-foreground/50">
+                            {{ $t('plugin.monitor-server.fields.used') }}
+                          </dt>
                           <dd class="text-sm text-foreground">
                             {{
                               formatBytes(
@@ -362,7 +401,7 @@ const diskColumns = [
                         </div>
                         <div class="py-1">
                           <dt class="text-xs text-foreground/50">
-                            总内存量
+                            {{ $t('plugin.monitor-server.fields.totalMemory') }}
                           </dt>
                           <dd class="text-sm text-foreground">
                             {{ formatBytes(node.memory?.total ?? 0) }}
@@ -374,17 +413,16 @@ const diskColumns = [
                 </div>
               </div>
 
-              <!-- 基本信息 -->
               <div class="py-2">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  基本信息
+                  {{ $t('plugin.monitor-server.sections.basicInfo') }}
                 </h6>
                 <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   <div
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      主机名
+                      {{ $t('plugin.monitor-server.fields.hostname') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.hostname }}
@@ -394,7 +432,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      操作系统
+                      {{ $t('plugin.monitor-server.fields.os') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.os }}
@@ -404,7 +442,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      系统架构
+                      {{ $t('plugin.monitor-server.fields.arch') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.arch }}
@@ -414,7 +452,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      节点IP
+                      {{ $t('plugin.monitor-server.fields.nodeIp') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.nodeIp }}
@@ -424,7 +462,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      系统运行时长
+                      {{ $t('plugin.monitor-server.fields.systemUptime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatUptime(node.server?.uptime ?? 0) }}
@@ -434,7 +472,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      系统启动时间
+                      {{ $t('plugin.monitor-server.fields.bootTime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.bootTime }}
@@ -444,7 +482,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      数据更新时间
+                      {{ $t('plugin.monitor-server.fields.collectAt') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.collectAt }}
@@ -453,12 +491,10 @@ const diskColumns = [
                 </dl>
               </div>
 
-              <!-- CPU + 内存 -->
               <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <!-- CPU -->
                 <div class="rounded-lg border border-border p-4">
                   <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                  系统CPU
+                    {{ $t('plugin.monitor-server.sections.systemCpu') }}
                   </h6>
                   <div class="flex items-center gap-6">
                     <Progress
@@ -473,13 +509,17 @@ const diskColumns = [
                     />
                     <dl class="flex-1">
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">核心数</dt>
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('plugin.monitor-server.fields.cores') }}
+                        </dt>
                         <dd class="text-sm text-foreground">
-                          {{ node.cpu?.cores }} 核
+                          {{ node.cpu?.cores }} {{ $t('plugin.monitor-server.units.cores') }}
                         </dd>
                       </div>
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">型号</dt>
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('plugin.monitor-server.fields.model') }}
+                        </dt>
                         <dd class="max-w-[300px] truncate text-sm text-foreground">
                           {{ node.cpu?.modelName }}
                         </dd>
@@ -488,10 +528,9 @@ const diskColumns = [
                   </div>
                 </div>
 
-                <!-- 内存 -->
                 <div class="rounded-lg border border-border p-4">
                   <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                    系统内存
+                    {{ $t('plugin.monitor-server.sections.systemMemory') }}
                   </h6>
                   <div class="flex items-center gap-6">
                     <Progress
@@ -506,14 +545,18 @@ const diskColumns = [
                     />
                     <dl class="flex-1">
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">已用 / 总量</dt>
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('plugin.monitor-server.fields.usedAndTotal') }}
+                        </dt>
                         <dd class="text-sm text-foreground">
                           {{ formatBytes(node.memory?.used ?? 0) }} /
                           {{ formatBytes(node.memory?.total ?? 0) }}
                         </dd>
                       </div>
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">可用</dt>
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('plugin.monitor-server.fields.free') }}
+                        </dt>
                         <dd class="text-sm text-foreground">
                           {{ formatBytes(node.memory?.available ?? 0) }}
                         </dd>
@@ -523,10 +566,9 @@ const diskColumns = [
                 </div>
               </div>
 
-              <!-- 磁盘 -->
               <div class="mt-3">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  磁盘使用
+                  {{ $t('plugin.monitor-server.sections.disk') }}
                 </h6>
                 <Table
                   :columns="diskColumns"
@@ -548,17 +590,16 @@ const diskColumns = [
                 </Table>
               </div>
 
-              <!-- 网络 -->
               <div class="mt-3 pb-2">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  网络流量
+                  {{ $t('plugin.monitor-server.sections.network') }}
                 </h6>
                 <dl class="grid grid-cols-2 md:grid-cols-4">
                   <div
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      总发送
+                      {{ $t('plugin.monitor-server.fields.bytesSent') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatBytes(node.network?.bytesSent ?? 0) }}
@@ -568,7 +609,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      总接收
+                      {{ $t('plugin.monitor-server.fields.bytesRecv') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatBytes(node.network?.bytesRecv ?? 0) }}
@@ -578,7 +619,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      发送速率
+                      {{ $t('plugin.monitor-server.fields.sendRate') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatRate(node.network?.sendRate ?? 0) }}
@@ -588,7 +629,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      接收速率
+                      {{ $t('plugin.monitor-server.fields.recvRate') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatRate(node.network?.recvRate ?? 0) }}
@@ -602,12 +643,11 @@ const diskColumns = [
       </div>
     </template>
 
-    <!-- Empty State -->
     <div
       v-else-if="!loading"
       class="flex h-[300px] items-center justify-center text-foreground/40"
     >
-      暂无监控数据，请等待数据采集...
+      {{ $t('plugin.monitor-server.messages.empty') }}
     </div>
   </Page>
 </template>

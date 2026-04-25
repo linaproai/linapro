@@ -9,7 +9,12 @@ import { Descriptions, DescriptionsItem } from 'ant-design-vue';
 
 import { DictTag } from '#/components/dict';
 import JsonPreview from '#/components/json-preview/index.vue';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
+import {
+  localizeSeedOperLogSummary,
+  localizeSeedOperLogTitle,
+} from '#/utils/display-l10n';
 
 
 const dictStore = useDictStore();
@@ -52,44 +57,54 @@ function parseJson(str: string): any {
 </script>
 
 <template>
-  <BasicDrawer :footer="false" class="w-[600px]" title="操作日志详情">
+  <BasicDrawer
+    :footer="false"
+    class="w-[600px]"
+    :title="$t('plugin.monitor-operlog.detail.title')"
+  >
     <Descriptions
       v-if="currentLog"
       size="small"
       bordered
       :column="1"
     >
-      <DescriptionsItem label="日志编号" :label-style="{ minWidth: '120px' }">
+      <DescriptionsItem
+        :label="$t('plugin.monitor-operlog.fields.logId')"
+        :label-style="{ minWidth: '120px' }"
+      >
         {{ currentLog.id }}
       </DescriptionsItem>
-      <DescriptionsItem label="操作结果">
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operResult')">
         <DictTag
           :dicts="(operStatusDicts as any)"
           :value="currentLog.status"
         />
       </DescriptionsItem>
-      <DescriptionsItem label="模块名称">
-        {{ currentLog.title }}
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.moduleName')">
+        {{ localizeSeedOperLogTitle(currentLog.title) }}
       </DescriptionsItem>
-      <DescriptionsItem label="操作名称">
-        {{ currentLog.operSummary }}
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operSummary')">
+        {{ localizeSeedOperLogSummary(currentLog.operSummary) }}
       </DescriptionsItem>
-      <DescriptionsItem label="操作类型">
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operType')">
         <DictTag
           :dicts="(operTypeDicts as any)"
           :value="currentLog.operType"
         />
       </DescriptionsItem>
-      <DescriptionsItem label="操作人员">
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operator')">
         {{ currentLog.operName }}
       </DescriptionsItem>
-      <DescriptionsItem label="请求地址">
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.requestUrl')">
         {{ currentLog.operUrl }}
       </DescriptionsItem>
-      <DescriptionsItem label="IP地址">
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.ipAddress')">
         {{ currentLog.operIp }}
       </DescriptionsItem>
-      <DescriptionsItem v-if="currentLog.operParam" label="请求参数">
+      <DescriptionsItem
+        v-if="currentLog.operParam"
+        :label="$t('plugin.monitor-operlog.fields.requestParams')"
+      >
         <div class="max-h-[300px] overflow-y-auto">
           <JsonPreview
             v-if="parseJson(currentLog.operParam)"
@@ -99,7 +114,10 @@ function parseJson(str: string): any {
           <span v-else>{{ currentLog.operParam }}</span>
         </div>
       </DescriptionsItem>
-      <DescriptionsItem v-if="currentLog.jsonResult" label="响应结果">
+      <DescriptionsItem
+        v-if="currentLog.jsonResult"
+        :label="$t('plugin.monitor-operlog.fields.responseResult')"
+      >
         <div class="max-h-[300px] overflow-y-auto">
           <JsonPreview
             v-if="parseJson(currentLog.jsonResult)"
@@ -109,15 +127,18 @@ function parseJson(str: string): any {
           <span v-else>{{ currentLog.jsonResult }}</span>
         </div>
       </DescriptionsItem>
-      <DescriptionsItem v-if="currentLog.errorMsg" label="异常信息">
+      <DescriptionsItem
+        v-if="currentLog.errorMsg"
+        :label="$t('plugin.monitor-operlog.fields.errorInfo')"
+      >
         <span class="font-semibold text-red-600">
           {{ currentLog.errorMsg }}
         </span>
       </DescriptionsItem>
-      <DescriptionsItem label="操作耗时">
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.duration')">
         {{ currentLog.costTime }} ms
       </DescriptionsItem>
-      <DescriptionsItem label="操作时间">
+      <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operTime')">
         {{ currentLog.operTime }}
       </DescriptionsItem>
     </Descriptions>

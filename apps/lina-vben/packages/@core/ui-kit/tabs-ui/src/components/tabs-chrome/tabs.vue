@@ -161,7 +161,10 @@ function onMouseDown(e: MouseEvent, tab: TabConfig) {
                 class="mr-1 flex size-4 items-center overflow-hidden group-hover:animate-[shrink_0.3s_ease-in-out]"
               />
 
-              <span class="flex-1 overflow-hidden text-sm whitespace-nowrap">
+              <span
+                :title="tab.title"
+                class="flex-1 overflow-hidden text-sm whitespace-nowrap"
+              >
                 {{ tab.title }}
               </span>
             </div>

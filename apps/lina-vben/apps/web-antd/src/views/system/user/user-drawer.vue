@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { message } from 'ant-design-vue';
 
@@ -23,7 +24,11 @@ const emit = defineEmits<{ success: [] }>();
 const isEdit = ref(false);
 const orgEnabled = ref(false);
 const userId = ref<number>(0);
-const title = computed(() => (isEdit.value ? '编辑用户' : '新增用户'));
+const title = computed(() =>
+  isEdit.value
+    ? $t('pages.system.user.drawer.editTitle')
+    : $t('pages.system.user.drawer.createTitle'),
+);
 
 const dictStore = useDictStore();
 
@@ -63,7 +68,10 @@ async function setupPostOptions(deptId: number | string) {
     label: item.postName,
     value: item.postId,
   }));
-  const placeholder = options.length > 0 ? '请选择' : '该部门下暂无岗位';
+  const placeholder =
+    options.length > 0
+      ? $t('pages.system.user.placeholders.selectDept')
+      : $t('pages.system.user.messages.noPosts');
   formApi.updateSchema([
     {
       componentProps: { options, placeholder },
@@ -80,7 +88,10 @@ async function setupRoleOptions() {
   }));
   formApi.updateSchema([
     {
-      componentProps: { options, placeholder: '请选择角色' },
+      componentProps: {
+        options,
+        placeholder: $t('pages.system.user.placeholders.selectRole'),
+      },
       fieldName: 'roleIds',
     },
   ]);
@@ -102,7 +113,7 @@ async function setupDeptSelect() {
           await setupPostOptions(deptId);
           formModel.postIds = [];
         },
-        placeholder: '请选择',
+        placeholder: $t('pages.system.user.placeholders.selectDept'),
         showSearch: true,
         treeData: deptTree,
         treeDefaultExpandAll: true,
@@ -121,7 +132,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
       if (orgEnabled.value) {
         formApi.updateSchema([
           {
-            componentProps: { options: [], placeholder: '请先选择部门' },
+            componentProps: {
+              options: [],
+              placeholder: $t('pages.system.user.placeholders.selectDeptFirst'),
+            },
             fieldName: 'postIds',
           },
         ]);
@@ -205,10 +219,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
         id: userId.value,
         ...values,
       });
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await userAdd(values as any);
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
 
     emit('success');

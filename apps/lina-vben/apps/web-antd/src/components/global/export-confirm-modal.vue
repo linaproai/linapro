@@ -6,6 +6,7 @@
 import { computed } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 const [BasicModal, modalApi] = useVbenModal();
 
@@ -24,10 +25,10 @@ const hasSelection = computed(() => {
   >
     <div>
       <template v-if="hasSelection">
-        是否导出选中的记录？
+        {{ $t('pages.exportConfirm.selected') }}
       </template>
       <template v-else>
-        是否导出全部数据？
+        {{ $t('pages.exportConfirm.all') }}
       </template>
     </div>
   </BasicModal>

@@ -6,6 +6,7 @@ import { computed } from 'vue';
 import { Input, RadioGroup, Select } from 'ant-design-vue';
 
 import { tagSelectOptions } from '#/components/dict';
+import { $t } from '#/locales';
 
 /**
  * 需要禁止透传
@@ -16,8 +17,14 @@ defineOptions({ inheritAttrs: false });
 defineEmits<{ deselect: [] }>();
 
 const options = [
-  { label: '默认颜色', value: 'default' },
-  { label: '自定义颜色', value: 'custom' },
+  {
+    label: $t('pages.system.dict.data.tagStyle.options.default'),
+    value: 'default',
+  },
+  {
+    label: $t('pages.system.dict.data.tagStyle.options.custom'),
+    value: 'custom',
+  },
 ] as const;
 
 const computedOptions = computed(
@@ -62,14 +69,14 @@ function handleColorChange(e: Event) {
       :allow-clear="true"
       :options="tagSelectOptions()"
       class="flex-1"
-      placeholder="请选择标签样式"
+      :placeholder="$t('pages.system.dict.data.tagStyle.placeholders.select')"
       @deselect="$emit('deselect')"
     />
     <Input
       v-if="selectType === 'custom'"
       :value="color"
       class="flex-1"
-      placeholder="输入十六进制颜色值，如 #1677ff"
+      :placeholder="$t('pages.system.dict.data.tagStyle.placeholders.custom')"
       @change="handleColorChange"
     />
   </div>

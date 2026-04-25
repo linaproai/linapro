@@ -13,7 +13,7 @@ onUnmounted(() => emitter.off('rowClick'));
 <template>
   <Page
     :auto-content-height="true"
-    content-class="flex flex-col lg:flex-row gap-4"
+    content-class="flex flex-col 2xl:flex-row gap-4"
   >
     <DictTypePanel id="dict-type" class="flex-1 overflow-hidden" />
     <DictDataPanel id="dict-data" class="flex-1 overflow-hidden" />

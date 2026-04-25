@@ -24,6 +24,7 @@ import {
   userList,
   userStatusChange,
 } from '#/api/system/user';
+import { $t } from '#/locales';
 import {
   getPluginStateMap,
   onPluginRegistryChanged,
@@ -64,8 +65,8 @@ const statusLabel = computed(() => {
   const checked = opts.find((d) => d.value === '1');
   const unchecked = opts.find((d) => d.value === '0');
   return {
-    checked: checked?.label || '正常',
-    unchecked: unchecked?.label || '停用',
+    checked: checked?.label || $t('pages.status.enabled'),
+    unchecked: unchecked?.label || $t('pages.status.disabled'),
   };
 });
 
@@ -82,7 +83,7 @@ function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: querySchema,
+    schema: querySchema(),
     commonConfig: {
       labelWidth: 80,
       componentProps: {
@@ -230,7 +231,7 @@ function handleEdit(row: any) {
 
 async function handleDelete(row: any) {
   await userDelete(row.id);
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   await gridApi.query();
   deptTreeRef.value?.refreshTree();
 }
@@ -239,9 +240,11 @@ function handleMultiDelete() {
   const rows = gridApi.grid.getCheckboxRecords();
   const ids = rows.map((row: any) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
+    content: $t('pages.system.user.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       for (const id of ids) {
         await userDelete(id);
@@ -265,23 +268,23 @@ function onReload() {
 async function handleExport() {
   const content =
     checkedRows.value.length > 0
-      ? '是否导出选中的记录？'
-      : '是否导出全部数据？';
+      ? $t('pages.system.user.messages.exportSelectedConfirm')
+      : $t('pages.system.user.messages.exportAllConfirm');
 
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'primary',
     content,
-    okText: '确认',
-    cancelText: '取消',
+    okText: $t('pages.common.confirm'),
+    cancelText: $t('pages.common.cancel'),
     onOk: async () => {
       try {
         const ids = checkedRows.value.map((row: any) => row.id);
         const data = await userExport({ ids });
-        downloadBlob(data, '用户数据导出.xlsx');
-        message.success('导出成功');
+        downloadBlob(data, $t('pages.system.user.exportFileName'));
+        message.success($t('pages.common.exportSuccess'));
       } catch {
-        message.error('导出失败');
+        message.error($t('pages.common.exportFailed'));
       }
     },
   });
@@ -299,29 +302,38 @@ function handleResetPwd(row: any) {
 
 <template>
   <Page :auto-content-height="true">
-    <div class="flex h-full gap-[8px]">
+    <div class="flex h-full flex-col gap-[8px] 2xl:flex-row">
       <DeptTree
         v-if="orgEnabled"
         ref="deptTreeRef"
         v-model:select-dept-id="selectDeptId"
-        class="w-[260px] shrink-0"
+        class="w-full shrink-0 2xl:w-[240px]"
         @reload="() => gridApi.reload()"
         @select="() => gridApi.reload()"
       />
-      <Grid class="flex-1 overflow-hidden" table-title="用户列表">
+      <Grid
+        class="flex-1 overflow-hidden"
+        :table-title="$t('pages.system.user.tableTitle')"
+      >
         <template #toolbar-tools>
           <Space>
-            <a-button @click="handleExport"> 导 出 </a-button>
-            <a-button @click="handleImport">导 入</a-button>
+            <a-button @click="handleExport">
+              {{ $t('pages.common.export') }}
+            </a-button>
+            <a-button @click="handleImport">
+              {{ $t('pages.common.import') }}
+            </a-button>
             <a-button
               :disabled="!hasChecked"
               danger
               type="primary"
               @click="handleMultiDelete"
             >
-              删 除
+              {{ $t('pages.common.delete') }}
             </a-button>
-            <a-button type="primary" @click="handleAdd">新 增</a-button>
+            <a-button type="primary" @click="handleAdd">
+              {{ $t('pages.common.add') }}
+            </a-button>
           </Space>
         </template>
 
@@ -344,24 +356,30 @@ function handleResetPwd(row: any) {
         <template #action="{ row }">
           <template v-if="!isSelf(row)">
             <Space>
-              <ghost-button @click.stop="handleEdit(row)">编辑</ghost-button>
+              <ghost-button @click.stop="handleEdit(row)">
+                {{ $t('pages.common.edit') }}
+              </ghost-button>
               <Popconfirm
                 placement="left"
-                title="确认删除？"
+                :title="$t('pages.system.user.messages.deleteConfirm')"
                 @confirm="handleDelete(row)"
               >
-                <ghost-button danger @click.stop="">删除</ghost-button>
+                <ghost-button danger @click.stop="">
+                  {{ $t('pages.common.delete') }}
+                </ghost-button>
               </Popconfirm>
             </Space>
             <Dropdown placement="bottomRight">
               <template #overlay>
                 <Menu>
                   <MenuItem key="resetPwd" @click="handleResetPwd(row)">
-                    重置密码
+                    {{ $t('pages.system.user.actions.resetPassword') }}
                   </MenuItem>
                 </Menu>
               </template>
-              <a-button size="small" type="link">更多</a-button>
+              <a-button size="small" type="link">
+                {{ $t('pages.common.more') }}
+              </a-button>
             </Dropdown>
           </template>
         </template>

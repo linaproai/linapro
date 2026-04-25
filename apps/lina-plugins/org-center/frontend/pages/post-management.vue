@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/system/post',
-  title: '岗位管理',
+  title: 'Positions',
 };
 </script>
 
@@ -15,11 +15,12 @@ import { Page, useVbenDrawer } from '@vben/common-ui';
 import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { $t } from '#/locales';
 import { postDelete, postDeptTree, postList } from './post-client';
 import { useDictStore } from '#/store/dict';
 import DeptTree from '#/views/system/user/dept-tree.vue';
 
-import { columns, querySchema } from './post-data';
+import { buildColumns, buildQuerySchema } from './post-data';
 import PostDrawer from './post-drawer.vue';
 
 const selectDeptId = ref<string[]>([]);
@@ -49,7 +50,7 @@ const [PostDrawerRef, postDrawerApi] = useVbenDrawer({
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: querySchema,
+    schema: buildQuerySchema(),
     commonConfig: {
       labelWidth: 80,
       componentProps: {
@@ -71,7 +72,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       highlight: true,
       reserve: true,
     },
-    columns,
+    columns: buildColumns(),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -121,7 +122,7 @@ function handleEdit(row: Post) {
 
 async function handleDelete(row: Post) {
   await postDelete(String(row.id));
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   await gridApi.query();
   deptTreeRef.value?.refreshTree();
 }
@@ -130,9 +131,11 @@ function handleMultiDelete() {
   const rows = gridApi.grid.getCheckboxRecords() as Post[];
   const ids = rows.map((row) => row.id);
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的${ids.length}条记录吗？`,
+    content: $t('plugin.org-center.post.messages.deleteSelectedConfirm', {
+      count: ids.length,
+    }),
     onOk: async () => {
       await postDelete(ids.join(','));
       checkedRows.value = [];
@@ -149,16 +152,22 @@ function onReload() {
 </script>
 
 <template>
-  <Page :auto-content-height="true" content-class="flex gap-[8px] w-full">
+  <Page
+    :auto-content-height="true"
+    content-class="flex flex-col gap-[8px] w-full 2xl:flex-row"
+  >
     <DeptTree
       ref="deptTreeRef"
       :api="postDeptTree"
       v-model:select-dept-id="selectDeptId"
-      class="w-[260px]"
+      class="w-full 2xl:w-[240px]"
       @reload="() => gridApi.reload()"
       @select="() => gridApi.reload()"
     />
-    <Grid class="flex-1 overflow-hidden" table-title="岗位列表">
+    <Grid
+      class="flex-1 overflow-hidden"
+      :table-title="$t('plugin.org-center.post.tableTitle')"
+    >
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -167,21 +176,27 @@ function onReload() {
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
-          <a-button type="primary" @click="handleAdd">新 增</a-button>
+          <a-button type="primary" @click="handleAdd">
+            {{ $t('pages.common.add') }}
+          </a-button>
         </Space>
       </template>
 
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">编辑</ghost-button>
+          <ghost-button @click.stop="handleEdit(row)">
+            {{ $t('pages.common.edit') }}
+          </ghost-button>
           <Popconfirm
             placement="left"
-            title="确认删除？"
+            :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">删除</ghost-button>
+            <ghost-button danger @click.stop="">
+              {{ $t('pages.common.delete') }}
+            </ghost-button>
           </Popconfirm>
         </Space>
       </template>

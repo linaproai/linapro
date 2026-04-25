@@ -11,6 +11,7 @@ import { useVbenModal } from '@vben/common-ui';
 
 import { computed, ref } from 'vue';
 
+import { $t } from '#/locales';
 import { Alert, Descriptions, DescriptionsItem, Tag, message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
@@ -86,13 +87,19 @@ const shellVisible = computed(() => {
 });
 const shellUnavailableReason = computed(() => {
   if (!hasShellPermission.value) {
-    return '当前账号缺少 Shell 任务权限';
+    return $t('pages.system.job.messages.noShellPermission');
   }
   if (!shellCapability.value.supported) {
-    return shellCapability.value.disabledReason || '当前平台不支持 Shell 任务';
+    return (
+      shellCapability.value.disabledReason ||
+      $t('pages.system.job.messages.platformUnsupported')
+    );
   }
   if (!shellCapability.value.enabled) {
-    return shellCapability.value.disabledReason || '当前环境未启用 Shell 任务';
+    return (
+      shellCapability.value.disabledReason ||
+      $t('pages.system.job.messages.environmentDisabled')
+    );
   }
   return '';
 });
@@ -100,9 +107,11 @@ const shellUnavailableReason = computed(() => {
 const isBuiltin = computed(() => currentRecord.value?.isBuiltin === 1);
 const title = computed(() => {
   if (isBuiltin.value) {
-    return '任务详情';
+    return $t('pages.system.job.drawer.detailTitle');
   }
-  return currentRecord.value ? '编辑定时任务' : '新增定时任务';
+  return currentRecord.value
+    ? $t('pages.system.job.drawer.editTitle')
+    : $t('pages.system.job.drawer.createTitle');
 });
 const retentionHelp = computed(() =>
   getJobRetentionFieldHelp(publicFrontendSettings.cron.logRetention),
@@ -150,7 +159,10 @@ function buildTimezoneOptions(currentTimezone: string) {
   }
 
   return Array.from(values).map((value) => ({
-    label: value === trimmedCurrentTimezone ? `${value}（当前系统）` : value,
+    label:
+      value === trimmedCurrentTimezone
+        ? $t('pages.system.job.placeholders.currentTimezone', { value })
+        : value,
     value,
   }));
 }
@@ -167,47 +179,47 @@ function buildCommonSchema(
       componentProps: {
         disabled: builtin,
         options,
-        placeholder: '请选择任务分组',
+        placeholder: $t('pages.system.job.placeholders.selectGroup'),
       },
       fieldName: 'groupId',
-      label: '所属分组',
+      label: $t('pages.system.job.fields.group'),
       rules: 'required',
     },
     {
       component: 'Input',
       componentProps: {
         disabled: builtin,
-        placeholder: '请输入任务名称',
+        placeholder: $t('pages.system.job.placeholders.name'),
       },
       fieldName: 'name',
-      label: '任务名称',
+      label: $t('pages.system.job.fields.name'),
       rules: 'required',
     },
     {
       component: 'Textarea',
       componentProps: {
         disabled: builtin,
-        placeholder: '请输入任务描述',
+        placeholder: $t('pages.system.job.placeholders.description'),
         rows: 3,
       },
       fieldName: 'description',
       formItemClass: 'col-span-2',
-      label: '任务描述',
+      label: $t('pages.fields.description'),
     },
     {
       component: 'Input',
       componentProps: {
-        'aria-label': '定时表达式',
+        'aria-label': $t('pages.system.job.fields.cronExpr'),
         'data-testid': 'job-cron-editor',
         autocomplete: 'off',
         class: 'job-cron-code-input',
         disabled: builtin,
-        placeholder: '支持 5 段或 6 段，如 17 3 * * *',
+        placeholder: $t('pages.system.job.placeholders.cronExpr'),
         spellcheck: false,
       },
       fieldName: 'cronExpr',
       help: JOB_CRON_FIELD_HELP,
-      label: '定时表达式',
+      label: $t('pages.system.job.fields.cronExpr'),
       rules: 'required',
     },
     {
@@ -215,11 +227,11 @@ function buildCommonSchema(
       componentProps: {
         disabled: builtin,
         options: buildTimezoneOptions(currentTimezone),
-        placeholder: '可选择常用时区或输入自定义 IANA 时区',
+        placeholder: $t('pages.system.job.placeholders.timezone'),
       },
       defaultValue: currentTimezone,
       fieldName: 'timezone',
-      label: '任务时区',
+      label: $t('pages.system.job.fields.timezone'),
       rules: 'required',
     },
     {
@@ -233,7 +245,7 @@ function buildCommonSchema(
       defaultValue: 'master_only',
       fieldName: 'scope',
       help: JOB_SCOPE_FIELD_HELP,
-      label: '调度范围',
+      label: $t('pages.system.job.fields.scope'),
       rules: 'required',
     },
     {
@@ -247,7 +259,7 @@ function buildCommonSchema(
       defaultValue: 'singleton',
       fieldName: 'concurrency',
       help: JOB_CONCURRENCY_FIELD_HELP,
-      label: '并发策略',
+      label: $t('pages.system.job.fields.concurrency'),
       rules: 'required',
     },
     {
@@ -264,7 +276,7 @@ function buildCommonSchema(
         triggerFields: ['concurrency'],
       },
       fieldName: 'maxConcurrency',
-      label: '最大并发',
+      label: $t('pages.system.job.fields.maxConcurrency'),
       rules: 'required',
     },
     {
@@ -279,7 +291,7 @@ function buildCommonSchema(
       defaultValue: 300,
       fieldName: 'timeoutSeconds',
       help: JOB_TIMEOUT_FIELD_HELP,
-      label: '超时时间(秒)',
+      label: $t('pages.system.job.fields.timeoutSeconds'),
       rules: 'required',
     },
     {
@@ -293,7 +305,7 @@ function buildCommonSchema(
       defaultValue: 0,
       fieldName: 'maxExecutions',
       help: JOB_MAX_EXECUTIONS_FIELD_HELP,
-      label: '最大执行次数',
+      label: $t('pages.system.job.fields.maxExecutions'),
     },
     {
       component: 'RadioGroup',
@@ -303,18 +315,21 @@ function buildCommonSchema(
         optionType: 'button',
         options: builtin
           ? [
-              { label: '启用', value: 'enabled' },
-              { label: '停用', value: 'disabled' },
-              { label: '插件不可用', value: 'paused_by_plugin' },
+              { label: $t('pages.system.job.status.enabled'), value: 'enabled' },
+              { label: $t('pages.system.job.status.disabled'), value: 'disabled' },
+              {
+                label: $t('pages.system.job.status.pluginUnavailable'),
+                value: 'paused_by_plugin',
+              },
             ]
           : [
-              { label: '启用', value: 'enabled' },
-              { label: '停用', value: 'disabled' },
+              { label: $t('pages.system.job.status.enabled'), value: 'enabled' },
+              { label: $t('pages.system.job.status.disabled'), value: 'disabled' },
             ],
       },
       defaultValue: 'disabled',
       fieldName: 'status',
-      label: '任务状态',
+      label: $t('pages.system.job.fields.status'),
       rules: 'required',
     },
     {
@@ -322,17 +337,17 @@ function buildCommonSchema(
       componentProps: {
         disabled: builtin,
         options: [
-          { label: '跟随系统', value: '' },
-          { label: '按天保留', value: 'days' },
-          { label: '按条数保留', value: 'count' },
-          { label: '不自动清理', value: 'none' },
+          { label: $t('pages.system.job.retention.followSystem'), value: '' },
+          { label: $t('pages.system.job.retention.days'), value: 'days' },
+          { label: $t('pages.system.job.retention.count'), value: 'count' },
+          { label: $t('pages.system.job.retention.none'), value: 'none' },
         ],
-        placeholder: '请选择日志保留策略',
+        placeholder: $t('pages.system.job.placeholders.selectRetention'),
       },
       defaultValue: '',
       fieldName: 'retentionMode',
       help: retentionHint,
-      label: '日志保留',
+      label: $t('pages.system.job.fields.retention'),
     },
     {
       component: 'InputNumber',
@@ -348,7 +363,7 @@ function buildCommonSchema(
         triggerFields: ['retentionMode'],
       },
       fieldName: 'retentionValue',
-      label: '保留阈值',
+      label: $t('pages.system.job.fields.retentionValue'),
     },
   ];
 }
@@ -490,7 +505,9 @@ async function handlePreviewCron() {
   } catch (error) {
     cronPreviewTimes.value = [];
     cronPreviewError.value =
-      error instanceof Error ? error.message : 'Cron 预览失败';
+      error instanceof Error
+        ? error.message
+        : $t('pages.system.job.messages.previewFailed');
   }
 }
 
@@ -507,7 +524,7 @@ function buildRetentionOverride(values: Record<string, any>) {
   }
   const value = Number(values.retentionValue || 0);
   if (value <= 0) {
-    throw new Error('日志保留阈值必须大于 0');
+    throw new Error($t('pages.system.job.validation.retentionValuePositive'));
   }
   return {
     mode,
@@ -526,20 +543,18 @@ function splitCronExpressionFields(value: string) {
 function ensureCronExpressionValue(value: unknown) {
   const cronExpr = String(value || '').trim();
   if (!cronExpr) {
-    throw new Error('定时表达式不能为空');
+    throw new Error($t('pages.system.job.validation.cronRequired'));
   }
   if (cronExpr.length > 128) {
-    throw new Error('定时表达式长度不能超过 128 个字符');
+    throw new Error($t('pages.system.job.validation.cronTooLong'));
   }
 
   const fields = splitCronExpressionFields(cronExpr);
   if (fields.length !== 5 && fields.length !== 6) {
-    throw new Error('定时表达式仅支持 5 段或 6 段');
+    throw new Error($t('pages.system.job.validation.cronInvalidCount'));
   }
   if (fields.length === 6 && fields[0] === '#') {
-    throw new Error(
-      '6 段定时表达式的秒位必须填写具体值，5 段表达式无需手工填写 #',
-    );
+    throw new Error($t('pages.system.job.validation.cronSecondInvalid'));
   }
   return cronExpr;
 }
@@ -560,10 +575,10 @@ function isValidTimezoneValue(value: string) {
 function ensureTimezoneValue(value: unknown) {
   const timezone = String(value || '').trim();
   if (!timezone) {
-    throw new Error('任务时区不能为空');
+    throw new Error($t('pages.system.job.validation.timezoneRequired'));
   }
   if (!isValidTimezoneValue(timezone)) {
-    throw new Error('任务时区不合法');
+    throw new Error($t('pages.system.job.validation.timezoneInvalid'));
   }
   return timezone;
 }
@@ -579,20 +594,30 @@ function ensureIntegerRangeValue(
 ) {
   const numericValue = Number(value);
   if (!Number.isInteger(numericValue)) {
-    throw new Error(`${label}必须为整数`);
+    throw new Error($t('pages.system.job.validation.integerRequired', { label }));
   }
   if (options.allowZero && numericValue === 0) {
     return numericValue;
   }
   if (numericValue < options.min) {
-    throw new Error(`${label}不能小于 ${options.min}`);
+    throw new Error(
+      $t('pages.system.job.validation.minValue', {
+        label,
+        value: options.min,
+      }),
+    );
   }
   if (
     typeof options.max === 'number' &&
     Number.isFinite(options.max) &&
     numericValue > options.max
   ) {
-    throw new Error(`${label}不能大于 ${options.max}`);
+    throw new Error(
+      $t('pages.system.job.validation.maxValue', {
+        label,
+        value: options.max,
+      }),
+    );
   }
   return numericValue;
 }
@@ -604,7 +629,7 @@ function ensureSelectValue(
 ) {
   const text = String(value || '').trim();
   if (!supportedValues.includes(text)) {
-    throw new Error(`${label}配置不合法`);
+    throw new Error($t('pages.system.job.validation.invalidOption', { label }));
   }
   return text;
 }
@@ -612,39 +637,51 @@ function ensureSelectValue(
 function validateCommonFormValues(values: Record<string, any>) {
   const groupId = Number(values.groupId);
   if (!Number.isInteger(groupId) || groupId <= 0) {
-    throw new Error('请选择任务分组');
+    throw new Error($t('pages.system.job.validation.groupRequired'));
   }
   const jobName = String(values.name || '').trim();
   if (jobName === '') {
-    throw new Error('任务名称不能为空');
+    throw new Error($t('pages.system.job.validation.nameRequired'));
   }
   if (jobName.length > 128) {
-    throw new Error('任务名称长度不能超过 128 个字符');
+    throw new Error($t('pages.system.job.validation.nameTooLong'));
   }
 
   ensureCronExpressionValue(values.cronExpr);
   ensureTimezoneValue(values.timezone);
   ensureSelectValue(
-    '调度范围',
+    $t('pages.system.job.fields.scope'),
     values.scope,
     JOB_SCOPE_OPTIONS.map((item) => String(item.value)),
   );
   ensureSelectValue(
-    '并发策略',
+    $t('pages.system.job.fields.concurrency'),
     values.concurrency,
     JOB_CONCURRENCY_OPTIONS.map((item) => String(item.value)),
   );
-  ensureSelectValue('任务状态', values.status, JOB_FORM_STATUS_OPTIONS);
-  ensureIntegerRangeValue('超时时间(秒)', values.timeoutSeconds, {
-    max: 86400,
-    min: 1,
-  });
-  ensureIntegerRangeValue('最大执行次数', values.maxExecutions ?? 0, {
-    allowZero: true,
-    min: 0,
-  });
+  ensureSelectValue(
+    $t('pages.system.job.fields.status'),
+    values.status,
+    JOB_FORM_STATUS_OPTIONS,
+  );
+  ensureIntegerRangeValue(
+    $t('pages.system.job.fields.timeoutSeconds'),
+    values.timeoutSeconds,
+    {
+      max: 86400,
+      min: 1,
+    },
+  );
+  ensureIntegerRangeValue(
+    $t('pages.system.job.fields.maxExecutions'),
+    values.maxExecutions ?? 0,
+    {
+      allowZero: true,
+      min: 0,
+    },
+  );
   if (values.concurrency === 'parallel') {
-    ensureIntegerRangeValue('最大并发', values.maxConcurrency, {
+    ensureIntegerRangeValue($t('pages.system.job.fields.maxConcurrency'), values.maxConcurrency, {
       max: 100,
       min: 1,
     });
@@ -658,7 +695,7 @@ async function buildPayload() {
     throw new Error(
       typeof firstError === 'string' && firstError
         ? firstError
-        : '请完善公共调度配置',
+        : $t('pages.system.job.messages.formInvalid'),
     );
   }
   const values = await commonFormApi.getValues<Record<string, any>>();
@@ -688,7 +725,7 @@ async function buildPayload() {
 
   const shellPayload = await shellFormRef.value?.validateAndBuild();
   if (!shellPayload) {
-    throw new Error('请完善 Shell 配置');
+    throw new Error($t('pages.system.job.messages.shellConfigInvalid'));
   }
   return {
     ...commonPayload,
@@ -710,15 +747,15 @@ async function handleConfirm() {
     const payload = await buildPayload();
     if (currentRecord.value) {
       await jobUpdate(currentRecord.value.id, payload);
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await jobCreate(payload);
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
     emit('reload');
     modalApi.close();
   } catch (error) {
-    const msg = error instanceof Error ? error.message : '保存定时任务失败';
+    const msg = error instanceof Error ? error.message : $t('pages.system.job.messages.saveFailed');
     message.error(msg);
   } finally {
     modalApi.lock(false);
@@ -739,7 +776,7 @@ async function handleConfirm() {
         data-testid="job-builtin-common-lock-alert"
       >
         <Alert
-          message="源码注册任务的定义由宿主或插件代码维护，在管理页中仅允许查看详情、查看日志和立即执行。"
+          :message="$t('pages.system.job.messages.builtinReadonly')"
           show-icon
           type="info"
         />
@@ -753,13 +790,15 @@ async function handleConfirm() {
       >
         <div class="mb-3 flex items-center justify-between">
           <div>
-            <div class="text-sm font-medium">Cron 预览</div>
+            <div class="text-sm font-medium">
+              {{ $t('pages.system.job.preview.title') }}
+            </div>
             <div class="text-xs text-foreground/60">
-              支持 5 段或 6 段 Cron；5 段表达式会在运行时自动补 # 秒占位。
+              {{ $t('pages.system.job.preview.description') }}
             </div>
           </div>
           <a-button data-testid="job-cron-preview" @click="handlePreviewCron">
-            预 览
+            {{ $t('pages.system.job.actions.preview') }}
           </a-button>
         </div>
 
@@ -779,7 +818,7 @@ async function handleConfirm() {
           </li>
         </ul>
         <div v-else class="text-sm text-foreground/60">
-          点击预览按钮查看下一次执行时间。
+          {{ $t('pages.system.job.preview.empty') }}
         </div>
       </div>
 
@@ -790,9 +829,11 @@ async function handleConfirm() {
       >
         <div class="mb-3 flex items-center justify-between">
           <div>
-            <div class="text-sm font-medium">源码任务详情</div>
+            <div class="text-sm font-medium">
+              {{ $t('pages.system.job.builtin.title') }}
+            </div>
             <div class="text-xs text-foreground/60">
-              该任务由源码注册并投影到任务管理页面，以下信息用于排查与审计。
+              {{ $t('pages.system.job.builtin.description') }}
             </div>
           </div>
         </div>
@@ -803,7 +844,7 @@ async function handleConfirm() {
           class="job-builtin-descriptions"
           size="small"
         >
-          <DescriptionsItem label="任务来源">
+          <DescriptionsItem :label="$t('pages.system.job.fields.source')">
             <Tag :color="getJobSourceColor(currentSourceKind)">
               {{ currentSourceLabel }}
             </Tag>
@@ -814,13 +855,15 @@ async function handleConfirm() {
               {{ currentPluginId }}
             </span>
           </DescriptionsItem>
-          <DescriptionsItem label="执行类型">
+          <DescriptionsItem :label="$t('pages.system.job.builtin.taskType')">
             {{ currentRecord?.taskType === 'shell' ? 'Shell' : 'Handler' }}
           </DescriptionsItem>
-          <DescriptionsItem label="处理器引用">
+          <DescriptionsItem :label="$t('pages.system.job.builtin.handlerRef')">
             <code>{{ currentRecord?.handlerRef || '-' }}</code>
           </DescriptionsItem>
-          <DescriptionsItem label="处理器参数">
+          <DescriptionsItem
+            :label="$t('pages.system.job.builtin.handlerParams')"
+          >
             <pre class="job-json-code">{{ readonlyParamsText }}</pre>
           </DescriptionsItem>
         </Descriptions>
@@ -832,9 +875,11 @@ async function handleConfirm() {
       >
         <div class="mb-3 flex items-center justify-between">
           <div>
-            <div class="text-sm font-medium">Shell 任务配置</div>
+            <div class="text-sm font-medium">
+              {{ $t('pages.system.job.shell.title') }}
+            </div>
             <div class="text-xs text-foreground/60">
-              用户在界面中创建的定时任务统一使用 Shell 类型，由宿主节点直接执行命令。
+              {{ $t('pages.system.job.shell.description') }}
             </div>
           </div>
           <Alert

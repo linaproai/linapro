@@ -2,12 +2,22 @@
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
-import { onMounted, ref } from 'vue';
+import { preferences } from '@vben/preferences';
+import { onMounted, ref, watch } from 'vue';
 
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
-onMounted(() => {
+function buildMonthLabels() {
+  const formatter = new Intl.DateTimeFormat(preferences.app.locale, {
+    month: 'short',
+  });
+  return Array.from({ length: 12 }).map((_item, index) =>
+    formatter.format(new Date(2026, index, 1)),
+  );
+}
+
+function renderChart() {
   renderEcharts({
     grid: {
       bottom: 0,
@@ -35,7 +45,7 @@ onMounted(() => {
       trigger: 'axis',
     },
     xAxis: {
-      data: Array.from({ length: 12 }).map((_item, index) => `${index + 1}月`),
+      data: buildMonthLabels(),
       type: 'category',
     },
     yAxis: {
@@ -44,7 +54,16 @@ onMounted(() => {
       type: 'value',
     },
   });
-});
+}
+
+onMounted(renderChart);
+
+watch(
+  () => preferences.app.locale,
+  () => {
+    renderChart();
+  },
+);
 </script>
 
 <template>

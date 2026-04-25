@@ -4,6 +4,7 @@ import type { JobGroupRecord } from '#/api/system/jobGroup/model';
 
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { computed, onMounted, ref } from 'vue';
 
@@ -73,24 +74,24 @@ const [Grid, gridApi] = useVbenVxeGrid({
         component: 'Select',
         componentProps: {
           options: [],
-          placeholder: '请选择分组',
+          placeholder: $t('pages.system.job.placeholders.selectGroup'),
         },
         fieldName: 'groupId',
-        label: '任务分组',
+        label: $t('pages.system.job.fields.group'),
       },
       {
         component: 'Select',
         componentProps: {
           options: JOB_STATUS_FILTER_OPTIONS,
-          placeholder: '请选择状态',
+          placeholder: $t('pages.system.job.placeholders.selectStatus'),
         },
         fieldName: 'status',
-        label: '任务状态',
+        label: $t('pages.system.job.fields.status'),
       },
       {
         component: 'Input',
         fieldName: 'keyword',
-        label: '关键字',
+        label: $t('pages.system.job.fields.keyword'),
       },
     ],
     wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
@@ -147,7 +148,7 @@ async function loadGroupOptions() {
     {
       componentProps: {
         options: groupOptions.value,
-        placeholder: '请选择分组',
+        placeholder: $t('pages.system.job.placeholders.selectGroup'),
       },
       fieldName: 'groupId',
     },
@@ -160,13 +161,19 @@ function syncCheckedRows() {
 
 function shellBlockedReason() {
   if (!hasShellPermission.value) {
-    return '当前账号缺少 Shell 任务权限';
+    return $t('pages.system.job.messages.noShellPermission');
   }
   if (!shellCapability.value.supported) {
-    return shellCapability.value.disabledReason || '当前平台不支持 Shell 任务';
+    return (
+      shellCapability.value.disabledReason ||
+      $t('pages.system.job.messages.platformUnsupported')
+    );
   }
   if (!shellCapability.value.enabled) {
-    return shellCapability.value.disabledReason || '当前环境未启用 Shell 任务';
+    return (
+      shellCapability.value.disabledReason ||
+      $t('pages.system.job.messages.environmentDisabled')
+    );
   }
   return '';
 }
@@ -208,16 +215,18 @@ function openEditModal(row: JobRecord) {
 
 async function handleDelete(ids: Array<number>) {
   await jobDelete(ids);
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   checkedRows.value = [];
   await gridApi.query();
 }
 
 function handleMultiDelete() {
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的 ${checkedRows.value.length} 个任务吗？`,
+    content: $t('pages.system.job.messages.deleteSelectedConfirm', {
+      count: checkedRows.value.length,
+    }),
     onOk: async () => {
       await handleDelete(checkedRows.value.map((row) => row.id));
     },
@@ -230,13 +239,13 @@ async function handleTrigger(row: JobRecord) {
     return;
   }
   const result = await jobTrigger(row.id);
-  message.success(`已触发执行，日志编号 ${result.logId}`);
+  message.success($t('pages.system.job.messages.triggerSuccess', { logId: result.logId }));
   await gridApi.query();
 }
 
 async function handleReset(row: JobRecord) {
   await jobReset(row.id);
-  message.success('执行次数已重置');
+  message.success($t('pages.system.job.messages.resetSuccess'));
   await gridApi.query();
 }
 
@@ -288,7 +297,7 @@ function handleReload() {
 
 <template>
   <Page :auto-content-height="true" data-testid="job-page">
-    <Grid table-title="定时任务列表">
+    <Grid :table-title="$t('pages.system.job.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -298,7 +307,7 @@ function handleReload() {
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
           <a-button
             v-if="canCreateShellJob"
@@ -306,7 +315,7 @@ function handleReload() {
             type="primary"
             @click="openCreateModal"
           >
-            新 增
+            {{ $t('pages.common.add') }}
           </a-button>
         </Space>
       </template>
@@ -318,7 +327,7 @@ function handleReload() {
             :title="JOB_PLUGIN_PAUSED_TOOLTIP"
           >
             <ghost-button disabled :data-testid="`job-trigger-${row.id}`">
-              立即执行
+              {{ $t('pages.system.job.actions.runNow') }}
             </ghost-button>
           </Tooltip>
           <Tooltip
@@ -326,7 +335,7 @@ function handleReload() {
             :title="shellBlockedReason()"
           >
             <ghost-button disabled :data-testid="`job-trigger-${row.id}`">
-              立即执行
+              {{ $t('pages.system.job.actions.runNow') }}
             </ghost-button>
           </Tooltip>
           <ghost-button
@@ -335,7 +344,7 @@ function handleReload() {
             :data-testid="`job-trigger-${row.id}`"
             @click.stop="handleTrigger(row)"
           >
-            立即执行
+            {{ $t('pages.system.job.actions.runNow') }}
           </ghost-button>
 
           <Tooltip
@@ -343,7 +352,7 @@ function handleReload() {
             :title="shellBlockedReason()"
           >
             <ghost-button disabled :data-testid="`job-edit-${row.id}`">
-              编辑
+              {{ $t('pages.common.edit') }}
             </ghost-button>
           </Tooltip>
           <ghost-button
@@ -351,7 +360,7 @@ function handleReload() {
             :data-testid="`job-edit-${row.id}`"
             @click.stop="openEditModal(row)"
           >
-            详情
+            {{ $t('pages.common.detail') }}
           </ghost-button>
 
           <ghost-button
@@ -359,7 +368,7 @@ function handleReload() {
             :data-testid="`job-edit-${row.id}`"
             @click.stop="openEditModal(row)"
           >
-            编辑
+            {{ $t('pages.common.edit') }}
           </ghost-button>
 
           <Dropdown
@@ -373,15 +382,15 @@ function handleReload() {
                   :key="`reset-${row.id}`"
                   @click="handleReset(row)"
                 >
-                  <span :data-testid="`job-reset-${row.id}`">重置计数</span>
+                  <span :data-testid="`job-reset-${row.id}`">{{ $t('pages.system.job.actions.resetCount') }}</span>
                 </MenuItem>
                 <MenuItem v-if="canDeleteRow(row)" :key="`delete-${row.id}`">
                   <Popconfirm
                     placement="left"
-                    title="确认删除该任务吗？"
+                    :title="$t('pages.system.job.messages.deleteConfirm')"
                     @confirm="handleDelete([row.id])"
                   >
-                    <span :data-testid="`job-delete-${row.id}`">删除</span>
+                    <span :data-testid="`job-delete-${row.id}`">{{ $t('pages.common.delete') }}</span>
                   </Popconfirm>
                 </MenuItem>
               </Menu>
@@ -391,7 +400,7 @@ function handleReload() {
               size="small"
               type="link"
             >
-              更多
+              {{ $t('pages.common.more') }}
             </a-button>
           </Dropdown>
         </Space>

@@ -1,7 +1,7 @@
 <script lang="ts">
 export const pluginPageMeta = {
   routePath: '/system/dept',
-  title: '部门管理',
+  title: 'Departments',
 };
 </script>
 
@@ -18,10 +18,11 @@ import { Page, useVbenDrawer } from '@vben/common-ui';
 import { message, Popconfirm, Space } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
+import { $t } from '#/locales';
 import { deptDelete, deptList } from './dept-client';
 import { useDictStore } from '#/store/dict';
 
-import { columns, querySchema } from './dept-data';
+import { buildColumns, buildQuerySchema } from './dept-data';
 import deptDrawer from './dept-drawer.vue';
 
 // 加载字典数据
@@ -49,7 +50,7 @@ const formOptions: VbenFormProps = {
       allowClear: true,
     },
   },
-  schema: querySchema,
+  schema: buildQuerySchema(),
   wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
 };
 
@@ -68,7 +69,7 @@ function eachTreeData(
 }
 
 const gridOptions: VxeGridProps = {
-  columns,
+  columns: buildColumns(),
   height: 'auto',
   keepSource: true,
   pagerConfig: {
@@ -150,7 +151,7 @@ async function handleEdit(record: Dept) {
 
 async function handleDelete(row: Dept) {
   await deptDelete(row.id);
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   await tableApi.query();
 }
 
@@ -166,26 +167,36 @@ function setExpandOrCollapse(expand: boolean) {
 
 <template>
   <Page :auto-content-height="true">
-    <BasicTable table-title="部门列表">
+    <BasicTable :table-title="$t('plugin.org-center.dept.tableTitle')">
       <template #toolbar-tools>
         <Space>
-          <a-button @click="setExpandOrCollapse(false)">折 叠</a-button>
-          <a-button @click="setExpandOrCollapse(true)">展 开</a-button>
-          <a-button type="primary" @click="handleAdd">新增</a-button>
+          <a-button @click="setExpandOrCollapse(false)">
+            {{ $t('pages.common.collapse') }}
+          </a-button>
+          <a-button @click="setExpandOrCollapse(true)">
+            {{ $t('pages.common.expand') }}
+          </a-button>
+          <a-button type="primary" @click="handleAdd">
+            {{ $t('pages.common.add') }}
+          </a-button>
         </Space>
       </template>
       <template #action="{ row }">
         <Space>
-          <ghost-button @click="handleEdit(row)">编辑</ghost-button>
+          <ghost-button @click="handleEdit(row)">
+            {{ $t('pages.common.edit') }}
+          </ghost-button>
           <ghost-button class="btn-success" @click="handleSubAdd(row)">
-            新增
+            {{ $t('pages.common.add') }}
           </ghost-button>
           <Popconfirm
             placement="left"
-            title="确认删除？"
+            :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">删除</ghost-button>
+            <ghost-button danger @click.stop="">
+              {{ $t('pages.common.delete') }}
+            </ghost-button>
           </Popconfirm>
         </Space>
       </template>

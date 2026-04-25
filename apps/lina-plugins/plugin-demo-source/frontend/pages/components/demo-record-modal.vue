@@ -15,6 +15,8 @@ import {
   message,
 } from "ant-design-vue";
 
+import { $t } from "#/locales";
+
 import {
   createDemoRecord,
   getDemoRecord,
@@ -46,11 +48,18 @@ const fileList = ref<UploadFile[]>([]);
 
 const isEdit = computed(() => !!formData.value.id);
 const modalTitle = computed(() =>
-  isEdit.value ? "编辑示例记录" : "新增示例记录",
+  isEdit.value
+    ? $t("plugin.plugin-demo-source.page.modal.editTitle")
+    : $t("plugin.plugin-demo-source.page.modal.createTitle"),
 );
 
 const formRules = reactive({
-  title: [{ message: "请输入记录标题", required: true }],
+  title: [
+    {
+      message: $t("plugin.plugin-demo-source.page.validation.title"),
+      required: true,
+    },
+  ],
 });
 
 const { resetFields, validate, validateInfos } = Form.useForm(
@@ -126,10 +135,10 @@ async function handleConfirm() {
 
     if (isEdit.value && formData.value.id) {
       await updateDemoRecord(formData.value.id, payload, selectedFile.value);
-      message.success("更新成功");
+      message.success($t("pages.common.updateSuccess"));
     } else {
       await createDemoRecord(payload, selectedFile.value);
-      message.success("创建成功");
+      message.success($t("pages.common.createSuccess"));
     }
 
     emit("reload");
@@ -146,29 +155,32 @@ async function handleConfirm() {
       layout="vertical"
       data-testid="plugin-demo-source-record-form"
     >
-      <FormItem label="记录标题" v-bind="validateInfos.title">
+      <FormItem
+        :label="$t('plugin.plugin-demo-source.page.fields.title')"
+        v-bind="validateInfos.title"
+      >
         <Input
           v-model:value="formData.title"
           data-testid="plugin-demo-source-record-title-input"
           maxlength="128"
-          placeholder="请输入记录标题"
+          :placeholder="$t('plugin.plugin-demo-source.page.placeholders.title')"
         />
       </FormItem>
-      <FormItem label="记录内容">
+      <FormItem :label="$t('plugin.plugin-demo-source.page.fields.content')">
         <Input.TextArea
           v-model:value="formData.content"
           :maxlength="1000"
           :rows="5"
           data-testid="plugin-demo-source-record-content-input"
-          placeholder="请输入记录内容"
+          :placeholder="$t('plugin.plugin-demo-source.page.placeholders.content')"
           show-count
         />
       </FormItem>
-      <FormItem label="附件">
+      <FormItem :label="$t('plugin.plugin-demo-source.page.fields.attachment')">
         <div>
           <Alert
             data-testid="plugin-demo-source-record-attachment-alert"
-            message="该附件会跟随源码插件示例记录一起保存；卸载插件时若勾选清理存储数据，附件文件也会一并删除。"
+            :message="$t('plugin.plugin-demo-source.page.messages.attachmentHint')"
             show-icon
             type="info"
           />
@@ -181,7 +193,11 @@ async function handleConfirm() {
               data-testid="plugin-demo-source-record-existing-attachment"
               class="rounded border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-600"
             >
-              当前附件：{{ existingAttachmentName }}
+              {{
+                $t("plugin.plugin-demo-source.page.messages.currentAttachment", {
+                  name: existingAttachmentName,
+                })
+              }}
             </div>
             <div
               v-if="existingAttachmentName && !selectedFile"
@@ -189,7 +205,7 @@ async function handleConfirm() {
               class="py-1"
             >
               <Checkbox v-model:checked="formData.removeAttachment">
-                提交时移除当前附件
+                {{ $t("plugin.plugin-demo-source.page.messages.removeAttachment") }}
               </Checkbox>
             </div>
             <UploadDragger
@@ -199,9 +215,11 @@ async function handleConfirm() {
               data-testid="plugin-demo-source-record-dragger"
               @remove="handleRemoveFile"
             >
-              <p class="ant-upload-text">点击或拖拽上传一个附件文件</p>
+              <p class="ant-upload-text">
+                {{ $t("plugin.plugin-demo-source.page.messages.uploadText") }}
+              </p>
               <p class="ant-upload-hint">
-                不上传则保留当前状态；上传新文件会自动替换旧附件。
+                {{ $t("plugin.plugin-demo-source.page.messages.uploadHint") }}
               </p>
             </UploadDragger>
           </div>

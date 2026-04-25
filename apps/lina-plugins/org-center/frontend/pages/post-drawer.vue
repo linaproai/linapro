@@ -6,10 +6,11 @@ import { useVbenDrawer } from '@vben/common-ui';
 import { message } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
+import { $t } from '#/locales';
 import { postAdd, postDeptTree, postInfo, postUpdate } from './post-client';
 import { useDictStore } from '#/store/dict';
 
-import { drawerSchema } from './post-data';
+import { buildDrawerSchema } from './post-data';
 
 const emit = defineEmits<{ reload: [] }>();
 
@@ -17,7 +18,11 @@ const dictStore = useDictStore();
 
 const isUpdate = ref(false);
 const postId = ref<number>(0);
-const title = computed(() => (isUpdate.value ? '编辑岗位' : '新增岗位'));
+const title = computed(() =>
+  isUpdate.value
+    ? $t('plugin.org-center.post.drawer.editTitle')
+    : $t('plugin.org-center.post.drawer.createTitle'),
+);
 
 const [Form, formApi] = useVbenForm({
   commonConfig: {
@@ -27,7 +32,7 @@ const [Form, formApi] = useVbenForm({
     },
     labelWidth: 80,
   },
-  schema: drawerSchema,
+  schema: buildDrawerSchema(),
   showDefaultActions: false,
   wrapperClass: 'grid-cols-2',
 });
@@ -111,15 +116,18 @@ const [Drawer, drawerApi] = useVbenDrawer({
       const values = await formApi.getValues();
       if (isUpdate.value) {
         await postUpdate(postId.value, values);
-        message.success('更新成功');
+        message.success($t('pages.common.updateSuccess'));
       } else {
         await postAdd(values);
-        message.success('创建成功');
+        message.success($t('pages.common.createSuccess'));
       }
       emit('reload');
       drawerApi.close();
     } catch (error) {
-      const messageText = error instanceof Error ? error.message : '保存岗位失败';
+      const messageText =
+        error instanceof Error
+          ? error.message
+          : $t('plugin.org-center.post.messages.saveFailed');
       message.error(messageText);
     } finally {
       drawerApi.lock(false);

@@ -49,7 +49,8 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 	if isSuperAdmin {
 		// Super admin gets all enabled menus
 		allMenus, err := c.menuSvc.List(ctx, menu.ListInput{
-			Status: intPtr(1),
+			Status:    intPtr(1),
+			Localized: true,
 		})
 		if err != nil {
 			return nil, err
@@ -62,7 +63,8 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 		menuIds := accessContext.MenuIds
 		if len(menuIds) > 0 {
 			allMenus, err := c.menuSvc.List(ctx, menu.ListInput{
-				Status: intPtr(1),
+				Status:    intPtr(1),
+				Localized: true,
 			})
 			if err != nil {
 				return nil, err

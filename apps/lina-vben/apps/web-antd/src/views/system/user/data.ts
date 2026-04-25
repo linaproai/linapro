@@ -1,45 +1,49 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
+import { $t } from '#/locales';
+
 type GridColumns = NonNullable<VxeGridProps['columns']>;
 type GridColumn = GridColumns[number];
 
 /** 查询表单schema */
-export const querySchema: VbenFormSchema[] = [
-  {
-    component: 'Input',
-    fieldName: 'username',
-    label: '用户账号',
-  },
-  {
-    component: 'Input',
-    fieldName: 'nickname',
-    label: '用户昵称',
-  },
-  {
-    component: 'Input',
-    fieldName: 'phone',
-    label: '手机号码',
-  },
-  {
-    component: 'Select',
-    fieldName: 'status',
-    label: '用户状态',
-  },
-  {
-    component: 'RangePicker',
-    fieldName: 'createdAt',
-    label: '创建时间',
-  },
-];
+export function querySchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'username',
+      label: $t('pages.system.user.labels.userAccount'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'nickname',
+      label: $t('pages.system.user.labels.userNickname'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'phone',
+      label: $t('pages.fields.phone'),
+    },
+    {
+      component: 'Select',
+      fieldName: 'status',
+      label: $t('pages.system.user.labels.userStatus'),
+    },
+    {
+      component: 'RangePicker',
+      fieldName: 'createdAt',
+      label: $t('pages.common.createdAt'),
+    },
+  ];
+}
 
 function buildDeptColumn(): GridColumn {
   return {
     field: 'deptName',
-    title: '部门',
+    title: $t('pages.fields.dept'),
     minWidth: 120,
     formatter({ cellValue }: { cellValue?: string }) {
-      return cellValue || '未分配部门';
+      return cellValue || $t('pages.system.user.labels.unassignedDept');
     },
   };
 }
@@ -50,71 +54,77 @@ export function buildColumns(orgEnabled: boolean): GridColumns {
     { type: 'checkbox', width: 60 },
     {
       field: 'username',
-      title: '名称',
+      title: $t('pages.system.user.labels.account'),
       minWidth: 120,
       sortable: true,
     },
     {
       field: 'avatar',
-      title: '头像',
+      title: $t('pages.fields.avatar'),
       slots: { default: 'avatar' },
       minWidth: 80,
     },
     {
       field: 'nickname',
-      title: '昵称',
+      title: $t('pages.fields.nickname'),
       minWidth: 120,
       sortable: true,
     },
     {
       field: 'roleNames',
-      title: '角色',
+      title: $t('pages.fields.roles'),
       minWidth: 120,
       formatter({ cellValue }) {
-        return cellValue || '未分配角色';
+        return cellValue
+          ? String(cellValue)
+          : $t('pages.system.user.labels.unassignedRole');
       },
     },
     {
       field: 'phone',
-      title: '手机号码',
+      title: $t('pages.fields.phone'),
       formatter({ cellValue }) {
-        return cellValue || '暂无';
+        return cellValue || $t('pages.system.user.labels.na');
       },
       minWidth: 130,
       sortable: true,
     },
     {
       field: 'sex',
-      title: '性别',
+      title: $t('pages.fields.sex'),
       minWidth: 80,
       formatter({ cellValue }) {
-        const map: Record<number, string> = { 0: '未知', 1: '男', 2: '女' };
-        return map[cellValue as number] ?? '未知';
+        const map: Record<number, string> = {
+          0: $t('pages.status.unknown'),
+          1: $t('pages.status.male'),
+          2: $t('pages.status.female'),
+        };
+        return map[cellValue as number] ?? $t('pages.status.unknown');
       },
     },
     {
       field: 'email',
-      title: '邮箱',
+      title: $t('pages.fields.email'),
       minWidth: 160,
       sortable: true,
     },
     {
       field: 'status',
-      title: '状态',
+      title: $t('pages.common.status'),
       minWidth: 100,
       slots: { default: 'status' },
       sortable: true,
     },
     {
       field: 'createdAt',
-      title: '创建时间',
+      title: $t('pages.common.createdAt'),
       minWidth: 180,
       sortable: true,
     },
     {
       field: 'action',
       slots: { default: 'action' },
-      title: '操作',
+      title: $t('pages.common.actions'),
       fixed: 'right',
       resizable: false,
       width: 'auto',
@@ -137,66 +147,68 @@ export function drawerSchema(
     {
       component: 'Input',
       fieldName: 'username',
-      label: '用户名',
+      label: $t('pages.fields.username'),
       rules: 'required',
       componentProps: {
-        placeholder: '请输入用户名',
+        placeholder: $t('pages.system.user.placeholders.username'),
         disabled: isEdit,
       },
     },
     {
       component: 'InputPassword',
       fieldName: 'password',
-      label: '密码',
+      label: $t('pages.fields.password'),
       rules: isEdit ? undefined : 'required',
       componentProps: {
-        placeholder: isEdit ? '留空则不修改' : '请输入密码',
+        placeholder: isEdit
+          ? $t('pages.system.user.placeholders.passwordKeep')
+          : $t('pages.system.user.placeholders.password'),
       },
     },
     {
       component: 'Input',
       fieldName: 'nickname',
-      label: '昵称',
+      label: $t('pages.fields.nickname'),
       rules: 'required',
       componentProps: {
-        placeholder: '请输入昵称',
+        placeholder: $t('pages.system.user.placeholders.nickname'),
       },
     },
     {
       component: 'Input',
       fieldName: 'email',
-      label: '邮箱',
+      label: $t('pages.fields.email'),
       componentProps: {
-        placeholder: '请输入邮箱',
+        placeholder: $t('pages.system.user.placeholders.email'),
       },
     },
     {
       component: 'Input',
       fieldName: 'phone',
-      label: '手机号码',
+      label: $t('pages.fields.phone'),
       componentProps: {
-        placeholder: '请输入手机号码',
+        placeholder: $t('pages.system.user.placeholders.phone'),
       },
     },
     {
       component: 'RadioGroup',
       fieldName: 'sex',
-      label: '性别',
+      label: $t('pages.fields.sex'),
       defaultValue: 0,
       componentProps: {
         buttonStyle: 'solid',
         optionType: 'button',
         options: [
-          { label: '未知', value: 0 },
-          { label: '男', value: 1 },
-          { label: '女', value: 2 },
+          { label: $t('pages.status.unknown'), value: 0 },
+          { label: $t('pages.status.male'), value: 1 },
+          { label: $t('pages.status.female'), value: 2 },
         ],
       },
     },
     {
       component: 'RadioGroup',
       fieldName: 'status',
-      label: '状态',
+      label: $t('pages.common.status'),
       defaultValue: 1,
       componentProps: {
         buttonStyle: 'solid',
@@ -211,7 +223,7 @@ export function drawerSchema(
         component: 'TreeSelect',
         defaultValue: undefined,
         fieldName: 'deptId',
-        label: '部门',
+        label: $t('pages.fields.dept'),
         componentProps: {
           fieldNames: {
             key: 'id',
@@ -223,18 +235,18 @@ export function drawerSchema(
           treeNodeLabelProp: 'fullName',
           treeLine: { showLeafIcon: false },
           treeNodeFilterProp: 'label',
-          placeholder: '请选择',
+          placeholder: $t('pages.system.user.placeholders.selectDept'),
         },
       },
       {
         component: 'Select',
         fieldName: 'postIds',
-        label: '岗位',
-        help: '选择部门后, 将自动加载该部门下所有的岗位',
+        label: $t('pages.system.user.labels.positions'),
+        help: $t('pages.system.user.help.positions'),
         componentProps: {
           mode: 'multiple',
           optionFilterProp: 'label',
-          placeholder: '请先选择部门',
+          placeholder: $t('pages.system.user.placeholders.selectDeptFirst'),
         },
       },
     );
@@ -244,20 +256,20 @@ export function drawerSchema(
     {
       component: 'Select',
       fieldName: 'roleIds',
-      label: '角色',
-      help: '可分配多个角色给该用户',
+      label: $t('pages.fields.roles'),
+      help: $t('pages.system.user.help.roles'),
       componentProps: {
         mode: 'multiple',
         optionFilterProp: 'label',
-        placeholder: '请选择角色',
+        placeholder: $t('pages.system.user.placeholders.selectRole'),
       },
     },
     {
       component: 'Textarea',
       fieldName: 'remark',
-      label: '备注',
+      label: $t('pages.common.remark'),
       componentProps: {
-        placeholder: '请输入备注',
+        placeholder: $t('pages.system.user.placeholders.remark'),
         rows: 3,
       },
     },

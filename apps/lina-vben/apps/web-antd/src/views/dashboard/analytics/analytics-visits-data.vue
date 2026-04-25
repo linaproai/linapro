@@ -1,37 +1,43 @@
 <script lang="ts" setup>
 import type { EchartsUIType } from '@vben/plugins/echarts';
 
+import { preferences } from '@vben/preferences';
 import { EchartsUI, useEcharts } from '@vben/plugins/echarts';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
+
+import { $t } from '#/locales';
 
 const chartRef = ref<EchartsUIType>();
 const { renderEcharts } = useEcharts(chartRef);
 
-onMounted(() => {
+function renderChart() {
   renderEcharts({
     legend: {
       bottom: 0,
-      data: ['访问', '趋势'],
+      data: [
+        $t('pages.dashboard.analytics.channels.visits'),
+        $t('pages.dashboard.analytics.channels.trend'),
+      ],
     },
     radar: {
       indicator: [
         {
-          name: '网页',
+          name: $t('pages.dashboard.analytics.channels.web'),
         },
         {
-          name: '移动端',
+          name: $t('pages.dashboard.analytics.channels.mobile'),
         },
         {
           name: 'Ipad',
         },
         {
-          name: '客户端',
+          name: $t('pages.dashboard.analytics.channels.client'),
         },
         {
-          name: '第三方',
+          name: $t('pages.dashboard.analytics.channels.thirdParty'),
         },
         {
-          name: '其它',
+          name: $t('pages.dashboard.analytics.channels.other'),
         },
       ],
       radius: '60%',
@@ -51,14 +57,14 @@ onMounted(() => {
             itemStyle: {
               color: '#b6a2de',
             },
-            name: '访问',
+            name: $t('pages.dashboard.analytics.channels.visits'),
             value: [90, 50, 86, 40, 50, 20],
           },
           {
             itemStyle: {
               color: '#5ab1ef',
             },
-            name: '趋势',
+            name: $t('pages.dashboard.analytics.channels.trend'),
             value: [70, 75, 70, 76, 20, 85],
           },
         ],
@@ -72,7 +78,16 @@ onMounted(() => {
     ],
     tooltip: {},
   });
-});
+}
+
+onMounted(renderChart);
+
+watch(
+  () => preferences.app.locale,
+  () => {
+    renderChart();
+  },
+);
 </script>
 
 <template>

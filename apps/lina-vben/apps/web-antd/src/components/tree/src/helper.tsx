@@ -7,7 +7,10 @@ import { isEmpty, isUndefined } from '@vben/utils';
 
 import { notification } from 'ant-design-vue';
 
+import { $t } from '#/locales';
 import { treeToList } from '#/utils/tree';
+
+import { formatMenuPermissionLabel } from './permission-display';
 
 /**
  * 数组差集 - 返回在第一个数组但不在第二个数组的元素
@@ -50,6 +53,7 @@ export function rowAndChildrenChecked(
  */
 export function menusWithPermissions(menus: MenuTreeNode[]) {
   const processNode = (item: MenuPermissionOption) => {
+    item.label = formatMenuPermissionLabel(item.label);
     validateMenuTree(item);
     if (item.children && item.children.length > 0) {
       const permissions = item.children.filter(
@@ -61,7 +65,7 @@ export function menusWithPermissions(menus: MenuTreeNode[]) {
       const permissionsArr = permissions.map((permission: MenuTreeNode) => {
         return {
           id: permission.id,
-          label: permission.label,
+          label: formatMenuPermissionLabel(permission.label),
           checked: false,
         };
       });
@@ -128,10 +132,13 @@ function validateMenuTree(menu: MenuTreeNode) {
   if (menu.type === 'M') {
     menu.children?.forEach?.((item) => {
       if (['M', 'D'].includes(item.type || '')) {
-        const description = `错误用法: [${menu.label} - 菜单]下不能放 目录/菜单 -> [${item.label}]`;
+        const description = $t('pages.tree.validation.menuChildInvalid', {
+          childLabel: item.label,
+          menuLabel: menu.label,
+        });
         console.warn(description);
         notification.warning({
-          message: '提示',
+          message: $t('pages.common.confirmTitle'),
           description,
           duration: 0,
         });
@@ -141,10 +148,13 @@ function validateMenuTree(menu: MenuTreeNode) {
   if (menu.type === 'B') {
     menu.children?.forEach?.((item) => {
       if (['B', 'D', 'M'].includes(item.type || '')) {
-        const description = `错误用法: [${menu.label} - 按钮]下不能放置'目录/菜单/按钮' -> [${item.label}]`;
+        const description = $t('pages.tree.validation.buttonChildInvalid', {
+          childLabel: item.label,
+          menuLabel: menu.label,
+        });
         console.warn(description);
         notification.warning({
-          message: '提示',
+          message: $t('pages.common.confirmTitle'),
           description,
           duration: 0,
         });

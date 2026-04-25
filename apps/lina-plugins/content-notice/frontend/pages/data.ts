@@ -1,67 +1,73 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
+import { $t } from '#/locales';
+
 /** 查询表单schema */
-export const querySchema: VbenFormSchema[] = [
-  {
-    component: 'Input',
-    fieldName: 'title',
-    label: '公告标题',
-  },
-  {
-    component: 'Select',
-    fieldName: 'type',
-    label: '公告类型',
-    componentProps: {
-      options: [
-        { label: '通知', value: 1 },
-        { label: '公告', value: 2 },
-      ],
+export function buildQuerySchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'title',
+      label: $t('plugin.content-notice.fields.title'),
     },
-  },
-  {
-    component: 'Input',
-    fieldName: 'createdBy',
-    label: '创建人',
-  },
-];
+    {
+      component: 'Select',
+      fieldName: 'type',
+      label: $t('plugin.content-notice.fields.type'),
+      componentProps: {
+        options: [
+          { label: $t('pages.status.notice'), value: 1 },
+          { label: $t('pages.status.announcement'), value: 2 },
+        ],
+      },
+    },
+    {
+      component: 'Input',
+      fieldName: 'createdBy',
+      label: $t('plugin.content-notice.fields.createdBy'),
+    },
+  ];
+}
 
 /** 表格列定义 */
-export const columns: VxeGridProps['columns'] = [
-  { type: 'checkbox', width: 60 },
-  {
-    field: 'title',
-    title: '公告标题',
-    minWidth: 200,
-  },
-  {
-    field: 'type',
-    title: '公告类型',
-    minWidth: 100,
-    slots: { default: 'type' },
-  },
-  {
-    field: 'status',
-    title: '状态',
-    minWidth: 100,
-    slots: { default: 'status' },
-  },
-  {
-    field: 'createdByName',
-    title: '创建人',
-    minWidth: 120,
-  },
-  {
-    field: 'createdAt',
-    title: '创建时间',
-    minWidth: 180,
-  },
-  {
-    field: 'action',
-    slots: { default: 'action' },
-    title: '操作',
-    fixed: 'right',
-    resizable: false,
-    width: 'auto',
-  },
-];
+export function buildColumns(): VxeGridProps['columns'] {
+  return [
+    { type: 'checkbox', width: 60 },
+    {
+      field: 'title',
+      title: $t('plugin.content-notice.fields.title'),
+      minWidth: 200,
+    },
+    {
+      field: 'type',
+      title: $t('plugin.content-notice.fields.type'),
+      minWidth: 100,
+      slots: { default: 'type' },
+    },
+    {
+      field: 'status',
+      title: $t('pages.common.status'),
+      minWidth: 100,
+      slots: { default: 'status' },
+    },
+    {
+      field: 'createdByName',
+      title: $t('plugin.content-notice.fields.createdBy'),
+      minWidth: 120,
+    },
+    {
+      field: 'createdAt',
+      title: $t('pages.common.createdAt'),
+      minWidth: 180,
+    },
+    {
+      field: 'action',
+      slots: { default: 'action' },
+      title: $t('pages.common.actions'),
+      fixed: 'right',
+      resizable: false,
+      width: 'auto',
+    },
+  ];
+}

@@ -13,6 +13,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { Alert, Descriptions, DescriptionsItem, message } from 'ant-design-vue';
 
 import { pluginEnable, pluginInstall } from '#/api/system/plugin';
+import { $t } from '#/locales';
 
 import PluginHostServiceCards from './plugin-host-service-cards.vue';
 import PluginRouteReviewList from './plugin-route-review-list.vue';
@@ -77,25 +78,33 @@ const showDeclaredRoutes = computed(() => {
 
 const currentTitle = computed(() => {
   if (currentMode.value === 'install') {
-    return authorizationRequired.value ? '安装插件并确认授权' : '安装插件';
+    return authorizationRequired.value
+      ? $t('pages.system.plugin.auth.installWithAuthTitle')
+      : $t('pages.system.plugin.auth.installTitle');
   }
-  return authorizationRequired.value ? '启用插件并确认授权' : '启用插件';
+  return authorizationRequired.value
+    ? $t('pages.system.plugin.auth.enableWithAuthTitle')
+    : $t('pages.system.plugin.auth.enableTitle');
 });
 
 const currentConfirmText = computed(() => {
   if (currentMode.value === 'install') {
-    return authorizationRequired.value ? '确认授权并安装' : '确认安装';
+    return authorizationRequired.value
+      ? $t('pages.system.plugin.auth.confirmInstallWithAuth')
+      : $t('pages.system.plugin.auth.confirmInstall');
   }
-  return authorizationRequired.value ? '确认授权并启用' : '确认启用';
+  return authorizationRequired.value
+    ? $t('pages.system.plugin.auth.confirmEnableWithAuth')
+    : $t('pages.system.plugin.auth.confirmEnable');
 });
 
 const currentBannerMessage = computed(() => {
   if (currentMode.value === 'install') {
     return authorizationRequired.value
-      ? '请先核对插件详情、宿主服务清单与注册路由列表，确认后将默认授权该插件声明的全部服务。'
-      : '请先核对插件详情，确认后开始安装插件。';
+      ? $t('pages.system.plugin.auth.installBannerWithAuth')
+      : $t('pages.system.plugin.auth.installBanner');
   }
-  return '该插件当前 release 尚未形成最终授权快照；确认后将默认授权该 release 声明的全部服务并继续启用。';
+  return $t('pages.system.plugin.auth.enableBanner');
 });
 
 async function handleOpenChange(open: boolean) {
@@ -154,19 +163,19 @@ async function handleSubmit(action: SubmitAction) {
       if (action === 'install-and-enable') {
         try {
           await pluginEnable(pluginID);
-          message.success('插件已安装并启用');
+          message.success($t('pages.system.plugin.messages.installedAndEnabled'));
         } catch {
           emit('reload');
           handleClosed();
-          message.warning('插件已安装，但启用失败，请稍后重试。');
+          message.warning($t('pages.system.plugin.messages.installSucceededEnableFailed'));
           return;
         }
       } else {
-        message.success('插件已安装');
+        message.success($t('pages.system.plugin.messages.installed'));
       }
     } else {
       await pluginEnable(pluginID, payload);
-      message.success('插件已启用');
+      message.success($t('pages.system.plugin.messages.enabled'));
     }
     emit('reload');
     handleClosed();
@@ -186,10 +195,10 @@ function handleClosed() {
 
 function formatPluginType(type: string) {
   if (type === 'source') {
-    return '源码插件';
+    return $t('pages.system.plugin.type.source');
   }
   if (type === 'dynamic') {
-    return '动态插件';
+    return $t('pages.system.plugin.type.dynamic');
   }
   return type || '-';
 }
@@ -220,7 +229,7 @@ function hasServiceTargets(service: HostServicePermissionItem) {
         :loading="submittingAction === 'install-and-enable'"
         @click="() => handleSubmit('install-and-enable')"
       >
-        安装并启用
+        {{ $t('pages.system.plugin.actions.installAndEnable') }}
       </a-button>
     </template>
     <div
@@ -235,26 +244,30 @@ function hasServiceTargets(service: HostServicePermissionItem) {
       />
 
       <Descriptions bordered size="small" :column="2">
-        <DescriptionsItem label="插件名称">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.name')">
           {{ currentPlugin.name || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件标识">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.id')">
           {{ currentPlugin.id }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件类型">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.type')">
           {{ formatPluginType(currentPlugin.type) }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件版本">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
           {{ currentPlugin.version }}
         </DescriptionsItem>
-        <DescriptionsItem label="插件描述" :span="2">
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.description')" :span="2">
           {{ currentPlugin.description || '-' }}
         </DescriptionsItem>
       </Descriptions>
 
       <template v-if="requestedServices.length > 0">
         <PluginSectionTitle test-id="plugin-host-service-section-title">
-          {{ authorizationRequired ? '宿主服务授权范围' : '宿主服务声明概览' }}
+          {{
+            authorizationRequired
+              ? $t('pages.system.plugin.auth.hostServiceAuthTitle')
+              : $t('pages.system.plugin.auth.hostServiceDeclareTitle')
+          }}
         </PluginSectionTitle>
 
         <PluginHostServiceCards :cards="hostServiceCards" />
@@ -262,7 +275,7 @@ function hasServiceTargets(service: HostServicePermissionItem) {
 
       <template v-if="showDeclaredRoutes">
         <PluginSectionTitle test-id="plugin-route-section-title">
-          注册路由列表
+          {{ $t('pages.system.plugin.detail.routeListTitle') }}
         </PluginSectionTitle>
 
         <PluginRouteReviewList :routes="declaredRoutes" />

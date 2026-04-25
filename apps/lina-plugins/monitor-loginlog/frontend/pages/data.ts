@@ -3,94 +3,102 @@ import type { VxeGridProps } from '#/adapter/vxe-table';
 
 import { h } from 'vue';
 
+import { $t } from '#/locales';
 import { DictTag } from '#/components/dict';
 import { useDictStore } from '#/store/dict';
+import { localizeSeedLoginLogMessage } from '#/utils/display-l10n';
 
 function resolveDictOptions(dictType: string) {
   return useDictStore().dictOptionsMap.get(dictType) || [];
 }
 
 /** 查询表单schema */
-export const querySchema: VbenFormSchema[] = [
-  {
-    component: 'Input',
-    fieldName: 'userName',
-    label: '用户账号',
-  },
-  {
-    component: 'Input',
-    fieldName: 'ip',
-    label: 'IP地址',
-  },
-  {
-    component: 'Select',
-    fieldName: 'status',
-    label: '登录状态',
-    componentProps: {
-      options: [] as { label: string; value: string }[],
+export function buildQuerySchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'userName',
+      label: $t('plugin.monitor-loginlog.fields.userName'),
     },
-  },
-  {
-    component: 'RangePicker',
-    fieldName: 'loginTime',
-    label: '登录日期',
-    componentProps: {
-      valueFormat: 'YYYY-MM-DD',
+    {
+      component: 'Input',
+      fieldName: 'ip',
+      label: $t('plugin.monitor-loginlog.fields.ipAddress'),
     },
-  },
-];
-
-/** 表格列定义 */
-export const columns: VxeGridProps['columns'] = [
-  { type: 'checkbox', width: 60 },
-  {
-    field: 'userName',
-    title: '用户账号',
-    minWidth: 120,
-  },
-  {
-    field: 'ip',
-    title: 'IP地址',
-    minWidth: 130,
-  },
-  {
-    field: 'browser',
-    title: '浏览器',
-    minWidth: 120,
-  },
-  {
-    field: 'os',
-    title: '操作系统',
-    minWidth: 140,
-  },
-  {
-    field: 'status',
-    title: '登录状态',
-    minWidth: 100,
-    slots: {
-      default: ({ row }) => {
-        const dicts = resolveDictOptions('sys_login_status');
-        return h(DictTag, { dicts: dicts as any, value: row.status });
+    {
+      component: 'Select',
+      fieldName: 'status',
+      label: $t('plugin.monitor-loginlog.fields.status'),
+      componentProps: {
+        options: [] as { label: string; value: string }[],
       },
     },
-  },
-  {
-    field: 'msg',
-    title: '提示信息',
-    minWidth: 160,
-  },
-  {
-    field: 'loginTime',
-    title: '登录日期',
-    minWidth: 180,
-    sortable: true,
-  },
-  {
-    field: 'action',
-    fixed: 'right',
-    slots: { default: 'action' },
-    title: '操作',
-    resizable: false,
-    width: 'auto',
-  },
-];
+    {
+      component: 'RangePicker',
+      fieldName: 'loginTime',
+      label: $t('plugin.monitor-loginlog.fields.loginDate'),
+      componentProps: {
+        valueFormat: 'YYYY-MM-DD',
+      },
+    },
+  ];
+}
+
+/** 表格列定义 */
+export function buildColumns(): VxeGridProps['columns'] {
+  return [
+    { type: 'checkbox', width: 60 },
+    {
+      field: 'userName',
+      title: $t('plugin.monitor-loginlog.fields.userName'),
+      minWidth: 120,
+    },
+    {
+      field: 'ip',
+      title: $t('plugin.monitor-loginlog.fields.ipAddress'),
+      minWidth: 130,
+    },
+    {
+      field: 'browser',
+      title: $t('plugin.monitor-loginlog.fields.browser'),
+      minWidth: 120,
+    },
+    {
+      field: 'os',
+      title: $t('plugin.monitor-loginlog.fields.os'),
+      minWidth: 140,
+    },
+    {
+      field: 'status',
+      title: $t('plugin.monitor-loginlog.fields.status'),
+      minWidth: 100,
+      slots: {
+        default: ({ row }) => {
+          const dicts = resolveDictOptions('sys_login_status');
+          return h(DictTag, { dicts: dicts as any, value: row.status });
+        },
+      },
+    },
+    {
+      field: 'msg',
+      title: $t('plugin.monitor-loginlog.fields.message'),
+      minWidth: 160,
+      formatter: ({ cellValue }) =>
+        localizeSeedLoginLogMessage(String(cellValue || '')),
+    },
+    {
+      field: 'loginTime',
+      title: $t('plugin.monitor-loginlog.fields.loginDate'),
+      minWidth: 180,
+      sortable: true,
+    },
+    {
+      field: 'action',
+      fixed: 'right',
+      slots: { default: 'action' },
+      title: $t('pages.common.actions'),
+      resizable: false,
+      width: 'auto',
+    },
+  ];
+}

@@ -7,6 +7,7 @@ import type { VbenFormSchema } from '#/adapter/form';
 
 import { nextTick, ref, watch } from 'vue';
 
+import { $t } from '#/locales';
 import { Alert, Empty, Spin } from 'ant-design-vue';
 
 import {
@@ -89,12 +90,12 @@ function buildFormSchema(
           label: `${item.displayName} (${item.ref})`,
           value: item.ref,
         })),
-        placeholder: '请选择任务处理器',
+        placeholder: $t('pages.system.job.handler.placeholders.select'),
         showSearch: true,
       },
       fieldName: 'handlerRef',
-      help: '内置任务的处理器引用不可修改',
-      label: '任务处理器',
+      help: $t('pages.system.job.handler.help.readonly'),
+      label: $t('pages.system.job.handler.fields.handler'),
       rules: 'required',
     },
   ];
@@ -125,22 +126,26 @@ function buildFormSchema(
           allowClear: true,
           disabled: builtin,
           options: field.options,
-          placeholder: `请选择${field.label}`,
+          placeholder: $t('pages.system.job.handler.placeholders.selectField', {
+            label: field.label,
+          }),
         };
         break;
       }
       case 'Switch': {
         schema.componentProps = {
-          checkedChildren: '是',
+          checkedChildren: $t('pages.common.yes'),
           disabled: builtin,
-          unCheckedChildren: '否',
+          unCheckedChildren: $t('pages.common.no'),
         };
         break;
       }
       case 'Textarea': {
         schema.componentProps = {
           disabled: builtin,
-          placeholder: `请输入${field.label}`,
+          placeholder: $t('pages.system.job.handler.placeholders.inputField', {
+            label: field.label,
+          }),
           rows: 4,
         };
         schema.formItemClass = 'col-span-2';
@@ -157,7 +162,9 @@ function buildFormSchema(
       default: {
         schema.componentProps = {
           disabled: builtin,
-          placeholder: `请输入${field.label}`,
+          placeholder: $t('pages.system.job.handler.placeholders.inputField', {
+            label: field.label,
+          }),
         };
       }
     }
@@ -231,7 +238,9 @@ async function applyHandlerSchema(
     await rebuildSchema(paramValues);
   } catch (error) {
     schemaError.value =
-      error instanceof Error ? error.message : '加载处理器参数定义失败';
+      error instanceof Error
+        ? error.message
+        : $t('pages.system.job.handler.messages.loadFailed');
     dynamicFields.value = [];
     await rebuildSchema({});
   } finally {
@@ -264,7 +273,7 @@ async function reset() {
 async function validateAndBuild() {
   const { valid } = await formApi.validate();
   if (!valid) {
-    throw new Error('请完善 Handler 配置');
+    throw new Error($t('pages.system.job.handler.messages.invalid'));
   }
   const values = await formApi.getValues<Record<string, any>>();
   const params: Record<string, any> = {};
@@ -300,7 +309,7 @@ defineExpose({
       data-testid="job-builtin-handler-lock-alert"
     >
       <Alert
-        message="系统内置任务的处理器引用和参数已锁定，只允许调整公共调度字段。"
+        :message="$t('pages.system.job.handler.messages.readonly')"
         type="info"
         show-icon
       />
@@ -316,7 +325,7 @@ defineExpose({
     />
     <Empty
       v-else-if="!props.loading && props.handlerOptions.length === 0"
-      description="当前没有可用的任务处理器"
+      :description="$t('pages.system.job.handler.messages.empty')"
       image="simple"
     />
   </div>

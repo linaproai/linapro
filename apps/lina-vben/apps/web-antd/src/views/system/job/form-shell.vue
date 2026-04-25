@@ -3,6 +3,7 @@ import type { JobRecord } from '#/api/system/job/model';
 
 import { ref } from 'vue';
 
+import { $t } from '#/locales';
 import { Alert, Input, InputPassword, Space, Tooltip } from 'ant-design-vue';
 
 import { useVbenForm } from '#/adapter/form';
@@ -32,22 +33,22 @@ const [Form, formApi] = useVbenForm({
     {
       component: 'Textarea',
       componentProps: {
-        placeholder: '请输入 Shell 脚本内容',
+        placeholder: $t('pages.system.job.shell.placeholders.command'),
         rows: 6,
       },
       fieldName: 'shellCmd',
       formItemClass: 'col-span-2',
-      label: '执行命令',
+      label: $t('pages.system.job.shell.fields.command'),
       rules: 'required',
     },
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入工作目录，不填则使用宿主当前目录',
+        placeholder: $t('pages.system.job.shell.placeholders.workDir'),
       },
       fieldName: 'workDir',
       formItemClass: 'col-span-2',
-      label: '工作目录',
+      label: $t('pages.system.job.shell.fields.workDir'),
     },
   ],
   showDefaultActions: false,
@@ -134,7 +135,7 @@ function buildEnvPayload() {
       continue;
     }
     if (key === '') {
-      throw new Error('环境变量键不能为空');
+      throw new Error($t('pages.system.job.shell.validation.envKeyRequired'));
     }
     if (seenKeys.has(key)) {
       duplicatedKeys.add(key);
@@ -145,7 +146,11 @@ function buildEnvPayload() {
   }
 
   if (duplicatedKeys.size > 0) {
-    throw new Error(`环境变量键重复: ${Array.from(duplicatedKeys).join(', ')}`);
+    throw new Error(
+      $t('pages.system.job.shell.validation.envKeyDuplicated', {
+        keys: Array.from(duplicatedKeys).join(', '),
+      }),
+    );
   }
 
   return env;
@@ -154,7 +159,7 @@ function buildEnvPayload() {
 async function validateAndBuild() {
   const { valid } = await formApi.validate();
   if (!valid) {
-    throw new Error('请完善 Shell 配置');
+    throw new Error($t('pages.system.job.messages.shellConfigInvalid'));
   }
   const values = await formApi.getValues<Record<string, any>>();
   return {
@@ -175,7 +180,7 @@ defineExpose({
   <div class="space-y-4" data-testid="job-form-shell">
     <div class="py-[5px]" data-testid="job-shell-warning-alert">
       <Alert
-        message="Shell 任务会在宿主节点直接执行，请严格控制命令内容和环境变量。"
+        :message="$t('pages.system.job.shell.warning')"
         show-icon
         type="warning"
       />
@@ -185,9 +190,11 @@ defineExpose({
     <div class="rounded-md border border-border px-4 py-4">
       <div class="mb-3 flex items-center justify-between">
         <div>
-          <div class="text-sm font-medium">环境变量</div>
+          <div class="text-sm font-medium">
+            {{ $t('pages.system.job.shell.fields.env') }}
+          </div>
           <div class="text-xs text-foreground/60">
-            编辑已有值时默认遮罩，留空表示保持原值不变。
+            {{ $t('pages.system.job.shell.envHelp') }}
           </div>
         </div>
         <a-button
@@ -195,7 +202,7 @@ defineExpose({
           type="dashed"
           @click="addEnvRow"
         >
-          新增变量
+          {{ $t('pages.system.job.shell.actions.addEnv') }}
         </a-button>
       </div>
 
@@ -208,19 +215,26 @@ defineExpose({
           <Input
             v-model:value="row.key"
             :data-testid="`job-shell-env-key-${index}`"
-            placeholder="变量名，如 APP_ENV"
+            :placeholder="$t('pages.system.job.shell.placeholders.envKey')"
           />
           <InputPassword
             v-model:value="row.value"
             :data-testid="`job-shell-env-value-${index}`"
             :placeholder="
-              row.masked ? '已隐藏，留空表示保持原值' : '变量值'
+              row.masked
+                ? $t('pages.system.job.shell.placeholders.envValueMasked')
+                : $t('pages.system.job.shell.placeholders.envValue')
             "
             visibility-toggle
           />
           <Space>
-            <Tooltip v-if="row.masked" title="当前值已遮罩显示">
-              <span class="text-xs text-warning">已隐藏</span>
+            <Tooltip
+              v-if="row.masked"
+              :title="$t('pages.system.job.shell.messages.currentValueMasked')"
+            >
+              <span class="text-xs text-warning">
+                {{ $t('pages.system.job.shell.messages.masked') }}
+              </span>
             </Tooltip>
             <a-button
               danger
@@ -228,7 +242,7 @@ defineExpose({
               :data-testid="`job-shell-env-remove-${index}`"
               @click="removeEnvRow(index)"
             >
-              删除
+              {{ $t('pages.common.delete') }}
             </a-button>
           </Space>
         </div>

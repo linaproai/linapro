@@ -8,6 +8,1072 @@
     "expand": "Expand",
     "confirm": "Confirm",
     "cancel": "Cancel",
-    "reset": "Reset"
+    "reset": "Reset",
+    "export": "Export",
+    "import": "Import",
+    "more": "More",
+    "back": "Back",
+    "preview": "Preview",
+    "detail": "Detail",
+    "upload": "Upload",
+    "download": "Download",
+    "clear": "Clear",
+    "actions": "Actions",
+    "createdAt": "Created",
+    "updatedAt": "Updated",
+    "remark": "Remark",
+    "status": "Status",
+    "confirmTitle": "Confirm",
+    "deleteConfirm": "Delete this record?",
+    "deleteSuccess": "Deleted successfully",
+    "createSuccess": "Created successfully",
+    "updateSuccess": "Updated successfully",
+    "exportSuccess": "Export completed",
+    "exportFailed": "Export failed",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "fields": {
+    "username": "Username",
+    "nickname": "Nickname",
+    "email": "Email",
+    "phone": "Phone",
+    "dept": "Department",
+    "role": "Role",
+    "roles": "Roles",
+    "avatar": "Avatar",
+    "sex": "Gender",
+    "password": "Password",
+    "newPassword": "New Password",
+    "sort": "Order",
+    "name": "Name",
+    "code": "Code",
+    "type": "Type",
+    "description": "Description"
+  },
+  "status": {
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "unknown": "Unknown",
+    "male": "Male",
+    "female": "Female",
+    "notice": "Notice",
+    "announcement": "Announcement"
+  },
+  "layout": {
+    "notifications": {
+      "clearAllConfirm": "Clear all notifications?"
+    }
+  },
+  "dashboard": {
+    "analytics": {
+      "overview": {
+        "users": {
+          "title": "Users",
+          "total": "Total Users"
+        },
+        "visits": {
+          "title": "Visits",
+          "total": "Total Visits"
+        },
+        "downloads": {
+          "title": "Downloads",
+          "total": "Total Downloads"
+        },
+        "usage": {
+          "title": "Usage",
+          "total": "Total Usage"
+        }
+      },
+      "tabs": {
+        "trends": "Traffic Trends",
+        "visits": "Monthly Visits"
+      },
+      "cards": {
+        "channels": "Visit Channels",
+        "sources": "Traffic Sources"
+      },
+      "sources": {
+        "search": "Search Engines",
+        "direct": "Direct Traffic",
+        "email": "Email Campaigns",
+        "ads": "Affiliate Ads"
+      },
+      "channels": {
+        "visits": "Visits",
+        "trend": "Trend",
+        "web": "Web",
+        "mobile": "Mobile",
+        "client": "Client",
+        "thirdParty": "Third-party",
+        "other": "Other"
+      },
+      "sales": {
+        "title": "Commercial Mix",
+        "outsourcing": "Outsourcing",
+        "customDevelopment": "Custom Development",
+        "technicalSupport": "Technical Support",
+        "remote": "Remote Delivery"
+      }
+    },
+    "workspace": {
+      "greeting": "Good morning, {name}. Let us get your day started.",
+      "defaultName": "Administrator",
+      "weather": "Sunny today, 20C - 32C.",
+      "sections": {
+        "projects": "Projects",
+        "trends": "Recent Activity",
+        "quickNav": "Quick Navigation",
+        "todos": "To-do Items",
+        "trafficSources": "Traffic Sources"
+      },
+      "quickNav": {
+        "home": "Home",
+        "dashboard": "Dashboard",
+        "components": "Components",
+        "system": "System",
+        "access": "Access",
+        "charts": "Charts"
+      },
+      "projects": {
+        "github": {
+          "group": "Open Source Team",
+          "content": "Do not wait for opportunities. Create them."
+        },
+        "vue": {
+          "group": "Algorithms Team",
+          "content": "The choices you make today shape your future."
+        },
+        "html5": {
+          "group": "Focus Squad",
+          "content": "Few talents matter more than sustained effort."
+        },
+        "angular": {
+          "group": "UI",
+          "content": "Passion and desire can break through any obstacle."
+        },
+        "react": {
+          "group": "Engineering Guild",
+          "content": "A healthy body is the foundation for every goal."
+        },
+        "js": {
+          "group": "Architecture Team",
+          "content": "The road appears when you move, not when you daydream."
+        }
+      },
+      "todos": {
+        "reviewFrontend": {
+          "title": "Review Frontend Commits",
+          "content": "Review the latest frontend commits in Git to keep code quality and conventions in check."
+        },
+        "optimizePerformance": {
+          "title": "Optimize System Performance",
+          "content": "Inspect and tune system performance to reduce CPU usage."
+        },
+        "securityReview": {
+          "title": "Security Review",
+          "content": "Run a security review to make sure there are no vulnerabilities or unauthorized access paths."
+        },
+        "updateDependencies": {
+          "title": "Update Dependencies",
+          "content": "Update the project npm dependencies to the latest stable releases."
+        },
+        "fixUiIssues": {
+          "title": "Fix UI Issues",
+          "content": "Fix the reported UI issues so the pages stay consistent across browsers."
+        }
+      },
+      "trends": {
+        "justNow": "Just now",
+        "oneHourAgo": "1 hour ago",
+        "oneDayAgo": "1 day ago",
+        "twoDaysAgo": "2 days ago",
+        "threeDaysAgo": "3 days ago",
+        "oneWeekAgo": "1 week ago",
+        "people": {
+          "william": "William",
+          "evan": "Evan",
+          "chris": "Chris",
+          "peter": "Peter",
+          "jack": "Jack"
+        },
+        "items": {
+          "createdVue": "Created project <a>Vue</a> in <a>Open Source Team</a>",
+          "followedWilliam": "Followed <a>William</a>",
+          "postedUpdate": "Published a <a>personal update</a>",
+          "viteArticle": "Published article <a>How to Build a Vite Plugin</a>",
+          "answeredOptimization": "Replied to <a>Jack</a> on <a>How do we optimize the project?</a>",
+          "closedRunProject": "Closed issue <a>How do I run the project?</a>",
+          "pushedGithub": "Pushed code to <a>Github</a>",
+          "adminVbenArticle": "Published article <a>How to Work with Admin Vben</a>"
+        }
+      }
+    }
+  },
+  "system": {
+    "user": {
+      "tableTitle": "User List",
+      "placeholders": {
+        "username": "Please enter a username",
+        "nickname": "Please enter a nickname",
+        "email": "Please enter an email",
+        "phone": "Please enter a phone number",
+        "password": "Please enter a password",
+        "passwordKeep": "Leave blank to keep unchanged",
+        "selectDept": "Please select",
+        "selectDeptFirst": "Please select a department first",
+        "selectRole": "Please select roles",
+        "remark": "Please enter a remark"
+      },
+      "labels": {
+        "account": "Account",
+        "userAccount": "User Account",
+        "userNickname": "User Nickname",
+        "userStatus": "User Status",
+        "unassignedDept": "Unassigned Department",
+        "unassignedRole": "Unassigned Role",
+        "na": "N/A",
+        "positions": "Positions"
+      },
+      "help": {
+        "positions": "After selecting a department, all positions under that department are loaded automatically.",
+        "roles": "You can assign multiple roles to this user."
+      },
+      "messages": {
+        "deleteSelectedConfirm": "Delete the selected {count} record(s)?",
+        "exportSelectedConfirm": "Export the selected records?",
+        "exportAllConfirm": "Export all records?",
+        "deleteConfirm": "Delete this user?",
+        "noPosts": "No positions are available in this department",
+        "noDepartments": "No departments",
+        "passwordLength": "Password must be 5-20 characters",
+        "resetPasswordSuccess": "Password reset successfully"
+      },
+      "actions": {
+        "resetPassword": "Reset Password"
+      },
+      "more": "More",
+      "drawer": {
+        "createTitle": "Add User",
+        "editTitle": "Edit User"
+      },
+      "import": {
+        "title": "Import Users",
+        "resultTitle": "Import Result",
+        "uploadHint": "Click or drag a file here to upload",
+        "fileHint": "Supports xlsx and xls files",
+        "downloadTemplate": "Download template",
+        "overwrite": "Update and overwrite existing user records",
+        "downloadTemplateFailed": "Failed to download the template",
+        "success": "Imported {count} user record(s) successfully.",
+        "summary": "Imported {success} row(s) successfully and {fail} row(s) failed.",
+        "rowReason": "Row {row}: {reason}"
+      },
+      "resetPassword": {
+        "title": "Reset Password",
+        "newPassword": "New Password",
+        "placeholder": "Please enter a new password with 5-20 characters",
+        "userId": "User ID"
+      },
+      "exportFileName": "user-data-export.xlsx"
+    },
+    "role": {
+      "tableTitle": "Role List",
+      "fields": {
+        "roleId": "Role ID",
+        "roleName": "Role Name",
+        "permissionKey": "Permission",
+        "dataScope": "Data Scope",
+        "roleSort": "Order",
+        "roleStatus": "Role Status",
+        "menuPermissions": "Menu Permissions"
+      },
+      "placeholders": {
+        "roleName": "Please enter a role name",
+        "permissionKey": "Please enter a permission key",
+        "status": "Please select a status",
+        "sort": "Please enter a sort order",
+        "remark": "Please enter a remark",
+        "permissionExample": "For example: admin, user",
+        "permissionHelp": "For example: admin, simpleUser"
+      },
+      "dataScope": {
+        "all": "All Data",
+        "dept": "Department Data",
+        "self": "Self Only"
+      },
+      "help": {
+        "status": "After you change this, users who hold the role are signed out automatically.",
+        "dataScope": "Changes take effect after the user signs in again."
+      },
+      "messages": {
+        "deleteSelectedConfirm": "Delete the selected {count} record(s)?",
+        "deleteConfirm": "Delete this role?",
+        "statusUpdated": "Status updated successfully"
+      },
+      "actions": {
+        "assign": "Assign"
+      },
+      "roleAuth": {
+        "tableTitle": "Assigned Users",
+        "removeAssignment": "Remove Assignment",
+        "back": "Back",
+        "removeConfirm": "Remove assignment for user [{username} - {nickname}]?",
+        "removeSelectedConfirm": "Remove the selected {count} assignment record(s)?",
+        "removeSuccess": "Role assignment removed successfully",
+        "removeSelectedSuccess": "Selected role assignments have been removed"
+      }
+    },
+    "config": {
+      "tableTitle": "Parameter Settings",
+      "exportFileName": "parameter-settings.xlsx",
+      "fields": {
+        "name": "Parameter Name",
+        "key": "Parameter Key",
+        "value": "Parameter Value"
+      },
+      "drawer": {
+        "createTitle": "Add Parameter Setting",
+        "editTitle": "Edit Parameter Setting"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "Delete the selected {count} record(s)?",
+        "exportSelectedConfirm": "Export the selected records?",
+        "exportAllConfirm": "Export all data?"
+      },
+      "import": {
+        "title": "Import Parameter Settings",
+        "resultTitle": "Import Result",
+        "uploadHint": "Click or drag a file here to upload",
+        "fileHint": "Supports xlsx and xls files",
+        "downloadTemplate": "Download template",
+        "overwrite": "Update and overwrite existing parameter settings",
+        "downloadTemplateFailed": "Failed to download the template",
+        "success": "Imported {count} parameter setting record(s) successfully.",
+        "summary": "Imported {success} row(s) successfully and {fail} row(s) failed.",
+        "rowReason": "Row {row}: {reason}"
+      }
+    },
+    "dict": {
+      "type": {
+        "tableTitle": "Dictionary Types",
+        "exportFileName": "dictionary-management.xlsx",
+        "fields": {
+          "name": "Dictionary Name",
+          "type": "Dictionary Type"
+        },
+        "drawer": {
+          "createTitle": "Add Dictionary Type",
+          "editTitle": "Edit Dictionary Type"
+        },
+        "help": {
+          "typeRule": "Use letters, numbers, and underscores only, for example: sys_normal_disable"
+        },
+        "messages": {
+          "typeRule": "Dictionary types may contain only letters, numbers, and underscores",
+          "deleteConfirm": "Deleting a dictionary type also deletes all dictionary data under that type. Continue?",
+          "deleteSelectedConfirm": "Deleting a dictionary type also deletes all dictionary data under that type. Delete the selected {count} record(s)?",
+          "deleteFailed": "Failed to delete the dictionary type",
+          "exportSelectedConfirm": "Export the selected dictionary types and their related dictionary data?",
+          "exportAllConfirm": "Export all dictionary types and dictionary data?"
+        },
+        "import": {
+          "title": "Import Dictionaries",
+          "resultTitle": "Import Result",
+          "uploadHint": "Click or drag a file here to upload",
+          "fileHint": "Supports xlsx and xls files",
+          "downloadTemplate": "Download template",
+          "overwrite": "Update and overwrite existing dictionary types and dictionary data",
+          "downloadTemplateFailed": "Failed to download the template",
+          "success": "Imported {typeCount} dictionary type(s) and {dataCount} dictionary data row(s) successfully.",
+          "summary": "Dictionary types: {typeSuccess} succeeded, {typeFail} failed. Dictionary data: {dataSuccess} succeeded, {dataFail} failed.",
+          "rowReason": "[{sheet}] Row {row}: {reason}"
+        }
+      },
+      "data": {
+        "tableTitle": "Dictionary Data",
+        "fields": {
+          "label": "Dictionary Label",
+          "value": "Dictionary Value",
+          "tagStyle": "Tag Style",
+          "dataLabel": "Data Label",
+          "dataValue": "Data Value",
+          "sortOrder": "Sort Order",
+          "cssClass": "CSS Class"
+        },
+        "drawer": {
+          "createTitle": "Add Dictionary Data",
+          "editTitle": "Edit Dictionary Data"
+        },
+        "help": {
+          "cssClass": "Tag CSS class names. You can reference classes that are already compiled into the project."
+        },
+        "messages": {
+          "deleteSelectedConfirm": "Delete the selected {count} record(s)?"
+        },
+        "import": {
+          "title": "Import Dictionary Data",
+          "resultTitle": "Import Result",
+          "uploadHint": "Click or drag a file here to upload",
+          "fileHint": "Supports xlsx and xls files",
+          "downloadTemplate": "Download template",
+          "overwrite": "Update and overwrite existing dictionary data",
+          "downloadTemplateFailed": "Failed to download the template",
+          "success": "Imported {count} dictionary data row(s) successfully.",
+          "summary": "Imported {success} row(s) successfully and {fail} row(s) failed.",
+          "rowReason": "Row {row}: {reason}"
+        },
+        "tagStyle": {
+          "options": {
+            "default": "Default Colors",
+            "custom": "Custom Color"
+          },
+          "placeholders": {
+            "select": "Please select a tag style",
+            "custom": "Enter a hex color value, for example #1677ff"
+          },
+          "presets": {
+            "cyan": "Cyan",
+            "danger": "Danger",
+            "default": "Default",
+            "green": "Green",
+            "info": "Info",
+            "orange": "Orange",
+            "pink": "Pink",
+            "primary": "Primary",
+            "purple": "Purple",
+            "red": "Red",
+            "success": "Success",
+            "warning": "Warning"
+          }
+        }
+      }
+    },
+    "file": {
+      "tableTitle": "Files",
+      "fields": {
+        "originalName": "Filename",
+        "fileType": "File Type",
+        "scene": "Usage",
+        "preview": "Preview",
+        "size": "File Size",
+        "uploadedAt": "Uploaded",
+        "uploader": "Uploaded By"
+      },
+      "actions": {
+        "fileUpload": "Upload File",
+        "imageUpload": "Upload Image"
+      },
+      "detail": {
+        "title": "File Details",
+        "fileId": "File ID",
+        "engine": "Storage Engine",
+        "storedName": "Stored Name",
+        "url": "File URL",
+        "hash": "File Hash"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "Delete the selected {count} record(s)?",
+        "previewImages": "Preview images",
+        "pdfPreview": "Preview PDF"
+      }
+    },
+    "job": {
+      "tableTitle": "Scheduled Jobs",
+      "fields": {
+        "group": "Job Group",
+        "status": "Job Status",
+        "keyword": "Keyword",
+        "name": "Job Name",
+        "source": "Job Source",
+        "cronExpr": "Cron Expression",
+        "timezone": "Timezone",
+        "scope": "Schedule Scope",
+        "concurrency": "Concurrency Strategy",
+        "executedCount": "Executed Count",
+        "stopReason": "Stop Reason",
+        "maxConcurrency": "Max Concurrency",
+        "maxExecutions": "Max Executions",
+        "retention": "Log Retention",
+        "retentionValue": "Retention Value",
+        "timeoutSeconds": "Timeout (Seconds)"
+      },
+      "placeholders": {
+        "selectGroup": "Please select a group",
+        "selectStatus": "Please select a status",
+        "cronExpr": "Please enter a cron expression",
+        "currentTimezone": "Current system timezone: {value}",
+        "description": "Please enter a description",
+        "name": "Please enter a job name",
+        "selectRetention": "Please select a retention policy",
+        "timezone": "Please enter or select a timezone"
+      },
+      "actions": {
+        "runNow": "Run Now",
+        "resetCount": "Reset Counter",
+        "preview": "Preview"
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "pluginUnavailable": "Plugin Handler Unavailable"
+      },
+      "source": {
+        "hostBuiltin": "Host Built-in",
+        "pluginBuiltin": "Plugin Built-in",
+        "userCreated": "User Created"
+      },
+      "scope": {
+        "masterOnly": "Primary Node Only",
+        "allNodes": "All Nodes"
+      },
+      "concurrency": {
+        "singleton": "Singleton",
+        "parallel": "Parallel"
+      },
+      "retention": {
+        "summary": {
+          "count": "Keep logs by count",
+          "countWithValue": "Keep the most recent {value} logs",
+          "days": "Keep logs by days",
+          "daysWithValue": "Keep logs from the last {value} day(s)",
+          "none": "Do not clear logs automatically"
+        },
+        "followSystemHelp": "Follow system: the job cleanup follows the system-level log retention policy.\nCurrent system policy: {currentPolicy}.\nIf the job defines an override, the job-level policy takes precedence.",
+        "count": "Keep by Count",
+        "days": "Keep by Days",
+        "followSystem": "Follow System Policy",
+        "none": "Do Not Clear Automatically"
+      },
+      "help": {
+        "cron": "Supports 5-part or 6-part Cron.\n5-part expressions are parsed as minute hour day month week, and the runtime fills the seconds placeholder automatically.\n6-part expressions can set seconds explicitly.",
+        "timeout": "Maximum runtime allowed for a single job instance.\nWhen the limit is exceeded, the system attempts to interrupt the execution and marks the execution log as timed out.\nLeave some headroom above the normal runtime to avoid false positives.",
+        "maxExecutions": "Limits the accumulated execution count that participates in execution counting.\nOnce the limit is reached, the job is disabled automatically and the stop reason is recorded.\nSet to 0 to disable the limit; manual Run Now actions do not increase the count.",
+        "scope": "Primary Node Only: only the current primary node runs the job.\nAll Nodes: every online node runs the job once.",
+        "concurrency": "Singleton: if one instance is already running on the current node, new triggers are skipped.\nParallel: multiple instances can run on the current node, limited by Max Concurrency."
+      },
+      "messages": {
+        "pluginPausedTooltip": "This job depends on a handler provided by a plugin. When the plugin is disabled, uninstalled, or the handler is not registered, the system pauses the job automatically until the plugin becomes available again.",
+        "noShellPermission": "The current account does not have permission to manage shell jobs",
+        "platformUnsupported": "Shell jobs are not supported on the current platform",
+        "environmentDisabled": "Shell jobs are not enabled in the current environment",
+        "deleteSelectedConfirm": "Delete the selected {count} job(s)?",
+        "deleteConfirm": "Delete this job?",
+        "triggerSuccess": "Triggered successfully. Log ID: {logId}",
+        "resetSuccess": "The execution counter has been reset",
+        "builtinReadonly": "Built-in jobs cannot be modified in the form editor.",
+        "formInvalid": "Please complete the job configuration before saving.",
+        "previewFailed": "Failed to preview upcoming execution times.",
+        "saveFailed": "Failed to save the job.",
+        "shellConfigInvalid": "Shell task configuration is invalid."
+      },
+      "builtin": {
+        "title": "Built-in Job Details",
+        "description": "Built-in jobs are provided by the host or plugins and can only be reviewed here.",
+        "handlerParams": "Handler Parameters",
+        "handlerRef": "Handler Reference",
+        "taskType": "Task Type"
+      },
+      "drawer": {
+        "createTitle": "Add Job",
+        "detailTitle": "Job Details",
+        "editTitle": "Edit Job"
+      },
+      "handler": {
+        "fields": {
+          "handler": "Handler"
+        },
+        "help": {
+          "readonly": "Built-in jobs use a fixed handler. The handler schema is displayed here for review only."
+        },
+        "messages": {
+          "empty": "Select a handler to load its parameter schema preview.",
+          "invalid": "Please complete the handler configuration.",
+          "loadFailed": "Failed to load the handler schema.",
+          "readonly": "Built-in job handlers are read-only."
+        },
+        "placeholders": {
+          "inputField": "Please enter {label}",
+          "select": "Please select a handler",
+          "selectField": "Please select {label}"
+        }
+      },
+      "preview": {
+        "title": "Execution Preview",
+        "description": "Review upcoming execution times before saving.",
+        "empty": "Click Preview to load upcoming execution times."
+      },
+      "shell": {
+        "actions": {
+          "addEnv": "Add Variable"
+        },
+        "description": "Configure an optional shell step. The runtime executes it with the current job context.",
+        "envHelp": "Environment variable names must be unique. Leave a masked value blank to keep it unchanged.",
+        "fields": {
+          "command": "Command",
+          "env": "Environment Variables",
+          "workDir": "Working Directory"
+        },
+        "messages": {
+          "currentValueMasked": "The current value is hidden for security. Leave the field blank to keep it unchanged.",
+          "masked": "Current value kept"
+        },
+        "placeholders": {
+          "command": "Please enter a shell command",
+          "envKey": "Variable name",
+          "envValue": "Variable value",
+          "envValueMasked": "Leave blank to keep the current value",
+          "workDir": "Please enter a working directory"
+        },
+        "title": "Shell Task Configuration",
+        "validation": {
+          "envKeyDuplicated": "Duplicate environment variable name(s): {keys}",
+          "envKeyRequired": "Environment variable name is required when a value is provided"
+        },
+        "warning": "Shell tasks run commands on the host node. Review the command and environment variables carefully before saving."
+      },
+      "validation": {
+        "cronInvalidCount": "Cron expressions must contain 5 or 6 parts.",
+        "cronRequired": "Please enter a cron expression.",
+        "cronSecondInvalid": "The seconds field must be `*` or a value between 0 and 59.",
+        "cronTooLong": "Cron expression is too long.",
+        "groupRequired": "Please select a job group.",
+        "integerRequired": "{label} must be an integer.",
+        "invalidOption": "Please select a valid {label}.",
+        "maxValue": "{label} must be less than or equal to {max}.",
+        "minValue": "{label} must be greater than or equal to {min}.",
+        "nameRequired": "Please enter a job name.",
+        "nameTooLong": "Job names cannot exceed 128 characters.",
+        "retentionValuePositive": "Retention value must be greater than 0.",
+        "timezoneInvalid": "Please enter a valid timezone, for example `Asia/Shanghai`.",
+        "timezoneRequired": "Please enter a timezone."
+      }
+    },
+    "jobGroup": {
+      "tableTitle": "Job Groups",
+      "fields": {
+        "code": "Group Code",
+        "name": "Group Name",
+        "sortOrder": "Sort Order",
+        "jobCount": "Jobs",
+        "defaultGroup": "Default Group"
+      },
+      "drawer": {
+        "createTitle": "Add Job Group",
+        "editTitle": "Edit Job Group"
+      },
+      "placeholders": {
+        "code": "Please enter a group code",
+        "name": "Please enter a group name",
+        "remark": "Please enter a remark"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "Delete the selected {count} job group(s)? Jobs in those groups are moved to the default group automatically.",
+        "defaultDeleteDisabled": "The default group cannot be deleted",
+        "deleteConfirm": "Delete this group? Jobs in the group are moved to the default group automatically."
+      }
+    },
+    "jobLog": {
+      "tableTitle": "Execution Logs",
+      "fields": {
+        "jobName": "Job Name",
+        "status": "Status",
+        "nodeId": "Node",
+        "startAt": "Start Time",
+        "endAt": "End Time",
+        "trigger": "Trigger Type",
+        "durationMs": "Duration (ms)",
+        "errorSummary": "Error Summary"
+      },
+      "placeholders": {
+        "selectJob": "Please select a job",
+        "selectStatus": "Please select a status"
+      },
+      "actions": {
+        "terminate": "Terminate"
+      },
+      "detail": {
+        "title": "Execution Log Details",
+        "logId": "Log ID",
+        "duration": "Duration",
+        "error": "Error Details",
+        "jobSnapshot": "Job Snapshot",
+        "paramsSnapshot": "Parameter Snapshot",
+        "result": "Execution Result"
+      },
+      "status": {
+        "running": "Running",
+        "success": "Success",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "timeout": "Timed Out",
+        "skippedMaxConcurrency": "Skipped: Max Concurrency",
+        "skippedNotPrimary": "Skipped: Not Primary Node",
+        "skippedSingleton": "Skipped: Singleton Running"
+      },
+      "messages": {
+        "cancelSent": "Termination request sent",
+        "deleteSelectedConfirm": "Delete the selected {count} execution log(s)?",
+        "clearCurrentConfirm": "Clear execution logs for the current job?",
+        "clearAllConfirm": "Clear all execution logs?",
+        "clearSuccess": "Execution logs cleared",
+        "terminateConfirm": "Terminate the current job instance?"
+      }
+    },
+    "menu": {
+      "tableTitle": "Menu List",
+      "tableTitleHelp": "Double-click a row to expand or collapse child menus. Changes refresh the sidebar and tab titles immediately.",
+      "drawer": {
+        "createTitle": "Add Menu",
+        "editTitle": "Edit Menu"
+      },
+      "actions": {
+        "searchIcons": "Search Icons"
+      },
+      "fields": {
+        "parentMenu": "Parent Menu",
+        "menuType": "Menu Type",
+        "menuIcon": "Menu Icon",
+        "menuName": "Menu Name",
+        "permissionKey": "Permission",
+        "displaySort": "Display Order",
+        "routePath": "Route Path",
+        "componentPath": "Component",
+        "icon": "Icon",
+        "type": "Type",
+        "menuStatus": "Menu Status",
+        "visibleStatus": "Visible Status",
+        "visible": "Visible",
+        "isExternalLink": "External Link",
+        "cache": "Route Cache",
+        "cascadeDelete": "Cascade Delete",
+        "routeParams": "Route Params",
+        "componentType": "Component Type"
+      },
+      "help": {
+        "cache": "Cache this route with KeepAlive so the page state can be preserved.",
+        "component": "Enter a frontend component path relative to the views directory, for example `system/user/index`.",
+        "externalLink": "External links must use a complete URL starting with http:// or https://.",
+        "icon": "Use an Iconify icon name for the sidebar and route display.",
+        "name": "Displayed in the sidebar, breadcrumb, and tab title.",
+        "path": "Use a relative route path for internal pages, or a full URL for external links.",
+        "permission": "Use a unique permission key so menus and buttons can participate in unified authorization.",
+        "queryParam": "Optional query parameters appended to the route, for example `id=1&type=detail`.",
+        "sort": "Smaller values appear earlier in menus of the same level.",
+        "status": "Disabled menus are hidden from regular navigation and cannot be opened normally.",
+        "visible": "Hidden menus keep route access but do not appear in the sidebar."
+      },
+      "messages": {
+        "cascadeDeleteTooltip": "When enabled, deleting a menu also removes all of its descendant menus and buttons.",
+        "deleteConfirm": "Delete menu \"{menuName}\"?",
+        "deleteWithChildrenConfirm": "Delete menu \"{menuName}\" and its {childCount} child item(s)?",
+        "rootMenu": "Root Menu"
+      },
+      "placeholders": {
+        "externalPath": "Please enter a complete external URL",
+        "menuName": "Please enter a menu name",
+        "permissionKey": "Please enter a permission key",
+        "queryParam": "Please enter route parameters",
+        "remark": "Please enter a remark",
+        "routePath": "Please enter a route path"
+      },
+      "validation": {
+        "componentNoSlash": "Component paths cannot start with /",
+        "componentRequired": "Please enter a component path",
+        "linkInvalid": "External links must start with http:// or https://",
+        "linkRequired": "Please enter an external link",
+        "permissionRequired": "Please enter a permission key",
+        "routeRequired": "Please enter a route path"
+      },
+      "type": {
+        "directory": "Directory",
+        "menu": "Menu",
+        "button": "Button"
+      },
+      "visible": {
+        "shown": "Shown",
+        "hidden": "Hidden"
+      }
+    },
+    "plugin": {
+      "tableTitle": "Plugin List",
+      "fields": {
+        "id": "Plugin ID",
+        "name": "Plugin Name",
+        "type": "Plugin Type",
+        "description": "Description",
+        "installed": "Installed",
+        "installedAt": "Installed At",
+        "version": "Version",
+        "authorizationStatus": "Authorization Status",
+        "startupManagement": "Startup Management"
+      },
+      "type": {
+        "source": "Source Plugin",
+        "dynamic": "Dynamic Plugin"
+      },
+      "installed": {
+        "connected": "Installed",
+        "notInstalled": "Not Installed"
+      },
+      "actions": {
+        "syncPlugins": "Synchronize Plugins",
+        "uploadPlugin": "Upload Plugin",
+        "install": "Install",
+        "installAndEnable": "Install and Enable",
+        "uninstall": "Uninstall",
+        "continueAction": "Continue {actionLabel}"
+      },
+      "auth": {
+        "installTitle": "Install Plugin",
+        "installWithAuthTitle": "Review Plugin Authorization Before Installation",
+        "enableTitle": "Enable Plugin",
+        "enableWithAuthTitle": "Review Plugin Authorization Before Enabling",
+        "confirmInstall": "Install",
+        "confirmInstallWithAuth": "Confirm Installation",
+        "confirmEnable": "Enable",
+        "confirmEnableWithAuth": "Confirm Enable",
+        "enableBanner": "Review the latest host-service snapshot before enabling this plugin.",
+        "hostServiceAuthTitle": "Host Service Authorization Review",
+        "hostServiceDeclareTitle": "Declared Host Services",
+        "installBanner": "Review the plugin metadata below before installation.",
+        "installBannerWithAuth": "This plugin requests host services. Review the requested scopes before installation."
+      },
+      "authorization": {
+        "confirmed": "Confirmed",
+        "notRequired": "Not Required",
+        "pending": "Pending Review"
+      },
+      "autoEnableBadge": "Auto Enable",
+      "autoEnableManaged": "Host-managed Auto Enable",
+      "manualManaged": "Manual Control",
+      "detail": {
+        "title": "Plugin Details",
+        "hostServicesTitle": "Host Service Scopes",
+        "routeListTitle": "Declared Routes"
+      },
+      "hostServices": {
+        "cron": {
+          "pattern": "Pattern",
+          "parallelLimit": "{label} (max {value})"
+        },
+        "messages": {
+          "cronEmpty": "No cron resources declared",
+          "defaultEmpty": "No scoped resources declared"
+        },
+        "scope": {
+          "authorized": "Authorized Scope",
+          "effective": "Effective Scope",
+          "requested": "Requested Scope"
+        },
+        "service": {
+          "cron": "Cron",
+          "data": "Data",
+          "network": "Network",
+          "runtime": "Runtime",
+          "storage": "Storage"
+        },
+        "summary": {
+          "path": "Path",
+          "resource": "Resource",
+          "storage": "Storage Path",
+          "table": "Table"
+        }
+      },
+      "messages": {
+        "autoEnableConfirmTitle": "Confirm {actionLabel}",
+        "autoEnableDetailAlert": "This plugin is managed by the host auto-enable policy. Manual changes may be reverted by the runtime during the next synchronization.",
+        "autoEnableRuntimeHint": "{actionLabel} may only be temporary because the runtime can re-apply the host-managed auto-enable policy.",
+        "autoEnableTooltip": "Plugin {pluginId} is managed by the host auto-enable policy.",
+        "autoEnableUninstallAlert": "This plugin is managed by the host auto-enable policy. If it is synchronized again later, the runtime may reinstall or re-enable it according to host policy.",
+        "disabled": "Plugin disabled",
+        "emptyHostServices": "This plugin does not currently expose any host service scopes.",
+        "enabled": "Plugin enabled",
+        "hostServiceSnapshot": "The following scopes reflect the current plugin metadata and authorization snapshot.",
+        "installFirst": "Please install the plugin first",
+        "installSucceededEnableFailed": "Installed successfully, but enabling failed. Please review the authorization result and plugin status.",
+        "installed": "Plugin installed",
+        "installedAndEnabled": "Plugin installed and enabled",
+        "noInstallPermission": "The current account does not have permission to install or synchronize plugins",
+        "noStatusPermission": "The current account does not have permission to change plugin status",
+        "noUninstallPermission": "The current account does not have permission to uninstall plugins",
+        "syncSuccess": "Synchronized {total} plugin record(s)",
+        "uninstalled": "Plugin uninstalled"
+      },
+      "routes": {
+        "authenticated": "Authenticated",
+        "collapse": "Collapse",
+        "expand": "Expand",
+        "public": "Public"
+      },
+      "uninstall": {
+        "title": "Uninstall Plugin",
+        "defaultWarning": "Uninstalling this plugin removes the runtime registration information. Review the impact before continuing.",
+        "dynamicWarning": "Uninstalling a dynamic plugin removes the uploaded artifact and can optionally clear plugin-owned data and storage files.",
+        "purgeStorage": "Also clear plugin-owned storage data",
+        "sourceWarning": "Uninstalling a source plugin removes its synchronized governance records and can optionally clear plugin-owned data and storage files."
+      },
+      "upload": {
+        "acknowledge": "Got It",
+        "dragHint": "Upload a single `.wasm` artifact for a dynamic plugin. The host will validate the manifest and register the plugin package.",
+        "dragText": "Click or drag a `.wasm` plugin package here to upload",
+        "overwriteHint": "Allow upload to overwrite an existing plugin package with the same ID and version",
+        "selectFile": "Please select a `.wasm` plugin package first",
+        "success": "Plugin package uploaded successfully",
+        "title": "Upload Dynamic Plugin"
+      }
+    },
+    "message": {
+      "tableTitle": "Messages",
+      "actions": {
+        "markAllRead": "Mark All as Read",
+        "clearAll": "Clear Messages"
+      },
+      "messages": {
+        "clearAllConfirm": "Clear all messages? This action cannot be undone."
+      },
+      "pagination": {
+        "total": "Total {total} item(s)"
+      }
+    }
+  },
+  "upload": {
+    "button": "Upload",
+    "dragHint": "Click or drag files here to upload",
+    "formatHint": "Supports {accept} files up to {maxSize}MB each",
+    "success": "Uploaded successfully",
+    "tooLarge": "File size must be smaller than {maxSize}MB"
+  },
+  "exportConfirm": {
+    "selected": "Export the selected records?",
+    "all": "Export all records?"
+  },
+  "cropper": {
+    "title": "Upload and Crop Image",
+    "tooLarge": "The selected image exceeds the size limit",
+    "noImageSelected": "Please select an image first",
+    "avatarUploadSuccess": "Avatar updated successfully",
+    "actions": {
+      "selectImage": "Select Image",
+      "reset": "Reset",
+      "rotateLeft": "Rotate Left",
+      "rotateRight": "Rotate Right",
+      "flipHorizontal": "Flip Horizontal",
+      "flipVertical": "Flip Vertical",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out"
+    }
+  },
+  "editor": {
+    "placeholder": "Please enter content...",
+    "actions": {
+      "undo": "Undo",
+      "redo": "Redo",
+      "bold": "Bold",
+      "italic": "Italic",
+      "underline": "Underline",
+      "strike": "Strikethrough",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "bulletList": "Bulleted List",
+      "orderedList": "Numbered List",
+      "blockquote": "Blockquote",
+      "codeBlock": "Code Block",
+      "horizontalRule": "Divider",
+      "image": "Image",
+      "link": "Link"
+    },
+    "link": {
+      "title": "Insert Link",
+      "placeholder": "Please enter the link URL"
+    },
+    "messages": {
+      "imageUploadFailed": "Image upload failed"
+    }
+  },
+  "profile": {
+    "tabs": {
+      "basic": "Basic Info",
+      "password": "Password"
+    },
+    "actions": {
+      "updateProfile": "Update Profile"
+    },
+    "placeholders": {
+      "nickname": "Please enter a nickname",
+      "email": "Please enter an email address",
+      "phone": "Please enter a phone number"
+    },
+    "validation": {
+      "email": "Please enter a valid email address",
+      "phone": "Please enter a valid phone number"
+    },
+    "panel": {
+      "account": "Account",
+      "lastLogin": "Last Login",
+      "noLoginRecord": "No login record",
+      "unboundEmail": "No email bound",
+      "unboundPhone": "No phone bound",
+      "uploadAvatar": "Upload avatar"
+    },
+    "password": {
+      "oldPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "submit": "Change Password",
+      "success": "Password updated successfully",
+      "placeholders": {
+        "oldPassword": "Please enter the current password",
+        "newPassword": "Please enter a new password",
+        "confirmPassword": "Please confirm the new password"
+      },
+      "validation": {
+        "oldPassword": "Please enter the current password",
+        "newPassword": "Please enter a new password",
+        "confirmPassword": "Please confirm the new password",
+        "passwordLength": "Password must be at least 5 characters",
+        "passwordMismatch": "The two passwords do not match"
+      }
+    },
+    "security": {
+      "accountPassword": "Account Password",
+      "accountPasswordDesc": "Set a strong password and update it regularly to protect your account.",
+      "securityPhone": "Security Phone",
+      "securityPhoneDesc": "Bind a phone number so the system can use it for verification and notifications.",
+      "securityQuestion": "Security Questions",
+      "securityQuestionDesc": "Configure security questions to verify your identity during account recovery.",
+      "securityEmail": "Security Email",
+      "securityEmailDesc": "Bind a recovery email to receive verification codes and security alerts.",
+      "securityMfa": "Multi-factor Authentication",
+      "securityMfaDesc": "Add a second verification factor for sensitive operations and sign-ins."
+    },
+    "notification": {
+      "accountPassword": "Account Security",
+      "accountPasswordDesc": "Receive alerts when your password or other important account settings change.",
+      "systemMessage": "System Messages",
+      "systemMessageDesc": "Receive announcements, maintenance notices, and other system-wide updates.",
+      "todoTask": "To-do Tasks",
+      "todoTaskDesc": "Receive reminders for pending tasks and workflows assigned to you."
+    }
+  },
+  "tree": {
+    "association": {
+      "linked": "Parent-child linked",
+      "independent": "Independent selection"
+    },
+    "expandCollapseAll": "Expand/Collapse All",
+    "selectAll": "Select All",
+    "parentChildLinked": "Link parent and child nodes",
+    "nodeStatus": "Selection Mode",
+    "messages": {
+      "fullscreenHint": "Click here to enter fullscreen mode so permission selection is easier to review.",
+      "selectedPrefix": "Selected",
+      "selectedSuffix": "item(s)"
+    },
+    "validation": {
+      "menuChildInvalid": "Menu node \"{childLabel}\" cannot be nested under menu \"{menuLabel}\".",
+      "buttonChildInvalid": "Node \"{childLabel}\" cannot be nested under button \"{menuLabel}\"."
+    }
   }
 }

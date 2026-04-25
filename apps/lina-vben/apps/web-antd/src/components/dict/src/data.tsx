@@ -2,25 +2,27 @@ import type { VNode } from 'vue';
 
 import { Tag } from 'ant-design-vue';
 
+import { $t } from '#/locales';
+
 interface TagType {
   [key: string]: { color: string; label: string };
 }
 
 export const tagTypes: TagType = {
-  cyan: { color: 'cyan', label: 'cyan' },
-  danger: { color: 'error', label: '危险(danger)' },
+  cyan: { color: 'cyan', label: $t('pages.system.dict.data.tagStyle.presets.cyan') },
+  danger: { color: 'error', label: $t('pages.system.dict.data.tagStyle.presets.danger') },
   /** 由于和elementUI不同 用于替换颜色 */
-  default: { color: 'default', label: '默认(default)' },
-  green: { color: 'green', label: 'green' },
-  info: { color: 'default', label: '信息(info)' },
-  orange: { color: 'orange', label: 'orange' },
+  default: { color: 'default', label: $t('pages.system.dict.data.tagStyle.presets.default') },
+  green: { color: 'green', label: $t('pages.system.dict.data.tagStyle.presets.green') },
+  info: { color: 'default', label: $t('pages.system.dict.data.tagStyle.presets.info') },
+  orange: { color: 'orange', label: $t('pages.system.dict.data.tagStyle.presets.orange') },
   /** 自定义预设 color可以为16进制颜色 */
-  pink: { color: 'pink', label: 'pink' },
-  primary: { color: 'processing', label: '主要(primary)' },
-  purple: { color: 'purple', label: 'purple' },
-  red: { color: 'red', label: 'red' },
-  success: { color: 'success', label: '成功(success)' },
-  warning: { color: 'warning', label: '警告(warning)' },
+  pink: { color: 'pink', label: $t('pages.system.dict.data.tagStyle.presets.pink') },
+  primary: { color: 'processing', label: $t('pages.system.dict.data.tagStyle.presets.primary') },
+  purple: { color: 'purple', label: $t('pages.system.dict.data.tagStyle.presets.purple') },
+  red: { color: 'red', label: $t('pages.system.dict.data.tagStyle.presets.red') },
+  success: { color: 'success', label: $t('pages.system.dict.data.tagStyle.presets.success') },
+  warning: { color: 'warning', label: $t('pages.system.dict.data.tagStyle.presets.warning') },
 };
 
 // 字典选择使用 { label: string; value: string }[]

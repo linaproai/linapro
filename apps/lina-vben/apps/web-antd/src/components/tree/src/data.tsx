@@ -5,6 +5,8 @@ import { h, markRaw } from 'vue';
 
 import { createIconifyIcon } from '@vben/icons';
 
+import { $t } from '#/locales';
+
 export interface Permission {
   checked: boolean;
   id: number;
@@ -21,20 +23,20 @@ const MenuIcon = createIconifyIcon('lucide:menu');
 const CheckCircleIcon = createIconifyIcon('lucide:check-circle');
 
 const menuTypes: Record<string, { icon: any; value: string }> = {
-  B: { icon: markRaw(CheckCircleIcon), value: '按钮' },
-  D: { icon: markRaw(FolderIcon), value: '目录' },
-  M: { icon: markRaw(MenuIcon), value: '菜单' },
+  B: { icon: markRaw(CheckCircleIcon), value: $t('pages.system.menu.type.button') },
+  D: { icon: markRaw(FolderIcon), value: $t('pages.system.menu.type.directory') },
+  M: { icon: markRaw(MenuIcon), value: $t('pages.system.menu.type.menu') },
 };
 
 export const nodeOptions = [
-  { label: '节点关联', value: true },
-  { label: '节点独立', value: false },
+  { label: $t('pages.tree.association.linked'), value: true },
+  { label: $t('pages.tree.association.independent'), value: false },
 ];
 
 export const columns: VxeGridProps['columns'] = [
   {
     type: 'checkbox',
-    title: '菜单名称',
+    title: $t('pages.system.menu.fields.menuName'),
     field: 'label',
     treeNode: true,
     headerAlign: 'left',
@@ -42,7 +44,7 @@ export const columns: VxeGridProps['columns'] = [
     width: 230,
   },
   {
-    title: '图标',
+    title: $t('pages.system.menu.fields.icon'),
     field: 'icon',
     width: 80,
     slots: {
@@ -58,14 +60,14 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '类型',
+    title: $t('pages.system.menu.fields.type'),
     field: 'type',
     width: 80,
     slots: {
       default: ({ row }) => {
         const current = menuTypes[row.type as string];
         if (!current) {
-          return '未知';
+          return $t('pages.status.unknown');
         }
         return h('span', { class: 'flex items-center justify-center gap-1' }, [
           h(current.icon, { class: 'size-[18px]' }),
@@ -75,7 +77,7 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '权限标识',
+    title: $t('pages.system.menu.fields.permissionKey'),
     field: 'permissions',
     headerAlign: 'left',
     align: 'left',

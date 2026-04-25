@@ -4,6 +4,7 @@ import type { JobLogRecord } from '#/api/system/job/model';
 import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { Descriptions, DescriptionsItem, Spin, Tag } from 'ant-design-vue';
 
@@ -72,6 +73,20 @@ function statusColor(status?: string) {
   };
   return colorMap[status || ''] || 'default';
 }
+
+function statusLabel(status?: string) {
+  const labelMap: Record<string, string> = {
+    cancelled: $t('pages.system.jobLog.status.cancelled'),
+    failed: $t('pages.system.jobLog.status.failed'),
+    running: $t('pages.system.jobLog.status.running'),
+    skipped_max_concurrency: $t('pages.system.jobLog.status.skippedMaxConcurrency'),
+    skipped_not_primary: $t('pages.system.jobLog.status.skippedNotPrimary'),
+    skipped_singleton: $t('pages.system.jobLog.status.skippedSingleton'),
+    success: $t('pages.system.jobLog.status.success'),
+    timeout: $t('pages.system.jobLog.status.timeout'),
+  };
+  return labelMap[status || ''] || status || '-';
+}
 </script>
 
 <template>
@@ -79,7 +94,7 @@ function statusColor(status?: string) {
     :footer="false"
     class="w-[920px]"
     data-testid="job-log-detail-modal"
-    title="执行日志详情"
+    :title="$t('pages.system.jobLog.detail.title')"
   >
     <Spin :spinning="loading">
       <Descriptions
@@ -88,38 +103,42 @@ function statusColor(status?: string) {
         bordered
         size="small"
       >
-        <DescriptionsItem label="日志编号">
+        <DescriptionsItem :label="$t('pages.system.jobLog.detail.logId')">
           {{ currentLog.id }}
         </DescriptionsItem>
-        <DescriptionsItem label="任务名称">
+        <DescriptionsItem :label="$t('pages.system.jobLog.fields.jobName')">
           {{ currentLog.jobName || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="执行状态">
+        <DescriptionsItem :label="$t('pages.system.jobLog.fields.status')">
           <Tag :color="statusColor(currentLog.status)">
-            {{ currentLog.status }}
+            {{ statusLabel(currentLog.status) }}
           </Tag>
         </DescriptionsItem>
-        <DescriptionsItem label="触发方式">
+        <DescriptionsItem :label="$t('pages.system.jobLog.fields.trigger')">
           {{ currentLog.trigger }}
         </DescriptionsItem>
-        <DescriptionsItem label="执行节点">
+        <DescriptionsItem :label="$t('pages.system.jobLog.fields.nodeId')">
           {{ currentLog.nodeId || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="执行耗时">
+        <DescriptionsItem :label="$t('pages.system.jobLog.detail.duration')">
           {{ currentLog.durationMs }} ms
         </DescriptionsItem>
-        <DescriptionsItem label="开始时间">
+        <DescriptionsItem :label="$t('pages.system.jobLog.fields.startAt')">
           {{ currentLog.startAt || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem label="结束时间">
+        <DescriptionsItem :label="$t('pages.system.jobLog.fields.endAt')">
           {{ currentLog.endAt || '-' }}
         </DescriptionsItem>
-        <DescriptionsItem v-if="currentLog.errMsg" :span="2" label="异常信息">
+        <DescriptionsItem
+          v-if="currentLog.errMsg"
+          :span="2"
+          :label="$t('pages.system.jobLog.detail.error')"
+        >
           <span class="font-medium text-red-500">
             {{ currentLog.errMsg }}
           </span>
         </DescriptionsItem>
-        <DescriptionsItem :span="2" label="任务快照">
+        <DescriptionsItem :span="2" :label="$t('pages.system.jobLog.detail.jobSnapshot')">
           <div class="max-h-[260px] overflow-auto">
             <JsonPreview
               v-if="parseJSON(currentLog.jobSnapshot)"
@@ -128,7 +147,7 @@ function statusColor(status?: string) {
             <span v-else>{{ currentLog.jobSnapshot || '-' }}</span>
           </div>
         </DescriptionsItem>
-        <DescriptionsItem :span="2" label="参数快照">
+        <DescriptionsItem :span="2" :label="$t('pages.system.jobLog.detail.paramsSnapshot')">
           <div class="max-h-[260px] overflow-auto">
             <JsonPreview
               v-if="paramsSnapshot"
@@ -137,7 +156,7 @@ function statusColor(status?: string) {
             <span v-else>{{ currentLog.paramsSnapshot || '-' }}</span>
           </div>
         </DescriptionsItem>
-        <DescriptionsItem :span="2" label="执行结果">
+        <DescriptionsItem :span="2" :label="$t('pages.system.jobLog.detail.result')">
           <div class="space-y-3">
             <template v-if="shellResult">
               <div>

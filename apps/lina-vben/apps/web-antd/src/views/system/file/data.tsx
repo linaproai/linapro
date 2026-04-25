@@ -1,16 +1,18 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
+import { $t } from '#/locales';
+
 export const querySchema: VbenFormSchema[] = [
   {
     component: 'Input',
     fieldName: 'original',
-    label: '原始文件名',
+    label: $t('pages.system.file.fields.originalName'),
   },
   {
     component: 'Select',
     fieldName: 'suffix',
-    label: '文件类型',
+    label: $t('pages.system.file.fields.fileType'),
     componentProps: {
       options: [] as { label: string; value: string }[],
     },
@@ -18,7 +20,7 @@ export const querySchema: VbenFormSchema[] = [
   {
     component: 'Select',
     fieldName: 'scene',
-    label: '使用场景',
+    label: $t('pages.system.file.fields.scene'),
     componentProps: {
       options: [] as { label: string; value: string }[],
     },
@@ -26,7 +28,7 @@ export const querySchema: VbenFormSchema[] = [
   {
     component: 'RangePicker',
     fieldName: 'createTime',
-    label: '上传时间',
+    label: $t('pages.system.file.fields.uploadedAt'),
   },
 ];
 
@@ -36,42 +38,42 @@ export const supportImageList = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 export const columns: VxeGridProps['columns'] = [
   { type: 'checkbox', width: 60 },
   {
-    title: '原始文件名',
+    title: $t('pages.system.file.fields.originalName'),
     field: 'original',
     showOverflow: true,
   },
   {
-    title: '文件类型',
+    title: $t('pages.system.file.fields.fileType'),
     field: 'suffix',
     width: 100,
   },
   {
-    title: '使用场景',
+    title: $t('pages.system.file.fields.scene'),
     field: 'scene',
     width: 120,
     slots: { default: 'scene' },
   },
   {
-    title: '文件预览',
+    title: $t('pages.system.file.fields.preview'),
     field: 'url',
     showOverflow: true,
     slots: { default: 'url' },
   },
   {
-    title: '文件大小',
+    title: $t('pages.system.file.fields.size'),
     field: 'size',
     width: 120,
     sortable: true,
     slots: { default: 'size' },
   },
   {
-    title: '上传时间',
+    title: $t('pages.system.file.fields.uploadedAt'),
     field: 'createdAt',
     sortable: true,
     width: 180,
   },
   {
-    title: '上传者',
+    title: $t('pages.system.file.fields.uploader'),
     field: 'createdByName',
     width: 120,
   },
@@ -79,7 +81,7 @@ export const columns: VxeGridProps['columns'] = [
     field: 'action',
     fixed: 'right',
     slots: { default: 'action' },
-    title: '操作',
+    title: $t('pages.common.actions'),
     resizable: false,
     width: 'auto',
   },

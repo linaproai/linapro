@@ -11,6 +11,10 @@ import {
 export class RolePage {
   constructor(private page: Page) {}
 
+  private get roleNameSearchInput() {
+    return this.page.getByLabel(/角色名称|Role Name/i).first();
+  }
+
   /** The Vben drawer container */
   private get drawer() {
     return this.page.locator('[role="dialog"]');
@@ -19,7 +23,7 @@ export class RolePage {
   async goto() {
     await this.page.goto('/system/role');
     await waitForTableReady(this.page);
-    await this.page.getByLabel('角色名称', { exact: true }).first().waitFor({
+    await this.roleNameSearchInput.waitFor({
       state: 'visible',
       timeout: 10000,
     });
@@ -172,7 +176,7 @@ export class RolePage {
   async searchRole(name: string) {
     // Prefer the accessible label because it stays stable even when the form DOM is re-created.
     await waitForRouteReady(this.page);
-    const searchInput = this.page.getByLabel('角色名称', { exact: true }).first();
+    const searchInput = this.roleNameSearchInput;
     await searchInput.waitFor({ state: 'visible', timeout: 10000 });
     await searchInput.fill(name);
 

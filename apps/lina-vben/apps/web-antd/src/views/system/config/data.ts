@@ -1,22 +1,24 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
+import { $t } from '#/locales';
+
 /** 查询表单schema */
 export const querySchema: VbenFormSchema[] = [
   {
     component: 'Input',
     fieldName: 'name',
-    label: '参数名称',
+    label: $t('pages.system.config.fields.name'),
   },
   {
     component: 'Input',
     fieldName: 'key',
-    label: '参数键名',
+    label: $t('pages.system.config.fields.key'),
   },
   {
     component: 'RangePicker',
     fieldName: 'createTime',
-    label: '创建时间',
+    label: $t('pages.common.createdAt'),
   },
 ];
 
@@ -24,30 +26,30 @@ export const querySchema: VbenFormSchema[] = [
 export const columns: VxeGridProps['columns'] = [
   { type: 'checkbox', width: 60 },
   {
-    title: '参数名称',
+    title: $t('pages.system.config.fields.name'),
     field: 'name',
   },
   {
-    title: '参数键名',
+    title: $t('pages.system.config.fields.key'),
     field: 'key',
   },
   {
-    title: '参数键值',
+    title: $t('pages.system.config.fields.value'),
     field: 'value',
   },
   {
-    title: '备注',
+    title: $t('pages.common.remark'),
     field: 'remark',
   },
   {
-    title: '修改时间',
+    title: $t('pages.common.updatedAt'),
     field: 'updatedAt',
   },
   {
     field: 'action',
     fixed: 'right',
     slots: { default: 'action' },
-    title: '操作',
+    title: $t('pages.common.actions'),
     resizable: false,
     width: 'auto',
   },
@@ -58,19 +60,19 @@ export const modalSchema: VbenFormSchema[] = [
   {
     component: 'Input',
     fieldName: 'name',
-    label: '参数名称',
+    label: $t('pages.system.config.fields.name'),
     rules: 'required',
   },
   {
     component: 'Input',
     fieldName: 'key',
-    label: '参数键名',
+    label: $t('pages.system.config.fields.key'),
     rules: 'required',
   },
   {
     component: 'Textarea',
     fieldName: 'value',
-    label: '参数键值',
+    label: $t('pages.system.config.fields.value'),
     rules: 'required',
     componentProps: {
       autoSize: true,
@@ -80,7 +82,7 @@ export const modalSchema: VbenFormSchema[] = [
   {
     component: 'Textarea',
     fieldName: 'remark',
-    label: '备注',
+    label: $t('pages.common.remark'),
     componentProps: {
       rows: 3,
     },

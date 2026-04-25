@@ -3,125 +3,138 @@ import type { VxeGridProps } from '#/adapter/vxe-table';
 
 import { h } from 'vue';
 
+import { $t } from '#/locales';
 import { DictTag } from '#/components/dict';
 import { useDictStore } from '#/store/dict';
+import {
+  localizeSeedOperLogSummary,
+  localizeSeedOperLogTitle,
+} from '#/utils/display-l10n';
 
 function resolveDictOptions(dictType: string) {
   return useDictStore().dictOptionsMap.get(dictType) || [];
 }
 
 /** 查询表单schema */
-export const querySchema: VbenFormSchema[] = [
-  {
-    component: 'Input',
-    fieldName: 'title',
-    label: '模块名称',
-  },
-  {
-    component: 'Input',
-    fieldName: 'operName',
-    label: '操作人员',
-  },
-  {
-    component: 'Select',
-    fieldName: 'operType',
-    label: '操作类型',
-    componentProps: {
-      options: [] as { label: string; value: string }[],
+export function buildQuerySchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'title',
+      label: $t('plugin.monitor-operlog.fields.moduleName'),
     },
-  },
-  {
-    component: 'Select',
-    fieldName: 'status',
-    label: '操作结果',
-    componentProps: {
-      options: [] as { label: string; value: string }[],
+    {
+      component: 'Input',
+      fieldName: 'operName',
+      label: $t('plugin.monitor-operlog.fields.operator'),
     },
-  },
-  {
-    component: 'RangePicker',
-    fieldName: 'operTime',
-    label: '操作时间',
-    componentProps: {
-      valueFormat: 'YYYY-MM-DD',
+    {
+      component: 'Select',
+      fieldName: 'operType',
+      label: $t('plugin.monitor-operlog.fields.operType'),
+      componentProps: {
+        options: [] as { label: string; value: string }[],
+      },
     },
-  },
-];
+    {
+      component: 'Select',
+      fieldName: 'status',
+      label: $t('plugin.monitor-operlog.fields.operResult'),
+      componentProps: {
+        options: [] as { label: string; value: string }[],
+      },
+    },
+    {
+      component: 'RangePicker',
+      fieldName: 'operTime',
+      label: $t('plugin.monitor-operlog.fields.operTime'),
+      componentProps: {
+        valueFormat: 'YYYY-MM-DD',
+      },
+    },
+  ];
+}
 
 /** 表格列定义 */
-export const columns: VxeGridProps['columns'] = [
-  { type: 'checkbox', width: 60 },
-  {
-    field: 'id',
-    title: '日志编号',
-    minWidth: 100,
-  },
-  {
-    field: 'title',
-    title: '模块名称',
-    minWidth: 120,
-  },
-  {
-    field: 'operSummary',
-    title: '操作名称',
-    minWidth: 140,
-  },
-  {
-    field: 'operType',
-    title: '操作类型',
-    minWidth: 100,
-    slots: {
-      default: ({ row }) => {
-        const dicts = resolveDictOptions('sys_oper_type');
-        return h(DictTag, { dicts: dicts as any, value: row.operType });
+export function buildColumns(): VxeGridProps['columns'] {
+  return [
+    { type: 'checkbox', width: 60 },
+    {
+      field: 'id',
+      title: $t('plugin.monitor-operlog.fields.logId'),
+      minWidth: 100,
+    },
+    {
+      field: 'title',
+      title: $t('plugin.monitor-operlog.fields.moduleName'),
+      minWidth: 120,
+      formatter: ({ cellValue }) =>
+        localizeSeedOperLogTitle(String(cellValue || '')),
+    },
+    {
+      field: 'operSummary',
+      title: $t('plugin.monitor-operlog.fields.operSummary'),
+      minWidth: 140,
+      formatter: ({ cellValue }) =>
+        localizeSeedOperLogSummary(String(cellValue || '')),
+    },
+    {
+      field: 'operType',
+      title: $t('plugin.monitor-operlog.fields.operType'),
+      minWidth: 100,
+      slots: {
+        default: ({ row }) => {
+          const dicts = resolveDictOptions('sys_oper_type');
+          return h(DictTag, { dicts: dicts as any, value: row.operType });
+        },
       },
     },
-  },
-  {
-    field: 'operName',
-    title: '操作人员',
-    minWidth: 120,
-  },
-  {
-    field: 'operIp',
-    title: 'IP地址',
-    minWidth: 130,
-  },
-  {
-    field: 'status',
-    title: '操作结果',
-    minWidth: 100,
-    slots: {
-      default: ({ row }) => {
-        const dicts = resolveDictOptions('sys_oper_status');
-        return h(DictTag, { dicts: dicts as any, value: row.status });
+    {
+      field: 'operName',
+      title: $t('plugin.monitor-operlog.fields.operator'),
+      minWidth: 120,
+    },
+    {
+      field: 'operIp',
+      title: $t('plugin.monitor-operlog.fields.ipAddress'),
+      minWidth: 130,
+    },
+    {
+      field: 'status',
+      title: $t('plugin.monitor-operlog.fields.operResult'),
+      minWidth: 100,
+      slots: {
+        default: ({ row }) => {
+          const dicts = resolveDictOptions('sys_oper_status');
+          return h(DictTag, { dicts: dicts as any, value: row.status });
+        },
       },
     },
-  },
-  {
-    field: 'operTime',
-    title: '操作日期',
-    minWidth: 180,
-    sortable: true,
-  },
-  {
-    field: 'costTime',
-    title: '操作耗时',
-    minWidth: 100,
-    sortable: true,
-    formatter({ cellValue }) {
-      return `${cellValue} ms`;
+    {
+      field: 'operTime',
+      title: $t('plugin.monitor-operlog.fields.operDate'),
+      minWidth: 180,
+      sortable: true,
     },
-  },
-  {
-    field: 'action',
-    fixed: 'right',
-    slots: { default: 'action' },
-    title: '操作',
-    resizable: false,
-    width: 'auto',
-  },
-];
+    {
+      field: 'costTime',
+      title: $t('plugin.monitor-operlog.fields.duration'),
+      minWidth: 100,
+      sortable: true,
+      formatter({ cellValue }) {
+        return `${cellValue} ms`;
+      },
+    },
+    {
+      field: 'action',
+      fixed: 'right',
+      slots: { default: 'action' },
+      title: $t('pages.common.actions'),
+      resizable: false,
+      width: 'auto',
+    },
+  ];
+}
 
 /** 请求方法标签颜色映射 */
 export function getMethodTagColor(method: string): string {
@@ -137,11 +150,11 @@ export function getMethodTagColor(method: string): string {
 
 export function getMethodLabel(method: string): string {
   const map: Record<string, string> = {
-    DELETE: '删除',
-    GET: '查询',
-    PATCH: '局部更新',
-    POST: '新增',
-    PUT: '修改',
+    DELETE: $t('pages.common.delete'),
+    GET: $t('pages.common.search'),
+    PATCH: $t('plugin.monitor-operlog.method.patch'),
+    POST: $t('pages.common.add'),
+    PUT: $t('pages.common.edit'),
   };
   return map[method?.toUpperCase()] || method;
 }

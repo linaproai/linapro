@@ -7,6 +7,7 @@ import type { ComponentType } from './component';
 
 import { setupVbenForm, useVbenForm as useForm, z } from '@vben/common-ui';
 import { $t } from '@vben/locales';
+import { preferences } from '@vben/preferences';
 
 async function initSetupVbenForm() {
   setupVbenForm<ComponentType>({
@@ -41,7 +42,24 @@ async function initSetupVbenForm() {
   });
 }
 
-const useVbenForm = useForm<ComponentType>;
+const ENGLISH_DIALOG_LABEL_WIDTH = 128;
+
+function useEnglishDialogLabelWidth(options: VbenFormProps<ComponentType>) {
+  if (preferences.app.locale !== 'en-US' || options.showDefaultActions !== false) {
+    return options;
+  }
+
+  options.commonConfig ??= {};
+  options.commonConfig.labelWidth = Math.max(
+    options.commonConfig.labelWidth ?? 0,
+    ENGLISH_DIALOG_LABEL_WIDTH,
+  );
+  return options;
+}
+
+function useVbenForm(options: VbenFormProps<ComponentType>) {
+  return useForm<ComponentType>(useEnglishDialogLabelWidth(options));
+}
 
 export { initSetupVbenForm, useVbenForm, z };
 

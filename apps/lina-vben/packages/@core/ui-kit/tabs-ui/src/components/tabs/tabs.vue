@@ -136,7 +136,10 @@ function onMouseDown(e: MouseEvent, tab: TabConfig) {
                 fallback
               />
 
-              <span class="flex-1 overflow-hidden text-sm whitespace-nowrap">
+              <span
+                :title="tab.title"
+                class="flex-1 overflow-hidden text-sm whitespace-nowrap"
+              >
                 {{ tab.title }}
               </span>
             </div>

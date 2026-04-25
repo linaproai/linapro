@@ -3,6 +3,7 @@ import type { JobGroupRecord } from '#/api/system/jobGroup/model';
 
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { computed, h, ref } from 'vue';
 
@@ -41,12 +42,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
       {
         component: 'Input',
         fieldName: 'code',
-        label: '分组编码',
+        label: $t('pages.system.jobGroup.fields.code'),
       },
       {
         component: 'Input',
         fieldName: 'name',
-        label: '分组名称',
+        label: $t('pages.system.jobGroup.fields.name'),
       },
     ],
     wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
@@ -59,13 +60,17 @@ const [Grid, gridApi] = useVbenVxeGrid({
     },
     columns: [
       { type: 'checkbox', width: 56 },
-      { field: 'code', title: '分组编码', minWidth: 160 },
-      { field: 'name', title: '分组名称', minWidth: 180 },
-      { field: 'sortOrder', title: '排序', width: 90 },
-      { field: 'jobCount', title: '任务数', width: 90 },
+      { field: 'code', title: $t('pages.system.jobGroup.fields.code'), minWidth: 160 },
+      {
+        field: 'name',
+        title: $t('pages.system.jobGroup.fields.name'),
+        minWidth: 180,
+      },
+      { field: 'sortOrder', title: $t('pages.fields.sort'), width: 90 },
+      { field: 'jobCount', title: $t('pages.system.jobGroup.fields.jobCount'), width: 90 },
       {
         field: 'isDefault',
-        title: '默认分组',
+        title: $t('pages.system.jobGroup.fields.defaultGroup'),
         width: 120,
         slots: {
           default: ({ row }: { row: JobGroupRecord }) =>
@@ -76,17 +81,21 @@ const [Grid, gridApi] = useVbenVxeGrid({
                     color: 'gold',
                     'data-testid': `job-group-default-tag-${row.id}`,
                   },
-                  () => '默认分组',
+                  () => $t('pages.system.jobGroup.fields.defaultGroup'),
                 )
               : '-',
         },
       },
-      { field: 'remark', title: '备注', minWidth: 220 },
-      { field: 'updatedAt', title: '更新时间', minWidth: 180 },
+      {
+        field: 'remark',
+        title: $t('pages.common.remark'),
+        minWidth: 220,
+      },
+      { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
       {
         field: 'action',
         fixed: 'right',
-        title: '操作',
+        title: $t('pages.common.actions'),
         width: 220,
         slots: { default: 'action' },
       },
@@ -142,7 +151,7 @@ function canDeleteRow(row: JobGroupRecord) {
 
 async function handleDelete(ids: Array<number>) {
   await jobGroupDelete(ids);
-  message.success('删除成功');
+  message.success($t('pages.common.deleteSuccess'));
   checkedRows.value = [];
   await gridApi.query();
 }
@@ -153,9 +162,11 @@ function handleMultiDelete() {
     return;
   }
   Modal.confirm({
-    title: '提示',
+    title: $t('pages.common.confirmTitle'),
     okType: 'danger',
-    content: `确认删除选中的 ${rows.length} 个任务分组吗？分组下的任务将自动迁移到默认分组。`,
+    content: $t('pages.system.jobGroup.messages.deleteSelectedConfirm', {
+      count: rows.length,
+    }),
     onOk: async () => {
       await handleDelete(rows.map((row) => row.id));
     },
@@ -169,7 +180,7 @@ function handleReload() {
 
 <template>
   <Page :auto-content-height="true" data-testid="job-group-page">
-    <Grid table-title="任务分组列表">
+    <Grid :table-title="$t('pages.system.jobGroup.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -179,7 +190,7 @@ function handleReload() {
             type="primary"
             @click="handleMultiDelete"
           >
-            删 除
+            {{ $t('pages.common.delete') }}
           </a-button>
           <a-button
             v-if="hasAccessByCodes([accessCodes.add])"
@@ -187,7 +198,7 @@ function handleReload() {
             type="primary"
             @click="openCreateModal"
           >
-            新 增
+            {{ $t('pages.common.add') }}
           </a-button>
         </Space>
       </template>
@@ -199,23 +210,23 @@ function handleReload() {
             :data-testid="`job-group-edit-${row.id}`"
             @click.stop="openEditModal(row)"
           >
-            编辑
+            {{ $t('pages.common.edit') }}
           </ghost-button>
           <template v-if="row.isDefault === 1">
-            <Tooltip title="默认分组不可删除">
+            <Tooltip :title="$t('pages.system.jobGroup.messages.defaultDeleteDisabled')">
               <ghost-button
                 danger
                 disabled
                 :data-testid="`job-group-delete-${row.id}`"
               >
-                删除
+                {{ $t('pages.common.delete') }}
               </ghost-button>
             </Tooltip>
           </template>
           <Popconfirm
             v-else-if="canDeleteRow(row)"
             placement="left"
-            title="确认删除该分组吗？任务将自动迁移到默认分组。"
+            :title="$t('pages.system.jobGroup.messages.deleteConfirm')"
             @confirm="handleDelete([row.id])"
           >
             <ghost-button
@@ -223,7 +234,7 @@ function handleReload() {
               :data-testid="`job-group-delete-${row.id}`"
               @click.stop=""
             >
-              删除
+              {{ $t('pages.common.delete') }}
             </ghost-button>
           </Popconfirm>
         </Space>

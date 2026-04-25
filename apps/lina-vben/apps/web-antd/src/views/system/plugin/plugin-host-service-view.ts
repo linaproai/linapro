@@ -9,6 +9,7 @@ import {
   getJobConcurrencyLabel,
   getJobScopeLabel,
 } from '#/api/system/job/meta';
+import { $t } from '#/locales';
 
 export interface HostServiceScopeView {
   badgeColor: string;
@@ -79,19 +80,19 @@ export function sortHostServices(items?: HostServicePermissionItem[]) {
 export function formatServiceLabel(service: string) {
   switch (service) {
     case 'data': {
-      return '数据服务';
+      return $t('pages.system.plugin.hostServices.service.data');
     }
     case 'network': {
-      return '网络服务';
+      return $t('pages.system.plugin.hostServices.service.network');
     }
     case 'cron': {
-      return '任务服务';
+      return $t('pages.system.plugin.hostServices.service.cron');
     }
     case 'runtime': {
-      return '运行时服务';
+      return $t('pages.system.plugin.hostServices.service.runtime');
     }
     case 'storage': {
-      return '存储服务';
+      return $t('pages.system.plugin.hostServices.service.storage');
     }
     default: {
       return service;
@@ -127,7 +128,7 @@ export function buildPluginDetailHostServiceCards(
         scopes.push(
           buildScopeView({
             badgeColor: 'green',
-            label: '生效范围',
+            label: $t('pages.system.plugin.hostServices.scope.effective'),
             kind: 'authorized',
             scopeKey: `${serviceKey}-effective`,
             service: authorizedService,
@@ -139,7 +140,7 @@ export function buildPluginDetailHostServiceCards(
             buildScopeView({
               badgeColor: 'blue',
               kind: 'requested',
-              label: '申请清单',
+              label: $t('pages.system.plugin.hostServices.scope.requested'),
               scopeKey: `${serviceKey}-requested`,
               service: requestedService,
             }),
@@ -150,7 +151,7 @@ export function buildPluginDetailHostServiceCards(
             buildScopeView({
               badgeColor: 'green',
               kind: 'authorized',
-              label: '授权快照',
+              label: $t('pages.system.plugin.hostServices.scope.authorized'),
               scopeKey: `${serviceKey}-authorized`,
               service: authorizedService,
             }),
@@ -178,7 +179,9 @@ export function buildPluginAuthorizationHostServiceCards(
         buildScopeContainerTestId: options.buildScopeContainerTestId,
         buildScopeItemTestIdPrefix: options.buildScopeItemTestIdPrefix,
         kind: options.authorizationRequired ? 'requested' : 'authorized',
-        label: options.authorizationRequired ? '申请清单' : '生效范围',
+        label: options.authorizationRequired
+          ? $t('pages.system.plugin.hostServices.scope.requested')
+          : $t('pages.system.plugin.hostServices.scope.effective'),
         scopeKey: `${service.service}-review`,
         service,
         targetSummaryBadgeColor: options.targetSummaryBadgeColor,
@@ -303,16 +306,16 @@ function resolveTargetSummaryLabel(service: HostServicePermissionItem) {
       return undefined;
     }
     case 'data': {
-      return '数据表名';
+      return $t('pages.system.plugin.hostServices.summary.table');
     }
     case 'network': {
-      return '访问地址';
+      return $t('pages.system.plugin.hostServices.summary.path');
     }
     case 'storage': {
-      return '存储路径';
+      return $t('pages.system.plugin.hostServices.summary.storage');
     }
     default: {
-      return '资源标识';
+      return $t('pages.system.plugin.hostServices.summary.resource');
     }
   }
 }
@@ -360,29 +363,29 @@ function formatCronTargetLabel(item: HostServicePermissionCronItem) {
 function buildCronTargetDetails(item: HostServicePermissionCronItem) {
   const lines: HostServiceTargetDetailView[] = [
     {
-      label: '表达式',
+      label: $t('pages.system.plugin.hostServices.cron.pattern'),
       value: (item.pattern || '').trim() || '-',
     },
     {
-      label: '调度范围',
+      label: $t('pages.system.job.fields.scope'),
       value: getJobScopeLabel(item.scope),
     },
     {
-      label: '并发策略',
+      label: $t('pages.system.job.fields.concurrency'),
       value: formatCronConcurrencySummary(item),
     },
   ];
   const timezone = (item.timezone || '').trim();
   if (timezone) {
     lines.push({
-      label: '任务时区',
+      label: $t('pages.system.job.fields.timezone'),
       value: timezone,
     });
   }
   const description = (item.description || '').trim();
   if (description) {
     lines.push({
-      label: '任务说明',
+      label: $t('pages.fields.description'),
       value: description,
     });
   }
@@ -392,16 +395,19 @@ function buildCronTargetDetails(item: HostServicePermissionCronItem) {
 function formatCronConcurrencySummary(item: HostServicePermissionCronItem) {
   const label = getJobConcurrencyLabel(item.concurrency);
   if (item.concurrency === 'parallel' && Number(item.maxConcurrency || 0) > 0) {
-    return `${label}（最大 ${item.maxConcurrency}）`;
+    return $t('pages.system.plugin.hostServices.cron.parallelLimit', {
+      label,
+      value: item.maxConcurrency,
+    });
   }
   return label;
 }
 
 function resolveScopeEmptyText(service: HostServicePermissionItem) {
   if (service.service === 'cron') {
-    return '当前服务已声明注册能力，暂未解析到定时任务明细。';
+    return $t('pages.system.plugin.hostServices.messages.cronEmpty');
   }
-  return '当前服务仅声明方法，无额外目标条目。';
+  return $t('pages.system.plugin.hostServices.messages.defaultEmpty');
 }
 
 function formatDataTableLabel(table: HostServicePermissionTableItem) {

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
+import { $t } from '@vben/locales';
 
 import { message } from 'ant-design-vue';
 
@@ -28,7 +29,11 @@ interface DrawerProps {
 
 const isEdit = ref(false);
 const editId = ref<number>(0);
-const title = computed(() => (isEdit.value ? '编辑字典数据' : '新增字典数据'));
+const title = computed(() =>
+  isEdit.value
+    ? $t('pages.system.dict.data.drawer.editTitle')
+    : $t('pages.system.dict.data.drawer.createTitle'),
+);
 
 /**
  * 标签样式选择器
@@ -93,10 +98,10 @@ const [Drawer, drawerApi] = useVbenDrawer({
 
       if (isEdit.value) {
         await dictDataUpdate(editId.value, data);
-        message.success('更新成功');
+        message.success($t('pages.common.updateSuccess'));
       } else {
         await dictDataAdd(data);
-        message.success('创建成功');
+        message.success($t('pages.common.createSuccess'));
       }
 
       // 清除字典缓存，确保其他页面读取最新数据

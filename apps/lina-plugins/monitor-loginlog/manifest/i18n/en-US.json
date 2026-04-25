@@ -5,5 +5,19 @@
   "menu.plugin:monitor-loginlog:loginlog:query.title": "Query Logs",
   "menu.plugin:monitor-loginlog:loginlog:remove.title": "Delete Logs",
   "plugin.monitor-loginlog.description": "Official source plugin for login-log persistence and governance.",
-  "plugin.monitor-loginlog.name": "Monitoring - Login Logs"
+  "plugin.monitor-loginlog.name": "Monitoring - Login Logs",
+  "plugin.monitor-loginlog.tableTitle": "Login Log List",
+  "plugin.monitor-loginlog.detail.title": "Login Log Details",
+  "plugin.monitor-loginlog.exportFileName": "login-logs.xlsx",
+  "plugin.monitor-loginlog.fields.userName": "User Account",
+  "plugin.monitor-loginlog.fields.ipAddress": "IP Address",
+  "plugin.monitor-loginlog.fields.browser": "Browser",
+  "plugin.monitor-loginlog.fields.os": "Operating System",
+  "plugin.monitor-loginlog.fields.status": "Login Status",
+  "plugin.monitor-loginlog.fields.message": "Message",
+  "plugin.monitor-loginlog.fields.loginDate": "Login Date",
+  "plugin.monitor-loginlog.fields.loginTime": "Login Time",
+  "plugin.monitor-loginlog.messages.clearConfirm": "Clear all login logs?",
+  "plugin.monitor-loginlog.messages.clearSuccess": "Login logs cleared successfully",
+  "plugin.monitor-loginlog.messages.deleteSelectedConfirm": "Delete the selected {count} login log(s)?"
 }

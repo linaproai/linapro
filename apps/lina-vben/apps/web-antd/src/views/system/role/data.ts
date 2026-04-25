@@ -5,99 +5,121 @@ import { h } from 'vue';
 
 import { Tag } from 'ant-design-vue';
 
+import { $t } from '#/locales';
+
 /** 数据权限选项 */
-export const dataScopeOptions = [
-  { color: 'green', label: '全部数据权限', value: 1 },
-  { color: 'default', label: '本部门数据权限', value: 2 },
-  { color: 'error', label: '仅本人数据权限', value: 3 },
-];
+export function getDataScopeOptions() {
+  return [
+    {
+      color: 'green',
+      label: $t('pages.system.role.dataScope.all'),
+      value: 1,
+    },
+    {
+      color: 'default',
+      label: $t('pages.system.role.dataScope.dept'),
+      value: 2,
+    },
+    {
+      color: 'error',
+      label: $t('pages.system.role.dataScope.self'),
+      value: 3,
+    },
+  ];
+}
 
 /** 查询表单schema */
-export const querySchema: VbenFormSchema[] = [
-  {
-    component: 'Input',
-    componentProps: {
-      placeholder: '请输入角色名称',
+export function querySchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: $t('pages.system.role.placeholders.roleName'),
+      },
+      fieldName: 'name',
+      label: $t('pages.system.role.fields.roleName'),
     },
-    fieldName: 'name',
-    label: '角色名称',
-  },
-  {
-    component: 'Input',
-    componentProps: {
-      placeholder: '请输入权限字符',
+    {
+      component: 'Input',
+      componentProps: {
+        placeholder: $t('pages.system.role.placeholders.permissionKey'),
+      },
+      fieldName: 'key',
+      label: $t('pages.system.role.fields.permissionKey'),
     },
-    fieldName: 'key',
-    label: '权限字符',
-  },
-  {
-    component: 'Select',
-    componentProps: {
-      placeholder: '请选择状态',
-      options: [],
+    {
+      component: 'Select',
+      componentProps: {
+        placeholder: $t('pages.system.role.placeholders.status'),
+        options: [],
+      },
+      fieldName: 'status',
+      label: $t('pages.common.status'),
     },
-    fieldName: 'status',
-    label: '状态',
-  },
-];
+  ];
+}
 
 /** 表格列定义 */
-export const columns: VxeGridProps['columns'] = [
-  { type: 'checkbox', width: 60 },
-  {
-    title: '角色名称',
-    field: 'name',
-    minWidth: 120,
-  },
-  {
-    title: '权限字符',
-    field: 'key',
-    minWidth: 120,
-    slots: {
-      default: ({ row }) => {
-        return h(Tag, { color: 'processing' }, () => row.key);
+export function columns(): VxeGridProps['columns'] {
+  return [
+    { type: 'checkbox', width: 60 },
+    {
+      title: $t('pages.system.role.fields.roleName'),
+      field: 'name',
+      minWidth: 120,
+    },
+    {
+      title: $t('pages.system.role.fields.permissionKey'),
+      field: 'key',
+      minWidth: 120,
+      slots: {
+        default: ({ row }) => {
+          return h(Tag, { color: 'processing' }, () => row.key);
+        },
       },
     },
-  },
-  {
-    title: '数据权限',
-    field: 'dataScope',
-    minWidth: 120,
-    slots: {
-      default: ({ row }) => {
-        const found = dataScopeOptions.find((item) => item.value === row.dataScope);
-        if (found) {
-          return h(Tag, { color: found.color }, () => found.label);
-        }
-        return h(Tag, {}, () => row.dataScope);
+    {
+      title: $t('pages.system.role.fields.dataScope'),
+      field: 'dataScope',
+      minWidth: 120,
+      slots: {
+        default: ({ row }) => {
+          const found = getDataScopeOptions().find(
+            (item) => item.value === row.dataScope,
+          );
+          if (found) {
+            return h(Tag, { color: found.color }, () => found.label);
+          }
+          return h(Tag, {}, () => row.dataScope);
+        },
       },
     },
-  },
-  {
-    title: '排序',
-    field: 'sort',
-    width: 80,
-  },
-  {
-    title: '状态',
-    field: 'status',
-    width: 100,
-    slots: { default: 'status' },
-  },
-  {
-    title: '创建时间',
-    field: 'createdAt',
-    width: 160,
-  },
-  {
-    field: 'action',
-    fixed: 'right',
-    slots: { default: 'action' },
-    title: '操作',
-    resizable: false,
-    width: 'auto',
-  },
-];
+    {
+      title: $t('pages.fields.sort'),
+      field: 'sort',
+      width: 80,
+    },
+    {
+      title: $t('pages.common.status'),
+      field: 'status',
+      width: 100,
+      slots: { default: 'status' },
+    },
+    {
+      title: $t('pages.common.createdAt'),
+      field: 'createdAt',
+      width: 160,
+    },
+    {
+      field: 'action',
+      fixed: 'right',
+      slots: { default: 'action' },
+      title: $t('pages.common.actions'),
+      resizable: false,
+      width: 'auto',
+    },
+  ];
+}
 
 /** 新增/编辑表单schema */
 export function getDrawerSchema(): VbenFormSchema[] {
@@ -105,7 +127,7 @@ export function getDrawerSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'id',
-      label: '角色ID',
+      label: $t('pages.system.role.fields.roleId'),
       dependencies: {
         show: () => false,
         triggerFields: [''],
@@ -114,31 +136,31 @@ export function getDrawerSchema(): VbenFormSchema[] {
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入角色名称',
+        placeholder: $t('pages.system.role.placeholders.roleName'),
       },
       fieldName: 'name',
-      label: '角色名称',
+      label: $t('pages.system.role.fields.roleName'),
       rules: 'required',
     },
     {
       component: 'Input',
       componentProps: {
-        placeholder: '如: admin, user等',
+        placeholder: $t('pages.system.role.placeholders.permissionExample'),
       },
       fieldName: 'key',
-      help: '如: admin, simpleUser等',
-      label: '权限标识',
+      help: $t('pages.system.role.placeholders.permissionHelp'),
+      label: $t('pages.system.role.fields.permissionKey'),
       rules: 'required',
     },
     {
       component: 'InputNumber',
       componentProps: {
-        placeholder: '请输入排序',
+        placeholder: $t('pages.system.role.placeholders.sort'),
         min: 0,
         style: { width: '100%' },
       },
       fieldName: 'sort',
-      label: '角色排序',
+      label: $t('pages.system.role.fields.roleSort'),
       rules: 'required',
       defaultValue: 0,
     },
@@ -147,34 +169,34 @@ export function getDrawerSchema(): VbenFormSchema[] {
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: '正常', value: 1 },
-          { label: '停用', value: 0 },
+          { label: $t('pages.status.enabled'), value: 1 },
+          { label: $t('pages.status.disabled'), value: 0 },
         ],
         optionType: 'button',
       },
       defaultValue: 1,
       fieldName: 'status',
-      help: '修改后, 拥有该角色的用户将自动下线',
-      label: '角色状态',
+      help: $t('pages.system.role.help.status'),
+      label: $t('pages.system.role.fields.roleStatus'),
       rules: 'required',
     },
     {
       component: 'RadioGroup',
       fieldName: 'dataScope',
-      label: '数据权限',
-      help: '更改后需要用户重新登录才能生效',
+      label: $t('pages.system.role.fields.dataScope'),
+      help: $t('pages.system.role.help.dataScope'),
       rules: 'required',
       defaultValue: 1,
       componentProps: {
         optionType: 'button',
         buttonStyle: 'solid',
-        options: dataScopeOptions,
+        options: getDataScopeOptions(),
       },
     },
     {
       component: 'Input',
       fieldName: 'menuCheckStrictly',
-      label: '菜单权限',
+      label: $t('pages.system.role.fields.menuPermissions'),
       dependencies: {
         show: () => false,
         triggerFields: [''],
@@ -184,19 +206,19 @@ export function getDrawerSchema(): VbenFormSchema[] {
       component: 'Input',
       defaultValue: [],
       fieldName: 'menuIds',
-      label: '菜单权限',
+      label: $t('pages.system.role.fields.menuPermissions'),
       formItemClass: 'col-span-2',
     },
     {
       component: 'Textarea',
       componentProps: {
-        placeholder: '请输入备注',
+        placeholder: $t('pages.system.role.placeholders.remark'),
         rows: 3,
       },
       defaultValue: '',
       fieldName: 'remark',
       formItemClass: 'col-span-2',
-      label: '备注',
+      label: $t('pages.common.remark'),
     },
   ];
 }

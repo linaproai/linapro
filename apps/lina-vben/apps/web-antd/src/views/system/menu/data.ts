@@ -8,6 +8,7 @@ import { FolderIcon, MenuIcon, OkButtonIcon, VbenIcon } from '@vben/icons';
 import { getPopupContainer } from '@vben/utils';
 
 import { z } from '#/adapter/form';
+import { $t } from '#/locales';
 import { getDictOptions } from '#/utils/dict';
 import { renderDict } from '#/utils/render';
 
@@ -17,9 +18,9 @@ export function querySchema(): VbenFormSchema[] {
     {
       component: 'Input',
       fieldName: 'name',
-      label: '菜单名称',
+      label: $t('pages.system.menu.fields.menuName'),
       componentProps: {
-        placeholder: '请输入菜单名称',
+        placeholder: $t('pages.system.menu.placeholders.menuName'),
       },
     },
     {
@@ -29,7 +30,7 @@ export function querySchema(): VbenFormSchema[] {
         options: getDictOptions(DictEnum.SYS_NORMAL_DISABLE),
       },
       fieldName: 'status',
-      label: '菜单状态',
+      label: $t('pages.system.menu.fields.menuStatus'),
     },
     {
       component: 'Select',
@@ -38,29 +39,28 @@ export function querySchema(): VbenFormSchema[] {
         options: getDictOptions(DictEnum.SYS_SHOW_HIDE),
       },
       fieldName: 'visible',
-      label: '显示状态',
+      label: $t('pages.system.menu.fields.visibleStatus'),
     },
   ];
 }
 
-// 菜单类型映射（D=目录 M=菜单 B=按钮）
 const menuTypes = {
-  D: { icon: FolderIcon, value: '目录' },
-  M: { icon: MenuIcon, value: '菜单' },
-  B: { icon: OkButtonIcon, value: '按钮' },
+  D: { icon: FolderIcon, value: $t('pages.system.menu.type.directory') },
+  M: { icon: MenuIcon, value: $t('pages.system.menu.type.menu') },
+  B: { icon: OkButtonIcon, value: $t('pages.system.menu.type.button') },
 };
 
 /** 表格列配置 */
 export const columns: VxeGridProps['columns'] = [
   {
-    title: '菜单名称',
+    title: $t('pages.system.menu.fields.menuName'),
     field: 'name',
     treeNode: true,
     width: 200,
     align: 'left',
   },
   {
-    title: '图标',
+    title: $t('pages.system.menu.fields.icon'),
     field: 'icon',
     width: 80,
     slots: {
@@ -75,19 +75,19 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '排序',
+    title: $t('pages.fields.sort'),
     field: 'sort',
     width: 80,
   },
   {
-    title: '组件类型',
+    title: $t('pages.system.menu.fields.componentType'),
     field: 'type',
     width: 120,
     slots: {
       default: ({ row }) => {
         const current = menuTypes[row.type as 'D' | 'M' | 'B'];
         if (!current) {
-          return '未知';
+          return $t('pages.status.unknown');
         }
         return h('span', { class: 'flex items-center justify-center gap-1' }, [
           h(current.icon, { class: 'size-[18px]' }),
@@ -97,15 +97,15 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '权限标识',
+    title: $t('pages.system.menu.fields.permissionKey'),
     field: 'perms',
   },
   {
-    title: '组件路径',
+    title: $t('pages.system.menu.fields.componentPath'),
     field: 'component',
   },
   {
-    title: '状态',
+    title: $t('pages.common.status'),
     field: 'status',
     width: 100,
     slots: {
@@ -115,7 +115,7 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '显示',
+    title: $t('pages.system.menu.fields.visible'),
     field: 'visible',
     width: 100,
     slots: {
@@ -125,23 +125,22 @@ export const columns: VxeGridProps['columns'] = [
     },
   },
   {
-    title: '创建时间',
+    title: $t('pages.common.createdAt'),
     field: 'createdAt',
   },
   {
     field: 'action',
     fixed: 'right',
     slots: { default: 'action' },
-    title: '操作',
+    title: $t('pages.common.actions'),
     resizable: false,
     width: 'auto',
   },
 ];
 
-// 是否选项
 const yesNoOptions = [
-  { label: '是', value: 1 },
-  { label: '否', value: 0 },
+  { label: $t('pages.common.yes'), value: 1 },
+  { label: $t('pages.common.no'), value: 0 },
 ];
 
 /** 抽屉表单配置 */
@@ -159,7 +158,7 @@ export function drawerSchema(): VbenFormSchema[] {
       component: 'TreeSelect',
       defaultValue: 0,
       fieldName: 'parentId',
-      label: '上级菜单',
+      label: $t('pages.system.menu.fields.parentMenu'),
       rules: 'selectRequired',
     },
     {
@@ -167,9 +166,9 @@ export function drawerSchema(): VbenFormSchema[] {
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: '目录', value: 'D' },
-          { label: '菜单', value: 'M' },
-          { label: '按钮', value: 'B' },
+          { label: $t('pages.system.menu.type.directory'), value: 'D' },
+          { label: $t('pages.system.menu.type.menu'), value: 'M' },
+          { label: $t('pages.system.menu.type.button'), value: 'B' },
         ],
         optionType: 'button',
       },
@@ -181,12 +180,11 @@ export function drawerSchema(): VbenFormSchema[] {
         triggerFields: ['type'],
       },
       fieldName: 'type',
-      label: '菜单类型',
+      label: $t('pages.system.menu.fields.menuType'),
     },
     {
       component: 'Input',
       dependencies: {
-        // 类型不为按钮时显示
         show: (values) => values.type !== 'B',
         triggerFields: ['type'],
       },
@@ -197,50 +195,51 @@ export function drawerSchema(): VbenFormSchema[] {
           h(
             'a',
             { href: 'https://icon-sets.iconify.design/', target: '_blank' },
-            '搜索图标',
+            $t('pages.system.menu.actions.searchIcons'),
           ),
       }),
       fieldName: 'icon',
-      help: '点击搜索图标跳转到 iconify；左侧目录/菜单图标必须全局唯一',
-      label: '菜单图标',
+      help: $t('pages.system.menu.help.icon'),
+      label: $t('pages.system.menu.fields.menuIcon'),
     },
     {
       component: 'Input',
       fieldName: 'name',
-      label: '菜单名称',
+      label: $t('pages.system.menu.fields.menuName'),
       componentProps: {
-        placeholder: '请输入菜单名称',
+        placeholder: $t('pages.system.menu.placeholders.menuName'),
       },
-      help: '支持i18n写法, 如: menu.system.user',
+      help: $t('pages.system.menu.help.name'),
       rules: 'required',
     },
     {
       component: 'Input',
       componentProps: {
-        placeholder: '请输入权限标识',
+        placeholder: $t('pages.system.menu.placeholders.permissionKey'),
       },
       dependencies: {
         rules: (model) => {
           if (model.type === 'M' || model.type === 'B') {
             return z
-              .string({ message: '请输入权限标识' })
-              .min(1, '请输入权限标识');
+              .string({
+                message: $t('pages.system.menu.validation.permissionRequired'),
+              })
+              .min(1, $t('pages.system.menu.validation.permissionRequired'));
           }
           return z.string().optional();
         },
-        // 类型为菜单/按钮时显示
         show: (values) => values.type !== 'D',
         triggerFields: ['type'],
       },
       fieldName: 'perms',
-      help: `控制器中定义的权限字符\n 如: @SaCheckPermission("system:user:import")`,
-      label: '权限标识',
+      help: $t('pages.system.menu.help.permission'),
+      label: $t('pages.system.menu.fields.permissionKey'),
     },
     {
       component: 'InputNumber',
       fieldName: 'sort',
-      help: '排序, 数字越小越靠前',
-      label: '显示排序',
+      help: $t('pages.system.menu.help.sort'),
+      label: $t('pages.system.menu.fields.displaySort'),
       defaultValue: 0,
       rules: 'required',
     },
@@ -249,8 +248,8 @@ export function drawerSchema(): VbenFormSchema[] {
       componentProps: (model) => {
         const placeholder =
           model.isFrame === 1
-            ? '填写链接地址http(s)://  使用新页面打开'
-            : '填写`路由地址`或者`链接地址`  链接默认使用内部iframe内嵌打开';
+            ? $t('pages.system.menu.placeholders.externalPath')
+            : $t('pages.system.menu.placeholders.routePath');
         return {
           placeholder,
         };
@@ -259,52 +258,58 @@ export function drawerSchema(): VbenFormSchema[] {
         rules: (model) => {
           if (model.isFrame !== 1) {
             return z
-              .string({ message: '请输入路由地址' })
-              .min(1, '请输入路由地址');
+              .string({
+                message: $t('pages.system.menu.validation.routeRequired'),
+              })
+              .min(1, $t('pages.system.menu.validation.routeRequired'));
           }
-          // 为链接
           return z
-            .string({ message: '请输入链接地址' })
-            .regex(/^https?:\/\//, { message: '请输入正确的链接地址' });
+            .string({
+              message: $t('pages.system.menu.validation.linkRequired'),
+            })
+            .regex(/^https?:\/\//, {
+              message: $t('pages.system.menu.validation.linkInvalid'),
+            });
         },
-        // 类型不为按钮时显示
         show: (values) => values?.type !== 'B',
         triggerFields: ['isFrame', 'type'],
       },
       fieldName: 'path',
-      help: `路由地址支持 system/menu 或 /system/menu\n 链接为http(s)://开头\n 链接默认使用内部iframe打开, 可通过{是否外链}控制打开方式`,
-      label: '路由地址',
+      help: $t('pages.system.menu.help.path'),
+      label: $t('pages.system.menu.fields.routePath'),
     },
     {
       component: 'Input',
       componentProps: (model) => {
         return {
-          // 为链接时组件disabled
           disabled: model.isFrame === 1,
         };
       },
       defaultValue: '',
       dependencies: {
         rules: (model) => {
-          // 非链接时为必填项
           if (model.path && !/^https?:\/\//.test(model.path)) {
             return z
               .string()
-              .min(1, { message: '非链接时必填组件路径' })
+              .min(1, {
+                message: $t(
+                  'pages.system.menu.validation.componentRequired',
+                ),
+              })
               .refine((val) => !val.startsWith('/') && !val.endsWith('/'), {
-                message: '组件路径开头/末尾不需要带/',
+                message: $t(
+                  'pages.system.menu.validation.componentNoSlash',
+                ),
               });
           }
-          // 为链接时非必填
           return z.string().optional();
         },
-        // 类型为菜单时显示
         show: (values) => values.type === 'M',
         triggerFields: ['type', 'path'],
       },
       fieldName: 'component',
-      help: '填写./src/views下的组件路径, 如system/menu/index',
-      label: '组件路径',
+      help: $t('pages.system.menu.help.component'),
+      label: $t('pages.system.menu.fields.componentPath'),
     },
     {
       component: 'RadioGroup',
@@ -315,69 +320,64 @@ export function drawerSchema(): VbenFormSchema[] {
       },
       defaultValue: 0,
       dependencies: {
-        // 类型不为按钮时显示
         show: (values) => values.type !== 'B',
         triggerFields: ['type'],
       },
       fieldName: 'isFrame',
-      help: '外链为http(s)://开头\n 选择是时, 使用新窗口打开页面, 否则iframe从内部打开页面',
-      label: '是否外链',
+      help: $t('pages.system.menu.help.externalLink'),
+      label: $t('pages.system.menu.fields.isExternalLink'),
     },
     {
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: '显示', value: 1 },
-          { label: '隐藏', value: 0 },
+          { label: $t('pages.system.menu.visible.shown'), value: 1 },
+          { label: $t('pages.system.menu.visible.hidden'), value: 0 },
         ],
         optionType: 'button',
       },
       defaultValue: 1,
       dependencies: {
-        // 类型不为按钮时显示
         show: (values) => values.type !== 'B',
         triggerFields: ['type'],
       },
       fieldName: 'visible',
-      help: '隐藏后不会出现在菜单栏, 但仍然可以访问',
-      label: '是否显示',
+      help: $t('pages.system.menu.help.visible'),
+      label: $t('pages.system.menu.fields.visible'),
     },
     {
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
         options: [
-          { label: '正常', value: 1 },
-          { label: '停用', value: 0 },
+          { label: $t('pages.status.enabled'), value: 1 },
+          { label: $t('pages.status.disabled'), value: 0 },
         ],
         optionType: 'button',
       },
       defaultValue: 1,
       dependencies: {
-        // 类型不为按钮时显示
         show: (values) => values.type !== 'B',
         triggerFields: ['type'],
       },
       fieldName: 'status',
-      help: '停用后不会出现在菜单栏, 也无法访问',
-      label: '菜单状态',
+      help: $t('pages.system.menu.help.status'),
+      label: $t('pages.system.menu.fields.menuStatus'),
     },
     {
       component: 'Input',
       componentProps: (model) => ({
-        // 为链接时组件disabled
         disabled: model.isFrame === 1,
-        placeholder: '必须为json字符串格式',
+        placeholder: $t('pages.system.menu.placeholders.queryParam'),
       }),
       dependencies: {
-        // 类型为菜单时显示
         show: (values) => values.type === 'M',
         triggerFields: ['type'],
       },
       fieldName: 'queryParam',
-      help: 'vue-router中的query属性\n 如{"name": "xxx", "age": 16}',
-      label: '路由参数',
+      help: $t('pages.system.menu.help.queryParam'),
+      label: $t('pages.system.menu.fields.routeParams'),
     },
     {
       component: 'RadioGroup',
@@ -388,23 +388,22 @@ export function drawerSchema(): VbenFormSchema[] {
       },
       defaultValue: 0,
       dependencies: {
-        // 类型为菜单时显示
         show: (values) => values.type === 'M',
         triggerFields: ['type'],
       },
       fieldName: 'isCache',
-      help: '路由的keepAlive属性',
-      label: '是否缓存',
+      help: $t('pages.system.menu.help.cache'),
+      label: $t('pages.system.menu.fields.cache'),
     },
     {
       component: 'Textarea',
       componentProps: {
-        placeholder: '请输入备注',
+        placeholder: $t('pages.system.menu.placeholders.remark'),
         rows: 3,
       },
       fieldName: 'remark',
       formItemClass: 'col-span-2',
-      label: '备注',
+      label: $t('pages.common.remark'),
     },
   ];
 }

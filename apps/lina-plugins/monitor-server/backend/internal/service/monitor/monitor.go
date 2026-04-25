@@ -6,11 +6,10 @@ package monitor
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"os"
 	"runtime"
-	"strings"
+	"strconv"
 	"time"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -402,24 +401,9 @@ func (s *serviceImpl) collectGoRuntime() *GoRuntimeInfo {
 		}
 	}
 	duration := time.Since(s.startTime)
-	days := int(duration.Hours()) / 24
-	hours := int(duration.Hours()) % 24
-	mins := int(duration.Minutes()) % 60
-	parts := make([]string, 0, 3)
-	if days > 0 {
-		parts = append(parts, fmt.Sprintf("%d天", days))
-	}
-	if hours > 0 {
-		parts = append(parts, fmt.Sprintf("%d小时", hours))
-	}
-	if mins > 0 {
-		parts = append(parts, fmt.Sprintf("%d分钟", mins))
-	}
-	if len(parts) == 0 {
-		info.ServiceUptime = "刚启动"
-	} else {
-		info.ServiceUptime = strings.Join(parts, " ")
-	}
+	// Persist uptime as raw seconds so the frontend can localize the display
+	// according to the active language instead of inheriting backend literals.
+	info.ServiceUptime = strconv.FormatInt(int64(duration/time.Second), 10)
 	return info
 }
 

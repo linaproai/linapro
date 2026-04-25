@@ -21,6 +21,34 @@ function formatTemplate(template, parameters = {}) {
   });
 }
 
+function resolveSupportedLocale(rawLocale) {
+  const locale = String(rawLocale || "").trim().toLowerCase();
+  if (locale.startsWith("zh")) {
+    return "zh-CN";
+  }
+  return "en-US";
+}
+
+function localizeSeedRecordTitle(locale, recordID, rawValue) {
+  if (resolveSupportedLocale(locale) !== "en-US") {
+    return rawValue || "";
+  }
+  if (String(recordID || "") === "plugin-demo-dynamic-seed-record") {
+    return "Dynamic Plugin SQL Demo Record";
+  }
+  return rawValue || "";
+}
+
+function localizeSeedRecordContent(locale, recordID, rawValue) {
+  if (resolveSupportedLocale(locale) !== "en-US") {
+    return rawValue || "";
+  }
+  if (String(recordID || "") === "plugin-demo-dynamic-seed-record") {
+    return "This record is seeded by the plugin-demo-dynamic install SQL and demonstrates CRUD operations against the data table created during plugin installation.";
+  }
+  return rawValue || "";
+}
+
 function buildPageCopy(context) {
   const t = (key, fallback) => translate(context, key, fallback);
 
@@ -1149,7 +1177,12 @@ export function mount(context) {
   const pageCopy = buildPageCopy(context);
 
   const accessToken = context.accessToken || "";
-  const currentLocale = context.locale || "";
+  const currentLocale = resolveSupportedLocale(
+    context.locale ||
+      documentRef.documentElement.lang ||
+      documentRef.defaultView?.navigator?.language ||
+      "",
+  );
   let recordFetchToken = 0;
   const state = {
     destroyed: false,
@@ -1204,11 +1237,11 @@ export function mount(context) {
   );
   actionButton.textContent = pageCopy.standaloneButton;
   actionButton.addEventListener("click", () => {
-    const standaloneURL = new URL(
-      "./standalone.html",
-      context.baseURL,
-    ).toString();
-    window.open(standaloneURL, "_blank", "noopener,noreferrer");
+    const standaloneURL = new URL("./standalone.html", context.baseURL);
+    if (currentLocale) {
+      standaloneURL.searchParams.set("lang", currentLocale);
+    }
+    window.open(standaloneURL.toString(), "_blank", "noopener,noreferrer");
   });
 
   const hint = documentRef.createElement("span");
@@ -1655,7 +1688,11 @@ export function mount(context) {
       const titleCell = documentRef.createElement("td");
       const titleBlock = documentRef.createElement("div");
       titleBlock.className = "plugin-demo-dynamic-page__cell-title";
-      titleBlock.textContent = record.title;
+      titleBlock.textContent = localizeSeedRecordTitle(
+        currentLocale,
+        record.id,
+        record.title,
+      );
       const createdMeta = documentRef.createElement("div");
       createdMeta.className = "plugin-demo-dynamic-page__cell-meta";
       createdMeta.textContent = pageCopy.table.createdAt(record.createdAt || "-");
@@ -1664,7 +1701,9 @@ export function mount(context) {
       const contentCell = documentRef.createElement("td");
       const contentBlock = documentRef.createElement("div");
       contentBlock.className = "plugin-demo-dynamic-page__cell-content";
-      contentBlock.textContent = record.content || "-";
+      contentBlock.textContent =
+        localizeSeedRecordContent(currentLocale, record.id, record.content) ||
+        "-";
       contentCell.append(contentBlock);
 
       const attachmentCell = documentRef.createElement("td");
@@ -1780,8 +1819,16 @@ export function mount(context) {
     state.modalOpen = true;
     state.editingRecord = record;
     if (record) {
-      titleInput.value = record.title || "";
-      contentInput.value = record.content || "";
+      titleInput.value = localizeSeedRecordTitle(
+        currentLocale,
+        record.id,
+        record.title,
+      );
+      contentInput.value = localizeSeedRecordContent(
+        currentLocale,
+        record.id,
+        record.content,
+      );
       if (record.hasAttachment) {
         existingAttachment.textContent = pageCopy.modal.currentAttachment(
           record.attachmentName,
@@ -1955,7 +2002,11 @@ export function mount(context) {
   }
 
   async function deleteRecord(record) {
-    const confirmed = window.confirm(pageCopy.messages.deleteConfirm(record.title));
+    const confirmed = window.confirm(
+      pageCopy.messages.deleteConfirm(
+        localizeSeedRecordTitle(currentLocale, record.id, record.title),
+      ),
+    );
     if (!confirmed) {
       return;
     }

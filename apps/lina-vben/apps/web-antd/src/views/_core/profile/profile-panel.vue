@@ -9,6 +9,7 @@ import { Card, Descriptions, DescriptionsItem, Tooltip } from 'ant-design-vue';
 
 import { userUpdateAvatar } from '#/api/system/user';
 import { CropperAvatar } from '#/components/cropper';
+import { $t } from '#/locales';
 
 const props = defineProps<{ profile?: SysUser }>();
 
@@ -25,7 +26,7 @@ const avatar = computed(
   <Card :loading="!profile" class="h-full lg:w-1/3">
     <div v-if="profile" class="flex flex-col items-center gap-[24px]">
       <div class="flex flex-col items-center gap-[20px]">
-        <Tooltip title="点击上传头像">
+        <Tooltip :title="$t('pages.profile.panel.uploadAvatar')">
           <CropperAvatar
             :show-btn="false"
             :upload-api="userUpdateAvatar"
@@ -36,7 +37,7 @@ const avatar = computed(
         </Tooltip>
         <div class="flex flex-col items-center gap-[8px]">
           <span class="text-foreground text-xl font-bold">
-            {{ profile.nickname || '未知' }}
+            {{ profile.nickname || $t('pages.status.unknown') }}
           </span>
           <span class="text-foreground/60 text-sm">
             {{ profile.username }}
@@ -45,17 +46,17 @@ const avatar = computed(
       </div>
       <div class="w-full px-[24px]">
         <Descriptions :column="1">
-          <DescriptionsItem label="账号">
+          <DescriptionsItem :label="$t('pages.profile.panel.account')">
             {{ profile.username }}
           </DescriptionsItem>
-          <DescriptionsItem label="手机">
-            {{ profile.phone || '未绑定手机' }}
+          <DescriptionsItem :label="$t('pages.fields.phone')">
+            {{ profile.phone || $t('pages.profile.panel.unboundPhone') }}
           </DescriptionsItem>
-          <DescriptionsItem label="邮箱">
-            {{ profile.email || '未绑定邮箱' }}
+          <DescriptionsItem :label="$t('pages.fields.email')">
+            {{ profile.email || $t('pages.profile.panel.unboundEmail') }}
           </DescriptionsItem>
-          <DescriptionsItem label="上次登录">
-            {{ profile.loginDate || '暂无登录记录' }}
+          <DescriptionsItem :label="$t('pages.profile.panel.lastLogin')">
+            {{ profile.loginDate || $t('pages.profile.panel.noLoginRecord') }}
           </DescriptionsItem>
         </Descriptions>
       </div>

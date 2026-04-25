@@ -15,6 +15,7 @@ import {
   pluginList,
   pluginSync,
 } from '#/api/system/plugin';
+import { $t } from '#/locales';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
 
 import PluginDetailModal from './plugin-detail-modal.vue';
@@ -50,8 +51,6 @@ const pluginAccessCodes = {
   uninstall: 'plugin:uninstall',
 } as const;
 
-const autoEnableManagedBadgeLabel = '启动自动启用';
-
 const { hasAccessByCodes } = useAccess();
 
 const [Grid, gridApi] = useVbenVxeGrid({
@@ -60,43 +59,55 @@ const [Grid, gridApi] = useVbenVxeGrid({
       {
         component: 'Input',
         fieldName: 'id',
-        label: '插件标识',
+        label: $t('pages.system.plugin.fields.id'),
       },
       {
         component: 'Input',
         fieldName: 'name',
-        label: '插件名称',
+        label: $t('pages.system.plugin.fields.name'),
       },
       {
         component: 'Select',
         fieldName: 'type',
-        label: '插件类型',
+        label: $t('pages.system.plugin.fields.type'),
         componentProps: {
           options: [
-            { label: '源码插件', value: 'source' },
-            { label: '动态插件', value: 'dynamic' },
+            {
+              label: $t('pages.system.plugin.type.source'),
+              value: 'source',
+            },
+            {
+              label: $t('pages.system.plugin.type.dynamic'),
+              value: 'dynamic',
+            },
           ],
         },
       },
       {
         component: 'Select',
         fieldName: 'installed',
-        label: '接入态',
+        label: $t('pages.system.plugin.fields.installed'),
         componentProps: {
           options: [
-            { label: '已接入', value: 1 },
-            { label: '未安装', value: 0 },
+            {
+              label: $t('pages.system.plugin.installed.connected'),
+              value: 1,
+            },
+            {
+              label: $t('pages.system.plugin.installed.notInstalled'),
+              value: 0,
+            },
           ],
         },
       },
       {
         component: 'Select',
         fieldName: 'status',
-        label: '状态',
+        label: $t('pages.common.status'),
         componentProps: {
           options: [
-            { label: '启用', value: 1 },
-            { label: '禁用', value: 0 },
+            { label: $t('pages.status.enabled'), value: 1 },
+            { label: $t('pages.status.disabled'), value: 0 },
           ],
         },
       },
@@ -111,43 +122,55 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     columns: [
-      { field: 'id', minWidth: 160, title: '插件标识' },
+      {
+        field: 'id',
+        minWidth: 160,
+        title: $t('pages.system.plugin.fields.id'),
+      },
       {
         field: 'name',
         minWidth: 220,
         slots: { default: 'name' },
-        title: '插件名称',
+        title: $t('pages.system.plugin.fields.name'),
       },
       {
         field: 'type',
         slots: { default: 'type' },
-        title: '插件类型',
+        title: $t('pages.system.plugin.fields.type'),
         width: 120,
       },
-      { field: 'version', title: '版本', width: 120 },
+      { field: 'version', title: $t('pages.system.plugin.fields.version'), width: 120 },
       {
         className: 'plugin-description-column',
         field: 'description',
         minWidth: 260,
         showOverflow: false,
         slots: { default: 'description' },
-        title: '描述',
+        title: $t('pages.fields.description'),
       },
       {
         field: 'enabled',
         slots: { default: 'enabled' },
-        title: '状态',
+        title: $t('pages.common.status'),
         width: 130,
       },
       {
         field: 'action',
         fixed: 'right',
         slots: { default: 'action' },
-        title: '操作',
+        title: $t('pages.common.actions'),
         width: 240,
       },
-      { field: 'installedAt', title: '安装时间', width: 180 },
-      { field: 'updatedAt', title: '更新时间', width: 180 },
+      {
+        field: 'installedAt',
+        title: $t('pages.system.plugin.fields.installedAt'),
+        width: 180,
+      },
+      {
+        field: 'updatedAt',
+        title: $t('pages.common.updatedAt'),
+        width: 180,
+      },
     ],
     height: 'auto',
     keepSource: true,
@@ -175,7 +198,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
 });
 
 function getPluginTypeLabel(type: string) {
-  return type === 'source' ? '源码插件' : '动态插件';
+  return type === 'source'
+    ? $t('pages.system.plugin.type.source')
+    : $t('pages.system.plugin.type.dynamic');
 }
 
 function getPluginTypeColor(type: string) {
@@ -187,22 +212,28 @@ function isAutoEnableManaged(row: SystemPlugin) {
 }
 
 function buildAutoEnableManagedTooltip(row: SystemPlugin) {
-  return `插件 ${row.id} 当前由宿主主配置 plugin.autoEnable 管理。`;
+  return $t('pages.system.plugin.messages.autoEnableTooltip', {
+    pluginId: row.id,
+  });
 }
 
 function buildAutoEnableManagedRuntimeHint(actionLabel: string) {
-  return `该插件当前由宿主主配置 plugin.autoEnable 管理。本次${actionLabel}会立即生效，但若配置不变，宿主下次重启后会再次安装并启用该插件。若需永久停用，请先修改宿主配置中的 plugin.autoEnable。`;
+  return $t('pages.system.plugin.messages.autoEnableRuntimeHint', {
+    actionLabel,
+  });
 }
 
 async function confirmAutoEnableManagedAction(actionLabel: string) {
   return await new Promise<boolean>((resolve) => {
     Modal.confirm({
-      cancelText: '取消',
+      cancelText: $t('pages.common.cancel'),
       content: h('div', { class: 'whitespace-pre-line leading-6' }, [
         buildAutoEnableManagedRuntimeHint(actionLabel),
       ]),
-      okText: `继续${actionLabel}`,
-      title: `${actionLabel}启动自动启用插件`,
+      okText: $t('pages.system.plugin.actions.continueAction', { actionLabel }),
+      title: $t('pages.system.plugin.messages.autoEnableConfirmTitle', {
+        actionLabel,
+      }),
       onCancel: () => resolve(false),
       onOk: () => resolve(true),
     });
@@ -240,11 +271,11 @@ function handleDetail(row: SystemPlugin) {
 
 async function handleStatusChange(row: SystemPlugin, checked: boolean) {
   if (row.installed !== 1) {
-    message.warning('请先完成插件接入');
+    message.warning($t('pages.system.plugin.messages.installFirst'));
     return;
   }
   if (!canTogglePluginStatus(row)) {
-    message.warning('当前账号缺少插件状态管理权限');
+    message.warning($t('pages.system.plugin.messages.noStatusPermission'));
     return;
   }
   if (
@@ -257,7 +288,9 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
     return;
   }
   if (!checked && isAutoEnableManaged(row)) {
-    const confirmed = await confirmAutoEnableManagedAction('禁用');
+    const confirmed = await confirmAutoEnableManagedAction(
+      $t('pages.status.disabled'),
+    );
     if (!confirmed) {
       return;
     }
@@ -265,12 +298,16 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
   await (checked ? pluginEnable : pluginDisable)(row.id);
   row.enabled = checked ? 1 : 0;
   await notifyPluginRegistryChanged();
-  message.success(checked ? '插件已启用' : '插件已禁用');
+  message.success(
+    checked
+      ? $t('pages.system.plugin.messages.enabled')
+      : $t('pages.system.plugin.messages.disabled'),
+  );
 }
 
 async function handleInstall(row: SystemPlugin) {
   if (!canInstallPlugin()) {
-    message.warning('当前账号缺少插件安装权限');
+    message.warning($t('pages.system.plugin.messages.noInstallPermission'));
     return;
   }
   hostServiceAuthModalApi.setData({
@@ -283,7 +320,7 @@ async function handleInstall(row: SystemPlugin) {
 
 function handleOpenUninstall(row: SystemPlugin) {
   if (!canUninstallPlugin()) {
-    message.warning('当前账号缺少插件卸载权限');
+    message.warning($t('pages.system.plugin.messages.noUninstallPermission'));
     return;
   }
   uninstallModalApi.setData({ row });
@@ -292,19 +329,19 @@ function handleOpenUninstall(row: SystemPlugin) {
 
 async function handleSync() {
   if (!canSyncPlugins()) {
-    message.warning('当前账号缺少插件安装权限');
+    message.warning($t('pages.system.plugin.messages.noInstallPermission'));
     return;
   }
   const res = await pluginSync();
   await notifyPluginRegistryChanged();
   const total = typeof res?.total === 'number' ? res.total : 0;
-  message.success(`已同步 ${total} 个源码插件`);
+  message.success($t('pages.system.plugin.messages.syncSuccess', { total }));
   await gridApi.query();
 }
 
 function handleOpenDynamicUpload() {
   if (!canInstallPlugin()) {
-    message.warning('当前账号缺少插件安装权限');
+    message.warning($t('pages.system.plugin.messages.noInstallPermission'));
     return;
   }
   dynamicUploadModalApi.open();
@@ -328,7 +365,7 @@ async function handleUninstallReload() {
 
 <template>
   <Page :auto-content-height="true">
-    <Grid table-title="插件列表">
+    <Grid :table-title="$t('pages.system.plugin.tableTitle')">
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -337,14 +374,14 @@ async function handleUninstallReload() {
             v-access:code="pluginAccessCodes.install"
             @click="handleOpenDynamicUpload"
           >
-            上传插件
+            {{ $t('pages.system.plugin.actions.uploadPlugin') }}
           </a-button>
           <a-button
             v-access:code="pluginAccessCodes.install"
             type="primary"
             @click="handleSync"
           >
-            同步插件
+            {{ $t('pages.system.plugin.actions.syncPlugins') }}
           </a-button>
         </Space>
       </template>
@@ -363,7 +400,7 @@ async function handleUninstallReload() {
             :title="buildAutoEnableManagedTooltip(row)"
           >
             <Tag :data-testid="`plugin-auto-enable-tag-${row.id}`" color="gold">
-              {{ autoEnableManagedBadgeLabel }}
+              {{ $t('pages.system.plugin.autoEnableBadge') }}
             </Tag>
           </Tooltip>
         </Space>
@@ -385,15 +422,15 @@ async function handleUninstallReload() {
         <Tooltip
           :title="
             isAutoEnableManaged(row)
-              ? buildAutoEnableManagedRuntimeHint('禁用')
+              ? buildAutoEnableManagedRuntimeHint($t('pages.status.disabled'))
               : undefined
           "
         >
           <Switch
             :checked="row.enabled === 1"
             :disabled="row.installed !== 1 || !canTogglePluginStatus(row)"
-            checked-children="启用"
-            un-checked-children="禁用"
+            :checked-children="$t('pages.status.enabled')"
+            :un-checked-children="$t('pages.status.disabled')"
             @change="(checked) => handleStatusChange(row, !!checked)"
           />
         </Tooltip>
@@ -405,20 +442,20 @@ async function handleUninstallReload() {
             :data-testid="`plugin-detail-button-${row.id}`"
             @click.stop="handleDetail(row)"
           >
-            详情
+            {{ $t('pages.common.detail') }}
           </ghost-button>
           <ghost-button
             v-if="row.installed !== 1 && canInstallPlugin()"
             @click.stop="handleInstall(row)"
           >
-            安装
+            {{ $t('pages.system.plugin.actions.install') }}
           </ghost-button>
           <Tooltip
             v-else-if="canUninstallPlugin() && isAutoEnableManaged(row)"
-            :title="buildAutoEnableManagedRuntimeHint('卸载')"
+            :title="buildAutoEnableManagedRuntimeHint($t('pages.system.plugin.actions.uninstall'))"
           >
             <ghost-button danger @click.stop="handleOpenUninstall(row)">
-              卸载
+              {{ $t('pages.system.plugin.actions.uninstall') }}
             </ghost-button>
           </Tooltip>
           <ghost-button
@@ -426,7 +463,7 @@ async function handleUninstallReload() {
             danger
             @click.stop="handleOpenUninstall(row)"
           >
-            卸载
+            {{ $t('pages.system.plugin.actions.uninstall') }}
           </ghost-button>
         </Space>
       </template>
