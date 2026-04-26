@@ -80,6 +80,8 @@
 
   .vxe-pager--sizes {
     margin-right: auto;
+    width: 11em;
+    min-width: 11em;
   }
 }
 

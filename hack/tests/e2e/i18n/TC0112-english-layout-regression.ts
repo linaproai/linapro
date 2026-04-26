@@ -193,6 +193,27 @@ test.describe('TC0112 英文布局回归', () => {
     const userPage = new UserPage(adminPage);
 
     await userPage.goto();
+    const pageSizeSelector = adminPage.locator('.vxe-pager--sizes').first();
+    await expect(
+      pageSizeSelector,
+      'User page size selector should be visible',
+    ).toBeVisible();
+    await pageSizeSelector.click();
+    const largestPageSizeOption = adminPage
+      .locator('.vxe-select-option')
+      .filter({ hasText: /^100 items\/page$/ })
+      .last();
+    await expect(
+      largestPageSizeOption,
+      'Largest page size option should be visible',
+    ).toBeVisible();
+    await largestPageSizeOption.click();
+    const pageSizeInput = pageSizeSelector.locator('input').first();
+    await expect(pageSizeInput).toHaveValue('100 items/page');
+    await expectNoHorizontalClip(
+      pageSizeInput,
+      'User page size selector label',
+    );
     await expectSingleLine(
       layoutPage.formLabel(/^User Account$/),
       'User search label: User Account',
