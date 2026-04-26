@@ -3,8 +3,6 @@
 
 package pluginhost
 
-import "lina-core/pkg/audittype"
-
 // HookPayloadKey defines one published field name inside a host hook payload.
 type HookPayloadKey string
 
@@ -30,28 +28,6 @@ const (
 	HookPayloadKeyOS HookPayloadKey = "os"
 	// HookPayloadKeyMessage stores the audit message for auth hook events.
 	HookPayloadKeyMessage HookPayloadKey = "message"
-	// HookPayloadKeyTitle stores the audit title for request audit hook events.
-	HookPayloadKeyTitle HookPayloadKey = "title"
-	// HookPayloadKeyOperSummary stores the audit operation summary.
-	HookPayloadKeyOperSummary HookPayloadKey = "operSummary"
-	// HookPayloadKeyOperType stores the audit operation type value.
-	HookPayloadKeyOperType HookPayloadKey = "operType"
-	// HookPayloadKeyMethod stores the routed handler path or method marker.
-	HookPayloadKeyMethod HookPayloadKey = "method"
-	// HookPayloadKeyRequestMethod stores the HTTP request method.
-	HookPayloadKeyRequestMethod HookPayloadKey = "requestMethod"
-	// HookPayloadKeyOperName stores the operator username recorded by the audit event.
-	HookPayloadKeyOperName HookPayloadKey = "operName"
-	// HookPayloadKeyOperURL stores the full request URL captured by the audit event.
-	HookPayloadKeyOperURL HookPayloadKey = "operUrl"
-	// HookPayloadKeyOperParam stores the sanitized request payload captured by the audit event.
-	HookPayloadKeyOperParam HookPayloadKey = "operParam"
-	// HookPayloadKeyJSONResult stores the serialized response body captured by the audit event.
-	HookPayloadKeyJSONResult HookPayloadKey = "jsonResult"
-	// HookPayloadKeyErrorMsg stores the error summary captured by the audit event.
-	HookPayloadKeyErrorMsg HookPayloadKey = "errorMsg"
-	// HookPayloadKeyCostTime stores the elapsed request time in milliseconds.
-	HookPayloadKeyCostTime HookPayloadKey = "costTime"
 )
 
 // AuthHookPayloadInput defines the published auth hook payload fields.
@@ -71,23 +47,6 @@ type PluginLifecycleHookPayloadInput struct {
 	Name     string
 	Version  string
 	Status   *int
-}
-
-// AuditHookPayloadInput defines the published request-audit hook payload fields.
-type AuditHookPayloadInput struct {
-	Title         string
-	OperSummary   string
-	OperType      audittype.OperType
-	Method        string
-	RequestMethod string
-	OperName      string
-	OperURL       string
-	OperIP        string
-	OperParam     string
-	JSONResult    string
-	Status        int
-	ErrorMsg      string
-	CostTime      int
 }
 
 // String returns the canonical published hook payload field name.
@@ -121,25 +80,6 @@ func BuildPluginLifecycleHookPayloadValues(input PluginLifecycleHookPayloadInput
 	return values
 }
 
-// BuildAuditHookPayloadValues creates the published request-audit payload map.
-func BuildAuditHookPayloadValues(input AuditHookPayloadInput) map[string]interface{} {
-	return map[string]interface{}{
-		HookPayloadKeyTitle.String():         input.Title,
-		HookPayloadKeyOperSummary.String():   input.OperSummary,
-		HookPayloadKeyOperType.String():      input.OperType.String(),
-		HookPayloadKeyMethod.String():        input.Method,
-		HookPayloadKeyRequestMethod.String(): input.RequestMethod,
-		HookPayloadKeyOperName.String():      input.OperName,
-		HookPayloadKeyOperURL.String():       input.OperURL,
-		HookPayloadKeyIP.String():            input.OperIP,
-		HookPayloadKeyOperParam.String():     input.OperParam,
-		HookPayloadKeyJSONResult.String():    input.JSONResult,
-		HookPayloadKeyStatus.String():        input.Status,
-		HookPayloadKeyErrorMsg.String():      input.ErrorMsg,
-		HookPayloadKeyCostTime.String():      input.CostTime,
-	}
-}
-
 // CloneHookPayloadValues returns a shallow copy of published hook payload values.
 func CloneHookPayloadValues(values map[string]interface{}) map[string]interface{} {
 	return cloneValueMap(values)
@@ -161,11 +101,4 @@ func HookPayloadIntValue(values map[string]interface{}, key HookPayloadKey) (int
 	}
 	value, ok := values[key.String()].(int)
 	return value, ok
-}
-
-// HookPayloadOperTypeValue extracts one audit operation type from the published map.
-func HookPayloadOperTypeValue(values map[string]interface{}, key HookPayloadKey) (audittype.OperType, bool) {
-	value := HookPayloadStringValue(values, key)
-	operType := audittype.Normalize(value)
-	return operType, audittype.IsSupported(operType)
 }

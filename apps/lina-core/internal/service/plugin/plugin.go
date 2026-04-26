@@ -19,7 +19,6 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/net/goai"
 
-	"lina-core/pkg/audittype"
 	"lina-core/pkg/pluginhost"
 	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
 )
@@ -46,8 +45,8 @@ type (
 	// RuntimeFrontendAssetOutput contains one resolved frontend asset ready to be served.
 	RuntimeFrontendAssetOutput = frontend.RuntimeFrontendAssetOutput
 
-	// DynamicRouteOperLogMetadata stores operation-log metadata for dynamic routes.
-	DynamicRouteOperLogMetadata = runtime.DynamicRouteOperLogMetadata
+	// DynamicRouteMetadata stores generic metadata for dynamic routes.
+	DynamicRouteMetadata = runtime.DynamicRouteMetadata
 
 	// PluginDynamicStateItem represents public runtime state of one plugin.
 	PluginDynamicStateItem = runtime.PluginDynamicStateItem
@@ -70,9 +69,9 @@ type UninstallOptions struct {
 	PurgeStorageData bool
 }
 
-// GetDynamicRouteOperLogMetadata returns dynamic-route operation-log metadata from the request.
+// GetDynamicRouteMetadata returns generic dynamic-route metadata from the request.
 // This package-level function is retained for callers that cannot import the runtime sub-package.
-var GetDynamicRouteOperLogMetadata = runtime.GetDynamicRouteOperLogMetadata
+var GetDynamicRouteMetadata = runtime.GetDynamicRouteMetadata
 
 // ListOutput defines output for plugin list query.
 type ListOutput struct {
@@ -114,36 +113,6 @@ type AuthLoginSucceededInput struct {
 	Message string
 }
 
-// AuditRecordedInput defines input for request-audit hook events.
-type AuditRecordedInput struct {
-	// Title is the audit title derived from handler metadata.
-	Title string
-	// OperSummary is the audit summary derived from handler metadata.
-	OperSummary string
-	// OperType is the normalized semantic audit operation type.
-	OperType audittype.OperType
-	// Method is the routed handler path or method marker.
-	Method string
-	// RequestMethod is the HTTP request method.
-	RequestMethod string
-	// OperName is the operator username.
-	OperName string
-	// OperUrl is the full request URL.
-	OperUrl string
-	// OperIp is the client IP captured by the audit event.
-	OperIp string
-	// OperParam is the sanitized request payload.
-	OperParam string
-	// JsonResult is the serialized response snippet.
-	JsonResult string
-	// Status is the audit status code.
-	Status int
-	// ErrorMsg is the captured error summary.
-	ErrorMsg string
-	// CostTime is the request duration in milliseconds.
-	CostTime int
-}
-
 // AuthHookService defines auth-related plugin hook operations.
 type AuthHookService interface {
 	// HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
@@ -152,8 +121,6 @@ type AuthHookService interface {
 	HandleAuthLoginFailed(ctx context.Context, input AuthLoginSucceededInput) error
 	// HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
 	HandleAuthLogoutSucceeded(ctx context.Context, input AuthLoginSucceededInput) error
-	// HandleAuditRecorded dispatches a request-audit hook to all enabled plugins.
-	HandleAuditRecorded(ctx context.Context, input AuditRecordedInput) error
 }
 
 // DataCommentService defines host data-table comment lookup operations.

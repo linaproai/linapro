@@ -10,8 +10,6 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"google.golang.org/protobuf/encoding/protowire"
-
-	"lina-core/pkg/audittype"
 )
 
 // Bridge ABI constants define the stable runtime defaults shared between host,
@@ -48,19 +46,6 @@ const (
 	bridgeFailureCodeInternal     = "INTERNAL_ERROR"
 )
 
-// validOperLogTags defines all valid semantic operLog tag values for route contracts.
-var validOperLogTags = map[string]struct{}{
-	audittype.OperTypeCreate.String(): {},
-	audittype.OperTypeUpdate.String(): {},
-	audittype.OperTypeDelete.String(): {},
-	audittype.OperTypeExport.String(): {},
-	audittype.OperTypeImport.String(): {},
-	audittype.OperTypeOther.String():  {},
-}
-
-// validOperLogTagList lists all valid operLog tags for error messages.
-var validOperLogTagList = audittype.PublishedValues()
-
 // RouteContract describes one dynamic plugin route contract embedded into the artifact.
 type RouteContract struct {
 	// Path is the public plugin route path exposed by the host router.
@@ -77,8 +62,8 @@ type RouteContract struct {
 	Access string `json:"access,omitempty" yaml:"access,omitempty"`
 	// Permission stores the host permission key enforced for authenticated access.
 	Permission string `json:"permission,omitempty" yaml:"permission,omitempty"`
-	// OperLog stores the semantic operation log tag emitted for successful writes.
-	OperLog string `json:"operLog,omitempty" yaml:"operLog,omitempty"`
+	// Meta stores plugin-defined route metadata that the host transports without interpretation.
+	Meta map[string]string `json:"meta,omitempty" yaml:"meta,omitempty"`
 	// RequestType is the guest controller request binding name resolved at runtime.
 	RequestType string `json:"requestType,omitempty" yaml:"requestType,omitempty"`
 }
@@ -235,9 +220,6 @@ func ValidateRouteContracts(pluginID string, routes []*RouteContract) error {
 			if route.Permission != "" {
 				return gerror.Newf("public 动态路由不能声明 permission: %s %s", route.Method, route.Path)
 			}
-			if route.OperLog != "" {
-				return gerror.Newf("public 动态路由不能声明 operLog: %s %s", route.Method, route.Path)
-			}
 		}
 		if route.Permission != "" {
 			parts := strings.Split(route.Permission, ":")
@@ -249,11 +231,6 @@ func ValidateRouteContracts(pluginID string, routes []*RouteContract) error {
 			}
 			if strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" {
 				return gerror.Newf("动态路由 permission 资源与动作不能为空: %s", route.Permission)
-			}
-		}
-		if route.OperLog != "" {
-			if _, ok := validOperLogTags[route.OperLog]; !ok {
-				return gerror.Newf("动态路由 operLog 仅支持 %v: %s %s", validOperLogTagList, route.Method, route.Path)
 			}
 		}
 		key := route.Method + " " + route.Path
@@ -419,7 +396,7 @@ func normalizeRouteContract(route *RouteContract) {
 	route.Description = strings.TrimSpace(route.Description)
 	route.Access = strings.ToLower(strings.TrimSpace(route.Access))
 	route.Permission = strings.TrimSpace(route.Permission)
-	route.OperLog = strings.ToLower(strings.TrimSpace(route.OperLog))
+	route.Meta = normalizeRouteMeta(route.Meta)
 	route.RequestType = strings.TrimSpace(route.RequestType)
 	if len(route.Tags) > 0 {
 		tags := make([]string, 0, len(route.Tags))
@@ -432,6 +409,26 @@ func normalizeRouteContract(route *RouteContract) {
 		}
 		route.Tags = tags
 	}
+}
+
+// normalizeRouteMeta trims plugin-defined route metadata and drops empty keys or values.
+func normalizeRouteMeta(meta map[string]string) map[string]string {
+	if len(meta) == 0 {
+		return nil
+	}
+	normalized := make(map[string]string, len(meta))
+	for key, value := range meta {
+		normalizedKey := strings.TrimSpace(key)
+		normalizedValue := strings.TrimSpace(value)
+		if normalizedKey == "" || normalizedValue == "" {
+			continue
+		}
+		normalized[normalizedKey] = normalizedValue
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 // normalizeLower trims and lowercases one string, applying the default when

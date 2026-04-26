@@ -439,55 +439,6 @@ export function localizeSeedNoticeContent(
   return byID[String(noticeID ?? '')] || rawValue;
 }
 
-export function localizeSeedOperLogTitle(rawValue: string | null | undefined) {
-  return localizeByMap(rawValue, {
-    动态插件示例: 'Dynamic Plugin Demo',
-    参数设置: 'Parameters',
-    插件管理: 'Plugin Management',
-    操作日志: 'Audit Logs',
-    登录日志: 'Login History',
-    岗位管理: 'Positions',
-    任务调度: 'Scheduler',
-    '任务调度/定时任务': 'Scheduled Jobs',
-    '任务调度/执行日志': 'Job Run Logs',
-    认证管理: 'Authentication',
-    用户管理: 'User Management',
-    角色管理: 'Role Management',
-    字典管理: 'Dictionaries',
-  });
-}
-
-export function localizeSeedOperLogSummary(
-  rawValue: string | null | undefined,
-) {
-  return localizeByMap(rawValue, {
-    分页查询动态插件示例记录: 'Paged query for dynamic plugin demo records',
-    查询动态插件后端执行摘要: 'Query dynamic plugin backend execution summary',
-    宿主调用能力演示: 'Host service capability demo',
-    同步源码插件: 'Synchronize source plugins',
-    安装插件: 'Install Plugin',
-    启用插件: 'Enable Plugin',
-    禁用插件: 'Disable Plugin',
-    卸载插件: 'Uninstall Plugin',
-    创建用户: 'Create User',
-    创建角色: 'Create Role',
-    用户登录: 'User Login',
-    用户登出: 'User Logout',
-    创建任务: 'Create Job',
-    更新任务: 'Update Job',
-    手动触发任务: 'Trigger Job Manually',
-    终止运行实例: 'Terminate Running Instance',
-    导出用户数据: 'Export User Data',
-    导出岗位数据: 'Export Position Data',
-    导出参数设置: 'Export Parameters',
-    导出字典管理数据: 'Export Dictionary Management Data',
-    导出字典类型: 'Export Dictionary Types',
-    导出字典数据: 'Export Dictionary Data',
-    导出操作日志: 'Export Audit Logs',
-    导出登录日志: 'Export Login Logs',
-  });
-}
-
 export function localizeSeedLoginLogMessage(
   rawValue: string | null | undefined,
 ) {

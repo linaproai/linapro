@@ -59,6 +59,7 @@
       "exportFileName": "operation-logs.xlsx",
       "fields": {
         "duration": "Duration",
+        "durationMs": "Duration (ms)",
         "errorInfo": "Error Information",
         "ipAddress": "IP Address",
         "logId": "Log ID",
@@ -69,6 +70,7 @@
         "operTime": "Operation Time",
         "operType": "Operation Type",
         "operator": "Operator",
+        "requestMethod": "Request Method",
         "requestParams": "Request Parameters",
         "requestUrl": "Request URL",
         "responseResult": "Response Result"

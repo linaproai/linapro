@@ -59,6 +59,7 @@
       "exportFileName": "操作日志导出.xlsx",
       "fields": {
         "duration": "耗时",
+        "durationMs": "耗时(ms)",
         "errorInfo": "错误信息",
         "ipAddress": "IP 地址",
         "logId": "日志编号",
@@ -69,6 +70,7 @@
         "operTime": "操作时间",
         "operType": "操作类型",
         "operator": "操作人员",
+        "requestMethod": "请求方式",
         "requestParams": "请求参数",
         "requestUrl": "请求地址",
         "responseResult": "响应结果"

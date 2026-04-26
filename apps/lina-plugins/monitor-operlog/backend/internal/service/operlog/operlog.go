@@ -8,18 +8,21 @@ import (
 	"bytes"
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/xuri/excelize/v2"
 
-	"lina-core/pkg/audittype"
 	"lina-core/pkg/excelutil"
 	"lina-core/pkg/gdbutil"
+	hostapidoc "lina-core/pkg/pluginservice/apidoc"
+	hosti18n "lina-core/pkg/pluginservice/i18n"
 	"lina-plugin-monitor-operlog/backend/internal/dao"
 	"lina-plugin-monitor-operlog/backend/internal/model/do"
 	entitymodel "lina-plugin-monitor-operlog/backend/internal/model/entity"
+	"lina-plugin-monitor-operlog/backend/internal/model/operlogtype"
 )
 
 // Table, column, and dictionary constants used by the plugin-owned operation-log service.
@@ -27,6 +30,10 @@ const (
 	colID            = "id"
 	colTitle         = "title"
 	colOperSummary   = "oper_summary"
+	colRouteOwner    = "route_owner"
+	colRouteMethod   = "route_method"
+	colRoutePath     = "route_path"
+	colRouteDocKey   = "route_doc_key"
 	colOperType      = "oper_type"
 	colMethod        = "method"
 	colRequestMethod = "request_method"
@@ -46,6 +53,12 @@ const (
 	colDictSort  = "sort"
 )
 
+// Operation-log runtime i18n key fragments.
+const (
+	dictKeyPrefix  = "dict"
+	labelKeySuffix = "label"
+)
+
 // Operation-log export limit and dictionary constants.
 const (
 	MaxExportRows      = 10000
@@ -61,13 +74,13 @@ const (
 
 // defaultOperTypeLabels provides a stable fallback when the dictionary module
 // is unavailable during export rendering.
-var defaultOperTypeLabels = map[audittype.OperType]string{
-	audittype.OperTypeCreate: "新增",
-	audittype.OperTypeUpdate: "修改",
-	audittype.OperTypeDelete: "删除",
-	audittype.OperTypeExport: "导出",
-	audittype.OperTypeImport: "导入",
-	audittype.OperTypeOther:  "其他",
+var defaultOperTypeLabels = map[operlogtype.OperType]string{
+	operlogtype.OperTypeCreate: "新增",
+	operlogtype.OperTypeUpdate: "修改",
+	operlogtype.OperTypeDelete: "删除",
+	operlogtype.OperTypeExport: "导出",
+	operlogtype.OperTypeImport: "导入",
+	operlogtype.OperTypeOther:  "其他",
 }
 
 // defaultOperStatusLabels provides a stable fallback when the dictionary module
@@ -97,11 +110,17 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	apiDocSvc hostapidoc.Service // host apidoc translation service
+	i18nSvc   hosti18n.Service   // host runtime translation service
+}
 
 // New creates and returns a new monitor-operlog service instance.
 func New() Service {
-	return &serviceImpl{}
+	return &serviceImpl{
+		apiDocSvc: hostapidoc.New(),
+		i18nSvc:   hosti18n.New(),
+	}
 }
 
 // OperLogEntity mirrors the plugin-local generated plugin_monitor_operlog entity.
@@ -114,7 +133,11 @@ type dictDataRow = entitymodel.SysDictData
 type CreateInput struct {
 	Title         string
 	OperSummary   string
-	OperType      audittype.OperType
+	RouteOwner    string
+	RouteMethod   string
+	RoutePath     string
+	RouteDocKey   string
+	OperType      operlogtype.OperType
 	Method        string
 	RequestMethod string
 	OperName      string
@@ -133,7 +156,7 @@ type ListInput struct {
 	PageSize       int
 	Title          string
 	OperName       string
-	OperType       *audittype.OperType
+	OperType       *operlogtype.OperType
 	Status         *int
 	BeginTime      string
 	EndTime        string
@@ -157,7 +180,7 @@ type CleanInput struct {
 type ExportInput struct {
 	Title          string
 	OperName       string
-	OperType       *audittype.OperType
+	OperType       *operlogtype.OperType
 	Status         *int
 	BeginTime      string
 	EndTime        string
@@ -166,15 +189,25 @@ type ExportInput struct {
 	Ids            []int
 }
 
+// exportHeader describes one localized Excel header cell.
+type exportHeader struct {
+	Key      string // Key is the runtime i18n key for the header.
+	Fallback string // Fallback is used when the runtime bundle has no translation.
+}
+
 // Create inserts one operation-log record.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) error {
 	operType := in.OperType
-	if !audittype.IsSupported(operType) {
-		operType = audittype.OperTypeOther
+	if !operlogtype.IsSupported(operType) {
+		operType = operlogtype.OperTypeOther
 	}
 	_, err := dao.Operlog.Ctx(ctx).Data(do.Operlog{
 		Title:         in.Title,
 		OperSummary:   in.OperSummary,
+		RouteOwner:    in.RouteOwner,
+		RouteMethod:   in.RouteMethod,
+		RoutePath:     in.RoutePath,
+		RouteDocKey:   in.RouteDocKey,
 		OperType:      operType.String(),
 		Method:        in.Method,
 		RequestMethod: in.RequestMethod,
@@ -194,7 +227,8 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) error {
 // List queries the paginated operation-log list.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
 	model := dao.Operlog.Ctx(ctx)
-	model = applyOperLogFilters(model, in.Title, in.OperName, in.OperType, in.Status, in.BeginTime, in.EndTime)
+	titleOperationKeys := s.findLocalizedRouteTitleOperationKeys(ctx, in.Title)
+	model = applyOperLogFilters(model, in.Title, titleOperationKeys, in.OperName, in.OperType, in.Status, in.BeginTime, in.EndTime)
 
 	total, err := model.Count()
 	if err != nil {
@@ -223,6 +257,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
+	s.localizeRecords(ctx, list)
 
 	return &ListOutput{List: list, Total: total}, nil
 }
@@ -237,6 +272,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*OperLogEntity, erro
 	if record == nil {
 		return nil, gerror.New("操作日志不存在")
 	}
+	s.localizeRecord(ctx, record)
 	return record, nil
 }
 
@@ -289,7 +325,8 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	if len(in.Ids) > 0 {
 		model = model.WhereIn(colID, in.Ids)
 	} else {
-		model = applyOperLogFilters(model, in.Title, in.OperName, in.OperType, in.Status, in.BeginTime, in.EndTime)
+		titleOperationKeys := s.findLocalizedRouteTitleOperationKeys(ctx, in.Title)
+		model = applyOperLogFilters(model, in.Title, titleOperationKeys, in.OperName, in.OperType, in.Status, in.BeginTime, in.EndTime)
 	}
 	model = model.Limit(MaxExportRows)
 
@@ -311,19 +348,34 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	if err != nil {
 		return nil, err
 	}
+	s.localizeRecords(ctx, list)
 
 	file := excelize.NewFile()
 	defer excelutil.CloseFile(file, &err)
 	sheet := "Sheet1"
-	headers := []string{"模块名称", "操作名称", "操作类型", "操作人", "请求方式", "请求URL", "操作IP", "请求参数", "响应结果", "状态", "错误信息", "耗时(ms)", "操作时间"}
+	headers := []exportHeader{
+		{Key: "plugin.monitor-operlog.fields.moduleName", Fallback: "模块名称"},
+		{Key: "plugin.monitor-operlog.fields.operSummary", Fallback: "操作名称"},
+		{Key: "plugin.monitor-operlog.fields.operType", Fallback: "操作类型"},
+		{Key: "plugin.monitor-operlog.fields.operator", Fallback: "操作人"},
+		{Key: "plugin.monitor-operlog.fields.requestMethod", Fallback: "请求方式"},
+		{Key: "plugin.monitor-operlog.fields.requestUrl", Fallback: "请求URL"},
+		{Key: "plugin.monitor-operlog.fields.ipAddress", Fallback: "操作IP"},
+		{Key: "plugin.monitor-operlog.fields.requestParams", Fallback: "请求参数"},
+		{Key: "plugin.monitor-operlog.fields.responseResult", Fallback: "响应结果"},
+		{Key: "plugin.monitor-operlog.fields.operResult", Fallback: "状态"},
+		{Key: "plugin.monitor-operlog.fields.errorInfo", Fallback: "错误信息"},
+		{Key: "plugin.monitor-operlog.fields.durationMs", Fallback: "耗时(ms)"},
+		{Key: "plugin.monitor-operlog.fields.operTime", Fallback: "操作时间"},
+	}
 	for index, header := range headers {
-		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, header); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, s.translate(ctx, header.Key, header.Fallback)); setErr != nil {
 			return nil, setErr
 		}
 	}
 
-	operTypeMap := buildStringDictLabelMap(ctx, DictTypeOperType)
-	statusMap := buildIntDictLabelMap(ctx, DictTypeOperStatus)
+	operTypeMap := s.buildStringDictLabelMap(ctx, DictTypeOperType)
+	statusMap := s.buildIntDictLabelMap(ctx, DictTypeOperStatus)
 	for index, log := range list {
 		row := index + 2
 		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(1, row), log.Title); setErr != nil {
@@ -334,7 +386,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		}
 		operTypeText, ok := operTypeMap[log.OperType]
 		if !ok {
-			operTypeText = defaultOperTypeLabels[audittype.Normalize(log.OperType)]
+			operTypeText = s.localizeDictValue(ctx, DictTypeOperType, log.OperType, defaultOperTypeLabels[operlogtype.Normalize(log.OperType)])
 		}
 		if operTypeText == "" {
 			operTypeText = log.OperType
@@ -362,7 +414,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		}
 		statusText, ok := statusMap[log.Status]
 		if !ok {
-			statusText = defaultOperStatusLabels[log.Status]
+			statusText = s.localizeDictValue(ctx, DictTypeOperStatus, strconv.Itoa(log.Status), defaultOperStatusLabels[log.Status])
 		}
 		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(10, row), statusText); setErr != nil {
 			return nil, setErr
@@ -391,14 +443,19 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 func applyOperLogFilters(
 	model *gdb.Model,
 	title string,
+	titleOperationKeys []string,
 	operName string,
-	operType *audittype.OperType,
+	operType *operlogtype.OperType,
 	status *int,
 	beginTime string,
 	endTime string,
 ) *gdb.Model {
 	if title != "" {
-		model = model.WhereLike(colTitle, "%"+title+"%")
+		if len(titleOperationKeys) > 0 {
+			model = model.Where("("+colTitle+" LIKE ? OR "+colRouteDocKey+" IN(?))", "%"+title+"%", titleOperationKeys)
+		} else {
+			model = model.WhereLike(colTitle, "%"+title+"%")
+		}
 	}
 	if operName != "" {
 		model = model.WhereLike(colOperName, "%"+operName+"%")
@@ -418,8 +475,51 @@ func applyOperLogFilters(
 	return model
 }
 
-// buildStringDictLabelMap builds one string-value dictionary label map.
-func buildStringDictLabelMap(ctx context.Context, dictType string) map[string]string {
+// localizeRecords translates route metadata fallback fields on every record.
+func (s *serviceImpl) localizeRecords(ctx context.Context, records []*OperLogEntity) {
+	for _, record := range records {
+		s.localizeRecord(ctx, record)
+	}
+}
+
+// localizeRecord translates route metadata fallback fields on one record.
+func (s *serviceImpl) localizeRecord(ctx context.Context, record *OperLogEntity) {
+	if record == nil {
+		return
+	}
+	if s == nil || s.apiDocSvc == nil {
+		return
+	}
+	text := s.apiDocSvc.ResolveRouteText(ctx, hostapidoc.RouteTextInput{
+		OperationKey:    record.RouteDocKey,
+		Method:          record.RouteMethod,
+		Path:            record.RoutePath,
+		FallbackTitle:   record.Title,
+		FallbackSummary: record.OperSummary,
+	})
+	record.Title = text.Title
+	record.OperSummary = text.Summary
+}
+
+// translate resolves one runtime i18n key using the host translation service.
+func (s *serviceImpl) translate(ctx context.Context, key string, fallback string) string {
+	if s == nil || s.i18nSvc == nil {
+		return fallback
+	}
+	return s.i18nSvc.Translate(ctx, key, fallback)
+}
+
+// findLocalizedRouteTitleOperationKeys returns apidoc operation keys whose
+// localized module title matches the user's title keyword.
+func (s *serviceImpl) findLocalizedRouteTitleOperationKeys(ctx context.Context, title string) []string {
+	if s == nil || s.apiDocSvc == nil || strings.TrimSpace(title) == "" {
+		return []string{}
+	}
+	return s.apiDocSvc.FindRouteTitleOperationKeys(ctx, title)
+}
+
+// buildStringDictLabelMap builds one localized string-value dictionary label map.
+func (s *serviceImpl) buildStringDictLabelMap(ctx context.Context, dictType string) map[string]string {
 	rows := make([]*dictDataRow, 0)
 	err := dao.SysDictData.Ctx(ctx).
 		Fields(colDictValue, colDictLabel).
@@ -433,13 +533,13 @@ func buildStringDictLabelMap(ctx context.Context, dictType string) map[string]st
 
 	labels := make(map[string]string, len(rows))
 	for _, row := range rows {
-		labels[row.Value] = row.Label
+		labels[row.Value] = s.localizeDictValue(ctx, dictType, row.Value, row.Label)
 	}
 	return labels
 }
 
-// buildIntDictLabelMap builds one integer-value dictionary label map.
-func buildIntDictLabelMap(ctx context.Context, dictType string) map[int]string {
+// buildIntDictLabelMap builds one localized integer-value dictionary label map.
+func (s *serviceImpl) buildIntDictLabelMap(ctx context.Context, dictType string) map[int]string {
 	rows := make([]*dictDataRow, 0)
 	err := dao.SysDictData.Ctx(ctx).
 		Fields(colDictValue, colDictLabel).
@@ -457,9 +557,15 @@ func buildIntDictLabelMap(ctx context.Context, dictType string) map[int]string {
 		if convErr != nil {
 			continue
 		}
-		labels[value] = row.Label
+		labels[value] = s.localizeDictValue(ctx, dictType, row.Value, row.Label)
 	}
 	return labels
+}
+
+// localizeDictValue translates one dictionary label by stable dictionary key.
+func (s *serviceImpl) localizeDictValue(ctx context.Context, dictType string, value string, fallback string) string {
+	key := strings.Join([]string{dictKeyPrefix, dictType, value, labelKeySuffix}, ".")
+	return s.translate(ctx, key, fallback)
 }
 
 // normalizeEndTime expands date-only end values to the end of day.

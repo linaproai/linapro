@@ -8,7 +8,11 @@ import (
 	"sync"
 
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/gctx"
 )
+
+// sourceRouteCtxVarPluginID stores the source-plugin id that owns the matched route.
+const sourceRouteCtxVarPluginID gctx.StrKey = "plugin_source_route_plugin_id"
 
 // PluginEnabledChecker defines one host callback that reports whether a plugin is currently enabled.
 type PluginEnabledChecker func(pluginID string) bool
@@ -128,6 +132,15 @@ func NewRouteMiddlewares(
 	}
 }
 
+// SourcePluginIDFromRequest returns the source-plugin id attached to the current
+// request, or an empty string when the request is not handled by a source plugin.
+func SourcePluginIDFromRequest(request *ghttp.Request) string {
+	if request == nil {
+		return ""
+	}
+	return strings.TrimSpace(request.GetCtxVar(sourceRouteCtxVarPluginID).String())
+}
+
 // NewRouteRegistrar creates and returns a new RouteRegistrar instance.
 func NewRouteRegistrar(
 	pluginGroup *ghttp.RouterGroup,
@@ -195,6 +208,7 @@ func (r *routeRegistrar) allow(req *ghttp.Request) bool {
 		req.ExitAll()
 		return false
 	}
+	req.SetCtxVar(sourceRouteCtxVarPluginID, strings.TrimSpace(r.pluginID))
 	return true
 }
 

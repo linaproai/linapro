@@ -6,6 +6,6 @@
 
 This plugin owns:
 
-- operation-log persistence subscribed from host audit events
+- operation-log capture and persistence through the plugin-owned global middleware
 - operation-log query, export, cleanup, and detail pages
 - operation-log dictionaries and storage schema

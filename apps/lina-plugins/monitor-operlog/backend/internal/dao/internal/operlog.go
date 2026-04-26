@@ -24,6 +24,10 @@ type OperlogColumns struct {
 	Id            string // 日志ID
 	Title         string // 模块标题
 	OperSummary   string // 操作摘要
+	RouteOwner    string // 路由归属（core或插件ID）
+	RouteMethod   string // 路由请求方式
+	RoutePath     string // 路由路径
+	RouteDocKey   string // API文档结构化键
 	OperType      string // 操作类型（create新增 update修改 delete删除 export导出 import导入 other其他）
 	Method        string // 方法名称
 	RequestMethod string // 请求方式（GET/POST/PUT/DELETE）
@@ -43,6 +47,10 @@ var operlogColumns = OperlogColumns{
 	Id:            "id",
 	Title:         "title",
 	OperSummary:   "oper_summary",
+	RouteOwner:    "route_owner",
+	RouteMethod:   "route_method",
+	RoutePath:     "route_path",
+	RouteDocKey:   "route_doc_key",
 	OperType:      "oper_type",
 	Method:        "method",
 	RequestMethod: "request_method",

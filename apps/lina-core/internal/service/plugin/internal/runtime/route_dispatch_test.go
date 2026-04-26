@@ -29,29 +29,43 @@ func TestMatchDynamicRoutePathSupportsParams(t *testing.T) {
 	}
 }
 
-// TestBuildDynamicRouteOperLogMetadataMapsRouteGovernance verifies that
-// matched route metadata is projected into operation-log fields.
-func TestBuildDynamicRouteOperLogMetadataMapsRouteGovernance(t *testing.T) {
-	metadata := runtime.BuildDynamicRouteOperLogMetadata(&runtime.DynamicRouteRuntimeState{
+// TestBuildDynamicRouteMetadataMapsRouteGovernance verifies that matched route
+// metadata is projected into a generic dynamic-route context.
+func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
+	metadata := runtime.BuildDynamicRouteMetadata(&runtime.DynamicRouteRuntimeState{
 		Match: &runtime.DynamicRouteMatch{
+			PluginID:   "plugin-demo-dynamic",
+			PublicPath: "/api/v1/extensions/plugin-demo-dynamic/review",
 			Route: &pluginbridge.RouteContract{
+				Method:  http.MethodGet,
 				Tags:    []string{"plugin-review", "dynamic"},
 				Summary: "Review summary",
-				OperLog: "other",
+				Meta: map[string]string{
+					"x-route-purpose": "review",
+				},
 			},
 		},
 	})
 	if metadata == nil {
-		t.Fatal("expected dynamic route operlog metadata to be built")
+		t.Fatal("expected dynamic route metadata to be built")
 	}
-	if metadata.Title != "plugin-review,dynamic" {
-		t.Fatalf("expected title to join route tags, got %q", metadata.Title)
+	if metadata.PluginID != "plugin-demo-dynamic" {
+		t.Fatalf("expected plugin id plugin-demo-dynamic, got %q", metadata.PluginID)
+	}
+	if metadata.Method != http.MethodGet {
+		t.Fatalf("expected method GET, got %q", metadata.Method)
+	}
+	if metadata.PublicPath != "/api/v1/extensions/plugin-demo-dynamic/review" {
+		t.Fatalf("expected public path to be preserved, got %q", metadata.PublicPath)
+	}
+	if len(metadata.Tags) != 2 || metadata.Tags[0] != "plugin-review" || metadata.Tags[1] != "dynamic" {
+		t.Fatalf("expected route tags to be preserved, got %#v", metadata.Tags)
 	}
 	if metadata.Summary != "Review summary" {
 		t.Fatalf("expected summary to be preserved, got %q", metadata.Summary)
 	}
-	if metadata.OperLogTag != "other" {
-		t.Fatalf("expected operlog tag other, got %q", metadata.OperLogTag)
+	if metadata.Meta["x-route-purpose"] != "review" {
+		t.Fatalf("expected route metadata x-route-purpose review, got %#v", metadata.Meta)
 	}
 }
 

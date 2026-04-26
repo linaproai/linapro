@@ -15,6 +15,10 @@ type Operlog struct {
 	Id            any         // 日志ID
 	Title         any         // 模块标题
 	OperSummary   any         // 操作摘要
+	RouteOwner    any         // 路由归属（core或插件ID）
+	RouteMethod   any         // 路由请求方式
+	RoutePath     any         // 路由路径
+	RouteDocKey   any         // API文档结构化键
 	OperType      any         // 操作类型（create新增 update修改 delete删除 export导出 import导入 other其他）
 	Method        any         // 方法名称
 	RequestMethod any         // 请求方式（GET/POST/PUT/DELETE）

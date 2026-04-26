@@ -517,7 +517,9 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 			Method:     http.MethodGet,
 			Access:     pluginbridge.AccessLogin,
 			Permission: pluginID + ":review:view",
-			OperLog:    "other",
+			Meta: map[string]string{
+				"x-route-purpose": "review",
+			},
 		},
 	}
 	initialBridge := &pluginbridge.BridgeSpec{
@@ -562,7 +564,9 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 			Method:     http.MethodGet,
 			Access:     pluginbridge.AccessLogin,
 			Permission: pluginID + ":review:inspect",
-			OperLog:    "other",
+			Meta: map[string]string{
+				"x-route-purpose": "review",
+			},
 		},
 	}
 	testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(

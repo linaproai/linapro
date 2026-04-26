@@ -35,6 +35,12 @@ type Service interface {
 	// Build builds one host-managed OpenAPI document from the current route table
 	// and current plugin enablement state.
 	Build(ctx context.Context, server *ghttp.Server) (*goai.OpenApiV3, error)
+	// ResolveRouteText resolves one route's localized module tag and operation
+	// summary from the dedicated apidoc i18n catalog.
+	ResolveRouteText(ctx context.Context, input RouteTextInput) RouteTextOutput
+	// FindRouteTitleOperationKeys finds operation key bases whose localized
+	// module tag contains the given keyword in the current request locale.
+	FindRouteTitleOperationKeys(ctx context.Context, keyword string) []string
 }
 
 // Ensure serviceImpl implements Service.

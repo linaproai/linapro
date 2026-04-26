@@ -1,13 +1,13 @@
-// Package audittype defines the canonical semantic operation-audit types shared
-// by host audit dispatch, route metadata, and operation-log plugins.
-package audittype
+// Package operlogtype defines semantic operation-log types owned by the
+// monitor-operlog plugin.
+package operlogtype
 
 import "strings"
 
-// OperType identifies one semantic operation-audit category.
+// OperType identifies one semantic operation-log category.
 type OperType string
 
-// Canonical operation-audit types.
+// Canonical operation-log types.
 const (
 	// OperTypeCreate marks create/write requests.
 	OperTypeCreate OperType = "create"
@@ -39,7 +39,7 @@ func (operType OperType) String() string {
 	return string(operType)
 }
 
-// Normalize converts a raw value into one canonical audit operation type.
+// Normalize converts a raw value into one canonical operation-log type.
 func Normalize(value string) OperType {
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case OperTypeCreate.String():

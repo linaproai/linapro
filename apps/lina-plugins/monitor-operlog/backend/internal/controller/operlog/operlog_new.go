@@ -2,9 +2,9 @@
 package operlog
 
 import (
-	"lina-core/pkg/audittype"
 	operlogapi "lina-plugin-monitor-operlog/backend/api/operlog"
 	v1 "lina-plugin-monitor-operlog/backend/api/operlog/v1"
+	"lina-plugin-monitor-operlog/backend/internal/model/operlogtype"
 	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
 
@@ -27,7 +27,7 @@ func toAPIOperLogEntity(entity *operlogsvc.OperLogEntity) *v1.OperLogEntity {
 		Id:            entity.Id,
 		Title:         entity.Title,
 		OperSummary:   entity.OperSummary,
-		OperType:      audittype.Normalize(entity.OperType),
+		OperType:      operlogtype.Normalize(entity.OperType),
 		Method:        entity.Method,
 		RequestMethod: entity.RequestMethod,
 		OperName:      entity.OperName,
@@ -43,13 +43,13 @@ func toAPIOperLogEntity(entity *operlogsvc.OperLogEntity) *v1.OperLogEntity {
 }
 
 // normalizeOperTypePointer converts an optional request value into the shared
-// semantic operation type used by host audit events.
-func normalizeOperTypePointer(value *string) *audittype.OperType {
+// semantic operation type used by operation-log records.
+func normalizeOperTypePointer(value *string) *operlogtype.OperType {
 	if value == nil {
 		return nil
 	}
-	operType := audittype.Normalize(*value)
-	if !audittype.IsSupported(operType) {
+	operType := operlogtype.Normalize(*value)
+	if !operlogtype.IsSupported(operType) {
 		return nil
 	}
 	return &operType

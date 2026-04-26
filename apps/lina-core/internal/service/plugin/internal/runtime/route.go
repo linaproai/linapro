@@ -32,7 +32,7 @@ const RoutePublicPrefix = "/api/v1/extensions"
 const (
 	dynamicRouteCtxVarState    gctx.StrKey = "plugin_dynamic_route_state"
 	dynamicRouteCtxVarIdentity gctx.StrKey = "plugin_dynamic_route_identity"
-	dynamicRouteCtxVarOperLog  gctx.StrKey = "plugin_dynamic_route_operlog"
+	dynamicRouteCtxVarMetadata gctx.StrKey = "plugin_dynamic_route_metadata"
 
 	// statusNormal represents the normal/enabled status for role and menu queries.
 	statusNormal = 1
@@ -44,15 +44,21 @@ type DynamicRouteDispatchInput struct {
 	Request *ghttp.Request
 }
 
-// DynamicRouteOperLogMetadata stores operation-log metadata synthesized from one
-// matched dynamic route so host middleware can reuse the standard logging chain.
-type DynamicRouteOperLogMetadata struct {
-	// Title is the route tag projection used as the operation-log title.
-	Title string
-	// Summary is the route summary projected into the operation-log record.
+// DynamicRouteMetadata stores generic metadata synthesized from one matched
+// dynamic route for downstream source-plugin middleware.
+type DynamicRouteMetadata struct {
+	// PluginID is the dynamic plugin that owns the matched route.
+	PluginID string
+	// Method is the declared dynamic route HTTP method.
+	Method string
+	// PublicPath is the public host path matched by the request.
+	PublicPath string
+	// Tags are the route tags declared by the dynamic plugin manifest.
+	Tags []string
+	// Summary is the route summary declared by the dynamic plugin manifest.
 	Summary string
-	// OperLogTag is the normalized operation-log tag reused by host logging rules.
-	OperLogTag string
+	// Meta contains additional route declaration metadata by source tag name.
+	Meta map[string]string
 	// ResponseBody stores the raw bridge response body for middleware-side logging.
 	ResponseBody string
 	// ResponseContentType stores the resolved content type of the bridge response.
@@ -85,9 +91,9 @@ func MatchDynamicRoutePath(routePath string, actualPath string) (map[string]stri
 	return matchDynamicRoutePath(routePath, actualPath)
 }
 
-// BuildDynamicRouteOperLogMetadata is the exported form of buildDynamicRouteOperLogMetadata for cross-package access.
-func BuildDynamicRouteOperLogMetadata(runtimeState *DynamicRouteRuntimeState) *DynamicRouteOperLogMetadata {
-	return buildDynamicRouteOperLogMetadata(runtimeState)
+// BuildDynamicRouteMetadata is the exported form of buildDynamicRouteMetadata for cross-package access.
+func BuildDynamicRouteMetadata(runtimeState *DynamicRouteRuntimeState) *DynamicRouteMetadata {
+	return buildDynamicRouteMetadata(runtimeState)
 }
 
 // dynamicRouteClaims mirrors the JWT claims needed by host-side dynamic route auth.
@@ -135,7 +141,7 @@ func (s *serviceImpl) PrepareDynamicRouteMiddleware(r *ghttp.Request) {
 		return
 	}
 	setDynamicRouteRuntimeState(r, runtimeState)
-	setDynamicRouteOperLogMetadata(r, buildDynamicRouteOperLogMetadata(runtimeState))
+	setDynamicRouteMetadata(r, buildDynamicRouteMetadata(runtimeState))
 	r.Middleware.Next()
 }
 
@@ -810,41 +816,42 @@ func getDynamicRouteIdentitySnapshot(request *ghttp.Request) *pluginbridge.Ident
 	return identity
 }
 
-// setDynamicRouteOperLogMetadata stores operation-log metadata on the request context.
-func setDynamicRouteOperLogMetadata(request *ghttp.Request, metadata *DynamicRouteOperLogMetadata) {
+// setDynamicRouteMetadata stores generic dynamic-route metadata on the request context.
+func setDynamicRouteMetadata(request *ghttp.Request, metadata *DynamicRouteMetadata) {
 	if request == nil || metadata == nil {
 		return
 	}
-	request.SetCtxVar(dynamicRouteCtxVarOperLog, metadata)
+	request.SetCtxVar(dynamicRouteCtxVarMetadata, metadata)
 }
 
-// buildDynamicRouteOperLogMetadata maps matched route metadata into the host
-// operation-log structure reused by middleware.
-func buildDynamicRouteOperLogMetadata(runtimeState *dynamicRouteRuntimeState) *DynamicRouteOperLogMetadata {
+// buildDynamicRouteMetadata maps matched route declarations into generic
+// request metadata for source-plugin middleware.
+func buildDynamicRouteMetadata(runtimeState *dynamicRouteRuntimeState) *DynamicRouteMetadata {
 	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Match.Route == nil {
 		return nil
 	}
-	metadata := &DynamicRouteOperLogMetadata{
-		Title:   strings.Join(runtimeState.Match.Route.Tags, ","),
-		Summary: strings.TrimSpace(runtimeState.Match.Route.Summary),
-	}
-	if runtimeState.Match.Route.OperLog != "" {
-		metadata.OperLogTag = runtimeState.Match.Route.OperLog
+	metadata := &DynamicRouteMetadata{
+		PluginID:   strings.TrimSpace(runtimeState.Match.PluginID),
+		Method:     strings.TrimSpace(runtimeState.Match.Route.Method),
+		PublicPath: strings.TrimSpace(runtimeState.Match.PublicPath),
+		Tags:       append([]string(nil), runtimeState.Match.Route.Tags...),
+		Summary:    strings.TrimSpace(runtimeState.Match.Route.Summary),
+		Meta:       cloneStringMap(runtimeState.Match.Route.Meta),
 	}
 	return metadata
 }
 
-// GetDynamicRouteOperLogMetadata returns dynamic-route operation-log metadata
-// attached during the host middleware chain.
-func GetDynamicRouteOperLogMetadata(request *ghttp.Request) *DynamicRouteOperLogMetadata {
+// GetDynamicRouteMetadata returns generic dynamic-route metadata attached
+// during the host middleware chain.
+func GetDynamicRouteMetadata(request *ghttp.Request) *DynamicRouteMetadata {
 	if request == nil {
 		return nil
 	}
-	value := request.GetCtxVar(dynamicRouteCtxVarOperLog).Val()
+	value := request.GetCtxVar(dynamicRouteCtxVarMetadata).Val()
 	if value == nil {
 		return nil
 	}
-	metadata, _ := value.(*DynamicRouteOperLogMetadata)
+	metadata, _ := value.(*DynamicRouteMetadata)
 	return metadata
 }
 
@@ -855,7 +862,7 @@ func (s *serviceImpl) writeDynamicRouteResponse(request *ghttp.Request, response
 	if request == nil || response == nil {
 		return
 	}
-	metadata := GetDynamicRouteOperLogMetadata(request)
+	metadata := GetDynamicRouteMetadata(request)
 	if metadata != nil {
 		metadata.ResponseBody = string(response.Body)
 		metadata.ResponseContentType = strings.TrimSpace(response.ContentType)

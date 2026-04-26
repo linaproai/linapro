@@ -166,6 +166,9 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if len(routes) != 1 || routes[0].Permission != "plugin-dynamic-builder:review:view" {
 		t.Fatalf("unexpected embedded route specs: %#v", routes)
 	}
+	if routes[0].Meta["operLog"] != "other" {
+		t.Fatalf("expected custom route metadata to preserve operLog, got %#v", routes[0].Meta)
+	}
 
 	bridgeSpec := &pluginbridge.BridgeSpec{}
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionBackendBridge], bridgeSpec); err != nil {

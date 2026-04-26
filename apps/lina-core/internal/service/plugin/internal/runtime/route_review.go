@@ -26,7 +26,7 @@ func cloneRouteContracts(routes []*pluginbridge.RouteContract) []*pluginbridge.R
 			Description: route.Description,
 			Access:      route.Access,
 			Permission:  route.Permission,
-			OperLog:     route.OperLog,
+			Meta:        cloneStringMap(route.Meta),
 			RequestType: route.RequestType,
 		})
 	}

@@ -11,10 +11,6 @@ import { DictTag } from '#/components/dict';
 import JsonPreview from '#/components/json-preview/index.vue';
 import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
-import {
-  localizeSeedOperLogSummary,
-  localizeSeedOperLogTitle,
-} from '#/utils/display-l10n';
 
 const dictStore = useDictStore();
 
@@ -72,12 +68,12 @@ function parseJson(str: string): any {
         <DictTag :dicts="operStatusDicts as any" :value="currentLog.status" />
       </DescriptionsItem>
       <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.moduleName')">
-        {{ localizeSeedOperLogTitle(currentLog.title) }}
+        {{ currentLog.title }}
       </DescriptionsItem>
       <DescriptionsItem
         :label="$t('plugin.monitor-operlog.fields.operSummary')"
       >
-        {{ localizeSeedOperLogSummary(currentLog.operSummary) }}
+        {{ currentLog.operSummary }}
       </DescriptionsItem>
       <DescriptionsItem :label="$t('plugin.monitor-operlog.fields.operType')">
         <DictTag :dicts="operTypeDicts as any" :value="currentLog.operType" />

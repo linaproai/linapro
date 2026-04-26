@@ -10,6 +10,8 @@ import (
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/net/goai"
+
+	"lina-core/internal/service/apidoc"
 )
 
 // fakeApiDocService is the apidoc stub used by hosted OpenAPI binding tests.
@@ -20,6 +22,16 @@ type fakeApiDocService struct {
 // Build returns the preconfigured OpenAPI document for hosted-doc binding tests.
 func (f *fakeApiDocService) Build(_ context.Context, _ *ghttp.Server) (*goai.OpenApiV3, error) {
 	return f.document, nil
+}
+
+// ResolveRouteText returns fallback route text for hosted-doc binding tests.
+func (f *fakeApiDocService) ResolveRouteText(_ context.Context, input apidoc.RouteTextInput) apidoc.RouteTextOutput {
+	return apidoc.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary}
+}
+
+// FindRouteTitleOperationKeys returns no route-title matches for hosted-doc binding tests.
+func (f *fakeApiDocService) FindRouteTitleOperationKeys(_ context.Context, _ string) []string {
+	return []string{}
 }
 
 // TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath

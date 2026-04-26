@@ -126,6 +126,18 @@ func collectRouteContracts(pluginDir string, pluginID string) ([]*pluginbridge.R
 	return contracts, nil
 }
 
+// routeContractTagKeys lists GoFrame route tags consumed by the dynamic route contract.
+var routeContractTagKeys = map[string]struct{}{
+	"path":        {},
+	"method":      {},
+	"tags":        {},
+	"summary":     {},
+	"dc":          {},
+	"description": {},
+	"access":      {},
+	"permission":  {},
+}
+
 func extractRouteContractsFromFile(fileNode *ast.File) ([]*pluginbridge.RouteContract, error) {
 	items := make([]*pluginbridge.RouteContract, 0)
 	for _, decl := range fileNode.Decls {
@@ -165,16 +177,37 @@ func extractRouteContractsFromFile(fileNode *ast.File) ([]*pluginbridge.RouteCon
 					Description: metaValues["dc"],
 					Access:      metaValues["access"],
 					Permission:  metaValues["permission"],
+					Meta:        buildRouteContractMeta(metaValues),
 					RequestType: strings.TrimSpace(typeSpec.Name.Name),
-				}
-				if metaValues["operLog"] != "" {
-					contract.OperLog = metaValues["operLog"]
 				}
 				items = append(items, contract)
 			}
 		}
 	}
 	return items, nil
+}
+
+// buildRouteContractMeta preserves plugin-defined route metadata without host interpretation.
+func buildRouteContractMeta(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	meta := make(map[string]string)
+	for key, value := range values {
+		normalizedKey := strings.TrimSpace(key)
+		normalizedValue := strings.TrimSpace(value)
+		if normalizedKey == "" || normalizedValue == "" {
+			continue
+		}
+		if _, reserved := routeContractTagKeys[normalizedKey]; reserved {
+			continue
+		}
+		meta[normalizedKey] = normalizedValue
+	}
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
 }
 
 func parseStructTagValues(tagValue string) map[string]string {

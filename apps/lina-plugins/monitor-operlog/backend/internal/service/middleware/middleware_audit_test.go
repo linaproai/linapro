@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"lina-core/pkg/audittype"
+	"lina-plugin-monitor-operlog/backend/internal/model/operlogtype"
 )
 
 // TestSanitizeOperLogParamMasksNestedSensitiveFields verifies password fields
@@ -128,14 +128,14 @@ func TestInferOperType(t *testing.T) {
 		method     string
 		path       string
 		operLogTag string
-		expected   audittype.OperType
+		expected   operlogtype.OperType
 	}{
-		{name: "operlog tag wins", method: http.MethodGet, path: "/api/v1/export", operLogTag: "export", expected: audittype.OperTypeExport},
-		{name: "unknown operlog tag falls back to other", method: http.MethodGet, path: "/api/v1/query", operLogTag: "custom", expected: audittype.OperTypeOther},
-		{name: "post import path maps to import", method: http.MethodPost, path: "/api/v1/file/import", expected: audittype.OperTypeImport},
-		{name: "post create defaults to create", method: http.MethodPost, path: "/api/v1/file", expected: audittype.OperTypeCreate},
-		{name: "put maps to update", method: http.MethodPut, path: "/api/v1/file", expected: audittype.OperTypeUpdate},
-		{name: "delete maps to delete", method: http.MethodDelete, path: "/api/v1/file", expected: audittype.OperTypeDelete},
+		{name: "operlog tag wins", method: http.MethodGet, path: "/api/v1/export", operLogTag: "export", expected: operlogtype.OperTypeExport},
+		{name: "unknown operlog tag falls back to other", method: http.MethodGet, path: "/api/v1/query", operLogTag: "custom", expected: operlogtype.OperTypeOther},
+		{name: "post import path maps to import", method: http.MethodPost, path: "/api/v1/file/import", expected: operlogtype.OperTypeImport},
+		{name: "post create defaults to create", method: http.MethodPost, path: "/api/v1/file", expected: operlogtype.OperTypeCreate},
+		{name: "put maps to update", method: http.MethodPut, path: "/api/v1/file", expected: operlogtype.OperTypeUpdate},
+		{name: "delete maps to delete", method: http.MethodDelete, path: "/api/v1/file", expected: operlogtype.OperTypeDelete},
 	}
 
 	for _, testCase := range testCases {
