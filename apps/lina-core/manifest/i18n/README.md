@@ -4,7 +4,7 @@ This directory stores the delivery baseline i18n resources for `LinaPro`.
 
 The host loads top-level `manifest/i18n/<locale>.json` files as runtime UI message bundles, merges them with enabled plugin resources and database overrides, and finally exposes the effective result through the runtime i18n APIs.
 
-API-documentation translations are stored under `manifest/i18n/apidoc/<locale>.json`. They share the same i18n root for discoverability, but stay in a dedicated subdirectory because OpenAPI documentation is large and is only needed when `/api.json` is rendered.
+API-documentation translations are stored under `manifest/i18n/apidoc/<locale>.json` and optional split files under `manifest/i18n/apidoc/<locale>/**/*.json`. They share the same i18n root for discoverability, but stay in a dedicated subdirectory because OpenAPI documentation is large and is only needed when `/api.json` is rendered.
 
 ## Directory Contract
 
@@ -12,20 +12,21 @@ API-documentation translations are stored under `manifest/i18n/apidoc/<locale>.j
 | ----------------------------------------------------------- | ---------------------------------- |
 | `manifest/i18n/zh-CN.json`                                  | Simplified Chinese baseline bundle |
 | `manifest/i18n/en-US.json`                                  | English baseline bundle            |
-| `manifest/i18n/apidoc/zh-CN.json`                           | Simplified Chinese API-doc bundle  |
+| `manifest/i18n/apidoc/zh-CN.json` and `manifest/i18n/apidoc/zh-CN/**/*.json` | Simplified Chinese API-doc bundle  |
 | `manifest/i18n/apidoc/en-US.json`                           | Empty English API-doc placeholder  |
 | `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | Plugin-owned locale bundle         |
-| `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` | Plugin-owned API-doc bundle |
+| `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` and optional split files | Plugin-owned API-doc bundle |
 
 Rules:
 
 - The filename must use the canonical locale code, for example `zh-CN.json` or `en-US.json`.
 - The host only treats top-level `manifest/i18n/<locale>.json` files as runtime locale bundles.
-- The host only treats `manifest/i18n/apidoc/<locale>.json` files as API-documentation locale bundles.
+- The host treats `manifest/i18n/apidoc/<locale>.json` and `manifest/i18n/apidoc/<locale>/**/*.json` files as API-documentation locale bundles.
 - Runtime UI message files may be authored as nested JSON or flat dotted keys.
 - The host normalizes runtime UI message files into flat keys for aggregation, database overrides, missing checks, exports, and diagnostics.
 - The runtime i18n API converts normalized flat keys into nested objects when returning data to the frontend.
-- API-documentation bundles use structured `core.*` and `plugins.*` keys, keep `en-US.json` as `{}`, and never translate `eg/example` values or generated entity metadata.
+- API-documentation bundles may use nested JSON or flat dotted keys, normalize to structured `core.*` and `plugins.*` keys, keep `en-US.json` as `{}`, and never translate `eg/example` values or generated entity metadata.
+- API-documentation bundles may use host-owned `core.common.*` fallback keys for repeated standard response, pagination, and timestamp metadata; exact structural keys still take precedence.
 
 ## Why JSON And Key Normalization
 

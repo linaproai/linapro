@@ -1,304 +1,922 @@
 {
-  "plugins.org_center.api.dept.v1.CreateReq.fields.code.dc": "部门编码，系统内唯一标识，用于与外部系统对接",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.email.dc": "部门联系邮箱",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.leader.dc": "负责人用户ID，关联系统用户表",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.name.dc": "部门名称，同一父级下不可重复",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.orderNum.dc": "排序号，数值越小越靠前，同级部门按此字段升序排列",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.parentId.dc": "父级部门ID，0表示顶级部门",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.phone.dc": "部门联系电话",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.remark.dc": "备注",
-  "plugins.org_center.api.dept.v1.CreateReq.fields.status.dc": "部门状态：1=正常，0=停用。停用后该部门及其子部门的用户将无法登录",
-  "plugins.org_center.api.dept.v1.CreateReq.meta.dc": "创建一个新部门，支持设置父级部门形成树形层级结构，部门编码在系统内须唯一",
-  "plugins.org_center.api.dept.v1.CreateReq.meta.summary": "创建部门",
-  "plugins.org_center.api.dept.v1.CreateReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.CreateReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.CreateReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.CreateReq.responses.200.content.application_json.fields.data.fields.id.dc": "新创建的部门ID",
-  "plugins.org_center.api.dept.v1.CreateReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.CreateReq.schema.dc": "创建一个新部门，支持设置父级部门形成树形层级结构，部门编码在系统内须唯一",
-  "plugins.org_center.api.dept.v1.CreateRes.fields.id.dc": "新创建的部门ID",
-  "plugins.org_center.api.dept.v1.CreateRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.DeleteReq.fields.id.dc": "待删除的部门ID",
-  "plugins.org_center.api.dept.v1.DeleteReq.meta.dc": "删除指定部门，如果该部门下存在子部门或关联用户则不允许删除，需先移除子部门和用户后再进行删除操作",
-  "plugins.org_center.api.dept.v1.DeleteReq.meta.summary": "删除部门",
-  "plugins.org_center.api.dept.v1.DeleteReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.DeleteReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.DeleteReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.DeleteReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.DeleteReq.schema.dc": "删除指定部门，如果该部门下存在子部门或关联用户则不允许删除，需先移除子部门和用户后再进行删除操作",
-  "plugins.org_center.api.dept.v1.DeleteRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.updatedAt.dc": "更新时间",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.ancestors.dc": "祖级路径，逗号分隔的部门ID链路",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.code.dc": "部门编码",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.createdAt.dc": "创建时间",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.deletedAt.dc": "软删除时间，未删除时为空",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.email.dc": "联系邮箱",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.id.dc": "所属部门ID",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.leader.dc": "负责人用户ID",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.name.dc": "部门名称",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.orderNum.dc": "排序号",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.parentId.dc": "父级部门ID，0表示顶级部门",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.phone.dc": "联系电话",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.remark.dc": "备注",
-  "plugins.org_center.api.dept.v1.DeptEntity.fields.status.dc": "部门状态：1=正常 0=停用",
-  "plugins.org_center.api.dept.v1.DeptUser.fields.id.dc": "用户ID",
-  "plugins.org_center.api.dept.v1.DeptUser.fields.nickname.dc": "用户昵称，用于前端显示",
-  "plugins.org_center.api.dept.v1.DeptUser.fields.username.dc": "用户登录账号",
-  "plugins.org_center.api.dept.v1.ExcludeReq.fields.id.dc": "需排除的部门ID，该部门及其所有下级部门将从结果中过滤掉",
-  "plugins.org_center.api.dept.v1.ExcludeReq.meta.dc": "获取排除指定部门及其所有子部门后的部门列表，供管理工作台在选择父级部门时构建合法候选集，防止形成循环引用",
-  "plugins.org_center.api.dept.v1.ExcludeReq.meta.summary": "获取排除节点后的部门列表",
-  "plugins.org_center.api.dept.v1.ExcludeReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.ExcludeReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.ExcludeReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.ExcludeReq.responses.200.content.application_json.fields.data.fields.list.dc": "排除指定节点及其子节点后的部门列表",
-  "plugins.org_center.api.dept.v1.ExcludeReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.ExcludeReq.schema.dc": "获取排除指定部门及其所有子部门后的部门列表，供管理工作台在选择父级部门时构建合法候选集，防止形成循环引用",
-  "plugins.org_center.api.dept.v1.ExcludeRes.fields.list.dc": "排除指定节点及其子节点后的部门列表",
-  "plugins.org_center.api.dept.v1.ExcludeRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.GetReq.fields.id.dc": "所属部门ID",
-  "plugins.org_center.api.dept.v1.GetReq.meta.dc": "根据部门ID获取部门的完整详细信息，包括基本信息、负责人、联系方式等",
-  "plugins.org_center.api.dept.v1.GetReq.meta.summary": "获取部门详情",
-  "plugins.org_center.api.dept.v1.GetReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.updatedAt.dc": "更新时间",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.ancestors.dc": "祖级路径，逗号分隔的部门ID链路",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.code.dc": "部门编码",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.createdAt.dc": "创建时间",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.deletedAt.dc": "软删除时间，未删除时为空",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.email.dc": "联系邮箱",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.id.dc": "所属部门ID",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.leader.dc": "负责人用户ID",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.name.dc": "部门名称",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.orderNum.dc": "排序号",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.parentId.dc": "父级部门ID，0表示顶级部门",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.phone.dc": "联系电话",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.remark.dc": "备注",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.data.fields.status.dc": "部门状态：1=正常 0=停用",
-  "plugins.org_center.api.dept.v1.GetReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.GetReq.schema.dc": "根据部门ID获取部门的完整详细信息，包括基本信息、负责人、联系方式等",
-  "plugins.org_center.api.dept.v1.GetRes.fields.updatedAt.dc": "更新时间",
-  "plugins.org_center.api.dept.v1.GetRes.fields.ancestors.dc": "祖级路径，逗号分隔的部门ID链路",
-  "plugins.org_center.api.dept.v1.GetRes.fields.code.dc": "部门编码",
-  "plugins.org_center.api.dept.v1.GetRes.fields.createdAt.dc": "创建时间",
-  "plugins.org_center.api.dept.v1.GetRes.fields.deletedAt.dc": "软删除时间，未删除时为空",
-  "plugins.org_center.api.dept.v1.GetRes.fields.email.dc": "联系邮箱",
-  "plugins.org_center.api.dept.v1.GetRes.fields.id.dc": "所属部门ID",
-  "plugins.org_center.api.dept.v1.GetRes.fields.leader.dc": "负责人用户ID",
-  "plugins.org_center.api.dept.v1.GetRes.fields.name.dc": "部门名称",
-  "plugins.org_center.api.dept.v1.GetRes.fields.orderNum.dc": "排序号",
-  "plugins.org_center.api.dept.v1.GetRes.fields.parentId.dc": "父级部门ID，0表示顶级部门",
-  "plugins.org_center.api.dept.v1.GetRes.fields.phone.dc": "联系电话",
-  "plugins.org_center.api.dept.v1.GetRes.fields.remark.dc": "备注",
-  "plugins.org_center.api.dept.v1.GetRes.fields.status.dc": "部门状态：1=正常 0=停用",
-  "plugins.org_center.api.dept.v1.GetRes.schema.dc": "部门详情，包含部门的全部字段数据",
-  "plugins.org_center.api.dept.v1.ListReq.fields.name.dc": "按部门名称筛选，支持模糊匹配",
-  "plugins.org_center.api.dept.v1.ListReq.fields.status.dc": "按状态筛选：1=正常，0=停用，不传则查询全部",
-  "plugins.org_center.api.dept.v1.ListReq.meta.dc": "获取部门列表数据，支持按部门名称和状态进行筛选，返回的列表按排序号升序排列，包含所有层级的部门信息",
-  "plugins.org_center.api.dept.v1.ListReq.meta.summary": "获取部门列表",
-  "plugins.org_center.api.dept.v1.ListReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.ListReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.ListReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.ListReq.responses.200.content.application_json.fields.data.fields.list.dc": "部门列表数据，包含所有匹配条件的部门记录",
-  "plugins.org_center.api.dept.v1.ListReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.ListReq.schema.dc": "获取部门列表数据，支持按部门名称和状态进行筛选，返回的列表按排序号升序排列，包含所有层级的部门信息",
-  "plugins.org_center.api.dept.v1.ListRes.fields.list.dc": "部门列表数据，包含所有匹配条件的部门记录",
-  "plugins.org_center.api.dept.v1.ListRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.TreeNode.fields.children.dc": "子部门列表，递归嵌套结构",
-  "plugins.org_center.api.dept.v1.TreeNode.fields.id.dc": "所属部门ID",
-  "plugins.org_center.api.dept.v1.TreeNode.fields.label.dc": "部门名称，供管理工作台树节点显示",
-  "plugins.org_center.api.dept.v1.TreeReq.meta.dc": "获取完整的部门树形结构数据，供管理工作台的树选择器、结构投影或页面装配使用，仅包含正常状态的部门",
-  "plugins.org_center.api.dept.v1.TreeReq.meta.summary": "获取部门树",
-  "plugins.org_center.api.dept.v1.TreeReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.TreeReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.TreeReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.TreeReq.responses.200.content.application_json.fields.data.fields.list.dc": "部门树形结构列表，顶级节点为parentId=0的部门",
-  "plugins.org_center.api.dept.v1.TreeReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.TreeReq.schema.dc": "获取完整的部门树形结构数据，供管理工作台的树选择器、结构投影或页面装配使用，仅包含正常状态的部门",
-  "plugins.org_center.api.dept.v1.TreeRes.fields.list.dc": "部门树形结构列表，顶级节点为parentId=0的部门",
-  "plugins.org_center.api.dept.v1.TreeRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.code.dc": "部门编码，系统内唯一标识",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.email.dc": "部门联系邮箱",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.id.dc": "所属部门ID",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.leader.dc": "负责人用户ID，关联系统用户表",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.name.dc": "部门名称，同一父级下不可重复",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.orderNum.dc": "排序号，数值越小越靠前",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.parentId.dc": "父级部门ID，0表示顶级部门，不能设置为自身或其下级部门",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.phone.dc": "部门联系电话",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.remark.dc": "备注",
-  "plugins.org_center.api.dept.v1.UpdateReq.fields.status.dc": "部门状态：1=正常，0=停用",
-  "plugins.org_center.api.dept.v1.UpdateReq.meta.dc": "更新指定部门的信息，仅传入需要修改的字段即可，未传入的字段保持不变。不允许将部门的父级设为自身或其子部门",
-  "plugins.org_center.api.dept.v1.UpdateReq.meta.summary": "更新部门",
-  "plugins.org_center.api.dept.v1.UpdateReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.code.dc": "部门编码，系统内唯一标识",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.email.dc": "部门联系邮箱",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.leader.dc": "负责人用户ID，关联系统用户表",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.name.dc": "部门名称，同一父级下不可重复",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.orderNum.dc": "排序号，数值越小越靠前",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.parentId.dc": "父级部门ID，0表示顶级部门，不能设置为自身或其下级部门",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.phone.dc": "部门联系电话",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.remark.dc": "备注",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.fields.status.dc": "部门状态：1=正常，0=停用",
-  "plugins.org_center.api.dept.v1.UpdateReq.requestBody.content.application_json.schema.dc": "更新指定部门的信息，仅传入需要修改的字段即可，未传入的字段保持不变。不允许将部门的父级设为自身或其子部门",
-  "plugins.org_center.api.dept.v1.UpdateReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.UpdateReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.UpdateReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.UpdateReq.schema.dc": "更新指定部门的信息，仅传入需要修改的字段即可，未传入的字段保持不变。不允许将部门的父级设为自身或其子部门",
-  "plugins.org_center.api.dept.v1.UpdateRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.UsersReq.fields.id.dc": "部门ID，0表示查询所有用户，大于0时查询该部门及其所有子部门的用户",
-  "plugins.org_center.api.dept.v1.UsersReq.fields.keyword.dc": "搜索关键词，按用户名或昵称进行模糊匹配",
-  "plugins.org_center.api.dept.v1.UsersReq.fields.limit.dc": "最大返回条数，默认为10，用于限制下拉列表的数据量",
-  "plugins.org_center.api.dept.v1.UsersReq.meta.dc": "获取指定部门及其所有子部门下的用户列表，供管理工作台负责人选择器等按组织结构选人场景复用。当部门ID为0时返回所有用户，支持按用户名或昵称进行关键词搜索",
-  "plugins.org_center.api.dept.v1.UsersReq.meta.summary": "获取部门用户列表",
-  "plugins.org_center.api.dept.v1.UsersReq.meta.tags": "部门管理",
-  "plugins.org_center.api.dept.v1.UsersReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.dept.v1.UsersReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.dept.v1.UsersReq.responses.200.content.application_json.fields.data.fields.list.dc": "部门用户列表",
-  "plugins.org_center.api.dept.v1.UsersReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.dept.v1.UsersReq.schema.dc": "获取指定部门及其所有子部门下的用户列表，供管理工作台负责人选择器等按组织结构选人场景复用。当部门ID为0时返回所有用户，支持按用户名或昵称进行关键词搜索",
-  "plugins.org_center.api.dept.v1.UsersRes.fields.list.dc": "部门用户列表",
-  "plugins.org_center.api.dept.v1.UsersRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.CreateReq.fields.code.dc": "岗位编码（唯一）",
-  "plugins.org_center.api.post.v1.CreateReq.fields.deptId.dc": "所属部门ID",
-  "plugins.org_center.api.post.v1.CreateReq.fields.name.dc": "岗位名称",
-  "plugins.org_center.api.post.v1.CreateReq.fields.remark.dc": "备注",
-  "plugins.org_center.api.post.v1.CreateReq.fields.sort.dc": "排序号，数值越小排序越靠前",
-  "plugins.org_center.api.post.v1.CreateReq.fields.status.dc": "状态：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.CreateReq.meta.dc": "在指定部门下创建一个新岗位，岗位编码在系统中必须唯一",
-  "plugins.org_center.api.post.v1.CreateReq.meta.summary": "创建岗位",
-  "plugins.org_center.api.post.v1.CreateReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.CreateReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.CreateReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.CreateReq.responses.200.content.application_json.fields.data.fields.id.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.CreateReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.CreateReq.schema.dc": "在指定部门下创建一个新岗位，岗位编码在系统中必须唯一",
-  "plugins.org_center.api.post.v1.CreateRes.fields.id.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.CreateRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.DeleteReq.fields.ids.dc": "岗位ID，多个用逗号分隔",
-  "plugins.org_center.api.post.v1.DeleteReq.meta.dc": "删除一个或多个岗位，若岗位已分配给用户则不允许删除",
-  "plugins.org_center.api.post.v1.DeleteReq.meta.summary": "删除岗位",
-  "plugins.org_center.api.post.v1.DeleteReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.DeleteReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.DeleteReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.DeleteReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.DeleteReq.schema.dc": "删除一个或多个岗位，若岗位已分配给用户则不允许删除",
-  "plugins.org_center.api.post.v1.DeleteRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.DeptTreeNode.fields.children.dc": "子部门列表",
-  "plugins.org_center.api.post.v1.DeptTreeNode.fields.id.dc": "所属部门ID",
-  "plugins.org_center.api.post.v1.DeptTreeNode.fields.label.dc": "部门名称",
-  "plugins.org_center.api.post.v1.DeptTreeNode.fields.postCount.dc": "该部门下的岗位数量",
-  "plugins.org_center.api.post.v1.DeptTreeReq.meta.dc": "获取部门树结构及岗位数量，供管理工作台的岗位查询视图按部门筛选或装配树选择器",
-  "plugins.org_center.api.post.v1.DeptTreeReq.meta.summary": "获取岗位筛选部门树",
-  "plugins.org_center.api.post.v1.DeptTreeReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.DeptTreeReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.DeptTreeReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.DeptTreeReq.responses.200.content.application_json.fields.data.fields.list.dc": "部门树",
-  "plugins.org_center.api.post.v1.DeptTreeReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.DeptTreeReq.schema.dc": "获取部门树结构及岗位数量，供管理工作台的岗位查询视图按部门筛选或装配树选择器",
-  "plugins.org_center.api.post.v1.DeptTreeRes.fields.list.dc": "部门树",
-  "plugins.org_center.api.post.v1.DeptTreeRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.ExportReq.fields.code.dc": "按岗位编码筛选",
-  "plugins.org_center.api.post.v1.ExportReq.fields.deptId.dc": "按部门ID筛选",
-  "plugins.org_center.api.post.v1.ExportReq.fields.name.dc": "按岗位名称筛选",
-  "plugins.org_center.api.post.v1.ExportReq.fields.status.dc": "按状态筛选：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.ExportReq.meta.dc": "导出岗位数据为Excel文件，支持按条件筛选导出",
-  "plugins.org_center.api.post.v1.ExportReq.meta.summary": "导出岗位数据",
-  "plugins.org_center.api.post.v1.ExportReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.ExportReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.ExportReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.ExportReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.ExportReq.schema.dc": "导出岗位数据为Excel文件，支持按条件筛选导出",
-  "plugins.org_center.api.post.v1.ExportRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.GetReq.fields.id.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.GetReq.meta.dc": "根据岗位ID获取岗位的详细信息",
-  "plugins.org_center.api.post.v1.GetReq.meta.summary": "获取岗位详情",
-  "plugins.org_center.api.post.v1.GetReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.updatedAt.dc": "更新时间",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.code.dc": "岗位编码",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.createdAt.dc": "创建时间",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.deletedAt.dc": "软删除时间，未删除时为空",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.deptId.dc": "所属部门ID",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.id.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.name.dc": "岗位名称",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.remark.dc": "备注",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.sort.dc": "排序号",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.data.fields.status.dc": "状态：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.GetReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.GetReq.schema.dc": "根据岗位ID获取岗位的详细信息",
-  "plugins.org_center.api.post.v1.GetRes.fields.updatedAt.dc": "更新时间",
-  "plugins.org_center.api.post.v1.GetRes.fields.code.dc": "岗位编码",
-  "plugins.org_center.api.post.v1.GetRes.fields.createdAt.dc": "创建时间",
-  "plugins.org_center.api.post.v1.GetRes.fields.deletedAt.dc": "软删除时间，未删除时为空",
-  "plugins.org_center.api.post.v1.GetRes.fields.deptId.dc": "所属部门ID",
-  "plugins.org_center.api.post.v1.GetRes.fields.id.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.GetRes.fields.name.dc": "岗位名称",
-  "plugins.org_center.api.post.v1.GetRes.fields.remark.dc": "备注",
-  "plugins.org_center.api.post.v1.GetRes.fields.sort.dc": "排序号",
-  "plugins.org_center.api.post.v1.GetRes.fields.status.dc": "状态：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.GetRes.schema.dc": "岗位详情",
-  "plugins.org_center.api.post.v1.ListReq.fields.code.dc": "按岗位编码筛选（模糊匹配）",
-  "plugins.org_center.api.post.v1.ListReq.fields.deptId.dc": "按部门ID筛选",
-  "plugins.org_center.api.post.v1.ListReq.fields.name.dc": "按岗位名称筛选（模糊匹配）",
-  "plugins.org_center.api.post.v1.ListReq.fields.pageNum.dc": "页码",
-  "plugins.org_center.api.post.v1.ListReq.fields.pageSize.dc": "每页条数",
-  "plugins.org_center.api.post.v1.ListReq.fields.status.dc": "按状态筛选：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.ListReq.meta.dc": "分页查询岗位列表，支持按部门、编码、名称、状态等条件筛选",
-  "plugins.org_center.api.post.v1.ListReq.meta.summary": "获取岗位列表",
-  "plugins.org_center.api.post.v1.ListReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.ListReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.ListReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.ListReq.responses.200.content.application_json.fields.data.fields.list.dc": "岗位列表",
-  "plugins.org_center.api.post.v1.ListReq.responses.200.content.application_json.fields.data.fields.total.dc": "总条数",
-  "plugins.org_center.api.post.v1.ListReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.ListReq.schema.dc": "分页查询岗位列表，支持按部门、编码、名称、状态等条件筛选",
-  "plugins.org_center.api.post.v1.ListRes.fields.list.dc": "岗位列表",
-  "plugins.org_center.api.post.v1.ListRes.fields.total.dc": "总条数",
-  "plugins.org_center.api.post.v1.ListRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.OptionSelectReq.fields.deptId.dc": "部门ID，不传则返回所有岗位",
-  "plugins.org_center.api.post.v1.OptionSelectReq.meta.dc": "获取指定部门及其子部门下的岗位选项列表，用于用户创建/编辑时选择岗位",
-  "plugins.org_center.api.post.v1.OptionSelectReq.meta.summary": "获取部门下岗位选项",
-  "plugins.org_center.api.post.v1.OptionSelectReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.OptionSelectReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.OptionSelectReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.OptionSelectReq.responses.200.content.application_json.fields.data.fields.list.dc": "岗位选项列表",
-  "plugins.org_center.api.post.v1.OptionSelectReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.OptionSelectReq.schema.dc": "获取指定部门及其子部门下的岗位选项列表，用于用户创建/编辑时选择岗位",
-  "plugins.org_center.api.post.v1.OptionSelectRes.fields.list.dc": "岗位选项列表",
-  "plugins.org_center.api.post.v1.OptionSelectRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.PostEntity.fields.updatedAt.dc": "更新时间",
-  "plugins.org_center.api.post.v1.PostEntity.fields.code.dc": "岗位编码",
-  "plugins.org_center.api.post.v1.PostEntity.fields.createdAt.dc": "创建时间",
-  "plugins.org_center.api.post.v1.PostEntity.fields.deletedAt.dc": "软删除时间，未删除时为空",
-  "plugins.org_center.api.post.v1.PostEntity.fields.deptId.dc": "所属部门ID",
-  "plugins.org_center.api.post.v1.PostEntity.fields.id.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.PostEntity.fields.name.dc": "岗位名称",
-  "plugins.org_center.api.post.v1.PostEntity.fields.remark.dc": "备注",
-  "plugins.org_center.api.post.v1.PostEntity.fields.sort.dc": "排序号",
-  "plugins.org_center.api.post.v1.PostEntity.fields.status.dc": "状态：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.PostOption.fields.postId.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.PostOption.fields.postName.dc": "岗位名称",
-  "plugins.org_center.api.post.v1.UpdateReq.fields.code.dc": "岗位编码（唯一）",
-  "plugins.org_center.api.post.v1.UpdateReq.fields.deptId.dc": "所属部门ID",
-  "plugins.org_center.api.post.v1.UpdateReq.fields.id.dc": "岗位ID",
-  "plugins.org_center.api.post.v1.UpdateReq.fields.name.dc": "岗位名称",
-  "plugins.org_center.api.post.v1.UpdateReq.fields.remark.dc": "备注",
-  "plugins.org_center.api.post.v1.UpdateReq.fields.sort.dc": "排序号",
-  "plugins.org_center.api.post.v1.UpdateReq.fields.status.dc": "状态：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.UpdateReq.meta.dc": "更新指定岗位的信息，所有字段均为可选更新",
-  "plugins.org_center.api.post.v1.UpdateReq.meta.summary": "更新岗位",
-  "plugins.org_center.api.post.v1.UpdateReq.meta.tags": "岗位管理",
-  "plugins.org_center.api.post.v1.UpdateReq.requestBody.content.application_json.fields.code.dc": "岗位编码（唯一）",
-  "plugins.org_center.api.post.v1.UpdateReq.requestBody.content.application_json.fields.deptId.dc": "所属部门ID",
-  "plugins.org_center.api.post.v1.UpdateReq.requestBody.content.application_json.fields.name.dc": "岗位名称",
-  "plugins.org_center.api.post.v1.UpdateReq.requestBody.content.application_json.fields.remark.dc": "备注",
-  "plugins.org_center.api.post.v1.UpdateReq.requestBody.content.application_json.fields.sort.dc": "排序号",
-  "plugins.org_center.api.post.v1.UpdateReq.requestBody.content.application_json.fields.status.dc": "状态：1=正常 0=停用",
-  "plugins.org_center.api.post.v1.UpdateReq.requestBody.content.application_json.schema.dc": "更新指定岗位的信息，所有字段均为可选更新",
-  "plugins.org_center.api.post.v1.UpdateReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.org_center.api.post.v1.UpdateReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.org_center.api.post.v1.UpdateReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.org_center.api.post.v1.UpdateReq.schema.dc": "更新指定岗位的信息，所有字段均为可选更新",
-  "plugins.org_center.api.post.v1.UpdateRes.schema.dc": "按接口定义返回的结果数据"
+  "plugins": {
+    "org_center": {
+      "api": {
+        "dept": {
+          "v1": {
+            "CreateReq": {
+              "fields": {
+                "code": {
+                  "dc": "部门编码，系统内唯一标识，用于与外部系统对接"
+                },
+                "email": {
+                  "dc": "部门联系邮箱"
+                },
+                "leader": {
+                  "dc": "负责人用户ID，关联系统用户表"
+                },
+                "name": {
+                  "dc": "部门名称，同一父级下不可重复"
+                },
+                "orderNum": {
+                  "dc": "排序号，数值越小越靠前，同级部门按此字段升序排列"
+                },
+                "parentId": {
+                  "dc": "父级部门ID，0表示顶级部门"
+                },
+                "phone": {
+                  "dc": "部门联系电话"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "status": {
+                  "dc": "部门状态：1=正常，0=停用。停用后该部门及其子部门的用户将无法登录"
+                }
+              },
+              "meta": {
+                "dc": "创建一个新部门，支持设置父级部门形成树形层级结构，部门编码在系统内须唯一",
+                "summary": "创建部门",
+                "tags": "部门管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "id": {
+                              "dc": "新创建的部门ID"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "创建一个新部门，支持设置父级部门形成树形层级结构，部门编码在系统内须唯一"
+              }
+            },
+            "CreateRes": {
+              "fields": {
+                "id": {
+                  "dc": "新创建的部门ID"
+                }
+              }
+            },
+            "DeleteReq": {
+              "fields": {
+                "id": {
+                  "dc": "待删除的部门ID"
+                }
+              },
+              "meta": {
+                "dc": "删除指定部门，如果该部门下存在子部门或关联用户则不允许删除，需先移除子部门和用户后再进行删除操作",
+                "summary": "删除部门",
+                "tags": "部门管理"
+              },
+              "schema": {
+                "dc": "删除指定部门，如果该部门下存在子部门或关联用户则不允许删除，需先移除子部门和用户后再进行删除操作"
+              }
+            },
+            "DeptEntity": {
+              "fields": {
+                "ancestors": {
+                  "dc": "祖级路径，逗号分隔的部门ID链路"
+                },
+                "code": {
+                  "dc": "部门编码"
+                },
+                "deletedAt": {
+                  "dc": "软删除时间，未删除时为空"
+                },
+                "email": {
+                  "dc": "联系邮箱"
+                },
+                "id": {
+                  "dc": "所属部门ID"
+                },
+                "leader": {
+                  "dc": "负责人用户ID"
+                },
+                "name": {
+                  "dc": "部门名称"
+                },
+                "orderNum": {
+                  "dc": "排序号"
+                },
+                "parentId": {
+                  "dc": "父级部门ID，0表示顶级部门"
+                },
+                "phone": {
+                  "dc": "联系电话"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "status": {
+                  "dc": "部门状态：1=正常 0=停用"
+                }
+              }
+            },
+            "DeptUser": {
+              "fields": {
+                "id": {
+                  "dc": "用户ID"
+                },
+                "nickname": {
+                  "dc": "用户昵称，用于前端显示"
+                },
+                "username": {
+                  "dc": "用户登录账号"
+                }
+              }
+            },
+            "ExcludeReq": {
+              "fields": {
+                "id": {
+                  "dc": "需排除的部门ID，该部门及其所有下级部门将从结果中过滤掉"
+                }
+              },
+              "meta": {
+                "dc": "获取排除指定部门及其所有子部门后的部门列表，供管理工作台在选择父级部门时构建合法候选集，防止形成循环引用",
+                "summary": "获取排除节点后的部门列表",
+                "tags": "部门管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "list": {
+                              "dc": "排除指定节点及其子节点后的部门列表"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "获取排除指定部门及其所有子部门后的部门列表，供管理工作台在选择父级部门时构建合法候选集，防止形成循环引用"
+              }
+            },
+            "ExcludeRes": {
+              "fields": {
+                "list": {
+                  "dc": "排除指定节点及其子节点后的部门列表"
+                }
+              }
+            },
+            "GetReq": {
+              "fields": {
+                "id": {
+                  "dc": "所属部门ID"
+                }
+              },
+              "meta": {
+                "dc": "根据部门ID获取部门的完整详细信息，包括基本信息、负责人、联系方式等",
+                "summary": "获取部门详情",
+                "tags": "部门管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "ancestors": {
+                              "dc": "祖级路径，逗号分隔的部门ID链路"
+                            },
+                            "code": {
+                              "dc": "部门编码"
+                            },
+                            "deletedAt": {
+                              "dc": "软删除时间，未删除时为空"
+                            },
+                            "email": {
+                              "dc": "联系邮箱"
+                            },
+                            "id": {
+                              "dc": "所属部门ID"
+                            },
+                            "leader": {
+                              "dc": "负责人用户ID"
+                            },
+                            "name": {
+                              "dc": "部门名称"
+                            },
+                            "orderNum": {
+                              "dc": "排序号"
+                            },
+                            "parentId": {
+                              "dc": "父级部门ID，0表示顶级部门"
+                            },
+                            "phone": {
+                              "dc": "联系电话"
+                            },
+                            "remark": {
+                              "dc": "备注"
+                            },
+                            "status": {
+                              "dc": "部门状态：1=正常 0=停用"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "根据部门ID获取部门的完整详细信息，包括基本信息、负责人、联系方式等"
+              }
+            },
+            "GetRes": {
+              "fields": {
+                "ancestors": {
+                  "dc": "祖级路径，逗号分隔的部门ID链路"
+                },
+                "code": {
+                  "dc": "部门编码"
+                },
+                "deletedAt": {
+                  "dc": "软删除时间，未删除时为空"
+                },
+                "email": {
+                  "dc": "联系邮箱"
+                },
+                "id": {
+                  "dc": "所属部门ID"
+                },
+                "leader": {
+                  "dc": "负责人用户ID"
+                },
+                "name": {
+                  "dc": "部门名称"
+                },
+                "orderNum": {
+                  "dc": "排序号"
+                },
+                "parentId": {
+                  "dc": "父级部门ID，0表示顶级部门"
+                },
+                "phone": {
+                  "dc": "联系电话"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "status": {
+                  "dc": "部门状态：1=正常 0=停用"
+                }
+              },
+              "schema": {
+                "dc": "部门详情，包含部门的全部字段数据"
+              }
+            },
+            "ListReq": {
+              "fields": {
+                "name": {
+                  "dc": "按部门名称筛选，支持模糊匹配"
+                },
+                "status": {
+                  "dc": "按状态筛选：1=正常，0=停用，不传则查询全部"
+                }
+              },
+              "meta": {
+                "dc": "获取部门列表数据，支持按部门名称和状态进行筛选，返回的列表按排序号升序排列，包含所有层级的部门信息",
+                "summary": "获取部门列表",
+                "tags": "部门管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "list": {
+                              "dc": "部门列表数据，包含所有匹配条件的部门记录"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "获取部门列表数据，支持按部门名称和状态进行筛选，返回的列表按排序号升序排列，包含所有层级的部门信息"
+              }
+            },
+            "ListRes": {
+              "fields": {
+                "list": {
+                  "dc": "部门列表数据，包含所有匹配条件的部门记录"
+                }
+              }
+            },
+            "TreeNode": {
+              "fields": {
+                "children": {
+                  "dc": "子部门列表，递归嵌套结构"
+                },
+                "id": {
+                  "dc": "所属部门ID"
+                },
+                "label": {
+                  "dc": "部门名称，供管理工作台树节点显示"
+                }
+              }
+            },
+            "TreeReq": {
+              "meta": {
+                "dc": "获取完整的部门树形结构数据，供管理工作台的树选择器、结构投影或页面装配使用，仅包含正常状态的部门",
+                "summary": "获取部门树",
+                "tags": "部门管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "list": {
+                              "dc": "部门树形结构列表，顶级节点为parentId=0的部门"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "获取完整的部门树形结构数据，供管理工作台的树选择器、结构投影或页面装配使用，仅包含正常状态的部门"
+              }
+            },
+            "TreeRes": {
+              "fields": {
+                "list": {
+                  "dc": "部门树形结构列表，顶级节点为parentId=0的部门"
+                }
+              }
+            },
+            "UpdateReq": {
+              "fields": {
+                "code": {
+                  "dc": "部门编码，系统内唯一标识"
+                },
+                "email": {
+                  "dc": "部门联系邮箱"
+                },
+                "id": {
+                  "dc": "所属部门ID"
+                },
+                "leader": {
+                  "dc": "负责人用户ID，关联系统用户表"
+                },
+                "name": {
+                  "dc": "部门名称，同一父级下不可重复"
+                },
+                "orderNum": {
+                  "dc": "排序号，数值越小越靠前"
+                },
+                "parentId": {
+                  "dc": "父级部门ID，0表示顶级部门，不能设置为自身或其下级部门"
+                },
+                "phone": {
+                  "dc": "部门联系电话"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "status": {
+                  "dc": "部门状态：1=正常，0=停用"
+                }
+              },
+              "meta": {
+                "dc": "更新指定部门的信息，仅传入需要修改的字段即可，未传入的字段保持不变。不允许将部门的父级设为自身或其子部门",
+                "summary": "更新部门",
+                "tags": "部门管理"
+              },
+              "requestBody": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "code": {
+                        "dc": "部门编码，系统内唯一标识"
+                      },
+                      "email": {
+                        "dc": "部门联系邮箱"
+                      },
+                      "leader": {
+                        "dc": "负责人用户ID，关联系统用户表"
+                      },
+                      "name": {
+                        "dc": "部门名称，同一父级下不可重复"
+                      },
+                      "orderNum": {
+                        "dc": "排序号，数值越小越靠前"
+                      },
+                      "parentId": {
+                        "dc": "父级部门ID，0表示顶级部门，不能设置为自身或其下级部门"
+                      },
+                      "phone": {
+                        "dc": "部门联系电话"
+                      },
+                      "remark": {
+                        "dc": "备注"
+                      },
+                      "status": {
+                        "dc": "部门状态：1=正常，0=停用"
+                      }
+                    },
+                    "schema": {
+                      "dc": "更新指定部门的信息，仅传入需要修改的字段即可，未传入的字段保持不变。不允许将部门的父级设为自身或其子部门"
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "更新指定部门的信息，仅传入需要修改的字段即可，未传入的字段保持不变。不允许将部门的父级设为自身或其子部门"
+              }
+            },
+            "UsersReq": {
+              "fields": {
+                "id": {
+                  "dc": "部门ID，0表示查询所有用户，大于0时查询该部门及其所有子部门的用户"
+                },
+                "keyword": {
+                  "dc": "搜索关键词，按用户名或昵称进行模糊匹配"
+                },
+                "limit": {
+                  "dc": "最大返回条数，默认为10，用于限制下拉列表的数据量"
+                }
+              },
+              "meta": {
+                "dc": "获取指定部门及其所有子部门下的用户列表，供管理工作台负责人选择器等按组织结构选人场景复用。当部门ID为0时返回所有用户，支持按用户名或昵称进行关键词搜索",
+                "summary": "获取部门用户列表",
+                "tags": "部门管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "list": {
+                              "dc": "部门用户列表"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "获取指定部门及其所有子部门下的用户列表，供管理工作台负责人选择器等按组织结构选人场景复用。当部门ID为0时返回所有用户，支持按用户名或昵称进行关键词搜索"
+              }
+            },
+            "UsersRes": {
+              "fields": {
+                "list": {
+                  "dc": "部门用户列表"
+                }
+              }
+            }
+          }
+        },
+        "post": {
+          "v1": {
+            "CreateReq": {
+              "fields": {
+                "code": {
+                  "dc": "岗位编码（唯一）"
+                },
+                "deptId": {
+                  "dc": "所属部门ID"
+                },
+                "name": {
+                  "dc": "岗位名称"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "sort": {
+                  "dc": "排序号，数值越小排序越靠前"
+                },
+                "status": {
+                  "dc": "状态：1=正常 0=停用"
+                }
+              },
+              "meta": {
+                "dc": "在指定部门下创建一个新岗位，岗位编码在系统中必须唯一",
+                "summary": "创建岗位",
+                "tags": "岗位管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "id": {
+                              "dc": "岗位ID"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "在指定部门下创建一个新岗位，岗位编码在系统中必须唯一"
+              }
+            },
+            "CreateRes": {
+              "fields": {
+                "id": {
+                  "dc": "岗位ID"
+                }
+              }
+            },
+            "DeleteReq": {
+              "fields": {
+                "ids": {
+                  "dc": "岗位ID，多个用逗号分隔"
+                }
+              },
+              "meta": {
+                "dc": "删除一个或多个岗位，若岗位已分配给用户则不允许删除",
+                "summary": "删除岗位",
+                "tags": "岗位管理"
+              },
+              "schema": {
+                "dc": "删除一个或多个岗位，若岗位已分配给用户则不允许删除"
+              }
+            },
+            "DeptTreeNode": {
+              "fields": {
+                "children": {
+                  "dc": "子部门列表"
+                },
+                "id": {
+                  "dc": "所属部门ID"
+                },
+                "label": {
+                  "dc": "部门名称"
+                },
+                "postCount": {
+                  "dc": "该部门下的岗位数量"
+                }
+              }
+            },
+            "DeptTreeReq": {
+              "meta": {
+                "dc": "获取部门树结构及岗位数量，供管理工作台的岗位查询视图按部门筛选或装配树选择器",
+                "summary": "获取岗位筛选部门树",
+                "tags": "岗位管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "list": {
+                              "dc": "部门树"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "获取部门树结构及岗位数量，供管理工作台的岗位查询视图按部门筛选或装配树选择器"
+              }
+            },
+            "DeptTreeRes": {
+              "fields": {
+                "list": {
+                  "dc": "部门树"
+                }
+              }
+            },
+            "ExportReq": {
+              "fields": {
+                "code": {
+                  "dc": "按岗位编码筛选"
+                },
+                "deptId": {
+                  "dc": "按部门ID筛选"
+                },
+                "name": {
+                  "dc": "按岗位名称筛选"
+                },
+                "status": {
+                  "dc": "按状态筛选：1=正常 0=停用"
+                }
+              },
+              "meta": {
+                "dc": "导出岗位数据为Excel文件，支持按条件筛选导出",
+                "summary": "导出岗位数据",
+                "tags": "岗位管理"
+              },
+              "schema": {
+                "dc": "导出岗位数据为Excel文件，支持按条件筛选导出"
+              }
+            },
+            "GetReq": {
+              "fields": {
+                "id": {
+                  "dc": "岗位ID"
+                }
+              },
+              "meta": {
+                "dc": "根据岗位ID获取岗位的详细信息",
+                "summary": "获取岗位详情",
+                "tags": "岗位管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "code": {
+                              "dc": "岗位编码"
+                            },
+                            "deletedAt": {
+                              "dc": "软删除时间，未删除时为空"
+                            },
+                            "deptId": {
+                              "dc": "所属部门ID"
+                            },
+                            "id": {
+                              "dc": "岗位ID"
+                            },
+                            "name": {
+                              "dc": "岗位名称"
+                            },
+                            "remark": {
+                              "dc": "备注"
+                            },
+                            "sort": {
+                              "dc": "排序号"
+                            },
+                            "status": {
+                              "dc": "状态：1=正常 0=停用"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "根据岗位ID获取岗位的详细信息"
+              }
+            },
+            "GetRes": {
+              "fields": {
+                "code": {
+                  "dc": "岗位编码"
+                },
+                "deletedAt": {
+                  "dc": "软删除时间，未删除时为空"
+                },
+                "deptId": {
+                  "dc": "所属部门ID"
+                },
+                "id": {
+                  "dc": "岗位ID"
+                },
+                "name": {
+                  "dc": "岗位名称"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "sort": {
+                  "dc": "排序号"
+                },
+                "status": {
+                  "dc": "状态：1=正常 0=停用"
+                }
+              },
+              "schema": {
+                "dc": "岗位详情"
+              }
+            },
+            "ListReq": {
+              "fields": {
+                "code": {
+                  "dc": "按岗位编码筛选（模糊匹配）"
+                },
+                "deptId": {
+                  "dc": "按部门ID筛选"
+                },
+                "name": {
+                  "dc": "按岗位名称筛选（模糊匹配）"
+                },
+                "status": {
+                  "dc": "按状态筛选：1=正常 0=停用"
+                }
+              },
+              "meta": {
+                "dc": "分页查询岗位列表，支持按部门、编码、名称、状态等条件筛选",
+                "summary": "获取岗位列表",
+                "tags": "岗位管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "list": {
+                              "dc": "岗位列表"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "分页查询岗位列表，支持按部门、编码、名称、状态等条件筛选"
+              }
+            },
+            "ListRes": {
+              "fields": {
+                "list": {
+                  "dc": "岗位列表"
+                }
+              }
+            },
+            "OptionSelectReq": {
+              "fields": {
+                "deptId": {
+                  "dc": "部门ID，不传则返回所有岗位"
+                }
+              },
+              "meta": {
+                "dc": "获取指定部门及其子部门下的岗位选项列表，用于用户创建/编辑时选择岗位",
+                "summary": "获取部门下岗位选项",
+                "tags": "岗位管理"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "list": {
+                              "dc": "岗位选项列表"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "获取指定部门及其子部门下的岗位选项列表，用于用户创建/编辑时选择岗位"
+              }
+            },
+            "OptionSelectRes": {
+              "fields": {
+                "list": {
+                  "dc": "岗位选项列表"
+                }
+              }
+            },
+            "PostEntity": {
+              "fields": {
+                "code": {
+                  "dc": "岗位编码"
+                },
+                "deletedAt": {
+                  "dc": "软删除时间，未删除时为空"
+                },
+                "deptId": {
+                  "dc": "所属部门ID"
+                },
+                "id": {
+                  "dc": "岗位ID"
+                },
+                "name": {
+                  "dc": "岗位名称"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "sort": {
+                  "dc": "排序号"
+                },
+                "status": {
+                  "dc": "状态：1=正常 0=停用"
+                }
+              }
+            },
+            "PostOption": {
+              "fields": {
+                "postId": {
+                  "dc": "岗位ID"
+                },
+                "postName": {
+                  "dc": "岗位名称"
+                }
+              }
+            },
+            "UpdateReq": {
+              "fields": {
+                "code": {
+                  "dc": "岗位编码（唯一）"
+                },
+                "deptId": {
+                  "dc": "所属部门ID"
+                },
+                "id": {
+                  "dc": "岗位ID"
+                },
+                "name": {
+                  "dc": "岗位名称"
+                },
+                "remark": {
+                  "dc": "备注"
+                },
+                "sort": {
+                  "dc": "排序号"
+                },
+                "status": {
+                  "dc": "状态：1=正常 0=停用"
+                }
+              },
+              "meta": {
+                "dc": "更新指定岗位的信息，所有字段均为可选更新",
+                "summary": "更新岗位",
+                "tags": "岗位管理"
+              },
+              "requestBody": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "code": {
+                        "dc": "岗位编码（唯一）"
+                      },
+                      "deptId": {
+                        "dc": "所属部门ID"
+                      },
+                      "name": {
+                        "dc": "岗位名称"
+                      },
+                      "remark": {
+                        "dc": "备注"
+                      },
+                      "sort": {
+                        "dc": "排序号"
+                      },
+                      "status": {
+                        "dc": "状态：1=正常 0=停用"
+                      }
+                    },
+                    "schema": {
+                      "dc": "更新指定岗位的信息，所有字段均为可选更新"
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "更新指定岗位的信息，所有字段均为可选更新"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }

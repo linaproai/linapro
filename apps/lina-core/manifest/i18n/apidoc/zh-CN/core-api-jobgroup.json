@@ -1,0 +1,213 @@
+{
+  "core": {
+    "api": {
+      "jobgroup": {
+        "v1": {
+          "CreateReq": {
+            "fields": {
+              "code": {
+                "dc": "分组编码，全局唯一"
+              },
+              "name": {
+                "dc": "分组名称"
+              },
+              "remark": {
+                "dc": "分组备注"
+              },
+              "sortOrder": {
+                "dc": "显示排序，数值越小越靠前"
+              }
+            },
+            "meta": {
+              "dc": "创建一个新的定时任务分组，供任务管理页面按分组组织任务",
+              "summary": "创建分组",
+              "tags": "任务调度/任务分组"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "新建分组ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "创建一个新的定时任务分组，供任务管理页面按分组组织任务"
+            }
+          },
+          "CreateRes": {
+            "fields": {
+              "id": {
+                "dc": "新建分组ID"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "ids": {
+                "dc": "分组ID，多个用逗号分隔"
+              }
+            },
+            "meta": {
+              "dc": "按分组ID批量删除任务分组，默认分组不允许删除，其它分组下任务需迁移到默认分组",
+              "summary": "删除分组",
+              "tags": "任务调度/任务分组"
+            },
+            "schema": {
+              "dc": "按分组ID批量删除任务分组，默认分组不允许删除，其它分组下任务需迁移到默认分组"
+            }
+          },
+          "GroupPayload": {
+            "fields": {
+              "code": {
+                "dc": "分组编码，全局唯一"
+              },
+              "name": {
+                "dc": "分组名称"
+              },
+              "remark": {
+                "dc": "分组备注"
+              },
+              "sortOrder": {
+                "dc": "显示排序，数值越小越靠前"
+              }
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "code": {
+                "dc": "分组编码"
+              },
+              "id": {
+                "dc": "任务分组ID"
+              },
+              "isDefault": {
+                "dc": "是否默认分组（1=是 0=否）"
+              },
+              "jobCount": {
+                "dc": "当前分组下的任务数量"
+              },
+              "name": {
+                "dc": "分组名称"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "sortOrder": {
+                "dc": "显示排序"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "code": {
+                "dc": "按分组编码筛选（模糊匹配）"
+              },
+              "name": {
+                "dc": "按分组名称筛选（模糊匹配）"
+              },
+              "orderBy": {
+                "dc": "排序字段：id,sort_order,code,name,created_at,updated_at"
+              },
+              "orderDirection": {
+                "dc": "排序方向：asc=升序 desc=降序",
+                "default": "asc"
+              }
+            },
+            "meta": {
+              "dc": "分页查询任务分组列表，支持按编码与名称关键字筛选",
+              "summary": "获取分组列表",
+              "tags": "任务调度/任务分组"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "分组列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分页查询任务分组列表，支持按编码与名称关键字筛选"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "分组列表"
+              }
+            }
+          },
+          "UpdateReq": {
+            "fields": {
+              "code": {
+                "dc": "分组编码，全局唯一"
+              },
+              "id": {
+                "dc": "分组ID"
+              },
+              "name": {
+                "dc": "分组名称"
+              },
+              "remark": {
+                "dc": "分组备注"
+              },
+              "sortOrder": {
+                "dc": "显示排序，数值越小越靠前"
+              }
+            },
+            "meta": {
+              "dc": "根据分组ID更新定时任务分组信息，默认分组仅允许修改开放字段",
+              "summary": "更新分组",
+              "tags": "任务调度/任务分组"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "code": {
+                      "dc": "分组编码，全局唯一"
+                    },
+                    "name": {
+                      "dc": "分组名称"
+                    },
+                    "remark": {
+                      "dc": "分组备注"
+                    },
+                    "sortOrder": {
+                      "dc": "显示排序，数值越小越靠前"
+                    }
+                  },
+                  "schema": {
+                    "dc": "根据分组ID更新定时任务分组信息，默认分组仅允许修改开放字段"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据分组ID更新定时任务分组信息，默认分组仅允许修改开放字段"
+            }
+          }
+        }
+      }
+    }
+  }
+}

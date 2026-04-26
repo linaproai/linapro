@@ -5,7 +5,6 @@ package apidoc
 
 import (
 	"context"
-	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -18,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"unicode"
 )
 
@@ -140,7 +140,7 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 		"plugins.plugin_demo_dynamic.paths.get.backend_summary.meta.summary",
 	)
 	for _, key := range requiredKeys {
-		if strings.TrimSpace(mergedZh[key]) == "" {
+		if strings.TrimSpace(resolveOpenAPITestMessage(mergedZh, key)) == "" {
 			missingChinese = append(missingChinese, "required structured key: "+key)
 		}
 	}
@@ -154,6 +154,20 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 			strings.Join(limitStrings(sourceTextKeys, 20), "\n"),
 		)
 	}
+}
+
+// resolveOpenAPITestMessage mirrors runtime lookup for exact keys plus common
+// fallback keys so coverage checks accept intentionally deduplicated metadata.
+func resolveOpenAPITestMessage(bundle map[string]string, key string) string {
+	if value := strings.TrimSpace(bundle[key]); value != "" {
+		return value
+	}
+	for _, fallbackKey := range openAPICommonFallbackKeys(key) {
+		if value := strings.TrimSpace(bundle[fallbackKey]); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 // TestOpenAPIBundlesAreSeparatedFromRuntimeI18n verifies apidoc source-string
@@ -249,6 +263,74 @@ func TestOpenAPIPluginCatalogMergeRejectsForeignNamespaces(t *testing.T) {
 	}
 	if _, ok := target["core.openapi.info.title"]; ok {
 		t.Fatal("expected host apidoc key from plugin bundle to be ignored")
+	}
+}
+
+// TestOpenAPIBundleLoaderSupportsNestedSplitFiles verifies apidoc bundles can
+// be maintained as one locale root file plus multiple nested JSON files.
+func TestOpenAPIBundleLoaderSupportsNestedSplitFiles(t *testing.T) {
+	t.Parallel()
+
+	filesystem := fstest.MapFS{
+		"manifest/i18n/apidoc/zh-CN.json": &fstest.MapFile{Data: []byte(`{
+  "core": {
+    "openapi": {
+      "info": {
+        "title": "根文件标题"
+      }
+    }
+  }
+}`)},
+		"manifest/i18n/apidoc/zh-CN/core-api-auth.json": &fstest.MapFile{Data: []byte(`{
+  "core": {
+    "api": {
+      "auth": {
+        "v1": {
+          "LoginReq": {
+            "meta": {
+              "summary": "用户登录"
+            }
+          }
+        }
+      }
+    }
+  }
+}`)},
+		"manifest/i18n/apidoc/zh-CN/override.json": &fstest.MapFile{Data: []byte(`{
+  "core.openapi.info.title": "扁平覆盖标题"
+}`)},
+	}
+
+	bundle := loadOpenAPIEmbeddedBundle(context.Background(), filesystem, "manifest/i18n/apidoc", "zh-CN")
+	if got := bundle["core.openapi.info.title"]; got != "扁平覆盖标题" {
+		t.Fatalf("expected split flat key to override root nested key, got %q", got)
+	}
+	if got := bundle["core.api.auth.v1.LoginReq.meta.summary"]; got != "用户登录" {
+		t.Fatalf("expected nested split file key to load, got %q", got)
+	}
+}
+
+// TestOpenAPICommonFallbackKeys verifies generated wrapper metadata can share
+// common apidoc translations without repeating the same exact key per API.
+func TestOpenAPICommonFallbackKeys(t *testing.T) {
+	t.Parallel()
+
+	localizer := &openAPILocalizer{
+		catalog: map[string]string{
+			"core.common.responses.fields.code.dc": "错误码",
+			"core.common.schemas.response.dc":      "按接口定义返回的结果数据",
+			"core.common.fields.pageNum.dc":        "页码",
+		},
+	}
+
+	if got := localizer.translate("core.api.user.v1.ListReq.responses.200.content.application_json.fields.code.dc", "Code"); got != "错误码" {
+		t.Fatalf("expected standard response code fallback, got %q", got)
+	}
+	if got := localizer.translate("core.api.user.v1.ListRes.schema.dc", "Response data as defined by the API contract"); got != "按接口定义返回的结果数据" {
+		t.Fatalf("expected response schema fallback, got %q", got)
+	}
+	if got := localizer.translate("core.api.user.v1.ListReq.fields.pageNum.dc", "Page number"); got != "页码" {
+		t.Fatalf("expected pageNum fallback, got %q", got)
 	}
 }
 
@@ -608,13 +690,42 @@ func isOpaqueOpenAPIPlaceholder(value openAPIMetadataValue) bool {
 func readOpenAPIJSONBundle(t *testing.T, path string) map[string]string {
 	t.Helper()
 
+	bundle := make(map[string]string)
 	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read apidoc i18n bundle %s failed: %v", path, err)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatalf("read i18n bundle %s failed: %v", path, err)
 	}
-	var bundle map[string]string
-	if err = json.Unmarshal(content, &bundle); err != nil {
-		t.Fatalf("parse apidoc i18n bundle %s failed: %v", path, err)
+	if err == nil {
+		parsedBundle, parseErr := parseOpenAPIMessageCatalogJSON(content)
+		if parseErr != nil {
+			t.Fatalf("parse i18n bundle %s failed: %v", path, parseErr)
+		}
+		mergeOpenAPIMessageCatalog(bundle, parsedBundle)
+	}
+
+	if locale := strings.TrimSuffix(filepath.Base(path), ".json"); locale != filepath.Base(path) {
+		localeDir := filepath.Join(filepath.Dir(path), locale)
+		if _, statErr := os.Stat(localeDir); statErr == nil {
+			entries := make([]string, 0)
+			if walkErr := filepath.WalkDir(localeDir, func(filePath string, entry os.DirEntry, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if entry.IsDir() || !strings.HasSuffix(filePath, ".json") {
+					return nil
+				}
+				entries = append(entries, filePath)
+				return nil
+			}); walkErr != nil {
+				t.Fatalf("scan i18n bundle directory %s failed: %v", localeDir, walkErr)
+			}
+			sort.Strings(entries)
+			for _, entryPath := range entries {
+				mergeOpenAPIMessageCatalog(bundle, readOpenAPIJSONBundle(t, entryPath))
+			}
+		} else if !os.IsNotExist(statErr) {
+			t.Fatalf("stat i18n bundle directory %s failed: %v", localeDir, statErr)
+		}
 	}
 	return bundle
 }
@@ -636,13 +747,34 @@ func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) 
 		}
 		pluginID := entry.Name()
 		bundlePath := filepath.Join(pluginsRoot, pluginID, "manifest/i18n/apidoc", locale+".json")
-		if _, statErr := os.Stat(bundlePath); statErr != nil {
-			if os.IsNotExist(statErr) {
+		bundleDir := filepath.Join(pluginsRoot, pluginID, "manifest/i18n/apidoc", locale)
+		if _, fileErr := os.Stat(bundlePath); fileErr != nil {
+			if _, dirErr := os.Stat(bundleDir); dirErr != nil {
+				if os.IsNotExist(fileErr) && os.IsNotExist(dirErr) {
+					continue
+				}
+				if !os.IsNotExist(fileErr) {
+					t.Fatalf("stat plugin apidoc bundle %s failed: %v", bundlePath, fileErr)
+				}
+				t.Fatalf("stat plugin apidoc bundle dir %s failed: %v", bundleDir, dirErr)
+			}
+			if !os.IsNotExist(fileErr) {
+				t.Fatalf("stat plugin apidoc bundle %s failed: %v", bundlePath, fileErr)
+			}
+		}
+		if bundle := readOpenAPIJSONBundle(t, bundlePath); len(bundle) > 0 || locale == "en-US" {
+			result[pluginID] = bundle
+			continue
+		}
+		if _, dirErr := os.Stat(bundleDir); dirErr == nil {
+			result[pluginID] = readOpenAPIJSONBundle(t, bundlePath)
+		} else if !os.IsNotExist(dirErr) {
+			t.Fatalf("stat plugin apidoc bundle dir %s failed: %v", bundleDir, dirErr)
+		} else {
+			if _, statErr := os.Stat(bundlePath); statErr != nil {
 				continue
 			}
-			t.Fatalf("stat plugin apidoc bundle %s failed: %v", bundlePath, statErr)
 		}
-		result[pluginID] = readOpenAPIJSONBundle(t, bundlePath)
 	}
 	return result
 }

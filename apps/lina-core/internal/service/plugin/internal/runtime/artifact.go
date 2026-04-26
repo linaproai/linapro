@@ -502,19 +502,14 @@ func parseRuntimeArtifactLocaleJSONAssets(
 }
 
 // validateRuntimeArtifactLocaleJSONContent validates one locale JSON payload.
-// Runtime UI i18n accepts nested JSON authoring, while API-documentation i18n
-// remains flat because the apidoc loader still uses stable structured keys.
+// Runtime UI and API-documentation i18n both accept nested JSON authoring, and
+// both keep string leaves after normalizing to flat structured keys.
 func validateRuntimeArtifactLocaleJSONContent(sectionName string, content string) error {
-	if sectionName == pluginbridge.WasmSectionI18NAssets {
-		var bundle map[string]interface{}
-		if err := json.Unmarshal([]byte(content), &bundle); err != nil {
-			return err
-		}
-		return validateRuntimeArtifactI18NMessageValue(bundle)
+	var bundle map[string]interface{}
+	if err := json.Unmarshal([]byte(content), &bundle); err != nil {
+		return err
 	}
-
-	var bundle map[string]string
-	return json.Unmarshal([]byte(content), &bundle)
+	return validateRuntimeArtifactI18NMessageValue(bundle)
 }
 
 // validateRuntimeArtifactI18NMessageValue verifies nested runtime i18n assets

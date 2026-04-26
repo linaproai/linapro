@@ -1,0 +1,240 @@
+{
+  "core": {
+    "api": {
+      "usermsg": {
+        "v1": {
+          "ClearReq": {
+            "meta": {
+              "dc": "清空当前用户的所有消息记录，包括已读和未读",
+              "summary": "清空全部消息",
+              "tags": "用户消息"
+            },
+            "schema": {
+              "dc": "清空当前用户的所有消息记录，包括已读和未读"
+            }
+          },
+          "CountReq": {
+            "meta": {
+              "dc": "获取当前登录用户的未读消息数量，用于前端消息图标角标展示",
+              "summary": "获取未读消息数量",
+              "tags": "用户消息"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "count": {
+                            "dc": "未读消息数量"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "获取当前登录用户的未读消息数量，用于前端消息图标角标展示"
+            }
+          },
+          "CountRes": {
+            "fields": {
+              "count": {
+                "dc": "未读消息数量"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "id": {
+                "dc": "消息ID"
+              }
+            },
+            "meta": {
+              "dc": "删除当前用户的指定消息",
+              "summary": "删除单条消息",
+              "tags": "用户消息"
+            },
+            "schema": {
+              "dc": "删除当前用户的指定消息"
+            }
+          },
+          "GetReq": {
+            "fields": {
+              "id": {
+                "dc": "消息ID"
+              }
+            },
+            "meta": {
+              "dc": "获取当前登录用户的一条消息详情，返回预览弹窗所需的标题、内容、消息类型和发送者信息",
+              "summary": "获取消息详情",
+              "tags": "用户消息"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "content": {
+                            "dc": "可直接用于预览渲染的消息内容"
+                          },
+                          "createdAt": {
+                            "dc": "消息创建时间"
+                          },
+                          "createdByName": {
+                            "dc": "发送者用户名"
+                          },
+                          "id": {
+                            "dc": "消息ID"
+                          },
+                          "sourceId": {
+                            "dc": "来源ID"
+                          },
+                          "sourceType": {
+                            "dc": "来源类型：notice=通知公告 plugin=动态插件 system=系统"
+                          },
+                          "title": {
+                            "dc": "消息标题"
+                          },
+                          "type": {
+                            "dc": "消息类型：1=通知 2=公告"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "获取当前登录用户的一条消息详情，返回预览弹窗所需的标题、内容、消息类型和发送者信息"
+            }
+          },
+          "GetRes": {
+            "fields": {
+              "content": {
+                "dc": "可直接用于预览渲染的消息内容"
+              },
+              "createdAt": {
+                "dc": "消息创建时间"
+              },
+              "createdByName": {
+                "dc": "发送者用户名"
+              },
+              "id": {
+                "dc": "消息ID"
+              },
+              "sourceId": {
+                "dc": "来源ID"
+              },
+              "sourceType": {
+                "dc": "来源类型：notice=通知公告 plugin=动态插件 system=系统"
+              },
+              "title": {
+                "dc": "消息标题"
+              },
+              "type": {
+                "dc": "消息类型：1=通知 2=公告"
+              }
+            }
+          },
+          "ListReq": {
+            "meta": {
+              "dc": "分页查询当前登录用户的消息列表，包括已读和未读消息",
+              "summary": "获取消息列表",
+              "tags": "用户消息"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "消息列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分页查询当前登录用户的消息列表，包括已读和未读消息"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "消息列表"
+              }
+            }
+          },
+          "MessageItem": {
+            "fields": {
+              "createdAt": {
+                "dc": "消息创建时间"
+              },
+              "id": {
+                "dc": "消息ID"
+              },
+              "isRead": {
+                "dc": "是否已读：0=未读 1=已读"
+              },
+              "readAt": {
+                "dc": "已读时间，未读时为空"
+              },
+              "sourceId": {
+                "dc": "来源ID，当前通知公告预览使用该字段"
+              },
+              "sourceType": {
+                "dc": "来源类型：notice=通知公告 plugin=动态插件 system=系统"
+              },
+              "title": {
+                "dc": "消息标题"
+              },
+              "type": {
+                "dc": "消息类型：1=通知 2=公告"
+              },
+              "userId": {
+                "dc": "接收用户ID"
+              }
+            }
+          },
+          "ReadAllReq": {
+            "meta": {
+              "dc": "将当前用户的所有未读消息批量标记为已读",
+              "summary": "标记全部消息已读",
+              "tags": "用户消息"
+            },
+            "schema": {
+              "dc": "将当前用户的所有未读消息批量标记为已读"
+            }
+          },
+          "ReadReq": {
+            "fields": {
+              "id": {
+                "dc": "消息ID"
+              }
+            },
+            "meta": {
+              "dc": "将指定消息标记为已读状态",
+              "summary": "标记消息已读",
+              "tags": "用户消息"
+            },
+            "schema": {
+              "dc": "将指定消息标记为已读状态"
+            }
+          }
+        }
+      }
+    }
+  }
+}

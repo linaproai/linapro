@@ -4,7 +4,7 @@
 
 宿主会把顶层`manifest/i18n/<locale>.json`作为运行时 UI 语言包加载，并与已启用插件资源、数据库覆写一起聚合，最终通过运行时国际化接口输出生效结果。
 
-接口文档翻译资源存放在`manifest/i18n/apidoc/<locale>.json`。它们与运行时 UI 语言包共享同一个 i18n 根目录，便于发现和治理，但通过 `apidoc/` 子目录保持隔离，因为 OpenAPI 文档体量较大，且只在渲染 `/api.json` 时需要。
+接口文档翻译资源存放在`manifest/i18n/apidoc/<locale>.json`，也可以按需拆分到 `manifest/i18n/apidoc/<locale>/**/*.json`。它们与运行时 UI 语言包共享同一个 i18n 根目录，便于发现和治理，但通过 `apidoc/` 子目录保持隔离，因为 OpenAPI 文档体量较大，且只在渲染 `/api.json` 时需要。
 
 ## 目录约定
 
@@ -12,20 +12,21 @@
 | ----------------------------------------------------------- | ------------------ |
 | `manifest/i18n/zh-CN.json`                                  | 简体中文基线语言包 |
 | `manifest/i18n/en-US.json`                                  | 英文基线语言包     |
-| `manifest/i18n/apidoc/zh-CN.json`                           | 简体中文接口文档语言包 |
+| `manifest/i18n/apidoc/zh-CN.json` 与 `manifest/i18n/apidoc/zh-CN/**/*.json` | 简体中文接口文档语言包 |
 | `manifest/i18n/apidoc/en-US.json`                           | 英文接口文档空占位文件 |
 | `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | 插件自有语言包     |
-| `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` | 插件自有接口文档语言包 |
+| `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` 与可选拆分文件 | 插件自有接口文档语言包 |
 
 规则如下：
 
 - 文件名必须使用规范化语言编码，例如`zh-CN.json`、`en-US.json`。
 - 宿主只把顶层`manifest/i18n/<locale>.json`识别为运行时语言包。
-- 宿主只把`manifest/i18n/apidoc/<locale>.json`识别为接口文档语言包。
+- 宿主把`manifest/i18n/apidoc/<locale>.json`和`manifest/i18n/apidoc/<locale>/**/*.json`识别为接口文档语言包。
 - 运行时 UI 消息文件可使用层级 JSON 或扁平 dotted key 编写。
 - 宿主会把运行时 UI 消息文件归一化为扁平 key，用于聚合、数据库覆写、缺失检查、导入导出和来源诊断。
 - 只有在返回前端运行时国际化接口结果时，宿主才会把归一化后的扁平 key 转换为嵌套对象。
-- 接口文档语言包使用结构化 `core.*` 和 `plugins.*` 键，`en-US.json` 保持 `{}`，且不翻译 `eg/example` 示例值或生成 entity 元数据。
+- 接口文档语言包可使用层级 JSON 或扁平 dotted key 编写，并统一归一化为结构化 `core.*` 和 `plugins.*` 键；`en-US.json` 保持 `{}`，且不翻译 `eg/example` 示例值或生成 entity 元数据。
+- 接口文档语言包可使用宿主自有的 `core.common.*` fallback key 维护标准响应、分页、时间字段等重复元数据；具体结构 key 存在时仍优先生效。
 
 ## 为什么使用`JSON`和 key 归一化
 

@@ -1,97 +1,297 @@
 {
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.fields.beginTime.dc": "清理起始时间",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.fields.endTime.dc": "清理截止时间",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.meta.dc": "清空指定时间范围内的登录日志，不传时间则清空全部",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.meta.summary": "清空登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.meta.tags": "登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.responses.200.content.application_json.fields.data.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanReq.schema.dc": "清空指定时间范围内的登录日志，不传时间则清空全部",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanRes.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_loginlog.api.loginlog.v1.CleanRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.fields.ids.dc": "日志ID，多个用逗号分隔",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.meta.dc": "删除一条或多条登录日志记录",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.meta.summary": "删除登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.meta.tags": "登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.responses.200.content.application_json.fields.data.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteReq.schema.dc": "删除一条或多条登录日志记录",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteRes.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_loginlog.api.loginlog.v1.DeleteRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.beginTime.dc": "按登录时间起始筛选",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.endTime.dc": "按登录时间结束筛选",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.ids.dc": "指定导出的记录ID列表，不传则导出全部符合条件的记录",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.ip.dc": "按IP地址筛选（模糊匹配）",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.orderBy.dc": "排序字段：id,loginTime",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.orderDirection.dc": "排序方向：asc或desc",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.orderDirection.default": "desc",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.status.dc": "按状态筛选：0=成功 1=失败",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.fields.userName.dc": "按用户名筛选（模糊匹配）",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.meta.dc": "导出登录日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.meta.summary": "导出登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.meta.tags": "登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportReq.schema.dc": "导出登录日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录",
-  "plugins.monitor_loginlog.api.loginlog.v1.ExportRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.fields.id.dc": "登录日志ID",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.meta.dc": "根据日志ID获取登录日志的详细信息，包括登录IP、浏览器、操作系统等",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.meta.summary": "获取登录日志详情",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.meta.tags": "登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.browser.dc": "浏览器类型",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.id.dc": "日志ID",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.ip.dc": "登录IP地址",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.loginTime.dc": "登录时间",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.msg.dc": "提示消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.os.dc": "操作系统",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.status.dc": "登录状态：0=成功 1=失败",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.userName.dc": "登录账号",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetReq.schema.dc": "根据日志ID获取登录日志的详细信息，包括登录IP、浏览器、操作系统等",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.browser.dc": "浏览器类型",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.id.dc": "日志ID",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.ip.dc": "登录IP地址",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.loginTime.dc": "登录时间",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.msg.dc": "提示消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.os.dc": "操作系统",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.status.dc": "登录状态：0=成功 1=失败",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.fields.userName.dc": "登录账号",
-  "plugins.monitor_loginlog.api.loginlog.v1.GetRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.beginTime.dc": "按登录时间起始筛选",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.endTime.dc": "按登录时间结束筛选",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.ip.dc": "按IP地址筛选（模糊匹配）",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.orderBy.dc": "排序字段：id,loginTime",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.orderDirection.dc": "排序方向：asc或desc",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.orderDirection.default": "desc",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.pageNum.dc": "页码",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.pageSize.dc": "每页条数",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.status.dc": "按状态筛选：0=成功 1=失败",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.fields.userName.dc": "按用户名筛选（模糊匹配）",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.meta.dc": "分页查询登录日志列表，记录用户登录成功和失败的信息，支持多条件筛选和排序",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.meta.summary": "获取登录日志列表",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.meta.tags": "登录日志",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.responses.200.content.application_json.fields.data.fields.items.dc": "登录日志列表",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.responses.200.content.application_json.fields.data.fields.total.dc": "总条数",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListReq.schema.dc": "分页查询登录日志列表，记录用户登录成功和失败的信息，支持多条件筛选和排序",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListRes.fields.items.dc": "登录日志列表",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListRes.fields.total.dc": "总条数",
-  "plugins.monitor_loginlog.api.loginlog.v1.ListRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.browser.dc": "浏览器类型",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.id.dc": "日志ID",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.ip.dc": "登录IP地址",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.loginTime.dc": "登录时间",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.msg.dc": "提示消息",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.os.dc": "操作系统",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.status.dc": "登录状态：0=成功 1=失败",
-  "plugins.monitor_loginlog.api.loginlog.v1.LoginLogEntity.fields.userName.dc": "登录账号"
+  "plugins": {
+    "monitor_loginlog": {
+      "api": {
+        "loginlog": {
+          "v1": {
+            "CleanReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "清理起始时间"
+                },
+                "endTime": {
+                  "dc": "清理截止时间"
+                }
+              },
+              "meta": {
+                "dc": "清空指定时间范围内的登录日志，不传时间则清空全部",
+                "summary": "清空登录日志",
+                "tags": "登录日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "deleted": {
+                              "dc": "实际删除的记录数"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "清空指定时间范围内的登录日志，不传时间则清空全部"
+              }
+            },
+            "CleanRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "实际删除的记录数"
+                }
+              }
+            },
+            "DeleteReq": {
+              "fields": {
+                "ids": {
+                  "dc": "日志ID，多个用逗号分隔"
+                }
+              },
+              "meta": {
+                "dc": "删除一条或多条登录日志记录",
+                "summary": "删除登录日志",
+                "tags": "登录日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "deleted": {
+                              "dc": "实际删除的记录数"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "删除一条或多条登录日志记录"
+              }
+            },
+            "DeleteRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "实际删除的记录数"
+                }
+              }
+            },
+            "ExportReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "按登录时间起始筛选"
+                },
+                "endTime": {
+                  "dc": "按登录时间结束筛选"
+                },
+                "ids": {
+                  "dc": "指定导出的记录ID列表，不传则导出全部符合条件的记录"
+                },
+                "ip": {
+                  "dc": "按IP地址筛选（模糊匹配）"
+                },
+                "orderBy": {
+                  "dc": "排序字段：id,loginTime"
+                },
+                "orderDirection": {
+                  "dc": "排序方向：asc或desc",
+                  "default": "desc"
+                },
+                "status": {
+                  "dc": "按状态筛选：0=成功 1=失败"
+                },
+                "userName": {
+                  "dc": "按用户名筛选（模糊匹配）"
+                }
+              },
+              "meta": {
+                "dc": "导出登录日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录",
+                "summary": "导出登录日志",
+                "tags": "登录日志"
+              },
+              "schema": {
+                "dc": "导出登录日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录"
+              }
+            },
+            "GetReq": {
+              "fields": {
+                "id": {
+                  "dc": "登录日志ID"
+                }
+              },
+              "meta": {
+                "dc": "根据日志ID获取登录日志的详细信息，包括登录IP、浏览器、操作系统等",
+                "summary": "获取登录日志详情",
+                "tags": "登录日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "browser": {
+                              "dc": "浏览器类型"
+                            },
+                            "id": {
+                              "dc": "日志ID"
+                            },
+                            "ip": {
+                              "dc": "登录IP地址"
+                            },
+                            "loginTime": {
+                              "dc": "登录时间"
+                            },
+                            "msg": {
+                              "dc": "提示消息"
+                            },
+                            "os": {
+                              "dc": "操作系统"
+                            },
+                            "status": {
+                              "dc": "登录状态：0=成功 1=失败"
+                            },
+                            "userName": {
+                              "dc": "登录账号"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "根据日志ID获取登录日志的详细信息，包括登录IP、浏览器、操作系统等"
+              }
+            },
+            "GetRes": {
+              "fields": {
+                "browser": {
+                  "dc": "浏览器类型"
+                },
+                "id": {
+                  "dc": "日志ID"
+                },
+                "ip": {
+                  "dc": "登录IP地址"
+                },
+                "loginTime": {
+                  "dc": "登录时间"
+                },
+                "msg": {
+                  "dc": "提示消息"
+                },
+                "os": {
+                  "dc": "操作系统"
+                },
+                "status": {
+                  "dc": "登录状态：0=成功 1=失败"
+                },
+                "userName": {
+                  "dc": "登录账号"
+                }
+              }
+            },
+            "ListReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "按登录时间起始筛选"
+                },
+                "endTime": {
+                  "dc": "按登录时间结束筛选"
+                },
+                "ip": {
+                  "dc": "按IP地址筛选（模糊匹配）"
+                },
+                "orderBy": {
+                  "dc": "排序字段：id,loginTime"
+                },
+                "orderDirection": {
+                  "dc": "排序方向：asc或desc",
+                  "default": "desc"
+                },
+                "status": {
+                  "dc": "按状态筛选：0=成功 1=失败"
+                },
+                "userName": {
+                  "dc": "按用户名筛选（模糊匹配）"
+                }
+              },
+              "meta": {
+                "dc": "分页查询登录日志列表，记录用户登录成功和失败的信息，支持多条件筛选和排序",
+                "summary": "获取登录日志列表",
+                "tags": "登录日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "items": {
+                              "dc": "登录日志列表"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "分页查询登录日志列表，记录用户登录成功和失败的信息，支持多条件筛选和排序"
+              }
+            },
+            "ListRes": {
+              "fields": {
+                "items": {
+                  "dc": "登录日志列表"
+                }
+              }
+            },
+            "LoginLogEntity": {
+              "fields": {
+                "browser": {
+                  "dc": "浏览器类型"
+                },
+                "id": {
+                  "dc": "日志ID"
+                },
+                "ip": {
+                  "dc": "登录IP地址"
+                },
+                "loginTime": {
+                  "dc": "登录时间"
+                },
+                "msg": {
+                  "dc": "提示消息"
+                },
+                "os": {
+                  "dc": "操作系统"
+                },
+                "status": {
+                  "dc": "登录状态：0=成功 1=失败"
+                },
+                "userName": {
+                  "dc": "登录账号"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }

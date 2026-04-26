@@ -1,34 +1,100 @@
 {
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.fields.tokenId.dc": "要强制下线的会话Token ID",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.meta.dc": "强制下线指定在线用户，被下线用户的后续请求将返回401",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.meta.summary": "强制下线",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.meta.tags": "系统监控",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutReq.schema.dc": "强制下线指定在线用户，被下线用户的后续请求将返回401",
-  "plugins.monitor_online.api.monitor.v1.OnlineForceLogoutRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.fields.ip.dc": "按IP地址模糊过滤，不传则查询全部",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.fields.pageNum.dc": "页码",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.fields.pageSize.dc": "每页条数",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.fields.username.dc": "按用户名模糊过滤，不传则查询全部",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.meta.dc": "分页查询当前在线用户会话，支持按用户名和IP地址模糊过滤",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.meta.summary": "在线用户列表",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.meta.tags": "系统监控",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.responses.200.content.application_json.fields.data.fields.items.dc": "在线用户列表",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.responses.200.content.application_json.fields.data.fields.total.dc": "在线用户总数",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_online.api.monitor.v1.OnlineListReq.schema.dc": "分页查询当前在线用户会话，支持按用户名和IP地址模糊过滤",
-  "plugins.monitor_online.api.monitor.v1.OnlineListRes.fields.items.dc": "在线用户列表",
-  "plugins.monitor_online.api.monitor.v1.OnlineListRes.fields.total.dc": "在线用户总数",
-  "plugins.monitor_online.api.monitor.v1.OnlineListRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_online.api.monitor.v1.OnlineUserItem.fields.browser.dc": "浏览器",
-  "plugins.monitor_online.api.monitor.v1.OnlineUserItem.fields.deptName.dc": "部门名称",
-  "plugins.monitor_online.api.monitor.v1.OnlineUserItem.fields.ip.dc": "登录IP",
-  "plugins.monitor_online.api.monitor.v1.OnlineUserItem.fields.loginTime.dc": "登录时间",
-  "plugins.monitor_online.api.monitor.v1.OnlineUserItem.fields.os.dc": "操作系统",
-  "plugins.monitor_online.api.monitor.v1.OnlineUserItem.fields.tokenId.dc": "会话Token ID",
-  "plugins.monitor_online.api.monitor.v1.OnlineUserItem.fields.username.dc": "登录账号"
+  "plugins": {
+    "monitor_online": {
+      "api": {
+        "monitor": {
+          "v1": {
+            "OnlineForceLogoutReq": {
+              "fields": {
+                "tokenId": {
+                  "dc": "要强制下线的会话Token ID"
+                }
+              },
+              "meta": {
+                "dc": "强制下线指定在线用户，被下线用户的后续请求将返回401",
+                "summary": "强制下线",
+                "tags": "系统监控"
+              },
+              "schema": {
+                "dc": "强制下线指定在线用户，被下线用户的后续请求将返回401"
+              }
+            },
+            "OnlineListReq": {
+              "fields": {
+                "ip": {
+                  "dc": "按IP地址模糊过滤，不传则查询全部"
+                },
+                "username": {
+                  "dc": "按用户名模糊过滤，不传则查询全部"
+                }
+              },
+              "meta": {
+                "dc": "分页查询当前在线用户会话，支持按用户名和IP地址模糊过滤",
+                "summary": "在线用户列表",
+                "tags": "系统监控"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "items": {
+                              "dc": "在线用户列表"
+                            },
+                            "total": {
+                              "dc": "在线用户总数"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "分页查询当前在线用户会话，支持按用户名和IP地址模糊过滤"
+              }
+            },
+            "OnlineListRes": {
+              "fields": {
+                "items": {
+                  "dc": "在线用户列表"
+                },
+                "total": {
+                  "dc": "在线用户总数"
+                }
+              }
+            },
+            "OnlineUserItem": {
+              "fields": {
+                "browser": {
+                  "dc": "浏览器"
+                },
+                "deptName": {
+                  "dc": "部门名称"
+                },
+                "ip": {
+                  "dc": "登录IP"
+                },
+                "loginTime": {
+                  "dc": "登录时间"
+                },
+                "os": {
+                  "dc": "操作系统"
+                },
+                "tokenId": {
+                  "dc": "会话Token ID"
+                },
+                "username": {
+                  "dc": "登录账号"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }

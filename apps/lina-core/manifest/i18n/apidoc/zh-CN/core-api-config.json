@@ -1,0 +1,408 @@
+{
+  "core": {
+    "api": {
+      "config": {
+        "v1": {
+          "ByKeyReq": {
+            "fields": {
+              "key": {
+                "dc": "参数键名"
+              }
+            },
+            "meta": {
+              "dc": "根据参数键名获取参数设置的详细信息，用于其他模块按键名查询参数值",
+              "summary": "按键名获取参数",
+              "tags": "参数设置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "参数ID"
+                          },
+                          "key": {
+                            "dc": "参数键名"
+                          },
+                          "name": {
+                            "dc": "参数名称"
+                          },
+                          "remark": {
+                            "dc": "备注"
+                          },
+                          "updatedAt": {
+                            "dc": "修改时间"
+                          },
+                          "value": {
+                            "dc": "参数键值"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据参数键名获取参数设置的详细信息，用于其他模块按键名查询参数值"
+            }
+          },
+          "ByKeyRes": {
+            "fields": {
+              "id": {
+                "dc": "参数ID"
+              },
+              "key": {
+                "dc": "参数键名"
+              },
+              "name": {
+                "dc": "参数名称"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "updatedAt": {
+                "dc": "修改时间"
+              },
+              "value": {
+                "dc": "参数键值"
+              }
+            },
+            "schema": {
+              "dc": "参数设置详情"
+            }
+          },
+          "ConfigImportFailItem": {
+            "fields": {
+              "reason": {
+                "dc": "失败原因"
+              },
+              "row": {
+                "dc": "行号"
+              }
+            }
+          },
+          "ConfigImportReq": {
+            "meta": {
+              "dc": "通过Excel文件批量导入参数设置数据，需使用系统提供的导入模板",
+              "summary": "导入参数设置",
+              "tags": "参数设置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "fail": {
+                            "dc": "失败条数"
+                          },
+                          "failList": {
+                            "dc": "失败详情"
+                          },
+                          "success": {
+                            "dc": "成功条数"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "通过Excel文件批量导入参数设置数据，需使用系统提供的导入模板"
+            }
+          },
+          "ConfigImportRes": {
+            "fields": {
+              "fail": {
+                "dc": "失败条数"
+              },
+              "failList": {
+                "dc": "失败详情"
+              },
+              "success": {
+                "dc": "成功条数"
+              }
+            }
+          },
+          "ConfigImportTemplateReq": {
+            "meta": {
+              "dc": "下载参数设置导入Excel模板文件，包含必填字段和数据格式说明",
+              "summary": "下载参数设置导入模板",
+              "tags": "参数设置"
+            },
+            "schema": {
+              "dc": "下载参数设置导入Excel模板文件，包含必填字段和数据格式说明"
+            }
+          },
+          "CreateReq": {
+            "fields": {
+              "key": {
+                "dc": "参数键名（唯一标识）"
+              },
+              "name": {
+                "dc": "参数名称"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "value": {
+                "dc": "参数键值"
+              }
+            },
+            "meta": {
+              "dc": "创建一个新的参数设置，参数键名在系统中必须唯一",
+              "summary": "创建参数设置",
+              "tags": "参数设置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "参数ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "创建一个新的参数设置，参数键名在系统中必须唯一"
+            }
+          },
+          "CreateRes": {
+            "fields": {
+              "id": {
+                "dc": "参数ID"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "id": {
+                "dc": "参数ID"
+              }
+            },
+            "meta": {
+              "dc": "根据参数ID软删除指定的参数设置记录",
+              "summary": "删除参数设置",
+              "tags": "参数设置"
+            },
+            "schema": {
+              "dc": "根据参数ID软删除指定的参数设置记录"
+            }
+          },
+          "ExportReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "创建时间范围-开始时间，格式YYYY-MM-DD"
+              },
+              "endTime": {
+                "dc": "创建时间范围-结束时间，格式YYYY-MM-DD"
+              },
+              "ids": {
+                "dc": "指定导出的记录ID列表，不传则导出全部符合条件的记录"
+              },
+              "key": {
+                "dc": "按参数键名筛选（模糊匹配）"
+              },
+              "name": {
+                "dc": "按参数名称筛选（模糊匹配）"
+              }
+            },
+            "meta": {
+              "dc": "导出参数设置数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录",
+              "summary": "导出参数设置",
+              "tags": "参数设置"
+            },
+            "schema": {
+              "dc": "导出参数设置数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录"
+            }
+          },
+          "GetReq": {
+            "fields": {
+              "id": {
+                "dc": "参数ID"
+              }
+            },
+            "meta": {
+              "dc": "根据参数ID获取参数设置的详细信息",
+              "summary": "获取参数设置详情",
+              "tags": "参数设置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "参数ID"
+                          },
+                          "key": {
+                            "dc": "参数键名"
+                          },
+                          "name": {
+                            "dc": "参数名称"
+                          },
+                          "remark": {
+                            "dc": "备注"
+                          },
+                          "updatedAt": {
+                            "dc": "修改时间"
+                          },
+                          "value": {
+                            "dc": "参数键值"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据参数ID获取参数设置的详细信息"
+            }
+          },
+          "GetRes": {
+            "fields": {
+              "id": {
+                "dc": "参数ID"
+              },
+              "key": {
+                "dc": "参数键名"
+              },
+              "name": {
+                "dc": "参数名称"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "updatedAt": {
+                "dc": "修改时间"
+              },
+              "value": {
+                "dc": "参数键值"
+              }
+            },
+            "schema": {
+              "dc": "参数设置详情"
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "创建时间范围-开始时间，格式YYYY-MM-DD"
+              },
+              "endTime": {
+                "dc": "创建时间范围-结束时间，格式YYYY-MM-DD"
+              },
+              "key": {
+                "dc": "按参数键名筛选（模糊匹配），不传则查询全部"
+              },
+              "name": {
+                "dc": "按参数名称筛选（模糊匹配），不传则查询全部"
+              }
+            },
+            "meta": {
+              "dc": "分页查询参数设置列表，支持按参数名称、参数键名模糊匹配，以及按创建时间范围筛选",
+              "summary": "获取参数设置列表",
+              "tags": "参数设置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "参数设置列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分页查询参数设置列表，支持按参数名称、参数键名模糊匹配，以及按创建时间范围筛选"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "参数设置列表"
+              }
+            }
+          },
+          "UpdateReq": {
+            "fields": {
+              "id": {
+                "dc": "参数ID"
+              },
+              "key": {
+                "dc": "参数键名（唯一标识）"
+              },
+              "name": {
+                "dc": "参数名称"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "value": {
+                "dc": "参数键值"
+              }
+            },
+            "meta": {
+              "dc": "更新指定参数设置的信息，修改参数键名时需确保不与其他参数冲突",
+              "summary": "更新参数设置",
+              "tags": "参数设置"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "key": {
+                      "dc": "参数键名（唯一标识）"
+                    },
+                    "name": {
+                      "dc": "参数名称"
+                    },
+                    "remark": {
+                      "dc": "备注"
+                    },
+                    "value": {
+                      "dc": "参数键值"
+                    }
+                  },
+                  "schema": {
+                    "dc": "更新指定参数设置的信息，修改参数键名时需确保不与其他参数冲突"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "更新指定参数设置的信息，修改参数键名时需确保不与其他参数冲突"
+            }
+          }
+        }
+      }
+    }
+  }
+}

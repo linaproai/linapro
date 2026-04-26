@@ -1,0 +1,802 @@
+{
+  "core": {
+    "api": {
+      "job": {
+        "v1": {
+          "CreateReq": {
+            "fields": {
+              "concurrency": {
+                "dc": "并发策略：singleton=单例 parallel=并行",
+                "default": "singleton"
+              },
+              "cronExpr": {
+                "dc": "Cron 表达式，支持5段（分 时 日 月 周）与6段（秒 分 时 日 月 周）；5段保存时会自动补 # 秒占位"
+              },
+              "description": {
+                "dc": "任务描述"
+              },
+              "env": {
+                "dc": "Shell 环境变量键值对，仅 Shell 任务使用"
+              },
+              "groupId": {
+                "dc": "所属分组ID"
+              },
+              "handlerRef": {
+                "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
+              },
+              "logRetentionOverride": {
+                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+              },
+              "maxConcurrency": {
+                "dc": "最大并发数；concurrency=parallel 时生效"
+              },
+              "maxExecutions": {
+                "dc": "最大执行次数：0=无限制"
+              },
+              "name": {
+                "dc": "任务名称，分组内唯一"
+              },
+              "params": {
+                "dc": "Handler 参数对象；公共创建/编辑接口固定为空对象"
+              },
+              "scope": {
+                "dc": "调度范围：master_only=仅主节点执行 all_node=所有节点执行",
+                "default": "master_only"
+              },
+              "shellCmd": {
+                "dc": "Shell 脚本内容；taskType=shell 时必填"
+              },
+              "status": {
+                "dc": "任务状态：enabled=启用 disabled=停用；paused_by_plugin 为系统托管状态，不允许创建或编辑时写入",
+                "default": "disabled"
+              },
+              "taskType": {
+                "dc": "任务类型：公共创建/编辑接口仅允许 shell=Shell 任务；Handler 任务由源码注册"
+              },
+              "timeoutSeconds": {
+                "dc": "执行超时时间，单位为秒，范围 1-86400"
+              },
+              "timezone": {
+                "dc": "任务时区标识",
+                "default": "Asia/Shanghai"
+              },
+              "workDir": {
+                "dc": "Shell 工作目录，不传则使用宿主当前工作目录"
+              }
+            },
+            "meta": {
+              "dc": "创建一个新的用户自建 Shell 定时任务；Handler 类型任务仅允许由宿主或插件源码注册",
+              "summary": "创建任务",
+              "tags": "任务调度/定时任务"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "新建任务ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "创建一个新的用户自建 Shell 定时任务；Handler 类型任务仅允许由宿主或插件源码注册"
+            }
+          },
+          "CreateRes": {
+            "fields": {
+              "id": {
+                "dc": "新建任务ID"
+              }
+            }
+          },
+          "CronPreviewReq": {
+            "fields": {
+              "expr": {
+                "dc": "待预览的 Cron 表达式，支持5段与6段写法"
+              },
+              "timezone": {
+                "dc": "Cron 解析时使用的时区标识",
+                "default": "Asia/Shanghai"
+              }
+            },
+            "meta": {
+              "dc": "根据输入的5段或6段 Cron 表达式和时区预览最近5次触发时间，用于任务表单校验与展示；5段表达式按分钟粒度解析，运行时会补 # 秒占位",
+              "summary": "预览定时表达式",
+              "tags": "任务调度/定时任务"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "times": {
+                            "dc": "最近5次触发时间列表，使用 RFC3339 格式"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据输入的5段或6段 Cron 表达式和时区预览最近5次触发时间，用于任务表单校验与展示；5段表达式按分钟粒度解析，运行时会补 # 秒占位"
+            }
+          },
+          "CronPreviewRes": {
+            "fields": {
+              "times": {
+                "dc": "最近5次触发时间列表，使用 RFC3339 格式"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "ids": {
+                "dc": "任务ID，多个用逗号分隔"
+              }
+            },
+            "meta": {
+              "dc": "按任务ID批量删除定时任务，内置任务不允许删除",
+              "summary": "删除任务",
+              "tags": "任务调度/定时任务"
+            },
+            "schema": {
+              "dc": "按任务ID批量删除定时任务，内置任务不允许删除"
+            }
+          },
+          "DetailReq": {
+            "fields": {
+              "id": {
+                "dc": "任务ID"
+              }
+            },
+            "meta": {
+              "dc": "根据任务ID查询定时任务详情，返回基础配置、分组信息以及当前策略字段",
+              "summary": "获取任务详情",
+              "tags": "任务调度/定时任务"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "concurrency": {
+                            "dc": "并发策略（singleton/parallel）"
+                          },
+                          "createdBy": {
+                            "dc": "创建者用户ID"
+                          },
+                          "cronExpr": {
+                            "dc": "Cron 表达式"
+                          },
+                          "description": {
+                            "dc": "任务描述"
+                          },
+                          "env": {
+                            "dc": "环境变量JSON"
+                          },
+                          "executedCount": {
+                            "dc": "已执行次数"
+                          },
+                          "groupCode": {
+                            "dc": "所属分组编码"
+                          },
+                          "groupId": {
+                            "dc": "所属分组ID"
+                          },
+                          "groupName": {
+                            "dc": "分组名称"
+                          },
+                          "handlerRef": {
+                            "dc": "Handler 唯一引用"
+                          },
+                          "id": {
+                            "dc": "任务ID"
+                          },
+                          "isBuiltin": {
+                            "dc": "是否内置任务（1=是 0=否）"
+                          },
+                          "logRetentionOverride": {
+                            "dc": "日志保留策略覆盖JSON"
+                          },
+                          "maxConcurrency": {
+                            "dc": "并发上限"
+                          },
+                          "maxExecutions": {
+                            "dc": "最大执行次数（0=无限）"
+                          },
+                          "name": {
+                            "dc": "任务名称"
+                          },
+                          "params": {
+                            "dc": "Handler 参数JSON"
+                          },
+                          "scope": {
+                            "dc": "调度范围（master_only/all_node）"
+                          },
+                          "seedVersion": {
+                            "dc": "种子版本号"
+                          },
+                          "shellCmd": {
+                            "dc": "Shell 脚本内容"
+                          },
+                          "status": {
+                            "dc": "任务状态（enabled/disabled/paused_by_plugin）"
+                          },
+                          "stopReason": {
+                            "dc": "停止原因"
+                          },
+                          "taskType": {
+                            "dc": "任务类型（handler/shell）"
+                          },
+                          "timeoutSeconds": {
+                            "dc": "执行超时时间（秒）"
+                          },
+                          "timezone": {
+                            "dc": "时区标识"
+                          },
+                          "updatedBy": {
+                            "dc": "更新者用户ID"
+                          },
+                          "workDir": {
+                            "dc": "工作目录"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据任务ID查询定时任务详情，返回基础配置、分组信息以及当前策略字段"
+            }
+          },
+          "DetailRes": {
+            "fields": {
+              "concurrency": {
+                "dc": "并发策略（singleton/parallel）"
+              },
+              "createdBy": {
+                "dc": "创建者用户ID"
+              },
+              "cronExpr": {
+                "dc": "Cron 表达式"
+              },
+              "description": {
+                "dc": "任务描述"
+              },
+              "env": {
+                "dc": "环境变量JSON"
+              },
+              "executedCount": {
+                "dc": "已执行次数"
+              },
+              "groupCode": {
+                "dc": "所属分组编码"
+              },
+              "groupId": {
+                "dc": "所属分组ID"
+              },
+              "groupName": {
+                "dc": "分组名称"
+              },
+              "handlerRef": {
+                "dc": "Handler 唯一引用"
+              },
+              "id": {
+                "dc": "任务ID"
+              },
+              "isBuiltin": {
+                "dc": "是否内置任务（1=是 0=否）"
+              },
+              "logRetentionOverride": {
+                "dc": "日志保留策略覆盖JSON"
+              },
+              "maxConcurrency": {
+                "dc": "并发上限"
+              },
+              "maxExecutions": {
+                "dc": "最大执行次数（0=无限）"
+              },
+              "name": {
+                "dc": "任务名称"
+              },
+              "params": {
+                "dc": "Handler 参数JSON"
+              },
+              "scope": {
+                "dc": "调度范围（master_only/all_node）"
+              },
+              "seedVersion": {
+                "dc": "种子版本号"
+              },
+              "shellCmd": {
+                "dc": "Shell 脚本内容"
+              },
+              "status": {
+                "dc": "任务状态（enabled/disabled/paused_by_plugin）"
+              },
+              "stopReason": {
+                "dc": "停止原因"
+              },
+              "taskType": {
+                "dc": "任务类型（handler/shell）"
+              },
+              "timeoutSeconds": {
+                "dc": "执行超时时间（秒）"
+              },
+              "timezone": {
+                "dc": "时区标识"
+              },
+              "updatedBy": {
+                "dc": "更新者用户ID"
+              },
+              "workDir": {
+                "dc": "工作目录"
+              }
+            },
+            "schema": {
+              "dc": "任务详情"
+            }
+          },
+          "JobPayload": {
+            "fields": {
+              "concurrency": {
+                "dc": "并发策略：singleton=单例 parallel=并行"
+              },
+              "cronExpr": {
+                "dc": "Cron 表达式，支持5段（分 时 日 月 周）与6段（秒 分 时 日 月 周）；5段保存时会自动补 # 秒占位"
+              },
+              "description": {
+                "dc": "任务描述"
+              },
+              "env": {
+                "dc": "Shell 环境变量键值对，仅 Shell 任务使用"
+              },
+              "groupId": {
+                "dc": "所属分组ID"
+              },
+              "handlerRef": {
+                "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
+              },
+              "logRetentionOverride": {
+                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+              },
+              "maxConcurrency": {
+                "dc": "最大并发数；concurrency=parallel 时生效"
+              },
+              "maxExecutions": {
+                "dc": "最大执行次数：0=无限制"
+              },
+              "name": {
+                "dc": "任务名称，分组内唯一"
+              },
+              "params": {
+                "dc": "Handler 参数对象；公共创建/编辑接口固定为空对象"
+              },
+              "scope": {
+                "dc": "调度范围：master_only=仅主节点执行 all_node=所有节点执行"
+              },
+              "shellCmd": {
+                "dc": "Shell 脚本内容；taskType=shell 时必填"
+              },
+              "status": {
+                "dc": "任务状态：enabled=启用 disabled=停用；paused_by_plugin 为系统托管状态，不允许创建或编辑时写入"
+              },
+              "taskType": {
+                "dc": "任务类型：公共创建/编辑接口仅允许 shell=Shell 任务；Handler 任务由源码注册"
+              },
+              "timeoutSeconds": {
+                "dc": "执行超时时间，单位为秒，范围 1-86400"
+              },
+              "timezone": {
+                "dc": "任务时区标识"
+              },
+              "workDir": {
+                "dc": "Shell 工作目录，不传则使用宿主当前工作目录"
+              }
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "concurrency": {
+                "dc": "并发策略（singleton/parallel）"
+              },
+              "createdBy": {
+                "dc": "创建者用户ID"
+              },
+              "cronExpr": {
+                "dc": "Cron 表达式"
+              },
+              "description": {
+                "dc": "任务描述"
+              },
+              "env": {
+                "dc": "环境变量JSON"
+              },
+              "executedCount": {
+                "dc": "已执行次数"
+              },
+              "groupCode": {
+                "dc": "所属分组编码"
+              },
+              "groupId": {
+                "dc": "所属分组ID"
+              },
+              "groupName": {
+                "dc": "分组名称"
+              },
+              "handlerRef": {
+                "dc": "Handler 唯一引用"
+              },
+              "id": {
+                "dc": "任务ID"
+              },
+              "isBuiltin": {
+                "dc": "是否内置任务（1=是 0=否）"
+              },
+              "logRetentionOverride": {
+                "dc": "日志保留策略覆盖JSON"
+              },
+              "maxConcurrency": {
+                "dc": "并发上限"
+              },
+              "maxExecutions": {
+                "dc": "最大执行次数（0=无限）"
+              },
+              "name": {
+                "dc": "任务名称"
+              },
+              "params": {
+                "dc": "Handler 参数JSON"
+              },
+              "scope": {
+                "dc": "调度范围（master_only/all_node）"
+              },
+              "seedVersion": {
+                "dc": "种子版本号"
+              },
+              "shellCmd": {
+                "dc": "Shell 脚本内容"
+              },
+              "status": {
+                "dc": "任务状态（enabled/disabled/paused_by_plugin）"
+              },
+              "stopReason": {
+                "dc": "停止原因"
+              },
+              "taskType": {
+                "dc": "任务类型（handler/shell）"
+              },
+              "timeoutSeconds": {
+                "dc": "执行超时时间（秒）"
+              },
+              "timezone": {
+                "dc": "时区标识"
+              },
+              "updatedBy": {
+                "dc": "更新者用户ID"
+              },
+              "workDir": {
+                "dc": "工作目录"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "concurrency": {
+                "dc": "按并发策略筛选：singleton=单例 parallel=并行，不传则查询全部"
+              },
+              "groupId": {
+                "dc": "按任务分组ID筛选，不传则查询全部"
+              },
+              "keyword": {
+                "dc": "按任务名称或描述关键字模糊筛选"
+              },
+              "orderBy": {
+                "dc": "排序字段：id,name,group_id,status,task_type,created_at,updated_at"
+              },
+              "orderDirection": {
+                "dc": "排序方向：asc=升序 desc=降序",
+                "default": "desc"
+              },
+              "scope": {
+                "dc": "按调度范围筛选：master_only=仅主节点执行 all_node=所有节点执行，不传则查询全部"
+              },
+              "status": {
+                "dc": "按任务状态筛选：enabled=启用 disabled=停用 paused_by_plugin=插件处理器不可用，不传则查询全部"
+              },
+              "taskType": {
+                "dc": "按任务类型筛选：handler=Handler 任务 shell=Shell 任务，不传则查询全部"
+              }
+            },
+            "meta": {
+              "dc": "分页查询定时任务列表，支持按分组、状态、任务类型、关键字、调度范围与并发策略筛选",
+              "summary": "获取任务列表",
+              "tags": "任务调度/定时任务"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "任务列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分页查询定时任务列表，支持按分组、状态、任务类型、关键字、调度范围与并发策略筛选"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "任务列表"
+              }
+            }
+          },
+          "LogRetentionOption": {
+            "fields": {
+              "mode": {
+                "dc": "日志保留模式：days=按天保留 count=按条数保留 none=不清理"
+              },
+              "value": {
+                "dc": "日志保留阈值；mode=days 或 count 时必须大于0，mode=none 时可为0"
+              }
+            }
+          },
+          "ResetReq": {
+            "fields": {
+              "id": {
+                "dc": "任务ID"
+              }
+            },
+            "meta": {
+              "dc": "将指定用户自建任务的 executed_count 重置为0，不影响历史执行日志；源码注册任务不允许通过公共接口重置",
+              "summary": "重置执行计数",
+              "tags": "任务调度/定时任务"
+            },
+            "schema": {
+              "dc": "将指定用户自建任务的 executed_count 重置为0，不影响历史执行日志；源码注册任务不允许通过公共接口重置"
+            }
+          },
+          "TriggerReq": {
+            "fields": {
+              "id": {
+                "dc": "任务ID"
+              }
+            },
+            "meta": {
+              "dc": "立即触发指定任务执行一次，记录 trigger=manual 的执行日志",
+              "summary": "手动触发任务",
+              "tags": "任务调度/定时任务"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "logId": {
+                            "dc": "本次执行生成的日志ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "立即触发指定任务执行一次，记录 trigger=manual 的执行日志"
+            }
+          },
+          "TriggerRes": {
+            "fields": {
+              "logId": {
+                "dc": "本次执行生成的日志ID"
+              }
+            }
+          },
+          "UpdateReq": {
+            "fields": {
+              "concurrency": {
+                "dc": "并发策略：singleton=单例 parallel=并行",
+                "default": "singleton"
+              },
+              "cronExpr": {
+                "dc": "Cron 表达式，支持5段（分 时 日 月 周）与6段（秒 分 时 日 月 周）；5段保存时会自动补 # 秒占位"
+              },
+              "description": {
+                "dc": "任务描述"
+              },
+              "env": {
+                "dc": "Shell 环境变量键值对，仅 Shell 任务使用"
+              },
+              "groupId": {
+                "dc": "所属分组ID"
+              },
+              "handlerRef": {
+                "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
+              },
+              "id": {
+                "dc": "任务ID"
+              },
+              "logRetentionOverride": {
+                "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+              },
+              "maxConcurrency": {
+                "dc": "最大并发数；concurrency=parallel 时生效"
+              },
+              "maxExecutions": {
+                "dc": "最大执行次数：0=无限制"
+              },
+              "name": {
+                "dc": "任务名称，分组内唯一"
+              },
+              "params": {
+                "dc": "Handler 参数对象；公共创建/编辑接口固定为空对象"
+              },
+              "scope": {
+                "dc": "调度范围：master_only=仅主节点执行 all_node=所有节点执行",
+                "default": "master_only"
+              },
+              "shellCmd": {
+                "dc": "Shell 脚本内容；taskType=shell 时必填"
+              },
+              "status": {
+                "dc": "任务状态：enabled=启用 disabled=停用；paused_by_plugin 为系统托管状态，不允许创建或编辑时写入",
+                "default": "disabled"
+              },
+              "taskType": {
+                "dc": "任务类型：公共创建/编辑接口仅允许 shell=Shell 任务；Handler 任务由源码注册"
+              },
+              "timeoutSeconds": {
+                "dc": "执行超时时间，单位为秒，范围 1-86400"
+              },
+              "timezone": {
+                "dc": "任务时区标识",
+                "default": "Asia/Shanghai"
+              },
+              "workDir": {
+                "dc": "Shell 工作目录，不传则使用宿主当前工作目录"
+              }
+            },
+            "meta": {
+              "dc": "根据任务ID更新用户自建 Shell 定时任务配置；源码注册任务只允许查看和触发，不允许通过公共接口修改",
+              "summary": "更新任务",
+              "tags": "任务调度/定时任务"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "concurrency": {
+                      "dc": "并发策略：singleton=单例 parallel=并行",
+                      "default": "singleton"
+                    },
+                    "cronExpr": {
+                      "dc": "Cron 表达式，支持5段（分 时 日 月 周）与6段（秒 分 时 日 月 周）；5段保存时会自动补 # 秒占位"
+                    },
+                    "description": {
+                      "dc": "任务描述"
+                    },
+                    "env": {
+                      "dc": "Shell 环境变量键值对，仅 Shell 任务使用"
+                    },
+                    "groupId": {
+                      "dc": "所属分组ID"
+                    },
+                    "handlerRef": {
+                      "dc": "Handler 唯一引用；公共创建/编辑接口固定留空"
+                    },
+                    "logRetentionOverride": {
+                      "dc": "任务级日志保留策略；不传则跟随系统参数 cron.log.retention"
+                    },
+                    "maxConcurrency": {
+                      "dc": "最大并发数；concurrency=parallel 时生效"
+                    },
+                    "maxExecutions": {
+                      "dc": "最大执行次数：0=无限制"
+                    },
+                    "name": {
+                      "dc": "任务名称，分组内唯一"
+                    },
+                    "params": {
+                      "dc": "Handler 参数对象；公共创建/编辑接口固定为空对象"
+                    },
+                    "scope": {
+                      "dc": "调度范围：master_only=仅主节点执行 all_node=所有节点执行",
+                      "default": "master_only"
+                    },
+                    "shellCmd": {
+                      "dc": "Shell 脚本内容；taskType=shell 时必填"
+                    },
+                    "status": {
+                      "dc": "任务状态：enabled=启用 disabled=停用；paused_by_plugin 为系统托管状态，不允许创建或编辑时写入",
+                      "default": "disabled"
+                    },
+                    "taskType": {
+                      "dc": "任务类型：公共创建/编辑接口仅允许 shell=Shell 任务；Handler 任务由源码注册"
+                    },
+                    "timeoutSeconds": {
+                      "dc": "执行超时时间，单位为秒，范围 1-86400"
+                    },
+                    "timezone": {
+                      "dc": "任务时区标识",
+                      "default": "Asia/Shanghai"
+                    },
+                    "workDir": {
+                      "dc": "Shell 工作目录，不传则使用宿主当前工作目录"
+                    }
+                  },
+                  "schema": {
+                    "dc": "根据任务ID更新用户自建 Shell 定时任务配置；源码注册任务只允许查看和触发，不允许通过公共接口修改"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据任务ID更新用户自建 Shell 定时任务配置；源码注册任务只允许查看和触发，不允许通过公共接口修改"
+            }
+          },
+          "UpdateStatusReq": {
+            "fields": {
+              "id": {
+                "dc": "任务ID"
+              },
+              "status": {
+                "dc": "任务状态：enabled=启用 disabled=停用"
+              }
+            },
+            "meta": {
+              "dc": "启用或停用指定用户自建定时任务；源码注册任务为只读定义，不允许通过公共接口启停",
+              "summary": "更新任务状态",
+              "tags": "任务调度/定时任务"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "status": {
+                      "dc": "任务状态：enabled=启用 disabled=停用"
+                    }
+                  },
+                  "schema": {
+                    "dc": "启用或停用指定用户自建定时任务；源码注册任务为只读定义，不允许通过公共接口启停"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "启用或停用指定用户自建定时任务；源码注册任务为只读定义，不允许通过公共接口启停"
+            }
+          }
+        }
+      }
+    }
+  }
+}

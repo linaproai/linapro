@@ -103,19 +103,21 @@ func loadOpenAPIWorkspacePluginBundles(ctx context.Context, locale string) map[s
 		if !entry.IsDir() {
 			continue
 		}
-		bundlePath := filepath.Join(pluginsRoot, entry.Name(), filepath.FromSlash(openAPIPluginI18nDir), locale+".json")
-		content, readErr := os.ReadFile(bundlePath)
-		if readErr != nil || len(content) == 0 {
-			continue
-		}
-		pluginBundle := make(map[string]string)
-		if unmarshalErr := json.Unmarshal(content, &pluginBundle); unmarshalErr != nil {
-			logger.Warningf(ctx, "parse workspace plugin apidoc i18n bundle failed path=%s err=%v", bundlePath, unmarshalErr)
-			continue
-		}
+		pluginBundle := loadOpenAPIEmbeddedBundle(
+			ctx,
+			os.DirFS(repoRoot),
+			pathJoinOpenAPIWorkspaceBundleDir(entry.Name()),
+			locale,
+		)
 		mergeOpenAPIPluginMessageCatalog(ctx, bundle, entry.Name(), pluginBundle)
 	}
 	return bundle
+}
+
+// pathJoinOpenAPIWorkspaceBundleDir returns the slash-separated plugin apidoc
+// i18n directory path used with os.DirFS.
+func pathJoinOpenAPIWorkspaceBundleDir(pluginID string) string {
+	return filepath.ToSlash(filepath.Join("apps", "lina-plugins", pluginID, filepath.FromSlash(openAPIPluginI18nDir)))
 }
 
 // listOpenAPIEnabledDynamicPluginReleases returns active release rows for
@@ -202,8 +204,8 @@ func (s *serviceImpl) loadOpenAPIDynamicPluginBundle(ctx context.Context, packag
 		if asset == nil || normalizeOpenAPILocale(asset.Locale) != locale {
 			continue
 		}
-		assetBundle := make(map[string]string)
-		if err = json.Unmarshal([]byte(asset.Content), &assetBundle); err != nil {
+		assetBundle, err := parseOpenAPIMessageCatalogJSON([]byte(asset.Content))
+		if err != nil {
 			return nil, gerror.Wrap(err, "parse dynamic plugin apidoc i18n asset failed")
 		}
 		mergeOpenAPIMessageCatalog(bundle, assetBundle)

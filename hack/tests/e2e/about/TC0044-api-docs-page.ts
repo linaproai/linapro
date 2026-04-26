@@ -204,4 +204,35 @@ test.describe('TC0044 系统接口页面', () => {
     ).toBeVisible({ timeout: 10_000 });
     await expect(frame.locator('[title="用户管理"]')).toHaveCount(0);
   });
+
+  test('TC0044j: 中文接口文档加载拆分层级 apidoc 资源和公共 fallback', async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    await mainLayout.switchLanguage('简体中文');
+
+    const apiResponse = await adminPage.request.get('/api.json?lang=zh-CN', {
+      headers: { 'Accept-Language': 'zh-CN' },
+    });
+    expect(apiResponse.ok()).toBeTruthy();
+    const apiDocumentText = await apiResponse.text();
+
+    expect(apiDocumentText).toContain('"用户登录"');
+    expect(apiDocumentText).toContain('"身份认证"');
+    expect(apiDocumentText).toContain('"错误码"');
+    expect(apiDocumentText).toContain('"错误消息"');
+    expect(apiDocumentText).toContain('"按接口定义返回的结果数据"');
+
+    await adminPage.goto('/about/api-docs');
+    const iframe = adminPage.locator('iframe.api-docs-iframe');
+    await expect(iframe).toBeVisible({ timeout: 10_000 });
+    await expect(iframe).toHaveAttribute('src', /lang=zh-CN/);
+
+    const frame = adminPage.frameLocator('iframe.api-docs-iframe');
+    await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
+    await frame.locator('[title="身份认证"]').click();
+    await expect(frame.locator('[title="用户登录"]').first()).toBeVisible({
+      timeout: 10_000,
+    });
+  });
 });

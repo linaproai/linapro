@@ -1,120 +1,366 @@
 {
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.fields.beginTime.dc": "清理起始时间",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.fields.endTime.dc": "清理截止时间",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.meta.dc": "清空指定时间范围内的操作日志，不传时间则清空全部",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.meta.summary": "清空操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.meta.tags": "操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.responses.200.content.application_json.fields.data.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.CleanReq.schema.dc": "清空指定时间范围内的操作日志，不传时间则清空全部",
-  "plugins.monitor_operlog.api.operlog.v1.CleanRes.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_operlog.api.operlog.v1.CleanRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.fields.ids.dc": "日志ID，多个用逗号分隔",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.meta.dc": "删除一条或多条操作日志记录",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.meta.summary": "删除操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.meta.tags": "操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.responses.200.content.application_json.fields.data.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteReq.schema.dc": "删除一条或多条操作日志记录",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteRes.fields.deleted.dc": "实际删除的记录数",
-  "plugins.monitor_operlog.api.operlog.v1.DeleteRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.beginTime.dc": "按操作时间起始筛选",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.endTime.dc": "按操作时间结束筛选",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.ids.dc": "指定导出的记录ID列表，不传则导出全部符合条件的记录",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.operName.dc": "按操作人员筛选（模糊匹配）",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.operType.dc": "按操作类型筛选：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.orderBy.dc": "排序字段：id,operTime,costTime",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.orderDirection.dc": "排序方向：asc或desc",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.orderDirection.default": "desc",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.status.dc": "按状态筛选：0=成功 1=失败",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.fields.title.dc": "按模块标题筛选（模糊匹配）",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.meta.dc": "导出操作日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.meta.summary": "导出操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.meta.tags": "操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.ExportReq.schema.dc": "导出操作日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录",
-  "plugins.monitor_operlog.api.operlog.v1.ExportRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.fields.id.dc": "操作日志ID",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.meta.dc": "根据日志ID获取操作日志的详细信息，包括请求参数、响应结果、耗时等",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.meta.summary": "获取操作日志详情",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.meta.tags": "操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.costTime.dc": "耗时（毫秒）",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.errorMsg.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.id.dc": "日志ID",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.jsonResult.dc": "返回参数",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.method.dc": "方法名称",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.operIp.dc": "操作IP地址",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.operName.dc": "操作人员",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.operParam.dc": "请求参数",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.operSummary.dc": "操作摘要",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.operTime.dc": "操作时间",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.operType.dc": "操作类型：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.operUrl.dc": "请求URL",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.requestMethod.dc": "请求方式",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.status.dc": "操作状态：0=成功 1=失败",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.data.fields.title.dc": "模块标题",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.GetReq.schema.dc": "根据日志ID获取操作日志的详细信息，包括请求参数、响应结果、耗时等",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.costTime.dc": "耗时（毫秒）",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.errorMsg.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.id.dc": "日志ID",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.jsonResult.dc": "返回参数",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.method.dc": "方法名称",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.operIp.dc": "操作IP地址",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.operName.dc": "操作人员",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.operParam.dc": "请求参数",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.operSummary.dc": "操作摘要",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.operTime.dc": "操作时间",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.operType.dc": "操作类型：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.operUrl.dc": "请求URL",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.requestMethod.dc": "请求方式",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.status.dc": "操作状态：0=成功 1=失败",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.fields.title.dc": "模块标题",
-  "plugins.monitor_operlog.api.operlog.v1.GetRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.beginTime.dc": "按操作时间起始筛选",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.endTime.dc": "按操作时间结束筛选",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.operName.dc": "按操作人员筛选（模糊匹配）",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.operType.dc": "按操作类型筛选：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.orderBy.dc": "排序字段：id,operTime,costTime",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.orderDirection.dc": "排序方向：asc或desc",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.orderDirection.default": "desc",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.pageNum.dc": "页码",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.pageSize.dc": "每页条数",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.status.dc": "按状态筛选：0=成功 1=失败",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.fields.title.dc": "按模块标题筛选（模糊匹配）",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.meta.dc": "分页查询操作日志列表，记录用户在系统中执行的增删改查等操作，支持多条件筛选和排序",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.meta.summary": "获取操作日志列表",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.meta.tags": "操作日志",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.responses.200.content.application_json.fields.code.dc": "错误码",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.responses.200.content.application_json.fields.data.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.responses.200.content.application_json.fields.data.fields.items.dc": "操作日志列表",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.responses.200.content.application_json.fields.data.fields.total.dc": "总条数",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.responses.200.content.application_json.fields.message.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.ListReq.schema.dc": "分页查询操作日志列表，记录用户在系统中执行的增删改查等操作，支持多条件筛选和排序",
-  "plugins.monitor_operlog.api.operlog.v1.ListRes.fields.items.dc": "操作日志列表",
-  "plugins.monitor_operlog.api.operlog.v1.ListRes.fields.total.dc": "总条数",
-  "plugins.monitor_operlog.api.operlog.v1.ListRes.schema.dc": "按接口定义返回的结果数据",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.costTime.dc": "耗时（毫秒）",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.errorMsg.dc": "错误消息",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.id.dc": "日志ID",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.jsonResult.dc": "返回参数",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.method.dc": "方法名称",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.operIp.dc": "操作IP地址",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.operName.dc": "操作人员",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.operParam.dc": "请求参数",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.operSummary.dc": "操作摘要",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.operTime.dc": "操作时间",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.operType.dc": "操作类型：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.operUrl.dc": "请求URL",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.requestMethod.dc": "请求方式",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.status.dc": "操作状态：0=成功 1=失败",
-  "plugins.monitor_operlog.api.operlog.v1.OperLogEntity.fields.title.dc": "模块标题"
+  "plugins": {
+    "monitor_operlog": {
+      "api": {
+        "operlog": {
+          "v1": {
+            "CleanReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "清理起始时间"
+                },
+                "endTime": {
+                  "dc": "清理截止时间"
+                }
+              },
+              "meta": {
+                "dc": "清空指定时间范围内的操作日志，不传时间则清空全部",
+                "summary": "清空操作日志",
+                "tags": "操作日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "deleted": {
+                              "dc": "实际删除的记录数"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "清空指定时间范围内的操作日志，不传时间则清空全部"
+              }
+            },
+            "CleanRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "实际删除的记录数"
+                }
+              }
+            },
+            "DeleteReq": {
+              "fields": {
+                "ids": {
+                  "dc": "日志ID，多个用逗号分隔"
+                }
+              },
+              "meta": {
+                "dc": "删除一条或多条操作日志记录",
+                "summary": "删除操作日志",
+                "tags": "操作日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "deleted": {
+                              "dc": "实际删除的记录数"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "删除一条或多条操作日志记录"
+              }
+            },
+            "DeleteRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "实际删除的记录数"
+                }
+              }
+            },
+            "ExportReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "按操作时间起始筛选"
+                },
+                "endTime": {
+                  "dc": "按操作时间结束筛选"
+                },
+                "ids": {
+                  "dc": "指定导出的记录ID列表，不传则导出全部符合条件的记录"
+                },
+                "operName": {
+                  "dc": "按操作人员筛选（模糊匹配）"
+                },
+                "operType": {
+                  "dc": "按操作类型筛选：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他"
+                },
+                "orderBy": {
+                  "dc": "排序字段：id,operTime,costTime"
+                },
+                "orderDirection": {
+                  "dc": "排序方向：asc或desc",
+                  "default": "desc"
+                },
+                "status": {
+                  "dc": "按状态筛选：0=成功 1=失败"
+                },
+                "title": {
+                  "dc": "按模块标题筛选（模糊匹配）"
+                }
+              },
+              "meta": {
+                "dc": "导出操作日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录",
+                "summary": "导出操作日志",
+                "tags": "操作日志"
+              },
+              "schema": {
+                "dc": "导出操作日志数据为Excel文件，支持按条件筛选导出，也支持导出指定ID的记录"
+              }
+            },
+            "GetReq": {
+              "fields": {
+                "id": {
+                  "dc": "操作日志ID"
+                }
+              },
+              "meta": {
+                "dc": "根据日志ID获取操作日志的详细信息，包括请求参数、响应结果、耗时等",
+                "summary": "获取操作日志详情",
+                "tags": "操作日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "costTime": {
+                              "dc": "耗时（毫秒）"
+                            },
+                            "errorMsg": {
+                              "dc": "错误消息"
+                            },
+                            "id": {
+                              "dc": "日志ID"
+                            },
+                            "jsonResult": {
+                              "dc": "返回参数"
+                            },
+                            "method": {
+                              "dc": "方法名称"
+                            },
+                            "operIp": {
+                              "dc": "操作IP地址"
+                            },
+                            "operName": {
+                              "dc": "操作人员"
+                            },
+                            "operParam": {
+                              "dc": "请求参数"
+                            },
+                            "operSummary": {
+                              "dc": "操作摘要"
+                            },
+                            "operTime": {
+                              "dc": "操作时间"
+                            },
+                            "operType": {
+                              "dc": "操作类型：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他"
+                            },
+                            "operUrl": {
+                              "dc": "请求URL"
+                            },
+                            "requestMethod": {
+                              "dc": "请求方式"
+                            },
+                            "status": {
+                              "dc": "操作状态：0=成功 1=失败"
+                            },
+                            "title": {
+                              "dc": "模块标题"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "根据日志ID获取操作日志的详细信息，包括请求参数、响应结果、耗时等"
+              }
+            },
+            "GetRes": {
+              "fields": {
+                "costTime": {
+                  "dc": "耗时（毫秒）"
+                },
+                "errorMsg": {
+                  "dc": "错误消息"
+                },
+                "id": {
+                  "dc": "日志ID"
+                },
+                "jsonResult": {
+                  "dc": "返回参数"
+                },
+                "method": {
+                  "dc": "方法名称"
+                },
+                "operIp": {
+                  "dc": "操作IP地址"
+                },
+                "operName": {
+                  "dc": "操作人员"
+                },
+                "operParam": {
+                  "dc": "请求参数"
+                },
+                "operSummary": {
+                  "dc": "操作摘要"
+                },
+                "operTime": {
+                  "dc": "操作时间"
+                },
+                "operType": {
+                  "dc": "操作类型：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他"
+                },
+                "operUrl": {
+                  "dc": "请求URL"
+                },
+                "requestMethod": {
+                  "dc": "请求方式"
+                },
+                "status": {
+                  "dc": "操作状态：0=成功 1=失败"
+                },
+                "title": {
+                  "dc": "模块标题"
+                }
+              }
+            },
+            "ListReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "按操作时间起始筛选"
+                },
+                "endTime": {
+                  "dc": "按操作时间结束筛选"
+                },
+                "operName": {
+                  "dc": "按操作人员筛选（模糊匹配）"
+                },
+                "operType": {
+                  "dc": "按操作类型筛选：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他"
+                },
+                "orderBy": {
+                  "dc": "排序字段：id,operTime,costTime"
+                },
+                "orderDirection": {
+                  "dc": "排序方向：asc或desc",
+                  "default": "desc"
+                },
+                "status": {
+                  "dc": "按状态筛选：0=成功 1=失败"
+                },
+                "title": {
+                  "dc": "按模块标题筛选（模糊匹配）"
+                }
+              },
+              "meta": {
+                "dc": "分页查询操作日志列表，记录用户在系统中执行的增删改查等操作，支持多条件筛选和排序",
+                "summary": "获取操作日志列表",
+                "tags": "操作日志"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "items": {
+                              "dc": "操作日志列表"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "分页查询操作日志列表，记录用户在系统中执行的增删改查等操作，支持多条件筛选和排序"
+              }
+            },
+            "ListRes": {
+              "fields": {
+                "items": {
+                  "dc": "操作日志列表"
+                }
+              }
+            },
+            "OperLogEntity": {
+              "fields": {
+                "costTime": {
+                  "dc": "耗时（毫秒）"
+                },
+                "errorMsg": {
+                  "dc": "错误消息"
+                },
+                "id": {
+                  "dc": "日志ID"
+                },
+                "jsonResult": {
+                  "dc": "返回参数"
+                },
+                "method": {
+                  "dc": "方法名称"
+                },
+                "operIp": {
+                  "dc": "操作IP地址"
+                },
+                "operName": {
+                  "dc": "操作人员"
+                },
+                "operParam": {
+                  "dc": "请求参数"
+                },
+                "operSummary": {
+                  "dc": "操作摘要"
+                },
+                "operTime": {
+                  "dc": "操作时间"
+                },
+                "operType": {
+                  "dc": "操作类型：create=新增 update=修改 delete=删除 export=导出 import=导入 other=其他"
+                },
+                "operUrl": {
+                  "dc": "请求URL"
+                },
+                "requestMethod": {
+                  "dc": "请求方式"
+                },
+                "status": {
+                  "dc": "操作状态：0=成功 1=失败"
+                },
+                "title": {
+                  "dc": "模块标题"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }

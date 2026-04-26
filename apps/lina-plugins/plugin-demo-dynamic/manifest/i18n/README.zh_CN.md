@@ -4,7 +4,7 @@
 
 宿主会把 `manifest/i18n/<locale>.json` 快照进动态插件产物中，以便运行时国际化接口在安装、启用、升级、停用、卸载之后正确聚合插件自有翻译消息。
 
-插件接口文档翻译资源存放在 `manifest/i18n/apidoc/<locale>.json`。它们会独立嵌入动态插件产物，并且只在渲染 `/api.json` 时由宿主合并。
+插件接口文档翻译资源存放在 `manifest/i18n/apidoc/<locale>.json`，也可以按需拆分到 `manifest/i18n/apidoc/<locale>/**/*.json`。它们会独立嵌入动态插件产物，并且只在渲染 `/api.json` 时由宿主合并。
 
 当前示例覆盖的归一化 key 包括：
 
@@ -14,5 +14,7 @@
 - `apidoc/` 下的 `plugins.plugin_demo_dynamic.*` 接口文档元数据
 
 运行时 UI 消息文件可使用层级 JSON 或扁平 dotted key。宿主会把两种格式统一归一化为扁平 key，用于聚合和诊断，并在返回前端运行时语言包时再转换为嵌套对象。
+
+接口文档消息文件也遵循相同的层级或扁平编写规则，并归一化为稳定的 `plugins.plugin_demo_dynamic.*` key。重复的标准响应元数据由宿主自有的 `core.common.*` fallback key 提供。
 
 请采用 `zh-CN.json`、`en-US.json` 这类规范化语言文件名。

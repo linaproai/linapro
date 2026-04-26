@@ -309,7 +309,7 @@ func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
 		[]map[string]string{
 			{
 				"locale":  "zh-CN",
-				"content": `{"plugins.plugin_dynamic_apidoc_i18n.paths.get.summary":"运行时接口文档翻译"}`,
+				"content": `{"plugins":{"plugin_dynamic_apidoc_i18n":{"paths":{"get":{"summary":"运行时接口文档翻译"}}}}}`,
 			},
 		},
 	)

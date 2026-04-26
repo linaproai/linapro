@@ -1,0 +1,939 @@
+{
+  "core": {
+    "api": {
+      "user": {
+        "v1": {
+          "CreateReq": {
+            "fields": {
+              "deptId": {
+                "dc": "所属部门ID"
+              },
+              "email": {
+                "dc": "邮箱"
+              },
+              "nickname": {
+                "dc": "昵称"
+              },
+              "password": {
+                "dc": "密码"
+              },
+              "phone": {
+                "dc": "手机号"
+              },
+              "postIds": {
+                "dc": "岗位ID列表"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "sex": {
+                "dc": "性别：0=未知 1=男 2=女"
+              },
+              "status": {
+                "dc": "状态：1=正常 0=停用"
+              },
+              "username": {
+                "dc": "用户名"
+              }
+            },
+            "meta": {
+              "dc": "创建一个新用户，用户名在系统中必须唯一。可指定所属部门、岗位和角色",
+              "summary": "创建用户",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "用户ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "创建一个新用户，用户名在系统中必须唯一。可指定所属部门、岗位和角色"
+            }
+          },
+          "CreateRes": {
+            "fields": {
+              "id": {
+                "dc": "用户ID"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "id": {
+                "dc": "用户ID"
+              }
+            },
+            "meta": {
+              "dc": "根据用户ID删除指定用户，不允许删除管理员账号",
+              "summary": "删除用户",
+              "tags": "用户管理"
+            },
+            "schema": {
+              "dc": "根据用户ID删除指定用户，不允许删除管理员账号"
+            }
+          },
+          "DeptTreeNode": {
+            "fields": {
+              "children": {
+                "dc": "子部门列表"
+              },
+              "id": {
+                "dc": "所属部门ID"
+              },
+              "label": {
+                "dc": "部门名称"
+              },
+              "userCount": {
+                "dc": "部门用户数"
+              }
+            }
+          },
+          "DeptTreeReq": {
+            "meta": {
+              "dc": "获取部门树结构及部门用户数，供管理工作台的用户查询视图按部门筛选或装配树选择器",
+              "summary": "获取用户筛选部门树",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "部门树"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "获取部门树结构及部门用户数，供管理工作台的用户查询视图按部门筛选或装配树选择器"
+            }
+          },
+          "DeptTreeRes": {
+            "fields": {
+              "list": {
+                "dc": "部门树"
+              }
+            }
+          },
+          "ExportReq": {
+            "fields": {
+              "ids": {
+                "dc": "导出指定用户ID列表，为空则导出全部"
+              }
+            },
+            "meta": {
+              "dc": "导出用户数据为Excel文件，可指定导出特定用户或全部用户",
+              "summary": "导出用户数据",
+              "tags": "用户管理"
+            },
+            "schema": {
+              "dc": "导出用户数据为Excel文件，可指定导出特定用户或全部用户"
+            }
+          },
+          "GetInfoReq": {
+            "meta": {
+              "dc": "获取当前登录用户的基础身份、角色、菜单树与权限集合，供默认管理工作台完成启动装配、导航渲染与权限控制",
+              "summary": "获取宿主用户上下文",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "avatar": {
+                            "dc": "头像地址"
+                          },
+                          "email": {
+                            "dc": "邮箱地址"
+                          },
+                          "homePath": {
+                            "dc": "首页路径"
+                          },
+                          "menus": {
+                            "dc": "宿主菜单树，供默认管理工作台装配导航、路由与工作区入口"
+                          },
+                          "permissions": {
+                            "dc": "用户有效权限标识列表，包含菜单权限与按钮权限，用于接口声明权限校验和按钮级权限控制"
+                          },
+                          "realName": {
+                            "dc": "真实姓名（昵称）"
+                          },
+                          "roles": {
+                            "dc": "用户角色标识列表"
+                          },
+                          "userId": {
+                            "dc": "用户ID"
+                          },
+                          "username": {
+                            "dc": "用户名"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "获取当前登录用户的基础身份、角色、菜单树与权限集合，供默认管理工作台完成启动装配、导航渲染与权限控制"
+            }
+          },
+          "GetInfoRes": {
+            "fields": {
+              "avatar": {
+                "dc": "头像地址"
+              },
+              "email": {
+                "dc": "邮箱地址"
+              },
+              "homePath": {
+                "dc": "首页路径"
+              },
+              "menus": {
+                "dc": "宿主菜单树，供默认管理工作台装配导航、路由与工作区入口"
+              },
+              "permissions": {
+                "dc": "用户有效权限标识列表，包含菜单权限与按钮权限，用于接口声明权限校验和按钮级权限控制"
+              },
+              "realName": {
+                "dc": "真实姓名（昵称）"
+              },
+              "roles": {
+                "dc": "用户角色标识列表"
+              },
+              "userId": {
+                "dc": "用户ID"
+              },
+              "username": {
+                "dc": "用户名"
+              }
+            }
+          },
+          "GetProfileReq": {
+            "meta": {
+              "dc": "获取当前登录用户的完整个人信息，供个人中心或管理工作台资料视图展示",
+              "summary": "获取当前用户信息",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "avatar": {
+                            "dc": "头像地址"
+                          },
+                          "email": {
+                            "dc": "邮箱"
+                          },
+                          "id": {
+                            "dc": "用户ID"
+                          },
+                          "loginDate": {
+                            "dc": "最后登录时间"
+                          },
+                          "nickname": {
+                            "dc": "用户昵称"
+                          },
+                          "password": {
+                            "dc": "密码"
+                          },
+                          "phone": {
+                            "dc": "手机号码"
+                          },
+                          "remark": {
+                            "dc": "备注"
+                          },
+                          "sex": {
+                            "dc": "性别（0未知 1男 2女）"
+                          },
+                          "status": {
+                            "dc": "状态（0停用 1正常）"
+                          },
+                          "username": {
+                            "dc": "用户账号"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "获取当前登录用户的完整个人信息，供个人中心或管理工作台资料视图展示"
+            }
+          },
+          "GetProfileRes": {
+            "fields": {
+              "avatar": {
+                "dc": "头像地址"
+              },
+              "email": {
+                "dc": "邮箱"
+              },
+              "id": {
+                "dc": "用户ID"
+              },
+              "loginDate": {
+                "dc": "最后登录时间"
+              },
+              "nickname": {
+                "dc": "用户昵称"
+              },
+              "password": {
+                "dc": "密码"
+              },
+              "phone": {
+                "dc": "手机号码"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "sex": {
+                "dc": "性别（0未知 1男 2女）"
+              },
+              "status": {
+                "dc": "状态（0停用 1正常）"
+              },
+              "username": {
+                "dc": "用户账号"
+              }
+            },
+            "schema": {
+              "dc": "用户信息"
+            }
+          },
+          "GetReq": {
+            "fields": {
+              "id": {
+                "dc": "用户ID"
+              }
+            },
+            "meta": {
+              "dc": "根据用户ID获取用户详细信息，包括所属部门和岗位信息",
+              "summary": "获取用户详情",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "avatar": {
+                            "dc": "头像地址"
+                          },
+                          "deptId": {
+                            "dc": "所属部门ID"
+                          },
+                          "deptName": {
+                            "dc": "部门名称"
+                          },
+                          "email": {
+                            "dc": "邮箱"
+                          },
+                          "id": {
+                            "dc": "用户ID"
+                          },
+                          "loginDate": {
+                            "dc": "最后登录时间"
+                          },
+                          "nickname": {
+                            "dc": "用户昵称"
+                          },
+                          "password": {
+                            "dc": "密码"
+                          },
+                          "phone": {
+                            "dc": "手机号码"
+                          },
+                          "postIds": {
+                            "dc": "岗位ID列表"
+                          },
+                          "remark": {
+                            "dc": "备注"
+                          },
+                          "roleIds": {
+                            "dc": "角色ID列表"
+                          },
+                          "sex": {
+                            "dc": "性别（0未知 1男 2女）"
+                          },
+                          "status": {
+                            "dc": "状态（0停用 1正常）"
+                          },
+                          "username": {
+                            "dc": "用户账号"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根据用户ID获取用户详细信息，包括所属部门和岗位信息"
+            }
+          },
+          "GetRes": {
+            "fields": {
+              "avatar": {
+                "dc": "头像地址"
+              },
+              "deptId": {
+                "dc": "所属部门ID"
+              },
+              "deptName": {
+                "dc": "部门名称"
+              },
+              "email": {
+                "dc": "邮箱"
+              },
+              "id": {
+                "dc": "用户ID"
+              },
+              "loginDate": {
+                "dc": "最后登录时间"
+              },
+              "nickname": {
+                "dc": "用户昵称"
+              },
+              "password": {
+                "dc": "密码"
+              },
+              "phone": {
+                "dc": "手机号码"
+              },
+              "postIds": {
+                "dc": "岗位ID列表"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "sex": {
+                "dc": "性别（0未知 1男 2女）"
+              },
+              "status": {
+                "dc": "状态（0停用 1正常）"
+              },
+              "username": {
+                "dc": "用户账号"
+              }
+            },
+            "schema": {
+              "dc": "用户信息"
+            }
+          },
+          "ImportFailItem": {
+            "fields": {
+              "reason": {
+                "dc": "失败原因"
+              },
+              "row": {
+                "dc": "行号"
+              }
+            }
+          },
+          "ImportReq": {
+            "meta": {
+              "dc": "通过Excel文件批量导入用户数据，需使用系统提供的导入模板",
+              "summary": "导入用户数据",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "fail": {
+                            "dc": "失败条数"
+                          },
+                          "failList": {
+                            "dc": "失败详情"
+                          },
+                          "success": {
+                            "dc": "成功条数"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "通过Excel文件批量导入用户数据，需使用系统提供的导入模板"
+            }
+          },
+          "ImportRes": {
+            "fields": {
+              "fail": {
+                "dc": "失败条数"
+              },
+              "failList": {
+                "dc": "失败详情"
+              },
+              "success": {
+                "dc": "成功条数"
+              }
+            }
+          },
+          "ImportTemplateReq": {
+            "meta": {
+              "dc": "下载用户导入Excel模板文件，包含必填字段和数据格式说明",
+              "summary": "下载导入模板",
+              "tags": "用户管理"
+            },
+            "schema": {
+              "dc": "下载用户导入Excel模板文件，包含必填字段和数据格式说明"
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "avatar": {
+                "dc": "头像地址"
+              },
+              "deptId": {
+                "dc": "所属部门ID"
+              },
+              "deptName": {
+                "dc": "部门名称"
+              },
+              "email": {
+                "dc": "邮箱"
+              },
+              "id": {
+                "dc": "用户ID"
+              },
+              "loginDate": {
+                "dc": "最后登录时间"
+              },
+              "nickname": {
+                "dc": "用户昵称"
+              },
+              "password": {
+                "dc": "密码"
+              },
+              "phone": {
+                "dc": "手机号码"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "roleNames": {
+                "dc": "角色名称列表"
+              },
+              "sex": {
+                "dc": "性别（0未知 1男 2女）"
+              },
+              "status": {
+                "dc": "状态（0停用 1正常）"
+              },
+              "username": {
+                "dc": "用户账号"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "按创建时间起始筛选"
+              },
+              "deptId": {
+                "dc": "按部门ID筛选（包含子部门）"
+              },
+              "endTime": {
+                "dc": "按创建时间结束筛选"
+              },
+              "nickname": {
+                "dc": "按昵称筛选（模糊匹配）"
+              },
+              "orderBy": {
+                "dc": "排序字段：id,username,nickname,phone,email,status,created_at"
+              },
+              "orderDirection": {
+                "dc": "排序方向：asc或desc",
+                "default": "desc"
+              },
+              "phone": {
+                "dc": "按手机号筛选（模糊匹配）"
+              },
+              "sex": {
+                "dc": "按性别筛选：0=未知 1=男 2=女"
+              },
+              "status": {
+                "dc": "按状态筛选：1=正常 0=停用"
+              },
+              "username": {
+                "dc": "按用户名筛选（模糊匹配）"
+              }
+            },
+            "meta": {
+              "dc": "分页查询用户列表，支持按用户名、昵称、状态、手机号、性别、部门、创建时间等条件筛选，支持自定义排序",
+              "summary": "获取用户列表",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "用户列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分页查询用户列表，支持按用户名、昵称、状态、手机号、性别、部门、创建时间等条件筛选，支持自定义排序"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "用户列表"
+              }
+            }
+          },
+          "MenuTree": {
+            "fields": {
+              "children": {
+                "dc": "子菜单"
+              },
+              "component": {
+                "dc": "组件路径"
+              },
+              "icon": {
+                "dc": "菜单图标"
+              },
+              "id": {
+                "dc": "菜单ID"
+              },
+              "isCache": {
+                "dc": "是否缓存：1=是 0=否"
+              },
+              "isFrame": {
+                "dc": "是否外链：1=是 0=否"
+              },
+              "name": {
+                "dc": "菜单名称"
+              },
+              "parentId": {
+                "dc": "父菜单ID"
+              },
+              "path": {
+                "dc": "路由路径"
+              },
+              "perms": {
+                "dc": "权限标识"
+              },
+              "sort": {
+                "dc": "排序"
+              },
+              "status": {
+                "dc": "状态：1=正常 0=停用"
+              },
+              "type": {
+                "dc": "菜单类型：D=目录 M=菜单 B=按钮"
+              },
+              "visible": {
+                "dc": "是否显示：1=显示 0=隐藏"
+              }
+            }
+          },
+          "PostOptionsReq": {
+            "fields": {
+              "deptId": {
+                "dc": "部门ID，不传则返回全部可选岗位；组织插件不可用时返回空列表"
+              }
+            },
+            "meta": {
+              "dc": "获取指定部门及其子部门下的岗位选项，供用户管理编辑抽屉在组织插件可用时装配岗位多选框",
+              "summary": "获取用户岗位选项",
+              "tags": "用户管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "岗位选项列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "获取指定部门及其子部门下的岗位选项，供用户管理编辑抽屉在组织插件可用时装配岗位多选框"
+            }
+          },
+          "PostOptionsRes": {
+            "fields": {
+              "list": {
+                "dc": "岗位选项列表"
+              }
+            }
+          },
+          "ResetPasswordReq": {
+            "fields": {
+              "id": {
+                "dc": "用户ID"
+              },
+              "password": {
+                "dc": "新密码"
+              }
+            },
+            "meta": {
+              "dc": "管理员重置指定用户的登录密码",
+              "summary": "重置用户密码",
+              "tags": "用户管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "password": {
+                      "dc": "新密码"
+                    }
+                  },
+                  "schema": {
+                    "dc": "管理员重置指定用户的登录密码"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "管理员重置指定用户的登录密码"
+            }
+          },
+          "UpdateAvatarReq": {
+            "fields": {
+              "avatar": {
+                "dc": "头像URL地址"
+              }
+            },
+            "meta": {
+              "dc": "更新当前用户头像URL，需先通过文件上传接口上传头像文件获取URL",
+              "summary": "更新用户头像",
+              "tags": "用户管理"
+            },
+            "schema": {
+              "dc": "更新当前用户头像URL，需先通过文件上传接口上传头像文件获取URL"
+            }
+          },
+          "UpdateProfileReq": {
+            "fields": {
+              "email": {
+                "dc": "邮箱"
+              },
+              "nickname": {
+                "dc": "昵称"
+              },
+              "password": {
+                "dc": "新密码"
+              },
+              "phone": {
+                "dc": "手机号"
+              },
+              "sex": {
+                "dc": "性别：0=未知 1=男 2=女"
+              }
+            },
+            "meta": {
+              "dc": "更新当前登录用户的个人资料，包括昵称、邮箱、手机号、性别等，供个人中心或管理工作台资料维护视图使用",
+              "summary": "更新当前用户信息",
+              "tags": "用户管理"
+            },
+            "schema": {
+              "dc": "更新当前登录用户的个人资料，包括昵称、邮箱、手机号、性别等，供个人中心或管理工作台资料维护视图使用"
+            }
+          },
+          "UpdateReq": {
+            "fields": {
+              "deptId": {
+                "dc": "所属部门ID"
+              },
+              "email": {
+                "dc": "邮箱"
+              },
+              "id": {
+                "dc": "用户ID"
+              },
+              "nickname": {
+                "dc": "昵称"
+              },
+              "password": {
+                "dc": "密码（为空则不修改）"
+              },
+              "phone": {
+                "dc": "手机号"
+              },
+              "postIds": {
+                "dc": "岗位ID列表"
+              },
+              "remark": {
+                "dc": "备注"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "sex": {
+                "dc": "性别：0=未知 1=男 2=女"
+              },
+              "status": {
+                "dc": "状态：1=正常 0=停用"
+              },
+              "username": {
+                "dc": "用户名"
+              }
+            },
+            "meta": {
+              "dc": "更新指定用户的信息，所有字段均为可选更新，仅传入需要修改的字段即可",
+              "summary": "更新用户",
+              "tags": "用户管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "deptId": {
+                      "dc": "所属部门ID"
+                    },
+                    "email": {
+                      "dc": "邮箱"
+                    },
+                    "nickname": {
+                      "dc": "昵称"
+                    },
+                    "password": {
+                      "dc": "密码（为空则不修改）"
+                    },
+                    "phone": {
+                      "dc": "手机号"
+                    },
+                    "postIds": {
+                      "dc": "岗位ID列表"
+                    },
+                    "remark": {
+                      "dc": "备注"
+                    },
+                    "roleIds": {
+                      "dc": "角色ID列表"
+                    },
+                    "sex": {
+                      "dc": "性别：0=未知 1=男 2=女"
+                    },
+                    "status": {
+                      "dc": "状态：1=正常 0=停用"
+                    },
+                    "username": {
+                      "dc": "用户名"
+                    }
+                  },
+                  "schema": {
+                    "dc": "更新指定用户的信息，所有字段均为可选更新，仅传入需要修改的字段即可"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "更新指定用户的信息，所有字段均为可选更新，仅传入需要修改的字段即可"
+            }
+          },
+          "UpdateStatusReq": {
+            "fields": {
+              "id": {
+                "dc": "用户ID"
+              },
+              "status": {
+                "dc": "状态：1=正常 0=停用"
+              }
+            },
+            "meta": {
+              "dc": "启用或停用指定用户账号",
+              "summary": "更新用户状态",
+              "tags": "用户管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "status": {
+                      "dc": "状态：1=正常 0=停用"
+                    }
+                  },
+                  "schema": {
+                    "dc": "启用或停用指定用户账号"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "启用或停用指定用户账号"
+            }
+          },
+          "UserPostOption": {
+            "fields": {
+              "postId": {
+                "dc": "岗位ID"
+              },
+              "postName": {
+                "dc": "岗位名称"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

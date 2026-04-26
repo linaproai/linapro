@@ -102,8 +102,64 @@ func (l *openAPILocalizer) translate(key string, source string) string {
 		if translated, ok := l.catalog[openAPIPluginKeyAlias(key)]; ok {
 			return translated
 		}
+		for _, fallbackKey := range openAPICommonFallbackKeys(key) {
+			if translated, ok := l.catalog[fallbackKey]; ok {
+				return translated
+			}
+		}
 	}
 	return source
+}
+
+// openAPICommonFallbackKeys returns shared apidoc translation keys for highly
+// repeated generated metadata such as standard response wrappers and paging
+// fields. Exact structural keys still win when present.
+func openAPICommonFallbackKeys(key string) []string {
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" {
+		return nil
+	}
+
+	switch {
+	case matchesOpenAPIStandardResponseField(trimmedKey, "code"):
+		return []string{"core.common.responses.fields.code.dc"}
+	case matchesOpenAPIStandardResponseField(trimmedKey, "message"):
+		return []string{"core.common.responses.fields.message.dc"}
+	case matchesOpenAPIStandardResponseField(trimmedKey, "data"):
+		return []string{"core.common.responses.fields.data.dc"}
+	case strings.HasSuffix(trimmedKey, "Res.schema.dc"):
+		return []string{"core.common.schemas.response.dc"}
+	case strings.HasSuffix(trimmedKey, ".fields.pageNum.dc"):
+		return []string{"core.common.fields.pageNum.dc"}
+	case strings.HasSuffix(trimmedKey, ".fields.pageSize.dc"):
+		return []string{"core.common.fields.pageSize.dc"}
+	case strings.HasSuffix(trimmedKey, ".fields.total.dc"):
+		return []string{"core.common.fields.total.dc"}
+	case strings.HasSuffix(trimmedKey, ".fields.createdAt.dc"):
+		return []string{"core.common.fields.createdAt.dc"}
+	case strings.HasSuffix(trimmedKey, ".fields.updatedAt.dc"):
+		return []string{"core.common.fields.updatedAt.dc"}
+	case strings.HasSuffix(trimmedKey, ".fields.deletedAt.dc"):
+		return []string{"core.common.fields.deletedAt.dc"}
+	default:
+		return nil
+	}
+}
+
+// matchesOpenAPIStandardResponseField reports whether key targets the standard
+// response wrapper field emitted under one operation response.
+func matchesOpenAPIStandardResponseField(key string, field string) bool {
+	segments := strings.Split(strings.TrimSpace(key), ".")
+	for index := 0; index+6 < len(segments); index++ {
+		if segments[index] != "responses" {
+			continue
+		}
+		if segments[index+2] != "content" || segments[index+4] != "fields" {
+			continue
+		}
+		return segments[index+5] == field && segments[index+6] == "dc" && index+7 == len(segments)
+	}
+	return false
 }
 
 // openAPIPluginKeyAlias supports source-plugin module names such as

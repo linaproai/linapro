@@ -55,4 +55,30 @@ test.describe('TC0111 源插件静态文案不再泄漏原始 i18n key', () => {
       });
     }
   });
+
+  test('TC-111b: 运行时语言包接口返回层级化业务 i18n 资源', async ({
+    adminPage,
+  }) => {
+    const response = await adminPage.request.get(
+      '/api/v1/i18n/runtime/messages?lang=en-US',
+      {
+        headers: {
+          'Accept-Language': 'en-US',
+        },
+      },
+    );
+    expect(response.ok()).toBeTruthy();
+    const payload = await response.json();
+    const messages = payload?.data?.messages ?? payload?.messages;
+
+    expect(messages?.config?.sys?.auth?.pageTitle?.name).toBe(
+      'Login - Page Title',
+    );
+    expect(messages?.plugin?.['org-center']?.dept?.fields?.name).toBe(
+      'Dept Name',
+    );
+    expect(messages?.plugin?.['monitor-operlog']?.fields?.moduleName).toBe(
+      'Module Name',
+    );
+  });
 });

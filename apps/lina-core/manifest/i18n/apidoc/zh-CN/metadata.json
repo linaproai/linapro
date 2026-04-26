@@ -1,0 +1,43 @@
+{
+  "core": {
+    "metadata": {
+      "backend": {
+        "excelize": {
+          "description": "Excel 文件处理库"
+        },
+        "goframe": {
+          "description": "Go 语言开发框架"
+        },
+        "mysql": {
+          "description": "关系型数据库"
+        }
+      },
+      "framework": {
+        "description": "一个面向可持续交付的 AI 驱动全栈框架，提供通用核心宿主服务、默认管理工作台、插件扩展能力和 AI 原生研发工作流。"
+      },
+      "frontend": {
+        "ant_design_vue": {
+          "description": "UI 组件库"
+        },
+        "pinia": {
+          "description": "状态管理"
+        },
+        "tailwindcss": {
+          "description": "实用优先的 CSS 框架"
+        },
+        "typescript": {
+          "description": "类型安全的 JavaScript"
+        },
+        "vben": {
+          "description": "默认管理工作台前端框架"
+        },
+        "vite": {
+          "description": "前端构建工具"
+        },
+        "vue": {
+          "description": "渐进式 JavaScript 框架"
+        }
+      }
+    }
+  }
+}
