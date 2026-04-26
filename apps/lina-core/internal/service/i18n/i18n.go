@@ -271,6 +271,8 @@ func loadEmbeddedHostLocaleBundle(locale string) map[string]string {
 }
 
 // parseLocaleJSON unmarshals one locale JSON file into a flat message catalog.
+// Flat keys override equivalent nested paths, which keeps mixed-format locale
+// files deterministic during gradual authoring-format migrations.
 func parseLocaleJSON(content []byte) map[string]string {
 	result := make(map[string]interface{})
 	if len(content) == 0 {
@@ -289,16 +291,28 @@ func parseLocaleJSON(content []byte) map[string]string {
 func flattenMessageValue(prefix string, value interface{}, output map[string]string) {
 	switch typedValue := value.(type) {
 	case map[string]interface{}:
-		for key, item := range typedValue {
-			trimmedKey := strings.TrimSpace(key)
-			if trimmedKey == "" {
+		keys := make([]string, 0, len(typedValue))
+		for key := range typedValue {
+			if strings.TrimSpace(key) == "" {
 				continue
 			}
+			keys = append(keys, key)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			left := strings.TrimSpace(keys[i])
+			right := strings.TrimSpace(keys[j])
+			if left == right {
+				return keys[i] < keys[j]
+			}
+			return left < right
+		})
+		for _, key := range keys {
+			trimmedKey := strings.TrimSpace(key)
 			nextPrefix := trimmedKey
 			if prefix != "" {
 				nextPrefix = prefix + "." + trimmedKey
 			}
-			flattenMessageValue(nextPrefix, item, output)
+			flattenMessageValue(nextPrefix, typedValue[key], output)
 		}
 	default:
 		if prefix == "" {

@@ -22,23 +22,36 @@ Rules:
 - The filename must use the canonical locale code, for example `zh-CN.json` or `en-US.json`.
 - The host only treats top-level `manifest/i18n/<locale>.json` files as runtime locale bundles.
 - The host only treats `manifest/i18n/apidoc/<locale>.json` files as API-documentation locale bundles.
-- Runtime messages are maintained with flat keys only.
-- The runtime i18n API converts flat keys into nested objects only when returning data to the frontend.
+- Runtime UI message files may be authored as nested JSON or flat dotted keys.
+- The host normalizes runtime UI message files into flat keys for aggregation, database overrides, missing checks, exports, and diagnostics.
+- The runtime i18n API converts normalized flat keys into nested objects when returning data to the frontend.
 - API-documentation bundles use structured `core.*` and `plugins.*` keys, keep `en-US.json` as `{}`, and never translate `eg/example` values or generated entity metadata.
 
-## Why JSON And Flat Keys
+## Why JSON And Key Normalization
 
 `JSON` is the canonical delivery format because it matches the existing frontend locale workflow, is easy to import and export through HTTP APIs, and can be embedded into dynamic plugin `Wasm` artifacts without extra conversion layers.
 
-Flat keys are the canonical management format because they keep backend storage, database overrides, missing-translation checks, and plugin packaging simple and deterministic.
+Nested JSON is the recommended file authoring format for runtime UI messages because it reduces repeated prefixes and keeps code review readable. Flat dotted keys are still accepted for small patches and gradual migrations.
+
+Flat keys remain the canonical governance format because they keep backend storage, database overrides, missing-translation checks, imports, exports, diagnostics, and plugin packaging simple and deterministic. When one locale file mixes nested JSON and equivalent flat dotted keys, the flat dotted key wins so migrations stay explicit.
 
 Example:
 
 ```json
 {
-  "framework.description": "AI-driven full-stack development framework",
-  "menu.dashboard.title": "Workbench",
-  "plugin.org-center.name": "Organization Center"
+  "framework": {
+    "description": "AI-driven full-stack development framework"
+  },
+  "menu": {
+    "dashboard": {
+      "title": "Workbench"
+    }
+  },
+  "plugin": {
+    "org-center": {
+      "name": "Organization Center"
+    }
+  }
 }
 ```
 
@@ -81,7 +94,7 @@ Recommendations:
 Before delivery, check the following items:
 
 - Every enabled locale file is valid `JSON`.
-- Every message key is unique inside one locale file.
+- Every normalized message key is unique inside one locale file.
 - The target locale passes the missing-translation check against the default locale.
 - Plugin-owned keys use the `plugin.<plugin_id>.` prefix unless the plugin is intentionally contributing shared framework metadata.
 - New user-visible backend errors and validation messages use translation keys instead of hard-coded literals.
@@ -124,12 +137,36 @@ Scope guidance:
 
 ```json
 {
-  "framework.description": "AI-driven full-stack development framework",
-  "menu.system.title": "System Management",
-  "menu.system.users.title": "Users",
-  "config.sys.account.captchaEnabled.name": "Login Captcha",
-  "publicFrontend.login.title": "Welcome back",
-  "plugin.org-center.name": "Organization Center",
-  "plugin.org-center.description": "Departments, posts, and hierarchy management"
+  "framework": {
+    "description": "AI-driven full-stack development framework"
+  },
+  "menu": {
+    "system": {
+      "title": "System Management",
+      "users": {
+        "title": "Users"
+      }
+    }
+  },
+  "config": {
+    "sys": {
+      "account": {
+        "captchaEnabled": {
+          "name": "Login Captcha"
+        }
+      }
+    }
+  },
+  "publicFrontend": {
+    "login": {
+      "title": "Welcome back"
+    }
+  },
+  "plugin": {
+    "org-center": {
+      "name": "Organization Center",
+      "description": "Departments, posts, and hierarchy management"
+    }
+  }
 }
 ```

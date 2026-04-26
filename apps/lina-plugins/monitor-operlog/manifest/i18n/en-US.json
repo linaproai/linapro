@@ -1,42 +1,88 @@
 {
-  "menu.plugin:monitor-operlog:operlog.title": "Audit Logs",
-  "menu.plugin:monitor-operlog:operlog:clear.title": "Clear",
-  "menu.plugin:monitor-operlog:operlog:export.title": "Export",
-  "menu.plugin:monitor-operlog:operlog:query.title": "Query",
-  "menu.plugin:monitor-operlog:operlog:remove.title": "Delete",
-  "plugin.monitor-operlog.description": "Official source plugin for operation-log persistence and governance.",
-  "plugin.monitor-operlog.name": "Monitoring - Operation Logs",
-  "plugin.monitor-operlog.tableTitle": "Operation Log List",
-  "plugin.monitor-operlog.detail.title": "Operation Log Details",
-  "plugin.monitor-operlog.exportFileName": "operation-logs.xlsx",
-  "plugin.monitor-operlog.fields.logId": "Log ID",
-  "plugin.monitor-operlog.fields.moduleName": "Module Name",
-  "plugin.monitor-operlog.fields.operSummary": "Operation Summary",
-  "plugin.monitor-operlog.fields.operType": "Operation Type",
-  "plugin.monitor-operlog.fields.operator": "Operator",
-  "plugin.monitor-operlog.fields.ipAddress": "IP Address",
-  "plugin.monitor-operlog.fields.operResult": "Operation Result",
-  "plugin.monitor-operlog.fields.operDate": "Operation Date",
-  "plugin.monitor-operlog.fields.duration": "Duration",
-  "plugin.monitor-operlog.fields.requestUrl": "Request URL",
-  "plugin.monitor-operlog.fields.requestParams": "Request Parameters",
-  "plugin.monitor-operlog.fields.responseResult": "Response Result",
-  "plugin.monitor-operlog.fields.errorInfo": "Error Information",
-  "plugin.monitor-operlog.fields.operTime": "Operation Time",
-  "plugin.monitor-operlog.messages.clearConfirm": "Clear all operation logs?",
-  "plugin.monitor-operlog.messages.clearSuccess": "Operation logs cleared successfully",
-  "plugin.monitor-operlog.messages.deleteSelectedConfirm": "Delete the selected {count} operation log(s)?",
-  "plugin.monitor-operlog.method.patch": "Patch",
-  "dict.sys_oper_status.0.label": "Success",
-  "dict.sys_oper_status.1.label": "Failure",
-  "dict.sys_oper_status.name": "Operation Result",
-  "dict.sys_oper_status.remark": "Operation result options",
-  "dict.sys_oper_type.create.label": "Create",
-  "dict.sys_oper_type.delete.label": "Delete",
-  "dict.sys_oper_type.export.label": "Export",
-  "dict.sys_oper_type.import.label": "Import",
-  "dict.sys_oper_type.name": "Operation Type",
-  "dict.sys_oper_type.other.label": "Other",
-  "dict.sys_oper_type.remark": "Operation type options",
-  "dict.sys_oper_type.update.label": "Update"
+  "dict": {
+    "sys_oper_status": {
+      "0": {
+        "label": "Success"
+      },
+      "1": {
+        "label": "Failure"
+      },
+      "name": "Operation Result",
+      "remark": "Operation result options"
+    },
+    "sys_oper_type": {
+      "create": {
+        "label": "Create"
+      },
+      "delete": {
+        "label": "Delete"
+      },
+      "export": {
+        "label": "Export"
+      },
+      "import": {
+        "label": "Import"
+      },
+      "name": "Operation Type",
+      "other": {
+        "label": "Other"
+      },
+      "remark": "Operation type options",
+      "update": {
+        "label": "Update"
+      }
+    }
+  },
+  "menu": {
+    "plugin:monitor-operlog:operlog": {
+      "title": "Audit Logs"
+    },
+    "plugin:monitor-operlog:operlog:clear": {
+      "title": "Clear"
+    },
+    "plugin:monitor-operlog:operlog:export": {
+      "title": "Export"
+    },
+    "plugin:monitor-operlog:operlog:query": {
+      "title": "Query"
+    },
+    "plugin:monitor-operlog:operlog:remove": {
+      "title": "Delete"
+    }
+  },
+  "plugin": {
+    "monitor-operlog": {
+      "description": "Official source plugin for operation-log persistence and governance.",
+      "detail": {
+        "title": "Operation Log Details"
+      },
+      "exportFileName": "operation-logs.xlsx",
+      "fields": {
+        "duration": "Duration",
+        "errorInfo": "Error Information",
+        "ipAddress": "IP Address",
+        "logId": "Log ID",
+        "moduleName": "Module Name",
+        "operDate": "Operation Date",
+        "operResult": "Operation Result",
+        "operSummary": "Operation Summary",
+        "operTime": "Operation Time",
+        "operType": "Operation Type",
+        "operator": "Operator",
+        "requestParams": "Request Parameters",
+        "requestUrl": "Request URL",
+        "responseResult": "Response Result"
+      },
+      "messages": {
+        "clearConfirm": "Clear all operation logs?",
+        "clearSuccess": "Operation logs cleared successfully",
+        "deleteSelectedConfirm": "Delete the selected {count} operation log(s)?"
+      },
+      "method": {
+        "patch": "Patch"
+      },
+      "name": "Monitoring - Operation Logs",
+      "tableTitle": "Operation Log List"
+    }
+  }
 }

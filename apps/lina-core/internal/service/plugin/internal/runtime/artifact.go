@@ -494,12 +494,45 @@ func parseRuntimeArtifactLocaleJSONAssets(
 		if asset.Locale == "" || asset.Content == "" {
 			return nil, gerror.Newf("动态插件 i18n 自定义节缺少 locale 或 content section=%s: %s", sectionName, filePath)
 		}
-		var bundle map[string]string
-		if err := json.Unmarshal([]byte(asset.Content), &bundle); err != nil {
+		if err := validateRuntimeArtifactLocaleJSONContent(sectionName, asset.Content); err != nil {
 			return nil, gerror.Wrapf(err, "解析动态插件 i18n 资源内容失败 section=%s locale=%s: %s", sectionName, asset.Locale, filePath)
 		}
 	}
 	return assets, nil
+}
+
+// validateRuntimeArtifactLocaleJSONContent validates one locale JSON payload.
+// Runtime UI i18n accepts nested JSON authoring, while API-documentation i18n
+// remains flat because the apidoc loader still uses stable structured keys.
+func validateRuntimeArtifactLocaleJSONContent(sectionName string, content string) error {
+	if sectionName == pluginbridge.WasmSectionI18NAssets {
+		var bundle map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &bundle); err != nil {
+			return err
+		}
+		return validateRuntimeArtifactI18NMessageValue(bundle)
+	}
+
+	var bundle map[string]string
+	return json.Unmarshal([]byte(content), &bundle)
+}
+
+// validateRuntimeArtifactI18NMessageValue verifies nested runtime i18n assets
+// contain JSON objects with string leaves only.
+func validateRuntimeArtifactI18NMessageValue(value interface{}) error {
+	switch typedValue := value.(type) {
+	case map[string]interface{}:
+		for _, item := range typedValue {
+			if err := validateRuntimeArtifactI18NMessageValue(item); err != nil {
+				return err
+			}
+		}
+		return nil
+	case string:
+		return nil
+	default:
+		return gerror.New("运行时 i18n 资源值必须是字符串或对象")
+	}
 }
 
 // parseRuntimeArtifactSQLAssets restores embedded SQL assets and validates

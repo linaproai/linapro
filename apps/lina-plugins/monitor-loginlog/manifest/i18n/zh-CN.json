@@ -1,23 +1,45 @@
 {
-  "menu.plugin:monitor-loginlog:loginlog.title": "登录日志",
-  "menu.plugin:monitor-loginlog:loginlog:clear.title": "日志清空",
-  "menu.plugin:monitor-loginlog:loginlog:export.title": "日志导出",
-  "menu.plugin:monitor-loginlog:loginlog:query.title": "日志查询",
-  "menu.plugin:monitor-loginlog:loginlog:remove.title": "日志删除",
-  "plugin.monitor-loginlog.description": "提供登录日志持久化与治理的官方源码插件",
-  "plugin.monitor-loginlog.name": "系统监控-登录日志",
-  "plugin.monitor-loginlog.tableTitle": "登录日志列表",
-  "plugin.monitor-loginlog.detail.title": "登录日志详情",
-  "plugin.monitor-loginlog.exportFileName": "登录日志导出.xlsx",
-  "plugin.monitor-loginlog.fields.userName": "用户账号",
-  "plugin.monitor-loginlog.fields.ipAddress": "IP 地址",
-  "plugin.monitor-loginlog.fields.browser": "浏览器",
-  "plugin.monitor-loginlog.fields.os": "操作系统",
-  "plugin.monitor-loginlog.fields.status": "登录状态",
-  "plugin.monitor-loginlog.fields.message": "提示信息",
-  "plugin.monitor-loginlog.fields.loginDate": "登录日期",
-  "plugin.monitor-loginlog.fields.loginTime": "登录时间",
-  "plugin.monitor-loginlog.messages.clearConfirm": "确认清空所有登录日志吗？",
-  "plugin.monitor-loginlog.messages.clearSuccess": "清空登录日志成功",
-  "plugin.monitor-loginlog.messages.deleteSelectedConfirm": "确认删除选中的 {count} 条登录日志吗？"
+  "menu": {
+    "plugin:monitor-loginlog:loginlog": {
+      "title": "登录日志"
+    },
+    "plugin:monitor-loginlog:loginlog:clear": {
+      "title": "日志清空"
+    },
+    "plugin:monitor-loginlog:loginlog:export": {
+      "title": "日志导出"
+    },
+    "plugin:monitor-loginlog:loginlog:query": {
+      "title": "日志查询"
+    },
+    "plugin:monitor-loginlog:loginlog:remove": {
+      "title": "日志删除"
+    }
+  },
+  "plugin": {
+    "monitor-loginlog": {
+      "description": "提供登录日志持久化与治理的官方源码插件",
+      "detail": {
+        "title": "登录日志详情"
+      },
+      "exportFileName": "登录日志导出.xlsx",
+      "fields": {
+        "browser": "浏览器",
+        "ipAddress": "IP 地址",
+        "loginDate": "登录日期",
+        "loginTime": "登录时间",
+        "message": "提示信息",
+        "os": "操作系统",
+        "status": "登录状态",
+        "userName": "用户账号"
+      },
+      "messages": {
+        "clearConfirm": "确认清空所有登录日志吗？",
+        "clearSuccess": "清空登录日志成功",
+        "deleteSelectedConfirm": "确认删除选中的 {count} 条登录日志吗？"
+      },
+      "name": "系统监控-登录日志",
+      "tableTitle": "登录日志列表"
+    }
+  }
 }

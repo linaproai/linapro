@@ -113,6 +113,18 @@ func TestParseLocaleJSONSupportsNestedAndFlatKeys(t *testing.T) {
 	if actual := nestedCatalog["menu.dashboard.title"]; actual != "Workbench" {
 		t.Fatalf("expected nested key translation %q, got %q", "Workbench", actual)
 	}
+
+	mixedCatalog := parseLocaleJSON([]byte(`{
+  "menu": {
+    "dashboard": {
+      "title": "Nested Workbench"
+    }
+  },
+  "menu.dashboard.title": "Flat Workbench"
+}`))
+	if actual := mixedCatalog["menu.dashboard.title"]; actual != "Flat Workbench" {
+		t.Fatalf("expected flat key to override nested translation %q, got %q", "Flat Workbench", actual)
+	}
 }
 
 // TestBuildRuntimeMessagesIncludesHostAndSourcePlugin verifies that the runtime

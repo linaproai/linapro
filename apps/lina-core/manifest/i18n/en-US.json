@@ -1,268 +1,711 @@
 {
-  "config.sys.app.logo.name": "Branding - App Logo",
-  "config.sys.app.logo.remark": "Controls the default logo URL for the login page and workspace.",
-  "config.sys.app.logoDark.name": "Branding - Dark Logo",
-  "config.sys.app.logoDark.remark": "Controls the dark-theme logo URL.",
-  "config.sys.app.name.name": "Branding - App Name",
-  "config.sys.app.name.remark": "Controls the browser title, login-page brand name, and workspace logo text.",
-  "config.sys.auth.loginPanelLayout.name": "Login - Panel Layout",
-  "config.sys.auth.loginPanelLayout.remark": "Controls the default login panel layout: panel-left, panel-center, or panel-right.",
-  "config.sys.auth.loginSubtitle.name": "Login - Form Subtitle",
-  "config.sys.auth.loginSubtitle.remark": "Controls the helper copy above the login form.",
-  "config.sys.auth.pageDesc.name": "Login - Page Description",
-  "config.sys.auth.pageDesc.remark": "Controls the description shown at the top of the login page.",
-  "config.sys.auth.pageTitle.name": "Login - Page Title",
-  "config.sys.auth.pageTitle.remark": "Controls the headline shown at the top of the login page.",
-  "config.sys.cron.logRetention.name": "Cron - Log Retention Policy",
-  "config.sys.cron.logRetention.remark": "Controls the default cleanup policy for cron logs in JSON format.",
-  "config.sys.cron.shellEnabled.name": "Cron - Shell Mode Switch",
-  "config.sys.cron.shellEnabled.remark": "Controls whether Shell-type scheduled jobs may be created, updated, and executed.",
-  "config.sys.jwt.expire.name": "Authentication - JWT Expiration",
-  "config.sys.jwt.expire.remark": "Controls the lifetime of newly issued JWT tokens using Go duration format such as 12h or 24h.",
-  "config.sys.login.ipBlacklist.name": "Login - IP Blacklist",
-  "config.sys.login.ipBlacklist.remark": "Blocks login from IPs or CIDR ranges separated by semicolons.",
-  "config.sys.session.timeout.name": "Online User - Session Timeout",
-  "config.sys.session.timeout.remark": "Controls the inactivity timeout for online sessions using Go duration format such as 30m or 24h.",
-  "config.sys.ui.layout.name": "UI - Workspace Layout",
-  "config.sys.ui.layout.remark": "Controls the default workspace layout mode.",
-  "config.sys.ui.theme.mode.name": "UI - Theme Mode",
-  "config.sys.ui.theme.mode.remark": "Controls the default theme mode: light, dark, or auto.",
-  "config.sys.ui.watermark.content.name": "UI - Watermark Content",
-  "config.sys.ui.watermark.content.remark": "Controls the workspace watermark text.",
-  "config.sys.ui.watermark.enabled.name": "UI - Watermark Enabled",
-  "config.sys.ui.watermark.enabled.remark": "Controls whether the workspace watermark is enabled.",
-  "config.sys.user.defaultAvatar.name": "User Management - Default Avatar",
-  "config.sys.user.defaultAvatar.remark": "Controls the fallback avatar URL used when a user has not set an avatar.",
-  "config.sys.upload.maxSize.name": "File Management - Upload Size Limit",
-  "config.sys.upload.maxSize.remark": "Controls the maximum size of a single uploaded file in MB.",
-  "dict.sys_data_scope.1.label": "All Data",
-  "dict.sys_data_scope.2.label": "Department Data",
-  "dict.sys_data_scope.3.label": "Self Only",
-  "dict.sys_data_scope.name": "Data Scope",
-  "dict.sys_data_scope.remark": "Data scope options",
-  "dict.sys_menu_status.0.label": "Disabled",
-  "dict.sys_menu_status.1.label": "Enabled",
-  "dict.sys_menu_status.name": "Menu Status",
-  "dict.sys_menu_status.remark": "Menu status options",
-  "dict.sys_menu_type.B.label": "Button",
-  "dict.sys_menu_type.D.label": "Directory",
-  "dict.sys_menu_type.M.label": "Menu",
-  "dict.sys_menu_type.name": "Menu Type",
-  "dict.sys_menu_type.remark": "Menu type options",
-  "dict.sys_show_hide.0.label": "Hidden",
-  "dict.sys_show_hide.1.label": "Shown",
-  "dict.sys_show_hide.name": "Visibility",
-  "dict.sys_show_hide.remark": "Visibility options",
-  "dict.sys_user_sex.0.label": "Unknown",
-  "dict.sys_user_sex.1.label": "Male",
-  "dict.sys_user_sex.2.label": "Female",
-  "dict.sys_user_sex.name": "Gender",
-  "dict.sys_user_sex.remark": "User gender options",
-  "framework.description": "AI-driven full-stack development framework, providing shared core host services, a default admin workspace, plugin extensibility, and AI-assisted development workflows.",
-  "locale.en-US.name": "English",
-  "locale.en-US.nativeName": "English",
-  "locale.zh-CN.name": "Chinese (Simplified)",
-  "locale.zh-CN.nativeName": "简体中文",
-  "menu.about:api:list.title": "API Docs",
-  "menu.about:system:list.title": "System Info",
-  "menu.content.title": "Content",
-  "menu.dashboard.title": "Dashboard",
-  "menu.dashboard:analytics:list.title": "Analytics",
-  "menu.dashboard:workspace:list.title": "Workspace",
-  "menu.developer.title": "Dev Tools",
-  "menu.extension.title": "Extensions",
-  "menu.extension:plugin:disable.title": "Disable",
-  "menu.extension:plugin:enable.title": "Enable",
-  "menu.extension:plugin:install.title": "Install",
-  "menu.extension:plugin:list.title": "Plugins",
-  "menu.extension:plugin:query.title": "Query",
-  "menu.extension:plugin:uninstall.title": "Uninstall",
-  "menu.iam.title": "Access",
-  "menu.monitor.title": "Monitoring",
-  "menu.org.title": "Organization",
-  "menu.scheduler.title": "Scheduler",
-  "menu.setting.title": "Settings",
-  "menu.system:config:add.title": "Create",
-  "menu.system:config:edit.title": "Update",
-  "menu.system:config:export.title": "Export",
-  "menu.system:config:list.title": "Parameters",
-  "menu.system:config:query.title": "Query",
-  "menu.system:config:remove.title": "Delete",
-  "menu.system:dict:add.title": "Create",
-  "menu.system:dict:edit.title": "Update",
-  "menu.system:dict:export.title": "Export",
-  "menu.system:dict:list.title": "Dictionaries",
-  "menu.system:dict:query.title": "Query",
-  "menu.system:dict:remove.title": "Delete",
-  "menu.system:file:download.title": "Download",
-  "menu.system:file:list.title": "Files",
-  "menu.system:file:query.title": "Query",
-  "menu.system:file:remove.title": "Delete",
-  "menu.system:file:upload.title": "Upload",
-  "menu.system:job:add.title": "Create",
-  "menu.system:job:edit.title": "Update",
-  "menu.system:job:list.title": "Jobs",
-  "menu.system:job:remove.title": "Delete",
-  "menu.system:job:reset.title": "Reset Counter",
-  "menu.system:job:shell.title": "Shell Permission",
-  "menu.system:job:status.title": "Toggle Status",
-  "menu.system:job:trigger.title": "Run Now",
-  "menu.system:jobgroup:add.title": "Create",
-  "menu.system:jobgroup:edit.title": "Update",
-  "menu.system:jobgroup:list.title": "Groups",
-  "menu.system:jobgroup:remove.title": "Delete",
-  "menu.system:joblog:cancel.title": "Terminate",
-  "menu.system:joblog:list.title": "Run Logs",
-  "menu.system:joblog:remove.title": "Clear",
-  "menu.system:menu:add.title": "Create",
-  "menu.system:menu:edit.title": "Update",
-  "menu.system:menu:list.title": "Menus",
-  "menu.system:menu:query.title": "Query",
-  "menu.system:menu:remove.title": "Delete",
-  "menu.system:role:add.title": "Create",
-  "menu.system:role:auth.title": "Authorize",
-  "menu.system:role:edit.title": "Update",
-  "menu.system:role:list.title": "Roles",
-  "menu.system:role:query.title": "Query",
-  "menu.system:role:remove.title": "Delete",
-  "menu.system:user:add.title": "Create",
-  "menu.system:user:edit.title": "Update",
-  "menu.system:user:export.title": "Export",
-  "menu.system:user:import.title": "Import",
-  "menu.system:user:list.title": "Users",
-  "menu.system:user:query.title": "Query",
-  "menu.system:user:remove.title": "Delete",
-  "menu.system:user:resetPwd.title": "Reset Password",
-  "publicFrontend.app.name": "LinaPro",
-  "publicFrontend.auth.loginSubtitle": "Enter your account credentials to start managing your projects",
-  "publicFrontend.auth.pageDesc": "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
-  "publicFrontend.auth.pageTitle": "AI-driven full-stack development framework",
-  "publicFrontend.ui.watermarkContent": "LinaPro",
-  "systemInfo.components.backend.excelize.description": "Excel file processing library",
-  "systemInfo.components.backend.goframe.description": "Go application framework",
-  "systemInfo.components.backend.jwt.description": "Authentication token standard",
-  "systemInfo.components.backend.mysql.description": "Relational database",
-  "systemInfo.components.frontend.ant-design-vue.description": "UI component library",
-  "systemInfo.components.frontend.pinia.description": "State management",
-  "systemInfo.components.frontend.tailwindcss.description": "Utility-first CSS framework",
-  "systemInfo.components.frontend.typescript.description": "Type-safe JavaScript",
-  "systemInfo.components.frontend.vben-5.description": "Default admin workspace frontend framework",
-  "systemInfo.components.frontend.vite.description": "Frontend build tool",
-  "systemInfo.components.frontend.vue.description": "Progressive JavaScript framework",
-  "error.auth.login.ipBlacklisted": "Login from this IP address is blocked",
-  "error.auth.login.invalidCredentials": "Invalid username or password",
-  "error.auth.login.updateLastLoginFailed": "Failed to update last login time",
-  "error.auth.login.userDisabled": "User account is disabled",
-  "error.auth.password.hashFailed": "Failed to hash password",
-  "error.auth.token.invalid": "Invalid token",
-  "error.permission.contextLoadFailed": "Failed to load API permission context",
-  "error.permission.currentUserMissing": "Current authenticated user is unavailable",
-  "error.permission.denied.required": "Current user lacks required API permissions: %s",
-  "error.upload.fileTooLarge": "File size must not exceed %dMB",
-  "error.upload.requestBodyTooLarge": "Uploaded file is too large",
-  "gf.gvalid.rule.between": "The {field} value must be between {min} and {max}",
-  "gf.gvalid.rule.in": "The {field} value is not in the allowed range: {pattern}",
-  "gf.gvalid.rule.length": "The {field} length must be between {min} and {max} characters",
-  "gf.gvalid.rule.max": "The {field} value must be less than or equal to {max}",
-  "gf.gvalid.rule.min": "The {field} value must be greater than or equal to {min}",
-  "gf.gvalid.rule.required": "The {field} field is required",
-  "validation.auth.login.password.required": "Please enter a password",
-  "validation.auth.login.username.required": "Please enter a username",
-  "validation.config.create.key.required": "Please enter a parameter key",
-  "validation.config.create.name.required": "Please enter a parameter name",
-  "validation.config.create.value.required": "Please enter a parameter value",
-  "validation.dict.data.create.dictType.required": "Please enter a dictionary type",
-  "validation.dict.data.create.label.required": "Please enter a dictionary label",
-  "validation.dict.data.create.value.required": "Please enter a dictionary value",
-  "validation.dict.type.create.name.required": "Please enter a dictionary name",
-  "validation.dict.type.create.type.required": "Please enter a dictionary type",
-  "validation.user.create.password.length": "Password must be 6-32 characters",
-  "validation.user.create.password.required": "Please enter a password",
-  "validation.user.create.username.length": "Username must be 2-64 characters",
-  "validation.user.create.username.required": "Please enter a username",
-  "validation.user.nickname.required": "Please enter a nickname",
-  "validation.user.resetPassword.password.length": "Password must be 5-20 characters",
-  "validation.user.resetPassword.password.required": "Please enter a password",
-  "validation.user.status.invalid": "Invalid status value",
-  "config.cron.log.retention.name": "Scheduled Jobs - Execution Log Retention Policy",
-  "config.cron.log.retention.remark": "Controls the default retention policy for scheduled-job execution logs. Use JSON: {\"mode\":\"days|count|none\",\"value\":N}.",
-  "config.cron.shell.enabled.name": "Scheduled Jobs - Global Shell Mode Switch",
-  "config.cron.shell.enabled.remark": "Controls whether Shell-type jobs can be created, updated, triggered, and stopped. Supported values: true, false.",
-  "config.demo.notice.banner.name": "Demo - Homepage Banner Copy",
-  "config.demo.notice.banner.remark": "Used to demonstrate custom parameter management. It is not consumed directly by the host runtime.",
-  "config.demo.support.email.name": "Demo - Support Email",
-  "config.demo.support.email.remark": "Used to demonstrate custom parameter management. It is not consumed directly by the host runtime.",
-  "dict.cron_job_concurrency.name": "Scheduled Job Concurrency",
-  "dict.cron_job_concurrency.parallel.label": "Allow Parallel Runs",
-  "dict.cron_job_concurrency.remark": "Scheduled job concurrency options",
-  "dict.cron_job_concurrency.singleton.label": "Singleton",
-  "dict.cron_job_log_status.cancelled.label": "Cancelled",
-  "dict.cron_job_log_status.failed.label": "Failed",
-  "dict.cron_job_log_status.name": "Scheduled Job Log Status",
-  "dict.cron_job_log_status.remark": "Scheduled job execution log status options",
-  "dict.cron_job_log_status.running.label": "Running",
-  "dict.cron_job_log_status.skipped_max_concurrency.label": "Skipped: Max Concurrency",
-  "dict.cron_job_log_status.skipped_not_primary.label": "Skipped: Non-primary Node",
-  "dict.cron_job_log_status.skipped_singleton.label": "Skipped: Singleton Conflict",
-  "dict.cron_job_log_status.success.label": "Success",
-  "dict.cron_job_log_status.timeout.label": "Timed Out",
-  "dict.cron_job_scope.all_node.label": "All Nodes",
-  "dict.cron_job_scope.master_only.label": "Primary Node Only",
-  "dict.cron_job_scope.name": "Scheduled Job Scope",
-  "dict.cron_job_scope.remark": "Scheduled job scope options",
-  "dict.cron_job_status.disabled.label": "Disabled",
-  "dict.cron_job_status.enabled.label": "Enabled",
-  "dict.cron_job_status.name": "Scheduled Job Status",
-  "dict.cron_job_status.paused_by_plugin.label": "Plugin Handler Unavailable",
-  "dict.cron_job_status.remark": "Scheduled job status options",
-  "dict.cron_job_task_type.handler.label": "Handler Job",
-  "dict.cron_job_task_type.name": "Scheduled Job Type",
-  "dict.cron_job_task_type.remark": "Scheduled job type options",
-  "dict.cron_job_task_type.shell.label": "Shell Job",
-  "dict.cron_job_trigger.cron.label": "Cron Schedule",
-  "dict.cron_job_trigger.manual.label": "Manual Trigger",
-  "dict.cron_job_trigger.name": "Scheduled Job Trigger",
-  "dict.cron_job_trigger.remark": "Scheduled job trigger options",
-  "dict.cron_log_retention_mode.count.label": "Keep by Count",
-  "dict.cron_log_retention_mode.days.label": "Keep by Days",
-  "dict.cron_log_retention_mode.name": "Scheduled Job Log Retention Mode",
-  "dict.cron_log_retention_mode.none.label": "Do Not Clean",
-  "dict.cron_log_retention_mode.remark": "Scheduled job log retention mode options",
-  "dict.sys_data_scope.1.label": "All Data",
-  "dict.sys_data_scope.2.label": "Department Data",
-  "dict.sys_data_scope.3.label": "Own Data Only",
-  "dict.sys_data_scope.name": "Data Scope",
-  "dict.sys_data_scope.remark": "Data scope options",
-  "dict.sys_file_scene.avatar.label": "User Avatar",
-  "dict.sys_file_scene.name": "File Scene",
-  "dict.sys_file_scene.notice_attachment.label": "Notice Attachment",
-  "dict.sys_file_scene.notice_image.label": "Notice Image",
-  "dict.sys_file_scene.other.label": "Other",
-  "dict.sys_file_scene.remark": "File scene options",
-  "dict.sys_login_status.0.label": "Success",
-  "dict.sys_login_status.1.label": "Failed",
-  "dict.sys_login_status.name": "Login Status",
-  "dict.sys_login_status.remark": "Login status options",
-  "dict.sys_menu_status.0.label": "Disabled",
-  "dict.sys_menu_status.1.label": "Enabled",
-  "dict.sys_menu_status.name": "Menu Status",
-  "dict.sys_menu_status.remark": "Menu status options",
-  "dict.sys_menu_type.B.label": "Button",
-  "dict.sys_menu_type.D.label": "Directory",
-  "dict.sys_menu_type.M.label": "Menu",
-  "dict.sys_menu_type.name": "Menu Type",
-  "dict.sys_menu_type.remark": "Menu type options",
-  "dict.sys_normal_disable.0.label": "Disabled",
-  "dict.sys_normal_disable.1.label": "Enabled",
-  "dict.sys_normal_disable.name": "Status Switch",
-  "dict.sys_normal_disable.remark": "Status switch options",
-  "dict.sys_show_hide.0.label": "Hidden",
-  "dict.sys_show_hide.1.label": "Visible",
-  "dict.sys_show_hide.name": "Display Status",
-  "dict.sys_show_hide.remark": "Display status options",
-  "dict.sys_user_sex.0.label": "Unknown",
-  "dict.sys_user_sex.1.label": "Male",
-  "dict.sys_user_sex.2.label": "Female",
-  "dict.sys_user_sex.name": "User Gender",
-  "dict.sys_user_sex.remark": "User gender options"
+  "config": {
+    "cron": {
+      "log": {
+        "retention": {
+          "name": "Scheduled Jobs - Execution Log Retention Policy",
+          "remark": "Controls the default retention policy for scheduled-job execution logs. Use JSON: {\"mode\":\"days|count|none\",\"value\":N}."
+        }
+      },
+      "shell": {
+        "enabled": {
+          "name": "Scheduled Jobs - Global Shell Mode Switch",
+          "remark": "Controls whether Shell-type jobs can be created, updated, triggered, and stopped. Supported values: true, false."
+        }
+      }
+    },
+    "demo": {
+      "notice": {
+        "banner": {
+          "name": "Demo - Homepage Banner Copy",
+          "remark": "Used to demonstrate custom parameter management. It is not consumed directly by the host runtime."
+        }
+      },
+      "support": {
+        "email": {
+          "name": "Demo - Support Email",
+          "remark": "Used to demonstrate custom parameter management. It is not consumed directly by the host runtime."
+        }
+      }
+    },
+    "sys": {
+      "app": {
+        "logo": {
+          "name": "Branding - App Logo",
+          "remark": "Controls the default logo URL for the login page and workspace."
+        },
+        "logoDark": {
+          "name": "Branding - Dark Logo",
+          "remark": "Controls the dark-theme logo URL."
+        },
+        "name": {
+          "name": "Branding - App Name",
+          "remark": "Controls the browser title, login-page brand name, and workspace logo text."
+        }
+      },
+      "auth": {
+        "loginPanelLayout": {
+          "name": "Login - Panel Layout",
+          "remark": "Controls the default login panel layout: panel-left, panel-center, or panel-right."
+        },
+        "loginSubtitle": {
+          "name": "Login - Form Subtitle",
+          "remark": "Controls the helper copy above the login form."
+        },
+        "pageDesc": {
+          "name": "Login - Page Description",
+          "remark": "Controls the description shown at the top of the login page."
+        },
+        "pageTitle": {
+          "name": "Login - Page Title",
+          "remark": "Controls the headline shown at the top of the login page."
+        }
+      },
+      "cron": {
+        "logRetention": {
+          "name": "Cron - Log Retention Policy",
+          "remark": "Controls the default cleanup policy for cron logs in JSON format."
+        },
+        "shellEnabled": {
+          "name": "Cron - Shell Mode Switch",
+          "remark": "Controls whether Shell-type scheduled jobs may be created, updated, and executed."
+        }
+      },
+      "jwt": {
+        "expire": {
+          "name": "Authentication - JWT Expiration",
+          "remark": "Controls the lifetime of newly issued JWT tokens using Go duration format such as 12h or 24h."
+        }
+      },
+      "login": {
+        "ipBlacklist": {
+          "name": "Login - IP Blacklist",
+          "remark": "Blocks login from IPs or CIDR ranges separated by semicolons."
+        }
+      },
+      "session": {
+        "timeout": {
+          "name": "Online User - Session Timeout",
+          "remark": "Controls the inactivity timeout for online sessions using Go duration format such as 30m or 24h."
+        }
+      },
+      "ui": {
+        "layout": {
+          "name": "UI - Workspace Layout",
+          "remark": "Controls the default workspace layout mode."
+        },
+        "theme": {
+          "mode": {
+            "name": "UI - Theme Mode",
+            "remark": "Controls the default theme mode: light, dark, or auto."
+          }
+        },
+        "watermark": {
+          "content": {
+            "name": "UI - Watermark Content",
+            "remark": "Controls the workspace watermark text."
+          },
+          "enabled": {
+            "name": "UI - Watermark Enabled",
+            "remark": "Controls whether the workspace watermark is enabled."
+          }
+        }
+      },
+      "upload": {
+        "maxSize": {
+          "name": "File Management - Upload Size Limit",
+          "remark": "Controls the maximum size of a single uploaded file in MB."
+        }
+      },
+      "user": {
+        "defaultAvatar": {
+          "name": "User Management - Default Avatar",
+          "remark": "Controls the fallback avatar URL used when a user has not set an avatar."
+        }
+      }
+    }
+  },
+  "dict": {
+    "cron_job_concurrency": {
+      "name": "Scheduled Job Concurrency",
+      "parallel": {
+        "label": "Allow Parallel Runs"
+      },
+      "remark": "Scheduled job concurrency options",
+      "singleton": {
+        "label": "Singleton"
+      }
+    },
+    "cron_job_log_status": {
+      "cancelled": {
+        "label": "Cancelled"
+      },
+      "failed": {
+        "label": "Failed"
+      },
+      "name": "Scheduled Job Log Status",
+      "remark": "Scheduled job execution log status options",
+      "running": {
+        "label": "Running"
+      },
+      "skipped_max_concurrency": {
+        "label": "Skipped: Max Concurrency"
+      },
+      "skipped_not_primary": {
+        "label": "Skipped: Non-primary Node"
+      },
+      "skipped_singleton": {
+        "label": "Skipped: Singleton Conflict"
+      },
+      "success": {
+        "label": "Success"
+      },
+      "timeout": {
+        "label": "Timed Out"
+      }
+    },
+    "cron_job_scope": {
+      "all_node": {
+        "label": "All Nodes"
+      },
+      "master_only": {
+        "label": "Primary Node Only"
+      },
+      "name": "Scheduled Job Scope",
+      "remark": "Scheduled job scope options"
+    },
+    "cron_job_status": {
+      "disabled": {
+        "label": "Disabled"
+      },
+      "enabled": {
+        "label": "Enabled"
+      },
+      "name": "Scheduled Job Status",
+      "paused_by_plugin": {
+        "label": "Plugin Handler Unavailable"
+      },
+      "remark": "Scheduled job status options"
+    },
+    "cron_job_task_type": {
+      "handler": {
+        "label": "Handler Job"
+      },
+      "name": "Scheduled Job Type",
+      "remark": "Scheduled job type options",
+      "shell": {
+        "label": "Shell Job"
+      }
+    },
+    "cron_job_trigger": {
+      "cron": {
+        "label": "Cron Schedule"
+      },
+      "manual": {
+        "label": "Manual Trigger"
+      },
+      "name": "Scheduled Job Trigger",
+      "remark": "Scheduled job trigger options"
+    },
+    "cron_log_retention_mode": {
+      "count": {
+        "label": "Keep by Count"
+      },
+      "days": {
+        "label": "Keep by Days"
+      },
+      "name": "Scheduled Job Log Retention Mode",
+      "none": {
+        "label": "Do Not Clean"
+      },
+      "remark": "Scheduled job log retention mode options"
+    },
+    "sys_data_scope": {
+      "1": {
+        "label": "All Data"
+      },
+      "2": {
+        "label": "Department Data"
+      },
+      "3": {
+        "label": "Own Data Only"
+      },
+      "name": "Data Scope",
+      "remark": "Data scope options"
+    },
+    "sys_file_scene": {
+      "avatar": {
+        "label": "User Avatar"
+      },
+      "name": "File Scene",
+      "notice_attachment": {
+        "label": "Notice Attachment"
+      },
+      "notice_image": {
+        "label": "Notice Image"
+      },
+      "other": {
+        "label": "Other"
+      },
+      "remark": "File scene options"
+    },
+    "sys_login_status": {
+      "0": {
+        "label": "Success"
+      },
+      "1": {
+        "label": "Failed"
+      },
+      "name": "Login Status",
+      "remark": "Login status options"
+    },
+    "sys_menu_status": {
+      "0": {
+        "label": "Disabled"
+      },
+      "1": {
+        "label": "Enabled"
+      },
+      "name": "Menu Status",
+      "remark": "Menu status options"
+    },
+    "sys_menu_type": {
+      "B": {
+        "label": "Button"
+      },
+      "D": {
+        "label": "Directory"
+      },
+      "M": {
+        "label": "Menu"
+      },
+      "name": "Menu Type",
+      "remark": "Menu type options"
+    },
+    "sys_normal_disable": {
+      "0": {
+        "label": "Disabled"
+      },
+      "1": {
+        "label": "Enabled"
+      },
+      "name": "Status Switch",
+      "remark": "Status switch options"
+    },
+    "sys_show_hide": {
+      "0": {
+        "label": "Hidden"
+      },
+      "1": {
+        "label": "Visible"
+      },
+      "name": "Display Status",
+      "remark": "Display status options"
+    },
+    "sys_user_sex": {
+      "0": {
+        "label": "Unknown"
+      },
+      "1": {
+        "label": "Male"
+      },
+      "2": {
+        "label": "Female"
+      },
+      "name": "User Gender",
+      "remark": "User gender options"
+    }
+  },
+  "error": {
+    "auth": {
+      "login": {
+        "invalidCredentials": "Invalid username or password",
+        "ipBlacklisted": "Login from this IP address is blocked",
+        "updateLastLoginFailed": "Failed to update last login time",
+        "userDisabled": "User account is disabled"
+      },
+      "password": {
+        "hashFailed": "Failed to hash password"
+      },
+      "token": {
+        "invalid": "Invalid token"
+      }
+    },
+    "permission": {
+      "contextLoadFailed": "Failed to load API permission context",
+      "currentUserMissing": "Current authenticated user is unavailable",
+      "denied": {
+        "required": "Current user lacks required API permissions: %s"
+      }
+    },
+    "upload": {
+      "fileTooLarge": "File size must not exceed %dMB",
+      "requestBodyTooLarge": "Uploaded file is too large"
+    }
+  },
+  "framework": {
+    "description": "AI-driven full-stack development framework, providing shared core host services, a default admin workspace, plugin extensibility, and AI-assisted development workflows."
+  },
+  "gf": {
+    "gvalid": {
+      "rule": {
+        "between": "The {field} value must be between {min} and {max}",
+        "in": "The {field} value is not in the allowed range: {pattern}",
+        "length": "The {field} length must be between {min} and {max} characters",
+        "max": "The {field} value must be less than or equal to {max}",
+        "min": "The {field} value must be greater than or equal to {min}",
+        "required": "The {field} field is required"
+      }
+    }
+  },
+  "locale": {
+    "en-US": {
+      "name": "English",
+      "nativeName": "English"
+    },
+    "zh-CN": {
+      "name": "Chinese (Simplified)",
+      "nativeName": "简体中文"
+    }
+  },
+  "menu": {
+    "about:api:list": {
+      "title": "API Docs"
+    },
+    "about:system:list": {
+      "title": "System Info"
+    },
+    "content": {
+      "title": "Content"
+    },
+    "dashboard": {
+      "title": "Dashboard"
+    },
+    "dashboard:analytics:list": {
+      "title": "Analytics"
+    },
+    "dashboard:workspace:list": {
+      "title": "Workspace"
+    },
+    "developer": {
+      "title": "Dev Tools"
+    },
+    "extension": {
+      "title": "Extensions"
+    },
+    "extension:plugin:disable": {
+      "title": "Disable"
+    },
+    "extension:plugin:enable": {
+      "title": "Enable"
+    },
+    "extension:plugin:install": {
+      "title": "Install"
+    },
+    "extension:plugin:list": {
+      "title": "Plugins"
+    },
+    "extension:plugin:query": {
+      "title": "Query"
+    },
+    "extension:plugin:uninstall": {
+      "title": "Uninstall"
+    },
+    "iam": {
+      "title": "Access"
+    },
+    "monitor": {
+      "title": "Monitoring"
+    },
+    "org": {
+      "title": "Organization"
+    },
+    "scheduler": {
+      "title": "Scheduler"
+    },
+    "setting": {
+      "title": "Settings"
+    },
+    "system:config:add": {
+      "title": "Create"
+    },
+    "system:config:edit": {
+      "title": "Update"
+    },
+    "system:config:export": {
+      "title": "Export"
+    },
+    "system:config:list": {
+      "title": "Parameters"
+    },
+    "system:config:query": {
+      "title": "Query"
+    },
+    "system:config:remove": {
+      "title": "Delete"
+    },
+    "system:dict:add": {
+      "title": "Create"
+    },
+    "system:dict:edit": {
+      "title": "Update"
+    },
+    "system:dict:export": {
+      "title": "Export"
+    },
+    "system:dict:list": {
+      "title": "Dictionaries"
+    },
+    "system:dict:query": {
+      "title": "Query"
+    },
+    "system:dict:remove": {
+      "title": "Delete"
+    },
+    "system:file:download": {
+      "title": "Download"
+    },
+    "system:file:list": {
+      "title": "Files"
+    },
+    "system:file:query": {
+      "title": "Query"
+    },
+    "system:file:remove": {
+      "title": "Delete"
+    },
+    "system:file:upload": {
+      "title": "Upload"
+    },
+    "system:job:add": {
+      "title": "Create"
+    },
+    "system:job:edit": {
+      "title": "Update"
+    },
+    "system:job:list": {
+      "title": "Jobs"
+    },
+    "system:job:remove": {
+      "title": "Delete"
+    },
+    "system:job:reset": {
+      "title": "Reset Counter"
+    },
+    "system:job:shell": {
+      "title": "Shell Permission"
+    },
+    "system:job:status": {
+      "title": "Toggle Status"
+    },
+    "system:job:trigger": {
+      "title": "Run Now"
+    },
+    "system:jobgroup:add": {
+      "title": "Create"
+    },
+    "system:jobgroup:edit": {
+      "title": "Update"
+    },
+    "system:jobgroup:list": {
+      "title": "Groups"
+    },
+    "system:jobgroup:remove": {
+      "title": "Delete"
+    },
+    "system:joblog:cancel": {
+      "title": "Terminate"
+    },
+    "system:joblog:list": {
+      "title": "Run Logs"
+    },
+    "system:joblog:remove": {
+      "title": "Clear"
+    },
+    "system:menu:add": {
+      "title": "Create"
+    },
+    "system:menu:edit": {
+      "title": "Update"
+    },
+    "system:menu:list": {
+      "title": "Menus"
+    },
+    "system:menu:query": {
+      "title": "Query"
+    },
+    "system:menu:remove": {
+      "title": "Delete"
+    },
+    "system:role:add": {
+      "title": "Create"
+    },
+    "system:role:auth": {
+      "title": "Authorize"
+    },
+    "system:role:edit": {
+      "title": "Update"
+    },
+    "system:role:list": {
+      "title": "Roles"
+    },
+    "system:role:query": {
+      "title": "Query"
+    },
+    "system:role:remove": {
+      "title": "Delete"
+    },
+    "system:user:add": {
+      "title": "Create"
+    },
+    "system:user:edit": {
+      "title": "Update"
+    },
+    "system:user:export": {
+      "title": "Export"
+    },
+    "system:user:import": {
+      "title": "Import"
+    },
+    "system:user:list": {
+      "title": "Users"
+    },
+    "system:user:query": {
+      "title": "Query"
+    },
+    "system:user:remove": {
+      "title": "Delete"
+    },
+    "system:user:resetPwd": {
+      "title": "Reset Password"
+    }
+  },
+  "publicFrontend": {
+    "app": {
+      "name": "LinaPro"
+    },
+    "auth": {
+      "loginSubtitle": "Enter your account credentials to start managing your projects",
+      "pageDesc": "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
+      "pageTitle": "AI-driven full-stack development framework"
+    },
+    "ui": {
+      "watermarkContent": "LinaPro"
+    }
+  },
+  "systemInfo": {
+    "components": {
+      "backend": {
+        "excelize": {
+          "description": "Excel file processing library"
+        },
+        "goframe": {
+          "description": "Go application framework"
+        },
+        "jwt": {
+          "description": "Authentication token standard"
+        },
+        "mysql": {
+          "description": "Relational database"
+        }
+      },
+      "frontend": {
+        "ant-design-vue": {
+          "description": "UI component library"
+        },
+        "pinia": {
+          "description": "State management"
+        },
+        "tailwindcss": {
+          "description": "Utility-first CSS framework"
+        },
+        "typescript": {
+          "description": "Type-safe JavaScript"
+        },
+        "vben-5": {
+          "description": "Default admin workspace frontend framework"
+        },
+        "vite": {
+          "description": "Frontend build tool"
+        },
+        "vue": {
+          "description": "Progressive JavaScript framework"
+        }
+      }
+    }
+  },
+  "validation": {
+    "auth": {
+      "login": {
+        "password": {
+          "required": "Please enter a password"
+        },
+        "username": {
+          "required": "Please enter a username"
+        }
+      }
+    },
+    "config": {
+      "create": {
+        "key": {
+          "required": "Please enter a parameter key"
+        },
+        "name": {
+          "required": "Please enter a parameter name"
+        },
+        "value": {
+          "required": "Please enter a parameter value"
+        }
+      }
+    },
+    "dict": {
+      "data": {
+        "create": {
+          "dictType": {
+            "required": "Please enter a dictionary type"
+          },
+          "label": {
+            "required": "Please enter a dictionary label"
+          },
+          "value": {
+            "required": "Please enter a dictionary value"
+          }
+        }
+      },
+      "type": {
+        "create": {
+          "name": {
+            "required": "Please enter a dictionary name"
+          },
+          "type": {
+            "required": "Please enter a dictionary type"
+          }
+        }
+      }
+    },
+    "user": {
+      "create": {
+        "password": {
+          "length": "Password must be 6-32 characters",
+          "required": "Please enter a password"
+        },
+        "username": {
+          "length": "Username must be 2-64 characters",
+          "required": "Please enter a username"
+        }
+      },
+      "nickname": {
+        "required": "Please enter a nickname"
+      },
+      "resetPassword": {
+        "password": {
+          "length": "Password must be 5-20 characters",
+          "required": "Please enter a password"
+        }
+      },
+      "status": {
+        "invalid": "Invalid status value"
+      }
+    }
+  }
 }

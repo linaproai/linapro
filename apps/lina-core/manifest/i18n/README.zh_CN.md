@@ -22,23 +22,36 @@
 - 文件名必须使用规范化语言编码，例如`zh-CN.json`、`en-US.json`。
 - 宿主只把顶层`manifest/i18n/<locale>.json`识别为运行时语言包。
 - 宿主只把`manifest/i18n/apidoc/<locale>.json`识别为接口文档语言包。
-- 运行时消息统一使用扁平`key`维护。
-- 只有在返回前端运行时国际化接口结果时，宿主才会把扁平`key`转换为嵌套对象。
+- 运行时 UI 消息文件可使用层级 JSON 或扁平 dotted key 编写。
+- 宿主会把运行时 UI 消息文件归一化为扁平 key，用于聚合、数据库覆写、缺失检查、导入导出和来源诊断。
+- 只有在返回前端运行时国际化接口结果时，宿主才会把归一化后的扁平 key 转换为嵌套对象。
 - 接口文档语言包使用结构化 `core.*` 和 `plugins.*` 键，`en-US.json` 保持 `{}`，且不翻译 `eg/example` 示例值或生成 entity 元数据。
 
-## 为什么使用`JSON`和扁平`key`
+## 为什么使用`JSON`和 key 归一化
 
 `JSON`作为交付格式，是因为它与现有前端语言包工作流一致，便于通过`HTTP API`做导入导出，也便于在动态插件`Wasm`产物中直接嵌入，不需要额外转换层。
 
-扁平`key`作为唯一管理格式，是因为它可以让后端存储、数据库覆写、缺失翻译检查和插件打包都保持简单、稳定、可预测。
+层级 JSON 是运行时 UI 消息推荐使用的文件编写格式，因为它可以减少重复前缀，并提升代码审查时的可读性。扁平 dotted key 仍然被接受，适合小范围补丁和渐进迁移。
+
+扁平 key 仍然是系统治理格式，因为它可以让后端存储、数据库覆写、缺失翻译检查、导入导出、来源诊断和插件打包都保持简单、稳定、可预测。同一个语言文件中若同时存在层级 JSON 与等价扁平 dotted key，则扁平 dotted key 覆盖层级值，便于显式处理迁移差异。
 
 示例：
 
 ```json
 {
-  "framework.description": "AI驱动的全栈开发框架",
-  "menu.dashboard.title": "工作台",
-  "plugin.org-center.name": "组织中心"
+  "framework": {
+    "description": "AI驱动的全栈开发框架"
+  },
+  "menu": {
+    "dashboard": {
+      "title": "工作台"
+    }
+  },
+  "plugin": {
+    "org-center": {
+      "name": "组织中心"
+    }
+  }
 }
 ```
 
@@ -81,7 +94,7 @@
 交付前建议至少检查以下内容：
 
 - 每个已启用语言文件都必须是合法的`JSON`。
-- 同一语言文件内的消息`key`必须保持唯一。
+- 同一语言文件内归一化后的消息 key 必须保持唯一。
 - 目标语言相对默认语言的缺失翻译检查必须通过。
 - 插件自有文案默认使用`plugin.<plugin_id>.`前缀，除非该插件明确提供共享框架元数据。
 - 新增的后端用户可见错误消息和校验消息必须使用翻译键，而不是直接硬编码文案。
@@ -124,12 +137,36 @@
 
 ```json
 {
-  "framework.description": "AI驱动的全栈开发框架",
-  "menu.system.title": "系统管理",
-  "menu.system.users.title": "用户管理",
-  "config.sys.account.captchaEnabled.name": "登录验证码",
-  "publicFrontend.login.title": "欢迎回来",
-  "plugin.org-center.name": "组织中心",
-  "plugin.org-center.description": "部门、岗位与层级治理"
+  "framework": {
+    "description": "AI驱动的全栈开发框架"
+  },
+  "menu": {
+    "system": {
+      "title": "系统管理",
+      "users": {
+        "title": "用户管理"
+      }
+    }
+  },
+  "config": {
+    "sys": {
+      "account": {
+        "captchaEnabled": {
+          "name": "登录验证码"
+        }
+      }
+    }
+  },
+  "publicFrontend": {
+    "login": {
+      "title": "欢迎回来"
+    }
+  },
+  "plugin": {
+    "org-center": {
+      "name": "组织中心",
+      "description": "部门、岗位与层级治理"
+    }
+  }
 }
 ```

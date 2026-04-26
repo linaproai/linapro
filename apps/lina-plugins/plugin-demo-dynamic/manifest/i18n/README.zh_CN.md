@@ -6,11 +6,13 @@
 
 插件接口文档翻译资源存放在 `manifest/i18n/apidoc/<locale>.json`。它们会独立嵌入动态插件产物，并且只在渲染 `/api.json` 时由宿主合并。
 
-当前示例覆盖的键包括：
+当前示例覆盖的归一化 key 包括：
 
 - 插件元数据，例如 `plugin.plugin-demo-dynamic.name`
 - 菜单元数据，例如 `menu.plugin:plugin-demo-dynamic:main-entry.title`
 - 内嵌页面文案，例如 `plugin.plugin-demo-dynamic.page.*`
 - `apidoc/` 下的 `plugins.plugin_demo_dynamic.*` 接口文档元数据
 
-请统一使用扁平 key，并采用 `zh-CN.json`、`en-US.json` 这类规范化语言文件名。
+运行时 UI 消息文件可使用层级 JSON 或扁平 dotted key。宿主会把两种格式统一归一化为扁平 key，用于聚合和诊断，并在返回前端运行时语言包时再转换为嵌套对象。
+
+请采用 `zh-CN.json`、`en-US.json` 这类规范化语言文件名。

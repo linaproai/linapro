@@ -197,6 +197,70 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	}
 }
 
+// TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets verifies runtime UI
+// i18n assets can use the same nested JSON authoring format as source plugins.
+func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dynamic-runtime-i18n",
+		"Runtime I18N Plugin",
+		"v0.3.6",
+		nil,
+		nil,
+	)
+
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-runtime-i18n"))
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dynamic-runtime-i18n",
+			Name:    "Runtime I18N Plugin",
+			Version: "v0.3.6",
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			ABIVersion:     pluginbridge.SupportedABIVersion,
+			I18NAssetCount: 1,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	content, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
+	}
+	content = appendTestRuntimeCustomSection(
+		t,
+		content,
+		pluginbridge.WasmSectionI18NAssets,
+		[]map[string]string{
+			{
+				"locale":  "zh-CN",
+				"content": `{"plugin":{"plugin-dynamic-runtime-i18n":{"name":"运行时国际化插件"}}}`,
+			},
+		},
+	)
+	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
+		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
+	}
+
+	artifact, err := services.Runtime.ParseRuntimeWasmArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact with nested runtime i18n assets to parse, got error: %v", err)
+	}
+	if artifact.I18NAssetCount != 1 {
+		t.Fatalf("expected runtime i18n asset count 1, got %d", artifact.I18NAssetCount)
+	}
+}
+
 // TestParseRuntimeArtifactValidatesAPIDocI18NAssets verifies that runtime
 // artifact parsing validates the API-documentation i18n custom section before a
 // dynamic plugin release is accepted.

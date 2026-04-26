@@ -1,35 +1,79 @@
 {
-  "menu.plugin:content-notice:notice.title": "Notices",
-  "menu.plugin:content-notice:notice:add.title": "Create",
-  "menu.plugin:content-notice:notice:edit.title": "Update",
-  "menu.plugin:content-notice:notice:query.title": "Query",
-  "menu.plugin:content-notice:notice:remove.title": "Delete",
-  "plugin.content-notice.description": "Official source plugin for notice and announcement management.",
-  "plugin.content-notice.name": "Content - Notices",
-  "plugin.content-notice.tableTitle": "Notice List",
-  "plugin.content-notice.drawer.createTitle": "Create Notice",
-  "plugin.content-notice.drawer.editTitle": "Edit Notice",
-  "plugin.content-notice.preview.title": "Notice Preview",
-  "plugin.content-notice.fields.title": "Notice Title",
-  "plugin.content-notice.fields.type": "Notice Type",
-  "plugin.content-notice.fields.status": "Status",
-  "plugin.content-notice.fields.createdBy": "Created By",
-  "plugin.content-notice.fields.content": "Content",
-  "plugin.content-notice.fields.attachments": "Attachments",
-  "plugin.content-notice.placeholders.title": "Please enter a notice title",
-  "plugin.content-notice.status.draft": "Draft",
-  "plugin.content-notice.status.published": "Published",
-  "plugin.content-notice.messages.deleteSelectedConfirm": "Delete the selected {count} notice(s)?",
-  "plugin.content-notice.validation.title": "Please enter a notice title",
-  "plugin.content-notice.validation.type": "Please select a notice type",
-  "plugin.content-notice.validation.status": "Please select a status",
-  "plugin.content-notice.validation.content": "Please enter the notice content",
-  "dict.sys_notice_status.0.label": "Draft",
-  "dict.sys_notice_status.1.label": "Published",
-  "dict.sys_notice_status.name": "Notice Status",
-  "dict.sys_notice_status.remark": "Notice status options",
-  "dict.sys_notice_type.1.label": "Notice",
-  "dict.sys_notice_type.2.label": "Announcement",
-  "dict.sys_notice_type.name": "Notice Type",
-  "dict.sys_notice_type.remark": "Notice type options"
+  "dict": {
+    "sys_notice_status": {
+      "0": {
+        "label": "Draft"
+      },
+      "1": {
+        "label": "Published"
+      },
+      "name": "Notice Status",
+      "remark": "Notice status options"
+    },
+    "sys_notice_type": {
+      "1": {
+        "label": "Notice"
+      },
+      "2": {
+        "label": "Announcement"
+      },
+      "name": "Notice Type",
+      "remark": "Notice type options"
+    }
+  },
+  "menu": {
+    "plugin:content-notice:notice": {
+      "title": "Notices"
+    },
+    "plugin:content-notice:notice:add": {
+      "title": "Create"
+    },
+    "plugin:content-notice:notice:edit": {
+      "title": "Update"
+    },
+    "plugin:content-notice:notice:query": {
+      "title": "Query"
+    },
+    "plugin:content-notice:notice:remove": {
+      "title": "Delete"
+    }
+  },
+  "plugin": {
+    "content-notice": {
+      "description": "Official source plugin for notice and announcement management.",
+      "drawer": {
+        "createTitle": "Create Notice",
+        "editTitle": "Edit Notice"
+      },
+      "fields": {
+        "attachments": "Attachments",
+        "content": "Content",
+        "createdBy": "Created By",
+        "status": "Status",
+        "title": "Notice Title",
+        "type": "Notice Type"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "Delete the selected {count} notice(s)?"
+      },
+      "name": "Content - Notices",
+      "placeholders": {
+        "title": "Please enter a notice title"
+      },
+      "preview": {
+        "title": "Notice Preview"
+      },
+      "status": {
+        "draft": "Draft",
+        "published": "Published"
+      },
+      "tableTitle": "Notice List",
+      "validation": {
+        "content": "Please enter the notice content",
+        "status": "Please select a status",
+        "title": "Please enter a notice title",
+        "type": "Please select a notice type"
+      }
+    }
+  }
 }

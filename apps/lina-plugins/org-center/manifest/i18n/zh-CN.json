@@ -1,36 +1,82 @@
 {
-  "menu.plugin:org-center:dept.title": "部门管理",
-  "menu.plugin:org-center:dept:add.title": "部门新增",
-  "menu.plugin:org-center:dept:edit.title": "部门修改",
-  "menu.plugin:org-center:dept:query.title": "部门查询",
-  "menu.plugin:org-center:dept:remove.title": "部门删除",
-  "menu.plugin:org-center:post.title": "岗位管理",
-  "menu.plugin:org-center:post:add.title": "岗位新增",
-  "menu.plugin:org-center:post:edit.title": "岗位修改",
-  "menu.plugin:org-center:post:export.title": "岗位导出",
-  "menu.plugin:org-center:post:query.title": "岗位查询",
-  "menu.plugin:org-center:post:remove.title": "岗位删除",
-  "plugin.org-center.description": "提供部门与岗位管理的官方源码插件",
-  "plugin.org-center.name": "组织管理",
-  "plugin.org-center.dept.tableTitle": "部门列表",
-  "plugin.org-center.dept.drawer.createTitle": "新增部门",
-  "plugin.org-center.dept.drawer.editTitle": "编辑部门",
-  "plugin.org-center.dept.fields.parentDept": "上级部门",
-  "plugin.org-center.dept.fields.name": "部门名称",
-  "plugin.org-center.dept.fields.code": "部门编码",
-  "plugin.org-center.dept.fields.sortOrder": "排序",
-  "plugin.org-center.dept.fields.leader": "负责人",
-  "plugin.org-center.dept.fields.phone": "联系电话",
-  "plugin.org-center.dept.fields.status": "状态",
-  "plugin.org-center.dept.placeholders.selectLeader": "请选择负责人",
-  "plugin.org-center.dept.messages.saveFailed": "保存部门失败",
-  "plugin.org-center.post.tableTitle": "岗位列表",
-  "plugin.org-center.post.drawer.createTitle": "新增岗位",
-  "plugin.org-center.post.drawer.editTitle": "编辑岗位",
-  "plugin.org-center.post.fields.dept": "所属部门",
-  "plugin.org-center.post.fields.name": "岗位名称",
-  "plugin.org-center.post.fields.code": "岗位编码",
-  "plugin.org-center.post.fields.sortOrder": "排序",
-  "plugin.org-center.post.messages.deleteSelectedConfirm": "确认删除选中的 {count} 个岗位吗？",
-  "plugin.org-center.post.messages.saveFailed": "保存岗位失败"
+  "menu": {
+    "plugin:org-center:dept": {
+      "title": "部门管理"
+    },
+    "plugin:org-center:dept:add": {
+      "title": "部门新增"
+    },
+    "plugin:org-center:dept:edit": {
+      "title": "部门修改"
+    },
+    "plugin:org-center:dept:query": {
+      "title": "部门查询"
+    },
+    "plugin:org-center:dept:remove": {
+      "title": "部门删除"
+    },
+    "plugin:org-center:post": {
+      "title": "岗位管理"
+    },
+    "plugin:org-center:post:add": {
+      "title": "岗位新增"
+    },
+    "plugin:org-center:post:edit": {
+      "title": "岗位修改"
+    },
+    "plugin:org-center:post:export": {
+      "title": "岗位导出"
+    },
+    "plugin:org-center:post:query": {
+      "title": "岗位查询"
+    },
+    "plugin:org-center:post:remove": {
+      "title": "岗位删除"
+    }
+  },
+  "plugin": {
+    "org-center": {
+      "dept": {
+        "drawer": {
+          "createTitle": "新增部门",
+          "editTitle": "编辑部门"
+        },
+        "fields": {
+          "code": "部门编码",
+          "leader": "负责人",
+          "name": "部门名称",
+          "parentDept": "上级部门",
+          "phone": "联系电话",
+          "sortOrder": "排序",
+          "status": "状态"
+        },
+        "messages": {
+          "saveFailed": "保存部门失败"
+        },
+        "placeholders": {
+          "selectLeader": "请选择负责人"
+        },
+        "tableTitle": "部门列表"
+      },
+      "description": "提供部门与岗位管理的官方源码插件",
+      "name": "组织管理",
+      "post": {
+        "drawer": {
+          "createTitle": "新增岗位",
+          "editTitle": "编辑岗位"
+        },
+        "fields": {
+          "code": "岗位编码",
+          "dept": "所属部门",
+          "name": "岗位名称",
+          "sortOrder": "排序"
+        },
+        "messages": {
+          "deleteSelectedConfirm": "确认删除选中的 {count} 个岗位吗？",
+          "saveFailed": "保存岗位失败"
+        },
+        "tableTitle": "岗位列表"
+      }
+    }
+  }
 }

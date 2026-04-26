@@ -1,36 +1,82 @@
 {
-  "menu.plugin:org-center:dept.title": "Departments",
-  "menu.plugin:org-center:dept:add.title": "Create",
-  "menu.plugin:org-center:dept:edit.title": "Update",
-  "menu.plugin:org-center:dept:query.title": "Query",
-  "menu.plugin:org-center:dept:remove.title": "Delete",
-  "menu.plugin:org-center:post.title": "Positions",
-  "menu.plugin:org-center:post:add.title": "Create",
-  "menu.plugin:org-center:post:edit.title": "Update",
-  "menu.plugin:org-center:post:export.title": "Export",
-  "menu.plugin:org-center:post:query.title": "Query",
-  "menu.plugin:org-center:post:remove.title": "Delete",
-  "plugin.org-center.description": "Official source plugin for department and position management.",
-  "plugin.org-center.name": "Organization Management",
-  "plugin.org-center.dept.tableTitle": "Department List",
-  "plugin.org-center.dept.drawer.createTitle": "Add Department",
-  "plugin.org-center.dept.drawer.editTitle": "Edit Department",
-  "plugin.org-center.dept.fields.parentDept": "Parent Dept.",
-  "plugin.org-center.dept.fields.name": "Dept Name",
-  "plugin.org-center.dept.fields.code": "Department Code",
-  "plugin.org-center.dept.fields.sortOrder": "Order",
-  "plugin.org-center.dept.fields.leader": "Leader",
-  "plugin.org-center.dept.fields.phone": "Phone",
-  "plugin.org-center.dept.fields.status": "Status",
-  "plugin.org-center.dept.placeholders.selectLeader": "Please select a leader",
-  "plugin.org-center.dept.messages.saveFailed": "Failed to save the department",
-  "plugin.org-center.post.tableTitle": "Position List",
-  "plugin.org-center.post.drawer.createTitle": "Add Position",
-  "plugin.org-center.post.drawer.editTitle": "Edit Position",
-  "plugin.org-center.post.fields.dept": "Department",
-  "plugin.org-center.post.fields.name": "Name",
-  "plugin.org-center.post.fields.code": "Code",
-  "plugin.org-center.post.fields.sortOrder": "Order",
-  "plugin.org-center.post.messages.deleteSelectedConfirm": "Delete the selected {count} position(s)?",
-  "plugin.org-center.post.messages.saveFailed": "Failed to save the position"
+  "menu": {
+    "plugin:org-center:dept": {
+      "title": "Departments"
+    },
+    "plugin:org-center:dept:add": {
+      "title": "Create"
+    },
+    "plugin:org-center:dept:edit": {
+      "title": "Update"
+    },
+    "plugin:org-center:dept:query": {
+      "title": "Query"
+    },
+    "plugin:org-center:dept:remove": {
+      "title": "Delete"
+    },
+    "plugin:org-center:post": {
+      "title": "Positions"
+    },
+    "plugin:org-center:post:add": {
+      "title": "Create"
+    },
+    "plugin:org-center:post:edit": {
+      "title": "Update"
+    },
+    "plugin:org-center:post:export": {
+      "title": "Export"
+    },
+    "plugin:org-center:post:query": {
+      "title": "Query"
+    },
+    "plugin:org-center:post:remove": {
+      "title": "Delete"
+    }
+  },
+  "plugin": {
+    "org-center": {
+      "dept": {
+        "drawer": {
+          "createTitle": "Add Department",
+          "editTitle": "Edit Department"
+        },
+        "fields": {
+          "code": "Department Code",
+          "leader": "Leader",
+          "name": "Dept Name",
+          "parentDept": "Parent Dept.",
+          "phone": "Phone",
+          "sortOrder": "Order",
+          "status": "Status"
+        },
+        "messages": {
+          "saveFailed": "Failed to save the department"
+        },
+        "placeholders": {
+          "selectLeader": "Please select a leader"
+        },
+        "tableTitle": "Department List"
+      },
+      "description": "Official source plugin for department and position management.",
+      "name": "Organization Management",
+      "post": {
+        "drawer": {
+          "createTitle": "Add Position",
+          "editTitle": "Edit Position"
+        },
+        "fields": {
+          "code": "Code",
+          "dept": "Department",
+          "name": "Name",
+          "sortOrder": "Order"
+        },
+        "messages": {
+          "deleteSelectedConfirm": "Delete the selected {count} position(s)?",
+          "saveFailed": "Failed to save the position"
+        },
+        "tableTitle": "Position List"
+      }
+    }
+  }
 }
