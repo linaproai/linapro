@@ -211,6 +211,10 @@ type ArtifactSpec struct {
 	ABIVersion string
 	// FrontendAssetCount is the count of embedded frontend static assets.
 	FrontendAssetCount int
+	// I18NAssetCount is the count of embedded runtime i18n assets.
+	I18NAssetCount int
+	// APIDocI18NAssetCount is the count of embedded API-documentation i18n assets.
+	APIDocI18NAssetCount int
 	// SQLAssetCount is the count of embedded SQL migration assets.
 	SQLAssetCount int
 	// RouteCount is the count of declared bridge routes.

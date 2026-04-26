@@ -253,12 +253,15 @@ pnpm report            # 查看 HTML 报告
 - **接口文档标签规范**：所有`API`定义的结构体必须包含完善的文档标签，确保自动生成的`OpenAPI/Swagger`文档内容清晰、准确、可用。具体要求如下：
   - **输入参数标签统一使用`json`**：所有输入 DTO（请求结构体）的字段统一使用 `json:"fieldName"` 声明参数名，包括路径参数、Query 参数和请求体字段，禁止在输入结构体中混用 `p` 与 `json` 标签
   - **输出参数继续使用`json`**：所有输出 DTO（响应结构体）的字段继续使用 `json:"fieldName"` 标签，保持响应序列化和文档一致性
-  - **`g.Meta`必须包含`dc`标签**：描述该接口的完整功能和使用场景，不是简单重复`summary`，而是补充说明业务逻辑、约束条件、使用场景等。例如：`dc:"分页查询用户列表，支持按用户名、手机号、状态等条件筛选，返回用户基本信息及关联的部门和岗位名称"`
+  - **OpenAPI/API 文档源文本必须使用英文**：`g.Meta`中的`summary`、`description`、`dc`等文档元数据，以及 DTO 字段的`dc`等说明文本，必须直接写入清晰、可读、可检索的英文源文本；禁止使用中文源文本，也禁止写入 `api.user.list.title`、`{{t(...)}}` 这类不透明`i18n`占位符作为 OpenAPI 源文本。该规则约束手写 API DTO 与固定路由投影文案；由数据表注释、GoFrame 或代码生成器产生的 schema 元数据进入接口文档时，apidoc service 层不得临时转换其语言，必须按数据源原文展示，也不得为 `internal.model.entity.*` 等生成 schema 键维护 apidoc 翻译项
+  - **API 文档本地化资源隔离**：`OpenAPI/Swagger`、API 文档站点或接口调试页的本地化必须使用专门的`apidoc i18n JSON`资源维护，禁止复用或混入运行时前端 UI 的`i18n`语言包；宿主接口翻译由 `apps/lina-core/manifest/i18n/apidoc/<locale>.json` 维护，插件接口翻译必须由插件自己的 `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` 独立维护，禁止把 `plugins.*` 翻译键集中写入 lina-core 的 apidoc 资源。lina-core 的 apidoc 模块负责在渲染接口文档时按宿主、源码插件、动态插件产物的顺序发现并合并这些资源。英文接口文档直接使用 API DTO 中的英文源文本，各级 `manifest/i18n/apidoc/en-US.json` 只保留空对象占位，不允许重新写入英文映射。若 GoFrame、生成的 `entity` schema 或数据表注释元数据进入接口文档，apidoc service 层不得维护中文到英文的临时转换表，也不得通过 `en-US.json` 或非英文 apidoc JSON 翻译项兜底；需要改变其展示语言时，应修改对应数据源或生成源。非英文文档源文本变更时，必须同步更新对应`apidoc`翻译资源。`eg`示例值只作为真实请求/响应示例保留原值，不写入、不翻译 apidoc i18n 资源
+  - **API 文档翻译完整性校验**：新增或修改 API DTO 文档元数据时，必须补充或更新自动化测试、生成校验或审查脚本，确保英文源文本变化后不会遗漏任一非英文目标语言的`apidoc`翻译；缺失翻译应被测试或审查流程阻断，`en-US`空占位文件和`eg/example`示例值不纳入翻译覆盖要求
+  - **`g.Meta`必须包含`dc`标签**：描述该接口的完整功能和使用场景，不是简单重复`summary`，而是补充说明业务逻辑、约束条件、使用场景等。例如：`dc:"Paginated query for users, supports filtering by username, mobile number, status, and returns basic user information with related department and post names"`
   - **需要宿主统一权限校验的受保护静态 API 必须在`g.Meta`上声明`permission`标签**：权限值使用与菜单/按钮权限标识一致的字符串（如 `permission:"plugin:install"`），由统一权限中间件执行校验；禁止在控制器方法内部重复手写同等语义的权限判断逻辑
-  - **所有输入输出字段必须包含`dc`标签**：对字段含义进行清晰描述，包括取值说明、业务规则、关联关系等。例如：`dc:"部门ID，0表示查询所有用户"` 而非简单的 `dc:"部门ID"`
+  - **所有输入输出字段必须包含`dc`标签**：对字段含义进行清晰描述，包括取值说明、业务规则、关联关系等。例如：`dc:"Department ID, 0 means querying all users"` 而非简单的 `dc:"Department ID"`
   - **所有输入输出字段必须包含`eg`标签**：提供真实可用的示例值，方便接口调试和理解。例如：`eg:"admin"`、`eg:"1"`、`eg:"2025-01-01"`
-  - **枚举值在`dc`中说明**：状态、类型等枚举字段必须在`dc`中列出所有可选值及含义。例如：`dc:"状态：1=正常 0=停用"`、`dc:"公告类型：1=通知 2=公告"`
-  - **可选参数说明默认行为**：筛选条件等可选字段应说明不传时的默认行为。例如：`dc:"按状态筛选：1=正常 0=停用，不传则查询全部"`
+  - **枚举值在`dc`中说明**：状态、类型等枚举字段必须在`dc`中列出所有可选值及含义。例如：`dc:"Status: 1=enabled, 0=disabled"`、`dc:"Notice type: 1=notification, 2=announcement"`
+  - **可选参数说明默认行为**：筛选条件等可选字段应说明不传时的默认行为。例如：`dc:"Filter by status: 1=enabled, 0=disabled, omitted means querying all statuses"`
 
 ### 服务层实现要求
 

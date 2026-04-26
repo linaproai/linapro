@@ -54,6 +54,7 @@ exports[`defaultPreferences immutability test > should not modify the config obj
     "enable": false,
     "fixed": false,
     "height": 32,
+    "settingShow": true,
   },
   "header": {
     "enable": true,

@@ -8,11 +8,11 @@ import (
 
 // DeleteReq defines the request for deleting operation logs.
 type DeleteReq struct {
-	g.Meta `path:"/operlog/{ids}" method:"delete" tags:"操作日志" summary:"删除操作日志" dc:"删除一条或多条操作日志记录" permission:"monitor:operlog:remove"`
-	Ids    string `json:"ids" v:"required" dc:"日志ID，多个用逗号分隔" eg:"1,2,3"`
+	g.Meta `path:"/operlog/{ids}" method:"delete" tags:"Operation Logs" summary:"Delete operation log" dc:"Delete one or more operation log records" permission:"monitor:operlog:remove"`
+	Ids    string `json:"ids" v:"required" dc:"Log IDs, comma-separated" eg:"1,2,3"`
 }
 
 // DeleteRes is the operation-log delete response.
 type DeleteRes struct {
-	Deleted int `json:"deleted" dc:"实际删除的记录数" eg:"3"`
+	Deleted int `json:"deleted" dc:"Number of records actually deleted" eg:"3"`
 }

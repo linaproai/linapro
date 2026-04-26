@@ -276,13 +276,24 @@ func collectFrontendAssets(pluginDir string, embeddedResources *embeddedStaticRe
 }
 
 func collectI18NAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*i18nAsset, error) {
+	return collectLocaleJSONAssets(pluginDir, embeddedResources, "manifest/i18n")
+}
+
+func collectAPIDocI18NAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*i18nAsset, error) {
+	return collectLocaleJSONAssets(pluginDir, embeddedResources, "manifest/i18n/apidoc")
+}
+
+func collectLocaleJSONAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet, relativeDir string) ([]*i18nAsset, error) {
 	if embeddedResources != nil {
-		paths := embeddedResources.ListFiles("manifest/i18n", ".json")
+		paths := embeddedResources.ListFiles(relativeDir, ".json")
 		assets := make([]*i18nAsset, 0, len(paths))
 		for _, filePath := range paths {
+			if filepath.ToSlash(filepath.Dir(filePath)) != strings.TrimSuffix(relativeDir, "/") {
+				continue
+			}
 			content, ok := embeddedResources.ReadFile(filePath)
 			if !ok {
-				return nil, fmt.Errorf("embedded i18n asset not found: %s", filePath)
+				return nil, fmt.Errorf("embedded locale asset not found: %s", filePath)
 			}
 			assets = append(assets, &i18nAsset{
 				Locale:  strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)),
@@ -292,7 +303,7 @@ func collectI18NAssets(pluginDir string, embeddedResources *embeddedStaticResour
 		return assets, nil
 	}
 
-	i18nDir := filepath.Join(pluginDir, "manifest", "i18n")
+	i18nDir := filepath.Join(pluginDir, filepath.FromSlash(relativeDir))
 	entries, err := os.ReadDir(i18nDir)
 	if err != nil {
 		if os.IsNotExist(err) {

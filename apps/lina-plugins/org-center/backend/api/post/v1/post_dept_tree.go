@@ -2,20 +2,20 @@ package v1
 
 import "github.com/gogf/gf/v2/frame/g"
 
-// DeptTreeReq defines the request for querying the post department tree.
+// DeptTreeReq defines the request for querying the post Department tree.
 type DeptTreeReq struct {
-	g.Meta `path:"/post/dept-tree" method:"get" tags:"岗位管理" summary:"获取岗位筛选部门树" dc:"获取部门树结构及岗位数量，供管理工作台的岗位查询视图按部门筛选或装配树选择器" permission:"system:post:query"`
+	g.Meta `path:"/post/dept-tree" method:"get" tags:"Position Management" summary:"Get position filter department tree" dc:"Get the department tree and position counts for department filtering or tree selector assembly in the position query view." permission:"system:post:query"`
 }
 
-// DeptTreeRes is the response for department tree.
+// DeptTreeRes is the response for Department tree.
 type DeptTreeRes struct {
-	List []*DeptTreeNode `json:"list" dc:"部门树" eg:"[]"`
+	List []*DeptTreeNode `json:"list" dc:"Department tree" eg:"[]"`
 }
 
-// DeptTreeNode represents a node in the department tree.
+// DeptTreeNode represents a node in the Department tree.
 type DeptTreeNode struct {
-	Id        int             `json:"id" dc:"部门ID" eg:"100"`
-	Label     string          `json:"label" dc:"部门名称" eg:"技术部"`
-	PostCount int             `json:"postCount" dc:"该部门下的岗位数量" eg:"5"`
-	Children  []*DeptTreeNode `json:"children" dc:"子部门列表" eg:"[]"`
+	Id        int             `json:"id" dc:"Department ID" eg:"100"`
+	Label     string          `json:"label" dc:"Department name" eg:"Technology Department"`
+	PostCount int             `json:"postCount" dc:"Number of positions in this department" eg:"5"`
+	Children  []*DeptTreeNode `json:"children" dc:"List of subdepartments" eg:"[]"`
 }

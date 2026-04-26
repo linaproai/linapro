@@ -36,6 +36,11 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
+		filepath.Join(pluginDir, "manifest", "i18n", "apidoc", "zh-CN.json"),
+		"{\n  \"plugins.plugin_dynamic_builder.paths.get.review_summary.meta.summary\": \"查询摘要\"\n}\n",
+	)
+	mustWriteFile(
+		t,
 		filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-plugin-dynamic-builder.sql"),
 		"SELECT 2;",
 	)
@@ -100,8 +105,8 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	if err = json.Unmarshal(sections[pluginDynamicWasmSectionDynamic], metadata); err != nil {
 		t.Fatalf("expected dynamic section json to unmarshal, got error: %v", err)
 	}
-	if metadata.FrontendAssetCount != 1 || metadata.I18NAssetCount != 1 || metadata.SQLAssetCount != 2 {
-		t.Fatalf("expected dynamic metadata counts 1/1/2, got %#v", metadata)
+	if metadata.FrontendAssetCount != 1 || metadata.I18NAssetCount != 1 || metadata.APIDocI18NAssetCount != 1 || metadata.SQLAssetCount != 2 {
+		t.Fatalf("expected dynamic metadata counts 1/1/1/2, got %#v", metadata)
 	}
 
 	var frontend []*frontendAsset
@@ -118,6 +123,14 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	}
 	if len(i18n) != 1 || i18n[0].Locale != "en-US" || !strings.Contains(i18n[0].Content, "plugin.plugin-dynamic-builder.name") {
 		t.Fatalf("unexpected embedded i18n assets: %#v", i18n)
+	}
+
+	var apiDocI18N []*i18nAsset
+	if err = json.Unmarshal(sections[pluginDynamicWasmSectionAPIDocI18N], &apiDocI18N); err != nil {
+		t.Fatalf("expected apidoc i18n section json to unmarshal, got error: %v", err)
+	}
+	if len(apiDocI18N) != 1 || apiDocI18N[0].Locale != "zh-CN" || !strings.Contains(apiDocI18N[0].Content, "plugins.plugin_dynamic_builder") {
+		t.Fatalf("unexpected embedded apidoc i18n assets: %#v", apiDocI18N)
 	}
 
 	var hooks []*hookSpec

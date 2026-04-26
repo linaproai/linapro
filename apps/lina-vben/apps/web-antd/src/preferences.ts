@@ -17,6 +17,12 @@ export const overridesPreferences = defineOverridesPreferences({
     companyName: 'LinaPro.AI',
     companySiteLink: 'https://linapro.ai',
     date: String(new Date().getFullYear()),
+    enable: true,
+    settingShow: false,
+  },
+  footer: {
+    enable: true,
+    settingShow: false,
   },
   theme: {
     mode: 'light',

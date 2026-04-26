@@ -4,13 +4,13 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // EnableReq is the request for enabling plugin.
 type EnableReq struct {
-	g.Meta        `path:"/plugins/{id}/enable" method:"put" tags:"插件管理" summary:"启用插件" permission:"plugin:enable" dc:"将指定插件标记为启用状态，并写入插件状态配置；若插件声明了资源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），则本次请求同时提交宿主确认后的授权结果"`
-	Id            string                       `json:"id" v:"required|length:1,64" dc:"插件唯一标识" eg:"plugin-demo-source"`
-	Authorization *HostServiceAuthorizationReq `json:"authorization,omitempty" dc:"宿主确认后的 hostServices 授权结果；不传时默认沿用当前 release 已确认快照，若尚未确认则默认按插件本次声明全量授权" eg:"{}"`
+	g.Meta        `path:"/plugins/{id}/enable" method:"put" tags:"Plugin Management" summary:"Enable plugin" permission:"plugin:enable" dc:"Mark the specified plugin as enabled and write the plugin status configuration; if the plugin declares resource-type hostServices (such as storage.resources.paths, network URL pattern or data.resources.tables), this request will also submit the authorization result confirmed by the host."`
+	Id            string                       `json:"id" v:"required|length:1,64" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
+	Authorization *HostServiceAuthorizationReq `json:"authorization,omitempty" dc:"The hostServices authorization result after host confirmation; if not passed, the current release will be used by default and the confirmed snapshot will be used. If it has not been confirmed, it will be fully authorized according to the plugin declaration." eg:"{}"`
 }
 
 // EnableRes is the response for enabling plugin.
 type EnableRes struct {
-	Id      string `json:"id" dc:"插件唯一标识" eg:"plugin-demo-source"`
-	Enabled int    `json:"enabled" dc:"启用状态：1=启用 0=禁用" eg:"1"`
+	Id      string `json:"id" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
+	Enabled int    `json:"enabled" dc:"Enabled status: 1=enabled 0=disabled" eg:"1"`
 }

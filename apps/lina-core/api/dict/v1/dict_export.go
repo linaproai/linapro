@@ -8,10 +8,10 @@ import (
 
 // ExportReq defines the request for exporting dictionary types and data together.
 type ExportReq struct {
-	g.Meta `path:"/dict/export" method:"get" tags:"字典管理" summary:"导出字典管理数据" operLog:"export" dc:"导出字典类型和字典数据到一个Excel文件（双Sheet格式），支持按条件筛选导出，也支持导出指定ID的字典类型" permission:"system:dict:export"`
-	Name   string `json:"name" dc:"按字典名称筛选（模糊匹配）" eg:"性别"`
-	Type   string `json:"type" dc:"按字典类型标识筛选（模糊匹配）" eg:"sys_user"`
-	Ids    []int  `json:"ids" dc:"指定导出的字典类型ID列表，不传则导出全部" eg:"[1,2,3]"`
+	g.Meta `path:"/dict/export" method:"get" tags:"Dictionary Management" summary:"Export dictionary management data" operLog:"export" dc:"Export dictionary types and dictionary data to an Excel file (double Sheet format), support filtering and exporting by conditions, and also support exporting dictionary types with specified IDs" permission:"system:dict:export"`
+	Name   string `json:"name" dc:"Filter by dictionary name (fuzzy matching)" eg:"gender"`
+	Type   string `json:"type" dc:"Filter by dictionary type key (fuzzy matching)" eg:"sys_user"`
+	Ids    []int  `json:"ids" dc:"Specify the dictionary type ID list to be exported. If not passed, all will be exported." eg:"[1,2,3]"`
 }
 
 // ExportRes is the response for dictionary combined export.

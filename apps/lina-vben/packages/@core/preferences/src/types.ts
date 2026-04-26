@@ -126,6 +126,8 @@ interface FooterPreferences {
   fixed: boolean;
   /** 底栏高度 */
   height: number;
+  /** 设置面板是否显示 */
+  settingShow?: boolean;
 }
 
 interface HeaderPreferences {

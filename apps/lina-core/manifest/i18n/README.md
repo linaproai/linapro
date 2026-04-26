@@ -1,8 +1,10 @@
 # Runtime I18N Resources
 
-This directory stores the delivery baseline runtime message bundles for `LinaPro`.
+This directory stores the delivery baseline i18n resources for `LinaPro`.
 
-The host loads `manifest/i18n/<locale>.json` as the project-level baseline, merges it with enabled plugin resources and database overrides, and finally exposes the effective result through the runtime i18n APIs.
+The host loads top-level `manifest/i18n/<locale>.json` files as runtime UI message bundles, merges them with enabled plugin resources and database overrides, and finally exposes the effective result through the runtime i18n APIs.
+
+API-documentation translations are stored under `manifest/i18n/apidoc/<locale>.json`. They share the same i18n root for discoverability, but stay in a dedicated subdirectory because OpenAPI documentation is large and is only needed when `/api.json` is rendered.
 
 ## Directory Contract
 
@@ -10,14 +12,19 @@ The host loads `manifest/i18n/<locale>.json` as the project-level baseline, merg
 | ----------------------------------------------------------- | ---------------------------------- |
 | `manifest/i18n/zh-CN.json`                                  | Simplified Chinese baseline bundle |
 | `manifest/i18n/en-US.json`                                  | English baseline bundle            |
+| `manifest/i18n/apidoc/zh-CN.json`                           | Simplified Chinese API-doc bundle  |
+| `manifest/i18n/apidoc/en-US.json`                           | Empty English API-doc placeholder  |
 | `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | Plugin-owned locale bundle         |
+| `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` | Plugin-owned API-doc bundle |
 
 Rules:
 
 - The filename must use the canonical locale code, for example `zh-CN.json` or `en-US.json`.
 - The host only treats top-level `manifest/i18n/<locale>.json` files as runtime locale bundles.
+- The host only treats `manifest/i18n/apidoc/<locale>.json` files as API-documentation locale bundles.
 - Runtime messages are maintained with flat keys only.
 - The runtime i18n API converts flat keys into nested objects only when returning data to the frontend.
+- API-documentation bundles use structured `core.*` and `plugins.*` keys, keep `en-US.json` as `{}`, and never translate `eg/example` values or generated entity metadata.
 
 ## Why JSON And Flat Keys
 
@@ -62,10 +69,12 @@ Recommendations:
 
 1. Add or update the baseline locale files in `manifest/i18n/`.
 2. Add plugin locale files in `apps/lina-plugins/<plugin-id>/manifest/i18n/` when a plugin contributes user-visible copy.
-3. Start the host and fetch `GET /api/v1/i18n/runtime/messages?lang=<locale>` to confirm the merged runtime result.
-4. Use `GET /api/v1/i18n/messages/missing?locale=<locale>` to detect keys that are still missing compared with the default locale.
-5. Use `GET /api/v1/i18n/messages/diagnostics?locale=<locale>` to confirm whether the effective value comes from the host file, plugin file, or database override.
-6. If an online hotfix is needed, import database overrides through `POST /api/v1/i18n/messages/import`, then export the effective result through `GET /api/v1/i18n/messages/export` for later code sync.
+3. Add API-documentation locale files in `manifest/i18n/apidoc/` and plugin-owned `manifest/i18n/apidoc/` directories when API DTO source text changes.
+4. Start the host and fetch `GET /api/v1/i18n/runtime/messages?lang=<locale>` to confirm the merged runtime result.
+5. Fetch `/api.json?lang=<locale>` to confirm API-documentation localization.
+6. Use `GET /api/v1/i18n/messages/missing?locale=<locale>` to detect keys that are still missing compared with the default locale.
+7. Use `GET /api/v1/i18n/messages/diagnostics?locale=<locale>` to confirm whether the effective value comes from the host file, plugin file, or database override.
+8. If an online hotfix is needed, import database overrides through `POST /api/v1/i18n/messages/import`, then export the effective result through `GET /api/v1/i18n/messages/export` for later code sync.
 
 ## Validation Rules
 

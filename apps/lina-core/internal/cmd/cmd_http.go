@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/i18n/gi18n"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
 
@@ -29,11 +30,14 @@ import (
 	"lina-core/internal/controller/sysinfo"
 	"lina-core/internal/controller/user"
 	"lina-core/internal/controller/usermsg"
+	"lina-core/internal/model"
 	"lina-core/internal/packed"
 	"lina-core/internal/service/apidoc"
+	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/cron"
+	i18nsvc "lina-core/internal/service/i18n"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	"lina-core/internal/service/middleware"
@@ -314,7 +318,15 @@ func (m *Main) bindHostedOpenAPIDocs(
 		return
 	}
 
+	apiDocBizCtxSvc := bizctx.New()
+	apiDocI18nSvc := i18nsvc.New()
 	server.BindHandler(apiDocPath, func(r *ghttp.Request) {
+		apiDocBizCtxSvc.Init(r, &model.Context{})
+		locale := apiDocI18nSvc.ResolveRequestLocale(r)
+		r.SetCtx(gi18n.WithLanguage(r.Context(), locale))
+		apiDocBizCtxSvc.SetLocale(r.Context(), locale)
+		r.Response.Header().Set("Content-Language", locale)
+
 		document, err := apiDocSvc.Build(r.Context(), server)
 		if err != nil {
 			logger.Warningf(r.Context(), "build hosted OpenAPI document failed: %v", err)

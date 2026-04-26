@@ -11,16 +11,16 @@ import (
 
 // CreateReq defines the request for creating a notice.
 type CreateReq struct {
-	g.Meta  `path:"/notice" method:"post" tags:"通知公告" summary:"创建通知公告" dc:"创建一条通知或公告，支持设置为草稿或直接发布，可附带附件文件" permission:"system:notice:add"`
-	Title   string `json:"title" v:"required#请输入公告标题" dc:"公告标题" eg:"系统维护通知"`
-	Type    int    `json:"type" v:"required|in:1,2#请选择公告类型|公告类型不正确" dc:"公告类型：1=通知 2=公告" eg:"1"`
-	Content string `json:"content" v:"required#请输入公告内容" dc:"公告内容（支持富文本HTML）" eg:"<p>系统将于今晚进行维护升级</p>"`
-	FileIds string `json:"fileIds" dc:"附件文件ID列表，逗号分隔，通过文件上传接口获取" eg:"1,2,3"`
-	Status  *int   `json:"status" d:"0" dc:"公告状态：0=草稿 1=已发布" eg:"1"`
-	Remark  string `json:"remark" dc:"备注" eg:"紧急通知"`
+	g.Meta  `path:"/notice" method:"post" tags:"Notices" summary:"Create notification or announcement" dc:"Create a notification or announcement as either a draft or a published item, with optional attachments." permission:"system:notice:add"`
+	Title   string `json:"title" v:"required#gf.gvalid.rule.required" dc:"Announcement title" eg:"System maintenance notification"`
+	Type    int    `json:"type" v:"required|in:1,2#gf.gvalid.rule.required|gf.gvalid.rule.in" dc:"Announcement type: 1=Notice 2=Announcement" eg:"1"`
+	Content string `json:"content" v:"required#gf.gvalid.rule.required" dc:"Announcement content (supports rich text HTML)" eg:"<p>The system will be undergoing maintenance and upgrade tonight</p>"`
+	FileIds string `json:"fileIds" dc:"Attachment file ID list, comma-separated and geted from the file upload API" eg:"1,2,3"`
+	Status  *int   `json:"status" d:"0" dc:"Announcement status: 0=Draft 1=Published" eg:"1"`
+	Remark  string `json:"remark" dc:"Remark" eg:"Emergency notification"`
 }
 
 // CreateRes Notice create response
 type CreateRes struct {
-	Id int64 `json:"id" dc:"公告ID" eg:"1"`
+	Id int64 `json:"id" dc:"Announcement ID" eg:"1"`
 }

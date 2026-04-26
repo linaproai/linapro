@@ -75,7 +75,10 @@ Read `CLAUDE.md` to load all specifications. This is the single source of truth.
 
 **Trigger**: Any API endpoint changes
 
-Check against `CLAUDE.md` API design specifications.
+Check against `CLAUDE.md` API design specifications, including:
+1. HTTP method and resource path compliance with RESTful rules
+2. API DTO documentation metadata completeness
+3. **API documentation i18n compliance** — `g.Meta` and hand-authored DTO documentation tags must use readable English source text, must not use Chinese source text or opaque i18n placeholders, must keep apidoc localization in dedicated apidoc i18n JSON resources separate from runtime UI i18n bundles, must use stable structured apidoc keys instead of source-text keys, must keep host `core.*` apidoc keys in lina-core resources and plugin `plugins.*` apidoc keys in each plugin's own `manifest/i18n/apidoc/<locale>.json`, must keep `en-US` apidoc JSON as an empty placeholder because English docs use source text directly, must not add service-layer Chinese-to-English fallback maps or apidoc JSON mappings for generated/framework/database schema metadata such as `internal.model.entity.*`, must display generated metadata as supplied by its source, must leave `eg/example` values untranslated and out of apidoc i18n resources, and must include tests or review checks that prevent missing non-English apidoc translations when English source text changes
 
 ### 5. Project Specification Review
 
@@ -116,6 +119,7 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 
 ### RESTful API Review
 ✓ All endpoints compliant / ⚠ N violations found
+✓ API documentation i18n compliant / ⚠ N apidoc i18n issues found
 
 ### Project Spec Review
 ✓ Compliant with CLAUDE.md / ⚠ N violations found

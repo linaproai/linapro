@@ -8,25 +8,25 @@ import (
 
 // ConfigImportReq defines the request for importing configs.
 type ConfigImportReq struct {
-	g.Meta `path:"/config/import" method:"post" mime:"multipart/form-data" tags:"参数设置" summary:"导入参数设置" dc:"通过Excel文件批量导入参数设置数据，需使用系统提供的导入模板" permission:"system:config:add"`
+	g.Meta `path:"/config/import" method:"post" mime:"multipart/form-data" tags:"Parameter Settings" summary:"Import parameter settings" dc:"To import parameter setting data in batches through Excel files, you need to use the import template provided by the system." permission:"system:config:add"`
 }
 
 // ConfigImportRes is the response structure for config import.
 type ConfigImportRes struct {
-	Success  int                    `json:"success" dc:"成功条数" eg:"10"`
-	Fail     int                    `json:"fail" dc:"失败条数" eg:"2"`
-	FailList []ConfigImportFailItem `json:"failList" dc:"失败详情" eg:"[]"`
+	Success  int                    `json:"success" dc:"Number of successes" eg:"10"`
+	Fail     int                    `json:"fail" dc:"Number of failed entries" eg:"2"`
+	FailList []ConfigImportFailItem `json:"failList" dc:"Failure details" eg:"[]"`
 }
 
 // ConfigImportFailItem represents a failed import record.
 type ConfigImportFailItem struct {
-	Row    int    `json:"row" dc:"行号" eg:"3"`
-	Reason string `json:"reason" dc:"失败原因" eg:"参数键名已存在"`
+	Row    int    `json:"row" dc:"Line number" eg:"3"`
+	Reason string `json:"reason" dc:"Reason for failure" eg:"Parameter key name already exists"`
 }
 
 // ConfigImportTemplateReq defines the request for downloading import template.
 type ConfigImportTemplateReq struct {
-	g.Meta `path:"/config/import-template" method:"get" tags:"参数设置" summary:"下载参数设置导入模板" dc:"下载参数设置导入Excel模板文件，包含必填字段和数据格式说明" permission:"system:config:add"`
+	g.Meta `path:"/config/import-template" method:"get" tags:"Parameter Settings" summary:"Download parameter setting import template" dc:"Download the parameter settings and import the Excel template file, including required fields and data format instructions" permission:"system:config:add"`
 }
 
 // ConfigImportTemplateRes is the response for template download.

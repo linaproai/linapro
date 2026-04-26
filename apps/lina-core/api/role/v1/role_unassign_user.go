@@ -6,9 +6,9 @@ import (
 
 // RoleUnassignUserReq is the request structure for unassigning user from role.
 type RoleUnassignUserReq struct {
-	g.Meta `path:"/role/{id}/users/{userId}" method:"delete" summary:"取消用户授权" tags:"角色管理" dc:"取消指定用户的角色授权，解除用户与角色的关联关系" permission:"system:role:auth"`
-	Id     int `json:"id" v:"required|min:1" dc:"角色ID" eg:"1"`
-	UserId int `json:"userId" v:"required|min:1" dc:"用户ID" eg:"2"`
+	g.Meta `path:"/role/{id}/users/{userId}" method:"delete" summary:"Cancel user authorization" tags:"Role Management" dc:"Cancel the role authorization of the specified user and remove the association between the user and the role" permission:"system:role:auth"`
+	Id     int `json:"id" v:"required|min:1" dc:"Role ID" eg:"1"`
+	UserId int `json:"userId" v:"required|min:1" dc:"User ID" eg:"2"`
 }
 
 // RoleUnassignUserRes is the response structure for unassigning user from role.

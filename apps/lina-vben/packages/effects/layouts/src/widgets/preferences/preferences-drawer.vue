@@ -144,6 +144,7 @@ const navigationAccordion = defineModel<boolean>('navigationAccordion');
 
 const footerEnable = defineModel<boolean>('footerEnable');
 const footerFixed = defineModel<boolean>('footerFixed');
+const footerSettingShow = defineModel<boolean>('footerSettingShow');
 
 const copyrightSettingShow = defineModel<boolean>('copyrightSettingShow');
 const copyrightEnable = defineModel<boolean>('copyrightEnable');
@@ -250,10 +251,23 @@ async function handleReset() {
 <template>
   <div>
     <Drawer
-      :description="$t('preferences.subtitle')"
       :title="$t('preferences.title')"
       class="border-0! sm:max-w-sm"
     >
+      <template #title>
+        <span class="flex min-w-0 flex-col text-left">
+          <span data-testid="preferences-drawer-title" class="truncate leading-5">
+            {{ $t('preferences.title') }}
+          </span>
+          <span
+            :title="$t('preferences.subtitle')"
+            class="mt-1 max-w-[13rem] truncate text-xs leading-4 font-normal text-muted-foreground sm:max-w-[15rem]"
+            data-testid="preferences-drawer-subtitle"
+          >
+            {{ $t('preferences.subtitle') }}
+          </span>
+        </span>
+      </template>
       <template #extra>
         <div class="flex items-center">
           <VbenIconButton
@@ -434,7 +448,10 @@ async function handleReset() {
                 v-model:widget-theme-toggle="widgetThemeToggle"
               />
             </Block>
-            <Block :title="$t('preferences.footer.title')">
+            <Block
+              v-if="footerSettingShow"
+              :title="$t('preferences.footer.title')"
+            >
               <Footer
                 v-model:footer-enable="footerEnable"
                 v-model:footer-fixed="footerFixed"

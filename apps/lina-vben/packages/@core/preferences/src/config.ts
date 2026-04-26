@@ -53,6 +53,7 @@ const defaultPreferences: Preferences = {
     enable: false,
     fixed: false,
     height: 32,
+    settingShow: true,
   },
   header: {
     enable: true,

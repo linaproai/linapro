@@ -64,7 +64,7 @@ const listen = computed(() => {
   <div>
     <Drawer v-bind="{ ...$attrs, ...attrs }" v-on="listen" />
 
-    <div @click="() => drawerApi.open()">
+    <div data-testid="preferences-trigger" @click="() => drawerApi.open()">
       <slot>
         <VbenButton
           :title="$t('preferences.title')"

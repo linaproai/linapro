@@ -43,7 +43,11 @@ test.describe('TC0044 系统接口页面', () => {
     expect(stoplightLinks).toBe(0);
   });
 
-  test('TC0044c: Overview 页面显示 API 标题和描述', async ({ adminPage }) => {
+  test('TC0044c: Overview 页面显示 API 标题和描述', async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    await mainLayout.switchLanguage('English');
     await adminPage.goto('/about/api-docs');
     const frame = adminPage.frameLocator('iframe.api-docs-iframe');
     // Wait for content to load
@@ -66,16 +70,18 @@ test.describe('TC0044 系统接口页面', () => {
 
   test('TC0044e: 模块名称粗体、接口名称非粗体', async ({
     adminPage,
+    mainLayout,
   }) => {
+    await mainLayout.switchLanguage('简体中文');
     await adminPage.goto('/about/api-docs');
     const frame = adminPage.frameLocator('iframe.api-docs-iframe');
     await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
     // Click on a module to expand it
-    const moduleItem = frame.locator('[title="认证管理"]');
+    const moduleItem = frame.locator('[title="身份认证"]');
     await moduleItem.click();
     // Module name should be bold (font-weight 700)
     const moduleText = frame
-      .locator('[title="认证管理"] .sl-flex-1')
+      .locator('[title="身份认证"] .sl-flex-1')
       .first();
     await expect(moduleText).toHaveCSS('font-weight', '700');
     // Endpoint name should not be bold (font-weight 400)
@@ -92,7 +98,9 @@ test.describe('TC0044 系统接口页面', () => {
 
   test('TC0044f: 接口地址背景块全宽展示，GET 在左、路径在右', async ({
     adminPage,
+    mainLayout,
   }) => {
+    await mainLayout.switchLanguage('简体中文');
     await adminPage.goto('/about/api-docs');
     const frame = adminPage.frameLocator('iframe.api-docs-iframe');
     await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
@@ -132,7 +140,9 @@ test.describe('TC0044 系统接口页面', () => {
 
   test('TC0044h: 源码插件启停后系统接口文档同步更新', async ({
     adminPage,
+    mainLayout,
   }) => {
+    await mainLayout.switchLanguage('简体中文');
     const pluginPage = new PluginPage(adminPage);
     let installedDuringTest = false;
 
@@ -164,5 +174,34 @@ test.describe('TC0044 系统接口页面', () => {
         await pluginPage.ensurePluginUninstalled(sourcePluginID);
       }
     }
+  });
+
+  test('TC0044i: 英文环境下系统接口文档使用英文接口源文案', async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    await mainLayout.switchLanguage('English');
+    await adminPage.goto('/about/api-docs');
+
+    const iframe = adminPage.locator('iframe.api-docs-iframe');
+    await expect(iframe).toBeVisible({ timeout: 10_000 });
+    await expect(iframe).toHaveAttribute('src', /lang=en-US/);
+
+    const apiResponse = await adminPage.request.get('/api.json?lang=en-US', {
+      headers: { 'Accept-Language': 'en-US' },
+    });
+    expect(apiResponse.ok()).toBeTruthy();
+    const apiDocument = await apiResponse.text();
+    expect(apiDocument).toContain('"User Management"');
+    expect(apiDocument).toContain('"Get user list"');
+    expect(apiDocument).toContain('"Page number"');
+
+    const frame = adminPage.frameLocator('iframe.api-docs-iframe');
+    await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
+    await frame.locator('[title="User Management"]').click();
+    await expect(
+      frame.locator('[title="Get user list"]').first(),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(frame.locator('[title="用户管理"]')).toHaveCount(0);
   });
 });

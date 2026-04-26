@@ -4,19 +4,19 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // CreateReq defines the request for creating a department.
 type CreateReq struct {
-	g.Meta   `path:"/dept" method:"post" tags:"部门管理" summary:"创建部门" dc:"创建一个新部门，支持设置父级部门形成树形层级结构，部门编码在系统内须唯一" permission:"system:dept:add"`
-	ParentId int    `json:"parentId" d:"0" dc:"父级部门ID，0表示顶级部门" eg:"100"`
-	Name     string `json:"name" v:"required#请输入部门名称" dc:"部门名称，同一父级下不可重复" eg:"技术部"`
-	Code     string `json:"code" dc:"部门编码，系统内唯一标识，用于与外部系统对接" eg:"TECH"`
-	OrderNum *int   `json:"orderNum" d:"0" dc:"排序号，数值越小越靠前，同级部门按此字段升序排列" eg:"1"`
-	Leader   *int   `json:"leader" dc:"负责人用户ID，关联系统用户表" eg:"1"`
-	Phone    string `json:"phone" dc:"部门联系电话" eg:"021-88888888"`
-	Email    string `json:"email" dc:"部门联系邮箱" eg:"tech@company.com"`
-	Status   *int   `json:"status" d:"1" dc:"部门状态：1=正常，0=停用。停用后该部门及其子部门的用户将无法登录" eg:"1"`
-	Remark   string `json:"remark" dc:"备注信息" eg:"负责公司技术研发工作"`
+	g.Meta   `path:"/dept" method:"post" tags:"Department Management" summary:"Create department" dc:"Create a new department. A parent department may be set to form a tree hierarchy, and the department code must be unique." permission:"system:dept:add"`
+	ParentId int    `json:"parentId" d:"0" dc:"Parent department ID, 0 indicates top-level department" eg:"100"`
+	Name     string `json:"name" v:"required#gf.gvalid.rule.required" dc:"Department name, cannot be repeated under the same parent" eg:"Technology Department"`
+	Code     string `json:"code" dc:"Department code, a unique identifier within the system, used to interface with external systems" eg:"TECH"`
+	OrderNum *int   `json:"orderNum" d:"0" dc:"Sorting number, the smaller the value, the higher it is. Departments at the same level are sorted in ascending order according to this field." eg:"1"`
+	Leader   *int   `json:"leader" dc:"Owner user ID, associated with the system user table" eg:"1"`
+	Phone    string `json:"phone" dc:"Department contact number" eg:"021-88888888"`
+	Email    string `json:"email" dc:"Department contact email" eg:"tech@company.com"`
+	Status   *int   `json:"status" d:"1" dc:"Department status: 1=normal, 0=disabled. After deactivation, users of this department and its sub-departments will not be able to log in." eg:"1"`
+	Remark   string `json:"remark" dc:"Remark" eg:"Responsible for the company's technology research and development work"`
 }
 
 // CreateRes defines the response for creating a department.
 type CreateRes struct {
-	Id int `json:"id" dc:"新创建的部门ID" eg:"110"`
+	Id int `json:"id" dc:"Newly created department ID" eg:"110"`
 }

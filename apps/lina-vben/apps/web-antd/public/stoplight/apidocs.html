@@ -81,20 +81,30 @@
     (function() {
       var params = new URLSearchParams(window.location.search);
       var token = params.get('token');
+      var lang = params.get('lang') || 'zh-CN';
+      var apiParams = new URLSearchParams();
+      apiParams.set('lang', lang);
+      document.documentElement.setAttribute('lang', lang);
       if (token) {
         localStorage.setItem('TryIt_securitySchemeValues', JSON.stringify({
           BearerAuth: token
         }));
       }
+      var apiDescriptionUrl = '/api.json?' + apiParams.toString();
+      var apiElement = document.createElement('elements-api');
+      apiElement.setAttribute('apiDescriptionUrl', apiDescriptionUrl);
+      apiElement.setAttribute('router', 'memory');
+      apiElement.setAttribute('layout', 'sidebar');
+      apiElement.setAttribute('tryItCredentialsPolicy', 'same-origin');
+      apiElement.setAttribute('hideInternal', 'true');
+      apiElement.apiDescriptionUrl = apiDescriptionUrl;
+      apiElement.router = 'memory';
+      apiElement.layout = 'sidebar';
+      apiElement.tryItCredentialsPolicy = 'same-origin';
+      apiElement.hideInternal = true;
+      document.body.appendChild(apiElement);
     })();
   </script>
-  <elements-api
-    apiDescriptionUrl="/api.json"
-    router="memory"
-    layout="sidebar"
-    tryItCredentialsPolicy="same-origin"
-    hideInternal="true"
-  />
   <script src="/stoplight/web-components.min.js"></script>
   <script>
     // FB-24: 将 SCHEMAS 区域做成可折叠（默认折叠）

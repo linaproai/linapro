@@ -35,6 +35,7 @@ func (s *serviceImpl) Build(ctx context.Context, server *ghttp.Server) (*goai.Op
 			return nil, err
 		}
 	}
+	s.localizeDocument(ctx, document)
 	return document, nil
 }
 

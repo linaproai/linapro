@@ -197,6 +197,201 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	}
 }
 
+// TestParseRuntimeArtifactValidatesAPIDocI18NAssets verifies that runtime
+// artifact parsing validates the API-documentation i18n custom section before a
+// dynamic plugin release is accepted.
+func TestParseRuntimeArtifactValidatesAPIDocI18NAssets(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dynamic-apidoc-i18n",
+		"Runtime APIDoc I18N Plugin",
+		"v0.3.3",
+		nil,
+		nil,
+	)
+
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-apidoc-i18n"))
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dynamic-apidoc-i18n",
+			Name:    "Runtime APIDoc I18N Plugin",
+			Version: "v0.3.3",
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:          pluginbridge.RuntimeKindWasm,
+			ABIVersion:           pluginbridge.SupportedABIVersion,
+			APIDocI18NAssetCount: 1,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	content, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
+	}
+	content = appendTestRuntimeCustomSection(
+		t,
+		content,
+		pluginbridge.WasmSectionAPIDocI18NAssets,
+		[]map[string]string{
+			{
+				"locale":  "zh-CN",
+				"content": `{"plugins.plugin_dynamic_apidoc_i18n.paths.get.summary":"运行时接口文档翻译"}`,
+			},
+		},
+	)
+	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
+		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
+	}
+
+	artifact, err := services.Runtime.ParseRuntimeWasmArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact with apidoc i18n assets to parse, got error: %v", err)
+	}
+	if artifact.APIDocI18NAssetCount != 1 {
+		t.Fatalf("expected apidoc i18n asset count 1, got %d", artifact.APIDocI18NAssetCount)
+	}
+}
+
+// TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets verifies malformed
+// apidoc i18n sections fail during artifact parsing rather than at document
+// rendering time.
+func TestParseRuntimeArtifactRejectsInvalidAPIDocI18NAssets(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dynamic-apidoc-i18n-invalid",
+		"Runtime APIDoc I18N Invalid Plugin",
+		"v0.3.4",
+		nil,
+		nil,
+	)
+
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-apidoc-i18n-invalid"))
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dynamic-apidoc-i18n-invalid",
+			Name:    "Runtime APIDoc I18N Invalid Plugin",
+			Version: "v0.3.4",
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:          pluginbridge.RuntimeKindWasm,
+			ABIVersion:           pluginbridge.SupportedABIVersion,
+			APIDocI18NAssetCount: 1,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	content, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
+	}
+	content = appendTestRuntimeCustomSection(
+		t,
+		content,
+		pluginbridge.WasmSectionAPIDocI18NAssets,
+		[]map[string]string{
+			{
+				"locale":  "zh-CN",
+				"content": `{`,
+			},
+		},
+	)
+	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
+		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
+	}
+
+	_, err = services.Runtime.ParseRuntimeWasmArtifact(artifactPath)
+	if err == nil {
+		t.Fatal("expected invalid apidoc i18n asset content to be rejected")
+	}
+	if !strings.Contains(err.Error(), pluginbridge.WasmSectionAPIDocI18NAssets) || !strings.Contains(err.Error(), "zh-CN") {
+		t.Fatalf("expected apidoc i18n error to mention section and locale, got %v", err)
+	}
+}
+
+// TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch verifies artifact
+// metadata cannot claim a different apidoc i18n asset count from the actual
+// custom section payload.
+func TestParseRuntimeArtifactRejectsAPIDocI18NCountMismatch(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dynamic-apidoc-i18n-count",
+		"Runtime APIDoc I18N Count Plugin",
+		"v0.3.5",
+		nil,
+		nil,
+	)
+
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-apidoc-i18n-count"))
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dynamic-apidoc-i18n-count",
+			Name:    "Runtime APIDoc I18N Count Plugin",
+			Version: "v0.3.5",
+			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:          pluginbridge.RuntimeKindWasm,
+			ABIVersion:           pluginbridge.SupportedABIVersion,
+			APIDocI18NAssetCount: 2,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	content, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
+	}
+	content = appendTestRuntimeCustomSection(
+		t,
+		content,
+		pluginbridge.WasmSectionAPIDocI18NAssets,
+		[]map[string]string{
+			{
+				"locale":  "zh-CN",
+				"content": `{"plugins.plugin_dynamic_apidoc_i18n_count.paths.get.summary":"运行时接口文档翻译"}`,
+			},
+		},
+	)
+	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
+		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
+	}
+
+	_, err = services.Runtime.ParseRuntimeWasmArtifact(artifactPath)
+	if err == nil {
+		t.Fatal("expected apidoc i18n count mismatch to be rejected")
+	}
+	if !strings.Contains(err.Error(), "apidoc i18n") || !strings.Contains(err.Error(), "metadata=2 actual=1") {
+		t.Fatalf("expected apidoc i18n count mismatch error, got %v", err)
+	}
+}
+
 // TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection verifies that
 // legacy capability sections are rejected in favor of structured host services.
 func TestParseRuntimeArtifactRejectsDeprecatedCapabilitiesSection(t *testing.T) {

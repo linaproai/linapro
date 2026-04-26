@@ -6,22 +6,22 @@ import (
 
 // UpdateReq defines the request for updating menu information.
 type UpdateReq struct {
-	g.Meta     `path:"/menu/{id}" method:"put" tags:"菜单管理" summary:"更新菜单" dc:"更新菜单信息，菜单名称在同一父级下不能与其他菜单重复；目录和菜单图标在左侧导航中必须保持全局唯一，重复图标会被拒绝" permission:"system:menu:edit"`
-	Id         int    `json:"id" v:"required|min:1" dc:"菜单ID" eg:"1"`
-	ParentId   *int   `json:"parentId" dc:"父菜单ID（0=根菜单）" eg:"0"`
-	Name       string `json:"name" v:"required" dc:"菜单名称（支持i18n格式）" eg:"用户管理"`
-	Path       string `json:"path" dc:"路由地址" eg:"user"`
-	Component  string `json:"component" dc:"组件路径" eg:"system/user/index"`
-	Perms      string `json:"perms" dc:"权限标识" eg:"system:user:list"`
-	Icon       string `json:"icon" dc:"菜单图标；目录和菜单类型保存时会校验左侧导航图标全局唯一，按钮类型忽略该约束" eg:"ant-design:user-outlined"`
-	Type       string `json:"type" v:"required|in:D,M,B" dc:"菜单类型：D=目录 M=菜单 B=按钮" eg:"M"`
-	Sort       *int   `json:"sort" dc:"显示排序" eg:"1"`
-	Visible    *int   `json:"visible" v:"in:0,1" dc:"是否显示：1=显示 0=隐藏" eg:"1"`
-	Status     *int   `json:"status" v:"in:0,1" dc:"状态：1=正常 0=停用" eg:"1"`
-	IsFrame    *int   `json:"isFrame" v:"in:0,1" dc:"是否外链：1=是 0=否" eg:"0"`
-	IsCache    *int   `json:"isCache" v:"in:0,1" dc:"是否缓存：1=是 0=否" eg:"0"`
-	QueryParam string `json:"queryParam" dc:"路由参数（JSON格式）" eg:""`
-	Remark     string `json:"remark" dc:"备注" eg:""`
+	g.Meta     `path:"/menu/{id}" method:"put" tags:"Menu Management" summary:"Update menu" dc:"Update the menu information. The menu name cannot be repeated with other menus under the same parent; the directory and menu icons must remain globally unique in the left navigation, and duplicate icons will be rejected." permission:"system:menu:edit"`
+	Id         int    `json:"id" v:"required|min:1" dc:"Menu ID" eg:"1"`
+	ParentId   *int   `json:"parentId" dc:"Parent menu ID (0=root menu)" eg:"0"`
+	Name       string `json:"name" v:"required" dc:"Menu name (supports i18n format)" eg:"User Management"`
+	Path       string `json:"path" dc:"routing address" eg:"user"`
+	Component  string `json:"component" dc:"component path" eg:"system/user/index"`
+	Perms      string `json:"perms" dc:"Permission ID" eg:"system:user:list"`
+	Icon       string `json:"icon" dc:"Menu icon; when saving catalog and menu types, the left navigation icon will be verified to be globally unique. Button types ignore this constraint." eg:"ant-design:user-outlined"`
+	Type       string `json:"type" v:"required|in:D,M,B" dc:"Menu type: D=Directory M=Menu B=Button" eg:"M"`
+	Sort       *int   `json:"sort" dc:"Show sort" eg:"1"`
+	Visible    *int   `json:"visible" v:"in:0,1" dc:"Whether to display: 1=show 0=hide" eg:"1"`
+	Status     *int   `json:"status" v:"in:0,1" dc:"Status: 1=normal 0=disabled" eg:"1"`
+	IsFrame    *int   `json:"isFrame" v:"in:0,1" dc:"Whether to external link: 1=yes 0=no" eg:"0"`
+	IsCache    *int   `json:"isCache" v:"in:0,1" dc:"Whether to cache: 1=yes 0=no" eg:"0"`
+	QueryParam string `json:"queryParam" dc:"Route parameters (JSON format)" eg:""`
+	Remark     string `json:"remark" dc:"Remarks" eg:""`
 }
 
 // UpdateRes defines the response for updating menu information.

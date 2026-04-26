@@ -76,6 +76,33 @@ export class MainLayout {
     return this.page.getByTestId('layout-user-dropdown-name');
   }
 
+  get preferencesTrigger() {
+    return this.page.getByTestId('preferences-trigger').first();
+  }
+
+  get preferencesDrawerTitle() {
+    return this.page.getByTestId('preferences-drawer-title').first();
+  }
+
+  get preferencesDrawerSubtitle() {
+    return this.page.getByTestId('preferences-drawer-subtitle').first();
+  }
+
+  get preferencesDrawer() {
+    return this.page
+      .getByRole('dialog')
+      .filter({ has: this.page.getByTestId('preferences-drawer-title') })
+      .first();
+  }
+
+  get workspaceFooterCopyright() {
+    return this.page
+      .locator('footer')
+      .filter({ hasText: 'Copyright ©' })
+      .first()
+      .getByText(/Copyright ©/);
+  }
+
   async navigateTo(menuGroup: string, menuItem: string) {
     await this.page.getByText(menuGroup).click();
     await this.page.getByText(menuItem).click();
@@ -110,6 +137,16 @@ export class MainLayout {
   async openUserDropdown() {
     await this.userDropdownTrigger.click();
     await expect(this.userDropdownMenu).toBeVisible();
+  }
+
+  async openPreferences() {
+    await this.preferencesTrigger.click();
+    await expect(this.preferencesDrawerTitle).toBeVisible();
+  }
+
+  async openPreferencesTab(label: string | RegExp) {
+    await this.openPreferences();
+    await this.preferencesDrawer.getByRole('tab', { name: label }).click();
   }
 
   async logout() {

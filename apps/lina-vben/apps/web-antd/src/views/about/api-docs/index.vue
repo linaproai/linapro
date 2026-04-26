@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 
+import { preferences } from '@vben/preferences';
 import { useAccessStore } from '@vben/stores';
 
 defineOptions({ name: 'ApiDocs' });
 
 const accessStore = useAccessStore();
 const iframeSrc = computed(() => {
-  const token = accessStore.accessToken || '';
-  return `/stoplight/apidocs.html?token=${encodeURIComponent(token)}`;
+  const params = new URLSearchParams();
+  params.set('lang', preferences.app.locale || 'zh-CN');
+  params.set('token', accessStore.accessToken || '');
+  return `/stoplight/apidocs.html?${params.toString()}`;
 });
 </script>
 

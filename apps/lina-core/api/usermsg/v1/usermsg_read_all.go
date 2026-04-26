@@ -8,7 +8,7 @@ import (
 
 // ReadAllReq defines the request for marking all user messages as read.
 type ReadAllReq struct {
-	g.Meta `path:"/user/message/read-all" method:"put" tags:"用户消息" summary:"标记全部消息已读" dc:"将当前用户的所有未读消息批量标记为已读"`
+	g.Meta `path:"/user/message/read-all" method:"put" tags:"User Messages" summary:"Mark all messages as read" dc:"Mark all unread messages of the current user as read in batches"`
 }
 
 // ReadAllRes Mark all messages as read response

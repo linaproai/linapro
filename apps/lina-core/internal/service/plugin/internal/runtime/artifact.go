@@ -144,6 +144,14 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	if err != nil {
 		return nil, err
 	}
+	runtimeI18NAssets, err := parseRuntimeArtifactLocaleJSONAssets(filePath, sections, pluginbridge.WasmSectionI18NAssets)
+	if err != nil {
+		return nil, err
+	}
+	apiDocI18NAssets, err := parseRuntimeArtifactLocaleJSONAssets(filePath, sections, pluginbridge.WasmSectionAPIDocI18NAssets)
+	if err != nil {
+		return nil, err
+	}
 	installSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, pluginbridge.WasmSectionInstallSQL)
 	if err != nil {
 		return nil, err
@@ -216,6 +224,26 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	if runtimeMetadata.FrontendAssetCount <= 0 {
 		runtimeMetadata.FrontendAssetCount = len(frontendAssets)
 	}
+	if runtimeMetadata.I18NAssetCount > 0 && runtimeMetadata.I18NAssetCount != len(runtimeI18NAssets) {
+		return nil, gerror.Newf(
+			"动态插件运行时 i18n 资源数量与元数据不一致: metadata=%d actual=%d",
+			runtimeMetadata.I18NAssetCount,
+			len(runtimeI18NAssets),
+		)
+	}
+	if runtimeMetadata.I18NAssetCount <= 0 {
+		runtimeMetadata.I18NAssetCount = len(runtimeI18NAssets)
+	}
+	if runtimeMetadata.APIDocI18NAssetCount > 0 && runtimeMetadata.APIDocI18NAssetCount != len(apiDocI18NAssets) {
+		return nil, gerror.Newf(
+			"动态插件 apidoc i18n 资源数量与元数据不一致: metadata=%d actual=%d",
+			runtimeMetadata.APIDocI18NAssetCount,
+			len(apiDocI18NAssets),
+		)
+	}
+	if runtimeMetadata.APIDocI18NAssetCount <= 0 {
+		runtimeMetadata.APIDocI18NAssetCount = len(apiDocI18NAssets)
+	}
 	if runtimeMetadata.RouteCount > 0 && runtimeMetadata.RouteCount != len(routeContracts) {
 		return nil, gerror.Newf(
 			"动态插件路由数量与元数据不一致: metadata=%d actual=%d",
@@ -228,23 +256,25 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 
 	return &catalog.ArtifactSpec{
-		Path:               filePath,
-		Checksum:           fmt.Sprintf("%x", sha256.Sum256(content)),
-		RuntimeKind:        runtimeKind,
-		ABIVersion:         abiVersion,
-		FrontendAssetCount: maxInt(runtimeMetadata.FrontendAssetCount, 0),
-		SQLAssetCount:      maxInt(runtimeMetadata.SQLAssetCount, 0),
-		RouteCount:         maxInt(runtimeMetadata.RouteCount, 0),
-		Manifest:           embeddedManifest,
-		FrontendAssets:     frontendAssets,
-		InstallSQLAssets:   installSQLAssets,
-		UninstallSQLAssets: uninstallSQLAssets,
-		HookSpecs:          hookSpecs,
-		ResourceSpecs:      resourceSpecs,
-		RouteContracts:     routeContracts,
-		BridgeSpec:         bridgeSpec,
-		Capabilities:       capabilities,
-		HostServices:       hostServices,
+		Path:                 filePath,
+		Checksum:             fmt.Sprintf("%x", sha256.Sum256(content)),
+		RuntimeKind:          runtimeKind,
+		ABIVersion:           abiVersion,
+		FrontendAssetCount:   maxInt(runtimeMetadata.FrontendAssetCount, 0),
+		I18NAssetCount:       maxInt(runtimeMetadata.I18NAssetCount, 0),
+		APIDocI18NAssetCount: maxInt(runtimeMetadata.APIDocI18NAssetCount, 0),
+		SQLAssetCount:        maxInt(runtimeMetadata.SQLAssetCount, 0),
+		RouteCount:           maxInt(runtimeMetadata.RouteCount, 0),
+		Manifest:             embeddedManifest,
+		FrontendAssets:       frontendAssets,
+		InstallSQLAssets:     installSQLAssets,
+		UninstallSQLAssets:   uninstallSQLAssets,
+		HookSpecs:            hookSpecs,
+		ResourceSpecs:        resourceSpecs,
+		RouteContracts:       routeContracts,
+		BridgeSpec:           bridgeSpec,
+		Capabilities:         capabilities,
+		HostServices:         hostServices,
 	}, nil
 }
 
@@ -430,6 +460,46 @@ func maxInt(value int, lowerBound int) int {
 		return lowerBound
 	}
 	return value
+}
+
+// runtimeArtifactLocaleJSONAsset stores one locale JSON payload embedded in a
+// dynamic plugin artifact.
+type runtimeArtifactLocaleJSONAsset struct {
+	Locale  string `json:"locale"`
+	Content string `json:"content"`
+}
+
+// parseRuntimeArtifactLocaleJSONAssets validates locale JSON assets embedded
+// for runtime UI i18n or API-documentation i18n.
+func parseRuntimeArtifactLocaleJSONAssets(
+	filePath string,
+	sections map[string][]byte,
+	sectionName string,
+) ([]*runtimeArtifactLocaleJSONAsset, error) {
+	sectionContent, ok := sections[sectionName]
+	if !ok {
+		return []*runtimeArtifactLocaleJSONAsset{}, nil
+	}
+
+	assets := make([]*runtimeArtifactLocaleJSONAsset, 0)
+	if err := json.Unmarshal(sectionContent, &assets); err != nil {
+		return nil, gerror.Wrapf(err, "解析动态插件 i18n 自定义节失败 section=%s: %s", sectionName, filePath)
+	}
+	for _, asset := range assets {
+		if asset == nil {
+			return nil, gerror.Newf("动态插件 i18n 自定义节存在空项 section=%s: %s", sectionName, filePath)
+		}
+		asset.Locale = strings.TrimSpace(asset.Locale)
+		asset.Content = strings.TrimSpace(asset.Content)
+		if asset.Locale == "" || asset.Content == "" {
+			return nil, gerror.Newf("动态插件 i18n 自定义节缺少 locale 或 content section=%s: %s", sectionName, filePath)
+		}
+		var bundle map[string]string
+		if err := json.Unmarshal([]byte(asset.Content), &bundle); err != nil {
+			return nil, gerror.Wrapf(err, "解析动态插件 i18n 资源内容失败 section=%s locale=%s: %s", sectionName, asset.Locale, filePath)
+		}
+	}
+	return assets, nil
 }
 
 // parseRuntimeArtifactSQLAssets restores embedded SQL assets and validates

@@ -17,6 +17,9 @@ temp/
 apps/lina-core/temp/
 apps/lina-core/internal/packed/manifest/**
 !apps/lina-core/internal/packed/manifest/.gitkeep
+!apps/lina-core/internal/packed/manifest/apidoc/
+!apps/lina-core/internal/packed/manifest/apidoc/i18n/
+!apps/lina-core/internal/packed/manifest/apidoc/i18n/*.json
 
 # Frontend
 **/node_modules/

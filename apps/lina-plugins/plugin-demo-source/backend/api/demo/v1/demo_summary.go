@@ -4,10 +4,10 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // SummaryReq is the request for querying plugin-demo-source summary.
 type SummaryReq struct {
-	g.Meta `path:"/plugins/plugin-demo-source/summary" method:"get" tags:"源码插件示例" summary:"查询源码插件示例摘要" dc:"返回 plugin-demo-source 页面展示所需的简要介绍文案，用于验证源码插件菜单页可读取插件后端接口数据" permission:"plugin-demo-source:example:view"`
+	g.Meta `path:"/plugins/plugin-demo-source/summary" method:"get" tags:"Source Plugin Demo" summary:"Query source plugin example summary" dc:"Return summary copy for the plugin-demo-source page to verify that a source plugin menu page can read backend API data." permission:"plugin-demo-source:example:view"`
 }
 
 // SummaryRes is the response for querying plugin-demo-source summary.
 type SummaryRes struct {
-	Message string `json:"message" dc:"页面展示使用的简要介绍文案，来自插件后端接口" eg:"这是一条来自 plugin-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。"`
+	Message string `json:"message" dc:"A brief introduction copy used for page display, from the plugin backend interface" eg:"This is a brief introduction from the plugin-demo-source interface, which is used to verify that the source plugin menu page can read the plugin backend data."`
 }

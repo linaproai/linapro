@@ -146,10 +146,15 @@ function extractDynamicRoutePermission(rawValue: string) {
   }
 
   const parts = normalized.split(':');
+  const pluginSegment = parts[0] ?? '';
+  const resourceSegment = parts[1] ?? '';
+  const actionSegment = parts[2] ?? '';
   if (
     parts.length === 3 &&
-    parts.every((part) => part.trim() !== '') &&
-    /^plugin[-_]/.test(parts[0].trim())
+    pluginSegment.trim() !== '' &&
+    resourceSegment.trim() !== '' &&
+    actionSegment.trim() !== '' &&
+    /^plugin[-_]/.test(pluginSegment.trim())
   ) {
     return normalized;
   }
@@ -173,8 +178,8 @@ export function formatMenuPermissionLabel(rawValue: string | null | undefined) {
     return isEnglishLocale() ? 'Dynamic Route Permission' : '动态路由权限';
   }
 
-  const resourceLabel = humanizePermissionSegment(parts[1]);
-  const actionLabel = humanizePermissionSegment(parts[2]);
+  const resourceLabel = humanizePermissionSegment(parts[1] ?? '');
+  const actionLabel = humanizePermissionSegment(parts[2] ?? '');
 
   if (isEnglishLocale()) {
     return `Dynamic Route Permission (resource: ${resourceLabel}, action: ${actionLabel})`;

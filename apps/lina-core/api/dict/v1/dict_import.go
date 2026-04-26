@@ -8,28 +8,28 @@ import (
 
 // ImportReq defines the request for importing dictionary types and data together.
 type ImportReq struct {
-	g.Meta `path:"/dict/import" method:"post" mime:"multipart/form-data" tags:"字典管理" summary:"导入字典管理数据" dc:"通过Excel文件批量导入字典类型和字典数据，需使用系统提供的导入模板。文件包含两个Sheet：字典类型和字典数据" permission:"system:dict:add"`
+	g.Meta `path:"/dict/import" method:"post" mime:"multipart/form-data" tags:"Dictionary Management" summary:"Import dictionary management data" dc:"To batch import dictionary types and dictionary data through Excel files, you need to use the import template provided by the system. The file contains two Sheets: dictionary type and dictionary data" permission:"system:dict:add"`
 }
 
 // ImportRes is the response structure for dictionary combined import.
 type ImportRes struct {
-	TypeSuccess int              `json:"typeSuccess" dc:"字典类型成功导入条数" eg:"10"`
-	TypeFail    int              `json:"typeFail" dc:"字典类型失败条数" eg:"2"`
-	DataSuccess int              `json:"dataSuccess" dc:"字典数据成功导入条数" eg:"50"`
-	DataFail    int              `json:"dataFail" dc:"字典数据失败条数" eg:"5"`
-	FailList    []ImportFailItem `json:"failList" dc:"失败详情" eg:"[]"`
+	TypeSuccess int              `json:"typeSuccess" dc:"Number of entries successfully imported into dictionary type" eg:"10"`
+	TypeFail    int              `json:"typeFail" dc:"Number of failed entries in dictionary type" eg:"2"`
+	DataSuccess int              `json:"dataSuccess" dc:"Number of dictionary data successfully imported" eg:"50"`
+	DataFail    int              `json:"dataFail" dc:"Number of failed dictionary data entries" eg:"5"`
+	FailList    []ImportFailItem `json:"failList" dc:"Failure details" eg:"[]"`
 }
 
 // ImportFailItem represents a failed import record.
 type ImportFailItem struct {
-	Sheet  string `json:"sheet" dc:"Sheet名称（字典类型/字典数据）" eg:"字典类型"`
-	Row    int    `json:"row" dc:"行号" eg:"3"`
-	Reason string `json:"reason" dc:"失败原因" eg:"字典类型已存在"`
+	Sheet  string `json:"sheet" dc:"Sheet name (dictionary type/dictionary data)" eg:"dictionary type"`
+	Row    int    `json:"row" dc:"Line number" eg:"3"`
+	Reason string `json:"reason" dc:"Reason for failure" eg:"Dictionary type already exists"`
 }
 
 // ImportTemplateReq defines the request for downloading combined import template.
 type ImportTemplateReq struct {
-	g.Meta `path:"/dict/import-template" method:"get" tags:"字典管理" summary:"下载字典管理导入模板" dc:"下载字典管理导入Excel模板文件，包含字典类型和字典数据两个Sheet，每个Sheet包含示例数据和字段说明" permission:"system:dict:add"`
+	g.Meta `path:"/dict/import-template" method:"get" tags:"Dictionary Management" summary:"Download Dictionary Management Import Template" dc:"Download the dictionary management and import Excel template file, which contains two Sheets of dictionary type and dictionary data. Each Sheet contains sample data and field descriptions." permission:"system:dict:add"`
 }
 
 // ImportTemplateRes is the response for template download.

@@ -6,67 +6,67 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // FrontendReq defines the request for fetching public frontend config.
 type FrontendReq struct {
-	g.Meta `path:"/config/public/frontend" method:"get" tags:"公共配置" summary:"获取公共前端配置" dc:"返回登录页与管理后台启动阶段可安全公开读取的品牌、登录展示和界面风格配置白名单"`
+	g.Meta `path:"/config/public/frontend" method:"get" tags:"Public Configuration" summary:"Get public frontend configuration" dc:"Return to the login page and the whitelist of brand, login display and interface style configuration that can be safely and publicly read during the startup phase of the management background"`
 }
 
 // FrontendRes defines the public frontend config response.
 type FrontendRes struct {
-	App  FrontendAppRes  `json:"app" dc:"应用品牌展示配置" eg:"{}"`
-	Auth FrontendAuthRes `json:"auth" dc:"登录页展示配置" eg:"{}"`
-	User FrontendUserRes `json:"user" dc:"用户展示兜底配置" eg:"{}"`
-	UI   FrontendUIRes   `json:"ui" dc:"界面风格配置" eg:"{}"`
-	Cron FrontendCronRes `json:"cron" dc:"定时任务前端能力配置" eg:"{}"`
+	App  FrontendAppRes  `json:"app" dc:"Apply brand display configuration" eg:"{}"`
+	Auth FrontendAuthRes `json:"auth" dc:"Login page display configuration" eg:"{}"`
+	User FrontendUserRes `json:"user" dc:"User display configuration" eg:"{}"`
+	UI   FrontendUIRes   `json:"ui" dc:"UI style configuration" eg:"{}"`
+	Cron FrontendCronRes `json:"cron" dc:"Scheduled job frontend capability configuration" eg:"{}"`
 }
 
 // FrontendAppRes stores brand-related public settings.
 type FrontendAppRes struct {
-	Name     string `json:"name" dc:"应用名称，用于浏览器标题和工作台 Logo 文案" eg:"LinaPro"`
-	Logo     string `json:"logo" dc:"默认 Logo 图片地址" eg:"/linapro-mark.png"`
-	LogoDark string `json:"logoDark" dc:"深色主题 Logo 图片地址" eg:"/linapro-mark.png"`
+	Name     string `json:"name" dc:"Application name, used for browser title and workbench logo copywriting" eg:"LinaPro"`
+	Logo     string `json:"logo" dc:"Default logo image address" eg:"/linapro-mark.png"`
+	LogoDark string `json:"logoDark" dc:"Dark theme logo image address" eg:"/linapro-mark.png"`
 }
 
 // FrontendAuthRes stores login-page public copy settings.
 type FrontendAuthRes struct {
-	PageTitle     string `json:"pageTitle" dc:"登录页主标题文案" eg:"AI驱动的全栈开发框架"`
-	PageDesc      string `json:"pageDesc" dc:"登录页说明文案" eg:"面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制"`
-	LoginSubtitle string `json:"loginSubtitle" dc:"登录表单副标题文案" eg:"请输入您的帐户信息以进入 LinaPro 宿主工作区"`
-	PanelLayout   string `json:"panelLayout" dc:"登录框布局：panel-left=居左 panel-center=居中 panel-right=居右" eg:"panel-right"`
+	PageTitle     string `json:"pageTitle" dc:"Login page main title copywriting" eg:"AI-driven full-stack development framework"`
+	PageDesc      string `json:"pageDesc" dc:"Login page description copy" eg:"Facing business evolution, it provides out-of-the-box management portals and flexible pluggable expansion mechanisms."`
+	LoginSubtitle string `json:"loginSubtitle" dc:"Login form subtitle copywriting" eg:"Please enter your account information to enter the LinaPro hosting workspace"`
+	PanelLayout   string `json:"panelLayout" dc:"Login box layout: panel-left=left panel-center=center panel-right=right" eg:"panel-right"`
 }
 
 // FrontendUserRes stores user-facing public fallback settings.
 type FrontendUserRes struct {
-	DefaultAvatar string `json:"defaultAvatar" dc:"用户未设置头像时使用的默认头像地址" eg:"/avatar.webp"`
+	DefaultAvatar string `json:"defaultAvatar" dc:"The default avatar address used when the user does not set an avatar" eg:"/avatar.webp"`
 }
 
 // FrontendUIRes stores public-safe theme and layout preferences.
 type FrontendUIRes struct {
-	ThemeMode        string `json:"themeMode" dc:"主题模式：light=浅色 dark=深色 auto=跟随系统" eg:"light"`
-	Layout           string `json:"layout" dc:"后台默认布局：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content" eg:"sidebar-nav"`
-	WatermarkEnabled bool   `json:"watermarkEnabled" dc:"是否启用水印：true=启用 false=关闭" eg:"false"`
-	WatermarkContent string `json:"watermarkContent" dc:"水印文案内容" eg:"LinaPro"`
+	ThemeMode        string `json:"themeMode" dc:"Theme mode: light=light dark=dark auto=follow the system" eg:"light"`
+	Layout           string `json:"layout" dc:"Backend default layout: sidebar-nav, sidebar-mixed-nav, header-nav, header-sidebar-nav, header-mixed-nav, mixed-nav, full-content" eg:"sidebar-nav"`
+	WatermarkEnabled bool   `json:"watermarkEnabled" dc:"Whether to enable watermark: true=enable false=disable" eg:"false"`
+	WatermarkContent string `json:"watermarkContent" dc:"Watermark copy content" eg:"LinaPro"`
 }
 
 // FrontendCronRes stores public-safe scheduled-job capability flags.
 type FrontendCronRes struct {
-	LogRetention FrontendCronLogRetentionRes `json:"logRetention" dc:"系统级定时任务日志保留策略" eg:"{}"`
-	Shell        FrontendCronShellRes        `json:"shell" dc:"Shell 任务前端能力开关" eg:"{}"`
-	Timezone     FrontendCronTimezoneRes     `json:"timezone" dc:"定时任务默认时区配置" eg:"{}"`
+	LogRetention FrontendCronLogRetentionRes `json:"logRetention" dc:"System-level scheduled job log retention policy" eg:"{}"`
+	Shell        FrontendCronShellRes        `json:"shell" dc:"Shell task frontend capability switch" eg:"{}"`
+	Timezone     FrontendCronTimezoneRes     `json:"timezone" dc:"Default time zone configuration for scheduled jobs" eg:"{}"`
 }
 
 // FrontendCronLogRetentionRes stores the frontend-visible default log-retention policy.
 type FrontendCronLogRetentionRes struct {
-	Mode  string `json:"mode" dc:"系统级日志保留模式：days=按天保留 count=按条数保留 none=不自动清理" eg:"days"`
-	Value int64  `json:"value" dc:"系统级日志保留阈值；mode=days 或 count 时大于0，mode=none 时为0" eg:"30"`
+	Mode  string `json:"mode" dc:"System-level log retention mode: days=retain by day count=retain by number of entries none=do not automatically clean up" eg:"days"`
+	Value int64  `json:"value" dc:"System-level log retention threshold; greater than 0 when mode=days or count, 0 when mode=none" eg:"30"`
 }
 
 // FrontendCronShellRes stores the shell-job gate exposed to the frontend.
 type FrontendCronShellRes struct {
-	Enabled        bool   `json:"enabled" dc:"是否允许创建和执行 Shell 任务：true=允许 false=不允许" eg:"false"`
-	Supported      bool   `json:"supported" dc:"当前平台是否支持 Shell 任务：true=支持 false=不支持" eg:"true"`
-	DisabledReason string `json:"disabledReason" dc:"Shell 任务不可用时的原因说明" eg:"当前平台不支持 shell 模式"`
+	Enabled        bool   `json:"enabled" dc:"Whether to allow creation and execution of Shell tasks: true=allowed false=not allowed" eg:"false"`
+	Supported      bool   `json:"supported" dc:"Whether the current platform supports Shell tasks: true=supported false=not supported" eg:"true"`
+	DisabledReason string `json:"disabledReason" dc:"Explanation of why the Shell task is unavailable" eg:"The current platform does not support shell mode"`
 }
 
 // FrontendCronTimezoneRes stores the default timezone exposed to the frontend.
 type FrontendCronTimezoneRes struct {
-	Current string `json:"current" dc:"当前宿主系统时区标识，作为新增任务时区的默认值" eg:"Asia/Shanghai"`
+	Current string `json:"current" dc:"The current host system time zone identifier, used as the default value for the new task time zone" eg:"Asia/Shanghai"`
 }

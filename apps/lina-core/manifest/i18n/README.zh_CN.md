@@ -1,8 +1,10 @@
 # 运行时国际化资源
 
-该目录用于存放`LinaPro`交付项目的运行时多语言基线消息包。
+该目录用于存放`LinaPro`交付项目的国际化基线资源。
 
-宿主会把`manifest/i18n/<locale>.json`作为项目级基线资源加载，并与已启用插件资源、数据库覆写一起聚合，最终通过运行时国际化接口输出生效结果。
+宿主会把顶层`manifest/i18n/<locale>.json`作为运行时 UI 语言包加载，并与已启用插件资源、数据库覆写一起聚合，最终通过运行时国际化接口输出生效结果。
+
+接口文档翻译资源存放在`manifest/i18n/apidoc/<locale>.json`。它们与运行时 UI 语言包共享同一个 i18n 根目录，便于发现和治理，但通过 `apidoc/` 子目录保持隔离，因为 OpenAPI 文档体量较大，且只在渲染 `/api.json` 时需要。
 
 ## 目录约定
 
@@ -10,14 +12,19 @@
 | ----------------------------------------------------------- | ------------------ |
 | `manifest/i18n/zh-CN.json`                                  | 简体中文基线语言包 |
 | `manifest/i18n/en-US.json`                                  | 英文基线语言包     |
+| `manifest/i18n/apidoc/zh-CN.json`                           | 简体中文接口文档语言包 |
+| `manifest/i18n/apidoc/en-US.json`                           | 英文接口文档空占位文件 |
 | `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | 插件自有语言包     |
+| `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` | 插件自有接口文档语言包 |
 
 规则如下：
 
 - 文件名必须使用规范化语言编码，例如`zh-CN.json`、`en-US.json`。
 - 宿主只把顶层`manifest/i18n/<locale>.json`识别为运行时语言包。
+- 宿主只把`manifest/i18n/apidoc/<locale>.json`识别为接口文档语言包。
 - 运行时消息统一使用扁平`key`维护。
 - 只有在返回前端运行时国际化接口结果时，宿主才会把扁平`key`转换为嵌套对象。
+- 接口文档语言包使用结构化 `core.*` 和 `plugins.*` 键，`en-US.json` 保持 `{}`，且不翻译 `eg/example` 示例值或生成 entity 元数据。
 
 ## 为什么使用`JSON`和扁平`key`
 
@@ -62,10 +69,12 @@
 
 1. 在`manifest/i18n/`中新增或更新基线语言文件。
 2. 当插件提供用户可见文案时，在`apps/lina-plugins/<plugin-id>/manifest/i18n/`中补充对应语言文件。
-3. 启动宿主后，请求`GET /api/v1/i18n/runtime/messages?lang=<locale>`确认聚合后的运行时结果。
-4. 使用`GET /api/v1/i18n/messages/missing?locale=<locale>`检查目标语言相对默认语言仍缺失的翻译键。
-5. 使用`GET /api/v1/i18n/messages/diagnostics?locale=<locale>`确认当前生效值来自宿主文件、插件文件还是数据库覆写。
-6. 如果线上需要热修正文案，可通过`POST /api/v1/i18n/messages/import`导入数据库覆写，再通过`GET /api/v1/i18n/messages/export`导出生效结果回写代码库。
+3. 当 API DTO 源文案变化时，在宿主或插件自己的 `manifest/i18n/apidoc/` 中补充接口文档语言文件。
+4. 启动宿主后，请求`GET /api/v1/i18n/runtime/messages?lang=<locale>`确认聚合后的运行时结果。
+5. 请求 `/api.json?lang=<locale>` 确认接口文档本地化结果。
+6. 使用`GET /api/v1/i18n/messages/missing?locale=<locale>`检查目标语言相对默认语言仍缺失的翻译键。
+7. 使用`GET /api/v1/i18n/messages/diagnostics?locale=<locale>`确认当前生效值来自宿主文件、插件文件还是数据库覆写。
+8. 如果线上需要热修正文案，可通过`POST /api/v1/i18n/messages/import`导入数据库覆写，再通过`GET /api/v1/i18n/messages/export`导出生效结果回写代码库。
 
 ## 校验规则
 

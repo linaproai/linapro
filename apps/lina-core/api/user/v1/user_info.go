@@ -6,36 +6,36 @@ import (
 
 // GetInfoReq defines the request for querying current frontend user info.
 type GetInfoReq struct {
-	g.Meta `path:"/user/info" method:"get" tags:"用户管理" summary:"获取宿主用户上下文" dc:"获取当前登录用户的基础身份、角色、菜单树与权限集合，供默认管理工作台完成启动装配、导航渲染与权限控制"`
+	g.Meta `path:"/user/info" method:"get" tags:"User Management" summary:"Get host user context" dc:"Obtain the basic identity, role, menu tree and permission set of the currently logged in user for the default management workbench to complete startup assembly, navigation rendering and permission control."`
 }
 
 // GetInfoRes defines the response for querying current frontend user info.
 type GetInfoRes struct {
-	UserId      int         `json:"userId" dc:"用户ID" eg:"1"`
-	Username    string      `json:"username" dc:"用户名" eg:"admin"`
-	RealName    string      `json:"realName" dc:"真实姓名（昵称）" eg:"管理员"`
-	Email       string      `json:"email" dc:"邮箱地址" eg:"admin@example.com"`
-	Avatar      string      `json:"avatar" dc:"头像地址" eg:"/upload/avatar/default.png"`
-	Roles       []string    `json:"roles" dc:"用户角色标识列表" eg:"['admin','user']"`
-	HomePath    string      `json:"homePath" dc:"首页路径" eg:"/dashboard"`
-	Menus       []*MenuTree `json:"menus" dc:"宿主菜单树，供默认管理工作台装配导航、路由与工作区入口" eg:"[]"`
-	Permissions []string    `json:"permissions" dc:"用户有效权限标识列表，包含菜单权限与按钮权限，用于接口声明权限校验和按钮级权限控制" eg:"['system:user:list','system:user:add','system:user:edit']"`
+	UserId      int         `json:"userId" dc:"User ID" eg:"1"`
+	Username    string      `json:"username" dc:"Username" eg:"admin"`
+	RealName    string      `json:"realName" dc:"Real name (nickname)" eg:"Administrator"`
+	Email       string      `json:"email" dc:"Email address" eg:"admin@example.com"`
+	Avatar      string      `json:"avatar" dc:"Avatar address" eg:"/upload/avatar/default.png"`
+	Roles       []string    `json:"roles" dc:"List of user role identifiers" eg:"['admin','user']"`
+	HomePath    string      `json:"homePath" dc:"Home path" eg:"/dashboard"`
+	Menus       []*MenuTree `json:"menus" dc:"Host menu tree for default management workbench assembly navigation, routing and workspace entry" eg:"[]"`
+	Permissions []string    `json:"permissions" dc:"List of user effective permission identifiers, including menu permissions and button permissions, used for interface declaration permission verification and button-level permission control" eg:"['system:user:list','system:user:add','system:user:edit']"`
 }
 
 // MenuTree represents a menu node in the user menu tree.
 type MenuTree struct {
-	Id        int         `json:"id" dc:"菜单ID" eg:"1"`
-	ParentId  int         `json:"parentId" dc:"父菜单ID" eg:"0"`
-	Name      string      `json:"name" dc:"菜单名称" eg:"系统管理"`
-	Path      string      `json:"path" dc:"路由路径" eg:"/system"`
-	Component string      `json:"component" dc:"组件路径" eg:"LAYOUT"`
-	Perms     string      `json:"perms" dc:"权限标识" eg:"system:user:list"`
-	Icon      string      `json:"icon" dc:"菜单图标" eg:"ant-design:setting-outlined"`
-	Type      string      `json:"type" dc:"菜单类型：D=目录 M=菜单 B=按钮" eg:"D"`
-	Sort      int         `json:"sort" dc:"排序" eg:"1"`
-	Visible   int         `json:"visible" dc:"是否显示：1=显示 0=隐藏" eg:"1"`
-	Status    int         `json:"status" dc:"状态：1=正常 0=停用" eg:"1"`
-	IsFrame   int         `json:"isFrame" dc:"是否外链：1=是 0=否" eg:"0"`
-	IsCache   int         `json:"isCache" dc:"是否缓存：1=是 0=否" eg:"0"`
-	Children  []*MenuTree `json:"children" dc:"子菜单" eg:"[]"`
+	Id        int         `json:"id" dc:"Menu ID" eg:"1"`
+	ParentId  int         `json:"parentId" dc:"Parent menu ID" eg:"0"`
+	Name      string      `json:"name" dc:"Menu name" eg:"System management"`
+	Path      string      `json:"path" dc:"routing path" eg:"/system"`
+	Component string      `json:"component" dc:"component path" eg:"LAYOUT"`
+	Perms     string      `json:"perms" dc:"Permission ID" eg:"system:user:list"`
+	Icon      string      `json:"icon" dc:"menu icon" eg:"ant-design:setting-outlined"`
+	Type      string      `json:"type" dc:"Menu type: D=Directory M=Menu B=Button" eg:"D"`
+	Sort      int         `json:"sort" dc:"sort" eg:"1"`
+	Visible   int         `json:"visible" dc:"Whether to display: 1=show 0=hide" eg:"1"`
+	Status    int         `json:"status" dc:"Status: 1=normal 0=disabled" eg:"1"`
+	IsFrame   int         `json:"isFrame" dc:"Whether to external link: 1=yes 0=no" eg:"0"`
+	IsCache   int         `json:"isCache" dc:"Whether to cache: 1=yes 0=no" eg:"0"`
+	Children  []*MenuTree `json:"children" dc:"submenu" eg:"[]"`
 }

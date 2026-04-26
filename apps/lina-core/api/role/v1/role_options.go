@@ -6,18 +6,18 @@ import (
 
 // RoleOptionsReq is the request structure for role options query.
 type RoleOptionsReq struct {
-	g.Meta `path:"/role/options" method:"get" summary:"查询角色下拉选项" tags:"角色管理" dc:"查询所有启用状态的角色下拉选项列表，用于用户角色选择等场景" permission:"system:role:query"`
+	g.Meta `path:"/role/options" method:"get" summary:"Query role dropdown options" tags:"Role Management" dc:"Query the dropdown option list of all enabled roles for user role selection and other scenarios." permission:"system:role:query"`
 }
 
 // RoleOptionsRes is the response structure for role options query.
 type RoleOptionsRes struct {
 	g.Meta `mime:"application/json" example:"{}"`
-	List   []*RoleOptionItem `json:"list" dc:"角色下拉选项列表" eg:"[]"`
+	List   []*RoleOptionItem `json:"list" dc:"Role dropdown list" eg:"[]"`
 }
 
 // RoleOptionItem represents a single role option.
 type RoleOptionItem struct {
-	Id   int    `json:"id" dc:"角色ID" eg:"1"`
-	Name string `json:"name" dc:"角色名称" eg:"管理员"`
-	Key  string `json:"key" dc:"权限字符" eg:"admin"`
+	Id   int    `json:"id" dc:"Role ID" eg:"1"`
+	Name string `json:"name" dc:"Character name" eg:"Administrator"`
+	Key  string `json:"key" dc:"permission key" eg:"admin"`
 }

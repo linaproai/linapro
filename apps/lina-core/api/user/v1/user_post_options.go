@@ -9,17 +9,17 @@ import (
 
 // PostOptionsReq defines the request for querying user post options.
 type PostOptionsReq struct {
-	g.Meta `path:"/user/post-options" method:"get" tags:"用户管理" summary:"获取用户岗位选项" dc:"获取指定部门及其子部门下的岗位选项，供用户管理编辑抽屉在组织插件可用时装配岗位多选框" permission:"system:user:query"`
-	DeptId *int `json:"deptId" dc:"部门ID，不传则返回全部可选岗位；组织插件不可用时返回空列表" eg:"100"`
+	g.Meta `path:"/user/post-options" method:"get" tags:"User Management" summary:"Get user position options" dc:"Get the position options under the specified department and its sub-departments for users to manage the edit drawer. Assemble the position check box when the organization plugin is available." permission:"system:user:query"`
+	DeptId *int `json:"deptId" dc:"Department ID, if not passed, all available positions will be returned; if the organization plugin is unavailable, an empty list will be returned" eg:"100"`
 }
 
 // UserPostOption represents one selectable post option for user editing.
 type UserPostOption struct {
-	PostId   int    `json:"postId" dc:"岗位ID" eg:"1"`
-	PostName string `json:"postName" dc:"岗位名称" eg:"开发工程师"`
+	PostId   int    `json:"postId" dc:"Position ID" eg:"1"`
+	PostName string `json:"postName" dc:"Job title" eg:"Development Engineer"`
 }
 
 // PostOptionsRes is the response structure for user post options.
 type PostOptionsRes struct {
-	List []*UserPostOption `json:"list" dc:"岗位选项列表" eg:"[]"`
+	List []*UserPostOption `json:"list" dc:"Job options list" eg:"[]"`
 }

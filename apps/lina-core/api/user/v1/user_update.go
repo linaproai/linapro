@@ -8,19 +8,19 @@ import (
 
 // UpdateReq defines the request for updating a user.
 type UpdateReq struct {
-	g.Meta   `path:"/user/{id}" method:"put" tags:"用户管理" summary:"更新用户" dc:"更新指定用户的信息，所有字段均为可选更新，仅传入需要修改的字段即可" permission:"system:user:edit"`
-	Id       int     `json:"id" v:"required" dc:"用户ID" eg:"1"`
-	Username *string `json:"username" dc:"用户名" eg:"zhangsan"`
-	Password *string `json:"password" dc:"密码（为空则不修改）" eg:"newpass123"`
-	Nickname *string `json:"nickname" v:"required#validation.user.nickname.required" dc:"昵称" eg:"张三"`
-	Email    *string `json:"email" dc:"邮箱" eg:"zhangsan@example.com"`
-	Phone    *string `json:"phone" dc:"手机号" eg:"13800138000"`
-	Sex      *int    `json:"sex" dc:"性别：0=未知 1=男 2=女" eg:"1"`
-	Status   *int    `json:"status" dc:"状态：1=正常 0=停用" eg:"1"`
-	Remark   *string `json:"remark" dc:"备注" eg:"更新备注信息"`
-	DeptId   *int    `json:"deptId" dc:"部门ID" eg:"100"`
-	PostIds  []int   `json:"postIds" dc:"岗位ID列表" eg:"[1,2]"`
-	RoleIds  []int   `json:"roleIds" dc:"角色ID列表" eg:"[1,2]"`
+	g.Meta   `path:"/user/{id}" method:"put" tags:"User Management" summary:"Update user" dc:"Update the information of the specified user. All fields are optional to update. Only the fields that need to be modified are passed in." permission:"system:user:edit"`
+	Id       int     `json:"id" v:"required" dc:"User ID" eg:"1"`
+	Username *string `json:"username" dc:"Username" eg:"zhangsan"`
+	Password *string `json:"password" dc:"Password (if empty, do not change)" eg:"newpass123"`
+	Nickname *string `json:"nickname" v:"required#validation.user.nickname.required" dc:"Nickname" eg:"Zhang San"`
+	Email    *string `json:"email" dc:"Email" eg:"zhangsan@example.com"`
+	Phone    *string `json:"phone" dc:"Mobile phone number" eg:"13800138000"`
+	Sex      *int    `json:"sex" dc:"Gender: 0=Unknown 1=Male 2=Female" eg:"1"`
+	Status   *int    `json:"status" dc:"Status: 1=normal 0=disabled" eg:"1"`
+	Remark   *string `json:"remark" dc:"Remarks" eg:"Update notes information"`
+	DeptId   *int    `json:"deptId" dc:"Department ID" eg:"100"`
+	PostIds  []int   `json:"postIds" dc:"Position ID list" eg:"[1,2]"`
+	RoleIds  []int   `json:"roleIds" dc:"Role ID list" eg:"[1,2]"`
 }
 
 // UpdateRes defines the response for updating a user.

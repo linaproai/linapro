@@ -6,8 +6,8 @@ import (
 
 // DownloadReq defines the request for downloading a file.
 type DownloadReq struct {
-	g.Meta `path:"/file/download/{id}" method:"get" tags:"文件管理" summary:"下载文件" dc:"根据文件ID下载文件，返回文件二进制内容" permission:"system:file:download"`
-	Id     int64 `json:"id" v:"required" dc:"文件ID" eg:"1"`
+	g.Meta `path:"/file/download/{id}" method:"get" tags:"File Management" summary:"Download file" dc:"Download the file based on the file ID and return the binary content of the file" permission:"system:file:download"`
+	Id     int64 `json:"id" v:"required" dc:"File ID" eg:"1"`
 }
 
 // DownloadRes File download response

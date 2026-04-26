@@ -4,14 +4,14 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // UpdateReq defines the request for updating a post.
 type UpdateReq struct {
-	g.Meta `path:"/post/{id}" method:"put" tags:"岗位管理" summary:"更新岗位" dc:"更新指定岗位的信息，所有字段均为可选更新" permission:"system:post:edit"`
-	Id     int     `json:"id" v:"required" dc:"岗位ID" eg:"1"`
-	DeptId *int    `json:"deptId" dc:"所属部门ID" eg:"100"`
-	Code   *string `json:"code" dc:"岗位编码（唯一）" eg:"dev"`
-	Name   *string `json:"name" dc:"岗位名称" eg:"开发工程师"`
-	Sort   *int    `json:"sort" dc:"排序号" eg:"1"`
-	Status *int    `json:"status" dc:"状态：1=正常 0=停用" eg:"1"`
-	Remark *string `json:"remark" dc:"备注" eg:"负责系统开发"`
+	g.Meta `path:"/post/{id}" method:"put" tags:"Position Management" summary:"Update position" dc:"Update the specified position. All fields are optional." permission:"system:post:edit"`
+	Id     int     `json:"id" v:"required" dc:"Position ID" eg:"1"`
+	DeptId *int    `json:"deptId" dc:"Department ID" eg:"100"`
+	Code   *string `json:"code" dc:"Position code (unique)" eg:"dev"`
+	Name   *string `json:"name" dc:"Position name" eg:"Development Engineer"`
+	Sort   *int    `json:"sort" dc:"Sort order" eg:"1"`
+	Status *int    `json:"status" dc:"Status: 1=normal 0=disabled" eg:"1"`
+	Remark *string `json:"remark" dc:"Remark" eg:"Responsible for system development"`
 }
 
 // UpdateRes defines the response for updating a post.

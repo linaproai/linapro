@@ -6,7 +6,7 @@ import type {
   WorkbenchTrendItem,
 } from '@vben/common-ui';
 
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 
 import {
@@ -219,7 +219,9 @@ const trendItems = computed<WorkbenchTrendItem[]>(() => [
 
 const router = useRouter();
 const displayUserName = computed(() => {
-  return userStore.userInfo?.realName || $t('pages.dashboard.workspace.defaultName');
+  return (
+    userStore.userInfo?.realName || $t('pages.dashboard.workspace.defaultName')
+  );
 });
 const welcomeTitle = computed(() =>
   $t('pages.dashboard.workspace.greeting', { name: displayUserName.value }),

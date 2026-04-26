@@ -6,23 +6,23 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // MissingMessagesReq requests missing translation diagnostics for one locale.
 type MissingMessagesReq struct {
-	g.Meta    `path:"/i18n/messages/missing" method:"get" tags:"国际化" summary:"检查缺失翻译" dc:"检查目标语言相对当前默认语言缺失的翻译键，返回默认语言基线值和来源范围，供交付项目补齐翻译资源" permission:"system:i18n:diagnose"`
-	Locale    string `json:"locale" dc:"目标语言编码，不传时按请求上下文自动解析，如 zh-CN、en-US" eg:"en-US"`
-	KeyPrefix string `json:"keyPrefix" dc:"按翻译键前缀过滤，如 menu.、plugin.demo.；不传则检查全部" eg:"menu."`
+	g.Meta    `path:"/i18n/messages/missing" method:"get" tags:"internationalization" summary:"Check for missing translations" dc:"Check the missing translation keys in the target language relative to the current default language, and return the default language baseline value and source range for the delivery project to complete the translation resources." permission:"system:i18n:diagnose"`
+	Locale    string `json:"locale" dc:"Target language encoding, automatically parsed according to request context if not passed, such as zh-CN, en-US" eg:"en-US"`
+	KeyPrefix string `json:"keyPrefix" dc:"Filter by translation key prefix, such as menu., plugin.demo.; if not passed, check all" eg:"menu."`
 }
 
 // MissingMessageItem describes one missing translation key.
 type MissingMessageItem struct {
-	Key          string `json:"key" dc:"缺失的翻译键" eg:"menu.dashboard.title"`
-	DefaultValue string `json:"defaultValue" dc:"默认语言中的基线翻译值" eg:"工作台"`
-	SourceType   string `json:"sourceType" dc:"基线来源类型：host_file=宿主文件 plugin_file=插件文件 database=数据库覆写" eg:"host_file"`
-	SourceKey    string `json:"sourceKey" dc:"基线来源标识，如 core 或具体 plugin_id" eg:"core"`
+	Key          string `json:"key" dc:"Missing translation key" eg:"menu.dashboard.title"`
+	DefaultValue string `json:"defaultValue" dc:"Baseline translation value in default language" eg:"workbench"`
+	SourceType   string `json:"sourceType" dc:"Baseline source type: host_file=host file plugin_file=plugin file database=database overwrite" eg:"host_file"`
+	SourceKey    string `json:"sourceKey" dc:"Baseline source ID, such as core or specific plugin_id" eg:"core"`
 }
 
 // MissingMessagesRes returns missing translation diagnostics.
 type MissingMessagesRes struct {
-	Locale        string               `json:"locale" dc:"目标语言编码" eg:"en-US"`
-	DefaultLocale string               `json:"defaultLocale" dc:"当前宿主默认语言编码" eg:"zh-CN"`
-	Total         int                  `json:"total" dc:"缺失翻译键数量" eg:"12"`
-	Items         []MissingMessageItem `json:"items" dc:"缺失翻译键列表" eg:"[]"`
+	Locale        string               `json:"locale" dc:"target language encoding" eg:"en-US"`
+	DefaultLocale string               `json:"defaultLocale" dc:"Current host default language encoding" eg:"zh-CN"`
+	Total         int                  `json:"total" dc:"Number of missing translation keys" eg:"12"`
+	Items         []MissingMessageItem `json:"items" dc:"Missing translation key list" eg:"[]"`
 }

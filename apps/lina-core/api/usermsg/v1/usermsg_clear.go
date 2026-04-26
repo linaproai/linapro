@@ -8,7 +8,7 @@ import (
 
 // ClearReq defines the request for clearing all user messages.
 type ClearReq struct {
-	g.Meta `path:"/user/message/clear" method:"delete" tags:"用户消息" summary:"清空全部消息" dc:"清空当前用户的所有消息记录，包括已读和未读"`
+	g.Meta `path:"/user/message/clear" method:"delete" tags:"User Messages" summary:"Clear all messages" dc:"Clear all message records of the current user, including read and unread"`
 }
 
 // ClearRes Clear messages response

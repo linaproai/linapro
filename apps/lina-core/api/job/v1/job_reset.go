@@ -4,8 +4,8 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // ResetReq defines the request for resetting one scheduled job execution counter.
 type ResetReq struct {
-	g.Meta `path:"/job/{id}/reset" method:"post" tags:"任务调度/定时任务" summary:"重置执行计数" dc:"将指定用户自建任务的 executed_count 重置为0，不影响历史执行日志；源码注册任务不允许通过公共接口重置" permission:"system:job:reset"`
-	Id     uint64 `json:"id" v:"required" dc:"任务ID" eg:"1"`
+	g.Meta `path:"/job/{id}/reset" method:"post" tags:"Job Scheduling / Scheduled Jobs" summary:"Reset execution count" dc:"Reset the executed_count of the specified user-created task to 0, without affecting the historical execution log; source code registration tasks are not allowed to be reset through the public interface" permission:"system:job:reset"`
+	Id     uint64 `json:"id" v:"required" dc:"Task ID" eg:"1"`
 }
 
 // ResetRes defines the response for resetting one scheduled job execution counter.

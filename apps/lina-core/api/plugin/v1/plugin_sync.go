@@ -4,10 +4,10 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // SyncReq is the request for synchronizing source plugins.
 type SyncReq struct {
-	g.Meta `path:"/plugins/sync" method:"post" tags:"插件管理" summary:"同步源码插件" permission:"plugin:install" dc:"扫描apps/lina-plugins目录下的源码插件清单，并将插件元数据同步到系统插件注册表"`
+	g.Meta `path:"/plugins/sync" method:"post" tags:"Plugin Management" summary:"Sync source plugin" permission:"plugin:install" dc:"Scan the source plugin list in the apps/lina-plugins directory and synchronize plugin metadata to the system plugin registry"`
 }
 
 // SyncRes is the response for synchronizing source plugins.
 type SyncRes struct {
-	Total int `json:"total" dc:"同步后的源码插件数量" eg:"1"`
+	Total int `json:"total" dc:"Number of source plugins after synchronization" eg:"1"`
 }

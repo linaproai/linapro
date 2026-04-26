@@ -8,10 +8,10 @@ import (
 
 // CountReq defines the request for retrieving unread message counts.
 type CountReq struct {
-	g.Meta `path:"/user/message/count" method:"get" tags:"用户消息" summary:"获取未读消息数量" dc:"获取当前登录用户的未读消息数量，用于前端消息图标角标展示"`
+	g.Meta `path:"/user/message/count" method:"get" tags:"User Messages" summary:"Get the number of unread messages" dc:"Get the number of unread messages of the currently logged in user, which is used to display the message icon corner on the front end."`
 }
 
 // CountRes Unread message count response
 type CountRes struct {
-	Count int `json:"count" dc:"未读消息数量" eg:"5"`
+	Count int `json:"count" dc:"Number of unread messages" eg:"5"`
 }

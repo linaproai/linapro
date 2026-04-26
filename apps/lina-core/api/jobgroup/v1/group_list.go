@@ -8,23 +8,23 @@ import (
 
 // ListReq defines the request for querying scheduled job groups.
 type ListReq struct {
-	g.Meta         `path:"/job-group" method:"get" tags:"任务调度/任务分组" summary:"获取分组列表" dc:"分页查询任务分组列表，支持按编码与名称关键字筛选" permission:"system:jobgroup:list"`
-	PageNum        int    `json:"pageNum" d:"1" v:"min:1" dc:"页码" eg:"1"`
-	PageSize       int    `json:"pageSize" d:"10" v:"min:1|max:100" dc:"每页条数" eg:"10"`
-	Code           string `json:"code" dc:"按分组编码筛选（模糊匹配）" eg:"default"`
-	Name           string `json:"name" dc:"按分组名称筛选（模糊匹配）" eg:"默认分组"`
-	OrderBy        string `json:"orderBy" dc:"排序字段：id,sort_order,code,name,created_at,updated_at" eg:"sort_order"`
-	OrderDirection string `json:"orderDirection" d:"asc" dc:"排序方向：asc=升序 desc=降序" eg:"asc"`
+	g.Meta         `path:"/job-group" method:"get" tags:"Job Scheduling / Job Groups" summary:"Get group list" dc:"Paginated query task grouping list, supports filtering by coding and name keywords" permission:"system:jobgroup:list"`
+	PageNum        int    `json:"pageNum" d:"1" v:"min:1" dc:"Page number" eg:"1"`
+	PageSize       int    `json:"pageSize" d:"10" v:"min:1|max:100" dc:"Number of items per page" eg:"10"`
+	Code           string `json:"code" dc:"Filter by group encoding (fuzzy matching)" eg:"default"`
+	Name           string `json:"name" dc:"Filter by group name (fuzzy matching)" eg:"Default grouping"`
+	OrderBy        string `json:"orderBy" dc:"Sorting fields: id, sort_order, code, name, created_at, updated_at" eg:"sort_order"`
+	OrderDirection string `json:"orderDirection" d:"asc" dc:"Sorting direction: asc=ascending order desc=descending order" eg:"asc"`
 }
 
 // ListItem represents one scheduled job group row in the list response.
 type ListItem struct {
 	*entity.SysJobGroup
-	JobCount int64 `json:"jobCount" dc:"当前分组下的任务数量" eg:"3"`
+	JobCount int64 `json:"jobCount" dc:"The number of tasks in the current group" eg:"3"`
 }
 
 // ListRes defines the response for querying scheduled job groups.
 type ListRes struct {
-	List  []*ListItem `json:"list" dc:"分组列表" eg:"[]"`
-	Total int         `json:"total" dc:"总条数" eg:"1"`
+	List  []*ListItem `json:"list" dc:"grouped list" eg:"[]"`
+	Total int         `json:"total" dc:"Total number of items" eg:"1"`
 }

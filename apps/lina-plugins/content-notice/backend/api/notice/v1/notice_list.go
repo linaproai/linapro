@@ -11,22 +11,22 @@ import (
 
 // ListReq defines the request for listing notices.
 type ListReq struct {
-	g.Meta    `path:"/notice" method:"get" tags:"通知公告" summary:"获取通知公告列表" dc:"分页查询通知公告列表，支持按标题、类型、创建人筛选" permission:"system:notice:query"`
-	PageNum   int    `json:"pageNum" d:"1" v:"min:1" dc:"页码" eg:"1"`
-	PageSize  int    `json:"pageSize" d:"10" v:"min:1|max:100" dc:"每页条数" eg:"10"`
-	Title     string `json:"title" dc:"按标题筛选（模糊匹配）" eg:"系统维护"`
-	Type      int    `json:"type" dc:"按类型筛选：1=通知 2=公告" eg:"1"`
-	CreatedBy string `json:"createdBy" dc:"按创建人用户名筛选" eg:"admin"`
+	g.Meta    `path:"/notice" method:"get" tags:"Notices" summary:"Get notification and announcement list" dc:"Query notifications and announcements by page, with filtering by title, type, and creator." permission:"system:notice:query"`
+	PageNum   int    `json:"pageNum" d:"1" v:"min:1" dc:"Page number" eg:"1"`
+	PageSize  int    `json:"pageSize" d:"10" v:"min:1|max:100" dc:"Number of items per page" eg:"10"`
+	Title     string `json:"title" dc:"Filter by title (fuzzy match)" eg:"System maintenance"`
+	Type      int    `json:"type" dc:"Filter by type: 1=Notice 2=Announcement" eg:"1"`
+	CreatedBy string `json:"createdBy" dc:"Filter by creator username" eg:"admin"`
 }
 
 // ListRes Notice list response
 type ListRes struct {
-	List  []*ListItem `json:"list" dc:"通知公告列表" eg:"[]"`
-	Total int         `json:"total" dc:"总条数" eg:"20"`
+	List  []*ListItem `json:"list" dc:"Notification and announcement list" eg:"[]"`
+	Total int         `json:"total" dc:"Total number of items" eg:"20"`
 }
 
 // ListItem Notice list item
 type ListItem struct {
 	*NoticeEntity
-	CreatedByName string `json:"createdByName" dc:"创建者用户名" eg:"admin"`
+	CreatedByName string `json:"createdByName" dc:"Creator username" eg:"admin"`
 }

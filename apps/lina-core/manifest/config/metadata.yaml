@@ -1,80 +1,80 @@
-# 接口文档与版本信息页元数据配置
-# `version` 为 `auto` 时会在运行时自动填充实际版本
+# API documentation and version information page metadata.
+# When `version` is `auto`, the actual version is populated at runtime.
 
-# 框架元数据
+# Framework metadata
 framework:
-  # 框架名称
+  # Framework name
   name: "LinaPro"
-  # 框架版本
+  # Framework version
   version: "v0.1.0"
-  # 框架介绍
-  description: "面向可持续交付的AI驱动全栈框架，提供通用核心宿主服务、默认管理工作台、插件扩展能力与AI原生研发工作流。"
-  # 项目官网
+  # Framework introduction
+  description: "An AI-driven full-stack framework for sustainable delivery, providing common core hosting services, default management workbench, plugin extension capabilities and AI-native development workflow."
+  # Project official website
   homepage: "https://linapro.ai"
-  # 仓库地址
+  # Repository URL
   repositoryUrl: "https://github.com/linaproai/linapro"
-  # 开源协议
+  # Open source license
   license: "Apache 2.0"
 
-# OpenAPI 文档元数据
+# OpenAPI document metadata
 openapi:
-  # 文档标题
+  # Document title
   title: "LinaPro Framework API"
-  # 文档说明
-  description: "LinaPro 核心宿主服务接口文档，覆盖通用模块能力、系统治理能力与默认管理工作台适配接口。"
-  # 文档版本
+  # Document description
+  description: "LinaPro core host service API documentation covering general module capabilities, system governance capabilities, and default management workbench adapter APIs."
+  # Document version
   version: "v0.5.0"
-  # 后端服务访问地址
+  # Backend service access URL
   serverUrl: "http://localhost:8080"
-  # 服务地址说明
+  # Service URL description
   serverDescription: "CoreHostEndpoint"
 
-# 后端组件元数据
+# Backend component metadata
 backend:
   - name: "GoFrame"
     version: "auto"
     url: "https://goframe.org"
-    description: "Go语言开发框架"
+    description: "Go language development framework"
   - name: "MySQL"
     version: "auto"
     url: "https://www.mysql.com"
-    description: "关系型数据库"
+    description: "relational database"
   - name: "JWT"
     version: "v5.3.1"
     url: "https://jwt.io"
-    description: "身份认证"
+    description: "Authentication"
   - name: "Excelize"
     version: "v2.10.1"
     url: "https://github.com/qax-os/excelize"
-    description: "Excel文件处理库"
+    description: "Excel file processing library"
 
-# 前端组件元数据
+# Frontend component metadata
 frontend:
   - name: "Vue"
     version: "3.x"
     url: "https://vuejs.org"
-    description: "渐进式JavaScript框架"
+    description: "Progressive JavaScript framework"
   - name: "Vben 5"
     version: "5.x"
     url: "https://www.vben.pro"
-    description: "默认管理工作台前端框架"
+    description: "Default management workbench frontend framework"
   - name: "Ant Design Vue"
     version: "4.x"
     url: "https://antdv.com"
-    description: "UI组件库"
+    description: "UI component library"
   - name: "TypeScript"
     version: "5.x"
     url: "https://www.typescriptlang.org"
-    description: "类型安全的JavaScript"
+    description: "Type-safe JavaScript"
   - name: "Vite"
     version: "6.x"
     url: "https://vite.dev"
-    description: "前端构建工具"
+    description: "Front-end build tools"
   - name: "Pinia"
     version: "3.x"
     url: "https://pinia.vuejs.org"
-    description: "状态管理"
+    description: "State management"
   - name: "TailwindCSS"
     version: "4.x"
     url: "https://tailwindcss.com"
-    description: "原子化CSS框架"
+    description: "Utility-first CSS framework"

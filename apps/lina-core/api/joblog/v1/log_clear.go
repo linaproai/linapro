@@ -4,9 +4,9 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // ClearReq defines the request for clearing scheduled job logs.
 type ClearReq struct {
-	g.Meta `path:"/job/log" method:"delete" tags:"任务调度/执行日志" summary:"清理执行日志" dc:"支持按日志ID批量删除、按任务ID清空日志，或在不传 jobId 和 logIds 时清空全部执行日志" permission:"system:joblog:remove"`
-	JobId  *uint64 `json:"jobId" dc:"待清空日志的任务ID；与 logIds 二选一，不传则可清空全部任务日志" eg:"1"`
-	LogIds string  `json:"logIds" dc:"待批量删除的日志ID列表，使用逗号分隔；传入后优先按指定日志删除" eg:"1,2,3"`
+	g.Meta `path:"/job/log" method:"delete" tags:"Job Scheduling / Execution Logs" summary:"Clean execution log" dc:"Supports batch deletion by log ID, clearing logs by task ID, or clearing all execution logs when jobId and logIds are not passed." permission:"system:joblog:remove"`
+	JobId  *uint64 `json:"jobId" dc:"The task ID of the log to be cleared; choose one of the two logIds, if not passed, all task logs can be cleared" eg:"1"`
+	LogIds string  `json:"logIds" dc:"List of log IDs to be deleted in batches, separated by commas; after passing in, priority will be given to deleting the specified logs." eg:"1,2,3"`
 }
 
 // ClearRes defines the response for clearing scheduled job logs.

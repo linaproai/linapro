@@ -6,40 +6,40 @@ import (
 
 // GetAllReq defines the request for querying all user menu routes.
 type GetAllReq struct {
-	g.Meta `path:"/menus/all" method:"get" tags:"菜单管理" summary:"获取宿主菜单路由" dc:"获取当前登录用户可访问的宿主菜单路由列表，返回默认管理工作台用于动态路由装配的路由投影"`
+	g.Meta `path:"/menus/all" method:"get" tags:"Menu Management" summary:"Get host menu route" dc:"Get the host menu routing list accessible to the currently logged in user and return the routing projection of the default management workbench for dynamic routing assembly."`
 }
 
 // MenuRouteItem represents a menu route item for Vben frontend
 type MenuRouteItem struct {
-	Id        int              `json:"id" dc:"菜单ID" eg:"1"`
-	ParentId  int              `json:"parentId" dc:"父菜单ID" eg:"0"`
-	Name      string           `json:"name" dc:"路由名称（唯一）" eg:"System"`
-	Path      string           `json:"path" dc:"路由路径" eg:"/system"`
-	Component string           `json:"component" dc:"组件路径" eg:"#/views/system/user/index.vue"`
-	Redirect  string           `json:"redirect,omitempty" dc:"重定向路径" eg:"/system/user"`
-	Meta      *MenuRouteMeta   `json:"meta" dc:"路由元信息" eg:""`
-	Children  []*MenuRouteItem `json:"children,omitempty" dc:"子路由列表" eg:"[]"`
+	Id        int              `json:"id" dc:"Menu ID" eg:"1"`
+	ParentId  int              `json:"parentId" dc:"Parent menu ID" eg:"0"`
+	Name      string           `json:"name" dc:"Route name (unique)" eg:"System"`
+	Path      string           `json:"path" dc:"routing path" eg:"/system"`
+	Component string           `json:"component" dc:"component path" eg:"#/views/system/user/index.vue"`
+	Redirect  string           `json:"redirect,omitempty" dc:"redirect path" eg:"/system/user"`
+	Meta      *MenuRouteMeta   `json:"meta" dc:"Routing meta information" eg:""`
+	Children  []*MenuRouteItem `json:"children,omitempty" dc:"Sub-route list" eg:"[]"`
 }
 
 // MenuRouteMeta represents route metadata for Vben
 type MenuRouteMeta struct {
-	Title            string            `json:"title" dc:"菜单标题" eg:"系统管理"`
-	Icon             string            `json:"icon,omitempty" dc:"菜单图标" eg:"ant-design:setting-outlined"`
-	ActiveIcon       string            `json:"activeIcon,omitempty" dc:"激活时图标" eg:"ant-design:setting-filled"`
-	HideInMenu       bool              `json:"hideInMenu,omitempty" dc:"是否在菜单中隐藏" eg:"false"`
-	HideInBreadcrumb bool              `json:"hideInBreadcrumb,omitempty" dc:"是否在面包屑中隐藏" eg:"false"`
-	HideInTab        bool              `json:"hideInTab,omitempty" dc:"是否在标签页中隐藏" eg:"false"`
-	KeepAlive        bool              `json:"keepAlive,omitempty" dc:"是否缓存页面" eg:"true"`
-	IframeSrc        string            `json:"iframeSrc,omitempty" dc:"iframe 模式下的目标地址，通常用于宿主内嵌托管页面" eg:"/plugin-assets/plugin-runtime-demo/v0.1.0/index.html"`
-	Link             string            `json:"link,omitempty" dc:"新标签页模式下的目标地址，点击菜单时由宿主直接打开该地址" eg:"/plugin-assets/plugin-runtime-demo/v0.1.0/index.html"`
-	OpenInNewWindow  bool              `json:"openInNewWindow,omitempty" dc:"是否在新窗口或新标签页中打开当前菜单" eg:"true"`
-	Query            map[string]string `json:"query,omitempty" dc:"菜单打开时附带的查询参数，供宿主内嵌挂载或普通页面恢复上下文" eg:"{\"pluginAccessMode\":\"embedded-mount\"}"`
-	Order            int               `json:"order" dc:"排序号，0表示最高优先级，数值越小越靠前" eg:"1"`
-	Authority        string            `json:"authority,omitempty" dc:"权限标识" eg:"system:user:list"`
-	IgnoreAccess     bool              `json:"ignoreAccess,omitempty" dc:"是否忽略权限" eg:"false"`
+	Title            string            `json:"title" dc:"menu title" eg:"System management"`
+	Icon             string            `json:"icon,omitempty" dc:"menu icon" eg:"ant-design:setting-outlined"`
+	ActiveIcon       string            `json:"activeIcon,omitempty" dc:"Activation icon" eg:"ant-design:setting-filled"`
+	HideInMenu       bool              `json:"hideInMenu,omitempty" dc:"Whether to hide in the menu" eg:"false"`
+	HideInBreadcrumb bool              `json:"hideInBreadcrumb,omitempty" dc:"Whether to hide in breadcrumbs" eg:"false"`
+	HideInTab        bool              `json:"hideInTab,omitempty" dc:"Whether to hide in tabs" eg:"false"`
+	KeepAlive        bool              `json:"keepAlive,omitempty" dc:"Whether to cache the page" eg:"true"`
+	IframeSrc        string            `json:"iframeSrc,omitempty" dc:"The target address in iframe mode, usually used to host inline hosted pages" eg:"/plugin-assets/plugin-runtime-demo/v0.1.0/index.html"`
+	Link             string            `json:"link,omitempty" dc:"The target address in new tab mode, which will be opened directly by the host when the menu is clicked." eg:"/plugin-assets/plugin-runtime-demo/v0.1.0/index.html"`
+	OpenInNewWindow  bool              `json:"openInNewWindow,omitempty" dc:"Whether to open the current menu in a new window or tab" eg:"true"`
+	Query            map[string]string `json:"query,omitempty" dc:"Query parameters attached when the menu is opened, for host inline mounting or normal page recovery context" eg:"{\"pluginAccessMode\":\"embedded-mount\"}"`
+	Order            int               `json:"order" dc:"Sorting number, 0 represents the highest priority, the smaller the value, the higher it is." eg:"1"`
+	Authority        string            `json:"authority,omitempty" dc:"Permission ID" eg:"system:user:list"`
+	IgnoreAccess     bool              `json:"ignoreAccess,omitempty" dc:"Whether to ignore permissions" eg:"false"`
 }
 
 // GetAllRes defines the wrapped response for user menu routes.
 type GetAllRes struct {
-	List []*MenuRouteItem `json:"list" dc:"用户菜单路由列表" eg:"[]"`
+	List []*MenuRouteItem `json:"list" dc:"User menu routing list" eg:"[]"`
 }

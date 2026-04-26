@@ -8,7 +8,9 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/net/goai"
 
+	bizctxsvc "lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -41,6 +43,8 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	configSvc ConfigProvider
+	bizCtxSvc bizctxsvc.Service
+	i18nSvc   i18nsvc.Service
 	pluginSvc PluginRouteProvider
 }
 
@@ -48,6 +52,8 @@ type serviceImpl struct {
 func New(configSvc ConfigProvider, pluginSvc PluginRouteProvider) Service {
 	return &serviceImpl{
 		configSvc: configSvc,
+		bizCtxSvc: bizctxsvc.New(),
+		i18nSvc:   i18nsvc.New(),
 		pluginSvc: pluginSvc,
 	}
 }
