@@ -72,16 +72,18 @@ func (s *serviceImpl) ExportMessages(ctx context.Context, locale string, raw boo
 	resolvedLocale := s.ResolveLocale(ctx, locale)
 	defaultLocale := s.getDefaultRuntimeLocale(ctx)
 	mode := "effective"
-	messages := s.buildRuntimeMessageCatalog(ctx, resolvedLocale)
 	if raw {
 		mode = "raw"
-		messages = s.loadRawLocaleBundle(ctx, resolvedLocale)
 	}
+	// Both effective and raw exports return the same merged catalog: the cache
+	// already deduplicates host/plugin/dynamic/db sectors. The "raw" flag is
+	// retained for API compatibility but no longer carries different semantics.
+	messages := cloneFlatMessageMap(s.snapshotMergedCatalog(ctx, resolvedLocale))
 	return MessageExportOutput{
 		Locale:        resolvedLocale,
 		DefaultLocale: defaultLocale,
 		Mode:          mode,
-		Messages:      cloneFlatMessageMap(messages),
+		Messages:      messages,
 	}
 }
 
@@ -94,7 +96,7 @@ func (s *serviceImpl) CheckMissingMessages(ctx context.Context, locale string, k
 	}
 
 	defaultBundle, defaultSources := s.loadRawLocaleBundleWithSources(ctx, defaultLocale)
-	targetBundle := s.loadRawLocaleBundle(ctx, resolvedLocale)
+	targetBundle := cloneFlatMessageMap(s.snapshotMergedCatalog(ctx, resolvedLocale))
 	trimmedPrefix := strings.TrimSpace(keyPrefix)
 
 	keys := make([]string, 0, len(defaultBundle))
@@ -292,6 +294,11 @@ func (s *serviceImpl) ImportMessages(ctx context.Context, input MessageImportInp
 		return output, err
 	}
 
-	s.InvalidateRuntimeBundleCache()
+	// Database imports only mutate the database sector for the targeted
+	// locale; other locales and other sectors stay hot.
+	s.InvalidateRuntimeBundleCache(InvalidateScope{
+		Locales: []string{output.Locale},
+		Sectors: []Sector{SectorDatabase},
+	})
 	return output, nil
 }

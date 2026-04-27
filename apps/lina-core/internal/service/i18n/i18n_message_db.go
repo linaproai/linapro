@@ -13,17 +13,13 @@ import (
 )
 
 // loadDatabaseLocaleBundle loads enabled message overrides for one locale from
-// sys_i18n_message and returns them as a flat message catalog.
-func (s *serviceImpl) loadDatabaseLocaleBundle(ctx context.Context, locale string) map[string]string {
-	bundle, _ := s.loadDatabaseLocaleBundleWithSources(ctx, locale)
-	return bundle
-}
-
-// loadDatabaseLocaleBundleWithSources loads enabled message overrides for one locale
-// together with the source descriptors recorded in sys_i18n_message.
-func (s *serviceImpl) loadDatabaseLocaleBundleWithSources(ctx context.Context, locale string) (map[string]string, map[string]MessageSourceDescriptor) {
+// sys_i18n_message and returns the flat catalog plus per-key source descriptors
+// keyed by the row's stored scope_type/scope_key. The merger preserves these
+// descriptors so diagnostics keep reporting the exact override origin.
+func (s *serviceImpl) loadDatabaseLocaleBundle(ctx context.Context, locale string) (map[string]string, map[string]MessageSourceDescriptor) {
 	normalizedLocale := s.ResolveLocale(ctx, locale)
-
+	bundle := make(map[string]string)
+	sources := make(map[string]MessageSourceDescriptor)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			logger.Warningf(ctx, "load runtime i18n database overrides panic locale=%s err=%v", normalizedLocale, recovered)
@@ -40,11 +36,9 @@ func (s *serviceImpl) loadDatabaseLocaleBundleWithSources(ctx context.Context, l
 		Scan(&rows)
 	if err != nil {
 		logger.Warningf(ctx, "load runtime i18n database overrides failed locale=%s err=%v", normalizedLocale, err)
-		return map[string]string{}, map[string]MessageSourceDescriptor{}
+		return bundle, sources
 	}
 
-	bundle := make(map[string]string, len(rows))
-	sources := make(map[string]MessageSourceDescriptor, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue

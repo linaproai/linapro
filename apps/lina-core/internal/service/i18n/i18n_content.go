@@ -7,7 +7,6 @@ import (
 	"context"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
@@ -45,14 +44,6 @@ type ContentVariant struct {
 	Content     string      // Content is the stored multilingual content value.
 	ContentType ContentType // ContentType is the stored payload format.
 	Locale      string      // Locale is the canonical locale code for this variant.
-}
-
-// runtimeContentCache stores per-anchor locale variants loaded from sys_i18n_content.
-var runtimeContentCache = struct {
-	sync.RWMutex
-	variants map[string]map[string]ContentVariant
-}{
-	variants: make(map[string]map[string]ContentVariant),
 }
 
 // GetContent resolves one business-content translation from sys_i18n_content.

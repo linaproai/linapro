@@ -36,18 +36,12 @@ type dynamicPluginI18NAsset struct {
 	Content string `json:"content"`
 }
 
-// loadDynamicPluginLocaleBundle loads enabled dynamic-plugin translations for one locale.
-func (s *serviceImpl) loadDynamicPluginLocaleBundle(ctx context.Context, locale string) map[string]string {
-	bundle, _ := s.loadDynamicPluginLocaleBundleWithSources(ctx, locale)
-	return bundle
-}
-
-// loadDynamicPluginLocaleBundleWithSources loads enabled dynamic-plugin translations for one locale
-// and records the owning plugin for every resolved translation key.
-func (s *serviceImpl) loadDynamicPluginLocaleBundleWithSources(ctx context.Context, locale string) (map[string]string, map[string]MessageSourceDescriptor) {
+// loadDynamicPluginLocaleBundles loads enabled dynamic-plugin translations for
+// one locale, returning a per-plugin map. The cache stores each plugin entry
+// separately so a single plugin lifecycle change can invalidate only its slice.
+func (s *serviceImpl) loadDynamicPluginLocaleBundles(ctx context.Context, locale string) map[string]map[string]string {
 	resolvedLocale := s.ResolveLocale(ctx, locale)
-	bundle := make(map[string]string)
-	sources := make(map[string]MessageSourceDescriptor)
+	bundles := make(map[string]map[string]string)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			logger.Warningf(ctx, "load dynamic plugin i18n bundle panic locale=%s err=%v", resolvedLocale, recovered)
@@ -57,7 +51,7 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundleWithSources(ctx context.Conte
 	releases, err := s.listEnabledDynamicPluginReleases(ctx)
 	if err != nil {
 		logger.Warningf(ctx, "load enabled dynamic plugin i18n releases failed locale=%s err=%v", resolvedLocale, err)
-		return bundle, sources
+		return bundles
 	}
 
 	for _, release := range releases {
@@ -75,22 +69,27 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundleWithSources(ctx context.Conte
 			)
 			continue
 		}
+		pluginID := strings.TrimSpace(release.PluginId)
+		if pluginID == "" {
+			continue
+		}
+		pluginBundle := bundles[pluginID]
+		if pluginBundle == nil {
+			pluginBundle = make(map[string]string)
+		}
 		for _, asset := range assets {
 			if asset == nil || normalizeLocale(asset.Locale) != resolvedLocale {
 				continue
 			}
-			pluginBundle := parseLocaleJSON([]byte(asset.Content))
-			for key, value := range pluginBundle {
-				bundle[key] = value
-				sources[key] = MessageSourceDescriptor{
-					Type:      string(messageOriginTypePluginFile),
-					ScopeType: string(messageScopeTypePlugin),
-					ScopeKey:  strings.TrimSpace(release.PluginId),
-				}
+			for key, value := range parseLocaleJSON([]byte(asset.Content)) {
+				pluginBundle[key] = value
 			}
 		}
+		if len(pluginBundle) > 0 {
+			bundles[pluginID] = pluginBundle
+		}
 	}
-	return bundle, sources
+	return bundles
 }
 
 // listEnabledDynamicPluginReleases returns active release rows for plugins that are currently enabled.

@@ -100,13 +100,37 @@ func (s *serviceImpl) getDefaultRuntimeLocale(ctx context.Context) string {
 }
 
 // lookupSupportedLocale resolves one raw locale string against the enabled
-// runtime locale registry.
+// runtime locale registry. The hot path holds only a read lock and avoids
+// cloning the descriptor slice; cache misses fall back to the public loader
+// which performs the database query.
 func (s *serviceImpl) lookupSupportedLocale(ctx context.Context, rawLocale string) (string, bool) {
 	normalizedLocale := normalizeLocale(rawLocale)
 	if normalizedLocale == "" {
 		return "", false
 	}
+	if locale, hit := lookupCachedSupportedLocale(normalizedLocale); hit {
+		return locale, true
+	}
 	for _, locale := range s.loadEnabledRuntimeLocales(ctx) {
+		if strings.EqualFold(locale.Locale, normalizedLocale) {
+			return locale.Locale, true
+		}
+	}
+	return "", false
+}
+
+// lookupCachedSupportedLocale performs a read-only locale registry lookup
+// without cloning. Returns (canonical locale, true) only when the cache is
+// already loaded and the locale exists; otherwise the caller must fall back to
+// the database-backed loader. Used by the Translate hot path where every
+// avoided allocation matters.
+func lookupCachedSupportedLocale(normalizedLocale string) (string, bool) {
+	runtimeLocaleCache.RLock()
+	defer runtimeLocaleCache.RUnlock()
+	if !runtimeLocaleCache.loaded {
+		return "", false
+	}
+	for _, locale := range runtimeLocaleCache.locales {
 		if strings.EqualFold(locale.Locale, normalizedLocale) {
 			return locale.Locale, true
 		}

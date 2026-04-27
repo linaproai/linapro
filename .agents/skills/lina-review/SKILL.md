@@ -99,6 +99,13 @@ For every frontend change that introduces or modifies an enumerated business val
 4. When a backend-owned data field needs localized display in the frontend, prefer adding a localized field (e.g., `typeLabel`, `statusLabel`) on the backend service/API output and consume it directly. The frontend must not maintain `type === N ? $t(...) : $t(...)` mapping helpers that mirror dictionary semantics.
 5. If the change removes a frontend `options` literal, also confirm any orphaned `pages.*` keys, fallback arrays, and `getXxxLabel` helpers are deleted in the same change so stale translation keys do not remain.
 
+For every change that touches the host i18n service or any caller of it, also perform a **runtime i18n cache hygiene review**:
+1. Hot-path translation calls (`Translate`, `TranslateSourceText`, `TranslateOrKey`, `TranslateWithDefaultLocale`) MUST NOT clone the runtime message catalog. Flag any code that introduces `cloneFlatMessageMap` or equivalent full-map copies on the per-key lookup path; the cache returns a read-only merged view and direct `merged[key]` access is the contract.
+2. Code outside `apps/lina-core/internal/service/i18n/` MUST NOT clone runtime message catalogs returned by the i18n service. The service is responsible for cloning before it hands maps to external consumers (`BuildRuntimeMessages`, `ExportMessages`); business modules and controllers must treat returned maps as read-only.
+3. Every call to `InvalidateRuntimeBundleCache` MUST pass an explicit `i18n.InvalidateScope`. Flag any call that omits scope or uses a zero-value scope without justification — wiping every locale and every sector is reserved for full process-level reload paths and must include a comment explaining why a narrower scope is not feasible. Plugin lifecycle invalidations MUST set `Sectors: []Sector{SectorDynamicPlugin}` together with `DynamicPluginID`; database imports MUST set `Sectors: []Sector{SectorDatabase}` together with the affected `Locales`.
+4. Every call to `InvalidateContentCache` MUST pass an explicit `i18n.ContentInvalidateScope`. Pure `ContentInvalidateScope{}` (wipe-all) is permitted only for test cleanup or for full reload paths; production callers must scope by `BusinessType` and/or `Locale`.
+5. Any new sector contributing to the runtime cache MUST be registered in `apps/lina-core/internal/service/i18n/i18n_cache.go` (the `Sector` enum and the merge order in `mergeLocaleSectors`). Do not introduce ad-hoc sectors in business modules.
+
 ### 6. SQL Review
 
 **Trigger**: New or modified files under `apps/lina-core/manifest/sql/`、`apps/lina-core/manifest/sql/mock-data/`、`apps/lina-plugins/**/manifest/sql/` or SQL snippets embedded in related delivery docs

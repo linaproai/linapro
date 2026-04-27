@@ -35,6 +35,13 @@ func (s *serviceImpl) Response(r *ghttp.Request) {
 		return
 	}
 
+	// 304 Not Modified and 204 No Content are body-less by HTTP spec. Handlers
+	// signal them via Status alone (e.g. cache revalidation), and the unified
+	// JSON envelope must not turn them into a 200-with-error payload.
+	if r.Response.Status == http.StatusNotModified || r.Response.Status == http.StatusNoContent {
+		return
+	}
+
 	mediaType, _, _ := mime.ParseMediaType(r.Response.Header().Get("Content-Type"))
 	switch mediaType {
 	case responseContentTypeEventStream, responseContentTypeOctetStream, responseContentTypeMixedReplace:

@@ -1,21 +1,21 @@
 ## 1. P1 性能优化:翻译热路径与缓存分层
 
-- [ ] 1.1 重写 `apps/lina-core/internal/service/i18n/i18n.go` 中 `Translate` / `TranslateSourceText` / `TranslateOrKey` / `TranslateWithDefaultLocale` 的实现为"持读锁直接读 cache",删除单 key 查找路径上的 `cloneFlatMessageMap` 调用
-- [ ] 1.2 保留 `BuildRuntimeMessages` 与 `ExportMessages` 的克隆语义,在内部新增 `lookupBundleKey(locale, key)` 工具方法,统一管理 cache 命中读取
-- [ ] 1.3 重构 `runtimeBundleCache` 结构为按 `locale × 扇区(host / source-plugin / dynamic-plugin / database)` 分层,新增 `mergedView` 视图与 `bundleVersion` 原子计数器
-- [ ] 1.4 重构 `InvalidateRuntimeBundleCache` 接受 `InvalidateScope` 参数,提供按 locale、按扇区、按插件 ID 的精细失效;迁移所有调用点为显式 scope
-- [ ] 1.5 重构 `runtimeContentCache` 失效粒度,支持按 `business_type + locale` 维度作废
-- [ ] 1.6 补充 `Translate` 单次/批量调用的基准测试(`testing.B`),目标:命中 cache 时单次调用 < 100ns
-- [ ] 1.7 补充分层失效单元测试,覆盖"DB 导入只清 DB 扇区"、"插件启停只清动态扇区"、"业务内容只清 business_type"三种场景
-- [ ] 1.8 在 `lina-review` 技能中新增审查规则:禁止业务模块在 i18n 包外 clone 运行时消息包;`InvalidateRuntimeBundleCache` 必须显式传入 scope
+- [x] 1.1 重写 `apps/lina-core/internal/service/i18n/i18n.go` 中 `Translate` / `TranslateSourceText` / `TranslateOrKey` / `TranslateWithDefaultLocale` 的实现为"持读锁直接读 cache",删除单 key 查找路径上的 `cloneFlatMessageMap` 调用
+- [x] 1.2 保留 `BuildRuntimeMessages` 与 `ExportMessages` 的克隆语义,在内部新增 `lookupBundleKey(locale, key)` 工具方法,统一管理 cache 命中读取
+- [x] 1.3 重构 `runtimeBundleCache` 结构为按 `locale × 扇区(host / source-plugin / dynamic-plugin / database)` 分层,新增 `mergedView` 视图与 `bundleVersion` 原子计数器
+- [x] 1.4 重构 `InvalidateRuntimeBundleCache` 接受 `InvalidateScope` 参数,提供按 locale、按扇区、按插件 ID 的精细失效;迁移所有调用点为显式 scope
+- [x] 1.5 重构 `runtimeContentCache` 失效粒度,支持按 `business_type + locale` 维度作废
+- [x] 1.6 补充 `Translate` 单次/批量调用的基准测试(`testing.B`),目标:命中 cache 时单次调用 < 100ns
+- [x] 1.7 补充分层失效单元测试,覆盖"DB 导入只清 DB 扇区"、"插件启停只清动态扇区"、"业务内容只清 business_type"三种场景
+- [x] 1.8 在 `lina-review` 技能中新增审查规则:禁止业务模块在 i18n 包外 clone 运行时消息包;`InvalidateRuntimeBundleCache` 必须显式传入 scope
 
 ## 2. P1 性能优化:运行时翻译包 ETag 协商
 
-- [ ] 2.1 在 `i18n.Service` 中新增 `BundleVersion()` 方法返回当前运行时翻译包版本号,任何扇区 invalidate 必须自增该版本
-- [ ] 2.2 修改 `apps/lina-core/internal/controller/i18n/i18n_v1_runtime_messages.go`,响应中输出 `ETag: "<locale>-<version>"` 与 `Cache-Control: private, must-revalidate`
-- [ ] 2.3 在该控制器中实现 `If-None-Match` 协商,匹配时返回 `304 Not Modified` 且不带消息体
-- [ ] 2.4 补充 `apps/lina-core/internal/controller/i18n/i18n_v1_runtime_test.go` 单元测试覆盖 ETag 输出、304 响应、版本变化后 ETag 必然不同三种路径
-- [ ] 2.5 创建 E2E 测试用例 `TC0124-arabic-runtime-i18n-etag.ts`,验证后端 ETag 与 304 协商在阿拉伯语切换流程中正确工作
+- [x] 2.1 在 `i18n.Service` 中新增 `BundleVersion()` 方法返回当前运行时翻译包版本号,任何扇区 invalidate 必须自增该版本
+- [x] 2.2 修改 `apps/lina-core/internal/controller/i18n/i18n_v1_runtime_messages.go`,响应中输出 `ETag: "<locale>-<version>"` 与 `Cache-Control: private, must-revalidate`
+- [x] 2.3 在该控制器中实现 `If-None-Match` 协商,匹配时返回 `304 Not Modified` 且不带消息体
+- [x] 2.4 补充 `apps/lina-core/internal/controller/i18n/i18n_v1_runtime_test.go` 单元测试覆盖 ETag 输出、304 响应、版本变化后 ETag 必然不同三种路径
+- [x] 2.5 创建 E2E 测试用例 `TC0124-runtime-i18n-etag.ts`,验证后端 ETag 与 304 协商在多语言切换流程中正确工作(阿语相关验证延后到第 12 节 TC0127-TC0129 完成)
 
 ## 3. P1 性能优化:前端 RequestClient 与持久化缓存
 

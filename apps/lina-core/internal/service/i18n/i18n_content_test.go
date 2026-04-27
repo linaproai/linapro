@@ -200,7 +200,7 @@ func TestContentCacheRequiresInvalidationAfterWrite(t *testing.T) {
 		t.Fatalf("expected cached fallback content %q, got %q", "Original Body", secondOutput.Content)
 	}
 
-	svc.InvalidateContentCache()
+	svc.InvalidateContentCache(ContentInvalidateScope{})
 	thirdOutput, err := svc.GetContent(ctx, ContentLookupInput{
 		BusinessType: businessType,
 		BusinessID:   businessID,
@@ -220,7 +220,7 @@ func TestContentCacheRequiresInvalidationAfterWrite(t *testing.T) {
 
 // resetContentCache clears cached sys_i18n_content variants between tests.
 func resetContentCache() {
-	invalidateContentCache()
+	invalidateContentCache(ContentInvalidateScope{})
 }
 
 // insertI18nContentForTest inserts one sys_i18n_content row without touching caches.

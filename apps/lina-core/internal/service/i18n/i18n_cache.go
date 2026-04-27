@@ -1,38 +1,318 @@
-// This file manages runtime i18n bundle cache invalidation hooks.
+// This file owns the layered runtime translation cache: per-locale, per-sector
+// raw bundles, a derived merged read-view, source descriptors for diagnostics,
+// and a per-locale version counter that drives ETag invalidation.
 
 package i18n
 
-import "lina-core/pkg/pluginhost"
+import (
+	"sync"
+	"sync/atomic"
+
+	"lina-core/pkg/pluginhost"
+)
+
+// Sector identifies one logical contributor to the merged runtime translation
+// bundle. Higher sectors override lower sectors when the merged view is built;
+// the canonical priority is host < source-plugin < dynamic-plugin < database.
+type Sector string
+
+const (
+	// SectorHost is the host-embedded `manifest/i18n/<locale>.json` resource.
+	SectorHost Sector = "host"
+	// SectorSourcePlugin is the source-plugin embedded `manifest/i18n/<locale>.json` resource.
+	SectorSourcePlugin Sector = "source-plugin"
+	// SectorDynamicPlugin is the active dynamic-plugin release `i18n_assets` custom section.
+	SectorDynamicPlugin Sector = "dynamic-plugin"
+	// SectorDatabase is the `sys_i18n_message` row override.
+	SectorDatabase Sector = "database"
+)
+
+// allSectors lists sectors in canonical merge priority (low → high).
+var allSectors = []Sector{
+	SectorHost,
+	SectorSourcePlugin,
+	SectorDynamicPlugin,
+	SectorDatabase,
+}
+
+// InvalidateScope describes which slice of the runtime cache should be cleared.
+// An empty Locales slice means "every locale"; an empty Sectors slice means
+// "every sector". DynamicPluginID further narrows SectorDynamicPlugin to one
+// owning plugin, leaving other plugins' dynamic entries intact.
+type InvalidateScope struct {
+	Locales         []string
+	Sectors         []Sector
+	DynamicPluginID string
+}
+
+// ContentInvalidateScope narrows business-content cache invalidation to one
+// `business_type` and/or one locale; leaving both fields empty wipes the cache.
+type ContentInvalidateScope struct {
+	BusinessType string
+	Locale       string
+}
+
+// localeCache stores per-sector raw flat catalogs for one locale plus the
+// derived merged view. The merged view is regenerated on demand after any
+// sector mutation and serves the high-traffic `Translate*` lookup path.
+type localeCache struct {
+	mu sync.RWMutex
+
+	host    map[string]string
+	plugins map[string]map[string]string // sourcePluginID  -> messages
+	dynamic map[string]map[string]string // dynamicPluginID -> messages
+	db      map[string]string
+
+	// dbSources captures sys_i18n_message scope_type/scope_key per overridden
+	// key; the merger reuses these descriptors so admin diagnostics keep
+	// reporting the exact override origin (host / project / plugin / business).
+	dbSources map[string]MessageSourceDescriptor
+
+	// sources records the effective origin of every key seen during merge so
+	// admin diagnostics can report where a translation actually came from.
+	sources map[string]MessageSourceDescriptor
+
+	// merged is the derived flat view; nil after invalidation, lazily rebuilt
+	// on the next read. Once built it is never mutated; invalidation replaces
+	// the whole map reference.
+	merged map[string]string
+
+	// version increments on every mutation that could change the merged view.
+	// Used to render `ETag: <locale>-<version>` and decide HTTP 304 protocol.
+	version uint64
+}
+
+// runtimeCache is the package-level cache shared by all i18n service instances.
+type runtimeCache struct {
+	mu      sync.RWMutex
+	locales map[string]*localeCache
+}
+
+// runtimeBundleCache is the singleton runtime bundle cache.
+var runtimeBundleCache = &runtimeCache{
+	locales: make(map[string]*localeCache),
+}
+
+// runtimeContentCache stores per-anchor locale variants loaded from sys_i18n_content.
+var runtimeContentCache = struct {
+	sync.RWMutex
+	variants map[string]map[string]ContentVariant // anchorKey -> locale -> variant
+}{
+	variants: make(map[string]map[string]ContentVariant),
+}
+
+// totalInvalidationsObserved counts every successful invalidation call across
+// the process lifetime. Tests can sample it to assert that scoped invalidates
+// run, even when the targeted scope is already empty.
+var totalInvalidationsObserved atomic.Uint64
 
 func init() {
-	pluginhost.RegisterSourcePluginRegistryListener(invalidateRuntimeBundleCache)
+	// Source-plugin registry mutations affect the source-plugin sector across
+	// every locale; emit a scoped invalidation rather than wiping the cache.
+	pluginhost.RegisterSourcePluginRegistryListener(func() {
+		runtimeBundleCache.invalidate(InvalidateScope{Sectors: []Sector{SectorSourcePlugin}})
+	})
 }
 
-// InvalidateRuntimeBundleCache clears the cached runtime translation bundles.
-func (s *serviceImpl) InvalidateRuntimeBundleCache() {
-	invalidateRuntimeBundleCache()
+// InvalidateRuntimeBundleCache clears the cached runtime translation bundles
+// for the given scope. An empty scope drops every locale and every sector.
+func (s *serviceImpl) InvalidateRuntimeBundleCache(scope InvalidateScope) {
+	runtimeBundleCache.invalidate(scope)
+	// Locale registry rows are cached separately; any cache change should
+	// also re-read the registry on next access so newly enabled languages
+	// become discoverable without a process restart.
+	resetRuntimeLocaleCache()
 }
 
-// InvalidateContentCache clears cached sys_i18n_content lookup results.
-func (s *serviceImpl) InvalidateContentCache() {
-	invalidateContentCache()
+// InvalidateContentCache clears cached sys_i18n_content lookup results scoped
+// to one business type and/or one locale.
+func (s *serviceImpl) InvalidateContentCache(scope ContentInvalidateScope) {
+	invalidateContentCache(scope)
 }
 
-// invalidateRuntimeBundleCache resets the in-memory runtime bundle cache.
-func invalidateRuntimeBundleCache() {
-	runtimeBundleCache.Lock()
-	runtimeBundleCache.bundles = make(map[string]map[string]string)
-	runtimeBundleCache.Unlock()
+// BundleVersion returns the per-locale runtime translation bundle version. The
+// value increases monotonically across the process lifetime whenever any
+// sector that contributes to the locale's merged view is invalidated.
+func (s *serviceImpl) BundleVersion(locale string) uint64 {
+	normalizedLocale := normalizeLocale(locale)
+	if normalizedLocale == "" {
+		return 0
+	}
+	runtimeBundleCache.mu.RLock()
+	lc, ok := runtimeBundleCache.locales[normalizedLocale]
+	runtimeBundleCache.mu.RUnlock()
+	if !ok {
+		return 0
+	}
+	lc.mu.RLock()
+	defer lc.mu.RUnlock()
+	return lc.version
+}
 
+// resetRuntimeLocaleCache invalidates the locale registry cache so subsequent
+// reads pick up newly enabled languages.
+func resetRuntimeLocaleCache() {
 	runtimeLocaleCache.Lock()
 	runtimeLocaleCache.loaded = false
 	runtimeLocaleCache.locales = nil
 	runtimeLocaleCache.Unlock()
 }
 
-// invalidateContentCache resets the in-memory business-content cache.
-func invalidateContentCache() {
+// invalidateRuntimeBundleCache is kept as a private convenience for unit tests
+// and historical no-arg listeners that target every locale and every sector.
+func invalidateRuntimeBundleCache() {
+	runtimeBundleCache.invalidate(InvalidateScope{})
+	resetRuntimeLocaleCache()
+}
+
+// invalidate applies one scoped invalidation. A locale entry whose sectors are
+// all touched simply rebuilds on next read; a per-sector clear keeps unaffected
+// sectors hot so unrelated locales avoid cascading rebuilds.
+func (rc *runtimeCache) invalidate(scope InvalidateScope) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
+	totalInvalidationsObserved.Add(1)
+	targetLocales := rc.resolveLocaleTargets(scope.Locales)
+
+	// An empty locale list with empty sectors means "wipe everything"; in that
+	// case we drop entries entirely so the next read repopulates them lazily
+	// without carrying any stale sectors.
+	if len(scope.Sectors) == 0 {
+		for _, locale := range targetLocales {
+			delete(rc.locales, locale)
+		}
+		return
+	}
+
+	for _, locale := range targetLocales {
+		lc, ok := rc.locales[locale]
+		if !ok {
+			continue
+		}
+		lc.invalidateSectors(scope)
+	}
+}
+
+// resolveLocaleTargets returns the set of locale codes the invalidation should
+// touch. Empty input means "every cached locale".
+func (rc *runtimeCache) resolveLocaleTargets(locales []string) []string {
+	if len(locales) == 0 {
+		targets := make([]string, 0, len(rc.locales))
+		for locale := range rc.locales {
+			targets = append(targets, locale)
+		}
+		return targets
+	}
+	targets := make([]string, 0, len(locales))
+	for _, locale := range locales {
+		normalized := normalizeLocale(locale)
+		if normalized == "" {
+			continue
+		}
+		targets = append(targets, normalized)
+	}
+	return targets
+}
+
+// invalidateSectors clears one or more sectors on this locale entry. The merged
+// view is dropped because any sector change can shift effective values.
+func (lc *localeCache) invalidateSectors(scope InvalidateScope) {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+
+	for _, sector := range scope.Sectors {
+		switch sector {
+		case SectorHost:
+			lc.host = nil
+		case SectorSourcePlugin:
+			lc.plugins = nil
+		case SectorDynamicPlugin:
+			if scope.DynamicPluginID == "" {
+				lc.dynamic = nil
+			} else if lc.dynamic != nil {
+				delete(lc.dynamic, scope.DynamicPluginID)
+			}
+		case SectorDatabase:
+			lc.db = nil
+			lc.dbSources = nil
+		}
+	}
+	lc.merged = nil
+	lc.sources = nil
+	lc.version++
+}
+
+// getOrCreate returns the locale cache entry, creating it on first access.
+func (rc *runtimeCache) getOrCreate(locale string) *localeCache {
+	rc.mu.RLock()
+	if lc, ok := rc.locales[locale]; ok {
+		rc.mu.RUnlock()
+		return lc
+	}
+	rc.mu.RUnlock()
+
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	if lc, ok := rc.locales[locale]; ok {
+		return lc
+	}
+	lc := &localeCache{}
+	rc.locales[locale] = lc
+	return lc
+}
+
+// snapshotMerged returns the current merged view if it is already built. The
+// caller must treat the returned map as read-only.
+func (lc *localeCache) snapshotMerged() map[string]string {
+	lc.mu.RLock()
+	defer lc.mu.RUnlock()
+	return lc.merged
+}
+
+// invalidateContentCache wipes business-content cache entries that match scope.
+// An entry's anchor key encodes business_type, business_id, and field; a
+// business-type-only scope drops every anchor whose key starts with that type;
+// a locale-only scope walks every anchor and drops only that locale variant
+// (re-loading from `sys_i18n_content` on next access).
+func invalidateContentCache(scope ContentInvalidateScope) {
 	runtimeContentCache.Lock()
-	runtimeContentCache.variants = make(map[string]map[string]ContentVariant)
-	runtimeContentCache.Unlock()
+	defer runtimeContentCache.Unlock()
+	totalInvalidationsObserved.Add(1)
+
+	if scope.BusinessType == "" && scope.Locale == "" {
+		runtimeContentCache.variants = make(map[string]map[string]ContentVariant)
+		return
+	}
+
+	prefix := ""
+	if scope.BusinessType != "" {
+		prefix = scope.BusinessType + "\x00"
+	}
+	for anchorKey, variants := range runtimeContentCache.variants {
+		if prefix != "" && !startsWith(anchorKey, prefix) {
+			continue
+		}
+		if scope.Locale == "" {
+			delete(runtimeContentCache.variants, anchorKey)
+			continue
+		}
+		normalized := normalizeLocale(scope.Locale)
+		if normalized == "" {
+			continue
+		}
+		delete(variants, normalized)
+		if len(variants) == 0 {
+			delete(runtimeContentCache.variants, anchorKey)
+		}
+	}
+}
+
+// startsWith reports whether s starts with prefix; equivalent to
+// strings.HasPrefix without importing the strings package in this hot file.
+func startsWith(s string, prefix string) bool {
+	if len(s) < len(prefix) {
+		return false
+	}
+	return s[:len(prefix)] == prefix
 }

@@ -2,100 +2,36 @@
 
 package i18n
 
-import (
-	"context"
-	"io/fs"
-	"path"
-	"sort"
+import "context"
 
-	"lina-core/internal/packed"
-	"lina-core/pkg/pluginhost"
-)
-
-// loadRawLocaleBundleWithSources loads the non-fallback bundle for one locale
-// and retains per-key source descriptors.
+// loadRawLocaleBundleWithSources returns the merged flat catalog for one locale
+// together with per-key source descriptors. The values come straight from the
+// layered cache, so admin diagnostics share the same merge ordering and source
+// attribution as the runtime translation hot path.
 func (s *serviceImpl) loadRawLocaleBundleWithSources(ctx context.Context, locale string) (map[string]string, map[string]MessageSourceDescriptor) {
 	resolvedLocale := s.ResolveLocale(ctx, locale)
-	bundle := make(map[string]string)
-	sources := make(map[string]MessageSourceDescriptor)
 
-	hostBundle, hostSources := loadEmbeddedHostLocaleBundleWithSources(resolvedLocale)
-	mergeFlatMessageMaps(bundle, hostBundle)
-	mergeMessageSources(sources, hostSources)
+	// Trigger build through the standard path so any newly populated sectors
+	// stay in cache for subsequent translation reads.
+	merged := s.ensureMergedCatalog(ctx, resolvedLocale)
 
-	pluginBundle, pluginSources := loadSourcePluginLocaleBundleWithSources(resolvedLocale)
-	mergeFlatMessageMaps(bundle, pluginBundle)
-	mergeMessageSources(sources, pluginSources)
+	lc := runtimeBundleCache.getOrCreate(resolvedLocale)
+	lc.mu.RLock()
+	sources := cloneSourceDescriptorMap(lc.sources)
+	lc.mu.RUnlock()
 
-	dynamicPluginBundle, dynamicPluginSources := s.loadDynamicPluginLocaleBundleWithSources(ctx, resolvedLocale)
-	mergeFlatMessageMaps(bundle, dynamicPluginBundle)
-	mergeMessageSources(sources, dynamicPluginSources)
-
-	databaseBundle, databaseSources := s.loadDatabaseLocaleBundleWithSources(ctx, resolvedLocale)
-	mergeFlatMessageMaps(bundle, databaseBundle)
-	mergeMessageSources(sources, databaseSources)
-	return bundle, sources
+	return cloneFlatMessageMap(merged), sources
 }
 
-// loadEmbeddedHostLocaleBundleWithSources loads host runtime messages and their source descriptors.
-func loadEmbeddedHostLocaleBundleWithSources(locale string) (map[string]string, map[string]MessageSourceDescriptor) {
-	content, err := fs.ReadFile(packed.Files, path.Join(hostI18nDir, locale+".json"))
-	if err != nil {
-		return map[string]string{}, map[string]MessageSourceDescriptor{}
-	}
-	bundle := parseLocaleJSON(content)
-	sources := make(map[string]MessageSourceDescriptor, len(bundle))
-	for key := range bundle {
-		sources[key] = MessageSourceDescriptor{
-			Type:      string(messageOriginTypeHostFile),
-			ScopeType: string(messageScopeTypeHost),
-			ScopeKey:  hostMessageScopeKey,
-		}
-	}
-	return bundle, sources
-}
-
-// loadSourcePluginLocaleBundleWithSources loads source-plugin runtime messages and their source descriptors.
-func loadSourcePluginLocaleBundleWithSources(locale string) (map[string]string, map[string]MessageSourceDescriptor) {
-	bundle := make(map[string]string)
-	sources := make(map[string]MessageSourceDescriptor)
-	sourcePlugins := pluginhost.ListSourcePlugins()
-	if len(sourcePlugins) == 0 {
-		return bundle, sources
-	}
-
-	sort.Slice(sourcePlugins, func(i, j int) bool {
-		return sourcePlugins[i].ID() < sourcePlugins[j].ID()
-	})
-
-	relativePath := path.Join(pluginI18nDir, locale+".json")
-	for _, sourcePlugin := range sourcePlugins {
-		if sourcePlugin == nil || sourcePlugin.GetEmbeddedFiles() == nil {
-			continue
-		}
-		content, err := fs.ReadFile(sourcePlugin.GetEmbeddedFiles(), relativePath)
-		if err != nil || len(content) == 0 {
-			continue
-		}
-		pluginBundle := parseLocaleJSON(content)
-		for key, value := range pluginBundle {
-			bundle[key] = value
-			sources[key] = MessageSourceDescriptor{
-				Type:      string(messageOriginTypePluginFile),
-				ScopeType: string(messageScopeTypePlugin),
-				ScopeKey:  sourcePlugin.ID(),
-			}
-		}
-	}
-	return bundle, sources
-}
-
-// mergeMessageSources merges source descriptors using the same overwrite semantics as bundle merging.
-func mergeMessageSources(dst map[string]MessageSourceDescriptor, src map[string]MessageSourceDescriptor) {
+// cloneSourceDescriptorMap copies one source descriptor map so callers can
+// safely retain it while concurrent invalidations replace the cache state.
+func cloneSourceDescriptorMap(src map[string]MessageSourceDescriptor) map[string]MessageSourceDescriptor {
 	if len(src) == 0 {
-		return
+		return map[string]MessageSourceDescriptor{}
 	}
+	dst := make(map[string]MessageSourceDescriptor, len(src))
 	for key, value := range src {
 		dst[key] = value
 	}
+	return dst
 }

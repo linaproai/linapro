@@ -9,7 +9,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -42,7 +41,10 @@ type LocaleDescriptor struct {
 	IsDefault  bool   // IsDefault reports whether the locale is the host default.
 }
 
-// Service defines the i18n service contract.
+// Service defines the i18n service contract. It is intentionally a composition
+// of smaller-purpose interfaces so business modules can depend on the minimal
+// surface they actually use; see the Translator/LocaleResolver/etc. interfaces
+// declared in the same package.
 type Service interface {
 	// ResolveRequestLocale resolves the effective locale for the current HTTP request.
 	ResolveRequestLocale(r *ghttp.Request) string
@@ -88,10 +90,17 @@ type Service interface {
 	TranslateWithDefaultLocale(ctx context.Context, key string, fallback string) string
 	// LocalizeError translates one request-scoped error into the effective locale.
 	LocalizeError(ctx context.Context, err error) string
-	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles.
-	InvalidateRuntimeBundleCache()
-	// InvalidateContentCache clears cached sys_i18n_content lookup results.
-	InvalidateContentCache()
+	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles
+	// for the given scope. An empty scope drops every locale and every sector.
+	InvalidateRuntimeBundleCache(scope InvalidateScope)
+	// InvalidateContentCache clears cached sys_i18n_content lookup results
+	// scoped to one business type and/or one locale.
+	InvalidateContentCache(scope ContentInvalidateScope)
+	// BundleVersion returns the per-locale runtime translation bundle version.
+	// It increases monotonically whenever any sector that contributes to that
+	// locale's merged view is invalidated, so HTTP ETag handlers can produce
+	// stable identifiers without recomputing the catalog.
+	BundleVersion(locale string) uint64
 	// ExportMessages exports flat runtime messages for one locale.
 	ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
 	// CheckMissingMessages reports translation keys missing from one locale.
@@ -124,15 +133,6 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
 	configSvc config.Service
-}
-
-// runtimeBundleCache stores flat per-locale message bundles discovered from host
-// and source-plugin resources.
-var runtimeBundleCache = struct {
-	sync.RWMutex
-	bundles map[string]map[string]string
-}{
-	bundles: make(map[string]map[string]string),
 }
 
 // supportedRuntimeLocales declares the runtime locales currently shipped by the host.
@@ -246,86 +246,176 @@ func (s *serviceImpl) ListRuntimeLocales(ctx context.Context, locale string) []L
 // BuildRuntimeMessages returns the current-locale runtime translation bundle for
 // one locale. For example, en-US output omits keys that only exist in zh-CN.
 func (s *serviceImpl) BuildRuntimeMessages(ctx context.Context, locale string) map[string]interface{} {
-	return nestFlatMessageMap(s.buildRuntimeMessageCatalog(ctx, locale))
+	// The returned tree leaves the cache so it MUST be a clone; nesting alone
+	// does not isolate frontend mutations from concurrent cache reads.
+	return nestFlatMessageMap(cloneFlatMessageMap(s.snapshotMergedCatalog(ctx, locale)))
 }
 
-// buildRuntimeMessageCatalog returns the flat translation catalog for one
-// locale without merging the runtime default locale.
-func (s *serviceImpl) buildRuntimeMessageCatalog(ctx context.Context, locale string) map[string]string {
+// snapshotMergedCatalog returns a read-only reference to the merged catalog
+// for one locale. Callers MUST treat the returned map as read-only; if they
+// need to mutate or persist it they must call cloneFlatMessageMap first.
+func (s *serviceImpl) snapshotMergedCatalog(ctx context.Context, locale string) map[string]string {
 	normalizedLocale := s.ResolveLocale(ctx, locale)
-	return cloneFlatMessageMap(s.loadRawLocaleBundle(ctx, normalizedLocale))
+	return s.ensureMergedCatalog(ctx, normalizedLocale)
 }
 
-// translateForLocale resolves one translation key against the requested locale.
+// translateForLocale resolves one translation key against the requested locale
+// using the layered cache without cloning the merged catalog. This is the
+// hot path called by every menu, dict, config, and plugin localization site.
 func (s *serviceImpl) translateForLocale(ctx context.Context, locale string, key string, fallback string) string {
 	trimmedKey := strings.TrimSpace(key)
 	if trimmedKey == "" {
 		return fallback
 	}
-
-	if value, ok := s.buildRuntimeMessageCatalog(ctx, locale)[trimmedKey]; ok {
+	if value, ok := s.lookupBundleKey(ctx, locale, trimmedKey); ok {
 		return value
 	}
 	return fallback
 }
 
 // translateWithDefaultLocaleForLocale resolves one translation key and
-// explicitly allows cross-language default-locale fallback.
+// explicitly allows cross-language default-locale fallback. Caller-provided
+// `locale` is the previously-resolved request locale; the default locale
+// fallback is only consulted when the key is absent in the request locale.
 func (s *serviceImpl) translateWithDefaultLocaleForLocale(ctx context.Context, locale string, key string, fallback string) string {
 	trimmedKey := strings.TrimSpace(key)
 	if trimmedKey == "" {
 		return fallback
 	}
-
-	normalizedLocale := s.ResolveLocale(ctx, locale)
-	if value, ok := s.loadRawLocaleBundle(ctx, normalizedLocale)[trimmedKey]; ok {
+	if value, ok := s.lookupBundleKey(ctx, locale, trimmedKey); ok {
 		return value
 	}
-
 	defaultLocale := s.getDefaultRuntimeLocale(ctx)
-	if normalizedLocale != defaultLocale {
-		if value, ok := s.loadRawLocaleBundle(ctx, defaultLocale)[trimmedKey]; ok {
+	if locale != defaultLocale {
+		if value, ok := s.lookupBundleKey(ctx, defaultLocale, trimmedKey); ok {
 			return value
 		}
 	}
 	return fallback
 }
 
-// loadRawLocaleBundle loads the non-fallback flat runtime messages for one locale.
-func (s *serviceImpl) loadRawLocaleBundle(ctx context.Context, locale string) map[string]string {
-	normalizedLocale := s.ResolveLocale(ctx, locale)
-
-	runtimeBundleCache.RLock()
-	cached := runtimeBundleCache.bundles[normalizedLocale]
-	runtimeBundleCache.RUnlock()
-	if cached != nil {
-		return cloneFlatMessageMap(cached)
-	}
-
-	bundle := make(map[string]string)
-	mergeFlatMessageMaps(bundle, loadEmbeddedHostLocaleBundle(normalizedLocale))
-	mergeFlatMessageMaps(bundle, loadSourcePluginLocaleBundle(normalizedLocale))
-	mergeFlatMessageMaps(bundle, s.loadDynamicPluginLocaleBundle(ctx, normalizedLocale))
-	mergeFlatMessageMaps(bundle, s.loadDatabaseLocaleBundle(ctx, normalizedLocale))
-
-	runtimeBundleCache.Lock()
-	runtimeBundleCache.bundles[normalizedLocale] = cloneFlatMessageMap(bundle)
-	runtimeBundleCache.Unlock()
-	return bundle
+// lookupBundleKey reads one translation value from the merged catalog without
+// cloning. Callers MUST pass an already-normalized locale (e.g. the result of
+// ResolveLocale or GetLocale); skipping a redundant resolution keeps the read
+// path at one map lookup plus one read-locked map index.
+func (s *serviceImpl) lookupBundleKey(ctx context.Context, locale string, key string) (string, bool) {
+	merged := s.ensureMergedCatalog(ctx, locale)
+	value, ok := merged[key]
+	return value, ok
 }
 
-// loadSourcePluginLocaleBundle loads source-plugin translation resources from
-// registered embedded plugin filesystems.
-func loadSourcePluginLocaleBundle(locale string) map[string]string {
-	bundle := make(map[string]string)
-	sourcePlugins := pluginhost.ListSourcePlugins()
-	if len(sourcePlugins) == 0 {
-		return bundle
+// ensureMergedCatalog returns the merged flat catalog for one locale, building
+// it on demand when invalidation has dropped the cached view.
+func (s *serviceImpl) ensureMergedCatalog(ctx context.Context, locale string) map[string]string {
+	lc := runtimeBundleCache.getOrCreate(locale)
+	if merged := lc.snapshotMerged(); merged != nil {
+		return merged
+	}
+	return s.rebuildMergedCatalog(ctx, lc, locale)
+}
+
+// rebuildMergedCatalog reloads any missing sectors and recomputes the merged
+// view under the locale entry's write lock. Callers that race here will block
+// briefly, but each subsequent read enjoys a full O(1) hit.
+func (s *serviceImpl) rebuildMergedCatalog(ctx context.Context, lc *localeCache, locale string) map[string]string {
+	lc.mu.Lock()
+	defer lc.mu.Unlock()
+	if lc.merged != nil {
+		return lc.merged
 	}
 
-	sort.Slice(sourcePlugins, func(i, j int) bool {
-		return sourcePlugins[i].ID() < sourcePlugins[j].ID()
-	})
+	if lc.host == nil {
+		lc.host = loadEmbeddedHostLocaleBundle(locale)
+	}
+	if lc.plugins == nil {
+		lc.plugins = loadSourcePluginLocaleBundles(locale)
+	}
+	if lc.dynamic == nil {
+		lc.dynamic = s.loadDynamicPluginLocaleBundles(ctx, locale)
+	}
+	if lc.db == nil {
+		lc.db, lc.dbSources = s.loadDatabaseLocaleBundle(ctx, locale)
+	}
+
+	merged, sources := mergeLocaleSectors(lc, locale)
+	lc.merged = merged
+	lc.sources = sources
+	lc.version++
+	return merged
+}
+
+// mergeLocaleSectors composes the merged catalog and source descriptor map for
+// one locale entry. Higher-priority sectors overwrite lower ones; per-key
+// origin is recorded for diagnostics.
+func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[string]MessageSourceDescriptor) {
+	merged := make(map[string]string, len(lc.host)+len(lc.db))
+	sources := make(map[string]MessageSourceDescriptor, len(lc.host)+len(lc.db))
+
+	for key, value := range lc.host {
+		merged[key] = value
+		sources[key] = MessageSourceDescriptor{
+			Type:      string(messageOriginTypeHostFile),
+			ScopeType: string(messageScopeTypeHost),
+			ScopeKey:  hostMessageScopeKey,
+		}
+	}
+
+	pluginIDs := make([]string, 0, len(lc.plugins))
+	for pluginID := range lc.plugins {
+		pluginIDs = append(pluginIDs, pluginID)
+	}
+	sort.Strings(pluginIDs)
+	for _, pluginID := range pluginIDs {
+		for key, value := range lc.plugins[pluginID] {
+			merged[key] = value
+			sources[key] = MessageSourceDescriptor{
+				Type:      string(messageOriginTypePluginFile),
+				ScopeType: string(messageScopeTypePlugin),
+				ScopeKey:  pluginID,
+			}
+		}
+	}
+
+	dynamicIDs := make([]string, 0, len(lc.dynamic))
+	for pluginID := range lc.dynamic {
+		dynamicIDs = append(dynamicIDs, pluginID)
+	}
+	sort.Strings(dynamicIDs)
+	for _, pluginID := range dynamicIDs {
+		for key, value := range lc.dynamic[pluginID] {
+			merged[key] = value
+			sources[key] = MessageSourceDescriptor{
+				Type:      string(messageOriginTypePluginFile),
+				ScopeType: string(messageScopeTypePlugin),
+				ScopeKey:  pluginID,
+			}
+		}
+	}
+
+	for key, value := range lc.db {
+		merged[key] = value
+		if descriptor, ok := lc.dbSources[key]; ok {
+			sources[key] = descriptor
+			continue
+		}
+		sources[key] = MessageSourceDescriptor{
+			Type:      string(messageOriginTypeDatabase),
+			ScopeType: string(messageScopeTypeHost),
+			ScopeKey:  hostMessageScopeKey,
+		}
+	}
+	return merged, sources
+}
+
+// loadSourcePluginLocaleBundles loads source-plugin translation resources from
+// registered embedded plugin filesystems, returning a per-plugin map so the
+// cache can attribute each key to its owning plugin.
+func loadSourcePluginLocaleBundles(locale string) map[string]map[string]string {
+	bundles := make(map[string]map[string]string)
+	sourcePlugins := pluginhost.ListSourcePlugins()
+	if len(sourcePlugins) == 0 {
+		return bundles
+	}
 
 	relativePath := path.Join(pluginI18nDir, locale+".json")
 	for _, sourcePlugin := range sourcePlugins {
@@ -336,9 +426,9 @@ func loadSourcePluginLocaleBundle(locale string) map[string]string {
 		if err != nil || len(content) == 0 {
 			continue
 		}
-		mergeFlatMessageMaps(bundle, parseLocaleJSON(content))
+		bundles[sourcePlugin.ID()] = parseLocaleJSON(content)
 	}
-	return bundle
+	return bundles
 }
 
 // loadEmbeddedHostLocaleBundle loads host runtime messages from embedded manifest assets.
@@ -426,16 +516,6 @@ func lookupMessageString(messages map[string]interface{}, key string) (string, b
 	}
 	value, ok := current.(string)
 	return value, ok
-}
-
-// mergeFlatMessageMaps merges source flat messages into destination messages.
-func mergeFlatMessageMaps(dst map[string]string, src map[string]string) {
-	if len(src) == 0 {
-		return
-	}
-	for key, value := range src {
-		dst[key] = value
-	}
 }
 
 // cloneFlatMessageMap clones one flat message map so callers can safely mutate it.
