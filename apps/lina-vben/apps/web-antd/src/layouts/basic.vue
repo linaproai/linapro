@@ -42,7 +42,7 @@ import { refreshAccessibleState } from '#/router/access-refresh';
 import { useAuthStore } from '#/store';
 import { useMessageStore } from '#/store/message';
 import LoginForm from '#/views/_core/authentication/login.vue';
-import NoticePreviewModal from '#/views/system/notice/notice-preview-modal.vue';
+import NoticePreviewModal from '#/views/system/message/notice-preview-modal.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -68,8 +68,7 @@ const notifications = computed<NotificationItem[]>(() =>
     date: msg.createdAt,
     isRead: msg.isRead === 1,
     message: msg.title,
-    title:
-      msg.type === 1 ? $t('pages.status.notice') : $t('pages.status.announcement'),
+    title: msg.typeLabel,
     sourceType: msg.sourceType,
     sourceId: msg.sourceId,
   })),

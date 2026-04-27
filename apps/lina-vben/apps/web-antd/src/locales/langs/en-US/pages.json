@@ -56,9 +56,7 @@
     "disabled": "Disabled",
     "unknown": "Unknown",
     "male": "Male",
-    "female": "Female",
-    "notice": "Notice",
-    "announcement": "Announcement"
+    "female": "Female"
   },
   "layout": {
     "notifications": {

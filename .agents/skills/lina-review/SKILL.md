@@ -92,6 +92,13 @@ For every functional change, also perform an **i18n impact review**:
 3. Flag hard-coded user-facing text, missing translation keys, stale/orphaned translation entries left after feature removal, and changes whose i18n impact was not explicitly evaluated.
 4. If the change has no i18n impact, require the review result to state that conclusion explicitly.
 
+For every frontend change that introduces or modifies an enumerated business value (status, type, scope, mode, source, etc.), also perform a **dictionary-vs-locale single-source review**:
+1. If a backend `sys_*` dictionary already owns the same enumeration (registered via `manifest/sql` or runtime dict registration), the frontend MUST consume that dictionary through `useDictStore().getDictOptions(...)` / `getDictOptionsAsync(...)` rather than maintaining a parallel `options: [...]` literal array with `$t(...)` labels in `frontend/pages/data.ts`, `*.vue` form schema, or sibling files. Static `options` arrays are only acceptable when no backend dictionary owns the enumeration.
+2. When the same field is rendered as a `DictTag` in the table column, the search form, the create/edit form, and any preview/detail surface, every surface MUST use the same dictionary as its single source of truth. Flag any surface that injects literal label/value pairs alongside a sibling `DictTag` consumer of the same dictionary.
+3. The shared frontend `pages.*` namespace (e.g., `apps/lina-vben/apps/web-antd/src/locales/langs/<locale>/pages.json`) MUST NOT carry translations that duplicate `sys_*` dictionary labels. If a host UI legitimately renders an enumeration owned by a plugin dictionary, the host backend (e.g., `usermsg`, `notify`) must surface a localized label field on its API response and the host frontend must consume that label directly; do not add `pages.status.<enum>` keys that mirror dict labels as a workaround for cross-module coupling.
+4. When a backend-owned data field needs localized display in the frontend, prefer adding a localized field (e.g., `typeLabel`, `statusLabel`) on the backend service/API output and consume it directly. The frontend must not maintain `type === N ? $t(...) : $t(...)` mapping helpers that mirror dictionary semantics.
+5. If the change removes a frontend `options` literal, also confirm any orphaned `pages.*` keys, fallback arrays, and `getXxxLabel` helpers are deleted in the same change so stale translation keys do not remain.
+
 ### 6. SQL Review
 
 **Trigger**: New or modified files under `apps/lina-core/manifest/sql/`、`apps/lina-core/manifest/sql/mock-data/`、`apps/lina-plugins/**/manifest/sql/` or SQL snippets embedded in related delivery docs
@@ -130,6 +137,7 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 ### Project Spec Review
 ✓ Compliant with CLAUDE.md / ⚠ N violations found
 ✓ i18n impact reviewed / ⚠ N i18n governance issues found
+✓ Dictionary-vs-locale single-source compliant / ⚠ N dict double-source issues found
 
 ### SQL Review
 ✓ No SQL changes / ✓ SQL changes compliant / ⚠ N SQL issues found

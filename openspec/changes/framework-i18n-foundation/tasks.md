@@ -107,10 +107,10 @@
 - [x] **FB-68**: 将认证 hook 公共契约中的登录日志 i18n key 下沉回登录日志插件内部，公共组件只发布稳定认证原因码
 - [x] **FB-69**: 进一步收窄认证 hook 公共 payload 契约，移除公共组件中的认证日志展示 fallback 文案常量
 - [x] **FB-70**: 优化英文环境下定时任务详情弹窗布局，确保长字段标签完整单行展示并补充布局回归验证
-- [ ] **FB-71**: 修复 `content-notice` 插件 `data.ts` 与 `notice-modal.vue` 中通知类型选项硬编码（搜索表单与新增/编辑表单），统一从 `sys_notice_type` 字典加载，并补充 `TC0113` 专项回归覆盖
-- [ ] **FB-72**: 删除主应用残留旧版登录日志目录 `apps/lina-vben/apps/web-antd/src/views/monitor/loginlog/` 及其路由/菜单注册，功能统一由 `monitor-loginlog` 插件承接
-- [ ] **FB-73**: 在 `lina-review` 技能中新增审查规则，禁止前端 `Select` 组件 options 与表格列同字典 `DictTag` 形成双源数据，并禁止通用 `pages.*` 命名空间承载与 `sys_*` 字典 label 同义的业务枚举翻译
-- [ ] **FB-76**: 删除主应用残留旧版通知公告目录 `apps/lina-vben/apps/web-antd/src/views/system/notice/` 及其路由/菜单注册，功能统一由 `content-notice` 插件承接
-- [ ] **FB-77**: 重构宿主消息中心使其不再依赖 `pages.status.notice` / `pages.status.announcement`：消息列表与未读消息接口在响应中追加本地化 `typeLabel` 字段，前端 `basic.vue` 通知徽标与 `system/message/index.vue` 改为直接消费 API 返回的 label，最后删除前端 locale 中的 `pages.status.notice` / `pages.status.announcement` 键
+- [x] **FB-71**: 修复 `content-notice` 插件 `data.ts` 与 `notice-modal.vue` 中通知类型选项硬编码（搜索表单与新增/编辑表单），统一从 `sys_notice_type` 字典加载，并补充 `TC0121` 专项回归覆盖
+- [x] **FB-72**: 删除主应用残留旧版登录日志目录 `apps/lina-vben/apps/web-antd/src/views/monitor/loginlog/` 及其路由/菜单注册，功能统一由 `monitor-loginlog` 插件承接
+- [x] **FB-73**: 在 `lina-review` 技能中新增审查规则，禁止前端 `Select` 组件 options 与表格列同字典 `DictTag` 形成双源数据，禁止通用 `pages.*` 命名空间承载与 `sys_*` 字典 label 同义的业务枚举翻译，并要求宿主消费插件字典语义时通过后端返回本地化字段而非维护前端枚举映射
+- [x] **FB-76**: 删除主应用残留旧版通知公告目录 `apps/lina-vben/apps/web-antd/src/views/system/notice/`（消息中心仍需复用的预览弹窗迁至 `views/system/message/notice-preview-modal.vue`），功能统一由 `content-notice` 插件承接
+- [x] **FB-77**: 重构宿主消息中心使其不再依赖 `pages.status.notice` / `pages.status.announcement`：消息列表/详情接口在响应中追加本地化 `typeLabel` 字段，前端 `basic.vue` 通知徽标、`system/message/index.vue` 与迁移后的 `views/system/message/notice-preview-modal.vue` 改为直接消费 API 返回的 label，删除前端 locale 中的 `pages.status.notice` / `pages.status.announcement` 键，并补充 `TC0122` API 契约回归覆盖
 - [x] **FB-74**: 优化定时任务详情中三状态按钮组布局，避免插件不可用状态换行贴边并补充英文布局回归验证
 - [x] **FB-75**: 简化定时任务插件不可用状态展示文案为 `Unavailable` / `不可用`，状态字段恢复为详情表单单列展示，并保留停止原因和提示承载详细原因及回归断言

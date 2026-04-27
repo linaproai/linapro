@@ -3,6 +3,7 @@ export interface UserMessage {
   userId: number;
   title: string;
   type: number;
+  typeLabel: string;
   sourceType: string;
   sourceId: number;
   isRead: number;
@@ -14,6 +15,7 @@ export interface UserMessageDetail {
   id: number;
   title: string;
   type: number;
+  typeLabel: string;
   sourceType: string;
   sourceId: number;
   content: string;

@@ -542,6 +542,12 @@
       }
     }
   },
+  "usermsg": {
+    "type": {
+      "announcement": "公告",
+      "notice": "通知"
+    }
+  },
   "systemInfo": {
     "components": {
       "backend": {

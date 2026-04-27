@@ -7,7 +7,15 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/service/bizctx"
+	i18nsvc "lina-core/internal/service/i18n"
 	notifysvc "lina-core/internal/service/notify"
+)
+
+// Stable i18n keys used to localize the user-message type label so the host
+// inbox UI does not need to map message.type to free-form text on the client.
+const (
+	usermsgTypeNoticeI18nKey       = "usermsg.type.notice"
+	usermsgTypeAnnouncementI18nKey = "usermsg.type.announcement"
 )
 
 // Service defines the usermsg service contract.
@@ -35,6 +43,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
 	notifySvc notifysvc.Service // Unified notify service
+	i18nSvc   i18nsvc.Service   // Host i18n service for type label localization
 }
 
 // New creates and returns a new Service instance.
@@ -42,6 +51,24 @@ func New() Service {
 	return &serviceImpl{
 		bizCtxSvc: bizctx.New(),
 		notifySvc: notifysvc.New(),
+		i18nSvc:   i18nsvc.New(),
+	}
+}
+
+// localizeType translates the legacy numeric inbox message type into the
+// current request locale. The host owns this label so that the inbox UI can
+// render type names without depending on plugin-installed dictionaries.
+// English source text is used as the safety fallback so the inbox never
+// renders an empty cell if a locale resource happens to be missing.
+func (s *serviceImpl) localizeType(ctx context.Context, msgType int) string {
+	if s == nil || s.i18nSvc == nil {
+		return ""
+	}
+	switch msgType {
+	case 2:
+		return s.i18nSvc.Translate(ctx, usermsgTypeAnnouncementI18nKey, "Announcement")
+	default:
+		return s.i18nSvc.Translate(ctx, usermsgTypeNoticeI18nKey, "Notice")
 	}
 }
 
@@ -81,6 +108,7 @@ type MessageItem struct {
 	UserId     int64       // Recipient user ID
 	Title      string      // Message title
 	Type       int         // Message type: 1=Notice 2=Announcement
+	TypeLabel  string      // Localized type label resolved at the host
 	SourceType string      // Message source type
 	SourceId   int64       // Message source ID
 	IsRead     int         // Whether the message has been read
@@ -94,6 +122,7 @@ type MessageDetail struct {
 	Id            int64       // Message ID
 	Title         string      // Message title
 	Type          int         // Message type: 1=Notice 2=Announcement
+	TypeLabel     string      // Localized type label resolved at the host
 	SourceType    string      // Message source type
 	SourceId      int64       // Message source ID
 	Content       string      // Renderable message body content
@@ -127,6 +156,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 			UserId:     item.UserID,
 			Title:      item.Title,
 			Type:       item.Type,
+			TypeLabel:  s.localizeType(ctx, item.Type),
 			SourceType: item.SourceType,
 			SourceId:   item.SourceID,
 			IsRead:     item.IsRead,

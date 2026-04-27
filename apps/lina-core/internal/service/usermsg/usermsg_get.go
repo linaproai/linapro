@@ -78,10 +78,12 @@ func (s *serviceImpl) Get(ctx context.Context, id int64) (*MessageDetail, error)
 		return nil, gerror.New("消息不存在")
 	}
 
+	msgType := messageTypeFromCategoryCode(notifysvc.CategoryCode(record.CategoryCode))
 	return &MessageDetail{
 		Id:            record.Id,
 		Title:         record.Title,
-		Type:          messageTypeFromCategoryCode(notifysvc.CategoryCode(record.CategoryCode)),
+		Type:          msgType,
+		TypeLabel:     s.localizeType(ctx, msgType),
 		SourceType:    record.SourceType,
 		SourceId:      gconv.Int64(record.SourceId),
 		Content:       record.Content,

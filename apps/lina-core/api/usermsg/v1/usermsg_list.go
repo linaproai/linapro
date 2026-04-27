@@ -26,6 +26,7 @@ type MessageItem struct {
 	UserId     int64       `json:"userId" dc:"Receive user ID" eg:"1"`
 	Title      string      `json:"title" dc:"Message title" eg:"System maintenance notification"`
 	Type       int         `json:"type" dc:"Message type: 1=Notification 2=Announcement" eg:"1"`
+	TypeLabel  string      `json:"typeLabel" dc:"Localized message type label resolved by the host according to the request locale" eg:"Notice"`
 	SourceType string      `json:"sourceType" dc:"Source type: notice=notification announcement plugin=dynamic plugin system=system" eg:"notice"`
 	SourceId   int64       `json:"sourceId" dc:"Source ID, this field is used for the current notification announcement preview" eg:"1001"`
 	IsRead     int         `json:"isRead" dc:"Whether it has been read: 0=unread 1=read" eg:"0"`

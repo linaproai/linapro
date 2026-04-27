@@ -56,9 +56,7 @@
     "disabled": "停用",
     "unknown": "未知",
     "male": "男",
-    "female": "女",
-    "notice": "通知",
-    "announcement": "公告"
+    "female": "女"
   },
   "layout": {
     "notifications": {

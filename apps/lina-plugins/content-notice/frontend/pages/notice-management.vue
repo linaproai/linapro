@@ -30,8 +30,19 @@ const noticeStatusDicts = ref<any[]>([]);
 
 onMounted(async () => {
   [noticeTypeDicts.value, noticeStatusDicts.value] = await Promise.all([
-    dictStore.getDictOptions('sys_notice_type'),
-    dictStore.getDictOptions('sys_notice_status'),
+    dictStore.getDictOptionsAsync('sys_notice_type'),
+    dictStore.getDictOptionsAsync('sys_notice_status'),
+  ]);
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'type',
+      componentProps: {
+        options: noticeTypeDicts.value.map((item: any) => ({
+          label: item.label,
+          value: Number(item.value),
+        })),
+      },
+    },
   ]);
 });
 

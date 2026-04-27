@@ -18,6 +18,7 @@ type GetRes struct {
 	Id            int64       `json:"id" dc:"Message ID" eg:"1"`
 	Title         string      `json:"title" dc:"Message title" eg:"System maintenance notification"`
 	Type          int         `json:"type" dc:"Message type: 1=Notification 2=Announcement" eg:"1"`
+	TypeLabel     string      `json:"typeLabel" dc:"Localized message type label resolved by the host according to the request locale" eg:"Notice"`
 	SourceType    string      `json:"sourceType" dc:"Source type: notice=notification announcement plugin=dynamic plugin system=system" eg:"notice"`
 	SourceId      int64       `json:"sourceId" dc:"Source ID" eg:"1001"`
 	Content       string      `json:"content" dc:"Can be used directly to preview rendered message content" eg:"<p>The system will be undergoing maintenance tonight</p>"`

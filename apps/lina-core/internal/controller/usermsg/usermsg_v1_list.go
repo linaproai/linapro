@@ -27,6 +27,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			UserId:     item.UserId,
 			Title:      item.Title,
 			Type:       item.Type,
+			TypeLabel:  item.TypeLabel,
 			SourceType: item.SourceType,
 			SourceId:   item.SourceId,
 			IsRead:     item.IsRead,

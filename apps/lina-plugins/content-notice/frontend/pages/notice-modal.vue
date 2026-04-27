@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -9,6 +9,7 @@ import { noticeAdd, noticeInfo, noticeUpdate } from './notice-client';
 import { FileUpload } from '#/components/upload';
 import { $t } from '#/locales';
 import { TiptapEditor } from '#/components/tiptap';
+import { useDictStore } from '#/store/dict';
 
 const emit = defineEmits<{ reload: [] }>();
 
@@ -49,6 +50,17 @@ const { validate, validateInfos, resetFields } = Form.useForm(
   formData,
   formRules,
 );
+
+const dictStore = useDictStore();
+const noticeTypeOptions = ref<{ label: string; value: number }[]>([]);
+
+onMounted(async () => {
+  const dicts = await dictStore.getDictOptionsAsync('sys_notice_type');
+  noticeTypeOptions.value = dicts.map((item: any) => ({
+    label: item.label,
+    value: Number(item.value),
+  }));
+});
 
 const [Modal, modalApi] = useVbenModal({
   class: 'w-[800px]',
@@ -135,10 +147,7 @@ async function handleConfirm() {
             v-model:value="formData.type"
             button-style="solid"
             option-type="button"
-            :options="[
-              { label: $t('pages.status.notice'), value: 1 },
-              { label: $t('pages.status.announcement'), value: 2 },
-            ]"
+            :options="noticeTypeOptions"
           />
         </FormItem>
       </div>

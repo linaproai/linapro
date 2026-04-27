@@ -600,6 +600,12 @@
       }
     }
   },
+  "usermsg": {
+    "type": {
+      "announcement": "Announcement",
+      "notice": "Notice"
+    }
+  },
   "systemInfo": {
     "components": {
       "backend": {

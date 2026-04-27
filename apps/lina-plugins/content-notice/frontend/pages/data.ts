@@ -16,10 +16,7 @@ export function buildQuerySchema(): VbenFormSchema[] {
       fieldName: 'type',
       label: $t('plugin.content-notice.fields.type'),
       componentProps: {
-        options: [
-          { label: $t('pages.status.notice'), value: 1 },
-          { label: $t('pages.status.announcement'), value: 2 },
-        ],
+        options: [] as { label: string; value: number }[],
       },
     },
     {

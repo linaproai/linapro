@@ -28,7 +28,7 @@ import {
 import { $t } from '#/locales';
 import { useMessageStore } from '#/store/message';
 
-import NoticePreviewModal from '../notice/notice-preview-modal.vue';
+import NoticePreviewModal from './notice-preview-modal.vue';
 
 const messageStore = useMessageStore();
 
@@ -100,10 +100,6 @@ function handleClearAll() {
   });
 }
 
-function getTypeLabel(type: number) {
-  return type === 1 ? $t('pages.status.notice') : $t('pages.status.announcement');
-}
-
 function getTypeColor(type: number) {
   return type === 1 ? 'blue' : 'green';
 }
@@ -146,7 +142,7 @@ onMounted(() => {
                     {{ item.title }}
                   </span>
                   <Tag :color="getTypeColor(item.type)">
-                    {{ getTypeLabel(item.type) }}
+                    {{ item.typeLabel }}
                   </Tag>
                 </Space>
               </template>
