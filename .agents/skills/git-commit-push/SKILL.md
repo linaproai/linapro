@@ -24,11 +24,10 @@ This skill is for execution, not just advice. When it triggers, actually run the
    - `git diff --stat`
    - `git diff --cached --stat`
    - `git diff -- . ':(exclude)package-lock.json'` or narrower path filters only when needed for readability
-3. If the repository contains `.github/PULL_REQUEST_TEMPLATE.MD`, read it and treat its PR-title rules as the default commit-subject convention.
-4. Generate a commit subject from the actual changed files and diff content, not from the user prompt alone.
-5. Stage every current modification on the branch with `git add -A`.
-6. Commit once with the generated message.
-7. Push the current branch to `origin` with `git push origin <current-branch>`.
+3. Generate a commit subject from the actual changed files and diff content, not from the user prompt alone.
+4. Stage every current modification on the branch with `git add -A`.
+5. Commit once with the generated message.
+6. Push the current branch to `origin` with `git push origin <current-branch>`.
 
 ## Commit Message Rules
 
@@ -113,7 +112,6 @@ Refs: #123
 git status --short --branch
 git diff --stat
 git diff --cached --stat
-test -f .github/PULL_REQUEST_TEMPLATE.MD && sed -n '1,220p' .github/PULL_REQUEST_TEMPLATE.MD
 branch_name=$(git branch --show-current)
 git add -A
 git commit -m "<generated-subject>"
