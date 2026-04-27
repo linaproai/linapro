@@ -11,7 +11,7 @@ import (
 
 // ImportMessages imports flat translation messages into database overrides.
 func (c *ControllerV1) ImportMessages(ctx context.Context, req *v1.ImportMessagesReq) (res *v1.ImportMessagesRes, err error) {
-	output, err := c.i18nSvc.ImportMessages(ctx, i18nsvc.MessageImportInput{
+	output, err := c.maintainer.ImportMessages(ctx, i18nsvc.MessageImportInput{
 		Locale:    req.Locale,
 		ScopeType: req.ScopeType,
 		ScopeKey:  req.ScopeKey,

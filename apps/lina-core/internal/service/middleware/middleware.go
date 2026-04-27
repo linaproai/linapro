@@ -46,12 +46,18 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	authSvc   auth.Service      // Authentication service
-	bizCtxSvc bizctx.Service    // Business context service
-	configSvc config.Service    // Runtime configuration service
-	i18nSvc   i18nsvc.Service   // i18nSvc resolves request locale and translation context.
-	pluginSvc pluginsvc.Service // Plugin service
-	roleSvc   role.Service      // Role and permission service
+	authSvc   auth.Service          // Authentication service
+	bizCtxSvc bizctx.Service        // Business context service
+	configSvc config.Service        // Runtime configuration service
+	i18nSvc   middlewareI18nService // i18nSvc resolves request locale and translation context.
+	pluginSvc pluginsvc.Service     // Plugin service
+	roleSvc   role.Service          // Role and permission service
+}
+
+// middlewareI18nService defines the locale and error localization capabilities middleware needs.
+type middlewareI18nService interface {
+	i18nsvc.LocaleResolver
+	i18nsvc.Translator
 }
 
 // New creates and returns a new Service instance.

@@ -1,11 +1,11 @@
 ## ADDED Requirements
 
 ### Requirement: 接口文档翻译资源加载必须复用统一的 ResourceLoader
-系统 SHALL 让 `apidoc` 翻译资源的加载链路通过 `internal/service/i18n` 包提供的统一 `ResourceLoader` 完成,不得在 `apidoc` 包内维护一份独立的"宿主嵌入资源 → 源码插件嵌入资源 → 动态插件运行时资源"遍历实现。`apidoc` 链路 MUST 通过 `ResourceLoader` 的配置参数声明 `Subdir = "manifest/i18n/apidoc"` 与 `PluginScope = RestrictedToPluginNamespace`,并保留多文件、层级 JSON 和扁平 dotted key 三种维护方式;系统在合并时仍归一化为稳定结构化 key。
+系统 SHALL 让 `apidoc` 翻译资源的加载链路通过 `pkg/i18nresource` 包提供的统一 `ResourceLoader` 完成,不得在 `apidoc` 包内维护一份独立的"宿主嵌入资源 → 源码插件嵌入资源 → 动态插件运行时资源"遍历实现,也不得为复用加载器而反向依赖 `internal/service/i18n`。`apidoc` 链路 MUST 通过 `ResourceLoader` 的配置参数声明 `Subdir = "manifest/i18n/apidoc"` 与 `PluginScope = RestrictedToPluginNamespace`,并保留多文件、层级 JSON 和扁平 dotted key 三种维护方式;系统在合并时仍归一化为稳定结构化 key。
 
 #### Scenario: apidoc 与运行时 bundle 共用资源加载器实现
 - **WHEN** 系统加载某语言的 `apidoc` 翻译资源
-- **THEN** 加载流程通过 `i18n.ResourceLoader` 完成宿主嵌入资源、源码插件嵌入资源、动态插件运行时资源的发现与合并
+- **THEN** 加载流程通过 `i18nresource.ResourceLoader` 完成宿主嵌入资源、源码插件嵌入资源、动态插件运行时资源的发现与合并
 - **AND** `apidoc` 包内不存在与 `i18n` 包重复的目录遍历或 `wasm` 解析逻辑
 
 #### Scenario: 插件命名空间隔离仍然生效

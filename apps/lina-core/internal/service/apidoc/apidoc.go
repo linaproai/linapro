@@ -50,8 +50,14 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	configSvc ConfigProvider
 	bizCtxSvc bizctxsvc.Service
-	i18nSvc   i18nsvc.Service
+	i18nSvc   apidocI18nService
 	pluginSvc PluginRouteProvider
+}
+
+// apidocI18nService defines the locale and translation capabilities apidoc needs.
+type apidocI18nService interface {
+	i18nsvc.LocaleResolver
+	i18nsvc.Translator
 }
 
 // New creates and returns a new apidoc Service.

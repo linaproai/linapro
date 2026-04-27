@@ -26,7 +26,12 @@ import (
 func TestRuntimeMessagesUsesExplicitLangOverride(t *testing.T) {
 	t.Parallel()
 
-	controller := &ControllerV1{i18nSvc: i18nsvc.New()}
+	i18nSvc := i18nsvc.New()
+	controller := &ControllerV1{
+		localeResolver: i18nSvc,
+		bundleProvider: i18nSvc,
+		maintainer:     i18nSvc,
+	}
 	ctx := context.WithValue(
 		context.Background(),
 		gctx.StrKey("BizCtx"),
@@ -55,7 +60,12 @@ func TestRuntimeMessagesUsesExplicitLangOverride(t *testing.T) {
 func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 	t.Parallel()
 
-	controller := &ControllerV1{i18nSvc: i18nsvc.New()}
+	i18nSvc := i18nsvc.New()
+	controller := &ControllerV1{
+		localeResolver: i18nSvc,
+		bundleProvider: i18nSvc,
+		maintainer:     i18nSvc,
+	}
 	ctx := context.WithValue(
 		context.Background(),
 		gctx.StrKey("BizCtx"),
@@ -132,10 +142,10 @@ func TestMatchesIfNoneMatchAcceptsExactWildcardAndMultiValues(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		headerValue  string
-		etag         string
-		shouldMatch  bool
+		name        string
+		headerValue string
+		etag        string
+		shouldMatch bool
 	}{
 		{name: "empty header", headerValue: "", etag: `"en-US-1"`, shouldMatch: false},
 		{name: "exact match", headerValue: `"en-US-1"`, etag: `"en-US-1"`, shouldMatch: true},

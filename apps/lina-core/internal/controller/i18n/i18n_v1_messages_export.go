@@ -10,7 +10,7 @@ import (
 
 // ExportMessages exports flat runtime messages for one locale.
 func (c *ControllerV1) ExportMessages(ctx context.Context, req *v1.ExportMessagesReq) (res *v1.ExportMessagesRes, err error) {
-	output := c.i18nSvc.ExportMessages(ctx, req.Locale, req.Raw)
+	output := c.maintainer.ExportMessages(ctx, req.Locale, req.Raw)
 	return &v1.ExportMessagesRes{
 		Locale:        output.Locale,
 		DefaultLocale: output.DefaultLocale,

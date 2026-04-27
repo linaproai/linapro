@@ -19,6 +19,7 @@
   "create": "新增",
   "yes": "是",
   "no": "否",
+  "runtimeI18nLoadFailed": "运行时语言资源暂时不可用，已尽量使用本地缓存翻译。",
   "showSearchPanel": "显示搜索面板",
   "hideSearchPanel": "隐藏搜索面板"
 }

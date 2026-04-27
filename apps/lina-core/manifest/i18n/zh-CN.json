@@ -1,5 +1,13 @@
 {
   "config": {
+    "field": {
+      "createdAt": "创建时间",
+      "key": "参数键名",
+      "name": "参数名称",
+      "remark": "备注",
+      "updatedAt": "修改时间",
+      "value": "参数键值"
+    },
     "cron": {
       "log": {
         "retention": {

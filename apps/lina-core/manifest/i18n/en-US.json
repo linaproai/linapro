@@ -1,5 +1,13 @@
 {
   "config": {
+    "field": {
+      "createdAt": "Created At",
+      "key": "Parameter Key",
+      "name": "Parameter Name",
+      "remark": "Remark",
+      "updatedAt": "Updated At",
+      "value": "Parameter Value"
+    },
     "cron": {
       "log": {
         "retention": {

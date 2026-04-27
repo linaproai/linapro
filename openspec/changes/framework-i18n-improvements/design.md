@@ -5,7 +5,7 @@
 - 当前 `Translate` 系列方法每次调用都会 `cloneFlatMessageMap` 整张运行时消息包,而调用方往往只需要 1 个 key——已知热路径(菜单列表、字典列表、公共配置)单次请求会触发数十次完整 clone。
 - `runtimeBundleCache` 的 invalidate 是"全语言全扇区一锅清",任何插件启停或 DB 翻译导入都会击穿所有语言的缓存。
 - `runtimeContentCache` 在 `InvalidateContentCache()` 时整张清空,业务内容数量增长后会出现击穿到 DB 的风险。
-- 5 个 `*_i18n.go` 适配文件 (`menu_i18n.go` / `dict_i18n.go` / `sysconfig_i18n.go` / `jobmgmt_i18n.go` / `role.go`) 各自决定"何时翻译/何时跳过/用哪个 Translate*",`sysconfig_i18n.go` 甚至直接在 Go 内硬编码英文/中文 map(违反约定一)。
+- 5 个 `*_i18n.go` 适配文件 (`menu_i18n.go` / `dict_i18n.go` / `sysconfig_i18n.go` / `jobmgmt_i18n.go` / `role.go`) 各自决定"何时翻译/何时跳过/用哪个 Translate*",`sysconfig_i18n.go` 甚至直接在 Go 内硬编码英文/中文 map(违反约定一)。初版 `LocaleProjector` 中心化方案可以减少重复,但会让 i18n 基础服务反向耦合业务实体与业务保护规则,因此本方案改为业务模块拥有投影规则。
 - `i18n_manage.go::isSourceTextBackedRuntimeKey` 把 `job.handler.*`、`job.group.default.*` 这些 jobmgmt 私有命名前缀漏到 i18n 包内部,形成反向依赖。
 - `Service` 接口 18 个方法承担 5 类职责,业务模块测试要 stub 整个大接口。
 - `apidoc/apidoc_i18n_loader.go` 与 `i18n/i18n_source.go` 各自维护一份 host/source-plugin/dynamic-plugin 资源遍历逻辑,共重复 ~280 行。
@@ -20,7 +20,7 @@
 - 让 `Translate` 热路径在 cache 命中时不再做大 map 克隆,单次查找接近常量时间。
 - 让缓存失效具备扇区级精度:插件启停只清相关插件扇区,DB 导入只清 DB 扇区,语言切换不互相影响。
 - 让运行时翻译包在 HTTP 层支持 ETag/304 协商,前端二次进入页面零网络切语言。
-- 让 5 个业务模块的 `*_i18n.go` 收敛到 `LocaleProjector` 统一管控,消除"何时翻译"逻辑漂移。
+- 让 5 个业务模块的 `*_i18n.go` 在各自模块边界内收敛投影规则,消除明显漂移,同时避免 i18n 基础服务反向认识业务实体。
 - 让 `Service` 大接口拆分为多个职责清晰的小接口,业务模块只声明实际依赖。
 - 让 `source-text` 命名空间从 i18n 包黑名单改为业务模块显式注册,消除反向依赖。
 - 让 `apidoc` 与 runtime bundle 共用同一份 `ResourceLoader`,消除 ~280 行重复实现。
@@ -113,36 +113,33 @@ type runtimeCache struct {
 - 用 `Last-Modified`。未采用,bundle 版本变化由配置导入和插件启停驱动,二者都非"文件时间戳"语义,`ETag` 更准确。
 - 后端写 Redis 集中保存 bundle 版本。未采用,bundle 缓存本来就是进程内的 `runtimeBundleCache`,版本号也应该是同一个对象的属性,不需要外部存储。
 
-### 决策四:抽出 `i18n.LocaleProjector`,消除 5 个 `*_i18n.go` 的重复决策
+### 决策四:业务模块拥有本地化投影规则,i18n 只提供底层能力
 
-**选择**:在 `apps/lina-core/internal/service/i18n` 包下新增 `projector.go`,提供:
+**选择**:`apps/lina-core/internal/service/i18n` 包不提供 `LocaleProjector` 这类按业务实体命名的中心投影器。菜单、字典、配置、定时任务、角色、插件运行时等模块在自己的 `*_i18n.go` 或等价文件中维护翻译键推导、跳过策略、内置记录判定与 fallback 选择。业务模块通过窄接口依赖 i18n 的底层能力:
 
 ```go
-type LocaleProjector interface {
-    ProjectMenu(ctx context.Context, m *entity.SysMenu)
-    ProjectDictType(ctx context.Context, t *entity.SysDictType)
-    ProjectDictData(ctx context.Context, d *entity.SysDictData)
-    ProjectConfig(ctx context.Context, c *entity.SysConfig)
-    ProjectBuiltinJob(ctx context.Context, j *entity.SysJob)
-    ProjectJobGroup(ctx context.Context, g *entity.SysJobGroup)
-    ProjectBuiltinRole(ctx context.Context, r *entity.SysRole)
-    ProjectPluginMeta(ctx context.Context, p *PluginMeta)
+type menuI18nTranslator interface {
+    Translate(ctx context.Context, key string, fallback string) string
+}
+
+type dictI18nTranslator interface {
+    ResolveLocale(ctx context.Context, locale string) string
+    Translate(ctx context.Context, key string, fallback string) string
 }
 ```
 
-每个 `Project*` 方法封装该实体的翻译键推导、跳过策略、源文案选择。`*_i18n.go` 只剩 1-2 行调用;`menu/menu.go` 等业务方法持有 `LocaleProjector` 字段。
-
 **原因**:
-- 5 个适配文件原本各写 30-150 行,现在只剩调用入口,审查面缩到一半以下。
-- "何时翻译/何时跳过"集中决策,加新模块只需扩展 projector,业务模块零代码。
-- `LocaleProjector` 内部可以引用更细粒度的小接口(决策五),与"决策一缓存重构"自然对齐。
+- i18n 是基础组件,应只负责语言解析、翻译查找、缓存、资源加载和缺失检查,不能反向知道 `SysMenu`、`SysJob`、`admin` 角色、默认任务分组等业务实体和保护规则。
+- 业务翻译键本质上属于业务模块契约,例如 `dict.*`、`config.*`、`job.group.default.*`、`role.builtin.admin.name`,应由 owning module 维护。
+- 通过窄接口可以减少测试 stub 面,又不把业务决策集中塞进 i18n 包。
 
 **约束**:
-- `LocaleProjector` 不允许暴露按 entity 类型分散的 *Translate 方法重载,只暴露语义化的 `Project*`。
-- 默认语言下的"跳过翻译"策略统一在 projector 内做,业务模块不再判断 `ResolveLocale == DefaultLocale`。
+- `internal/service/i18n` 不得 import 菜单、字典、配置、任务、角色、插件 runtime 等业务模块或业务实体。
+- i18n 包不得暴露 `ProjectMenu`、`ProjectDictType`、`ProjectBuiltinJob` 等按业务实体命名的方法。
+- 业务模块可以判断 `ResolveLocale(ctx, "") == i18n.DefaultLocale`,但该判断必须只服务于本模块拥有的可编辑字段投影规则。
 
-**备选方案**:
-- 在每个业务模块自己包内放 `localizer`。未采用,因为正是当前问题的根源——决策权一旦下放就会漂移。
+**被否决方案**:
+- `LocaleProjector` 中心化投影器。否决原因:它减少了重复,但把业务实体、业务保护规则和业务翻译键推导集中进 i18n 基础服务,违反核心宿主边界与模块解耦原则。
 
 ### 决策五:`Service` 大接口拆分为五个小接口
 
@@ -208,9 +205,9 @@ func init() {
 **备选方案**:
 - 在 manifest 中静态声明命名空间。未采用,这是代码契约不是文件契约,与 Go 模块绑定更合适。
 
-### 决策七:`apidoc` 与 runtime bundle 共用 `ResourceLoader`
+### 决策七:`apidoc` 与 runtime bundle 共用公共 `ResourceLoader`
 
-**选择**:在 `apps/lina-core/internal/service/i18n` 下新增 `resourceloader.go`:
+**选择**:在 `apps/lina-core/pkg/i18nresource/` 下新增公共资源加载组件:
 
 ```go
 type ResourceLoader struct {
@@ -224,14 +221,15 @@ func (l *ResourceLoader) LoadSourcePluginBundles(locale string) map[string]map[s
 func (l *ResourceLoader) LoadDynamicPluginBundles(ctx context.Context, locale string, releases []ReleaseRef) map[string]map[string]string
 ```
 
-`apidoc_i18n_loader.go` 与 `i18n_source.go` 改为薄壳,通过不同的 `ResourceLoader` 实例工作。
+`apidoc_i18n_loader.go` 与 `i18n_source.go` 改为薄壳,通过不同的 `i18nresource.ResourceLoader` 实例工作。
 
 **原因**:
 - 两侧逻辑结构完全相同,仅 `Subdir` 与"是否限制插件命名空间"不同。
 - `ResourceLoader` 一处实现一处测试,避免双轨漂移。
+- `ResourceLoader` 放在 `pkg/i18nresource` 而不是 `internal/service/i18n`,避免 apidoc 为复用加载器而依赖运行时 i18n service 包。
 
 **备选方案**:
-- 把 apidoc 加载器并入 `i18n` 包统一管理。未采用,apidoc 翻译资源是文档专属域,不应该跟运行时 UI bundle 共享生命周期(已是 foundation 决策)。
+- 把 apidoc 加载器并入 `i18n` 包统一管理。未采用,apidoc 翻译资源是文档专属域,不应该跟运行时 UI bundle 共享生命周期,也不应该让 apidoc 反向依赖 `internal/service/i18n`。
 
 ### 决策八:WASM 自定义节解析提到 `pluginbridge`
 
@@ -309,6 +307,16 @@ async function loadMessages(lang) {
 - 选 `ja-JP`。未采用,LTR + 无复数无法暴露隐藏假设,等于"再做一遍 en-US"。
 - 一次性把完整 RTL 设计系统做完。未采用,会让本次变更范围爆炸,foundation 已经表明"主任务多 + 反馈多"的模式不健康。
 
+## Boundary Reassessment
+
+本次反馈暴露出一个方案级误判:`LocaleProjector` 为了减少重复,把业务实体、业务翻译键和受保护记录判定集中到了 i18n 基础服务中。该设计已被否决并移除。重新评估当前迭代后,后续任务按以下边界执行:
+
+- 任务 7 `Service` 接口拆分:保留。它降低业务模块对完整 i18n service 的依赖面,方向正确;实施时业务模块字段必须声明最小接口,不得把业务规则提升回 i18n 包。
+- 任务 8 `ResourceLoader`:调整。共享加载器不能放在 `internal/service/i18n`,否则 apidoc 会为复用加载器反向依赖运行时 i18n service 包;改为 `pkg/i18nresource` 公共组件。
+- 任务 9 WASM 解析迁移到 `pluginbridge`:保留。WASM 文件格式属于插件桥接/插件运行时基础设施,从 i18n 包移出可以降低耦合。
+- 任务 10-12 阿拉伯语与 RTL:保留。新增语言资源、方向切换和缺失检查不应要求业务 Go 代码改动;若出现必须改业务代码才能加语言的情况,视为方案问题。
+- 审查规则:新增 i18n 基础组件边界检查,禁止 `internal/service/i18n` 引入业务实体投影器、业务 key 判定常量或按业务实体命名的方法。
+
 ## Risks / Trade-offs
 
 - [Risk] 决策一移除 clone 后,如果有任何业务代码假设拿到的 map 可写并修改它,会污染缓存。→ Mitigation:codegen/lint 阶段不需要管,依靠改造期 grep `[]string\|map[string]string` 写操作并补单元测试;改造完毕后 `Translate` 系列只返回 `string`,根本没有 map 暴露给业务方。
@@ -323,7 +331,7 @@ async function loadMessages(lang) {
 
 - [Risk] 基础 RTL 可能与 antd 已有组件 CSS 不兼容,出现部分组件视觉错乱。→ Mitigation:验收标准明确为"内容正确、能用",视觉镜像偏差可接受;未来"完整 RTL 设计语言"独立变更收口。
 
-- [Trade-off] 决策七引入的 `ResourceLoader` 抽象会让 apidoc 与 runtime bundle 加载流程多一层间接调用。→ 接受,因为消除 ~280 行重复实现的收益远大于一层抽象的阅读代价。
+- [Trade-off] 决策七引入的 `ResourceLoader` 抽象会让 apidoc 与 runtime bundle 加载流程多一层间接调用。→ 接受,因为消除 ~280 行重复实现的收益远大于一层抽象的阅读代价;抽象必须位于 `pkg/i18nresource` 这类稳定公共组件中,不得放在运行时 i18n service 包内。
 
 - [Trade-off] 决策十不做完整 RTL 会让阿拉伯语用户在某些页面遇到"内容是阿语、布局还是 LTR"的混合体验。→ 接受,因为完整 RTL 设计是独立工程,本次明确范围外。
 
@@ -336,12 +344,12 @@ async function loadMessages(lang) {
    - 前端 `runtime-i18n.ts` 改走 `requestClient`;实现 `localStorage` 持久化与 304 协商;补单元测试。
 
 2. 一致性收敛(P2):
-   - 抽出 `LocaleProjector`;改造 5 个 `*_i18n.go` 为薄壳;删除 `sysconfig_i18n.go` 内 `englishLabels`/`chineseLabels` 并补对应 `config.field.*` 翻译键。
+   - 删除中心化 `LocaleProjector` 方案;改造 5 个 `*_i18n.go` 在各业务模块内维护投影规则;删除 `sysconfig_i18n.go` 内 `englishLabels`/`chineseLabels` 并补对应 `config.field.*` 翻译键。
    - 实现 `RegisterSourceTextNamespace`;`jobmgmt` 在自己 `init()` 中注册;删除 `i18n_manage.go::isSourceTextBackedRuntimeKey` 黑名单。
    - 拆分 `Service` 接口为五个小接口;业务模块字段类型逐个收敛(menu/dict/sysconfig/jobmgmt/role/usermsg/apidoc/plugin)。
 
 3. 边界整理(P3):
-   - 抽出 `ResourceLoader`;`apidoc_i18n_loader.go` 与 `i18n_source.go` 共用;删除重复实现。
+   - 在 `pkg/i18nresource` 抽出 `ResourceLoader`;`apidoc_i18n_loader.go` 与 `i18n_source.go` 共用;删除重复实现。
    - 前端 `loadMessages` 拆分失败语义;补单元测试覆盖弱网/超时降级。
    - WASM 自定义节解析提到 `pluginbridge`;i18n 与 plugin runtime 切换调用路径;删除 i18n 内 WASM 工具函数。
 

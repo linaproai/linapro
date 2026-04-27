@@ -34,7 +34,7 @@ const (
 // and short-circuits to 304 when the client's If-None-Match header matches,
 // skipping the bundle clone and nesting work entirely on the revalidation path.
 func (c *ControllerV1) RuntimeMessages(ctx context.Context, req *v1.RuntimeMessagesReq) (res *v1.RuntimeMessagesRes, err error) {
-	locale := c.i18nSvc.ResolveLocale(ctx, req.Lang)
+	locale := c.localeResolver.ResolveLocale(ctx, req.Lang)
 
 	r := g.RequestFromCtx(ctx)
 	// BundleVersion is 0 only when the locale entry has never been built.
@@ -42,7 +42,7 @@ func (c *ControllerV1) RuntimeMessages(ctx context.Context, req *v1.RuntimeMessa
 	// persisted cache; we therefore skip 304 short-circuiting until the
 	// merged catalog has been initialized at least once.
 	if r != nil {
-		preBuildVersion := c.i18nSvc.BundleVersion(locale)
+		preBuildVersion := c.bundleProvider.BundleVersion(locale)
 		if preBuildVersion > 0 {
 			etag := buildRuntimeMessagesETag(locale, preBuildVersion)
 			if matchesIfNoneMatch(r.Header.Get(runtimeMessagesIfNoneMatchHeader), etag) {
@@ -56,8 +56,8 @@ func (c *ControllerV1) RuntimeMessages(ctx context.Context, req *v1.RuntimeMessa
 
 	// BuildRuntimeMessages primes the merged catalog so the post-build version
 	// always reflects every sector that participated in this response body.
-	messages := c.i18nSvc.BuildRuntimeMessages(ctx, locale)
-	etag := buildRuntimeMessagesETag(locale, c.i18nSvc.BundleVersion(locale))
+	messages := c.bundleProvider.BuildRuntimeMessages(ctx, locale)
+	etag := buildRuntimeMessagesETag(locale, c.bundleProvider.BundleVersion(locale))
 	if r != nil {
 		r.Response.Header().Set(runtimeMessagesCacheControlHeader, runtimeMessagesCacheControlValue)
 		r.Response.Header().Set(runtimeMessagesETagHeader, etag)

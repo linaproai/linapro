@@ -23,6 +23,12 @@ const (
 	jobDescriptionI18nField = "description"
 )
 
+// jobmgmtI18nTranslator defines the narrow source-text translation capability jobmgmt needs.
+type jobmgmtI18nTranslator interface {
+	// TranslateSourceText returns one source-text-backed key with source text fallback.
+	TranslateSourceText(ctx context.Context, key string, sourceText string) string
+}
+
 // localizeGroupForDisplay translates the code-owned default group display
 // fields while preserving custom group records exactly as stored.
 func (s *serviceImpl) localizeGroupForDisplay(ctx context.Context, group *entity.SysJobGroup) {

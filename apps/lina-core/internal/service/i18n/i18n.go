@@ -41,17 +41,18 @@ type LocaleDescriptor struct {
 	IsDefault  bool   // IsDefault reports whether the locale is the host default.
 }
 
-// Service defines the i18n service contract. It is intentionally a composition
-// of smaller-purpose interfaces so business modules can depend on the minimal
-// surface they actually use; see the Translator/LocaleResolver/etc. interfaces
-// declared in the same package.
-type Service interface {
+// LocaleResolver defines request-locale resolution and request-context locale lookup.
+type LocaleResolver interface {
 	// ResolveRequestLocale resolves the effective locale for the current HTTP request.
 	ResolveRequestLocale(r *ghttp.Request) string
 	// ResolveLocale resolves one explicit locale override against the current request locale.
 	ResolveLocale(ctx context.Context, locale string) string
 	// GetLocale returns the locale stored in request business context.
 	GetLocale(ctx context.Context) string
+}
+
+// Translator defines runtime message lookup and localized error rendering.
+type Translator interface {
 	// Translate returns one key from the current request locale only, falling
 	// back to the caller-provided literal when the key is missing.
 	//
@@ -90,30 +91,15 @@ type Service interface {
 	TranslateWithDefaultLocale(ctx context.Context, key string, fallback string) string
 	// LocalizeError translates one request-scoped error into the effective locale.
 	LocalizeError(ctx context.Context, err error) string
-	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles
-	// for the given scope. An empty scope drops every locale and every sector.
-	InvalidateRuntimeBundleCache(scope InvalidateScope)
-	// InvalidateContentCache clears cached sys_i18n_content lookup results
-	// scoped to one business type and/or one locale.
-	InvalidateContentCache(scope ContentInvalidateScope)
+}
+
+// BundleProvider defines runtime locale descriptors, runtime bundles, and bundle versioning.
+type BundleProvider interface {
 	// BundleVersion returns the per-locale runtime translation bundle version.
 	// It increases monotonically whenever any sector that contributes to that
 	// locale's merged view is invalidated, so HTTP ETag handlers can produce
 	// stable identifiers without recomputing the catalog.
 	BundleVersion(locale string) uint64
-	// ExportMessages exports flat runtime messages for one locale.
-	ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
-	// CheckMissingMessages reports translation keys missing from one locale.
-	CheckMissingMessages(ctx context.Context, locale string, keyPrefix string) []MissingMessageItem
-	// DiagnoseMessages reports the effective source of runtime messages for one locale.
-	DiagnoseMessages(ctx context.Context, locale string, keyPrefix string) []MessageDiagnosticItem
-	// ImportMessages writes flat translation messages into sys_i18n_message.
-	ImportMessages(ctx context.Context, input MessageImportInput) (MessageImportOutput, error)
-	// GetContent resolves one business-content translation from sys_i18n_content and
-	// falls back to the runtime default locale or caller-provided default content.
-	GetContent(ctx context.Context, input ContentLookupInput) (ContentLookupOutput, error)
-	// ListContentVariants lists all enabled locale variants for one business-content anchor.
-	ListContentVariants(ctx context.Context, businessType string, businessID string, field string) ([]ContentVariant, error)
 	// ListRuntimeLocales returns the runtime locales supported by the host.
 	ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
 	// BuildRuntimeMessages returns the current-locale runtime translation bundle.
@@ -124,6 +110,42 @@ type Service interface {
 	// from this bundle so the frontend can show its own source text or key
 	// placeholder instead of silently displaying Chinese.
 	BuildRuntimeMessages(ctx context.Context, locale string) map[string]interface{}
+}
+
+// ContentProvider defines localized business-content lookup operations.
+type ContentProvider interface {
+	// GetContent resolves one business-content translation from sys_i18n_content and
+	// falls back to the runtime default locale or caller-provided default content.
+	GetContent(ctx context.Context, input ContentLookupInput) (ContentLookupOutput, error)
+	// ListContentVariants lists all enabled locale variants for one business-content anchor.
+	ListContentVariants(ctx context.Context, businessType string, businessID string, field string) ([]ContentVariant, error)
+}
+
+// Maintainer defines administrative i18n message maintenance and cache invalidation operations.
+type Maintainer interface {
+	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles
+	// for the given scope. An empty scope drops every locale and every sector.
+	InvalidateRuntimeBundleCache(scope InvalidateScope)
+	// InvalidateContentCache clears cached sys_i18n_content lookup results
+	// scoped to one business type and/or one locale.
+	InvalidateContentCache(scope ContentInvalidateScope)
+	// ExportMessages exports flat runtime messages for one locale.
+	ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
+	// CheckMissingMessages reports translation keys missing from one locale.
+	CheckMissingMessages(ctx context.Context, locale string, keyPrefix string) []MissingMessageItem
+	// DiagnoseMessages reports the effective source of runtime messages for one locale.
+	DiagnoseMessages(ctx context.Context, locale string, keyPrefix string) []MessageDiagnosticItem
+	// ImportMessages writes flat translation messages into sys_i18n_message.
+	ImportMessages(ctx context.Context, input MessageImportInput) (MessageImportOutput, error)
+}
+
+// Service defines the complete i18n service contract.
+type Service interface {
+	LocaleResolver
+	Translator
+	BundleProvider
+	ContentProvider
+	Maintainer
 }
 
 // Ensure serviceImpl implements Service.

@@ -126,10 +126,8 @@ func (s *serviceImpl) CheckMissingMessages(ctx context.Context, locale string, k
 }
 
 // shouldSkipMissingMessage reports whether one default-locale key is not
-// required in the target locale because another source of truth supplies the
-// target-language fallback. For example, en-US omits job.handler.* keys because
-// built-in scheduled-job handlers keep their English source text in Go code,
-// source-plugin cron metadata, or dynamic-plugin cron contracts.
+// required in the target locale because a registered source-text namespace
+// supplies the target-language fallback.
 func shouldSkipMissingMessage(locale string, key string) bool {
 	if locale != EnglishLocale {
 		return false
@@ -140,9 +138,8 @@ func shouldSkipMissingMessage(locale string, key string) bool {
 // isSourceTextBackedRuntimeKey reports whether the key is backed by source
 // metadata rather than an en-US runtime JSON entry.
 func isSourceTextBackedRuntimeKey(key string) bool {
-	trimmedKey := strings.TrimSpace(key)
-	return strings.HasPrefix(trimmedKey, "job.handler.") ||
-		strings.HasPrefix(trimmedKey, "job.group.default.")
+	_, ok := SourceTextNamespaceReason(key)
+	return ok
 }
 
 // DiagnoseMessages returns effective source diagnostics for one locale.

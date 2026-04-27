@@ -141,11 +141,11 @@ const (
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc bizctx.Service      // bizCtxSvc resolves the current operator identity.
-	configSvc configsvc.Service   // configSvc exposes runtime cron-management parameters.
-	i18nSvc   i18nsvc.Service     // i18nSvc localizes backend-owned display metadata.
-	registry  jobhandler.Registry // registry resolves handler definitions and validation schemas.
-	scheduler Scheduler           // scheduler keeps persistent jobs registered with gcron.
+	bizCtxSvc bizctx.Service        // bizCtxSvc resolves the current operator identity.
+	configSvc configsvc.Service     // configSvc exposes runtime cron-management parameters.
+	i18nSvc   jobmgmtI18nTranslator // i18nSvc localizes backend-owned display metadata.
+	registry  jobhandler.Registry   // registry resolves handler definitions and validation schemas.
+	scheduler Scheduler             // scheduler keeps persistent jobs registered with gcron.
 }
 
 // NewScheduler creates the persistent scheduler plus its internal shell
@@ -171,10 +171,11 @@ func New(
 	if configSvc == nil {
 		configSvc = configsvc.New()
 	}
+	i18nSvc := i18nsvc.New()
 	svc := &serviceImpl{
 		bizCtxSvc: bizctx.New(),
 		configSvc: configSvc,
-		i18nSvc:   i18nsvc.New(),
+		i18nSvc:   i18nSvc,
 		registry:  registry,
 		scheduler: scheduler,
 	}

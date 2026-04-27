@@ -247,12 +247,21 @@ func TestTranslateUsesContextLocaleAndFallback(t *testing.T) {
 // missing diagnostics do not require en-US JSON copies for source-owned keys.
 func TestCheckMissingMessagesSkipsEnglishSourceTextBackedKeys(t *testing.T) {
 	resetRuntimeBundleCache()
+	resetSourceTextNamespacesForTest()
+	RegisterSourceTextNamespace("job.handler.", "test job handler source text")
+	RegisterSourceTextNamespace("job.group.default.", "test default group source text")
+	t.Cleanup(func() {
+		resetRuntimeBundleCache()
+		resetSourceTextNamespacesForTest()
+	})
 
 	items := New().CheckMissingMessages(context.Background(), EnglishLocale, "job.")
+	namespaces := RegisteredSourceTextNamespaces()
 	for _, item := range items {
-		if strings.HasPrefix(item.Key, "job.handler.") ||
-			strings.HasPrefix(item.Key, "job.group.default.") {
-			t.Fatalf("expected source-text-backed key %q to be skipped", item.Key)
+		for prefix := range namespaces {
+			if strings.HasPrefix(item.Key, prefix) {
+				t.Fatalf("expected source-text-backed key %q to be skipped", item.Key)
+			}
 		}
 	}
 }

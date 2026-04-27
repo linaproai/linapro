@@ -10,9 +10,9 @@ import (
 
 // DiagnoseMessages returns effective source diagnostics for one locale.
 func (c *ControllerV1) DiagnoseMessages(ctx context.Context, req *v1.DiagnoseMessagesReq) (res *v1.DiagnoseMessagesRes, err error) {
-	locale := c.i18nSvc.ResolveLocale(ctx, req.Locale)
-	defaultLocale := c.i18nSvc.GetLocale(context.Background())
-	items := c.i18nSvc.DiagnoseMessages(ctx, req.Locale, req.KeyPrefix)
+	locale := c.localeResolver.ResolveLocale(ctx, req.Locale)
+	defaultLocale := c.localeResolver.GetLocale(context.Background())
+	items := c.maintainer.DiagnoseMessages(ctx, req.Locale, req.KeyPrefix)
 	responseItems := make([]v1.MessageDiagnosticItem, 0, len(items))
 	for _, item := range items {
 		responseItems = append(responseItems, v1.MessageDiagnosticItem{

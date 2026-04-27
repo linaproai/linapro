@@ -9,6 +9,12 @@ import (
 	"lina-core/internal/model/entity"
 )
 
+// sysconfigI18nTranslator defines the narrow translation capability sysconfig needs.
+type sysconfigI18nTranslator interface {
+	// Translate returns one runtime translation key with caller-provided fallback text.
+	Translate(ctx context.Context, key string, fallback string) string
+}
+
 // localizeConfigEntities localizes one config-entity list in place.
 func (s *serviceImpl) localizeConfigEntities(ctx context.Context, items []*entity.SysConfig) {
 	for _, item := range items {
@@ -25,8 +31,8 @@ func (s *serviceImpl) localizeConfigEntity(ctx context.Context, item *entity.Sys
 	if trimmedKey == "" {
 		return
 	}
-	item.Name = s.localizedConfigName(ctx, trimmedKey, item.Name)
-	item.Remark = s.localizedConfigRemark(ctx, trimmedKey, item.Remark)
+	item.Name = s.i18nSvc.Translate(ctx, "config."+trimmedKey+".name", item.Name)
+	item.Remark = s.i18nSvc.Translate(ctx, "config."+trimmedKey+".remark", item.Remark)
 }
 
 // localizedConfigName returns one localized config display name.
@@ -77,36 +83,12 @@ func (s *serviceImpl) buildLocalizedExportHeaders(ctx context.Context) []string 
 
 // localizedConfigFieldLabel returns one localized config field label.
 func (s *serviceImpl) localizedConfigFieldLabel(ctx context.Context, field string, fallback string) string {
-	var (
-		englishLabels = map[string]string{
-			"createdAt": "Created At",
-			"key":       "Parameter Key",
-			"name":      "Parameter Name",
-			"remark":    "Remark",
-			"updatedAt": "Updated At",
-			"value":     "Parameter Value",
-		}
-		chineseLabels = map[string]string{
-			"createdAt": "创建时间",
-			"key":       "参数键名",
-			"name":      "参数名称",
-			"remark":    "备注",
-			"updatedAt": "修改时间",
-			"value":     "参数键值",
-		}
-	)
-
 	trimmedField := strings.TrimSpace(field)
 	if trimmedField == "" {
 		return fallback
 	}
-	if s != nil && s.i18nSvc != nil && s.i18nSvc.ResolveLocale(ctx, "") == "en-US" {
-		if label, ok := englishLabels[trimmedField]; ok {
-			return label
-		}
+	if s == nil || s.i18nSvc == nil {
+		return fallback
 	}
-	if label, ok := chineseLabels[trimmedField]; ok {
-		return label
-	}
-	return fallback
+	return s.i18nSvc.Translate(ctx, "config.field."+trimmedField, fallback)
 }

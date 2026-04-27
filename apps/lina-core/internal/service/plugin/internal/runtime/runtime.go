@@ -230,8 +230,16 @@ type serviceImpl struct {
 	userCtx UserContextSetter
 	// menuFilter filters button-type permission menus by plugin enablement.
 	menuFilter PermissionMenuFilter
-	// i18nSvc localizes plugin metadata display fields.
-	i18nSvc i18nsvc.Service
+	// i18nSvc localizes plugin metadata and invalidates dynamic-plugin bundles.
+	i18nSvc runtimeI18nService
+}
+
+// runtimeI18nService defines the narrow i18n capability plugin runtime needs.
+type runtimeI18nService interface {
+	// Translate returns one runtime translation key with caller-provided fallback text.
+	Translate(ctx context.Context, key string, fallback string) string
+	// InvalidateRuntimeBundleCache clears cached runtime bundles for one explicit scope.
+	InvalidateRuntimeBundleCache(scope i18nsvc.InvalidateScope)
 }
 
 // New creates a new runtime Service with the given sub-service dependencies.
@@ -241,12 +249,13 @@ func New(
 	frontendSvc frontend.Service,
 	openapiSvc openapi.Service,
 ) Service {
+	i18nSvc := i18nsvc.New()
 	return &serviceImpl{
 		catalogSvc:   catalogSvc,
 		lifecycleSvc: lifecycleSvc,
 		frontendSvc:  frontendSvc,
 		openapiSvc:   openapiSvc,
-		i18nSvc:      i18nsvc.New(),
+		i18nSvc:      i18nSvc,
 	}
 }
 

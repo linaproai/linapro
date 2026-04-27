@@ -45,7 +45,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	menuFilter MenuFilter
-	i18nSvc    i18nsvc.Service
+	i18nSvc    menuI18nTranslator
 	roleSvc    role.Service
 }
 
@@ -56,9 +56,10 @@ func New(menuFilter MenuFilter) Service {
 	if menuFilter == nil {
 		menuFilter = noopMenuFilter{}
 	}
+	i18nSvc := i18nsvc.New()
 	return &serviceImpl{
 		menuFilter: menuFilter,
-		i18nSvc:    i18nsvc.New(),
+		i18nSvc:    i18nSvc,
 		roleSvc:    role.New(nil),
 	}
 }

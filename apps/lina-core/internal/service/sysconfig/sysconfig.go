@@ -47,14 +47,15 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	configSvc hostconfig.Service
-	i18nSvc   i18nsvc.Service
+	i18nSvc   sysconfigI18nTranslator
 }
 
 // New creates and returns a new sysconfig Service instance.
 func New() Service {
+	i18nSvc := i18nsvc.New()
 	return &serviceImpl{
 		configSvc: hostconfig.New(),
-		i18nSvc:   i18nsvc.New(),
+		i18nSvc:   i18nSvc,
 	}
 }
 

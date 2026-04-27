@@ -56,8 +56,14 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
-	notifySvc notifysvc.Service // Unified notify service
-	i18nSvc   i18nsvc.Service   // Host i18n service for category label/color localization
+	notifySvc notifysvc.Service     // Unified notify service
+	i18nSvc   usermsgI18nTranslator // Host i18n service for category label/color localization
+}
+
+// usermsgI18nTranslator defines the narrow translation capability usermsg needs.
+type usermsgI18nTranslator interface {
+	// Translate returns one runtime translation key with caller-provided fallback text.
+	Translate(ctx context.Context, key string, fallback string) string
 }
 
 // New creates and returns a new Service instance.

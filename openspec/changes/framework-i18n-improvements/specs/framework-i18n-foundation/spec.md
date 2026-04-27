@@ -42,11 +42,11 @@
 - **AND** 不要求图标、抽屉滑入方向或表格固定列做完全镜像
 
 ### Requirement: 翻译资源加载器必须在宿主与插件、UI 与 apidoc 之间共用
-宿主系统 SHALL 在 `internal/service/i18n` 包内提供统一的 `ResourceLoader` 组件,接受 `Subdir`、`PluginScope`、`LayoutMode` 等配置参数,集中实现"宿主嵌入资源 → 源码插件资源 → 动态插件资源"的发现与加载逻辑。运行时 UI 翻译资源加载与 API 文档翻译资源加载 MUST 通过不同 `ResourceLoader` 实例完成,不得各自维护重复实现。源码插件的 apidoc 命名空间隔离 MUST 由 `ResourceLoader` 配置而非额外重复代码完成。
+宿主系统 SHALL 在 `pkg/i18nresource` 包内提供统一的 `ResourceLoader` 组件,接受 `Subdir`、`PluginScope`、`LayoutMode` 等配置参数,集中实现"宿主嵌入资源 → 源码插件资源 → 动态插件资源"的发现与加载逻辑。运行时 UI 翻译资源加载与 API 文档翻译资源加载 MUST 通过不同 `ResourceLoader` 实例完成,不得各自维护重复实现,也不得让 API 文档模块为复用加载器而反向依赖运行时 `internal/service/i18n` 包。源码插件的 apidoc 命名空间隔离 MUST 由 `ResourceLoader` 配置而非额外重复代码完成。
 
 #### Scenario: 运行时 bundle 与 apidoc 共享同一资源加载器实现
 - **WHEN** 系统加载运行时 UI 翻译资源或 apidoc 翻译资源
-- **THEN** 两条链路通过同一份 `ResourceLoader` 实现完成宿主、源码插件与动态插件的资源遍历
+- **THEN** 两条链路通过同一份 `i18nresource.ResourceLoader` 实现完成宿主、源码插件与动态插件的资源遍历
 - **AND** apidoc 链路通过 `PluginScope=RestrictedToPluginNamespace` 配置约束插件命名空间
 - **AND** 运行时 UI 链路通过 `PluginScope=Open` 配置允许插件贡献任意键
 

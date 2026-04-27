@@ -66,7 +66,7 @@ Read `CLAUDE.md` to load all specifications. This is the single source of truth.
 
 ### 3. Backend Code Review
 
-**Trigger**: Changes to files under `apps/lina-core` directory
+**Trigger**: Changes to any `*.go` files
 
 1. Invoke `goframe-v2` skill for GoFrame framework conventions
 2. Check against `CLAUDE.md` backend code specifications
@@ -92,12 +92,34 @@ For every functional change, also perform an **i18n impact review**:
 3. Flag hard-coded user-facing text, missing translation keys, stale/orphaned translation entries left after feature removal, and changes whose i18n impact was not explicitly evaluated.
 4. If the change has no i18n impact, require the review result to state that conclusion explicitly.
 
+For every backend service, the component main file may be named `<component>.go`; every non-main Go source file in that component directory MUST use the `<component>_*.go` prefix, and tests must follow the same prefix convention.
+
 For every frontend change that introduces or modifies an enumerated business value (status, type, scope, mode, source, etc.), also perform a **dictionary-vs-locale single-source review**:
 1. If a backend `sys_*` dictionary already owns the same enumeration (registered via `manifest/sql` or runtime dict registration), the frontend MUST consume that dictionary through `useDictStore().getDictOptions(...)` / `getDictOptionsAsync(...)` rather than maintaining a parallel `options: [...]` literal array with `$t(...)` labels in `frontend/pages/data.ts`, `*.vue` form schema, or sibling files. Static `options` arrays are only acceptable when no backend dictionary owns the enumeration.
 2. When the same field is rendered as a `DictTag` in the table column, the search form, the create/edit form, and any preview/detail surface, every surface MUST use the same dictionary as its single source of truth. Flag any surface that injects literal label/value pairs alongside a sibling `DictTag` consumer of the same dictionary.
 3. The shared frontend `pages.*` namespace (e.g., `apps/lina-vben/apps/web-antd/src/locales/langs/<locale>/pages.json`) MUST NOT carry translations that duplicate `sys_*` dictionary labels. If a host UI legitimately renders an enumeration owned by a plugin dictionary, the host backend (e.g., `usermsg`, `notify`) must surface a localized label field on its API response and the host frontend must consume that label directly; do not add `pages.status.<enum>` keys that mirror dict labels as a workaround for cross-module coupling.
 4. When a backend-owned data field needs localized display in the frontend, prefer adding a localized field (e.g., `typeLabel`, `statusLabel`) on the backend service/API output and consume it directly. The frontend must not maintain `type === N ? $t(...) : $t(...)` mapping helpers that mirror dictionary semantics.
 5. If the change removes a frontend `options` literal, also confirm any orphaned `pages.*` keys, fallback arrays, and `getXxxLabel` helpers are deleted in the same change so stale translation keys do not remain.
+
+For every backend change that localizes export/import headers, field labels, or metadata projections, also perform a **hard-coded bilingual map review**:
+1. Business modules MUST NOT maintain Go maps such as `englishLabels`, `chineseLabels`, or equivalent locale-to-label tables for user-visible text.
+2. Such labels MUST be resolved through runtime i18n keys (for example `config.field.<name>`) and corresponding host/plugin `manifest/i18n/<locale>.json` resources, including the packed manifest copy when the host embeds delivery resources.
+
+For every change that touches source-text-backed missing-message behavior, also perform a **source-text namespace registration review**:
+1. `apps/lina-core/internal/service/i18n/` MUST NOT hard-code business-owned prefixes such as `job.handler.` or `job.group.default.` when deciding whether a key is source-text-backed.
+2. Business modules that own source-text-backed runtime keys MUST register their namespaces through `i18n.RegisterSourceTextNamespace(prefix, reason)` from their own package initialization or wiring path.
+3. Missing-message tests MUST cover both unregistered namespaces still appearing as missing and registered namespaces disappearing from the missing result.
+
+For every backend change that adds localization projection logic, also perform an **i18n foundation boundary review**:
+1. `apps/lina-core/internal/service/i18n/` is a foundational translation service and MUST NOT own business entity projection rules, business protection rules, or business translation-key derivation for modules such as menu, dict, sysconfig, jobmgmt, role, usermsg, notify, or plugin runtime.
+2. Flag any i18n package API named like `ProjectMenu`, `ProjectDictType`, `ProjectBuiltinJob`, `ProjectPluginMeta`, or any other method that accepts business entities to mutate display fields.
+3. Business modules MUST keep their own localized projection rules inside their package boundary and depend only on narrow i18n capabilities such as `ResolveLocale`, `Translate`, and `TranslateSourceText`.
+4. Shared resource-loading utilities used by both apidoc and runtime i18n MUST live in a stable public component such as `pkg/i18nresource`; do not place them in `internal/service/i18n` if that would make unrelated services depend on the runtime i18n service package.
+
+For every backend change that touches i18n service consumers, also perform a **minimal i18n interface dependency review**:
+1. Business services, controllers, middleware, and plugin adapters MUST NOT declare fields as `i18n.Service` / `i18nsvc.Service` / `internali18n.Service` when they use only a subset of methods.
+2. Prefer package-local narrow interfaces when the caller uses one or two methods; otherwise depend on the exported small interfaces `LocaleResolver`, `Translator`, `BundleProvider`, `ContentProvider`, and `Maintainer`, or an explicit composition of those interfaces.
+3. The complete `i18n.Service` composite is reserved for constructors, service factories, and rare integration points that genuinely need the full surface; such uses must be justified in review.
 
 For every change that touches the host i18n service or any caller of it, also perform a **runtime i18n cache hygiene review**:
 1. Hot-path translation calls (`Translate`, `TranslateSourceText`, `TranslateOrKey`, `TranslateWithDefaultLocale`) MUST NOT clone the runtime message catalog. Flag any code that introduces `cloneFlatMessageMap` or equivalent full-map copies on the per-key lookup path; the cache returns a read-only merged view and direct `merged[key]` access is the contract.

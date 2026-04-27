@@ -3,16 +3,19 @@ import type { Locale } from 'ant-design-vue/es/locale';
 import type { App } from 'vue';
 
 import type { LocaleSetupOptions, SupportedLanguagesType } from '@vben/locales';
+import type { RuntimeLocaleMessagesLoadOptions } from '#/runtime/runtime-i18n';
 
 import { ref } from 'vue';
 
 import {
   $t,
+  i18n,
   loadLocaleMessages,
   setupI18n as coreSetup,
 } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 
+import { message } from 'ant-design-vue';
 import antdEnLocale from 'ant-design-vue/es/locale/en_US';
 import antdDefaultLocale from 'ant-design-vue/es/locale/zh_CN';
 import dayjs from 'dayjs';
@@ -56,19 +59,68 @@ function buildAppLocalesMap(
 const appLocalesMap = buildAppLocalesMap(
   localeModules as Record<string, Record<string, any>>,
 );
+
+type RuntimeMessagesLoader = (
+  lang: SupportedLanguagesType,
+  options?: RuntimeLocaleMessagesLoadOptions,
+) => Promise<Record<string, any>>;
+
+type LocaleMessagesLoaderDependencies = {
+  loadRuntimeMessages: RuntimeMessagesLoader;
+  loadThirdPartyMessages: (lang: SupportedLanguagesType) => Promise<void>;
+  notifyRuntimeFallback: () => void;
+  syncPublicSettings: (lang: SupportedLanguagesType) => Promise<unknown>;
+};
+
+function notifyRuntimeBundleFallback() {
+  message.warning($t('common.runtimeI18nLoadFailed'));
+}
+
+function mergeBackgroundRuntimeMessages(
+  lang: SupportedLanguagesType,
+  messages: Record<string, any>,
+) {
+  if (preferences.app.locale !== lang) {
+    return;
+  }
+  i18n.global.mergeLocaleMessage(lang, messages);
+}
+
+function createLocaleMessagesLoader(
+  dependencies: LocaleMessagesLoaderDependencies,
+) {
+  return async (lang: SupportedLanguagesType) => {
+    void dependencies.syncPublicSettings(lang).catch(() => null);
+
+    const runtimeMessagesPromise = dependencies
+      .loadRuntimeMessages(lang, {
+        onBackgroundRefresh: (messages) =>
+          mergeBackgroundRuntimeMessages(lang, messages),
+        onFallback: dependencies.notifyRuntimeFallback,
+      })
+      .catch(() => {
+        dependencies.notifyRuntimeFallback();
+        return {};
+      });
+
+    await dependencies.loadThirdPartyMessages(lang);
+    const runtimeMessages = await runtimeMessagesPromise;
+
+    return mergeMessages(appLocalesMap[lang] || {}, runtimeMessages);
+  };
+}
+
 /**
  * 加载应用特有的语言包
  * 这里也可以改造为从服务端获取翻译数据
  * @param lang
  */
-async function loadMessages(lang: SupportedLanguagesType) {
-  const [runtimeMessages] = await Promise.all([
-    loadRuntimeLocaleMessages(lang),
-    syncPublicFrontendSettings(lang),
-    loadThirdPartyMessage(lang),
-  ]);
-  return mergeMessages(appLocalesMap[lang] || {}, runtimeMessages);
-}
+const loadMessages = createLocaleMessagesLoader({
+  loadRuntimeMessages: loadRuntimeLocaleMessages,
+  loadThirdPartyMessages: loadThirdPartyMessage,
+  notifyRuntimeFallback: notifyRuntimeBundleFallback,
+  syncPublicSettings: syncPublicFrontendSettings,
+});
 
 async function reloadActiveLocaleMessages(
   lang: SupportedLanguagesType = preferences.app.locale,
@@ -139,4 +191,4 @@ async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
 }
 
 export { $t, antdLocale, setupI18n };
-export { reloadActiveLocaleMessages };
+export { createLocaleMessagesLoader, loadMessages, reloadActiveLocaleMessages };

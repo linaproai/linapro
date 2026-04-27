@@ -19,56 +19,56 @@
 
 ## 3. P1 性能优化:前端 RequestClient 与持久化缓存
 
-- [ ] 3.1 重写 `apps/lina-vben/apps/web-antd/src/runtime/runtime-i18n.ts`:用 `requestClient` 替换裸 `fetch`,补充 Bearer 注入、错误降级、重试链
-- [ ] 3.2 在 `runtime-i18n.ts` 中新增 `localStorage` 持久化层:`linapro:i18n:runtime:<locale>` key,值为 `{etag, messages, savedAt}`,TTL 7 天
-- [ ] 3.3 实现"持久化命中即渲染、后台带 If-None-Match 协商、304 不更新"的快速路径
-- [ ] 3.4 改造 `apps/lina-vben/apps/web-antd/src/locales/index.ts` 中 `loadMessages` 为按失败语义拆分:运行时 bundle 失败 → 持久化兜底 + 用户提示;公共配置失败 → fire-and-forget;三方库 locale → 必须等待
-- [ ] 3.5 补充 `runtime-i18n.test.ts` 单元测试覆盖持久化命中、TTL 过期强制刷新、304 路径、网络异常降级四个场景
-- [ ] 3.6 补充 `loadMessages` 单元测试覆盖三件事独立失败语义
+- [x] 3.1 重写 `apps/lina-vben/apps/web-antd/src/runtime/runtime-i18n.ts`:用 `requestClient` 替换裸 `fetch`,补充 Bearer 注入、错误降级、重试链
+- [x] 3.2 在 `runtime-i18n.ts` 中新增 `localStorage` 持久化层:`linapro:i18n:runtime:<locale>` key,值为 `{etag, messages, savedAt}`,TTL 7 天
+- [x] 3.3 实现"持久化命中即渲染、后台带 If-None-Match 协商、304 不更新"的快速路径
+- [x] 3.4 改造 `apps/lina-vben/apps/web-antd/src/locales/index.ts` 中 `loadMessages` 为按失败语义拆分:运行时 bundle 失败 → 持久化兜底 + 用户提示;公共配置失败 → fire-and-forget;三方库 locale → 必须等待
+- [x] 3.5 补充 `runtime-i18n.test.ts` 单元测试覆盖持久化命中、TTL 过期强制刷新、304 路径、网络异常降级四个场景
+- [x] 3.6 补充 `loadMessages` 单元测试覆盖三件事独立失败语义
 
-## 4. P2 一致性收敛:LocaleProjector
+## 4. P2 一致性收敛:业务模块本地化投影边界
 
-- [ ] 4.1 在 `apps/lina-core/internal/service/i18n/projector.go` 新建 `LocaleProjector` 接口与实现,提供 `ProjectMenu` / `ProjectDictType` / `ProjectDictData` / `ProjectConfig` / `ProjectBuiltinJob` / `ProjectJobGroup` / `ProjectBuiltinRole` / `ProjectPluginMeta` 等语义化方法
-- [ ] 4.2 在 `LocaleProjector` 内部统一封装"何时翻译 / 何时跳过 / 用哪个 Translate*"决策,删除业务模块对 `ResolveLocale == DefaultLocale` 的自行判断
-- [ ] 4.3 改造 `apps/lina-core/internal/service/menu/menu_i18n.go` 为薄壳,通过 `LocaleProjector.ProjectMenu` 完成投影
-- [ ] 4.4 改造 `apps/lina-core/internal/service/dict/dict_i18n.go` 为薄壳,通过 `LocaleProjector.ProjectDictType` / `ProjectDictData` 完成投影
-- [ ] 4.5 改造 `apps/lina-core/internal/service/sysconfig/sysconfig_i18n.go` 为薄壳,通过 `LocaleProjector.ProjectConfig` 完成投影
-- [ ] 4.6 改造 `apps/lina-core/internal/service/jobmgmt/jobmgmt_i18n.go` 为薄壳,通过 `LocaleProjector.ProjectBuiltinJob` / `ProjectJobGroup` 完成投影
-- [ ] 4.7 改造 `apps/lina-core/internal/service/role/role.go` 内的 admin 角色投影,通过 `LocaleProjector.ProjectBuiltinRole` 完成
-- [ ] 4.8 改造 `apps/lina-core/internal/service/plugin/internal/runtime/registry.go` 的插件元数据投影,通过 `LocaleProjector.ProjectPluginMeta` 完成
-- [ ] 4.9 补充 `LocaleProjector` 单元测试覆盖默认语言跳过、内置受保护记录翻译、用户记录保持原值三种场景
+- [x] 4.1 删除原计划的 `apps/lina-core/internal/service/i18n/i18n_projector.go` 中心投影器方案,确认该方案由本任务组引入且会让 i18n 基础服务反向耦合业务实体与业务保护规则
+- [x] 4.2 在各业务模块自己的 `*_i18n.go` 中保留"何时翻译 / 何时跳过 / 用哪个 Translate*"投影决策,`i18n` 包仅提供 `ResolveLocale` / `Translate` / `TranslateSourceText` 等底层能力
+- [x] 4.3 改造 `apps/lina-core/internal/service/menu/menu_i18n.go`,菜单翻译键推导由 menu 模块拥有
+- [x] 4.4 改造 `apps/lina-core/internal/service/dict/dict_i18n.go`,字典默认语言跳过策略与 `dict.*` 键约定由 dict 模块拥有
+- [x] 4.5 改造 `apps/lina-core/internal/service/sysconfig/sysconfig_i18n.go`,配置投影与字段表头翻译键由 sysconfig 模块拥有
+- [x] 4.6 改造 `apps/lina-core/internal/service/jobmgmt/jobmgmt_i18n.go`,内置任务和默认任务组保护规则由 jobmgmt 模块拥有
+- [x] 4.7 改造 `apps/lina-core/internal/service/role/role.go`,内置 admin 角色投影规则由 role 模块拥有
+- [x] 4.8 改造 `apps/lina-core/internal/service/plugin/internal/runtime/registry.go`,插件元数据投影规则由 plugin runtime 模块拥有
+- [x] 4.9 补充/保留业务模块本地化投影测试,覆盖默认语言跳过、内置受保护记录翻译、用户记录保持原值三种场景
 
 ## 5. P2 一致性收敛:删除 sysconfig 硬编码标签 map
 
-- [ ] 5.1 在 `apps/lina-core/manifest/i18n/zh-CN.json` 与 `apps/lina-core/manifest/i18n/en-US.json` 补齐 `config.field.name` / `config.field.key` / `config.field.value` / `config.field.remark` / `config.field.createdAt` / `config.field.updatedAt`
-- [ ] 5.2 改造 `sysconfig_i18n.go::buildLocalizedImportTemplateHeaders` 与 `buildLocalizedExportHeaders`,删除 `englishLabels` / `chineseLabels` Go map,改为通过 `i18nSvc.Translate(ctx, "config.field."+name, fallback)` 解析
-- [ ] 5.3 删除 `localizedConfigFieldLabel` 内对 `ResolveLocale == "en-US"` 的硬编码判断
-- [ ] 5.4 创建 E2E 测试用例 `TC0125-config-export-headers-via-i18n-keys.ts`,验证导出表头随语言切换变化且不依赖 Go map
-- [ ] 5.5 在 `lina-review` 技能中新增审查规则:`apps/lina-core/internal/service/sysconfig/` 与其他业务模块禁止维护英文/中文文案 Go map
+- [x] 5.1 在 `apps/lina-core/manifest/i18n/zh-CN.json` 与 `apps/lina-core/manifest/i18n/en-US.json` 补齐 `config.field.name` / `config.field.key` / `config.field.value` / `config.field.remark` / `config.field.createdAt` / `config.field.updatedAt`
+- [x] 5.2 改造 `sysconfig_i18n.go::buildLocalizedImportTemplateHeaders` 与 `buildLocalizedExportHeaders`,删除 `englishLabels` / `chineseLabels` Go map,改为通过 `i18nSvc.Translate(ctx, "config.field."+name, fallback)` 解析
+- [x] 5.3 删除 `localizedConfigFieldLabel` 内对 `ResolveLocale == "en-US"` 的硬编码判断
+- [x] 5.4 创建 E2E 测试用例 `TC0125-config-export-headers-via-i18n-keys.ts`,验证导出表头随语言切换变化且不依赖 Go map
+- [x] 5.5 在 `lina-review` 技能中新增审查规则:`apps/lina-core/internal/service/sysconfig/` 与其他业务模块禁止维护英文/中文文案 Go map
 
 ## 6. P2 一致性收敛:source-text 命名空间显式注册
 
-- [ ] 6.1 在 `apps/lina-core/internal/service/i18n/source_text_namespace.go` 新建 `RegisterSourceTextNamespace(prefix, reason string)` 与查询函数;数据存储为包级 `sync.RWMutex` 保护的 `map[string]string`
-- [ ] 6.2 删除 `apps/lina-core/internal/service/i18n/i18n_manage.go::isSourceTextBackedRuntimeKey` 内的硬编码,改为查询命名空间注册表
-- [ ] 6.3 在 `apps/lina-core/internal/service/jobmeta` 或 `jobmgmt` 包内新增 `init()` 注册 `job.handler.` 与 `job.group.default.` 命名空间
-- [ ] 6.4 补充单元测试覆盖"未注册命名空间不豁免缺失检查"与"已注册命名空间从缺失结果中消失"两种场景
-- [ ] 6.5 在 `lina-review` 技能中新增审查规则:`apps/lina-core/internal/service/i18n/` 包内禁止以 `job.handler.` / `job.group.` 等业务命名前缀做硬编码判定
+- [x] 6.1 在 `apps/lina-core/internal/service/i18n/i18n_source_text_namespace.go` 新建 `RegisterSourceTextNamespace(prefix, reason string)` 与查询函数;数据存储为包级 `sync.RWMutex` 保护的 `map[string]string`
+- [x] 6.2 删除 `apps/lina-core/internal/service/i18n/i18n_manage.go::isSourceTextBackedRuntimeKey` 内的硬编码,改为查询命名空间注册表
+- [x] 6.3 在 `apps/lina-core/internal/service/jobmeta` 或 `jobmgmt` 包内新增 `init()` 注册 `job.handler.` 与 `job.group.default.` 命名空间
+- [x] 6.4 补充单元测试覆盖"未注册命名空间不豁免缺失检查"与"已注册命名空间从缺失结果中消失"两种场景
+- [x] 6.5 在 `lina-review` 技能中新增审查规则:`apps/lina-core/internal/service/i18n/` 包内禁止以 `job.handler.` / `job.group.` 等业务命名前缀做硬编码判定
 
 ## 7. P2 一致性收敛:Service 接口拆分
 
-- [ ] 7.1 在 `apps/lina-core/internal/service/i18n/i18n.go` 中拆分接口为 `LocaleResolver` / `Translator` / `BundleProvider` / `ContentProvider` / `Maintainer`,`Service` 改为这五个小接口的组合
-- [ ] 7.2 收敛 `menu` / `dict` / `sysconfig` / `jobmgmt` / `role` / `usermsg` 模块的 `i18nSvc` 字段类型为最小依赖接口(多数情况下是 `LocaleResolver + Translator` 的组合)
-- [ ] 7.3 收敛 `apidoc` 服务的 `i18nSvc` 字段为 `LocaleResolver + Translator`
-- [ ] 7.4 收敛 `controller/i18n/` 内各控制器字段类型,管理类控制器只持有 `Maintainer`,运行时控制器持有 `BundleProvider + LocaleResolver`
-- [ ] 7.5 更新所有相关单元测试的 mock,改为只 stub 实际依赖的小接口
-- [ ] 7.6 在 `lina-review` 技能中新增审查规则:业务模块字段类型应优先声明最小接口,禁止默认声明完整 `Service`
+- [x] 7.1 在 `apps/lina-core/internal/service/i18n/i18n.go` 中拆分接口为 `LocaleResolver` / `Translator` / `BundleProvider` / `ContentProvider` / `Maintainer`,`Service` 改为这五个小接口的组合
+- [x] 7.2 收敛 `menu` / `dict` / `sysconfig` / `jobmgmt` / `role` / `usermsg` 模块的 `i18nSvc` 字段类型为最小依赖接口(多数情况下是 `LocaleResolver + Translator` 的组合)
+- [x] 7.3 收敛 `apidoc` 服务的 `i18nSvc` 字段为 `LocaleResolver + Translator`
+- [x] 7.4 收敛 `controller/i18n/` 内各控制器字段类型,管理类控制器只持有 `Maintainer`,运行时控制器持有 `BundleProvider + LocaleResolver`
+- [x] 7.5 更新所有相关单元测试的 mock,改为只 stub 实际依赖的小接口
+- [x] 7.6 在 `lina-review` 技能中新增审查规则:业务模块字段类型应优先声明最小接口,禁止默认声明完整 `Service`
 
 ## 8. P3 边界整理:统一 ResourceLoader
 
-- [ ] 8.1 在 `apps/lina-core/internal/service/i18n/resourceloader.go` 新建 `ResourceLoader` 组件,接受 `Subdir` / `PluginScope` / `LayoutMode` 配置参数
+- [ ] 8.1 在 `apps/lina-core/pkg/i18nresource/` 新建稳定公共 `ResourceLoader` 组件,接受 `Subdir` / `PluginScope` / `LayoutMode` 配置参数,避免 apidoc 反向依赖 `internal/service/i18n`
 - [ ] 8.2 实现 `LoadHostBundle(locale)` / `LoadSourcePluginBundles(locale)` / `LoadDynamicPluginBundles(ctx, locale, releases)` 三个职责清晰的方法
-- [ ] 8.3 改造 `apps/lina-core/internal/service/i18n/i18n_source.go` 使用 `ResourceLoader{Subdir: "manifest/i18n", PluginScope: Open}` 替换重复实现
-- [ ] 8.4 改造 `apps/lina-core/internal/service/apidoc/apidoc_i18n_loader.go` 使用 `ResourceLoader{Subdir: "manifest/i18n/apidoc", PluginScope: RestrictedToPluginNamespace}` 替换重复实现
+- [ ] 8.3 改造 `apps/lina-core/internal/service/i18n/i18n_source.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n", PluginScope: Open}` 替换重复实现
+- [ ] 8.4 改造 `apps/lina-core/internal/service/apidoc/apidoc_i18n_loader.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n/apidoc", PluginScope: RestrictedToPluginNamespace}` 替换重复实现
 - [ ] 8.5 删除两侧重复的目录遍历、ULEB128 解码、`wasm` 节解析代码,确保净减少 ≥ 250 行
 - [ ] 8.6 补充 `ResourceLoader` 单元测试覆盖宿主、源码插件、动态插件三种来源以及插件命名空间隔离
 
@@ -130,3 +130,6 @@
 ## Feedback
 
 <!-- 用户对实施过程中暴露的问题的反馈,通过 lina-feedback 技能追加 -->
+
+- [x] **FB-1**: `apps/lina-core/internal/service/i18n/` 新增文件缺少 `i18n_` 前缀,且 `lina-review` 未显式覆盖服务组件文件命名检查
+- [x] **FB-2**: `LocaleProjector` 让 i18n 基础服务反向耦合菜单、字典、配置、任务、角色、插件元数据等业务规则,需要立即移除并重新评估后续方案边界

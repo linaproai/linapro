@@ -99,7 +99,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc          bizctx.Service
 	configSvc          config.Service
-	i18nSvc            i18nsvc.Service
+	i18nSvc            roleI18nTranslator
 	kvCacheSvc         kvcache.Service
 	permissionFilter   PermissionMenuFilter
 	accessRevisionCtrl accessRevisionController
@@ -130,6 +130,12 @@ func New(permissionFilter PermissionMenuFilter) Service {
 			kvCacheSvc,
 		),
 	}
+}
+
+// roleI18nTranslator defines the narrow translation capability role needs.
+type roleI18nTranslator interface {
+	// Translate returns one runtime translation key with caller-provided fallback text.
+	Translate(ctx context.Context, key string, fallback string) string
 }
 
 // noopPermissionMenuFilter keeps permission menus unchanged when no external

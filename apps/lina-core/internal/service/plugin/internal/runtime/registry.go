@@ -167,10 +167,7 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	if manifest != nil {
 		declaredRoutes = cloneRouteContracts(manifest.Routes)
 	}
-	if s.i18nSvc != nil {
-		name = s.i18nSvc.Translate(ctx, "plugin."+id+".name", name)
-		description = s.i18nSvc.Translate(ctx, "plugin."+id+".description", description)
-	}
+	name, description = s.localizePluginMetadata(ctx, id, name, description)
 
 	return &PluginItem{
 		Id:                     id,

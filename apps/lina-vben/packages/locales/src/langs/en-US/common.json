@@ -19,6 +19,7 @@
   "create": "Create",
   "yes": "Yes",
   "no": "No",
+  "runtimeI18nLoadFailed": "Runtime language resources are temporarily unavailable. Cached translations are being used where possible.",
   "showSearchPanel": "Show search panel",
   "hideSearchPanel": "Hide search panel"
 }

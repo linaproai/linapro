@@ -10,6 +10,14 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 )
 
+// dictI18nTranslator defines the narrow translation capability dict needs.
+type dictI18nTranslator interface {
+	// ResolveLocale resolves one explicit locale override against the current request locale.
+	ResolveLocale(ctx context.Context, locale string) string
+	// Translate returns one runtime translation key with caller-provided fallback text.
+	Translate(ctx context.Context, key string, fallback string) string
+}
+
 // localizeDictTypeEntities localizes one dictionary-type entity list in place.
 func (s *serviceImpl) localizeDictTypeEntities(ctx context.Context, items []*entity.SysDictType) {
 	for _, item := range items {
@@ -19,15 +27,11 @@ func (s *serviceImpl) localizeDictTypeEntities(ctx context.Context, items []*ent
 
 // localizeDictTypeEntity localizes one dictionary-type entity in place.
 func (s *serviceImpl) localizeDictTypeEntity(ctx context.Context, item *entity.SysDictType) {
-	if s == nil || s.i18nSvc == nil || item == nil {
+	if s == nil || s.i18nSvc == nil || item == nil || s.shouldKeepEditableDefaultLocale(ctx) {
 		return
 	}
 	trimmedType := strings.TrimSpace(item.Type)
 	if trimmedType == "" {
-		return
-	}
-	// The default locale is edited directly through dictionary management.
-	if s.i18nSvc.ResolveLocale(ctx, "") == i18nsvc.DefaultLocale {
 		return
 	}
 	item.Name = s.i18nSvc.Translate(ctx, "dict."+trimmedType+".name", item.Name)
@@ -43,7 +47,7 @@ func (s *serviceImpl) localizeDictDataEntities(ctx context.Context, items []*ent
 
 // localizeDictDataEntity localizes one dictionary-data entity in place.
 func (s *serviceImpl) localizeDictDataEntity(ctx context.Context, item *entity.SysDictData) {
-	if s == nil || s.i18nSvc == nil || item == nil {
+	if s == nil || s.i18nSvc == nil || item == nil || s.shouldKeepEditableDefaultLocale(ctx) {
 		return
 	}
 	trimmedType := strings.TrimSpace(item.DictType)
@@ -51,11 +55,16 @@ func (s *serviceImpl) localizeDictDataEntity(ctx context.Context, item *entity.S
 	if trimmedType == "" || trimmedValue == "" {
 		return
 	}
-	// The default locale is edited directly through dictionary management.
-	if s.i18nSvc.ResolveLocale(ctx, "") == i18nsvc.DefaultLocale {
-		return
-	}
 	prefix := "dict." + trimmedType + "." + trimmedValue
 	item.Label = s.i18nSvc.Translate(ctx, prefix+".label", item.Label)
 	item.Remark = s.i18nSvc.Translate(ctx, prefix+".remark", item.Remark)
+}
+
+// shouldKeepEditableDefaultLocale reports whether editable dictionary values
+// should remain as stored for the host default locale.
+func (s *serviceImpl) shouldKeepEditableDefaultLocale(ctx context.Context) bool {
+	if s == nil || s.i18nSvc == nil {
+		return true
+	}
+	return s.i18nSvc.ResolveLocale(ctx, "") == i18nsvc.DefaultLocale
 }

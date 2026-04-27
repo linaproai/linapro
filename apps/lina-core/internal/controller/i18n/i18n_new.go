@@ -9,12 +9,17 @@ import (
 
 // ControllerV1 implements the runtime i18n API controller.
 type ControllerV1 struct {
-	i18nSvc i18nsvc.Service // i18nSvc resolves request locale, runtime locales, and runtime messages.
+	localeResolver i18nsvc.LocaleResolver // localeResolver resolves request and explicit locales.
+	bundleProvider i18nsvc.BundleProvider // bundleProvider serves runtime locales and messages.
+	maintainer     i18nsvc.Maintainer     // maintainer handles message diagnostics, import, and export.
 }
 
 // NewV1 creates and returns a new runtime i18n controller.
 func NewV1() i18napi.II18NV1 {
+	i18nSvc := i18nsvc.New()
 	return &ControllerV1{
-		i18nSvc: i18nsvc.New(),
+		localeResolver: i18nSvc,
+		bundleProvider: i18nSvc,
+		maintainer:     i18nSvc,
 	}
 }

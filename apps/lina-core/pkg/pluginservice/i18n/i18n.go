@@ -23,7 +23,17 @@ type Service interface {
 
 // serviceAdapter bridges the internal i18n service into the published plugin contract.
 type serviceAdapter struct {
-	service internali18n.Service
+	service hostRuntimeTranslator
+}
+
+// hostRuntimeTranslator defines the host i18n capabilities used by the plugin adapter.
+type hostRuntimeTranslator interface {
+	// GetLocale returns the locale stored in request business context.
+	GetLocale(ctx context.Context) string
+	// Translate returns one runtime translation key with caller-provided fallback text.
+	Translate(ctx context.Context, key string, fallback string) string
+	// ExportMessages exports flat runtime messages for one locale.
+	ExportMessages(ctx context.Context, locale string, raw bool) internali18n.MessageExportOutput
 }
 
 // New creates and returns the published i18n service adapter.
