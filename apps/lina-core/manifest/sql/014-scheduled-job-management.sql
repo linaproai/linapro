@@ -130,7 +130,7 @@ VALUES ('cron_job_status', '启用', 'enabled', 1, 'success', 1, NOW(), NOW());
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('cron_job_status', '停用', 'disabled', 2, 'default', 1, NOW(), NOW());
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_status', '插件处理器不可用', 'paused_by_plugin', 3, 'danger', 1, NOW(), NOW());
+VALUES ('cron_job_status', '不可用', 'paused_by_plugin', 3, 'danger', 1, NOW(), NOW());
 
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('cron_job_task_type', 'Handler 任务', 'handler', 1, 'primary', 1, NOW(), NOW());

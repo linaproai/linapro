@@ -183,7 +183,7 @@
       },
       "name": "定时任务状态",
       "paused_by_plugin": {
-        "label": "插件处理器不可用"
+        "label": "不可用"
       },
       "remark": "定时任务状态列表"
     },

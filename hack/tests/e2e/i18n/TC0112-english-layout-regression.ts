@@ -86,6 +86,93 @@ async function expectHeaderSingleLine(locator: Locator, label: string) {
   expect(height, `${label} should stay within a single header row`).toBeLessThanOrEqual(48);
 }
 
+async function expectDescriptionLabelSingleLine(
+  locator: Locator,
+  label: string,
+) {
+  await expect(locator, `${label} should be visible`).toBeVisible();
+  const metrics = await locator.evaluate((node) => {
+    const element = node as HTMLElement;
+    const style = window.getComputedStyle(element);
+
+    return {
+      scrollWidth: element.scrollWidth,
+      whiteSpace: style.whiteSpace,
+      width: element.clientWidth,
+    };
+  });
+  expect(metrics.whiteSpace, `${label} should use nowrap`).toBe('nowrap');
+  expect(
+    metrics.scrollWidth,
+    `${label} is still clipped in the current layout`,
+  ).toBeLessThanOrEqual(metrics.width + 2);
+}
+
+async function expectRadioGroupSingleRow(locator: Locator, label: string) {
+  await expect(locator, `${label} should be visible`).toBeVisible();
+  const buttons = await locator
+    .locator('.ant-radio-button-wrapper')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const element = node as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        return {
+          text: element.textContent?.trim() || '',
+          top: rect.top,
+        };
+      }),
+    );
+
+  expect(buttons.length, `${label} should render all status options`).toBe(3);
+  expect(
+    buttons.some((button) => button.text === 'Unavailable'),
+    `${label} should include the plugin unavailable status`,
+  ).toBe(true);
+  for (const button of buttons) {
+    expect(
+      Math.abs(button.top - buttons[0]!.top),
+      `${label} option "${button.text}" wraps unexpectedly`,
+    ).toBeLessThanOrEqual(2);
+  }
+}
+
+async function expectFormItemSingleColumn(
+  fieldLocator: Locator,
+  label: string,
+) {
+  await expect(fieldLocator, `${label} field should be visible`).toBeVisible();
+  const metrics = await fieldLocator.evaluate((node) => {
+    const field = node as HTMLElement;
+    const form = field.closest('form') as HTMLElement | null;
+    const formItem =
+      (field.closest('.col-span-1, .col-span-2') as HTMLElement | null) ??
+      (field.closest('.ant-form-item') as HTMLElement | null) ??
+      field;
+    const formRect = form?.getBoundingClientRect();
+    const itemRect = formItem.getBoundingClientRect();
+
+    return {
+      formWidth: formRect?.width ?? 0,
+      itemClassName: formItem.className.toString(),
+      itemWidth: itemRect.width,
+    };
+  });
+
+  expect(
+    metrics.formWidth,
+    `${label} form width should be measurable`,
+  ).toBeGreaterThan(0);
+
+  expect(
+    metrics.itemWidth,
+    `${label} should occupy one grid column instead of the full row`,
+  ).toBeLessThanOrEqual(metrics.formWidth * 0.6);
+  expect(
+    metrics.itemClassName,
+    `${label} should not use full-row grid span`,
+  ).not.toContain('col-span-2');
+}
+
 async function readWidth(locator: Locator) {
   await expect(locator).toBeVisible();
   return await locator.evaluate((node) => {
@@ -263,6 +350,63 @@ test.describe('TC0112 英文布局回归', () => {
     await expectHeaderSingleLine(
       layoutPage.tableHeader(/^Status$/),
       'Job log status header',
+    );
+
+    await layoutPage.goto('/system/job', {
+      tableSelector: '[data-testid="job-page"]',
+    });
+    const detailAction = adminPage
+      .locator('[data-testid^="job-edit-"]', { hasText: /^Detail$/ })
+      .first();
+    await expect(
+      detailAction,
+      'Built-in scheduled job detail action',
+    ).toBeVisible();
+    await detailAction.click();
+    const jobDetailDialog = adminPage
+      .locator('[role="dialog"]')
+      .filter({ hasText: /Job Details/ })
+      .last();
+    await expect(jobDetailDialog, 'Scheduled job detail dialog').toBeVisible();
+
+    for (const [labelText, labelName] of [
+      [/Concurrency Strategy/, 'Job detail concurrency label'],
+      [/Cron Expression/, 'Job detail cron expression label'],
+      [/Log Retention/, 'Job detail log retention label'],
+      [/Timeout \(Seconds\)/, 'Job detail timeout label'],
+    ] as const) {
+      const fieldLabel = layoutPage.formLabel(labelText, jobDetailDialog);
+      await expectSingleLine(fieldLabel, labelName);
+      await expectNoHorizontalClip(fieldLabel, labelName);
+    }
+
+    await expectRadioGroupSingleRow(
+      jobDetailDialog.locator('[data-testid="job-status-radio-group"]').first(),
+      'Job detail status radio group',
+    );
+    await expectFormItemSingleColumn(
+      jobDetailDialog.locator('[data-testid="job-status-radio-group"]').first(),
+      'Job detail status radio group',
+    );
+
+    const builtinDescriptions = jobDetailDialog.locator(
+      '.job-builtin-descriptions',
+    );
+    await expectDescriptionLabelSingleLine(
+      builtinDescriptions
+        .locator('.ant-descriptions-item-label', {
+          hasText: /^Handler Reference$/,
+        })
+        .first(),
+      'Job built-in handler reference label',
+    );
+    await expectDescriptionLabelSingleLine(
+      builtinDescriptions
+        .locator('.ant-descriptions-item-label', {
+          hasText: /^Handler Parameters$/,
+        })
+        .first(),
+      'Job built-in handler parameters label',
     );
   });
 });

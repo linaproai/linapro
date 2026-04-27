@@ -86,6 +86,12 @@ Check against `CLAUDE.md` API design specifications, including:
 
 Check against `CLAUDE.md` architecture design specifications and code development specifications.
 
+For every functional change, also perform an **i18n impact review**:
+1. Identify whether the change adds, modifies, or removes user-visible text, menus, routes, buttons, form fields, table columns, status labels, prompts, validation/errors, API documentation, plugin manifests, seed data labels, or other localized content.
+2. Verify the corresponding i18n JSON resources were added, updated, or deleted as needed, including frontend runtime locale files, host/plugin `manifest/i18n` resources, and dedicated `apidoc i18n JSON` files.
+3. Flag hard-coded user-facing text, missing translation keys, stale/orphaned translation entries left after feature removal, and changes whose i18n impact was not explicitly evaluated.
+4. If the change has no i18n impact, require the review result to state that conclusion explicitly.
+
 ### 6. SQL Review
 
 **Trigger**: New or modified files under `apps/lina-core/manifest/sql/`、`apps/lina-core/manifest/sql/mock-data/`、`apps/lina-plugins/**/manifest/sql/` or SQL snippets embedded in related delivery docs
@@ -123,6 +129,7 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 
 ### Project Spec Review
 ✓ Compliant with CLAUDE.md / ⚠ N violations found
+✓ i18n impact reviewed / ⚠ N i18n governance issues found
 
 ### SQL Review
 ✓ No SQL changes / ✓ SQL changes compliant / ⚠ N SQL issues found

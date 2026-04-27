@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS plugin_org_center_user_post (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户与岗位关联表';
 
 INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, order_num, status, created_at, updated_at)
-SELECT 0, '0', 'Lina科技', 'lina', 0, 1, NOW(), NOW()
+SELECT 0, '0', 'LinaPro.AI', 'lina', 0, 1, NOW(), NOW()
 FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1

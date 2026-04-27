@@ -516,7 +516,7 @@
       "status": {
         "enabled": "启用",
         "disabled": "停用",
-        "pluginUnavailable": "插件处理器不可用"
+        "pluginUnavailable": "不可用"
       },
       "source": {
         "hostBuiltin": "宿主内置",

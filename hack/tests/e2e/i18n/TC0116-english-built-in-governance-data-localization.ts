@@ -41,12 +41,13 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
     ).toContainText('Disabled');
     await expect(
       dataPanel.locator('.vxe-body--row', { hasText: 'paused_by_plugin' }),
-    ).toContainText('Plugin Handler Unavailable');
+    ).toContainText('Unavailable');
 
     const dataText = await dataPanel.locator('.vxe-table--body').innerText();
     expect(dataText).not.toContain('启用');
     expect(dataText).not.toContain('停用');
     expect(dataText).not.toContain('插件处理器不可用');
+    expect(dataText).not.toContain('不可用');
   });
 
   test('TC-116b: 调度中心任务、分组和执行日志列表按英文展示内置调度数据', async ({

@@ -139,7 +139,8 @@ const [CommonForm, commonFormApi] = useVbenForm({
       class: 'w-full',
     },
     formItemClass: 'col-span-1',
-    labelWidth: 112,
+    labelClass: 'whitespace-nowrap',
+    labelWidth: 168,
   },
   schema: buildCommonSchema(
     [],
@@ -148,7 +149,7 @@ const [CommonForm, commonFormApi] = useVbenForm({
     currentSystemTimezone.value,
   ),
   showDefaultActions: false,
-  wrapperClass: 'grid-cols-2',
+  wrapperClass: 'grid-cols-1 lg:grid-cols-2',
 });
 
 function buildTimezoneOptions(currentTimezone: string) {
@@ -311,6 +312,8 @@ function buildCommonSchema(
       component: 'RadioGroup',
       componentProps: {
         buttonStyle: 'solid',
+        class: 'job-status-radio-group',
+        'data-testid': 'job-status-radio-group',
         disabled: builtin,
         optionType: 'button',
         options: builtin
@@ -473,7 +476,6 @@ async function loadModalData(id?: number) {
 }
 
 const [Modal, modalApi] = useVbenModal({
-  class: 'w-[980px]',
   fullscreenButton: true,
   onClosed: async () => {
     currentRecord.value = null;
@@ -767,6 +769,7 @@ async function handleConfirm() {
   <Modal
     :footer="isBuiltin ? false : undefined"
     :title="title"
+    class="w-[980px] max-w-[calc(100vw-32px)]"
     data-testid="job-form-modal"
   >
     <div class="space-y-4">
@@ -906,6 +909,18 @@ async function handleConfirm() {
     ui-monospace, 'SFMono-Regular', SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;
   letter-spacing: 0.02em;
+}
+
+:deep(.job-builtin-descriptions .ant-descriptions-item-label) {
+  min-width: 168px;
+  white-space: nowrap;
+  width: 168px;
+}
+
+:deep(.job-status-radio-group) {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .job-json-code {

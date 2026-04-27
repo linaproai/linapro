@@ -516,7 +516,7 @@
       "status": {
         "enabled": "Enabled",
         "disabled": "Disabled",
-        "pluginUnavailable": "Plugin Handler Unavailable"
+        "pluginUnavailable": "Unavailable"
       },
       "source": {
         "hostBuiltin": "Host Built-in",

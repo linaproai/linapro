@@ -183,7 +183,7 @@
       },
       "name": "Scheduled Job Status",
       "paused_by_plugin": {
-        "label": "Plugin Handler Unavailable"
+        "label": "Unavailable"
       },
       "remark": "Scheduled job status options"
     },

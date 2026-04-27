@@ -178,7 +178,7 @@ export class JobPage {
 
   async isPausedByPluginVisible() {
     return this.page
-      .getByText("插件处理器不可用", { exact: true })
+      .getByText("不可用", { exact: true })
       .first()
       .isVisible();
   }
@@ -206,7 +206,7 @@ export class JobPage {
 
   async hoverPausedStatusTag() {
     await this.page
-      .getByText("插件处理器不可用", { exact: true })
+      .getByText("不可用", { exact: true })
       .first()
       .hover();
     await this.page
