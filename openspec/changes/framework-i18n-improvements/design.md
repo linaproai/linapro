@@ -8,7 +8,7 @@
 - 5 个 `*_i18n.go` 适配文件 (`menu_i18n.go` / `dict_i18n.go` / `sysconfig_i18n.go` / `jobmgmt_i18n.go` / `role.go`) 各自决定"何时翻译/何时跳过/用哪个 Translate*",`sysconfig_i18n.go` 甚至直接在 Go 内硬编码英文/中文 map(违反约定一)。初版 `LocaleProjector` 中心化方案可以减少重复,但会让 i18n 基础服务反向耦合业务实体与业务保护规则,因此本方案改为业务模块拥有投影规则。
 - `i18n_manage.go::isSourceTextBackedRuntimeKey` 把 `job.handler.*`、`job.group.default.*` 这些 jobmgmt 私有命名前缀漏到 i18n 包内部,形成反向依赖。
 - `Service` 接口 18 个方法承担 5 类职责,业务模块测试要 stub 整个大接口。
-- `apidoc/apidoc_i18n_loader.go` 与 `i18n/i18n_source.go` 各自维护一份 host/source-plugin/dynamic-plugin 资源遍历逻辑,共重复 ~280 行。
+- `apidoc/apidoc_i18n_loader.go` 与 `i18n/i18n.go` 的资源加载函数各自维护一份 host/source-plugin/dynamic-plugin 资源遍历逻辑,共重复 ~280 行。
 - 前端 `runtime-i18n.ts` 用裸 `fetch` 绕过 `requestClient`,失败语义和持久化缓存策略都不完整;`loadMessages` 把"运行时 bundle / 公共配置 / 三方库"用 `Promise.all` 一锅端,无差别失败处理。
 - 整个框架在 `zh-CN` / `en-US` 这两种 LTR、无复数、半角数字的"近亲语言"下被验证;约定式翻译键、缺失检查、运行时聚合在引入真正不同的语言(RTL、多复数形式、不同数字字符集)时是否真的零业务代码改动,从未被压力测试。
 
@@ -161,7 +161,7 @@ type Translator interface {
 type BundleProvider interface {
     BuildRuntimeMessages(ctx context.Context, locale string) map[string]any
     ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
-    BundleVersion() uint64
+    BundleVersion(locale string) uint64
 }
 type ContentProvider interface {
     GetContent(ctx context.Context, in ContentLookupInput) (ContentLookupOutput, error)
@@ -172,8 +172,8 @@ type Maintainer interface {
     CheckMissingMessages(ctx context.Context, locale, prefix string) []MissingMessageItem
     DiagnoseMessages(ctx context.Context, locale, prefix string) []MessageDiagnosticItem
     ImportMessages(ctx context.Context, in MessageImportInput) (MessageImportOutput, error)
-    InvalidateRuntimeBundleCache()
-    InvalidateContentCache()
+    InvalidateRuntimeBundleCache(scope InvalidateScope)
+    InvalidateContentCache(scope ContentInvalidateScope)
 }
 ```
 
@@ -211,17 +211,21 @@ func init() {
 
 ```go
 type ResourceLoader struct {
-    Subdir            string                              // "manifest/i18n" 或 "manifest/i18n/apidoc"
-    PluginScope       PluginScopeMode                      // OpenScope | RestrictedToPluginNamespace
-    LayoutMode        LayoutMode                           // FlatJSON | NestedDirectory
+    HostFS        fs.FS
+    SourcePlugins func() []SourcePlugin
+    Subdir        string                              // "manifest/i18n" 或 "manifest/i18n/apidoc"
+    PluginScope   PluginScope                         // Open | RestrictedToPluginNamespace
+    LayoutMode    LayoutMode                          // LocaleFile | LocaleFileAndDirectory
+    ValueMode     ValueMode                           // StringifyScalars | StringOnly
+    KeyFilter     KeyFilter
 }
 
-func (l *ResourceLoader) LoadHostBundle(locale string) map[string]string
-func (l *ResourceLoader) LoadSourcePluginBundles(locale string) map[string]map[string]string
-func (l *ResourceLoader) LoadDynamicPluginBundles(ctx context.Context, locale string, releases []ReleaseRef) map[string]map[string]string
+func (l ResourceLoader) LoadHostBundle(ctx context.Context, locale string) map[string]string
+func (l ResourceLoader) LoadSourcePluginBundles(ctx context.Context, locale string) map[string]map[string]string
+func (l ResourceLoader) LoadDynamicPluginBundles(ctx context.Context, locale string, releases []ReleaseRef) map[string]map[string]string
 ```
 
-`apidoc_i18n_loader.go` 与 `i18n_source.go` 改为薄壳,通过不同的 `i18nresource.ResourceLoader` 实例工作。
+`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载函数改为薄壳,通过不同的 `i18nresource.ResourceLoader` 实例工作。
 
 **原因**:
 - 两侧逻辑结构完全相同,仅 `Subdir` 与"是否限制插件命名空间"不同。
@@ -233,16 +237,16 @@ func (l *ResourceLoader) LoadDynamicPluginBundles(ctx context.Context, locale st
 
 ### 决策八:WASM 自定义节解析提到 `pluginbridge`
 
-**选择**:把 `i18n_plugin_dynamic.go` 内的 `parseWasmCustomSectionsForI18N` 与 `readWasmULEB128ForI18N` 移动到 `apps/lina-core/pkg/pluginbridge/wasm.go`:
+**选择**:把 `i18n_plugin_dynamic.go`、`apidoc_i18n_dynamic.go` 与插件 runtime 内的 `parseWasmCustomSections*` / `readWasmULEB128*` 移动到 `apps/lina-core/pkg/pluginbridge/pluginbridge_wasm_section.go`:
 
 ```go
 package pluginbridge
 
-func ReadCustomSection(content []byte, name string) ([]byte, error)
+func ReadCustomSection(content []byte, name string) ([]byte, bool, error)
 func ListCustomSections(content []byte) (map[string][]byte, error)
 ```
 
-`i18n` 与 plugin runtime 都通过 `pluginbridge.ReadCustomSection` 访问 WASM 节,i18n 包不再直接 import WASM 文件格式相关常量。
+`i18n`、`apidoc` 与 plugin runtime 都通过 `pluginbridge.ReadCustomSection` / `pluginbridge.ListCustomSections` 访问 WASM 节,业务包不再直接维护 WASM 文件格式解析细节。
 
 **原因**:
 - WASM 文件格式是 `pluginbridge` 的天然职责;i18n 应该只关心翻译。
@@ -349,7 +353,7 @@ async function loadMessages(lang) {
    - 拆分 `Service` 接口为五个小接口;业务模块字段类型逐个收敛(menu/dict/sysconfig/jobmgmt/role/usermsg/apidoc/plugin)。
 
 3. 边界整理(P3):
-   - 在 `pkg/i18nresource` 抽出 `ResourceLoader`;`apidoc_i18n_loader.go` 与 `i18n_source.go` 共用;删除重复实现。
+   - 在 `pkg/i18nresource` 抽出 `ResourceLoader`;`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载函数共用;删除重复实现。
    - 前端 `loadMessages` 拆分失败语义;补单元测试覆盖弱网/超时降级。
    - WASM 自定义节解析提到 `pluginbridge`;i18n 与 plugin runtime 切换调用路径;删除 i18n 内 WASM 工具函数。
 

@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginbridge"
 )
@@ -64,7 +65,11 @@ func (s *serviceImpl) loadOpenAPIDynamicPluginBundles(ctx context.Context, local
 		if release == nil {
 			continue
 		}
-		pluginBundle, loadErr := s.loadOpenAPIDynamicPluginBundle(ctx, release.PackagePath, locale)
+		pluginID := strings.TrimSpace(release.PluginId)
+		if pluginID == "" {
+			continue
+		}
+		pluginBundle, loadErr := s.loadOpenAPIDynamicPluginBundle(ctx, pluginID, release.PackagePath, locale)
 		if loadErr != nil {
 			logger.Warningf(
 				ctx,
@@ -75,7 +80,7 @@ func (s *serviceImpl) loadOpenAPIDynamicPluginBundles(ctx context.Context, local
 			)
 			continue
 		}
-		mergeOpenAPIPluginMessageCatalog(ctx, bundle, release.PluginId, pluginBundle)
+		mergeOpenAPIPluginMessageCatalog(ctx, bundle, pluginID, pluginBundle)
 	}
 	return bundle
 }
@@ -185,7 +190,7 @@ func getOpenAPIEnabledDynamicPluginRelease(ctx context.Context, plugin *entity.S
 
 // loadOpenAPIDynamicPluginBundle reads one active dynamic-plugin artifact and
 // returns the matching apidoc locale catalog.
-func (s *serviceImpl) loadOpenAPIDynamicPluginBundle(ctx context.Context, packagePath string, locale string) (map[string]string, error) {
+func (s *serviceImpl) loadOpenAPIDynamicPluginBundle(ctx context.Context, pluginID string, packagePath string, locale string) (map[string]string, error) {
 	absolutePath, err := s.resolveOpenAPIDynamicPluginPackagePath(ctx, packagePath)
 	if err != nil {
 		return nil, err
@@ -199,18 +204,28 @@ func (s *serviceImpl) loadOpenAPIDynamicPluginBundle(ctx context.Context, packag
 	if err != nil {
 		return nil, err
 	}
-	bundle := make(map[string]string)
+	localeAssets := make([]i18nresource.LocaleAsset, 0, len(assets))
 	for _, asset := range assets {
-		if asset == nil || normalizeOpenAPILocale(asset.Locale) != locale {
+		if asset == nil {
 			continue
 		}
-		assetBundle, err := parseOpenAPIMessageCatalogJSON([]byte(asset.Content))
-		if err != nil {
-			return nil, gerror.Wrap(err, "parse dynamic plugin apidoc i18n asset failed")
-		}
-		mergeOpenAPIMessageCatalog(bundle, assetBundle)
+		localeAssets = append(localeAssets, i18nresource.LocaleAsset{
+			Locale:  asset.Locale,
+			Content: asset.Content,
+		})
 	}
-	return bundle, nil
+	pluginBundles := openAPIResourceLoader(i18nresource.ResourceLoader{
+		PluginScope: i18nresource.PluginScopeRestrictedToPluginNamespace,
+	}).LoadDynamicPluginBundles(ctx, locale, []i18nresource.ReleaseRef{
+		{
+			PluginID: pluginID,
+			Assets:   localeAssets,
+		},
+	})
+	if bundle := pluginBundles[pluginID]; len(bundle) > 0 {
+		return bundle, nil
+	}
+	return map[string]string{}, nil
 }
 
 // resolveOpenAPIDynamicPluginPackagePath converts a release package path into
@@ -298,11 +313,10 @@ func findRepoRootForOpenAPIDynamicPlugin(startDir string) (string, error) {
 // parseOpenAPIDynamicPluginI18NAssets extracts apidoc i18n asset snapshots from
 // one dynamic plugin wasm artifact.
 func parseOpenAPIDynamicPluginI18NAssets(content []byte) ([]*openAPIDynamicPluginI18NAsset, error) {
-	sections, err := parseOpenAPIWasmCustomSections(content)
+	sectionContent, ok, err := pluginbridge.ReadCustomSection(content, pluginbridge.WasmSectionAPIDocI18NAssets)
 	if err != nil {
 		return nil, err
 	}
-	sectionContent, ok := sections[pluginbridge.WasmSectionAPIDocI18NAssets]
 	if !ok {
 		return []*openAPIDynamicPluginI18NAsset{}, nil
 	}
@@ -322,79 +336,4 @@ func parseOpenAPIDynamicPluginI18NAssets(content []byte) ([]*openAPIDynamicPlugi
 		}
 	}
 	return assets, nil
-}
-
-// parseOpenAPIWasmCustomSections extracts wasm custom sections by name.
-func parseOpenAPIWasmCustomSections(content []byte) (map[string][]byte, error) {
-	if len(content) < 8 {
-		return nil, gerror.New("wasm file is too short")
-	}
-	if string(content[:4]) != "\x00asm" {
-		return nil, gerror.New("invalid wasm header")
-	}
-	if content[4] != 0x01 || content[5] != 0x00 || content[6] != 0x00 || content[7] != 0x00 {
-		return nil, gerror.New("invalid wasm version")
-	}
-
-	sections := make(map[string][]byte)
-	cursor := 8
-	for cursor < len(content) {
-		sectionID := content[cursor]
-		cursor++
-
-		sectionSize, nextCursor, err := readOpenAPIWasmULEB128(content, cursor)
-		if err != nil {
-			return nil, err
-		}
-		cursor = nextCursor
-
-		end := cursor + int(sectionSize)
-		if end > len(content) {
-			return nil, gerror.New("wasm section length exceeds content")
-		}
-		if sectionID == 0 {
-			nameLength, nameCursor, err := readOpenAPIWasmULEB128(content, cursor)
-			if err != nil {
-				return nil, err
-			}
-			nameEnd := nameCursor + int(nameLength)
-			if nameEnd > end {
-				return nil, gerror.New("wasm custom section name exceeds content")
-			}
-			sectionName := string(content[nameCursor:nameEnd])
-			sectionPayload := make([]byte, end-nameEnd)
-			copy(sectionPayload, content[nameEnd:end])
-			sections[sectionName] = sectionPayload
-		}
-
-		cursor = end
-	}
-	return sections, nil
-}
-
-// readOpenAPIWasmULEB128 decodes one unsigned LEB128 integer from a wasm byte stream.
-func readOpenAPIWasmULEB128(content []byte, start int) (uint32, int, error) {
-	var (
-		value uint32
-		shift uint
-	)
-
-	cursor := start
-	for {
-		if cursor >= len(content) {
-			return 0, cursor, gerror.New("wasm ULEB128 data exceeds content")
-		}
-		current := content[cursor]
-		cursor++
-
-		value |= uint32(current&0x7f) << shift
-		if current&0x80 == 0 {
-			return value, cursor, nil
-		}
-
-		shift += 7
-		if shift >= 32 {
-			return 0, cursor, gerror.New("wasm ULEB128 value is too large")
-		}
-	}
 }

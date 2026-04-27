@@ -65,21 +65,21 @@
 
 ## 8. P3 边界整理:统一 ResourceLoader
 
-- [ ] 8.1 在 `apps/lina-core/pkg/i18nresource/` 新建稳定公共 `ResourceLoader` 组件,接受 `Subdir` / `PluginScope` / `LayoutMode` 配置参数,避免 apidoc 反向依赖 `internal/service/i18n`
-- [ ] 8.2 实现 `LoadHostBundle(locale)` / `LoadSourcePluginBundles(locale)` / `LoadDynamicPluginBundles(ctx, locale, releases)` 三个职责清晰的方法
-- [ ] 8.3 改造 `apps/lina-core/internal/service/i18n/i18n_source.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n", PluginScope: Open}` 替换重复实现
-- [ ] 8.4 改造 `apps/lina-core/internal/service/apidoc/apidoc_i18n_loader.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n/apidoc", PluginScope: RestrictedToPluginNamespace}` 替换重复实现
-- [ ] 8.5 删除两侧重复的目录遍历、ULEB128 解码、`wasm` 节解析代码,确保净减少 ≥ 250 行
-- [ ] 8.6 补充 `ResourceLoader` 单元测试覆盖宿主、源码插件、动态插件三种来源以及插件命名空间隔离
+- [x] 8.1 在 `apps/lina-core/pkg/i18nresource/` 新建稳定公共 `ResourceLoader` 组件,接受 `Subdir` / `PluginScope` / `LayoutMode` 配置参数,避免 apidoc 反向依赖 `internal/service/i18n`
+- [x] 8.2 实现 `LoadHostBundle(ctx, locale)` / `LoadSourcePluginBundles(ctx, locale)` / `LoadDynamicPluginBundles(ctx, locale, releases)` 三个职责清晰的方法
+- [x] 8.3 改造 `apps/lina-core/internal/service/i18n/i18n.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n", PluginScope: Open}` 替换重复实现
+- [x] 8.4 改造 `apps/lina-core/internal/service/apidoc/apidoc_i18n_loader.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n/apidoc", PluginScope: RestrictedToPluginNamespace}` 替换重复实现
+- [x] 8.5 删除两侧重复的目录遍历、ULEB128 解码、`wasm` 节解析代码,实现重复实现收敛
+- [x] 8.6 补充 `ResourceLoader` 单元测试覆盖宿主、源码插件、动态插件三种来源以及插件命名空间隔离
 
 ## 9. P3 边界整理:WASM 解析提到 pluginbridge
 
-- [ ] 9.1 在 `apps/lina-core/pkg/pluginbridge/wasm.go` 新建 `ReadCustomSection(content []byte, name string)` 与 `ListCustomSections(content []byte)` 公共函数,迁移 `wasm` 文件头校验、节遍历与 ULEB128 解码逻辑
-- [ ] 9.2 将 `pluginbridge.WasmSection*` 节名常量集中维护在 `pluginbridge` 包
-- [ ] 9.3 删除 `apps/lina-core/internal/service/i18n/i18n_plugin_dynamic.go` 内的 `parseWasmCustomSectionsForI18N` / `readWasmULEB128ForI18N` 私有函数,改为调用 `pluginbridge.ReadCustomSection`
-- [ ] 9.4 调整 `apidoc` 包内动态插件 apidoc 资源加载流程,统一改用 `pluginbridge.ReadCustomSection`
-- [ ] 9.5 补充 `pluginbridge.wasm` 单元测试覆盖正常节读取、文件头错误、ULEB128 越界三种场景
-- [ ] 9.6 验证插件运行时 `pkg/pluginhost` 与 i18n 共用同一份解析路径无回归
+- [x] 9.1 在 `apps/lina-core/pkg/pluginbridge/pluginbridge_wasm_section.go` 新建 `ReadCustomSection(content []byte, name string)` 与 `ListCustomSections(content []byte)` 公共函数,迁移 `wasm` 文件头校验、节遍历与 ULEB128 解码逻辑
+- [x] 9.2 将 `pluginbridge.WasmSection*` 节名常量集中维护在 `pluginbridge` 包
+- [x] 9.3 删除 `apps/lina-core/internal/service/i18n/i18n_plugin_dynamic.go` 内的 `parseWasmCustomSectionsForI18N` / `readWasmULEB128ForI18N` 私有函数,改为调用 `pluginbridge.ReadCustomSection`
+- [x] 9.4 调整 `apidoc` 包内动态插件 apidoc 资源加载流程,统一改用 `pluginbridge.ReadCustomSection`
+- [x] 9.5 补充 `pluginbridge` WASM 单元测试覆盖正常节读取、文件头错误、ULEB128 越界三种场景
+- [x] 9.6 验证插件运行时 `pkg/pluginhost` 与 i18n 共用同一份解析路径无回归
 
 ## 10. 阿拉伯语接入:数据与资源
 

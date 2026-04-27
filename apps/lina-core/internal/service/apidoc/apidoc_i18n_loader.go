@@ -6,17 +6,14 @@ package apidoc
 
 import (
 	"context"
-	"encoding/json"
 	"io/fs"
-	"path"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/packed"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginhost"
 )
@@ -94,133 +91,63 @@ func normalizeOpenAPILocale(locale string) string {
 // namespace.
 func loadOpenAPISourcePluginBundles(ctx context.Context, locale string) map[string]string {
 	bundle := make(map[string]string)
-	sourcePlugins := pluginhost.ListSourcePlugins()
-	if len(sourcePlugins) == 0 {
+	pluginBundles := openAPIResourceLoader(i18nresource.ResourceLoader{
+		SourcePlugins: listOpenAPII18nSourcePlugins,
+		Subdir:        openAPIPluginI18nDir,
+		PluginScope:   i18nresource.PluginScopeRestrictedToPluginNamespace,
+	}).LoadSourcePluginBundles(ctx, locale)
+	if len(pluginBundles) == 0 {
 		return bundle
 	}
 
-	sort.Slice(sourcePlugins, func(i, j int) bool {
-		return sourcePlugins[i].ID() < sourcePlugins[j].ID()
-	})
-	for _, sourcePlugin := range sourcePlugins {
-		if sourcePlugin == nil || sourcePlugin.GetEmbeddedFiles() == nil {
-			continue
-		}
-		mergeOpenAPIPluginMessageCatalog(
-			ctx,
-			bundle,
-			sourcePlugin.ID(),
-			loadOpenAPIEmbeddedBundle(ctx, sourcePlugin.GetEmbeddedFiles(), openAPIPluginI18nDir, locale),
-		)
+	pluginIDs := make([]string, 0, len(pluginBundles))
+	for pluginID := range pluginBundles {
+		pluginIDs = append(pluginIDs, pluginID)
+	}
+	sort.Strings(pluginIDs)
+	for _, pluginID := range pluginIDs {
+		mergeOpenAPIMessageCatalog(bundle, pluginBundles[pluginID])
 	}
 	return bundle
+}
+
+// listOpenAPII18nSourcePlugins adapts pluginhost source plugins to the shared
+// ResourceLoader interface without adding a pluginhost dependency to that package.
+func listOpenAPII18nSourcePlugins() []i18nresource.SourcePlugin {
+	sourcePlugins := pluginhost.ListSourcePlugins()
+	plugins := make([]i18nresource.SourcePlugin, 0, len(sourcePlugins))
+	for _, sourcePlugin := range sourcePlugins {
+		if sourcePlugin == nil {
+			continue
+		}
+		plugins = append(plugins, sourcePlugin)
+	}
+	return plugins
 }
 
 // loadOpenAPIEmbeddedBundle reads one locale bundle from an embedded filesystem.
 func loadOpenAPIEmbeddedBundle(ctx context.Context, filesystem fs.FS, dir string, locale string) map[string]string {
-	if filesystem == nil {
-		return map[string]string{}
-	}
-	bundle := make(map[string]string)
-	mergeOpenAPIMessageCatalog(bundle, loadOpenAPIEmbeddedBundleFile(ctx, filesystem, path.Join(dir, locale+".json")))
-
-	localeDir := path.Join(dir, locale)
-	entries := make([]string, 0)
-	if err := fs.WalkDir(filesystem, localeDir, func(filePath string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			if filePath == localeDir {
-				return nil
-			}
-			return walkErr
-		}
-		if entry == nil || entry.IsDir() || !strings.HasSuffix(filePath, ".json") {
-			return nil
-		}
-		entries = append(entries, filePath)
-		return nil
-	}); err != nil {
-		logger.Warningf(ctx, "scan apidoc i18n bundle directory failed locale=%s dir=%s err=%v", locale, localeDir, err)
-		return bundle
-	}
-	sort.Strings(entries)
-	for _, entryPath := range entries {
-		mergeOpenAPIMessageCatalog(bundle, loadOpenAPIEmbeddedBundleFile(ctx, filesystem, entryPath))
-	}
-	return bundle
-}
-
-// loadOpenAPIEmbeddedBundleFile reads one apidoc locale JSON file from an
-// embedded filesystem and normalizes nested JSON into flat structured keys.
-func loadOpenAPIEmbeddedBundleFile(ctx context.Context, filesystem fs.FS, filePath string) map[string]string {
-	content, err := fs.ReadFile(filesystem, filePath)
-	if err != nil || len(content) == 0 {
-		return map[string]string{}
-	}
-	bundle, err := parseOpenAPIMessageCatalogJSON(content)
-	if err != nil {
-		logger.Warningf(ctx, "parse apidoc i18n bundle failed path=%s err=%v", filePath, err)
-		return map[string]string{}
-	}
-	return bundle
+	return openAPIResourceLoader(i18nresource.ResourceLoader{
+		HostFS: filesystem,
+		Subdir: dir,
+	}).LoadHostBundle(ctx, locale)
 }
 
 // parseOpenAPIMessageCatalogJSON parses one apidoc bundle. Files may be
 // maintained as nested JSON or flat dotted keys, while the service keeps a flat
 // structured catalog internally.
 func parseOpenAPIMessageCatalogJSON(content []byte) (map[string]string, error) {
-	result := make(map[string]interface{})
-	if len(content) == 0 {
-		return map[string]string{}, nil
-	}
-	if err := json.Unmarshal(content, &result); err != nil {
-		return nil, err
-	}
-
-	flatMessages := make(map[string]string)
-	if err := flattenOpenAPIMessageValue("", result, flatMessages); err != nil {
-		return nil, err
-	}
-	return flatMessages, nil
+	return i18nresource.ParseCatalog(content, i18nresource.ValueModeStringOnly)
 }
 
-// flattenOpenAPIMessageValue flattens one nested apidoc JSON value. Flat
-// dotted keys override equivalent nested paths for deterministic migration.
-func flattenOpenAPIMessageValue(prefix string, value interface{}, output map[string]string) error {
-	switch typedValue := value.(type) {
-	case map[string]interface{}:
-		keys := make([]string, 0, len(typedValue))
-		for key := range typedValue {
-			if strings.TrimSpace(key) == "" {
-				continue
-			}
-			keys = append(keys, key)
-		}
-		sort.Slice(keys, func(i, j int) bool {
-			left := strings.TrimSpace(keys[i])
-			right := strings.TrimSpace(keys[j])
-			if left == right {
-				return keys[i] < keys[j]
-			}
-			return left < right
-		})
-		for _, key := range keys {
-			trimmedKey := strings.TrimSpace(key)
-			nextPrefix := trimmedKey
-			if prefix != "" {
-				nextPrefix = prefix + "." + trimmedKey
-			}
-			if err := flattenOpenAPIMessageValue(nextPrefix, typedValue[key], output); err != nil {
-				return err
-			}
-		}
-	case string:
-		if prefix != "" {
-			output[prefix] = typedValue
-		}
-	default:
-		return gerror.New("apidoc i18n values must be strings or objects")
+// openAPIResourceLoader applies the common apidoc resource-loader defaults.
+func openAPIResourceLoader(loader i18nresource.ResourceLoader) i18nresource.ResourceLoader {
+	loader.LayoutMode = i18nresource.LayoutModeLocaleFileAndDirectory
+	loader.ValueMode = i18nresource.ValueModeStringOnly
+	loader.KeyFilter = func(key string) bool {
+		return !isGeneratedEntityOpenAPIKey(key)
 	}
-	return nil
+	return loader
 }
 
 // mergeOpenAPIMessageCatalog merges source values into target values.

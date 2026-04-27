@@ -4,18 +4,15 @@ package i18n
 
 import (
 	"context"
-	"encoding/json"
-	"io/fs"
-	"path"
 	"sort"
 	"strings"
 
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/packed"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
+	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -347,10 +344,10 @@ func (s *serviceImpl) rebuildMergedCatalog(ctx context.Context, lc *localeCache,
 	}
 
 	if lc.host == nil {
-		lc.host = loadEmbeddedHostLocaleBundle(locale)
+		lc.host = loadEmbeddedHostLocaleBundle(ctx, locale)
 	}
 	if lc.plugins == nil {
-		lc.plugins = loadSourcePluginLocaleBundles(locale)
+		lc.plugins = loadSourcePluginLocaleBundles(ctx, locale)
 	}
 	if lc.dynamic == nil {
 		lc.dynamic = s.loadDynamicPluginLocaleBundles(ctx, locale)
@@ -432,86 +429,50 @@ func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[
 // loadSourcePluginLocaleBundles loads source-plugin translation resources from
 // registered embedded plugin filesystems, returning a per-plugin map so the
 // cache can attribute each key to its owning plugin.
-func loadSourcePluginLocaleBundles(locale string) map[string]map[string]string {
-	bundles := make(map[string]map[string]string)
-	sourcePlugins := pluginhost.ListSourcePlugins()
-	if len(sourcePlugins) == 0 {
-		return bundles
-	}
+func loadSourcePluginLocaleBundles(ctx context.Context, locale string) map[string]map[string]string {
+	return i18nresource.ResourceLoader{
+		SourcePlugins: listRuntimeI18nSourcePlugins,
+		Subdir:        pluginI18nDir,
+		PluginScope:   i18nresource.PluginScopeOpen,
+		LayoutMode:    i18nresource.LayoutModeLocaleFile,
+		ValueMode:     i18nresource.ValueModeStringifyScalars,
+	}.LoadSourcePluginBundles(ctx, locale)
+}
 
-	relativePath := path.Join(pluginI18nDir, locale+".json")
+// listRuntimeI18nSourcePlugins adapts pluginhost definitions to the shared
+// ResourceLoader interface without coupling the loader package to pluginhost.
+func listRuntimeI18nSourcePlugins() []i18nresource.SourcePlugin {
+	sourcePlugins := pluginhost.ListSourcePlugins()
+	plugins := make([]i18nresource.SourcePlugin, 0, len(sourcePlugins))
 	for _, sourcePlugin := range sourcePlugins {
-		if sourcePlugin == nil || sourcePlugin.GetEmbeddedFiles() == nil {
+		if sourcePlugin == nil {
 			continue
 		}
-		content, err := fs.ReadFile(sourcePlugin.GetEmbeddedFiles(), relativePath)
-		if err != nil || len(content) == 0 {
-			continue
-		}
-		bundles[sourcePlugin.ID()] = parseLocaleJSON(content)
+		plugins = append(plugins, sourcePlugin)
 	}
-	return bundles
+	return plugins
 }
 
 // loadEmbeddedHostLocaleBundle loads host runtime messages from embedded manifest assets.
-func loadEmbeddedHostLocaleBundle(locale string) map[string]string {
-	content, err := fs.ReadFile(packed.Files, path.Join(hostI18nDir, locale+".json"))
-	if err != nil {
-		return map[string]string{}
-	}
-	return parseLocaleJSON(content)
+func loadEmbeddedHostLocaleBundle(ctx context.Context, locale string) map[string]string {
+	return i18nresource.ResourceLoader{
+		HostFS:      packed.Files,
+		Subdir:      hostI18nDir,
+		PluginScope: i18nresource.PluginScopeOpen,
+		LayoutMode:  i18nresource.LayoutModeLocaleFile,
+		ValueMode:   i18nresource.ValueModeStringifyScalars,
+	}.LoadHostBundle(ctx, locale)
 }
 
 // parseLocaleJSON unmarshals one locale JSON file into a flat message catalog.
 // Flat keys override equivalent nested paths, which keeps mixed-format locale
 // files deterministic during gradual authoring-format migrations.
 func parseLocaleJSON(content []byte) map[string]string {
-	result := make(map[string]interface{})
-	if len(content) == 0 {
+	bundle, err := i18nresource.ParseCatalog(content, i18nresource.ValueModeStringifyScalars)
+	if err != nil {
 		return map[string]string{}
 	}
-	if err := json.Unmarshal(content, &result); err != nil {
-		return map[string]string{}
-	}
-
-	flatMessages := make(map[string]string)
-	flattenMessageValue("", result, flatMessages)
-	return flatMessages
-}
-
-// flattenMessageValue flattens one nested message value into dotted keys.
-func flattenMessageValue(prefix string, value interface{}, output map[string]string) {
-	switch typedValue := value.(type) {
-	case map[string]interface{}:
-		keys := make([]string, 0, len(typedValue))
-		for key := range typedValue {
-			if strings.TrimSpace(key) == "" {
-				continue
-			}
-			keys = append(keys, key)
-		}
-		sort.Slice(keys, func(i, j int) bool {
-			left := strings.TrimSpace(keys[i])
-			right := strings.TrimSpace(keys[j])
-			if left == right {
-				return keys[i] < keys[j]
-			}
-			return left < right
-		})
-		for _, key := range keys {
-			trimmedKey := strings.TrimSpace(key)
-			nextPrefix := trimmedKey
-			if prefix != "" {
-				nextPrefix = prefix + "." + trimmedKey
-			}
-			flattenMessageValue(nextPrefix, typedValue[key], output)
-		}
-	default:
-		if prefix == "" {
-			return
-		}
-		output[prefix] = gconv.String(typedValue)
-	}
+	return bundle
 }
 
 // lookupMessageString retrieves one string message by dotted key path.

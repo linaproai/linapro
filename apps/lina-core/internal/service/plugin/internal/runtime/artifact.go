@@ -107,7 +107,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifact(filePath string) (*catalog.Artifa
 // ParseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
 // It implements the catalog.ArtifactParser interface.
 func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*catalog.ArtifactSpec, error) {
-	sections, err := parseWasmCustomSections(content)
+	sections, err := pluginbridge.ListCustomSections(content)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "解析动态插件产物失败: %s", filePath)
 	}
@@ -375,83 +375,6 @@ func unmarshalRuntimeArtifactSection(content []byte, target interface{}) error {
 		return nil
 	}
 	return gerror.New("动态插件自定义节仅支持 JSON 编码")
-}
-
-// parseWasmCustomSections extracts custom sections from a wasm binary by name.
-func parseWasmCustomSections(content []byte) (map[string][]byte, error) {
-	if len(content) < 8 {
-		return nil, gerror.New("wasm 文件长度不足")
-	}
-	if string(content[:4]) != "\x00asm" {
-		return nil, gerror.New("wasm 文件头非法")
-	}
-	if content[4] != 0x01 || content[5] != 0x00 || content[6] != 0x00 || content[7] != 0x00 {
-		return nil, gerror.New("wasm 版本非法")
-	}
-
-	sections := make(map[string][]byte)
-	cursor := 8
-	for cursor < len(content) {
-		sectionID := content[cursor]
-		cursor++
-
-		sectionSize, nextCursor, err := readWasmULEB128(content, cursor)
-		if err != nil {
-			return nil, err
-		}
-		cursor = nextCursor
-
-		end := cursor + int(sectionSize)
-		if end > len(content) {
-			return nil, gerror.New("wasm 节长度越界")
-		}
-
-		if sectionID == 0 {
-			nameLength, nameCursor, err := readWasmULEB128(content, cursor)
-			if err != nil {
-				return nil, err
-			}
-			nameEnd := nameCursor + int(nameLength)
-			if nameEnd > end {
-				return nil, gerror.New("wasm 自定义节名称越界")
-			}
-
-			sectionName := string(content[nameCursor:nameEnd])
-			sectionPayload := make([]byte, end-nameEnd)
-			copy(sectionPayload, content[nameEnd:end])
-			sections[sectionName] = sectionPayload
-		}
-
-		cursor = end
-	}
-	return sections, nil
-}
-
-// readWasmULEB128 decodes one unsigned LEB128 value from the wasm byte stream.
-func readWasmULEB128(content []byte, start int) (uint32, int, error) {
-	var (
-		value uint32
-		shift uint
-	)
-
-	cursor := start
-	for {
-		if cursor >= len(content) {
-			return 0, cursor, gerror.New("wasm ULEB128 数据越界")
-		}
-		current := content[cursor]
-		cursor++
-
-		value |= uint32(current&0x7f) << shift
-		if current&0x80 == 0 {
-			return value, cursor, nil
-		}
-
-		shift += 7
-		if shift > 28 {
-			return 0, cursor, gerror.New("wasm ULEB128 数值过大")
-		}
-	}
 }
 
 // maxInt clamps value to the given lower bound.

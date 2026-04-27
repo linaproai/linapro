@@ -23,9 +23,9 @@
 - `i18n.Service` 大接口拆分为 `LocaleResolver` / `Translator` / `BundleProvider` / `ContentProvider` / `Maintainer` 五个小接口;`serviceImpl` 统一实现,业务模块的 `i18nSvc` 字段只声明实际依赖的小接口。
 
 ### P3 边界整理
-- 抽出 `pkg/i18nresource` 通用资源加载器,接受 `Subdir` 与 `PluginScopeNamespace` 配置;`apidoc_i18n_loader.go` 与 `i18n_source.go` 共用同一份实现,删除 ~280 行重复代码,但不让 apidoc 反向依赖 `internal/service/i18n`。
+- 抽出 `pkg/i18nresource` 通用资源加载器,接受 `Subdir` 与 `PluginScopeNamespace` 配置;`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载薄壳共用同一份实现,删除 ~280 行重复代码,但不让 apidoc 反向依赖 `internal/service/i18n`。
 - 前端 `loadMessages` 拆分:运行时 bundle 失败 → 命中持久化缓存或回退;公共配置失败 → fire-and-forget 不阻塞;三方库 locale → 必须等待。
-- WASM 自定义节解析 `parseWasmCustomSectionsForI18N` 与 `readWasmULEB128ForI18N` 提到 `pkg/pluginbridge/wasm.go`,i18n 包仅调用 `pluginbridge.ReadCustomSection(path, name)`。
+- WASM 自定义节解析 `parseWasmCustomSectionsForI18N` 与 `readWasmULEB128ForI18N` 提到 `pkg/pluginbridge/pluginbridge_wasm_section.go`,i18n 包仅调用 `pluginbridge.ReadCustomSection(content, name)`。
 
 ### 第三种语言:阿拉伯语作为压力测试
 - `sys_i18n_locale` 注册启用 `ar-SA`;运行时语言列表、语言切换、缺失翻译检查、覆写来源诊断全链路必须自动覆盖到 `ar-SA`,不需要业务模块改任何代码。
@@ -59,7 +59,7 @@
 
 ## Impact
 
-- **后端能力**:重写 `apps/lina-core/internal/service/i18n/` 内的 `Translate*` 热路径与缓存层;拆分 `Service` 接口;调整 5 个 `*_i18n.go` 适配文件并删除中心化投影器;抽出 `pkg/i18nresource`、`pkg/pluginbridge/wasm.go`;`apidoc_i18n_loader.go` 与 `i18n_source.go` 共用 loader;`config-management` 删除 Go 硬编码标签 map。
+- **后端能力**:重写 `apps/lina-core/internal/service/i18n/` 内的 `Translate*` 热路径与缓存层;拆分 `Service` 接口;调整 5 个 `*_i18n.go` 适配文件并删除中心化投影器;抽出 `pkg/i18nresource`、`pkg/pluginbridge/pluginbridge_wasm_section.go`;`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载薄壳共用 loader;`config-management` 删除 Go 硬编码标签 map。
 - **数据库**:`sys_i18n_locale` 新增一行 `ar-SA` 启用记录(seed DML);无新表、无 schema 改动。
 - **前端能力**:`runtime-i18n.ts` 改走 `requestClient` 并接入 `localStorage`;`loadMessages` 拆分失败语义;`<html dir>` 与 antd `ConfigProvider` 接入 RTL 切换;新增 `ar-SA` 静态语言包。
 - **资源文件**:宿主 `manifest/i18n/ar-SA.json`、`manifest/i18n/apidoc/ar-SA/*.json`;每个源码插件的 `manifest/i18n/ar-SA.json` 与 `manifest/i18n/apidoc/ar-SA/*.json`;前端 `packages/locales/src/langs/ar-SA/*.json` 与 `apps/web-antd/src/locales/langs/ar-SA/*.json`。

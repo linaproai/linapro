@@ -15,6 +15,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginbridge"
 )
@@ -54,6 +55,7 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundles(ctx context.Context, locale
 		return bundles
 	}
 
+	releaseRefs := make([]i18nresource.ReleaseRef, 0, len(releases))
 	for _, release := range releases {
 		if release == nil {
 			continue
@@ -73,23 +75,28 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundles(ctx context.Context, locale
 		if pluginID == "" {
 			continue
 		}
-		pluginBundle := bundles[pluginID]
-		if pluginBundle == nil {
-			pluginBundle = make(map[string]string)
-		}
+		localeAssets := make([]i18nresource.LocaleAsset, 0, len(assets))
 		for _, asset := range assets {
-			if asset == nil || normalizeLocale(asset.Locale) != resolvedLocale {
+			if asset == nil {
 				continue
 			}
-			for key, value := range parseLocaleJSON([]byte(asset.Content)) {
-				pluginBundle[key] = value
-			}
+			localeAssets = append(localeAssets, i18nresource.LocaleAsset{
+				Locale:  asset.Locale,
+				Content: asset.Content,
+			})
 		}
-		if len(pluginBundle) > 0 {
-			bundles[pluginID] = pluginBundle
+		if len(localeAssets) == 0 {
+			continue
 		}
+		releaseRefs = append(releaseRefs, i18nresource.ReleaseRef{
+			PluginID: pluginID,
+			Assets:   localeAssets,
+		})
 	}
-	return bundles
+	return i18nresource.ResourceLoader{
+		PluginScope: i18nresource.PluginScopeOpen,
+		ValueMode:   i18nresource.ValueModeStringifyScalars,
+	}.LoadDynamicPluginBundles(ctx, resolvedLocale, releaseRefs)
 }
 
 // listEnabledDynamicPluginReleases returns active release rows for plugins that are currently enabled.
@@ -164,11 +171,10 @@ func (s *serviceImpl) readDynamicPluginI18NAssets(ctx context.Context, packagePa
 		return nil, err
 	}
 
-	sections, err := parseWasmCustomSectionsForI18N(content)
+	sectionContent, ok, err := pluginbridge.ReadCustomSection(content, pluginbridge.WasmSectionI18NAssets)
 	if err != nil {
 		return nil, err
 	}
-	sectionContent, ok := sections[pluginbridge.WasmSectionI18NAssets]
 	if !ok {
 		return []*dynamicPluginI18NAsset{}, nil
 	}
@@ -267,79 +273,4 @@ func findRepoRootForDynamicPluginI18N(startDir string) (string, error) {
 		currentDir = parentDir
 	}
 	return "", gerror.Newf("未找到仓库根目录: %s", startDir)
-}
-
-// parseWasmCustomSectionsForI18N extracts wasm custom sections by name for dynamic-plugin i18n loading.
-func parseWasmCustomSectionsForI18N(content []byte) (map[string][]byte, error) {
-	if len(content) < 8 {
-		return nil, gerror.New("wasm 文件长度不足")
-	}
-	if string(content[:4]) != "\x00asm" {
-		return nil, gerror.New("wasm 文件头非法")
-	}
-	if content[4] != 0x01 || content[5] != 0x00 || content[6] != 0x00 || content[7] != 0x00 {
-		return nil, gerror.New("wasm 版本非法")
-	}
-
-	sections := make(map[string][]byte)
-	cursor := 8
-	for cursor < len(content) {
-		sectionID := content[cursor]
-		cursor++
-
-		sectionSize, nextCursor, err := readWasmULEB128ForI18N(content, cursor)
-		if err != nil {
-			return nil, err
-		}
-		cursor = nextCursor
-
-		end := cursor + int(sectionSize)
-		if end > len(content) {
-			return nil, gerror.New("wasm 节长度越界")
-		}
-		if sectionID == 0 {
-			nameLength, nameCursor, err := readWasmULEB128ForI18N(content, cursor)
-			if err != nil {
-				return nil, err
-			}
-			nameEnd := nameCursor + int(nameLength)
-			if nameEnd > end {
-				return nil, gerror.New("wasm 自定义节名称越界")
-			}
-			sectionName := string(content[nameCursor:nameEnd])
-			sectionPayload := make([]byte, end-nameEnd)
-			copy(sectionPayload, content[nameEnd:end])
-			sections[sectionName] = sectionPayload
-		}
-
-		cursor = end
-	}
-	return sections, nil
-}
-
-// readWasmULEB128ForI18N decodes one unsigned LEB128 value from a wasm byte stream.
-func readWasmULEB128ForI18N(content []byte, start int) (uint32, int, error) {
-	var (
-		value uint32
-		shift uint
-	)
-
-	cursor := start
-	for {
-		if cursor >= len(content) {
-			return 0, cursor, gerror.New("wasm ULEB128 数据越界")
-		}
-		current := content[cursor]
-		cursor++
-
-		value |= uint32(current&0x7f) << shift
-		if current&0x80 == 0 {
-			return value, cursor, nil
-		}
-
-		shift += 7
-		if shift > 28 {
-			return 0, cursor, gerror.New("wasm ULEB128 数值过大")
-		}
-	}
 }
