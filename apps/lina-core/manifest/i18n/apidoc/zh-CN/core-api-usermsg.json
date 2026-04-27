@@ -80,6 +80,9 @@
                     "fields": {
                       "data": {
                         "fields": {
+                          "categoryCode": {
+                            "dc": "发送方声明的不透明消息类目编码（如 notice、announcement、system、alert）。宿主与插件在 i18n 键 notify.category.{code}.label 与 notify.category.{code}.color 注册翻译，使预览界面保持类目无关"
+                          },
                           "content": {
                             "dc": "可直接用于预览渲染的消息内容"
                           },
@@ -101,8 +104,11 @@
                           "title": {
                             "dc": "消息标题"
                           },
-                          "type": {
-                            "dc": "消息类型：1=通知 2=公告"
+                          "typeColor": {
+                            "dc": "由宿主按当前请求语言解析的类目标签颜色，使预览组件无需硬编码类目颜色即可渲染"
+                          },
+                          "typeLabel": {
+                            "dc": "由宿主按当前请求语言解析的类目展示名称"
                           }
                         }
                       }
@@ -117,6 +123,9 @@
           },
           "GetRes": {
             "fields": {
+              "categoryCode": {
+                "dc": "发送方声明的不透明消息类目编码（如 notice、announcement、system、alert）。宿主与插件在 i18n 键 notify.category.{code}.label 与 notify.category.{code}.color 注册翻译，使预览界面保持类目无关"
+              },
               "content": {
                 "dc": "可直接用于预览渲染的消息内容"
               },
@@ -138,8 +147,11 @@
               "title": {
                 "dc": "消息标题"
               },
-              "type": {
-                "dc": "消息类型：1=通知 2=公告"
+              "typeColor": {
+                "dc": "由宿主按当前请求语言解析的类目标签颜色，使预览组件无需硬编码类目颜色即可渲染"
+              },
+              "typeLabel": {
+                "dc": "由宿主按当前请求语言解析的类目展示名称"
               }
             }
           },
@@ -179,6 +191,9 @@
           },
           "MessageItem": {
             "fields": {
+              "categoryCode": {
+                "dc": "发送方声明的不透明消息类目编码（如 notice、announcement、system、alert）。宿主与插件在 i18n 键 notify.category.{code}.label 与 notify.category.{code}.color 注册翻译，使收件箱保持类目无关"
+              },
               "createdAt": {
                 "dc": "消息创建时间"
               },
@@ -200,8 +215,11 @@
               "title": {
                 "dc": "消息标题"
               },
-              "type": {
-                "dc": "消息类型：1=通知 2=公告"
+              "typeColor": {
+                "dc": "由宿主按当前请求语言解析的类目标签颜色，使收件箱无需硬编码类目颜色即可渲染徽标"
+              },
+              "typeLabel": {
+                "dc": "由宿主按当前请求语言解析的类目展示名称"
               },
               "userId": {
                 "dc": "接收用户ID"

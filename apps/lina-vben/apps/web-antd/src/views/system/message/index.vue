@@ -100,10 +100,6 @@ function handleClearAll() {
   });
 }
 
-function getTypeColor(type: number) {
-  return type === 1 ? 'blue' : 'green';
-}
-
 onMounted(() => {
   fetchData();
 });
@@ -141,7 +137,7 @@ onMounted(() => {
                   <span :class="{ 'font-semibold': item.isRead === 0 }">
                     {{ item.title }}
                   </span>
-                  <Tag :color="getTypeColor(item.type)">
+                  <Tag :color="item.typeColor">
                     {{ item.typeLabel }}
                   </Tag>
                 </Space>

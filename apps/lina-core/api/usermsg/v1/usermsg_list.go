@@ -22,14 +22,15 @@ type ListRes struct {
 
 // MessageItem defines one user message list item.
 type MessageItem struct {
-	Id         int64       `json:"id" dc:"Message ID" eg:"1"`
-	UserId     int64       `json:"userId" dc:"Receive user ID" eg:"1"`
-	Title      string      `json:"title" dc:"Message title" eg:"System maintenance notification"`
-	Type       int         `json:"type" dc:"Message type: 1=Notification 2=Announcement" eg:"1"`
-	TypeLabel  string      `json:"typeLabel" dc:"Localized message type label resolved by the host according to the request locale" eg:"Notice"`
-	SourceType string      `json:"sourceType" dc:"Source type: notice=notification announcement plugin=dynamic plugin system=system" eg:"notice"`
-	SourceId   int64       `json:"sourceId" dc:"Source ID, this field is used for the current notification announcement preview" eg:"1001"`
-	IsRead     int         `json:"isRead" dc:"Whether it has been read: 0=unread 1=read" eg:"0"`
-	ReadAt     *gtime.Time `json:"readAt" dc:"Read time, empty when unread" eg:"2026-04-15 16:00:00"`
-	CreatedAt  *gtime.Time `json:"createdAt" dc:"Message creation time" eg:"2026-04-15 15:30:00"`
+	Id           int64       `json:"id" dc:"Message ID" eg:"1"`
+	UserId       int64       `json:"userId" dc:"Receive user ID" eg:"1"`
+	Title        string      `json:"title" dc:"Message title" eg:"System maintenance notification"`
+	CategoryCode string      `json:"categoryCode" dc:"Opaque sender-declared inbox category code (for example notice, announcement, system, alert). Hosts and plugins register translations at i18n keys notify.category.{code}.label and notify.category.{code}.color so the inbox UI stays category-agnostic" eg:"notice"`
+	TypeLabel    string      `json:"typeLabel" dc:"Localized category label resolved by the host according to the request locale" eg:"Notice"`
+	TypeColor    string      `json:"typeColor" dc:"Localized category tag color resolved by the host so the inbox UI can render badges without hardcoding category-specific colors" eg:"blue"`
+	SourceType   string      `json:"sourceType" dc:"Source type: notice=notification announcement plugin=dynamic plugin system=system" eg:"notice"`
+	SourceId     int64       `json:"sourceId" dc:"Source ID, this field is used for the current notification announcement preview" eg:"1001"`
+	IsRead       int         `json:"isRead" dc:"Whether it has been read: 0=unread 1=read" eg:"0"`
+	ReadAt       *gtime.Time `json:"readAt" dc:"Read time, empty when unread" eg:"2026-04-15 16:00:00"`
+	CreatedAt    *gtime.Time `json:"createdAt" dc:"Message creation time" eg:"2026-04-15 15:30:00"`
 }

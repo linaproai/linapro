@@ -32,9 +32,6 @@ const [Modal, modalApi] = useVbenModal({
   },
 });
 
-function getTypeColor(type: number) {
-  return type === 1 ? 'blue' : 'green';
-}
 </script>
 
 <template>
@@ -42,7 +39,7 @@ function getTypeColor(type: number) {
     <div v-if="notice" class="p-2">
       <Descriptions :column="3" size="small" bordered class="mb-4">
         <DescriptionsItem :label="$t('plugin.content-notice.fields.type')">
-          <Tag :color="getTypeColor(notice.type)">{{ notice.typeLabel }}</Tag>
+          <Tag :color="notice.typeColor">{{ notice.typeLabel }}</Tag>
         </DescriptionsItem>
         <DescriptionsItem :label="$t('plugin.content-notice.fields.createdBy')">
           {{ notice.createdByName || '-' }}

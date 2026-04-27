@@ -29,13 +29,11 @@ const (
 	SourceTypePlugin = internalnotify.SourceTypePlugin
 )
 
-// Published notify inbox category-code constants.
+// Published notify inbox category-code constants. Plugins declare their own
+// category codes as opaque strings; the host only publishes the generic
+// fallback so that callers can default to it when no code is specified.
 const (
-	// CategoryCodeNotice identifies notice messages in the inbox.
-	CategoryCodeNotice = internalnotify.CategoryCodeNotice
-	// CategoryCodeAnnouncement identifies announcement messages in the inbox.
-	CategoryCodeAnnouncement = internalnotify.CategoryCodeAnnouncement
-	// CategoryCodeOther identifies all other inbox messages.
+	// CategoryCodeOther identifies inbox messages whose sender did not declare a category code.
 	CategoryCodeOther = internalnotify.CategoryCodeOther
 )
 

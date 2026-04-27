@@ -542,10 +542,16 @@
       }
     }
   },
-  "usermsg": {
-    "type": {
-      "announcement": "公告",
-      "notice": "通知"
+  "notify": {
+    "category": {
+      "other": {
+        "color": "default",
+        "label": "通知消息"
+      },
+      "system": {
+        "color": "default",
+        "label": "系统消息"
+      }
     }
   },
   "systemInfo": {

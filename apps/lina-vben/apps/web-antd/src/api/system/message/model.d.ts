@@ -2,8 +2,9 @@ export interface UserMessage {
   id: number;
   userId: number;
   title: string;
-  type: number;
+  categoryCode: string;
   typeLabel: string;
+  typeColor: string;
   sourceType: string;
   sourceId: number;
   isRead: number;
@@ -14,8 +15,9 @@ export interface UserMessage {
 export interface UserMessageDetail {
   id: number;
   title: string;
-  type: number;
+  categoryCode: string;
   typeLabel: string;
+  typeColor: string;
   sourceType: string;
   sourceId: number;
   content: string;

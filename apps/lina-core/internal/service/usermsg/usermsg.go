@@ -11,11 +11,25 @@ import (
 	notifysvc "lina-core/internal/service/notify"
 )
 
-// Stable i18n keys used to localize the user-message type label so the host
-// inbox UI does not need to map message.type to free-form text on the client.
+// Stable i18n key convention used to localize inbox category labels and tag
+// colors. The host does not enumerate specific category codes here; senders
+// (host services or source plugins) register translations at
+// `notify.category.{code}.label` and `notify.category.{code}.color` in their
+// own manifest/i18n bundles, and the host i18n resource aggregator merges
+// them at runtime. This keeps the inbox UI category-agnostic.
 const (
-	usermsgTypeNoticeI18nKey       = "usermsg.type.notice"
-	usermsgTypeAnnouncementI18nKey = "usermsg.type.announcement"
+	// usermsgCategoryI18nNamespace is the parent i18n namespace shared by all category labels and colors.
+	usermsgCategoryI18nNamespace = "notify.category."
+	// usermsgCategoryLabelI18nSuffix is the i18n key suffix that resolves the category display label.
+	usermsgCategoryLabelI18nSuffix = ".label"
+	// usermsgCategoryColorI18nSuffix is the i18n key suffix that resolves the category tag color.
+	usermsgCategoryColorI18nSuffix = ".color"
+	// usermsgCategoryFallbackCode is the canonical fallback category used when a message has no declared category code.
+	usermsgCategoryFallbackCode = "other"
+	// usermsgCategoryDefaultColor is the safety color rendered when no category color resource is configured.
+	usermsgCategoryDefaultColor = "default"
+	// usermsgCategoryDefaultLabel is the safety label rendered when no category label resource is configured.
+	usermsgCategoryDefaultLabel = "Notification"
 )
 
 // Service defines the usermsg service contract.
@@ -43,7 +57,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
 	notifySvc notifysvc.Service // Unified notify service
-	i18nSvc   i18nsvc.Service   // Host i18n service for type label localization
+	i18nSvc   i18nsvc.Service   // Host i18n service for category label/color localization
 }
 
 // New creates and returns a new Service instance.
@@ -55,21 +69,59 @@ func New() Service {
 	}
 }
 
-// localizeType translates the legacy numeric inbox message type into the
-// current request locale. The host owns this label so that the inbox UI can
-// render type names without depending on plugin-installed dictionaries.
-// English source text is used as the safety fallback so the inbox never
-// renders an empty cell if a locale resource happens to be missing.
-func (s *serviceImpl) localizeType(ctx context.Context, msgType int) string {
+// resolveCategoryCode normalizes an inbox message category code, falling back
+// to the canonical "other" bucket when the sender did not declare one.
+func resolveCategoryCode(categoryCode string) string {
+	if categoryCode == "" {
+		return usermsgCategoryFallbackCode
+	}
+	return categoryCode
+}
+
+// localizeCategoryLabel resolves the localized category display label for the
+// given category code. Translation is looked up at
+// `notify.category.{code}.label`. If the requested code has no translation
+// resource, it falls back to the canonical "other" bucket and finally to a
+// safety literal so the inbox never renders an empty category cell.
+func (s *serviceImpl) localizeCategoryLabel(ctx context.Context, categoryCode string) string {
 	if s == nil || s.i18nSvc == nil {
-		return ""
+		return usermsgCategoryDefaultLabel
 	}
-	switch msgType {
-	case 2:
-		return s.i18nSvc.Translate(ctx, usermsgTypeAnnouncementI18nKey, "Announcement")
-	default:
-		return s.i18nSvc.Translate(ctx, usermsgTypeNoticeI18nKey, "Notice")
+	code := resolveCategoryCode(categoryCode)
+	key := usermsgCategoryI18nNamespace + code + usermsgCategoryLabelI18nSuffix
+	if label := s.i18nSvc.Translate(ctx, key, ""); label != "" {
+		return label
 	}
+	if code != usermsgCategoryFallbackCode {
+		fallbackKey := usermsgCategoryI18nNamespace + usermsgCategoryFallbackCode + usermsgCategoryLabelI18nSuffix
+		if label := s.i18nSvc.Translate(ctx, fallbackKey, ""); label != "" {
+			return label
+		}
+	}
+	return usermsgCategoryDefaultLabel
+}
+
+// localizeCategoryColor resolves the localized category tag color for the
+// given category code. Color is treated as a localizable display attribute so
+// senders can override their preferred palette per locale if needed; the
+// resolution path mirrors localizeCategoryLabel and falls back to a generic
+// neutral color.
+func (s *serviceImpl) localizeCategoryColor(ctx context.Context, categoryCode string) string {
+	if s == nil || s.i18nSvc == nil {
+		return usermsgCategoryDefaultColor
+	}
+	code := resolveCategoryCode(categoryCode)
+	key := usermsgCategoryI18nNamespace + code + usermsgCategoryColorI18nSuffix
+	if color := s.i18nSvc.Translate(ctx, key, ""); color != "" {
+		return color
+	}
+	if code != usermsgCategoryFallbackCode {
+		fallbackKey := usermsgCategoryI18nNamespace + usermsgCategoryFallbackCode + usermsgCategoryColorI18nSuffix
+		if color := s.i18nSvc.Translate(ctx, fallbackKey, ""); color != "" {
+			return color
+		}
+	}
+	return usermsgCategoryDefaultColor
 }
 
 // getCurrentUserId extracts current user ID from context.
@@ -104,16 +156,17 @@ type ListOutput struct {
 
 // MessageItem defines one user message facade item.
 type MessageItem struct {
-	Id         int64       // Message ID
-	UserId     int64       // Recipient user ID
-	Title      string      // Message title
-	Type       int         // Message type: 1=Notice 2=Announcement
-	TypeLabel  string      // Localized type label resolved at the host
-	SourceType string      // Message source type
-	SourceId   int64       // Message source ID
-	IsRead     int         // Whether the message has been read
-	ReadAt     *gtime.Time // Read time
-	CreatedAt  *gtime.Time // Creation time
+	Id           int64       // Message ID
+	UserId       int64       // Recipient user ID
+	Title        string      // Message title
+	CategoryCode string      // Opaque sender-declared category code identifying the notification kind
+	TypeLabel    string      // Localized category label resolved at the host
+	TypeColor    string      // Localized category tag color resolved at the host
+	SourceType   string      // Message source type
+	SourceId     int64       // Message source ID
+	IsRead       int         // Whether the message has been read
+	ReadAt       *gtime.Time // Read time
+	CreatedAt    *gtime.Time // Creation time
 }
 
 // MessageDetail defines one current-user message detail payload used by the
@@ -121,8 +174,9 @@ type MessageItem struct {
 type MessageDetail struct {
 	Id            int64       // Message ID
 	Title         string      // Message title
-	Type          int         // Message type: 1=Notice 2=Announcement
-	TypeLabel     string      // Localized type label resolved at the host
+	CategoryCode  string      // Opaque sender-declared category code identifying the notification kind
+	TypeLabel     string      // Localized category label resolved at the host
+	TypeColor     string      // Localized category tag color resolved at the host
 	SourceType    string      // Message source type
 	SourceId      int64       // Message source ID
 	Content       string      // Renderable message body content
@@ -151,17 +205,19 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		if item == nil {
 			continue
 		}
+		categoryCode := resolveCategoryCode(item.CategoryCode)
 		items = append(items, &MessageItem{
-			Id:         item.Id,
-			UserId:     item.UserID,
-			Title:      item.Title,
-			Type:       item.Type,
-			TypeLabel:  s.localizeType(ctx, item.Type),
-			SourceType: item.SourceType,
-			SourceId:   item.SourceID,
-			IsRead:     item.IsRead,
-			ReadAt:     item.ReadAt,
-			CreatedAt:  item.CreatedAt,
+			Id:           item.Id,
+			UserId:       item.UserID,
+			Title:        item.Title,
+			CategoryCode: categoryCode,
+			TypeLabel:    s.localizeCategoryLabel(ctx, categoryCode),
+			TypeColor:    s.localizeCategoryColor(ctx, categoryCode),
+			SourceType:   item.SourceType,
+			SourceId:     item.SourceID,
+			IsRead:       item.IsRead,
+			ReadAt:       item.ReadAt,
+			CreatedAt:    item.CreatedAt,
 		})
 	}
 

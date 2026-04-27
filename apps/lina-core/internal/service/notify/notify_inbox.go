@@ -93,15 +93,15 @@ func (s *serviceImpl) InboxList(ctx context.Context, in InboxListInput) (*InboxL
 			continue
 		}
 		items = append(items, &InboxListItem{
-			Id:         row.Id,
-			UserID:     row.UserId,
-			Title:      row.Title,
-			Type:       categoryCodeToLegacyMessageType(CategoryCode(row.CategoryCode)),
-			SourceType: row.SourceType,
-			SourceID:   gconv.Int64(row.SourceId),
-			IsRead:     row.IsRead,
-			ReadAt:     row.ReadAt,
-			CreatedAt:  row.CreatedAt,
+			Id:           row.Id,
+			UserID:       row.UserId,
+			Title:        row.Title,
+			CategoryCode: row.CategoryCode,
+			SourceType:   row.SourceType,
+			SourceID:     gconv.Int64(row.SourceId),
+			IsRead:       row.IsRead,
+			ReadAt:       row.ReadAt,
+			CreatedAt:    row.CreatedAt,
 		})
 	}
 

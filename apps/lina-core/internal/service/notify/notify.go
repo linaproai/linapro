@@ -114,8 +114,8 @@ type InboxListItem struct {
 	UserID int64
 	// Title is the message title displayed in the inbox.
 	Title string
-	// Type is the legacy message type value: 1=通知 2=公告.
-	Type int
+	// CategoryCode is the opaque sender-declared category code stored on the message.
+	CategoryCode string
 	// SourceType is the originating business source type.
 	SourceType string
 	// SourceID is the legacy numeric source identifier used by current previews.

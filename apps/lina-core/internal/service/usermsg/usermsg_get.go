@@ -78,27 +78,17 @@ func (s *serviceImpl) Get(ctx context.Context, id int64) (*MessageDetail, error)
 		return nil, gerror.New("消息不存在")
 	}
 
-	msgType := messageTypeFromCategoryCode(notifysvc.CategoryCode(record.CategoryCode))
+	categoryCode := resolveCategoryCode(record.CategoryCode)
 	return &MessageDetail{
 		Id:            record.Id,
 		Title:         record.Title,
-		Type:          msgType,
-		TypeLabel:     s.localizeType(ctx, msgType),
+		CategoryCode:  categoryCode,
+		TypeLabel:     s.localizeCategoryLabel(ctx, categoryCode),
+		TypeColor:     s.localizeCategoryColor(ctx, categoryCode),
 		SourceType:    record.SourceType,
 		SourceId:      gconv.Int64(record.SourceId),
 		Content:       record.Content,
 		CreatedByName: record.CreatedByName,
 		CreatedAt:     record.CreatedAt,
 	}, nil
-}
-
-// messageTypeFromCategoryCode maps notify category codes back to the legacy
-// inbox message type values consumed by the current user-message preview UI.
-func messageTypeFromCategoryCode(categoryCode notifysvc.CategoryCode) int {
-	switch categoryCode {
-	case notifysvc.CategoryCodeAnnouncement:
-		return 2
-	default:
-		return 1
-	}
 }

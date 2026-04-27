@@ -23,16 +23,17 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			continue
 		}
 		items = append(items, &v1.MessageItem{
-			Id:         item.Id,
-			UserId:     item.UserId,
-			Title:      item.Title,
-			Type:       item.Type,
-			TypeLabel:  item.TypeLabel,
-			SourceType: item.SourceType,
-			SourceId:   item.SourceId,
-			IsRead:     item.IsRead,
-			ReadAt:     item.ReadAt,
-			CreatedAt:  item.CreatedAt,
+			Id:           item.Id,
+			UserId:       item.UserId,
+			Title:        item.Title,
+			CategoryCode: item.CategoryCode,
+			TypeLabel:    item.TypeLabel,
+			TypeColor:    item.TypeColor,
+			SourceType:   item.SourceType,
+			SourceId:     item.SourceId,
+			IsRead:       item.IsRead,
+			ReadAt:       item.ReadAt,
+			CreatedAt:    item.CreatedAt,
 		})
 	}
 	return &v1.ListRes{List: items, Total: out.Total}, nil

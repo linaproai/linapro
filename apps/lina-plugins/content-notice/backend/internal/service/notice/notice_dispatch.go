@@ -10,6 +10,17 @@ import (
 	"lina-core/pkg/pluginservice/notify"
 )
 
+// Plugin-local notify category codes. The host notify service treats category
+// codes as opaque sender-declared strings; this plugin owns its own category
+// vocabulary and registers matching translations under
+// `notify.category.{code}.label` / `.color` in its own manifest/i18n bundles.
+const (
+	// noticeCategoryCodeNotice is the opaque category code for general notice messages dispatched by this plugin.
+	noticeCategoryCodeNotice notify.CategoryCode = "notice"
+	// noticeCategoryCodeAnnouncement is the opaque category code for announcement messages dispatched by this plugin.
+	noticeCategoryCodeAnnouncement notify.CategoryCode = "announcement"
+)
+
 // dispatchPublishedNotice delivers one published notice into the unified inbox
 // pipeline after the notice record is persisted.
 func (s *serviceImpl) dispatchPublishedNotice(
@@ -30,12 +41,13 @@ func (s *serviceImpl) dispatchPublishedNotice(
 	return err
 }
 
-// noticeTypeToCategoryCode maps notice types to notify inbox category codes.
+// noticeTypeToCategoryCode maps plugin-owned notice types to plugin-owned
+// notify inbox category codes.
 func (s *serviceImpl) noticeTypeToCategoryCode(noticeType int) notify.CategoryCode {
 	switch noticeType {
 	case NoticeTypeAnnouncement:
-		return notify.CategoryCodeAnnouncement
+		return noticeCategoryCodeAnnouncement
 	default:
-		return notify.CategoryCodeNotice
+		return noticeCategoryCodeNotice
 	}
 }

@@ -21,6 +21,18 @@
       "remark": "Notice type options"
     }
   },
+  "notify": {
+    "category": {
+      "announcement": {
+        "color": "green",
+        "label": "Announcement"
+      },
+      "notice": {
+        "color": "blue",
+        "label": "Notice"
+      }
+    }
+  },
   "menu": {
     "plugin:content-notice:notice": {
       "title": "Notices"

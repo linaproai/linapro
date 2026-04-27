@@ -21,6 +21,18 @@
       "remark": "通知公告类型列表"
     }
   },
+  "notify": {
+    "category": {
+      "announcement": {
+        "color": "green",
+        "label": "公告"
+      },
+      "notice": {
+        "color": "blue",
+        "label": "通知"
+      }
+    }
+  },
   "menu": {
     "plugin:content-notice:notice": {
       "title": "通知公告"

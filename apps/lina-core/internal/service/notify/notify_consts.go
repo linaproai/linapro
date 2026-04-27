@@ -41,13 +41,15 @@ const (
 	SourceTypeSystem SourceType = "system"
 )
 
-// Category code constants enumerate the supported inbox message categories.
+// Category code constants enumerate the inbox message categories owned by the
+// host itself. Senders (such as source plugins) are expected to declare their
+// own category codes as opaque strings; the host does not enumerate plugin
+// categories here. CategoryCodeOther is the canonical fallback used when an
+// inbound send omits the category code.
 const (
-	// CategoryCodeNotice identifies notice messages.
-	CategoryCodeNotice CategoryCode = "notice"
-	// CategoryCodeAnnouncement identifies announcement messages.
-	CategoryCodeAnnouncement CategoryCode = "announcement"
-	// CategoryCodeOther identifies all other inbox messages.
+	// CategoryCodeSystem identifies notifications produced by the host system itself.
+	CategoryCodeSystem CategoryCode = "system"
+	// CategoryCodeOther identifies all other inbox messages whose sender did not declare a category code.
 	CategoryCodeOther CategoryCode = "other"
 )
 
@@ -79,15 +81,6 @@ const (
 	DeliveryStatusFailed = 2
 )
 
-// Legacy inbox type constants preserve compatibility with the existing user
-// message facade.
-const (
-	// LegacyMessageTypeNotice maps inbox rows to the existing user message notice type.
-	LegacyMessageTypeNotice = 1
-	// LegacyMessageTypeAnnouncement maps inbox rows to the existing user message announcement type.
-	LegacyMessageTypeAnnouncement = 2
-)
-
 // String returns the canonical channel type value.
 func (value ChannelType) String() string {
 	return string(value)
@@ -106,15 +99,4 @@ func (value CategoryCode) String() string {
 // String returns the canonical recipient type value.
 func (value RecipientType) String() string {
 	return string(value)
-}
-
-// categoryCodeToLegacyMessageType maps modern category codes to the legacy
-// inbox type values expected by current consumers.
-func categoryCodeToLegacyMessageType(categoryCode CategoryCode) int {
-	switch categoryCode {
-	case CategoryCodeAnnouncement:
-		return LegacyMessageTypeAnnouncement
-	default:
-		return LegacyMessageTypeNotice
-	}
 }
