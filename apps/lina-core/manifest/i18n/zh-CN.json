@@ -344,7 +344,7 @@
     }
   },
   "framework": {
-    "description": "AI驱动的全栈开发框架，提供通用核心宿主服务、默认管理工作台、插件扩展能力与 AI 协作研发工作流。"
+    "description": "LinaPro 是一款 AI 驱动的全栈开发框架。"
   },
   "gf": {
     "gvalid": {
@@ -355,6 +355,38 @@
         "max": "{field}字段最大值应为{max}",
         "min": "{field}字段最小值应为{min}",
         "required": "{field}字段不能为空"
+      }
+    }
+  },
+  "job": {
+    "group": {
+      "default": {
+        "name": "默认分组",
+        "remark": "系统默认任务分组，删除其他分组时任务会迁移至此。"
+      }
+    },
+    "handler": {
+      "host": {
+        "access-topology-sync": {
+          "description": "同步集群内权限拓扑版本快照，保持各节点鉴权缓存一致。",
+          "name": "权限拓扑同步"
+        },
+        "cleanup-job-logs": {
+          "description": "按全局与任务级日志保留策略清理定时任务执行日志。",
+          "name": "任务日志清理"
+        },
+        "runtime-param-sync": {
+          "description": "同步集群内受保护运行时参数快照，保持各节点本地缓存一致。",
+          "name": "运行时参数同步"
+        },
+        "session-cleanup": {
+          "description": "按会话超时策略清理宿主中的失活在线会话。",
+          "name": "在线会话清理"
+        },
+        "wait": {
+          "description": "按参数等待指定秒数后返回，用于验证调度链路、超时控制和取消行为。",
+          "name": "等待指定时长"
+        }
       }
     }
   },
@@ -501,6 +533,13 @@
     },
     "ui": {
       "watermarkContent": "LinaPro"
+    }
+  },
+  "role": {
+    "builtin": {
+      "admin": {
+        "name": "超级管理员"
+      }
     }
   },
   "systemInfo": {

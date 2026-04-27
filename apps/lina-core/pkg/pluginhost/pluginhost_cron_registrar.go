@@ -20,6 +20,9 @@ type CronJobHandler func(ctx context.Context) error
 type CronRegistrar interface {
 	// Add registers one guarded cron job.
 	Add(ctx context.Context, pattern string, name string, handler CronJobHandler) error
+	// AddWithMetadata registers one guarded cron job with English source display
+	// metadata used by the unified scheduled-job management view.
+	AddWithMetadata(ctx context.Context, pattern string, name string, displayName string, description string, handler CronJobHandler) error
 	// IsPrimaryNode reports whether the current host node is the primary node.
 	IsPrimaryNode() bool
 }
@@ -50,6 +53,18 @@ func (r *cronRegistrar) Add(
 	ctx context.Context,
 	pattern string,
 	name string,
+	handler CronJobHandler,
+) error {
+	return r.AddWithMetadata(ctx, pattern, name, name, "", handler)
+}
+
+// AddWithMetadata registers one guarded cron job with English source display metadata.
+func (r *cronRegistrar) AddWithMetadata(
+	ctx context.Context,
+	pattern string,
+	name string,
+	displayName string,
+	description string,
 	handler CronJobHandler,
 ) error {
 	if handler == nil {

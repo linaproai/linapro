@@ -10,7 +10,6 @@ import { Descriptions, DescriptionsItem } from 'ant-design-vue';
 import { DictTag } from '#/components/dict';
 import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
-import { localizeSeedLoginLogMessage } from '#/utils/display-l10n';
 
 const dictStore = useDictStore();
 
@@ -65,7 +64,7 @@ const loginStatusDicts = computed(() => {
           class="font-semibold"
           :class="{ 'text-red-500': loginInfo.status !== 0 }"
         >
-          {{ localizeSeedLoginLogMessage(loginInfo.msg) }}
+          {{ loginInfo.msg }}
         </span>
       </DescriptionsItem>
       <DescriptionsItem :label="$t('plugin.monitor-loginlog.fields.loginTime')">

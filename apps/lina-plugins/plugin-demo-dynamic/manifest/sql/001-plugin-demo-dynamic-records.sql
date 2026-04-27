@@ -24,8 +24,8 @@ INSERT IGNORE INTO `plugin_demo_dynamic_record` (
 )
 VALUES (
     'plugin-demo-dynamic-seed-record',
-    '动态插件 SQL 示例记录',
-    '该记录由 plugin-demo-dynamic 的安装 SQL 初始化，用于演示动态插件页面如何对安装时创建的数据表执行增删查改操作。',
+    'Dynamic Plugin SQL Demo Record',
+    'This record is seeded by the plugin-demo-dynamic install SQL and demonstrates CRUD operations against the data table created during plugin installation.',
     '',
     '',
     '2026-04-16T00:00:00+08:00',

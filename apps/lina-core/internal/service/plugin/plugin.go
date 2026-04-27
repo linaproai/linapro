@@ -111,6 +111,8 @@ type AuthLoginSucceededInput struct {
 	Os string
 	// Message is the audit message delivered to plugins.
 	Message string
+	// Reason is the stable auth lifecycle reason code delivered to plugins.
+	Reason string
 }
 
 // AuthHookService defines auth-related plugin hook operations.

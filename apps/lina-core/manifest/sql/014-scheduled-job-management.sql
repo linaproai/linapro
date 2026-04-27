@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS sys_job_log (
 -- 默认分组与运行时参数
 -- ============================================================
 INSERT IGNORE INTO sys_job_group (code, name, remark, sort_order, is_default, created_at, updated_at)
-VALUES ('default', '默认分组', '系统默认任务分组，删除其他分组时任务会迁移至此。', 0, 1, NOW(), NOW());
+VALUES ('default', 'Default Group', 'The system default job group. Jobs are moved here when other groups are deleted.', 0, 1, NOW(), NOW());
 
 INSERT IGNORE INTO sys_config (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`)
 VALUES (
@@ -212,57 +212,3 @@ INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, 
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:joblog:list') AS parent), 'system:joblog:remove', '日志清空', '', '', 'system:joblog:remove', '', 'B', 2, 1, 1, 0, 0, NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:joblog:list') AS parent), 'system:joblog:cancel', '日志终止', '', '', 'system:joblog:cancel', '', 'B', 3, 1, 1, 0, 0, NOW(), NOW());
-
--- ============================================================
--- 内置任务种子：任务日志清理
--- ============================================================
-INSERT IGNORE INTO sys_job (
-    group_id,
-    name,
-    description,
-    task_type,
-    handler_ref,
-    params,
-    timeout_seconds,
-    cron_expr,
-    timezone,
-    scope,
-    concurrency,
-    max_concurrency,
-    max_executions,
-    executed_count,
-    stop_reason,
-    log_retention_override,
-    status,
-    is_builtin,
-    seed_version,
-    created_by,
-    updated_by,
-    created_at,
-    updated_at
-) SELECT
-    g.id,
-    '任务日志清理',
-    '按全局与任务级日志保留策略清理定时任务执行日志。',
-    'handler',
-    'host:cleanup-job-logs',
-    '{}',
-    300,
-    '17 3 * * *',
-    'Asia/Shanghai',
-    'master_only',
-    'singleton',
-    1,
-    0,
-    0,
-    '',
-    NULL,
-    'enabled',
-    1,
-    1,
-    0,
-    0,
-    NOW(),
-    NOW()
-FROM sys_job_group g
-WHERE g.code = 'default';

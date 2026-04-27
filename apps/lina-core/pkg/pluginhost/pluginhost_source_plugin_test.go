@@ -154,12 +154,16 @@ func TestHookPayloadHelpersBuildPublishedKeys(t *testing.T) {
 		Browser:    "Chrome",
 		OS:         "macOS",
 		Message:    "login ok",
+		Reason:     AuthHookReasonLoginSuccessful,
 	})
 	if HookPayloadStringValue(authValues, HookPayloadKeyUserName) != "admin" {
 		t.Fatalf("expected auth payload username to be published")
 	}
 	if HookPayloadStringValue(authValues, HookPayloadKeyClientType) != "web" {
 		t.Fatalf("expected auth payload clientType to be published")
+	}
+	if HookPayloadStringValue(authValues, HookPayloadKeyReason) != AuthHookReasonLoginSuccessful {
+		t.Fatalf("expected auth payload reason to be published")
 	}
 }
 

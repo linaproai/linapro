@@ -2,13 +2,13 @@
 
 ## 审查范围
 
-- 源码扫描：`apps/lina-vben/apps/web-antd/src` 中所有 `localizeSeed*`、`display-l10n`、按当前语言分支的硬编码映射。
+- 源码扫描：`apps/lina-vben/apps/web-antd/src` 与源码插件前端中所有 `localizeSeed*`、`display-l10n`、按当前语言分支的硬编码映射。
 - 使用点核对：确认哪些映射仍被页面实际引用，哪些只是历史遗留函数。
 - 后端链路核对：对照角色、定时任务、任务分组与执行日志接口，确认接口是否已经按请求语言返回展示值。
 
 ## 结论
 
-- 当前仍在页面实际生效的前端侧后端数据翻译集中在角色管理、定时任务管理、任务分组和执行日志。
+- 当前仍在页面实际生效的前端侧后端数据翻译集中在角色管理、定时任务管理、任务分组、执行日志、登录日志提示信息和动态插件示例种子记录。
 - `display-l10n.ts` 保留了大量历史映射函数，覆盖部门、岗位、角色、配置、字典、通知、操作日志、登录日志、插件、菜单和调度数据。多数函数当前未被引用，但这些函数本身仍把后端业务数据的翻译知识固化在前端，后续容易被误用。
 - 后端拥有的数据必须在后端根据请求语言完成本地化投影；前端只消费接口返回值并负责静态界面文案、组件布局和纯展示格式化。
 
@@ -35,6 +35,17 @@
    - 文件：`apps/lina-vben/apps/web-antd/src/views/system/job-log/detail.vue`
    - 问题：执行日志中的任务名通过解析 `jobSnapshot.handlerRef` 后在前端翻译。
    - 期望：`GET /job/log` 与 `GET /job/log/{id}` 根据当前语言返回本地化任务名；日志快照中的稳定 `handlerRef` 或翻译锚点用于后端解析，前端不再维护映射表。
+
+5. 登录日志列表与详情
+   - 文件：`apps/lina-plugins/monitor-loginlog/frontend/pages/data.ts`
+   - 文件：`apps/lina-plugins/monitor-loginlog/frontend/pages/loginlog-detail-modal.vue`
+   - 问题：登录日志提示信息通过 `localizeSeedLoginLogMessage` 在插件前端按中文原文翻译。
+   - 期望：登录日志插件后端在 `GET /loginlog`、`GET /loginlog/{id}` 与导出链路中按请求语言返回提示信息；前端直接展示接口返回值。
+
+6. 动态插件示例种子记录
+   - 文件：`apps/lina-plugins/plugin-demo-dynamic/frontend/pages/mount.js`
+   - 问题：动态插件示例页通过记录 ID `plugin-demo-dynamic-seed-record` 在前端翻译安装 SQL 初始化的记录标题与内容。
+   - 期望：前端不得按记录 ID 维护业务数据翻译映射；该示例种子内容改为英文源文本存储，用户创建或插件业务记录按数据库原值展示。若后续插件业务内容需要多语言展示，应由插件后端接口或业务内容多语言模型承载。
 
 ## 历史遗留映射清理范围
 

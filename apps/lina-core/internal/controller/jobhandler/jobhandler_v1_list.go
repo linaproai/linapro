@@ -19,15 +19,17 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 		if sourceFilter.IsValid() && item.Source != sourceFilter {
 			continue
 		}
+		displayName := c.localizeHandlerName(ctx, item.Ref, item.DisplayName)
+		description := c.localizeHandlerDescription(ctx, item.Ref, item.Description)
 		if keyword != "" &&
 			!strings.Contains(strings.ToLower(item.Ref), keyword) &&
-			!strings.Contains(strings.ToLower(item.DisplayName), keyword) {
+			!strings.Contains(strings.ToLower(displayName), keyword) {
 			continue
 		}
 		items = append(items, &v1.ListItem{
 			Ref:         item.Ref,
-			DisplayName: item.DisplayName,
-			Description: item.Description,
+			DisplayName: displayName,
+			Description: description,
 			Source:      string(item.Source),
 			PluginId:    item.PluginID,
 		})

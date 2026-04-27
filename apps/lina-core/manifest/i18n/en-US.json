@@ -344,7 +344,7 @@
     }
   },
   "framework": {
-    "description": "AI-driven full-stack development framework, providing shared core host services, a default admin workspace, plugin extensibility, and AI-assisted development workflows."
+    "description": "LinaPro is an AI-driven full-stack framework engineered for sustainable delivery."
   },
   "gf": {
     "gvalid": {
@@ -591,6 +591,13 @@
     },
     "ui": {
       "watermarkContent": "LinaPro"
+    }
+  },
+  "role": {
+    "builtin": {
+      "admin": {
+        "name": "Administrator"
+      }
     }
   },
   "systemInfo": {

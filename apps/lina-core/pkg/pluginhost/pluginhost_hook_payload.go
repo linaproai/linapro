@@ -28,25 +28,56 @@ const (
 	HookPayloadKeyOS HookPayloadKey = "os"
 	// HookPayloadKeyMessage stores the audit message for auth hook events.
 	HookPayloadKeyMessage HookPayloadKey = "message"
+	// HookPayloadKeyReason stores the stable reason code for auth hook events.
+	HookPayloadKeyReason HookPayloadKey = "reason"
+)
+
+// Stable reason codes published with host authentication lifecycle events.
+const (
+	// AuthHookReasonLoginSuccessful identifies successful login events.
+	AuthHookReasonLoginSuccessful = "loginSuccessful"
+	// AuthHookReasonLoginFailed identifies generic failed login events.
+	AuthHookReasonLoginFailed = "loginFailed"
+	// AuthHookReasonLogoutSuccessful identifies successful logout events.
+	AuthHookReasonLogoutSuccessful = "logoutSuccessful"
+	// AuthHookReasonInvalidCredentials identifies invalid credential events.
+	AuthHookReasonInvalidCredentials = "invalidCredentials"
+	// AuthHookReasonUserDisabled identifies disabled account events.
+	AuthHookReasonUserDisabled = "userDisabled"
+	// AuthHookReasonIPBlacklisted identifies blocked login IP events.
+	AuthHookReasonIPBlacklisted = "ipBlacklisted"
 )
 
 // AuthHookPayloadInput defines the published auth hook payload fields.
 type AuthHookPayloadInput struct {
-	UserName   string
-	Status     int
-	IP         string
+	// UserName is the authenticated username.
+	UserName string
+	// Status is the login status code associated with the auth event.
+	Status int
+	// IP is the client IP address.
+	IP string
+	// ClientType identifies the login client type.
 	ClientType string
-	Browser    string
-	OS         string
-	Message    string
+	// Browser is the detected browser description.
+	Browser string
+	// OS is the detected operating-system description.
+	OS string
+	// Message is the English fallback audit message delivered to plugins.
+	Message string
+	// Reason is the stable auth lifecycle reason code delivered to plugins.
+	Reason string
 }
 
 // PluginLifecycleHookPayloadInput defines the published plugin lifecycle hook fields.
 type PluginLifecycleHookPayloadInput struct {
+	// PluginID is the immutable plugin identifier.
 	PluginID string
-	Name     string
-	Version  string
-	Status   *int
+	// Name is the plugin display name.
+	Name string
+	// Version is the plugin semantic version string.
+	Version string
+	// Status is the optional plugin enabled status code.
+	Status *int
 }
 
 // String returns the canonical published hook payload field name.
@@ -64,6 +95,7 @@ func BuildAuthHookPayloadValues(input AuthHookPayloadInput) map[string]interface
 		HookPayloadKeyBrowser.String():    input.Browser,
 		HookPayloadKeyOS.String():         input.OS,
 		HookPayloadKeyMessage.String():    input.Message,
+		HookPayloadKeyReason.String():     input.Reason,
 	}
 }
 

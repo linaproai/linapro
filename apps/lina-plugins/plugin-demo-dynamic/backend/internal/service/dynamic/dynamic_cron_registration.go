@@ -9,8 +9,8 @@ import "lina-core/pkg/pluginbridge"
 // exported by the dynamic sample plugin.
 const (
 	cronHeartbeatName        = "heartbeat"
-	cronHeartbeatDisplayName = "动态插件心跳"
-	cronHeartbeatDesc        = "通过 Wasm bridge 执行动态插件内置定时任务，并累计心跳执行次数。"
+	cronHeartbeatDisplayName = "Dynamic Plugin Heartbeat"
+	cronHeartbeatDesc        = "Runs the dynamic plugin built-in job through the Wasm bridge and accumulates heartbeat executions."
 	cronHeartbeatPattern     = "# */10 * * * *"
 	cronHeartbeatPath        = "/cron-heartbeat"
 	cronHeartbeatTimeout     = 30

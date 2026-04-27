@@ -59,6 +59,56 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
 
     await mainLayout.switchLanguage('English');
 
+    const api = await createAdminApiContext();
+    try {
+      const groupData = await expectSuccess<{
+        list: Array<{ code: string; name: string; remark: string }>;
+        total: number;
+      }>(
+        await api.get('job-group?pageNum=1&pageSize=100', {
+          headers: { 'Accept-Language': 'en-US' },
+        }),
+      );
+      const defaultGroup = groupData.list.find((item) => item.code === 'default');
+      expect(defaultGroup?.name).toBe('Default Group');
+      expect(defaultGroup?.remark).toContain('system default job group');
+
+      const jobData = await expectSuccess<{
+        list: Array<{
+          description: string;
+          groupCode: string;
+          groupName: string;
+          handlerRef: string;
+          name: string;
+        }>;
+        total: number;
+      }>(
+        await api.get('job?pageNum=1&pageSize=100', {
+          headers: { 'Accept-Language': 'en-US' },
+        }),
+      );
+      const cleanupJob = jobData.list.find(
+        (item) => item.handlerRef === 'host:cleanup-job-logs',
+      );
+      expect(cleanupJob?.name).toBe('Job Log Cleanup');
+      expect(cleanupJob?.description).toContain('scheduled-job execution logs');
+      expect(cleanupJob?.groupName).toBe('Default Group');
+
+      const handlerData = await expectSuccess<{
+        list: Array<{ displayName: string; ref: string }>;
+      }>(
+        await api.get('job/handler', {
+          headers: { 'Accept-Language': 'en-US' },
+        }),
+      );
+      const cleanupHandler = handlerData.list.find(
+        (item) => item.ref === 'host:cleanup-job-logs',
+      );
+      expect(cleanupHandler?.displayName).toBe('Job Log Cleanup');
+    } finally {
+      await api.dispose();
+    }
+
     await jobGroupPage.goto();
     await expect(await jobGroupPage.hasGroup('Default Group')).toBe(true);
     await expect(await jobGroupPage.hasGroup('默认分组')).toBe(false);
@@ -94,6 +144,17 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
   }) => {
     const api = await createAdminApiContext();
     try {
+      const loginLogData = await expectSuccess<{
+        items: Array<{ msg: string; status: number }>;
+        total: number;
+      }>(
+        await api.get('loginlog?pageNum=1&pageSize=10', {
+          headers: { 'Accept-Language': 'en-US' },
+        }),
+      );
+      expect(loginLogData.items.some((item) => item.msg === 'Login successful')).toBe(
+        true,
+      );
       const response = await api.get('dict/type/export?pageNum=1&pageSize=1');
       expect(response.ok()).toBeTruthy();
       await expectSuccess(await api.post('auth/logout'));
@@ -118,11 +179,11 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
       .poll(async () => adminPage.locator('body').innerText(), {
         timeout: 10_000,
       })
-      .toContain('Export Dictionary Types');
+      .toContain('Export dictionary type');
     const operLogText = await adminPage.locator('body').innerText();
     expect(operLogText).toContain('Authentication');
-    expect(operLogText).toContain('User Logout');
-    expect(operLogText).toContain('Dictionaries');
+    expect(operLogText).toContain('User logout');
+    expect(operLogText).toContain('Dictionary Management');
     expect(operLogText).toContain('Export');
     expect(operLogText).toContain('Success');
     expect(operLogText).not.toContain('认证管理');

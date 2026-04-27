@@ -38,8 +38,8 @@ func RegisterHostHandlers(registry Registry, cleaner LogCleaner) error {
 func registerCleanupLogsHandler(registry Registry, cleaner LogCleaner) error {
 	return registry.Register(HandlerDef{
 		Ref:          "host:cleanup-job-logs",
-		DisplayName:  "任务日志清理",
-		Description:  "按系统默认或任务覆盖策略清理过期的定时任务执行日志",
+		DisplayName:  "Job Log Cleanup",
+		Description:  "Cleans up scheduled-job execution logs according to global and job-level retention policies.",
 		ParamsSchema: `{"type":"object","properties":{}}`,
 		Source:       jobmeta.HandlerSourceHost,
 		Invoke: func(ctx context.Context, _ json.RawMessage) (result any, err error) {
@@ -64,8 +64,8 @@ type waitHandlerParams struct {
 func registerWaitHandler(registry Registry) error {
 	return registry.Register(HandlerDef{
 		Ref:          "host:wait",
-		DisplayName:  "等待指定时长",
-		Description:  "按参数等待指定秒数后返回，用于验证调度链路、超时控制和取消行为",
+		DisplayName:  "Wait for Duration",
+		Description:  "Waits for the requested number of seconds to verify scheduling, timeout, and cancellation flows.",
 		ParamsSchema: `{"type":"object","properties":{"seconds":{"type":"integer","description":"等待秒数"}},"required":["seconds"]}`,
 		Source:       jobmeta.HandlerSourceHost,
 		Invoke:       invokeWaitHandler,

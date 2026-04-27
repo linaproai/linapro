@@ -4,6 +4,7 @@ package i18n
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -236,6 +237,23 @@ func TestTranslateUsesContextLocaleAndFallback(t *testing.T) {
 	}
 	if actual := svc.Translate(ctx, "missing.translation.key", "fallback"); actual != "fallback" {
 		t.Fatalf("expected fallback value %q, got %q", "fallback", actual)
+	}
+	if actual := svc.TranslateSourceText(ctx, "job.handler.host.session-cleanup.name", "Online Session Cleanup"); actual != "Online Session Cleanup" {
+		t.Fatalf("expected source text fallback %q, got %q", "Online Session Cleanup", actual)
+	}
+}
+
+// TestCheckMissingMessagesSkipsEnglishSourceTextBackedKeys verifies that
+// missing diagnostics do not require en-US JSON copies for source-owned keys.
+func TestCheckMissingMessagesSkipsEnglishSourceTextBackedKeys(t *testing.T) {
+	resetRuntimeBundleCache()
+
+	items := New().CheckMissingMessages(context.Background(), EnglishLocale, "job.")
+	for _, item := range items {
+		if strings.HasPrefix(item.Key, "job.handler.") ||
+			strings.HasPrefix(item.Key, "job.group.default.") {
+			t.Fatalf("expected source-text-backed key %q to be skipped", item.Key)
+		}
 	}
 }
 

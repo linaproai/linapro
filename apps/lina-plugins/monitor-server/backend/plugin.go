@@ -16,6 +16,18 @@ import (
 const (
 	// pluginID is the immutable identifier published by the embedded source plugin.
 	pluginID = "monitor-server"
+	// serviceMonitorCollectorName identifies the server metric collection cron.
+	serviceMonitorCollectorName = "service-monitor-collector"
+	// serviceMonitorCollectorDisplayName is the English source title for the collection cron.
+	serviceMonitorCollectorDisplayName = "Server Monitor Collection"
+	// serviceMonitorCollectorDescription is the English source description for the collection cron.
+	serviceMonitorCollectorDescription = "Collects server runtime metrics for the monitor-server plugin."
+	// serviceMonitorCleanupName identifies the server metric cleanup cron.
+	serviceMonitorCleanupName = "service-monitor-cleanup"
+	// serviceMonitorCleanupDisplayName is the English source title for the cleanup cron.
+	serviceMonitorCleanupDisplayName = "Server Monitor Cleanup"
+	// serviceMonitorCleanupDescription is the English source description for the cleanup cron.
+	serviceMonitorCleanupDescription = "Cleans up expired server runtime metric snapshots for the monitor-server plugin."
 )
 
 // init registers the monitor-server source plugin and its host callbacks.
@@ -71,12 +83,26 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 		interval = 30 * time.Second
 	}
 
-	if err := registrar.Add(ctx, "@every "+interval.String(), "服务监控采集", collectSnapshot); err != nil {
+	if err := registrar.AddWithMetadata(
+		ctx,
+		"@every "+interval.String(),
+		serviceMonitorCollectorName,
+		serviceMonitorCollectorDisplayName,
+		serviceMonitorCollectorDescription,
+		collectSnapshot,
+	); err != nil {
 		return err
 	}
-	return registrar.Add(ctx, "# * * * * *", "服务监控清理", func(ctx context.Context) error {
-		return cleanupSnapshots(ctx, registrar)
-	})
+	return registrar.AddWithMetadata(
+		ctx,
+		"# * * * * *",
+		serviceMonitorCleanupName,
+		serviceMonitorCleanupDisplayName,
+		serviceMonitorCleanupDescription,
+		func(ctx context.Context) error {
+			return cleanupSnapshots(ctx, registrar)
+		},
+	)
 }
 
 // collectOnSystemStarted performs one eager collection after host startup so the page has an initial snapshot.

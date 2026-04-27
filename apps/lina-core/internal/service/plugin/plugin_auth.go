@@ -8,19 +8,53 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
+// English fallback messages published with host authentication lifecycle events.
+const (
+	// AuthEventMessageLoginSuccessful is the English fallback for successful login messages.
+	AuthEventMessageLoginSuccessful = "Login successful"
+	// AuthEventMessageLoginFailed is the English fallback for generic failed login messages.
+	AuthEventMessageLoginFailed = "Login failed"
+	// AuthEventMessageLogoutSuccessful is the English fallback for successful logout messages.
+	AuthEventMessageLogoutSuccessful = "Logout successful"
+	// AuthEventMessageInvalidCredentials is the English fallback for invalid credential messages.
+	AuthEventMessageInvalidCredentials = "Invalid username or password"
+	// AuthEventMessageUserDisabled is the English fallback for disabled account messages.
+	AuthEventMessageUserDisabled = "User account is disabled"
+	// AuthEventMessageIPBlacklisted is the English fallback for blocked login IP messages.
+	AuthEventMessageIPBlacklisted = "Login IP is blacklisted"
+)
+
 // HandleAuthLoginSucceeded dispatches a login-succeeded hook to all enabled plugins.
 func (s *serviceImpl) HandleAuthLoginSucceeded(ctx context.Context, input AuthLoginSucceededInput) error {
-	return s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLoginSucceeded, input, "登录成功")
+	return s.dispatchAuthHookEvent(
+		ctx,
+		pluginhost.ExtensionPointAuthLoginSucceeded,
+		input,
+		pluginhost.AuthHookReasonLoginSuccessful,
+		AuthEventMessageLoginSuccessful,
+	)
 }
 
 // HandleAuthLoginFailed dispatches a login-failed hook to all enabled plugins.
 func (s *serviceImpl) HandleAuthLoginFailed(ctx context.Context, input AuthLoginSucceededInput) error {
-	return s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLoginFailed, input, "登录失败")
+	return s.dispatchAuthHookEvent(
+		ctx,
+		pluginhost.ExtensionPointAuthLoginFailed,
+		input,
+		pluginhost.AuthHookReasonLoginFailed,
+		AuthEventMessageLoginFailed,
+	)
 }
 
 // HandleAuthLogoutSucceeded dispatches a logout-succeeded hook to all enabled plugins.
 func (s *serviceImpl) HandleAuthLogoutSucceeded(ctx context.Context, input AuthLoginSucceededInput) error {
-	return s.dispatchAuthHookEvent(ctx, pluginhost.ExtensionPointAuthLogoutSucceeded, input, "登出成功")
+	return s.dispatchAuthHookEvent(
+		ctx,
+		pluginhost.ExtensionPointAuthLogoutSucceeded,
+		input,
+		pluginhost.AuthHookReasonLogoutSuccessful,
+		AuthEventMessageLogoutSuccessful,
+	)
 }
 
 // dispatchAuthHookEvent normalizes common auth payload defaults before
@@ -29,10 +63,14 @@ func (s *serviceImpl) dispatchAuthHookEvent(
 	ctx context.Context,
 	event pluginhost.ExtensionPoint,
 	input AuthLoginSucceededInput,
+	defaultReason string,
 	defaultMessage string,
 ) error {
 	if input.ClientType == "" {
 		input.ClientType = "web"
+	}
+	if input.Reason == "" {
+		input.Reason = defaultReason
 	}
 	if input.Message == "" {
 		input.Message = defaultMessage
@@ -48,6 +86,7 @@ func (s *serviceImpl) dispatchAuthHookEvent(
 			Browser:    input.Browser,
 			OS:         input.Os,
 			Message:    input.Message,
+			Reason:     input.Reason,
 		}),
 	)
 }

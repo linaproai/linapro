@@ -61,8 +61,8 @@ func (s *serviceImpl) registerManagedHandlers() error {
 	handlers := []jobhandlersvc.HandlerDef{
 		{
 			Ref:          "host:session-cleanup",
-			DisplayName:  "在线会话清理",
-			Description:  "按会话超时策略清理宿主中的失活在线会话。",
+			DisplayName:  "Online Session Cleanup",
+			Description:  "Cleans up inactive online sessions in the host according to the session-timeout policy.",
 			ParamsSchema: `{"type":"object","properties":{}}`,
 			Source:       jobmeta.HandlerSourceHost,
 			Invoke:       s.invokeSessionCleanup,
@@ -73,16 +73,16 @@ func (s *serviceImpl) registerManagedHandlers() error {
 		handlers = append(handlers,
 			jobhandlersvc.HandlerDef{
 				Ref:          "host:access-topology-sync",
-				DisplayName:  "权限拓扑同步",
-				Description:  "同步集群内权限拓扑版本快照，保持各节点鉴权缓存一致。",
+				DisplayName:  "Access Topology Sync",
+				Description:  "Synchronizes permission-topology revision snapshots across the cluster so authorization caches stay consistent on every node.",
 				ParamsSchema: `{"type":"object","properties":{}}`,
 				Source:       jobmeta.HandlerSourceHost,
 				Invoke:       s.invokeAccessTopologySync,
 			},
 			jobhandlersvc.HandlerDef{
 				Ref:          "host:runtime-param-sync",
-				DisplayName:  "运行时参数同步",
-				Description:  "同步集群内受保护运行时参数快照，保持各节点本地缓存一致。",
+				DisplayName:  "Runtime Parameter Sync",
+				Description:  "Synchronizes protected runtime parameter snapshots across the cluster so each node keeps a fresh local cache.",
 				ParamsSchema: `{"type":"object","properties":{}}`,
 				Source:       jobmeta.HandlerSourceHost,
 				Invoke:       s.invokeRuntimeParamSync,
@@ -114,8 +114,8 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 	jobs := []jobmgmtsvc.BuiltinJobDef{
 		{
 			GroupCode:      "default",
-			Name:           "任务日志清理",
-			Description:    "按全局与任务级日志保留策略清理定时任务执行日志。",
+			Name:           "Job Log Cleanup",
+			Description:    "Cleans up scheduled-job execution logs according to global and job-level retention policies.",
 			TaskType:       jobmeta.TaskTypeHandler,
 			HandlerRef:     "host:cleanup-job-logs",
 			Params:         map[string]any{},
@@ -130,8 +130,8 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 		},
 		{
 			GroupCode:      "default",
-			Name:           "在线会话清理",
-			Description:    "按会话超时策略清理宿主中的失活在线会话。",
+			Name:           "Online Session Cleanup",
+			Description:    "Cleans up inactive online sessions in the host according to the session-timeout policy.",
 			TaskType:       jobmeta.TaskTypeHandler,
 			HandlerRef:     "host:session-cleanup",
 			Params:         map[string]any{},
@@ -150,8 +150,8 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 		jobs = append(jobs,
 			jobmgmtsvc.BuiltinJobDef{
 				GroupCode:      "default",
-				Name:           "权限拓扑同步",
-				Description:    "同步集群内权限拓扑版本快照，保持各节点鉴权缓存一致。",
+				Name:           "Access Topology Sync",
+				Description:    "Synchronizes permission-topology revision snapshots across the cluster so authorization caches stay consistent on every node.",
 				TaskType:       jobmeta.TaskTypeHandler,
 				HandlerRef:     "host:access-topology-sync",
 				Params:         map[string]any{},
@@ -166,8 +166,8 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 			},
 			jobmgmtsvc.BuiltinJobDef{
 				GroupCode:      "default",
-				Name:           "运行时参数同步",
-				Description:    "同步集群内受保护运行时参数快照，保持各节点本地缓存一致。",
+				Name:           "Runtime Parameter Sync",
+				Description:    "Synchronizes protected runtime parameter snapshots across the cluster so each node keeps a fresh local cache.",
 				TaskType:       jobmeta.TaskTypeHandler,
 				HandlerRef:     "host:runtime-param-sync",
 				Params:         map[string]any{},
@@ -225,7 +225,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 		}
 		description := strings.TrimSpace(item.Description)
 		if description == "" {
-			description = fmt.Sprintf("插件 %s 注册的内置定时任务。", strings.TrimSpace(item.PluginID))
+			description = fmt.Sprintf("Built-in scheduled job registered by plugin %s.", strings.TrimSpace(item.PluginID))
 		}
 
 		jobs = append(jobs, jobmgmtsvc.BuiltinJobDef{

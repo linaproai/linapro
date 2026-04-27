@@ -70,6 +70,10 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 func handleAuthEvent(ctx context.Context, payload pluginhost.HookPayload) error {
 	values := payload.Values()
 	status, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
+	message := pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyReason)
+	if message == "" {
+		message = pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyMessage)
+	}
 
 	return loginlogsvc.New().Create(ctx, loginlogsvc.CreateInput{
 		UserName: pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyUserName),
@@ -77,6 +81,6 @@ func handleAuthEvent(ctx context.Context, payload pluginhost.HookPayload) error 
 		Ip:       pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyIP),
 		Browser:  pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyBrowser),
 		Os:       pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyOS),
-		Msg:      pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyMessage),
+		Msg:      message,
 	})
 }

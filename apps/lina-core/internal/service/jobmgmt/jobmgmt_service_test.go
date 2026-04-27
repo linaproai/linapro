@@ -81,13 +81,31 @@ func TestUpdateBuiltInJobRejectsLockedFields(t *testing.T) {
 		job *entity.SysJob
 	)
 
+	jobID := syncBuiltinHandlerJob(t, ctx, svc, BuiltinJobDef{
+		GroupCode:      "default",
+		Name:           uniqueTestName("builtin-locked"),
+		Description:    "Temporary built-in used to verify immutable field protection.",
+		TaskType:       jobmeta.TaskTypeHandler,
+		HandlerRef:     uniqueTestName("host:builtin-locked"),
+		Params:         map[string]any{},
+		Timeout:        5 * time.Minute,
+		Pattern:        "# 17 3 * * *",
+		Timezone:       "Asia/Shanghai",
+		Scope:          jobmeta.JobScopeMasterOnly,
+		Concurrency:    jobmeta.JobConcurrencySingleton,
+		MaxConcurrency: 1,
+		MaxExecutions:  0,
+		Status:         jobmeta.JobStatusEnabled,
+	})
+	defer cleanupJobHard(t, ctx, jobID)
+
 	if err := dao.SysJob.Ctx(ctx).
-		Where(do.SysJob{IsBuiltin: 1, HandlerRef: "host:cleanup-job-logs"}).
+		Where(do.SysJob{Id: jobID}).
 		Scan(&job); err != nil {
 		t.Fatalf("expected built-in job query to succeed, got error: %v", err)
 	}
 	if job == nil {
-		t.Fatal("expected built-in cleanup-job-logs seed to exist")
+		t.Fatal("expected synced built-in job to exist")
 	}
 
 	err := svc.UpdateJob(ctx, UpdateJobInput{

@@ -24,11 +24,6 @@ import {
   renderJobCronExpression,
 } from '#/api/system/job/meta';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
-import {
-  localizeSeedJobGroupName,
-  localizeSeedJobGroupRemark,
-  localizeSeedJobName,
-} from '#/utils/display-l10n';
 
 import { useVbenForm } from './form';
 
@@ -224,18 +219,6 @@ setupVbenVxeTable({
   useVbenForm,
 });
 
-function resolveJobHandlerRef(jobSnapshot?: string) {
-  if (!jobSnapshot) {
-    return '';
-  }
-  try {
-    const parsed = JSON.parse(jobSnapshot) as { handlerRef?: string };
-    return parsed?.handlerRef || '';
-  } catch {
-    return '';
-  }
-}
-
 export function useVbenVxeGrid(...args: Parameters<typeof useBaseVbenVxeGrid>) {
   const normalizedArgs = args.map((arg) =>
     adaptEnglishGridOptions(arg),
@@ -301,8 +284,6 @@ export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
       field: 'name',
       title: $t('pages.system.jobGroup.fields.name'),
       minWidth: 180,
-      formatter: ({ row }: any) =>
-        localizeSeedJobGroupName(row?.code, row?.name),
     },
     { field: 'sortOrder', title: $t('pages.fields.sort'), width: 90 },
     {
@@ -327,8 +308,6 @@ export function buildJobGroupColumns(): VxeTableGridOptions['columns'] {
       field: 'remark',
       title: $t('pages.common.remark'),
       minWidth: 200,
-      formatter: ({ row }: any) =>
-        localizeSeedJobGroupRemark(row?.code, row?.remark),
     },
     { field: 'updatedAt', title: $t('pages.common.updatedAt'), minWidth: 180 },
     {
@@ -351,15 +330,11 @@ export function buildJobColumns(): VxeTableGridOptions['columns'] {
       field: 'name',
       title: $t('pages.system.job.fields.name'),
       minWidth: 180,
-      formatter: ({ row }: any) =>
-        localizeSeedJobName(row?.handlerRef, row?.name),
     },
     {
       field: 'groupName',
       title: $t('pages.system.job.fields.group'),
       minWidth: 140,
-      formatter: ({ row }: any) =>
-        localizeSeedJobGroupName(row?.groupCode, row?.groupName),
     },
     {
       field: 'source',
@@ -484,13 +459,7 @@ export function buildJobLogColumns(): VxeTableGridOptions['columns'] {
       field: 'jobName',
       title: $t('pages.system.jobLog.fields.jobName'),
       minWidth: 180,
-      formatter: ({ row }: any) => {
-        const handlerRef = resolveJobHandlerRef(String(row?.jobSnapshot || ''));
-        return localizeSeedJobName(
-          handlerRef,
-          String(row?.jobName || handlerRef || ''),
-        );
-      },
+      formatter: ({ row }: any) => String(row?.jobName || ''),
     },
     {
       field: 'trigger',

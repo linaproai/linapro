@@ -21,15 +21,17 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cluster"
 	configsvc "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	internalscheduler "lina-core/internal/service/jobmgmt/internal/scheduler"
 	internalshellexec "lina-core/internal/service/jobmgmt/internal/shellexec"
+	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
 )
 
-// Service defines the scheduled-job management contract.
-type Service interface {
+// GroupService defines the scheduled-job group management contract.
+type GroupService interface {
 	// ListGroups returns scheduled-job groups with pagination and job counts.
 	ListGroups(ctx context.Context, in ListGroupsInput) (*ListGroupsOutput, error)
 	// CreateGroup persists one new scheduled-job group.
@@ -38,6 +40,10 @@ type Service interface {
 	UpdateGroup(ctx context.Context, in UpdateGroupInput) error
 	// DeleteGroups removes one or more groups and migrates their jobs to the default group.
 	DeleteGroups(ctx context.Context, ids string) error
+}
+
+// JobService defines the scheduled-job task management contract.
+type JobService interface {
 	// ListJobs returns scheduled jobs with pagination and group metadata.
 	ListJobs(ctx context.Context, in ListJobsInput) (*ListJobsOutput, error)
 	// GetJob returns one scheduled-job detail snapshot.
@@ -56,6 +62,15 @@ type Service interface {
 	TriggerJob(ctx context.Context, id uint64) (uint64, error)
 	// PreviewCron returns the next five fire times for one cron expression.
 	PreviewCron(ctx context.Context, expr string, timezone string) ([]time.Time, error)
+	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job.
+	SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
+	// ReconcileBuiltinJobs refreshes the full code-owned job projection and
+	// prunes removed built-ins from sys_job.
+	ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
+}
+
+// LogService defines the scheduled-job execution log management contract.
+type LogService interface {
 	// ListLogs returns scheduled-job execution logs with pagination and job metadata.
 	ListLogs(ctx context.Context, in ListLogsInput) (*ListLogsOutput, error)
 	// GetLog returns one execution-log detail snapshot.
@@ -66,11 +81,13 @@ type Service interface {
 	CancelLog(ctx context.Context, id uint64) error
 	// CleanupDueLogs removes logs that exceed the effective retention policies.
 	CleanupDueLogs(ctx context.Context) (int64, error)
-	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job.
-	SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
-	// ReconcileBuiltinJobs refreshes the full code-owned job projection and
-	// prunes removed built-ins from sys_job.
-	ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
+}
+
+// Service defines the complete scheduled-job management contract.
+type Service interface {
+	JobService
+	LogService
+	GroupService
 }
 
 // Scheduler defines the persistent scheduled-job runner contract exported to
@@ -91,10 +108,42 @@ type Scheduler interface {
 // Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
+// orderField identifies one public list sorting field accepted by jobmgmt APIs.
+type orderField string
+
+// Supported public order fields for scheduled-job management lists.
+const (
+	// orderFieldID sorts by the persisted numeric identifier.
+	orderFieldID orderField = "id"
+	// orderFieldName sorts by the display name.
+	orderFieldName orderField = "name"
+	// orderFieldGroupID sorts jobs by their owning group identifier.
+	orderFieldGroupID orderField = "group_id"
+	// orderFieldStatus sorts by the persisted status value.
+	orderFieldStatus orderField = "status"
+	// orderFieldTaskType sorts by the persisted job task type.
+	orderFieldTaskType orderField = "task_type"
+	// orderFieldSortOrder sorts groups by their configured display order.
+	orderFieldSortOrder orderField = "sort_order"
+	// orderFieldCode sorts groups by their stable code.
+	orderFieldCode orderField = "code"
+	// orderFieldCreatedAt sorts by creation time.
+	orderFieldCreatedAt orderField = "created_at"
+	// orderFieldUpdatedAt sorts by last update time.
+	orderFieldUpdatedAt orderField = "updated_at"
+	// orderFieldStartAt sorts logs by execution start time.
+	orderFieldStartAt orderField = "start_at"
+	// orderFieldEndAt sorts logs by execution end time.
+	orderFieldEndAt orderField = "end_at"
+	// orderFieldDurationMs sorts logs by execution duration.
+	orderFieldDurationMs orderField = "duration_ms"
+)
+
 // serviceImpl implements Service.
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service      // bizCtxSvc resolves the current operator identity.
 	configSvc configsvc.Service   // configSvc exposes runtime cron-management parameters.
+	i18nSvc   i18nsvc.Service     // i18nSvc localizes backend-owned display metadata.
 	registry  jobhandler.Registry // registry resolves handler definitions and validation schemas.
 	scheduler Scheduler           // scheduler keeps persistent jobs registered with gcron.
 }
@@ -125,6 +174,7 @@ func New(
 	svc := &serviceImpl{
 		bizCtxSvc: bizctx.New(),
 		configSvc: configSvc,
+		i18nSvc:   i18nsvc.New(),
 		registry:  registry,
 		scheduler: scheduler,
 	}
@@ -318,25 +368,19 @@ func applySingleOrder(
 	model *gdb.Model,
 	orderBy string,
 	orderDirection string,
-	allowed map[string]string,
+	allowed map[orderField]string,
 	defaultField string,
-	defaultDirection string,
+	defaultDirection gdbutil.OrderDirection,
 ) *gdb.Model {
 	if model == nil {
 		return nil
 	}
-	field := allowed[strings.TrimSpace(orderBy)]
+	field := allowed[orderField(strings.TrimSpace(orderBy))]
 	if field == "" {
 		field = defaultField
 	}
-	direction := strings.ToLower(strings.TrimSpace(orderDirection))
-	if direction == "" {
-		direction = strings.ToLower(strings.TrimSpace(defaultDirection))
-	}
-	if direction == "asc" {
-		return model.OrderAsc(field)
-	}
-	return model.OrderDesc(field)
+	direction := gdbutil.NormalizeOrderDirectionOrDefault(orderDirection, defaultDirection)
+	return gdbutil.ApplyModelOrder(model, field, direction)
 }
 
 // defaultGroup returns the current default scheduled-job group.

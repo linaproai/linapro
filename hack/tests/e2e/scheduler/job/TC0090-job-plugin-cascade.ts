@@ -22,7 +22,8 @@ import {
 test.describe('TC-90 插件内置任务生命周期级联', () => {
   const pluginID = 'plugin-demo-source';
   const jobName = '源码插件回显巡检';
-  const handlerRef = `plugin:${pluginID}/cron:${jobName}`;
+  const cronHandlerName = 'source-plugin-echo-inspection';
+  const handlerRef = `plugin:${pluginID}/cron:${cronHandlerName}`;
   const removedGenericHandlerRef = `plugin:${pluginID}/echo`;
 
   let api: APIRequestContext;

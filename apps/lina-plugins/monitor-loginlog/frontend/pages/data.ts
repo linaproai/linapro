@@ -6,7 +6,6 @@ import { h } from 'vue';
 import { $t } from '#/locales';
 import { DictTag } from '#/components/dict';
 import { useDictStore } from '#/store/dict';
-import { localizeSeedLoginLogMessage } from '#/utils/display-l10n';
 
 function resolveDictOptions(dictType: string) {
   return useDictStore().getDictOptions(dictType);
@@ -83,8 +82,6 @@ export function buildColumns(): VxeGridProps['columns'] {
       field: 'msg',
       title: $t('plugin.monitor-loginlog.fields.message'),
       minWidth: 160,
-      formatter: ({ cellValue }) =>
-        localizeSeedLoginLogMessage(String(cellValue || '')),
     },
     {
       field: 'loginTime',

@@ -13,8 +13,16 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/logger"
+)
+
+const (
+	// builtinAdminRoleKey identifies the protected built-in administrator role.
+	builtinAdminRoleKey = "admin"
+	// builtinAdminRoleNameI18n is the runtime i18n key for the built-in administrator role.
+	builtinAdminRoleNameI18n = "role.builtin.admin.name"
 )
 
 // PermissionMenuFilter defines the narrow dependency required by the role
@@ -91,6 +99,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc          bizctx.Service
 	configSvc          config.Service
+	i18nSvc            i18nsvc.Service
 	kvCacheSvc         kvcache.Service
 	permissionFilter   PermissionMenuFilter
 	accessRevisionCtrl accessRevisionController
@@ -103,6 +112,7 @@ func New(permissionFilter PermissionMenuFilter) Service {
 	var (
 		bizCtxSvc  = bizctx.New()
 		configSvc  = config.New()
+		i18nSvc    = i18nsvc.New()
 		kvCacheSvc = kvcache.New()
 	)
 	if permissionFilter == nil {
@@ -112,6 +122,7 @@ func New(permissionFilter PermissionMenuFilter) Service {
 	return &serviceImpl{
 		bizCtxSvc:        bizCtxSvc,
 		configSvc:        configSvc,
+		i18nSvc:          i18nSvc,
 		kvCacheSvc:       kvCacheSvc,
 		permissionFilter: permissionFilter,
 		accessRevisionCtrl: newAccessRevisionController(
@@ -205,7 +216,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		}
 		list = append(list, &RoleItem{
 			Id:        r.Id,
-			Name:      r.Name,
+			Name:      s.localizeListRoleName(ctx, r),
 			Key:       r.Key,
 			Sort:      r.Sort,
 			DataScope: r.DataScope,
@@ -220,6 +231,18 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		List:  list,
 		Total: total,
 	}, nil
+}
+
+// localizeListRoleName translates the protected built-in admin role only in
+// read-only list rows while keeping editable role records unchanged.
+func (s *serviceImpl) localizeListRoleName(ctx context.Context, role *entity.SysRole) string {
+	if role == nil {
+		return ""
+	}
+	if role.Key != builtinAdminRoleKey || s == nil || s.i18nSvc == nil {
+		return role.Name
+	}
+	return s.i18nSvc.Translate(ctx, builtinAdminRoleNameI18n, role.Name)
 }
 
 // GetById retrieves role by ID.

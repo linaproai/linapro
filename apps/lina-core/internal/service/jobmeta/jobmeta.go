@@ -41,9 +41,9 @@ type JobStatus string
 
 // Supported job lifecycle statuses.
 const (
-	JobStatusEnabled         JobStatus = "enabled"          // The job should stay scheduled.
-	JobStatusDisabled        JobStatus = "disabled"         // The job is stored but not scheduled.
-	JobStatusPausedByPlugin  JobStatus = "paused_by_plugin" // The job is blocked because its handler is unavailable.
+	JobStatusEnabled        JobStatus = "enabled"          // The job should stay scheduled.
+	JobStatusDisabled       JobStatus = "disabled"         // The job is stored but not scheduled.
+	JobStatusPausedByPlugin JobStatus = "paused_by_plugin" // The job is blocked because its handler is unavailable.
 )
 
 // TriggerType identifies how one execution was started.
@@ -60,14 +60,14 @@ type LogStatus string
 
 // Supported job-log statuses.
 const (
-	LogStatusRunning               LogStatus = "running"                  // The execution is still in progress.
-	LogStatusSuccess               LogStatus = "success"                  // The execution completed successfully.
-	LogStatusFailed                LogStatus = "failed"                   // The execution completed with a non-timeout error.
-	LogStatusCancelled             LogStatus = "cancelled"                // The execution was cancelled manually.
-	LogStatusTimeout               LogStatus = "timeout"                  // The execution exceeded the configured timeout.
-	LogStatusSkippedNotPrimary     LogStatus = "skipped_not_primary"      // The current node is not primary for a master-only job.
-	LogStatusSkippedSingleton      LogStatus = "skipped_singleton"        // The singleton guard blocked the execution.
-	LogStatusSkippedMaxConcurrency LogStatus = "skipped_max_concurrency"  // The parallelism guard blocked the execution.
+	LogStatusRunning               LogStatus = "running"                 // The execution is still in progress.
+	LogStatusSuccess               LogStatus = "success"                 // The execution completed successfully.
+	LogStatusFailed                LogStatus = "failed"                  // The execution completed with a non-timeout error.
+	LogStatusCancelled             LogStatus = "cancelled"               // The execution was cancelled manually.
+	LogStatusTimeout               LogStatus = "timeout"                 // The execution exceeded the configured timeout.
+	LogStatusSkippedNotPrimary     LogStatus = "skipped_not_primary"     // The current node is not primary for a master-only job.
+	LogStatusSkippedSingleton      LogStatus = "skipped_singleton"       // The singleton guard blocked the execution.
+	LogStatusSkippedMaxConcurrency LogStatus = "skipped_max_concurrency" // The parallelism guard blocked the execution.
 )
 
 // StopReason identifies why one job stopped scheduling new executions.
@@ -75,9 +75,9 @@ type StopReason string
 
 // Supported stop reasons persisted on sys_job.stop_reason.
 const (
-	StopReasonManual               StopReason = "manual"                  // The operator disabled the job manually.
-	StopReasonPluginUnavailable    StopReason = "plugin_unavailable"      // The handler registry no longer exposes the target handler.
-	StopReasonMaxExecutionsReached StopReason = "max_executions_reached"  // The job exhausted its execution quota.
+	StopReasonManual               StopReason = "manual"                 // The operator disabled the job manually.
+	StopReasonPluginUnavailable    StopReason = "plugin_unavailable"     // The handler registry no longer exposes the target handler.
+	StopReasonMaxExecutionsReached StopReason = "max_executions_reached" // The job exhausted its execution quota.
 )
 
 // HandlerSource identifies the registry owner of one handler definition.
@@ -87,6 +87,12 @@ type HandlerSource string
 const (
 	HandlerSourceHost   HandlerSource = "host"   // Host-provided handler.
 	HandlerSourcePlugin HandlerSource = "plugin" // Plugin-provided handler.
+)
+
+const (
+	// HandlerI18nKeyPrefix is the runtime i18n prefix for scheduled-job
+	// handler and built-in job display metadata.
+	HandlerI18nKeyPrefix = "job.handler"
 )
 
 // RetentionMode identifies one log-retention policy mode.
@@ -152,6 +158,43 @@ func NormalizeHandlerSource(value string) HandlerSource {
 // NormalizeRetentionMode trims and normalizes one raw retention mode string.
 func NormalizeRetentionMode(value string) RetentionMode {
 	return RetentionMode(strings.TrimSpace(value))
+}
+
+// HandlerI18nKey builds one stable runtime i18n key for handler-owned display
+// metadata, using the handler ref as the backend anchor.
+func HandlerI18nKey(ref string, field string) string {
+	refPath := messageKeyPath(ref)
+	fieldPath := messageKeyPath(field)
+	if refPath == "" || fieldPath == "" {
+		return ""
+	}
+	return HandlerI18nKeyPrefix + "." + refPath + "." + fieldPath
+}
+
+// messageKeyPath converts backend anchors into dotted i18n key fragments.
+func messageKeyPath(value string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	if trimmed == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	previousDot := false
+	for _, current := range trimmed {
+		switch {
+		case current >= 'a' && current <= 'z',
+			current >= '0' && current <= '9',
+			current == '-':
+			builder.WriteRune(current)
+			previousDot = false
+		default:
+			if !previousDot {
+				builder.WriteRune('.')
+				previousDot = true
+			}
+		}
+	}
+	return strings.Trim(builder.String(), ".")
 }
 
 // IsValid reports whether the task type is supported.

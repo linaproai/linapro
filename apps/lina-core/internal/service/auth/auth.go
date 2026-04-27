@@ -23,6 +23,7 @@ import (
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/pluginhost"
 )
 
 // Auth status constants used by login validation.
@@ -119,7 +120,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		osName = ua.OS()
 	}
 
-	dispatchLoginFailed := func(username string, msg string) {
+	dispatchLoginFailed := func(username string, msg string, reason string) {
 		if hookErr := s.pluginSvc.HandleAuthLoginFailed(ctx, pluginsvc.AuthLoginSucceededInput{
 			UserName:   username,
 			Status:     authLoginStatusFail,
@@ -128,13 +129,14 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 			Browser:    browser,
 			Os:         osName,
 			Message:    msg,
+			Reason:     reason,
 		}); hookErr != nil {
 			logger.Warningf(ctx, "plugin login failed hook failed: %v", hookErr)
 		}
 	}
 
 	if s.configSvc.IsLoginIPBlacklisted(ctx, ip) {
-		dispatchLoginFailed(in.Username, "登录IP已被禁止")
+		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageIPBlacklisted, pluginhost.AuthHookReasonIPBlacklisted)
 		return nil, gerror.New("error.auth.login.ipBlacklisted")
 	}
 
@@ -147,19 +149,19 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		return nil, err
 	}
 	if user == nil {
-		dispatchLoginFailed(in.Username, "用户名或密码错误")
+		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
 		return nil, gerror.New("error.auth.login.invalidCredentials")
 	}
 
 	// Verify password
 	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(in.Password)); err != nil {
-		dispatchLoginFailed(in.Username, "用户名或密码错误")
+		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
 		return nil, gerror.New("error.auth.login.invalidCredentials")
 	}
 
 	// Check status
 	if user.Status == statusDisabled {
-		dispatchLoginFailed(in.Username, "用户已停用")
+		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageUserDisabled, pluginhost.AuthHookReasonUserDisabled)
 		return nil, gerror.New("error.auth.login.userDisabled")
 	}
 
@@ -201,7 +203,8 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		ClientType: "web",
 		Browser:    browser,
 		Os:         osName,
-		Message:    "登录成功",
+		Message:    pluginsvc.AuthEventMessageLoginSuccessful,
+		Reason:     pluginhost.AuthHookReasonLoginSuccessful,
 	}); err != nil {
 		logger.Warningf(ctx, "plugin login succeeded hook failed: %v", err)
 	}
@@ -255,7 +258,8 @@ func (s *serviceImpl) Logout(ctx context.Context, username string, tokenId strin
 		ClientType: "web",
 		Browser:    browser,
 		Os:         osName,
-		Message:    "登出成功",
+		Message:    pluginsvc.AuthEventMessageLogoutSuccessful,
+		Reason:     pluginhost.AuthHookReasonLogoutSuccessful,
 	}); err != nil {
 		logger.Warningf(ctx, "plugin logout succeeded hook failed: %v", err)
 	}

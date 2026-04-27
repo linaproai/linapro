@@ -50,8 +50,42 @@ type Service interface {
 	ResolveLocale(ctx context.Context, locale string) string
 	// GetLocale returns the locale stored in request business context.
 	GetLocale(ctx context.Context) string
-	// Translate returns the localized value for one translation key.
+	// Translate returns one key from the current request locale only, falling
+	// back to the caller-provided literal when the key is missing.
+	//
+	// It does not fall back to the runtime default locale. Example: with request
+	// locale en-US, key "job.handler.host.cleanup.name" only present in zh-CN,
+	// and fallback "Job Log Cleanup", this method returns "Job Log Cleanup".
+	// Use this for normal UI text when showing another language would be worse
+	// than showing a source/default literal.
 	Translate(ctx context.Context, key string, fallback string) string
+	// TranslateSourceText returns one key from the current request locale and
+	// falls back to sourceText when the key is missing.
+	//
+	// This is a semantic wrapper for source-owned metadata whose fallback text
+	// is maintained next to the source definition. Example: a built-in cron job
+	// registers sourceText "Online Session Cleanup"; zh-CN can translate the
+	// key to "在线会话清理", while en-US may omit the key and still display the
+	// source English text. It must not return default-locale text from zh-CN
+	// while the request locale is en-US.
+	TranslateSourceText(ctx context.Context, key string, sourceText string) string
+	// TranslateOrKey returns one key from the current request locale and falls
+	// back to the key itself when the translation is missing.
+	//
+	// Example: with request locale en-US and missing key "menu.unknown.title",
+	// this method returns "menu.unknown.title". Use this for diagnostics,
+	// admin tooling, or development-time surfaces where an explicit placeholder
+	// is better than hiding a missing translation.
+	TranslateOrKey(ctx context.Context, key string) string
+	// TranslateWithDefaultLocale returns one key from the current request locale,
+	// then explicitly falls back to the runtime default locale, then to fallback.
+	//
+	// Example: with request locale en-US, default locale zh-CN, key present only
+	// in zh-CN, and fallback "fallback", this method returns the zh-CN value.
+	// Use this only for scenarios that intentionally tolerate mixed-language
+	// fallback, such as maintenance diagnostics. Do not use it for ordinary UI
+	// metadata where the selected language must not show another language.
+	TranslateWithDefaultLocale(ctx context.Context, key string, fallback string) string
 	// LocalizeError translates one request-scoped error into the effective locale.
 	LocalizeError(ctx context.Context, err error) string
 	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles.
@@ -73,7 +107,13 @@ type Service interface {
 	ListContentVariants(ctx context.Context, businessType string, businessID string, field string) ([]ContentVariant, error)
 	// ListRuntimeLocales returns the runtime locales supported by the host.
 	ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
-	// BuildRuntimeMessages returns the effective runtime translation bundle for one locale.
+	// BuildRuntimeMessages returns the current-locale runtime translation bundle.
+	//
+	// The returned bundle does not merge the runtime default locale into the
+	// requested locale. Example: requesting en-US will include en-US host,
+	// plugin, and database messages; if a key only exists in zh-CN, it is absent
+	// from this bundle so the frontend can show its own source text or key
+	// placeholder instead of silently displaying Chinese.
 	BuildRuntimeMessages(ctx context.Context, locale string) map[string]interface{}
 }
 
@@ -149,9 +189,34 @@ func (s *serviceImpl) GetLocale(ctx context.Context) string {
 	return s.getDefaultRuntimeLocale(ctx)
 }
 
-// Translate returns the localized value for one translation key.
+// Translate returns the current-locale value or the caller fallback. For
+// example, en-US missing and zh-CN present still returns fallback, not zh-CN.
 func (s *serviceImpl) Translate(ctx context.Context, key string, fallback string) string {
 	return s.translateForLocale(ctx, s.GetLocale(ctx), key, fallback)
+}
+
+// TranslateSourceText returns the current-locale value or source text. For
+// example, a code-owned cron handler can omit en-US JSON and fall back to its
+// registered English display name.
+func (s *serviceImpl) TranslateSourceText(ctx context.Context, key string, sourceText string) string {
+	return s.translateForLocale(ctx, s.GetLocale(ctx), key, sourceText)
+}
+
+// TranslateOrKey returns the current-locale value or the key itself. For
+// example, missing key menu.unknown.title renders as menu.unknown.title.
+func (s *serviceImpl) TranslateOrKey(ctx context.Context, key string) string {
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" {
+		return ""
+	}
+	return s.translateForLocale(ctx, s.GetLocale(ctx), trimmedKey, trimmedKey)
+}
+
+// TranslateWithDefaultLocale returns the current-locale value, default-locale
+// value, or fallback literal. For example, en-US missing and zh-CN present
+// returns zh-CN; use this only when mixed-language fallback is intentional.
+func (s *serviceImpl) TranslateWithDefaultLocale(ctx context.Context, key string, fallback string) string {
+	return s.translateWithDefaultLocaleForLocale(ctx, s.GetLocale(ctx), key, fallback)
 }
 
 // ListRuntimeLocales returns the runtime locales supported by the host.
@@ -178,24 +243,17 @@ func (s *serviceImpl) ListRuntimeLocales(ctx context.Context, locale string) []L
 	return items
 }
 
-// BuildRuntimeMessages returns the effective runtime translation bundle for one locale.
+// BuildRuntimeMessages returns the current-locale runtime translation bundle for
+// one locale. For example, en-US output omits keys that only exist in zh-CN.
 func (s *serviceImpl) BuildRuntimeMessages(ctx context.Context, locale string) map[string]interface{} {
 	return nestFlatMessageMap(s.buildRuntimeMessageCatalog(ctx, locale))
 }
 
-// buildRuntimeMessageCatalog returns the effective flat translation catalog for one locale.
+// buildRuntimeMessageCatalog returns the flat translation catalog for one
+// locale without merging the runtime default locale.
 func (s *serviceImpl) buildRuntimeMessageCatalog(ctx context.Context, locale string) map[string]string {
 	normalizedLocale := s.ResolveLocale(ctx, locale)
-	defaultLocale := s.getDefaultRuntimeLocale(ctx)
-
-	defaultBundle := s.loadRawLocaleBundle(ctx, defaultLocale)
-	if normalizedLocale == defaultLocale {
-		return cloneFlatMessageMap(defaultBundle)
-	}
-
-	effective := cloneFlatMessageMap(defaultBundle)
-	mergeFlatMessageMaps(effective, s.loadRawLocaleBundle(ctx, normalizedLocale))
-	return effective
+	return cloneFlatMessageMap(s.loadRawLocaleBundle(ctx, normalizedLocale))
 }
 
 // translateForLocale resolves one translation key against the requested locale.
@@ -207,6 +265,28 @@ func (s *serviceImpl) translateForLocale(ctx context.Context, locale string, key
 
 	if value, ok := s.buildRuntimeMessageCatalog(ctx, locale)[trimmedKey]; ok {
 		return value
+	}
+	return fallback
+}
+
+// translateWithDefaultLocaleForLocale resolves one translation key and
+// explicitly allows cross-language default-locale fallback.
+func (s *serviceImpl) translateWithDefaultLocaleForLocale(ctx context.Context, locale string, key string, fallback string) string {
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" {
+		return fallback
+	}
+
+	normalizedLocale := s.ResolveLocale(ctx, locale)
+	if value, ok := s.loadRawLocaleBundle(ctx, normalizedLocale)[trimmedKey]; ok {
+		return value
+	}
+
+	defaultLocale := s.getDefaultRuntimeLocale(ctx)
+	if normalizedLocale != defaultLocale {
+		if value, ok := s.loadRawLocaleBundle(ctx, defaultLocale)[trimmedKey]; ok {
+			return value
+		}
 	}
 	return fallback
 }

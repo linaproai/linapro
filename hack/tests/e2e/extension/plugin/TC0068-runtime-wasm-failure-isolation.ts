@@ -542,7 +542,7 @@ test.describe("TC-68 运行时 wasm 失败隔离与回收", () => {
     );
     expect(resourceData.total, "成功的 runtime hook 应写入登录审计记录").toBe(1);
     expect(resourceData.list?.[0]?.userName).toBe(config.adminUser);
-    expect(resourceData.list?.[0]?.eventName).toBe("登录成功");
+    expect(resourceData.list?.[0]?.eventName).toBe("Login successful");
 
     const goodPlugin = await findPlugin(adminApi!, goodPluginID);
     const badPlugin = await findPlugin(adminApi!, badPluginID);

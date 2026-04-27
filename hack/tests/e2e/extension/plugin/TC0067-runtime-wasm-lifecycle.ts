@@ -1262,7 +1262,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await expect(pluginPage.pluginDemoDynamicTitle()).toBeVisible();
     await expect(pluginPage.pluginDemoDynamicRecordGrid()).toBeVisible();
     await expect(
-      pluginPage.pluginDemoDynamicRecordRow("动态插件 SQL 示例记录"),
+      pluginPage.pluginDemoDynamicRecordRow("Dynamic Plugin SQL Demo Record"),
     ).toBeVisible();
 
     await pluginPage.createPluginDemoDynamicRecord({
@@ -1341,7 +1341,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await page.reload();
     await pluginPage.clickSidebarMenuItem(bundledRuntimeMenuName);
     await expect(
-      pluginPage.pluginDemoDynamicRecordRow("动态插件 SQL 示例记录"),
+      pluginPage.pluginDemoDynamicRecordRow("Dynamic Plugin SQL Demo Record"),
     ).toBeVisible();
     await expect(
       pluginPage.pluginDemoDynamicRecordRow(cleanupRecordTitle),

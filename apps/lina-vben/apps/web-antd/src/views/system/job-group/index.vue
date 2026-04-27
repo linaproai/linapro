@@ -18,10 +18,6 @@ import {
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { jobGroupDelete, jobGroupList } from '#/api/system/jobGroup';
-import {
-  localizeSeedJobGroupName,
-  localizeSeedJobGroupRemark,
-} from '#/utils/display-l10n';
 
 import JobGroupModal from './modal.vue';
 
@@ -77,8 +73,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
         field: 'name',
         title: $t('pages.system.jobGroup.fields.name'),
         minWidth: 180,
-        formatter: ({ row }: { row: JobGroupRecord }) =>
-          localizeSeedJobGroupName(row.code, row.name),
       },
       { field: 'sortOrder', title: $t('pages.fields.sort'), width: 90 },
       {
@@ -108,8 +102,6 @@ const [Grid, gridApi] = useVbenVxeGrid({
         field: 'remark',
         title: $t('pages.common.remark'),
         minWidth: 220,
-        formatter: ({ row }: { row: JobGroupRecord }) =>
-          localizeSeedJobGroupRemark(row.code, row.remark),
       },
       {
         field: 'updatedAt',

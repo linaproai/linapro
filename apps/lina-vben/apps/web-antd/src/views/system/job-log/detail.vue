@@ -10,7 +10,6 @@ import { Descriptions, DescriptionsItem, Spin, Tag } from 'ant-design-vue';
 
 import { jobLogDetail } from '#/api/system/jobLog';
 import JsonPreview from '#/components/json-preview/index.vue';
-import { localizeSeedJobName } from '#/utils/display-l10n';
 
 const currentLog = ref<JobLogRecord | null>(null);
 const loading = ref(false);
@@ -49,13 +48,7 @@ const paramsSnapshot = computed(() =>
 );
 const resultSnapshot = computed(() => parseJSON(currentLog.value?.resultJson));
 const jobSnapshot = computed(() => parseJSON(currentLog.value?.jobSnapshot));
-const localizedJobName = computed(() => {
-  const handlerRef =
-    jobSnapshot.value && typeof jobSnapshot.value === 'object'
-      ? (jobSnapshot.value as Record<string, any>).handlerRef
-      : '';
-  return localizeSeedJobName(handlerRef, currentLog.value?.jobName || '');
-});
+const localizedJobName = computed(() => currentLog.value?.jobName || '');
 const shellResult = computed(() => {
   const result = resultSnapshot.value;
   if (!result || typeof result !== 'object') {

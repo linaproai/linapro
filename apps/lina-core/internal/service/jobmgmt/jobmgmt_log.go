@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/gdbutil"
 )
 
 // ListLogs returns scheduled-job execution logs with pagination and job metadata.
@@ -50,22 +51,22 @@ func (s *serviceImpl) ListLogs(ctx context.Context, in ListLogsInput) (*ListLogs
 		model,
 		in.OrderBy,
 		in.OrderDirection,
-		map[string]string{
-			"id":          cols.Id,
-			"start_at":    cols.StartAt,
-			"end_at":      cols.EndAt,
-			"duration_ms": cols.DurationMs,
-			"status":      cols.Status,
-			"created_at":  cols.CreatedAt,
+		map[orderField]string{
+			orderFieldID:         cols.Id,
+			orderFieldStartAt:    cols.StartAt,
+			orderFieldEndAt:      cols.EndAt,
+			orderFieldDurationMs: cols.DurationMs,
+			orderFieldStatus:     cols.Status,
+			orderFieldCreatedAt:  cols.CreatedAt,
 		},
 		cols.StartAt,
-		"desc",
+		gdbutil.OrderDirectionDESC,
 	).Page(in.PageNum, in.PageSize).Scan(&logs)
 	if err != nil {
 		return nil, err
 	}
 
-	jobMap, err := s.jobNameMapByLogs(ctx, logs)
+	jobMap, err := s.jobDisplayMapByLogs(ctx, logs)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +77,7 @@ func (s *serviceImpl) ListLogs(ctx context.Context, in ListLogsInput) (*ListLogs
 		}
 		items = append(items, &LogListItem{
 			SysJobLog: logRow,
-			JobName:   resolveLogJobName(logRow, jobMap),
+			JobName:   s.resolveLogJobName(ctx, logRow, jobMap),
 		})
 	}
 	return &ListLogsOutput{List: items, Total: total}, nil
@@ -95,13 +96,13 @@ func (s *serviceImpl) GetLog(ctx context.Context, id uint64) (*LogDetailOutput, 
 		return nil, gerror.New("执行日志不存在")
 	}
 
-	jobNameMap, err := s.jobNameMapByLogs(ctx, []*entity.SysJobLog{logRow})
+	jobMap, err := s.jobDisplayMapByLogs(ctx, []*entity.SysJobLog{logRow})
 	if err != nil {
 		return nil, err
 	}
 	return &LogDetailOutput{
 		SysJobLog: logRow,
-		JobName:   resolveLogJobName(logRow, jobNameMap),
+		JobName:   s.resolveLogJobName(ctx, logRow, jobMap),
 	}, nil
 }
 
@@ -225,11 +226,18 @@ func (s *serviceImpl) cleanupJobLogsByPolicy(
 	return 0, nil
 }
 
-// jobNameMapByLogs loads job names for the given logs.
-func (s *serviceImpl) jobNameMapByLogs(
+// logJobDisplay stores the live display anchors needed by execution-log rows.
+type logJobDisplay struct {
+	Name       string // Name stores the current persisted job name.
+	HandlerRef string // HandlerRef stores the stable handler anchor.
+	IsBuiltin  int    // IsBuiltin identifies code-owned jobs.
+}
+
+// jobDisplayMapByLogs loads job display anchors for the given logs.
+func (s *serviceImpl) jobDisplayMapByLogs(
 	ctx context.Context,
 	logs []*entity.SysJobLog,
-) (map[uint64]string, error) {
+) (map[uint64]logJobDisplay, error) {
 	jobIDs := make([]uint64, 0, len(logs))
 	for _, logRow := range logs {
 		if logRow == nil || logRow.JobId == 0 {
@@ -238,42 +246,57 @@ func (s *serviceImpl) jobNameMapByLogs(
 		jobIDs = append(jobIDs, logRow.JobId)
 	}
 	if len(jobIDs) == 0 {
-		return map[uint64]string{}, nil
+		return map[uint64]logJobDisplay{}, nil
 	}
 
 	var jobs []*entity.SysJob
 	err := dao.SysJob.Ctx(ctx).
 		WhereIn(dao.SysJob.Columns().Id, jobIDs).
-		Fields(dao.SysJob.Columns().Id, dao.SysJob.Columns().Name).
+		Fields(
+			dao.SysJob.Columns().Id,
+			dao.SysJob.Columns().Name,
+			dao.SysJob.Columns().HandlerRef,
+			dao.SysJob.Columns().IsBuiltin,
+		).
 		Scan(&jobs)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[uint64]string, len(jobs))
+	result := make(map[uint64]logJobDisplay, len(jobs))
 	for _, job := range jobs {
 		if job == nil {
 			continue
 		}
-		result[job.Id] = job.Name
+		result[job.Id] = logJobDisplay{
+			Name:       job.Name,
+			HandlerRef: job.HandlerRef,
+			IsBuiltin:  job.IsBuiltin,
+		}
 	}
 	return result, nil
 }
 
 // resolveLogJobName resolves one log row's job name from live data or the stored job snapshot.
-func resolveLogJobName(logRow *entity.SysJobLog, names map[uint64]string) string {
+func (s *serviceImpl) resolveLogJobName(
+	ctx context.Context,
+	logRow *entity.SysJobLog,
+	jobs map[uint64]logJobDisplay,
+) string {
 	if logRow == nil {
 		return ""
 	}
-	if name := names[logRow.JobId]; name != "" {
-		return name
+	if job, ok := jobs[logRow.JobId]; ok && job.Name != "" {
+		return s.localizeBuiltinJobName(ctx, job.HandlerRef, job.Name, job.IsBuiltin)
 	}
 
 	var snapshot struct {
-		Name string `json:"name"`
+		Name       string `json:"name"`
+		HandlerRef string `json:"handlerRef"`
+		IsBuiltin  int    `json:"isBuiltin"`
 	}
 	if err := json.Unmarshal([]byte(logRow.JobSnapshot), &snapshot); err != nil {
 		return ""
 	}
-	return snapshot.Name
+	return s.localizeBuiltinJobName(ctx, snapshot.HandlerRef, snapshot.Name, snapshot.IsBuiltin)
 }

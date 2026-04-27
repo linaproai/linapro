@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/dao"
+	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 )
 
@@ -91,6 +93,51 @@ func TestImportMessagesCreatesAndUpdatesRows(t *testing.T) {
 	exported := svc.ExportMessages(ctx, EnglishLocale, false)
 	if actual, ok := exported.Messages[key]; !ok || actual != "Second Value" {
 		t.Fatalf("expected exported imported value %q, got %q (exists=%v)", "Second Value", actual, ok)
+	}
+}
+
+// TestRuntimeTranslationsDoNotImplicitlyUseDefaultLocale verifies that current
+// locale translation methods never return default-locale text unless the caller
+// explicitly asks for default-locale fallback.
+func TestRuntimeTranslationsDoNotImplicitlyUseDefaultLocale(t *testing.T) {
+	resetRuntimeBundleCache()
+
+	ctx := context.Background()
+	key := fmt.Sprintf("test.strict.%s", t.Name())
+	defaultValue := "仅默认语言提供"
+	insertedID := insertI18nMessageForTest(t, ctx, do.SysI18NMessage{
+		Locale:       DefaultLocale,
+		MessageKey:   key,
+		MessageValue: defaultValue,
+		ScopeType:    "host",
+		ScopeKey:     "core",
+		SourceType:   "manual",
+		Status:       int(messageStatusEnabled),
+		Remark:       t.Name(),
+	})
+	t.Cleanup(func() {
+		deleteI18nMessageByID(t, ctx, insertedID)
+		resetRuntimeBundleCache()
+	})
+
+	svc := New()
+	messages := svc.BuildRuntimeMessages(ctx, EnglishLocale)
+	if value, ok := lookupMessageString(messages, key); ok {
+		t.Fatalf("expected en-US runtime messages to omit default-locale-only key, got %q", value)
+	}
+
+	enCtx := context.WithValue(ctx, gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
+	if actual := svc.Translate(enCtx, key, "Source Fallback"); actual != "Source Fallback" {
+		t.Fatalf("expected Translate to use caller fallback, got %q", actual)
+	}
+	if actual := svc.TranslateSourceText(enCtx, key, "Source Text"); actual != "Source Text" {
+		t.Fatalf("expected TranslateSourceText to use source text, got %q", actual)
+	}
+	if actual := svc.TranslateOrKey(enCtx, key); actual != key {
+		t.Fatalf("expected TranslateOrKey to return key placeholder %q, got %q", key, actual)
+	}
+	if actual := svc.TranslateWithDefaultLocale(enCtx, key, "fallback"); actual != defaultValue {
+		t.Fatalf("expected explicit default-locale fallback %q, got %q", defaultValue, actual)
 	}
 }
 

@@ -14,6 +14,12 @@ import (
 const (
 	// pluginID is the immutable identifier published by the embedded demo plugin.
 	pluginID = "plugin-demo-source"
+	// sourcePluginEchoInspectionName identifies the demo source-plugin cron.
+	sourcePluginEchoInspectionName = "source-plugin-echo-inspection"
+	// sourcePluginEchoInspectionDisplayName is the English source title for the demo cron.
+	sourcePluginEchoInspectionDisplayName = "Source Plugin Echo Inspection"
+	// sourcePluginEchoInspectionDescription is the English source description for the demo cron.
+	sourcePluginEchoInspectionDescription = "Runs a lightweight source-plugin inspection task for scheduler integration validation."
 )
 
 // init registers the embedded source demo plugin and its host callbacks.
@@ -84,7 +90,14 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 // the host can project source-plugin cron registrations into unified
 // scheduled-job management.
 func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistrar) error {
-	return registrar.Add(ctx, "0 */15 * * * *", "源码插件回显巡检", func(ctx context.Context) error {
-		return nil
-	})
+	return registrar.AddWithMetadata(
+		ctx,
+		"# */15 * * * *",
+		sourcePluginEchoInspectionName,
+		sourcePluginEchoInspectionDisplayName,
+		sourcePluginEchoInspectionDescription,
+		func(ctx context.Context) error {
+			return nil
+		},
+	)
 }

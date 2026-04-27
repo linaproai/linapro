@@ -1,4 +1,18 @@
 {
+  "job": {
+    "handler": {
+      "plugin": {
+        "plugin-demo-dynamic": {
+          "cron": {
+            "heartbeat": {
+              "description": "通过 Wasm bridge 执行动态插件内置定时任务，并累计心跳执行次数。",
+              "name": "动态插件心跳"
+            }
+          }
+        }
+      }
+    }
+  },
   "menu": {
     "plugin:plugin-demo-dynamic:main-entry": {
       "title": "动态插件示例"

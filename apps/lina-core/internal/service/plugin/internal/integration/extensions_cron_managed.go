@@ -38,24 +38,51 @@ func (c *managedCronCollector) Add(
 	name string,
 	handler pluginhost.CronJobHandler,
 ) error {
+	return c.AddWithMetadata(
+		ctx,
+		pattern,
+		name,
+		name,
+		fmt.Sprintf("Built-in scheduled job registered by plugin %s.", strings.TrimSpace(c.pluginID)),
+		handler,
+	)
+}
+
+// AddWithMetadata records one plugin-owned cron job definition with display metadata.
+func (c *managedCronCollector) AddWithMetadata(
+	ctx context.Context,
+	pattern string,
+	name string,
+	displayName string,
+	description string,
+	handler pluginhost.CronJobHandler,
+) error {
 	if handler == nil {
 		return gerror.New("插件定时任务处理器不能为空")
 	}
 
 	trimmedPattern := strings.TrimSpace(pattern)
 	trimmedName := strings.TrimSpace(name)
+	trimmedDisplayName := strings.TrimSpace(displayName)
+	trimmedDescription := strings.TrimSpace(description)
 	if trimmedPattern == "" {
 		return gerror.New("插件定时任务表达式不能为空")
 	}
 	if trimmedName == "" {
 		return gerror.New("插件定时任务名称不能为空")
 	}
+	if trimmedDisplayName == "" {
+		trimmedDisplayName = trimmedName
+	}
+	if trimmedDescription == "" {
+		trimmedDescription = fmt.Sprintf("Built-in scheduled job registered by plugin %s.", strings.TrimSpace(c.pluginID))
+	}
 
 	c.items = append(c.items, ManagedCronJob{
 		PluginID:       strings.TrimSpace(c.pluginID),
 		Name:           trimmedName,
-		DisplayName:    trimmedName,
-		Description:    fmt.Sprintf("插件 %s 注册的内置定时任务。", strings.TrimSpace(c.pluginID)),
+		DisplayName:    trimmedDisplayName,
+		Description:    trimmedDescription,
 		Pattern:        trimmedPattern,
 		Timezone:       pluginbridge.DefaultCronContractTimezone,
 		Scope:          "", // Legacy RegisterCron callbacks do not expose scope metadata.

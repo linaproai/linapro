@@ -33,6 +33,14 @@
         "status": "登录状态",
         "userName": "用户账号"
       },
+      "logMessage": {
+        "invalidCredentials": "用户名或密码错误",
+        "ipBlacklisted": "登录IP已被禁止",
+        "loginFailed": "登录失败",
+        "loginSuccessful": "登录成功",
+        "logoutSuccessful": "登出成功",
+        "userDisabled": "用户已停用"
+      },
       "messages": {
         "clearConfirm": "确认清空所有登录日志吗？",
         "clearSuccess": "清空登录日志成功",

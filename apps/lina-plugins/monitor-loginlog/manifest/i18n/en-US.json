@@ -33,6 +33,14 @@
         "status": "Login Status",
         "userName": "User Account"
       },
+      "logMessage": {
+        "invalidCredentials": "Invalid username or password",
+        "ipBlacklisted": "Login IP is blacklisted",
+        "loginFailed": "Login failed",
+        "loginSuccessful": "Login successful",
+        "logoutSuccessful": "Logout successful",
+        "userDisabled": "User account is disabled"
+      },
       "messages": {
         "clearConfirm": "Clear all login logs?",
         "clearSuccess": "Login logs cleared successfully",

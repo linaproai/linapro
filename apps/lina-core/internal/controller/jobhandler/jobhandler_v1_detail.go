@@ -18,8 +18,8 @@ func (c *ControllerV1) Detail(ctx context.Context, req *v1.DetailReq) (res *v1.D
 	}
 	return &v1.DetailRes{
 		Ref:          item.Ref,
-		DisplayName:  item.DisplayName,
-		Description:  item.Description,
+		DisplayName:  c.localizeHandlerName(ctx, item.Ref, item.DisplayName),
+		Description:  c.localizeHandlerDescription(ctx, item.Ref, item.Description),
 		Source:       string(item.Source),
 		PluginId:     item.PluginID,
 		ParamsSchema: item.ParamsSchema,

@@ -6,7 +6,6 @@ import { h } from 'vue';
 import { Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
-import { localizeSeedRoleName } from '#/utils/display-l10n';
 
 /** 数据权限选项 */
 export function getDataScopeOptions() {
@@ -68,13 +67,6 @@ export function columns(): VxeGridProps['columns'] {
       title: $t('pages.system.role.fields.roleName'),
       field: 'name',
       minWidth: 120,
-      slots: {
-        default: ({ row }) => {
-          return row.key === 'admin'
-            ? localizeSeedRoleName(row.key, row.name)
-            : row.name;
-        },
-      },
     },
     {
       title: $t('pages.system.role.fields.permissionKey'),

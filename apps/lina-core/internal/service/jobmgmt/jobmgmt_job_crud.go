@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/gdbutil"
 )
 
 // ListJobs returns scheduled jobs with pagination and group metadata.
@@ -40,6 +41,13 @@ func (s *serviceImpl) ListJobs(ctx context.Context, in ListJobsInput) (*ListJobs
 	}
 	if keyword := strings.TrimSpace(in.Keyword); keyword != "" {
 		model = model.WhereLike(cols.Name, "%"+keyword+"%").WhereOrLike(cols.Description, "%"+keyword+"%")
+		handlerRefs, matchErr := s.localizedHandlerRefsMatchingKeyword(ctx, keyword)
+		if matchErr != nil {
+			return nil, matchErr
+		}
+		if len(handlerRefs) > 0 {
+			model = model.WhereOrIn(cols.HandlerRef, handlerRefs)
+		}
 	}
 
 	total, err := model.Count()
@@ -52,17 +60,17 @@ func (s *serviceImpl) ListJobs(ctx context.Context, in ListJobsInput) (*ListJobs
 		model,
 		in.OrderBy,
 		in.OrderDirection,
-		map[string]string{
-			"id":         cols.Id,
-			"name":       cols.Name,
-			"group_id":   cols.GroupId,
-			"status":     cols.Status,
-			"task_type":  cols.TaskType,
-			"created_at": cols.CreatedAt,
-			"updated_at": cols.UpdatedAt,
+		map[orderField]string{
+			orderFieldID:        cols.Id,
+			orderFieldName:      cols.Name,
+			orderFieldGroupID:   cols.GroupId,
+			orderFieldStatus:    cols.Status,
+			orderFieldTaskType:  cols.TaskType,
+			orderFieldCreatedAt: cols.CreatedAt,
+			orderFieldUpdatedAt: cols.UpdatedAt,
 		},
 		cols.UpdatedAt,
-		"desc",
+		gdbutil.OrderDirectionDESC,
 	).Page(in.PageNum, in.PageSize).Scan(&jobs)
 	if err != nil {
 		return nil, err
@@ -78,8 +86,10 @@ func (s *serviceImpl) ListJobs(ctx context.Context, in ListJobsInput) (*ListJobs
 			continue
 		}
 		group := groupMap[job.GroupId]
+		s.localizeBuiltinJobForDisplay(ctx, job)
 		item := &JobListItem{SysJob: job}
 		if group != nil {
+			s.localizeGroupForDisplay(ctx, group)
 			item.GroupCode = group.Code
 			item.GroupName = group.Name
 		}
@@ -104,7 +114,9 @@ func (s *serviceImpl) GetJob(ctx context.Context, id uint64) (*JobDetailOutput, 
 	}
 
 	out := &JobDetailOutput{SysJob: job}
+	s.localizeBuiltinJobForDisplay(ctx, job)
 	if group != nil {
+		s.localizeGroupForDisplay(ctx, group)
 		out.GroupCode = group.Code
 		out.GroupName = group.Name
 	}

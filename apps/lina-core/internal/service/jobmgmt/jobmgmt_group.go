@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/gdbutil"
 )
 
 // ListGroups returns scheduled-job groups with pagination and job counts.
@@ -24,6 +25,9 @@ func (s *serviceImpl) ListGroups(ctx context.Context, in ListGroupsInput) (*List
 	}
 	if keyword := strings.TrimSpace(in.Name); keyword != "" {
 		model = model.WhereLike(cols.Name, "%"+keyword+"%")
+		if s.defaultGroupMatchesKeyword(ctx, keyword) {
+			model = model.WhereOr(cols.Code, defaultBuiltinGroupCode)
+		}
 	}
 
 	total, err := model.Count()
@@ -36,16 +40,16 @@ func (s *serviceImpl) ListGroups(ctx context.Context, in ListGroupsInput) (*List
 		model,
 		in.OrderBy,
 		in.OrderDirection,
-		map[string]string{
-			"id":         cols.Id,
-			"sort_order": cols.SortOrder,
-			"code":       cols.Code,
-			"name":       cols.Name,
-			"created_at": cols.CreatedAt,
-			"updated_at": cols.UpdatedAt,
+		map[orderField]string{
+			orderFieldID:        cols.Id,
+			orderFieldSortOrder: cols.SortOrder,
+			orderFieldCode:      cols.Code,
+			orderFieldName:      cols.Name,
+			orderFieldCreatedAt: cols.CreatedAt,
+			orderFieldUpdatedAt: cols.UpdatedAt,
 		},
 		cols.SortOrder,
-		"asc",
+		gdbutil.OrderDirectionASC,
 	).Page(in.PageNum, in.PageSize).Scan(&groups)
 	if err != nil {
 		return nil, err
@@ -57,6 +61,7 @@ func (s *serviceImpl) ListGroups(ctx context.Context, in ListGroupsInput) (*List
 		if group == nil {
 			continue
 		}
+		s.localizeGroupForDisplay(ctx, group)
 		jobCount, countErr := dao.SysJob.Ctx(ctx).
 			Where(jobCols.GroupId, group.Id).
 			Count()

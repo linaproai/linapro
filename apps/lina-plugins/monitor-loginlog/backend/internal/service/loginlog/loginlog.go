@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -16,6 +17,8 @@ import (
 
 	"lina-core/pkg/excelutil"
 	"lina-core/pkg/gdbutil"
+	"lina-core/pkg/pluginhost"
+	hosti18n "lina-core/pkg/pluginservice/i18n"
 	"lina-plugin-monitor-loginlog/backend/internal/dao"
 	"lina-plugin-monitor-loginlog/backend/internal/model/do"
 	entitymodel "lina-plugin-monitor-loginlog/backend/internal/model/entity"
@@ -42,6 +45,16 @@ const (
 const (
 	MaxExportRows       = 10000
 	DictTypeLoginStatus = "sys_login_status"
+)
+
+// Runtime i18n key fragments used by dictionary display projection.
+const (
+	// dictKeyPrefix is the runtime i18n root for dictionary labels.
+	dictKeyPrefix = "dict"
+	// labelKeySuffix is the final i18n segment for dictionary display labels.
+	labelKeySuffix = "label"
+	// loginLogMessagePrefix is the plugin-owned runtime i18n root for auth messages.
+	loginLogMessagePrefix = "plugin.monitor-loginlog.logMessage"
 )
 
 // Login status values stored in plugin_monitor_loginlog.
@@ -75,11 +88,13 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	i18nSvc hosti18n.Service // i18nSvc resolves host runtime translations for plugin data.
+}
 
 // New creates and returns a new monitor-loginlog service instance.
 func New() Service {
-	return &serviceImpl{}
+	return &serviceImpl{i18nSvc: hosti18n.New()}
 }
 
 // LoginLogEntity mirrors the plugin-local generated plugin_monitor_loginlog entity.
@@ -179,6 +194,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	if err != nil {
 		return nil, err
 	}
+	s.localizeRecords(ctx, list)
 
 	return &ListOutput{List: list, Total: total}, nil
 }
@@ -193,6 +209,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*LoginLogEntity, err
 	if record == nil {
 		return nil, gerror.New("登录日志不存在")
 	}
+	s.localizeRecord(ctx, record)
 	return record, nil
 }
 
@@ -269,7 +286,15 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	file := excelize.NewFile()
 	defer excelutil.CloseFile(file, &err)
 	sheet := "Sheet1"
-	headers := []string{"用户名", "状态", "IP地址", "浏览器", "操作系统", "提示消息", "登录时间"}
+	headers := []string{
+		s.translate(ctx, "plugin.monitor-loginlog.fields.userName", "用户名"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.status", "状态"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.ipAddress", "IP地址"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.browser", "浏览器"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.os", "操作系统"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.message", "提示消息"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.loginTime", "登录时间"),
+	}
 	for index, header := range headers {
 		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, header); setErr != nil {
 			return nil, setErr
@@ -286,6 +311,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if !ok {
 			statusText = defaultLoginStatusLabels[log.Status]
 		}
+		statusText = s.translateDictLabel(ctx, DictTypeLoginStatus, strconv.Itoa(log.Status), statusText)
 		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(2, row), statusText); setErr != nil {
 			return nil, setErr
 		}
@@ -298,7 +324,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(5, row), log.Os); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(6, row), log.Msg); setErr != nil {
+		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(6, row), s.translateLoginLogMessage(ctx, log.Msg)); setErr != nil {
 			return nil, setErr
 		}
 		if log.LoginTime != nil {
@@ -313,6 +339,63 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		return nil, writeErr
 	}
 	return buffer.Bytes(), nil
+}
+
+// localizeRecords translates backend-owned display fields for login-log rows.
+func (s *serviceImpl) localizeRecords(ctx context.Context, records []*LoginLogEntity) {
+	for _, record := range records {
+		s.localizeRecord(ctx, record)
+	}
+}
+
+// localizeRecord translates backend-owned display fields for one login-log row.
+func (s *serviceImpl) localizeRecord(ctx context.Context, record *LoginLogEntity) {
+	if record == nil {
+		return
+	}
+	record.Msg = s.translateLoginLogMessage(ctx, record.Msg)
+}
+
+// translateLoginLogMessage resolves stable auth lifecycle reason codes.
+func (s *serviceImpl) translateLoginLogMessage(ctx context.Context, message string) string {
+	key := loginLogReasonI18nKey(strings.TrimSpace(message))
+	if key == "" {
+		return message
+	}
+	return s.translate(ctx, key, message)
+}
+
+// loginLogReasonI18nKey maps published auth reason codes to plugin-owned i18n keys.
+func loginLogReasonI18nKey(reason string) string {
+	switch reason {
+	case pluginhost.AuthHookReasonLoginSuccessful:
+		return loginLogMessagePrefix + ".loginSuccessful"
+	case pluginhost.AuthHookReasonLoginFailed:
+		return loginLogMessagePrefix + ".loginFailed"
+	case pluginhost.AuthHookReasonLogoutSuccessful:
+		return loginLogMessagePrefix + ".logoutSuccessful"
+	case pluginhost.AuthHookReasonInvalidCredentials:
+		return loginLogMessagePrefix + ".invalidCredentials"
+	case pluginhost.AuthHookReasonUserDisabled:
+		return loginLogMessagePrefix + ".userDisabled"
+	case pluginhost.AuthHookReasonIPBlacklisted:
+		return loginLogMessagePrefix + ".ipBlacklisted"
+	}
+	return ""
+}
+
+// translateDictLabel translates one dictionary label through runtime i18n keys.
+func (s *serviceImpl) translateDictLabel(ctx context.Context, dictType string, value string, fallback string) string {
+	key := strings.Join([]string{dictKeyPrefix, dictType, value, labelKeySuffix}, ".")
+	return s.translate(ctx, key, fallback)
+}
+
+// translate resolves one runtime i18n key through the host i18n service.
+func (s *serviceImpl) translate(ctx context.Context, key string, fallback string) string {
+	if s == nil || s.i18nSvc == nil || strings.TrimSpace(key) == "" {
+		return fallback
+	}
+	return s.i18nSvc.Translate(ctx, key, fallback)
 }
 
 // applyLoginLogFilters wires the shared login-log query filters onto one model.

@@ -1,4 +1,18 @@
 {
+  "job": {
+    "handler": {
+      "plugin": {
+        "plugin-demo-source": {
+          "cron": {
+            "source-plugin-echo-inspection": {
+              "description": "plugin-demo-source 插件注册的内置定时任务。",
+              "name": "源码插件回显巡检"
+            }
+          }
+        }
+      }
+    }
+  },
   "menu": {
     "plugin:plugin-demo-source:record-create": {
       "title": "示例记录新增"
