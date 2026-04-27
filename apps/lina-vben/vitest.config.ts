@@ -2,8 +2,32 @@ import Vue from '@vitejs/plugin-vue';
 import VueJsx from '@vitejs/plugin-vue-jsx';
 import { configDefaults, defineConfig } from 'vitest/config';
 
+const virtualLocaleModules: Record<string, string> = {
+  'virtual:lina-app-third-party-locales': [
+    'export const antdLocaleLoaders = {};',
+    'export const dayjsLocaleLoaders = {};',
+  ].join('\n'),
+  'virtual:lina-vxe-locales': 'export const vxeLocaleLoaders = {};',
+};
+
 export default defineConfig({
-  plugins: [Vue(), VueJsx()],
+  plugins: [
+    {
+      name: 'lina-test-third-party-locales',
+      resolveId(source) {
+        if (source in virtualLocaleModules) {
+          return `\0${source}`;
+        }
+        return null;
+      },
+      load(id) {
+        const source = id.startsWith('\0') ? id.slice(1) : id;
+        return virtualLocaleModules[source] ?? null;
+      },
+    },
+    Vue(),
+    VueJsx(),
+  ],
   test: {
     environment: 'happy-dom',
     environmentOptions: {

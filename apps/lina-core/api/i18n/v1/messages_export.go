@@ -6,9 +6,9 @@ import "github.com/gogf/gf/v2/frame/g"
 
 // ExportMessagesReq requests one flat runtime message export for the given locale.
 type ExportMessagesReq struct {
-	g.Meta `path:"/i18n/messages/export" method:"get" tags:"internationalization" summary:"Export internationalized messages" dc:"Export a flat internationalized message collection in a specified language, supporting the export of effective aggregation results or original resources in the current language for delivery maintenance, offline proofreading and re-importing" permission:"system:i18n:export"`
+	g.Meta `path:"/i18n/messages/export" method:"get" tags:"internationalization" summary:"Export internationalized messages" dc:"Export a flat internationalized message collection in a specified language for delivery maintenance and offline proofreading, with changes expected to be written back to JSON resource files" permission:"system:i18n:export"`
 	Locale string `json:"locale" dc:"Target language encoding, automatically parsed according to request context if not passed, such as zh-CN, en-US" eg:"en-US"`
-	Raw    bool   `json:"raw" dc:"Whether to export only original resources in the current language: true=Export only aggregated results in the current language false=Export valid results with default language fallback" eg:"false"`
+	Raw    bool   `json:"raw" dc:"Reserved export mode flag, currently both true and false return the resource-backed merged catalog" eg:"false"`
 }
 
 // ExportMessagesRes returns one flat runtime message export payload.

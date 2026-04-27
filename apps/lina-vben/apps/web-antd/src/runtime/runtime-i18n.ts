@@ -16,8 +16,43 @@ type RuntimeMessagesPayload = {
   messages?: Record<string, any>;
 };
 
-type RuntimeMessagesResponse = RuntimeMessagesPayload | {
-  data?: RuntimeMessagesPayload;
+type RuntimeMessagesResponse =
+  | RuntimeMessagesPayload
+  | {
+      data?: RuntimeMessagesPayload;
+    };
+
+type RuntimeLocaleItem = {
+  isDefault?: boolean;
+  locale?: string;
+  name?: string;
+  nativeName?: string;
+};
+
+type RuntimeLocalesPayload = {
+  enabled?: boolean;
+  items?: RuntimeLocaleItem[];
+  locale?: string;
+};
+
+type RuntimeLocalesResponse =
+  | RuntimeLocalesPayload
+  | {
+      data?: RuntimeLocalesPayload;
+    };
+
+type RuntimeLocaleOption = {
+  isDefault?: boolean;
+  label: string;
+  nativeName?: string;
+  value: string;
+};
+
+type RuntimeLocaleOptionsResult = {
+  defaultLocale: string;
+  enabled: boolean;
+  locale: string;
+  options: RuntimeLocaleOption[];
 };
 
 type RuntimePersistentCacheEntry = {
@@ -155,9 +190,55 @@ function normalizeRuntimeMessagesPayload(payload?: RuntimeMessagesResponse) {
   const payloadObject: Record<string, any> = isPlainObject(payload)
     ? payload
     : {};
-  const dataObject = isPlainObject(payloadObject.data) ? payloadObject.data : {};
+  const dataObject = isPlainObject(payloadObject.data)
+    ? payloadObject.data
+    : {};
   const runtimeMessages = dataObject.messages ?? payloadObject.messages ?? {};
   return isPlainObject(runtimeMessages) ? runtimeMessages : {};
+}
+
+function normalizeRuntimeLocalesPayload(
+  payload?: RuntimeLocalesResponse,
+): RuntimeLocaleOptionsResult {
+  const payloadObject: Record<string, any> = isPlainObject(payload)
+    ? payload
+    : {};
+  const dataObject = isPlainObject(payloadObject.data)
+    ? payloadObject.data
+    : {};
+  const enabledValue = dataObject.enabled ?? payloadObject.enabled;
+  const locale = String(dataObject.locale ?? payloadObject.locale ?? '').trim();
+  const items = Array.isArray(dataObject.items)
+    ? dataObject.items
+    : Array.isArray(payloadObject.items)
+      ? payloadObject.items
+      : [];
+
+  const options = items
+    .map((item): RuntimeLocaleOption | null => {
+      const locale = String(item?.locale || '').trim();
+      if (!locale) {
+        return null;
+      }
+      const nativeName = String(item?.nativeName || '').trim();
+      const label = String(nativeName || item?.name || locale).trim();
+      return {
+        isDefault: item?.isDefault === true,
+        label,
+        nativeName,
+        value: locale,
+      } satisfies RuntimeLocaleOption;
+    })
+    .filter((item): item is RuntimeLocaleOption => item !== null);
+  const defaultLocale =
+    options.find((item) => item.isDefault)?.value || options[0]?.value || '';
+
+  return {
+    defaultLocale,
+    enabled: enabledValue !== false,
+    locale: locale || defaultLocale,
+    options,
+  };
 }
 
 function readResponseHeader(
@@ -188,6 +269,9 @@ async function requestRuntimeLocaleMessages(
           headers: {
             'Accept-Language': locale,
             ...(etag ? { 'If-None-Match': etag } : {}),
+          },
+          params: {
+            lang: locale,
           },
           responseReturn: 'raw',
           validateStatus: (status) => status >= 200 && status < 400,
@@ -255,8 +339,7 @@ async function loadRuntimeLocaleMessages(
   }
 
   const persistentEntry = readPersistentRuntimeLocaleMessages(activeLocale);
-  const persistentEntryIsFresh =
-    isPersistentRuntimeCacheFresh(persistentEntry);
+  const persistentEntryIsFresh = isPersistentRuntimeCacheFresh(persistentEntry);
 
   if (!options.force && persistentEntryIsFresh && persistentEntry) {
     setRuntimeLocaleMessages(activeLocale, persistentEntry.messages);
@@ -284,14 +367,29 @@ async function reloadRuntimeLocaleMessages(locale?: string) {
   return await loadRuntimeLocaleMessages(locale, { force: true });
 }
 
+async function loadRuntimeLocaleOptions(locale = preferences.app.locale) {
+  const response = await requestClient.get<RuntimeLocalesResponse>(
+    '/i18n/runtime/locales',
+    {
+      params: {
+        lang: locale,
+      },
+    },
+  );
+  return normalizeRuntimeLocalesPayload(response);
+}
+
 export {
   clearRuntimeLocaleMessagesCache,
   getRuntimeLocaleMessagesSnapshot,
+  loadRuntimeLocaleOptions,
   loadRuntimeLocaleMessages,
   lookupRuntimeMessageString,
   mergeMessages,
+  normalizeRuntimeLocalesPayload,
   reloadRuntimeLocaleMessages,
   runtimePersistentCacheTTL,
   runtimeI18nVersion,
 };
-export type { RuntimeLocaleMessagesLoadOptions };
+export type { RuntimeLocaleMessagesLoadOptions, RuntimeLocaleOption };
+export type { RuntimeLocaleOptionsResult };

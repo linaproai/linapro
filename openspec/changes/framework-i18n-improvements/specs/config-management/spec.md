@@ -3,9 +3,9 @@
 ### Requirement: 配置导出与导入表头必须按当前语言通过翻译键解析
 系统 SHALL 让 `Export configs to Excel` 与 `Import configs from Excel` 链路中的列头(`name` / `key` / `value` / `remark` / `createdAt` / `updatedAt`)按当前请求语言通过 `config.field.<name>` 翻译键解析,不得在后端 Go 源码中维护英文/中文字面量映射表。`apps/lina-core/manifest/i18n/<locale>.json` MUST 包含 `config.field.*` 命名空间下的翻译值,新增语言时只需追加资源,不需要修改 Go 代码。
 
-#### Scenario: 阿拉伯语环境导出包含阿拉伯语表头
-- **WHEN** 管理员在 `ar-SA` 环境请求 `GET /config/export`
-- **THEN** 导出的 Excel 列头按阿拉伯语展示
+#### Scenario: 繁体中文环境导出包含繁体中文表头
+- **WHEN** 管理员在 `zh-TW` 环境请求 `GET /config/export`
+- **THEN** 导出的 Excel 列头按繁体中文展示
 - **AND** 后端通过 `config.field.name`、`config.field.key`、`config.field.value`、`config.field.remark`、`config.field.createdAt`、`config.field.updatedAt` 翻译键解析得到列头
 - **AND** 后端代码中不存在 `englishLabels` / `chineseLabels` 这类硬编码字面量映射
 

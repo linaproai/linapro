@@ -13,10 +13,10 @@
 - **THEN** 该插件的资源只被允许贡献以 `plugins.<plugin-id>.` 为前缀的键
 - **AND** 系统忽略其他插件命名空间或宿主命名空间下的键
 
-### Requirement: 接口文档必须支持阿拉伯语展示
-系统 SHALL 在新增 `ar-SA` 作为内置语言后,支持系统接口文档以阿拉伯语展示。宿主与所有源码插件、动态插件 MUST 提供 `manifest/i18n/apidoc/ar-SA.json` 或 `manifest/i18n/apidoc/ar-SA/**/*.json` 翻译资源,确保 `/api.json?lang=ar-SA` 返回的接口分组、摘要、描述、参数说明均按阿拉伯语展示。`en-US` 接口文档继续直接使用 API DTO 中的英文源文案,不依赖 `ar-SA` 资源。
+### Requirement: 接口文档必须支持繁体中文展示
+系统 SHALL 在新增 `zh-TW` 作为内置语言后,支持系统接口文档以繁体中文展示。宿主与所有源码插件、动态插件 MUST 提供 `manifest/i18n/apidoc/zh-TW.json` 或 `manifest/i18n/apidoc/zh-TW/**/*.json` 翻译资源,确保 `/api.json?lang=zh-TW` 返回的接口分组、摘要、描述、参数说明均按繁体中文展示。`en-US` 接口文档继续直接使用 API DTO 中的英文源文案,不依赖 `zh-TW` 资源。
 
-#### Scenario: 阿拉伯语环境加载接口文档
-- **WHEN** 管理员在 `ar-SA` 环境下打开系统接口文档,或请求 `/api.json?lang=ar-SA`
-- **THEN** 宿主、源码插件与动态插件的路由分组、接口摘要、接口描述、请求参数与响应参数说明按阿拉伯语展示
+#### Scenario: 繁体中文环境加载接口文档
+- **WHEN** 管理员在 `zh-TW` 环境下打开系统接口文档,或请求 `/api.json?lang=zh-TW`
+- **THEN** 宿主、源码插件与动态插件的路由分组、接口摘要、接口描述、请求参数与响应参数说明按繁体中文展示
 - **AND** 缺失翻译时回退到 API DTO 中维护的英文源文案,不显示空白或翻译键

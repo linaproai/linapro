@@ -1,0 +1,408 @@
+{
+  "core": {
+    "api": {
+      "config": {
+        "v1": {
+          "ByKeyReq": {
+            "fields": {
+              "key": {
+                "dc": "參數鍵名"
+              }
+            },
+            "meta": {
+              "dc": "根據參數鍵名獲取參數設置的詳細信息，用於其他模塊按鍵名查詢參數值",
+              "summary": "按鍵名獲取參數",
+              "tags": "參數設置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "參數ID"
+                          },
+                          "key": {
+                            "dc": "參數鍵名"
+                          },
+                          "name": {
+                            "dc": "參數名稱"
+                          },
+                          "remark": {
+                            "dc": "備註"
+                          },
+                          "updatedAt": {
+                            "dc": "修改時間"
+                          },
+                          "value": {
+                            "dc": "參數鍵值"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根據參數鍵名獲取參數設置的詳細信息，用於其他模塊按鍵名查詢參數值"
+            }
+          },
+          "ByKeyRes": {
+            "fields": {
+              "id": {
+                "dc": "參數ID"
+              },
+              "key": {
+                "dc": "參數鍵名"
+              },
+              "name": {
+                "dc": "參數名稱"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "updatedAt": {
+                "dc": "修改時間"
+              },
+              "value": {
+                "dc": "參數鍵值"
+              }
+            },
+            "schema": {
+              "dc": "參數設置詳情"
+            }
+          },
+          "ConfigImportFailItem": {
+            "fields": {
+              "reason": {
+                "dc": "失敗原因"
+              },
+              "row": {
+                "dc": "行號"
+              }
+            }
+          },
+          "ConfigImportReq": {
+            "meta": {
+              "dc": "通過Excel文件批量導入參數設置數據，需使用系統提供的導入模板",
+              "summary": "導入參數設置",
+              "tags": "參數設置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "fail": {
+                            "dc": "失敗條數"
+                          },
+                          "failList": {
+                            "dc": "失敗詳情"
+                          },
+                          "success": {
+                            "dc": "成功條數"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "通過Excel文件批量導入參數設置數據，需使用系統提供的導入模板"
+            }
+          },
+          "ConfigImportRes": {
+            "fields": {
+              "fail": {
+                "dc": "失敗條數"
+              },
+              "failList": {
+                "dc": "失敗詳情"
+              },
+              "success": {
+                "dc": "成功條數"
+              }
+            }
+          },
+          "ConfigImportTemplateReq": {
+            "meta": {
+              "dc": "下載參數設置導入Excel模板文件，包含必填字段和數據格式說明",
+              "summary": "下載參數設置導入模板",
+              "tags": "參數設置"
+            },
+            "schema": {
+              "dc": "下載參數設置導入Excel模板文件，包含必填字段和數據格式說明"
+            }
+          },
+          "CreateReq": {
+            "fields": {
+              "key": {
+                "dc": "參數鍵名（唯一標識）"
+              },
+              "name": {
+                "dc": "參數名稱"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "value": {
+                "dc": "參數鍵值"
+              }
+            },
+            "meta": {
+              "dc": "創建一個新的參數設置，參數鍵名在系統中必須唯一",
+              "summary": "創建參數設置",
+              "tags": "參數設置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "參數ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "創建一個新的參數設置，參數鍵名在系統中必須唯一"
+            }
+          },
+          "CreateRes": {
+            "fields": {
+              "id": {
+                "dc": "參數ID"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "id": {
+                "dc": "參數ID"
+              }
+            },
+            "meta": {
+              "dc": "根據參數ID軟刪除指定的參數設置記錄",
+              "summary": "刪除參數設置",
+              "tags": "參數設置"
+            },
+            "schema": {
+              "dc": "根據參數ID軟刪除指定的參數設置記錄"
+            }
+          },
+          "ExportReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "創建時間範圍-開始時間，格式YYYY-MM-DD"
+              },
+              "endTime": {
+                "dc": "創建時間範圍-結束時間，格式YYYY-MM-DD"
+              },
+              "ids": {
+                "dc": "指定導出的記錄ID列表，不傳則導出全部符合條件的記錄"
+              },
+              "key": {
+                "dc": "按參數鍵名篩選（模糊匹配）"
+              },
+              "name": {
+                "dc": "按參數名稱篩選（模糊匹配）"
+              }
+            },
+            "meta": {
+              "dc": "導出參數設置數據為Excel文件，支持按條件篩選導出，也支持導出指定ID的記錄",
+              "summary": "導出參數設置",
+              "tags": "參數設置"
+            },
+            "schema": {
+              "dc": "導出參數設置數據為Excel文件，支持按條件篩選導出，也支持導出指定ID的記錄"
+            }
+          },
+          "GetReq": {
+            "fields": {
+              "id": {
+                "dc": "參數ID"
+              }
+            },
+            "meta": {
+              "dc": "根據參數ID獲取參數設置的詳細信息",
+              "summary": "獲取參數設置詳情",
+              "tags": "參數設置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "參數ID"
+                          },
+                          "key": {
+                            "dc": "參數鍵名"
+                          },
+                          "name": {
+                            "dc": "參數名稱"
+                          },
+                          "remark": {
+                            "dc": "備註"
+                          },
+                          "updatedAt": {
+                            "dc": "修改時間"
+                          },
+                          "value": {
+                            "dc": "參數鍵值"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根據參數ID獲取參數設置的詳細信息"
+            }
+          },
+          "GetRes": {
+            "fields": {
+              "id": {
+                "dc": "參數ID"
+              },
+              "key": {
+                "dc": "參數鍵名"
+              },
+              "name": {
+                "dc": "參數名稱"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "updatedAt": {
+                "dc": "修改時間"
+              },
+              "value": {
+                "dc": "參數鍵值"
+              }
+            },
+            "schema": {
+              "dc": "參數設置詳情"
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "創建時間範圍-開始時間，格式YYYY-MM-DD"
+              },
+              "endTime": {
+                "dc": "創建時間範圍-結束時間，格式YYYY-MM-DD"
+              },
+              "key": {
+                "dc": "按參數鍵名篩選（模糊匹配），不傳則查詢全部"
+              },
+              "name": {
+                "dc": "按參數名稱篩選（模糊匹配），不傳則查詢全部"
+              }
+            },
+            "meta": {
+              "dc": "分頁查詢參數設置列表，支持按參數名稱、參數鍵名模糊匹配，以及按創建時間範圍篩選",
+              "summary": "獲取參數設置列表",
+              "tags": "參數設置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "參數設置列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分頁查詢參數設置列表，支持按參數名稱、參數鍵名模糊匹配，以及按創建時間範圍篩選"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "參數設置列表"
+              }
+            }
+          },
+          "UpdateReq": {
+            "fields": {
+              "id": {
+                "dc": "參數ID"
+              },
+              "key": {
+                "dc": "參數鍵名（唯一標識）"
+              },
+              "name": {
+                "dc": "參數名稱"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "value": {
+                "dc": "參數鍵值"
+              }
+            },
+            "meta": {
+              "dc": "更新指定參數設置的信息，修改參數鍵名時需確保不與其他參數衝突",
+              "summary": "更新參數設置",
+              "tags": "參數設置"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "key": {
+                      "dc": "參數鍵名（唯一標識）"
+                    },
+                    "name": {
+                      "dc": "參數名稱"
+                    },
+                    "remark": {
+                      "dc": "備註"
+                    },
+                    "value": {
+                      "dc": "參數鍵值"
+                    }
+                  },
+                  "schema": {
+                    "dc": "更新指定參數設置的信息，修改參數鍵名時需確保不與其他參數衝突"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "更新指定參數設置的信息，修改參數鍵名時需確保不與其他參數衝突"
+            }
+          }
+        }
+      }
+    }
+  }
+}

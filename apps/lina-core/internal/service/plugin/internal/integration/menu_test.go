@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"lina-core/internal/dao"
@@ -306,6 +307,9 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	}
 	if menu.Type != catalog.MenuTypeButton.String() || menu.Visible != 0 {
 		t.Fatalf("expected synthetic permission menu to be hidden button, got %#v", menu)
+	}
+	if strings.ContainsAny(menu.Name, "动态路由权限") {
+		t.Fatalf("expected synthetic permission menu source name to avoid localized CJK text, got %q", menu.Name)
 	}
 
 	if err = services.Lifecycle.Uninstall(ctx, pluginID); err != nil {

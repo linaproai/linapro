@@ -79,8 +79,11 @@ func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 	if res.Locale != i18nsvc.EnglishLocale {
 		t.Fatalf("expected runtime locale %q, got %q", i18nsvc.EnglishLocale, res.Locale)
 	}
-	if len(res.Items) != 2 {
-		t.Fatalf("expected 2 locale descriptors, got %d", len(res.Items))
+	if !res.Enabled {
+		t.Fatal("expected runtime locale switch to be enabled by default")
+	}
+	if len(res.Items) != 3 {
+		t.Fatalf("expected 3 locale descriptors, got %d", len(res.Items))
 	}
 
 	zhLocale, ok := findRuntimeLocale(res.Items, i18nsvc.DefaultLocale)
@@ -89,6 +92,17 @@ func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 	}
 	if zhLocale.Name != "Chinese (Simplified)" || zhLocale.NativeName != "简体中文" || !zhLocale.IsDefault {
 		t.Fatalf("unexpected zh-CN locale descriptor: %+v", zhLocale)
+	}
+
+	twLocale, ok := findRuntimeLocale(res.Items, "zh-TW")
+	if !ok {
+		t.Fatalf("expected locale %q in runtime locale list", "zh-TW")
+	}
+	if twLocale.Name != "Chinese (Traditional)" || twLocale.NativeName != "繁體中文" || twLocale.IsDefault {
+		t.Fatalf("unexpected zh-TW locale descriptor: %+v", twLocale)
+	}
+	if twLocale.Direction != i18nsvc.LocaleDirectionLTR.String() {
+		t.Fatalf("expected zh-TW direction %q, got %q", i18nsvc.LocaleDirectionLTR.String(), twLocale.Direction)
 	}
 }
 
@@ -175,7 +189,10 @@ func TestRuntimeMessagesEmitsETagAndShortCircuits304(t *testing.T) {
 	address := startRuntimeMessagesTestServer(t)
 
 	// First request: server emits ETag and a 200 response.
-	firstRequest, _ := http.NewRequest(http.MethodGet, address+"/i18n/runtime/messages?lang="+i18nsvc.EnglishLocale, nil)
+	firstRequest, err := http.NewRequest(http.MethodGet, address+"/i18n/runtime/messages?lang="+i18nsvc.EnglishLocale, nil)
+	if err != nil {
+		t.Fatalf("create first request: %v", err)
+	}
 	firstResponse, err := http.DefaultClient.Do(firstRequest)
 	if err != nil {
 		t.Fatalf("first request: %v", err)
@@ -200,7 +217,10 @@ func TestRuntimeMessagesEmitsETagAndShortCircuits304(t *testing.T) {
 	}
 
 	// Second request: matching If-None-Match returns 304 with no body.
-	secondRequest, _ := http.NewRequest(http.MethodGet, address+"/i18n/runtime/messages?lang="+i18nsvc.EnglishLocale, nil)
+	secondRequest, err := http.NewRequest(http.MethodGet, address+"/i18n/runtime/messages?lang="+i18nsvc.EnglishLocale, nil)
+	if err != nil {
+		t.Fatalf("create second request: %v", err)
+	}
 	secondRequest.Header.Set("If-None-Match", etag)
 	secondResponse, err := http.DefaultClient.Do(secondRequest)
 	if err != nil {
@@ -221,14 +241,17 @@ func TestRuntimeMessagesEmitsETagAndShortCircuits304(t *testing.T) {
 		t.Fatalf("expected empty body on 304, got %d bytes: %s", len(secondBody), string(secondBody))
 	}
 
-	// Invalidate the database sector so the bundle version advances; the same
+	// Invalidate the host sector so the bundle version advances; the same
 	// If-None-Match should now miss and a fresh 200 must arrive.
 	i18nsvc.New().InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 		Locales: []string{i18nsvc.EnglishLocale},
-		Sectors: []i18nsvc.Sector{i18nsvc.SectorDatabase},
+		Sectors: []i18nsvc.Sector{i18nsvc.SectorHost},
 	})
 
-	thirdRequest, _ := http.NewRequest(http.MethodGet, address+"/i18n/runtime/messages?lang="+i18nsvc.EnglishLocale, nil)
+	thirdRequest, err := http.NewRequest(http.MethodGet, address+"/i18n/runtime/messages?lang="+i18nsvc.EnglishLocale, nil)
+	if err != nil {
+		t.Fatalf("create third request: %v", err)
+	}
 	thirdRequest.Header.Set("If-None-Match", etag)
 	thirdResponse, err := http.DefaultClient.Do(thirdRequest)
 	if err != nil {
@@ -264,7 +287,9 @@ func startRuntimeMessagesTestServer(t *testing.T) string {
 		t.Fatalf("start runtime messages test server: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = server.Shutdown()
+		if err := server.Shutdown(); err != nil {
+			t.Fatalf("shutdown runtime messages test server: %v", err)
+		}
 	})
 
 	listenedPort := server.GetListenedPort()

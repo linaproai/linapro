@@ -15,7 +15,7 @@ type MissingMessagesReq struct {
 type MissingMessageItem struct {
 	Key          string `json:"key" dc:"Missing translation key" eg:"menu.dashboard.title"`
 	DefaultValue string `json:"defaultValue" dc:"Baseline translation value in default language" eg:"workbench"`
-	SourceType   string `json:"sourceType" dc:"Baseline source type: host_file=host file plugin_file=plugin file database=database overwrite" eg:"host_file"`
+	SourceType   string `json:"sourceType" dc:"Baseline source type: host_file=host manifest file plugin_file=plugin manifest file or dynamic plugin asset" eg:"host_file"`
 	SourceKey    string `json:"sourceKey" dc:"Baseline source ID, such as core or specific plugin_id" eg:"core"`
 }
 

@@ -56,6 +56,22 @@ monitor:
   # 服务指标采集间隔（duration 字符串）
   interval: 30s
 
+# 国际化配置
+i18n:
+  # 请求语言缺失或不支持时使用的默认语言
+  default: zh-CN
+  # 是否开启多语言；关闭时仅使用默认语言且前端隐藏语言切换按钮
+  enabled: true
+  # 运行时语言展示顺序与原生名称；注释某个语言即可停用该语言
+  # 文本方向按宿主约定固定为 ltr，不提供配置项
+  locales:
+    - locale: en-US
+      nativeName: English
+    - locale: zh-CN
+      nativeName: 简体中文
+    - locale: zh-TW
+      nativeName: 繁體中文
+
 # 集群部署配置
 cluster:
   # 是否开启集群多节点模式；默认 false 表示单节点模式

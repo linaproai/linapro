@@ -15,6 +15,12 @@ import (
 func TestResolveHomePathPrefersStableHostRoutes(t *testing.T) {
 	items := []*menu.MenuItem{
 		{
+			Name:      "源码插件示例",
+			Path:      "plugin-demo-source-sidebar-entry",
+			Component: pluginDynamicPageComponentPath,
+			Type:      menutype.Menu.String(),
+		},
+		{
 			Name: "工作台",
 			Path: "dashboard",
 			Type: menutype.Directory.String(),

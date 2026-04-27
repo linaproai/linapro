@@ -38,3 +38,22 @@ declare module 'virtual:lina-plugin-slots' {
 
   export const pluginSlotModules: VirtualPluginSlotModuleEntry[];
 }
+
+declare module 'virtual:lina-app-third-party-locales' {
+  export type ThirdPartyLocaleLoader = () => Promise<{
+    default?: unknown;
+    [key: string]: unknown;
+  }>;
+
+  export const antdLocaleLoaders: Record<string, ThirdPartyLocaleLoader>;
+  export const dayjsLocaleLoaders: Record<string, ThirdPartyLocaleLoader>;
+}
+
+declare module 'virtual:lina-vxe-locales' {
+  export type ThirdPartyLocaleLoader = () => Promise<{
+    default?: unknown;
+    [key: string]: unknown;
+  }>;
+
+  export const vxeLocaleLoaders: Record<string, ThirdPartyLocaleLoader>;
+}

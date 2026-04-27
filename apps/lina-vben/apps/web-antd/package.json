@@ -54,6 +54,7 @@
     "pinia": "catalog:",
     "vue": "catalog:",
     "vue-json-pretty": "2.4.0",
-    "vue-router": "catalog:"
+    "vue-router": "catalog:",
+    "vxe-pc-ui": "catalog:"
   }
 }

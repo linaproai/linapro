@@ -1,0 +1,44 @@
+{
+  "core": {
+    "common": {
+      "fields": {
+        "createdAt": {
+          "dc": "創建時間"
+        },
+        "deletedAt": {
+          "dc": "刪除時間"
+        },
+        "pageNum": {
+          "dc": "頁碼"
+        },
+        "pageSize": {
+          "dc": "每頁條數"
+        },
+        "total": {
+          "dc": "總條數"
+        },
+        "updatedAt": {
+          "dc": "更新時間"
+        }
+      },
+      "responses": {
+        "fields": {
+          "code": {
+            "dc": "錯誤碼"
+          },
+          "data": {
+            "dc": "按接口定義返回的結果數據"
+          },
+          "message": {
+            "dc": "錯誤消息"
+          }
+        }
+      },
+      "schemas": {
+        "response": {
+          "dc": "按接口定義返回的結果數據"
+        }
+      }
+    }
+  }
+}

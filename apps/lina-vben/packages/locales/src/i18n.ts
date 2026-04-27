@@ -4,11 +4,14 @@ import type { Locale } from 'vue-i18n';
 import type {
   ImportLocaleFn,
   LoadMessageFn,
+  LocaleDirection,
   LocaleSetupOptions,
+  RuntimeLocaleOption,
+  RuntimeLocaleSwitchConfig,
   SupportedLanguagesType,
 } from './typing';
 
-import { unref } from 'vue';
+import { ref, shallowRef, unref } from 'vue';
 import { createI18n } from 'vue-i18n';
 
 import { useSimpleLocale } from '@vben-core/composables';
@@ -20,14 +23,20 @@ const i18n = createI18n({
   messages: {},
 });
 
+const direction = ref<LocaleDirection>('ltr');
+const runtimeLocaleOptions = shallowRef<RuntimeLocaleOption[]>([]);
+const runtimeLocaleSwitchEnabled = ref(true);
+
 const modules = import.meta.glob('./langs/**/*.json');
 
-const { setSimpleLocale } = useSimpleLocale();
+const { setMessages: setSimpleLocaleMessages, setSimpleLocale } =
+  useSimpleLocale();
 
 const localesMap = loadLocalesMapFromDir(
   /\.\/langs\/([^/]+)\/(.*)\.json$/,
   modules,
 );
+runtimeLocaleOptions.value = buildStaticLocaleOptions(Object.keys(localesMap));
 let loadMessages: LoadMessageFn;
 
 /**
@@ -90,13 +99,63 @@ function loadLocalesMapFromDir(
 }
 
 /**
+ * Build fallback language options from bundled locale directories.
+ * @param locales
+ */
+function buildStaticLocaleOptions(locales: string[]): RuntimeLocaleOption[] {
+  return [...new Set(locales.map((locale) => locale.trim()).filter(Boolean))]
+    .sort()
+    .map((locale) => ({
+      label: locale,
+      value: locale,
+    }));
+}
+
+/**
+ * Apply runtime locale descriptors returned by the host.
+ * @param options
+ */
+function setRuntimeLocaleOptions(
+  options: RuntimeLocaleOption[],
+  config: RuntimeLocaleSwitchConfig = {},
+) {
+  const normalizedOptions = options
+    .map((option): RuntimeLocaleOption | null => {
+      const value = String(option.value || '').trim();
+      if (!value) {
+        return null;
+      }
+      return {
+        isDefault: option.isDefault === true,
+        label: String(option.label || option.nativeName || value).trim(),
+        nativeName: option.nativeName,
+        value,
+      } satisfies RuntimeLocaleOption;
+    })
+    .filter((option): option is RuntimeLocaleOption => option !== null);
+
+  if (!normalizedOptions.length) {
+    return;
+  }
+
+  runtimeLocaleOptions.value = normalizedOptions;
+  runtimeLocaleSwitchEnabled.value =
+    config.enabled !== false && normalizedOptions.length > 1;
+}
+
+/**
  * Set i18n language
  * @param locale
  */
 function setI18nLanguage(locale: Locale) {
   i18n.global.locale.value = locale;
 
-  document?.querySelector('html')?.setAttribute('lang', locale);
+  direction.value = 'ltr';
+
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('lang', locale);
+    document.documentElement.setAttribute('dir', 'ltr');
+  }
 }
 
 async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
@@ -130,6 +189,10 @@ async function loadLocaleMessages(lang: SupportedLanguagesType) {
 
   if (message?.default) {
     i18n.global.setLocaleMessage(lang, message.default);
+    setSimpleLocaleMessages(
+      lang,
+      (message.default as Record<string, any>).common || {},
+    );
   }
 
   const mergeMessage = await loadMessages(lang);
@@ -139,9 +202,13 @@ async function loadLocaleMessages(lang: SupportedLanguagesType) {
 }
 
 export {
+  direction,
   i18n,
   loadLocaleMessages,
   loadLocalesMap,
   loadLocalesMapFromDir,
+  runtimeLocaleSwitchEnabled,
+  runtimeLocaleOptions,
   setupI18n,
+  setRuntimeLocaleOptions,
 };

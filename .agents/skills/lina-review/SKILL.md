@@ -128,6 +128,17 @@ For every change that touches the host i18n service or any caller of it, also pe
 4. Every call to `InvalidateContentCache` MUST pass an explicit `i18n.ContentInvalidateScope`. Pure `ContentInvalidateScope{}` (wipe-all) is permitted only for test cleanup or for full reload paths; production callers must scope by `BusinessType` and/or `Locale`.
 5. Any new sector contributing to the runtime cache MUST be registered in `apps/lina-core/internal/service/i18n/i18n_cache.go` (the `Sector` enum and the merge order in `mergeLocaleSectors`). Do not introduce ad-hoc sectors in business modules.
 
+For every frontend change that touches locale direction handling, also perform a **fixed LTR direction review**:
+1. The current `framework-i18n-improvements` scope fixes `<html dir>` and Ant Design Vue `ConfigProvider.direction` to `ltr` for every runtime locale.
+2. The default config `i18n` section MUST NOT expose `direction`, and the frontend MUST NOT maintain `RTL_LOCALES` or equivalent direction registration.
+3. Still flag incoherent overlap, unreadable text, broken navigation, or controls that become unusable after language switching.
+
+For every change that touches built-in runtime languages, also perform a **language registration single-source review**:
+1. Built-in runtime languages MUST be discovered from `manifest/i18n/<locale>.json`; the default config `i18n` section may only provide default locale, `enabled`, ordering, native name metadata, and the enabled-locale whitelist.
+2. Flag new per-language Go constants, SQL seed rows, frontend `SUPPORT_LANGUAGES` additions, frontend `RTL_LOCALES` additions, or locale-specific `switch` branches as critical issues unless they are package-level generic fallback rules rather than project language registration.
+3. Adding a built-in language must not require modifying backend Go enumeration code, host SQL files, or frontend TS language lists.
+4. When `i18n.enabled=false`, the frontend language switcher must be hidden and runtime locale resolution must use `i18n.default`.
+
 ### 6. SQL Review
 
 **Trigger**: New or modified files under `apps/lina-core/manifest/sql/`、`apps/lina-core/manifest/sql/mock-data/`、`apps/lina-plugins/**/manifest/sql/` or SQL snippets embedded in related delivery docs

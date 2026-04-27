@@ -46,6 +46,14 @@ export class PluginPage {
       .first();
   }
 
+  private sidebarSubmenuForMenuItem(menuName: string): Locator {
+    return this.sidebarMenu
+      .locator(".ant-menu-submenu")
+      .filter({ hasText: menuName })
+      .locator(".ant-menu-submenu-title")
+      .first();
+  }
+
   async clickSidebarMenuItem(menuName: string) {
     await this.expectSidebarMenuVisible(menuName);
     await this.sidebarMenuItem(menuName).click();
@@ -719,7 +727,9 @@ export class PluginPage {
       );
       await this.page
         .getByText(
-          enabled ? /插件已启用|Plugin enabled/i : /插件已禁用|Plugin disabled/i,
+          enabled
+            ? /插件已启用|Plugin enabled/i
+            : /插件已禁用|Plugin disabled/i,
         )
         .last()
         .waitFor({ state: "visible", timeout: 3000 })
@@ -819,10 +829,18 @@ export class PluginPage {
     const menuItem = this.sidebarMenuItem(menuName);
     const visible = await menuItem.isVisible().catch(() => false);
     if (!visible) {
-      await this.sidebarMenu
-        .getByText(pluginManageMenuPattern, { exact: true })
-        .first()
-        .click();
+      const parentSubmenu = this.sidebarSubmenuForMenuItem(menuName);
+      const parentVisible = await parentSubmenu
+        .isVisible({ timeout: 1500 })
+        .catch(() => false);
+      if (parentVisible) {
+        await parentSubmenu.click();
+      } else {
+        await this.sidebarMenu
+          .getByText(pluginManageMenuPattern, { exact: true })
+          .first()
+          .click();
+      }
     }
     await expect(menuItem).toBeVisible();
   }
@@ -879,7 +897,9 @@ export class PluginPage {
     const targetIndex = headerTitles.indexOf(targetTitle);
     const previousIndex =
       previousTitle === "版本"
-        ? headerTitles.findIndex((title) => title === "版本" || title === "版本号")
+        ? headerTitles.findIndex(
+            (title) => title === "版本" || title === "版本号",
+          )
         : headerTitles.indexOf(previousTitle);
     const nextIndex = headerTitles.indexOf(nextTitle);
 

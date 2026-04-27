@@ -13,19 +13,19 @@ export class MainLayout {
         try {
           return await this.page.evaluate(() => {
             const key = Object.keys(localStorage).find((item) =>
-              item.endsWith('preferences-locale'),
+              item.endsWith("preferences-locale"),
             );
             if (!key) {
-              return '';
+              return "";
             }
             try {
-              return JSON.parse(localStorage.getItem(key) || '{}')?.value || '';
+              return JSON.parse(localStorage.getItem(key) || "{}")?.value || "";
             } catch {
-              return '';
+              return "";
             }
           });
         } catch {
-          return '';
+          return "";
         }
       })
       .toBe(locale);
@@ -57,48 +57,50 @@ export class MainLayout {
   }
 
   activeTabTitle() {
-    return this.page.locator('[data-tab-item="true"].is-active span[title]').first();
+    return this.page
+      .locator('[data-tab-item="true"].is-active span[title]')
+      .first();
   }
 
   get userDropdownTrigger() {
-    return this.page.getByTestId('layout-user-dropdown-trigger').first();
+    return this.page.getByTestId("layout-user-dropdown-trigger").first();
   }
 
   get userDropdownMenu() {
-    return this.page.getByTestId('layout-user-dropdown-menu');
+    return this.page.getByTestId("layout-user-dropdown-menu");
   }
 
   get userDropdownProfile() {
-    return this.page.getByTestId('layout-user-dropdown-profile');
+    return this.page.getByTestId("layout-user-dropdown-profile");
   }
 
   get userDropdownName() {
-    return this.page.getByTestId('layout-user-dropdown-name');
+    return this.page.getByTestId("layout-user-dropdown-name");
   }
 
   get preferencesTrigger() {
-    return this.page.getByTestId('preferences-trigger').first();
+    return this.page.getByTestId("preferences-trigger").first();
   }
 
   get preferencesDrawerTitle() {
-    return this.page.getByTestId('preferences-drawer-title').first();
+    return this.page.getByTestId("preferences-drawer-title").first();
   }
 
   get preferencesDrawerSubtitle() {
-    return this.page.getByTestId('preferences-drawer-subtitle').first();
+    return this.page.getByTestId("preferences-drawer-subtitle").first();
   }
 
   get preferencesDrawer() {
     return this.page
-      .getByRole('dialog')
-      .filter({ has: this.page.getByTestId('preferences-drawer-title') })
+      .getByRole("dialog")
+      .filter({ has: this.page.getByTestId("preferences-drawer-title") })
       .first();
   }
 
   get workspaceFooterCopyright() {
     return this.page
-      .locator('footer')
-      .filter({ hasText: 'Copyright ©' })
+      .locator("footer")
+      .filter({ hasText: "Copyright ©" })
       .first()
       .getByText(/Copyright ©/);
   }
@@ -109,8 +111,13 @@ export class MainLayout {
     await this.page.waitForLoadState("networkidle");
   }
 
-  async switchLanguage(label: "English" | "简体中文") {
-    const locale = label === "English" ? "en-US" : "zh-CN";
+  async switchLanguage(label: "English" | "简体中文" | "繁體中文") {
+    const localeMap = {
+      English: "en-US",
+      简体中文: "zh-CN",
+      繁體中文: "zh-TW",
+    } as const;
+    const locale = localeMap[label];
     await this.languageToggleTrigger.click();
     await this.page.getByText(label, { exact: true }).last().click();
     await this.waitForLocalePersistence(locale);
@@ -146,7 +153,7 @@ export class MainLayout {
 
   async openPreferencesTab(label: string | RegExp) {
     await this.openPreferences();
-    await this.preferencesDrawer.getByRole('tab', { name: label }).click();
+    await this.preferencesDrawer.getByRole("tab", { name: label }).click();
   }
 
   async logout() {

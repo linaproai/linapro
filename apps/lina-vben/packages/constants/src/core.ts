@@ -5,19 +5,11 @@ export const LOGIN_PATH = '/auth/login';
 
 export interface LanguageOption {
   label: string;
-  value: 'en-US' | 'zh-CN';
+  value: string;
 }
 
 /**
- * Supported languages
+ * Static language fallback kept for legacy imports. Runtime applications should
+ * consume locale options from @vben/locales so new languages are resource-driven.
  */
-export const SUPPORT_LANGUAGES: LanguageOption[] = [
-  {
-    label: '简体中文',
-    value: 'zh-CN',
-  },
-  {
-    label: 'English',
-    value: 'en-US',
-  },
-];
+export const SUPPORT_LANGUAGES: LanguageOption[] = [];

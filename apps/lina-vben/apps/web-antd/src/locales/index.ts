@@ -9,22 +9,29 @@ import { ref } from 'vue';
 
 import {
   $t,
+  direction as localeDirection,
   i18n,
   loadLocaleMessages,
+  setRuntimeLocaleOptions,
   setupI18n as coreSetup,
 } from '@vben/locales';
-import { preferences } from '@vben/preferences';
+import { preferences, updatePreferences } from '@vben/preferences';
 
 import { message } from 'ant-design-vue';
-import antdEnLocale from 'ant-design-vue/es/locale/en_US';
 import antdDefaultLocale from 'ant-design-vue/es/locale/zh_CN';
 import dayjs from 'dayjs';
+import {
+  antdLocaleLoaders,
+  dayjsLocaleLoaders,
+} from 'virtual:lina-app-third-party-locales';
 
 import { syncPublicFrontendSettings } from '#/runtime/public-frontend';
 import {
   clearRuntimeLocaleMessagesCache,
+  loadRuntimeLocaleOptions,
   loadRuntimeLocaleMessages,
   mergeMessages,
+  type RuntimeLocaleOptionsResult,
 } from '#/runtime/runtime-i18n';
 
 const antdLocale = ref<Locale>(antdDefaultLocale);
@@ -65,7 +72,12 @@ type RuntimeMessagesLoader = (
   options?: RuntimeLocaleMessagesLoadOptions,
 ) => Promise<Record<string, any>>;
 
+type RuntimeLocalesLoader = (
+  lang: SupportedLanguagesType,
+) => Promise<RuntimeLocaleOptionsResult>;
+
 type LocaleMessagesLoaderDependencies = {
+  loadRuntimeLocales: RuntimeLocalesLoader;
   loadRuntimeMessages: RuntimeMessagesLoader;
   loadThirdPartyMessages: (lang: SupportedLanguagesType) => Promise<void>;
   notifyRuntimeFallback: () => void;
@@ -91,6 +103,15 @@ function createLocaleMessagesLoader(
 ) {
   return async (lang: SupportedLanguagesType) => {
     void dependencies.syncPublicSettings(lang).catch(() => null);
+    const runtimeLocalesPromise = dependencies
+      .loadRuntimeLocales(lang)
+      .then((result) => {
+        setRuntimeLocaleOptions(result.options, {
+          enabled: result.enabled,
+        });
+        return result;
+      })
+      .catch(() => null);
 
     const runtimeMessagesPromise = dependencies
       .loadRuntimeMessages(lang, {
@@ -104,10 +125,23 @@ function createLocaleMessagesLoader(
       });
 
     await dependencies.loadThirdPartyMessages(lang);
+    await runtimeLocalesPromise;
     const runtimeMessages = await runtimeMessagesPromise;
 
     return mergeMessages(appLocalesMap[lang] || {}, runtimeMessages);
   };
+}
+
+async function resolveStartupLocale(lang: SupportedLanguagesType) {
+  try {
+    const runtimeLocales = await loadRuntimeLocaleOptions(lang);
+    setRuntimeLocaleOptions(runtimeLocales.options, {
+      enabled: runtimeLocales.enabled,
+    });
+    return runtimeLocales.locale || runtimeLocales.defaultLocale || lang;
+  } catch {
+    return lang;
+  }
 }
 
 /**
@@ -116,6 +150,7 @@ function createLocaleMessagesLoader(
  * @param lang
  */
 const loadMessages = createLocaleMessagesLoader({
+  loadRuntimeLocales: loadRuntimeLocaleOptions,
   loadRuntimeMessages: loadRuntimeLocaleMessages,
   loadThirdPartyMessages: loadThirdPartyMessage,
   notifyRuntimeFallback: notifyRuntimeBundleFallback,
@@ -137,30 +172,84 @@ async function loadThirdPartyMessage(lang: SupportedLanguagesType) {
   await Promise.all([loadAntdLocale(lang), loadDayjsLocale(lang)]);
 }
 
+function uniqueLocaleCandidates(candidates: string[]) {
+  return [...new Set(candidates.map((item) => item.trim()).filter(Boolean))];
+}
+
+function splitLocaleCode(lang: SupportedLanguagesType) {
+  const segments = String(lang).trim().split('-').filter(Boolean);
+  const language = String(segments[0] || '').toLowerCase();
+  const region = String(segments[segments.length - 1] || '').toUpperCase();
+  return { language, region };
+}
+
+function buildDayjsLocaleCandidates(lang: SupportedLanguagesType) {
+  const normalized = String(lang).trim().toLowerCase();
+  const { language } = splitLocaleCode(lang);
+  return uniqueLocaleCandidates([normalized, language, 'en']);
+}
+
+function buildUnderscoreLocaleCandidates(
+  lang: SupportedLanguagesType,
+  modules: Record<string, () => Promise<{ default?: unknown }>>,
+) {
+  const { language, region } = splitLocaleCode(lang);
+  return uniqueLocaleCandidates([
+    language && region ? `${language}_${region}` : '',
+    findLanguageLocaleCandidate(modules, language, '_'),
+    'en_US',
+  ]);
+}
+
+function findLanguageLocaleCandidate(
+  modules: Record<string, () => Promise<{ default?: unknown }>>,
+  language: string,
+  separator: string,
+) {
+  if (!language) {
+    return '';
+  }
+  const languagePrefix = `${language}${separator}`;
+  return (
+    Object.keys(modules)
+      .toSorted()
+      .find((candidate) => {
+        const normalizedCandidate = candidate.toLowerCase();
+        return (
+          normalizedCandidate === language ||
+          normalizedCandidate.startsWith(languagePrefix)
+        );
+      }) || ''
+  );
+}
+
+async function loadLocaleModule(
+  modules: Record<string, () => Promise<{ default?: unknown }>>,
+  candidates: string[],
+) {
+  for (const candidate of candidates) {
+    const loader = modules[candidate];
+    if (!loader) {
+      continue;
+    }
+    const module = await loader();
+    return { candidate, module };
+  }
+  return null;
+}
+
 /**
  * 加载dayjs的语言包
  * @param lang
  */
 async function loadDayjsLocale(lang: SupportedLanguagesType) {
-  let locale;
-  switch (lang) {
-    case 'en-US': {
-      locale = await import('dayjs/locale/en');
-      break;
-    }
-    case 'zh-CN': {
-      locale = await import('dayjs/locale/zh-cn');
-      break;
-    }
-    // 默认使用英语
-    default: {
-      locale = await import('dayjs/locale/en');
-    }
-  }
-  if (locale) {
-    dayjs.locale(locale);
-  } else {
-    console.error(`Failed to load dayjs locale for ${lang}`);
+  const loadedLocale = await loadLocaleModule(
+    dayjsLocaleLoaders,
+    buildDayjsLocaleCandidates(lang),
+  );
+  dayjs.locale(loadedLocale?.candidate || 'en');
+  if (!loadedLocale) {
+    console.warn(`Failed to load dayjs locale for ${lang}; fallback to en`);
   }
 }
 
@@ -169,26 +258,35 @@ async function loadDayjsLocale(lang: SupportedLanguagesType) {
  * @param lang
  */
 async function loadAntdLocale(lang: SupportedLanguagesType) {
-  switch (lang) {
-    case 'en-US': {
-      antdLocale.value = antdEnLocale;
-      break;
-    }
-    case 'zh-CN': {
-      antdLocale.value = antdDefaultLocale;
-      break;
-    }
-  }
+  const loadedLocale = await loadLocaleModule(
+    antdLocaleLoaders,
+    buildUnderscoreLocaleCandidates(lang, antdLocaleLoaders),
+  );
+  antdLocale.value =
+    (loadedLocale?.module.default as Locale | undefined) || antdDefaultLocale;
 }
 
 async function setupI18n(app: App, options: LocaleSetupOptions = {}) {
+  const defaultLocale = await resolveStartupLocale(preferences.app.locale);
+  if (preferences.app.locale !== defaultLocale) {
+    updatePreferences({
+      app: {
+        locale: defaultLocale,
+      },
+    });
+  }
   await coreSetup(app, {
-    defaultLocale: preferences.app.locale,
+    defaultLocale,
     loadMessages,
     missingWarn: !import.meta.env.PROD,
     ...options,
   });
 }
 
-export { $t, antdLocale, setupI18n };
-export { createLocaleMessagesLoader, loadMessages, reloadActiveLocaleMessages };
+export { $t, antdLocale, localeDirection, setupI18n };
+export {
+  createLocaleMessagesLoader,
+  loadMessages,
+  reloadActiveLocaleMessages,
+  resolveStartupLocale,
+};

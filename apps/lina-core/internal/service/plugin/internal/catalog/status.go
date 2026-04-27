@@ -82,7 +82,7 @@ const (
 	// DynamicRoutePermissionMenuRemarkSuffix marks synthetic route-permission menu remarks.
 	DynamicRoutePermissionMenuRemarkSuffix = ":dynamic-route-permission"
 	// DynamicRoutePermissionMenuNamePrefix prefixes hidden route-permission menu names.
-	DynamicRoutePermissionMenuNamePrefix = "动态路由权限:"
+	DynamicRoutePermissionMenuNamePrefix = "Dynamic Route Permission:"
 	// PluginStatusKeyPrefix is the stable status record key exposed to runtime consumers.
 	PluginStatusKeyPrefix = "sys_plugin.status:"
 	// PluginNodeStateMessageManifestSynchronized records a manifest-sync node-state update.

@@ -1,5 +1,5 @@
-// Package i18n resolves request locales, aggregates runtime translation bundles,
-// and translates dynamic host metadata for the Lina core service.
+// Package i18n resolves request locales, aggregates file-backed runtime
+// translation bundles, and translates dynamic host metadata for Lina core.
 package i18n
 
 import (
@@ -35,6 +35,7 @@ type LocaleDescriptor struct {
 	Locale     string // Locale is the canonical locale code, for example zh-CN.
 	Name       string // Name is the display name localized to the current request locale.
 	NativeName string // NativeName is the locale's self-name rendered in its own language.
+	Direction  string // Direction is currently fixed to ltr by host convention.
 	IsDefault  bool   // IsDefault reports whether the locale is the host default.
 }
 
@@ -99,23 +100,16 @@ type BundleProvider interface {
 	BundleVersion(locale string) uint64
 	// ListRuntimeLocales returns the runtime locales supported by the host.
 	ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
+	// IsMultiLanguageEnabled reports whether the host allows runtime language switching.
+	IsMultiLanguageEnabled(ctx context.Context) bool
 	// BuildRuntimeMessages returns the current-locale runtime translation bundle.
 	//
 	// The returned bundle does not merge the runtime default locale into the
 	// requested locale. Example: requesting en-US will include en-US host,
-	// plugin, and database messages; if a key only exists in zh-CN, it is absent
-	// from this bundle so the frontend can show its own source text or key
-	// placeholder instead of silently displaying Chinese.
+	// source-plugin, and dynamic-plugin resources; if a key only exists in zh-CN,
+	// it is absent from this bundle so the frontend can show its own source text
+	// or key placeholder instead of silently displaying Chinese.
 	BuildRuntimeMessages(ctx context.Context, locale string) map[string]interface{}
-}
-
-// ContentProvider defines localized business-content lookup operations.
-type ContentProvider interface {
-	// GetContent resolves one business-content translation from sys_i18n_content and
-	// falls back to the runtime default locale or caller-provided default content.
-	GetContent(ctx context.Context, input ContentLookupInput) (ContentLookupOutput, error)
-	// ListContentVariants lists all enabled locale variants for one business-content anchor.
-	ListContentVariants(ctx context.Context, businessType string, businessID string, field string) ([]ContentVariant, error)
 }
 
 // Maintainer defines administrative i18n message maintenance and cache invalidation operations.
@@ -123,17 +117,12 @@ type Maintainer interface {
 	// InvalidateRuntimeBundleCache clears the cached runtime translation bundles
 	// for the given scope. An empty scope drops every locale and every sector.
 	InvalidateRuntimeBundleCache(scope InvalidateScope)
-	// InvalidateContentCache clears cached sys_i18n_content lookup results
-	// scoped to one business type and/or one locale.
-	InvalidateContentCache(scope ContentInvalidateScope)
 	// ExportMessages exports flat runtime messages for one locale.
 	ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
 	// CheckMissingMessages reports translation keys missing from one locale.
 	CheckMissingMessages(ctx context.Context, locale string, keyPrefix string) []MissingMessageItem
 	// DiagnoseMessages reports the effective source of runtime messages for one locale.
 	DiagnoseMessages(ctx context.Context, locale string, keyPrefix string) []MessageDiagnosticItem
-	// ImportMessages writes flat translation messages into sys_i18n_message.
-	ImportMessages(ctx context.Context, input MessageImportInput) (MessageImportOutput, error)
 }
 
 // Service defines the complete i18n service contract.
@@ -141,7 +130,6 @@ type Service interface {
 	LocaleResolver
 	Translator
 	BundleProvider
-	ContentProvider
 	Maintainer
 }
 
@@ -152,12 +140,6 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	bizCtxSvc bizctx.Service
 	configSvc config.Service
-}
-
-// supportedRuntimeLocales declares the runtime locales currently shipped by the host.
-var supportedRuntimeLocales = []string{
-	DefaultLocale,
-	EnglishLocale,
 }
 
 // New creates and returns a new i18n service instance.
@@ -256,6 +238,7 @@ func (s *serviceImpl) ListRuntimeLocales(ctx context.Context, locale string) []L
 			Locale:     supportedLocale.Locale,
 			Name:       s.translateForLocale(ctx, displayLocale, buildLocaleNameKey(supportedLocale.Locale), nameFallback),
 			NativeName: s.translateForLocale(ctx, supportedLocale.Locale, buildLocaleNativeNameKey(supportedLocale.Locale), nativeNameFallback),
+			Direction:  supportedLocale.Direction,
 			IsDefault:  supportedLocale.IsDefault,
 		})
 	}
@@ -351,9 +334,17 @@ func (s *serviceImpl) rebuildMergedCatalog(ctx context.Context, lc *localeCache,
 	}
 	if lc.dynamic == nil {
 		lc.dynamic = s.loadDynamicPluginLocaleBundles(ctx, locale)
-	}
-	if lc.db == nil {
-		lc.db, lc.dbSources = s.loadDatabaseLocaleBundle(ctx, locale)
+		lc.dynamicDirty = nil
+	} else if len(lc.dynamicDirty) > 0 {
+		for pluginID := range lc.dynamicDirty {
+			bundle := s.loadDynamicPluginLocaleBundle(ctx, locale, pluginID)
+			if len(bundle) == 0 {
+				delete(lc.dynamic, pluginID)
+				continue
+			}
+			lc.dynamic[pluginID] = bundle
+		}
+		lc.dynamicDirty = nil
 	}
 
 	merged, sources := mergeLocaleSectors(lc, locale)
@@ -367,8 +358,8 @@ func (s *serviceImpl) rebuildMergedCatalog(ctx context.Context, lc *localeCache,
 // one locale entry. Higher-priority sectors overwrite lower ones; per-key
 // origin is recorded for diagnostics.
 func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[string]MessageSourceDescriptor) {
-	merged := make(map[string]string, len(lc.host)+len(lc.db))
-	sources := make(map[string]MessageSourceDescriptor, len(lc.host)+len(lc.db))
+	merged := make(map[string]string, len(lc.host))
+	sources := make(map[string]MessageSourceDescriptor, len(lc.host))
 
 	for key, value := range lc.host {
 		merged[key] = value
@@ -411,18 +402,6 @@ func mergeLocaleSectors(lc *localeCache, locale string) (map[string]string, map[
 		}
 	}
 
-	for key, value := range lc.db {
-		merged[key] = value
-		if descriptor, ok := lc.dbSources[key]; ok {
-			sources[key] = descriptor
-			continue
-		}
-		sources[key] = MessageSourceDescriptor{
-			Type:      string(messageOriginTypeDatabase),
-			ScopeType: string(messageScopeTypeHost),
-			ScopeKey:  hostMessageScopeKey,
-		}
-	}
 	return merged, sources
 }
 

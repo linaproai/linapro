@@ -643,6 +643,9 @@ importers:
       vue-router:
         specifier: 'catalog:'
         version: 5.0.3(@vue/compiler-sfc@3.5.29)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.29(typescript@5.9.3)))(vue@3.5.29(typescript@5.9.3))
+      vxe-pc-ui:
+        specifier: 'catalog:'
+        version: 4.13.0(vue@3.5.29(typescript@5.9.3))
 
   internal/lint-configs/commitlint-config:
     dependencies:

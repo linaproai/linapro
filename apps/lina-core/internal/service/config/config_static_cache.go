@@ -26,6 +26,7 @@ func (box *staticConfigBox[T]) load(loader func() *T) *T {
 // configuration loading and test resets can be managed in one place.
 type staticConfigCaches struct {
 	cluster          staticConfigBox[ClusterConfig]
+	i18n             staticConfigBox[I18nConfig]
 	jwt              staticConfigBox[JwtConfig]
 	logger           staticConfigBox[LoggerConfig]
 	metadata         staticConfigBox[MetadataConfig]
@@ -59,6 +60,19 @@ func cloneClusterConfig(cfg *ClusterConfig) *ClusterConfig {
 		return nil
 	}
 	cloned := *cfg
+	return &cloned
+}
+
+// cloneI18nConfig returns a detached copy so callers cannot mutate the shared
+// cached i18n config instance in process memory.
+func cloneI18nConfig(cfg *I18nConfig) *I18nConfig {
+	if cfg == nil {
+		return nil
+	}
+	cloned := *cfg
+	if len(cfg.Locales) > 0 {
+		cloned.Locales = append([]I18nLocaleConfig(nil), cfg.Locales...)
+	}
 	return &cloned
 }
 

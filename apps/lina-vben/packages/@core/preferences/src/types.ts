@@ -16,7 +16,7 @@ import type {
   ThemeModeType,
 } from '@vben-core/typings';
 
-type SupportedLanguagesType = 'en-US' | 'zh-CN';
+type SupportedLanguagesType = string;
 
 interface AppPreferences {
   /** 权限模式 */

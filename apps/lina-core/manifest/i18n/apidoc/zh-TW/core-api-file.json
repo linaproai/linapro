@@ -1,0 +1,447 @@
+{
+  "core": {
+    "api": {
+      "file": {
+        "v1": {
+          "DeleteReq": {
+            "fields": {
+              "ids": {
+                "dc": "文件ID，多個用逗號分隔"
+              }
+            },
+            "meta": {
+              "dc": "根據文件ID刪除文件，支持批量刪除（逗號分隔多個ID）。同時刪除物理文件和數據庫記錄",
+              "summary": "刪除文件",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "根據文件ID刪除文件，支持批量刪除（逗號分隔多個ID）。同時刪除物理文件和數據庫記錄"
+            }
+          },
+          "DetailReq": {
+            "fields": {
+              "id": {
+                "dc": "文件ID"
+              }
+            },
+            "meta": {
+              "dc": "根據文件ID查詢文件完整詳細信息，包括文件基本信息、上傳者名稱和使用場景",
+              "summary": "獲取文件詳情",
+              "tags": "文件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "createdBy": {
+                            "dc": "上傳者用戶ID"
+                          },
+                          "createdByName": {
+                            "dc": "上傳者用戶名"
+                          },
+                          "engine": {
+                            "dc": "存儲引擎：local=本地"
+                          },
+                          "hash": {
+                            "dc": "文件SHA-256散列值，用於去重"
+                          },
+                          "id": {
+                            "dc": "文件ID"
+                          },
+                          "name": {
+                            "dc": "存儲文件名"
+                          },
+                          "original": {
+                            "dc": "原始文件名"
+                          },
+                          "path": {
+                            "dc": "文件存儲路徑"
+                          },
+                          "scene": {
+                            "dc": "使用場景"
+                          },
+                          "sceneLabel": {
+                            "dc": "使用場景名稱"
+                          },
+                          "size": {
+                            "dc": "文件大小（字節）"
+                          },
+                          "suffix": {
+                            "dc": "文件後綴"
+                          },
+                          "url": {
+                            "dc": "文件訪問URL"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根據文件ID查詢文件完整詳細信息，包括文件基本信息、上傳者名稱和使用場景"
+            }
+          },
+          "DetailRes": {
+            "fields": {
+              "createdBy": {
+                "dc": "上傳者用戶ID"
+              },
+              "createdByName": {
+                "dc": "上傳者用戶名"
+              },
+              "engine": {
+                "dc": "存儲引擎：local=本地"
+              },
+              "hash": {
+                "dc": "文件SHA-256散列值，用於去重"
+              },
+              "id": {
+                "dc": "文件ID"
+              },
+              "name": {
+                "dc": "存儲文件名"
+              },
+              "original": {
+                "dc": "原始文件名"
+              },
+              "path": {
+                "dc": "文件存儲路徑"
+              },
+              "scene": {
+                "dc": "使用場景"
+              },
+              "sceneLabel": {
+                "dc": "使用場景名稱"
+              },
+              "size": {
+                "dc": "文件大小（字節）"
+              },
+              "suffix": {
+                "dc": "文件後綴"
+              },
+              "url": {
+                "dc": "文件訪問URL"
+              }
+            }
+          },
+          "DownloadReq": {
+            "fields": {
+              "id": {
+                "dc": "文件ID"
+              }
+            },
+            "meta": {
+              "dc": "根據文件ID下載文件，返回文件二進制內容",
+              "summary": "下載文件",
+              "tags": "文件管理"
+            },
+            "schema": {
+              "dc": "根據文件ID下載文件，返回文件二進制內容"
+            }
+          },
+          "FileSuffixItem": {
+            "fields": {
+              "label": {
+                "dc": "文件後綴顯示名"
+              },
+              "value": {
+                "dc": "文件後綴值"
+              }
+            }
+          },
+          "FileSuffixesReq": {
+            "meta": {
+              "dc": "查詢數據庫中已存在的文件後綴列表，用於前端下拉選擇",
+              "summary": "獲取文件類型列表",
+              "tags": "文件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "文件後綴列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "查詢數據庫中已存在的文件後綴列表，用於前端下拉選擇"
+            }
+          },
+          "FileSuffixesRes": {
+            "fields": {
+              "list": {
+                "dc": "文件後綴列表"
+              }
+            }
+          },
+          "InfoByIdsReq": {
+            "fields": {
+              "ids": {
+                "dc": "文件ID，多個用逗號分隔"
+              }
+            },
+            "meta": {
+              "dc": "根據文件ID查詢文件詳細信息，支持批量查詢（逗號分隔多個ID），用於文件回顯",
+              "summary": "根據ID查詢文件信息",
+              "tags": "文件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "文件信息列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根據文件ID查詢文件詳細信息，支持批量查詢（逗號分隔多個ID），用於文件回顯"
+            }
+          },
+          "InfoByIdsRes": {
+            "fields": {
+              "list": {
+                "dc": "文件信息列表"
+              }
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "createdBy": {
+                "dc": "上傳者用戶ID"
+              },
+              "createdByName": {
+                "dc": "上傳者用戶名"
+              },
+              "engine": {
+                "dc": "存儲引擎：local=本地"
+              },
+              "hash": {
+                "dc": "文件SHA-256散列值，用於去重"
+              },
+              "id": {
+                "dc": "文件ID"
+              },
+              "name": {
+                "dc": "存儲文件名"
+              },
+              "original": {
+                "dc": "原始文件名"
+              },
+              "path": {
+                "dc": "文件存儲路徑"
+              },
+              "scene": {
+                "dc": "使用場景"
+              },
+              "size": {
+                "dc": "文件大小（字節）"
+              },
+              "suffix": {
+                "dc": "文件後綴"
+              },
+              "url": {
+                "dc": "文件訪問URL"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "上傳時間範圍開始"
+              },
+              "endTime": {
+                "dc": "上傳時間範圍結束"
+              },
+              "name": {
+                "dc": "按存儲文件名篩選（模糊匹配）"
+              },
+              "orderBy": {
+                "dc": "排序字段：size,createdAt"
+              },
+              "orderDirection": {
+                "dc": "排序方向：asc=升序 desc=降序"
+              },
+              "original": {
+                "dc": "按原始文件名篩選（模糊匹配）"
+              },
+              "scene": {
+                "dc": "按使用場景篩選：avatar=用戶頭像 notice_image=通知公告圖片 notice_attachment=通知公告附件 other=其他，不傳則查詢全部"
+              },
+              "suffix": {
+                "dc": "按文件後綴精確篩選"
+              }
+            },
+            "meta": {
+              "dc": "分頁查詢文件列表，支持按文件名、原始名、後綴、上傳時間範圍篩選，支持按文件大小和上傳時間排序",
+              "summary": "獲取文件列表",
+              "tags": "文件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "文件列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分頁查詢文件列表，支持按文件名、原始名、後綴、上傳時間範圍篩選，支持按文件大小和上傳時間排序"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "文件列表"
+              }
+            }
+          },
+          "UploadReq": {
+            "fields": {
+              "scene": {
+                "dc": "使用場景標識（必填）：avatar=用戶頭像 notice_image=通知公告圖片 notice_attachment=通知公告附件 other=其他"
+              }
+            },
+            "meta": {
+              "dc": "上傳單個文件到服務器，支持常見文件格式，文件信息自動記錄到文件管理表中。scene為必填參數，系統會自動記錄文件與使用場景的關聯關係",
+              "summary": "上傳文件",
+              "tags": "文件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "文件ID"
+                          },
+                          "name": {
+                            "dc": "存儲文件名"
+                          },
+                          "original": {
+                            "dc": "原始文件名"
+                          },
+                          "size": {
+                            "dc": "文件大小（字節）"
+                          },
+                          "suffix": {
+                            "dc": "文件後綴"
+                          },
+                          "url": {
+                            "dc": "文件訪問URL"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "上傳單個文件到服務器，支持常見文件格式，文件信息自動記錄到文件管理表中。scene為必填參數，系統會自動記錄文件與使用場景的關聯關係"
+            }
+          },
+          "UploadRes": {
+            "fields": {
+              "id": {
+                "dc": "文件ID"
+              },
+              "name": {
+                "dc": "存儲文件名"
+              },
+              "original": {
+                "dc": "原始文件名"
+              },
+              "size": {
+                "dc": "文件大小（字節）"
+              },
+              "suffix": {
+                "dc": "文件後綴"
+              },
+              "url": {
+                "dc": "文件訪問URL"
+              }
+            }
+          },
+          "UsageSceneItem": {
+            "fields": {
+              "label": {
+                "dc": "使用場景名稱"
+              },
+              "value": {
+                "dc": "使用場景標識"
+              }
+            }
+          },
+          "UsageScenesReq": {
+            "meta": {
+              "dc": "查詢所有已使用的文件使用場景標識列表，供管理工作臺的篩選器、治理視圖或文件表單複用",
+              "summary": "獲取文件使用場景列表",
+              "tags": "文件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "使用場景列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "查詢所有已使用的文件使用場景標識列表，供管理工作臺的篩選器、治理視圖或文件表單複用"
+            }
+          },
+          "UsageScenesRes": {
+            "fields": {
+              "list": {
+                "dc": "使用場景列表"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

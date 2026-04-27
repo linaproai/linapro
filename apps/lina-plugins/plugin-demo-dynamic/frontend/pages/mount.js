@@ -21,6 +21,25 @@ function formatTemplate(template, parameters = {}) {
   });
 }
 
+function resolveSupportedLocale(locale) {
+  const normalized = String(locale || "").trim();
+  if (!normalized) {
+    return "en-US";
+  }
+  const lowerLocale = normalized.toLowerCase();
+  if (
+    lowerLocale === "zh" ||
+    lowerLocale === "zh-cn" ||
+    lowerLocale.startsWith("zh-hans")
+  ) {
+    return "zh-CN";
+  }
+  if (lowerLocale.startsWith("en")) {
+    return "en-US";
+  }
+  return normalized;
+}
+
 function buildPageCopy(context) {
   const t = (key, fallback) => translate(context, key, fallback);
 
@@ -91,10 +110,7 @@ function buildPageCopy(context) {
       "plugin.plugin-demo-dynamic.page.emptyText",
       "当前只有安装 SQL 初始化的默认记录，你可以继续新增、编辑或删除自定义记录。",
     ),
-    emptyTitle: t(
-      "plugin.plugin-demo-dynamic.page.emptyTitle",
-      "暂无示例记录",
-    ),
+    emptyTitle: t("plugin.plugin-demo-dynamic.page.emptyTitle", "暂无示例记录"),
     featureItems: [
       {
         description: t(
@@ -115,7 +131,10 @@ function buildPageCopy(context) {
           "plugin.plugin-demo-dynamic.page.feature.data.description",
           "安装时创建插件自有业务表，页面可直接完成增删查改和附件下载。",
         ),
-        label: t("plugin.plugin-demo-dynamic.page.feature.data.label", "数据示例"),
+        label: t(
+          "plugin.plugin-demo-dynamic.page.feature.data.label",
+          "数据示例",
+        ),
         value: t(
           "plugin.plugin-demo-dynamic.page.feature.data.value",
           "安装 SQL + CRUD",
@@ -157,7 +176,10 @@ function buildPageCopy(context) {
           "plugin.plugin-demo-dynamic.page.metric.schema.description",
           "安装时生成插件自有业务表示例数据",
         ),
-        label: t("plugin.plugin-demo-dynamic.page.metric.schema.label", "SQL 创建"),
+        label: t(
+          "plugin.plugin-demo-dynamic.page.metric.schema.label",
+          "SQL 创建",
+        ),
         value: t(
           "plugin.plugin-demo-dynamic.page.metric.schema.value",
           "安装时生成插件自有业务表示例数据",
@@ -316,10 +338,7 @@ function buildPageCopy(context) {
           "plugin.plugin-demo-dynamic.page.table.header.content",
           "内容",
         ),
-        title: t(
-          "plugin.plugin-demo-dynamic.page.table.header.title",
-          "标题",
-        ),
+        title: t("plugin.plugin-demo-dynamic.page.table.header.title", "标题"),
         updatedAt: t(
           "plugin.plugin-demo-dynamic.page.table.header.updatedAt",
           "更新时间",
@@ -347,6 +366,53 @@ function buildPageCopy(context) {
       "该区域读取 plugin-demo-dynamic 安装 SQL 创建的数据表，并通过动态插件后端路由完成新增、编辑、删除与附件下载。禁用插件不会清空这些数据。",
     ),
   };
+}
+
+function buildStandaloneCopy(pageCopy) {
+  return {
+    badge: pageCopy.badge,
+    card1Body: pageCopy.metrics[0]?.description || pageCopy.workspaceSummary,
+    card1Title: pageCopy.metrics[0]?.value || pageCopy.panelTitle,
+    card2Body: pageCopy.metrics[1]?.description || pageCopy.pageDescription,
+    card2Title: pageCopy.metrics[1]?.value || pageCopy.gridTitle,
+    footer: pageCopy.workspaceSummary,
+    heroTitle: pageCopy.pageTitle,
+    lead: pageCopy.pageDescription,
+    summary1Body: pageCopy.featureItems[0]?.description || "",
+    summary1Title: pageCopy.featureItems[0]?.value || "",
+    summary2Body: pageCopy.featureItems[1]?.description || "",
+    summary2Title: pageCopy.featureItems[1]?.value || "",
+    summary3Body: pageCopy.featureItems[2]?.description || "",
+    summary3Title: pageCopy.featureItems[2]?.value || "",
+    summaryTitle: pageCopy.panelTitle,
+    title: pageCopy.pageTitle,
+  };
+}
+
+function createStandalonePayloadKey(locale) {
+  return `linapro:plugin-demo-dynamic:standalone:${locale}:${Date.now()}`;
+}
+
+function persistStandaloneCopy(windowRef, locale, pageCopy) {
+  const storage = windowRef?.localStorage;
+  if (!storage) {
+    return "";
+  }
+
+  const key = createStandalonePayloadKey(locale);
+  try {
+    storage.setItem(
+      key,
+      JSON.stringify({
+        locale,
+        messages: buildStandaloneCopy(pageCopy),
+        savedAt: Date.now(),
+      }),
+    );
+    return key;
+  } catch (_error) {
+    return "";
+  }
 }
 
 function ensureMountStyles(documentRef) {
@@ -1213,6 +1279,14 @@ export function mount(context) {
     if (currentLocale) {
       standaloneURL.searchParams.set("lang", currentLocale);
     }
+    const payloadKey = persistStandaloneCopy(
+      documentRef.defaultView,
+      currentLocale,
+      pageCopy,
+    );
+    if (payloadKey) {
+      standaloneURL.searchParams.set("i18nKey", payloadKey);
+    }
     window.open(standaloneURL.toString(), "_blank", "noopener,noreferrer");
   });
 
@@ -1663,7 +1737,9 @@ export function mount(context) {
       titleBlock.textContent = record.title || "";
       const createdMeta = documentRef.createElement("div");
       createdMeta.className = "plugin-demo-dynamic-page__cell-meta";
-      createdMeta.textContent = pageCopy.table.createdAt(record.createdAt || "-");
+      createdMeta.textContent = pageCopy.table.createdAt(
+        record.createdAt || "-",
+      );
       titleCell.append(titleBlock, createdMeta);
 
       const contentCell = documentRef.createElement("td");
@@ -1950,7 +2026,9 @@ export function mount(context) {
       modalFeedback.hidden = false;
       modalFeedback.setAttribute("data-kind", "warn");
       modalFeedback.textContent =
-        error instanceof Error ? error.message : pageCopy.messages.saveRecordFailed;
+        error instanceof Error
+          ? error.message
+          : pageCopy.messages.saveRecordFailed;
     } finally {
       state.submitting = false;
       updateActionState();
@@ -1961,9 +2039,7 @@ export function mount(context) {
 
   async function deleteRecord(record) {
     const confirmed = window.confirm(
-      pageCopy.messages.deleteConfirm(
-        record.title || "",
-      ),
+      pageCopy.messages.deleteConfirm(record.title || ""),
     );
     if (!confirmed) {
       return;
@@ -2015,7 +2091,9 @@ export function mount(context) {
     } catch (error) {
       setFeedback(
         "error",
-        error instanceof Error ? error.message : pageCopy.messages.downloadFailed,
+        error instanceof Error
+          ? error.message
+          : pageCopy.messages.downloadFailed,
       );
     }
   }

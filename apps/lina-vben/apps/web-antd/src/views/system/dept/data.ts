@@ -4,6 +4,7 @@ import type { VxeGridProps } from '#/adapter/vxe-table';
 import { h } from 'vue';
 
 import { DictTag } from '#/components/dict';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 
 function resolveDictOptions(dictType: string) {
@@ -11,62 +12,66 @@ function resolveDictOptions(dictType: string) {
 }
 
 /** 查询表单schema */
-export const querySchema: VbenFormSchema[] = [
-  {
-    component: 'Input',
-    fieldName: 'name',
-    label: '部门名称',
-  },
-  {
-    component: 'Select',
-    fieldName: 'status',
-    label: '部门状态',
-  },
-];
+export function querySchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'name',
+      label: $t('plugin.org-center.dept.fields.name'),
+    },
+    {
+      component: 'Select',
+      fieldName: 'status',
+      label: $t('plugin.org-center.dept.fields.status'),
+    },
+  ];
+}
 
 /** 表格列定义 */
-export const columns: VxeGridProps['columns'] = [
-  {
-    field: 'name',
-    title: '部门名称',
-    treeNode: true,
-    minWidth: 200,
-  },
-  {
-    field: 'code',
-    title: '部门编码',
-    minWidth: 120,
-  },
-  {
-    field: 'orderNum',
-    title: '排序',
-    width: 100,
-  },
-  {
-    field: 'status',
-    title: '状态',
-    width: 120,
-    slots: {
-      default: ({ row }) => {
-        const dicts = resolveDictOptions('sys_normal_disable');
-        return h(DictTag, { dicts: dicts as any, value: row.status });
+export function columns(): VxeGridProps['columns'] {
+  return [
+    {
+      field: 'name',
+      title: $t('plugin.org-center.dept.fields.name'),
+      treeNode: true,
+      minWidth: 200,
+    },
+    {
+      field: 'code',
+      title: $t('plugin.org-center.dept.fields.code'),
+      minWidth: 120,
+    },
+    {
+      field: 'orderNum',
+      title: $t('plugin.org-center.dept.fields.sortOrder'),
+      width: 100,
+    },
+    {
+      field: 'status',
+      title: $t('pages.common.status'),
+      width: 120,
+      slots: {
+        default: ({ row }) => {
+          const dicts = resolveDictOptions('sys_normal_disable');
+          return h(DictTag, { dicts: dicts as any, value: row.status });
+        },
       },
     },
-  },
-  {
-    field: 'createdAt',
-    title: '创建时间',
-    minWidth: 180,
-  },
-  {
-    field: 'action',
-    fixed: 'right',
-    slots: { default: 'action' },
-    title: '操作',
-    resizable: false,
-    width: 'auto',
-  },
-];
+    {
+      field: 'createdAt',
+      title: $t('pages.common.createdAt'),
+      minWidth: 180,
+    },
+    {
+      field: 'action',
+      fixed: 'right',
+      slots: { default: 'action' },
+      title: $t('pages.common.actions'),
+      resizable: false,
+      width: 'auto',
+    },
+  ];
+}
 
 /** 新增/编辑表单schema */
 export function drawerSchema(): VbenFormSchema[] {
@@ -74,24 +79,24 @@ export function drawerSchema(): VbenFormSchema[] {
     {
       component: 'TreeSelect',
       fieldName: 'parentId',
-      label: '上级部门',
+      label: $t('plugin.org-center.dept.fields.parentDept'),
       rules: 'selectRequired',
     },
     {
       component: 'Input',
       fieldName: 'name',
-      label: '部门名称',
+      label: $t('plugin.org-center.dept.fields.name'),
       rules: 'required',
     },
     {
       component: 'Input',
       fieldName: 'code',
-      label: '部门编码',
+      label: $t('plugin.org-center.dept.fields.code'),
     },
     {
       component: 'InputNumber',
       fieldName: 'orderNum',
-      label: '显示排序',
+      label: $t('plugin.org-center.dept.fields.sortOrder'),
       rules: 'required',
       defaultValue: 0,
     },
@@ -101,17 +106,17 @@ export function drawerSchema(): VbenFormSchema[] {
         allowClear: true,
       },
       fieldName: 'leader',
-      label: '负责人',
+      label: $t('plugin.org-center.dept.fields.leader'),
     },
     {
       component: 'Input',
       fieldName: 'phone',
-      label: '联系电话',
+      label: $t('plugin.org-center.dept.fields.phone'),
     },
     {
       component: 'Input',
       fieldName: 'email',
-      label: '邮箱',
+      label: $t('pages.fields.email'),
     },
     {
       component: 'RadioGroup',
@@ -121,7 +126,7 @@ export function drawerSchema(): VbenFormSchema[] {
       },
       defaultValue: 1,
       fieldName: 'status',
-      label: '状态',
+      label: $t('pages.common.status'),
     },
   ];
 }

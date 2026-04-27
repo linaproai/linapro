@@ -1,0 +1,939 @@
+{
+  "core": {
+    "api": {
+      "user": {
+        "v1": {
+          "CreateReq": {
+            "fields": {
+              "deptId": {
+                "dc": "所屬部門ID"
+              },
+              "email": {
+                "dc": "郵箱"
+              },
+              "nickname": {
+                "dc": "暱稱"
+              },
+              "password": {
+                "dc": "密碼"
+              },
+              "phone": {
+                "dc": "手機號"
+              },
+              "postIds": {
+                "dc": "崗位ID列表"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "sex": {
+                "dc": "性別：0=未知 1=男 2=女"
+              },
+              "status": {
+                "dc": "狀態：1=正常 0=停用"
+              },
+              "username": {
+                "dc": "用戶名"
+              }
+            },
+            "meta": {
+              "dc": "創建一個新用戶，用戶名在系統中必須唯一。可指定所屬部門、崗位和角色",
+              "summary": "創建用戶",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "用戶ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "創建一個新用戶，用戶名在系統中必須唯一。可指定所屬部門、崗位和角色"
+            }
+          },
+          "CreateRes": {
+            "fields": {
+              "id": {
+                "dc": "用戶ID"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "id": {
+                "dc": "用戶ID"
+              }
+            },
+            "meta": {
+              "dc": "根據用戶ID刪除指定用戶，不允許刪除管理員賬號",
+              "summary": "刪除用戶",
+              "tags": "用戶管理"
+            },
+            "schema": {
+              "dc": "根據用戶ID刪除指定用戶，不允許刪除管理員賬號"
+            }
+          },
+          "DeptTreeNode": {
+            "fields": {
+              "children": {
+                "dc": "子部門列表"
+              },
+              "id": {
+                "dc": "所屬部門ID"
+              },
+              "label": {
+                "dc": "部門名稱"
+              },
+              "userCount": {
+                "dc": "部門用戶數"
+              }
+            }
+          },
+          "DeptTreeReq": {
+            "meta": {
+              "dc": "獲取部門樹結構及部門用戶數，供管理工作臺的用戶查詢視圖按部門篩選或裝配樹選擇器",
+              "summary": "獲取用戶篩選部門樹",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "部門樹"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "獲取部門樹結構及部門用戶數，供管理工作臺的用戶查詢視圖按部門篩選或裝配樹選擇器"
+            }
+          },
+          "DeptTreeRes": {
+            "fields": {
+              "list": {
+                "dc": "部門樹"
+              }
+            }
+          },
+          "ExportReq": {
+            "fields": {
+              "ids": {
+                "dc": "導出指定用戶ID列表，為空則導出全部"
+              }
+            },
+            "meta": {
+              "dc": "導出用戶數據為Excel文件，可指定導出特定用戶或全部用戶",
+              "summary": "導出用戶數據",
+              "tags": "用戶管理"
+            },
+            "schema": {
+              "dc": "導出用戶數據為Excel文件，可指定導出特定用戶或全部用戶"
+            }
+          },
+          "GetInfoReq": {
+            "meta": {
+              "dc": "獲取當前登錄用戶的基礎身份、角色、菜單樹與權限集合，供默認管理工作臺完成啟動裝配、導航渲染與權限控制",
+              "summary": "獲取宿主用戶上下文",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "avatar": {
+                            "dc": "頭像地址"
+                          },
+                          "email": {
+                            "dc": "郵箱地址"
+                          },
+                          "homePath": {
+                            "dc": "首頁路徑"
+                          },
+                          "menus": {
+                            "dc": "宿主菜單樹，供默認管理工作臺裝配導航、路由與工作區入口"
+                          },
+                          "permissions": {
+                            "dc": "用戶有效權限標識列表，包含菜單權限與按鈕權限，用於接口聲明權限校驗和按鈕級權限控制"
+                          },
+                          "realName": {
+                            "dc": "真實姓名（暱稱）"
+                          },
+                          "roles": {
+                            "dc": "用戶角色標識列表"
+                          },
+                          "userId": {
+                            "dc": "用戶ID"
+                          },
+                          "username": {
+                            "dc": "用戶名"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "獲取當前登錄用戶的基礎身份、角色、菜單樹與權限集合，供默認管理工作臺完成啟動裝配、導航渲染與權限控制"
+            }
+          },
+          "GetInfoRes": {
+            "fields": {
+              "avatar": {
+                "dc": "頭像地址"
+              },
+              "email": {
+                "dc": "郵箱地址"
+              },
+              "homePath": {
+                "dc": "首頁路徑"
+              },
+              "menus": {
+                "dc": "宿主菜單樹，供默認管理工作臺裝配導航、路由與工作區入口"
+              },
+              "permissions": {
+                "dc": "用戶有效權限標識列表，包含菜單權限與按鈕權限，用於接口聲明權限校驗和按鈕級權限控制"
+              },
+              "realName": {
+                "dc": "真實姓名（暱稱）"
+              },
+              "roles": {
+                "dc": "用戶角色標識列表"
+              },
+              "userId": {
+                "dc": "用戶ID"
+              },
+              "username": {
+                "dc": "用戶名"
+              }
+            }
+          },
+          "GetProfileReq": {
+            "meta": {
+              "dc": "獲取當前登錄用戶的完整個人信息，供個人中心或管理工作臺資料視圖展示",
+              "summary": "獲取當前用戶信息",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "avatar": {
+                            "dc": "頭像地址"
+                          },
+                          "email": {
+                            "dc": "郵箱"
+                          },
+                          "id": {
+                            "dc": "用戶ID"
+                          },
+                          "loginDate": {
+                            "dc": "最後登錄時間"
+                          },
+                          "nickname": {
+                            "dc": "用戶暱稱"
+                          },
+                          "password": {
+                            "dc": "密碼"
+                          },
+                          "phone": {
+                            "dc": "手機號碼"
+                          },
+                          "remark": {
+                            "dc": "備註"
+                          },
+                          "sex": {
+                            "dc": "性別（0未知 1男 2女）"
+                          },
+                          "status": {
+                            "dc": "狀態（0停用 1正常）"
+                          },
+                          "username": {
+                            "dc": "用戶賬號"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "獲取當前登錄用戶的完整個人信息，供個人中心或管理工作臺資料視圖展示"
+            }
+          },
+          "GetProfileRes": {
+            "fields": {
+              "avatar": {
+                "dc": "頭像地址"
+              },
+              "email": {
+                "dc": "郵箱"
+              },
+              "id": {
+                "dc": "用戶ID"
+              },
+              "loginDate": {
+                "dc": "最後登錄時間"
+              },
+              "nickname": {
+                "dc": "用戶暱稱"
+              },
+              "password": {
+                "dc": "密碼"
+              },
+              "phone": {
+                "dc": "手機號碼"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "sex": {
+                "dc": "性別（0未知 1男 2女）"
+              },
+              "status": {
+                "dc": "狀態（0停用 1正常）"
+              },
+              "username": {
+                "dc": "用戶賬號"
+              }
+            },
+            "schema": {
+              "dc": "用戶信息"
+            }
+          },
+          "GetReq": {
+            "fields": {
+              "id": {
+                "dc": "用戶ID"
+              }
+            },
+            "meta": {
+              "dc": "根據用戶ID獲取用戶詳細信息，包括所屬部門和崗位信息",
+              "summary": "獲取用戶詳情",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "avatar": {
+                            "dc": "頭像地址"
+                          },
+                          "deptId": {
+                            "dc": "所屬部門ID"
+                          },
+                          "deptName": {
+                            "dc": "部門名稱"
+                          },
+                          "email": {
+                            "dc": "郵箱"
+                          },
+                          "id": {
+                            "dc": "用戶ID"
+                          },
+                          "loginDate": {
+                            "dc": "最後登錄時間"
+                          },
+                          "nickname": {
+                            "dc": "用戶暱稱"
+                          },
+                          "password": {
+                            "dc": "密碼"
+                          },
+                          "phone": {
+                            "dc": "手機號碼"
+                          },
+                          "postIds": {
+                            "dc": "崗位ID列表"
+                          },
+                          "remark": {
+                            "dc": "備註"
+                          },
+                          "roleIds": {
+                            "dc": "角色ID列表"
+                          },
+                          "sex": {
+                            "dc": "性別（0未知 1男 2女）"
+                          },
+                          "status": {
+                            "dc": "狀態（0停用 1正常）"
+                          },
+                          "username": {
+                            "dc": "用戶賬號"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根據用戶ID獲取用戶詳細信息，包括所屬部門和崗位信息"
+            }
+          },
+          "GetRes": {
+            "fields": {
+              "avatar": {
+                "dc": "頭像地址"
+              },
+              "deptId": {
+                "dc": "所屬部門ID"
+              },
+              "deptName": {
+                "dc": "部門名稱"
+              },
+              "email": {
+                "dc": "郵箱"
+              },
+              "id": {
+                "dc": "用戶ID"
+              },
+              "loginDate": {
+                "dc": "最後登錄時間"
+              },
+              "nickname": {
+                "dc": "用戶暱稱"
+              },
+              "password": {
+                "dc": "密碼"
+              },
+              "phone": {
+                "dc": "手機號碼"
+              },
+              "postIds": {
+                "dc": "崗位ID列表"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "sex": {
+                "dc": "性別（0未知 1男 2女）"
+              },
+              "status": {
+                "dc": "狀態（0停用 1正常）"
+              },
+              "username": {
+                "dc": "用戶賬號"
+              }
+            },
+            "schema": {
+              "dc": "用戶信息"
+            }
+          },
+          "ImportFailItem": {
+            "fields": {
+              "reason": {
+                "dc": "失敗原因"
+              },
+              "row": {
+                "dc": "行號"
+              }
+            }
+          },
+          "ImportReq": {
+            "meta": {
+              "dc": "通過Excel文件批量導入用戶數據，需使用系統提供的導入模板",
+              "summary": "導入用戶數據",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "fail": {
+                            "dc": "失敗條數"
+                          },
+                          "failList": {
+                            "dc": "失敗詳情"
+                          },
+                          "success": {
+                            "dc": "成功條數"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "通過Excel文件批量導入用戶數據，需使用系統提供的導入模板"
+            }
+          },
+          "ImportRes": {
+            "fields": {
+              "fail": {
+                "dc": "失敗條數"
+              },
+              "failList": {
+                "dc": "失敗詳情"
+              },
+              "success": {
+                "dc": "成功條數"
+              }
+            }
+          },
+          "ImportTemplateReq": {
+            "meta": {
+              "dc": "下載用戶導入Excel模板文件，包含必填字段和數據格式說明",
+              "summary": "下載導入模板",
+              "tags": "用戶管理"
+            },
+            "schema": {
+              "dc": "下載用戶導入Excel模板文件，包含必填字段和數據格式說明"
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "avatar": {
+                "dc": "頭像地址"
+              },
+              "deptId": {
+                "dc": "所屬部門ID"
+              },
+              "deptName": {
+                "dc": "部門名稱"
+              },
+              "email": {
+                "dc": "郵箱"
+              },
+              "id": {
+                "dc": "用戶ID"
+              },
+              "loginDate": {
+                "dc": "最後登錄時間"
+              },
+              "nickname": {
+                "dc": "用戶暱稱"
+              },
+              "password": {
+                "dc": "密碼"
+              },
+              "phone": {
+                "dc": "手機號碼"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "roleNames": {
+                "dc": "角色名稱列表"
+              },
+              "sex": {
+                "dc": "性別（0未知 1男 2女）"
+              },
+              "status": {
+                "dc": "狀態（0停用 1正常）"
+              },
+              "username": {
+                "dc": "用戶賬號"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "beginTime": {
+                "dc": "按創建時間起始篩選"
+              },
+              "deptId": {
+                "dc": "按部門ID篩選（包含子部門）"
+              },
+              "endTime": {
+                "dc": "按創建時間結束篩選"
+              },
+              "nickname": {
+                "dc": "按暱稱篩選（模糊匹配）"
+              },
+              "orderBy": {
+                "dc": "排序字段：id,username,nickname,phone,email,status,created_at"
+              },
+              "orderDirection": {
+                "dc": "排序方向：asc或desc",
+                "default": "desc"
+              },
+              "phone": {
+                "dc": "按手機號篩選（模糊匹配）"
+              },
+              "sex": {
+                "dc": "按性別篩選：0=未知 1=男 2=女"
+              },
+              "status": {
+                "dc": "按狀態篩選：1=正常 0=停用"
+              },
+              "username": {
+                "dc": "按用戶名篩選（模糊匹配）"
+              }
+            },
+            "meta": {
+              "dc": "分頁查詢用戶列表，支持按用戶名、暱稱、狀態、手機號、性別、部門、創建時間等條件篩選，支持自定義排序",
+              "summary": "獲取用戶列表",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "用戶列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分頁查詢用戶列表，支持按用戶名、暱稱、狀態、手機號、性別、部門、創建時間等條件篩選，支持自定義排序"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "用戶列表"
+              }
+            }
+          },
+          "MenuTree": {
+            "fields": {
+              "children": {
+                "dc": "子菜單"
+              },
+              "component": {
+                "dc": "組件路徑"
+              },
+              "icon": {
+                "dc": "菜單圖標"
+              },
+              "id": {
+                "dc": "菜單ID"
+              },
+              "isCache": {
+                "dc": "是否緩存：1=是 0=否"
+              },
+              "isFrame": {
+                "dc": "是否外鏈：1=是 0=否"
+              },
+              "name": {
+                "dc": "菜單名稱"
+              },
+              "parentId": {
+                "dc": "父菜單ID"
+              },
+              "path": {
+                "dc": "路由路徑"
+              },
+              "perms": {
+                "dc": "權限標識"
+              },
+              "sort": {
+                "dc": "排序"
+              },
+              "status": {
+                "dc": "狀態：1=正常 0=停用"
+              },
+              "type": {
+                "dc": "菜單類型：D=目錄 M=菜單 B=按鈕"
+              },
+              "visible": {
+                "dc": "是否顯示：1=顯示 0=隱藏"
+              }
+            }
+          },
+          "PostOptionsReq": {
+            "fields": {
+              "deptId": {
+                "dc": "部門ID，不傳則返回全部可選崗位；組織插件不可用時返回空列表"
+              }
+            },
+            "meta": {
+              "dc": "獲取指定部門及其子部門下的崗位選項，供用戶管理編輯抽屜在組織插件可用時裝配崗位多選框",
+              "summary": "獲取用戶崗位選項",
+              "tags": "用戶管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "崗位選項列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "獲取指定部門及其子部門下的崗位選項，供用戶管理編輯抽屜在組織插件可用時裝配崗位多選框"
+            }
+          },
+          "PostOptionsRes": {
+            "fields": {
+              "list": {
+                "dc": "崗位選項列表"
+              }
+            }
+          },
+          "ResetPasswordReq": {
+            "fields": {
+              "id": {
+                "dc": "用戶ID"
+              },
+              "password": {
+                "dc": "新密碼"
+              }
+            },
+            "meta": {
+              "dc": "管理員重置指定用戶的登錄密碼",
+              "summary": "重置用戶密碼",
+              "tags": "用戶管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "password": {
+                      "dc": "新密碼"
+                    }
+                  },
+                  "schema": {
+                    "dc": "管理員重置指定用戶的登錄密碼"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "管理員重置指定用戶的登錄密碼"
+            }
+          },
+          "UpdateAvatarReq": {
+            "fields": {
+              "avatar": {
+                "dc": "頭像URL地址"
+              }
+            },
+            "meta": {
+              "dc": "更新當前用戶頭像URL，需先通過文件上傳接口上傳頭像文件獲取URL",
+              "summary": "更新用戶頭像",
+              "tags": "用戶管理"
+            },
+            "schema": {
+              "dc": "更新當前用戶頭像URL，需先通過文件上傳接口上傳頭像文件獲取URL"
+            }
+          },
+          "UpdateProfileReq": {
+            "fields": {
+              "email": {
+                "dc": "郵箱"
+              },
+              "nickname": {
+                "dc": "暱稱"
+              },
+              "password": {
+                "dc": "新密碼"
+              },
+              "phone": {
+                "dc": "手機號"
+              },
+              "sex": {
+                "dc": "性別：0=未知 1=男 2=女"
+              }
+            },
+            "meta": {
+              "dc": "更新當前登錄用戶的個人資料，包括暱稱、郵箱、手機號、性別等，供個人中心或管理工作臺資料維護視圖使用",
+              "summary": "更新當前用戶信息",
+              "tags": "用戶管理"
+            },
+            "schema": {
+              "dc": "更新當前登錄用戶的個人資料，包括暱稱、郵箱、手機號、性別等，供個人中心或管理工作臺資料維護視圖使用"
+            }
+          },
+          "UpdateReq": {
+            "fields": {
+              "deptId": {
+                "dc": "所屬部門ID"
+              },
+              "email": {
+                "dc": "郵箱"
+              },
+              "id": {
+                "dc": "用戶ID"
+              },
+              "nickname": {
+                "dc": "暱稱"
+              },
+              "password": {
+                "dc": "密碼（為空則不修改）"
+              },
+              "phone": {
+                "dc": "手機號"
+              },
+              "postIds": {
+                "dc": "崗位ID列表"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "roleIds": {
+                "dc": "角色ID列表"
+              },
+              "sex": {
+                "dc": "性別：0=未知 1=男 2=女"
+              },
+              "status": {
+                "dc": "狀態：1=正常 0=停用"
+              },
+              "username": {
+                "dc": "用戶名"
+              }
+            },
+            "meta": {
+              "dc": "更新指定用戶的信息，所有字段均為可選更新，僅傳入需要修改的字段即可",
+              "summary": "更新用戶",
+              "tags": "用戶管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "deptId": {
+                      "dc": "所屬部門ID"
+                    },
+                    "email": {
+                      "dc": "郵箱"
+                    },
+                    "nickname": {
+                      "dc": "暱稱"
+                    },
+                    "password": {
+                      "dc": "密碼（為空則不修改）"
+                    },
+                    "phone": {
+                      "dc": "手機號"
+                    },
+                    "postIds": {
+                      "dc": "崗位ID列表"
+                    },
+                    "remark": {
+                      "dc": "備註"
+                    },
+                    "roleIds": {
+                      "dc": "角色ID列表"
+                    },
+                    "sex": {
+                      "dc": "性別：0=未知 1=男 2=女"
+                    },
+                    "status": {
+                      "dc": "狀態：1=正常 0=停用"
+                    },
+                    "username": {
+                      "dc": "用戶名"
+                    }
+                  },
+                  "schema": {
+                    "dc": "更新指定用戶的信息，所有字段均為可選更新，僅傳入需要修改的字段即可"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "更新指定用戶的信息，所有字段均為可選更新，僅傳入需要修改的字段即可"
+            }
+          },
+          "UpdateStatusReq": {
+            "fields": {
+              "id": {
+                "dc": "用戶ID"
+              },
+              "status": {
+                "dc": "狀態：1=正常 0=停用"
+              }
+            },
+            "meta": {
+              "dc": "啟用或停用指定用戶賬號",
+              "summary": "更新用戶狀態",
+              "tags": "用戶管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "status": {
+                      "dc": "狀態：1=正常 0=停用"
+                    }
+                  },
+                  "schema": {
+                    "dc": "啟用或停用指定用戶賬號"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "啟用或停用指定用戶賬號"
+            }
+          },
+          "UserPostOption": {
+            "fields": {
+              "postId": {
+                "dc": "崗位ID"
+              },
+              "postName": {
+                "dc": "崗位名稱"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

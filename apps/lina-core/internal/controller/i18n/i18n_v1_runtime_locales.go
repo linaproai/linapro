@@ -18,12 +18,14 @@ func (c *ControllerV1) RuntimeLocales(ctx context.Context, req *v1.RuntimeLocale
 			Locale:     descriptor.Locale,
 			Name:       descriptor.Name,
 			NativeName: descriptor.NativeName,
+			Direction:  descriptor.Direction,
 			IsDefault:  descriptor.IsDefault,
 		})
 	}
 
 	return &v1.RuntimeLocalesRes{
-		Locale: locale,
-		Items:  items,
+		Locale:  locale,
+		Enabled: c.bundleProvider.IsMultiLanguageEnabled(ctx),
+		Items:   items,
 	}, nil
 }

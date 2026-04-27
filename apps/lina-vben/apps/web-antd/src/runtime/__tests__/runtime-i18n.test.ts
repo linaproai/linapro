@@ -25,6 +25,7 @@ import {
   loadRuntimeLocaleMessages,
   lookupRuntimeMessageString,
   mergeMessages,
+  normalizeRuntimeLocalesPayload,
   reloadRuntimeLocaleMessages,
   runtimeI18nVersion,
   runtimePersistentCacheTTL,
@@ -105,6 +106,35 @@ describe('runtime-i18n', () => {
     });
   });
 
+  it('normalizes runtime locale descriptors without exposing direction metadata', () => {
+    expect(
+      normalizeRuntimeLocalesPayload({
+        enabled: false,
+        items: [
+          {
+            isDefault: false,
+            locale: 'zh-TW',
+            name: 'Chinese (Traditional)',
+            nativeName: '繁體中文',
+          },
+        ],
+        locale: 'zh-TW',
+      }),
+    ).toEqual({
+      defaultLocale: 'zh-TW',
+      enabled: false,
+      locale: 'zh-TW',
+      options: [
+        {
+          isDefault: false,
+          label: '繁體中文',
+          nativeName: '繁體中文',
+          value: 'zh-TW',
+        },
+      ],
+    });
+  });
+
   it('loads and caches runtime locale messages for the active locale', async () => {
     requestClientGet.mockResolvedValue(
       makeRuntimeResponse({
@@ -126,6 +156,9 @@ describe('runtime-i18n', () => {
         headers: expect.objectContaining({
           'Accept-Language': 'en-US',
         }),
+        params: {
+          lang: 'en-US',
+        },
         responseReturn: 'raw',
       }),
     );
@@ -161,6 +194,9 @@ describe('runtime-i18n', () => {
         headers: expect.objectContaining({
           'If-None-Match': '"en-US-persisted"',
         }),
+        params: {
+          lang: 'en-US',
+        },
       }),
     );
   });

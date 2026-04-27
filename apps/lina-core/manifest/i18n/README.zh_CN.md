@@ -2,7 +2,7 @@
 
 该目录用于存放`LinaPro`交付项目的国际化基线资源。
 
-宿主会把顶层`manifest/i18n/<locale>.json`作为运行时 UI 语言包加载，并与已启用插件资源、数据库覆写一起聚合，最终通过运行时国际化接口输出生效结果。
+宿主会把顶层`manifest/i18n/<locale>.json`作为运行时 UI 语言包加载，并与已启用插件资源一起聚合，最终通过运行时国际化接口输出生效结果。
 
 接口文档翻译资源存放在`manifest/i18n/apidoc/<locale>.json`，也可以按需拆分到 `manifest/i18n/apidoc/<locale>/**/*.json`。它们与运行时 UI 语言包共享同一个 i18n 根目录，便于发现和治理，但通过 `apidoc/` 子目录保持隔离，因为 OpenAPI 文档体量较大，且只在渲染 `/api.json` 时需要。
 
@@ -10,31 +10,37 @@
 
 | 路径                                                        | 用途               |
 | ----------------------------------------------------------- | ------------------ |
+| `manifest/config/config.template.yaml` 的 `i18n` 配置段       | 默认语言、多语言开关、排序、原生名 |
 | `manifest/i18n/zh-CN.json`                                  | 简体中文基线语言包 |
 | `manifest/i18n/en-US.json`                                  | 英文基线语言包     |
+| `manifest/i18n/zh-TW.json`                                  | 繁体中文基线语言包 |
 | `manifest/i18n/apidoc/zh-CN.json` 与 `manifest/i18n/apidoc/zh-CN/**/*.json` | 简体中文接口文档语言包 |
 | `manifest/i18n/apidoc/en-US.json`                           | 英文接口文档空占位文件 |
+| `manifest/i18n/apidoc/zh-TW.json` 与 `manifest/i18n/apidoc/zh-TW/**/*.json` | 繁体中文接口文档语言包 |
 | `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | 插件自有语言包     |
 | `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` 与可选拆分文件 | 插件自有接口文档语言包 |
 
 规则如下：
 
 - 文件名必须使用规范化语言编码，例如`zh-CN.json`、`en-US.json`。
+- 内置运行时语言从顶层 `manifest/i18n/<locale>.json` 自动发现。
+- 默认配置文件的 `i18n` 配置段维护无法安全从文件名推导且部署方可能调整的元数据。运行时文本方向按当前宿主约定固定为 `ltr`。
+- 新增内置语言不得要求修改 Go 常量、SQL seed 文件或前端 TypeScript 语言清单。
 - 宿主只把顶层`manifest/i18n/<locale>.json`识别为运行时语言包。
 - 宿主把`manifest/i18n/apidoc/<locale>.json`和`manifest/i18n/apidoc/<locale>/**/*.json`识别为接口文档语言包。
 - 运行时 UI 消息文件可使用层级 JSON 或扁平 dotted key 编写。
-- 宿主会把运行时 UI 消息文件归一化为扁平 key，用于聚合、数据库覆写、缺失检查、导入导出和来源诊断。
+- 宿主会把运行时 UI 消息文件归一化为扁平 key，用于聚合、缺失检查、导出、来源诊断和插件打包。
 - 只有在返回前端运行时国际化接口结果时，宿主才会把归一化后的扁平 key 转换为嵌套对象。
 - 接口文档语言包可使用层级 JSON 或扁平 dotted key 编写，并统一归一化为结构化 `core.*` 和 `plugins.*` 键；`en-US.json` 保持 `{}`，且不翻译 `eg/example` 示例值或生成 entity 元数据。
 - 接口文档语言包可使用宿主自有的 `core.common.*` fallback key 维护标准响应、分页、时间字段等重复元数据；具体结构 key 存在时仍优先生效。
 
 ## 为什么使用`JSON`和 key 归一化
 
-`JSON`作为交付格式，是因为它与现有前端语言包工作流一致，便于通过`HTTP API`做导入导出，也便于在动态插件`Wasm`产物中直接嵌入，不需要额外转换层。
+`JSON`作为交付格式，是因为它与现有前端语言包工作流一致，便于通过`HTTP API`导出和离线校对，也便于在动态插件`Wasm`产物中直接嵌入，不需要额外转换层。
 
 层级 JSON 是运行时 UI 消息推荐使用的文件编写格式，因为它可以减少重复前缀，并提升代码审查时的可读性。扁平 dotted key 仍然被接受，适合小范围补丁和渐进迁移。
 
-扁平 key 仍然是系统治理格式，因为它可以让后端存储、数据库覆写、缺失翻译检查、导入导出、来源诊断和插件打包都保持简单、稳定、可预测。同一个语言文件中若同时存在层级 JSON 与等价扁平 dotted key，则扁平 dotted key 覆盖层级值，便于显式处理迁移差异。
+扁平 key 仍然是系统治理格式，因为它可以让资源比对、缺失翻译检查、导出、来源诊断和插件打包都保持简单、稳定、可预测。同一个语言文件中若同时存在层级 JSON 与等价扁平 dotted key，则扁平 dotted key 覆盖层级值，便于显式处理迁移差异。
 
 示例：
 
@@ -82,57 +88,40 @@
 ## 交付维护流程
 
 1. 在`manifest/i18n/`中新增或更新基线语言文件。
-2. 当插件提供用户可见文案时，在`apps/lina-plugins/<plugin-id>/manifest/i18n/`中补充对应语言文件。
-3. 当 API DTO 源文案变化时，在宿主或插件自己的 `manifest/i18n/apidoc/` 中补充接口文档语言文件。
-4. 启动宿主后，请求`GET /api/v1/i18n/runtime/messages?lang=<locale>`确认聚合后的运行时结果。
-5. 请求 `/api.json?lang=<locale>` 确认接口文档本地化结果。
-6. 使用`GET /api/v1/i18n/messages/missing?locale=<locale>`检查目标语言相对默认语言仍缺失的翻译键。
-7. 使用`GET /api/v1/i18n/messages/diagnostics?locale=<locale>`确认当前生效值来自宿主文件、插件文件还是数据库覆写。
-8. 如果线上需要热修正文案，可通过`POST /api/v1/i18n/messages/import`导入数据库覆写，再通过`GET /api/v1/i18n/messages/export`导出生效结果回写代码库。
+2. 当新语言需要启用、排序、原生名兜底或默认语言选择时，更新默认配置文件中的 `i18n.locales` 列表。
+3. 当插件提供用户可见文案时，在`apps/lina-plugins/<plugin-id>/manifest/i18n/`中补充对应语言文件。
+4. 当 API DTO 源文案变化时，在宿主或插件自己的 `manifest/i18n/apidoc/` 中补充接口文档语言文件。
+5. 启动宿主后，请求`GET /api/v1/i18n/runtime/locales?lang=<locale>`确认语言列表和元数据。
+6. 请求`GET /api/v1/i18n/runtime/messages?lang=<locale>`确认聚合后的运行时结果。
+7. 请求 `/api.json?lang=<locale>` 确认接口文档本地化结果。
+8. 使用`GET /api/v1/i18n/messages/missing?locale=<locale>`检查目标语言相对默认语言仍缺失的翻译键。
+9. 使用`GET /api/v1/i18n/messages/diagnostics?locale=<locale>`确认当前生效值来自宿主文件还是插件文件。
+10. 当需要离线校对或维护资源文件时，使用`GET /api/v1/i18n/messages/export?locale=<locale>`导出合并后的扁平 key 目录。
+
+## 运行时接口缓存
+
+`GET /api/v1/i18n/runtime/messages?lang=<locale>`会返回聚合后的运行时语言包，并通过`ETag`响应头标识当前语言和运行时语言包版本。
+
+客户端应按语言持久化`{etag, messages, savedAt}`，下一次请求时带上`If-None-Match`。当服务端返回`304 Not Modified`时，响应体为空，客户端复用本地持久化语言包。
+
+运行时语言包失效必须带明确`scope`。宿主文件、源码插件和动态插件变更，应只失效受影响的语言、扇区或插件。整包清空只适用于进程级重载和测试清理。
+
+## 源码文案命名空间
+
+部分运行时 key 由代码源码文案拥有，例如内置调度任务标签。拥有该文案的业务包必须通过`i18n.RegisterSourceTextNamespace(prefix, reason)`注册对应前缀。
+
+`i18n`基础服务不得硬编码业务前缀。缺失翻译检查只会跳过已由所属模块注册的源码文案命名空间。
 
 ## 校验规则
 
 交付前建议至少检查以下内容：
 
 - 每个已启用语言文件都必须是合法的`JSON`。
+- 默认配置文件 `i18n.locales` 中需要暴露的每个语言都必须存在对应的顶层 `manifest/i18n/<locale>.json` 文件。
 - 同一语言文件内归一化后的消息 key 必须保持唯一。
 - 目标语言相对默认语言的缺失翻译检查必须通过。
 - 插件自有文案默认使用`plugin.<plugin_id>.`前缀，除非该插件明确提供共享框架元数据。
 - 新增的后端用户可见错误消息和校验消息必须使用翻译键，而不是直接硬编码文案。
-
-## 业务内容接入约束
-
-`sys_i18n_content`用于承载“绑定具体业务记录”的多语言标题、摘要、描述或正文内容。
-
-业务模块接入时请遵循以下锚点约束：
-
-| 字段            | 约束                                         | 示例                       |
-| --------------- | -------------------------------------------- | -------------------------- |
-| `business_type` | 使用稳定的模块级标识，不使用会变化的展示名称 | `notice`、`cms_article`    |
-| `business_id`   | 使用稳定主键或不可变业务编码                 | `42`、`article-homepage`   |
-| `field`         | 使用业务聚合中的稳定字段名                   | `title`、`summary`、`body` |
-| `locale`        | 使用规范化运行时语言编码                     | `zh-CN`、`en-US`           |
-| `content_type`  | 仅使用 `plain`、`markdown`、`html`、`json`   | `markdown`                 |
-
-推荐读取策略：
-
-1. 业务主表保留源语言字段，作为最终兜底值。
-2. 业务服务按 `business_type + business_id + field + locale` 查询 `sys_i18n_content`。
-3. 若目标语言缺失，则回退到运行时默认语言。
-4. 若默认语言也缺失，则回退到业务主表中的原始字段值。
-
-缓存规范：
-
-- 缓存粒度使用完整锚点 `business_type + business_id + field`。
-- 缓存内容按“同一锚点下的全部语言变体”存储，而不是每个 locale 单独缓存，便于一次失效后整体刷新。
-- 业务模块在新增、修改、删除、导入、发布多语言内容后，必须立即失效对应锚点缓存。
-- 禁止在没有显式失效策略的前提下永久缓存“未命中”结果，否则后续写入无法及时生效。
-
-使用边界：
-
-- 可复用的界面文案和元数据标签使用`sys_i18n_message`。
-- 只有“绑定具体业务记录”的内容才接入`sys_i18n_content`。
-- 附件或富媒体引用继续放在业务主表或关联表中，`sys_i18n_content`只存放多语言文本载荷。
 
 ## 编写示例
 

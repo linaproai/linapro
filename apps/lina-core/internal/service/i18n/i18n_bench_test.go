@@ -13,6 +13,11 @@ import (
 	"lina-core/internal/model"
 )
 
+var (
+	benchmarkRuntimeMessagesSink map[string]interface{}
+	benchmarkTranslateSink       string
+)
+
 // BenchmarkTranslateHotPath measures the steady-state cost of one translation
 // lookup against a warm cache. The merged catalog is built once during the
 // first call so subsequent iterations only exercise the lookup path.
@@ -30,7 +35,7 @@ func BenchmarkTranslateHotPath(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; index < b.N; index++ {
-		_ = svc.Translate(ctx, "menu.dashboard.title", "fallback")
+		benchmarkTranslateSink = svc.Translate(ctx, "menu.dashboard.title", "fallback")
 	}
 }
 
@@ -56,7 +61,7 @@ func BenchmarkTranslateBatch(b *testing.B) {
 	}
 	// Warm up.
 	for _, key := range keys {
-		_ = svc.Translate(ctx, key, "")
+		benchmarkTranslateSink = svc.Translate(ctx, key, "")
 	}
 
 	b.ReportAllocs()
@@ -66,9 +71,30 @@ func BenchmarkTranslateBatch(b *testing.B) {
 		// per-request shape of menu/dict/config heavy endpoints.
 		for round := 0; round < 10; round++ {
 			for _, key := range keys {
-				_ = svc.Translate(ctx, key, "fallback")
+				benchmarkTranslateSink = svc.Translate(ctx, key, "fallback")
 			}
 		}
+	}
+}
+
+// BenchmarkTranslateCacheMissRebuild measures the cost of rebuilding one
+// locale's merged catalog after the cache entry was invalidated. This keeps the
+// expensive cold path visible without mixing it into the hot-path benchmark.
+func BenchmarkTranslateCacheMissRebuild(b *testing.B) {
+	resetRuntimeBundleCache()
+
+	svc := New()
+	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
+
+	// Warm once so package-level plugin registrations and configuration readers
+	// perform their one-time setup before the cold-cache loop starts.
+	benchmarkTranslateSink = svc.Translate(ctx, "menu.dashboard.title", "fallback")
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for index := 0; index < b.N; index++ {
+		runtimeBundleCache.invalidate(InvalidateScope{Locales: []string{EnglishLocale}})
+		benchmarkTranslateSink = svc.Translate(ctx, "menu.dashboard.title", "fallback")
 	}
 }
 
@@ -82,11 +108,11 @@ func BenchmarkBuildRuntimeMessages(b *testing.B) {
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	// Warm up so the loop measures the merge + clone + nest cost only.
-	_ = svc.BuildRuntimeMessages(ctx, EnglishLocale)
+	benchmarkRuntimeMessagesSink = svc.BuildRuntimeMessages(ctx, EnglishLocale)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for index := 0; index < b.N; index++ {
-		_ = svc.BuildRuntimeMessages(ctx, EnglishLocale)
+		benchmarkRuntimeMessagesSink = svc.BuildRuntimeMessages(ctx, EnglishLocale)
 	}
 }

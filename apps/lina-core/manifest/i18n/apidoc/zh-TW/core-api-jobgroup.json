@@ -1,0 +1,213 @@
+{
+  "core": {
+    "api": {
+      "jobgroup": {
+        "v1": {
+          "CreateReq": {
+            "fields": {
+              "code": {
+                "dc": "分組編碼，全局唯一"
+              },
+              "name": {
+                "dc": "分組名稱"
+              },
+              "remark": {
+                "dc": "分組備註"
+              },
+              "sortOrder": {
+                "dc": "顯示排序，數值越小越靠前"
+              }
+            },
+            "meta": {
+              "dc": "創建一個新的定時任務分組，供任務管理頁面按分組組織任務",
+              "summary": "創建分組",
+              "tags": "任務調度/任務分組"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "新建分組ID"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "創建一個新的定時任務分組，供任務管理頁面按分組組織任務"
+            }
+          },
+          "CreateRes": {
+            "fields": {
+              "id": {
+                "dc": "新建分組ID"
+              }
+            }
+          },
+          "DeleteReq": {
+            "fields": {
+              "ids": {
+                "dc": "分組ID，多個用逗號分隔"
+              }
+            },
+            "meta": {
+              "dc": "按分組ID批量刪除任務分組，默認分組不允許刪除，其它分組下任務需遷移到默認分組",
+              "summary": "刪除分組",
+              "tags": "任務調度/任務分組"
+            },
+            "schema": {
+              "dc": "按分組ID批量刪除任務分組，默認分組不允許刪除，其它分組下任務需遷移到默認分組"
+            }
+          },
+          "GroupPayload": {
+            "fields": {
+              "code": {
+                "dc": "分組編碼，全局唯一"
+              },
+              "name": {
+                "dc": "分組名稱"
+              },
+              "remark": {
+                "dc": "分組備註"
+              },
+              "sortOrder": {
+                "dc": "顯示排序，數值越小越靠前"
+              }
+            }
+          },
+          "ListItem": {
+            "fields": {
+              "code": {
+                "dc": "分組編碼"
+              },
+              "id": {
+                "dc": "任務分組ID"
+              },
+              "isDefault": {
+                "dc": "是否默認分組（1=是 0=否）"
+              },
+              "jobCount": {
+                "dc": "當前分組下的任務數量"
+              },
+              "name": {
+                "dc": "分組名稱"
+              },
+              "remark": {
+                "dc": "備註"
+              },
+              "sortOrder": {
+                "dc": "顯示排序"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "code": {
+                "dc": "按分組編碼篩選（模糊匹配）"
+              },
+              "name": {
+                "dc": "按分組名稱篩選（模糊匹配）"
+              },
+              "orderBy": {
+                "dc": "排序字段：id,sort_order,code,name,created_at,updated_at"
+              },
+              "orderDirection": {
+                "dc": "排序方向：asc=升序 desc=降序",
+                "default": "asc"
+              }
+            },
+            "meta": {
+              "dc": "分頁查詢任務分組列表，支持按編碼與名稱關鍵字篩選",
+              "summary": "獲取分組列表",
+              "tags": "任務調度/任務分組"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "分組列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "分頁查詢任務分組列表，支持按編碼與名稱關鍵字篩選"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "分組列表"
+              }
+            }
+          },
+          "UpdateReq": {
+            "fields": {
+              "code": {
+                "dc": "分組編碼，全局唯一"
+              },
+              "id": {
+                "dc": "分組ID"
+              },
+              "name": {
+                "dc": "分組名稱"
+              },
+              "remark": {
+                "dc": "分組備註"
+              },
+              "sortOrder": {
+                "dc": "顯示排序，數值越小越靠前"
+              }
+            },
+            "meta": {
+              "dc": "根據分組ID更新定時任務分組信息，默認分組僅允許修改開放字段",
+              "summary": "更新分組",
+              "tags": "任務調度/任務分組"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "code": {
+                      "dc": "分組編碼，全局唯一"
+                    },
+                    "name": {
+                      "dc": "分組名稱"
+                    },
+                    "remark": {
+                      "dc": "分組備註"
+                    },
+                    "sortOrder": {
+                      "dc": "顯示排序，數值越小越靠前"
+                    }
+                  },
+                  "schema": {
+                    "dc": "根據分組ID更新定時任務分組信息，默認分組僅允許修改開放字段"
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "根據分組ID更新定時任務分組信息，默認分組僅允許修改開放字段"
+            }
+          }
+        }
+      }
+    }
+  }
+}

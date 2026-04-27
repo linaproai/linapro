@@ -16,6 +16,10 @@ import (
 // that should not be preferred over stable host routes as the default home path.
 const pluginHostedAssetPathPrefix = "/plugin-assets/"
 
+// pluginDynamicPageComponentPath marks host-mounted plugin pages that can depend
+// on plugin runtime hydration and should not displace stable host landing pages.
+const pluginDynamicPageComponentPath = "system/plugin/dynamic-page"
+
 // GetInfo returns current logged-in user information
 func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1.GetInfoRes, err error) {
 	user, err := c.userSvc.GetProfile(ctx)
@@ -200,7 +204,7 @@ func isHomePathCandidate(item *menu.MenuItem, currentPath string, preferStable b
 	if item == nil || item.Type != menutype.Menu.String() || item.IsFrame != 0 || currentPath == "" || isExternalPath(currentPath) {
 		return false
 	}
-	if preferStable && strings.HasPrefix(currentPath, pluginHostedAssetPathPrefix) {
+	if preferStable && (strings.HasPrefix(currentPath, pluginHostedAssetPathPrefix) || item.Component == pluginDynamicPageComponentPath) {
 		return false
 	}
 	return true

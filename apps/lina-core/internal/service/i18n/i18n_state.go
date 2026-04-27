@@ -1,62 +1,29 @@
-// This file defines typed runtime i18n status values used across locale and
-// database-backed message loading.
+// This file defines typed runtime i18n values shared by locale metadata and
+// resource source diagnostics.
 
 package i18n
 
-// localeStatus represents the enablement status stored in sys_i18n_locale.
-type localeStatus int
+// LocaleDirection represents the document text direction for one locale.
+type LocaleDirection string
 
 const (
-	// localeStatusDisabled means the locale is not exposed by the runtime host.
-	localeStatusDisabled localeStatus = 0
-	// localeStatusEnabled means the locale is enabled for runtime use.
-	localeStatusEnabled localeStatus = 1
+	// LocaleDirectionLTR means left-to-right text layout.
+	LocaleDirectionLTR LocaleDirection = "ltr"
 )
 
-// localeDefaultFlag represents the default-language flag stored in sys_i18n_locale.
-type localeDefaultFlag int
+// String returns the persisted string value for the locale direction.
+func (direction LocaleDirection) String() string {
+	return string(direction)
+}
 
-const (
-	// localeDefaultNo means the locale is not the runtime default.
-	localeDefaultNo localeDefaultFlag = 0
-	// localeDefaultYes means the locale is the runtime default.
-	localeDefaultYes localeDefaultFlag = 1
-)
-
-// messageStatus represents the enablement status stored in sys_i18n_message.
-type messageStatus int
-
-const (
-	// messageStatusDisabled means the database override is disabled.
-	messageStatusDisabled messageStatus = 0
-	// messageStatusEnabled means the database override is enabled.
-	messageStatusEnabled messageStatus = 1
-)
-
-// messageScopeType represents the logical scope recorded for one i18n message row.
+// messageScopeType represents the logical owner scope of one i18n resource.
 type messageScopeType string
 
 const (
 	// messageScopeTypeHost means the message belongs to the host scope.
 	messageScopeTypeHost messageScopeType = "host"
-	// messageScopeTypeProject means the message belongs to one project delivery scope.
-	messageScopeTypeProject messageScopeType = "project"
 	// messageScopeTypePlugin means the message belongs to one plugin scope.
 	messageScopeTypePlugin messageScopeType = "plugin"
-	// messageScopeTypeBusiness means the message belongs to one business content scope.
-	messageScopeTypeBusiness messageScopeType = "business"
-)
-
-// messageSourceType represents how one database message override was produced.
-type messageSourceType string
-
-const (
-	// messageSourceTypeManual means the message was maintained manually.
-	messageSourceTypeManual messageSourceType = "manual"
-	// messageSourceTypeImport means the message was written by an import operation.
-	messageSourceTypeImport messageSourceType = "import"
-	// messageSourceTypeSync means the message was synchronized from another source.
-	messageSourceTypeSync messageSourceType = "sync"
 )
 
 // messageOriginType represents the effective source layer of one runtime message.
@@ -67,35 +34,9 @@ const (
 	messageOriginTypeHostFile messageOriginType = "host_file"
 	// messageOriginTypePluginFile means the message came from plugin manifest files.
 	messageOriginTypePluginFile messageOriginType = "plugin_file"
-	// messageOriginTypeDatabase means the message came from sys_i18n_message.
-	messageOriginTypeDatabase messageOriginType = "database"
-)
-
-// contentStatus represents the enablement status stored in sys_i18n_content.
-type contentStatus int
-
-const (
-	// contentStatusDisabled means the business-content variant is disabled.
-	contentStatusDisabled contentStatus = 0
-	// contentStatusEnabled means the business-content variant is enabled.
-	contentStatusEnabled contentStatus = 1
-)
-
-// ContentType represents the persisted content payload format in sys_i18n_content.
-type ContentType string
-
-const (
-	// ContentTypePlain stores simple plain-text content.
-	ContentTypePlain ContentType = "plain"
-	// ContentTypeMarkdown stores Markdown content.
-	ContentTypeMarkdown ContentType = "markdown"
-	// ContentTypeHTML stores HTML content.
-	ContentTypeHTML ContentType = "html"
-	// ContentTypeJSON stores structured JSON content serialized as a string.
-	ContentTypeJSON ContentType = "json"
 )
 
 const (
-	// hostMessageScopeKey is the stable host scope key used for host-owned overrides.
+	// hostMessageScopeKey is the stable host scope key used for host-owned resources.
 	hostMessageScopeKey = "core"
 )

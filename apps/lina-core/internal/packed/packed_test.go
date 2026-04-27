@@ -64,6 +64,9 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if !strings.Contains(string(configContent), "maxSize: 20") {
 		t.Fatalf("expected packed config template to keep 20MB upload default, got %q", string(configContent))
 	}
+	if !strings.Contains(string(configContent), "enabled: true") {
+		t.Fatalf("expected packed config template to include i18n enabled default, got %q", string(configContent))
+	}
 
 	sqlContent, err := fs.ReadFile(Files, "manifest/sql/007-config-management.sql")
 	if err != nil {

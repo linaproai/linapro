@@ -1,0 +1,82 @@
+{
+  "menu": {
+    "plugin:org-center:dept": {
+      "title": "部門管理"
+    },
+    "plugin:org-center:dept:add": {
+      "title": "部門新增"
+    },
+    "plugin:org-center:dept:edit": {
+      "title": "部門修改"
+    },
+    "plugin:org-center:dept:query": {
+      "title": "部門查詢"
+    },
+    "plugin:org-center:dept:remove": {
+      "title": "部門刪除"
+    },
+    "plugin:org-center:post": {
+      "title": "崗位管理"
+    },
+    "plugin:org-center:post:add": {
+      "title": "崗位新增"
+    },
+    "plugin:org-center:post:edit": {
+      "title": "崗位修改"
+    },
+    "plugin:org-center:post:export": {
+      "title": "崗位導出"
+    },
+    "plugin:org-center:post:query": {
+      "title": "崗位查詢"
+    },
+    "plugin:org-center:post:remove": {
+      "title": "崗位刪除"
+    }
+  },
+  "plugin": {
+    "org-center": {
+      "dept": {
+        "drawer": {
+          "createTitle": "新增部門",
+          "editTitle": "編輯部門"
+        },
+        "fields": {
+          "code": "部門編碼",
+          "leader": "負責人",
+          "name": "部門名稱",
+          "parentDept": "上級部門",
+          "phone": "聯繫電話",
+          "sortOrder": "排序",
+          "status": "狀態"
+        },
+        "messages": {
+          "saveFailed": "保存部門失敗"
+        },
+        "placeholders": {
+          "selectLeader": "請選擇負責人"
+        },
+        "tableTitle": "部門列表"
+      },
+      "description": "提供部門與崗位管理的官方源碼插件",
+      "name": "組織管理",
+      "post": {
+        "drawer": {
+          "createTitle": "新增崗位",
+          "editTitle": "編輯崗位"
+        },
+        "fields": {
+          "code": "崗位編碼",
+          "dept": "所屬部門",
+          "name": "崗位名稱",
+          "sortOrder": "排序"
+        },
+        "messages": {
+          "deleteSelectedConfirm": "確認刪除選中的 {count} 個崗位嗎？",
+          "saveFailed": "保存崗位失敗"
+        },
+        "tableTitle": "崗位列表"
+      }
+    }
+  }
+}

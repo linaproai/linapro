@@ -24,6 +24,8 @@ type Service interface {
 	// GetPublicFrontend returns the public-safe frontend branding and display
 	// settings that can be consumed by login pages and the admin workspace.
 	GetPublicFrontend(ctx context.Context) *PublicFrontendConfig
+	// GetI18n reads runtime internationalization settings from configuration file.
+	GetI18n(ctx context.Context) *I18nConfig
 	// GetLogin reads runtime login parameters from sys_config.
 	GetLogin(ctx context.Context) *LoginConfig
 	// GetCron reads runtime cron-management parameters from protected sys_config entries.

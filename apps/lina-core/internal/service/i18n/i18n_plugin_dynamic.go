@@ -99,6 +99,71 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundles(ctx context.Context, locale
 	}.LoadDynamicPluginBundles(ctx, resolvedLocale, releaseRefs)
 }
 
+// loadDynamicPluginLocaleBundle reloads one dynamic plugin's runtime i18n
+// bundle after a plugin-scoped lifecycle invalidation.
+func (s *serviceImpl) loadDynamicPluginLocaleBundle(ctx context.Context, locale string, pluginID string) map[string]string {
+	resolvedLocale := s.ResolveLocale(ctx, locale)
+	trimmedPluginID := strings.TrimSpace(pluginID)
+	if trimmedPluginID == "" {
+		return map[string]string{}
+	}
+
+	var plugin *entity.SysPlugin
+	if err := dao.SysPlugin.Ctx(ctx).
+		Where(do.SysPlugin{
+			PluginId:  trimmedPluginID,
+			Type:      dynamicPluginType,
+			Installed: dynamicPluginInstalledYes,
+			Status:    dynamicPluginStatusEnabled,
+		}).
+		Scan(&plugin); err != nil {
+		logger.Warningf(ctx, "load dynamic plugin i18n plugin row failed plugin=%s locale=%s err=%v", trimmedPluginID, resolvedLocale, err)
+		return map[string]string{}
+	}
+	if plugin == nil {
+		return map[string]string{}
+	}
+
+	release, err := s.getEnabledDynamicPluginRelease(ctx, plugin)
+	if err != nil {
+		logger.Warningf(ctx, "load dynamic plugin i18n release failed plugin=%s locale=%s err=%v", trimmedPluginID, resolvedLocale, err)
+		return map[string]string{}
+	}
+	if release == nil || strings.TrimSpace(release.PackagePath) == "" {
+		return map[string]string{}
+	}
+
+	assets, err := s.readDynamicPluginI18NAssets(ctx, release.PackagePath)
+	if err != nil {
+		logger.Warningf(ctx, "load dynamic plugin i18n assets failed plugin=%s locale=%s err=%v", trimmedPluginID, resolvedLocale, err)
+		return map[string]string{}
+	}
+	localeAssets := make([]i18nresource.LocaleAsset, 0, len(assets))
+	for _, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		localeAssets = append(localeAssets, i18nresource.LocaleAsset{
+			Locale:  asset.Locale,
+			Content: asset.Content,
+		})
+	}
+	if len(localeAssets) == 0 {
+		return map[string]string{}
+	}
+
+	bundles := i18nresource.ResourceLoader{
+		PluginScope: i18nresource.PluginScopeOpen,
+		ValueMode:   i18nresource.ValueModeStringifyScalars,
+	}.LoadDynamicPluginBundles(ctx, resolvedLocale, []i18nresource.ReleaseRef{
+		{
+			PluginID: trimmedPluginID,
+			Assets:   localeAssets,
+		},
+	})
+	return bundles[trimmedPluginID]
+}
+
 // listEnabledDynamicPluginReleases returns active release rows for plugins that are currently enabled.
 func (s *serviceImpl) listEnabledDynamicPluginReleases(ctx context.Context) ([]*entity.SysPluginRelease, error) {
 	var plugins []*entity.SysPlugin

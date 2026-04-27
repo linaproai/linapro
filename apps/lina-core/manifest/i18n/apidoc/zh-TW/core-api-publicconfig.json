@@ -1,0 +1,163 @@
+{
+  "core": {
+    "api": {
+      "publicconfig": {
+        "v1": {
+          "FrontendAppRes": {
+            "fields": {
+              "logo": {
+                "dc": "默認 Logo 圖片地址"
+              },
+              "logoDark": {
+                "dc": "深色主題 Logo 圖片地址"
+              },
+              "name": {
+                "dc": "應用名稱，用於瀏覽器標題和工作臺 Logo 文案"
+              }
+            }
+          },
+          "FrontendAuthRes": {
+            "fields": {
+              "loginSubtitle": {
+                "dc": "登錄表單副標題文案"
+              },
+              "pageDesc": {
+                "dc": "登錄頁說明文案"
+              },
+              "pageTitle": {
+                "dc": "登錄頁主標題文案"
+              },
+              "panelLayout": {
+                "dc": "登錄框佈局：panel-left=居左 panel-center=居中 panel-right=居右"
+              }
+            }
+          },
+          "FrontendCronLogRetentionRes": {
+            "fields": {
+              "mode": {
+                "dc": "系統級日誌保留模式：days=按天保留 count=按條數保留 none=不自動清理"
+              },
+              "value": {
+                "dc": "系統級日誌保留閾值；mode=days 或 count 時大於0，mode=none 時為0"
+              }
+            }
+          },
+          "FrontendCronRes": {
+            "fields": {
+              "logRetention": {
+                "dc": "系統級定時任務日誌保留策略"
+              },
+              "shell": {
+                "dc": "Shell 任務前端能力開關"
+              },
+              "timezone": {
+                "dc": "定時任務默認時區配置"
+              }
+            }
+          },
+          "FrontendCronShellRes": {
+            "fields": {
+              "disabledReason": {
+                "dc": "Shell 任務不可用時的原因說明"
+              },
+              "enabled": {
+                "dc": "是否允許創建和執行 Shell 任務：true=允許 false=不允許"
+              },
+              "supported": {
+                "dc": "當前平臺是否支持 Shell 任務：true=支持 false=不支持"
+              }
+            }
+          },
+          "FrontendCronTimezoneRes": {
+            "fields": {
+              "current": {
+                "dc": "當前宿主系統時區標識，作為新增任務時區的默認值"
+              }
+            }
+          },
+          "FrontendReq": {
+            "meta": {
+              "dc": "返回登錄頁與管理後臺啟動階段可安全公開讀取的品牌、登錄展示和界面風格配置白名單",
+              "summary": "獲取公共前端配置",
+              "tags": "公共配置"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "app": {
+                            "dc": "應用品牌展示配置"
+                          },
+                          "auth": {
+                            "dc": "登錄頁展示配置"
+                          },
+                          "cron": {
+                            "dc": "定時任務前端能力配置"
+                          },
+                          "ui": {
+                            "dc": "界面風格配置"
+                          },
+                          "user": {
+                            "dc": "用戶展示兜底配置"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "返回登錄頁與管理後臺啟動階段可安全公開讀取的品牌、登錄展示和界面風格配置白名單"
+            }
+          },
+          "FrontendRes": {
+            "fields": {
+              "app": {
+                "dc": "應用品牌展示配置"
+              },
+              "auth": {
+                "dc": "登錄頁展示配置"
+              },
+              "cron": {
+                "dc": "定時任務前端能力配置"
+              },
+              "ui": {
+                "dc": "界面風格配置"
+              },
+              "user": {
+                "dc": "用戶展示兜底配置"
+              }
+            }
+          },
+          "FrontendUIRes": {
+            "fields": {
+              "layout": {
+                "dc": "後臺默認佈局：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content"
+              },
+              "themeMode": {
+                "dc": "主題模式：light=淺色 dark=深色 auto=跟隨系統"
+              },
+              "watermarkContent": {
+                "dc": "水印文案內容"
+              },
+              "watermarkEnabled": {
+                "dc": "是否啟用水印：true=啟用 false=關閉"
+              }
+            }
+          },
+          "FrontendUserRes": {
+            "fields": {
+              "defaultAvatar": {
+                "dc": "用戶未設置頭像時使用的默認頭像地址"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

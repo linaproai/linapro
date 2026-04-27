@@ -1,0 +1,65 @@
+{
+  "job": {
+    "handler": {
+      "plugin": {
+        "plugin-demo-source": {
+          "cron": {
+            "source-plugin-echo-inspection": {
+              "description": "plugin-demo-source 插件註冊的內置定時任務。",
+              "name": "源碼插件回顯巡檢"
+            }
+          }
+        }
+      }
+    }
+  },
+  "menu": {
+    "plugin:plugin-demo-source:record-create": {
+      "title": "示例記錄新增"
+    },
+    "plugin:plugin-demo-source:record-delete": {
+      "title": "示例記錄刪除"
+    },
+    "plugin:plugin-demo-source:record-update": {
+      "title": "示例記錄修改"
+    },
+    "plugin:plugin-demo-source:sidebar-entry": {
+      "title": "源碼插件示例"
+    }
+  },
+  "plugin": {
+    "plugin-demo-source": {
+      "description": "提供左側菜單頁面與公開/受保護路由示例的源碼插件",
+      "name": "源碼插件示例",
+      "page": {
+        "attachmentFallback": "plugin-demo-source-attachment",
+        "fields": {
+          "attachment": "附件",
+          "content": "記錄內容",
+          "title": "記錄標題",
+          "updatedAt": "更新時間"
+        },
+        "messages": {
+          "attachmentHint": "該附件會跟隨源碼插件示例記錄一起保存；卸載插件時若勾選清理存儲數據，附件文件也會一併刪除。",
+          "currentAttachment": "當前附件：{name}",
+          "deleteConfirm": "確認刪除該記錄？",
+          "removeAttachment": "提交時移除當前附件",
+          "uploadHint": "不上傳則保留當前狀態；上傳新文件會自動替換舊附件。",
+          "uploadText": "點擊或拖拽上傳一個附件文件"
+        },
+        "modal": {
+          "createTitle": "新增示例記錄",
+          "editTitle": "編輯示例記錄"
+        },
+        "placeholders": {
+          "content": "請輸入記錄內容",
+          "title": "請輸入記錄標題"
+        },
+        "tableTitle": "示例記錄",
+        "validation": {
+          "title": "請輸入記錄標題"
+        }
+      }
+    }
+  }
+}

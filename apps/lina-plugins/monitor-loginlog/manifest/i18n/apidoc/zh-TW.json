@@ -1,0 +1,297 @@
+{
+  "plugins": {
+    "monitor_loginlog": {
+      "api": {
+        "loginlog": {
+          "v1": {
+            "CleanReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "清理起始時間"
+                },
+                "endTime": {
+                  "dc": "清理截止時間"
+                }
+              },
+              "meta": {
+                "dc": "清空指定時間範圍內的登錄日誌，不傳時間則清空全部",
+                "summary": "清空登錄日誌",
+                "tags": "登錄日誌"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "deleted": {
+                              "dc": "實際刪除的記錄數"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "清空指定時間範圍內的登錄日誌，不傳時間則清空全部"
+              }
+            },
+            "CleanRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "實際刪除的記錄數"
+                }
+              }
+            },
+            "DeleteReq": {
+              "fields": {
+                "ids": {
+                  "dc": "日誌ID，多個用逗號分隔"
+                }
+              },
+              "meta": {
+                "dc": "刪除一條或多條登錄日誌記錄",
+                "summary": "刪除登錄日誌",
+                "tags": "登錄日誌"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "deleted": {
+                              "dc": "實際刪除的記錄數"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "刪除一條或多條登錄日誌記錄"
+              }
+            },
+            "DeleteRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "實際刪除的記錄數"
+                }
+              }
+            },
+            "ExportReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "按登錄時間起始篩選"
+                },
+                "endTime": {
+                  "dc": "按登錄時間結束篩選"
+                },
+                "ids": {
+                  "dc": "指定導出的記錄ID列表，不傳則導出全部符合條件的記錄"
+                },
+                "ip": {
+                  "dc": "按IP地址篩選（模糊匹配）"
+                },
+                "orderBy": {
+                  "dc": "排序字段：id,loginTime"
+                },
+                "orderDirection": {
+                  "dc": "排序方向：asc或desc",
+                  "default": "desc"
+                },
+                "status": {
+                  "dc": "按狀態篩選：0=成功 1=失敗"
+                },
+                "userName": {
+                  "dc": "按用戶名篩選（模糊匹配）"
+                }
+              },
+              "meta": {
+                "dc": "導出登錄日誌數據為Excel文件，支持按條件篩選導出，也支持導出指定ID的記錄",
+                "summary": "導出登錄日誌",
+                "tags": "登錄日誌"
+              },
+              "schema": {
+                "dc": "導出登錄日誌數據為Excel文件，支持按條件篩選導出，也支持導出指定ID的記錄"
+              }
+            },
+            "GetReq": {
+              "fields": {
+                "id": {
+                  "dc": "登錄日誌ID"
+                }
+              },
+              "meta": {
+                "dc": "根據日誌ID獲取登錄日誌的詳細信息，包括登錄IP、瀏覽器、操作系統等",
+                "summary": "獲取登錄日誌詳情",
+                "tags": "登錄日誌"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "browser": {
+                              "dc": "瀏覽器類型"
+                            },
+                            "id": {
+                              "dc": "日誌ID"
+                            },
+                            "ip": {
+                              "dc": "登錄IP地址"
+                            },
+                            "loginTime": {
+                              "dc": "登錄時間"
+                            },
+                            "msg": {
+                              "dc": "提示消息"
+                            },
+                            "os": {
+                              "dc": "操作系統"
+                            },
+                            "status": {
+                              "dc": "登錄狀態：0=成功 1=失敗"
+                            },
+                            "userName": {
+                              "dc": "登錄賬號"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "根據日誌ID獲取登錄日誌的詳細信息，包括登錄IP、瀏覽器、操作系統等"
+              }
+            },
+            "GetRes": {
+              "fields": {
+                "browser": {
+                  "dc": "瀏覽器類型"
+                },
+                "id": {
+                  "dc": "日誌ID"
+                },
+                "ip": {
+                  "dc": "登錄IP地址"
+                },
+                "loginTime": {
+                  "dc": "登錄時間"
+                },
+                "msg": {
+                  "dc": "提示消息"
+                },
+                "os": {
+                  "dc": "操作系統"
+                },
+                "status": {
+                  "dc": "登錄狀態：0=成功 1=失敗"
+                },
+                "userName": {
+                  "dc": "登錄賬號"
+                }
+              }
+            },
+            "ListReq": {
+              "fields": {
+                "beginTime": {
+                  "dc": "按登錄時間起始篩選"
+                },
+                "endTime": {
+                  "dc": "按登錄時間結束篩選"
+                },
+                "ip": {
+                  "dc": "按IP地址篩選（模糊匹配）"
+                },
+                "orderBy": {
+                  "dc": "排序字段：id,loginTime"
+                },
+                "orderDirection": {
+                  "dc": "排序方向：asc或desc",
+                  "default": "desc"
+                },
+                "status": {
+                  "dc": "按狀態篩選：0=成功 1=失敗"
+                },
+                "userName": {
+                  "dc": "按用戶名篩選（模糊匹配）"
+                }
+              },
+              "meta": {
+                "dc": "分頁查詢登錄日誌列表，記錄用戶登錄成功和失敗的信息，支持多條件篩選和排序",
+                "summary": "獲取登錄日誌列表",
+                "tags": "登錄日誌"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "items": {
+                              "dc": "登錄日誌列表"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "分頁查詢登錄日誌列表，記錄用戶登錄成功和失敗的信息，支持多條件篩選和排序"
+              }
+            },
+            "ListRes": {
+              "fields": {
+                "items": {
+                  "dc": "登錄日誌列表"
+                }
+              }
+            },
+            "LoginLogEntity": {
+              "fields": {
+                "browser": {
+                  "dc": "瀏覽器類型"
+                },
+                "id": {
+                  "dc": "日誌ID"
+                },
+                "ip": {
+                  "dc": "登錄IP地址"
+                },
+                "loginTime": {
+                  "dc": "登錄時間"
+                },
+                "msg": {
+                  "dc": "提示消息"
+                },
+                "os": {
+                  "dc": "操作系統"
+                },
+                "status": {
+                  "dc": "登錄狀態：0=成功 1=失敗"
+                },
+                "userName": {
+                  "dc": "登錄賬號"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

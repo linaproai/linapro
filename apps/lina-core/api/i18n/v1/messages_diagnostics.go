@@ -13,12 +13,12 @@ type DiagnoseMessagesReq struct {
 
 // MessageDiagnosticItem describes the effective resolution result for one translation key.
 type MessageDiagnosticItem struct {
-	Key             string `json:"key" dc:"translation key" eg:"menu.dashboard.title"`
+	Key             string `json:"key" dc:"Translation key" eg:"menu.dashboard.title"`
 	Value           string `json:"value" dc:"The current final effective translation value" eg:"Workbench"`
 	RequestedLocale string `json:"requestedLocale" dc:"Requested target language encoding" eg:"en-US"`
 	EffectiveLocale string `json:"effectiveLocale" dc:"The language encoding that actually provides this translation value" eg:"en-US"`
 	FromFallback    bool   `json:"fromFallback" dc:"Whether to fall back to the default language: true=yes false=no" eg:"false"`
-	SourceType      string `json:"sourceType" dc:"Hit source type: host_file=host file plugin_file=plugin file database=database overwrite" eg:"database"`
+	SourceType      string `json:"sourceType" dc:"Hit source type: host_file=host manifest file plugin_file=plugin manifest file or dynamic plugin asset" eg:"host_file"`
 	SourceKey       string `json:"sourceKey" dc:"Hit source identifier, such as core, plugin-id, or specific scope key" eg:"core"`
 }
 

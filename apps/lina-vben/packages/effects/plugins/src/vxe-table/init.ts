@@ -35,8 +35,7 @@ import {
   // VxeTextarea,
 } from 'vxe-pc-ui';
 import enUS from 'vxe-pc-ui/lib/language/en-US';
-// 导入默认的语言
-import zhCN from 'vxe-pc-ui/lib/language/zh-CN';
+import { vxeLocaleLoaders } from 'virtual:lina-vxe-locales';
 import {
   VxeColgroup,
   VxeColumn,
@@ -53,12 +52,71 @@ let isInit = false;
 // eslint-disable-next-line import/no-mutable-exports
 export let useTableForm: typeof useVbenForm;
 
+type VxeLocale = Parameters<typeof VxeUI.setLanguage>[0];
+
 // 部分组件，如果没注册，vxe-table 会报错，这里实际没用组件，只是为了不报错，同时可以减少打包体积
 const createVirtualComponent = (name = '') => {
   return defineComponent({
     name,
   });
 };
+
+function uniqueLocaleCandidates(candidates: string[]) {
+  return [...new Set(candidates.map((item) => item.trim()).filter(Boolean))];
+}
+
+function splitLocaleCode(locale: string) {
+  const segments = String(locale).trim().split('-').filter(Boolean);
+  const language = String(segments[0] || '').toLowerCase();
+  const region = String(segments[segments.length - 1] || '').toUpperCase();
+  return { language, region };
+}
+
+function buildVxeLocaleCandidates(locale: string) {
+  const { language, region } = splitLocaleCode(locale);
+  return uniqueLocaleCandidates([
+    language && region ? `${language}-${region}` : '',
+    findLanguageLocaleCandidate(language),
+    'en-US',
+  ]);
+}
+
+function findLanguageLocaleCandidate(language: string) {
+  if (!language) {
+    return '';
+  }
+  const languagePrefix = `${language}-`;
+  return (
+    Object.keys(vxeLocaleLoaders)
+      .toSorted()
+      .find((candidate) => {
+        const normalizedCandidate = candidate.toLowerCase();
+        return (
+          normalizedCandidate === language ||
+          normalizedCandidate.startsWith(languagePrefix)
+        );
+      }) || ''
+  );
+}
+
+async function loadVxeLocale(locale: string) {
+  for (const candidate of buildVxeLocaleCandidates(locale)) {
+    const loader = vxeLocaleLoaders[candidate];
+    if (!loader) {
+      continue;
+    }
+    const module = await loader();
+    return {
+      locale: candidate as VxeLocale,
+      messages: module.default || module,
+    };
+  }
+
+  return {
+    locale: 'en-US' as VxeLocale,
+    messages: enUS,
+  };
+}
 
 export function initVxeTable() {
   if (isInit) {
@@ -108,17 +166,14 @@ export function setupVbenVxeTable(setupOptions: SetupVxeTable) {
 
   const { isDark, locale } = usePreferences();
 
-  const localMap = {
-    'zh-CN': zhCN,
-    'en-US': enUS,
-  };
-
   watch(
     [() => isDark.value, () => locale.value],
     ([isDarkValue, localeValue]) => {
       VxeUI.setTheme(isDarkValue ? 'dark' : 'light');
-      VxeUI.setI18n(localeValue, localMap[localeValue]);
-      VxeUI.setLanguage(localeValue);
+      void loadVxeLocale(localeValue).then((vxeLocale) => {
+        VxeUI.setI18n(vxeLocale.locale, vxeLocale.messages);
+        VxeUI.setLanguage(vxeLocale.locale);
+      });
     },
     {
       immediate: true,

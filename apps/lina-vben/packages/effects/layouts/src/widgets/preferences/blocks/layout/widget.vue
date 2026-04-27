@@ -3,7 +3,7 @@ import type { SelectOption } from '@vben/types';
 
 import { computed } from 'vue';
 
-import { $t } from '@vben/locales';
+import { $t, runtimeLocaleSwitchEnabled } from '@vben/locales';
 
 import SelectItem from '../select-item.vue';
 import SwitchItem from '../switch-item.vue';
@@ -47,7 +47,7 @@ const positionItems = computed((): SelectOption[] => [
   <SwitchItem v-model="widgetThemeToggle">
     {{ $t('preferences.widget.themeToggle') }}
   </SwitchItem>
-  <SwitchItem v-model="widgetLanguageToggle">
+  <SwitchItem v-if="runtimeLocaleSwitchEnabled" v-model="widgetLanguageToggle">
     {{ $t('preferences.widget.languageToggle') }}
   </SwitchItem>
   <SwitchItem v-model="widgetFullscreen">

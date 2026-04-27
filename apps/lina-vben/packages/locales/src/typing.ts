@@ -1,4 +1,17 @@
-export type SupportedLanguagesType = 'en-US' | 'zh-CN';
+export type SupportedLanguagesType = string;
+
+export type LocaleDirection = 'ltr';
+
+export interface RuntimeLocaleOption {
+  isDefault?: boolean;
+  label: string;
+  nativeName?: string;
+  value: SupportedLanguagesType;
+}
+
+export interface RuntimeLocaleSwitchConfig {
+  enabled?: boolean;
+}
 
 export type ImportLocaleFn = () => Promise<{ default: Record<string, string> }>;
 

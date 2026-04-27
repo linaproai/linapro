@@ -1,0 +1,62 @@
+{
+  "core": {
+    "api": {
+      "auth": {
+        "v1": {
+          "LoginReq": {
+            "fields": {
+              "password": {
+                "dc": "密碼"
+              },
+              "username": {
+                "dc": "用戶名"
+              }
+            },
+            "meta": {
+              "dc": "通過用戶名和密碼進行身份認證，認證成功後返回JWT令牌用於後續接口鑑權",
+              "summary": "用戶登錄",
+              "tags": "身份認證"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "accessToken": {
+                            "dc": "JWT令牌"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "通過用戶名和密碼進行身份認證，認證成功後返回JWT令牌用於後續接口鑑權"
+            }
+          },
+          "LoginRes": {
+            "fields": {
+              "accessToken": {
+                "dc": "JWT令牌"
+              }
+            }
+          },
+          "LogoutReq": {
+            "meta": {
+              "dc": "退出當前登錄狀態，清除服務端JWT令牌緩存",
+              "summary": "用戶登出",
+              "tags": "身份認證"
+            },
+            "schema": {
+              "dc": "退出當前登錄狀態，清除服務端JWT令牌緩存"
+            }
+          }
+        }
+      }
+    }
+  }
+}

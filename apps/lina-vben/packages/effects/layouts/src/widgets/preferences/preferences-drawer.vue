@@ -250,18 +250,18 @@ async function handleReset() {
 
 <template>
   <div>
-    <Drawer
-      :title="$t('preferences.title')"
-      class="border-0! sm:max-w-sm"
-    >
+    <Drawer :title="$t('preferences.title')" class="border-0! sm:max-w-sm">
       <template #title>
-        <span class="flex min-w-0 flex-col text-left">
-          <span data-testid="preferences-drawer-title" class="truncate leading-5">
+        <span class="flex w-full min-w-0 flex-col items-start text-left">
+          <span
+            data-testid="preferences-drawer-title"
+            class="block truncate leading-5"
+          >
             {{ $t('preferences.title') }}
           </span>
           <span
             :title="$t('preferences.subtitle')"
-            class="mt-1 max-w-[13rem] truncate text-xs leading-4 font-normal text-muted-foreground sm:max-w-[15rem]"
+            class="mt-1 block max-w-[13rem] truncate text-xs leading-4 font-normal text-muted-foreground sm:max-w-[15rem]"
             data-testid="preferences-drawer-subtitle"
           >
             {{ $t('preferences.subtitle') }}

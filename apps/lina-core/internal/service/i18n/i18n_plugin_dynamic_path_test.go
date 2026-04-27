@@ -46,7 +46,9 @@ func TestResolveDynamicPluginPackagePathAnchorsRelativeStoragePathAtRepoRoot(t *
 		t.Fatalf("chdir to fake apps/lina-core: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.Chdir(originalWorkingDir)
+		if err := os.Chdir(originalWorkingDir); err != nil {
+			t.Fatalf("restore working directory: %v", err)
+		}
 		configsvc.SetPluginDynamicStoragePathOverride("")
 	})
 

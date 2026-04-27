@@ -11,7 +11,7 @@ import (
 type ControllerV1 struct {
 	localeResolver i18nsvc.LocaleResolver // localeResolver resolves request and explicit locales.
 	bundleProvider i18nsvc.BundleProvider // bundleProvider serves runtime locales and messages.
-	maintainer     i18nsvc.Maintainer     // maintainer handles message diagnostics, import, and export.
+	maintainer     i18nsvc.Maintainer     // maintainer handles message diagnostics and export.
 }
 
 // NewV1 creates and returns a new runtime i18n controller.

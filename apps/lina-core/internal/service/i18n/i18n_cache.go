@@ -13,7 +13,7 @@ import (
 
 // Sector identifies one logical contributor to the merged runtime translation
 // bundle. Higher sectors override lower sectors when the merged view is built;
-// the canonical priority is host < source-plugin < dynamic-plugin < database.
+// the canonical priority is host < source-plugin < dynamic-plugin.
 type Sector string
 
 const (
@@ -23,17 +23,7 @@ const (
 	SectorSourcePlugin Sector = "source-plugin"
 	// SectorDynamicPlugin is the active dynamic-plugin release `i18n_assets` custom section.
 	SectorDynamicPlugin Sector = "dynamic-plugin"
-	// SectorDatabase is the `sys_i18n_message` row override.
-	SectorDatabase Sector = "database"
 )
-
-// allSectors lists sectors in canonical merge priority (low → high).
-var allSectors = []Sector{
-	SectorHost,
-	SectorSourcePlugin,
-	SectorDynamicPlugin,
-	SectorDatabase,
-}
 
 // InvalidateScope describes which slice of the runtime cache should be cleared.
 // An empty Locales slice means "every locale"; an empty Sectors slice means
@@ -45,13 +35,6 @@ type InvalidateScope struct {
 	DynamicPluginID string
 }
 
-// ContentInvalidateScope narrows business-content cache invalidation to one
-// `business_type` and/or one locale; leaving both fields empty wipes the cache.
-type ContentInvalidateScope struct {
-	BusinessType string
-	Locale       string
-}
-
 // localeCache stores per-sector raw flat catalogs for one locale plus the
 // derived merged view. The merged view is regenerated on demand after any
 // sector mutation and serves the high-traffic `Translate*` lookup path.
@@ -61,12 +44,11 @@ type localeCache struct {
 	host    map[string]string
 	plugins map[string]map[string]string // sourcePluginID  -> messages
 	dynamic map[string]map[string]string // dynamicPluginID -> messages
-	db      map[string]string
 
-	// dbSources captures sys_i18n_message scope_type/scope_key per overridden
-	// key; the merger reuses these descriptors so admin diagnostics keep
-	// reporting the exact override origin (host / project / plugin / business).
-	dbSources map[string]MessageSourceDescriptor
+	// dynamicDirty marks dynamic-plugin entries that must be reloaded on the
+	// next merge. A plugin can be enabled after the dynamic sector was already
+	// loaded without it, so deleting the old entry alone is not enough.
+	dynamicDirty map[string]struct{}
 
 	// sources records the effective origin of every key seen during merge so
 	// admin diagnostics can report where a translation actually came from.
@@ -93,14 +75,6 @@ var runtimeBundleCache = &runtimeCache{
 	locales: make(map[string]*localeCache),
 }
 
-// runtimeContentCache stores per-anchor locale variants loaded from sys_i18n_content.
-var runtimeContentCache = struct {
-	sync.RWMutex
-	variants map[string]map[string]ContentVariant // anchorKey -> locale -> variant
-}{
-	variants: make(map[string]map[string]ContentVariant),
-}
-
 // totalInvalidationsObserved counts every successful invalidation call across
 // the process lifetime. Tests can sample it to assert that scoped invalidates
 // run, even when the targeted scope is already empty.
@@ -118,16 +92,10 @@ func init() {
 // for the given scope. An empty scope drops every locale and every sector.
 func (s *serviceImpl) InvalidateRuntimeBundleCache(scope InvalidateScope) {
 	runtimeBundleCache.invalidate(scope)
-	// Locale registry rows are cached separately; any cache change should
-	// also re-read the registry on next access so newly enabled languages
-	// become discoverable without a process restart.
+	// Locale descriptors are cached separately; any cache change should also
+	// re-read manifest metadata on next access so resource additions become
+	// discoverable without a process restart in tests and dev reload flows.
 	resetRuntimeLocaleCache()
-}
-
-// InvalidateContentCache clears cached sys_i18n_content lookup results scoped
-// to one business type and/or one locale.
-func (s *serviceImpl) InvalidateContentCache(scope ContentInvalidateScope) {
-	invalidateContentCache(scope)
 }
 
 // BundleVersion returns the per-locale runtime translation bundle version. The
@@ -149,8 +117,8 @@ func (s *serviceImpl) BundleVersion(locale string) uint64 {
 	return lc.version
 }
 
-// resetRuntimeLocaleCache invalidates the locale registry cache so subsequent
-// reads pick up newly enabled languages.
+// resetRuntimeLocaleCache invalidates the locale descriptor cache so
+// subsequent reads pick up newly added language resources.
 func resetRuntimeLocaleCache() {
 	runtimeLocaleCache.Lock()
 	runtimeLocaleCache.loaded = false
@@ -230,12 +198,14 @@ func (lc *localeCache) invalidateSectors(scope InvalidateScope) {
 		case SectorDynamicPlugin:
 			if scope.DynamicPluginID == "" {
 				lc.dynamic = nil
+				lc.dynamicDirty = nil
 			} else if lc.dynamic != nil {
 				delete(lc.dynamic, scope.DynamicPluginID)
+				if lc.dynamicDirty == nil {
+					lc.dynamicDirty = make(map[string]struct{}, 1)
+				}
+				lc.dynamicDirty[scope.DynamicPluginID] = struct{}{}
 			}
-		case SectorDatabase:
-			lc.db = nil
-			lc.dbSources = nil
 		}
 	}
 	lc.merged = nil
@@ -268,51 +238,4 @@ func (lc *localeCache) snapshotMerged() map[string]string {
 	lc.mu.RLock()
 	defer lc.mu.RUnlock()
 	return lc.merged
-}
-
-// invalidateContentCache wipes business-content cache entries that match scope.
-// An entry's anchor key encodes business_type, business_id, and field; a
-// business-type-only scope drops every anchor whose key starts with that type;
-// a locale-only scope walks every anchor and drops only that locale variant
-// (re-loading from `sys_i18n_content` on next access).
-func invalidateContentCache(scope ContentInvalidateScope) {
-	runtimeContentCache.Lock()
-	defer runtimeContentCache.Unlock()
-	totalInvalidationsObserved.Add(1)
-
-	if scope.BusinessType == "" && scope.Locale == "" {
-		runtimeContentCache.variants = make(map[string]map[string]ContentVariant)
-		return
-	}
-
-	prefix := ""
-	if scope.BusinessType != "" {
-		prefix = scope.BusinessType + "\x00"
-	}
-	for anchorKey, variants := range runtimeContentCache.variants {
-		if prefix != "" && !startsWith(anchorKey, prefix) {
-			continue
-		}
-		if scope.Locale == "" {
-			delete(runtimeContentCache.variants, anchorKey)
-			continue
-		}
-		normalized := normalizeLocale(scope.Locale)
-		if normalized == "" {
-			continue
-		}
-		delete(variants, normalized)
-		if len(variants) == 0 {
-			delete(runtimeContentCache.variants, anchorKey)
-		}
-	}
-}
-
-// startsWith reports whether s starts with prefix; equivalent to
-// strings.HasPrefix without importing the strings package in this hot file.
-func startsWith(s string, prefix string) bool {
-	if len(s) < len(prefix) {
-		return false
-	}
-	return s[:len(prefix)] == prefix
 }

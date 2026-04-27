@@ -24,15 +24,20 @@
         margin: 0;
         min-height: 100vh;
         background:
-          radial-gradient(circle at top left, rgba(22, 93, 255, 0.18), transparent 30%),
-          radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 26%),
+          radial-gradient(
+            circle at top left,
+            rgba(22, 93, 255, 0.18),
+            transparent 30%
+          ),
+          radial-gradient(
+            circle at bottom right,
+            rgba(14, 165, 233, 0.16),
+            transparent 26%
+          ),
           linear-gradient(180deg, #f8fbff 0%, var(--page-bg) 100%);
         color: var(--page-text);
         font-family:
-          "PingFang SC",
-          "Hiragino Sans GB",
-          "Microsoft YaHei",
-          "Noto Sans SC",
+          "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC",
           sans-serif;
       }
 
@@ -48,8 +53,11 @@
         border: 1px solid var(--page-border);
         border-radius: 28px;
         padding: 44px;
-        background:
-          linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 250, 255, 0.96) 100%);
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.98) 0%,
+          rgba(246, 250, 255, 0.96) 100%
+        );
         box-shadow: var(--page-shadow);
       }
 
@@ -61,7 +69,16 @@
         width: 220px;
         height: 220px;
         border-radius: 999px;
-        background: radial-gradient(circle, rgba(22, 93, 255, 0.22) 0%, transparent 70%);
+        background: radial-gradient(
+          circle,
+          rgba(22, 93, 255, 0.22) 0%,
+          transparent 70%
+        );
+      }
+
+      html[dir="rtl"] .hero::after {
+        left: -60px;
+        right: auto;
       }
 
       .badge {
@@ -199,8 +216,7 @@
           title: "plugin-demo-dynamic Standalone Page",
           badge: "WASM Plugin Standalone",
           heroTitle: "Standalone Page Opened Successfully",
-          lead:
-            "This page is served directly by plugin-demo-dynamic as a hosted static asset rather than through the Vben frontend framework. It verifies that a dynamic plugin can render inside the host workspace and can also open a full standalone experience in a new window.",
+          lead: "This page is served directly by plugin-demo-dynamic as a hosted static asset rather than through the Vben frontend framework. It verifies that a dynamic plugin can render inside the host workspace and can also open a full standalone experience in a new window.",
           summaryTitle: "What This Page Verifies",
           summary1Title: "Hosted Asset Delivery",
           summary1Body:
@@ -224,8 +240,7 @@
           title: "plugin-demo-dynamic 独立页面",
           badge: "WASM 插件独立页",
           heroTitle: "独立页面已成功打开",
-          lead:
-            "当前页面由 plugin-demo-dynamic 直接以托管静态资源形式提供，不依赖 Vben 前端框架。它用于验证动态插件既可以在宿主主内容区内嵌展示，也可以通过新窗口提供完整的独立页面体验。",
+          lead: "当前页面由 plugin-demo-dynamic 直接以托管静态资源形式提供，不依赖 Vben 前端框架。它用于验证动态插件既可以在宿主主内容区内嵌展示，也可以通过新窗口提供完整的独立页面体验。",
           summaryTitle: "本页验证重点",
           summary1Title: "资源托管链路",
           summary1Body:
@@ -245,6 +260,30 @@
           footer:
             "如果你当前能看到本页，说明动态插件的独立页面资源已经被宿主正确托管，并可通过稳定 URL 正常访问。",
         },
+        "zh-TW": {
+          title: "plugin-demo-dynamic 獨立頁面",
+          badge: "WASM 插件獨立頁",
+          heroTitle: "獨立頁面已成功打開",
+          lead: "當前頁面由 plugin-demo-dynamic 直接以託管靜態資源形式提供，不依賴 Vben 前端框架。它用於驗證動態插件既可以在宿主主內容區內嵌展示，也可以通過新窗口提供完整的獨立頁面體驗。",
+          summaryTitle: "本頁驗證重點",
+          summary1Title: "資源託管鏈路",
+          summary1Body:
+            "頁面文件來自插件託管資源目錄，而不是宿主源碼頁面路由。",
+          summary2Title: "展示獨立性",
+          summary2Body:
+            "獨立頁不複用 Vben 組件與布局，但仍保持專業、清晰的視覺質量。",
+          summary3Title: "交互閉環",
+          summary3Body:
+            "用戶可從宿主主窗口點擊按鈕跳轉到此頁面，完成從內嵌掛載到獨立訪問的切換驗證。",
+          card1Title: "當前插件形態",
+          card1Body:
+            "plugin-demo-dynamic 作為動態插件樣例，主要用於目錄規範、WASM 產物生成、託管資源訪問與宿主掛載協議的示例。",
+          card2Title: "頁面風格目標",
+          card2Body:
+            "此處刻意不沿用默認管理工作台的框架樣式，而是以獨立靜態頁面的方式展示插件自有視覺能力，同時保持足夠專業的排版、色彩與閱讀體驗。",
+          footer:
+            "如果你當前能看到本頁，說明動態插件的獨立頁面資源已經被宿主正確託管，並可通過穩定 URL 正常訪問。",
+        },
       };
 
       function resolveLocale() {
@@ -254,27 +293,67 @@
           if (STANDALONE_MESSAGES[explicit]) {
             return explicit;
           }
-          if (explicit.toLowerCase().startsWith("zh")) {
+          const explicitLocale = explicit.toLowerCase();
+          if (
+            explicitLocale === "zh" ||
+            explicitLocale === "zh-cn" ||
+            explicitLocale.startsWith("zh-hans")
+          ) {
             return "zh-CN";
           }
-          if (explicit.toLowerCase().startsWith("en")) {
+          if (explicitLocale.startsWith("en")) {
             return "en-US";
           }
+          return explicit;
         }
         const preferred = navigator.language || "";
         if (preferred && STANDALONE_MESSAGES[preferred]) {
           return preferred;
         }
-        if (preferred.startsWith("zh")) {
+        const preferredLocale = preferred.toLowerCase();
+        if (
+          preferredLocale === "zh" ||
+          preferredLocale === "zh-cn" ||
+          preferredLocale.startsWith("zh-hans")
+        ) {
           return "zh-CN";
         }
         return "en-US";
       }
 
+      function consumeRuntimeMessages(locale) {
+        const params = new URLSearchParams(window.location.search);
+        const key = params.get("i18nKey");
+        if (!key) {
+          return null;
+        }
+
+        try {
+          const rawPayload = window.localStorage.getItem(key);
+          window.localStorage.removeItem(key);
+          if (!rawPayload) {
+            return null;
+          }
+          const payload = JSON.parse(rawPayload);
+          if (payload?.locale !== locale || !payload?.messages) {
+            return null;
+          }
+          return payload.messages;
+        } catch (_error) {
+          return null;
+        }
+      }
+
       function applyStandaloneLocale() {
         const locale = resolveLocale();
-        const messages = STANDALONE_MESSAGES[locale] || STANDALONE_MESSAGES["en-US"];
+        const messages =
+          consumeRuntimeMessages(locale) ||
+          STANDALONE_MESSAGES[locale] ||
+          STANDALONE_MESSAGES["en-US"];
         document.documentElement.lang = locale;
+        document.documentElement.dir = locale.toLowerCase().startsWith("ar")
+          ? "rtl"
+          : "ltr";
         document.title = messages.title;
 
         document.querySelectorAll("[data-i18n]").forEach((element) => {
@@ -312,7 +391,9 @@
                 </span>
               </li>
               <li>
-                <strong data-i18n="summary2Title">Independent Presentation</strong>
+                <strong data-i18n="summary2Title"
+                  >Independent Presentation</strong
+                >
                 <span data-i18n="summary2Body">
                   The standalone page does not reuse Vben components or layout,
                   but it still keeps a polished and readable presentation.

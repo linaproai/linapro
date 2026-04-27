@@ -20,13 +20,6 @@ CREATE TABLE IF NOT EXISTS `sys_config` (
 -- ============================================================
 -- 参数初始化数据：宿主内置运行时参数与公开前端展示参数
 -- ============================================================
--- 清理已下线或误导性的历史示例参数，避免历史环境保留废弃配置。
-DELETE FROM `sys_config` WHERE `key` = 'sys.user.initPassword';
-DELETE FROM `sys_config` WHERE `key` IN ('sys.index.skinName', 'sys.index.sideTheme', 'sys.account.registerUser');
-DELETE FROM `sys_config` WHERE `key` = 'sys.ui.theme.primaryColor';
-DELETE FROM `sys_config` WHERE `key` = 'sys.logger.traceID.enabled';
-DELETE FROM `sys_config` WHERE `key` IN ('sys.app.logo', 'sys.app.logoDark') AND `value` IN ('https://unpkg.com/@vbenjs/static-source@0.1.7/source/logo-v1.webp', '/logo-banner.png');
-
 INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
 ('品牌展示-应用名称', 'sys.app.name', 'LinaPro', '控制浏览器标题、登录页品牌名称和工作台Logo文案展示，建议填写简洁的产品名称。', NOW(), NOW()),
 ('品牌展示-应用 Logo', 'sys.app.logo', '/logo.png', '控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),

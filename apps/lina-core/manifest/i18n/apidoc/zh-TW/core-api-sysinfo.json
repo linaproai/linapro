@@ -1,0 +1,136 @@
+{
+  "core": {
+    "api": {
+      "sysinfo": {
+        "v1": {
+          "ComponentInfo": {
+            "fields": {
+              "description": {
+                "dc": "組件描述"
+              },
+              "name": {
+                "dc": "組件名稱"
+              },
+              "url": {
+                "dc": "組件主頁URL"
+              },
+              "version": {
+                "dc": "組件版本"
+              }
+            }
+          },
+          "FrameworkInfo": {
+            "fields": {
+              "description": {
+                "dc": "框架介紹"
+              },
+              "homepage": {
+                "dc": "項目官網"
+              },
+              "license": {
+                "dc": "開源協議"
+              },
+              "name": {
+                "dc": "框架名稱"
+              },
+              "repositoryUrl": {
+                "dc": "倉庫地址"
+              },
+              "version": {
+                "dc": "框架版本號"
+              }
+            }
+          },
+          "GetInfoReq": {
+            "meta": {
+              "dc": "獲取系統運行時信息，包括Go版本、GoFrame版本、操作系統、數據庫版本、啟動時間、運行時長以及前後端組件列表",
+              "summary": "獲取系統運行信息",
+              "tags": "系統信息"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "arch": {
+                            "dc": "系統架構"
+                          },
+                          "backendComponents": {
+                            "dc": "後端組件列表"
+                          },
+                          "dbVersion": {
+                            "dc": "數據庫版本"
+                          },
+                          "framework": {
+                            "dc": "框架信息"
+                          },
+                          "frontendComponents": {
+                            "dc": "前端組件列表"
+                          },
+                          "gfVersion": {
+                            "dc": "GoFrame版本"
+                          },
+                          "goVersion": {
+                            "dc": "Go版本"
+                          },
+                          "os": {
+                            "dc": "操作系統"
+                          },
+                          "runDuration": {
+                            "dc": "系統運行時長"
+                          },
+                          "startTime": {
+                            "dc": "系統啟動時間"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "獲取系統運行時信息，包括Go版本、GoFrame版本、操作系統、數據庫版本、啟動時間、運行時長以及前後端組件列表"
+            }
+          },
+          "GetInfoRes": {
+            "fields": {
+              "arch": {
+                "dc": "系統架構"
+              },
+              "backendComponents": {
+                "dc": "後端組件列表"
+              },
+              "dbVersion": {
+                "dc": "數據庫版本"
+              },
+              "framework": {
+                "dc": "框架信息"
+              },
+              "frontendComponents": {
+                "dc": "前端組件列表"
+              },
+              "gfVersion": {
+                "dc": "GoFrame版本"
+              },
+              "goVersion": {
+                "dc": "Go版本"
+              },
+              "os": {
+                "dc": "操作系統"
+              },
+              "runDuration": {
+                "dc": "系統運行時長"
+              },
+              "startTime": {
+                "dc": "系統啟動時間"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

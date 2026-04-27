@@ -15,24 +15,19 @@
 - **AND** 这次克隆不会污染或改写内部缓存
 
 ### Requirement: 运行时翻译缓存必须按语言与扇区分层失效
-宿主系统 SHALL 把运行时翻译消息缓存组织为"按语言 × 扇区(host / source-plugin / dynamic-plugin / database)"分层结构,并按扇区维度提供精细失效能力。任何业务事件触发的失效 MUST 仅清除受影响的语言或扇区,不得"一锅清"所有语言、所有扇区的缓存。运行时业务内容缓存(`sys_i18n_content`)失效粒度 MUST 至少支持按 `business_type` 与 `locale` 维度作废,不得整张清空。
+宿主系统 SHALL 把运行时翻译消息缓存组织为"按语言 × 扇区(host / source-plugin / dynamic-plugin)"分层结构,并按扇区维度提供精细失效能力。任何业务事件触发的失效 MUST 仅清除受影响的语言或扇区,不得"一锅清"所有语言、所有扇区的缓存。宿主核心 i18n 不得引入数据库覆写扇区或运行时业务内容缓存;翻译内容以开发期 JSON/YAML 资源为唯一事实源。
 
-#### Scenario: 数据库覆写导入仅清除该语言的数据库扇区
-- **WHEN** 管理员通过 `ImportMessages` 写入 `en-US` 的若干翻译键覆写
-- **THEN** 系统只清除 `en-US` 语言的数据库扇区缓存与合并视图
+#### Scenario: 宿主资源失效仅清除目标语言宿主扇区
+- **WHEN** 维护工具或测试流程触发 `en-US` 宿主资源缓存失效
+- **THEN** 系统只清除 `en-US` 语言的宿主扇区缓存与合并视图
 - **AND** `zh-CN` 与其他启用语言的缓存保持原值
-- **AND** `en-US` 中宿主、源码插件、动态插件扇区无需重新加载
+- **AND** `en-US` 中源码插件、动态插件扇区无需重新加载
 
 #### Scenario: 动态插件启停仅清除该插件相关扇区
 - **WHEN** 某个动态插件被启用、停用或升级
 - **THEN** 系统仅清除涉及该插件的动态插件扇区缓存与合并视图
 - **AND** 宿主与未受影响插件的翻译数据继续命中缓存
 - **AND** 重新合并时只对该插件 ID 的资源做加载或移除
-
-#### Scenario: 业务内容缓存按业务类型失效
-- **WHEN** 某业务模块调用 `sys_i18n_content` 写入或更新某 `business_type` 的内容
-- **THEN** 系统仅清除该 `business_type` 关联的内容缓存条目
-- **AND** 其他 `business_type` 与其他语言的内容缓存保持有效
 
 ### Requirement: 运行时翻译包接口必须支持 ETag 协商
 宿主系统 SHALL 在 `/i18n/runtime/messages` 接口响应中输出 `ETag` 头,值由当前语言与运行时翻译包版本(`bundleVersion`)派生且在版本变化时必然不同。系统 MUST 接收请求中的 `If-None-Match` 头,若值与当前响应 ETag 一致则返回 `304 Not Modified` 且不携带消息体。每次扇区缓存失效 MUST 触发 `bundleVersion` 自增,确保同一语言下的不同 bundle 内容拥有不同 ETag。
@@ -44,7 +39,7 @@
 - **THEN** 后端返回 `304 Not Modified` 且不携带消息体
 
 #### Scenario: 翻译资源变化后 ETag 一定变化
-- **WHEN** 任意扇区(host / source-plugin / dynamic-plugin / database)发生缓存失效
+- **WHEN** 任意扇区(host / source-plugin / dynamic-plugin)发生缓存失效
 - **THEN** `bundleVersion` 自增
 - **AND** 同语言下次请求返回的 `ETag` 与之前不同
 - **AND** 携带旧 `If-None-Match` 的请求返回 `200` 与最新消息体

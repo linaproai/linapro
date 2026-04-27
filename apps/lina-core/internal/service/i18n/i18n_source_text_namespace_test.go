@@ -7,8 +7,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-
-	"lina-core/internal/model/do"
 )
 
 // TestCheckMissingMessagesDoesNotSkipUnregisteredSourceTextNamespace verifies
@@ -22,19 +20,11 @@ func TestCheckMissingMessagesDoesNotSkipUnregisteredSourceTextNamespace(t *testi
 	})
 
 	ctx := context.Background()
-	key := fmt.Sprintf("test.source.unregistered.%s", t.Name())
-	insertedID := insertI18nMessageForTest(t, ctx, do.SysI18NMessage{
-		Locale:       DefaultLocale,
-		MessageKey:   key,
-		MessageValue: "仅默认语言提供",
-		ScopeType:    "host",
-		ScopeKey:     "core",
-		SourceType:   "manual",
-		Status:       int(messageStatusEnabled),
-		Remark:       t.Name(),
-	})
-	t.Cleanup(func() {
-		deleteI18nMessageByID(t, ctx, insertedID)
+	pluginID := nextTestSourcePluginID()
+	key := fmt.Sprintf("test.source.unregistered.%s", pluginID)
+	registerTestSourcePluginI18N(t, pluginID, map[string]string{
+		DefaultLocale: fmt.Sprintf(`{"test":{"source":{"unregistered":{"%s":"仅默认语言提供"}}}}`, pluginID),
+		"zh-TW":       fmt.Sprintf(`{"test":{"source":{"unregistered":{"%s":"繁體中文可用"}}}}`, pluginID),
 	})
 
 	items := New().CheckMissingMessages(ctx, EnglishLocale, "test.source.unregistered.")
@@ -57,24 +47,18 @@ func TestCheckMissingMessagesSkipsRegisteredSourceTextNamespace(t *testing.T) {
 	RegisterSourceTextNamespace(prefix, "test source text")
 
 	ctx := context.Background()
-	key := fmt.Sprintf("%s%s", prefix, t.Name())
-	insertedID := insertI18nMessageForTest(t, ctx, do.SysI18NMessage{
-		Locale:       DefaultLocale,
-		MessageKey:   key,
-		MessageValue: "仅默认语言提供",
-		ScopeType:    "host",
-		ScopeKey:     "core",
-		SourceType:   "manual",
-		Status:       int(messageStatusEnabled),
-		Remark:       t.Name(),
-	})
-	t.Cleanup(func() {
-		deleteI18nMessageByID(t, ctx, insertedID)
+	pluginID := nextTestSourcePluginID()
+	key := fmt.Sprintf("%s%s", prefix, pluginID)
+	registerTestSourcePluginI18N(t, pluginID, map[string]string{
+		DefaultLocale: fmt.Sprintf(`{"test":{"source":{"registered":{"%s":"仅默认语言提供"}}}}`, pluginID),
+		"zh-TW":       fmt.Sprintf(`{"test":{"source":{"registered":{"%s":"繁體中文可用"}}}}`, pluginID),
 	})
 
-	items := New().CheckMissingMessages(ctx, EnglishLocale, prefix)
-	if _, ok := findMissingMessage(items, key); ok {
-		t.Fatalf("expected registered source-text key %q to be skipped", key)
+	for _, locale := range []string{EnglishLocale, "zh-TW"} {
+		items := New().CheckMissingMessages(ctx, locale, prefix)
+		if _, ok := findMissingMessage(items, key); ok {
+			t.Fatalf("expected registered source-text key %q to be skipped for %s", key, locale)
+		}
 	}
 }
 

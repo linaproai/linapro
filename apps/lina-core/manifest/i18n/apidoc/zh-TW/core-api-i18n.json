@@ -1,0 +1,352 @@
+{
+  "core": {
+    "api": {
+      "i18n": {
+        "v1": {
+          "DiagnoseMessagesReq": {
+            "fields": {
+              "keyPrefix": {
+                "dc": "按翻譯鍵前綴過濾，如 menu.、plugin.demo.；不傳則診斷全部"
+              },
+              "locale": {
+                "dc": "目標語言編碼，不傳時按請求上下文自動解析，如 zh-CN、en-US"
+              }
+            },
+            "meta": {
+              "dc": "診斷目標語言每個翻譯鍵的實際命中來源、是否回退到默認語言以及最終生效的語言，便於排查覆寫優先級與缺失翻譯問題",
+              "summary": "診斷翻譯來源",
+              "tags": "國際化"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "defaultLocale": {
+                            "dc": "當前宿主默認語言編碼"
+                          },
+                          "items": {
+                            "dc": "翻譯來源診斷結果列表"
+                          },
+                          "locale": {
+                            "dc": "目標語言編碼"
+                          },
+                          "total": {
+                            "dc": "診斷返回的翻譯鍵數量"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "診斷目標語言每個翻譯鍵的實際命中來源、是否回退到默認語言以及最終生效的語言，便於排查覆寫優先級與缺失翻譯問題"
+            }
+          },
+          "DiagnoseMessagesRes": {
+            "fields": {
+              "defaultLocale": {
+                "dc": "當前宿主默認語言編碼"
+              },
+              "items": {
+                "dc": "翻譯來源診斷結果列表"
+              },
+              "locale": {
+                "dc": "目標語言編碼"
+              },
+              "total": {
+                "dc": "診斷返回的翻譯鍵數量"
+              }
+            }
+          },
+          "ExportMessagesReq": {
+            "fields": {
+              "locale": {
+                "dc": "目標語言編碼，不傳時按請求上下文自動解析，如 zh-CN、en-US"
+              },
+              "raw": {
+                "dc": "是否僅導出當前語言原始資源：true=僅導出當前語言聚合結果 false=導出帶默認語言回退的有效結果"
+              }
+            },
+            "meta": {
+              "dc": "導出指定語言的扁平國際化消息集合，支持導出有效聚合結果或當前語言原始資源，用於交付維護、離線校對和資源文件維護",
+              "summary": "導出國際化消息",
+              "tags": "國際化"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "defaultLocale": {
+                            "dc": "當前宿主默認語言編碼"
+                          },
+                          "locale": {
+                            "dc": "本次導出的目標語言編碼"
+                          },
+                          "messages": {
+                            "dc": "按扁平 key 輸出的國際化消息集合"
+                          },
+                          "mode": {
+                            "dc": "導出模式：effective=帶默認語言回退的有效結果 raw=當前語言原始資源"
+                          },
+                          "total": {
+                            "dc": "導出的翻譯鍵數量"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "導出指定語言的扁平國際化消息集合，支持導出有效聚合結果或當前語言原始資源，用於交付維護、離線校對和資源文件維護"
+            }
+          },
+          "ExportMessagesRes": {
+            "fields": {
+              "defaultLocale": {
+                "dc": "當前宿主默認語言編碼"
+              },
+              "locale": {
+                "dc": "本次導出的目標語言編碼"
+              },
+              "messages": {
+                "dc": "按扁平 key 輸出的國際化消息集合"
+              },
+              "mode": {
+                "dc": "導出模式：effective=帶默認語言回退的有效結果 raw=當前語言原始資源"
+              },
+              "total": {
+                "dc": "導出的翻譯鍵數量"
+              }
+            }
+          },
+          "MessageDiagnosticItem": {
+            "fields": {
+              "effectiveLocale": {
+                "dc": "實際提供該翻譯值的語言編碼"
+              },
+              "fromFallback": {
+                "dc": "是否回退到默認語言：true=是 false=否"
+              },
+              "key": {
+                "dc": "翻譯鍵"
+              },
+              "requestedLocale": {
+                "dc": "請求的目標語言編碼"
+              },
+              "sourceKey": {
+                "dc": "命中來源標識，如 core、plugin-id 或具體作用域鍵"
+              },
+              "sourceType": {
+                "dc": "命中來源類型：host_file=宿主文件 plugin_file=插件文件"
+              },
+              "value": {
+                "dc": "當前最終生效的翻譯值"
+              }
+            }
+          },
+          "MissingMessageItem": {
+            "fields": {
+              "defaultValue": {
+                "dc": "默認語言中的基線翻譯值"
+              },
+              "key": {
+                "dc": "缺失的翻譯鍵"
+              },
+              "sourceKey": {
+                "dc": "基線來源標識，如 core 或具體 plugin_id"
+              },
+              "sourceType": {
+                "dc": "基線來源類型：host_file=宿主文件 plugin_file=插件文件"
+              }
+            }
+          },
+          "MissingMessagesReq": {
+            "fields": {
+              "keyPrefix": {
+                "dc": "按翻譯鍵前綴過濾，如 menu.、plugin.demo.；不傳則檢查全部"
+              },
+              "locale": {
+                "dc": "目標語言編碼，不傳時按請求上下文自動解析，如 zh-CN、en-US"
+              }
+            },
+            "meta": {
+              "dc": "檢查目標語言相對當前默認語言缺失的翻譯鍵，返回默認語言基線值和來源範圍，供交付項目補齊翻譯資源",
+              "summary": "檢查缺失翻譯",
+              "tags": "國際化"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "defaultLocale": {
+                            "dc": "當前宿主默認語言編碼"
+                          },
+                          "items": {
+                            "dc": "缺失翻譯鍵列表"
+                          },
+                          "locale": {
+                            "dc": "目標語言編碼"
+                          },
+                          "total": {
+                            "dc": "缺失翻譯鍵數量"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "檢查目標語言相對當前默認語言缺失的翻譯鍵，返回默認語言基線值和來源範圍，供交付項目補齊翻譯資源"
+            }
+          },
+          "MissingMessagesRes": {
+            "fields": {
+              "defaultLocale": {
+                "dc": "當前宿主默認語言編碼"
+              },
+              "items": {
+                "dc": "缺失翻譯鍵列表"
+              },
+              "locale": {
+                "dc": "目標語言編碼"
+              },
+              "total": {
+                "dc": "缺失翻譯鍵數量"
+              }
+            }
+          },
+          "RuntimeLocaleItem": {
+            "fields": {
+              "isDefault": {
+                "dc": "是否為宿主默認語言：true=是 false=否"
+              },
+              "direction": {
+                "dc": "語言文本方向，當前宿主約定固定為 ltr"
+              },
+              "locale": {
+                "dc": "語言編碼，如 zh-CN、en-US"
+              },
+              "name": {
+                "dc": "按當前展示語言本地化後的語言名稱"
+              },
+              "nativeName": {
+                "dc": "該語言自己的原生名稱"
+              }
+            }
+          },
+          "RuntimeLocalesReq": {
+            "fields": {
+              "lang": {
+                "dc": "名稱展示使用的語言編碼；不傳時按請求上下文自動解析，如 zh-CN、en-US"
+              }
+            },
+            "meta": {
+              "dc": "返回運行時多語言切換狀態和宿主當前支持的語言列表，包含語言編碼、默認標記、展示名稱、原生名稱和固定 LTR 文本方向，供登錄頁、工作臺或交付工具構建語言切換器",
+              "summary": "獲取運行時語言列表",
+              "tags": "國際化"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "enabled": {
+                            "dc": "是否開啟運行時多語言切換：true=可顯示語言切換器，false=僅使用默認語言"
+                          },
+                          "items": {
+                            "dc": "宿主當前支持的運行時語言列表"
+                          },
+                          "locale": {
+                            "dc": "本次請求最終生效的展示語言編碼"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "返回運行時多語言切換狀態和宿主當前支持的語言列表，包含語言編碼、默認標記、展示名稱和原生名稱，供登錄頁、工作臺或交付工具構建語言切換器"
+            }
+          },
+          "RuntimeLocalesRes": {
+            "fields": {
+              "enabled": {
+                "dc": "是否開啟運行時多語言切換：true=可顯示語言切換器，false=僅使用默認語言"
+              },
+              "items": {
+                "dc": "宿主當前支持的運行時語言列表"
+              },
+              "locale": {
+                "dc": "本次請求最終生效的展示語言編碼"
+              }
+            }
+          },
+          "RuntimeMessagesReq": {
+            "fields": {
+              "lang": {
+                "dc": "目標語言編碼；不傳時按請求上下文自動解析，如 zh-CN、en-US"
+              }
+            },
+            "meta": {
+              "dc": "返回宿主與已接入資源聚合後的運行時國際化消息包，供登錄頁、管理工作臺和宿主嵌入式插件頁面加載",
+              "summary": "獲取運行時國際化消息包",
+              "tags": "國際化"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "locale": {
+                            "dc": "本次請求最終生效的語言編碼"
+                          },
+                          "messages": {
+                            "dc": "聚合後的運行時國際化消息集合"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "返回宿主與已接入資源聚合後的運行時國際化消息包，供登錄頁、管理工作臺和宿主嵌入式插件頁面加載"
+            }
+          },
+          "RuntimeMessagesRes": {
+            "fields": {
+              "locale": {
+                "dc": "本次請求最終生效的語言編碼"
+              },
+              "messages": {
+                "dc": "聚合後的運行時國際化消息集合"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

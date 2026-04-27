@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join, relative, sep } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 
 import { defineConfig } from '@vben/vite-config';
 import type { ViteDevServer } from 'vite';
@@ -10,6 +10,8 @@ let cachedApidocsHtml: string | undefined;
 
 const pluginPageModuleId = 'virtual:lina-plugin-pages';
 const pluginSlotModuleId = 'virtual:lina-plugin-slots';
+const appThirdPartyLocaleModuleId = 'virtual:lina-app-third-party-locales';
+const vxeLocaleModuleId = 'virtual:lina-vxe-locales';
 const appRequire = createRequire(import.meta.url);
 
 function collectPluginSourceFiles(pluginRoot: string) {
@@ -153,9 +155,193 @@ function buildPluginSlotModuleCode(pluginRoot: string) {
   ].join('\n');
 }
 
+function collectLocaleNamesFromDir(localeDir: string, options = {}) {
+  const { exclude = [] } = options as { exclude?: string[] };
+  const excluded = new Set(exclude);
+
+  return readdirSync(localeDir, { withFileTypes: true })
+    .filter((entry) => {
+      if (!entry.isFile() || !entry.name.endsWith('.js')) {
+        return false;
+      }
+      if (entry.name.endsWith('.min.js') || entry.name.endsWith('.umd.js')) {
+        return false;
+      }
+      const localeName = entry.name.slice(0, -'.js'.length);
+      return !excluded.has(localeName);
+    })
+    .map((entry) => entry.name.slice(0, -'.js'.length))
+    .toSorted();
+}
+
+function collectPackageLocaleNames(sampleImport: string, options = {}) {
+  return collectLocaleNamesFromDir(
+    dirname(appRequire.resolve(sampleImport)),
+    options,
+  );
+}
+
+function collectRuntimeLocaleNames(localeDirs: string[]) {
+  const locales = new Set<string>();
+  for (const localeDir of localeDirs) {
+    if (!existsSync(localeDir)) {
+      continue;
+    }
+    for (const entry of readdirSync(localeDir, { withFileTypes: true })) {
+      if (entry.isDirectory()) {
+        locales.add(entry.name);
+      }
+    }
+  }
+  return [...locales].toSorted();
+}
+
+function uniqueItems(items: string[]) {
+  return [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+}
+
+function splitLocaleCode(locale: string) {
+  const segments = locale.trim().split('-').filter(Boolean);
+  const language = String(segments[0] || '').toLowerCase();
+  const region = String(segments[segments.length - 1] || '').toUpperCase();
+  return { language, region };
+}
+
+function buildDayjsLocaleCandidates(locale: string) {
+  const { language } = splitLocaleCode(locale);
+  return uniqueItems([locale.trim().toLowerCase(), language, 'en']);
+}
+
+function buildUnderscoreLocaleCandidates(
+  locale: string,
+  availableLocaleNames: string[],
+) {
+  const { language, region } = splitLocaleCode(locale);
+  return uniqueItems([
+    language && region ? `${language}_${region}` : '',
+    findLanguageLocaleName(availableLocaleNames, language, '_'),
+    'en_US',
+  ]);
+}
+
+function buildHyphenLocaleCandidates(
+  locale: string,
+  availableLocaleNames: string[],
+) {
+  const { language, region } = splitLocaleCode(locale);
+  return uniqueItems([
+    language && region ? `${language}-${region}` : '',
+    findLanguageLocaleName(availableLocaleNames, language, '-'),
+    'en-US',
+  ]);
+}
+
+function findLanguageLocaleName(
+  availableLocaleNames: string[],
+  language: string,
+  separator: string,
+) {
+  if (!language) {
+    return '';
+  }
+  const languagePrefix = `${language}${separator}`;
+  return (
+    availableLocaleNames.find((candidate) => {
+      const normalizedCandidate = candidate.toLowerCase();
+      return (
+        normalizedCandidate === language ||
+        normalizedCandidate.startsWith(languagePrefix)
+      );
+    }) || ''
+  );
+}
+
+function selectAvailableLocaleNames(
+  runtimeLocales: string[],
+  availableLocaleNames: string[],
+  buildCandidates: (locale: string, availableLocaleNames: string[]) => string[],
+) {
+  const available = new Set(availableLocaleNames);
+  const selected = new Set<string>();
+  for (const locale of runtimeLocales) {
+    for (const candidate of buildCandidates(locale, availableLocaleNames)) {
+      if (available.has(candidate)) {
+        selected.add(candidate);
+      }
+    }
+  }
+  return [...selected].toSorted();
+}
+
+function buildLocaleLoaderMapCode(
+  exportName: string,
+  packagePathPrefix: string,
+  localeNames: string[],
+) {
+  const entries = localeNames.map(
+    (localeName) =>
+      `  ${JSON.stringify(localeName)}: () => import(${JSON.stringify(`${packagePathPrefix}/${localeName}`)}),`,
+  );
+
+  return [`export const ${exportName} = {`, ...entries, '};'].join('\n');
+}
+
+function buildAppThirdPartyLocaleModuleCode(runtimeLocales: string[]) {
+  const dayjsLocaleNames = selectAvailableLocaleNames(
+    runtimeLocales,
+    collectPackageLocaleNames('dayjs/locale/en'),
+    buildDayjsLocaleCandidates,
+  );
+  const antdLocaleNames = selectAvailableLocaleNames(
+    runtimeLocales,
+    collectPackageLocaleNames('ant-design-vue/es/locale/en_US', {
+      exclude: ['index', 'LocaleReceiver'],
+    }),
+    buildUnderscoreLocaleCandidates,
+  );
+
+  return [
+    buildLocaleLoaderMapCode(
+      'dayjsLocaleLoaders',
+      'dayjs/locale',
+      dayjsLocaleNames,
+    ),
+    buildLocaleLoaderMapCode(
+      'antdLocaleLoaders',
+      'ant-design-vue/es/locale',
+      antdLocaleNames,
+    ),
+  ].join('\n\n');
+}
+
+function buildVxeLocaleModuleCode(
+  vxeLocaleDir: string,
+  runtimeLocales: string[],
+) {
+  const vxeLocaleNames = selectAvailableLocaleNames(
+    runtimeLocales,
+    collectLocaleNamesFromDir(vxeLocaleDir),
+    buildHyphenLocaleCandidates,
+  );
+
+  return buildLocaleLoaderMapCode(
+    'vxeLocaleLoaders',
+    'vxe-pc-ui/lib/language',
+    vxeLocaleNames,
+  );
+}
+
 export default defineConfig(async () => {
   const vbenRoot = join(import.meta.dirname, '../..');
   const pluginRoot = join(import.meta.dirname, '../../../lina-plugins');
+  const runtimeLocales = collectRuntimeLocaleNames([
+    join(vbenRoot, 'packages/locales/src/langs'),
+    join(import.meta.dirname, 'src/locales/langs'),
+  ]);
+  const vxeLocaleDir = join(
+    vbenRoot,
+    'packages/effects/plugins/node_modules/vxe-pc-ui/lib/language',
+  );
 
   return {
     application: {
@@ -221,6 +407,27 @@ export default defineConfig(async () => {
             }
             if (id === `\0${pluginSlotModuleId}`) {
               return buildPluginSlotModuleCode(pluginRoot);
+            }
+            return null;
+          },
+        },
+        {
+          name: 'lina-third-party-locales',
+          resolveId(source) {
+            if (source === appThirdPartyLocaleModuleId) {
+              return `\0${source}`;
+            }
+            if (source === vxeLocaleModuleId) {
+              return `\0${source}`;
+            }
+            return null;
+          },
+          load(id) {
+            if (id === `\0${appThirdPartyLocaleModuleId}`) {
+              return buildAppThirdPartyLocaleModuleCode(runtimeLocales);
+            }
+            if (id === `\0${vxeLocaleModuleId}`) {
+              return buildVxeLocaleModuleCode(vxeLocaleDir, runtimeLocales);
             }
             return null;
           },

@@ -1,16 +1,16 @@
 ## Context
 
-`framework-i18n-foundation` 已在 `apps/lina-core/internal/service/i18n/` 落地了"宿主三层资源 + 数据库覆写 + 业务内容多语言"完整体系,在 `zh-CN` / `en-US` 双语下功能完整。但通过 78 条反馈逐步发现的系统性问题,集中在**热路径性能、模块一致性、组件边界**三个维度:
+`framework-i18n-foundation` 已在 `apps/lina-core/internal/service/i18n/` 落地了"宿主资源 + 插件资源 + 运行时聚合"体系,在 `zh-CN` / `en-US` 双语下功能完整。但通过 78 条反馈逐步发现的系统性问题,集中在**热路径性能、模块一致性、组件边界**三个维度:
 
 - 当前 `Translate` 系列方法每次调用都会 `cloneFlatMessageMap` 整张运行时消息包,而调用方往往只需要 1 个 key——已知热路径(菜单列表、字典列表、公共配置)单次请求会触发数十次完整 clone。
-- `runtimeBundleCache` 的 invalidate 是"全语言全扇区一锅清",任何插件启停或 DB 翻译导入都会击穿所有语言的缓存。
-- `runtimeContentCache` 在 `InvalidateContentCache()` 时整张清空,业务内容数量增长后会出现击穿到 DB 的风险。
+- `runtimeBundleCache` 的 invalidate 是"全语言全扇区一锅清",任何插件启停都会击穿所有语言的缓存。
+- 运行时 i18n 持久化表(`sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content`)把语言注册、翻译内容和业务内容变体从开发期资源模型拉回了数据库双源模型,导致新增语言需要理解 SQL、DAO、后端维护 API 和缓存失效路径,与"新增语言只加 JSON/YAML"目标冲突。
 - 5 个 `*_i18n.go` 适配文件 (`menu_i18n.go` / `dict_i18n.go` / `sysconfig_i18n.go` / `jobmgmt_i18n.go` / `role.go`) 各自决定"何时翻译/何时跳过/用哪个 Translate*",`sysconfig_i18n.go` 甚至直接在 Go 内硬编码英文/中文 map(违反约定一)。初版 `LocaleProjector` 中心化方案可以减少重复,但会让 i18n 基础服务反向耦合业务实体与业务保护规则,因此本方案改为业务模块拥有投影规则。
 - `i18n_manage.go::isSourceTextBackedRuntimeKey` 把 `job.handler.*`、`job.group.default.*` 这些 jobmgmt 私有命名前缀漏到 i18n 包内部,形成反向依赖。
-- `Service` 接口 18 个方法承担 5 类职责,业务模块测试要 stub 整个大接口。
+- `Service` 接口 18 个方法承担多类职责,业务模块测试要 stub 整个大接口。
 - `apidoc/apidoc_i18n_loader.go` 与 `i18n/i18n.go` 的资源加载函数各自维护一份 host/source-plugin/dynamic-plugin 资源遍历逻辑,共重复 ~280 行。
 - 前端 `runtime-i18n.ts` 用裸 `fetch` 绕过 `requestClient`,失败语义和持久化缓存策略都不完整;`loadMessages` 把"运行时 bundle / 公共配置 / 三方库"用 `Promise.all` 一锅端,无差别失败处理。
-- 整个框架在 `zh-CN` / `en-US` 这两种 LTR、无复数、半角数字的"近亲语言"下被验证;约定式翻译键、缺失检查、运行时聚合在引入真正不同的语言(RTL、多复数形式、不同数字字符集)时是否真的零业务代码改动,从未被压力测试。
+- 整个框架在 `zh-CN` / `en-US` 双语下被验证;约定式翻译键、缺失检查、运行时聚合在引入第三种语言时是否真的零业务代码改动,从未被压力测试。
 
 由于本项目无历史兼容包袱,本次设计不保留旧 `Service` 接口签名、不维护旧 cache 结构,直接重构。
 
@@ -18,7 +18,7 @@
 
 **Goals:**
 - 让 `Translate` 热路径在 cache 命中时不再做大 map 克隆,单次查找接近常量时间。
-- 让缓存失效具备扇区级精度:插件启停只清相关插件扇区,DB 导入只清 DB 扇区,语言切换不互相影响。
+- 让缓存失效具备扇区级精度:插件启停只清相关插件扇区,语言切换不互相影响。
 - 让运行时翻译包在 HTTP 层支持 ETag/304 协商,前端二次进入页面零网络切语言。
 - 让 5 个业务模块的 `*_i18n.go` 在各自模块边界内收敛投影规则,消除明显漂移,同时避免 i18n 基础服务反向认识业务实体。
 - 让 `Service` 大接口拆分为多个职责清晰的小接口,业务模块只声明实际依赖。
@@ -26,15 +26,16 @@
 - 让 `apidoc` 与 runtime bundle 共用同一份 `ResourceLoader`,消除 ~280 行重复实现。
 - 让前端 `loadMessages` 三件事按各自失败语义独立处理,带持久化缓存兜底。
 - 让 WASM 自定义节解析归属 `pluginbridge`,i18n 不再反向依赖 WASM 文件格式。
-- 让阿拉伯语 `ar-SA` 作为第三种语言成为压力测试基线,验证"约定式翻译键 + 缺失检查"在加新语言时真的零业务代码改动。
-- 让基础 RTL (`<html dir>` + antd `ConfigProvider`) 跟随语言切换自动生效,阿语下页面"内容正确、能用"。
+- 让繁体中文 `zh-TW` 作为第三种语言成为压力测试基线,验证"约定式翻译键 + 缺失检查"在加新语言时真的零业务代码改动。
+- 按当前宿主定位固定使用 LTR 文档方向,繁体中文下页面"内容正确、能用"。
+- 移除 `sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content` 三张运行时 i18n 持久化表,把翻译内容收敛为开发期 JSON/YAML 资源唯一事实源。
 
 **Non-Goals:**
-- 不在本次范围内做完整 RTL 设计语言:图标镜像、抽屉/通知滑入方向、表格固定列翻转、CSS logical properties 全面替换、菜单展开方向。
+- 不在本次范围内支持 RTL 设计语言:图标镜像、抽屉/通知滑入方向、表格固定列翻转、CSS logical properties 全面替换、菜单展开方向。
 - 不在本次范围内引入用户级语言偏好(`sys_user.preferred_locale`)。
-- 不在本次范围内提供国际化可视化管理后台页面;现有导入/导出/缺失/诊断 API 已足够。
+- 不在本次范围内提供国际化可视化管理后台页面;保留导出、缺失检查、诊断 API 作为交付辅助工具。
 - 不引入自动机器翻译、AI 翻译辅助或外部翻译平台对接。
-- 不重新设计 `sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content` 三张表的 schema(基础结构在 foundation 已稳定)。
+- 不提供线上热修翻译写入能力;需要变更文案时通过修改 JSON/YAML 资源并发布完成。
 
 ## Decisions
 
@@ -69,7 +70,6 @@ type localeCache struct {
     host       map[string]string                          // 不可变,启动期一次性加载
     plugins    map[pluginID]map[string]string             // 源码插件,源码注册表变化时刷新
     dynamic    map[pluginID]map[string]string             // 动态插件,plugin lifecycle 钩子刷新
-    db         map[string]string                          // sys_i18n_message,导入/管理操作刷新
     merged     map[string]string                          // 按优先级合并后的视图,任何子层变化即作废
     mergedAt   atomic.Uint64                              // 与全局 bundleVersion 关联
 }
@@ -80,12 +80,11 @@ type runtimeCache struct {
 }
 ```
 
-`Translate` 优先读 `merged`;`merged` 缺失时按 db > dynamic > plugins > host 顺序合并并填充。
+`Translate` 优先读 `merged`;`merged` 缺失时按 dynamic > plugins > host 顺序合并并填充。
 失效粒度:
-- DB 导入 → `locales[L].db = nil; locales[L].merged = nil`
 - 动态插件启停 → 只清相关 plugin ID 在所有 locale 的 dynamic 子层与 merged
 - 源码插件注册表变化 → plugins 与 merged 失效
-- 启用/停用 locale → 整体清该 locale
+- 资源元数据或测试主动失效 → 按 locale / sector 清理
 
 每次 invalidate 触发 `version.Add(1)`,用于驱动前端 ETag 协商。
 
@@ -95,7 +94,7 @@ type runtimeCache struct {
 - `merged` 视图保证 `Translate` 的命中路径仍是 O(1) map 查找。
 
 **备选方案**:
-- 不引入 `merged` 视图,每次 `Translate` 都按四层依次查找。未采用,因为多语言下叠加 4 次 map 查找的常数远大于一次。
+- 不引入 `merged` 视图,每次 `Translate` 都按三层依次查找。未采用,因为多语言下叠加多次 map 查找的常数远大于一次。
 
 ### 决策三:运行时翻译包接口加 ETag 与持久化缓存
 
@@ -110,7 +109,7 @@ type runtimeCache struct {
 - TTL 兜底防止缓存与实际版本长期偏离。
 
 **备选方案**:
-- 用 `Last-Modified`。未采用,bundle 版本变化由配置导入和插件启停驱动,二者都非"文件时间戳"语义,`ETag` 更准确。
+- 用 `Last-Modified`。未采用,bundle 版本变化由插件启停、资源重载或测试主动失效驱动,不完全等价于单个文件时间戳,`ETag` 更准确。
 - 后端写 Redis 集中保存 bundle 版本。未采用,bundle 缓存本来就是进程内的 `runtimeBundleCache`,版本号也应该是同一个对象的属性,不需要外部存储。
 
 ### 决策四:业务模块拥有本地化投影规则,i18n 只提供底层能力
@@ -141,7 +140,7 @@ type dictI18nTranslator interface {
 **被否决方案**:
 - `LocaleProjector` 中心化投影器。否决原因:它减少了重复,但把业务实体、业务保护规则和业务翻译键推导集中进 i18n 基础服务,违反核心宿主边界与模块解耦原则。
 
-### 决策五:`Service` 大接口拆分为五个小接口
+### 决策五:`Service` 大接口拆分为四个小接口
 
 **选择**:
 
@@ -163,21 +162,15 @@ type BundleProvider interface {
     ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
     BundleVersion(locale string) uint64
 }
-type ContentProvider interface {
-    GetContent(ctx context.Context, in ContentLookupInput) (ContentLookupOutput, error)
-    ListContentVariants(ctx context.Context, businessType, businessID, field string) ([]ContentVariant, error)
-}
 type Maintainer interface {
     ExportMessages(ctx context.Context, locale string, raw bool) MessageExportOutput
     CheckMissingMessages(ctx context.Context, locale, prefix string) []MissingMessageItem
     DiagnoseMessages(ctx context.Context, locale, prefix string) []MessageDiagnosticItem
-    ImportMessages(ctx context.Context, in MessageImportInput) (MessageImportOutput, error)
     InvalidateRuntimeBundleCache(scope InvalidateScope)
-    InvalidateContentCache(scope ContentInvalidateScope)
 }
 ```
 
-`serviceImpl` 同时实现这五个接口;`New()` 返回值类型仍是 `Service`(为了向其他包提供完整能力),但 `Service` 改为 `interface { LocaleResolver; Translator; BundleProvider; ContentProvider; Maintainer }` 的组合。业务模块字段类型改为最小的小接口(如 `menu.serviceImpl.translator Translator`)。
+`serviceImpl` 同时实现这四个接口;`New()` 返回值类型仍是 `Service`(为了向其他包提供完整能力),但 `Service` 改为 `interface { LocaleResolver; Translator; BundleProvider; Maintainer }` 的组合。业务模块字段类型改为最小的小接口(如 `menu.serviceImpl.translator Translator`)。
 
 **原因**:
 - 业务模块测试 stub 从 18 个方法降到 5 个或更少。
@@ -201,6 +194,7 @@ func init() {
 **原因**:
 - 消除 i18n 包对 jobmgmt 的反向依赖。
 - 加新代码源文案模块时,只需在自己包内 `init` 一行,无需修改 i18n 包。
+- 缺失检查对所有非默认目标语言统一尊重该注册表;`en-US`、`zh-TW` 等语言不应因代码源命名空间没有重复 JSON 键而被误报缺失。
 
 **备选方案**:
 - 在 manifest 中静态声明命名空间。未采用,这是代码契约不是文件契约,与 Go 模块绑定更合适。
@@ -292,24 +286,68 @@ async function loadMessages(lang) {
 **备选方案**:
 - 不引入持久化,每次必须等到运行时 bundle 拉取完才渲染。未采用,体验差且与 ETag 协商方案不匹配。
 
-### 决策十:阿拉伯语 `ar-SA` 作为压力测试基线,基础 RTL 纳入本次
+### 决策十:语言发现改为资源约定 + 默认配置元数据,繁体中文作为压力测试基线
 
 **选择**:
-- `sys_i18n_locale` 通过新增的 `015-framework-i18n-foundation.sql` 兄弟文件 `017-framework-i18n-improvements.sql` 写入 `INSERT IGNORE INTO sys_i18n_locale` 一行 `ar-SA`,默认 `is_default=0`、`status=1`。
-- 宿主与所有源码插件的 `manifest/i18n/ar-SA.json` 与 `manifest/i18n/apidoc/ar-SA/*.json` 必须补齐,否则 `CheckMissingMessages` 会返回非空。
-- 前端 `packages/locales/src/langs/ar-SA/*.json`、`apps/web-antd/src/locales/langs/ar-SA/*.json` 补齐;dayjs 加载 `dayjs/locale/ar-sa`;antd `ConfigProvider` 通过 `direction` prop 跟随。
-- `<html dir>` 在 `setI18nLanguage(locale)` 内根据 `isRtlLocale(locale)` 设置;阿语下 `dir=rtl`,其他 `dir=ltr`。
-- 新增 `RtlAwareLocale` 注册表(目前仅 `ar-SA`),未来加 `he-IL`/`fa-IR` 时只需登记。
-- 复数与数字格式:首期不在所有页面铺开,只在"统计计数 / 批量操作提示"两类约定 `$tn(key, count)` 钩子,`vue-i18n` 自带 `pluralization` 已能处理 `ar-SA` 的 6 种形式。
+- 运行时内置语言从宿主 `manifest/i18n/<locale>.json` 文件自动发现;新增内置语言时不再新增 Go 常量、不再新增 SQL seed、不再修改前端 TS 语言清单。
+- 默认配置文件中的 `i18n` 配置段维护不可从 JSON 文件名推导且用户可能调整的少量元数据,采用简化结构:
+
+```yaml
+i18n:
+  # Default locale used when the request locale is missing or unsupported.
+  default: zh-CN
+  # Enable i18n multi language.
+  enabled: true
+
+  # Locale display order and native names used by /i18n/runtime/locales.
+  # Text direction is fixed to ltr by host convention and is not configurable.
+  locales:
+    - locale: en-US
+      nativeName: English
+    - locale: zh-CN
+      nativeName: 简体中文
+    - locale: zh-TW
+      nativeName: 繁體中文
+```
+
+- 文档方向按当前宿主约定固定为 `ltr`,不在配置中维护 `direction`;`locales` 列表用于排序、元数据覆盖和启用语言白名单,未列入该列表的语言不会暴露给运行时语言列表。若 `enabled=false`,后端只接受默认语言,前端隐藏语言切换按钮并按默认语言加载消息。
+- 宿主与所有源码插件的 `manifest/i18n/zh-TW.json` 与 `manifest/i18n/apidoc/zh-TW/*.json` 必须补齐,否则 `CheckMissingMessages` 会返回非空。
+- 前端 `packages/locales/src/langs/<locale>/*.json`、`apps/web-antd/src/locales/langs/<locale>/*.json` 通过目录约定自动发现;语言切换菜单从 `/i18n/runtime/locales` 获取,不维护静态 TS 语言清单。
+- `<html dir>` 与 antd `ConfigProvider.direction` 固定为 `ltr`,繁体中文仅验证翻译资源完整性与页面可用性。
+- dayjs / antd / vxe locale 通过语言编码约定推导加载:优先尝试完整 locale 对应的包名,再尝试语言族兜底,不再为每个新增语言改 switch 分支。
+- 复数与数字格式:繁体中文与简体中文同属 CJK 语言,本迭代不把复数形态作为新增语言验收点;涉及 `count` 的文案继续沿用现有 `vue-i18n` 参数化能力。
 
 **原因**:
-- 阿拉伯语真正考验的是 RTL、复数、数字格式三个隐藏假设;只有它能验证"加新语言零业务代码改动"的承诺是否真实。
-- 基础 RTL(`html dir` + `ConfigProvider`)是单点开关,不引入这一项就连"页面能用"都做不到。
-- 完整 RTL 设计语言是独立工作量级,本次禁入。
+- 此次 `zh-TW` 接入暴露出方案级问题:如果新增语言需要同时改 SQL、后端 Go 常量和前端 TS 分支,就说明语言注册仍是多处枚举而非资源驱动。
+- 默认配置只表达默认语言、多语言开关、排序和原生名这类不可稳定推导或用户可能调整的信息,其余能力通过文件名、目录和第三方包命名约定推导,符合"约定大于配置"。
+- 繁体中文用于验证新增语言的资源发现、缺失检查、插件资源覆盖和非拉丁字符展示,不再承担 RTL 验收目标。
+- 固定 LTR 符合当前项目主要面向中国国内开发者的定位,能减少配置和维护复杂度。
+- RTL 设计语言是独立工作量级,本次禁入。
 
 **备选方案**:
-- 选 `ja-JP`。未采用,LTR + 无复数无法暴露隐藏假设,等于"再做一遍 en-US"。
-- 一次性把完整 RTL 设计系统做完。未采用,会让本次变更范围爆炸,foundation 已经表明"主任务多 + 反馈多"的模式不健康。
+- 选 `ja-JP`。未采用,本次反馈明确要求替换为繁体中文,且繁简中文更适合验证"新增语言只改资源和可选 YAML"的低风险维护路径。
+- 继续用 `sys_i18n_locale` seed 作为内置语言注册表。未采用,因为这会让新增语言必须修改 SQL,和"只新增资源文件 + 可选 YAML 元数据"的目标冲突。
+- 前端继续维护 `SUPPORT_LANGUAGES` / 方向语言注册表 / 第三方 locale switch。未采用,因为这些 TS 枚举会让新增语言扩散到应用代码。
+- 支持基础或完整 RTL。未采用,当前项目定位不需要 RTL,保留会增加配置和测试维护复杂度。
+
+### 决策十一:移除运行时 i18n 持久化表,翻译内容只由资源文件维护
+
+**选择**:
+- 删除 `sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content` 三张表及其 DAO/DO/Entity、服务接口、控制器入口和测试。
+- 运行时语言列表只由 `manifest/i18n/<locale>.json` 自动发现,默认配置文件中的 `i18n` 段补充默认语言、多语言开关、原生名、排序和启用白名单。
+- 运行时消息只从宿主 JSON、源码插件 JSON 和动态插件 WASM 自定义节快照聚合;不存在数据库覆写层。
+- 保留导出、缺失检查和来源诊断能力,但它们是开发期/交付期辅助 API:导出结果用于离线校对并回写 JSON,诊断来源只报告 host/source-plugin/dynamic-plugin。
+- 不再提供通用 `sys_i18n_content` 业务内容多语言表。若未来某业务模块需要记录级多语言内容,应在该模块边界内设计自己的存储与 API,不能把业务内容模型放进基础 i18n service。
+
+**原因**:
+- 新增语言的最低风险路径应是"补资源 + 可选 YAML 元数据",而不是改 SQL、后端 Go、前端 TS 和缓存失效策略。
+- DB 覆写会制造 JSON 与数据库双事实源,审查、缺失检查和交付回写都更复杂。
+- 当前没有已落地业务模块消费 `sys_i18n_content`,提前放进核心会鼓励未来模块绕过自身边界依赖基础表。
+- 项目没有历史兼容包袱,可以直接移除这条过度设计路径。
+
+**备选方案**:
+- 保留三张表但不再 seed 新语言。未采用,因为只要表和 API 仍存在,新增语言和翻译维护仍会面对双源语义。
+- 保留 `sys_i18n_message` 作为线上热修通道。未采用,当前迭代目标是降低新增语言复杂度;线上热修翻译可以未来作为可选插件重新设计。
 
 ## Boundary Reassessment
 
@@ -318,26 +356,29 @@ async function loadMessages(lang) {
 - 任务 7 `Service` 接口拆分:保留。它降低业务模块对完整 i18n service 的依赖面,方向正确;实施时业务模块字段必须声明最小接口,不得把业务规则提升回 i18n 包。
 - 任务 8 `ResourceLoader`:调整。共享加载器不能放在 `internal/service/i18n`,否则 apidoc 会为复用加载器反向依赖运行时 i18n service 包;改为 `pkg/i18nresource` 公共组件。
 - 任务 9 WASM 解析迁移到 `pluginbridge`:保留。WASM 文件格式属于插件桥接/插件运行时基础设施,从 i18n 包移出可以降低耦合。
-- 任务 10-12 阿拉伯语与 RTL:保留。新增语言资源、方向切换和缺失检查不应要求业务 Go 代码改动;若出现必须改业务代码才能加语言的情况,视为方案问题。
+- 任务 10-12 繁体中文与固定 LTR:调整后保留。新增语言资源、固定方向和缺失检查不应要求业务 Go 代码、SQL seed 或前端 TS 语言枚举改动;若出现必须改这些枚举才能加语言的情况,视为方案问题。
+- FB-4 运行时 i18n 持久化表:移除。基础 i18n 服务只提供资源聚合、分发和校验,不提供数据库覆写或通用业务内容多语言模型。
 - 审查规则:新增 i18n 基础组件边界检查,禁止 `internal/service/i18n` 引入业务实体投影器、业务 key 判定常量或按业务实体命名的方法。
 
 ## Risks / Trade-offs
 
 - [Risk] 决策一移除 clone 后,如果有任何业务代码假设拿到的 map 可写并修改它,会污染缓存。→ Mitigation:codegen/lint 阶段不需要管,依靠改造期 grep `[]string\|map[string]string` 写操作并补单元测试;改造完毕后 `Translate` 系列只返回 `string`,根本没有 map 暴露给业务方。
 
-- [Risk] 决策二的扇区缓存重构涉及 invalidate 路径多个调用点(plugin runtime、i18n manage、apidoc loader),迁移时容易漏掉。→ Mitigation:用 `Maintainer.InvalidateRuntimeBundleCache(scope ...InvalidateScope)` 替代裸调用,scope 由调用方显式传入;改造完成后用 `lina-review` 校验所有 invalidate 入口都带 scope 参数。
+- [Risk] 决策二的扇区缓存重构涉及 invalidate 路径多个调用点(plugin runtime、i18n manage、apidoc loader),迁移时容易漏掉。→ Mitigation:用 `Maintainer.InvalidateRuntimeBundleCache(scope InvalidateScope)` 替代裸调用,scope 由调用方显式传入;改造完成后用 `lina-review` 校验所有 invalidate 入口都带 scope 参数。
 
 - [Risk] 决策三的 ETag 协商在前端持久化与后端 bundleVersion 不一致时(如某次 invalidate 没触发 version 自增),会导致用户看到陈旧翻译。→ Mitigation:每个 invalidate 路径都必须 `version.Add(1)`,审查规则覆盖;持久化 7 天 TTL 兜底;`reloadActiveLocaleMessages(force=true)` 仍可用于强制刷新。
 
 - [Risk] 决策五拆接口可能导致下游模块大规模改类型签名,迁移成本大。→ Mitigation:`Service` 仍存在并是组合类型,业务模块改字段类型为更小接口是逐模块进行的可选优化,不阻塞功能交付;后续审查规则鼓励但不强制。
 
-- [Risk] 决策十引入阿拉伯语后,翻译资源缺失会导致 `CheckMissingMessages` 与 E2E 巡检长期红色。→ Mitigation:阿语 manifest 补齐必须放在 tasks.md 中独立任务,且任何模块文案改动审查规则要求三语同步(`zh-CN` + `en-US` + `ar-SA`);CI 中 `CheckMissingMessages` 对 `ar-SA` 阈值与 `en-US` 一致,缺失即阻断。
+- [Risk] 决策十引入繁体中文后,翻译资源缺失会导致 `CheckMissingMessages` 与 E2E 巡检长期红色。→ Mitigation:繁体中文 manifest 补齐必须放在 tasks.md 中独立任务,且任何模块文案改动审查规则要求三语同步(`zh-CN` + `en-US` + `zh-TW`);CI 中 `CheckMissingMessages` 对 `zh-TW` 阈值与 `en-US` 一致,缺失即阻断。
 
-- [Risk] 基础 RTL 可能与 antd 已有组件 CSS 不兼容,出现部分组件视觉错乱。→ Mitigation:验收标准明确为"内容正确、能用",视觉镜像偏差可接受;未来"完整 RTL 设计语言"独立变更收口。
+- [Risk] 自动简繁转换后的个别术语可能不完全符合繁体中文使用习惯。→ Mitigation:本迭代先保证资源键完整、运行时发现和页面可用,后续术语校对只需要修改 `zh-TW` JSON 资源。
 
 - [Trade-off] 决策七引入的 `ResourceLoader` 抽象会让 apidoc 与 runtime bundle 加载流程多一层间接调用。→ 接受,因为消除 ~280 行重复实现的收益远大于一层抽象的阅读代价;抽象必须位于 `pkg/i18nresource` 这类稳定公共组件中,不得放在运行时 i18n service 包内。
 
-- [Trade-off] 决策十不做完整 RTL 会让阿拉伯语用户在某些页面遇到"内容是阿语、布局还是 LTR"的混合体验。→ 接受,因为完整 RTL 设计是独立工程,本次明确范围外。
+- [Trade-off] 决策十固定 LTR 放弃了未来按语言方向自动切换的配置弹性。→ 接受,因为当前宿主定位优先降低配置复杂度和维护成本。
+
+- [Trade-off] 决策十一移除数据库覆写后,线上无法通过 API 热修翻译。→ 接受,因为当前迭代优先降低新增语言复杂度;翻译变更通过修改资源文件并发布完成,未来如需热修应作为可选插件独立设计。
 
 ## Migration Plan
 
@@ -350,29 +391,35 @@ async function loadMessages(lang) {
 2. 一致性收敛(P2):
    - 删除中心化 `LocaleProjector` 方案;改造 5 个 `*_i18n.go` 在各业务模块内维护投影规则;删除 `sysconfig_i18n.go` 内 `englishLabels`/`chineseLabels` 并补对应 `config.field.*` 翻译键。
    - 实现 `RegisterSourceTextNamespace`;`jobmgmt` 在自己 `init()` 中注册;删除 `i18n_manage.go::isSourceTextBackedRuntimeKey` 黑名单。
-   - 拆分 `Service` 接口为五个小接口;业务模块字段类型逐个收敛(menu/dict/sysconfig/jobmgmt/role/usermsg/apidoc/plugin)。
+   - 拆分 `Service` 接口为四个小接口;业务模块字段类型逐个收敛(menu/dict/sysconfig/jobmgmt/role/usermsg/apidoc/plugin)。
 
 3. 边界整理(P3):
    - 在 `pkg/i18nresource` 抽出 `ResourceLoader`;`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载函数共用;删除重复实现。
    - 前端 `loadMessages` 拆分失败语义;补单元测试覆盖弱网/超时降级。
    - WASM 自定义节解析提到 `pluginbridge`;i18n 与 plugin runtime 切换调用路径;删除 i18n 内 WASM 工具函数。
 
-4. 阿拉伯语 + 基础 RTL:
-   - 新增 `017-framework-i18n-improvements.sql` 启用 `ar-SA`(seed DML);`make init` 验证幂等。
-   - 补齐宿主、所有源码插件的 `manifest/i18n/ar-SA.json` 与 `manifest/i18n/apidoc/ar-SA/*.json`。
-   - 补齐前端 `packages/locales/src/langs/ar-SA/*.json` 与 `apps/web-antd/src/locales/langs/ar-SA/*.json`。
-   - `setI18nLanguage(locale)` 集成 `<html dir>` 切换;antd `ConfigProvider` 接入 `direction`。
-   - dayjs 注册 `ar-sa` locale。
-   - `CheckMissingMessages` 对 `ar-SA` 阈值与 `en-US` 一致。
-   - E2E 新增 `TC0124` 覆盖阿语下的语言切换、`<html dir>` 断言、关键页面文本完整性。
+4. 繁体中文 + 固定 LTR:
+   - 在默认配置文件 `i18n` 段维护默认语言、多语言开关、排序与原生名;删除 `017-framework-i18n-improvements.sql` 对 `zh-TW` 的 seed。
+   - 补齐宿主、所有源码插件的 `manifest/i18n/zh-TW.json` 与 `manifest/i18n/apidoc/zh-TW/*.json`。
+   - 补齐前端 `packages/locales/src/langs/zh-TW/*.json` 与 `apps/web-antd/src/locales/langs/zh-TW/*.json`。
+   - `setI18nLanguage(locale)` 固定设置 `<html dir="ltr">`;antd `ConfigProvider` 固定接入 `direction="ltr"`。
+   - dayjs / antd / vxe 按语言编码约定推导第三方 locale。
+   - `CheckMissingMessages` 对 `zh-TW` 阈值与 `en-US` 一致。
+   - E2E 新增 `TC0124` 覆盖繁体中文下的语言切换、`<html dir>` 断言、关键页面文本完整性。
 
-5. 验证与审查:
+5. FB-4 资源唯一事实源收敛:
+   - 删除 `sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content` 建表 SQL,重新初始化数据库并重新生成 DAO/DO/Entity。
+   - 删除 i18n 数据库覆写、业务内容表、导入 API 与对应测试;保留导出、缺失检查、诊断 API。
+   - 将运行时缓存扇区收敛为 host/source-plugin/dynamic-plugin,并更新 ETag 与缓存失效测试。
+   - 更新文档和审查规则,明确新增语言不得修改 SQL、后端语言枚举或前端 TS 语言清单。
+
+6. 验证与审查:
    - `make test` 全套 E2E 通过(含新增 `TC0124`)。
-   - `lina-review` 对 P1/P2/P3/阿语四组改动分别审查。
+   - `lina-review` 对 P1/P2/P3/繁体中文四组改动分别审查。
    - benchmark 报告:`Translate` 单次 < 100ns(目标);热路径 100 次调用总时延下降 ≥ 80%。
 
 ## Open Questions
 
 - 决策三的持久化 TTL 默认 7 天是否合适?是否需要做成可配置(`sys_config` 中暴露)?当前结论:首期固定 7 天,未来如有需要再开放配置。
-- 决策十阿语 manifest 是由人工逐键翻译还是临时使用占位 + 后续校对?当前结论:首期由人工翻译关键路径(登录页、主导航、用户/角色/菜单/字典/参数/通知/调度/插件页面),其余允许同步留空,但 E2E 必须保证"在阿语下不显示中文/英文残留"——通过 `CheckMissingMessages` 强约束。
+- 决策十繁体中文 manifest 是由人工逐键翻译还是临时使用占位 + 后续校对?当前结论:首期由简繁转换生成完整 `zh-TW` 资源并人工校正关键元数据,但 E2E 必须保证"在繁体中文下不显示简体中文/英文残留"——通过 `CheckMissingMessages` 强约束。
 - 复数 API 是否引入自定义 `$tn` 钩子,还是直接用 vue-i18n 内置?当前倾向直接用 vue-i18n 的 `t` 复数语法(`{ count, plural, zero {...} one {...} other {...} }`),首期只在批量操作提示文案上落一两个示例,后续按需扩展。

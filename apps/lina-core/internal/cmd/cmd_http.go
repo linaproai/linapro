@@ -181,7 +181,6 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 			group.Bind(
 				authCtrl.Logout,
 				i18nCtrl.ExportMessages,
-				i18nCtrl.ImportMessages,
 				i18nCtrl.MissingMessages,
 				i18nCtrl.DiagnoseMessages,
 				user.NewV1(),

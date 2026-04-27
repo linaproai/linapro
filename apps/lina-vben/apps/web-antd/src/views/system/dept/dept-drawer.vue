@@ -16,6 +16,7 @@ import {
   deptUpdate,
   deptUsers,
 } from '#/api/system/dept';
+import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 
 import { drawerSchema } from './data';
@@ -31,7 +32,11 @@ interface DrawerProps {
 
 const isUpdate = ref(false);
 const deptId = ref<number>(0);
-const title = computed(() => (isUpdate.value ? '编辑部门' : '新增部门'));
+const title = computed(() =>
+  isUpdate.value
+    ? $t('plugin.org-center.dept.drawer.editTitle')
+    : $t('plugin.org-center.dept.drawer.createTitle'),
+);
 
 const [BasicForm, formApi] = useVbenForm({
   commonConfig: {
@@ -47,11 +52,7 @@ const [BasicForm, formApi] = useVbenForm({
 });
 
 /** 为树节点添加 fullName（显示完整路径） */
-function addFullName(
-  tree: DeptTree[],
-  parentPath = '',
-  separator = ' / ',
-) {
+function addFullName(tree: DeptTree[], parentPath = '', separator = ' / ') {
   for (const node of tree) {
     const fullName = parentPath
       ? `${parentPath}${separator}${node.label}`
@@ -103,7 +104,7 @@ async function loadLeaderUsers(targetDeptId: number, keyword?: string) {
         filterOption: false,
         onSearch: (val: string) => loadLeaderUsers(targetDeptId, val),
         options,
-        placeholder: '请选择部门负责人',
+        placeholder: $t('plugin.org-center.dept.placeholders.selectLeader'),
         showSearch: true,
       },
       fieldName: 'leader',
@@ -147,7 +148,8 @@ const [BasicDrawer, drawerApi] = useVbenDrawer({
     await initDeptSelect(id);
 
     // 加载字典：状态选项
-    const statusOptions = await dictStore.getDictOptionsAsync('sys_normal_disable');
+    const statusOptions =
+      await dictStore.getDictOptionsAsync('sys_normal_disable');
     formApi.updateSchema([
       {
         fieldName: 'status',
@@ -174,10 +176,10 @@ async function handleConfirm() {
     const data = await formApi.getValues();
     if (isUpdate.value) {
       await deptUpdate(deptId.value, data);
-      message.success('更新成功');
+      message.success($t('pages.common.updateSuccess'));
     } else {
       await deptAdd(data);
-      message.success('创建成功');
+      message.success($t('pages.common.createSuccess'));
     }
     emit('reload');
     drawerApi.close();

@@ -372,8 +372,8 @@ func (s *serviceImpl) validateFrontendMenuBindings(ctx context.Context, manifest
 
 // invalidateRuntimeCaches removes cached runtime frontend assets and runtime i18n
 // bundles after one plugin lifecycle change. Only the dynamic-plugin sector for
-// the affected plugin is invalidated; host, source-plugin and database sectors
-// stay hot for unrelated locales and plugins.
+// the affected plugin is invalidated; host and source-plugin sectors stay hot
+// for unrelated locales and plugins.
 func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, pluginID string, reason string) {
 	if s.frontendSvc != nil {
 		s.frontendSvc.InvalidateBundle(ctx, pluginID, reason)

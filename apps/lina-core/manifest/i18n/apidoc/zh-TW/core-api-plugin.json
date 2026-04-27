@@ -1,0 +1,706 @@
+{
+  "core": {
+    "api": {
+      "plugin": {
+        "v1": {
+          "DisableReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一標識"
+              }
+            },
+            "meta": {
+              "dc": "將指定插件標記為禁用狀態，並寫入插件狀態配置",
+              "summary": "禁用插件",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "enabled": {
+                            "dc": "啟用狀態：1=啟用 0=禁用"
+                          },
+                          "id": {
+                            "dc": "插件唯一標識"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "將指定插件標記為禁用狀態，並寫入插件狀態配置"
+            }
+          },
+          "DisableRes": {
+            "fields": {
+              "enabled": {
+                "dc": "啟用狀態：1=啟用 0=禁用"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              }
+            }
+          },
+          "DynamicListReq": {
+            "meta": {
+              "dc": "返回前端公共界面層渲染插件 Slot 所需的最小運行狀態集合，供登錄頁和佈局界面在匿名或登錄態下判斷插件內容是否應顯示",
+              "summary": "查詢插件運行狀態",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "插件運行狀態列表"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "返回前端公共界面層渲染插件 Slot 所需的最小運行狀態集合，供登錄頁和佈局界面在匿名或登錄態下判斷插件內容是否應顯示"
+            }
+          },
+          "DynamicListRes": {
+            "fields": {
+              "list": {
+                "dc": "插件運行狀態列表"
+              }
+            }
+          },
+          "EnableReq": {
+            "fields": {
+              "authorization": {
+                "dc": "宿主確認後的 hostServices 授權結果；不傳時默認沿用當前 release 已確認快照，若尚未確認則默認按插件本次聲明全量授權"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              }
+            },
+            "meta": {
+              "dc": "將指定插件標記為啟用狀態，並寫入插件狀態配置；若插件聲明瞭資源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），則本次請求同時提交宿主確認後的授權結果",
+              "summary": "啟用插件",
+              "tags": "插件管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "authorization": {
+                      "dc": "宿主確認後的 hostServices 授權結果；不傳時默認沿用當前 release 已確認快照，若尚未確認則默認按插件本次聲明全量授權"
+                    }
+                  },
+                  "schema": {
+                    "dc": "將指定插件標記為啟用狀態，並寫入插件狀態配置；若插件聲明瞭資源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），則本次請求同時提交宿主確認後的授權結果"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "enabled": {
+                            "dc": "啟用狀態：1=啟用 0=禁用"
+                          },
+                          "id": {
+                            "dc": "插件唯一標識"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "將指定插件標記為啟用狀態，並寫入插件狀態配置；若插件聲明瞭資源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），則本次請求同時提交宿主確認後的授權結果"
+            }
+          },
+          "EnableRes": {
+            "fields": {
+              "enabled": {
+                "dc": "啟用狀態：1=啟用 0=禁用"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              }
+            }
+          },
+          "HostServiceAuthorizationReq": {
+            "fields": {
+              "services": {
+                "dc": "宿主確認後的服務授權集合；可按 service 收窄 methods 與治理目標集合，storage 使用 paths，network 等使用 resourceRefs，data 使用 tables；空數組表示本次拒絕全部資源申請"
+              }
+            }
+          },
+          "HostServiceAuthorizationServiceReq": {
+            "fields": {
+              "methods": {
+                "dc": "宿主確認後的 method 集合，不傳則沿用插件聲明的全部 methods"
+              },
+              "paths": {
+                "dc": "宿主確認後的邏輯路徑集合，僅 storage service 使用；可聲明單路徑或目錄前綴路徑，空數組表示拒絕該 service 下全部路徑申請"
+              },
+              "resourceRefs": {
+                "dc": "宿主確認後的治理目標集合；network 使用 URL 模式，低優先級服務繼續使用邏輯 resourceRef，空數組表示拒絕該 service 下全部資源申請"
+              },
+              "service": {
+                "dc": "宿主服務標識，如 storage、network、data"
+              },
+              "tables": {
+                "dc": "宿主確認後的數據表集合，僅 data service 使用，空數組表示拒絕該 service 下全部表申請"
+              }
+            }
+          },
+          "HostServicePermissionCronItem": {
+            "fields": {
+              "concurrency": {
+                "dc": "併發策略：singleton=單例執行 parallel=允許並行執行"
+              },
+              "description": {
+                "dc": "定時任務說明，便於管理員在授權審查頁理解任務用途"
+              },
+              "displayName": {
+                "dc": "定時任務顯示名稱；未提供時使用 name"
+              },
+              "maxConcurrency": {
+                "dc": "最大併發數；僅並行策略下有意義，單例策略通常為 1"
+              },
+              "name": {
+                "dc": "定時任務唯一名稱"
+              },
+              "pattern": {
+                "dc": "插件聲明的原始調度表達式"
+              },
+              "scope": {
+                "dc": "調度範圍：master_only=僅主節點執行 all_node=所有節點執行"
+              },
+              "timezone": {
+                "dc": "任務時區；cron 表達式解析與展示使用的時區標識"
+              }
+            }
+          },
+          "HostServicePermissionItem": {
+            "fields": {
+              "cronItems": {
+                "dc": "該宿主服務下發現的定時任務聲明，僅 cron service 使用；用於在授權審查頁展示任務名稱、表達式、調度範圍與併發策略"
+              },
+              "methods": {
+                "dc": "該宿主服務下允許的方法集合"
+              },
+              "paths": {
+                "dc": "該宿主服務下允許訪問的邏輯路徑集合，僅 storage service 使用"
+              },
+              "resources": {
+                "dc": "該宿主服務下的治理目標集合；network 使用 URL 模式，低優先級服務繼續使用 resourceRef"
+              },
+              "service": {
+                "dc": "宿主服務標識，如 runtime、cron、storage、network、data"
+              },
+              "tableItems": {
+                "dc": "該宿主服務下的數據表展示項，僅 data service 使用；當宿主可解析表級說明時會同時返回 comment"
+              },
+              "tables": {
+                "dc": "該宿主服務下允許訪問的數據表集合，僅 data service 使用"
+              }
+            }
+          },
+          "HostServicePermissionResourceItem": {
+            "fields": {
+              "allowMethods": {
+                "dc": "資源級 method 白名單，僅對後續仍保留細粒度治理字段的低優先級服務有意義；storage、network、data 不再使用該字段"
+              },
+              "attributes": {
+                "dc": "資源級治理參數，僅對後續仍保留細粒度治理字段的低優先級服務有意義；storage、network、data 不再使用該字段"
+              },
+              "headerAllowList": {
+                "dc": "插件可設置的請求頭白名單，僅對後續仍保留細粒度治理字段的低優先級服務有意義；storage、network、data 不再使用該字段"
+              },
+              "maxBodyBytes": {
+                "dc": "宿主治理的最大請求體或響應體大小，單位字節，僅對後續仍保留細粒度治理字段的低優先級服務有意義；storage、network、data 不再使用該字段"
+              },
+              "ref": {
+                "dc": "治理目標標識；如 network 使用 URL 模式，低優先級服務繼續使用 resourceRef；storage 與 data 不使用該字段"
+              },
+              "timeoutMs": {
+                "dc": "宿主治理的超時時間，單位毫秒，僅對後續仍保留細粒度治理字段的低優先級服務有意義；storage、network、data 不再使用該字段"
+              }
+            }
+          },
+          "HostServicePermissionTableItem": {
+            "fields": {
+              "comment": {
+                "dc": "宿主解析到的表說明；解析不到時返回空字符串"
+              },
+              "name": {
+                "dc": "數據表名稱"
+              }
+            }
+          },
+          "InstallReq": {
+            "fields": {
+              "authorization": {
+                "dc": "宿主確認後的 hostServices 授權結果；不傳時默認沿用當前 release 已確認快照，若尚未確認則默認按插件本次聲明全量授權"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              }
+            },
+            "meta": {
+              "dc": "執行插件的安裝生命週期。源碼插件會在此階段運行其 manifest/sql 安裝 SQL、同步菜單與治理資源並寫入已安裝狀態；動態插件會繼續執行運行時安裝流程。若目標為動態插件且聲明瞭資源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），則本次請求同時提交宿主確認後的授權結果",
+              "summary": "安裝插件",
+              "tags": "插件管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "authorization": {
+                      "dc": "宿主確認後的 hostServices 授權結果；不傳時默認沿用當前 release 已確認快照，若尚未確認則默認按插件本次聲明全量授權"
+                    }
+                  },
+                  "schema": {
+                    "dc": "執行插件的安裝生命週期。源碼插件會在此階段運行其 manifest/sql 安裝 SQL、同步菜單與治理資源並寫入已安裝狀態；動態插件會繼續執行運行時安裝流程。若目標為動態插件且聲明瞭資源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），則本次請求同時提交宿主確認後的授權結果"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "enabled": {
+                            "dc": "啟用狀態：1=啟用 0=禁用"
+                          },
+                          "id": {
+                            "dc": "插件唯一標識"
+                          },
+                          "installed": {
+                            "dc": "安裝狀態：1=已安裝 0=未安裝"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "執行插件的安裝生命週期。源碼插件會在此階段運行其 manifest/sql 安裝 SQL、同步菜單與治理資源並寫入已安裝狀態；動態插件會繼續執行運行時安裝流程。若目標為動態插件且聲明瞭資源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），則本次請求同時提交宿主確認後的授權結果"
+            }
+          },
+          "InstallRes": {
+            "fields": {
+              "enabled": {
+                "dc": "啟用狀態：1=啟用 0=禁用"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              },
+              "installed": {
+                "dc": "安裝狀態：1=已安裝 0=未安裝"
+              }
+            }
+          },
+          "ListReq": {
+            "fields": {
+              "id": {
+                "dc": "按插件唯一標識篩選，模糊匹配，不傳則查詢全部"
+              },
+              "installed": {
+                "dc": "按安裝狀態篩選：1=已安裝 0=未安裝，不傳則查詢全部"
+              },
+              "name": {
+                "dc": "按插件名稱篩選，模糊匹配，不傳則查詢全部"
+              },
+              "status": {
+                "dc": "按啟用狀態篩選：1=啟用 0=禁用，不傳則查詢全部"
+              },
+              "type": {
+                "dc": "按插件類型篩選：source=源碼插件 dynamic=動態插件，不傳則查詢全部；當前動態插件實現僅支持WASM"
+              }
+            },
+            "meta": {
+              "dc": "掃描源碼插件目錄並同步插件基礎狀態，返回插件清單與啟用狀態",
+              "summary": "查詢插件列表",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "插件列表"
+                          },
+                          "total": {
+                            "dc": "插件總數"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "掃描源碼插件目錄並同步插件基礎狀態，返回插件清單與啟用狀態"
+            }
+          },
+          "ListRes": {
+            "fields": {
+              "list": {
+                "dc": "插件列表"
+              },
+              "total": {
+                "dc": "插件總數"
+              }
+            }
+          },
+          "PluginDynamicItem": {
+            "fields": {
+              "enabled": {
+                "dc": "啟用狀態：1=啟用 0=禁用"
+              },
+              "generation": {
+                "dc": "插件當前生效代際號；前端可據此判斷當前插件頁面是否需要刷新"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              },
+              "installed": {
+                "dc": "安裝狀態：1=已安裝/已集成 0=未安裝"
+              },
+              "statusKey": {
+                "dc": "插件狀態在系統插件註冊表中的定位鍵名"
+              },
+              "version": {
+                "dc": "插件當前生效版本號；若僅上傳未切換則仍返回舊版本"
+              }
+            }
+          },
+          "PluginItem": {
+            "fields": {
+              "authorizationRequired": {
+                "dc": "是否存在需要安裝/啟用時確認的 hostServices 資源申請：1=是 0=否"
+              },
+              "authorizationStatus": {
+                "dc": "當前授權狀態：not_required=無需確認 pending=待確認 confirmed=已確認"
+              },
+              "authorizedHostServices": {
+                "dc": "宿主對當前 release 最終確認後的 hostServices 授權快照"
+              },
+              "autoEnableManaged": {
+                "dc": "是否被宿主主配置文件中的 plugin.autoEnable 命中：1=是 0=否；命中後表示宿主啟動時會確保該插件處於啟用狀態"
+              },
+              "declaredRoutes": {
+                "dc": "當前 release 聲明的動態路由審查清單，僅動態插件返回；用於在安裝或啟用前展示插件即將對外暴露的真實公開路由"
+              },
+              "description": {
+                "dc": "插件描述"
+              },
+              "enabled": {
+                "dc": "啟用狀態：1=啟用 0=禁用"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              },
+              "installed": {
+                "dc": "安裝狀態：1=已安裝 0=未安裝；源碼插件被宿主發現後默認仍可處於未安裝態"
+              },
+              "installedAt": {
+                "dc": "插件安裝時間，未安裝時返回空字符串"
+              },
+              "name": {
+                "dc": "插件名稱"
+              },
+              "requestedHostServices": {
+                "dc": "插件當前版本聲明的 hostServices 申請清單"
+              },
+              "statusKey": {
+                "dc": "插件狀態在系統插件註冊表中的定位鍵名，前端註冊表監聽會使用該鍵判斷是否需要刷新插件狀態"
+              },
+              "type": {
+                "dc": "插件一級類型：source=源碼插件 dynamic=動態插件"
+              },
+              "updatedAt": {
+                "dc": "插件註冊表最後更新時間"
+              },
+              "version": {
+                "dc": "插件當前清單版本號"
+              }
+            }
+          },
+          "PluginRouteReviewItem": {
+            "fields": {
+              "access": {
+                "dc": "訪問級別：public=公開訪問 login=登錄訪問"
+              },
+              "description": {
+                "dc": "動態路由說明，來自路由合同中的 description"
+              },
+              "method": {
+                "dc": "動態路由 HTTP 方法"
+              },
+              "permission": {
+                "dc": "宿主權限標識；public 路由返回空字符串"
+              },
+              "publicPath": {
+                "dc": "宿主真實公開路徑，固定以 /api/v1/extensions/{pluginId}/ 開頭"
+              },
+              "summary": {
+                "dc": "動態路由摘要，來自路由合同中的 summary"
+              }
+            }
+          },
+          "ResourceListReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一標識"
+              },
+              "pageNum": {
+                "dc": "頁碼，從1開始"
+              },
+              "pageSize": {
+                "dc": "每頁記錄數，最大100"
+              },
+              "resource": {
+                "dc": "插件資源標識，由插件自身在插件目錄後端實現中註冊"
+              }
+            },
+            "meta": {
+              "dc": "按插件通用資源契約查詢插件自有的後端資源數據。資源接口由控制器按資源聲明的插件權限或默認推導出的插件資源權限執行校驗，而不是額外要求插件管理後臺的查詢權限",
+              "summary": "查詢插件資源數據",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "list": {
+                            "dc": "插件資源記錄列表，具體字段結構由插件自身資源聲明決定"
+                          },
+                          "total": {
+                            "dc": "總記錄數"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "按插件通用資源契約查詢插件自有的後端資源數據。資源接口由控制器按資源聲明的插件權限或默認推導出的插件資源權限執行校驗，而不是額外要求插件管理後臺的查詢權限"
+            }
+          },
+          "ResourceListRes": {
+            "fields": {
+              "list": {
+                "dc": "插件資源記錄列表，具體字段結構由插件自身資源聲明決定"
+              },
+              "total": {
+                "dc": "總記錄數"
+              }
+            }
+          },
+          "SyncReq": {
+            "meta": {
+              "dc": "掃描apps/lina-plugins目錄下的源碼插件清單，並將插件元數據同步到系統插件註冊表",
+              "summary": "同步源碼插件",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "total": {
+                            "dc": "同步後的源碼插件數量"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "掃描apps/lina-plugins目錄下的源碼插件清單，並將插件元數據同步到系統插件註冊表"
+            }
+          },
+          "SyncRes": {
+            "fields": {
+              "total": {
+                "dc": "同步後的源碼插件數量"
+              }
+            }
+          },
+          "UninstallReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一標識"
+              },
+              "purgeStorageData": {
+                "dc": "是否在卸載插件時同時清除插件自有存儲數據：1=清除數據表數據與關聯文件 0=保留；不傳時默認清除"
+              }
+            },
+            "meta": {
+              "dc": "執行插件的卸載生命週期。源碼插件與動態插件都會在此階段先停用插件，並可按確認選項決定是否同時清理插件自有存儲數據；勾選後宿主會執行 manifest/sql/uninstall 下的卸載 SQL，動態插件還會按已授權 storage paths 清理插件自有存儲文件",
+              "summary": "卸載插件",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "enabled": {
+                            "dc": "啟用狀態：1=啟用 0=禁用"
+                          },
+                          "id": {
+                            "dc": "插件唯一標識"
+                          },
+                          "installed": {
+                            "dc": "安裝狀態：1=已安裝 0=未安裝"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "執行插件的卸載生命週期。源碼插件與動態插件都會在此階段先停用插件，並可按確認選項決定是否同時清理插件自有存儲數據；勾選後宿主會執行 manifest/sql/uninstall 下的卸載 SQL，動態插件還會按已授權 storage paths 清理插件自有存儲文件"
+            }
+          },
+          "UninstallRes": {
+            "fields": {
+              "enabled": {
+                "dc": "啟用狀態：1=啟用 0=禁用"
+              },
+              "id": {
+                "dc": "插件唯一標識"
+              },
+              "installed": {
+                "dc": "安裝狀態：1=已安裝 0=未安裝"
+              }
+            }
+          },
+          "UploadDynamicPackageReq": {
+            "fields": {
+              "overwriteSupport": {
+                "dc": "是否允許覆蓋尚未安裝的同 ID 動態插件文件：1=允許 0=不允許，默認0"
+              }
+            },
+            "meta": {
+              "dc": "上傳一個 dynamic wasm 動態插件包到 plugin.dynamic.storagePath。宿主會校驗 wasm 文件頭、自定義節、嵌入清單、ABI 版本和可選嵌入 SQL 資源，然後將產物規範化寫入 <storagePath>/<plugin-id>.wasm；若當前已安裝動態插件上傳了更高版本，宿主會將其作為待切換 release 暫存，後續仍需通過 install 或 reconcile 流程完成正式升級",
+              "summary": "上傳動態插件包",
+              "tags": "插件管理"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "enabled": {
+                            "dc": "啟用狀態：1=啟用 0=禁用；上傳後默認仍為禁用"
+                          },
+                          "id": {
+                            "dc": "插件唯一標識，來自 wasm 嵌入清單"
+                          },
+                          "installed": {
+                            "dc": "安裝狀態：1=已安裝 0=未安裝；上傳後默認仍為未安裝"
+                          },
+                          "name": {
+                            "dc": "插件名稱，來自 wasm 嵌入清單"
+                          },
+                          "runtimeAbi": {
+                            "dc": "運行時產物 ABI 版本，當前校驗通過後返回 v1"
+                          },
+                          "runtimeKind": {
+                            "dc": "運行時產物類型，當前僅支持 wasm"
+                          },
+                          "type": {
+                            "dc": "插件一級類型，固定為 dynamic"
+                          },
+                          "version": {
+                            "dc": "插件版本號，來自 wasm 嵌入清單"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "上傳一個 dynamic wasm 動態插件包到 plugin.dynamic.storagePath。宿主會校驗 wasm 文件頭、自定義節、嵌入清單、ABI 版本和可選嵌入 SQL 資源，然後將產物規範化寫入 <storagePath>/<plugin-id>.wasm；若當前已安裝動態插件上傳了更高版本，宿主會將其作為待切換 release 暫存，後續仍需通過 install 或 reconcile 流程完成正式升級"
+            }
+          },
+          "UploadDynamicPackageRes": {
+            "fields": {
+              "enabled": {
+                "dc": "啟用狀態：1=啟用 0=禁用；上傳後默認仍為禁用"
+              },
+              "id": {
+                "dc": "插件唯一標識，來自 wasm 嵌入清單"
+              },
+              "installed": {
+                "dc": "安裝狀態：1=已安裝 0=未安裝；上傳後默認仍為未安裝"
+              },
+              "name": {
+                "dc": "插件名稱，來自 wasm 嵌入清單"
+              },
+              "runtimeAbi": {
+                "dc": "運行時產物 ABI 版本，當前校驗通過後返回 v1"
+              },
+              "runtimeKind": {
+                "dc": "運行時產物類型，當前僅支持 wasm"
+              },
+              "type": {
+                "dc": "插件一級類型，固定為 dynamic"
+              },
+              "version": {
+                "dc": "插件版本號，來自 wasm 嵌入清單"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

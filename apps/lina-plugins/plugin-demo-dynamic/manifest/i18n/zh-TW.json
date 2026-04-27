@@ -1,0 +1,132 @@
+{
+  "job": {
+    "handler": {
+      "plugin": {
+        "plugin-demo-dynamic": {
+          "cron": {
+            "heartbeat": {
+              "description": "通過 Wasm bridge 執行動態插件內置定時任務，並累計心跳執行次數。",
+              "name": "動態插件心跳"
+            }
+          }
+        }
+      }
+    }
+  },
+  "menu": {
+    "plugin:plugin-demo-dynamic:main-entry": {
+      "title": "動態插件示例"
+    }
+  },
+  "plugin": {
+    "plugin-demo-dynamic": {
+      "description": "提供獨立的 dynamic wasm 插件樣例，演示左側菜單內嵌頁面、插件自有 SQL 表 CRUD 與獨立靜態頁面跳轉",
+      "name": "動態插件示例",
+      "page": {
+        "action": {
+          "addRecord": "新增記錄",
+          "cancel": "取消",
+          "createRecord": "創建記錄",
+          "deleteRecord": "刪除",
+          "downloadAttachment": "下載附件",
+          "editRecord": "編輯",
+          "nextPage": "下一頁",
+          "previousPage": "上一頁",
+          "reloadList": "刷新列表",
+          "saveEdit": "保存修改",
+          "savePending": "保存中..."
+        },
+        "badge": "WASM 插件示例",
+        "description": "該頁面來自 plugin-demo-dynamic 的動態掛載入口，用於驗證宿主主內容區展示與獨立靜態頁面跳轉。",
+        "emptyText": "當前只有安裝 SQL 初始化的默認記錄，你可以繼續新增、編輯或刪除自定義記錄。",
+        "emptyTitle": "暫無示例記錄",
+        "feature": {
+          "data": {
+            "description": "安裝時創建插件自有業務表，頁面可直接完成增刪查改和附件下載。",
+            "label": "數據示例",
+            "value": "安裝 SQL + CRUD"
+          },
+          "integration": {
+            "description": "通過宿主頁殼動態加載頁面入口，並沿用宿主登錄態訪問後端動態路由。",
+            "label": "接入方式",
+            "value": "宿主內嵌掛載"
+          },
+          "lifecycle": {
+            "description": "禁用不刪數據，卸載時由宿主彈窗決定是否同時清理表數據和存儲文件。",
+            "label": "卸載治理",
+            "value": "可選清理數據"
+          }
+        },
+        "gridTitle": "示例記錄",
+        "message": {
+          "deleteRecordConfirm": "確認刪除記錄“{title}”嗎？",
+          "deleteRecordFailed": "示例記錄刪除失敗",
+          "downloadFailed": "附件下載失敗",
+          "downloadStarted": "附件下載已開始",
+          "fetchRecordsFailed": "示例記錄加載失敗",
+          "fileReadFailed": "附件讀取失敗",
+          "recordCreated": "示例記錄已創建",
+          "recordDeleted": "示例記錄已刪除",
+          "recordUpdated": "示例記錄已更新",
+          "requestFailed": "請求失敗 ({status})",
+          "saveRecordFailed": "示例記錄保存失敗",
+          "titleRequired": "記錄標題不能為空"
+        },
+        "metric": {
+          "lifecycle": {
+            "description": "卸載時可選保留或清理數據與文件",
+            "label": "治理卸載",
+            "value": "卸載時可選保留或清理數據與文件"
+          },
+          "loader": {
+            "description": "由宿主頁殼動態導入並掛載頁面入口",
+            "label": "動態加載",
+            "value": "由宿主頁殼動態導入並掛載頁面入口"
+          },
+          "schema": {
+            "description": "安裝時生成插件自有業務表示例數據",
+            "label": "SQL 創建",
+            "value": "安裝時生成插件自有業務表示例數據"
+          },
+          "storage": {
+            "description": "示例記錄可綁定插件自有存儲文件",
+            "label": "附件存儲",
+            "value": "示例記錄可綁定插件自有存儲文件"
+          }
+        },
+        "modal": {
+          "attachmentFieldHint": "支持上傳一個示例附件。卸載插件時若勾選清理存儲數據，附件文件也會一併刪除。",
+          "attachmentFieldLabel": "附件",
+          "contentFieldLabel": "記錄內容",
+          "createTitle": "新增示例記錄",
+          "currentAttachment": "當前附件: {name}",
+          "editTitle": "編輯示例記錄",
+          "pendingAttachment": "待上傳附件: {name}",
+          "removeAttachment": "提交時移除當前附件",
+          "summary": "記錄內容會寫入 plugin-demo-dynamic 安裝 SQL 創建的數據表；若上傳附件，文件會存入該插件授權的 storage path。",
+          "titleFieldLabel": "記錄標題"
+        },
+        "pagination": {
+          "summary": "第 {page} / {pages} 頁，顯示第 {start}-{end} 條，共 {total} 條"
+        },
+        "panelTitle": "當前驗證範圍",
+        "standaloneButton": "打開獨立頁面",
+        "standaloneHint": "點擊後將在新窗口打開託管的純靜態頁面，用於驗證插件資源公開訪問能力。",
+        "table": {
+          "createdAt": "創建時間: {value}",
+          "header": {
+            "actions": "操作",
+            "attachment": "附件",
+            "content": "內容",
+            "title": "標題",
+            "updatedAt": "更新時間"
+          },
+          "loading": "正在加載示例記錄...",
+          "noAttachment": "無附件"
+        },
+        "title": "動態插件示例已生效",
+        "workspaceSummary": "該區域讀取 plugin-demo-dynamic 安裝 SQL 創建的數據表，並通過動態插件後端路由完成新增、編輯、刪除與附件下載。禁用插件不會清空這些數據。"
+      }
+    }
+  }
+}

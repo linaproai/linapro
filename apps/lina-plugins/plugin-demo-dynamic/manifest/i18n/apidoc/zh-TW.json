@@ -1,0 +1,495 @@
+{
+  "plugins": {
+    "plugin_demo_dynamic": {
+      "api": {
+        "dynamic": {
+          "v1": {
+            "BackendSummaryReq": {
+              "meta": {
+                "dc": "當請求通過宿主前綴 /api/v1/extensions/{pluginId}/... 分發時，返回 plugin-demo-dynamic 當前橋接執行摘要，包括插件 ID、路由信息和當前用戶上下文。",
+                "summary": "查詢動態插件後端執行摘要",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "當請求通過宿主前綴 /api/v1/extensions/{pluginId}/... 分發時，返回 plugin-demo-dynamic 當前橋接執行摘要，包括插件 ID、路由信息和當前用戶上下文。"
+              }
+            },
+            "BackendSummaryRes": {
+              "fields": {
+                "access": {
+                  "dc": "當前動態路由訪問級別：login=需要登錄 public=匿名可訪問"
+                },
+                "authenticated": {
+                  "dc": "當前請求是否具有宿主認證身份：true=已認證 false=匿名"
+                },
+                "isSuperAdmin": {
+                  "dc": "當前身份是否為超級管理員；匿名請求時為空"
+                },
+                "message": {
+                  "dc": "動態插件後端執行說明，描述當前請求通過 Wasm 橋接運行時處理的路徑和方法"
+                },
+                "permission": {
+                  "dc": "當前動態路由的權限標識；匿名路由為空字符串"
+                },
+                "pluginId": {
+                  "dc": "當前執行請求的動態插件唯一標識"
+                },
+                "publicPath": {
+                  "dc": "當前命中的宿主公開路由路徑"
+                },
+                "username": {
+                  "dc": "當前登錄用戶名；匿名請求時為空"
+                }
+              }
+            },
+            "CreateDemoRecordReq": {
+              "fields": {
+                "attachmentContentBase64": {
+                  "dc": "附件內容的 Base64 編碼；未上傳附件時傳空字符串"
+                },
+                "attachmentContentType": {
+                  "dc": "附件內容類型；未上傳附件時傳空字符串"
+                },
+                "attachmentName": {
+                  "dc": "附件原始文件名；未上傳附件時傳空字符串。"
+                },
+                "content": {
+                  "dc": "記錄內容"
+                },
+                "title": {
+                  "dc": "記錄標題"
+                }
+              },
+              "meta": {
+                "dc": "創建 plugin-demo-dynamic 示例記錄，並可選擇附帶插件自有附件，演示寫入安裝 SQL 創建的數據表和授權存儲文件。",
+                "summary": "創建動態插件示例記錄",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "創建 plugin-demo-dynamic 示例記錄，並可選擇附帶插件自有附件，演示寫入安裝 SQL 創建的數據表和授權存儲文件。"
+              }
+            },
+            "DeleteDemoRecordReq": {
+              "fields": {
+                "id": {
+                  "dc": "記錄唯一標識"
+                }
+              },
+              "meta": {
+                "dc": "刪除 plugin-demo-dynamic 示例記錄，並清理其插件自有附件文件。",
+                "summary": "刪除動態插件示例記錄",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "刪除 plugin-demo-dynamic 示例記錄，並清理其插件自有附件文件。"
+              }
+            },
+            "DeleteDemoRecordRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "刪除結果：true=成功 false=失敗"
+                },
+                "id": {
+                  "dc": "已刪除記錄唯一標識"
+                }
+              }
+            },
+            "DemoRecordItem": {
+              "fields": {
+                "attachmentName": {
+                  "dc": "附件原始文件名；沒有附件時返回空字符串。"
+                },
+                "content": {
+                  "dc": "記錄內容"
+                },
+                "createdAt": {
+                  "dc": "記錄創建時間，由示例數據表的默認時間戳字段自動維護"
+                },
+                "hasAttachment": {
+                  "dc": "當前附件是否存在：true=存在 false=不存在"
+                },
+                "id": {
+                  "dc": "記錄唯一標識"
+                },
+                "title": {
+                  "dc": "記錄標題"
+                },
+                "updatedAt": {
+                  "dc": "記錄最後更新時間，由示例數據表的默認時間戳字段自動維護"
+                }
+              }
+            },
+            "DemoRecordListReq": {
+              "fields": {
+                "keyword": {
+                  "dc": "按記錄標題關鍵詞模糊篩選；不傳時查詢全部記錄"
+                },
+                "pageNum": {
+                  "dc": "頁碼；不傳時默認 1"
+                },
+                "pageSize": {
+                  "dc": "每頁條數；不傳時默認 20，最大 100"
+                }
+              },
+              "meta": {
+                "dc": "分頁查詢 plugin-demo-dynamic 示例頁面的業務記錄，支持按標題模糊篩選，演示對動態插件安裝 SQL 創建的數據表執行 CRUD 操作。",
+                "summary": "查詢動態插件示例記錄列表",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "分頁查詢 plugin-demo-dynamic 示例頁面的業務記錄，支持按標題模糊篩選，演示對動態插件安裝 SQL 創建的數據表執行 CRUD 操作。"
+              }
+            },
+            "DemoRecordListRes": {
+              "fields": {
+                "list": {
+                  "dc": "當前頁記錄"
+                },
+                "total": {
+                  "dc": "符合篩選條件的記錄總數"
+                }
+              }
+            },
+            "DemoRecordReq": {
+              "fields": {
+                "id": {
+                  "dc": "記錄唯一標識"
+                }
+              },
+              "meta": {
+                "dc": "獲取 plugin-demo-dynamic 示例記錄詳情，用於編輯表單回填和下載前附件檢查。",
+                "summary": "查詢動態插件示例記錄詳情",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "獲取 plugin-demo-dynamic 示例記錄詳情，用於編輯表單回填和下載前附件檢查。"
+              }
+            },
+            "DownloadDemoRecordAttachmentReq": {
+              "fields": {
+                "id": {
+                  "dc": "記錄唯一標識"
+                }
+              },
+              "meta": {
+                "dc": "下載 plugin-demo-dynamic 示例記錄當前關聯的附件，演示讀取插件自有存儲文件。",
+                "summary": "下載動態插件示例附件",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "下載 plugin-demo-dynamic 示例記錄當前關聯的附件，演示讀取插件自有存儲文件。"
+              }
+            },
+            "HostCallDemoDataRes": {
+              "fields": {
+                "countTotal": {
+                  "dc": "基於相同篩選條件執行 count 查詢得到的總數"
+                },
+                "deleted": {
+                  "dc": "臨時記錄是否成功刪除"
+                },
+                "listTotal": {
+                  "dc": "按篩選條件分頁查詢得到的記錄總數"
+                },
+                "recordKey": {
+                  "dc": "宿主返回的記錄主鍵值"
+                },
+                "table": {
+                  "dc": "本次使用的宿主確認授權數據表名"
+                },
+                "updated": {
+                  "dc": "更新是否成功完成並回讀已更新記錄"
+                }
+              }
+            },
+            "HostCallDemoNetworkRes": {
+              "fields": {
+                "bodyPreview": {
+                  "dc": "上游響應正文預覽，最多返回前 120 個字符"
+                },
+                "contentType": {
+                  "dc": "上游響應內容類型"
+                },
+                "error": {
+                  "dc": "網絡請求失敗時的錯誤摘要；成功或跳過時為空"
+                },
+                "skipped": {
+                  "dc": "是否通過 skipNetwork=1 跳過網絡請求"
+                },
+                "statusCode": {
+                  "dc": "上游 HTTP 狀態碼，跳過或失敗時為 0"
+                },
+                "url": {
+                  "dc": "本次申請和訪問的目標 URL 或 URL pattern"
+                }
+              }
+            },
+            "HostCallDemoReq": {
+              "fields": {
+                "skipNetwork": {
+                  "dc": "是否跳過外部網絡請求：true=跳過 false=正常訪問，不傳時默認 false"
+                }
+              },
+              "meta": {
+                "dc": "演示動態插件通過統一宿主服務模型調用運行時、存儲、網絡和數據能力。該接口會寫入運行時日誌、讀寫隔離插件存儲、訪問受治理的上游地址，並對授權數據表執行結構化 CRUD。傳入 skipNetwork=1 可跳過外部網絡請求，便於離線驗證。",
+                "summary": "宿主調用能力演示",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "演示動態插件通過統一宿主服務模型調用運行時、存儲、網絡和數據能力。該接口會寫入運行時日誌、讀寫隔離插件存儲、訪問受治理的上游地址，並對授權數據表執行結構化 CRUD。傳入 skipNetwork=1 可跳過外部網絡請求，便於離線驗證。"
+              }
+            },
+            "HostCallDemoRes": {
+              "fields": {
+                "data": {
+                  "dc": "數據宿主服務執行摘要"
+                },
+                "message": {
+                  "dc": "宿主調用演示信息"
+                },
+                "network": {
+                  "dc": "網絡宿主服務執行摘要"
+                },
+                "pluginId": {
+                  "dc": "當前插件唯一標識"
+                },
+                "runtime": {
+                  "dc": "運行時宿主服務返回的基礎信息摘要"
+                },
+                "storage": {
+                  "dc": "存儲宿主服務執行摘要"
+                },
+                "visitCount": {
+                  "dc": "當前累計訪問次數，通過 runtime.state 宿主服務實現持久化計數"
+                }
+              }
+            },
+            "HostCallDemoRuntimeRes": {
+              "fields": {
+                "node": {
+                  "dc": "當前宿主節點 ID"
+                },
+                "now": {
+                  "dc": "宿主當前時間字符串"
+                },
+                "uuid": {
+                  "dc": "宿主生成的唯一標識，用於本次演示中的資源隔離"
+                }
+              }
+            },
+            "HostCallDemoStorageRes": {
+              "fields": {
+                "deleted": {
+                  "dc": "臨時對象是否成功刪除"
+                },
+                "listedCount": {
+                  "dc": "按前綴列出的對象數量"
+                },
+                "objectPath": {
+                  "dc": "本次寫入的邏輯對象路徑"
+                },
+                "pathPrefix": {
+                  "dc": "本次使用的授權邏輯路徑前綴"
+                },
+                "stored": {
+                  "dc": "對象是否成功寫入並回讀"
+                }
+              }
+            },
+            "UpdateDemoRecordReq": {
+              "fields": {
+                "attachmentContentBase64": {
+                  "dc": "新上傳附件內容的 Base64 編碼；未上傳新附件時傳空字符串"
+                },
+                "attachmentContentType": {
+                  "dc": "新上傳附件的內容類型；未上傳新附件時傳空字符串"
+                },
+                "attachmentName": {
+                  "dc": "新上傳附件的原始文件名；未上傳新附件時傳空字符串。"
+                },
+                "content": {
+                  "dc": "記錄內容"
+                },
+                "id": {
+                  "dc": "記錄唯一標識"
+                },
+                "removeAttachment": {
+                  "dc": "是否移除當前附件：true=移除 false=保留。上傳新附件時會替換舊附件。"
+                },
+                "title": {
+                  "dc": "記錄標題"
+                }
+              },
+              "meta": {
+                "dc": "更新 plugin-demo-dynamic 示例記錄，並可選擇替換或移除其附件，演示寫入插件自有數據表和授權存儲文件。",
+                "summary": "更新動態插件示例記錄",
+                "tags": "動態插件示例"
+              },
+              "schema": {
+                "dc": "更新 plugin-demo-dynamic 示例記錄，並可選擇替換或移除其附件，演示寫入插件自有數據表和授權存儲文件。"
+              }
+            }
+          }
+        }
+      },
+      "paths": {
+        "delete": {
+          "demo_records": {
+            "id": {
+              "meta": {
+                "dc": "刪除 plugin-demo-dynamic 示例記錄，並清理其插件自有附件文件。",
+                "summary": "刪除動態插件示例記錄",
+                "tags": "動態插件示例"
+              },
+              "responses": {
+                "200": {
+                  "dc": "動態插件路由響應"
+                },
+                "500": {
+                  "dc": "動態插件路由執行失敗"
+                },
+                "501": {
+                  "dc": "動態插件路由橋接不可執行"
+                }
+              }
+            }
+          }
+        },
+        "get": {
+          "backend_summary": {
+            "meta": {
+              "dc": "當請求通過宿主前綴 /api/v1/extensions/{pluginId}/... 分發時，返回 plugin-demo-dynamic 當前橋接執行摘要，包括插件 ID、路由信息和當前用戶上下文。",
+              "summary": "查詢動態插件後端執行摘要",
+              "tags": "動態插件示例"
+            },
+            "responses": {
+              "200": {
+                "dc": "動態插件路由響應"
+              },
+              "500": {
+                "dc": "動態插件路由執行失敗"
+              },
+              "501": {
+                "dc": "動態插件路由橋接不可執行"
+              }
+            }
+          },
+          "demo_records": {
+            "id": {
+              "attachment": {
+                "meta": {
+                  "dc": "下載 plugin-demo-dynamic 示例記錄當前關聯的附件，演示讀取插件自有存儲文件。",
+                  "summary": "下載動態插件示例附件",
+                  "tags": "動態插件示例"
+                },
+                "responses": {
+                  "200": {
+                    "dc": "動態插件路由響應"
+                  },
+                  "500": {
+                    "dc": "動態插件路由執行失敗"
+                  },
+                  "501": {
+                    "dc": "動態插件路由橋接不可執行"
+                  }
+                }
+              },
+              "meta": {
+                "dc": "獲取 plugin-demo-dynamic 示例記錄詳情，用於編輯表單回填和下載前附件檢查。",
+                "summary": "查詢動態插件示例記錄詳情",
+                "tags": "動態插件示例"
+              },
+              "responses": {
+                "200": {
+                  "dc": "動態插件路由響應"
+                },
+                "500": {
+                  "dc": "動態插件路由執行失敗"
+                },
+                "501": {
+                  "dc": "動態插件路由橋接不可執行"
+                }
+              }
+            },
+            "meta": {
+              "dc": "分頁查詢 plugin-demo-dynamic 示例頁面的業務記錄，支持按標題模糊篩選，演示對動態插件安裝 SQL 創建的數據表執行 CRUD 操作。",
+              "summary": "查詢動態插件示例記錄列表",
+              "tags": "動態插件示例"
+            },
+            "responses": {
+              "200": {
+                "dc": "動態插件路由響應"
+              },
+              "500": {
+                "dc": "動態插件路由執行失敗"
+              },
+              "501": {
+                "dc": "動態插件路由橋接不可執行"
+              }
+            }
+          },
+          "host_call_demo": {
+            "meta": {
+              "dc": "演示動態插件通過統一宿主服務模型調用運行時、存儲、網絡和數據能力。該接口會寫入運行時日誌、讀寫隔離插件存儲、訪問受治理的上游地址，並對授權數據表執行結構化 CRUD。傳入 skipNetwork=1 可跳過外部網絡請求，便於離線驗證。",
+              "summary": "宿主調用能力演示",
+              "tags": "動態插件示例"
+            },
+            "responses": {
+              "200": {
+                "dc": "動態插件路由響應"
+              },
+              "500": {
+                "dc": "動態插件路由執行失敗"
+              },
+              "501": {
+                "dc": "動態插件路由橋接不可執行"
+              }
+            }
+          }
+        },
+        "post": {
+          "demo_records": {
+            "meta": {
+              "dc": "創建 plugin-demo-dynamic 示例記錄，並可選擇附帶插件自有附件，演示寫入安裝 SQL 創建的數據表和授權存儲文件。",
+              "summary": "創建動態插件示例記錄",
+              "tags": "動態插件示例"
+            },
+            "responses": {
+              "200": {
+                "dc": "動態插件路由響應"
+              },
+              "500": {
+                "dc": "動態插件路由執行失敗"
+              },
+              "501": {
+                "dc": "動態插件路由橋接不可執行"
+              }
+            }
+          }
+        },
+        "put": {
+          "demo_records": {
+            "id": {
+              "meta": {
+                "dc": "更新 plugin-demo-dynamic 示例記錄，並可選擇替換或移除其附件，演示寫入插件自有數據表和授權存儲文件。",
+                "summary": "更新動態插件示例記錄",
+                "tags": "動態插件示例"
+              },
+              "responses": {
+                "200": {
+                  "dc": "動態插件路由響應"
+                },
+                "500": {
+                  "dc": "動態插件路由執行失敗"
+                },
+                "501": {
+                  "dc": "動態插件路由橋接不可執行"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

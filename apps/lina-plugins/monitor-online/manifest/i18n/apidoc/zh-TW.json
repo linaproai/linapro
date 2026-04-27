@@ -1,0 +1,100 @@
+{
+  "plugins": {
+    "monitor_online": {
+      "api": {
+        "monitor": {
+          "v1": {
+            "OnlineForceLogoutReq": {
+              "fields": {
+                "tokenId": {
+                  "dc": "要強制下線的會話Token ID"
+                }
+              },
+              "meta": {
+                "dc": "強制下線指定在線用戶，被下線用戶的後續請求將返回401",
+                "summary": "強制下線",
+                "tags": "系統監控"
+              },
+              "schema": {
+                "dc": "強制下線指定在線用戶，被下線用戶的後續請求將返回401"
+              }
+            },
+            "OnlineListReq": {
+              "fields": {
+                "ip": {
+                  "dc": "按IP地址模糊過濾，不傳則查詢全部"
+                },
+                "username": {
+                  "dc": "按用戶名模糊過濾，不傳則查詢全部"
+                }
+              },
+              "meta": {
+                "dc": "分頁查詢當前在線用戶會話，支持按用戶名和IP地址模糊過濾",
+                "summary": "在線用戶列表",
+                "tags": "系統監控"
+              },
+              "responses": {
+                "200": {
+                  "content": {
+                    "application_json": {
+                      "fields": {
+                        "data": {
+                          "fields": {
+                            "items": {
+                              "dc": "在線用戶列表"
+                            },
+                            "total": {
+                              "dc": "在線用戶總數"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "schema": {
+                "dc": "分頁查詢當前在線用戶會話，支持按用戶名和IP地址模糊過濾"
+              }
+            },
+            "OnlineListRes": {
+              "fields": {
+                "items": {
+                  "dc": "在線用戶列表"
+                },
+                "total": {
+                  "dc": "在線用戶總數"
+                }
+              }
+            },
+            "OnlineUserItem": {
+              "fields": {
+                "browser": {
+                  "dc": "瀏覽器"
+                },
+                "deptName": {
+                  "dc": "部門名稱"
+                },
+                "ip": {
+                  "dc": "登錄IP"
+                },
+                "loginTime": {
+                  "dc": "登錄時間"
+                },
+                "os": {
+                  "dc": "操作系統"
+                },
+                "tokenId": {
+                  "dc": "會話Token ID"
+                },
+                "username": {
+                  "dc": "登錄賬號"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
