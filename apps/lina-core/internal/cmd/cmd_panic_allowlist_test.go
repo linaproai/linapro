@@ -77,6 +77,13 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "the command tree cannot be constructed, so the process cannot continue",
 		},
 		{
+			Path:     "apps/lina-core/pkg/bizerr/bizerr_code.go",
+			Function: "MustDefineWithKey",
+			Count:    3,
+			Category: panicCategoryMustConstructor,
+			Reason:   "invalid business error definitions must fail during startup or tests",
+		},
+		{
 			Path:     "apps/lina-core/internal/service/config/config_duration.go",
 			Function: "mustScanConfig",
 			Count:    2,
