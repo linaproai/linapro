@@ -100,7 +100,7 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 		"plugins.plugin_demo_dynamic.paths.get.backend_summary.meta.summary",
 	)
 
-	for _, locale := range []string{"zh-CN", "zh-TW"} {
+	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
 		locale := locale
 		t.Run(locale, func(t *testing.T) {
 			sourceBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/"+locale+".json"))
@@ -194,13 +194,15 @@ func resolveOpenAPITestMessage(bundle map[string]string, key string) string {
 // keys are not stored in runtime UI translation bundles.
 func TestOpenAPIBundlesAreSeparatedFromRuntimeI18n(t *testing.T) {
 	repoRoot := locateRepositoryRoot(t)
-	apiBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/zh-CN.json"))
-	for _, bundle := range readOpenAPIPluginJSONBundles(t, repoRoot, "zh-CN") {
-		mergeOpenAPIMessageCatalog(apiBundle, bundle)
-	}
-	apiKeys := make(map[string]struct{}, len(apiBundle))
-	for key := range apiBundle {
-		apiKeys[key] = struct{}{}
+	apiKeys := make(map[string]struct{})
+	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
+		apiBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/"+locale+".json"))
+		for _, bundle := range readOpenAPIPluginJSONBundles(t, repoRoot, locale) {
+			mergeOpenAPIMessageCatalog(apiBundle, bundle)
+		}
+		for key := range apiBundle {
+			apiKeys[key] = struct{}{}
+		}
 	}
 
 	var mixed []string
@@ -704,6 +706,43 @@ func isOpaqueOpenAPIPlaceholder(value openAPIMetadataValue) bool {
 		return false
 	}
 	return regexp.MustCompile(`^[a-z][a-z0-9_-]*(\.[a-z0-9_-]+){2,}$`).MatchString(trimmed)
+}
+
+// discoverOpenAPINonEnglishLocales discovers target apidoc locales from host
+// apidoc resource files and directories, excluding the English source-text locale.
+func discoverOpenAPINonEnglishLocales(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	root := filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatalf("read host apidoc i18n root %s failed: %v", root, err)
+	}
+
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		name := strings.TrimSpace(entry.Name())
+		locale := ""
+		if entry.IsDir() {
+			locale = name
+		} else if strings.HasSuffix(name, ".json") {
+			locale = strings.TrimSuffix(name, ".json")
+		}
+		if locale == "" || locale == "en-US" {
+			continue
+		}
+		seen[locale] = struct{}{}
+	}
+
+	locales := make([]string, 0, len(seen))
+	for locale := range seen {
+		locales = append(locales, locale)
+	}
+	sort.Strings(locales)
+	if len(locales) == 0 {
+		t.Fatal("expected at least one non-English apidoc i18n locale")
+	}
+	return locales
 }
 
 // readOpenAPIJSONBundle reads a JSON translation bundle from disk.

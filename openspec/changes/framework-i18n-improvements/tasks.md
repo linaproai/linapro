@@ -150,3 +150,4 @@
 - [x] **FB-17**: full E2E serial 暴露动态插件安装前 cron 授权元数据无法从未启用 wasm 资源本地化,且安装并启用快捷授权链路对 cron host service 的 payload 覆盖不完整
 - [x] **FB-18**: 默认品牌 Logo 已在系统配置数据中统一为 `/logo.png`,前端默认偏好与 E2E 断言不应继续使用 `/linapro-mark.png`
 - [x] **FB-19**: `permission-display.ts` 中动态路由权限展示模板与片段词表仍维护在 TypeScript 中,需要收敛到前端 i18n JSON 资源并保留未知权限片段兜底展示
+- [x] **FB-20**: i18n 单元测试与 packed/apidoc 完整性测试仍硬编码 `zh-TW` 等目标语言,新增 `ja-JP` 时测试治理会再次要求修改代码

@@ -4,9 +4,29 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"sort"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
+
+// packedConfigTemplate stores the config fields needed by packed manifest tests.
+type packedConfigTemplate struct {
+	I18n packedI18nConfig `yaml:"i18n"`
+}
+
+// packedI18nConfig stores the packed i18n config section.
+type packedI18nConfig struct {
+	Enabled bool               `yaml:"enabled"`
+	Locales []packedI18nLocale `yaml:"locales"`
+}
+
+// packedI18nLocale stores one packed i18n locale descriptor.
+type packedI18nLocale struct {
+	Locale     string `yaml:"locale"`
+	NativeName string `yaml:"nativeName"`
+}
 
 // TestFilesEmbedPreparedManifestAssets verifies the packed embed FS contains
 // the prepared manifest assets expected by runtime startup.
@@ -22,12 +42,14 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 		"manifest/sql/mock-data/003-mock-users.sql",
 		"manifest/config/metadata.yaml",
 		"manifest/config/config.template.yaml",
-		"manifest/i18n/zh-CN.json",
-		"manifest/i18n/en-US.json",
-		"manifest/i18n/zh-TW.json",
-		"manifest/i18n/apidoc/zh-TW.json",
-		"manifest/i18n/apidoc/zh-TW/core-api-i18n.json",
 	}
+	for _, locale := range readPackedConfigTemplate(t).I18n.Locales {
+		expectedPaths = append(expectedPaths,
+			"manifest/i18n/"+locale.Locale+".json",
+			"manifest/i18n/apidoc/"+locale.Locale+".json",
+		)
+	}
+	sort.Strings(expectedPaths)
 
 	for _, path := range expectedPaths {
 		if _, err := fs.ReadFile(Files, path); err != nil {
@@ -70,9 +92,17 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if !strings.Contains(string(configContent), "enabled: true") {
 		t.Fatalf("expected packed config template to include i18n enabled default, got %q", string(configContent))
 	}
-	if !strings.Contains(string(configContent), "locale: zh-TW") ||
-		!strings.Contains(string(configContent), "nativeName: 繁體中文") {
-		t.Fatalf("expected packed config template to include zh-TW i18n metadata, got %q", string(configContent))
+	config := readPackedConfigTemplate(t)
+	if !config.I18n.Enabled {
+		t.Fatal("expected packed config template to enable runtime i18n by default")
+	}
+	if len(config.I18n.Locales) == 0 {
+		t.Fatal("expected packed config template to include runtime i18n locale metadata")
+	}
+	for _, locale := range config.I18n.Locales {
+		if strings.TrimSpace(locale.Locale) == "" || strings.TrimSpace(locale.NativeName) == "" {
+			t.Fatalf("expected packed i18n locale metadata to include locale and nativeName, got %+v", locale)
+		}
 	}
 	assertPackedI18nSectionHasNoDirection(t, string(configContent))
 
@@ -83,6 +113,23 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if !strings.Contains(string(sqlContent), "'sys.upload.maxSize', '20'") {
 		t.Fatalf("expected packed config-management sql to keep 20MB upload default, got %q", string(sqlContent))
 	}
+}
+
+// readPackedConfigTemplate parses the embedded config template used by packed
+// manifest tests.
+func readPackedConfigTemplate(t *testing.T) packedConfigTemplate {
+	t.Helper()
+
+	configContent, err := fs.ReadFile(Files, "manifest/config/config.template.yaml")
+	if err != nil {
+		t.Fatalf("read packed config template: %v", err)
+	}
+
+	var config packedConfigTemplate
+	if err := yaml.Unmarshal(configContent, &config); err != nil {
+		t.Fatalf("parse packed config template: %v", err)
+	}
+	return config
 }
 
 // assertPackedI18nSectionHasNoDirection verifies locale direction remains a

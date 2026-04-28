@@ -53,7 +53,6 @@ func TestRuntimeTranslationsDoNotImplicitlyUseDefaultLocale(t *testing.T) {
 	pluginID := nextTestSourcePluginID()
 	registerTestSourcePluginI18N(t, pluginID, map[string]string{
 		DefaultLocale: fmt.Sprintf(`{"test":{"strict":{"%s":{"title":"仅默认语言提供"}}}}`, pluginID),
-		"zh-TW":       fmt.Sprintf(`{"test":{"strict":{"%s":{"title":"繁體中文可用"}}}}`, pluginID),
 	})
 	key := "test.strict." + pluginID + ".title"
 
@@ -88,7 +87,6 @@ func TestCheckMissingMessagesReturnsLocaleGaps(t *testing.T) {
 	pluginID := nextTestSourcePluginID()
 	registerTestSourcePluginI18N(t, pluginID, map[string]string{
 		DefaultLocale: fmt.Sprintf(`{"test":{"missing":{"%s":"仅默认语言提供"}}}`, pluginID),
-		"zh-TW":       fmt.Sprintf(`{"test":{"missing":{"%s":"繁體中文可用"}}}`, pluginID),
 	})
 	key := "test.missing." + pluginID
 

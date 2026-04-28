@@ -82,27 +82,21 @@ func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 	if !res.Enabled {
 		t.Fatal("expected runtime locale switch to be enabled by default")
 	}
-	if len(res.Items) != 3 {
-		t.Fatalf("expected 3 locale descriptors, got %d", len(res.Items))
+	expectedItems := i18nSvc.ListRuntimeLocales(ctx, i18nsvc.EnglishLocale)
+	if len(res.Items) != len(expectedItems) {
+		t.Fatalf("expected %d locale descriptors, got %d", len(expectedItems), len(res.Items))
 	}
-
-	zhLocale, ok := findRuntimeLocale(res.Items, i18nsvc.DefaultLocale)
-	if !ok {
-		t.Fatalf("expected locale %q in runtime locale list", i18nsvc.DefaultLocale)
-	}
-	if zhLocale.Name != "Chinese (Simplified)" || zhLocale.NativeName != "简体中文" || !zhLocale.IsDefault {
-		t.Fatalf("unexpected zh-CN locale descriptor: %+v", zhLocale)
-	}
-
-	twLocale, ok := findRuntimeLocale(res.Items, "zh-TW")
-	if !ok {
-		t.Fatalf("expected locale %q in runtime locale list", "zh-TW")
-	}
-	if twLocale.Name != "Chinese (Traditional)" || twLocale.NativeName != "繁體中文" || twLocale.IsDefault {
-		t.Fatalf("unexpected zh-TW locale descriptor: %+v", twLocale)
-	}
-	if twLocale.Direction != i18nsvc.LocaleDirectionLTR.String() {
-		t.Fatalf("expected zh-TW direction %q, got %q", i18nsvc.LocaleDirectionLTR.String(), twLocale.Direction)
+	for _, expected := range expectedItems {
+		actual, ok := findRuntimeLocale(res.Items, expected.Locale)
+		if !ok {
+			t.Fatalf("expected locale %q in runtime locale list", expected.Locale)
+		}
+		if actual.Name != expected.Name ||
+			actual.NativeName != expected.NativeName ||
+			actual.Direction != expected.Direction ||
+			actual.IsDefault != expected.IsDefault {
+			t.Fatalf("unexpected locale descriptor for %s: got=%+v expected=%+v", expected.Locale, actual, expected)
+		}
 	}
 }
 

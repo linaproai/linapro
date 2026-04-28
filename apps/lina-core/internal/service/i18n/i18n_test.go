@@ -54,6 +54,41 @@ func resetRuntimeBundleCache() {
 	invalidateRuntimeLocaleCache()
 }
 
+// runtimeLocaleDescriptorsForTest returns the enabled runtime locale
+// descriptors from the same file-backed config used by production startup.
+func runtimeLocaleDescriptorsForTest(t *testing.T) []LocaleDescriptor {
+	t.Helper()
+
+	svc, ok := New().(*serviceImpl)
+	if !ok {
+		t.Fatal("expected i18n.New to return *serviceImpl")
+	}
+	locales := svc.loadEnabledRuntimeLocales(context.Background())
+	if len(locales) == 0 {
+		t.Fatal("expected at least one configured runtime locale")
+	}
+	return locales
+}
+
+// nonDefaultRuntimeLocaleCodesForTest returns every enabled non-default locale
+// so shipped-resource coverage automatically follows i18n.locales.
+func nonDefaultRuntimeLocaleCodesForTest(t *testing.T) []string {
+	t.Helper()
+
+	locales := runtimeLocaleDescriptorsForTest(t)
+	codes := make([]string, 0, len(locales))
+	for _, locale := range locales {
+		if locale.IsDefault {
+			continue
+		}
+		codes = append(codes, locale.Locale)
+	}
+	if len(codes) == 0 {
+		t.Fatal("expected at least one non-default runtime locale")
+	}
+	return codes
+}
+
 // TestNormalizeLocale verifies that raw locale aliases normalize to canonical locale codes.
 func TestNormalizeLocale(t *testing.T) {
 	t.Parallel()
@@ -171,9 +206,10 @@ func TestListRuntimeLocalesUsesRequestedDisplayLocale(t *testing.T) {
 	resetRuntimeBundleCache()
 
 	svc := New()
+	expectedLocales := runtimeLocaleDescriptorsForTest(t)
 	locales := svc.ListRuntimeLocales(context.Background(), EnglishLocale)
-	if len(locales) != 3 {
-		t.Fatalf("expected 3 runtime locales, got %d", len(locales))
+	if len(locales) != len(expectedLocales) {
+		t.Fatalf("expected %d runtime locales, got %d", len(expectedLocales), len(locales))
 	}
 
 	localeMap := make(map[string]LocaleDescriptor, len(locales))
@@ -181,49 +217,27 @@ func TestListRuntimeLocalesUsesRequestedDisplayLocale(t *testing.T) {
 		localeMap[locale.Locale] = locale
 	}
 
-	zhLocale, ok := localeMap[DefaultLocale]
-	if !ok {
-		t.Fatalf("expected locale %q to be returned", DefaultLocale)
-	}
-	if zhLocale.Name != "Chinese (Simplified)" {
-		t.Fatalf("expected localized locale name %q, got %q", "Chinese (Simplified)", zhLocale.Name)
-	}
-	if zhLocale.NativeName != "简体中文" {
-		t.Fatalf("expected locale native name %q, got %q", "简体中文", zhLocale.NativeName)
-	}
-	if !zhLocale.IsDefault {
-		t.Fatal("expected zh-CN locale to be marked as default")
-	}
-
-	enLocale, ok := localeMap[EnglishLocale]
-	if !ok {
-		t.Fatalf("expected locale %q to be returned", EnglishLocale)
-	}
-	if enLocale.Name != "English" {
-		t.Fatalf("expected localized locale name %q, got %q", "English", enLocale.Name)
-	}
-	if enLocale.NativeName != "English" {
-		t.Fatalf("expected locale native name %q, got %q", "English", enLocale.NativeName)
-	}
-	if enLocale.IsDefault {
-		t.Fatal("expected en-US locale to not be marked as default")
-	}
-
-	twLocale, ok := localeMap["zh-TW"]
-	if !ok {
-		t.Fatalf("expected locale %q to be returned", "zh-TW")
-	}
-	if twLocale.Name != "Chinese (Traditional)" {
-		t.Fatalf("expected localized locale name %q, got %q", "Chinese (Traditional)", twLocale.Name)
-	}
-	if twLocale.NativeName != "繁體中文" {
-		t.Fatalf("expected locale native name %q, got %q", "繁體中文", twLocale.NativeName)
-	}
-	if twLocale.Direction != LocaleDirectionLTR.String() {
-		t.Fatalf("expected locale direction %q, got %q", LocaleDirectionLTR.String(), twLocale.Direction)
-	}
-	if twLocale.IsDefault {
-		t.Fatal("expected zh-TW locale to not be marked as default")
+	for _, expected := range expectedLocales {
+		actual, ok := localeMap[expected.Locale]
+		if !ok {
+			t.Fatalf("expected locale %q to be returned", expected.Locale)
+		}
+		if actual.Name == "" {
+			t.Fatalf("expected locale %q to have localized display name", expected.Locale)
+		}
+		expectedNativeName := strings.TrimSpace(expected.NativeName)
+		if expectedNativeName == "" {
+			expectedNativeName = expected.Locale
+		}
+		if actual.NativeName != expectedNativeName {
+			t.Fatalf("expected locale %q native name %q, got %q", expected.Locale, expectedNativeName, actual.NativeName)
+		}
+		if actual.Direction != LocaleDirectionLTR.String() {
+			t.Fatalf("expected locale %q direction %q, got %q", expected.Locale, LocaleDirectionLTR.String(), actual.Direction)
+		}
+		if actual.IsDefault != expected.IsDefault {
+			t.Fatalf("expected locale %q default marker %v, got %v", expected.Locale, expected.IsDefault, actual.IsDefault)
+		}
 	}
 }
 
@@ -242,7 +256,7 @@ func TestBuildConfiguredRuntimeLocalesUsesConfigLocalesAsWhitelist(t *testing.T)
 		},
 	}
 	locales := normalizeRuntimeLocales(buildConfiguredRuntimeLocales(
-		[]string{DefaultLocale, EnglishLocale, "zh-TW"},
+		[]string{DefaultLocale, EnglishLocale, "fr-FR"},
 		config,
 	), config.Default)
 
@@ -250,8 +264,8 @@ func TestBuildConfiguredRuntimeLocalesUsesConfigLocalesAsWhitelist(t *testing.T)
 		t.Fatalf("expected 2 enabled locales, got %d: %+v", len(locales), locales)
 	}
 	for _, locale := range locales {
-		if locale.Locale == "zh-TW" {
-			t.Fatalf("expected zh-TW to be disabled when missing from config locales: %+v", locales)
+		if locale.Locale == "fr-FR" {
+			t.Fatalf("expected locale absent from config to be disabled: %+v", locales)
 		}
 	}
 }
@@ -267,11 +281,11 @@ func TestBuildConfiguredRuntimeLocalesDisabledReturnsDefaultOnly(t *testing.T) {
 		Locales: []hostconfig.I18nLocaleConfig{
 			{Locale: EnglishLocale, NativeName: "English"},
 			{Locale: DefaultLocale, NativeName: "简体中文"},
-			{Locale: "zh-TW", NativeName: "繁體中文"},
+			{Locale: "fr-FR", NativeName: "Français"},
 		},
 	}
 	locales := normalizeRuntimeLocales(buildConfiguredRuntimeLocales(
-		[]string{DefaultLocale, EnglishLocale, "zh-TW"},
+		[]string{DefaultLocale, EnglishLocale, "fr-FR"},
 		config,
 	), config.Default)
 
@@ -295,7 +309,7 @@ func TestResolveLocaleUsesDefaultWhenI18nDisabled(t *testing.T) {
 		Locales: []hostconfig.I18nLocaleConfig{
 			{Locale: DefaultLocale, NativeName: "简体中文"},
 			{Locale: EnglishLocale, NativeName: "English"},
-			{Locale: "zh-TW", NativeName: "繁體中文"},
+			{Locale: "fr-FR", NativeName: "Français"},
 		},
 	}
 	svc := &serviceImpl{configSvc: stubConfigService{cfg: cfg}}
@@ -303,8 +317,8 @@ func TestResolveLocaleUsesDefaultWhenI18nDisabled(t *testing.T) {
 	if actual := svc.ResolveLocale(context.Background(), EnglishLocale); actual != DefaultLocale {
 		t.Fatalf("expected disabled i18n to resolve explicit locale to %q, got %q", DefaultLocale, actual)
 	}
-	if actual := svc.ResolveLocale(context.Background(), "zh-TW"); actual != DefaultLocale {
-		t.Fatalf("expected disabled i18n to resolve zh-TW to %q, got %q", DefaultLocale, actual)
+	if actual := svc.ResolveLocale(context.Background(), "fr-FR"); actual != DefaultLocale {
+		t.Fatalf("expected disabled i18n to resolve non-default locale to %q, got %q", DefaultLocale, actual)
 	}
 }
 
@@ -403,7 +417,7 @@ func TestCheckMissingMessagesSkipsSourceTextBackedKeys(t *testing.T) {
 		resetSourceTextNamespacesForTest()
 	})
 
-	for _, locale := range []string{EnglishLocale, "zh-TW"} {
+	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
 		items := New().CheckMissingMessages(context.Background(), locale, "job.")
 		namespaces := RegisteredSourceTextNamespaces()
 		for _, item := range items {
@@ -416,10 +430,10 @@ func TestCheckMissingMessagesSkipsSourceTextBackedKeys(t *testing.T) {
 	}
 }
 
-// TestTraditionalChineseRuntimeCatalogHasNoMissingMessages verifies that the
-// shipped Traditional Chinese runtime bundle covers the default-language
-// baseline except source-owned keys.
-func TestTraditionalChineseRuntimeCatalogHasNoMissingMessages(t *testing.T) {
+// TestShippedNonDefaultRuntimeCatalogsHaveNoMissingMessages verifies that each
+// shipped non-default runtime bundle covers the default-language baseline
+// except source-owned keys.
+func TestShippedNonDefaultRuntimeCatalogsHaveNoMissingMessages(t *testing.T) {
 	resetRuntimeBundleCache()
 	resetSourceTextNamespacesForTest()
 	RegisterSourceTextNamespace("job.handler.", "test job handler source text")
@@ -429,30 +443,36 @@ func TestTraditionalChineseRuntimeCatalogHasNoMissingMessages(t *testing.T) {
 		resetSourceTextNamespacesForTest()
 	})
 
-	items := New().CheckMissingMessages(context.Background(), "zh-TW", "")
-	items = filterExternalDynamicPluginMissingMessagesForTest(items)
-	if len(items) == 0 {
-		return
-	}
-
-	keys := make([]string, 0, len(items))
-	for _, item := range items {
-		keys = append(keys, item.Key)
-		if len(keys) >= 20 {
-			break
+	for _, locale := range nonDefaultRuntimeLocaleCodesForTest(t) {
+		items := New().CheckMissingMessages(context.Background(), locale, "")
+		items = filterExternalDynamicPluginMissingMessagesForTest(items)
+		if len(items) == 0 {
+			continue
 		}
+
+		keys := make([]string, 0, len(items))
+		for _, item := range items {
+			keys = append(keys, item.Key)
+			if len(keys) >= 20 {
+				break
+			}
+		}
+		t.Fatalf("expected %s missing translation total=0, got %d; first keys: %s", locale, len(items), strings.Join(keys, ", "))
 	}
-	t.Fatalf("expected zh-TW missing translation total=0, got %d; first keys: %s", len(items), strings.Join(keys, ", "))
 }
 
 // filterExternalDynamicPluginMissingMessagesForTest removes gaps contributed by
 // previously installed dynamic-plugin release artifacts in the developer
-// database. This test verifies shipped host/source resources; dynamic-plugin
-// artifact freshness is covered by the focused dynamic-plugin tests and E2E.
+// database and source-plugin fixtures registered by neighboring unit tests.
+// This test verifies shipped host/source resources; dynamic-plugin artifact
+// freshness and synthetic plugin gaps are covered by focused tests and E2E.
 func filterExternalDynamicPluginMissingMessagesForTest(items []MissingMessageItem) []MissingMessageItem {
 	filteredItems := make([]MissingMessageItem, 0, len(items))
 	for _, item := range items {
 		if item.Source.ScopeKey == "plugin-demo-dynamic" {
+			continue
+		}
+		if strings.HasPrefix(item.Source.ScopeKey, "plugin-i18n-test-") {
 			continue
 		}
 		filteredItems = append(filteredItems, item)
