@@ -1,6 +1,26 @@
 const pluginID = "plugin-demo-dynamic";
 const apiBasePath = `/api/v1/extensions/${pluginID}`;
 const defaultRecordPageSize = 10;
+const standaloneI18nStoragePrefix = `linapro:${pluginID}:standalone-i18n:`;
+
+const standaloneMessageKeys = {
+  badge: "plugin.plugin-demo-dynamic.page.standalone.badge",
+  card1Body: "plugin.plugin-demo-dynamic.page.standalone.card1Body",
+  card1Title: "plugin.plugin-demo-dynamic.page.standalone.card1Title",
+  card2Body: "plugin.plugin-demo-dynamic.page.standalone.card2Body",
+  card2Title: "plugin.plugin-demo-dynamic.page.standalone.card2Title",
+  footer: "plugin.plugin-demo-dynamic.page.standalone.footer",
+  heroTitle: "plugin.plugin-demo-dynamic.page.standalone.heroTitle",
+  lead: "plugin.plugin-demo-dynamic.page.standalone.lead",
+  summary1Body: "plugin.plugin-demo-dynamic.page.standalone.summary1Body",
+  summary1Title: "plugin.plugin-demo-dynamic.page.standalone.summary1Title",
+  summary2Body: "plugin.plugin-demo-dynamic.page.standalone.summary2Body",
+  summary2Title: "plugin.plugin-demo-dynamic.page.standalone.summary2Title",
+  summary3Body: "plugin.plugin-demo-dynamic.page.standalone.summary3Body",
+  summary3Title: "plugin.plugin-demo-dynamic.page.standalone.summary3Title",
+  summaryTitle: "plugin.plugin-demo-dynamic.page.standalone.summaryTitle",
+  title: "plugin.plugin-demo-dynamic.page.standalone.title",
+};
 
 const hostStyleId = "plugin-demo-dynamic-mount-style";
 
@@ -19,6 +39,51 @@ function formatTemplate(template, parameters = {}) {
     const value = parameters[key];
     return value == null ? "" : String(value);
   });
+}
+
+function buildStandaloneI18nStorageKey() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return `${standaloneI18nStoragePrefix}${window.crypto.randomUUID()}`;
+  }
+  return `${standaloneI18nStoragePrefix}${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}`;
+}
+
+function collectStandaloneRuntimeMessages(context) {
+  const messages = {};
+  for (const [targetKey, runtimeKey] of Object.entries(standaloneMessageKeys)) {
+    const translated = translate(context, runtimeKey, "");
+    if (translated) {
+      messages[targetKey] = translated;
+    }
+  }
+  return messages;
+}
+
+function persistStandaloneRuntimeMessages(context, locale) {
+  const messages = collectStandaloneRuntimeMessages(context);
+  if (Object.keys(messages).length === 0) {
+    return "";
+  }
+
+  try {
+    const storage = window.localStorage;
+    if (!storage) {
+      return "";
+    }
+    const storageKey = buildStandaloneI18nStorageKey();
+    storage.setItem(
+      storageKey,
+      JSON.stringify({
+        locale,
+        messages,
+      }),
+    );
+    return storageKey;
+  } catch (_error) {
+    return "";
+  }
 }
 
 function resolveSupportedLocale(locale) {
@@ -1231,6 +1296,13 @@ export function mount(context) {
     const standaloneURL = new URL("./standalone.html", context.baseURL);
     if (currentLocale) {
       standaloneURL.searchParams.set("lang", currentLocale);
+    }
+    const standaloneI18nKey = persistStandaloneRuntimeMessages(
+      context,
+      currentLocale,
+    );
+    if (standaloneI18nKey) {
+      standaloneURL.searchParams.set("i18nKey", standaloneI18nKey);
     }
     window.open(standaloneURL.toString(), "_blank", "noopener,noreferrer");
   });

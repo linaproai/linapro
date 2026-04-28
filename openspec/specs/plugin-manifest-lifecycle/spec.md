@@ -379,6 +379,7 @@ The system SHALL allow administrators to trigger enablement directly from the pl
 - **THEN** the host keeps the plugin in the real `installed but disabled` state
 - **AND** the host MUST NOT automatically undo the completed installation because enablement failed
 - **AND** the administrator can still trigger enablement again later from the existing installed state
+
 ### Requirement: Dynamic-plugin authorization review shows a route exposure list
 
 The system SHALL display the current release's dynamic-route list in the installation or enablement review dialog for a dynamic plugin. This list MUST appear as a governance section parallel to, but semantically separate from, `hostServices` authorization. The host-service authorization section MUST appear before the route-information section.
@@ -453,3 +454,30 @@ The system SHALL hide the `Authorization Requirement` field in the plugin detail
 - **WHEN** an administrator opens the plugin detail dialog
 - **THEN** the base information table does not render a standalone `Authorization Requirement` field
 - **AND** more valuable fields such as authorization state and plugin description remain visible
+
+### Requirement: Plugins must deliver i18n resources with versions and participate in lifecycle management
+The system SHALL allow plugins to deliver locale resources through a standard plugin resource directory, and the host SHALL manage those resources together with plugin discovery, installation, upgrade, enablement, disablement, and uninstallation.
+
+#### Scenario: Source plugin sync registers i18n resources
+- **WHEN** the host discovers a source plugin with a standard i18n resource directory
+- **THEN** the host registers the plugin's available locale resources
+- **AND** those resources can participate in localized projection for menus, plugin name, and plugin description
+
+#### Scenario: Dynamic plugin uninstall removes i18n resources
+- **WHEN** an administrator uninstalls an installed dynamic plugin
+- **THEN** the host removes the plugin's i18n resources from runtime translation aggregation
+- **AND** the plugin's menus and metadata no longer expose its localized messages
+
+### Requirement: Plugin metadata and plugin menus must support current-language localization
+The system SHALL localize plugin name, plugin description, and plugin-declared menu titles according to the current request language while keeping plugin ID, menu key, route path, and permission semantics unchanged.
+
+#### Scenario: Plugin list returns localized plugin names
+- **WHEN** an administrator views the plugin management list or plugin detail with `en-US`
+- **THEN** plugin name and plugin description use English localized results
+- **AND** plugin ID, version, status, and governance fields keep their original semantics
+
+#### Scenario: Plugin menus return titles by language
+- **WHEN** an enabled plugin's declared menus have translation resources for the current language
+- **THEN** plugin menu titles in left navigation, menu management, and role authorization trees use that language result
+- **AND** the plugin does not need to directly change multilingual field structures in `sys_menu`
+

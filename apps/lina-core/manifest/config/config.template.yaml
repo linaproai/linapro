@@ -33,7 +33,7 @@ logger:
 database:
   default:
     # 默认数据库连接串
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
     # 是否开启 SQL 调试日志
     debug: true
 

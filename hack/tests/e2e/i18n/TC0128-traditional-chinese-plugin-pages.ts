@@ -224,8 +224,14 @@ test.describe("TC0128 繁体中文插件页面巡检", () => {
     await standalonePage.waitForLoadState("networkidle").catch(() => {});
 
     await expect.poll(async () => standalonePage.url()).toContain("lang=zh-TW");
+    await expect
+      .poll(async () =>
+        new URL(standalonePage.url()).searchParams.get("i18nKey"),
+      )
+      .toBeTruthy();
     const standaloneText = await standalonePage.locator("body").innerText();
-    expect(standaloneText).toContain("獨立頁面已成功打開");
+    await expect(standalonePage).toHaveTitle("動態插件獨立頁面");
+    expect(standaloneText).toContain("動態插件獨立頁面");
     expect(standaloneText).toContain(
       "當前頁面由 plugin-demo-dynamic 直接以託管靜態資源形式提供",
     );

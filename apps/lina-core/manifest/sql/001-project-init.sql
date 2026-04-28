@@ -1,3 +1,7 @@
+-- database bootstrap
+CREATE DATABASE IF NOT EXISTS `linapro` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `linapro`;
+
 -- sys_user table
 CREATE TABLE IF NOT EXISTS sys_user (
     id          INT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',

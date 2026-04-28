@@ -93,6 +93,24 @@
         "panelTitle": "Current Validation Scope",
         "standaloneButton": "Open Standalone Page",
         "standaloneHint": "Open the hosted static page in a new window to verify plugin asset publishing.",
+        "standalone": {
+          "badge": "WASM Plugin Standalone",
+          "card1Body": "plugin-demo-dynamic is a dynamic plugin sample used to demonstrate directory conventions, Wasm artifact delivery, hosted assets, and the host mount protocol.",
+          "card1Title": "Current Plugin Shape",
+          "card2Body": "This page intentionally avoids the default admin shell style and demonstrates how a plugin can deliver its own static visual language while remaining professional and readable.",
+          "card2Title": "Design Goal",
+          "footer": "If you can see this page now, the host is correctly serving the standalone assets of the dynamic plugin through a stable URL.",
+          "heroTitle": "Dynamic Plugin Standalone Page",
+          "lead": "This page is served directly by plugin-demo-dynamic as a hosted static asset rather than through the Vben frontend framework. It verifies that a dynamic plugin can render inside the host workspace and can also open a full standalone experience in a new window.",
+          "summary1Body": "The page file is served from the plugin-hosted asset directory instead of a host source route.",
+          "summary1Title": "Hosted Asset Delivery",
+          "summary2Body": "The standalone page does not reuse Vben components or layout, but it still keeps a polished and readable presentation.",
+          "summary2Title": "Independent Presentation",
+          "summary3Body": "Users can jump here from the host workspace and verify the flow from embedded mount to standalone access.",
+          "summary3Title": "End-to-end Navigation",
+          "summaryTitle": "What This Page Verifies",
+          "title": "Dynamic Plugin Standalone Page"
+        },
         "table": {
           "createdAt": "Created at: {value}",
           "header": {

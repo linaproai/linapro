@@ -136,6 +136,113 @@ func TestResolveSQLAssetSource(t *testing.T) {
 	}
 }
 
+// TestParseInitRebuildFlag verifies the optional rebuild flag accepts common
+// boolean spellings and rejects ambiguous values.
+func TestParseInitRebuildFlag(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		want    bool
+		wantErr bool
+	}{
+		{name: "empty defaults to false", input: "", want: false},
+		{name: "true enables rebuild", input: "true", want: true},
+		{name: "one enables rebuild", input: "1", want: true},
+		{name: "yes enables rebuild", input: "yes", want: true},
+		{name: "false disables rebuild", input: "false", want: false},
+		{name: "zero disables rebuild", input: "0", want: false},
+		{name: "no disables rebuild", input: "no", want: false},
+		{name: "reject unknown value", input: "maybe", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := parseInitRebuildFlag(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parse rebuild flag: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+// TestInitDatabaseLinkHelpers verifies init can derive the target schema and a
+// server-level connection link from the configured GoFrame MySQL link.
+func TestInitDatabaseLinkHelpers(t *testing.T) {
+	t.Parallel()
+
+	link := "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local"
+	name, err := databaseNameFromMySQLLink(link)
+	if err != nil {
+		t.Fatalf("extract database name: %v", err)
+	}
+	if name != initDatabaseName {
+		t.Fatalf("expected database name %q, got %q", initDatabaseName, name)
+	}
+
+	serverLink, err := serverLinkFromMySQLLink(link)
+	if err != nil {
+		t.Fatalf("derive server link: %v", err)
+	}
+	wantServerLink := "mysql:root:12345678@tcp(127.0.0.1:3306)/?charset=utf8mb4&parseTime=true&loc=Local"
+	if serverLink != wantServerLink {
+		t.Fatalf("expected server link %q, got %q", wantServerLink, serverLink)
+	}
+}
+
+// TestInitDatabaseLinkHelpersRejectMissingDatabase verifies init refuses links
+// that cannot identify the target schema to create or rebuild.
+func TestInitDatabaseLinkHelpersRejectMissingDatabase(t *testing.T) {
+	t.Parallel()
+
+	for _, link := range []string{
+		"mysql:root:12345678@tcp(127.0.0.1:3306)",
+		"mysql:root:12345678@tcp(127.0.0.1:3306)/?charset=utf8mb4",
+	} {
+		link := link
+		t.Run(link, func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := databaseNameFromMySQLLink(link); err == nil {
+				t.Fatal("expected database name extraction error")
+			}
+			if _, err := serverLinkFromMySQLLink(link); err == nil {
+				t.Fatal("expected server link extraction error")
+			}
+		})
+	}
+}
+
+// TestQuoteMySQLIdentifier verifies bootstrap SQL escapes MySQL identifiers
+// instead of concatenating raw names.
+func TestQuoteMySQLIdentifier(t *testing.T) {
+	t.Parallel()
+
+	got, err := quoteMySQLIdentifier("lina`pro")
+	if err != nil {
+		t.Fatalf("quote identifier: %v", err)
+	}
+	if got != "`lina``pro`" {
+		t.Fatalf("expected escaped identifier, got %q", got)
+	}
+	if _, err = quoteMySQLIdentifier(""); err == nil {
+		t.Fatal("expected empty identifier error")
+	}
+}
+
 // TestExecuteSQLAssetsWithExecutorStopsAfterFirstError verifies execution halts
 // at the first failing SQL asset and returns the failing file name.
 func TestExecuteSQLAssetsWithExecutorStopsAfterFirstError(t *testing.T) {

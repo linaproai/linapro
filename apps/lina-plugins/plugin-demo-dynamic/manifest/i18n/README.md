@@ -10,7 +10,7 @@ Included normalized keys cover:
 
 - plugin metadata such as `plugin.plugin-demo-dynamic.name`
 - menu metadata such as `menu.plugin:plugin-demo-dynamic:main-entry.title`
-- embedded page copy such as `plugin.plugin-demo-dynamic.page.*`
+- embedded and standalone page copy such as `plugin.plugin-demo-dynamic.page.*`
 - API-documentation metadata under `plugins.plugin_demo_dynamic.*` in `<locale>/apidoc/`
 
 Runtime UI message files may use nested JSON or flat dotted keys. The host normalizes both forms into flat keys for aggregation and diagnostics, then returns nested objects to the frontend runtime.

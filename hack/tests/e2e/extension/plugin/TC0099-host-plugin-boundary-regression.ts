@@ -24,7 +24,7 @@ const apiBaseURL =
 const mysqlBin = process.env.E2E_MYSQL_BIN ?? 'mysql';
 const mysqlUser = process.env.E2E_DB_USER ?? 'root';
 const mysqlPassword = process.env.E2E_DB_PASSWORD ?? '12345678';
-const mysqlDatabase = process.env.E2E_DB_NAME ?? 'lina';
+const mysqlDatabase = process.env.E2E_DB_NAME ?? 'linapro';
 
 function unwrapApiData(payload: any) {
   if (payload && typeof payload === 'object' && 'data' in payload) {

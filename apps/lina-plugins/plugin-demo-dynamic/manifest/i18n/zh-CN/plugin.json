@@ -93,6 +93,24 @@
         "panelTitle": "当前验证范围",
         "standaloneButton": "打开独立页面",
         "standaloneHint": "点击后将在新窗口打开托管的纯静态页面，用于验证插件资源公开访问能力。",
+        "standalone": {
+          "badge": "WASM 插件独立页",
+          "card1Body": "plugin-demo-dynamic 作为动态插件样例，主要用于目录规范、WASM 产物生成、托管资源访问与宿主挂载协议的示例。",
+          "card1Title": "当前插件形态",
+          "card2Body": "此处刻意不沿用默认管理工作台的框架样式，而是以独立静态页面的方式展示插件自有视觉能力，同时保持足够专业的排版、色彩与阅读体验。",
+          "card2Title": "页面风格目标",
+          "footer": "如果你当前能看到本页，说明动态插件的独立页面资源已经被宿主正确托管，并可通过稳定 URL 正常访问。",
+          "heroTitle": "动态插件独立页面",
+          "lead": "当前页面由 plugin-demo-dynamic 直接以托管静态资源形式提供，不依赖 Vben 前端框架。它用于验证动态插件既可以在宿主主内容区内嵌展示，也可以通过新窗口提供完整的独立页面体验。",
+          "summary1Body": "页面文件来自插件托管资源目录，而不是宿主源码页面路由。",
+          "summary1Title": "资源托管链路",
+          "summary2Body": "独立页不复用 Vben 组件与布局，但仍保持专业、清晰的视觉质量。",
+          "summary2Title": "展示独立性",
+          "summary3Body": "用户可从宿主主窗口点击按钮跳转到此页面，完成从内嵌挂载到独立访问的切换验证。",
+          "summary3Title": "交互闭环",
+          "summaryTitle": "本页验证重点",
+          "title": "动态插件独立页面"
+        },
         "table": {
           "createdAt": "创建时间: {value}",
           "header": {

@@ -24,7 +24,7 @@ define run_build_command
 	fi
 endef
 
-## build: 构建单体二进制与插件产物（输出到 temp/output，可追加 verbose=1 或 v=1 查看详细日志）
+## build: 构建前端静态资源、宿主 manifest 嵌入资源、runtime wasm 插件与宿主单体二进制；输出到 temp/output，可追加 verbose=1 或 v=1 查看详细日志
 .PHONY: build
 build:
 	@echo "准备构建输出目录..."
@@ -45,7 +45,7 @@ build:
 	$(call run_build_command,cd $(BACKEND_DIR) && go build -o ../../$(HOST_BINARY_PATH) .)
 	@echo "✓ 构建完成: $(HOST_BINARY_PATH)"
 
-## wasm: 编译 apps/lina-plugins 下全部或指定 runtime wasm 插件到 temp/output，可追加 verbose=1 或 v=1 查看详细日志
+## wasm: 编译 apps/lina-plugins 下全部 runtime wasm 插件，或通过 p=<plugin-id> 指定单个插件；输出到 temp/output，可追加 verbose=1 或 v=1 查看详细日志
 .PHONY: wasm
 wasm:
 	@mkdir -p $(OUTPUT_DIR)

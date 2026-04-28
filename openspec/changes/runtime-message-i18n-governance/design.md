@@ -234,13 +234,13 @@ apps/lina-plugins/<plugin-id>/manifest/i18n/
 
 ### 决策八：扫描门禁以“运行时可见位置”为主，不做裸字符一刀切
 
-**选择**：新增硬编码文案扫描脚本，使用 Go AST 和前端 AST/ESLint 规则识别高风险位置：
+**选择**：新增`hack/tools/runtime-i18n`下的 Go 工具维护运行时文案扫描与语言包覆盖检查。工具阶段性使用可审查的规则模式识别高风险位置，后续可在同一工具内演进到 Go AST 和前端 AST/ESLint 规则：
 
 - Go：`gerror.New*`、`gerror.Wrap*`、`panic(gerror...)`、`Reason/Message/Fallback` 字段、导出表头数组、状态文本映射、插件桥接错误构造。
 - Vue/TypeScript：`title/label/placeholder`、模板文本节点、`message.*`、`notification.*`、`Modal.confirm`、表格列定义。
 - 允许清单：注释、测试 fixture、用户示例数据、技术单位、协议常量、英文运维日志。
 
-扫描结果进入 CI 或本地 `make` 检查；新增例外必须在 allowlist 中说明原因和归属分类。
+扫描结果进入 CI 或本地`make`检查；新增例外必须在`hack/tools/runtime-i18n/allowlist.json`中说明原因和归属分类。
 
 **原因**：单纯 `rg "\p{Han}"` 会产生大量误报，无法长期执行。基于语义位置扫描可以作为可维护门禁。
 

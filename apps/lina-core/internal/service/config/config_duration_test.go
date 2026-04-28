@@ -16,7 +16,7 @@ func TestDurationConfigsUseDefaultsWhenUnset(t *testing.T) {
 	setTestConfigContent(t, `
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
 `)
 	withRuntimeParamAbsent(t, RuntimeParamKeyJWTExpire)
 	withRuntimeParamAbsent(t, RuntimeParamKeySessionTimeout)
@@ -66,7 +66,7 @@ func TestGetJwtUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
 jwt:
   secret: "test-secret"
   expire: 36h
@@ -102,7 +102,7 @@ func TestGetSessionUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/lina?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
 session:
   timeout: 36h
   cleanupInterval: 10m

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>plugin-demo-dynamic Standalone Page</title>
+    <title>Dynamic Plugin Standalone Page</title>
     <style>
       :root {
         color-scheme: light;
@@ -211,114 +211,117 @@
       }
     </style>
     <script>
-      const STANDALONE_MESSAGES = {
-        "en-US": {
-          title: "plugin-demo-dynamic Standalone Page",
-          badge: "WASM Plugin Standalone",
-          heroTitle: "Standalone Page Opened Successfully",
-          lead: "This page is served directly by plugin-demo-dynamic as a hosted static asset rather than through the Vben frontend framework. It verifies that a dynamic plugin can render inside the host workspace and can also open a full standalone experience in a new window.",
-          summaryTitle: "What This Page Verifies",
-          summary1Title: "Hosted Asset Delivery",
-          summary1Body:
-            "The page file is served from the plugin-hosted asset directory instead of a host source route.",
-          summary2Title: "Independent Presentation",
-          summary2Body:
-            "The standalone page does not reuse Vben components or layout, but it still keeps a polished and readable presentation.",
-          summary3Title: "End-to-end Navigation",
-          summary3Body:
-            "Users can jump here from the host workspace and verify the flow from embedded mount to standalone access.",
-          card1Title: "Current Plugin Shape",
-          card1Body:
-            "plugin-demo-dynamic is a dynamic plugin sample used to demonstrate directory conventions, Wasm artifact delivery, hosted assets, and the host mount protocol.",
-          card2Title: "Design Goal",
-          card2Body:
-            "This page intentionally avoids the default admin shell style and demonstrates how a plugin can deliver its own static visual language while remaining professional and readable.",
-          footer:
-            "If you can see this page now, the host is correctly serving the standalone assets of the dynamic plugin through a stable URL.",
-        },
-        "zh-CN": {
-          title: "plugin-demo-dynamic 独立页面",
-          badge: "WASM 插件独立页",
-          heroTitle: "独立页面已成功打开",
-          lead: "当前页面由 plugin-demo-dynamic 直接以托管静态资源形式提供，不依赖 Vben 前端框架。它用于验证动态插件既可以在宿主主内容区内嵌展示，也可以通过新窗口提供完整的独立页面体验。",
-          summaryTitle: "本页验证重点",
-          summary1Title: "资源托管链路",
-          summary1Body:
-            "页面文件来自插件托管资源目录，而不是宿主源码页面路由。",
-          summary2Title: "展示独立性",
-          summary2Body:
-            "独立页不复用 Vben 组件与布局，但仍保持专业、清晰的视觉质量。",
-          summary3Title: "交互闭环",
-          summary3Body:
-            "用户可从宿主主窗口点击按钮跳转到此页面，完成从内嵌挂载到独立访问的切换验证。",
-          card1Title: "当前插件形态",
-          card1Body:
-            "plugin-demo-dynamic 作为动态插件样例，主要用于目录规范、WASM 产物生成、托管资源访问与宿主挂载协议的示例。",
-          card2Title: "页面风格目标",
-          card2Body:
-            "此处刻意不沿用默认管理工作台的框架样式，而是以独立静态页面的方式展示插件自有视觉能力，同时保持足够专业的排版、色彩与阅读体验。",
-          footer:
-            "如果你当前能看到本页，说明动态插件的独立页面资源已经被宿主正确托管，并可通过稳定 URL 正常访问。",
-        },
-        "zh-TW": {
-          title: "plugin-demo-dynamic 獨立頁面",
-          badge: "WASM 插件獨立頁",
-          heroTitle: "獨立頁面已成功打開",
-          lead: "當前頁面由 plugin-demo-dynamic 直接以託管靜態資源形式提供，不依賴 Vben 前端框架。它用於驗證動態插件既可以在宿主主內容區內嵌展示，也可以通過新窗口提供完整的獨立頁面體驗。",
-          summaryTitle: "本頁驗證重點",
-          summary1Title: "資源託管鏈路",
-          summary1Body:
-            "頁面文件來自插件託管資源目錄，而不是宿主源碼頁面路由。",
-          summary2Title: "展示獨立性",
-          summary2Body:
-            "獨立頁不複用 Vben 組件與布局，但仍保持專業、清晰的視覺質量。",
-          summary3Title: "交互閉環",
-          summary3Body:
-            "用戶可從宿主主窗口點擊按鈕跳轉到此頁面，完成從內嵌掛載到獨立訪問的切換驗證。",
-          card1Title: "當前插件形態",
-          card1Body:
-            "plugin-demo-dynamic 作為動態插件樣例，主要用於目錄規範、WASM 產物生成、託管資源訪問與宿主掛載協議的示例。",
-          card2Title: "頁面風格目標",
-          card2Body:
-            "此處刻意不沿用默認管理工作台的框架樣式，而是以獨立靜態頁面的方式展示插件自有視覺能力，同時保持足夠專業的排版、色彩與閱讀體驗。",
-          footer:
-            "如果你當前能看到本頁，說明動態插件的獨立頁面資源已經被宿主正確託管，並可通過穩定 URL 正常訪問。",
-        },
+      const STANDALONE_MESSAGE_KEYS = {
+        badge: "plugin.plugin-demo-dynamic.page.standalone.badge",
+        card1Body: "plugin.plugin-demo-dynamic.page.standalone.card1Body",
+        card1Title: "plugin.plugin-demo-dynamic.page.standalone.card1Title",
+        card2Body: "plugin.plugin-demo-dynamic.page.standalone.card2Body",
+        card2Title: "plugin.plugin-demo-dynamic.page.standalone.card2Title",
+        footer: "plugin.plugin-demo-dynamic.page.standalone.footer",
+        heroTitle: "plugin.plugin-demo-dynamic.page.standalone.heroTitle",
+        lead: "plugin.plugin-demo-dynamic.page.standalone.lead",
+        summary1Body: "plugin.plugin-demo-dynamic.page.standalone.summary1Body",
+        summary1Title:
+          "plugin.plugin-demo-dynamic.page.standalone.summary1Title",
+        summary2Body: "plugin.plugin-demo-dynamic.page.standalone.summary2Body",
+        summary2Title:
+          "plugin.plugin-demo-dynamic.page.standalone.summary2Title",
+        summary3Body: "plugin.plugin-demo-dynamic.page.standalone.summary3Body",
+        summary3Title:
+          "plugin.plugin-demo-dynamic.page.standalone.summary3Title",
+        summaryTitle: "plugin.plugin-demo-dynamic.page.standalone.summaryTitle",
+        title: "plugin.plugin-demo-dynamic.page.standalone.title",
       };
+
+      const runtimeMessagesEndpoint = "/api/v1/i18n/runtime/messages";
+
+      function isPlainObject(value) {
+        return (
+          typeof value === "object" && value !== null && !Array.isArray(value)
+        );
+      }
+
+      function normalizeLocale(locale) {
+        const normalized = String(locale || "").trim();
+        const lowerLocale = normalized.toLowerCase();
+        if (!lowerLocale) {
+          return "en-US";
+        }
+        if (
+          lowerLocale === "zh-tw" ||
+          lowerLocale === "zh-hk" ||
+          lowerLocale === "zh-mo" ||
+          lowerLocale.startsWith("zh-hant")
+        ) {
+          return "zh-TW";
+        }
+        if (
+          lowerLocale === "zh" ||
+          lowerLocale === "zh-cn" ||
+          lowerLocale.startsWith("zh-hans")
+        ) {
+          return "zh-CN";
+        }
+        if (lowerLocale.startsWith("en")) {
+          return "en-US";
+        }
+        return normalized;
+      }
 
       function resolveLocale() {
         const params = new URLSearchParams(window.location.search);
         const explicit = params.get("lang");
-        if (explicit) {
-          if (STANDALONE_MESSAGES[explicit]) {
-            return explicit;
+        return normalizeLocale(explicit || navigator.language || "");
+      }
+
+      function lookupRuntimeMessageString(messages, key) {
+        let current = messages;
+        for (const segment of key.split(".").filter(Boolean)) {
+          if (!isPlainObject(current) || !(segment in current)) {
+            return "";
           }
-          const explicitLocale = explicit.toLowerCase();
-          if (
-            explicitLocale === "zh" ||
-            explicitLocale === "zh-cn" ||
-            explicitLocale.startsWith("zh-hans")
-          ) {
-            return "zh-CN";
+          current = current[segment];
+        }
+        return typeof current === "string" ? current : "";
+      }
+
+      function extractRuntimeMessagesPayload(payload) {
+        if (!isPlainObject(payload)) {
+          return {};
+        }
+        if (isPlainObject(payload.data?.messages)) {
+          return payload.data.messages;
+        }
+        if (isPlainObject(payload.messages)) {
+          return payload.messages;
+        }
+        return {};
+      }
+
+      function resolveStandaloneMessages(runtimeMessages) {
+        const messages = {};
+        if (!isPlainObject(runtimeMessages)) {
+          return messages;
+        }
+        for (const [targetKey, runtimeKey] of Object.entries(
+          STANDALONE_MESSAGE_KEYS,
+        )) {
+          const directValue = runtimeMessages[targetKey];
+          const runtimeValue =
+            typeof directValue === "string"
+              ? directValue
+              : lookupRuntimeMessageString(runtimeMessages, runtimeKey);
+          if (runtimeValue) {
+            messages[targetKey] = runtimeValue;
           }
-          if (explicitLocale.startsWith("en")) {
-            return "en-US";
-          }
-          return explicit;
         }
-        const preferred = navigator.language || "";
-        if (preferred && STANDALONE_MESSAGES[preferred]) {
-          return preferred;
-        }
-        const preferredLocale = preferred.toLowerCase();
-        if (
-          preferredLocale === "zh" ||
-          preferredLocale === "zh-cn" ||
-          preferredLocale.startsWith("zh-hans")
-        ) {
-          return "zh-CN";
-        }
-        return "en-US";
+        return messages;
+      }
+
+      function hasCompleteStandaloneMessages(messages) {
+        return Object.keys(STANDALONE_MESSAGE_KEYS).every(
+          (key) => typeof messages[key] === "string" && messages[key],
+        );
       }
 
       function consumeRuntimeMessages(locale) {
@@ -344,23 +347,53 @@
         }
       }
 
-      function applyStandaloneLocale() {
-        const locale = resolveLocale();
-        const messages =
-          consumeRuntimeMessages(locale) ||
-          STANDALONE_MESSAGES[locale] ||
-          STANDALONE_MESSAGES["en-US"];
-        document.documentElement.lang = locale;
-        document.documentElement.dir = locale.toLowerCase().startsWith("ar")
-          ? "rtl"
-          : "ltr";
-        document.title = messages.title;
+      async function fetchRuntimeMessages(locale) {
+        try {
+          const url = `${runtimeMessagesEndpoint}?lang=${encodeURIComponent(
+            locale,
+          )}`;
+          const response = await fetch(url, {
+            headers: {
+              Accept: "application/json",
+            },
+          });
+          if (!response.ok) {
+            return {};
+          }
+          return extractRuntimeMessagesPayload(await response.json());
+        } catch (_error) {
+          return {};
+        }
+      }
+
+      function applyMessages(messages) {
+        document.title = messages.title || "Dynamic Plugin Standalone Page";
 
         document.querySelectorAll("[data-i18n]").forEach((element) => {
           const key = element.getAttribute("data-i18n");
-          if (key && messages[key]) {
-            element.textContent = messages[key];
-          }
+          element.textContent = key && messages[key] ? messages[key] : "";
+        });
+      }
+
+      async function applyStandaloneLocale() {
+        const locale = resolveLocale();
+        document.documentElement.lang = locale;
+        document.documentElement.dir = "ltr";
+
+        const bridgedMessages = resolveStandaloneMessages(
+          consumeRuntimeMessages(locale),
+        );
+        if (hasCompleteStandaloneMessages(bridgedMessages)) {
+          applyMessages(bridgedMessages);
+          return;
+        }
+
+        const fetchedMessages = resolveStandaloneMessages(
+          await fetchRuntimeMessages(locale),
+        );
+        applyMessages({
+          ...fetchedMessages,
+          ...bridgedMessages,
         });
       }
 
@@ -370,69 +403,42 @@
   <body>
     <div class="page-shell">
       <main class="hero" data-testid="plugin-demo-dynamic-standalone">
-        <span class="badge" data-i18n="badge">WASM Plugin Standalone</span>
-        <h1 data-i18n="heroTitle">Standalone Page Opened Successfully</h1>
-        <p class="lead" data-i18n="lead">
-          This page is served directly by plugin-demo-dynamic as a hosted static
-          asset rather than through the Vben frontend framework. It verifies
-          that a dynamic plugin can render inside the host workspace and can
-          also open a full standalone experience in a new window.
-        </p>
+        <span class="badge" data-i18n="badge"></span>
+        <h1 data-i18n="heroTitle"></h1>
+        <p class="lead" data-i18n="lead"></p>
 
         <section class="hero-grid">
           <div class="summary-panel">
-            <h2 data-i18n="summaryTitle">What This Page Verifies</h2>
+            <h2 data-i18n="summaryTitle"></h2>
             <ul class="summary-list">
               <li>
-                <strong data-i18n="summary1Title">Hosted Asset Delivery</strong>
-                <span data-i18n="summary1Body">
-                  The page file is served from the plugin-hosted asset directory
-                  instead of a host source route.
-                </span>
+                <strong data-i18n="summary1Title"></strong>
+                <span data-i18n="summary1Body"></span>
               </li>
               <li>
-                <strong data-i18n="summary2Title"
-                  >Independent Presentation</strong
-                >
-                <span data-i18n="summary2Body">
-                  The standalone page does not reuse Vben components or layout,
-                  but it still keeps a polished and readable presentation.
-                </span>
+                <strong data-i18n="summary2Title"></strong>
+                <span data-i18n="summary2Body"></span>
               </li>
               <li>
-                <strong data-i18n="summary3Title">End-to-end Navigation</strong>
-                <span data-i18n="summary3Body">
-                  Users can jump here from the host workspace and verify the
-                  flow from embedded mount to standalone access.
-                </span>
+                <strong data-i18n="summary3Title"></strong>
+                <span data-i18n="summary3Body"></span>
               </li>
             </ul>
           </div>
 
           <div>
             <section class="summary-card">
-              <h2 data-i18n="card1Title">Current Plugin Shape</h2>
-              <p data-i18n="card1Body">
-                plugin-demo-dynamic is a dynamic plugin sample used to
-                demonstrate directory conventions, Wasm artifact delivery,
-                hosted assets, and the host mount protocol.
-              </p>
+              <h2 data-i18n="card1Title"></h2>
+              <p data-i18n="card1Body"></p>
             </section>
             <section class="summary-card">
-              <h2 data-i18n="card2Title">Design Goal</h2>
-              <p data-i18n="card2Body">
-                This page intentionally avoids the default admin shell style and
-                demonstrates how a plugin can deliver its own static visual
-                language while remaining professional and readable.
-              </p>
+              <h2 data-i18n="card2Title"></h2>
+              <p data-i18n="card2Body"></p>
             </section>
           </div>
         </section>
 
-        <p class="footer-note" data-i18n="footer">
-          If you can see this page now, the host is correctly serving the
-          standalone assets of the dynamic plugin through a stable URL.
-        </p>
+        <p class="footer-note" data-i18n="footer"></p>
       </main>
     </div>
   </body>

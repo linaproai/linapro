@@ -4,31 +4,33 @@
 
 本次盘点聚焦会进入运行时响应、导入导出文件、插件桥接协议、前端页面展示或运维/审计输出的源代码文案。
 
-扫描命令基线：
+当前扫描命令基线：
 
 ```bash
-rg -l --pcre2 "\p{Han}" apps/lina-core/internal apps/lina-core/pkg apps/lina-plugins \
-  -g'*.go' --glob '!**/*_test.go' --glob '!**/model/**' --glob '!**/dao/**'
-
-rg -l --pcre2 "(gerror\.(New|Newf|Wrap|Wrapf).*\p{Han}|Reason:\s*\"[^\"]*\p{Han}|Message:\s*\"[^\"]*\p{Han}|result\.Message\s*=.*\p{Han}|statusText\s*:?=.*\"[^\"]*\p{Han}|Fallback:\s*\"[^\"]*\p{Han}|NewHostCallErrorResponse\([^\n]*\"[^\"]*\p{Han})" \
-  apps/lina-core/internal apps/lina-core/pkg apps/lina-plugins \
-  -g'*.go' --glob '!**/*_test.go' --glob '!**/model/**' --glob '!**/dao/**'
-
-rg -n --pcre2 "\p{Han}" apps/lina-vben/apps/web-antd/src apps/lina-plugins/*/frontend \
-  -g'*.ts' -g'*.vue' --glob '!**/*.test.ts' --glob '!**/locales/**'
+make check-runtime-i18n
+make check-runtime-i18n-messages
+go run ./hack/tools/runtime-i18n scan --format json
 ```
 
-扫描结果：
+初始扫描结果：
 
 - 后端宿主、公共包和源码插件中，排除测试、DAO、DO、Entity 后仍有 127 个 Go 生产文件包含中文字符。
 - 其中 117 个 Go 生产文件命中错误、返回消息、失败原因、导出 fallback、状态文本或插件桥接错误等高风险模式。
 - 前端主应用和插件前端仍有中文字符，但大量是注释、已通过 `$t` 使用的文案或 i18n 资源之外的类型说明；运行时高风险集中在监控页、在线用户页和请求错误透传。
 
+当前工具基线：
+
+- `go run ./hack/tools/runtime-i18n messages` 已通过，宿主和插件运行时语言包 key 覆盖没有缺失。
+- `hack/tools/runtime-i18n/allowlist.json` 当前为空，扫描结果没有依赖 allowlist 豁免。
+- `go run ./hack/tools/runtime-i18n scan` 当前仍报告 732 个高风险候选项，后续任务继续按模块清理。
+- 最近一批已清理 41 个插件生命周期、自动启用、源码升级和动态产物生命周期守卫候选项；`plugin_auto_enable.go`、`plugin_lifecycle.go`、`plugin_lifecycle_source.go`、`internal/sourceupgrade/sourceupgrade.go`、`internal/lifecycle/lifecycle.go` 已不再命中扫描。
+- 按规则统计仍以 `go-error-han` 为主，剩余候选集中在插件 catalog/spec、runtime/upload/reconciler、wasm host service、pluginbridge、plugindb、pluginfs 和源码插件后端。
+
 ## 问题分类
 
 ### 1. 后端 API 与业务错误直接返回中文
 
-代表性文件：
+本轮清理前的代表性文件：
 
 - `apps/lina-core/internal/service/dict/dict_data.go`
   - `DataGetById` 返回 `字典数据不存在`。
@@ -122,6 +124,7 @@ rg -n --pcre2 "\p{Han}" apps/lina-vben/apps/web-antd/src apps/lina-plugins/*/fro
 
 - 这类消息通常会展示在管理端、命令输出或升级诊断中，未来多语言环境下应根据操作者语言或命令 locale 输出。
 - 结果对象应存储 `messageKey` 和参数，避免只存一段已经本地化的字符串。
+- 当前已将上述核心文件改为结构化 `bizerr` 或 `messageKey/messageParams` 结果对象；剩余插件平台候选继续由任务 `4.1`、`4.2`、`4.4` 跟踪。
 
 ### 5. 前端页面仍有直接中文展示
 
@@ -226,7 +229,6 @@ rg -n --pcre2 "\p{Han}" apps/lina-vben/apps/web-antd/src apps/lina-plugins/*/fro
 - `apps/lina-core/internal/service/plugin/internal/integration/extensions.go`
 - `apps/lina-core/internal/service/plugin/internal/integration/extensions_cron_managed.go`
 - `apps/lina-core/internal/service/plugin/internal/integration/menu.go`
-- `apps/lina-core/internal/service/plugin/internal/lifecycle/lifecycle.go`
 - `apps/lina-core/internal/service/plugin/internal/lifecycle/migration.go`
 - `apps/lina-core/internal/service/plugin/internal/runtime/artifact.go`
 - `apps/lina-core/internal/service/plugin/internal/runtime/reconciler.go`
@@ -234,14 +236,10 @@ rg -n --pcre2 "\p{Han}" apps/lina-vben/apps/web-antd/src apps/lina-plugins/*/fro
 - `apps/lina-core/internal/service/plugin/internal/runtime/route.go`
 - `apps/lina-core/internal/service/plugin/internal/runtime/runtime_cron.go`
 - `apps/lina-core/internal/service/plugin/internal/runtime/upload.go`
-- `apps/lina-core/internal/service/plugin/internal/sourceupgrade/sourceupgrade.go`
 - `apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_network.go`
 - `apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_storage.go`
 - `apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_storage_cleanup.go`
 - `apps/lina-core/internal/service/plugin/internal/wasm/wasm.go`
-- `apps/lina-core/internal/service/plugin/plugin_auto_enable.go`
-- `apps/lina-core/internal/service/plugin/plugin_lifecycle.go`
-- `apps/lina-core/internal/service/plugin/plugin_lifecycle_source.go`
 - `apps/lina-core/internal/service/role/role.go`
 - `apps/lina-core/internal/service/sysconfig/sysconfig.go`
 - `apps/lina-core/internal/service/sysconfig/sysconfig_import.go`
@@ -291,7 +289,7 @@ rg -n --pcre2 "\p{Han}" apps/lina-vben/apps/web-antd/src apps/lina-plugins/*/fro
 - `apps/lina-core/internal/service/middleware/middleware_permission.go`
 - `apps/lina-core/internal/service/middleware/middleware_request_body_limit.go`
 
-全量扫描仍能发现系统参数、文件、菜单、角色、通知、定时任务、插件生命周期、插件桥接、插件文件系统、插件数据库和源码插件后端中的直接 `gerror.New*`/`Wrap*` 返回路径。这些路径已由任务 `3.3` 至 `4.4` 继续跟踪，后续清理时必须按新规范统一改为所属模块 `*_code.go` 中的 `bizerr.Code` 定义。
+全量扫描仍能发现系统参数、文件、菜单、角色、通知、定时任务、插件 catalog/runtime/wasm、插件桥接、插件文件系统、插件数据库和源码插件后端中的直接 `gerror.New*`/`Wrap*` 返回路径。这些路径已由任务 `3.3` 至 `4.4` 继续跟踪，后续清理时必须按新规范统一改为所属模块 `*_code.go` 中的 `bizerr.Code` 定义。
 
 ### 任务 3.3 清理记录
 
@@ -312,6 +310,34 @@ rg -n --pcre2 "\p{Han}" apps/lina-vben/apps/web-antd/src apps/lina-plugins/*/fro
 - 任务执行日志中由调度器写入的固定失败原因已改为英文源文本；后续若需要按请求语言展示历史执行日志，应继续推进“稳定错误码 + 参数化日志投影”的存储模型。
 - 运行时语言包 `zh-CN`、`en-US`、`zh-TW` 及 packed manifest 副本已补齐本批新增错误键。
 - `config_duration.go`、`config_metadata.go`、`config_plugin.go`、`config_i18n.go` 中剩余中文 `panic(gerror...)` 属于启动期配置诊断，不进入调用端响应；测试中的 `gerror.New`/`errors.New` 属于 fixture。
+
+### 任务 3.5 阶段清理记录
+
+已完成插件生命周期、启动期自动启用、源码插件升级和动态产物生命周期守卫的第一批治理：
+
+- 为根插件 facade、动态生命周期子包、动态 runtime 子包和源码升级子包分别新增 `plugin_code.go`、`lifecycle_code.go`、`runtime_code.go`、`sourceupgrade_code.go`，所有调用端可见失败统一改为 `bizerr.NewCode` 或 `bizerr.WrapCode`。
+- `SourcePluginUpgradeResult` 增加 `MessageKey` 与 `MessageParams`，源码升级的未安装跳过、已是最新版本和升级成功结果不再只返回固定中文 `Message`。
+- 宿主运行时语言包新增 `error.plugin.*` 与 `plugin.sourceUpgrade.*` 三语资源，源码升级结果文案放在宿主 `manifest/i18n/<locale>/plugin.json`，错误文案放在 `error.json`。
+- `make check-runtime-i18n-messages` 已通过，`go test ./internal/service/plugin ./internal/service/plugin/internal/lifecycle ./internal/service/plugin/internal/sourceupgrade ./internal/service/plugin/internal/runtime` 已通过。
+- 本批清理后`hack/tools/runtime-i18n`扫描总候选数从 814 降至 732；剩余插件 runtime/upload/reconciler、catalog/spec、frontend resource parser 和 wasm host service 仍需后续继续清理，因此任务`3.5`暂不标记完成。
+
+### FB-8 工具迁移记录
+
+运行时 i18n 检查已从临时`hack/scripts/check_runtime_i18n*.py`迁移为`hack/tools/runtime-i18n`下的 Go 工具：
+
+- `make check-runtime-i18n`调用`go run ./hack/tools/runtime-i18n scan`。
+- `make check-runtime-i18n-messages`调用`go run ./hack/tools/runtime-i18n messages`。
+- allowlist 长期维护在`hack/tools/runtime-i18n/allowlist.json`。
+- 迁移后 Go 扫描结果与迁移前 Python 扫描结果一致，当前均为 732 个高风险候选项。
+
+### FB-9 工具使用文档补充记录
+
+`hack/tools`下每个工具目录已补齐中英文使用说明：
+
+- `hack/tools/build-wasm/README.md`与`README.zh_CN.md`说明动态插件 Wasm 构建入口、参数、输出和注意事项。
+- `hack/tools/runtime-i18n/README.md`与`README.zh_CN.md`说明扫描、语言包覆盖校验、allowlist 和退出码。
+- `hack/tools/upgrade-source/README.md`与`README.zh_CN.md`说明框架升级、源码插件升级、确认参数、dry-run 和升级前检查。
+- `hack/tools/README.md`与`README.zh_CN.md`已补充规则，要求每个工具目录同步维护双语使用说明。
 
 ## 优先级建议
 

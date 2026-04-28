@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS plugin_org_center_dept (
     remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
     created_at  DATETIME                         COMMENT '创建时间',
     updated_at  DATETIME                         COMMENT '更新时间',
-    deleted_at  DATETIME                         COMMENT '删除时间'
+    deleted_at  DATETIME                         COMMENT '删除时间',
+    UNIQUE KEY uk_plugin_org_center_dept_code ((NULLIF(code, ''))),
+    KEY idx_plugin_org_center_dept_code (code),
+    KEY idx_plugin_org_center_dept_parent_id (parent_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='部门表';
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_post (
@@ -28,19 +31,22 @@ CREATE TABLE IF NOT EXISTS plugin_org_center_post (
     created_at  DATETIME                         COMMENT '创建时间',
     updated_at  DATETIME                         COMMENT '更新时间',
     deleted_at  DATETIME                         COMMENT '删除时间',
-    UNIQUE KEY uk_plugin_org_center_post_code (code)
+    UNIQUE KEY uk_plugin_org_center_post_code (code),
+    KEY idx_plugin_org_center_post_dept_id (dept_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='岗位信息表';
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_user_dept (
     user_id INT NOT NULL COMMENT '用户ID',
     dept_id INT NOT NULL COMMENT '部门ID',
-    PRIMARY KEY (user_id, dept_id)
+    PRIMARY KEY (user_id, dept_id),
+    KEY idx_plugin_org_center_user_dept_dept_id (dept_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户与部门关联表';
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_user_post (
     user_id INT NOT NULL COMMENT '用户ID',
     post_id INT NOT NULL COMMENT '岗位ID',
-    PRIMARY KEY (user_id, post_id)
+    PRIMARY KEY (user_id, post_id),
+    KEY idx_plugin_org_center_user_post_post_id (post_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户与岗位关联表';
 
 INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, order_num, status, created_at, updated_at)
@@ -163,85 +169,3 @@ SELECT u.id, p.id
 FROM sys_user u
 JOIN plugin_org_center_post p ON p.code = 'CEO'
 WHERE u.username = 'admin';
-
-INSERT IGNORE INTO plugin_org_center_user_dept (user_id, dept_id)
-SELECT u.id, d.id
-FROM sys_user u
-JOIN plugin_org_center_dept d ON d.code = 'dev'
-WHERE u.username IN (
-    'user001', 'user002', 'user003', 'user004', 'user005',
-    'user006', 'user007', 'user008', 'user009', 'user010',
-    'user011', 'user012', 'user013', 'user014', 'user015'
-);
-
-INSERT IGNORE INTO plugin_org_center_user_dept (user_id, dept_id)
-SELECT u.id, d.id
-FROM sys_user u
-JOIN plugin_org_center_dept d ON d.code = 'market'
-WHERE u.username IN (
-    'user016', 'user017', 'user018', 'user019', 'user020',
-    'user021', 'user022', 'user023', 'user024', 'user025'
-);
-
-INSERT IGNORE INTO plugin_org_center_user_dept (user_id, dept_id)
-SELECT u.id, d.id
-FROM sys_user u
-JOIN plugin_org_center_dept d ON d.code = 'qa'
-WHERE u.username IN (
-    'user026', 'user027', 'user028', 'user029', 'user030',
-    'user031', 'user032', 'user033', 'user034', 'user035'
-);
-
-INSERT IGNORE INTO plugin_org_center_user_dept (user_id, dept_id)
-SELECT u.id, d.id
-FROM sys_user u
-JOIN plugin_org_center_dept d ON d.code = 'finance'
-WHERE u.username IN (
-    'user036', 'user037', 'user038', 'user039',
-    'user040', 'user041', 'user042', 'user043'
-);
-
-INSERT IGNORE INTO plugin_org_center_user_dept (user_id, dept_id)
-SELECT u.id, d.id
-FROM sys_user u
-JOIN plugin_org_center_dept d ON d.code = 'ops'
-WHERE u.username IN (
-    'user044', 'user045', 'user046', 'user047',
-    'user048', 'user049', 'user050', 'user051'
-);
-
-INSERT IGNORE INTO plugin_org_center_user_dept (user_id, dept_id)
-SELECT u.id, d.id
-FROM sys_user u
-JOIN plugin_org_center_dept d ON d.code = 'lina'
-WHERE u.username IN ('user052', 'user053', 'user054', 'user055', 'user056');
-
-INSERT IGNORE INTO plugin_org_center_user_post (user_id, post_id)
-SELECT u.id, p.id
-FROM sys_user u
-JOIN plugin_org_center_post p ON p.code = 'CTO'
-WHERE u.username IN ('user001');
-
-INSERT IGNORE INTO plugin_org_center_user_post (user_id, post_id)
-SELECT u.id, p.id
-FROM sys_user u
-JOIN plugin_org_center_post p ON p.code = 'PM'
-WHERE u.username IN ('user002', 'user008');
-
-INSERT IGNORE INTO plugin_org_center_user_post (user_id, post_id)
-SELECT u.id, p.id
-FROM sys_user u
-JOIN plugin_org_center_post p ON p.code = 'DEV'
-WHERE u.username IN ('user003', 'user004', 'user005', 'user006', 'user007', 'user009');
-
-INSERT IGNORE INTO plugin_org_center_user_post (user_id, post_id)
-SELECT u.id, p.id
-FROM sys_user u
-JOIN plugin_org_center_post p ON p.code = 'QA'
-WHERE u.username IN ('user026', 'user027', 'user028', 'user029', 'user030');
-
-INSERT IGNORE INTO plugin_org_center_user_post (user_id, post_id)
-SELECT u.id, p.id
-FROM sys_user u
-JOIN plugin_org_center_post p ON p.code = 'CEO'
-WHERE u.username IN ('user052', 'user053');

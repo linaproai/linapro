@@ -13,5 +13,6 @@ use (
 	./apps/lina-plugins/plugin-demo-source
 	./apps/lina-plugins/plugin-demo-dynamic
 	./hack/tools/build-wasm
+	./hack/tools/runtime-i18n
 	./hack/tools/upgrade-source
 )

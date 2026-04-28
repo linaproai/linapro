@@ -17,18 +17,8 @@ OUTPUT_DIR    := $(TEMP_DIR)/output
 # 引用复杂指令子文件
 include hack/makefiles/dev.mk
 include hack/makefiles/build.mk
-
-## test: 运行完整 E2E 测试套件
-.PHONY: test
-test:
-	@echo "🧪 运行 E2E 测试套件..."
-	cd hack/tests && pnpm test
-
-## test-install: 运行安装脚本 smoke test（适用于本地与 CI）
-.PHONY: test-install
-test-install:
-	@echo "🧪 运行安装脚本 smoke test..."
-	@python3 hack/scripts/install/test_install.py
+include hack/makefiles/test.mk
+include hack/makefiles/i18n.mk
 
 ## init: 初始化数据库（仅执行 DDL 建表和 Seed 数据）
 .PHONY: init
@@ -36,9 +26,10 @@ init:
 	@if [ "$(confirm)" != "init" ]; then \
 		echo "✗ 出于安全原因，执行 make init 需要显式确认"; \
 		echo "  请使用: make init confirm=init"; \
+		echo "  如需重建 linapro 数据库: make init confirm=init rebuild=true"; \
 		exit 1; \
 	fi
-	@cd $(BACKEND_DIR) && $(MAKE) init confirm=$(confirm)
+	@cd $(BACKEND_DIR) && $(MAKE) init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
 
 ## mock: 加载 Mock 演示数据（需先执行 init）
 .PHONY: mock

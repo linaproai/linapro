@@ -18,6 +18,7 @@ type InitInput struct {
 	g.Meta    `name:"init" brief:"initialize database schema and seed data (DDL + seed DML), requires --confirm=init"`
 	Confirm   string `name:"confirm" brief:"explicit confirmation value, must be 'init'"`
 	SQLSource string `name:"sql-source" brief:"SQL asset source: embedded or local; defaults to embedded"`
+	Rebuild   string `name:"rebuild" brief:"whether to drop and recreate the configured database before initialization: true or false"`
 }
 
 // InitOutput carries the command result placeholder.
@@ -31,6 +32,13 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 	}
 	source, err := resolveSQLAssetSource(in.SQLSource)
 	if err != nil {
+		return nil, err
+	}
+	rebuild, err := parseInitRebuildFlag(in.Rebuild)
+	if err != nil {
+		return nil, err
+	}
+	if err = prepareInitDatabase(ctx, rebuild); err != nil {
 		return nil, err
 	}
 	assets, err := scanInitSQLAssets(ctx, source)

@@ -7,14 +7,16 @@
 | 目录 | 用途 |
 | --- | --- |
 | `build-wasm/` | 从源码插件构建动态插件`Wasm`运行时产物。 |
+| `runtime-i18n/` | 扫描运行时可见硬编码文案，并校验宿主/插件`i18n`语言包`key`覆盖。 |
 | `upgrade-source/` | 执行仓库级框架升级与源码插件升级流程。 |
 
 ## 放置规则
 
 - 当开发工具通过`go run`等命令执行、需要独立`go.mod`或需要聚焦的内部包结构时，应放在`hack/tools/`下。
-- `Shell`、`PowerShell`或`Python`自动化脚本应放在`hack/scripts/`下。
+- 短小的`Shell`、`PowerShell`或`Python`自动化脚本应放在`hack/scripts/`下；长期维护的校验工具如需更强类型、测试和仓库集成，应迁移到`hack/tools/`下。
 - `Makefile`拆分片段应放在`hack/makefiles/`下。
 - 验证资产与端到端测试代码应放在`hack/tests/`下。
+- `hack/tools/`下的每个工具目录都必须同时维护`README.md`与`README.zh_CN.md`，说明用途、参数、示例、输出和验证注意事项。
 
 ## 维护说明
 

@@ -74,24 +74,26 @@ TBD - created by archiving change plugin-framework. Update Purpose after archive
 - **THEN** 每个节点都会基于最新 `generation/release_id` 更新自己的 `sys_plugin_node_state`
 - **AND** 若当前节点无法加载对应 release，则该节点会把本地投影标记为失败并保留诊断信息
 
-### Requirement: 动态插件运行时产物携带可治理的路由合同
+### Requirement: Dynamic plugin runtime artifacts carry governable route contracts
 
-系统 SHALL 允许动态插件在运行时产物中携带后端动态路由合同，宿主装载产物后能够恢复这些路由的路径、方法与最小治理元数据，而不需要在请求时再次扫描源码目录。
+The system SHALL allow dynamic plugins to carry backend dynamic route contracts in runtime artifacts. After loading an artifact, the host can restore route paths, methods, and minimum governance metadata without scanning source directories again at request time. Custom route declarations consumed by the plugin or plugin middleware SHALL pass through the generic `meta` field. The host SHALL NOT define or validate business-plugin-specific route fields.
 
-#### Scenario: 构建阶段提取动态路由合同
+#### Scenario: Build phase extracts dynamic route contracts
 
-- **WHEN** 构建动态插件运行时产物
-- **THEN** 构建器从`backend/api/**/*.go`中的请求结构体`g.Meta`提取动态路由元数据
-- **AND** 将这些元数据写入运行时产物中的专用区段
-- **AND** 宿主加载产物后可恢复为动态插件`manifest.Routes`
+- **WHEN** a dynamic plugin runtime artifact is built
+- **THEN** the builder extracts dynamic route metadata from request structure `g.Meta` values under `backend/api/**/*.go`
+- **AND** writes paths, methods, documentation, and host governance fields into a dedicated section of the runtime artifact
+- **AND** writes plugin custom declarations that are not host route-contract fields into route-contract `meta`
+- **AND** the host can restore them as dynamic plugin `manifest.Routes` after loading the artifact
 
-#### Scenario: 宿主校验动态路由合同
+#### Scenario: Host validates dynamic route contracts
 
-- **WHEN** 宿主装载一个动态插件的路由合同
-- **THEN** 宿主校验内部路径、方法、`access`、`permission`与`operLog`是否合法
-- **AND** `access`未声明时按`login`处理
-- **AND** `public`路由不得声明`permission`
-- **AND** 非法合同会导致该产物装载失败
+- **WHEN** the host loads a dynamic plugin route contract
+- **THEN** the host validates internal path, method, `access`, and `permission`
+- **AND** missing `access` is treated as `login`
+- **AND** `public` routes MUST NOT declare `permission`
+- **AND** the host does not validate or interpret plugin custom route declarations in `meta`
+- **AND** an invalid contract causes artifact loading to fail
 
 ### Requirement: 宿主按固定前缀分发动态插件路由
 

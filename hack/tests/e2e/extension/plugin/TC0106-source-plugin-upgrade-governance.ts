@@ -22,7 +22,7 @@ const upgradedMenuKey = 'plugin:plugin-demo-source:sidebar-entry-upgraded';
 const mysqlBin = process.env.E2E_MYSQL_BIN ?? 'mysql';
 const mysqlUser = process.env.E2E_DB_USER ?? 'root';
 const mysqlPassword = process.env.E2E_DB_PASSWORD ?? '12345678';
-const mysqlDatabase = process.env.E2E_DB_NAME ?? 'lina';
+const mysqlDatabase = process.env.E2E_DB_NAME ?? 'linapro';
 const repoRoot = path.resolve(process.cwd(), '../..');
 const pluginManifestPath = path.resolve(
   repoRoot,

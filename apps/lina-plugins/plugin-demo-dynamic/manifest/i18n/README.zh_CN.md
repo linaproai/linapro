@@ -10,7 +10,7 @@
 
 - 插件元数据，例如 `plugin.plugin-demo-dynamic.name`
 - 菜单元数据，例如 `menu.plugin:plugin-demo-dynamic:main-entry.title`
-- 内嵌页面文案，例如 `plugin.plugin-demo-dynamic.page.*`
+- 内嵌和独立页面文案，例如 `plugin.plugin-demo-dynamic.page.*`
 - `<locale>/apidoc/`下的`plugins.plugin_demo_dynamic.*`接口文档元数据
 
 运行时 UI 消息文件可使用层级 JSON 或扁平 dotted key。宿主会把两种格式统一归一化为扁平 key，用于聚合和诊断，并在返回前端运行时语言包时再转换为嵌套对象。

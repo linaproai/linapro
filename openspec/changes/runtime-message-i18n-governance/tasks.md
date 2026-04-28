@@ -54,9 +54,9 @@
 
 ## 7. 文档、验收与审查
 
-- [ ] 7.1 更新宿主和前端 i18n README，说明运行时错误、导入导出、插件文案和硬编码扫描治理规则，并同步维护英文与中文 README
-- [ ] 7.2 更新 `runtime-message-i18n-audit.md`，记录实施后剩余 allowlist、已清理模块和后续观察项
-- [ ] 7.3 运行 `openspec status --change runtime-message-i18n-governance`，确认提案、设计、规范和任务状态一致
+- [x] 7.1 更新宿主和前端 i18n README，说明运行时错误、导入导出、插件文案和硬编码扫描治理规则，并同步维护英文与中文 README
+- [x] 7.2 更新 `runtime-message-i18n-audit.md`，记录实施后剩余 allowlist、已清理模块和后续观察项
+- [x] 7.3 运行 `openspec status --change runtime-message-i18n-governance`，确认提案、设计、规范和任务状态一致
 - [ ] 7.4 调用 `/lina-review` 对实现、规范符合性、i18n 资源完整性和测试覆盖进行审查
 
 ## Feedback
@@ -67,3 +67,9 @@
 - [x] **FB-4**: 为 `bizerr.Code` 增加结构化元数据读取与错误匹配方法，并拆分 `bizerr` 实现文件职责
 - [x] **FB-5**: 在设计文档中明确 i18n JSON 按 locale 目录、运行时语义域和 apidoc 子目录分类，并规划后续资源目录重组
 - [x] **FB-6**: 落地宿主与插件 i18n JSON 目录重组，更新 loader、动态插件打包、文档和测试
+- [x] **FB-7**: 清理 `apps/lina-core/internal/service/plugin/internal/runtime/artifact.go` 中残留的中文硬编码错误文案
+- [x] **FB-8**: 将运行时 i18n 检查从临时 Python 脚本迁移为`hack/tools/runtime-i18n`下的 Go 工具
+- [x] **FB-9**: 为`hack/tools`下每个工具目录补齐中英文使用说明文档
+- [x] **FB-10**: 修正 `org-center` 插件初始化 SQL 中部门编码唯一性、mock 用户关联和关联表反向查询索引问题
+- [ ] **FB-11**: 为 `make init` 增加可选重建数据库参数，将默认数据库名改为 `linapro`，并在初始化 SQL 中显式幂等创建数据库
+- [x] **FB-12**: 修复 `plugin-demo-dynamic` 独立静态页内置多语言文案的问题，改为复用插件运行时 i18n 资源

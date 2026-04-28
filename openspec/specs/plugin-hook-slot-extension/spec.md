@@ -212,21 +212,22 @@ The system SHALL precipitates the frontend and backend slot directories, type de
 
 ### Requirement: Dynamic plugin routing management metadata is concentrated in `g.Meta`
 
-The system SHALL requires the dynamic plugin to centrally define the management metadata of backend dynamic routing in `g.Meta` of the `api` layer request structure to avoid introducing a second set of scattered routing management configuration sources.
+The system SHALL require the dynamic plugin to centrally define backend dynamic-routing management metadata in `g.Meta` of the API-layer request structure, avoiding a second scattered routing-management configuration source. Host-governed route fields SHALL remain explicit, while plugin-defined route metadata SHALL be transported through the generic route-contract `meta` map without host interpretation.
 
 #### Scenario: Dynamic plugin declares minimum governance fields
 
-- **WHEN** Developer defines a dynamic plugin backend interface
-- **THEN** This interface can declare `access`, `permission`, `operLog` in `g.Meta`
-- **AND** `access` only supports `public` and `login`
-- **AND** If `access` is not declared, it will be processed as `login`
+- **WHEN** a developer defines a dynamic plugin backend interface
+- **THEN** the interface can declare `access` and `permission` in `g.Meta`
+- **AND** plugin-specific route declarations can be added as extra `g.Meta` tags and will be preserved in route-contract `meta`
+- **AND** `access` supports only `public` and `login`
+- **AND** missing `access` is treated as `login`
 
 #### Scenario: Public routing governance boundaries are limited
 
-- **WHEN** Developer declares a `public` dynamic route
-- **THEN** This route MUST not declare `permission`
-- **AND** This route MUST not rely on host login state injection
-- **AND** Illegal configurations will be rejected during the host loading phase
+- **WHEN** a developer declares a `public` dynamic route
+- **THEN** the route MUST NOT declare `permission`
+- **AND** the route MUST NOT rely on host login state injection
+- **AND** illegal host-governance configurations are rejected during the host loading phase
 
 ### Requirement: Dynamic plugin permission declaration reuses the host’s existing permission system
 

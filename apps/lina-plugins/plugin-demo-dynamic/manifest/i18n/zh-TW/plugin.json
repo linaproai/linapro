@@ -93,6 +93,24 @@
         "panelTitle": "當前驗證範圍",
         "standaloneButton": "打開獨立頁面",
         "standaloneHint": "點擊後將在新窗口打開託管的純靜態頁面，用於驗證插件資源公開訪問能力。",
+        "standalone": {
+          "badge": "WASM 插件獨立頁",
+          "card1Body": "plugin-demo-dynamic 作為動態插件樣例，主要用於目錄規範、WASM 產物生成、託管資源訪問與宿主掛載協議的示例。",
+          "card1Title": "當前插件形態",
+          "card2Body": "此處刻意不沿用默認管理工作台的框架樣式，而是以獨立靜態頁面的方式展示插件自有視覺能力，同時保持足夠專業的排版、色彩與閱讀體驗。",
+          "card2Title": "頁面風格目標",
+          "footer": "如果你當前能看到本頁，說明動態插件的獨立頁面資源已經被宿主正確託管，並可通過穩定 URL 正常訪問。",
+          "heroTitle": "動態插件獨立頁面",
+          "lead": "當前頁面由 plugin-demo-dynamic 直接以託管靜態資源形式提供，不依賴 Vben 前端框架。它用於驗證動態插件既可以在宿主主內容區內嵌展示，也可以通過新窗口提供完整的獨立頁面體驗。",
+          "summary1Body": "頁面文件來自插件託管資源目錄，而不是宿主源碼頁面路由。",
+          "summary1Title": "資源託管鏈路",
+          "summary2Body": "獨立頁不複用 Vben 組件與布局，但仍保持專業、清晰的視覺質量。",
+          "summary2Title": "展示獨立性",
+          "summary3Body": "用戶可從宿主主窗口點擊按鈕跳轉到此頁面，完成從內嵌掛載到獨立訪問的切換驗證。",
+          "summary3Title": "交互閉環",
+          "summaryTitle": "本頁驗證重點",
+          "title": "動態插件獨立頁面"
+        },
         "table": {
           "createdAt": "創建時間: {value}",
           "header": {
