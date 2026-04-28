@@ -74,3 +74,4 @@
 - [ ] **FB-11**: 为 `make init` 增加可选重建数据库参数，将默认数据库名改为 `linapro`，并在初始化 SQL 中显式幂等创建数据库
 - [x] **FB-12**: 修复 `plugin-demo-dynamic` 独立静态页内置多语言文案的问题，改为复用插件运行时 i18n 资源
 - [x] **FB-13**: 清理 `apps/lina-core/internal/cmd` 中 CLI 和数据库初始化诊断错误的中文硬编码，统一改为英文开发者诊断并更新单元测试断言
+- [x] **FB-14**: 缩短英文偏好设置抽屉 tab 展示文案，避免 `Appearance` 和 `Shortcut Keys` 超出按钮背景

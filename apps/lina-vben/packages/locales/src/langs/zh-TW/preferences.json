@@ -6,6 +6,7 @@
   "resetTitle": "重置偏好設置",
   "resetTip": "數據有變化，點擊可進行重置",
   "resetSuccess": "重置偏好設置成功",
+  "appearanceTab": "外觀",
   "appearance": "外觀",
   "layout": "佈局",
   "content": "內容",
@@ -181,6 +182,7 @@
     "icpLink": "ICP 網站鏈接"
   },
   "shortcutKeys": {
+    "tab": "快捷鍵",
     "title": "快捷鍵",
     "global": "全局",
     "search": "全局搜索",

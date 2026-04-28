@@ -197,7 +197,7 @@ const activeTab = ref('appearance');
 const tabs = computed((): SegmentedItem[] => {
   return [
     {
-      label: $t('preferences.appearance'),
+      label: $t('preferences.appearanceTab'),
       value: 'appearance',
     },
     {
@@ -205,7 +205,7 @@ const tabs = computed((): SegmentedItem[] => {
       value: 'layout',
     },
     {
-      label: $t('preferences.shortcutKeys.title'),
+      label: $t('preferences.shortcutKeys.tab'),
       value: 'shortcutKey',
     },
     {

@@ -6,6 +6,7 @@
   "resetTip": "Data has changed, click to reset",
   "resetTitle": "Reset Preferences",
   "resetSuccess": "Preferences reset successfully",
+  "appearanceTab": "Theme",
   "appearance": "Appearance",
   "layout": "Layout",
   "content": "Content",
@@ -181,6 +182,7 @@
     "icpLink": "ICP Site Link"
   },
   "shortcutKeys": {
+    "tab": "Shortcuts",
     "title": "Shortcut Keys",
     "global": "Global",
     "search": "Global Search",

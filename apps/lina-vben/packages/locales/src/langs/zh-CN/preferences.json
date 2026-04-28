@@ -6,6 +6,7 @@
   "resetTitle": "重置偏好设置",
   "resetTip": "数据有变化，点击可进行重置",
   "resetSuccess": "重置偏好设置成功",
+  "appearanceTab": "外观",
   "appearance": "外观",
   "layout": "布局",
   "content": "内容",
@@ -181,6 +182,7 @@
     "icpLink": "ICP 网站链接"
   },
   "shortcutKeys": {
+    "tab": "快捷键",
     "title": "快捷键",
     "global": "全局",
     "search": "全局搜索",
