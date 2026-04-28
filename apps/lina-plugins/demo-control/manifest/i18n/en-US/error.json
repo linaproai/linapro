@@ -1,0 +1,12 @@
+{
+  "error": {
+    "demo": {
+      "control": {
+        "write": {
+          "denied": "Demo mode is enabled; write operations are disabled"
+        }
+      }
+    }
+  }
+}
+

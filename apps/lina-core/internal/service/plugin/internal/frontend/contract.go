@@ -99,7 +99,7 @@ func (s *serviceImpl) validateHostedMenuBindings(ctx context.Context, manifest *
 		if !b.HasAsset(relativeAssetPath) {
 			return wrapMenuValidationError(
 				menu,
-				gerror.Newf("菜单引用的运行时前端资源不存在: %s", relativeAssetPath),
+				gerror.Newf("menu references missing runtime frontend asset: %s", relativeAssetPath),
 			)
 		}
 
@@ -128,7 +128,7 @@ func (s *serviceImpl) resolveHostedMenuAssetPath(
 	expectedPrefix := s.BuildRuntimeFrontendPublicBaseURL(manifest.ID, manifest.Version)
 	if !strings.HasPrefix(normalizedPath, expectedPrefix) {
 		return "", true, gerror.Newf(
-			"菜单必须引用当前插件版本的托管资源: expected prefix %s",
+			"menu must reference hosted assets from the current plugin version: expected prefix %s",
 			expectedPrefix,
 		)
 	}
@@ -150,7 +150,7 @@ func wrapMenuValidationError(menu *entity.SysMenu, err error) error {
 	if menu == nil {
 		return err
 	}
-	return gerror.Wrapf(err, "插件菜单校验失败[%s/%s]", strings.TrimSpace(menu.Name), strings.TrimSpace(menu.MenuKey))
+	return gerror.Wrapf(err, "plugin menu validation failed [%s/%s]", strings.TrimSpace(menu.Name), strings.TrimSpace(menu.MenuKey))
 }
 
 // normalizeHostedMenuPath normalizes menu paths into absolute-style paths.
@@ -175,7 +175,7 @@ func parseMenuQueryParams(rawQuery string) (map[string]string, error) {
 
 	var decoded map[string]interface{}
 	if err := json.Unmarshal([]byte(trimmedQuery), &decoded); err != nil {
-		return nil, gerror.Wrap(err, "菜单 query_param 不是合法 JSON")
+		return nil, gerror.Wrap(err, "menu query_param is not valid JSON")
 	}
 
 	queryParams := make(map[string]string, len(decoded))
@@ -201,21 +201,21 @@ func validateHostedMenuMode(
 
 	if accessMode == accessModeEmbedded {
 		if !isEmbeddedComponent {
-			return gerror.Newf("宿主内嵌挂载菜单必须使用组件 %s", dynamicPageComponentPath)
+			return gerror.Newf("host embedded mount menus must use component %s", dynamicPageComponentPath)
 		}
 		if menu.IsFrame != 0 {
-			return gerror.New("宿主内嵌挂载菜单不能声明为外链")
+			return gerror.New("host embedded mount menus cannot be declared as external links")
 		}
 		extension := strings.ToLower(filepath.Ext(relativeAssetPath))
 		if extension != embeddedJSExtension && extension != embeddedMJSExtension {
-			return gerror.New("宿主内嵌挂载入口必须指向 .js 或 .mjs ESM 资源")
+			return gerror.New("host embedded mount entry must point to a .js or .mjs ESM asset")
 		}
 		return nil
 	}
 
 	if isEmbeddedComponent {
 		return gerror.Newf(
-			"使用组件 %s 的托管资源菜单必须声明 query_param.%s=%s",
+			"hosted asset menus using component %s must declare query_param.%s=%s",
 			dynamicPageComponentPath,
 			menuQueryKeyAccessMode,
 			accessModeEmbedded,

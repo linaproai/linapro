@@ -61,21 +61,21 @@ func UnmarshalHostServiceLockAcquireRequest(data []byte) (*HostServiceLockAcquir
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 lock acquire request tag 失败")
+			return nil, gerror.New("failed to decode lock acquire request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 lock acquire request leaseMillis 失败")
+				return nil, gerror.New("failed to decode lock acquire request leaseMillis")
 			}
 			out.LeaseMillis = int64(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 lock acquire request 字段失败")
+				return nil, gerror.New("failed to skip unknown lock acquire request field")
 			}
 			content = content[size:]
 		}
@@ -108,35 +108,35 @@ func UnmarshalHostServiceLockAcquireResponse(data []byte) (*HostServiceLockAcqui
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 lock acquire response tag 失败")
+			return nil, gerror.New("failed to decode lock acquire response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 lock acquire response acquired 失败")
+				return nil, gerror.New("failed to decode lock acquire response acquired")
 			}
 			out.Acquired = value != 0
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 lock acquire response ticket 失败")
+				return nil, gerror.New("failed to decode lock acquire response ticket")
 			}
 			out.Ticket = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 lock acquire response expireAt 失败")
+				return nil, gerror.New("failed to decode lock acquire response expireAt")
 			}
 			out.ExpireAt = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 lock acquire response 字段失败")
+				return nil, gerror.New("failed to skip unknown lock acquire response field")
 			}
 			content = content[size:]
 		}
@@ -163,21 +163,21 @@ func UnmarshalHostServiceLockRenewRequest(data []byte) (*HostServiceLockRenewReq
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 lock renew request tag 失败")
+			return nil, gerror.New("failed to decode lock renew request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 lock renew request ticket 失败")
+				return nil, gerror.New("failed to decode lock renew request ticket")
 			}
 			out.Ticket = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 lock renew request 字段失败")
+				return nil, gerror.New("failed to skip unknown lock renew request field")
 			}
 			content = content[size:]
 		}
@@ -204,21 +204,21 @@ func UnmarshalHostServiceLockRenewResponse(data []byte) (*HostServiceLockRenewRe
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 lock renew response tag 失败")
+			return nil, gerror.New("failed to decode lock renew response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 lock renew response expireAt 失败")
+				return nil, gerror.New("failed to decode lock renew response expireAt")
 			}
 			out.ExpireAt = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 lock renew response 字段失败")
+				return nil, gerror.New("failed to skip unknown lock renew response field")
 			}
 			content = content[size:]
 		}
@@ -245,21 +245,21 @@ func UnmarshalHostServiceLockReleaseRequest(data []byte) (*HostServiceLockReleas
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 lock release request tag 失败")
+			return nil, gerror.New("failed to decode lock release request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 lock release request ticket 失败")
+				return nil, gerror.New("failed to decode lock release request ticket")
 			}
 			out.Ticket = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 lock release request 字段失败")
+				return nil, gerror.New("failed to skip unknown lock release request field")
 			}
 			content = content[size:]
 		}

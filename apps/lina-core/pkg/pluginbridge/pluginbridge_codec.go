@@ -197,45 +197,45 @@ func ValidateRouteContracts(pluginID string, routes []*RouteContract) error {
 	seen := make(map[string]struct{}, len(routes))
 	for _, route := range routes {
 		if route == nil {
-			return gerror.New("动态路由合同不能为空")
+			return gerror.New("dynamic route contract cannot be nil")
 		}
 		normalizeRouteContract(route)
 		if route.Path == "" {
-			return gerror.New("动态路由 path 不能为空")
+			return gerror.New("dynamic route path cannot be empty")
 		}
 		if !strings.HasPrefix(route.Path, "/") {
-			return gerror.Newf("动态路由 path 必须以 / 开头: %s", route.Path)
+			return gerror.Newf("dynamic route path must start with /: %s", route.Path)
 		}
 		if route.Method == "" {
-			return gerror.Newf("动态路由 method 不能为空: %s", route.Path)
+			return gerror.Newf("dynamic route method cannot be empty: %s", route.Path)
 		}
 		switch route.Access {
 		case "", AccessLogin:
 			route.Access = AccessLogin
 		case AccessPublic:
 		default:
-			return gerror.Newf("动态路由 access 仅支持 public/login: %s %s", route.Method, route.Path)
+			return gerror.Newf("dynamic route access only supports public/login: %s %s", route.Method, route.Path)
 		}
 		if route.Access == AccessPublic {
 			if route.Permission != "" {
-				return gerror.Newf("public 动态路由不能声明 permission: %s %s", route.Method, route.Path)
+				return gerror.Newf("public dynamic route cannot declare permission: %s %s", route.Method, route.Path)
 			}
 		}
 		if route.Permission != "" {
 			parts := strings.Split(route.Permission, ":")
 			if len(parts) != 3 {
-				return gerror.Newf("动态路由 permission 必须使用 {pluginId}:{resource}:{action} 格式: %s", route.Permission)
+				return gerror.Newf("dynamic route permission must use {pluginId}:{resource}:{action} format: %s", route.Permission)
 			}
 			if strings.TrimSpace(parts[0]) != strings.TrimSpace(pluginID) {
-				return gerror.Newf("动态路由 permission 必须以前缀 %s: 开头: %s", pluginID, route.Permission)
+				return gerror.Newf("dynamic route permission must start with prefix %s: %s", pluginID, route.Permission)
 			}
 			if strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" {
-				return gerror.Newf("动态路由 permission 资源与动作不能为空: %s", route.Permission)
+				return gerror.Newf("dynamic route permission resource and action cannot be empty: %s", route.Permission)
 			}
 		}
 		key := route.Method + " " + route.Path
 		if _, ok := seen[key]; ok {
-			return gerror.Newf("动态路由 method + path 不能重复: %s", key)
+			return gerror.Newf("dynamic route method and path cannot be duplicated: %s", key)
 		}
 		seen[key] = struct{}{}
 	}
@@ -268,23 +268,23 @@ func ValidateBridgeSpec(spec *BridgeSpec) error {
 	}
 	NormalizeBridgeSpec(spec)
 	if spec.ABIVersion != ABIVersionV1 {
-		return gerror.Newf("动态路由 bridge ABI 版本不支持: %s", spec.ABIVersion)
+		return gerror.Newf("dynamic route bridge ABI version is unsupported: %s", spec.ABIVersion)
 	}
 	if spec.RuntimeKind != RuntimeKindWasm {
-		return gerror.Newf("动态路由 bridge runtimeKind 仅支持 wasm: %s", spec.RuntimeKind)
+		return gerror.Newf("dynamic route bridge runtimeKind only supports wasm: %s", spec.RuntimeKind)
 	}
 	if !spec.RouteExecution {
 		return nil
 	}
 	if spec.RequestCodec != CodecProtobuf || spec.ResponseCodec != CodecProtobuf {
 		return gerror.Newf(
-			"动态路由 bridge 可执行模式仅支持 protobuf 编解码: request=%s response=%s",
+			"dynamic route bridge executable mode only supports protobuf codecs: request=%s response=%s",
 			spec.RequestCodec,
 			spec.ResponseCodec,
 		)
 	}
 	if spec.AllocExport == "" || spec.ExecuteExport == "" {
-		return gerror.New("动态路由 bridge 可执行模式缺少 guest 导出函数")
+		return gerror.New("dynamic route bridge executable mode is missing guest export functions")
 	}
 	return nil
 }
@@ -292,7 +292,7 @@ func ValidateBridgeSpec(spec *BridgeSpec) error {
 // EncodeRequestEnvelope encodes one request envelope into protobuf wire bytes.
 func EncodeRequestEnvelope(in *BridgeRequestEnvelopeV1) ([]byte, error) {
 	if in == nil {
-		return nil, gerror.New("bridge request envelope 不能为空")
+		return nil, gerror.New("bridge request envelope cannot be nil")
 	}
 	return marshalRequestEnvelope(in), nil
 }
@@ -309,7 +309,7 @@ func DecodeRequestEnvelope(content []byte) (*BridgeRequestEnvelopeV1, error) {
 // EncodeResponseEnvelope encodes one response envelope into protobuf wire bytes.
 func EncodeResponseEnvelope(in *BridgeResponseEnvelopeV1) ([]byte, error) {
 	if in == nil {
-		return nil, gerror.New("bridge response envelope 不能为空")
+		return nil, gerror.New("bridge response envelope cannot be nil")
 	}
 	return marshalResponseEnvelope(in), nil
 }
@@ -469,21 +469,21 @@ func unmarshalRequestEnvelope(content []byte, out *BridgeRequestEnvelopeV1) erro
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 bridge request tag 失败")
+			return gerror.New("failed to decode bridge request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 bridge request pluginId 失败")
+				return gerror.New("failed to decode bridge request pluginId")
 			}
 			out.PluginID = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 bridge request route 失败")
+				return gerror.New("failed to decode bridge request route")
 			}
 			out.Route = &RouteMatchSnapshotV1{}
 			if err := unmarshalRouteSnapshot(value, out.Route); err != nil {
@@ -493,7 +493,7 @@ func unmarshalRequestEnvelope(content []byte, out *BridgeRequestEnvelopeV1) erro
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 bridge request request 失败")
+				return gerror.New("failed to decode bridge request request")
 			}
 			out.Request = &HTTPRequestSnapshotV1{}
 			if err := unmarshalRequestSnapshot(value, out.Request); err != nil {
@@ -503,7 +503,7 @@ func unmarshalRequestEnvelope(content []byte, out *BridgeRequestEnvelopeV1) erro
 		case 4:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 bridge request identity 失败")
+				return gerror.New("failed to decode bridge request identity")
 			}
 			out.Identity = &IdentitySnapshotV1{}
 			if err := unmarshalIdentitySnapshot(value, out.Identity); err != nil {
@@ -513,14 +513,14 @@ func unmarshalRequestEnvelope(content []byte, out *BridgeRequestEnvelopeV1) erro
 		case 5:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 bridge request requestId 失败")
+				return gerror.New("failed to decode bridge request requestId")
 			}
 			out.RequestID = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 bridge request 字段失败")
+				return gerror.New("failed to skip unknown bridge request field")
 			}
 			content = content[size:]
 		}
@@ -556,28 +556,28 @@ func unmarshalResponseEnvelope(content []byte, out *BridgeResponseEnvelopeV1) er
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 bridge response tag 失败")
+			return gerror.New("failed to decode bridge response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return gerror.New("解析 bridge response statusCode 失败")
+				return gerror.New("failed to decode bridge response statusCode")
 			}
 			out.StatusCode = int32(value)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 bridge response contentType 失败")
+				return gerror.New("failed to decode bridge response contentType")
 			}
 			out.ContentType = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 bridge response headers 失败")
+				return gerror.New("failed to decode bridge response headers")
 			}
 			if out.Headers == nil {
 				out.Headers = make(map[string][]string)
@@ -589,14 +589,14 @@ func unmarshalResponseEnvelope(content []byte, out *BridgeResponseEnvelopeV1) er
 		case 4:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 bridge response body 失败")
+				return gerror.New("failed to decode bridge response body")
 			}
 			out.Body = append([]byte(nil), value...)
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 bridge response failure 失败")
+				return gerror.New("failed to decode bridge response failure")
 			}
 			out.Failure = &BridgeFailureV1{}
 			if err := unmarshalFailure(value, out.Failure); err != nil {
@@ -606,7 +606,7 @@ func unmarshalResponseEnvelope(content []byte, out *BridgeResponseEnvelopeV1) er
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 bridge response 字段失败")
+				return gerror.New("failed to skip unknown bridge response field")
 			}
 			content = content[size:]
 		}
@@ -654,63 +654,63 @@ func unmarshalRouteSnapshot(content []byte, out *RouteMatchSnapshotV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 route snapshot tag 失败")
+			return gerror.New("failed to decode route snapshot tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot method 失败")
+				return gerror.New("failed to decode route snapshot method")
 			}
 			out.Method = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot publicPath 失败")
+				return gerror.New("failed to decode route snapshot publicPath")
 			}
 			out.PublicPath = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot internalPath 失败")
+				return gerror.New("failed to decode route snapshot internalPath")
 			}
 			out.InternalPath = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot routePath 失败")
+				return gerror.New("failed to decode route snapshot routePath")
 			}
 			out.RoutePath = value
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot access 失败")
+				return gerror.New("failed to decode route snapshot access")
 			}
 			out.Access = value
 			content = content[size:]
 		case 6:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot permission 失败")
+				return gerror.New("failed to decode route snapshot permission")
 			}
 			out.Permission = value
 			content = content[size:]
 		case 7:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot requestType 失败")
+				return gerror.New("failed to decode route snapshot requestType")
 			}
 			out.RequestType = value
 			content = content[size:]
 		case 8:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot pathParams 失败")
+				return gerror.New("failed to decode route snapshot pathParams")
 			}
 			if out.PathParams == nil {
 				out.PathParams = make(map[string]string)
@@ -722,7 +722,7 @@ func unmarshalRouteSnapshot(content []byte, out *RouteMatchSnapshotV1) error {
 		case 9:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 route snapshot queryValues 失败")
+				return gerror.New("failed to decode route snapshot queryValues")
 			}
 			if out.QueryValues == nil {
 				out.QueryValues = make(map[string][]string)
@@ -734,7 +734,7 @@ func unmarshalRouteSnapshot(content []byte, out *RouteMatchSnapshotV1) error {
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 route snapshot 字段失败")
+				return gerror.New("failed to skip unknown route snapshot field")
 			}
 			content = content[size:]
 		}
@@ -779,84 +779,84 @@ func unmarshalRequestSnapshot(content []byte, out *HTTPRequestSnapshotV1) error 
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 request snapshot tag 失败")
+			return gerror.New("failed to decode request snapshot tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot method 失败")
+				return gerror.New("failed to decode request snapshot method")
 			}
 			out.Method = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot publicPath 失败")
+				return gerror.New("failed to decode request snapshot publicPath")
 			}
 			out.PublicPath = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot internalPath 失败")
+				return gerror.New("failed to decode request snapshot internalPath")
 			}
 			out.InternalPath = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot rawPath 失败")
+				return gerror.New("failed to decode request snapshot rawPath")
 			}
 			out.RawPath = value
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot rawQuery 失败")
+				return gerror.New("failed to decode request snapshot rawQuery")
 			}
 			out.RawQuery = value
 			content = content[size:]
 		case 6:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot host 失败")
+				return gerror.New("failed to decode request snapshot host")
 			}
 			out.Host = value
 			content = content[size:]
 		case 7:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot scheme 失败")
+				return gerror.New("failed to decode request snapshot scheme")
 			}
 			out.Scheme = value
 			content = content[size:]
 		case 8:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot remoteAddr 失败")
+				return gerror.New("failed to decode request snapshot remoteAddr")
 			}
 			out.RemoteAddr = value
 			content = content[size:]
 		case 9:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot clientIp 失败")
+				return gerror.New("failed to decode request snapshot clientIp")
 			}
 			out.ClientIP = value
 			content = content[size:]
 		case 10:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot contentType 失败")
+				return gerror.New("failed to decode request snapshot contentType")
 			}
 			out.ContentType = value
 			content = content[size:]
 		case 11:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot headers 失败")
+				return gerror.New("failed to decode request snapshot headers")
 			}
 			if out.Headers == nil {
 				out.Headers = make(map[string][]string)
@@ -868,7 +868,7 @@ func unmarshalRequestSnapshot(content []byte, out *HTTPRequestSnapshotV1) error 
 		case 12:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot cookies 失败")
+				return gerror.New("failed to decode request snapshot cookies")
 			}
 			if out.Cookies == nil {
 				out.Cookies = make(map[string]string)
@@ -880,14 +880,14 @@ func unmarshalRequestSnapshot(content []byte, out *HTTPRequestSnapshotV1) error 
 		case 13:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return gerror.New("解析 request snapshot body 失败")
+				return gerror.New("failed to decode request snapshot body")
 			}
 			out.Body = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 request snapshot 字段失败")
+				return gerror.New("failed to skip unknown request snapshot field")
 			}
 			content = content[size:]
 		}
@@ -933,63 +933,63 @@ func unmarshalIdentitySnapshot(content []byte, out *IdentitySnapshotV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 identity snapshot tag 失败")
+			return gerror.New("failed to decode identity snapshot tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 identity snapshot tokenId 失败")
+				return gerror.New("failed to decode identity snapshot tokenId")
 			}
 			out.TokenID = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return gerror.New("解析 identity snapshot userId 失败")
+				return gerror.New("failed to decode identity snapshot userId")
 			}
 			out.UserID = int32(value)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 identity snapshot username 失败")
+				return gerror.New("failed to decode identity snapshot username")
 			}
 			out.Username = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return gerror.New("解析 identity snapshot status 失败")
+				return gerror.New("failed to decode identity snapshot status")
 			}
 			out.Status = int32(value)
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 identity snapshot permissions 失败")
+				return gerror.New("failed to decode identity snapshot permissions")
 			}
 			out.Permissions = append(out.Permissions, value)
 			content = content[size:]
 		case 6:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 identity snapshot roleNames 失败")
+				return gerror.New("failed to decode identity snapshot roleNames")
 			}
 			out.RoleNames = append(out.RoleNames, value)
 			content = content[size:]
 		case 7:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return gerror.New("解析 identity snapshot isSuperAdmin 失败")
+				return gerror.New("failed to decode identity snapshot isSuperAdmin")
 			}
 			out.IsSuperAdmin = value > 0
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 identity snapshot 字段失败")
+				return gerror.New("failed to skip unknown identity snapshot field")
 			}
 			content = content[size:]
 		}
@@ -1016,28 +1016,28 @@ func unmarshalFailure(content []byte, out *BridgeFailureV1) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 failure tag 失败")
+			return gerror.New("failed to decode failure tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 failure code 失败")
+				return gerror.New("failed to decode failure code")
 			}
 			out.Code = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 failure message 失败")
+				return gerror.New("failed to decode failure message")
 			}
 			out.Message = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 failure 字段失败")
+				return gerror.New("failed to skip unknown failure field")
 			}
 			content = content[size:]
 		}
@@ -1130,28 +1130,28 @@ func unmarshalStringEntry(content []byte, output map[string]string) error {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 string map entry tag 失败")
+			return gerror.New("failed to decode string map entry tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			item, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 string map entry key 失败")
+				return gerror.New("failed to decode string map entry key")
 			}
 			key = item
 			content = content[size:]
 		case 2:
 			item, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 string map entry value 失败")
+				return gerror.New("failed to decode string map entry value")
 			}
 			value = item
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 string map entry 字段失败")
+				return gerror.New("failed to skip unknown string map entry field")
 			}
 			content = content[size:]
 		}
@@ -1172,28 +1172,28 @@ func unmarshalStringListEntry(content []byte, output map[string][]string) error 
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return gerror.New("解析 string list entry tag 失败")
+			return gerror.New("failed to decode string list entry tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			item, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 string list entry key 失败")
+				return gerror.New("failed to decode string list entry key")
 			}
 			key = item
 			content = content[size:]
 		case 2:
 			item, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return gerror.New("解析 string list entry value 失败")
+				return gerror.New("failed to decode string list entry value")
 			}
 			values = append(values, item)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return gerror.New("跳过未知 string list entry 字段失败")
+				return gerror.New("failed to skip unknown string list entry field")
 			}
 			content = content[size:]
 		}

@@ -44,28 +44,28 @@ func UnmarshalHostCallResponse(data []byte) (*HostCallResponseEnvelope, error) {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 host call response tag 失败")
+			return nil, gerror.New("failed to decode host call response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host call response status 失败")
+				return nil, gerror.New("failed to decode host call response status")
 			}
 			out.Status = uint32(value)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host call response payload 失败")
+				return nil, gerror.New("failed to decode host call response payload")
 			}
 			out.Payload = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 host call response 字段失败")
+				return nil, gerror.New("failed to skip unknown host call response field")
 			}
 			content = content[size:]
 		}
@@ -124,28 +124,28 @@ func UnmarshalHostCallLogRequest(data []byte) (*HostCallLogRequest, error) {
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 host call log request tag 失败")
+			return nil, gerror.New("failed to decode host call log request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host call log level 失败")
+				return nil, gerror.New("failed to decode host call log level")
 			}
 			out.Level = int32(value)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host call log message 失败")
+				return nil, gerror.New("failed to decode host call log message")
 			}
 			out.Message = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host call log fields 失败")
+				return nil, gerror.New("failed to decode host call log fields")
 			}
 			if out.Fields == nil {
 				out.Fields = make(map[string]string)
@@ -157,7 +157,7 @@ func UnmarshalHostCallLogRequest(data []byte) (*HostCallLogRequest, error) {
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 host call log 字段失败")
+				return nil, gerror.New("failed to skip unknown host call log field")
 			}
 			content = content[size:]
 		}
@@ -191,21 +191,21 @@ func UnmarshalHostCallStateGetRequest(data []byte) (*HostCallStateGetRequest, er
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 state get request tag 失败")
+			return nil, gerror.New("failed to decode state get request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 state get key 失败")
+				return nil, gerror.New("failed to decode state get key")
 			}
 			out.Key = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 state get 字段失败")
+				return nil, gerror.New("failed to skip unknown state get field")
 			}
 			content = content[size:]
 		}
@@ -240,28 +240,28 @@ func UnmarshalHostCallStateGetResponse(data []byte) (*HostCallStateGetResponse, 
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 state get response tag 失败")
+			return nil, gerror.New("failed to decode state get response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 state get value 失败")
+				return nil, gerror.New("failed to decode state get value")
 			}
 			out.Value = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 state get found 失败")
+				return nil, gerror.New("failed to decode state get found")
 			}
 			out.Found = value != 0
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 state get response 字段失败")
+				return nil, gerror.New("failed to skip unknown state get response field")
 			}
 			content = content[size:]
 		}
@@ -300,28 +300,28 @@ func UnmarshalHostCallStateSetRequest(data []byte) (*HostCallStateSetRequest, er
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 state set request tag 失败")
+			return nil, gerror.New("failed to decode state set request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 state set key 失败")
+				return nil, gerror.New("failed to decode state set key")
 			}
 			out.Key = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 state set value 失败")
+				return nil, gerror.New("failed to decode state set value")
 			}
 			out.Value = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 state set 字段失败")
+				return nil, gerror.New("failed to skip unknown state set field")
 			}
 			content = content[size:]
 		}
@@ -355,21 +355,21 @@ func UnmarshalHostCallStateDeleteRequest(data []byte) (*HostCallStateDeleteReque
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 state delete request tag 失败")
+			return nil, gerror.New("failed to decode state delete request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 state delete key 失败")
+				return nil, gerror.New("failed to decode state delete key")
 			}
 			out.Key = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 state delete 字段失败")
+				return nil, gerror.New("failed to skip unknown state delete field")
 			}
 			content = content[size:]
 		}

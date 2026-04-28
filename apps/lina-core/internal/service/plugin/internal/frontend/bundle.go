@@ -96,13 +96,13 @@ func buildBundleCacheKey(pluginID string, version string) string {
 // artifact assets embedded inside the manifest.
 func buildBundle(manifest *catalog.Manifest) (*bundle, error) {
 	if manifest == nil {
-		return nil, gerror.New("插件清单不能为空")
+		return nil, gerror.New("plugin manifest cannot be nil")
 	}
 	if manifest.RuntimeArtifact == nil {
-		return nil, gerror.New("当前动态插件缺少有效产物")
+		return nil, gerror.New("current dynamic plugin is missing a valid artifact")
 	}
 	if len(manifest.RuntimeArtifact.FrontendAssets) == 0 {
-		return nil, gerror.New("当前动态插件未声明前端资源")
+		return nil, gerror.New("current dynamic plugin does not declare frontend assets")
 	}
 
 	var (
@@ -115,10 +115,10 @@ func buildBundle(manifest *catalog.Manifest) (*bundle, error) {
 			continue
 		}
 		if asset.Path == "" {
-			return nil, gerror.New("当前动态插件前端资源路径不能为空")
+			return nil, gerror.New("current dynamic plugin frontend asset path cannot be empty")
 		}
 		if len(asset.Content) == 0 {
-			return nil, gerror.Newf("当前动态插件前端资源内容为空: %s", asset.Path)
+			return nil, gerror.Newf("current dynamic plugin frontend asset content is empty: %s", asset.Path)
 		}
 
 		contentType := strings.TrimSpace(asset.ContentType)
@@ -133,7 +133,7 @@ func buildBundle(manifest *catalog.Manifest) (*bundle, error) {
 		files[asset.Path] = &bundleFile{Content: asset.Content}
 	}
 	if len(files) == 0 {
-		return nil, gerror.New("当前动态插件未声明前端资源")
+		return nil, gerror.New("current dynamic plugin does not declare frontend assets")
 	}
 
 	return &bundle{
@@ -177,7 +177,7 @@ func (b *bundle) HasAsset(relativePath string) bool {
 // ReadAsset reads the asset at the given relative path and returns its content and content type.
 func (b *bundle) ReadAsset(relativePath string) ([]byte, string, error) {
 	if b == nil || b.FileSystem == nil {
-		return nil, "", gerror.New("当前动态插件前端资源不可用")
+		return nil, "", gerror.New("current dynamic plugin frontend assets are unavailable")
 	}
 	normalizedPath, err := normalizeRequestedAssetPath(relativePath)
 	if err != nil {
@@ -185,7 +185,7 @@ func (b *bundle) ReadAsset(relativePath string) ([]byte, string, error) {
 	}
 	content, err := fs.ReadFile(b.FileSystem, normalizedPath)
 	if err != nil {
-		return nil, "", gerror.New("当前动态插件前端资源不存在")
+		return nil, "", gerror.New("current dynamic plugin frontend asset does not exist")
 	}
 	return content, b.ContentTypes[normalizedPath], nil
 }
@@ -262,7 +262,7 @@ func normalizeRequestedAssetPath(relativePath string) (string, error) {
 	}
 	normalizedPath := NormalizeAssetPath(relativePath)
 	if normalizedPath == "" {
-		return "", gerror.Newf("运行时前端资源路径越界: %s", relativePath)
+		return "", gerror.Newf("runtime frontend asset path escapes bundle root: %s", relativePath)
 	}
 	return normalizedPath, nil
 }
@@ -270,13 +270,13 @@ func normalizeRequestedAssetPath(relativePath string) (string, error) {
 // ensureBundle returns the cached bundle for the manifest, building and caching it if needed.
 func (s *serviceImpl) ensureBundle(ctx context.Context, manifest *catalog.Manifest) (*bundle, error) {
 	if manifest == nil {
-		return nil, gerror.New("插件清单不能为空")
+		return nil, gerror.New("plugin manifest cannot be nil")
 	}
 	if catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic {
-		return nil, gerror.New("当前插件不是动态插件")
+		return nil, gerror.New("current plugin is not dynamic")
 	}
 	if manifest.RuntimeArtifact == nil {
-		return nil, gerror.New("当前动态插件缺少有效产物")
+		return nil, gerror.New("current dynamic plugin is missing a valid artifact")
 	}
 
 	cacheKey := buildBundleCacheKey(manifest.ID, manifest.Version)

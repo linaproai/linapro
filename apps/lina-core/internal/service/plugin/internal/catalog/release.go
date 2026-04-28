@@ -22,11 +22,11 @@ import (
 // The package path stored in the release row is resolved to an absolute host path before parsing.
 func (s *serviceImpl) LoadReleaseManifest(ctx context.Context, release *entity.SysPluginRelease) (*Manifest, error) {
 	if release == nil {
-		return nil, gerror.New("插件 release 不能为空")
+		return nil, gerror.New("plugin release cannot be nil")
 	}
 	packagePath := strings.TrimSpace(release.PackagePath)
 	if packagePath == "" {
-		return nil, gerror.Newf("插件 release 缺少 package_path: %s@%s", release.PluginId, release.ReleaseVersion)
+		return nil, gerror.Newf("plugin release is missing package_path: %s@%s", release.PluginId, release.ReleaseVersion)
 	}
 	absolutePath, err := s.resolveReleasePackagePath(ctx, packagePath)
 	if err != nil {
@@ -276,7 +276,7 @@ func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
 	purgeStorageData bool,
 ) (*ManifestSnapshot, error) {
 	if release == nil {
-		return nil, gerror.New("插件 release 不能为空")
+		return nil, gerror.New("plugin release cannot be nil")
 	}
 
 	snapshot, err := s.ParseManifestSnapshot(release.ManifestSnapshot)
@@ -294,7 +294,7 @@ func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
 		}
 	}
 	if snapshot == nil {
-		return nil, gerror.New("插件 release manifest 快照不能为空")
+		return nil, gerror.New("plugin release manifest snapshot cannot be nil")
 	}
 
 	purgeValue := purgeStorageData
@@ -302,7 +302,7 @@ func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
 
 	content, err := yaml.Marshal(snapshot)
 	if err != nil {
-		return nil, gerror.Wrap(err, "生成插件卸载策略快照失败")
+		return nil, gerror.Wrap(err, "build plugin uninstall policy snapshot failed")
 	}
 	if _, err = dao.SysPluginRelease.Ctx(ctx).
 		Where(do.SysPluginRelease{Id: release.Id}).

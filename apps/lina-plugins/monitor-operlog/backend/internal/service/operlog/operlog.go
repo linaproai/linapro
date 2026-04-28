@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/xuri/excelize/v2"
 
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/excelutil"
 	"lina-core/pkg/gdbutil"
 	hostapidoc "lina-core/pkg/pluginservice/apidoc"
@@ -75,19 +75,19 @@ const (
 // defaultOperTypeLabels provides a stable fallback when the dictionary module
 // is unavailable during export rendering.
 var defaultOperTypeLabels = map[operlogtype.OperType]string{
-	operlogtype.OperTypeCreate: "新增",
-	operlogtype.OperTypeUpdate: "修改",
-	operlogtype.OperTypeDelete: "删除",
-	operlogtype.OperTypeExport: "导出",
-	operlogtype.OperTypeImport: "导入",
-	operlogtype.OperTypeOther:  "其他",
+	operlogtype.OperTypeCreate: "Create",
+	operlogtype.OperTypeUpdate: "Update",
+	operlogtype.OperTypeDelete: "Delete",
+	operlogtype.OperTypeExport: "Export",
+	operlogtype.OperTypeImport: "Import",
+	operlogtype.OperTypeOther:  "Other",
 }
 
 // defaultOperStatusLabels provides a stable fallback when the dictionary module
 // is unavailable during export rendering.
 var defaultOperStatusLabels = map[int]string{
-	OperStatusSuccess: "成功",
-	OperStatusFail:    "失败",
+	OperStatusSuccess: "Success",
+	OperStatusFail:    "Failure",
 }
 
 // Service defines the monitor-operlog service contract.
@@ -270,7 +270,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*OperLogEntity, erro
 		return nil, err
 	}
 	if record == nil {
-		return nil, gerror.New("操作日志不存在")
+		return nil, bizerr.NewCode(CodeOperLogNotFound)
 	}
 	s.localizeRecord(ctx, record)
 	return record, nil
@@ -354,19 +354,19 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
 	headers := []exportHeader{
-		{Key: "plugin.monitor-operlog.fields.moduleName", Fallback: "模块名称"},
-		{Key: "plugin.monitor-operlog.fields.operSummary", Fallback: "操作名称"},
-		{Key: "plugin.monitor-operlog.fields.operType", Fallback: "操作类型"},
-		{Key: "plugin.monitor-operlog.fields.operator", Fallback: "操作人"},
-		{Key: "plugin.monitor-operlog.fields.requestMethod", Fallback: "请求方式"},
-		{Key: "plugin.monitor-operlog.fields.requestUrl", Fallback: "请求URL"},
-		{Key: "plugin.monitor-operlog.fields.ipAddress", Fallback: "操作IP"},
-		{Key: "plugin.monitor-operlog.fields.requestParams", Fallback: "请求参数"},
-		{Key: "plugin.monitor-operlog.fields.responseResult", Fallback: "响应结果"},
-		{Key: "plugin.monitor-operlog.fields.operResult", Fallback: "状态"},
-		{Key: "plugin.monitor-operlog.fields.errorInfo", Fallback: "错误信息"},
-		{Key: "plugin.monitor-operlog.fields.durationMs", Fallback: "耗时(ms)"},
-		{Key: "plugin.monitor-operlog.fields.operTime", Fallback: "操作时间"},
+		{Key: "plugin.monitor-operlog.fields.moduleName", Fallback: "Module Name"},
+		{Key: "plugin.monitor-operlog.fields.operSummary", Fallback: "Operation Summary"},
+		{Key: "plugin.monitor-operlog.fields.operType", Fallback: "Operation Type"},
+		{Key: "plugin.monitor-operlog.fields.operator", Fallback: "Operator"},
+		{Key: "plugin.monitor-operlog.fields.requestMethod", Fallback: "Request Method"},
+		{Key: "plugin.monitor-operlog.fields.requestUrl", Fallback: "Request URL"},
+		{Key: "plugin.monitor-operlog.fields.ipAddress", Fallback: "IP Address"},
+		{Key: "plugin.monitor-operlog.fields.requestParams", Fallback: "Request Parameters"},
+		{Key: "plugin.monitor-operlog.fields.responseResult", Fallback: "Response Result"},
+		{Key: "plugin.monitor-operlog.fields.operResult", Fallback: "Operation Result"},
+		{Key: "plugin.monitor-operlog.fields.errorInfo", Fallback: "Error Information"},
+		{Key: "plugin.monitor-operlog.fields.durationMs", Fallback: "Duration (ms)"},
+		{Key: "plugin.monitor-operlog.fields.operTime", Fallback: "Operation Time"},
 	}
 	for index, header := range headers {
 		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, s.translate(ctx, header.Key, header.Fallback)); setErr != nil {

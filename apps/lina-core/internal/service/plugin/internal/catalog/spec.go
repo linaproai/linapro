@@ -92,49 +92,49 @@ func NormalizeResourceAccessMode(value string) ResourceAccessMode {
 // ValidateHookSpec validates a plugin-declared hook handler specification.
 func ValidateHookSpec(pluginID string, spec *HookSpec, filePath string) error {
 	if spec == nil {
-		return gerror.Newf("插件Hook不能为空: %s", filePath)
+		return gerror.Newf("plugin hook cannot be nil: %s", filePath)
 	}
 	if spec.Event == "" {
-		return gerror.Newf("插件Hook缺少event: %s", filePath)
+		return gerror.Newf("plugin hook is missing event: %s", filePath)
 	}
 	if !pluginhost.IsHookExtensionPoint(spec.Event) {
-		return gerror.Newf("插件Hook插槽未发布: %s", filePath)
+		return gerror.Newf("plugin hook extension point is not published: %s", filePath)
 	}
 	if spec.Action == "" {
 		spec.Action = pluginhost.HookActionInsert
 	}
 	if !pluginhost.IsSupportedHookAction(spec.Action) {
-		return gerror.Newf("插件Hook动作不受宿主支持: %s", filePath)
+		return gerror.Newf("plugin hook action is not supported by the host: %s", filePath)
 	}
 	if spec.Mode == "" {
 		spec.Mode = pluginhost.DefaultCallbackExecutionMode(spec.Event)
 	}
 	if !pluginhost.IsExtensionPointExecutionModeSupported(spec.Event, spec.Mode) {
-		return gerror.Newf("插件Hook执行模式不受当前插槽支持: %s", filePath)
+		return gerror.Newf("plugin hook execution mode is not supported by the current extension point: %s", filePath)
 	}
 	if spec.TimeoutMs < 0 {
-		return gerror.Newf("插件Hook timeoutMs 不能小于0: %s", filePath)
+		return gerror.Newf("plugin hook timeoutMs cannot be less than 0: %s", filePath)
 	}
 	switch spec.Action {
 	case pluginhost.HookActionInsert:
 		if err := validatePluginIdentifier(spec.Table); err != nil {
-			return gerror.Wrapf(err, "插件%s的Hook表名非法: %s", pluginID, filePath)
+			return gerror.Wrapf(err, "plugin %s hook table name is invalid: %s", pluginID, filePath)
 		}
 		if len(spec.Fields) == 0 {
-			return gerror.Newf("插件Hook缺少fields映射: %s", filePath)
+			return gerror.Newf("plugin hook is missing fields mapping: %s", filePath)
 		}
 		for column := range spec.Fields {
 			if err := validatePluginIdentifier(column); err != nil {
-				return gerror.Wrapf(err, "插件%s的Hook字段非法: %s", pluginID, filePath)
+				return gerror.Wrapf(err, "plugin %s hook field is invalid: %s", pluginID, filePath)
 			}
 		}
 	case pluginhost.HookActionSleep:
 		if spec.SleepMs <= 0 {
-			return gerror.Newf("插件Hook sleep 动作要求 sleepMs > 0: %s", filePath)
+			return gerror.Newf("plugin hook sleep action requires sleepMs > 0: %s", filePath)
 		}
 	case pluginhost.HookActionError:
 		if strings.TrimSpace(spec.ErrorMessage) == "" {
-			return gerror.Newf("插件Hook error 动作要求 errorMessage 非空: %s", filePath)
+			return gerror.Newf("plugin hook error action requires a non-empty errorMessage: %s", filePath)
 		}
 	}
 	return nil
@@ -143,70 +143,70 @@ func ValidateHookSpec(pluginID string, spec *HookSpec, filePath string) error {
 // ValidateResourceSpec validates a plugin-declared backend resource specification.
 func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) error {
 	if spec == nil {
-		return gerror.Newf("插件资源不能为空: %s", filePath)
+		return gerror.Newf("plugin resource cannot be nil: %s", filePath)
 	}
 	if spec.Key == "" {
-		return gerror.Newf("插件资源缺少key: %s", filePath)
+		return gerror.Newf("plugin resource is missing key: %s", filePath)
 	}
 	if spec.Type == "" {
 		spec.Type = ResourceSpecTypeTableList.String()
 	}
 	if NormalizeResourceSpecType(spec.Type) != ResourceSpecTypeTableList {
-		return gerror.Newf("插件资源类型仅支持table-list: %s", filePath)
+		return gerror.Newf("plugin resource type only supports table-list: %s", filePath)
 	}
 	if err := validatePluginIdentifier(spec.Table); err != nil {
-		return gerror.Wrapf(err, "插件%s资源表名非法: %s", pluginID, filePath)
+		return gerror.Wrapf(err, "plugin %s resource table name is invalid: %s", pluginID, filePath)
 	}
 	if len(spec.Fields) == 0 {
-		return gerror.Newf("插件资源缺少fields定义: %s", filePath)
+		return gerror.Newf("plugin resource is missing fields definition: %s", filePath)
 	}
 	for _, field := range spec.Fields {
 		if field == nil {
-			return gerror.Newf("插件资源字段不能为空: %s", filePath)
+			return gerror.Newf("plugin resource field cannot be nil: %s", filePath)
 		}
 		if err := validatePluginIdentifier(field.Name); err != nil {
-			return gerror.Wrapf(err, "插件%s资源字段名称非法: %s", pluginID, filePath)
+			return gerror.Wrapf(err, "plugin %s resource field name is invalid: %s", pluginID, filePath)
 		}
 		if err := validatePluginIdentifier(field.Column); err != nil {
-			return gerror.Wrapf(err, "插件%s资源列名非法: %s", pluginID, filePath)
+			return gerror.Wrapf(err, "plugin %s resource column name is invalid: %s", pluginID, filePath)
 		}
 	}
 	for _, filter := range spec.Filters {
 		if filter == nil {
-			return gerror.Newf("插件资源过滤器不能为空: %s", filePath)
+			return gerror.Newf("plugin resource filter cannot be nil: %s", filePath)
 		}
 		if filter.Param == "" {
-			return gerror.Newf("插件资源过滤器缺少param: %s", filePath)
+			return gerror.Newf("plugin resource filter is missing param: %s", filePath)
 		}
 		if err := validatePluginIdentifier(filter.Column); err != nil {
-			return gerror.Wrapf(err, "插件%s资源过滤列非法: %s", pluginID, filePath)
+			return gerror.Wrapf(err, "plugin %s resource filter column is invalid: %s", pluginID, filePath)
 		}
 		if NormalizeResourceFilterOperator(filter.Operator) == "" {
-			return gerror.Newf("插件资源过滤操作符不支持: %s", filePath)
+			return gerror.Newf("plugin resource filter operator is unsupported: %s", filePath)
 		}
 	}
 	if err := validatePluginIdentifier(spec.OrderBy.Column); err != nil {
-		return gerror.Wrapf(err, "插件%s资源排序列非法: %s", pluginID, filePath)
+		return gerror.Wrapf(err, "plugin %s resource order column is invalid: %s", pluginID, filePath)
 	}
 	if spec.OrderBy.Direction == "" {
 		spec.OrderBy.Direction = ResourceOrderDirectionASC.String()
 	}
 	if NormalizeResourceOrderDirection(spec.OrderBy.Direction) == "" {
-		return gerror.Newf("插件资源排序方向仅支持 asc/desc: %s", filePath)
+		return gerror.Newf("plugin resource order direction only supports asc/desc: %s", filePath)
 	}
 	if spec.DataScope != nil {
 		if spec.DataScope.UserColumn != "" {
 			if err := validatePluginIdentifier(spec.DataScope.UserColumn); err != nil {
-				return gerror.Wrapf(err, "插件%s资源数据权限 userColumn 非法: %s", pluginID, filePath)
+				return gerror.Wrapf(err, "plugin %s resource dataScope userColumn is invalid: %s", pluginID, filePath)
 			}
 		}
 		if spec.DataScope.DeptColumn != "" {
 			if err := validatePluginIdentifier(spec.DataScope.DeptColumn); err != nil {
-				return gerror.Wrapf(err, "插件%s资源数据权限 deptColumn 非法: %s", pluginID, filePath)
+				return gerror.Wrapf(err, "plugin %s resource dataScope deptColumn is invalid: %s", pluginID, filePath)
 			}
 		}
 		if spec.DataScope.UserColumn == "" && spec.DataScope.DeptColumn == "" {
-			return gerror.Newf("插件资源 dataScope 至少需要声明 userColumn 或 deptColumn: %s", filePath)
+			return gerror.Newf("plugin resource dataScope must declare userColumn or deptColumn: %s", filePath)
 		}
 	}
 	if len(spec.Operations) == 0 {
@@ -216,7 +216,7 @@ func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) 
 	for _, operation := range spec.Operations {
 		normalizedOperation := NormalizeResourceOperation(operation)
 		if normalizedOperation == "" {
-			return gerror.Newf("插件资源操作不受支持: %s", filePath)
+			return gerror.Newf("plugin resource operation is unsupported: %s", filePath)
 		}
 		operationSeen[normalizedOperation.String()] = struct{}{}
 	}
@@ -224,54 +224,54 @@ func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) 
 
 	if spec.KeyField != "" {
 		if err := validatePluginIdentifier(spec.KeyField); err != nil {
-			return gerror.Wrapf(err, "插件%s资源 keyField 非法: %s", pluginID, filePath)
+			return gerror.Wrapf(err, "plugin %s resource keyField is invalid: %s", pluginID, filePath)
 		}
 		if !resourceHasField(spec, spec.KeyField) {
-			return gerror.Newf("插件资源 keyField 未出现在 fields 中: %s", filePath)
+			return gerror.Newf("plugin resource keyField is not declared in fields: %s", filePath)
 		}
 	}
 	if _, needsKeyField := operationSeen[ResourceOperationGet.String()]; needsKeyField && spec.KeyField == "" {
-		return gerror.Newf("插件资源 get 操作要求声明 keyField: %s", filePath)
+		return gerror.Newf("plugin resource get operation requires keyField: %s", filePath)
 	}
 	if _, needsKeyField := operationSeen[ResourceOperationUpdate.String()]; needsKeyField && spec.KeyField == "" {
-		return gerror.Newf("插件资源 update 操作要求声明 keyField: %s", filePath)
+		return gerror.Newf("plugin resource update operation requires keyField: %s", filePath)
 	}
 	if _, needsKeyField := operationSeen[ResourceOperationDelete.String()]; needsKeyField && spec.KeyField == "" {
-		return gerror.Newf("插件资源 delete 操作要求声明 keyField: %s", filePath)
+		return gerror.Newf("plugin resource delete operation requires keyField: %s", filePath)
 	}
 
 	if len(spec.WritableFields) > 0 {
 		spec.WritableFields = normalizeFieldNameSliceForResourceSpec(spec.WritableFields)
 		for _, writableField := range spec.WritableFields {
 			if err := validatePluginIdentifier(writableField); err != nil {
-				return gerror.Wrapf(err, "插件%s资源 writableField 非法: %s", pluginID, filePath)
+				return gerror.Wrapf(err, "plugin %s resource writableField is invalid: %s", pluginID, filePath)
 			}
 			if !resourceHasField(spec, writableField) {
-				return gerror.Newf("插件资源 writableField 未出现在 fields 中: %s", filePath)
+				return gerror.Newf("plugin resource writableField is not declared in fields: %s", filePath)
 			}
 		}
 	}
 	if _, needsWritableFields := operationSeen[ResourceOperationCreate.String()]; needsWritableFields && len(spec.WritableFields) == 0 {
-		return gerror.Newf("插件资源 create 操作要求声明 writableFields: %s", filePath)
+		return gerror.Newf("plugin resource create operation requires writableFields: %s", filePath)
 	}
 	if _, needsWritableFields := operationSeen[ResourceOperationUpdate.String()]; needsWritableFields && len(spec.WritableFields) == 0 {
-		return gerror.Newf("插件资源 update 操作要求声明 writableFields: %s", filePath)
+		return gerror.Newf("plugin resource update operation requires writableFields: %s", filePath)
 	}
 
 	if spec.Access == "" {
 		spec.Access = ResourceAccessModeRequest.String()
 	}
 	if NormalizeResourceAccessMode(spec.Access) == "" {
-		return gerror.Newf("插件资源 access 仅支持 request/system/both: %s", filePath)
+		return gerror.Newf("plugin resource access only supports request/system/both: %s", filePath)
 	}
 	if spec.Permission != "" {
 		spec.Permission = strings.TrimSpace(spec.Permission)
 		parts := strings.Split(spec.Permission, ":")
 		if len(parts) != 3 || strings.TrimSpace(parts[0]) != strings.TrimSpace(pluginID) {
-			return gerror.Newf("插件资源 permission 必须使用 %s:{resource}:{action} 格式: %s", pluginID, filePath)
+			return gerror.Newf("plugin resource permission must use %s:{resource}:{action} format: %s", pluginID, filePath)
 		}
 		if strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" {
-			return gerror.Newf("插件资源 permission 资源与动作不能为空: %s", filePath)
+			return gerror.Newf("plugin resource permission resource and action cannot be empty: %s", filePath)
 		}
 	}
 	return nil
@@ -280,10 +280,10 @@ func ValidateResourceSpec(pluginID string, spec *ResourceSpec, filePath string) 
 // validatePluginIdentifier validates that a table or column name contains only safe characters.
 func validatePluginIdentifier(value string) error {
 	if value == "" {
-		return gerror.New("插件标识不能为空")
+		return gerror.New("plugin identifier cannot be empty")
 	}
 	if !safePluginIdentifierPattern.MatchString(value) {
-		return gerror.Newf("插件标识非法: %s", value)
+		return gerror.Newf("plugin identifier is invalid: %s", value)
 	}
 	return nil
 }

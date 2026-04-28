@@ -153,6 +153,9 @@ monitor:
 // available when runtime overrides are absent.
 func TestGetUploadPathUsesStaticConfig(t *testing.T) {
 	setTestConfigContent(t, `
+database:
+  default:
+    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
 upload:
   path: runtime/uploads
   maxSize: 32
@@ -160,7 +163,7 @@ upload:
 	withRuntimeParamAbsent(t, RuntimeParamKeyUploadMaxSize)
 
 	svc := New()
-	if path := svc.GetUploadPath(context.Background()); path != "runtime/uploads" {
+	if path := svc.GetUploadPath(context.Background()); path != resolveRuntimePath("runtime/uploads") {
 		t.Fatalf("expected upload path to be runtime/uploads, got %s", path)
 	}
 

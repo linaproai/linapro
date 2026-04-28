@@ -2,7 +2,11 @@
 // backend.
 package demo
 
-import "context"
+import (
+	"context"
+
+	hosti18n "lina-core/pkg/pluginservice/i18n"
+)
 
 // Service defines the demo service contract.
 type Service interface {
@@ -30,9 +34,11 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	i18nSvc hosti18n.Service // i18nSvc resolves plugin runtime translations.
+}
 
 // New creates and returns a new demo service instance.
 func New() Service {
-	return &serviceImpl{}
+	return &serviceImpl{i18nSvc: hosti18n.New()}
 }

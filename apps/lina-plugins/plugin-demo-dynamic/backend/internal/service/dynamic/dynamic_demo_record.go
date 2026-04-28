@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // Demo-record constants define the sample table name, paging defaults, and
@@ -24,27 +24,33 @@ const (
 	demoRecordMaxAttachmentBytes int = 10 * 1024 * 1024
 )
 
-// Demo-record sentinel errors reused across CRUD and attachment operations.
-var (
-	errDemoRecordInvalidInput    = gerror.New("动态插件示例记录请求参数无效")
-	errDemoRecordNotFound        = gerror.New("动态插件示例记录不存在")
-	errDemoRecordAttachmentEmpty = gerror.New("动态插件示例记录附件不存在")
-)
-
 // IsDemoRecordInvalidInput reports whether the error should be exposed as one bad request.
 func IsDemoRecordInvalidInput(err error) bool {
-	return gerror.Is(err, errDemoRecordInvalidInput)
+	return bizerr.Is(err, CodeDynamicDemoRecordInvalidInput) ||
+		bizerr.Is(err, CodeDynamicDemoRecordRequestBodyRequired) ||
+		bizerr.Is(err, CodeDynamicDemoRecordTitleRequired) ||
+		bizerr.Is(err, CodeDynamicDemoRecordTitleTooLong) ||
+		bizerr.Is(err, CodeDynamicDemoRecordContentTooLong) ||
+		bizerr.Is(err, CodeDynamicDemoRecordAttachmentNameRequired) ||
+		bizerr.Is(err, CodeDynamicDemoRecordAttachmentBase64Invalid) ||
+		bizerr.Is(err, CodeDynamicDemoRecordAttachmentContentRequired) ||
+		bizerr.Is(err, CodeDynamicDemoRecordAttachmentSizeTooLarge) ||
+		bizerr.Is(err, CodeDynamicDemoRecordIDRequired)
 }
 
 // NewDemoRecordInvalidInputError creates one invalid-input business error that
 // should be translated into a bad-request bridge response.
 func NewDemoRecordInvalidInputError(message string) error {
-	return gerror.Wrap(errDemoRecordInvalidInput, message)
+	return bizerr.NewCode(
+		CodeDynamicDemoRecordInvalidInput,
+		bizerr.P("reason", strings.TrimSpace(message)),
+	)
 }
 
 // IsDemoRecordNotFound reports whether the error should be exposed as one not-found response.
 func IsDemoRecordNotFound(err error) bool {
-	return gerror.Is(err, errDemoRecordNotFound) || gerror.Is(err, errDemoRecordAttachmentEmpty)
+	return bizerr.Is(err, CodeDynamicDemoRecordNotFound) ||
+		bizerr.Is(err, CodeDynamicDemoRecordAttachmentNotFound)
 }
 
 // ListDemoRecordsPayload returns one paged demo-record list backed by the plugin-owned SQL table.
@@ -112,7 +118,7 @@ func (s *serviceImpl) CreateDemoRecordPayload(input *DemoRecordMutationInput) (p
 				return
 			}
 			if cleanupErr := s.deleteDemoRecordAttachment(attachmentPath); cleanupErr != nil {
-				err = gerror.Wrapf(err, "回滚动态插件示例记录附件失败: %v", cleanupErr)
+				err = bizerr.WrapCode(cleanupErr, CodeDynamicDemoRecordAttachmentRollbackFailed)
 			}
 		}()
 	}
@@ -172,7 +178,7 @@ func (s *serviceImpl) UpdateDemoRecordPayload(recordID string, input *DemoRecord
 				return
 			}
 			if cleanupErr := s.deleteDemoRecordAttachment(uploadedPath); cleanupErr != nil {
-				err = gerror.Wrapf(err, "回滚动态插件示例记录附件失败: %v", cleanupErr)
+				err = bizerr.WrapCode(cleanupErr, CodeDynamicDemoRecordAttachmentRollbackFailed)
 			}
 		}()
 	}
@@ -233,7 +239,7 @@ func (s *serviceImpl) BuildDemoRecordAttachmentDownload(recordID string) (*demoR
 		return nil, err
 	}
 	if strings.TrimSpace(record.AttachmentPath) == "" {
-		return nil, errDemoRecordAttachmentEmpty
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordAttachmentNotFound)
 	}
 
 	body, object, found, err := s.storageSvc.Get(record.AttachmentPath)
@@ -241,7 +247,7 @@ func (s *serviceImpl) BuildDemoRecordAttachmentDownload(recordID string) (*demoR
 		return nil, err
 	}
 	if !found {
-		return nil, errDemoRecordAttachmentEmpty
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordAttachmentNotFound)
 	}
 
 	contentType := "application/octet-stream"
@@ -265,7 +271,7 @@ func (s *serviceImpl) loadDemoRecord(recordID string) (*demoRecordEntity, error)
 		return nil, err
 	}
 	if !found || recordMap == nil {
-		return nil, errDemoRecordNotFound
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordNotFound)
 	}
 	return parseDemoRecordEntity(recordMap)
 }
@@ -323,7 +329,7 @@ func normalizeDemoRecordListInput(input *DemoRecordListInput) (int, int, string)
 // data for sample records.
 func normalizeDemoRecordMutationInput(input *DemoRecordMutationInput) (*DemoRecordMutationInput, error) {
 	if input == nil {
-		return nil, gerror.Wrap(errDemoRecordInvalidInput, "请求体不能为空")
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordRequestBodyRequired)
 	}
 
 	normalizedInput := &DemoRecordMutationInput{
@@ -336,16 +342,16 @@ func normalizeDemoRecordMutationInput(input *DemoRecordMutationInput) (*DemoReco
 	}
 
 	if normalizedInput.Title == "" {
-		return nil, gerror.Wrap(errDemoRecordInvalidInput, "记录标题不能为空")
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordTitleRequired)
 	}
 	if len([]rune(normalizedInput.Title)) > 128 {
-		return nil, gerror.Wrap(errDemoRecordInvalidInput, "记录标题长度不能超过128个字符")
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordTitleTooLong, bizerr.P("maxChars", 128))
 	}
 	if len([]rune(normalizedInput.Content)) > 1000 {
-		return nil, gerror.Wrap(errDemoRecordInvalidInput, "记录内容长度不能超过1000个字符")
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordContentTooLong, bizerr.P("maxChars", 1000))
 	}
 	if normalizedInput.AttachmentContentBase64 != "" && normalizedInput.AttachmentName == "" {
-		return nil, gerror.Wrap(errDemoRecordInvalidInput, "上传附件时必须提供附件名称")
+		return nil, bizerr.NewCode(CodeDynamicDemoRecordAttachmentNameRequired)
 	}
 	return normalizedInput, nil
 }
@@ -359,13 +365,16 @@ func (s *serviceImpl) saveDemoRecordAttachment(input *DemoRecordMutationInput) (
 
 	body, err := base64.StdEncoding.DecodeString(input.AttachmentContentBase64)
 	if err != nil {
-		return "", "", gerror.Wrap(errDemoRecordInvalidInput, "附件内容必须是有效的 Base64 字符串")
+		return "", "", bizerr.NewCode(CodeDynamicDemoRecordAttachmentBase64Invalid)
 	}
 	if len(body) == 0 {
-		return "", "", gerror.Wrap(errDemoRecordInvalidInput, "附件内容不能为空")
+		return "", "", bizerr.NewCode(CodeDynamicDemoRecordAttachmentContentRequired)
 	}
 	if len(body) > demoRecordMaxAttachmentBytes {
-		return "", "", gerror.Wrapf(errDemoRecordInvalidInput, "附件大小不能超过%dMB", demoRecordMaxAttachmentBytes/1024/1024)
+		return "", "", bizerr.NewCode(
+			CodeDynamicDemoRecordAttachmentSizeTooLarge,
+			bizerr.P("maxSizeMB", demoRecordMaxAttachmentBytes/1024/1024),
+		)
 	}
 
 	attachmentName := sanitizeDemoRecordAttachmentName(input.AttachmentName)
@@ -404,7 +413,7 @@ func (s *serviceImpl) deleteDemoRecordAttachment(objectPath string) error {
 func validateDemoRecordID(value string) (string, error) {
 	normalizedValue := strings.TrimSpace(value)
 	if normalizedValue == "" {
-		return "", gerror.Wrap(errDemoRecordInvalidInput, "记录ID不能为空")
+		return "", bizerr.NewCode(CodeDynamicDemoRecordIDRequired)
 	}
 	return normalizedValue, nil
 }

@@ -25,6 +25,7 @@ export interface SystemInfoResult {
   dbVersion: string;
   startTime: string;
   runDuration: string;
+  runDurationSeconds: number;
   backendComponents: ComponentInfo[];
   frontendComponents: ComponentInfo[];
 }

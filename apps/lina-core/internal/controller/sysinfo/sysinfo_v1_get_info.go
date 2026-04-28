@@ -4,10 +4,18 @@ package sysinfo
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	"lina-core/api/sysinfo/v1"
+)
+
+const (
+	runDurationHoursMinutesSecondsKey = "systemInfo.runDuration.format.hoursMinutesSeconds"
+	runDurationMinutesSecondsKey      = "systemInfo.runDuration.format.minutesSeconds"
+	runDurationSecondsKey             = "systemInfo.runDuration.format.seconds"
 )
 
 // GetInfo returns system information
@@ -26,13 +34,14 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 			RepositoryURL: info.Framework.RepositoryURL,
 			License:       info.Framework.License,
 		},
-		GoVersion:   info.GoVersion,
-		GfVersion:   info.GfVersion,
-		Os:          info.Os,
-		Arch:        info.Arch,
-		DbVersion:   info.DbVersion,
-		StartTime:   info.StartTime,
-		RunDuration: info.RunDuration,
+		GoVersion:          info.GoVersion,
+		GfVersion:          info.GfVersion,
+		Os:                 info.Os,
+		Arch:               info.Arch,
+		DbVersion:          info.DbVersion,
+		StartTime:          info.StartTime,
+		RunDuration:        c.formatRunDuration(ctx, info.RunDurationSeconds),
+		RunDurationSeconds: info.RunDurationSeconds,
 	}
 
 	// Map backend components
@@ -64,6 +73,27 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 	}
 
 	return res, nil
+}
+
+// formatRunDuration returns the localized human-readable uptime string.
+func (c *ControllerV1) formatRunDuration(ctx context.Context, totalSeconds int64) string {
+	if totalSeconds < 0 {
+		totalSeconds = 0
+	}
+
+	hours := totalSeconds / int64(time.Hour/time.Second)
+	minutes := totalSeconds / int64(time.Minute/time.Second) % 60
+	seconds := totalSeconds % 60
+	if hours > 0 {
+		template := c.i18nSvc.Translate(ctx, runDurationHoursMinutesSecondsKey, "%d hours %d minutes %d seconds")
+		return fmt.Sprintf(template, hours, minutes, seconds)
+	}
+	if minutes > 0 {
+		template := c.i18nSvc.Translate(ctx, runDurationMinutesSecondsKey, "%d minutes %d seconds")
+		return fmt.Sprintf(template, minutes, seconds)
+	}
+	template := c.i18nSvc.Translate(ctx, runDurationSecondsKey, "%d seconds")
+	return fmt.Sprintf(template, seconds)
 }
 
 // normalizeComponentKey converts a component display name into a stable i18n key segment.

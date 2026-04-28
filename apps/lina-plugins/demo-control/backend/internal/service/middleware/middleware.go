@@ -1,7 +1,11 @@
 // Package middleware implements the demo-control request-guard middleware.
 package middleware
 
-import "github.com/gogf/gf/v2/net/ghttp"
+import (
+	"github.com/gogf/gf/v2/net/ghttp"
+
+	hosti18n "lina-core/pkg/pluginservice/i18n"
+)
 
 // Service defines the demo-control middleware service contract.
 type Service interface {
@@ -13,9 +17,11 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	i18nSvc hosti18n.Service // i18nSvc resolves plugin runtime translations.
+}
 
 // New creates and returns a new demo-control middleware service.
 func New() Service {
-	return &serviceImpl{}
+	return &serviceImpl{i18nSvc: hosti18n.New()}
 }

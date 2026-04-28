@@ -64,22 +64,22 @@ func (s *serviceImpl) localizedConfigRemark(ctx context.Context, key string, fal
 // buildLocalizedImportTemplateHeaders returns localized config-template headers.
 func (s *serviceImpl) buildLocalizedImportTemplateHeaders(ctx context.Context) []string {
 	return []string{
-		s.localizedConfigFieldLabel(ctx, "name", "参数名称"),
-		s.localizedConfigFieldLabel(ctx, "key", "参数键名"),
-		s.localizedConfigFieldLabel(ctx, "value", "参数键值"),
-		s.localizedConfigFieldLabel(ctx, "remark", "备注"),
+		s.localizedConfigFieldLabel(ctx, "name", "Parameter Name"),
+		s.localizedConfigFieldLabel(ctx, "key", "Parameter Key"),
+		s.localizedConfigFieldLabel(ctx, "value", "Parameter Value"),
+		s.localizedConfigFieldLabel(ctx, "remark", "Remark"),
 	}
 }
 
 // buildLocalizedExportHeaders returns localized config-export headers.
 func (s *serviceImpl) buildLocalizedExportHeaders(ctx context.Context) []string {
 	return []string{
-		s.localizedConfigFieldLabel(ctx, "name", "参数名称"),
-		s.localizedConfigFieldLabel(ctx, "key", "参数键名"),
-		s.localizedConfigFieldLabel(ctx, "value", "参数键值"),
-		s.localizedConfigFieldLabel(ctx, "remark", "备注"),
-		s.localizedConfigFieldLabel(ctx, "createdAt", "创建时间"),
-		s.localizedConfigFieldLabel(ctx, "updatedAt", "修改时间"),
+		s.localizedConfigFieldLabel(ctx, "name", "Parameter Name"),
+		s.localizedConfigFieldLabel(ctx, "key", "Parameter Key"),
+		s.localizedConfigFieldLabel(ctx, "value", "Parameter Value"),
+		s.localizedConfigFieldLabel(ctx, "remark", "Remark"),
+		s.localizedConfigFieldLabel(ctx, "createdAt", "Created At"),
+		s.localizedConfigFieldLabel(ctx, "updatedAt", "Updated At"),
 	}
 }
 

@@ -6,7 +6,6 @@ package config
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"testing"
 )
 
@@ -58,7 +57,7 @@ plugin:
 	if cfg.Dynamic.StoragePath != "legacy/runtime/plugins" {
 		t.Fatalf("expected legacy runtime storage path fallback, got %q", cfg.Dynamic.StoragePath)
 	}
-	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != filepath.Clean("legacy/runtime/plugins") {
+	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("legacy/runtime/plugins") {
 		t.Fatalf("expected cleaned legacy runtime storage path, got %q", path)
 	}
 }
@@ -73,12 +72,12 @@ func TestGetPluginDynamicStoragePathUsesDefaultAndOverride(t *testing.T) {
 	})
 
 	svc := New()
-	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != filepath.Clean("temp/output") {
+	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("temp/output") {
 		t.Fatalf("expected default plugin storage path temp/output, got %q", path)
 	}
 
 	SetPluginDynamicStoragePathOverride(" ./temp/output/../plugin-bundles ")
-	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != filepath.Clean("./temp/output/../plugin-bundles") {
+	if path := svc.GetPluginDynamicStoragePath(context.Background()); path != resolveRuntimePath("./temp/output/../plugin-bundles") {
 		t.Fatalf("expected override storage path to win, got %q", path)
 	}
 }

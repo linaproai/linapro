@@ -1,0 +1,15 @@
+{
+  "error": {
+    "content": {
+      "notice": {
+        "delete": {
+          "required": "請選擇要刪除的記錄"
+        },
+        "not": {
+          "found": "通知公告不存在"
+        }
+      }
+    }
+  }
+}
+

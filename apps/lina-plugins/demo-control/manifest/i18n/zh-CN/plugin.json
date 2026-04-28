@@ -1,0 +1,9 @@
+{
+  "plugin": {
+    "demo-control": {
+      "description": "官方源码插件，用于在演示环境中强制只读保护。",
+      "name": "演示控制"
+    }
+  }
+}
+

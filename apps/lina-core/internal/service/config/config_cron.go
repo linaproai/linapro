@@ -13,9 +13,12 @@ import (
 	"lina-core/pkg/bizerr"
 )
 
-// cronShellUnsupportedReason is the fixed UI hint returned when the current
-// platform does not allow shell job execution.
-const cronShellUnsupportedReason = "当前平台不支持 shell 模式"
+// Cron shell disabled-reason constants define the runtime i18n key and English
+// source fallback returned when the current platform does not allow shell jobs.
+const (
+	cronShellUnsupportedReasonKey = "config.cron.shell.unsupportedReason"
+	cronShellUnsupportedReason    = "Current platform does not support shell mode"
+)
 
 // CronLogRetentionMode defines the supported cron-log cleanup strategies.
 type CronLogRetentionMode string
@@ -39,9 +42,10 @@ type CronConfig struct {
 // CronShellConfig describes the shell-job execution gate visible to runtime
 // services and the frontend.
 type CronShellConfig struct {
-	Enabled        bool   `json:"enabled"`                  // Enabled reports whether shell jobs are currently allowed.
-	Supported      bool   `json:"supported"`                // Supported reports whether the current platform supports shell jobs.
-	DisabledReason string `json:"disabledReason,omitempty"` // DisabledReason explains why shell jobs are unavailable.
+	Enabled           bool   `json:"enabled"`                     // Enabled reports whether shell jobs are currently allowed.
+	Supported         bool   `json:"supported"`                   // Supported reports whether the current platform supports shell jobs.
+	DisabledReason    string `json:"disabledReason,omitempty"`    // DisabledReason explains why shell jobs are unavailable.
+	DisabledReasonKey string `json:"disabledReasonKey,omitempty"` // DisabledReasonKey stores the runtime i18n key for DisabledReason.
 }
 
 // CronLogRetentionConfig stores one normalized cron-log cleanup policy.
@@ -103,6 +107,7 @@ func buildCronShellConfig(enabled bool, goos string) CronShellConfig {
 		cfg.Enabled = false
 		cfg.Supported = false
 		cfg.DisabledReason = cronShellUnsupportedReason
+		cfg.DisabledReasonKey = cronShellUnsupportedReasonKey
 	}
 	return cfg
 }

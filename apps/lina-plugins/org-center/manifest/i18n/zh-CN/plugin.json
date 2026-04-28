@@ -30,6 +30,20 @@
           "createTitle": "新增岗位",
           "editTitle": "编辑岗位"
         },
+        "export": {
+          "headers": {
+            "code": "岗位编码",
+            "createdAt": "创建时间",
+            "name": "岗位名称",
+            "remark": "备注",
+            "sort": "排序",
+            "status": "状态"
+          },
+          "status": {
+            "disabled": "停用",
+            "enabled": "正常"
+          }
+        },
         "fields": {
           "code": "岗位编码",
           "dept": "所属部门",
@@ -40,7 +54,10 @@
           "deleteSelectedConfirm": "确认删除选中的 {count} 个岗位吗？",
           "saveFailed": "保存岗位失败"
         },
-        "tableTitle": "岗位列表"
+        "tableTitle": "岗位列表",
+        "tree": {
+          "unassignedDept": "未分配部门"
+        }
       }
     }
   }

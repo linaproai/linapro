@@ -20,7 +20,7 @@ func CloseFile(ctx context.Context, file *excelize.File, errPtr *error) {
 	if closeErr == nil {
 		return
 	}
-	wrapped := gerror.Wrap(closeErr, "关闭Excel文件失败")
+	wrapped := gerror.Wrap(closeErr, "close Excel file failed")
 	if errPtr == nil {
 		// A nil error pointer means the caller misused this helper by omitting
 		// the named return error path, so log the close failure instead of
@@ -38,7 +38,7 @@ func CloseFile(ctx context.Context, file *excelize.File, errPtr *error) {
 // SetSheetName renames one Excel worksheet and returns a wrapped error when it fails.
 func SetSheetName(file *excelize.File, source string, target string) error {
 	if err := file.SetSheetName(source, target); err != nil {
-		return gerror.Wrapf(err, "重命名Excel工作表失败 source=%s target=%s", source, target)
+		return gerror.Wrapf(err, "rename Excel worksheet failed source=%s target=%s", source, target)
 	}
 	return nil
 }
@@ -46,7 +46,7 @@ func SetSheetName(file *excelize.File, source string, target string) error {
 // NewSheet creates one Excel worksheet and returns a wrapped error when it fails.
 func NewSheet(file *excelize.File, name string) error {
 	if _, err := file.NewSheet(name); err != nil {
-		return gerror.Wrapf(err, "创建Excel工作表失败 sheet=%s", name)
+		return gerror.Wrapf(err, "create Excel worksheet failed sheet=%s", name)
 	}
 	return nil
 }
@@ -55,7 +55,7 @@ func NewSheet(file *excelize.File, name string) error {
 func SetCellValue(file *excelize.File, sheet string, col int, row int, value any) error {
 	cell, err := excelize.CoordinatesToCellName(col, row)
 	if err != nil {
-		return gerror.Wrap(err, "生成Excel单元格名称失败")
+		return gerror.Wrap(err, "build Excel cell name failed")
 	}
 	return SetCellValueByName(file, sheet, cell, value)
 }
@@ -63,7 +63,7 @@ func SetCellValue(file *excelize.File, sheet string, col int, row int, value any
 // SetCellValueByName writes one Excel cell addressed by A1 notation.
 func SetCellValueByName(file *excelize.File, sheet string, cell string, value any) error {
 	if err := file.SetCellValue(sheet, cell, value); err != nil {
-		return gerror.Wrapf(err, "写入Excel单元格失败 sheet=%s cell=%s", sheet, cell)
+		return gerror.Wrapf(err, "write Excel cell failed sheet=%s cell=%s", sheet, cell)
 	}
 	return nil
 }

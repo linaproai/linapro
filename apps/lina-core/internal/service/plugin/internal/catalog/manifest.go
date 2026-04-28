@@ -41,7 +41,7 @@ func (s *serviceImpl) ScanManifests() ([]*Manifest, error) {
 			location := buildDiscoveryLocation(manifest)
 			if previousFile, ok := seenIDs[manifest.ID]; ok {
 				return nil, gerror.Newf(
-					"插件ID重复: %s 同时出现在 %s 和 %s",
+					"plugin ID is duplicated: %s appears in both %s and %s",
 					manifest.ID,
 					previousFile,
 					location,
@@ -80,12 +80,12 @@ func (s *serviceImpl) scanSourceManifests() ([]*Manifest, error) {
 	for _, manifestFile := range manifestFiles {
 		content := gfile.GetBytes(manifestFile)
 		if len(content) == 0 {
-			return nil, gerror.Newf("插件清单为空: %s", manifestFile)
+			return nil, gerror.Newf("plugin manifest is empty: %s", manifestFile)
 		}
 
 		manifest := &Manifest{}
 		if err = yaml.Unmarshal(content, manifest); err != nil {
-			return nil, gerror.Wrapf(err, "解析插件清单失败: %s", manifestFile)
+			return nil, gerror.Wrapf(err, "parse plugin manifest failed: %s", manifestFile)
 		}
 		if NormalizeType(manifest.Type) == TypeDynamic {
 			continue
@@ -137,11 +137,11 @@ func (s *serviceImpl) scanRuntimeManifests(ctx context.Context) ([]*Manifest, er
 	for _, artifactPath := range artifactFiles {
 		manifest, loadErr := s.loadRuntimeManifestFromArtifact(artifactPath)
 		if loadErr != nil {
-			return nil, gerror.Wrapf(loadErr, "解析动态插件产物失败: %s", artifactPath)
+			return nil, gerror.Wrapf(loadErr, "parse dynamic plugin artifact failed: %s", artifactPath)
 		}
 		if previousPath, ok := seenIDs[manifest.ID]; ok {
 			return nil, gerror.Newf(
-				"动态插件ID重复: %s 同时出现在 %s 和 %s",
+				"dynamic plugin ID is duplicated: %s appears in both %s and %s",
 				manifest.ID,
 				previousPath,
 				artifactPath,
@@ -179,12 +179,12 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		return nil, err
 	}
 	if artifact.Manifest == nil {
-		return nil, gerror.Newf("动态插件缺少嵌入清单: %s", artifactPath)
+		return nil, gerror.Newf("dynamic plugin is missing embedded manifest: %s", artifactPath)
 	}
 
 	hostServices, err := pluginbridge.NormalizeHostServiceSpecs(artifact.HostServices)
 	if err != nil {
-		return nil, gerror.Wrapf(err, "动态插件宿主服务声明不合法: %s", artifactPath)
+		return nil, gerror.Wrapf(err, "dynamic plugin host service declaration is invalid: %s", artifactPath)
 	}
 	manifest := &Manifest{
 		ID:               strings.TrimSpace(artifact.Manifest.ID),
@@ -202,7 +202,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		RuntimeArtifact:  artifact,
 	}
 	if err = s.ValidateUploadedRuntimeManifest(manifest); err != nil {
-		return nil, gerror.Wrapf(err, "动态插件嵌入清单不合法: %s", artifactPath)
+		return nil, gerror.Wrapf(err, "dynamic plugin embedded manifest is invalid: %s", artifactPath)
 	}
 	artifact.Manifest.Type = manifest.Type
 	// Runtime manifests are reloaded from both the mutable staging artifact and
@@ -220,7 +220,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 func (s *serviceImpl) LoadManifestFromYAML(filePath string, manifest *Manifest) error {
 	content := gfile.GetBytes(filePath)
 	if len(content) == 0 {
-		return gerror.Newf("插件清单文件为空: %s", filePath)
+		return gerror.Newf("plugin manifest file is empty: %s", filePath)
 	}
 	return yaml.Unmarshal(content, manifest)
 }
@@ -253,26 +253,26 @@ func (s *serviceImpl) resolvePluginRootDir() (string, error) {
 		}
 	}
 
-	return "", gerror.Newf("未找到插件目录，候选路径: %s", strings.Join(candidateDirs, ", "))
+	return "", gerror.Newf("plugin directory was not found, candidate paths: %s", strings.Join(candidateDirs, ", "))
 }
 
-// resolveRuntimeStorageDir resolves the configured runtime WASM storage directory.
-// Relative paths are anchored at the repository root when available so uploads,
-// manual copies, and automated scans all agree on one shared path.
+// resolveRuntimeStorageDir resolves the configured runtime WASM storage
+// directory. The config service already anchors relative paths so catalog
+// scanning, uploads, and host-service storage all share one directory.
 func (s *serviceImpl) resolveRuntimeStorageDir(ctx context.Context) (string, error) {
-	storagePath := s.configSvc.GetPluginDynamicStoragePath(ctx)
+	storagePath := strings.TrimSpace(s.configSvc.GetPluginDynamicStoragePath(ctx))
+	if storagePath == "" {
+		return "", gerror.New("runtime WASM storage path cannot be empty")
+	}
 	if filepath.IsAbs(storagePath) {
 		return filepath.Clean(storagePath), nil
 	}
 
-	workingDir, err := os.Getwd()
+	absolutePath, err := filepath.Abs(storagePath)
 	if err != nil {
 		return "", err
 	}
-	if repoRoot, repoErr := FindRepoRoot(workingDir); repoErr == nil {
-		return filepath.Clean(filepath.Join(repoRoot, storagePath)), nil
-	}
-	return filepath.Clean(filepath.Join(workingDir, storagePath)), nil
+	return filepath.Clean(absolutePath), nil
 }
 
 // RuntimeStorageDir returns the absolute path of the runtime WASM storage directory

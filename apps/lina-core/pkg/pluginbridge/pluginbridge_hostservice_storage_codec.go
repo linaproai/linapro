@@ -118,42 +118,42 @@ func UnmarshalHostServiceStoragePutRequest(data []byte) (*HostServiceStoragePutR
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage put request tag 失败")
+			return nil, gerror.New("failed to decode storage put request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage put request path 失败")
+				return nil, gerror.New("failed to decode storage put request path")
 			}
 			out.Path = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage put request body 失败")
+				return nil, gerror.New("failed to decode storage put request body")
 			}
 			out.Body = append([]byte(nil), value...)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage put request contentType 失败")
+				return nil, gerror.New("failed to decode storage put request contentType")
 			}
 			out.ContentType = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage put request overwrite 失败")
+				return nil, gerror.New("failed to decode storage put request overwrite")
 			}
 			out.Overwrite = value != 0
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage put request 字段失败")
+				return nil, gerror.New("failed to skip unknown storage put request field")
 			}
 			content = content[size:]
 		}
@@ -177,14 +177,14 @@ func UnmarshalHostServiceStoragePutResponse(data []byte) (*HostServiceStoragePut
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage put response tag 失败")
+			return nil, gerror.New("failed to decode storage put response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage put response object 失败")
+				return nil, gerror.New("failed to decode storage put response object")
 			}
 			object, err := unmarshalHostServiceStorageObject(value)
 			if err != nil {
@@ -195,7 +195,7 @@ func UnmarshalHostServiceStoragePutResponse(data []byte) (*HostServiceStoragePut
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage put response 字段失败")
+				return nil, gerror.New("failed to skip unknown storage put response field")
 			}
 			content = content[size:]
 		}
@@ -222,21 +222,21 @@ func UnmarshalHostServiceStorageGetRequest(data []byte) (*HostServiceStorageGetR
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage get request tag 失败")
+			return nil, gerror.New("failed to decode storage get request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage get request path 失败")
+				return nil, gerror.New("failed to decode storage get request path")
 			}
 			out.Path = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage get request 字段失败")
+				return nil, gerror.New("failed to skip unknown storage get request field")
 			}
 			content = content[size:]
 		}
@@ -269,21 +269,21 @@ func UnmarshalHostServiceStorageGetResponse(data []byte) (*HostServiceStorageGet
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage get response tag 失败")
+			return nil, gerror.New("failed to decode storage get response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage get response found 失败")
+				return nil, gerror.New("failed to decode storage get response found")
 			}
 			out.Found = value != 0
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage get response object 失败")
+				return nil, gerror.New("failed to decode storage get response object")
 			}
 			object, err := unmarshalHostServiceStorageObject(value)
 			if err != nil {
@@ -294,14 +294,14 @@ func UnmarshalHostServiceStorageGetResponse(data []byte) (*HostServiceStorageGet
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage get response body 失败")
+				return nil, gerror.New("failed to decode storage get response body")
 			}
 			out.Body = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage get response 字段失败")
+				return nil, gerror.New("failed to skip unknown storage get response field")
 			}
 			content = content[size:]
 		}
@@ -328,21 +328,21 @@ func UnmarshalHostServiceStorageDeleteRequest(data []byte) (*HostServiceStorageD
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage delete request tag 失败")
+			return nil, gerror.New("failed to decode storage delete request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage delete request path 失败")
+				return nil, gerror.New("failed to decode storage delete request path")
 			}
 			out.Path = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage delete request 字段失败")
+				return nil, gerror.New("failed to skip unknown storage delete request field")
 			}
 			content = content[size:]
 		}
@@ -372,28 +372,28 @@ func UnmarshalHostServiceStorageListRequest(data []byte) (*HostServiceStorageLis
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage list request tag 失败")
+			return nil, gerror.New("failed to decode storage list request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage list request prefix 失败")
+				return nil, gerror.New("failed to decode storage list request prefix")
 			}
 			out.Prefix = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage list request limit 失败")
+				return nil, gerror.New("failed to decode storage list request limit")
 			}
 			out.Limit = uint32(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage list request 字段失败")
+				return nil, gerror.New("failed to skip unknown storage list request field")
 			}
 			content = content[size:]
 		}
@@ -425,14 +425,14 @@ func UnmarshalHostServiceStorageListResponse(data []byte) (*HostServiceStorageLi
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage list response tag 失败")
+			return nil, gerror.New("failed to decode storage list response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage list response object 失败")
+				return nil, gerror.New("failed to decode storage list response object")
 			}
 			object, err := unmarshalHostServiceStorageObject(value)
 			if err != nil {
@@ -443,7 +443,7 @@ func UnmarshalHostServiceStorageListResponse(data []byte) (*HostServiceStorageLi
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage list response 字段失败")
+				return nil, gerror.New("failed to skip unknown storage list response field")
 			}
 			content = content[size:]
 		}
@@ -470,21 +470,21 @@ func UnmarshalHostServiceStorageStatRequest(data []byte) (*HostServiceStorageSta
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage stat request tag 失败")
+			return nil, gerror.New("failed to decode storage stat request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage stat request path 失败")
+				return nil, gerror.New("failed to decode storage stat request path")
 			}
 			out.Path = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage stat request 字段失败")
+				return nil, gerror.New("failed to skip unknown storage stat request field")
 			}
 			content = content[size:]
 		}
@@ -514,21 +514,21 @@ func UnmarshalHostServiceStorageStatResponse(data []byte) (*HostServiceStorageSt
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage stat response tag 失败")
+			return nil, gerror.New("failed to decode storage stat response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage stat response found 失败")
+				return nil, gerror.New("failed to decode storage stat response found")
 			}
 			out.Found = value != 0
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage stat response object 失败")
+				return nil, gerror.New("failed to decode storage stat response object")
 			}
 			object, err := unmarshalHostServiceStorageObject(value)
 			if err != nil {
@@ -539,7 +539,7 @@ func UnmarshalHostServiceStorageStatResponse(data []byte) (*HostServiceStorageSt
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage stat response 字段失败")
+				return nil, gerror.New("failed to skip unknown storage stat response field")
 			}
 			content = content[size:]
 		}
@@ -580,49 +580,49 @@ func unmarshalHostServiceStorageObject(data []byte) (*HostServiceStorageObject, 
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 storage object tag 失败")
+			return nil, gerror.New("failed to decode storage object tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage object path 失败")
+				return nil, gerror.New("failed to decode storage object path")
 			}
 			out.Path = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage object size 失败")
+				return nil, gerror.New("failed to decode storage object size")
 			}
 			out.Size = int64(value)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage object contentType 失败")
+				return nil, gerror.New("failed to decode storage object contentType")
 			}
 			out.ContentType = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage object updatedAt 失败")
+				return nil, gerror.New("failed to decode storage object updatedAt")
 			}
 			out.UpdatedAt = value
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 storage object visibility 失败")
+				return nil, gerror.New("failed to decode storage object visibility")
 			}
 			out.Visibility = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 storage object 字段失败")
+				return nil, gerror.New("failed to skip unknown storage object field")
 			}
 			content = content[size:]
 		}

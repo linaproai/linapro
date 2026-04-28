@@ -29,6 +29,13 @@
     }
   },
   "systemInfo": {
+    "runDuration": {
+      "format": {
+        "hoursMinutesSeconds": "%d小時%d分鐘%d秒",
+        "minutesSeconds": "%d分鐘%d秒",
+        "seconds": "%d秒"
+      }
+    },
     "components": {
       "backend": {
         "excelize": {

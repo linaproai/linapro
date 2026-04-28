@@ -262,7 +262,7 @@ func ExecuteTransaction(
 		return nil, err
 	}
 	if request == nil || len(request.Operations) == 0 {
-		return nil, gerror.New("data transaction 至少需要一个操作")
+		return nil, gerror.New("data transaction requires at least one operation")
 	}
 
 	db, err := getPluginDataDB()
@@ -277,7 +277,7 @@ func ExecuteTransaction(
 	err = db.Transaction(txCtx, func(txExecCtx context.Context, tx gdb.TX) error {
 		for _, operation := range request.Operations {
 			if operation == nil {
-				return gerror.New("data transaction 操作不能为空")
+				return gerror.New("data transaction operation cannot be nil")
 			}
 			switch strings.ToLower(strings.TrimSpace(operation.Method)) {
 			case pluginbridge.HostServiceMethodDataCreate:
@@ -326,7 +326,7 @@ func ExecuteTransaction(
 				response.Results = append(response.Results, result)
 				response.AffectedRows += result.AffectedRows
 			default:
-				return gerror.Newf("data transaction 不支持操作: %s", operation.Method)
+				return gerror.Newf("data transaction operation is not supported: %s", operation.Method)
 			}
 		}
 		return nil
@@ -505,7 +505,7 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 		return gerror.New("data service table contract is required")
 	}
 	if !resourceAllowsOperation(resource, method) {
-		return gerror.Newf("data table %s 未授权方法 %s", resource.Table, method)
+		return gerror.Newf("data table %s does not authorize method %s", resource.Table, method)
 	}
 	// Access mode combines the declared table contract with the current trigger
 	// source and identity snapshot so request-bound tables cannot be reused by
@@ -514,19 +514,19 @@ func validateExecutionAccess(execCtx *executionContext, resource *catalog.Resour
 	switch catalog.NormalizeResourceAccessMode(resource.Access) {
 	case catalog.ResourceAccessModeRequest:
 		if normalizedSource != pluginbridge.ExecutionSourceRoute {
-			return gerror.Newf("data table %s 仅允许请求型上下文", resource.Table)
+			return gerror.Newf("data table %s only allows request-bound context", resource.Table)
 		}
 		if execCtx.identity == nil || execCtx.identity.UserID <= 0 {
-			return gerror.Newf("data table %s 要求登录用户上下文", resource.Table)
+			return gerror.Newf("data table %s requires authenticated user context", resource.Table)
 		}
 	case catalog.ResourceAccessModeSystem:
 		return nil
 	case catalog.ResourceAccessModeBoth:
 		if normalizedSource == pluginbridge.ExecutionSourceRoute && (execCtx.identity == nil || execCtx.identity.UserID <= 0) {
-			return gerror.Newf("data table %s 在请求型上下文要求登录用户", resource.Table)
+			return gerror.Newf("data table %s requires authenticated user in request-bound context", resource.Table)
 		}
 	default:
-		return gerror.Newf("data table %s access 配置不合法", resource.Table)
+		return gerror.Newf("data table %s access configuration is invalid", resource.Table)
 	}
 	return nil
 }
@@ -569,7 +569,7 @@ func applyDeclaredFilters(model *gdb.Model, resource *catalog.ResourceSpec, filt
 	}
 	for param := range filters {
 		if _, ok := declaredFilters[param]; !ok {
-			return nil, gerror.Newf("data list filter 未声明: %s", param)
+			return nil, gerror.Newf("data list filter is not declared: %s", param)
 		}
 	}
 	for _, filter := range resource.Filters {
@@ -590,7 +590,7 @@ func applyDeclaredFilters(model *gdb.Model, resource *catalog.ResourceSpec, filt
 		case catalog.ResourceFilterOperatorLTEDate:
 			model = model.WhereLTE(filter.Column, value+" 23:59:59")
 		default:
-			return nil, gerror.Newf("data list filter operator 不支持: %s", filter.Operator)
+			return nil, gerror.Newf("data list filter operator is not supported: %s", filter.Operator)
 		}
 	}
 	return model, nil
@@ -654,7 +654,7 @@ func decodeMutationRecord(
 		return nil, nil, err
 	}
 	if len(record) == 0 {
-		return nil, nil, gerror.New("data mutation record 不能为空")
+		return nil, nil, gerror.New("data mutation record cannot be empty")
 	}
 
 	data := make(map[string]interface{}, len(resource.WritableFields))
@@ -665,11 +665,11 @@ func decodeMutationRecord(
 			continue
 		}
 		if forUpdate && writableField == resource.KeyField {
-			return nil, nil, gerror.Newf("data update 不允许修改 keyField: %s", resource.KeyField)
+			return nil, nil, gerror.Newf("data update cannot modify keyField: %s", resource.KeyField)
 		}
 		column := resolveResourceFieldColumn(resource, writableField)
 		if column == "" {
-			return nil, nil, gerror.Newf("data table writableField 未映射字段: %s", writableField)
+			return nil, nil, gerror.Newf("data table writableField is not mapped to a column: %s", writableField)
 		}
 		data[column] = value
 		if writableField == resource.KeyField {
@@ -677,11 +677,11 @@ func decodeMutationRecord(
 		}
 	}
 	if len(data) == 0 {
-		return nil, nil, gerror.New("data mutation record 不包含可写字段")
+		return nil, nil, gerror.New("data mutation record contains no writable fields")
 	}
 	for fieldName := range record {
 		if !resourceAllowsWritableField(resource, fieldName) {
-			return nil, nil, gerror.Newf("data mutation 字段未授权: %s", fieldName)
+			return nil, nil, gerror.Newf("data mutation field is not authorized: %s", fieldName)
 		}
 	}
 	return data, keyValue, nil
@@ -749,14 +749,14 @@ func decodeJSONObject(content []byte) (map[string]interface{}, error) {
 // decodeJSONScalar decodes a required scalar key payload.
 func decodeJSONScalar(content []byte) (interface{}, error) {
 	if len(content) == 0 {
-		return nil, gerror.New("data key 不能为空")
+		return nil, gerror.New("data key cannot be empty")
 	}
 	var value interface{}
 	if err := json.Unmarshal(content, &value); err != nil {
 		return nil, err
 	}
 	if value == nil {
-		return nil, gerror.New("data key 不能为空")
+		return nil, gerror.New("data key cannot be empty")
 	}
 	return value, nil
 }

@@ -61,49 +61,49 @@ func UnmarshalHostServiceRequestEnvelope(data []byte) (*HostServiceRequestEnvelo
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 host service request tag 失败")
+			return nil, gerror.New("failed to decode host service request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host service request service 失败")
+				return nil, gerror.New("failed to decode host service request service")
 			}
 			out.Service = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host service request method 失败")
+				return nil, gerror.New("failed to decode host service request method")
 			}
 			out.Method = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host service request resourceRef 失败")
+				return nil, gerror.New("failed to decode host service request resourceRef")
 			}
 			out.ResourceRef = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host service request table 失败")
+				return nil, gerror.New("failed to decode host service request table")
 			}
 			out.Table = value
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host service request payload 失败")
+				return nil, gerror.New("failed to decode host service request payload")
 			}
 			out.Payload = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 host service request 字段失败")
+				return nil, gerror.New("failed to skip unknown host service request field")
 			}
 			content = content[size:]
 		}
@@ -130,21 +130,21 @@ func UnmarshalHostServiceValueResponse(data []byte) (*HostServiceValueResponse, 
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 host service value response tag 失败")
+			return nil, gerror.New("failed to decode host service value response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 host service value response value 失败")
+				return nil, gerror.New("failed to decode host service value response value")
 			}
 			out.Value = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 host service value response 字段失败")
+				return nil, gerror.New("failed to skip unknown host service value response field")
 			}
 			content = content[size:]
 		}

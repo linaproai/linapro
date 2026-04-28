@@ -53,7 +53,8 @@ type SystemInfo struct {
 	Arch               string          // Arch is the runtime architecture.
 	DbVersion          string          // DbVersion is the database server version string.
 	StartTime          string          // StartTime is the host start timestamp.
-	RunDuration        string          // RunDuration is the formatted uptime string.
+	RunDuration        string          // RunDuration is the English fallback uptime string.
+	RunDurationSeconds int64           // RunDurationSeconds is the total uptime in seconds.
 	BackendComponents  []ComponentInfo // BackendComponents lists backend technology cards.
 	FrontendComponents []ComponentInfo // FrontendComponents lists frontend technology cards.
 }
@@ -95,17 +96,9 @@ func (s *serviceImpl) GetInfo(ctx context.Context) (*SystemInfo, error) {
 		StartTime: s.startTime.Format("2006-01-02 15:04:05"),
 	}
 
-	duration := time.Since(s.startTime)
-	hours := int(duration.Hours())
-	minutes := int(duration.Minutes()) % 60
-	seconds := int(duration.Seconds()) % 60
-	if hours > 0 {
-		info.RunDuration = fmt.Sprintf("%d小时%d分钟%d秒", hours, minutes, seconds)
-	} else if minutes > 0 {
-		info.RunDuration = fmt.Sprintf("%d分钟%d秒", minutes, seconds)
-	} else {
-		info.RunDuration = fmt.Sprintf("%d秒", seconds)
-	}
+	durationSeconds := int64(time.Since(s.startTime).Seconds())
+	info.RunDurationSeconds = durationSeconds
+	info.RunDuration = formatRunDurationFallback(durationSeconds)
 
 	dbVersion, err := s.getDbVersion(ctx)
 	if err != nil {
@@ -119,6 +112,24 @@ func (s *serviceImpl) GetInfo(ctx context.Context) (*SystemInfo, error) {
 	info.FrontendComponents = s.loadComponents(metadata, componentSectionFrontend, "")
 
 	return info, nil
+}
+
+// formatRunDurationFallback formats uptime with an English developer fallback.
+func formatRunDurationFallback(totalSeconds int64) string {
+	if totalSeconds < 0 {
+		totalSeconds = 0
+	}
+
+	hours := totalSeconds / int64(time.Hour/time.Second)
+	minutes := totalSeconds / int64(time.Minute/time.Second) % 60
+	seconds := totalSeconds % 60
+	if hours > 0 {
+		return fmt.Sprintf("%d hours %d minutes %d seconds", hours, minutes, seconds)
+	}
+	if minutes > 0 {
+		return fmt.Sprintf("%d minutes %d seconds", minutes, seconds)
+	}
+	return fmt.Sprintf("%d seconds", seconds)
 }
 
 // loadComponents reads version-page component metadata from metadata.yaml.

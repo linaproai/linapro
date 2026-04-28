@@ -57,21 +57,21 @@ func UnmarshalHostServiceNetworkRequest(data []byte) (*HostServiceNetworkRequest
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 network request tag 失败")
+			return nil, gerror.New("failed to decode network request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 network request method 失败")
+				return nil, gerror.New("failed to decode network request method")
 			}
 			out.Method = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 network request headers 失败")
+				return nil, gerror.New("failed to decode network request headers")
 			}
 			if err := unmarshalStringEntry(value, out.Headers); err != nil {
 				return nil, err
@@ -80,14 +80,14 @@ func UnmarshalHostServiceNetworkRequest(data []byte) (*HostServiceNetworkRequest
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 network request body 失败")
+				return nil, gerror.New("failed to decode network request body")
 			}
 			out.Body = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 network request 字段失败")
+				return nil, gerror.New("failed to skip unknown network request field")
 			}
 			content = content[size:]
 		}
@@ -128,21 +128,21 @@ func UnmarshalHostServiceNetworkResponse(data []byte) (*HostServiceNetworkRespon
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 network response tag 失败")
+			return nil, gerror.New("failed to decode network response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 network response statusCode 失败")
+				return nil, gerror.New("failed to decode network response statusCode")
 			}
 			out.StatusCode = int32(value)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 network response headers 失败")
+				return nil, gerror.New("failed to decode network response headers")
 			}
 			if err := unmarshalStringEntry(value, out.Headers); err != nil {
 				return nil, err
@@ -151,21 +151,21 @@ func UnmarshalHostServiceNetworkResponse(data []byte) (*HostServiceNetworkRespon
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 network response body 失败")
+				return nil, gerror.New("failed to decode network response body")
 			}
 			out.Body = append([]byte(nil), value...)
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 network response contentType 失败")
+				return nil, gerror.New("failed to decode network response contentType")
 			}
 			out.ContentType = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 network response 字段失败")
+				return nil, gerror.New("failed to skip unknown network response field")
 			}
 			content = content[size:]
 		}

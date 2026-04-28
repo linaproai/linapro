@@ -1,0 +1,60 @@
+{
+  "error": {
+    "plugin": {
+      "demo": {
+        "dynamic": {
+          "record": {
+            "attachment": {
+              "base64": {
+                "invalid": "Attachment content must be a valid Base64 string"
+              },
+              "content": {
+                "required": "Attachment content cannot be empty"
+              },
+              "name": {
+                "required": "Attachment name is required when uploading an attachment"
+              },
+              "not": {
+                "found": "Dynamic demo record attachment does not exist"
+              },
+              "rollback": {
+                "failed": "Failed to roll back dynamic demo record attachment"
+              },
+              "size": {
+                "too": {
+                  "large": "Attachment size must not exceed {maxSizeMB}MB"
+                }
+              }
+            },
+            "content": {
+              "too": {
+                "long": "Record content must not exceed {maxChars} characters"
+              }
+            },
+            "id": {
+              "required": "Record ID cannot be empty"
+            },
+            "invalid": {
+              "input": "Demo record request is invalid"
+            },
+            "not": {
+              "found": "Dynamic demo record does not exist"
+            },
+            "request": {
+              "body": {
+                "required": "Request body cannot be empty"
+              }
+            },
+            "title": {
+              "required": "Record title cannot be empty",
+              "too": {
+                "long": "Record title must not exceed {maxChars} characters"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

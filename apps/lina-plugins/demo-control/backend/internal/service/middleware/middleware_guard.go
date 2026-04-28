@@ -7,23 +7,25 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
+
+	"lina-core/pkg/bizerr"
 )
 
 // demo-control middleware constants define safe methods, whitelist routes, and
 // the normalized JSON error envelope returned for blocked write operations.
 const (
-	demoControlErrorCode = 1
-	demoControlMessage   = "演示模式已开启，禁止执行写操作"
-	demoControlPluginID  = "demo-control"
+	demoControlPluginID = "demo-control"
 )
 
 // demoControlErrorResponse defines the JSON payload returned for blocked demo writes.
 type demoControlErrorResponse struct {
-	Code    int    `json:"code"`
-	Data    any    `json:"data"`
-	Message string `json:"message"`
+	Code          int            `json:"code"`
+	Data          any            `json:"data"`
+	Message       string         `json:"message"`
+	ErrorCode     string         `json:"errorCode,omitempty"`
+	MessageKey    string         `json:"messageKey,omitempty"`
+	MessageParams map[string]any `json:"messageParams,omitempty"`
 }
 
 // Guard enforces the demo-mode read-only policy on whole-system requests.
@@ -35,7 +37,7 @@ func (s *serviceImpl) Guard(request *ghttp.Request) {
 		request.Middleware.Next()
 		return
 	}
-	writeDemoControlError(request)
+	s.writeDemoControlError(request)
 }
 
 // isDemoControlAllowedRequest reports whether the incoming request should bypass
@@ -144,14 +146,41 @@ func splitDemoControlPathSegments(path string) []string {
 }
 
 // writeDemoControlError writes one JSON error response for blocked write requests.
-func writeDemoControlError(request *ghttp.Request) {
-	err := gerror.New(demoControlMessage)
+func (s *serviceImpl) writeDemoControlError(request *ghttp.Request) {
+	err := bizerr.NewCode(CodeDemoControlWriteDenied)
+	message := err.Error()
+	if s != nil && s.i18nSvc != nil {
+		message = s.i18nSvc.Translate(
+			request.Context(),
+			CodeDemoControlWriteDenied.MessageKey(),
+			CodeDemoControlWriteDenied.Fallback(),
+		)
+	}
+
 	request.SetError(err)
 	request.Response.Status = http.StatusForbidden
-	request.Response.WriteJson(demoControlErrorResponse{
-		Code:    demoControlErrorCode,
+	response := demoControlErrorResponse{
+		Code:    CodeDemoControlWriteDenied.TypeCode().Code(),
 		Data:    nil,
-		Message: demoControlMessage,
-	})
+		Message: message,
+	}
+	applyDemoControlErrorMetadata(&response, err)
+	request.Response.WriteJson(response)
 	request.ExitAll()
+}
+
+// applyDemoControlErrorMetadata copies structured runtime-message metadata into
+// the demo-control rejection response.
+func applyDemoControlErrorMetadata(response *demoControlErrorResponse, err error) {
+	if response == nil || err == nil {
+		return
+	}
+	messageErr, ok := bizerr.As(err)
+	if !ok {
+		return
+	}
+	response.Code = messageErr.TypeCode().Code()
+	response.ErrorCode = messageErr.RuntimeCode()
+	response.MessageKey = messageErr.MessageKey()
+	response.MessageParams = messageErr.Params()
 }

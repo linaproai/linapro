@@ -50,7 +50,7 @@ func buildStorageResourceConfigForPlugin(
 ) (*storageResourceConfig, error) {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	if normalizedPluginID == "" {
-		return nil, gerror.New("plugin id 不能为空")
+		return nil, gerror.New("plugin id cannot be empty")
 	}
 
 	rootDir := filepath.Join(
@@ -61,7 +61,7 @@ func buildStorageResourceConfigForPlugin(
 	)
 	absoluteRootDir, err := filepath.Abs(rootDir)
 	if err != nil {
-		return nil, gerror.Wrap(err, "storage resource 根目录解析失败")
+		return nil, gerror.Wrap(err, "resolve storage resource root directory failed")
 	}
 	return &storageResourceConfig{
 		rootDir:    filepath.Clean(absoluteRootDir),

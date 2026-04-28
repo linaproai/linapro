@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/bizerr"
 )
 
@@ -166,11 +167,11 @@ func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, 
 		sheet,
 		1,
 		2,
-		s.localizedConfigName(ctx, "sys.jwt.expire", "认证管理-JWT Token 有效期"),
+		s.localizedConfigName(ctx, hostconfig.RuntimeParamKeyJWTExpire, "Authentication - JWT Expiration"),
 	); err != nil {
 		return nil, err
 	}
-	if err = setCellValue(f, sheet, 2, 2, "sys.jwt.expire"); err != nil {
+	if err = setCellValue(f, sheet, 2, 2, hostconfig.RuntimeParamKeyJWTExpire); err != nil {
 		return nil, err
 	}
 	if err = setCellValue(f, sheet, 3, 2, "24h"); err != nil {
@@ -181,7 +182,11 @@ func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, 
 		sheet,
 		4,
 		2,
-		s.localizedConfigRemark(ctx, "sys.jwt.expire", "控制新签发 JWT Token 的有效期"),
+		s.localizedConfigRemark(
+			ctx,
+			hostconfig.RuntimeParamKeyJWTExpire,
+			"Controls the lifetime of newly issued JWT tokens using Go duration format such as 12h or 24h.",
+		),
 	); err != nil {
 		return nil, err
 	}

@@ -1,0 +1,60 @@
+{
+  "error": {
+    "plugin": {
+      "demo": {
+        "dynamic": {
+          "record": {
+            "attachment": {
+              "base64": {
+                "invalid": "附件内容必须是有效的 Base64 字符串"
+              },
+              "content": {
+                "required": "附件内容不能为空"
+              },
+              "name": {
+                "required": "上传附件时必须提供附件名称"
+              },
+              "not": {
+                "found": "动态插件示例记录附件不存在"
+              },
+              "rollback": {
+                "failed": "回滚动态插件示例记录附件失败"
+              },
+              "size": {
+                "too": {
+                  "large": "附件大小不能超过{maxSizeMB}MB"
+                }
+              }
+            },
+            "content": {
+              "too": {
+                "long": "记录内容长度不能超过{maxChars}个字符"
+              }
+            },
+            "id": {
+              "required": "记录ID不能为空"
+            },
+            "invalid": {
+              "input": "动态插件示例记录请求参数无效"
+            },
+            "not": {
+              "found": "动态插件示例记录不存在"
+            },
+            "request": {
+              "body": {
+                "required": "请求体不能为空"
+              }
+            },
+            "title": {
+              "required": "记录标题不能为空",
+              "too": {
+                "long": "记录标题长度不能超过{maxChars}个字符"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -19,7 +19,8 @@
         "enabled": {
           "name": "Scheduled Jobs - Global Shell Mode Switch",
           "remark": "Controls whether Shell-type jobs can be created, updated, triggered, and stopped. Supported values: true, false."
-        }
+        },
+        "unsupportedReason": "Current platform does not support shell mode"
       }
     },
     "demo": {

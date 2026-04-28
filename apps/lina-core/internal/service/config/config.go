@@ -52,7 +52,7 @@ type Service interface {
 	// GetPluginAutoEnable returns the plugin IDs that the host should
 	// automatically install and enable during startup bootstrap.
 	GetPluginAutoEnable(ctx context.Context) []string
-	// GetPluginDynamicStoragePath returns the normalized dynamic wasm storage directory.
+	// GetPluginDynamicStoragePath returns the runtime-resolved dynamic wasm storage directory.
 	GetPluginDynamicStoragePath(ctx context.Context) string
 	// GetSession reads session config from configuration file.
 	GetSession(ctx context.Context) (*SessionConfig, error)
@@ -60,7 +60,7 @@ type Service interface {
 	GetSessionTimeout(ctx context.Context) (time.Duration, error)
 	// GetUpload reads upload config from configuration file.
 	GetUpload(ctx context.Context) (*UploadConfig, error)
-	// GetUploadPath returns the static upload directory loaded from config.yaml.
+	// GetUploadPath returns the runtime-resolved static upload directory loaded from config.yaml.
 	GetUploadPath(ctx context.Context) string
 	// GetUploadMaxSize returns the runtime-effective upload size ceiling in MB.
 	GetUploadMaxSize(ctx context.Context) (int64, error)

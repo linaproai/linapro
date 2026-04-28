@@ -97,7 +97,7 @@ func pluginDataDriverType(baseType string) (string, error) {
 	case "mysql", "mariadb", "tidb":
 		return pluginDataDriverTypePrefix + normalizedBaseType, nil
 	default:
-		return "", gerror.Newf("plugin data service 暂不支持数据库类型: %s", baseType)
+		return "", gerror.Newf("plugin data service does not support database type: %s", baseType)
 	}
 }
 
@@ -185,13 +185,13 @@ func validatePluginDataCommit(metadata *AuditMetadata, in gdb.DoCommitInput) err
 		return nil
 	}
 	if metadata.ResourceTable == "" {
-		return gerror.New("plugin data service 审计上下文缺少 resourceTable")
+		return gerror.New("plugin data service audit context is missing resourceTable")
 	}
 
 	switch in.Type {
 	case gdb.SqlTypeBegin, gdb.SqlTypeTXCommit, gdb.SqlTypeTXRollback:
 		if !metadata.Transaction {
-			return gerror.Newf("plugin data service 非事务方法不允许执行事务提交类型: %s", in.Type)
+			return gerror.Newf("plugin data service non-transaction method cannot execute transaction commit type: %s", in.Type)
 		}
 		return nil
 	case gdb.SqlTypeQueryContext, gdb.SqlTypeStmtQueryContext, gdb.SqlTypeStmtQueryRowContext:
@@ -201,7 +201,7 @@ func validatePluginDataCommit(metadata *AuditMetadata, in gdb.DoCommitInput) err
 			metadata.Method != pluginbridge.HostServiceMethodDataUpdate &&
 			metadata.Method != pluginbridge.HostServiceMethodDataDelete &&
 			metadata.Method != pluginbridge.HostServiceMethodDataTransaction {
-			return gerror.Newf("plugin data service 方法 %s 不允许执行变更提交类型 %s", metadata.Method, in.Type)
+			return gerror.Newf("plugin data service method %s cannot execute mutation commit type %s", metadata.Method, in.Type)
 		}
 	}
 	return validatePluginDataCommitTable(metadata, in)
@@ -216,7 +216,7 @@ func validatePluginDataCommitTable(metadata *AuditMetadata, in gdb.DoCommitInput
 		return nil
 	}
 	if !strings.Contains(normalizedSQL, normalizedTable) {
-		return gerror.Newf("plugin data service SQL 未命中授权表 %s", metadata.ResourceTable)
+		return gerror.Newf("plugin data service SQL does not reference authorized table %s", metadata.ResourceTable)
 	}
 	return nil
 }

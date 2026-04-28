@@ -577,7 +577,7 @@ func (s *serviceImpl) runPluginDeclaredHook(
 	case pluginhost.HookActionError:
 		err = executePluginErrorHook(hook)
 	default:
-		err = gerror.Newf("插件 Hook 动作不支持: %s", hook.Action)
+		err = gerror.Newf("plugin hook action is not supported: %s", hook.Action)
 	}
 	if err != nil {
 		if ctx.Err() != nil {

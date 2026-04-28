@@ -79,10 +79,10 @@ type HostDBQueryResult struct {
 
 // HostDBQuery is no longer part of the public host service protocol.
 func HostDBQuery(_ string, _ []string, _ int) (*HostDBQueryResult, error) {
-	return nil, gerror.New("HostDBQuery 已移除，请改用 pluginbridge.Data() 结构化数据服务")
+	return nil, gerror.New("HostDBQuery has been removed; use the structured pluginbridge.Data() service instead")
 }
 
 // HostDBExecute is no longer part of the public host service protocol.
 func HostDBExecute(_ string, _ []string) (int64, int64, error) {
-	return 0, 0, gerror.New("HostDBExecute 已移除，请改用 pluginbridge.Data() 结构化数据服务")
+	return 0, 0, gerror.New("HostDBExecute has been removed; use the structured pluginbridge.Data() service instead")
 }

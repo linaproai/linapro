@@ -57,7 +57,7 @@ func (s *serviceImpl) ResolveResourcePermission(
 	}
 	resource, ok := manifest.BackendResources[resourceID]
 	if !ok {
-		return "", gerror.New("插件资源不存在")
+		return "", gerror.New("plugin resource does not exist")
 	}
 	if permission := strings.TrimSpace(resource.Permission); permission != "" {
 		return permission, nil
@@ -123,10 +123,10 @@ func (s *serviceImpl) LoadPluginBackendConfig(manifest *catalog.Manifest) error 
 func loadPluginYAMLFile(filePath string, target interface{}) error {
 	content := gfile.GetBytes(filePath)
 	if len(content) == 0 {
-		return gerror.Newf("插件配置文件为空: %s", filePath)
+		return gerror.Newf("plugin configuration file is empty: %s", filePath)
 	}
 	if err := yaml.Unmarshal(content, target); err != nil {
-		return gerror.Wrapf(err, "解析插件配置文件失败: %s", filePath)
+		return gerror.Wrapf(err, "parse plugin configuration file failed: %s", filePath)
 	}
 	return nil
 }
@@ -139,12 +139,12 @@ func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListIn
 		return nil, err
 	}
 	if !s.IsEnabled(ctx, in.PluginID) {
-		return nil, gerror.New("插件未启用")
+		return nil, gerror.New("plugin is not enabled")
 	}
 
 	resource, ok := manifest.BackendResources[in.ResourceID]
 	if !ok {
-		return nil, gerror.New("插件资源不存在")
+		return nil, gerror.New("plugin resource does not exist")
 	}
 	if in.PageNum <= 0 {
 		in.PageNum = 1
@@ -172,7 +172,7 @@ func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListIn
 		case catalog.ResourceFilterOperatorLTEDate:
 			m = m.WhereLTE(filter.Column, value+" 23:59:59")
 		default:
-			return nil, gerror.Newf("插件资源过滤操作符不支持: %s", filter.Operator)
+			return nil, gerror.Newf("plugin resource filter operator is not supported: %s", filter.Operator)
 		}
 	}
 	m, err = s.applyPluginResourceDataScope(ctx, m, resource)
@@ -252,7 +252,7 @@ func (s *serviceImpl) executePluginInsertHook(ctx context.Context, pluginID stri
 		expr := hook.Fields[column]
 		value, err := resolvePluginHookValue(expr, payload)
 		if err != nil {
-			return gerror.Wrapf(err, "解析插件%s的Hook字段失败: %s", pluginID, column)
+			return gerror.Wrapf(err, "resolve plugin %s hook field failed: %s", pluginID, column)
 		}
 		values = append(values, value)
 		placeholders = append(placeholders, "?")
@@ -301,9 +301,9 @@ func resolvePluginHookValue(expr string, payload map[string]interface{}) (interf
 		if value, ok := payload[fieldName]; ok {
 			return value, nil
 		}
-		return nil, gerror.Newf("Hook事件字段不存在: %s", fieldName)
+		return nil, gerror.Newf("hook event field does not exist: %s", fieldName)
 	}
-	return nil, gerror.Newf("不支持的Hook字段表达式: %s", expr)
+	return nil, gerror.Newf("unsupported hook field expression: %s", expr)
 }
 
 // sortStrings sorts a string slice in place.

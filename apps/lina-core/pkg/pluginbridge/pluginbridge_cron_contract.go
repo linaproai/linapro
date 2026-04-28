@@ -170,10 +170,10 @@ func BuildPluginCronHandlerRef(pluginID string, name string) (string, error) {
 	trimmedPluginID := strings.TrimSpace(pluginID)
 	trimmedName := strings.TrimSpace(name)
 	if trimmedPluginID == "" {
-		return "", gerror.New("插件ID不能为空")
+		return "", gerror.New("plugin ID cannot be empty")
 	}
 	if trimmedName == "" {
-		return "", gerror.New("插件内置定时任务名称不能为空")
+		return "", gerror.New("plugin built-in cron job name cannot be empty")
 	}
 	return fmt.Sprintf("plugin:%s/cron:%s", trimmedPluginID, trimmedName), nil
 }
@@ -202,31 +202,31 @@ func ValidateCronContracts(pluginID string, contracts []*CronContract) error {
 	seen := make(map[string]struct{}, len(contracts))
 	for _, contract := range contracts {
 		if contract == nil {
-			return gerror.New("动态插件定时任务声明不能为空")
+			return gerror.New("dynamic plugin cron declaration cannot be nil")
 		}
 		NormalizeCronContract(contract)
 		if contract.Name == "" {
-			return gerror.Newf("动态插件 %s 的定时任务缺少 name", strings.TrimSpace(pluginID))
+			return gerror.Newf("dynamic plugin %s cron job is missing name", strings.TrimSpace(pluginID))
 		}
 		if contract.Pattern == "" {
-			return gerror.Newf("动态插件 %s 的定时任务 %s 缺少 pattern", strings.TrimSpace(pluginID), contract.Name)
+			return gerror.Newf("dynamic plugin %s cron job %s is missing pattern", strings.TrimSpace(pluginID), contract.Name)
 		}
 		if len(contract.Pattern) > 128 {
-			return gerror.Newf("动态插件 %s 的定时任务 %s pattern 长度不能超过128个字符", strings.TrimSpace(pluginID), contract.Name)
+			return gerror.Newf("dynamic plugin %s cron job %s pattern cannot exceed 128 characters", strings.TrimSpace(pluginID), contract.Name)
 		}
 		if !contract.Scope.IsValid() {
-			return gerror.Newf("动态插件 %s 的定时任务 %s scope 不合法", strings.TrimSpace(pluginID), contract.Name)
+			return gerror.Newf("dynamic plugin %s cron job %s has invalid scope", strings.TrimSpace(pluginID), contract.Name)
 		}
 		if !contract.Concurrency.IsValid() {
-			return gerror.Newf("动态插件 %s 的定时任务 %s concurrency 不合法", strings.TrimSpace(pluginID), contract.Name)
+			return gerror.Newf("dynamic plugin %s cron job %s has invalid concurrency", strings.TrimSpace(pluginID), contract.Name)
 		}
 		if contract.TimeoutSeconds <= 0 || contract.TimeoutSeconds > int((24*time.Hour).Seconds()) {
-			return gerror.Newf("动态插件 %s 的定时任务 %s timeoutSeconds 超出范围", strings.TrimSpace(pluginID), contract.Name)
+			return gerror.Newf("dynamic plugin %s cron job %s timeoutSeconds is out of range", strings.TrimSpace(pluginID), contract.Name)
 		}
 		if contract.Timezone != "" {
 			if _, err := time.LoadLocation(contract.Timezone); err != nil {
 				return gerror.Newf(
-					"动态插件 %s 的定时任务 %s timezone 不合法: %s",
+					"dynamic plugin %s cron job %s has invalid timezone: %s",
 					strings.TrimSpace(pluginID),
 					contract.Name,
 					contract.Timezone,
@@ -235,13 +235,13 @@ func ValidateCronContracts(pluginID string, contracts []*CronContract) error {
 		}
 		if contract.RequestType == "" && contract.InternalPath == "" {
 			return gerror.Newf(
-				"动态插件 %s 的定时任务 %s 至少需要声明 requestType 或 internalPath",
+				"dynamic plugin %s cron job %s must declare requestType or internalPath",
 				strings.TrimSpace(pluginID),
 				contract.Name,
 			)
 		}
 		if _, ok := seen[contract.Name]; ok {
-			return gerror.Newf("动态插件 %s 的定时任务 name 不能重复: %s", strings.TrimSpace(pluginID), contract.Name)
+			return gerror.Newf("dynamic plugin %s cron job name is duplicated: %s", strings.TrimSpace(pluginID), contract.Name)
 		}
 		seen[contract.Name] = struct{}{}
 	}

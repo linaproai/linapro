@@ -7,13 +7,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/xuri/excelize/v2"
 
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/excelutil"
+	hosti18n "lina-core/pkg/pluginservice/i18n"
 	"lina-plugin-org-center/backend/internal/dao"
 	"lina-plugin-org-center/backend/internal/model/do"
 	entitymodel "lina-plugin-org-center/backend/internal/model/entity"
@@ -36,6 +38,20 @@ const (
 	colDeptOrderNum = "order_num"
 
 	colUserPostPostID = "post_id"
+)
+
+// Runtime i18n keys for backend-owned post projections and exports.
+const (
+	postTreeUnassignedDeptKey     = "plugin.org-center.post.tree.unassignedDept"
+	postExportHeaderCodeKey       = "plugin.org-center.post.export.headers.code"
+	postExportHeaderNameKey       = "plugin.org-center.post.export.headers.name"
+	postExportHeaderSortKey       = "plugin.org-center.post.export.headers.sort"
+	postExportHeaderStatusKey     = "plugin.org-center.post.export.headers.status"
+	postExportHeaderRemarkKey     = "plugin.org-center.post.export.headers.remark"
+	postExportHeaderCreatedAtKey  = "plugin.org-center.post.export.headers.createdAt"
+	postExportStatusEnabledKey    = "plugin.org-center.post.export.status.enabled"
+	postExportStatusDisabledKey   = "plugin.org-center.post.export.status.disabled"
+	postTreeUnassignedDeptDefault = "Unassigned Department"
 )
 
 // Service defines the post service contract.
@@ -62,11 +78,13 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	i18nSvc hosti18n.Service // i18nSvc resolves plugin runtime translations.
+}
 
 // New creates and returns a new post service instance.
 func New() Service {
-	return &serviceImpl{}
+	return &serviceImpl{i18nSvc: hosti18n.New()}
 }
 
 // PostEntity mirrors the plugin-local generated plugin_org_center_post entity.
@@ -208,7 +226,7 @@ func (s *serviceImpl) GetByID(ctx context.Context, id int) (*PostEntity, error) 
 		return nil, err
 	}
 	if post == nil {
-		return nil, gerror.New("岗位不存在")
+		return nil, bizerr.NewCode(CodePostNotFound)
 	}
 	return post, nil
 }
@@ -252,7 +270,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 func (s *serviceImpl) Delete(ctx context.Context, ids string) error {
 	idList := gstr.SplitAndTrim(ids, ",")
 	if len(idList) == 0 {
-		return gerror.New("请选择要删除的岗位")
+		return bizerr.NewCode(CodePostDeleteRequired)
 	}
 
 	validIDs := make([]int, 0, len(idList))
@@ -268,12 +286,12 @@ func (s *serviceImpl) Delete(ctx context.Context, ids string) error {
 			return err
 		}
 		if count > 0 {
-			return gerror.Newf("岗位ID %d 已分配给用户，不能删除", id)
+			return bizerr.NewCode(CodePostAssignedDeleteDenied, bizerr.P("id", id))
 		}
 		validIDs = append(validIDs, id)
 	}
 	if len(validIDs) == 0 {
-		return gerror.New("没有有效的岗位ID")
+		return bizerr.NewCode(CodePostValidIDRequired)
 	}
 	_, err := dao.Post.Ctx(ctx).WhereIn(colPostID, validIDs).Delete()
 	return err
@@ -307,7 +325,8 @@ func (s *serviceImpl) DeptTree(ctx context.Context) ([]*DeptTreeNode, error) {
 		roots = append(roots, node)
 	}
 
-	unassignedNode := &DeptTreeNode{Id: 0, Label: "未分配部门", Children: make([]*DeptTreeNode, 0)}
+	unassignedLabel := s.translate(ctx, postTreeUnassignedDeptKey, postTreeUnassignedDeptDefault)
+	unassignedNode := &DeptTreeNode{Id: 0, Label: unassignedLabel, Children: make([]*DeptTreeNode, 0)}
 	roots = append(roots, unassignedNode)
 
 	counts := make([]deptCountRow, 0)
@@ -339,7 +358,7 @@ func (s *serviceImpl) DeptTree(ctx context.Context) ([]*DeptTreeNode, error) {
 	}
 	applyCount(roots[:len(roots)-1])
 	unassignedNode.PostCount = countMap[0]
-	unassignedNode.Label = fmt.Sprintf("未分配部门(%d)", unassignedNode.PostCount)
+	unassignedNode.Label = fmt.Sprintf("%s(%d)", unassignedLabel, unassignedNode.PostCount)
 	return roots, nil
 }
 
@@ -399,7 +418,14 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	file := excelize.NewFile()
 	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
-	headers := []string{"岗位编码", "岗位名称", "排序", "状态", "备注", "创建时间"}
+	headers := []string{
+		s.translate(ctx, postExportHeaderCodeKey, "Post Code"),
+		s.translate(ctx, postExportHeaderNameKey, "Post Name"),
+		s.translate(ctx, postExportHeaderSortKey, "Sort"),
+		s.translate(ctx, postExportHeaderStatusKey, "Status"),
+		s.translate(ctx, postExportHeaderRemarkKey, "Remark"),
+		s.translate(ctx, postExportHeaderCreatedAtKey, "Created At"),
+	}
 	for index, header := range headers {
 		if err = excelutil.SetCellValue(file, sheet, index+1, 1, header); err != nil {
 			return nil, err
@@ -419,9 +445,9 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if err = excelutil.SetCellValue(file, sheet, 3, row, item.Sort); err != nil {
 			return nil, err
 		}
-		statusText := "正常"
+		statusText := s.translate(ctx, postExportStatusEnabledKey, "Enabled")
 		if item.Status == 0 {
-			statusText = "停用"
+			statusText = s.translate(ctx, postExportStatusDisabledKey, "Disabled")
 		}
 		if err = excelutil.SetCellValue(file, sheet, 4, row, statusText); err != nil {
 			return nil, err
@@ -473,7 +499,16 @@ func (s *serviceImpl) checkCodeUnique(ctx context.Context, code string, excludeI
 		return err
 	}
 	if count > 0 {
-		return gerror.New("岗位编码已存在")
+		return bizerr.NewCode(CodePostCodeExists)
 	}
 	return nil
+}
+
+// translate resolves one plugin runtime i18n key and falls back to English
+// source text when the current language bundle does not define it.
+func (s *serviceImpl) translate(ctx context.Context, key string, fallback string) string {
+	if s == nil || s.i18nSvc == nil || strings.TrimSpace(key) == "" {
+		return fallback
+	}
+	return s.i18nSvc.Translate(ctx, key, fallback)
 }

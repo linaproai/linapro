@@ -23,7 +23,7 @@ func BuildAuthorizedTableContract(
 ) (*catalog.ResourceSpec, error) {
 	normalizedTable := strings.TrimSpace(table)
 	if normalizedTable == "" {
-		return nil, gerror.New("data service table 不能为空")
+		return nil, gerror.New("data service table cannot be empty")
 	}
 
 	db, err := getPluginDataDB()
@@ -41,7 +41,7 @@ func BuildAuthorizedTableContract(
 		return nil, err
 	}
 	if len(tableFields) == 0 {
-		return nil, gerror.Newf("data service table 不存在或不可读: %s", normalizedTable)
+		return nil, gerror.Newf("data service table does not exist or is not readable: %s", normalizedTable)
 	}
 
 	orderedFields := sortTableFields(tableFields)
@@ -88,7 +88,7 @@ func BuildAuthorizedTableContract(
 		}
 	}
 	if keyField == "" {
-		return nil, gerror.Newf("data service table %s 缺少可识别主键", normalizedTable)
+		return nil, gerror.Newf("data service table %s is missing a recognizable primary key", normalizedTable)
 	}
 	if orderByColumn == "" {
 		orderByColumn = keyField

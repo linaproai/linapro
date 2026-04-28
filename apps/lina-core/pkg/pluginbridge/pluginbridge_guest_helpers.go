@@ -14,11 +14,11 @@ import (
 
 // errGuestBindJSONEmptyBody indicates the envelope request body is missing and
 // the guest controller should translate the failure into a 400 response.
-var errGuestBindJSONEmptyBody = gerror.New("请求体不能为空")
+var errGuestBindJSONEmptyBody = gerror.New("request body cannot be empty")
 
 // errGuestBindJSONInvalidJSON indicates the envelope body is not valid JSON and
 // the guest controller should translate the failure into a 400 response.
-var errGuestBindJSONInvalidJSON = gerror.New("请求体 JSON 无法解析")
+var errGuestBindJSONInvalidJSON = gerror.New("request body JSON cannot be decoded")
 
 // IsGuestBindJSONError reports whether the error originates from BindJSON body
 // decoding and therefore represents a client-supplied payload problem.

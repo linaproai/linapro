@@ -29,6 +29,13 @@
     }
   },
   "systemInfo": {
+    "runDuration": {
+      "format": {
+        "hoursMinutesSeconds": "%d hours %d minutes %d seconds",
+        "minutesSeconds": "%d minutes %d seconds",
+        "seconds": "%d seconds"
+      }
+    },
     "components": {
       "backend": {
         "excelize": {

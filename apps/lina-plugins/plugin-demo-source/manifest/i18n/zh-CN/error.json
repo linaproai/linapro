@@ -1,0 +1,111 @@
+{
+  "error": {
+    "plugin": {
+      "demo": {
+        "source": {
+          "attachment": {
+            "create": {
+              "failed": "创建源码插件示例附件文件失败"
+            },
+            "delete": {
+              "failed": "删除源码插件示例附件文件失败"
+            },
+            "dir": {
+              "create": {
+                "failed": "创建源码插件示例附件目录失败"
+              }
+            },
+            "open": {
+              "failed": "打开源码插件示例附件失败"
+            },
+            "partial": {
+              "cleanup": {
+                "failed": "清理未完成的源码插件示例附件失败"
+              }
+            },
+            "size": {
+              "too": {
+                "large": "附件大小不能超过{maxSizeMB}MB"
+              }
+            },
+            "source": {
+              "close": {
+                "failed": "关闭源码插件示例附件失败"
+              }
+            },
+            "storage": {
+              "purge": {
+                "failed": "清理源码插件示例附件存储目录失败"
+              }
+            },
+            "target": {
+              "close": {
+                "failed": "关闭源码插件示例附件文件失败"
+              }
+            },
+            "write": {
+              "failed": "写入源码插件示例附件失败"
+            }
+          },
+          "record": {
+            "attachment": {
+              "file": {
+                "not": {
+                  "found": "附件文件不存在"
+                }
+              },
+              "path": {
+                "query": {
+                  "failed": "查询源码插件示例附件路径失败"
+                }
+              },
+              "required": "当前记录没有附件"
+            },
+            "count": {
+              "query": {
+                "failed": "查询源码插件示例记录总数失败"
+              }
+            },
+            "create": {
+              "failed": "创建源码插件示例记录失败"
+            },
+            "delete": {
+              "failed": "删除源码插件示例记录失败"
+            },
+            "detail": {
+              "query": {
+                "failed": "查询源码插件示例记录详情失败"
+              }
+            },
+            "id": {
+              "required": "记录ID不能为空"
+            },
+            "list": {
+              "query": {
+                "failed": "查询源码插件示例记录列表失败"
+              }
+            },
+            "not": {
+              "found": "源码插件示例记录不存在"
+            },
+            "title": {
+              "required": "记录标题不能为空"
+            },
+            "update": {
+              "failed": "更新源码插件示例记录失败"
+            }
+          },
+          "table": {
+            "check": {
+              "failed": "检测源码插件示例数据表失败"
+            },
+            "not": {
+              "installed": "源码插件示例数据表不存在，请先安装插件"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

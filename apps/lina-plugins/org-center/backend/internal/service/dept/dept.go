@@ -8,10 +8,10 @@ import (
 	"fmt"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 
+	"lina-core/pkg/bizerr"
 	"lina-plugin-org-center/backend/internal/dao"
 	"lina-plugin-org-center/backend/internal/model/do"
 	entitymodel "lina-plugin-org-center/backend/internal/model/entity"
@@ -196,7 +196,7 @@ func (s *serviceImpl) GetByID(ctx context.Context, id int) (*DeptEntity, error) 
 		return nil, err
 	}
 	if dept == nil {
-		return nil, gerror.New("部门不存在")
+		return nil, bizerr.NewCode(CodeDeptNotFound)
 	}
 	return dept, nil
 }
@@ -318,7 +318,7 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 		return err
 	}
 	if childCount > 0 {
-		return gerror.New("存在子部门，不允许删除")
+		return bizerr.NewCode(CodeDeptHasChildrenDeleteDenied)
 	}
 
 	userCount, err := dao.UserDept.Ctx(ctx).
@@ -328,7 +328,7 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 		return err
 	}
 	if userCount > 0 {
-		return gerror.New("部门存在用户，不允许删除")
+		return bizerr.NewCode(CodeDeptHasUsersDeleteDenied)
 	}
 
 	_, err = dao.Dept.Ctx(ctx).
@@ -489,7 +489,7 @@ func (s *serviceImpl) checkCodeUnique(ctx context.Context, code string, excludeI
 		return err
 	}
 	if count > 0 {
-		return gerror.New("部门编码已存在")
+		return bizerr.NewCode(CodeDeptCodeExists)
 	}
 	return nil
 }

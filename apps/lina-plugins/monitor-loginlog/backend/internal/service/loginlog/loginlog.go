@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/xuri/excelize/v2"
 
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/excelutil"
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/pluginhost"
@@ -64,8 +64,8 @@ const (
 )
 
 var defaultLoginStatusLabels = map[int]string{
-	LoginStatusSuccess: "成功",
-	LoginStatusFail:    "失败",
+	LoginStatusSuccess: "Success",
+	LoginStatusFail:    "Failed",
 }
 
 // Service defines the monitor-loginlog service contract.
@@ -207,7 +207,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*LoginLogEntity, err
 		return nil, err
 	}
 	if record == nil {
-		return nil, gerror.New("登录日志不存在")
+		return nil, bizerr.NewCode(CodeLoginLogNotFound)
 	}
 	s.localizeRecord(ctx, record)
 	return record, nil
@@ -287,13 +287,13 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
 	headers := []string{
-		s.translate(ctx, "plugin.monitor-loginlog.fields.userName", "用户名"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.status", "状态"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.ipAddress", "IP地址"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.browser", "浏览器"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.os", "操作系统"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.message", "提示消息"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.loginTime", "登录时间"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.userName", "User Account"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.status", "Login Status"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.ipAddress", "IP Address"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.browser", "Browser"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.os", "Operating System"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.message", "Message"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.loginTime", "Login Time"),
 	}
 	for index, header := range headers {
 		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, header); setErr != nil {

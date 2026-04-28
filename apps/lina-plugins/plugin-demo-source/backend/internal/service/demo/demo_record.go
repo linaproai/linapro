@@ -11,12 +11,13 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/gtime"
 
+	"lina-core/pkg/bizerr"
+	"lina-core/pkg/logger"
 	"lina-plugin-demo-source/backend/internal/dao"
 	"lina-plugin-demo-source/backend/internal/model/do"
 	entitymodel "lina-plugin-demo-source/backend/internal/model/entity"
@@ -145,7 +146,7 @@ func (s *serviceImpl) ListRecords(ctx context.Context, in *ListRecordsInput) (ou
 
 	total, err := model.Count()
 	if err != nil {
-		return nil, gerror.Wrap(err, "查询源码插件示例记录总数失败")
+		return nil, bizerr.WrapCode(err, CodeDemoRecordCountQueryFailed)
 	}
 
 	items := make([]*demoRecordEntity, 0)
@@ -155,7 +156,7 @@ func (s *serviceImpl) ListRecords(ctx context.Context, in *ListRecordsInput) (ou
 		Page(pageNum, pageSize).
 		Scan(&items)
 	if err != nil {
-		return nil, gerror.Wrap(err, "查询源码插件示例记录列表失败")
+		return nil, bizerr.WrapCode(err, CodeDemoRecordListQueryFailed)
 	}
 
 	list := make([]*RecordListItemOutput, 0, len(items))
@@ -196,7 +197,7 @@ func (s *serviceImpl) CreateRecord(ctx context.Context, in *CreateRecordInput) (
 	if attachmentPath != "" {
 		defer func() {
 			if err != nil {
-				_ = deleteDemoAttachmentFile(ctx, attachmentPath)
+				cleanupDemoAttachmentAfterMutationFailure(ctx, attachmentPath)
 			}
 		}()
 	}
@@ -208,7 +209,7 @@ func (s *serviceImpl) CreateRecord(ctx context.Context, in *CreateRecordInput) (
 		AttachmentPath: stringPointer(attachmentPath),
 	}).InsertAndGetId()
 	if err != nil {
-		return nil, gerror.Wrap(err, "创建源码插件示例记录失败")
+		return nil, bizerr.WrapCode(err, CodeDemoRecordCreateFailed)
 	}
 	return &RecordMutationOutput{Id: recordID}, nil
 }
@@ -251,7 +252,7 @@ func (s *serviceImpl) UpdateRecord(ctx context.Context, in *UpdateRecordInput) (
 		updateData.AttachmentPath = stringPointer(newAttachmentPath)
 		defer func() {
 			if err != nil && newAttachmentPath != "" {
-				_ = deleteDemoAttachmentFile(ctx, newAttachmentPath)
+				cleanupDemoAttachmentAfterMutationFailure(ctx, newAttachmentPath)
 			}
 		}()
 	}
@@ -261,7 +262,7 @@ func (s *serviceImpl) UpdateRecord(ctx context.Context, in *UpdateRecordInput) (
 		Data(updateData).
 		Update()
 	if err != nil {
-		return nil, gerror.Wrap(err, "更新源码插件示例记录失败")
+		return nil, bizerr.WrapCode(err, CodeDemoRecordUpdateFailed)
 	}
 
 	if (in.RemoveAttachment || newAttachmentPath != "") && oldAttachmentPath != "" {
@@ -283,7 +284,7 @@ func (s *serviceImpl) DeleteRecord(ctx context.Context, id int64) error {
 		Where(demoRecordColumnID, id).
 		Delete()
 	if err != nil {
-		return gerror.Wrap(err, "删除源码插件示例记录失败")
+		return bizerr.WrapCode(err, CodeDemoRecordDeleteFailed)
 	}
 	if record.AttachmentPath != "" {
 		if err = deleteDemoAttachmentFile(ctx, record.AttachmentPath); err != nil {
@@ -303,7 +304,7 @@ func (s *serviceImpl) BuildAttachmentDownload(
 		return nil, err
 	}
 	if strings.TrimSpace(record.AttachmentPath) == "" {
-		return nil, gerror.New("当前记录没有附件")
+		return nil, bizerr.NewCode(CodeDemoRecordAttachmentRequired)
 	}
 
 	fullPath, err := buildDemoAttachmentFullPath(ctx, record.AttachmentPath)
@@ -311,7 +312,7 @@ func (s *serviceImpl) BuildAttachmentDownload(
 		return nil, err
 	}
 	if !gfile.Exists(fullPath) {
-		return nil, gerror.New("附件文件不存在")
+		return nil, bizerr.NewCode(CodeDemoRecordAttachmentFileNotFound)
 	}
 
 	contentType := mime.TypeByExtension("." + gfile.ExtName(record.AttachmentName))
@@ -331,7 +332,7 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 		return nil, err
 	}
 	if id <= 0 {
-		return nil, gerror.New("记录ID不能为空")
+		return nil, bizerr.NewCode(CodeDemoRecordIDRequired)
 	}
 
 	var record *demoRecordEntity
@@ -339,10 +340,10 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 		Where(demoRecordColumnID, id).
 		Scan(&record)
 	if err != nil {
-		return nil, gerror.Wrap(err, "查询源码插件示例记录详情失败")
+		return nil, bizerr.WrapCode(err, CodeDemoRecordDetailQueryFailed)
 	}
 	if record == nil {
-		return nil, gerror.New("源码插件示例记录不存在")
+		return nil, bizerr.NewCode(CodeDemoRecordNotFound)
 	}
 	return record, nil
 }
@@ -352,10 +353,10 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 func ensureDemoRecordTableReady(ctx context.Context) error {
 	fields, err := g.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
 	if err != nil {
-		return gerror.Wrap(err, "检测源码插件示例数据表失败")
+		return bizerr.WrapCode(err, CodeDemoRecordTableCheckFailed)
 	}
 	if len(fields) == 0 {
-		return gerror.New("源码插件示例数据表不存在，请先安装插件")
+		return bizerr.NewCode(CodeDemoRecordTableNotInstalled)
 	}
 	return nil
 }
@@ -383,7 +384,7 @@ func normalizeListPagination(in *ListRecordsInput) (int, int) {
 // validateRecordTitle validates the required sample record title field.
 func validateRecordTitle(title string) error {
 	if strings.TrimSpace(title) == "" {
-		return gerror.New("记录标题不能为空")
+		return bizerr.NewCode(CodeDemoRecordTitleRequired)
 	}
 	return nil
 }
@@ -423,7 +424,7 @@ func stringPointer(value string) *string {
 func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 	fields, err := g.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
 	if err != nil {
-		return nil, gerror.Wrap(err, "检测源码插件示例数据表失败")
+		return nil, bizerr.WrapCode(err, CodeDemoRecordTableCheckFailed)
 	}
 	if len(fields) == 0 {
 		return []string{}, nil
@@ -433,7 +434,7 @@ func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 		Fields(demoRecordColumnAttachmentRef).
 		All()
 	if err != nil {
-		return nil, gerror.Wrap(err, "查询源码插件示例附件路径失败")
+		return nil, bizerr.WrapCode(err, CodeDemoRecordAttachmentPathQueryFailed)
 	}
 
 	paths := make([]string, 0, len(rows))
@@ -457,4 +458,17 @@ func withRecordTransaction(ctx context.Context, handler func(ctx context.Context
 func fileExists(path string) bool {
 	fileInfo, err := os.Stat(path)
 	return err == nil && !fileInfo.IsDir()
+}
+
+// cleanupDemoAttachmentAfterMutationFailure removes an attachment created by a
+// failed mutation and logs cleanup failures without hiding the primary error.
+func cleanupDemoAttachmentAfterMutationFailure(ctx context.Context, attachmentPath string) {
+	if cleanupErr := deleteDemoAttachmentFile(ctx, attachmentPath); cleanupErr != nil {
+		logger.Warningf(
+			ctx,
+			"cleanup demo attachment after failed mutation failed path=%s err=%v",
+			attachmentPath,
+			cleanupErr,
+		)
+	}
 }

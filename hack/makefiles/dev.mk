@@ -36,14 +36,15 @@ dev: stop
 		echo "请查看日志：$$log_file"; \
 		exit 1; \
 	}; \
-	mkdir -p $(TEMP_DIR) $(PID_DIR); \
+	mkdir -p $(TEMP_DIR) $(PID_DIR) $(TEMP_DIR)/bin; \
 	> $(BACKEND_LOG); \
 	> $(FRONTEND_LOG); \
+	backend_binary="$$root_dir/$(TEMP_DIR)/bin/lina"; \
 	echo "正在重启服务..."; \
 	$(MAKE) wasm; \
 	./hack/scripts/prepare-packed-assets.sh; \
-	(cd "$$root_dir/$(BACKEND_DIR)" && go build -o temp/bin/lina .) || { echo "后端编译失败"; exit 1; }; \
-	nohup sh -c 'cd "'"$$root_dir"'/$(BACKEND_DIR)" && exec ./temp/bin/lina' >> $(BACKEND_LOG) 2>&1 < /dev/null & echo $$! > $(BACKEND_PID); \
+	(cd "$$root_dir/$(BACKEND_DIR)" && go build -o "$$backend_binary" .) || { echo "后端编译失败"; exit 1; }; \
+	nohup sh -c 'cd "$$1" && exec "$$2"' sh "$$root_dir/$(BACKEND_DIR)" "$$backend_binary" >> $(BACKEND_LOG) 2>&1 < /dev/null & echo $$! > $(BACKEND_PID); \
 	nohup sh -c 'cd "'"$$root_dir"'/$(FRONTEND_DIR)/apps/web-antd" && exec ../../node_modules/.bin/vite --mode development --host 127.0.0.1 --port $(FRONTEND_PORT) --strictPort' >> $(FRONTEND_LOG) 2>&1 < /dev/null & echo $$! > $(FRONTEND_PID); \
 	_wait_http "后端" "$(BACKEND_PID)" "http://127.0.0.1:$(BACKEND_PORT)/" 60 "$(BACKEND_LOG)"; \
 	_wait_http "前端" "$(FRONTEND_PID)" "http://127.0.0.1:$(FRONTEND_PORT)/" 60 "$(FRONTEND_LOG)"; \

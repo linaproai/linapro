@@ -4,11 +4,15 @@ package demo
 
 import (
 	"context"
+	"strings"
 )
 
-// summaryMessage is the static summary text returned by the sample source
-// plugin backend.
-const summaryMessage = "这是一条来自 plugin-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。"
+// Summary message constants define the runtime i18n key and English source
+// fallback returned by the sample source plugin backend.
+const (
+	summaryMessageKey = "plugin.plugin-demo-source.page.summaryMessage"
+	summaryMessage    = "This short description comes from the plugin-demo-source API and verifies that a source plugin menu page can read backend data."
+)
 
 // SummaryOutput defines one concise plugin summary payload.
 type SummaryOutput struct {
@@ -17,8 +21,17 @@ type SummaryOutput struct {
 }
 
 // Summary returns one concise plugin summary payload.
-func (s *serviceImpl) Summary(_ context.Context) (out *SummaryOutput, err error) {
+func (s *serviceImpl) Summary(ctx context.Context) (out *SummaryOutput, err error) {
 	return &SummaryOutput{
-		Message: summaryMessage,
+		Message: s.translate(ctx, summaryMessageKey, summaryMessage),
 	}, nil
+}
+
+// translate resolves one plugin runtime i18n key and falls back to English
+// source text when the current language bundle does not define it.
+func (s *serviceImpl) translate(ctx context.Context, key string, fallback string) string {
+	if s == nil || s.i18nSvc == nil || strings.TrimSpace(key) == "" {
+		return fallback
+	}
+	return s.i18nSvc.Translate(ctx, key, fallback)
 }

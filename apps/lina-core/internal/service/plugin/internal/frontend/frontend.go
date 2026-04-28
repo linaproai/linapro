@@ -94,7 +94,7 @@ func (s *serviceImpl) PrewarmRuntimeFrontendBundles(ctx context.Context) error {
 		if manifestErr != nil {
 			failures = append(
 				failures,
-				gerror.Wrapf(manifestErr, "预热动态插件前端资源失败: %s", registry.PluginId).Error(),
+				gerror.Wrapf(manifestErr, "prewarm dynamic plugin frontend assets failed: %s", registry.PluginId).Error(),
 			)
 			continue
 		}
@@ -106,7 +106,7 @@ func (s *serviceImpl) PrewarmRuntimeFrontendBundles(ctx context.Context) error {
 		if _, err = s.ensureBundle(ctx, manifest); err != nil {
 			failures = append(
 				failures,
-				gerror.Wrapf(err, "预热动态插件前端资源失败: %s", manifest.ID).Error(),
+				gerror.Wrapf(err, "prewarm dynamic plugin frontend assets failed: %s", manifest.ID).Error(),
 			)
 			logger.Debugf(ctx, "runtime frontend bundle prewarm failed plugin=%s err=%v", manifest.ID, err)
 			continue
@@ -133,21 +133,21 @@ func (s *serviceImpl) ResolveRuntimeFrontendAsset(
 		return nil, err
 	}
 	if registry == nil || registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
-		return nil, gerror.New("当前动态插件未启用")
+		return nil, gerror.New("current dynamic plugin is not enabled")
 	}
 
 	if strings.TrimSpace(version) == "" {
-		return nil, gerror.New("当前动态插件版本不存在或已切换")
+		return nil, gerror.New("current dynamic plugin version does not exist or has switched")
 	}
 	release, err := s.catalogSvc.GetRelease(ctx, pluginID, version)
 	if err != nil {
 		return nil, err
 	}
 	if release == nil {
-		return nil, gerror.New("当前动态插件版本不存在或已切换")
+		return nil, gerror.New("current dynamic plugin version does not exist or has switched")
 	}
 	if !isReleaseServable(release) {
-		return nil, gerror.New("当前动态插件版本不存在或已切换")
+		return nil, gerror.New("current dynamic plugin version does not exist or has switched")
 	}
 
 	manifest, err := s.catalogSvc.LoadReleaseManifest(ctx, release)
@@ -155,10 +155,10 @@ func (s *serviceImpl) ResolveRuntimeFrontendAsset(
 		return nil, err
 	}
 	if catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic {
-		return nil, gerror.New("当前插件不是动态插件")
+		return nil, gerror.New("current plugin is not dynamic")
 	}
 	if manifest.RuntimeArtifact == nil || len(manifest.RuntimeArtifact.FrontendAssets) == 0 {
-		return nil, gerror.New("当前动态插件未声明前端资源")
+		return nil, gerror.New("current dynamic plugin does not declare frontend assets")
 	}
 
 	bundle, err := s.ensureBundle(ctx, manifest)
@@ -213,10 +213,10 @@ func HasFrontendAssets(manifest *catalog.Manifest) bool {
 // reloaded from the stable release archive.
 func (s *serviceImpl) loadActiveDynamicPluginManifest(ctx context.Context, registry *entity.SysPlugin) (*catalog.Manifest, error) {
 	if registry == nil {
-		return nil, gerror.New("插件注册记录不能为空")
+		return nil, gerror.New("plugin registry record cannot be nil")
 	}
 	if catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
-		return nil, gerror.New("当前插件不是动态插件")
+		return nil, gerror.New("current plugin is not dynamic")
 	}
 
 	release, err := s.catalogSvc.GetRegistryRelease(ctx, registry)
@@ -224,7 +224,7 @@ func (s *serviceImpl) loadActiveDynamicPluginManifest(ctx context.Context, regis
 		return nil, err
 	}
 	if release == nil {
-		return nil, gerror.Newf("动态插件缺少当前生效 release: %s", registry.PluginId)
+		return nil, gerror.Newf("dynamic plugin is missing active release: %s", registry.PluginId)
 	}
 	return s.catalogSvc.LoadReleaseManifest(ctx, release)
 }

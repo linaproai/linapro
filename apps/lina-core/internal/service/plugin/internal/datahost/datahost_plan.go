@@ -99,7 +99,7 @@ func decodeDataGetPlan(table string, request *pluginbridge.HostServiceDataGetReq
 		plan.KeyJSON = append([]byte(nil), request.KeyJSON...)
 	}
 	if len(plan.KeyJSON) == 0 {
-		return nil, gerror.New("data key 不能为空")
+		return nil, gerror.New("data key cannot be empty")
 	}
 	return plan, shared.ValidateDataQueryPlan(plan)
 }
@@ -115,7 +115,7 @@ func applyPlanFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters 
 		}
 		column := resolveResourceFieldColumn(resource, filter.Field)
 		if column == "" {
-			return nil, gerror.Newf("plugindb filter field 未授权: %s", filter.Field)
+			return nil, gerror.Newf("plugindb filter field is not authorized: %s", filter.Field)
 		}
 		switch filter.Operator {
 		case shared.DataFilterOperatorEQ:
@@ -140,7 +140,7 @@ func applyPlanFilters(model *gdb.Model, resource *catalog.ResourceSpec, filters 
 			}
 			model = model.WhereLike(column, "%"+fmt.Sprint(value)+"%")
 		default:
-			return nil, gerror.Newf("plugindb filter operator 不支持: %s", filter.Operator)
+			return nil, gerror.Newf("plugindb filter operator is not supported: %s", filter.Operator)
 		}
 	}
 	return model, nil
@@ -164,7 +164,7 @@ func buildPlanFieldArgs(resource *catalog.ResourceSpec, selected []string) ([]an
 		seen[normalizedField] = struct{}{}
 		column := resolveResourceFieldColumn(resource, normalizedField)
 		if column == "" {
-			return nil, gerror.Newf("plugindb selected field 未授权: %s", normalizedField)
+			return nil, gerror.Newf("plugindb selected field is not authorized: %s", normalizedField)
 		}
 		fields = append(fields, fmt.Sprintf("%s AS %s", column, normalizedField))
 	}
@@ -183,7 +183,7 @@ func buildPlanOrderBy(resource *catalog.ResourceSpec, orders []*shared.DataOrder
 		}
 		column := resolveResourceFieldColumn(resource, order.Field)
 		if column == "" {
-			return "", gerror.Newf("plugindb order field 未授权: %s", order.Field)
+			return "", gerror.Newf("plugindb order field is not authorized: %s", order.Field)
 		}
 		direction := "ASC"
 		if order.Direction == shared.DataOrderDirectionDESC {

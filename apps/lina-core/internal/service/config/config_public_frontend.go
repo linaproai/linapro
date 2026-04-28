@@ -190,9 +190,10 @@ type PublicFrontendCronLogRetentionConfig struct {
 
 // PublicFrontendCronShellConfig stores the frontend-visible shell-job gate.
 type PublicFrontendCronShellConfig struct {
-	Enabled        bool   `json:"enabled"`                  // Enabled reports whether shell jobs are currently allowed.
-	Supported      bool   `json:"supported"`                // Supported reports whether the current platform supports shell jobs.
-	DisabledReason string `json:"disabledReason,omitempty"` // DisabledReason explains why shell jobs are unavailable.
+	Enabled           bool   `json:"enabled"`                     // Enabled reports whether shell jobs are currently allowed.
+	Supported         bool   `json:"supported"`                   // Supported reports whether the current platform supports shell jobs.
+	DisabledReason    string `json:"disabledReason,omitempty"`    // DisabledReason explains why shell jobs are unavailable.
+	DisabledReasonKey string `json:"disabledReasonKey,omitempty"` // DisabledReasonKey stores the runtime i18n key for DisabledReason.
 }
 
 // PublicFrontendCronTimezoneConfig stores the frontend-visible default timezone.
@@ -321,9 +322,10 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendCon
 				Value: cronCfg.LogRetention.Value,
 			},
 			Shell: PublicFrontendCronShellConfig{
-				Enabled:        cronCfg.Shell.Enabled,
-				Supported:      cronCfg.Shell.Supported,
-				DisabledReason: cronCfg.Shell.DisabledReason,
+				Enabled:           cronCfg.Shell.Enabled,
+				Supported:         cronCfg.Shell.Supported,
+				DisabledReason:    cronCfg.Shell.DisabledReason,
+				DisabledReasonKey: cronCfg.Shell.DisabledReasonKey,
 			},
 			Timezone: PublicFrontendCronTimezoneConfig{
 				Current: resolveCurrentSystemTimezone(),

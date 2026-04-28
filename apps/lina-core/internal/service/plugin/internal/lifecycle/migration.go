@@ -46,7 +46,7 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 
 	for index, asset := range sqlAssets {
 		if asset == nil {
-			return gerror.New("插件 SQL 资源不能为空")
+			return gerror.New("plugin SQL asset cannot be nil")
 		}
 
 		checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
@@ -55,7 +55,7 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 			return err
 		}
 		if release == nil {
-			return gerror.Newf("插件发布记录不存在: %s@%s", manifest.ID, manifest.Version)
+			return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
 		}
 		migrationKey := buildMigrationKey(direction, index+1)
 		executedAt := gtime.Now()
@@ -64,7 +64,7 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 			return recordErr
 		}
 		if execErr != nil {
-			return gerror.Wrapf(execErr, "执行插件SQL失败: %s", asset.Key)
+			return gerror.Wrapf(execErr, "execute plugin SQL failed: %s", asset.Key)
 		}
 	}
 	return nil
@@ -113,7 +113,7 @@ func (s *serviceImpl) ResolveSQLAssets(
 			return nil, err
 		}
 		if sqlContent == "" {
-			return nil, gerror.Newf("插件SQL文件为空: %s", relativePath)
+			return nil, gerror.Newf("plugin SQL file is empty: %s", relativePath)
 		}
 		items = append(items, &SQLAsset{
 			Key:     filepath.Base(relativePath),

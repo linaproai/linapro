@@ -61,9 +61,10 @@ type FrontendCronLogRetentionRes struct {
 
 // FrontendCronShellRes stores the shell-job gate exposed to the frontend.
 type FrontendCronShellRes struct {
-	Enabled        bool   `json:"enabled" dc:"Whether to allow creation and execution of Shell tasks: true=allowed false=not allowed" eg:"false"`
-	Supported      bool   `json:"supported" dc:"Whether the current platform supports Shell tasks: true=supported false=not supported" eg:"true"`
-	DisabledReason string `json:"disabledReason" dc:"Explanation of why the Shell task is unavailable" eg:"The current platform does not support shell mode"`
+	Enabled           bool   `json:"enabled" dc:"Whether to allow creation and execution of Shell tasks: true=allowed false=not allowed" eg:"false"`
+	Supported         bool   `json:"supported" dc:"Whether the current platform supports Shell tasks: true=supported false=not supported" eg:"true"`
+	DisabledReason    string `json:"disabledReason" dc:"English fallback explaining why the Shell task is unavailable" eg:"The current platform does not support shell mode"`
+	DisabledReasonKey string `json:"disabledReasonKey" dc:"Runtime i18n key for localizing disabledReason on the frontend" eg:"config.cron.shell.unsupportedReason"`
 }
 
 // FrontendCronTimezoneRes stores the default timezone exposed to the frontend.

@@ -118,14 +118,14 @@ func UnmarshalHostServiceDataListRequest(data []byte) (*HostServiceDataListReque
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data list request tag 失败")
+			return nil, gerror.New("failed to decode data list request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data list request filters 失败")
+				return nil, gerror.New("failed to decode data list request filters")
 			}
 			if err := unmarshalStringEntry(value, out.Filters); err != nil {
 				return nil, err
@@ -134,28 +134,28 @@ func UnmarshalHostServiceDataListRequest(data []byte) (*HostServiceDataListReque
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data list request pageNum 失败")
+				return nil, gerror.New("failed to decode data list request pageNum")
 			}
 			out.PageNum = int32(value)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data list request pageSize 失败")
+				return nil, gerror.New("failed to decode data list request pageSize")
 			}
 			out.PageSize = int32(value)
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data list request planJson 失败")
+				return nil, gerror.New("failed to decode data list request planJson")
 			}
 			out.PlanJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data list request 字段失败")
+				return nil, gerror.New("failed to skip unknown data list request field")
 			}
 			content = content[size:]
 		}
@@ -190,28 +190,28 @@ func UnmarshalHostServiceDataListResponse(data []byte) (*HostServiceDataListResp
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data list response tag 失败")
+			return nil, gerror.New("failed to decode data list response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data list response record 失败")
+				return nil, gerror.New("failed to decode data list response record")
 			}
 			out.Records = append(out.Records, append([]byte(nil), value...))
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data list response total 失败")
+				return nil, gerror.New("failed to decode data list response total")
 			}
 			out.Total = int32(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data list response 字段失败")
+				return nil, gerror.New("failed to skip unknown data list response field")
 			}
 			content = content[size:]
 		}
@@ -244,28 +244,28 @@ func UnmarshalHostServiceDataGetRequest(data []byte) (*HostServiceDataGetRequest
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data get request tag 失败")
+			return nil, gerror.New("failed to decode data get request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data get request keyJson 失败")
+				return nil, gerror.New("failed to decode data get request keyJson")
 			}
 			out.KeyJSON = append([]byte(nil), value...)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data get request planJson 失败")
+				return nil, gerror.New("failed to decode data get request planJson")
 			}
 			out.PlanJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data get request 字段失败")
+				return nil, gerror.New("failed to skip unknown data get request field")
 			}
 			content = content[size:]
 		}
@@ -295,28 +295,28 @@ func UnmarshalHostServiceDataGetResponse(data []byte) (*HostServiceDataGetRespon
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data get response tag 失败")
+			return nil, gerror.New("failed to decode data get response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data get response found 失败")
+				return nil, gerror.New("failed to decode data get response found")
 			}
 			out.Found = value != 0
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data get response recordJson 失败")
+				return nil, gerror.New("failed to decode data get response recordJson")
 			}
 			out.RecordJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data get response 字段失败")
+				return nil, gerror.New("failed to skip unknown data get response field")
 			}
 			content = content[size:]
 		}
@@ -346,28 +346,28 @@ func UnmarshalHostServiceDataMutationRequest(data []byte) (*HostServiceDataMutat
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data mutation request tag 失败")
+			return nil, gerror.New("failed to decode data mutation request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data mutation request keyJson 失败")
+				return nil, gerror.New("failed to decode data mutation request keyJson")
 			}
 			out.KeyJSON = append([]byte(nil), value...)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data mutation request recordJson 失败")
+				return nil, gerror.New("failed to decode data mutation request recordJson")
 			}
 			out.RecordJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data mutation request 字段失败")
+				return nil, gerror.New("failed to skip unknown data mutation request field")
 			}
 			content = content[size:]
 		}
@@ -400,35 +400,35 @@ func UnmarshalHostServiceDataMutationResponse(data []byte) (*HostServiceDataMuta
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data mutation response tag 失败")
+			return nil, gerror.New("failed to decode data mutation response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data mutation response affectedRows 失败")
+				return nil, gerror.New("failed to decode data mutation response affectedRows")
 			}
 			out.AffectedRows = int64(value)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data mutation response keyJson 失败")
+				return nil, gerror.New("failed to decode data mutation response keyJson")
 			}
 			out.KeyJSON = append([]byte(nil), value...)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data mutation response recordJson 失败")
+				return nil, gerror.New("failed to decode data mutation response recordJson")
 			}
 			out.RecordJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data mutation response 字段失败")
+				return nil, gerror.New("failed to skip unknown data mutation response field")
 			}
 			content = content[size:]
 		}
@@ -458,14 +458,14 @@ func UnmarshalHostServiceDataTransactionRequest(data []byte) (*HostServiceDataTr
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data transaction request tag 失败")
+			return nil, gerror.New("failed to decode data transaction request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data transaction request operation 失败")
+				return nil, gerror.New("failed to decode data transaction request operation")
 			}
 			operation, err := unmarshalHostServiceDataTransactionOperation(value)
 			if err != nil {
@@ -476,7 +476,7 @@ func UnmarshalHostServiceDataTransactionRequest(data []byte) (*HostServiceDataTr
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data transaction request 字段失败")
+				return nil, gerror.New("failed to skip unknown data transaction request field")
 			}
 			content = content[size:]
 		}
@@ -512,14 +512,14 @@ func UnmarshalHostServiceDataTransactionResponse(data []byte) (*HostServiceDataT
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data transaction response tag 失败")
+			return nil, gerror.New("failed to decode data transaction response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data transaction response result 失败")
+				return nil, gerror.New("failed to decode data transaction response result")
 			}
 			result, err := UnmarshalHostServiceDataMutationResponse(value)
 			if err != nil {
@@ -530,14 +530,14 @@ func UnmarshalHostServiceDataTransactionResponse(data []byte) (*HostServiceDataT
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data transaction response affectedRows 失败")
+				return nil, gerror.New("failed to decode data transaction response affectedRows")
 			}
 			out.AffectedRows = int64(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data transaction response 字段失败")
+				return nil, gerror.New("failed to skip unknown data transaction response field")
 			}
 			content = content[size:]
 		}
@@ -593,35 +593,35 @@ func unmarshalHostServiceDataTransactionOperation(data []byte) (*HostServiceData
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 data transaction operation tag 失败")
+			return nil, gerror.New("failed to decode data transaction operation tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data transaction operation method 失败")
+				return nil, gerror.New("failed to decode data transaction operation method")
 			}
 			out.Method = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data transaction operation keyJson 失败")
+				return nil, gerror.New("failed to decode data transaction operation keyJson")
 			}
 			out.KeyJSON = append([]byte(nil), value...)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 data transaction operation recordJson 失败")
+				return nil, gerror.New("failed to decode data transaction operation recordJson")
 			}
 			out.RecordJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 data transaction operation 字段失败")
+				return nil, gerror.New("failed to skip unknown data transaction operation field")
 			}
 			content = content[size:]
 		}

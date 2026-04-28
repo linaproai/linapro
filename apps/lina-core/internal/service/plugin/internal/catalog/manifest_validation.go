@@ -47,7 +47,7 @@ func FindRepoRoot(startDir string) (string, error) {
 		current = parent
 	}
 
-	return "", gerror.Newf("未找到仓库根目录，起始路径: %s", startDir)
+	return "", gerror.Newf("repository root was not found, start path: %s", startDir)
 }
 
 // ValidateManifestSemanticVersion validates semantic version strings used by plugin.yaml.
@@ -60,7 +60,7 @@ func ValidateManifestSemanticVersion(value string) error {
 func parseSemanticVersion(value string) (*semanticVersion, error) {
 	match := manifestSemverPattern.FindStringSubmatch(strings.TrimSpace(value))
 	if len(match) < 4 {
-		return nil, gerror.Newf("版本号必须使用 semver 语义化格式: %s", value)
+		return nil, gerror.Newf("version must use semver format: %s", value)
 	}
 
 	major, err := strconv.Atoi(match[1])

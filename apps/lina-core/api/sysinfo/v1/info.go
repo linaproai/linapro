@@ -41,6 +41,7 @@ type GetInfoRes struct {
 	DbVersion          string          `json:"dbVersion" dc:"Database version" eg:"MySQL 8.0.36"`
 	StartTime          string          `json:"startTime" dc:"System startup time" eg:"2025-01-01 08:00:00"`
 	RunDuration        string          `json:"runDuration" dc:"System running time" eg:"3 days, 5 hours and 20 minutes"`
+	RunDurationSeconds int64           `json:"runDurationSeconds" dc:"System running time represented as total seconds for client-side structured formatting" eg:"12345"`
 	BackendComponents  []ComponentInfo `json:"backendComponents" dc:"Backend component list" eg:"[]"`
 	FrontendComponents []ComponentInfo `json:"frontendComponents" dc:"Front-end component list" eg:"[]"`
 }

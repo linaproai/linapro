@@ -30,6 +30,20 @@
           "createTitle": "新增崗位",
           "editTitle": "編輯崗位"
         },
+        "export": {
+          "headers": {
+            "code": "崗位編碼",
+            "createdAt": "創建時間",
+            "name": "崗位名稱",
+            "remark": "備註",
+            "sort": "排序",
+            "status": "狀態"
+          },
+          "status": {
+            "disabled": "停用",
+            "enabled": "正常"
+          }
+        },
         "fields": {
           "code": "崗位編碼",
           "dept": "所屬部門",
@@ -40,7 +54,10 @@
           "deleteSelectedConfirm": "確認刪除選中的 {count} 個崗位嗎？",
           "saveFailed": "保存崗位失敗"
         },
-        "tableTitle": "崗位列表"
+        "tableTitle": "崗位列表",
+        "tree": {
+          "unassignedDept": "未分配部門"
+        }
       }
     }
   }

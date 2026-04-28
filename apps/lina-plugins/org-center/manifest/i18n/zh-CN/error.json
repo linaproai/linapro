@@ -1,0 +1,47 @@
+{
+  "error": {
+    "org": {
+      "dept": {
+        "code": {
+          "exists": "部门编码已存在"
+        },
+        "has": {
+          "children": {
+            "delete": {
+              "denied": "存在子部门，不允许删除"
+            }
+          },
+          "users": {
+            "delete": {
+              "denied": "部门存在用户，不允许删除"
+            }
+          }
+        },
+        "not": {
+          "found": "部门不存在"
+        }
+      },
+      "post": {
+        "assigned": {
+          "delete": {
+            "denied": "岗位ID {id} 已分配给用户，不能删除"
+          }
+        },
+        "code": {
+          "exists": "岗位编码已存在"
+        },
+        "delete": {
+          "required": "请选择要删除的岗位"
+        },
+        "not": {
+          "found": "岗位不存在"
+        },
+        "valid": {
+          "id": {
+            "required": "没有有效的岗位ID"
+          }
+        }
+      }
+    }
+  }
+}

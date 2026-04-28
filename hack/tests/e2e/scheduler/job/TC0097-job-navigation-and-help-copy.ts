@@ -46,17 +46,51 @@ function formatRetentionSummary(mode: string, value: number) {
   }
 }
 
+function parseRgbColor(value: string) {
+  const matched = value.match(
+    /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/,
+  );
+  expect(matched, `Expected an rgb/rgba color, got: ${value}`).toBeTruthy();
+  return [matched![1], matched![2], matched![3]].map((item) =>
+    Number.parseInt(item, 10),
+  ) as [number, number, number];
+}
+
+function relativeLuminance([red, green, blue]: [number, number, number]) {
+  const normalize = (channel: number) => {
+    const value = channel / 255;
+    return value <= 0.039_28
+      ? value / 12.92
+      : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const r = normalize(red);
+  const g = normalize(green);
+  const b = normalize(blue);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const foregroundLuminance = relativeLuminance(parseRgbColor(foreground));
+  const backgroundLuminance = relativeLuminance(parseRgbColor(background));
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+  const darker = Math.min(foregroundLuminance, backgroundLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 test.describe('TC-97 定时任务导航与帮助文案', () => {
   const jobName = `e2e_job_navigation_copy_${Date.now()}`;
 
   let api: APIRequestContext;
   let jobId = 0;
   let originalShellSwitch: { id: number; value: string } | null = null;
+  let originalThemeMode: { id: number; value: string } | null = null;
 
   test.beforeAll(async () => {
     api = await createAdminApiContext();
     originalShellSwitch = await getConfigByKey(api, 'cron.shell.enabled');
+    originalThemeMode = await getConfigByKey(api, 'sys.ui.theme.mode');
     await setCronShellEnabled(api, true);
+    await updateConfigValue(api, originalThemeMode.id, 'dark');
 
     const defaultGroup = await getDefaultGroup(api);
     const created = await createJob(
@@ -86,10 +120,17 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
         originalShellSwitch.value,
       );
     }
+    if (originalThemeMode) {
+      await updateConfigValue(
+        api,
+        originalThemeMode.id,
+        originalThemeMode.value,
+      );
+    }
     await api.dispose();
   });
 
-  test('TC-97a~l: 菜单分组、代码化表达式、帮助提示、表单校验、Shell 提示间距与停用任务立即执行应清晰可理解', async ({
+  test('TC-97a~m: 菜单分组、深色主题代码化表达式、帮助提示、表单校验、Shell 提示间距与停用任务立即执行应清晰可理解', async ({
     adminPage,
   }) => {
     const accessibleMenus = await getAccessibleMenus(api);
@@ -107,6 +148,13 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
     const jobPage = new JobPage(adminPage);
     await jobPage.goto();
     await expect(adminPage).toHaveURL(/\/system\/job(?:\/)?$/);
+    await expect
+      .poll(async () =>
+        adminPage.evaluate(() =>
+          document.documentElement.classList.contains('dark'),
+        ),
+      )
+      .toBe(true);
 
     await jobPage.fillSearchKeyword(jobName);
     await jobPage.clickSearch();
@@ -121,6 +169,11 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
     expect(cronDisplay.fieldCount).toBeLessThanOrEqual(1);
     expect(cronDisplay.fontFamily.toLowerCase()).toContain('monospace');
     expect(cronDisplay.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+    expect(cronDisplay.borderColor).not.toBe('rgba(0, 0, 0, 0)');
+    expect(
+      contrastRatio(cronDisplay.color, cronDisplay.backgroundColor),
+      `Cron expression contrast should stay readable in dark theme, got color=${cronDisplay.color}, background=${cronDisplay.backgroundColor}`,
+    ).toBeGreaterThanOrEqual(4.5);
 
     await jobPage.triggerSearchedJob();
     await expect

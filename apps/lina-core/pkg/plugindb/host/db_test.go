@@ -28,7 +28,7 @@ func TestDBDoCommitRejectsUnauthorizedTable(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected DoCommit to reject unauthorized table")
 	}
-	if !strings.Contains(err.Error(), "授权表") {
+	if !strings.Contains(err.Error(), "authorized table") {
 		t.Fatalf("expected unauthorized table error, got %v", err)
 	}
 }

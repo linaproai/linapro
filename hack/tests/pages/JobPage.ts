@@ -266,6 +266,8 @@ export class JobPage {
       const style = getComputedStyle(node);
       return {
         backgroundColor: style.backgroundColor,
+        borderColor: style.borderColor,
+        color: style.color,
         fieldCount: node.children.length,
         fontFamily: style.fontFamily,
         text: node.textContent?.replace(/\s+/g, " ").trim() ?? "",

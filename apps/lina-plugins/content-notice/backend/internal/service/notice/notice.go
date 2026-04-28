@@ -8,8 +8,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginservice/bizctx"
 	"lina-core/pkg/pluginservice/notify"
@@ -26,14 +25,14 @@ const (
 
 // Notice type values (matching sys_notice_type dictionary)
 const (
-	NoticeTypeNotice       = 1 // 通知
-	NoticeTypeAnnouncement = 2 // 公告
+	NoticeTypeNotice       = 1 // Notice
+	NoticeTypeAnnouncement = 2 // Announcement
 )
 
 // Notice status values (matching sys_notice_status dictionary)
 const (
-	NoticeStatusDraft     = 0 // 草稿
-	NoticeStatusPublished = 1 // 已发布
+	NoticeStatusDraft     = 0 // Draft
+	NoticeStatusPublished = 1 // Published
 )
 
 // Service defines the notice service contract.
@@ -185,7 +184,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int64) (*ListItem, error) 
 		return nil, err
 	}
 	if notice == nil {
-		return nil, gerror.New("通知公告不存在")
+		return nil, bizerr.NewCode(CodeNoticeNotFound)
 	}
 
 	item := &ListItem{NoticeEntity: notice}
@@ -268,7 +267,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		return err
 	}
 	if oldNotice == nil {
-		return gerror.New("通知公告不存在")
+		return bizerr.NewCode(CodeNoticeNotFound)
 	}
 
 	updatedBy := int64(s.bizCtxSvc.CurrentUserID(ctx))
@@ -326,9 +325,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 // Delete soft-deletes notices by IDs and cascades to notify deliveries.
 func (s *serviceImpl) Delete(ctx context.Context, ids string) error {
-	idList := strings.Split(ids, ",")
+	idList := normalizeNoticeDeleteIDs(ids)
 	if len(idList) == 0 {
-		return gerror.New("请选择要删除的记录")
+		return bizerr.NewCode(CodeNoticeDeleteRequired)
 	}
 
 	// Soft delete using GoFrame's auto soft-delete feature.
@@ -344,4 +343,19 @@ func (s *serviceImpl) Delete(ctx context.Context, ids string) error {
 		logger.Errorf(ctx, "cascade delete notify deliveries failed for notice ids %s: %v", ids, cascadeErr)
 	}
 	return nil
+}
+
+// normalizeNoticeDeleteIDs trims comma-separated notice IDs and removes empty
+// entries before passing them to the DAO layer.
+func normalizeNoticeDeleteIDs(ids string) []string {
+	rawIDs := strings.Split(ids, ",")
+	result := make([]string, 0, len(rawIDs))
+	for _, id := range rawIDs {
+		normalizedID := strings.TrimSpace(id)
+		if normalizedID == "" {
+			continue
+		}
+		result = append(result, normalizedID)
+	}
+	return result
 }

@@ -149,13 +149,13 @@ func normalizeNetworkTargetURL(rawValue string) (string, error) {
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
-		return "", gerror.Wrap(err, "network request URL 非法")
+		return "", gerror.Wrap(err, "network request URL is invalid")
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", gerror.Newf("network request URL scheme 不支持: %s", parsed.Scheme)
+		return "", gerror.Newf("network request URL scheme is not supported: %s", parsed.Scheme)
 	}
 	if strings.TrimSpace(parsed.Host) == "" {
-		return "", gerror.New("network request URL 缺少 host")
+		return "", gerror.New("network request URL is missing host")
 	}
 	parsed.Fragment = ""
 	if parsed.Path == "" {
@@ -179,7 +179,7 @@ func applyNetworkRequestHeaders(
 			continue
 		}
 		if _, ok := protectedNetworkRequestHeaders[normalizedKey]; ok {
-			return gerror.Newf("network request header 不允许设置: %s", key)
+			return gerror.Newf("network request header is not allowed: %s", key)
 		}
 		request.Header.Set(textproto.CanonicalMIMEHeaderKey(key), value)
 	}

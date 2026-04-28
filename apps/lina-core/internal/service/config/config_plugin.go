@@ -5,7 +5,6 @@ package config
 
 import (
 	"context"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -13,6 +12,9 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 )
+
+// Plugin config defaults used when config.yaml omits plugin.dynamic.
+const defaultPluginDynamicStoragePath = "temp/output"
 
 // pluginDynamicStoragePathOverride stores an optional process-wide test
 // override for the dynamic plugin storage root.
@@ -46,7 +48,7 @@ func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 	cfg := clonePluginConfig(processStaticConfigCaches.plugin.load(func() *PluginConfig {
 		cfg := &PluginConfig{
 			Dynamic: PluginDynamicConfig{
-				StoragePath: "temp/output",
+				StoragePath: defaultPluginDynamicStoragePath,
 			},
 		}
 		validatePluginAutoEnableRawValue(ctx)
@@ -57,7 +59,7 @@ func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 			cfg.Dynamic.StoragePath = strings.TrimSpace(cfg.Runtime.StoragePath)
 		}
 		if cfg.Dynamic.StoragePath == "" {
-			cfg.Dynamic.StoragePath = "temp/output"
+			cfg.Dynamic.StoragePath = defaultPluginDynamicStoragePath
 		}
 		cfg.AutoEnable = normalizePluginAutoEnableIDs(cfg.AutoEnable)
 		return cfg
@@ -77,12 +79,13 @@ func (s *serviceImpl) GetPluginAutoEnable(ctx context.Context) []string {
 	return append([]string(nil), cfg.AutoEnable...)
 }
 
-// GetPluginDynamicStoragePath returns the normalized dynamic wasm storage directory.
+// GetPluginDynamicStoragePath returns the runtime-resolved dynamic wasm storage
+// directory. Relative paths are anchored at the repository root when available.
 func (s *serviceImpl) GetPluginDynamicStoragePath(ctx context.Context) string {
 	if override := getPluginDynamicStoragePathOverride(); override != "" {
-		return override
+		return resolveRuntimePathWithDefault(override, defaultPluginDynamicStoragePath)
 	}
-	return filepath.Clean(s.GetPlugin(ctx).Dynamic.StoragePath)
+	return resolveRuntimePathWithDefault(s.GetPlugin(ctx).Dynamic.StoragePath, defaultPluginDynamicStoragePath)
 }
 
 // SetPluginDynamicStoragePathOverride overrides the dynamic-plugin storage path.
@@ -119,7 +122,7 @@ func getPluginDynamicStoragePathOverride() string {
 	if path == "" {
 		return ""
 	}
-	return filepath.Clean(path)
+	return cleanConfigPath(path)
 }
 
 // getPluginAutoEnableOverride returns the normalized test override when set.

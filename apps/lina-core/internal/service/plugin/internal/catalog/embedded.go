@@ -35,12 +35,12 @@ func (s *serviceImpl) ScanEmbeddedSourceManifests() ([]*Manifest, error) {
 
 		embeddedFiles := sourcePlugin.GetEmbeddedFiles()
 		if embeddedFiles == nil {
-			return nil, gerror.Newf("源码插件缺少内嵌资源声明: %s", sourcePlugin.ID())
+			return nil, gerror.Newf("source plugin is missing embedded resource declaration: %s", sourcePlugin.ID())
 		}
 
 		manifestContent, err := fs.ReadFile(embeddedFiles, pluginfs.EmbeddedManifestPath)
 		if err != nil {
-			return nil, gerror.Wrapf(err, "读取源码插件内嵌清单失败: %s", sourcePlugin.ID())
+			return nil, gerror.Wrapf(err, "read source plugin embedded manifest failed: %s", sourcePlugin.ID())
 		}
 
 		manifest := &Manifest{
@@ -48,7 +48,7 @@ func (s *serviceImpl) ScanEmbeddedSourceManifests() ([]*Manifest, error) {
 			SourcePlugin: sourcePlugin,
 		}
 		if err = yaml.Unmarshal(manifestContent, manifest); err != nil {
-			return nil, gerror.Wrapf(err, "解析源码插件内嵌清单失败: %s", sourcePlugin.ID())
+			return nil, gerror.Wrapf(err, "parse source plugin embedded manifest failed: %s", sourcePlugin.ID())
 		}
 		if err = s.ValidateManifest(manifest, manifest.ManifestPath); err != nil {
 			return nil, err
@@ -83,16 +83,16 @@ func (s *serviceImpl) ReadSourcePluginManifestContent(manifest *Manifest) ([]byt
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
 		content, err := fs.ReadFile(embeddedFiles, pluginfs.EmbeddedManifestPath)
 		if err != nil {
-			return nil, gerror.Wrapf(err, "读取源码插件内嵌清单失败: %s", manifest.ID)
+			return nil, gerror.Wrapf(err, "read source plugin embedded manifest failed: %s", manifest.ID)
 		}
 		return content, nil
 	}
 	if manifest == nil || strings.TrimSpace(manifest.ManifestPath) == "" {
-		return nil, gerror.New("源码插件清单路径不能为空")
+		return nil, gerror.New("source plugin manifest path cannot be empty")
 	}
 	content := gfile.GetBytes(manifest.ManifestPath)
 	if len(content) == 0 {
-		return nil, gerror.Newf("插件清单为空: %s", manifest.ManifestPath)
+		return nil, gerror.Newf("plugin manifest is empty: %s", manifest.ManifestPath)
 	}
 	return content, nil
 }
@@ -107,7 +107,7 @@ func (s *serviceImpl) ReadSourcePluginAssetContent(manifest *Manifest, relativeP
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
 		content, err := fs.ReadFile(embeddedFiles, normalizedPath)
 		if err != nil {
-			return "", gerror.Wrapf(err, "读取源码插件内嵌资源失败: %s", normalizedPath)
+			return "", gerror.Wrapf(err, "read source plugin embedded asset failed: %s", normalizedPath)
 		}
 		return strings.TrimSpace(string(content)), nil
 	}

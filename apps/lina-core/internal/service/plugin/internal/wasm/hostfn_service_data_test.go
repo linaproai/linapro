@@ -137,7 +137,7 @@ func TestHandleHostServiceInvokeDataRejectsAnonymousRequestAccess(t *testing.T) 
 	if response.Status == pluginbridge.HostCallStatusSuccess {
 		t.Fatal("expected anonymous request access to be rejected")
 	}
-	if !strings.Contains(string(response.Payload), "登录用户") {
+	if !strings.Contains(string(response.Payload), "authenticated user") {
 		t.Fatalf("expected denial reason to mention login context, got %s", string(response.Payload))
 	}
 }

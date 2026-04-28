@@ -353,17 +353,17 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 	seenServices := make(map[string]struct{}, len(specs))
 	for _, spec := range specs {
 		if spec == nil {
-			return gerror.New("宿主服务声明不能为空")
+			return gerror.New("host service declaration cannot be nil")
 		}
 		spec.Service = normalizeHostServiceName(spec.Service)
 		if spec.Service == "" {
-			return gerror.New("宿主服务 service 不能为空")
+			return gerror.New("host service name cannot be empty")
 		}
 		if _, ok := hostServiceMethodCapabilityMap[spec.Service]; !ok {
-			return gerror.Newf("未知的宿主服务声明: %s", spec.Service)
+			return gerror.Newf("unknown host service declaration: %s", spec.Service)
 		}
 		if _, exists := seenServices[spec.Service]; exists {
-			return gerror.Newf("宿主服务 service 不允许重复声明: %s", spec.Service)
+			return gerror.Newf("host service cannot be declared more than once: %s", spec.Service)
 		}
 		seenServices[spec.Service] = struct{}{}
 
@@ -372,19 +372,19 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 		for _, rawMethod := range spec.Methods {
 			method := normalizeHostServiceMethod(rawMethod)
 			if method == "" {
-				return gerror.Newf("宿主服务 %s 的 method 不能为空", spec.Service)
+				return gerror.Newf("host service %s method cannot be empty", spec.Service)
 			}
 			if RequiredCapabilityForHostServiceMethod(spec.Service, method) == "" {
-				return gerror.Newf("宿主服务 %s 不支持 method: %s", spec.Service, method)
+				return gerror.Newf("host service %s does not support method: %s", spec.Service, method)
 			}
 			if _, exists := methodSeen[method]; exists {
-				return gerror.Newf("宿主服务 %s 的 method 不允许重复: %s", spec.Service, method)
+				return gerror.Newf("host service %s method cannot be duplicated: %s", spec.Service, method)
 			}
 			methodSeen[method] = struct{}{}
 			methods = append(methods, method)
 		}
 		if len(methods) == 0 {
-			return gerror.Newf("宿主服务 %s 至少需要声明一个 method", spec.Service)
+			return gerror.Newf("host service %s must declare at least one method", spec.Service)
 		}
 		sort.Strings(methods)
 		spec.Methods = methods
@@ -394,10 +394,10 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 		for _, rawTable := range spec.Tables {
 			table := strings.TrimSpace(rawTable)
 			if table == "" {
-				return gerror.Newf("宿主服务 %s 的 table 不能为空", spec.Service)
+				return gerror.Newf("host service %s table cannot be empty", spec.Service)
 			}
 			if _, exists := tableSeen[table]; exists {
-				return gerror.Newf("宿主服务 %s 的 table 不允许重复: %s", spec.Service, table)
+				return gerror.Newf("host service %s table cannot be duplicated: %s", spec.Service, table)
 			}
 			tableSeen[table] = struct{}{}
 			tables = append(tables, table)
@@ -410,10 +410,10 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 		for _, rawPath := range spec.Paths {
 			normalizedPath, err := normalizeStorageDeclaredPath(rawPath)
 			if err != nil {
-				return gerror.Wrapf(err, "宿主服务 %s 的 path 非法", spec.Service)
+				return gerror.Wrapf(err, "host service %s has invalid path", spec.Service)
 			}
 			if _, exists := pathSeen[normalizedPath]; exists {
-				return gerror.Newf("宿主服务 %s 的 path 不允许重复: %s", spec.Service, normalizedPath)
+				return gerror.Newf("host service %s path cannot be duplicated: %s", spec.Service, normalizedPath)
 			}
 			pathSeen[normalizedPath] = struct{}{}
 			paths = append(paths, normalizedPath)
@@ -425,14 +425,14 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 		resources := make([]*HostServiceResourceSpec, 0, len(spec.Resources))
 		for _, resource := range spec.Resources {
 			if resource == nil {
-				return gerror.Newf("宿主服务 %s 的资源声明不能为空", spec.Service)
+				return gerror.Newf("host service %s resource declaration cannot be nil", spec.Service)
 			}
 			resource.Ref = strings.TrimSpace(resource.Ref)
 			if resource.Ref == "" {
-				return gerror.Newf("宿主服务 %s 的 resource ref 不能为空", spec.Service)
+				return gerror.Newf("host service %s resource ref cannot be empty", spec.Service)
 			}
 			if _, exists := resourceSeen[resource.Ref]; exists {
-				return gerror.Newf("宿主服务 %s 的 resource ref 不允许重复: %s", spec.Service, resource.Ref)
+				return gerror.Newf("host service %s resource ref cannot be duplicated: %s", spec.Service, resource.Ref)
 			}
 			resourceSeen[resource.Ref] = struct{}{}
 			resource.AllowMethods = normalizeUpperStringSlice(resource.AllowMethods)
@@ -447,44 +447,44 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 
 		if _, ok := hostServicesWithPaths[spec.Service]; ok {
 			if len(spec.Tables) > 0 {
-				return gerror.Newf("宿主服务 %s 不允许声明 tables", spec.Service)
+				return gerror.Newf("host service %s cannot declare tables", spec.Service)
 			}
 			if len(spec.Resources) > 0 {
-				return gerror.Newf("宿主服务 %s 不允许声明 resource refs", spec.Service)
+				return gerror.Newf("host service %s cannot declare resource refs", spec.Service)
 			}
 			if len(spec.Paths) == 0 {
-				return gerror.Newf("宿主服务 %s 至少需要声明一个 path", spec.Service)
+				return gerror.Newf("host service %s must declare at least one path", spec.Service)
 			}
 			continue
 		}
 
 		if _, ok := hostServicesWithTables[spec.Service]; ok {
 			if len(spec.Paths) > 0 {
-				return gerror.Newf("宿主服务 %s 不允许声明 paths", spec.Service)
+				return gerror.Newf("host service %s cannot declare paths", spec.Service)
 			}
 			if len(spec.Resources) > 0 {
-				return gerror.Newf("宿主服务 %s 不允许声明 resources", spec.Service)
+				return gerror.Newf("host service %s cannot declare resources", spec.Service)
 			}
 			if len(spec.Tables) == 0 {
-				return gerror.Newf("宿主服务 %s 至少需要声明一个 table", spec.Service)
+				return gerror.Newf("host service %s must declare at least one table", spec.Service)
 			}
 			continue
 		}
 		if len(spec.Tables) > 0 {
-			return gerror.Newf("宿主服务 %s 不允许声明 tables", spec.Service)
+			return gerror.Newf("host service %s cannot declare tables", spec.Service)
 		}
 		if len(spec.Paths) > 0 {
-			return gerror.Newf("宿主服务 %s 不允许声明 paths", spec.Service)
+			return gerror.Newf("host service %s cannot declare paths", spec.Service)
 		}
 
 		if _, ok := hostServicesWithoutResources[spec.Service]; ok {
 			if len(spec.Resources) > 0 {
-				return gerror.Newf("宿主服务 %s 不允许声明 resources", spec.Service)
+				return gerror.Newf("host service %s cannot declare resources", spec.Service)
 			}
 			continue
 		}
 		if len(spec.Resources) == 0 {
-			return gerror.Newf("宿主服务 %s 至少需要声明一个 resource", spec.Service)
+			return gerror.Newf("host service %s must declare at least one resource", spec.Service)
 		}
 		if spec.Service == HostServiceNetwork {
 			for _, resource := range spec.Resources {
@@ -492,10 +492,10 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 					continue
 				}
 				if len(resource.AllowMethods) > 0 || len(resource.HeaderAllowList) > 0 || resource.TimeoutMs > 0 || resource.MaxBodyBytes > 0 || len(resource.Attributes) > 0 {
-					return gerror.Newf("宿主服务 %s 仅允许声明 url，不允许附带额外治理字段: %s", spec.Service, resource.Ref)
+					return gerror.Newf("host service %s only allows url declarations and cannot include extra governance fields: %s", spec.Service, resource.Ref)
 				}
 				if err := validateNetworkURLPattern(resource.Ref); err != nil {
-					return gerror.Wrapf(err, "宿主服务 %s 的 url 非法", spec.Service)
+					return gerror.Wrapf(err, "host service %s has invalid url", spec.Service)
 				}
 			}
 		}
@@ -572,10 +572,10 @@ func ValidateCapabilities(capabilities []string) error {
 	for _, capability := range capabilities {
 		normalized := strings.TrimSpace(capability)
 		if normalized == "" {
-			return gerror.New("插件能力声明不能为空")
+			return gerror.New("plugin capability declaration cannot be empty")
 		}
 		if _, ok := allCapabilities[normalized]; !ok {
-			return gerror.Newf("未知的插件能力声明: %s，支持的值: %v", normalized, AllCapabilities())
+			return gerror.Newf("unknown plugin capability declaration: %s, supported values: %v", normalized, AllCapabilities())
 		}
 	}
 	return nil
@@ -645,24 +645,24 @@ func normalizeStoragePathSlice(paths []string) []string {
 func normalizeStorageDeclaredPath(value string) (string, error) {
 	raw := strings.ReplaceAll(strings.TrimSpace(value), "\\", "/")
 	if raw == "" {
-		return "", gerror.New("path 不能为空")
+		return "", gerror.New("path cannot be empty")
 	}
 	if strings.HasPrefix(raw, "/") {
-		return "", gerror.Newf("path 不能是绝对路径: %s", value)
+		return "", gerror.Newf("path cannot be absolute: %s", value)
 	}
 	if len(raw) >= 2 && ((raw[0] >= 'A' && raw[0] <= 'Z') || (raw[0] >= 'a' && raw[0] <= 'z')) && raw[1] == ':' {
-		return "", gerror.Newf("path 不能包含宿主盘符: %s", value)
+		return "", gerror.Newf("path cannot contain a host drive prefix: %s", value)
 	}
 
 	isPrefix := strings.HasSuffix(raw, "/")
 	trimmed := strings.TrimSuffix(raw, "/")
 	if trimmed == "" {
-		return "", gerror.New("path 不能为空")
+		return "", gerror.New("path cannot be empty")
 	}
 
 	normalized := path.Clean(trimmed)
 	if normalized == "." || normalized == ".." || strings.HasPrefix(normalized, "../") {
-		return "", gerror.Newf("path 非法: %s", value)
+		return "", gerror.Newf("path is invalid: %s", value)
 	}
 	if isPrefix {
 		return normalized + "/", nil
@@ -675,23 +675,23 @@ func normalizeStorageDeclaredPath(value string) (string, error) {
 func validateNetworkURLPattern(rawValue string) error {
 	trimmed := strings.TrimSpace(rawValue)
 	if trimmed == "" {
-		return gerror.New("url 不能为空")
+		return gerror.New("url cannot be empty")
 	}
 	if !strings.Contains(trimmed, "://") {
-		return gerror.New("url 必须包含 scheme")
+		return gerror.New("url must include a scheme")
 	}
 	if strings.Contains(trimmed, "?") || strings.Contains(trimmed, "#") {
-		return gerror.New("url 模式不允许包含 query 或 fragment")
+		return gerror.New("url pattern cannot include query or fragment")
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil {
-		return gerror.Wrap(err, "解析 url 模式失败")
+		return gerror.Wrap(err, "failed to parse url pattern")
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return gerror.New("url scheme 仅支持 http/https")
+		return gerror.New("url scheme only supports http/https")
 	}
 	if strings.TrimSpace(parsed.Host) == "" {
-		return gerror.New("url 缺少 host")
+		return gerror.New("url is missing host")
 	}
 	return nil
 }

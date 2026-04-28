@@ -1,3 +1,6 @@
+// This file implements generic plugin resource list routing and
+// controller-level permission enforcement for plugin-owned resources.
+
 package plugin
 
 import (
@@ -5,14 +8,28 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/api/plugin/v1"
+	i18nsvc "lina-core/internal/service/i18n"
+	middlewaresvc "lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
+	"lina-core/pkg/bizerr"
 )
+
+// pluginResourcePermissionErrorResponse mirrors the unified response envelope
+// for controller-written plugin resource permission failures.
+type pluginResourcePermissionErrorResponse struct {
+	Code          int            `json:"code"`
+	Message       string         `json:"message"`
+	Data          any            `json:"data"`
+	ErrorCode     string         `json:"errorCode,omitempty"`
+	MessageKey    string         `json:"messageKey,omitempty"`
+	MessageParams map[string]any `json:"messageParams,omitempty"`
+}
 
 // ResourceList queries plugin-owned backend resources through the generic resource contract.
 func (c *ControllerV1) ResourceList(ctx context.Context, req *v1.ResourceListReq) (res *v1.ResourceListRes, err error) {
@@ -58,16 +75,16 @@ func (c *ControllerV1) ensurePluginResourcePermission(
 	if businessCtx == nil || businessCtx.UserId <= 0 {
 		writePluginResourcePermissionError(
 			ctx,
+			c.i18nSvc,
 			http.StatusUnauthorized,
-			gerror.New("未获取到当前登录用户"),
-			"未获取到当前登录用户",
+			bizerr.NewCode(middlewaresvc.CodeMiddlewarePermissionCurrentUserMissing),
 		)
 		return false, nil
 	}
 
 	accessContext, err := c.roleSvc.GetUserAccessContext(ctx, businessCtx.UserId)
 	if err != nil {
-		return false, gerror.Wrap(err, "加载插件资源权限上下文失败")
+		return false, bizerr.WrapCode(err, middlewaresvc.CodeMiddlewarePermissionContextLoadFailed)
 	}
 	requiredPermission, err := c.pluginSvc.ResolveResourcePermission(ctx, pluginID, resourceID)
 	if err != nil {
@@ -77,8 +94,15 @@ func (c *ControllerV1) ensurePluginResourcePermission(
 		return true, nil
 	}
 
-	message := "当前用户缺少接口权限: " + requiredPermission
-	writePluginResourcePermissionError(ctx, http.StatusForbidden, gerror.New(message), message)
+	writePluginResourcePermissionError(
+		ctx,
+		c.i18nSvc,
+		http.StatusForbidden,
+		bizerr.NewCode(
+			middlewaresvc.CodeMiddlewarePermissionDeniedRequired,
+			bizerr.P("permissions", requiredPermission),
+		),
+	)
 	return false, nil
 }
 
@@ -114,21 +138,47 @@ func hasPluginResourcePermission(accessContext *role.UserAccessContext, required
 // error response onto the current request context and aborts processing.
 func writePluginResourcePermissionError(
 	ctx context.Context,
+	i18nSvc i18nsvc.Translator,
 	status int,
 	err error,
-	message string,
 ) {
 	r := g.RequestFromCtx(ctx)
 	if r == nil {
 		return
 	}
 
+	message := ""
+	if i18nSvc != nil {
+		message = i18nSvc.LocalizeError(ctx, err)
+	}
+	if message == "" && err != nil {
+		message = err.Error()
+	}
+
 	r.SetError(err)
 	r.Response.WriteStatus(status)
-	r.Response.WriteJson(g.Map{
-		"code":    1,
-		"data":    nil,
-		"message": message,
-	})
+	response := pluginResourcePermissionErrorResponse{
+		Code:    gcode.CodeUnknown.Code(),
+		Data:    nil,
+		Message: message,
+	}
+	applyPluginResourcePermissionErrorMetadata(&response, err)
+	r.Response.WriteJson(response)
 	r.ExitAll()
+}
+
+// applyPluginResourcePermissionErrorMetadata copies structured runtime-message
+// metadata into the controller-written plugin resource permission response.
+func applyPluginResourcePermissionErrorMetadata(response *pluginResourcePermissionErrorResponse, err error) {
+	if response == nil || err == nil {
+		return
+	}
+	messageErr, ok := bizerr.As(err)
+	if !ok {
+		return
+	}
+	response.Code = messageErr.TypeCode().Code()
+	response.ErrorCode = messageErr.RuntimeCode()
+	response.MessageKey = messageErr.MessageKey()
+	response.MessageParams = messageErr.Params()
 }

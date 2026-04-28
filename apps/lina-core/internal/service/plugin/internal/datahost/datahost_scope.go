@@ -38,7 +38,7 @@ func applyResourceDataScope(
 		return model, nil
 	}
 	if identity == nil || identity.UserID <= 0 {
-		return nil, gerror.Newf("data table %s 需要用户上下文以应用数据范围", resource.Table)
+		return nil, gerror.Newf("data table %s requires user context to apply data scope", resource.Table)
 	}
 
 	scope, err := getCurrentResourceDataScope(ctx, int(identity.UserID))

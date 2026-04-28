@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +41,16 @@ func TestGuardBypassesWriteRequestsWhenPluginDisabled(t *testing.T) {
 // has already been enabled.
 func TestGuardRejectsWriteRequestsWhenPluginEnabledWithoutAutoEnable(t *testing.T) {
 	setDemoControlTestConfig(t, `
+i18n:
+  default: zh-CN
+  enabled: true
+  locales:
+    - locale: en-US
+      nativeName: English
+    - locale: zh-CN
+      nativeName: 简体中文
+    - locale: zh-TW
+      nativeName: 繁體中文
 plugin:
   dynamic:
     storagePath: "temp/output"
@@ -262,19 +271,21 @@ func assertDemoControlRejectedResponse(
 ) {
 	t.Helper()
 
-	if !strings.Contains(response.body, demoControlMessage) {
-		t.Fatalf("expected rejection body to mention demo-control message for %s %s, got %q", method, path, response.body)
-	}
-
 	var payload demoControlErrorResponse
 	if err := json.Unmarshal([]byte(response.body), &payload); err != nil {
 		t.Fatalf("expected valid JSON rejection body for %s %s, got %q (err=%v)", method, path, response.body, err)
 	}
-	if payload.Code != demoControlErrorCode {
-		t.Fatalf("expected rejection code %d for %s %s, got %d", demoControlErrorCode, method, path, payload.Code)
+	if payload.Code != CodeDemoControlWriteDenied.TypeCode().Code() {
+		t.Fatalf("expected rejection code %d for %s %s, got %d", CodeDemoControlWriteDenied.TypeCode().Code(), method, path, payload.Code)
 	}
-	if payload.Message != demoControlMessage {
-		t.Fatalf("expected rejection message %q for %s %s, got %q", demoControlMessage, method, path, payload.Message)
+	if payload.Message == "" {
+		t.Fatalf("expected non-empty rejection message for %s %s", method, path)
+	}
+	if payload.ErrorCode != CodeDemoControlWriteDenied.RuntimeCode() {
+		t.Fatalf("expected rejection error code %q for %s %s, got %q", CodeDemoControlWriteDenied.RuntimeCode(), method, path, payload.ErrorCode)
+	}
+	if payload.MessageKey != CodeDemoControlWriteDenied.MessageKey() {
+		t.Fatalf("expected rejection message key %q for %s %s, got %q", CodeDemoControlWriteDenied.MessageKey(), method, path, payload.MessageKey)
 	}
 }
 

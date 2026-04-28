@@ -42,15 +42,15 @@ func (s *serviceImpl) GetUpload(ctx context.Context) (*UploadConfig, error) {
 	return cfg, nil
 }
 
-// GetUploadPath returns the static upload directory loaded from config.yaml.
-// File storage initialization and static-file routes can reuse this method to
-// avoid allocating a full UploadConfig on every request.
+// GetUploadPath returns the runtime-resolved static upload directory loaded
+// from config.yaml. Relative paths are anchored at the repository root when the
+// host runs from a LinaPro checkout.
 func (s *serviceImpl) GetUploadPath(ctx context.Context) string {
 	cfg := s.getStaticUploadConfig(ctx)
 	if cfg == nil {
-		return defaultUploadPath
+		return resolveRuntimePathWithDefault("", defaultUploadPath)
 	}
-	return cfg.Path
+	return resolveRuntimePathWithDefault(cfg.Path, defaultUploadPath)
 }
 
 // GetUploadMaxSize returns the runtime-effective upload size ceiling in MB.

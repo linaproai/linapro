@@ -45,7 +45,7 @@ func BuildEmbeddedManifestPath(pluginID string, relativePath string) string {
 func NormalizeRelativePath(relativePath string) (string, error) {
 	normalizedPath := path.Clean(strings.ReplaceAll(strings.TrimSpace(relativePath), "\\", "/"))
 	if normalizedPath == "" || normalizedPath == "." || normalizedPath == ".." || strings.HasPrefix(normalizedPath, "../") {
-		return "", gerror.Newf("插件资源路径非法: %s", relativePath)
+		return "", gerror.Newf("plugin resource path is invalid: %s", relativePath)
 	}
 	return normalizedPath, nil
 }
@@ -60,10 +60,10 @@ func ResolveResourcePath(rootDir string, relativePath string) (string, error) {
 	fullPath := filepath.Clean(filepath.Join(rootDir, filepath.FromSlash(normalizedPath)))
 	rootPath := filepath.Clean(rootDir)
 	if fullPath != rootPath && !strings.HasPrefix(fullPath, rootPath+string(filepath.Separator)) {
-		return "", gerror.Newf("插件资源路径越界: %s", relativePath)
+		return "", gerror.Newf("plugin resource path escapes the plugin root: %s", relativePath)
 	}
 	if !gfile.Exists(fullPath) {
-		return "", gerror.Newf("插件资源文件不存在: %s", fullPath)
+		return "", gerror.Newf("plugin resource file does not exist: %s", fullPath)
 	}
 	return fullPath, nil
 }
@@ -231,27 +231,27 @@ func validateSQLPaths(relativePaths []string, uninstall bool, exists func(normal
 
 	for _, relativePath := range relativePaths {
 		if relativePath == "" {
-			return gerror.New("SQL 资源路径不能为空")
+			return gerror.New("SQL resource path cannot be empty")
 		}
 
 		normalizedPath, err := NormalizeRelativePath(relativePath)
 		if err != nil {
-			return gerror.Newf("SQL 资源路径非法: %s", relativePath)
+			return gerror.Newf("SQL resource path is invalid: %s", relativePath)
 		}
 		if !strings.HasPrefix(normalizedPath, expectedPrefix) {
-			return gerror.Newf("SQL 资源路径必须放在 %s: %s", expectedPrefix, relativePath)
+			return gerror.Newf("SQL resource path must be under %s: %s", expectedPrefix, relativePath)
 		}
 		if !uninstall && strings.HasPrefix(normalizedPath, "manifest/sql/uninstall/") {
-			return gerror.Newf("安装 SQL 不允许放在 manifest/sql/uninstall/: %s", relativePath)
+			return gerror.Newf("install SQL cannot be placed under manifest/sql/uninstall/: %s", relativePath)
 		}
 		if path.Dir(normalizedPath) != expectedDir {
-			return gerror.Newf("SQL 资源必须放在 %s 根目录: %s", expectedDir, relativePath)
+			return gerror.Newf("SQL resource must be placed directly under %s: %s", expectedDir, relativePath)
 		}
 		if !IsValidSQLFileName(normalizedPath) {
-			return gerror.Newf("SQL 文件名必须使用 {序号}-{当前迭代名称}.sql: %s", relativePath)
+			return gerror.Newf("SQL filename must use {sequence}-{change-name}.sql: %s", relativePath)
 		}
 		if !exists(normalizedPath) {
-			return gerror.Newf("SQL 资源文件不存在: %s", relativePath)
+			return gerror.Newf("SQL resource file does not exist: %s", relativePath)
 		}
 	}
 
@@ -268,7 +268,7 @@ func validateFilePaths(
 ) error {
 	for _, relativePath := range relativePaths {
 		if relativePath == "" {
-			return gerror.New("插件资源路径不能为空")
+			return gerror.New("plugin resource path cannot be empty")
 		}
 
 		normalizedPath, err := NormalizeRelativePath(relativePath)
@@ -276,15 +276,15 @@ func validateFilePaths(
 			return err
 		}
 		if !strings.HasPrefix(normalizedPath, expectedPrefix) {
-			return gerror.Newf("插件资源路径必须放在 %s 下: %s", expectedPrefix, relativePath)
+			return gerror.Newf("plugin resource path must be under %s: %s", expectedPrefix, relativePath)
 		}
 		if len(allowedExt) > 0 {
 			if _, ok := allowedExt[strings.ToLower(path.Ext(normalizedPath))]; !ok {
-				return gerror.Newf("插件资源文件类型不支持: %s", relativePath)
+				return gerror.Newf("plugin resource file type is unsupported: %s", relativePath)
 			}
 		}
 		if !exists(normalizedPath) {
-			return gerror.Newf("插件资源文件不存在: %s", relativePath)
+			return gerror.Newf("plugin resource file does not exist: %s", relativePath)
 		}
 	}
 

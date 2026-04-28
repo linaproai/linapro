@@ -1,0 +1,111 @@
+{
+  "error": {
+    "plugin": {
+      "demo": {
+        "source": {
+          "attachment": {
+            "create": {
+              "failed": "Failed to create demo attachment file"
+            },
+            "delete": {
+              "failed": "Failed to delete demo attachment file"
+            },
+            "dir": {
+              "create": {
+                "failed": "Failed to create demo attachment directory"
+              }
+            },
+            "open": {
+              "failed": "Failed to open demo attachment"
+            },
+            "partial": {
+              "cleanup": {
+                "failed": "Failed to remove incomplete demo attachment"
+              }
+            },
+            "size": {
+              "too": {
+                "large": "Attachment size must not exceed {maxSizeMB}MB"
+              }
+            },
+            "source": {
+              "close": {
+                "failed": "Failed to close demo attachment source"
+              }
+            },
+            "storage": {
+              "purge": {
+                "failed": "Failed to remove demo attachment storage"
+              }
+            },
+            "target": {
+              "close": {
+                "failed": "Failed to close demo attachment file"
+              }
+            },
+            "write": {
+              "failed": "Failed to write demo attachment"
+            }
+          },
+          "record": {
+            "attachment": {
+              "file": {
+                "not": {
+                  "found": "Attachment file does not exist"
+                }
+              },
+              "path": {
+                "query": {
+                  "failed": "Failed to query demo attachment paths"
+                }
+              },
+              "required": "Current record has no attachment"
+            },
+            "count": {
+              "query": {
+                "failed": "Failed to query demo record count"
+              }
+            },
+            "create": {
+              "failed": "Failed to create demo record"
+            },
+            "delete": {
+              "failed": "Failed to delete demo record"
+            },
+            "detail": {
+              "query": {
+                "failed": "Failed to query demo record detail"
+              }
+            },
+            "id": {
+              "required": "Record ID cannot be empty"
+            },
+            "list": {
+              "query": {
+                "failed": "Failed to query demo record list"
+              }
+            },
+            "not": {
+              "found": "Demo record does not exist"
+            },
+            "title": {
+              "required": "Record title cannot be empty"
+            },
+            "update": {
+              "failed": "Failed to update demo record"
+            }
+          },
+          "table": {
+            "check": {
+              "failed": "Failed to inspect the demo record table"
+            },
+            "not": {
+              "installed": "Demo record table does not exist. Install the plugin first"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

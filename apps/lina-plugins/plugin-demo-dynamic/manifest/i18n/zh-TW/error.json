@@ -1,0 +1,60 @@
+{
+  "error": {
+    "plugin": {
+      "demo": {
+        "dynamic": {
+          "record": {
+            "attachment": {
+              "base64": {
+                "invalid": "附件內容必須是有效的 Base64 字符串"
+              },
+              "content": {
+                "required": "附件內容不能為空"
+              },
+              "name": {
+                "required": "上傳附件時必須提供附件名稱"
+              },
+              "not": {
+                "found": "動態插件示例記錄附件不存在"
+              },
+              "rollback": {
+                "failed": "回滾動態插件示例記錄附件失敗"
+              },
+              "size": {
+                "too": {
+                  "large": "附件大小不能超過{maxSizeMB}MB"
+                }
+              }
+            },
+            "content": {
+              "too": {
+                "long": "記錄內容長度不能超過{maxChars}個字符"
+              }
+            },
+            "id": {
+              "required": "記錄ID不能為空"
+            },
+            "invalid": {
+              "input": "動態插件示例記錄請求參數無效"
+            },
+            "not": {
+              "found": "動態插件示例記錄不存在"
+            },
+            "request": {
+              "body": {
+                "required": "請求體不能為空"
+              }
+            },
+            "title": {
+              "required": "記錄標題不能為空",
+              "too": {
+                "long": "記錄標題長度不能超過{maxChars}個字符"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

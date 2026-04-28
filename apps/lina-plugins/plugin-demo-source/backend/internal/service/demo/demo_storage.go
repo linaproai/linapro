@@ -11,13 +11,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/grand"
+
+	"lina-core/pkg/bizerr"
 )
 
 // Attachment storage constants define the storage namespace and default upload
@@ -44,7 +45,7 @@ func (s *serviceImpl) PurgeStorageData(ctx context.Context) error {
 	}
 	if gfile.Exists(storageRoot) {
 		if err = gfile.Remove(storageRoot); err != nil {
-			return gerror.Wrap(err, "清理源码插件示例附件存储目录失败")
+			return bizerr.WrapCode(err, CodeDemoAttachmentStoragePurgeFailed)
 		}
 	}
 	return nil
@@ -66,12 +67,12 @@ func saveDemoAttachmentFile(
 	sanitizedName := sanitizeAttachmentFilename(file.Filename)
 	source, err := file.Open()
 	if err != nil {
-		return "", "", gerror.Wrap(err, "打开源码插件示例附件失败")
+		return "", "", bizerr.WrapCode(err, CodeDemoAttachmentOpenFailed)
 	}
 	defer func() {
 		closeErr := source.Close()
 		if err == nil && closeErr != nil {
-			err = gerror.Wrap(closeErr, "关闭源码插件示例附件失败")
+			err = bizerr.WrapCode(closeErr, CodeDemoAttachmentSourceCloseFailed)
 		}
 	}()
 
@@ -84,7 +85,7 @@ func saveDemoAttachmentFile(
 	dir := filepath.Join(now.Format("Y"), now.Format("m"))
 	targetDir := gfile.Join(storageRoot, dir)
 	if err = gfile.Mkdir(targetDir); err != nil {
-		return "", "", gerror.Wrap(err, "创建源码插件示例附件目录失败")
+		return "", "", bizerr.WrapCode(err, CodeDemoAttachmentDirCreateFailed)
 	}
 
 	ext := gfile.ExtName(sanitizedName)
@@ -96,18 +97,20 @@ func saveDemoAttachmentFile(
 
 	targetFile, err := os.Create(fullPath)
 	if err != nil {
-		return "", "", gerror.Wrap(err, "创建源码插件示例附件文件失败")
+		return "", "", bizerr.WrapCode(err, CodeDemoAttachmentCreateFailed)
 	}
 	defer func() {
 		closeErr := targetFile.Close()
 		if err == nil && closeErr != nil {
-			err = gerror.Wrap(closeErr, "关闭源码插件示例附件文件失败")
+			err = bizerr.WrapCode(closeErr, CodeDemoAttachmentTargetCloseFailed)
 		}
 	}()
 
 	if _, err = io.Copy(targetFile, source); err != nil {
-		_ = os.Remove(fullPath)
-		return "", "", gerror.Wrap(err, "写入源码插件示例附件失败")
+		if removeErr := os.Remove(fullPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return "", "", bizerr.WrapCode(removeErr, CodeDemoAttachmentPartialCleanupFailed)
+		}
+		return "", "", bizerr.WrapCode(err, CodeDemoAttachmentWriteFailed)
 	}
 
 	return sanitizedName, gfile.Join(dir, storedName), nil
@@ -127,7 +130,7 @@ func deleteDemoAttachmentFile(ctx context.Context, relativePath string) error {
 		return nil
 	}
 	if err = gfile.Remove(fullPath); err != nil {
-		return gerror.Wrap(err, "删除源码插件示例附件文件失败")
+		return bizerr.WrapCode(err, CodeDemoAttachmentDeleteFailed)
 	}
 	return nil
 }
@@ -163,7 +166,7 @@ func validateDemoAttachmentFileSize(ctx context.Context, file *ghttp.UploadFile)
 		maxSizeMB = defaultUploadMaxSizeMB
 	}
 	if file.Size > maxSizeMB*1024*1024 {
-		return gerror.Newf("附件大小不能超过%dMB", maxSizeMB)
+		return bizerr.NewCode(CodeDemoAttachmentSizeTooLarge, bizerr.P("maxSizeMB", maxSizeMB))
 	}
 	return nil
 }

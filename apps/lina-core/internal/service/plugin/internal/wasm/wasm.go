@@ -99,7 +99,7 @@ func ExecuteBridge(
 	requestContent []byte,
 ) (response *pluginbridge.BridgeResponseEnvelopeV1, err error) {
 	if input.BridgeSpec == nil {
-		return nil, gerror.New("动态插件缺少 Wasm bridge 元数据")
+		return nil, gerror.New("dynamic plugin is missing Wasm bridge metadata")
 	}
 
 	rt, compiled, err := getOrCompileWasmModule(ctx, input.ArtifactPath)
@@ -111,11 +111,11 @@ func ExecuteBridge(
 	// and response buffers) are mutable and must not be shared across requests.
 	module, err := rt.InstantiateModule(ctx, compiled, wazero.NewModuleConfig().WithName("").WithStartFunctions())
 	if err != nil {
-		return nil, gerror.Wrap(err, "实例化动态插件 Wasm 失败")
+		return nil, gerror.Wrap(err, "instantiate dynamic plugin Wasm failed")
 	}
 	defer func() {
 		if closeErr := module.Close(ctx); closeErr != nil && err == nil {
-			err = gerror.Wrap(closeErr, "关闭动态插件 Wasm 模块失败")
+			err = gerror.Wrap(closeErr, "close dynamic plugin Wasm module failed")
 		}
 	}()
 
@@ -138,13 +138,13 @@ func ExecuteBridge(
 		initializeFn = module.ExportedFunction("_initialize")
 	)
 	if allocFn == nil || executeFn == nil {
-		return nil, gerror.New("动态插件 Wasm bridge 缺少必需导出函数")
+		return nil, gerror.New("dynamic plugin Wasm bridge is missing required exported functions")
 	}
 	if initializeFn != nil {
 		// `_initialize` is optional and is only invoked when guest toolchains emit
 		// it, keeping the host compatible with both reactor and non-reactor builds.
 		if _, err := initializeFn.Call(ctx); err != nil {
-			return nil, gerror.Wrap(err, "初始化动态插件 Wasm 运行时失败")
+			return nil, gerror.Wrap(err, "initialize dynamic plugin Wasm runtime failed")
 		}
 	}
 
@@ -153,29 +153,29 @@ func ExecuteBridge(
 	// alloc exposed, so only the payload length needs to be passed to execute.
 	allocResult, err := allocFn.Call(ctx, uint64(len(requestContent)))
 	if err != nil {
-		return nil, gerror.Wrap(err, "调用动态插件 alloc 失败")
+		return nil, gerror.Wrap(err, "call dynamic plugin alloc failed")
 	}
 	if len(allocResult) == 0 {
-		return nil, gerror.New("动态插件 alloc 未返回有效指针")
+		return nil, gerror.New("dynamic plugin alloc returned no valid pointer")
 	}
 	requestPointer := uint32(allocResult[0])
 	if ok := module.Memory().Write(requestPointer, requestContent); !ok {
-		return nil, gerror.New("写入动态插件请求内存失败")
+		return nil, gerror.New("write dynamic plugin request memory failed")
 	}
 
 	// Execute returns one packed pointer/length pair so the host can read the
 	// response bytes without any JSON or text-based marshaling layer.
 	executeResult, err := executeFn.Call(ctx, uint64(len(requestContent)))
 	if err != nil {
-		return nil, gerror.Wrap(err, "调用动态插件 execute 失败")
+		return nil, gerror.Wrap(err, "call dynamic plugin execute failed")
 	}
 	if len(executeResult) == 0 {
-		return nil, gerror.New("动态插件 execute 未返回有效响应")
+		return nil, gerror.New("dynamic plugin execute returned no valid response")
 	}
 	responsePointer, responseLength := decodeDynamicResponsePointer(executeResult[0])
 	responseContent, ok := module.Memory().Read(responsePointer, responseLength)
 	if !ok {
-		return nil, gerror.New("读取动态插件响应内存失败")
+		return nil, gerror.New("read dynamic plugin response memory failed")
 	}
 	response, err = pluginbridge.DecodeResponseEnvelope(responseContent)
 	if err != nil {
@@ -208,7 +208,7 @@ func getOrCompileWasmModule(ctx context.Context, artifactPath string) (wazero.Ru
 		if closeErr := rt.Close(ctx); closeErr != nil {
 			logger.Warningf(ctx, "close wasm runtime after WASI init failure failed err=%v", closeErr)
 		}
-		return nil, nil, gerror.Wrap(err, "初始化 WASI 失败")
+		return nil, nil, gerror.Wrap(err, "initialize WASI failed")
 	}
 
 	// Register host call module so guest imports are satisfied at compile time.
@@ -216,7 +216,7 @@ func getOrCompileWasmModule(ctx context.Context, artifactPath string) (wazero.Ru
 		if closeErr := rt.Close(ctx); closeErr != nil {
 			logger.Warningf(ctx, "close wasm runtime after host-call registration failure failed err=%v", closeErr)
 		}
-		return nil, nil, gerror.Wrap(err, "注册宿主调用模块失败")
+		return nil, nil, gerror.Wrap(err, "register host call module failed")
 	}
 
 	wasmBytes, err := os.ReadFile(artifactPath)
@@ -224,14 +224,14 @@ func getOrCompileWasmModule(ctx context.Context, artifactPath string) (wazero.Ru
 		if closeErr := rt.Close(ctx); closeErr != nil {
 			logger.Warningf(ctx, "close wasm runtime after artifact read failure failed err=%v", closeErr)
 		}
-		return nil, nil, gerror.Wrap(err, "读取动态插件 Wasm 产物失败")
+		return nil, nil, gerror.Wrap(err, "read dynamic plugin Wasm artifact failed")
 	}
 	compiled, err := rt.CompileModule(ctx, wasmBytes)
 	if err != nil {
 		if closeErr := rt.Close(ctx); closeErr != nil {
 			logger.Warningf(ctx, "close wasm runtime after compile failure failed err=%v", closeErr)
 		}
-		return nil, nil, gerror.Wrap(err, "编译动态插件 Wasm 失败")
+		return nil, nil, gerror.Wrap(err, "compile dynamic plugin Wasm failed")
 	}
 
 	wasmModuleCache[artifactPath] = &wasmCacheEntry{

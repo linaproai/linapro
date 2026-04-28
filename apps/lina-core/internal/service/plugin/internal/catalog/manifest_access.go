@@ -16,7 +16,7 @@ import (
 // the artifact as an active release.
 func (s *serviceImpl) GetDesiredManifest(pluginID string) (*Manifest, error) {
 	if pluginID == "" {
-		return nil, gerror.New("插件ID不能为空")
+		return nil, gerror.New("plugin ID cannot be empty")
 	}
 	manifests, err := s.ScanManifests()
 	if err != nil {
@@ -27,7 +27,7 @@ func (s *serviceImpl) GetDesiredManifest(pluginID string) (*Manifest, error) {
 			return manifest, nil
 		}
 	}
-	return nil, gerror.New("插件不存在")
+	return nil, gerror.New("plugin does not exist")
 }
 
 // GetActiveManifest returns the manifest currently in use by the host for serving.

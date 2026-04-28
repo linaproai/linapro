@@ -58,7 +58,7 @@ func (c *managedCronCollector) AddWithMetadata(
 	handler pluginhost.CronJobHandler,
 ) error {
 	if handler == nil {
-		return gerror.New("插件定时任务处理器不能为空")
+		return gerror.New("plugin cron job handler cannot be nil")
 	}
 
 	trimmedPattern := strings.TrimSpace(pattern)
@@ -66,10 +66,10 @@ func (c *managedCronCollector) AddWithMetadata(
 	trimmedDisplayName := strings.TrimSpace(displayName)
 	trimmedDescription := strings.TrimSpace(description)
 	if trimmedPattern == "" {
-		return gerror.New("插件定时任务表达式不能为空")
+		return gerror.New("plugin cron job expression cannot be empty")
 	}
 	if trimmedName == "" {
-		return gerror.New("插件定时任务名称不能为空")
+		return gerror.New("plugin cron job name cannot be empty")
 	}
 	if trimmedDisplayName == "" {
 		trimmedDisplayName = trimmedName
@@ -184,7 +184,7 @@ func (s *serviceImpl) collectDynamicManagedCronJobs(
 		return nil, nil
 	}
 	if s.dynamicCronExecutor == nil {
-		return nil, gerror.Newf("动态插件定时任务执行器未注入: %s", manifest.ID)
+		return nil, gerror.Newf("dynamic plugin cron executor is not injected: %s", manifest.ID)
 	}
 
 	contracts, err := s.dynamicCronExecutor.DiscoverCronContracts(ctx, manifest)

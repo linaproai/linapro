@@ -323,7 +323,7 @@ func buildStorageResourceConfig(
 	)
 	absoluteRootDir, absErr := filepath.Abs(rootDir)
 	if absErr != nil {
-		return nil, gerror.Wrap(absErr, "storage resource 根目录解析失败")
+		return nil, gerror.Wrap(absErr, "resolve storage resource root directory failed")
 	}
 
 	return &storageResourceConfig{
@@ -353,7 +353,7 @@ func (resourceConfig *storageResourceConfig) resolveObjectPath(objectPath string
 	fullPath := filepath.Clean(filepath.Join(resourceConfig.rootDir, filepath.FromSlash(normalizedObjectPath)))
 	rootPath := filepath.Clean(resourceConfig.rootDir)
 	if fullPath != rootPath && !strings.HasPrefix(fullPath, rootPath+string(filepath.Separator)) {
-		return "", gerror.Newf("storage object path 越界: %s", objectPath)
+		return "", gerror.Newf("storage object path escapes root: %s", objectPath)
 	}
 	return fullPath, nil
 }
@@ -509,7 +509,7 @@ func lookupStorageFileInfo(absolutePath string) (os.FileInfo, bool, error) {
 		return nil, false, err
 	}
 	if fileInfo.IsDir() {
-		return nil, false, gerror.Newf("storage object path 指向目录: %s", absolutePath)
+		return nil, false, gerror.Newf("storage object path points to a directory: %s", absolutePath)
 	}
 	return fileInfo, true, nil
 }

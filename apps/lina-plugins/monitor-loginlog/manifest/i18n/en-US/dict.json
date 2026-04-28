@@ -1,0 +1,13 @@
+{
+  "dict": {
+    "sys_login_status": {
+      "0": {
+        "label": "Success"
+      },
+      "1": {
+        "label": "Failed"
+      }
+    }
+  }
+}
+

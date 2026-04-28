@@ -27,6 +27,7 @@
           "content": "請輸入記錄內容",
           "title": "請輸入記錄標題"
         },
+        "summaryMessage": "這是一條來自 plugin-demo-source 接口的簡要介紹，用於驗證源碼插件菜單頁可讀取插件後端數據。",
         "tableTitle": "示例記錄",
         "validation": {
           "title": "請輸入記錄標題"

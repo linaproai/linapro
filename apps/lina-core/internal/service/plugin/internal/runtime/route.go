@@ -245,7 +245,7 @@ func (s *serviceImpl) matchDynamicRoute(ctx context.Context, request *ghttp.Requ
 	pathSuffix := strings.TrimPrefix(publicPath, RoutePublicPrefix+"/")
 	segments := strings.Split(pathSuffix, "/")
 	if len(segments) == 0 || strings.TrimSpace(segments[0]) == "" {
-		return nil, gerror.New("动态插件路径缺少 pluginId")
+		return nil, gerror.New("dynamic plugin path is missing pluginId")
 	}
 	pluginID := strings.TrimSpace(segments[0])
 	internalPath := "/"
@@ -516,11 +516,11 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 		return []byte(secret), nil
 	})
 	if err != nil {
-		return nil, gerror.New("无效的Token")
+		return nil, gerror.New("invalid token")
 	}
 	claims, ok := token.Claims.(*dynamicRouteClaims)
 	if !ok || !token.Valid {
-		return nil, gerror.New("无效的Token")
+		return nil, gerror.New("invalid token")
 	}
 	return claims, nil
 }

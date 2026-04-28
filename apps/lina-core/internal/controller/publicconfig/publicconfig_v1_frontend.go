@@ -46,9 +46,10 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 				Value: cfg.Cron.LogRetention.Value,
 			},
 			Shell: v1.FrontendCronShellRes{
-				Enabled:        cfg.Cron.Shell.Enabled,
-				Supported:      cfg.Cron.Shell.Supported,
-				DisabledReason: cfg.Cron.Shell.DisabledReason,
+				Enabled:           cfg.Cron.Shell.Enabled,
+				Supported:         cfg.Cron.Shell.Supported,
+				DisabledReason:    cfg.Cron.Shell.DisabledReason,
+				DisabledReasonKey: cfg.Cron.Shell.DisabledReasonKey,
 			},
 			Timezone: v1.FrontendCronTimezoneRes{
 				Current: cfg.Cron.Timezone.Current,

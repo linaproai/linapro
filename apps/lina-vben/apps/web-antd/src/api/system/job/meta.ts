@@ -25,9 +25,10 @@ function renderJobHelpContent(resolveContent: () => string) {
 }
 
 export const JOB_CRON_CODE_CONTAINER_STYLE: CSSProperties = {
-  background: 'var(--ant-color-fill-tertiary, #f5f5f5)',
-  border: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+  background: 'hsl(var(--accent))',
+  border: '1px solid hsl(var(--border))',
   borderRadius: '8px',
+  color: 'hsl(var(--foreground))',
   display: 'inline-block',
   fontFamily:
     "ui-monospace, 'SFMono-Regular', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",

@@ -1,20 +1,20 @@
 -- Mock data: organization departments, posts, and demo user bindings.
 
 INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, order_num, leader, phone, email, status, remark, created_at, updated_at)
-SELECT 0, '0', 'LinaPro.AI', 'lina', 0, admin.id, '021-55550000', 'office@example.com', 1, 'Mock organization root', NOW(), NOW()
+SELECT 0, '0', 'LinaPro.AI', 'linapro.ai', 0, admin.id, '021-55550000', 'office@example.com', 1, 'Mock organization root', NOW(), NOW()
 FROM sys_user admin
 WHERE admin.username = 'admin'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_dept
-      WHERE code = 'lina'
+      WHERE code = 'linapro.ai'
   );
 
 INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, order_num, leader, phone, email, status, remark, created_at, updated_at)
 SELECT parent.id, CONCAT('0,', parent.id), '研发部门', 'dev', 1, COALESCE(leader.id, 0), '021-55550100', 'dev@example.com', 1, 'Mock research and development department', NOW(), NOW()
 FROM plugin_org_center_dept parent
 LEFT JOIN sys_user leader ON leader.username = 'user002'
-WHERE parent.code = 'lina'
+WHERE parent.code = 'linapro.ai'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_dept
@@ -25,7 +25,7 @@ INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, ord
 SELECT parent.id, CONCAT('0,', parent.id), '市场部门', 'market', 2, COALESCE(leader.id, 0), '021-55550200', 'market@example.com', 1, 'Mock marketing department', NOW(), NOW()
 FROM plugin_org_center_dept parent
 LEFT JOIN sys_user leader ON leader.username = 'user004'
-WHERE parent.code = 'lina'
+WHERE parent.code = 'linapro.ai'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_dept
@@ -36,7 +36,7 @@ INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, ord
 SELECT parent.id, CONCAT('0,', parent.id), '测试部门', 'qa', 3, COALESCE(leader.id, 0), '021-55550300', 'qa@example.com', 1, 'Mock quality assurance department', NOW(), NOW()
 FROM plugin_org_center_dept parent
 LEFT JOIN sys_user leader ON leader.username = 'user008'
-WHERE parent.code = 'lina'
+WHERE parent.code = 'linapro.ai'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_dept
@@ -47,7 +47,7 @@ INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, ord
 SELECT parent.id, CONCAT('0,', parent.id), '财务部门', 'finance', 4, COALESCE(leader.id, 0), '021-55550400', 'finance@example.com', 1, 'Mock finance department', NOW(), NOW()
 FROM plugin_org_center_dept parent
 LEFT JOIN sys_user leader ON leader.username = 'user011'
-WHERE parent.code = 'lina'
+WHERE parent.code = 'linapro.ai'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_dept
@@ -58,7 +58,7 @@ INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, ord
 SELECT parent.id, CONCAT('0,', parent.id), '运维部门', 'ops', 5, COALESCE(leader.id, 0), '021-55550500', 'ops@example.com', 1, 'Mock operations department', NOW(), NOW()
 FROM plugin_org_center_dept parent
 LEFT JOIN sys_user leader ON leader.username = 'user009'
-WHERE parent.code = 'lina'
+WHERE parent.code = 'linapro.ai'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_dept
@@ -68,7 +68,7 @@ WHERE parent.code = 'lina'
 INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, order_num, leader, phone, email, status, remark, created_at, updated_at)
 SELECT parent.id, CONCAT('0,', parent.id), '归档部门', 'archive', 99, 0, '021-55550999', 'archive@example.com', 0, 'Disabled mock department for status filtering', NOW(), NOW()
 FROM plugin_org_center_dept parent
-WHERE parent.code = 'lina'
+WHERE parent.code = 'linapro.ai'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_dept
@@ -78,7 +78,7 @@ WHERE parent.code = 'lina'
 INSERT IGNORE INTO plugin_org_center_post (dept_id, code, name, sort, status, remark, created_at, updated_at)
 SELECT d.id, 'CEO', '总经理', 1, 1, 'Mock executive post', NOW(), NOW()
 FROM plugin_org_center_dept d
-WHERE d.code = 'lina'
+WHERE d.code = 'linapro.ai'
   AND NOT EXISTS (
       SELECT 1
       FROM plugin_org_center_post
@@ -148,7 +148,7 @@ WHERE d.code = 'finance'
 INSERT IGNORE INTO plugin_org_center_user_dept (user_id, dept_id)
 SELECT u.id, d.id
 FROM sys_user u
-JOIN plugin_org_center_dept d ON d.code = 'lina'
+JOIN plugin_org_center_dept d ON d.code = 'linapro.ai'
 WHERE u.username = 'admin';
 
 INSERT IGNORE INTO plugin_org_center_user_post (user_id, post_id)

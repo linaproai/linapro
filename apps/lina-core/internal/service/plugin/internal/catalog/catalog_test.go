@@ -230,7 +230,7 @@ func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 	}
 
 	_, err := svcs.Catalog.ScanManifests()
-	if err == nil || !strings.Contains(err.Error(), "插件ID重复") {
+	if err == nil || !strings.Contains(err.Error(), "plugin ID is duplicated") {
 		t.Fatalf("expected duplicate plugin id error, got: %v", err)
 	}
 }
@@ -260,7 +260,7 @@ func TestScanPluginManifestsRejectsDuplicateRuntimeArtifactPluginIDs(t *testing.
 	)
 
 	_, err := svcs.Catalog.ScanManifests()
-	if err == nil || !strings.Contains(err.Error(), "动态插件ID重复") {
+	if err == nil || !strings.Contains(err.Error(), "dynamic plugin ID is duplicated") {
 		t.Fatalf("expected duplicate dynamic plugin id error, got: %v", err)
 	}
 }
@@ -845,7 +845,7 @@ func TestValidateManifestMenusRejectsNonStableHostParent(t *testing.T) {
 	}
 
 	err := catalog.ValidateManifestMenus(manifest)
-	if err == nil || !strings.Contains(err.Error(), "仅允许挂载到宿主稳定目录") {
+	if err == nil || !strings.Contains(err.Error(), "can only mount to a stable host catalog") {
 		t.Fatalf("expected stable host parent validation error, got: %v", err)
 	}
 }
@@ -867,7 +867,7 @@ func TestValidateManifestMenusRejectsOfficialPluginWrongStableParent(t *testing.
 	}
 
 	err := catalog.ValidateManifestMenus(manifest)
-	if err == nil || !strings.Contains(err.Error(), "期望 org") {
+	if err == nil || !strings.Contains(err.Error(), "expected org") {
 		t.Fatalf("expected official plugin parent validation error, got: %v", err)
 	}
 }

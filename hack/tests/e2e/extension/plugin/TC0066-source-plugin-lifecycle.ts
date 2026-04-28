@@ -33,7 +33,7 @@ const pluginRecordTableName = "plugin_demo_source_record";
 const repoRoot = path.resolve(process.cwd(), "../..");
 const pluginDemoSourceStorageRoot = path.resolve(
   repoRoot,
-  "apps/lina-core/temp/upload/plugin-demo-source",
+  "temp/upload/plugin-demo-source",
 );
 const pluginDemoSourceFixturePath = path.resolve(
   repoRoot,

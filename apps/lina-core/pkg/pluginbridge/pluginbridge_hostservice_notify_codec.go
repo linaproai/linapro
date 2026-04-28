@@ -73,63 +73,63 @@ func UnmarshalHostServiceNotifySendRequest(data []byte) (*HostServiceNotifySendR
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 notify send request tag 失败")
+			return nil, gerror.New("failed to decode notify send request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send request title 失败")
+				return nil, gerror.New("failed to decode notify send request title")
 			}
 			out.Title = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send request content 失败")
+				return nil, gerror.New("failed to decode notify send request content")
 			}
 			out.Content = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send request sourceType 失败")
+				return nil, gerror.New("failed to decode notify send request sourceType")
 			}
 			out.SourceType = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send request sourceId 失败")
+				return nil, gerror.New("failed to decode notify send request sourceId")
 			}
 			out.SourceID = value
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send request categoryCode 失败")
+				return nil, gerror.New("failed to decode notify send request categoryCode")
 			}
 			out.CategoryCode = value
 			content = content[size:]
 		case 6:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send request recipientUserId 失败")
+				return nil, gerror.New("failed to decode notify send request recipientUserId")
 			}
 			out.RecipientUserIDs = append(out.RecipientUserIDs, int64(value))
 			content = content[size:]
 		case 7:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send request payloadJson 失败")
+				return nil, gerror.New("failed to decode notify send request payloadJson")
 			}
 			out.PayloadJSON = append([]byte(nil), value...)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 notify send request 字段失败")
+				return nil, gerror.New("failed to skip unknown notify send request field")
 			}
 			content = content[size:]
 		}
@@ -159,28 +159,28 @@ func UnmarshalHostServiceNotifySendResponse(data []byte) (*HostServiceNotifySend
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 notify send response tag 失败")
+			return nil, gerror.New("failed to decode notify send response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send response messageId 失败")
+				return nil, gerror.New("failed to decode notify send response messageId")
 			}
 			out.MessageID = int64(value)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 notify send response deliveryCount 失败")
+				return nil, gerror.New("failed to decode notify send response deliveryCount")
 			}
 			out.DeliveryCount = int32(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 notify send response 字段失败")
+				return nil, gerror.New("failed to skip unknown notify send response field")
 			}
 			content = content[size:]
 		}

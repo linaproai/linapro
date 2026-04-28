@@ -19,7 +19,8 @@
         "enabled": {
           "name": "定時任務-Shell 模式全局開關",
           "remark": "控制 Shell 類型任務是否允許創建、修改、觸發與終止，可選值：true、false。"
-        }
+        },
+        "unsupportedReason": "當前平台不支持 Shell 模式"
       }
     },
     "demo": {

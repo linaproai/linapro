@@ -92,6 +92,9 @@ func TestBuildCronShellConfigDisablesShellOnWindows(t *testing.T) {
 	if windowsCfg.DisabledReason != cronShellUnsupportedReason {
 		t.Fatalf("expected windows disabled reason %q, got %q", cronShellUnsupportedReason, windowsCfg.DisabledReason)
 	}
+	if windowsCfg.DisabledReasonKey != cronShellUnsupportedReasonKey {
+		t.Fatalf("expected windows disabled reason key %q, got %q", cronShellUnsupportedReasonKey, windowsCfg.DisabledReasonKey)
+	}
 
 	linuxCfg := buildCronShellConfig(true, "linux")
 	if !linuxCfg.Enabled {
@@ -102,5 +105,8 @@ func TestBuildCronShellConfigDisablesShellOnWindows(t *testing.T) {
 	}
 	if linuxCfg.DisabledReason != "" {
 		t.Fatalf("expected linux disabled reason empty, got %q", linuxCfg.DisabledReason)
+	}
+	if linuxCfg.DisabledReasonKey != "" {
+		t.Fatalf("expected linux disabled reason key empty, got %q", linuxCfg.DisabledReasonKey)
 	}
 }

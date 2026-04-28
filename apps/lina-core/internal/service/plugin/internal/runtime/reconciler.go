@@ -115,7 +115,7 @@ func (s *serviceImpl) reconcileRuntimePlugin(ctx context.Context, pluginID strin
 		return err
 	}
 	if registry == nil {
-		return gerror.New("插件不存在")
+		return gerror.New("plugin does not exist")
 	}
 	return s.reconcileRuntimeRegistry(ctx, registry, true)
 }
@@ -194,7 +194,7 @@ func (s *serviceImpl) reconcilePluginIfNeeded(ctx context.Context, registry *ent
 		return err
 	}
 	if desiredManifest == nil || catalog.NormalizeType(desiredManifest.Type) != catalog.TypeDynamic {
-		return gerror.New("动态插件目标清单不存在")
+		return gerror.New("dynamic plugin desired manifest does not exist")
 	}
 
 	if registry.Installed != catalog.InstalledYes {
@@ -274,7 +274,7 @@ func (s *serviceImpl) applyInstall(
 		return err
 	}
 	if release == nil {
-		return gerror.Newf("插件发布记录不存在: %s@%s", manifest.ID, manifest.Version)
+		return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
 	}
 	if err = s.markReconciling(ctx, registry, catalog.HostState(desiredState)); err != nil {
 		return err
@@ -366,7 +366,7 @@ func (s *serviceImpl) applyUpgrade(
 		return err
 	}
 	if release == nil {
-		return gerror.Newf("插件发布记录不存在: %s@%s", manifest.ID, manifest.Version)
+		return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
 	}
 
 	if err = s.markReconciling(ctx, registry, catalog.HostState(desiredState)); err != nil {
@@ -490,7 +490,7 @@ func (s *serviceImpl) applyRefresh(
 		return err
 	}
 	if release == nil {
-		return gerror.Newf("插件发布记录不存在: %s@%s", manifest.ID, manifest.Version)
+		return gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version)
 	}
 	if err = s.markReconciling(ctx, registry, catalog.HostState(desiredState)); err != nil {
 		return err
@@ -734,7 +734,7 @@ func (s *serviceImpl) UninstallWithOptions(ctx context.Context, pluginID string,
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		return gerror.New("源码插件随宿主编译集成，不支持卸载")
+		return gerror.New("source plugins are compiled into the host and cannot be uninstalled")
 	}
 
 	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
@@ -749,7 +749,7 @@ func (s *serviceImpl) UninstallWithOptions(ctx context.Context, pluginID string,
 		return err
 	}
 	if release == nil {
-		return gerror.Newf("动态插件缺少当前生效 release: %s", pluginID)
+		return gerror.Newf("dynamic plugin is missing active release: %s", pluginID)
 	}
 	if _, err = s.catalogSvc.PersistReleaseUninstallPurgePolicy(ctx, release, purgeStorageData); err != nil {
 		return err

@@ -1,0 +1,15 @@
+{
+  "error": {
+    "content": {
+      "notice": {
+        "delete": {
+          "required": "Select at least one notice to delete"
+        },
+        "not": {
+          "found": "Notice does not exist"
+        }
+      }
+    }
+  }
+}
+

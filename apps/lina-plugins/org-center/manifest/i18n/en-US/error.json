@@ -1,0 +1,47 @@
+{
+  "error": {
+    "org": {
+      "dept": {
+        "code": {
+          "exists": "Department code already exists"
+        },
+        "has": {
+          "children": {
+            "delete": {
+              "denied": "Department has child departments and cannot be deleted"
+            }
+          },
+          "users": {
+            "delete": {
+              "denied": "Department has assigned users and cannot be deleted"
+            }
+          }
+        },
+        "not": {
+          "found": "Department does not exist"
+        }
+      },
+      "post": {
+        "assigned": {
+          "delete": {
+            "denied": "Post {id} has assigned users and cannot be deleted"
+          }
+        },
+        "code": {
+          "exists": "Post code already exists"
+        },
+        "delete": {
+          "required": "Select at least one post to delete"
+        },
+        "not": {
+          "found": "Post does not exist"
+        },
+        "valid": {
+          "id": {
+            "required": "No valid post IDs were provided"
+          }
+        }
+      }
+    }
+  }
+}

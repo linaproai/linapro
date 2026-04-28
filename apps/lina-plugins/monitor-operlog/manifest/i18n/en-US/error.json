@@ -1,0 +1,12 @@
+{
+  "error": {
+    "monitor": {
+      "operlog": {
+        "not": {
+          "found": "Operation log does not exist"
+        }
+      }
+    }
+  }
+}
+

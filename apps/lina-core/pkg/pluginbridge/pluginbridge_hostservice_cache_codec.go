@@ -116,21 +116,21 @@ func UnmarshalHostServiceCacheGetRequest(data []byte) (*HostServiceCacheGetReque
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache get request tag 失败")
+			return nil, gerror.New("failed to decode cache get request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache get request key 失败")
+				return nil, gerror.New("failed to decode cache get request key")
 			}
 			out.Key = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache get request 字段失败")
+				return nil, gerror.New("failed to skip unknown cache get request field")
 			}
 			content = content[size:]
 		}
@@ -160,21 +160,21 @@ func UnmarshalHostServiceCacheGetResponse(data []byte) (*HostServiceCacheGetResp
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache get response tag 失败")
+			return nil, gerror.New("failed to decode cache get response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache get response found 失败")
+				return nil, gerror.New("failed to decode cache get response found")
 			}
 			out.Found = value != 0
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache get response value 失败")
+				return nil, gerror.New("failed to decode cache get response value")
 			}
 			cacheValue, err := unmarshalHostServiceCacheValue(value)
 			if err != nil {
@@ -185,7 +185,7 @@ func UnmarshalHostServiceCacheGetResponse(data []byte) (*HostServiceCacheGetResp
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache get response 字段失败")
+				return nil, gerror.New("failed to skip unknown cache get response field")
 			}
 			content = content[size:]
 		}
@@ -218,35 +218,35 @@ func UnmarshalHostServiceCacheSetRequest(data []byte) (*HostServiceCacheSetReque
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache set request tag 失败")
+			return nil, gerror.New("failed to decode cache set request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache set request key 失败")
+				return nil, gerror.New("failed to decode cache set request key")
 			}
 			out.Key = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache set request value 失败")
+				return nil, gerror.New("failed to decode cache set request value")
 			}
 			out.Value = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache set request expireSeconds 失败")
+				return nil, gerror.New("failed to decode cache set request expireSeconds")
 			}
 			out.ExpireSeconds = int64(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache set request 字段失败")
+				return nil, gerror.New("failed to skip unknown cache set request field")
 			}
 			content = content[size:]
 		}
@@ -270,14 +270,14 @@ func UnmarshalHostServiceCacheSetResponse(data []byte) (*HostServiceCacheSetResp
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache set response tag 失败")
+			return nil, gerror.New("failed to decode cache set response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache set response value 失败")
+				return nil, gerror.New("failed to decode cache set response value")
 			}
 			cacheValue, err := unmarshalHostServiceCacheValue(value)
 			if err != nil {
@@ -288,7 +288,7 @@ func UnmarshalHostServiceCacheSetResponse(data []byte) (*HostServiceCacheSetResp
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache set response 字段失败")
+				return nil, gerror.New("failed to skip unknown cache set response field")
 			}
 			content = content[size:]
 		}
@@ -315,21 +315,21 @@ func UnmarshalHostServiceCacheDeleteRequest(data []byte) (*HostServiceCacheDelet
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache delete request tag 失败")
+			return nil, gerror.New("failed to decode cache delete request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache delete request key 失败")
+				return nil, gerror.New("failed to decode cache delete request key")
 			}
 			out.Key = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache delete request 字段失败")
+				return nil, gerror.New("failed to skip unknown cache delete request field")
 			}
 			content = content[size:]
 		}
@@ -362,35 +362,35 @@ func UnmarshalHostServiceCacheIncrRequest(data []byte) (*HostServiceCacheIncrReq
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache incr request tag 失败")
+			return nil, gerror.New("failed to decode cache incr request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache incr request key 失败")
+				return nil, gerror.New("failed to decode cache incr request key")
 			}
 			out.Key = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache incr request delta 失败")
+				return nil, gerror.New("failed to decode cache incr request delta")
 			}
 			out.Delta = int64(value)
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache incr request expireSeconds 失败")
+				return nil, gerror.New("failed to decode cache incr request expireSeconds")
 			}
 			out.ExpireSeconds = int64(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache incr request 字段失败")
+				return nil, gerror.New("failed to skip unknown cache incr request field")
 			}
 			content = content[size:]
 		}
@@ -414,14 +414,14 @@ func UnmarshalHostServiceCacheIncrResponse(data []byte) (*HostServiceCacheIncrRe
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache incr response tag 失败")
+			return nil, gerror.New("failed to decode cache incr response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeBytes(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache incr response value 失败")
+				return nil, gerror.New("failed to decode cache incr response value")
 			}
 			cacheValue, err := unmarshalHostServiceCacheValue(value)
 			if err != nil {
@@ -432,7 +432,7 @@ func UnmarshalHostServiceCacheIncrResponse(data []byte) (*HostServiceCacheIncrRe
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache incr response 字段失败")
+				return nil, gerror.New("failed to skip unknown cache incr response field")
 			}
 			content = content[size:]
 		}
@@ -462,28 +462,28 @@ func UnmarshalHostServiceCacheExpireRequest(data []byte) (*HostServiceCacheExpir
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache expire request tag 失败")
+			return nil, gerror.New("failed to decode cache expire request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache expire request key 失败")
+				return nil, gerror.New("failed to decode cache expire request key")
 			}
 			out.Key = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache expire request expireSeconds 失败")
+				return nil, gerror.New("failed to decode cache expire request expireSeconds")
 			}
 			out.ExpireSeconds = int64(value)
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache expire request 字段失败")
+				return nil, gerror.New("failed to skip unknown cache expire request field")
 			}
 			content = content[size:]
 		}
@@ -513,28 +513,28 @@ func UnmarshalHostServiceCacheExpireResponse(data []byte) (*HostServiceCacheExpi
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache expire response tag 失败")
+			return nil, gerror.New("failed to decode cache expire response tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache expire response found 失败")
+				return nil, gerror.New("failed to decode cache expire response found")
 			}
 			out.Found = value != 0
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache expire response expireAt 失败")
+				return nil, gerror.New("failed to decode cache expire response expireAt")
 			}
 			out.ExpireAt = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache expire response 字段失败")
+				return nil, gerror.New("failed to skip unknown cache expire response field")
 			}
 			content = content[size:]
 		}
@@ -572,42 +572,42 @@ func unmarshalHostServiceCacheValue(data []byte) (*HostServiceCacheValue, error)
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cache value tag 失败")
+			return nil, gerror.New("failed to decode cache value tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache value kind 失败")
+				return nil, gerror.New("failed to decode cache value kind")
 			}
 			out.ValueKind = int32(value)
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache value string 失败")
+				return nil, gerror.New("failed to decode cache value string")
 			}
 			out.Value = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache value intValue 失败")
+				return nil, gerror.New("failed to decode cache value intValue")
 			}
 			out.IntValue = int64(value)
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cache value expireAt 失败")
+				return nil, gerror.New("failed to decode cache value expireAt")
 			}
 			out.ExpireAt = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cache value 字段失败")
+				return nil, gerror.New("failed to skip unknown cache value field")
 			}
 			content = content[size:]
 		}

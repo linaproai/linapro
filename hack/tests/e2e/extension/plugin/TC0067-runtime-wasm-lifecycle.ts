@@ -189,32 +189,12 @@ function bundledRuntimeStorageArtifactPath() {
   return path.join(runtimeStorageDir(), `${bundledRuntimePluginID}.wasm`);
 }
 
-function bundledRuntimeStorageRootDirs() {
-  // The backend resolves plugin.dynamic.storagePath from its own working
-  // directory. In local runs the host process usually starts from
-  // apps/lina-core, while artifact fixtures for this test are written under the
-  // repo-root temp/output directory. Cover both locations so the assertions
-  // track the real host-service storage root regardless of how the backend was
-  // launched.
-  return Array.from(
-    new Set([
-      path.join(
-        runtimeStorageDir(),
-        ".host-services",
-        "storage",
-        bundledRuntimePluginID,
-      ),
-      path.join(
-        repoRoot(),
-        "apps",
-        "lina-core",
-        "temp",
-        "output",
-        ".host-services",
-        "storage",
-        bundledRuntimePluginID,
-      ),
-    ]),
+function bundledRuntimeStorageRootDir() {
+  return path.join(
+    runtimeStorageDir(),
+    ".host-services",
+    "storage",
+    bundledRuntimePluginID,
   );
 }
 
@@ -282,9 +262,7 @@ function cleanupBundledRuntimeDemoData() {
       stdio: "ignore",
     },
   );
-  for (const storageRootDir of bundledRuntimeStorageRootDirs()) {
-    rmSync(storageRootDir, { force: true, recursive: true });
-  }
+  rmSync(bundledRuntimeStorageRootDir(), { force: true, recursive: true });
   rmSync(bundledRuntimeAttachmentFixturePath(), { force: true });
 }
 
@@ -414,9 +392,7 @@ function countFilesRecursive(targetPath: string): number {
 }
 
 function bundledRuntimeStoredFileCount() {
-  return bundledRuntimeStorageRootDirs().reduce((total, storageRootDir) => {
-    return total + countFilesRecursive(storageRootDir);
-  }, 0);
+  return countFilesRecursive(bundledRuntimeStorageRootDir());
 }
 
 function ensureBundledRuntimeAttachmentFixture() {

@@ -30,6 +30,20 @@
           "createTitle": "Add Position",
           "editTitle": "Edit Position"
         },
+        "export": {
+          "headers": {
+            "code": "Post Code",
+            "createdAt": "Created At",
+            "name": "Post Name",
+            "remark": "Remark",
+            "sort": "Sort",
+            "status": "Status"
+          },
+          "status": {
+            "disabled": "Disabled",
+            "enabled": "Enabled"
+          }
+        },
         "fields": {
           "code": "Code",
           "dept": "Department",
@@ -40,7 +54,10 @@
           "deleteSelectedConfirm": "Delete the selected {count} position(s)?",
           "saveFailed": "Failed to save the position"
         },
-        "tableTitle": "Position List"
+        "tableTitle": "Position List",
+        "tree": {
+          "unassignedDept": "Unassigned Department"
+        }
       }
     }
   }

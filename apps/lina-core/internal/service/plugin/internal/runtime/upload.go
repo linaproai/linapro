@@ -55,7 +55,7 @@ type DynamicUploadOutput struct {
 // configured plugin.dynamic.storagePath directory.
 func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploadInput) (out *DynamicUploadOutput, err error) {
 	if in == nil || in.File == nil {
-		return nil, gerror.New("请上传动态插件文件")
+		return nil, gerror.New("dynamic plugin file is required")
 	}
 	if err = s.validateUploadedPackageSize(ctx, in.File.Size); err != nil {
 		return nil, err
@@ -63,16 +63,16 @@ func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploa
 
 	source, err := in.File.Open()
 	if err != nil {
-		return nil, gerror.Wrap(err, "打开动态插件文件失败")
+		return nil, gerror.Wrap(err, "open dynamic plugin file failed")
 	}
-	defer closeutil.Close(ctx, source, &err, "关闭动态插件上传文件失败")
+	defer closeutil.Close(ctx, source, &err, "close dynamic plugin upload file failed")
 
 	content, err := io.ReadAll(source)
 	if err != nil {
-		return nil, gerror.Wrap(err, "读取动态插件文件失败")
+		return nil, gerror.Wrap(err, "read dynamic plugin file failed")
 	}
 	if len(content) == 0 {
-		return nil, gerror.New("动态插件文件不能为空")
+		return nil, gerror.New("dynamic plugin file cannot be empty")
 	}
 	if err = s.validateUploadedPackageSize(ctx, int64(len(content))); err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (s *serviceImpl) validateUploadedPackageSize(ctx context.Context, sizeBytes
 	if sizeBytes <= uploadMaxSizeMB*bytesPerMegabyte {
 		return nil
 	}
-	return gerror.Newf("文件大小不能超过%dMB", uploadMaxSizeMB)
+	return gerror.Newf("file size cannot exceed %dMB", uploadMaxSizeMB)
 }
 
 // normalizeUploadFilename ensures the filename ends with .wasm.
@@ -134,7 +134,7 @@ func (s *serviceImpl) storeUploadedPackage(
 		return nil, err
 	}
 	if artifact.Manifest == nil {
-		return nil, gerror.New("动态插件嵌入清单不能为空")
+		return nil, gerror.New("dynamic plugin embedded manifest cannot be nil")
 	}
 
 	manifest := &catalog.Manifest{
@@ -165,7 +165,7 @@ func (s *serviceImpl) storeUploadedPackage(
 		return nil, err
 	}
 	if registry != nil && catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
-		return nil, gerror.New("已存在同名源码插件，不允许上传动态插件覆盖")
+		return nil, gerror.New("a source plugin with the same ID already exists; dynamic plugin upload cannot overwrite it")
 	}
 
 	allowInstalledUpgradeOverwrite := false
@@ -175,20 +175,20 @@ func (s *serviceImpl) storeUploadedPackage(
 			return nil, compareErr
 		}
 		if compareResult <= 0 {
-			return nil, gerror.New("已安装的动态插件只允许上传更高版本作为待切换 release")
+			return nil, gerror.New("installed dynamic plugins can only upload a higher version as the pending release")
 		}
 		allowInstalledUpgradeOverwrite = true
 	}
 	if conflictPath, conflictErr := s.findDuplicateArtifactPath(storageDir, manifest.ID, targetPath); conflictErr != nil {
 		return nil, conflictErr
 	} else if conflictPath != "" {
-		return nil, gerror.Newf("动态插件目录存在重复的插件ID %s，请先移除冲突文件: %s", manifest.ID, conflictPath)
+		return nil, gerror.Newf("dynamic plugin storage contains duplicate plugin ID %s, remove conflicting file first: %s", manifest.ID, conflictPath)
 	}
 	if gfile.Exists(targetPath) && !overwriteSupport && !allowInstalledUpgradeOverwrite {
-		return nil, gerror.New("动态插件文件已存在，请开启覆盖后重试")
+		return nil, gerror.New("dynamic plugin file already exists; enable overwrite and retry")
 	}
 	if err = gfile.Mkdir(storageDir); err != nil {
-		return nil, gerror.Wrap(err, "创建动态插件存储目录失败")
+		return nil, gerror.Wrap(err, "create dynamic plugin storage directory failed")
 	}
 
 	backupContent := []byte(nil)
@@ -197,12 +197,12 @@ func (s *serviceImpl) storeUploadedPackage(
 		backupContent = gfile.GetBytes(targetPath)
 	}
 	if err = gfile.PutBytes(targetPath, content); err != nil {
-		return nil, gerror.Wrap(err, "写入动态插件产物失败")
+		return nil, gerror.Wrap(err, "write dynamic plugin artifact failed")
 	}
 	reloadedManifest, err := s.catalogSvc.LoadManifestFromArtifactPath(targetPath)
 	if err != nil {
 		if restoreErr := restoreArtifactBackup(targetPath, targetExisted, backupContent); restoreErr != nil {
-			return nil, gerror.Wrapf(err, "解析上传后的动态插件失败，且恢复备份失败: %v", restoreErr)
+			return nil, gerror.Wrapf(err, "parse uploaded dynamic plugin failed and restoring backup failed: %v", restoreErr)
 		}
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func (s *serviceImpl) storeUploadedPackage(
 	syncedRegistry, err := s.catalogSvc.SyncManifest(ctx, reloadedManifest)
 	if err != nil {
 		if restoreErr := restoreArtifactBackup(targetPath, targetExisted, backupContent); restoreErr != nil {
-			return nil, gerror.Wrapf(err, "同步动态插件清单失败，且恢复备份失败: %v", restoreErr)
+			return nil, gerror.Wrapf(err, "sync dynamic plugin manifest failed and restoring backup failed: %v", restoreErr)
 		}
 		return nil, err
 	}
@@ -250,7 +250,7 @@ func (s *serviceImpl) findDuplicateArtifactPath(storageDir string, pluginID stri
 		}
 		artifact, parseErr := s.ParseRuntimeWasmArtifact(artifactPath)
 		if parseErr != nil {
-			return "", gerror.Wrapf(parseErr, "解析现有动态插件文件失败: %s", artifactPath)
+			return "", gerror.Wrapf(parseErr, "parse existing dynamic plugin file failed: %s", artifactPath)
 		}
 		if artifact.Manifest != nil && strings.TrimSpace(artifact.Manifest.ID) == pluginID {
 			return artifactPath, nil
@@ -263,12 +263,12 @@ func (s *serviceImpl) findDuplicateArtifactPath(storageDir string, pluginID stri
 func restoreArtifactBackup(targetPath string, targetExisted bool, backupContent []byte) error {
 	if targetExisted {
 		if err := gfile.PutBytes(targetPath, backupContent); err != nil {
-			return gerror.Wrap(err, "恢复动态插件备份文件失败")
+			return gerror.Wrap(err, "restore dynamic plugin backup file failed")
 		}
 		return nil
 	}
 	if err := gfile.Remove(targetPath); err != nil {
-		return gerror.Wrap(err, "删除失败的动态插件产物失败")
+		return gerror.Wrap(err, "delete failed dynamic plugin artifact failed")
 	}
 	return nil
 }

@@ -41,7 +41,7 @@ func newCronDiscoveryCollector(pluginID string) *cronDiscoveryCollector {
 // Register validates and stores one discovered cron contract.
 func (c *cronDiscoveryCollector) Register(contract *pluginbridge.CronContract) error {
 	if contract == nil {
-		return gerror.New("动态插件定时任务声明不能为空")
+		return gerror.New("dynamic plugin cron declaration cannot be nil")
 	}
 
 	contractSnapshot := *contract
@@ -49,7 +49,7 @@ func (c *cronDiscoveryCollector) Register(contract *pluginbridge.CronContract) e
 		return err
 	}
 	if _, exists := c.seen[contractSnapshot.Name]; exists {
-		return gerror.Newf("动态插件 %s 的定时任务 name 不能重复: %s", c.pluginID, contractSnapshot.Name)
+		return gerror.Newf("dynamic plugin %s cron job name is duplicated: %s", c.pluginID, contractSnapshot.Name)
 	}
 	c.seen[contractSnapshot.Name] = struct{}{}
 	c.items = append(c.items, &contractSnapshot)
@@ -79,13 +79,13 @@ func (s *serviceImpl) DiscoverCronContracts(
 	manifest *catalog.Manifest,
 ) ([]*pluginbridge.CronContract, error) {
 	if manifest == nil {
-		return nil, gerror.New("动态插件清单不能为空")
+		return nil, gerror.New("dynamic plugin manifest cannot be nil")
 	}
 	if manifest.RuntimeArtifact == nil || strings.TrimSpace(manifest.RuntimeArtifact.Path) == "" {
-		return nil, gerror.Newf("动态插件 %s 缺少可执行运行时产物", manifest.ID)
+		return nil, gerror.Newf("dynamic plugin %s is missing executable runtime artifact", manifest.ID)
 	}
 	if manifest.BridgeSpec == nil || !manifest.BridgeSpec.RouteExecution {
-		return nil, gerror.Newf("动态插件 %s 未声明可执行 Wasm bridge", manifest.ID)
+		return nil, gerror.Newf("dynamic plugin %s does not declare an executable Wasm bridge", manifest.ID)
 	}
 
 	collector := newCronDiscoveryCollector(manifest.ID)
@@ -128,16 +128,16 @@ func (s *serviceImpl) ExecuteDeclaredCronJob(
 	contract *pluginbridge.CronContract,
 ) error {
 	if manifest == nil {
-		return gerror.New("动态插件清单不能为空")
+		return gerror.New("dynamic plugin manifest cannot be nil")
 	}
 	if contract == nil {
-		return gerror.New("动态插件定时任务契约不能为空")
+		return gerror.New("dynamic plugin cron contract cannot be nil")
 	}
 	if manifest.RuntimeArtifact == nil || strings.TrimSpace(manifest.RuntimeArtifact.Path) == "" {
-		return gerror.Newf("动态插件 %s 缺少可执行运行时产物", manifest.ID)
+		return gerror.Newf("dynamic plugin %s is missing executable runtime artifact", manifest.ID)
 	}
 	if manifest.BridgeSpec == nil || !manifest.BridgeSpec.RouteExecution {
-		return gerror.Newf("动态插件 %s 未声明可执行 Wasm bridge", manifest.ID)
+		return gerror.Newf("dynamic plugin %s does not declare an executable Wasm bridge", manifest.ID)
 	}
 
 	request := &pluginbridge.BridgeRequestEnvelopeV1{
@@ -178,7 +178,7 @@ func normalizeDiscoveredCronContracts(
 	collector *cronDiscoveryCollector,
 ) ([]*pluginbridge.CronContract, error) {
 	if response == nil {
-		return nil, gerror.New("动态插件定时任务注册未返回执行结果")
+		return nil, gerror.New("dynamic plugin cron registration returned no execution result")
 	}
 	if response.StatusCode == http.StatusNotFound {
 		return []*pluginbridge.CronContract{}, nil
@@ -191,7 +191,7 @@ func normalizeDiscoveredCronContracts(
 		if message == "" {
 			message = http.StatusText(int(response.StatusCode))
 		}
-		return nil, gerror.Newf("动态插件定时任务发现失败(%s): %s", strings.TrimSpace(pluginID), message)
+		return nil, gerror.Newf("dynamic plugin cron discovery failed (%s): %s", strings.TrimSpace(pluginID), message)
 	}
 
 	contracts := collector.Items()
@@ -208,7 +208,7 @@ func normalizeDeclaredCronResponse(
 	response *pluginbridge.BridgeResponseEnvelopeV1,
 ) error {
 	if response == nil {
-		return gerror.New("动态插件定时任务未返回执行结果")
+		return gerror.New("dynamic plugin cron returned no execution result")
 	}
 	if response.Failure != nil {
 		return gerror.New(strings.TrimSpace(response.Failure.Message))
@@ -218,7 +218,7 @@ func normalizeDeclaredCronResponse(
 		if message == "" {
 			message = http.StatusText(int(response.StatusCode))
 		}
-		return gerror.Newf("动态插件定时任务执行失败(%s): %s", strings.TrimSpace(contract.Name), message)
+		return gerror.Newf("dynamic plugin cron execution failed (%s): %s", strings.TrimSpace(contract.Name), message)
 	}
 	return nil
 }

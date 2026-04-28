@@ -139,7 +139,7 @@ func TestValidateHostedMenuBindingsRejectsBrokenEmbeddedMountContract(t *testing
 	if err == nil {
 		t.Fatalf("expected broken embedded mount contract to be rejected")
 	}
-	if expected := ".js 或 .mjs"; !strings.Contains(err.Error(), expected) {
+	if expected := ".js or .mjs"; !strings.Contains(err.Error(), expected) {
 		t.Fatalf("expected error to mention %q, got: %v", expected, err)
 	}
 }

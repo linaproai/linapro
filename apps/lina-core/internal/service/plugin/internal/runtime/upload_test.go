@@ -41,7 +41,7 @@ func TestUploadDynamicPackageRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected oversized runtime package upload to fail")
 	}
-	if !strings.Contains(err.Error(), "文件大小不能超过1MB") {
+	if !strings.Contains(err.Error(), "file size cannot exceed 1MB") {
 		t.Fatalf("expected friendly runtime upload size error, got %v", err)
 	}
 }

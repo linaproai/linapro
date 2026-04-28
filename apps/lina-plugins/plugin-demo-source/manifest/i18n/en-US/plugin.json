@@ -27,6 +27,7 @@
           "content": "Please enter record content",
           "title": "Please enter a record title"
         },
+        "summaryMessage": "This short description comes from the plugin-demo-source API and verifies that a source plugin menu page can read backend data.",
         "tableTitle": "Demo Records",
         "validation": {
           "title": "Please enter a record title"

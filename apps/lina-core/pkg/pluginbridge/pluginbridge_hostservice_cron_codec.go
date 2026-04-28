@@ -66,91 +66,91 @@ func UnmarshalHostServiceCronRegisterRequest(data []byte) (*HostServiceCronRegis
 	for len(content) > 0 {
 		fieldNumber, wireType, length := protowire.ConsumeTag(content)
 		if length < 0 {
-			return nil, gerror.New("解析 cron register request tag 失败")
+			return nil, gerror.New("failed to decode cron register request tag")
 		}
 		content = content[length:]
 		switch fieldNumber {
 		case 1:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request name 失败")
+				return nil, gerror.New("failed to decode cron register request name")
 			}
 			out.Contract.Name = value
 			content = content[size:]
 		case 2:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request displayName 失败")
+				return nil, gerror.New("failed to decode cron register request displayName")
 			}
 			out.Contract.DisplayName = value
 			content = content[size:]
 		case 3:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request description 失败")
+				return nil, gerror.New("failed to decode cron register request description")
 			}
 			out.Contract.Description = value
 			content = content[size:]
 		case 4:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request pattern 失败")
+				return nil, gerror.New("failed to decode cron register request pattern")
 			}
 			out.Contract.Pattern = value
 			content = content[size:]
 		case 5:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request timezone 失败")
+				return nil, gerror.New("failed to decode cron register request timezone")
 			}
 			out.Contract.Timezone = value
 			content = content[size:]
 		case 6:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request scope 失败")
+				return nil, gerror.New("failed to decode cron register request scope")
 			}
 			out.Contract.Scope = CronScope(value)
 			content = content[size:]
 		case 7:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request concurrency 失败")
+				return nil, gerror.New("failed to decode cron register request concurrency")
 			}
 			out.Contract.Concurrency = CronConcurrency(value)
 			content = content[size:]
 		case 8:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request maxConcurrency 失败")
+				return nil, gerror.New("failed to decode cron register request maxConcurrency")
 			}
 			out.Contract.MaxConcurrency = int(value)
 			content = content[size:]
 		case 9:
 			value, size := protowire.ConsumeVarint(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request timeoutSeconds 失败")
+				return nil, gerror.New("failed to decode cron register request timeoutSeconds")
 			}
 			out.Contract.TimeoutSeconds = int(value)
 			content = content[size:]
 		case 10:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request requestType 失败")
+				return nil, gerror.New("failed to decode cron register request requestType")
 			}
 			out.Contract.RequestType = value
 			content = content[size:]
 		case 11:
 			value, size := protowire.ConsumeString(content)
 			if size < 0 {
-				return nil, gerror.New("解析 cron register request internalPath 失败")
+				return nil, gerror.New("failed to decode cron register request internalPath")
 			}
 			out.Contract.InternalPath = value
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)
 			if size < 0 {
-				return nil, gerror.New("跳过未知 cron register request 字段失败")
+				return nil, gerror.New("failed to skip unknown cron register request field")
 			}
 			content = content[size:]
 		}

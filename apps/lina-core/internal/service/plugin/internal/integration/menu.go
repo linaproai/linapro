@@ -140,7 +140,7 @@ func (s *serviceImpl) syncPluginMenusInTx(ctx context.Context, manifest *catalog
 				unresolved = append(unresolved, spec.Key)
 			}
 			sort.Strings(unresolved)
-			return gerror.Newf("插件菜单 parent_key 无法解析: %s", strings.Join(unresolved, ", "))
+			return gerror.Newf("plugin menu parent_key cannot be resolved: %s", strings.Join(unresolved, ", "))
 		}
 
 		pendingMenus = nextPending
@@ -273,10 +273,10 @@ func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifes
 			continue
 		}
 		if !menusvc.IsStableCatalogKey(spec.ParentKey) {
-			return nil, gerror.Newf("插件菜单 parent_key 仅允许挂载到宿主稳定目录: %s -> %s", spec.Key, spec.ParentKey)
+			return nil, gerror.Newf("plugin menu parent_key can only mount to a stable host catalog: %s -> %s", spec.Key, spec.ParentKey)
 		}
 		if expectedParentKey, ok := menusvc.ExpectedStableParentKey(manifest.ID); ok && expectedParentKey != spec.ParentKey {
-			return nil, gerror.Newf("官方插件顶层菜单 parent_key 不合法: %s -> %s，期望 %s", spec.Key, spec.ParentKey, expectedParentKey)
+			return nil, gerror.Newf("official plugin top-level menu parent_key is invalid: %s -> %s, expected %s", spec.Key, spec.ParentKey, expectedParentKey)
 		}
 		if _, ok := seen[spec.ParentKey]; ok {
 			continue
@@ -307,7 +307,7 @@ func (s *serviceImpl) resolvePluginMenuParentID(
 
 	parent, ok := externalParents[parentKey]
 	if !ok || parent == nil {
-		return 0, false, gerror.Newf("插件菜单 parent_key 不存在: %s -> %s", spec.Key, spec.ParentKey)
+		return 0, false, gerror.Newf("plugin menu parent_key does not exist: %s -> %s", spec.Key, spec.ParentKey)
 	}
 	return parent.Id, true, nil
 }
@@ -321,7 +321,7 @@ func (s *serviceImpl) upsertPluginMenu(
 	existing *entity.SysMenu,
 ) (int, error) {
 	if spec == nil {
-		return 0, gerror.New("插件菜单声明不能为空")
+		return 0, gerror.New("plugin menu declaration cannot be nil")
 	}
 
 	queryParam, err := buildMenuQueryParam(spec)
@@ -478,7 +478,7 @@ func normalizeMenuFlag(value *int, defaultValue int) (int, error) {
 		return defaultValue, nil
 	}
 	if *value != 0 && *value != 1 {
-		return 0, gerror.New("仅支持 0 或 1")
+		return 0, gerror.New("only 0 or 1 is supported")
 	}
 	return *value, nil
 }

@@ -59,15 +59,15 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	}
 	snapshot := &ManifestSnapshot{}
 	if err := yaml.Unmarshal([]byte(trimmed), snapshot); err != nil {
-		return nil, gerror.Wrap(err, "解析插件 release manifest_snapshot 失败")
+		return nil, gerror.Wrap(err, "parse plugin release manifest_snapshot failed")
 	}
 	requestedHostServices, err := pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
 	if err != nil {
-		return nil, gerror.Wrap(err, "解析插件请求宿主服务快照失败")
+		return nil, gerror.Wrap(err, "parse requested plugin host service snapshot failed")
 	}
 	authorizedHostServices, err := pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
 	if err != nil {
-		return nil, gerror.Wrap(err, "解析插件授权宿主服务快照失败")
+		return nil, gerror.Wrap(err, "parse authorized plugin host service snapshot failed")
 	}
 	snapshot.RequestedHostServices = requestedHostServices
 	snapshot.AuthorizedHostServices = authorizedHostServices
@@ -82,7 +82,7 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 	input *HostServiceAuthorizationInput,
 ) (*ManifestSnapshot, error) {
 	if manifest == nil {
-		return nil, gerror.New("插件清单不能为空")
+		return nil, gerror.New("plugin manifest cannot be nil")
 	}
 
 	release, err := s.GetRelease(ctx, manifest.ID, manifest.Version)
@@ -90,7 +90,7 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 		return nil, err
 	}
 	if release == nil {
-		return nil, gerror.Newf("插件 release 不存在: %s@%s", manifest.ID, manifest.Version)
+		return nil, gerror.Newf("plugin release does not exist: %s@%s", manifest.ID, manifest.Version)
 	}
 
 	existingSnapshot, err := s.ParseManifestSnapshot(release.ManifestSnapshot)
@@ -129,7 +129,7 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 
 	content, err := yaml.Marshal(snapshot)
 	if err != nil {
-		return nil, gerror.Wrap(err, "生成插件 release 授权快照失败")
+		return nil, gerror.Wrap(err, "build plugin release authorization snapshot failed")
 	}
 
 	if _, err = dao.SysPluginRelease.Ctx(ctx).
@@ -177,12 +177,12 @@ func BuildAuthorizedHostServiceSpecs(
 	decisionMap := make(map[string]*decisionState, len(input.Services))
 	for _, item := range input.Services {
 		if item == nil {
-			return nil, gerror.New("宿主服务授权项不能为空")
+			return nil, gerror.New("host service authorization item cannot be nil")
 		}
 		service := strings.TrimSpace(strings.ToLower(item.Service))
 		spec, ok := serviceMap[service]
 		if !ok {
-			return nil, gerror.Newf("宿主服务授权包含未声明的 service: %s", item.Service)
+			return nil, gerror.Newf("host service authorization contains undeclared service: %s", item.Service)
 		}
 
 		state := &decisionState{
@@ -197,7 +197,7 @@ func BuildAuthorizedHostServiceSpecs(
 				continue
 			}
 			if !containsString(spec.Methods, normalizedMethod) {
-				return nil, gerror.Newf("宿主服务 %s 授权包含未声明的 method: %s", service, method)
+				return nil, gerror.Newf("host service %s authorization contains undeclared method: %s", service, method)
 			}
 			state.methods[normalizedMethod] = struct{}{}
 		}
@@ -209,7 +209,7 @@ func BuildAuthorizedHostServiceSpecs(
 				continue
 			}
 			if _, ok = pathSet[normalizedPath]; !ok {
-				return nil, gerror.Newf("宿主服务 %s 授权包含未声明的 path: %s", service, declaredPath)
+				return nil, gerror.Newf("host service %s authorization contains undeclared path: %s", service, declaredPath)
 			}
 			state.paths[normalizedPath] = struct{}{}
 		}
@@ -221,7 +221,7 @@ func BuildAuthorizedHostServiceSpecs(
 				continue
 			}
 			if _, ok = resourceSet[normalizedRef]; !ok {
-				return nil, gerror.Newf("宿主服务 %s 授权包含未声明的 resourceRef: %s", service, ref)
+				return nil, gerror.Newf("host service %s authorization contains undeclared resourceRef: %s", service, ref)
 			}
 			state.resourceRefs[normalizedRef] = struct{}{}
 		}
@@ -232,7 +232,7 @@ func BuildAuthorizedHostServiceSpecs(
 				continue
 			}
 			if _, ok = tableSet[normalizedTable]; !ok {
-				return nil, gerror.Newf("宿主服务 %s 授权包含未声明的 table: %s", service, table)
+				return nil, gerror.Newf("host service %s authorization contains undeclared table: %s", service, table)
 			}
 			state.tables[normalizedTable] = struct{}{}
 		}
