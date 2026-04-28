@@ -1,0 +1,39 @@
+{
+  "plugin": {
+    "monitor-operlog": {
+      "description": "Official source plugin for operation-log persistence and governance.",
+      "detail": {
+        "title": "Operation Log Details"
+      },
+      "exportFileName": "operation-logs.xlsx",
+      "fields": {
+        "duration": "Duration",
+        "durationMs": "Duration (ms)",
+        "errorInfo": "Error Information",
+        "ipAddress": "IP Address",
+        "logId": "Log ID",
+        "moduleName": "Module Name",
+        "operDate": "Operation Date",
+        "operResult": "Operation Result",
+        "operSummary": "Operation Summary",
+        "operTime": "Operation Time",
+        "operType": "Operation Type",
+        "operator": "Operator",
+        "requestMethod": "Request Method",
+        "requestParams": "Request Parameters",
+        "requestUrl": "Request URL",
+        "responseResult": "Response Result"
+      },
+      "messages": {
+        "clearConfirm": "Clear all operation logs?",
+        "clearSuccess": "Operation logs cleared successfully",
+        "deleteSelectedConfirm": "Delete the selected {count} operation log(s)?"
+      },
+      "method": {
+        "patch": "Patch"
+      },
+      "name": "Monitoring - Operation Logs",
+      "tableTitle": "Operation Log List"
+    }
+  }
+}

@@ -78,7 +78,7 @@ Read `CLAUDE.md` to load all specifications. This is the single source of truth.
 Check against `CLAUDE.md` API design specifications, including:
 1. HTTP method and resource path compliance with RESTful rules
 2. API DTO documentation metadata completeness
-3. **API documentation i18n compliance** — `g.Meta` and hand-authored DTO documentation tags must use readable English source text, must not use Chinese source text or opaque i18n placeholders, must keep apidoc localization in dedicated apidoc i18n JSON resources separate from runtime UI i18n bundles, must use stable structured apidoc keys instead of source-text keys, must keep host `core.*` apidoc keys in lina-core resources and plugin `plugins.*` apidoc keys in each plugin's own `manifest/i18n/apidoc/<locale>.json`, must keep `en-US` apidoc JSON as an empty placeholder because English docs use source text directly, must not add service-layer Chinese-to-English fallback maps or apidoc JSON mappings for generated/framework/database schema metadata such as `internal.model.entity.*`, must display generated metadata as supplied by its source, must leave `eg/example` values untranslated and out of apidoc i18n resources, and must include tests or review checks that prevent missing non-English apidoc translations when English source text changes
+3. **API documentation i18n compliance** — `g.Meta` and hand-authored DTO documentation tags must use readable English source text, must not use Chinese source text or opaque i18n placeholders, must keep apidoc localization in dedicated apidoc i18n JSON resources separate from runtime UI i18n bundles, must use stable structured apidoc keys instead of source-text keys, must keep host `core.*` apidoc keys in lina-core resources and plugin `plugins.*` apidoc keys in each plugin's own `manifest/i18n/<locale>/apidoc/**/*.json`, must keep `en-US` apidoc JSON files as empty placeholders because English docs use source text directly, must not add service-layer Chinese-to-English fallback maps or apidoc JSON mappings for generated/framework/database schema metadata such as `internal.model.entity.*`, must display generated metadata as supplied by its source, must leave `eg/example` values untranslated and out of apidoc i18n resources, and must include tests or review checks that prevent missing non-English apidoc translations when English source text changes
 
 ### 5. Project Specification Review
 
@@ -93,6 +93,12 @@ For every functional change, also perform an **i18n impact review**:
 4. If the change has no i18n impact, require the review result to state that conclusion explicitly.
 
 For every backend service, the component main file may be named `<component>.go`; every non-main Go source file in that component directory MUST use the `<component>_*.go` prefix, and tests must follow the same prefix convention.
+
+For every backend change that can return errors to an API caller, plugin caller, source-plugin backend caller, WASM host service caller, or any other external invocation boundary, also perform a **caller-facing bizerr review**:
+1. Business errors, authorization errors, validation errors, and user-visible failure reasons that may enter a response payload MUST be created or wrapped with `apps/lina-core/pkg/bizerr` (`bizerr.NewCode`, `bizerr.WrapCode`, or equivalent local wrapper).
+2. Each module MUST define its reusable `bizerr.Code` values in that module's `*_code.go` file; call sites MUST reference those variables instead of hard-coding machine error codes, runtime i18n keys, raw numeric codes, or user-facing message text.
+3. Flag direct `gerror.New/Newf/NewCode/NewCodef/Wrap/Wrapf/WrapCode/WrapCodef`, `errors.New`, and `fmt.Errorf` when the returned error can reach unified HTTP responses, plugin bridge/host-service responses, source-plugin API responses, or other caller-visible payloads without being wrapped as `bizerr`.
+4. Allow direct `gerror`, `errors`, or `fmt.Errorf` only for startup/test code, internal developer diagnostics, pure low-level technical causes that are wrapped before the boundary, or operational logging paths that never surface as caller-visible interface errors.
 
 For every backend change that touches logging, helper functions, cleanup paths, async callbacks, middleware, controllers, or service-layer call chains, also perform a **logging context propagation review**:
 1. Backend host code and source-plugin backend code MUST pass the upstream `context.Context` through the call chain to any lower-level method that may log.
@@ -109,7 +115,7 @@ For every frontend change that introduces or modifies an enumerated business val
 
 For every backend change that localizes export/import headers, field labels, or metadata projections, also perform a **hard-coded bilingual map review**:
 1. Business modules MUST NOT maintain Go maps such as `englishLabels`, `chineseLabels`, or equivalent locale-to-label tables for user-visible text.
-2. Such labels MUST be resolved through runtime i18n keys (for example `config.field.<name>`) and corresponding host/plugin `manifest/i18n/<locale>.json` resources, including the packed manifest copy when the host embeds delivery resources.
+2. Such labels MUST be resolved through runtime i18n keys (for example `config.field.<name>`) and corresponding host/plugin `manifest/i18n/<locale>/*.json` resources, including the packed manifest copy when the host embeds delivery resources.
 
 For every change that touches source-text-backed missing-message behavior, also perform a **source-text namespace registration review**:
 1. `apps/lina-core/internal/service/i18n/` MUST NOT hard-code business-owned prefixes such as `job.handler.` or `job.group.default.` when deciding whether a key is source-text-backed.
@@ -140,7 +146,7 @@ For every frontend change that touches locale direction handling, also perform a
 3. Still flag incoherent overlap, unreadable text, broken navigation, or controls that become unusable after language switching.
 
 For every change that touches built-in runtime languages, also perform a **language registration single-source review**:
-1. Built-in runtime languages MUST be discovered from `manifest/i18n/<locale>.json`; the default config `i18n` section may only provide default locale, `enabled`, ordering, native name metadata, and the enabled-locale whitelist.
+1. Built-in runtime languages MUST be discovered from `manifest/i18n/<locale>/` directories that contain direct runtime JSON files; the default config `i18n` section may only provide default locale, `enabled`, ordering, native name metadata, and the enabled-locale whitelist.
 2. Flag new per-language Go constants, SQL seed rows, frontend `SUPPORT_LANGUAGES` additions, frontend `RTL_LOCALES` additions, or locale-specific `switch` branches as critical issues unless they are package-level generic fallback rules rather than project language registration.
 3. Adding a built-in language must not require modifying backend Go enumeration code, host SQL files, or frontend TS language lists.
 4. When `i18n.enabled=false`, the frontend language switcher must be hidden and runtime locale resolution must use `i18n.default`.

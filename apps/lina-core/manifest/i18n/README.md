@@ -2,37 +2,35 @@
 
 This directory stores the delivery baseline i18n resources for `LinaPro`.
 
-The host loads top-level `manifest/i18n/<locale>.json` files as runtime UI message bundles, merges them with enabled plugin resources, and exposes the effective result through the runtime i18n APIs.
+The host loads direct JSON files under `manifest/i18n/<locale>/` as runtime UI message bundles, merges them with enabled plugin resources, and exposes the effective result through the runtime i18n APIs.
 
-API-documentation translations are stored under `manifest/i18n/apidoc/<locale>.json` and optional split files under `manifest/i18n/apidoc/<locale>/**/*.json`. They share the same i18n root for discoverability, but stay in a dedicated subdirectory because OpenAPI documentation is large and is only needed when `/api.json` is rendered.
+API-documentation translations are stored under `manifest/i18n/<locale>/apidoc/**/*.json`. They share the same locale directory for discoverability, but stay in a dedicated `apidoc/` subdirectory because OpenAPI documentation is large and is only needed when `/api.json` is rendered.
 
 ## Directory Contract
 
 | Path                                                        | Purpose                            |
 | ----------------------------------------------------------- | ---------------------------------- |
 | `manifest/config/config.template.yaml` `i18n` section         | Default locale, language switch, order, native name |
-| `manifest/i18n/zh-CN.json`                                  | Simplified Chinese baseline bundle |
-| `manifest/i18n/en-US.json`                                  | English baseline bundle            |
-| `manifest/i18n/zh-TW.json`                                  | Traditional Chinese baseline bundle |
-| `manifest/i18n/apidoc/zh-CN.json` and `manifest/i18n/apidoc/zh-CN/**/*.json` | Simplified Chinese API-doc bundle  |
-| `manifest/i18n/apidoc/en-US.json`                           | Empty English API-doc placeholder  |
-| `manifest/i18n/apidoc/zh-TW.json` and `manifest/i18n/apidoc/zh-TW/**/*.json` | Traditional Chinese API-doc bundle |
-| `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>.json` | Plugin-owned locale bundle         |
-| `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/<locale>.json` and optional split files | Plugin-owned API-doc bundle |
+| `manifest/i18n/<locale>/*.json`                             | Host runtime locale bundle split by semantic domain |
+| `manifest/i18n/<locale>/apidoc/**/*.json`                   | Host API-documentation bundle       |
+| `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>/*.json` | Plugin-owned runtime locale bundle |
+| `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>/apidoc/**/*.json` | Plugin-owned API-documentation bundle |
 
 Rules:
 
-- The filename must use the canonical locale code, for example `zh-CN.json` or `en-US.json`.
-- Built-in runtime locales are discovered from top-level `manifest/i18n/<locale>.json` files.
-- The default config `i18n` section stores metadata that cannot be inferred safely from the filename and may be customized by deployments. Runtime text direction is fixed to `ltr` by the current host convention.
+- The directory name must use the canonical locale code, for example `zh-CN` or `en-US`.
+- Built-in runtime locales are discovered from `manifest/i18n/<locale>/` directories with direct runtime JSON files.
+- The default config `i18n` section stores metadata that cannot be inferred safely from the locale directory and may be customized by deployments. Runtime text direction is fixed to `ltr` by the current host convention.
 - Adding a built-in language must not require changing Go constants, SQL seed files, or frontend TypeScript language lists.
-- The host only treats top-level `manifest/i18n/<locale>.json` files as runtime locale bundles.
-- The host treats `manifest/i18n/apidoc/<locale>.json` and `manifest/i18n/apidoc/<locale>/**/*.json` files as API-documentation locale bundles.
+- The host only treats direct `manifest/i18n/<locale>/*.json` files as runtime locale bundles.
+- The host treats only `manifest/i18n/<locale>/apidoc/**/*.json` files as API-documentation locale bundles.
 - Runtime UI message files may be authored as nested JSON or flat dotted keys.
 - The host normalizes runtime UI message files into flat keys for aggregation, missing checks, exports, diagnostics, and plugin packaging.
 - The runtime i18n API converts normalized flat keys into nested objects when returning data to the frontend.
-- API-documentation bundles may use nested JSON or flat dotted keys, normalize to structured `core.*` and `plugins.*` keys, keep `en-US.json` as `{}`, and never translate `eg/example` values or generated entity metadata.
+- API-documentation bundles may use nested JSON or flat dotted keys, normalize to structured `core.*` and `plugins.*` keys, keep `en-US/apidoc` as an empty placeholder, and never translate `eg/example` values or generated entity metadata.
 - API-documentation bundles may use host-owned `core.common.*` fallback keys for repeated standard response, pagination, and timestamp metadata; exact structural keys still take precedence.
+- Runtime business files use semantic names such as `framework.json`, `menu.json`, `dict.json`, `config.json`, `error.json`, `artifact.json`, `job.json`, `notify.json`, `role.json`, and `public-frontend.json`. Do not use numeric filename prefixes.
+- Host API-documentation files use `common.json` or `core-api-<module>.json`; plugin API-documentation files use `plugin-api-<module>.json` or `<plugin-id>-api-<module>.json`.
 
 ## Why JSON And Key Normalization
 
@@ -40,7 +38,7 @@ Rules:
 
 Nested JSON is the recommended file authoring format for runtime UI messages because it reduces repeated prefixes and keeps code review readable. Flat dotted keys are still accepted for small patches and gradual migrations.
 
-Flat keys remain the canonical governance format because they keep resource comparison, missing-translation checks, exports, diagnostics, and plugin packaging simple and deterministic. When one locale file mixes nested JSON and equivalent flat dotted keys, the flat dotted key wins so migrations stay explicit.
+Flat keys remain the canonical governance format because they keep resource comparison, missing-translation checks, exports, diagnostics, and plugin packaging simple and deterministic. When one locale JSON file mixes nested JSON and equivalent flat dotted keys, the flat dotted key wins so migrations stay explicit.
 
 Example:
 
@@ -87,10 +85,10 @@ Recommendations:
 
 ## Delivery Workflow
 
-1. Add or update the baseline locale files in `manifest/i18n/`.
+1. Add or update the baseline locale files under `manifest/i18n/<locale>/`.
 2. Update the default config `i18n.locales` list when the new locale should be enabled, ordered, renamed, or selected as the default.
-3. Add plugin locale files in `apps/lina-plugins/<plugin-id>/manifest/i18n/` when a plugin contributes user-visible copy.
-4. Add API-documentation locale files in `manifest/i18n/apidoc/` and plugin-owned `manifest/i18n/apidoc/` directories when API DTO source text changes.
+3. Add plugin locale files under `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>/` when a plugin contributes user-visible copy.
+4. Add API-documentation locale files under `manifest/i18n/<locale>/apidoc/` and plugin-owned `manifest/i18n/<locale>/apidoc/` directories when API DTO source text changes.
 5. Start the host and fetch `GET /api/v1/i18n/runtime/locales?lang=<locale>` to confirm the locale list and metadata.
 6. Fetch `GET /api/v1/i18n/runtime/messages?lang=<locale>` to confirm the merged runtime result.
 7. Fetch `/api.json?lang=<locale>` to confirm API-documentation localization.
@@ -117,8 +115,8 @@ The i18n foundation must not hard-code business prefixes. Missing-message checks
 Before delivery, check the following items:
 
 - Every enabled locale file is valid `JSON`.
-- Every locale listed in the default config `i18n.locales` list has a matching top-level `manifest/i18n/<locale>.json` file.
-- Every normalized message key is unique inside one locale file.
+- Every locale listed in the default config `i18n.locales` list has a matching `manifest/i18n/<locale>/` runtime directory.
+- Every normalized message key is unique across direct runtime JSON files in the same locale directory.
 - The target locale passes the missing-translation check against the default locale.
 - Plugin-owned keys use the `plugin.<plugin_id>.` prefix unless the plugin is intentionally contributing shared framework metadata.
 - New user-visible backend errors and validation messages use translation keys instead of hard-coded literals.

@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
 
 const (
@@ -210,7 +210,10 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 		return do.SysJob{}, nil, err
 	}
 	if group == nil {
-		return do.SysJob{}, nil, gerror.Newf("定时任务分组不存在: %s", groupCode)
+		return do.SysJob{}, nil, bizerr.NewCode(
+			CodeJobBuiltinGroupNotFound,
+			bizerr.P("groupCode", groupCode),
+		)
 	}
 
 	taskType := job.TaskType
@@ -218,12 +221,12 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 		taskType = jobmeta.TaskTypeHandler
 	}
 	if taskType != jobmeta.TaskTypeHandler && taskType != jobmeta.TaskTypeShell {
-		return do.SysJob{}, nil, gerror.New("源码注册任务类型不受支持")
+		return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinTypeUnsupported)
 	}
 
 	name := strings.TrimSpace(job.Name)
 	if name == "" {
-		return do.SysJob{}, nil, gerror.New("源码注册任务名称不能为空")
+		return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinNameRequired)
 	}
 
 	timeout := job.Timeout
@@ -231,15 +234,15 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 		timeout = 5 * time.Minute
 	}
 	if timeout%time.Second != 0 {
-		return do.SysJob{}, nil, gerror.New("源码注册任务超时时间必须按秒配置")
+		return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinTimeoutSecondAlignedRequired)
 	}
 
 	pattern := strings.TrimSpace(job.Pattern)
 	if pattern == "" {
-		return do.SysJob{}, nil, gerror.New("源码注册任务表达式不能为空")
+		return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinCronExpressionRequired)
 	}
 	if len(pattern) > 128 {
-		return do.SysJob{}, nil, gerror.New("源码注册任务表达式长度不能超过128个字符")
+		return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinCronExpressionTooLong)
 	}
 
 	timezone := strings.TrimSpace(job.Timezone)
@@ -266,7 +269,7 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 		maxConcurrency = 1
 	}
 	if job.MaxExecutions < 0 {
-		return do.SysJob{}, nil, gerror.New("源码注册任务最大执行次数不能小于0")
+		return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinMaxExecutionsInvalid)
 	}
 
 	status := job.Status
@@ -283,11 +286,11 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 	switch taskType {
 	case jobmeta.TaskTypeHandler:
 		if handlerRef == "" {
-			return do.SysJob{}, nil, gerror.New("源码注册任务处理器引用不能为空")
+			return do.SysJob{}, nil, bizerr.NewCode(CodeJobBuiltinHandlerRefRequired)
 		}
 		paramsData, marshalErr := json.Marshal(job.Params)
 		if marshalErr != nil {
-			return do.SysJob{}, nil, gerror.Wrap(marshalErr, "序列化源码注册任务参数失败")
+			return do.SysJob{}, nil, bizerr.WrapCode(marshalErr, CodeJobBuiltinParamsMarshalFailed)
 		}
 		paramsJSON = string(paramsData)
 	case jobmeta.TaskTypeShell:

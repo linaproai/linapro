@@ -25,7 +25,7 @@
 
 ## 5. 插件国际化接入规范
 
-- [x] 5.1 为插件定义 `manifest/i18n/<locale>.json` 目录约定，并补充宿主装载/卸载规则
+- [x] 5.1 为插件定义 `manifest/i18n/<locale>/` 语言目录约定，并补充宿主装载/卸载规则
 - [x] 5.2 改造插件生命周期，在安装、升级、启用、停用、卸载时同步维护插件翻译资源快照
 - [x] 5.3 改造插件页面接入链路，使宿主嵌入式插件页面能够参与语言上下文和运行时翻译刷新
 
@@ -91,7 +91,7 @@
 - [x] **FB-52**: 清空 `en-US` apidoc 翻译资源为占位文件，改为由英文 API 源文案直接驱动英文接口文档，并保持非英文翻译覆盖校验
 - [x] **FB-53**: 将插件 apidoc i18n 资源拆分为插件自维护目录，由 lina-core apidoc 模块统一发现、合并和渲染
 - [x] **FB-54**: 移除 apidoc service 层对生成代码和数据表元数据的中文到英文临时转换，确保接口文档按数据源原文展示
-- [x] **FB-55**: 将宿主与插件的 apidoc i18n 资源目录统一迁移到 `manifest/i18n/apidoc/`，保持接口文档翻译与运行时 UI i18n 同根目录但不同子域隔离
+- [x] **FB-55**: 将宿主与插件的 apidoc i18n 资源目录统一迁移到 `manifest/i18n/<locale>/apidoc/`，保持接口文档翻译与运行时 UI i18n 同根目录但不同子域隔离
 - [x] **FB-56**: 将业务运行时 i18n JSON 调整为支持层级化维护的交付规范，保持内部扁平治理模型不变
 - [x] **FB-57**: 将 apidoc i18n JSON 调整为层级化维护、多文件拆分与公共 fallback 去重，并补齐单元测试与 E2E 验证
 - [x] **FB-58**: 调整英文环境下列表页底部分页组件的页码大小选择器宽度，确保 `items/page` 文案完整展示并补充英文布局回归断言
@@ -114,4 +114,4 @@
 - [x] **FB-77**: 重构宿主消息中心使其不再依赖 `pages.status.notice` / `pages.status.announcement`：消息列表/详情接口在响应中追加本地化 `typeLabel` 字段，前端 `basic.vue` 通知徽标、`system/message/index.vue` 与迁移后的 `views/system/message/notice-preview-modal.vue` 改为直接消费 API 返回的 label，删除前端 locale 中的 `pages.status.notice` / `pages.status.announcement` 键，并补充 `TC0122` API 契约回归覆盖
 - [x] **FB-74**: 优化定时任务详情中三状态按钮组布局，避免插件不可用状态换行贴边并补充英文布局回归验证
 - [x] **FB-75**: 简化定时任务插件不可用状态展示文案为 `Unavailable` / `不可用`，状态字段恢复为详情表单单列展示，并保留停止原因和提示承载详细原因及回归断言
-- [x] **FB-78**: 重构宿主消息中心使其完全 category-agnostic：删除 `notify_consts.go` 中 `CategoryCodeNotice` / `CategoryCodeAnnouncement` / `LegacyMessageType*` 常量与 `categoryCodeToLegacyMessageType` 函数，删除 `pkg/pluginservice/notify` 中对应的对外常量；`InboxListItem` 与 `MessageItem`/`MessageDetail` 用 `CategoryCode string` 替代 `Type int`，新增 `TypeLabel`/`TypeColor` 字段；宿主 `usermsg` 服务按 `notify.category.{code}.{label,color}` i18n 约定动态解析，仅维护 `system`/`other` 两条宿主自有类目；`content-notice` 插件改用插件本地常量并在 `manifest/i18n/{en-US,zh-CN}.json` 注册 `notify.category.{notice,announcement}.{label,color}` 翻译；前端模型替换为 `categoryCode`/`typeColor`，删除 `getTypeColor` 与 `type` 数值依赖；补充 `TC0123` 验证插件类目动态可扩展性
+- [x] **FB-78**: 重构宿主消息中心使其完全 category-agnostic：删除 `notify_consts.go` 中 `CategoryCodeNotice` / `CategoryCodeAnnouncement` / `LegacyMessageType*` 常量与 `categoryCodeToLegacyMessageType` 函数，删除 `pkg/pluginservice/notify` 中对应的对外常量；`InboxListItem` 与 `MessageItem`/`MessageDetail` 用 `CategoryCode string` 替代 `Type int`，新增 `TypeLabel`/`TypeColor` 字段；宿主 `usermsg` 服务按 `notify.category.{code}.{label,color}` i18n 约定动态解析，仅维护 `system`/`other` 两条宿主自有类目；`content-notice` 插件改用插件本地常量并在 `manifest/i18n/{en-US,zh-CN}/*.json` 注册 `notify.category.{notice,announcement}.{label,color}` 翻译；前端模型替换为 `categoryCode`/`typeColor`，删除 `getTypeColor` 与 `type` 数值依赖；补充 `TC0123` 验证插件类目动态可扩展性

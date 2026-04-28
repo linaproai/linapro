@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 
@@ -26,6 +25,7 @@ import (
 	"lina-core/internal/service/jobmeta"
 	internalscheduler "lina-core/internal/service/jobmgmt/internal/scheduler"
 	internalshellexec "lina-core/internal/service/jobmgmt/internal/shellexec"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
 )
@@ -394,7 +394,7 @@ func (s *serviceImpl) defaultGroup(ctx context.Context) (*entity.SysJobGroup, er
 		return nil, err
 	}
 	if group == nil {
-		return nil, gerror.New("默认任务分组不存在")
+		return nil, bizerr.NewCode(CodeJobGroupDefaultNotFound)
 	}
 	return group, nil
 }
@@ -417,14 +417,14 @@ func validateWorkDir(workDir string) error {
 
 	cleaned := filepath.Clean(trimmed)
 	if cleaned == string(filepath.Separator) {
-		return gerror.New("Shell 工作目录不能为根路径")
+		return bizerr.NewCode(jobmeta.CodeJobShellWorkdirRootDenied)
 	}
 	info, err := os.Stat(cleaned)
 	if err != nil {
-		return gerror.Wrap(err, "校验 Shell 工作目录失败")
+		return bizerr.WrapCode(err, jobmeta.CodeJobShellWorkdirValidateFailed)
 	}
 	if !info.IsDir() {
-		return gerror.New("Shell 工作目录必须为目录")
+		return bizerr.NewCode(jobmeta.CodeJobShellWorkdirNotDirectory)
 	}
 	return nil
 }
@@ -432,13 +432,13 @@ func validateWorkDir(workDir string) error {
 // validateExecutableJob validates the runtime prerequisites for one persisted job definition.
 func (s *serviceImpl) validateExecutableJob(ctx context.Context, job *entity.SysJob) error {
 	if job == nil {
-		return gerror.New("定时任务不存在")
+		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	switch jobmeta.NormalizeTaskType(job.TaskType) {
 	case jobmeta.TaskTypeHandler:
 		def, ok := s.registry.Lookup(job.HandlerRef)
 		if !ok {
-			return gerror.New("任务处理器不存在")
+			return bizerr.NewCode(jobhandler.CodeJobHandlerNotFound)
 		}
 		return jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params))
 
@@ -448,9 +448,9 @@ func (s *serviceImpl) validateExecutableJob(ctx context.Context, job *entity.Sys
 			return err
 		}
 		if !enabled {
-			return gerror.New("当前环境未启用 Shell 任务")
+			return bizerr.NewCode(jobmeta.CodeJobShellDisabled)
 		}
 		return validateWorkDir(job.WorkDir)
 	}
-	return gerror.New("任务类型不受支持")
+	return bizerr.NewCode(jobmeta.CodeJobTaskTypeUnsupported)
 }

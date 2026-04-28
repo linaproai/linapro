@@ -1,0 +1,36 @@
+{
+  "plugin": {
+    "monitor-loginlog": {
+      "description": "Official source plugin for login-log persistence and governance.",
+      "detail": {
+        "title": "Login Log Details"
+      },
+      "exportFileName": "login-logs.xlsx",
+      "fields": {
+        "browser": "Browser",
+        "ipAddress": "IP Address",
+        "loginDate": "Login Date",
+        "loginTime": "Login Time",
+        "message": "Message",
+        "os": "Operating System",
+        "status": "Login Status",
+        "userName": "User Account"
+      },
+      "logMessage": {
+        "invalidCredentials": "Invalid username or password",
+        "ipBlacklisted": "Login IP is blacklisted",
+        "loginFailed": "Login failed",
+        "loginSuccessful": "Login successful",
+        "logoutSuccessful": "Logout successful",
+        "userDisabled": "User account is disabled"
+      },
+      "messages": {
+        "clearConfirm": "Clear all login logs?",
+        "clearSuccess": "Login logs cleared successfully",
+        "deleteSelectedConfirm": "Delete the selected {count} login log(s)?"
+      },
+      "name": "Monitoring - Login Logs",
+      "tableTitle": "Login Log List"
+    }
+  }
+}

@@ -7,12 +7,12 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 )
 
 // Valid type format: lowercase letters, numbers, underscores, starting with letter
@@ -51,10 +51,9 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		FailList: make([]ImportFailItem, 0),
 	}
 
-	// Open Excel file
 	f, err := excelize.OpenReader(bytes.NewReader(fileData))
 	if err != nil {
-		return nil, gerror.New("无法解析Excel文件")
+		return nil, bizerr.WrapCode(err, CodeDictImportExcelParseFailed)
 	}
 	defer closeExcelFile(ctx, f, &err)
 
@@ -74,8 +73,8 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		existingTypes[t.Type] = true
 	}
 
-	// Import Sheet 1: 字典类型
-	typeSheet := "字典类型"
+	// Import sheet 1 for dictionary types.
+	typeSheet := s.dictTypeSheetName(ctx)
 	typeRows, err := f.GetRows(typeSheet)
 	if err != nil {
 		// Sheet might not exist, skip
@@ -89,12 +88,12 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		if i == 0 { // Skip header row
 			continue
 		}
-		if len(row) < 3 { // Need at least: 名称, 类型, 状态
+		if len(row) < 3 {
 			result.TypeFail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  typeSheet,
 				Row:    i + 1,
-				Reason: "数据不完整",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.incompleteData", "Incomplete data"),
 			})
 			continue
 		}
@@ -108,7 +107,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  typeSheet,
 				Row:    i + 1,
-				Reason: "字典名称不能为空",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeNameRequired", "Dictionary name cannot be empty"),
 			})
 			continue
 		}
@@ -119,13 +118,13 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  typeSheet,
 				Row:    i + 1,
-				Reason: "字典类型格式错误：必须以小写字母开头，仅包含小写字母、数字和下划线",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeFormatInvalid", "Dictionary type must start with a lowercase letter and contain only lowercase letters, numbers, and underscores"),
 			})
 			continue
 		}
 
 		status := 1
-		if len(row) > 2 && row[2] == "停用" {
+		if len(row) > 2 && s.isDictDisabledStatusInput(ctx, row[2]) {
 			status = 0
 		}
 		remark := ""
@@ -149,7 +148,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 					result.FailList = append(result.FailList, ImportFailItem{
 						Sheet:  typeSheet,
 						Row:    i + 1,
-						Reason: "更新失败: " + err.Error(),
+						Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
 					})
 					continue
 				}
@@ -160,7 +159,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 				result.FailList = append(result.FailList, ImportFailItem{
 					Sheet:  typeSheet,
 					Row:    i + 1,
-					Reason: "字典类型已存在",
+					Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeExists", "Dictionary type already exists"),
 				})
 			}
 			continue
@@ -178,7 +177,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  typeSheet,
 				Row:    i + 1,
-				Reason: "插入失败: " + err.Error(),
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.insertFailed", "Insert failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -188,8 +187,8 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		result.TypeSuccess++
 	}
 
-	// Import Sheet 2: 字典数据
-	dataSheet := "字典数据"
+	// Import sheet 2 for dictionary data.
+	dataSheet := s.dictDataSheetName(ctx)
 	dataRows, err := f.GetRows(dataSheet)
 	if err != nil {
 		// Sheet might not exist, skip
@@ -200,12 +199,12 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 		if i == 0 { // Skip header row
 			continue
 		}
-		if len(row) < 4 { // Need at least: 所属类型, 标签, 值, 排序
+		if len(row) < 4 {
 			result.DataFail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  dataSheet,
 				Row:    i + 1,
-				Reason: "数据不完整",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.incompleteData", "Incomplete data"),
 			})
 			continue
 		}
@@ -220,7 +219,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  dataSheet,
 				Row:    i + 1,
-				Reason: "字典标签不能为空",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.dataLabelRequired", "Dictionary label cannot be empty"),
 			})
 			continue
 		}
@@ -231,7 +230,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  dataSheet,
 				Row:    i + 1,
-				Reason: "字典键值不能为空",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.dataValueRequired", "Dictionary value cannot be empty"),
 			})
 			continue
 		}
@@ -246,7 +245,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 				result.FailList = append(result.FailList, ImportFailItem{
 					Sheet:  dataSheet,
 					Row:    i + 1,
-					Reason: "排序值必须是有效的整数",
+					Reason: s.runtimeText(ctx, "artifact.dict.import.failure.sortInvalid", "Sort value must be a valid integer"),
 				})
 				continue
 			}
@@ -260,7 +259,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			cssClass = row[5]
 		}
 		status := 1
-		if len(row) > 6 && row[6] == "停用" {
+		if len(row) > 6 && s.isDictDisabledStatusInput(ctx, row[6]) {
 			status = 0
 		}
 		remark := ""
@@ -274,7 +273,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  dataSheet,
 				Row:    i + 1,
-				Reason: "字典类型不存在",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeNotFound", "Dictionary type does not exist"),
 			})
 			continue
 		}
@@ -289,7 +288,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  dataSheet,
 				Row:    i + 1,
-				Reason: "查询失败: " + err.Error(),
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.queryFailed", "Query failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -312,7 +311,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 					result.FailList = append(result.FailList, ImportFailItem{
 						Sheet:  dataSheet,
 						Row:    i + 1,
-						Reason: "更新失败: " + err.Error(),
+						Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
 					})
 					continue
 				}
@@ -322,7 +321,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 				result.FailList = append(result.FailList, ImportFailItem{
 					Sheet:  dataSheet,
 					Row:    i + 1,
-					Reason: "字典值已存在",
+					Reason: s.runtimeText(ctx, "artifact.dict.import.failure.dataValueExists", "Dictionary value already exists"),
 				})
 			}
 			continue
@@ -344,7 +343,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 			result.FailList = append(result.FailList, ImportFailItem{
 				Sheet:  dataSheet,
 				Row:    i + 1,
-				Reason: "插入失败: " + err.Error(),
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.insertFailed", "Insert failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -360,13 +359,18 @@ func (s *serviceImpl) CombinedImportTemplate(ctx context.Context) (data []byte, 
 	f := excelize.NewFile()
 	defer closeExcelFile(ctx, f, &err)
 
-	// Sheet 1: 字典类型
-	typeSheet := "字典类型"
+	// Sheet 1 stores dictionary type metadata.
+	typeSheet := s.dictTypeSheetName(ctx)
 	if err = setSheetName(f, "Sheet1", typeSheet); err != nil {
 		return nil, err
 	}
 
-	typeHeaders := []string{"字典名称", "字典类型", "状态", "备注"}
+	typeHeaders := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.type.header.name", Fallback: "Dictionary Name"},
+		{Key: "artifact.dict.type.header.type", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.type.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.type.header.remark", Fallback: "Remark"},
+	})
 	for i, h := range typeHeaders {
 		if err = setCellValue(f, typeSheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -374,26 +378,35 @@ func (s *serviceImpl) CombinedImportTemplate(ctx context.Context) (data []byte, 
 	}
 
 	// Add example row
-	if err = setCellValueByName(f, typeSheet, "A2", "用户性别"); err != nil {
+	if err = setCellValueByName(f, typeSheet, "A2", s.runtimeText(ctx, "dict.sys_user_sex.name", "User Gender")); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, typeSheet, "B2", "sys_user_sex"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, typeSheet, "C2", "正常"); err != nil {
+	if err = setCellValueByName(f, typeSheet, "C2", s.dictStatusText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, typeSheet, "D2", "用户性别字典"); err != nil {
+	if err = setCellValueByName(f, typeSheet, "D2", s.runtimeText(ctx, "dict.sys_user_sex.remark", "User gender options")); err != nil {
 		return nil, err
 	}
 
-	// Sheet 2: 字典数据
-	dataSheet := "字典数据"
+	// Sheet 2 stores dictionary data entries.
+	dataSheet := s.dictDataSheetName(ctx)
 	if err = newSheet(f, dataSheet); err != nil {
 		return nil, err
 	}
 
-	dataHeaders := []string{"所属类型", "字典标签", "字典值", "排序", "Tag样式", "CSS类", "状态", "备注"}
+	dataHeaders := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.data.header.dictType", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.data.header.label", Fallback: "Dictionary Label"},
+		{Key: "artifact.dict.data.header.value", Fallback: "Dictionary Value"},
+		{Key: "artifact.dict.data.header.sort", Fallback: "Sort"},
+		{Key: "artifact.dict.data.header.tagStyle", Fallback: "Tag Style"},
+		{Key: "artifact.dict.data.header.cssClass", Fallback: "CSS Class"},
+		{Key: "artifact.dict.data.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.data.header.remark", Fallback: "Remark"},
+	})
 	for i, h := range dataHeaders {
 		if err = setCellValue(f, dataSheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -404,7 +417,7 @@ func (s *serviceImpl) CombinedImportTemplate(ctx context.Context) (data []byte, 
 	if err = setCellValueByName(f, dataSheet, "A2", "sys_user_sex"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, dataSheet, "B2", "男"); err != nil {
+	if err = setCellValueByName(f, dataSheet, "B2", s.runtimeText(ctx, "dict.sys_user_sex.1.label", "Male")); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, dataSheet, "C2", "1"); err != nil {
@@ -419,17 +432,17 @@ func (s *serviceImpl) CombinedImportTemplate(ctx context.Context) (data []byte, 
 	if err = setCellValueByName(f, dataSheet, "F2", ""); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, dataSheet, "G2", "正常"); err != nil {
+	if err = setCellValueByName(f, dataSheet, "G2", s.dictStatusText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, dataSheet, "H2", "男性"); err != nil {
+	if err = setCellValueByName(f, dataSheet, "H2", s.runtimeText(ctx, "artifact.dict.importTemplate.example.maleRemark", "Male")); err != nil {
 		return nil, err
 	}
 
 	if err = setCellValueByName(f, dataSheet, "A3", "sys_user_sex"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, dataSheet, "B3", "女"); err != nil {
+	if err = setCellValueByName(f, dataSheet, "B3", s.runtimeText(ctx, "dict.sys_user_sex.2.label", "Female")); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, dataSheet, "C3", "2"); err != nil {
@@ -444,10 +457,10 @@ func (s *serviceImpl) CombinedImportTemplate(ctx context.Context) (data []byte, 
 	if err = setCellValueByName(f, dataSheet, "F3", ""); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, dataSheet, "G3", "正常"); err != nil {
+	if err = setCellValueByName(f, dataSheet, "G3", s.dictStatusText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, dataSheet, "H3", "女性"); err != nil {
+	if err = setCellValueByName(f, dataSheet, "H3", s.runtimeText(ctx, "artifact.dict.importTemplate.example.femaleRemark", "Female")); err != nil {
 		return nil, err
 	}
 
@@ -478,10 +491,9 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 		FailList: make([]ImportFailItemRecord, 0),
 	}
 
-	// Open Excel file
 	f, err := excelize.OpenReader(file)
 	if err != nil {
-		return nil, gerror.New("无法解析Excel文件")
+		return nil, bizerr.WrapCode(err, CodeDictImportExcelParseFailed)
 	}
 	defer closeExcelFile(ctx, f, &err)
 
@@ -500,18 +512,18 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 	// Read Sheet1
 	rows, err := f.GetRows("Sheet1")
 	if err != nil {
-		return nil, gerror.New("无法读取Excel文件")
+		return nil, bizerr.WrapCode(err, CodeDictImportExcelReadFailed)
 	}
 
 	for i, row := range rows {
 		if i == 0 { // Skip header row
 			continue
 		}
-		if len(row) < 2 { // Need at least: 名称, 类型
+		if len(row) < 2 {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "数据不完整",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.incompleteData", "Incomplete data"),
 			})
 			continue
 		}
@@ -524,7 +536,7 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "字典名称不能为空",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeNameRequired", "Dictionary name cannot be empty"),
 			})
 			continue
 		}
@@ -534,13 +546,13 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "字典类型格式错误：必须以小写字母开头，仅包含小写字母、数字和下划线",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeFormatInvalid", "Dictionary type must start with a lowercase letter and contain only lowercase letters, numbers, and underscores"),
 			})
 			continue
 		}
 
 		status := 1
-		if len(row) > 2 && row[2] == "停用" {
+		if len(row) > 2 && s.isDictDisabledStatusInput(ctx, row[2]) {
 			status = 0
 		}
 		remark := ""
@@ -563,7 +575,7 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 					result.Fail++
 					result.FailList = append(result.FailList, ImportFailItemRecord{
 						Row:    i + 1,
-						Reason: "更新失败: " + err.Error(),
+						Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
 					})
 					continue
 				}
@@ -572,7 +584,7 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 				result.Fail++
 				result.FailList = append(result.FailList, ImportFailItemRecord{
 					Row:    i + 1,
-					Reason: "字典类型已存在",
+					Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeExists", "Dictionary type already exists"),
 				})
 			}
 			continue
@@ -589,7 +601,7 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "插入失败: " + err.Error(),
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.insertFailed", "Insert failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -607,10 +619,9 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 		FailList: make([]ImportFailItemRecord, 0),
 	}
 
-	// Open Excel file
 	f, err := excelize.OpenReader(file)
 	if err != nil {
-		return nil, gerror.New("无法解析Excel文件")
+		return nil, bizerr.WrapCode(err, CodeDictImportExcelParseFailed)
 	}
 	defer closeExcelFile(ctx, f, &err)
 
@@ -629,18 +640,18 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 	// Read Sheet1
 	rows, err := f.GetRows("Sheet1")
 	if err != nil {
-		return nil, gerror.New("无法读取Excel文件")
+		return nil, bizerr.WrapCode(err, CodeDictImportExcelReadFailed)
 	}
 
 	for i, row := range rows {
 		if i == 0 { // Skip header row
 			continue
 		}
-		if len(row) < 4 { // Need at least: 所属类型, 标签, 值, 排序
+		if len(row) < 4 {
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "数据不完整",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.incompleteData", "Incomplete data"),
 			})
 			continue
 		}
@@ -654,7 +665,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "字典标签不能为空",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.dataLabelRequired", "Dictionary label cannot be empty"),
 			})
 			continue
 		}
@@ -664,7 +675,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "字典键值不能为空",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.dataValueRequired", "Dictionary value cannot be empty"),
 			})
 			continue
 		}
@@ -677,7 +688,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 				result.Fail++
 				result.FailList = append(result.FailList, ImportFailItemRecord{
 					Row:    i + 1,
-					Reason: "排序值必须是有效的整数",
+					Reason: s.runtimeText(ctx, "artifact.dict.import.failure.sortInvalid", "Sort value must be a valid integer"),
 				})
 				continue
 			}
@@ -691,7 +702,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			cssClass = row[5]
 		}
 		status := 1
-		if len(row) > 6 && row[6] == "停用" {
+		if len(row) > 6 && s.isDictDisabledStatusInput(ctx, row[6]) {
 			status = 0
 		}
 		remark := ""
@@ -704,7 +715,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "字典类型不存在",
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.typeNotFound", "Dictionary type does not exist"),
 			})
 			continue
 		}
@@ -718,7 +729,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "查询失败: " + err.Error(),
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.queryFailed", "Query failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -740,7 +751,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 					result.Fail++
 					result.FailList = append(result.FailList, ImportFailItemRecord{
 						Row:    i + 1,
-						Reason: "更新失败: " + err.Error(),
+						Reason: s.runtimeText(ctx, "artifact.dict.import.failure.updateFailed", "Update failed: {error}", bizerr.P("error", err)),
 					})
 					continue
 				}
@@ -749,7 +760,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 				result.Fail++
 				result.FailList = append(result.FailList, ImportFailItemRecord{
 					Row:    i + 1,
-					Reason: "字典值已存在",
+					Reason: s.runtimeText(ctx, "artifact.dict.import.failure.dataValueExists", "Dictionary value already exists"),
 				})
 			}
 			continue
@@ -770,7 +781,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItemRecord{
 				Row:    i + 1,
-				Reason: "插入失败: " + err.Error(),
+				Reason: s.runtimeText(ctx, "artifact.dict.import.failure.insertFailed", "Insert failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -787,7 +798,12 @@ func (s *serviceImpl) GenerateTypeImportTemplate(ctx context.Context) (data []by
 	defer closeExcelFile(ctx, f, &err)
 
 	sheet := "Sheet1"
-	headers := []string{"字典名称", "字典类型", "状态", "备注"}
+	headers := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.type.header.name", Fallback: "Dictionary Name"},
+		{Key: "artifact.dict.type.header.type", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.type.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.type.header.remark", Fallback: "Remark"},
+	})
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -795,16 +811,16 @@ func (s *serviceImpl) GenerateTypeImportTemplate(ctx context.Context) (data []by
 	}
 
 	// Add example row
-	if err = setCellValueByName(f, sheet, "A2", "用户性别"); err != nil {
+	if err = setCellValueByName(f, sheet, "A2", s.runtimeText(ctx, "dict.sys_user_sex.name", "User Gender")); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, sheet, "B2", "sys_user_sex"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "C2", "正常"); err != nil {
+	if err = setCellValueByName(f, sheet, "C2", s.dictStatusText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "D2", "用户性别字典"); err != nil {
+	if err = setCellValueByName(f, sheet, "D2", s.runtimeText(ctx, "dict.sys_user_sex.remark", "User gender options")); err != nil {
 		return nil, err
 	}
 
@@ -822,7 +838,16 @@ func (s *serviceImpl) GenerateDataImportTemplate(ctx context.Context) (data []by
 	defer closeExcelFile(ctx, f, &err)
 
 	sheet := "Sheet1"
-	headers := []string{"所属类型", "字典标签", "字典值", "排序", "Tag样式", "CSS类", "状态", "备注"}
+	headers := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.data.header.dictType", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.data.header.label", Fallback: "Dictionary Label"},
+		{Key: "artifact.dict.data.header.value", Fallback: "Dictionary Value"},
+		{Key: "artifact.dict.data.header.sort", Fallback: "Sort"},
+		{Key: "artifact.dict.data.header.tagStyle", Fallback: "Tag Style"},
+		{Key: "artifact.dict.data.header.cssClass", Fallback: "CSS Class"},
+		{Key: "artifact.dict.data.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.data.header.remark", Fallback: "Remark"},
+	})
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -833,7 +858,7 @@ func (s *serviceImpl) GenerateDataImportTemplate(ctx context.Context) (data []by
 	if err = setCellValueByName(f, sheet, "A2", "sys_user_sex"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "B2", "男"); err != nil {
+	if err = setCellValueByName(f, sheet, "B2", s.runtimeText(ctx, "dict.sys_user_sex.1.label", "Male")); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, sheet, "C2", "1"); err != nil {
@@ -848,17 +873,17 @@ func (s *serviceImpl) GenerateDataImportTemplate(ctx context.Context) (data []by
 	if err = setCellValueByName(f, sheet, "F2", ""); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "G2", "正常"); err != nil {
+	if err = setCellValueByName(f, sheet, "G2", s.dictStatusText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "H2", "男性"); err != nil {
+	if err = setCellValueByName(f, sheet, "H2", s.runtimeText(ctx, "artifact.dict.importTemplate.example.maleRemark", "Male")); err != nil {
 		return nil, err
 	}
 
 	if err = setCellValueByName(f, sheet, "A3", "sys_user_sex"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "B3", "女"); err != nil {
+	if err = setCellValueByName(f, sheet, "B3", s.runtimeText(ctx, "dict.sys_user_sex.2.label", "Female")); err != nil {
 		return nil, err
 	}
 	if err = setCellValueByName(f, sheet, "C3", "2"); err != nil {
@@ -873,10 +898,10 @@ func (s *serviceImpl) GenerateDataImportTemplate(ctx context.Context) (data []by
 	if err = setCellValueByName(f, sheet, "F3", ""); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "G3", "正常"); err != nil {
+	if err = setCellValueByName(f, sheet, "G3", s.dictStatusText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, "H3", "女性"); err != nil {
+	if err = setCellValueByName(f, sheet, "H3", s.runtimeText(ctx, "artifact.dict.importTemplate.example.femaleRemark", "Female")); err != nil {
 		return nil, err
 	}
 

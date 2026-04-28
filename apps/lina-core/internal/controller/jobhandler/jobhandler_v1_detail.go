@@ -5,16 +5,16 @@ package jobhandler
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/api/jobhandler/v1"
+	jobhandlersvc "lina-core/internal/service/jobhandler"
+	"lina-core/pkg/bizerr"
 )
 
 // Detail handles scheduled job handler detail lookup requests.
 func (c *ControllerV1) Detail(ctx context.Context, req *v1.DetailReq) (res *v1.DetailRes, err error) {
 	item, ok := c.registry.Lookup(req.Ref)
 	if !ok {
-		return nil, gerror.New("任务处理器不存在")
+		return nil, bizerr.NewCode(jobhandlersvc.CodeJobHandlerNotFound)
 	}
 	return &v1.DetailRes{
 		Ref:          item.Ref,

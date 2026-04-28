@@ -1,0 +1,40 @@
+{
+  "plugin": {
+    "content-notice": {
+      "description": "提供通知公告管理的官方源碼插件",
+      "drawer": {
+        "createTitle": "新增通知公告",
+        "editTitle": "編輯通知公告"
+      },
+      "fields": {
+        "attachments": "附件",
+        "content": "內容",
+        "createdBy": "創建人",
+        "status": "狀態",
+        "title": "公告標題",
+        "type": "公告類型"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "確認刪除選中的 {count} 條公告嗎？"
+      },
+      "name": "內容管理-通知公告",
+      "placeholders": {
+        "title": "請輸入公告標題"
+      },
+      "preview": {
+        "title": "公告預覽"
+      },
+      "status": {
+        "draft": "草稿",
+        "published": "已發佈"
+      },
+      "tableTitle": "通知公告列表",
+      "validation": {
+        "content": "請輸入公告內容",
+        "status": "請選擇狀態",
+        "title": "請輸入公告標題",
+        "type": "請選擇公告類型"
+      }
+    }
+  }
+}

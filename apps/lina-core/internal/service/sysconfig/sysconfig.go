@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/xuri/excelize/v2"
 
 	"io"
@@ -15,6 +14,7 @@ import (
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/pkg/bizerr"
 )
 
 // Service defines the sysconfig service contract.
@@ -128,7 +128,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysConfig, e
 		return nil, err
 	}
 	if cfg == nil {
-		return nil, gerror.New("参数设置不存在")
+		return nil, bizerr.NewCode(CodeSysConfigNotFound)
 	}
 	return cfg, nil
 }
@@ -157,7 +157,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 			return countErr
 		}
 		if count > 0 {
-			return gerror.New("参数键名已存在")
+			return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", in.Key))
 		}
 
 		// Insert config (GoFrame auto-fills created_at and updated_at)
@@ -199,7 +199,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			return err
 		}
 		if hostconfig.IsProtectedConfigParam(existing.Key) && in.Key != nil && *in.Key != existing.Key {
-			return gerror.New("内置运行时参数不允许修改键名")
+			return bizerr.NewCode(CodeSysConfigBuiltinKeyRenameDenied)
 		}
 
 		// Check key uniqueness (exclude self) - GoFrame auto-adds deleted_at IS NULL
@@ -213,7 +213,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 				return countErr
 			}
 			if count > 0 {
-				return gerror.New("参数键名已存在")
+				return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", *in.Key))
 			}
 		}
 
@@ -260,7 +260,7 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 		return err
 	}
 	if hostconfig.IsProtectedConfigParam(existing.Key) {
-		return gerror.New("内置运行时参数不允许删除")
+		return bizerr.NewCode(CodeSysConfigBuiltinDeleteDenied)
 	}
 
 	// Soft delete
@@ -274,7 +274,7 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 // public-frontend config keys to the host config service rules.
 func validateManagedConfigValue(key string, value string) error {
 	if err := hostconfig.ValidateProtectedConfigValue(key, value); err != nil {
-		return gerror.Wrap(err, "内置系统参数值校验失败")
+		return bizerr.WrapCode(err, CodeSysConfigProtectedValueInvalid)
 	}
 	return nil
 }
@@ -289,7 +289,7 @@ func (s *serviceImpl) GetByKey(ctx context.Context, key string) (*entity.SysConf
 		return nil, err
 	}
 	if cfg == nil {
-		return nil, gerror.New("参数键名不存在")
+		return nil, bizerr.NewCode(CodeSysConfigKeyNotFound)
 	}
 	s.localizeConfigEntity(ctx, cfg)
 	return cfg, nil

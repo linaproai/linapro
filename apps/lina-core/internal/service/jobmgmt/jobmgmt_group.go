@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 )
 
@@ -81,10 +81,10 @@ func (s *serviceImpl) CreateGroup(ctx context.Context, in SaveGroupInput) (uint6
 	code := strings.TrimSpace(in.Code)
 	name := strings.TrimSpace(in.Name)
 	if code == "" {
-		return 0, gerror.New("任务分组编码不能为空")
+		return 0, bizerr.NewCode(CodeJobGroupCodeRequired)
 	}
 	if name == "" {
-		return 0, gerror.New("任务分组名称不能为空")
+		return 0, bizerr.NewCode(CodeJobGroupNameRequired)
 	}
 
 	count, err := dao.SysJobGroup.Ctx(ctx).
@@ -94,7 +94,7 @@ func (s *serviceImpl) CreateGroup(ctx context.Context, in SaveGroupInput) (uint6
 		return 0, err
 	}
 	if count > 0 {
-		return 0, gerror.New("任务分组编码已存在")
+		return 0, bizerr.NewCode(CodeJobGroupCodeExists)
 	}
 
 	insertID, err := dao.SysJobGroup.Ctx(ctx).Data(do.SysJobGroup{
@@ -117,16 +117,16 @@ func (s *serviceImpl) UpdateGroup(ctx context.Context, in UpdateGroupInput) erro
 		return err
 	}
 	if group == nil {
-		return gerror.New("任务分组不存在")
+		return bizerr.NewCode(CodeJobGroupNotFound)
 	}
 
 	code := strings.TrimSpace(in.Code)
 	name := strings.TrimSpace(in.Name)
 	if code == "" {
-		return gerror.New("任务分组编码不能为空")
+		return bizerr.NewCode(CodeJobGroupCodeRequired)
 	}
 	if name == "" {
-		return gerror.New("任务分组名称不能为空")
+		return bizerr.NewCode(CodeJobGroupNameRequired)
 	}
 
 	count, err := dao.SysJobGroup.Ctx(ctx).
@@ -137,7 +137,7 @@ func (s *serviceImpl) UpdateGroup(ctx context.Context, in UpdateGroupInput) erro
 		return err
 	}
 	if count > 0 {
-		return gerror.New("任务分组编码已存在")
+		return bizerr.NewCode(CodeJobGroupCodeExists)
 	}
 
 	_, err = dao.SysJobGroup.Ctx(ctx).
@@ -156,7 +156,7 @@ func (s *serviceImpl) UpdateGroup(ctx context.Context, in UpdateGroupInput) erro
 func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
 	groupIDs := parseUint64IDs(ids)
 	if len(groupIDs) == 0 {
-		return gerror.New("请选择要删除的任务分组")
+		return bizerr.NewCode(CodeJobGroupDeleteRequired)
 	}
 
 	defaultGroup, err := s.defaultGroup(ctx)
@@ -174,12 +174,12 @@ func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
 			continue
 		}
 		if group.IsDefault == 1 || group.Id == defaultGroup.Id {
-			return gerror.New("默认任务分组不允许删除")
+			return bizerr.NewCode(CodeJobGroupDefaultDeleteDenied)
 		}
 		validIDs = append(validIDs, groupID)
 	}
 	if len(validIDs) == 0 {
-		return gerror.New("没有可删除的任务分组")
+		return bizerr.NewCode(CodeJobGroupDeleteEmpty)
 	}
 
 	return dao.SysJobGroup.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {

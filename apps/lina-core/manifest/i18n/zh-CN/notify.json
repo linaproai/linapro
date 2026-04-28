@@ -1,0 +1,14 @@
+{
+  "notify": {
+    "category": {
+      "other": {
+        "color": "default",
+        "label": "通知消息"
+      },
+      "system": {
+        "color": "default",
+        "label": "系统消息"
+      }
+    }
+  }
+}

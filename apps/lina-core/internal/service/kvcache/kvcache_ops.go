@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 )
 
 // Get returns the current cache entry snapshot identified by ownerType and one
@@ -103,7 +103,7 @@ func (s *serviceImpl) GetInt(
 		return 0, false, err
 	}
 	if row.ValueKind != ValueKindInt {
-		return 0, false, gerror.New("缓存值不是整数，无法读取整数值")
+		return 0, false, bizerr.NewCode(CodeKVCacheValueNotInteger)
 	}
 	return row.ValueInt, true, nil
 }
@@ -132,7 +132,7 @@ func (s *serviceImpl) Set(
 	if err != nil {
 		return nil, err
 	}
-	if err := validateMaxByteLength("缓存值", value, maxValueBytes); err != nil {
+	if err := validateMaxByteLength("value", value, maxValueBytes); err != nil {
 		return nil, err
 	}
 
@@ -238,7 +238,7 @@ func (s *serviceImpl) Incr(
 		currentExpireAt := expireAt
 		if row != nil {
 			if row.ValueKind != ValueKindInt {
-				return gerror.New("缓存值不是整数，无法执行自增")
+				return bizerr.NewCode(CodeKVCacheIncrementValueNotInteger)
 			}
 			if currentExpireAt == nil {
 				currentExpireAt = row.ExpireAt
@@ -405,16 +405,16 @@ func (s *serviceImpl) validateIdentity(
 	namespace string,
 	cacheKey string,
 ) error {
-	if err := validateByteLength("所属类型", ownerType.String(), maxOwnerTypeBytes); err != nil {
+	if err := validateByteLength("ownerType", ownerType.String(), maxOwnerTypeBytes); err != nil {
 		return err
 	}
-	if err := validateByteLength("所属标识", ownerKey, maxOwnerKeyBytes); err != nil {
+	if err := validateByteLength("ownerKey", ownerKey, maxOwnerKeyBytes); err != nil {
 		return err
 	}
-	if err := validateByteLength("缓存命名空间", namespace, maxNamespaceBytes); err != nil {
+	if err := validateByteLength("namespace", namespace, maxNamespaceBytes); err != nil {
 		return err
 	}
-	if err := validateByteLength("缓存键", cacheKey, maxCacheKeyBytes); err != nil {
+	if err := validateByteLength("cacheKey", cacheKey, maxCacheKeyBytes); err != nil {
 		return err
 	}
 	return nil
@@ -424,7 +424,7 @@ func (s *serviceImpl) validateIdentity(
 // absolute expiration time, or nil for persistent entries.
 func normalizeExpireAt(expireSeconds int64) (*gtime.Time, error) {
 	if expireSeconds < 0 {
-		return nil, gerror.New("缓存过期秒数不能为负数")
+		return nil, bizerr.NewCode(CodeKVCacheExpireSecondsNegative)
 	}
 	if expireSeconds == 0 {
 		return nil, nil
@@ -436,10 +436,14 @@ func normalizeExpireAt(expireSeconds int64) (*gtime.Time, error) {
 // length.
 func validateByteLength(field string, value string, maxBytes int) error {
 	if strings.TrimSpace(value) == "" {
-		return gerror.Newf("%s不能为空", field)
+		return bizerr.NewCode(CodeKVCacheFieldRequired, bizerr.P("field", field))
 	}
 	if len([]byte(value)) > maxBytes {
-		return gerror.Newf("%s长度超出限制，最大允许 %d 字节", field, maxBytes)
+		return bizerr.NewCode(
+			CodeKVCacheFieldTooLong,
+			bizerr.P("field", field),
+			bizerr.P("maxBytes", maxBytes),
+		)
 	}
 	return nil
 }
@@ -448,7 +452,11 @@ func validateByteLength(field string, value string, maxBytes int) error {
 // string field.
 func validateMaxByteLength(field string, value string, maxBytes int) error {
 	if len([]byte(value)) > maxBytes {
-		return gerror.Newf("%s长度超出限制，最大允许 %d 字节", field, maxBytes)
+		return bizerr.NewCode(
+			CodeKVCacheValueTooLong,
+			bizerr.P("field", field),
+			bizerr.P("maxBytes", maxBytes),
+		)
 	}
 	return nil
 }

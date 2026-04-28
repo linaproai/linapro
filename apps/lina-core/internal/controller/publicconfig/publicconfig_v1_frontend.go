@@ -57,16 +57,30 @@ func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1
 	}, nil
 }
 
-// localizePublicFrontendText translates one public-frontend text field only when
-// it still equals the built-in baseline value. Custom runtime values remain the
-// source of truth until multi-language overrides are added for sys_config.
+// localizePublicFrontendText translates one public-frontend text field only
+// when it still equals the built-in source text or the default-locale seed text.
+// Custom runtime values remain the source of truth until multi-language
+// overrides are added for sys_config.
 func (c *ControllerV1) localizePublicFrontendText(ctx context.Context, configKey string, messageKey string, current string) string {
 	spec, ok := hostconfig.LookupPublicFrontendSettingSpec(configKey)
 	if !ok {
 		return current
 	}
-	if strings.TrimSpace(current) != "" && strings.TrimSpace(current) != strings.TrimSpace(spec.DefaultValue) {
+	if c.i18nSvc == nil {
+		return current
+	}
+	trimmedCurrent := strings.TrimSpace(current)
+	if trimmedCurrent != "" &&
+		trimmedCurrent != strings.TrimSpace(spec.DefaultValue) &&
+		trimmedCurrent != c.defaultPublicFrontendText(messageKey, spec.DefaultValue) {
 		return current
 	}
 	return c.i18nSvc.Translate(ctx, messageKey, current)
+}
+
+// defaultPublicFrontendText returns the default-locale public-frontend baseline
+// used by SQL seed data. It deliberately uses a root context so the comparison
+// does not depend on the request locale currently being projected.
+func (c *ControllerV1) defaultPublicFrontendText(messageKey string, fallback string) string {
+	return strings.TrimSpace(c.i18nSvc.TranslateWithDefaultLocale(context.Background(), messageKey, fallback))
 }

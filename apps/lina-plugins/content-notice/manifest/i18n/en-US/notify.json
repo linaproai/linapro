@@ -1,0 +1,14 @@
+{
+  "notify": {
+    "category": {
+      "announcement": {
+        "color": "green",
+        "label": "Announcement"
+      },
+      "notice": {
+        "color": "blue",
+        "label": "Notice"
+      }
+    }
+  }
+}

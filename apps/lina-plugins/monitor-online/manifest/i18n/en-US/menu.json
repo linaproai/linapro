@@ -1,0 +1,13 @@
+{
+  "menu": {
+    "plugin:monitor-online:online": {
+      "title": "Sessions"
+    },
+    "plugin:monitor-online:online:force-logout": {
+      "title": "Force Logout"
+    },
+    "plugin:monitor-online:online:query": {
+      "title": "Search"
+    }
+  }
+}

@@ -3,12 +3,12 @@ package usermsg
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/service/bizctx"
 	i18nsvc "lina-core/internal/service/i18n"
 	notifysvc "lina-core/internal/service/notify"
+	"lina-core/pkg/bizerr"
 )
 
 // Stable i18n key convention used to localize inbox category labels and tag
@@ -134,7 +134,7 @@ func (s *serviceImpl) localizeCategoryColor(ctx context.Context, categoryCode st
 func (s *serviceImpl) getCurrentUserId(ctx context.Context) (int64, error) {
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx == nil || bizCtx.UserId == 0 {
-		return 0, gerror.New("未登录")
+		return 0, bizerr.NewCode(CodeUserMsgNotAuthenticated)
 	}
 	return int64(bizCtx.UserId), nil
 }

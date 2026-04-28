@@ -1,0 +1,19 @@
+{
+  "menu": {
+    "plugin:monitor-operlog:operlog": {
+      "title": "操作日誌"
+    },
+    "plugin:monitor-operlog:operlog:clear": {
+      "title": "日誌清空"
+    },
+    "plugin:monitor-operlog:operlog:export": {
+      "title": "日誌導出"
+    },
+    "plugin:monitor-operlog:operlog:query": {
+      "title": "日誌查詢"
+    },
+    "plugin:monitor-operlog:operlog:remove": {
+      "title": "日誌刪除"
+    }
+  }
+}

@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/service/role"
+	"lina-core/pkg/bizerr"
 )
 
 // Permission middleware constants define metadata tag names, wildcard grants,
@@ -18,16 +19,7 @@ const (
 	staticPermissionMetaTag      = "permission"
 	staticPermissionMetaTagAlias = "perms"
 	staticPermissionWildcard     = "*:*:*"
-	staticPermissionErrorCode    = 1
 )
-
-// permissionErrorResponse defines the JSON payload returned when permission
-// middleware rejects a request.
-type permissionErrorResponse struct {
-	Code    int    `json:"code"`
-	Data    any    `json:"data"`
-	Message string `json:"message"`
-}
 
 // Permission enforces declarative permission requirements declared on static host API handlers.
 func (s *serviceImpl) Permission(r *ghttp.Request) {
@@ -49,7 +41,7 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 			r,
 			s.i18nSvc,
 			http.StatusUnauthorized,
-			gerror.New("error.permission.currentUserMissing"),
+			bizerr.NewCode(CodeMiddlewarePermissionCurrentUserMissing),
 		)
 		return
 	}
@@ -60,7 +52,7 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 			r,
 			s.i18nSvc,
 			http.StatusInternalServerError,
-			gerror.Wrap(err, "error.permission.contextLoadFailed"),
+			bizerr.WrapCode(err, CodeMiddlewarePermissionContextLoadFailed),
 		)
 		return
 	}
@@ -73,7 +65,10 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 		r,
 		s.i18nSvc,
 		http.StatusForbidden,
-		gerror.Newf("error.permission.denied.required", strings.Join(requiredPermissions, ", ")),
+		bizerr.NewCode(
+			CodeMiddlewarePermissionDeniedRequired,
+			bizerr.P("permissions", strings.Join(requiredPermissions, ", ")),
+		),
 	)
 }
 
@@ -181,9 +176,15 @@ func writePermissionError(r *ghttp.Request, i18nSvc middlewareI18nService, statu
 
 	r.SetError(err)
 	r.Response.WriteStatus(status)
-	r.Response.WriteJson(permissionErrorResponse{
-		Code:    staticPermissionErrorCode,
+	var code gcode.Code = gcode.CodeUnknown
+	if messageErr, ok := bizerr.As(err); ok {
+		code = messageErr.TypeCode()
+	}
+	response := runtimeHandlerResponse{
+		Code:    code.Code(),
 		Data:    nil,
 		Message: message,
-	})
+	}
+	applyRuntimeErrorMetadata(&response, err)
+	r.Response.WriteJson(response)
 }

@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
@@ -25,6 +24,7 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	dictsvc "lina-core/internal/service/dict"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
@@ -109,7 +109,7 @@ type UploadOutput struct {
 func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *UploadOutput, err error) {
 	file := in.File
 	if file == nil {
-		return nil, gerror.New("请上传文件")
+		return nil, bizerr.NewCode(CodeFileUploadRequired)
 	}
 
 	// Sanitize filename to prevent path traversal attacks
@@ -121,20 +121,20 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 		return nil, err
 	}
 	if file.Size > uploadMaxSize*1024*1024 {
-		return nil, gerror.Newf("文件大小不能超过%dMB", uploadMaxSize)
+		return nil, bizerr.NewCode(CodeFileTooLarge, bizerr.P("maxSizeMB", uploadMaxSize))
 	}
 
 	// Open uploaded file
 	src, err := file.Open()
 	if err != nil {
-		return nil, gerror.Wrap(err, "打开上传文件失败")
+		return nil, bizerr.WrapCode(err, CodeFileOpenFailed)
 	}
-	defer closeutil.Close(ctx, src, &err, "关闭上传文件失败")
+	defer closeutil.Close(ctx, src, &err, "close uploaded file failed")
 
 	// Compute SHA-256 hash
 	hasher := sha256.New()
 	if _, err = io.Copy(hasher, src); err != nil {
-		return nil, gerror.Wrap(err, "计算文件散列值失败")
+		return nil, bizerr.WrapCode(err, CodeFileHashFailed)
 	}
 	fileHash := hex.EncodeToString(hasher.Sum(nil))
 
@@ -158,7 +158,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 			Where(dao.SysFile.Columns().Hash, fileHash).
 			Scan(&existing)
 		if err != nil {
-			return gerror.Wrap(err, "查询文件散列值失败")
+			return bizerr.WrapCode(err, CodeFileHashQueryFailed)
 		}
 
 		if existing != nil {
@@ -176,11 +176,11 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 				CreatedBy: userId,
 			}).Insert()
 			if err != nil {
-				return gerror.Wrap(err, "保存文件记录失败")
+				return bizerr.WrapCode(err, CodeFileRecordSaveFailed)
 			}
 			id, err := result.LastInsertId()
 			if err != nil {
-				return gerror.Wrap(err, "读取新建文件记录ID失败")
+				return bizerr.WrapCode(err, CodeFileRecordIDReadFailed)
 			}
 			fullUrl := s.getBaseUrl(ctx) + existing.Url
 			output = &UploadOutput{
@@ -196,13 +196,13 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 
 		// Reset file reader position for storage
 		if _, err = src.Seek(0, io.SeekStart); err != nil {
-			return gerror.Wrap(err, "重置文件读取位置失败")
+			return bizerr.WrapCode(err, CodeFileReadResetFailed)
 		}
 
 		// Save via storage backend
 		storagePath, err := s.storage.Put(ctx, sanitizedFilename, src)
 		if err != nil {
-			return gerror.Wrap(err, "保存文件失败")
+			return bizerr.WrapCode(err, CodeFileStoreFailed)
 		}
 
 		// Build file metadata
@@ -225,14 +225,17 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 		if err != nil {
 			// Clean up stored file on DB error
 			if cleanupErr := s.storage.Delete(ctx, storagePath); cleanupErr != nil {
-				return gerror.Wrapf(err, "保存文件记录失败，且清理存储文件失败: %v", cleanupErr)
+				return bizerr.WrapCode(
+					fmt.Errorf("cleanup stored file after record save failure: %w; cleanup error: %v", err, cleanupErr),
+					CodeFileRecordSaveCleanupFailed,
+				)
 			}
-			return gerror.Wrap(err, "保存文件记录失败")
+			return bizerr.WrapCode(err, CodeFileRecordSaveFailed)
 		}
 
 		id, err := result.LastInsertId()
 		if err != nil {
-			return gerror.Wrap(err, "读取新建文件记录ID失败")
+			return bizerr.WrapCode(err, CodeFileRecordIDReadFailed)
 		}
 		// Return full URL with base URL prefix
 		fullUrl := s.getBaseUrl(ctx) + url
@@ -410,7 +413,7 @@ func (s *serviceImpl) Info(ctx context.Context, id int64) (*entity.SysFile, erro
 		return nil, err
 	}
 	if file == nil {
-		return nil, gerror.New("文件不存在")
+		return nil, bizerr.NewCode(CodeFileNotFound)
 	}
 	return file, nil
 }
@@ -438,7 +441,7 @@ func (s *serviceImpl) InfoByIds(ctx context.Context, ids []int64) ([]*entity.Sys
 func (s *serviceImpl) Delete(ctx context.Context, idsStr string) error {
 	ids := gstr.SplitAndTrim(idsStr, ",")
 	if len(ids) == 0 {
-		return gerror.New("请选择要删除的文件")
+		return bizerr.NewCode(CodeFileDeleteRequired)
 	}
 
 	idList := make([]int64, 0, len(ids))
@@ -555,7 +558,7 @@ func (s *serviceImpl) Detail(ctx context.Context, id int64) (*DetailOutput, erro
 		return nil, err
 	}
 	if file == nil {
-		return nil, gerror.New("文件不存在")
+		return nil, bizerr.NewCode(CodeFileNotFound)
 	}
 
 	// Build full URL

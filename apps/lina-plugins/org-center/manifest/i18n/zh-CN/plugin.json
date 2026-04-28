@@ -1,0 +1,47 @@
+{
+  "plugin": {
+    "org-center": {
+      "dept": {
+        "drawer": {
+          "createTitle": "新增部门",
+          "editTitle": "编辑部门"
+        },
+        "fields": {
+          "code": "部门编码",
+          "leader": "负责人",
+          "name": "部门名称",
+          "parentDept": "上级部门",
+          "phone": "联系电话",
+          "sortOrder": "排序",
+          "status": "状态"
+        },
+        "messages": {
+          "saveFailed": "保存部门失败"
+        },
+        "placeholders": {
+          "selectLeader": "请选择负责人"
+        },
+        "tableTitle": "部门列表"
+      },
+      "description": "提供部门与岗位管理的官方源码插件",
+      "name": "组织管理",
+      "post": {
+        "drawer": {
+          "createTitle": "新增岗位",
+          "editTitle": "编辑岗位"
+        },
+        "fields": {
+          "code": "岗位编码",
+          "dept": "所属部门",
+          "name": "岗位名称",
+          "sortOrder": "排序"
+        },
+        "messages": {
+          "deleteSelectedConfirm": "确认删除选中的 {count} 个岗位吗？",
+          "saveFailed": "保存岗位失败"
+        },
+        "tableTitle": "岗位列表"
+      }
+    }
+  }
+}

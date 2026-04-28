@@ -34,7 +34,7 @@ func registerTestSourcePluginI18N(t *testing.T, pluginID string, localeFiles map
 		if normalizedLocale == "" {
 			t.Fatalf("invalid locale in test fixture: %q", locale)
 		}
-		fileSystem["manifest/i18n/"+normalizedLocale+".json"] = &fstest.MapFile{Data: []byte(content)}
+		fileSystem["manifest/i18n/"+normalizedLocale+"/plugin.json"] = &fstest.MapFile{Data: []byte(content)}
 	}
 
 	plugin := pluginhost.NewSourcePlugin(pluginID)

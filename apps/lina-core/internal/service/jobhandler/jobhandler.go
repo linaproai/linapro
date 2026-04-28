@@ -9,9 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
 
 // InvokeFunc defines one registered scheduled-job callback.
@@ -61,10 +60,10 @@ var _ Registry = (*serviceImpl)(nil)
 
 // serviceImpl implements the in-memory handler registry.
 type serviceImpl struct {
-	mu         sync.RWMutex              // mu protects handler and callback state.
-	handlers   map[string]HandlerDef     // handlers stores definitions by stable ref.
-	callbackID int                       // callbackID allocates deterministic observer keys.
-	callbacks  map[int]ChangeCallback    // callbacks stores registry observers.
+	mu         sync.RWMutex           // mu protects handler and callback state.
+	handlers   map[string]HandlerDef  // handlers stores definitions by stable ref.
+	callbackID int                    // callbackID allocates deterministic observer keys.
+	callbacks  map[int]ChangeCallback // callbacks stores registry observers.
 }
 
 // New creates and returns one empty handler registry.
@@ -82,19 +81,19 @@ func (s *serviceImpl) Register(def HandlerDef) error {
 	def.Description = strings.TrimSpace(def.Description)
 	def.PluginID = strings.TrimSpace(def.PluginID)
 	if def.Ref == "" {
-		return gerror.New("任务处理器引用不能为空")
+		return bizerr.NewCode(CodeJobHandlerRefRequired)
 	}
 	if def.DisplayName == "" {
-		return gerror.New("任务处理器展示名称不能为空")
+		return bizerr.NewCode(CodeJobHandlerDisplayNameRequired)
 	}
 	if def.Invoke == nil {
-		return gerror.New("任务处理器回调不能为空")
+		return bizerr.NewCode(CodeJobHandlerCallbackRequired)
 	}
 	if !def.Source.IsValid() {
-		return gerror.New("任务处理器来源不受支持")
+		return bizerr.NewCode(CodeJobHandlerSourceUnsupported)
 	}
 	if def.Source == jobmeta.HandlerSourcePlugin && def.PluginID == "" {
-		return gerror.New("插件处理器必须声明插件ID")
+		return bizerr.NewCode(CodeJobHandlerPluginIDRequired)
 	}
 	if def.Source == jobmeta.HandlerSourceHost {
 		def.PluginID = ""
@@ -109,7 +108,7 @@ func (s *serviceImpl) Register(def HandlerDef) error {
 	s.mu.Lock()
 	if _, exists := s.handlers[def.Ref]; exists {
 		s.mu.Unlock()
-		return gerror.Newf("任务处理器 %s 已存在", def.Ref)
+		return bizerr.NewCode(CodeJobHandlerExists, bizerr.P("ref", def.Ref))
 	}
 	s.handlers[def.Ref] = def
 	callbacks := s.snapshotCallbacksLocked()

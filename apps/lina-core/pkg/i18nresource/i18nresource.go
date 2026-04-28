@@ -21,12 +21,12 @@ import (
 type LayoutMode string
 
 const (
-	// LayoutModeLocaleFile loads only `<subdir>/<locale>.json`.
-	LayoutModeLocaleFile LayoutMode = "locale-file"
-	// LayoutModeLocaleFileAndDirectory loads `<subdir>/<locale>.json` plus
-	// every JSON file under `<subdir>/<locale>/`, with directory files applied
-	// after the root file in lexical path order.
-	LayoutModeLocaleFileAndDirectory LayoutMode = "locale-file-and-directory"
+	// LayoutModeLocaleDirectory loads every JSON file directly under
+	// `<subdir>/<locale>/`, ignoring nested directories such as apidoc.
+	LayoutModeLocaleDirectory LayoutMode = "locale-directory"
+	// LayoutModeLocaleSubdirectoryRecursive loads every JSON file under
+	// `<subdir>/<locale>/<localeSubdir>/` recursively.
+	LayoutModeLocaleSubdirectoryRecursive LayoutMode = "locale-subdirectory-recursive"
 )
 
 // PluginScope controls whether plugin resource keys are namespace restricted.
@@ -78,6 +78,7 @@ type ResourceLoader struct {
 	HostFS        fs.FS                 // HostFS stores host-owned embedded resources.
 	SourcePlugins func() []SourcePlugin // SourcePlugins returns registered source plugins.
 	Subdir        string                // Subdir is the slash-separated locale resource directory.
+	LocaleSubdir  string                // LocaleSubdir names the child directory used by recursive subdirectory mode.
 	PluginScope   PluginScope           // PluginScope restricts plugin-owned keys when needed.
 	LayoutMode    LayoutMode            // LayoutMode selects the supported filesystem layout.
 	ValueMode     ValueMode             // ValueMode selects JSON scalar conversion behavior.
@@ -181,31 +182,59 @@ func (l ResourceLoader) loadFilesystemBundle(ctx context.Context, filesystem fs.
 	if filesystem == nil {
 		return map[string]string{}
 	}
-	bundle := make(map[string]string)
-	mergeCatalog(bundle, l.loadFilesystemBundleFile(ctx, filesystem, path.Join(l.subdir(), strings.TrimSpace(locale)+".json")))
+	trimmedLocale := strings.TrimSpace(locale)
 
-	if l.layoutMode() != LayoutModeLocaleFileAndDirectory {
-		return bundle
+	switch l.layoutMode() {
+	case LayoutModeLocaleDirectory:
+		return l.loadFilesystemBundleDirectory(ctx, filesystem, path.Join(l.subdir(), trimmedLocale), false)
+	case LayoutModeLocaleSubdirectoryRecursive:
+		localeSubdir := l.localeSubdir()
+		if localeSubdir == "" {
+			logger.Warningf(ctx, "skip i18n recursive subdirectory load with empty locale subdir locale=%s", trimmedLocale)
+			return map[string]string{}
+		}
+		return l.loadFilesystemBundleDirectory(ctx, filesystem, path.Join(l.subdir(), trimmedLocale, localeSubdir), true)
+	default:
+		return l.loadFilesystemBundleDirectory(ctx, filesystem, path.Join(l.subdir(), trimmedLocale), false)
 	}
-	localeDir := path.Join(l.subdir(), strings.TrimSpace(locale))
+}
+
+// loadFilesystemBundleDirectory loads JSON files from one directory in
+// deterministic path order. When recursive is false only direct children are
+// loaded, which keeps runtime bundles from reading apidoc resources.
+func (l ResourceLoader) loadFilesystemBundleDirectory(ctx context.Context, filesystem fs.FS, dir string, recursive bool) map[string]string {
 	entries := make([]string, 0)
-	if err := fs.WalkDir(filesystem, localeDir, func(filePath string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			if filePath == localeDir {
+	if recursive {
+		if err := fs.WalkDir(filesystem, dir, func(filePath string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				if filePath == dir {
+					return nil
+				}
+				return walkErr
+			}
+			if entry == nil || entry.IsDir() || !strings.HasSuffix(filePath, ".json") {
 				return nil
 			}
-			return walkErr
-		}
-		if entry == nil || entry.IsDir() || !strings.HasSuffix(filePath, ".json") {
+			entries = append(entries, filePath)
 			return nil
+		}); err != nil {
+			logger.Warningf(ctx, "scan i18n resource directory failed dir=%s err=%v", dir, err)
+			return map[string]string{}
 		}
-		entries = append(entries, filePath)
-		return nil
-	}); err != nil {
-		logger.Warningf(ctx, "scan i18n resource directory failed locale=%s dir=%s err=%v", locale, localeDir, err)
-		return bundle
+	} else {
+		dirEntries, err := fs.ReadDir(filesystem, dir)
+		if err != nil {
+			return map[string]string{}
+		}
+		for _, entry := range dirEntries {
+			if entry == nil || entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+				continue
+			}
+			entries = append(entries, path.Join(dir, entry.Name()))
+		}
 	}
 	sort.Strings(entries)
+	bundle := make(map[string]string)
 	for _, entryPath := range entries {
 		mergeCatalog(bundle, l.loadFilesystemBundleFile(ctx, filesystem, entryPath))
 	}
@@ -328,10 +357,15 @@ func (l ResourceLoader) subdir() string {
 	return strings.Trim(strings.TrimSpace(l.Subdir), "/")
 }
 
-// layoutMode returns the configured layout mode with a file-only default.
+// localeSubdir returns the normalized locale-scoped subdirectory.
+func (l ResourceLoader) localeSubdir() string {
+	return strings.Trim(strings.TrimSpace(l.LocaleSubdir), "/")
+}
+
+// layoutMode returns the configured layout mode with a locale-directory default.
 func (l ResourceLoader) layoutMode() LayoutMode {
 	if l.LayoutMode == "" {
-		return LayoutModeLocaleFile
+		return LayoutModeLocaleDirectory
 	}
 	return l.LayoutMode
 }

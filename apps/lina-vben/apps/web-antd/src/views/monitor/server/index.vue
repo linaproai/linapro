@@ -11,6 +11,7 @@ import { Page } from '@vben/common-ui';
 import { Progress, Table, Tooltip } from 'ant-design-vue';
 
 import { getServerMonitor } from '#/api/monitor/server';
+import { $t } from '#/locales';
 
 defineOptions({ name: 'ServerMonitor' });
 
@@ -71,10 +72,13 @@ function formatUptime(seconds: number): string {
   const hours = Math.floor((seconds % 86400) / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const parts: string[] = [];
-  if (days > 0) parts.push(`${days}天`);
-  if (hours > 0) parts.push(`${hours}小时`);
-  if (mins > 0) parts.push(`${mins}分钟`);
-  return parts.join(' ') || '刚启动';
+  if (days > 0)
+    parts.push($t('pages.monitor.server.units.days', { count: days }));
+  if (hours > 0)
+    parts.push($t('pages.monitor.server.units.hours', { count: hours }));
+  if (mins > 0)
+    parts.push($t('pages.monitor.server.units.minutes', { count: mins }));
+  return parts.join(' ') || $t('pages.monitor.server.units.justStarted');
 }
 
 function getProgressColor(percent: number): string {
@@ -83,75 +87,81 @@ function getProgressColor(percent: number): string {
   return '#52c41a';
 }
 
-const diskColumns = [
-  { title: '盘符', dataIndex: 'path', key: 'path' },
-  { title: '文件系统', dataIndex: 'fsType', key: 'fsType' },
+const diskColumns = computed(() => [
   {
-    title: '总容量',
+    title: $t('pages.monitor.server.diskColumns.path'),
+    dataIndex: 'path',
+    key: 'path',
+  },
+  {
+    title: $t('pages.monitor.server.diskColumns.fsType'),
+    dataIndex: 'fsType',
+    key: 'fsType',
+  },
+  {
+    title: $t('pages.monitor.server.diskColumns.total'),
     dataIndex: 'total',
     key: 'total',
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
-    title: '已用',
+    title: $t('pages.monitor.server.diskColumns.used'),
     dataIndex: 'used',
     key: 'used',
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
-    title: '可用',
+    title: $t('pages.monitor.server.diskColumns.free'),
     dataIndex: 'free',
     key: 'free',
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
-    title: '使用率',
+    title: $t('pages.monitor.server.diskColumns.usagePercent'),
     dataIndex: 'usagePercent',
     key: 'usagePercent',
     width: 200,
   },
-];
+]);
 </script>
 
 <template>
   <Page>
     <template v-if="hasData">
-      <!-- 数据库信息 -->
+      <!-- Database information. -->
       <div v-if="dbInfo" class="card-box p-5">
-        <h5 class="text-lg text-foreground">数据库信息</h5>
+        <h5 class="text-lg text-foreground">
+          {{ $t('pages.monitor.server.sections.database') }}
+        </h5>
         <div class="mt-4">
           <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            <div
-              class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
-            >
-              <dt class="text-sm/6 font-medium text-foreground">数据库版本</dt>
+            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
+              <dt class="text-sm/6 font-medium text-foreground">
+                {{ $t('pages.monitor.server.fields.dbVersion') }}
+              </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.version }}
               </dd>
             </div>
-            <div
-              class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
-            >
-              <dt class="text-sm/6 font-medium text-foreground">最大连接数</dt>
+            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
+              <dt class="text-sm/6 font-medium text-foreground">
+                {{ $t('pages.monitor.server.fields.maxOpenConns') }}
+              </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.maxOpenConns }}
               </dd>
             </div>
-            <div
-              class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
-            >
+            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
               <dt class="text-sm/6 font-medium text-foreground">
-                当前打开连接
+                {{ $t('pages.monitor.server.fields.openConns') }}
               </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.openConns }}
               </dd>
             </div>
-            <div
-              class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
-            >
+            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
               <dt class="text-sm/6 font-medium text-foreground">
-                使用中 / 空闲
+                {{ $t('pages.monitor.server.fields.inUseIdle') }}
               </dt>
               <dd class="mt-1 text-sm/6 text-foreground">
                 {{ dbInfo.inUse }} / {{ dbInfo.idle }}
@@ -161,11 +171,13 @@ const diskColumns = [
         </div>
       </div>
 
-      <!-- 服务器信息 -->
+      <!-- Server information. -->
       <div class="card-box mt-6 p-5">
         <div class="flex items-center gap-2">
-          <h5 class="text-lg text-foreground">服务器信息</h5>
-          <Tooltip title="LinaPro 支持多节点高可用部署，每个节点具有独立的服务器指标信息">
+          <h5 class="text-lg text-foreground">
+            {{ $t('pages.monitor.server.sections.server') }}
+          </h5>
+          <Tooltip :title="$t('pages.monitor.server.tooltips.multiNode')">
             <span
               class="icon-[ant-design--question-circle-outlined] cursor-help text-foreground/40"
             ></span>
@@ -203,17 +215,17 @@ const diskColumns = [
               v-if="isExpanded(`${node.nodeName}|${node.nodeIp}`)"
               class="ml-6 border-l border-border pl-4"
             >
-              <!-- 服务信息 -->
+              <!-- Service information. -->
               <div class="py-2">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  服务信息
+                  {{ $t('pages.monitor.server.sections.service') }}
                 </h6>
                 <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   <div
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      Go 版本
+                      {{ $t('pages.monitor.server.fields.goVersion') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.goInfo?.version }}
@@ -223,7 +235,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      GoFrame 版本
+                      {{ $t('pages.monitor.server.fields.goframeVersion') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.goInfo?.gfVersion }}
@@ -233,7 +245,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      Goroutines
+                      {{ $t('pages.monitor.server.fields.goroutines') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.goInfo?.goroutines }}
@@ -243,13 +255,11 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      GC 暂停
+                      {{ $t('pages.monitor.server.fields.gcPause') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{
-                        (
-                          (node.goInfo?.gcPauseNs ?? 0) / 1_000_000
-                        ).toFixed(2)
+                        ((node.goInfo?.gcPauseNs ?? 0) / 1_000_000).toFixed(2)
                       }}
                       ms
                     </dd>
@@ -258,7 +268,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      服务启动时间
+                      {{ $t('pages.monitor.server.fields.serviceStartTime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.startTime }}
@@ -268,7 +278,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      服务运行时长
+                      {{ $t('pages.monitor.server.fields.serviceUptime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.goInfo?.serviceUptime }}
@@ -276,19 +286,17 @@ const diskColumns = [
                   </div>
                 </dl>
 
-                <!-- 服务 CPU + 服务内存 -->
+                <!-- Service CPU and memory. -->
                 <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <!-- 服务 CPU -->
+                  <!-- Service CPU. -->
                   <div class="rounded-lg border border-border p-4">
                     <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                      服务 CPU
+                      {{ $t('pages.monitor.server.sections.serviceCpu') }}
                     </h6>
                     <div class="flex items-center gap-6">
                       <Progress
                         :percent="
-                          Number(
-                            (node.goInfo?.processCpu ?? 0).toFixed(1),
-                          )
+                          Number((node.goInfo?.processCpu ?? 0).toFixed(1))
                         "
                         :stroke-color="
                           getProgressColor(node.goInfo?.processCpu ?? 0)
@@ -298,7 +306,9 @@ const diskColumns = [
                       />
                       <dl class="flex-1">
                         <div class="py-1">
-                          <dt class="text-xs text-foreground/50">已使用</dt>
+                          <dt class="text-xs text-foreground/50">
+                            {{ $t('pages.monitor.server.fields.used') }}
+                          </dt>
                           <dd class="text-sm text-foreground">
                             {{
                               (
@@ -307,47 +317,48 @@ const diskColumns = [
                                 100
                               ).toFixed(2)
                             }}
-                            核
+                            {{ $t('pages.monitor.server.units.core') }}
                           </dd>
                         </div>
                         <div class="py-1">
-                          <dt class="text-xs text-foreground/50">总核心数</dt>
+                          <dt class="text-xs text-foreground/50">
+                            {{ $t('pages.monitor.server.fields.totalCores') }}
+                          </dt>
                           <dd class="text-sm text-foreground">
-                            {{ node.cpu?.cores }} 核
+                            {{ node.cpu?.cores }}
+                            {{ $t('pages.monitor.server.units.core') }}
                           </dd>
                         </div>
                       </dl>
                     </div>
                   </div>
 
-                  <!-- 服务内存 -->
+                  <!-- Service memory. -->
                   <div class="rounded-lg border border-border p-4">
                     <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                      服务内存
+                      {{ $t('pages.monitor.server.sections.serviceMemory') }}
                     </h6>
                     <div class="flex items-center gap-6">
                       <Progress
                         :percent="
-                          Number(
-                            (node.goInfo?.processMemory ?? 0).toFixed(1),
-                          )
+                          Number((node.goInfo?.processMemory ?? 0).toFixed(1))
                         "
                         :stroke-color="
-                          getProgressColor(
-                            node.goInfo?.processMemory ?? 0,
-                          )
+                          getProgressColor(node.goInfo?.processMemory ?? 0)
                         "
                         :width="80"
                         type="circle"
                       />
                       <dl class="flex-1">
                         <div class="py-1">
-                          <dt class="text-xs text-foreground/50">已使用</dt>
+                          <dt class="text-xs text-foreground/50">
+                            {{ $t('pages.monitor.server.fields.used') }}
+                          </dt>
                           <dd class="text-sm text-foreground">
                             {{
                               formatBytes(
-                                (node.memory?.total ?? 0) *
-                                  (node.goInfo?.processMemory ?? 0) /
+                                ((node.memory?.total ?? 0) *
+                                  (node.goInfo?.processMemory ?? 0)) /
                                   100,
                               )
                             }}
@@ -355,7 +366,7 @@ const diskColumns = [
                         </div>
                         <div class="py-1">
                           <dt class="text-xs text-foreground/50">
-                            总内存量
+                            {{ $t('pages.monitor.server.fields.totalMemory') }}
                           </dt>
                           <dd class="text-sm text-foreground">
                             {{ formatBytes(node.memory?.total ?? 0) }}
@@ -367,17 +378,17 @@ const diskColumns = [
                 </div>
               </div>
 
-              <!-- 基本信息 -->
+              <!-- Basic information. -->
               <div class="py-2">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  基本信息
+                  {{ $t('pages.monitor.server.sections.basic') }}
                 </h6>
                 <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   <div
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      主机名
+                      {{ $t('pages.monitor.server.fields.hostname') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.hostname }}
@@ -387,7 +398,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      操作系统
+                      {{ $t('pages.monitor.server.fields.os') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.os }}
@@ -397,7 +408,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      系统架构
+                      {{ $t('pages.monitor.server.fields.arch') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.arch }}
@@ -407,7 +418,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      节点IP
+                      {{ $t('pages.monitor.server.fields.nodeIp') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.nodeIp }}
@@ -417,7 +428,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      系统运行时长
+                      {{ $t('pages.monitor.server.fields.systemUptime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatUptime(node.server?.uptime ?? 0) }}
@@ -427,7 +438,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      系统启动时间
+                      {{ $t('pages.monitor.server.fields.bootTime') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.server?.bootTime }}
@@ -437,7 +448,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      数据更新时间
+                      {{ $t('pages.monitor.server.fields.collectAt') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ node.collectAt }}
@@ -446,12 +457,12 @@ const diskColumns = [
                 </dl>
               </div>
 
-              <!-- CPU + 内存 -->
+              <!-- CPU and memory. -->
               <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <!-- CPU -->
                 <div class="rounded-lg border border-border p-4">
                   <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                  系统CPU
+                    {{ $t('pages.monitor.server.sections.systemCpu') }}
                   </h6>
                   <div class="flex items-center gap-6">
                     <Progress
@@ -466,14 +477,21 @@ const diskColumns = [
                     />
                     <dl class="flex-1">
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">核心数</dt>
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('pages.monitor.server.fields.cores') }}
+                        </dt>
                         <dd class="text-sm text-foreground">
-                          {{ node.cpu?.cores }} 核
+                          {{ node.cpu?.cores }}
+                          {{ $t('pages.monitor.server.units.core') }}
                         </dd>
                       </div>
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">型号</dt>
-                        <dd class="max-w-[300px] truncate text-sm text-foreground">
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('pages.monitor.server.fields.modelName') }}
+                        </dt>
+                        <dd
+                          class="max-w-[300px] truncate text-sm text-foreground"
+                        >
                           {{ node.cpu?.modelName }}
                         </dd>
                       </div>
@@ -481,10 +499,10 @@ const diskColumns = [
                   </div>
                 </div>
 
-                <!-- 内存 -->
+                <!-- Memory. -->
                 <div class="rounded-lg border border-border p-4">
                   <h6 class="mb-3 text-sm font-medium text-foreground/70">
-                    系统内存
+                    {{ $t('pages.monitor.server.sections.systemMemory') }}
                   </h6>
                   <div class="flex items-center gap-6">
                     <Progress
@@ -499,14 +517,18 @@ const diskColumns = [
                     />
                     <dl class="flex-1">
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">已用 / 总量</dt>
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('pages.monitor.server.fields.usedTotal') }}
+                        </dt>
                         <dd class="text-sm text-foreground">
                           {{ formatBytes(node.memory?.used ?? 0) }} /
                           {{ formatBytes(node.memory?.total ?? 0) }}
                         </dd>
                       </div>
                       <div class="py-1">
-                        <dt class="text-xs text-foreground/50">可用</dt>
+                        <dt class="text-xs text-foreground/50">
+                          {{ $t('pages.monitor.server.fields.available') }}
+                        </dt>
                         <dd class="text-sm text-foreground">
                           {{ formatBytes(node.memory?.available ?? 0) }}
                         </dd>
@@ -516,10 +538,10 @@ const diskColumns = [
                 </div>
               </div>
 
-              <!-- 磁盘 -->
+              <!-- Disk. -->
               <div class="mt-3">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  磁盘使用
+                  {{ $t('pages.monitor.server.sections.disk') }}
                 </h6>
                 <Table
                   :columns="diskColumns"
@@ -541,17 +563,17 @@ const diskColumns = [
                 </Table>
               </div>
 
-              <!-- 网络 -->
+              <!-- Network. -->
               <div class="mt-3 pb-2">
                 <h6 class="mb-2 text-sm font-medium text-foreground/70">
-                  网络流量
+                  {{ $t('pages.monitor.server.sections.network') }}
                 </h6>
                 <dl class="grid grid-cols-2 md:grid-cols-4">
                   <div
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      总发送
+                      {{ $t('pages.monitor.server.fields.totalSent') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatBytes(node.network?.bytesSent ?? 0) }}
@@ -561,7 +583,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      总接收
+                      {{ $t('pages.monitor.server.fields.totalReceived') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatBytes(node.network?.bytesRecv ?? 0) }}
@@ -571,7 +593,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      发送速率
+                      {{ $t('pages.monitor.server.fields.sendRate') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatRate(node.network?.sendRate ?? 0) }}
@@ -581,7 +603,7 @@ const diskColumns = [
                     class="border-t border-border px-4 py-2 sm:col-span-1 sm:px-0"
                   >
                     <dt class="text-sm/6 font-medium text-foreground">
-                      接收速率
+                      {{ $t('pages.monitor.server.fields.receiveRate') }}
                     </dt>
                     <dd class="mt-1 text-sm/6 text-foreground">
                       {{ formatRate(node.network?.recvRate ?? 0) }}
@@ -600,7 +622,7 @@ const diskColumns = [
       v-else-if="!loading"
       class="flex h-[300px] items-center justify-center text-foreground/40"
     >
-      暂无监控数据，请等待数据采集...
+      {{ $t('pages.monitor.server.empty') }}
     </div>
   </Page>
 </template>

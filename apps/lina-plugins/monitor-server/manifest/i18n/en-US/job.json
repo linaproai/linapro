@@ -1,0 +1,20 @@
+{
+  "job": {
+    "handler": {
+      "plugin": {
+        "monitor-server": {
+          "cron": {
+            "service-monitor-cleanup": {
+              "description": "Cleans up expired server runtime metric snapshots for the monitor-server plugin.",
+              "name": "Server Monitor Cleanup"
+            },
+            "service-monitor-collector": {
+              "description": "Collects server runtime metrics for the monitor-server plugin.",
+              "name": "Server Monitor Collection"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -6,12 +6,12 @@ package usermsg
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	notifysvc "lina-core/internal/service/notify"
+	"lina-core/pkg/bizerr"
 )
 
 // messageDetailRecord is the joined database projection used to build one
@@ -34,7 +34,7 @@ func (s *serviceImpl) Get(ctx context.Context, id int64) (*MessageDetail, error)
 		return nil, err
 	}
 	if id <= 0 {
-		return nil, gerror.New("消息不存在")
+		return nil, bizerr.NewCode(CodeUserMsgNotFound)
 	}
 
 	var (
@@ -75,7 +75,7 @@ func (s *serviceImpl) Get(ctx context.Context, id int64) (*MessageDetail, error)
 		return nil, err
 	}
 	if record == nil {
-		return nil, gerror.New("消息不存在")
+		return nil, bizerr.NewCode(CodeUserMsgNotFound)
 	}
 
 	categoryCode := resolveCategoryCode(record.CategoryCode)

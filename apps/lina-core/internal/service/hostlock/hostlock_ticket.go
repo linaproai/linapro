@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // lockTicketClaims stores the serialized metadata required to renew or release
@@ -24,7 +24,7 @@ type lockTicketClaims struct {
 func encodeLockTicket(claims lockTicketClaims) (string, error) {
 	content, err := json.Marshal(claims)
 	if err != nil {
-		return "", gerror.Wrap(err, "序列化锁票据失败")
+		return "", bizerr.WrapCode(err, CodeHostLockTicketMarshalFailed)
 	}
 	return base64.RawURLEncoding.EncodeToString(content), nil
 }
@@ -34,26 +34,26 @@ func encodeLockTicket(claims lockTicketClaims) (string, error) {
 func decodeAndValidateTicket(ticket string, pluginID string, resourceRef string) (*lockTicketClaims, error) {
 	normalizedTicket := strings.TrimSpace(ticket)
 	if normalizedTicket == "" {
-		return nil, gerror.New("锁票据不能为空")
+		return nil, bizerr.NewCode(CodeHostLockTicketRequired)
 	}
 
 	content, err := base64.RawURLEncoding.DecodeString(normalizedTicket)
 	if err != nil {
-		return nil, gerror.Wrap(err, "解析锁票据失败")
+		return nil, bizerr.WrapCode(err, CodeHostLockTicketParseFailed)
 	}
 
 	var claims lockTicketClaims
 	if err = json.Unmarshal(content, &claims); err != nil {
-		return nil, gerror.Wrap(err, "反序列化锁票据失败")
+		return nil, bizerr.WrapCode(err, CodeHostLockTicketUnmarshalFailed)
 	}
 	if claims.LockID <= 0 || strings.TrimSpace(claims.Holder) == "" || claims.LeaseMillis <= 0 {
-		return nil, gerror.New("锁票据内容无效")
+		return nil, bizerr.NewCode(CodeHostLockTicketInvalid)
 	}
 	if strings.TrimSpace(claims.PluginID) != strings.TrimSpace(pluginID) {
-		return nil, gerror.New("锁票据插件身份不匹配")
+		return nil, bizerr.NewCode(CodeHostLockTicketPluginMismatch)
 	}
 	if strings.TrimSpace(claims.ResourceRef) != strings.TrimSpace(resourceRef) {
-		return nil, gerror.New("锁票据逻辑锁名不匹配")
+		return nil, bizerr.NewCode(CodeHostLockTicketResourceMismatch)
 	}
 	return &claims, nil
 }

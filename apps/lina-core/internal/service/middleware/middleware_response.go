@@ -10,6 +10,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
+
+	"lina-core/pkg/bizerr"
 )
 
 const (
@@ -20,6 +22,17 @@ const (
 	// responseContentTypeMixedReplace identifies multipart stream responses.
 	responseContentTypeMixedReplace = "multipart/x-mixed-replace"
 )
+
+// runtimeHandlerResponse extends the default host response with stable
+// structured-message metadata for localized business errors.
+type runtimeHandlerResponse struct {
+	Code          int            `json:"code" dc:"Error code"`
+	Message       string         `json:"message" dc:"Localized display message"`
+	Data          any            `json:"data" dc:"Result data for certain request according API definition"`
+	ErrorCode     string         `json:"errorCode,omitempty" dc:"Stable machine-readable runtime error code"`
+	MessageKey    string         `json:"messageKey,omitempty" dc:"Runtime i18n key used for localizing the message"`
+	MessageParams map[string]any `json:"messageParams,omitempty" dc:"Runtime i18n named parameters"`
+}
 
 // Response serializes one unified JSON payload and localizes user-facing error
 // text using the request-scoped locale.
@@ -63,28 +76,50 @@ func (s *serviceImpl) Response(r *ghttp.Request) {
 	} else {
 		if r.Response.Status > 0 && r.Response.Status != http.StatusOK {
 			switch r.Response.Status {
+			case http.StatusUnauthorized:
+				err = bizerr.NewCode(CodeMiddlewareHTTPUnauthorized)
+				code = gcode.CodeNotAuthorized
 			case http.StatusNotFound:
+				err = bizerr.NewCode(CodeMiddlewareHTTPNotFound)
 				code = gcode.CodeNotFound
 			case http.StatusForbidden:
+				err = bizerr.NewCode(CodeMiddlewareHTTPForbidden)
 				code = gcode.CodeNotAuthorized
 			default:
+				err = bizerr.NewCode(CodeMiddlewareHTTPError)
 				code = gcode.CodeUnknown
 			}
-			err = gerror.NewCode(code, code.Message())
 			r.SetError(err)
 		} else {
 			code = gcode.CodeOK
 		}
-		msg = s.i18nSvc.LocalizeError(r.Context(), gerror.New(code.Message()))
+		msg = s.i18nSvc.Translate(r.Context(), code.Message(), code.Message())
 	}
 
 	if msg == "" {
 		msg = code.Message()
 	}
 
-	r.Response.WriteJson(ghttp.DefaultHandlerResponse{
+	response := runtimeHandlerResponse{
 		Code:    code.Code(),
 		Message: msg,
 		Data:    res,
-	})
+	}
+	applyRuntimeErrorMetadata(&response, err)
+	r.Response.WriteJson(response)
+}
+
+// applyRuntimeErrorMetadata copies structured runtime-message metadata into the
+// unified response when the error chain carries it.
+func applyRuntimeErrorMetadata(response *runtimeHandlerResponse, err error) {
+	if response == nil || err == nil {
+		return
+	}
+	messageErr, ok := bizerr.As(err)
+	if !ok {
+		return
+	}
+	response.ErrorCode = messageErr.RuntimeCode()
+	response.MessageKey = messageErr.MessageKey()
+	response.MessageParams = messageErr.Params()
 }

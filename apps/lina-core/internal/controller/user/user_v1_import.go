@@ -5,10 +5,11 @@ package user
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
 	v1 "lina-core/api/user/v1"
+	usersvc "lina-core/internal/service/user"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 )
 
@@ -17,14 +18,14 @@ func (c *ControllerV1) Import(ctx context.Context, req *v1.ImportReq) (res *v1.I
 	r := g.RequestFromCtx(ctx)
 	file := r.GetUploadFile("file")
 	if file == nil {
-		return nil, gerror.New("请选择要导入的文件")
+		return nil, bizerr.NewCode(usersvc.CodeUserImportFileRequired)
 	}
 
 	f, err := file.Open()
 	if err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, usersvc.CodeUserImportExcelParseFailed)
 	}
-	defer closeutil.Close(ctx, f, &err, "关闭用户导入文件失败")
+	defer closeutil.Close(ctx, f, &err, "close user import file failed")
 
 	result, err := c.userSvc.Import(ctx, f)
 	if err != nil {

@@ -38,7 +38,7 @@ func (s *serviceImpl) runCronJob(ctx context.Context, jobID uint64) {
 			job,
 			jobmeta.TriggerTypeCron,
 			jobmeta.LogStatusSkippedNotPrimary,
-			"当前节点不是主节点，跳过执行",
+			"Current node is not primary, skipped execution",
 		); err != nil {
 			logger.Warningf(ctx, "create not-primary job log failed job_id=%d err=%v", jobID, err)
 		}
@@ -56,7 +56,7 @@ func (s *serviceImpl) runCronJob(ctx context.Context, jobID uint64) {
 			job,
 			jobmeta.TriggerTypeCron,
 			skippedStatus,
-			"当前任务已达到并发上限，跳过执行",
+			"Current scheduled job has reached its concurrency limit, skipped execution",
 		); err != nil {
 			logger.Warningf(ctx, "create skipped-concurrency log failed job_id=%d err=%v", jobID, err)
 		}
@@ -193,7 +193,7 @@ func (s *serviceImpl) dispatchExecution(
 	case jobmeta.TaskTypeShell:
 		return s.dispatchShellExecution(ctx, job)
 	default:
-		return jobmeta.LogStatusFailed, "任务类型不受支持", ""
+		return jobmeta.LogStatusFailed, "Scheduled-job task type is not supported", ""
 	}
 }
 
@@ -204,7 +204,7 @@ func (s *serviceImpl) dispatchHandlerExecution(
 ) (jobmeta.LogStatus, string, string) {
 	def, ok := s.registry.Lookup(job.HandlerRef)
 	if !ok {
-		return jobmeta.LogStatusFailed, "任务处理器不存在", ""
+		return jobmeta.LogStatusFailed, "Scheduled-job handler does not exist", ""
 	}
 	if err := jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params)); err != nil {
 		return jobmeta.LogStatusFailed, err.Error(), ""
@@ -227,13 +227,13 @@ func (s *serviceImpl) dispatchShellExecution(
 	job *entity.SysJob,
 ) (jobmeta.LogStatus, string, string) {
 	if s.shellExecutor == nil {
-		return jobmeta.LogStatusFailed, "Shell 执行器未初始化", ""
+		return jobmeta.LogStatusFailed, "Shell executor is not initialized", ""
 	}
 
 	envMap := make(map[string]string)
 	if strings.TrimSpace(job.Env) != "" {
 		if err := json.Unmarshal([]byte(job.Env), &envMap); err != nil {
-			return jobmeta.LogStatusFailed, "解析 Shell 环境变量失败", ""
+			return jobmeta.LogStatusFailed, "Failed to parse Shell environment variables", ""
 		}
 	}
 
@@ -305,9 +305,9 @@ func buildExecutionErrMsg(err error, ctx context.Context, timeout time.Duration)
 		return err.Error()
 	}
 
-	message := "任务执行超时"
+	message := "Scheduled-job execution timed out"
 	if timeout > 0 {
-		message += "（" + timeout.String() + "）"
+		message += " (" + timeout.String() + ")"
 	}
 	return message + ": " + err.Error()
 }

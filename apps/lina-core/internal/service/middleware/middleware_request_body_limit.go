@@ -6,12 +6,15 @@ package middleware
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gcode"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/ghttp"
+
+	"lina-core/pkg/bizerr"
 )
 
 // Request-body limit constants define the default non-multipart ceiling and the
@@ -113,13 +116,12 @@ func requestBodyLimitFriendlyError(
 		return nil
 	}
 	if uploadMaxSizeMB > 0 {
-		return gerror.NewCodef(
-			gcode.CodeInvalidParameter,
-			"error.upload.fileTooLarge",
-			uploadMaxSizeMB,
+		return bizerr.NewCode(
+			CodeMiddlewareUploadFileTooLarge,
+			bizerr.P("maxSizeMB", uploadMaxSizeMB),
 		)
 	}
-	return gerror.NewCode(gcode.CodeInvalidParameter, "error.upload.requestBodyTooLarge")
+	return bizerr.NewCode(CodeMiddlewareUploadRequestBodyTooLarge)
 }
 
 // applyRequestBodyLimitFriendlyError writes the normalized overflow error back
@@ -169,11 +171,13 @@ func writeRequestBodyLimitError(r *ghttp.Request, i18nSvc middlewareI18nService,
 			message = localized
 		}
 	}
-	r.Response.WriteJson(ghttp.DefaultHandlerResponse{
+	response := runtimeHandlerResponse{
 		Code:    code,
 		Data:    nil,
 		Message: message,
-	})
+	}
+	applyRuntimeErrorMetadata(&response, err)
+	r.Response.WriteJson(response)
 	r.ExitAll()
 }
 
@@ -186,9 +190,9 @@ func recoveredToError(recovered any) error {
 	case error:
 		return value
 	case string:
-		return gerror.New(value)
+		return errors.New(value)
 	default:
-		return gerror.Newf("%v", value)
+		return errors.New(fmt.Sprint(value))
 	}
 }
 

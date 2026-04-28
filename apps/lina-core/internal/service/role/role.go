@@ -6,7 +6,6 @@ import (
 	"context"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -15,6 +14,7 @@ import (
 	"lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 )
 
@@ -261,7 +261,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysRole, err
 		return nil, err
 	}
 	if role == nil {
-		return nil, gerror.New("角色不存在")
+		return nil, bizerr.NewCode(CodeRoleNotFound)
 	}
 	return role, nil
 }
@@ -749,7 +749,7 @@ func (s *serviceImpl) checkNameUnique(ctx context.Context, name string, excludeI
 		return err
 	}
 	if count > 0 {
-		return gerror.New("角色名称已存在")
+		return bizerr.NewCode(CodeRoleNameExists)
 	}
 	return nil
 }
@@ -766,7 +766,7 @@ func (s *serviceImpl) checkKeyUnique(ctx context.Context, key string, excludeId 
 		return err
 	}
 	if count > 0 {
-		return gerror.New("权限字符已存在")
+		return bizerr.NewCode(CodeRoleKeyExists)
 	}
 	return nil
 }

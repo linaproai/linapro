@@ -7,9 +7,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
 
 // LogCleaner defines the host cleanup capability used by the built-in
@@ -22,10 +21,10 @@ type LogCleaner interface {
 // RegisterHostHandlers installs host-provided handlers required by the current iteration.
 func RegisterHostHandlers(registry Registry, cleaner LogCleaner) error {
 	if registry == nil {
-		return gerror.New("任务处理器注册表不能为空")
+		return bizerr.NewCode(CodeJobHandlerRegistryRequired)
 	}
 	if cleaner == nil {
-		return gerror.New("任务日志清理器不能为空")
+		return bizerr.NewCode(CodeJobHandlerLogCleanerRequired)
 	}
 
 	if err := registerCleanupLogsHandler(registry, cleaner); err != nil {
@@ -66,7 +65,7 @@ func registerWaitHandler(registry Registry) error {
 		Ref:          "host:wait",
 		DisplayName:  "Wait for Duration",
 		Description:  "Waits for the requested number of seconds to verify scheduling, timeout, and cancellation flows.",
-		ParamsSchema: `{"type":"object","properties":{"seconds":{"type":"integer","description":"等待秒数"}},"required":["seconds"]}`,
+		ParamsSchema: `{"type":"object","properties":{"seconds":{"type":"integer","description":"Wait seconds"}},"required":["seconds"]}`,
 		Source:       jobmeta.HandlerSourceHost,
 		Invoke:       invokeWaitHandler,
 	})
@@ -77,10 +76,10 @@ func registerWaitHandler(registry Registry) error {
 func invokeWaitHandler(ctx context.Context, params json.RawMessage) (any, error) {
 	var input waitHandlerParams
 	if err := json.Unmarshal(params, &input); err != nil {
-		return nil, gerror.Wrap(err, "解析等待处理器参数失败")
+		return nil, bizerr.WrapCode(err, CodeJobHandlerWaitParamsParseFailed)
 	}
 	if input.Seconds <= 0 {
-		return nil, gerror.New("等待秒数必须大于0")
+		return nil, bizerr.NewCode(CodeJobHandlerWaitSecondsInvalid)
 	}
 
 	timer := time.NewTimer(time.Duration(input.Seconds) * time.Second)

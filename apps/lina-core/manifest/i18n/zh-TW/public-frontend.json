@@ -1,0 +1,15 @@
+{
+  "publicFrontend": {
+    "app": {
+      "name": "LinaPro"
+    },
+    "auth": {
+      "loginSubtitle": "請輸入您的帳戶信息以開始管理您的項目",
+      "pageDesc": "幫助團隊快速交付生產級應用，同時保持架構、權限、測試與擴展邊界可治理",
+      "pageTitle": "面向可持續交付的 AI 驅動全棧框架"
+    },
+    "ui": {
+      "watermarkContent": "LinaPro"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "notify": {
+    "category": {
+      "announcement": {
+        "color": "green",
+        "label": "公告"
+      },
+      "notice": {
+        "color": "blue",
+        "label": "通知"
+      }
+    }
+  }
+}

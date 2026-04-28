@@ -208,6 +208,90 @@
       }
     }
   },
+  "monitor": {
+    "online": {
+      "tableTitlePrefix": "在线用户列表（共 ",
+      "tableTitleSuffix": " 人在线）",
+      "fields": {
+        "userAccount": "用户账号",
+        "loginAccount": "登录账号",
+        "deptName": "部门名称",
+        "ip": "IP地址",
+        "browser": "浏览器",
+        "os": "操作系统",
+        "loginTime": "登录时间"
+      },
+      "actions": {
+        "forceOffline": "强制下线"
+      },
+      "messages": {
+        "forceOfflineConfirm": "确认强制下线[{username}]?"
+      }
+    },
+    "server": {
+      "empty": "暂无监控数据，请等待数据采集...",
+      "sections": {
+        "database": "数据库信息",
+        "server": "服务器信息",
+        "service": "服务信息",
+        "serviceCpu": "服务 CPU",
+        "serviceMemory": "服务内存",
+        "basic": "基本信息",
+        "systemCpu": "系统 CPU",
+        "systemMemory": "系统内存",
+        "disk": "磁盘使用",
+        "network": "网络流量"
+      },
+      "tooltips": {
+        "multiNode": "LinaPro 支持多节点高可用部署，每个节点具有独立的服务器指标信息"
+      },
+      "fields": {
+        "dbVersion": "数据库版本",
+        "maxOpenConns": "最大连接数",
+        "openConns": "当前打开连接",
+        "inUseIdle": "使用中 / 空闲",
+        "goVersion": "Go 版本",
+        "goframeVersion": "GoFrame 版本",
+        "goroutines": "Goroutines",
+        "gcPause": "GC 暂停",
+        "serviceStartTime": "服务启动时间",
+        "serviceUptime": "服务运行时长",
+        "used": "已使用",
+        "totalCores": "总核心数",
+        "totalMemory": "总内存量",
+        "hostname": "主机名",
+        "os": "操作系统",
+        "arch": "系统架构",
+        "nodeIp": "节点IP",
+        "systemUptime": "系统运行时长",
+        "bootTime": "系统启动时间",
+        "collectAt": "数据更新时间",
+        "cores": "核心数",
+        "modelName": "型号",
+        "usedTotal": "已用 / 总量",
+        "available": "可用",
+        "totalSent": "总发送",
+        "totalReceived": "总接收",
+        "sendRate": "发送速率",
+        "receiveRate": "接收速率"
+      },
+      "diskColumns": {
+        "path": "盘符",
+        "fsType": "文件系统",
+        "total": "总容量",
+        "used": "已用",
+        "free": "可用",
+        "usagePercent": "使用率"
+      },
+      "units": {
+        "days": "{count}天",
+        "hours": "{count}小时",
+        "minutes": "{count}分钟",
+        "justStarted": "刚启动",
+        "core": "核"
+      }
+    }
+  },
   "system": {
     "user": {
       "tableTitle": "用户列表",

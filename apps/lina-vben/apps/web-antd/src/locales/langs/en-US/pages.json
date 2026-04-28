@@ -208,6 +208,90 @@
       }
     }
   },
+  "monitor": {
+    "online": {
+      "tableTitlePrefix": "Online Users (",
+      "tableTitleSuffix": " online)",
+      "fields": {
+        "userAccount": "User Account",
+        "loginAccount": "Login Account",
+        "deptName": "Department",
+        "ip": "IP Address",
+        "browser": "Browser",
+        "os": "Operating System",
+        "loginTime": "Login Time"
+      },
+      "actions": {
+        "forceOffline": "Force Offline"
+      },
+      "messages": {
+        "forceOfflineConfirm": "Force [{username}] offline?"
+      }
+    },
+    "server": {
+      "empty": "No monitoring data. Please wait for data collection.",
+      "sections": {
+        "database": "Database Information",
+        "server": "Server Information",
+        "service": "Service Information",
+        "serviceCpu": "Service CPU",
+        "serviceMemory": "Service Memory",
+        "basic": "Basic Information",
+        "systemCpu": "System CPU",
+        "systemMemory": "System Memory",
+        "disk": "Disk Usage",
+        "network": "Network Traffic"
+      },
+      "tooltips": {
+        "multiNode": "LinaPro supports multi-node high availability deployment. Each node has independent server metrics."
+      },
+      "fields": {
+        "dbVersion": "Database Version",
+        "maxOpenConns": "Max Connections",
+        "openConns": "Open Connections",
+        "inUseIdle": "In Use / Idle",
+        "goVersion": "Go Version",
+        "goframeVersion": "GoFrame Version",
+        "goroutines": "Goroutines",
+        "gcPause": "GC Pause",
+        "serviceStartTime": "Service Start Time",
+        "serviceUptime": "Service Uptime",
+        "used": "Used",
+        "totalCores": "Total Cores",
+        "totalMemory": "Total Memory",
+        "hostname": "Hostname",
+        "os": "Operating System",
+        "arch": "Architecture",
+        "nodeIp": "Node IP",
+        "systemUptime": "System Uptime",
+        "bootTime": "Boot Time",
+        "collectAt": "Updated At",
+        "cores": "Cores",
+        "modelName": "Model",
+        "usedTotal": "Used / Total",
+        "available": "Available",
+        "totalSent": "Total Sent",
+        "totalReceived": "Total Received",
+        "sendRate": "Send Rate",
+        "receiveRate": "Receive Rate"
+      },
+      "diskColumns": {
+        "path": "Mount",
+        "fsType": "File System",
+        "total": "Total",
+        "used": "Used",
+        "free": "Free",
+        "usagePercent": "Usage"
+      },
+      "units": {
+        "days": "{count}d",
+        "hours": "{count}h",
+        "minutes": "{count}m",
+        "justStarted": "Just started",
+        "core": "core(s)"
+      }
+    }
+  },
   "system": {
     "user": {
       "tableTitle": "User List",

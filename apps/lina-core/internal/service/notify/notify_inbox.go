@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/pkg/bizerr"
 )
 
 // inboxListRecord is the joined database projection used to build inbox list
@@ -32,7 +32,7 @@ type inboxListRecord struct {
 // InboxUnreadCount returns the unread inbox delivery count for one user.
 func (s *serviceImpl) InboxUnreadCount(ctx context.Context, userID int64) (int, error) {
 	if userID <= 0 {
-		return 0, gerror.New("用户不存在")
+		return 0, bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
 	return dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
@@ -46,7 +46,7 @@ func (s *serviceImpl) InboxUnreadCount(ctx context.Context, userID int64) (int, 
 // InboxList returns one paged inbox list for the current user.
 func (s *serviceImpl) InboxList(ctx context.Context, in InboxListInput) (*InboxListOutput, error) {
 	if in.UserID <= 0 {
-		return nil, gerror.New("用户不存在")
+		return nil, bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
 	var (
@@ -114,7 +114,7 @@ func (s *serviceImpl) InboxList(ctx context.Context, in InboxListInput) (*InboxL
 // InboxMarkRead marks one inbox delivery as read for the current user.
 func (s *serviceImpl) InboxMarkRead(ctx context.Context, userID int64, deliveryID int64) error {
 	if userID <= 0 {
-		return gerror.New("用户不存在")
+		return bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
 	_, err := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
@@ -132,7 +132,7 @@ func (s *serviceImpl) InboxMarkRead(ctx context.Context, userID int64, deliveryI
 // InboxMarkAllRead marks all unread inbox deliveries as read for the current user.
 func (s *serviceImpl) InboxMarkAllRead(ctx context.Context, userID int64) error {
 	if userID <= 0 {
-		return gerror.New("用户不存在")
+		return bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
 	deliveryCols := dao.SysNotifyDelivery.Columns()
@@ -152,7 +152,7 @@ func (s *serviceImpl) InboxMarkAllRead(ctx context.Context, userID int64) error 
 // InboxDelete soft-deletes one inbox delivery for the current user.
 func (s *serviceImpl) InboxDelete(ctx context.Context, userID int64, deliveryID int64) error {
 	if userID <= 0 {
-		return gerror.New("用户不存在")
+		return bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
 	_, err := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
@@ -166,7 +166,7 @@ func (s *serviceImpl) InboxDelete(ctx context.Context, userID int64, deliveryID 
 // InboxClear soft-deletes all inbox deliveries for the current user.
 func (s *serviceImpl) InboxClear(ctx context.Context, userID int64) error {
 	if userID <= 0 {
-		return gerror.New("用户不存在")
+		return bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
 	_, err := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{

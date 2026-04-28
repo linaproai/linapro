@@ -1,0 +1,36 @@
+{
+  "dict": {
+    "sys_oper_status": {
+      "0": {
+        "label": "成功"
+      },
+      "1": {
+        "label": "失败"
+      },
+      "name": "操作状态",
+      "remark": "操作日志操作状态列表"
+    },
+    "sys_oper_type": {
+      "create": {
+        "label": "新增"
+      },
+      "delete": {
+        "label": "删除"
+      },
+      "export": {
+        "label": "导出"
+      },
+      "import": {
+        "label": "导入"
+      },
+      "name": "操作类型",
+      "other": {
+        "label": "其他"
+      },
+      "remark": "操作日志操作类型列表",
+      "update": {
+        "label": "修改"
+      }
+    }
+  }
+}

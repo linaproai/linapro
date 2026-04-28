@@ -8,12 +8,12 @@ import (
 	"context"
 	"io"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 )
 
 // ImportResult defines the result of config import operation.
@@ -34,13 +34,17 @@ type ImportFailItem struct {
 func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSupport bool) (result *ImportResult, err error) {
 	f, err := excelize.OpenReader(fileReader)
 	if err != nil {
-		return nil, gerror.New("无法解析 Excel 文件")
+		return nil, bizerr.WrapCode(err, CodeSysConfigImportExcelParseFailed)
 	}
 	defer closeExcelFile(ctx, f, &err)
 
 	rows, err := f.GetRows("Sheet1")
 	if err != nil {
-		return nil, gerror.New("无法读取 Sheet1")
+		return nil, bizerr.WrapCode(
+			err,
+			CodeSysConfigImportSheetReadFailed,
+			bizerr.P("sheet", "Sheet1"),
+		)
 	}
 
 	if len(rows) < 2 {
@@ -55,7 +59,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: "参数名称、参数键名、参数键值为必填项",
+				Reason: s.localizedConfigImportFailure(ctx, "requiredColumns", "Parameter name, key, and value are required"),
 			})
 			continue
 		}
@@ -67,7 +71,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: "参数名称、参数键名、参数键值不能为空",
+				Reason: s.localizedConfigImportFailure(ctx, "requiredValues", "Parameter name, key, and value cannot be empty"),
 			})
 			continue
 		}
@@ -75,7 +79,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: validateErr.Error(),
+				Reason: s.localizedConfigImportError(ctx, validateErr),
 			})
 			continue
 		}
@@ -93,13 +97,13 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 				Where(do.SysConfig{Key: key}).
 				Scan(&existing)
 			if scanErr != nil {
-				return gerror.Wrap(scanErr, "数据库查询错误")
+				return bizerr.WrapCode(scanErr, CodeSysConfigImportQueryFailed)
 			}
 
 			if existing != nil {
 				// Key exists
 				if !updateSupport {
-					return gerror.Newf("参数键名 '%s' 已存在", key)
+					return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", key))
 				}
 				// Overwrite mode: update existing record (GoFrame auto-fills updated_at)
 				_, updateErr := dao.SysConfig.Ctx(ctx).
@@ -111,7 +115,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 					}).
 					Update()
 				if updateErr != nil {
-					return gerror.Wrap(updateErr, "更新失败")
+					return bizerr.WrapCode(updateErr, CodeSysConfigImportUpdateFailed)
 				}
 				return s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, existing.Value, value, false)
 			}
@@ -124,7 +128,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 				Remark: remark,
 			}).Insert()
 			if insertErr != nil {
-				return gerror.Wrap(insertErr, "插入失败")
+				return bizerr.WrapCode(insertErr, CodeSysConfigImportInsertFailed)
 			}
 			return s.refreshRuntimeParamSnapshotIfNeeded(ctx, key, "", value, true)
 		})
@@ -132,7 +136,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: err.Error(),
+				Reason: s.localizedConfigImportError(ctx, err),
 			})
 			continue
 		}

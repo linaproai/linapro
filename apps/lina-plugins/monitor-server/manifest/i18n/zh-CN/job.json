@@ -1,0 +1,20 @@
+{
+  "job": {
+    "handler": {
+      "plugin": {
+        "monitor-server": {
+          "cron": {
+            "service-monitor-cleanup": {
+              "description": "monitor-server 插件注册的内置定时任务。",
+              "name": "服务监控清理"
+            },
+            "service-monitor-collector": {
+              "description": "monitor-server 插件注册的内置定时任务。",
+              "name": "服务监控采集"
+            }
+          }
+        }
+      }
+    }
+  }
+}

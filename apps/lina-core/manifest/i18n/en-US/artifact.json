@@ -1,0 +1,91 @@
+{
+  "artifact": {
+    "config": {
+      "import": {
+        "failure": {
+          "requiredColumns": "Parameter name, key, and value are required",
+          "requiredValues": "Parameter name, key, and value cannot be empty"
+        }
+      }
+    },
+    "dict": {
+      "data": {
+        "header": {
+          "createdAt": "Created At",
+          "cssClass": "CSS Class",
+          "dictType": "Dictionary Type",
+          "label": "Dictionary Label",
+          "remark": "Remark",
+          "sort": "Sort",
+          "status": "Status",
+          "tagStyle": "Tag Style",
+          "value": "Dictionary Value"
+        }
+      },
+      "import": {
+        "failure": {
+          "dataLabelRequired": "Dictionary label cannot be empty",
+          "dataValueExists": "Dictionary value already exists",
+          "dataValueRequired": "Dictionary value cannot be empty",
+          "incompleteData": "Incomplete data",
+          "insertFailed": "Insert failed: {error}",
+          "queryFailed": "Query failed: {error}",
+          "sortInvalid": "Sort value must be a valid integer",
+          "typeExists": "Dictionary type already exists",
+          "typeFormatInvalid": "Dictionary type must start with a lowercase letter and contain only lowercase letters, numbers, and underscores",
+          "typeNameRequired": "Dictionary name cannot be empty",
+          "typeNotFound": "Dictionary type does not exist",
+          "updateFailed": "Update failed: {error}"
+        }
+      },
+      "importTemplate": {
+        "example": {
+          "femaleRemark": "Female",
+          "maleRemark": "Male"
+        }
+      },
+      "sheet": {
+        "data": "Dictionary Data",
+        "type": "Dictionary Types"
+      },
+      "type": {
+        "header": {
+          "createdAt": "Created At",
+          "name": "Dictionary Name",
+          "remark": "Remark",
+          "status": "Status",
+          "type": "Dictionary Type"
+        }
+      }
+    },
+    "user": {
+      "header": {
+        "createdAt": "Created At",
+        "email": "Email",
+        "nickname": "Nickname",
+        "password": "Password",
+        "phone": "Mobile Number",
+        "remark": "Remark",
+        "sex": "Gender",
+        "status": "Status",
+        "username": "Username"
+      },
+      "import": {
+        "failure": {
+          "insertFailed": "Insert failed: {error}",
+          "passwordHashFailed": "Failed to hash password",
+          "queryFailed": "Database query failed: {error}",
+          "usernameExists": "Username {username} already exists",
+          "usernamePasswordNotEmpty": "Username and password cannot be empty",
+          "usernamePasswordRequired": "Username and password are required"
+        }
+      },
+      "importTemplate": {
+        "example": {
+          "nickname": "Zhang San",
+          "remark": "Sample user"
+        }
+      }
+    }
+  }
+}

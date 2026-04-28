@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 )
 
@@ -93,7 +92,7 @@ func (s *serviceImpl) GetLog(ctx context.Context, id uint64) (*LogDetailOutput, 
 		return nil, err
 	}
 	if logRow == nil {
-		return nil, gerror.New("执行日志不存在")
+		return nil, bizerr.NewCode(CodeJobLogNotFound)
 	}
 
 	jobMap, err := s.jobDisplayMapByLogs(ctx, []*entity.SysJobLog{logRow})
@@ -130,7 +129,7 @@ func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64, ids string) 
 // CancelLog cancels one currently running execution instance.
 func (s *serviceImpl) CancelLog(ctx context.Context, id uint64) error {
 	if s.scheduler == nil {
-		return gerror.New("定时任务调度器未初始化")
+		return bizerr.NewCode(CodeJobSchedulerUninitialized)
 	}
 	return s.scheduler.CancelLog(ctx, id)
 }

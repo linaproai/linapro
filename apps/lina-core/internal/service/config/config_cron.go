@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // cronShellUnsupportedReason is the fixed UI hint returned when the current
@@ -119,14 +119,14 @@ func validateCronLogRetentionValue(key string, value string) error {
 func parseCronLogRetentionValue(key string, value string) (*CronLogRetentionConfig, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return nil, gerror.Newf("参数 %s 不能为空", key)
+		return nil, bizerr.NewCode(CodeConfigParamRequired, bizerr.P("key", key))
 	}
 
 	var payload cronLogRetentionPayload
 	decoder := json.NewDecoder(strings.NewReader(trimmed))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&payload); err != nil {
-		return nil, gerror.Wrapf(err, "参数 %s 必须为合法 JSON 对象", key)
+		return nil, bizerr.WrapCode(err, CodeConfigParamJSONObjectInvalid, bizerr.P("key", key))
 	}
 	if err := ensureJSONDecoderEOF(decoder, key); err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func parseCronLogRetentionValue(key string, value string) (*CronLogRetentionConf
 	switch mode {
 	case CronLogRetentionModeDays, CronLogRetentionModeCount:
 		if payload.Value <= 0 {
-			return nil, gerror.Newf("参数 %s 的 value 必须大于 0", key)
+			return nil, bizerr.NewCode(CodeConfigCronRetentionValuePositiveRequired, bizerr.P("key", key))
 		}
 		return &CronLogRetentionConfig{
 			Mode:  mode,
@@ -145,7 +145,7 @@ func parseCronLogRetentionValue(key string, value string) (*CronLogRetentionConf
 
 	case CronLogRetentionModeNone:
 		if payload.Value < 0 {
-			return nil, gerror.Newf("参数 %s 的 value 不能小于 0", key)
+			return nil, bizerr.NewCode(CodeConfigCronRetentionValueNonNegativeRequired, bizerr.P("key", key))
 		}
 		return &CronLogRetentionConfig{
 			Mode:  CronLogRetentionModeNone,
@@ -153,7 +153,7 @@ func parseCronLogRetentionValue(key string, value string) (*CronLogRetentionConf
 		}, nil
 	}
 
-	return nil, gerror.Newf("参数 %s 的 mode 不在支持范围内", key)
+	return nil, bizerr.NewCode(CodeConfigCronRetentionModeUnsupported, bizerr.P("key", key))
 }
 
 // ensureJSONDecoderEOF verifies the JSON decoder has no trailing non-space
@@ -162,9 +162,9 @@ func ensureJSONDecoderEOF(decoder *json.Decoder, key string) error {
 	var trailing struct{}
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return gerror.Newf("参数 %s 只能包含一个 JSON 对象", key)
+			return bizerr.NewCode(CodeConfigParamJSONSingleObjectRequired, bizerr.P("key", key))
 		}
-		return gerror.Wrapf(err, "参数 %s 包含多余内容", key)
+		return bizerr.WrapCode(err, CodeConfigParamJSONTrailingContent, bizerr.P("key", key))
 	}
 	return nil
 }

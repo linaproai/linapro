@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // Built-in runtime parameter keys stored in sys_config.
@@ -32,62 +32,47 @@ const (
 // RuntimeParamSpec describes one built-in runtime parameter managed through
 // sys_config.
 type RuntimeParamSpec struct {
-	Key          string // Key is the sys_config key.
-	Name         string // Name is the display name shown in the config page.
+	Key          string // Key is the sys_config key consumed by host runtime paths.
 	DefaultValue string // DefaultValue is the host fallback value.
-	Remark       string // Remark explains the supported format and behavior.
 }
 
 // runtimeParamSpecs lists all built-in runtime parameters backed by sys_config.
 var runtimeParamSpecs = []RuntimeParamSpec{
 	{
 		Key:          RuntimeParamKeyJWTExpire,
-		Name:         "认证管理-JWT Token 有效期",
 		DefaultValue: "24h",
-		Remark:       "控制新签发 JWT Token 的有效期，支持 Go duration 格式，如 12h、24h。",
 	},
 	{
 		Key:          RuntimeParamKeySessionTimeout,
-		Name:         "在线用户-会话超时时间",
 		DefaultValue: "24h",
-		Remark:       "控制在线会话无活动超时时长，支持 Go duration 格式，如 30m、24h。",
 	},
 	{
 		Key:          RuntimeParamKeyUploadMaxSize,
-		Name:         "文件管理-上传大小上限",
-		DefaultValue: "10",
-		Remark:       "控制单个上传文件大小上限，单位为 MB，必须为正整数。",
+		DefaultValue: "20",
 	},
 	{
 		Key:          RuntimeParamKeyLoginBlackIPList,
-		Name:         "用户登录-IP 黑名单列表",
 		DefaultValue: "",
-		Remark:       "禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。",
 	},
 	{
 		Key:          RuntimeParamKeyCronShellEnabled,
-		Name:         "定时任务-Shell 模式开关",
 		DefaultValue: "false",
-		Remark:       "控制是否允许创建、修改和执行 Shell 类型定时任务，可选值：true、false。",
 	},
 	{
 		Key:          RuntimeParamKeyCronLogRetention,
-		Name:         "定时任务-日志保留策略",
 		DefaultValue: `{"mode":"days","value":30}`,
-		Remark:       "控制默认的定时任务日志清理策略，JSON 格式：{\"mode\":\"days|count|none\",\"value\":N}。",
 	},
 }
 
 // runtimeParamSpecByKey indexes runtimeParamSpecs by key for validation and
 // lookup operations on protected runtime settings.
-var runtimeParamSpecByKey = map[string]RuntimeParamSpec{
-	RuntimeParamKeyJWTExpire:        runtimeParamSpecs[0],
-	RuntimeParamKeySessionTimeout:   runtimeParamSpecs[1],
-	RuntimeParamKeyUploadMaxSize:    runtimeParamSpecs[2],
-	RuntimeParamKeyLoginBlackIPList: runtimeParamSpecs[3],
-	RuntimeParamKeyCronShellEnabled: runtimeParamSpecs[4],
-	RuntimeParamKeyCronLogRetention: runtimeParamSpecs[5],
-}
+var runtimeParamSpecByKey = func() map[string]RuntimeParamSpec {
+	specByKey := make(map[string]RuntimeParamSpec, len(runtimeParamSpecs))
+	for _, spec := range runtimeParamSpecs {
+		specByKey[spec.Key] = spec
+	}
+	return specByKey
+}()
 
 // runtimeParamKeys preserves the deterministic built-in runtime-parameter key order.
 var runtimeParamKeys = []string{
@@ -221,14 +206,14 @@ func splitSemicolonValues(raw string) []string {
 func validatePositiveDurationValue(key string, value string) (time.Duration, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return 0, gerror.Newf("参数 %s 不能为空", key)
+		return 0, bizerr.NewCode(CodeConfigParamRequired, bizerr.P("key", key))
 	}
 	duration, err := time.ParseDuration(trimmed)
 	if err != nil {
-		return 0, gerror.Wrapf(err, "参数 %s 必须为合法时长", key)
+		return 0, bizerr.WrapCode(err, CodeConfigParamDurationInvalid, bizerr.P("key", key))
 	}
 	if duration <= 0 {
-		return 0, gerror.Newf("参数 %s 必须大于 0", key)
+		return 0, bizerr.NewCode(CodeConfigParamPositiveRequired, bizerr.P("key", key))
 	}
 	return duration, nil
 }
@@ -237,14 +222,14 @@ func validatePositiveDurationValue(key string, value string) (time.Duration, err
 func validatePositiveInt64Value(key string, value string) (int64, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return 0, gerror.Newf("参数 %s 不能为空", key)
+		return 0, bizerr.NewCode(CodeConfigParamRequired, bizerr.P("key", key))
 	}
 	parsed, err := strconv.ParseInt(trimmed, 10, 64)
 	if err != nil {
-		return 0, gerror.Wrapf(err, "参数 %s 必须为整数", key)
+		return 0, bizerr.WrapCode(err, CodeConfigParamIntegerInvalid, bizerr.P("key", key))
 	}
 	if parsed <= 0 {
-		return 0, gerror.Newf("参数 %s 必须大于 0", key)
+		return 0, bizerr.NewCode(CodeConfigParamPositiveRequired, bizerr.P("key", key))
 	}
 	return parsed, nil
 }
@@ -259,7 +244,11 @@ func validateIPBlacklistValue(key string, value string) error {
 		if _, _, err := net.ParseCIDR(item); err == nil {
 			continue
 		}
-		return gerror.Newf("参数 %s 包含非法 IP 或 CIDR：%s", key, item)
+		return bizerr.NewCode(
+			CodeConfigParamIPCIDRInvalid,
+			bizerr.P("key", key),
+			bizerr.P("value", item),
+		)
 	}
 	return nil
 }

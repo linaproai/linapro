@@ -1,0 +1,193 @@
+{
+  "dict": {
+    "cron_job_concurrency": {
+      "name": "Scheduled Job Concurrency",
+      "parallel": {
+        "label": "Allow Parallel Runs"
+      },
+      "remark": "Scheduled job concurrency options",
+      "singleton": {
+        "label": "Singleton"
+      }
+    },
+    "cron_job_log_status": {
+      "cancelled": {
+        "label": "Cancelled"
+      },
+      "failed": {
+        "label": "Failed"
+      },
+      "name": "Scheduled Job Log Status",
+      "remark": "Scheduled job execution log status options",
+      "running": {
+        "label": "Running"
+      },
+      "skipped_max_concurrency": {
+        "label": "Skipped: Max Concurrency"
+      },
+      "skipped_not_primary": {
+        "label": "Skipped: Non-primary Node"
+      },
+      "skipped_singleton": {
+        "label": "Skipped: Singleton Conflict"
+      },
+      "success": {
+        "label": "Success"
+      },
+      "timeout": {
+        "label": "Timed Out"
+      }
+    },
+    "cron_job_scope": {
+      "all_node": {
+        "label": "All Nodes"
+      },
+      "master_only": {
+        "label": "Primary Node Only"
+      },
+      "name": "Scheduled Job Scope",
+      "remark": "Scheduled job scope options"
+    },
+    "cron_job_status": {
+      "disabled": {
+        "label": "Disabled"
+      },
+      "enabled": {
+        "label": "Enabled"
+      },
+      "name": "Scheduled Job Status",
+      "paused_by_plugin": {
+        "label": "Unavailable"
+      },
+      "remark": "Scheduled job status options"
+    },
+    "cron_job_task_type": {
+      "handler": {
+        "label": "Handler Job"
+      },
+      "name": "Scheduled Job Type",
+      "remark": "Scheduled job type options",
+      "shell": {
+        "label": "Shell Job"
+      }
+    },
+    "cron_job_trigger": {
+      "cron": {
+        "label": "Cron Schedule"
+      },
+      "manual": {
+        "label": "Manual Trigger"
+      },
+      "name": "Scheduled Job Trigger",
+      "remark": "Scheduled job trigger options"
+    },
+    "cron_log_retention_mode": {
+      "count": {
+        "label": "Keep by Count"
+      },
+      "days": {
+        "label": "Keep by Days"
+      },
+      "name": "Scheduled Job Log Retention Mode",
+      "none": {
+        "label": "Do Not Clean"
+      },
+      "remark": "Scheduled job log retention mode options"
+    },
+    "sys_data_scope": {
+      "1": {
+        "label": "All Data"
+      },
+      "2": {
+        "label": "Department Data"
+      },
+      "3": {
+        "label": "Own Data Only"
+      },
+      "name": "Data Scope",
+      "remark": "Data scope options"
+    },
+    "sys_file_scene": {
+      "avatar": {
+        "label": "User Avatar"
+      },
+      "name": "File Scene",
+      "notice_attachment": {
+        "label": "Notice Attachment"
+      },
+      "notice_image": {
+        "label": "Notice Image"
+      },
+      "other": {
+        "label": "Other"
+      },
+      "remark": "File scene options"
+    },
+    "sys_login_status": {
+      "0": {
+        "label": "Success"
+      },
+      "1": {
+        "label": "Failed"
+      },
+      "name": "Login Status",
+      "remark": "Login status options"
+    },
+    "sys_menu_status": {
+      "0": {
+        "label": "Disabled"
+      },
+      "1": {
+        "label": "Enabled"
+      },
+      "name": "Menu Status",
+      "remark": "Menu status options"
+    },
+    "sys_menu_type": {
+      "B": {
+        "label": "Button"
+      },
+      "D": {
+        "label": "Directory"
+      },
+      "M": {
+        "label": "Menu"
+      },
+      "name": "Menu Type",
+      "remark": "Menu type options"
+    },
+    "sys_normal_disable": {
+      "0": {
+        "label": "Disabled"
+      },
+      "1": {
+        "label": "Enabled"
+      },
+      "name": "Status Switch",
+      "remark": "Status switch options"
+    },
+    "sys_show_hide": {
+      "0": {
+        "label": "Hidden"
+      },
+      "1": {
+        "label": "Visible"
+      },
+      "name": "Display Status",
+      "remark": "Display status options"
+    },
+    "sys_user_sex": {
+      "0": {
+        "label": "Unknown"
+      },
+      "1": {
+        "label": "Male"
+      },
+      "2": {
+        "label": "Female"
+      },
+      "name": "User Gender",
+      "remark": "User gender options"
+    }
+  }
+}

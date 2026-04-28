@@ -1,0 +1,899 @@
+{
+  "error": {
+    "auth": {
+      "login": {
+        "invalidCredentials": "Invalid username or password",
+        "ipBlacklisted": "Login from this IP address is blocked",
+        "updateLastLoginFailed": "Failed to update last login time",
+        "userDisabled": "User account is disabled"
+      },
+      "password": {
+        "hashFailed": "Failed to hash password"
+      },
+      "token": {
+        "invalid": "Invalid token"
+      }
+    },
+    "sysconfig": {
+      "builtin": {
+        "delete": {
+          "denied": "Built-in runtime configurations cannot be deleted"
+        },
+        "key": {
+          "rename": {
+            "denied": "Built-in runtime configuration keys cannot be renamed"
+          }
+        }
+      },
+      "import": {
+        "excel": {
+          "parse": {
+            "failed": "Failed to parse Excel file"
+          }
+        },
+        "file": {
+          "read": {
+            "failed": "Failed to read import file"
+          },
+          "required": "Please select a file to import"
+        },
+        "insert": {
+          "failed": "Failed to insert system configuration during import"
+        },
+        "query": {
+          "failed": "Failed to query system configuration during import"
+        },
+        "sheet": {
+          "read": {
+            "failed": "Failed to read worksheet {sheet}"
+          }
+        },
+        "update": {
+          "failed": "Failed to update system configuration during import"
+        }
+      },
+      "key": {
+        "exists": "System configuration key {key} already exists",
+        "not": {
+          "found": "System configuration key does not exist"
+        }
+      },
+      "not": {
+        "found": "System configuration does not exist"
+      },
+      "protected": {
+        "value": {
+          "invalid": "Built-in system configuration value is invalid"
+        }
+      }
+    },
+    "dict": {
+      "data": {
+        "not": {
+          "found": "Dictionary data does not exist"
+        }
+      },
+      "import": {
+        "excel": {
+          "parse": {
+            "failed": "Failed to parse Excel file"
+          },
+          "read": {
+            "failed": "Failed to read Excel file"
+          }
+        },
+        "file": {
+          "required": "Please select a file to import"
+        }
+      },
+      "type": {
+        "exists": "Dictionary type already exists",
+        "not": {
+          "found": "Dictionary type does not exist"
+        }
+      }
+    },
+    "http": {
+      "error": "Request failed",
+      "forbidden": "Permission denied",
+      "not": {
+        "found": "Resource not found"
+      },
+      "unauthorized": "Authentication required"
+    },
+    "file": {
+      "delete": {
+        "required": "Please select files to delete"
+      },
+      "hash": {
+        "failed": "Failed to calculate file hash",
+        "query": {
+          "failed": "Failed to query file hash"
+        }
+      },
+      "not": {
+        "found": "File does not exist"
+      },
+      "open": {
+        "failed": "Failed to open uploaded file"
+      },
+      "read": {
+        "reset": {
+          "failed": "Failed to reset uploaded file reader"
+        }
+      },
+      "record": {
+        "id": {
+          "read": {
+            "failed": "Failed to read created file record ID"
+          }
+        },
+        "save": {
+          "cleanup": {
+            "failed": "Failed to save file record and cleanup stored file"
+          },
+          "failed": "Failed to save file record"
+        }
+      },
+      "store": {
+        "failed": "Failed to store uploaded file"
+      },
+      "too": {
+        "large": "File size must not exceed {maxSizeMB}MB"
+      },
+      "upload": {
+        "required": "Please upload a file"
+      }
+    },
+    "job": {
+      "handler": {
+        "not": {
+          "found": "Scheduled job handler does not exist"
+        },
+        "unavailable": "Plugin handler is currently unavailable and cannot be triggered manually",
+        "registry": {
+          "required": "Scheduled-job handler registry cannot be empty"
+        },
+        "log": {
+          "cleaner": {
+            "required": "Scheduled-job log cleaner cannot be empty"
+          }
+        },
+        "lifecycle": {
+          "bridge": {
+            "required": "Plugin lifecycle bridge cannot be empty"
+          }
+        },
+        "ref": {
+          "required": "Scheduled-job handler reference cannot be empty"
+        },
+        "display": {
+          "name": {
+            "required": "Scheduled-job handler display name cannot be empty"
+          }
+        },
+        "callback": {
+          "required": "Scheduled-job handler callback cannot be empty"
+        },
+        "source": {
+          "unsupported": "Scheduled-job handler source is not supported"
+        },
+        "plugin": {
+          "id": {
+            "required": "Plugin scheduled-job handler must declare plugin ID"
+          }
+        },
+        "exists": "Scheduled-job handler {ref} already exists",
+        "schema": {
+          "parse": {
+            "failed": "Failed to parse scheduled-job handler parameter schema"
+          },
+          "single": {
+            "object": {
+              "required": "Scheduled-job handler parameter schema must contain exactly one JSON object"
+            }
+          },
+          "root": {
+            "type": {
+              "invalid": "Scheduled-job handler parameter schema root must declare type=object"
+            }
+          },
+          "empty": {
+            "property": {
+              "name": "Scheduled-job handler parameter schema cannot contain empty property names"
+            }
+          },
+          "required": {
+            "field": {
+              "unknown": "Scheduled-job handler parameter schema required field {field} is not declared in properties"
+            }
+          },
+          "field": {
+            "type": {
+              "unsupported": "Scheduled-job handler parameter {field} type {fieldType} is not supported"
+            },
+            "format": {
+              "unsupported": "Scheduled-job handler parameter {field} format {format} is not supported",
+              "type": {
+                "invalid": "Scheduled-job handler parameter {field} can declare format only when type is string"
+              }
+            }
+          },
+          "enum": {
+            "value": {
+              "invalid": "Scheduled-job handler parameter {field} enum value is invalid"
+            }
+          }
+        },
+        "param": {
+          "required": {
+            "missing": "Scheduled-job handler parameter is missing required field {field}"
+          },
+          "type": {
+            "mismatch": "Scheduled-job handler parameter {field} type does not match the schema"
+          },
+          "enum": {
+            "invalid": "Scheduled-job handler parameter {field} is not in the allowed enum values"
+          },
+          "date": {
+            "format": {
+              "invalid": "Scheduled-job handler parameter {field} must use YYYY-MM-DD date format"
+            },
+            "time": {
+              "format": {
+                "invalid": "Scheduled-job handler parameter {field} must use RFC3339 date-time format"
+              }
+            }
+          }
+        },
+        "params": {
+          "parse": {
+            "failed": "Failed to parse scheduled-job handler parameters"
+          },
+          "single": {
+            "object": {
+              "required": "Scheduled-job handler parameters must contain exactly one JSON object"
+            }
+          }
+        },
+        "value": {
+          "unsupported": "Unsupported scheduled-job handler parameter value: {value}"
+        },
+        "json": {
+          "trailing": {
+            "content": "Detected trailing JSON content"
+          }
+        },
+        "wait": {
+          "params": {
+            "parse": {
+              "failed": "Failed to parse wait handler parameters"
+            }
+          },
+          "seconds": {
+            "invalid": "Wait seconds must be greater than 0"
+          }
+        }
+      },
+      "log": {
+        "current": {
+          "user": {
+            "missing": "Current authenticated user is unavailable"
+          }
+        },
+        "shell": {
+          "cancel": {
+            "permission": {
+              "denied": "Current user lacks required API permissions: {permission}"
+            }
+          }
+        },
+        "not": {
+          "found": "Scheduled-job execution log does not exist",
+          "running": "Scheduled-job execution log is not running"
+        }
+      },
+      "group": {
+        "default": {
+          "not": {
+            "found": "Default scheduled-job group does not exist"
+          },
+          "delete": {
+            "denied": "Default scheduled-job group cannot be deleted"
+          }
+        },
+        "not": {
+          "found": "Scheduled-job group does not exist"
+        },
+        "code": {
+          "required": "Scheduled-job group code cannot be empty",
+          "exists": "Scheduled-job group code already exists"
+        },
+        "name": {
+          "required": "Scheduled-job group name cannot be empty"
+        },
+        "delete": {
+          "required": "Please select scheduled-job groups to delete",
+          "empty": "No scheduled-job groups can be deleted"
+        }
+      },
+      "create": {
+        "shell": {
+          "only": "Only Shell scheduled jobs can be created from the UI"
+        }
+      },
+      "update": {
+        "shell": {
+          "only": "Only Shell scheduled jobs can be edited from the UI"
+        }
+      },
+      "builtin": {
+        "update": {
+          "denied": "Source-registered scheduled jobs cannot be updated"
+        },
+        "delete": {
+          "denied": "Source-registered scheduled jobs cannot be deleted"
+        },
+        "status": {
+          "update": {
+            "denied": "Source-registered scheduled jobs cannot change status"
+          }
+        },
+        "reset": {
+          "denied": "Source-registered scheduled jobs cannot reset execution count"
+        },
+        "group": {
+          "not": {
+            "found": "Scheduled-job group does not exist: {groupCode}"
+          }
+        },
+        "type": {
+          "unsupported": "Source-registered scheduled-job task type is not supported"
+        },
+        "name": {
+          "required": "Source-registered scheduled-job name cannot be empty"
+        },
+        "timeout": {
+          "second": {
+            "aligned": {
+              "required": "Source-registered scheduled-job timeout must be configured in whole seconds"
+            }
+          }
+        },
+        "cron": {
+          "expression": {
+            "required": "Source-registered scheduled-job cron expression cannot be empty",
+            "too": {
+              "long": "Source-registered scheduled-job cron expression cannot exceed 128 characters"
+            }
+          }
+        },
+        "max": {
+          "executions": {
+            "invalid": "Source-registered scheduled-job maximum executions cannot be negative"
+          }
+        },
+        "handler": {
+          "ref": {
+            "required": "Source-registered scheduled-job handler reference cannot be empty"
+          }
+        },
+        "params": {
+          "marshal": {
+            "failed": "Failed to serialize source-registered scheduled-job parameters"
+          }
+        }
+      },
+      "delete": {
+        "required": "Please select scheduled jobs to delete"
+      },
+      "name": {
+        "required": "Scheduled-job name cannot be empty",
+        "too": {
+          "long": "Scheduled-job name cannot exceed 128 characters"
+        },
+        "exists": {
+          "in": {
+            "group": "Scheduled-job name already exists in the current group"
+          }
+        }
+      },
+      "timeout": {
+        "second": {
+          "aligned": {
+            "required": "Scheduled-job timeout must be configured in whole seconds"
+          }
+        },
+        "out": {
+          "of": {
+            "range": "Scheduled-job timeout must be between 1 and 86400 seconds"
+          }
+        }
+      },
+      "task": {
+        "type": {
+          "invalid": "Scheduled-job task type only supports handler or shell",
+          "unsupported": "Scheduled job task type is not supported"
+        }
+      },
+      "scope": {
+        "invalid": "Scheduled-job scope only supports master_only or all_node"
+      },
+      "concurrency": {
+        "invalid": "Scheduled-job concurrency only supports singleton or parallel"
+      },
+      "status": {
+        "invalid": "Scheduled-job status only supports enabled or disabled",
+        "toggle": {
+          "invalid": "Scheduled-job status only supports enabled or disabled"
+        }
+      },
+      "max": {
+        "executions": {
+          "invalid": "Maximum executions must be an integer greater than or equal to 0"
+        },
+        "concurrency": {
+          "invalid": "Maximum concurrency must be an integer between 1 and 100"
+        }
+      },
+      "params": {
+        "marshal": {
+          "failed": "Failed to serialize scheduled-job parameters"
+        }
+      },
+      "shell": {
+        "env": {
+          "marshal": {
+            "failed": "Failed to serialize Shell environment variables"
+          }
+        },
+        "executor": {
+          "uninitialized": "Shell executor is not initialized"
+        },
+        "disabled": "Shell scheduled jobs are disabled in the current environment",
+        "command": {
+          "required": "Shell command cannot be empty"
+        },
+        "timeout": {
+          "invalid": "Shell scheduled-job timeout must be greater than 0"
+        },
+        "start": {
+          "failed": "Failed to start shell scheduled job"
+        },
+        "execution": {
+          "failed": "Failed to execute shell scheduled job"
+        },
+        "workdir": {
+          "root": {
+            "denied": "Shell working directory cannot be the filesystem root"
+          },
+          "validate": {
+            "failed": "Failed to validate shell working directory"
+          },
+          "not": {
+            "directory": "Shell working directory must be a directory"
+          }
+        }
+      },
+      "scheduler": {
+        "uninitialized": "Scheduled-job scheduler is not initialized"
+      },
+      "cron": {
+        "expression": {
+          "required": "Scheduled-job cron expression cannot be empty",
+          "too": {
+            "long": "Scheduled-job cron expression cannot exceed 128 characters"
+          },
+          "invalid": "Scheduled-job cron expression is invalid: {reason}"
+        },
+        "seconds": {
+          "required": "The seconds field in a six-field cron expression must be concrete; use a five-field expression without #"
+        },
+        "field": {
+          "count": {
+            "invalid": "Scheduled-job cron expression only supports five or six fields",
+            "unsupported": "Cron expression field count is not supported"
+          }
+        }
+      },
+      "timezone": {
+        "invalid": "Scheduled-job timezone is invalid: {timezone}"
+      },
+      "not": {
+        "found": "Scheduled job does not exist"
+      },
+      "snapshot": {
+        "marshal": {
+          "failed": "Failed to serialize scheduled-job snapshot"
+        }
+      },
+      "retention": {
+        "parse": {
+          "failed": "Failed to parse scheduled-job log retention policy"
+        },
+        "mode": {
+          "unsupported": "Scheduled-job log retention policy mode is not supported"
+        },
+        "value": {
+          "invalid": "Scheduled-job log retention policy threshold must be greater than 0"
+        },
+        "marshal": {
+          "failed": "Failed to serialize scheduled-job log retention policy"
+        }
+      }
+    },
+    "menu": {
+      "has": {
+        "children": {
+          "delete": {
+            "denied": "Menu has child menus and cannot be deleted"
+          }
+        }
+      },
+      "icon": {
+        "exists": "Menu icon {icon} is already used by another directory or menu"
+      },
+      "move": {
+        "to": {
+          "descendant": {
+            "denied": "Cannot move a menu under its child menu"
+          },
+          "self": {
+            "denied": "Cannot move a menu under itself"
+          }
+        }
+      },
+      "name": {
+        "exists": "Menu name already exists under the same parent"
+      },
+      "not": {
+        "found": "Menu does not exist"
+      }
+    },
+    "notify": {
+      "channel": {
+        "key": {
+          "required": "Notification channel key cannot be empty"
+        },
+        "type": {
+          "unsupported": "Notification channel type {channelType} is not supported"
+        },
+        "unavailable": "Notification channel does not exist or is disabled"
+      },
+      "inbox": {
+        "recipient": {
+          "required": "Inbox notification recipient users cannot be empty"
+        }
+      },
+      "payload": {
+        "marshal": {
+          "failed": "Failed to serialize notification payload"
+        }
+      },
+      "title": {
+        "required": "Notification title cannot be empty"
+      },
+      "user": {
+        "not": {
+          "found": "User does not exist"
+        }
+      }
+    },
+    "permission": {
+      "contextLoadFailed": "Failed to load API permission context",
+      "currentUserMissing": "Current authenticated user is unavailable",
+      "denied": {
+        "required": "Current user lacks required API permissions: {permissions}"
+      }
+    },
+    "role": {
+      "key": {
+        "exists": "Role permission key already exists"
+      },
+      "name": {
+        "exists": "Role name already exists"
+      },
+      "not": {
+        "found": "Role does not exist"
+      }
+    },
+    "user": {
+      "builtin": {
+        "admin": {
+          "delete": {
+            "denied": "Cannot delete the built-in administrator"
+          }
+        }
+      },
+      "current": {
+        "delete": {
+          "denied": "Cannot delete the current signed-in user"
+        },
+        "disable": {
+          "denied": "Cannot disable the current signed-in user"
+        },
+        "edit": {
+          "denied": "Cannot edit the current signed-in user"
+        }
+      },
+      "import": {
+        "excel": {
+          "parse": {
+            "failed": "Failed to parse Excel file"
+          }
+        },
+        "file": {
+          "required": "Please select a file to import"
+        },
+        "sheet": {
+          "read": {
+            "failed": "Failed to read worksheet {sheet}"
+          }
+        }
+      },
+      "not": {
+        "authenticated": "Not signed in",
+        "found": "User does not exist"
+      },
+      "username": {
+        "exists": "Username already exists"
+      }
+    },
+    "usermsg": {
+      "not": {
+        "authenticated": "Not signed in",
+        "found": "Message does not exist"
+      }
+    },
+    "upload": {
+      "file": {
+        "too": {
+          "large": "File size must not exceed {maxSizeMB}MB"
+        }
+      },
+      "fileTooLarge": "File size must not exceed %dMB",
+      "request": {
+        "body": {
+          "too": {
+            "large": "Uploaded file is too large"
+          }
+        }
+      },
+      "requestBodyTooLarge": "Uploaded file is too large"
+    },
+    "host": {
+      "lock": {
+        "plugin": {
+          "id": {
+            "required": "Plugin ID cannot be empty"
+          }
+        },
+        "resource": {
+          "required": "Logical lock resource cannot be empty"
+        },
+        "name": {
+          "too": {
+            "long": "Actual lock name exceeds the limit of {maxBytes} bytes"
+          }
+        },
+        "lease": {
+          "too": {
+            "short": "Lock lease cannot be shorter than {minLease}",
+            "long": "Lock lease cannot be longer than {maxLease}"
+          }
+        },
+        "ticket": {
+          "marshal": {
+            "failed": "Failed to serialize lock ticket"
+          },
+          "required": "Lock ticket cannot be empty",
+          "parse": {
+            "failed": "Failed to parse lock ticket"
+          },
+          "unmarshal": {
+            "failed": "Failed to deserialize lock ticket"
+          },
+          "invalid": "Lock ticket content is invalid",
+          "plugin": {
+            "mismatch": "Lock ticket plugin identity does not match"
+          },
+          "resource": {
+            "mismatch": "Lock ticket logical resource does not match"
+          }
+        }
+      }
+    },
+    "kv": {
+      "cache": {
+        "key": {
+          "invalid": "Cache key format is invalid; use kvcache.BuildCacheKey to construct it"
+        },
+        "value": {
+          "not": {
+            "integer": "Cache value is not an integer"
+          },
+          "too": {
+            "long": "Cache value exceeds the limit of {maxBytes} bytes"
+          }
+        },
+        "increment": {
+          "value": {
+            "not": {
+              "integer": "Cache value is not an integer and cannot be incremented"
+            }
+          }
+        },
+        "expire": {
+          "seconds": {
+            "negative": "Cache expiration seconds cannot be negative"
+          }
+        },
+        "field": {
+          "required": "Cache field {field} cannot be empty",
+          "too": {
+            "long": "Cache field {field} exceeds the limit of {maxBytes} bytes"
+          }
+        }
+      }
+    },
+    "config": {
+      "param": {
+        "required": "Parameter {key} cannot be empty",
+        "duration": {
+          "invalid": "Parameter {key} must be a valid duration"
+        },
+        "positive": {
+          "required": "Parameter {key} must be greater than 0"
+        },
+        "integer": {
+          "invalid": "Parameter {key} must be an integer"
+        },
+        "ip": {
+          "cidr": {
+            "invalid": "Parameter {key} contains invalid IP or CIDR value: {value}"
+          }
+        },
+        "bool": {
+          "invalid": "Parameter {key} must be true or false"
+        },
+        "allowed": {
+          "value": {
+            "invalid": "Parameter {key} is not in the supported range"
+          }
+        },
+        "text": {
+          "too": {
+            "long": "Parameter {key} cannot exceed {maxLen} characters"
+          }
+        },
+        "json": {
+          "object": {
+            "invalid": "Parameter {key} must be a valid JSON object"
+          },
+          "single": {
+            "object": {
+              "required": "Parameter {key} must contain exactly one JSON object"
+            }
+          },
+          "trailing": {
+            "content": "Parameter {key} contains trailing JSON content"
+          }
+        }
+      },
+      "cron": {
+        "retention": {
+          "value": {
+            "positive": {
+              "required": "Parameter {key} value must be greater than 0"
+            },
+            "non": {
+              "negative": {
+                "required": "Parameter {key} value cannot be negative"
+              }
+            }
+          },
+          "mode": {
+            "unsupported": "Parameter {key} mode is not supported"
+          }
+        }
+      }
+    },
+    "cron": {
+      "session": {
+        "cleanup": {
+          "dependency": {
+            "missing": "Online-session cleanup dependency is not initialized"
+          }
+        }
+      },
+      "access": {
+        "topology": {
+          "dependency": {
+            "missing": "Access topology sync dependency is not initialized"
+          }
+        }
+      },
+      "runtime": {
+        "param": {
+          "dependency": {
+            "missing": "Runtime parameter sync dependency is not initialized"
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "auth": {
+      "login": {
+        "password": {
+          "required": "Please enter a password"
+        },
+        "username": {
+          "required": "Please enter a username"
+        }
+      }
+    },
+    "config": {
+      "create": {
+        "key": {
+          "required": "Please enter a parameter key"
+        },
+        "name": {
+          "required": "Please enter a parameter name"
+        },
+        "value": {
+          "required": "Please enter a parameter value"
+        }
+      }
+    },
+    "dict": {
+      "data": {
+        "create": {
+          "dictType": {
+            "required": "Please enter a dictionary type"
+          },
+          "label": {
+            "required": "Please enter a dictionary label"
+          },
+          "value": {
+            "required": "Please enter a dictionary value"
+          }
+        }
+      },
+      "type": {
+        "create": {
+          "name": {
+            "required": "Please enter a dictionary name"
+          },
+          "type": {
+            "required": "Please enter a dictionary type"
+          }
+        }
+      }
+    },
+    "user": {
+      "create": {
+        "password": {
+          "length": "Password must be 6-32 characters",
+          "required": "Please enter a password"
+        },
+        "username": {
+          "length": "Username must be 2-64 characters",
+          "required": "Please enter a username"
+        }
+      },
+      "nickname": {
+        "required": "Please enter a nickname"
+      },
+      "resetPassword": {
+        "password": {
+          "length": "Password must be 5-20 characters",
+          "required": "Please enter a password"
+        }
+      },
+      "status": {
+        "invalid": "Invalid status value"
+      }
+    }
+  }
+}

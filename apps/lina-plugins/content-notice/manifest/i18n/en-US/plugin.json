@@ -1,0 +1,40 @@
+{
+  "plugin": {
+    "content-notice": {
+      "description": "Official source plugin for notice and announcement management.",
+      "drawer": {
+        "createTitle": "Create Notice",
+        "editTitle": "Edit Notice"
+      },
+      "fields": {
+        "attachments": "Attachments",
+        "content": "Content",
+        "createdBy": "Created By",
+        "status": "Status",
+        "title": "Notice Title",
+        "type": "Notice Type"
+      },
+      "messages": {
+        "deleteSelectedConfirm": "Delete the selected {count} notice(s)?"
+      },
+      "name": "Content - Notices",
+      "placeholders": {
+        "title": "Please enter a notice title"
+      },
+      "preview": {
+        "title": "Notice Preview"
+      },
+      "status": {
+        "draft": "Draft",
+        "published": "Published"
+      },
+      "tableTitle": "Notice List",
+      "validation": {
+        "content": "Please enter the notice content",
+        "status": "Please select a status",
+        "title": "Please enter a notice title",
+        "type": "Please select a notice type"
+      }
+    }
+  }
+}

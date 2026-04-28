@@ -7,12 +7,12 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 )
 
 // DataListInput defines input for DataList function.
@@ -107,7 +107,7 @@ func (s *serviceImpl) DataGetById(ctx context.Context, id int) (*entity.SysDictD
 		return nil, err
 	}
 	if dictData == nil {
-		return nil, gerror.New("字典数据不存在")
+		return nil, bizerr.NewCode(CodeDictDataNotFound)
 	}
 	return dictData, nil
 }
@@ -214,7 +214,16 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
-	headers := []string{"字典标签", "字典值", "排序", "Tag样式", "CSS类", "状态", "备注", "创建时间"}
+	headers := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.data.header.label", Fallback: "Dictionary Label"},
+		{Key: "artifact.dict.data.header.value", Fallback: "Dictionary Value"},
+		{Key: "artifact.dict.data.header.sort", Fallback: "Sort"},
+		{Key: "artifact.dict.data.header.tagStyle", Fallback: "Tag Style"},
+		{Key: "artifact.dict.data.header.cssClass", Fallback: "CSS Class"},
+		{Key: "artifact.dict.data.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.data.header.remark", Fallback: "Remark"},
+		{Key: "artifact.dict.data.header.createdAt", Fallback: "Created At"},
+	})
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -238,10 +247,7 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 		if err = setCellValue(f, sheet, 5, row, dd.CssClass); err != nil {
 			return nil, err
 		}
-		statusText := "正常"
-		if dd.Status == 0 {
-			statusText = "停用"
-		}
+		statusText := s.dictStatusText(ctx, dd.Status)
 		if err = setCellValue(f, sheet, 6, row, statusText); err != nil {
 			return nil, err
 		}

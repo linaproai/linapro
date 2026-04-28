@@ -1,0 +1,16 @@
+{
+  "menu": {
+    "plugin:plugin-demo-source:record-create": {
+      "title": "示例记录新增"
+    },
+    "plugin:plugin-demo-source:record-delete": {
+      "title": "示例记录删除"
+    },
+    "plugin:plugin-demo-source:record-update": {
+      "title": "示例记录修改"
+    },
+    "plugin:plugin-demo-source:sidebar-entry": {
+      "title": "源码插件示例"
+    }
+  }
+}

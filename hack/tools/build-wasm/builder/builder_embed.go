@@ -5,6 +5,7 @@ package builder
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"mime"
 	"os"
@@ -276,64 +277,138 @@ func collectFrontendAssets(pluginDir string, embeddedResources *embeddedStaticRe
 }
 
 func collectI18NAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*i18nAsset, error) {
-	return collectLocaleJSONAssets(pluginDir, embeddedResources, "manifest/i18n")
+	return collectLocaleDirectoryJSONAssets(pluginDir, embeddedResources, "manifest/i18n", "", false)
 }
 
 func collectAPIDocI18NAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet) ([]*i18nAsset, error) {
-	return collectLocaleJSONAssets(pluginDir, embeddedResources, "manifest/i18n/apidoc")
+	return collectLocaleDirectoryJSONAssets(pluginDir, embeddedResources, "manifest/i18n", "apidoc", true)
 }
 
-func collectLocaleJSONAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet, relativeDir string) ([]*i18nAsset, error) {
+func collectLocaleDirectoryJSONAssets(
+	pluginDir string,
+	embeddedResources *embeddedStaticResourceSet,
+	relativeDir string,
+	localeSubdir string,
+	recursive bool,
+) ([]*i18nAsset, error) {
 	if embeddedResources != nil {
 		paths := embeddedResources.ListFiles(relativeDir, ".json")
-		assets := make([]*i18nAsset, 0, len(paths))
+		localePaths := make(map[string][]string)
 		for _, filePath := range paths {
-			if filepath.ToSlash(filepath.Dir(filePath)) != strings.TrimSuffix(relativeDir, "/") {
+			locale, ok := matchLocaleJSONAssetPath(filePath, relativeDir, localeSubdir, recursive)
+			if !ok {
 				continue
 			}
+			localePaths[locale] = append(localePaths[locale], filePath)
+		}
+		return buildLocaleJSONAssetsFromPaths(localePaths, func(filePath string) ([]byte, error) {
 			content, ok := embeddedResources.ReadFile(filePath)
 			if !ok {
 				return nil, fmt.Errorf("embedded locale asset not found: %s", filePath)
 			}
-			assets = append(assets, &i18nAsset{
-				Locale:  strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)),
-				Content: strings.TrimSpace(string(content)),
-			})
-		}
-		return assets, nil
+			return content, nil
+		})
 	}
 
-	i18nDir := filepath.Join(pluginDir, filepath.FromSlash(relativeDir))
-	entries, err := os.ReadDir(i18nDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []*i18nAsset{}, nil
+	rootDir := filepath.Join(pluginDir, filepath.FromSlash(relativeDir))
+	localePaths := make(map[string][]string)
+	if err := filepath.WalkDir(rootDir, func(filePath string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if filePath == rootDir && os.IsNotExist(walkErr) {
+				return nil
+			}
+			return walkErr
 		}
+		if entry == nil || entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			return nil
+		}
+		relativePath, err := filepath.Rel(pluginDir, filePath)
+		if err != nil {
+			return err
+		}
+		locale, ok := matchLocaleJSONAssetPath(filepath.ToSlash(relativePath), relativeDir, localeSubdir, recursive)
+		if !ok {
+			return nil
+		}
+		localePaths[locale] = append(localePaths[locale], filePath)
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
-	fileNames := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-		fileNames = append(fileNames, entry.Name())
-	}
-	sort.Strings(fileNames)
+	return buildLocaleJSONAssetsFromPaths(localePaths, os.ReadFile)
+}
 
-	assets := make([]*i18nAsset, 0, len(fileNames))
-	for _, name := range fileNames {
-		i18nPath := filepath.Join(i18nDir, name)
-		content, readErr := os.ReadFile(i18nPath)
-		if readErr != nil {
-			return nil, readErr
+func matchLocaleJSONAssetPath(filePath string, relativeDir string, localeSubdir string, recursive bool) (string, bool) {
+	normalizedPath := filepath.ToSlash(filePath)
+	normalizedDir := strings.Trim(strings.TrimSpace(filepath.ToSlash(relativeDir)), "/")
+	if !strings.HasPrefix(normalizedPath, normalizedDir+"/") {
+		return "", false
+	}
+
+	segments := strings.Split(strings.TrimPrefix(normalizedPath, normalizedDir+"/"), "/")
+	if len(segments) < 2 || strings.TrimSpace(segments[0]) == "" {
+		return "", false
+	}
+	if localeSubdir == "" {
+		return segments[0], len(segments) == 2 && filepath.Ext(segments[1]) == ".json"
+	}
+	if len(segments) < 3 || segments[1] != strings.Trim(localeSubdir, "/") {
+		return "", false
+	}
+	if !recursive && len(segments) != 3 {
+		return "", false
+	}
+	return segments[0], filepath.Ext(segments[len(segments)-1]) == ".json"
+}
+
+func buildLocaleJSONAssetsFromPaths(localePaths map[string][]string, readFile func(string) ([]byte, error)) ([]*i18nAsset, error) {
+	locales := make([]string, 0, len(localePaths))
+	for locale := range localePaths {
+		locales = append(locales, locale)
+	}
+	sort.Strings(locales)
+
+	assets := make([]*i18nAsset, 0, len(locales))
+	for _, locale := range locales {
+		paths := localePaths[locale]
+		sort.Strings(paths)
+		merged := make(map[string]interface{})
+		for _, filePath := range paths {
+			content, err := readFile(filePath)
+			if err != nil {
+				return nil, err
+			}
+			parsed := make(map[string]interface{})
+			if strings.TrimSpace(string(content)) != "" {
+				if err = json.Unmarshal(content, &parsed); err != nil {
+					return nil, fmt.Errorf("parse locale asset %s failed: %w", filePath, err)
+				}
+			}
+			mergeLocaleJSONObjects(merged, parsed)
+		}
+		content, err := json.Marshal(merged)
+		if err != nil {
+			return nil, err
 		}
 		assets = append(assets, &i18nAsset{
-			Locale:  strings.TrimSuffix(name, filepath.Ext(name)),
-			Content: strings.TrimSpace(string(content)),
+			Locale:  locale,
+			Content: string(content),
 		})
 	}
 	return assets, nil
+}
+
+func mergeLocaleJSONObjects(target map[string]interface{}, source map[string]interface{}) {
+	for key, value := range source {
+		sourceNested, sourceIsNested := value.(map[string]interface{})
+		targetNested, targetIsNested := target[key].(map[string]interface{})
+		if sourceIsNested && targetIsNested {
+			mergeLocaleJSONObjects(targetNested, sourceNested)
+			continue
+		}
+		target[key] = value
+	}
 }
 
 func collectSQLAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet, uninstall bool) ([]*sqlAsset, error) {

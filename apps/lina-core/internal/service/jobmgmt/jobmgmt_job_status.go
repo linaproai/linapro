@@ -5,17 +5,16 @@ package jobmgmt
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
 
 // UpdateJobStatus toggles one job between enabled and disabled states.
 func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id uint64, status jobmeta.JobStatus) error {
 	if status != jobmeta.JobStatusEnabled && status != jobmeta.JobStatusDisabled {
-		return gerror.New("任务状态仅支持启用或停用")
+		return bizerr.NewCode(CodeJobStatusToggleInvalid)
 	}
 
 	job, err := s.jobByID(ctx, id)
@@ -23,10 +22,10 @@ func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id uint64, status job
 		return err
 	}
 	if job == nil {
-		return gerror.New("定时任务不存在")
+		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	if job.IsBuiltin == 1 {
-		return gerror.New("源码注册任务不允许修改状态")
+		return bizerr.NewCode(CodeJobBuiltinStatusUpdateDenied)
 	}
 	if status == jobmeta.JobStatusEnabled {
 		if err = s.validateExecutableJob(ctx, job); err != nil {
@@ -66,10 +65,10 @@ func (s *serviceImpl) ResetJob(ctx context.Context, id uint64) error {
 		return err
 	}
 	if job == nil {
-		return gerror.New("定时任务不存在")
+		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	if job.IsBuiltin == 1 {
-		return gerror.New("源码注册任务不允许重置执行次数")
+		return bizerr.NewCode(CodeJobBuiltinResetDenied)
 	}
 
 	_, err = dao.SysJob.Ctx(ctx).
@@ -92,7 +91,7 @@ func (s *serviceImpl) ResetJob(ctx context.Context, id uint64) error {
 // TriggerJob starts one manual execution and returns the created log ID.
 func (s *serviceImpl) TriggerJob(ctx context.Context, id uint64) (uint64, error) {
 	if s.scheduler == nil {
-		return 0, gerror.New("定时任务调度器未初始化")
+		return 0, bizerr.NewCode(CodeJobSchedulerUninitialized)
 	}
 	return s.scheduler.Trigger(ctx, id)
 }

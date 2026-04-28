@@ -14,10 +14,10 @@
 - **AND** 不需要同时为 `Translator` / `BundleProvider` 提供占位实现
 
 ### Requirement: 宿主必须通过资源约定与默认配置发现内置语言
-宿主系统 SHALL 从 `manifest/i18n/<locale>.json` 文件自动发现内置运行时语言,并通过默认配置文件中的 `i18n` 配置段维护默认语言、多语言开关、展示排序和原生名等少量不可由文件名推导的元数据。新增内置语言时 MUST 只需要新增对应语言的运行时 JSON、apidoc JSON、插件 JSON 和可选默认配置元数据,不得要求新增后端 Go 语言枚举、SQL seed 或前端 TS 语言清单。运行时文本方向按当前宿主约定固定为 `ltr`,不得要求在配置中维护 `direction`。运行时语言列表、缺失翻译检查、资源来源诊断、运行时翻译包接口、ETag 协商与前端持久化缓存 MUST 自动覆盖 `zh-TW`。
+宿主系统 SHALL 从 `manifest/i18n/<locale>/*.json` 文件自动发现内置运行时语言,并通过默认配置文件中的 `i18n` 配置段维护默认语言、多语言开关、展示排序和原生名等少量不可由文件名推导的元数据。新增内置语言时 MUST 只需要新增对应语言的运行时 JSON、apidoc JSON、插件 JSON 和可选默认配置元数据,不得要求新增后端 Go 语言枚举、SQL seed 或前端 TS 语言清单。运行时文本方向按当前宿主约定固定为 `ltr`,不得要求在配置中维护 `direction`。运行时语言列表、缺失翻译检查、资源来源诊断、运行时翻译包接口、ETag 协商与前端持久化缓存 MUST 自动覆盖 `zh-TW`。
 
 #### Scenario: 启动后繁体中文由资源文件自动加入运行时语言列表
-- **WHEN** 项目存在 `manifest/i18n/zh-TW.json`
+- **WHEN** 项目存在 `manifest/i18n/zh-TW/*.json`
 - **AND** 默认配置文件 `i18n.locales` 中为 `zh-TW` 提供 `nativeName`
 - **AND** 服务启动后前端请求运行时语言列表
 - **THEN** `/i18n/runtime/locales` 接口返回的语言列表中包含 `zh-TW`
@@ -25,7 +25,7 @@
 - **AND** `zh-TW` 的方向字段为固定值 `ltr`
 
 #### Scenario: 加新语言时不需要修改 Go、SQL 或前端 TS 语言清单
-- **WHEN** 交付项目新增某语言的 `manifest/i18n/<locale>.json` 与 `manifest/i18n/apidoc/<locale>/**/*.json` 资源
+- **WHEN** 交付项目新增某语言的 `manifest/i18n/<locale>/*.json` 与 `manifest/i18n/<locale>/apidoc/**/*.json` 资源
 - **AND** 源码插件与动态插件按同一目录约定新增该语言资源
 - **AND** 如需控制默认语言、排序、原生名或启停状态,仅修改默认配置文件中的 `i18n` 配置段
 - **THEN** 菜单、字典、配置、定时任务、插件、角色、系统信息等动态元数据自动按该语言返回本地化结果
@@ -40,7 +40,7 @@
 - **AND** 默认管理工作台隐藏语言切换按钮,按默认语言加载静态语言包、运行时翻译包和公共前端配置
 
 #### Scenario: 从 locales 列表移除语言即停用该语言
-- **WHEN** 项目存在多个 `manifest/i18n/<locale>.json` 资源
+- **WHEN** 项目存在多个 `manifest/i18n/<locale>/*.json` 资源
 - **AND** 默认配置文件中 `i18n.locales` 只列出其中一部分语言
 - **THEN** `/i18n/runtime/locales` 只返回 `i18n.locales` 中列出的语言
 - **AND** 请求未列出的语言时按 `i18n.default` 回退
@@ -60,7 +60,7 @@
 - **AND** 不要求提供 RTL 镜像布局
 
 ### Requirement: 翻译资源加载器必须在宿主与插件、UI 与 apidoc 之间共用
-宿主系统 SHALL 在 `pkg/i18nresource` 包内提供统一的 `ResourceLoader` 组件,接受 `Subdir`、`PluginScope`、`LayoutMode` 等配置参数,集中实现"宿主嵌入资源 → 源码插件资源 → 动态插件资源"的发现与加载逻辑。运行时 UI 翻译资源加载与 API 文档翻译资源加载 MUST 通过不同 `ResourceLoader` 实例完成,不得各自维护重复实现,也不得让 API 文档模块为复用加载器而反向依赖运行时 `internal/service/i18n` 包。源码插件的 apidoc 命名空间隔离 MUST 由 `ResourceLoader` 配置而非额外重复代码完成。
+宿主系统 SHALL 在 `pkg/i18nresource` 包内提供统一的 `ResourceLoader` 组件,接受 `Subdir`、`LocaleSubdir`、`PluginScope`、`LayoutMode` 等配置参数,集中实现"宿主嵌入资源 → 源码插件资源 → 动态插件资源"的发现与加载逻辑。运行时 UI 翻译资源加载与 API 文档翻译资源加载 MUST 通过不同 `ResourceLoader` 实例完成,不得各自维护重复实现,也不得让 API 文档模块为复用加载器而反向依赖运行时 `internal/service/i18n` 包。源码插件的 apidoc 命名空间隔离 MUST 由 `ResourceLoader` 配置而非额外重复代码完成。
 
 #### Scenario: 运行时 bundle 与 apidoc 共享同一资源加载器实现
 - **WHEN** 系统加载运行时 UI 翻译资源或 apidoc 翻译资源

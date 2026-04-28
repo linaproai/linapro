@@ -10,11 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -91,8 +90,7 @@ func (s *serviceImpl) registerManagedHandlers() error {
 	}
 
 	for _, definition := range handlers {
-		if err := s.registry.Register(definition); err != nil &&
-			!strings.Contains(err.Error(), "已存在") {
+		if err := s.registry.Register(definition); err != nil && !isDuplicateHandlerError(err) {
 			return err
 		}
 	}
@@ -251,7 +249,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 // invokeSessionCleanup runs the session cleanup built-in handler.
 func (s *serviceImpl) invokeSessionCleanup(ctx context.Context, _ json.RawMessage) (any, error) {
 	if s == nil || s.sessionStore == nil || s.sessionCfg == nil {
-		return nil, gerror.New("在线会话清理依赖未初始化")
+		return nil, bizerr.NewCode(CodeCronSessionCleanupDependencyMissing)
 	}
 	cleaned, err := s.sessionStore.CleanupInactive(ctx, s.sessionCfg.Timeout)
 	if err != nil {
@@ -263,7 +261,7 @@ func (s *serviceImpl) invokeSessionCleanup(ctx context.Context, _ json.RawMessag
 // invokeAccessTopologySync runs the access-topology watcher handler.
 func (s *serviceImpl) invokeAccessTopologySync(ctx context.Context, _ json.RawMessage) (any, error) {
 	if s == nil || s.roleSvc == nil {
-		return nil, gerror.New("权限拓扑同步依赖未初始化")
+		return nil, bizerr.NewCode(CodeCronAccessTopologyDependencyMissing)
 	}
 	if err := s.roleSvc.SyncAccessTopologyRevision(ctx); err != nil {
 		return nil, err
@@ -274,12 +272,18 @@ func (s *serviceImpl) invokeAccessTopologySync(ctx context.Context, _ json.RawMe
 // invokeRuntimeParamSync runs the runtime-parameter watcher handler.
 func (s *serviceImpl) invokeRuntimeParamSync(ctx context.Context, _ json.RawMessage) (any, error) {
 	if s == nil || s.configSvc == nil {
-		return nil, gerror.New("运行时参数同步依赖未初始化")
+		return nil, bizerr.NewCode(CodeCronRuntimeParamDependencyMissing)
 	}
 	if err := s.configSvc.SyncRuntimeParamSnapshot(ctx); err != nil {
 		return nil, err
 	}
 	return map[string]any{"synced": true}, nil
+}
+
+// isDuplicateHandlerError reports whether handler registration failed because
+// the same built-in ref was already registered by an earlier startup path.
+func isDuplicateHandlerError(err error) bool {
+	return bizerr.Is(err, jobhandlersvc.CodeJobHandlerExists)
 }
 
 // formatEveryPattern converts one duration to the stable `@every` form stored

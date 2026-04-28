@@ -59,42 +59,130 @@ func TestParseCatalogSupportsNestedFlatAndScalarModes(t *testing.T) {
 	}
 }
 
-// TestLoadHostBundleMergesLocaleFileAndDirectory verifies apidoc-style
-// resources merge the root locale file before sorted per-locale directory files.
-func TestLoadHostBundleMergesLocaleFileAndDirectory(t *testing.T) {
+// TestLoadHostBundleDefaultsToLocaleDirectory verifies the loader's default
+// filesystem layout follows the current locale-directory convention.
+func TestLoadHostBundleDefaultsToLocaleDirectory(t *testing.T) {
 	t.Parallel()
 
 	loader := ResourceLoader{
 		HostFS: fstest.MapFS{
-			"manifest/i18n/apidoc/zh-CN.json": &fstest.MapFile{Data: []byte(`{
-  "core": {
-    "title": "Root Title"
-  },
-  "core.summary": "Root Summary"
-}`)},
-			"manifest/i18n/apidoc/zh-CN/00-base.json": &fstest.MapFile{Data: []byte(`{
-  "core.title": "Directory Title",
-  "core.description": "Base Description"
-}`)},
-			"manifest/i18n/apidoc/zh-CN/10-override.json": &fstest.MapFile{Data: []byte(`{
-  "core": {
-    "description": "Override Description"
+			"manifest/i18n/en-US/framework.json": &fstest.MapFile{Data: []byte(`{
+  "framework": {
+    "name": "LinaPro"
   }
 }`)},
-			"manifest/i18n/apidoc/zh-CN/readme.txt": &fstest.MapFile{Data: []byte("ignored")},
+			"manifest/i18n/en-US/menu.json": &fstest.MapFile{Data: []byte(`{
+  "menu.dashboard.title": "Dashboard"
+}`)},
+			"manifest/i18n/en-US/apidoc/common.json": &fstest.MapFile{Data: []byte(`{
+  "core.common.pageNum.dc": "Page number"
+}`)},
 		},
-		Subdir:     "manifest/i18n/apidoc",
-		LayoutMode: LayoutModeLocaleFileAndDirectory,
-		ValueMode:  ValueModeStringOnly,
+		Subdir:    "manifest/i18n",
+		ValueMode: ValueModeStringOnly,
 	}
 
 	expected := map[string]string{
-		"core.title":       "Directory Title",
-		"core.summary":     "Root Summary",
-		"core.description": "Override Description",
+		"framework.name":       "LinaPro",
+		"menu.dashboard.title": "Dashboard",
+	}
+	if actual := loader.LoadHostBundle(context.Background(), "en-US"); !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("unexpected host bundle: expected=%v actual=%v", expected, actual)
+	}
+}
+
+// TestLoadHostBundleMergesLocaleDirectoryOnly verifies runtime-style resources
+// merge direct files under one locale while ignoring nested apidoc files.
+func TestLoadHostBundleMergesLocaleDirectoryOnly(t *testing.T) {
+	t.Parallel()
+
+	loader := ResourceLoader{
+		HostFS: fstest.MapFS{
+			"manifest/i18n/zh-CN/menu.json": &fstest.MapFile{Data: []byte(`{
+  "menu": {
+    "dashboard": {
+      "title": "工作台"
+    }
+  }
+}`)},
+			"manifest/i18n/zh-CN/error.json": &fstest.MapFile{Data: []byte(`{
+  "error.auth.login": "登录失败"
+}`)},
+			"manifest/i18n/zh-CN/apidoc/core-api-auth.json": &fstest.MapFile{Data: []byte(`{
+  "core.api.auth.v1.LoginReq.meta.summary": "用户登录"
+}`)},
+		},
+		Subdir:     "manifest/i18n",
+		LayoutMode: LayoutModeLocaleDirectory,
+		ValueMode:  ValueModeStringifyScalars,
+	}
+
+	expected := map[string]string{
+		"menu.dashboard.title": "工作台",
+		"error.auth.login":     "登录失败",
 	}
 	if actual := loader.LoadHostBundle(context.Background(), "zh-CN"); !reflect.DeepEqual(actual, expected) {
-		t.Fatalf("unexpected host bundle: expected=%v actual=%v", expected, actual)
+		t.Fatalf("unexpected locale-directory bundle: expected=%v actual=%v", expected, actual)
+	}
+}
+
+// TestLoadHostBundleMergesLocaleSubdirectoryRecursive verifies apidoc resources
+// can live under the locale directory without being mixed into runtime bundles.
+func TestLoadHostBundleMergesLocaleSubdirectoryRecursive(t *testing.T) {
+	t.Parallel()
+
+	loader := ResourceLoader{
+		HostFS: fstest.MapFS{
+			"manifest/i18n/zh-CN/menu.json": &fstest.MapFile{Data: []byte(`{
+  "menu": {
+    "dashboard": {
+      "title": "工作台"
+    }
+  }
+}`)},
+			"manifest/i18n/zh-CN/apidoc/common.json": &fstest.MapFile{Data: []byte(`{
+  "core.common.pageNum.dc": "页码"
+}`)},
+			"manifest/i18n/zh-CN/apidoc/core-api-auth.json": &fstest.MapFile{Data: []byte(`{
+  "core.api.auth.v1.LoginReq.meta.summary": "用户登录"
+}`)},
+		},
+		Subdir:       "manifest/i18n",
+		LocaleSubdir: "apidoc",
+		LayoutMode:   LayoutModeLocaleSubdirectoryRecursive,
+		ValueMode:    ValueModeStringOnly,
+	}
+
+	expected := map[string]string{
+		"core.common.pageNum.dc":                 "页码",
+		"core.api.auth.v1.LoginReq.meta.summary": "用户登录",
+	}
+	if actual := loader.LoadHostBundle(context.Background(), "zh-CN"); !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("unexpected locale-subdirectory bundle: expected=%v actual=%v", expected, actual)
+	}
+}
+
+// TestLoadHostBundleRequiresLocaleSubdirForRecursiveMode verifies a
+// misconfigured recursive subdirectory loader does not read the whole locale.
+func TestLoadHostBundleRequiresLocaleSubdirForRecursiveMode(t *testing.T) {
+	t.Parallel()
+
+	loader := ResourceLoader{
+		HostFS: fstest.MapFS{
+			"manifest/i18n/zh-CN/menu.json": &fstest.MapFile{Data: []byte(`{
+  "menu.dashboard.title": "工作台"
+}`)},
+			"manifest/i18n/zh-CN/apidoc/common.json": &fstest.MapFile{Data: []byte(`{
+  "core.common.pageNum.dc": "页码"
+}`)},
+		},
+		Subdir:     "manifest/i18n",
+		LayoutMode: LayoutModeLocaleSubdirectoryRecursive,
+		ValueMode:  ValueModeStringOnly,
+	}
+
+	if actual := loader.LoadHostBundle(context.Background(), "zh-CN"); len(actual) != 0 {
+		t.Fatalf("expected empty bundle for missing locale subdir, got %v", actual)
 	}
 }
 
@@ -107,15 +195,16 @@ func TestLoadSourcePluginBundlesLoadsEachPlugin(t *testing.T) {
 		SourcePlugins: func() []SourcePlugin {
 			return []SourcePlugin{
 				fakeSourcePlugin{id: "z-plugin", filesystem: fstest.MapFS{
-					"manifest/i18n/en-US.json": &fstest.MapFile{Data: []byte(`{"plugin.z.name":"Z Plugin"}`)},
+					"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{"plugin.z.name":"Z Plugin"}`)},
 				}},
 				fakeSourcePlugin{id: "a-plugin", filesystem: fstest.MapFS{
-					"manifest/i18n/en-US.json": &fstest.MapFile{Data: []byte(`{"plugin.a.name":"A Plugin"}`)},
+					"manifest/i18n/en-US/plugin.json": &fstest.MapFile{Data: []byte(`{"plugin.a.name":"A Plugin"}`)},
 				}},
 			}
 		},
-		Subdir:    "manifest/i18n",
-		ValueMode: ValueModeStringifyScalars,
+		Subdir:     "manifest/i18n",
+		LayoutMode: LayoutModeLocaleDirectory,
+		ValueMode:  ValueModeStringifyScalars,
 	}
 
 	actual := loader.LoadSourcePluginBundles(context.Background(), "en-US")
@@ -136,7 +225,7 @@ func TestRestrictedPluginScopeDropsForeignKeys(t *testing.T) {
 		SourcePlugins: func() []SourcePlugin {
 			return []SourcePlugin{
 				fakeSourcePlugin{id: "plugin-demo-dynamic", filesystem: fstest.MapFS{
-					"manifest/i18n/apidoc/zh-CN.json": &fstest.MapFile{Data: []byte(`{
+					"manifest/i18n/zh-CN/apidoc/plugin-api-main.json": &fstest.MapFile{Data: []byte(`{
   "plugins": {
     "plugin_demo_dynamic": {
       "name": "Allowed Plugin Name",
@@ -159,9 +248,11 @@ func TestRestrictedPluginScopeDropsForeignKeys(t *testing.T) {
 				}},
 			}
 		},
-		Subdir:      "manifest/i18n/apidoc",
-		PluginScope: PluginScopeRestrictedToPluginNamespace,
-		ValueMode:   ValueModeStringOnly,
+		Subdir:       "manifest/i18n",
+		LocaleSubdir: "apidoc",
+		PluginScope:  PluginScopeRestrictedToPluginNamespace,
+		LayoutMode:   LayoutModeLocaleSubdirectoryRecursive,
+		ValueMode:    ValueModeStringOnly,
 		KeyFilter: func(key string) bool {
 			return key != "plugins.plugin_demo_dynamic.internal.model.entity.User.name"
 		},

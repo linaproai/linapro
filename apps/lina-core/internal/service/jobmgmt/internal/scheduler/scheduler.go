@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcron"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -22,6 +21,7 @@ import (
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/jobmgmt/internal/shellexec"
+	"lina-core/pkg/bizerr"
 )
 
 // Scheduler defines the persistent scheduled-job runner contract.
@@ -119,10 +119,10 @@ func (s *serviceImpl) Trigger(ctx context.Context, jobID uint64) (uint64, error)
 		return 0, err
 	}
 	if job == nil {
-		return 0, gerror.New("定时任务不存在")
+		return 0, bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	if jobmeta.NormalizeJobStatus(job.Status) == jobmeta.JobStatusPausedByPlugin {
-		return 0, gerror.New("插件处理器当前不可用，无法手动触发")
+		return 0, bizerr.NewCode(jobmeta.CodeJobHandlerUnavailable)
 	}
 	if err = s.validateExecutableJob(ctx, job); err != nil {
 		return 0, err
@@ -156,7 +156,7 @@ func normalizeGcronPattern(expr string) (string, error) {
 	case 6:
 		return strings.Join(fields, " "), nil
 	}
-	return "", gerror.New("Cron 表达式字段数量不受支持")
+	return "", bizerr.NewCode(jobmeta.CodeJobCronFieldCountUnsupported)
 }
 
 // registerJob validates and registers one persistent job with gcron.
@@ -238,7 +238,7 @@ func (s *serviceImpl) createExecution(
 	trigger jobmeta.TriggerType,
 ) (uint64, executionState, error) {
 	if job == nil {
-		return 0, executionState{}, gerror.New("定时任务不存在")
+		return 0, executionState{}, bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 
 	startAt := time.Now()
@@ -261,23 +261,23 @@ func (s *serviceImpl) createExecution(
 // validateExecutableJob validates the runtime prerequisites for one job definition.
 func (s *serviceImpl) validateExecutableJob(ctx context.Context, job *entity.SysJob) error {
 	if job == nil {
-		return gerror.New("定时任务不存在")
+		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	switch jobmeta.NormalizeTaskType(job.TaskType) {
 	case jobmeta.TaskTypeHandler:
 		def, ok := s.registry.Lookup(job.HandlerRef)
 		if !ok {
-			return gerror.Newf("任务处理器 %s 不存在", job.HandlerRef)
+			return bizerr.NewCode(jobhandler.CodeJobHandlerNotFound)
 		}
 		return jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params))
 
 	case jobmeta.TaskTypeShell:
 		if s.shellExecutor == nil {
-			return gerror.New("Shell 执行器未初始化")
+			return bizerr.NewCode(jobmeta.CodeJobShellExecutorUninitialized)
 		}
 		return nil
 	}
-	return gerror.New("任务类型不受支持")
+	return bizerr.NewCode(jobmeta.CodeJobTaskTypeUnsupported)
 }
 
 // nodeID returns the stable execution node identifier.
@@ -312,7 +312,7 @@ func (s *serviceImpl) createRunningLog(
 ) (uint64, error) {
 	snapshot, err := json.Marshal(job)
 	if err != nil {
-		return 0, gerror.Wrap(err, "序列化任务快照失败")
+		return 0, bizerr.WrapCode(err, jobmeta.CodeJobSnapshotMarshalFailed)
 	}
 	paramsSnapshot := ""
 	if jobmeta.NormalizeTaskType(job.TaskType) == jobmeta.TaskTypeHandler {

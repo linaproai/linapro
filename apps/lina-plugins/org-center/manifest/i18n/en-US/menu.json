@@ -1,0 +1,37 @@
+{
+  "menu": {
+    "plugin:org-center:dept": {
+      "title": "Departments"
+    },
+    "plugin:org-center:dept:add": {
+      "title": "Create"
+    },
+    "plugin:org-center:dept:edit": {
+      "title": "Update"
+    },
+    "plugin:org-center:dept:query": {
+      "title": "Query"
+    },
+    "plugin:org-center:dept:remove": {
+      "title": "Delete"
+    },
+    "plugin:org-center:post": {
+      "title": "Positions"
+    },
+    "plugin:org-center:post:add": {
+      "title": "Create"
+    },
+    "plugin:org-center:post:edit": {
+      "title": "Update"
+    },
+    "plugin:org-center:post:export": {
+      "title": "Export"
+    },
+    "plugin:org-center:post:query": {
+      "title": "Query"
+    },
+    "plugin:org-center:post:remove": {
+      "title": "Delete"
+    }
+  }
+}

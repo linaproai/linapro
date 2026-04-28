@@ -40,7 +40,7 @@
 
 ## 5. P2 一致性收敛:删除 sysconfig 硬编码标签 map
 
-- [x] 5.1 在 `apps/lina-core/manifest/i18n/zh-CN.json` 与 `apps/lina-core/manifest/i18n/en-US.json` 补齐 `config.field.name` / `config.field.key` / `config.field.value` / `config.field.remark` / `config.field.createdAt` / `config.field.updatedAt`
+- [x] 5.1 在 `apps/lina-core/manifest/i18n/zh-CN/*.json` 与 `apps/lina-core/manifest/i18n/en-US/*.json` 补齐 `config.field.name` / `config.field.key` / `config.field.value` / `config.field.remark` / `config.field.createdAt` / `config.field.updatedAt`
 - [x] 5.2 改造 `sysconfig_i18n.go::buildLocalizedImportTemplateHeaders` 与 `buildLocalizedExportHeaders`,删除 `englishLabels` / `chineseLabels` Go map,改为通过 `i18nSvc.Translate(ctx, "config.field."+name, fallback)` 解析
 - [x] 5.3 删除 `localizedConfigFieldLabel` 内对 `ResolveLocale == "en-US"` 的硬编码判断
 - [x] 5.4 创建 E2E 测试用例 `hack/tests/e2e/settings/config/TC0125-config-export-headers-via-i18n-keys.ts`,验证导出表头随语言切换变化且不依赖 Go map
@@ -65,10 +65,10 @@
 
 ## 8. P3 边界整理:统一 ResourceLoader
 
-- [x] 8.1 在 `apps/lina-core/pkg/i18nresource/` 新建稳定公共 `ResourceLoader` 组件,接受 `Subdir` / `PluginScope` / `LayoutMode` 配置参数,避免 apidoc 反向依赖 `internal/service/i18n`
+- [x] 8.1 在 `apps/lina-core/pkg/i18nresource/` 新建稳定公共 `ResourceLoader` 组件,接受 `Subdir` / `LocaleSubdir` / `PluginScope` / `LayoutMode` 配置参数,避免 apidoc 反向依赖 `internal/service/i18n`
 - [x] 8.2 实现 `LoadHostBundle(ctx, locale)` / `LoadSourcePluginBundles(ctx, locale)` / `LoadDynamicPluginBundles(ctx, locale, releases)` 三个职责清晰的方法
-- [x] 8.3 改造 `apps/lina-core/internal/service/i18n/i18n.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n", PluginScope: Open}` 替换重复实现
-- [x] 8.4 改造 `apps/lina-core/internal/service/apidoc/apidoc_i18n_loader.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n/apidoc", PluginScope: RestrictedToPluginNamespace}` 替换重复实现
+- [x] 8.3 改造 `apps/lina-core/internal/service/i18n/i18n.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n", LayoutMode: LocaleDirectory, PluginScope: Open}` 替换重复实现
+- [x] 8.4 改造 `apps/lina-core/internal/service/apidoc/apidoc_i18n_loader.go` 使用 `i18nresource.ResourceLoader{Subdir: "manifest/i18n", LocaleSubdir: "apidoc", LayoutMode: LocaleSubdirectoryRecursive, PluginScope: RestrictedToPluginNamespace}` 替换重复实现
 - [x] 8.5 删除两侧重复的目录遍历、ULEB128 解码、`wasm` 节解析代码,实现重复实现收敛
 - [x] 8.6 补充 `ResourceLoader` 单元测试覆盖宿主、源码插件、动态插件三种来源以及插件命名空间隔离
 
@@ -85,9 +85,9 @@
 
 - [x] 10.1 在默认配置文件 `i18n` 段中通过 JSON 文件发现语言并维护默认语言、排序与原生名,不再通过 SQL seed 启用 `zh-TW`
 - [x] 10.2 删除本迭代 `zh-TW` SQL seed 依赖,确认新增内置语言不需要改宿主 `manifest/sql/` 文件
-- [x] 10.3 创建 `apps/lina-core/manifest/i18n/zh-TW.json` 完整覆盖宿主运行时 UI 翻译键,与 `zh-CN.json` 键集合一致
-- [x] 10.4 创建 `apps/lina-core/manifest/i18n/apidoc/zh-TW.json` 与 `apps/lina-core/manifest/i18n/apidoc/zh-TW/*.json` 完整覆盖宿主接口文档翻译键
-- [x] 10.5 在每个源码插件目录(`org-center` / `monitor-online` / `monitor-loginlog` / `monitor-operlog` / `monitor-server` / `content-notice` / `plugin-demo-source` / `plugin-demo-dynamic` / `demo-control`)新增 `manifest/i18n/zh-TW.json` 与对应 `manifest/i18n/apidoc/zh-TW/*.json`
+- [x] 10.3 创建 `apps/lina-core/manifest/i18n/zh-TW/*.json` 完整覆盖宿主运行时 UI 翻译键,与 `zh-CN/*.json` 键集合一致
+- [x] 10.4 创建 `apps/lina-core/manifest/i18n/zh-TW/apidoc/**/*.json` 完整覆盖宿主接口文档翻译键
+- [x] 10.5 在每个源码插件目录(`org-center` / `monitor-online` / `monitor-loginlog` / `monitor-operlog` / `monitor-server` / `content-notice` / `plugin-demo-source` / `plugin-demo-dynamic` / `demo-control`)新增 `manifest/i18n/zh-TW/*.json` 与对应 `manifest/i18n/zh-TW/apidoc/**/*.json`
 - [x] 10.6 创建 `apps/lina-vben/packages/locales/src/langs/zh-TW/{authentication.json,common.json,preferences.json,profile.json,ui.json}` 五个静态语言包文件
 - [x] 10.7 创建 `apps/lina-vben/apps/web-antd/src/locales/langs/zh-TW/{demos.json,page.json,pages.json}` 三个项目级语言包文件
 - [x] 10.8 在 `apps/lina-vben/apps/web-antd/src/locales/index.ts` 中改为按语言编码约定推导 dayjs / antd locale,避免新增语言时继续添加 `case '<locale>'` 分支
@@ -133,7 +133,7 @@
 
 - [x] **FB-1**: `apps/lina-core/internal/service/i18n/` 新增文件缺少 `i18n_` 前缀,且 `lina-review` 未显式覆盖服务组件文件命名检查
 - [x] **FB-2**: `LocaleProjector` 让 i18n 基础服务反向耦合菜单、字典、配置、任务、角色、插件元数据等业务规则,需要立即移除并重新评估后续方案边界
-- [x] **FB-3**: 新增内置语言不应要求修改后端 Go 枚举、SQL seed 或前端 TS 语言清单,应由 `manifest/i18n/<locale>.json` 与简化 YAML 元数据驱动
+- [x] **FB-3**: 新增内置语言不应要求修改后端 Go 枚举、SQL seed 或前端 TS 语言清单,应由 `manifest/i18n/<locale>/*.json` 与简化 YAML 元数据驱动
 - [x] **FB-4**: 移除 `sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content` 三张运行时 i18n 持久化表,将翻译内容收敛为开发期 JSON/YAML 资源唯一事实源
 - [x] **FB-5**: 将语言元数据配置移到默认配置文件 `i18n` 段,移除 `direction` 配置并固定 LTR,同时消除后端 fallback 与前端第三方 locale 兜底中的多语言硬编码
 - [x] **FB-6**: 为默认配置文件 `i18n` 段增加配置项注释,移除阿拉伯语资源并改为繁体中文 `zh-TW` 支持

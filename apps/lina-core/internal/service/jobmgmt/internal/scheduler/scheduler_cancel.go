@@ -5,7 +5,8 @@ package scheduler
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
 
 // CancelLog cancels one currently running job-log instance.
@@ -14,7 +15,7 @@ func (s *serviceImpl) CancelLog(_ context.Context, logID uint64) error {
 	execution, ok := s.runningInstances[logID]
 	s.mu.Unlock()
 	if !ok || execution == nil || execution.cancel == nil {
-		return gerror.New("当前日志实例未在运行")
+		return bizerr.NewCode(jobmeta.CodeJobLogNotRunning)
 	}
 	execution.cancel()
 	return nil

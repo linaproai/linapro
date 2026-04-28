@@ -31,12 +31,12 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	)
 	mustWriteFile(
 		t,
-		filepath.Join(pluginDir, "manifest", "i18n", "en-US.json"),
+		filepath.Join(pluginDir, "manifest", "i18n", "en-US", "plugin.json"),
 		"{\n  \"plugin.plugin-dynamic-builder.name\": \"Dynamic Builder\"\n}\n",
 	)
 	mustWriteFile(
 		t,
-		filepath.Join(pluginDir, "manifest", "i18n", "apidoc", "zh-CN.json"),
+		filepath.Join(pluginDir, "manifest", "i18n", "zh-CN", "apidoc", "plugin-api-main.json"),
 		"{\n  \"plugins.plugin_dynamic_builder.paths.get.review_summary.meta.summary\": \"查询摘要\"\n}\n",
 	)
 	mustWriteFile(

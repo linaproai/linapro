@@ -1,0 +1,124 @@
+{
+  "menu": {
+    "about:api:list": {
+      "title": "接口文档"
+    },
+    "about:system:list": {
+      "title": "系统信息"
+    },
+    "content": {
+      "title": "内容管理"
+    },
+    "dashboard": {
+      "title": "工作台"
+    },
+    "dashboard:analytics:list": {
+      "title": "分析页"
+    },
+    "dashboard:workspace:list": {
+      "title": "工作台"
+    },
+    "developer": {
+      "title": "开发中心"
+    },
+    "extension": {
+      "title": "扩展中心"
+    },
+    "extension:plugin:disable": {
+      "title": "插件禁用"
+    },
+    "extension:plugin:enable": {
+      "title": "插件启用"
+    },
+    "extension:plugin:install": {
+      "title": "插件安装"
+    },
+    "extension:plugin:list": {
+      "title": "插件管理"
+    },
+    "extension:plugin:query": {
+      "title": "插件查询"
+    },
+    "extension:plugin:uninstall": {
+      "title": "插件卸载"
+    },
+    "iam": {
+      "title": "权限管理"
+    },
+    "monitor": {
+      "title": "系统监控"
+    },
+    "org": {
+      "title": "组织管理"
+    },
+    "scheduler": {
+      "title": "任务调度"
+    },
+    "setting": {
+      "title": "系统设置"
+    },
+    "system:config:list": {
+      "title": "参数设置"
+    },
+    "system:dict:list": {
+      "title": "字典管理"
+    },
+    "system:file:list": {
+      "title": "文件管理"
+    },
+    "system:job:add": {
+      "title": "任务新增"
+    },
+    "system:job:edit": {
+      "title": "任务修改"
+    },
+    "system:job:list": {
+      "title": "任务管理"
+    },
+    "system:job:remove": {
+      "title": "任务删除"
+    },
+    "system:job:reset": {
+      "title": "重置计数"
+    },
+    "system:job:shell": {
+      "title": "Shell 任务权限"
+    },
+    "system:job:status": {
+      "title": "任务启停"
+    },
+    "system:job:trigger": {
+      "title": "立即执行"
+    },
+    "system:jobgroup:add": {
+      "title": "分组新增"
+    },
+    "system:jobgroup:edit": {
+      "title": "分组修改"
+    },
+    "system:jobgroup:list": {
+      "title": "分组管理"
+    },
+    "system:jobgroup:remove": {
+      "title": "分组删除"
+    },
+    "system:joblog:cancel": {
+      "title": "日志终止"
+    },
+    "system:joblog:list": {
+      "title": "执行日志"
+    },
+    "system:joblog:remove": {
+      "title": "日志清空"
+    },
+    "system:menu:list": {
+      "title": "菜单管理"
+    },
+    "system:role:list": {
+      "title": "角色管理"
+    },
+    "system:user:list": {
+      "title": "用户管理"
+    }
+  }
+}

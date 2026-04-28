@@ -1,0 +1,19 @@
+{
+  "menu": {
+    "plugin:monitor-loginlog:loginlog": {
+      "title": "Login History"
+    },
+    "plugin:monitor-loginlog:loginlog:clear": {
+      "title": "Clear"
+    },
+    "plugin:monitor-loginlog:loginlog:export": {
+      "title": "Export"
+    },
+    "plugin:monitor-loginlog:loginlog:query": {
+      "title": "Query"
+    },
+    "plugin:monitor-loginlog:loginlog:remove": {
+      "title": "Delete"
+    }
+  }
+}

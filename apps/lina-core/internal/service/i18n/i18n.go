@@ -425,7 +425,7 @@ func loadSourcePluginLocaleBundles(ctx context.Context, locale string) map[strin
 		SourcePlugins: listRuntimeI18nSourcePlugins,
 		Subdir:        pluginI18nDir,
 		PluginScope:   i18nresource.PluginScopeOpen,
-		LayoutMode:    i18nresource.LayoutModeLocaleFile,
+		LayoutMode:    i18nresource.LayoutModeLocaleDirectory,
 		ValueMode:     i18nresource.ValueModeStringifyScalars,
 	}.LoadSourcePluginBundles(ctx, locale)
 }
@@ -450,7 +450,7 @@ func loadEmbeddedHostLocaleBundle(ctx context.Context, locale string) map[string
 		HostFS:      packed.Files,
 		Subdir:      hostI18nDir,
 		PluginScope: i18nresource.PluginScopeOpen,
-		LayoutMode:  i18nresource.LayoutModeLocaleFile,
+		LayoutMode:  i18nresource.LayoutModeLocaleDirectory,
 		ValueMode:   i18nresource.ValueModeStringifyScalars,
 	}.LoadHostBundle(ctx, locale)
 }

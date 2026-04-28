@@ -6,7 +6,6 @@ package file
 import (
 	"context"
 	"mime/multipart"
-	"strings"
 	"testing"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
@@ -16,6 +15,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/pkg/bizerr"
 )
 
 // TestUploadRejectsFileExceedingRuntimeMaxSize verifies managed upload size
@@ -36,8 +36,15 @@ func TestUploadRejectsFileExceedingRuntimeMaxSize(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected oversized upload to fail")
 	}
-	if !strings.Contains(err.Error(), "文件大小不能超过1MB") {
-		t.Fatalf("expected upload max size error, got %v", err)
+	messageErr, ok := bizerr.As(err)
+	if !ok {
+		t.Fatalf("expected structured file upload error, got %T %v", err, err)
+	}
+	if !messageErr.Matches(CodeFileTooLarge) {
+		t.Fatalf("expected %s, got %s", CodeFileTooLarge.RuntimeCode(), messageErr.RuntimeCode())
+	}
+	if messageErr.Params()["maxSizeMB"] != int64(1) {
+		t.Fatalf("expected maxSizeMB=1, got %v", messageErr.Params()["maxSizeMB"])
 	}
 }
 

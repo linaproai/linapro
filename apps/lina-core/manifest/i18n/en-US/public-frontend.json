@@ -1,0 +1,15 @@
+{
+  "publicFrontend": {
+    "app": {
+      "name": "LinaPro"
+    },
+    "auth": {
+      "loginSubtitle": "Enter your account credentials to start managing your projects",
+      "pageDesc": "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
+      "pageTitle": "AI-driven full-stack development framework"
+    },
+    "ui": {
+      "watermarkContent": "LinaPro"
+    }
+  }
+}

@@ -17,9 +17,9 @@ import (
 type Sector string
 
 const (
-	// SectorHost is the host-embedded `manifest/i18n/<locale>.json` resource.
+	// SectorHost is the host-embedded `manifest/i18n/<locale>/*.json` resource.
 	SectorHost Sector = "host"
-	// SectorSourcePlugin is the source-plugin embedded `manifest/i18n/<locale>.json` resource.
+	// SectorSourcePlugin is the source-plugin embedded `manifest/i18n/<locale>/*.json` resource.
 	SectorSourcePlugin Sector = "source-plugin"
 	// SectorDynamicPlugin is the active dynamic-plugin release `i18n_assets` custom section.
 	SectorDynamicPlugin Sector = "dynamic-plugin"

@@ -5,15 +5,14 @@ package user
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 )
 
 // ExportInput defines input for Export function.
@@ -43,7 +42,16 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
-	headers := []string{"用户名", "昵称", "手机号码", "邮箱", "性别", "状态", "备注", "创建时间"}
+	headers := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.user.header.username", Fallback: "Username"},
+		{Key: "artifact.user.header.nickname", Fallback: "Nickname"},
+		{Key: "artifact.user.header.phone", Fallback: "Mobile Number"},
+		{Key: "artifact.user.header.email", Fallback: "Email"},
+		{Key: "artifact.user.header.sex", Fallback: "Gender"},
+		{Key: "artifact.user.header.status", Fallback: "Status"},
+		{Key: "artifact.user.header.remark", Fallback: "Remark"},
+		{Key: "artifact.user.header.createdAt", Fallback: "Created At"},
+	})
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -64,20 +72,11 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if err = setCellValue(f, sheet, 4, row, u.Email); err != nil {
 			return nil, err
 		}
-		sexText := "未知"
-		switch u.Sex {
-		case 1:
-			sexText = "男"
-		case 2:
-			sexText = "女"
-		}
+		sexText := s.userSexText(ctx, u.Sex)
 		if err = setCellValue(f, sheet, 5, row, sexText); err != nil {
 			return nil, err
 		}
-		statusText := "正常"
-		if u.Status == int(StatusDisabled) {
-			statusText = "停用"
-		}
+		statusText := s.userStatusText(ctx, Status(u.Status))
 		if err = setCellValue(f, sheet, 6, row, statusText); err != nil {
 			return nil, err
 		}
@@ -116,13 +115,17 @@ type ImportFailItem struct {
 func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result *ImportResult, err error) {
 	f, err := excelize.OpenReader(fileReader)
 	if err != nil {
-		return nil, gerror.New("无法解析 Excel 文件")
+		return nil, bizerr.WrapCode(err, CodeUserImportExcelParseFailed)
 	}
 	defer closeExcelFile(ctx, f, &err)
 
 	rows, err := f.GetRows("Sheet1")
 	if err != nil {
-		return nil, gerror.New("无法读取 Sheet1")
+		return nil, bizerr.WrapCode(
+			err,
+			CodeUserImportSheetReadFailed,
+			bizerr.P("sheet", "Sheet1"),
+		)
 	}
 
 	if len(rows) < 2 {
@@ -137,7 +140,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: "用户名和密码为必填项",
+				Reason: s.runtimeText(ctx, "artifact.user.import.failure.usernamePasswordRequired", "Username and password are required"),
 			})
 			continue
 		}
@@ -148,7 +151,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: "用户名和密码不能为空",
+				Reason: s.runtimeText(ctx, "artifact.user.import.failure.usernamePasswordNotEmpty", "Username and password cannot be empty"),
 			})
 			continue
 		}
@@ -161,7 +164,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: fmt.Sprintf("数据库查询错误: %v", err),
+				Reason: s.runtimeText(ctx, "artifact.user.import.failure.queryFailed", "Database query failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -169,7 +172,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: fmt.Sprintf("用户名 '%s' 已存在", username),
+				Reason: s.runtimeText(ctx, "artifact.user.import.failure.usernameExists", "Username {username} already exists", bizerr.P("username", username)),
 			})
 			continue
 		}
@@ -179,7 +182,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: "密码加密失败",
+				Reason: s.runtimeText(ctx, "artifact.user.import.failure.passwordHashFailed", "Failed to hash password"),
 			})
 			continue
 		}
@@ -201,17 +204,22 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 		}
 		if len(row) > 5 {
 			switch row[5] {
-			case "男", "1":
+			case "1":
 				data.Sex = 1
-			case "女", "2":
+			case "2":
 				data.Sex = 2
 			default:
-				data.Sex = 0
+				if s.isUserSexInput(ctx, row[5], 1) {
+					data.Sex = 1
+				} else if s.isUserSexInput(ctx, row[5], 2) {
+					data.Sex = 2
+				} else {
+					data.Sex = 0
+				}
 			}
 		}
 		if len(row) > 6 {
-			switch row[6] {
-			case "停用", "0":
+			if s.isUserDisabledStatusInput(ctx, row[6]) {
 				data.Status = int(StatusDisabled)
 			}
 		}
@@ -224,7 +232,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 			result.Fail++
 			result.FailList = append(result.FailList, ImportFailItem{
 				Row:    rowNum,
-				Reason: fmt.Sprintf("插入失败: %v", err),
+				Reason: s.runtimeText(ctx, "artifact.user.import.failure.insertFailed", "Insert failed: {error}", bizerr.P("error", err)),
 			})
 			continue
 		}
@@ -241,7 +249,16 @@ func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, 
 	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
-	headers := []string{"用户名", "密码", "昵称", "手机号码", "邮箱", "性别", "状态", "备注"}
+	headers := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.user.header.username", Fallback: "Username"},
+		{Key: "artifact.user.header.password", Fallback: "Password"},
+		{Key: "artifact.user.header.nickname", Fallback: "Nickname"},
+		{Key: "artifact.user.header.phone", Fallback: "Mobile Number"},
+		{Key: "artifact.user.header.email", Fallback: "Email"},
+		{Key: "artifact.user.header.sex", Fallback: "Gender"},
+		{Key: "artifact.user.header.status", Fallback: "Status"},
+		{Key: "artifact.user.header.remark", Fallback: "Remark"},
+	})
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -255,7 +272,7 @@ func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, 
 	if err = setCellValue(f, sheet, 2, 2, "123456"); err != nil {
 		return nil, err
 	}
-	if err = setCellValue(f, sheet, 3, 2, "张三"); err != nil {
+	if err = setCellValue(f, sheet, 3, 2, s.runtimeText(ctx, "artifact.user.importTemplate.example.nickname", "Zhang San")); err != nil {
 		return nil, err
 	}
 	if err = setCellValue(f, sheet, 4, 2, "13800138000"); err != nil {
@@ -264,13 +281,13 @@ func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, 
 	if err = setCellValue(f, sheet, 5, 2, "zhangsan@example.com"); err != nil {
 		return nil, err
 	}
-	if err = setCellValue(f, sheet, 6, 2, "男"); err != nil {
+	if err = setCellValue(f, sheet, 6, 2, s.userSexText(ctx, 1)); err != nil {
 		return nil, err
 	}
-	if err = setCellValue(f, sheet, 7, 2, "正常"); err != nil {
+	if err = setCellValue(f, sheet, 7, 2, s.userStatusText(ctx, StatusNormal)); err != nil {
 		return nil, err
 	}
-	if err = setCellValue(f, sheet, 8, 2, "示例用户"); err != nil {
+	if err = setCellValue(f, sheet, 8, 2, s.runtimeText(ctx, "artifact.user.importTemplate.example.remark", "Sample user")); err != nil {
 		return nil, err
 	}
 

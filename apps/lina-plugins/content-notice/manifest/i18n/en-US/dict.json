@@ -1,0 +1,24 @@
+{
+  "dict": {
+    "sys_notice_status": {
+      "0": {
+        "label": "Draft"
+      },
+      "1": {
+        "label": "Published"
+      },
+      "name": "Notice Status",
+      "remark": "Notice status options"
+    },
+    "sys_notice_type": {
+      "1": {
+        "label": "Notice"
+      },
+      "2": {
+        "label": "Announcement"
+      },
+      "name": "Notice Type",
+      "remark": "Notice type options"
+    }
+  }
+}

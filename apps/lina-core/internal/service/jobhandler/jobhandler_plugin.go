@@ -8,10 +8,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -45,10 +44,10 @@ func AttachPluginLifecycle(
 	bridge PluginLifecycleBridge,
 ) (func(), error) {
 	if registry == nil {
-		return nil, gerror.New("任务处理器注册表不能为空")
+		return nil, bizerr.NewCode(CodeJobHandlerRegistryRequired)
 	}
 	if bridge == nil {
-		return nil, gerror.New("插件生命周期桥接器不能为空")
+		return nil, bizerr.NewCode(CodeJobHandlerLifecycleBridgeRequired)
 	}
 
 	observer := &pluginLifecycleObserver{registry: registry, bridge: bridge}
@@ -193,5 +192,5 @@ func buildManagedCronDescription(item pluginsvc.ManagedCronJob) string {
 	if trimmed := strings.TrimSpace(item.Description); trimmed != "" {
 		return trimmed
 	}
-	return "插件注册的内置定时任务。"
+	return "Plugin registered built-in scheduled job."
 }

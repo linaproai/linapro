@@ -1,0 +1,34 @@
+{
+  "job": {
+    "group": {
+      "default": {
+        "name": "Default Group",
+        "remark": "The system default job group. Jobs are moved here when other groups are deleted."
+      }
+    },
+    "handler": {
+      "host": {
+        "access-topology-sync": {
+          "description": "Synchronizes permission-topology revision snapshots across the cluster so authorization caches stay consistent on every node.",
+          "name": "Access Topology Sync"
+        },
+        "cleanup-job-logs": {
+          "description": "Cleans up scheduled-job execution logs according to global and job-level retention policies.",
+          "name": "Job Log Cleanup"
+        },
+        "runtime-param-sync": {
+          "description": "Synchronizes protected runtime parameter snapshots across the cluster so each node keeps a fresh local cache.",
+          "name": "Runtime Parameter Sync"
+        },
+        "session-cleanup": {
+          "description": "Cleans up inactive online sessions in the host according to the session-timeout policy.",
+          "name": "Online Session Cleanup"
+        },
+        "wait": {
+          "description": "Waits for the requested number of seconds to verify scheduling, timeout, and cancellation flows.",
+          "name": "Wait for Duration"
+        }
+      }
+    }
+  }
+}

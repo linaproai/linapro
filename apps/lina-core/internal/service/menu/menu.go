@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 )
 
@@ -202,7 +202,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysMenu, err
 		return nil, err
 	}
 	if menu == nil {
-		return nil, gerror.New("菜单不存在")
+		return nil, bizerr.NewCode(CodeMenuNotFound)
 	}
 	return menu, nil
 }
@@ -312,11 +312,11 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	// Check not moving to self or descendant
 	if in.ParentId != nil {
 		if *in.ParentId == in.Id {
-			return gerror.New("不能将菜单移动到自己")
+			return bizerr.NewCode(CodeMenuMoveToSelfDenied)
 		}
 		// Check if new parent is a descendant
 		if s.isDescendant(ctx, in.Id, *in.ParentId) {
-			return gerror.New("不能将菜单移动到自己的子菜单下")
+			return bizerr.NewCode(CodeMenuMoveToDescendantDenied)
 		}
 	}
 
@@ -408,7 +408,7 @@ func (s *serviceImpl) Delete(ctx context.Context, in DeleteInput) error {
 	}
 
 	if childCount > 0 && !in.CascadeDelete {
-		return gerror.New("存在子菜单，不允许删除")
+		return bizerr.NewCode(CodeMenuHasChildrenDeleteDenied)
 	}
 
 	// Use transaction for cascade delete
@@ -550,7 +550,7 @@ func (s *serviceImpl) checkNameUnique(ctx context.Context, name string, parentId
 		return err
 	}
 	if count > 0 {
-		return gerror.New("同级菜单名称已存在")
+		return bizerr.NewCode(CodeMenuNameExists)
 	}
 	return nil
 }

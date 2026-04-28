@@ -4,7 +4,6 @@ package jobmgmt
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -14,7 +13,24 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
+
+// assertBusinessCode verifies that err carries the expected structured
+// business error code.
+func assertBusinessCode(t *testing.T, err error, code *bizerr.Code) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected structured business error")
+	}
+	actual, ok := bizerr.As(err)
+	if !ok {
+		t.Fatalf("expected structured business error, got %v", err)
+	}
+	if !actual.Matches(code) {
+		t.Fatalf("expected business code %s, got %s", code.RuntimeCode(), actual.RuntimeCode())
+	}
+}
 
 // TestDeleteGroupsMigratesJobsToDefault verifies non-default group deletion migrates jobs to the default group.
 func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
@@ -131,9 +147,7 @@ func TestUpdateBuiltInJobRejectsLockedFields(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected built-in job update to be rejected")
 	}
-	if !strings.Contains(err.Error(), "源码注册任务不允许修改") {
-		t.Fatalf("expected read-only error, got %v", err)
-	}
+	assertBusinessCode(t, err, CodeJobBuiltinUpdateDenied)
 }
 
 // TestCreateJobValidatesTimeoutAndConcurrency verifies core runtime validation rejects invalid settings.
@@ -189,9 +203,9 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 	)
 
 	testCases := []struct {
-		name        string
-		input       SaveJobInput
-		wantMessage string
+		name     string
+		input    SaveJobInput
+		wantCode *bizerr.Code
 	}{
 		{
 			name: "unsupported cron field count",
@@ -208,7 +222,7 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 				MaxConcurrency: 1,
 				Status:         jobmeta.JobStatusDisabled,
 			},
-			wantMessage: "定时表达式仅支持5段或6段",
+			wantCode: CodeJobCronFieldCountInvalid,
 		},
 		{
 			name: "manual hash seconds placeholder",
@@ -225,7 +239,7 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 				MaxConcurrency: 1,
 				Status:         jobmeta.JobStatusDisabled,
 			},
-			wantMessage: "秒位必须填写具体值",
+			wantCode: CodeJobCronSecondsRequired,
 		},
 		{
 			name: "timezone must be valid",
@@ -242,7 +256,7 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 				MaxConcurrency: 1,
 				Status:         jobmeta.JobStatusDisabled,
 			},
-			wantMessage: "任务时区不合法",
+			wantCode: CodeJobTimezoneInvalid,
 		},
 		{
 			name: "status is system managed",
@@ -259,7 +273,7 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 				MaxConcurrency: 1,
 				Status:         jobmeta.JobStatusPausedByPlugin,
 			},
-			wantMessage: "任务状态仅支持enabled或disabled",
+			wantCode: CodeJobStatusInvalid,
 		},
 		{
 			name: "timeout must use whole seconds",
@@ -276,7 +290,7 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 				MaxConcurrency: 1,
 				Status:         jobmeta.JobStatusDisabled,
 			},
-			wantMessage: "任务超时时间必须按秒配置",
+			wantCode: CodeJobTimeoutSecondAlignedRequired,
 		},
 		{
 			name: "parallel max concurrency upper bound",
@@ -293,7 +307,7 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 				MaxConcurrency: 101,
 				Status:         jobmeta.JobStatusDisabled,
 			},
-			wantMessage: "最大并发数必须为1-100之间的整数",
+			wantCode: CodeJobMaxConcurrencyInvalid,
 		},
 	}
 
@@ -303,9 +317,7 @@ func TestCreateJobRejectsInvalidCronAndManagedStatus(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected CreateJob to reject %s", tc.name)
 			}
-			if !strings.Contains(err.Error(), tc.wantMessage) {
-				t.Fatalf("expected error to contain %q, got %v", tc.wantMessage, err)
-			}
+			assertBusinessCode(t, err, tc.wantCode)
 		})
 	}
 }
@@ -345,24 +357,24 @@ func TestPreviewCronRejectsInvalidFormats(t *testing.T) {
 	)
 
 	testCases := []struct {
-		expr        string
-		timezone    string
-		wantMessage string
+		expr     string
+		timezone string
+		wantCode *bizerr.Code
 	}{
 		{
-			expr:        "* * * *",
-			timezone:    "UTC",
-			wantMessage: "定时表达式仅支持5段或6段",
+			expr:     "* * * *",
+			timezone: "UTC",
+			wantCode: CodeJobCronFieldCountInvalid,
 		},
 		{
-			expr:        "# 17 3 * * *",
-			timezone:    "UTC",
-			wantMessage: "秒位必须填写具体值",
+			expr:     "# 17 3 * * *",
+			timezone: "UTC",
+			wantCode: CodeJobCronSecondsRequired,
 		},
 		{
-			expr:        "17 3 * * *",
-			timezone:    "Invalid/Timezone",
-			wantMessage: "任务时区不合法",
+			expr:     "17 3 * * *",
+			timezone: "Invalid/Timezone",
+			wantCode: CodeJobTimezoneInvalid,
 		},
 	}
 
@@ -371,8 +383,6 @@ func TestPreviewCronRejectsInvalidFormats(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected PreviewCron(%q, %q) to fail", tc.expr, tc.timezone)
 		}
-		if !strings.Contains(err.Error(), tc.wantMessage) {
-			t.Fatalf("expected error to contain %q, got %v", tc.wantMessage, err)
-		}
+		assertBusinessCode(t, err, tc.wantCode)
 	}
 }

@@ -1,5 +1,5 @@
 /**
- * 该文件可自行根据业务逻辑进行调整
+ * This file can be adjusted according to application request behavior.
  */
 import type { RequestClientOptions } from '@vben/request';
 
@@ -15,15 +15,34 @@ import { useAccessStore } from '@vben/stores';
 
 import { message } from 'ant-design-vue';
 
+import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
 
 const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
+
+type RuntimeErrorResponse = {
+  error?: string;
+  message?: string;
+  messageKey?: string;
+  messageParams?: Record<string, unknown>;
+};
 
 function resolveRequestLocale() {
   if (typeof document === 'undefined') {
     return preferences.app.locale;
   }
   return document.documentElement.lang || preferences.app.locale;
+}
+
+function resolveRuntimeErrorMessage(responseData: RuntimeErrorResponse) {
+  const messageKey = responseData?.messageKey?.trim();
+  if (messageKey) {
+    const localized = $t(messageKey, responseData.messageParams || {});
+    if (localized && localized !== messageKey) {
+      return localized;
+    }
+  }
+  return responseData?.error || responseData?.message || '';
 }
 
 function createRequestClient(baseURL: string, options?: RequestClientOptions) {
@@ -33,7 +52,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   });
 
   /**
-   * 重新认证逻辑
+   * Re-authentication flow.
    */
   async function doReAuthenticate() {
     console.warn('Access token is invalid or expired.');
@@ -51,7 +70,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   }
 
   /**
-   * 刷新token逻辑 - 不支持，直接重新认证
+   * Token refresh is not supported; re-authenticate directly.
    */
   async function doRefreshToken() {
     return '';
@@ -61,7 +80,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     return token ? `Bearer ${token}` : null;
   }
 
-  // 请求头处理
+  // Request header handling.
   client.addRequestInterceptor({
     fulfilled: async (config) => {
       const accessStore = useAccessStore();
@@ -72,7 +91,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     },
   });
 
-  // 处理返回的响应数据格式
+  // Normalize response data.
   client.addResponseInterceptor(
     defaultResponseInterceptor({
       codeField: 'code',
@@ -81,7 +100,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     }),
   );
 
-  // token过期的处理
+  // Token expiration handling.
   client.addResponseInterceptor(
     authenticateResponseInterceptor({
       client,
@@ -92,11 +111,12 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
     }),
   );
 
-  // 通用的错误处理
+  // Generic error handling.
   client.addResponseInterceptor(
     errorMessageResponseInterceptor((msg: string, error) => {
-      const responseData = error?.response?.data ?? {};
-      const errorMessage = responseData?.error ?? responseData?.message ?? '';
+      const responseData = (error?.response?.data ??
+        {}) as RuntimeErrorResponse;
+      const errorMessage = resolveRuntimeErrorMessage(responseData);
       message.error(errorMessage || msg);
     }),
   );

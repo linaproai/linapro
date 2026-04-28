@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // TaskType identifies the scheduled-job execution mode.
@@ -285,18 +285,18 @@ func ParseRetentionOption(raw string) (*RetentionOption, error) {
 
 	var option RetentionOption
 	if err := json.Unmarshal([]byte(trimmed), &option); err != nil {
-		return nil, gerror.Wrap(err, "解析日志保留策略失败")
+		return nil, bizerr.WrapCode(err, CodeJobRetentionParseFailed)
 	}
 	option.Mode = NormalizeRetentionMode(string(option.Mode))
 	if !option.Mode.IsValid() {
-		return nil, gerror.New("日志保留策略模式不受支持")
+		return nil, bizerr.NewCode(CodeJobRetentionModeUnsupported)
 	}
 	if option.Mode == RetentionModeNone {
 		option.Value = 0
 		return &option, nil
 	}
 	if option.Value <= 0 {
-		return nil, gerror.New("日志保留策略阈值必须大于0")
+		return nil, bizerr.NewCode(CodeJobRetentionValueInvalid)
 	}
 	return &option, nil
 }
@@ -308,7 +308,7 @@ func MustMarshalRetentionOption(option *RetentionOption) (string, error) {
 	}
 	data, err := json.Marshal(option)
 	if err != nil {
-		return "", gerror.Wrap(err, "序列化日志保留策略失败")
+		return "", bizerr.WrapCode(err, CodeJobRetentionMarshalFailed)
 	}
 	return string(data), nil
 }

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/service/locker"
+	"lina-core/pkg/bizerr"
 )
 
 // Lock normalization constants shared by acquire, renew, and release paths.
@@ -140,15 +140,15 @@ func buildActualLockName(pluginID string, resourceRef string) (string, error) {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	normalizedResourceRef := strings.TrimSpace(resourceRef)
 	if normalizedPluginID == "" {
-		return "", gerror.New("插件ID不能为空")
+		return "", bizerr.NewCode(CodeHostLockPluginIDRequired)
 	}
 	if normalizedResourceRef == "" {
-		return "", gerror.New("逻辑锁名不能为空")
+		return "", bizerr.NewCode(CodeHostLockResourceRequired)
 	}
 
 	actualLockName := "plugin:" + normalizedPluginID + ":" + normalizedResourceRef
 	if len([]byte(actualLockName)) > maxLockBytes {
-		return "", gerror.Newf("实际锁名长度超出限制，最大允许 %d 字节", maxLockBytes)
+		return "", bizerr.NewCode(CodeHostLockNameTooLong, bizerr.P("maxBytes", maxLockBytes))
 	}
 	return actualLockName, nil
 }
@@ -162,10 +162,10 @@ func normalizeLease(leaseMillis int64) (time.Duration, error) {
 
 	lease := time.Duration(leaseMillis) * time.Millisecond
 	if lease < minLease {
-		return 0, gerror.Newf("锁租期不能小于 %s", minLease)
+		return 0, bizerr.NewCode(CodeHostLockLeaseTooShort, bizerr.P("minLease", minLease))
 	}
 	if lease > maxLease {
-		return 0, gerror.Newf("锁租期不能大于 %s", maxLease)
+		return 0, bizerr.NewCode(CodeHostLockLeaseTooLong, bizerr.P("maxLease", maxLease))
 	}
 	return lease, nil
 }

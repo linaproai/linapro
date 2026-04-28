@@ -163,18 +163,18 @@
 - **AND** 操作日志插件的表结构、创建入参与导出字段变化不得要求修改宿主插件服务的事件编码逻辑
 
 ### Requirement: 系统接口文档必须使用英文源文案与独立 apidoc 翻译资源
-宿主系统 SHALL 将宿主、源码插件和动态插件 API DTO 中的 OpenAPI 文档源文本统一维护为可读英文，包括路由分组、接口摘要、接口描述、请求参数、响应参数说明，以及能够进入接口文档展示的固定路由投影文案。接口文档本地化 SHALL 在渲染 `/api.json` 时基于当前请求语言执行，并使用独立的 `manifest/i18n/apidoc/<locale>.json` 与可选 `manifest/i18n/apidoc/<locale>/**/*.json` 资源；这些资源 MUST 与默认管理工作台运行时 UI 的 `manifest/i18n/<locale>.json` 资源解耦。宿主接口翻译 SHALL 由 `apps/lina-core/manifest/i18n/apidoc/` 维护；插件接口翻译 SHALL 由插件自己的 `apps/lina-plugins/<plugin-id>/manifest/i18n/apidoc/` 独立维护，lina-core 的 apidoc 模块 SHALL 在渲染时发现源码插件内嵌资源、动态插件运行时产物中的 apidoc 资源，并统一合并输出，禁止将插件 `plugins.*` 翻译键集中耦合到 lina-core apidoc 资源。非英文 apidoc 文件 MAY 使用层级 JSON 或扁平 dotted key 编写，宿主加载后 MUST 归一化为稳定结构化 key；公共响应包装、分页和时间字段等重复元数据 MAY 通过宿主 `core.common.*` fallback 键维护，具体结构键存在时 MUST 优先使用具体结构键。英文接口文档 SHALL 直接使用英文源文案，各级 `manifest/i18n/apidoc/en-US.json` SHALL 保持为空对象占位，避免重复维护英文映射。若 GoFrame、生成的 `entity` schema 或数据表注释元数据进入接口文档，系统 SHALL 按其数据源原文展示，禁止在 apidoc service 层维护中文到英文的临时转换表，也不得通过恢复 `en-US.json` 或维护非英文 apidoc JSON 映射兜底；需要改变其展示语言时，应修改对应数据源或生成源。系统不得在手写 API DTO 文档标签中写入中文源文本，也不得写入不透明 `i18n` key 占位符作为接口文档源文本。`eg/example` 示例值 SHALL 保持接口真实示例语义，不写入、不翻译 apidoc i18n 资源。
+宿主系统 SHALL 将宿主、源码插件和动态插件 API DTO 中的 OpenAPI 文档源文本统一维护为可读英文，包括路由分组、接口摘要、接口描述、请求参数、响应参数说明，以及能够进入接口文档展示的固定路由投影文案。接口文档本地化 SHALL 在渲染 `/api.json` 时基于当前请求语言执行，并使用独立的 `manifest/i18n/<locale>/apidoc/**/*.json` 资源；这些资源 MUST 与默认管理工作台运行时 UI 的 `manifest/i18n/<locale>/*.json` 资源解耦。宿主接口翻译 SHALL 由 `apps/lina-core/manifest/i18n/<locale>/apidoc/` 维护；插件接口翻译 SHALL 由插件自己的 `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>/apidoc/` 独立维护，lina-core 的 apidoc 模块 SHALL 在渲染时发现源码插件内嵌资源、动态插件运行时产物中的 apidoc 资源，并统一合并输出，禁止将插件 `plugins.*` 翻译键集中耦合到 lina-core apidoc 资源。非英文 apidoc 文件 MAY 使用层级 JSON 或扁平 dotted key 编写，宿主加载后 MUST 归一化为稳定结构化 key；公共响应包装、分页和时间字段等重复元数据 MAY 通过宿主 `core.common.*` fallback 键维护，具体结构键存在时 MUST 优先使用具体结构键。英文接口文档 SHALL 直接使用英文源文案，各级 `manifest/i18n/en-US/apidoc/**/*.json` SHALL 保持为空对象占位，避免重复维护英文映射。若 GoFrame、生成的 `entity` schema 或数据表注释元数据进入接口文档，系统 SHALL 按其数据源原文展示，禁止在 apidoc service 层维护中文到英文的临时转换表，也不得通过恢复 `en-US/apidoc` 占位文件或维护非英文 apidoc JSON 映射兜底；需要改变其展示语言时，应修改对应数据源或生成源。系统不得在手写 API DTO 文档标签中写入中文源文本，也不得写入不透明 `i18n` key 占位符作为接口文档源文本。`eg/example` 示例值 SHALL 保持接口真实示例语义，不写入、不翻译 apidoc i18n 资源。
 
 #### Scenario: 英文接口文档直接使用英文源文案
 - **WHEN** 管理员在英文环境中打开系统接口文档或请求 `/api.json?lang=en-US`
 - **THEN** 宿主、源码插件与动态插件的手写 API DTO 路由分组、接口摘要、接口描述、请求参数和响应参数说明均展示为英文
-- **AND** 英文接口文档不依赖 `en-US` apidoc 翻译映射，`en-US.json` 仅作为空对象占位文件存在
+- **AND** 英文接口文档不依赖 `en-US` apidoc 翻译映射，`manifest/i18n/en-US/apidoc/` 下的 JSON 仅作为空对象占位文件存在
 - **AND** 生成的 `entity` schema、数据表注释与框架通用响应元数据不经过 apidoc service 层临时翻译，按其数据源原文展示
 - **AND** 非英文 apidoc JSON 中不得维护 `internal.model.entity.*` 等生成 schema 翻译键
 
 #### Scenario: 中文接口文档通过 apidoc JSON 投影
 - **WHEN** 管理员在中文环境中打开系统接口文档或请求 `/api.json?lang=zh-CN`
-- **THEN** API DTO 中维护的英文源文案通过 `manifest/i18n/apidoc/zh-CN.json` 及 `manifest/i18n/apidoc/zh-CN/**/*.json` 的稳定结构化 key 映射为中文
+- **THEN** API DTO 中维护的英文源文案通过 `manifest/i18n/zh-CN/apidoc/**/*.json` 的稳定结构化 key 映射为中文
 - **AND** 接口文档翻译资源不进入运行时 UI 语言包，也不依赖默认管理工作台前端静态语言包
 - **AND** 插件接口的 `plugins.*` 翻译键由插件自己的 apidoc i18n JSON 提供，并由 lina-core apidoc 模块统一合并后应用到接口文档
 - **AND** 标准响应字段、分页字段和通用时间字段可通过 `core.common.*` fallback 翻译，避免在每个接口结构下重复维护同一文案
@@ -182,7 +182,7 @@
 
 #### Scenario: API 文案变更时校验 apidoc 翻译覆盖
 - **WHEN** 开发者新增或修改宿主、源码插件或动态插件 API DTO 的 OpenAPI 文档标签
-- **THEN** 开发者必须同步更新所属宿主或插件非英文 `manifest/i18n/apidoc` 翻译资源中的稳定结构化 key，禁止使用英文源文案作为 JSON key
+- **THEN** 开发者必须同步更新所属宿主或插件非英文 `manifest/i18n/<locale>/apidoc` 翻译资源中的稳定结构化 key，禁止使用英文源文案作为 JSON key
 - **AND** 自动化测试或审查规则必须阻断遗漏非英文翻译、中文源文案和不透明占位符进入接口文档，但不要求为 `en-US` 空占位文件或 `eg/example` 示例值提供翻译
 
 ### Requirement: 宿主必须提供国际化维护与校验能力

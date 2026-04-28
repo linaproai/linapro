@@ -20,9 +20,11 @@ import (
 
 const (
 	// openAPIHostI18nDir is the host-owned apidoc translation resource path.
-	openAPIHostI18nDir = "manifest/i18n/apidoc"
+	openAPIHostI18nDir = "manifest/i18n"
 	// openAPIPluginI18nDir is the source-plugin apidoc translation resource path.
-	openAPIPluginI18nDir = "manifest/i18n/apidoc"
+	openAPIPluginI18nDir = "manifest/i18n"
+	// openAPILocaleSubdir is the locale-scoped apidoc translation resource path.
+	openAPILocaleSubdir = "apidoc"
 )
 
 // openAPIMessageCache stores merged apidoc translation bundles per locale.
@@ -142,7 +144,8 @@ func parseOpenAPIMessageCatalogJSON(content []byte) (map[string]string, error) {
 
 // openAPIResourceLoader applies the common apidoc resource-loader defaults.
 func openAPIResourceLoader(loader i18nresource.ResourceLoader) i18nresource.ResourceLoader {
-	loader.LayoutMode = i18nresource.LayoutModeLocaleFileAndDirectory
+	loader.LayoutMode = i18nresource.LayoutModeLocaleSubdirectoryRecursive
+	loader.LocaleSubdir = openAPILocaleSubdir
 	loader.ValueMode = i18nresource.ValueModeStringOnly
 	loader.KeyFilter = func(key string) bool {
 		return !isGeneratedEntityOpenAPIKey(key)

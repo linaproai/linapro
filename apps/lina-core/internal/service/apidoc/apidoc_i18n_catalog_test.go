@@ -67,8 +67,8 @@ func TestOpenAPIMetadataUsesEnglishSourceText(t *testing.T) {
 // apidoc bundle coverage for hand-authored API metadata.
 func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 	repoRoot := locateRepositoryRoot(t)
-	sourceEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/en-US.json"))
-	packedEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/apidoc/en-US.json"))
+	sourceEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/en-US/apidoc"))
+	packedEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/en-US/apidoc"))
 	pluginEn := readOpenAPIPluginJSONBundles(t, repoRoot, "en-US")
 
 	assertOpenAPIBundlesMirror(t, "en-US", sourceEn, packedEn)
@@ -103,8 +103,8 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
 		locale := locale
 		t.Run(locale, func(t *testing.T) {
-			sourceBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/"+locale+".json"))
-			packedBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/apidoc/"+locale+".json"))
+			sourceBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n", locale, "apidoc"))
+			packedBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n", locale, "apidoc"))
 			pluginBundles := readOpenAPIPluginJSONBundles(t, repoRoot, locale)
 			mergedBundle := cloneOpenAPIMessageCatalog(sourceBundle)
 			for _, bundle := range pluginBundles {
@@ -196,7 +196,7 @@ func TestOpenAPIBundlesAreSeparatedFromRuntimeI18n(t *testing.T) {
 	repoRoot := locateRepositoryRoot(t)
 	apiKeys := make(map[string]struct{})
 	for _, locale := range discoverOpenAPINonEnglishLocales(t, repoRoot) {
-		apiBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/"+locale+".json"))
+		apiBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n", locale, "apidoc"))
 		for _, bundle := range readOpenAPIPluginJSONBundles(t, repoRoot, locale) {
 			mergeOpenAPIMessageCatalog(apiBundle, bundle)
 		}
@@ -222,7 +222,7 @@ func TestOpenAPIBundlesAreSeparatedFromRuntimeI18n(t *testing.T) {
 			if !strings.Contains(normalizedPath, "/manifest/i18n/") {
 				return nil
 			}
-			if strings.Contains(normalizedPath, "/manifest/i18n/apidoc/") {
+			if strings.Contains(normalizedPath, "/apidoc/") {
 				return nil
 			}
 			runtimeBundle := readOpenAPIJSONBundle(t, path)
@@ -289,12 +289,12 @@ func TestOpenAPIPluginCatalogMergeRejectsForeignNamespaces(t *testing.T) {
 }
 
 // TestOpenAPIBundleLoaderSupportsNestedSplitFiles verifies apidoc bundles can
-// be maintained as one locale root file plus multiple nested JSON files.
+// be maintained as multiple JSON files under the locale-scoped apidoc directory.
 func TestOpenAPIBundleLoaderSupportsNestedSplitFiles(t *testing.T) {
 	t.Parallel()
 
 	filesystem := fstest.MapFS{
-		"manifest/i18n/apidoc/zh-CN.json": &fstest.MapFile{Data: []byte(`{
+		"manifest/i18n/zh-CN/apidoc/common.json": &fstest.MapFile{Data: []byte(`{
   "core": {
     "openapi": {
       "info": {
@@ -303,7 +303,7 @@ func TestOpenAPIBundleLoaderSupportsNestedSplitFiles(t *testing.T) {
     }
   }
 }`)},
-		"manifest/i18n/apidoc/zh-CN/core-api-auth.json": &fstest.MapFile{Data: []byte(`{
+		"manifest/i18n/zh-CN/apidoc/core-api-auth.json": &fstest.MapFile{Data: []byte(`{
   "core": {
     "api": {
       "auth": {
@@ -318,12 +318,12 @@ func TestOpenAPIBundleLoaderSupportsNestedSplitFiles(t *testing.T) {
     }
   }
 }`)},
-		"manifest/i18n/apidoc/zh-CN/override.json": &fstest.MapFile{Data: []byte(`{
+		"manifest/i18n/zh-CN/apidoc/override.json": &fstest.MapFile{Data: []byte(`{
   "core.openapi.info.title": "扁平覆盖标题"
 }`)},
 	}
 
-	bundle := loadOpenAPIEmbeddedBundle(context.Background(), filesystem, "manifest/i18n/apidoc", "zh-CN")
+	bundle := loadOpenAPIEmbeddedBundle(context.Background(), filesystem, "manifest/i18n", "zh-CN")
 	if got := bundle["core.openapi.info.title"]; got != "扁平覆盖标题" {
 		t.Fatalf("expected split flat key to override root nested key, got %q", got)
 	}
@@ -709,11 +709,11 @@ func isOpaqueOpenAPIPlaceholder(value openAPIMetadataValue) bool {
 }
 
 // discoverOpenAPINonEnglishLocales discovers target apidoc locales from host
-// apidoc resource files and directories, excluding the English source-text locale.
+// locale directories with apidoc resources, excluding the English source-text locale.
 func discoverOpenAPINonEnglishLocales(t *testing.T, repoRoot string) []string {
 	t.Helper()
 
-	root := filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc")
+	root := filepath.Join(repoRoot, "apps/lina-core/manifest/i18n")
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		t.Fatalf("read host apidoc i18n root %s failed: %v", root, err)
@@ -721,15 +721,18 @@ func discoverOpenAPINonEnglishLocales(t *testing.T, repoRoot string) []string {
 
 	seen := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
-		name := strings.TrimSpace(entry.Name())
-		locale := ""
-		if entry.IsDir() {
-			locale = name
-		} else if strings.HasSuffix(name, ".json") {
-			locale = strings.TrimSuffix(name, ".json")
+		if !entry.IsDir() {
+			continue
 		}
+		locale := strings.TrimSpace(entry.Name())
 		if locale == "" || locale == "en-US" {
 			continue
+		}
+		if _, err = os.Stat(filepath.Join(root, locale, "apidoc")); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			t.Fatalf("stat host apidoc locale dir failed locale=%s err=%v", locale, err)
 		}
 		seen[locale] = struct{}{}
 	}
@@ -745,52 +748,60 @@ func discoverOpenAPINonEnglishLocales(t *testing.T, repoRoot string) []string {
 	return locales
 }
 
-// readOpenAPIJSONBundle reads a JSON translation bundle from disk.
+// readOpenAPIJSONBundle reads one JSON translation file or recursively merges a
+// directory of JSON translation files from disk.
 func readOpenAPIJSONBundle(t *testing.T, path string) map[string]string {
 	t.Helper()
 
 	bundle := make(map[string]string)
-	content, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
-		t.Fatalf("read i18n bundle %s failed: %v", path, err)
-	}
-	if err == nil {
-		parsedBundle, parseErr := parseOpenAPIMessageCatalogJSON(content)
-		if parseErr != nil {
-			t.Fatalf("parse i18n bundle %s failed: %v", path, parseErr)
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return bundle
 		}
-		mergeOpenAPIMessageCatalog(bundle, parsedBundle)
+		t.Fatalf("stat i18n bundle %s failed: %v", path, err)
+	}
+	if !info.IsDir() {
+		return readOpenAPIJSONBundleFile(t, path)
 	}
 
-	if locale := strings.TrimSuffix(filepath.Base(path), ".json"); locale != filepath.Base(path) {
-		localeDir := filepath.Join(filepath.Dir(path), locale)
-		if _, statErr := os.Stat(localeDir); statErr == nil {
-			entries := make([]string, 0)
-			if walkErr := filepath.WalkDir(localeDir, func(filePath string, entry os.DirEntry, walkErr error) error {
-				if walkErr != nil {
-					return walkErr
-				}
-				if entry.IsDir() || !strings.HasSuffix(filePath, ".json") {
-					return nil
-				}
-				entries = append(entries, filePath)
-				return nil
-			}); walkErr != nil {
-				t.Fatalf("scan i18n bundle directory %s failed: %v", localeDir, walkErr)
-			}
-			sort.Strings(entries)
-			for _, entryPath := range entries {
-				mergeOpenAPIMessageCatalog(bundle, readOpenAPIJSONBundle(t, entryPath))
-			}
-		} else if !os.IsNotExist(statErr) {
-			t.Fatalf("stat i18n bundle directory %s failed: %v", localeDir, statErr)
+	entries := make([]string, 0)
+	if walkErr := filepath.WalkDir(path, func(filePath string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
+		if entry.IsDir() || !strings.HasSuffix(filePath, ".json") {
+			return nil
+		}
+		entries = append(entries, filePath)
+		return nil
+	}); walkErr != nil {
+		t.Fatalf("scan i18n bundle directory %s failed: %v", path, walkErr)
+	}
+	sort.Strings(entries)
+	for _, entryPath := range entries {
+		mergeOpenAPIMessageCatalog(bundle, readOpenAPIJSONBundleFile(t, entryPath))
 	}
 	return bundle
 }
 
+// readOpenAPIJSONBundleFile reads one JSON translation file from disk.
+func readOpenAPIJSONBundleFile(t *testing.T, path string) map[string]string {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read i18n bundle %s failed: %v", path, err)
+	}
+	parsedBundle, err := parseOpenAPIMessageCatalogJSON(content)
+	if err != nil {
+		t.Fatalf("parse i18n bundle %s failed: %v", path, err)
+	}
+	return parsedBundle
+}
+
 // readOpenAPIPluginJSONBundles reads plugin-owned apidoc bundles for one
-// locale from each plugin's manifest/i18n/apidoc directory.
+// locale from each plugin's manifest/i18n/<locale>/apidoc directory.
 func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) map[string]map[string]string {
 	t.Helper()
 
@@ -806,15 +817,7 @@ func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) 
 		}
 		pluginID := entry.Name()
 		pluginRoot := filepath.Join(pluginsRoot, pluginID)
-		bundlePath := filepath.Join(pluginsRoot, pluginID, "manifest/i18n/apidoc", locale+".json")
-		bundleDir := filepath.Join(pluginsRoot, pluginID, "manifest/i18n/apidoc", locale)
-
-		fileExists := false
-		if _, fileErr := os.Stat(bundlePath); fileErr == nil {
-			fileExists = true
-		} else if !os.IsNotExist(fileErr) {
-			t.Fatalf("stat plugin apidoc bundle %s failed: %v", bundlePath, fileErr)
-		}
+		bundleDir := filepath.Join(pluginsRoot, pluginID, "manifest/i18n", locale, "apidoc")
 
 		dirExists := false
 		if _, dirErr := os.Stat(bundleDir); dirErr == nil {
@@ -823,13 +826,13 @@ func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) 
 			t.Fatalf("stat plugin apidoc bundle dir %s failed: %v", bundleDir, dirErr)
 		}
 
-		if !fileExists && !dirExists {
+		if !dirExists {
 			if pluginHasOpenAPIResources(t, pluginRoot) {
-				t.Fatalf("plugin %s has API DTOs but is missing %s apidoc bundle at %s or %s", pluginID, locale, bundlePath, bundleDir)
+				t.Fatalf("plugin %s has API DTOs but is missing %s apidoc bundle at %s", pluginID, locale, bundleDir)
 			}
 			continue
 		}
-		result[pluginID] = readOpenAPIJSONBundle(t, bundlePath)
+		result[pluginID] = readOpenAPIJSONBundle(t, bundleDir)
 	}
 	return result
 }

@@ -7,11 +7,11 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/api/joblog/v1"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/pkg/bizerr"
 )
 
 // Cancel handles scheduled job log cancellation requests.
@@ -35,7 +35,7 @@ func (c *ControllerV1) Cancel(ctx context.Context, req *v1.CancelReq) (res *v1.C
 func (c *ControllerV1) ensureShellCancelPermission(ctx context.Context) error {
 	businessCtx := c.bizCtxSvc.Get(ctx)
 	if businessCtx == nil || businessCtx.UserId <= 0 {
-		return gerror.New("未获取到当前登录用户")
+		return bizerr.NewCode(jobmgmtsvc.CodeJobLogCurrentUserMissing)
 	}
 	accessContext, err := c.roleSvc.GetUserAccessContext(ctx, businessCtx.UserId)
 	if err != nil {
@@ -49,7 +49,10 @@ func (c *ControllerV1) ensureShellCancelPermission(ctx context.Context) error {
 			return nil
 		}
 	}
-	return gerror.New("当前用户缺少接口权限: system:job:shell")
+	return bizerr.NewCode(
+		jobmgmtsvc.CodeJobLogShellCancelPermissionDenied,
+		bizerr.P("permission", "system:job:shell"),
+	)
 }
 
 // isShellLog reports whether the stored job snapshot describes one shell task.

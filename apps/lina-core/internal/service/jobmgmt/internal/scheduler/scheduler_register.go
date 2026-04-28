@@ -6,16 +6,15 @@ package scheduler
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
 
 // acquireSlot applies the per-job concurrency guard for cron-triggered executions.
 func (s *serviceImpl) acquireSlot(job *entity.SysJob) (func(), jobmeta.LogStatus, error) {
 	if job == nil {
-		return func() {}, "", gerror.New("定时任务不存在")
+		return func() {}, "", bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 
 	concurrency := jobmeta.NormalizeJobConcurrency(job.Concurrency)

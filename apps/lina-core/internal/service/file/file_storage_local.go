@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/text/gstr"
@@ -50,11 +49,11 @@ func (s *LocalStorage) Put(ctx context.Context, filename string, data io.Reader)
 	if err != nil {
 		return "", err
 	}
-	defer closeutil.Close(ctx, f, &err, "关闭上传目标文件失败")
+	defer closeutil.Close(ctx, f, &err, "close upload target file failed")
 
 	if _, err = io.Copy(f, data); err != nil {
 		if removeErr := os.Remove(fullPath); removeErr != nil && !os.IsNotExist(removeErr) {
-			return "", gerror.Wrapf(err, "写入文件失败，且清理临时文件失败: %v", removeErr)
+			return "", fmt.Errorf("write upload target file failed: %w; cleanup error: %v", err, removeErr)
 		}
 		return "", err
 	}

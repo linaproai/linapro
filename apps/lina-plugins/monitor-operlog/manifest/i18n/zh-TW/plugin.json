@@ -1,0 +1,39 @@
+{
+  "plugin": {
+    "monitor-operlog": {
+      "description": "提供操作日誌持久化與治理的官方源碼插件",
+      "detail": {
+        "title": "操作日誌詳情"
+      },
+      "exportFileName": "操作日誌導出.xlsx",
+      "fields": {
+        "duration": "耗時",
+        "durationMs": "耗時(ms)",
+        "errorInfo": "錯誤信息",
+        "ipAddress": "IP 地址",
+        "logId": "日誌編號",
+        "moduleName": "模塊名稱",
+        "operDate": "操作日期",
+        "operResult": "操作結果",
+        "operSummary": "操作摘要",
+        "operTime": "操作時間",
+        "operType": "操作類型",
+        "operator": "操作人員",
+        "requestMethod": "請求方式",
+        "requestParams": "請求參數",
+        "requestUrl": "請求地址",
+        "responseResult": "響應結果"
+      },
+      "messages": {
+        "clearConfirm": "確認清空所有操作日誌嗎？",
+        "clearSuccess": "清空操作日誌成功",
+        "deleteSelectedConfirm": "確認刪除選中的 {count} 條操作日誌嗎？"
+      },
+      "method": {
+        "patch": "補丁"
+      },
+      "name": "系統監控-操作日誌",
+      "tableTitle": "操作日誌列表"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "menu": {
+    "plugin:content-notice:notice": {
+      "title": "Notices"
+    },
+    "plugin:content-notice:notice:add": {
+      "title": "Create"
+    },
+    "plugin:content-notice:notice:edit": {
+      "title": "Update"
+    },
+    "plugin:content-notice:notice:query": {
+      "title": "Query"
+    },
+    "plugin:content-notice:notice:remove": {
+      "title": "Delete"
+    }
+  }
+}

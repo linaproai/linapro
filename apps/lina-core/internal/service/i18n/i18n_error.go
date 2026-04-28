@@ -12,6 +12,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/i18n/gi18n"
 	"github.com/gogf/gf/v2/util/gvalid"
+
+	"lina-core/pkg/bizerr"
 )
 
 // LocalizeError translates one request-scoped error into the effective locale.
@@ -24,6 +26,10 @@ func (s *serviceImpl) LocalizeError(ctx context.Context, err error) string {
 		return s.localizeValidationError(ctx, validationErr)
 	}
 
+	if messageErr, ok := bizerr.As(err); ok {
+		return s.localizeRuntimeMessageError(ctx, messageErr)
+	}
+
 	var textArgs gerror.ITextArgs
 	if errors.As(err, &textArgs) {
 		format := s.localizeText(ctx, textArgs.Text())
@@ -34,6 +40,20 @@ func (s *serviceImpl) LocalizeError(ctx context.Context, err error) string {
 	}
 
 	return s.localizeText(ctx, err.Error())
+}
+
+// localizeRuntimeMessageError renders one structured runtime-message error
+// using the current request locale and named parameters.
+func (s *serviceImpl) localizeRuntimeMessageError(ctx context.Context, err *bizerr.Error) string {
+	if err == nil {
+		return ""
+	}
+
+	template := s.Translate(ctx, err.MessageKey(), err.Fallback())
+	if template == "" {
+		template = err.Error()
+	}
+	return bizerr.Format(template, err.Params())
 }
 
 // localizeValidationError translates each validation item independently so flat

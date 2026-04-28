@@ -1,0 +1,19 @@
+{
+  "menu": {
+    "plugin:monitor-loginlog:loginlog": {
+      "title": "登录日志"
+    },
+    "plugin:monitor-loginlog:loginlog:clear": {
+      "title": "日志清空"
+    },
+    "plugin:monitor-loginlog:loginlog:export": {
+      "title": "日志导出"
+    },
+    "plugin:monitor-loginlog:loginlog:query": {
+      "title": "日志查询"
+    },
+    "plugin:monitor-loginlog:loginlog:remove": {
+      "title": "日志删除"
+    }
+  }
+}

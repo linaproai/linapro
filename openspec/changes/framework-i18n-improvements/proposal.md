@@ -18,18 +18,18 @@
 
 ### P2 一致性收敛
 - 收敛 `menu_i18n.go`/`dict_i18n.go`/`sysconfig_i18n.go`/`jobmgmt_i18n.go`/`role.go` 内的投影规则,但规则必须留在各业务模块边界内;`internal/service/i18n` 只暴露 `ResolveLocale`、`Translate`、`TranslateSourceText` 等底层能力,不得提供按业务实体命名的投影器。
-- 删除 `sysconfig_i18n.go` 内的 `englishLabels`/`chineseLabels` Go map,改为 `config.field.<name>` 走 `manifest/i18n/<locale>.json`,验证决策一(约定式翻译键)能真正覆盖到导出/导入模板表头这种边界。
+- 删除 `sysconfig_i18n.go` 内的 `englishLabels`/`chineseLabels` Go map,改为 `config.field.<name>` 走 `manifest/i18n/<locale>/*.json`,验证决策一(约定式翻译键)能真正覆盖到导出/导入模板表头这种边界。
 - `i18n` 包引入 `RegisterSourceTextNamespace(prefix, reason)` 显式注册表;`isSourceTextBackedRuntimeKey` 黑名单从 `i18n_manage.go` 移除,jobmgmt 在自身 `init` 注册自己的命名空间。
 - `i18n.Service` 大接口拆分为 `LocaleResolver` / `Translator` / `BundleProvider` / `Maintainer` 四个小接口;`serviceImpl` 统一实现,业务模块的 `i18nSvc` 字段只声明实际依赖的小接口。
 
 ### P3 边界整理
-- 抽出 `pkg/i18nresource` 通用资源加载器,接受 `Subdir` 与 `PluginScopeNamespace` 配置;`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载薄壳共用同一份实现,删除 ~280 行重复代码,但不让 apidoc 反向依赖 `internal/service/i18n`。
+- 抽出 `pkg/i18nresource` 通用资源加载器,接受 `Subdir`、`LocaleSubdir`、`LayoutMode` 与 `PluginScopeNamespace` 配置;`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载薄壳共用同一份实现,删除 ~280 行重复代码,但不让 apidoc 反向依赖 `internal/service/i18n`。
 - 前端 `loadMessages` 拆分:运行时 bundle 失败 → 命中持久化缓存或回退;公共配置失败 → fire-and-forget 不阻塞;三方库 locale → 必须等待。
 - WASM 自定义节解析 `parseWasmCustomSectionsForI18N` 与 `readWasmULEB128ForI18N` 提到 `pkg/pluginbridge/pluginbridge_wasm_section.go`,i18n 包仅调用 `pluginbridge.ReadCustomSection(content, name)`。
 
 ### 第三种语言:繁体中文作为压力测试
-- 运行时从 `manifest/i18n/<locale>.json` 自动发现内置语言,默认配置文件中的 `i18n` 段维护默认语言、多语言开关、排序、原生名与启用白名单;运行时语言列表、语言切换、缺失翻译检查、资源来源诊断全链路必须自动覆盖到 `zh-TW`,不需要修改业务模块代码、SQL seed 或前端 TS 语言清单。
-- 宿主 `manifest/i18n/zh-TW.json` 与所有源码插件 `apps/lina-plugins/<plugin-id>/manifest/i18n/zh-TW.json` 补齐翻译;前端 `apps/lina-vben/apps/web-antd/src/locales/langs/zh-TW/*.json` 与 `packages/locales/src/langs/zh-TW/*.json` 补齐对应静态翻译。
+- 运行时从 `manifest/i18n/<locale>/*.json` 自动发现内置语言,默认配置文件中的 `i18n` 段维护默认语言、多语言开关、排序、原生名与启用白名单;运行时语言列表、语言切换、缺失翻译检查、资源来源诊断全链路必须自动覆盖到 `zh-TW`,不需要修改业务模块代码、SQL seed 或前端 TS 语言清单。
+- 宿主 `manifest/i18n/zh-TW/*.json` 与所有源码插件 `apps/lina-plugins/<plugin-id>/manifest/i18n/zh-TW/*.json` 补齐翻译;前端 `apps/lina-vben/apps/web-antd/src/locales/langs/zh-TW/*.json` 与 `packages/locales/src/langs/zh-TW/*.json` 补齐对应静态翻译。
 - `apidoc i18n` 同步加 `zh-TW`;插件 apidoc 翻译资源同步补齐。
 - 复数/数字格式化以 `ICU MessageFormat` 风格在前端约定 API,首期约束在 `count` 类文案上(列表统计、批量删除提示),不强求所有页面立刻使用。
 
@@ -66,8 +66,8 @@
 ## Impact
 
 - **后端能力**:重写 `apps/lina-core/internal/service/i18n/` 内的 `Translate*` 热路径与缓存层;拆分 `Service` 接口;调整 5 个 `*_i18n.go` 适配文件并删除中心化投影器;抽出 `pkg/i18nresource`、`pkg/pluginbridge/pluginbridge_wasm_section.go`;`apidoc_i18n_loader.go` 与 `i18n.go` 的资源加载薄壳共用 loader;`config-management` 删除 Go 硬编码标签 map。
-- **数据库**:移除运行时 i18n 持久化表;内置语言启用由 `manifest/i18n/<locale>.json` 与默认配置文件中的 `i18n` 段驱动。
+- **数据库**:移除运行时 i18n 持久化表;内置语言启用由 `manifest/i18n/<locale>/*.json` 与默认配置文件中的 `i18n` 段驱动。
 - **前端能力**:`runtime-i18n.ts` 改走 `requestClient` 并接入 `localStorage`;`loadMessages` 拆分失败语义;语言菜单由运行时语言元数据驱动,文档方向固定 LTR;新增 `zh-TW` 静态语言包。
-- **资源文件**:宿主 `manifest/i18n/zh-TW.json`、`manifest/i18n/apidoc/zh-TW/*.json`;每个源码插件的 `manifest/i18n/zh-TW.json` 与 `manifest/i18n/apidoc/zh-TW/*.json`;前端 `packages/locales/src/langs/zh-TW/*.json` 与 `apps/web-antd/src/locales/langs/zh-TW/*.json`。
+- **资源文件**:宿主 `manifest/i18n/zh-TW/*.json`、`manifest/i18n/zh-TW/apidoc/**/*.json`;每个源码插件的 `manifest/i18n/zh-TW/*.json` 与 `manifest/i18n/zh-TW/apidoc/**/*.json`;前端 `packages/locales/src/langs/zh-TW/*.json` 与 `apps/web-antd/src/locales/langs/zh-TW/*.json`。
 - **测试**:后端补充 `Translate` 热路径基准测试与缓存分层失效单元测试;前端补充运行时 ETag/持久化缓存单元测试;新增 E2E 用例覆盖 `zh-TW` 下的语言切换、关键页面文本完整性、固定 `<html dir="ltr">` 断言;运行 `lina-review` 对前后端一致性校验。
 - **交付与维护**:`README.md` 与 `manifest/i18n/README.md` 等文档同步说明 ETag、新增语言流程与固定 LTR 边界;`OpenSpec specs` 同步更新 `framework-i18n-foundation` 主规范的对应条款。

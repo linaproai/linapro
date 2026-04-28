@@ -1,0 +1,899 @@
+{
+  "error": {
+    "auth": {
+      "login": {
+        "invalidCredentials": "用户名或密码错误",
+        "ipBlacklisted": "登录IP已被禁止",
+        "updateLastLoginFailed": "更新最后登录时间失败",
+        "userDisabled": "用户已停用"
+      },
+      "password": {
+        "hashFailed": "密码加密失败"
+      },
+      "token": {
+        "invalid": "无效的Token"
+      }
+    },
+    "sysconfig": {
+      "builtin": {
+        "delete": {
+          "denied": "内置运行时参数不允许删除"
+        },
+        "key": {
+          "rename": {
+            "denied": "内置运行时参数不允许修改键名"
+          }
+        }
+      },
+      "import": {
+        "excel": {
+          "parse": {
+            "failed": "无法解析 Excel 文件"
+          }
+        },
+        "file": {
+          "read": {
+            "failed": "无法读取导入文件"
+          },
+          "required": "请选择要导入的文件"
+        },
+        "insert": {
+          "failed": "插入失败"
+        },
+        "query": {
+          "failed": "数据库查询错误"
+        },
+        "sheet": {
+          "read": {
+            "failed": "无法读取工作表 {sheet}"
+          }
+        },
+        "update": {
+          "failed": "更新失败"
+        }
+      },
+      "key": {
+        "exists": "参数键名 {key} 已存在",
+        "not": {
+          "found": "参数键名不存在"
+        }
+      },
+      "not": {
+        "found": "参数设置不存在"
+      },
+      "protected": {
+        "value": {
+          "invalid": "内置系统参数值校验失败"
+        }
+      }
+    },
+    "dict": {
+      "data": {
+        "not": {
+          "found": "字典数据不存在"
+        }
+      },
+      "import": {
+        "excel": {
+          "parse": {
+            "failed": "无法解析 Excel 文件"
+          },
+          "read": {
+            "failed": "无法读取 Excel 文件"
+          }
+        },
+        "file": {
+          "required": "请选择要导入的文件"
+        }
+      },
+      "type": {
+        "exists": "字典类型已存在",
+        "not": {
+          "found": "字典类型不存在"
+        }
+      }
+    },
+    "http": {
+      "error": "请求失败",
+      "forbidden": "没有权限",
+      "not": {
+        "found": "资源不存在"
+      },
+      "unauthorized": "请先登录"
+    },
+    "file": {
+      "delete": {
+        "required": "请选择要删除的文件"
+      },
+      "hash": {
+        "failed": "计算文件散列值失败",
+        "query": {
+          "failed": "查询文件散列值失败"
+        }
+      },
+      "not": {
+        "found": "文件不存在"
+      },
+      "open": {
+        "failed": "打开上传文件失败"
+      },
+      "read": {
+        "reset": {
+          "failed": "重置文件读取位置失败"
+        }
+      },
+      "record": {
+        "id": {
+          "read": {
+            "failed": "读取新建文件记录ID失败"
+          }
+        },
+        "save": {
+          "cleanup": {
+            "failed": "保存文件记录失败，且清理存储文件失败"
+          },
+          "failed": "保存文件记录失败"
+        }
+      },
+      "store": {
+        "failed": "保存文件失败"
+      },
+      "too": {
+        "large": "文件大小不能超过{maxSizeMB}MB"
+      },
+      "upload": {
+        "required": "请上传文件"
+      }
+    },
+    "job": {
+      "handler": {
+        "not": {
+          "found": "任务处理器不存在"
+        },
+        "unavailable": "插件处理器当前不可用，无法手动触发",
+        "registry": {
+          "required": "任务处理器注册表不能为空"
+        },
+        "log": {
+          "cleaner": {
+            "required": "任务日志清理器不能为空"
+          }
+        },
+        "lifecycle": {
+          "bridge": {
+            "required": "插件生命周期桥接器不能为空"
+          }
+        },
+        "ref": {
+          "required": "任务处理器引用不能为空"
+        },
+        "display": {
+          "name": {
+            "required": "任务处理器展示名称不能为空"
+          }
+        },
+        "callback": {
+          "required": "任务处理器回调不能为空"
+        },
+        "source": {
+          "unsupported": "任务处理器来源不受支持"
+        },
+        "plugin": {
+          "id": {
+            "required": "插件处理器必须声明插件ID"
+          }
+        },
+        "exists": "任务处理器 {ref} 已存在",
+        "schema": {
+          "parse": {
+            "failed": "解析任务处理器参数 Schema 失败"
+          },
+          "single": {
+            "object": {
+              "required": "任务处理器参数 Schema 只能包含一个 JSON 对象"
+            }
+          },
+          "root": {
+            "type": {
+              "invalid": "任务处理器参数 Schema 根节点必须声明 type=object"
+            }
+          },
+          "empty": {
+            "property": {
+              "name": "任务处理器参数 Schema 不允许存在空属性名"
+            }
+          },
+          "required": {
+            "field": {
+              "unknown": "任务处理器参数 Schema 的 required 字段 {field} 未在 properties 中声明"
+            }
+          },
+          "field": {
+            "type": {
+              "unsupported": "任务处理器参数 {field} 的类型 {fieldType} 不在受支持范围内"
+            },
+            "format": {
+              "unsupported": "任务处理器参数 {field} 的 format={format} 不受支持",
+              "type": {
+                "invalid": "任务处理器参数 {field} 只有 string 类型才允许声明 format"
+              }
+            }
+          },
+          "enum": {
+            "value": {
+              "invalid": "任务处理器参数 {field} 的枚举值不合法"
+            }
+          }
+        },
+        "param": {
+          "required": {
+            "missing": "任务处理器参数缺少必填字段 {field}"
+          },
+          "type": {
+            "mismatch": "任务处理器参数 {field} 类型不匹配"
+          },
+          "enum": {
+            "invalid": "任务处理器参数 {field} 不在允许的枚举值范围内"
+          },
+          "date": {
+            "format": {
+              "invalid": "任务处理器参数 {field} 必须为 YYYY-MM-DD 日期格式"
+            },
+            "time": {
+              "format": {
+                "invalid": "任务处理器参数 {field} 必须为 RFC3339 时间格式"
+              }
+            }
+          }
+        },
+        "params": {
+          "parse": {
+            "failed": "解析任务处理器参数失败"
+          },
+          "single": {
+            "object": {
+              "required": "任务处理器参数只能包含一个 JSON 对象"
+            }
+          }
+        },
+        "value": {
+          "unsupported": "不支持的任务处理器参数值: {value}"
+        },
+        "json": {
+          "trailing": {
+            "content": "检测到多余 JSON 内容"
+          }
+        },
+        "wait": {
+          "params": {
+            "parse": {
+              "failed": "解析等待处理器参数失败"
+            }
+          },
+          "seconds": {
+            "invalid": "等待秒数必须大于0"
+          }
+        }
+      },
+      "log": {
+        "current": {
+          "user": {
+            "missing": "未获取到当前登录用户"
+          }
+        },
+        "shell": {
+          "cancel": {
+            "permission": {
+              "denied": "当前用户缺少接口权限: {permission}"
+            }
+          }
+        },
+        "not": {
+          "found": "执行日志不存在",
+          "running": "当前日志实例未在运行"
+        }
+      },
+      "group": {
+        "default": {
+          "not": {
+            "found": "默认任务分组不存在"
+          },
+          "delete": {
+            "denied": "默认任务分组不允许删除"
+          }
+        },
+        "not": {
+          "found": "任务分组不存在"
+        },
+        "code": {
+          "required": "任务分组编码不能为空",
+          "exists": "任务分组编码已存在"
+        },
+        "name": {
+          "required": "任务分组名称不能为空"
+        },
+        "delete": {
+          "required": "请选择要删除的任务分组",
+          "empty": "没有可删除的任务分组"
+        }
+      },
+      "create": {
+        "shell": {
+          "only": "仅允许通过界面创建 Shell 类型定时任务"
+        }
+      },
+      "update": {
+        "shell": {
+          "only": "仅允许通过界面编辑 Shell 类型定时任务"
+        }
+      },
+      "builtin": {
+        "update": {
+          "denied": "源码注册任务不允许修改"
+        },
+        "delete": {
+          "denied": "源码注册任务不允许删除"
+        },
+        "status": {
+          "update": {
+            "denied": "源码注册任务不允许修改状态"
+          }
+        },
+        "reset": {
+          "denied": "源码注册任务不允许重置执行次数"
+        },
+        "group": {
+          "not": {
+            "found": "定时任务分组不存在: {groupCode}"
+          }
+        },
+        "type": {
+          "unsupported": "源码注册任务类型不受支持"
+        },
+        "name": {
+          "required": "源码注册任务名称不能为空"
+        },
+        "timeout": {
+          "second": {
+            "aligned": {
+              "required": "源码注册任务超时时间必须按秒配置"
+            }
+          }
+        },
+        "cron": {
+          "expression": {
+            "required": "源码注册任务表达式不能为空",
+            "too": {
+              "long": "源码注册任务表达式长度不能超过128个字符"
+            }
+          }
+        },
+        "max": {
+          "executions": {
+            "invalid": "源码注册任务最大执行次数不能小于0"
+          }
+        },
+        "handler": {
+          "ref": {
+            "required": "源码注册任务处理器引用不能为空"
+          }
+        },
+        "params": {
+          "marshal": {
+            "failed": "序列化源码注册任务参数失败"
+          }
+        }
+      },
+      "delete": {
+        "required": "请选择要删除的定时任务"
+      },
+      "name": {
+        "required": "任务名称不能为空",
+        "too": {
+          "long": "任务名称长度不能超过128个字符"
+        },
+        "exists": {
+          "in": {
+            "group": "任务名称在当前分组下已存在"
+          }
+        }
+      },
+      "timeout": {
+        "second": {
+          "aligned": {
+            "required": "任务超时时间必须按秒配置"
+          }
+        },
+        "out": {
+          "of": {
+            "range": "任务超时时间必须在1-86400秒之间"
+          }
+        }
+      },
+      "task": {
+        "type": {
+          "invalid": "任务类型仅支持 handler 或 shell",
+          "unsupported": "任务类型不受支持"
+        }
+      },
+      "scope": {
+        "invalid": "任务调度范围仅支持 master_only 或 all_node"
+      },
+      "concurrency": {
+        "invalid": "任务并发策略仅支持 singleton 或 parallel"
+      },
+      "status": {
+        "invalid": "任务状态仅支持 enabled 或 disabled",
+        "toggle": {
+          "invalid": "任务状态仅支持启用或停用"
+        }
+      },
+      "max": {
+        "executions": {
+          "invalid": "最大执行次数必须为大于等于0的整数"
+        },
+        "concurrency": {
+          "invalid": "最大并发数必须为1-100之间的整数"
+        }
+      },
+      "params": {
+        "marshal": {
+          "failed": "序列化任务参数失败"
+        }
+      },
+      "shell": {
+        "env": {
+          "marshal": {
+            "failed": "序列化 Shell 环境变量失败"
+          }
+        },
+        "executor": {
+          "uninitialized": "Shell 执行器未初始化"
+        },
+        "disabled": "当前环境未启用 Shell 任务",
+        "command": {
+          "required": "Shell 命令不能为空"
+        },
+        "timeout": {
+          "invalid": "Shell 任务超时时间必须大于0"
+        },
+        "start": {
+          "failed": "启动 Shell 任务失败"
+        },
+        "execution": {
+          "failed": "执行 Shell 任务失败"
+        },
+        "workdir": {
+          "root": {
+            "denied": "Shell 工作目录不能为根路径"
+          },
+          "validate": {
+            "failed": "校验 Shell 工作目录失败"
+          },
+          "not": {
+            "directory": "Shell 工作目录必须为目录"
+          }
+        }
+      },
+      "scheduler": {
+        "uninitialized": "定时任务调度器未初始化"
+      },
+      "cron": {
+        "expression": {
+          "required": "定时表达式不能为空",
+          "too": {
+            "long": "定时表达式长度不能超过128个字符"
+          },
+          "invalid": "定时表达式格式不正确: {reason}"
+        },
+        "seconds": {
+          "required": "6段定时表达式的秒位必须填写具体值，5段表达式无需手工填写#"
+        },
+        "field": {
+          "count": {
+            "invalid": "定时表达式仅支持5段或6段",
+            "unsupported": "Cron 表达式字段数量不受支持"
+          }
+        }
+      },
+      "timezone": {
+        "invalid": "任务时区不合法: {timezone}"
+      },
+      "not": {
+        "found": "定时任务不存在"
+      },
+      "snapshot": {
+        "marshal": {
+          "failed": "序列化任务快照失败"
+        }
+      },
+      "retention": {
+        "parse": {
+          "failed": "解析日志保留策略失败"
+        },
+        "mode": {
+          "unsupported": "日志保留策略模式不受支持"
+        },
+        "value": {
+          "invalid": "日志保留策略阈值必须大于0"
+        },
+        "marshal": {
+          "failed": "序列化日志保留策略失败"
+        }
+      }
+    },
+    "menu": {
+      "has": {
+        "children": {
+          "delete": {
+            "denied": "存在子菜单，不允许删除"
+          }
+        }
+      },
+      "icon": {
+        "exists": "菜单图标 {icon} 已被其他目录或菜单使用"
+      },
+      "move": {
+        "to": {
+          "descendant": {
+            "denied": "不能将菜单移动到自己的子菜单下"
+          },
+          "self": {
+            "denied": "不能将菜单移动到自己"
+          }
+        }
+      },
+      "name": {
+        "exists": "同级菜单名称已存在"
+      },
+      "not": {
+        "found": "菜单不存在"
+      }
+    },
+    "notify": {
+      "channel": {
+        "key": {
+          "required": "通知通道标识不能为空"
+        },
+        "type": {
+          "unsupported": "通知通道类型暂不支持: {channelType}"
+        },
+        "unavailable": "通知通道不存在或已停用"
+      },
+      "inbox": {
+        "recipient": {
+          "required": "站内信接收用户不能为空"
+        }
+      },
+      "payload": {
+        "marshal": {
+          "failed": "序列化通知扩展载荷失败"
+        }
+      },
+      "title": {
+        "required": "通知标题不能为空"
+      },
+      "user": {
+        "not": {
+          "found": "用户不存在"
+        }
+      }
+    },
+    "permission": {
+      "contextLoadFailed": "加载接口权限上下文失败",
+      "currentUserMissing": "未获取到当前登录用户",
+      "denied": {
+        "required": "当前用户缺少接口权限: {permissions}"
+      }
+    },
+    "role": {
+      "key": {
+        "exists": "权限字符已存在"
+      },
+      "name": {
+        "exists": "角色名称已存在"
+      },
+      "not": {
+        "found": "角色不存在"
+      }
+    },
+    "user": {
+      "builtin": {
+        "admin": {
+          "delete": {
+            "denied": "不能删除默认管理员"
+          }
+        }
+      },
+      "current": {
+        "delete": {
+          "denied": "不能删除当前登录用户"
+        },
+        "disable": {
+          "denied": "不能停用当前登录用户"
+        },
+        "edit": {
+          "denied": "不能编辑当前登录用户"
+        }
+      },
+      "import": {
+        "excel": {
+          "parse": {
+            "failed": "无法解析 Excel 文件"
+          }
+        },
+        "file": {
+          "required": "请选择要导入的文件"
+        },
+        "sheet": {
+          "read": {
+            "failed": "无法读取工作表 {sheet}"
+          }
+        }
+      },
+      "not": {
+        "authenticated": "未登录",
+        "found": "用户不存在"
+      },
+      "username": {
+        "exists": "用户名已存在"
+      }
+    },
+    "usermsg": {
+      "not": {
+        "authenticated": "未登录",
+        "found": "消息不存在"
+      }
+    },
+    "upload": {
+      "file": {
+        "too": {
+          "large": "文件大小不能超过{maxSizeMB}MB"
+        }
+      },
+      "fileTooLarge": "文件大小不能超过%dMB",
+      "request": {
+        "body": {
+          "too": {
+            "large": "上传文件过大"
+          }
+        }
+      },
+      "requestBodyTooLarge": "上传文件过大"
+    },
+    "host": {
+      "lock": {
+        "plugin": {
+          "id": {
+            "required": "插件ID不能为空"
+          }
+        },
+        "resource": {
+          "required": "逻辑锁名不能为空"
+        },
+        "name": {
+          "too": {
+            "long": "实际锁名长度超出限制，最大允许 {maxBytes} 字节"
+          }
+        },
+        "lease": {
+          "too": {
+            "short": "锁租期不能小于 {minLease}",
+            "long": "锁租期不能大于 {maxLease}"
+          }
+        },
+        "ticket": {
+          "marshal": {
+            "failed": "序列化锁票据失败"
+          },
+          "required": "锁票据不能为空",
+          "parse": {
+            "failed": "解析锁票据失败"
+          },
+          "unmarshal": {
+            "failed": "反序列化锁票据失败"
+          },
+          "invalid": "锁票据内容无效",
+          "plugin": {
+            "mismatch": "锁票据插件身份不匹配"
+          },
+          "resource": {
+            "mismatch": "锁票据逻辑锁名不匹配"
+          }
+        }
+      }
+    },
+    "kv": {
+      "cache": {
+        "key": {
+          "invalid": "缓存键格式无效，请使用 kvcache.BuildCacheKey 构造"
+        },
+        "value": {
+          "not": {
+            "integer": "缓存值不是整数"
+          },
+          "too": {
+            "long": "缓存值长度超出限制，最大允许 {maxBytes} 字节"
+          }
+        },
+        "increment": {
+          "value": {
+            "not": {
+              "integer": "缓存值不是整数，无法执行自增"
+            }
+          }
+        },
+        "expire": {
+          "seconds": {
+            "negative": "缓存过期秒数不能为负数"
+          }
+        },
+        "field": {
+          "required": "缓存字段 {field} 不能为空",
+          "too": {
+            "long": "缓存字段 {field} 长度超出限制，最大允许 {maxBytes} 字节"
+          }
+        }
+      }
+    },
+    "config": {
+      "param": {
+        "required": "参数 {key} 不能为空",
+        "duration": {
+          "invalid": "参数 {key} 必须为合法时长"
+        },
+        "positive": {
+          "required": "参数 {key} 必须大于 0"
+        },
+        "integer": {
+          "invalid": "参数 {key} 必须为整数"
+        },
+        "ip": {
+          "cidr": {
+            "invalid": "参数 {key} 包含非法 IP 或 CIDR: {value}"
+          }
+        },
+        "bool": {
+          "invalid": "参数 {key} 必须为 true 或 false"
+        },
+        "allowed": {
+          "value": {
+            "invalid": "参数 {key} 不在支持范围内"
+          }
+        },
+        "text": {
+          "too": {
+            "long": "参数 {key} 长度不能超过 {maxLen} 个字符"
+          }
+        },
+        "json": {
+          "object": {
+            "invalid": "参数 {key} 必须为合法 JSON 对象"
+          },
+          "single": {
+            "object": {
+              "required": "参数 {key} 只能包含一个 JSON 对象"
+            }
+          },
+          "trailing": {
+            "content": "参数 {key} 包含多余 JSON 内容"
+          }
+        }
+      },
+      "cron": {
+        "retention": {
+          "value": {
+            "positive": {
+              "required": "参数 {key} 的 value 必须大于 0"
+            },
+            "non": {
+              "negative": {
+                "required": "参数 {key} 的 value 不能小于 0"
+              }
+            }
+          },
+          "mode": {
+            "unsupported": "参数 {key} 的 mode 不在支持范围内"
+          }
+        }
+      }
+    },
+    "cron": {
+      "session": {
+        "cleanup": {
+          "dependency": {
+            "missing": "在线会话清理依赖未初始化"
+          }
+        }
+      },
+      "access": {
+        "topology": {
+          "dependency": {
+            "missing": "权限拓扑同步依赖未初始化"
+          }
+        }
+      },
+      "runtime": {
+        "param": {
+          "dependency": {
+            "missing": "运行时参数同步依赖未初始化"
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "auth": {
+      "login": {
+        "password": {
+          "required": "请输入密码"
+        },
+        "username": {
+          "required": "请输入用户名"
+        }
+      }
+    },
+    "config": {
+      "create": {
+        "key": {
+          "required": "请输入参数键名"
+        },
+        "name": {
+          "required": "请输入参数名称"
+        },
+        "value": {
+          "required": "请输入参数键值"
+        }
+      }
+    },
+    "dict": {
+      "data": {
+        "create": {
+          "dictType": {
+            "required": "请输入字典类型"
+          },
+          "label": {
+            "required": "请输入字典标签"
+          },
+          "value": {
+            "required": "请输入字典值"
+          }
+        }
+      },
+      "type": {
+        "create": {
+          "name": {
+            "required": "请输入字典名称"
+          },
+          "type": {
+            "required": "请输入字典类型"
+          }
+        }
+      }
+    },
+    "user": {
+      "create": {
+        "password": {
+          "length": "密码长度为6-32个字符",
+          "required": "请输入密码"
+        },
+        "username": {
+          "length": "用户名长度为2-64个字符",
+          "required": "请输入用户名"
+        }
+      },
+      "nickname": {
+        "required": "请输入昵称"
+      },
+      "resetPassword": {
+        "password": {
+          "length": "密码长度为5-20个字符",
+          "required": "请输入密码"
+        }
+      },
+      "status": {
+        "invalid": "状态值无效"
+      }
+    }
+  }
+}

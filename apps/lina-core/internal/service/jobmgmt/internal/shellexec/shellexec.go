@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	configsvc "lina-core/internal/service/config"
+	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 )
 
@@ -85,21 +85,21 @@ func New(configSvc shellGate) Executor {
 // Execute runs one shell command with timeout, environment merging, and output capture.
 func (s *serviceImpl) Execute(ctx context.Context, in ExecuteInput) (*ExecuteOutput, error) {
 	if s == nil {
-		return nil, gerror.New("Shell 执行器未初始化")
+		return nil, bizerr.NewCode(jobmeta.CodeJobShellExecutorUninitialized)
 	}
 	shellEnabled, err := s.configSvc.IsCronShellEnabled(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if !shellEnabled {
-		return nil, gerror.New("当前环境未启用 Shell 任务执行")
+		return nil, bizerr.NewCode(jobmeta.CodeJobShellDisabled)
 	}
 	commandText := strings.TrimSpace(in.ShellCmd)
 	if commandText == "" {
-		return nil, gerror.New("Shell 命令不能为空")
+		return nil, bizerr.NewCode(jobmeta.CodeJobShellCommandRequired)
 	}
 	if in.Timeout <= 0 {
-		return nil, gerror.New("Shell 任务超时时间必须大于0")
+		return nil, bizerr.NewCode(jobmeta.CodeJobShellTimeoutInvalid)
 	}
 
 	workDir, err := s.resolveWorkDir(in.WorkDir)
@@ -123,7 +123,7 @@ func (s *serviceImpl) Execute(ctx context.Context, in ExecuteInput) (*ExecuteOut
 	cmd.Stderr = stderrBuffer
 
 	if err = cmd.Start(); err != nil {
-		return nil, gerror.Wrap(err, "启动 Shell 任务失败")
+		return nil, bizerr.WrapCode(err, jobmeta.CodeJobShellStartFailed)
 	}
 
 	waitCh := make(chan error, 1)
@@ -150,14 +150,14 @@ func (s *serviceImpl) resolveWorkDir(workDir string) (string, error) {
 
 	cleaned := filepath.Clean(trimmed)
 	if cleaned == string(filepath.Separator) {
-		return "", gerror.New("Shell 工作目录不能为根路径")
+		return "", bizerr.NewCode(jobmeta.CodeJobShellWorkdirRootDenied)
 	}
 	info, err := os.Stat(cleaned)
 	if err != nil {
-		return "", gerror.Wrap(err, "校验 Shell 工作目录失败")
+		return "", bizerr.WrapCode(err, jobmeta.CodeJobShellWorkdirValidateFailed)
 	}
 	if !info.IsDir() {
-		return "", gerror.New("Shell 工作目录必须为目录")
+		return "", bizerr.NewCode(jobmeta.CodeJobShellWorkdirNotDirectory)
 	}
 	return cleaned, nil
 }
@@ -193,7 +193,7 @@ func wrapCommandWaitError(waitErr error) error {
 	if waitErr == nil {
 		return nil
 	}
-	return gerror.Wrap(waitErr, "执行 Shell 任务失败")
+	return bizerr.WrapCode(waitErr, jobmeta.CodeJobShellExecutionFailed)
 }
 
 // buildExecuteOutput builds one completed shell result snapshot.

@@ -1,0 +1,136 @@
+{
+  "config": {
+    "field": {
+      "createdAt": "创建时间",
+      "key": "参数键名",
+      "name": "参数名称",
+      "remark": "备注",
+      "updatedAt": "修改时间",
+      "value": "参数键值"
+    },
+    "cron": {
+      "log": {
+        "retention": {
+          "name": "定时任务-执行日志保留策略",
+          "remark": "控制定时任务执行日志默认保留策略，使用 JSON：{\"mode\":\"days|count|none\",\"value\":N}。"
+        }
+      },
+      "shell": {
+        "enabled": {
+          "name": "定时任务-Shell 模式全局开关",
+          "remark": "控制 Shell 类型任务是否允许创建、修改、触发与终止，可选值：true、false。"
+        }
+      }
+    },
+    "demo": {
+      "notice": {
+        "banner": {
+          "name": "演示-首页公告文案",
+          "remark": "仅用于演示自定义参数能力，不被宿主运行时直接消费。"
+        }
+      },
+      "support": {
+        "email": {
+          "name": "演示-支持邮箱",
+          "remark": "仅用于演示自定义参数能力，不被宿主运行时直接消费。"
+        }
+      }
+    },
+    "sys": {
+      "app": {
+        "logo": {
+          "name": "品牌展示-应用 Logo",
+          "remark": "控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。"
+        },
+        "logoDark": {
+          "name": "品牌展示-深色 Logo",
+          "remark": "控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。"
+        },
+        "name": {
+          "name": "品牌展示-应用名称",
+          "remark": "控制浏览器标题、登录页品牌名称和工作台 Logo 文案展示，建议填写简洁的产品名称。"
+        }
+      },
+      "auth": {
+        "loginPanelLayout": {
+          "name": "登录展示-登录框位置",
+          "remark": "控制登录框默认布局，可选值：panel-left、panel-center、panel-right。"
+        },
+        "loginSubtitle": {
+          "name": "登录展示-登录副标题",
+          "remark": "控制登录表单上方的提示说明文案。"
+        },
+        "pageDesc": {
+          "name": "登录展示-页面说明",
+          "remark": "控制登录页顶部说明文案。"
+        },
+        "pageTitle": {
+          "name": "登录展示-页面标题",
+          "remark": "控制登录页顶部主标题文案。"
+        }
+      },
+      "cron": {
+        "logRetention": {
+          "name": "定时任务-日志保留策略",
+          "remark": "控制默认的定时任务日志清理策略，JSON 格式：{\"mode\":\"days|count|none\",\"value\":N}。"
+        },
+        "shellEnabled": {
+          "name": "定时任务-Shell 模式开关",
+          "remark": "控制是否允许创建、修改和执行 Shell 类型定时任务，可选值：true、false。"
+        }
+      },
+      "jwt": {
+        "expire": {
+          "name": "认证管理-JWT Token 有效期",
+          "remark": "控制新签发 JWT Token 的有效期，支持 Go duration 格式，如 12h、24h。"
+        }
+      },
+      "login": {
+        "ipBlacklist": {
+          "name": "用户登录-IP 黑名单列表",
+          "remark": "禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。"
+        }
+      },
+      "session": {
+        "timeout": {
+          "name": "在线用户-会话超时时间",
+          "remark": "控制在线会话无活动超时时长，支持 Go duration 格式，如 30m、24h。"
+        }
+      },
+      "ui": {
+        "layout": {
+          "name": "界面风格-工作台布局",
+          "remark": "控制后台默认布局，可选值：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content。"
+        },
+        "theme": {
+          "mode": {
+            "name": "界面风格-主题模式",
+            "remark": "控制默认主题模式，可选值：light、dark、auto。"
+          }
+        },
+        "watermark": {
+          "content": {
+            "name": "界面风格-水印文案",
+            "remark": "控制工作台水印文案内容。"
+          },
+          "enabled": {
+            "name": "界面风格-是否启用水印",
+            "remark": "控制工作台是否启用水印，可选值：true、false。"
+          }
+        }
+      },
+      "upload": {
+        "maxSize": {
+          "name": "文件管理-上传大小上限",
+          "remark": "控制单个上传文件大小上限，单位为 MB，必须为正整数。"
+        }
+      },
+      "user": {
+        "defaultAvatar": {
+          "name": "用户管理-默认头像",
+          "remark": "控制用户未设置头像时的默认头像地址，支持 http(s) 或站内绝对路径。"
+        }
+      }
+    }
+  }
+}

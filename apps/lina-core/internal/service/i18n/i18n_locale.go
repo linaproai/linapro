@@ -71,7 +71,8 @@ func (s *serviceImpl) loadConfiguredRuntimeLocales(ctx context.Context, config *
 	return buildConfiguredRuntimeLocales(discoveredLocales, config)
 }
 
-// discoverHostRuntimeLocaleFiles lists host manifest/i18n/*.json locale files.
+// discoverHostRuntimeLocaleFiles lists host manifest/i18n/<locale> directories
+// that contain direct runtime JSON files.
 func discoverHostRuntimeLocaleFiles(ctx context.Context) []string {
 	entries, err := fs.ReadDir(packed.Files, hostI18nDir)
 	if err != nil {
@@ -81,21 +82,40 @@ func discoverHostRuntimeLocaleFiles(ctx context.Context) []string {
 
 	locales := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if entry == nil || entry.IsDir() {
+		if entry == nil || !entry.IsDir() {
 			continue
 		}
 		name := strings.TrimSpace(entry.Name())
-		if !strings.HasSuffix(name, ".json") {
-			continue
-		}
-		locale := normalizeLocale(strings.TrimSuffix(name, ".json"))
+		locale := normalizeLocale(name)
 		if locale == "" {
 			continue
 		}
-		locales = append(locales, locale)
+		if hostRuntimeLocaleDirectoryHasJSON(ctx, locale) {
+			locales = append(locales, locale)
+		}
 	}
 	sort.Strings(locales)
 	return locales
+}
+
+// hostRuntimeLocaleDirectoryHasJSON reports whether a locale directory has at
+// least one direct runtime JSON file. Nested apidoc resources do not count.
+func hostRuntimeLocaleDirectoryHasJSON(ctx context.Context, locale string) bool {
+	dir := hostI18nDir + "/" + locale
+	entries, err := fs.ReadDir(packed.Files, dir)
+	if err != nil {
+		logger.Warningf(ctx, "scan host i18n locale directory failed dir=%s err=%v", dir, err)
+		return false
+	}
+	for _, entry := range entries {
+		if entry == nil || entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(strings.TrimSpace(entry.Name()), ".json") {
+			return true
+		}
+	}
+	return false
 }
 
 // loadRuntimeI18nConfig loads runtime locale metadata from the shared config service.

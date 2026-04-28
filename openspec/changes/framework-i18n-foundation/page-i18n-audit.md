@@ -94,7 +94,7 @@
 
 - 宿主 SQL 仍写入大量直接面向 UI 的中文默认数据，包括菜单、角色、调度任务、配置示例、组织与用户演示数据；这些内容在英文态下会直接投射到列表、页签、详情和下拉选项中
   - 来源范围：`apps/lina-core/manifest/sql/002-dict-dept-post.sql`、`apps/lina-core/manifest/sql/007-config-management.sql`、`apps/lina-core/manifest/sql/008-menu-role-management.sql`、`apps/lina-core/manifest/sql/014-scheduled-job-management.sql`、`apps/lina-core/manifest/sql/mock-data/003-mock-users.sql`、`apps/lina-core/manifest/sql/mock-data/006-mock-configs.sql`
-- 多个内建插件仍通过 `plugin.yaml`、插件前端源码与插件安装 SQL 直接交付中文内容，而不是通过 `manifest/i18n/en-US.json` 或业务内容多语言模型进行英文投影
+- 多个内建插件仍通过 `plugin.yaml`、插件前端源码与插件安装 SQL 直接交付中文内容，而不是通过 `manifest/i18n/en-US/*.json` 或业务内容多语言模型进行英文投影
   - 来源范围：`apps/lina-plugins/org-center/plugin.yaml`、`apps/lina-plugins/content-notice/plugin.yaml`、`apps/lina-plugins/monitor-online/plugin.yaml`、`apps/lina-plugins/monitor-server/plugin.yaml`、`apps/lina-plugins/monitor-operlog/plugin.yaml`、`apps/lina-plugins/monitor-loginlog/plugin.yaml`、`apps/lina-plugins/plugin-demo-dynamic/plugin.yaml`
 
 ## 跟进建议

@@ -1,0 +1,7 @@
+{
+  "menu": {
+    "plugin:monitor-server:server": {
+      "title": "Server Metrics"
+    }
+  }
+}

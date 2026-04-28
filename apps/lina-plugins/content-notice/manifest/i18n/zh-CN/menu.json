@@ -1,0 +1,19 @@
+{
+  "menu": {
+    "plugin:content-notice:notice": {
+      "title": "通知公告"
+    },
+    "plugin:content-notice:notice:add": {
+      "title": "新增通知公告"
+    },
+    "plugin:content-notice:notice:edit": {
+      "title": "编辑通知公告"
+    },
+    "plugin:content-notice:notice:query": {
+      "title": "通知公告查询"
+    },
+    "plugin:content-notice:notice:remove": {
+      "title": "删除通知公告"
+    }
+  }
+}

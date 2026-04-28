@@ -69,13 +69,19 @@ func (s *serviceImpl) CombinedExport(ctx context.Context, in CombinedExportInput
 	f := excelize.NewFile()
 	defer closeExcelFile(ctx, f, &err)
 
-	// Sheet 1: 字典类型
-	typeSheet := "字典类型"
+	// Sheet 1 stores dictionary type metadata.
+	typeSheet := s.dictTypeSheetName(ctx)
 	if err = setSheetName(f, "Sheet1", typeSheet); err != nil {
 		return nil, err
 	}
 
-	typeHeaders := []string{"字典名称", "字典类型", "状态", "备注", "创建时间"}
+	typeHeaders := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.type.header.name", Fallback: "Dictionary Name"},
+		{Key: "artifact.dict.type.header.type", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.type.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.type.header.remark", Fallback: "Remark"},
+		{Key: "artifact.dict.type.header.createdAt", Fallback: "Created At"},
+	})
 	for i, h := range typeHeaders {
 		if err = setCellValue(f, typeSheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -90,10 +96,7 @@ func (s *serviceImpl) CombinedExport(ctx context.Context, in CombinedExportInput
 		if err = setCellValue(f, typeSheet, 2, row, dt.Type); err != nil {
 			return nil, err
 		}
-		statusText := "正常"
-		if dt.Status == 0 {
-			statusText = "停用"
-		}
+		statusText := s.dictStatusText(ctx, dt.Status)
 		if err = setCellValue(f, typeSheet, 3, row, statusText); err != nil {
 			return nil, err
 		}
@@ -107,13 +110,23 @@ func (s *serviceImpl) CombinedExport(ctx context.Context, in CombinedExportInput
 		}
 	}
 
-	// Sheet 2: 字典数据
-	dataSheet := "字典数据"
+	// Sheet 2 stores dictionary data entries.
+	dataSheet := s.dictDataSheetName(ctx)
 	if err = newSheet(f, dataSheet); err != nil {
 		return nil, err
 	}
 
-	dataHeaders := []string{"所属类型", "字典标签", "字典值", "排序", "Tag样式", "CSS类", "状态", "备注", "创建时间"}
+	dataHeaders := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.data.header.dictType", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.data.header.label", Fallback: "Dictionary Label"},
+		{Key: "artifact.dict.data.header.value", Fallback: "Dictionary Value"},
+		{Key: "artifact.dict.data.header.sort", Fallback: "Sort"},
+		{Key: "artifact.dict.data.header.tagStyle", Fallback: "Tag Style"},
+		{Key: "artifact.dict.data.header.cssClass", Fallback: "CSS Class"},
+		{Key: "artifact.dict.data.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.data.header.remark", Fallback: "Remark"},
+		{Key: "artifact.dict.data.header.createdAt", Fallback: "Created At"},
+	})
 	for i, h := range dataHeaders {
 		if err = setCellValue(f, dataSheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -140,10 +153,7 @@ func (s *serviceImpl) CombinedExport(ctx context.Context, in CombinedExportInput
 		if err = setCellValue(f, dataSheet, 6, row, dd.CssClass); err != nil {
 			return nil, err
 		}
-		statusText := "正常"
-		if dd.Status == 0 {
-			statusText = "停用"
-		}
+		statusText := s.dictStatusText(ctx, dd.Status)
 		if err = setCellValue(f, dataSheet, 7, row, statusText); err != nil {
 			return nil, err
 		}

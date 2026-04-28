@@ -9,6 +9,7 @@ import { Popconfirm } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { forceLogout, onlineList } from '#/api/monitor/online';
+import { $t } from '#/locales';
 
 import { columns, querySchema } from './data';
 
@@ -16,7 +17,7 @@ const onlineCount = ref(0);
 
 const [Grid, gridApi] = useVbenVxeGrid({
   formOptions: {
-    schema: querySchema,
+    schema: querySchema(),
     commonConfig: {
       labelWidth: 80,
       componentProps: {
@@ -26,7 +27,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
     wrapperClass: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
   },
   gridOptions: {
-    columns,
+    columns: columns(),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -67,19 +68,25 @@ async function handleForceOffline(row: OnlineUser) {
       <template #toolbar-actions>
         <div class="mr-1 pl-1 text-[1rem]">
           <div>
-            在线用户列表 (共
+            {{ $t('pages.monitor.online.tableTitlePrefix') }}
             <span class="text-primary font-bold">{{ onlineCount }}</span>
-            人在线)
+            {{ $t('pages.monitor.online.tableTitleSuffix') }}
           </div>
         </div>
       </template>
       <template #action="{ row }">
         <Popconfirm
-          :title="`确认强制下线[${row.username}]?`"
+          :title="
+            $t('pages.monitor.online.messages.forceOfflineConfirm', {
+              username: row.username,
+            })
+          "
           placement="left"
           @confirm="handleForceOffline(row)"
         >
-          <ghost-button danger>强制下线</ghost-button>
+          <ghost-button danger>
+            {{ $t('pages.monitor.online.actions.forceOffline') }}
+          </ghost-button>
         </Popconfirm>
       </template>
     </Grid>

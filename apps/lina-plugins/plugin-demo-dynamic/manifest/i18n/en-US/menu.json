@@ -1,0 +1,7 @@
+{
+  "menu": {
+    "plugin:plugin-demo-dynamic:main-entry": {
+      "title": "Dynamic Plugin Demo"
+    }
+  }
+}

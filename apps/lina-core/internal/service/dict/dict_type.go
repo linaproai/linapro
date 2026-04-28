@@ -7,12 +7,12 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 )
 
 // ListInput defines filters and pagination for dictionary-type queries.
@@ -80,7 +80,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		return 0, err
 	}
 	if count > 0 {
-		return 0, gerror.New("字典类型已存在")
+		return 0, bizerr.NewCode(CodeDictTypeExists)
 	}
 
 	id, err := dao.SysDictType.Ctx(ctx).Data(do.SysDictType{
@@ -106,7 +106,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysDictType,
 		return nil, err
 	}
 	if dictType == nil {
-		return nil, gerror.New("字典类型不存在")
+		return nil, bizerr.NewCode(CodeDictTypeNotFound)
 	}
 	return dictType, nil
 }
@@ -143,7 +143,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 				return err
 			}
 			if count > 0 {
-				return gerror.New("字典类型已存在")
+				return bizerr.NewCode(CodeDictTypeExists)
 			}
 		}
 		data.Type = *in.Type
@@ -220,7 +220,13 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
-	headers := []string{"字典名称", "字典类型", "状态", "备注", "创建时间"}
+	headers := s.runtimeTexts(ctx, []runtimeTextItem{
+		{Key: "artifact.dict.type.header.name", Fallback: "Dictionary Name"},
+		{Key: "artifact.dict.type.header.type", Fallback: "Dictionary Type"},
+		{Key: "artifact.dict.type.header.status", Fallback: "Status"},
+		{Key: "artifact.dict.type.header.remark", Fallback: "Remark"},
+		{Key: "artifact.dict.type.header.createdAt", Fallback: "Created At"},
+	})
 	for i, h := range headers {
 		if err = setCellValue(f, sheet, i+1, 1, h); err != nil {
 			return nil, err
@@ -235,10 +241,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if err = setCellValue(f, sheet, 2, row, dt.Type); err != nil {
 			return nil, err
 		}
-		statusText := "正常"
-		if dt.Status == 0 {
-			statusText = "停用"
-		}
+		statusText := s.dictStatusText(ctx, dt.Status)
 		if err = setCellValue(f, sheet, 3, row, statusText); err != nil {
 			return nil, err
 		}

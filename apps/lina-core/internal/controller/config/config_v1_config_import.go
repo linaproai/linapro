@@ -5,10 +5,11 @@ package config
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
 	v1 "lina-core/api/config/v1"
+	"lina-core/internal/service/sysconfig"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 )
 
@@ -17,7 +18,7 @@ func (c *ControllerV1) ConfigImport(ctx context.Context, req *v1.ConfigImportReq
 	r := g.RequestFromCtx(ctx)
 	file := r.GetUploadFile("file")
 	if file == nil {
-		return nil, gerror.New("请选择要导入的文件")
+		return nil, bizerr.NewCode(sysconfig.CodeSysConfigImportFileRequired)
 	}
 
 	// Get updateSupport flag
@@ -25,9 +26,9 @@ func (c *ControllerV1) ConfigImport(ctx context.Context, req *v1.ConfigImportReq
 
 	f, err := file.Open()
 	if err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, sysconfig.CodeSysConfigImportFileReadFailed)
 	}
-	defer closeutil.Close(ctx, f, &err, "关闭配置导入文件失败")
+	defer closeutil.Close(ctx, f, &err, "close config import file failed")
 
 	result, err := c.svc.Import(ctx, f, updateSupport)
 	if err != nil {

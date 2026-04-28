@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/robfig/cron/v3"
+
+	"lina-core/pkg/bizerr"
 )
 
 var (
@@ -33,10 +34,10 @@ var (
 func normalizeCronExpression(expr string) (string, cron.Schedule, error) {
 	trimmedExpr := strings.TrimSpace(expr)
 	if trimmedExpr == "" {
-		return "", nil, gerror.New("定时表达式不能为空")
+		return "", nil, bizerr.NewCode(CodeJobCronExpressionRequired)
 	}
 	if len(trimmedExpr) > 128 {
-		return "", nil, gerror.New("定时表达式长度不能超过128个字符")
+		return "", nil, bizerr.NewCode(CodeJobCronExpressionTooLong)
 	}
 
 	fields := strings.Fields(trimmedExpr)
@@ -44,20 +45,26 @@ func normalizeCronExpression(expr string) (string, cron.Schedule, error) {
 	case 5:
 		schedule, err := fiveFieldCronParser.Parse(strings.Join(fields, " "))
 		if err != nil {
-			return "", nil, gerror.Newf("定时表达式格式不正确：%s", sanitizeCronParseError(err))
+			return "", nil, bizerr.NewCode(
+				CodeJobCronExpressionInvalid,
+				bizerr.P("reason", sanitizeCronParseError(err)),
+			)
 		}
 		return strings.Join(fields, " "), schedule, nil
 	case 6:
 		if fields[0] == "#" {
-			return "", nil, gerror.New("6段定时表达式的秒位必须填写具体值，5段表达式无需手工填写#")
+			return "", nil, bizerr.NewCode(CodeJobCronSecondsRequired)
 		}
 		schedule, err := sixFieldCronParser.Parse(strings.Join(fields, " "))
 		if err != nil {
-			return "", nil, gerror.Newf("定时表达式格式不正确：%s", sanitizeCronParseError(err))
+			return "", nil, bizerr.NewCode(
+				CodeJobCronExpressionInvalid,
+				bizerr.P("reason", sanitizeCronParseError(err)),
+			)
 		}
 		return strings.Join(fields, " "), schedule, nil
 	default:
-		return "", nil, gerror.New("定时表达式仅支持5段或6段")
+		return "", nil, bizerr.NewCode(CodeJobCronFieldCountInvalid)
 	}
 }
 
@@ -71,7 +78,7 @@ func normalizeJobTimezone(timezone string) (string, *time.Location, error) {
 
 	location, err := time.LoadLocation(trimmedTimezone)
 	if err != nil {
-		return "", nil, gerror.Newf("任务时区不合法：%s", trimmedTimezone)
+		return "", nil, bizerr.NewCode(CodeJobTimezoneInvalid, bizerr.P("timezone", trimmedTimezone))
 	}
 	return trimmedTimezone, location, nil
 }

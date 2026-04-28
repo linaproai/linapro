@@ -13,6 +13,8 @@ import (
 type sysconfigI18nTranslator interface {
 	// Translate returns one runtime translation key with caller-provided fallback text.
 	Translate(ctx context.Context, key string, fallback string) string
+	// LocalizeError renders one structured error in the current request locale.
+	LocalizeError(ctx context.Context, err error) string
 }
 
 // localizeConfigEntities localizes one config-entity list in place.
@@ -91,4 +93,27 @@ func (s *serviceImpl) localizedConfigFieldLabel(ctx context.Context, field strin
 		return fallback
 	}
 	return s.i18nSvc.Translate(ctx, "config.field."+trimmedField, fallback)
+}
+
+// localizedConfigImportFailure returns one localized config import failure reason.
+func (s *serviceImpl) localizedConfigImportFailure(ctx context.Context, key string, fallback string) string {
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" || s == nil || s.i18nSvc == nil {
+		return fallback
+	}
+	return s.i18nSvc.Translate(ctx, "artifact.config.import.failure."+trimmedKey, fallback)
+}
+
+// localizedConfigImportError renders one import-row error in the request locale.
+func (s *serviceImpl) localizedConfigImportError(ctx context.Context, err error) string {
+	if err == nil {
+		return ""
+	}
+	if s == nil || s.i18nSvc == nil {
+		return err.Error()
+	}
+	if localized := s.i18nSvc.LocalizeError(ctx, err); localized != "" {
+		return localized
+	}
+	return err.Error()
 }

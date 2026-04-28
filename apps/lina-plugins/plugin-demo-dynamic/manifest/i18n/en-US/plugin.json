@@ -1,0 +1,113 @@
+{
+  "plugin": {
+    "plugin-demo-dynamic": {
+      "description": "Dynamic wasm sample that demonstrates a host-embedded menu page, plugin-owned SQL CRUD, and a hosted standalone page.",
+      "name": "Dynamic Plugin Demo",
+      "page": {
+        "action": {
+          "addRecord": "Add Record",
+          "cancel": "Cancel",
+          "createRecord": "Create Record",
+          "deleteRecord": "Delete",
+          "downloadAttachment": "Download Attachment",
+          "editRecord": "Edit",
+          "nextPage": "Next",
+          "previousPage": "Previous",
+          "reloadList": "Reload List",
+          "saveEdit": "Save Changes",
+          "savePending": "Saving..."
+        },
+        "badge": "WASM Plugin Demo",
+        "description": "This page is mounted from the plugin-demo-dynamic embedded entry so the host can verify content rendering and the hosted standalone jump flow.",
+        "emptyText": "Only the install-SQL seed record exists right now. You can still create, edit, or delete custom records.",
+        "emptyTitle": "No demo records yet",
+        "feature": {
+          "data": {
+            "description": "Install-time SQL creates the plugin-owned business table so the page can handle CRUD and attachment downloads directly.",
+            "label": "Data Sample",
+            "value": "Install SQL + CRUD"
+          },
+          "integration": {
+            "description": "The host shell imports the page entry dynamically and keeps using the host login session for backend dynamic routes.",
+            "label": "Integration",
+            "value": "Host Embedded Mount"
+          },
+          "lifecycle": {
+            "description": "Disable keeps data intact, while uninstall lets the host decide whether data and files are cleaned together.",
+            "label": "Lifecycle",
+            "value": "Optional Cleanup"
+          }
+        },
+        "gridTitle": "Demo Records",
+        "message": {
+          "deleteRecordConfirm": "Delete record \"{title}\"?",
+          "deleteRecordFailed": "Failed to delete the demo record",
+          "downloadFailed": "Failed to download the attachment",
+          "downloadStarted": "Attachment download started",
+          "fetchRecordsFailed": "Failed to load demo records",
+          "fileReadFailed": "Failed to read the attachment",
+          "recordCreated": "Demo record created",
+          "recordDeleted": "Demo record deleted",
+          "recordUpdated": "Demo record updated",
+          "requestFailed": "Request failed ({status})",
+          "saveRecordFailed": "Failed to save the demo record",
+          "titleRequired": "Record title is required"
+        },
+        "metric": {
+          "lifecycle": {
+            "description": "Uninstall can optionally keep or remove data and files together",
+            "label": "Lifecycle Cleanup",
+            "value": "Optional data and file cleanup"
+          },
+          "loader": {
+            "description": "Loaded and mounted by the host shell at runtime",
+            "label": "Dynamic Loader",
+            "value": "Mounted by the host shell at runtime"
+          },
+          "schema": {
+            "description": "Install-time SQL creates plugin-owned sample data",
+            "label": "SQL Bootstrap",
+            "value": "Install-time SQL bootstraps plugin-owned sample data"
+          },
+          "storage": {
+            "description": "Demo records can attach files stored in the plugin namespace",
+            "label": "File Storage",
+            "value": "Records can attach files in the plugin namespace"
+          }
+        },
+        "modal": {
+          "attachmentFieldHint": "Upload one sample attachment. If uninstall also clears plugin storage, the uploaded file is removed together.",
+          "attachmentFieldLabel": "Attachment",
+          "contentFieldLabel": "Content",
+          "createTitle": "Create Demo Record",
+          "currentAttachment": "Current attachment: {name}",
+          "editTitle": "Edit Demo Record",
+          "pendingAttachment": "Pending attachment: {name}",
+          "removeAttachment": "Remove the current attachment on submit",
+          "summary": "Record content is stored in the table created by the plugin-demo-dynamic install SQL. Uploaded files are stored in the plugin-authorized storage path.",
+          "titleFieldLabel": "Record Title"
+        },
+        "pagination": {
+          "summary": "Page {page}/{pages}, showing {start}-{end} of {total}"
+        },
+        "panelTitle": "Current Validation Scope",
+        "standaloneButton": "Open Standalone Page",
+        "standaloneHint": "Open the hosted static page in a new window to verify plugin asset publishing.",
+        "table": {
+          "createdAt": "Created at: {value}",
+          "header": {
+            "actions": "Actions",
+            "attachment": "Attachment",
+            "content": "Content",
+            "title": "Title",
+            "updatedAt": "Updated At"
+          },
+          "loading": "Loading demo records...",
+          "noAttachment": "No attachment"
+        },
+        "title": "Dynamic Plugin Demo Is Live",
+        "workspaceSummary": "This area reads the table created by the plugin-demo-dynamic install SQL and uses the plugin backend routes for create, update, delete, and attachment downloads. Disabling the plugin does not clear the data."
+      }
+    }
+  }
+}

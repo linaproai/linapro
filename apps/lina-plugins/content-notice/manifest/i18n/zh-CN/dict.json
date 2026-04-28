@@ -1,0 +1,24 @@
+{
+  "dict": {
+    "sys_notice_status": {
+      "0": {
+        "label": "草稿"
+      },
+      "1": {
+        "label": "已发布"
+      },
+      "name": "公告状态",
+      "remark": "通知公告状态列表"
+    },
+    "sys_notice_type": {
+      "1": {
+        "label": "通知"
+      },
+      "2": {
+        "label": "公告"
+      },
+      "name": "通知类型",
+      "remark": "通知公告类型列表"
+    }
+  }
+}

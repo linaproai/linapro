@@ -1,0 +1,37 @@
+{
+  "menu": {
+    "plugin:org-center:dept": {
+      "title": "部门管理"
+    },
+    "plugin:org-center:dept:add": {
+      "title": "部门新增"
+    },
+    "plugin:org-center:dept:edit": {
+      "title": "部门修改"
+    },
+    "plugin:org-center:dept:query": {
+      "title": "部门查询"
+    },
+    "plugin:org-center:dept:remove": {
+      "title": "部门删除"
+    },
+    "plugin:org-center:post": {
+      "title": "岗位管理"
+    },
+    "plugin:org-center:post:add": {
+      "title": "岗位新增"
+    },
+    "plugin:org-center:post:edit": {
+      "title": "岗位修改"
+    },
+    "plugin:org-center:post:export": {
+      "title": "岗位导出"
+    },
+    "plugin:org-center:post:query": {
+      "title": "岗位查询"
+    },
+    "plugin:org-center:post:remove": {
+      "title": "岗位删除"
+    }
+  }
+}

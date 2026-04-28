@@ -8,13 +8,13 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/bizerr"
 )
 
 // Send validates the notify channel and creates unified notify message and delivery records.
@@ -28,7 +28,10 @@ func (s *serviceImpl) Send(ctx context.Context, in SendInput) (*SendOutput, erro
 	case ChannelTypeInbox:
 		return s.sendInbox(ctx, channel, in)
 	default:
-		return nil, gerror.Newf("通知通道类型暂不支持: %s", channel.ChannelType)
+		return nil, bizerr.NewCode(
+			CodeNotifyChannelTypeUnsupported,
+			bizerr.P("channelType", channel.ChannelType),
+		)
 	}
 }
 
@@ -64,12 +67,12 @@ func (s *serviceImpl) sendInbox(
 ) (*SendOutput, error) {
 	normalizedTitle := strings.TrimSpace(in.Title)
 	if normalizedTitle == "" {
-		return nil, gerror.New("通知标题不能为空")
+		return nil, bizerr.NewCode(CodeNotifyTitleRequired)
 	}
 
 	recipientUserIDs := uniquePositiveUserIDs(in.RecipientUserIDs)
 	if len(recipientUserIDs) == 0 {
-		return nil, gerror.New("站内信接收用户不能为空")
+		return nil, bizerr.NewCode(CodeNotifyInboxRecipientRequired)
 	}
 
 	payloadJSON, err := marshalNotifyPayload(in.Payload)
@@ -133,7 +136,7 @@ func (s *serviceImpl) sendInbox(
 func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entity.SysNotifyChannel, error) {
 	normalizedChannelKey := strings.TrimSpace(channelKey)
 	if normalizedChannelKey == "" {
-		return nil, gerror.New("通知通道标识不能为空")
+		return nil, bizerr.NewCode(CodeNotifyChannelKeyRequired)
 	}
 
 	var channel *entity.SysNotifyChannel
@@ -145,7 +148,7 @@ func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entit
 		return nil, err
 	}
 	if channel == nil {
-		return nil, gerror.New("通知通道不存在或已停用")
+		return nil, bizerr.NewCode(CodeNotifyChannelUnavailable)
 	}
 	return channel, nil
 }
@@ -183,7 +186,7 @@ func marshalNotifyPayload(payload map[string]any) (string, error) {
 
 	content, err := json.Marshal(payload)
 	if err != nil {
-		return "", gerror.Wrap(err, "序列化通知扩展载荷失败")
+		return "", bizerr.WrapCode(err, CodeNotifyPayloadMarshalFailed)
 	}
 	return string(content), nil
 }

@@ -1,0 +1,136 @@
+{
+  "config": {
+    "field": {
+      "createdAt": "Created At",
+      "key": "Parameter Key",
+      "name": "Parameter Name",
+      "remark": "Remark",
+      "updatedAt": "Updated At",
+      "value": "Parameter Value"
+    },
+    "cron": {
+      "log": {
+        "retention": {
+          "name": "Scheduled Jobs - Execution Log Retention Policy",
+          "remark": "Controls the default retention policy for scheduled-job execution logs. Use JSON: {\"mode\":\"days|count|none\",\"value\":N}."
+        }
+      },
+      "shell": {
+        "enabled": {
+          "name": "Scheduled Jobs - Global Shell Mode Switch",
+          "remark": "Controls whether Shell-type jobs can be created, updated, triggered, and stopped. Supported values: true, false."
+        }
+      }
+    },
+    "demo": {
+      "notice": {
+        "banner": {
+          "name": "Demo - Homepage Banner Copy",
+          "remark": "Used to demonstrate custom parameter management. It is not consumed directly by the host runtime."
+        }
+      },
+      "support": {
+        "email": {
+          "name": "Demo - Support Email",
+          "remark": "Used to demonstrate custom parameter management. It is not consumed directly by the host runtime."
+        }
+      }
+    },
+    "sys": {
+      "app": {
+        "logo": {
+          "name": "Branding - App Logo",
+          "remark": "Controls the default logo URL for the login page and workspace."
+        },
+        "logoDark": {
+          "name": "Branding - Dark Logo",
+          "remark": "Controls the dark-theme logo URL."
+        },
+        "name": {
+          "name": "Branding - App Name",
+          "remark": "Controls the browser title, login-page brand name, and workspace logo text."
+        }
+      },
+      "auth": {
+        "loginPanelLayout": {
+          "name": "Login - Panel Layout",
+          "remark": "Controls the default login panel layout: panel-left, panel-center, or panel-right."
+        },
+        "loginSubtitle": {
+          "name": "Login - Form Subtitle",
+          "remark": "Controls the helper copy above the login form."
+        },
+        "pageDesc": {
+          "name": "Login - Page Description",
+          "remark": "Controls the description shown at the top of the login page."
+        },
+        "pageTitle": {
+          "name": "Login - Page Title",
+          "remark": "Controls the headline shown at the top of the login page."
+        }
+      },
+      "cron": {
+        "logRetention": {
+          "name": "Cron - Log Retention Policy",
+          "remark": "Controls the default cleanup policy for cron logs in JSON format."
+        },
+        "shellEnabled": {
+          "name": "Cron - Shell Mode Switch",
+          "remark": "Controls whether Shell-type scheduled jobs may be created, updated, and executed."
+        }
+      },
+      "jwt": {
+        "expire": {
+          "name": "Authentication - JWT Expiration",
+          "remark": "Controls the lifetime of newly issued JWT tokens using Go duration format such as 12h or 24h."
+        }
+      },
+      "login": {
+        "ipBlacklist": {
+          "name": "Login - IP Blacklist",
+          "remark": "Blocks login from IPs or CIDR ranges separated by semicolons."
+        }
+      },
+      "session": {
+        "timeout": {
+          "name": "Online User - Session Timeout",
+          "remark": "Controls the inactivity timeout for online sessions using Go duration format such as 30m or 24h."
+        }
+      },
+      "ui": {
+        "layout": {
+          "name": "UI - Workspace Layout",
+          "remark": "Controls the default workspace layout mode."
+        },
+        "theme": {
+          "mode": {
+            "name": "UI - Theme Mode",
+            "remark": "Controls the default theme mode: light, dark, or auto."
+          }
+        },
+        "watermark": {
+          "content": {
+            "name": "UI - Watermark Content",
+            "remark": "Controls the workspace watermark text."
+          },
+          "enabled": {
+            "name": "UI - Watermark Enabled",
+            "remark": "Controls whether the workspace watermark is enabled."
+          }
+        }
+      },
+      "upload": {
+        "maxSize": {
+          "name": "File Management - Upload Size Limit",
+          "remark": "Controls the maximum size of a single uploaded file in MB."
+        }
+      },
+      "user": {
+        "defaultAvatar": {
+          "name": "User Management - Default Avatar",
+          "remark": "Controls the fallback avatar URL used when a user has not set an avatar."
+        }
+      }
+    }
+  }
+}

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -16,6 +15,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 )
 
@@ -105,7 +105,7 @@ func (s *serviceImpl) GetJob(ctx context.Context, id uint64) (*JobDetailOutput, 
 		return nil, err
 	}
 	if job == nil {
-		return nil, gerror.New("定时任务不存在")
+		return nil, bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 
 	group, err := s.groupByID(ctx, job.GroupId)
@@ -126,7 +126,7 @@ func (s *serviceImpl) GetJob(ctx context.Context, id uint64) (*JobDetailOutput, 
 // CreateJob persists one new scheduled job and refreshes the scheduler when needed.
 func (s *serviceImpl) CreateJob(ctx context.Context, in SaveJobInput) (uint64, error) {
 	if in.TaskType != jobmeta.TaskTypeShell {
-		return 0, gerror.New("仅允许通过界面创建 Shell 类型定时任务")
+		return 0, bizerr.NewCode(CodeJobCreateShellOnly)
 	}
 	jobRecord, err := s.normalizeJobRecord(ctx, nil, in)
 	if err != nil {
@@ -153,13 +153,13 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 		return err
 	}
 	if existing == nil {
-		return gerror.New("定时任务不存在")
+		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
 	if existing.IsBuiltin == 1 {
-		return gerror.New("源码注册任务不允许修改")
+		return bizerr.NewCode(CodeJobBuiltinUpdateDenied)
 	}
 	if in.TaskType != jobmeta.TaskTypeShell {
-		return gerror.New("仅允许通过界面编辑 Shell 类型定时任务")
+		return bizerr.NewCode(CodeJobUpdateShellOnly)
 	}
 
 	jobRecord, err := s.normalizeJobRecord(ctx, existing, in.SaveJobInput)
@@ -191,7 +191,7 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
 	jobIDs := parseUint64IDs(ids)
 	if len(jobIDs) == 0 {
-		return gerror.New("请选择要删除的定时任务")
+		return bizerr.NewCode(CodeJobDeleteRequired)
 	}
 
 	for _, jobID := range jobIDs {
@@ -203,7 +203,7 @@ func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
 			continue
 		}
 		if job.IsBuiltin == 1 {
-			return gerror.New("源码注册任务不允许删除")
+			return bizerr.NewCode(CodeJobBuiltinDeleteDenied)
 		}
 	}
 
@@ -275,24 +275,24 @@ func (s *serviceImpl) normalizeJobRecord(
 		return do.SysJob{}, err
 	}
 	if group == nil {
-		return do.SysJob{}, gerror.New("任务分组不存在")
+		return do.SysJob{}, bizerr.NewCode(CodeJobGroupNotFound)
 	}
 
 	name := strings.TrimSpace(in.Name)
 	if name == "" {
-		return do.SysJob{}, gerror.New("任务名称不能为空")
+		return do.SysJob{}, bizerr.NewCode(CodeJobNameRequired)
 	}
 	if len(name) > 128 {
-		return do.SysJob{}, gerror.New("任务名称长度不能超过128个字符")
+		return do.SysJob{}, bizerr.NewCode(CodeJobNameTooLong)
 	}
 	if in.Timeout%time.Second != 0 {
-		return do.SysJob{}, gerror.New("任务超时时间必须按秒配置")
+		return do.SysJob{}, bizerr.NewCode(CodeJobTimeoutSecondAlignedRequired)
 	}
 	if in.Timeout <= 0 {
-		return do.SysJob{}, gerror.New("任务超时时间必须在1-86400秒之间")
+		return do.SysJob{}, bizerr.NewCode(CodeJobTimeoutOutOfRange)
 	}
 	if in.Timeout > 24*time.Hour {
-		return do.SysJob{}, gerror.New("任务超时时间必须在1-86400秒之间")
+		return do.SysJob{}, bizerr.NewCode(CodeJobTimeoutOutOfRange)
 	}
 	cronExpr, _, err := normalizeCronExpression(in.CronExpr)
 	if err != nil {
@@ -303,19 +303,19 @@ func (s *serviceImpl) normalizeJobRecord(
 		return do.SysJob{}, err
 	}
 	if !in.TaskType.IsValid() {
-		return do.SysJob{}, gerror.New("任务类型仅支持handler或shell")
+		return do.SysJob{}, bizerr.NewCode(CodeJobTaskTypeInvalid)
 	}
 	if !in.Scope.IsValid() {
-		return do.SysJob{}, gerror.New("任务调度范围仅支持master_only或all_node")
+		return do.SysJob{}, bizerr.NewCode(CodeJobScopeInvalid)
 	}
 	if !in.Concurrency.IsValid() {
-		return do.SysJob{}, gerror.New("任务并发策略仅支持singleton或parallel")
+		return do.SysJob{}, bizerr.NewCode(CodeJobConcurrencyInvalid)
 	}
 	if !in.Status.IsValid() || in.Status == jobmeta.JobStatusPausedByPlugin {
-		return do.SysJob{}, gerror.New("任务状态仅支持enabled或disabled")
+		return do.SysJob{}, bizerr.NewCode(CodeJobStatusInvalid)
 	}
 	if in.MaxExecutions < 0 {
-		return do.SysJob{}, gerror.New("最大执行次数必须为大于等于0的整数")
+		return do.SysJob{}, bizerr.NewCode(CodeJobMaxExecutionsInvalid)
 	}
 
 	maxConcurrency := in.MaxConcurrency
@@ -323,7 +323,7 @@ func (s *serviceImpl) normalizeJobRecord(
 		maxConcurrency = 1
 	}
 	if maxConcurrency <= 0 || maxConcurrency > 100 {
-		return do.SysJob{}, gerror.New("最大并发数必须为1-100之间的整数")
+		return do.SysJob{}, bizerr.NewCode(CodeJobMaxConcurrencyInvalid)
 	}
 
 	paramsJSON := ""
@@ -336,11 +336,11 @@ func (s *serviceImpl) normalizeJobRecord(
 	case jobmeta.TaskTypeHandler:
 		def, ok := s.registry.Lookup(handlerRef)
 		if !ok {
-			return do.SysJob{}, gerror.New("任务处理器不存在")
+			return do.SysJob{}, bizerr.NewCode(jobhandler.CodeJobHandlerNotFound)
 		}
 		paramsData, marshalErr := json.Marshal(in.Params)
 		if marshalErr != nil {
-			return do.SysJob{}, gerror.Wrap(marshalErr, "序列化任务参数失败")
+			return do.SysJob{}, bizerr.WrapCode(marshalErr, CodeJobParamsMarshalFailed)
 		}
 		if err = jobhandler.ValidateParams(def.ParamsSchema, paramsData); err != nil {
 			return do.SysJob{}, err
@@ -355,17 +355,17 @@ func (s *serviceImpl) normalizeJobRecord(
 			return do.SysJob{}, shellErr
 		}
 		if !shellEnabled {
-			return do.SysJob{}, gerror.New("当前环境未启用 Shell 任务")
+			return do.SysJob{}, bizerr.NewCode(jobmeta.CodeJobShellDisabled)
 		}
 		if shellCmd == "" {
-			return do.SysJob{}, gerror.New("Shell 脚本内容不能为空")
+			return do.SysJob{}, bizerr.NewCode(jobmeta.CodeJobShellCommandRequired)
 		}
 		if err = validateWorkDir(workDir); err != nil {
 			return do.SysJob{}, err
 		}
 		envData, marshalErr := json.Marshal(in.Env)
 		if marshalErr != nil {
-			return do.SysJob{}, gerror.Wrap(marshalErr, "序列化 Shell 环境变量失败")
+			return do.SysJob{}, bizerr.WrapCode(marshalErr, CodeJobShellEnvMarshalFailed)
 		}
 		envJSON = string(envData)
 		handlerRef = ""
@@ -424,10 +424,10 @@ func normalizeRetentionOptionJSON(option *jobmeta.RetentionOption) (string, erro
 		return "", nil
 	}
 	if !option.Mode.IsValid() {
-		return "", gerror.New("任务日志保留策略模式不受支持")
+		return "", bizerr.NewCode(jobmeta.CodeJobRetentionModeUnsupported)
 	}
 	if option.Mode != jobmeta.RetentionModeNone && option.Value <= 0 {
-		return "", gerror.New("任务日志保留策略阈值必须大于0")
+		return "", bizerr.NewCode(jobmeta.CodeJobRetentionValueInvalid)
 	}
 	return jobmeta.MustMarshalRetentionOption(option)
 }
@@ -448,7 +448,7 @@ func (s *serviceImpl) ensureJobNameUnique(
 		return err
 	}
 	if count > 0 {
-		return gerror.New("任务名称在当前分组下已存在")
+		return bizerr.NewCode(CodeJobNameExistsInGroup)
 	}
 	return nil
 }

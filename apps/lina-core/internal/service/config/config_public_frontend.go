@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // Protected public frontend setting keys stored in sys_config.
@@ -58,75 +58,51 @@ const (
 var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAppName,
-		Name:         "品牌展示-应用名称",
 		DefaultValue: "LinaPro",
-		Remark:       "控制浏览器标题、登录页品牌名称和工作台 Logo 文案展示，建议填写简洁的产品名称。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogo,
-		Name:         "品牌展示-应用 Logo",
 		DefaultValue: "/logo.png",
-		Remark:       "控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogoDark,
-		Name:         "品牌展示-深色 Logo",
 		DefaultValue: "/logo.png",
-		Remark:       "控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyUserDefaultAvatar,
-		Name:         "用户管理-默认头像",
 		DefaultValue: "/avatar.webp",
-		Remark:       "控制用户未设置头像时的默认头像地址，支持 http(s) 或站内绝对路径。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthPageTitle,
-		Name:         "登录展示-页面标题",
-		DefaultValue: "AI驱动的全栈开发框架",
-		Remark:       "控制登录页顶部主标题文案。",
+		DefaultValue: "AI-driven full-stack development framework",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthPageDesc,
-		Name:         "登录展示-页面说明",
-		DefaultValue: "面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制",
-		Remark:       "控制登录页顶部说明文案。",
+		DefaultValue: "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthLoginSubtitle,
-		Name:         "登录展示-登录副标题",
-		DefaultValue: "请输入您的帐户信息以开始管理您的项目",
-		Remark:       "控制登录表单上方的提示说明文案。",
+		DefaultValue: "Enter your account credentials to start managing your projects",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthLoginPanelLayout,
-		Name:         "登录展示-登录框位置",
 		DefaultValue: string(PublicFrontendAuthPanelLayoutRight),
-		Remark:       "控制登录框默认布局，可选值：panel-left、panel-center、panel-right。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyUIThemeMode,
-		Name:         "界面风格-主题模式",
 		DefaultValue: "light",
-		Remark:       "控制默认主题模式，可选值：light、dark、auto。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyUILayout,
-		Name:         "界面风格-工作台布局",
 		DefaultValue: "sidebar-nav",
-		Remark:       "控制后台默认布局，可选值：sidebar-nav、sidebar-mixed-nav、header-nav、header-sidebar-nav、header-mixed-nav、mixed-nav、full-content。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyUIWatermarkEnabled,
-		Name:         "界面风格-是否启用水印",
 		DefaultValue: "false",
-		Remark:       "控制工作台是否启用水印，可选值：true、false。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyUIWatermarkContent,
-		Name:         "界面风格-水印文案",
 		DefaultValue: "LinaPro",
-		Remark:       "控制工作台水印文案内容。",
 	},
 }
 
@@ -420,7 +396,7 @@ func parseStrictBoolValue(key string, value string) (bool, error) {
 	case "false":
 		return false, nil
 	default:
-		return false, gerror.Newf("参数 %s 必须为 true 或 false", key)
+		return false, bizerr.NewCode(CodeConfigParamBoolInvalid, bizerr.P("key", key))
 	}
 }
 
@@ -429,14 +405,14 @@ func parseStrictBoolValue(key string, value string) (bool, error) {
 func validateAllowedStringValue(key string, value string, allowed []string) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return gerror.Newf("参数 %s 不能为空", key)
+		return bizerr.NewCode(CodeConfigParamRequired, bizerr.P("key", key))
 	}
 	for _, item := range allowed {
 		if trimmed == item {
 			return nil
 		}
 	}
-	return gerror.Newf("参数 %s 不在支持范围内", key)
+	return bizerr.NewCode(CodeConfigParamAllowedValueInvalid, bizerr.P("key", key))
 }
 
 // validateRequiredTextValue validates one non-empty protected text value with
@@ -444,10 +420,14 @@ func validateAllowedStringValue(key string, value string, allowed []string) erro
 func validateRequiredTextValue(key string, value string, maxLen int) error {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return gerror.Newf("参数 %s 不能为空", key)
+		return bizerr.NewCode(CodeConfigParamRequired, bizerr.P("key", key))
 	}
 	if utf8.RuneCountInString(trimmed) > maxLen {
-		return gerror.Newf("参数 %s 长度不能超过 %d 个字符", key, maxLen)
+		return bizerr.NewCode(
+			CodeConfigParamTextTooLong,
+			bizerr.P("key", key),
+			bizerr.P("maxLen", maxLen),
+		)
 	}
 	return nil
 }

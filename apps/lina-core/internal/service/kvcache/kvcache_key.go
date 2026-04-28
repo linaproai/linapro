@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // cacheKeyPartCount defines the number of encoded segments carried by one
@@ -41,14 +41,14 @@ func BuildCacheKey(ownerKey string, namespace string, cacheKey string) string {
 func parseCacheKey(cacheKey string) (*cacheIdentity, error) {
 	parts := strings.Split(strings.TrimSpace(cacheKey), ".")
 	if len(parts) != cacheKeyPartCount {
-		return nil, gerror.New("缓存键格式无效，请使用 kvcache.BuildCacheKey 构造")
+		return nil, bizerr.NewCode(CodeKVCacheKeyInvalid)
 	}
 
 	decodedParts := make([]string, 0, len(parts))
 	for _, part := range parts {
 		decoded, err := base64.RawURLEncoding.DecodeString(part)
 		if err != nil {
-			return nil, gerror.New("缓存键格式无效，请使用 kvcache.BuildCacheKey 构造")
+			return nil, bizerr.NewCode(CodeKVCacheKeyInvalid)
 		}
 		decodedParts = append(decodedParts, string(decoded))
 	}

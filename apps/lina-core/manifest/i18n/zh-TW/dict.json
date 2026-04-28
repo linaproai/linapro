@@ -1,0 +1,193 @@
+{
+  "dict": {
+    "cron_job_concurrency": {
+      "name": "定時任務併發策略",
+      "parallel": {
+        "label": "允許並行執行"
+      },
+      "remark": "定時任務併發策略列表",
+      "singleton": {
+        "label": "單例執行"
+      }
+    },
+    "cron_job_log_status": {
+      "cancelled": {
+        "label": "已取消"
+      },
+      "failed": {
+        "label": "失敗"
+      },
+      "name": "定時任務日誌狀態",
+      "remark": "定時任務執行日誌狀態列表",
+      "running": {
+        "label": "運行中"
+      },
+      "skipped_max_concurrency": {
+        "label": "併發上限跳過"
+      },
+      "skipped_not_primary": {
+        "label": "非主節點跳過"
+      },
+      "skipped_singleton": {
+        "label": "單例衝突跳過"
+      },
+      "success": {
+        "label": "成功"
+      },
+      "timeout": {
+        "label": "超時"
+      }
+    },
+    "cron_job_scope": {
+      "all_node": {
+        "label": "所有節點執行"
+      },
+      "master_only": {
+        "label": "僅主節點執行"
+      },
+      "name": "定時任務調度範圍",
+      "remark": "定時任務調度範圍列表"
+    },
+    "cron_job_status": {
+      "disabled": {
+        "label": "停用"
+      },
+      "enabled": {
+        "label": "啟用"
+      },
+      "name": "定時任務狀態",
+      "paused_by_plugin": {
+        "label": "不可用"
+      },
+      "remark": "定時任務狀態列表"
+    },
+    "cron_job_task_type": {
+      "handler": {
+        "label": "Handler 任務"
+      },
+      "name": "定時任務類型",
+      "remark": "定時任務類型列表",
+      "shell": {
+        "label": "Shell 任務"
+      }
+    },
+    "cron_job_trigger": {
+      "cron": {
+        "label": "Cron 調度"
+      },
+      "manual": {
+        "label": "手動觸發"
+      },
+      "name": "定時任務觸發方式",
+      "remark": "定時任務觸發方式列表"
+    },
+    "cron_log_retention_mode": {
+      "count": {
+        "label": "按條數保留"
+      },
+      "days": {
+        "label": "按天保留"
+      },
+      "name": "定時任務日誌保留模式",
+      "none": {
+        "label": "不清理"
+      },
+      "remark": "定時任務日誌保留模式列表"
+    },
+    "sys_data_scope": {
+      "1": {
+        "label": "全部數據"
+      },
+      "2": {
+        "label": "本部門數據"
+      },
+      "3": {
+        "label": "僅本人數據"
+      },
+      "name": "數據權限範圍",
+      "remark": "數據權限範圍列表"
+    },
+    "sys_file_scene": {
+      "avatar": {
+        "label": "用戶頭像"
+      },
+      "name": "文件場景",
+      "notice_attachment": {
+        "label": "通知公告附件"
+      },
+      "notice_image": {
+        "label": "通知公告圖片"
+      },
+      "other": {
+        "label": "其他"
+      },
+      "remark": "文件場景列表"
+    },
+    "sys_login_status": {
+      "0": {
+        "label": "成功"
+      },
+      "1": {
+        "label": "失敗"
+      },
+      "name": "登錄狀態",
+      "remark": "登錄狀態列表"
+    },
+    "sys_menu_status": {
+      "0": {
+        "label": "停用"
+      },
+      "1": {
+        "label": "正常"
+      },
+      "name": "菜單狀態",
+      "remark": "菜單狀態列表"
+    },
+    "sys_menu_type": {
+      "B": {
+        "label": "按鈕"
+      },
+      "D": {
+        "label": "目錄"
+      },
+      "M": {
+        "label": "菜單"
+      },
+      "name": "菜單類型",
+      "remark": "菜單類型列表"
+    },
+    "sys_normal_disable": {
+      "0": {
+        "label": "停用"
+      },
+      "1": {
+        "label": "正常"
+      },
+      "name": "狀態開關",
+      "remark": "狀態開關列表"
+    },
+    "sys_show_hide": {
+      "0": {
+        "label": "隱藏"
+      },
+      "1": {
+        "label": "顯示"
+      },
+      "name": "顯示狀態",
+      "remark": "顯示狀態列表"
+    },
+    "sys_user_sex": {
+      "0": {
+        "label": "未知"
+      },
+      "1": {
+        "label": "男"
+      },
+      "2": {
+        "label": "女"
+      },
+      "name": "用戶性別",
+      "remark": "用戶性別列表"
+    }
+  }
+}

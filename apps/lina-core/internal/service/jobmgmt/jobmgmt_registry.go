@@ -7,12 +7,11 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/pkg/bizerr"
 )
 
 // syncHandlerAvailability pauses or resumes handler jobs after one registry mutation.
@@ -113,7 +112,7 @@ func (s *serviceImpl) matchingJobIDs(
 	stopReason string,
 ) ([]uint64, error) {
 	if !status.IsValid() {
-		return nil, gerror.New("任务状态不受支持")
+		return nil, bizerr.NewCode(CodeJobStatusInvalid)
 	}
 
 	model := dao.SysJob.Ctx(ctx).

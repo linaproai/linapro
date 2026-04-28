@@ -1,0 +1,36 @@
+{
+  "dict": {
+    "sys_oper_status": {
+      "0": {
+        "label": "Success"
+      },
+      "1": {
+        "label": "Failure"
+      },
+      "name": "Operation Result",
+      "remark": "Operation result options"
+    },
+    "sys_oper_type": {
+      "create": {
+        "label": "Create"
+      },
+      "delete": {
+        "label": "Delete"
+      },
+      "export": {
+        "label": "Export"
+      },
+      "import": {
+        "label": "Import"
+      },
+      "name": "Operation Type",
+      "other": {
+        "label": "Other"
+      },
+      "remark": "Operation type options",
+      "update": {
+        "label": "Update"
+      }
+    }
+  }
+}

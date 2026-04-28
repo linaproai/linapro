@@ -1,52 +1,58 @@
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 
-/** 查询表单schema */
-export const querySchema: VbenFormSchema[] = [
-  {
-    component: 'Input',
-    fieldName: 'username',
-    label: '用户账号',
-  },
-  {
-    component: 'Input',
-    fieldName: 'ip',
-    label: 'IP地址',
-  },
-];
+import { $t } from '#/locales';
 
-/** 表格列配置 */
-export const columns: VxeGridProps['columns'] = [
-  {
-    title: '登录账号',
-    field: 'username',
-  },
-  {
-    title: '部门名称',
-    field: 'deptName',
-  },
-  {
-    title: 'IP地址',
-    field: 'ip',
-  },
-  {
-    title: '浏览器',
-    field: 'browser',
-  },
-  {
-    title: '操作系统',
-    field: 'os',
-  },
-  {
-    title: '登录时间',
-    field: 'loginTime',
-  },
-  {
-    field: 'action',
-    fixed: 'right',
-    slots: { default: 'action' },
-    title: '操作',
-    resizable: false,
-    width: 120,
-  },
-];
+/** Query form schema. */
+export function querySchema(): VbenFormSchema[] {
+  return [
+    {
+      component: 'Input',
+      fieldName: 'username',
+      label: $t('pages.monitor.online.fields.userAccount'),
+    },
+    {
+      component: 'Input',
+      fieldName: 'ip',
+      label: $t('pages.monitor.online.fields.ip'),
+    },
+  ];
+}
+
+/** Table column configuration. */
+export function columns(): VxeGridProps['columns'] {
+  return [
+    {
+      title: $t('pages.monitor.online.fields.loginAccount'),
+      field: 'username',
+    },
+    {
+      title: $t('pages.monitor.online.fields.deptName'),
+      field: 'deptName',
+    },
+    {
+      title: $t('pages.monitor.online.fields.ip'),
+      field: 'ip',
+    },
+    {
+      title: $t('pages.monitor.online.fields.browser'),
+      field: 'browser',
+    },
+    {
+      title: $t('pages.monitor.online.fields.os'),
+      field: 'os',
+    },
+    {
+      title: $t('pages.monitor.online.fields.loginTime'),
+      field: 'loginTime',
+    },
+    {
+      field: 'action',
+      fixed: 'right',
+      slots: { default: 'action' },
+      title: $t('pages.common.actions'),
+      resizable: false,
+      width: 120,
+    },
+  ];
+}

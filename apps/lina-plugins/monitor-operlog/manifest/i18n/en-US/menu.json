@@ -1,0 +1,19 @@
+{
+  "menu": {
+    "plugin:monitor-operlog:operlog": {
+      "title": "Audit Logs"
+    },
+    "plugin:monitor-operlog:operlog:clear": {
+      "title": "Clear"
+    },
+    "plugin:monitor-operlog:operlog:export": {
+      "title": "Export"
+    },
+    "plugin:monitor-operlog:operlog:query": {
+      "title": "Query"
+    },
+    "plugin:monitor-operlog:operlog:remove": {
+      "title": "Delete"
+    }
+  }
+}

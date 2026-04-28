@@ -5,10 +5,11 @@ package dict
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
 	v1 "lina-core/api/dict/v1"
+	dictsvc "lina-core/internal/service/dict"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 )
 
@@ -17,7 +18,7 @@ func (c *ControllerV1) TypeImport(ctx context.Context, req *v1.TypeImportReq) (r
 	r := g.RequestFromCtx(ctx)
 	file := r.GetUploadFile("file")
 	if file == nil {
-		return nil, gerror.New("请选择要导入的文件")
+		return nil, bizerr.NewCode(dictsvc.CodeDictImportFileRequired)
 	}
 
 	// Get updateSupport flag
@@ -25,9 +26,9 @@ func (c *ControllerV1) TypeImport(ctx context.Context, req *v1.TypeImportReq) (r
 
 	f, err := file.Open()
 	if err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, dictsvc.CodeDictImportExcelReadFailed)
 	}
-	defer closeutil.Close(ctx, f, &err, "关闭字典类型导入文件失败")
+	defer closeutil.Close(ctx, f, &err, "close dictionary type import file failed")
 
 	result, err := c.dictSvc.TypeImport(ctx, f, updateSupport)
 	if err != nil {

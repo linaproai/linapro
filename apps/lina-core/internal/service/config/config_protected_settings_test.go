@@ -17,6 +17,14 @@ func TestRuntimeParamSpecsReturnsCopy(t *testing.T) {
 		t.Fatal("expected runtime param specs to be present")
 	}
 
+	uploadSpec, ok := LookupRuntimeParamSpec(RuntimeParamKeyUploadMaxSize)
+	if !ok {
+		t.Fatal("expected upload-size runtime param spec to be present")
+	}
+	if uploadSpec.DefaultValue != "20" {
+		t.Fatalf("expected upload-size runtime default to be 20, got %q", uploadSpec.DefaultValue)
+	}
+
 	original := runtimeParamSpecs[0].DefaultValue
 	specs[0].DefaultValue = "mutated"
 	if runtimeParamSpecs[0].DefaultValue != original {
@@ -46,8 +54,16 @@ func TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults(t *testing.T) {
 	if !ok {
 		t.Fatal("expected login page description spec to be present")
 	}
-	if descSpec.DefaultValue != "面向业务演进，提供开箱即用的管理入口与灵活可插拔的扩展机制" {
+	if descSpec.DefaultValue != "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model" {
 		t.Fatalf("unexpected login page description default: %q", descSpec.DefaultValue)
+	}
+
+	titleSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthPageTitle)
+	if !ok {
+		t.Fatal("expected login page title spec to be present")
+	}
+	if titleSpec.DefaultValue != "AI-driven full-stack development framework" {
+		t.Fatalf("unexpected login page title default: %q", titleSpec.DefaultValue)
 	}
 
 	layoutSpec, ok := LookupPublicFrontendSettingSpec(PublicFrontendSettingKeyAuthLoginPanelLayout)

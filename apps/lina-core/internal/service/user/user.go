@@ -7,15 +7,17 @@ import (
 	"io"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/errors/gerror"
+
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/orgcap"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/user/accountpolicy"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
 )
@@ -79,6 +81,7 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	authSvc   auth.Service
 	bizCtxSvc bizctx.Service
+	i18nSvc   userI18nTranslator
 	orgCapSvc orgcap.Service
 	roleSvc   role.Service // Role service
 }
@@ -93,6 +96,7 @@ func New(orgCapSvc orgcap.Service) Service {
 	return &serviceImpl{
 		authSvc:   auth.New(orgCapSvc),
 		bizCtxSvc: bizctx.New(),
+		i18nSvc:   i18nsvc.New(),
 		orgCapSvc: orgCapSvc,
 		roleSvc:   role.New(nil),
 	}
@@ -358,7 +362,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		return 0, err
 	}
 	if count > 0 {
-		return 0, gerror.New("用户名已存在")
+		return 0, bizerr.NewCode(CodeUserUsernameExists)
 	}
 
 	// Hash password
@@ -431,7 +435,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysUser, err
 		return nil, err
 	}
 	if user == nil {
-		return nil, gerror.New("用户不存在")
+		return nil, bizerr.NewCode(CodeUserNotFound)
 	}
 	return user, nil
 }
@@ -457,7 +461,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	// Cannot edit self via admin panel
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx != nil && bizCtx.UserId == in.Id {
-		return gerror.New("不能编辑当前登录用户")
+		return bizerr.NewCode(CodeUserCurrentEditDenied)
 	}
 
 	// Check user exists
@@ -543,13 +547,13 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 		return err
 	}
 	if accountpolicy.IsBuiltInAdminUsername(user.Username) {
-		return gerror.New("不能删除默认管理员")
+		return bizerr.NewCode(CodeUserBuiltinAdminDeleteDenied)
 	}
 
 	// Cannot delete self
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx != nil && bizCtx.UserId == id {
-		return gerror.New("不能删除当前登录用户")
+		return bizerr.NewCode(CodeUserCurrentDeleteDenied)
 	}
 
 	// Soft delete using GoFrame's auto soft-delete feature
@@ -577,7 +581,7 @@ func (s *serviceImpl) UpdateStatus(ctx context.Context, id int, status Status) e
 	// Cannot disable self
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx != nil && bizCtx.UserId == id && status == StatusDisabled {
-		return gerror.New("不能停用当前登录用户")
+		return bizerr.NewCode(CodeUserCurrentDisableDenied)
 	}
 
 	_, err := dao.SysUser.Ctx(ctx).
@@ -597,7 +601,7 @@ func (s *serviceImpl) UpdateStatus(ctx context.Context, id int, status Status) e
 func (s *serviceImpl) GetProfile(ctx context.Context) (*entity.SysUser, error) {
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx == nil {
-		return nil, gerror.New("未登录")
+		return nil, bizerr.NewCode(CodeUserNotAuthenticated)
 	}
 	return s.GetById(ctx, bizCtx.UserId)
 }
@@ -615,7 +619,7 @@ type UpdateProfileInput struct {
 func (s *serviceImpl) UpdateProfile(ctx context.Context, in UpdateProfileInput) error {
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx == nil {
-		return gerror.New("未登录")
+		return bizerr.NewCode(CodeUserNotAuthenticated)
 	}
 
 	data := do.SysUser{}
@@ -669,7 +673,7 @@ func (s *serviceImpl) ResetPassword(ctx context.Context, id int, password string
 func (s *serviceImpl) UpdateAvatar(ctx context.Context, avatarUrl string) error {
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx == nil {
-		return gerror.New("未登录")
+		return bizerr.NewCode(CodeUserNotAuthenticated)
 	}
 	_, err := dao.SysUser.Ctx(ctx).
 		Where(do.SysUser{Id: bizCtx.UserId}).

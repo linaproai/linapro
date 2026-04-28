@@ -207,9 +207,10 @@ func init() {
 type ResourceLoader struct {
     HostFS        fs.FS
     SourcePlugins func() []SourcePlugin
-    Subdir        string                              // "manifest/i18n" 或 "manifest/i18n/apidoc"
+    Subdir        string                              // "manifest/i18n"
+    LocaleSubdir  string                              // 例如 "apidoc"
     PluginScope   PluginScope                         // Open | RestrictedToPluginNamespace
-    LayoutMode    LayoutMode                          // LocaleFile | LocaleFileAndDirectory
+    LayoutMode    LayoutMode                          // LocaleDirectory | LocaleSubdirectoryRecursive
     ValueMode     ValueMode                           // StringifyScalars | StringOnly
     KeyFilter     KeyFilter
 }
@@ -289,7 +290,7 @@ async function loadMessages(lang) {
 ### 决策十:语言发现改为资源约定 + 默认配置元数据,繁体中文作为压力测试基线
 
 **选择**:
-- 运行时内置语言从宿主 `manifest/i18n/<locale>.json` 文件自动发现;新增内置语言时不再新增 Go 常量、不再新增 SQL seed、不再修改前端 TS 语言清单。
+- 运行时内置语言从宿主 `manifest/i18n/<locale>/*.json` 文件自动发现;新增内置语言时不再新增 Go 常量、不再新增 SQL seed、不再修改前端 TS 语言清单。
 - 默认配置文件中的 `i18n` 配置段维护不可从 JSON 文件名推导且用户可能调整的少量元数据,采用简化结构:
 
 ```yaml
@@ -311,7 +312,7 @@ i18n:
 ```
 
 - 文档方向按当前宿主约定固定为 `ltr`,不在配置中维护 `direction`;`locales` 列表用于排序、元数据覆盖和启用语言白名单,未列入该列表的语言不会暴露给运行时语言列表。若 `enabled=false`,后端只接受默认语言,前端隐藏语言切换按钮并按默认语言加载消息。
-- 宿主与所有源码插件的 `manifest/i18n/zh-TW.json` 与 `manifest/i18n/apidoc/zh-TW/*.json` 必须补齐,否则 `CheckMissingMessages` 会返回非空。
+- 宿主与所有源码插件的 `manifest/i18n/zh-TW/*.json` 与 `manifest/i18n/zh-TW/apidoc/**/*.json` 必须补齐,否则 `CheckMissingMessages` 会返回非空。
 - 前端 `packages/locales/src/langs/<locale>/*.json`、`apps/web-antd/src/locales/langs/<locale>/*.json` 通过目录约定自动发现;语言切换菜单从 `/i18n/runtime/locales` 获取,不维护静态 TS 语言清单。
 - `<html dir>` 与 antd `ConfigProvider.direction` 固定为 `ltr`,繁体中文仅验证翻译资源完整性与页面可用性。
 - dayjs / antd / vxe locale 通过语言编码约定推导加载:优先尝试完整 locale 对应的包名,再尝试语言族兜底,不再为每个新增语言改 switch 分支。
@@ -334,7 +335,7 @@ i18n:
 
 **选择**:
 - 删除 `sys_i18n_locale` / `sys_i18n_message` / `sys_i18n_content` 三张表及其 DAO/DO/Entity、服务接口、控制器入口和测试。
-- 运行时语言列表只由 `manifest/i18n/<locale>.json` 自动发现,默认配置文件中的 `i18n` 段补充默认语言、多语言开关、原生名、排序和启用白名单。
+- 运行时语言列表只由 `manifest/i18n/<locale>/*.json` 自动发现,默认配置文件中的 `i18n` 段补充默认语言、多语言开关、原生名、排序和启用白名单。
 - 运行时消息只从宿主 JSON、源码插件 JSON 和动态插件 WASM 自定义节快照聚合;不存在数据库覆写层。
 - 保留导出、缺失检查和来源诊断能力,但它们是开发期/交付期辅助 API:导出结果用于离线校对并回写 JSON,诊断来源只报告 host/source-plugin/dynamic-plugin。
 - 不再提供通用 `sys_i18n_content` 业务内容多语言表。若未来某业务模块需要记录级多语言内容,应在该模块边界内设计自己的存储与 API,不能把业务内容模型放进基础 i18n service。
@@ -400,7 +401,7 @@ i18n:
 
 4. 繁体中文 + 固定 LTR:
    - 在默认配置文件 `i18n` 段维护默认语言、多语言开关、排序与原生名;删除 `017-framework-i18n-improvements.sql` 对 `zh-TW` 的 seed。
-   - 补齐宿主、所有源码插件的 `manifest/i18n/zh-TW.json` 与 `manifest/i18n/apidoc/zh-TW/*.json`。
+   - 补齐宿主、所有源码插件的 `manifest/i18n/zh-TW/*.json` 与 `manifest/i18n/zh-TW/apidoc/**/*.json`。
    - 补齐前端 `packages/locales/src/langs/zh-TW/*.json` 与 `apps/web-antd/src/locales/langs/zh-TW/*.json`。
    - `setI18nLanguage(locale)` 固定设置 `<html dir="ltr">`;antd `ConfigProvider` 固定接入 `direction="ltr"`。
    - dayjs / antd / vxe 按语言编码约定推导第三方 locale。

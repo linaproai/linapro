@@ -11,6 +11,7 @@ import (
 
 	v1 "lina-core/api/dict/v1"
 	dictsvc "lina-core/internal/service/dict"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 )
 
@@ -18,15 +19,20 @@ import (
 func (c *ControllerV1) Import(ctx context.Context, req *v1.ImportReq) (res *v1.ImportRes, err error) {
 	// Get uploaded file
 	r := g.RequestFromCtx(ctx)
-	file, _, err := r.FormFile("file")
-	if err != nil {
-		return nil, err
+	uploadFile := r.GetUploadFile("file")
+	if uploadFile == nil {
+		return nil, bizerr.NewCode(dictsvc.CodeDictImportFileRequired)
 	}
-	defer closeutil.Close(ctx, file, &err, "关闭字典导入文件失败")
+
+	file, err := uploadFile.Open()
+	if err != nil {
+		return nil, bizerr.WrapCode(err, dictsvc.CodeDictImportExcelReadFailed)
+	}
+	defer closeutil.Close(ctx, file, &err, "close dictionary import file failed")
 
 	fileData, err := io.ReadAll(file)
 	if err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, dictsvc.CodeDictImportExcelReadFailed)
 	}
 
 	// Get updateSupport flag

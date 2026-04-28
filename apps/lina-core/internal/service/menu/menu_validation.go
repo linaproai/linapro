@@ -6,9 +6,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/dao"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/menutype"
 )
 
@@ -52,7 +51,7 @@ func (s *serviceImpl) checkIconUnique(ctx context.Context, menuType, icon string
 		return err
 	}
 	if count > 0 {
-		return gerror.Newf("菜单图标[%s]已被其他目录或菜单使用", normalizedIcon)
+		return bizerr.NewCode(CodeMenuIconExists, bizerr.P("icon", normalizedIcon))
 	}
 	return nil
 }

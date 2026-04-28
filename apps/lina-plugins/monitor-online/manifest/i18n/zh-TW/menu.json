@@ -1,0 +1,13 @@
+{
+  "menu": {
+    "plugin:monitor-online:online": {
+      "title": "在線用戶"
+    },
+    "plugin:monitor-online:online:force-logout": {
+      "title": "強制退出"
+    },
+    "plugin:monitor-online:online:query": {
+      "title": "在線查詢"
+    }
+  }
+}

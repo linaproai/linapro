@@ -1,0 +1,16 @@
+{
+  "menu": {
+    "plugin:plugin-demo-source:record-create": {
+      "title": "Create"
+    },
+    "plugin:plugin-demo-source:record-delete": {
+      "title": "Delete"
+    },
+    "plugin:plugin-demo-source:record-update": {
+      "title": "Update"
+    },
+    "plugin:plugin-demo-source:sidebar-entry": {
+      "title": "Source Plugin Demo"
+    }
+  }
+}

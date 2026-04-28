@@ -45,8 +45,9 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 	}
 	for _, locale := range readPackedConfigTemplate(t).I18n.Locales {
 		expectedPaths = append(expectedPaths,
-			"manifest/i18n/"+locale.Locale+".json",
-			"manifest/i18n/apidoc/"+locale.Locale+".json",
+			"manifest/i18n/"+locale.Locale+"/framework.json",
+			"manifest/i18n/"+locale.Locale+"/menu.json",
+			"manifest/i18n/"+locale.Locale+"/apidoc/common.json",
 		)
 	}
 	sort.Strings(expectedPaths)

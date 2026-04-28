@@ -1,0 +1,72 @@
+{
+  "framework": {
+    "description": "LinaPro 是一款 AI 驱动的全栈开发框架。"
+  },
+  "gf": {
+    "gvalid": {
+      "rule": {
+        "between": "{field}字段值应在{min}到{max}之间",
+        "in": "{field}字段值不在允许范围内: {pattern}",
+        "length": "{field}字段长度应为{min}到{max}个字符",
+        "max": "{field}字段最大值应为{max}",
+        "min": "{field}字段最小值应为{min}",
+        "required": "{field}字段不能为空"
+      }
+    }
+  },
+  "locale": {
+    "en-US": {
+      "name": "英语",
+      "nativeName": "English"
+    },
+    "zh-CN": {
+      "name": "简体中文",
+      "nativeName": "简体中文"
+    },
+    "zh-TW": {
+      "name": "繁体中文",
+      "nativeName": "繁體中文"
+    }
+  },
+  "systemInfo": {
+    "components": {
+      "backend": {
+        "excelize": {
+          "description": "Excel文件处理库"
+        },
+        "goframe": {
+          "description": "Go语言开发框架"
+        },
+        "jwt": {
+          "description": "身份认证"
+        },
+        "mysql": {
+          "description": "关系型数据库"
+        }
+      },
+      "frontend": {
+        "ant-design-vue": {
+          "description": "UI组件库"
+        },
+        "pinia": {
+          "description": "状态管理"
+        },
+        "tailwindcss": {
+          "description": "原子化CSS框架"
+        },
+        "typescript": {
+          "description": "类型安全的JavaScript"
+        },
+        "vben-5": {
+          "description": "默认管理工作台前端框架"
+        },
+        "vite": {
+          "description": "前端构建工具"
+        },
+        "vue": {
+          "description": "渐进式JavaScript框架"
+        }
+      }
+    }
+  }
+}

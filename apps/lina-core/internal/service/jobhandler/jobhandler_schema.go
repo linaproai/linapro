@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
+	"lina-core/pkg/bizerr"
 )
 
 // handlerSchemaRoot stores the supported root-level schema fields.
@@ -59,7 +59,7 @@ func ValidateParams(schemaText string, paramsJSON json.RawMessage) error {
 	for _, key := range schema.Required {
 		value, ok := payload[key]
 		if !ok || value == nil {
-			return gerror.Newf("任务处理器参数缺少必填字段 %s", key)
+			return bizerr.NewCode(CodeJobHandlerParamRequiredMissing, bizerr.P("field", key))
 		}
 	}
 	for key, value := range payload {
@@ -82,13 +82,13 @@ func parseSchema(schemaText string) (*handlerSchemaRoot, error) {
 
 	var schema handlerSchemaRoot
 	if err := decoder.Decode(&schema); err != nil {
-		return nil, gerror.Wrap(err, "解析任务处理器参数 Schema 失败")
+		return nil, bizerr.WrapCode(err, CodeJobHandlerSchemaParseFailed)
 	}
 	if err := ensureDecoderEOF(decoder); err != nil {
-		return nil, gerror.Wrap(err, "任务处理器参数 Schema 只能包含一个 JSON 对象")
+		return nil, bizerr.WrapCode(err, CodeJobHandlerSchemaSingleObjectRequired)
 	}
 	if strings.TrimSpace(schema.Type) != "object" {
-		return nil, gerror.New("任务处理器参数 Schema 根节点必须声明 type=object")
+		return nil, bizerr.NewCode(CodeJobHandlerSchemaRootTypeInvalid)
 	}
 	if schema.Properties == nil {
 		schema.Properties = map[string]handlerSchemaField{}
@@ -96,7 +96,7 @@ func parseSchema(schemaText string) (*handlerSchemaRoot, error) {
 
 	for key, field := range schema.Properties {
 		if strings.TrimSpace(key) == "" {
-			return nil, gerror.New("任务处理器参数 Schema 不允许存在空属性名")
+			return nil, bizerr.NewCode(CodeJobHandlerSchemaEmptyPropertyName)
 		}
 		if err := validateSchemaField(key, field); err != nil {
 			return nil, err
@@ -104,7 +104,10 @@ func parseSchema(schemaText string) (*handlerSchemaRoot, error) {
 	}
 	for _, required := range schema.Required {
 		if _, ok := schema.Properties[required]; !ok {
-			return nil, gerror.Newf("任务处理器参数 Schema 的 required 字段 %s 未在 properties 中声明", required)
+			return nil, bizerr.NewCode(
+				CodeJobHandlerSchemaRequiredFieldUnknown,
+				bizerr.P("field", required),
+			)
 		}
 	}
 	return &schema, nil
@@ -116,17 +119,25 @@ func validateSchemaField(key string, field handlerSchemaField) error {
 	switch fieldType {
 	case "string", "integer", "number", "boolean":
 	default:
-		return gerror.Newf("任务处理器参数 %s 的类型 %s 不在受支持范围内", key, field.Type)
+		return bizerr.NewCode(
+			CodeJobHandlerSchemaFieldTypeUnsupported,
+			bizerr.P("field", key),
+			bizerr.P("fieldType", field.Type),
+		)
 	}
 
 	format := strings.TrimSpace(field.Format)
 	switch format {
 	case "", "date", "date-time", "textarea":
 	default:
-		return gerror.Newf("任务处理器参数 %s 的 format=%s 不受支持", key, field.Format)
+		return bizerr.NewCode(
+			CodeJobHandlerSchemaFieldFormatUnsupported,
+			bizerr.P("field", key),
+			bizerr.P("format", field.Format),
+		)
 	}
 	if format != "" && fieldType != "string" {
-		return gerror.Newf("任务处理器参数 %s 只有 string 类型才允许声明 format", key)
+		return bizerr.NewCode(CodeJobHandlerSchemaFieldFormatTypeInvalid, bizerr.P("field", key))
 	}
 	if len(field.Enum) > 0 {
 		for _, item := range field.Enum {
@@ -141,7 +152,7 @@ func validateSchemaField(key string, field handlerSchemaField) error {
 // validateSchemaEnumValue validates one enum literal against the declared field type.
 func validateSchemaEnumValue(key string, fieldType string, value any) error {
 	if err := validateType(fieldType, value); err != nil {
-		return gerror.Wrapf(err, "任务处理器参数 %s 的枚举值不合法", key)
+		return bizerr.WrapCode(err, CodeJobHandlerSchemaEnumValueInvalid, bizerr.P("field", key))
 	}
 	return nil
 }
@@ -158,10 +169,10 @@ func parseParams(paramsJSON json.RawMessage) (map[string]any, error) {
 
 	var payload map[string]any
 	if err := decoder.Decode(&payload); err != nil {
-		return nil, gerror.Wrap(err, "解析任务处理器参数失败")
+		return nil, bizerr.WrapCode(err, CodeJobHandlerParamsParseFailed)
 	}
 	if err := ensureDecoderEOF(decoder); err != nil {
-		return nil, gerror.Wrap(err, "任务处理器参数只能包含一个 JSON 对象")
+		return nil, bizerr.WrapCode(err, CodeJobHandlerParamsSingleObjectRequired)
 	}
 	if payload == nil {
 		payload = map[string]any{}
@@ -172,10 +183,10 @@ func parseParams(paramsJSON json.RawMessage) (map[string]any, error) {
 // validateFieldValue validates one input field value against its schema definition.
 func validateFieldValue(key string, field handlerSchemaField, value any) error {
 	if err := validateType(strings.TrimSpace(field.Type), value); err != nil {
-		return gerror.Wrapf(err, "任务处理器参数 %s 类型不匹配", key)
+		return bizerr.WrapCode(err, CodeJobHandlerParamTypeMismatch, bizerr.P("field", key))
 	}
 	if len(field.Enum) > 0 && !enumContains(field.Enum, value) {
-		return gerror.Newf("任务处理器参数 %s 不在允许的枚举值范围内", key)
+		return bizerr.NewCode(CodeJobHandlerParamEnumInvalid, bizerr.P("field", key))
 	}
 
 	format := strings.TrimSpace(field.Format)
@@ -188,11 +199,11 @@ func validateFieldValue(key string, field handlerSchemaField, value any) error {
 		return nil
 	case "date":
 		if _, err := time.Parse("2006-01-02", stringValue); err != nil {
-			return gerror.Newf("任务处理器参数 %s 必须为 YYYY-MM-DD 日期格式", key)
+			return bizerr.NewCode(CodeJobHandlerParamDateFormatInvalid, bizerr.P("field", key))
 		}
 	case "date-time":
 		if _, err := time.Parse(time.RFC3339, stringValue); err != nil {
-			return gerror.Newf("任务处理器参数 %s 必须为 RFC3339 时间格式", key)
+			return bizerr.NewCode(CodeJobHandlerParamDateTimeFormatInvalid, bizerr.P("field", key))
 		}
 	}
 	return nil
@@ -222,7 +233,7 @@ func validateType(fieldType string, value any) error {
 			}
 		}
 	}
-	return gerror.Newf("不支持的值 %v", value)
+	return bizerr.NewCode(CodeJobHandlerValueUnsupported, bizerr.P("value", value))
 }
 
 // enumContains reports whether the input value matches one declared enum literal.
@@ -254,5 +265,5 @@ func ensureDecoderEOF(decoder *json.Decoder) error {
 		}
 		return err
 	}
-	return gerror.New("检测到多余 JSON 内容")
+	return bizerr.NewCode(CodeJobHandlerJSONTrailingContent)
 }

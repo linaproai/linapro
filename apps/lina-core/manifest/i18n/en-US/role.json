@@ -1,0 +1,9 @@
+{
+  "role": {
+    "builtin": {
+      "admin": {
+        "name": "Administrator"
+      }
+    }
+  }
+}
