@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unicode"
 )
 
 // TestRequireCommandConfirmation verifies sensitive command confirmation tokens
@@ -42,7 +43,7 @@ func TestRequireCommandConfirmation(t *testing.T) {
 			confirmValue: "",
 			wantErr:      true,
 			wantSubstrings: []string{
-				"命令 init 涉及敏感升级或数据库操作",
+				"command init performs sensitive upgrade or database operations",
 				makeConfirmationExample(initCommandName),
 				goRunConfirmationExample(initCommandName),
 			},
@@ -53,7 +54,7 @@ func TestRequireCommandConfirmation(t *testing.T) {
 			confirmValue: initCommandName,
 			wantErr:      true,
 			wantSubstrings: []string{
-				"命令 mock 涉及敏感升级或数据库操作",
+				"command mock performs sensitive upgrade or database operations",
 				makeConfirmationExample(mockCommandName),
 				goRunConfirmationExample(mockCommandName),
 			},
@@ -81,6 +82,29 @@ func TestRequireCommandConfirmation(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 		})
+	}
+}
+
+// TestCommandPackageHasNoHanText verifies CLI diagnostics in this package stay
+// as English developer-facing source text.
+func TestCommandPackageHasNoHanText(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read command package directory: %v", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" {
+			continue
+		}
+		content, readErr := os.ReadFile(entry.Name())
+		if readErr != nil {
+			t.Fatalf("read %s: %v", entry.Name(), readErr)
+		}
+		for _, r := range string(content) {
+			if unicode.Is(unicode.Han, r) {
+				t.Fatalf("%s contains Han text; command diagnostics must use English source text", entry.Name())
+			}
+		}
 	}
 }
 

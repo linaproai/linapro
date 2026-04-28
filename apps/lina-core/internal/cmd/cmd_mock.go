@@ -35,7 +35,7 @@ func (m *Main) Mock(ctx context.Context, in MockInput) (out *MockOutput, err err
 	}
 	assets, err := scanMockSQLAssets(ctx, source)
 	if err != nil {
-		return nil, gerror.Wrap(err, "扫描 Mock SQL 文件失败")
+		return nil, gerror.Wrap(err, "scan mock SQL files failed")
 	}
 	if len(assets) == 0 {
 		logger.Warning(ctx, "no mock SQL files found")
@@ -57,6 +57,6 @@ func scanMockSQLAssets(ctx context.Context, source sqlAssetSource) ([]sqlAsset, 
 	case sqlAssetSourceEmbedded:
 		return scanEmbeddedSQLAssets(ctx, hostMockSQLDir())
 	default:
-		return nil, gerror.Newf("不支持的 mock SQL 资源来源: %s", source)
+		return nil, gerror.Newf("unsupported mock SQL asset source: %s", source)
 	}
 }

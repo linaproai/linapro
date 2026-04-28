@@ -61,7 +61,7 @@ func requireCommandConfirmation(commandName string, confirmValue string) error {
 		return nil
 	}
 	return gerror.Newf(
-		"命令 %s 涉及敏感升级或数据库操作，必须显式确认后才能执行。请使用 %s 或 %s",
+		"command %s performs sensitive upgrade or database operations and requires explicit confirmation; use %s or %s",
 		commandName,
 		makeConfirmationExample(commandName),
 		goRunConfirmationExample(commandName),
@@ -105,7 +105,7 @@ func resolveSQLAssetSource(value string) (sqlAssetSource, error) {
 	case sqlAssetSourceEmbedded, sqlAssetSourceLocal:
 		return normalized, nil
 	default:
-		return "", gerror.Newf("不支持的 SQL 资源来源: %s，可选值为 embedded 或 local", value)
+		return "", gerror.Newf("unsupported SQL asset source: %s; available values are embedded or local", value)
 	}
 }
 
@@ -133,7 +133,7 @@ func executeSQLAssetsWithExecutor(ctx context.Context, assets []sqlAsset, execut
 			if err := executor(ctx, statement); err != nil {
 				statementIndex := index + 1
 				logger.Warningf(ctx, "execute %s statement %d: %v", baseName, statementIndex, err)
-				return gerror.Wrapf(err, "执行 SQL 文件 %s 的第 %d 条语句失败", baseName, statementIndex)
+				return gerror.Wrapf(err, "execute statement %d in SQL file %s failed", statementIndex, baseName)
 			}
 		}
 	}

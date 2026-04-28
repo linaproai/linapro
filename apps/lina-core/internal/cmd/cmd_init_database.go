@@ -27,7 +27,7 @@ func parseInitRebuildFlag(value string) (bool, error) {
 	case "true", "1", "yes", "y", "on":
 		return true, nil
 	default:
-		return false, gerror.Newf("不支持的 rebuild 参数值: %s，可选值为 true 或 false", value)
+		return false, gerror.Newf("unsupported rebuild value: %s; available values are true or false", value)
 	}
 }
 
@@ -36,14 +36,14 @@ func parseInitRebuildFlag(value string) (bool, error) {
 func prepareInitDatabase(ctx context.Context, rebuild bool) (err error) {
 	linkVar, err := g.Cfg().Get(ctx, "database.default.link")
 	if err != nil {
-		return gerror.Wrap(err, "读取数据库连接配置失败")
+		return gerror.Wrap(err, "read database connection configuration failed")
 	}
 	if linkVar == nil {
-		return gerror.New("数据库连接配置 database.default.link 不能为空")
+		return gerror.New("database connection configuration database.default.link must not be empty")
 	}
 	link := strings.TrimSpace(linkVar.String())
 	if link == "" {
-		return gerror.New("数据库连接配置 database.default.link 不能为空")
+		return gerror.New("database connection configuration database.default.link must not be empty")
 	}
 
 	databaseName, err := databaseNameFromMySQLLink(link)
@@ -51,7 +51,7 @@ func prepareInitDatabase(ctx context.Context, rebuild bool) (err error) {
 		return err
 	}
 	if databaseName != initDatabaseName {
-		return gerror.Newf("初始化数据库连接串必须指向 %s，当前为 %s", initDatabaseName, databaseName)
+		return gerror.Newf("initialization database link must target %s, got %s", initDatabaseName, databaseName)
 	}
 
 	serverLink, err := serverLinkFromMySQLLink(link)
@@ -65,25 +65,25 @@ func prepareInitDatabase(ctx context.Context, rebuild bool) (err error) {
 
 	db, err := gdb.New(gdb.ConfigNode{Link: serverLink})
 	if err != nil {
-		return gerror.Wrap(err, "创建数据库初始化连接失败")
+		return gerror.Wrap(err, "create database initialization connection failed")
 	}
 	defer func() {
 		if closeErr := db.Close(ctx); closeErr != nil && err == nil {
-			err = gerror.Wrap(closeErr, "关闭数据库初始化连接失败")
+			err = gerror.Wrap(closeErr, "close database initialization connection failed")
 		}
 	}()
 
 	if rebuild {
 		logger.Warningf(ctx, "rebuilding database %s: dropping existing schema", databaseName)
 		if _, err = db.Exec(ctx, "DROP DATABASE IF EXISTS "+quotedName); err != nil {
-			return gerror.Wrapf(err, "重建数据库前删除 %s 失败", databaseName)
+			return gerror.Wrapf(err, "drop database %s before rebuild failed", databaseName)
 		}
 	}
 
 	createDatabaseSQL := "CREATE DATABASE IF NOT EXISTS " + quotedName +
 		" DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
 	if _, err = db.Exec(ctx, createDatabaseSQL); err != nil {
-		return gerror.Wrapf(err, "创建数据库 %s 失败", databaseName)
+		return gerror.Wrapf(err, "create database %s failed", databaseName)
 	}
 	return nil
 }
@@ -119,11 +119,11 @@ func splitMySQLLinkDatabase(link string) (prefix string, name string, query stri
 	}
 	nameStart := strings.LastIndex(pathPart, "/")
 	if nameStart < 0 {
-		return "", "", "", gerror.New("数据库连接串缺少数据库名称")
+		return "", "", "", gerror.New("database name is missing from database link")
 	}
 	name = strings.TrimSpace(pathPart[nameStart+1:])
 	if name == "" {
-		return "", "", "", gerror.New("数据库连接串缺少数据库名称")
+		return "", "", "", gerror.New("database name is missing from database link")
 	}
 	return pathPart[:nameStart+1], name, query, nil
 }
@@ -133,10 +133,10 @@ func splitMySQLLinkDatabase(link string) (prefix string, name string, query stri
 func quoteMySQLIdentifier(identifier string) (string, error) {
 	trimmed := strings.TrimSpace(identifier)
 	if trimmed == "" {
-		return "", gerror.New("MySQL 标识符不能为空")
+		return "", gerror.New("MySQL identifier must not be empty")
 	}
 	if strings.ContainsRune(trimmed, 0) {
-		return "", gerror.New("MySQL 标识符不能包含空字符")
+		return "", gerror.New("MySQL identifier must not contain NUL bytes")
 	}
 	return "`" + strings.ReplaceAll(trimmed, "`", "``") + "`", nil
 }

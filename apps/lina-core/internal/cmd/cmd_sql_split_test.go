@@ -105,7 +105,7 @@ func TestExecuteSQLAssetsWithExecutorStopsAfterFailingStatement(t *testing.T) {
 	if !strings.Contains(err.Error(), "001-seed.sql") {
 		t.Fatalf("expected error %q to contain failing file name", err.Error())
 	}
-	if !strings.Contains(err.Error(), "第 2 条语句") {
+	if !strings.Contains(err.Error(), "statement 2") {
 		t.Fatalf("expected error %q to contain failing statement index", err.Error())
 	}
 	if !reflect.DeepEqual(executedSQL, []string{"FIRST", "SECOND"}) {

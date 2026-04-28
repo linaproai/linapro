@@ -43,7 +43,7 @@ func (m *Main) Init(ctx context.Context, in InitInput) (out *InitOutput, err err
 	}
 	assets, err := scanInitSQLAssets(ctx, source)
 	if err != nil {
-		return nil, gerror.Wrap(err, "扫描初始化 SQL 文件失败")
+		return nil, gerror.Wrap(err, "scan initialization SQL files failed")
 	}
 	if len(assets) == 0 {
 		logger.Warning(ctx, "no SQL files found for initialization")
@@ -65,6 +65,6 @@ func scanInitSQLAssets(ctx context.Context, source sqlAssetSource) ([]sqlAsset, 
 	case sqlAssetSourceEmbedded:
 		return scanEmbeddedSQLAssets(ctx, hostInitSQLDir())
 	default:
-		return nil, gerror.Newf("不支持的 init SQL 资源来源: %s", source)
+		return nil, gerror.Newf("unsupported init SQL asset source: %s", source)
 	}
 }
