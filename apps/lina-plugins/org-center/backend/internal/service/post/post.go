@@ -397,7 +397,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	}
 
 	file := excelize.NewFile()
-	defer excelutil.CloseFile(file, &err)
+	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
 	headers := []string{"岗位编码", "岗位名称", "排序", "状态", "备注", "创建时间"}
 	for index, header := range headers {

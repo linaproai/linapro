@@ -16,7 +16,10 @@ func TestGetCronUsesProtectedRuntimeValues(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyCronLogRetention, `{"mode":"count","value":500}`)
 
 	svc := New()
-	cfg := svc.GetCron(context.Background())
+	cfg, err := svc.GetCron(context.Background())
+	if err != nil {
+		t.Fatalf("get cron config: %v", err)
+	}
 
 	if cfg.LogRetention.Mode != CronLogRetentionModeCount {
 		t.Fatalf("expected cron log retention mode count, got %q", cfg.LogRetention.Mode)
@@ -24,7 +27,11 @@ func TestGetCronUsesProtectedRuntimeValues(t *testing.T) {
 	if cfg.LogRetention.Value != 500 {
 		t.Fatalf("expected cron log retention value 500, got %d", cfg.LogRetention.Value)
 	}
-	if retention := svc.GetCronLogRetention(context.Background()); retention.Mode != CronLogRetentionModeCount || retention.Value != 500 {
+	retention, err := svc.GetCronLogRetention(context.Background())
+	if err != nil {
+		t.Fatalf("get cron log retention: %v", err)
+	}
+	if retention.Mode != CronLogRetentionModeCount || retention.Value != 500 {
 		t.Fatalf("expected cron log retention getter to return count/500, got mode=%q value=%d", retention.Mode, retention.Value)
 	}
 
@@ -32,7 +39,11 @@ func TestGetCronUsesProtectedRuntimeValues(t *testing.T) {
 	if cfg.Shell.Enabled != expectedShellEnabled {
 		t.Fatalf("expected cron shell enabled to be %t, got %t", expectedShellEnabled, cfg.Shell.Enabled)
 	}
-	if shellEnabled := svc.IsCronShellEnabled(context.Background()); shellEnabled != expectedShellEnabled {
+	shellEnabled, err := svc.IsCronShellEnabled(context.Background())
+	if err != nil {
+		t.Fatalf("get cron shell gate: %v", err)
+	}
+	if shellEnabled != expectedShellEnabled {
 		t.Fatalf("expected IsCronShellEnabled to be %t, got %t", expectedShellEnabled, shellEnabled)
 	}
 }
@@ -43,7 +54,10 @@ func TestGetCronUsesDefaultRetentionWhenRuntimeParamMissing(t *testing.T) {
 	withRuntimeParamAbsent(t, RuntimeParamKeyCronShellEnabled)
 	withRuntimeParamAbsent(t, RuntimeParamKeyCronLogRetention)
 
-	cfg := New().GetCron(context.Background())
+	cfg, err := New().GetCron(context.Background())
+	if err != nil {
+		t.Fatalf("get cron config: %v", err)
+	}
 	if cfg.LogRetention.Mode != CronLogRetentionModeDays {
 		t.Fatalf("expected default cron log retention mode days, got %q", cfg.LogRetention.Mode)
 	}
@@ -52,6 +66,16 @@ func TestGetCronUsesDefaultRetentionWhenRuntimeParamMissing(t *testing.T) {
 	}
 	if cfg.Shell.Enabled {
 		t.Fatal("expected shell mode to stay disabled by default")
+	}
+}
+
+// TestGetCronLogRetentionReturnsInvalidRuntimeValue verifies malformed runtime
+// JSON is returned to callers instead of being hidden behind a fallback value.
+func TestGetCronLogRetentionReturnsInvalidRuntimeValue(t *testing.T) {
+	withCachedRuntimeParamValue(t, RuntimeParamKeyCronLogRetention, `{"mode":"days","value":0}`)
+
+	if _, err := New().GetCronLogRetention(context.Background()); err == nil {
+		t.Fatal("expected invalid cron retention override to return an error")
 	}
 }
 

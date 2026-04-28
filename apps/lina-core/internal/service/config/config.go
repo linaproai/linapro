@@ -16,24 +16,24 @@ type Service interface {
 	// IsClusterEnabled reports whether multi-node cluster mode is enabled.
 	IsClusterEnabled(ctx context.Context) bool
 	// GetJwt reads JWT config from configuration file.
-	GetJwt(ctx context.Context) *JwtConfig
+	GetJwt(ctx context.Context) (*JwtConfig, error)
 	// GetJwtSecret returns the static JWT signing secret loaded from config.yaml.
 	GetJwtSecret(ctx context.Context) string
 	// GetJwtExpire returns the runtime-effective JWT expiration duration.
-	GetJwtExpire(ctx context.Context) time.Duration
+	GetJwtExpire(ctx context.Context) (time.Duration, error)
 	// GetPublicFrontend returns the public-safe frontend branding and display
 	// settings that can be consumed by login pages and the admin workspace.
-	GetPublicFrontend(ctx context.Context) *PublicFrontendConfig
+	GetPublicFrontend(ctx context.Context) (*PublicFrontendConfig, error)
 	// GetI18n reads runtime internationalization settings from configuration file.
 	GetI18n(ctx context.Context) *I18nConfig
 	// GetLogin reads runtime login parameters from sys_config.
 	GetLogin(ctx context.Context) *LoginConfig
 	// GetCron reads runtime cron-management parameters from protected sys_config entries.
-	GetCron(ctx context.Context) *CronConfig
+	GetCron(ctx context.Context) (*CronConfig, error)
 	// IsCronShellEnabled reports whether shell-type cron jobs are currently allowed.
-	IsCronShellEnabled(ctx context.Context) bool
+	IsCronShellEnabled(ctx context.Context) (bool, error)
 	// GetCronLogRetention returns the runtime-effective default cron log retention policy.
-	GetCronLogRetention(ctx context.Context) *CronLogRetentionConfig
+	GetCronLogRetention(ctx context.Context) (*CronLogRetentionConfig, error)
 	// IsLoginIPBlacklisted reports whether the input IP is denied by the
 	// runtime-effective blacklist without constructing a full config object.
 	IsLoginIPBlacklisted(ctx context.Context, ip string) bool
@@ -55,15 +55,15 @@ type Service interface {
 	// GetPluginDynamicStoragePath returns the normalized dynamic wasm storage directory.
 	GetPluginDynamicStoragePath(ctx context.Context) string
 	// GetSession reads session config from configuration file.
-	GetSession(ctx context.Context) *SessionConfig
+	GetSession(ctx context.Context) (*SessionConfig, error)
 	// GetSessionTimeout returns the runtime-effective online-session timeout.
-	GetSessionTimeout(ctx context.Context) time.Duration
+	GetSessionTimeout(ctx context.Context) (time.Duration, error)
 	// GetUpload reads upload config from configuration file.
-	GetUpload(ctx context.Context) *UploadConfig
+	GetUpload(ctx context.Context) (*UploadConfig, error)
 	// GetUploadPath returns the static upload directory loaded from config.yaml.
 	GetUploadPath(ctx context.Context) string
 	// GetUploadMaxSize returns the runtime-effective upload size ceiling in MB.
-	GetUploadMaxSize(ctx context.Context) int64
+	GetUploadMaxSize(ctx context.Context) (int64, error)
 	// MarkRuntimeParamsChanged bumps the shared runtime-parameter revision and clears
 	// the current process snapshot after one protected runtime parameter mutation.
 	MarkRuntimeParamsChanged(ctx context.Context) error

@@ -2,7 +2,13 @@
 // dropping the returned error.
 package closeutil
 
-import "github.com/gogf/gf/v2/errors/gerror"
+import (
+	"context"
+
+	"github.com/gogf/gf/v2/errors/gerror"
+
+	"lina-core/pkg/logger"
+)
 
 // Closer describes one resource that can be closed.
 type Closer interface {
@@ -10,7 +16,7 @@ type Closer interface {
 }
 
 // Close folds one close error into errPtr when the caller already returns an error.
-func Close(closer Closer, errPtr *error, action string) {
+func Close(ctx context.Context, closer Closer, errPtr *error, action string) {
 	if closer == nil {
 		return
 	}
@@ -20,9 +26,11 @@ func Close(closer Closer, errPtr *error, action string) {
 	}
 	wrapped := gerror.Wrap(closeErr, action)
 	if errPtr == nil {
-		// Callers that do not expose an error return must still fail loudly so
-		// close errors are never swallowed silently.
-		panic(wrapped)
+		// A nil error pointer means the caller misused this helper by omitting
+		// the named return error path, so log the close failure instead of
+		// panicking or silently dropping it.
+		logger.Warningf(ctx, "resource close failed without error return path action=%s err=%v", action, wrapped)
+		return
 	}
 	if *errPtr == nil {
 		// Preserve the original business error when one already exists and only

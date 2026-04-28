@@ -65,7 +65,7 @@ func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploa
 	if err != nil {
 		return nil, gerror.Wrap(err, "打开动态插件文件失败")
 	}
-	defer closeutil.Close(source, &err, "关闭动态插件上传文件失败")
+	defer closeutil.Close(ctx, source, &err, "关闭动态插件上传文件失败")
 
 	content, err := io.ReadAll(source)
 	if err != nil {
@@ -91,7 +91,10 @@ func (s *serviceImpl) validateUploadedPackageSize(ctx context.Context, sizeBytes
 		return nil
 	}
 
-	uploadMaxSizeMB := s.uploadSize.GetUploadMaxSize(ctx)
+	uploadMaxSizeMB, err := s.uploadSize.GetUploadMaxSize(ctx)
+	if err != nil {
+		return err
+	}
 	if uploadMaxSizeMB <= 0 {
 		return nil
 	}

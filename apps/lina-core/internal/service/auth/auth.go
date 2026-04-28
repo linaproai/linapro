@@ -276,8 +276,11 @@ func (s *serviceImpl) RevokeSession(ctx context.Context, tokenId string) error {
 
 // generateToken generates JWT token for given user, returns token string and tokenId.
 func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser) (string, string, error) {
+	jwtTTL, err := s.configSvc.GetJwtExpire(ctx)
+	if err != nil {
+		return "", "", err
+	}
 	var (
-		jwtTTL    = s.configSvc.GetJwtExpire(ctx)
 		jwtSecret = s.configSvc.GetJwtSecret(ctx)
 		tokenId   = guid.S()
 	)

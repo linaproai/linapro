@@ -217,7 +217,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 
 	// Create Excel file
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
 	headers := []string{"字典名称", "字典类型", "状态", "备注", "创建时间"}
@@ -229,24 +229,24 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 
 	for i, dt := range list {
 		row := i + 2
-		if err = setCellValueByName(f, sheet, cellName(1, row), dt.Name); err != nil {
+		if err = setCellValue(f, sheet, 1, row, dt.Name); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(2, row), dt.Type); err != nil {
+		if err = setCellValue(f, sheet, 2, row, dt.Type); err != nil {
 			return nil, err
 		}
 		statusText := "正常"
 		if dt.Status == 0 {
 			statusText = "停用"
 		}
-		if err = setCellValueByName(f, sheet, cellName(3, row), statusText); err != nil {
+		if err = setCellValue(f, sheet, 3, row, statusText); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(4, row), dt.Remark); err != nil {
+		if err = setCellValue(f, sheet, 4, row, dt.Remark); err != nil {
 			return nil, err
 		}
 		if dt.CreatedAt != nil {
-			if err = setCellValueByName(f, sheet, cellName(5, row), dt.CreatedAt.String()); err != nil {
+			if err = setCellValue(f, sheet, 5, row, dt.CreatedAt.String()); err != nil {
 				return nil, err
 			}
 		}

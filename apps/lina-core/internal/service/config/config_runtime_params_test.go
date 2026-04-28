@@ -11,6 +11,7 @@ import (
 	"time"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
@@ -216,12 +217,19 @@ func TestGetJwtPrefersRuntimeParamOverride(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
 
 	svc := New()
-	cfg := svc.GetJwt(context.Background())
+	cfg, err := svc.GetJwt(context.Background())
+	if err != nil {
+		t.Fatalf("get jwt config: %v", err)
+	}
 
 	if cfg.Expire != 12*time.Hour {
 		t.Fatalf("expected runtime param jwt expire to be 12h, got %s", cfg.Expire)
 	}
-	if expire := svc.GetJwtExpire(context.Background()); expire != 12*time.Hour {
+	expire, err := svc.GetJwtExpire(context.Background())
+	if err != nil {
+		t.Fatalf("get jwt expire: %v", err)
+	}
+	if expire != 12*time.Hour {
 		t.Fatalf("expected runtime getter jwt expire to be 12h, got %s", expire)
 	}
 }
@@ -232,7 +240,10 @@ func TestGetSessionPrefersRuntimeParamTimeout(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeySessionTimeout, "2h")
 
 	svc := New()
-	cfg := svc.GetSession(context.Background())
+	cfg, err := svc.GetSession(context.Background())
+	if err != nil {
+		t.Fatalf("get session config: %v", err)
+	}
 
 	if cfg.Timeout != 2*time.Hour {
 		t.Fatalf("expected runtime param session timeout to be 2h, got %s", cfg.Timeout)
@@ -240,7 +251,11 @@ func TestGetSessionPrefersRuntimeParamTimeout(t *testing.T) {
 	if cfg.CleanupInterval <= 0 {
 		t.Fatalf("expected cleanup interval to remain positive, got %s", cfg.CleanupInterval)
 	}
-	if timeout := svc.GetSessionTimeout(context.Background()); timeout != 2*time.Hour {
+	timeout, err := svc.GetSessionTimeout(context.Background())
+	if err != nil {
+		t.Fatalf("get session timeout: %v", err)
+	}
+	if timeout != 2*time.Hour {
 		t.Fatalf("expected runtime getter session timeout to be 2h, got %s", timeout)
 	}
 }
@@ -251,13 +266,40 @@ func TestGetUploadPrefersRuntimeParamMaxSize(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyUploadMaxSize, "8")
 
 	svc := New()
-	cfg := svc.GetUpload(context.Background())
+	cfg, err := svc.GetUpload(context.Background())
+	if err != nil {
+		t.Fatalf("get upload config: %v", err)
+	}
 
 	if cfg.MaxSize != 8 {
 		t.Fatalf("expected runtime param upload max size to be 8, got %d", cfg.MaxSize)
 	}
-	if maxSize := svc.GetUploadMaxSize(context.Background()); maxSize != 8 {
+	maxSize, err := svc.GetUploadMaxSize(context.Background())
+	if err != nil {
+		t.Fatalf("get upload max size: %v", err)
+	}
+	if maxSize != 8 {
 		t.Fatalf("expected runtime getter upload max size to be 8, got %d", maxSize)
+	}
+}
+
+// TestRuntimeParamParseErrorsReturnError verifies malformed cached runtime
+// values are propagated to request-time config readers.
+func TestRuntimeParamParseErrorsReturnError(t *testing.T) {
+	withCachedRuntimeParamParseError(t, RuntimeParamKeyJWTExpire, gerror.New("bad runtime duration"))
+
+	if _, err := New().GetJwtExpire(context.Background()); err == nil {
+		t.Fatal("expected invalid runtime JWT override to return an error")
+	}
+}
+
+// TestPublicFrontendInvalidBooleanReturnsError verifies malformed boolean
+// runtime values are propagated to public frontend config readers.
+func TestPublicFrontendInvalidBooleanReturnsError(t *testing.T) {
+	withCachedRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkEnabled, "yes")
+
+	if _, err := New().GetPublicFrontend(context.Background()); err == nil {
+		t.Fatal("expected invalid watermark boolean to return an error")
 	}
 }
 
@@ -313,7 +355,10 @@ func TestGetPublicFrontendUsesProtectedConfigValues(t *testing.T) {
 	withRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkContent, "LinaPro Watermark")
 	withRuntimeParamValue(t, RuntimeParamKeyCronLogRetention, `{"mode":"count","value":120}`)
 
-	cfg := New().GetPublicFrontend(context.Background())
+	cfg, err := New().GetPublicFrontend(context.Background())
+	if err != nil {
+		t.Fatalf("get public frontend config: %v", err)
+	}
 	if cfg.App.Name != "LinaPro Console" {
 		t.Fatalf("expected app name override, got %q", cfg.App.Name)
 	}
@@ -364,7 +409,11 @@ func TestRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 	clearRuntimeParamSnapshotCache(t, ctx)
 
 	svc := New()
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+	cfg, err := svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get initial jwt config: %v", err)
+	}
+	if cfg.Expire != 12*time.Hour {
 		t.Fatalf("expected initial cached jwt expire to be 12h, got %s", cfg.Expire)
 	}
 
@@ -396,13 +445,21 @@ func TestRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 		markRuntimeParamChanged(t, ctx)
 	})
 
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+	cfg, err = svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get cached jwt config: %v", err)
+	}
+	if cfg.Expire != 12*time.Hour {
 		t.Fatalf("expected cached jwt expire to remain 12h before revision bump, got %s", cfg.Expire)
 	}
 
 	markRuntimeParamChanged(t, ctx)
 
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 6*time.Hour {
+	cfg, err = svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get reloaded jwt config: %v", err)
+	}
+	if cfg.Expire != 6*time.Hour {
 		t.Fatalf("expected jwt expire to reload to 6h after revision bump, got %s", cfg.Expire)
 	}
 }
@@ -418,7 +475,11 @@ func TestSyncRuntimeParamSnapshotKeepsCachedValueWhenRevisionUnchanged(t *testin
 	if err := svc.SyncRuntimeParamSnapshot(ctx); err != nil {
 		t.Fatalf("initial runtime param sync failed: %v", err)
 	}
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+	cfg, err := svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get synced jwt config: %v", err)
+	}
+	if cfg.Expire != 12*time.Hour {
 		t.Fatalf("expected synced jwt expire to be 12h, got %s", cfg.Expire)
 	}
 
@@ -453,7 +514,11 @@ func TestSyncRuntimeParamSnapshotKeepsCachedValueWhenRevisionUnchanged(t *testin
 	if err = svc.SyncRuntimeParamSnapshot(ctx); err != nil {
 		t.Fatalf("runtime param sync with unchanged revision failed: %v", err)
 	}
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+	cfg, err = svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get cached jwt config after unchanged sync: %v", err)
+	}
+	if cfg.Expire != 12*time.Hour {
 		t.Fatalf("expected cached jwt expire to remain 12h when revision is unchanged, got %s", cfg.Expire)
 	}
 }
@@ -503,7 +568,11 @@ func TestSyncRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 	if err = svc.SyncRuntimeParamSnapshot(ctx); err != nil {
 		t.Fatalf("runtime param sync after revision bump failed: %v", err)
 	}
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 6*time.Hour {
+	cfg, err := svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get reloaded jwt config after sync: %v", err)
+	}
+	if cfg.Expire != 6*time.Hour {
 		t.Fatalf("expected jwt expire to reload to 6h after watcher sync, got %s", cfg.Expire)
 	}
 }
@@ -526,7 +595,11 @@ func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
 	if atomic.LoadInt32(&fakeKV.getIntCalls) != 0 {
 		t.Fatalf("expected single-node sync to avoid GetInt, got %d calls", atomic.LoadInt32(&fakeKV.getIntCalls))
 	}
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+	cfg, err := svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get single-node jwt config: %v", err)
+	}
+	if cfg.Expire != 12*time.Hour {
 		t.Fatalf("expected initial jwt expire 12h, got %s", cfg.Expire)
 	}
 
@@ -559,7 +632,11 @@ func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
 		markRuntimeParamChanged(t, ctx)
 	})
 
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 12*time.Hour {
+	cfg, err = svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get cached single-node jwt config: %v", err)
+	}
+	if cfg.Expire != 12*time.Hour {
 		t.Fatalf("expected cached jwt expire to stay 12h before local invalidation, got %s", cfg.Expire)
 	}
 
@@ -569,7 +646,11 @@ func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
 	if atomic.LoadInt32(&fakeKV.incrCalls) != 0 {
 		t.Fatalf("expected single-node invalidation to avoid Incr, got %d calls", atomic.LoadInt32(&fakeKV.incrCalls))
 	}
-	if cfg := svc.GetJwt(ctx); cfg.Expire != 6*time.Hour {
+	cfg, err = svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get reloaded single-node jwt config: %v", err)
+	}
+	if cfg.Expire != 6*time.Hour {
 		t.Fatalf("expected jwt expire to reload to 6h after local invalidation, got %s", cfg.Expire)
 	}
 }
@@ -697,6 +778,36 @@ func withCachedRuntimeParamValue(t *testing.T, key string, value string) {
 		runtimeParamSnapshotCacheTTL,
 	); err != nil {
 		t.Fatalf("seed runtime param snapshot cache: %v", err)
+	}
+}
+
+// withCachedRuntimeParamParseError injects one runtime snapshot parse error so
+// tests can exercise read-side fallback behavior.
+func withCachedRuntimeParamParseError(t *testing.T, key string, parseErr error) {
+	t.Helper()
+
+	ctx := context.Background()
+	resetRuntimeParamCacheTestState(t)
+	storeLocalRuntimeParamRevision(1)
+
+	cached := &cachedRuntimeParamSnapshot{
+		Revision:    1,
+		RefreshedAt: time.Now(),
+		Snapshot: &runtimeParamSnapshot{
+			revision:       1,
+			values:         map[string]string{key: "bad"},
+			durationValues: make(map[string]time.Duration),
+			int64Values:    make(map[string]int64),
+			parseErrors:    map[string]error{key: parseErr},
+		},
+	}
+	if err := runtimeParamSnapshotCache.Set(
+		ctx,
+		runtimeParamSnapshotCacheKey,
+		cached,
+		runtimeParamSnapshotCacheTTL,
+	); err != nil {
+		t.Fatalf("seed runtime param snapshot parse error: %v", err)
 	}
 }
 

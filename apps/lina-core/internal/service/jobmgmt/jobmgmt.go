@@ -443,7 +443,11 @@ func (s *serviceImpl) validateExecutableJob(ctx context.Context, job *entity.Sys
 		return jobhandler.ValidateParams(def.ParamsSchema, json.RawMessage(job.Params))
 
 	case jobmeta.TaskTypeShell:
-		if !s.configSvc.IsCronShellEnabled(ctx) {
+		enabled, err := s.configSvc.IsCronShellEnabled(ctx)
+		if err != nil {
+			return err
+		}
+		if !enabled {
 			return gerror.New("当前环境未启用 Shell 任务")
 		}
 		return validateWorkDir(job.WorkDir)

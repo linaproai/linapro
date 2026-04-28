@@ -108,12 +108,16 @@ func TestUpdateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
 
 	cfgSvc := hostconfig.New()
-	if cfg := cfgSvc.GetJwt(ctx); cfg.Expire != 24*time.Hour {
+	cfg, err := cfgSvc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get initial jwt config: %v", err)
+	}
+	if cfg.Expire != 24*time.Hour {
 		t.Fatalf("expected initial jwt expire to be 24h, got %s", cfg.Expire)
 	}
 
 	updatedValue := "8h"
-	err := New().Update(ctx, UpdateInput{
+	err = New().Update(ctx, UpdateInput{
 		Id:    int(runtimeParam.Id),
 		Value: &updatedValue,
 	})
@@ -121,7 +125,11 @@ func TestUpdateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 		t.Fatalf("update protected runtime param: %v", err)
 	}
 
-	if cfg := cfgSvc.GetJwt(ctx); cfg.Expire != 8*time.Hour {
+	cfg, err = cfgSvc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get refreshed jwt config: %v", err)
+	}
+	if cfg.Expire != 8*time.Hour {
 		t.Fatalf("expected jwt expire to refresh to 8h after update, got %s", cfg.Expire)
 	}
 }
@@ -133,7 +141,9 @@ func TestCreateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	withRuntimeParamRemoved(t, ctx, hostconfig.RuntimeParamKeyUploadMaxSize)
 
 	cfgSvc := hostconfig.New()
-	_ = cfgSvc.GetUpload(ctx)
+	if _, err := cfgSvc.GetUpload(ctx); err != nil {
+		t.Fatalf("get initial upload config: %v", err)
+	}
 
 	createdID, err := New().Create(ctx, CreateInput{
 		Name:   "文件管理-上传大小上限",
@@ -148,7 +158,11 @@ func TestCreateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 		t.Fatalf("expected created runtime param id to be positive, got %d", createdID)
 	}
 
-	if cfg := cfgSvc.GetUpload(ctx); cfg.MaxSize != 3 {
+	cfg, err := cfgSvc.GetUpload(ctx)
+	if err != nil {
+		t.Fatalf("get refreshed upload config: %v", err)
+	}
+	if cfg.MaxSize != 3 {
 		t.Fatalf("expected upload max size to refresh to 3 after create, got %d", cfg.MaxSize)
 	}
 }
@@ -165,12 +179,16 @@ func TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot(t *testing.
 	)
 
 	cfgSvc := hostconfig.New()
-	if cfg := cfgSvc.GetPublicFrontend(ctx); cfg.App.Name != "LinaPro" {
+	cfg, err := cfgSvc.GetPublicFrontend(ctx)
+	if err != nil {
+		t.Fatalf("get initial public frontend config: %v", err)
+	}
+	if cfg.App.Name != "LinaPro" {
 		t.Fatalf("expected initial app name to be LinaPro, got %q", cfg.App.Name)
 	}
 
 	updatedValue := "LinaPro Console"
-	err := New().Update(ctx, UpdateInput{
+	err = New().Update(ctx, UpdateInput{
 		Id:    int(publicSetting.Id),
 		Value: &updatedValue,
 	})
@@ -178,7 +196,11 @@ func TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot(t *testing.
 		t.Fatalf("update protected public frontend setting: %v", err)
 	}
 
-	if cfg := cfgSvc.GetPublicFrontend(ctx); cfg.App.Name != "LinaPro Console" {
+	cfg, err = cfgSvc.GetPublicFrontend(ctx)
+	if err != nil {
+		t.Fatalf("get refreshed public frontend config: %v", err)
+	}
+	if cfg.App.Name != "LinaPro Console" {
 		t.Fatalf("expected app name to refresh after update, got %q", cfg.App.Name)
 	}
 }
@@ -190,7 +212,11 @@ func TestImportProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
 
 	cfgSvc := hostconfig.New()
-	if cfg := cfgSvc.GetJwt(ctx); cfg.Expire != 24*time.Hour {
+	cfg, err := cfgSvc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get initial jwt config: %v", err)
+	}
+	if cfg.Expire != 24*time.Hour {
 		t.Fatalf("expected initial jwt expire to be 24h, got %s", cfg.Expire)
 	}
 
@@ -209,7 +235,11 @@ func TestImportProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 		t.Fatalf("expected one successful import, got success=%d fail=%d", result.Success, result.Fail)
 	}
 
-	if cfg := cfgSvc.GetJwt(ctx); cfg.Expire != 6*time.Hour {
+	cfg, err = cfgSvc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get refreshed jwt config after import: %v", err)
+	}
+	if cfg.Expire != 6*time.Hour {
 		t.Fatalf("expected jwt expire to refresh to 6h after import, got %s", cfg.Expire)
 	}
 }

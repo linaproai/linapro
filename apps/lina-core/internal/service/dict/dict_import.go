@@ -56,7 +56,7 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 	if err != nil {
 		return nil, gerror.New("无法解析Excel文件")
 	}
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	// Get existing dict types for validation (GoFrame auto-adds deleted_at IS NULL)
 	typeCols := dao.SysDictType.Columns()
@@ -356,9 +356,9 @@ func (s *serviceImpl) CombinedImport(ctx context.Context, fileData []byte, updat
 }
 
 // CombinedImportTemplate generates an Excel template for dictionary import.
-func (s *serviceImpl) CombinedImportTemplate() (data []byte, err error) {
+func (s *serviceImpl) CombinedImportTemplate(ctx context.Context) (data []byte, err error) {
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	// Sheet 1: 字典类型
 	typeSheet := "字典类型"
@@ -483,7 +483,7 @@ func (s *serviceImpl) TypeImport(ctx context.Context, file io.Reader, updateSupp
 	if err != nil {
 		return nil, gerror.New("无法解析Excel文件")
 	}
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	// Get existing dict types (dict types use hard delete, no deleted_at filter needed)
 	existingTypes := make(map[string]bool)
@@ -612,7 +612,7 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 	if err != nil {
 		return nil, gerror.New("无法解析Excel文件")
 	}
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	// Get existing dict types (dict types use hard delete, no deleted_at filter needed)
 	existingTypes := make(map[string]bool)
@@ -782,9 +782,9 @@ func (s *serviceImpl) DataImport(ctx context.Context, file io.Reader, updateSupp
 }
 
 // GenerateTypeImportTemplate generates an Excel template for dictionary type import.
-func (s *serviceImpl) GenerateTypeImportTemplate() (data []byte, err error) {
+func (s *serviceImpl) GenerateTypeImportTemplate(ctx context.Context) (data []byte, err error) {
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	sheet := "Sheet1"
 	headers := []string{"字典名称", "字典类型", "状态", "备注"}
@@ -817,9 +817,9 @@ func (s *serviceImpl) GenerateTypeImportTemplate() (data []byte, err error) {
 }
 
 // GenerateDataImportTemplate generates an Excel template for dictionary data import.
-func (s *serviceImpl) GenerateDataImportTemplate() (data []byte, err error) {
+func (s *serviceImpl) GenerateDataImportTemplate(ctx context.Context) (data []byte, err error) {
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	sheet := "Sheet1"
 	headers := []string{"所属类型", "字典标签", "字典值", "排序", "Tag样式", "CSS类", "状态", "备注"}

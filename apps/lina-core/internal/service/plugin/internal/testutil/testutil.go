@@ -159,7 +159,7 @@ type uploadSizeAdapter struct {
 }
 
 // GetUploadMaxSize returns the runtime-effective upload limit used in tests.
-func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) int64 {
+func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) (int64, error) {
 	return a.svc.GetUploadMaxSize(ctx)
 }
 

@@ -34,7 +34,12 @@ func (s *serviceImpl) RequestBodyLimit(r *ghttp.Request) {
 
 	var uploadMaxSizeMB int64
 	if s != nil && s.configSvc != nil {
-		uploadMaxSizeMB = s.configSvc.GetUploadMaxSize(r.Context())
+		var err error
+		uploadMaxSizeMB, err = s.configSvc.GetUploadMaxSize(r.Context())
+		if err != nil {
+			r.SetError(err)
+			return
+		}
 	}
 	// GoFrame may surface request-body overflow either as a normal request error
 	// or as a panic raised while multipart parsing is still unwinding. Capture

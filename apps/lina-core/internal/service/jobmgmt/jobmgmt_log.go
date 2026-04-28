@@ -137,7 +137,10 @@ func (s *serviceImpl) CancelLog(ctx context.Context, id uint64) error {
 
 // CleanupDueLogs removes logs that exceed the effective retention policies.
 func (s *serviceImpl) CleanupDueLogs(ctx context.Context) (int64, error) {
-	globalCfg := s.configSvc.GetCronLogRetention(ctx)
+	globalCfg, err := s.configSvc.GetCronLogRetention(ctx)
+	if err != nil {
+		return 0, err
+	}
 	globalOption := &jobmeta.RetentionOption{
 		Mode:  jobmeta.NormalizeRetentionMode(string(globalCfg.Mode)),
 		Value: globalCfg.Value,

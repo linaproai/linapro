@@ -27,7 +27,7 @@ func (c *ControllerV1) DataImport(ctx context.Context, req *v1.DataImportReq) (r
 	if err != nil {
 		return nil, err
 	}
-	defer closeutil.Close(f, &err, "关闭字典数据导入文件失败")
+	defer closeutil.Close(ctx, f, &err, "关闭字典数据导入文件失败")
 
 	result, err := c.dictSvc.DataImport(ctx, f, updateSupport)
 	if err != nil {

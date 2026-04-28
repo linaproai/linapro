@@ -36,11 +36,15 @@ func (f *fakeRoleConfigService) IsClusterEnabled(_ context.Context) bool {
 }
 
 // GetJwt returns a JWT config assembled from the test service fields.
-func (f *fakeRoleConfigService) GetJwt(_ context.Context) *hostconfig.JwtConfig {
+func (f *fakeRoleConfigService) GetJwt(_ context.Context) (*hostconfig.JwtConfig, error) {
+	expire, err := f.GetJwtExpire(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	return &hostconfig.JwtConfig{
 		Secret: "test-secret",
-		Expire: f.GetJwtExpire(context.Background()),
-	}
+		Expire: expire,
+	}, nil
 }
 
 // GetJwtSecret returns the fixed JWT secret used in tests.
@@ -49,16 +53,16 @@ func (f *fakeRoleConfigService) GetJwtSecret(_ context.Context) string {
 }
 
 // GetJwtExpire returns the configured JWT expiration or the default test value.
-func (f *fakeRoleConfigService) GetJwtExpire(_ context.Context) time.Duration {
+func (f *fakeRoleConfigService) GetJwtExpire(_ context.Context) (time.Duration, error) {
 	if f.jwtExpire > 0 {
-		return f.jwtExpire
+		return f.jwtExpire, nil
 	}
-	return 24 * time.Hour
+	return 24 * time.Hour, nil
 }
 
 // GetPublicFrontend returns an empty frontend config for tests.
-func (f *fakeRoleConfigService) GetPublicFrontend(_ context.Context) *hostconfig.PublicFrontendConfig {
-	return &hostconfig.PublicFrontendConfig{}
+func (f *fakeRoleConfigService) GetPublicFrontend(_ context.Context) (*hostconfig.PublicFrontendConfig, error) {
+	return &hostconfig.PublicFrontendConfig{}, nil
 }
 
 // GetI18n returns the default runtime i18n config used in access-cache tests.
@@ -80,7 +84,7 @@ func (f *fakeRoleConfigService) GetLogin(_ context.Context) *hostconfig.LoginCon
 }
 
 // GetCron returns default cron settings for tests.
-func (f *fakeRoleConfigService) GetCron(_ context.Context) *hostconfig.CronConfig {
+func (f *fakeRoleConfigService) GetCron(_ context.Context) (*hostconfig.CronConfig, error) {
 	return &hostconfig.CronConfig{
 		Shell: hostconfig.CronShellConfig{
 			Enabled:   false,
@@ -90,20 +94,20 @@ func (f *fakeRoleConfigService) GetCron(_ context.Context) *hostconfig.CronConfi
 			Mode:  hostconfig.CronLogRetentionModeDays,
 			Value: 30,
 		},
-	}
+	}, nil
 }
 
 // IsCronShellEnabled always reports false in tests.
-func (f *fakeRoleConfigService) IsCronShellEnabled(_ context.Context) bool {
-	return false
+func (f *fakeRoleConfigService) IsCronShellEnabled(_ context.Context) (bool, error) {
+	return false, nil
 }
 
 // GetCronLogRetention returns the default cron-log retention policy for tests.
-func (f *fakeRoleConfigService) GetCronLogRetention(_ context.Context) *hostconfig.CronLogRetentionConfig {
+func (f *fakeRoleConfigService) GetCronLogRetention(_ context.Context) (*hostconfig.CronLogRetentionConfig, error) {
 	return &hostconfig.CronLogRetentionConfig{
 		Mode:  hostconfig.CronLogRetentionModeDays,
 		Value: 30,
-	}
+	}, nil
 }
 
 // IsLoginIPBlacklisted always reports false in tests.
@@ -152,24 +156,28 @@ func (f *fakeRoleConfigService) GetPluginDynamicStoragePath(_ context.Context) s
 }
 
 // GetSession returns a session config assembled from the test service fields.
-func (f *fakeRoleConfigService) GetSession(_ context.Context) *hostconfig.SessionConfig {
-	return &hostconfig.SessionConfig{
-		Timeout:         f.GetSessionTimeout(context.Background()),
-		CleanupInterval: 5 * time.Minute,
+func (f *fakeRoleConfigService) GetSession(_ context.Context) (*hostconfig.SessionConfig, error) {
+	timeout, err := f.GetSessionTimeout(context.Background())
+	if err != nil {
+		return nil, err
 	}
+	return &hostconfig.SessionConfig{
+		Timeout:         timeout,
+		CleanupInterval: 5 * time.Minute,
+	}, nil
 }
 
 // GetSessionTimeout returns the configured session timeout or the default test value.
-func (f *fakeRoleConfigService) GetSessionTimeout(_ context.Context) time.Duration {
+func (f *fakeRoleConfigService) GetSessionTimeout(_ context.Context) (time.Duration, error) {
 	if f.sessionTimeout > 0 {
-		return f.sessionTimeout
+		return f.sessionTimeout, nil
 	}
-	return 24 * time.Hour
+	return 24 * time.Hour, nil
 }
 
 // GetUpload returns an empty upload config for tests.
-func (f *fakeRoleConfigService) GetUpload(_ context.Context) *hostconfig.UploadConfig {
-	return &hostconfig.UploadConfig{}
+func (f *fakeRoleConfigService) GetUpload(_ context.Context) (*hostconfig.UploadConfig, error) {
+	return &hostconfig.UploadConfig{}, nil
 }
 
 // GetUploadPath returns an empty upload path for tests.
@@ -178,8 +186,8 @@ func (f *fakeRoleConfigService) GetUploadPath(_ context.Context) string {
 }
 
 // GetUploadMaxSize returns zero because upload size is irrelevant to these tests.
-func (f *fakeRoleConfigService) GetUploadMaxSize(_ context.Context) int64 {
-	return 0
+func (f *fakeRoleConfigService) GetUploadMaxSize(_ context.Context) (int64, error) {
+	return 0, nil
 }
 
 // MarkRuntimeParamsChanged is a no-op success stub for tests.

@@ -351,7 +351,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	s.localizeRecords(ctx, list)
 
 	file := excelize.NewFile()
-	defer excelutil.CloseFile(file, &err)
+	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
 	headers := []exportHeader{
 		{Key: "plugin.monitor-operlog.fields.moduleName", Fallback: "模块名称"},
@@ -378,10 +378,10 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	statusMap := s.buildIntDictLabelMap(ctx, DictTypeOperStatus)
 	for index, log := range list {
 		row := index + 2
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(1, row), log.Title); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 1, row, log.Title); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(2, row), log.OperSummary); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 2, row, log.OperSummary); setErr != nil {
 			return nil, setErr
 		}
 		operTypeText, ok := operTypeMap[log.OperType]
@@ -391,42 +391,42 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if operTypeText == "" {
 			operTypeText = log.OperType
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(3, row), operTypeText); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 3, row, operTypeText); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(4, row), log.OperName); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 4, row, log.OperName); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(5, row), log.RequestMethod); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 5, row, log.RequestMethod); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(6, row), log.OperUrl); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 6, row, log.OperUrl); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(7, row), log.OperIp); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 7, row, log.OperIp); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(8, row), log.OperParam); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 8, row, log.OperParam); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(9, row), log.JsonResult); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 9, row, log.JsonResult); setErr != nil {
 			return nil, setErr
 		}
 		statusText, ok := statusMap[log.Status]
 		if !ok {
 			statusText = s.localizeDictValue(ctx, DictTypeOperStatus, strconv.Itoa(log.Status), defaultOperStatusLabels[log.Status])
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(10, row), statusText); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 10, row, statusText); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(11, row), log.ErrorMsg); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 11, row, log.ErrorMsg); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(12, row), log.CostTime); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 12, row, log.CostTime); setErr != nil {
 			return nil, setErr
 		}
 		if log.OperTime != nil {
-			if setErr := excelutil.SetCellValueByName(file, sheet, cellName(13, row), log.OperTime.String()); setErr != nil {
+			if setErr := excelutil.SetCellValue(file, sheet, 13, row, log.OperTime.String()); setErr != nil {
 				return nil, setErr
 			}
 		}
@@ -574,13 +574,4 @@ func normalizeEndTime(value string) string {
 		return value + " 23:59:59"
 	}
 	return value
-}
-
-// cellName converts numeric coordinates into an Excel A1-style cell reference.
-func cellName(col int, row int) string {
-	name, err := excelize.CoordinatesToCellName(col, row)
-	if err != nil {
-		panic(gerror.Wrap(err, "生成Excel单元格名称失败"))
-	}
-	return name
 }

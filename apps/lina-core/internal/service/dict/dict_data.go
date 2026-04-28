@@ -211,7 +211,7 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 
 	// Create Excel file
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
 	headers := []string{"字典标签", "字典值", "排序", "Tag样式", "CSS类", "状态", "备注", "创建时间"}
@@ -223,33 +223,33 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 
 	for i, dd := range list {
 		row := i + 2
-		if err = setCellValueByName(f, sheet, cellName(1, row), dd.Label); err != nil {
+		if err = setCellValue(f, sheet, 1, row, dd.Label); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(2, row), dd.Value); err != nil {
+		if err = setCellValue(f, sheet, 2, row, dd.Value); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(3, row), dd.Sort); err != nil {
+		if err = setCellValue(f, sheet, 3, row, dd.Sort); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(4, row), dd.TagStyle); err != nil {
+		if err = setCellValue(f, sheet, 4, row, dd.TagStyle); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(5, row), dd.CssClass); err != nil {
+		if err = setCellValue(f, sheet, 5, row, dd.CssClass); err != nil {
 			return nil, err
 		}
 		statusText := "正常"
 		if dd.Status == 0 {
 			statusText = "停用"
 		}
-		if err = setCellValueByName(f, sheet, cellName(6, row), statusText); err != nil {
+		if err = setCellValue(f, sheet, 6, row, statusText); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(7, row), dd.Remark); err != nil {
+		if err = setCellValue(f, sheet, 7, row, dd.Remark); err != nil {
 			return nil, err
 		}
 		if dd.CreatedAt != nil {
-			if err = setCellValueByName(f, sheet, cellName(8, row), dd.CreatedAt.String()); err != nil {
+			if err = setCellValue(f, sheet, 8, row, dd.CreatedAt.String()); err != nil {
 				return nil, err
 			}
 		}

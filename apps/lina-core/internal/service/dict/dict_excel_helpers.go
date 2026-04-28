@@ -3,15 +3,16 @@
 package dict
 
 import (
-	"github.com/gogf/gf/v2/errors/gerror"
+	"context"
+
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/pkg/excelutil"
 )
 
 // closeExcelFile closes one Excel workbook while preserving the primary error path.
-func closeExcelFile(file *excelize.File, errPtr *error) {
-	excelutil.CloseFile(file, errPtr)
+func closeExcelFile(ctx context.Context, file *excelize.File, errPtr *error) {
+	excelutil.CloseFile(ctx, file, errPtr)
 }
 
 // setCellValue proxies cell writes through the shared Excel helper package.
@@ -32,13 +33,4 @@ func setSheetName(file *excelize.File, source string, target string) error {
 // newSheet creates one worksheet through the shared Excel helper package.
 func newSheet(file *excelize.File, name string) error {
 	return excelutil.NewSheet(file, name)
-}
-
-// cellName converts numeric coordinates into an Excel A1-style cell reference.
-func cellName(col int, row int) string {
-	name, err := excelize.CoordinatesToCellName(col, row)
-	if err != nil {
-		panic(gerror.Wrap(err, "生成Excel单元格名称失败"))
-	}
-	return name
 }

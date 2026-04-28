@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	configsvc "lina-core/internal/service/config"
+	"lina-core/pkg/logger"
 )
 
 // maxCapturedOutputBytes bounds each output stream persisted into sys_job_log.
@@ -49,7 +50,7 @@ type ExecuteOutput struct {
 // shellGate exposes the runtime shell switch needed by the executor.
 type shellGate interface {
 	// IsCronShellEnabled reports whether shell tasks are currently allowed.
-	IsCronShellEnabled(ctx context.Context) bool
+	IsCronShellEnabled(ctx context.Context) (bool, error)
 }
 
 // serviceImpl implements Executor.
@@ -86,7 +87,11 @@ func (s *serviceImpl) Execute(ctx context.Context, in ExecuteInput) (*ExecuteOut
 	if s == nil {
 		return nil, gerror.New("Shell 执行器未初始化")
 	}
-	if !s.configSvc.IsCronShellEnabled(ctx) {
+	shellEnabled, err := s.configSvc.IsCronShellEnabled(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !shellEnabled {
 		return nil, gerror.New("当前环境未启用 Shell 任务执行")
 	}
 	commandText := strings.TrimSpace(in.ShellCmd)
@@ -131,7 +136,7 @@ func (s *serviceImpl) Execute(ctx context.Context, in ExecuteInput) (*ExecuteOut
 		return buildExecuteOutput(stdoutBuffer, stderrBuffer, waitErr), wrapCommandWaitError(waitErr)
 
 	case <-execCtx.Done():
-		out := s.cancelCommand(cmd, waitCh, execCtx.Err(), stdoutBuffer, stderrBuffer)
+		out := s.cancelCommand(ctx, cmd, waitCh, execCtx.Err(), stdoutBuffer, stderrBuffer)
 		return out, execCtx.Err()
 	}
 }
@@ -159,20 +164,25 @@ func (s *serviceImpl) resolveWorkDir(workDir string) (string, error) {
 
 // cancelCommand terminates the running process group and waits for final exit.
 func (s *serviceImpl) cancelCommand(
+	ctx context.Context,
 	cmd *exec.Cmd,
 	waitCh <-chan error,
 	cancelErr error,
 	stdoutBuffer *limitedBuffer,
 	stderrBuffer *limitedBuffer,
 ) *ExecuteOutput {
-	_ = terminateProcessGroupGracefully(cmd.Process)
+	if err := terminateProcessGroupGracefully(cmd.Process); err != nil {
+		logger.Warningf(ctx, "terminate shell process group failed err=%v", err)
+	}
 
 	select {
 	case waitErr := <-waitCh:
 		return buildCancelledOutput(stdoutBuffer, stderrBuffer, waitErr, cancelErr)
 
 	case <-time.After(s.cancelGracePeriod):
-		_ = forceKillProcessGroup(cmd.Process)
+		if err := forceKillProcessGroup(cmd.Process); err != nil {
+			logger.Warningf(ctx, "force kill shell process group failed err=%v", err)
+		}
 		waitErr := <-waitCh
 		return buildCancelledOutput(stdoutBuffer, stderrBuffer, waitErr, cancelErr)
 	}
@@ -275,7 +285,9 @@ func (b *limitedBuffer) Write(p []byte) (n int, err error) {
 	}
 	if b.buffer.Len() >= b.limit {
 		if !b.truncated {
-			_, _ = b.buffer.WriteString(truncatedOutputMarker)
+			if _, err := b.buffer.WriteString(truncatedOutputMarker); err != nil {
+				return 0, err
+			}
 			b.truncated = true
 		}
 		return len(p), nil
@@ -283,13 +295,19 @@ func (b *limitedBuffer) Write(p []byte) (n int, err error) {
 
 	remaining := b.limit - b.buffer.Len()
 	if len(p) <= remaining {
-		_, _ = b.buffer.Write(p)
+		if _, err := b.buffer.Write(p); err != nil {
+			return 0, err
+		}
 		return len(p), nil
 	}
 
-	_, _ = b.buffer.Write(p[:remaining])
+	if _, err := b.buffer.Write(p[:remaining]); err != nil {
+		return 0, err
+	}
 	if !b.truncated {
-		_, _ = b.buffer.WriteString(truncatedOutputMarker)
+		if _, err := b.buffer.WriteString(truncatedOutputMarker); err != nil {
+			return 0, err
+		}
 		b.truncated = true
 	}
 	return len(p), nil

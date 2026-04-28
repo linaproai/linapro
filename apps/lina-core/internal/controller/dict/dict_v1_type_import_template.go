@@ -10,7 +10,7 @@ import (
 
 // TypeImportTemplate downloads the dictionary type import template.
 func (c *ControllerV1) TypeImportTemplate(ctx context.Context, req *v1.TypeImportTemplateReq) (res *v1.TypeImportTemplateRes, err error) {
-	data, err := c.dictSvc.GenerateTypeImportTemplate()
+	data, err := c.dictSvc.GenerateTypeImportTemplate(ctx)
 	if err != nil {
 		return nil, err
 	}

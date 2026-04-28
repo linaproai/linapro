@@ -14,11 +14,12 @@ import (
 // fakeShellGate returns one fixed shell enablement state for tests.
 type fakeShellGate struct {
 	enabled bool
+	err     error
 }
 
 // IsCronShellEnabled reports the configured shell enablement flag.
-func (f fakeShellGate) IsCronShellEnabled(_ context.Context) bool {
-	return f.enabled
+func (f fakeShellGate) IsCronShellEnabled(_ context.Context) (bool, error) {
+	return f.enabled, f.err
 }
 
 // TestExecuteTruncatesOutput verifies stdout capture is bounded and marked as truncated.

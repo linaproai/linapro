@@ -60,6 +60,36 @@ func TestValidateHostServiceSpecsRejectsRuntimeResources(t *testing.T) {
 	}
 }
 
+// TestNormalizeHostServiceSpecsReturnsError verifies dynamic declarations use
+// explicit errors instead of panicking on invalid host service input.
+func TestNormalizeHostServiceSpecsReturnsError(t *testing.T) {
+	normalized, err := NormalizeHostServiceSpecs([]*HostServiceSpec{{
+		Service: HostServiceStorage,
+		Methods: []string{HostServiceMethodStorageGet},
+	}})
+	if err == nil {
+		t.Fatal("expected invalid host service declaration to return an error")
+	}
+	if len(normalized) != 0 {
+		t.Fatalf("expected invalid host service declaration to return no normalized entries, got %#v", normalized)
+	}
+}
+
+// TestMustNormalizeHostServiceSpecsPanics verifies the Must helper remains
+// fail-fast for compile-time-only declarations.
+func TestMustNormalizeHostServiceSpecsPanics(t *testing.T) {
+	defer func() {
+		if recovered := recover(); recovered == nil {
+			t.Fatal("expected MustNormalizeHostServiceSpecs to panic for invalid declarations")
+		}
+	}()
+
+	MustNormalizeHostServiceSpecs([]*HostServiceSpec{{
+		Service: HostServiceStorage,
+		Methods: []string{HostServiceMethodStorageGet},
+	}})
+}
+
 // TestValidateHostServiceSpecsAcceptsCronWithoutResources verifies cron
 // registration service declarations use the same resource-less shape as
 // runtime host services.

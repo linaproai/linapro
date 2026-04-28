@@ -100,10 +100,14 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		return nil, err
 	}
 
+	sessionCfg, err := configSvc.GetSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var (
-		sessionCfg = configSvc.GetSession(ctx)
-		serverCfg  = configSvc.GetServerExtensions(ctx)
-		cronSvc    = cron.New(
+		serverCfg = configSvc.GetServerExtensions(ctx)
+		cronSvc   = cron.New(
 			sessionCfg,
 			middlewareSvc.SessionStore(),
 			clusterSvc,

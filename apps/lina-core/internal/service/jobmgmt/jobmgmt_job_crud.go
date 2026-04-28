@@ -350,7 +350,11 @@ func (s *serviceImpl) normalizeJobRecord(
 		workDir = ""
 
 	case jobmeta.TaskTypeShell:
-		if !s.configSvc.IsCronShellEnabled(ctx) {
+		shellEnabled, shellErr := s.configSvc.IsCronShellEnabled(ctx)
+		if shellErr != nil {
+			return do.SysJob{}, shellErr
+		}
+		if !shellEnabled {
 			return do.SysJob{}, gerror.New("当前环境未启用 Shell 任务")
 		}
 		if shellCmd == "" {

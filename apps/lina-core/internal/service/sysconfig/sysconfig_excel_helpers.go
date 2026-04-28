@@ -3,7 +3,8 @@
 package sysconfig
 
 import (
-	"github.com/gogf/gf/v2/errors/gerror"
+	"context"
+
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/pkg/excelutil"
@@ -11,8 +12,8 @@ import (
 
 // closeExcelFile closes the workbook and folds any close failure into the
 // caller-managed error pointer.
-func closeExcelFile(file *excelize.File, errPtr *error) {
-	excelutil.CloseFile(file, errPtr)
+func closeExcelFile(ctx context.Context, file *excelize.File, errPtr *error) {
+	excelutil.CloseFile(ctx, file, errPtr)
 }
 
 // setCellValue writes one value by row and column coordinates.
@@ -23,14 +24,4 @@ func setCellValue(file *excelize.File, sheet string, col int, row int, value any
 // setCellValueByName writes one value by Excel-style cell name.
 func setCellValueByName(file *excelize.File, sheet string, cell string, value any) error {
 	return excelutil.SetCellValueByName(file, sheet, cell, value)
-}
-
-// cellName converts one row and column coordinate pair into an Excel cell
-// identifier.
-func cellName(col int, row int) string {
-	name, err := excelize.CoordinatesToCellName(col, row)
-	if err != nil {
-		panic(gerror.Wrap(err, "生成Excel单元格名称失败"))
-	}
-	return name
 }

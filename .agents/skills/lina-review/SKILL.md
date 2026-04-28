@@ -94,6 +94,12 @@ For every functional change, also perform an **i18n impact review**:
 
 For every backend service, the component main file may be named `<component>.go`; every non-main Go source file in that component directory MUST use the `<component>_*.go` prefix, and tests must follow the same prefix convention.
 
+For every backend change that touches logging, helper functions, cleanup paths, async callbacks, middleware, controllers, or service-layer call chains, also perform a **logging context propagation review**:
+1. Backend host code and source-plugin backend code MUST pass the upstream `context.Context` through the call chain to any lower-level method that may log.
+2. Calls to the project logger, such as `logger.Info(ctx, ...)`, `logger.Warningf(ctx, ...)`, `logger.Errorf(ctx, ...)`, and equivalent methods, MUST use the propagated business/request `ctx` when one exists so trace, request, tenant, and user metadata remain attached to logs.
+3. Flag any use of `context.Background()` or `context.TODO()` at a logging call site when an upstream `ctx` is available or can be threaded through the function signature.
+4. `context.Background()` is acceptable only for true root contexts, including startup, process-level initialization, test construction, or code paths that genuinely have no request/business context; such use must not mask an avoidable context break in a nested call chain.
+
 For every frontend change that introduces or modifies an enumerated business value (status, type, scope, mode, source, etc.), also perform a **dictionary-vs-locale single-source review**:
 1. If a backend `sys_*` dictionary already owns the same enumeration (registered via `manifest/sql` or runtime dict registration), the frontend MUST consume that dictionary through `useDictStore().getDictOptions(...)` / `getDictOptionsAsync(...)` rather than maintaining a parallel `options: [...]` literal array with `$t(...)` labels in `frontend/pages/data.ts`, `*.vue` form schema, or sibling files. Static `options` arrays are only acceptable when no backend dictionary owns the enumeration.
 2. When the same field is rendered as a `DictTag` in the table column, the search form, the create/edit form, and any preview/detail surface, every surface MUST use the same dictionary as its single source of truth. Flag any surface that injects literal label/value pairs alongside a sibling `DictTag` consumer of the same dictionary.

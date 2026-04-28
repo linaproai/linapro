@@ -24,7 +24,7 @@ func (c *ControllerV1) Import(ctx context.Context, req *v1.ImportReq) (res *v1.I
 	if err != nil {
 		return nil, err
 	}
-	defer closeutil.Close(f, &err, "关闭用户导入文件失败")
+	defer closeutil.Close(ctx, f, &err, "关闭用户导入文件失败")
 
 	result, err := c.userSvc.Import(ctx, f)
 	if err != nil {

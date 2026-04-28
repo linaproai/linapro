@@ -624,7 +624,11 @@ func parseRuntimeArtifactHostServices(
 	if err := pluginbridge.ValidateHostServiceSpecs(items); err != nil {
 		return nil, gerror.Wrapf(err, "校验动态插件宿主服务声明失败: %s", filePath)
 	}
-	return pluginbridge.NormalizeHostServiceSpecs(items), nil
+	normalized, err := pluginbridge.NormalizeHostServiceSpecs(items)
+	if err != nil {
+		return nil, gerror.Wrapf(err, "规范化动态插件宿主服务声明失败: %s", filePath)
+	}
+	return normalized, nil
 }
 
 // parseRuntimeArtifactFrontendAssets restores embedded frontend assets and

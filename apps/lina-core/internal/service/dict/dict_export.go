@@ -67,7 +67,7 @@ func (s *serviceImpl) CombinedExport(ctx context.Context, in CombinedExportInput
 
 	// Create Excel file with two sheets
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	// Sheet 1: 字典类型
 	typeSheet := "字典类型"
@@ -84,24 +84,24 @@ func (s *serviceImpl) CombinedExport(ctx context.Context, in CombinedExportInput
 
 	for i, dt := range typeList {
 		row := i + 2
-		if err = setCellValueByName(f, typeSheet, cellName(1, row), dt.Name); err != nil {
+		if err = setCellValue(f, typeSheet, 1, row, dt.Name); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, typeSheet, cellName(2, row), dt.Type); err != nil {
+		if err = setCellValue(f, typeSheet, 2, row, dt.Type); err != nil {
 			return nil, err
 		}
 		statusText := "正常"
 		if dt.Status == 0 {
 			statusText = "停用"
 		}
-		if err = setCellValueByName(f, typeSheet, cellName(3, row), statusText); err != nil {
+		if err = setCellValue(f, typeSheet, 3, row, statusText); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, typeSheet, cellName(4, row), dt.Remark); err != nil {
+		if err = setCellValue(f, typeSheet, 4, row, dt.Remark); err != nil {
 			return nil, err
 		}
 		if dt.CreatedAt != nil {
-			if err = setCellValueByName(f, typeSheet, cellName(5, row), dt.CreatedAt.String()); err != nil {
+			if err = setCellValue(f, typeSheet, 5, row, dt.CreatedAt.String()); err != nil {
 				return nil, err
 			}
 		}
@@ -122,36 +122,36 @@ func (s *serviceImpl) CombinedExport(ctx context.Context, in CombinedExportInput
 
 	for i, dd := range dataList {
 		row := i + 2
-		if err = setCellValueByName(f, dataSheet, cellName(1, row), dd.DictType); err != nil {
+		if err = setCellValue(f, dataSheet, 1, row, dd.DictType); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, dataSheet, cellName(2, row), dd.Label); err != nil {
+		if err = setCellValue(f, dataSheet, 2, row, dd.Label); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, dataSheet, cellName(3, row), dd.Value); err != nil {
+		if err = setCellValue(f, dataSheet, 3, row, dd.Value); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, dataSheet, cellName(4, row), dd.Sort); err != nil {
+		if err = setCellValue(f, dataSheet, 4, row, dd.Sort); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, dataSheet, cellName(5, row), dd.TagStyle); err != nil {
+		if err = setCellValue(f, dataSheet, 5, row, dd.TagStyle); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, dataSheet, cellName(6, row), dd.CssClass); err != nil {
+		if err = setCellValue(f, dataSheet, 6, row, dd.CssClass); err != nil {
 			return nil, err
 		}
 		statusText := "正常"
 		if dd.Status == 0 {
 			statusText = "停用"
 		}
-		if err = setCellValueByName(f, dataSheet, cellName(7, row), statusText); err != nil {
+		if err = setCellValue(f, dataSheet, 7, row, statusText); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, dataSheet, cellName(8, row), dd.Remark); err != nil {
+		if err = setCellValue(f, dataSheet, 8, row, dd.Remark); err != nil {
 			return nil, err
 		}
 		if dd.CreatedAt != nil {
-			if err = setCellValueByName(f, dataSheet, cellName(9, row), dd.CreatedAt.String()); err != nil {
+			if err = setCellValue(f, dataSheet, 9, row, dd.CreatedAt.String()); err != nil {
 				return nil, err
 			}
 		}

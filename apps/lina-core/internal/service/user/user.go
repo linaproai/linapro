@@ -69,7 +69,7 @@ type Service interface {
 	// Import reads an Excel file and creates users from it.
 	Import(ctx context.Context, fileReader io.Reader) (result *ImportResult, err error)
 	// GenerateImportTemplate creates an Excel template for user import.
-	GenerateImportTemplate() (data []byte, err error)
+	GenerateImportTemplate(ctx context.Context) (data []byte, err error)
 }
 
 // Ensure serviceImpl implements Service.

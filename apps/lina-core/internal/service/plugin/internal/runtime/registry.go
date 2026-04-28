@@ -142,26 +142,35 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		}
 	}
 
+	normalizeHostServices := func(source string, specs []*pluginbridge.HostServiceSpec) []*pluginbridge.HostServiceSpec {
+		normalized, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(specs)
+		if normalizeErr != nil {
+			logger.Warningf(ctx, "normalize plugin host services failed plugin=%s source=%s err=%v", id, source, normalizeErr)
+			return []*pluginbridge.HostServiceSpec{}
+		}
+		return normalized
+	}
+
 	var (
-		requestedHostServices  = pluginbridge.NormalizeHostServiceSpecs(nil)
-		authorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(nil)
+		requestedHostServices  = []*pluginbridge.HostServiceSpec{}
+		authorizedHostServices = []*pluginbridge.HostServiceSpec{}
 		authorizationRequired  bool
 		authorizationStatus    = AuthorizationStatusNotRequired
 		declaredRoutes         []*pluginbridge.RouteContract
 	)
 
 	if snapshot != nil {
-		requestedHostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
-		authorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+		requestedHostServices = normalizeHostServices("snapshot.requested", snapshot.RequestedHostServices)
+		authorizedHostServices = normalizeHostServices("snapshot.authorized", snapshot.AuthorizedHostServices)
 		authorizationRequired = snapshot.HostServiceAuthRequired
 		authorizationStatus = buildAuthorizationStatus(snapshot.HostServiceAuthRequired, snapshot.HostServiceAuthConfirmed)
 	} else if manifest != nil {
-		requestedHostServices = pluginbridge.NormalizeHostServiceSpecs(manifest.HostServices)
+		requestedHostServices = normalizeHostServices("manifest.requested", manifest.HostServices)
 		authorizationRequired = catalog.HasResourceScopedHostServices(manifest.HostServices)
 		if authorizationRequired {
 			authorizationStatus = AuthorizationStatusPending
 		} else {
-			authorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(manifest.HostServices)
+			authorizedHostServices = normalizeHostServices("manifest.authorized", manifest.HostServices)
 		}
 	}
 	if manifest != nil {

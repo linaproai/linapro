@@ -50,7 +50,7 @@ func (s *LocalStorage) Put(ctx context.Context, filename string, data io.Reader)
 	if err != nil {
 		return "", err
 	}
-	defer closeutil.Close(f, &err, "关闭上传目标文件失败")
+	defer closeutil.Close(ctx, f, &err, "关闭上传目标文件失败")
 
 	if _, err = io.Copy(f, data); err != nil {
 		if removeErr := os.Remove(fullPath); removeErr != nil && !os.IsNotExist(removeErr) {

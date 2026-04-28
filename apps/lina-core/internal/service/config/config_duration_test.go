@@ -25,12 +25,21 @@ database:
 	withRuntimeParamAbsent(t, RuntimeParamKeyCronShellEnabled)
 	withRuntimeParamAbsent(t, RuntimeParamKeyCronLogRetention)
 
-	var (
-		jwtCfg     = New().GetJwt(context.Background())
-		sessionCfg = New().GetSession(context.Background())
-		monitorCfg = New().GetMonitor(context.Background())
-		uploadCfg  = New().GetUpload(context.Background())
-	)
+	ctx := context.Background()
+	svc := New()
+	jwtCfg, err := svc.GetJwt(ctx)
+	if err != nil {
+		t.Fatalf("get jwt config: %v", err)
+	}
+	sessionCfg, err := svc.GetSession(ctx)
+	if err != nil {
+		t.Fatalf("get session config: %v", err)
+	}
+	monitorCfg := svc.GetMonitor(ctx)
+	uploadCfg, err := svc.GetUpload(ctx)
+	if err != nil {
+		t.Fatalf("get upload config: %v", err)
+	}
 
 	if jwtCfg.Expire != 24*time.Hour {
 		t.Fatalf("expected default jwt expire to be 24h, got %s", jwtCfg.Expire)
@@ -65,7 +74,10 @@ jwt:
 	withRuntimeParamAbsent(t, RuntimeParamKeyJWTExpire)
 
 	svc := New()
-	cfg := svc.GetJwt(context.Background())
+	cfg, err := svc.GetJwt(context.Background())
+	if err != nil {
+		t.Fatalf("get jwt config: %v", err)
+	}
 
 	if cfg.Expire != 36*time.Hour {
 		t.Fatalf("expected jwt expire to be 36h, got %s", cfg.Expire)
@@ -73,7 +85,11 @@ jwt:
 	if cfg.Secret != "test-secret" {
 		t.Fatalf("expected jwt secret to be test-secret, got %q", cfg.Secret)
 	}
-	if expire := svc.GetJwtExpire(context.Background()); expire != 36*time.Hour {
+	expire, err := svc.GetJwtExpire(context.Background())
+	if err != nil {
+		t.Fatalf("get jwt expire: %v", err)
+	}
+	if expire != 36*time.Hour {
 		t.Fatalf("expected GetJwtExpire to be 36h, got %s", expire)
 	}
 	if secret := svc.GetJwtSecret(context.Background()); secret != "test-secret" {
@@ -94,7 +110,10 @@ session:
 	withRuntimeParamAbsent(t, RuntimeParamKeySessionTimeout)
 
 	svc := New()
-	cfg := svc.GetSession(context.Background())
+	cfg, err := svc.GetSession(context.Background())
+	if err != nil {
+		t.Fatalf("get session config: %v", err)
+	}
 
 	if cfg.Timeout != 36*time.Hour {
 		t.Fatalf("expected session timeout to be 36h, got %s", cfg.Timeout)
@@ -102,7 +121,11 @@ session:
 	if cfg.CleanupInterval != 10*time.Minute {
 		t.Fatalf("expected session cleanup interval to be 10m, got %s", cfg.CleanupInterval)
 	}
-	if timeout := svc.GetSessionTimeout(context.Background()); timeout != 36*time.Hour {
+	timeout, err := svc.GetSessionTimeout(context.Background())
+	if err != nil {
+		t.Fatalf("get session timeout: %v", err)
+	}
+	if timeout != 36*time.Hour {
 		t.Fatalf("expected GetSessionTimeout to be 36h, got %s", timeout)
 	}
 }
@@ -141,14 +164,21 @@ upload:
 		t.Fatalf("expected upload path to be runtime/uploads, got %s", path)
 	}
 
-	cfg := svc.GetUpload(context.Background())
+	cfg, err := svc.GetUpload(context.Background())
+	if err != nil {
+		t.Fatalf("get upload config: %v", err)
+	}
 	if cfg.Path != "runtime/uploads" {
 		t.Fatalf("expected upload config path to be runtime/uploads, got %s", cfg.Path)
 	}
 	if cfg.MaxSize != 32 {
 		t.Fatalf("expected upload config max size to be 32, got %d", cfg.MaxSize)
 	}
-	if maxSize := svc.GetUploadMaxSize(context.Background()); maxSize != 32 {
+	maxSize, err := svc.GetUploadMaxSize(context.Background())
+	if err != nil {
+		t.Fatalf("get upload max size: %v", err)
+	}
+	if maxSize != 32 {
 		t.Fatalf("expected upload runtime getter max size to be 32, got %d", maxSize)
 	}
 }
@@ -163,7 +193,13 @@ session:
 
 	defer assertConfigPanicContains(t, "整秒时长")
 
-	_ = New().GetSession(context.Background())
+	cfg, err := New().GetSession(context.Background())
+	if err != nil {
+		t.Fatalf("get session config after invalid static config: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected session config")
+	}
 }
 
 // TestGetMonitorRejectsSubSecondInterval verifies monitor intervals shorter
@@ -176,7 +212,10 @@ monitor:
 
 	defer assertConfigPanicContains(t, "至少为 1s")
 
-	_ = New().GetMonitor(context.Background())
+	cfg := New().GetMonitor(context.Background())
+	if cfg == nil {
+		t.Fatal("expected monitor config")
+	}
 }
 
 // assertConfigPanicContains verifies the current deferred panic contains the expected text.

@@ -116,7 +116,10 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 	sanitizedFilename := sanitizeFilename(file.Filename)
 
 	// Validate file size against the runtime-effective upload ceiling.
-	uploadMaxSize := s.configSvc.GetUploadMaxSize(ctx)
+	uploadMaxSize, err := s.configSvc.GetUploadMaxSize(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if file.Size > uploadMaxSize*1024*1024 {
 		return nil, gerror.Newf("文件大小不能超过%dMB", uploadMaxSize)
 	}
@@ -126,7 +129,7 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 	if err != nil {
 		return nil, gerror.Wrap(err, "打开上传文件失败")
 	}
-	defer closeutil.Close(src, &err, "关闭上传文件失败")
+	defer closeutil.Close(ctx, src, &err, "关闭上传文件失败")
 
 	// Compute SHA-256 hash
 	hasher := sha256.New()

@@ -157,46 +157,46 @@ func (s *serviceImpl) lookupRuntimeParamValue(ctx context.Context, key string) (
 	return snapshot.lookupValue(key)
 }
 
-// applyRuntimeDurationOverride replaces one static duration with the runtime
-// override value when the protected parameter exists.
-func (s *serviceImpl) applyRuntimeDurationOverride(
+// resolveRuntimeDurationOverride returns one runtime duration override when the
+// protected parameter exists, or the current static value when it is absent.
+func (s *serviceImpl) resolveRuntimeDurationOverride(
 	ctx context.Context,
 	key string,
 	current time.Duration,
-) time.Duration {
+) (time.Duration, error) {
 	snapshot := s.getRuntimeParamSnapshot(ctx)
 	if snapshot == nil {
-		return current
+		return current, nil
 	}
 	duration, ok, err := snapshot.lookupDuration(key)
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 	if !ok {
-		return current
+		return current, nil
 	}
-	return duration
+	return duration, nil
 }
 
-// applyRuntimeInt64Override replaces one static integer with the runtime
-// override value when the protected parameter exists.
-func (s *serviceImpl) applyRuntimeInt64Override(
+// resolveRuntimeInt64Override returns one runtime integer override when the
+// protected parameter exists, or the current static value when it is absent.
+func (s *serviceImpl) resolveRuntimeInt64Override(
 	ctx context.Context,
 	key string,
 	current int64,
-) int64 {
+) (int64, error) {
 	snapshot := s.getRuntimeParamSnapshot(ctx)
 	if snapshot == nil {
-		return current
+		return current, nil
 	}
 	parsed, ok, err := snapshot.lookupInt64(key)
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 	if !ok {
-		return current
+		return current, nil
 	}
-	return parsed
+	return parsed, nil
 }
 
 // splitSemicolonValues splits one semicolon-delimited config value into

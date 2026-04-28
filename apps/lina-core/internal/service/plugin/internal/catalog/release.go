@@ -189,17 +189,24 @@ func (s *serviceImpl) BuildManifestSnapshot(manifest *Manifest) (string, error) 
 
 // buildManifestSnapshot marshals the review-oriented manifest fields into a YAML string.
 func (s *serviceImpl) buildManifestSnapshot(manifest *Manifest, existing *entity.SysPluginRelease) (string, error) {
-	snapshot := s.buildManifestSnapshotModel(manifest)
+	snapshot, err := s.buildManifestSnapshotModel(manifest)
+	if err != nil {
+		return "", err
+	}
 	if snapshot == nil {
 		return "", gerror.New("plugin manifest cannot be nil")
 	}
 	if existing != nil {
-		existingSnapshot, err := s.ParseManifestSnapshot(existing.ManifestSnapshot)
-		if err != nil {
-			return "", err
+		existingSnapshot, parseErr := s.ParseManifestSnapshot(existing.ManifestSnapshot)
+		if parseErr != nil {
+			return "", parseErr
 		}
 		if existingSnapshot != nil {
-			snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+			authorizedHostServices, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+			if normalizeErr != nil {
+				return "", normalizeErr
+			}
+			snapshot.AuthorizedHostServices = authorizedHostServices
 			snapshot.HostServiceAuthConfirmed = existingSnapshot.HostServiceAuthConfirmed
 			snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
 		}
@@ -213,9 +220,14 @@ func (s *serviceImpl) buildManifestSnapshot(manifest *Manifest, existing *entity
 
 // buildManifestSnapshotModel converts one manifest into the review-oriented
 // release snapshot model persisted in sys_plugin_release.
-func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) *ManifestSnapshot {
+func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestSnapshot, error) {
 	if manifest == nil {
-		return nil
+		return nil, nil
+	}
+
+	requestedHostServices, err := pluginbridge.NormalizeHostServiceSpecs(manifest.HostServices)
+	if err != nil {
+		return nil, err
 	}
 
 	snapshot := &ManifestSnapshot{
@@ -243,13 +255,17 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) *ManifestSn
 		RouteResponseCodec:        buildDynamicRouteResponseCodec(manifest),
 		RuntimeFrontendAssetCount: buildDynamicFrontendAssetCount(manifest),
 		RuntimeSQLAssetCount:      buildDynamicSQLAssetCount(manifest),
-		RequestedHostServices:     pluginbridge.NormalizeHostServiceSpecs(manifest.HostServices),
+		RequestedHostServices:     requestedHostServices,
 		HostServiceAuthRequired:   HasResourceScopedHostServices(manifest.HostServices),
 	}
 	if !snapshot.HostServiceAuthRequired {
-		snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+		authorizedHostServices, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		snapshot.AuthorizedHostServices = authorizedHostServices
 	}
-	return snapshot
+	return snapshot, nil
 }
 
 // PersistReleaseUninstallPurgePolicy writes one host-confirmed uninstall cleanup
@@ -272,7 +288,10 @@ func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
 		if loadErr != nil {
 			return nil, loadErr
 		}
-		snapshot = s.buildManifestSnapshotModel(manifest)
+		snapshot, err = s.buildManifestSnapshotModel(manifest)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if snapshot == nil {
 		return nil, gerror.New("插件 release manifest 快照不能为空")
@@ -313,7 +332,11 @@ func (s *serviceImpl) applyReleaseAuthorizedHostServices(manifest *Manifest, rel
 	if !snapshot.HostServiceAuthConfirmed && snapshot.HostServiceAuthRequired {
 		return nil
 	}
-	manifest.HostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	hostServices, err := pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	if err != nil {
+		return err
+	}
+	manifest.HostServices = hostServices
 	manifest.HostCapabilities = pluginbridge.CapabilityMapFromHostServices(manifest.HostServices)
 	return nil
 }

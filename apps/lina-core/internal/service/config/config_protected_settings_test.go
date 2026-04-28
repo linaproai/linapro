@@ -112,7 +112,11 @@ func TestProtectedConfigHelpersPreferOverridesAndFallbackDefaults(t *testing.T) 
 	}
 
 	withCachedRuntimeParamValue(t, PublicFrontendSettingKeyUIWatermarkEnabled, "true")
-	if enabled := svc.getProtectedConfigBoolOrDefault(context.Background(), PublicFrontendSettingKeyUIWatermarkEnabled); !enabled {
+	enabled, err := svc.getProtectedConfigBoolOrDefault(context.Background(), PublicFrontendSettingKeyUIWatermarkEnabled)
+	if err != nil {
+		t.Fatalf("get protected boolean override: %v", err)
+	}
+	if !enabled {
 		t.Fatal("expected protected boolean override to parse as true")
 	}
 }

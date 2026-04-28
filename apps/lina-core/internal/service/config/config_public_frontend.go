@@ -307,8 +307,15 @@ func ValidatePublicFrontendSettingValue(key string, value string) error {
 
 // GetPublicFrontend returns the public-safe frontend branding and display
 // configuration consumed by login pages and admin workspace startup.
-func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConfig {
-	cronCfg := s.GetCron(ctx)
+func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendConfig, error) {
+	cronCfg, err := s.GetCron(ctx)
+	if err != nil {
+		return nil, err
+	}
+	watermarkEnabled, err := s.getProtectedConfigBoolOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkEnabled)
+	if err != nil {
+		return nil, err
+	}
 	return &PublicFrontendConfig{
 		App: PublicFrontendAppConfig{
 			Name:     s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppName),
@@ -329,7 +336,7 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConf
 		UI: PublicFrontendUIConfig{
 			ThemeMode:        s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIThemeMode),
 			Layout:           s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUILayout),
-			WatermarkEnabled: s.getProtectedConfigBoolOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkEnabled),
+			WatermarkEnabled: watermarkEnabled,
 			WatermarkContent: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkContent),
 		},
 		Cron: PublicFrontendCronConfig{
@@ -346,7 +353,7 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) *PublicFrontendConf
 				Current: resolveCurrentSystemTimezone(),
 			},
 		},
-	}
+	}, nil
 }
 
 // resolveCurrentSystemTimezone returns the host timezone identifier exposed to the frontend.
@@ -395,13 +402,13 @@ func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key 
 
 // getProtectedConfigBoolOrDefault returns one protected boolean setting using
 // the default-aware string lookup path first.
-func (s *serviceImpl) getProtectedConfigBoolOrDefault(ctx context.Context, key string) bool {
+func (s *serviceImpl) getProtectedConfigBoolOrDefault(ctx context.Context, key string) (bool, error) {
 	value := s.getProtectedConfigValueOrDefault(ctx, key)
 	parsed, err := parseStrictBoolValue(key, value)
 	if err != nil {
-		panic(err)
+		return false, err
 	}
-	return parsed
+	return parsed, nil
 }
 
 // parseStrictBoolValue parses one protected boolean setting accepting only

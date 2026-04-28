@@ -132,11 +132,17 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 		return
 	}
 
+	sessionTimeout, err := s.configSvc.GetSessionTimeout(r.Context())
+	if err != nil {
+		r.SetError(err)
+		return
+	}
+
 	// Update last active time and validate session exists (supports forced logout and timeout cleanup)
 	exists, err := s.authSvc.SessionStore().TouchOrValidate(
 		r.Context(),
 		claims.TokenId,
-		s.configSvc.GetSessionTimeout(r.Context()),
+		sessionTimeout,
 	)
 	if err != nil || !exists {
 		s.roleSvc.InvalidateTokenAccessContext(r.Context(), claims.TokenId)

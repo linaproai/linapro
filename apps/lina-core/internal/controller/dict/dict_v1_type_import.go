@@ -27,7 +27,7 @@ func (c *ControllerV1) TypeImport(ctx context.Context, req *v1.TypeImportReq) (r
 	if err != nil {
 		return nil, err
 	}
-	defer closeutil.Close(f, &err, "关闭字典类型导入文件失败")
+	defer closeutil.Close(ctx, f, &err, "关闭字典类型导入文件失败")
 
 	result, err := c.dictSvc.TypeImport(ctx, f, updateSupport)
 	if err != nil {

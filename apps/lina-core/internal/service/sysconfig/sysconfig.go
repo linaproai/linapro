@@ -334,7 +334,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 
 	// Create Excel file
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
 	headers := s.buildLocalizedExportHeaders(ctx)
@@ -346,25 +346,25 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 
 	for i, c := range list {
 		row := i + 2
-		if err = setCellValueByName(f, sheet, cellName(1, row), c.Name); err != nil {
+		if err = setCellValue(f, sheet, 1, row, c.Name); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(2, row), c.Key); err != nil {
+		if err = setCellValue(f, sheet, 2, row, c.Key); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(3, row), c.Value); err != nil {
+		if err = setCellValue(f, sheet, 3, row, c.Value); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(4, row), c.Remark); err != nil {
+		if err = setCellValue(f, sheet, 4, row, c.Remark); err != nil {
 			return nil, err
 		}
 		if c.CreatedAt != nil {
-			if err = setCellValueByName(f, sheet, cellName(5, row), c.CreatedAt.String()); err != nil {
+			if err = setCellValue(f, sheet, 5, row, c.CreatedAt.String()); err != nil {
 				return nil, err
 			}
 		}
 		if c.UpdatedAt != nil {
-			if err = setCellValueByName(f, sheet, cellName(6, row), c.UpdatedAt.String()); err != nil {
+			if err = setCellValue(f, sheet, 6, row, c.UpdatedAt.String()); err != nil {
 				return nil, err
 			}
 		}

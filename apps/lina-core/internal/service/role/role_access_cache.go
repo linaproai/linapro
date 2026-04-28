@@ -215,6 +215,10 @@ func (s *serviceImpl) loadTokenAccessContextWithCacheLock(
 	revision int64,
 	loader func(context.Context) (*UserAccessContext, error),
 ) (*UserAccessContext, error) {
+	ttl, err := s.resolveAccessCacheTTL(ctx)
+	if err != nil {
+		return nil, err
+	}
 	cachedVar, err := accessContextCache.GetOrSetFuncLock(
 		ctx,
 		accessCacheKey(tokenID),
@@ -232,7 +236,7 @@ func (s *serviceImpl) loadTokenAccessContextWithCacheLock(
 			}
 			return cached, nil
 		},
-		s.resolveAccessCacheTTL(ctx),
+		ttl,
 	)
 	if err != nil {
 		return nil, err
@@ -273,7 +277,9 @@ func (s *serviceImpl) rebuildTokenAccessContext(
 		return nil, err
 	}
 
-	s.cacheTokenAccessContext(ctx, tokenID, userID, revision, loaded)
+	if err := s.cacheTokenAccessContext(ctx, tokenID, userID, revision, loaded); err != nil {
+		return nil, err
+	}
 	return cloneUserAccessContext(loaded), nil
 }
 
@@ -285,22 +291,27 @@ func (s *serviceImpl) cacheTokenAccessContext(
 	userID int,
 	revision int64,
 	access *UserAccessContext,
-) {
+) error {
 	if tokenID == "" || userID <= 0 || access == nil {
-		return
+		return nil
 	}
 
 	cached := buildCachedUserAccessContext(userID, revision, access)
 	if cached == nil {
-		return
+		return nil
+	}
+	ttl, err := s.resolveAccessCacheTTL(ctx)
+	if err != nil {
+		return err
 	}
 	if err := accessContextCache.Set(
-		ctx, accessCacheKey(tokenID), cached, s.resolveAccessCacheTTL(ctx),
+		ctx, accessCacheKey(tokenID), cached, ttl,
 	); err != nil {
 		logger.Warningf(ctx, "set token access cache failed tokenID=%s err=%v", tokenID, err)
-		return
+		return nil
 	}
 	s.indexAccessToken(tokenID, userID)
+	return nil
 }
 
 // clearLocalAccessCache drops all token snapshots held by the current process
@@ -459,19 +470,23 @@ func (s *serviceImpl) resolveAccessTokenID(ctx context.Context) string {
 
 // resolveAccessCacheTTL keeps token snapshots no longer than either the JWT or
 // online-session lifetime because either expiry makes the cache unreachable.
-func (s *serviceImpl) resolveAccessCacheTTL(ctx context.Context) time.Duration {
+func (s *serviceImpl) resolveAccessCacheTTL(ctx context.Context) (time.Duration, error) {
 	if s == nil || s.configSvc == nil {
-		return 24 * time.Hour
+		return 24 * time.Hour, nil
 	}
 
-	var (
-		jwtTTL     = s.configSvc.GetJwtExpire(ctx)
-		sessionTTL = s.configSvc.GetSessionTimeout(ctx)
-	)
-	if sessionTTL < jwtTTL {
-		return sessionTTL
+	jwtTTL, err := s.configSvc.GetJwtExpire(ctx)
+	if err != nil {
+		return 0, err
 	}
-	return jwtTTL
+	sessionTTL, err := s.configSvc.GetSessionTimeout(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if sessionTTL < jwtTTL {
+		return sessionTTL, nil
+	}
+	return jwtTTL, nil
 }
 
 // accessCacheKey builds the token-scoped cache key used by gcache.

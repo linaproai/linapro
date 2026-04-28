@@ -45,7 +45,7 @@ func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
 type uploadSizeAdapter struct{ svc configsvc.Service }
 
 // GetUploadMaxSize returns the runtime-effective upload size limit in MB.
-func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) int64 {
+func (a *uploadSizeAdapter) GetUploadMaxSize(ctx context.Context) (int64, error) {
 	return a.svc.GetUploadMaxSize(ctx)
 }
 

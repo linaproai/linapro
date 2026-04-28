@@ -284,7 +284,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	}
 
 	file := excelize.NewFile()
-	defer excelutil.CloseFile(file, &err)
+	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
 	headers := []string{
 		s.translate(ctx, "plugin.monitor-loginlog.fields.userName", "用户名"),
@@ -304,7 +304,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	statusMap := buildIntDictLabelMap(ctx, DictTypeLoginStatus)
 	for index, log := range list {
 		row := index + 2
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(1, row), log.UserName); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 1, row, log.UserName); setErr != nil {
 			return nil, setErr
 		}
 		statusText, ok := statusMap[log.Status]
@@ -312,23 +312,23 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 			statusText = defaultLoginStatusLabels[log.Status]
 		}
 		statusText = s.translateDictLabel(ctx, DictTypeLoginStatus, strconv.Itoa(log.Status), statusText)
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(2, row), statusText); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 2, row, statusText); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(3, row), log.Ip); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 3, row, log.Ip); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(4, row), log.Browser); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 4, row, log.Browser); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(5, row), log.Os); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 5, row, log.Os); setErr != nil {
 			return nil, setErr
 		}
-		if setErr := excelutil.SetCellValueByName(file, sheet, cellName(6, row), s.translateLoginLogMessage(ctx, log.Msg)); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, 6, row, s.translateLoginLogMessage(ctx, log.Msg)); setErr != nil {
 			return nil, setErr
 		}
 		if log.LoginTime != nil {
-			if setErr := excelutil.SetCellValueByName(file, sheet, cellName(7, row), log.LoginTime.String()); setErr != nil {
+			if setErr := excelutil.SetCellValue(file, sheet, 7, row, log.LoginTime.String()); setErr != nil {
 				return nil, setErr
 			}
 		}
@@ -448,13 +448,4 @@ func normalizeEndTime(value string) string {
 		return value + " 23:59:59"
 	}
 	return value
-}
-
-// cellName converts numeric coordinates into an Excel A1-style cell reference.
-func cellName(col int, row int) string {
-	name, err := excelize.CoordinatesToCellName(col, row)
-	if err != nil {
-		panic(gerror.Wrap(err, "生成Excel单元格名称失败"))
-	}
-	return name
 }

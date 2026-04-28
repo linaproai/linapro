@@ -40,7 +40,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 
 	// Create Excel file
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
 	headers := []string{"用户名", "昵称", "手机号码", "邮箱", "性别", "状态", "备注", "创建时间"}
@@ -52,16 +52,16 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 
 	for i, u := range list {
 		row := i + 2
-		if err = setCellValueByName(f, sheet, cellName(1, row), u.Username); err != nil {
+		if err = setCellValue(f, sheet, 1, row, u.Username); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(2, row), u.Nickname); err != nil {
+		if err = setCellValue(f, sheet, 2, row, u.Nickname); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(3, row), u.Phone); err != nil {
+		if err = setCellValue(f, sheet, 3, row, u.Phone); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(4, row), u.Email); err != nil {
+		if err = setCellValue(f, sheet, 4, row, u.Email); err != nil {
 			return nil, err
 		}
 		sexText := "未知"
@@ -71,21 +71,21 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		case 2:
 			sexText = "女"
 		}
-		if err = setCellValueByName(f, sheet, cellName(5, row), sexText); err != nil {
+		if err = setCellValue(f, sheet, 5, row, sexText); err != nil {
 			return nil, err
 		}
 		statusText := "正常"
 		if u.Status == int(StatusDisabled) {
 			statusText = "停用"
 		}
-		if err = setCellValueByName(f, sheet, cellName(6, row), statusText); err != nil {
+		if err = setCellValue(f, sheet, 6, row, statusText); err != nil {
 			return nil, err
 		}
-		if err = setCellValueByName(f, sheet, cellName(7, row), u.Remark); err != nil {
+		if err = setCellValue(f, sheet, 7, row, u.Remark); err != nil {
 			return nil, err
 		}
 		if u.CreatedAt != nil {
-			if err = setCellValueByName(f, sheet, cellName(8, row), u.CreatedAt.String()); err != nil {
+			if err = setCellValue(f, sheet, 8, row, u.CreatedAt.String()); err != nil {
 				return nil, err
 			}
 		}
@@ -118,7 +118,7 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 	if err != nil {
 		return nil, gerror.New("无法解析 Excel 文件")
 	}
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 
 	rows, err := f.GetRows("Sheet1")
 	if err != nil {
@@ -236,9 +236,9 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader) (result 
 }
 
 // GenerateImportTemplate creates an Excel template for user import.
-func (s *serviceImpl) GenerateImportTemplate() (data []byte, err error) {
+func (s *serviceImpl) GenerateImportTemplate(ctx context.Context) (data []byte, err error) {
 	f := excelize.NewFile()
-	defer closeExcelFile(f, &err)
+	defer closeExcelFile(ctx, f, &err)
 	sheet := "Sheet1"
 
 	headers := []string{"用户名", "密码", "昵称", "手机号码", "邮箱", "性别", "状态", "备注"}
@@ -249,28 +249,28 @@ func (s *serviceImpl) GenerateImportTemplate() (data []byte, err error) {
 	}
 
 	// Example row
-	if err = setCellValueByName(f, sheet, cellName(1, 2), "zhangsan"); err != nil {
+	if err = setCellValue(f, sheet, 1, 2, "zhangsan"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(2, 2), "123456"); err != nil {
+	if err = setCellValue(f, sheet, 2, 2, "123456"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(3, 2), "张三"); err != nil {
+	if err = setCellValue(f, sheet, 3, 2, "张三"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(4, 2), "13800138000"); err != nil {
+	if err = setCellValue(f, sheet, 4, 2, "13800138000"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(5, 2), "zhangsan@example.com"); err != nil {
+	if err = setCellValue(f, sheet, 5, 2, "zhangsan@example.com"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(6, 2), "男"); err != nil {
+	if err = setCellValue(f, sheet, 6, 2, "男"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(7, 2), "正常"); err != nil {
+	if err = setCellValue(f, sheet, 7, 2, "正常"); err != nil {
 		return nil, err
 	}
-	if err = setCellValueByName(f, sheet, cellName(8, 2), "示例用户"); err != nil {
+	if err = setCellValue(f, sheet, 8, 2, "示例用户"); err != nil {
 		return nil, err
 	}
 

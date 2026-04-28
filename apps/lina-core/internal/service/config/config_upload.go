@@ -32,10 +32,14 @@ func (s *serviceImpl) getStaticUploadConfig(ctx context.Context) *UploadConfig {
 }
 
 // GetUpload reads upload config from configuration file.
-func (s *serviceImpl) GetUpload(ctx context.Context) *UploadConfig {
+func (s *serviceImpl) GetUpload(ctx context.Context) (*UploadConfig, error) {
 	cfg := cloneUploadConfig(s.getStaticUploadConfig(ctx))
-	cfg.MaxSize = s.applyRuntimeInt64Override(ctx, RuntimeParamKeyUploadMaxSize, cfg.MaxSize)
-	return cfg
+	maxSize, err := s.resolveRuntimeInt64Override(ctx, RuntimeParamKeyUploadMaxSize, cfg.MaxSize)
+	if err != nil {
+		return nil, err
+	}
+	cfg.MaxSize = maxSize
+	return cfg, nil
 }
 
 // GetUploadPath returns the static upload directory loaded from config.yaml.
@@ -52,10 +56,10 @@ func (s *serviceImpl) GetUploadPath(ctx context.Context) string {
 // GetUploadMaxSize returns the runtime-effective upload size ceiling in MB.
 // Upload validation should call this directly so the hot path only reads the
 // one field that can change at runtime.
-func (s *serviceImpl) GetUploadMaxSize(ctx context.Context) int64 {
+func (s *serviceImpl) GetUploadMaxSize(ctx context.Context) (int64, error) {
 	cfg := s.getStaticUploadConfig(ctx)
 	if cfg == nil {
-		return defaultUploadMaxSize
+		return defaultUploadMaxSize, nil
 	}
-	return s.applyRuntimeInt64Override(ctx, RuntimeParamKeyUploadMaxSize, cfg.MaxSize)
+	return s.resolveRuntimeInt64Override(ctx, RuntimeParamKeyUploadMaxSize, cfg.MaxSize)
 }

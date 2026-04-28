@@ -10,7 +10,7 @@ import (
 
 // DataImportTemplate downloads the dictionary data import template.
 func (c *ControllerV1) DataImportTemplate(ctx context.Context, req *v1.DataImportTemplateReq) (res *v1.DataImportTemplateRes, err error) {
-	data, err := c.dictSvc.GenerateDataImportTemplate()
+	data, err := c.dictSvc.GenerateDataImportTemplate(ctx)
 	if err != nil {
 		return nil, err
 	}

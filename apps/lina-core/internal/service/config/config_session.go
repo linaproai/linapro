@@ -29,17 +29,21 @@ func (s *serviceImpl) getStaticSessionConfig(ctx context.Context) *SessionConfig
 }
 
 // GetSession reads session config from configuration file.
-func (s *serviceImpl) GetSession(ctx context.Context) *SessionConfig {
+func (s *serviceImpl) GetSession(ctx context.Context) (*SessionConfig, error) {
 	cfg := cloneSessionConfig(s.getStaticSessionConfig(ctx))
-	cfg.Timeout = s.applyRuntimeDurationOverride(ctx, RuntimeParamKeySessionTimeout, cfg.Timeout)
-	return cfg
+	timeout, err := s.resolveRuntimeDurationOverride(ctx, RuntimeParamKeySessionTimeout, cfg.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Timeout = timeout
+	return cfg, nil
 }
 
 // GetSessionTimeout returns the runtime-effective online-session timeout.
-func (s *serviceImpl) GetSessionTimeout(ctx context.Context) time.Duration {
+func (s *serviceImpl) GetSessionTimeout(ctx context.Context) (time.Duration, error) {
 	cfg := s.getStaticSessionConfig(ctx)
 	if cfg == nil {
-		return 24 * time.Hour
+		return 24 * time.Hour, nil
 	}
-	return s.applyRuntimeDurationOverride(ctx, RuntimeParamKeySessionTimeout, cfg.Timeout)
+	return s.resolveRuntimeDurationOverride(ctx, RuntimeParamKeySessionTimeout, cfg.Timeout)
 }

@@ -3,12 +3,16 @@
 package excelutil
 
 import (
+	"context"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/xuri/excelize/v2"
+
+	"lina-core/pkg/logger"
 )
 
 // CloseFile closes one Excel file and folds any close failure into errPtr.
-func CloseFile(file *excelize.File, errPtr *error) {
+func CloseFile(ctx context.Context, file *excelize.File, errPtr *error) {
 	if file == nil {
 		return
 	}
@@ -18,9 +22,11 @@ func CloseFile(file *excelize.File, errPtr *error) {
 	}
 	wrapped := gerror.Wrap(closeErr, "关闭Excel文件失败")
 	if errPtr == nil {
-		// Export and import flows must treat close failures as fatal when the
-		// caller cannot merge the error into its return path.
-		panic(wrapped)
+		// A nil error pointer means the caller misused this helper by omitting
+		// the named return error path, so log the close failure instead of
+		// panicking or silently dropping it.
+		logger.Warningf(ctx, "excel close failed without error return path err=%v", wrapped)
+		return
 	}
 	if *errPtr == nil {
 		// Keep any earlier business error intact and only report the close error

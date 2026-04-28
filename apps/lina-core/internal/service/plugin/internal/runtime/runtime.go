@@ -62,7 +62,7 @@ type JwtConfigProvider interface {
 // UploadSizeProvider provides the runtime-effective upload size ceiling in MB.
 type UploadSizeProvider interface {
 	// GetUploadMaxSize returns the runtime-effective upload size ceiling in MB.
-	GetUploadMaxSize(ctx context.Context) int64
+	GetUploadMaxSize(ctx context.Context) (int64, error)
 }
 
 // UserContextSetter injects authenticated user information into the request context.

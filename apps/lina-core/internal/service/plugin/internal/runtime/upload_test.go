@@ -20,8 +20,8 @@ type fixedUploadSizeProvider struct {
 }
 
 // GetUploadMaxSize returns the configured upload ceiling used by the test runtime.
-func (p fixedUploadSizeProvider) GetUploadMaxSize(_ context.Context) int64 {
-	return p.maxSizeMB
+func (p fixedUploadSizeProvider) GetUploadMaxSize(_ context.Context) (int64, error) {
+	return p.maxSizeMB, nil
 }
 
 // TestUploadDynamicPackageRejectsFileExceedingRuntimeMaxSize verifies that the

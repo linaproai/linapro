@@ -10,7 +10,7 @@ import (
 
 // ImportTemplate downloads user import template
 func (c *ControllerV1) ImportTemplate(ctx context.Context, req *v1.ImportTemplateReq) (res *v1.ImportTemplateRes, err error) {
-	data, err := c.userSvc.GenerateImportTemplate()
+	data, err := c.userSvc.GenerateImportTemplate(ctx)
 	if err != nil {
 		return nil, err
 	}

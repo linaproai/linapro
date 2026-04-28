@@ -22,7 +22,7 @@ func (c *ControllerV1) Import(ctx context.Context, req *v1.ImportReq) (res *v1.I
 	if err != nil {
 		return nil, err
 	}
-	defer closeutil.Close(file, &err, "关闭字典导入文件失败")
+	defer closeutil.Close(ctx, file, &err, "关闭字典导入文件失败")
 
 	fileData, err := io.ReadAll(file)
 	if err != nil {
@@ -48,7 +48,7 @@ func (c *ControllerV1) Import(ctx context.Context, req *v1.ImportReq) (res *v1.I
 
 // ImportTemplate downloads the combined import template.
 func (c *ControllerV1) ImportTemplate(ctx context.Context, req *v1.ImportTemplateReq) (res *v1.ImportTemplateRes, err error) {
-	data, err := c.dictSvc.CombinedImportTemplate()
+	data, err := c.dictSvc.CombinedImportTemplate(ctx)
 	if err != nil {
 		return nil, err
 	}

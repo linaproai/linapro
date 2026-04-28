@@ -26,7 +26,7 @@ func (c *ControllerV1) Download(ctx context.Context, req *v1.DownloadReq) (res *
 	if err != nil {
 		return nil, err
 	}
-	defer closeutil.Close(reader, &err, "关闭下载文件流失败")
+	defer closeutil.Close(ctx, reader, &err, "关闭下载文件流失败")
 
 	r.Response.Header().Set("Content-Disposition", "attachment; filename=\""+fileInfo.Original+"\"")
 	r.Response.Header().Set("Content-Type", "application/octet-stream")

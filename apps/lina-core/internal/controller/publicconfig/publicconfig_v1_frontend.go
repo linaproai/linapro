@@ -12,7 +12,10 @@ import (
 
 // Frontend returns the public-safe frontend display config whitelist.
 func (c *ControllerV1) Frontend(ctx context.Context, _ *v1.FrontendReq) (res *v1.FrontendRes, err error) {
-	cfg := c.configSvc.GetPublicFrontend(ctx)
+	cfg, err := c.configSvc.GetPublicFrontend(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if cfg == nil {
 		return &v1.FrontendRes{}, nil
 	}

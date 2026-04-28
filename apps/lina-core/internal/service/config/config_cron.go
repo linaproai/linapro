@@ -58,29 +58,38 @@ type cronLogRetentionPayload struct {
 }
 
 // GetCron reads runtime cron-management parameters from protected sys_config entries.
-func (s *serviceImpl) GetCron(ctx context.Context) *CronConfig {
-	return &CronConfig{
-		Shell:        buildCronShellConfig(s.getProtectedConfigBoolOrDefault(ctx, RuntimeParamKeyCronShellEnabled), runtime.GOOS),
-		LogRetention: *s.GetCronLogRetention(ctx),
+func (s *serviceImpl) GetCron(ctx context.Context) (*CronConfig, error) {
+	shellEnabled, err := s.getProtectedConfigBoolOrDefault(ctx, RuntimeParamKeyCronShellEnabled)
+	if err != nil {
+		return nil, err
 	}
+	logRetention, err := s.GetCronLogRetention(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &CronConfig{
+		Shell:        buildCronShellConfig(shellEnabled, runtime.GOOS),
+		LogRetention: *logRetention,
+	}, nil
 }
 
 // IsCronShellEnabled reports whether shell-type cron jobs are currently allowed.
-func (s *serviceImpl) IsCronShellEnabled(ctx context.Context) bool {
-	return buildCronShellConfig(
-		s.getProtectedConfigBoolOrDefault(ctx, RuntimeParamKeyCronShellEnabled),
-		runtime.GOOS,
-	).Enabled
+func (s *serviceImpl) IsCronShellEnabled(ctx context.Context) (bool, error) {
+	shellEnabled, err := s.getProtectedConfigBoolOrDefault(ctx, RuntimeParamKeyCronShellEnabled)
+	if err != nil {
+		return false, err
+	}
+	return buildCronShellConfig(shellEnabled, runtime.GOOS).Enabled, nil
 }
 
 // GetCronLogRetention returns the runtime-effective default cron log retention policy.
-func (s *serviceImpl) GetCronLogRetention(ctx context.Context) *CronLogRetentionConfig {
+func (s *serviceImpl) GetCronLogRetention(ctx context.Context) (*CronLogRetentionConfig, error) {
 	value := s.getProtectedConfigValueOrDefault(ctx, RuntimeParamKeyCronLogRetention)
 	cfg, err := parseCronLogRetentionValue(RuntimeParamKeyCronLogRetention, value)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return cfg
+	return cfg, nil
 }
 
 // buildCronShellConfig normalizes one shell gate against the current platform

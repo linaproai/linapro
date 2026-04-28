@@ -328,12 +328,14 @@ func CapabilitiesFromHostServices(specs []*HostServiceSpec) []string {
 // normalized host service declaration set.
 func CapabilityMapFromHostServices(specs []*HostServiceSpec) map[string]struct{} {
 	capabilities := make(map[string]struct{})
-	for _, spec := range NormalizeHostServiceSpecs(specs) {
+	for _, spec := range specs {
 		if spec == nil {
 			continue
 		}
-		for _, method := range spec.Methods {
-			capability := RequiredCapabilityForHostServiceMethod(spec.Service, method)
+		service := normalizeHostServiceName(spec.Service)
+		for _, rawMethod := range spec.Methods {
+			method := normalizeHostServiceMethod(rawMethod)
+			capability := RequiredCapabilityForHostServiceMethod(service, method)
 			if capability != "" {
 				capabilities[capability] = struct{}{}
 			}
@@ -506,9 +508,9 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 }
 
 // NormalizeHostServiceSpecs returns deep-cloned and normalized host service declarations.
-func NormalizeHostServiceSpecs(specs []*HostServiceSpec) []*HostServiceSpec {
+func NormalizeHostServiceSpecs(specs []*HostServiceSpec) ([]*HostServiceSpec, error) {
 	if len(specs) == 0 {
-		return []*HostServiceSpec{}
+		return []*HostServiceSpec{}, nil
 	}
 	cloned := make([]*HostServiceSpec, 0, len(specs))
 	for _, item := range specs {
@@ -540,9 +542,19 @@ func NormalizeHostServiceSpecs(specs []*HostServiceSpec) []*HostServiceSpec {
 		cloned = append(cloned, next)
 	}
 	if err := ValidateHostServiceSpecs(cloned); err != nil {
+		return nil, err
+	}
+	return cloned, nil
+}
+
+// MustNormalizeHostServiceSpecs returns normalized declarations or panics for
+// compile-time constants whose invalid form must fail fast.
+func MustNormalizeHostServiceSpecs(specs []*HostServiceSpec) []*HostServiceSpec {
+	normalized, err := NormalizeHostServiceSpecs(specs)
+	if err != nil {
 		panic(err)
 	}
-	return cloned
+	return normalized
 }
 
 // AllCapabilities returns a sorted list of all known capability identifiers.

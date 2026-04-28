@@ -182,6 +182,10 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		return nil, gerror.Newf("动态插件缺少嵌入清单: %s", artifactPath)
 	}
 
+	hostServices, err := pluginbridge.NormalizeHostServiceSpecs(artifact.HostServices)
+	if err != nil {
+		return nil, gerror.Wrapf(err, "动态插件宿主服务声明不合法: %s", artifactPath)
+	}
 	manifest := &Manifest{
 		ID:               strings.TrimSpace(artifact.Manifest.ID),
 		Name:             strings.TrimSpace(artifact.Manifest.Name),
@@ -194,7 +198,7 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		Routes:           artifact.RouteContracts,
 		BridgeSpec:       artifact.BridgeSpec,
 		HostCapabilities: pluginbridge.CapabilityMapFromHostServices(artifact.HostServices),
-		HostServices:     pluginbridge.NormalizeHostServiceSpecs(artifact.HostServices),
+		HostServices:     hostServices,
 		RuntimeArtifact:  artifact,
 	}
 	if err = s.ValidateUploadedRuntimeManifest(manifest); err != nil {

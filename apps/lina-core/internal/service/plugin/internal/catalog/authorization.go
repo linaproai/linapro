@@ -61,8 +61,16 @@ func (s *serviceImpl) ParseManifestSnapshot(content string) (*ManifestSnapshot, 
 	if err := yaml.Unmarshal([]byte(trimmed), snapshot); err != nil {
 		return nil, gerror.Wrap(err, "解析插件 release manifest_snapshot 失败")
 	}
-	snapshot.RequestedHostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
-	snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	requestedHostServices, err := pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+	if err != nil {
+		return nil, gerror.Wrap(err, "解析插件请求宿主服务快照失败")
+	}
+	authorizedHostServices, err := pluginbridge.NormalizeHostServiceSpecs(snapshot.AuthorizedHostServices)
+	if err != nil {
+		return nil, gerror.Wrap(err, "解析插件授权宿主服务快照失败")
+	}
+	snapshot.RequestedHostServices = requestedHostServices
+	snapshot.AuthorizedHostServices = authorizedHostServices
 	return snapshot, nil
 }
 
@@ -90,15 +98,26 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 		return nil, err
 	}
 
-	snapshot := s.buildManifestSnapshotModel(manifest)
+	snapshot, err := s.buildManifestSnapshotModel(manifest)
+	if err != nil {
+		return nil, err
+	}
 	if existingSnapshot != nil {
 		snapshot.HostServiceAuthConfirmed = existingSnapshot.HostServiceAuthConfirmed
-		snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+		authorizedHostServices, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(existingSnapshot.AuthorizedHostServices)
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		snapshot.AuthorizedHostServices = authorizedHostServices
 		snapshot.UninstallPurgeStorageData = existingSnapshot.UninstallPurgeStorageData
 	}
 
 	if !snapshot.HostServiceAuthRequired {
-		snapshot.AuthorizedHostServices = pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+		authorizedHostServices, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(snapshot.RequestedHostServices)
+		if normalizeErr != nil {
+			return nil, normalizeErr
+		}
+		snapshot.AuthorizedHostServices = authorizedHostServices
 		snapshot.HostServiceAuthConfirmed = false
 	} else if input != nil {
 		snapshot.AuthorizedHostServices, err = BuildAuthorizedHostServiceSpecs(snapshot.RequestedHostServices, input)
@@ -129,7 +148,10 @@ func BuildAuthorizedHostServiceSpecs(
 	requested []*pluginbridge.HostServiceSpec,
 	input *HostServiceAuthorizationInput,
 ) ([]*pluginbridge.HostServiceSpec, error) {
-	requestedSpecs := pluginbridge.NormalizeHostServiceSpecs(requested)
+	requestedSpecs, err := pluginbridge.NormalizeHostServiceSpecs(requested)
+	if err != nil {
+		return nil, err
+	}
 	if len(requestedSpecs) == 0 {
 		return []*pluginbridge.HostServiceSpec{}, nil
 	}
@@ -280,7 +302,7 @@ func BuildAuthorizedHostServiceSpecs(
 			Resources: resources,
 		})
 	}
-	return pluginbridge.NormalizeHostServiceSpecs(authorized), nil
+	return pluginbridge.NormalizeHostServiceSpecs(authorized)
 }
 
 // buildHostServicePathSet normalizes declared path-scoped authorizations into

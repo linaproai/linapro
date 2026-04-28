@@ -31,10 +31,14 @@ func (s *serviceImpl) getStaticJwtConfig(ctx context.Context) *JwtConfig {
 }
 
 // GetJwt reads JWT config from configuration file.
-func (s *serviceImpl) GetJwt(ctx context.Context) *JwtConfig {
+func (s *serviceImpl) GetJwt(ctx context.Context) (*JwtConfig, error) {
 	cfg := cloneJwtConfig(s.getStaticJwtConfig(ctx))
-	cfg.Expire = s.applyRuntimeDurationOverride(ctx, RuntimeParamKeyJWTExpire, cfg.Expire)
-	return cfg
+	expire, err := s.resolveRuntimeDurationOverride(ctx, RuntimeParamKeyJWTExpire, cfg.Expire)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Expire = expire
+	return cfg, nil
 }
 
 // GetJwtSecret returns the static JWT signing secret loaded from config.yaml.
@@ -47,10 +51,10 @@ func (s *serviceImpl) GetJwtSecret(ctx context.Context) string {
 }
 
 // GetJwtExpire returns the runtime-effective JWT expiration duration.
-func (s *serviceImpl) GetJwtExpire(ctx context.Context) time.Duration {
+func (s *serviceImpl) GetJwtExpire(ctx context.Context) (time.Duration, error) {
 	cfg := s.getStaticJwtConfig(ctx)
 	if cfg == nil {
-		return 24 * time.Hour
+		return 24 * time.Hour, nil
 	}
-	return s.applyRuntimeDurationOverride(ctx, RuntimeParamKeyJWTExpire, cfg.Expire)
+	return s.resolveRuntimeDurationOverride(ctx, RuntimeParamKeyJWTExpire, cfg.Expire)
 }
