@@ -49,8 +49,12 @@ type SourcePluginUpgradeResult struct {
 	ToVersion string
 	// Executed reports whether upgrade work actually ran.
 	Executed bool
-	// Message explains the no-op or successful outcome in operator-facing wording.
+	// Message explains the no-op or successful outcome in the effective locale.
 	Message string
+	// MessageKey is the runtime i18n key used to render Message.
+	MessageKey string
+	// MessageParams stores runtime i18n named parameters for MessageKey.
+	MessageParams map[string]any
 }
 
 // Service defines source-plugin upgrade operations published to development tools.

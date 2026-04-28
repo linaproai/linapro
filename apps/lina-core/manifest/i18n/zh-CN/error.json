@@ -586,6 +586,184 @@
         "required": "当前用户缺少接口权限: {permissions}"
       }
     },
+    "plugin": {
+      "auto": {
+        "enable": {
+          "discovery": {
+            "failed": "启动期自动启用插件 {pluginId} 时发现插件失败"
+          },
+          "dynamic": {
+            "manifest": {
+              "required": "启动期自动启用动态插件时，插件清单不能为空"
+            }
+          },
+          "failed": "启动期自动启用插件 {pluginId} 失败",
+          "manifest": {
+            "not": {
+              "found": "启动期自动启用插件 {pluginId} 失败：插件清单不存在"
+            }
+          },
+          "shared": {
+            "executor": {
+              "missing": "启动期自动启用插件 {pluginId} 失败：缺少共享执行器"
+            }
+          },
+          "source": {
+            "manifest": {
+              "required": "启动期自动启用源码插件时，插件清单不能为空"
+            }
+          },
+          "timeout": {
+            "registry": {
+              "missing": "启动期自动启用插件 {pluginId} 超时：插件注册表不存在"
+            },
+            "state": "启动期自动启用插件 {pluginId} 超时：installed={installed} status={status} desiredState={desiredState} currentState={currentState}"
+          },
+          "type": {
+            "unsupported": "启动期自动启用插件 {pluginId} 失败：不支持插件类型 {pluginType}"
+          },
+          "wait": {
+            "canceled": "启动期等待插件 {pluginId} 自动启用已取消"
+          }
+        }
+      },
+      "dynamic": {
+        "artifact": {
+          "missing": "动态插件缺少 {artifactPath}，无法执行 {action}；请先执行 make wasm p={pluginId} 生成产物",
+          "validate": {
+            "failed": "动态插件产物校验失败，无法执行 {action}"
+          }
+        },
+        "auto": {
+          "enable": {
+            "auth": {
+              "snapshot": {
+                "missing": "动态插件 {pluginId} 缺少已确认的宿主服务授权快照，请先通过常规安装或启用流程完成审核"
+              }
+            },
+            "release": {
+              "missing": "动态插件 {pluginId} 缺少发布记录，无法复用授权快照"
+            }
+          }
+        },
+        "enable": {
+          "failed": "启用动态插件失败"
+        },
+        "install": {
+          "failed": "安装动态插件失败"
+        },
+        "manifest": {
+          "required": "动态插件清单不能为空"
+        },
+        "runtime": {
+          "manifest": {
+            "required": "动态插件清单不能为空"
+          }
+        },
+        "version": {
+          "downgrade": {
+            "unsupported": "不支持回退到更低版本的动态插件，请使用宿主自动回滚结果或重新上传更高版本"
+          }
+        }
+      },
+      "enabled": {
+        "snapshot": {
+          "refresh": {
+            "failed": "刷新插件启用快照失败"
+          }
+        }
+      },
+      "not": {
+        "installed": "插件未安装"
+      },
+      "registry": {
+        "read": {
+          "failed": "读取插件 {pluginId} 注册表失败"
+        }
+      },
+      "release": {
+        "not": {
+          "found": "插件发布记录不存在：{pluginId}@{version}"
+        }
+      },
+      "source": {
+        "enable": {
+          "failed": "启用源码插件失败"
+        },
+        "install": {
+          "failed": "安装源码插件失败",
+          "unsupported": "源码插件随宿主编译集成，不支持通过动态生命周期安装"
+        },
+        "manifest": {
+          "required": "源码插件清单不能为空"
+        },
+        "registry": {
+          "after": {
+            "install": {
+              "not": {
+                "found": "源码插件安装后注册表不存在：{pluginId}"
+              }
+            },
+            "uninstall": {
+              "not": {
+                "found": "源码插件卸载后注册表不存在：{pluginId}"
+              }
+            }
+          },
+          "not": {
+            "found": "源码插件注册表不存在：{pluginId}"
+          },
+          "required": "源码插件注册表不能为空"
+        },
+        "uninstall": {
+          "unsupported": "源码插件随宿主编译集成，不支持通过动态生命周期卸载"
+        },
+        "upgrade": {
+          "candidate": {
+            "not": {
+              "found": "源码插件升级候选不存在：{pluginId}"
+            }
+          },
+          "downgrade": {
+            "unsupported": "源码插件 {pluginId} 当前生效版本 {effectiveVersion} 高于源码发现版本 {discoveredVersion}，当前不支持降级或回滚"
+          },
+          "manifest": {
+            "required": "源码插件清单不能为空"
+          },
+          "pending": "检测到已安装源码插件存在待完成升级，宿主启动前必须先执行开发态升级命令。\n{items}",
+          "pendingWithBulk": "检测到已安装源码插件存在待完成升级，宿主启动前必须先执行开发态升级命令。\n{items}\n如需一次性处理全部待升级源码插件，可执行：{bulkCommand}",
+          "plugin": {
+            "id": {
+              "required": "源码插件 ID 不能为空"
+            },
+            "not": {
+              "found": "未找到源码插件：{pluginId}"
+            }
+          },
+          "registry": {
+            "after": {
+              "upgrade": {
+                "not": {
+                  "found": "源码插件升级后注册表不存在：{pluginId}"
+                }
+              }
+            },
+            "required": "源码插件注册表不能为空"
+          },
+          "target": {
+            "release": {
+              "not": {
+                "found": "源码插件升级缺少目标发布记录：{pluginId}@{version}"
+              },
+              "required": "源码插件目标发布记录不能为空"
+            }
+          }
+        }
+      },
+      "status": {
+        "invalid": "插件状态仅支持 0 或 1"
+      }
+    },
     "role": {
       "key": {
         "exists": "权限字符已存在"

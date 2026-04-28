@@ -17,6 +17,7 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginfs"
 )
@@ -51,7 +52,7 @@ type artifactMissingError struct {
 
 // Error returns the actionable missing-artifact message used by lifecycle guards.
 func (e *artifactMissingError) Error() string {
-	return fmt.Sprintf("动态插件目录缺少 %s: %s", e.relativePath, e.rootDir)
+	return fmt.Sprintf("Dynamic plugin directory is missing %s: %s", e.relativePath, e.rootDir)
 }
 
 // buildArtifactFileName returns the canonical wasm filename for one plugin ID.
@@ -99,7 +100,7 @@ func isMissingArtifactError(err error) bool {
 func (s *serviceImpl) ParseRuntimeWasmArtifact(filePath string) (*catalog.ArtifactSpec, error) {
 	content := gfile.GetBytes(filePath)
 	if len(content) == 0 {
-		return nil, gerror.Newf("动态插件产物为空: %s", filePath)
+		return nil, gerror.Newf("Dynamic plugin artifact is empty: %s", filePath)
 	}
 	return s.ParseRuntimeWasmArtifactContent(filePath, content)
 }
@@ -109,35 +110,35 @@ func (s *serviceImpl) ParseRuntimeWasmArtifact(filePath string) (*catalog.Artifa
 func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*catalog.ArtifactSpec, error) {
 	sections, err := pluginbridge.ListCustomSections(content)
 	if err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件产物失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin artifact: %s", filePath)
 	}
 
 	manifestSection, ok := sections[pluginbridge.WasmSectionManifest]
 	if !ok {
-		return nil, gerror.Newf("动态插件缺少自定义节 %s: %s", pluginbridge.WasmSectionManifest, filePath)
+		return nil, gerror.Newf("Dynamic plugin artifact is missing custom section %s: %s", pluginbridge.WasmSectionManifest, filePath)
 	}
 	runtimeSection, ok := sections[pluginbridge.WasmSectionRuntime]
 	if !ok {
 		runtimeSection, ok = sections[pluginbridge.WasmSectionLegacyRuntime]
 	}
 	if !ok {
-		return nil, gerror.Newf("动态插件缺少自定义节 %s: %s", pluginbridge.WasmSectionRuntime, filePath)
+		return nil, gerror.Newf("Dynamic plugin artifact is missing custom section %s: %s", pluginbridge.WasmSectionRuntime, filePath)
 	}
 
 	embeddedManifest := &catalog.ArtifactManifest{}
 	if err = unmarshalRuntimeArtifactSection(manifestSection, embeddedManifest); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件嵌入清单失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin embedded manifest: %s", filePath)
 	}
 	if strings.TrimSpace(embeddedManifest.ID) == "" ||
 		strings.TrimSpace(embeddedManifest.Name) == "" ||
 		strings.TrimSpace(embeddedManifest.Version) == "" ||
 		strings.TrimSpace(embeddedManifest.Type) == "" {
-		return nil, gerror.Newf("动态插件嵌入清单缺少必填字段: %s", filePath)
+		return nil, gerror.Newf("Dynamic plugin embedded manifest is missing required fields: %s", filePath)
 	}
 
 	runtimeMetadata := &pluginbridge.RuntimeArtifactMetadata{}
 	if err = unmarshalRuntimeArtifactSection(runtimeSection, runtimeMetadata); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件运行时元数据失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin runtime metadata: %s", filePath)
 	}
 
 	frontendAssets, err := parseRuntimeArtifactFrontendAssets(filePath, sections, pluginbridge.WasmSectionFrontendAssets)
@@ -192,21 +193,21 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 		runtimeKind = dynamicKindWasm
 	}
 	if runtimeKind != dynamicKindWasm {
-		return nil, gerror.Newf("动态插件产物类型仅支持 wasm: %s", runtimeKind)
+		return nil, gerror.Newf("Dynamic plugin artifact runtime kind must be wasm: %s", runtimeKind)
 	}
 
 	abiVersion := strings.TrimSpace(strings.ToLower(runtimeMetadata.ABIVersion))
 	if abiVersion == "" {
-		return nil, gerror.Newf("动态插件缺少 ABI 版本: %s", filePath)
+		return nil, gerror.Newf("Dynamic plugin artifact is missing ABI version: %s", filePath)
 	}
 	if abiVersion != pluginbridge.SupportedABIVersion {
-		return nil, gerror.Newf("动态插件 ABI 版本不受支持: %s", runtimeMetadata.ABIVersion)
+		return nil, gerror.Newf("Dynamic plugin ABI version is not supported: %s", runtimeMetadata.ABIVersion)
 	}
 
 	totalSQLAssetCount := len(installSQLAssets) + len(uninstallSQLAssets)
 	if runtimeMetadata.SQLAssetCount > 0 && runtimeMetadata.SQLAssetCount != totalSQLAssetCount {
 		return nil, gerror.Newf(
-			"动态插件 SQL 资源数量与元数据不一致: metadata=%d actual=%d",
+			"Dynamic plugin SQL asset count does not match metadata: metadata=%d actual=%d",
 			runtimeMetadata.SQLAssetCount,
 			totalSQLAssetCount,
 		)
@@ -216,7 +217,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	if runtimeMetadata.FrontendAssetCount > 0 && runtimeMetadata.FrontendAssetCount != len(frontendAssets) {
 		return nil, gerror.Newf(
-			"动态插件前端资源数量与元数据不一致: metadata=%d actual=%d",
+			"Dynamic plugin frontend asset count does not match metadata: metadata=%d actual=%d",
 			runtimeMetadata.FrontendAssetCount,
 			len(frontendAssets),
 		)
@@ -226,7 +227,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	if runtimeMetadata.I18NAssetCount > 0 && runtimeMetadata.I18NAssetCount != len(runtimeI18NAssets) {
 		return nil, gerror.Newf(
-			"动态插件运行时 i18n 资源数量与元数据不一致: metadata=%d actual=%d",
+			"Dynamic plugin runtime i18n asset count does not match metadata: metadata=%d actual=%d",
 			runtimeMetadata.I18NAssetCount,
 			len(runtimeI18NAssets),
 		)
@@ -236,7 +237,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	if runtimeMetadata.APIDocI18NAssetCount > 0 && runtimeMetadata.APIDocI18NAssetCount != len(apiDocI18NAssets) {
 		return nil, gerror.Newf(
-			"动态插件 apidoc i18n 资源数量与元数据不一致: metadata=%d actual=%d",
+			"Dynamic plugin apidoc i18n asset count does not match metadata: metadata=%d actual=%d",
 			runtimeMetadata.APIDocI18NAssetCount,
 			len(apiDocI18NAssets),
 		)
@@ -246,7 +247,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	if runtimeMetadata.RouteCount > 0 && runtimeMetadata.RouteCount != len(routeContracts) {
 		return nil, gerror.Newf(
-			"动态插件路由数量与元数据不一致: metadata=%d actual=%d",
+			"Dynamic plugin route count does not match metadata: metadata=%d actual=%d",
 			runtimeMetadata.RouteCount,
 			len(routeContracts),
 		)
@@ -291,21 +292,21 @@ func (s *serviceImpl) ValidateRuntimeArtifact(manifest *catalog.Manifest, rootDi
 		return err
 	}
 	if artifact.Manifest == nil {
-		return gerror.Newf("动态插件缺少嵌入清单: %s", artifactPath)
+		return gerror.Newf("Dynamic plugin artifact is missing embedded manifest: %s", artifactPath)
 	}
 
 	artifact.Manifest.Type = catalog.NormalizeType(artifact.Manifest.Type).String()
 	if catalog.NormalizeType(artifact.Manifest.Type) != catalog.TypeDynamic {
-		return gerror.Newf("动态插件嵌入清单类型必须是 dynamic: %s", artifactPath)
+		return gerror.Newf("Dynamic plugin embedded manifest type must be dynamic: %s", artifactPath)
 	}
 	if manifest.ID != artifact.Manifest.ID {
-		return gerror.Newf("动态插件嵌入清单 ID 与 plugin.yaml 不一致: %s != %s", artifact.Manifest.ID, manifest.ID)
+		return gerror.Newf("Dynamic plugin embedded manifest ID does not match plugin.yaml: %s != %s", artifact.Manifest.ID, manifest.ID)
 	}
 	if manifest.Name != artifact.Manifest.Name {
-		return gerror.Newf("动态插件嵌入清单名称与 plugin.yaml 不一致: %s != %s", artifact.Manifest.Name, manifest.Name)
+		return gerror.Newf("Dynamic plugin embedded manifest name does not match plugin.yaml: %s != %s", artifact.Manifest.Name, manifest.Name)
 	}
 	if manifest.Version != artifact.Manifest.Version {
-		return gerror.Newf("动态插件嵌入清单版本与 plugin.yaml 不一致: %s != %s", artifact.Manifest.Version, manifest.Version)
+		return gerror.Newf("Dynamic plugin embedded manifest version does not match plugin.yaml: %s != %s", artifact.Manifest.Version, manifest.Version)
 	}
 
 	manifest.RuntimeArtifact = artifact
@@ -315,7 +316,7 @@ func (s *serviceImpl) ValidateRuntimeArtifact(manifest *catalog.Manifest, rootDi
 // ensureArtifactAvailable ensures the WASM artifact is present for lifecycle operations.
 func (s *serviceImpl) ensureArtifactAvailable(manifest *catalog.Manifest, actionLabel string) error {
 	if manifest == nil {
-		return gerror.New("插件清单不能为空")
+		return bizerr.NewCode(CodeDynamicPluginManifestRequired)
 	}
 	if catalog.NormalizeType(manifest.Type) != catalog.TypeDynamic {
 		return nil
@@ -326,14 +327,18 @@ func (s *serviceImpl) ensureArtifactAvailable(manifest *catalog.Manifest, action
 
 	if err := s.ValidateRuntimeArtifact(manifest, manifest.RootDir); err != nil {
 		if isMissingArtifactError(err) {
-			return gerror.Newf(
-				"动态插件缺少 %s，无法%s；请先执行 make wasm p=%s 生成产物",
-				filepath.ToSlash(buildArtifactRelativePath(manifest.ID)),
-				actionLabel,
-				manifest.ID,
+			return bizerr.NewCode(
+				CodeDynamicPluginArtifactMissing,
+				bizerr.P("artifactPath", filepath.ToSlash(buildArtifactRelativePath(manifest.ID))),
+				bizerr.P("action", actionLabel),
+				bizerr.P("pluginId", manifest.ID),
 			)
 		}
-		return gerror.Wrapf(err, "动态插件产物校验失败，无法%s", actionLabel)
+		return bizerr.WrapCode(
+			err,
+			CodeDynamicPluginArtifactValidateFailed,
+			bizerr.P("action", actionLabel),
+		)
 	}
 	return nil
 }
@@ -374,7 +379,7 @@ func unmarshalRuntimeArtifactSection(content []byte, target interface{}) error {
 	if err := json.Unmarshal(content, target); err == nil {
 		return nil
 	}
-	return gerror.New("动态插件自定义节仅支持 JSON 编码")
+	return gerror.New("Dynamic plugin custom sections support JSON encoding only")
 }
 
 // maxInt clamps value to the given lower bound.
@@ -406,19 +411,19 @@ func parseRuntimeArtifactLocaleJSONAssets(
 
 	assets := make([]*runtimeArtifactLocaleJSONAsset, 0)
 	if err := json.Unmarshal(sectionContent, &assets); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件 i18n 自定义节失败 section=%s: %s", sectionName, filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin i18n custom section section=%s: %s", sectionName, filePath)
 	}
 	for _, asset := range assets {
 		if asset == nil {
-			return nil, gerror.Newf("动态插件 i18n 自定义节存在空项 section=%s: %s", sectionName, filePath)
+			return nil, gerror.Newf("Dynamic plugin i18n custom section contains a null item section=%s: %s", sectionName, filePath)
 		}
 		asset.Locale = strings.TrimSpace(asset.Locale)
 		asset.Content = strings.TrimSpace(asset.Content)
 		if asset.Locale == "" || asset.Content == "" {
-			return nil, gerror.Newf("动态插件 i18n 自定义节缺少 locale 或 content section=%s: %s", sectionName, filePath)
+			return nil, gerror.Newf("Dynamic plugin i18n custom section is missing locale or content section=%s: %s", sectionName, filePath)
 		}
 		if err := validateRuntimeArtifactLocaleJSONContent(sectionName, asset.Content); err != nil {
-			return nil, gerror.Wrapf(err, "解析动态插件 i18n 资源内容失败 section=%s locale=%s: %s", sectionName, asset.Locale, filePath)
+			return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin i18n resource content section=%s locale=%s: %s", sectionName, asset.Locale, filePath)
 		}
 	}
 	return assets, nil
@@ -449,7 +454,7 @@ func validateRuntimeArtifactI18NMessageValue(value interface{}) error {
 	case string:
 		return nil
 	default:
-		return gerror.New("运行时 i18n 资源值必须是字符串或对象")
+		return gerror.New("Runtime i18n resource values must be strings or objects")
 	}
 }
 
@@ -467,22 +472,22 @@ func parseRuntimeArtifactSQLAssets(
 
 	assets := make([]*catalog.ArtifactSQLAsset, 0)
 	if err := json.Unmarshal(sectionContent, &assets); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件 SQL 自定义节失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin SQL custom section: %s", filePath)
 	}
 	for _, asset := range assets {
 		if asset == nil {
-			return nil, gerror.Newf("动态插件 SQL 自定义节存在空项: %s", filePath)
+			return nil, gerror.Newf("Dynamic plugin SQL custom section contains a null item: %s", filePath)
 		}
 		asset.Key = strings.TrimSpace(asset.Key)
 		asset.Content = strings.TrimSpace(asset.Content)
 		if asset.Key == "" || asset.Content == "" {
-			return nil, gerror.Newf("动态插件 SQL 自定义节缺少 key 或 content: %s", filePath)
+			return nil, gerror.Newf("Dynamic plugin SQL custom section is missing key or content: %s", filePath)
 		}
 		if strings.Contains(asset.Key, "/") || strings.Contains(asset.Key, "\\") {
-			return nil, gerror.Newf("动态插件 SQL 资源键不能包含路径分隔符: %s", asset.Key)
+			return nil, gerror.Newf("Dynamic plugin SQL asset key cannot contain path separators: %s", asset.Key)
 		}
 		if !pluginfs.IsValidSQLFileName(asset.Key) {
-			return nil, gerror.Newf("动态插件 SQL 资源键不符合命名规则: %s", asset.Key)
+			return nil, gerror.Newf("Dynamic plugin SQL asset key does not match the naming rule: %s", asset.Key)
 		}
 	}
 	return assets, nil
@@ -501,7 +506,7 @@ func parseRuntimeArtifactHookSpecs(
 
 	items := make([]*catalog.HookSpec, 0)
 	if err := json.Unmarshal(content, &items); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件后端 Hook 契约失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin backend hook contracts: %s", filePath)
 	}
 	for _, item := range items {
 		if err := catalog.ValidateHookSpec(pluginID, item, filePath); err != nil {
@@ -524,7 +529,7 @@ func parseRuntimeArtifactResourceSpecs(
 
 	items := make([]*catalog.ResourceSpec, 0)
 	if err := json.Unmarshal(content, &items); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件后端资源契约失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin backend resource contracts: %s", filePath)
 	}
 	cloned := make([]*catalog.ResourceSpec, 0, len(items))
 	for _, item := range items {
@@ -549,10 +554,10 @@ func parseRuntimeArtifactRouteContracts(
 
 	items := make([]*pluginbridge.RouteContract, 0)
 	if err := json.Unmarshal(content, &items); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件后端动态路由契约失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin backend route contracts: %s", filePath)
 	}
 	if err := pluginbridge.ValidateRouteContracts(pluginID, items); err != nil {
-		return nil, gerror.Wrapf(err, "校验动态插件后端动态路由契约失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin backend route contracts: %s", filePath)
 	}
 	return items, nil
 }
@@ -569,10 +574,10 @@ func parseRuntimeArtifactBridgeSpec(
 
 	spec := &pluginbridge.BridgeSpec{}
 	if err := json.Unmarshal(content, spec); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件 bridge 契约失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin bridge contract: %s", filePath)
 	}
 	if err := pluginbridge.ValidateBridgeSpec(spec); err != nil {
-		return nil, gerror.Wrapf(err, "校验动态插件 bridge 契约失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin bridge contract: %s", filePath)
 	}
 	return spec, nil
 }
@@ -593,7 +598,7 @@ func rejectDeprecatedRuntimeArtifactCapabilities(
 		normalizedItems := pluginbridge.NormalizeCapabilities(items)
 		if len(normalizedItems) > 0 {
 			return gerror.Newf(
-				"动态插件产物已废弃自定义节 %s，请删除旧 capabilities 声明后重新构建: %s (%s)",
+				"Dynamic plugin artifact contains deprecated custom section %s; remove the legacy capabilities declaration and rebuild: %s (%s)",
 				pluginbridge.WasmSectionBackendCapabilities,
 				filePath,
 				strings.Join(normalizedItems, ", "),
@@ -601,7 +606,7 @@ func rejectDeprecatedRuntimeArtifactCapabilities(
 		}
 	}
 	return gerror.Newf(
-		"动态插件产物已废弃自定义节 %s，请删除旧 capabilities 声明后重新构建: %s",
+		"Dynamic plugin artifact contains deprecated custom section %s; remove the legacy capabilities declaration and rebuild: %s",
 		pluginbridge.WasmSectionBackendCapabilities,
 		filePath,
 	)
@@ -619,14 +624,14 @@ func parseRuntimeArtifactHostServices(
 
 	items := make([]*pluginbridge.HostServiceSpec, 0)
 	if err := json.Unmarshal(content, &items); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件宿主服务声明失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin host-service declarations: %s", filePath)
 	}
 	if err := pluginbridge.ValidateHostServiceSpecs(items); err != nil {
-		return nil, gerror.Wrapf(err, "校验动态插件宿主服务声明失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin host-service declarations: %s", filePath)
 	}
 	normalized, err := pluginbridge.NormalizeHostServiceSpecs(items)
 	if err != nil {
-		return nil, gerror.Wrapf(err, "规范化动态插件宿主服务声明失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to normalize dynamic plugin host-service declarations: %s", filePath)
 	}
 	return normalized, nil
 }
@@ -645,27 +650,27 @@ func parseRuntimeArtifactFrontendAssets(
 
 	assets := make([]*catalog.ArtifactFrontendAsset, 0)
 	if err := json.Unmarshal(content, &assets); err != nil {
-		return nil, gerror.Wrapf(err, "解析动态插件前端资源失败: %s", filePath)
+		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin frontend assets: %s", filePath)
 	}
 
 	for _, asset := range assets {
 		if asset == nil {
-			return nil, gerror.Newf("动态插件前端资源不能为空: %s", filePath)
+			return nil, gerror.Newf("Dynamic plugin frontend asset cannot be null: %s", filePath)
 		}
 		asset.Path = normalizeAssetPath(asset.Path)
 		if asset.Path == "" {
-			return nil, gerror.Newf("动态插件前端资源路径不能为空: %s", filePath)
+			return nil, gerror.Newf("Dynamic plugin frontend asset path cannot be empty: %s", filePath)
 		}
 		if asset.ContentBase64 == "" {
-			return nil, gerror.Newf("动态插件前端资源内容不能为空: %s", asset.Path)
+			return nil, gerror.Newf("Dynamic plugin frontend asset content cannot be empty: %s", asset.Path)
 		}
 
 		decoded, err := base64.StdEncoding.DecodeString(asset.ContentBase64)
 		if err != nil {
-			return nil, gerror.Wrapf(err, "解析动态插件前端资源内容失败: %s", asset.Path)
+			return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin frontend asset content: %s", asset.Path)
 		}
 		if len(decoded) == 0 {
-			return nil, gerror.Newf("动态插件前端资源内容不能为空: %s", asset.Path)
+			return nil, gerror.Newf("Dynamic plugin frontend asset content cannot be empty: %s", asset.Path)
 		}
 		asset.Content = decoded
 	}

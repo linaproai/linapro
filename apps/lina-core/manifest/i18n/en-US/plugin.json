@@ -1,0 +1,9 @@
+{
+  "plugin": {
+    "sourceUpgrade": {
+      "alreadyLatest": "The current source plugin is already up to date. No upgrade is required.",
+      "notInstalledSkipped": "Source plugin is not installed. Upgrade skipped.",
+      "success": "Source plugin upgraded from {fromVersion} to {toVersion}."
+    }
+  }
+}

@@ -5,9 +5,8 @@ package plugin
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/bizerr"
 )
 
 // Install executes the install lifecycle and optionally persists one host-confirmed
@@ -96,14 +95,14 @@ func (s *serviceImpl) updateStatus(
 	authorization *HostServiceAuthorizationInput,
 ) error {
 	if status != catalog.StatusDisabled && status != catalog.StatusEnabled {
-		return gerror.New("插件状态仅支持0或1")
+		return bizerr.NewCode(CodePluginStatusInvalid)
 	}
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return err
 	}
 	if status == catalog.StatusEnabled && catalog.NormalizeType(manifest.Type) == catalog.TypeDynamic {
-		if err = s.runtimeSvc.EnsureRuntimeArtifactAvailable(manifest, "启用"); err != nil {
+		if err = s.runtimeSvc.EnsureRuntimeArtifactAvailable(manifest, "enable"); err != nil {
 			return err
 		}
 	}
@@ -115,7 +114,7 @@ func (s *serviceImpl) updateStatus(
 		return err
 	}
 	if !installed {
-		return gerror.New("插件未安装")
+		return bizerr.NewCode(CodePluginNotInstalled)
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeDynamic {
 		if status == catalog.StatusEnabled {

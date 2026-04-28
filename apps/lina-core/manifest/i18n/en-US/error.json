@@ -586,6 +586,184 @@
         "required": "Current user lacks required API permissions: {permissions}"
       }
     },
+    "plugin": {
+      "auto": {
+        "enable": {
+          "discovery": {
+            "failed": "Startup auto-enable failed while discovering plugin {pluginId}"
+          },
+          "dynamic": {
+            "manifest": {
+              "required": "Startup auto-enable dynamic plugin manifest cannot be empty"
+            }
+          },
+          "failed": "Startup auto-enable plugin {pluginId} failed",
+          "manifest": {
+            "not": {
+              "found": "Startup auto-enable plugin manifest does not exist: {pluginId}"
+            }
+          },
+          "shared": {
+            "executor": {
+              "missing": "Startup auto-enable plugin {pluginId} failed because shared executor is missing"
+            }
+          },
+          "source": {
+            "manifest": {
+              "required": "Startup auto-enable source plugin manifest cannot be empty"
+            }
+          },
+          "timeout": {
+            "registry": {
+              "missing": "Startup auto-enable plugin {pluginId} timed out because registry does not exist"
+            },
+            "state": "Startup auto-enable plugin {pluginId} timed out: installed={installed} status={status} desiredState={desiredState} currentState={currentState}"
+          },
+          "type": {
+            "unsupported": "Startup auto-enable does not support plugin type {pluginType} for plugin {pluginId}"
+          },
+          "wait": {
+            "canceled": "Startup wait for plugin {pluginId} auto-enable was canceled"
+          }
+        }
+      },
+      "dynamic": {
+        "artifact": {
+          "missing": "Dynamic plugin is missing {artifactPath} and cannot {action}. Run make wasm p={pluginId} first",
+          "validate": {
+            "failed": "Dynamic plugin artifact validation failed and cannot {action}"
+          }
+        },
+        "auto": {
+          "enable": {
+            "auth": {
+              "snapshot": {
+                "missing": "Dynamic plugin {pluginId} has no confirmed host-service authorization snapshot. Complete review through the regular install or enable flow first"
+              }
+            },
+            "release": {
+              "missing": "Dynamic plugin {pluginId} has no release record and cannot reuse authorization snapshot"
+            }
+          }
+        },
+        "enable": {
+          "failed": "Failed to enable dynamic plugin"
+        },
+        "install": {
+          "failed": "Failed to install dynamic plugin"
+        },
+        "manifest": {
+          "required": "Dynamic plugin manifest cannot be empty"
+        },
+        "runtime": {
+          "manifest": {
+            "required": "Dynamic plugin manifest cannot be empty"
+          }
+        },
+        "version": {
+          "downgrade": {
+            "unsupported": "Downgrading to an older dynamic plugin version is not supported. Use host rollback output or upload a newer version"
+          }
+        }
+      },
+      "enabled": {
+        "snapshot": {
+          "refresh": {
+            "failed": "Failed to refresh plugin enabled snapshot"
+          }
+        }
+      },
+      "not": {
+        "installed": "Plugin is not installed"
+      },
+      "registry": {
+        "read": {
+          "failed": "Failed to read plugin {pluginId} registry"
+        }
+      },
+      "release": {
+        "not": {
+          "found": "Plugin release record does not exist: {pluginId}@{version}"
+        }
+      },
+      "source": {
+        "enable": {
+          "failed": "Failed to enable source plugin"
+        },
+        "install": {
+          "failed": "Failed to install source plugin",
+          "unsupported": "Source plugins are compiled into the host and cannot be installed by the dynamic lifecycle"
+        },
+        "manifest": {
+          "required": "Source plugin manifest cannot be empty"
+        },
+        "registry": {
+          "after": {
+            "install": {
+              "not": {
+                "found": "Source plugin registry does not exist after install: {pluginId}"
+              }
+            },
+            "uninstall": {
+              "not": {
+                "found": "Source plugin registry does not exist after uninstall: {pluginId}"
+              }
+            }
+          },
+          "not": {
+            "found": "Source plugin registry does not exist: {pluginId}"
+          },
+          "required": "Source plugin registry cannot be empty"
+        },
+        "uninstall": {
+          "unsupported": "Source plugins are compiled into the host and cannot be uninstalled by the dynamic lifecycle"
+        },
+        "upgrade": {
+          "candidate": {
+            "not": {
+              "found": "Source plugin upgrade candidate does not exist: {pluginId}"
+            }
+          },
+          "downgrade": {
+            "unsupported": "Source plugin {pluginId} effective version {effectiveVersion} is higher than discovered source version {discoveredVersion}. Downgrade or rollback is not supported"
+          },
+          "manifest": {
+            "required": "Source plugin manifest cannot be empty"
+          },
+          "pending": "Installed source plugins have pending upgrades. Run the development upgrade command before host startup.\n{items}",
+          "pendingWithBulk": "Installed source plugins have pending upgrades. Run the development upgrade command before host startup.\n{items}\nTo process all pending source-plugin upgrades at once, run: {bulkCommand}",
+          "plugin": {
+            "id": {
+              "required": "Source plugin ID cannot be empty"
+            },
+            "not": {
+              "found": "Source plugin was not found: {pluginId}"
+            }
+          },
+          "registry": {
+            "after": {
+              "upgrade": {
+                "not": {
+                  "found": "Source plugin registry does not exist after upgrade: {pluginId}"
+                }
+              }
+            },
+            "required": "Source plugin registry cannot be empty"
+          },
+          "target": {
+            "release": {
+              "not": {
+                "found": "Source plugin upgrade target release record is missing: {pluginId}@{version}"
+              },
+              "required": "Source plugin target release cannot be empty"
+            }
+          }
+        }
+      },
+      "status": {
+        "invalid": "Plugin status supports only 0 or 1"
+      }
+    },
     "role": {
       "key": {
         "exists": "Role permission key already exists"

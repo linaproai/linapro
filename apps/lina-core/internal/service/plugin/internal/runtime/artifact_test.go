@@ -110,7 +110,7 @@ func TestEnsureRuntimeArtifactAvailableRejectsMissingGeneratedWasm(t *testing.T)
 		t.Fatalf("expected strict runtime validation to report a missing artifact, got: %v", strictErr)
 	}
 
-	err := services.Runtime.EnsureRuntimeArtifactAvailable(manifest, "安装")
+	err := services.Runtime.EnsureRuntimeArtifactAvailable(manifest, "install")
 	if err == nil {
 		t.Fatalf("expected lifecycle guard to reject missing dynamic artifact")
 	}

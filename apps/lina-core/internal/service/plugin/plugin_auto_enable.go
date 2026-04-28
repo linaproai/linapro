@@ -8,10 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/bizerr"
 )
 
 // startupAutoEnableWaitTimeout bounds how long host startup waits for one
@@ -42,7 +41,7 @@ func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
 	}
 
 	if err := s.integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
-		return gerror.Wrap(err, "刷新插件启用快照失败")
+		return bizerr.WrapCode(err, CodePluginEnabledSnapshotRefreshFailed)
 	}
 	return nil
 }
@@ -52,10 +51,10 @@ func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
 func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, pluginID string) error {
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
-		return gerror.Wrapf(err, "启动期自动启用插件 %s 失败：发现插件", pluginID)
+		return bizerr.WrapCode(err, CodePluginAutoEnableDiscoveryFailed, bizerr.P("pluginId", pluginID))
 	}
 	if manifest == nil {
-		return gerror.Newf("启动期自动启用插件 %s 失败：插件清单不存在", pluginID)
+		return bizerr.NewCode(CodePluginAutoEnableManifestNotFound, bizerr.P("pluginId", pluginID))
 	}
 
 	switch catalog.NormalizeType(manifest.Type) {
@@ -64,7 +63,11 @@ func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, pluginID st
 	case catalog.TypeDynamic:
 		return s.bootstrapAutoEnableDynamicPlugin(ctx, manifest)
 	default:
-		return gerror.Newf("启动期自动启用插件 %s 失败：不支持的插件类型 %s", pluginID, manifest.Type)
+		return bizerr.NewCode(
+			CodePluginAutoEnableTypeUnsupported,
+			bizerr.P("pluginId", pluginID),
+			bizerr.P("pluginType", manifest.Type),
+		)
 	}
 }
 
@@ -73,15 +76,15 @@ func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, pluginID st
 // elected primary to perform shared lifecycle work.
 func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
-		return gerror.New("启动期自动启用源码插件失败：插件清单不能为空")
+		return bizerr.NewCode(CodePluginAutoEnableSourceManifestRequired)
 	}
 
 	return s.ensurePluginEnabledDuringStartup(ctx, manifest.ID, func() error {
 		if err := s.Install(ctx, manifest.ID, nil); err != nil {
-			return gerror.Wrap(err, "安装源码插件失败")
+			return bizerr.WrapCode(err, CodePluginSourceInstallFailed)
 		}
 		if err := s.Enable(ctx, manifest.ID); err != nil {
-			return gerror.Wrap(err, "启用源码插件失败")
+			return bizerr.WrapCode(err, CodePluginSourceEnableFailed)
 		}
 		return nil
 	})
@@ -92,18 +95,18 @@ func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manif
 // during startup.
 func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
-		return gerror.New("启动期自动启用动态插件失败：插件清单不能为空")
+		return bizerr.NewCode(CodePluginAutoEnableDynamicManifestRequired)
 	}
 	if err := s.ensureDynamicPluginAutoEnableAuthorization(ctx, manifest); err != nil {
-		return gerror.Wrapf(err, "启动期自动启用插件 %s 失败", manifest.ID)
+		return bizerr.WrapCode(err, CodePluginAutoEnableFailed, bizerr.P("pluginId", manifest.ID))
 	}
 
 	return s.ensurePluginEnabledDuringStartup(ctx, manifest.ID, func() error {
 		if err := s.Install(ctx, manifest.ID, nil); err != nil {
-			return gerror.Wrap(err, "安装动态插件失败")
+			return bizerr.WrapCode(err, CodePluginDynamicInstallFailed)
 		}
 		if err := s.Enable(ctx, manifest.ID); err != nil {
-			return gerror.Wrap(err, "启用动态插件失败")
+			return bizerr.WrapCode(err, CodePluginDynamicEnableFailed)
 		}
 		return nil
 	})
@@ -114,7 +117,7 @@ func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, mani
 // of requesting authorization details from the host main config file.
 func (s *serviceImpl) ensureDynamicPluginAutoEnableAuthorization(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
-		return gerror.New("动态插件清单不能为空")
+		return bizerr.NewCode(CodePluginDynamicManifestRequired)
 	}
 	if !catalog.HasResourceScopedHostServices(manifest.HostServices) {
 		return nil
@@ -125,7 +128,7 @@ func (s *serviceImpl) ensureDynamicPluginAutoEnableAuthorization(ctx context.Con
 		return err
 	}
 	if release == nil {
-		return gerror.Newf("动态插件 %s 缺少发布记录，无法复用授权快照", manifest.ID)
+		return bizerr.NewCode(CodePluginDynamicAutoEnableReleaseMissing, bizerr.P("pluginId", manifest.ID))
 	}
 
 	snapshot, err := s.catalogSvc.ParseManifestSnapshot(release.ManifestSnapshot)
@@ -133,10 +136,7 @@ func (s *serviceImpl) ensureDynamicPluginAutoEnableAuthorization(ctx context.Con
 		return err
 	}
 	if snapshot == nil || !snapshot.HostServiceAuthConfirmed {
-		return gerror.Newf(
-			"动态插件 %s 缺少已确认的宿主服务授权快照，请先通过常规安装或启用流程完成审核",
-			manifest.ID,
-		)
+		return bizerr.NewCode(CodePluginDynamicAutoEnableAuthSnapshotMissing, bizerr.P("pluginId", manifest.ID))
 	}
 	return nil
 }
@@ -160,7 +160,7 @@ func (s *serviceImpl) ensurePluginEnabledDuringStartup(
 	for {
 		registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
 		if err != nil {
-			return gerror.Wrapf(err, "读取插件 %s 注册表失败", pluginID)
+			return bizerr.WrapCode(err, CodePluginRegistryReadFailed, bizerr.P("pluginId", pluginID))
 		}
 		if isPluginStartupEnabled(registry) {
 			return nil
@@ -169,10 +169,10 @@ func (s *serviceImpl) ensurePluginEnabledDuringStartup(
 		if !sharedExecuted && (!s.topology.IsEnabled() || s.topology.IsPrimary()) {
 			sharedExecuted = true
 			if executeShared == nil {
-				return gerror.Newf("启动期自动启用插件 %s 失败：缺少共享执行器", pluginID)
+				return bizerr.NewCode(CodePluginAutoEnableSharedExecutorMissing, bizerr.P("pluginId", pluginID))
 			}
 			if err := executeShared(); err != nil {
-				return gerror.Wrapf(err, "启动期自动启用插件 %s 失败", pluginID)
+				return bizerr.WrapCode(err, CodePluginAutoEnableFailed, bizerr.P("pluginId", pluginID))
 			}
 			continue
 		}
@@ -183,7 +183,7 @@ func (s *serviceImpl) ensurePluginEnabledDuringStartup(
 
 		select {
 		case <-ctx.Done():
-			return gerror.Wrapf(ctx.Err(), "启动期等待插件 %s 自动启用被取消", pluginID)
+			return bizerr.WrapCode(ctx.Err(), CodePluginAutoEnableWaitCanceled, bizerr.P("pluginId", pluginID))
 		case <-ticker.C:
 		}
 	}
@@ -208,14 +208,14 @@ func isPluginStartupEnabled(registry *entity.SysPlugin) bool {
 // the last observed registry state so operators can identify the stuck phase.
 func buildStartupAutoEnableTimeoutError(pluginID string, registry *entity.SysPlugin) error {
 	if registry == nil {
-		return gerror.Newf("启动期自动启用插件 %s 超时：插件注册表不存在", pluginID)
+		return bizerr.NewCode(CodePluginAutoEnableTimeoutRegistryMissing, bizerr.P("pluginId", pluginID))
 	}
-	return gerror.Newf(
-		"启动期自动启用插件 %s 超时：installed=%d status=%d desiredState=%s currentState=%s",
-		pluginID,
-		registry.Installed,
-		registry.Status,
-		strings.TrimSpace(registry.DesiredState),
-		strings.TrimSpace(registry.CurrentState),
+	return bizerr.NewCode(
+		CodePluginAutoEnableTimeoutState,
+		bizerr.P("pluginId", pluginID),
+		bizerr.P("installed", registry.Installed),
+		bizerr.P("status", registry.Status),
+		bizerr.P("desiredState", strings.TrimSpace(registry.DesiredState)),
+		bizerr.P("currentState", strings.TrimSpace(registry.CurrentState)),
 	)
 }

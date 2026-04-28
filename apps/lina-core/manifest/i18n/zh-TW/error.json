@@ -586,6 +586,184 @@
         "required": "當前用戶缺少接口權限: {permissions}"
       }
     },
+    "plugin": {
+      "auto": {
+        "enable": {
+          "discovery": {
+            "failed": "啟動期自動啟用插件 {pluginId} 時發現插件失敗"
+          },
+          "dynamic": {
+            "manifest": {
+              "required": "啟動期自動啟用動態插件時，插件清單不能為空"
+            }
+          },
+          "failed": "啟動期自動啟用插件 {pluginId} 失敗",
+          "manifest": {
+            "not": {
+              "found": "啟動期自動啟用插件 {pluginId} 失敗：插件清單不存在"
+            }
+          },
+          "shared": {
+            "executor": {
+              "missing": "啟動期自動啟用插件 {pluginId} 失敗：缺少共享執行器"
+            }
+          },
+          "source": {
+            "manifest": {
+              "required": "啟動期自動啟用源碼插件時，插件清單不能為空"
+            }
+          },
+          "timeout": {
+            "registry": {
+              "missing": "啟動期自動啟用插件 {pluginId} 超時：插件註冊表不存在"
+            },
+            "state": "啟動期自動啟用插件 {pluginId} 超時：installed={installed} status={status} desiredState={desiredState} currentState={currentState}"
+          },
+          "type": {
+            "unsupported": "啟動期自動啟用插件 {pluginId} 失敗：不支持插件類型 {pluginType}"
+          },
+          "wait": {
+            "canceled": "啟動期等待插件 {pluginId} 自動啟用已取消"
+          }
+        }
+      },
+      "dynamic": {
+        "artifact": {
+          "missing": "動態插件缺少 {artifactPath}，無法執行 {action}；請先執行 make wasm p={pluginId} 生成產物",
+          "validate": {
+            "failed": "動態插件產物校驗失敗，無法執行 {action}"
+          }
+        },
+        "auto": {
+          "enable": {
+            "auth": {
+              "snapshot": {
+                "missing": "動態插件 {pluginId} 缺少已確認的宿主服務授權快照，請先通過常規安裝或啟用流程完成審核"
+              }
+            },
+            "release": {
+              "missing": "動態插件 {pluginId} 缺少發布記錄，無法復用授權快照"
+            }
+          }
+        },
+        "enable": {
+          "failed": "啟用動態插件失敗"
+        },
+        "install": {
+          "failed": "安裝動態插件失敗"
+        },
+        "manifest": {
+          "required": "動態插件清單不能為空"
+        },
+        "runtime": {
+          "manifest": {
+            "required": "動態插件清單不能為空"
+          }
+        },
+        "version": {
+          "downgrade": {
+            "unsupported": "不支持回退到更低版本的動態插件，請使用宿主自動回滾結果或重新上傳更高版本"
+          }
+        }
+      },
+      "enabled": {
+        "snapshot": {
+          "refresh": {
+            "failed": "刷新插件啟用快照失敗"
+          }
+        }
+      },
+      "not": {
+        "installed": "插件未安裝"
+      },
+      "registry": {
+        "read": {
+          "failed": "讀取插件 {pluginId} 註冊表失敗"
+        }
+      },
+      "release": {
+        "not": {
+          "found": "插件發布記錄不存在：{pluginId}@{version}"
+        }
+      },
+      "source": {
+        "enable": {
+          "failed": "啟用源碼插件失敗"
+        },
+        "install": {
+          "failed": "安裝源碼插件失敗",
+          "unsupported": "源碼插件隨宿主編譯集成，不支持通過動態生命周期安裝"
+        },
+        "manifest": {
+          "required": "源碼插件清單不能為空"
+        },
+        "registry": {
+          "after": {
+            "install": {
+              "not": {
+                "found": "源碼插件安裝後註冊表不存在：{pluginId}"
+              }
+            },
+            "uninstall": {
+              "not": {
+                "found": "源碼插件卸載後註冊表不存在：{pluginId}"
+              }
+            }
+          },
+          "not": {
+            "found": "源碼插件註冊表不存在：{pluginId}"
+          },
+          "required": "源碼插件註冊表不能為空"
+        },
+        "uninstall": {
+          "unsupported": "源碼插件隨宿主編譯集成，不支持通過動態生命周期卸載"
+        },
+        "upgrade": {
+          "candidate": {
+            "not": {
+              "found": "源碼插件升級候選不存在：{pluginId}"
+            }
+          },
+          "downgrade": {
+            "unsupported": "源碼插件 {pluginId} 當前生效版本 {effectiveVersion} 高於源碼發現版本 {discoveredVersion}，當前不支持降級或回滾"
+          },
+          "manifest": {
+            "required": "源碼插件清單不能為空"
+          },
+          "pending": "檢測到已安裝源碼插件存在待完成升級，宿主啟動前必須先執行開發態升級命令。\n{items}",
+          "pendingWithBulk": "檢測到已安裝源碼插件存在待完成升級，宿主啟動前必須先執行開發態升級命令。\n{items}\n如需一次性處理全部待升級源碼插件，可執行：{bulkCommand}",
+          "plugin": {
+            "id": {
+              "required": "源碼插件 ID 不能為空"
+            },
+            "not": {
+              "found": "未找到源碼插件：{pluginId}"
+            }
+          },
+          "registry": {
+            "after": {
+              "upgrade": {
+                "not": {
+                  "found": "源碼插件升級後註冊表不存在：{pluginId}"
+                }
+              }
+            },
+            "required": "源碼插件註冊表不能為空"
+          },
+          "target": {
+            "release": {
+              "not": {
+                "found": "源碼插件升級缺少目標發布記錄：{pluginId}@{version}"
+              },
+              "required": "源碼插件目標發布記錄不能為空"
+            }
+          }
+        }
+      },
+      "status": {
+        "invalid": "插件狀態僅支持 0 或 1"
+      }
+    },
     "role": {
       "key": {
         "exists": "權限字符已存在"

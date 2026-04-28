@@ -6,13 +6,13 @@ package plugin
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginhost"
 )
@@ -20,7 +20,7 @@ import (
 // installSourcePlugin performs the explicit lifecycle for one discovered source plugin.
 func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog.Manifest) error {
 	if manifest == nil {
-		return gerror.New("源码插件清单不能为空")
+		return bizerr.NewCode(CodePluginSourceManifestRequired)
 	}
 
 	registry, err := s.catalogSvc.SyncManifest(ctx, manifest)
@@ -28,7 +28,7 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 		return err
 	}
 	if registry == nil {
-		return gerror.Newf("源码插件注册表不存在: %s", manifest.ID)
+		return bizerr.NewCode(CodePluginSourceRegistryNotFound, bizerr.P("pluginId", manifest.ID))
 	}
 	if registry.Installed == catalog.InstalledYes {
 		return nil
@@ -39,7 +39,11 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 		return err
 	}
 	if release == nil {
-		return gerror.Newf("插件发布记录不存在: %s@%s", manifest.ID, manifest.Version)
+		return bizerr.NewCode(
+			CodePluginReleaseNotFound,
+			bizerr.P("pluginId", manifest.ID),
+			bizerr.P("version", manifest.Version),
+		)
 	}
 
 	if err = s.lifecycleSvc.ExecuteManifestSQLFiles(ctx, manifest, catalog.MigrationDirectionInstall); err != nil {
@@ -62,7 +66,7 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 	}
 	if registry == nil {
 		s.rollbackSourcePluginInstall(ctx, manifest, release)
-		return gerror.Newf("源码插件安装后注册表不存在: %s", manifest.ID)
+		return bizerr.NewCode(CodePluginSourceRegistryAfterInstallNotFound, bizerr.P("pluginId", manifest.ID))
 	}
 	if err = s.catalogSvc.UpdateReleaseState(
 		ctx,
@@ -95,7 +99,7 @@ func (s *serviceImpl) uninstallSourcePlugin(
 	options UninstallOptions,
 ) error {
 	if manifest == nil {
-		return gerror.New("源码插件清单不能为空")
+		return bizerr.NewCode(CodePluginSourceManifestRequired)
 	}
 
 	registry, err := s.catalogSvc.SyncManifest(ctx, manifest)
@@ -140,7 +144,7 @@ func (s *serviceImpl) uninstallSourcePlugin(
 		return err
 	}
 	if registry == nil {
-		return gerror.Newf("源码插件卸载后注册表不存在: %s", manifest.ID)
+		return bizerr.NewCode(CodePluginSourceRegistryAfterUninstallNotFound, bizerr.P("pluginId", manifest.ID))
 	}
 	if release != nil {
 		if err = s.catalogSvc.UpdateReleaseState(
@@ -194,7 +198,7 @@ func (s *serviceImpl) applySourcePluginStableState(
 	enabled int,
 ) error {
 	if registry == nil {
-		return gerror.New("源码插件注册表不能为空")
+		return bizerr.NewCode(CodePluginSourceRegistryRequired)
 	}
 
 	stableState := catalog.DeriveHostState(installed, enabled)

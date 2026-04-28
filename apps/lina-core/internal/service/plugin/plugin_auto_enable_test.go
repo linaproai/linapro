@@ -235,7 +235,7 @@ func TestBootstrapAutoEnableRejectsDynamicPluginWithoutAuthorizationSnapshot(t *
 	if err == nil {
 		t.Fatal("expected startup bootstrap to reject missing authorization snapshot")
 	}
-	if got := err.Error(); got == "" || !containsAll(got, pluginID, "授权快照") {
+	if got := err.Error(); got == "" || !containsAll(got, pluginID, "authorization snapshot") {
 		t.Fatalf("expected bootstrap error to mention plugin ID and authorization snapshot, got %q", got)
 	}
 }

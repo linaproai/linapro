@@ -1,0 +1,9 @@
+{
+  "plugin": {
+    "sourceUpgrade": {
+      "alreadyLatest": "當前源碼插件已是最新版本，無需升級。",
+      "notInstalledSkipped": "源碼插件未安裝，跳過升級。",
+      "success": "源碼插件已從 {fromVersion} 升級到 {toVersion}。"
+    }
+  }
+}

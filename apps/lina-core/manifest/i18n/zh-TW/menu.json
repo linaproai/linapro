@@ -57,14 +57,56 @@
     "setting": {
       "title": "系統設置"
     },
+    "system:config:add": {
+      "title": "參數新增"
+    },
+    "system:config:edit": {
+      "title": "參數修改"
+    },
+    "system:config:export": {
+      "title": "參數導出"
+    },
     "system:config:list": {
       "title": "參數設置"
+    },
+    "system:config:query": {
+      "title": "參數查詢"
+    },
+    "system:config:remove": {
+      "title": "參數刪除"
+    },
+    "system:dict:add": {
+      "title": "字典新增"
+    },
+    "system:dict:edit": {
+      "title": "字典修改"
+    },
+    "system:dict:export": {
+      "title": "字典導出"
     },
     "system:dict:list": {
       "title": "字典管理"
     },
+    "system:dict:query": {
+      "title": "字典查詢"
+    },
+    "system:dict:remove": {
+      "title": "字典刪除"
+    },
+    "system:file:download": {
+      "title": "文件下載"
+    },
     "system:file:list": {
       "title": "文件管理"
+    },
+    "system:file:query": {
+      "title": "文件查詢"
+    },
+    "system:file:remove": {
+      "title": "文件刪除"
+    },
+    "system:file:upload": {
+      "title": "文件上傳"
     },
     "system:job:add": {
       "title": "任務新增"
@@ -114,11 +156,59 @@
     "system:menu:list": {
       "title": "菜單管理"
     },
+    "system:menu:add": {
+      "title": "菜單新增"
+    },
+    "system:menu:edit": {
+      "title": "菜單修改"
+    },
+    "system:menu:query": {
+      "title": "菜單查詢"
+    },
+    "system:menu:remove": {
+      "title": "菜單刪除"
+    },
+    "system:role:add": {
+      "title": "角色新增"
+    },
+    "system:role:auth": {
+      "title": "角色授權"
+    },
+    "system:role:edit": {
+      "title": "角色修改"
+    },
     "system:role:list": {
       "title": "角色管理"
     },
+    "system:role:query": {
+      "title": "角色查詢"
+    },
+    "system:role:remove": {
+      "title": "角色刪除"
+    },
+    "system:user:add": {
+      "title": "用戶新增"
+    },
+    "system:user:edit": {
+      "title": "用戶修改"
+    },
+    "system:user:export": {
+      "title": "用戶導出"
+    },
+    "system:user:import": {
+      "title": "用戶導入"
+    },
     "system:user:list": {
       "title": "用戶管理"
+    },
+    "system:user:query": {
+      "title": "用戶查詢"
+    },
+    "system:user:remove": {
+      "title": "用戶刪除"
+    },
+    "system:user:resetPwd": {
+      "title": "重置密碼"
     }
   }
 }

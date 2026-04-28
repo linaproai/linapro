@@ -110,6 +110,23 @@ Some runtime keys are owned by code source text, such as built-in scheduler labe
 
 The i18n foundation must not hard-code business prefixes. Missing-message checks only skip source-text-backed keys whose namespace has been registered by the owning module.
 
+## Runtime Message Governance
+
+Caller-visible backend errors must use structured runtime message errors. Define reusable `bizerr.Code` values in the owning module, keep the English fallback in code, and maintain localized text in `error.json` or another semantic runtime file under every supported locale.
+
+Import and export artifacts are user-visible content. Sheet names, headers, template labels, enum labels, and row-level failure reasons must be resolved through runtime i18n keys such as `artifact.<module>.<section>.<field>` before the Excel file or result payload is returned.
+
+Plugin-owned visible copy belongs in the plugin's own `manifest/i18n/<locale>/*.json` files. Do not centralize plugin runtime keys in the host bundle unless the plugin is intentionally contributing shared framework metadata.
+
+Use these commands while changing runtime messages:
+
+```bash
+make check-runtime-i18n-messages
+make check-runtime-i18n
+```
+
+`check-runtime-i18n-messages` validates JSON key coverage and duplicate runtime keys across host and plugin scopes. `check-runtime-i18n` scans source code for high-risk hard-coded user-visible copy; it is expected to report existing findings until the active runtime-message governance cleanup is complete.
+
 ## Validation Rules
 
 Before delivery, check the following items:
@@ -120,6 +137,8 @@ Before delivery, check the following items:
 - The target locale passes the missing-translation check against the default locale.
 - Plugin-owned keys use the `plugin.<plugin_id>.` prefix unless the plugin is intentionally contributing shared framework metadata.
 - New user-visible backend errors and validation messages use translation keys instead of hard-coded literals.
+- New import/export labels and failure reasons use runtime i18n keys instead of literal strings.
+- Frontend pages, buttons, prompts, and request error rendering use `$t` or backend `messageKey/messageParams` before falling back to rendered messages.
 
 ## Authoring Example
 

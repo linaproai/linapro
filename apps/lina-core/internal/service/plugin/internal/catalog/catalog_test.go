@@ -203,7 +203,7 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 	}
 
 	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
-	if err == nil || !strings.Contains(err.Error(), "嵌入清单 ID") {
+	if err == nil || !strings.Contains(err.Error(), "embedded manifest ID") {
 		t.Fatalf("expected embedded manifest mismatch error, got: %v", err)
 	}
 }

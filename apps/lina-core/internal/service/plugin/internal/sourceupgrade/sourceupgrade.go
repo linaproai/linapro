@@ -7,15 +7,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/runtime"
+	"lina-core/pkg/bizerr"
 	sourceupgradecontract "lina-core/pkg/sourceupgrade/contract"
 )
 
@@ -53,6 +53,14 @@ type serviceImpl struct {
 	runtimeSvc runtime.Service
 	// integrationSvc provides host extension, menu, hook, and resource integration.
 	integrationSvc integration.Service
+	// i18nSvc localizes operator-facing result messages.
+	i18nSvc sourceUpgradeI18nService
+}
+
+// sourceUpgradeI18nService defines the narrow i18n capability needed by source upgrade.
+type sourceUpgradeI18nService interface {
+	// Translate returns one runtime translation key with caller-provided fallback text.
+	Translate(ctx context.Context, key string, fallback string) string
 }
 
 // New creates and returns a new source-plugin upgrade governance service.
@@ -67,6 +75,7 @@ func New(
 		lifecycleSvc:   lifecycleSvc,
 		runtimeSvc:     runtimeSvc,
 		integrationSvc: integrationSvc,
+		i18nSvc:        i18nsvc.New(),
 	}
 }
 
@@ -107,7 +116,7 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 		return nil, err
 	}
 	if candidate == nil || candidate.manifest == nil || candidate.status == nil {
-		return nil, gerror.Newf("源码插件升级候选不存在: %s", pluginID)
+		return nil, bizerr.NewCode(CodePluginSourceUpgradeCandidateNotFound, bizerr.P("pluginId", pluginID))
 	}
 
 	result := &SourceUpgradeResult{
@@ -117,7 +126,14 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 		ToVersion:   candidate.status.DiscoveredVersion,
 	}
 	if candidate.status.Installed != catalog.InstalledYes {
-		result.Message = "源码插件未安装，跳过升级。"
+		setSourceUpgradeResultMessage(
+			ctx,
+			s.i18nSvc,
+			result,
+			sourceUpgradeNotInstalledSkippedKey,
+			"Source plugin is not installed. Upgrade skipped.",
+			nil,
+		)
 		return result, nil
 	}
 
@@ -141,15 +157,22 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 		return nil, err
 	}
 	if versionCompare == 0 {
-		result.Message = "当前源码插件已是最新版本，无需升级。"
+		setSourceUpgradeResultMessage(
+			ctx,
+			s.i18nSvc,
+			result,
+			sourceUpgradeAlreadyLatestKey,
+			"The current source plugin is already up to date. No upgrade is required.",
+			nil,
+		)
 		return result, nil
 	}
 	if versionCompare > 0 {
-		return nil, gerror.Newf(
-			"源码插件 %s 当前生效版本 %s 高于源码发现版本 %s，当前不支持降级或回滚",
-			candidate.status.PluginID,
-			candidate.status.EffectiveVersion,
-			candidate.status.DiscoveredVersion,
+		return nil, bizerr.NewCode(
+			CodePluginSourceUpgradeDowngradeUnsupported,
+			bizerr.P("pluginId", candidate.status.PluginID),
+			bizerr.P("effectiveVersion", candidate.status.EffectiveVersion),
+			bizerr.P("discoveredVersion", candidate.status.DiscoveredVersion),
 		)
 	}
 
@@ -162,10 +185,10 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 		return nil, err
 	}
 	if targetRelease == nil {
-		return nil, gerror.Newf(
-			"源码插件升级缺少目标发布记录: %s@%s",
-			candidate.manifest.ID,
-			candidate.manifest.Version,
+		return nil, bizerr.NewCode(
+			CodePluginSourceUpgradeTargetReleaseNotFound,
+			bizerr.P("pluginId", candidate.manifest.ID),
+			bizerr.P("version", candidate.manifest.Version),
 		)
 	}
 
@@ -202,7 +225,10 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 	}
 	if updatedRegistry == nil {
 		s.markSourcePluginReleaseFailed(ctx, candidate.manifest, targetRelease)
-		return nil, gerror.Newf("源码插件升级后注册表不存在: %s", candidate.manifest.ID)
+		return nil, bizerr.NewCode(
+			CodePluginSourceUpgradeRegistryAfterUpgradeNotFound,
+			bizerr.P("pluginId", candidate.manifest.ID),
+		)
 	}
 
 	if currentRelease != nil && currentRelease.Id > 0 && currentRelease.Id != targetRelease.Id {
@@ -238,10 +264,16 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 	}
 
 	result.Executed = true
-	result.Message = fmt.Sprintf(
-		"源码插件已从 %s 升级到 %s。",
-		candidate.status.EffectiveVersion,
-		candidate.status.DiscoveredVersion,
+	setSourceUpgradeResultMessage(
+		ctx,
+		s.i18nSvc,
+		result,
+		sourceUpgradeSuccessKey,
+		"Source plugin upgraded from {fromVersion} to {toVersion}.",
+		map[string]any{
+			"fromVersion": candidate.status.EffectiveVersion,
+			"toVersion":   candidate.status.DiscoveredVersion,
+		},
 	)
 	return result, nil
 }
@@ -314,7 +346,7 @@ func (s *serviceImpl) listSourceUpgradeCandidates(
 func (s *serviceImpl) findSourceUpgradeCandidate(ctx context.Context, pluginID string) (*sourceUpgradeCandidate, error) {
 	normalizedID := strings.TrimSpace(pluginID)
 	if normalizedID == "" {
-		return nil, gerror.New("源码插件 ID 不能为空")
+		return nil, bizerr.NewCode(CodePluginSourceUpgradePluginIDRequired)
 	}
 
 	candidates, err := s.listSourceUpgradeCandidates(ctx, false)
@@ -329,7 +361,7 @@ func (s *serviceImpl) findSourceUpgradeCandidate(ctx context.Context, pluginID s
 			return candidate, nil
 		}
 	}
-	return nil, gerror.Newf("未找到源码插件: %s", normalizedID)
+	return nil, bizerr.NewCode(CodePluginSourceUpgradePluginNotFound, bizerr.P("pluginId", normalizedID))
 }
 
 // buildSourceUpgradeStatus flattens the manifest and registry state of one
@@ -339,7 +371,7 @@ func buildSourceUpgradeStatus(
 	registry *entity.SysPlugin,
 ) (*SourceUpgradeStatus, error) {
 	if manifest == nil {
-		return nil, gerror.New("源码插件清单不能为空")
+		return nil, bizerr.NewCode(CodePluginSourceUpgradeManifestRequired)
 	}
 
 	status := &SourceUpgradeStatus{
@@ -391,13 +423,13 @@ func (s *serviceImpl) applySourcePluginUpgradedRelease(
 	release *entity.SysPluginRelease,
 ) error {
 	if registry == nil {
-		return gerror.New("源码插件注册表不能为空")
+		return bizerr.NewCode(CodePluginSourceUpgradeRegistryRequired)
 	}
 	if manifest == nil {
-		return gerror.New("源码插件清单不能为空")
+		return bizerr.NewCode(CodePluginSourceUpgradeManifestRequired)
 	}
 	if release == nil {
-		return gerror.New("源码插件目标发布记录不能为空")
+		return bizerr.NewCode(CodePluginSourceUpgradeTargetReleaseRequired)
 	}
 
 	stableState := catalog.DeriveHostState(registry.Installed, registry.Status)
@@ -452,8 +484,7 @@ func buildSourcePluginUpgradePendingError(pending []*SourceUpgradeStatus) error 
 		return nil
 	}
 
-	lines := make([]string, 0, len(pending)+2)
-	lines = append(lines, "检测到已安装源码插件存在待完成升级，宿主启动前必须先执行开发态升级命令。")
+	lines := make([]string, 0, len(pending))
 	for _, item := range pending {
 		if item == nil {
 			continue
@@ -469,8 +500,49 @@ func buildSourcePluginUpgradePendingError(pending []*SourceUpgradeStatus) error 
 			),
 		)
 	}
-	if len(pending) > 1 {
-		lines = append(lines, "如需一次性处理全部待升级源码插件，可执行：make upgrade confirm=upgrade scope=source-plugin plugin=all")
+	code := CodePluginSourceUpgradePending
+	params := []bizerr.Param{
+		bizerr.P("items", strings.Join(lines, "\n")),
 	}
-	return gerror.New(strings.Join(lines, "\n"))
+	if len(pending) > 1 {
+		code = CodePluginSourceUpgradePendingWithBulk
+		params = append(params, bizerr.P("bulkCommand", "make upgrade confirm=upgrade scope=source-plugin plugin=all"))
+	}
+	return bizerr.NewCode(code, params...)
+}
+
+// setSourceUpgradeResultMessage stores a stable message key, parameters, and
+// localized text on one source-plugin upgrade result.
+func setSourceUpgradeResultMessage(
+	ctx context.Context,
+	translator sourceUpgradeI18nService,
+	result *SourceUpgradeResult,
+	messageKey string,
+	fallback string,
+	params map[string]any,
+) {
+	if result == nil {
+		return
+	}
+	result.MessageKey = strings.TrimSpace(messageKey)
+	result.MessageParams = cloneSourceUpgradeMessageParams(params)
+
+	template := strings.TrimSpace(fallback)
+	if translator != nil && result.MessageKey != "" {
+		template = translator.Translate(ctx, result.MessageKey, fallback)
+	}
+	result.Message = bizerr.Format(template, params)
+}
+
+// cloneSourceUpgradeMessageParams copies message parameters before exposing
+// them on the stable source-upgrade result contract.
+func cloneSourceUpgradeMessageParams(params map[string]any) map[string]any {
+	if len(params) == 0 {
+		return nil
+	}
+	cloned := make(map[string]any, len(params))
+	for key, value := range params {
+		cloned[key] = value
+	}
+	return cloned
 }

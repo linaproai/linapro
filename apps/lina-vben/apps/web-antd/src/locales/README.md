@@ -15,3 +15,18 @@ Third-party locale wiring should be derived from the locale code convention and 
 Runtime UI messages are loaded from `GET /api/v1/i18n/runtime/messages?lang=<locale>` and persisted in `localStorage` under `linapro:i18n:runtime:<locale>` for 7 days.
 
 The cache stores `{etag, messages, savedAt}`. A fresh persisted bundle renders immediately, then the app refreshes in the background with `If-None-Match`; a `304 Not Modified` response keeps the current bundle unchanged.
+
+## Request Errors And Visible Copy
+
+Request error rendering must prefer backend `messageKey` plus `messageParams`, then fall back to the backend-rendered `message`, and only then use the request library fallback text. This keeps the active frontend language in control when structured backend errors are available.
+
+User-visible page copy must use `$t` or runtime i18n messages. Do not place literal Chinese, English, or mixed-language labels directly in titles, form schemas, table columns, placeholders, buttons, empty states, toasts, notifications, or confirmation dialogs.
+
+Run these checks after changing frontend runtime copy:
+
+```bash
+make check-runtime-i18n
+make check-runtime-i18n-messages
+```
+
+`check-runtime-i18n` is intentionally strict and may still report existing backend or plugin findings while the active runtime-message governance cleanup is in progress.

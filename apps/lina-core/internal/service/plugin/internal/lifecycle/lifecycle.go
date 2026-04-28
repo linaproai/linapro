@@ -5,9 +5,8 @@ package lifecycle
 import (
 	"context"
 
-	"github.com/gogf/gf/v2/errors/gerror"
-
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/bizerr"
 )
 
 // ReconcileProvider abstracts the runtime reconciler so lifecycle can trigger
@@ -93,10 +92,10 @@ func (s *serviceImpl) Install(ctx context.Context, pluginID string) error {
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		return gerror.New("源码插件随宿主编译集成，不支持安装")
+		return bizerr.NewCode(CodeSourcePluginInstallUnsupported)
 	}
 	if s.reconciler != nil {
-		if err = s.reconciler.EnsureRuntimeArtifactAvailable(manifest, "安装"); err != nil {
+		if err = s.reconciler.EnsureRuntimeArtifactAvailable(manifest, "install"); err != nil {
 			return err
 		}
 	}
@@ -111,7 +110,7 @@ func (s *serviceImpl) Install(ctx context.Context, pluginID string) error {
 			return compareErr
 		}
 		if compareResult < 0 {
-			return gerror.New("不支持回退到更低版本，请使用宿主自动回滚结果或重新上传更高版本")
+			return bizerr.NewCode(CodeDynamicPluginDowngradeUnsupported)
 		}
 		if compareResult == 0 {
 			if s.reconciler != nil && !s.reconciler.ShouldRefreshInstalledDynamicRelease(ctx, registry, manifest) {
@@ -139,7 +138,7 @@ func (s *serviceImpl) Uninstall(ctx context.Context, pluginID string) error {
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
-		return gerror.New("源码插件随宿主编译集成，不支持卸载")
+		return bizerr.NewCode(CodeSourcePluginUninstallUnsupported)
 	}
 
 	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)

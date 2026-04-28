@@ -15,3 +15,18 @@
 运行时 UI 文案从`GET /api/v1/i18n/runtime/messages?lang=<locale>`加载，并按`linapro:i18n:runtime:<locale>`键在`localStorage`中持久化 7 天。
 
 缓存内容为`{etag, messages, savedAt}`。命中新鲜持久化缓存时先立即渲染，再在后台带`If-None-Match`刷新；若服务端返回`304 Not Modified`，则保持当前语言包不变。
+
+## 请求错误和可见文案
+
+请求错误渲染必须优先使用后端返回的`messageKey`和`messageParams`，然后回退到后端已渲染的`message`，最后才使用请求库兜底文本。这样在后端提供结构化错误时，前端当前语言仍然是展示事实源。
+
+用户可见页面文案必须使用`$t`或运行时国际化消息。不要在标题、表单 schema、表格列、placeholder、按钮、空状态、toast、notification 或确认弹窗中直接写中文、英文或中英混排字面量。
+
+修改前端运行时文案后运行以下检查：
+
+```bash
+make check-runtime-i18n
+make check-runtime-i18n-messages
+```
+
+`check-runtime-i18n`会保持严格扫描；在当前运行时文案治理迭代完成前，该命令仍可能报告既有后端或插件待清理项。
