@@ -128,6 +128,9 @@ type Service interface {
 	// BuildRuntimeItems returns PluginItems for dynamic plugins present in the registry
 	// but absent from the given manifest map. Used by the plugin facade SyncAndList.
 	BuildRuntimeItems(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error)
+	// BuildRuntimeItemsReadOnly returns dynamic PluginItems without reconciling
+	// missing artifacts back into governance tables.
+	BuildRuntimeItemsReadOnly(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error)
 	// CheckIsInstalled reports whether a plugin is installed after reconciling artifact state.
 	// Used by the plugin facade UpdateStatus guard.
 	CheckIsInstalled(ctx context.Context, pluginID string) (bool, error)

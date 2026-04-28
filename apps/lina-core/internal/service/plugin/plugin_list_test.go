@@ -106,6 +106,102 @@ func TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState(t *testing.T
 	}
 }
 
+// TestListProjectsMissingRuntimeRegistryWithoutWriting verifies the GET-list
+// path can show a safe missing-artifact state without mutating governance rows.
+func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-registry-readonly"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
+		t,
+		pluginID,
+		"Runtime Registry Readonly Plugin",
+		"v0.9.5",
+		nil,
+		nil,
+		nil,
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic artifact manifest to load, got error: %v", err)
+	}
+	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
+	}
+	if err = service.setPluginInstalled(ctx, pluginID, catalog.InstalledYes); err != nil {
+		t.Fatalf("expected dynamic plugin install state to be set, got error: %v", err)
+	}
+	if err = service.setPluginStatus(ctx, pluginID, catalog.StatusEnabled); err != nil {
+		t.Fatalf("expected dynamic plugin enable state to be set, got error: %v", err)
+	}
+
+	registryBefore, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected runtime registry lookup before list to succeed, got error: %v", err)
+	}
+	if registryBefore == nil {
+		t.Fatalf("expected runtime registry row before list")
+	}
+	if err = os.Remove(artifactPath); err != nil {
+		t.Fatalf("failed to remove dynamic artifact: %v", err)
+	}
+
+	out, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("expected read-only list to tolerate missing dynamic artifact, got error: %v", err)
+	}
+
+	item := findPluginItem(out, pluginID)
+	if item == nil {
+		t.Fatalf("expected missing dynamic plugin to remain visible in read-only plugin list")
+	}
+	if item.Installed != catalog.InstalledNo {
+		t.Fatalf("expected read-only projection installed state to be %d, got %d", catalog.InstalledNo, item.Installed)
+	}
+	if item.Enabled != catalog.StatusDisabled {
+		t.Fatalf("expected read-only projection enabled state to be %d, got %d", catalog.StatusDisabled, item.Enabled)
+	}
+
+	registryAfter, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected runtime registry lookup after list to succeed, got error: %v", err)
+	}
+	if registryAfter == nil {
+		t.Fatalf("expected runtime registry row to remain after read-only list")
+	}
+	if registryAfter.Installed != registryBefore.Installed ||
+		registryAfter.Status != registryBefore.Status ||
+		registryAfter.DesiredState != registryBefore.DesiredState ||
+		registryAfter.CurrentState != registryBefore.CurrentState ||
+		registryAfter.Generation != registryBefore.Generation ||
+		registryAfter.ReleaseId != registryBefore.ReleaseId {
+		t.Fatalf(
+			"expected read-only list not to mutate registry, before installed=%d status=%d desired=%s current=%s generation=%d release=%d after installed=%d status=%d desired=%s current=%s generation=%d release=%d",
+			registryBefore.Installed,
+			registryBefore.Status,
+			registryBefore.DesiredState,
+			registryBefore.CurrentState,
+			registryBefore.Generation,
+			registryBefore.ReleaseId,
+			registryAfter.Installed,
+			registryAfter.Status,
+			registryAfter.DesiredState,
+			registryAfter.CurrentState,
+			registryAfter.Generation,
+			registryAfter.ReleaseId,
+		)
+	}
+}
+
 // TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection verifies
 // that sync does not recreate release-bound governance after uninstall.
 func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *testing.T) {
@@ -202,4 +298,17 @@ func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *test
 	if resourceCount != 0 {
 		t.Fatalf("expected sync-and-list not to recreate governance resource refs for uninstalled plugin, got count=%d", resourceCount)
 	}
+}
+
+// findPluginItem returns one plugin list item by plugin ID for list assertions.
+func findPluginItem(out *ListOutput, pluginID string) *PluginItem {
+	if out == nil {
+		return nil
+	}
+	for _, current := range out.List {
+		if current != nil && current.Id == pluginID {
+			return current
+		}
+	}
+	return nil
 }

@@ -245,7 +245,7 @@ type RegistryQueryService interface {
 	// SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
 	// returns the combined list of source and dynamic plugin items.
 	SyncAndList(ctx context.Context) (*ListOutput, error)
-	// List returns the plugin list with optional in-memory filtering applied.
+	// List returns the read-only plugin list with optional in-memory filtering applied.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
 }
 

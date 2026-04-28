@@ -68,6 +68,29 @@ func (s *serviceImpl) BuildRuntimeItems(ctx context.Context, covered map[string]
 	return items, nil
 }
 
+// BuildRuntimeItemsReadOnly returns dynamic PluginItems without mutating
+// governance state when an artifact is missing from runtime storage.
+func (s *serviceImpl) BuildRuntimeItemsReadOnly(ctx context.Context, covered map[string]struct{}) ([]*PluginItem, error) {
+	registries, err := s.listRuntimeRegistries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*PluginItem, 0)
+	for _, registry := range registries {
+		if registry == nil {
+			continue
+		}
+		if _, ok := covered[registry.PluginId]; ok {
+			continue
+		}
+		registry = s.projectRegistryArtifactState(ctx, registry)
+		if item := s.buildPluginItem(ctx, nil, registry); item != nil {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
 // CheckIsInstalled reports whether a plugin is installed after reconciling artifact state.
 // Used by the plugin facade UpdateStatus guard.
 func (s *serviceImpl) CheckIsInstalled(ctx context.Context, pluginID string) (bool, error) {

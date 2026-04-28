@@ -50,7 +50,7 @@ func TestTouchOrValidateRejectsExpiredSession(t *testing.T) {
 func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 	ctx := context.Background()
 	tokenID := fmt.Sprintf("session-active-%d", time.Now().UnixNano())
-	lastActive := gtime.Now().Add(-10 * time.Minute)
+	lastActive := gtime.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
 
 	insertSessionRecord(t, ctx, tokenID, lastActive)
 
@@ -75,6 +75,39 @@ func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 	}
 	if !stored.LastActiveTime.After(lastActive) {
 		t.Fatalf("expected last active time to be refreshed, got %v", stored.LastActiveTime)
+	}
+}
+
+// TestTouchOrValidateSkipsRecentActiveSessionUpdate verifies recent activity
+// remains valid without writing another last-active timestamp.
+func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
+	ctx := context.Background()
+	tokenID := fmt.Sprintf("session-recent-%d", time.Now().UnixNano())
+	lastActive := gtime.Now().Truncate(time.Second)
+
+	insertSessionRecord(t, ctx, tokenID, lastActive)
+
+	store := NewDBStore()
+	exists, err := store.TouchOrValidate(ctx, tokenID, time.Hour)
+	if err != nil {
+		t.Fatalf("touch recent session: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected recent session to remain valid")
+	}
+
+	var stored *entity.SysOnlineSession
+	err = dao.SysOnlineSession.Ctx(ctx).
+		Where(do.SysOnlineSession{TokenId: tokenID}).
+		Scan(&stored)
+	if err != nil {
+		t.Fatalf("query recent session after validation: %v", err)
+	}
+	if stored == nil || stored.LastActiveTime == nil {
+		t.Fatal("expected recent session record to remain after validation")
+	}
+	if stored.LastActiveTime.Timestamp() != lastActive.Timestamp() {
+		t.Fatalf("expected recent last active time to remain unchanged, got %v want %v", stored.LastActiveTime, lastActive)
 	}
 }
 

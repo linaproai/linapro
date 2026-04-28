@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 
+	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 )
@@ -47,9 +48,9 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 	return &ListOutput{List: items, Total: len(items)}, nil
 }
 
-// List returns the plugin list with optional in-memory filtering applied.
+// List returns the read-only plugin list with optional in-memory filtering applied.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
-	out, err := s.SyncAndList(ctx)
+	out, err := s.ReadOnlyList(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +74,52 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		filtered = append(filtered, item)
 	}
 	return &ListOutput{List: filtered, Total: len(filtered)}, nil
+}
+
+// ReadOnlyList scans plugin manifests and projects current registry state
+// without synchronizing governance tables.
+func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
+	manifests, err := s.catalogSvc.ScanManifests()
+	if err != nil {
+		return nil, err
+	}
+	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	registryByPluginID := buildRegistryByPluginID(registries)
+	covered := make(map[string]struct{}, len(manifests))
+	items := make([]*PluginItem, 0, len(manifests))
+	for _, manifest := range manifests {
+		if manifest == nil {
+			continue
+		}
+		covered[manifest.ID] = struct{}{}
+		if item := s.runtimeSvc.BuildPluginItem(ctx, manifest, registryByPluginID[manifest.ID]); item != nil {
+			items = append(items, item)
+		}
+	}
+
+	runtimeItems, err := s.runtimeSvc.BuildRuntimeItemsReadOnly(ctx, covered)
+	if err != nil {
+		return nil, err
+	}
+	items = append(items, runtimeItems...)
+	runtime.SortPluginItems(items)
+	return &ListOutput{List: items, Total: len(items)}, nil
+}
+
+// buildRegistryByPluginID indexes registry rows by plugin ID for read-only list projection.
+func buildRegistryByPluginID(registries []*entity.SysPlugin) map[string]*entity.SysPlugin {
+	result := make(map[string]*entity.SysPlugin, len(registries))
+	for _, registry := range registries {
+		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
+			continue
+		}
+		result[registry.PluginId] = registry
+	}
+	return result
 }
 
 // ListEnabledPluginIDs returns the IDs of plugins that are currently

@@ -1,5 +1,4 @@
-// This file implements the online-session storage abstraction backed by MySQL.
-
+// Package session implements online-session storage and activity validation.
 package session
 
 import (
@@ -12,6 +11,10 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 )
+
+// sessionLastActiveUpdateWindow is the minimum interval between two
+// last_active_time writes for one valid session.
+const sessionLastActiveUpdateWindow time.Duration = time.Minute
 
 // Session represents an online user session.
 type Session struct {
@@ -57,7 +60,8 @@ type Store interface {
 	// Count returns the total number of active online sessions.
 	Count(ctx context.Context) (int, error)
 	// TouchOrValidate validates the session timeout and refreshes last_active_time
-	// for the given tokenId. It returns true when the session remains valid.
+	// outside the short write-throttle window for the given tokenId. It returns
+	// true when the session remains valid.
 	TouchOrValidate(ctx context.Context, tokenId string, timeout time.Duration) (bool, error)
 	// CleanupInactive deletes sessions whose last_active_time exceeds the given timeout duration.
 	CleanupInactive(ctx context.Context, timeout time.Duration) (int64, error)
@@ -216,7 +220,8 @@ func (s *DBStore) Count(ctx context.Context) (int, error) {
 	return dao.SysOnlineSession.Ctx(ctx).Count()
 }
 
-// TouchOrValidate validates the session timeout and refreshes last_active_time.
+// TouchOrValidate validates the session timeout and refreshes last_active_time
+// only when the previous activity is outside the short write-throttle window.
 func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout time.Duration) (bool, error) {
 	var stored *entity.SysOnlineSession
 	err := dao.SysOnlineSession.Ctx(ctx).
@@ -228,7 +233,8 @@ func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout t
 	if stored == nil {
 		return false, nil
 	}
-	if timeout > 0 && stored.LastActiveTime != nil && stored.LastActiveTime.Before(gtime.Now().Add(-timeout)) {
+	now := gtime.Now()
+	if timeout > 0 && stored.LastActiveTime != nil && stored.LastActiveTime.Before(now.Add(-timeout)) {
 		if _, err = dao.SysOnlineSession.Ctx(ctx).
 			Where(do.SysOnlineSession{TokenId: tokenId}).
 			Delete(); err != nil {
@@ -236,10 +242,13 @@ func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout t
 		}
 		return false, nil
 	}
+	if stored.LastActiveTime != nil && stored.LastActiveTime.After(now.Add(-sessionLastActiveUpdateWindow)) {
+		return true, nil
+	}
 
 	_, err = dao.SysOnlineSession.Ctx(ctx).
 		Where(do.SysOnlineSession{TokenId: tokenId}).
-		Data(do.SysOnlineSession{LastActiveTime: gtime.Now()}).
+		Data(do.SysOnlineSession{LastActiveTime: now}).
 		Update()
 	if err != nil {
 		return false, err

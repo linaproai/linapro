@@ -287,6 +287,33 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 	return updated, nil
 }
 
+// projectRegistryArtifactState returns a read-only projection of a dynamic
+// registry row when its runtime artifact is missing from storage.
+func (s *serviceImpl) projectRegistryArtifactState(ctx context.Context, registry *entity.SysPlugin) *entity.SysPlugin {
+	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return registry
+	}
+	if strings.TrimSpace(registry.PluginId) == "" {
+		return registry
+	}
+
+	exists, _, err := s.hasArtifactStorageFile(ctx, registry.PluginId)
+	if err != nil || exists {
+		return registry
+	}
+	if registry.Installed != catalog.InstalledYes && registry.Status != catalog.StatusEnabled {
+		return registry
+	}
+
+	projected := *registry
+	projected.Installed = catalog.InstalledNo
+	projected.Status = catalog.StatusDisabled
+	projected.DesiredState = catalog.HostStateUninstalled.String()
+	projected.CurrentState = catalog.HostStateUninstalled.String()
+	projected.ReleaseId = 0
+	return &projected
+}
+
 // SortPluginItems sorts a PluginItem slice by plugin ID ascending.
 func SortPluginItems(items []*PluginItem) {
 	sort.Slice(items, func(i int, j int) bool {

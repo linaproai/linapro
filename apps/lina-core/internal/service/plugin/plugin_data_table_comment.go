@@ -15,6 +15,10 @@ import (
 // wrap one real SQL driver underneath.
 const pluginDataDriverTypePrefix = "plugin-data-"
 
+// dataTableCommentSQL reads table comments without asking the ORM to inspect
+// information_schema.TABLES as if it were an application table.
+const dataTableCommentSQL = "SELECT TABLE_NAME AS table_name, TABLE_COMMENT AS table_comment FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME IN(?)"
+
 // ResolveDataTableComments resolves host-side table comments for the given
 // data-table names. It degrades to an empty map when metadata lookup is
 // unavailable so plugin list APIs are not blocked by optional schema comments.
@@ -50,11 +54,7 @@ func (s *serviceImpl) ResolveDataTableComments(ctx context.Context, tables []str
 		return map[string]string{}
 	}
 
-	records, err := db.Model("information_schema.TABLES").
-		Fields("TABLE_NAME AS table_name", "TABLE_COMMENT AS table_comment").
-		Where("TABLE_SCHEMA", schema).
-		WhereIn("TABLE_NAME", normalizedTables).
-		All()
+	records, err := db.GetAll(ctx, dataTableCommentSQL, schema, normalizedTables)
 	if err != nil {
 		logger.Warningf(ctx, "resolve plugin data table comments failed schema=%s tables=%v err=%v", schema, normalizedTables, err)
 		return map[string]string{}
