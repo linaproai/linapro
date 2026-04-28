@@ -160,9 +160,6 @@ go run ./hack/tools/runtime-i18n scan --format json
 
 以下文件命中错误、返回消息、失败原因、导出 fallback、状态文本或插件桥接错误等模式，后续实施应逐批清理：
 
-- `apps/lina-core/internal/cmd/cmd.go`
-- `apps/lina-core/internal/cmd/cmd_init.go`
-- `apps/lina-core/internal/cmd/cmd_mock.go`
 - `apps/lina-core/internal/controller/config/config_v1_config_import.go`
 - `apps/lina-core/internal/controller/dict/dict_v1_data_import.go`
 - `apps/lina-core/internal/controller/dict/dict_v1_type_import.go`
@@ -339,9 +336,18 @@ go run ./hack/tools/runtime-i18n scan --format json
 - `hack/tools/upgrade-source/README.md`与`README.zh_CN.md`说明框架升级、源码插件升级、确认参数、dry-run 和升级前检查。
 - `hack/tools/README.md`与`README.zh_CN.md`已补充规则，要求每个工具目录同步维护双语使用说明。
 
+### FB-13 CLI 诊断清理记录
+
+已完成 `apps/lina-core/internal/cmd` 中命令行与数据库初始化诊断错误的中文硬编码清理：
+
+- `cmd.go`、`cmd_init.go`、`cmd_mock.go`、`cmd_init_database.go` 中的 `gerror.New*` 与 `gerror.Wrap*` 诊断统一改为英文开发者源文案；这些路径属于 CLI/bootstrap 维护链路，不新增运行时 i18n JSON 资源。
+- `cmd_test.go` 与 `cmd_sql_split_test.go` 已更新为英文错误片段断言，并新增 `TestCommandPackageHasNoHanText` 防止该包再次引入 Han 字符。
+- 补充 `bizerr.MustDefineWithKey` 的 production panic allowlist，使 `go test ./internal/cmd` 覆盖新增回归测试时保持通过。
+- 已验证 `rg -n --glob '*.go' "[\\p{Han}]" apps/lina-core/internal/cmd` 无命中，`go test ./internal/cmd` 通过。
+
 ## 优先级建议
 
 1. 先治理响应面：API 错误、请求拦截器、插件 demo-control JSON 错误响应。
 2. 再治理交付物：用户、字典、系统参数、岗位、操作日志等导入导出表头和失败原因。
 3. 再治理插件平台：pluginbridge、pluginfs、plugindb、catalog、runtime、wasm host service 错误契约。
-4. 最后治理低风险面：命令行诊断、测试 fixture、非用户可见注释和仅开发期调试文案。
+4. 最后治理低风险面：测试 fixture、非用户可见注释和仅开发期调试文案。
