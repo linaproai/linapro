@@ -1,5 +1,9 @@
 import type { APIRequestContext } from "@playwright/test";
 
+import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
+import path from "node:path";
+
 import { test, expect } from "../../fixtures/auth";
 import { PluginPage } from "../../pages/PluginPage";
 import {
@@ -15,6 +19,15 @@ import { waitForRouteReady } from "../../support/ui";
 const pluginID = "plugin-demo-dynamic";
 const pluginMenuNameEnglish = "Dynamic Plugin Demo";
 const pluginMenuNameChinese = "动态插件示例";
+const repoRoot = path.resolve(process.cwd(), "../..");
+const legacyRuntimeArtifactPath = path.join(
+  repoRoot,
+  "apps",
+  "lina-plugins",
+  pluginID,
+  "runtime",
+  `${pluginID}.wasm`,
+);
 
 type DictDataItem = {
   label: string;
@@ -25,8 +38,17 @@ let adminApi: APIRequestContext;
 let originalInstalled = 0;
 let originalEnabled = 0;
 
+function ensureRuntimePluginArtifact() {
+  execFileSync("make", ["wasm", `p=${pluginID}`, "out=../../temp/output"], {
+    cwd: path.join(repoRoot, "apps", "lina-plugins"),
+    stdio: "inherit",
+  });
+  rmSync(legacyRuntimeArtifactPath, { force: true });
+}
+
 test.describe("TC0107 运行时国际化切换", () => {
   test.beforeAll(async () => {
+    ensureRuntimePluginArtifact();
     adminApi = await createAdminApiContext();
     await syncPlugins(adminApi);
     const plugin = await getPlugin(adminApi, pluginID);

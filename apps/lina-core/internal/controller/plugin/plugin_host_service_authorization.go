@@ -4,13 +4,29 @@
 package plugin
 
 import (
+	"context"
 	"sort"
 	"strings"
 
 	"lina-core/api/plugin/v1"
+	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/jobmeta"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/pluginbridge"
 )
+
+const (
+	cronDisplayNameI18nField = "name"
+	cronDescriptionI18nField = "description"
+)
+
+// dynamicPluginSourceTextTranslator resolves dynamic-plugin artifact-local
+// translations for metadata that is rendered before the plugin is enabled.
+type dynamicPluginSourceTextTranslator interface {
+	// TranslateDynamicPluginSourceText resolves one key from a dynamic plugin's
+	// latest release artifact without relying on the global enabled-plugin bundle.
+	TranslateDynamicPluginSourceText(ctx context.Context, pluginID string, key string, sourceText string) string
+}
 
 // buildAuthorizationInput converts the API request payload into the service
 // input model used by plugin authorization updates.
@@ -115,6 +131,47 @@ func buildHostServicePermissionCronItems(
 		}
 		return strings.TrimSpace(items[i].Name) < strings.TrimSpace(items[j].Name)
 	})
+	return items
+}
+
+// localizeManagedCronJobs translates plugin-owned cron display metadata using
+// the same source-text key convention as scheduled-job management.
+func localizeManagedCronJobs(
+	ctx context.Context,
+	cronJobs []pluginsvc.ManagedCronJob,
+	translator i18nsvc.Translator,
+) []pluginsvc.ManagedCronJob {
+	if len(cronJobs) == 0 || translator == nil {
+		return cronJobs
+	}
+
+	items := make([]pluginsvc.ManagedCronJob, 0, len(cronJobs))
+	dynamicTranslator, hasDynamicTranslator := translator.(dynamicPluginSourceTextTranslator)
+	for _, cronJob := range cronJobs {
+		localizedJob := cronJob
+		handlerRef, err := pluginbridge.BuildPluginCronHandlerRef(cronJob.PluginID, cronJob.Name)
+		if err == nil {
+			nameKey := jobmeta.HandlerI18nKey(handlerRef, cronDisplayNameI18nField)
+			descriptionKey := jobmeta.HandlerI18nKey(handlerRef, cronDescriptionI18nField)
+			localizedJob.DisplayName = translator.TranslateSourceText(ctx, nameKey, cronJob.DisplayName)
+			localizedJob.Description = translator.TranslateSourceText(ctx, descriptionKey, cronJob.Description)
+			if hasDynamicTranslator {
+				localizedJob.DisplayName = dynamicTranslator.TranslateDynamicPluginSourceText(
+					ctx,
+					cronJob.PluginID,
+					nameKey,
+					localizedJob.DisplayName,
+				)
+				localizedJob.Description = dynamicTranslator.TranslateDynamicPluginSourceText(
+					ctx,
+					cronJob.PluginID,
+					descriptionKey,
+					localizedJob.Description,
+				)
+			}
+		}
+		items = append(items, localizedJob)
+	}
 	return items
 }
 

@@ -13,19 +13,19 @@ export class LoginPage {
         try {
           return await this.page.evaluate(() => {
             const key = Object.keys(localStorage).find((item) =>
-              item.endsWith('preferences-locale'),
+              item.endsWith("preferences-locale"),
             );
             if (!key) {
-              return '';
+              return "";
             }
             try {
-              return JSON.parse(localStorage.getItem(key) || '{}')?.value || '';
+              return JSON.parse(localStorage.getItem(key) || "{}")?.value || "";
             } catch {
-              return '';
+              return "";
             }
           });
         } catch {
-          return '';
+          return "";
         }
       })
       .toBe(locale);
@@ -46,7 +46,7 @@ export class LoginPage {
   }
 
   get brandLogoImage() {
-    return this.page.locator('img[alt="LinaPro"]').first();
+    return this.page.locator('img[alt="LinaPro"]:visible').first();
   }
 
   get pageDescription() {
@@ -148,6 +148,10 @@ export class LoginPage {
     return this.page.evaluate(() => document.title);
   }
 
+  async getBodyText() {
+    return this.page.locator("body").innerText();
+  }
+
   async getLoadingTitleFontFamily() {
     return this.loadingTitle.evaluate(
       (node) => getComputedStyle(node).fontFamily,
@@ -161,6 +165,15 @@ export class LoginPage {
   }
 
   async getBrandLogoInfo() {
+    await expect(this.brandLogoImage).toBeVisible();
+    await expect
+      .poll(async () =>
+        this.brandLogoImage.evaluate(
+          (img) => (img as HTMLImageElement).naturalWidth,
+        ),
+      )
+      .toBeGreaterThan(0);
+
     return this.brandLogoImage.evaluate((img) => ({
       currentSrc: img.currentSrc,
       height: img.clientHeight,
@@ -173,8 +186,13 @@ export class LoginPage {
     }));
   }
 
-  async switchLanguage(label: "English" | "简体中文") {
-    const locale = label === "English" ? "en-US" : "zh-CN";
+  async switchLanguage(label: "English" | "简体中文" | "繁體中文") {
+    const localeMap = {
+      English: "en-US",
+      简体中文: "zh-CN",
+      繁體中文: "zh-TW",
+    } as const;
+    const locale = localeMap[label];
     await this.languageToggleTrigger.click();
     await this.page.getByText(label, { exact: true }).last().click();
     await this.waitForLocalePersistence(locale);

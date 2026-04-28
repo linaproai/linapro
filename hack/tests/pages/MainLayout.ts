@@ -42,7 +42,7 @@ export class MainLayout {
   }
 
   get brandLogoImage() {
-    return this.page.locator('img[alt="LinaPro"]').first();
+    return this.page.locator('img[alt="LinaPro"]:visible').first();
   }
 
   sidebarMenuItem(label: string) {
@@ -83,17 +83,23 @@ export class MainLayout {
   }
 
   get preferencesDrawerTitle() {
-    return this.page.getByTestId("preferences-drawer-title").first();
+    return this.preferencesDrawer
+      .locator('[data-testid="preferences-drawer-title"]')
+      .first();
   }
 
   get preferencesDrawerSubtitle() {
-    return this.page.getByTestId("preferences-drawer-subtitle").first();
+    return this.preferencesDrawer
+      .locator('[data-testid="preferences-drawer-subtitle"]')
+      .first();
   }
 
   get preferencesDrawer() {
     return this.page
-      .getByRole("dialog")
-      .filter({ has: this.page.getByTestId("preferences-drawer-title") })
+      .locator('[role="dialog"]:visible')
+      .filter({
+        has: this.page.locator('[data-testid="preferences-drawer-title"]'),
+      })
       .first();
   }
 
@@ -129,6 +135,15 @@ export class MainLayout {
   }
 
   async getBrandLogoInfo() {
+    await expect(this.brandLogoImage).toBeVisible();
+    await expect
+      .poll(async () =>
+        this.brandLogoImage.evaluate(
+          (img) => (img as HTMLImageElement).naturalWidth,
+        ),
+      )
+      .toBeGreaterThan(0);
+
     return this.brandLogoImage.evaluate((img) => ({
       currentSrc: img.currentSrc,
       height: img.clientHeight,
@@ -148,6 +163,7 @@ export class MainLayout {
 
   async openPreferences() {
     await this.preferencesTrigger.click();
+    await expect(this.preferencesDrawer).toBeVisible();
     await expect(this.preferencesDrawerTitle).toBeVisible();
   }
 

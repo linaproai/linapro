@@ -368,53 +368,6 @@ function buildPageCopy(context) {
   };
 }
 
-function buildStandaloneCopy(pageCopy) {
-  return {
-    badge: pageCopy.badge,
-    card1Body: pageCopy.metrics[0]?.description || pageCopy.workspaceSummary,
-    card1Title: pageCopy.metrics[0]?.value || pageCopy.panelTitle,
-    card2Body: pageCopy.metrics[1]?.description || pageCopy.pageDescription,
-    card2Title: pageCopy.metrics[1]?.value || pageCopy.gridTitle,
-    footer: pageCopy.workspaceSummary,
-    heroTitle: pageCopy.pageTitle,
-    lead: pageCopy.pageDescription,
-    summary1Body: pageCopy.featureItems[0]?.description || "",
-    summary1Title: pageCopy.featureItems[0]?.value || "",
-    summary2Body: pageCopy.featureItems[1]?.description || "",
-    summary2Title: pageCopy.featureItems[1]?.value || "",
-    summary3Body: pageCopy.featureItems[2]?.description || "",
-    summary3Title: pageCopy.featureItems[2]?.value || "",
-    summaryTitle: pageCopy.panelTitle,
-    title: pageCopy.pageTitle,
-  };
-}
-
-function createStandalonePayloadKey(locale) {
-  return `linapro:plugin-demo-dynamic:standalone:${locale}:${Date.now()}`;
-}
-
-function persistStandaloneCopy(windowRef, locale, pageCopy) {
-  const storage = windowRef?.localStorage;
-  if (!storage) {
-    return "";
-  }
-
-  const key = createStandalonePayloadKey(locale);
-  try {
-    storage.setItem(
-      key,
-      JSON.stringify({
-        locale,
-        messages: buildStandaloneCopy(pageCopy),
-        savedAt: Date.now(),
-      }),
-    );
-    return key;
-  } catch (_error) {
-    return "";
-  }
-}
-
 function ensureMountStyles(documentRef) {
   if (documentRef.getElementById(hostStyleId)) {
     return;
@@ -1278,14 +1231,6 @@ export function mount(context) {
     const standaloneURL = new URL("./standalone.html", context.baseURL);
     if (currentLocale) {
       standaloneURL.searchParams.set("lang", currentLocale);
-    }
-    const payloadKey = persistStandaloneCopy(
-      documentRef.defaultView,
-      currentLocale,
-      pageCopy,
-    );
-    if (payloadKey) {
-      standaloneURL.searchParams.set("i18nKey", payloadKey);
     }
     window.open(standaloneURL.toString(), "_blank", "noopener,noreferrer");
   });

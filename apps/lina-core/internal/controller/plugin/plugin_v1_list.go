@@ -32,7 +32,11 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 
 	items := make([]*v1.PluginItem, 0, len(out.List))
 	for _, item := range out.List {
-		managedCronJobs := managedCronJobsByPlugin[item.Id]
+		managedCronJobs := localizeManagedCronJobs(
+			ctx,
+			managedCronJobsByPlugin[item.Id],
+			c.i18nSvc,
+		)
 		items = append(items, &v1.PluginItem{
 			Id:                    item.Id,
 			Name:                  item.Name,

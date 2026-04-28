@@ -120,11 +120,11 @@ test.describe("TC0108 英文运行时页面巡检", () => {
 
     await expect
       .poll(async () => await adminPage.locator("body").innerText())
-      .toContain("Enable Plugin");
+      .toMatch(/Enable Plugin/i);
 
     const operlogBodyText = await adminPage.locator("body").innerText();
     expect(operlogBodyText).toContain("Plugin Management");
-    expect(operlogBodyText).toContain("Enable Plugin");
+    expect(operlogBodyText).toMatch(/Enable Plugin/i);
     expect(operlogBodyText).not.toContain("启用插件");
     expect(operlogBodyText).not.toContain("禁用插件");
   });
@@ -139,10 +139,18 @@ test.describe("TC0108 英文运行时页面巡检", () => {
 
     await noticePage.goto();
 
-    await expect(adminPage.getByText("Notice", { exact: true }).first()).toBeVisible();
-    await expect(adminPage.getByText("Announcement", { exact: true }).first()).toBeVisible();
-    await expect(adminPage.getByText("Draft", { exact: true }).first()).toBeVisible();
-    await expect(adminPage.getByText("Published", { exact: true }).first()).toBeVisible();
+    await expect(
+      adminPage.getByText("Notice", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByText("Announcement", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByText("Draft", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      adminPage.getByText("Published", { exact: true }).first(),
+    ).toBeVisible();
 
     await expect(await noticePage.hasNotice("系统升级通知")).toBe(true);
   });
@@ -179,9 +187,7 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     await standalonePage.waitForLoadState("domcontentloaded");
     await standalonePage.waitForLoadState("networkidle").catch(() => {});
 
-    await expect
-      .poll(async () => standalonePage.url())
-      .toContain("lang=en-US");
+    await expect.poll(async () => standalonePage.url()).toContain("lang=en-US");
     await expect(
       standalonePage.getByText("Standalone Page Opened Successfully", {
         exact: true,

@@ -163,11 +163,15 @@ async function handleSubmit(action: SubmitAction) {
       if (action === 'install-and-enable') {
         try {
           await pluginEnable(pluginID);
-          message.success($t('pages.system.plugin.messages.installedAndEnabled'));
+          message.success(
+            $t('pages.system.plugin.messages.installedAndEnabled'),
+          );
         } catch {
           emit('reload');
           handleClosed();
-          message.warning($t('pages.system.plugin.messages.installSucceededEnableFailed'));
+          message.warning(
+            $t('pages.system.plugin.messages.installSucceededEnableFailed'),
+          );
           return;
         }
       } else {
@@ -207,6 +211,7 @@ function hasServiceTargets(service: HostServicePermissionItem) {
   return (
     (service.paths ?? []).length > 0 ||
     (service.tables ?? []).length > 0 ||
+    (service.cronItems ?? []).length > 0 ||
     (service.resources ?? []).length > 0
   );
 }
@@ -256,7 +261,10 @@ function hasServiceTargets(service: HostServicePermissionItem) {
         <DescriptionsItem :label="$t('pages.system.plugin.fields.version')">
           {{ currentPlugin.version }}
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.system.plugin.fields.description')" :span="2">
+        <DescriptionsItem
+          :label="$t('pages.system.plugin.fields.description')"
+          :span="2"
+        >
           {{ currentPlugin.description || '-' }}
         </DescriptionsItem>
       </Descriptions>

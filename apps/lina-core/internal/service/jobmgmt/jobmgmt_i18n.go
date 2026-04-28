@@ -21,12 +21,17 @@ const (
 	jobNameI18nField = "name"
 	// jobDescriptionI18nField identifies the built-in job description i18n field.
 	jobDescriptionI18nField = "description"
+	// pluginHandlerRefPrefix identifies plugin-owned scheduled-job handler refs.
+	pluginHandlerRefPrefix = "plugin:"
 )
 
-// jobmgmtI18nTranslator defines the narrow source-text translation capability jobmgmt needs.
+// jobmgmtI18nTranslator defines the narrow source-text translation capabilities jobmgmt needs.
 type jobmgmtI18nTranslator interface {
 	// TranslateSourceText returns one source-text-backed key with source text fallback.
 	TranslateSourceText(ctx context.Context, key string, sourceText string) string
+	// TranslateDynamicPluginSourceText returns one source-text-backed key from
+	// a dynamic-plugin artifact, falling back to sourceText when unavailable.
+	TranslateDynamicPluginSourceText(ctx context.Context, pluginID string, key string, sourceText string) string
 }
 
 // localizeGroupForDisplay translates the code-owned default group display
@@ -72,7 +77,7 @@ func (s *serviceImpl) localizeBuiltinJobName(
 	if isBuiltin != 1 {
 		return fallback
 	}
-	return s.translateSourceText(ctx, jobmeta.HandlerI18nKey(handlerRef, jobNameI18nField), fallback)
+	return s.translateHandlerSourceText(ctx, handlerRef, jobNameI18nField, fallback)
 }
 
 // localizeBuiltinJobDescription translates one built-in job description by handler ref.
@@ -85,7 +90,7 @@ func (s *serviceImpl) localizeBuiltinJobDescription(
 	if isBuiltin != 1 {
 		return fallback
 	}
-	return s.translateSourceText(ctx, jobmeta.HandlerI18nKey(handlerRef, jobDescriptionI18nField), fallback)
+	return s.translateHandlerSourceText(ctx, handlerRef, jobDescriptionI18nField, fallback)
 }
 
 // localizedHandlerRefsMatchingKeyword returns handler refs whose localized
@@ -99,8 +104,8 @@ func (s *serviceImpl) localizedHandlerRefsMatchingKeyword(ctx context.Context, k
 	refSet := make(map[string]struct{})
 	if s != nil && s.registry != nil {
 		for _, handler := range s.registry.List() {
-			displayName := s.translateSourceText(ctx, jobmeta.HandlerI18nKey(handler.Ref, jobNameI18nField), handler.DisplayName)
-			description := s.translateSourceText(ctx, jobmeta.HandlerI18nKey(handler.Ref, jobDescriptionI18nField), handler.Description)
+			displayName := s.translateHandlerSourceText(ctx, handler.Ref, jobNameI18nField, handler.DisplayName)
+			description := s.translateHandlerSourceText(ctx, handler.Ref, jobDescriptionI18nField, handler.Description)
 			if localizedTextMatchesKeyword(displayName, description, normalizedKeyword) {
 				refSet[handler.Ref] = struct{}{}
 			}
@@ -141,6 +146,18 @@ func localizedTextMatchesKeyword(name string, description string, normalizedKeyw
 		strings.Contains(strings.ToLower(description), normalizedKeyword)
 }
 
+// translateHandlerSourceText resolves handler-owned display metadata, including
+// dynamic-plugin artifact-local resources before a plugin is enabled.
+func (s *serviceImpl) translateHandlerSourceText(ctx context.Context, handlerRef string, field string, sourceText string) string {
+	key := jobmeta.HandlerI18nKey(handlerRef, field)
+	translated := s.translateSourceText(ctx, key, sourceText)
+	pluginID := pluginIDFromHandlerRef(handlerRef)
+	if pluginID == "" || s == nil || s.i18nSvc == nil {
+		return translated
+	}
+	return s.i18nSvc.TranslateDynamicPluginSourceText(ctx, pluginID, key, translated)
+}
+
 // translateSourceText resolves code-owned display metadata with source-text
 // fallback so the selected locale never silently falls back to another language.
 func (s *serviceImpl) translateSourceText(ctx context.Context, key string, sourceText string) string {
@@ -148,4 +165,19 @@ func (s *serviceImpl) translateSourceText(ctx context.Context, key string, sourc
 		return sourceText
 	}
 	return s.i18nSvc.TranslateSourceText(ctx, key, sourceText)
+}
+
+// pluginIDFromHandlerRef extracts the plugin identifier from a plugin-owned
+// handler ref such as plugin:demo-plugin/cron:heartbeat.
+func pluginIDFromHandlerRef(handlerRef string) string {
+	trimmedRef := strings.TrimSpace(handlerRef)
+	if !strings.HasPrefix(trimmedRef, pluginHandlerRefPrefix) {
+		return ""
+	}
+	withoutPrefix := strings.TrimPrefix(trimmedRef, pluginHandlerRefPrefix)
+	separatorIndex := strings.Index(withoutPrefix, "/")
+	if separatorIndex <= 0 {
+		return ""
+	}
+	return strings.TrimSpace(withoutPrefix[:separatorIndex])
 }

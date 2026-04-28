@@ -61,6 +61,19 @@ func (f *fakeRoleConfigService) GetPublicFrontend(_ context.Context) *hostconfig
 	return &hostconfig.PublicFrontendConfig{}
 }
 
+// GetI18n returns the default runtime i18n config used in access-cache tests.
+func (f *fakeRoleConfigService) GetI18n(_ context.Context) *hostconfig.I18nConfig {
+	return &hostconfig.I18nConfig{
+		Default: "zh-CN",
+		Enabled: true,
+		Locales: []hostconfig.I18nLocaleConfig{
+			{Locale: "zh-CN", NativeName: "简体中文"},
+			{Locale: "en-US", NativeName: "English"},
+			{Locale: "zh-TW", NativeName: "繁體中文"},
+		},
+	}
+}
+
 // GetLogin returns an empty login config for tests.
 func (f *fakeRoleConfigService) GetLogin(_ context.Context) *hostconfig.LoginConfig {
 	return &hostconfig.LoginConfig{}

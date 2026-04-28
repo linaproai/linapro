@@ -89,7 +89,7 @@ func init() {
 }
 
 // InvalidateRuntimeBundleCache clears the cached runtime translation bundles
-// for the given scope. An empty scope drops every locale and every sector.
+// for the given scope. An empty scope clears every locale and every sector.
 func (s *serviceImpl) InvalidateRuntimeBundleCache(scope InvalidateScope) {
 	runtimeBundleCache.invalidate(scope)
 	// Locale descriptors are cached separately; any cache change should also
@@ -134,8 +134,9 @@ func invalidateRuntimeBundleCache() {
 }
 
 // invalidate applies one scoped invalidation. A locale entry whose sectors are
-// all touched simply rebuilds on next read; a per-sector clear keeps unaffected
-// sectors hot so unrelated locales avoid cascading rebuilds.
+// all touched rebuilds on next read while preserving its monotonic version; a
+// per-sector clear keeps unaffected sectors hot so unrelated locales avoid
+// cascading rebuilds.
 func (rc *runtimeCache) invalidate(scope InvalidateScope) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
@@ -143,12 +144,15 @@ func (rc *runtimeCache) invalidate(scope InvalidateScope) {
 	totalInvalidationsObserved.Add(1)
 	targetLocales := rc.resolveLocaleTargets(scope.Locales)
 
-	// An empty locale list with empty sectors means "wipe everything"; in that
-	// case we drop entries entirely so the next read repopulates them lazily
-	// without carrying any stale sectors.
+	// An empty sector list means every sector. Keep locale entries so ETag
+	// versions remain monotonic across full reloads.
 	if len(scope.Sectors) == 0 {
 		for _, locale := range targetLocales {
-			delete(rc.locales, locale)
+			if lc, ok := rc.locales[locale]; ok {
+				lc.invalidateSectors(InvalidateScope{
+					Sectors: []Sector{SectorHost, SectorSourcePlugin, SectorDynamicPlugin},
+				})
+			}
 		}
 		return
 	}

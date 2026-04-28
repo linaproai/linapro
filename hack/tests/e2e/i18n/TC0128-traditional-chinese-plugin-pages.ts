@@ -30,7 +30,7 @@ const legacyRuntimeArtifactPath = path.join(
 );
 
 const rawI18nKeyPattern =
-  /\b(?:authentication|common|menu|page|pages|plugin|preferences)\.[A-Za-z][A-Za-z0-9_.:-]+\b/g;
+  /\b(?:authentication|common|config|demos|dict|error|job|menu|notify|page|pages|plugin|preferences|profile|ui|validation)\.[A-Za-z][A-Za-z0-9_.:-]+\b/g;
 
 const sourcePluginIDs = [
   "org-center",
@@ -225,7 +225,10 @@ test.describe("TC0128 繁体中文插件页面巡检", () => {
 
     await expect.poll(async () => standalonePage.url()).toContain("lang=zh-TW");
     const standaloneText = await standalonePage.locator("body").innerText();
-    expect(standaloneText).toContain("動態插件示例已生效");
+    expect(standaloneText).toContain("獨立頁面已成功打開");
+    expect(standaloneText).toContain(
+      "當前頁面由 plugin-demo-dynamic 直接以託管靜態資源形式提供",
+    );
     expect(standaloneText).not.toContain("Standalone Page Opened Successfully");
     expect(standaloneText).not.toContain("Dynamic Plugin Demo");
     assertNoRawI18nKeys(standaloneText, "plugin-demo-dynamic standalone page");

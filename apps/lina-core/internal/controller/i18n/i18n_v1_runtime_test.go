@@ -106,6 +106,84 @@ func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 	}
 }
 
+// TestRuntimeLocalesReturnsDisabledDefaultOnly verifies the controller exposes
+// disabled language-switch state and a default-only descriptor list.
+func TestRuntimeLocalesReturnsDisabledDefaultOnly(t *testing.T) {
+	t.Parallel()
+
+	controller := &ControllerV1{
+		localeResolver: disabledRuntimeLocaleService{},
+		bundleProvider: disabledRuntimeLocaleService{},
+	}
+
+	res, err := controller.RuntimeLocales(context.Background(), &v1.RuntimeLocalesReq{Lang: i18nsvc.EnglishLocale})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if res.Locale != i18nsvc.DefaultLocale {
+		t.Fatalf("expected disabled runtime locale response locale %q, got %q", i18nsvc.DefaultLocale, res.Locale)
+	}
+	if res.Enabled {
+		t.Fatal("expected disabled runtime locale response to report enabled=false")
+	}
+	if len(res.Items) != 1 {
+		t.Fatalf("expected only one default locale item, got %d", len(res.Items))
+	}
+	if res.Items[0].Locale != i18nsvc.DefaultLocale || !res.Items[0].IsDefault {
+		t.Fatalf("expected default-only locale item, got %+v", res.Items[0])
+	}
+	if res.Items[0].Direction != i18nsvc.LocaleDirectionLTR.String() {
+		t.Fatalf("expected fixed LTR direction, got %q", res.Items[0].Direction)
+	}
+}
+
+// disabledRuntimeLocaleService is a narrow fake for controller disabled-i18n
+// response-shape tests.
+type disabledRuntimeLocaleService struct{}
+
+// ResolveRequestLocale always returns the configured default locale.
+func (disabledRuntimeLocaleService) ResolveRequestLocale(_ *ghttp.Request) string {
+	return i18nsvc.DefaultLocale
+}
+
+// ResolveLocale ignores explicit overrides and returns the configured default locale.
+func (disabledRuntimeLocaleService) ResolveLocale(_ context.Context, _ string) string {
+	return i18nsvc.DefaultLocale
+}
+
+// GetLocale always returns the configured default locale.
+func (disabledRuntimeLocaleService) GetLocale(_ context.Context) string {
+	return i18nsvc.DefaultLocale
+}
+
+// BundleVersion returns a stable fake bundle version.
+func (disabledRuntimeLocaleService) BundleVersion(_ string) uint64 {
+	return 1
+}
+
+// ListRuntimeLocales returns only the default locale descriptor.
+func (disabledRuntimeLocaleService) ListRuntimeLocales(_ context.Context, _ string) []i18nsvc.LocaleDescriptor {
+	return []i18nsvc.LocaleDescriptor{
+		{
+			Locale:     i18nsvc.DefaultLocale,
+			Name:       "简体中文",
+			NativeName: "简体中文",
+			Direction:  i18nsvc.LocaleDirectionLTR.String(),
+			IsDefault:  true,
+		},
+	}
+}
+
+// IsMultiLanguageEnabled reports disabled runtime language switching.
+func (disabledRuntimeLocaleService) IsMultiLanguageEnabled(_ context.Context) bool {
+	return false
+}
+
+// BuildRuntimeMessages returns an empty fake runtime bundle.
+func (disabledRuntimeLocaleService) BuildRuntimeMessages(_ context.Context, _ string) map[string]interface{} {
+	return map[string]interface{}{}
+}
+
 // lookupRuntimeMessage reads one dotted runtime message path from the nested response payload.
 func lookupRuntimeMessage(messages map[string]interface{}, key string) (string, bool) {
 	current := interface{}(messages)

@@ -13,15 +13,9 @@
       "e2e/monitor/online",
       "e2e/monitor/server"
     ],
-    "e2e/plugin": [
-      "e2e/extension/plugin"
-    ],
-    "e2e/debug": [
-      "debug"
-    ],
-    "e2e/system/job/helpers.ts": [
-      "support/api/job.ts"
-    ]
+    "e2e/plugin": ["e2e/extension/plugin"],
+    "e2e/debug": ["debug"],
+    "e2e/system/job/helpers.ts": ["support/api/job.ts"]
   },
   "moduleScopes": {
     "auth": ["e2e/auth"],
@@ -68,7 +62,9 @@
     "e2e/content",
     "e2e/extension/plugin",
     "e2e/iam/menu",
+    "e2e/i18n/TC0107-runtime-i18n-switch.ts",
     "e2e/i18n/TC0108-english-runtime-page-audit.ts",
+    "e2e/i18n/TC0128-traditional-chinese-plugin-pages.ts",
     "e2e/monitor",
     "e2e/org",
     "e2e/scheduler/job",

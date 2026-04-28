@@ -17,7 +17,16 @@ export class RolePage {
 
   /** The Vben drawer container */
   private get drawer() {
-    return this.page.locator('[role="dialog"]');
+    return this.page
+      .locator('[role="dialog"]')
+      .filter({
+        has: this.page.getByPlaceholder(/请输入角色名称|role name/i),
+      })
+      .last();
+  }
+
+  async waitForDrawerHidden(timeout = 10000) {
+    await this.drawer.waitFor({ state: "hidden", timeout });
   }
 
   async goto() {
@@ -110,12 +119,11 @@ export class RolePage {
     // Click confirm button - scroll into view first since dialog may be taller than viewport
     const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
     await confirmBtn.scrollIntoViewIfNeeded();
+    await this.dismissTourOverlayIfPresent();
     await confirmBtn.click({ force: true });
 
     await this.page.waitForLoadState("load");
-    await this.drawer
-      .waitFor({ state: "hidden", timeout: 10000 })
-      .catch(() => {});
+    await this.waitForDrawerHidden().catch(() => {});
     await waitForBusyIndicatorsToClear(this.page);
   }
 
@@ -139,12 +147,11 @@ export class RolePage {
     // Click confirm button - scroll into view first since dialog may be taller than viewport
     const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
     await confirmBtn.scrollIntoViewIfNeeded();
+    await this.dismissTourOverlayIfPresent();
     await confirmBtn.click({ force: true });
 
     await this.page.waitForLoadState("load");
-    await this.drawer
-      .waitFor({ state: "hidden", timeout: 10000 })
-      .catch(() => {});
+    await this.waitForDrawerHidden().catch(() => {});
     await waitForBusyIndicatorsToClear(this.page);
   }
 
@@ -305,6 +312,7 @@ export class RolePage {
       await drawer
         .locator(".vxe-table")
         .waitFor({ state: "visible", timeout: 5000 });
+      await this.dismissTourOverlayIfPresent();
       for (const menuName of params.menuNames) {
         await this.checkMenu(menuName);
       }
@@ -312,12 +320,11 @@ export class RolePage {
 
     const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
     await confirmBtn.scrollIntoViewIfNeeded();
+    await this.dismissTourOverlayIfPresent();
     await confirmBtn.click({ force: true });
 
     await this.page.waitForLoadState("load");
-    await this.drawer
-      .waitFor({ state: "hidden", timeout: 10000 })
-      .catch(() => {});
+    await this.waitForDrawerHidden().catch(() => {});
     await waitForBusyIndicatorsToClear(this.page);
   }
 
@@ -329,15 +336,17 @@ export class RolePage {
       .first()
       .click();
 
-    await this.drawer.waitFor({ state: "visible", timeout: 5000 });
+    const drawer = await waitForDialogReady(this.drawer);
+    await this.dismissTourOverlayIfPresent();
 
     // Wait for menu tree
-    await this.drawer
+    await drawer
       .locator(".vxe-table")
       .waitFor({ state: "visible", timeout: 3000 });
+    await this.dismissTourOverlayIfPresent();
 
     // Clear existing selections - expand all and uncheck all
-    const menuTree = this.drawer.locator(".vxe-table");
+    const menuTree = drawer.locator(".vxe-table");
     const allCheckboxes = menuTree.locator(".vxe-checkbox--icon");
     const count = await allCheckboxes.count();
     for (let i = 0; i < count; i++) {
@@ -357,13 +366,12 @@ export class RolePage {
       await this.checkMenu(menuName);
     }
 
-    const confirmBtn = this.drawer.getByRole("button", { name: /确\s*认/ });
+    const confirmBtn = drawer.getByRole("button", { name: /确\s*认/ });
     await confirmBtn.scrollIntoViewIfNeeded();
+    await this.dismissTourOverlayIfPresent();
     await confirmBtn.click({ force: true });
     await this.page.waitForLoadState("load");
-    await this.drawer
-      .waitFor({ state: "hidden", timeout: 10000 })
-      .catch(() => {});
+    await this.waitForDrawerHidden().catch(() => {});
     await waitForBusyIndicatorsToClear(this.page);
   }
 
@@ -392,7 +400,9 @@ export class RolePage {
   }
 
   private async dismissTourOverlayIfPresent() {
-    const endTourBtn = this.page.getByRole("button", { name: "结束导览" });
+    const endTourBtn = this.page.getByRole("button", {
+      name: /结束导览|End Tour/i,
+    });
     if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
       await endTourBtn.click({ force: true });
       await waitForBusyIndicatorsToClear(this.page);

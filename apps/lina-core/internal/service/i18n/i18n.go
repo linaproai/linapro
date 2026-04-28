@@ -91,6 +91,17 @@ type Translator interface {
 	LocalizeError(ctx context.Context, err error) string
 }
 
+// DynamicPluginTranslator defines artifact-local translation lookup for
+// dynamic-plugin release metadata that must render before the plugin is enabled.
+type DynamicPluginTranslator interface {
+	// TranslateDynamicPluginSourceText returns one key from the current request
+	// locale by reading the latest dynamic-plugin release artifact directly,
+	// falling back to sourceText when the plugin, artifact, locale, or key is
+	// unavailable. It does not add inactive plugin resources to the global
+	// runtime bundle cache.
+	TranslateDynamicPluginSourceText(ctx context.Context, pluginID string, key string, sourceText string) string
+}
+
 // BundleProvider defines runtime locale descriptors, runtime bundles, and bundle versioning.
 type BundleProvider interface {
 	// BundleVersion returns the per-locale runtime translation bundle version.
@@ -129,6 +140,7 @@ type Maintainer interface {
 type Service interface {
 	LocaleResolver
 	Translator
+	DynamicPluginTranslator
 	BundleProvider
 	Maintainer
 }

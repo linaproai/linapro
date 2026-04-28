@@ -1,15 +1,20 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mergeLocaleMessage, preferencesState, setRuntimeLocaleOptions } =
-  vi.hoisted(() => ({
-    mergeLocaleMessage: vi.fn(),
-    preferencesState: {
-      app: {
-        locale: 'en-US',
-      },
+const {
+  loadRuntimeLocaleOptions,
+  mergeLocaleMessage,
+  preferencesState,
+  setRuntimeLocaleOptions,
+} = vi.hoisted(() => ({
+  loadRuntimeLocaleOptions: vi.fn(),
+  mergeLocaleMessage: vi.fn(),
+  preferencesState: {
+    app: {
+      locale: 'en-US',
     },
-    setRuntimeLocaleOptions: vi.fn(),
-  }));
+  },
+  setRuntimeLocaleOptions: vi.fn(),
+}));
 
 vi.mock('@vben/locales', () => ({
   $t: (key: string) => key,
@@ -32,7 +37,7 @@ vi.mock('@vben/preferences', () => ({
 }));
 
 vi.mock('#/runtime/runtime-i18n', () => ({
-  loadRuntimeLocaleOptions: vi.fn(),
+  loadRuntimeLocaleOptions,
   loadRuntimeLocaleMessages: vi.fn(),
   mergeMessages: (
     target: Record<string, any>,
@@ -52,7 +57,7 @@ vi.mock('virtual:lina-app-third-party-locales', () => ({
   dayjsLocaleLoaders: {},
 }));
 
-import { createLocaleMessagesLoader } from './index';
+import { createLocaleMessagesLoader, resolveStartupLocale } from './index';
 
 function makeRuntimeLocalesResult(options: any[] = []) {
   return {
@@ -64,6 +69,11 @@ function makeRuntimeLocalesResult(options: any[] = []) {
 }
 
 describe('web locale message loader', () => {
+  beforeEach(() => {
+    loadRuntimeLocaleOptions.mockReset();
+    setRuntimeLocaleOptions.mockClear();
+  });
+
   it('uses runtime fallback semantics without blocking app locale loading', async () => {
     const notifyRuntimeFallback = vi.fn();
     const loader = createLocaleMessagesLoader({
@@ -127,6 +137,29 @@ describe('web locale message loader', () => {
 
     await loader('zh-CN');
 
+    expect(setRuntimeLocaleOptions).toHaveBeenCalledWith(options, {
+      enabled: false,
+    });
+  });
+
+  it('resolves startup locale to server default when runtime i18n is disabled', async () => {
+    const options = [
+      {
+        isDefault: true,
+        label: '简体中文',
+        nativeName: '简体中文',
+        value: 'zh-CN',
+      },
+    ];
+    loadRuntimeLocaleOptions.mockResolvedValue({
+      defaultLocale: 'zh-CN',
+      enabled: false,
+      locale: 'zh-CN',
+      options,
+    });
+
+    await expect(resolveStartupLocale('en-US')).resolves.toBe('zh-CN');
+    expect(loadRuntimeLocaleOptions).toHaveBeenCalledWith('en-US');
     expect(setRuntimeLocaleOptions).toHaveBeenCalledWith(options, {
       enabled: false,
     });

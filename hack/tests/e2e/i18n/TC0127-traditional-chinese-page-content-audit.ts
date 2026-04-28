@@ -2,13 +2,18 @@ import { test, expect } from "../../fixtures/auth";
 import { waitForRouteReady } from "../../support/ui";
 
 const rawI18nKeyPattern =
-  /\b(?:authentication|common|menu|page|pages|plugin|preferences)\.[A-Za-z][A-Za-z0-9_.:-]+\b/g;
+  /\b(?:authentication|common|config|demos|dict|error|job|menu|notify|page|pages|plugin|preferences|profile|ui|validation)\.[A-Za-z][A-Za-z0-9_.:-]+\b/g;
 
 const hostPageAuditCases = [
   {
     forbiddenTexts: ["Analytics", "Workspace", "工作台", "仪表盘"],
     path: "/dashboard/analytics",
     visibleTexts: ["工作臺", "訪問量"],
+  },
+  {
+    forbiddenTexts: ["Workspace", "Quick Navigation", "工作台", "快捷导航"],
+    path: "/dashboard/workspace",
+    visibleTexts: ["工作臺"],
   },
   {
     forbiddenTexts: ["Username", "User Management", "用户名", "用户管理"],
@@ -70,6 +75,16 @@ const hostPageAuditCases = [
     path: "/about/system-info",
     visibleTexts: ["系統信息", "後端"],
   },
+  {
+    forbiddenTexts: ["API Docs", "API Documentation", "接口文档"],
+    path: "/about/api-docs",
+    visibleTexts: ["接口文檔"],
+  },
+  {
+    forbiddenTexts: ["Profile", "Personal Center", "个人中心"],
+    path: "/profile",
+    visibleTexts: ["個人中心"],
+  },
 ] as const;
 
 function assertNoRawI18nKeys(bodyText: string, path: string) {
@@ -99,5 +114,29 @@ test.describe("TC0127 繁体中文宿主页面内容巡检", () => {
         assertNoRawI18nKeys(bodyText, auditCase.path);
       });
     }
+  });
+
+  test("TC-127b: 登录页展示繁体中文公共文案且不泄漏原始翻译键", async ({
+    loginPage,
+  }) => {
+    await loginPage.goto();
+    await loginPage.switchLanguage("繁體中文");
+
+    await expect(loginPage.loginSubtitle).toContainText(
+      "請輸入您的帳戶信息以開始管理您的項目",
+    );
+
+    const bodyText = await loginPage.getBodyText();
+    expect(bodyText).toContain("歡迎回來");
+    expect(bodyText).toContain("登錄");
+    await expect(loginPage.usernameInput).toHaveAttribute(
+      "placeholder",
+      /請輸入用戶名/,
+    );
+    expect(bodyText).not.toContain(
+      "AI-driven full-stack development framework",
+    );
+    expect(bodyText).not.toContain("请输入您的帐户信息以开始管理您的项目");
+    assertNoRawI18nKeys(bodyText, "/auth/login");
   });
 });

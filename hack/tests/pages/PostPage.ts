@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page } from "@playwright/test";
 
 import {
   waitForBusyIndicatorsToClear,
@@ -7,7 +7,7 @@ import {
   waitForDropdown,
   waitForRouteReady,
   waitForTableReady,
-} from '../support/ui';
+} from "../support/ui";
 
 export class PostPage {
   constructor(private page: Page) {}
@@ -18,14 +18,14 @@ export class PostPage {
   }
 
   async goto() {
-    await this.page.goto('/system/post');
+    await this.page.goto("/system/post");
     await waitForTableReady(this.page);
   }
 
   /** Click a dept node in the left DeptTree sidebar */
   async selectDept(deptName: string) {
     const treeNode = this.page
-      .locator('.ant-tree-node-content-wrapper', { hasText: deptName })
+      .locator(".ant-tree-node-content-wrapper", { hasText: deptName })
       .first();
     await treeNode.click();
     await waitForRouteReady(this.page);
@@ -34,7 +34,7 @@ export class PostPage {
   /** Create a new post by clicking toolbar "新增", filling the drawer */
   async createPost(deptName: string, code: string, name: string) {
     await this.page
-      .getByRole('button', { name: /新\s*增/ })
+      .getByRole("button", { name: /新\s*增/ })
       .first()
       .click();
 
@@ -42,35 +42,42 @@ export class PostPage {
     await waitForDialogReady(this.drawer);
 
     // The drawer marks required labels with a leading "*", so match by role/name.
-    await this.drawer.getByRole('combobox', { name: /所属部门/ }).click();
+    await this.drawer.getByRole("combobox", { name: /所属部门/ }).click();
     // Wait for tree dropdown to appear and select the dept
     const dropdown = await waitForDropdown(this.page);
-    await dropdown
-      .locator('.ant-select-tree-node-content-wrapper', { hasText: deptName })
+    const deptNode = dropdown
+      .locator(".ant-select-tree-treenode", { hasText: deptName })
       .first()
-      .click();
+      .locator(".ant-select-tree-title")
+      .first();
+    await deptNode.click({ force: true });
+    await dropdown
+      .waitFor({ state: "hidden", timeout: 5000 })
+      .catch(async () => {
+        await this.page.keyboard.press("Escape");
+      });
     await waitForBusyIndicatorsToClear(this.page);
 
-    await this.drawer.getByRole('textbox', { name: /岗位名称/ }).fill(name);
-    await this.drawer.getByRole('textbox', { name: /岗位编码/ }).fill(code);
+    await this.drawer.getByRole("textbox", { name: /岗位名称/ }).fill(name);
+    await this.drawer.getByRole("textbox", { name: /岗位编码/ }).fill(code);
 
     // Click confirm button
-    await this.drawer
-      .getByRole('button', { name: /确\s*认/ })
-      .click();
+    await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
 
     await waitForRouteReady(this.page);
-    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await this.drawer
+      .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
   }
 
   /** Edit a post: search by code, click edit, update name in drawer */
   async editPost(code: string, newName: string) {
     // Search for the post by code first to narrow results
-    await this.fillSearchField('岗位编码', code);
+    await this.fillSearchField("岗位编码", code);
     await this.clickSearch();
 
     await this.page
-      .locator('button:visible:not([disabled])')
+      .locator("button:visible:not([disabled])")
       .filter({ hasText: /编\s*辑/ })
       .first()
       .click();
@@ -78,41 +85,41 @@ export class PostPage {
     // Wait for drawer to open
     await waitForDialogReady(this.drawer);
 
-    const nameInput = this.drawer.getByRole('textbox', { name: /岗位名称/ });
+    const nameInput = this.drawer.getByRole("textbox", { name: /岗位名称/ });
     await nameInput.clear();
     await nameInput.fill(newName);
 
     // Click confirm button
-    await this.drawer
-      .getByRole('button', { name: /确\s*认/ })
-      .click();
+    await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
 
     await waitForRouteReady(this.page);
-    await this.drawer.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await this.drawer
+      .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
   }
 
   /** Delete a post: search by code, click delete, confirm */
   async deletePost(code: string) {
     // Search for the post by code first
-    await this.fillSearchField('岗位编码', code);
+    await this.fillSearchField("岗位编码", code);
     await this.clickSearch();
 
     await this.page
-      .locator('button:visible:not([disabled])')
+      .locator("button:visible:not([disabled])")
       .filter({ hasText: /删\s*除/ })
       .first()
       .click();
 
     // Confirm in Popconfirm
     const popconfirm = await waitForConfirmOverlay(this.page);
-    const confirmBtn = popconfirm.getByRole('button', {
+    const confirmBtn = popconfirm.getByRole("button", {
       name: /确\s*定|OK|是/i,
     });
     if (await confirmBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await confirmBtn.click();
     } else {
-      const modal = this.page.locator('.ant-modal-confirm');
-      await modal.getByRole('button', { name: /确\s*定|OK/i }).click();
+      const modal = this.page.locator(".ant-modal-confirm");
+      await modal.getByRole("button", { name: /确\s*定|OK/i }).click();
     }
 
     await waitForRouteReady(this.page);
@@ -120,10 +127,10 @@ export class PostPage {
 
   /** Check if a post with the given code is visible in the table */
   async hasPost(code: string): Promise<boolean> {
-    await this.fillSearchField('岗位编码', code);
+    await this.fillSearchField("岗位编码", code);
     await this.clickSearch();
     return this.page
-      .locator('.vxe-body--row:visible', { hasText: code })
+      .locator(".vxe-body--row:visible", { hasText: code })
       .first()
       .isVisible({ timeout: 5000 })
       .catch(() => false);
@@ -132,7 +139,7 @@ export class PostPage {
   /** Check if a post row with the given display name is visible in the table. */
   async hasPostName(name: string): Promise<boolean> {
     return this.page
-      .locator('.vxe-body--row:visible', { hasText: name })
+      .locator(".vxe-body--row:visible", { hasText: name })
       .first()
       .isVisible({ timeout: 5000 })
       .catch(() => false);
@@ -140,19 +147,17 @@ export class PostPage {
 
   /** Click export button */
   async clickExport() {
-    await this.page
-      .getByRole('button', { name: /导\s*出/ })
-      .click();
+    await this.page.getByRole("button", { name: /导\s*出/ }).click();
     await waitForDialogReady(this.page.locator('[role="dialog"]'));
   }
 
   /** Select a row by clicking its checkbox (search by code first) */
   async selectRow(code: string) {
-    await this.fillSearchField('岗位编码', code);
+    await this.fillSearchField("岗位编码", code);
     await this.clickSearch();
     // Click the first checkbox in body rows
     const checkbox = this.page
-      .locator('.vxe-body--row .vxe-checkbox--icon')
+      .locator(".vxe-body--row .vxe-checkbox--icon")
       .first();
     await checkbox.click();
     await waitForBusyIndicatorsToClear(this.page);
@@ -162,20 +167,20 @@ export class PostPage {
   async batchDelete() {
     // The toolbar delete button is a danger primary button
     await this.page
-      .locator('.vxe-grid--toolbar, .vxe-toolbar')
-      .getByRole('button', { name: /删\s*除/ })
+      .locator(".vxe-grid--toolbar, .vxe-toolbar")
+      .getByRole("button", { name: /删\s*除/ })
       .click();
 
     // Confirm in Modal.confirm
     const overlay = await waitForConfirmOverlay(this.page);
-    const modalConfirm = overlay.getByRole('button', { name: /确\s*定|OK/i }).last();
+    const modalConfirm = overlay
+      .getByRole("button", { name: /确\s*定|OK/i })
+      .last();
     if (await modalConfirm.isVisible({ timeout: 1000 }).catch(() => false)) {
       await modalConfirm.click();
     } else {
-      const modal = this.page.locator('.ant-modal-confirm');
-      await modal
-        .getByRole('button', { name: /确\s*定|OK/i })
-        .click();
+      const modal = this.page.locator(".ant-modal-confirm");
+      await modal.getByRole("button", { name: /确\s*定|OK/i }).click();
     }
 
     await waitForRouteReady(this.page);
@@ -191,7 +196,7 @@ export class PostPage {
   /** Click search/query button */
   async clickSearch() {
     await this.page
-      .getByRole('button', { name: /搜\s*索/ })
+      .getByRole("button", { name: /搜\s*索/ })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -200,7 +205,7 @@ export class PostPage {
   /** Click reset button */
   async clickReset() {
     await this.page
-      .getByRole('button', { name: /重\s*置/ })
+      .getByRole("button", { name: /重\s*置/ })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -208,7 +213,7 @@ export class PostPage {
 
   /** Get the total count from the pager */
   async getTotalCount(): Promise<number> {
-    const pager = this.page.locator('.vxe-pager--total');
+    const pager = this.page.locator(".vxe-pager--total");
     const text = await pager.textContent();
     const match = text?.match(/(\d+)/);
     return match ? parseInt(match[1], 10) : 0;

@@ -283,6 +283,31 @@ func TestBuildConfiguredRuntimeLocalesDisabledReturnsDefaultOnly(t *testing.T) {
 	}
 }
 
+// TestResolveLocaleUsesDefaultWhenI18nDisabled verifies explicit non-default
+// locale requests are ignored when runtime language switching is disabled.
+func TestResolveLocaleUsesDefaultWhenI18nDisabled(t *testing.T) {
+	resetRuntimeBundleCache()
+	t.Cleanup(resetRuntimeBundleCache)
+
+	cfg := &hostconfig.I18nConfig{
+		Default: DefaultLocale,
+		Enabled: false,
+		Locales: []hostconfig.I18nLocaleConfig{
+			{Locale: DefaultLocale, NativeName: "简体中文"},
+			{Locale: EnglishLocale, NativeName: "English"},
+			{Locale: "zh-TW", NativeName: "繁體中文"},
+		},
+	}
+	svc := &serviceImpl{configSvc: stubConfigService{cfg: cfg}}
+
+	if actual := svc.ResolveLocale(context.Background(), EnglishLocale); actual != DefaultLocale {
+		t.Fatalf("expected disabled i18n to resolve explicit locale to %q, got %q", DefaultLocale, actual)
+	}
+	if actual := svc.ResolveLocale(context.Background(), "zh-TW"); actual != DefaultLocale {
+		t.Fatalf("expected disabled i18n to resolve zh-TW to %q, got %q", DefaultLocale, actual)
+	}
+}
+
 // TestFallbackRuntimeLocalesUsesConfiguredDefault verifies the last-resort
 // runtime locale list is still driven by i18n.default.
 func TestFallbackRuntimeLocalesUsesConfiguredDefault(t *testing.T) {

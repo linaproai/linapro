@@ -124,8 +124,8 @@
 - [x] 14.2 更新 `apps/lina-vben/apps/web-antd/src/locales/README.md` 与中文镜像,说明固定 LTR 方向、持久化缓存策略
 - [x] 14.3 更新根 `CLAUDE.md` 中"i18n 持续治理要求"段落,补充"加新语言时禁止修改 Go 代码"与"运行时 cache 失效必须显式 scope"两条
 - [x] 14.4 调用 `lina-review` 技能对 P1 / P2 / P3 / 繁体中文 + 固定 LTR 四组改动分别完成代码与规范审查
-- [ ] 14.5 运行 `make test` 全套 E2E 通过(含新增 `TC0124` ~ `TC0129`)
-- [ ] 14.6 修复审查与 E2E 中暴露的全部阻断问题后,确认 `openspec validate framework-i18n-improvements` 通过
+- [x] 14.5 运行 `make test` 全套 E2E 通过(含新增 `TC0124` ~ `TC0129`)
+- [x] 14.6 修复审查与 E2E 中暴露的全部阻断问题后,确认 `openspec validate framework-i18n-improvements` 通过
 
 ## Feedback
 
@@ -141,3 +141,12 @@
 - [x] **FB-8**: 将运行时语言元数据从独立语言配置文件合并到默认配置文件 `i18n` 段,新增 `enabled` 开关,并确保关闭多语言或移除 `locales` 项时后端语言解析与前端语言切换按钮按配置生效,补充 `TC0130` 回归覆盖
 - [x] **FB-9**: 移除 `config_i18n.go`、`i18n_locale.go` 与 fallback 路径中的默认语言硬编码,确保默认语言和语言列表只来自默认配置文件 `i18n` 段
 - [x] **FB-10**: 移除 `config_i18n.go` 对默认配置模板路径和嵌入文件读取的依赖,改为只读取系统已装载的 `i18n` 配置段
+- [x] **FB-11**: `config.Service` 新增 `GetI18n` 后,`role` 单元测试 mock 未同步适配,导致后端全量单测编译失败
+- [x] **FB-12**: `i18n.enabled=false` 与 `zh-TW` 导出表头覆盖仍偏 E2E,需要补充后端/前端单元保护并扩展参数导出 E2E 断言
+- [x] **FB-13**: `zh-TW` apidoc 与 packed manifest 资源缺少单元级完整性保护,插件 apidoc 资源缺失可能被测试静默跳过
+- [x] **FB-14**: runtime bundle cache 全量/按语言失效的版本递增缺少单测,`i18n.enabled=false` 缺少 controller 层默认语言返回形态覆盖
+- [x] **FB-15**: 新增 i18n E2E 对插件状态、插件 apidoc、前端 ETag 流程、繁体登录页与 raw key 泄漏检测的覆盖仍不完整
+- [x] **FB-16**: full E2E 暴露默认品牌 Logo 静态资源缺失,偏好抽屉与用户抽屉页面对象 locator 过宽导致验证不稳定
+- [x] **FB-17**: full E2E serial 暴露动态插件安装前 cron 授权元数据无法从未启用 wasm 资源本地化,且安装并启用快捷授权链路对 cron host service 的 payload 覆盖不完整
+- [x] **FB-18**: 默认品牌 Logo 已在系统配置数据中统一为 `/logo.png`,前端默认偏好与 E2E 断言不应继续使用 `/linapro-mark.png`
+- [x] **FB-19**: `permission-display.ts` 中动态路由权限展示模板与片段词表仍维护在 TypeScript 中,需要收敛到前端 i18n JSON 资源并保留未知权限片段兜底展示

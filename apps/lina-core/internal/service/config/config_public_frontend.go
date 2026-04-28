@@ -65,13 +65,13 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAppLogo,
 		Name:         "品牌展示-应用 Logo",
-		DefaultValue: "/linapro-mark.png",
+		DefaultValue: "/logo.png",
 		Remark:       "控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogoDark,
 		Name:         "品牌展示-深色 Logo",
-		DefaultValue: "/linapro-mark.png",
+		DefaultValue: "/logo.png",
 		Remark:       "控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。",
 	},
 	{

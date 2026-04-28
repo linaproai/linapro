@@ -1,80 +1,85 @@
-import { test, expect } from '../../fixtures/auth';
+import { test, expect } from "../../fixtures/auth";
+import { waitForRouteReady } from "../../support/ui";
 
-const runtimeMessagesPath = '/api/v1/i18n/runtime/messages';
+const runtimeMessagesPath = "/api/v1/i18n/runtime/messages";
+const runtimePersistentCacheKey = "linapro:i18n:runtime:en-US";
 
-test.describe('TC0124 运行时翻译包 ETag 协商', () => {
-  test('TC-124a: 首次请求返回 ETag 与 Cache-Control 头', async ({
+test.describe("TC0124 运行时翻译包 ETag 协商", () => {
+  test("TC-124a: 首次请求返回 ETag 与 Cache-Control 头", async ({
     adminPage,
   }) => {
     const response = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=en-US`,
       {
-        headers: { 'Accept-Language': 'en-US' },
+        headers: { "Accept-Language": "en-US" },
       },
     );
     expect(response.ok()).toBeTruthy();
     expect(response.status()).toBe(200);
 
-    const etag = response.headers()['etag'];
-    expect(etag, 'expected ETag header on first response').toBeTruthy();
+    const etag = response.headers()["etag"];
+    expect(etag, "expected ETag header on first response").toBeTruthy();
     expect(etag).toMatch(/^"en-US-\d+"$/);
 
-    const cacheControl = response.headers()['cache-control'];
-    expect(cacheControl).toBe('private, must-revalidate');
+    const cacheControl = response.headers()["cache-control"];
+    expect(cacheControl).toBe("private, must-revalidate");
 
     const payload = await response.json();
     const messages = payload?.data?.messages ?? payload?.messages;
-    expect(messages, 'expected messages payload to be present on 200').toBeTruthy();
+    expect(
+      messages,
+      "expected messages payload to be present on 200",
+    ).toBeTruthy();
   });
 
-  test('TC-124b: 携带匹配 If-None-Match 时返回 304 且无 body', async ({
+  test("TC-124b: 携带匹配 If-None-Match 时返回 304 且无 body", async ({
     adminPage,
   }) => {
     const firstResponse = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=en-US`,
       {
-        headers: { 'Accept-Language': 'en-US' },
+        headers: { "Accept-Language": "en-US" },
       },
     );
     expect(firstResponse.ok()).toBeTruthy();
-    const etag = firstResponse.headers()['etag'];
+    const etag = firstResponse.headers()["etag"];
     expect(etag).toBeTruthy();
 
     const secondResponse = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=en-US`,
       {
         headers: {
-          'Accept-Language': 'en-US',
-          'If-None-Match': etag!,
+          "Accept-Language": "en-US",
+          "If-None-Match": etag!,
         },
       },
     );
     expect(secondResponse.status()).toBe(304);
-    expect(secondResponse.headers()['etag']).toBe(etag);
+    expect(secondResponse.headers()["etag"]).toBe(etag);
 
     const body = await secondResponse.body();
-    expect(body.length, '304 response must not carry a body').toBe(0);
+    expect(body.length, "304 response must not carry a body").toBe(0);
   });
 
-  test('TC-124c: 不同语言独立 ETag,跨语言 If-None-Match 不命中', async ({
+  test("TC-124c: 不同语言独立 ETag,跨语言 If-None-Match 不命中", async ({
     adminPage,
   }) => {
     const enResponse = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=en-US`,
       {
-        headers: { 'Accept-Language': 'en-US' },
+        headers: { "Accept-Language": "en-US" },
       },
     );
-    const enEtag = enResponse.headers()['etag'];
+    const enEtag = enResponse.headers()["etag"];
     expect(enEtag).toMatch(/^"en-US-\d+"$/);
 
     const zhResponse = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=zh-CN`,
       {
-        headers: { 'Accept-Language': 'zh-CN' },
+        headers: { "Accept-Language": "zh-CN" },
       },
     );
-    const zhEtag = zhResponse.headers()['etag'];
+    const zhEtag = zhResponse.headers()["etag"];
     expect(zhEtag).toMatch(/^"zh-CN-\d+"$/);
     expect(zhEtag).not.toBe(enEtag);
 
@@ -83,36 +88,88 @@ test.describe('TC0124 运行时翻译包 ETag 协商', () => {
       `${runtimeMessagesPath}?lang=zh-CN`,
       {
         headers: {
-          'Accept-Language': 'zh-CN',
-          'If-None-Match': enEtag!,
+          "Accept-Language": "zh-CN",
+          "If-None-Match": enEtag!,
         },
       },
     );
     expect(crossResponse.status()).toBe(200);
   });
 
-  test('TC-124d: If-None-Match 通配符 * 也命中 304', async ({
-    adminPage,
-  }) => {
+  test("TC-124d: If-None-Match 通配符 * 也命中 304", async ({ adminPage }) => {
     const firstResponse = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=en-US`,
       {
-        headers: { 'Accept-Language': 'en-US' },
+        headers: { "Accept-Language": "en-US" },
       },
     );
-    const etag = firstResponse.headers()['etag'];
+    const etag = firstResponse.headers()["etag"];
     expect(etag).toBeTruthy();
 
     const wildcardResponse = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=en-US`,
       {
         headers: {
-          'Accept-Language': 'en-US',
-          'If-None-Match': '*',
+          "Accept-Language": "en-US",
+          "If-None-Match": "*",
         },
       },
     );
     expect(wildcardResponse.status()).toBe(304);
-    expect(wildcardResponse.headers()['etag']).toBe(etag);
+    expect(wildcardResponse.headers()["etag"]).toBe(etag);
+  });
+
+  test("TC-124e: 前端持久化缓存会在页面重载时发送 If-None-Match", async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    await adminPage.evaluate(
+      (key) => localStorage.removeItem(key),
+      runtimePersistentCacheKey,
+    );
+
+    await mainLayout.switchLanguage("English");
+
+    await expect
+      .poll(async () =>
+        adminPage.evaluate(
+          (key) => localStorage.getItem(key),
+          runtimePersistentCacheKey,
+        ),
+      )
+      .not.toBeNull();
+    const cachedEntry = await adminPage.evaluate(
+      (key) => localStorage.getItem(key),
+      runtimePersistentCacheKey,
+    );
+    const etag = JSON.parse(cachedEntry || "{}")?.etag;
+    expect(etag, "expected runtime i18n ETag in persistent cache").toMatch(
+      /^"en-US-\d+"$/,
+    );
+
+    const revalidationRequest = adminPage.waitForRequest((request) => {
+      if (!request.url().includes(runtimeMessagesPath)) {
+        return false;
+      }
+      if (!request.url().includes("lang=en-US")) {
+        return false;
+      }
+      return request.headers()["if-none-match"] === etag;
+    });
+    const revalidationResponse = adminPage.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        response.url().includes(runtimeMessagesPath) &&
+        response.url().includes("lang=en-US") &&
+        request.headers()["if-none-match"] === etag
+      );
+    });
+
+    await adminPage.reload({ waitUntil: "domcontentloaded" });
+    await waitForRouteReady(adminPage, 15_000);
+
+    await revalidationRequest;
+    const response = await revalidationResponse;
+    expect(response.status()).toBe(304);
   });
 });

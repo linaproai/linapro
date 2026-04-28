@@ -24,6 +24,9 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 		"manifest/config/config.template.yaml",
 		"manifest/i18n/zh-CN.json",
 		"manifest/i18n/en-US.json",
+		"manifest/i18n/zh-TW.json",
+		"manifest/i18n/apidoc/zh-TW.json",
+		"manifest/i18n/apidoc/zh-TW/core-api-i18n.json",
 	}
 
 	for _, path := range expectedPaths {
@@ -67,6 +70,11 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	if !strings.Contains(string(configContent), "enabled: true") {
 		t.Fatalf("expected packed config template to include i18n enabled default, got %q", string(configContent))
 	}
+	if !strings.Contains(string(configContent), "locale: zh-TW") ||
+		!strings.Contains(string(configContent), "nativeName: 繁體中文") {
+		t.Fatalf("expected packed config template to include zh-TW i18n metadata, got %q", string(configContent))
+	}
+	assertPackedI18nSectionHasNoDirection(t, string(configContent))
 
 	sqlContent, err := fs.ReadFile(Files, "manifest/sql/007-config-management.sql")
 	if err != nil {
@@ -74,5 +82,25 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	}
 	if !strings.Contains(string(sqlContent), "'sys.upload.maxSize', '20'") {
 		t.Fatalf("expected packed config-management sql to keep 20MB upload default, got %q", string(sqlContent))
+	}
+}
+
+// assertPackedI18nSectionHasNoDirection verifies locale direction remains a
+// fixed LTR runtime convention instead of a packed configuration option.
+func assertPackedI18nSectionHasNoDirection(t *testing.T, configContent string) {
+	t.Helper()
+
+	inI18nSection := false
+	for _, line := range strings.Split(configContent, "\n") {
+		if strings.HasPrefix(line, "i18n:") {
+			inI18nSection = true
+			continue
+		}
+		if inI18nSection && strings.TrimSpace(line) != "" && !strings.HasPrefix(line, " ") {
+			inI18nSection = false
+		}
+		if inI18nSection && strings.Contains(strings.TrimSpace(line), "direction") {
+			t.Fatalf("expected packed i18n config section to omit direction, got line %q", line)
+		}
 	}
 }

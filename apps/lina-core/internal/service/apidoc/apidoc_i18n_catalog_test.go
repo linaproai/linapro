@@ -68,35 +68,17 @@ func TestOpenAPIMetadataUsesEnglishSourceText(t *testing.T) {
 func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 	repoRoot := locateRepositoryRoot(t)
 	sourceEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/en-US.json"))
-	sourceZh := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/zh-CN.json"))
 	packedEn := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/apidoc/en-US.json"))
-	packedZh := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/apidoc/zh-CN.json"))
 	pluginEn := readOpenAPIPluginJSONBundles(t, repoRoot, "en-US")
-	pluginZh := readOpenAPIPluginJSONBundles(t, repoRoot, "zh-CN")
-	mergedZh := cloneOpenAPIMessageCatalog(sourceZh)
-	for _, bundle := range pluginZh {
-		mergeOpenAPIMessageCatalog(mergedZh, bundle)
-	}
 
 	assertOpenAPIBundlesMirror(t, "en-US", sourceEn, packedEn)
-	assertOpenAPIBundlesMirror(t, "zh-CN", sourceZh, packedZh)
 	assertOpenAPIEnglishBundlePlaceholder(t, sourceEn)
 	assertOpenAPIPluginEnglishBundlesArePlaceholders(t, pluginEn)
 	assertOpenAPIBundleUsesStructuredKeys(t, "en-US", sourceEn)
-	assertOpenAPIBundleUsesStructuredKeys(t, "zh-CN", sourceZh)
-	for pluginID, bundle := range pluginZh {
-		assertOpenAPIBundleUsesStructuredKeys(t, "zh-CN plugin "+pluginID, bundle)
-	}
 	assertOpenAPIBundleDoesNotTranslateGeneratedEntityMetadata(t, "en-US", sourceEn)
-	assertOpenAPIBundleDoesNotTranslateGeneratedEntityMetadata(t, "zh-CN", sourceZh)
 	for pluginID, bundle := range pluginEn {
 		assertOpenAPIBundleDoesNotTranslateGeneratedEntityMetadata(t, "en-US plugin "+pluginID, bundle)
 	}
-	for pluginID, bundle := range pluginZh {
-		assertOpenAPIBundleDoesNotTranslateGeneratedEntityMetadata(t, "zh-CN plugin "+pluginID, bundle)
-	}
-	assertOpenAPIHostBundleDoesNotOwnPluginKeys(t, sourceZh)
-	assertOpenAPIPluginBundlesOwnOnlyPluginKeys(t, pluginZh)
 
 	values := collectOpenAPISourceMetadataStrings(t)
 	values = append(values,
@@ -104,28 +86,6 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 		openAPIMetadataValue{Key: "fixed", Value: "Dynamic plugin route response", Location: "plugin/openapi"},
 		openAPIMetadataValue{Key: "fixed", Value: "Dynamic plugin route bridge is not executable", Location: "plugin/openapi"},
 	)
-
-	var missingChinese []string
-	var sourceTextKeys []string
-	for _, value := range values {
-		if strings.TrimSpace(value.Value) == "" {
-			continue
-		}
-		if !isOpenAPITranslatableMetadata(value) {
-			continue
-		}
-		if _, ok := mergedZh[value.Value]; ok {
-			sourceTextKeys = append(sourceTextKeys, "zh-CN: "+value.Location+": "+value.Value)
-		}
-	}
-	for _, value := range collectGeneratedEntityDescriptionStrings(t) {
-		if strings.TrimSpace(value.Value) == "" {
-			continue
-		}
-		if _, ok := mergedZh[value.Value]; ok {
-			sourceTextKeys = append(sourceTextKeys, "zh-CN generated: "+value.Location+": "+value.Value)
-		}
-	}
 
 	requiredKeys := collectOpenAPITranslatableStructuredKeys(t)
 	requiredKeys = append(requiredKeys,
@@ -139,18 +99,78 @@ func TestOpenAPII18nBundlesCoverCurrentMetadata(t *testing.T) {
 		"plugins.monitor_loginlog.api.loginlog.v1.ListReq.meta.tags",
 		"plugins.plugin_demo_dynamic.paths.get.backend_summary.meta.summary",
 	)
-	for _, key := range requiredKeys {
-		if strings.TrimSpace(resolveOpenAPITestMessage(mergedZh, key)) == "" {
-			missingChinese = append(missingChinese, "required structured key: "+key)
+
+	for _, locale := range []string{"zh-CN", "zh-TW"} {
+		locale := locale
+		t.Run(locale, func(t *testing.T) {
+			sourceBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/manifest/i18n/apidoc/"+locale+".json"))
+			packedBundle := readOpenAPIJSONBundle(t, filepath.Join(repoRoot, "apps/lina-core/internal/packed/manifest/i18n/apidoc/"+locale+".json"))
+			pluginBundles := readOpenAPIPluginJSONBundles(t, repoRoot, locale)
+			mergedBundle := cloneOpenAPIMessageCatalog(sourceBundle)
+			for _, bundle := range pluginBundles {
+				mergeOpenAPIMessageCatalog(mergedBundle, bundle)
+			}
+
+			assertOpenAPIBundlesMirror(t, locale, sourceBundle, packedBundle)
+			assertOpenAPIBundleUsesStructuredKeys(t, locale, sourceBundle)
+			for pluginID, bundle := range pluginBundles {
+				assertOpenAPIBundleUsesStructuredKeys(t, locale+" plugin "+pluginID, bundle)
+				assertOpenAPIBundleDoesNotTranslateGeneratedEntityMetadata(t, locale+" plugin "+pluginID, bundle)
+			}
+			assertOpenAPIBundleDoesNotTranslateGeneratedEntityMetadata(t, locale, sourceBundle)
+			assertOpenAPIHostBundleDoesNotOwnPluginKeys(t, sourceBundle)
+			assertOpenAPIPluginBundlesOwnOnlyPluginKeys(t, pluginBundles)
+			assertOpenAPINonEnglishBundleCoverage(t, locale, mergedBundle, values, requiredKeys)
+		})
+	}
+}
+
+// assertOpenAPINonEnglishBundleCoverage verifies one non-English apidoc bundle
+// has structured coverage and avoids source-text keyed translations.
+func assertOpenAPINonEnglishBundleCoverage(
+	t *testing.T,
+	locale string,
+	mergedBundle map[string]string,
+	values []openAPIMetadataValue,
+	requiredKeys []string,
+) {
+	t.Helper()
+
+	var missing []string
+	var sourceTextKeys []string
+	for _, value := range values {
+		if strings.TrimSpace(value.Value) == "" {
+			continue
+		}
+		if !isOpenAPITranslatableMetadata(value) {
+			continue
+		}
+		if _, ok := mergedBundle[value.Value]; ok {
+			sourceTextKeys = append(sourceTextKeys, locale+": "+value.Location+": "+value.Value)
+		}
+	}
+	for _, value := range collectGeneratedEntityDescriptionStrings(t) {
+		if strings.TrimSpace(value.Value) == "" {
+			continue
+		}
+		if _, ok := mergedBundle[value.Value]; ok {
+			sourceTextKeys = append(sourceTextKeys, locale+" generated: "+value.Location+": "+value.Value)
 		}
 	}
 
-	if len(missingChinese) > 0 || len(sourceTextKeys) > 0 {
+	for _, key := range requiredKeys {
+		if strings.TrimSpace(resolveOpenAPITestMessage(mergedBundle, key)) == "" {
+			missing = append(missing, "required structured key: "+key)
+		}
+	}
+
+	if len(missing) > 0 || len(sourceTextKeys) > 0 {
 		t.Fatalf(
-			"OpenAPI apidoc i18n bundles are incomplete: missingChinese=%d sourceTextKeys=%d\nmissing zh-CN:\n%s\nsource-text keys:\n%s",
-			len(missingChinese),
+			"OpenAPI apidoc %s i18n bundles are incomplete: missing=%d sourceTextKeys=%d\nmissing:\n%s\nsource-text keys:\n%s",
+			locale,
+			len(missing),
 			len(sourceTextKeys),
-			strings.Join(limitStrings(missingChinese, 20), "\n"),
+			strings.Join(limitStrings(missing, 20), "\n"),
 			strings.Join(limitStrings(sourceTextKeys, 20), "\n"),
 		)
 	}
@@ -746,37 +766,61 @@ func readOpenAPIPluginJSONBundles(t *testing.T, repoRoot string, locale string) 
 			continue
 		}
 		pluginID := entry.Name()
+		pluginRoot := filepath.Join(pluginsRoot, pluginID)
 		bundlePath := filepath.Join(pluginsRoot, pluginID, "manifest/i18n/apidoc", locale+".json")
 		bundleDir := filepath.Join(pluginsRoot, pluginID, "manifest/i18n/apidoc", locale)
-		if _, fileErr := os.Stat(bundlePath); fileErr != nil {
-			if _, dirErr := os.Stat(bundleDir); dirErr != nil {
-				if os.IsNotExist(fileErr) && os.IsNotExist(dirErr) {
-					continue
-				}
-				if !os.IsNotExist(fileErr) {
-					t.Fatalf("stat plugin apidoc bundle %s failed: %v", bundlePath, fileErr)
-				}
-				t.Fatalf("stat plugin apidoc bundle dir %s failed: %v", bundleDir, dirErr)
-			}
-			if !os.IsNotExist(fileErr) {
-				t.Fatalf("stat plugin apidoc bundle %s failed: %v", bundlePath, fileErr)
-			}
+
+		fileExists := false
+		if _, fileErr := os.Stat(bundlePath); fileErr == nil {
+			fileExists = true
+		} else if !os.IsNotExist(fileErr) {
+			t.Fatalf("stat plugin apidoc bundle %s failed: %v", bundlePath, fileErr)
 		}
-		if bundle := readOpenAPIJSONBundle(t, bundlePath); len(bundle) > 0 || locale == "en-US" {
-			result[pluginID] = bundle
-			continue
-		}
+
+		dirExists := false
 		if _, dirErr := os.Stat(bundleDir); dirErr == nil {
-			result[pluginID] = readOpenAPIJSONBundle(t, bundlePath)
+			dirExists = true
 		} else if !os.IsNotExist(dirErr) {
 			t.Fatalf("stat plugin apidoc bundle dir %s failed: %v", bundleDir, dirErr)
-		} else {
-			if _, statErr := os.Stat(bundlePath); statErr != nil {
-				continue
-			}
 		}
+
+		if !fileExists && !dirExists {
+			if pluginHasOpenAPIResources(t, pluginRoot) {
+				t.Fatalf("plugin %s has API DTOs but is missing %s apidoc bundle at %s or %s", pluginID, locale, bundlePath, bundleDir)
+			}
+			continue
+		}
+		result[pluginID] = readOpenAPIJSONBundle(t, bundlePath)
 	}
 	return result
+}
+
+// pluginHasOpenAPIResources reports whether one source plugin owns API DTOs
+// that require a plugin-local apidoc bundle for every supported non-English locale.
+func pluginHasOpenAPIResources(t *testing.T, pluginRoot string) bool {
+	t.Helper()
+
+	apiRoot := filepath.Join(pluginRoot, "backend/api")
+	hasAPI := false
+	if err := filepath.WalkDir(apiRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") {
+			hasAPI = true
+			return filepath.SkipAll
+		}
+		return nil
+	}); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
+		t.Fatalf("scan plugin API root %s failed: %v", apiRoot, err)
+	}
+	return hasAPI
 }
 
 // assertOpenAPIEnglishBundlePlaceholder ensures English docs are driven by API

@@ -1,5 +1,5 @@
-import { test, expect } from '../../../fixtures/auth';
-import { RolePage } from '../../../pages/RolePage';
+import { test, expect } from "../../../fixtures/auth";
+import { RolePage } from "../../../pages/RolePage";
 
 async function expectPageHeightStable(page: any, pageName: string) {
   const samples = await page.evaluate(async () => {
@@ -17,7 +17,7 @@ async function expectPageHeightStable(page: any, pageName: string) {
 
   expect(
     Math.max(...samples) - Math.min(...samples),
-    `${pageName}高度未稳定，采样结果: ${samples.join(', ')}`,
+    `${pageName}高度未稳定，采样结果: ${samples.join(", ")}`,
   ).toBeLessThanOrEqual(16);
 }
 
@@ -32,26 +32,26 @@ async function expectPageHeightStable(page: any, pageName: string) {
  * - 角色状态切换
  * - 角色菜单分配
  */
-test.describe('TC0061 角色管理 CRUD', () => {
+test.describe("TC0061 角色管理 CRUD", () => {
   const testRoleName = `e2e_role_${Date.now()}`;
   const testRoleCode = `e2e_role_code_${Date.now()}`;
 
-  test('TC0061a: 角色列表页面正常加载', async ({ adminPage }) => {
+  test("TC0061a: 角色列表页面正常加载", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
     // 验证表格可见
-    const table = adminPage.locator('.vxe-table');
+    const table = adminPage.locator(".vxe-table");
     await expect(table).toBeVisible({ timeout: 10000 });
 
     // 验证工具栏按钮可见
     await expect(
-      adminPage.getByRole('button', { name: /新\s*增/ }).first(),
+      adminPage.getByRole("button", { name: /新\s*增/ }).first(),
     ).toBeVisible({ timeout: 5000 });
-    await expectPageHeightStable(adminPage, '角色管理页');
+    await expectPageHeightStable(adminPage, "角色管理页");
   });
 
-  test('TC0061b: 创建角色对话框打开', async ({ adminPage }) => {
+  test("TC0061b: 创建角色对话框打开", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
@@ -69,7 +69,7 @@ test.describe('TC0061 角色管理 CRUD', () => {
     // Drawer will be closed by the test cleanup
   });
 
-  test('TC0061c: 创建新角色', async ({ adminPage }) => {
+  test("TC0061c: 创建新角色", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
@@ -77,12 +77,11 @@ test.describe('TC0061 角色管理 CRUD', () => {
       name: testRoleName,
       code: testRoleCode,
       sort: 999,
-      remark: 'E2E测试角色',
+      remark: "E2E测试角色",
     });
 
     // 等待抽屉关闭表示提交完成
-    const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'hidden', timeout: 15000 });
+    await rolePage.waitForDrawerHidden(15000);
 
     // 验证角色已创建
     await rolePage.searchRole(testRoleName);
@@ -90,7 +89,7 @@ test.describe('TC0061 角色管理 CRUD', () => {
     expect(hasRole).toBeTruthy();
   });
 
-  test('TC0061d: 编辑角色', async ({ adminPage }) => {
+  test("TC0061d: 编辑角色", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
@@ -111,8 +110,7 @@ test.describe('TC0061 角色管理 CRUD', () => {
     await rolePage.editRole(testRoleName, newName);
 
     // 等待抽屉关闭
-    const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'hidden', timeout: 10000 });
+    await rolePage.waitForDrawerHidden();
 
     // 验证编辑成功
     await rolePage.goto();
@@ -124,7 +122,7 @@ test.describe('TC0061 角色管理 CRUD', () => {
     (test as any).testRoleName = newName;
   });
 
-  test('TC0061e: 角色状态切换', async ({ adminPage }) => {
+  test("TC0061e: 角色状态切换", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
@@ -140,21 +138,21 @@ test.describe('TC0061 角色管理 CRUD', () => {
     }
 
     // 获取当前状态
-    const switchEl = adminPage.locator('.vxe-body--row .ant-switch').first();
-    const initialState = await switchEl.getAttribute('aria-checked');
+    const switchEl = adminPage.locator(".vxe-body--row .ant-switch").first();
+    const initialState = await switchEl.getAttribute("aria-checked");
 
     // 切换状态
     await rolePage.toggleStatus(currentRoleName);
 
     // 验证状态已改变
-    const newState = await switchEl.getAttribute('aria-checked');
+    const newState = await switchEl.getAttribute("aria-checked");
     expect(newState).not.toBe(initialState);
 
     // 恢复原状态
     await rolePage.toggleStatus(currentRoleName);
   });
 
-  test('TC0061f: 角色菜单分配', async ({ adminPage }) => {
+  test("TC0061f: 角色菜单分配", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
@@ -173,14 +171,13 @@ test.describe('TC0061 角色管理 CRUD', () => {
     }
 
     // 编辑角色并分配菜单
-    await rolePage.assignMenusToRole(currentRoleName, ['权限管理']);
+    await rolePage.assignMenusToRole(currentRoleName, ["权限管理"]);
 
     // 等待抽屉关闭
-    const drawer = adminPage.locator('[role="dialog"]');
-    await drawer.waitFor({ state: 'hidden', timeout: 10000 });
+    await rolePage.waitForDrawerHidden();
   });
 
-  test('TC0061g: 删除角色', async ({ adminPage }) => {
+  test("TC0061g: 删除角色", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
@@ -210,44 +207,44 @@ test.describe('TC0061 角色管理 CRUD', () => {
     expect(hasRole).toBeFalsy();
   });
 
-  test('TC0061h: 角色搜索功能', async ({ adminPage }) => {
+  test("TC0061h: 角色搜索功能", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
     // 搜索管理员角色
-    await rolePage.searchRole('管理员');
+    await rolePage.searchRole("管理员");
 
     // 验证搜索结果
-    const hasAdmin = await rolePage.hasRole('管理员');
+    const hasAdmin = await rolePage.hasRole("管理员");
     expect(hasAdmin).toBeTruthy();
 
     // 重置搜索
     await rolePage.resetSearch();
 
     // 验证重置后能看到更多角色
-    const rowsBefore = await adminPage.locator('.vxe-body--row').count();
-    await rolePage.searchRole('管理员');
-    const rowsAfter = await adminPage.locator('.vxe-body--row').count();
+    const rowsBefore = await adminPage.locator(".vxe-body--row").count();
+    await rolePage.searchRole("管理员");
+    const rowsAfter = await adminPage.locator(".vxe-body--row").count();
     expect(rowsBefore).toBeGreaterThanOrEqual(rowsAfter);
   });
 
-  test('TC0061i: 超级管理员角色不可编辑删除', async ({ adminPage }) => {
+  test("TC0061i: 超级管理员角色不可编辑删除", async ({ adminPage }) => {
     const rolePage = new RolePage(adminPage);
     await rolePage.goto();
 
     // 搜索超级管理员角色 (id=1)
-    await rolePage.searchRole('超级管理员');
+    await rolePage.searchRole("超级管理员");
 
     // 验证超级管理员存在
-    const hasAdmin = await rolePage.hasRole('超级管理员');
+    const hasAdmin = await rolePage.hasRole("超级管理员");
     expect(hasAdmin).toBeTruthy();
 
     // 验证状态开关被禁用
-    const isDisabled = await rolePage.isStatusSwitchDisabled('超级管理员');
+    const isDisabled = await rolePage.isStatusSwitchDisabled("超级管理员");
     expect(isDisabled).toBeTruthy();
 
     // 验证复选框被禁用
-    const isCheckboxDisabled = await rolePage.isCheckboxDisabled('超级管理员');
+    const isCheckboxDisabled = await rolePage.isCheckboxDisabled("超级管理员");
     expect(isCheckboxDisabled).toBeTruthy();
   });
 });

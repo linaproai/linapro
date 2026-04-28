@@ -11,8 +11,10 @@ import (
 	"testing"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/dao"
+	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/pkg/pluginbridge"
 )
@@ -91,6 +93,50 @@ func TestBuildRuntimeMessagesIncludesEnabledDynamicPluginAssets(t *testing.T) {
 	messages = svc.BuildRuntimeMessages(ctx, EnglishLocale)
 	if _, ok := lookupMessageString(messages, key); ok {
 		t.Fatalf("expected dynamic plugin translation %q to disappear after uninstall", key)
+	}
+}
+
+// TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable verifies
+// pre-install review metadata can be localized from a dynamic-plugin artifact
+// without adding inactive plugin resources to the global runtime bundle.
+func TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable(t *testing.T) {
+	resetRuntimeBundleCache()
+
+	var (
+		ctx      = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: DefaultLocale})
+		svc      = New()
+		pluginID = "plugin-i18n-dynamic-source-text"
+		key      = "job.handler.plugin.plugin-i18n-dynamic-source-text.cron.heartbeat.name"
+	)
+
+	artifactPath := writeDynamicPluginI18NArtifactForTest(t, pluginID, []*dynamicPluginI18NAsset{
+		{
+			Locale:  DefaultLocale,
+			Content: `{"job":{"handler":{"plugin":{"plugin-i18n-dynamic-source-text":{"cron":{"heartbeat":{"name":"动态插件心跳"}}}}}}}`,
+		},
+	})
+	releaseID := insertDynamicPluginReleaseForTest(t, ctx, do.SysPluginRelease{
+		PluginId:       pluginID,
+		ReleaseVersion: testDynamicPluginI18NVersion,
+		Type:           dynamicPluginType,
+		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		Status:         dynamicPluginReleaseStatusActive,
+		PackagePath:    artifactPath,
+		Checksum:       "dynamic-plugin-source-text-test-checksum",
+	})
+	t.Cleanup(func() {
+		deleteDynamicPluginReleaseByID(t, ctx, releaseID)
+		resetRuntimeBundleCache()
+	})
+
+	actual := svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Heartbeat")
+	if actual != "动态插件心跳" {
+		t.Fatalf("expected pre-enable dynamic plugin translation, got %q", actual)
+	}
+
+	messages := svc.BuildRuntimeMessages(ctx, DefaultLocale)
+	if _, ok := lookupMessageString(messages, key); ok {
+		t.Fatalf("expected inactive dynamic plugin key %q to stay out of global runtime bundle", key)
 	}
 }
 

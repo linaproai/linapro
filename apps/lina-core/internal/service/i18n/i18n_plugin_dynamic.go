@@ -164,6 +164,108 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundle(ctx context.Context, locale 
 	return bundles[trimmedPluginID]
 }
 
+// TranslateDynamicPluginSourceText resolves source-owned text from the latest
+// dynamic-plugin release artifact without adding inactive plugin resources to
+// the process-wide runtime bundle cache.
+func (s *serviceImpl) TranslateDynamicPluginSourceText(ctx context.Context, pluginID string, key string, sourceText string) string {
+	trimmedPluginID := strings.TrimSpace(pluginID)
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedPluginID == "" || trimmedKey == "" {
+		return sourceText
+	}
+
+	bundle, err := s.loadDynamicPluginReleaseLocaleBundle(ctx, s.GetLocale(ctx), trimmedPluginID)
+	if err != nil {
+		logger.Warningf(ctx, "load dynamic plugin source-text i18n failed plugin=%s err=%v", trimmedPluginID, err)
+		return sourceText
+	}
+	if value := strings.TrimSpace(bundle[trimmedKey]); value != "" {
+		return value
+	}
+	return sourceText
+}
+
+// loadDynamicPluginReleaseLocaleBundle loads one locale bundle from the latest
+// known dynamic-plugin release artifact regardless of install or enable state.
+func (s *serviceImpl) loadDynamicPluginReleaseLocaleBundle(ctx context.Context, locale string, pluginID string) (map[string]string, error) {
+	release, err := s.getLatestDynamicPluginReleaseForI18N(ctx, pluginID)
+	if err != nil || release == nil || strings.TrimSpace(release.PackagePath) == "" {
+		return map[string]string{}, err
+	}
+
+	assets, err := s.readDynamicPluginI18NAssets(ctx, release.PackagePath)
+	if err != nil {
+		return nil, err
+	}
+	localeAssets := make([]i18nresource.LocaleAsset, 0, len(assets))
+	for _, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		localeAssets = append(localeAssets, i18nresource.LocaleAsset{
+			Locale:  asset.Locale,
+			Content: asset.Content,
+		})
+	}
+	if len(localeAssets) == 0 {
+		return map[string]string{}, nil
+	}
+
+	bundles := i18nresource.ResourceLoader{
+		PluginScope: i18nresource.PluginScopeOpen,
+		ValueMode:   i18nresource.ValueModeStringifyScalars,
+	}.LoadDynamicPluginBundles(ctx, s.ResolveLocale(ctx, locale), []i18nresource.ReleaseRef{
+		{
+			PluginID: pluginID,
+			Assets:   localeAssets,
+		},
+	})
+	return bundles[pluginID], nil
+}
+
+// getLatestDynamicPluginReleaseForI18N returns the release artifact that should
+// provide pre-enable dynamic-plugin metadata translation.
+func (s *serviceImpl) getLatestDynamicPluginReleaseForI18N(ctx context.Context, pluginID string) (*entity.SysPluginRelease, error) {
+	trimmedPluginID := strings.TrimSpace(pluginID)
+	if trimmedPluginID == "" {
+		return nil, nil
+	}
+
+	var plugin *entity.SysPlugin
+	if err := dao.SysPlugin.Ctx(ctx).
+		Where(do.SysPlugin{
+			PluginId: trimmedPluginID,
+			Type:     dynamicPluginType,
+		}).
+		Scan(&plugin); err != nil {
+		return nil, err
+	}
+	if plugin != nil && plugin.ReleaseId > 0 {
+		var release *entity.SysPluginRelease
+		if err := dao.SysPluginRelease.Ctx(ctx).
+			Where(do.SysPluginRelease{Id: plugin.ReleaseId}).
+			Scan(&release); err != nil {
+			return nil, err
+		}
+		if release != nil && strings.TrimSpace(release.PackagePath) != "" {
+			return release, nil
+		}
+	}
+
+	var release *entity.SysPluginRelease
+	err := dao.SysPluginRelease.Ctx(ctx).
+		Where(do.SysPluginRelease{
+			PluginId: trimmedPluginID,
+			Type:     dynamicPluginType,
+		}).
+		OrderDesc(dao.SysPluginRelease.Columns().Id).
+		Scan(&release)
+	if err != nil {
+		return nil, err
+	}
+	return release, nil
+}
+
 // listEnabledDynamicPluginReleases returns active release rows for plugins that are currently enabled.
 func (s *serviceImpl) listEnabledDynamicPluginReleases(ctx context.Context) ([]*entity.SysPluginRelease, error) {
 	var plugins []*entity.SysPlugin

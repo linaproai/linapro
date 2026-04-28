@@ -66,7 +66,7 @@ const defaultPreferences: Preferences = {
   logo: {
     enable: true,
     fit: 'contain',
-    source: '/linapro-mark.png',
+    source: '/logo.png',
   },
   navigation: {
     accordion: true,
