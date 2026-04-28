@@ -27,7 +27,8 @@ plugin-demo-source/
 
 ## What This Sample Demonstrates
 
-- install SQL under `manifest/sql/` creates the plugin-owned table `plugin_demo_source_record` and seeds one initial row
+- install SQL under `manifest/sql/` creates the plugin-owned table `plugin_demo_source_record`
+- mock SQL under `manifest/sql/mock-data/` provides optional demo records for local sample data
 - uninstall SQL under `manifest/sql/uninstall/` drops the plugin-owned table when the user confirms storage purge
 - the sample page in `frontend/pages/sidebar-entry.vue` performs CRUD against the plugin-owned table and supports attachment upload/download
 - plugin-owned attachment files are stored under the host upload root in the `plugin-demo-source/` namespace

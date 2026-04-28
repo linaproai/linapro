@@ -12,20 +12,3 @@ CREATE TABLE IF NOT EXISTS `plugin_demo_source_record` (
     `created_at`      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='源码插件示例记录表';
-
-INSERT IGNORE INTO `plugin_demo_source_record` (
-    `title`,
-    `content`,
-    `attachment_name`,
-    `attachment_path`
-)
-SELECT
-    '源码插件 SQL 示例记录',
-    '该记录由 plugin-demo-source 的安装 SQL 初始化，用于演示源码插件页面如何对安装时创建的数据表执行增删查改操作。',
-    '',
-    ''
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM `plugin_demo_source_record`
-    WHERE `title` = '源码插件 SQL 示例记录'
-);

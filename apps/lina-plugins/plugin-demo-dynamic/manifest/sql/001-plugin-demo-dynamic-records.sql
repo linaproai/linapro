@@ -12,22 +12,3 @@ CREATE TABLE IF NOT EXISTS `plugin_demo_dynamic_record` (
     `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) COMMENT='动态插件示例记录表';
-
-INSERT IGNORE INTO `plugin_demo_dynamic_record` (
-    `id`,
-    `title`,
-    `content`,
-    `attachment_name`,
-    `attachment_path`,
-    `created_at`,
-    `updated_at`
-)
-VALUES (
-    'plugin-demo-dynamic-seed-record',
-    'Dynamic Plugin SQL Demo Record',
-    'This record is seeded by the plugin-demo-dynamic install SQL and demonstrates CRUD operations against the data table created during plugin installation.',
-    '',
-    '',
-    '2026-04-16T00:00:00+08:00',
-    '2026-04-16T00:00:00+08:00'
-);

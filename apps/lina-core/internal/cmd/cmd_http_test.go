@@ -41,8 +41,7 @@ func TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath(t *
 	server.SetOpenApiPath("/legacy-api.json")
 	server.SetSwaggerPath("/swagger")
 
-	mainCmd := &Main{}
-	mainCmd.bindHostedOpenAPIDocs(
+	bindHostedOpenAPIDocs(
 		context.Background(),
 		server,
 		&fakeApiDocService{document: &goai.OpenApiV3{}},

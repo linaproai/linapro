@@ -27,7 +27,8 @@ plugin-demo-source/
 
 ## 样例覆盖点
 
-- `manifest/sql/` 下的安装 SQL 会创建插件自有表 `plugin_demo_source_record`，并初始化一条种子数据
+- `manifest/sql/` 下的安装 SQL 会创建插件自有表`plugin_demo_source_record`
+- `manifest/sql/mock-data/`下的`mock`SQL会提供本地样例数据使用的可选演示记录
 - `manifest/sql/uninstall/` 下的卸载 SQL 会在用户确认清理存储数据时删除该插件自有表
 - `frontend/pages/sidebar-entry.vue` 中的示例页面可以对插件自有表执行增删查改，并支持附件上传与下载
 - 插件自有附件文件存放在宿主上传目录下的 `plugin-demo-source/` 命名空间中

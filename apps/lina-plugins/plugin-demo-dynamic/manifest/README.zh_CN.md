@@ -1,5 +1,6 @@
 # Manifest Resources
 
-该目录用于存放 `plugin-demo-dynamic` 的安装期资源。
+该目录用于存放`plugin-demo-dynamic`的安装期资源和可选`mock`资源。
 
-当前样例即使尚未提供 SQL 迁移，也保留该目录，以便后续新增 SQL 资源时仍能保持嵌入资源契约稳定。
+- `sql/001-plugin-demo-dynamic-records.sql`：安装时创建插件自有示例表。
+- `sql/mock-data/001-plugin-demo-dynamic-mock-data.sql`：提供本地样例数据使用的可选演示记录。

@@ -75,3 +75,4 @@
 - [x] **FB-12**: 修复 `plugin-demo-dynamic` 独立静态页内置多语言文案的问题，改为复用插件运行时 i18n 资源
 - [x] **FB-13**: 清理 `apps/lina-core/internal/cmd` 中 CLI 和数据库初始化诊断错误的中文硬编码，统一改为英文开发者诊断并更新单元测试断言
 - [x] **FB-14**: 缩短英文偏好设置抽屉 tab 展示文案，避免 `Appearance` 和 `Shortcut Keys` 超出按钮背景
+- [x] **FB-15**: 梳理宿主与源码插件 seed/mock 数据边界，将演示测试数据迁移或补齐到各自 `manifest/sql/mock-data` 目录

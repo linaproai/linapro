@@ -28,6 +28,7 @@ internal/controller/ HTTP 控制器
 internal/service/   业务服务与定时调度编排
 manifest/config/    宿主运行配置
 manifest/sql/       宿主 SQL 迁移与 Seed 数据
+manifest/sql/mock-data/ 宿主可选`mock`/演示 SQL 资源
 pkg/                宿主与插件共享的稳定公共包
 ```
 

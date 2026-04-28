@@ -45,7 +45,7 @@
 ```json
 {
   "framework": {
-    "description": "AI驱动的全栈开发框架"
+    "description": "面向可持续交付的 AI 原生全栈框架"
   },
   "menu": {
     "dashboard": {
@@ -145,7 +145,7 @@ make check-runtime-i18n
 ```json
 {
   "framework": {
-    "description": "AI驱动的全栈开发框架"
+    "description": "面向可持续交付的 AI 原生全栈框架"
   },
   "menu": {
     "system": {

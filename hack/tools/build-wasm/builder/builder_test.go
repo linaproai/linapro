@@ -311,6 +311,11 @@ func TestBuildRuntimeWasmArtifactFromSourceSkipsHiddenEmbeddedDirectoryEntries(t
 	)
 	mustWriteFile(
 		t,
+		filepath.Join(pluginDir, "manifest", "sql", "mock-data", "001-plugin-dynamic-hidden-mock-data.sql"),
+		"SELECT 99;",
+	)
+	mustWriteFile(
+		t,
 		filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-plugin-dynamic-hidden.sql"),
 		"SELECT 2;",
 	)

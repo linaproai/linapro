@@ -40,6 +40,7 @@ apps/lina-plugins/<plugin-id>/
     plugin.go           插件后端注册入口
   frontend/pages/       由宿主菜单挂载的插件页面
   manifest/sql/         插件自有安装 SQL 资源
+  manifest/sql/mock-data/ 插件自有可选`mock`/演示 SQL 资源
   manifest/sql/uninstall/ 插件自有卸载 SQL 资源
   plugin.yaml           插件清单
   plugin_embed.go       嵌入资源注册入口

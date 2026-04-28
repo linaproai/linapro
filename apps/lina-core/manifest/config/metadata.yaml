@@ -8,7 +8,7 @@ framework:
   # Framework version
   version: "v0.1.0"
   # Framework introduction
-  description: "An AI-driven full-stack framework for sustainable delivery, providing common core hosting services, default management workbench, plugin extension capabilities and AI-native development workflow."
+  description: "An AI-native full-stack framework for sustainable delivery."
   # Project official website
   homepage: "https://linapro.ai"
   # Repository URL
@@ -19,9 +19,9 @@ framework:
 # OpenAPI document metadata
 openapi:
   # Document title
-  title: "LinaPro Framework API"
+  title: "LinaPro Service API "
   # Document description
-  description: "LinaPro core host service API documentation covering general module capabilities, system governance capabilities, and default management workbench adapter APIs."
+  description: "LinaPro Service API Documentation."
   # Document version
   version: "v0.5.0"
   # Backend service access URL

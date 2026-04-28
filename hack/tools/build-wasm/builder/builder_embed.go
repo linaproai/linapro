@@ -421,7 +421,7 @@ func collectSQLAssets(pluginDir string, embeddedResources *embeddedStaticResourc
 		paths := embeddedResources.ListFiles(searchPrefix, ".sql")
 		assets := make([]*sqlAsset, 0, len(paths))
 		for _, filePath := range paths {
-			if !uninstall && strings.HasPrefix(filePath, "manifest/sql/uninstall/") {
+			if filepath.ToSlash(filepath.Dir(filePath)) != searchPrefix {
 				continue
 			}
 			content, ok := embeddedResources.ReadFile(filePath)

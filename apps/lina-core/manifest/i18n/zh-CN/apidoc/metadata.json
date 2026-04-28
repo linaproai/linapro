@@ -13,7 +13,7 @@
         }
       },
       "framework": {
-        "description": "一个面向可持续交付的 AI 驱动全栈框架，提供通用核心宿主服务、默认管理工作台、插件扩展能力和 AI 原生研发工作流。"
+        "description": "面向可持续交付的 AI 原生全栈框架。"
       },
       "frontend": {
         "ant_design_vue": {

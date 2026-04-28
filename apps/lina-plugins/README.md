@@ -40,6 +40,7 @@ apps/lina-plugins/<plugin-id>/
     plugin.go           Plugin backend registration entry
   frontend/pages/       Plugin pages mounted by host menus
   manifest/sql/         Plugin-owned install SQL assets
+  manifest/sql/mock-data/ Optional plugin-owned mock/demo SQL assets
   manifest/sql/uninstall/ Plugin-owned uninstall SQL assets
   plugin.yaml           Plugin manifest
   plugin_embed.go       Embedded asset registration

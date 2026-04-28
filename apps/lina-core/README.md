@@ -28,6 +28,7 @@ internal/controller/ HTTP controllers
 internal/service/   Business services and cron orchestration
 manifest/config/    Host runtime config
 manifest/sql/       Host SQL migrations and seed data
+manifest/sql/mock-data/ Optional host mock/demo SQL assets
 pkg/                Stable shared packages for host and plugins
 ```
 
