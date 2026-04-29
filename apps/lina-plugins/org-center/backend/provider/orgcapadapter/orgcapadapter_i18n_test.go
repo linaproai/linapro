@@ -14,7 +14,7 @@ func TestNewUnassignedDeptNodeCarriesLabelKey(t *testing.T) {
 	if node.LabelKey != orgCapUnassignedDeptLabelKey {
 		t.Fatalf("expected label key %q, got %q", orgCapUnassignedDeptLabelKey, node.LabelKey)
 	}
-	if node.Label != "Unassigned Department (3)" {
+	if node.Label != "Unassigned (3)" {
 		t.Fatalf("expected English fallback label with count, got %q", node.Label)
 	}
 	if node.UserCount != 3 {

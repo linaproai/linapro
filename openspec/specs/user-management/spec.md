@@ -57,7 +57,7 @@ The system SHALL provides a department tree interface for user management left f
 #### Scenario: Get user department tree when organization plugin is available
 - **WHEN** `org-center` is installed and enabled, and calls `GET /api/v1/user/dept-tree`
 - **THEN** The system returns department tree structure data, each node contains id, label, children, userCount
-- **AND** The first level of the tree can still contain `Unassigned Department` virtual nodes
+- **AND** The first level of the tree can still contain `Unassigned` virtual nodes
 
 #### Scenario: User department tree is unavailable when the organization plugin is missing
 - **WHEN** `org-center` is not installed or not enabled

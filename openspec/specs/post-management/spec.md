@@ -81,17 +81,17 @@ The system SHALL provides the function of exporting the position list to an Exce
 - **THEN** The exported fields include: position code, position name, sorting, status, remarks, creation time
 
 ### Requirement: Position department tree interface
-The system SHALL provides a department tree interface for left-side filtering of position management, including the "unassigned department" virtual node.
+The system SHALL provides a department tree interface for left-side filtering of position management, including the "Unassigned" virtual node.
 
 #### Scenario: Get the job department tree
 - **WHEN** calls `GET /api/v1/post/dept-tree`
 - **THEN** Returns department tree structure data
 
-#### Scenario: Unassigned department virtual node
+#### Scenario: Unassigned virtual node
 - **WHEN** Department tree returns data
-- **THEN** contains an "Unassigned Department" virtual node with id -1
+- **THEN** contains an "Unassigned" virtual node with id -1
 
-#### Scenario: Filter jobs by unassigned department
+#### Scenario: Filter jobs by Unassigned
 - **WHEN** Pass in `deptId=-1` when querying the job list
 - **THEN** Returns all positions with dept_id 0 (positions without assigned departments)
 

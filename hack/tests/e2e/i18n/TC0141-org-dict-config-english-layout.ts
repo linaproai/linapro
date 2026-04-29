@@ -113,7 +113,7 @@ test.describe('TC-141 Organization, dictionary, and config English layout regres
     await mainLayout.switchLanguage('English');
   });
 
-  test('TC-141a: Unassigned department is localized in English projections', async ({
+  test('TC-141a: Unassigned is localized in English projections', async ({
     adminPage,
   }) => {
     const api = await createAdminApiContext();
@@ -126,7 +126,7 @@ test.describe('TC-141 Organization, dictionary, and config English layout regres
       const unassignedNode = flattenDeptTree(deptTree.list).find(
         (node) => node.id === 0,
       );
-      expect(unassignedNode?.label).toContain('Unassigned Department');
+      expect(unassignedNode?.label).toContain('Unassigned');
       expect(unassignedNode?.label).not.toContain('未分配部门');
     } finally {
       await api.dispose();
@@ -135,7 +135,7 @@ test.describe('TC-141 Organization, dictionary, and config English layout regres
     await adminPage.goto('/system/user');
     await waitForTableReady(adminPage);
     await expect(
-      adminPage.getByText(/Unassigned Department/i).first(),
+      adminPage.getByText(/Unassigned/i).first(),
     ).toBeVisible();
     await expect(adminPage.getByText('未分配部门').first()).toHaveCount(0);
   });

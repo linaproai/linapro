@@ -20,7 +20,7 @@ const (
 	// postStatusEnabled is the enabled status value used by org-center posts.
 	postStatusEnabled = 1
 	// orgCapUnassignedDeptLabelKey is the runtime i18n key for the synthetic
-	// unassigned department node exposed through the host orgcap contract.
+	// Unassigned node exposed through the host orgcap contract.
 	orgCapUnassignedDeptLabelKey = "plugin.org-center.post.tree.unassignedDept"
 )
 
@@ -367,13 +367,13 @@ func applyDeptUserCount(nodes []*orgcap.DeptTreeNode, countMap map[int]int) {
 	}
 }
 
-// newUnassignedDeptNode creates the synthetic unassigned department projection
+// newUnassignedDeptNode creates the synthetic Unassigned projection
 // with a stable label key so host controllers can localize the label.
 func newUnassignedDeptNode(totalUsers int, assignedUsers int) *orgcap.DeptTreeNode {
 	unassignedUsers := totalUsers - assignedUsers
 	return &orgcap.DeptTreeNode{
 		Id:        0,
-		Label:     fmt.Sprintf("Unassigned Department (%d)", unassignedUsers),
+		Label:     fmt.Sprintf("Unassigned (%d)", unassignedUsers),
 		LabelKey:  orgCapUnassignedDeptLabelKey,
 		UserCount: unassignedUsers,
 		Children:  make([]*orgcap.DeptTreeNode, 0),

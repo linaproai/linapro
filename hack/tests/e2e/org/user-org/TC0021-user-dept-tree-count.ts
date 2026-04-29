@@ -30,7 +30,7 @@ function findDeptNodeByID(nodes: DeptTreeNode[], id: number): DeptTreeNode | nul
 
 function getRequiredUnassignedUserCount(nodes: DeptTreeNode[]) {
   const unassignedNode = findDeptNodeByID(nodes, 0);
-  expect(unassignedNode, 'Dept tree response should include the virtual unassigned department node').toBeTruthy();
+  expect(unassignedNode, 'Dept tree response should include the virtual Unassigned node').toBeTruthy();
   return unassignedNode!.userCount;
 }
 

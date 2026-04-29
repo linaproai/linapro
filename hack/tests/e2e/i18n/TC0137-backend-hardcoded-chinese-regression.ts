@@ -61,7 +61,7 @@ test.describe("TC-137 Backend hardcoded Chinese regression", () => {
       }),
     );
     const unassignedNode = flattenDeptTree(deptTree.list).find((node) => node.id === 0);
-    expect(unassignedNode?.label).toContain("Unassigned Department");
+    expect(unassignedNode?.label).toContain("Unassigned");
     expect(unassignedNode?.label).not.toContain("未分配部门");
 
     const systemInfo = await expectSuccess<{

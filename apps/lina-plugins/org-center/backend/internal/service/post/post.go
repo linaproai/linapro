@@ -51,7 +51,7 @@ const (
 	postExportHeaderCreatedAtKey  = "plugin.org-center.post.export.headers.createdAt"
 	postExportStatusEnabledKey    = "plugin.org-center.post.export.status.enabled"
 	postExportStatusDisabledKey   = "plugin.org-center.post.export.status.disabled"
-	postTreeUnassignedDeptDefault = "Unassigned Department"
+	postTreeUnassignedDeptDefault = "Unassigned"
 )
 
 // Service defines the post service contract.
