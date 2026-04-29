@@ -26,6 +26,12 @@ const title = computed(() =>
 );
 
 const [BasicForm, formApi] = useVbenForm({
+  commonConfig: {
+    componentProps: {
+      class: 'w-full',
+    },
+    labelWidth: 128,
+  },
   schema: modalSchema,
   showDefaultActions: false,
 });
@@ -83,7 +89,7 @@ async function handleClosed() {
 </script>
 
 <template>
-  <BasicModal :title="title">
+  <BasicModal :title="title" class="w-[560px] max-w-[calc(100vw-32px)]">
     <BasicForm />
   </BasicModal>
 </template>

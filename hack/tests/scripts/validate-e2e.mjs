@@ -1,61 +1,80 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const testsDir = path.resolve(scriptDir, '..');
-const e2eDir = path.resolve(testsDir, 'e2e');
-const manifest = JSON.parse(
-  readFileSync(path.resolve(testsDir, 'config/execution-manifest.json'), 'utf8'),
+import {
+  allowlistCategoriesForFile,
+  detectRiskCategories,
+  e2eDir,
+  exists,
+  highRiskRules,
+  isolationAllowlist,
+  knownIsolationCategorySet,
+  listTcFiles,
+  loadManifest,
+  resolveEntries,
+  serialCategoryMap,
+  serialFileSet,
+  serialIsolationEntries,
+  testsDir,
+  toPosix,
+  walk,
+} from './execution-governance.mjs';
+
+const manifest = loadManifest();
+const errors = [];
+const highRiskRuleByCategory = new Map(
+  highRiskRules.map((rule) => [rule.category, rule]),
 );
+const knownCategories = knownIsolationCategorySet();
 
-function toPosix(relativePath) {
-  return relativePath.split(path.sep).join('/');
+function addError(message) {
+  errors.push(message);
 }
 
-function walk(directory) {
-  const result = [];
-  const stack = [directory];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    const stat = statSync(current);
-    if (stat.isDirectory()) {
-      const children = readdirSync(current)
-        .map((child) => path.join(current, child))
-        .sort()
-        .reverse();
-      stack.push(...children);
-      continue;
-    }
-    result.push(current);
-  }
-  return result.sort();
+function readTestFile(relativePath) {
+  return readFileSync(path.resolve(testsDir, relativePath), 'utf8');
 }
 
-function listTcFiles(entry) {
-  const absoluteEntry = path.resolve(testsDir, entry);
-  if (!exists(absoluteEntry)) {
+function requireArray(value, label) {
+  if (!Array.isArray(value)) {
+    addError(`${label} must be an array.`);
     return [];
   }
-  const stat = statSync(absoluteEntry);
-  if (stat.isFile()) {
-    return [toPosix(path.relative(testsDir, absoluteEntry))];
-  }
-  return walk(absoluteEntry)
-    .map((item) => toPosix(path.relative(testsDir, item)))
-    .filter((item) => /\/TC\d{4}.*\.ts$/.test(item) || /^e2e\/TC\d{4}.*\.ts$/.test(item));
+  return value;
 }
 
-function exists(value) {
-  try {
-    statSync(value);
-    return true;
-  } catch {
-    return false;
+function validateCategories(categories, ownerLabel) {
+  const values = requireArray(categories, `${ownerLabel}.categories`);
+  if (values.length === 0) {
+    addError(`${ownerLabel}.categories must contain at least one category.`);
+    return [];
+  }
+
+  const seen = new Set();
+  for (const category of values) {
+    if (typeof category !== 'string' || category.trim() === '') {
+      addError(`${ownerLabel}.categories contains a non-string or empty category.`);
+      continue;
+    }
+    if (!knownCategories.has(category)) {
+      addError(
+        `${ownerLabel}.categories contains unknown category "${category}". Known categories: ${[...knownCategories].sort().join(', ')}`,
+      );
+    }
+    if (seen.has(category)) {
+      addError(`${ownerLabel}.categories contains duplicate category "${category}".`);
+    }
+    seen.add(category);
+  }
+  return values;
+}
+
+function validateReason(reason, ownerLabel) {
+  if (typeof reason !== 'string' || reason.trim() === '') {
+    addError(`${ownerLabel}.reason must explain why the isolation decision is safe.`);
   }
 }
 
-const errors = [];
 const allFiles = walk(e2eDir).map((item) => toPosix(path.relative(testsDir, item)));
 const testFiles = [];
 const tcRegistry = new Map();
@@ -67,19 +86,19 @@ const allowedPrefixes = new Set(
 
 for (const file of allFiles) {
   if (!file.endsWith('.ts')) {
-    errors.push(`Non-TypeScript file found under e2e: ${file}`);
+    addError(`Non-TypeScript file found under e2e: ${file}`);
     continue;
   }
 
-  if (!/\/TC\d{4}[-][^.]+\.ts$/.test(file) && !/^e2e\/TC\d{4}[-][^.]+\.ts$/.test(file)) {
-    errors.push(`Non-test file found under e2e: ${file}`);
+  if (!/\/TC\d{4}[-][^.]+\.ts$/u.test(file) && !/^e2e\/TC\d{4}[-][^.]+\.ts$/u.test(file)) {
+    addError(`Non-test file found under e2e: ${file}`);
     continue;
   }
 
   testFiles.push(file);
-  const tcId = file.match(/TC(\d{4})/)?.[1];
+  const tcId = file.match(/TC(\d{4})/u)?.[1];
   if (!tcId) {
-    errors.push(`Unable to parse TC ID from ${file}`);
+    addError(`Unable to parse TC ID from ${file}`);
     continue;
   }
   const items = tcRegistry.get(tcId) ?? [];
@@ -91,33 +110,136 @@ for (const file of allFiles) {
     return fileDir === prefix || fileDir.startsWith(`${prefix}/`);
   });
   if (!matchesAllowedPrefix) {
-    errors.push(`File is not under an allowed module scope: ${file}`);
+    addError(`File is not under an allowed module scope: ${file}`);
   }
 }
 
 for (const [tcId, files] of tcRegistry.entries()) {
   if (files.length > 1) {
-    errors.push(`Duplicate TC${tcId}: ${files.join(', ')}`);
+    addError(`Duplicate TC${tcId}: ${files.join(', ')}`);
   }
 }
 
 for (const [scope, entries] of Object.entries(manifest.moduleScopes)) {
   const files = entries.flatMap((entry) => listTcFiles(entry));
   if (files.length === 0) {
-    errors.push(`Module scope has no matching test files: ${scope}`);
+    addError(`Module scope has no matching test files: ${scope}`);
   }
 }
 
 for (const entry of manifest.smoke ?? []) {
   if (!exists(path.resolve(testsDir, entry))) {
-    errors.push(`Smoke entry does not exist: ${entry}`);
+    addError(`Smoke entry does not exist: ${entry}`);
   }
 }
 
-for (const entry of manifest.serial ?? []) {
+const serialEntries = requireArray(manifest.serial ?? [], 'serial');
+for (const entry of serialEntries) {
   if (!exists(path.resolve(testsDir, entry))) {
-    errors.push(`Serial entry does not exist: ${entry}`);
+    addError(`Serial entry does not exist: ${entry}`);
   }
+}
+
+const isolationEntries = requireArray(serialIsolationEntries(manifest), 'serialIsolation');
+const serialEntrySet = new Set(serialEntries);
+const isolationEntrySet = new Set();
+
+for (const [index, item] of isolationEntries.entries()) {
+  const owner = `serialIsolation[${index}]`;
+  if (!item || typeof item !== 'object') {
+    addError(`${owner} must be an object.`);
+    continue;
+  }
+  if (typeof item.entry !== 'string' || item.entry.trim() === '') {
+    addError(`${owner}.entry must be a non-empty string.`);
+    continue;
+  }
+  if (!exists(path.resolve(testsDir, item.entry))) {
+    addError(`${owner}.entry does not exist: ${item.entry}`);
+  }
+  if (!serialEntrySet.has(item.entry)) {
+    addError(`${owner}.entry is not listed in serial: ${item.entry}`);
+  }
+  if (isolationEntrySet.has(item.entry)) {
+    addError(`${owner}.entry is duplicated: ${item.entry}`);
+  }
+  isolationEntrySet.add(item.entry);
+  validateCategories(item.categories, owner);
+  validateReason(item.reason, owner);
+
+  const resolvedFiles = listTcFiles(item.entry);
+  if (resolvedFiles.length === 0) {
+    addError(`${owner}.entry does not resolve to any TC file: ${item.entry}`);
+  }
+}
+
+for (const entry of serialEntries) {
+  if (!isolationEntrySet.has(entry)) {
+    addError(`Serial entry is missing serialIsolation metadata: ${entry}`);
+  }
+}
+
+const serialFiles = serialFileSet(manifest);
+const categoryMap = serialCategoryMap(manifest);
+for (const file of serialFiles) {
+  if (!categoryMap.has(file) || categoryMap.get(file).size === 0) {
+    addError(`Serial file has no resolved isolation category: ${file}`);
+  }
+}
+
+const allowlistEntries = requireArray(isolationAllowlist(manifest), 'parallelIsolationAllowlist');
+for (const [index, item] of allowlistEntries.entries()) {
+  const owner = `parallelIsolationAllowlist[${index}]`;
+  if (!item || typeof item !== 'object') {
+    addError(`${owner} must be an object.`);
+    continue;
+  }
+  if (typeof item.file !== 'string' || item.file.trim() === '') {
+    addError(`${owner}.file must be a non-empty string.`);
+    continue;
+  }
+  if (listTcFiles(item.file).length !== 1) {
+    addError(`${owner}.file must reference one existing TC file: ${item.file}`);
+  }
+  if (serialFiles.has(item.file)) {
+    addError(`${owner}.file is already serial and does not need a parallel allowlist: ${item.file}`);
+  }
+  validateCategories(item.categories, owner);
+  validateReason(item.reason, owner);
+}
+
+for (const file of testFiles) {
+  const detectedCategories = detectRiskCategories(readTestFile(file));
+  if (detectedCategories.size === 0) {
+    continue;
+  }
+
+  const declaredSerialCategories = categoryMap.get(file) ?? new Set();
+  const allowedParallelCategories = allowlistCategoriesForFile(file, manifest);
+  for (const category of detectedCategories) {
+    const rule = highRiskRuleByCategory.get(category);
+    const label = rule?.label ?? category;
+    if (serialFiles.has(file)) {
+      if (!declaredSerialCategories.has(category)) {
+        addError(
+          `High-risk ${label} detected in serial file ${file}, but serialIsolation does not declare "${category}".`,
+        );
+      }
+      continue;
+    }
+
+    if (!allowedParallelCategories.has(category)) {
+      addError(
+        `High-risk ${label} detected in parallel file ${file}. Add the file to serial with "${category}" isolation or add a documented parallelIsolationAllowlist entry.`,
+      );
+    }
+  }
+}
+
+const resolvedSmoke = resolveEntries(manifest.smoke ?? []);
+const unresolvedSmokeEntries = (manifest.smoke ?? []).filter((entry) => listTcFiles(entry).length === 0);
+for (const entry of unresolvedSmokeEntries) {
+  addError(`Smoke entry does not resolve to any TC file: ${entry}`);
 }
 
 if (errors.length > 0) {
@@ -128,4 +250,11 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log(`Validated ${testFiles.length} E2E test files across ${Object.keys(manifest.moduleScopes).length} scopes.`);
+console.log(
+  [
+    `Validated ${testFiles.length} E2E test files`,
+    `across ${Object.keys(manifest.moduleScopes).length} scopes.`,
+    `Smoke files: ${resolvedSmoke.length}.`,
+    `Serial files: ${serialFiles.size}.`,
+  ].join(' '),
+);

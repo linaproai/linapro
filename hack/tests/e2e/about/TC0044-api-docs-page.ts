@@ -48,15 +48,22 @@ test.describe('TC0044 系统接口页面', () => {
     mainLayout,
   }) => {
     await mainLayout.switchLanguage('English');
+    const apiResponse = await adminPage.request.get('/api.json?lang=en-US', {
+      headers: { 'Accept-Language': 'en-US' },
+    });
+    expect(apiResponse.ok()).toBeTruthy();
+    const apiDocument = await apiResponse.json();
+
     await adminPage.goto('/about/api-docs');
     const frame = adminPage.frameLocator('iframe.api-docs-iframe');
     // Wait for content to load
     await expect(frame.getByText('Overview')).toBeVisible({ timeout: 15_000 });
     // Verify the right panel shows API title and description
     await expect(
-      frame.locator('h1', { hasText: 'LinaPro Framework API' }),
+      frame.locator('h1', { hasText: apiDocument.info.title.trim() }),
     ).toBeVisible({ timeout: 10_000 });
-    await expect(frame.getByText('v0.5.0')).toBeVisible();
+    await expect(frame.getByText(apiDocument.info.version)).toBeVisible();
+    await expect(frame.getByText(apiDocument.info.description)).toBeVisible();
   });
 
   test('TC0044d: 隐藏 powered by Stoplight 标识', async ({ adminPage }) => {

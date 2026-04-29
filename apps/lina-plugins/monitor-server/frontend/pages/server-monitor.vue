@@ -120,28 +120,33 @@ const diskColumns = [
     title: $t('plugin.monitor-server.disk.path'),
     dataIndex: 'path',
     key: 'path',
+    width: 120,
   },
   {
     title: $t('plugin.monitor-server.disk.fsType'),
     dataIndex: 'fsType',
     key: 'fsType',
+    width: 180,
   },
   {
     title: $t('plugin.monitor-server.disk.total'),
     dataIndex: 'total',
     key: 'total',
+    width: 140,
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
     title: $t('plugin.monitor-server.disk.used'),
     dataIndex: 'used',
     key: 'used',
+    width: 140,
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
     title: $t('plugin.monitor-server.disk.free'),
     dataIndex: 'free',
     key: 'free',
+    width: 140,
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
@@ -571,10 +576,12 @@ const diskColumns = [
                   {{ $t('plugin.monitor-server.sections.disk') }}
                 </h6>
                 <Table
+                  class="server-monitor-disk-table"
                   :columns="diskColumns"
                   :data-source="node.disks"
                   :pagination="false"
                   row-key="path"
+                  :scroll="{ x: 900 }"
                   size="small"
                 >
                   <template #bodyCell="{ column, record }">
@@ -651,3 +658,9 @@ const diskColumns = [
     </div>
   </Page>
 </template>
+
+<style scoped>
+.server-monitor-disk-table :deep(.ant-table-cell) {
+  white-space: nowrap;
+}
+</style>

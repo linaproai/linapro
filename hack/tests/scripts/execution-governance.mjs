@@ -1,0 +1,242 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+
+export const testsDir = path.resolve(scriptDir, '..');
+export const e2eDir = path.resolve(testsDir, 'e2e');
+export const manifestPath = path.resolve(testsDir, 'config/execution-manifest.json');
+
+export const isolationCategories = [
+  {
+    category: 'authSession',
+    label: 'shared authenticated browser session',
+  },
+  {
+    category: 'dictionaryData',
+    label: 'dictionary data mutation',
+  },
+  {
+    category: 'filesystemArtifact',
+    label: 'filesystem-backed runtime artifact mutation',
+  },
+  {
+    category: 'permissionMatrix',
+    label: 'menu or permission matrix mutation',
+  },
+  {
+    category: 'pluginLifecycle',
+    label: 'plugin lifecycle or artifact mutation',
+  },
+  {
+    category: 'runtimeI18nCache',
+    label: 'runtime i18n cache or ETag dependency',
+  },
+  {
+    category: 'sharedDatabaseSeed',
+    label: 'shared database seed or mock data dependency',
+  },
+  {
+    category: 'systemConfig',
+    label: 'system configuration mutation',
+  },
+];
+
+export const highRiskRules = [
+  {
+    category: 'pluginLifecycle',
+    label: 'plugin lifecycle or artifact mutation',
+    patterns: [
+      /\b(?:installPlugin|enablePlugin|disablePlugin|uninstallPlugin|syncPlugins|setPluginEnabled|uploadDynamicPlugin|uploadDynamicPluginViaAPI|uninstallPluginWithOptions|ensureSourcePluginDisabled|ensureSourcePluginUninstalled)\b/u,
+      /plugins\/sync/u,
+      /plugins\/[^`'"\s]+\/(?:install|enable|disable)/u,
+    ],
+  },
+  {
+    category: 'runtimeI18nCache',
+    label: 'runtime i18n cache or ETag dependency',
+    patterns: [
+      /If-None-Match/u,
+      /runtimePersistentCacheKey/u,
+      /linapro:i18n:runtime/u,
+    ],
+  },
+  {
+    category: 'systemConfig',
+    label: 'system configuration mutation',
+    patterns: [
+      /\bupdateConfigValue\b/u,
+      /config\/import/u,
+      /sys\.auth\.loginPanelLayout/u,
+    ],
+  },
+  {
+    category: 'dictionaryData',
+    label: 'dictionary data mutation',
+    patterns: [
+      /dict\/type\/import/u,
+      /dict\/data\/import/u,
+      /\bdictPage\.(?:createType|editType|deleteType|clickCurrentTypeDeleteAction|createData|editData|deleteData)\b/u,
+      /字典管理导入/u,
+      /字典类型级联删除/u,
+    ],
+  },
+  {
+    category: 'permissionMatrix',
+    label: 'menu or permission matrix mutation',
+    patterns: [
+      /createRootMenu/u,
+      /updateMenuVisibility/u,
+      /menuIds:\s*\[/u,
+      /api\.(?:post|put|delete)\(["'`]menu/u,
+      /sys_role_menu/u,
+    ],
+  },
+  {
+    category: 'filesystemArtifact',
+    label: 'filesystem-backed runtime artifact mutation',
+    patterns: [
+      /\b(?:uploadDynamicPlugin|uploadDynamicPluginViaAPI|ensureRuntimePluginArtifact|ensureBundledRuntimePluginArtifact)\b/u,
+      /runtimePluginArtifact/u,
+      /DynamicPlugin/u,
+    ],
+  },
+];
+
+export function knownIsolationCategorySet() {
+  return new Set(isolationCategories.map((item) => item.category));
+}
+
+export function loadManifest() {
+  return JSON.parse(readFileSync(manifestPath, 'utf8'));
+}
+
+export function toPosix(relativePath) {
+  return relativePath.split(path.sep).join('/');
+}
+
+export function exists(value) {
+  try {
+    statSync(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function walk(directory) {
+  const result = [];
+  const stack = [directory];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const stat = statSync(current);
+    if (stat.isDirectory()) {
+      const children = readdirSync(current)
+        .map((child) => path.join(current, child))
+        .sort()
+        .reverse();
+      stack.push(...children);
+      continue;
+    }
+    result.push(current);
+  }
+  return result.sort();
+}
+
+export function listTcFiles(entry) {
+  const absoluteEntry = path.resolve(testsDir, entry);
+  if (!exists(absoluteEntry)) {
+    return [];
+  }
+
+  const stat = statSync(absoluteEntry);
+  if (stat.isFile()) {
+    const relativePath = toPosix(path.relative(testsDir, absoluteEntry));
+    return isTcFile(relativePath) ? [relativePath] : [];
+  }
+
+  return walk(absoluteEntry)
+    .map((item) => toPosix(path.relative(testsDir, item)))
+    .filter(isTcFile)
+    .sort();
+}
+
+export function isTcFile(relativePath) {
+  return /^e2e\/.*\/TC\d{4}.*\.ts$/u.test(relativePath) || /^e2e\/TC\d{4}.*\.ts$/u.test(relativePath);
+}
+
+export function unique(values) {
+  return [...new Set(values)].sort();
+}
+
+export function resolveEntries(entries) {
+  return unique((entries ?? []).flatMap((entry) => listTcFiles(entry)));
+}
+
+export function serialFileSet(manifest = loadManifest()) {
+  return new Set(resolveEntries(manifest.serial ?? []));
+}
+
+export function serialIsolationEntries(manifest = loadManifest()) {
+  return manifest.serialIsolation ?? [];
+}
+
+export function isolationAllowlist(manifest = loadManifest()) {
+  return manifest.parallelIsolationAllowlist ?? [];
+}
+
+export function serialCategoryMap(manifest = loadManifest()) {
+  const result = new Map();
+  for (const item of serialIsolationEntries(manifest)) {
+    for (const file of listTcFiles(item.entry)) {
+      const categories = result.get(file) ?? new Set();
+      for (const category of item.categories ?? []) {
+        categories.add(category);
+      }
+      result.set(file, categories);
+    }
+  }
+  return result;
+}
+
+export function splitBySerial(entries, manifest = loadManifest()) {
+  const files = resolveEntries(entries);
+  const serial = serialFileSet(manifest);
+  const serialFiles = files.filter((file) => serial.has(file));
+  const parallelFiles = files.filter((file) => !serial.has(file));
+  return { files, parallelFiles, serialFiles };
+}
+
+export function summarizeIsolationCategories(files, manifest = loadManifest()) {
+  const categoryMap = serialCategoryMap(manifest);
+  const counts = new Map();
+  for (const file of files) {
+    for (const category of categoryMap.get(file) ?? []) {
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort(([left], [right]) => left.localeCompare(right));
+}
+
+export function detectRiskCategories(sourceText) {
+  const result = new Set();
+  for (const rule of highRiskRules) {
+    if (rule.patterns.some((pattern) => pattern.test(sourceText))) {
+      result.add(rule.category);
+    }
+  }
+  return result;
+}
+
+export function allowlistCategoriesForFile(file, manifest = loadManifest()) {
+  const result = new Set();
+  for (const item of isolationAllowlist(manifest)) {
+    if (item.file === file) {
+      for (const category of item.categories ?? []) {
+        result.add(category);
+      }
+    }
+  }
+  return result;
+}

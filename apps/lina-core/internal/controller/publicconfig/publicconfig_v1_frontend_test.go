@@ -57,7 +57,7 @@ func TestFrontendProjectsLocalizedSeedCopy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load public frontend config: %v", err)
 	}
-	if res.Auth.PageTitle != "AI-driven full-stack development framework" {
+	if res.Auth.PageTitle != "An AI-native full-stack framework engineered for sustainable delivery" {
 		t.Fatalf("expected localized page title, got %q", res.Auth.PageTitle)
 	}
 	if res.Auth.PageDesc != "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model" {

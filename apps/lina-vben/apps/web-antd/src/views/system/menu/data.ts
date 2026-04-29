@@ -56,6 +56,7 @@ export const columns: VxeGridProps['columns'] = [
     title: $t('pages.system.menu.fields.menuName'),
     field: 'name',
     treeNode: true,
+    className: 'system-menu-name-column',
     width: 200,
     align: 'left',
   },

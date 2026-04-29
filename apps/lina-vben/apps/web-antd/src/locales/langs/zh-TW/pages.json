@@ -125,6 +125,11 @@
         "todos": "待辦事項",
         "trafficSources": "訪問來源"
       },
+      "stats": {
+        "todos": "待辦",
+        "projects": "項目",
+        "team": "團隊"
+      },
       "quickNav": {
         "home": "首頁",
         "dashboard": "儀表盤",
@@ -641,6 +646,7 @@
         "environmentDisabled": "當前環境未啟用 Shell 任務",
         "deleteSelectedConfirm": "確認刪除選中的 {count} 個任務嗎？",
         "deleteConfirm": "確認刪除該任務嗎？",
+        "triggerConfirm": "確認立即執行該任務嗎？",
         "triggerSuccess": "已觸發執行，日誌編號 {logId}",
         "resetSuccess": "執行次數已重置",
         "builtinReadonly": "內建任務不允許在表單中直接修改。",

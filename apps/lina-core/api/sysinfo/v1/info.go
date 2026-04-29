@@ -25,7 +25,7 @@ type ComponentInfo struct {
 type FrameworkInfo struct {
 	Name          string `json:"name" dc:"Framework name" eg:"LinaPro"`
 	Version       string `json:"version" dc:"Framework version number" eg:"v0.5.0"`
-	Description   string `json:"description" dc:"Framework introduction" eg:"AI-driven full-stack development framework"`
+	Description   string `json:"description" dc:"Framework introduction" eg:"An AI-native full-stack framework engineered for sustainable delivery"`
 	Homepage      string `json:"homepage" dc:"Project official website" eg:"https://linapro.ai"`
 	RepositoryURL string `json:"repositoryUrl" dc:"Repository URL" eg:"https://github.com/linaproai/linapro"`
 	License       string `json:"license" dc:"Open source license" eg:"MIT"`

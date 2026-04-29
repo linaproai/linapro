@@ -27,7 +27,7 @@ type FrontendAppRes struct {
 
 // FrontendAuthRes stores login-page public copy settings.
 type FrontendAuthRes struct {
-	PageTitle     string `json:"pageTitle" dc:"Login page main title copywriting" eg:"AI-driven full-stack development framework"`
+	PageTitle     string `json:"pageTitle" dc:"Login page main title copywriting" eg:"An AI-native full-stack framework engineered for sustainable delivery"`
 	PageDesc      string `json:"pageDesc" dc:"Login page description copy" eg:"Facing business evolution, it provides out-of-the-box management portals and flexible pluggable expansion mechanisms."`
 	LoginSubtitle string `json:"loginSubtitle" dc:"Login form subtitle copywriting" eg:"Please enter your account information to enter the LinaPro hosting workspace"`
 	PanelLayout   string `json:"panelLayout" dc:"Login box layout: panel-left=left panel-center=center panel-right=right" eg:"panel-right"`

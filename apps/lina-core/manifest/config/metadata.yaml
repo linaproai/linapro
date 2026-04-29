@@ -1,35 +1,51 @@
 # API documentation and version information page metadata.
+# API 文档与版本信息页面元数据。
 # When `version` is `auto`, the actual version is populated at runtime.
+# 当 `version` 为 `auto` 时，实际版本会在运行时填充。
 
 # Framework metadata
+# 框架元数据
 framework:
   # Framework name
+  # 框架名称
   name: "LinaPro"
   # Framework version
+  # 框架版本
   version: "v0.1.0"
   # Framework introduction
-  description: "An AI-native full-stack framework for sustainable delivery."
+  # 框架简介
+  description: "An AI-native full-stack framework engineered for sustainable delivery."
   # Project official website
+  # 项目官方网站
   homepage: "https://linapro.ai"
   # Repository URL
+  # 仓库地址
   repositoryUrl: "https://github.com/linaproai/linapro"
   # Open source license
+  # 开源许可证
   license: "Apache 2.0"
 
 # OpenAPI document metadata
+# OpenAPI 文档元数据
 openapi:
   # Document title
+  # 文档标题
   title: "LinaPro Service API "
   # Document description
+  # 文档说明
   description: "LinaPro Service API Documentation."
   # Document version
+  # 文档版本
   version: "v0.5.0"
   # Backend service access URL
+  # 后端服务访问地址
   serverUrl: "http://localhost:8080"
   # Service URL description
+  # 服务地址说明
   serverDescription: "CoreHostEndpoint"
 
 # Backend component metadata
+# 后端组件元数据
 backend:
   - name: "GoFrame"
     version: "auto"
@@ -49,6 +65,7 @@ backend:
     description: "Excel file processing library"
 
 # Frontend component metadata
+# 前端组件元数据
 frontend:
   - name: "Vue"
     version: "3.x"

@@ -87,7 +87,7 @@
         }
       },
       "login": {
-        "ipBlacklist": {
+        "blackIPList": {
           "name": "用户登录-IP 黑名单列表",
           "remark": "禁止登录的 IP 或 CIDR 网段，多个值以英文分号分隔，例如 127.0.0.1;10.0.0.0/8。"
         }

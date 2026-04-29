@@ -23,4 +23,4 @@ CREATE TABLE IF NOT EXISTS sys_user (
 
 -- Default admin user (password: admin123, bcrypt hash)
 INSERT IGNORE INTO sys_user (username, password, nickname, status, created_at, updated_at)
-VALUES ('admin', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', '管理员', 1, NOW(), NOW());
+VALUES ('admin', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', 'Administrator', 1, NOW(), NOW());

@@ -144,7 +144,7 @@ test.describe("TC0127 繁体中文宿主页面内容巡检", () => {
       /請輸入用戶名/,
     );
     expect(bodyText).not.toContain(
-      "AI-driven full-stack development framework",
+      "An AI-native full-stack framework engineered for sustainable delivery",
     );
     expect(bodyText).not.toContain("请输入您的帐户信息以开始管理您的项目");
     assertNoRawI18nKeys(bodyText, "/auth/login");

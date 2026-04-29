@@ -118,7 +118,7 @@ test.describe('TC0113 参数设置元数据国际化', () => {
     }>(response);
 
     expect(data.app.name).toBe('LinaPro');
-    expect(data.auth.pageTitle).toBe('AI-driven full-stack development framework');
+    expect(data.auth.pageTitle).toBe('An AI-native full-stack framework engineered for sustainable delivery');
     expect(data.auth.pageDesc).toBe(
       'Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model',
     );

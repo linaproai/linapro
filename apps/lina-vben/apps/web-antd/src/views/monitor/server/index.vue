@@ -92,28 +92,33 @@ const diskColumns = computed(() => [
     title: $t('pages.monitor.server.diskColumns.path'),
     dataIndex: 'path',
     key: 'path',
+    width: 120,
   },
   {
     title: $t('pages.monitor.server.diskColumns.fsType'),
     dataIndex: 'fsType',
     key: 'fsType',
+    width: 180,
   },
   {
     title: $t('pages.monitor.server.diskColumns.total'),
     dataIndex: 'total',
     key: 'total',
+    width: 140,
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
     title: $t('pages.monitor.server.diskColumns.used'),
     dataIndex: 'used',
     key: 'used',
+    width: 140,
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
     title: $t('pages.monitor.server.diskColumns.free'),
     dataIndex: 'free',
     key: 'free',
+    width: 140,
     customRender: ({ text }: any) => formatBytes(text),
   },
   {
@@ -544,10 +549,12 @@ const diskColumns = computed(() => [
                   {{ $t('pages.monitor.server.sections.disk') }}
                 </h6>
                 <Table
+                  class="server-monitor-disk-table"
                   :columns="diskColumns"
                   :data-source="node.disks"
                   :pagination="false"
                   row-key="path"
+                  :scroll="{ x: 900 }"
                   size="small"
                 >
                   <template #bodyCell="{ column, record }">
@@ -626,3 +633,9 @@ const diskColumns = computed(() => [
     </div>
   </Page>
 </template>
+
+<style scoped>
+.server-monitor-disk-table :deep(.ant-table-cell) {
+  white-space: nowrap;
+}
+</style>

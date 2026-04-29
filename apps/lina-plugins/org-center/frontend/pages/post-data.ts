@@ -111,6 +111,7 @@ export function buildDrawerSchema(): VbenFormSchema[] {
       fieldName: 'status',
       label: $t('pages.common.status'),
       defaultValue: 1,
+      formItemClass: 'col-span-2',
       componentProps: {
         buttonStyle: 'solid',
         optionType: 'button',

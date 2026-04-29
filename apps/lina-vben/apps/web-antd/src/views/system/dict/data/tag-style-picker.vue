@@ -55,11 +55,12 @@ function handleColorChange(e: Event) {
 </script>
 
 <template>
-  <div class="flex flex-1 items-center gap-[6px]">
+  <div class="flex min-w-0 flex-1 flex-nowrap items-center gap-[6px]">
     <RadioGroup
       v-model:value="selectType"
       :options="computedOptions"
       button-style="solid"
+      class="shrink-0"
       option-type="button"
       @change="handleSelectTypeChange"
     />
@@ -68,14 +69,14 @@ function handleColorChange(e: Event) {
       v-model:value="color"
       :allow-clear="true"
       :options="tagSelectOptions()"
-      class="flex-1"
+      class="min-w-[180px] flex-1"
       :placeholder="$t('pages.system.dict.data.tagStyle.placeholders.select')"
       @deselect="$emit('deselect')"
     />
     <Input
       v-if="selectType === 'custom'"
       :value="color"
-      class="flex-1"
+      class="min-w-[180px] flex-1"
       :placeholder="$t('pages.system.dict.data.tagStyle.placeholders.custom')"
       @change="handleColorChange"
     />

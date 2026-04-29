@@ -1,68 +1,100 @@
+# HTTP server configuration
 # HTTP 服务配置
-# https://goframe.org/docs/web/server-config-file-template
+# Reference: https://goframe.org/docs/web/server-config-file-template
+# 参考文档：https://goframe.org/docs/web/server-config-file-template
 server:
+  # Server listen address
   # 服务监听地址
   address: ":8080"
+  # Whether to dump the route table at startup
   # 是否在启动时输出路由表
   dumpRouterMap: false
+  # LinaPro extension configuration for the GoFrame server component
   # LinaPro 对 GoFrame server 组件的扩展配置
   extensions:
+    # Access path for the host-built OpenAPI JSON document
     # 宿主自建 OpenAPI JSON 文档访问路径
     apiDocPath: "/api.json"
 
+# Logging configuration
 # 日志配置
-# https://goframe.org/docs/core/glog-config
+# Reference: https://goframe.org/docs/core/glog-config
+# 参考文档：https://goframe.org/docs/core/glog-config
 logger:
+  # Log file directory; when empty, logs are written only to the terminal
   # 日志文件目录；为空时仅输出到终端
   path: ""
+  # Shared filename pattern for business logs and HTTP server logs
   # 业务日志与 HTTP Server 日志共享的文件名模式
   file: "{Y-m-d}.log"
+  # Log level
   # 日志级别
   level: "all"
+  # Whether to write logs to standard output
   # 是否输出到标准输出
   stdout: true
+  # LinaPro extension configuration for the GoFrame logger component
   # LinaPro 对 GoFrame logger 组件的扩展配置
   extensions:
+    # Whether to enable GoFrame's official JSON structured log handler
     # 是否开启 GoFrame 官方 JSON 结构化日志 Handler
     structured: false
+    # Whether to include TraceID in logs; defaults to false and is output only when explicitly enabled
     # 是否在日志中输出 TraceID；默认 false，仅显式开启时输出
     traceIDEnabled: false
 
+# Database configuration
 # 数据库配置
-# https://goframe.org/docs/core/gdb-config-file
+# Reference: https://goframe.org/docs/core/gdb-config-file
+# 参考文档：https://goframe.org/docs/core/gdb-config-file
 database:
   default:
+    # Default database connection string
     # 默认数据库连接串
     link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    # Whether to enable SQL debug logs
     # 是否开启 SQL 调试日志
     debug: true
 
+# JWT configuration
 # JWT 配置
 jwt:
+  # JWT signing secret
   # JWT 签名密钥
   secret: "lina-jwt-secret-key-change-in-production"
+  # Token validity period as a duration string
   # Token 有效期（duration 字符串）
   expire: 24h
 
+# Online session configuration
 # 在线会话配置
 session:
+  # Session inactivity timeout as a duration string
   # 会话无活动超时时间（duration 字符串）
   timeout: 24h
+  # Session cleanup job interval as a duration string
   # 会话清理任务执行间隔（duration 字符串）
   cleanupInterval: 5m
 
+# Service monitoring configuration
 # 服务监控配置
 monitor:
+  # Service metrics collection interval as a duration string
   # 服务指标采集间隔（duration 字符串）
-  interval: 30s
+  interval: 1m
 
+# Internationalization configuration
 # 国际化配置
 i18n:
+  # Default locale used when the request locale is missing or unsupported
   # 请求语言缺失或不支持时使用的默认语言
   default: zh-CN
+  # Whether to enable multiple locales; when disabled, only the default locale is used and the frontend hides the language switcher
   # 是否开启多语言；关闭时仅使用默认语言且前端隐藏语言切换按钮
   enabled: true
+  # Runtime locale display order and native names; comment out a locale to disable it
   # 运行时语言展示顺序与原生名称；注释某个语言即可停用该语言
+  # Text direction is fixed to ltr by host convention and is not configurable
   # 文本方向按宿主约定固定为 ltr，不提供配置项
   locales:
     - locale: en-US
@@ -72,31 +104,43 @@ i18n:
     - locale: zh-TW
       nativeName: 繁體中文
 
+# Cluster deployment configuration
 # 集群部署配置
 cluster:
+  # Whether to enable multi-node cluster mode; false means single-node mode by default
   # 是否开启集群多节点模式；默认 false 表示单节点模式
   enabled: false
   election:
+    # Election lock lease duration
     # 选举锁租约时长
     lease: 30s
+    # Lease renewal interval, recommended to be one third of the lease duration
     # 租约续约间隔，建议为租约时长的三分之一
     renewInterval: 10s
 
+# Upload configuration
 # 上传配置
 upload:
+  # Upload file storage directory
   # 上传文件保存目录
   path: "temp/upload"
+  # Maximum size of a single uploaded file in MB
   # 单个上传文件大小上限（MB）
   maxSize: 20
 
+# Plugin configuration
 # 插件配置
 plugin:
+  # Dynamic plugin configuration
   # 动态插件相关配置
   dynamic:
+    # Storage directory for dynamic plugin build artifacts
     # 动态插件构建产物存储目录
     storagePath: "temp/output"
+  # Plugin ID list to automatically install and enable at startup
   # 启动时自动安装并启用的插件 ID 列表
   autoEnable:
+    # Add plugin IDs to this list to let the host enable them automatically at startup
     # 将插件标识加入列表可让宿主启动时自动启用该插件
     # - "demo-control"
     # - "plugin-demo-source"

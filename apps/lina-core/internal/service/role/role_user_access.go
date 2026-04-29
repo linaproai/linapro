@@ -70,7 +70,7 @@ func (s *serviceImpl) loadUserAccessContext(ctx context.Context, userId int) (*U
 		if role == nil {
 			continue
 		}
-		roleNames = append(roleNames, role.Name)
+		roleNames = append(roleNames, s.DisplayName(ctx, role))
 	}
 
 	if roleNames == nil {

@@ -56,7 +56,7 @@ const [Form, formApi] = useVbenForm({
       class: 'w-full',
     },
     formItemClass: 'col-span-2',
-    labelWidth: 80,
+    labelWidth: 112,
   },
   schema: drawerSchema,
   showDefaultActions: false,
@@ -130,7 +130,7 @@ async function handleDeSelect() {
 </script>
 
 <template>
-  <Drawer :title="title" class="w-[600px]">
+  <Drawer :title="title" class="w-[700px] max-w-[calc(100vw-32px)]">
     <Form>
       <template #tagStyle="slotProps">
         <TagStylePicker

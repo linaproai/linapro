@@ -24,14 +24,14 @@ export class JobPage {
   }
 
   async fillSearchKeyword(keyword: string) {
-    const input = this.page.getByLabel("关键字", { exact: true }).first();
+    const input = this.page.getByLabel(/关键字|Keyword/i).first();
     await input.clear();
     await input.fill(keyword);
   }
 
   async clickSearch() {
     await this.page
-      .getByRole("button", { name: /搜\s*索/ })
+      .getByRole("button", { name: /搜\s*索|Search/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -200,7 +200,29 @@ export class JobPage {
   }
 
   async triggerSearchedJob() {
+    await this.openTriggerConfirmForSearchedJob();
+    await this.confirmTriggerConfirm();
+  }
+
+  async openTriggerConfirmForSearchedJob() {
     await this.page.locator('[data-testid^="job-trigger-"]').first().click();
+    return waitForConfirmOverlay(this.page);
+  }
+
+  async cancelTriggerConfirm() {
+    const popconfirm = await waitForConfirmOverlay(this.page);
+    await popconfirm
+      .getByRole("button", { name: /取\s*消|Cancel/i })
+      .click();
+    await popconfirm.waitFor({ state: "hidden", timeout: 5000 }).catch(() => {});
+  }
+
+  async confirmTriggerConfirm() {
+    const popconfirm = await waitForConfirmOverlay(this.page);
+    await popconfirm
+      .getByRole("button", { name: /确\s*认|确\s*定|OK|Yes|Confirm/i })
+      .last()
+      .click();
     await waitForRouteReady(this.page);
   }
 
@@ -233,12 +255,25 @@ export class JobPage {
   }
 
   async hoverFieldHelp(label: string) {
-    const labelNode = this.getFieldLabel(label);
-    const trigger = labelNode
-      .locator('svg, .anticon, [class*="question"], [data-grace-area-trigger]')
-      .first();
-    await trigger.waitFor({ state: "visible", timeout: 5000 });
-    await trigger.hover();
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const labelNode = this.getFieldLabel(label);
+      const trigger = labelNode
+        .locator('svg, .anticon, [class*="question"], [data-grace-area-trigger]')
+        .first();
+      try {
+        await trigger.waitFor({ state: "visible", timeout: 5000 });
+        await trigger.scrollIntoViewIfNeeded();
+        await trigger.hover({ force: true, timeout: 5000 });
+        break;
+      } catch (error) {
+        lastError = error;
+        if (attempt === 2) {
+          throw lastError;
+        }
+        await waitForRouteReady(this.page);
+      }
+    }
     await this.page
       .locator(
         '[role="tooltip"]:visible, .side-content:visible, .ant-tooltip:visible, .ant-popover:visible',

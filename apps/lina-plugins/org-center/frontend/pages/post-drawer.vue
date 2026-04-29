@@ -30,7 +30,7 @@ const [Form, formApi] = useVbenForm({
     componentProps: {
       class: 'w-full',
     },
-    labelWidth: 80,
+    labelWidth: 96,
   },
   schema: buildDrawerSchema(),
   showDefaultActions: false,
@@ -140,7 +140,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
 </script>
 
 <template>
-  <Drawer :title="title" class="w-[600px]">
+  <Drawer :title="title" class="w-[680px] max-w-[calc(100vw-32px)]">
     <Form />
   </Drawer>
 </template>

@@ -61,6 +61,8 @@ const gridOptions: VxeGridProps = {
     keyField: 'id',
     isCurrent: true,
   },
+  rowClassName: ({ row }: any) =>
+    hasExpandableChildren(row) ? 'system-menu-row--expandable' : '',
   treeConfig: {
     parentField: 'parentId',
     rowField: 'id',
@@ -77,14 +79,12 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
   formOptions,
   gridOptions,
   gridEvents: {
-    cellDblclick: (e: any) => {
-      const { row = {} } = e;
-      if (!row?.children) {
+    cellClick: (e: any) => {
+      const { column = {}, row = {} } = e;
+      if (column.field !== 'name') {
         return;
       }
-      const isExpanded = row?.expand;
-      tableApi.grid.setTreeExpand(row, !isExpanded);
-      row.expand = !isExpanded;
+      toggleTreeRow(row);
     },
     toggleTreeExpand: (e: any) => {
       const { row = {}, expanded } = e;
@@ -95,6 +95,19 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
 const [MenuDrawerRef, drawerApi] = useVbenDrawer({
   connectedComponent: MenuDrawer,
 });
+
+function hasExpandableChildren(row: any) {
+  return Array.isArray(row?.children) && row.children.length > 0;
+}
+
+function toggleTreeRow(row: any) {
+  if (!hasExpandableChildren(row)) {
+    return;
+  }
+  const isExpanded = row?.expand;
+  tableApi.grid.setTreeExpand(row, !isExpanded);
+  row.expand = !isExpanded;
+}
 
 function handleAdd() {
   drawerApi.setData({ isEdit: false });
@@ -168,7 +181,6 @@ const canAccess = ref(true);
     <BasicTable
       id="system-menu-table"
       :table-title="$t('pages.system.menu.tableTitle')"
-      :table-title-help="$t('pages.system.menu.tableTitleHelp')"
     >
       <template #toolbar-tools>
         <Space>
@@ -234,6 +246,10 @@ const canAccess = ref(true);
 
   html.dark & {
     --vxe-ui-table-row-current-background-color: hsl(var(--primary-800));
+  }
+
+  .system-menu-row--expandable .system-menu-name-column {
+    cursor: pointer;
   }
 }
 </style>

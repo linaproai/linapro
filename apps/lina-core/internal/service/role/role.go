@@ -23,6 +23,10 @@ const (
 	builtinAdminRoleKey = "admin"
 	// builtinAdminRoleNameI18n is the runtime i18n key for the built-in administrator role.
 	builtinAdminRoleNameI18n = "role.builtin.admin.name"
+	// builtinUserRoleKey identifies the protected built-in standard user role.
+	builtinUserRoleKey = "user"
+	// builtinUserRoleNameI18n is the runtime i18n key for the built-in standard user role.
+	builtinUserRoleNameI18n = "role.builtin.user.name"
 )
 
 // PermissionMenuFilter defines the narrow dependency required by the role
@@ -65,6 +69,9 @@ type Service interface {
 	GetUserRoles(ctx context.Context, userId int) ([]*entity.SysRole, error)
 	// GetUserRoleNames returns role names for a user.
 	GetUserRoleNames(ctx context.Context, userId int) ([]string, error)
+	// DisplayName returns the read-only display name for one role, localizing
+	// protected built-in roles while preserving custom role names.
+	DisplayName(ctx context.Context, role *entity.SysRole) string
 	// GetUserMenuIds returns menu IDs accessible by a user through their roles.
 	GetUserMenuIds(ctx context.Context, userId int) ([]int, error)
 	// GetUserPermissions returns effective menu and button permission strings for a user.
@@ -222,7 +229,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		}
 		list = append(list, &RoleItem{
 			Id:        r.Id,
-			Name:      s.localizeListRoleName(ctx, r),
+			Name:      s.DisplayName(ctx, r),
 			Key:       r.Key,
 			Sort:      r.Sort,
 			DataScope: r.DataScope,
@@ -239,16 +246,23 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}, nil
 }
 
-// localizeListRoleName translates the protected built-in admin role only in
-// read-only list rows while keeping editable role records unchanged.
-func (s *serviceImpl) localizeListRoleName(ctx context.Context, role *entity.SysRole) string {
+// DisplayName translates protected built-in role names in read-only display
+// rows while keeping editable role records and custom roles unchanged.
+func (s *serviceImpl) DisplayName(ctx context.Context, role *entity.SysRole) string {
 	if role == nil {
 		return ""
 	}
-	if role.Key != builtinAdminRoleKey || s == nil || s.i18nSvc == nil {
+	if s == nil || s.i18nSvc == nil {
 		return role.Name
 	}
-	return s.i18nSvc.Translate(ctx, builtinAdminRoleNameI18n, role.Name)
+	switch role.Key {
+	case builtinAdminRoleKey:
+		return s.i18nSvc.Translate(ctx, builtinAdminRoleNameI18n, role.Name)
+	case builtinUserRoleKey:
+		return s.i18nSvc.Translate(ctx, builtinUserRoleNameI18n, role.Name)
+	default:
+		return role.Name
+	}
 }
 
 // GetById retrieves role by ID.
@@ -808,7 +822,7 @@ func (s *serviceImpl) GetUserRoleNames(ctx context.Context, userId int) ([]strin
 
 	names := make([]string, 0, len(roles))
 	for _, r := range roles {
-		names = append(names, r.Name)
+		names = append(names, s.DisplayName(ctx, r))
 	}
 
 	return names, nil

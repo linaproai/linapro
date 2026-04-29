@@ -125,6 +125,11 @@
         "todos": "待办事项",
         "trafficSources": "访问来源"
       },
+      "stats": {
+        "todos": "待办",
+        "projects": "项目",
+        "team": "团队"
+      },
       "quickNav": {
         "home": "首页",
         "dashboard": "仪表盘",
@@ -641,6 +646,7 @@
         "environmentDisabled": "当前环境未启用 Shell 任务",
         "deleteSelectedConfirm": "确认删除选中的 {count} 个任务吗？",
         "deleteConfirm": "确认删除该任务吗？",
+        "triggerConfirm": "确认立即执行该任务吗？",
         "triggerSuccess": "已触发执行，日志编号 {logId}",
         "resetSuccess": "执行次数已重置",
         "builtinReadonly": "内建任务不允许在表单中直接修改。",

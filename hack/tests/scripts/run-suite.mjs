@@ -1,13 +1,14 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const testsDir = path.resolve(scriptDir, '..');
-const manifestPath = path.resolve(testsDir, 'config/execution-manifest.json');
-const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+import {
+  loadManifest,
+  splitBySerial,
+  summarizeIsolationCategories,
+  testsDir,
+} from './execution-governance.mjs';
+
+const manifest = loadManifest();
 
 const mode = process.argv[2] ?? 'full';
 const extraArgs = process.argv.slice(3);
@@ -15,68 +16,6 @@ const parallelWorkers = Number.parseInt(
   process.env.E2E_PARALLEL_WORKERS ?? `${Math.min(Math.max(os.cpus().length - 1, 2), 4)}`,
   10,
 );
-
-function toPosix(relativePath) {
-  return relativePath.split(path.sep).join('/');
-}
-
-function listTcFiles(entry) {
-  const absoluteEntry = path.resolve(testsDir, entry);
-  if (!statExists(absoluteEntry)) {
-    return [];
-  }
-
-  const result = [];
-  const stack = [absoluteEntry];
-  while (stack.length > 0) {
-    const current = stack.pop();
-    const stat = statSync(current);
-    if (stat.isDirectory()) {
-      const children = readdirSync(current)
-        .map((child) => path.join(current, child))
-        .sort()
-        .reverse();
-      stack.push(...children);
-      continue;
-    }
-
-    const relativePath = toPosix(path.relative(testsDir, current));
-    if (/^e2e\/.*\/TC\d{4}.*\.ts$/.test(relativePath) || /^e2e\/TC\d{4}.*\.ts$/.test(relativePath)) {
-      result.push(relativePath);
-    }
-  }
-
-  return result.sort();
-}
-
-function statExists(value) {
-  try {
-    statSync(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function unique(values) {
-  return [...new Set(values)].sort();
-}
-
-function resolveEntries(entries) {
-  return unique(entries.flatMap((entry) => listTcFiles(entry)));
-}
-
-function serialFileSet() {
-  return new Set(resolveEntries(manifest.serial ?? []));
-}
-
-function splitBySerial(entries) {
-  const files = resolveEntries(entries);
-  const serial = serialFileSet();
-  const serialFiles = files.filter((file) => serial.has(file));
-  const parallelFiles = files.filter((file) => !serial.has(file));
-  return { parallelFiles, serialFiles };
-}
 
 function runPlaywright(files, workers, label) {
   if (files.length === 0) {
@@ -93,8 +32,26 @@ function runPlaywright(files, workers, label) {
   return result.status ?? 1;
 }
 
+function formatCategorySummary(entries) {
+  if (entries.length === 0) {
+    return 'none';
+  }
+  return entries.map(([category, count]) => `${category}=${count}`).join(', ');
+}
+
 function runMode(entries, label) {
-  const { parallelFiles, serialFiles } = splitBySerial(entries);
+  const { files, parallelFiles, serialFiles } = splitBySerial(entries, manifest);
+  const categorySummary = summarizeIsolationCategories(serialFiles, manifest);
+  console.log(
+    [
+      `[${label}] selected=${files.length}`,
+      `parallel=${parallelFiles.length}`,
+      `serial=${serialFiles.length}`,
+      `parallelWorkers=${Math.max(parallelWorkers, 1)}`,
+      `serialIsolation=${formatCategorySummary(categorySummary)}`,
+    ].join(' '),
+  );
+
   const parallelStatus = runPlaywright(parallelFiles, Math.max(parallelWorkers, 1), `${label}:parallel`);
   if (parallelStatus !== 0) {
     return parallelStatus;

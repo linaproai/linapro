@@ -325,6 +325,90 @@ func TestDynamicPluginRoutePermissionsMaterializeHiddenMenus(t *testing.T) {
 	}
 }
 
+// TestDynamicPluginRoutePermissionMenusAttachToPluginMenu verifies synthetic
+// route-permission buttons are nested under the dynamic plugin's own menu.
+func TestDynamicPluginRoutePermissionMenusAttachToPluginMenu(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID   = "plugin-dynamic-route-permission-parent"
+		menuKey    = "plugin:plugin-dynamic-route-permission-parent:main-entry"
+		permission = "plugin-dynamic-route-permission-parent:review:view"
+		version    = "v0.3.0"
+	)
+
+	menus := []*catalog.MenuSpec{
+		{
+			Key:       menuKey,
+			Name:      "Runtime Route Permission Parent Plugin",
+			Path:      "/plugin-assets/plugin-dynamic-route-permission-parent/v0.3.0/index.html",
+			Perms:     "plugin-dynamic-route-permission-parent:view",
+			Icon:      "ant-design:deployment-unit-outlined",
+			Type:      catalog.MenuTypePage.String(),
+			Sort:      -1,
+			Component: "system/plugin/dynamic-page",
+		},
+	}
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
+		t,
+		pluginID,
+		"Runtime Route Permission Parent Plugin",
+		version,
+		menus,
+		nil,
+		nil,
+	)
+	writeRuntimeArtifactWithMenusAndRoutePermissions(
+		t,
+		artifactPath,
+		pluginID,
+		"Runtime Route Permission Parent Plugin",
+		version,
+		menus,
+		permission,
+	)
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic runtime manifest to load, got error: %v", err)
+	}
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err = services.Catalog.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected runtime plugin manifest sync to succeed, got error: %v", err)
+	}
+	if err = services.Lifecycle.Install(ctx, pluginID); err != nil {
+		t.Fatalf("expected runtime plugin install to succeed, got error: %v", err)
+	}
+
+	parentMenu, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected parent menu query to succeed, got error: %v", err)
+	}
+	if parentMenu == nil {
+		t.Fatal("expected parent plugin menu to be created")
+	}
+
+	permissionMenuKey := integration.BuildDynamicRoutePermissionMenuKey(pluginID, permission)
+	permissionMenu, err := testutil.QueryMenuByKey(ctx, permissionMenuKey)
+	if err != nil {
+		t.Fatalf("expected synthetic permission menu query to succeed, got error: %v", err)
+	}
+	if permissionMenu == nil {
+		t.Fatal("expected synthetic permission menu to be created")
+	}
+	if permissionMenu.ParentId != parentMenu.Id {
+		t.Fatalf("expected synthetic permission menu parent %d, got %d", parentMenu.Id, permissionMenu.ParentId)
+	}
+}
+
 // TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh verifies a
 // same-version refresh cleans up superseded synthetic permission menus.
 func TestDynamicPluginRoutePermissionMenusDeleteStaleEntriesOnRefresh(t *testing.T) {
@@ -594,6 +678,60 @@ func writeRuntimeArtifactWithRoutePermissions(
 			Name:    pluginName,
 			Version: version,
 			Type:    catalog.TypeDynamic.String(),
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:        pluginbridge.RuntimeKindWasm,
+			ABIVersion:         pluginbridge.SupportedABIVersion,
+			FrontendAssetCount: len(testutil.DefaultTestRuntimeFrontendAssets()),
+			RouteCount:         len(routes),
+		},
+		testutil.DefaultTestRuntimeFrontendAssets(),
+		nil,
+		nil,
+		nil,
+		routes,
+		&pluginbridge.BridgeSpec{
+			ABIVersion:     pluginbridge.ABIVersionV1,
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   pluginbridge.CodecProtobuf,
+			ResponseCodec:  pluginbridge.CodecProtobuf,
+		},
+	)
+}
+
+// writeRuntimeArtifactWithMenusAndRoutePermissions rewrites the test runtime
+// artifact with both menu declarations and backend route permissions.
+func writeRuntimeArtifactWithMenusAndRoutePermissions(
+	t *testing.T,
+	artifactPath string,
+	pluginID string,
+	pluginName string,
+	version string,
+	menus []*catalog.MenuSpec,
+	permissions ...string,
+) {
+	t.Helper()
+
+	routes := make([]*pluginbridge.RouteContract, 0, len(permissions))
+	for _, permission := range permissions {
+		routes = append(routes, &pluginbridge.RouteContract{
+			Path:       "/review-summary",
+			Method:     http.MethodGet,
+			Access:     pluginbridge.AccessLogin,
+			Permission: permission,
+		})
+	}
+
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      pluginID,
+			Name:    pluginName,
+			Version: version,
+			Type:    catalog.TypeDynamic.String(),
+			Menus:   menus,
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        pluginbridge.RuntimeKindWasm,

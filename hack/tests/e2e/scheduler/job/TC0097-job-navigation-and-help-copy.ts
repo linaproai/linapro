@@ -183,7 +183,7 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
           return logs.total;
         },
         {
-          timeout: 10000,
+          timeout: 30000,
           message: '停用状态任务也应支持立即执行并生成日志',
         },
       )

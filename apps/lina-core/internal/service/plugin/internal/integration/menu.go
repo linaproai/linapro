@@ -172,7 +172,11 @@ func (s *serviceImpl) syncDynamicRoutePermissionMenus(ctx context.Context, manif
 	}
 	for _, spec := range permissionMenus {
 		desiredKeys[spec.Key] = struct{}{}
-		menuID, err := s.upsertPluginMenu(ctx, spec, 0, existingByKey[spec.Key])
+		parentID, err := s.resolveDynamicRoutePermissionParentID(spec, existingByKey)
+		if err != nil {
+			return err
+		}
+		menuID, err := s.upsertPluginMenu(ctx, spec, parentID, existingByKey[spec.Key])
 		if err != nil {
 			return err
 		}
@@ -198,6 +202,7 @@ func (s *serviceImpl) buildDynamicRoutePermissionMenuSpecs(manifest *catalog.Man
 
 	items := make([]*catalog.MenuSpec, 0)
 	seen := make(map[string]struct{})
+	parentKey := dynamicRoutePermissionParentKey(manifest)
 	for _, route := range manifest.Routes {
 		if route == nil || strings.TrimSpace(route.Permission) == "" {
 			continue
@@ -210,19 +215,66 @@ func (s *serviceImpl) buildDynamicRoutePermissionMenuSpecs(manifest *catalog.Man
 		visible := 0
 		status := pluginMenuDefaultStatus
 		items = append(items, &catalog.MenuSpec{
-			Key:     buildDynamicRoutePermissionMenuKey(manifest.ID, permission),
-			Name:    catalog.DynamicRoutePermissionMenuNamePrefix + permission,
-			Perms:   permission,
-			Type:    catalog.MenuTypeButton.String(),
-			Visible: &visible,
-			Status:  &status,
-			Remark:  buildDynamicRoutePermissionMenuRemark(manifest.ID),
+			Key:       buildDynamicRoutePermissionMenuKey(manifest.ID, permission),
+			ParentKey: parentKey,
+			Name:      catalog.DynamicRoutePermissionMenuNamePrefix + permission,
+			Perms:     permission,
+			Type:      catalog.MenuTypeButton.String(),
+			Visible:   &visible,
+			Status:    &status,
+			Remark:    buildDynamicRoutePermissionMenuRemark(manifest.ID),
 		})
 	}
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].Perms < items[j].Perms
 	})
 	return items
+}
+
+// dynamicRoutePermissionParentKey returns the plugin menu that should own
+// synthetic route-permission buttons. The first non-button root menu is the
+// plugin entry point in current manifests; if none exists, route permissions
+// keep the legacy root placement.
+func dynamicRoutePermissionParentKey(manifest *catalog.Manifest) string {
+	if manifest == nil {
+		return ""
+	}
+	for _, spec := range manifest.Menus {
+		if spec == nil || strings.TrimSpace(spec.Key) == "" {
+			continue
+		}
+		if catalog.NormalizeMenuType(spec.Type) == catalog.MenuTypeButton {
+			continue
+		}
+		if strings.TrimSpace(spec.ParentKey) == "" {
+			return strings.TrimSpace(spec.Key)
+		}
+	}
+	for _, spec := range manifest.Menus {
+		if spec == nil || strings.TrimSpace(spec.Key) == "" {
+			continue
+		}
+		if catalog.NormalizeMenuType(spec.Type) != catalog.MenuTypeButton {
+			return strings.TrimSpace(spec.Key)
+		}
+	}
+	return ""
+}
+
+// resolveDynamicRoutePermissionParentID maps the synthetic permission menu's
+// parent_key to the persisted plugin menu row created earlier in the same sync.
+func (s *serviceImpl) resolveDynamicRoutePermissionParentID(
+	spec *catalog.MenuSpec,
+	existingByKey map[string]*entity.SysMenu,
+) (int, error) {
+	if spec == nil || strings.TrimSpace(spec.ParentKey) == "" {
+		return 0, nil
+	}
+	parent, ok := existingByKey[strings.TrimSpace(spec.ParentKey)]
+	if !ok || parent == nil || parent.DeletedAt != nil {
+		return 0, gerror.Newf("dynamic route permission parent menu does not exist: %s -> %s", spec.Key, spec.ParentKey)
+	}
+	return parent.Id, nil
 }
 
 // buildDynamicRoutePermissionMenuKey returns the synthetic menu key for a route permission.

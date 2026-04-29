@@ -74,7 +74,7 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthPageTitle,
-		DefaultValue: "AI-driven full-stack development framework",
+		DefaultValue: "An AI-native full-stack framework engineered for sustainable delivery",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAuthPageDesc,

@@ -61,9 +61,42 @@ The suite uses `config/execution-manifest.json` as the single source of truth fo
 - module scopes
 - smoke file selection
 - serial execution boundaries for shared-state scenarios
+- serial isolation categories and documented parallel exceptions
 
 `pnpm test`, `pnpm test:full`, `pnpm test:smoke`, and `pnpm test:module` all run through `scripts/run-suite.mjs`.
 The runner splits the selected files into a parallel pool and a serial pool so global-state heavy scenarios still execute safely.
+Every run prints the selected file count, parallel file count, serial file count, parallel worker count, and the isolation categories represented in the serial pool.
+
+## Isolation Categories
+
+Use `serialIsolation` in `config/execution-manifest.json` when a test file or directory mutates or depends on shared state that can affect other files.
+
+| Category | Use for |
+| --- | --- |
+| `authSession` | Tests that verify shared authenticated browser state, such as logout. |
+| `pluginLifecycle` | Plugin sync, install, enable, disable, uninstall, upload, or upgrade flows. |
+| `runtimeI18nCache` | Runtime language bundle versions, ETag checks, and language-cache revalidation. |
+| `systemConfig` | System parameter and public frontend configuration mutations. |
+| `dictionaryData` | Dictionary type or dictionary data create, import, edit, delete, and cascade scenarios. |
+| `permissionMatrix` | Menu, role, button permission, and plugin-generated permission matrix mutations. |
+| `sharedDatabaseSeed` | Tests that depend on shared seed or mock data loaded by fixtures. |
+| `filesystemArtifact` | Plugin package, runtime plugin, or other shared runtime artifact mutations. |
+
+Keep read-only tests in the parallel pool when they use fixture-owned prerequisites and unique local data.
+If a high-risk pattern is intentionally parallel safe, add a `parallelIsolationAllowlist` entry with the file, category, and reason.
+The validator rejects missing categories and allowlist entries without reasons.
+
+## Fixture-Owned Prerequisites
+
+Test files must be independently runnable.
+Source plugin prerequisites should go through `fixtures/plugin.ts`, which syncs source plugins, installs or enables them when needed, refreshes the frontend projection, and loads matching plugin mock SQL when present.
+Tests that create users, departments, posts, notices, files, plugins, import rows, or export artifacts should use unique names or stable test prefixes and clean up their own data in `finally`, `afterEach`, or `afterAll`.
+
+## Cache Revalidation
+
+Cache and ETag tests should validate protocol semantics instead of assuming the resource version stays unchanged during a full regression.
+A conditional request must prove that the request carries the expected precondition.
+It may accept `304 Not Modified` when the ETag still matches, or `200 OK` only when the response includes a new ETag that differs from the cached value and a valid response body.
 
 ## Authentication Reuse
 
@@ -93,5 +126,8 @@ The validator checks:
 - non-`TC` files under `e2e/`
 - files outside the allowed module scopes
 - broken smoke and serial manifest references
+- missing serial isolation categories
+- high-risk shared-state patterns that are still in the parallel pool
+- parallel isolation allowlist entries without documented reasons
 
 When adding a new test case, update `config/execution-manifest.json` if the new file must join the smoke pack, serial pool, or a new module scope.

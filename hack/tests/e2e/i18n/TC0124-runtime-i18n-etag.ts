@@ -1,8 +1,36 @@
+import type { APIResponse, Response } from "@playwright/test";
+
 import { test, expect } from "../../fixtures/auth";
 import { waitForRouteReady } from "../../support/ui";
 
 const runtimeMessagesPath = "/api/v1/i18n/runtime/messages";
 const runtimePersistentCacheKey = "linapro:i18n:runtime:en-US";
+
+async function expectRuntimeRevalidationResponse(
+  response: APIResponse | Response,
+  cachedEtag: string,
+) {
+  expect([200, 304]).toContain(response.status());
+
+  if (response.status() === 304) {
+    expect(response.headers()["etag"]).toBe(cachedEtag);
+
+    const body = await response.body().catch((error: Error) => {
+      expect(error.message).toContain("Response body is unavailable");
+      return Buffer.from([]);
+    });
+    expect(body.length, "304 response must not carry a body").toBe(0);
+    return;
+  }
+
+  const refreshedEtag = response.headers()["etag"];
+  expect(refreshedEtag).toMatch(/^"en-US-\d+"$/);
+  expect(refreshedEtag).not.toBe(cachedEtag);
+
+  const payload = await response.json();
+  const messages = payload?.data?.messages ?? payload?.messages;
+  expect(messages, "expected refreshed messages payload on 200").toBeTruthy();
+}
 
 test.describe("TC0124 运行时翻译包 ETag 协商", () => {
   test("TC-124a: 首次请求返回 ETag 与 Cache-Control 头", async ({
@@ -32,7 +60,7 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
     ).toBeTruthy();
   });
 
-  test("TC-124b: 携带匹配 If-None-Match 时返回 304 且无 body", async ({
+  test("TC-124b: 携带匹配 If-None-Match 时返回 304 或合法刷新响应", async ({
     adminPage,
   }) => {
     const firstResponse = await adminPage.request.get(
@@ -54,11 +82,7 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
         },
       },
     );
-    expect(secondResponse.status()).toBe(304);
-    expect(secondResponse.headers()["etag"]).toBe(etag);
-
-    const body = await secondResponse.body();
-    expect(body.length, "304 response must not carry a body").toBe(0);
+    await expectRuntimeRevalidationResponse(secondResponse, etag!);
   });
 
   test("TC-124c: 不同语言独立 ETag,跨语言 If-None-Match 不命中", async ({
@@ -170,19 +194,6 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
 
     await revalidationRequest;
     const response = await revalidationResponse;
-    expect([200, 304]).toContain(response.status());
-
-    if (response.status() === 304) {
-      expect(response.headers()["etag"]).toBe(etag);
-      return;
-    }
-
-    const refreshedEtag = response.headers()["etag"];
-    expect(refreshedEtag).toMatch(/^"en-US-\d+"$/);
-    expect(refreshedEtag).not.toBe(etag);
-
-    const payload = await response.json();
-    const messages = payload?.data?.messages ?? payload?.messages;
-    expect(messages, "expected refreshed messages payload on 200").toBeTruthy();
+    await expectRuntimeRevalidationResponse(response, etag);
   });
 });

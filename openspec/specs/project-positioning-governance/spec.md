@@ -4,12 +4,12 @@
 TBD - created by archiving change framework-positioning-core-boundary-and-readme-i18n. Update Purpose after archive.
 ## Requirements
 ### Requirement: 项目定位统一
-系统 SHALL 将 `LinaPro` 的统一项目定位定义为“`AI驱动的全栈开发框架`”，并在项目规范、系统元数据、入口文案和仓库说明中保持该定位一致。
+系统 SHALL 将 `LinaPro` 的统一项目定位定义为”`面向可持续交付的 AI 原生全栈框架`”，并在项目规范、系统元数据、入口文案和仓库说明中保持该定位一致。
 
 #### Scenario: 项目级说明使用统一定位
 - **WHEN** 开发者编写或更新项目规范、系统元数据、入口文案或仓库说明
-- **THEN** 相关内容使用“`AI驱动的全栈开发框架`”描述 `LinaPro`
-- **AND** 不再将 `LinaPro` 定义为“仅一个后台管理系统”或等价表述
+- **THEN** 相关内容使用”`面向可持续交付的 AI 原生全栈框架`”描述 `LinaPro`
+- **AND** 不再将 `LinaPro` 定义为”仅一个后台管理系统”或等价表述
 
 #### Scenario: 管理后台能力作为从属能力表述
 - **WHEN** 文档、页面说明或系统元数据需要提及菜单、角色、工作区、系统管理等后台能力

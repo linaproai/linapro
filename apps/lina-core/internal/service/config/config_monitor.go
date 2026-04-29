@@ -17,7 +17,7 @@ type MonitorConfig struct {
 func (s *serviceImpl) GetMonitor(ctx context.Context) *MonitorConfig {
 	return cloneMonitorConfig(processStaticConfigCaches.monitor.load(func() *MonitorConfig {
 		cfg := &MonitorConfig{
-			Interval:            30 * time.Second,
+			Interval:            time.Minute,
 			RetentionMultiplier: 5,
 		}
 		mustScanConfig(ctx, "monitor", cfg)

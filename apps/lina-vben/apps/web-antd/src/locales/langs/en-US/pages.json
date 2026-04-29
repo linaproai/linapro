@@ -125,6 +125,11 @@
         "todos": "To-do Items",
         "trafficSources": "Traffic Sources"
       },
+      "stats": {
+        "todos": "To-dos",
+        "projects": "Projects",
+        "team": "Team"
+      },
       "quickNav": {
         "home": "Home",
         "dashboard": "Dashboard",
@@ -276,11 +281,11 @@
         "receiveRate": "Receive Rate"
       },
       "diskColumns": {
-        "path": "Mount",
+        "path": "Mount Path",
         "fsType": "File System",
         "total": "Total",
         "used": "Used",
-        "free": "Free",
+        "free": "Available",
         "usagePercent": "Usage"
       },
       "units": {
@@ -641,6 +646,7 @@
         "environmentDisabled": "Shell jobs are not enabled in the current environment",
         "deleteSelectedConfirm": "Delete the selected {count} job(s)?",
         "deleteConfirm": "Delete this job?",
+        "triggerConfirm": "Run this job now?",
         "triggerSuccess": "Triggered successfully. Log ID: {logId}",
         "resetSuccess": "The execution counter has been reset",
         "builtinReadonly": "Built-in jobs cannot be modified in the form editor.",

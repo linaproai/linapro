@@ -19,16 +19,16 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 )
 
-// TestListLocalizesConfigMetadata verifies config list metadata is localized
-// while the stored config value remains the original governance value.
+// TestListLocalizesConfigMetadata verifies config list metadata and built-in
+// public frontend text values are localized for display.
 func TestListLocalizesConfigMetadata(t *testing.T) {
 	ctx := newEnglishBizCtx()
-	record := ensureConfigRecordState(
+	ensureConfigRecordState(
 		t,
 		context.Background(),
 		hostconfig.PublicFrontendSettingKeyAuthPageTitle,
 		"登录展示-页面标题",
-		"AI驱动的全栈开发框架",
+		"面向可持续交付的 AI 原生全栈框架",
 		"控制登录页顶部主标题文案。",
 	)
 
@@ -51,8 +51,37 @@ func TestListLocalizesConfigMetadata(t *testing.T) {
 	if item.Remark != "Controls the headline shown at the top of the login page." {
 		t.Fatalf("expected localized config remark %q, got %q", "Controls the headline shown at the top of the login page.", item.Remark)
 	}
-	if item.Value != record.Value {
-		t.Fatalf("expected config value to remain raw %q, got %q", record.Value, item.Value)
+	if item.Value != "An AI-native full-stack framework engineered for sustainable delivery" {
+		t.Fatalf("expected localized config value %q, got %q", "An AI-native full-stack framework engineered for sustainable delivery", item.Value)
+	}
+}
+
+// TestListKeepsCustomConfigValueRaw verifies customized public frontend values
+// remain raw in list rows because sys_config does not store per-locale copies.
+func TestListKeepsCustomConfigValueRaw(t *testing.T) {
+	ctx := newEnglishBizCtx()
+	record := ensureConfigRecordState(
+		t,
+		context.Background(),
+		hostconfig.PublicFrontendSettingKeyAuthPageTitle,
+		"登录展示-页面标题",
+		"Custom Login Title",
+		"控制登录页顶部主标题文案。",
+	)
+
+	out, err := New().List(ctx, ListInput{
+		PageNum:  1,
+		PageSize: 10,
+		Key:      hostconfig.PublicFrontendSettingKeyAuthPageTitle,
+	})
+	if err != nil {
+		t.Fatalf("list customized configs: %v", err)
+	}
+	if len(out.List) != 1 {
+		t.Fatalf("expected one config row, got %d", len(out.List))
+	}
+	if out.List[0].Value != record.Value {
+		t.Fatalf("expected custom config value to remain raw %q, got %q", record.Value, out.List[0].Value)
 	}
 }
 
@@ -65,7 +94,7 @@ func TestGetByIdKeepsRawConfigMetadata(t *testing.T) {
 		context.Background(),
 		hostconfig.PublicFrontendSettingKeyAuthPageTitle,
 		"登录展示-页面标题",
-		"AI驱动的全栈开发框架",
+		"面向可持续交付的 AI 原生全栈框架",
 		"控制登录页顶部主标题文案。",
 	)
 
@@ -137,7 +166,7 @@ func TestExportLocalizesHeadersButKeepsRawRows(t *testing.T) {
 		context.Background(),
 		hostconfig.PublicFrontendSettingKeyAuthPageTitle,
 		"登录展示-页面标题",
-		"AI驱动的全栈开发框架",
+		"面向可持续交付的 AI 原生全栈框架",
 		"控制登录页顶部主标题文案。",
 	)
 

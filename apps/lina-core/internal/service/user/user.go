@@ -291,7 +291,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	// Build roleId -> roleName map
 	roleNameMap := make(map[int]string)
 	for _, r := range roles {
-		roleNameMap[r.Id] = r.Name
+		roleNameMap[r.Id] = s.roleSvc.DisplayName(ctx, r)
 	}
 
 	// Build output with dept and role info

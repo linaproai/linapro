@@ -338,14 +338,24 @@ function handleReload() {
               {{ $t('pages.system.job.actions.runNow') }}
             </ghost-button>
           </Tooltip>
-          <ghost-button
+          <Popconfirm
             v-else-if="canTriggerRow(row)"
-            :disabled="isPluginPaused(row)"
-            :data-testid="`job-trigger-${row.id}`"
-            @click.stop="handleTrigger(row)"
+            placement="left"
+            :title="$t('pages.system.job.messages.triggerConfirm')"
+            :ok-text="$t('pages.common.confirm')"
+            :cancel-text="$t('pages.common.cancel')"
+            :ok-button-props="{ type: 'primary' }"
+            @confirm="handleTrigger(row)"
           >
-            {{ $t('pages.system.job.actions.runNow') }}
-          </ghost-button>
+            <ghost-button
+              class="btn-success"
+              :disabled="isPluginPaused(row)"
+              :data-testid="`job-trigger-${row.id}`"
+              @click.stop=""
+            >
+              {{ $t('pages.system.job.actions.runNow') }}
+            </ghost-button>
+          </Popconfirm>
 
           <Tooltip
             v-if="canEditRow(row) && isShellBlocked(row)"

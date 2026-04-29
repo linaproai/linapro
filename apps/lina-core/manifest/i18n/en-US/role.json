@@ -3,6 +3,9 @@
     "builtin": {
       "admin": {
         "name": "Administrator"
+      },
+      "user": {
+        "name": "User"
       }
     }
   }

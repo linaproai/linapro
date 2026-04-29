@@ -50,8 +50,8 @@ database:
 	if sessionCfg.CleanupInterval != 5*time.Minute {
 		t.Fatalf("expected default session cleanup interval to be 5m, got %s", sessionCfg.CleanupInterval)
 	}
-	if monitorCfg.Interval != 30*time.Second {
-		t.Fatalf("expected default monitor interval to be 30s, got %s", monitorCfg.Interval)
+	if monitorCfg.Interval != time.Minute {
+		t.Fatalf("expected default monitor interval to be 1m, got %s", monitorCfg.Interval)
 	}
 	if monitorCfg.RetentionMultiplier != 5 {
 		t.Fatalf("expected default retention multiplier to be 5, got %d", monitorCfg.RetentionMultiplier)

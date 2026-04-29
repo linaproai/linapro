@@ -180,6 +180,37 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
       await api.dispose();
     }
 
+    const auditApi = await createAdminApiContext();
+    try {
+      const operLogData = await expectSuccess<{
+        items: Array<{
+          operSummary: string;
+          operType: string;
+          status: number;
+          title: string;
+        }>;
+      }>(
+        await auditApi.get('operlog?pageNum=1&pageSize=20', {
+          headers: { 'Accept-Language': 'en-US' },
+        }),
+      );
+      const logoutLog = operLogData.items.find(
+        (item) => item.title === 'Authentication' && item.operSummary === 'User logout',
+      );
+      expect(logoutLog?.operType).toBe('create');
+      expect(logoutLog?.status).toBe(0);
+
+      const exportLog = operLogData.items.find(
+        (item) =>
+          item.title === 'Dictionary Management' &&
+          item.operSummary === 'Export dictionary type',
+      );
+      expect(exportLog?.operType).toBe('export');
+      expect(exportLog?.status).toBe(0);
+    } finally {
+      await auditApi.dispose();
+    }
+
     await mainLayout.switchLanguage('English');
 
     await adminPage.goto('/monitor/loginlog');
@@ -203,7 +234,6 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
     expect(operLogText).toContain('User logout');
     expect(operLogText).toContain('Dictionary Management');
     expect(operLogText).toContain('Export');
-    expect(operLogText).toContain('Success');
     expect(operLogText).not.toContain('认证管理');
     expect(operLogText).not.toContain('用户登出');
     expect(operLogText).not.toContain('导出字典类型');

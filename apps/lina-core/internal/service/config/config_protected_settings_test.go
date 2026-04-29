@@ -62,7 +62,7 @@ func TestPublicFrontendSettingSpecsExposeUpdatedLoginDefaults(t *testing.T) {
 	if !ok {
 		t.Fatal("expected login page title spec to be present")
 	}
-	if titleSpec.DefaultValue != "AI-driven full-stack development framework" {
+	if titleSpec.DefaultValue != "An AI-native full-stack framework engineered for sustainable delivery" {
 		t.Fatalf("unexpected login page title default: %q", titleSpec.DefaultValue)
 	}
 

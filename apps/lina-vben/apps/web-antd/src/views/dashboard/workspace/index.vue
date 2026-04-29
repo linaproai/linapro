@@ -218,7 +218,14 @@ const trendItems = computed<WorkbenchTrendItem[]>(() => [
 ]);
 
 const router = useRouter();
+const builtInAdminNames = new Set(['Administrator', '管理员', '管理員']);
 const displayUserName = computed(() => {
+  if (
+    userStore.userInfo?.username === 'admin' &&
+    builtInAdminNames.has(userStore.userInfo?.realName ?? '')
+  ) {
+    return $t('pages.dashboard.workspace.defaultName');
+  }
   return (
     userStore.userInfo?.realName || $t('pages.dashboard.workspace.defaultName')
   );
@@ -242,6 +249,9 @@ function navTo(nav: WorkbenchProjectItem | WorkbenchQuickNavItem) {
   <div class="p-5" data-testid="dashboard-workspace-page">
     <WorkbenchHeader
       :avatar="userStore.userInfo?.avatar || preferences.app.defaultAvatar"
+      :project-label="$t('pages.dashboard.workspace.stats.projects')"
+      :team-label="$t('pages.dashboard.workspace.stats.team')"
+      :todo-label="$t('pages.dashboard.workspace.stats.todos')"
     >
       <template #title>
         {{ welcomeTitle }}

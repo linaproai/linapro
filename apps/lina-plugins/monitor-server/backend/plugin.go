@@ -80,7 +80,7 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 	monitorCfg := configsvc.New().GetMonitor(ctx)
 	interval := monitorCfg.Interval
 	if interval <= 0 {
-		interval = 30 * time.Second
+		interval = time.Minute
 	}
 
 	if err := registrar.AddWithMetadata(
@@ -126,7 +126,7 @@ func cleanupSnapshots(ctx context.Context, registrar pluginhost.CronRegistrar) e
 	monitorCfg := configsvc.New().GetMonitor(ctx)
 	interval := monitorCfg.Interval
 	if interval <= 0 {
-		interval = 30 * time.Second
+		interval = time.Minute
 	}
 
 	retentionMultiplier := monitorCfg.RetentionMultiplier

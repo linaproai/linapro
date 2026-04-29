@@ -1,6 +1,6 @@
 # LinaPro
 
-LinaPro is an **AI-driven full-stack development framework** built for engineering teams that want every line of AI-generated code to be trustworthy, verifiable, and sustainably evolvable — not just faster to produce. Its core principle is **AI as the primary driver, humans as the guide**: AI handles the bulk of analysis, design, and implementation execution, while humans define direction, own critical decisions, and ensure quality at key review gates.
+LinaPro is an **AI-native full-stack framework engineered for sustainable delivery**, built for engineering teams that want every line of AI-generated code to be trustworthy, verifiable, and sustainably evolvable — not just faster to produce. Its core principle is **AI as the primary driver, humans as the guide**: AI handles the bulk of analysis, design, and implementation execution, while humans define direction, own critical decisions, and ensure quality at key review gates.
 
 The framework combines four tightly interlocking layers: a universal core host service, a production-ready management workspace, a dual-mode plugin runtime for unlimited extensibility, and a specification-driven AI-native R&D workflow. Each layer is designed independently under a strict loose-coupling principle. Business modules can be enabled or disabled on demand, ensuring that delivery quality does not degrade as the product scales.
 

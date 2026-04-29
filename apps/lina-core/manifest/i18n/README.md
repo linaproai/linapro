@@ -45,7 +45,7 @@ Example:
 ```json
 {
   "framework": {
-    "description": "AI-driven full-stack development framework"
+    "description": "An AI-native full-stack framework engineered for sustainable delivery"
   },
   "menu": {
     "dashboard": {
@@ -145,7 +145,7 @@ Before delivery, check the following items:
 ```json
 {
   "framework": {
-    "description": "AI-driven full-stack development framework"
+    "description": "An AI-native full-stack framework engineered for sustainable delivery"
   },
   "menu": {
     "system": {

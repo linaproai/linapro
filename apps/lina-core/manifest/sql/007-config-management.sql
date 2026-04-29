@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS `sys_config` (
 -- 参数初始化数据：宿主内置运行时参数与公开前端展示参数
 -- ============================================================
 INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
-('品牌展示-应用名称', 'sys.app.name', 'LinaPro', '控制浏览器标题、登录页品牌名称和工作台Logo文案展示，建议填写简洁的产品名称。', NOW(), NOW()),
+('品牌展示-应用名称', 'sys.app.name', 'LinaPro.AI', '控制浏览器标题、登录页品牌名称和工作台Logo文案展示，建议填写简洁的产品名称。', NOW(), NOW()),
 ('品牌展示-应用 Logo', 'sys.app.logo', '/logo.png', '控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
 ('品牌展示-深色 Logo', 'sys.app.logoDark', '/logo.png', '控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
 ('用户管理-默认头像', 'sys.user.defaultAvatar', '/avatar.webp', '控制用户未设置头像时的默认头像地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),

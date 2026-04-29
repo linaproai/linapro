@@ -18,7 +18,7 @@ TBD - created by archiving change v0.5.0. Update Purpose after archive.
 - **THEN** 接口返回包含以下字段的 JSON 数据：Go 版本、GoFrame 版本、操作系统及架构、数据库版本、系统启动时间、系统运行时长
 
 ### Requirement: 关于项目区块
-关于项目区块 SHALL 展示项目名称、以“`AI驱动的全栈开发框架`”为核心的项目描述、当前版本号、开源许可证和项目主页链接。这些信息在前端配置对象中定义。
+关于项目区块 SHALL 展示项目名称、以”`面向可持续交付的 AI 原生全栈框架`”为核心的项目描述、当前版本号、开源许可证和项目主页链接。这些信息在前端配置对象中定义。
 
 #### Scenario: 展示项目基本信息
 - **WHEN** 系统信息页面加载完成
@@ -26,7 +26,7 @@ TBD - created by archiving change v0.5.0. Update Purpose after archive.
 
 #### Scenario: 展示统一项目定位
 - **WHEN** 系统信息页面加载完成
-- **THEN** 项目描述明确将 `LinaPro` 表述为“`AI驱动的全栈开发框架`”
+- **THEN** 项目描述明确将 `LinaPro` 表述为”`面向可持续交付的 AI 原生全栈框架`”
 - **AND** 若描述管理后台相关能力，则将其表述为默认管理工作台或内建通用模块
 - **AND** 不再将整个项目描述为单一后台管理系统
 
@@ -73,7 +73,7 @@ The system SHALL return project description, component descriptions, and other d
 - **AND** the component still displays normally in the corresponding section
 
 ### Requirement: System information i18n must cover public project positioning copy
-The system SHALL keep project name, project introduction, and framework positioning descriptions semantically consistent across multilingual scenarios, ensuring that `LinaPro` is always described as an AI-driven full-stack development framework and does not drift into a single admin system or other product boundary in another language.
+The system SHALL keep project name, project introduction, and framework positioning descriptions semantically consistent across multilingual scenarios, ensuring that `LinaPro` is always described as an AI-native full-stack framework engineered for sustainable delivery and does not drift into a single admin system or other product boundary in another language.
 
 #### Scenario: Unified project positioning is preserved across languages
 - **WHEN** a user switches the system language and views the system information page

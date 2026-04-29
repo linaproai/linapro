@@ -61,9 +61,42 @@ hack/tests/
 - 模块范围定义
 - `smoke` 用例清单
 - 共享状态场景的串行执行边界
+- 串行隔离类别与有理由的并行例外
 
 `pnpm test`、`pnpm test:full`、`pnpm test:smoke` 与 `pnpm test:module` 都通过 `scripts/run-suite.mjs` 执行。
 运行器会把选中的文件拆分为并行池与串行池，使高共享状态场景仍能安全执行。
+每次执行都会打印选中文件数、并行文件数、串行文件数、并行 worker 数，以及串行池覆盖的隔离类别摘要。
+
+## 隔离类别
+
+当测试文件或目录会修改或依赖可能影响其他文件的共享状态时，需要在 `config/execution-manifest.json` 的 `serialIsolation` 中声明分类。
+
+| 分类 | 适用场景 |
+| --- | --- |
+| `authSession` | 验证共享认证浏览器状态的测试，例如登出。 |
+| `pluginLifecycle` | 插件同步、安装、启用、禁用、卸载、上传或升级流程。 |
+| `runtimeI18nCache` | 运行时语言包版本、ETag 检查与语言缓存重校验。 |
+| `systemConfig` | 系统参数与公共前端配置变更。 |
+| `dictionaryData` | 字典类型或字典数据新增、导入、编辑、删除与级联场景。 |
+| `permissionMatrix` | 菜单、角色、按钮权限与插件生成权限矩阵变更。 |
+| `sharedDatabaseSeed` | 依赖 fixture 加载的共享 seed 或 mock 数据的测试。 |
+| `filesystemArtifact` | 插件包、运行时插件或其他共享运行时产物变更。 |
+
+只读测试在使用 fixture 管理前置条件且数据局部唯一时，应继续保留在并行池。
+如果某个高风险模式确认可以安全并行，需要新增 `parallelIsolationAllowlist`，写明文件、分类和原因。
+校验器会拒绝缺失分类的串行文件，以及没有原因说明的并行例外。
+
+## Fixture 前置条件
+
+测试文件必须可以独立运行。
+源码插件前置条件应统一走 `fixtures/plugin.ts`，由它负责同步源码插件、按需安装或启用、刷新前端插件投影，并在存在匹配插件 mock SQL 时加载 mock 数据。
+创建用户、部门、岗位、通知、文件、插件、导入行或导出产物的测试，应使用唯一名称或稳定测试前缀，并在 `finally`、`afterEach` 或 `afterAll` 中自行清理。
+
+## 缓存重校验
+
+缓存与 ETag 测试应验证协议语义，而不是假设完整回归期间资源版本不会变化。
+条件请求必须证明请求携带了预期前置条件。
+当 ETag 仍匹配时可以接受 `304 Not Modified`；当资源版本已合法刷新时，只能接受带有新 ETag、且新 ETag 不同于缓存值并包含有效响应体的 `200 OK`。
 
 ## 认证态复用
 
@@ -93,5 +126,8 @@ hack/tests/
 - `e2e/` 下混入非 `TC` 文件
 - 测试文件落在未允许的模块目录下
 - `smoke` 与串行清单中的失效引用
+- 缺失串行隔离分类的文件
+- 仍处于并行池的高风险共享状态模式
+- 没有原因说明的并行隔离例外
 
 新增测试用例后，如果需要把它加入 `smoke` 套件、串行池或新的模块范围，请同步更新 `config/execution-manifest.json`。

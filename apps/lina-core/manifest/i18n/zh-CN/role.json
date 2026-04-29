@@ -3,6 +3,9 @@
     "builtin": {
       "admin": {
         "name": "超级管理员"
+      },
+      "user": {
+        "name": "普通用户"
       }
     }
   }

@@ -87,7 +87,7 @@
         }
       },
       "login": {
-        "ipBlacklist": {
+        "blackIPList": {
           "name": "Login - IP Blacklist",
           "remark": "Blocks login from IPs or CIDR ranges separated by semicolons."
         }

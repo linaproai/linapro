@@ -115,7 +115,7 @@ test.describe("TC0107 运行时国际化切换", () => {
     ).toBeVisible();
     await expect(
       systemInfoContent.getByText(
-        "AI-driven full-stack development framework",
+        "An AI-native full-stack framework engineered for sustainable delivery",
         { exact: false },
       ),
     ).toBeVisible();
