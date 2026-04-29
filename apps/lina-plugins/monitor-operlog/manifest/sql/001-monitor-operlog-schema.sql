@@ -1,4 +1,5 @@
 -- 001: monitor-operlog schema
+-- 001：monitor-operlog 数据结构
 
 CREATE TABLE IF NOT EXISTS plugin_monitor_operlog (
     id              INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Log ID',

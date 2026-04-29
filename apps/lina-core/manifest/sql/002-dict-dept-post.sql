@@ -1,6 +1,8 @@
 -- 002: Dict Management, Dept Management, Post Management, User-Dept-Post Association
+-- 002：字典管理、部门管理、岗位管理、用户-部门-岗位关联
 
 -- ============================================================
+-- Dictionary type table
 -- 字典类型表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_dict_type (
@@ -15,6 +17,7 @@ CREATE TABLE IF NOT EXISTS sys_dict_type (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Dictionary type table';
 
 -- ============================================================
+-- Dictionary data table
 -- 字典数据表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_dict_data (
@@ -33,23 +36,28 @@ CREATE TABLE IF NOT EXISTS sys_dict_data (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Dictionary data table';
 
 -- ============================================================
+-- Dictionary seed data required by the host core
 -- 字典初始化数据（宿主核心必需）
 -- ============================================================
 
+-- Dictionary type: status switch
 -- 字典类型: 状态开关
 INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
 VALUES ('状态开关', 'sys_normal_disable', 1, '状态开关列表', NOW(), NOW());
 
+-- Dictionary type: user gender
 -- 字典类型: 用户性别
 INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
 VALUES ('用户性别', 'sys_user_sex', 1, '用户性别列表', NOW(), NOW());
 
+-- Dictionary data: status switch
 -- 字典数据: 状态开关
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('sys_normal_disable', '正常', '1', 1, 'primary', 1, NOW(), NOW());
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('sys_normal_disable', '停用', '0', 2, 'danger', 1, NOW(), NOW());
 
+-- Dictionary data: user gender
 -- 字典数据: 用户性别
 INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
 VALUES ('sys_user_sex', '男', '1', 1, 'primary', 1, NOW(), NOW());

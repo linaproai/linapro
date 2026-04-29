@@ -1,7 +1,10 @@
--- 007: 参数设置与任务调度模块
+-- 007: Config Management and Job Scheduling Module
+-- 007：参数设置与任务调度模块
+-- Includes config parameter table, login-status dictionary, file-scene dictionary, and job-status dictionary.
 -- 包含：参数设置表、登录状态字典、文件场景字典、任务状态字典
 
 -- ----------------------------
+-- 1. Config parameter table
 -- 1. 参数设置表
 -- ----------------------------
 CREATE TABLE IF NOT EXISTS `sys_config` (
@@ -18,12 +21,13 @@ CREATE TABLE IF NOT EXISTS `sys_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT= 'Config parameter table';
 
 -- ============================================================
+-- Config seed data: host built-in runtime parameters and public frontend display parameters
 -- 参数初始化数据：宿主内置运行时参数与公开前端展示参数
 -- ============================================================
 INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`) VALUES
 ('品牌展示-应用名称', 'sys.app.name', 'LinaPro.AI', '控制浏览器标题、登录页品牌名称和工作台Logo文案展示，建议填写简洁的产品名称。', NOW(), NOW()),
-('品牌展示-应用 Logo', 'sys.app.logo', '/logo.png', '控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
-('品牌展示-深色 Logo', 'sys.app.logoDark', '/logo.png', '控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
+('品牌展示-应用 Logo', 'sys.app.logo', '/logo.webp', '控制登录页与工作台默认 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
+('品牌展示-深色 Logo', 'sys.app.logoDark', '/logo.webp', '控制深色主题下的 Logo 图片地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
 ('用户管理-默认头像', 'sys.user.defaultAvatar', '/avatar.webp', '控制用户未设置头像时的默认头像地址，支持 http(s) 或站内绝对路径。', NOW(), NOW()),
 ('登录展示-页面标题', 'sys.auth.pageTitle', '面向可持续交付的 AI 原生全栈框架', '控制登录页顶部主标题文案。', NOW(), NOW()),
 ('登录展示-页面说明', 'sys.auth.pageDesc', '帮助团队快速交付生产级应用，同时保持架构、测试与治理的可持续演进', '控制登录页顶部说明文案。', NOW(), NOW()),
@@ -39,6 +43,7 @@ INSERT IGNORE INTO `sys_config` (`name`, `key`, `value`, `remark`, `created_at`,
 ('界面风格-水印文案', 'sys.ui.watermark.content', 'LinaPro', '控制工作台水印文案内容。', NOW(), NOW());
 
 -- ============================================================
+-- Dictionary seed data: login status
 -- 字典初始化数据：登录状态
 -- ============================================================
 INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
@@ -50,6 +55,7 @@ INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, stat
 VALUES ('sys_login_status', '失败', '1', 2, 'danger', 1, NOW(), NOW());
 
 -- ============================================================
+-- Dictionary seed data: file business scenes
 -- 字典初始化数据：文件业务场景
 -- ============================================================
 INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)

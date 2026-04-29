@@ -1,4 +1,5 @@
 -- Mock data: organization departments, posts, and demo user bindings.
+-- 模拟数据：组织部门、岗位和演示用户绑定。
 
 INSERT IGNORE INTO plugin_org_center_dept (parent_id, ancestors, name, code, order_num, leader, phone, email, status, remark, created_at, updated_at)
 SELECT 0, '0', 'LinaPro.AI', 'linapro.ai', 0, admin.id, '021-55550000', 'office@example.com', 1, 'Mock organization root', NOW(), NOW()

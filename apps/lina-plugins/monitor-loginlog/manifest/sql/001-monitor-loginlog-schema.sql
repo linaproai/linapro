@@ -1,4 +1,5 @@
 -- 001: monitor-loginlog schema
+-- 001：monitor-loginlog 数据结构
 
 CREATE TABLE IF NOT EXISTS plugin_monitor_loginlog (
     id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Log ID',

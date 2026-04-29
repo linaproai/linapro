@@ -13,7 +13,8 @@ interface WorkbenchProjectItem {
   content: string;
   date: string;
   group: string;
-  icon: Component | string;
+  icon?: Component | string;
+  logo?: string;
   title: string;
   url?: string;
 }

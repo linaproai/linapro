@@ -1,4 +1,5 @@
 -- Mock data: operation log records for monitoring demos.
+-- 模拟数据：监控演示使用的操作日志记录。
 
 INSERT IGNORE INTO plugin_monitor_operlog (
     title,

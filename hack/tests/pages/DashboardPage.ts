@@ -23,6 +23,14 @@ export class DashboardPage {
     return this.page.getByTestId('dashboard-workspace-quick-nav');
   }
 
+  get workspaceTodos(): Locator {
+    return this.page.getByTestId('dashboard-workspace-todos');
+  }
+
+  get workspaceTrends(): Locator {
+    return this.page.getByTestId('dashboard-workspace-trends');
+  }
+
   analyticsMetric(title: string): Locator {
     return this.page.getByTestId('dashboard-analytics-overview').getByText(title, { exact: true });
   }

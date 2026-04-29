@@ -1,5 +1,8 @@
+-- Distributed lock table (MEMORY engine)
 -- 分布式锁表（MEMORY 引擎）
+-- Used for leader election and distributed lock management.
 -- 用于领导选举和分布式锁管理
+-- Lock state is automatically cleared after service restart, matching the temporary-state nature of distributed locks.
 -- 服务重启后锁状态自动清空，符合分布式锁的临时状态特性
 
 CREATE TABLE IF NOT EXISTS `sys_locker` (

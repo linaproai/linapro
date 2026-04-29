@@ -131,59 +131,59 @@
         "team": "團隊"
       },
       "quickNav": {
-        "home": "首頁",
-        "dashboard": "儀表盤",
-        "components": "組件",
-        "system": "系統管理",
-        "access": "權限管理",
-        "charts": "圖表"
+        "userManagement": "用戶管理",
+        "menuManagement": "菜單管理",
+        "systemParameters": "系統參數",
+        "extensionCenter": "擴展中心",
+        "apiDocs": "接口文檔",
+        "scheduledJobs": "定時任務"
       },
       "projects": {
-        "github": {
-          "group": "開源組",
-          "content": "不要等待機會，而要創造機會。"
+        "linapro": {
+          "group": "全棧框架",
+          "content": "把複雜留給框架，把時間留給創造。"
+        },
+        "goframe": {
+          "group": "後端框架",
+          "content": "穩紮穩打，才能跑得更遠。"
         },
         "vue": {
-          "group": "算法組",
-          "content": "現在的你決定將來的你。"
+          "group": "前端框架",
+          "content": "看見變化，也擁抱變化。"
         },
-        "html5": {
-          "group": "上班摸魚",
-          "content": "沒有什麼才能比努力更重要。"
+        "vben": {
+          "group": "管理工作臺",
+          "content": "把細節做順，效率自然提升。"
         },
-        "angular": {
-          "group": "UI",
-          "content": "熱情和慾望可以突破一切難關。"
+        "antDesign": {
+          "group": "設計體系",
+          "content": "好的秩序，讓體驗更輕鬆。"
         },
-        "react": {
-          "group": "技術牛",
-          "content": "健康的身體是實現目標的基石。"
-        },
-        "js": {
-          "group": "架構組",
-          "content": "路是走出來的，而不是空想出來的。"
+        "typescript": {
+          "group": "類型系統",
+          "content": "清晰的邊界，帶來從容的交付。"
         }
       },
       "todos": {
-        "reviewFrontend": {
-          "title": "審查前端代碼提交",
-          "content": "審查最近提交到Git倉庫的前端代碼，確保代碼質量和規範。"
+        "reviewShortcuts": {
+          "title": "檢查工作臺快捷入口",
+          "content": "確認用戶、菜單、參數、插件、接口文檔和定時任務入口都能正確到達。"
         },
-        "optimizePerformance": {
-          "title": "系統性能優化",
-          "content": "檢查並優化系統性能，降低CPU使用率。"
+        "verifyI18n": {
+          "title": "驗證工作臺多語言資源",
+          "content": "檢查簡體中文、繁體中文和英文工作臺文案是否保持一致。"
         },
-        "securityReview": {
-          "title": "安全檢查",
-          "content": "進行系統安全檢查，確保沒有安全漏洞或未授權的訪問。"
+        "preparePluginDemo": {
+          "title": "準備插件擴展示例",
+          "content": "整理動態插件安裝、啟用和頁面刷新演示數據。"
         },
-        "updateDependencies": {
-          "title": "更新項目依賴",
-          "content": "更新項目中的所有npm依賴包，確保使用最新版本。"
+        "inspectJobLogs": {
+          "title": "回看定時任務日誌",
+          "content": "確認內置任務和插件任務的觸發結果可追蹤。"
         },
-        "fixUiIssues": {
-          "title": "修復UI顯示問題",
-          "content": "修復用戶報告的頁面UI顯示問題，確保在不同瀏覽器中顯示一致。"
+        "syncApiDocs": {
+          "title": "同步接口文檔示例",
+          "content": "更新核心宿主接口和插件接口的調試說明。"
         }
       },
       "trends": {
@@ -194,21 +194,26 @@
         "threeDaysAgo": "3天前",
         "oneWeekAgo": "1周前",
         "people": {
-          "william": "威廉",
-          "evan": "艾文",
-          "chris": "克里斯",
-          "peter": "皮特",
-          "jack": "傑克"
+          "platformTeam": "平臺團隊",
+          "accessTeam": "權限團隊",
+          "extensionCenter": "擴展中心",
+          "apiDocs": "接口文檔",
+          "scheduler": "任務調度",
+          "configCenter": "參數中心",
+          "aiWorkflow": "AI 工作流",
+          "testSuite": "測試套件",
+          "releasePipeline": "發佈管道"
         },
         "items": {
-          "createdVue": "在 <a>開源組</a> 創建了項目 <a>Vue</a>",
-          "followedWilliam": "關注了 <a>威廉</a>",
-          "postedUpdate": "發佈了 <a>個人動態</a>",
-          "viteArticle": "發表文章 <a>如何編寫一個Vite插件</a>",
-          "answeredOptimization": "回覆了 <a>傑克</a> 的問題 <a>如何進行項目優化？</a>",
-          "closedRunProject": "關閉了問題 <a>如何運行項目</a>",
-          "pushedGithub": "推送了代碼到 <a>Github</a>",
-          "adminVbenArticle": "發表文章 <a>如何編寫使用 Admin Vben</a>"
+          "releasedWorkspaceNav": "發佈了 <a>工作臺快捷導航</a> 演示入口",
+          "alignedAccessMenus": "同步了 <a>用戶管理</a> 與 <a>菜單管理</a> 頁面權限",
+          "publishedPluginDemo": "上架了 <a>動態插件安裝</a> 示例包",
+          "refreshedApiDocs": "刷新了 <a>OpenAPI 調試文檔</a>",
+          "checkedSchedulerLogs": "完成了 <a>定時任務執行日誌</a> 巡檢",
+          "updatedPublicConfig": "更新了 <a>登錄頁展示參數</a>",
+          "draftedOpenSpec": "生成了 <a>OpenSpec 變更提案</a>",
+          "passedPlaywright": "通過了 <a>Playwright 回歸驗證</a>",
+          "archivedDemoIteration": "歸檔了 <a>LinaPro 示例迭代</a>"
         }
       }
     }

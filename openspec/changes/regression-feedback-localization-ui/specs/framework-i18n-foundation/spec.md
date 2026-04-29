@@ -12,3 +12,9 @@
 - **WHEN** Playwright 在 `en-US` 环境下截取岗位表单、字典表单和服务监控磁盘表格
 - **THEN** 关键标签、选项、表头和列值不发生不可读换行或互相遮挡
 - **AND** 截图检查结果作为本变更验收依据之一
+
+#### Scenario: Version information menu title is localized consistently
+- **WHEN** 管理员查看开发中心下的版本信息页面入口
+- **THEN** `zh-CN` 展示为 `版本信息`
+- **AND** `en-US` 展示为 `Version Info`
+- **AND** `zh-TW` 展示为 `版本資訊`

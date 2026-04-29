@@ -1,4 +1,5 @@
 -- Mock data: source plugin demo records.
+-- 模拟数据：源码插件演示记录。
 
 INSERT IGNORE INTO `plugin_demo_source_record` (
     `title`,

@@ -1,5 +1,7 @@
 -- ------------------------------------------------------------
--- 013-dynamic-plugin-host-service-extension.sql
+-- 013 dynamic plugin host service extension SQL file
+-- 013 动态插件宿主服务扩展 SQL 文件
+-- Dynamic plugin host service extension: KV cache and unified notification domain
 -- 动态插件宿主服务扩展：KV缓存与统一通知域
 -- ------------------------------------------------------------
 

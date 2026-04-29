@@ -1,4 +1,5 @@
 -- Mock data: server monitor snapshots.
+-- 模拟数据：服务监控快照。
 
 INSERT IGNORE INTO plugin_monitor_server (node_name, node_ip, data, created_at, updated_at)
 VALUES (

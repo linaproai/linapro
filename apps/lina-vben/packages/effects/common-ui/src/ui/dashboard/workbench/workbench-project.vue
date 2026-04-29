@@ -43,16 +43,24 @@ defineEmits(['click']);
           class="group w-full cursor-pointer border-t border-r border-border p-4 transition-all hover:shadow-xl md:w-1/2 lg:w-1/3"
         >
           <div class="flex items-center">
+            <img
+              v-if="item.logo"
+              :alt="item.title"
+              class="size-8 shrink-0 rounded-sm object-contain transition-all duration-300 group-hover:scale-110"
+              :src="item.logo"
+              @click="$emit('click', item)"
+            />
             <VbenIcon
+              v-else-if="item.icon"
               :color="item.color"
               :icon="item.icon"
-              class="size-8 transition-all duration-300 group-hover:scale-110"
+              class="size-8 shrink-0 transition-all duration-300 group-hover:scale-110"
               @click="$emit('click', item)"
             />
             <span class="ml-4 text-lg font-medium">{{ item.title }}</span>
           </div>
-          <div class="mt-4 flex h-10 text-foreground/80">
-            {{ item.content }}
+          <div class="mt-4 h-10 min-w-0 text-foreground/80">
+            <span class="block truncate">{{ item.content }}</span>
           </div>
           <div class="flex justify-between text-foreground/80">
             <span>{{ item.group }}</span>

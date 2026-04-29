@@ -1,4 +1,5 @@
 -- Mock data: notice and announcement records for content management demos.
+-- 模拟数据：内容管理演示使用的通知与公告记录。
 
 INSERT IGNORE INTO plugin_content_notice (title, type, content, status, remark, created_by, updated_by, created_at, updated_at)
 SELECT

@@ -1,4 +1,5 @@
 -- Mock data: scheduled job groups, jobs, and execution logs.
+-- 模拟数据：定时任务分组、任务与执行日志。
 
 INSERT IGNORE INTO sys_job_group (code, name, remark, sort_order, is_default, created_at, updated_at)
 VALUES ('mock-maintenance', 'Mock Maintenance', 'Mock job group for scheduler management demos', 10, 0, NOW(), NOW());

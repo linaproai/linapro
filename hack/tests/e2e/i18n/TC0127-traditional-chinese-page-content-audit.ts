@@ -71,9 +71,16 @@ const hostPageAuditCases = [
     visibleTexts: ["插件管理", "插件列表"],
   },
   {
-    forbiddenTexts: ["System Info", "Backend", "系统信息", "后端"],
+    forbiddenTexts: [
+      "System Info",
+      "Version Info",
+      "Backend",
+      "系统信息",
+      "版本信息",
+      "后端",
+    ],
     path: "/about/system-info",
-    visibleTexts: ["系統信息", "後端"],
+    visibleTexts: ["版本資訊", "後端"],
   },
   {
     forbiddenTexts: ["API Docs", "API Documentation", "接口文档"],

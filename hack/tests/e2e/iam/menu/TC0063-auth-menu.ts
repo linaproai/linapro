@@ -278,7 +278,7 @@ test.describe("TC0063 登录后菜单显示", () => {
 
     const developerRoute = findRouteNodeByTitle(currentUserRoutes, "开发中心");
     const visibleDeveloperChildren = getVisibleChildTitles(developerRoute);
-    expect(visibleDeveloperChildren).toEqual(["接口文档", "系统信息"]);
+    expect(visibleDeveloperChildren).toEqual(["接口文档", "版本信息"]);
 
     const scheduledJobRoute = findRouteNodeByTitle(
       currentUserRoutes,
@@ -370,7 +370,7 @@ test.describe("TC0063 登录后菜单显示", () => {
       "文件管理",
       "插件管理",
       "接口文档",
-      "系统信息",
+      "版本信息",
       "任务管理",
       "分组管理",
       "执行日志",

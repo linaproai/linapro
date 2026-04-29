@@ -65,7 +65,7 @@
     "about": {
       "developerCenter": "开发中心",
       "apiDocs": "接口文档",
-      "systemInfo": "系统信息"
+      "systemInfo": "版本信息"
     },
     "system": {
       "accessManagement": "权限管理",

@@ -21,8 +21,8 @@ type FrontendRes struct {
 // FrontendAppRes stores brand-related public settings.
 type FrontendAppRes struct {
 	Name     string `json:"name" dc:"Application name, used for browser title and workbench logo copywriting" eg:"LinaPro.AI"`
-	Logo     string `json:"logo" dc:"Default logo image address" eg:"/logo.png"`
-	LogoDark string `json:"logoDark" dc:"Dark theme logo image address" eg:"/logo.png"`
+	Logo     string `json:"logo" dc:"Default logo image address" eg:"/logo.webp"`
+	LogoDark string `json:"logoDark" dc:"Dark theme logo image address" eg:"/logo.webp"`
 }
 
 // FrontendAuthRes stores login-page public copy settings.

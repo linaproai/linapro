@@ -1,4 +1,5 @@
 -- 001: org-center schema
+-- 001：org-center 数据结构
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_dept (
     id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Department ID',

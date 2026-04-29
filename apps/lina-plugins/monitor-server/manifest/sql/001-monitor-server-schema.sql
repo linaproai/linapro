@@ -1,4 +1,5 @@
 -- 001: monitor-server schema
+-- 001：monitor-server 数据结构
 
 CREATE TABLE IF NOT EXISTS plugin_monitor_server (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT  'Record ID',

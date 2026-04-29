@@ -11,7 +11,7 @@ framework:
   name: "LinaPro"
   # Framework version
   # 框架版本
-  version: "v0.1.0"
+  version: "v0.5.0"
   # Framework introduction
   # 框架简介
   description: "An AI-native full-stack framework engineered for sustainable delivery."

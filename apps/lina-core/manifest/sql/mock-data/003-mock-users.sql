@@ -1,4 +1,5 @@
--- Mock data: 测试用户数据 (100 users, password: 123456)
+-- Mock data: test user records (100 users, password: 123456).
+-- 模拟数据：测试用户数据（100 个用户，密码：123456）。
 INSERT IGNORE INTO sys_user (username, password, nickname, email, phone, status, remark, created_at, updated_at) VALUES ('user001', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', '张伟', 'user001@example.com', '13812345601', 1, '测试用户', '2025-09-15 10:30:00', '2025-09-15 10:30:00');
 INSERT IGNORE INTO sys_user (username, password, nickname, email, phone, status, remark, created_at, updated_at) VALUES ('user002', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', '李娜', 'user002@example.com', '13912345602', 1, '开发部门', '2025-09-18 14:22:00', '2025-09-18 14:22:00');
 INSERT IGNORE INTO sys_user (username, password, nickname, email, phone, status, remark, created_at, updated_at) VALUES ('user003', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', '王芳', 'user003@example.com', '15012345603', 1, '', '2025-09-22 09:15:00', '2025-09-22 09:15:00');

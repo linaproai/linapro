@@ -148,6 +148,6 @@
 - [x] **FB-15**: New i18n E2E coverage for plugin status, plugin apidoc, frontend ETag flow, Traditional Chinese login page and raw key leakage detection still incomplete
 - [x] **FB-16**: Full E2E exposes default brand logo static resource missing; preferences drawer and user drawer page object locators too broad causing unstable verification
 - [x] **FB-17**: Full E2E serial exposes dynamic plugin installation failure with cron authorization metadata not localized from un-enabled wasm resources, and install + enable shortcut authorization chain payload coverage for cron host service incomplete
-- [x] **FB-18**: Default brand logo already unified to `/logo.png` in system config data; frontend default preferences and E2E assertions should not continue using `/linapro-mark.png`
+- [x] **FB-18**: Default brand logo already unified to `/logo.webp` in system config data; frontend default preferences and E2E assertions should not continue using `/linapro-mark.png`
 - [x] **FB-19**: `permission-display.ts` dynamic route permission display template and fragment vocabulary still maintained in TypeScript; needs convergence to frontend i18n JSON resources with unknown permission fragment fallback display retained
 - [x] **FB-20**: i18n unit tests and packed/apidoc integrity tests still hardcode `zh-TW` and other target languages; adding `ja-JP` would require test governance to modify code again

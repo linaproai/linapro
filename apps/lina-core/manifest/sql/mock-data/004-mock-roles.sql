@@ -1,4 +1,5 @@
 -- Mock data: demo roles and role bindings for access-control screens.
+-- 模拟数据：访问控制页面使用的演示角色和角色绑定。
 
 INSERT IGNORE INTO sys_role (name, `key`, sort, data_scope, status, remark, created_at, updated_at)
 VALUES ('审计员', 'auditor', 10, 1, 1, 'Mock role for read-only audit and monitoring demos', NOW(), NOW());

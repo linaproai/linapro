@@ -41,3 +41,7 @@
 - [x] **FB-7**: Change the login password placeholder to use localized password input prompts
 - [x] **FB-8**: Replace remaining frontend runtime Chinese hardcoded copy with i18n-backed or non-localized stable handling
 - [x] **FB-9**: Preserve the actual user nickname in the dashboard workspace greeting instead of overriding built-in admin names
+- [x] **FB-10**: Update dashboard workspace project cards to reflect LinaPro admin stack projects with 2026-05-01 dates
+- [x] **FB-11**: Rename the system information menu to version information and complete the LinaPro description punctuation
+- [x] **FB-12**: Use local WebP logo assets for LinaPro, GoFrame, and Vben workbench project cards and keep English descriptions single-line with ellipsis
+- [x] **FB-13**: Update dashboard workspace quick navigation destinations and LinaPro demo activity/todo copy

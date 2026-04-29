@@ -11,6 +11,11 @@ test.describe('TC0045 版本信息页面', () => {
     await expect(content.getByText('关于项目')).toBeVisible();
     await expect(content.getByText('项目名称')).toBeVisible();
     await expect(content.getByText('项目介绍')).toBeVisible();
+    await expect(
+      content.getByText('面向可持续交付的 AI 原生全栈框架。', {
+        exact: true,
+      }),
+    ).toBeVisible();
 
     // 关于项目区块 - 第二行：版本号、开源许可、项目官网、仓库地址
     await expect(content.getByText('版本号')).toBeVisible();
@@ -72,7 +77,7 @@ test.describe('TC0045 版本信息页面', () => {
     ).toBeVisible();
   });
 
-  test('TC0045c: 页面顶部不显示标题栏和系统信息介绍板块', async ({ adminPage }) => {
+  test('TC0045c: 页面顶部不显示标题栏和版本信息介绍板块', async ({ adminPage }) => {
     await adminPage.goto('/about/system-info');
     await adminPage.waitForLoadState('networkidle');
 

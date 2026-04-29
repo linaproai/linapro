@@ -13,6 +13,30 @@
 - **THEN** 工作台页面无需重新登录即可刷新为英文文案
 - **AND** 路由标题、标签页标题和页面内容语言保持一致
 
+#### Scenario: Workbench quick navigation targets core management pages
+- **WHEN** 管理员打开工作台页面
+- **THEN** 快捷导航展示 `用户管理`、`菜单管理`、`系统参数`、`扩展中心`、`接口文档` 和 `定时任务`
+- **AND** 这些入口分别跳转到 `/system/user`、`/system/menu`、`/system/config`、`/system/plugin`、`/about/api-docs` 和 `/system/job`
+
+#### Scenario: Workbench demo activity and todos are LinaPro-specific
+- **WHEN** 管理员查看工作台最新动态和待办事项
+- **THEN** 示例内容围绕 LinaPro 核心宿主、插件扩展、接口文档、任务调度、OpenSpec 和自动化验证展示
+- **AND** 最新动态和待办事项保持既有列表样式、间距和交互外观不变
+
+#### Scenario: Workbench project cards reflect the delivered admin stack
+- **WHEN** 管理员打开工作台页面
+- **THEN** 项目卡片展示 `LinaPro`、`GoFrame`、`Vue`、`Vben`、`Ant Design` 和 `TypeScript`
+- **AND** 每张卡片跳转到对应项目官网或文档地址
+- **AND** 卡片日期统一展示为 `2026-05-01`
+- **AND** 卡片说明保持简短激励文案，不作为项目介绍长文本展示
+
+#### Scenario: Workbench project cards use local logo assets
+- **WHEN** 管理员查看工作台项目卡片
+- **THEN** `LinaPro` 使用从 `/logo.png` 无损转换得到的 `/logo.webp`
+- **AND** `GoFrame` 使用从 `/Users/john/Temp/goframe-logo.png` 无损转换得到的 `/goframe-logo.webp`
+- **AND** `Vben` 使用下载到本地 public 目录的 `/vben-logo.webp`
+- **AND** 英文描述文案保持单行展示，超出卡片宽度时使用省略号
+
 ### Requirement: Management workbench logo must provide subtle dark-mode edge depth
 管理工作台 SHALL 在深色模式下为左上角品牌 Logo 图标边缘提供极轻微青色光亮效果，以增强深色界面的层次感，同时不得影响亮色模式、Logo 可点击区域或导航布局稳定性。
 

@@ -1,4 +1,5 @@
 -- Mock data: inbox notification messages and deliveries.
+-- 模拟数据：站内信通知消息与投递记录。
 
 INSERT IGNORE INTO sys_notify_message (
     plugin_id,

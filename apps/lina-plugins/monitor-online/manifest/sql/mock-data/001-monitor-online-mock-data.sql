@@ -1,4 +1,5 @@
 -- Mock data: online sessions used by the online-user monitoring plugin.
+-- 模拟数据：在线用户监控插件使用的在线会话。
 
 INSERT IGNORE INTO sys_online_session (
     token_id,

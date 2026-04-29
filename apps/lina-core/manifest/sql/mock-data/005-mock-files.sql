@@ -1,4 +1,5 @@
 -- Mock data: file metadata records for file-management screens.
+-- 模拟数据：文件管理页面使用的文件元数据记录。
 
 INSERT IGNORE INTO sys_file (name, original, suffix, scene, size, hash, url, path, engine, created_by, created_at, updated_at)
 SELECT

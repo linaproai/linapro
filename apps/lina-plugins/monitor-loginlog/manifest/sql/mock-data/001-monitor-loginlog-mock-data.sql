@@ -1,4 +1,5 @@
 -- Mock data: login log records for monitoring demos.
+-- 模拟数据：监控演示使用的登录日志记录。
 
 INSERT IGNORE INTO plugin_monitor_loginlog (user_name, status, ip, browser, os, msg, login_time)
 SELECT 'admin', 0, '192.168.10.11', 'Chrome 124.0', 'macOS 14', 'Login succeeded', '2026-04-20 08:45:00'

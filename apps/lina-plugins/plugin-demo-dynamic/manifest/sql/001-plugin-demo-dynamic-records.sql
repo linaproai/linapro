@@ -1,5 +1,7 @@
 -- ------------------------------------------------------------
--- 001-plugin-demo-dynamic-records.sql
+-- 001 plugin-demo-dynamic records SQL file
+-- 001 plugin-demo-dynamic 记录 SQL 文件
+-- plugin-demo-dynamic demo record table
 -- plugin-demo-dynamic 示例记录表
 -- ------------------------------------------------------------
 

@@ -62,11 +62,11 @@ var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogo,
-		DefaultValue: "/logo.png",
+		DefaultValue: "/logo.webp",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogoDark,
-		DefaultValue: "/logo.png",
+		DefaultValue: "/logo.webp",
 	},
 	{
 		Key:          PublicFrontendSettingKeyUserDefaultAvatar,

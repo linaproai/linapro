@@ -131,59 +131,59 @@
         "team": "Team"
       },
       "quickNav": {
-        "home": "Home",
-        "dashboard": "Dashboard",
-        "components": "Components",
-        "system": "System",
-        "access": "Access",
-        "charts": "Charts"
+        "userManagement": "User Management",
+        "menuManagement": "Menu Management",
+        "systemParameters": "System Parameters",
+        "extensionCenter": "Extension Center",
+        "apiDocs": "API Docs",
+        "scheduledJobs": "Scheduled Jobs"
       },
       "projects": {
-        "github": {
-          "group": "Open Source Team",
-          "content": "Do not wait for opportunities. Create them."
+        "linapro": {
+          "group": "Full-stack framework",
+          "content": "Let the framework carry the complexity."
+        },
+        "goframe": {
+          "group": "Backend framework",
+          "content": "Steady foundations make faster delivery."
         },
         "vue": {
-          "group": "Algorithms Team",
-          "content": "The choices you make today shape your future."
+          "group": "Frontend framework",
+          "content": "Change is easier when it stays visible."
         },
-        "html5": {
-          "group": "Focus Squad",
-          "content": "Few talents matter more than sustained effort."
+        "vben": {
+          "group": "Admin workspace",
+          "content": "Smooth details compound into speed."
         },
-        "angular": {
-          "group": "UI",
-          "content": "Passion and desire can break through any obstacle."
+        "antDesign": {
+          "group": "Design system",
+          "content": "Order makes the experience feel light."
         },
-        "react": {
-          "group": "Engineering Guild",
-          "content": "A healthy body is the foundation for every goal."
-        },
-        "js": {
-          "group": "Architecture Team",
-          "content": "The road appears when you move, not when you daydream."
+        "typescript": {
+          "group": "Type system",
+          "content": "Clear boundaries make delivery calmer."
         }
       },
       "todos": {
-        "reviewFrontend": {
-          "title": "Review Frontend Commits",
-          "content": "Review the latest frontend commits in Git to keep code quality and conventions in check."
+        "reviewShortcuts": {
+          "title": "Review Workbench Shortcuts",
+          "content": "Confirm that user, menu, parameter, plugin, API doc, and scheduled job entries all reach the right pages."
         },
-        "optimizePerformance": {
-          "title": "Optimize System Performance",
-          "content": "Inspect and tune system performance to reduce CPU usage."
+        "verifyI18n": {
+          "title": "Verify Workspace i18n",
+          "content": "Check that Simplified Chinese, Traditional Chinese, and English workspace copy stay aligned."
         },
-        "securityReview": {
-          "title": "Security Review",
-          "content": "Run a security review to make sure there are no vulnerabilities or unauthorized access paths."
+        "preparePluginDemo": {
+          "title": "Prepare Plugin Extension Demo",
+          "content": "Organize demo data for dynamic plugin install, enablement, and page refresh."
         },
-        "updateDependencies": {
-          "title": "Update Dependencies",
-          "content": "Update the project npm dependencies to the latest stable releases."
+        "inspectJobLogs": {
+          "title": "Inspect Scheduled Job Logs",
+          "content": "Confirm host and plugin job trigger results remain traceable."
         },
-        "fixUiIssues": {
-          "title": "Fix UI Issues",
-          "content": "Fix the reported UI issues so the pages stay consistent across browsers."
+        "syncApiDocs": {
+          "title": "Sync API Documentation Examples",
+          "content": "Update debugging notes for core host APIs and plugin APIs."
         }
       },
       "trends": {
@@ -194,21 +194,26 @@
         "threeDaysAgo": "3 days ago",
         "oneWeekAgo": "1 week ago",
         "people": {
-          "william": "William",
-          "evan": "Evan",
-          "chris": "Chris",
-          "peter": "Peter",
-          "jack": "Jack"
+          "platformTeam": "Platform Team",
+          "accessTeam": "Access Team",
+          "extensionCenter": "Extension Center",
+          "apiDocs": "API Docs",
+          "scheduler": "Scheduler",
+          "configCenter": "Parameter Center",
+          "aiWorkflow": "AI Workflow",
+          "testSuite": "Test Suite",
+          "releasePipeline": "Release Pipeline"
         },
         "items": {
-          "createdVue": "Created project <a>Vue</a> in <a>Open Source Team</a>",
-          "followedWilliam": "Followed <a>William</a>",
-          "postedUpdate": "Published a <a>personal update</a>",
-          "viteArticle": "Published article <a>How to Build a Vite Plugin</a>",
-          "answeredOptimization": "Replied to <a>Jack</a> on <a>How do we optimize the project?</a>",
-          "closedRunProject": "Closed issue <a>How do I run the project?</a>",
-          "pushedGithub": "Pushed code to <a>Github</a>",
-          "adminVbenArticle": "Published article <a>How to Work with Admin Vben</a>"
+          "releasedWorkspaceNav": "Published the <a>workspace quick navigation</a> demo entries",
+          "alignedAccessMenus": "Aligned <a>user management</a> and <a>menu management</a> page permissions",
+          "publishedPluginDemo": "Published a <a>dynamic plugin installation</a> demo package",
+          "refreshedApiDocs": "Refreshed the <a>OpenAPI debugging docs</a>",
+          "checkedSchedulerLogs": "Completed a <a>scheduled job run log</a> check",
+          "updatedPublicConfig": "Updated <a>login page display parameters</a>",
+          "draftedOpenSpec": "Generated an <a>OpenSpec change proposal</a>",
+          "passedPlaywright": "Passed the <a>Playwright regression run</a>",
+          "archivedDemoIteration": "Archived the <a>LinaPro demo iteration</a>"
         }
       }
     }

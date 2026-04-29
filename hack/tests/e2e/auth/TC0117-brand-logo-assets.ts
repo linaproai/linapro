@@ -10,8 +10,8 @@ test.describe("TC-117 默认品牌 Logo 资源", () => {
 
     const payload = await response.json();
     expect(payload.code).toBe(0);
-    expect(payload.data.app.logo).toBe("/logo.png");
-    expect(payload.data.app.logoDark).toBe("/logo.png");
+    expect(payload.data.app.logo).toBe("/logo.webp");
+    expect(payload.data.app.logoDark).toBe("/logo.webp");
   });
 
   test("TC-117b: 登录页使用图标 Logo 且渲染应用名文本", async ({
@@ -21,8 +21,8 @@ test.describe("TC-117 默认品牌 Logo 资源", () => {
 
     await expect(loginPage.brandLogoImage).toBeVisible();
     const logo = await loginPage.getBrandLogoInfo();
-    expect(logo.src).toBe("/logo.png");
-    expect(logo.currentSrc).toContain("/logo.png");
+    expect(logo.src).toBe("/logo.webp");
+    expect(logo.currentSrc).toContain("/logo.webp");
     expect(logo.naturalWidth).toBe(405);
     expect(logo.naturalHeight).toBe(405);
     expect(logo.width).toBeLessThan(60);
@@ -40,8 +40,8 @@ test.describe("TC-117 默认品牌 Logo 资源", () => {
     const mainLayout = new MainLayout(page);
     await expect(mainLayout.brandLogoImage).toBeVisible();
     const logo = await mainLayout.getBrandLogoInfo();
-    expect(logo.src).toBe("/logo.png");
-    expect(logo.currentSrc).toContain("/logo.png");
+    expect(logo.src).toBe("/logo.webp");
+    expect(logo.currentSrc).toContain("/logo.webp");
     expect(logo.naturalWidth).toBe(405);
     expect(logo.naturalHeight).toBe(405);
     expect(logo.width).toBeLessThan(60);

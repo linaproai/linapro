@@ -1,8 +1,10 @@
--- database bootstrap
+-- Database bootstrap
+-- 数据库初始化
 CREATE DATABASE IF NOT EXISTS `linapro` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE `linapro`;
 
 -- sys_user table
+-- sys_user 用户表
 CREATE TABLE IF NOT EXISTS sys_user (
     id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'User ID',
     username    VARCHAR(64)  NOT NULL          COMMENT  'Username',
@@ -22,5 +24,6 @@ CREATE TABLE IF NOT EXISTS sys_user (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User information table';
 
 -- Default admin user (password: admin123, bcrypt hash)
+-- 默认管理员用户（密码：admin123，bcrypt 哈希）
 INSERT IGNORE INTO sys_user (username, password, nickname, status, created_at, updated_at)
 VALUES ('admin', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', 'Administrator', 1, NOW(), NOW());

@@ -1,7 +1,8 @@
 -- 008: Menu Management, Role Management, Core Navigation Skeleton
-
+-- 008：菜单管理、角色管理、宿主核心导航骨架
 
 -- ============================================================
+-- Menu table
 -- 菜单表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_menu (
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS sys_menu (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Menu permission table';
 
 -- ============================================================
+-- Role table
 -- 角色表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_role (
@@ -45,6 +47,7 @@ CREATE TABLE IF NOT EXISTS sys_role (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Role information table';
 
 -- ============================================================
+-- Role-menu relation table
 -- 角色-菜单关联表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_role_menu (
@@ -54,6 +57,7 @@ CREATE TABLE IF NOT EXISTS sys_role_menu (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Role-menu relation table';
 
 -- ============================================================
+-- User-role relation table
 -- 用户-角色关联表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_user_role (
@@ -63,6 +67,7 @@ CREATE TABLE IF NOT EXISTS sys_user_role (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User-role relation table';
 
 -- ============================================================
+-- Dictionary types and dictionary data
 -- 字典类型与字典数据
 -- ============================================================
 INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
@@ -96,6 +101,7 @@ INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, stat
 VALUES ('sys_data_scope', '仅本人数据', '3', 3, 'warning', 1, NOW(), NOW());
 
 -- ============================================================
+-- Initial role data
 -- 初始化角色数据
 -- ============================================================
 INSERT IGNORE INTO sys_role (name, `key`, sort, data_scope, status, remark, created_at, updated_at)
@@ -104,6 +110,7 @@ INSERT IGNORE INTO sys_role (name, `key`, sort, data_scope, status, remark, crea
 VALUES ('普通用户', 'user', 2, 3, 1, '普通用户，仅查看本人数据', NOW(), NOW());
 
 -- ============================================================
+-- Host stable top-level directory skeleton
 -- 宿主稳定一级目录骨架
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
@@ -126,6 +133,7 @@ INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, 
 VALUES (0, 'developer', '开发中心', 'developer', '', '', 'lucide:flask-conical', 'D', 9, 1, 1, 0, 0, '宿主稳定目录：开发中心', NOW(), NOW());
 
 -- ============================================================
+-- Workbench menus
 -- 工作台菜单
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
@@ -134,6 +142,7 @@ INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, 
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'dashboard') AS parent), 'dashboard:workspace:list', '工作台', 'workspace', 'dashboard/workspace/index', 'dashboard:workspace:list', 'carbon:workspace', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
 
 -- ============================================================
+-- Access-control menus
 -- 权限管理菜单
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
@@ -178,6 +187,7 @@ INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, 
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:menu:list') AS parent), 'system:menu:remove', '菜单删除', '', '', 'system:menu:remove', '', 'B', 4, 1, 1, 0, 0, NOW(), NOW());
 
 -- ============================================================
+-- System setting menus
 -- 系统设置菜单
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
@@ -218,6 +228,7 @@ INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, 
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'system:file:list') AS parent), 'system:file:remove', '文件删除', '', '', 'system:file:remove', '', 'B', 4, 1, 1, 0, 0, NOW(), NOW());
 
 -- ============================================================
+-- Extension center menus
 -- 扩展中心菜单
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, remark, created_at, updated_at)
@@ -234,14 +245,16 @@ INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, 
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'extension:plugin:list') AS parent), 'extension:plugin:uninstall', '插件卸载', '', '', 'plugin:uninstall', '', 'B', 5, 1, 1, 0, 0, '插件卸载按钮', NOW(), NOW());
 
 -- ============================================================
+-- Developer center menus
 -- 开发中心菜单
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
 VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'developer') AS parent), 'about:api:list', '接口文档', '/about/api-docs', 'about/api-docs/index', 'about:api:list', 'lucide:file-code', 'M', 1, 1, 1, 0, 0, NOW(), NOW());
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)
-VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'developer') AS parent), 'about:system:list', '系统信息', '/about/system-info', 'about/system-info/index', 'about:system:list', 'lucide:server', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
+VALUES ((SELECT parent.id FROM (SELECT id FROM sys_menu WHERE menu_key = 'developer') AS parent), 'about:system:list', '版本信息', '/about/system-info', 'about/system-info/index', 'about:system:list', 'lucide:server', 'M', 2, 1, 1, 0, 0, NOW(), NOW());
 
 -- ============================================================
+-- Role authorization and administrator binding
 -- 角色授权与管理员绑定
 -- ============================================================
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)

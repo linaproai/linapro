@@ -1,4 +1,5 @@
 -- Mock data: dynamic plugin demo records.
+-- 模拟数据：动态插件演示记录。
 
 INSERT IGNORE INTO `plugin_demo_dynamic_record` (
     `id`,

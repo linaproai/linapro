@@ -1,6 +1,8 @@
 -- 006: System Monitoring (Online Users + Server Monitor)
+-- 006：系统监控（在线用户与服务监控）
 
 -- ============================================================
+-- Online session table (MEMORY engine, tracks currently online users)
 -- 在线会话表（MEMORY 引擎，用于跟踪当前在线用户）
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_online_session (
@@ -18,4 +20,5 @@ CREATE TABLE IF NOT EXISTS sys_online_session (
     INDEX idx_username (username)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Online session table';
 
+-- Server monitoring capability has moved down to the source plugin monitor-server.
 -- 服务监控能力已下沉到源码插件 monitor-server。

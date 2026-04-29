@@ -78,3 +78,7 @@
 - [ ] 10.1 调用 `/lina-review` 执行变更全面审查，覆盖代码、SQL、E2E 与规范遵循
 - [ ] 10.2 根据审查结果在 `tasks.md` 内追加修复任务并完成；如有规范偏差同步更新 `specs/**/spec.md`
 - [ ] 10.3 在归档前再次运行 `openspec validate code-quality-improvements --strict` 与 `make test`，确认无回归
+
+## Feedback
+
+- [x] **FB-1**: Normalize SQL line comments so each comment uses English above Chinese on separate lines

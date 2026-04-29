@@ -1,4 +1,5 @@
 -- ============================================================
+-- Host plugin table
 -- 宿主插件表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin (
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS sys_plugin (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Plugin registry table';
 
 -- ============================================================
+-- Plugin release record table
 -- 插件发布记录表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_release (
@@ -49,6 +51,7 @@ CREATE TABLE IF NOT EXISTS sys_plugin_release (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Plugin release record table';
 
 -- ============================================================
+-- Plugin migration execution record table
 -- 插件迁移执行记录表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_migration (
@@ -68,6 +71,7 @@ CREATE TABLE IF NOT EXISTS sys_plugin_migration (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Plugin migration execution record table';
 
 -- ============================================================
+-- Plugin resource reference table
 -- 插件资源引用表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_resource_ref (
@@ -87,6 +91,7 @@ CREATE TABLE IF NOT EXISTS sys_plugin_resource_ref (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Plugin resource reference table';
 
 -- ============================================================
+-- Plugin node state table
 -- 插件节点状态表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_node_state (

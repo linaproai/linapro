@@ -1,4 +1,5 @@
 -- 001: content-notice schema
+-- 001：content-notice 数据结构
 
 CREATE TABLE IF NOT EXISTS plugin_content_notice (
     id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT  'Notice ID',

@@ -1,4 +1,5 @@
 -- Mock data: online session records for session and monitoring demos.
+-- 模拟数据：会话与监控演示使用的在线会话记录。
 
 INSERT IGNORE INTO sys_online_session (
     token_id,

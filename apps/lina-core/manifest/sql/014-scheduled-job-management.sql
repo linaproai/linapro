@@ -1,7 +1,10 @@
 -- 014: Scheduled Job Management
+-- 014：定时任务管理
+-- Includes scheduled job groups, scheduled jobs, execution logs, runtime parameters, menu permissions, and dictionary seeds.
 -- 包含：定时任务分组、定时任务、执行日志、运行时参数、菜单权限与字典种子
 
 -- ============================================================
+-- Scheduled job group table
 -- 定时任务分组表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job_group (
@@ -19,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sys_job_group (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Scheduled job group table';
 
 -- ============================================================
+-- Scheduled job table
 -- 定时任务表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job (
@@ -60,6 +64,7 @@ CREATE TABLE IF NOT EXISTS sys_job (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Scheduled job table';
 
 -- ============================================================
+-- Scheduled job execution log table
 -- 定时任务执行日志表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job_log (
@@ -82,6 +87,7 @@ CREATE TABLE IF NOT EXISTS sys_job_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Scheduled job execution log table';
 
 -- ============================================================
+-- Default group and runtime parameters
 -- 默认分组与运行时参数
 -- ============================================================
 INSERT IGNORE INTO sys_job_group (code, name, remark, sort_order, is_default, created_at, updated_at)
@@ -108,6 +114,7 @@ VALUES (
 );
 
 -- ============================================================
+-- Dictionary types and dictionary data
 -- 字典类型与字典数据
 -- ============================================================
 INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
@@ -177,6 +184,7 @@ INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, stat
 VALUES ('cron_log_retention_mode', '不清理', 'none', 3, 'warning', 1, NOW(), NOW());
 
 -- ============================================================
+-- Menus and button permissions
 -- 菜单与按钮权限
 -- ============================================================
 INSERT IGNORE INTO sys_menu (parent_id, menu_key, name, path, component, perms, icon, type, sort, visible, status, is_frame, is_cache, created_at, updated_at)

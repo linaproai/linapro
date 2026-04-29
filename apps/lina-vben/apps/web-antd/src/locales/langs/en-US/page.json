@@ -65,7 +65,7 @@
     "about": {
       "developerCenter": "Dev Tools",
       "apiDocs": "API Docs",
-      "systemInfo": "System Info"
+      "systemInfo": "Version Info"
     },
     "system": {
       "accessManagement": "Access",
