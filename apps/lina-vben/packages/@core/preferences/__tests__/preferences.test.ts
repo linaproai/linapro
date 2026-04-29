@@ -224,6 +224,62 @@ describe('preferences', () => {
 
     expect(preferenceManager.getPreferences().theme.mode).toBe('light');
   });
+
+  it('does not treat initialization theme mode as a user preference', async () => {
+    await preferenceManager.initPreferences({
+      namespace: 'testNamespace',
+      overrides: {
+        theme: {
+          mode: 'light',
+        },
+      },
+    } as any);
+
+    expect(preferenceManager.hasUserThemePreference()).toBe(false);
+  });
+
+  it('marks explicit theme mode updates as a user preference', async () => {
+    await preferenceManager.initPreferences({
+      namespace: 'testNamespace',
+      overrides: {},
+    });
+
+    preferenceManager.updatePreferences({
+      theme: { mode: 'dark' },
+    });
+
+    expect(preferenceManager.hasUserThemePreference()).toBe(true);
+  });
+
+  it('does not mark system theme mode updates as a user preference', async () => {
+    await preferenceManager.initPreferences({
+      namespace: 'testNamespace',
+      overrides: {},
+    });
+
+    preferenceManager.updatePreferences(
+      {
+        theme: { mode: 'dark' },
+      },
+      { markUserThemePreference: false },
+    );
+
+    expect(preferenceManager.hasUserThemePreference()).toBe(false);
+  });
+
+  it('clears the user theme preference marker on reset', async () => {
+    await preferenceManager.initPreferences({
+      namespace: 'testNamespace',
+      overrides: {},
+    });
+    preferenceManager.updatePreferences({
+      theme: { mode: 'dark' },
+    });
+
+    preferenceManager.resetPreferences();
+
+    expect(preferenceManager.hasUserThemePreference()).toBe(false);
+  });
 });
 
 describe('isDarkTheme', () => {

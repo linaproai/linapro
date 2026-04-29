@@ -175,4 +175,33 @@ test.describe('TC-140 Dynamic plugin permission menu tree regression', () => {
     await accessNameCell.click();
     await expect(childUserRow).toBeHidden();
   });
+
+  test('TC-140c: Dynamic plugin button names are readable in English menu management', async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    const menuPage = new MenuPage(adminPage);
+
+    await mainLayout.switchLanguage('English');
+    await menuPage.goto();
+
+    const pluginRow = adminPage
+      .locator('.vxe-body--row:visible', { hasText: 'Dynamic Plugin Demo' })
+      .first();
+    await expect(pluginRow).toBeVisible();
+
+    const recordCreateRow = adminPage
+      .locator('.vxe-body--row:visible', { hasText: 'Record Create' })
+      .first();
+    if (!(await recordCreateRow.isVisible({ timeout: 1000 }).catch(() => false))) {
+      await pluginRow.locator('.system-menu-name-column .vxe-cell').first().click();
+    }
+
+    await expect(recordCreateRow).toBeVisible();
+    await expect(
+      adminPage.locator('.vxe-body--row:visible', {
+        hasText: /Dynamic Route Permission:plugin-demo-dynamic/u,
+      }),
+    ).toHaveCount(0);
+  });
 });

@@ -170,16 +170,27 @@ test.describe('TC-141 Organization, dictionary, and config English layout regres
       .click();
     let dialog = await waitForDialogReady(adminPage.locator('[role="dialog"]'));
     await expectSingleLine(
-      dialog
-        .locator('.ant-form-item-label, label', { hasText: 'Dictionary Type' })
-        .first(),
-      'Dictionary Type label',
+      dialog.locator('label', { hasText: 'Dictionary Type' }).first(),
+      'Dictionary Type label in add form',
     );
     await dialog.getByRole('button', { name: /Cancel|取\s*消/i }).click();
     await dialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
 
     await dictPage.fillTypeSearchField('字典类型', 'sys_normal_disable');
     await dictPage.clickTypeSearch();
+    await adminPage
+      .locator('#dict-type')
+      .getByRole('button', { name: /Edit|编\s*辑/i })
+      .first()
+      .click();
+    dialog = await waitForDialogReady(adminPage.locator('[role="dialog"]'));
+    await expectSingleLine(
+      dialog.locator('label', { hasText: 'Dictionary Type' }).first(),
+      'Dictionary Type label in edit form',
+    );
+    await dialog.getByRole('button', { name: /Cancel|取\s*消/i }).click();
+    await dialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+
     await dictPage.clickTypeRow('sys_normal_disable');
     await adminPage
       .locator('#dict-data')
@@ -188,9 +199,7 @@ test.describe('TC-141 Organization, dictionary, and config English layout regres
 
     dialog = await waitForDialogReady(adminPage.locator('[role="dialog"]'));
     await expectSingleLine(
-      dialog
-        .locator('.ant-form-item-label, label', { hasText: 'Tag Style' })
-        .first(),
+      dialog.locator('label', { hasText: 'Tag Style' }).first(),
       'Tag Style label',
     );
 

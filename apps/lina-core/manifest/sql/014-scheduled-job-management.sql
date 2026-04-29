@@ -91,7 +91,7 @@ INSERT IGNORE INTO sys_config (`name`, `key`, `value`, `remark`, `created_at`, `
 VALUES (
     '定时任务-Shell 模式全局开关',
     'cron.shell.enabled',
-    'false',
+    'true',
     '控制 Shell 类型任务是否允许创建、修改、触发与终止，可选值：true、false。',
     NOW(),
     NOW()

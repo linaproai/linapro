@@ -45,6 +45,10 @@ export class MainLayout {
     return this.page.locator('img[alt="LinaPro"]:visible').first();
   }
 
+  get brandLogoMark() {
+    return this.page.locator(".vben-logo__mark:visible").first();
+  }
+
   sidebarMenuItem(label: string) {
     return this.sidebar.getByText(label, { exact: true }).first();
   }
@@ -154,6 +158,57 @@ export class MainLayout {
       src: img.getAttribute("src") ?? "",
       width: img.clientWidth,
     }));
+  }
+
+  async getBrandLogoGlowInfo() {
+    await expect(this.brandLogoMark).toBeVisible();
+
+    return this.brandLogoMark.evaluate((mark) => {
+      const root = mark.closest(".vben-logo");
+      const link = mark.closest("a");
+      const image = mark.querySelector("img") as HTMLElement;
+      const beforeStyle = window.getComputedStyle(mark, "::before");
+      const imageStyle = image ? window.getComputedStyle(image) : null;
+      const markRect = mark.getBoundingClientRect();
+      const linkRect = link?.getBoundingClientRect();
+
+      return {
+        beforeBackgroundImage: beforeStyle.backgroundImage,
+        beforeFilter: beforeStyle.filter,
+        beforeOpacity: beforeStyle.opacity,
+        imageClientHeight: image?.clientHeight ?? 0,
+        imageClientWidth: image?.clientWidth ?? 0,
+        imageFilter: imageStyle?.filter ?? "",
+        isDarkRoot: root?.classList.contains("dark") ?? false,
+        linkHeight: linkRect?.height ?? 0,
+        linkOverflow: link ? window.getComputedStyle(link).overflow : "",
+        markHeight: markRect.height,
+        markWidth: markRect.width,
+      };
+    });
+  }
+
+  async ensureThemeMode(mode: "dark" | "light") {
+    const shouldBeDark = mode === "dark";
+    const isDark = await this.page.evaluate(() =>
+      document.documentElement.classList.contains("dark"),
+    );
+
+    if (isDark !== shouldBeDark) {
+      await this.page
+        .locator(`button[aria-label="${mode}"]:visible`)
+        .first()
+        .click();
+    }
+
+    await expect
+      .poll(async () =>
+        this.page.evaluate(() =>
+          document.documentElement.classList.contains("dark"),
+        ),
+      )
+      .toBe(shouldBeDark);
+    await waitForRouteReady(this.page);
   }
 
   async openUserDropdown() {

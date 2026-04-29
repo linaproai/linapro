@@ -48,9 +48,9 @@ func TestGetCronUsesProtectedRuntimeValues(t *testing.T) {
 	}
 }
 
-// TestGetCronUsesDefaultRetentionWhenRuntimeParamMissing verifies the host
-// falls back to the built-in cleanup policy when sys_config rows are absent.
-func TestGetCronUsesDefaultRetentionWhenRuntimeParamMissing(t *testing.T) {
+// TestGetCronUsesDefaultsWhenRuntimeParamsMissing verifies the host falls back
+// to built-in cron defaults when sys_config rows are absent.
+func TestGetCronUsesDefaultsWhenRuntimeParamsMissing(t *testing.T) {
 	withRuntimeParamAbsent(t, RuntimeParamKeyCronShellEnabled)
 	withRuntimeParamAbsent(t, RuntimeParamKeyCronLogRetention)
 
@@ -64,8 +64,9 @@ func TestGetCronUsesDefaultRetentionWhenRuntimeParamMissing(t *testing.T) {
 	if cfg.LogRetention.Value != 30 {
 		t.Fatalf("expected default cron log retention value 30, got %d", cfg.LogRetention.Value)
 	}
-	if cfg.Shell.Enabled {
-		t.Fatal("expected shell mode to stay disabled by default")
+	expectedShellEnabled := buildCronShellConfig(true, runtime.GOOS).Enabled
+	if cfg.Shell.Enabled != expectedShellEnabled {
+		t.Fatalf("expected default cron shell enabled to be %t, got %t", expectedShellEnabled, cfg.Shell.Enabled)
 	}
 }
 

@@ -214,27 +214,33 @@ function applyPublicFrontendPreferences(settings: PublicFrontendSettings) {
   const logoSource = settings.app.logo || initial.logo.source;
   const logoSourceDark =
     settings.app.logoDark || initial.logo.sourceDark || logoSource;
+  const themePreference = {
+    builtinType: initial.theme.builtinType,
+    colorPrimary: initial.theme.colorPrimary,
+    ...(!preferencesManager.hasUserThemePreference()
+      ? { mode: (settings.ui.themeMode || initial.theme.mode) as any }
+      : {}),
+  };
 
-  updatePreferences({
-    app: {
-      authPageLayout: settings.auth.panelLayout,
-      defaultAvatar: settings.user.defaultAvatar || initial.app.defaultAvatar,
-      layout: (settings.ui.layout || initial.app.layout) as any,
-      name: settings.app.name || initial.app.name,
-      watermark: settings.ui.watermarkEnabled,
-      watermarkContent:
-        settings.ui.watermarkContent || initial.app.watermarkContent,
+  updatePreferences(
+    {
+      app: {
+        authPageLayout: settings.auth.panelLayout,
+        defaultAvatar: settings.user.defaultAvatar || initial.app.defaultAvatar,
+        layout: (settings.ui.layout || initial.app.layout) as any,
+        name: settings.app.name || initial.app.name,
+        watermark: settings.ui.watermarkEnabled,
+        watermarkContent:
+          settings.ui.watermarkContent || initial.app.watermarkContent,
+      },
+      logo: {
+        source: logoSource,
+        sourceDark: logoSourceDark,
+      },
+      theme: themePreference,
     },
-    logo: {
-      source: logoSource,
-      sourceDark: logoSourceDark,
-    },
-    theme: {
-      builtinType: initial.theme.builtinType,
-      colorPrimary: initial.theme.colorPrimary,
-      mode: (settings.ui.themeMode || initial.theme.mode) as any,
-    },
-  });
+    { markUserThemePreference: false },
+  );
 }
 
 async function syncPublicFrontendSettings(locale?: string) {

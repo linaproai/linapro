@@ -36,6 +36,7 @@ test.describe('TC-143 Scheduled job manual trigger confirmation', () => {
       }),
     );
     jobId = created.id;
+    await setCronShellEnabled(api, false);
   });
 
   test.afterAll(async () => {
@@ -52,7 +53,7 @@ test.describe('TC-143 Scheduled job manual trigger confirmation', () => {
     await api.dispose();
   });
 
-  test('TC-143a~c: Run Now opens confirmation, cancel skips API call, confirm triggers once', async ({
+  test('TC-143a~d: Shell-disabled Run Now opens confirmation, cancel skips API call, confirm triggers once', async ({
     adminPage,
     mainLayout,
   }) => {
@@ -75,6 +76,10 @@ test.describe('TC-143 Scheduled job manual trigger confirmation', () => {
     await jobPage.goto();
     await jobPage.fillSearchKeyword(jobName);
     await jobPage.clickSearch();
+
+    await expect.poll(() => jobPage.countActions('job-edit-')).toBe(1);
+    await expect.poll(() => jobPage.isActionDisabled('job-edit-')).toBe(true);
+    await expect.poll(() => jobPage.isActionDisabled('job-trigger-')).toBe(false);
 
     const firstConfirm = await jobPage.openTriggerConfirmForSearchedJob();
     await expect(firstConfirm).toContainText('Run this job now?');

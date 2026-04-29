@@ -8,6 +8,12 @@ import {
   waitForTableReady,
 } from "../support/ui";
 
+type JobActionTestIdPrefix =
+  | "job-edit-"
+  | "job-enable-"
+  | "job-more-"
+  | "job-trigger-";
+
 export class JobPage {
   constructor(private page: Page) {}
 
@@ -183,7 +189,7 @@ export class JobPage {
       .isVisible();
   }
 
-  async isActionDisabled(prefix: "job-enable-" | "job-trigger-") {
+  async isActionDisabled(prefix: JobActionTestIdPrefix) {
     return this.page
       .locator(`[data-testid^="${prefix}"]`)
       .first()
@@ -191,12 +197,16 @@ export class JobPage {
       .catch(() => false);
   }
 
-  async hasAction(prefix: "job-enable-" | "job-more-" | "job-trigger-") {
+  async hasAction(prefix: JobActionTestIdPrefix) {
     return this.page
       .locator(`[data-testid^="${prefix}"]`)
       .first()
       .isVisible({ timeout: 1500 })
       .catch(() => false);
+  }
+
+  async countActions(prefix: JobActionTestIdPrefix) {
+    return this.page.locator(`[data-testid^="${prefix}"]`).count();
   }
 
   async triggerSearchedJob() {

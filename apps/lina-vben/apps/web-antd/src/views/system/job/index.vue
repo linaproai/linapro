@@ -2,11 +2,11 @@
 import type { JobRecord } from '#/api/system/job/model';
 import type { JobGroupRecord } from '#/api/system/jobGroup/model';
 
+import { computed, onMounted, ref } from 'vue';
+
 import { useAccess } from '@vben/access';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { $t } from '@vben/locales';
-
-import { computed, onMounted, ref } from 'vue';
 
 import {
   Dropdown,
@@ -20,16 +20,11 @@ import {
 } from 'ant-design-vue';
 
 import { buildJobColumns, useVbenVxeGrid } from '#/adapter/vxe-table';
+import { jobDelete, jobList, jobReset, jobTrigger } from '#/api/system/job';
 import {
-  jobDelete,
-  jobList,
-  jobReset,
-  jobTrigger,
-} from '#/api/system/job';
-import {
-  JOB_STATUS_FILTER_OPTIONS,
   getJobPluginPausedTooltip,
   getJobSourceKind,
+  JOB_STATUS_FILTER_OPTIONS,
 } from '#/api/system/job/meta';
 import { jobGroupList } from '#/api/system/jobGroup';
 import { publicFrontendSettings } from '#/runtime/public-frontend';
@@ -234,12 +229,10 @@ function handleMultiDelete() {
 }
 
 async function handleTrigger(row: JobRecord) {
-  if (isShellBlocked(row)) {
-    message.warning(shellBlockedReason());
-    return;
-  }
   const result = await jobTrigger(row.id);
-  message.success($t('pages.system.job.messages.triggerSuccess', { logId: result.logId }));
+  message.success(
+    $t('pages.system.job.messages.triggerSuccess', { logId: result.logId }),
+  );
   await gridApi.query();
 }
 
@@ -330,14 +323,6 @@ function handleReload() {
               {{ $t('pages.system.job.actions.runNow') }}
             </ghost-button>
           </Tooltip>
-          <Tooltip
-            v-if="canTriggerRow(row) && isShellBlocked(row)"
-            :title="shellBlockedReason()"
-          >
-            <ghost-button disabled :data-testid="`job-trigger-${row.id}`">
-              {{ $t('pages.system.job.actions.runNow') }}
-            </ghost-button>
-          </Tooltip>
           <Popconfirm
             v-else-if="canTriggerRow(row)"
             placement="left"
@@ -366,7 +351,7 @@ function handleReload() {
             </ghost-button>
           </Tooltip>
           <ghost-button
-            v-if="canViewRow(row)"
+            v-else-if="canViewRow(row)"
             :data-testid="`job-edit-${row.id}`"
             @click.stop="openEditModal(row)"
           >
@@ -381,10 +366,7 @@ function handleReload() {
             {{ $t('pages.common.edit') }}
           </ghost-button>
 
-          <Dropdown
-            v-if="hasMoreActions(row)"
-            placement="bottomRight"
-          >
+          <Dropdown v-if="hasMoreActions(row)" placement="bottomRight">
             <template #overlay>
               <Menu>
                 <MenuItem
@@ -392,7 +374,9 @@ function handleReload() {
                   :key="`reset-${row.id}`"
                   @click="handleReset(row)"
                 >
-                  <span :data-testid="`job-reset-${row.id}`">{{ $t('pages.system.job.actions.resetCount') }}</span>
+                  <span :data-testid="`job-reset-${row.id}`">{{
+                    $t('pages.system.job.actions.resetCount')
+                  }}</span>
                 </MenuItem>
                 <MenuItem v-if="canDeleteRow(row)" :key="`delete-${row.id}`">
                   <Popconfirm
@@ -400,7 +384,9 @@ function handleReload() {
                     :title="$t('pages.system.job.messages.deleteConfirm')"
                     @confirm="handleDelete([row.id])"
                   >
-                    <span :data-testid="`job-delete-${row.id}`">{{ $t('pages.common.delete') }}</span>
+                    <span :data-testid="`job-delete-${row.id}`">{{
+                      $t('pages.common.delete')
+                    }}</span>
                   </Popconfirm>
                 </MenuItem>
               </Menu>

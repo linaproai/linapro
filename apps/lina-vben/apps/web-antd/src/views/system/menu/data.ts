@@ -8,6 +8,7 @@ import { FolderIcon, MenuIcon, OkButtonIcon, VbenIcon } from '@vben/icons';
 import { getPopupContainer } from '@vben/utils';
 
 import { z } from '#/adapter/form';
+import { formatMenuPermissionShortLabel } from '#/components/tree';
 import { $t } from '#/locales';
 import { getDictOptions } from '#/utils/dict';
 import { renderDict } from '#/utils/render';
@@ -59,6 +60,7 @@ export const columns: VxeGridProps['columns'] = [
     className: 'system-menu-name-column',
     width: 200,
     align: 'left',
+    formatter: ({ cellValue }) => formatMenuPermissionShortLabel(cellValue),
   },
   {
     title: $t('pages.system.menu.fields.icon'),
@@ -86,7 +88,7 @@ export const columns: VxeGridProps['columns'] = [
     width: 120,
     slots: {
       default: ({ row }) => {
-        const current = menuTypes[row.type as 'D' | 'M' | 'B'];
+        const current = menuTypes[row.type as 'B' | 'D' | 'M'];
         if (!current) {
           return $t('pages.status.unknown');
         }
@@ -293,14 +295,10 @@ export function drawerSchema(): VbenFormSchema[] {
             return z
               .string()
               .min(1, {
-                message: $t(
-                  'pages.system.menu.validation.componentRequired',
-                ),
+                message: $t('pages.system.menu.validation.componentRequired'),
               })
               .refine((val) => !val.startsWith('/') && !val.endsWith('/'), {
-                message: $t(
-                  'pages.system.menu.validation.componentNoSlash',
-                ),
+                message: $t('pages.system.menu.validation.componentNoSlash'),
               });
           }
           return z.string().optional();

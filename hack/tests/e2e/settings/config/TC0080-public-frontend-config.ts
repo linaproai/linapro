@@ -128,6 +128,46 @@ async function captureLoadingTitleFontOnRefresh(
   }
 }
 
+async function persistUserThemePreference(
+  page: Page,
+  mode: "auto" | "dark" | "light",
+) {
+  await page.evaluate((themeMode) => {
+    const preferencesKey = Object.keys(localStorage).find((key) =>
+      key.endsWith("-preferences"),
+    );
+    if (!preferencesKey) {
+      throw new Error("preferences cache key was not initialized");
+    }
+
+    const rawPreference = JSON.parse(
+      localStorage.getItem(preferencesKey) || "{}",
+    );
+    const preference = rawPreference.value || {};
+    const keyPrefix = preferencesKey.slice(0, -"-preferences".length);
+
+    preference.theme = {
+      ...(preference.theme || {}),
+      mode: themeMode,
+    };
+    localStorage.setItem(
+      preferencesKey,
+      JSON.stringify({
+        ...rawPreference,
+        value: preference,
+      }),
+    );
+    localStorage.setItem(
+      `${keyPrefix}-preferences-theme`,
+      JSON.stringify({ value: themeMode }),
+    );
+    localStorage.setItem(
+      `${keyPrefix}-preferences-theme-user`,
+      JSON.stringify({ value: true }),
+    );
+  }, mode);
+}
+
 test.describe("TC0080 公开前端配置系统参数", () => {
   test("TC0080a: 参数设置页可检索到公开前端配置内置参数", async ({
     adminPage,
@@ -341,7 +381,9 @@ test.describe("TC0080 公开前端配置系统参数", () => {
       );
       expect(saved.value).toBe(longDescription);
 
-      const publicResponse = await request.get("/api/v1/config/public/frontend");
+      const publicResponse = await request.get(
+        "/api/v1/config/public/frontend",
+      );
       expect(publicResponse.ok()).toBeTruthy();
       const publicPayload = await publicResponse.json();
       expect(publicPayload.code).toBe(0);
@@ -357,5 +399,58 @@ test.describe("TC0080 公开前端配置系统参数", () => {
         original.value,
       );
     }
+  });
+
+  test("TC0080f: 用户主题偏好优先于公开前端默认主题", async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+    await persistUserThemePreference(page, "dark");
+
+    await page.route("**/api/v1/config/public/frontend", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          code: 0,
+          data: {
+            app: {},
+            auth: {},
+            cron: {},
+            ui: {
+              themeMode: "light",
+            },
+            user: {},
+          },
+          message: "OK",
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await loginPage.usernameInput.waitFor({ state: "visible" });
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          document.documentElement.classList.contains("dark"),
+        ),
+      )
+      .toBe(true);
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const preferencesKey = Object.keys(localStorage).find((key) =>
+            key.endsWith("-preferences"),
+          );
+          if (!preferencesKey) {
+            return "";
+          }
+          return (
+            JSON.parse(localStorage.getItem(preferencesKey) || "{}")?.value
+              ?.theme?.mode || ""
+          );
+        }),
+      )
+      .toBe("dark");
   });
 });

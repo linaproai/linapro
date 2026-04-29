@@ -20,7 +20,12 @@ const STORAGE_KEYS = {
   MAIN: 'preferences',
   LOCALE: 'preferences-locale',
   THEME: 'preferences-theme',
+  THEME_USER: 'preferences-theme-user',
 } as const;
+
+interface UpdatePreferenceOptions {
+  markUserThemePreference?: boolean;
+}
 
 class PreferenceManager {
   private cache: StorageManager;
@@ -59,6 +64,13 @@ class PreferenceManager {
    */
   getPreferences = () => {
     return readonly(this.state);
+  };
+
+  /**
+   * 判断当前用户是否显式设置过主题模式
+   */
+  hasUserThemePreference = () => {
+    return this.cache.getItem<boolean>(STORAGE_KEYS.THEME_USER) === true;
   };
 
   /**
@@ -106,6 +118,9 @@ class PreferenceManager {
     // 将状态重置为初始偏好设置
     Object.assign(this.state, this.initialPreferences);
 
+    // 重置偏好后不再保留用户主题覆盖标记
+    this.cache.removeItem(STORAGE_KEYS.THEME_USER);
+
     // 保存偏好设置至缓存
     this.saveToCache(this.state);
 
@@ -116,11 +131,19 @@ class PreferenceManager {
   /**
    * 更新偏好设置
    * @param updates - 要更新的偏好设置
+   * @param options - 更新控制选项
    */
-  updatePreferences = (updates: DeepPartial<Preferences>) => {
+  updatePreferences = (
+    updates: DeepPartial<Preferences>,
+    options: UpdatePreferenceOptions = {},
+  ) => {
     // 深度合并更新内容和当前状态
     const mergedState = merge({}, updates, markRaw(this.state));
     Object.assign(this.state, mergedState);
+
+    if (this.shouldMarkUserThemePreference(updates, options)) {
+      this.cache.setItem(STORAGE_KEYS.THEME_USER, true);
+    }
 
     // 根据更新的值执行更新
     this.handleUpdates(updates);
@@ -215,15 +238,37 @@ class PreferenceManager {
         // 仅在自动模式下跟随系统主题
         if (this.state.theme.mode === 'auto') {
           // 先应用实际的主题
-          this.updatePreferences({
-            theme: { mode: isDark ? 'dark' : 'light' },
-          });
+          this.updatePreferences(
+            {
+              theme: { mode: isDark ? 'dark' : 'light' },
+            },
+            { markUserThemePreference: false },
+          );
           // 再恢复为 auto 模式，保持跟随系统的状态
-          this.updatePreferences({
-            theme: { mode: 'auto' },
-          });
+          this.updatePreferences(
+            {
+              theme: { mode: 'auto' },
+            },
+            { markUserThemePreference: false },
+          );
         }
       });
+  }
+
+  /**
+   * 判断当前更新是否来自用户显式主题选择
+   */
+  private shouldMarkUserThemePreference(
+    updates: DeepPartial<Preferences>,
+    options: UpdatePreferenceOptions,
+  ) {
+    return (
+      this.isInitialized &&
+      options.markUserThemePreference !== false &&
+      !!updates.theme &&
+      Reflect.has(updates.theme, 'mode') &&
+      updates.theme.mode !== undefined
+    );
   }
 
   /**

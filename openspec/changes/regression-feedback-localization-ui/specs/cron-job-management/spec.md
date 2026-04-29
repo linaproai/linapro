@@ -17,3 +17,14 @@
 - **WHEN** 管理员取消“立即执行”确认弹窗
 - **THEN** 前端不调用 `POST /job/{id}/trigger`
 - **AND** 任务列表状态保持不变
+
+#### Scenario: Shell trigger remains available when shell editing is blocked
+- **WHEN** Shell 任务因为环境开关或 Shell 附加权限不足无法新增或编辑
+- **THEN** 任务列表仍 SHALL 为可手动触发的 Shell 任务展示可点击的“立即执行”操作
+- **AND** 点击后 SHALL 先展示二次确认弹窗，而不是被 Shell 编辑限制直接置灰
+- **AND** 操作列 SHALL 只展示一个编辑入口，避免禁用态编辑和普通编辑同时出现
+
+#### Scenario: Shell jobs are enabled by default
+- **WHEN** 系统初始化 `cron.shell.enabled` 运行参数或该参数缺失后使用内置 fallback
+- **THEN** 默认值 SHALL 为 `true`
+- **AND** 不影响平台不支持 Shell 任务时自动禁用的安全保护

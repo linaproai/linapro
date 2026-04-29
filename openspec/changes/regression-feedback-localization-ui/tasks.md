@@ -29,3 +29,13 @@
 - [x] 3.1 检查宿主和源码插件 `manifest/i18n`、packed manifest、默认配置模板和 SQL 资源的一致性，明确记录本次 i18n 影响面
 - [x] 3.2 运行相关 Go/前端静态检查或单元测试，覆盖本次修改的后端投影、插件挂载和前端表单/表格逻辑
 - [x] 3.3 执行 `/lina-review` 范围审查，确认 OpenSpec、i18n、SQL、GoFrame、前端和 E2E 规范符合项目要求
+
+## Feedback
+
+- [x] **FB-1**: Add a subtle cyan edge glow to the management workbench logo in dark mode
+- [x] **FB-2**: Fix scheduled-job action rendering so Shell rows show a single edit action and Run Now remains clickable through confirmation
+- [x] **FB-3**: Set the default `cron.shell.enabled` runtime parameter to `true`
+- [x] **FB-4**: Preserve explicit user theme preference across page refresh when public frontend theme default is different
+- [x] **FB-5**: Fix dynamic plugin permission button names in the English menu management page
+- [x] **FB-6**: Improve dictionary type add/edit form layout so `Dictionary Type` stays on one line in English
+- [x] **FB-7**: Change the login password placeholder to use localized password input prompts

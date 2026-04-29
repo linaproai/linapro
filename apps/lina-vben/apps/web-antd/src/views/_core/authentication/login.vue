@@ -34,7 +34,7 @@ const formSchema = computed((): VbenFormSchema[] => {
     {
       component: 'VbenInputPassword',
       componentProps: {
-        placeholder: $t('authentication.password'),
+        placeholder: $t('authentication.passwordTip'),
       },
       fieldName: 'password',
       label: $t('authentication.password'),

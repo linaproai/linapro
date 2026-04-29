@@ -89,7 +89,7 @@ function extractDynamicRoutePermission(rawValue: string) {
   return '';
 }
 
-export function formatMenuPermissionLabel(rawValue: string | null | undefined) {
+export function formatMenuPermissionLabel(rawValue: null | string | undefined) {
   const normalized = String(rawValue || '').trim();
   if (!normalized) {
     return '';
@@ -119,4 +119,32 @@ export function formatMenuPermissionLabel(rawValue: string | null | undefined) {
       resource: resourceLabel,
     },
   );
+}
+
+export function formatMenuPermissionShortLabel(
+  rawValue: null | string | undefined,
+) {
+  const normalized = String(rawValue || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  const permission = extractDynamicRoutePermission(normalized);
+  if (!permission) {
+    return normalized;
+  }
+
+  const parts = permission.split(':');
+  if (parts.length !== 3) {
+    return translateWithFallback(
+      `${permissionDisplayI18nKeyPrefix}.dynamicRoutePermission`,
+      normalized,
+    );
+  }
+
+  const resourceLabel = humanizePermissionSegment(parts[1] ?? '');
+  const actionLabel = humanizePermissionSegment(parts[2] ?? '');
+  const labels = [resourceLabel, actionLabel].filter(Boolean);
+
+  return isEnglishLocale() ? labels.join(' ') : labels.join('');
 }

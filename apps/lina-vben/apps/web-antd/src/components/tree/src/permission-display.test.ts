@@ -1,12 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
 import { i18n } from '@vben/locales';
+
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import enUSPages from '#/locales/langs/en-US/pages.json';
 import zhCNPages from '#/locales/langs/zh-CN/pages.json';
 import zhTWPages from '#/locales/langs/zh-TW/pages.json';
 
-import { formatMenuPermissionLabel } from './permission-display';
+import {
+  formatMenuPermissionLabel,
+  formatMenuPermissionShortLabel,
+} from './permission-display';
 
 describe('formatMenuPermissionLabel', () => {
   beforeEach(() => {
@@ -58,5 +61,25 @@ describe('formatMenuPermissionLabel', () => {
         'plugin-dynamic-host-auth-ui:report-center:read',
       ),
     ).toBe('Dynamic Route Permission (resource: Report Center, action: Read)');
+  });
+
+  it('formats dynamic route permission buttons as short English menu names', () => {
+    setActiveLocale('en-US');
+
+    expect(
+      formatMenuPermissionShortLabel(
+        'Dynamic Route Permission:plugin-demo-dynamic:record:create',
+      ),
+    ).toBe('Record Create');
+  });
+
+  it('formats dynamic route permission buttons as short Chinese menu names', () => {
+    setActiveLocale('zh-CN');
+
+    expect(
+      formatMenuPermissionShortLabel(
+        'Dynamic Route Permission:plugin-demo-dynamic:backend:view',
+      ),
+    ).toBe('后端查看');
   });
 });

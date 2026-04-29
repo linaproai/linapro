@@ -9,6 +9,7 @@ const { preferencesState } = vi.hoisted(() => ({
 }));
 
 const updatePreferences = vi.fn();
+const hasUserThemePreference = vi.fn(() => false);
 const getInitialPreferences = vi.fn(() => ({
   app: {
     authPageLayout: 'panel-right',
@@ -38,6 +39,7 @@ vi.mock('@vben/preferences', () => ({
   preferences: preferencesState,
   preferencesManager: {
     getInitialPreferences,
+    hasUserThemePreference,
   },
   updatePreferences,
 }));
@@ -48,6 +50,8 @@ describe('public frontend runtime settings', () => {
     preferencesState.app.locale = 'zh-CN';
     updatePreferences.mockReset();
     getInitialPreferences.mockClear();
+    hasUserThemePreference.mockReset();
+    hasUserThemePreference.mockReturnValue(false);
     vi.stubGlobal('fetch', vi.fn());
   });
 
@@ -124,7 +128,45 @@ describe('public frontend runtime settings', () => {
           mode: 'dark',
         }),
       }),
+      { markUserThemePreference: false },
     );
+  });
+
+  it('keeps an explicit user theme preference over the server default', async () => {
+    hasUserThemePreference.mockReturnValue(true);
+    vi.mocked(fetch).mockResolvedValue({
+      json: async () => ({
+        data: {
+          app: {
+            name: 'LinaPro Light',
+          },
+          auth: {
+            panelLayout: 'panel-right',
+          },
+          cron: {},
+          ui: {
+            themeMode: 'light',
+          },
+        },
+      }),
+      ok: true,
+    } as Response);
+
+    const { publicFrontendSettings, syncPublicFrontendSettings } =
+      await import('./public-frontend');
+    const settings = await syncPublicFrontendSettings();
+    const [preferenceUpdate, options] = updatePreferences.mock.calls[0] ?? [];
+
+    expect(settings?.ui.themeMode).toBe('light');
+    expect(publicFrontendSettings.ui.themeMode).toBe('light');
+    expect(preferenceUpdate.theme).toEqual(
+      expect.objectContaining({
+        builtinType: 'default',
+        colorPrimary: '#1677ff',
+      }),
+    );
+    expect(preferenceUpdate.theme).not.toHaveProperty('mode');
+    expect(options).toEqual({ markUserThemePreference: false });
   });
 
   it('falls back to panel-right when the server omits auth panel layout', async () => {
@@ -155,6 +197,7 @@ describe('public frontend runtime settings', () => {
           defaultAvatar: '/avatar.webp',
         }),
       }),
+      { markUserThemePreference: false },
     );
   });
 });

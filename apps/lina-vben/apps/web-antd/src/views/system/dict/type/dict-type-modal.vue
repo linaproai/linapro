@@ -30,7 +30,7 @@ const [BasicForm, formApi] = useVbenForm({
     componentProps: {
       class: 'w-full',
     },
-    labelWidth: 128,
+    labelWidth: 152,
   },
   schema: modalSchema,
   showDefaultActions: false,
@@ -89,7 +89,16 @@ async function handleClosed() {
 </script>
 
 <template>
-  <BasicModal :title="title" class="w-[560px] max-w-[calc(100vw-32px)]">
+  <BasicModal
+    :title="title"
+    class="dict-type-modal w-[640px] max-w-[calc(100vw-32px)]"
+  >
     <BasicForm />
   </BasicModal>
 </template>
+
+<style>
+.dict-type-modal .ant-form-item-label > label {
+  white-space: nowrap;
+}
+</style>

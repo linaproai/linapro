@@ -8,6 +8,11 @@
 - **THEN** 对应按钮权限出现在该插件页面菜单或插件主菜单的子节点下
 - **AND** 菜单管理列表不显示大量以 `Dynamic Route Permission:plugin-demo-dynamic:` 为前缀且缺少合理父菜单语义的顶层或错挂按钮
 
+#### Scenario: Dynamic plugin route buttons show readable English names
+- **WHEN** 管理员在 `en-US` 环境下查看菜单管理中的 `plugin-demo-dynamic` 子按钮
+- **THEN** 动态路由按钮名称展示为可读的英文资源与动作名称
+- **AND** 不直接展示 `Dynamic Route Permission:plugin-demo-dynamic:*` 原始占位文本
+
 #### Scenario: Dynamic plugin buttons remain assignable
 - **WHEN** 管理员在角色授权树中查看动态插件权限
 - **THEN** 动态路由按钮仍随所属插件菜单参与授权

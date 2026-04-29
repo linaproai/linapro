@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import type { CSSProperties } from 'vue';
 
-import { VbenAvatar } from '../avatar';
+import { computed } from 'vue';
 
 interface Props {
   /**
@@ -63,23 +63,31 @@ const logoSrc = computed(() => {
   // 否则使用默认的 src
   return props.src;
 });
+
+const logoMarkStyle = computed<CSSProperties>(() => ({
+  '--vben-logo-size': `${props.logoSize}px`,
+}));
+
+const logoImageStyle = computed<CSSProperties>(() => ({
+  objectFit: props.fit,
+}));
 </script>
 
 <template>
-  <div :class="theme" class="flex h-full items-center text-lg">
+  <div :class="theme" class="vben-logo flex h-full items-center text-lg">
     <a
       :class="$attrs.class"
       :href="href"
-      class="flex h-full items-center gap-2 overflow-hidden px-3 text-lg leading-normal transition-all duration-500"
+      class="flex h-full items-center gap-2 overflow-visible px-3 text-lg leading-normal transition-all duration-500"
     >
-      <VbenAvatar
-        v-if="logoSrc"
-        :alt="text"
-        :src="logoSrc"
-        :size="logoSize"
-        :fit="fit"
-        class="relative rounded-none bg-transparent"
-      />
+      <span v-if="logoSrc" :style="logoMarkStyle" class="vben-logo__mark">
+        <img
+          :alt="text"
+          :src="logoSrc"
+          :style="logoImageStyle"
+          class="vben-logo__image h-full w-full bg-transparent"
+        />
+      </span>
       <template v-if="!collapsed">
         <slot name="text">
           <span class="text-foreground truncate font-semibold text-nowrap">
@@ -90,3 +98,24 @@ const logoSrc = computed(() => {
     </a>
   </div>
 </template>
+
+<style scoped>
+.vben-logo__mark {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 var(--vben-logo-size);
+  align-items: center;
+  justify-content: center;
+  width: var(--vben-logo-size);
+  height: var(--vben-logo-size);
+}
+
+.vben-logo__mark :deep(img) {
+  transition: filter 0.3s ease;
+}
+
+.vben-logo.dark .vben-logo__mark :deep(img) {
+  filter: drop-shadow(0 -1px 2px hsl(186deg 96% 62% / 24%))
+    drop-shadow(0 0 1px hsl(186deg 96% 58% / 12%));
+}
+</style>

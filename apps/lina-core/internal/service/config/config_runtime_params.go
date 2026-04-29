@@ -56,7 +56,7 @@ var runtimeParamSpecs = []RuntimeParamSpec{
 	},
 	{
 		Key:          RuntimeParamKeyCronShellEnabled,
-		DefaultValue: "false",
+		DefaultValue: "true",
 	},
 	{
 		Key:          RuntimeParamKeyCronLogRetention,
