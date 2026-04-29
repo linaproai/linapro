@@ -1,12 +1,12 @@
 {
   "publicFrontend": {
     "app": {
-      "name": "LinaPro"
+      "name": "LinaPro.AI"
     },
     "auth": {
       "loginSubtitle": "Enter your account credentials to start managing your projects",
-      "pageDesc": "Building production-grade full-stack applications with AI, while keeping architecture, testing, and governance under control.",
-      "pageTitle": "AI-native full-stack framework engineered for sustainable delivery"
+      "pageDesc": "Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model",
+      "pageTitle": "An AI-native full-stack framework engineered for sustainable delivery"
     },
     "ui": {
       "watermarkContent": "LinaPro"

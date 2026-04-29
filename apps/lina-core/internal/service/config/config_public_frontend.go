@@ -58,7 +58,7 @@ const (
 var publicFrontendSettingSpecs = []RuntimeParamSpec{
 	{
 		Key:          PublicFrontendSettingKeyAppName,
-		DefaultValue: "LinaPro",
+		DefaultValue: "LinaPro.AI",
 	},
 	{
 		Key:          PublicFrontendSettingKeyAppLogo,

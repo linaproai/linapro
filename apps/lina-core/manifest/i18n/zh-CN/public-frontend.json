@@ -1,7 +1,7 @@
 {
   "publicFrontend": {
     "app": {
-      "name": "LinaPro"
+      "name": "LinaPro.AI"
     },
     "auth": {
       "loginSubtitle": "请输入您的帐户信息以开始管理您的项目",
