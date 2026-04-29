@@ -6,6 +6,7 @@ package user
 
 import (
 	userapi "lina-core/api/user"
+	"lina-core/internal/service/i18n"
 	"lina-core/internal/service/menu"
 	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
@@ -19,6 +20,7 @@ type ControllerV1 struct {
 	roleSvc   role.Service    // role service
 	menuSvc   menu.Service    // menu service
 	orgCapSvc orgcap.Service  // optional organization capability service
+	i18nSvc   i18n.Translator // runtime translation service
 }
 
 // NewV1 creates and returns a new user controller instance.
@@ -30,5 +32,6 @@ func NewV1() userapi.IUserV1 {
 		roleSvc:   role.New(pluginSvc),
 		menuSvc:   menu.New(pluginSvc),
 		orgCapSvc: orgCapSvc,
+		i18nSvc:   i18n.New(),
 	}
 }

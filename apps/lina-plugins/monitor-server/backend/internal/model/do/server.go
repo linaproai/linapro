@@ -12,10 +12,10 @@ import (
 // Server is the golang structure of table plugin_monitor_server for DAO operations like Where/Data.
 type Server struct {
 	g.Meta    `orm:"table:plugin_monitor_server, do:true"`
-	Id        any         // 记录ID
-	NodeName  any         // 节点名称（hostname）
-	NodeIp    any         // 节点IP地址
-	Data      any         // 监控数据（JSON格式，包含CPU、内存、磁盘、网络、Go运行时等指标）
-	CreatedAt *gtime.Time // 采集时间
-	UpdatedAt *gtime.Time // 更新时间
+	Id        any         // Record ID
+	NodeName  any         // Node name (hostname)
+	NodeIp    any         // Node IP address
+	Data      any         // Monitoring data in JSON format, including CPU, memory, disk, network, Go runtime, and other metrics
+	CreatedAt *gtime.Time // Collection time
+	UpdatedAt *gtime.Time // Update time
 }

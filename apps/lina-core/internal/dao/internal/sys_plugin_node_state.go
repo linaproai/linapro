@@ -21,17 +21,17 @@ type SysPluginNodeStateDao struct {
 
 // SysPluginNodeStateColumns defines and stores column names for the table sys_plugin_node_state.
 type SysPluginNodeStateColumns struct {
-	Id              string // 主键ID
-	PluginId        string // 插件唯一标识（kebab-case）
-	ReleaseId       string // 所属插件 release ID
-	NodeKey         string // 节点唯一标识
-	DesiredState    string // 节点期望状态
-	CurrentState    string // 节点当前状态
-	Generation      string // 插件代际号
-	LastHeartbeatAt string // 最近一次心跳时间
-	ErrorMessage    string // 节点错误信息
-	CreatedAt       string // 创建时间
-	UpdatedAt       string // 更新时间
+	Id              string // Primary key ID
+	PluginId        string // Plugin unique identifier (kebab-case)
+	ReleaseId       string // Owning plugin release ID
+	NodeKey         string // Node unique identifier
+	DesiredState    string // Node desired state
+	CurrentState    string // Node current state
+	Generation      string // Plugin generation number
+	LastHeartbeatAt string // Last heartbeat time
+	ErrorMessage    string // Node error message
+	CreatedAt       string // Creation time
+	UpdatedAt       string // Update time
 }
 
 // sysPluginNodeStateColumns holds the columns for the table sys_plugin_node_state.

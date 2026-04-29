@@ -1,6 +1,7 @@
 import type { Locator } from "@playwright/test";
 
 import { test, expect } from "../../fixtures/auth";
+import { ensureSourcePluginEnabled } from "../../fixtures/plugin";
 import { DictPage } from "../../pages/DictPage";
 import { LayoutAuditPage } from "../../pages/LayoutAuditPage";
 import { ProfilePage } from "../../pages/ProfilePage";
@@ -201,6 +202,9 @@ test.describe("TC0112 英文布局回归", () => {
     const sidebarBox = await mainLayout.sidebar.boundingBox();
     expect(sidebarBox).not.toBeNull();
     expect(sidebarBox!.width).toBeGreaterThanOrEqual(236);
+
+    await ensureSourcePluginEnabled(adminPage, "plugin-demo-source");
+    await mainLayout.switchLanguage("English");
 
     const dynamicDemoMenu = mainLayout.sidebarMenuItem("Dynamic Plugin Demo");
     const pluginMenu = (await dynamicDemoMenu

@@ -924,7 +924,7 @@ test.describe("TC-72 Runtime Wasm Low Priority Host Services", () => {
     await expectApiFailure(
       cacheLimitResponse,
       "超限缓存值必须被宿主拒绝",
-      "缓存值长度超出限制",
+      "Cache value exceeds the limit",
     );
 
     const lockDeniedResponse = await adminApi!.get(

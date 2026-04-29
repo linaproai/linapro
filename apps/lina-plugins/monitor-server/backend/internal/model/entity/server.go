@@ -10,10 +10,10 @@ import (
 
 // Server is the golang structure for table server.
 type Server struct {
-	Id        int64       `json:"id"        orm:"id"         description:"记录ID"`
-	NodeName  string      `json:"nodeName"  orm:"node_name"  description:"节点名称（hostname）"`
-	NodeIp    string      `json:"nodeIp"    orm:"node_ip"    description:"节点IP地址"`
-	Data      string      `json:"data"      orm:"data"       description:"监控数据（JSON格式，包含CPU、内存、磁盘、网络、Go运行时等指标）"`
-	CreatedAt *gtime.Time `json:"createdAt" orm:"created_at" description:"采集时间"`
-	UpdatedAt *gtime.Time `json:"updatedAt" orm:"updated_at" description:"更新时间"`
+	Id        int64       `json:"id"        orm:"id"         description:"Record ID"`
+	NodeName  string      `json:"nodeName"  orm:"node_name"  description:"Node name (hostname)"`
+	NodeIp    string      `json:"nodeIp"    orm:"node_ip"    description:"Node IP address"`
+	Data      string      `json:"data"      orm:"data"       description:"Monitoring data in JSON format, including CPU, memory, disk, network, Go runtime, and other metrics"`
+	CreatedAt *gtime.Time `json:"createdAt" orm:"created_at" description:"Collection time"`
+	UpdatedAt *gtime.Time `json:"updatedAt" orm:"updated_at" description:"Update time"`
 }

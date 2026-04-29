@@ -15,8 +15,8 @@ test.describe('TC0015 部门管理 CRUD', () => {
   test('TC0015a: 在根部门下创建子部门', async ({ adminPage }) => {
     const deptPage = new DeptPage(adminPage);
     await deptPage.goto();
-    // 在已有的 "Lina科技" 下创建子部门
-    await deptPage.createSubDept('Lina科技', testDeptName);
+    // 在已有的根组织下创建子部门
+    await deptPage.createSubDept('LinaPro.AI', testDeptName);
 
     await expect(adminPage.getByText(/创建成功|success/i)).toBeVisible({
       timeout: 5000,

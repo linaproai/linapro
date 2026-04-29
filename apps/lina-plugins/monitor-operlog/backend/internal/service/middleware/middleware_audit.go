@@ -35,7 +35,7 @@ const (
 const (
 	operLogMaskedPassword = "***"
 	operLogRedactedValue  = "[REDACTED]"
-	operLogBinaryContent  = "[二进制内容]"
+	operLogBinaryContent  = "[BINARY CONTENT]"
 )
 
 // auditRouteMetadata stores the route-level audit metadata collected from the

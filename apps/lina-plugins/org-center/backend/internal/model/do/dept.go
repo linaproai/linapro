@@ -12,18 +12,18 @@ import (
 // Dept is the golang structure of table plugin_org_center_dept for DAO operations like Where/Data.
 type Dept struct {
 	g.Meta    `orm:"table:plugin_org_center_dept, do:true"`
-	Id        any         // 部门ID
-	ParentId  any         // 父部门ID
-	Ancestors any         // 祖级列表
-	Name      any         // 部门名称
-	Code      any         // 部门编码
-	OrderNum  any         // 显示排序
-	Leader    any         // 负责人用户ID
-	Phone     any         // 联系电话
-	Email     any         // 邮箱
-	Status    any         // 状态（0停用 1正常）
-	Remark    any         // 备注
-	CreatedAt *gtime.Time // 创建时间
-	UpdatedAt *gtime.Time // 更新时间
-	DeletedAt *gtime.Time // 删除时间
+	Id        any         // Department ID
+	ParentId  any         // Parent department ID
+	Ancestors any         // Ancestor list
+	Name      any         // Department name
+	Code      any         // Department code
+	OrderNum  any         // Display order
+	Leader    any         // Leader user ID
+	Phone     any         // Contact phone number
+	Email     any         // Email address
+	Status    any         // Status: 0=disabled, 1=enabled
+	Remark    any         // Remark
+	CreatedAt *gtime.Time // Creation time
+	UpdatedAt *gtime.Time // Update time
+	DeletedAt *gtime.Time // Deletion time
 }

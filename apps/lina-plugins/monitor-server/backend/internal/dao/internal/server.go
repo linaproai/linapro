@@ -21,12 +21,12 @@ type ServerDao struct {
 
 // ServerColumns defines and stores column names for the table plugin_monitor_server.
 type ServerColumns struct {
-	Id        string // 记录ID
-	NodeName  string // 节点名称（hostname）
-	NodeIp    string // 节点IP地址
-	Data      string // 监控数据（JSON格式，包含CPU、内存、磁盘、网络、Go运行时等指标）
-	CreatedAt string // 采集时间
-	UpdatedAt string // 更新时间
+	Id        string // Record ID
+	NodeName  string // Node name (hostname)
+	NodeIp    string // Node IP address
+	Data      string // Monitoring data in JSON format, including CPU, memory, disk, network, Go runtime, and other metrics
+	CreatedAt string // Collection time
+	UpdatedAt string // Update time
 }
 
 // serverColumns holds the columns for the table plugin_monitor_server.

@@ -5,62 +5,62 @@
 -- 菜单表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_menu (
-    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT '菜单ID',
-    parent_id   INT          NOT NULL DEFAULT 0  COMMENT '父菜单ID（0=根菜单）',
-    menu_key    VARCHAR(128) NULL COMMENT '菜单稳定业务标识',
-    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT '菜单名称（支持i18n）',
-    path        VARCHAR(255) NOT NULL DEFAULT '' COMMENT '路由地址',
-    component   VARCHAR(255) NOT NULL DEFAULT '' COMMENT '组件路径',
-    perms       VARCHAR(128) NOT NULL DEFAULT '' COMMENT '权限标识',
-    icon        VARCHAR(128) NOT NULL DEFAULT '' COMMENT '菜单图标',
-    type        CHAR(1)      NOT NULL DEFAULT 'M' COMMENT '菜单类型（D=目录 M=菜单 B=按钮）',
-    sort        INT          NOT NULL DEFAULT 0  COMMENT '显示排序',
-    visible     TINYINT      NOT NULL DEFAULT 1  COMMENT '是否显示（1=显示 0=隐藏）',
-    status      TINYINT      NOT NULL DEFAULT 1  COMMENT '状态（0=停用 1=正常）',
-    is_frame    TINYINT      NOT NULL DEFAULT 0  COMMENT '是否外链（1=是 0=否）',
-    is_cache    TINYINT      NOT NULL DEFAULT 0  COMMENT '是否缓存（1=是 0=否）',
-    query_param VARCHAR(255) NOT NULL DEFAULT '' COMMENT '路由参数（JSON格式）',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
-    created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间',
-    deleted_at  DATETIME                         COMMENT '删除时间',
+    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Menu ID',
+    parent_id   INT          NOT NULL DEFAULT 0  COMMENT  'Parent menu ID, 0 means root menu',
+    menu_key    VARCHAR(128) NULL COMMENT  'Stable menu business key',
+    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Menu name with i18n support',
+    path        VARCHAR(255) NOT NULL DEFAULT '' COMMENT  'Route path',
+    component   VARCHAR(255) NOT NULL DEFAULT '' COMMENT  'Component path',
+    perms       VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Permission identifier',
+    icon        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Menu icon',
+    type        CHAR(1)      NOT NULL DEFAULT 'M' COMMENT  'Menu type: D=directory, M=menu, B=button',
+    sort        INT          NOT NULL DEFAULT 0  COMMENT  'Display order',
+    visible     TINYINT      NOT NULL DEFAULT 1  COMMENT  'Visibility: 1=visible, 0=hidden',
+    status      TINYINT      NOT NULL DEFAULT 1  COMMENT  'Status: 0=disabled, 1=enabled',
+    is_frame    TINYINT      NOT NULL DEFAULT 0  COMMENT  'External link flag: 1=yes, 0=no',
+    is_cache    TINYINT      NOT NULL DEFAULT 0  COMMENT  'Cache flag: 1=yes, 0=no',
+    query_param VARCHAR(255) NOT NULL DEFAULT '' COMMENT  'Route parameters in JSON format',
+    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
+    created_at  DATETIME                         COMMENT  'Creation time',
+    updated_at  DATETIME                         COMMENT  'Update time',
+    deleted_at  DATETIME                         COMMENT  'Deletion time',
     UNIQUE KEY uk_menu_key (menu_key)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='菜单权限表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Menu permission table';
 
 -- ============================================================
 -- 角色表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_role (
-    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT '角色ID',
-    name        VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '角色名称',
-    `key`       VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '权限字符',
-    sort        INT          NOT NULL DEFAULT 0  COMMENT '显示排序',
-    data_scope  TINYINT      NOT NULL DEFAULT 1  COMMENT '数据权限范围（1=全部 2=本部门 3=仅本人）',
-    status      TINYINT      NOT NULL DEFAULT 1  COMMENT '状态（0=停用 1=正常）',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
-    created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间',
-    deleted_at  DATETIME                         COMMENT '删除时间',
+    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Role ID',
+    name        VARCHAR(64)  NOT NULL DEFAULT '' COMMENT  'Role name',
+    `key`       VARCHAR(64)  NOT NULL DEFAULT '' COMMENT  'Permission key',
+    sort        INT          NOT NULL DEFAULT 0  COMMENT  'Display order',
+    data_scope  TINYINT      NOT NULL DEFAULT 1  COMMENT  'Data scope: 1=all, 2=department, 3=self',
+    status      TINYINT      NOT NULL DEFAULT 1  COMMENT  'Status: 0=disabled, 1=enabled',
+    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
+    created_at  DATETIME                         COMMENT  'Creation time',
+    updated_at  DATETIME                         COMMENT  'Update time',
+    deleted_at  DATETIME                         COMMENT  'Deletion time',
     UNIQUE(`key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='角色信息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Role information table';
 
 -- ============================================================
 -- 角色-菜单关联表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_role_menu (
-    role_id INT NOT NULL COMMENT '角色ID',
-    menu_id INT NOT NULL COMMENT '菜单ID',
+    role_id INT NOT NULL COMMENT  'Role ID',
+    menu_id INT NOT NULL COMMENT  'Menu ID',
     PRIMARY KEY (role_id, menu_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='角色与菜单关联表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Role-menu relation table';
 
 -- ============================================================
 -- 用户-角色关联表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_user_role (
-    user_id INT NOT NULL COMMENT '用户ID',
-    role_id INT NOT NULL COMMENT '角色ID',
+    user_id INT NOT NULL COMMENT  'User ID',
+    role_id INT NOT NULL COMMENT  'Role ID',
     PRIMARY KEY (user_id, role_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户与角色关联表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User-role relation table';
 
 -- ============================================================
 -- 字典类型与字典数据

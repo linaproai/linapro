@@ -21,18 +21,18 @@ type SysPluginResourceRefDao struct {
 
 // SysPluginResourceRefColumns defines and stores column names for the table sys_plugin_resource_ref.
 type SysPluginResourceRefColumns struct {
-	Id           string // 主键ID
-	PluginId     string // 插件唯一标识（kebab-case）
-	ReleaseId    string // 所属插件 release ID
-	ResourceType string // 资源类型（manifest/sql/frontend/menu/permission 等）
-	ResourceKey  string // 资源唯一键
-	ResourcePath string // 资源定位补充信息（默认留空，不保存具体前端/SQL 路径）
-	OwnerType    string // 宿主对象类型（file/menu/route/slot 等）
-	OwnerKey     string // 宿主对象稳定标识
-	Remark       string // 备注
-	CreatedAt    string // 创建时间
-	UpdatedAt    string // 更新时间
-	DeletedAt    string // 删除时间
+	Id           string // Primary key ID
+	PluginId     string // Plugin unique identifier (kebab-case)
+	ReleaseId    string // Owning plugin release ID
+	ResourceType string // Resource type: manifest/sql/frontend/menu/permission, etc.
+	ResourceKey  string // Resource unique key
+	ResourcePath string // Resource location metadata, empty by default and without concrete frontend or SQL paths
+	OwnerType    string // Host object type: file/menu/route/slot, etc.
+	OwnerKey     string // Stable host object identifier
+	Remark       string // Remark
+	CreatedAt    string // Creation time
+	UpdatedAt    string // Update time
+	DeletedAt    string // Deletion time
 }
 
 // sysPluginResourceRefColumns holds the columns for the table sys_plugin_resource_ref.

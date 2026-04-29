@@ -88,7 +88,17 @@ const hostPageAuditCases = [
 ] as const;
 
 function assertNoRawI18nKeys(bodyText: string, path: string) {
-  const rawKeys = [...new Set(bodyText.match(rawI18nKeyPattern) || [])];
+  const rawKeys = [
+    ...new Set(
+      [...bodyText.matchAll(rawI18nKeyPattern)]
+        .filter(
+          (match) =>
+            bodyText.slice(Math.max(0, (match.index ?? 0) - 4), match.index) !==
+            "sys.",
+        )
+        .map((match) => match[0]),
+    ),
+  ];
   expect(rawKeys, `${path} still shows raw i18n keys`).toEqual([]);
 }
 

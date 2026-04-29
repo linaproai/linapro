@@ -6,6 +6,6 @@ package entity
 
 // UserDept is the golang structure for table user_dept.
 type UserDept struct {
-	UserId int `json:"userId" orm:"user_id" description:"用户ID"`
-	DeptId int `json:"deptId" orm:"dept_id" description:"部门ID"`
+	UserId int `json:"userId" orm:"user_id" description:"User ID"`
+	DeptId int `json:"deptId" orm:"dept_id" description:"Department ID"`
 }

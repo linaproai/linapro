@@ -60,6 +60,9 @@
               "disabledReason": {
                 "dc": "Shell 任務不可用時的原因說明"
               },
+              "disabledReasonKey": {
+                "dc": "用於在前端本地化 disabledReason 的運行時 i18n 鍵"
+              },
               "enabled": {
                 "dc": "是否允許創建和執行 Shell 任務：true=允許 false=不允許"
               },

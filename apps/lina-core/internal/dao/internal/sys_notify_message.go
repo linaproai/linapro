@@ -21,16 +21,16 @@ type SysNotifyMessageDao struct {
 
 // SysNotifyMessageColumns defines and stores column names for the table sys_notify_message.
 type SysNotifyMessageColumns struct {
-	Id           string // 主键ID
-	PluginId     string // 来源插件ID，宿主内建流程为空
-	SourceType   string // 来源类型：notice=公告 plugin=插件 system=系统
-	SourceId     string // 来源业务ID
-	CategoryCode string // 消息分类：notice=通知 announcement=公告 other=其他
-	Title        string // 消息标题
-	Content      string // 消息正文
-	PayloadJson  string // 扩展载荷JSON
-	SenderUserId string // 发送者用户ID
-	CreatedAt    string // 创建时间
+	Id           string // Primary key ID
+	PluginId     string // Source plugin ID, empty for host built-in flows
+	SourceType   string // Source type: notice=notice, plugin=plugin, system=system
+	SourceId     string // Source business ID
+	CategoryCode string // Message category: notice=notification, announcement=announcement, other=other
+	Title        string // Message title
+	Content      string // Message body
+	PayloadJson  string // Extended payload JSON
+	SenderUserId string // Sender user ID
+	CreatedAt    string // Creation time
 }
 
 // sysNotifyMessageColumns holds the columns for the table sys_notify_message.

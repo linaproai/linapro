@@ -4,22 +4,22 @@ USE `linapro`;
 
 -- sys_user table
 CREATE TABLE IF NOT EXISTS sys_user (
-    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT '用户ID',
-    username    VARCHAR(64)  NOT NULL          COMMENT '用户账号',
-    password    VARCHAR(256) NOT NULL          COMMENT '密码',
-    nickname    VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '用户昵称',
-    email       VARCHAR(128) NOT NULL DEFAULT '' COMMENT '邮箱',
-    phone       VARCHAR(20)  NOT NULL DEFAULT '' COMMENT '手机号码',
-    sex         TINYINT      NOT NULL DEFAULT 0  COMMENT '性别（0未知 1男 2女）',
-    avatar      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '头像地址',
-    status      TINYINT      NOT NULL DEFAULT 1  COMMENT '状态（0停用 1正常）',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
-    login_date  DATETIME                         COMMENT '最后登录时间',
-    created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间',
-    deleted_at  DATETIME                         COMMENT '删除时间',
+    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'User ID',
+    username    VARCHAR(64)  NOT NULL          COMMENT  'Username',
+    password    VARCHAR(256) NOT NULL          COMMENT  'Password',
+    nickname    VARCHAR(64)  NOT NULL DEFAULT '' COMMENT  'User nickname',
+    email       VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Email address',
+    phone       VARCHAR(20)  NOT NULL DEFAULT '' COMMENT  'Mobile phone number',
+    sex         TINYINT      NOT NULL DEFAULT 0  COMMENT  'Gender: 0=unknown, 1=male, 2=female',
+    avatar      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Avatar URL',
+    status      TINYINT      NOT NULL DEFAULT 1  COMMENT  'Status: 0=disabled, 1=enabled',
+    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
+    login_date  DATETIME                         COMMENT  'Last login time',
+    created_at  DATETIME                         COMMENT  'Creation time',
+    updated_at  DATETIME                         COMMENT  'Update time',
+    deleted_at  DATETIME                         COMMENT  'Deletion time',
     UNIQUE(username)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='用户信息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User information table';
 
 -- Default admin user (password: admin123, bcrypt hash)
 INSERT IGNORE INTO sys_user (username, password, nickname, status, created_at, updated_at)

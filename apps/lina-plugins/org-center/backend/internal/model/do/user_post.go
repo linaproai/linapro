@@ -11,6 +11,6 @@ import (
 // UserPost is the golang structure of table plugin_org_center_user_post for DAO operations like Where/Data.
 type UserPost struct {
 	g.Meta `orm:"table:plugin_org_center_user_post, do:true"`
-	UserId any // 用户ID
-	PostId any // 岗位ID
+	UserId any // User ID
+	PostId any // Post ID
 }

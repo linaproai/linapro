@@ -5,51 +5,51 @@
 -- 定时任务分组表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job_group (
-    id          BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '任务分组ID',
-    code        VARCHAR(64)  NOT NULL DEFAULT '' COMMENT '分组编码',
-    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT '分组名称',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
-    sort_order  INT          NOT NULL DEFAULT 0  COMMENT '显示排序',
-    is_default  TINYINT      NOT NULL DEFAULT 0  COMMENT '是否默认分组（1=是 0=否）',
-    created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间',
-    deleted_at  DATETIME                         COMMENT '删除时间',
+    id          BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT  'Job group ID',
+    code        VARCHAR(64)  NOT NULL DEFAULT '' COMMENT  'Group code',
+    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Group name',
+    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
+    sort_order  INT          NOT NULL DEFAULT 0  COMMENT  'Display order',
+    is_default  TINYINT      NOT NULL DEFAULT 0  COMMENT  'Default group flag: 1=yes, 0=no',
+    created_at  DATETIME                         COMMENT  'Creation time',
+    updated_at  DATETIME                         COMMENT  'Update time',
+    deleted_at  DATETIME                         COMMENT  'Deletion time',
     UNIQUE KEY uk_sys_job_group_code (code),
     INDEX idx_sys_job_group_is_default (is_default)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='定时任务分组表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Scheduled job group table';
 
 -- ============================================================
 -- 定时任务表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job (
-    id                      BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '任务ID',
-    group_id                BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '所属分组ID',
-    name                    VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '任务名称',
-    description             VARCHAR(512)    NOT NULL DEFAULT '' COMMENT '任务描述',
-    task_type               VARCHAR(32)     NOT NULL DEFAULT 'handler' COMMENT '任务类型（handler/shell）',
-    handler_ref             VARCHAR(255)    NOT NULL DEFAULT '' COMMENT 'Handler 唯一引用',
-    params                  LONGTEXT                            COMMENT 'Handler 参数JSON',
-    timeout_seconds         INT             NOT NULL DEFAULT 300 COMMENT '执行超时时间（秒）',
-    shell_cmd               LONGTEXT                            COMMENT 'Shell 脚本内容',
-    work_dir                VARCHAR(512)    NOT NULL DEFAULT '' COMMENT '工作目录',
-    env                     LONGTEXT                            COMMENT '环境变量JSON',
-    cron_expr               VARCHAR(128)    NOT NULL DEFAULT '' COMMENT 'Cron 表达式',
-    timezone                VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '时区标识',
-    scope                   VARCHAR(32)     NOT NULL DEFAULT 'master_only' COMMENT '调度范围（master_only/all_node）',
-    concurrency             VARCHAR(32)     NOT NULL DEFAULT 'singleton' COMMENT '并发策略（singleton/parallel）',
-    max_concurrency         INT             NOT NULL DEFAULT 1 COMMENT '并发上限',
-    max_executions          INT             NOT NULL DEFAULT 0 COMMENT '最大执行次数（0=无限）',
-    executed_count          BIGINT          NOT NULL DEFAULT 0 COMMENT '已执行次数',
-    stop_reason             VARCHAR(64)     NOT NULL DEFAULT '' COMMENT '停止原因',
-    log_retention_override  LONGTEXT                            COMMENT '日志保留策略覆盖JSON',
-    status                  VARCHAR(32)     NOT NULL DEFAULT 'disabled' COMMENT '任务状态（enabled/disabled/paused_by_plugin）',
-    is_builtin              TINYINT         NOT NULL DEFAULT 0 COMMENT '是否内置任务（1=是 0=否）',
-    seed_version            INT             NOT NULL DEFAULT 0 COMMENT '种子版本号',
-    created_by              BIGINT          NOT NULL DEFAULT 0 COMMENT '创建者用户ID',
-    updated_by              BIGINT          NOT NULL DEFAULT 0 COMMENT '更新者用户ID',
-    created_at              DATETIME                            COMMENT '创建时间',
-    updated_at              DATETIME                            COMMENT '更新时间',
-    deleted_at              DATETIME                            COMMENT '删除时间',
+    id                      BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT  'Job ID',
+    group_id                BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT  'Owning group ID',
+    name                    VARCHAR(128)    NOT NULL DEFAULT '' COMMENT  'Job name',
+    description             VARCHAR(512)    NOT NULL DEFAULT '' COMMENT  'Job description',
+    task_type               VARCHAR(32)     NOT NULL DEFAULT 'handler' COMMENT  'Job type: handler/shell',
+    handler_ref             VARCHAR(255)    NOT NULL DEFAULT '' COMMENT  'Unique handler reference',
+    params                  LONGTEXT                            COMMENT  'Handler parameters JSON',
+    timeout_seconds         INT             NOT NULL DEFAULT 300 COMMENT  'Execution timeout in seconds',
+    shell_cmd               LONGTEXT                            COMMENT  'Shell script content',
+    work_dir                VARCHAR(512)    NOT NULL DEFAULT '' COMMENT  'Working directory',
+    env                     LONGTEXT                            COMMENT  'Environment variables JSON',
+    cron_expr               VARCHAR(128)    NOT NULL DEFAULT '' COMMENT  'Cron expression',
+    timezone                VARCHAR(64)     NOT NULL DEFAULT '' COMMENT  'Timezone identifier',
+    scope                   VARCHAR(32)     NOT NULL DEFAULT 'master_only' COMMENT  'Scheduling scope: master_only/all_node',
+    concurrency             VARCHAR(32)     NOT NULL DEFAULT 'singleton' COMMENT  'Concurrency policy: singleton/parallel',
+    max_concurrency         INT             NOT NULL DEFAULT 1 COMMENT  'Maximum concurrency',
+    max_executions          INT             NOT NULL DEFAULT 0 COMMENT  'Maximum executions, 0 means unlimited',
+    executed_count          BIGINT          NOT NULL DEFAULT 0 COMMENT  'Executed count',
+    stop_reason             VARCHAR(64)     NOT NULL DEFAULT '' COMMENT  'Stop reason',
+    log_retention_override  LONGTEXT                            COMMENT  'Log retention override JSON',
+    status                  VARCHAR(32)     NOT NULL DEFAULT 'disabled' COMMENT  'Job status: enabled/disabled/paused_by_plugin',
+    is_builtin              TINYINT         NOT NULL DEFAULT 0 COMMENT  'Built-in job flag: 1=yes, 0=no',
+    seed_version            INT             NOT NULL DEFAULT 0 COMMENT  'Seed version number',
+    created_by              BIGINT          NOT NULL DEFAULT 0 COMMENT  'Creator user ID',
+    updated_by              BIGINT          NOT NULL DEFAULT 0 COMMENT  'Updater user ID',
+    created_at              DATETIME                            COMMENT  'Creation time',
+    updated_at              DATETIME                            COMMENT  'Update time',
+    deleted_at              DATETIME                            COMMENT  'Deletion time',
     UNIQUE KEY uk_sys_job_group_name (group_id, name),
     INDEX idx_sys_job_status (status),
     INDEX idx_sys_job_group_id (group_id),
@@ -57,29 +57,29 @@ CREATE TABLE IF NOT EXISTS sys_job (
     INDEX idx_sys_job_handler_ref (handler_ref),
     INDEX idx_sys_job_is_builtin (is_builtin),
     CONSTRAINT fk_sys_job_group_id FOREIGN KEY (group_id) REFERENCES sys_job_group (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='定时任务表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Scheduled job table';
 
 -- ============================================================
 -- 定时任务执行日志表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job_log (
-    id               BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT '日志ID',
-    job_id           BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '所属任务ID',
-    job_snapshot     LONGTEXT                           COMMENT '执行时任务快照JSON',
-    node_id          VARCHAR(128)    NOT NULL DEFAULT '' COMMENT '执行节点标识',
-    `trigger`        VARCHAR(32)     NOT NULL DEFAULT 'cron' COMMENT '触发方式（cron/manual）',
-    params_snapshot  LONGTEXT                           COMMENT '执行时参数快照JSON',
-    start_at         DATETIME                           COMMENT '开始时间',
-    end_at           DATETIME                           COMMENT '结束时间',
-    duration_ms      BIGINT          NOT NULL DEFAULT 0 COMMENT '执行耗时（毫秒）',
-    status           VARCHAR(64)     NOT NULL DEFAULT 'running' COMMENT '执行状态',
-    err_msg          VARCHAR(1000)   NOT NULL DEFAULT '' COMMENT '错误摘要',
-    result_json      LONGTEXT                           COMMENT '执行结果JSON',
-    created_at       DATETIME                           COMMENT '创建时间',
+    id               BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT COMMENT  'Log ID',
+    job_id           BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT  'Owning job ID',
+    job_snapshot     LONGTEXT                           COMMENT  'Job snapshot JSON at execution time',
+    node_id          VARCHAR(128)    NOT NULL DEFAULT '' COMMENT  'Execution node identifier',
+    `trigger`        VARCHAR(32)     NOT NULL DEFAULT 'cron' COMMENT  'Trigger type: cron/manual',
+    params_snapshot  LONGTEXT                           COMMENT  'Parameter snapshot JSON at execution time',
+    start_at         DATETIME                           COMMENT  'Start time',
+    end_at           DATETIME                           COMMENT  'End time',
+    duration_ms      BIGINT          NOT NULL DEFAULT 0 COMMENT  'Execution duration in milliseconds',
+    status           VARCHAR(64)     NOT NULL DEFAULT 'running' COMMENT  'Execution status',
+    err_msg          VARCHAR(1000)   NOT NULL DEFAULT '' COMMENT  'Error summary',
+    result_json      LONGTEXT                           COMMENT  'Execution result JSON',
+    created_at       DATETIME                           COMMENT  'Creation time',
     INDEX idx_sys_job_log_job_id_start_at (job_id, start_at),
     INDEX idx_sys_job_log_status (status),
     INDEX idx_sys_job_log_start_at (start_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='定时任务执行日志表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Scheduled job execution log table';
 
 -- ============================================================
 -- 默认分组与运行时参数

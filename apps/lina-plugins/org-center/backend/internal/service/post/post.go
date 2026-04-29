@@ -418,14 +418,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	file := excelize.NewFile()
 	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
-	headers := []string{
-		s.translate(ctx, postExportHeaderCodeKey, "Post Code"),
-		s.translate(ctx, postExportHeaderNameKey, "Post Name"),
-		s.translate(ctx, postExportHeaderSortKey, "Sort"),
-		s.translate(ctx, postExportHeaderStatusKey, "Status"),
-		s.translate(ctx, postExportHeaderRemarkKey, "Remark"),
-		s.translate(ctx, postExportHeaderCreatedAtKey, "Created At"),
-	}
+	headers := s.exportHeaders(ctx)
 	for index, header := range headers {
 		if err = excelutil.SetCellValue(file, sheet, index+1, 1, header); err != nil {
 			return nil, err
@@ -445,10 +438,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if err = excelutil.SetCellValue(file, sheet, 3, row, item.Sort); err != nil {
 			return nil, err
 		}
-		statusText := s.translate(ctx, postExportStatusEnabledKey, "Enabled")
-		if item.Status == 0 {
-			statusText = s.translate(ctx, postExportStatusDisabledKey, "Disabled")
-		}
+		statusText := s.exportStatusText(ctx, item.Status)
 		if err = excelutil.SetCellValue(file, sheet, 4, row, statusText); err != nil {
 			return nil, err
 		}
@@ -467,6 +457,26 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	}
 	data = buf.Bytes()
 	return data, nil
+}
+
+// exportHeaders returns localized Excel headers for post export.
+func (s *serviceImpl) exportHeaders(ctx context.Context) []string {
+	return []string{
+		s.translate(ctx, postExportHeaderCodeKey, "Post Code"),
+		s.translate(ctx, postExportHeaderNameKey, "Post Name"),
+		s.translate(ctx, postExportHeaderSortKey, "Sort"),
+		s.translate(ctx, postExportHeaderStatusKey, "Status"),
+		s.translate(ctx, postExportHeaderRemarkKey, "Remark"),
+		s.translate(ctx, postExportHeaderCreatedAtKey, "Created At"),
+	}
+}
+
+// exportStatusText returns the localized export label for one post status.
+func (s *serviceImpl) exportStatusText(ctx context.Context, status int) string {
+	if status == 0 {
+		return s.translate(ctx, postExportStatusDisabledKey, "Disabled")
+	}
+	return s.translate(ctx, postExportStatusEnabledKey, "Enabled")
 }
 
 // descendantDeptIDs returns the given department plus all descendants.

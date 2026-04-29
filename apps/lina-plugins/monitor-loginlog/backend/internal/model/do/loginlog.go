@@ -12,12 +12,12 @@ import (
 // Loginlog is the golang structure of table plugin_monitor_loginlog for DAO operations like Where/Data.
 type Loginlog struct {
 	g.Meta    `orm:"table:plugin_monitor_loginlog, do:true"`
-	Id        any         // 日志ID
-	UserName  any         // 登录账号
-	Status    any         // 登录状态（0成功 1失败）
-	Ip        any         // 登录IP地址
-	Browser   any         // 浏览器类型
-	Os        any         // 操作系统
-	Msg       any         // 提示消息
-	LoginTime *gtime.Time // 登录时间
+	Id        any         // Log ID
+	UserName  any         // Login account
+	Status    any         // Login status: 0=succeeded, 1=failed
+	Ip        any         // Login IP address
+	Browser   any         // Browser type
+	Os        any         // Operating system
+	Msg       any         // Prompt message
+	LoginTime *gtime.Time // Login time
 }

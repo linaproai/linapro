@@ -4,33 +4,33 @@
 -- 字典类型表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_dict_type (
-    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT '字典类型ID',
-    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT '字典名称',
-    type        VARCHAR(128) NOT NULL DEFAULT '' COMMENT '字典类型',
-    status      TINYINT      NOT NULL DEFAULT 1  COMMENT '状态（0停用 1正常）',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
-    created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间',
+    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Dictionary type ID',
+    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Dictionary name',
+    type        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Dictionary type',
+    status      TINYINT      NOT NULL DEFAULT 1  COMMENT  'Status: 0=disabled, 1=enabled',
+    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
+    created_at  DATETIME                         COMMENT  'Creation time',
+    updated_at  DATETIME                         COMMENT  'Update time',
     UNIQUE KEY uk_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='字典类型表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Dictionary type table';
 
 -- ============================================================
 -- 字典数据表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_dict_data (
-    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT '字典数据ID',
-    dict_type   VARCHAR(128) NOT NULL DEFAULT '' COMMENT '字典类型',
-    label       VARCHAR(128) NOT NULL DEFAULT '' COMMENT '字典标签',
-    value       VARCHAR(128) NOT NULL DEFAULT '' COMMENT '字典键值',
-    sort        INT          NOT NULL DEFAULT 0  COMMENT '显示排序',
-    tag_style   VARCHAR(128) NOT NULL DEFAULT '' COMMENT '标签样式（primary/success/danger/warning等）',
-    css_class   VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'CSS样式类名',
-    status      TINYINT      NOT NULL DEFAULT 1  COMMENT '状态（0停用 1正常）',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT '备注',
-    created_at  DATETIME                         COMMENT '创建时间',
-    updated_at  DATETIME                         COMMENT '更新时间',
+    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Dictionary data ID',
+    dict_type   VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Dictionary type',
+    label       VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Dictionary label',
+    value       VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Dictionary value',
+    sort        INT          NOT NULL DEFAULT 0  COMMENT  'Display order',
+    tag_style   VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Tag style: primary/success/danger/warning, etc.',
+    css_class   VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'CSS class name',
+    status      TINYINT      NOT NULL DEFAULT 1  COMMENT  'Status: 0=disabled, 1=enabled',
+    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
+    created_at  DATETIME                         COMMENT  'Creation time',
+    updated_at  DATETIME                         COMMENT  'Update time',
     UNIQUE KEY uk_dict_type_value (dict_type, value)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='字典数据表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Dictionary data table';
 
 -- ============================================================
 -- 字典初始化数据（宿主核心必需）

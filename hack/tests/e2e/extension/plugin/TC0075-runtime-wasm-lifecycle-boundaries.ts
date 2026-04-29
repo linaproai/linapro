@@ -617,7 +617,7 @@ test.describe("TC-75 Runtime Wasm Lifecycle Boundaries", () => {
     await expectApiFailure(
       sameVersionResponse,
       "已安装插件不应允许上传同版本产物",
-      "只允许上传更高版本",
+      "installed dynamic plugins can only upload a higher version",
     );
 
     const badABIResponse = await adminApi.post("plugins/dynamic/package", {
@@ -633,7 +633,7 @@ test.describe("TC-75 Runtime Wasm Lifecycle Boundaries", () => {
     await expectApiFailure(
       badABIResponse,
       "不兼容 ABI 的动态插件必须被宿主拒绝",
-      "ABI 版本不受支持",
+      "Dynamic plugin ABI version is not supported",
     );
 
     expect(await findPlugin(adminApi, badABIPluginID)).toBeNull();

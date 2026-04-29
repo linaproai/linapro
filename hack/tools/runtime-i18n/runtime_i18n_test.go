@@ -47,8 +47,85 @@ func TestScanRuntimeI18NFindsHardcodedGoErrors(t *testing.T) {
 	if len(findings) != 1 {
 		t.Fatalf("expected one finding, got %#v", findings)
 	}
-	if findings[0].Rule != "go-error-han" {
-		t.Fatalf("expected go-error-han finding, got %#v", findings[0])
+	if findings[0].Rule != "go-caller-error-han" {
+		t.Fatalf("expected go-caller-error-han finding, got %#v", findings[0])
+	}
+}
+
+// TestScanRuntimeI18NFindsExpandedBackendPatterns verifies backend scanner
+// coverage for common caller-visible text shapes.
+func TestScanRuntimeI18NFindsExpandedBackendPatterns(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-vben", "package.json"), "{}\n")
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "internal", "service", "demo", "demo.go"),
+		"package demo\n\nfunc f() {\n_ = errors.New(\"中文错误\")\nitem.Label = \"中文标签\"\nheaders := []string{\"中文表头\"}\n}\n",
+	)
+
+	findings, err := scanRuntimeI18N(repoRoot, scanOptions{})
+	if err != nil {
+		t.Fatalf("expected scan to succeed, got error: %v", err)
+	}
+	rules := make(map[string]struct{}, len(findings))
+	for _, finding := range findings {
+		rules[finding.Rule] = struct{}{}
+	}
+	for _, expected := range []string{"go-caller-error-han", "go-message-assignment-han", "go-artifact-slice-han"} {
+		if _, ok := rules[expected]; !ok {
+			t.Fatalf("expected %s finding, got %#v", expected, findings)
+		}
+	}
+}
+
+// TestScanRuntimeI18NReportsAllowlistAndExcludedStats verifies classified
+// reports include allowlist, generated-source, and test-fixture counts.
+func TestScanRuntimeI18NReportsAllowlistAndExcludedStats(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	mustWriteToolTestFile(t, filepath.Join(repoRoot, "apps", "lina-vben", "package.json"), "{}\n")
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "internal", "service", "demo", "demo.go"),
+		"package demo\n\nfunc f() error { return errors.New(\"中文错误\") }\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "internal", "model", "entity", "demo.go"),
+		"package entity\n\ntype Demo struct { Name string `description:\"中文字段\"` }\n",
+	)
+	mustWriteToolTestFile(
+		t,
+		filepath.Join(repoRoot, "apps", "lina-core", "internal", "service", "demo", "demo_test.go"),
+		"package demo\n\nconst fixture = \"中文测试样例\"\n",
+	)
+	allowlistPath := filepath.Join(repoRoot, "allowlist.json")
+	mustWriteToolTestFile(
+		t,
+		allowlistPath,
+		"{\"entries\":[{\"path\":\"apps/lina-core/internal/service/demo/demo.go\",\"rule\":\"go-caller-error-han\",\"category\":\"UserMessage\",\"reason\":\"temporary fixture\",\"scope\":\"test fixture\"}]}\n",
+	)
+
+	report, err := scanRuntimeI18NReport(repoRoot, scanOptions{allowlistPath: allowlistPath})
+	if err != nil {
+		t.Fatalf("expected scan report to succeed, got error: %v", err)
+	}
+	if report.Summary.Violations != 0 {
+		t.Fatalf("expected allowlisted source to avoid violations, got %#v", report.Summary)
+	}
+	if report.Summary.AllowlistHits != 1 {
+		t.Fatalf("expected one allowlist hit, got %#v", report.Summary)
+	}
+	if report.Summary.GeneratedFiles != 1 || report.Summary.GeneratedItems != 1 {
+		t.Fatalf("expected generated stats, got %#v", report.Summary)
+	}
+	if report.Summary.TestFixtureFiles != 1 || report.Summary.TestFixtureItems != 1 {
+		t.Fatalf("expected test fixture stats, got %#v", report.Summary)
 	}
 }
 

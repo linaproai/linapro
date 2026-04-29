@@ -27,7 +27,7 @@ func (s *serviceImpl) GetI18n(ctx context.Context) *I18nConfig {
 	return cloneI18nConfig(processStaticConfigCaches.i18n.load(func() *I18nConfig {
 		cfg := &I18nConfig{}
 		mustScanConfig(ctx, "i18n", cfg)
-		normalizeAndValidateI18nConfig("运行时配置", cfg)
+		normalizeAndValidateI18nConfig("runtime config", cfg)
 		return cfg
 	}))
 }
@@ -36,11 +36,11 @@ func (s *serviceImpl) GetI18n(ctx context.Context) *I18nConfig {
 // required fields that would otherwise reintroduce implicit language defaults.
 func normalizeAndValidateI18nConfig(source string, cfg *I18nConfig) {
 	if cfg == nil {
-		panic(gerror.Newf("%s i18n 配置不能为空", source))
+		panic(gerror.Newf("%s i18n config cannot be nil", source))
 	}
 	cfg.Default = strings.TrimSpace(cfg.Default)
 	if cfg.Default == "" {
-		panic(gerror.Newf("%s i18n.default 不能为空", source))
+		panic(gerror.Newf("%s i18n.default cannot be empty", source))
 	}
 	cfg.Locales = normalizeI18nLocaleConfigs(cfg.Locales)
 }

@@ -1053,11 +1053,13 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       popup.getByTestId("plugin-demo-dynamic-standalone"),
     ).toBeVisible();
     await expect(
-      popup.getByRole("heading", { name: "独立页面已成功打开" }),
+      popup.getByRole("heading", {
+        name: /动态插件独立页面|Dynamic Plugin Standalone Page/,
+      }),
     ).toBeVisible();
     await expect(
       popup.getByText(
-        "当前页面由 plugin-demo-dynamic 直接以托管静态资源形式提供，不依赖 Vben 前端框架。",
+        /当前页面由 plugin-demo-dynamic 直接以托管静态资源形式提供|This page is served directly by plugin-demo-dynamic as a hosted static asset/,
       ),
     ).toBeVisible();
     await popup.close();

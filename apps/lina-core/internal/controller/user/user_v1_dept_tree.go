@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"fmt"
 
 	v1 "lina-core/api/user/v1"
 	"lina-core/internal/service/orgcap"
@@ -13,11 +14,11 @@ func (c *ControllerV1) DeptTree(ctx context.Context, req *v1.DeptTreeReq) (res *
 	if err != nil {
 		return nil, err
 	}
-	return &v1.DeptTreeRes{List: convertDeptTreeNodes(nodes)}, nil
+	return &v1.DeptTreeRes{List: c.convertDeptTreeNodes(ctx, nodes)}, nil
 }
 
 // convertDeptTreeNodes converts the host-owned orgcap tree projection into the API DTO layer.
-func convertDeptTreeNodes(nodes []*orgcap.DeptTreeNode) []*v1.DeptTreeNode {
+func (c *ControllerV1) convertDeptTreeNodes(ctx context.Context, nodes []*orgcap.DeptTreeNode) []*v1.DeptTreeNode {
 	if nodes == nil {
 		return nil
 	}
@@ -26,11 +27,15 @@ func convertDeptTreeNodes(nodes []*orgcap.DeptTreeNode) []*v1.DeptTreeNode {
 		if n == nil {
 			continue
 		}
+		label := n.Label
+		if n.LabelKey != "" && c.i18nSvc != nil {
+			label = fmt.Sprintf("%s (%d)", c.i18nSvc.Translate(ctx, n.LabelKey, n.Label), n.UserCount)
+		}
 		result = append(result, &v1.DeptTreeNode{
 			Id:        n.Id,
-			Label:     n.Label,
+			Label:     label,
 			UserCount: n.UserCount,
-			Children:  convertDeptTreeNodes(n.Children),
+			Children:  c.convertDeptTreeNodes(ctx, n.Children),
 		})
 	}
 	return result

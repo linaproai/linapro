@@ -10,10 +10,10 @@ import (
 
 // SysPluginState is the golang structure for table sys_plugin_state.
 type SysPluginState struct {
-	Id         int         `json:"id"         orm:"id"          description:"主键ID"`
-	PluginId   string      `json:"pluginId"   orm:"plugin_id"   description:"插件唯一标识（kebab-case）"`
-	StateKey   string      `json:"stateKey"   orm:"state_key"   description:"状态键"`
-	StateValue string      `json:"stateValue" orm:"state_value" description:"状态值（支持JSON）"`
-	CreatedAt  *gtime.Time `json:"createdAt"  orm:"created_at"  description:"创建时间"`
-	UpdatedAt  *gtime.Time `json:"updatedAt"  orm:"updated_at"  description:"更新时间"`
+	Id         int         `json:"id"         orm:"id"          description:"Primary key ID"`
+	PluginId   string      `json:"pluginId"   orm:"plugin_id"   description:"Plugin unique identifier (kebab-case)"`
+	StateKey   string      `json:"stateKey"   orm:"state_key"   description:"State key"`
+	StateValue string      `json:"stateValue" orm:"state_value" description:"State value with JSON support"`
+	CreatedAt  *gtime.Time `json:"createdAt"  orm:"created_at"  description:"Creation time"`
+	UpdatedAt  *gtime.Time `json:"updatedAt"  orm:"updated_at"  description:"Update time"`
 }

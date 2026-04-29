@@ -12,17 +12,17 @@ import (
 // SysJobLog is the golang structure of table sys_job_log for DAO operations like Where/Data.
 type SysJobLog struct {
 	g.Meta         `orm:"table:sys_job_log, do:true"`
-	Id             any         // 日志ID
-	JobId          any         // 所属任务ID
-	JobSnapshot    any         // 执行时任务快照JSON
-	NodeId         any         // 执行节点标识
-	Trigger        any         // 触发方式（cron/manual）
-	ParamsSnapshot any         // 执行时参数快照JSON
-	StartAt        *gtime.Time // 开始时间
-	EndAt          *gtime.Time // 结束时间
-	DurationMs     any         // 执行耗时（毫秒）
-	Status         any         // 执行状态
-	ErrMsg         any         // 错误摘要
-	ResultJson     any         // 执行结果JSON
-	CreatedAt      *gtime.Time // 创建时间
+	Id             any         // Log ID
+	JobId          any         // Owning job ID
+	JobSnapshot    any         // Job snapshot JSON at execution time
+	NodeId         any         // Execution node identifier
+	Trigger        any         // Trigger type: cron/manual
+	ParamsSnapshot any         // Parameter snapshot JSON at execution time
+	StartAt        *gtime.Time // Start time
+	EndAt          *gtime.Time // End time
+	DurationMs     any         // Execution duration in milliseconds
+	Status         any         // Execution status
+	ErrMsg         any         // Error summary
+	ResultJson     any         // Execution result JSON
+	CreatedAt      *gtime.Time // Creation time
 }

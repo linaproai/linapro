@@ -21,16 +21,16 @@ type SysRoleDao struct {
 
 // SysRoleColumns defines and stores column names for the table sys_role.
 type SysRoleColumns struct {
-	Id        string // 角色ID
-	Name      string // 角色名称
-	Key       string // 权限字符
-	Sort      string // 显示排序
-	DataScope string // 数据权限范围（1=全部 2=本部门 3=仅本人）
-	Status    string // 状态（0=停用 1=正常）
-	Remark    string // 备注
-	CreatedAt string // 创建时间
-	UpdatedAt string // 更新时间
-	DeletedAt string // 删除时间
+	Id        string // Role ID
+	Name      string // Role name
+	Key       string // Permission key
+	Sort      string // Display order
+	DataScope string // Data scope: 1=all, 2=department, 3=self
+	Status    string // Status: 0=disabled, 1=enabled
+	Remark    string // Remark
+	CreatedAt string // Creation time
+	UpdatedAt string // Update time
+	DeletedAt string // Deletion time
 }
 
 // sysRoleColumns holds the columns for the table sys_role.

@@ -16,7 +16,7 @@ test.describe('TC0025 部门编码字段', () => {
     const deptPage = new DeptPage(adminPage);
     await deptPage.goto();
 
-    await deptPage.createSubDept('Lina科技', deptName, { code: deptCode });
+    await deptPage.createSubDept('LinaPro.AI', deptName, { code: deptCode });
     await expect(adminPage.getByText(/创建成功|success/i)).toBeVisible({
       timeout: 5000,
     });
@@ -47,7 +47,7 @@ test.describe('TC0025 部门编码字段', () => {
 
     // Try to create another dept with the same code (edited_${suffix})
     const duplicateCode = `edited_${suffix}`;
-    await deptPage.createSubDept('Lina科技', deptName2, {
+    await deptPage.createSubDept('LinaPro.AI', deptName2, {
       code: duplicateCode,
     });
 

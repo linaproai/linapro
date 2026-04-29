@@ -1,4 +1,5 @@
 import { test, expect } from '../../fixtures/auth';
+import { ensureSourcePluginEnabled } from '../../fixtures/plugin';
 import { waitForTableReady } from '../../support/ui';
 
 const untranslatedKeyPattern = /\b(?:plugin|pages)\.[A-Za-z0-9_.:-]+\b/g;
@@ -30,11 +31,22 @@ const pluginAuditCases = [
   },
 ] as const;
 
+const sourcePluginIDs = [
+  'org-center',
+  'content-notice',
+  'monitor-loginlog',
+  'monitor-online',
+  'monitor-operlog',
+] as const;
+
 test.describe('TC0111 源插件静态文案不再泄漏原始 i18n key', () => {
   test('TC-111a: 英文环境下部门岗位与监控插件页展示翻译后的静态文案', async ({
     adminPage,
     mainLayout,
   }) => {
+    for (const pluginID of sourcePluginIDs) {
+      await ensureSourcePluginEnabled(adminPage, pluginID);
+    }
     await mainLayout.switchLanguage('English');
 
     for (const pluginAuditCase of pluginAuditCases) {

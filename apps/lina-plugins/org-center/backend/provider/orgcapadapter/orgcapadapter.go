@@ -17,7 +17,11 @@ import (
 )
 
 const (
+	// postStatusEnabled is the enabled status value used by org-center posts.
 	postStatusEnabled = 1
+	// orgCapUnassignedDeptLabelKey is the runtime i18n key for the synthetic
+	// unassigned department node exposed through the host orgcap contract.
+	orgCapUnassignedDeptLabelKey = "plugin.org-center.post.tree.unassignedDept"
 )
 
 // Provider implements the stable host organization-capability contract.
@@ -297,12 +301,7 @@ func (p *Provider) UserDeptTree(ctx context.Context) ([]*orgcap.DeptTreeNode, er
 		assignedUsers += item
 	}
 
-	return append(nodes, &orgcap.DeptTreeNode{
-		Id:        0,
-		Label:     fmt.Sprintf("未分配部门(%d)", totalUsers-assignedUsers),
-		UserCount: totalUsers - assignedUsers,
-		Children:  make([]*orgcap.DeptTreeNode, 0),
-	}), nil
+	return append(nodes, newUnassignedDeptNode(totalUsers, assignedUsers)), nil
 }
 
 // ListPostOptions returns selectable post options for one department subtree.
@@ -365,5 +364,18 @@ func applyDeptUserCount(nodes []*orgcap.DeptTreeNode, countMap map[int]int) {
 			node.UserCount += child.UserCount
 		}
 		node.Label = fmt.Sprintf("%s(%d)", node.Label, node.UserCount)
+	}
+}
+
+// newUnassignedDeptNode creates the synthetic unassigned department projection
+// with a stable label key so host controllers can localize the label.
+func newUnassignedDeptNode(totalUsers int, assignedUsers int) *orgcap.DeptTreeNode {
+	unassignedUsers := totalUsers - assignedUsers
+	return &orgcap.DeptTreeNode{
+		Id:        0,
+		Label:     fmt.Sprintf("Unassigned Department (%d)", unassignedUsers),
+		LabelKey:  orgCapUnassignedDeptLabelKey,
+		UserCount: unassignedUsers,
+		Children:  make([]*orgcap.DeptTreeNode, 0),
 	}
 }

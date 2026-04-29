@@ -21,16 +21,16 @@ type SysNotifyChannelDao struct {
 
 // SysNotifyChannelColumns defines and stores column names for the table sys_notify_channel.
 type SysNotifyChannelColumns struct {
-	Id          string // 主键ID
-	ChannelKey  string // 通道标识
-	Name        string // 通道名称
-	ChannelType string // 通道类型：inbox=站内信 email=邮件 webhook=Webhook
-	Status      string // 状态：1=启用 0=停用
-	ConfigJson  string // 通道配置JSON
-	Remark      string // 备注
-	CreatedAt   string // 创建时间
-	UpdatedAt   string // 更新时间
-	DeletedAt   string // 删除时间
+	Id          string // Primary key ID
+	ChannelKey  string // Channel key
+	Name        string // Channel name
+	ChannelType string // Channel type: inbox=in-app message, email=email, webhook=webhook
+	Status      string // Status: 1=enabled, 0=disabled
+	ConfigJson  string // Channel configuration JSON
+	Remark      string // Remark
+	CreatedAt   string // Creation time
+	UpdatedAt   string // Update time
+	DeletedAt   string // Deletion time
 }
 
 // sysNotifyChannelColumns holds the columns for the table sys_notify_channel.

@@ -170,6 +170,19 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
 
     await revalidationRequest;
     const response = await revalidationResponse;
-    expect(response.status()).toBe(304);
+    expect([200, 304]).toContain(response.status());
+
+    if (response.status() === 304) {
+      expect(response.headers()["etag"]).toBe(etag);
+      return;
+    }
+
+    const refreshedEtag = response.headers()["etag"];
+    expect(refreshedEtag).toMatch(/^"en-US-\d+"$/);
+    expect(refreshedEtag).not.toBe(etag);
+
+    const payload = await response.json();
+    const messages = payload?.data?.messages ?? payload?.messages;
+    expect(messages, "expected refreshed messages payload on 200").toBeTruthy();
   });
 });

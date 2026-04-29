@@ -21,8 +21,8 @@ type SysUserRoleDao struct {
 
 // SysUserRoleColumns defines and stores column names for the table sys_user_role.
 type SysUserRoleColumns struct {
-	UserId string // 用户ID
-	RoleId string // 角色ID
+	UserId string // User ID
+	RoleId string // Role ID
 }
 
 // sysUserRoleColumns holds the columns for the table sys_user_role.

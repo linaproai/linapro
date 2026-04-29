@@ -10,7 +10,7 @@ test.describe('TC0016 岗位管理 CRUD', () => {
   const testPostCode = `TEST_POST_${Date.now()}`;
   const testPostName = '测试岗位';
   const testPostRenamed = '测试岗位修改';
-  const testDept = 'Lina科技';
+  const testDept = 'LinaPro.AI';
 
   test('TC0016a: 创建新岗位', async ({ adminPage }) => {
     const postPage = new PostPage(adminPage);

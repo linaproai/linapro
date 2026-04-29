@@ -21,21 +21,21 @@ type SysNotifyDeliveryDao struct {
 
 // SysNotifyDeliveryColumns defines and stores column names for the table sys_notify_delivery.
 type SysNotifyDeliveryColumns struct {
-	Id             string // 主键ID
-	MessageId      string // 通知消息ID
-	ChannelKey     string // 投递通道标识
-	ChannelType    string // 投递通道类型
-	RecipientType  string // 接收者类型：user=用户 email=邮箱 webhook=Webhook
-	RecipientKey   string // 接收者标识，如用户ID邮箱地址或Webhook标识
-	UserId         string // 站内信用户ID，非站内信时为0
-	DeliveryStatus string // 投递状态：0=待发送 1=成功 2=失败
-	IsRead         string // 是否已读：0=未读 1=已读
-	ReadAt         string // 已读时间
-	ErrorMessage   string // 失败原因
-	SentAt         string // 发送完成时间
-	CreatedAt      string // 创建时间
-	UpdatedAt      string // 更新时间
-	DeletedAt      string // 删除时间
+	Id             string // Primary key ID
+	MessageId      string // Notification message ID
+	ChannelKey     string // Delivery channel key
+	ChannelType    string // Delivery channel type
+	RecipientType  string // Recipient type: user=user, email=email, webhook=webhook
+	RecipientKey   string // Recipient key such as user ID, email address, or webhook identifier
+	UserId         string // In-app message user ID, 0 for non-in-app delivery
+	DeliveryStatus string // Delivery status: 0=pending, 1=succeeded, 2=failed
+	IsRead         string // Read flag: 0=unread, 1=read
+	ReadAt         string // Read time
+	ErrorMessage   string // Failure reason
+	SentAt         string // Send completion time
+	CreatedAt      string // Creation time
+	UpdatedAt      string // Update time
+	DeletedAt      string // Deletion time
 }
 
 // sysNotifyDeliveryColumns holds the columns for the table sys_notify_delivery.

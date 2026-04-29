@@ -12,15 +12,15 @@ import (
 // SysKvCache is the golang structure of table sys_kv_cache for DAO operations like Where/Data.
 type SysKvCache struct {
 	g.Meta     `orm:"table:sys_kv_cache, do:true"`
-	Id         any         // 主键ID
-	OwnerType  any         // 所属类型：plugin=动态插件 module=宿主模块
-	OwnerKey   any         // 所属标识：插件ID或模块名
-	Namespace  any         // 缓存命名空间，对应 host-cache 资源标识
-	CacheKey   any         // 缓存键
-	ValueKind  any         // 值类型：1=字符串 2=整数
-	ValueBytes []byte      // 缓存字节值，供 get/set 使用
-	ValueInt   any         // 缓存整数值，供 incr 使用
-	ExpireAt   *gtime.Time // 过期时间，NULL表示永不过期
-	CreatedAt  *gtime.Time // 创建时间
-	UpdatedAt  *gtime.Time // 更新时间
+	Id         any         // Primary key ID
+	OwnerType  any         // Owner type: plugin=dynamic plugin, module=host module
+	OwnerKey   any         // Owner key: plugin ID or module name
+	Namespace  any         // Cache namespace mapped to the host-cache resource identifier
+	CacheKey   any         // Cache key
+	ValueKind  any         // Value type: 1=string, 2=integer
+	ValueBytes []byte      // Cache byte value used by get/set
+	ValueInt   any         // Cache integer value used by incr
+	ExpireAt   *gtime.Time // Expiration time, NULL means never expires
+	CreatedAt  *gtime.Time // Creation time
+	UpdatedAt  *gtime.Time // Update time
 }

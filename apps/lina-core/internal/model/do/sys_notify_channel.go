@@ -12,14 +12,14 @@ import (
 // SysNotifyChannel is the golang structure of table sys_notify_channel for DAO operations like Where/Data.
 type SysNotifyChannel struct {
 	g.Meta      `orm:"table:sys_notify_channel, do:true"`
-	Id          any         // 主键ID
-	ChannelKey  any         // 通道标识
-	Name        any         // 通道名称
-	ChannelType any         // 通道类型：inbox=站内信 email=邮件 webhook=Webhook
-	Status      any         // 状态：1=启用 0=停用
-	ConfigJson  any         // 通道配置JSON
-	Remark      any         // 备注
-	CreatedAt   *gtime.Time // 创建时间
-	UpdatedAt   *gtime.Time // 更新时间
-	DeletedAt   *gtime.Time // 删除时间
+	Id          any         // Primary key ID
+	ChannelKey  any         // Channel key
+	Name        any         // Channel name
+	ChannelType any         // Channel type: inbox=in-app message, email=email, webhook=webhook
+	Status      any         // Status: 1=enabled, 0=disabled
+	ConfigJson  any         // Channel configuration JSON
+	Remark      any         // Remark
+	CreatedAt   *gtime.Time // Creation time
+	UpdatedAt   *gtime.Time // Update time
+	DeletedAt   *gtime.Time // Deletion time
 }

@@ -49,12 +49,12 @@ func (s *serviceImpl) GetMetadata(ctx context.Context) *MetadataConfig {
 	return cloneMetadataConfig(processStaticConfigCaches.metadata.load(func() *MetadataConfig {
 		content, err := fs.ReadFile(packed.Files, metadataConfigPath)
 		if err != nil {
-			panic(gerror.Wrapf(err, "读取嵌入元数据配置 %s 失败", metadataConfigPath))
+			panic(gerror.Wrapf(err, "read embedded metadata config %s failed", metadataConfigPath))
 		}
 
 		adapter, err := gcfg.NewAdapterContent(string(content))
 		if err != nil {
-			panic(gerror.Wrap(err, "解析嵌入元数据配置失败"))
+			panic(gerror.Wrap(err, "parse embedded metadata config failed"))
 		}
 
 		cfg := &MetadataConfig{
@@ -72,17 +72,17 @@ func (s *serviceImpl) GetMetadata(ctx context.Context) *MetadataConfig {
 // object and panics on malformed metadata.
 func mustScanMetadataConfig(ctx context.Context, adapter *gcfg.AdapterContent, key string, target any) {
 	if target == nil {
-		panic(gerror.Newf("元数据配置 %s 的扫描目标不能为空", key))
+		panic(gerror.Newf("metadata config %s scan target cannot be nil", key))
 	}
 
 	value, err := adapter.Get(ctx, key)
 	if err != nil {
-		panic(gerror.Wrapf(err, "读取嵌入元数据配置 %s 失败", key))
+		panic(gerror.Wrapf(err, "read embedded metadata config %s failed", key))
 	}
 	if value == nil {
 		return
 	}
 	if err = gconv.Scan(value, target); err != nil {
-		panic(gerror.Wrapf(err, "读取嵌入元数据配置 %s 失败", key))
+		panic(gerror.Wrapf(err, "read embedded metadata config %s failed", key))
 	}
 }

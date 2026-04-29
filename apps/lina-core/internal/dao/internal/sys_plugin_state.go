@@ -21,12 +21,12 @@ type SysPluginStateDao struct {
 
 // SysPluginStateColumns defines and stores column names for the table sys_plugin_state.
 type SysPluginStateColumns struct {
-	Id         string // 主键ID
-	PluginId   string // 插件唯一标识（kebab-case）
-	StateKey   string // 状态键
-	StateValue string // 状态值（支持JSON）
-	CreatedAt  string // 创建时间
-	UpdatedAt  string // 更新时间
+	Id         string // Primary key ID
+	PluginId   string // Plugin unique identifier (kebab-case)
+	StateKey   string // State key
+	StateValue string // State value with JSON support
+	CreatedAt  string // Creation time
+	UpdatedAt  string // Update time
 }
 
 // sysPluginStateColumns holds the columns for the table sys_plugin_state.

@@ -11,6 +11,6 @@ import (
 // UserDept is the golang structure of table plugin_org_center_user_dept for DAO operations like Where/Data.
 type UserDept struct {
 	g.Meta `orm:"table:plugin_org_center_user_dept, do:true"`
-	UserId any // 用户ID
-	DeptId any // 部门ID
+	UserId any // User ID
+	DeptId any // Department ID
 }

@@ -16,7 +16,7 @@ import (
 // invalid configuration.
 func mustScanConfig(ctx context.Context, key string, target any) {
 	if target == nil {
-		panic(gerror.New("配置扫描目标不能为空"))
+		panic(gerror.New("config scan target cannot be nil"))
 	}
 
 	value := g.Cfg().MustGet(ctx, key)
@@ -24,7 +24,7 @@ func mustScanConfig(ctx context.Context, key string, target any) {
 		return
 	}
 	if err := value.Scan(target); err != nil {
-		panic(gerror.Wrapf(err, "读取配置 %s 失败", key))
+		panic(gerror.Wrapf(err, "read config %s failed", key))
 	}
 }
 
@@ -47,10 +47,10 @@ func mustLoadDurationConfig(ctx context.Context, key string, defaultValue time.D
 func mustParsePositiveDuration(key string, raw string) time.Duration {
 	duration, err := time.ParseDuration(strings.TrimSpace(raw))
 	if err != nil {
-		panic(gerror.Wrapf(err, "解析配置 %s 失败", key))
+		panic(gerror.Wrapf(err, "parse config %s failed", key))
 	}
 	if duration <= 0 {
-		panic(gerror.Newf("配置 %s 必须大于 0", key))
+		panic(gerror.Newf("config %s must be greater than 0", key))
 	}
 	return duration
 }
@@ -59,10 +59,10 @@ func mustParsePositiveDuration(key string, raw string) time.Duration {
 // second and aligns to whole-second boundaries.
 func mustValidateSecondAlignedDuration(key string, duration time.Duration) time.Duration {
 	if duration < time.Second {
-		panic(gerror.Newf("配置 %s 必须至少为 1s", key))
+		panic(gerror.Newf("config %s must be at least 1s", key))
 	}
 	if duration%time.Second != 0 {
-		panic(gerror.Newf("配置 %s 必须为整秒时长", key))
+		panic(gerror.Newf("config %s must align to whole seconds", key))
 	}
 	return duration
 }

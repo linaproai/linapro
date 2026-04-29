@@ -6,6 +6,8 @@ import { JobPage } from '../../pages/JobPage';
 import {
   createAdminApiContext,
   expectSuccess,
+  getLog,
+  triggerJob,
 } from '../../support/api/job';
 import { waitForRouteReady } from '../../support/ui';
 
@@ -80,6 +82,7 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
           groupCode: string;
           groupName: string;
           handlerRef: string;
+          id: number;
           name: string;
         }>;
         total: number;
@@ -94,6 +97,20 @@ test.describe('TC0116 英文环境内置治理数据本地化回归', () => {
       expect(cleanupJob?.name).toBe('Job Log Cleanup');
       expect(cleanupJob?.description).toContain('scheduled-job execution logs');
       expect(cleanupJob?.groupName).toBe('Default Group');
+      expect(cleanupJob?.id).toBeGreaterThan(0);
+      const triggeredCleanup = await triggerJob(api, cleanupJob!.id);
+      await expect
+        .poll(
+          async () => {
+            const detail = await getLog(api, triggeredCleanup.logId);
+            return detail.status;
+          },
+          {
+            message: 'built-in cleanup job log should be ready before UI assertion',
+            timeout: 10_000,
+          },
+        )
+        .toBe('success');
 
       const handlerData = await expectSuccess<{
         list: Array<{ displayName: string; ref: string }>;

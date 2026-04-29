@@ -150,6 +150,17 @@ function execSQL(statements: string[]) {
   );
 }
 
+function execSQLFile(filePath: string) {
+  execFileSync(
+    mysqlBin,
+    [`-u${mysqlUser}`, `-p${mysqlPassword}`, mysqlDatabase],
+    {
+      input: readFileSync(filePath),
+      stdio: ["pipe", "ignore", "ignore"],
+    },
+  );
+}
+
 function querySQLRows(sql: string) {
   return execFileSync(
     mysqlBin,
@@ -335,6 +346,48 @@ async function createApiContext(accessToken: string): Promise<APIRequestContext>
 
 async function createAdminApiContext() {
   return createApiContext(await loginByPassword(config.adminUser, config.adminPass));
+}
+
+async function ensureOrgCenterReady(adminApi: APIRequestContext) {
+  const syncResponse = await adminApi.post("plugins/sync");
+  assertOk(syncResponse, "同步源码插件失败");
+
+  const pluginResponse = await adminApi.get("plugins?id=org-center");
+  assertOk(pluginResponse, "查询 org-center 插件状态失败");
+  const pluginPayload = unwrapApiData(await pluginResponse.json());
+  let orgCenter = (pluginPayload?.list ?? []).find(
+    (item: PluginListItem) => item.id === "org-center",
+  ) as PluginListItem | undefined;
+  expect(orgCenter, "测试需要 org-center 源码插件可用").toBeTruthy();
+
+  if (orgCenter?.installed !== 1) {
+    const installResponse = await adminApi.post("plugins/org-center/install");
+    assertOk(installResponse, "安装 org-center 失败");
+  }
+
+  const refreshedResponse = await adminApi.get("plugins?id=org-center");
+  assertOk(refreshedResponse, "刷新 org-center 插件状态失败");
+  const refreshedPayload = unwrapApiData(await refreshedResponse.json());
+  orgCenter = (refreshedPayload?.list ?? []).find(
+    (item: PluginListItem) => item.id === "org-center",
+  ) as PluginListItem | undefined;
+  if (orgCenter?.enabled !== 1) {
+    const enableResponse = await adminApi.put("plugins/org-center/enable");
+    assertOk(enableResponse, "启用 org-center 失败");
+  }
+
+  execSQLFile(
+    path.join(
+      repoRoot(),
+      "apps",
+      "lina-plugins",
+      "org-center",
+      "manifest",
+      "sql",
+      "mock-data",
+      "001-org-center-mock-data.sql",
+    ),
+  );
 }
 
 async function uploadDynamicPlugin(adminApi: APIRequestContext, artifactPath: string) {
@@ -531,6 +584,7 @@ test.describe("TC-69 动态插件权限治理", () => {
 
   test.beforeAll(async () => {
     adminApi = await createAdminApiContext();
+    await ensureOrgCenterReady(adminApi);
   });
 
   test.afterAll(async () => {

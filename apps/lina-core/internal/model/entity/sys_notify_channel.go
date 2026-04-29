@@ -10,14 +10,14 @@ import (
 
 // SysNotifyChannel is the golang structure for table sys_notify_channel.
 type SysNotifyChannel struct {
-	Id          int64       `json:"id"          orm:"id"           description:"主键ID"`
-	ChannelKey  string      `json:"channelKey"  orm:"channel_key"  description:"通道标识"`
-	Name        string      `json:"name"        orm:"name"         description:"通道名称"`
-	ChannelType string      `json:"channelType" orm:"channel_type" description:"通道类型：inbox=站内信 email=邮件 webhook=Webhook"`
-	Status      int         `json:"status"      orm:"status"       description:"状态：1=启用 0=停用"`
-	ConfigJson  string      `json:"configJson"  orm:"config_json"  description:"通道配置JSON"`
-	Remark      string      `json:"remark"      orm:"remark"       description:"备注"`
-	CreatedAt   *gtime.Time `json:"createdAt"   orm:"created_at"   description:"创建时间"`
-	UpdatedAt   *gtime.Time `json:"updatedAt"   orm:"updated_at"   description:"更新时间"`
-	DeletedAt   *gtime.Time `json:"deletedAt"   orm:"deleted_at"   description:"删除时间"`
+	Id          int64       `json:"id"          orm:"id"           description:"Primary key ID"`
+	ChannelKey  string      `json:"channelKey"  orm:"channel_key"  description:"Channel key"`
+	Name        string      `json:"name"        orm:"name"         description:"Channel name"`
+	ChannelType string      `json:"channelType" orm:"channel_type" description:"Channel type: inbox=in-app message, email=email, webhook=webhook"`
+	Status      int         `json:"status"      orm:"status"       description:"Status: 1=enabled, 0=disabled"`
+	ConfigJson  string      `json:"configJson"  orm:"config_json"  description:"Channel configuration JSON"`
+	Remark      string      `json:"remark"      orm:"remark"       description:"Remark"`
+	CreatedAt   *gtime.Time `json:"createdAt"   orm:"created_at"   description:"Creation time"`
+	UpdatedAt   *gtime.Time `json:"updatedAt"   orm:"updated_at"   description:"Update time"`
+	DeletedAt   *gtime.Time `json:"deletedAt"   orm:"deleted_at"   description:"Deletion time"`
 }

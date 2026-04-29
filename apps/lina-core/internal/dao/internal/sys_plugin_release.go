@@ -21,22 +21,22 @@ type SysPluginReleaseDao struct {
 
 // SysPluginReleaseColumns defines and stores column names for the table sys_plugin_release.
 type SysPluginReleaseColumns struct {
-	Id               string // 主键ID
-	PluginId         string // 插件唯一标识（kebab-case）
-	ReleaseVersion   string // 插件版本号
-	Type             string // 插件一级类型（source/dynamic）
-	RuntimeKind      string // 运行时产物类型（当前仅 wasm）
-	SchemaVersion    string // plugin.yaml 清单 schema 版本
-	MinHostVersion   string // 宿主最小兼容版本
-	MaxHostVersion   string // 宿主最大兼容版本
-	Status           string // release 状态（prepared/installed/active/uninstalled/failed）
-	ManifestPath     string // 插件清单路径
-	PackagePath      string // 插件源码目录或运行时产物路径
-	Checksum         string // 插件清单或产物校验值
-	ManifestSnapshot string // 插件清单与资源摘要快照（YAML，不保存具体 SQL/前端文件路径）
-	CreatedAt        string // 创建时间
-	UpdatedAt        string // 更新时间
-	DeletedAt        string // 删除时间
+	Id               string // Primary key ID
+	PluginId         string // Plugin unique identifier (kebab-case)
+	ReleaseVersion   string // Plugin version
+	Type             string // Plugin top-level type: source/dynamic
+	RuntimeKind      string // Runtime artifact type (currently only wasm)
+	SchemaVersion    string // plugin.yaml manifest schema version
+	MinHostVersion   string // Minimum compatible host version
+	MaxHostVersion   string // Maximum compatible host version
+	Status           string // Release status: prepared/installed/active/uninstalled/failed
+	ManifestPath     string // Plugin manifest path
+	PackagePath      string // Plugin source directory or runtime artifact path
+	Checksum         string // Plugin manifest or artifact checksum
+	ManifestSnapshot string // Plugin manifest and resource summary snapshot in YAML, without concrete SQL or frontend file paths
+	CreatedAt        string // Creation time
+	UpdatedAt        string // Update time
+	DeletedAt        string // Deletion time
 }
 
 // sysPluginReleaseColumns holds the columns for the table sys_plugin_release.

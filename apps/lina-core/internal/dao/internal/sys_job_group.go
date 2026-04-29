@@ -21,15 +21,15 @@ type SysJobGroupDao struct {
 
 // SysJobGroupColumns defines and stores column names for the table sys_job_group.
 type SysJobGroupColumns struct {
-	Id        string // 任务分组ID
-	Code      string // 分组编码
-	Name      string // 分组名称
-	Remark    string // 备注
-	SortOrder string // 显示排序
-	IsDefault string // 是否默认分组（1=是 0=否）
-	CreatedAt string // 创建时间
-	UpdatedAt string // 更新时间
-	DeletedAt string // 删除时间
+	Id        string // Job group ID
+	Code      string // Group code
+	Name      string // Group name
+	Remark    string // Remark
+	SortOrder string // Display order
+	IsDefault string // Default group flag: 1=yes, 0=no
+	CreatedAt string // Creation time
+	UpdatedAt string // Update time
+	DeletedAt string // Deletion time
 }
 
 // sysJobGroupColumns holds the columns for the table sys_job_group.

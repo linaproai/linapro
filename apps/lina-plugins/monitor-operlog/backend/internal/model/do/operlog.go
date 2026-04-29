@@ -12,23 +12,23 @@ import (
 // Operlog is the golang structure of table plugin_monitor_operlog for DAO operations like Where/Data.
 type Operlog struct {
 	g.Meta        `orm:"table:plugin_monitor_operlog, do:true"`
-	Id            any         // 日志ID
-	Title         any         // 模块标题
-	OperSummary   any         // 操作摘要
-	RouteOwner    any         // 路由归属（core或插件ID）
-	RouteMethod   any         // 路由请求方式
-	RoutePath     any         // 路由路径
-	RouteDocKey   any         // API文档结构化键
-	OperType      any         // 操作类型（create新增 update修改 delete删除 export导出 import导入 other其他）
-	Method        any         // 方法名称
-	RequestMethod any         // 请求方式（GET/POST/PUT/DELETE）
-	OperName      any         // 操作人员
-	OperUrl       any         // 请求URL
-	OperIp        any         // 操作IP地址
-	OperParam     any         // 请求参数
-	JsonResult    any         // 返回参数
-	Status        any         // 操作状态（0成功 1失败）
-	ErrorMsg      any         // 错误消息
-	CostTime      any         // 耗时（毫秒）
-	OperTime      *gtime.Time // 操作时间
+	Id            any         // Log ID
+	Title         any         // Module title
+	OperSummary   any         // Operation summary
+	RouteOwner    any         // Route owner: core or plugin ID
+	RouteMethod   any         // Route request method
+	RoutePath     any         // Route path
+	RouteDocKey   any         // API documentation structured key
+	OperType      any         // Operation type: create=create, update=update, delete=delete, export=export, import=import, other=other
+	Method        any         // Method name
+	RequestMethod any         // Request method: GET/POST/PUT/DELETE
+	OperName      any         // Operator
+	OperUrl       any         // Request URL
+	OperIp        any         // Operation IP address
+	OperParam     any         // Request parameters
+	JsonResult    any         // Response parameters
+	Status        any         // Operation status: 0=succeeded, 1=failed
+	ErrorMsg      any         // Error message
+	CostTime      any         // Duration in milliseconds
+	OperTime      *gtime.Time // Operation time
 }

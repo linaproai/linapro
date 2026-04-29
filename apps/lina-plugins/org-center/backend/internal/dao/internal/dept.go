@@ -21,20 +21,20 @@ type DeptDao struct {
 
 // DeptColumns defines and stores column names for the table plugin_org_center_dept.
 type DeptColumns struct {
-	Id        string // 部门ID
-	ParentId  string // 父部门ID
-	Ancestors string // 祖级列表
-	Name      string // 部门名称
-	Code      string // 部门编码
-	OrderNum  string // 显示排序
-	Leader    string // 负责人用户ID
-	Phone     string // 联系电话
-	Email     string // 邮箱
-	Status    string // 状态（0停用 1正常）
-	Remark    string // 备注
-	CreatedAt string // 创建时间
-	UpdatedAt string // 更新时间
-	DeletedAt string // 删除时间
+	Id        string // Department ID
+	ParentId  string // Parent department ID
+	Ancestors string // Ancestor list
+	Name      string // Department name
+	Code      string // Department code
+	OrderNum  string // Display order
+	Leader    string // Leader user ID
+	Phone     string // Contact phone number
+	Email     string // Email address
+	Status    string // Status: 0=disabled, 1=enabled
+	Remark    string // Remark
+	CreatedAt string // Creation time
+	UpdatedAt string // Update time
+	DeletedAt string // Deletion time
 }
 
 // deptColumns holds the columns for the table plugin_org_center_dept.

@@ -11,6 +11,6 @@ import (
 // SysUserRole is the golang structure of table sys_user_role for DAO operations like Where/Data.
 type SysUserRole struct {
 	g.Meta `orm:"table:sys_user_role, do:true"`
-	UserId any // 用户ID
-	RoleId any // 角色ID
+	UserId any // User ID
+	RoleId any // Role ID
 }

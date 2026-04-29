@@ -1,5 +1,9 @@
 import type { APIRequestContext, Page } from '@playwright/test';
 
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { request as playwrightRequest } from '@playwright/test';
 
 import { config } from './config';
@@ -7,6 +11,11 @@ import { waitForRouteReady } from '../support/ui';
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:8080/api/v1/';
+const mysqlBin = process.env.E2E_MYSQL_BIN ?? 'mysql';
+const mysqlUser = process.env.E2E_DB_USER ?? 'root';
+const mysqlPassword = process.env.E2E_DB_PASSWORD ?? '12345678';
+const mysqlDatabase = process.env.E2E_DB_NAME ?? 'linapro';
+const repoRoot = path.resolve(process.cwd(), '../..');
 
 type PluginListItem = {
   enabled?: number;
@@ -26,6 +35,31 @@ function assertOk(response: Awaited<ReturnType<APIRequestContext['get']>>, messa
   if (!response.ok()) {
     throw new Error(`${message}, status=${response.status()}`);
   }
+}
+
+function loadSourcePluginMockData(pluginId: string) {
+  const mockSQLPath = path.join(
+    repoRoot,
+    'apps',
+    'lina-plugins',
+    pluginId,
+    'manifest',
+    'sql',
+    'mock-data',
+    `001-${pluginId}-mock-data.sql`,
+  );
+  if (!existsSync(mockSQLPath)) {
+    return;
+  }
+
+  execFileSync(
+    mysqlBin,
+    [`-u${mysqlUser}`, `-p${mysqlPassword}`, mysqlDatabase],
+    {
+      input: readFileSync(mockSQLPath),
+      stdio: ['pipe', 'ignore', 'ignore'],
+    },
+  );
 }
 
 export async function createAdminApiContext(): Promise<APIRequestContext> {
@@ -149,6 +183,7 @@ export async function ensureSourcePluginEnabled(page: Page, pluginId: string) {
     if (plugin?.enabled !== 1) {
       await updatePluginStatus(adminApi, pluginId, true);
     }
+    loadSourcePluginMockData(pluginId);
   } finally {
     await adminApi.dispose();
   }

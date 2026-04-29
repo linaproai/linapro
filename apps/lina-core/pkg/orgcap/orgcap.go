@@ -23,6 +23,8 @@ type DeptTreeNode struct {
 	Id int `json:"id"`
 	// Label is the display name of the department node.
 	Label string `json:"label"`
+	// LabelKey is an optional runtime i18n key for host-owned synthetic labels.
+	LabelKey string `json:"labelKey,omitempty"`
 	// UserCount is the number of users attached to this node.
 	UserCount int `json:"userCount"`
 	// Children lists nested department nodes under this entry.

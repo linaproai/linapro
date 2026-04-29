@@ -12,11 +12,11 @@ import (
 // SysLocker is the golang structure of table sys_locker for DAO operations like Where/Data.
 type SysLocker struct {
 	g.Meta     `orm:"table:sys_locker, do:true"`
-	Id         any         // 主键ID
-	Name       any         // 锁名称，唯一标识
-	Reason     any         // 获取锁的原因
-	Holder     any         // 锁持有者标识（节点名）
-	ExpireTime *gtime.Time // 锁过期时间
-	CreatedAt  *gtime.Time // 创建时间
-	UpdatedAt  *gtime.Time // 更新时间
+	Id         any         // Primary key ID
+	Name       any         // Lock name, unique identifier
+	Reason     any         // Reason for acquiring the lock
+	Holder     any         // Lock holder identifier (node name)
+	ExpireTime *gtime.Time // Lock expiration time
+	CreatedAt  *gtime.Time // Creation time
+	UpdatedAt  *gtime.Time // Update time
 }

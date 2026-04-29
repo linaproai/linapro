@@ -21,14 +21,14 @@ type SysConfigDao struct {
 
 // SysConfigColumns defines and stores column names for the table sys_config.
 type SysConfigColumns struct {
-	Id        string // 参数ID
-	Name      string // 参数名称
-	Key       string // 参数键名
-	Value     string // 参数键值
-	Remark    string // 备注
-	CreatedAt string // 创建时间
-	UpdatedAt string // 修改时间
-	DeletedAt string // 删除时间
+	Id        string // Config parameter ID
+	Name      string // Config parameter name
+	Key       string // Config parameter key
+	Value     string // Config parameter value
+	Remark    string // Remark
+	CreatedAt string // Creation time
+	UpdatedAt string // Modification time
+	DeletedAt string // Deletion time
 }
 
 // sysConfigColumns holds the columns for the table sys_config.

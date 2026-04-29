@@ -10,24 +10,24 @@ import (
 
 // SysPlugin is the golang structure for table sys_plugin.
 type SysPlugin struct {
-	Id           int         `json:"id"           orm:"id"            description:"主键ID"`
-	PluginId     string      `json:"pluginId"     orm:"plugin_id"     description:"插件唯一标识（kebab-case）"`
-	Name         string      `json:"name"         orm:"name"          description:"插件名称"`
-	Version      string      `json:"version"      orm:"version"       description:"插件版本号"`
-	Type         string      `json:"type"         orm:"type"          description:"插件一级类型（source/dynamic）"`
-	Installed    int         `json:"installed"    orm:"installed"     description:"安装状态（1=已安装 0=未安装）"`
-	Status       int         `json:"status"       orm:"status"        description:"启用状态（1=启用 0=禁用）"`
-	DesiredState string      `json:"desiredState" orm:"desired_state" description:"宿主期望状态（uninstalled/installed/enabled）"`
-	CurrentState string      `json:"currentState" orm:"current_state" description:"宿主当前状态（uninstalled/installed/enabled/reconciling/failed）"`
-	Generation   int64       `json:"generation"   orm:"generation"    description:"宿主当前生效代际号"`
-	ReleaseId    int         `json:"releaseId"    orm:"release_id"    description:"宿主当前生效 release ID"`
-	ManifestPath string      `json:"manifestPath" orm:"manifest_path" description:"插件清单文件路径"`
-	Checksum     string      `json:"checksum"     orm:"checksum"      description:"插件包校验值"`
-	InstalledAt  *gtime.Time `json:"installedAt"  orm:"installed_at"  description:"安装时间"`
-	EnabledAt    *gtime.Time `json:"enabledAt"    orm:"enabled_at"    description:"最后一次启用时间"`
-	DisabledAt   *gtime.Time `json:"disabledAt"   orm:"disabled_at"   description:"最后一次禁用时间"`
-	Remark       string      `json:"remark"       orm:"remark"        description:"备注"`
-	CreatedAt    *gtime.Time `json:"createdAt"    orm:"created_at"    description:"创建时间"`
-	UpdatedAt    *gtime.Time `json:"updatedAt"    orm:"updated_at"    description:"更新时间"`
-	DeletedAt    *gtime.Time `json:"deletedAt"    orm:"deleted_at"    description:"删除时间"`
+	Id           int         `json:"id"           orm:"id"            description:"Primary key ID"`
+	PluginId     string      `json:"pluginId"     orm:"plugin_id"     description:"Plugin unique identifier (kebab-case)"`
+	Name         string      `json:"name"         orm:"name"          description:"Plugin name"`
+	Version      string      `json:"version"      orm:"version"       description:"Plugin version"`
+	Type         string      `json:"type"         orm:"type"          description:"Plugin top-level type: source/dynamic"`
+	Installed    int         `json:"installed"    orm:"installed"     description:"Installation status: 1=installed, 0=not installed"`
+	Status       int         `json:"status"       orm:"status"        description:"Enablement status: 1=enabled, 0=disabled"`
+	DesiredState string      `json:"desiredState" orm:"desired_state" description:"Host desired state: uninstalled/installed/enabled"`
+	CurrentState string      `json:"currentState" orm:"current_state" description:"Host current state: uninstalled/installed/enabled/reconciling/failed"`
+	Generation   int64       `json:"generation"   orm:"generation"    description:"Current host generation number"`
+	ReleaseId    int         `json:"releaseId"    orm:"release_id"    description:"Current active host release ID"`
+	ManifestPath string      `json:"manifestPath" orm:"manifest_path" description:"Plugin manifest file path"`
+	Checksum     string      `json:"checksum"     orm:"checksum"      description:"Plugin package checksum"`
+	InstalledAt  *gtime.Time `json:"installedAt"  orm:"installed_at"  description:"Installation time"`
+	EnabledAt    *gtime.Time `json:"enabledAt"    orm:"enabled_at"    description:"Last enabled time"`
+	DisabledAt   *gtime.Time `json:"disabledAt"   orm:"disabled_at"   description:"Last disabled time"`
+	Remark       string      `json:"remark"       orm:"remark"        description:"Remark"`
+	CreatedAt    *gtime.Time `json:"createdAt"    orm:"created_at"    description:"Creation time"`
+	UpdatedAt    *gtime.Time `json:"updatedAt"    orm:"updated_at"    description:"Update time"`
+	DeletedAt    *gtime.Time `json:"deletedAt"    orm:"deleted_at"    description:"Deletion time"`
 }

@@ -108,6 +108,33 @@ rg -n -P --glob '*.go' --glob '!**/*_test.go' --glob '!**/internal/dao/**' --glo
 | `plugin/internal/runtime/**` | 上传、归档、reconciler、route、runtime cron 诊断改为英文稳定文案；非测试 Go 中文扫描为 0 | `go test ./internal/service/plugin/internal/runtime` |
 | `plugin/internal/{frontend,integration,lifecycle,datahost,wasm}/**` | 前端资源、菜单/Hook/cron 集成、SQL 生命周期、datahost 和 Wasm host service 诊断改为英文稳定文案；非测试 Go 中文扫描为 0 | `go test ./internal/service/plugin/internal/frontend ./internal/service/plugin/internal/integration ./internal/service/plugin/internal/lifecycle ./internal/service/plugin/internal/datahost ./internal/service/plugin/internal/wasm` |
 | 插件平台单元测试断言 | catalog、runtime、frontend、datahost、wasm 相关测试断言已同步到英文稳定诊断 | `go test ./internal/service/plugin -run 'Test.*Frontend\|Test.*Integration\|Test.*Lifecycle\|Test.*Data\|Test.*Wasm\|Test.*HostService\|Test.*Menu\|Test.*Hook\|Test.*Cron\|Test.*Dynamic\|Test.*Route'` |
+| `config_duration.go`、`config_i18n.go`、`config_metadata.go`、`config_plugin.go` | 启动期 panic 和配置加载诊断改为英文开发者诊断；目标文件非测试 Go 中文扫描为 0 | `go test ./internal/service/config -run 'TestDurationConfigsUseDefaultsWhenUnset\|TestGetJwtUsesDurationConfig\|TestGetSessionUsesDurationConfig\|TestGetMonitorUsesDurationConfigAndRetentionMultiplier\|TestGetUploadPathUsesStaticConfig\|TestGetSessionRejectsNonSecondAlignedCleanupInterval\|TestGetMonitorRejectsSubSecondInterval\|TestGetI18nUsesConfigFileValues\|TestGetI18nRejectsMissingConfig\|TestGetI18nRejectsMissingDefault\|TestGetI18nAllowsDefaultOutsideSelectableLocales\|TestGetPluginUsesDefaultStoragePathAndClonesCachedConfig\|TestGetPluginFallsBackToLegacyRuntimeStoragePath\|TestGetPluginDynamicStoragePathUsesDefaultAndOverride\|TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues\|TestGetPluginAutoEnableNormalizesListAndAppliesOverrides\|TestGetPluginRejectsBlankAutoEnableEntry\|TestGetPluginRejectsInvalidAutoEnableType\|TestGetMetadataMergesOpenApiAndComponentSections'` |
+
+完整 `go test -p 1 ./...` 已在 `apps/lina-core` 下通过，覆盖 `internal/service/config` 在内的全部宿主 Go 包。
+
+## 最终扫描与验证记录
+
+更新时间：2026-04-29。
+
+| 验证项 | 命令 | 结果 |
+| ------ | ---- | ---- |
+| runtime i18n 扫描工具单测 | `go test ./hack/tools/runtime-i18n` | 通过 |
+| 后端中文硬编码运行时扫描 | `make check-runtime-i18n` | 通过；违规 0，allowlist 命中 0，生成源中文 0，测试 fixture 中文 338 行 / 49 文件 |
+| runtime i18n 消息覆盖 | `make check-runtime-i18n-messages` | 通过；宿主和插件 scope 翻译覆盖完整 |
+| 宿主 Go 单元测试 | `cd apps/lina-core && go test -p 1 ./...` | 通过 |
+| 源码插件 Go 单元测试 | `find apps/lina-plugins -name go.mod -type f | sort` 后逐模块 `go test ./...` | 通过 |
+| E2E 文件规范校验 | `cd hack/tests && pnpm test:validate` | 通过；132 个 E2E 文件 / 28 个 scope |
+| 目标 E2E 回归 | `cd hack/tests && pnpm exec playwright test ...`（覆盖 TC0040、TC0066、TC0067、TC0069、TC0072、TC0073、TC0075、TC0098、TC0108、TC0135、TC0136、TC0137、登录日志、组织、定时任务等 20 个文件） | 通过；85/85 |
+| 全量 E2E 回归 | `cd hack/tests && pnpm test` | 通过；并行阶段 119/119，通过；串行阶段 303/309 通过、6 个按条件跳过 |
+
+## 最终治理结论
+
+- 后端手写运行时中文硬编码已通过 `runtime-i18n` 扫描门禁，当前违规数为 0。
+- API DTO 文档源文本仍保持 0 处中文；本变更未新增 apidoc service 层中文到英文临时映射，也未向 `en-US/apidoc` 写入英文映射。
+- 生成文件中的中文来源已通过 SQL 表/字段注释和 codegen 输入源治理，不手工编辑 `dao/do/entity` 生成物。
+- 用户可见错误统一落到模块级 `bizerr.Code`、`messageKey`、`messageParams` 和宿主/插件运行时语言包；英文 fallback 保留为稳定兜底。
+- 导出表头、状态标签、部门树虚拟节点、系统信息运行时长、插件示例摘要等用户可见投影均按请求语言或结构化字段输出。
+- 保留中文仅限测试 fixture、mock/用户示例数据、真实业务输入样例等非系统文案范围。
 
 ## 与活跃变更的边界
 

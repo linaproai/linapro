@@ -12,16 +12,16 @@ import (
 // SysPluginMigration is the golang structure of table sys_plugin_migration for DAO operations like Where/Data.
 type SysPluginMigration struct {
 	g.Meta         `orm:"table:sys_plugin_migration, do:true"`
-	Id             any         // 主键ID
-	PluginId       any         // 插件唯一标识（kebab-case）
-	ReleaseId      any         // 所属插件 release ID
-	Phase          any         // 迁移阶段（install/uninstall/upgrade/rollback）
-	MigrationKey   any         // 迁移执行键（如 install-step-001，不保存具体 SQL 路径）
-	Checksum       any         // 迁移文件校验值
-	ExecutionOrder any         // 执行顺序（从1开始）
-	Status         any         // 执行状态（pending/succeeded/failed/skipped）
-	ExecutedAt     *gtime.Time // 执行时间
-	ErrorMessage   any         // 失败原因或补充说明
-	CreatedAt      *gtime.Time // 创建时间
-	UpdatedAt      *gtime.Time // 更新时间
+	Id             any         // Primary key ID
+	PluginId       any         // Plugin unique identifier (kebab-case)
+	ReleaseId      any         // Owning plugin release ID
+	Phase          any         // Migration phase: install/uninstall/upgrade/rollback
+	MigrationKey   any         // Migration execution key such as install-step-001, without concrete SQL path
+	Checksum       any         // Migration file checksum
+	ExecutionOrder any         // Execution order starting from 1
+	Status         any         // Execution status: pending/succeeded/failed/skipped
+	ExecutedAt     *gtime.Time // Execution time
+	ErrorMessage   any         // Failure reason or additional description
+	CreatedAt      *gtime.Time // Creation time
+	UpdatedAt      *gtime.Time // Update time
 }

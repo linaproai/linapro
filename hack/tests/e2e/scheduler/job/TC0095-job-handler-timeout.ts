@@ -62,6 +62,6 @@ test.describe('TC-95 定时任务超时', () => {
 
     const logDetail = await getLog(api, triggered.logId);
     expect(logDetail.errMsg ?? '').toContain('1s');
-    expect(logDetail.errMsg ?? '').toContain('超时');
+    expect(logDetail.errMsg ?? '').toContain('timed out');
   });
 });

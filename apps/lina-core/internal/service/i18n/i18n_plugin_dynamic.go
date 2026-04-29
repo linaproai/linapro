@@ -348,16 +348,16 @@ func (s *serviceImpl) readDynamicPluginI18NAssets(ctx context.Context, packagePa
 
 	assets := make([]*dynamicPluginI18NAsset, 0)
 	if err = json.Unmarshal(sectionContent, &assets); err != nil {
-		return nil, gerror.Wrap(err, "解析动态插件国际化自定义节失败")
+		return nil, gerror.Wrap(err, "parse dynamic plugin i18n custom section failed")
 	}
 	for _, asset := range assets {
 		if asset == nil {
-			return nil, gerror.New("动态插件国际化自定义节存在空项")
+			return nil, gerror.New("dynamic plugin i18n custom section contains a nil item")
 		}
 		asset.Locale = normalizeLocale(asset.Locale)
 		asset.Content = strings.TrimSpace(asset.Content)
 		if asset.Locale == "" || asset.Content == "" {
-			return nil, gerror.New("动态插件国际化自定义节缺少 locale 或 content")
+			return nil, gerror.New("dynamic plugin i18n custom section is missing locale or content")
 		}
 	}
 	return assets, nil
@@ -367,7 +367,7 @@ func (s *serviceImpl) readDynamicPluginI18NAssets(ctx context.Context, packagePa
 func (s *serviceImpl) resolveDynamicPluginPackagePath(ctx context.Context, packagePath string) (string, error) {
 	trimmedPath := strings.TrimSpace(packagePath)
 	if trimmedPath == "" {
-		return "", gerror.New("动态插件 release package_path 不能为空")
+		return "", gerror.New("dynamic plugin release package_path cannot be empty")
 	}
 	if filepath.IsAbs(trimmedPath) {
 		return filepath.Clean(trimmedPath), nil
@@ -439,5 +439,5 @@ func findRepoRootForDynamicPluginI18N(startDir string) (string, error) {
 		}
 		currentDir = parentDir
 	}
-	return "", gerror.Newf("未找到仓库根目录: %s", startDir)
+	return "", gerror.Newf("repository root was not found: %s", startDir)
 }

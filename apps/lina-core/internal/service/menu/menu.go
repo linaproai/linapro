@@ -210,7 +210,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysMenu, err
 // GetParentName retrieves parent menu name.
 func (s *serviceImpl) GetParentName(ctx context.Context, parentId int) string {
 	if parentId == 0 {
-		return "主类目"
+		return s.i18nSvc.Translate(ctx, "menu.root.title", "Main Category")
 	}
 	parent, err := s.GetById(ctx, parentId)
 	if err != nil {

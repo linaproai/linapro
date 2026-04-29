@@ -81,6 +81,9 @@
                           "runDuration": {
                             "dc": "系統運行時長"
                           },
+                          "runDurationSeconds": {
+                            "dc": "以總秒數表示的系統運行時長，用於客戶端結構化格式化"
+                          },
                           "startTime": {
                             "dc": "系統啟動時間"
                           }
@@ -123,6 +126,9 @@
               },
               "runDuration": {
                 "dc": "系統運行時長"
+              },
+              "runDurationSeconds": {
+                "dc": "以總秒數表示的系統運行時長，用於客戶端結構化格式化"
               },
               "startTime": {
                 "dc": "系統啟動時間"

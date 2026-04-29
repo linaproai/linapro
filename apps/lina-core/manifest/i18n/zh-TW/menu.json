@@ -3,6 +3,9 @@
     "about:api:list": {
       "title": "接口文檔"
     },
+    "root": {
+      "title": "主類目"
+    },
     "about:system:list": {
       "title": "系統信息"
     },

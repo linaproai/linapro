@@ -5,6 +5,7 @@ import { rmSync } from "node:fs";
 import path from "node:path";
 
 import { test, expect } from "../../fixtures/auth";
+import { ensureSourcePluginEnabled } from "../../fixtures/plugin";
 import { NoticePage } from "../../pages/NoticePage";
 import { PluginPage } from "../../pages/PluginPage";
 import {
@@ -133,6 +134,8 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     adminPage,
     mainLayout,
   }) => {
+    await ensureSourcePluginEnabled(adminPage, "content-notice");
+
     const noticePage = new NoticePage(adminPage);
 
     await mainLayout.switchLanguage("English");
@@ -189,7 +192,7 @@ test.describe("TC0108 英文运行时页面巡检", () => {
 
     await expect.poll(async () => standalonePage.url()).toContain("lang=en-US");
     await expect(
-      standalonePage.getByText("Standalone Page Opened Successfully", {
+      standalonePage.getByText("Dynamic Plugin Standalone Page", {
         exact: true,
       }),
     ).toBeVisible();

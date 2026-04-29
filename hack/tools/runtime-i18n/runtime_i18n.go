@@ -58,14 +58,14 @@ func runScanCommand(repoRoot string, args []string, out io.Writer) (int, error) 
 		return 1, fmt.Errorf("unsupported scan format %q", options.format)
 	}
 
-	findings, err := scanRuntimeI18N(repoRoot, options)
+	report, err := scanRuntimeI18NReport(repoRoot, options)
 	if err != nil {
 		return 1, err
 	}
-	if err = emitScanFindings(out, findings, options.format); err != nil {
+	if err = emitScanReport(out, report, options.format); err != nil {
 		return 1, err
 	}
-	if len(findings) > 0 {
+	if len(report.Findings) > 0 {
 		return 1, nil
 	}
 	return 0, nil

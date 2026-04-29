@@ -107,7 +107,17 @@ test.describe('TC0048 文件管理', () => {
     const pngOption = dropdown.getByText('png', { exact: true });
     const hasPng = await pngOption.count();
     if (hasPng > 0) {
-      await pngOption.click();
+      await pngOption.first().evaluate((element) => {
+        for (const eventType of ['mousedown', 'mouseup', 'click']) {
+          element.dispatchEvent(
+            new MouseEvent(eventType, {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+            }),
+          );
+        }
+      });
       await adminPage.getByRole('button', { name: /搜\s*索/ }).first().click();
       await waitForRouteReady(adminPage);
 

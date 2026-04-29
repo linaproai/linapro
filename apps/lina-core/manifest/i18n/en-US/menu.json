@@ -3,6 +3,9 @@
     "about:api:list": {
       "title": "API Docs"
     },
+    "root": {
+      "title": "Main Category"
+    },
     "about:system:list": {
       "title": "System Info"
     },

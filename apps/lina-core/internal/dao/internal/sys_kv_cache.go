@@ -21,17 +21,17 @@ type SysKvCacheDao struct {
 
 // SysKvCacheColumns defines and stores column names for the table sys_kv_cache.
 type SysKvCacheColumns struct {
-	Id         string // 主键ID
-	OwnerType  string // 所属类型：plugin=动态插件 module=宿主模块
-	OwnerKey   string // 所属标识：插件ID或模块名
-	Namespace  string // 缓存命名空间，对应 host-cache 资源标识
-	CacheKey   string // 缓存键
-	ValueKind  string // 值类型：1=字符串 2=整数
-	ValueBytes string // 缓存字节值，供 get/set 使用
-	ValueInt   string // 缓存整数值，供 incr 使用
-	ExpireAt   string // 过期时间，NULL表示永不过期
-	CreatedAt  string // 创建时间
-	UpdatedAt  string // 更新时间
+	Id         string // Primary key ID
+	OwnerType  string // Owner type: plugin=dynamic plugin, module=host module
+	OwnerKey   string // Owner key: plugin ID or module name
+	Namespace  string // Cache namespace mapped to the host-cache resource identifier
+	CacheKey   string // Cache key
+	ValueKind  string // Value type: 1=string, 2=integer
+	ValueBytes string // Cache byte value used by get/set
+	ValueInt   string // Cache integer value used by incr
+	ExpireAt   string // Expiration time, NULL means never expires
+	CreatedAt  string // Creation time
+	UpdatedAt  string // Update time
 }
 
 // sysKvCacheColumns holds the columns for the table sys_kv_cache.

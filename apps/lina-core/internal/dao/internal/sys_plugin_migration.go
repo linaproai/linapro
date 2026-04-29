@@ -21,18 +21,18 @@ type SysPluginMigrationDao struct {
 
 // SysPluginMigrationColumns defines and stores column names for the table sys_plugin_migration.
 type SysPluginMigrationColumns struct {
-	Id             string // 主键ID
-	PluginId       string // 插件唯一标识（kebab-case）
-	ReleaseId      string // 所属插件 release ID
-	Phase          string // 迁移阶段（install/uninstall/upgrade/rollback）
-	MigrationKey   string // 迁移执行键（如 install-step-001，不保存具体 SQL 路径）
-	Checksum       string // 迁移文件校验值
-	ExecutionOrder string // 执行顺序（从1开始）
-	Status         string // 执行状态（pending/succeeded/failed/skipped）
-	ExecutedAt     string // 执行时间
-	ErrorMessage   string // 失败原因或补充说明
-	CreatedAt      string // 创建时间
-	UpdatedAt      string // 更新时间
+	Id             string // Primary key ID
+	PluginId       string // Plugin unique identifier (kebab-case)
+	ReleaseId      string // Owning plugin release ID
+	Phase          string // Migration phase: install/uninstall/upgrade/rollback
+	MigrationKey   string // Migration execution key such as install-step-001, without concrete SQL path
+	Checksum       string // Migration file checksum
+	ExecutionOrder string // Execution order starting from 1
+	Status         string // Execution status: pending/succeeded/failed/skipped
+	ExecutedAt     string // Execution time
+	ErrorMessage   string // Failure reason or additional description
+	CreatedAt      string // Creation time
+	UpdatedAt      string // Update time
 }
 
 // sysPluginMigrationColumns holds the columns for the table sys_plugin_migration.

@@ -155,7 +155,7 @@ func normalizePluginAutoEnableIDs(pluginIDs []string) []string {
 	for index, pluginID := range pluginIDs {
 		trimmedID := strings.TrimSpace(pluginID)
 		if trimmedID == "" {
-			panic(gerror.Newf("配置 plugin.autoEnable 第 %d 项不能为空", index+1))
+			panic(gerror.Newf("config plugin.autoEnable item %d cannot be empty", index+1))
 		}
 		if _, ok := seen[trimmedID]; ok {
 			continue
@@ -181,7 +181,7 @@ func validatePluginAutoEnableRawValue(ctx context.Context) {
 
 	rawKind := reflect.TypeOf(rawValue).Kind()
 	if rawKind != reflect.Slice && rawKind != reflect.Array {
-		panic(gerror.New("配置 plugin.autoEnable 必须为字符串数组"))
+		panic(gerror.New("config plugin.autoEnable must be a string array"))
 	}
 
 	rawSlice := reflect.ValueOf(rawValue)
@@ -189,12 +189,12 @@ func validatePluginAutoEnableRawValue(ctx context.Context) {
 		itemValue := rawSlice.Index(index)
 		for itemValue.IsValid() && itemValue.Kind() == reflect.Interface {
 			if itemValue.IsNil() {
-				panic(gerror.Newf("配置 plugin.autoEnable 第 %d 项必须为字符串", index+1))
+				panic(gerror.Newf("config plugin.autoEnable item %d must be a string", index+1))
 			}
 			itemValue = itemValue.Elem()
 		}
 		if !itemValue.IsValid() || itemValue.Kind() != reflect.String {
-			panic(gerror.Newf("配置 plugin.autoEnable 第 %d 项必须为字符串", index+1))
+			panic(gerror.Newf("config plugin.autoEnable item %d must be a string", index+1))
 		}
 	}
 }

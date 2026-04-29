@@ -118,8 +118,9 @@ test.describe("TC0024 部门负责人选择", () => {
     await expect(leaderCombobox).toBeInViewport({ ratio: 0.5, timeout: 5000 });
     await expect(leaderCombobox).toBeEnabled();
 
-    // Type to search
-    await leaderCombobox.click();
+    // Focus the inner search input directly because an existing selected item
+    // can cover the input and intercept pointer events in edit mode.
+    await leaderCombobox.focus();
     await leaderCombobox.fill("admin");
     await waitForRouteReady(adminPage);
 

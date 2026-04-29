@@ -28,7 +28,7 @@ func TestFrontendProjectsLocalizedSeedCopy(t *testing.T) {
 		backgroundCtx,
 		hostconfig.PublicFrontendSettingKeyAuthPageTitle,
 		"登录展示-页面标题",
-		"面向可持续交付的 AI 驱动全栈框架",
+		"面向可持续交付的 AI 原生全栈框架",
 		"控制登录页顶部主标题文案。",
 	)
 	ensureConfigRecordState(
@@ -36,7 +36,7 @@ func TestFrontendProjectsLocalizedSeedCopy(t *testing.T) {
 		backgroundCtx,
 		hostconfig.PublicFrontendSettingKeyAuthPageDesc,
 		"登录展示-页面说明",
-		"帮助团队快速交付生产级应用，同时保持架构、权限、测试与扩展边界可治理",
+		"帮助团队快速交付生产级应用，同时保持架构、测试与治理的可持续演进",
 		"控制登录页顶部说明文案。",
 	)
 	ensureConfigRecordState(

@@ -21,20 +21,20 @@ type SysFileDao struct {
 
 // SysFileColumns defines and stores column names for the table sys_file.
 type SysFileColumns struct {
-	Id        string // 文件ID
-	Name      string // 存储文件名
-	Original  string // 原始文件名
-	Suffix    string // 文件后缀
-	Scene     string // 使用场景
-	Size      string // 文件大小（字节）
-	Hash      string // 文件SHA-256散列值，用于去重
-	Url       string // 文件访问URL
-	Path      string // 文件存储路径
-	Engine    string // 存储引擎：local=本地
-	CreatedBy string // 上传者用户ID
-	CreatedAt string // 创建时间
-	UpdatedAt string // 更新时间
-	DeletedAt string // 删除时间
+	Id        string // File ID
+	Name      string // Stored file name
+	Original  string // Original file name
+	Suffix    string // File suffix
+	Scene     string // Usage scene: avatar=user avatar, notice_image=notice image, notice_attachment=notice attachment, other=other
+	Size      string // File size in bytes
+	Hash      string // File SHA-256 hash for deduplication
+	Url       string // File access URL
+	Path      string // File storage path
+	Engine    string // Storage engine: local=local storage
+	CreatedBy string // Uploader user ID
+	CreatedAt string // Creation time
+	UpdatedAt string // Update time
+	DeletedAt string // Deletion time
 }
 
 // sysFileColumns holds the columns for the table sys_file.

@@ -21,34 +21,34 @@ type SysJobDao struct {
 
 // SysJobColumns defines and stores column names for the table sys_job.
 type SysJobColumns struct {
-	Id                   string // 任务ID
-	GroupId              string // 所属分组ID
-	Name                 string // 任务名称
-	Description          string // 任务描述
-	TaskType             string // 任务类型（handler/shell）
-	HandlerRef           string // Handler 唯一引用
-	Params               string // Handler 参数JSON
-	TimeoutSeconds       string // 执行超时时间（秒）
-	ShellCmd             string // Shell 脚本内容
-	WorkDir              string // 工作目录
-	Env                  string // 环境变量JSON
-	CronExpr             string // Cron 表达式
-	Timezone             string // 时区标识
-	Scope                string // 调度范围（master_only/all_node）
-	Concurrency          string // 并发策略（singleton/parallel）
-	MaxConcurrency       string // 并发上限
-	MaxExecutions        string // 最大执行次数（0=无限）
-	ExecutedCount        string // 已执行次数
-	StopReason           string // 停止原因
-	LogRetentionOverride string // 日志保留策略覆盖JSON
-	Status               string // 任务状态（enabled/disabled/paused_by_plugin）
-	IsBuiltin            string // 是否内置任务（1=是 0=否）
-	SeedVersion          string // 种子版本号
-	CreatedBy            string // 创建者用户ID
-	UpdatedBy            string // 更新者用户ID
-	CreatedAt            string // 创建时间
-	UpdatedAt            string // 更新时间
-	DeletedAt            string // 删除时间
+	Id                   string // Job ID
+	GroupId              string // Owning group ID
+	Name                 string // Job name
+	Description          string // Job description
+	TaskType             string // Job type: handler/shell
+	HandlerRef           string // Unique handler reference
+	Params               string // Handler parameters JSON
+	TimeoutSeconds       string // Execution timeout in seconds
+	ShellCmd             string // Shell script content
+	WorkDir              string // Working directory
+	Env                  string // Environment variables JSON
+	CronExpr             string // Cron expression
+	Timezone             string // Timezone identifier
+	Scope                string // Scheduling scope: master_only/all_node
+	Concurrency          string // Concurrency policy: singleton/parallel
+	MaxConcurrency       string // Maximum concurrency
+	MaxExecutions        string // Maximum executions, 0 means unlimited
+	ExecutedCount        string // Executed count
+	StopReason           string // Stop reason
+	LogRetentionOverride string // Log retention override JSON
+	Status               string // Job status: enabled/disabled/paused_by_plugin
+	IsBuiltin            string // Built-in job flag: 1=yes, 0=no
+	SeedVersion          string // Seed version number
+	CreatedBy            string // Creator user ID
+	UpdatedBy            string // Updater user ID
+	CreatedAt            string // Creation time
+	UpdatedAt            string // Update time
+	DeletedAt            string // Deletion time
 }
 
 // sysJobColumns holds the columns for the table sys_job.

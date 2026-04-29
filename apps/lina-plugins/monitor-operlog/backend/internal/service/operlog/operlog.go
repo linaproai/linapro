@@ -353,23 +353,9 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	file := excelize.NewFile()
 	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
-	headers := []exportHeader{
-		{Key: "plugin.monitor-operlog.fields.moduleName", Fallback: "Module Name"},
-		{Key: "plugin.monitor-operlog.fields.operSummary", Fallback: "Operation Summary"},
-		{Key: "plugin.monitor-operlog.fields.operType", Fallback: "Operation Type"},
-		{Key: "plugin.monitor-operlog.fields.operator", Fallback: "Operator"},
-		{Key: "plugin.monitor-operlog.fields.requestMethod", Fallback: "Request Method"},
-		{Key: "plugin.monitor-operlog.fields.requestUrl", Fallback: "Request URL"},
-		{Key: "plugin.monitor-operlog.fields.ipAddress", Fallback: "IP Address"},
-		{Key: "plugin.monitor-operlog.fields.requestParams", Fallback: "Request Parameters"},
-		{Key: "plugin.monitor-operlog.fields.responseResult", Fallback: "Response Result"},
-		{Key: "plugin.monitor-operlog.fields.operResult", Fallback: "Operation Result"},
-		{Key: "plugin.monitor-operlog.fields.errorInfo", Fallback: "Error Information"},
-		{Key: "plugin.monitor-operlog.fields.durationMs", Fallback: "Duration (ms)"},
-		{Key: "plugin.monitor-operlog.fields.operTime", Fallback: "Operation Time"},
-	}
+	headers := s.exportHeaders(ctx)
 	for index, header := range headers {
-		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, s.translate(ctx, header.Key, header.Fallback)); setErr != nil {
+		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, header); setErr != nil {
 			return nil, setErr
 		}
 	}
@@ -384,13 +370,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if setErr := excelutil.SetCellValue(file, sheet, 2, row, log.OperSummary); setErr != nil {
 			return nil, setErr
 		}
-		operTypeText, ok := operTypeMap[log.OperType]
-		if !ok {
-			operTypeText = s.localizeDictValue(ctx, DictTypeOperType, log.OperType, defaultOperTypeLabels[operlogtype.Normalize(log.OperType)])
-		}
-		if operTypeText == "" {
-			operTypeText = log.OperType
-		}
+		operTypeText := s.exportOperTypeText(ctx, log.OperType, operTypeMap)
 		if setErr := excelutil.SetCellValue(file, sheet, 3, row, operTypeText); setErr != nil {
 			return nil, setErr
 		}
@@ -412,10 +392,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if setErr := excelutil.SetCellValue(file, sheet, 9, row, log.JsonResult); setErr != nil {
 			return nil, setErr
 		}
-		statusText, ok := statusMap[log.Status]
-		if !ok {
-			statusText = s.localizeDictValue(ctx, DictTypeOperStatus, strconv.Itoa(log.Status), defaultOperStatusLabels[log.Status])
-		}
+		statusText := s.exportStatusText(ctx, log.Status, statusMap)
 		if setErr := excelutil.SetCellValue(file, sheet, 10, row, statusText); setErr != nil {
 			return nil, setErr
 		}
@@ -437,6 +414,52 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		return nil, writeErr
 	}
 	return buffer.Bytes(), nil
+}
+
+// exportHeaders returns localized Excel headers for operation-log export.
+func (s *serviceImpl) exportHeaders(ctx context.Context) []string {
+	headers := []exportHeader{
+		{Key: "plugin.monitor-operlog.fields.moduleName", Fallback: "Module Name"},
+		{Key: "plugin.monitor-operlog.fields.operSummary", Fallback: "Operation Summary"},
+		{Key: "plugin.monitor-operlog.fields.operType", Fallback: "Operation Type"},
+		{Key: "plugin.monitor-operlog.fields.operator", Fallback: "Operator"},
+		{Key: "plugin.monitor-operlog.fields.requestMethod", Fallback: "Request Method"},
+		{Key: "plugin.monitor-operlog.fields.requestUrl", Fallback: "Request URL"},
+		{Key: "plugin.monitor-operlog.fields.ipAddress", Fallback: "IP Address"},
+		{Key: "plugin.monitor-operlog.fields.requestParams", Fallback: "Request Parameters"},
+		{Key: "plugin.monitor-operlog.fields.responseResult", Fallback: "Response Result"},
+		{Key: "plugin.monitor-operlog.fields.operResult", Fallback: "Operation Result"},
+		{Key: "plugin.monitor-operlog.fields.errorInfo", Fallback: "Error Information"},
+		{Key: "plugin.monitor-operlog.fields.durationMs", Fallback: "Duration (ms)"},
+		{Key: "plugin.monitor-operlog.fields.operTime", Fallback: "Operation Time"},
+	}
+
+	result := make([]string, 0, len(headers))
+	for _, header := range headers {
+		result = append(result, s.translate(ctx, header.Key, header.Fallback))
+	}
+	return result
+}
+
+// exportOperTypeText returns the localized export label for one operation type.
+func (s *serviceImpl) exportOperTypeText(ctx context.Context, operType string, operTypeMap map[string]string) string {
+	operTypeText, ok := operTypeMap[operType]
+	if !ok {
+		operTypeText = s.localizeDictValue(ctx, DictTypeOperType, operType, defaultOperTypeLabels[operlogtype.Normalize(operType)])
+	}
+	if operTypeText == "" {
+		return operType
+	}
+	return operTypeText
+}
+
+// exportStatusText returns the localized export label for one operation status.
+func (s *serviceImpl) exportStatusText(ctx context.Context, status int, statusMap map[int]string) string {
+	statusText, ok := statusMap[status]
+	if !ok {
+		statusText = s.localizeDictValue(ctx, DictTypeOperStatus, strconv.Itoa(status), defaultOperStatusLabels[status])
+	}
+	return statusText
 }
 
 // applyOperLogFilters wires the shared operation-log query filters onto one model.

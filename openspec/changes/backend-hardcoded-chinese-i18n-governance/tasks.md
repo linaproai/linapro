@@ -17,7 +17,7 @@
 - [x] 2.7 为 `apps/lina-plugins/plugin-demo-source/backend/internal/service/demo/` 增加模块错误码，替换记录、附件、上传大小、数据表未安装等调用端可见错误
 - [x] 2.8 为 `apps/lina-plugins/plugin-demo-dynamic/backend/internal/service/dynamic/` 增加模块错误码，替换示例记录、请求体、标题、内容、附件 Base64 和附件大小等调用端可见错误
 - [x] 2.9 为上述宿主和插件错误补齐 `zh-CN`、`en-US`、`zh-TW` 运行时 `error.json` 或对应插件运行时语言资源
-- [ ] 2.10 更新相关 Go 单元测试，断言 `errorCode/messageKey/messageParams` 和本地化结果，不再断言中文自由文本
+- [x] 2.10 更新相关 Go 单元测试，断言 `errorCode/messageKey/messageParams` 和本地化结果，不再断言中文自由文本
 
 ## 3. 用户可见投影与交付物文案
 
@@ -45,35 +45,35 @@
 
 ## 5. 配置启动期与生成源治理
 
-- [ ] 5.1 将 `apps/lina-core/internal/service/config/config_duration.go`、`config_i18n.go`、`config_metadata.go`、`config_plugin.go` 中启动期 panic 和配置诊断改为英文开发者诊断
-- [ ] 5.2 扫描 Entity `description` 中文来源，列出会进入 OpenAPI schema 或用户可见文档的表和字段
-- [ ] 5.3 对需要治理的 schema，修改对应 SQL 表/字段注释或 codegen 输入源为英文，不手工编辑生成文件
-- [ ] 5.4 如修改 SQL 注释，执行项目约定的 `make init` 和 `make dao` 流程并确认生成结果稳定
-- [ ] 5.5 确认 apidoc service 没有新增中文到英文临时映射，也没有把生成 schema 翻译项写入 `en-US/apidoc`
+- [x] 5.1 将 `apps/lina-core/internal/service/config/config_duration.go`、`config_i18n.go`、`config_metadata.go`、`config_plugin.go` 中启动期 panic 和配置诊断改为英文开发者诊断
+- [x] 5.2 扫描 Entity `description` 中文来源，列出会进入 OpenAPI schema 或用户可见文档的表和字段
+- [x] 5.3 对需要治理的 schema，修改对应 SQL 表/字段注释或 codegen 输入源为英文，不手工编辑生成文件
+- [x] 5.4 如修改 SQL 注释，执行项目约定的 `make init` 和 `make dao` 流程并确认生成结果稳定
+- [x] 5.5 确认 apidoc service 没有新增中文到英文临时映射，也没有把生成 schema 翻译项写入 `en-US/apidoc`
 
 ## 6. 扫描工具、文档与门禁
 
-- [ ] 6.1 扩展 `hack/tools/runtime-i18n` 或新增等价 Go 工具，覆盖中文 `gerror.New*`、`gerror.Wrap*`、`errors.New`、`fmt.Errorf` 高风险模式
-- [ ] 6.2 扩展扫描规则覆盖 `Message`、`Reason`、`Fallback`、`Label`、`Title`、`DisabledReason` 字段赋值和导出表头数组
-- [ ] 6.3 扩展扫描规则覆盖状态/类型 label map、树节点 label 构造、插件 bridge/host service/manifest 校验错误构造
-- [ ] 6.4 为扫描工具增加分类化报告输出，至少区分违规、生成文件统计、测试 fixture 统计和 allowlist 命中
-- [ ] 6.5 更新或新增 allowlist 文件，要求每条记录包含文件、分类、保留原因和适用范围
-- [ ] 6.6 将扫描命令接入本地验证入口或文档化为本变更验收命令
-- [ ] 6.7 更新相关 README 或治理文档；如新增目录说明，按项目规范同步维护 `README.md` 和 `README.zh_CN.md`
+- [x] 6.1 扩展 `hack/tools/runtime-i18n` 或新增等价 Go 工具，覆盖中文 `gerror.New*`、`gerror.Wrap*`、`errors.New`、`fmt.Errorf` 高风险模式
+- [x] 6.2 扩展扫描规则覆盖 `Message`、`Reason`、`Fallback`、`Label`、`Title`、`DisabledReason` 字段赋值和导出表头数组
+- [x] 6.3 扩展扫描规则覆盖状态/类型 label map、树节点 label 构造、插件 bridge/host service/manifest 校验错误构造
+- [x] 6.4 为扫描工具增加分类化报告输出，至少区分违规、生成文件统计、测试 fixture 统计和 allowlist 命中
+- [x] 6.5 更新或新增 allowlist 文件，要求每条记录包含文件、分类、保留原因和适用范围
+- [x] 6.6 将扫描命令接入本地验证入口或文档化为本变更验收命令
+- [x] 6.7 更新相关 README 或治理文档；如新增目录说明，按项目规范同步维护 `README.md` 和 `README.zh_CN.md`
 
 ## 7. 自动化测试与 E2E
 
-- [ ] 7.1 增加后端单元测试，覆盖内容公告、组织中心、登录日志、操作日志、示例插件等业务错误在 `zh-CN`、`en-US`、`zh-TW` 下的本地化
-- [ ] 7.2 增加插件平台单元测试，覆盖插件 bridge/host service/catalog/runtime 错误的英文开发者诊断和用户边界结构化包装
-- [ ] 7.3 增加导出和投影单元测试，覆盖岗位导出、登录日志导出、操作日志导出、部门树未分配标签、系统信息运行时长等语言变化
-- [ ] 7.4 创建 `hack/tests/e2e/i18n/TC0135-backend-error-localization.ts`，验证同一后端业务错误在 `zh-CN`、`en-US`、`zh-TW` 下展示不同语言且 `errorCode` 稳定
-- [ ] 7.5 创建 `hack/tests/e2e/i18n/TC0136-backend-export-localization.ts`，验证岗位、登录日志或操作日志导出表头和状态值按当前语言输出
-- [ ] 7.6 创建 `hack/tests/e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts`，验证关键后端投影和插件页面切换英文后无残留中文系统文案
-- [ ] 7.7 运行相关 `go test`、扫描工具、必要前端检查和新增 E2E 用例，并记录命令与结果
+- [x] 7.1 增加后端单元测试，覆盖内容公告、组织中心、登录日志、操作日志、示例插件等业务错误在 `zh-CN`、`en-US`、`zh-TW` 下的本地化
+- [x] 7.2 增加插件平台单元测试，覆盖插件 bridge/host service/catalog/runtime 错误的英文开发者诊断和用户边界结构化包装
+- [x] 7.3 增加导出和投影单元测试，覆盖岗位导出、登录日志导出、操作日志导出、部门树未分配标签、系统信息运行时长等语言变化
+- [x] 7.4 创建 `hack/tests/e2e/i18n/TC0135-backend-error-localization.ts`，验证同一后端业务错误在 `zh-CN`、`en-US`、`zh-TW` 下展示不同语言且 `errorCode` 稳定
+- [x] 7.5 创建 `hack/tests/e2e/i18n/TC0136-backend-export-localization.ts`，验证岗位、登录日志或操作日志导出表头和状态值按当前语言输出
+- [x] 7.6 创建 `hack/tests/e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts`，验证关键后端投影和插件页面切换英文后无残留中文系统文案
+- [x] 7.7 运行相关 `go test`、扫描工具、必要前端检查和新增 E2E 用例，并记录命令与结果
 
 ## 8. 收口审查
 
-- [ ] 8.1 重新运行后端中文字符串扫描，更新 `backend-hardcoded-chinese-audit.md` 的已清理项和剩余 allowlist
-- [ ] 8.2 运行 `openspec status --change backend-hardcoded-chinese-i18n-governance --json`，确认 proposal、design、specs、tasks 状态一致
-- [ ] 8.3 执行 `lina-review`，重点审查 i18n 资源归属、调用端 `bizerr`、生成文件边界、扫描 allowlist 和测试覆盖
-- [ ] 8.4 根据审查结果修复阻断问题，并确认任务清单状态准确
+- [x] 8.1 重新运行后端中文字符串扫描，更新 `backend-hardcoded-chinese-audit.md` 的已清理项和剩余 allowlist
+- [x] 8.2 运行 `openspec status --change backend-hardcoded-chinese-i18n-governance --json`，确认 proposal、design、specs、tasks 状态一致
+- [x] 8.3 执行 `lina-review`，重点审查 i18n 资源归属、调用端 `bizerr`、生成文件边界、扫描 allowlist 和测试覆盖
+- [x] 8.4 根据审查结果修复阻断问题，并确认任务清单状态准确

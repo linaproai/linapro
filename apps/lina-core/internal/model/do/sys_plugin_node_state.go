@@ -12,15 +12,15 @@ import (
 // SysPluginNodeState is the golang structure of table sys_plugin_node_state for DAO operations like Where/Data.
 type SysPluginNodeState struct {
 	g.Meta          `orm:"table:sys_plugin_node_state, do:true"`
-	Id              any         // 主键ID
-	PluginId        any         // 插件唯一标识（kebab-case）
-	ReleaseId       any         // 所属插件 release ID
-	NodeKey         any         // 节点唯一标识
-	DesiredState    any         // 节点期望状态
-	CurrentState    any         // 节点当前状态
-	Generation      any         // 插件代际号
-	LastHeartbeatAt *gtime.Time // 最近一次心跳时间
-	ErrorMessage    any         // 节点错误信息
-	CreatedAt       *gtime.Time // 创建时间
-	UpdatedAt       *gtime.Time // 更新时间
+	Id              any         // Primary key ID
+	PluginId        any         // Plugin unique identifier (kebab-case)
+	ReleaseId       any         // Owning plugin release ID
+	NodeKey         any         // Node unique identifier
+	DesiredState    any         // Node desired state
+	CurrentState    any         // Node current state
+	Generation      any         // Plugin generation number
+	LastHeartbeatAt *gtime.Time // Last heartbeat time
+	ErrorMessage    any         // Node error message
+	CreatedAt       *gtime.Time // Creation time
+	UpdatedAt       *gtime.Time // Update time
 }

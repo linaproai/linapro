@@ -46,7 +46,7 @@ test.describe('TC0113 参数设置元数据国际化', () => {
     const row = configPage.findRowByExactKey(seedConfigKey);
     await expect(row).toBeVisible();
     await expect(row.getByText('Login - Page Title', { exact: true })).toBeVisible();
-    await expect(row.getByText('AI驱动的全栈开发框架', { exact: true })).toBeVisible();
+    await expect(row.getByText('面向可持续交付的 AI 原生全栈框架', { exact: true })).toBeVisible();
   });
 
   test('TC0113b: 英文环境下配置编辑回填继续使用数据库原始值', async ({
@@ -69,7 +69,7 @@ test.describe('TC0113 参数设置元数据国际化', () => {
 
     await expect(dialog.getByLabel(/参数名称|Parameter Name/i)).toHaveValue('登录展示-页面标题');
     await expect(dialog.getByLabel(/参数键名|Parameter Key/i)).toHaveValue(seedConfigKey);
-    await expect(dialog.getByLabel(/参数键值|Parameter Value/i)).toHaveValue('AI驱动的全栈开发框架');
+    await expect(dialog.getByLabel(/参数键值|Parameter Value/i)).toHaveValue('面向可持续交付的 AI 原生全栈框架');
     await expect(dialog.getByLabel(/备注|Remark/i)).toHaveValue('控制登录页顶部主标题文案。');
 
     await closeDialogWithEscape(adminPage, dialog);

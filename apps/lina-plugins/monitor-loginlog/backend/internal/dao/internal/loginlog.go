@@ -21,14 +21,14 @@ type LoginlogDao struct {
 
 // LoginlogColumns defines and stores column names for the table plugin_monitor_loginlog.
 type LoginlogColumns struct {
-	Id        string // 日志ID
-	UserName  string // 登录账号
-	Status    string // 登录状态（0成功 1失败）
-	Ip        string // 登录IP地址
-	Browser   string // 浏览器类型
-	Os        string // 操作系统
-	Msg       string // 提示消息
-	LoginTime string // 登录时间
+	Id        string // Log ID
+	UserName  string // Login account
+	Status    string // Login status: 0=succeeded, 1=failed
+	Ip        string // Login IP address
+	Browser   string // Browser type
+	Os        string // Operating system
+	Msg       string // Prompt message
+	LoginTime string // Login time
 }
 
 // loginlogColumns holds the columns for the table plugin_monitor_loginlog.

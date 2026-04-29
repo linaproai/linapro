@@ -5,8 +5,8 @@
     },
     "auth": {
       "loginSubtitle": "请输入您的帐户信息以开始管理您的项目",
-      "pageDesc": "帮助团队快速交付生产级应用，同时保持架构、权限、测试与扩展边界可治理",
-      "pageTitle": "面向可持续交付的 AI 驱动全栈框架"
+      "pageDesc": "帮助团队快速交付生产级应用，同时保持架构、测试与治理的可持续演进",
+      "pageTitle": "面向可持续交付的 AI 原生全栈框架"
     },
     "ui": {
       "watermarkContent": "LinaPro"

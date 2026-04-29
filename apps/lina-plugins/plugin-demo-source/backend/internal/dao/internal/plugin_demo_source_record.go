@@ -21,13 +21,13 @@ type PluginDemoSourceRecordDao struct {
 
 // PluginDemoSourceRecordColumns defines and stores column names for the table plugin_demo_source_record.
 type PluginDemoSourceRecordColumns struct {
-	Id             string // 主键ID
-	Title          string // 记录标题
-	Content        string // 记录内容
-	AttachmentName string // 附件原始文件名
-	AttachmentPath string // 附件相对存储路径
-	CreatedAt      string // 创建时间
-	UpdatedAt      string // 更新时间
+	Id             string // Primary key ID
+	Title          string // Record title
+	Content        string // Record content
+	AttachmentName string // Original attachment file name
+	AttachmentPath string // Relative attachment storage path
+	CreatedAt      string // Creation time
+	UpdatedAt      string // Update time
 }
 
 // pluginDemoSourceRecordColumns holds the columns for the table plugin_demo_source_record.

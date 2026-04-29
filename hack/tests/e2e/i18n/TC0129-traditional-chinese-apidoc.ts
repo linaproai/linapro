@@ -14,6 +14,7 @@ import {
 } from "../../support/api/job";
 
 const dynamicPluginID = "plugin-demo-dynamic";
+const sourcePluginID = "plugin-demo-source";
 const repoRoot = path.resolve(process.cwd(), "../..");
 const legacyRuntimeArtifactPath = path.join(
   repoRoot,
@@ -39,42 +40,57 @@ function ensureRuntimePluginArtifact() {
 async function ensureDynamicPluginAPIReady() {
   ensureRuntimePluginArtifact();
   const adminApi = await createAdminApiContext();
-  let originalInstalled = 0;
-  let originalEnabled = 0;
   try {
     await syncPlugins(adminApi);
-    let plugin = await getPlugin(adminApi, dynamicPluginID);
-    originalInstalled = plugin.installed;
-    originalEnabled = plugin.enabled;
-    if (plugin.installed !== 1) {
-      await installPlugin(adminApi, dynamicPluginID);
-      plugin = await getPlugin(adminApi, dynamicPluginID);
-    }
-    if (plugin.enabled !== 1) {
-      await enablePlugin(adminApi, dynamicPluginID);
-    }
+    const restoreSourcePlugin = await ensurePluginEnabledForAPIDoc(
+      adminApi,
+      sourcePluginID,
+    );
+    const restoreDynamicPlugin = await ensurePluginEnabledForAPIDoc(
+      adminApi,
+      dynamicPluginID,
+    );
     return async () => {
-      let current = await getPlugin(adminApi, dynamicPluginID);
-      if (originalInstalled !== 1) {
-        if (current.enabled === 1) {
-          await disablePlugin(adminApi, dynamicPluginID);
-          current = await getPlugin(adminApi, dynamicPluginID);
-        }
-        if (current.installed === 1) {
-          await uninstallPlugin(adminApi, dynamicPluginID);
-        }
-        await adminApi.dispose();
-        return;
-      }
-      if (originalEnabled !== 1 && current.enabled === 1) {
-        await disablePlugin(adminApi, dynamicPluginID);
-      }
+      await restoreDynamicPlugin();
+      await restoreSourcePlugin();
       await adminApi.dispose();
     };
   } catch (error) {
     await adminApi.dispose();
     throw error;
   }
+}
+
+async function ensurePluginEnabledForAPIDoc(
+  adminApi: Awaited<ReturnType<typeof createAdminApiContext>>,
+  pluginID: string,
+) {
+  let plugin = await getPlugin(adminApi, pluginID);
+  const originalInstalled = plugin.installed;
+  const originalEnabled = plugin.enabled;
+  if (plugin.installed !== 1) {
+    await installPlugin(adminApi, pluginID);
+    plugin = await getPlugin(adminApi, pluginID);
+  }
+  if (plugin.enabled !== 1) {
+    await enablePlugin(adminApi, pluginID);
+  }
+  return async () => {
+    let current = await getPlugin(adminApi, pluginID);
+    if (originalInstalled !== 1) {
+      if (current.enabled === 1) {
+        await disablePlugin(adminApi, pluginID);
+        current = await getPlugin(adminApi, pluginID);
+      }
+      if (current.installed === 1) {
+        await uninstallPlugin(adminApi, pluginID);
+      }
+      return;
+    }
+    if (originalEnabled !== 1 && current.enabled === 1) {
+      await disablePlugin(adminApi, pluginID);
+    }
+  };
 }
 
 test.describe("TC0129 繁体中文接口文档", () => {

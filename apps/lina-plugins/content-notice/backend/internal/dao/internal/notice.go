@@ -21,18 +21,18 @@ type NoticeDao struct {
 
 // NoticeColumns defines and stores column names for the table plugin_content_notice.
 type NoticeColumns struct {
-	Id        string // 公告ID
-	Title     string // 公告标题
-	Type      string // 公告类型（1通知 2公告）
-	Content   string // 公告内容
-	FileIds   string // 附件文件ID列表，逗号分隔
-	Status    string // 公告状态（0草稿 1已发布）
-	Remark    string // 备注
-	CreatedBy string // 创建者
-	UpdatedBy string // 更新者
-	CreatedAt string // 创建时间
-	UpdatedAt string // 更新时间
-	DeletedAt string // 删除时间
+	Id        string // Notice ID
+	Title     string // Notice title
+	Type      string // Notice type: 1=notification, 2=announcement
+	Content   string // Notice content
+	FileIds   string // Attachment file ID list, comma-separated
+	Status    string // Notice status: 0=draft, 1=published
+	Remark    string // Remark
+	CreatedBy string // Creator
+	UpdatedBy string // Updater
+	CreatedAt string // Creation time
+	UpdatedAt string // Update time
+	DeletedAt string // Deletion time
 }
 
 // noticeColumns holds the columns for the table plugin_content_notice.

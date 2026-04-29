@@ -65,8 +65,8 @@ type Translator interface {
 	//
 	// This is a semantic wrapper for source-owned metadata whose fallback text
 	// is maintained next to the source definition. Example: a built-in cron job
-	// registers sourceText "Online Session Cleanup"; zh-CN can translate the
-	// key to "在线会话清理", while en-US may omit the key and still display the
+	// registers sourceText "Online Session Cleanup"; another locale can translate
+	// the key, while en-US may omit the key and still display the
 	// source English text. It must not return default-locale text from zh-CN
 	// while the request locale is en-US.
 	TranslateSourceText(ctx context.Context, key string, sourceText string) string

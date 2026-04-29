@@ -194,7 +194,7 @@ session:
   cleanupInterval: 1500ms
 `)
 
-	defer assertConfigPanicContains(t, "整秒时长")
+	defer assertConfigPanicContains(t, "whole seconds")
 
 	cfg, err := New().GetSession(context.Background())
 	if err != nil {
@@ -213,7 +213,7 @@ monitor:
   interval: 500ms
 `)
 
-	defer assertConfigPanicContains(t, "至少为 1s")
+	defer assertConfigPanicContains(t, "at least 1s")
 
 	cfg := New().GetMonitor(context.Background())
 	if cfg == nil {

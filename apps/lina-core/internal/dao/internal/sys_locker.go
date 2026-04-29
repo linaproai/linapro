@@ -21,13 +21,13 @@ type SysLockerDao struct {
 
 // SysLockerColumns defines and stores column names for the table sys_locker.
 type SysLockerColumns struct {
-	Id         string // 主键ID
-	Name       string // 锁名称，唯一标识
-	Reason     string // 获取锁的原因
-	Holder     string // 锁持有者标识（节点名）
-	ExpireTime string // 锁过期时间
-	CreatedAt  string // 创建时间
-	UpdatedAt  string // 更新时间
+	Id         string // Primary key ID
+	Name       string // Lock name, unique identifier
+	Reason     string // Reason for acquiring the lock
+	Holder     string // Lock holder identifier (node name)
+	ExpireTime string // Lock expiration time
+	CreatedAt  string // Creation time
+	UpdatedAt  string // Update time
 }
 
 // sysLockerColumns holds the columns for the table sys_locker.

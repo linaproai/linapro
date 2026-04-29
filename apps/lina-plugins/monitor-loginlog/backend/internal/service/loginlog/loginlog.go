@@ -286,15 +286,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	file := excelize.NewFile()
 	defer excelutil.CloseFile(ctx, file, &err)
 	sheet := "Sheet1"
-	headers := []string{
-		s.translate(ctx, "plugin.monitor-loginlog.fields.userName", "User Account"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.status", "Login Status"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.ipAddress", "IP Address"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.browser", "Browser"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.os", "Operating System"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.message", "Message"),
-		s.translate(ctx, "plugin.monitor-loginlog.fields.loginTime", "Login Time"),
-	}
+	headers := s.exportHeaders(ctx)
 	for index, header := range headers {
 		if setErr := excelutil.SetCellValue(file, sheet, index+1, 1, header); setErr != nil {
 			return nil, setErr
@@ -307,11 +299,7 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		if setErr := excelutil.SetCellValue(file, sheet, 1, row, log.UserName); setErr != nil {
 			return nil, setErr
 		}
-		statusText, ok := statusMap[log.Status]
-		if !ok {
-			statusText = defaultLoginStatusLabels[log.Status]
-		}
-		statusText = s.translateDictLabel(ctx, DictTypeLoginStatus, strconv.Itoa(log.Status), statusText)
+		statusText := s.exportStatusText(ctx, log.Status, statusMap)
 		if setErr := excelutil.SetCellValue(file, sheet, 2, row, statusText); setErr != nil {
 			return nil, setErr
 		}
@@ -339,6 +327,28 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		return nil, writeErr
 	}
 	return buffer.Bytes(), nil
+}
+
+// exportHeaders returns localized Excel headers for login-log export.
+func (s *serviceImpl) exportHeaders(ctx context.Context) []string {
+	return []string{
+		s.translate(ctx, "plugin.monitor-loginlog.fields.userName", "User Account"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.status", "Login Status"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.ipAddress", "IP Address"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.browser", "Browser"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.os", "Operating System"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.message", "Message"),
+		s.translate(ctx, "plugin.monitor-loginlog.fields.loginTime", "Login Time"),
+	}
+}
+
+// exportStatusText returns the localized export label for one login status.
+func (s *serviceImpl) exportStatusText(ctx context.Context, status int, statusMap map[int]string) string {
+	statusText, ok := statusMap[status]
+	if !ok {
+		statusText = defaultLoginStatusLabels[status]
+	}
+	return s.translateDictLabel(ctx, DictTypeLoginStatus, strconv.Itoa(status), statusText)
 }
 
 // localizeRecords translates backend-owned display fields for login-log rows.

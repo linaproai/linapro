@@ -12,16 +12,16 @@ import (
 // SysPluginResourceRef is the golang structure of table sys_plugin_resource_ref for DAO operations like Where/Data.
 type SysPluginResourceRef struct {
 	g.Meta       `orm:"table:sys_plugin_resource_ref, do:true"`
-	Id           any         // 主键ID
-	PluginId     any         // 插件唯一标识（kebab-case）
-	ReleaseId    any         // 所属插件 release ID
-	ResourceType any         // 资源类型（manifest/sql/frontend/menu/permission 等）
-	ResourceKey  any         // 资源唯一键
-	ResourcePath any         // 资源定位补充信息（默认留空，不保存具体前端/SQL 路径）
-	OwnerType    any         // 宿主对象类型（file/menu/route/slot 等）
-	OwnerKey     any         // 宿主对象稳定标识
-	Remark       any         // 备注
-	CreatedAt    *gtime.Time // 创建时间
-	UpdatedAt    *gtime.Time // 更新时间
-	DeletedAt    *gtime.Time // 删除时间
+	Id           any         // Primary key ID
+	PluginId     any         // Plugin unique identifier (kebab-case)
+	ReleaseId    any         // Owning plugin release ID
+	ResourceType any         // Resource type: manifest/sql/frontend/menu/permission, etc.
+	ResourceKey  any         // Resource unique key
+	ResourcePath any         // Resource location metadata, empty by default and without concrete frontend or SQL paths
+	OwnerType    any         // Host object type: file/menu/route/slot, etc.
+	OwnerKey     any         // Stable host object identifier
+	Remark       any         // Remark
+	CreatedAt    *gtime.Time // Creation time
+	UpdatedAt    *gtime.Time // Update time
+	DeletedAt    *gtime.Time // Deletion time
 }

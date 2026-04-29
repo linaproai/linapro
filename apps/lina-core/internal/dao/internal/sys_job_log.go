@@ -21,19 +21,19 @@ type SysJobLogDao struct {
 
 // SysJobLogColumns defines and stores column names for the table sys_job_log.
 type SysJobLogColumns struct {
-	Id             string // 日志ID
-	JobId          string // 所属任务ID
-	JobSnapshot    string // 执行时任务快照JSON
-	NodeId         string // 执行节点标识
-	Trigger        string // 触发方式（cron/manual）
-	ParamsSnapshot string // 执行时参数快照JSON
-	StartAt        string // 开始时间
-	EndAt          string // 结束时间
-	DurationMs     string // 执行耗时（毫秒）
-	Status         string // 执行状态
-	ErrMsg         string // 错误摘要
-	ResultJson     string // 执行结果JSON
-	CreatedAt      string // 创建时间
+	Id             string // Log ID
+	JobId          string // Owning job ID
+	JobSnapshot    string // Job snapshot JSON at execution time
+	NodeId         string // Execution node identifier
+	Trigger        string // Trigger type: cron/manual
+	ParamsSnapshot string // Parameter snapshot JSON at execution time
+	StartAt        string // Start time
+	EndAt          string // End time
+	DurationMs     string // Execution duration in milliseconds
+	Status         string // Execution status
+	ErrMsg         string // Error summary
+	ResultJson     string // Execution result JSON
+	CreatedAt      string // Creation time
 }
 
 // sysJobLogColumns holds the columns for the table sys_job_log.

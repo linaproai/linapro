@@ -31,10 +31,10 @@ const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 const pluginRecordSeedTitle = "源码插件 SQL 示例记录";
 const pluginRecordTableName = "plugin_demo_source_record";
 const repoRoot = path.resolve(process.cwd(), "../..");
-const pluginDemoSourceStorageRoot = path.resolve(
-  repoRoot,
-  "temp/upload/plugin-demo-source",
-);
+const pluginDemoSourceStorageRoots = [
+  path.resolve(repoRoot, "temp/upload/plugin-demo-source"),
+  path.resolve(repoRoot, "apps/lina-core/temp/upload/plugin-demo-source"),
+];
 const pluginDemoSourceFixturePath = path.resolve(
   repoRoot,
   "temp/TC0066-plugin-demo-source-note.txt",
@@ -272,7 +272,9 @@ function resetPluginDemoSourceData() {
       },
     );
   }
-  rmSync(pluginDemoSourceStorageRoot, { force: true, recursive: true });
+  for (const storageRoot of pluginDemoSourceStorageRoots) {
+    rmSync(storageRoot, { force: true, recursive: true });
+  }
   rmSync(pluginDemoSourceDownloadPath, { force: true });
 }
 
@@ -316,7 +318,9 @@ function listPluginDemoSourceRecordTitles() {
 }
 
 function hasPluginDemoSourceStoredFiles() {
-  return directoryContainsFiles(pluginDemoSourceStorageRoot);
+  return pluginDemoSourceStorageRoots.some((storageRoot) =>
+    directoryContainsFiles(storageRoot),
+  );
 }
 
 function directoryContainsFiles(dirPath: string): boolean {

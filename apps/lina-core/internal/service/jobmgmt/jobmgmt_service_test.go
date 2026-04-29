@@ -54,11 +54,12 @@ func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
 	}
 	t.Cleanup(func() { cleanupGroupHard(t, ctx, groupID) })
 
-	jobID, err = svc.CreateJob(ctx, SaveJobInput{
-		GroupID:        groupID,
+	insertedJobID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
+		GroupId:        groupID,
 		Name:           jobName,
+		Description:    "Temporary job used to verify group deletion migration.",
 		TaskType:       jobmeta.TaskTypeShell,
-		Timeout:        5 * time.Minute,
+		TimeoutSeconds: int64((5 * time.Minute).Seconds()),
 		ShellCmd:       "printf 'group-migration'",
 		CronExpr:       "*/5 * * * *",
 		Timezone:       "Asia/Shanghai",
@@ -66,11 +67,18 @@ func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
 		Concurrency:    jobmeta.JobConcurrencySingleton,
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
+		ExecutedCount:  0,
+		StopReason:     "",
 		Status:         jobmeta.JobStatusDisabled,
-	})
+		IsBuiltin:      0,
+		SeedVersion:    0,
+		CreatedBy:      0,
+		UpdatedBy:      0,
+	}).InsertAndGetId()
 	if err != nil {
-		t.Fatalf("expected job create to succeed, got error: %v", err)
+		t.Fatalf("expected job fixture insert to succeed, got error: %v", err)
 	}
+	jobID = uint64(insertedJobID)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
 	if err = svc.DeleteGroups(ctx, gconv.String(groupID)); err != nil {

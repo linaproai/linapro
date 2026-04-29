@@ -12,20 +12,20 @@ import (
 // SysPluginRelease is the golang structure of table sys_plugin_release for DAO operations like Where/Data.
 type SysPluginRelease struct {
 	g.Meta           `orm:"table:sys_plugin_release, do:true"`
-	Id               any         // 主键ID
-	PluginId         any         // 插件唯一标识（kebab-case）
-	ReleaseVersion   any         // 插件版本号
-	Type             any         // 插件一级类型（source/dynamic）
-	RuntimeKind      any         // 运行时产物类型（当前仅 wasm）
-	SchemaVersion    any         // plugin.yaml 清单 schema 版本
-	MinHostVersion   any         // 宿主最小兼容版本
-	MaxHostVersion   any         // 宿主最大兼容版本
-	Status           any         // release 状态（prepared/installed/active/uninstalled/failed）
-	ManifestPath     any         // 插件清单路径
-	PackagePath      any         // 插件源码目录或运行时产物路径
-	Checksum         any         // 插件清单或产物校验值
-	ManifestSnapshot any         // 插件清单与资源摘要快照（YAML，不保存具体 SQL/前端文件路径）
-	CreatedAt        *gtime.Time // 创建时间
-	UpdatedAt        *gtime.Time // 更新时间
-	DeletedAt        *gtime.Time // 删除时间
+	Id               any         // Primary key ID
+	PluginId         any         // Plugin unique identifier (kebab-case)
+	ReleaseVersion   any         // Plugin version
+	Type             any         // Plugin top-level type: source/dynamic
+	RuntimeKind      any         // Runtime artifact type (currently only wasm)
+	SchemaVersion    any         // plugin.yaml manifest schema version
+	MinHostVersion   any         // Minimum compatible host version
+	MaxHostVersion   any         // Maximum compatible host version
+	Status           any         // Release status: prepared/installed/active/uninstalled/failed
+	ManifestPath     any         // Plugin manifest path
+	PackagePath      any         // Plugin source directory or runtime artifact path
+	Checksum         any         // Plugin manifest or artifact checksum
+	ManifestSnapshot any         // Plugin manifest and resource summary snapshot in YAML, without concrete SQL or frontend file paths
+	CreatedAt        *gtime.Time // Creation time
+	UpdatedAt        *gtime.Time // Update time
+	DeletedAt        *gtime.Time // Deletion time
 }

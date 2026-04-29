@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test';
+
 import { test, expect } from '../../../fixtures/auth';
 import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
 import { UserPage } from '../../../pages/UserPage';
@@ -7,6 +9,40 @@ interface DeptTreeNode {
   label: string;
   userCount: number;
   children?: DeptTreeNode[];
+}
+
+function getDeptTreeNodes(payload: any): DeptTreeNode[] {
+  return payload.data?.list ?? payload.list ?? [];
+}
+
+function findDeptNodeByID(nodes: DeptTreeNode[], id: number): DeptTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) {
+      return node;
+    }
+    const childNode = findDeptNodeByID(node.children ?? [], id);
+    if (childNode) {
+      return childNode;
+    }
+  }
+  return null;
+}
+
+function getRequiredUnassignedUserCount(nodes: DeptTreeNode[]) {
+  const unassignedNode = findDeptNodeByID(nodes, 0);
+  expect(unassignedNode, 'Dept tree response should include the virtual unassigned department node').toBeTruthy();
+  return unassignedNode!.userCount;
+}
+
+async function reloadUserPageAndReadDeptTree(page: Page, userPage: UserPage) {
+  const treeResponsePromise = page.waitForResponse(
+    (resp) =>
+      resp.url().includes('/api/v1/user/dept-tree') && resp.status() === 200,
+    { timeout: 15000 },
+  );
+  await userPage.goto();
+  const treeResponse = await treeResponsePromise;
+  return getDeptTreeNodes(await treeResponse.json());
 }
 
 test.describe('TC0021 用户管理部门树用户数量累加', () => {
@@ -29,7 +65,7 @@ test.describe('TC0021 用户管理部门树用户数量累加', () => {
 
     const treeResponse = await treeResponsePromise;
     const body = await treeResponse.json();
-    const treeNodes: DeptTreeNode[] = body.data?.list ?? body.list ?? [];
+    const treeNodes = getDeptTreeNodes(body);
     expect(treeNodes.length).toBeGreaterThan(0);
 
     // Verify parent.userCount >= sum(children.userCount) recursively
@@ -88,30 +124,14 @@ test.describe('TC0021 用户管理部门树用户数量累加', () => {
     await userPage.createUser(username, password, 'TC0021');
 
     try {
-      // Wait for dept tree
-      const deptTree = adminPage.locator('.ant-tree');
-      await expect(deptTree).toBeVisible({ timeout: 10000 });
-
-      // Helper to parse node label counts from the tree
-      const getNodeCounts = async () => {
-        const titles = adminPage.locator(
-          '.ant-tree-node-content-wrapper .ant-tree-title',
-        );
-        const result: Record<string, number> = {};
-        const cnt = await titles.count();
-        for (let i = 0; i < cnt; i++) {
-          const text = ((await titles.nth(i).textContent()) ?? '').trim();
-          const match = text.match(/^(.+)\((\d+)\)$/);
-          if (match) {
-            result[match[1]!] = parseInt(match[2]!, 10);
-          }
-        }
-        return result;
-      };
-
-      const beforeCounts = await getNodeCounts();
-      expect(Object.keys(beforeCounts).length).toBeGreaterThan(0);
-      expect(beforeCounts['未分配部门']).toBeGreaterThan(0);
+      const beforeTreeNodes = await reloadUserPageAndReadDeptTree(
+        adminPage,
+        userPage,
+      );
+      expect(beforeTreeNodes.length).toBeGreaterThan(0);
+      const beforeUnassignedCount =
+        getRequiredUnassignedUserCount(beforeTreeNodes);
+      expect(beforeUnassignedCount).toBeGreaterThan(0);
 
       await adminPage.evaluate(async ({ username }) => {
         const accessKey = Object.keys(localStorage).find((key) =>
@@ -199,13 +219,14 @@ test.describe('TC0021 用户管理部门树用户数量累加', () => {
         }
       }, { username });
 
-      await userPage.goto();
-
-      // Verify dept tree is still visible and the unassigned count is refreshed.
-      await expect(deptTree).toBeVisible();
-      const afterCounts = await getNodeCounts();
-      expect(Object.keys(afterCounts).length).toBeGreaterThan(0);
-      expect(afterCounts['未分配部门']).toBe(beforeCounts['未分配部门'] - 1);
+      const afterTreeNodes = await reloadUserPageAndReadDeptTree(
+        adminPage,
+        userPage,
+      );
+      expect(afterTreeNodes.length).toBeGreaterThan(0);
+      expect(getRequiredUnassignedUserCount(afterTreeNodes)).toBe(
+        beforeUnassignedCount - 1,
+      );
     } finally {
       if (adminPage.isClosed()) {
         return;

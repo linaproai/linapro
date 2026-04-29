@@ -21,8 +21,8 @@ type UserDeptDao struct {
 
 // UserDeptColumns defines and stores column names for the table plugin_org_center_user_dept.
 type UserDeptColumns struct {
-	UserId string // 用户ID
-	DeptId string // 部门ID
+	UserId string // User ID
+	DeptId string // Department ID
 }
 
 // userDeptColumns holds the columns for the table plugin_org_center_user_dept.

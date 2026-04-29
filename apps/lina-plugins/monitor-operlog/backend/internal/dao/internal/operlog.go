@@ -21,25 +21,25 @@ type OperlogDao struct {
 
 // OperlogColumns defines and stores column names for the table plugin_monitor_operlog.
 type OperlogColumns struct {
-	Id            string // 日志ID
-	Title         string // 模块标题
-	OperSummary   string // 操作摘要
-	RouteOwner    string // 路由归属（core或插件ID）
-	RouteMethod   string // 路由请求方式
-	RoutePath     string // 路由路径
-	RouteDocKey   string // API文档结构化键
-	OperType      string // 操作类型（create新增 update修改 delete删除 export导出 import导入 other其他）
-	Method        string // 方法名称
-	RequestMethod string // 请求方式（GET/POST/PUT/DELETE）
-	OperName      string // 操作人员
-	OperUrl       string // 请求URL
-	OperIp        string // 操作IP地址
-	OperParam     string // 请求参数
-	JsonResult    string // 返回参数
-	Status        string // 操作状态（0成功 1失败）
-	ErrorMsg      string // 错误消息
-	CostTime      string // 耗时（毫秒）
-	OperTime      string // 操作时间
+	Id            string // Log ID
+	Title         string // Module title
+	OperSummary   string // Operation summary
+	RouteOwner    string // Route owner: core or plugin ID
+	RouteMethod   string // Route request method
+	RoutePath     string // Route path
+	RouteDocKey   string // API documentation structured key
+	OperType      string // Operation type: create=create, update=update, delete=delete, export=export, import=import, other=other
+	Method        string // Method name
+	RequestMethod string // Request method: GET/POST/PUT/DELETE
+	OperName      string // Operator
+	OperUrl       string // Request URL
+	OperIp        string // Operation IP address
+	OperParam     string // Request parameters
+	JsonResult    string // Response parameters
+	Status        string // Operation status: 0=succeeded, 1=failed
+	ErrorMsg      string // Error message
+	CostTime      string // Duration in milliseconds
+	OperTime      string // Operation time
 }
 
 // operlogColumns holds the columns for the table plugin_monitor_operlog.

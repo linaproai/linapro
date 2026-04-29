@@ -21,8 +21,8 @@ type UserPostDao struct {
 
 // UserPostColumns defines and stores column names for the table plugin_org_center_user_post.
 type UserPostColumns struct {
-	UserId string // 用户ID
-	PostId string // 岗位ID
+	UserId string // User ID
+	PostId string // Post ID
 }
 
 // userPostColumns holds the columns for the table plugin_org_center_user_post.

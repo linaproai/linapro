@@ -21,26 +21,26 @@ type SysPluginDao struct {
 
 // SysPluginColumns defines and stores column names for the table sys_plugin.
 type SysPluginColumns struct {
-	Id           string // 主键ID
-	PluginId     string // 插件唯一标识（kebab-case）
-	Name         string // 插件名称
-	Version      string // 插件版本号
-	Type         string // 插件一级类型（source/dynamic）
-	Installed    string // 安装状态（1=已安装 0=未安装）
-	Status       string // 启用状态（1=启用 0=禁用）
-	DesiredState string // 宿主期望状态（uninstalled/installed/enabled）
-	CurrentState string // 宿主当前状态（uninstalled/installed/enabled/reconciling/failed）
-	Generation   string // 宿主当前生效代际号
-	ReleaseId    string // 宿主当前生效 release ID
-	ManifestPath string // 插件清单文件路径
-	Checksum     string // 插件包校验值
-	InstalledAt  string // 安装时间
-	EnabledAt    string // 最后一次启用时间
-	DisabledAt   string // 最后一次禁用时间
-	Remark       string // 备注
-	CreatedAt    string // 创建时间
-	UpdatedAt    string // 更新时间
-	DeletedAt    string // 删除时间
+	Id           string // Primary key ID
+	PluginId     string // Plugin unique identifier (kebab-case)
+	Name         string // Plugin name
+	Version      string // Plugin version
+	Type         string // Plugin top-level type: source/dynamic
+	Installed    string // Installation status: 1=installed, 0=not installed
+	Status       string // Enablement status: 1=enabled, 0=disabled
+	DesiredState string // Host desired state: uninstalled/installed/enabled
+	CurrentState string // Host current state: uninstalled/installed/enabled/reconciling/failed
+	Generation   string // Current host generation number
+	ReleaseId    string // Current active host release ID
+	ManifestPath string // Plugin manifest file path
+	Checksum     string // Plugin package checksum
+	InstalledAt  string // Installation time
+	EnabledAt    string // Last enabled time
+	DisabledAt   string // Last disabled time
+	Remark       string // Remark
+	CreatedAt    string // Creation time
+	UpdatedAt    string // Update time
+	DeletedAt    string // Deletion time
 }
 
 // sysPluginColumns holds the columns for the table sys_plugin.
