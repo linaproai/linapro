@@ -276,6 +276,26 @@ export class PluginPage {
       .last();
   }
 
+  pluginInstallMockDataSection(): Locator {
+    return this.page
+      .getByTestId("plugin-install-mock-data-section")
+      .last();
+  }
+
+  pluginInstallMockDataCheckbox(): Locator {
+    // ant-design Checkbox renders the actual <input type="checkbox"> inside
+    // the wrapper carrying the data-testid. Drill into it for keyboard/click
+    // operations that accurately reflect the user-visible toggle state.
+    return this.page
+      .getByTestId("plugin-install-mock-data-checkbox")
+      .locator('input[type="checkbox"]')
+      .last();
+  }
+
+  pluginMockDataTag(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-mock-data-tag-${pluginId}`).first();
+  }
+
   uninstallDialog(): Locator {
     return this.page
       .getByRole("dialog", { name: /卸载插件|Uninstall Plugin/iu })
@@ -563,6 +583,44 @@ export class PluginPage {
     await expect(installButton).toBeVisible();
     await installButton.click();
     await expect(this.hostServiceAuthModal()).toBeVisible();
+  }
+
+  async installPluginWithMockData(pluginId: string, withMockData: boolean) {
+    const installButton = await this.pluginActionButton(
+      pluginId,
+      pluginInstallActionPattern,
+    );
+    await expect(installButton).toBeVisible();
+    await installButton.click();
+    await expect(this.hostServiceAuthDialog()).toBeVisible();
+    if (withMockData) {
+      await expect(this.pluginInstallMockDataSection()).toBeVisible();
+      const checkbox = this.pluginInstallMockDataCheckbox();
+      const isChecked = await checkbox.isChecked();
+      if (!isChecked) {
+        await checkbox.check();
+      }
+      await expect(checkbox).toBeChecked();
+    } else {
+      // Even when the plugin ships mock data, the checkbox should default to
+      // unchecked so a forgetful click does not bring demo rows into the table.
+      const sectionVisible = await this.pluginInstallMockDataSection()
+        .isVisible({ timeout: 1500 })
+        .catch(() => false);
+      if (sectionVisible) {
+        const checkbox = this.pluginInstallMockDataCheckbox();
+        const isChecked = await checkbox.isChecked();
+        if (isChecked) {
+          await checkbox.uncheck();
+        }
+        await expect(checkbox).not.toBeChecked();
+      }
+    }
+    await this.hostServiceAuthConfirmButton().click();
+    await expect(this.hostServiceAuthDialog()).toHaveCount(0);
+    await expect(
+      await this.pluginActionButton(pluginId, /卸\s*载/),
+    ).toBeVisible();
   }
 
   async uninstallPlugin(pluginId: string) {

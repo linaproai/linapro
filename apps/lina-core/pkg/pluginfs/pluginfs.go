@@ -120,6 +120,50 @@ func DiscoverSQLPathsFromFS(fileSystem fs.FS, uninstall bool) []string {
 	return items
 }
 
+// DiscoverMockSQLPaths discovers plugin mock-data SQL files by directory convention.
+// Mock-data files live under manifest/sql/mock-data/ and are deliberately excluded
+// from the install/uninstall scans returned by DiscoverSQLPaths.
+func DiscoverMockSQLPaths(rootDir string) []string {
+	searchDir := filepath.Join(rootDir, "manifest", "sql", "mock-data")
+	relPrefix := "manifest/sql/mock-data"
+
+	if !gfile.Exists(searchDir) || !gfile.IsDir(searchDir) {
+		return []string{}
+	}
+
+	sqlFiles, err := gfile.ScanDirFile(searchDir, "*.sql", false)
+	if err != nil {
+		return []string{}
+	}
+
+	items := make([]string, 0, len(sqlFiles))
+	for _, sqlFile := range sqlFiles {
+		items = append(items, path.Join(relPrefix, filepath.Base(sqlFile)))
+	}
+	sort.Strings(items)
+	return items
+}
+
+// DiscoverMockSQLPathsFromFS discovers plugin mock-data SQL files from one embedded filesystem.
+func DiscoverMockSQLPathsFromFS(fileSystem fs.FS) []string {
+	searchDir := "manifest/sql/mock-data"
+
+	entries, err := fs.ReadDir(fileSystem, searchDir)
+	if err != nil {
+		return []string{}
+	}
+
+	items := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry == nil || entry.IsDir() || path.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		items = append(items, path.Join(searchDir, entry.Name()))
+	}
+	sort.Strings(items)
+	return items
+}
+
 // DiscoverVuePaths discovers plugin Vue resources under one relative directory.
 func DiscoverVuePaths(rootDir string, relativeDir string) []string {
 	searchDir := filepath.Join(rootDir, relativeDir)
@@ -186,6 +230,27 @@ func ValidateSQLPathsFromFS(fileSystem fs.FS, relativePaths []string, uninstall 
 	)
 }
 
+// ValidateMockSQLPaths validates plugin mock-data SQL asset paths under one plugin root.
+func ValidateMockSQLPaths(rootDir string, relativePaths []string) error {
+	return validateMockSQLPaths(
+		relativePaths,
+		func(normalizedPath string) bool {
+			return gfile.Exists(filepath.Join(rootDir, filepath.FromSlash(normalizedPath)))
+		},
+	)
+}
+
+// ValidateMockSQLPathsFromFS validates plugin mock-data SQL asset paths under one embedded filesystem.
+func ValidateMockSQLPathsFromFS(fileSystem fs.FS, relativePaths []string) error {
+	return validateMockSQLPaths(
+		relativePaths,
+		func(normalizedPath string) bool {
+			_, err := fs.Stat(fileSystem, normalizedPath)
+			return err == nil
+		},
+	)
+}
+
 // ValidateVuePaths validates plugin Vue asset paths under one plugin root.
 func ValidateVuePaths(rootDir string, relativePaths []string, expectedPrefix string) error {
 	return validateFilePaths(
@@ -241,8 +306,13 @@ func validateSQLPaths(relativePaths []string, uninstall bool, exists func(normal
 		if !strings.HasPrefix(normalizedPath, expectedPrefix) {
 			return gerror.Newf("SQL resource path must be under %s: %s", expectedPrefix, relativePath)
 		}
-		if !uninstall && strings.HasPrefix(normalizedPath, "manifest/sql/uninstall/") {
-			return gerror.Newf("install SQL cannot be placed under manifest/sql/uninstall/: %s", relativePath)
+		if !uninstall {
+			if strings.HasPrefix(normalizedPath, "manifest/sql/uninstall/") {
+				return gerror.Newf("install SQL cannot be placed under manifest/sql/uninstall/: %s", relativePath)
+			}
+			if strings.HasPrefix(normalizedPath, "manifest/sql/mock-data/") {
+				return gerror.Newf("install SQL cannot be placed under manifest/sql/mock-data/: %s", relativePath)
+			}
 		}
 		if path.Dir(normalizedPath) != expectedDir {
 			return gerror.Newf("SQL resource must be placed directly under %s: %s", expectedDir, relativePath)
@@ -252,6 +322,40 @@ func validateSQLPaths(relativePaths []string, uninstall bool, exists func(normal
 		}
 		if !exists(normalizedPath) {
 			return gerror.Newf("SQL resource file does not exist: %s", relativePath)
+		}
+	}
+
+	return nil
+}
+
+// validateMockSQLPaths validates plugin mock-data SQL asset paths against directory,
+// naming, and existence rules.
+func validateMockSQLPaths(relativePaths []string, exists func(normalizedPath string) bool) error {
+	const (
+		expectedDir    = "manifest/sql/mock-data"
+		expectedPrefix = "manifest/sql/mock-data/"
+	)
+
+	for _, relativePath := range relativePaths {
+		if relativePath == "" {
+			return gerror.New("Mock SQL resource path cannot be empty")
+		}
+
+		normalizedPath, err := NormalizeRelativePath(relativePath)
+		if err != nil {
+			return gerror.Newf("Mock SQL resource path is invalid: %s", relativePath)
+		}
+		if !strings.HasPrefix(normalizedPath, expectedPrefix) {
+			return gerror.Newf("Mock SQL resource path must be under %s: %s", expectedPrefix, relativePath)
+		}
+		if path.Dir(normalizedPath) != expectedDir {
+			return gerror.Newf("Mock SQL resource must be placed directly under %s: %s", expectedDir, relativePath)
+		}
+		if !IsValidSQLFileName(normalizedPath) {
+			return gerror.Newf("Mock SQL filename must use {sequence}-{change-name}.sql: %s", relativePath)
+		}
+		if !exists(normalizedPath) {
+			return gerror.Newf("Mock SQL resource file does not exist: %s", relativePath)
 		}
 	}
 

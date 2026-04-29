@@ -244,6 +244,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		ManifestDeclared:          s.isManifestDeclared(manifest),
 		InstallSQLCount:           s.countSQLAssets(manifest, MigrationDirectionInstall),
 		UninstallSQLCount:         s.countSQLAssets(manifest, MigrationDirectionUninstall),
+		MockSQLCount:              s.countSQLAssets(manifest, MigrationDirectionMock),
 		FrontendPageCount:         s.buildFrontendPageCount(manifest),
 		FrontendSlotCount:         s.buildFrontendSlotCount(manifest),
 		MenuCount:                 len(manifest.Menus),
@@ -439,15 +440,23 @@ func (s *serviceImpl) countSQLAssets(manifest *Manifest, direction MigrationDire
 		return 0
 	}
 	if manifest.RuntimeArtifact != nil {
-		if direction == MigrationDirectionInstall {
+		switch direction {
+		case MigrationDirectionInstall:
 			return len(manifest.RuntimeArtifact.InstallSQLAssets)
+		case MigrationDirectionMock:
+			return len(manifest.RuntimeArtifact.MockSQLAssets)
+		default:
+			return len(manifest.RuntimeArtifact.UninstallSQLAssets)
 		}
-		return len(manifest.RuntimeArtifact.UninstallSQLAssets)
 	}
-	if direction == MigrationDirectionInstall {
+	switch direction {
+	case MigrationDirectionInstall:
 		return len(s.ListInstallSQLPaths(manifest))
+	case MigrationDirectionMock:
+		return len(s.ListMockSQLPaths(manifest))
+	default:
+		return len(s.ListUninstallSQLPaths(manifest))
 	}
-	return len(s.ListUninstallSQLPaths(manifest))
 }
 
 // buildFrontendPageCount counts discovered source-plugin frontend pages.

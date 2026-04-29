@@ -363,6 +363,17 @@ func TestBuildRuntimeWasmArtifactFromSourceSkipsHiddenEmbeddedDirectoryEntries(t
 	if len(uninstallSQL) != 1 || uninstallSQL[0].Key != "001-plugin-dynamic-hidden.sql" {
 		t.Fatalf("expected only visible uninstall sql asset, got %#v", uninstallSQL)
 	}
+
+	// Mock-data SQL ships in its own dedicated section so the host can detect
+	// mock-data presence without scanning the install section, and the
+	// optional mock-data load phase can pull from it independently.
+	var mockSQL []*sqlAsset
+	if err = json.Unmarshal(sections[pluginDynamicWasmSectionMockSQL], &mockSQL); err != nil {
+		t.Fatalf("expected mock sql section json to unmarshal, got error: %v", err)
+	}
+	if len(mockSQL) != 1 || mockSQL[0].Key != "001-plugin-dynamic-hidden-mock-data.sql" {
+		t.Fatalf("expected mock-data sql asset to land in the mock section, got %#v", mockSQL)
+	}
 }
 
 func TestBuildRuntimeWasmArtifactFromSourceCleansTemporaryGoMod(t *testing.T) {

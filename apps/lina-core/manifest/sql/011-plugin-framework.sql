@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS sys_plugin_migration (
     id              INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Primary key ID',
     plugin_id       VARCHAR(64)   NOT NULL DEFAULT '' COMMENT  'Plugin unique identifier (kebab-case)',
     release_id      INT           NOT NULL DEFAULT 0 COMMENT  'Owning plugin release ID',
-    phase           VARCHAR(32)   NOT NULL DEFAULT '' COMMENT  'Migration phase: install/uninstall/upgrade/rollback',
+    phase           VARCHAR(32)   NOT NULL DEFAULT '' COMMENT  'Migration phase: install/uninstall/upgrade/rollback/mock',
     migration_key   VARCHAR(255)  NOT NULL DEFAULT '' COMMENT  'Migration execution key such as install-step-001, without concrete SQL path',
     checksum        VARCHAR(128)  NOT NULL DEFAULT '' COMMENT  'Migration file checksum',
     execution_order INT           NOT NULL DEFAULT 0 COMMENT  'Execution order starting from 1',

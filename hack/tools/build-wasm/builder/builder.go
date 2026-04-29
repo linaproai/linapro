@@ -44,11 +44,15 @@ func buildRuntimeWasmArtifactFromSource(pluginDir string, outputDir string) (*Ru
 	if err != nil {
 		return nil, err
 	}
-	installSQLAssets, err := collectSQLAssets(pluginDir, embeddedResources, false)
+	installSQLAssets, err := collectSQLAssets(pluginDir, embeddedResources, sqlAssetDirectionInstall)
 	if err != nil {
 		return nil, err
 	}
-	uninstallSQLAssets, err := collectSQLAssets(pluginDir, embeddedResources, true)
+	uninstallSQLAssets, err := collectSQLAssets(pluginDir, embeddedResources, sqlAssetDirectionUninstall)
+	if err != nil {
+		return nil, err
+	}
+	mockSQLAssets, err := collectSQLAssets(pluginDir, embeddedResources, sqlAssetDirectionMock)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +84,7 @@ func buildRuntimeWasmArtifactFromSource(pluginDir string, outputDir string) (*Ru
 		apiDocI18NAssets,
 		installSQLAssets,
 		uninstallSQLAssets,
+		mockSQLAssets,
 		hookSpecs,
 		resourceSpecs,
 		routeContracts,

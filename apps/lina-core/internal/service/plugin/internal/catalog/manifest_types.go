@@ -227,6 +227,10 @@ type ArtifactSpec struct {
 	InstallSQLAssets []*ArtifactSQLAsset
 	// UninstallSQLAssets holds the embedded uninstall SQL migration steps.
 	UninstallSQLAssets []*ArtifactSQLAsset
+	// MockSQLAssets holds the embedded mock-data SQL steps loaded only when
+	// the operator opts in at install time. The host executes these inside a
+	// single database transaction so any failure rolls back the entire load.
+	MockSQLAssets []*ArtifactSQLAsset
 	// HookSpecs holds the embedded hook handler declarations.
 	HookSpecs []*HookSpec
 	// ResourceSpecs holds the embedded resource declarations.

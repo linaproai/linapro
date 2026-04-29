@@ -18,6 +18,7 @@ func buildRuntimeArtifactContent(
 	apiDocI18NAssets []*i18nAsset,
 	installSQLAssets []*sqlAsset,
 	uninstallSQLAssets []*sqlAsset,
+	mockSQLAssets []*sqlAsset,
 	hookSpecs []*hookSpec,
 	resourceSpecs []*resourceSpec,
 	routeContracts []*pluginbridge.RouteContract,
@@ -41,7 +42,8 @@ func buildRuntimeArtifactContent(
 		FrontendAssetCount:   len(frontendAssets),
 		I18NAssetCount:       len(i18nAssets),
 		APIDocI18NAssetCount: len(apiDocI18NAssets),
-		SQLAssetCount:        len(installSQLAssets) + len(uninstallSQLAssets),
+		SQLAssetCount:        len(installSQLAssets) + len(uninstallSQLAssets) + len(mockSQLAssets),
+		MockSQLAssetCount:    len(mockSQLAssets),
 		RouteCount:           len(routeContracts),
 	})
 	if err != nil {
@@ -93,6 +95,13 @@ func buildRuntimeArtifactContent(
 			return nil, err
 		}
 		content = appendWasmCustomSection(content, pluginDynamicWasmSectionUninstallSQL, payload)
+	}
+	if len(mockSQLAssets) > 0 {
+		payload, err := json.Marshal(mockSQLAssets)
+		if err != nil {
+			return nil, err
+		}
+		content = appendWasmCustomSection(content, pluginDynamicWasmSectionMockSQL, payload)
 	}
 	if len(hookSpecs) > 0 {
 		payload, err := json.Marshal(hookSpecs)

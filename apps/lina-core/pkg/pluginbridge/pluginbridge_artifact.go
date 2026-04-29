@@ -22,6 +22,12 @@ const (
 	WasmSectionInstallSQL = "lina.plugin.install.sql"
 	// WasmSectionUninstallSQL stores uninstall-time SQL assets.
 	WasmSectionUninstallSQL = "lina.plugin.uninstall.sql"
+	// WasmSectionMockSQL stores optional mock-data SQL assets that the host
+	// only loads when the operator explicitly opts in at install time. Mock
+	// data ships in its own section so install/uninstall counts stay
+	// independent and consumers can detect the presence of mock data without
+	// scanning the install section.
+	WasmSectionMockSQL = "lina.plugin.mock.sql"
 	// WasmSectionBackendHooks stores backend hook contracts.
 	WasmSectionBackendHooks = "lina.plugin.backend.hooks"
 	// WasmSectionBackendResources stores backend resource contracts.
@@ -51,8 +57,12 @@ type RuntimeArtifactMetadata struct {
 	I18NAssetCount int `json:"i18nAssetCount,omitempty" yaml:"i18nAssetCount,omitempty"`
 	// APIDocI18NAssetCount reports the number of embedded API-documentation i18n locale asset entries.
 	APIDocI18NAssetCount int `json:"apiDocI18nAssetCount,omitempty" yaml:"apiDocI18nAssetCount,omitempty"`
-	// SQLAssetCount reports the number of embedded install or uninstall SQL assets.
+	// SQLAssetCount reports the number of embedded install + uninstall + mock SQL assets.
 	SQLAssetCount int `json:"sqlAssetCount,omitempty" yaml:"sqlAssetCount,omitempty"`
+	// MockSQLAssetCount reports the number of embedded mock-data SQL assets,
+	// kept as a separate field so consumers can detect mock-data presence
+	// without scanning the artifact sections.
+	MockSQLAssetCount int `json:"mockSqlAssetCount,omitempty" yaml:"mockSqlAssetCount,omitempty"`
 	// RouteCount reports the number of embedded backend route contracts.
 	RouteCount int `json:"routeCount,omitempty" yaml:"routeCount,omitempty"`
 }

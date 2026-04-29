@@ -403,6 +403,17 @@ async function handleUninstallReload() {
               {{ $t('pages.system.plugin.autoEnableBadge') }}
             </Tag>
           </Tooltip>
+          <Tooltip
+            v-if="row.hasMockData === 1"
+            :title="$t('pages.system.plugin.fields.hasMockDataTooltip')"
+          >
+            <Tag
+              :data-testid="`plugin-mock-data-tag-${row.id}`"
+              color="purple"
+            >
+              {{ $t('pages.system.plugin.fields.hasMockDataBadge') }}
+            </Tag>
+          </Tooltip>
         </Space>
       </template>
 

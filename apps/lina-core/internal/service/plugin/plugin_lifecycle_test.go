@@ -223,7 +223,7 @@ func TestEnableWithAuthorizationAppliesConfirmedHostServiceSnapshot(t *testing.T
 		},
 	}
 
-	if err := service.Install(ctx, pluginID, authorization); err != nil {
+	if err := service.Install(ctx, pluginID, InstallOptions{Authorization: authorization}); err != nil {
 		t.Fatalf("expected install with authorization to succeed, got error: %v", err)
 	}
 	if err := service.UpdateStatus(ctx, pluginID, catalog.StatusEnabled, authorization); err != nil {
@@ -347,7 +347,7 @@ func TestSourcePluginInstallAndUninstallRequireExplicitLifecycle(t *testing.T) {
 		t.Fatalf("expected discovered source plugin release to stay uninstalled, got %s", release.Status)
 	}
 
-	if err = service.Install(ctx, pluginID, nil); err != nil {
+	if err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 

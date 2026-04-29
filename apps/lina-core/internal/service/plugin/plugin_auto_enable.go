@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"lina-core/internal/model/entity"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
 )
@@ -24,18 +25,20 @@ const startupAutoEnablePollInterval = 100 * time.Millisecond
 
 // BootstrapAutoEnable synchronizes manifests and ensures every plugin listed
 // in plugin.autoEnable is installed and enabled before later host wiring runs.
+// Per-entry mock-data opt-in flags from config flow into the InstallOptions
+// passed down to Install.
 func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
 	if err := s.SyncSourcePlugins(ctx); err != nil {
 		return err
 	}
 
-	pluginIDs := s.configSvc.GetPluginAutoEnable(ctx)
-	if len(pluginIDs) == 0 {
+	entries := s.configSvc.GetPluginAutoEnableEntries(ctx)
+	if len(entries) == 0 {
 		return nil
 	}
 
-	for _, pluginID := range pluginIDs {
-		if err := s.bootstrapAutoEnablePlugin(ctx, pluginID); err != nil {
+	for _, entry := range entries {
+		if err := s.bootstrapAutoEnablePlugin(ctx, entry); err != nil {
 			return err
 		}
 	}
@@ -46,41 +49,45 @@ func (s *serviceImpl) BootstrapAutoEnable(ctx context.Context) error {
 	return nil
 }
 
-// bootstrapAutoEnablePlugin routes one configured plugin ID into the matching
-// source-plugin or dynamic-plugin startup bootstrap path.
-func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, pluginID string) error {
-	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
+// bootstrapAutoEnablePlugin routes one configured plugin entry into the
+// matching source-plugin or dynamic-plugin startup bootstrap path. The entry
+// carries both the ID and the per-plugin mock-data opt-in flag.
+func (s *serviceImpl) bootstrapAutoEnablePlugin(ctx context.Context, entry configsvc.PluginAutoEnableEntry) error {
+	manifest, err := s.catalogSvc.GetDesiredManifest(entry.ID)
 	if err != nil {
-		return bizerr.WrapCode(err, CodePluginAutoEnableDiscoveryFailed, bizerr.P("pluginId", pluginID))
+		return bizerr.WrapCode(err, CodePluginAutoEnableDiscoveryFailed, bizerr.P("pluginId", entry.ID))
 	}
 	if manifest == nil {
-		return bizerr.NewCode(CodePluginAutoEnableManifestNotFound, bizerr.P("pluginId", pluginID))
+		return bizerr.NewCode(CodePluginAutoEnableManifestNotFound, bizerr.P("pluginId", entry.ID))
 	}
 
 	switch catalog.NormalizeType(manifest.Type) {
 	case catalog.TypeSource:
-		return s.bootstrapAutoEnableSourcePlugin(ctx, manifest)
+		return s.bootstrapAutoEnableSourcePlugin(ctx, manifest, entry.WithMockData)
 	case catalog.TypeDynamic:
-		return s.bootstrapAutoEnableDynamicPlugin(ctx, manifest)
+		return s.bootstrapAutoEnableDynamicPlugin(ctx, manifest, entry.WithMockData)
 	default:
 		return bizerr.NewCode(
 			CodePluginAutoEnableTypeUnsupported,
-			bizerr.P("pluginId", pluginID),
+			bizerr.P("pluginId", entry.ID),
 			bizerr.P("pluginType", manifest.Type),
 		)
 	}
 }
 
 // bootstrapAutoEnableSourcePlugin ensures one required source plugin reaches
-// the enabled state during startup, while cluster followers wait for the
-// elected primary to perform shared lifecycle work.
-func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manifest *catalog.Manifest) error {
+// the enabled state during startup. When withMockData is true and the plugin
+// is not yet installed, the install call also loads the plugin's mock-data
+// SQL inside one transaction. Already-installed plugins do not re-run the
+// mock-data load even if withMockData=true, since mock data is install-time
+// only.
+func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manifest *catalog.Manifest, withMockData bool) error {
 	if manifest == nil {
 		return bizerr.NewCode(CodePluginAutoEnableSourceManifestRequired)
 	}
 
 	return s.ensurePluginEnabledDuringStartup(ctx, manifest.ID, func() error {
-		if err := s.Install(ctx, manifest.ID, nil); err != nil {
+		if err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
 			return bizerr.WrapCode(err, CodePluginSourceInstallFailed)
 		}
 		if err := s.Enable(ctx, manifest.ID); err != nil {
@@ -92,8 +99,9 @@ func (s *serviceImpl) bootstrapAutoEnableSourcePlugin(ctx context.Context, manif
 
 // bootstrapAutoEnableDynamicPlugin ensures one required dynamic plugin can
 // reuse its confirmed authorization snapshot and then reaches the enabled state
-// during startup.
-func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, manifest *catalog.Manifest) error {
+// during startup. The mock-data opt-in flag flows through InstallOptions just
+// like the source-plugin path.
+func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, manifest *catalog.Manifest, withMockData bool) error {
 	if manifest == nil {
 		return bizerr.NewCode(CodePluginAutoEnableDynamicManifestRequired)
 	}
@@ -102,7 +110,7 @@ func (s *serviceImpl) bootstrapAutoEnableDynamicPlugin(ctx context.Context, mani
 	}
 
 	return s.ensurePluginEnabledDuringStartup(ctx, manifest.ID, func() error {
-		if err := s.Install(ctx, manifest.ID, nil); err != nil {
+		if err := s.Install(ctx, manifest.ID, InstallOptions{InstallMockData: withMockData}); err != nil {
 			return bizerr.WrapCode(err, CodePluginDynamicInstallFailed)
 		}
 		if err := s.Enable(ctx, manifest.ID); err != nil {

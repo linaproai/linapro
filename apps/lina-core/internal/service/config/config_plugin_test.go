@@ -98,14 +98,18 @@ func TestGetPluginDynamicStoragePathOverrideIgnoresBlankValues(t *testing.T) {
 // TestGetPluginAutoEnableNormalizesListAndAppliesOverrides verifies startup
 // auto-enable IDs are trimmed, de-duplicated, cloned, and overrideable in tests.
 func TestGetPluginAutoEnableNormalizesListAndAppliesOverrides(t *testing.T) {
+	// plugin.autoEnable accepts only the structured object form. The previous
+	// bare-string form has been removed for schema uniformity, so duplicate
+	// detection now exercises duplicate ids in the structured form together
+	// with whitespace-trimming and order preservation.
 	setTestConfigContent(t, `
 plugin:
   autoEnable:
-    - " demo-control "
-    - "demo-control"
-    - " plugin-demo-source "
-    - "plugin-demo-source"
-    - "plugin-demo-dynamic"
+    - id: " demo-control "
+    - id: "demo-control"
+    - id: " plugin-demo-source "
+    - id: "plugin-demo-source"
+    - id: "plugin-demo-dynamic"
 `)
 	SetPluginAutoEnableOverride(nil)
 	t.Cleanup(func() {
@@ -117,13 +121,18 @@ plugin:
 	if len(cfg.AutoEnable) != 3 {
 		t.Fatalf("expected three normalized plugin IDs, got %#v", cfg.AutoEnable)
 	}
-	if cfg.AutoEnable[0] != "demo-control" || cfg.AutoEnable[1] != "plugin-demo-source" || cfg.AutoEnable[2] != "plugin-demo-dynamic" {
+	if cfg.AutoEnable[0].ID != "demo-control" || cfg.AutoEnable[1].ID != "plugin-demo-source" || cfg.AutoEnable[2].ID != "plugin-demo-dynamic" {
 		t.Fatalf("expected normalized auto-enable IDs, got %#v", cfg.AutoEnable)
 	}
+	for index, entry := range cfg.AutoEnable {
+		if entry.WithMockData {
+			t.Fatalf("expected bare-string YAML entries to default WithMockData=false at index %d, got %#v", index, entry)
+		}
+	}
 
-	cfg.AutoEnable[0] = "mutated"
+	cfg.AutoEnable[0] = PluginAutoEnableEntry{ID: "mutated"}
 	refreshed := svc.GetPlugin(context.Background())
-	if refreshed.AutoEnable[0] != "demo-control" {
+	if refreshed.AutoEnable[0].ID != "demo-control" {
 		t.Fatalf("expected cached auto-enable IDs to stay immutable, got %#v", refreshed.AutoEnable)
 	}
 
@@ -132,7 +141,7 @@ plugin:
 	if len(overridden.AutoEnable) != 2 {
 		t.Fatalf("expected override to replace auto-enable IDs, got %#v", overridden.AutoEnable)
 	}
-	if overridden.AutoEnable[0] != "override-plugin" || overridden.AutoEnable[1] != "second-plugin" {
+	if overridden.AutoEnable[0].ID != "override-plugin" || overridden.AutoEnable[1].ID != "second-plugin" {
 		t.Fatalf("expected normalized override IDs, got %#v", overridden.AutoEnable)
 	}
 
@@ -145,6 +154,151 @@ plugin:
 	if reloaded[0] != "override-plugin" {
 		t.Fatalf("expected GetPluginAutoEnable to clone result, got %#v", reloaded)
 	}
+}
+
+// TestGetPluginAutoEnableEntriesParsesObjectForm verifies the structured-only
+// schema: every entry must be a {id, withMockData} object. Missing
+// withMockData defaults to false; explicit true opts into mock-data load.
+func TestGetPluginAutoEnableEntriesParsesObjectForm(t *testing.T) {
+	setTestConfigContent(t, `
+plugin:
+  autoEnable:
+    - id: "demo-control"
+    - id: "plugin-demo-source"
+      withMockData: true
+    - id: "plugin-demo-dynamic"
+`)
+	SetPluginAutoEnableOverride(nil)
+	t.Cleanup(func() {
+		SetPluginAutoEnableOverride(nil)
+	})
+
+	svc := New()
+	entries := svc.GetPluginAutoEnableEntries(context.Background())
+	if len(entries) != 3 {
+		t.Fatalf("expected three normalized entries, got %#v", entries)
+	}
+	expected := []PluginAutoEnableEntry{
+		{ID: "demo-control", WithMockData: false},
+		{ID: "plugin-demo-source", WithMockData: true},
+		{ID: "plugin-demo-dynamic", WithMockData: false},
+	}
+	for index, want := range expected {
+		got := entries[index]
+		if got.ID != want.ID || got.WithMockData != want.WithMockData {
+			t.Fatalf("entry %d: expected %#v, got %#v", index, want, got)
+		}
+	}
+
+	// IDs-only accessor should drop the WithMockData flag for callers that
+	// only care about the ID list (e.g., the management UI's autoEnable badge).
+	ids := svc.GetPluginAutoEnable(context.Background())
+	if len(ids) != 3 || ids[1] != "plugin-demo-source" {
+		t.Fatalf("expected IDs accessor to retain order, got %#v", ids)
+	}
+}
+
+// TestGetPluginAutoEnableEntriesRejectsInvalidObjectForms verifies the schema
+// validator panics with a clear message for each malformed shape so startup
+// fails fast.
+func TestGetPluginAutoEnableEntriesRejectsInvalidObjectForms(t *testing.T) {
+	cases := []struct {
+		name    string
+		yaml    string
+		wantSub string
+	}{
+		{
+			name: "empty id field",
+			yaml: `
+plugin:
+  autoEnable:
+    - id: ""
+      withMockData: true
+`,
+			wantSub: "field id cannot be empty",
+		},
+		{
+			name: "missing id field",
+			yaml: `
+plugin:
+  autoEnable:
+    - withMockData: true
+`,
+			wantSub: "field id cannot be empty",
+		},
+		{
+			name: "wrong type for withMockData",
+			yaml: `
+plugin:
+  autoEnable:
+    - id: "plugin-x"
+      withMockData: "yes"
+`,
+			wantSub: "field withMockData must be a boolean",
+		},
+		{
+			name: "unsupported field",
+			yaml: `
+plugin:
+  autoEnable:
+    - id: "plugin-x"
+      enable: true
+`,
+			wantSub: "unsupported field",
+		},
+		{
+			name: "non-array shape",
+			yaml: `
+plugin:
+  autoEnable: "demo-control"
+`,
+			wantSub: "must be an array",
+		},
+		{
+			name: "bare string entry rejected",
+			yaml: `
+plugin:
+  autoEnable:
+    - "demo-control"
+`,
+			wantSub: "must be a {id, withMockData} object",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setTestConfigContent(t, tc.yaml)
+			SetPluginAutoEnableOverride(nil)
+			t.Cleanup(func() {
+				SetPluginAutoEnableOverride(nil)
+			})
+
+			defer func() {
+				rec := recover()
+				if rec == nil {
+					t.Fatalf("expected panic with substring %q, got nil", tc.wantSub)
+				}
+				msg := fmt.Sprintf("%v", rec)
+				if !contains(msg, tc.wantSub) {
+					t.Fatalf("expected panic message to contain %q, got %q", tc.wantSub, msg)
+				}
+			}()
+			svc := New()
+			_ = svc.GetPluginAutoEnableEntries(context.Background())
+		})
+	}
+}
+
+// contains reports whether substring s appears anywhere in str.
+func contains(str, s string) bool {
+	if s == "" {
+		return true
+	}
+	for i := 0; i+len(s) <= len(str); i++ {
+		if str[i:i+len(s)] == s {
+			return true
+		}
+	}
+	return false
 }
 
 // TestGetPluginRejectsBlankAutoEnableEntry verifies plugin.autoEnable rejects

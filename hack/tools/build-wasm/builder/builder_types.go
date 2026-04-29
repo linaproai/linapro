@@ -23,6 +23,7 @@ const (
 	pluginDynamicWasmSectionAPIDocI18N          = pluginbridge.WasmSectionAPIDocI18NAssets
 	pluginDynamicWasmSectionInstallSQL          = pluginbridge.WasmSectionInstallSQL
 	pluginDynamicWasmSectionUninstallSQL        = pluginbridge.WasmSectionUninstallSQL
+	pluginDynamicWasmSectionMockSQL             = pluginbridge.WasmSectionMockSQL
 	pluginDynamicWasmSectionBackendHooks        = pluginbridge.WasmSectionBackendHooks
 	pluginDynamicWasmSectionBackendRes          = pluginbridge.WasmSectionBackendResources
 	pluginDynamicWasmSectionBackendCrons        = pluginbridge.WasmSectionBackendCrons

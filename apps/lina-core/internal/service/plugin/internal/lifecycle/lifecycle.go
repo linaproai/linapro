@@ -38,12 +38,22 @@ type Service interface {
 	// Uninstall executes the uninstall lifecycle for an installed dynamic plugin.
 	Uninstall(ctx context.Context, pluginID string) error
 	// ExecuteManifestSQLFiles executes plugin manifest SQL files and records every attempt
-	// in sys_plugin_migration.
+	// in sys_plugin_migration. The mock phase is intentionally excluded from this entry
+	// point because mock data must be loaded transactionally via
+	// ExecuteManifestMockSQLFilesInTx.
 	ExecuteManifestSQLFiles(
 		ctx context.Context,
 		manifest *catalog.Manifest,
 		direction catalog.MigrationDirection,
 	) error
+	// ExecuteManifestMockSQLFilesInTx executes a plugin's mock-data SQL files inside the
+	// caller-supplied transaction (carried via ctx) and records each step in
+	// sys_plugin_migration with phase=mock. Caller MUST run this inside
+	// dao.SysPluginMigration.Transaction(...) so any failure rolls back the entire load.
+	ExecuteManifestMockSQLFilesInTx(
+		ctx context.Context,
+		manifest *catalog.Manifest,
+	) MockSQLExecutionResult
 	// ResolveSQLAssets extracts lifecycle SQL either from embedded runtime artifact sections
 	// or from source-style directory conventions, while preserving execution order.
 	ResolveSQLAssets(

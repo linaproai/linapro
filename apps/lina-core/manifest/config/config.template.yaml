@@ -137,11 +137,18 @@ plugin:
     # Storage directory for dynamic plugin build artifacts
     # 动态插件构建产物存储目录
     storagePath: "temp/output"
-  # Plugin ID list to automatically install and enable at startup
-  # 启动时自动安装并启用的插件 ID 列表
+  # Plugin entries to automatically install and enable at startup. Each entry
+  # is a structured object `{id, withMockData}`. `withMockData` defaults to
+  # `false`; set it to `true` to also load the plugin's manifest/sql/mock-data
+  # SQL during the startup auto-install. Mock data is intended for demo and
+  # feature validation, not production use.
+  # 启动时自动安装并启用的插件清单。每个条目使用 `{id, withMockData}` 结构化
+  # 对象。`withMockData` 缺省为 `false`，显式设为 `true` 才会在启动自动安装
+  # 阶段同时加载该插件的 manifest/sql/mock-data SQL。示例数据仅用于演示和
+  # 功能验证，不建议生产环境启用。
   autoEnable:
-    # Add plugin IDs to this list to let the host enable them automatically at startup
-    # 将插件标识加入列表可让宿主启动时自动启用该插件
-    # - "demo-control"
-    # - "plugin-demo-source"
-    # - "plugin-demo-dynamic"
+    # - id: "demo-control"
+    #   withMockData: false
+    # - id: "plugin-demo-source"
+    # - id: "plugin-demo-dynamic"
+    #   withMockData: true

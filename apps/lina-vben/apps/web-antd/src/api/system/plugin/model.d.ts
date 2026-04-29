@@ -24,6 +24,7 @@ export interface SystemPlugin {
   updatedAt: string;
   authorizationRequired: number;
   authorizationStatus: 'confirmed' | 'not_required' | 'pending' | string;
+  hasMockData: number;
   requestedHostServices?: HostServicePermissionItem[];
   authorizedHostServices?: HostServicePermissionItem[];
   declaredRoutes?: PluginRouteReviewItem[];
@@ -83,6 +84,7 @@ export interface PluginAuthorizationPayload {
       service: string;
     }>;
   };
+  installMockData?: boolean;
 }
 
 export interface PluginDynamicState {

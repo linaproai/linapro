@@ -88,24 +88,11 @@ type HookDispatcher interface {
 	DispatchPluginHookEvent(ctx context.Context, event pluginhost.ExtensionPoint, values map[string]interface{}) error
 }
 
-// Service defines the catalog service contract.
-type Service interface {
-	// ParseManifestSnapshot unmarshals one persisted release manifest snapshot.
-	ParseManifestSnapshot(content string) (*ManifestSnapshot, error)
-	// PersistReleaseHostServiceAuthorization writes the current requested and
-	// authorized host service snapshot into the matching release row.
-	PersistReleaseHostServiceAuthorization(
-		ctx context.Context,
-		manifest *Manifest,
-		input *HostServiceAuthorizationInput,
-	) (*ManifestSnapshot, error)
-	// PersistReleaseUninstallPurgePolicy writes one host-confirmed uninstall
-	// cleanup policy snapshot into the given release row.
-	PersistReleaseUninstallPurgePolicy(
-		ctx context.Context,
-		release *entity.SysPluginRelease,
-		purgeStorageData bool,
-	) (*ManifestSnapshot, error)
+// Wiring covers the post-construction setter methods that connect the catalog
+// with sibling packages. Wiring is intentionally separated so test fixtures
+// can construct a catalog with only the wiring shape they need to override
+// without depending on the full Service surface.
+type Wiring interface {
 	// SetBackendLoader wires the integration package's backend config loader.
 	SetBackendLoader(loader BackendConfigLoader)
 	// SetArtifactParser wires the runtime package's WASM artifact parser.
@@ -122,51 +109,30 @@ type Service interface {
 	SetReleaseStateSyncer(syncer ReleaseStateSyncer)
 	// SetHookDispatcher wires the integration package's hook event dispatcher.
 	SetHookDispatcher(dispatcher HookDispatcher)
+}
+
+// ManifestReader covers manifest discovery, loading, parsing, and validation.
+// Callers that only need to inspect manifests (without touching the registry,
+// release rows, or asset paths) should depend on this narrower interface.
+type ManifestReader interface {
 	// ScanEmbeddedSourceManifests discovers manifests from all registered embedded source plugins.
 	ScanEmbeddedSourceManifests() ([]*Manifest, error)
+	// ScanManifests merges source-plugin discovery and runtime-wasm discovery
+	// into one normalized manifest list used by lifecycle and governance services.
+	ScanManifests() ([]*Manifest, error)
 	// ReadSourcePluginManifestContent reads the raw manifest content from an embedded or
 	// filesystem-backed source plugin.
 	ReadSourcePluginManifestContent(manifest *Manifest) ([]byte, error)
 	// ReadSourcePluginAssetContent reads one asset relative path from an embedded or filesystem source plugin.
 	ReadSourcePluginAssetContent(manifest *Manifest, relativePath string) (string, error)
-	// ListInstallSQLPaths returns the ordered install SQL file paths for a source plugin manifest.
-	ListInstallSQLPaths(manifest *Manifest) []string
-	// ListUninstallSQLPaths returns the ordered uninstall SQL file paths for a source plugin manifest.
-	ListUninstallSQLPaths(manifest *Manifest) []string
-	// ListFrontendPagePaths returns the frontend page source paths for a source plugin manifest.
-	ListFrontendPagePaths(manifest *Manifest) []string
-	// ListFrontendSlotPaths returns the frontend slot source paths for a source plugin manifest.
-	ListFrontendSlotPaths(manifest *Manifest) []string
-	// BuildRegistryChecksum returns a review-friendly checksum derived from the manifest source.
-	// For dynamic plugins, the artifact checksum is returned directly. For source plugins the
-	// manifest YAML bytes are hashed using SHA-256.
-	BuildRegistryChecksum(manifest *Manifest) string
-	// BuildGovernanceSnapshot loads the current governance projection for one plugin version.
-	BuildGovernanceSnapshot(
-		ctx context.Context,
-		pluginID string,
-		version string,
-		pluginType string,
-		installed int,
-		enabled int,
-	) (*GovernanceSnapshot, error)
-	// ScanManifests merges source-plugin discovery and runtime-wasm discovery
-	// into one normalized manifest list used by lifecycle and governance services.
-	ScanManifests() ([]*Manifest, error)
 	// LoadManifestFromYAML parses a plugin.yaml file at the given path into a Manifest.
 	LoadManifestFromYAML(filePath string, manifest *Manifest) error
-	// RuntimeStorageDir returns the absolute path of the runtime WASM storage directory
-	// configured in plugin.dynamic.storagePath.
-	RuntimeStorageDir(ctx context.Context) (string, error)
 	// LoadManifestFromArtifactPath loads and validates a dynamic plugin manifest from
 	// the given absolute WASM artifact file path.
 	LoadManifestFromArtifactPath(artifactPath string) (*Manifest, error)
-	// DiscoverSQLPaths discovers plugin SQL files by directory convention.
-	DiscoverSQLPaths(rootDir string, uninstall bool) []string
-	// DiscoverPagePaths discovers plugin page source files by directory convention.
-	DiscoverPagePaths(rootDir string) []string
-	// DiscoverSlotPaths discovers plugin slot source files by directory convention.
-	DiscoverSlotPaths(rootDir string) []string
+	// LoadReleaseManifest loads the dynamic plugin manifest from a persisted release artifact.
+	// The package path stored in the release row is resolved to an absolute host path before parsing.
+	LoadReleaseManifest(ctx context.Context, release *entity.SysPluginRelease) (*Manifest, error)
 	// GetDesiredManifest returns the latest discovered manifest for the given plugin ID.
 	// For dynamic plugins this is the mutable staging artifact stored at the configured
 	// runtime storage path. Changes here do not take effect until the reconciler archives
@@ -183,6 +149,45 @@ type Service interface {
 	ValidateManifest(manifest *Manifest, filePath string) error
 	// ValidateUploadedRuntimeManifest validates the identity fields extracted from a WASM artifact manifest.
 	ValidateUploadedRuntimeManifest(manifest *Manifest) error
+}
+
+// SQLAssetCatalog covers plugin SQL file path listings across the install,
+// uninstall, and mock-data directions plus the corresponding low-level
+// directory-scan helpers shared with build tooling.
+type SQLAssetCatalog interface {
+	// ListInstallSQLPaths returns the ordered install SQL file paths for a source plugin manifest.
+	ListInstallSQLPaths(manifest *Manifest) []string
+	// ListUninstallSQLPaths returns the ordered uninstall SQL file paths for a source plugin manifest.
+	ListUninstallSQLPaths(manifest *Manifest) []string
+	// ListMockSQLPaths returns the ordered mock-data SQL file paths for a source plugin manifest.
+	// Mock SQL is only loaded when the operator explicitly opts in at install time.
+	ListMockSQLPaths(manifest *Manifest) []string
+	// HasMockSQLData reports whether the manifest carries any mock-data SQL assets.
+	// Used by the management API and frontend to decide whether to expose the
+	// "Install mock data" option for the plugin.
+	HasMockSQLData(manifest *Manifest) bool
+	// DiscoverSQLPaths discovers plugin SQL files by directory convention.
+	DiscoverSQLPaths(rootDir string, uninstall bool) []string
+	// DiscoverMockSQLPaths discovers plugin mock-data SQL files by directory convention.
+	DiscoverMockSQLPaths(rootDir string) []string
+}
+
+// FrontendAssetCatalog covers plugin frontend asset path listings (pages and
+// slots) plus the corresponding low-level directory-scan helpers.
+type FrontendAssetCatalog interface {
+	// ListFrontendPagePaths returns the frontend page source paths for a source plugin manifest.
+	ListFrontendPagePaths(manifest *Manifest) []string
+	// ListFrontendSlotPaths returns the frontend slot source paths for a source plugin manifest.
+	ListFrontendSlotPaths(manifest *Manifest) []string
+	// DiscoverPagePaths discovers plugin page source files by directory convention.
+	DiscoverPagePaths(rootDir string) []string
+	// DiscoverSlotPaths discovers plugin slot source files by directory convention.
+	DiscoverSlotPaths(rootDir string) []string
+}
+
+// Registry covers sys_plugin registry row reads and the lifecycle-state writes
+// that orchestrate post-install/post-enable governance projection.
+type Registry interface {
 	// GetRegistry returns the sys_plugin row for the given plugin ID, or nil if not found.
 	GetRegistry(ctx context.Context, pluginID string) (*entity.SysPlugin, error)
 	// ListAllRegistries returns all sys_plugin rows ordered by plugin_id.
@@ -208,9 +213,11 @@ type Service interface {
 	// synchronization after a manifest or lifecycle change. It is the exported form
 	// used by the runtime package after reconciler state transitions.
 	SyncMetadata(ctx context.Context, manifest *Manifest, registry *entity.SysPlugin, message string) error
-	// LoadReleaseManifest loads the dynamic plugin manifest from a persisted release artifact.
-	// The package path stored in the release row is resolved to an absolute host path before parsing.
-	LoadReleaseManifest(ctx context.Context, release *entity.SysPluginRelease) (*Manifest, error)
+}
+
+// ReleaseStore covers sys_plugin_release row reads, writes, and the manifest
+// snapshot helpers that bridge in-memory manifests with persisted release rows.
+type ReleaseStore interface {
 	// GetRelease returns the sys_plugin_release row for a plugin ID + version pair.
 	GetRelease(ctx context.Context, pluginID string, version string) (*entity.SysPluginRelease, error)
 	// GetReleaseByID returns the sys_plugin_release row with the given primary key.
@@ -227,8 +234,64 @@ type Service interface {
 	SyncReleaseMetadata(ctx context.Context, manifest *Manifest, registry *entity.SysPlugin) error
 	// BuildManifestSnapshot is the exported form of buildManifestSnapshot for cross-package access.
 	BuildManifestSnapshot(manifest *Manifest) (string, error)
+	// ParseManifestSnapshot unmarshals one persisted release manifest snapshot.
+	ParseManifestSnapshot(content string) (*ManifestSnapshot, error)
+	// PersistReleaseHostServiceAuthorization writes the current requested and
+	// authorized host service snapshot into the matching release row.
+	PersistReleaseHostServiceAuthorization(
+		ctx context.Context,
+		manifest *Manifest,
+		input *HostServiceAuthorizationInput,
+	) (*ManifestSnapshot, error)
+	// PersistReleaseUninstallPurgePolicy writes one host-confirmed uninstall
+	// cleanup policy snapshot into the given release row.
+	PersistReleaseUninstallPurgePolicy(
+		ctx context.Context,
+		release *entity.SysPluginRelease,
+		purgeStorageData bool,
+	) (*ManifestSnapshot, error)
+}
+
+// Governance covers review-friendly checksums, governance projection
+// snapshots, and other read-only metadata derivations used by management UIs
+// and audit pipelines.
+type Governance interface {
+	// BuildRegistryChecksum returns a review-friendly checksum derived from the manifest source.
+	// For dynamic plugins, the artifact checksum is returned directly. For source plugins the
+	// manifest YAML bytes are hashed using SHA-256.
+	BuildRegistryChecksum(manifest *Manifest) string
+	// BuildGovernanceSnapshot loads the current governance projection for one plugin version.
+	BuildGovernanceSnapshot(
+		ctx context.Context,
+		pluginID string,
+		version string,
+		pluginType string,
+		installed int,
+		enabled int,
+	) (*GovernanceSnapshot, error)
 	// BuildPackagePath returns the canonical package path for a manifest used in release rows.
 	BuildPackagePath(manifest *Manifest) string
+	// RuntimeStorageDir returns the absolute path of the runtime WASM storage directory
+	// configured in plugin.dynamic.storagePath.
+	RuntimeStorageDir(ctx context.Context) (string, error)
+}
+
+// Service composes every catalog-owned capability into one full surface so the
+// existing cross-package callers (`pluginSvc.catalogSvc`, the test harness in
+// `testutil`) can keep using a single interface while new callers may depend
+// on the narrower interfaces above per the Interface Segregation Principle.
+//
+// New code that only needs one concern (e.g., manifest reading or SQL asset
+// listings) should declare a parameter of the corresponding sub-interface
+// rather than the full Service composite.
+type Service interface {
+	Wiring
+	ManifestReader
+	SQLAssetCatalog
+	FrontendAssetCatalog
+	Registry
+	ReleaseStore
+	Governance
 }
 
 // Ensure serviceImpl satisfies the catalog contract used across plugin sub-packages.

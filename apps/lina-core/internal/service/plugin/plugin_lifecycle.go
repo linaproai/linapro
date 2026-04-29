@@ -10,12 +10,24 @@ import (
 )
 
 // Install executes the install lifecycle and optionally persists one host-confirmed
-// host service authorization snapshot when the target is a dynamic plugin.
+// host service authorization snapshot when the target is a dynamic plugin. The
+// options.InstallMockData flag is threaded through context so deeply nested
+// runtime/reconciler code can detect mock opt-in without mass signature changes.
+//
+// On a rolled-back mock-data load the plugin is fully installed (registry, menus,
+// release state) — only the mock data was reverted. Install returns a stable
+// bizerr (CodePluginInstallMockDataFailed) carrying pluginId, failedFile,
+// rolledBackFiles, and cause so the caller can render a precise message.
 func (s *serviceImpl) Install(
 	ctx context.Context,
 	pluginID string,
-	authorization *HostServiceAuthorizationInput,
-) error {
+	options InstallOptions,
+) (err error) {
+	ctx = withInstallMockData(ctx, options.InstallMockData)
+	defer func() {
+		err = wrapMockDataLoadError(err)
+	}()
+
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
 		return err
@@ -29,7 +41,7 @@ func (s *serviceImpl) Install(
 		}
 		return notifyPluginInstalled(ctx, pluginID)
 	}
-	if err = s.persistDynamicPluginAuthorization(ctx, manifest, authorization); err != nil {
+	if err = s.persistDynamicPluginAuthorization(ctx, manifest, options.Authorization); err != nil {
 		return err
 	}
 	if err = s.lifecycleSvc.Install(ctx, pluginID); err != nil {

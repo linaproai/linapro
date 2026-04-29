@@ -54,6 +54,20 @@ type (
 	// HostServiceAuthorizationInput defines one install/enable authorization confirmation payload.
 	HostServiceAuthorizationInput = catalog.HostServiceAuthorizationInput
 
+	// InstallOptions captures the per-request install decoration that callers can opt into.
+	// All fields default to the zero value, which preserves the original install behavior
+	// (no mock data, no host-service authorization snapshot).
+	InstallOptions struct {
+		// Authorization optionally carries a host-service authorization snapshot for
+		// dynamic plugins that require explicit confirmation before install.
+		Authorization *HostServiceAuthorizationInput
+		// InstallMockData enables the optional mock-data load phase. When true the host
+		// scans manifest/sql/mock-data/ and executes those SQL files inside a single
+		// database transaction; any failure rolls back only the mock load and leaves
+		// the install SQL phase results intact.
+		InstallMockData bool
+	}
+
 	// HostServiceAuthorizationDecision narrows one authorized service snapshot.
 	HostServiceAuthorizationDecision = catalog.HostServiceAuthorizationDecision
 
@@ -192,11 +206,14 @@ type LifecycleManagementService interface {
 	// in plugin.autoEnable is installed and enabled before later host wiring runs.
 	BootstrapAutoEnable(ctx context.Context) error
 	// Install executes the install lifecycle and optionally persists one host-confirmed
-	// host service authorization snapshot when the target is a dynamic plugin.
+	// host service authorization snapshot when the target is a dynamic plugin. When
+	// options.InstallMockData is true the optional mock-data load phase runs inside one
+	// database transaction after install SQL completes; any failure rolls back only the
+	// mock load and leaves the install results intact.
 	Install(
 		ctx context.Context,
 		pluginID string,
-		authorization *HostServiceAuthorizationInput,
+		options InstallOptions,
 	) error
 	// Uninstall executes the uninstall lifecycle for an installed plugin.
 	Uninstall(ctx context.Context, pluginID string) error

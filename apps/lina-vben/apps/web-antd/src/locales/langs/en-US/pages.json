@@ -902,7 +902,9 @@
         "installedAt": "Installed At",
         "version": "Version",
         "authorizationStatus": "Authorization Status",
-        "startupManagement": "Startup Management"
+        "startupManagement": "Startup Management",
+        "hasMockDataBadge": "Mock Data",
+        "hasMockDataTooltip": "This plugin ships demo records under manifest/sql/mock-data, which can be loaded on demand at install time for demos and feature validation."
       },
       "type": {
         "source": "Source Plugin",
@@ -918,7 +920,10 @@
         "install": "Install",
         "installAndEnable": "Install and Enable",
         "uninstall": "Uninstall",
-        "continueAction": "Continue {actionLabel}"
+        "continueAction": "Continue {actionLabel}",
+        "installMockDataLabel": "Install mock data",
+        "installMockDataTooltip": "When checked, the host loads the plugin's manifest/sql/mock-data SQL files in a single database transaction after the install SQL succeeds. Any failure rolls back only the mock data; the plugin install itself remains in effect. Mock data is intended for demo and feature validation, not production use.",
+        "installMockDataHelpHint": "Learn more"
       },
       "auth": {
         "installTitle": "Install Plugin",
@@ -990,6 +995,7 @@
         "installSucceededEnableFailed": "Installed successfully, but enabling failed. Please review the authorization result and plugin status.",
         "installed": "Plugin installed",
         "installedAndEnabled": "Plugin installed and enabled",
+        "mockDataRolledBack": "Plugin {pluginId} installed successfully, but mock data {failedFile} failed to load and was rolled back: {cause}. You can keep the plugin in its installed-without-mock state or uninstall and reinstall after fixing the mock SQL.",
         "noInstallPermission": "The current account does not have permission to install or synchronize plugins",
         "noStatusPermission": "The current account does not have permission to change plugin status",
         "noUninstallPermission": "The current account does not have permission to uninstall plugins",

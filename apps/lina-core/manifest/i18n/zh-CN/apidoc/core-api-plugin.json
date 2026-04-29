@@ -262,10 +262,13 @@
               },
               "id": {
                 "dc": "插件唯一标识"
+              },
+              "installMockData": {
+                "dc": "是否在安装时同时加载插件 manifest/sql/mock-data 目录下的示例数据 SQL，默认 false。仅在用户在管理工作台明确勾选「安装示例数据」复选框时才设置为 true。示例数据仅用于演示和功能验证、不建议生产环境使用；该阶段在单一数据库事务内执行，任一文件失败都会整体回滚 mock 数据，插件本身的安装结果不受影响"
               }
             },
             "meta": {
-              "dc": "执行插件的安装生命周期。源码插件会在此阶段运行其 manifest/sql 安装 SQL、同步菜单与治理资源并写入已安装状态；动态插件会继续执行运行时安装流程。若目标为动态插件且声明了资源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），则本次请求同时提交宿主确认后的授权结果",
+              "dc": "执行插件的安装生命周期。源码插件会在此阶段运行其 manifest/sql 安装 SQL、同步菜单与治理资源并写入已安装状态；动态插件会继续执行运行时安装流程。若目标为动态插件且声明了资源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），则本次请求同时提交宿主确认后的授权结果。当 installMockData 为 true 时，宿主会在安装 SQL 全部执行成功后，将 manifest/sql/mock-data 目录的 SQL 文件以单一数据库事务执行；任一失败将整体回滚 mock 数据，但保留插件本身的安装结果",
               "summary": "安装插件",
               "tags": "插件管理"
             },
@@ -275,10 +278,13 @@
                   "fields": {
                     "authorization": {
                       "dc": "宿主确认后的 hostServices 授权结果；不传时默认沿用当前 release 已确认快照，若尚未确认则默认按插件本次声明全量授权"
+                    },
+                    "installMockData": {
+                      "dc": "是否在安装时同时加载插件 manifest/sql/mock-data 目录下的示例数据 SQL，默认 false。仅在用户在管理工作台明确勾选「安装示例数据」复选框时才设置为 true。示例数据仅用于演示和功能验证、不建议生产环境使用；该阶段在单一数据库事务内执行，任一文件失败都会整体回滚 mock 数据，插件本身的安装结果不受影响"
                     }
                   },
                   "schema": {
-                    "dc": "执行插件的安装生命周期。源码插件会在此阶段运行其 manifest/sql 安装 SQL、同步菜单与治理资源并写入已安装状态；动态插件会继续执行运行时安装流程。若目标为动态插件且声明了资源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），则本次请求同时提交宿主确认后的授权结果"
+                    "dc": "执行插件的安装生命周期。源码插件会在此阶段运行其 manifest/sql 安装 SQL、同步菜单与治理资源并写入已安装状态；动态插件会继续执行运行时安装流程。若目标为动态插件且声明了资源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），则本次请求同时提交宿主确认后的授权结果。当 installMockData 为 true 时，宿主会在安装 SQL 全部执行成功后，将 manifest/sql/mock-data 目录的 SQL 文件以单一数据库事务执行；任一失败将整体回滚 mock 数据，但保留插件本身的安装结果"
                   }
                 }
               }
@@ -307,7 +313,7 @@
               }
             },
             "schema": {
-              "dc": "执行插件的安装生命周期。源码插件会在此阶段运行其 manifest/sql 安装 SQL、同步菜单与治理资源并写入已安装状态；动态插件会继续执行运行时安装流程。若目标为动态插件且声明了资源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），则本次请求同时提交宿主确认后的授权结果"
+              "dc": "执行插件的安装生命周期。源码插件会在此阶段运行其 manifest/sql 安装 SQL、同步菜单与治理资源并写入已安装状态；动态插件会继续执行运行时安装流程。若目标为动态插件且声明了资源型 hostServices（如 storage.resources.paths、network 的 URL 模式或 data.resources.tables），则本次请求同时提交宿主确认后的授权结果。当 installMockData 为 true 时，宿主会在安装 SQL 全部执行成功后，将 manifest/sql/mock-data 目录的 SQL 文件以单一数据库事务执行；任一失败将整体回滚 mock 数据，但保留插件本身的安装结果"
             }
           },
           "InstallRes": {
@@ -424,6 +430,9 @@
               },
               "enabled": {
                 "dc": "启用状态：1=启用 0=禁用"
+              },
+              "hasMockData": {
+                "dc": "插件是否在 manifest/sql/mock-data/ 目录下携带示例数据 SQL：1=是 0=否；前端据此决定是否在安装弹窗中渲染「安装示例数据」复选框"
               },
               "id": {
                 "dc": "插件唯一标识"

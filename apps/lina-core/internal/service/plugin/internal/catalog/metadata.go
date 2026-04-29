@@ -57,6 +57,11 @@ const (
 	MigrationDirectionUninstall MigrationDirection = "uninstall"
 	MigrationDirectionUpgrade   MigrationDirection = "upgrade"
 	MigrationDirectionRollback  MigrationDirection = "rollback"
+	// MigrationDirectionMock identifies the optional install-time mock data load
+	// phase. Mock SQL files live under manifest/sql/mock-data/ and are executed
+	// inside a single database transaction so the mock load is fully reverted
+	// on any failure, leaving the install SQL phase results intact.
+	MigrationDirectionMock MigrationDirection = "mock"
 
 	// Migration execution status sentinel values.
 	MigrationStatusFailed    = 0
@@ -83,6 +88,7 @@ const (
 	ResourceKindMenu            ResourceKind = "menu"
 	ResourceKindInstallSQL      ResourceKind = "install_sql"
 	ResourceKindUninstallSQL    ResourceKind = "uninstall_sql"
+	ResourceKindMockSQL         ResourceKind = "mock_sql"
 	ResourceKindHostStorage     ResourceKind = "host_storage"
 	ResourceKindHostUpstream    ResourceKind = "host_upstream"
 	ResourceKindHostData        ResourceKind = "host_data_table"
@@ -100,6 +106,7 @@ const (
 	ResourceOwnerTypeRuntimeFrontend     ResourceOwnerType = "runtime-frontend"
 	ResourceOwnerTypeInstallSQL          ResourceOwnerType = "install-sql"
 	ResourceOwnerTypeUninstallSQL        ResourceOwnerType = "uninstall-sql"
+	ResourceOwnerTypeMockSQL             ResourceOwnerType = "mock-sql"
 	ResourceOwnerTypeFrontendPageEntry   ResourceOwnerType = "frontend-page-entry"
 	ResourceOwnerTypeFrontendSlotEntry   ResourceOwnerType = "frontend-slot-entry"
 	ResourceOwnerTypeMenuEntry           ResourceOwnerType = "menu-entry"
@@ -215,6 +222,7 @@ type ManifestSnapshot struct {
 	ManifestDeclared          bool                            `yaml:"manifestDeclared"`
 	InstallSQLCount           int                             `yaml:"installSqlCount,omitempty"`
 	UninstallSQLCount         int                             `yaml:"uninstallSqlCount,omitempty"`
+	MockSQLCount              int                             `yaml:"mockSqlCount,omitempty"`
 	FrontendPageCount         int                             `yaml:"frontendPageCount,omitempty"`
 	FrontendSlotCount         int                             `yaml:"frontendSlotCount,omitempty"`
 	MenuCount                 int                             `yaml:"menuCount,omitempty"`

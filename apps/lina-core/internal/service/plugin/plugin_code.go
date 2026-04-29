@@ -172,4 +172,14 @@ var (
 		"Startup auto-enable plugin {pluginId} timed out: installed={installed} status={status} desiredState={desiredState} currentState={currentState}",
 		gcode.CodeInternalError,
 	)
+	// CodePluginInstallMockDataFailed reports that the optional mock-data load
+	// phase of an install request failed and was rolled back. The install SQL
+	// itself succeeded; only the mock data was discarded. Callers can decide to
+	// keep the plugin in its installed-without-mock state or to uninstall and
+	// reinstall after fixing the mock SQL.
+	CodePluginInstallMockDataFailed = bizerr.MustDefine(
+		"PLUGIN_INSTALL_MOCK_DATA_FAILED",
+		"Plugin {pluginId} installed successfully, but mock data file {failedFile} failed to load and was rolled back: {cause}",
+		gcode.CodeInternalError,
+	)
 )

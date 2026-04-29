@@ -65,6 +65,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 				item.Id,
 				item.DeclaredRoutes,
 			),
+			HasMockData: boolToInt(item.HasMockData),
 		})
 	}
 

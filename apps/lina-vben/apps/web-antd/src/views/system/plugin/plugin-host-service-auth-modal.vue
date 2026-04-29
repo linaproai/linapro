@@ -10,7 +10,14 @@ import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Alert, Descriptions, DescriptionsItem, message } from 'ant-design-vue';
+import {
+  Alert,
+  Checkbox,
+  Descriptions,
+  DescriptionsItem,
+  message,
+  Tooltip,
+} from 'ant-design-vue';
 
 import { pluginEnable, pluginInstall } from '#/api/system/plugin';
 import { $t } from '#/locales';
@@ -32,6 +39,7 @@ const currentPlugin = ref<null | SystemPlugin>(null);
 const currentMode = ref<ReviewMode>('install');
 const allowInstallAndEnable = ref(false);
 const submittingAction = ref<null | SubmitAction>(null);
+const installMockData = ref(false);
 
 const [BasicModal, modalApi] = useVbenModal({
   onClosed: handleClosed,
@@ -70,6 +78,13 @@ const hostServiceCards = computed(() => {
 
 const showInstallAndEnableAction = computed(() => {
   return currentMode.value === 'install' && allowInstallAndEnable.value;
+});
+
+const showMockDataOption = computed(() => {
+  return (
+    currentMode.value === 'install' &&
+    currentPlugin.value?.hasMockData === 1
+  );
 });
 
 const showDeclaredRoutes = computed(() => {
@@ -119,11 +134,14 @@ async function handleOpenChange(open: boolean) {
   currentPlugin.value = data?.row ?? null;
   currentMode.value = data?.mode ?? 'install';
   allowInstallAndEnable.value = data?.allowInstallAndEnable === true;
+  installMockData.value = false;
 }
 
 function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
+  const installMock =
+    currentMode.value === 'install' && installMockData.value === true;
   if (!authorizationRequired.value) {
-    return undefined;
+    return installMock ? { installMockData: true } : undefined;
   }
   return {
     authorization: {
@@ -146,6 +164,7 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
           service: service.service,
         })),
     },
+    ...(installMock ? { installMockData: true } : {}),
   };
 }
 
@@ -159,7 +178,22 @@ async function handleSubmit(action: SubmitAction) {
     const pluginID = currentPlugin.value.id;
     const payload = buildAuthorizationPayload();
     if (currentMode.value === 'install') {
-      await pluginInstall(pluginID, payload);
+      try {
+        await pluginInstall(pluginID, payload);
+      } catch (error) {
+        // Mock-data failure does NOT undo the install: the plugin is fully
+        // registered, only the mock data was rolled back. Surface a precise
+        // warning carrying the failed file + cause and refresh the list so
+        // the operator sees the installed-without-mock state, then bail out
+        // before chaining install-and-enable since the user's mock opt-in
+        // was rejected.
+        if (handleMockDataFailure(error)) {
+          emit('reload');
+          handleClosed();
+          return;
+        }
+        throw error;
+      }
       if (action === 'install-and-enable') {
         try {
           await pluginEnable(pluginID);
@@ -189,12 +223,60 @@ async function handleSubmit(action: SubmitAction) {
   }
 }
 
+interface MockDataFailureParams {
+  pluginId?: string;
+  failedFile?: string;
+  rolledBackFiles?: string[] | string;
+  cause?: string;
+}
+
+function handleMockDataFailure(error: unknown): boolean {
+  const params = extractMockDataFailureParams(error);
+  if (!params) {
+    return false;
+  }
+  message.warning({
+    content: $t('pages.system.plugin.messages.mockDataRolledBack', {
+      pluginId: params.pluginId ?? '',
+      failedFile: params.failedFile ?? '',
+      cause: params.cause ?? '',
+    }),
+    duration: 8,
+  });
+  return true;
+}
+
+function extractMockDataFailureParams(
+  error: unknown,
+): MockDataFailureParams | null {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+  // RequestClient surfaces backend errors via response.data containing the
+  // bizerr envelope { code, message, errorCode, messageKey, messageParams }.
+  const response = (error as { response?: { data?: unknown } }).response;
+  const envelope = (response?.data ?? error) as {
+    code?: number | string;
+    errorCode?: string;
+    messageParams?: MockDataFailureParams;
+  };
+  const code = envelope?.errorCode;
+  if (
+    code === 'PLUGIN_INSTALL_MOCK_DATA_FAILED' ||
+    code === 'plugin.install.mockDataFailed'
+  ) {
+    return envelope?.messageParams ?? {};
+  }
+  return null;
+}
+
 function handleClosed() {
   modalApi.close();
   currentPlugin.value = null;
   currentMode.value = 'install';
   allowInstallAndEnable.value = false;
   submittingAction.value = null;
+  installMockData.value = false;
 }
 
 function formatPluginType(type: string) {
@@ -288,6 +370,28 @@ function hasServiceTargets(service: HostServicePermissionItem) {
 
         <PluginRouteReviewList :routes="declaredRoutes" />
       </template>
+
+      <div
+        v-if="showMockDataOption"
+        class="bg-muted/40 flex items-start gap-2 rounded-md border border-dashed p-3"
+        data-testid="plugin-install-mock-data-section"
+      >
+        <Checkbox
+          v-model:checked="installMockData"
+          data-testid="plugin-install-mock-data-checkbox"
+        >
+          {{ $t('pages.system.plugin.actions.installMockDataLabel') }}
+        </Checkbox>
+        <Tooltip
+          :title="$t('pages.system.plugin.actions.installMockDataTooltip')"
+        >
+          <span
+            class="text-muted-foreground cursor-help text-xs underline decoration-dotted"
+          >
+            {{ $t('pages.system.plugin.actions.installMockDataHelpHint') }}
+          </span>
+        </Tooltip>
+      </div>
     </div>
   </BasicModal>
 </template>

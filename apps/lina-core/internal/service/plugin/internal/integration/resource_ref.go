@@ -26,6 +26,7 @@ const (
 	pluginResourceKeyRuntimeFrontendAssets  = "runtime-frontend-assets"
 	pluginResourceKeyInstallSQLBundle       = "install-sql-bundle"
 	pluginResourceKeyUninstallSQLBundle     = "uninstall-sql-bundle"
+	pluginResourceKeyMockSQLBundle          = "mock-sql-bundle"
 	pluginResourceKeyFrontendPages          = "frontend-pages"
 	pluginResourceKeyFrontendSlots          = "frontend-slots"
 	pluginResourceOwnerKeyPluginManifest    = "plugin-manifest"
@@ -34,12 +35,14 @@ const (
 	pluginResourceOwnerKeyRuntimeFrontend   = "runtime-frontend-assets"
 	pluginResourceOwnerKeyInstallSQL        = "install-sql-summary"
 	pluginResourceOwnerKeyUninstallSQL      = "uninstall-sql-summary"
+	pluginResourceOwnerKeyMockSQL           = "mock-sql-summary"
 	pluginResourceOwnerKeyFrontendPage      = "frontend-page-summary"
 	pluginResourceOwnerKeyFrontendSlot      = "frontend-slot-summary"
 	pluginResourceOwnerKeyManifestMenu      = "manifest-menu"
 	pluginResourceSummaryLabelRuntimeAssets = "runtime frontend assets"
 	pluginResourceSummaryLabelInstallSQL    = "install SQL assets"
 	pluginResourceSummaryLabelUninstallSQL  = "uninstall SQL assets"
+	pluginResourceSummaryLabelMockSQL       = "mock-data SQL assets"
 	pluginResourceSummaryLabelFrontendPages = "frontend page assets"
 	pluginResourceSummaryLabelFrontendSlots = "frontend slot assets"
 	pluginResourceRemarkManifest            = "One plugin manifest is declared and validated by the host."
@@ -179,6 +182,7 @@ func (s *serviceImpl) buildPluginResourceRefDescriptors(manifest *catalog.Manife
 
 	installSQLCount := s.countPluginInstallSQLAssets(manifest)
 	uninstallSQLCount := s.countPluginUninstallSQLAssets(manifest)
+	mockSQLCount := s.countPluginMockSQLAssets(manifest)
 	frontendPagePaths := s.catalogSvc.ListFrontendPagePaths(manifest)
 	frontendSlotPaths := s.catalogSvc.ListFrontendSlotPaths(manifest)
 
@@ -240,6 +244,15 @@ func (s *serviceImpl) buildPluginResourceRefDescriptors(manifest *catalog.Manife
 			buildPluginResourceSummaryRemark(pluginResourceSummaryLabelUninstallSQL, uninstallSQLCount),
 		))
 	}
+	if mockSQLCount > 0 {
+		descriptors = append(descriptors, newResourceRefDescriptor(
+			catalog.ResourceKindMockSQL,
+			pluginResourceKeyMockSQLBundle,
+			catalog.ResourceOwnerTypeMockSQL,
+			pluginResourceOwnerKeyMockSQL,
+			buildPluginResourceSummaryRemark(pluginResourceSummaryLabelMockSQL, mockSQLCount),
+		))
+	}
 	if len(frontendPagePaths) > 0 {
 		descriptors = append(descriptors, newResourceRefDescriptor(
 			catalog.ResourceKindFrontendPage,
@@ -298,6 +311,20 @@ func (s *serviceImpl) countPluginUninstallSQLAssets(manifest *catalog.Manifest) 
 		return len(manifest.RuntimeArtifact.UninstallSQLAssets)
 	}
 	return len(s.catalogSvc.ListUninstallSQLPaths(manifest))
+}
+
+// countPluginMockSQLAssets returns the number of mock-data SQL steps shipped
+// by the plugin manifest. Mock data is loaded only when the operator opts in
+// at install time, so the count is surfaced as a separate governance resource
+// to make the optional load visible in review snapshots.
+func (s *serviceImpl) countPluginMockSQLAssets(manifest *catalog.Manifest) int {
+	if manifest == nil {
+		return 0
+	}
+	if manifest.RuntimeArtifact != nil {
+		return len(manifest.RuntimeArtifact.MockSQLAssets)
+	}
+	return len(s.catalogSvc.ListMockSQLPaths(manifest))
 }
 
 // buildPluginResourceSummaryRemark formats the standard governance discovery summary line.

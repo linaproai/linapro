@@ -50,8 +50,15 @@ type Service interface {
 	// GetPlugin reads plugin config from configuration file.
 	GetPlugin(ctx context.Context) *PluginConfig
 	// GetPluginAutoEnable returns the plugin IDs that the host should
-	// automatically install and enable during startup bootstrap.
+	// automatically install and enable during startup bootstrap. Used by
+	// callers that only need the ID list — e.g., the management UI's
+	// "startup-managed" badge map.
 	GetPluginAutoEnable(ctx context.Context) []string
+	// GetPluginAutoEnableEntries returns the full normalized startup
+	// auto-enable entries, including the per-entry WithMockData opt-in flag.
+	// Used by the startup bootstrap flow to decide whether each plugin
+	// should also load its mock-data SQL during the auto-install.
+	GetPluginAutoEnableEntries(ctx context.Context) []PluginAutoEnableEntry
 	// GetPluginDynamicStoragePath returns the runtime-resolved dynamic wasm storage directory.
 	GetPluginDynamicStoragePath(ctx context.Context) string
 	// GetSession reads session config from configuration file.

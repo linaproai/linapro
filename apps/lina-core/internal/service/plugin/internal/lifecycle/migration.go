@@ -29,7 +29,10 @@ type SQLAsset struct {
 }
 
 // ExecuteManifestSQLFiles executes plugin manifest SQL files and records every attempt
-// in sys_plugin_migration.
+// in sys_plugin_migration. The mock phase is intentionally excluded from this entry
+// point because mock data must be loaded transactionally via
+// ExecuteManifestMockSQLFilesInTx; callers that want to load mock data MUST go
+// through that method instead.
 func (s *serviceImpl) ExecuteManifestSQLFiles(
 	ctx context.Context,
 	manifest *catalog.Manifest,
@@ -37,6 +40,9 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 ) error {
 	if manifest == nil {
 		return gerror.New("plugin manifest cannot be nil")
+	}
+	if direction == catalog.MigrationDirectionMock {
+		return gerror.New("mock SQL files must be executed via ExecuteManifestMockSQLFilesInTx")
 	}
 
 	sqlAssets, err := s.ResolveSQLAssets(manifest, direction)
@@ -81,9 +87,14 @@ func (s *serviceImpl) ResolveSQLAssets(
 	}
 
 	if manifest.RuntimeArtifact != nil {
-		embeddedAssets := manifest.RuntimeArtifact.InstallSQLAssets
-		if direction == catalog.MigrationDirectionUninstall {
+		var embeddedAssets []*catalog.ArtifactSQLAsset
+		switch direction {
+		case catalog.MigrationDirectionUninstall:
 			embeddedAssets = manifest.RuntimeArtifact.UninstallSQLAssets
+		case catalog.MigrationDirectionMock:
+			embeddedAssets = manifest.RuntimeArtifact.MockSQLAssets
+		default:
+			embeddedAssets = manifest.RuntimeArtifact.InstallSQLAssets
 		}
 		if len(embeddedAssets) > 0 {
 			items := make([]*SQLAsset, 0, len(embeddedAssets))
@@ -101,9 +112,12 @@ func (s *serviceImpl) ResolveSQLAssets(
 	}
 
 	var relativePaths []string
-	if direction == catalog.MigrationDirectionUninstall {
+	switch direction {
+	case catalog.MigrationDirectionUninstall:
 		relativePaths = s.catalogSvc.ListUninstallSQLPaths(manifest)
-	} else {
+	case catalog.MigrationDirectionMock:
+		relativePaths = s.catalogSvc.ListMockSQLPaths(manifest)
+	default:
 		relativePaths = s.catalogSvc.ListInstallSQLPaths(manifest)
 	}
 	items := make([]*SQLAsset, 0, len(relativePaths))
@@ -121,6 +135,135 @@ func (s *serviceImpl) ResolveSQLAssets(
 		})
 	}
 	return items, nil
+}
+
+// MockSQLExecutionResult describes the outcome of one mock-data SQL load attempt.
+// On failure the caller is expected to roll back the surrounding transaction so
+// that every entry in ExecutedFiles ceases to exist alongside the failing file.
+type MockSQLExecutionResult struct {
+	// ExecutedFiles lists mock SQL filenames that were successfully executed
+	// before the load either completed or hit a failure. When Err is non-nil
+	// these files are about to be rolled back together with FailedFile.
+	ExecutedFiles []string
+	// FailedFile names the mock SQL file that triggered the failure. Empty when
+	// the load completed successfully or when no mock SQL exists.
+	FailedFile string
+	// Err carries the underlying database error so callers can surface it to
+	// users via the standard bizerr error code wrapping. Nil on success.
+	Err error
+}
+
+// MockDataLoadError carries the structured details of a rolled-back mock-data
+// load so the plugin facade can wrap it once into a stable user-facing bizerr
+// regardless of whether the failure surfaced from the source-plugin path or the
+// dynamic-plugin reconciler. Use errors.As to recover this type from any
+// wrapped chain, then surface PluginID/FailedFile/RolledBackFiles/Cause to the
+// caller.
+type MockDataLoadError struct {
+	// PluginID identifies the plugin whose mock-data load failed.
+	PluginID string
+	// FailedFile is the mock SQL filename that triggered the failure.
+	FailedFile string
+	// RolledBackFiles enumerates every mock SQL filename whose effects were
+	// reverted, including those that ran successfully prior to FailedFile.
+	RolledBackFiles []string
+	// Cause is the underlying database/error layer error that triggered the
+	// rollback. Surfaced to operators in the user-facing message.
+	Cause error
+}
+
+// Error implements the error interface for MockDataLoadError.
+func (e *MockDataLoadError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Cause == nil {
+		return "plugin mock data load rolled back"
+	}
+	return "plugin mock data load rolled back: " + e.Cause.Error()
+}
+
+// Unwrap returns the underlying database error so errors.Is/errors.As callers
+// can introspect or compare the original cause when needed.
+func (e *MockDataLoadError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Cause
+}
+
+// ExecuteManifestMockSQLFilesInTx executes a plugin's mock-data SQL files inside the
+// caller-supplied transaction (carried via ctx) and records each step in
+// sys_plugin_migration with phase=mock. The caller MUST run this method inside a
+// dao.SysPluginMigration.Transaction(...) closure: on any failure, returning the
+// resulting Err from the closure rolls back both the executed mock data rows and
+// their migration ledger entries together. The install/uninstall phases are NOT
+// affected by the rollback because they execute outside this transaction.
+func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+) MockSQLExecutionResult {
+	if manifest == nil {
+		return MockSQLExecutionResult{Err: gerror.New("plugin manifest cannot be nil")}
+	}
+
+	sqlAssets, err := s.ResolveSQLAssets(manifest, catalog.MigrationDirectionMock)
+	if err != nil {
+		return MockSQLExecutionResult{Err: err}
+	}
+	if len(sqlAssets) == 0 {
+		return MockSQLExecutionResult{}
+	}
+
+	release, err := s.catalogSvc.GetRelease(ctx, manifest.ID, manifest.Version)
+	if err != nil {
+		return MockSQLExecutionResult{Err: err}
+	}
+	if release == nil {
+		return MockSQLExecutionResult{
+			Err: gerror.Newf("plugin release record does not exist: %s@%s", manifest.ID, manifest.Version),
+		}
+	}
+
+	executed := make([]string, 0, len(sqlAssets))
+	for index, asset := range sqlAssets {
+		if asset == nil {
+			return MockSQLExecutionResult{
+				ExecutedFiles: executed,
+				Err:           gerror.New("plugin SQL asset cannot be nil"),
+			}
+		}
+
+		checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
+		migrationKey := buildMigrationKey(catalog.MigrationDirectionMock, index+1)
+		executedAt := gtime.Now()
+		if _, execErr := g.DB().Exec(ctx, asset.Content); execErr != nil {
+			return MockSQLExecutionResult{
+				ExecutedFiles: executed,
+				FailedFile:    asset.Key,
+				Err:           gerror.Wrapf(execErr, "execute plugin mock SQL failed: %s", asset.Key),
+			}
+		}
+		if recordErr := s.recordMigration(
+			ctx,
+			manifest.ID,
+			release.Id,
+			catalog.MigrationDirectionMock,
+			migrationKey,
+			index+1,
+			checksum,
+			executedAt,
+			nil,
+		); recordErr != nil {
+			return MockSQLExecutionResult{
+				ExecutedFiles: executed,
+				FailedFile:    asset.Key,
+				Err:           recordErr,
+			}
+		}
+		executed = append(executed, asset.Key)
+	}
+	return MockSQLExecutionResult{ExecutedFiles: executed}
 }
 
 // ResolvePluginSQLAssets resolves SQL assets from the manifest and returns them as catalog.ArtifactSQLAsset

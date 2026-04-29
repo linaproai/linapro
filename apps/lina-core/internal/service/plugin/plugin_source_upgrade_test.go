@@ -42,7 +42,7 @@ func TestSourcePluginDiscoveryKeepsEffectiveVersionAfterHigherSourceVersion(t *t
 	if _, err := service.SyncAndList(ctx); err != nil {
 		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
 	}
-	if err := service.Install(ctx, pluginID, nil); err != nil {
+	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
@@ -148,7 +148,7 @@ func TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade(t *testing.T
 	if _, err := service.SyncAndList(ctx); err != nil {
 		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
 	}
-	if err := service.Install(ctx, pluginID, nil); err != nil {
+	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
@@ -198,7 +198,7 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 	if _, err := service.SyncAndList(ctx); err != nil {
 		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
 	}
-	if err := service.Install(ctx, pluginID, nil); err != nil {
+	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 	if err := service.Enable(ctx, pluginID); err != nil {

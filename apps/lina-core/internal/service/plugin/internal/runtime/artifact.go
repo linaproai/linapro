@@ -161,6 +161,10 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	if err != nil {
 		return nil, err
 	}
+	mockSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, pluginbridge.WasmSectionMockSQL)
+	if err != nil {
+		return nil, err
+	}
 	hookSpecs, err := parseRuntimeArtifactHookSpecs(filePath, embeddedManifest.ID, sections)
 	if err != nil {
 		return nil, err
@@ -204,7 +208,10 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 		return nil, gerror.Newf("Dynamic plugin ABI version is not supported: %s", runtimeMetadata.ABIVersion)
 	}
 
-	totalSQLAssetCount := len(installSQLAssets) + len(uninstallSQLAssets)
+	// SQLAssetCount tallies install + uninstall + mock together so a single
+	// metadata field can validate the artifact's overall SQL footprint while
+	// each direction still has its own typed slice for per-phase execution.
+	totalSQLAssetCount := len(installSQLAssets) + len(uninstallSQLAssets) + len(mockSQLAssets)
 	if runtimeMetadata.SQLAssetCount > 0 && runtimeMetadata.SQLAssetCount != totalSQLAssetCount {
 		return nil, gerror.Newf(
 			"Dynamic plugin SQL asset count does not match metadata: metadata=%d actual=%d",
@@ -214,6 +221,16 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	if runtimeMetadata.SQLAssetCount <= 0 {
 		runtimeMetadata.SQLAssetCount = totalSQLAssetCount
+	}
+	if runtimeMetadata.MockSQLAssetCount > 0 && runtimeMetadata.MockSQLAssetCount != len(mockSQLAssets) {
+		return nil, gerror.Newf(
+			"Dynamic plugin mock SQL asset count does not match metadata: metadata=%d actual=%d",
+			runtimeMetadata.MockSQLAssetCount,
+			len(mockSQLAssets),
+		)
+	}
+	if runtimeMetadata.MockSQLAssetCount <= 0 {
+		runtimeMetadata.MockSQLAssetCount = len(mockSQLAssets)
 	}
 	if runtimeMetadata.FrontendAssetCount > 0 && runtimeMetadata.FrontendAssetCount != len(frontendAssets) {
 		return nil, gerror.Newf(
@@ -270,6 +287,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 		FrontendAssets:       frontendAssets,
 		InstallSQLAssets:     installSQLAssets,
 		UninstallSQLAssets:   uninstallSQLAssets,
+		MockSQLAssets:        mockSQLAssets,
 		HookSpecs:            hookSpecs,
 		ResourceSpecs:        resourceSpecs,
 		RouteContracts:       routeContracts,
@@ -364,12 +382,13 @@ func buildRuntimeArtifactRemark(manifest *catalog.Manifest) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"The host validated one %s runtime artifact using ABI %s with %d embedded frontend assets, %d install SQL assets, %d uninstall SQL assets, and %d dynamic routes declared.",
+		"The host validated one %s runtime artifact using ABI %s with %d embedded frontend assets, %d install SQL assets, %d uninstall SQL assets, %d mock SQL assets, and %d dynamic routes declared.",
 		manifest.RuntimeArtifact.RuntimeKind,
 		manifest.RuntimeArtifact.ABIVersion,
 		manifest.RuntimeArtifact.FrontendAssetCount,
 		len(manifest.RuntimeArtifact.InstallSQLAssets),
 		len(manifest.RuntimeArtifact.UninstallSQLAssets),
+		len(manifest.RuntimeArtifact.MockSQLAssets),
 		len(manifest.RuntimeArtifact.RouteContracts),
 	)
 }

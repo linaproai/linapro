@@ -292,6 +292,11 @@ func (s *serviceImpl) DiscoverSQLPaths(rootDir string, uninstall bool) []string 
 	return pluginfs.DiscoverSQLPaths(rootDir, uninstall)
 }
 
+// DiscoverMockSQLPaths discovers plugin mock-data SQL files by directory convention.
+func (s *serviceImpl) DiscoverMockSQLPaths(rootDir string) []string {
+	return pluginfs.DiscoverMockSQLPaths(rootDir)
+}
+
 // DiscoverPagePaths discovers plugin page source files by directory convention.
 func (s *serviceImpl) DiscoverPagePaths(rootDir string) []string {
 	return pluginfs.DiscoverVuePaths(rootDir, filepath.Join("frontend", "pages"))

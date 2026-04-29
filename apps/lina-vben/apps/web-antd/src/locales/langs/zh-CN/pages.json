@@ -902,7 +902,9 @@
         "installedAt": "安装时间",
         "version": "版本号",
         "authorizationStatus": "授权状态",
-        "startupManagement": "启动管理"
+        "startupManagement": "启动管理",
+        "hasMockDataBadge": "示例数据",
+        "hasMockDataTooltip": "该插件携带 manifest/sql/mock-data 示例数据，可在安装时按需加载用于演示和功能验证"
       },
       "type": {
         "source": "源码插件",
@@ -918,7 +920,10 @@
         "install": "安装",
         "installAndEnable": "安装并启用",
         "uninstall": "卸载",
-        "continueAction": "继续{actionLabel}"
+        "continueAction": "继续{actionLabel}",
+        "installMockDataLabel": "安装示例数据",
+        "installMockDataTooltip": "勾选后，宿主会在该插件安装 SQL 全部成功后将 manifest/sql/mock-data 目录的 SQL 文件以单一数据库事务执行；任一文件失败将整体回滚 mock 数据，但插件本身仍处于已安装状态。示例数据仅用于演示和功能验证，不建议在生产环境使用。",
+        "installMockDataHelpHint": "了解详情"
       },
       "auth": {
         "installTitle": "安装插件",
@@ -990,6 +995,7 @@
         "installSucceededEnableFailed": "安装成功，但启用失败，请检查授权结果和插件状态。",
         "installed": "插件安装成功",
         "installedAndEnabled": "插件已安装并启用",
+        "mockDataRolledBack": "插件 {pluginId} 已成功安装，但示例数据 {failedFile} 加载失败、已自动回滚：{cause}。您可以接受当前已安装状态，或修复示例数据 SQL 后卸载重装。",
         "noInstallPermission": "当前账号没有安装或同步插件的权限",
         "noStatusPermission": "当前账号没有修改插件状态的权限",
         "noUninstallPermission": "当前账号没有卸载插件的权限",

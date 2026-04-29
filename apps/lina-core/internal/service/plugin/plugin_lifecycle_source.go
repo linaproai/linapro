@@ -81,7 +81,7 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 		s.rollbackSourcePluginInstall(ctx, manifest, release)
 		return err
 	}
-	return s.integrationSvc.DispatchPluginHookEvent(
+	if err = s.integrationSvc.DispatchPluginHookEvent(
 		ctx,
 		pluginhost.ExtensionPointPluginInstalled,
 		pluginhost.BuildPluginLifecycleHookPayloadValues(pluginhost.PluginLifecycleHookPayloadInput{
@@ -89,7 +89,31 @@ func (s *serviceImpl) installSourcePlugin(ctx context.Context, manifest *catalog
 			Name:     manifest.Name,
 			Version:  manifest.Version,
 		}),
-	)
+	); err != nil {
+		return err
+	}
+	// Mock-data load is the final, optional install decoration. It runs only when
+	// the operator explicitly opted in via InstallOptions.InstallMockData. Mock
+	// failure does NOT undo the install: the registry, menu sync, release state,
+	// and hook event all remain effective. The returned error tells the caller
+	// install succeeded but mock data was rolled back and they can choose to
+	// accept the no-mock state or uninstall + reinstall after fixing the SQL.
+	return s.loadSourcePluginMockData(ctx, manifest)
+}
+
+// loadSourcePluginMockData runs the optional mock-data load phase for one source
+// plugin install. Returns nil when the operator did not opt in or when the plugin
+// has no mock-data SQL files. On failure returns a *lifecycle.MockDataLoadError
+// so the plugin facade can wrap it once into a user-facing bizerr regardless of
+// install path (source vs dynamic).
+func (s *serviceImpl) loadSourcePluginMockData(ctx context.Context, manifest *catalog.Manifest) error {
+	if !shouldInstallMockData(ctx) {
+		return nil
+	}
+	if !s.catalogSvc.HasMockSQLData(manifest) {
+		return nil
+	}
+	return executeMockDataLoadTransaction(ctx, s.lifecycleSvc, manifest)
 }
 
 // uninstallSourcePlugin performs the explicit lifecycle for one installed source plugin.

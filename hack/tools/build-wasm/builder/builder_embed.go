@@ -411,12 +411,36 @@ func mergeLocaleJSONObjects(target map[string]interface{}, source map[string]int
 	}
 }
 
-func collectSQLAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet, uninstall bool) ([]*sqlAsset, error) {
+// sqlAssetDirection identifies which manifest/sql/* subdirectory the builder
+// should collect when packaging a dynamic plugin artifact. Each direction
+// maps to its own wasm custom section so install / uninstall / mock data
+// pipelines stay independent.
+type sqlAssetDirection int
+
+const (
+	sqlAssetDirectionInstall sqlAssetDirection = iota
+	sqlAssetDirectionUninstall
+	sqlAssetDirectionMock
+)
+
+// sqlAssetSearchPrefix returns the relative directory the builder should scan
+// for the given direction. Mock data lives under manifest/sql/mock-data/ so
+// it stays out of the install scan and is only loaded when the operator opts
+// in at install time.
+func sqlAssetSearchPrefix(direction sqlAssetDirection) string {
+	switch direction {
+	case sqlAssetDirectionUninstall:
+		return "manifest/sql/uninstall"
+	case sqlAssetDirectionMock:
+		return "manifest/sql/mock-data"
+	default:
+		return "manifest/sql"
+	}
+}
+
+func collectSQLAssets(pluginDir string, embeddedResources *embeddedStaticResourceSet, direction sqlAssetDirection) ([]*sqlAsset, error) {
 	if embeddedResources != nil {
-		searchPrefix := "manifest/sql"
-		if uninstall {
-			searchPrefix = "manifest/sql/uninstall"
-		}
+		searchPrefix := sqlAssetSearchPrefix(direction)
 
 		paths := embeddedResources.ListFiles(searchPrefix, ".sql")
 		assets := make([]*sqlAsset, 0, len(paths))
@@ -436,10 +460,7 @@ func collectSQLAssets(pluginDir string, embeddedResources *embeddedStaticResourc
 		return assets, nil
 	}
 
-	searchDir := filepath.Join(pluginDir, "manifest", "sql")
-	if uninstall {
-		searchDir = filepath.Join(pluginDir, "manifest", "sql", "uninstall")
-	}
+	searchDir := filepath.Join(pluginDir, filepath.FromSlash(sqlAssetSearchPrefix(direction)))
 
 	entries, err := os.ReadDir(searchDir)
 	if err != nil {

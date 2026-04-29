@@ -55,6 +55,10 @@ type PluginItem struct {
 	// DeclaredRoutes is the current release route-declaration snapshot used by
 	// install and enable review UIs for dynamic plugins.
 	DeclaredRoutes []*pluginbridge.RouteContract
+	// HasMockData reports whether the plugin ships any mock-data SQL files
+	// under manifest/sql/mock-data/. Used by the management UI to decide
+	// whether to render the optional Install mock data checkbox.
+	HasMockData bool
 }
 
 // listRuntimeRegistries returns all dynamic-type plugin registry rows.
@@ -178,6 +182,13 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	}
 	name, description = s.localizePluginMetadata(ctx, id, name, description)
 
+	hasMockData := false
+	if manifest != nil {
+		hasMockData = s.catalogSvc.HasMockSQLData(manifest)
+	} else if snapshot != nil {
+		hasMockData = snapshot.MockSQLCount > 0
+	}
+
 	return &PluginItem{
 		Id:                     id,
 		Name:                   name,
@@ -194,6 +205,7 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		RequestedHostServices:  requestedHostServices,
 		AuthorizedHostServices: authorizedHostServices,
 		DeclaredRoutes:         declaredRoutes,
+		HasMockData:            hasMockData,
 	}
 }
 

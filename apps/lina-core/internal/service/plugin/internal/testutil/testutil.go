@@ -839,7 +839,9 @@ func QueryMenuByKey(ctx context.Context, menuKey string) (*entity.SysMenu, error
 
 // buildTestRuntimeWasmArtifactContent assembles one synthetic WASM binary with
 // Lina custom sections for manifest, runtime metadata, routes, SQL, and bridge
-// contracts used by component tests.
+// contracts used by component tests. Mock SQL assets are pulled from the
+// runtimeMetadata.MockSQLAssets field so callers can opt in by populating that
+// slice before invoking this helper.
 func buildTestRuntimeWasmArtifactContent(
 	t *testing.T,
 	manifest *catalog.ArtifactManifest,
@@ -885,6 +887,13 @@ func buildTestRuntimeWasmArtifactContent(
 			t.Fatalf("failed to marshal uninstall sql assets: %v", marshalErr)
 		}
 		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionUninstallSQL, uninstallContent)
+	}
+	if len(runtimeMetadata.MockSQLAssets) > 0 {
+		mockContent, marshalErr := json.Marshal(runtimeMetadata.MockSQLAssets)
+		if marshalErr != nil {
+			t.Fatalf("failed to marshal mock sql assets: %v", marshalErr)
+		}
+		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionMockSQL, mockContent)
 	}
 	_ = cronContracts
 	if len(routeContracts) > 0 {

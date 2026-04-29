@@ -141,6 +141,31 @@ func (s *serviceImpl) ListUninstallSQLPaths(manifest *Manifest) []string {
 	return s.DiscoverSQLPaths(manifest.RootDir, true)
 }
 
+// ListMockSQLPaths returns the ordered mock-data SQL file paths for a source plugin manifest.
+// Mock-data files are deliberately excluded from install/uninstall scans and are loaded only
+// when the operator explicitly opts in at install time.
+func (s *serviceImpl) ListMockSQLPaths(manifest *Manifest) []string {
+	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
+		return pluginfs.DiscoverMockSQLPathsFromFS(embeddedFiles)
+	}
+	if manifest == nil {
+		return []string{}
+	}
+	return s.DiscoverMockSQLPaths(manifest.RootDir)
+}
+
+// HasMockSQLData reports whether the manifest carries any mock-data SQL assets,
+// covering both source-plugin directory scans and dynamic-plugin embedded artifacts.
+func (s *serviceImpl) HasMockSQLData(manifest *Manifest) bool {
+	if manifest == nil {
+		return false
+	}
+	if manifest.RuntimeArtifact != nil {
+		return len(manifest.RuntimeArtifact.MockSQLAssets) > 0
+	}
+	return len(s.ListMockSQLPaths(manifest)) > 0
+}
+
 // ListFrontendPagePaths returns the frontend page source paths for a source plugin manifest.
 func (s *serviceImpl) ListFrontendPagePaths(manifest *Manifest) []string {
 	if embeddedFiles := GetSourcePluginEmbeddedFiles(manifest); embeddedFiles != nil {
