@@ -24,42 +24,50 @@ const publishedPluginSlotKeySet = new Set<PluginSlotKey>(
 
 export const publishedPluginSlots: PublishedPluginSlot[] = [
   {
-    description: '登录页表单下方的公开扩展区域，适合挂载提示信息或轻量入口。',
+    description:
+      'Public extension area below the login form for hints or lightweight entries.',
     hostLocation: 'auth.login',
     key: pluginSlotKeys.authLoginAfter,
   },
   {
-    description: '通用 CRUD 表格区域下方的扩展区域，适合挂载说明卡片或辅助面板。',
+    description:
+      'Extension area below CRUD tables for help cards or supporting panels.',
     hostLocation: 'crud.table',
     key: pluginSlotKeys.crudTableAfter,
   },
   {
-    description: '通用 CRUD 工具栏右侧扩展区域，适合挂载轻量状态或快捷操作。',
+    description:
+      'Extension area on the right side of CRUD toolbars for status or quick actions.',
     hostLocation: 'crud.toolbar',
     key: pluginSlotKeys.crudToolbarAfter,
   },
   {
-    description: '工作台主内容区顶部扩展区域，适合挂载横幅、提醒或概览块。',
+    description:
+      'Extension area above the workspace main content for banners, alerts, or summaries.',
     hostLocation: 'dashboard.workspace',
     key: pluginSlotKeys.dashboardWorkspaceBefore,
   },
   {
-    description: '工作台主内容区底部扩展区域，适合挂载插件卡片或统计块。',
+    description:
+      'Extension area below the workspace main content for plugin cards or metrics.',
     hostLocation: 'dashboard.workspace',
     key: pluginSlotKeys.dashboardWorkspaceAfter,
   },
   {
-    description: '宿主头部动作区前置扩展区域，适合挂载全局状态或入口。',
+    description:
+      'Extension area before host header actions for global status or entries.',
     hostLocation: 'layout.header.actions',
     key: pluginSlotKeys.layoutHeaderActionsBefore,
   },
   {
-    description: '宿主头部动作区后置扩展区域，适合挂载轻量提示或快捷入口。',
+    description:
+      'Extension area after host header actions for hints or quick entries.',
     hostLocation: 'layout.header.actions',
     key: pluginSlotKeys.layoutHeaderActionsAfter,
   },
   {
-    description: '右上角用户菜单左侧扩展区域，适合挂载轻量入口或状态提示。',
+    description:
+      'Extension area before the user menu for lightweight entries or status hints.',
     hostLocation: 'layout.user-dropdown',
     key: pluginSlotKeys.layoutUserDropdownAfter,
   },

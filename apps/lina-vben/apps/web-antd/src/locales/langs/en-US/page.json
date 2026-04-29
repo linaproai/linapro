@@ -13,6 +13,26 @@
     "workspace": "Workspace"
   },
   "about": {
+    "project": {
+      "description": "An AI-native full-stack framework for sustainable delivery, built with GoFrame, Vue 3, and Vben 5. It provides the core host service, default management workspace, plugin extension capabilities, and AI-native development workflow.",
+      "name": "Current Application",
+      "title": "About",
+      "viewLink": "View",
+      "sections": {
+        "basic": "Basic Information",
+        "dependencies": "Production Dependencies",
+        "devDependencies": "Development Dependencies"
+      },
+      "items": {
+        "author": "Author",
+        "buildTime": "Last Build Time",
+        "documentation": "Documentation",
+        "homepage": "Homepage",
+        "license": "License",
+        "preview": "Preview",
+        "version": "Version"
+      }
+    },
     "systemInfo": {
       "loading": "Loading...",
       "viewLink": "View",

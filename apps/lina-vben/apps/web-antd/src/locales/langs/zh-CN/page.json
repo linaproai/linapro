@@ -13,6 +13,26 @@
     "workspace": "工作台"
   },
   "about": {
+    "project": {
+      "description": "一个基于 GoFrame、Vue 3 和 Vben 5 的面向可持续交付的 AI 原生全栈框架，提供核心宿主服务、默认管理工作台、插件扩展能力与 AI 原生研发工作流。",
+      "name": "当前应用",
+      "title": "关于项目",
+      "viewLink": "点击查看",
+      "sections": {
+        "basic": "基本信息",
+        "dependencies": "生产环境依赖",
+        "devDependencies": "开发环境依赖"
+      },
+      "items": {
+        "author": "作者",
+        "buildTime": "最后构建时间",
+        "documentation": "文档地址",
+        "homepage": "主页",
+        "license": "开源许可协议",
+        "preview": "预览地址",
+        "version": "版本号"
+      }
+    },
     "systemInfo": {
       "loading": "加载中...",
       "viewLink": "点击查看",

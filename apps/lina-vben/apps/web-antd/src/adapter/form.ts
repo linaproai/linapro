@@ -45,7 +45,10 @@ async function initSetupVbenForm() {
 const ENGLISH_DIALOG_LABEL_WIDTH = 128;
 
 function useEnglishDialogLabelWidth(options: VbenFormProps<ComponentType>) {
-  if (preferences.app.locale !== 'en-US' || options.showDefaultActions !== false) {
+  if (
+    preferences.app.locale !== 'en-US' ||
+    options.showDefaultActions !== false
+  ) {
     return options;
   }
 
@@ -70,8 +73,8 @@ export type { VbenFormProps };
  * 表单 Schema 获取器类型（用于动态获取表单配置）
  */
 export type FormSchemaGetter = () =>
-  | VbenFormSchema[]
-  | Promise<VbenFormSchema[]>;
+  | Promise<VbenFormSchema[]>
+  | VbenFormSchema[];
 
 export interface JobHandlerSchemaFieldOption {
   label: string;
@@ -119,15 +122,25 @@ function validateSchemaKeywords(
   withinProperties = false,
 ) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    throw new Error(`处理器参数 Schema 不是合法对象: ${schemaText}`);
+    throw new Error(
+      $t('pages.system.job.handler.messages.schemaInvalidObject', {
+        schema: schemaText,
+      }),
+    );
   }
-  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(
+    payload as Record<string, unknown>,
+  )) {
     if (withinProperties) {
       validateSchemaKeywords(schemaText, value, false);
       continue;
     }
     if (!supportedJsonSchemaKeywords.has(key)) {
-      throw new Error(`处理器参数 Schema 包含当前前端不支持的关键字: ${key}`);
+      throw new Error(
+        $t('pages.system.job.handler.messages.schemaUnsupportedKeyword', {
+          key,
+        }),
+      );
     }
     if (key === 'properties') {
       validateSchemaKeywords(schemaText, value, true);
@@ -194,17 +207,21 @@ function normalizeOptions(
 /**
  * 将受限 JSON Schema draft-07 子集映射为任务处理器动态参数字段描述。
  */
-export function buildJobHandlerSchemaFields(schemaText?: string): JobHandlerSchemaField[] {
+export function buildJobHandlerSchemaFields(
+  schemaText?: string,
+): JobHandlerSchemaField[] {
   if (!schemaText) {
     return [];
   }
   const payload = JSON.parse(schemaText) as RawJsonSchemaRoot;
   validateSchemaKeywords(schemaText, payload);
   if (payload.type !== 'object') {
-    throw new Error('处理器参数 Schema 根节点必须为 object');
+    throw new Error($t('pages.system.job.handler.messages.schemaRootObject'));
   }
   const properties = payload.properties ?? {};
-  const requiredSet = new Set(payload.required ?? []);
+  const requiredSet = payload.required
+    ? new Set(payload.required)
+    : new Set<string>();
   return Object.entries(properties).map(([fieldName, property]) => ({
     component: resolveComponent(property),
     fieldName,

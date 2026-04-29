@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { buildJobHandlerSchemaFields } from './form';
+
+vi.mock('@vben/locales', () => ({
+  $t: (key: string, params?: Record<string, string>) =>
+    params
+      ? `${key}:${Object.entries(params)
+          .map(([paramKey, value]) => `${paramKey}=${value}`)
+          .join(',')}`
+      : key,
+}));
 
 describe('buildJobHandlerSchemaFields', () => {
   it('accepts schema property names under properties', () => {
@@ -40,6 +49,6 @@ describe('buildJobHandlerSchemaFields', () => {
           type: 'object',
         }),
       ),
-    ).toThrow('minimum');
+    ).toThrow('key=minimum');
   });
 });

@@ -218,18 +218,10 @@ const trendItems = computed<WorkbenchTrendItem[]>(() => [
 ]);
 
 const router = useRouter();
-const builtInAdminNames = new Set(['Administrator', '管理员', '管理員']);
-const displayUserName = computed(() => {
-  if (
-    userStore.userInfo?.username === 'admin' &&
-    builtInAdminNames.has(userStore.userInfo?.realName ?? '')
-  ) {
-    return $t('pages.dashboard.workspace.defaultName');
-  }
-  return (
-    userStore.userInfo?.realName || $t('pages.dashboard.workspace.defaultName')
-  );
-});
+const displayUserName = computed(
+  () =>
+    userStore.userInfo?.realName || $t('pages.dashboard.workspace.defaultName'),
+);
 const welcomeTitle = computed(() =>
   $t('pages.dashboard.workspace.greeting', { name: displayUserName.value }),
 );

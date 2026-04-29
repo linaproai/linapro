@@ -678,7 +678,10 @@
           "empty": "请选择处理器以加载参数结构预览。",
           "invalid": "请完善处理器配置。",
           "loadFailed": "加载处理器结构失败。",
-          "readonly": "内建任务处理器为只读。"
+          "readonly": "内建任务处理器为只读。",
+          "schemaInvalidObject": "处理器参数 Schema 不是合法对象：{schema}",
+          "schemaRootObject": "处理器参数 Schema 根节点必须为 object。",
+          "schemaUnsupportedKeyword": "处理器参数 Schema 包含当前前端不支持的关键字：{key}"
         },
         "placeholders": {
           "inputField": "请输入{label}",
@@ -1041,6 +1044,9 @@
     "tooLarge": "所选图片超过大小限制",
     "noImageSelected": "请先选择图片",
     "avatarUploadSuccess": "头像更新成功",
+    "alt": {
+      "originalImage": "裁剪原图"
+    },
     "actions": {
       "selectImage": "选择图片",
       "reset": "重置",
@@ -1050,6 +1056,13 @@
       "flipVertical": "垂直翻转",
       "zoomIn": "放大",
       "zoomOut": "缩小"
+    },
+    "messages": {
+      "imageExportFailed": "图片导出失败：",
+      "imageLoadFailed": "图片加载失败：{message}",
+      "imageLoadTimeout": "图片加载超时，超时时间 10 秒",
+      "invalidAspectRatioFormat": "裁剪比例格式错误，应为“数字:数字”格式，如“16:9”。",
+      "invalidAspectRatioValue": "裁剪比例解析失败，宽高必须为正整数。"
     }
   },
   "editor": {

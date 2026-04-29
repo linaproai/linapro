@@ -110,172 +110,175 @@ function buildPageCopy(context) {
 
   const paginationSummaryTemplate = t(
     "plugin.plugin-demo-dynamic.page.pagination.summary",
-    "第 {page} / {pages} 页，显示第 {start}-{end} 条，共 {total} 条",
+    "Page {page}/{pages}, showing {start}-{end} of {total}",
   );
   const createdAtTemplate = t(
     "plugin.plugin-demo-dynamic.page.table.createdAt",
-    "创建时间: {value}",
+    "Created at: {value}",
   );
   const pendingAttachmentTemplate = t(
     "plugin.plugin-demo-dynamic.page.modal.pendingAttachment",
-    "待上传附件: {name}",
+    "Pending attachment: {name}",
   );
   const currentAttachmentTemplate = t(
     "plugin.plugin-demo-dynamic.page.modal.currentAttachment",
-    "当前附件: {name}",
+    "Current attachment: {name}",
   );
   const deleteConfirmTemplate = t(
     "plugin.plugin-demo-dynamic.page.message.deleteRecordConfirm",
-    "确认删除记录“{title}”吗？",
+    'Delete record "{title}"?',
   );
 
   return {
     actions: {
       addRecord: t(
         "plugin.plugin-demo-dynamic.page.action.addRecord",
-        "新增记录",
+        "Add Record",
       ),
-      cancel: t("plugin.plugin-demo-dynamic.page.action.cancel", "取消"),
+      cancel: t("plugin.plugin-demo-dynamic.page.action.cancel", "Cancel"),
       createRecord: t(
         "plugin.plugin-demo-dynamic.page.action.createRecord",
-        "创建记录",
+        "Create Record",
       ),
       deleteRecord: t(
         "plugin.plugin-demo-dynamic.page.action.deleteRecord",
-        "删除",
+        "Delete",
       ),
       downloadAttachment: t(
         "plugin.plugin-demo-dynamic.page.action.downloadAttachment",
-        "下载附件",
+        "Download Attachment",
       ),
       editRecord: t(
         "plugin.plugin-demo-dynamic.page.action.editRecord",
-        "编辑",
+        "Edit",
       ),
-      nextPage: t("plugin.plugin-demo-dynamic.page.action.nextPage", "下一页"),
+      nextPage: t("plugin.plugin-demo-dynamic.page.action.nextPage", "Next"),
       previousPage: t(
         "plugin.plugin-demo-dynamic.page.action.previousPage",
-        "上一页",
+        "Previous",
       ),
       reloadList: t(
         "plugin.plugin-demo-dynamic.page.action.reloadList",
-        "刷新列表",
+        "Reload List",
       ),
       saveEdit: t(
         "plugin.plugin-demo-dynamic.page.action.saveEdit",
-        "保存修改",
+        "Save Changes",
       ),
       savePending: t(
         "plugin.plugin-demo-dynamic.page.action.savePending",
-        "保存中...",
+        "Saving...",
       ),
     },
-    badge: t("plugin.plugin-demo-dynamic.page.badge", "WASM 插件示例"),
+    badge: t("plugin.plugin-demo-dynamic.page.badge", "WASM Plugin Demo"),
     emptyText: t(
       "plugin.plugin-demo-dynamic.page.emptyText",
-      "当前只有安装 SQL 初始化的默认记录，你可以继续新增、编辑或删除自定义记录。",
+      "Only the install-SQL seed record exists right now. You can still create, edit, or delete custom records.",
     ),
-    emptyTitle: t("plugin.plugin-demo-dynamic.page.emptyTitle", "暂无示例记录"),
+    emptyTitle: t(
+      "plugin.plugin-demo-dynamic.page.emptyTitle",
+      "No demo records yet",
+    ),
     featureItems: [
       {
         description: t(
           "plugin.plugin-demo-dynamic.page.feature.integration.description",
-          "通过宿主页壳动态加载页面入口，并沿用宿主登录态访问后端动态路由。",
+          "The host shell imports the page entry dynamically and keeps using the host login session for backend dynamic routes.",
         ),
         label: t(
           "plugin.plugin-demo-dynamic.page.feature.integration.label",
-          "接入方式",
+          "Integration",
         ),
         value: t(
           "plugin.plugin-demo-dynamic.page.feature.integration.value",
-          "宿主内嵌挂载",
+          "Host Embedded Mount",
         ),
       },
       {
         description: t(
           "plugin.plugin-demo-dynamic.page.feature.data.description",
-          "安装时创建插件自有业务表，页面可直接完成增删查改和附件下载。",
+          "Install-time SQL creates the plugin-owned business table so the page can handle CRUD and attachment downloads directly.",
         ),
         label: t(
           "plugin.plugin-demo-dynamic.page.feature.data.label",
-          "数据示例",
+          "Data Sample",
         ),
         value: t(
           "plugin.plugin-demo-dynamic.page.feature.data.value",
-          "安装 SQL + CRUD",
+          "Install SQL + CRUD",
         ),
       },
       {
         description: t(
           "plugin.plugin-demo-dynamic.page.feature.lifecycle.description",
-          "禁用不删数据，卸载时由宿主弹窗决定是否同时清理表数据和存储文件。",
+          "Disable keeps data intact, while uninstall lets the host decide whether data and files are cleaned together.",
         ),
         label: t(
           "plugin.plugin-demo-dynamic.page.feature.lifecycle.label",
-          "卸载治理",
+          "Lifecycle",
         ),
         value: t(
           "plugin.plugin-demo-dynamic.page.feature.lifecycle.value",
-          "可选清理数据",
+          "Optional Cleanup",
         ),
       },
     ],
-    gridTitle: t("plugin.plugin-demo-dynamic.page.gridTitle", "示例记录"),
+    gridTitle: t("plugin.plugin-demo-dynamic.page.gridTitle", "Demo Records"),
     metrics: [
       {
         description: t(
           "plugin.plugin-demo-dynamic.page.metric.loader.description",
-          "由宿主页壳动态导入并挂载页面入口",
+          "Loaded and mounted by the host shell at runtime",
         ),
         label: t(
           "plugin.plugin-demo-dynamic.page.metric.loader.label",
-          "动态加载",
+          "Dynamic Loader",
         ),
         value: t(
           "plugin.plugin-demo-dynamic.page.metric.loader.value",
-          "由宿主页壳动态导入并挂载页面入口",
+          "Mounted by the host shell at runtime",
         ),
       },
       {
         description: t(
           "plugin.plugin-demo-dynamic.page.metric.schema.description",
-          "安装时生成插件自有业务表示例数据",
+          "Install-time SQL creates plugin-owned sample data",
         ),
         label: t(
           "plugin.plugin-demo-dynamic.page.metric.schema.label",
-          "SQL 创建",
+          "SQL Bootstrap",
         ),
         value: t(
           "plugin.plugin-demo-dynamic.page.metric.schema.value",
-          "安装时生成插件自有业务表示例数据",
+          "Install-time SQL bootstraps plugin-owned sample data",
         ),
       },
       {
         description: t(
           "plugin.plugin-demo-dynamic.page.metric.storage.description",
-          "示例记录可绑定插件自有存储文件",
+          "Demo records can attach files stored in the plugin namespace",
         ),
         label: t(
           "plugin.plugin-demo-dynamic.page.metric.storage.label",
-          "附件存储",
+          "File Storage",
         ),
         value: t(
           "plugin.plugin-demo-dynamic.page.metric.storage.value",
-          "示例记录可绑定插件自有存储文件",
+          "Records can attach files in the plugin namespace",
         ),
       },
       {
         description: t(
           "plugin.plugin-demo-dynamic.page.metric.lifecycle.description",
-          "卸载时可选保留或清理数据与文件",
+          "Uninstall can optionally keep or remove data and files together",
         ),
         label: t(
           "plugin.plugin-demo-dynamic.page.metric.lifecycle.label",
-          "治理卸载",
+          "Lifecycle Cleanup",
         ),
         value: t(
           "plugin.plugin-demo-dynamic.page.metric.lifecycle.value",
-          "卸载时可选保留或清理数据与文件",
+          "Optional data and file cleanup",
         ),
       },
     ],
@@ -286,65 +289,65 @@ function buildPageCopy(context) {
         }),
       downloadFailed: t(
         "plugin.plugin-demo-dynamic.page.message.downloadFailed",
-        "附件下载失败",
+        "Failed to download the attachment",
       ),
       downloadStarted: t(
         "plugin.plugin-demo-dynamic.page.message.downloadStarted",
-        "附件下载已开始",
+        "Attachment download started",
       ),
       fetchRecordsFailed: t(
         "plugin.plugin-demo-dynamic.page.message.fetchRecordsFailed",
-        "示例记录加载失败",
+        "Failed to load demo records",
       ),
       fileReadFailed: t(
         "plugin.plugin-demo-dynamic.page.message.fileReadFailed",
-        "附件读取失败",
+        "Failed to read the attachment",
       ),
       recordCreated: t(
         "plugin.plugin-demo-dynamic.page.message.recordCreated",
-        "示例记录已创建",
+        "Demo record created",
       ),
       recordDeleted: t(
         "plugin.plugin-demo-dynamic.page.message.recordDeleted",
-        "示例记录已删除",
+        "Demo record deleted",
       ),
       recordUpdated: t(
         "plugin.plugin-demo-dynamic.page.message.recordUpdated",
-        "示例记录已更新",
+        "Demo record updated",
       ),
       requestFailed: t(
         "plugin.plugin-demo-dynamic.page.message.requestFailed",
-        "请求失败 ({status})",
+        "Request failed ({status})",
       ),
       saveRecordFailed: t(
         "plugin.plugin-demo-dynamic.page.message.saveRecordFailed",
-        "示例记录保存失败",
+        "Failed to save the demo record",
       ),
       titleRequired: t(
         "plugin.plugin-demo-dynamic.page.message.titleRequired",
-        "记录标题不能为空",
+        "Record title is required",
       ),
       deleteRecordFailed: t(
         "plugin.plugin-demo-dynamic.page.message.deleteRecordFailed",
-        "示例记录删除失败",
+        "Failed to delete the demo record",
       ),
     },
     modal: {
       attachmentFieldHint: t(
         "plugin.plugin-demo-dynamic.page.modal.attachmentFieldHint",
-        "支持上传一个示例附件。卸载插件时若勾选清理存储数据，附件文件也会一并删除。",
+        "Upload one sample attachment. If uninstall also clears plugin storage, the uploaded file is removed together.",
       ),
       attachmentFieldLabel: t(
         "plugin.plugin-demo-dynamic.page.modal.attachmentFieldLabel",
-        "附件",
+        "Attachment",
       ),
       contentFieldLabel: t(
         "plugin.plugin-demo-dynamic.page.modal.contentFieldLabel",
-        "记录内容",
+        "Content",
       ),
       createTitle: t(
         "plugin.plugin-demo-dynamic.page.modal.createTitle",
-        "新增示例记录",
+        "Create Demo Record",
       ),
       currentAttachment: (name) =>
         formatTemplate(currentAttachmentTemplate, {
@@ -352,7 +355,7 @@ function buildPageCopy(context) {
         }),
       editTitle: t(
         "plugin.plugin-demo-dynamic.page.modal.editTitle",
-        "编辑示例记录",
+        "Edit Demo Record",
       ),
       pendingAttachment: (name) =>
         formatTemplate(pendingAttachmentTemplate, {
@@ -360,30 +363,36 @@ function buildPageCopy(context) {
         }),
       removeAttachment: t(
         "plugin.plugin-demo-dynamic.page.modal.removeAttachment",
-        "提交时移除当前附件",
+        "Remove the current attachment on submit",
       ),
       summary: t(
         "plugin.plugin-demo-dynamic.page.modal.summary",
-        "记录内容会写入 plugin-demo-dynamic 安装 SQL 创建的数据表；若上传附件，文件会存入该插件授权的 storage path。",
+        "Record content is stored in the table created by the plugin-demo-dynamic install SQL. Uploaded files are stored in the plugin-authorized storage path.",
       ),
       titleFieldLabel: t(
         "plugin.plugin-demo-dynamic.page.modal.titleFieldLabel",
-        "记录标题",
+        "Record Title",
       ),
     },
     pageDescription: t(
       "plugin.plugin-demo-dynamic.page.description",
-      "该页面来自 plugin-demo-dynamic 的动态挂载入口，用于验证宿主主内容区展示与独立静态页面跳转。",
+      "This page is mounted from the plugin-demo-dynamic embedded entry so the host can verify content rendering and the hosted standalone jump flow.",
     ),
-    pageTitle: t("plugin.plugin-demo-dynamic.page.title", "动态插件示例已生效"),
-    panelTitle: t("plugin.plugin-demo-dynamic.page.panelTitle", "当前验证范围"),
+    pageTitle: t(
+      "plugin.plugin-demo-dynamic.page.title",
+      "Dynamic Plugin Demo Is Live",
+    ),
+    panelTitle: t(
+      "plugin.plugin-demo-dynamic.page.panelTitle",
+      "Current Validation Scope",
+    ),
     standaloneButton: t(
       "plugin.plugin-demo-dynamic.page.standaloneButton",
-      "打开独立页面",
+      "Open Standalone Page",
     ),
     standaloneHint: t(
       "plugin.plugin-demo-dynamic.page.standaloneHint",
-      "点击后将在新窗口打开托管的纯静态页面，用于验证插件资源公开访问能力。",
+      "Open the hosted static page in a new window to verify plugin asset publishing.",
     ),
     table: {
       createdAt: (value) =>
@@ -393,29 +402,29 @@ function buildPageCopy(context) {
       headers: {
         actions: t(
           "plugin.plugin-demo-dynamic.page.table.header.actions",
-          "操作",
+          "Actions",
         ),
         attachment: t(
           "plugin.plugin-demo-dynamic.page.table.header.attachment",
-          "附件",
+          "Attachment",
         ),
         content: t(
           "plugin.plugin-demo-dynamic.page.table.header.content",
-          "内容",
+          "Content",
         ),
-        title: t("plugin.plugin-demo-dynamic.page.table.header.title", "标题"),
+        title: t("plugin.plugin-demo-dynamic.page.table.header.title", "Title"),
         updatedAt: t(
           "plugin.plugin-demo-dynamic.page.table.header.updatedAt",
-          "更新时间",
+          "Updated At",
         ),
       },
       loading: t(
         "plugin.plugin-demo-dynamic.page.table.loading",
-        "正在加载示例记录...",
+        "Loading demo records...",
       ),
       noAttachment: t(
         "plugin.plugin-demo-dynamic.page.table.noAttachment",
-        "无附件",
+        "No attachment",
       ),
       paginationSummary: (page, pages, start, end, total) =>
         formatTemplate(paginationSummaryTemplate, {
@@ -428,7 +437,7 @@ function buildPageCopy(context) {
     },
     workspaceSummary: t(
       "plugin.plugin-demo-dynamic.page.workspaceSummary",
-      "该区域读取 plugin-demo-dynamic 安装 SQL 创建的数据表，并通过动态插件后端路由完成新增、编辑、删除与附件下载。禁用插件不会清空这些数据。",
+      "This area reads the table created by the plugin-demo-dynamic install SQL and uses the plugin backend routes for create, update, delete, and attachment downloads. Disabling the plugin does not clear the data.",
     ),
   };
 }

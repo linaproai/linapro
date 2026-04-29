@@ -678,7 +678,10 @@
           "empty": "Select a handler to load its parameter schema preview.",
           "invalid": "Please complete the handler configuration.",
           "loadFailed": "Failed to load the handler schema.",
-          "readonly": "Built-in job handlers are read-only."
+          "readonly": "Built-in job handlers are read-only.",
+          "schemaInvalidObject": "Handler parameter schema is not a valid object: {schema}",
+          "schemaRootObject": "Handler parameter schema root must be an object.",
+          "schemaUnsupportedKeyword": "Handler parameter schema contains an unsupported frontend keyword: {key}"
         },
         "placeholders": {
           "inputField": "Please enter {label}",
@@ -1041,6 +1044,9 @@
     "tooLarge": "The selected image exceeds the size limit",
     "noImageSelected": "Please select an image first",
     "avatarUploadSuccess": "Avatar updated successfully",
+    "alt": {
+      "originalImage": "Original image for cropping"
+    },
     "actions": {
       "selectImage": "Select Image",
       "reset": "Reset",
@@ -1050,6 +1056,13 @@
       "flipVertical": "Flip Vertical",
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out"
+    },
+    "messages": {
+      "imageExportFailed": "Image export failed:",
+      "imageLoadFailed": "Image loading failed: {message}",
+      "imageLoadTimeout": "Image loading timed out after 10 seconds",
+      "invalidAspectRatioFormat": "Invalid crop ratio format. Expected \"number:number\", for example \"16:9\".",
+      "invalidAspectRatioValue": "Failed to parse crop ratio. Width and height must be positive integers."
     }
   },
   "editor": {

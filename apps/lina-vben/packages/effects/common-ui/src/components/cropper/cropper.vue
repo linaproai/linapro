@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { $t } from '@vben/locales';
+
 // 定义组件参数
 const props = defineProps<{
   /** 裁剪比例 格式如 '1:1', '16:9', '3:4' 等（非必填） */
@@ -116,7 +118,7 @@ const parseAndValidateAspectRatio = (): null | number => {
   // 验证比例格式
   const ratioRegex = /^[1-9]\d*:[1-9]\d*$/;
   if (!ratioRegex.test(props.aspectRatio)) {
-    console.warn('裁剪比例格式错误，应为 "数字:数字" 格式，如 "16:9"');
+    console.warn($t('pages.cropper.messages.invalidAspectRatioFormat'));
     return null;
   }
 
@@ -125,7 +127,7 @@ const parseAndValidateAspectRatio = (): null | number => {
 
   // 验证解析结果有效性
   if (Number.isNaN(width) || Number.isNaN(height) || !width || !height) {
-    console.warn('裁剪比例解析失败，宽高必须为正整数');
+    console.warn($t('pages.cropper.messages.invalidAspectRatioValue'));
     return null;
   }
 
@@ -558,7 +560,7 @@ const getCropImage = async (
     const timeout = setTimeout(() => {
       tempImg.removeEventListener('load', handleLoad);
       tempImg.removeEventListener('error', handleError);
-      reject(new Error('图片加载超时，超时时间10秒'));
+      reject(new Error($t('pages.cropper.messages.imageLoadTimeout')));
     }, 10_000);
     const handleLoad = () => {
       clearTimeout(timeout);
@@ -571,7 +573,13 @@ const getCropImage = async (
       clearTimeout(timeout);
       tempImg.removeEventListener('load', handleLoad);
       tempImg.removeEventListener('error', handleError);
-      reject(new Error(`图片加载失败: ${err.message}`));
+      reject(
+        new Error(
+          $t('pages.cropper.messages.imageLoadFailed', {
+            message: err.message,
+          }),
+        ),
+      );
     };
 
     tempImg.addEventListener('load', handleLoad);
@@ -670,7 +678,7 @@ const getCropImage = async (
           );
         });
   } catch (error) {
-    console.error('图片导出失败:', error);
+    console.error($t('pages.cropper.messages.imageExportFailed'), error);
   }
 };
 
@@ -734,7 +742,7 @@ defineExpose({ getCropImage });
           maxHeight: '100%',
           objectFit: 'contain',
         }"
-        alt="裁剪原图"
+        :alt="$t('pages.cropper.alt.originalImage')"
       />
 
       <!-- 遮罩层 -->

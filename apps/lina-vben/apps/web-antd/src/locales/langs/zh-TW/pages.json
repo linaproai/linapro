@@ -678,7 +678,10 @@
           "empty": "請選擇處理器以加載參數結構預覽。",
           "invalid": "請完善處理器配置。",
           "loadFailed": "加載處理器結構失敗。",
-          "readonly": "內建任務處理器為只讀。"
+          "readonly": "內建任務處理器為只讀。",
+          "schemaInvalidObject": "處理器參數 Schema 不是合法對象：{schema}",
+          "schemaRootObject": "處理器參數 Schema 根節點必須為 object。",
+          "schemaUnsupportedKeyword": "處理器參數 Schema 包含當前前端不支持的關鍵字：{key}"
         },
         "placeholders": {
           "inputField": "請輸入{label}",
@@ -1041,6 +1044,9 @@
     "tooLarge": "所選圖片超過大小限制",
     "noImageSelected": "請先選擇圖片",
     "avatarUploadSuccess": "頭像更新成功",
+    "alt": {
+      "originalImage": "裁剪原圖"
+    },
     "actions": {
       "selectImage": "選擇圖片",
       "reset": "重置",
@@ -1050,6 +1056,13 @@
       "flipVertical": "垂直翻轉",
       "zoomIn": "放大",
       "zoomOut": "縮小"
+    },
+    "messages": {
+      "imageExportFailed": "圖片導出失敗：",
+      "imageLoadFailed": "圖片加載失敗：{message}",
+      "imageLoadTimeout": "圖片加載超時，超時時間 10 秒",
+      "invalidAspectRatioFormat": "裁剪比例格式錯誤，應為“數字:數字”格式，如“16:9”。",
+      "invalidAspectRatioValue": "裁剪比例解析失敗，寬高必須為正整數。"
     }
   },
   "editor": {

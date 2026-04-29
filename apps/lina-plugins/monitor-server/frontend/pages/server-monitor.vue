@@ -87,23 +87,12 @@ function formatUptime(seconds: number): string {
 
 function formatServiceUptime(rawValue?: string): string {
   const normalizedValue = String(rawValue ?? '').trim();
-  if (!normalizedValue || normalizedValue === '刚启动') {
+  if (!normalizedValue) {
     return formatUptime(0);
   }
 
   if (/^\d+$/.test(normalizedValue)) {
     return formatUptime(Number(normalizedValue));
-  }
-
-  const legacyMatch =
-    normalizedValue.match(
-      /^(?:(\d+)\s*天)?\s*(?:(\d+)\s*小时)?\s*(?:(\d+)\s*分钟)?$/,
-    ) ?? [];
-  if (legacyMatch.length > 0) {
-    const days = Number(legacyMatch[1] ?? 0);
-    const hours = Number(legacyMatch[2] ?? 0);
-    const mins = Number(legacyMatch[3] ?? 0);
-    return formatUptime(days * 86400 + hours * 3600 + mins * 60);
   }
 
   return normalizedValue;

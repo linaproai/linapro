@@ -39,3 +39,5 @@
 - [x] **FB-5**: Fix dynamic plugin permission button names in the English menu management page
 - [x] **FB-6**: Improve dictionary type add/edit form layout so `Dictionary Type` stays on one line in English
 - [x] **FB-7**: Change the login password placeholder to use localized password input prompts
+- [x] **FB-8**: Replace remaining frontend runtime Chinese hardcoded copy with i18n-backed or non-localized stable handling
+- [x] **FB-9**: Preserve the actual user nickname in the dashboard workspace greeting instead of overriding built-in admin names

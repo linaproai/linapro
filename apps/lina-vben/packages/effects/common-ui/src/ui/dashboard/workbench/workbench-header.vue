@@ -14,9 +14,9 @@ defineOptions({
 
 withDefaults(defineProps<Props>(), {
   avatar: '',
-  projectLabel: '项目',
-  teamLabel: '团队',
-  todoLabel: '待办',
+  projectLabel: 'Projects',
+  teamLabel: 'Team',
+  todoLabel: 'To-dos',
 });
 </script>
 <template>

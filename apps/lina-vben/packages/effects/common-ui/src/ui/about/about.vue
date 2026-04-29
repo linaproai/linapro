@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { AboutProps, DescriptionItem } from './about';
 
-import { h } from 'vue';
+import { computed, h } from 'vue';
 
 import {
   VBEN_DOC_URL,
   VBEN_GITHUB_URL,
   VBEN_PREVIEW_URL,
 } from '@vben/constants';
+import { $t } from '@vben/locales';
 
 import { VbenRenderContent } from '@vben-core/shadcn-ui';
 
@@ -20,10 +21,9 @@ defineOptions({
 });
 
 withDefaults(defineProps<Props>(), {
-  description:
-    '用于展示当前应用项目名称、版本、依赖和构建信息的通用项目说明面板。',
-  name: '当前应用',
-  title: '关于项目',
+  description: '',
+  name: '',
+  title: '',
 });
 
 declare global {
@@ -62,33 +62,37 @@ const {
   // vite inject-metadata 插件注入的全局变量
 } = __VBEN_ADMIN_METADATA__ || {};
 
-const vbenDescriptionItems: DescriptionItem[] = [
+const displayDescription = computed(() => $t('page.about.project.description'));
+const displayName = computed(() => $t('page.about.project.name'));
+const displayTitle = computed(() => $t('page.about.project.title'));
+
+const vbenDescriptionItems = computed<DescriptionItem[]>(() => [
   {
     content: version,
-    title: '版本号',
+    title: $t('page.about.project.items.version'),
   },
   {
     content: license,
-    title: '开源许可协议',
+    title: $t('page.about.project.items.license'),
   },
   {
     content: buildTime,
-    title: '最后构建时间',
+    title: $t('page.about.project.items.buildTime'),
   },
   {
-    content: renderLink(homepage, '点击查看'),
-    title: '主页',
+    content: renderLink(homepage, $t('page.about.project.viewLink')),
+    title: $t('page.about.project.items.homepage'),
   },
   {
-    content: renderLink(VBEN_DOC_URL, '点击查看'),
-    title: '文档地址',
+    content: renderLink(VBEN_DOC_URL, $t('page.about.project.viewLink')),
+    title: $t('page.about.project.items.documentation'),
   },
   {
-    content: renderLink(VBEN_PREVIEW_URL, '点击查看'),
-    title: '预览地址',
+    content: renderLink(VBEN_PREVIEW_URL, $t('page.about.project.viewLink')),
+    title: $t('page.about.project.items.preview'),
   },
   {
-    content: renderLink(VBEN_GITHUB_URL, '点击查看'),
+    content: renderLink(VBEN_GITHUB_URL, $t('page.about.project.viewLink')),
     title: 'Github',
   },
   {
@@ -96,9 +100,9 @@ const vbenDescriptionItems: DescriptionItem[] = [
       renderLink(authorUrl, `${authorName}  `),
       renderLink(`mailto:${authorEmail}`, authorEmail),
     ]),
-    title: '作者',
+    title: $t('page.about.project.items.author'),
   },
-];
+]);
 
 const dependenciesItems = Object.keys(dependencies).map((key) => ({
   content: dependencies[key],
@@ -112,18 +116,20 @@ const devDependenciesItems = Object.keys(devDependencies).map((key) => ({
 </script>
 
 <template>
-  <Page :title="title">
+  <Page :title="title || displayTitle">
     <template #description>
       <p class="mt-3 text-sm/6 text-foreground">
         <a :href="VBEN_GITHUB_URL" class="vben-link" target="_blank">
-          {{ name }}
+          {{ name || displayName }}
         </a>
-        {{ description }}
+        {{ description || displayDescription }}
       </p>
     </template>
     <div class="card-box p-5">
       <div>
-        <h5 class="text-lg text-foreground">基本信息</h5>
+        <h5 class="text-lg text-foreground">
+          {{ $t('page.about.project.sections.basic') }}
+        </h5>
       </div>
       <div class="mt-4">
         <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -143,7 +149,9 @@ const devDependenciesItems = Object.keys(devDependencies).map((key) => ({
 
     <div class="card-box mt-6 p-5">
       <div>
-        <h5 class="text-lg text-foreground">生产环境依赖</h5>
+        <h5 class="text-lg text-foreground">
+          {{ $t('page.about.project.sections.dependencies') }}
+        </h5>
       </div>
       <div class="mt-4">
         <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
@@ -162,7 +170,9 @@ const devDependenciesItems = Object.keys(devDependencies).map((key) => ({
     </div>
     <div class="card-box mt-6 p-5">
       <div>
-        <h5 class="text-lg text-foreground">开发环境依赖</h5>
+        <h5 class="text-lg text-foreground">
+          {{ $t('page.about.project.sections.devDependencies') }}
+        </h5>
       </div>
       <div class="mt-4">
         <dl class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
