@@ -70,22 +70,23 @@
 - [x] 9.4 创建 `hack/tests/e2e/monitor/server/TC0150-server-monitor-visibility-aware-polling.ts`：验证页面可见时 30s 自动刷新、隐藏时停止、恢复后立即刷新
 - [x] 9.5 创建 `hack/tests/e2e/settings/file/TC0151-uploads-route-requires-auth.ts`：未登录访问 `/api/v1/uploads/<path>` 应返回未认证；已登录无权限返回无权限；登录有权限可通过存储后端访问已上传文件
 - [x] 9.6 在 `hack/tests/e2e/i18n/TC0152-language-switch-no-user-info-reload.ts` 下新增用例：切换语言后菜单标题响应式更新且不触发 `/api/v1/user/info` 或 `/api/v1/menus/all` 重新拉取
-- [ ] 9.7 在 `apps/lina-core` 运行 `go test ./...`，确认服务层单测全部通过
-- [ ] 9.8 在 `hack/tests` 运行 `pnpm test`，确认 E2E 全部通过
+- [x] 9.7 在 `apps/lina-core` 运行 `go test ./...`，确认服务层单测全部通过
+- [x] 9.8 在 `hack/tests` 运行 `pnpm test`，确认 E2E 全部通过
 
 ## 10. 审查与归档准备
 
-- [ ] 10.1 调用 `/lina-review` 执行变更全面审查，覆盖代码、SQL、E2E 与规范遵循
-- [ ] 10.2 根据审查结果在 `tasks.md` 内追加修复任务并完成；如有规范偏差同步更新 `specs/**/spec.md`
-- [ ] 10.3 在归档前再次运行 `openspec validate code-quality-improvements --strict` 与 `make test`，确认无回归
+- [x] 10.1 调用 `/lina-review` 执行变更全面审查，覆盖代码、SQL、E2E 与规范遵循
+- [x] 10.2 根据审查结果在 `tasks.md` 内追加修复任务并完成；如有规范偏差同步更新 `specs/**/spec.md`
+- [x] 10.3 在归档前再次运行 `openspec validate code-quality-improvements --strict` 与 `make test`，确认无回归
 
 ## Feedback
 
 - [x] **FB-1**: Normalize SQL line comments so each comment uses English above Chinese on separate lines
-- [ ] **FB-2**: Move upload file access routing into the file API module and reuse file storage access logic
-- [ ] **FB-3**: Remove redundant custom HTTP signal handling and rely on GoFrame Server.Run graceful shutdown
-- [ ] **FB-4**: Split cmd_http.go by responsibility to reduce single-file complexity
-- [ ] **FB-5**: Change health probe default timeout to 5s
-- [ ] **FB-6**: Split config Service into categorized embedded interfaces
-- [ ] **FB-7**: Keep plugin install SQL seed-only and avoid cleanup DELETE statements in install scripts
-- [ ] **FB-8**: Split middleware Service into HTTP middleware and non-middleware support interfaces
+- [x] **FB-2**: Move upload file access routing into the file API module and reuse file storage access logic
+- [x] **FB-3**: Remove redundant custom HTTP signal handling and rely on GoFrame Server.Run graceful shutdown
+- [x] **FB-4**: Split cmd_http.go by responsibility to reduce single-file complexity
+- [x] **FB-5**: Change health probe default timeout to 5s
+- [x] **FB-6**: Split config Service into categorized embedded interfaces
+- [x] **FB-7**: Keep plugin install SQL seed-only and avoid cleanup DELETE statements in install scripts
+- [x] **FB-8**: Split middleware Service into HTTP middleware and non-middleware support interfaces
+- [x] **FB-9**: Harden dict E2E deletion targeting so tests cannot soft-delete built-in system dictionaries
