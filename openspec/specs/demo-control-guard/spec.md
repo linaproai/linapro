@@ -1,105 +1,93 @@
-# demo-control-guard Specification
+# Demo Control Guard
 
 ## Purpose
-Define how the official `demo-control` source plugin enables read-only demo protection while preserving the minimum governance and session allowlists required for administration.
+
+Define how the official `demo-control` source plugin enables read-only demo protection while preserving required session access and blocking plugin governance writes when demo mode is enabled.
 
 ## Requirements
+
 ### Requirement: Demo read-only mode is controlled by the plugin's enabled state
 
-The system MUST treat the current installed-and-enabled state of `demo-control` as the runtime switch for demo protection. `plugin.autoEnable` only controls whether the host automatically installs and enables the plugin during startup; it must not act as a separate runtime switch once the host is running.
+The system MUST treat the installed-and-enabled state of `demo-control` as the runtime switch for demo protection. `plugin.autoEnable` only controls startup installation and enablement; it MUST NOT be treated as a separate runtime switch after startup.
 
 #### Scenario: Demo protection stays disabled in the default configuration
-- **WHEN** the host starts with the default delivered configuration and `plugin.autoEnable` does not contain `demo-control`
-- **THEN** the host does not automatically install or enable `demo-control`
-- **AND** deployments that never enable the plugin do not block write requests by default
+- **WHEN** the host starts with default delivered configuration and `plugin.autoEnable` does not contain `demo-control`
+- **THEN** the host does not install or enable `demo-control`
+- **AND** deployments that never enable the plugin do not block writes by default
 
-#### Scenario: Manual plugin enablement activates demo protection immediately
-- **WHEN** `demo-control` is absent from `plugin.autoEnable`
-- **AND** an administrator installs and enables the plugin through plugin governance
-- **THEN** the demo-control middleware becomes active for subsequent requests immediately
-- **AND** write requests start being blocked according to the demo read-only rules
-
-#### Scenario: Auto-enable still handles startup activation
-- **WHEN** the deployment config adds `demo-control` to `plugin.autoEnable`
-- **THEN** the host automatically installs and enables that plugin during startup
-- **AND** demo protection becomes active because the plugin is enabled, not because the config key bypasses plugin state
+#### Scenario: Manual enablement activates demo protection
+- **WHEN** an administrator installs and enables `demo-control`
+- **THEN** demo-control middleware becomes active for later requests
+- **AND** write requests are blocked by read-only demo rules
 
 ### Requirement: The host must deliver a demo-control source plugin with the source tree
 
-The system MUST deliver an official source plugin named `demo-control` with the source tree so deployments can enable the capability through `plugin.autoEnable` or through plugin governance.
+The system MUST deliver an official source plugin named `demo-control` so deployments can enable the capability through startup config or plugin governance.
 
 #### Scenario: The host discovers the demo-control source plugin
-- **WHEN** the host scans the source-plugin directory and synchronizes the plugin registry
-- **THEN** the host discovers the `demo-control` source plugin
-- **AND** operators can decide through `plugin.autoEnable` or explicit governance actions whether it should be enabled
+- **WHEN** the host scans source plugins and synchronizes registry data
+- **THEN** it discovers `demo-control`
+- **AND** operators can decide whether to enable it
 
 ### Requirement: The demo-control plugin must block system write operations when enabled
 
-The system MUST block write requests across `/*` based on request HTTP-method semantics when `demo-control` is enabled, while still preserving query-style requests.
+When enabled, demo-control MUST block write requests across the system by HTTP method semantics while allowing read-style requests.
 
-#### Scenario: No write interception while demo-control is disabled
-- **WHEN** `demo-control` is not enabled by the host
-- **THEN** `POST`, `PUT`, and `DELETE` requests are not rejected by extra demo-control logic
+#### Scenario: No write interception while disabled
+- **WHEN** `demo-control` is not enabled
+- **THEN** `POST`, `PUT`, and `DELETE` requests are not rejected by demo-control
 
-#### Scenario: Query-style requests remain allowed while demo-control is enabled
-- **WHEN** `demo-control` is enabled by the host
-- **AND** the request enters the system request chain with method `GET`, `HEAD`, or `OPTIONS`
-- **THEN** the demo-control plugin allows the request to continue
+#### Scenario: Query-style requests remain allowed
+- **WHEN** `demo-control` is enabled
+- **AND** a request uses `GET`, `HEAD`, or `OPTIONS`
+- **THEN** demo-control allows the request to continue
 
-#### Scenario: Write requests are rejected while demo-control is enabled
-- **WHEN** `demo-control` is enabled by the host
-- **AND** the request enters the system request chain with method `POST`, `PUT`, or `DELETE`
-- **THEN** the demo-control plugin rejects the request and returns a clear read-only demo message
-- **AND** the request does not continue into later business processing
-
-#### Scenario: Non-API-prefix write requests are still covered
-- **WHEN** `demo-control` is enabled by the host
-- **AND** the request path is not under `/api/v1`
-- **AND** the request method is `POST`, `PUT`, or `DELETE`
-- **THEN** the demo-control plugin rejects that request as well
-
-#### Scenario: Rejection messages explain the demo-mode reason
-- **WHEN** `demo-control` rejects any system write request
-- **THEN** the returned error message explicitly states that the request was rejected because demo mode is enabled
-- **AND** the frontend does not present the case as a generic no-permission error
-
-### Requirement: The demo-control plugin must preserve a controlled plugin-governance whitelist
-
-The system MUST preserve a minimal plugin-governance whitelist while `demo-control` is enabled: plugins other than `demo-control` itself may still be installed, uninstalled, enabled, and disabled.
-
-#### Scenario: Other plugin installations stay allowed while demo-control is enabled
-- **WHEN** `demo-control` is enabled by the host
-- **AND** the request is `POST /api/v1/plugins/{id}/install`
-- **AND** `{id}` is not `demo-control`
-- **THEN** the demo-control plugin allows the request to continue into plugin installation processing
-
-#### Scenario: Other plugin enable and disable requests stay allowed while demo-control is enabled
-- **WHEN** `demo-control` is enabled by the host
-- **AND** the request is `PUT /api/v1/plugins/{id}/enable` or `PUT /api/v1/plugins/{id}/disable`
-- **AND** `{id}` is not `demo-control`
-- **THEN** the demo-control plugin allows the request to continue into plugin state updates
-
-#### Scenario: Other plugin uninstalls stay allowed while demo-control is enabled
-- **WHEN** `demo-control` is enabled by the host
-- **AND** the request is `DELETE /api/v1/plugins/{id}`
-- **AND** `{id}` is not `demo-control`
-- **THEN** the demo-control plugin allows the request to continue into plugin uninstall processing
-
-#### Scenario: Demo-control cannot change its own governance state while enabled
-- **WHEN** `demo-control` is enabled by the host
-- **AND** a request attempts to install, uninstall, enable, or disable `demo-control` itself
-- **THEN** the demo-control plugin rejects the request and returns a clear read-only demo message
+#### Scenario: Write requests are rejected
+- **WHEN** `demo-control` is enabled
+- **AND** a request uses `POST`, `PUT`, or `DELETE`
+- **THEN** demo-control rejects the request with a clear read-only demo message
+- **AND** the request does not continue into business processing
 
 ### Requirement: The demo-control plugin must preserve a minimal session whitelist
 
-The system MUST preserve login and logout behavior while `demo-control` is enabled so the demo environment does not lose baseline usability.
+The system MUST preserve login and logout behavior while demo-control is enabled so the demo environment remains usable.
 
-#### Scenario: Login stays allowed while demo-control is enabled
-- **WHEN** `demo-control` is enabled by the host
+#### Scenario: Login stays allowed
+- **WHEN** `demo-control` is enabled
 - **AND** the request is `POST /api/v1/auth/login`
-- **THEN** the demo-control plugin allows the request to continue into the authentication chain
+- **THEN** demo-control allows the request to continue
 
-#### Scenario: Logout stays allowed while demo-control is enabled
-- **WHEN** `demo-control` is enabled by the host
+#### Scenario: Logout stays allowed
+- **WHEN** `demo-control` is enabled
 - **AND** the request is `POST /api/v1/auth/logout`
-- **THEN** the demo-control plugin allows the request to continue into later processing
+- **THEN** demo-control allows the request to continue
+
+### Requirement: The demo-control plugin must reject plugin-governance write operations when enabled
+
+When `demo-control` is enabled, the system SHALL reject plugin governance writes, including plugin synchronization, dynamic package upload, installation, uninstallation, enablement, and disablement. Plugin management `GET`, `HEAD`, and `OPTIONS` requests remain allowed as read-only operations.
+
+#### Scenario: Plugin installations are rejected while demo-control is enabled
+- **WHEN** `demo-control` is enabled
+- **AND** the request is `POST /api/v1/plugins/{id}/install`
+- **THEN** demo-control rejects the request with a read-only demo message
+
+#### Scenario: Plugin enable and disable requests are rejected
+- **WHEN** `demo-control` is enabled
+- **AND** the request is `PUT /api/v1/plugins/{id}/enable` or `PUT /api/v1/plugins/{id}/disable`
+- **THEN** demo-control rejects the request with a read-only demo message
+
+#### Scenario: Plugin uninstalls are rejected
+- **WHEN** `demo-control` is enabled
+- **AND** the request is `DELETE /api/v1/plugins/{id}`
+- **THEN** demo-control rejects the request with a read-only demo message
+
+#### Scenario: Plugin sync and upload writes are rejected
+- **WHEN** `demo-control` is enabled
+- **AND** the request is `POST /api/v1/plugins/sync` or `POST /api/v1/plugins/dynamic/package`
+- **THEN** demo-control rejects the request with a read-only demo message
+
+#### Scenario: Plugin management reads stay allowed
+- **WHEN** `demo-control` is enabled
+- **AND** the request is a plugin management query using `GET`, `HEAD`, or `OPTIONS`
+- **THEN** demo-control allows the request to continue
+

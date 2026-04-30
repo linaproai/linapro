@@ -177,3 +177,16 @@ The The system SHALL deliver position management capabilities as an `org-center`
 - **THEN** The host does not display the position management menu and page entry
 - **AND** Hosting capabilities such as user management will continue to be available according to organization downgrade rules.
 
+### Requirement: Position form status selector must remain readable in English
+Position create and edit forms SHALL keep the status field label and options readable in English, avoiding awkward wrapping caused by insufficient space.
+
+#### Scenario: English position status options stay on one line
+- **WHEN** an administrator opens a position create or edit form in `en-US`
+- **THEN** the status label and options such as `Normal` and `Disabled` remain readable on one line where space permits
+- **AND** the form layout does not obscure later fields or action buttons
+
+#### Scenario: Position form remains responsive
+- **WHEN** the viewport is too narrow for a two-column form
+- **THEN** the form can degrade to one column or use a reasonable wider layout
+- **AND** status options remain readable and operable
+

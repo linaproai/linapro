@@ -88,3 +88,16 @@ The system SHALL only displays the department name column in the user list table
 - **THEN** The `Department` column is not displayed in the table
 - **AND** The remaining core user columns continue to display normally
 
+### Requirement: User list role names must match backend-localized role display
+The user management list SHALL use role display names returned by the backend and keep built-in role display consistent with role management in the same language.
+
+#### Scenario: User list shows administrator role in English
+- **WHEN** an administrator opens user management in `en-US`
+- **THEN** the `admin` user's associated administrator role displays the same English name as role management
+- **AND** the frontend does not maintain extra mappings based on Chinese role names or role keys
+
+#### Scenario: Role selector keeps governance semantics
+- **WHEN** an administrator opens the user create or edit form
+- **THEN** the role selector continues to use backend role option data
+- **AND** saving user-role relationships still submits stable role IDs rather than localized display text
+

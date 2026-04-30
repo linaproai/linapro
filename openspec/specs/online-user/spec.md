@@ -51,15 +51,26 @@ The system SHALL provides an online user management page that displays the curre
 
 ### Requirement: Session Activity Time Tracking
 
-The system SHALL tracks the last active time of each online user and is used to determine if a session has timed out.
+The system SHALL tracks the last active time of each online user and is used to determine if a session has timed out. The authentication middleware MUST validate the session and timeout on every protected request, but MAY skip writing `last_active_time` when the persisted active time is still within the configured short update window.
 
 #### Scenario: Initial active time at login
 - **WHEN** User successfully logged in, system created `sys_online_session` session record
 - **THEN** `last_active_time` field MUST be set to the current time
 
-#### Scenario: Update active time on every request
+#### Scenario: Validate active session on every protected request
 - **WHEN** logged in user with a valid token accessing the protected API
-- **THEN** The authentication middleware MUST updates the `last_active_time` of the session to the current time via the update operation and determines whether the session exists by the number of rows affected (> 0 exists, = 0 does not exist or has been cleared)
+- **THEN** The authentication middleware MUST verify that the session record exists
+- **AND** The authentication middleware MUST reject the request if the persisted `last_active_time` has exceeded the effective timeout threshold
+
+#### Scenario: Refresh active time after update window
+- **WHEN** logged in user with a valid token accesses a protected API and the persisted `last_active_time` is older than the short update window
+- **THEN** The authentication middleware MUST update `last_active_time` to the current time
+- **AND** The request is processed normally when the update succeeds
+
+#### Scenario: Skip duplicate active time write within update window
+- **WHEN** logged in user with a valid token repeatedly accesses protected APIs within the short update window
+- **THEN** The authentication middleware MAY skip the duplicate `last_active_time` update
+- **AND** The request is still processed normally if the session has not timed out
 
 ### Requirement: Automatic cleanup of inactive sessions
 System SHALL provides scheduled tasks to automatically clean up online sessions that have been inactive for a long time, preventing the session table from growing indefinitely.Timeout threshold and cleanup frequency MUST support adjustment via the duration string profile.

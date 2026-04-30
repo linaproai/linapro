@@ -179,3 +179,16 @@ The The system SHALL deliver department management capabilities as `org-center` 
 - **THEN** The host does not display the department management menu and page entry
 - **AND** Hosting capabilities such as user management will continue to be available according to organization downgrade rules.
 
+### Requirement: System-generated Unassigned node must be localized
+System-generated virtual Unassigned department nodes SHALL be localized by the current request language and maintained through backend or plugin runtime i18n resources.
+
+#### Scenario: Unassigned displays in English
+- **WHEN** an administrator opens a page with a department-tree filter in `en-US`
+- **THEN** the system-generated Unassigned virtual node displays as `Unassigned`
+- **AND** no Chinese Unassigned label is shown
+
+#### Scenario: Virtual node identity remains stable
+- **WHEN** an administrator selects the Unassigned virtual node to filter users or posts
+- **THEN** the frontend still submits the existing virtual node ID
+- **AND** backend filtering semantics do not change with display language
+

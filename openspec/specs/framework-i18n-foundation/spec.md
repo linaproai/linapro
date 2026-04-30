@@ -1,5 +1,9 @@
-## ADDED Requirements
+# Framework I18n Foundation
 
+## Purpose
+
+Define the host i18n foundation, including language discovery, runtime bundle distribution, shared resource loading, cache invalidation, and maintenance capabilities.
+## Requirements
 ### Requirement: Host translation service interface must be split into multiple small interfaces by responsibility
 The host system SHALL split the i18n translation service interface into `LocaleResolver`, `Translator`, `BundleProvider`, and `Maintainer` four small interfaces. Each small interface MUST only carry one responsibility: `LocaleResolver` resolves request language and context language; `Translator` provides translation lookup and error localization; `BundleProvider` outputs runtime translation bundles and language lists; `Maintainer` provides resource export, missing checks, source diagnostics, and cache invalidation. The `Service` type MUST be a composition of these four small interfaces, and business modules' `i18nSvc` field types SHALL converge to the minimum interface they actually depend on rather than the entire `Service`. The host core i18n service must not provide database translation override import or generic business content multilingual persistence interfaces.
 
@@ -68,8 +72,6 @@ The host system SHALL provide a unified `ResourceLoader` component in the `pkg/i
 - **AND** the apidoc pipeline constrains plugin namespace via `PluginScope=RestrictedToPluginNamespace` configuration
 - **AND** the runtime UI pipeline allows plugins to contribute arbitrary keys via `PluginScope=Open` configuration
 
-## MODIFIED Requirements
-
 ### Requirement: Host must provide runtime translation bundle distribution capability
 The host system SHALL provide a runtime translation bundle API and language list API, returning aggregated message resources and current available language descriptor information by language, for the default management workbench and host embedded plugin pages to load. The runtime translation bundle MUST be able to simultaneously contain host, source plugin, and currently enabled dynamic plugin i18n messages, and convert them to nested message objects directly consumable by the frontend on output. The runtime translation bundle API MUST output an `ETag` header in the response, with a value derived from the current language and runtime translation bundle version that must differ when the version changes; the system MUST receive the `If-None-Match` header from requests and return `304 Not Modified` without carrying a message body when matched. Any sector cache invalidation MUST trigger runtime translation bundle version auto-increment, ensuring different bundle contents for the same language have different ETags.
 
@@ -122,3 +124,31 @@ The host system SHALL provide translation resource export, missing translation c
 - **THEN** the system only clears the dynamic plugin sector cache and merged view related to that plugin
 - **AND** other languages, host resources, and unaffected plugin resources remain valid
 - **AND** the runtime translation bundle version for that language auto-increments, ensuring the frontend can detect changes on next negotiation
+
+### Requirement: English regression sweep must cover framework-delivered pages and seed display content
+The default management workbench SHALL provide English regression coverage for framework-delivered pages from manual feedback, ensuring system-generated content, default seed display content, and static UI copy do not retain Chinese text.
+
+#### Scenario: English regression pages contain no Chinese system copy
+- **WHEN** an administrator switches to `en-US` and opens workbench, user management, role management, department management, post management, dictionary management, system config, service monitoring, and scheduled jobs
+- **THEN** framework-delivered titles, buttons, form labels, table columns, system-generated nodes, built-in record displays, and confirmation modals use English
+- **AND** user-editable business fields are localized only when explicitly included in framework-delivered projection rules
+
+#### Scenario: English layout regressions are screenshot checked
+- **WHEN** Playwright captures post forms, dictionary forms, and service monitoring disk tables in `en-US`
+- **THEN** key labels, options, headers, and values do not wrap unreadably or overlap
+- **AND** screenshot results are part of acceptance evidence
+
+#### Scenario: Version information menu title is localized consistently
+- **WHEN** an administrator views the version information menu entry under the development center
+- **THEN** Simplified Chinese, English, and Traditional Chinese locales each show the locale-appropriate title
+- **AND** the English title is `Version Info`
+
+### Requirement: Runtime locale JSON values must avoid markdown-only code markers
+Runtime translation JSON SHALL avoid markdown-style backtick markers in user-visible strings because ordinary UI rendering does not apply code highlighting and raw backticks reduce readability.
+
+#### Scenario: Locale JSON strings are displayed as plain UI text
+- **WHEN** frontend, host, or plugin locale JSON strings contain file paths, parameter examples, wildcards, or extensions
+- **THEN** strings display the content directly
+- **AND** strings do not wrap those values in backticks
+- **AND** automated checks prevent locale JSON strings from reintroducing backticks
+

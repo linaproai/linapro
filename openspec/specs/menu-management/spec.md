@@ -284,3 +284,34 @@ The system SHALL preserve stable business keys as i18n anchors in menu governanc
 - **THEN** the system returns the localized parent menu display title and related read-only copy for the current language
 - **AND** the menu's editable fields continue to keep database values while the stable business key remains available for later translation maintenance and diagnostics
 
+### Requirement: Dynamic route permission buttons must mount under their owning plugin menu
+Button permission menus generated from dynamic plugin route declarations SHALL mount under the owning dynamic plugin page menu or plugin root menu. They MUST NOT appear as floating button collections disconnected from business entry points in menu management.
+
+#### Scenario: Dynamic plugin route buttons are children of plugin menu
+- **WHEN** `plugin-demo-dynamic` is enabled and dynamic route permissions are synchronized
+- **THEN** corresponding button permissions appear as child nodes under that plugin page menu or plugin root menu
+- **AND** menu management does not show many top-level or wrongly mounted buttons prefixed with `Dynamic Route Permission:plugin-demo-dynamic:`
+
+#### Scenario: Dynamic plugin route buttons show readable English names
+- **WHEN** an administrator views `plugin-demo-dynamic` child buttons in menu management under `en-US`
+- **THEN** dynamic route button names display readable English resource and action names
+- **AND** raw `Dynamic Route Permission:plugin-demo-dynamic:*` placeholder text is not shown
+
+#### Scenario: Dynamic plugin buttons remain assignable
+- **WHEN** an administrator views dynamic plugin permissions in the role authorization tree
+- **THEN** dynamic route buttons remain assignable under their owning plugin menu
+- **AND** plugin disablement temporarily invalidates permissions by existing plugin menu governance rules without losing authorization records
+
+### Requirement: Menu tree expandable rows must be clickable
+Menu management tree rows that can expand SHALL show a clear clickable pointer and allow clicking the node title area to expand or collapse.
+
+#### Scenario: Expandable menu row pointer and click
+- **WHEN** an administrator hovers the title area of a directory or menu row with children
+- **THEN** the cursor changes to a pointer
+- **AND** clicking that area expands or collapses the node
+
+#### Scenario: Redundant title icon hint is removed
+- **WHEN** an administrator views the menu management list title area
+- **THEN** the extra expand hint icon after the title is not shown
+- **AND** tree node expansion remains discoverable and operable
+

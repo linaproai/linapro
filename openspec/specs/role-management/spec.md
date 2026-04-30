@@ -2,173 +2,110 @@
 
 ## Purpose
 
-定义角色管理模块的查询、维护、权限分配、状态控制和用户授权行为，确保角色与菜单、角色与用户之间的关系能够被一致管理。
+Define role query, maintenance, permission assignment, status control, user assignment, plugin menu authorization, and localized seed display behavior.
+
 ## Requirements
-### Requirement: 角色列表查询
 
-系统 SHALL 支持角色的分页查询。
+### Requirement: Role list and detail queries
 
-#### Scenario: 查询角色列表
-- **WHEN** 用户访问角色管理页面
-- **THEN** 系统返回角色分页列表
-- **AND** 每个角色包含 id、name、key、sort、dataScope、status、remark、createdAt 等信息
-- **AND** 支持按角色名称、权限字符、状态进行筛选
+The system SHALL provide paginated role list and detail APIs that return role identity, permission key, sort order, data scope, status, remark, timestamps, and assigned menu IDs where applicable.
 
-#### Scenario: 按条件筛选角色
-- **WHEN** 用户输入角色名称或选择状态进行搜索
-- **THEN** 系统返回符合条件的角色列表
+#### Scenario: Query role list
+- **WHEN** a user opens role management
+- **THEN** the system returns paginated roles
+- **AND** filtering by role name, permission key, and status is supported
 
-### Requirement: 角色详情查询
+#### Scenario: Query role details
+- **WHEN** a user opens an existing role for editing
+- **THEN** the system returns the role details and assigned menu IDs
 
-系统 SHALL 支持根据角色ID查询角色详情。
+### Requirement: Role create and update operations
 
-#### Scenario: 查询存在的角色详情
-- **WHEN** 用户点击角色列表中的编辑按钮
-- **THEN** 系统返回该角色的完整信息
-- **AND** 返回该角色已分配的菜单ID列表
+The system SHALL support creating and updating roles while enforcing unique role names and permission keys.
 
-#### Scenario: 查询不存在的角色
-- **WHEN** 用户请求一个不存在的角色ID
-- **THEN** 系统返回错误信息"角色不存在"
+#### Scenario: Create role
+- **WHEN** a user submits valid role name, permission key, sort, data scope, status, and remark
+- **THEN** the system creates the role and timestamps it
 
-### Requirement: 创建角色
+#### Scenario: Reject duplicate role identity
+- **WHEN** a submitted role name or permission key already exists
+- **THEN** the system returns a validation or business error
 
-系统 SHALL 支持创建新角色。
+#### Scenario: Update role menu permissions
+- **WHEN** a user updates menu assignments for a role
+- **THEN** old `sys_role_menu` records are replaced by the new selection
+- **AND** parent-child menu assignment semantics are preserved
 
-#### Scenario: 创建角色
-- **WHEN** 用户填写角色信息（名称、权限字符、排序、数据权限、状态、备注）并提交
-- **THEN** 系统创建角色记录
-- **AND** 系统自动设置 created_at 和 updated_at
+### Requirement: Role deletion and status control
 
-#### Scenario: 角色名称重复
-- **WHEN** 用户创建角色时使用已存在的角色名称
-- **THEN** 系统返回错误信息"角色名称已存在"
+The system SHALL support deleting roles and toggling enabled or disabled status while preserving protected built-in role rules.
 
-#### Scenario: 角色权限字符重复
-- **WHEN** 用户创建角色时使用已存在的权限字符
-- **THEN** 系统返回错误信息"权限字符已存在"
+#### Scenario: Delete unassigned role
+- **WHEN** a user deletes a role that is not assigned to users
+- **THEN** the system soft-deletes the role
+- **AND** related role-menu and user-role records are removed
 
-### Requirement: 更新角色
+#### Scenario: Delete role assigned to users
+- **WHEN** a user deletes a role assigned to users
+- **THEN** the system requires confirmation and then removes those assignments
 
-系统 SHALL 支持更新角色信息。
+#### Scenario: Protected administrator role cannot be deleted
+- **WHEN** a user attempts to delete the built-in administrator role
+- **THEN** the system rejects the deletion
 
-#### Scenario: 更新角色基本信息
-- **WHEN** 用户修改角色信息并提交
-- **THEN** 系统更新角色的 updated_at 时间戳
-- **AND** 系统更新角色的所有可编辑字段
+#### Scenario: Disable role
+- **WHEN** a role status changes to disabled
+- **THEN** users associated with the role no longer obtain that role's menu permissions after login
 
-#### Scenario: 更新角色菜单权限
-- **WHEN** 用户修改角色的菜单分配并提交
-- **THEN** 系统删除旧的 sys_role_menu 关联记录
-- **AND** 系统插入新的 sys_role_menu 关联记录
-- **AND** 菜单分配采用父子联动模式
+### Requirement: Role option and user assignment capabilities
 
-#### Scenario: 更新不存在的角色
-- **WHEN** 用户尝试更新一个不存在的角色
-- **THEN** 系统返回错误信息"角色不存在"
+The system SHALL provide role option APIs for user management and role-user assignment workflows.
 
-### Requirement: 删除角色
+#### Scenario: Get role options
+- **WHEN** the user form loads
+- **THEN** the system returns enabled role options with `id`, `name`, and `key`
 
-系统 SHALL 支持删除角色。
+#### Scenario: View users assigned to a role
+- **WHEN** a user clicks role assignment
+- **THEN** the system shows assigned users with pagination and search
 
-#### Scenario: 删除未分配用户的角色
-- **WHEN** 用户删除一个未分配给任何用户的角色
-- **THEN** 系统软删除该角色（设置 deleted_at）
-- **AND** 同步删除 sys_role_menu 和 sys_user_role 中的关联记录
+#### Scenario: Cancel or grant user authorization
+- **WHEN** users are removed from or granted to a role
+- **THEN** `sys_user_role` records are updated accordingly
+- **AND** affected users receive permissions according to the new assignments after re-login
 
-#### Scenario: 删除已分配用户的角色
-- **WHEN** 用户尝试删除一个已分配给用户的角色
-- **THEN** 系统提示"该角色已分配给X个用户，是否确认删除？"
-- **AND** 用户确认后删除角色，同时取消这些用户的角色分配
+### Requirement: Data scope options must be supported
 
-#### Scenario: 删除超级管理员角色
-- **WHEN** 用户尝试删除 admin 角色
-- **THEN** 系统返回错误信息"不能删除超级管理员角色"
+The system SHALL support simplified data scope values for all data, current department data, and own created data.
 
-### Requirement: 角色状态控制
+#### Scenario: Configure data scope
+- **WHEN** a role data scope is set to one of the supported values
+- **THEN** the system stores that value for later governance use
 
-系统 SHALL 支持角色的启用/停用状态切换。
+### Requirement: Roles must support plugin menu and permission authorization
 
-#### Scenario: 停用角色
-- **WHEN** 用户将角色状态改为停用
-- **THEN** 该角色关联的用户登录后无法获取该角色的菜单权限
+The system SHALL allow administrators to assign plugin menus and plugin button permissions in the role authorization flow, and SHALL preserve authorization relationships while plugins are disabled.
 
-#### Scenario: 启用角色
-- **WHEN** 用户将已停用的角色状态改为启用
-- **THEN** 该角色关联的用户重新登录后可获取该角色的菜单权限
+#### Scenario: Assign plugin menus to a role
+- **WHEN** an administrator opens the role menu authorization tree and a plugin is installed and enabled
+- **THEN** plugin menus and button permissions appear in the assignable tree
 
-### Requirement: 角色下拉选项
+#### Scenario: Plugin disabled keeps role authorization records
+- **WHEN** a plugin with existing role authorizations is disabled
+- **THEN** those roles temporarily stop receiving the plugin menus and permissions
+- **AND** the system preserves the original authorization records for later recovery
 
-系统 SHALL 提供角色下拉选项接口，用于用户管理中选择角色。
+### Requirement: Built-in role display must be localized consistently
 
-#### Scenario: 获取角色下拉选项
-- **WHEN** 用户管理页面加载用户表单时
-- **THEN** 系统返回所有启用状态的角色列表
-- **AND** 每个选项包含 id、name、key 字段
+Built-in protected roles and default seed roles SHALL display according to current language in framework-delivered pages. User management and role management MUST show the same localized display value for the same built-in role.
 
-### Requirement: 角色用户分配
+#### Scenario: Default user role displays in English
+- **WHEN** an administrator opens role management in `en-US`
+- **THEN** the default user role displays an English name
+- **AND** it does not remain as the original Chinese seed value
 
-系统 SHALL 支持为角色分配用户（"分配"功能）。
-
-#### Scenario: 查看角色的用户列表
-- **WHEN** 用户点击角色的"分配"按钮
-- **THEN** 系统跳转到角色用户管理页面
-- **AND** 显示已分配该角色的用户列表
-- **AND** 用户列表支持分页和搜索
-
-#### Scenario: 取消用户的角色授权
-- **WHEN** 用户在角色用户列表中点击"取消授权"
-- **THEN** 系统删除 sys_user_role 中对应的关联记录
-- **AND** 用户列表自动刷新
-
-#### Scenario: 批量授权用户
-- **WHEN** 用户选择多个未分配该角色的用户并点击"授权"
-- **THEN** 系统批量插入 sys_user_role 关联记录
-- **AND** 这些用户重新登录后可获得该角色的菜单权限
-
-### Requirement: 数据权限范围
-
-系统 SHALL 支持三种简化数据权限范围。
-
-#### Scenario: 设置全部数据权限
-- **WHEN** 角色的 dataScope 设置为 1
-- **THEN** 该角色可查看所有数据（暂不实现实际过滤逻辑）
-
-#### Scenario: 设置本部门数据权限
-- **WHEN** 角色的 dataScope 设置为 2
-- **THEN** 该角色仅可查看本部门数据（暂不实现实际过滤逻辑）
-
-#### Scenario: 设置仅本人数据权限
-- **WHEN** 角色的 dataScope 设置为 3
-- **THEN** 该角色仅可查看自己创建的数据（暂不实现实际过滤逻辑）
-
-### Requirement: 角色支持授权插件菜单与权限
-系统 SHALL 允许管理员在角色授权流程中为插件菜单和插件按钮权限分配授权。
-
-#### Scenario: 为角色分配插件菜单
-- **WHEN** 管理员打开角色的菜单授权树且插件处于已安装启用状态
-- **THEN** 插件菜单会出现在可分配的菜单树中
-- **AND** 插件按钮权限随对应菜单一起参与授权
-
-### Requirement: 插件停用时保留角色授权关系
-系统 SHALL 在插件禁用时保留角色与插件菜单之间的授权关系，待插件重新启用后恢复生效。
-
-#### Scenario: 插件禁用后角色授权失效但不丢失
-- **WHEN** 一个已被多个角色授权的插件被禁用
-- **THEN** 这些角色暂时不再获得该插件对应的菜单与权限
-- **AND** 系统保留原有角色授权关系供后续恢复
-
-### Requirement: Built-in protected role display names must be localized by the backend
-The system SHALL return read-only display names for framework built-in protected roles in role management APIs according to the current request language, while continuing to keep database original values for user-editable role fields. Built-in role localization MUST derive translation keys from stable `role.key` anchors. The frontend MUST NOT maintain role-name translation mappings based on `role.key` or Chinese role names.
-
-#### Scenario: Built-in super administrator role is queried in English
-- **WHEN** an administrator requests the role list with `en-US` and views the framework built-in protected role with `key=admin`
-- **THEN** the backend returns the role list display name as an English projected value
-- **AND** other user-editable role records in the same list continue to return database values
-- **AND** the frontend role list renders API response values directly and no longer calls frontend role seed mapping helpers
-
-#### Scenario: Role detail and edit backfill keep governance values
-- **WHEN** an administrator opens role detail, edit drawer, user authorization selector, or any page that affects governance data backfill
-- **THEN** the backend continues to return database values as editable fields or selector semantic values
-- **AND** language switching MUST NOT write localized display names back into role governance names
+#### Scenario: User management role display matches role management
+- **WHEN** an administrator opens user management in `en-US`
+- **THEN** the administrator user's role name matches the English role-management display
+- **AND** the frontend does not maintain extra mappings based on Chinese names or role keys
 

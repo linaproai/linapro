@@ -6,10 +6,10 @@ Define the server monitoring data acquisition, storage, cleaning and display beh
 ## Requirements
 ### Requirement: Timed collection of server metrics
 
-The system SHALL starts a timing task on each LinaPro service node, periodically collects the local server indicators and writes them to the database. The acquisition frequency defaults to 30 seconds, which can be adjusted through configuration. The responsibility for cleaning up the monitoring data MUST be determined according to the deployment mode: the single node mode is performed by the current node, and the cluster mode is performed by the master node only.
+The system SHALL starts a timing task on each LinaPro service node, periodically collects the local server indicators and writes them to the database. The acquisition frequency defaults to 1 minute, which can be adjusted through configuration. The responsibility for cleaning up the monitoring data MUST be determined according to the deployment mode: the single node mode is performed by the current node, and the cluster mode is performed by the master node only.
 
 #### Scenario: Timed Acquisition Write Database
-- **WHEN** timed task triggers (default every 30 seconds)
+- **WHEN** timed task triggers (default every 1 minute)
 - **THEN** The system collects CPU, memory, disk, network traffic indicators of the current node through gopsutil, along with Go runtime information and node identification (hostname + IP), and writes a record of the `plugin_monitor_server` table in JSON format
 
 #### Scenario: Collect immediately after the service starts
@@ -38,7 +38,7 @@ System SHALL supports configurable monitoring parameters. where the acquisition 
 - **GIVEN** Configuration file contains` monitor.interval `
 - **WHEN** service start
 - **THEN** system SHALL use this duration value as the acquisition period
-- **OR** Used by default for 30 seconds when not configured
+- **OR** Used by default for 1 minute when not configured
 
 #### Scenario: Configure retention multiplier
 - **GIVEN** the configuration file contains `monitor.retentionMultiplier`
@@ -127,4 +127,13 @@ System SHALL delivers the service monitoring capability as a `monitor-server` so
 - **WHEN** `monitor-server` is not installed or not enabled
 - **THEN** The host does not display the service monitoring menu and page entry
 - **AND** Other monitoring plugins and host core capabilities continue to operate normally
+
+### Requirement: Service monitoring disk table must remain readable in English
+The service monitoring page SHALL allocate readable disk table column widths in English so key column headers and values do not wrap unnecessarily.
+
+#### Scenario: English disk table keeps key columns on one line
+- **WHEN** an administrator opens service monitoring in `en-US`
+- **THEN** `File System`, `Total`, `Used`, and `Available` headers do not wrap
+- **AND** common values in those columns are not squeezed by an overly wide `Mount Path` column
+- **AND** long mount paths are handled through truncation, tooltip, or horizontal scrolling
 
