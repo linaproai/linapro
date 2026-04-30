@@ -48,3 +48,5 @@
 - [x] **FB-14**: Remove markdown-style backticks from frontend locale JSON translations so raw backticks are not shown in UI text
 - [x] **FB-15**: Stabilize dynamic plugin English menu regression by expanding the menu tree before asserting nested plugin rows
 - [x] **FB-16**: Protect built-in dictionary types, dictionary data, and system parameters from deletion while keeping them editable (TC0154)
+- [x] **FB-17**: Remove the demo-control plugin-governance write whitelist so enabled demo mode blocks plugin install, uninstall, enable, and disable operations
+- [x] **FB-18**: Ensure installed-but-disabled demo-control does not block write requests before the plugin is enabled

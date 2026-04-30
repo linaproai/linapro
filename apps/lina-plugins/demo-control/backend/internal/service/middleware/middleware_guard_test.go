@@ -3,6 +3,7 @@
 package middleware
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,14 @@ import (
 type demoControlTestResponse struct {
 	status int
 	body   string
+}
+
+// staticDemoControlEnablementReader returns one fixed enablement value for tests.
+type staticDemoControlEnablementReader bool
+
+// IsEnabled reports the fixed test enablement value.
+func (r staticDemoControlEnablementReader) IsEnabled(_ context.Context, _ string) bool {
+	return bool(r)
 }
 
 // TestGuardBypassesWriteRequestsWhenPluginDisabled verifies an unenabled
@@ -123,37 +132,9 @@ func TestGuardAllowsLoginAndLogoutWhitelist(t *testing.T) {
 	}
 }
 
-// TestGuardAllowsPluginManagementWhitelist verifies demo mode preserves
-// install/uninstall/enable/disable actions for plugins other than demo-control.
-func TestGuardAllowsPluginManagementWhitelist(t *testing.T) {
-	baseURL, shutdown := startDemoControlTestServer(t, true)
-	defer shutdown()
-
-	allowedRequests := []struct {
-		method string
-		path   string
-		body   string
-	}{
-		{method: http.MethodPost, path: "/api/v1/plugins/plugin-demo-source/install", body: "plugin-install-ok"},
-		{method: http.MethodPut, path: "/api/v1/plugins/plugin-demo-source/enable", body: "plugin-enable-ok"},
-		{method: http.MethodPut, path: "/api/v1/plugins/plugin-demo-source/disable", body: "plugin-disable-ok"},
-		{method: http.MethodDelete, path: "/api/v1/plugins/plugin-demo-source", body: "plugin-uninstall-ok"},
-	}
-
-	for _, item := range allowedRequests {
-		response := doDemoControlRequest(t, item.method, baseURL+item.path)
-		if response.status != http.StatusOK {
-			t.Fatalf("expected %s %s to stay allowed, got %d", item.method, item.path, response.status)
-		}
-		if response.body != item.body {
-			t.Fatalf("expected downstream whitelist body %q for %s %s, got %q", item.body, item.method, item.path, response.body)
-		}
-	}
-}
-
-// TestGuardRejectsDemoControlSelfManagementRequests verifies demo-control keeps
-// protecting itself even when plugin governance actions are otherwise whitelisted.
-func TestGuardRejectsDemoControlSelfManagementRequests(t *testing.T) {
+// TestGuardRejectsPluginManagementWriteRequests verifies demo mode blocks all
+// plugin-governance write operations after the guard is enabled.
+func TestGuardRejectsPluginManagementWriteRequests(t *testing.T) {
 	baseURL, shutdown := startDemoControlTestServer(t, true)
 	defer shutdown()
 
@@ -161,10 +142,16 @@ func TestGuardRejectsDemoControlSelfManagementRequests(t *testing.T) {
 		method string
 		path   string
 	}{
+		{method: http.MethodPost, path: "/api/v1/plugins/plugin-demo-source/install"},
+		{method: http.MethodPut, path: "/api/v1/plugins/plugin-demo-source/enable"},
+		{method: http.MethodPut, path: "/api/v1/plugins/plugin-demo-source/disable"},
+		{method: http.MethodDelete, path: "/api/v1/plugins/plugin-demo-source"},
 		{method: http.MethodPost, path: "/api/v1/plugins/demo-control/install"},
 		{method: http.MethodPut, path: "/api/v1/plugins/demo-control/enable"},
 		{method: http.MethodPut, path: "/api/v1/plugins/demo-control/disable"},
 		{method: http.MethodDelete, path: "/api/v1/plugins/demo-control"},
+		{method: http.MethodPost, path: "/api/v1/plugins/sync"},
+		{method: http.MethodPost, path: "/api/v1/plugins/dynamic/package"},
 	}
 
 	for _, item := range rejectedRequests {
@@ -173,6 +160,29 @@ func TestGuardRejectsDemoControlSelfManagementRequests(t *testing.T) {
 			t.Fatalf("expected %s %s to be rejected, got %d", item.method, item.path, response.status)
 		}
 		assertDemoControlRejectedResponse(t, response, item.method, item.path)
+	}
+}
+
+// TestGuardAllowsPluginManagementReadRequests verifies plugin management reads
+// still pass through because they use safe HTTP methods.
+func TestGuardAllowsPluginManagementReadRequests(t *testing.T) {
+	baseURL, shutdown := startDemoControlTestServer(t, true)
+	defer shutdown()
+
+	allowedRequests := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/api/v1/plugins/plugin-demo-source"},
+		{method: http.MethodHead, path: "/api/v1/plugins/plugin-demo-source"},
+		{method: http.MethodOptions, path: "/api/v1/plugins/plugin-demo-source"},
+	}
+
+	for _, item := range allowedRequests {
+		response := doDemoControlRequest(t, item.method, baseURL+item.path)
+		if response.status != http.StatusOK {
+			t.Fatalf("expected %s %s to stay allowed, got %d", item.method, item.path, response.status)
+		}
 	}
 }
 
@@ -185,10 +195,8 @@ func startDemoControlTestServer(t *testing.T, enabled bool) (string, func()) {
 	server.SetDumpRouterMap(false)
 	server.SetPort(0)
 
-	if enabled {
-		guardSvc := New()
-		server.BindMiddleware("/*", guardSvc.Guard)
-	}
+	guardSvc := newWithEnablementReader(staticDemoControlEnablementReader(enabled))
+	server.BindMiddleware("/*", guardSvc.Guard)
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.ALL("/ping", func(request *ghttp.Request) {
 			request.Response.Write("ok")
@@ -201,6 +209,12 @@ func startDemoControlTestServer(t *testing.T, enabled bool) (string, func()) {
 		})
 		group.ALL("/auth/logout", func(request *ghttp.Request) {
 			request.Response.Write("logout-ok")
+		})
+		group.ALL("/plugins/sync", func(request *ghttp.Request) {
+			request.Response.Write("plugin-sync-ok")
+		})
+		group.ALL("/plugins/dynamic/package", func(request *ghttp.Request) {
+			request.Response.Write("plugin-dynamic-upload-ok")
 		})
 		group.ALL("/plugins/plugin-demo-source/install", func(request *ghttp.Request) {
 			request.Response.Write("plugin-install-ok")

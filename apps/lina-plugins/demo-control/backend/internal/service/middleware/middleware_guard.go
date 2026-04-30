@@ -4,18 +4,13 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/pkg/bizerr"
-)
-
-// demo-control middleware constants define safe methods, whitelist routes, and
-// the normalized JSON error envelope returned for blocked write operations.
-const (
-	demoControlPluginID = "demo-control"
 )
 
 // demoControlErrorResponse defines the JSON payload returned for blocked demo writes.
@@ -37,7 +32,19 @@ func (s *serviceImpl) Guard(request *ghttp.Request) {
 		request.Middleware.Next()
 		return
 	}
+	if !s.isDemoControlEnabled(request.Context()) {
+		request.Middleware.Next()
+		return
+	}
 	s.writeDemoControlError(request)
+}
+
+// isDemoControlEnabled reports whether the current plugin state activates demo protection.
+func (s *serviceImpl) isDemoControlEnabled(ctx context.Context) bool {
+	if s == nil || s.enablementReader == nil {
+		return false
+	}
+	return s.enablementReader.IsEnabled(ctx, demoControlPluginID)
 }
 
 // isDemoControlAllowedRequest reports whether the incoming request should bypass
@@ -55,7 +62,7 @@ func isDemoControlAllowedRequest(request *ghttp.Request) bool {
 	if isDemoControlSessionWhitelist(method, path) {
 		return true
 	}
-	return isDemoControlPluginManagementWhitelist(method, path)
+	return false
 }
 
 // normalizeDemoControlMethod trims and uppercases one request method.
@@ -89,34 +96,6 @@ func isDemoControlSessionWhitelist(method string, path string) bool {
 	}
 }
 
-// isDemoControlPluginManagementWhitelist reports whether the request belongs to
-// the minimal plugin-governance whitelist preserved for demo environments.
-func isDemoControlPluginManagementWhitelist(method string, path string) bool {
-	segments := splitDemoControlPathSegments(path)
-	if len(segments) < 4 {
-		return false
-	}
-	if segments[0] != "api" || segments[1] != "v1" || segments[2] != "plugins" {
-		return false
-	}
-
-	pluginID := strings.TrimSpace(segments[3])
-	if pluginID == "" || pluginID == demoControlPluginID {
-		return false
-	}
-
-	switch method {
-	case http.MethodPost:
-		return len(segments) == 5 && segments[4] == "install"
-	case http.MethodPut:
-		return len(segments) == 5 && (segments[4] == "enable" || segments[4] == "disable")
-	case http.MethodDelete:
-		return len(segments) == 4
-	default:
-		return false
-	}
-}
-
 // normalizeDemoControlPath canonicalizes one request path for whitelist matching.
 func normalizeDemoControlPath(path string) string {
 	trimmed := strings.TrimSpace(path)
@@ -133,16 +112,6 @@ func normalizeDemoControlPath(path string) string {
 		}
 	}
 	return trimmed
-}
-
-// splitDemoControlPathSegments converts one canonical request path into ordered
-// non-empty path segments for whitelist classification.
-func splitDemoControlPathSegments(path string) []string {
-	normalizedPath := normalizeDemoControlPath(path)
-	if normalizedPath == "/" {
-		return nil
-	}
-	return strings.Split(strings.TrimPrefix(normalizedPath, "/"), "/")
 }
 
 // writeDemoControlError writes one JSON error response for blocked write requests.
