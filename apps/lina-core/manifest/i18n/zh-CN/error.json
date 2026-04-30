@@ -748,8 +748,8 @@
           "manifest": {
             "required": "源码插件清单不能为空"
           },
-          "pending": "检测到已安装源码插件存在待完成升级，宿主启动前必须先执行开发态升级命令。\n{items}",
-          "pendingWithBulk": "检测到已安装源码插件存在待完成升级，宿主启动前必须先执行开发态升级命令。\n{items}\n如需一次性处理全部待升级源码插件，可执行：{bulkCommand}",
+          "pending": "检测到已安装源码插件存在待完成升级，宿主启动前必须先通过 AI 工具调用 lina-upgrade 技能。\n{items}",
+          "pendingWithBulk": "检测到已安装源码插件存在待完成升级，宿主启动前必须先通过 AI 工具调用 lina-upgrade 技能。\n{items}\n如需一次性处理全部待升级源码插件，请让 AI 工具执行：{bulkCommand}",
           "plugin": {
             "id": {
               "required": "源码插件 ID 不能为空"

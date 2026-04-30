@@ -1,92 +1,86 @@
-# Installer Scripts
+# LinaPro Installer
 
-This directory contains the official bootstrap entrypoints for downloading the `LinaPro` source tree from a GitHub archive and unpacking it into a local workspace.
+This directory contains the repository-backed implementation for the single LinaPro installation entry point:
+
+```bash
+curl -fsSL https://linapro.ai/install.sh | bash
+```
+
+The hosted `/install.sh` content must match `hack/scripts/install/bootstrap.sh`. The bootstrap script is self-contained: it resolves the target version, clones the requested tag, and dispatches to the platform script that ships inside the cloned repository.
+
+## Supported Platforms
+
+| Platform | Runtime |
+| --- | --- |
+| `macOS` | `bash` on Darwin |
+| `Linux` | `bash` on Linux distributions and WSL |
+| `Windows` | Git Bash or WSL only |
+
+Windows users must run the command from Git Bash or WSL. Native PowerShell and `cmd.exe` are not supported entry points.
 
 ## Directory Layout
 
 ```text
 hack/scripts/install/
-  install.sh       installer for macOS and Linux
-  install.ps1      installer for Windows PowerShell
-  test_install.py  smoke test for installer behavior and option contracts
-  README.md        English documentation
-  README.zh_CN.md  Simplified Chinese mirror
+  bootstrap.sh          hosted curl|bash entrypoint
+  install-macos.sh      macOS post-clone setup
+  install-linux.sh      Linux and WSL post-clone setup
+  install-windows.sh    Windows Git Bash post-clone setup
+  checks/prereq.sh      shared prerequisite checks
+  lib/_common.sh        shared installer helpers
+  README.md             English documentation
+  README.zh_CN.md       Simplified Chinese mirror
 ```
 
-## Purpose
+## Environment Variables
 
-The installer scripts focus on a narrow bootstrap workflow:
+| Variable | Default | Meaning | Example |
+| --- | --- | --- | --- |
+| `LINAPRO_VERSION` | Latest stable GitHub release | Target version tag to clone. The installer fails if it cannot resolve a tag automatically. | `LINAPRO_VERSION=v0.5.0 curl -fsSL https://linapro.ai/install.sh \| bash` |
+| `LINAPRO_DIR` | `./linapro` | Target directory for the cloned project. | `LINAPRO_DIR=~/Workspace/my-linapro curl -fsSL https://linapro.ai/install.sh \| bash` |
+| `LINAPRO_NON_INTERACTIVE` | unset | Skips interactive confirmations where a platform script needs one. | `LINAPRO_NON_INTERACTIVE=1 ...` |
+| `LINAPRO_SKIP_MOCK` | unset | Runs `make init` but skips `make mock`. | `LINAPRO_SKIP_MOCK=1 ...` |
+| `LINAPRO_SHALLOW` | unset | Uses `git clone --depth 1`. The first upgrade later requires `git fetch --unshallow`. | `LINAPRO_SHALLOW=1 ...` |
 
-- download a source archive from `GitHub/Codeload`
-- extract it in a temporary directory first
-- copy the project into the final target directory
-- resolve the latest stable tag automatically when the caller does not provide `--ref` or `-Ref`
-- protect non-empty directories unless the caller explicitly allows overlay mode
-- print an environment check for `Go`, `Node.js`, `pnpm`, `MySQL`, and `make`
-- print the next recommended commands such as `make init confirm=init` and `make dev`
+`LINAPRO_FORCE=1` is a hidden recovery switch for intentionally replacing a non-empty target directory.
 
-The scripts do not install system dependencies and do not execute bootstrap commands automatically.
+## Local Equivalent
 
-## Official Entry Points
-
-| Platform | Remote Entrypoint | Repository Script |
-| --- | --- | --- |
-| `macOS` / `Linux` | `curl -fsSL https://linapro.ai/install.sh \| bash` | `hack/scripts/install/install.sh` |
-| `Windows PowerShell` | `irm https://linapro.ai/install.ps1 \| iex` | `hack/scripts/install/install.ps1` |
-
-The hosted URLs should remain thin wrappers over the repository-backed scripts so the installation behavior does not drift.
-
-By default, a no-argument install resolves the latest stable semver tag from the target repository and falls back to `main` when no stable tag is available.
-
-## Usage
-
-### `macOS` and `Linux`
+From an existing repository checkout, run the same bootstrap source locally:
 
 ```bash
-bash ./hack/scripts/install/install.sh
-bash ./hack/scripts/install/install.sh --ref v0.1.0 --dir ~/Workspace/linapro
-bash ./hack/scripts/install/install.sh --current-dir --force
+bash hack/scripts/install/bootstrap.sh
 ```
 
-### `Windows PowerShell`
+The command still clones the requested version into `LINAPRO_DIR` or `./linapro`; it does not install over the current checkout unless you explicitly set `LINAPRO_DIR`.
 
-```powershell
-.\hack\scripts\install\install.ps1
-.\hack\scripts\install\install.ps1 -Ref v0.1.0 -Dir C:\Workspace\linapro
-.\hack\scripts\install\install.ps1 -CurrentDir -Force
-```
+## What the Installer Does
 
-## Parameters
+1. Resolves `LINAPRO_VERSION` or follows the GitHub `releases/latest` redirect.
+2. Refuses to overwrite a non-empty target directory unless `LINAPRO_FORCE=1` is set.
+3. Runs `git clone --branch <tag> https://github.com/linaproai/linapro.git "$LINAPRO_DIR"`.
+4. Dispatches to `install-macos.sh`, `install-linux.sh`, or `install-windows.sh`.
+5. Checks `go >= 1.22`, `node >= 20`, `pnpm >= 8`, `git`, `make`, the MySQL client, and ports `5666` / `8080`.
+6. Runs backend `go mod download`, frontend `pnpm install`, `make init confirm=init`, and `make mock confirm=mock` unless `LINAPRO_SKIP_MOCK=1`.
+7. Prints the project path, default `admin` / `admin123` credentials, and the `make dev` next step.
 
-| Shell | PowerShell | Meaning |
-| --- | --- | --- |
-| `--repo` | `-Repo` | Override the default GitHub repository, for example `owner/name`. |
-| `--ref` | `-Ref` | Select a branch, tag, or commit-like reference to download. |
-| `--dir` | `-Dir` | Install into an explicit target directory. |
-| `--name` | `-Name` | Create a child directory under the current working path. |
-| `--current-dir` | `-CurrentDir` | Unpack directly into the current directory. |
-| `--force` | `-Force` | Allow overlay install into a non-empty target directory. |
-| `--help` | `-Help` | Print the built-in usage guide. |
+## Diagnostics and Retry
 
-## Local Archive Override
+- If latest release resolution fails, rerun with `LINAPRO_VERSION=v0.x.y`.
+- If clone fails, verify network access and that the selected tag exists in GitHub Releases.
+- If prerequisites fail, install the missing tools with the platform-specific hints printed by `checks/prereq.sh`, then rerun the platform script inside the cloned repository.
+- If ports `5666` or `8080` are occupied, stop the conflicting process before running `make dev`.
+- If database initialization fails, check `apps/lina-core/manifest/config/config.yaml` and MySQL connectivity, then rerun `make init confirm=init`.
 
-Both scripts support the environment variable `LINAPRO_INSTALL_ARCHIVE_PATH`.
-It points the installer at a local archive file so you can test the workflow without downloading from the network.
-The Shell script expects a local `.tar.gz` archive, and the PowerShell script expects a local `.zip` archive.
+## Deployment to linapro.ai
 
-Both scripts also support `LINAPRO_INSTALL_STABLE_REF` to override the auto-detected stable tag. This is primarily useful for tests and controlled wrapper scripts.
+Publishing the remote entry point is an operations task outside this repository change.
 
-## Validation
-
-Use the shared smoke test entrypoint when you update installer behavior or wire the script into `CI`:
+1. CI/CD copies `hack/scripts/install/bootstrap.sh` to the `linapro.ai` CDN path `/install.sh`.
+2. `/install.ps1` is reserved for a future PowerShell entry point, but no PowerShell installer is published by this flow today.
+3. CDN cache must be invalidated whenever a new stable LinaPro tag is released.
+4. After publishing, verify from a clean environment:
 
 ```bash
-make test-install
+curl -fsSL https://linapro.ai/install.sh | bash
 ```
-
-This target runs `python3 hack/scripts/install/test_install.py` and currently validates:
-
-- local archive installation into a named directory
-- current-directory installation mode
-- rejection of non-empty targets without `--force`
-- option contract consistency between `install.sh` and `install.ps1`

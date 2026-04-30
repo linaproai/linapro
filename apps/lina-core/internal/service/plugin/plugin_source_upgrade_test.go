@@ -165,7 +165,7 @@ func TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade(t *testing.T
 	if !strings.Contains(message, pluginID) ||
 		!strings.Contains(message, oldVersion) ||
 		!strings.Contains(message, newVersion) ||
-		!strings.Contains(message, "make upgrade confirm=upgrade scope=source-plugin plugin="+pluginID) {
+		!strings.Contains(message, "ask \"upgrade source plugin "+pluginID+"\"") {
 		t.Fatalf("expected startup validation error to include plugin, versions, and command hint, got %q", message)
 	}
 }

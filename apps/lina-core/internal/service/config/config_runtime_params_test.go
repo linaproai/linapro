@@ -700,10 +700,11 @@ func withRuntimeParamValue(t *testing.T, key string, value string) {
 			Unscoped().
 			Where(do.SysConfig{Id: original.Id}).
 			Data(do.SysConfig{
-				Name:   original.Name,
-				Key:    original.Key,
-				Value:  original.Value,
-				Remark: original.Remark,
+				Name:      original.Name,
+				Key:       original.Key,
+				Value:     original.Value,
+				IsBuiltin: original.IsBuiltin,
+				Remark:    original.Remark,
 			}).
 			Update()
 		if cleanupErr != nil {
@@ -738,11 +739,12 @@ func withRuntimeParamAbsent(t *testing.T, key string) {
 
 	t.Cleanup(func() {
 		_, cleanupErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-			Id:     original.Id,
-			Name:   original.Name,
-			Key:    original.Key,
-			Value:  original.Value,
-			Remark: original.Remark,
+			Id:        original.Id,
+			Name:      original.Name,
+			Key:       original.Key,
+			Value:     original.Value,
+			IsBuiltin: original.IsBuiltin,
+			Remark:    original.Remark,
 		}).Insert()
 		if cleanupErr != nil {
 			t.Fatalf("restore deleted runtime param %s: %v", key, cleanupErr)

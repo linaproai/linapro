@@ -78,7 +78,13 @@ func (s *serviceImpl) scanSourceManifests() ([]*Manifest, error) {
 
 	manifests := make([]*Manifest, 0, len(manifestFiles))
 	for _, manifestFile := range manifestFiles {
-		content := gfile.GetBytes(manifestFile)
+		content, readErr := os.ReadFile(manifestFile)
+		if readErr != nil {
+			if os.IsNotExist(readErr) {
+				continue
+			}
+			return nil, gerror.Wrapf(readErr, "read plugin manifest failed: %s", manifestFile)
+		}
 		if len(content) == 0 {
 			return nil, gerror.Newf("plugin manifest is empty: %s", manifestFile)
 		}

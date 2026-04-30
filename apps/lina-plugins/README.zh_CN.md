@@ -74,8 +74,8 @@ apps/lina-plugins/<plugin-id>/
 
 - 当前生效版本仍然固定在 `sys_plugin.version` 与 `release_id`。
 - 新发现的更高源码版本会写入一个 `prepared` 状态的 `sys_plugin_release`。
-- 在宿主允许启动前，必须显式执行 `make upgrade confirm=upgrade scope=source-plugin plugin=<plugin-id>`，或者使用 `plugin=all` 批量处理。
-- 如果跳过这一步，宿主启动会直接失败，并输出需要执行的升级命令。
+- 在宿主允许启动前，必须通过 AI 工具调用 `lina-upgrade` 技能，例如 `upgrade source plugin <plugin-id>` 或 `upgrade all source plugins`。
+- 如果跳过这一步，宿主启动会直接失败，并输出需要调用的技能提示。
 
 ## 动态插件说明
 

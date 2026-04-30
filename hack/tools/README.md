@@ -8,7 +8,6 @@ This directory stores repository-level development tools that are implemented as
 | --- | --- |
 | `build-wasm/` | Builds dynamic plugin `Wasm` runtime artifacts from source plugins. |
 | `runtime-i18n/` | Scans runtime-visible hard-coded copy and validates host/plugin i18n key coverage. |
-| `upgrade-source/` | Runs repository-level framework and source-plugin upgrade flows. |
 
 ## Placement Rules
 
@@ -22,3 +21,4 @@ This directory stores repository-level development tools that are implemented as
 
 - Keep each tool self-contained and avoid coupling tool internals back into runtime service packages.
 - Update repository entry points such as `go.work`, root `Makefile`, and related tests whenever a tool path changes.
+- Framework and source-plugin upgrades are now handled by the `lina-upgrade` skill under `.claude/skills/lina-upgrade/`, not by a standalone Go tool in this directory.

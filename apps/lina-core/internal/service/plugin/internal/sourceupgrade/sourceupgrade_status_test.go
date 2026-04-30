@@ -125,9 +125,9 @@ func TestBuildSourcePluginUpgradePendingErrorIncludesBulkCommand(t *testing.T) {
 
 	message := err.Error()
 	expectedFragments := []string{
-		"plugin=plugin-alpha current=v0.1.0 discovered=v0.5.0 command=make upgrade confirm=upgrade scope=source-plugin plugin=plugin-alpha",
-		"plugin=plugin-beta current=v0.2.0 discovered=v0.6.0 command=make upgrade confirm=upgrade scope=source-plugin plugin=plugin-beta",
-		"make upgrade confirm=upgrade scope=source-plugin plugin=all",
+		"plugin=plugin-alpha current=v0.1.0 discovered=v0.5.0 action=use the lina-upgrade skill via your AI tooling",
+		"plugin=plugin-beta current=v0.2.0 discovered=v0.6.0 action=use the lina-upgrade skill via your AI tooling",
+		"upgrade all source plugins",
 	}
 	for _, fragment := range expectedFragments {
 		if !strings.Contains(message, fragment) {

@@ -164,9 +164,9 @@ openspec/
 
 ### Prerequisites
 
-- Go 1.21+
-- Node.js 18+
-- pnpm 9+
+- Go 1.22+
+- Node.js 20+
+- pnpm 8+
 - MySQL 8.0+
 
 ### Quick Install
@@ -174,22 +174,23 @@ openspec/
 | Platform | Recommended Command |
 |----------|---------------------|
 | `macOS` / `Linux` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
-| `Windows PowerShell` | `irm https://linapro.ai/install.ps1 \| iex` |
+| `Windows via Git Bash or WSL` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
 
-The repository-backed implementations live at `hack/scripts/install/install.sh` and `hack/scripts/install/install.ps1`.
+The repository-backed bootstrap source lives at `hack/scripts/install/bootstrap.sh`.
+Windows users must run the command from Git Bash or WSL; native PowerShell is not a supported installer entry point.
 
-- By default, the installer creates a new `./linapro` directory under the current working path.
-- Without `--ref` or `-Ref`, the installer resolves the latest stable tag first and falls back to `main` only when no stable tag can be detected.
-- Use `--dir` or `-Dir` to install into a specific directory.
-- Use `--current-dir` or `-CurrentDir` to unpack directly into the current directory. Add `--force` or `-Force` only when you intentionally want an overlay install into a non-empty directory.
-- The installer downloads a GitHub/Codeload source archive and runs an environment check only. It does not auto-install dependencies or execute `make init`, `make mock`, or `make dev`.
-- Run `make test-install` to execute the installer smoke test locally or from `CI`.
+- By default, the installer clones into a new `./linapro` directory under the current working path.
+- Without `LINAPRO_VERSION`, the installer resolves the latest stable GitHub release and fails clearly if no tag can be resolved.
+- Use `LINAPRO_DIR=/path/to/app` to install into a specific directory.
+- Use `LINAPRO_SKIP_MOCK=1` to skip demo/mock data after database initialization.
+- Use `LINAPRO_SHALLOW=1` only for bandwidth-constrained environments; the first upgrade later requires `git fetch --unshallow`.
+- The installer runs dependency checks, backend/frontend dependency installation, `make init confirm=init`, and `make mock confirm=mock` unless mock data is skipped.
 
 Example local usage:
 
 ```bash
-bash ./hack/scripts/install/install.sh
-bash ./hack/scripts/install/install.sh --ref v0.1.0 --dir ~/Workspace/linapro
+bash ./hack/scripts/install/bootstrap.sh
+LINAPRO_VERSION=v0.5.0 LINAPRO_DIR=~/Workspace/linapro bash ./hack/scripts/install/bootstrap.sh
 ```
 
 ### Quick Start
@@ -216,6 +217,11 @@ make status       # Show service status
 make test-install # Run installer smoke tests
 make test         # Run the full E2E suite
 ```
+
+### Upgrades
+
+Framework and source-plugin upgrades are driven by the `lina-upgrade` AI skill under `.claude/skills/lina-upgrade/`.
+Ask your AI tooling for the desired scope, for example `upgrade LinaPro framework to v0.6.0`, `upgrade source plugin plugin-demo-source`, or `upgrade all source plugins`.
 
 ## Default Account
 

@@ -1,91 +1,86 @@
-# 安装脚本说明
+# LinaPro 安装器
 
-该目录承载 `LinaPro` 官方源码快速安装入口，用于从 `GitHub/Codeload` 下载仓库归档，并把项目安全解压到本地工作目录。
+本目录维护 `LinaPro` 单一安装入口的仓库内实现：
+
+```bash
+curl -fsSL https://linapro.ai/install.sh | bash
+```
+
+托管的 `/install.sh` 内容必须与 `hack/scripts/install/bootstrap.sh` 保持一致。`bootstrap.sh` 是完全自包含的单文件入口：负责解析目标版本、克隆指定标签，并分发到克隆仓库内的平台脚本。
+
+## 支持平台
+
+| 平台 | 运行环境 |
+| --- | --- |
+| `macOS` | Darwin 上的 `bash` |
+| `Linux` | Linux 发行版与 WSL 上的 `bash` |
+| `Windows` | 仅支持 Git Bash 或 WSL |
+
+Windows 用户必须在 Git Bash 或 WSL 中执行安装命令。原生 PowerShell 与 `cmd.exe` 不再作为安装入口维护。
 
 ## 目录结构
 
 ```text
 hack/scripts/install/
-  install.sh       macOS 与 Linux 安装脚本
-  install.ps1      Windows PowerShell 安装脚本
-  test_install.py  安装脚本行为与参数契约 smoke test
-  README.md        英文说明文档
-  README.zh_CN.md  中文说明文档
+  bootstrap.sh          托管的 curl|bash 入口
+  install-macos.sh      macOS 克隆后安装脚本
+  install-linux.sh      Linux 与 WSL 克隆后安装脚本
+  install-windows.sh    Windows Git Bash 克隆后安装脚本
+  checks/prereq.sh      共享前置检查
+  lib/_common.sh        共享安装辅助函数
+  README.md             英文说明
+  README.zh_CN.md       简体中文镜像
 ```
 
-## 设计目标
+## 环境变量
 
-安装脚本只聚焦于一个有限的 `bootstrap` 流程：
+| 变量 | 默认值 | 含义 | 示例 |
+| --- | --- | --- | --- |
+| `LINAPRO_VERSION` | GitHub 最新稳定发布版本 | 要克隆的目标版本标签。若无法自动解析标签，安装器会失败。 | `LINAPRO_VERSION=v0.5.0 curl -fsSL https://linapro.ai/install.sh \| bash` |
+| `LINAPRO_DIR` | `./linapro` | 克隆项目的目标目录。 | `LINAPRO_DIR=~/Workspace/my-linapro curl -fsSL https://linapro.ai/install.sh \| bash` |
+| `LINAPRO_NON_INTERACTIVE` | 未设置 | 平台脚本需要确认时跳过交互并使用默认行为。 | `LINAPRO_NON_INTERACTIVE=1 ...` |
+| `LINAPRO_SKIP_MOCK` | 未设置 | 执行 `make init`，但跳过 `make mock`。 | `LINAPRO_SKIP_MOCK=1 ...` |
+| `LINAPRO_SHALLOW` | 未设置 | 使用 `git clone --depth 1`。后续第一次升级需要先执行 `git fetch --unshallow`。 | `LINAPRO_SHALLOW=1 ...` |
 
-- 从 `GitHub/Codeload` 下载源码归档
-- 先解压到临时目录，再复制到最终目标目录
-- 当调用方未传入 `--ref` 或 `-Ref` 时，自动解析最新稳定标签版本
-- 默认保护非空目录，只有显式指定覆盖模式时才允许 `overlay` 安装
-- 输出 `Go`、`Node.js`、`pnpm`、`MySQL`、`make` 的环境体检结果
-- 输出 `make init confirm=init`、`make dev` 等后续推荐命令
+`LINAPRO_FORCE=1` 是隐藏恢复开关，仅用于明确要替换非空目标目录的场景。
 
-脚本不会自动安装系统依赖，也不会自动执行数据库初始化或服务启动命令。
+## 本地等价命令
 
-## 官方入口映射
-
-| 平台 | 远程入口 | 仓库脚本 |
-| --- | --- | --- |
-| `macOS` / `Linux` | `curl -fsSL https://linapro.ai/install.sh \| bash` | `hack/scripts/install/install.sh` |
-| `Windows PowerShell` | `irm https://linapro.ai/install.ps1 \| iex` | `hack/scripts/install/install.ps1` |
-
-站点托管入口应当始终作为仓库脚本的薄包装或重定向，避免安装行为产生漂移。
-
-默认情况下，用户不带参数执行安装时，脚本会优先解析目标仓库最新稳定语义化标签版本；只有在无法识别稳定标签时，才回退到 `main`。
-
-## 使用方式
-
-### `macOS` 与 `Linux`
+在已有仓库检出中，可以直接运行同一份本地入口：
 
 ```bash
-bash ./hack/scripts/install/install.sh
-bash ./hack/scripts/install/install.sh --ref v0.1.0 --dir ~/Workspace/linapro
-bash ./hack/scripts/install/install.sh --current-dir --force
+bash hack/scripts/install/bootstrap.sh
 ```
 
-### `Windows PowerShell`
+该命令仍会把请求版本克隆到 `LINAPRO_DIR` 或 `./linapro`；除非显式设置 `LINAPRO_DIR`，否则不会覆盖当前检出目录。
 
-```powershell
-.\hack\scripts\install\install.ps1
-.\hack\scripts\install\install.ps1 -Ref v0.1.0 -Dir C:\Workspace\linapro
-.\hack\scripts\install\install.ps1 -CurrentDir -Force
-```
+## 安装器执行内容
 
-## 参数说明
+1. 解析 `LINAPRO_VERSION`，或跟随 GitHub `releases/latest` 重定向获取最新稳定版本。
+2. 目标目录非空时拒绝覆盖，除非设置 `LINAPRO_FORCE=1`。
+3. 执行 `git clone --branch <tag> https://github.com/linaproai/linapro.git "$LINAPRO_DIR"`。
+4. 分发到 `install-macos.sh`、`install-linux.sh` 或 `install-windows.sh`。
+5. 检查 `go >= 1.22`、`node >= 20`、`pnpm >= 8`、`git`、`make`、MySQL 客户端，以及 `5666` / `8080` 端口。
+6. 执行后端 `go mod download`、前端 `pnpm install`、`make init confirm=init`，并在未设置 `LINAPRO_SKIP_MOCK=1` 时执行 `make mock confirm=mock`。
+7. 输出项目目录、默认 `admin` / `admin123` 账号，以及下一步 `make dev` 命令。
 
-| Shell | PowerShell | 说明 |
-| --- | --- | --- |
-| `--repo` | `-Repo` | 覆盖默认的 `GitHub` 仓库地址，例如 `owner/name`。 |
-| `--ref` | `-Ref` | 指定要下载的分支、标签或提交引用。 |
-| `--dir` | `-Dir` | 安装到显式指定的目标目录。 |
-| `--name` | `-Name` | 在当前工作目录下新建一个子目录并安装进去。 |
-| `--current-dir` | `-CurrentDir` | 直接把项目解压到当前目录。 |
-| `--force` | `-Force` | 允许覆盖安装到非空目录。 |
-| `--help` | `-Help` | 输出内置帮助信息。 |
+## 诊断与重试
 
-## 本地归档覆盖
+- 如果最新发布版本解析失败，使用 `LINAPRO_VERSION=v0.x.y` 显式重试。
+- 如果克隆失败，检查网络连通性，并确认所选标签存在于 GitHub Releases。
+- 如果前置检查失败，按 `checks/prereq.sh` 打印的平台提示安装缺失工具，然后在已克隆仓库内重新执行平台脚本。
+- 如果端口 `5666` 或 `8080` 被占用，请在运行 `make dev` 前停止冲突进程。
+- 如果数据库初始化失败，检查 `apps/lina-core/manifest/config/config.yaml` 与 MySQL 连通性，然后重新执行 `make init confirm=init`。
 
-两个脚本都支持环境变量 `LINAPRO_INSTALL_ARCHIVE_PATH`。
-它允许你在不访问网络的情况下，直接使用本地归档文件验证安装流程。
-其中 `Shell` 脚本读取本地 `.tar.gz` 文件，`PowerShell` 脚本读取本地 `.zip` 文件。
+## 部署到 linapro.ai
 
-两个脚本还支持 `LINAPRO_INSTALL_STABLE_REF`，可以显式覆盖自动解析得到的稳定标签版本，主要用于测试或受控包装脚本场景。
+远程入口发布属于本仓库变更之外的运维任务。
 
-## 验证方式
-
-更新安装脚本逻辑，或需要在本地与 `CI` 中复用同一条验证命令时，请执行：
+1. `CI/CD` 将 `hack/scripts/install/bootstrap.sh` 复制到 `linapro.ai` CDN 路径 `/install.sh`。
+2. `/install.ps1` 仅作为未来 PowerShell 入口的占位，目前不会通过该流程发布 PowerShell 安装器。
+3. 每次发布新的 `LinaPro` 稳定标签后，都必须同步刷新 CDN 缓存。
+4. 发布后在干净环境中验证：
 
 ```bash
-make test-install
+curl -fsSL https://linapro.ai/install.sh | bash
 ```
-
-该目标会运行 `python3 hack/scripts/install/test_install.py`，当前覆盖以下场景：
-
-- 使用本地归档安装到命名目录
-- 使用当前目录模式完成安装
-- 未指定 `--force` 时拒绝安装到非空目录
-- 校验 `install.sh` 与 `install.ps1` 的参数契约一致性

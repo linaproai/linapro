@@ -11,4 +11,4 @@ test:
 .PHONY: test-install
 test-install:
 	@echo "🧪 运行安装脚本 smoke test..."
-	@python3 hack/scripts/install/test_install.py
+	@bash hack/tests/scripts/install-bootstrap.sh all

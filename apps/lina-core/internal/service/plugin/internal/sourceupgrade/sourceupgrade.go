@@ -492,7 +492,7 @@ func buildSourcePluginUpgradePendingError(pending []*SourceUpgradeStatus) error 
 		lines = append(
 			lines,
 			fmt.Sprintf(
-				"- plugin=%s current=%s discovered=%s command=make upgrade confirm=upgrade scope=source-plugin plugin=%s",
+				"- plugin=%s current=%s discovered=%s action=use the lina-upgrade skill via your AI tooling, e.g. ask \"upgrade source plugin %s\"",
 				item.PluginID,
 				item.EffectiveVersion,
 				item.DiscoveredVersion,
@@ -506,7 +506,7 @@ func buildSourcePluginUpgradePendingError(pending []*SourceUpgradeStatus) error 
 	}
 	if len(pending) > 1 {
 		code = CodePluginSourceUpgradePendingWithBulk
-		params = append(params, bizerr.P("bulkCommand", "make upgrade confirm=upgrade scope=source-plugin plugin=all"))
+		params = append(params, bizerr.P("bulkCommand", "upgrade all source plugins"))
 	}
 	return bizerr.NewCode(code, params...)
 }

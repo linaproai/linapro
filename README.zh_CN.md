@@ -2,18 +2,6 @@
 
 `LinaPro`是一个`面向可持续交付的 AI 原生全栈框架`，把 `AI` 作为核心生产力：`AI` 主导分析、设计与实现，团队把握方向与关键决策。框架自带核心宿主服务、管理工作台、插件运行时与规范驱动的 `AI` 原生研发工作流，帮助团队快速交付生产级应用，同时保持架构、测试与治理的可持续演进。
 
-## 挑战：`AI`加速开发的效率为何随项目成长而衰减
-
-`AI`编程助手在项目初期往往能带来令人兴奋的效率跃升——几个前端页面、几条接口，几分钟内完成。然而随着产品持续演进，这种效率增益往往悄然逆转：
-
-- **上下文失控**：需求变更的频率超出`AI`单次上下文的覆盖范围，每次对话都需要重新对齐背景，历史决策频繁被重复或推翻。
-- **架构漂移**：缺乏统一的架构规范约束，`AI`每次生成的代码与既有实现产生细微矛盾，技术债务以难以察觉的速度累积。
-- **测试空洞**：验收标准以对话形式存在而非可执行的测试用例，无法在迭代中自动回归，已验证的功能随时可能悄然失效。
-- **审查瓶颈**：随着代码库规模增大，人工审查`AI`输出的成本线性上升，最终成为整个交付链路最慢的环节。
-- **收益倒置**：治理`AI`输出的协调成本超过效率增益本身，团队陷入"越用越慢"的困境。
-
-根本原因不在于`AI`能力不足，而在于缺少一款**专为人机协作而设计的、经过生产实战打磨的成熟开发框架**。
-`AI`时代的软件研发同样需要框架——不只是为了让产品架构快速成型，更重要的是能够为`AI`驱动、人机协作的模式提供结构性支撑，平稳保障这种协作的效率随着产品持续迭代而不断增长。这正是我们设计`LinaPro`的初衷。
 
 ## `LinaPro`是什么
 
@@ -164,9 +152,9 @@ openspec/
 
 ### 环境要求
 
-- Go 1.21+
-- Node.js 18+
-- pnpm 9+
+- Go 1.22+
+- Node.js 20+
+- pnpm 8+
 - MySQL 8.0+
 
 ### 快速安装
@@ -174,22 +162,23 @@ openspec/
 | 平台 | 推荐命令 |
 |------|---------|
 | `macOS` / `Linux` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
-| `Windows PowerShell` | `irm https://linapro.ai/install.ps1 \| iex` |
+| `Windows Git Bash 或 WSL` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
 
-仓库内对应的正式脚本入口位于 `hack/scripts/install/install.sh` 和 `hack/scripts/install/install.ps1`。
+仓库内对应的正式入口源码位于 `hack/scripts/install/bootstrap.sh`。
+Windows 用户必须在 Git Bash 或 WSL 中执行安装命令；原生 PowerShell 不再作为安装入口维护。
 
-- 默认会在当前工作目录下新建一个 `./linapro` 子目录并将源码落地到其中。
-- 当你不传 `--ref` 或 `-Ref` 时，脚本会优先解析仓库最新稳定标签版本；只有在无法识别稳定标签时，才回退到 `main`。
-- 使用 `--dir` 或 `-Dir` 可以把项目安装到指定目录。
-- 使用 `--current-dir` 或 `-CurrentDir` 可以直接解压到当前目录；只有在你明确要覆盖非空目录时，才追加 `--force` 或 `-Force`。
-- 安装脚本只负责下载 `GitHub/Codeload` 源码归档并执行环境体检，不会自动安装依赖，也不会自动执行 `make init`、`make mock`、`make dev`。
-- 使用 `make test-install` 可以在本地或 `CI` 中复用安装脚本的 `smoke test`。
+- 默认会在当前工作目录下新建一个 `./linapro` 子目录并克隆源码。
+- 未设置 `LINAPRO_VERSION` 时，安装器会解析 GitHub 最新稳定发布版本；如果无法解析标签，会明确失败。
+- 使用 `LINAPRO_DIR=/path/to/app` 可以安装到指定目录。
+- 使用 `LINAPRO_SKIP_MOCK=1` 可以在数据库初始化后跳过演示/`mock`数据。
+- 只有在带宽受限时才建议使用 `LINAPRO_SHALLOW=1`；后续第一次升级需要先执行 `git fetch --unshallow`。
+- 安装器会执行依赖检查、后端/前端依赖安装、`make init confirm=init`，并在未跳过时执行 `make mock confirm=mock`。
 
 本地执行示例：
 
 ```bash
-bash ./hack/scripts/install/install.sh
-bash ./hack/scripts/install/install.sh --ref v0.1.0 --dir ~/Workspace/linapro
+bash ./hack/scripts/install/bootstrap.sh
+LINAPRO_VERSION=v0.5.0 LINAPRO_DIR=~/Workspace/linapro bash ./hack/scripts/install/bootstrap.sh
 ```
 
 ### 启动步骤
@@ -216,6 +205,11 @@ make status       # 查看服务运行状态
 make test-install # 运行安装脚本 smoke test
 make test         # 运行完整 E2E 测试套件
 ```
+
+### 升级
+
+框架升级与源码插件升级统一通过 `.claude/skills/lina-upgrade/` 下的 `lina-upgrade` AI 技能驱动。
+可以直接让 AI 工具执行目标范围，例如 `upgrade LinaPro framework to v0.6.0`、`upgrade source plugin plugin-demo-source` 或 `upgrade all source plugins`。
 
 ## 默认账号
 

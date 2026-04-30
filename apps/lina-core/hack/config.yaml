@@ -1,5 +1,5 @@
-# Development-only configuration used by local build/codegen tools and the
-# repository-root framework upgrade tool. Runtime binaries must not read this file.
+# Development-only configuration used by local build/codegen tools. Runtime
+# binaries must not read this file.
 
 # Shared local database connection reused by development-only tools.
 shared:
@@ -10,11 +10,6 @@ database:
   default:
     link: *localDatabaseLink
     debug: true
-
-# Source-upgrade metadata consumed by `hack/tools/upgrade-source`.
-frameworkUpgrade:
-  version: "v0.1.0"
-  repositoryUrl: "https://github.com/linaproai/linapro"
 
 # CLI tool, only in development environment.
 # https://goframe.org/docs/cli

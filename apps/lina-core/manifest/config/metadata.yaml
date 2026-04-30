@@ -11,6 +11,9 @@ framework:
   name: "LinaPro"
   # Framework version
   # 框架版本
+  # IMPORTANT: do not edit this field manually.
+  # The lina-upgrade skill validates this value as the upgrade baseline.
+  # 重要:请勿手工修改此字段。lina-upgrade 技能会以此值作为升级基线进行校验。
   version: "v0.5.0"
   # Framework introduction
   # 框架简介
@@ -30,7 +33,7 @@ framework:
 openapi:
   # Document title
   # 文档标题
-  title: "LinaPro Service API "
+  title: "LinaPro Framework API"
   # Document description
   # 文档说明
   description: "LinaPro Service API Documentation."

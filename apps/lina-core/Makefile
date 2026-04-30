@@ -37,16 +37,3 @@ mock:
 	@echo "正在加载 Mock 数据..."
 	@go run main.go mock --confirm=$(confirm) --sql-source=local
 	@echo "✓ Mock 数据加载完成"
-
-## upgrade: 代理执行根目录开发态升级工具；需 confirm=upgrade，支持 scope=framework|source-plugin、plugin=<id|all>、repo、target、dry_run
-.PHONY: upgrade
-upgrade:
-	$(call require_confirm,upgrade)
-	@echo "正在执行开发态升级..."
-	@$(MAKE) -C ../.. upgrade confirm=$(confirm) \
-		$(if $(scope),scope=$(scope),) \
-		$(if $(repo),repo=$(repo),) \
-		$(if $(target),target=$(target),) \
-		$(if $(plugin),plugin=$(plugin),) \
-		$(if $(dry_run),dry_run=$(dry_run),)
-	@echo "✓ 开发态升级命令执行完成"

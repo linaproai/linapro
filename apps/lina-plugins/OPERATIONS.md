@@ -42,7 +42,7 @@
 
 当前约束如下：
 
-- 源码插件已经支持显式安装、卸载与升级治理，但**版本升级必须在开发阶段通过** `make upgrade confirm=upgrade scope=source-plugin plugin=<plugin-id|all>` **完成**。
+- 源码插件已经支持显式安装、卸载与升级治理，但**版本升级必须在开发阶段通过 AI 工具调用** `lina-upgrade` **技能完成**，例如 `upgrade source plugin <plugin-id>` 或 `upgrade all source plugins`。
 - 如果某个已安装源码插件发现了更高版本但尚未执行显式升级，宿主启动会直接失败，并提示需要执行的升级命令。
 - 源码插件禁用后，只会隐藏路由、菜单、页面和 `Slot`，不会删除历史业务数据。
 - 当前仓库至少保留 `plugin-demo-source` 与 `plugin-demo-dynamic` 两个样例目录，分别用于 source / dynamic 两种接入模式的 review。
