@@ -128,6 +128,9 @@
             "failed": "Failed to read created file record ID"
           }
         },
+        "query": {
+          "failed": "Failed to query file record"
+        },
         "save": {
           "cleanup": {
             "failed": "Failed to save file record and cleanup stored file"
@@ -137,6 +140,11 @@
       },
       "store": {
         "failed": "Failed to store uploaded file"
+      },
+      "storage": {
+        "read": {
+          "failed": "Failed to read stored file"
+        }
       },
       "too": {
         "large": "File size must not exceed {maxSizeMB}MB"
@@ -765,6 +773,16 @@
       }
     },
     "role": {
+      "builtin": {
+        "delete": {
+          "denied": "Cannot delete the built-in administrator role"
+        }
+      },
+      "delete": {
+        "ids": {
+          "required": "Please select roles to delete"
+        }
+      },
       "key": {
         "exists": "Role permission key already exists"
       },
@@ -781,6 +799,11 @@
           "delete": {
             "denied": "Cannot delete the built-in administrator"
           }
+        }
+      },
+      "delete": {
+        "ids": {
+          "required": "Please select users to delete"
         }
       },
       "current": {

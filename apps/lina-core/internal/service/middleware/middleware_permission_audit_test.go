@@ -18,6 +18,7 @@ import (
 // staticPermissionExemptionAllowlist documents the static routes that are
 // intentionally exempt from request-level permission metadata.
 var staticPermissionExemptionAllowlist = map[string]string{
+	"GET /health":                            "public host health probe for container probes and load balancers",
 	"POST /auth/login":                       "public login entrypoint",
 	"GET /i18n/runtime/locales":              "public runtime i18n locale bootstrap",
 	"GET /i18n/runtime/messages":             "public runtime i18n message bootstrap",

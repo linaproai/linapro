@@ -83,6 +83,27 @@ monitor:
   # 服务指标采集间隔（duration 字符串）
   interval: 1m
 
+# Health probe configuration
+# 健康探针配置
+health:
+  # Database probe timeout as a duration string
+  # 数据库探活超时时间（duration 字符串）
+  timeout: 5s
+
+# Graceful shutdown configuration
+# 优雅关停配置
+shutdown:
+  # Full process shutdown timeout as a duration string
+  # 进程关停完整流程超时时间（duration 字符串）
+  timeout: 30s
+
+# Scheduler configuration
+# 调度器配置
+scheduler:
+  # Default scheduler timezone; UTC is used when omitted
+  # 默认调度时区；未配置时使用 UTC
+  defaultTimezone: "UTC"
+
 # Internationalization configuration
 # 国际化配置
 i18n:
@@ -94,8 +115,6 @@ i18n:
   enabled: true
   # Runtime locale display order and native names; comment out a locale to disable it
   # 运行时语言展示顺序与原生名称；注释某个语言即可停用该语言
-  # Text direction is fixed to ltr by host convention and is not configurable
-  # 文本方向按宿主约定固定为 ltr，不提供配置项
   locales:
     - locale: en-US
       nativeName: English

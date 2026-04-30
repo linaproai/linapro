@@ -21,4 +21,5 @@ type SysDictData struct {
 	Remark    string      `json:"remark"    orm:"remark"     description:"Remark"`
 	CreatedAt *gtime.Time `json:"createdAt" orm:"created_at" description:"Creation time"`
 	UpdatedAt *gtime.Time `json:"updatedAt" orm:"updated_at" description:"Update time"`
+	DeletedAt *gtime.Time `json:"deletedAt" orm:"deleted_at" description:"Deletion time"`
 }

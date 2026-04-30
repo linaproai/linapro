@@ -13,7 +13,12 @@ import { getPopupContainer } from '@vben/utils';
 import { Modal, Popconfirm, Space, Switch, message } from 'ant-design-vue';
 
 import { useVbenVxeGrid, vxeCheckboxChecked } from '#/adapter/vxe-table';
-import { roleList, roleRemove, roleStatusChange } from '#/api/system/role';
+import {
+  roleBatchDelete,
+  roleList,
+  roleRemove,
+  roleStatusChange,
+} from '#/api/system/role';
 import { $t } from '#/locales';
 import { useDictStore } from '#/store/dict';
 
@@ -76,7 +81,8 @@ const statusLabel = ref({
 });
 
 onMounted(async () => {
-  const statusOptions = await dictStore.getDictOptionsAsync('sys_normal_disable');
+  const statusOptions =
+    await dictStore.getDictOptionsAsync('sys_normal_disable');
   const checked = statusOptions.find((d) => d.value === '1');
   const unchecked = statusOptions.find((d) => d.value === '0');
   statusLabel.value = {
@@ -123,9 +129,7 @@ function handleMultiDelete() {
       count: ids.length,
     }),
     onOk: async () => {
-      for (const id of ids) {
-        await roleRemove(id);
-      }
+      await roleBatchDelete(ids);
       message.success($t('pages.common.deleteSuccess'));
       await tableApi.query();
     },
@@ -152,6 +156,7 @@ function handleAssignRole(record: Role) {
       <template #toolbar-tools>
         <Space>
           <a-button
+            data-testid="role-batch-delete-button"
             :disabled="!vxeCheckboxChecked(tableApi)"
             danger
             type="primary"

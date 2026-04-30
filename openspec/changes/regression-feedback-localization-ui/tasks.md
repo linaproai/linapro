@@ -45,3 +45,5 @@
 - [x] **FB-11**: Rename the system information menu to version information and complete the LinaPro description punctuation
 - [x] **FB-12**: Use local WebP logo assets for LinaPro, GoFrame, and Vben workbench project cards and keep English descriptions single-line with ellipsis
 - [x] **FB-13**: Update dashboard workspace quick navigation destinations and LinaPro demo activity/todo copy
+- [x] **FB-14**: Remove markdown-style backticks from frontend locale JSON translations so raw backticks are not shown in UI text
+- [x] **FB-15**: Stabilize dynamic plugin English menu regression by expanding the menu tree before asserting nested plugin rows

@@ -14,7 +14,6 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/logger"
 )
 
 // Service defines the menu service contract.
@@ -126,6 +125,7 @@ type MenuItem struct {
 	Id         int         `json:"id"`
 	ParentId   int         `json:"parentId"`
 	Name       string      `json:"name"`
+	MenuKey    string      `json:"menuKey"`
 	Path       string      `json:"path"`
 	Component  string      `json:"component"`
 	Perms      string      `json:"perms"`
@@ -160,6 +160,7 @@ func (s *serviceImpl) BuildTree(list []*entity.SysMenu) []*MenuItem {
 			Id:         m.Id,
 			ParentId:   m.ParentId,
 			Name:       m.Name,
+			MenuKey:    m.MenuKey,
 			Path:       m.Path,
 			Component:  m.Component,
 			Perms:      m.Perms,
@@ -438,7 +439,7 @@ func (s *serviceImpl) Delete(ctx context.Context, in DeleteInput) error {
 			WhereIn(rmCols.MenuId, menuIds).
 			Delete()
 		if err != nil {
-			logger.Warningf(ctx, "failed to delete role-menu associations: %v", err)
+			return err
 		}
 
 		return nil
@@ -557,26 +558,37 @@ func (s *serviceImpl) checkNameUnique(ctx context.Context, name string, parentId
 
 // isDescendant checks if targetId is a descendant of parentId.
 func (s *serviceImpl) isDescendant(ctx context.Context, parentId int, targetId int) bool {
+	if parentId == targetId {
+		return false
+	}
 	cols := dao.SysMenu.Columns()
 
-	// Get all children of parentId recursively
-	parentIds := []int{parentId}
-	for len(parentIds) > 0 {
-		var children []*entity.SysMenu
-		err := dao.SysMenu.Ctx(ctx).
-			WhereIn(cols.ParentId, parentIds).
-			Scan(&children)
-		if err != nil {
-			return false
-		}
+	var menus []*entity.SysMenu
+	err := dao.SysMenu.Ctx(ctx).
+		Fields(cols.Id, cols.ParentId).
+		Scan(&menus)
+	if err != nil {
+		return false
+	}
 
-		parentIds = make([]int, 0)
-		for _, child := range children {
-			if child.Id == targetId {
-				return true
-			}
-			parentIds = append(parentIds, child.Id)
+	childrenByParent := make(map[int][]int, len(menus))
+	for _, menu := range menus {
+		childrenByParent[menu.ParentId] = append(childrenByParent[menu.ParentId], menu.Id)
+	}
+
+	queue := append([]int(nil), childrenByParent[parentId]...)
+	visited := make(map[int]struct{}, len(menus))
+	for len(queue) > 0 {
+		currentId := queue[0]
+		queue = queue[1:]
+		if _, ok := visited[currentId]; ok {
+			continue
 		}
+		visited[currentId] = struct{}{}
+		if currentId == targetId {
+			return true
+		}
+		queue = append(queue, childrenByParent[currentId]...)
 	}
 	return false
 }

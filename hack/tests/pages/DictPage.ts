@@ -109,6 +109,7 @@ export class DictPage {
     // Search for the type first to narrow results
     await this.fillTypeSearchField('字典名称', typeName);
     await this.clickTypeSearch();
+    await this.resolveTypeRow(typeName);
 
     // Click edit button (ghost-button in action column)
     await this.typePanel.locator('.ant-btn-sm').filter({ hasText: /编\s*辑/ }).first().click();
@@ -138,9 +139,7 @@ export class DictPage {
     await this.fillTypeSearchField('字典名称', typeName);
     await this.clickTypeSearch();
 
-    const deletedRow = this.typePanel
-      .locator('.vxe-body--row', { hasText: typeName })
-      .first();
+    const deletedRow = await this.resolveTypeRow(typeName);
 
     // Click delete button (ghost-button in action column)
     await this.typePanel.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
@@ -158,7 +157,10 @@ export class DictPage {
     await waitForBusyIndicatorsToClear(this.page);
   }
 
-  async clickCurrentTypeDeleteAction() {
+  async clickCurrentTypeDeleteAction(expectedTypeName?: string) {
+    if (expectedTypeName) {
+      await this.resolveTypeRow(expectedTypeName);
+    }
     await this.typePanel.locator('.ant-btn-sm').filter({ hasText: /删\s*除/ }).first().click();
   }
 
@@ -344,6 +346,13 @@ export class DictPage {
   async selectTypeRow(index: number = 0) {
     const checkbox = this.typePanel.locator('.vxe-body--row .vxe-checkbox--icon').nth(index);
     await checkbox.click();
+    await waitForBusyIndicatorsToClear(this.page);
+  }
+
+  /** Select a type row by unique visible text before batch actions. */
+  async selectTypeRowByText(rowText: string) {
+    const row = await this.resolveTypeRow(rowText);
+    await row.locator('.vxe-checkbox--icon').first().click();
     await waitForBusyIndicatorsToClear(this.page);
   }
 

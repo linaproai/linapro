@@ -5,7 +5,7 @@
     "minLength": "{0}至少{1}個字符",
     "maxLength": "{0}最多{1}個字符",
     "length": "{0}長度必須為{1}個字符",
-    "alreadyExists": "{0} `{1}` 已存在",
+    "alreadyExists": "{0} {1} 已存在",
     "startWith": "{0}必須以 {1} 開頭",
     "invalidURL": "請輸入有效的鏈接",
     "sizeLimit": "文件大小不能超過 {0}MB",

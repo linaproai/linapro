@@ -1,5 +1,7 @@
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 
+import { execFileSync } from "node:child_process";
+
 import { request as playwrightRequest } from "@playwright/test";
 
 import { test, expect } from "../../../fixtures/auth";
@@ -8,6 +10,10 @@ import { PluginPage } from "../../../pages/PluginPage";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
+const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
+const mysqlUser = process.env.E2E_DB_USER ?? "root";
+const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
+const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 const targetPluginID = "content-notice";
 // Mock data file 001-content-notice-mock-data.sql ships these notice titles.
 // When mock data is NOT loaded, none of these should appear on the plugin page.
@@ -22,11 +28,6 @@ type PluginListItem = {
   enabled?: number;
   hasMockData?: number;
   installed?: number;
-};
-
-type NoticeListItem = {
-  id?: number;
-  title?: string;
 };
 
 function unwrapApiData(payload: unknown) {
@@ -95,18 +96,55 @@ async function ensurePluginUninstalled(
   assertOk(uninstallResponse, "卸载插件失败");
 }
 
-async function listNotices(
-  adminApi: APIRequestContext,
-): Promise<NoticeListItem[]> {
-  const response = await adminApi.get("plugins/content-notice/notices");
-  if (response.status() === 404) {
+function queryMysqlLines(sql: string): string[] {
+  const output = execFileSync(
+    mysqlBin,
+    [
+      `-u${mysqlUser}`,
+      `-p${mysqlPassword}`,
+      "-N",
+      "-B",
+      mysqlDatabase,
+      "-e",
+      sql,
+    ],
+    { encoding: "utf8" },
+  );
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function noticeTableExists(): boolean {
+  const escapedDatabase = mysqlDatabase.replaceAll("'", "''");
+  const rows = queryMysqlLines(
+    `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${escapedDatabase}' AND table_name = 'plugin_content_notice';`,
+  );
+  return rows[0] === "1";
+}
+
+function listNoticeTitlesFromDatabase(): string[] {
+  if (!noticeTableExists()) {
     return [];
   }
-  assertOk(response, "查询通知公告列表失败");
-  const payload = unwrapApiData(await response.json()) as {
-    list?: NoticeListItem[];
-  };
-  return payload?.list ?? [];
+  return queryMysqlLines(
+    "SELECT title FROM plugin_content_notice ORDER BY id ASC;",
+  );
+}
+
+function dropNoticeTableIfExists() {
+  execFileSync(
+    mysqlBin,
+    [
+      `-u${mysqlUser}`,
+      `-p${mysqlPassword}`,
+      mysqlDatabase,
+      "-e",
+      "DROP TABLE IF EXISTS plugin_content_notice;",
+    ],
+    { stdio: "ignore" },
+  );
 }
 
 test.describe("TC-146 Install plugin without mock data leaves plugin tables empty", () => {
@@ -125,6 +163,7 @@ test.describe("TC-146 Install plugin without mock data leaves plugin tables empt
 
   test.beforeEach(async () => {
     await ensurePluginUninstalled(adminApi, targetPluginID);
+    dropNoticeTableIfExists();
   });
 
   test("TC-146a: not opting in keeps the plugin's mock SQL out of the live table", async ({
@@ -145,10 +184,7 @@ test.describe("TC-146 Install plugin without mock data leaves plugin tables empt
         .last(),
     ).toBeVisible();
 
-    const notices = await listNotices(adminApi);
-    const titles = new Set(
-      notices.map((notice) => notice.title ?? "").filter(Boolean),
-    );
+    const titles = new Set(listNoticeTitlesFromDatabase());
     for (const expectedAbsent of mockNoticeTitles) {
       expect(
         titles.has(expectedAbsent),

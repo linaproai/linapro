@@ -1,3 +1,5 @@
+// This file defines DTOs for the authenticated menu route projection API.
+
 package v1
 
 import (
@@ -25,6 +27,7 @@ type MenuRouteItem struct {
 type MenuRouteMeta struct {
 	Title            string            `json:"title" dc:"menu title" eg:"System management"`
 	Icon             string            `json:"icon,omitempty" dc:"menu icon" eg:"ant-design:setting-outlined"`
+	I18nKey          string            `json:"i18nKey,omitempty" dc:"Runtime i18n key used by the frontend to relocalize this menu title without refetching menus" eg:"menu.system:user:list.title"`
 	ActiveIcon       string            `json:"activeIcon,omitempty" dc:"Activation icon" eg:"ant-design:setting-filled"`
 	HideInMenu       bool              `json:"hideInMenu,omitempty" dc:"Whether to hide in the menu" eg:"false"`
 	HideInBreadcrumb bool              `json:"hideInBreadcrumb,omitempty" dc:"Whether to hide in breadcrumbs" eg:"false"`

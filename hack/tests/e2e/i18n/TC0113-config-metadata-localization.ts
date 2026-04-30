@@ -32,7 +32,7 @@ test.describe('TC0113 参数设置元数据国际化', () => {
     }
   });
 
-  test('TC0113a: 英文环境下配置列表显示本地化名称但保留原始参数值', async ({
+  test('TC0113a: 英文环境下配置列表显示本地化名称与默认品牌文案值', async ({
     adminPage,
     mainLayout,
   }) => {
@@ -46,7 +46,11 @@ test.describe('TC0113 参数设置元数据国际化', () => {
     const row = configPage.findRowByExactKey(seedConfigKey);
     await expect(row).toBeVisible();
     await expect(row.getByText('Login - Page Title', { exact: true })).toBeVisible();
-    await expect(row.getByText('面向可持续交付的 AI 原生全栈框架', { exact: true })).toBeVisible();
+    await expect(
+      row.getByText('An AI-native full-stack framework engineered for sustainable delivery', {
+        exact: true,
+      }),
+    ).toBeVisible();
   });
 
   test('TC0113b: 英文环境下配置编辑回填继续使用数据库原始值', async ({
@@ -117,7 +121,7 @@ test.describe('TC0113 参数设置元数据国际化', () => {
       ui: { watermarkContent: string };
     }>(response);
 
-    expect(data.app.name).toBe('LinaPro');
+    expect(data.app.name).toBe('LinaPro.AI');
     expect(data.auth.pageTitle).toBe('An AI-native full-stack framework engineered for sustainable delivery');
     expect(data.auth.pageDesc).toBe(
       'Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model',

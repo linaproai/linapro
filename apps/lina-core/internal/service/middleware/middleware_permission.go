@@ -21,6 +21,23 @@ const (
 	staticPermissionWildcard     = "*:*:*"
 )
 
+// staticPermissionContextKey stores manually declared permissions for routes
+// that are not bound from a g.Meta-backed DTO.
+type staticPermissionContextKey string
+
+const manualStaticPermissionContextKey staticPermissionContextKey = "lina.static.permission"
+
+// RequirePermission declares static permission requirements for manually registered routes.
+func (s *serviceImpl) RequirePermission(permissions ...string) ghttp.HandlerFunc {
+	normalizedPermissions := normalizePermissionList(strings.Join(permissions, ","))
+	return func(r *ghttp.Request) {
+		if len(normalizedPermissions) > 0 {
+			r.SetCtxVar(manualStaticPermissionContextKey, strings.Join(normalizedPermissions, ","))
+		}
+		r.Middleware.Next()
+	}
+}
+
 // Permission enforces declarative permission requirements declared on static host API handlers.
 func (s *serviceImpl) Permission(r *ghttp.Request) {
 	if r == nil {
@@ -87,6 +104,9 @@ func extractDeclaredPermissions(r *ghttp.Request) []string {
 		if len(permissions) > 0 {
 			return permissions
 		}
+	}
+	if permissions := normalizePermissionList(r.GetCtxVar(manualStaticPermissionContextKey).String()); len(permissions) > 0 {
+		return permissions
 	}
 	return nil
 }

@@ -731,7 +731,7 @@
       "validation": {
         "cronInvalidCount": "Cron expressions must contain 5 or 6 parts.",
         "cronRequired": "Please enter a cron expression.",
-        "cronSecondInvalid": "The seconds field must be `*` or a value between 0 and 59.",
+        "cronSecondInvalid": "The seconds field must be * or a value between 0 and 59.",
         "cronTooLong": "Cron expression is too long.",
         "groupRequired": "Please select a job group.",
         "integerRequired": "{label} must be an integer.",
@@ -741,7 +741,7 @@
         "nameRequired": "Please enter a job name.",
         "nameTooLong": "Job names cannot exceed 128 characters.",
         "retentionValuePositive": "Retention value must be greater than 0.",
-        "timezoneInvalid": "Please enter a valid timezone, for example `Asia/Shanghai`.",
+        "timezoneInvalid": "Please enter a valid timezone, for example Asia/Shanghai.",
         "timezoneRequired": "Please enter a timezone."
       }
     },
@@ -848,13 +848,13 @@
       },
       "help": {
         "cache": "Cache this route with KeepAlive so the page state can be preserved.",
-        "component": "Enter a frontend component path relative to the views directory, for example `system/user/index`.",
+        "component": "Enter a frontend component path relative to the views directory, for example system/user/index.",
         "externalLink": "External links must use a complete URL starting with http:// or https://.",
         "icon": "Use an Iconify icon name for the sidebar and route display.",
         "name": "Displayed in the sidebar, breadcrumb, and tab title.",
         "path": "Use a relative route path for internal pages, or a full URL for external links.",
         "permission": "Use a unique permission key so menus and buttons can participate in unified authorization.",
-        "queryParam": "Optional query parameters appended to the route, for example `id=1&type=detail`.",
+        "queryParam": "Optional query parameters appended to the route, for example id=1&type=detail.",
         "sort": "Smaller values appear earlier in menus of the same level.",
         "status": "Disabled menus are hidden from regular navigation and cannot be opened normally.",
         "visible": "Hidden menus keep route access but do not appear in the sidebar."
@@ -893,6 +893,11 @@
     },
     "plugin": {
       "tableTitle": "Plugin List",
+      "tableTitleHelp": {
+        "ariaLabel": "Plugin list help",
+        "sourceDynamic": "Source plugins are delivered with host source code and build artifacts for built-in or trusted extensions; dynamic plugins are uploaded as wasm artifacts for runtime install, upgrade, and isolated governance.",
+        "mockData": "Yes in Mock Data means the plugin ships bundled mock data that can be loaded during install; No means no bundled mock data is available."
+      },
       "fields": {
         "id": "Plugin ID",
         "name": "Plugin Name",
@@ -903,8 +908,7 @@
         "version": "Version",
         "authorizationStatus": "Authorization Status",
         "startupManagement": "Startup Management",
-        "hasMockDataBadge": "Mock Data",
-        "hasMockDataTooltip": "This plugin ships demo records under manifest/sql/mock-data, which can be loaded on demand at install time for demos and feature validation."
+        "hasMockData": "Mock Data"
       },
       "type": {
         "source": "Source Plugin",
@@ -921,7 +925,7 @@
         "installAndEnable": "Install and Enable",
         "uninstall": "Uninstall",
         "continueAction": "Continue {actionLabel}",
-        "installMockDataLabel": "Install mock data",
+        "installMockDataLabel": "Install mock data?",
         "installMockDataTooltip": "When checked, the host loads the plugin's manifest/sql/mock-data SQL files in a single database transaction after the install SQL succeeds. Any failure rolls back only the mock data; the plugin install itself remains in effect. Mock data is intended for demo and feature validation, not production use.",
         "installMockDataHelpHint": "Learn more"
       },
@@ -1013,14 +1017,15 @@
         "defaultWarning": "Uninstalling this plugin removes the runtime registration information. Review the impact before continuing.",
         "dynamicWarning": "Uninstalling a dynamic plugin removes the uploaded artifact and can optionally clear plugin-owned data and storage files.",
         "purgeStorage": "Also clear plugin-owned storage data",
+        "purgeStorageWarning": "When checked, the host runs uninstall SQL and physically deletes plugin-owned table data, authorized storage files, and governance resource references. This cannot be restored after confirmation.",
         "sourceWarning": "Uninstalling a source plugin removes its synchronized governance records and can optionally clear plugin-owned data and storage files."
       },
       "upload": {
         "acknowledge": "Got It",
-        "dragHint": "Upload a single `.wasm` artifact for a dynamic plugin. The host will validate the manifest and register the plugin package.",
-        "dragText": "Click or drag a `.wasm` plugin package here to upload",
+        "dragHint": "Upload a single .wasm artifact for a dynamic plugin. The host will validate the manifest and register the plugin package.",
+        "dragText": "Click or drag a .wasm plugin package here to upload",
         "overwriteHint": "Allow upload to overwrite an existing plugin package with the same ID and version",
-        "selectFile": "Please select a `.wasm` plugin package first",
+        "selectFile": "Please select a .wasm plugin package first",
         "success": "Plugin package uploaded successfully",
         "title": "Upload Dynamic Plugin"
       }

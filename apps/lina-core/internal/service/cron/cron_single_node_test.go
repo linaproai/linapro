@@ -28,7 +28,7 @@ func TestSingleNodeModeSkipsDistributedSyncCrons(t *testing.T) {
 	svc.startRuntimeParamSnapshotSync(ctx)
 	svc.startAccessTopologyRevisionSync(ctx)
 
-	for _, item := range svc.buildHostBuiltinJobs() {
+	for _, item := range svc.buildHostBuiltinJobs(ctx) {
 		if item.HandlerRef == "host:runtime-param-sync" {
 			t.Fatalf("expected runtime param sync watcher to stay hidden in single-node mode, got %#v", item)
 		}
@@ -58,7 +58,7 @@ func TestClusterModeRegistersDistributedSyncCrons(t *testing.T) {
 		hasRuntimeSync bool
 		hasAccessSync  bool
 	)
-	for _, item := range svc.buildHostBuiltinJobs() {
+	for _, item := range svc.buildHostBuiltinJobs(ctx) {
 		if item.HandlerRef == "host:runtime-param-sync" {
 			hasRuntimeSync = true
 		}

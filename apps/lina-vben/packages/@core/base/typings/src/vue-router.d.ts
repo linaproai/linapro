@@ -80,6 +80,10 @@ interface RouteMeta {
    */
   iframeSrc?: string;
   /**
+   * 路由标题运行时 i18n 键
+   */
+  i18nKey?: string;
+  /**
    * 忽略权限，直接可以访问
    * @default false
    */

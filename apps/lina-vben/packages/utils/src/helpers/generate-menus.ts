@@ -40,6 +40,7 @@ function generateMenus(
       badgeVariants,
       hideChildrenInMenu = false,
       icon,
+      i18nKey,
       order,
       title = '',
     } = meta;
@@ -70,6 +71,7 @@ function generateMenus(
       badgeType,
       badgeVariants,
       icon,
+      i18nKey,
       name,
       order,
       parent: route.parent,

@@ -50,9 +50,9 @@
 
 **为什么不分批 chunk**：分配一次写入的关联条数受 UI 选择限制，在合理量级（< 1000）下单次插入开销与多次小批次相当但事务更简单。
 
-### D3：上传文件路由迁入受保护分组
+### D3：上传文件访问接口内聚到文件模块
 
-`bindUploadRoutes` 在 `bindProtectedStaticAPIRoutes` 同层注册，挂 `Auth` 与 `Permission` 中间件，权限标签按 `file:read`（具体键在 apply 阶段从 `file` 模块的现有权限定义中确认）。
+`GET /api/v1/uploads/*` 由 `api/file/v1` 的标准 DTO 与 `internal/controller/file` 控制器维护，并随文件控制器一起挂载到受保护静态 API 分组。权限标签沿用文件下载权限 `system:file:download`，由统一 `Auth` 与 `Permission` 中间件处理。控制器不得直接拼接本地上传目录或调用 `ServeFile`，而是把 URL 中的相对存储路径交给文件 service 解析文件元数据，再通过当前配置的 storage backend 读取文件流，保证本地存储、分布式部署和对象存储接入时逻辑一致。
 
 **为什么不改为按需 token 链接**：访问已上传文件属于业务行为，需要纳入统一鉴权与审计；做"带签名 URL"模式与本次范围不符。匿名访问保留口径仅在公开下载场景显式开启，目前没有此需求。
 
@@ -82,12 +82,12 @@
 ### D6：批量删除 RESTful 设计
 
 ```
-DELETE /api/v1/user?ids=1,2,3
-DELETE /api/v1/role?ids=1,2,3
+DELETE /api/v1/user?ids=1&ids=2&ids=3
+DELETE /api/v1/role?ids=1&ids=2&ids=3
 ```
 
-- 使用 `DELETE` 方法 + Query 参数承载 `ids`（仓库 `cron-job-management` 的批量取消等接口已有先例）。
-- DTO `BatchDeleteReq` 使用 `Ids []int json:"ids" v:"required|min-length:1" dc:"..." eg:"1,2,3"`。
+- 使用 `DELETE` 方法 + repeated Query 参数承载 `ids`（仓库 `cron-job-management` 的批量取消等接口已有先例）。
+- DTO `BatchDeleteReq` 使用 `Ids []int json:"ids" v:"required|min-length:1" dc:"..." eg:"1"`。
 - Service 层实现 `BatchDelete(ctx, ids)`：在单事务内复用现有单条 Delete 的全部保护策略（内置管理员、当前登录用户、角色被引用提示等）。任意一条触发 `bizerr` 即整体回滚。
 - 前端 `userBatchDelete` / `roleBatchDelete` API 一次发起，UI 错误以 bizerr 统一格式展示。
 
@@ -115,22 +115,24 @@ DELETE /api/v1/role?ids=1,2,3
 - 保留 `syncPublicFrontendSettings(locale)`（公共配置依赖语言）；
 - 保留 `useDictStore().resetCache()`（字典缓存按语言键存）；
 - **移除** `refreshAccessibleState(router)`；
+- 后端菜单路由响应新增 `meta.i18nKey`，前端菜单模型保留该键，语言切换时通过运行时语言包本地重绘菜单标题，不请求 `/api/v1/user/info` 或 `/api/v1/menus/all`；
 - 增加防御性扫描：菜单/路由 `meta.title` 必须使用 `$t(...)` 或 i18n key，不得使用启动时一次性求值的字符串。如发现 hardcode，将 title 改为响应式访问。
 
 ### D10：宿主运行期运维能力（新能力 `host-runtime-operations`）
 
 #### `/api/v1/health` 健康探针
 - 公开路由（无鉴权）。
-- 实现：执行 `dao.SysUser.Ctx(ctx).Limit(1).Count()` 作为 DB 探活；超过 `health.timeout`（默认 `2s`）视为不可用。
-- 响应：`200 {status:"ok"}` 或 `503 {status:"unavailable", reason:"..."}`。
+- 实现：执行 `dao.SysUser.Ctx(ctx).Limit(1).Count()` 作为 DB 探活；超过 `health.timeout`（默认 `5s`）视为不可用。
+- 响应：`200 {status:"ok"}` 或 `503 {status:"unavailable", reason:"database probe failed"}`，内部错误仅写入日志，不直接暴露给匿名调用方。
 
 #### 优雅关停
-- 在 `internal/cmd/cmd.go`（或 `cmd_http.go`）入口注册 `signal.NotifyContext` 监听 `SIGTERM` / `SIGINT`。
-- 收到信号后按顺序：
-  1. 通知 HTTP Server 停止接收新连接（`server.Shutdown(ctx)`，GoFrame 原生）；
-  2. 触发 `cronSvc.Stop(ctx)`（如果该方法不存在则补齐）；
-  3. 关闭 `gdb.Instance().Close()` / 资源池；
-- 全过程受 `shutdown.timeout`（默认 `30s`）约束，超时强制 `os.Exit`。
+- HTTP 入口使用 GoFrame `Server.Run()`，复用框架内置的 `SIGTERM` / `SIGINT` 等 shutdown 信号监听与 HTTP graceful shutdown。
+- `cmd_http.go` 不再自行注册 `os/signal`，也不直接重复调用 HTTP Server `Shutdown()`。
+- `Server.Run()` 返回后按顺序清理宿主自有运行期资源：
+  1. 触发 `cronSvc.Stop(ctx)`；
+  2. 停止集群服务；
+  3. 关闭数据库连接池；
+- 运行期资源清理受 `shutdown.timeout`（默认 `30s`）约束，超时返回错误并记录 warning。
 
 #### 上传路由保护
 见 D3。
@@ -139,7 +141,17 @@ DELETE /api/v1/role?ids=1,2,3
 删除 `apps/lina-core/pkg/auditi18n/` 与 `apps/lina-core/pkg/audittype/`。grep 当前调用确认无依赖，否则在拆除阶段补救。
 
 #### 调度器默认时区可配置
-`cron_managed_jobs.go` 的 `defaultManagedJobTimezone` 不再以常量形式硬编码，改为 `g.Cfg().Get(ctx, "scheduler.defaultTimezone", "UTC")`。`config.yaml` 增 `scheduler.defaultTimezone: "UTC"` 并在 README 中说明可改。
+`cron_managed_jobs.go` 的 `defaultManagedJobTimezone` 不再以常量形式硬编码，改为通过配置服务读取 `scheduler.defaultTimezone`，默认值为 `UTC`。`config.template.yaml` 增 `scheduler.defaultTimezone: "UTC"` 并在 README 中说明可改。
+
+### D11：宿主基础服务接口职责拆分
+
+`config.Service` 保持作为完整配置服务的组合接口，但不再直接平铺全部方法；按集群、鉴权、登录、前端、i18n、cron、宿主运行期、交付元数据、插件、上传与运行时参数同步拆分为小接口后由 `Service` embed。这样调用方可在后续重构和测试中依赖更窄的 reader/syncer。
+
+`middleware.Service` 同样保持调用方兼容，但拆分为：
+- `HTTPMiddleware`：只包含可直接安装到 GoFrame 路由组的 HTTP 中间件方法和中间件工厂；
+- `RuntimeSupport`：只包含非中间件支撑方法，例如 `SessionStore()` 与 `PublishedRouteMiddlewares()`。
+
+这些拆分不改变运行时行为，也不新增用户可见文案或 API 契约；i18n 资源无需变更。
 
 ## Risks / Trade-offs
 
@@ -148,7 +160,7 @@ DELETE /api/v1/role?ids=1,2,3
 - [删除事务变严格后报错率上升] → 这是预期行为，错误本来就被吞掉；E2E 增加"关联删除失败时整体回滚"用例验证 UI 行为。
 - [菜单 `isDescendant` 改为一次性加载] → 菜单总数远小于 1k，单次内存量级可忽略；如未来超大规模再换 path 列方案。
 - [移除 `sys_job` 外键改为应用层维护] → 调度任务在写入侧已有 `group_id` 校验路径；review 时确认所有写入路径都经过 service 层。
-- [优雅关停超时处理] → `shutdown.timeout` 默认 `30s`，可配；超时打印 warning 后 `os.Exit(1)` 防止进程悬挂。
+- [优雅关停超时处理] → HTTP graceful shutdown 由 GoFrame `Server.Run()` 负责；宿主自有运行期资源清理由 `shutdown.timeout`（默认 `30s`）约束，超时返回错误并打印 warning。
 - [`/health` 添加 DB 探活带来基线 QPS] → 单条 `Limit(1).Count()` 极轻量，可忽略；K8s 探针周期通常 ≥ 10s。
 
 ## Migration Plan

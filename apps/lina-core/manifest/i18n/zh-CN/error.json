@@ -128,6 +128,9 @@
             "failed": "读取新建文件记录ID失败"
           }
         },
+        "query": {
+          "failed": "查询文件记录失败"
+        },
         "save": {
           "cleanup": {
             "failed": "保存文件记录失败，且清理存储文件失败"
@@ -137,6 +140,11 @@
       },
       "store": {
         "failed": "保存文件失败"
+      },
+      "storage": {
+        "read": {
+          "failed": "读取存储文件失败"
+        }
       },
       "too": {
         "large": "文件大小不能超过{maxSizeMB}MB"
@@ -765,6 +773,16 @@
       }
     },
     "role": {
+      "builtin": {
+        "delete": {
+          "denied": "不能删除内置管理员角色"
+        }
+      },
+      "delete": {
+        "ids": {
+          "required": "请选择要删除的角色"
+        }
+      },
       "key": {
         "exists": "权限字符已存在"
       },
@@ -781,6 +799,11 @@
           "delete": {
             "denied": "不能删除默认管理员"
           }
+        }
+      },
+      "delete": {
+        "ids": {
+          "required": "请选择要删除的用户"
         }
       },
       "current": {

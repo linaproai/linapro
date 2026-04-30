@@ -28,6 +28,7 @@ type SysDictTypeColumns struct {
 	Remark    string // Remark
 	CreatedAt string // Creation time
 	UpdatedAt string // Update time
+	DeletedAt string // Deletion time
 }
 
 // sysDictTypeColumns holds the columns for the table sys_dict_type.
@@ -39,6 +40,7 @@ var sysDictTypeColumns = SysDictTypeColumns{
 	Remark:    "remark",
 	CreatedAt: "created_at",
 	UpdatedAt: "updated_at",
+	DeletedAt: "deleted_at",
 }
 
 // NewSysDictTypeDao creates and returns a new DAO object for table data access.

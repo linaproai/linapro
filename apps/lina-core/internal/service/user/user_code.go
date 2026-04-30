@@ -39,6 +39,12 @@ var (
 		"Cannot delete the current signed-in user",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeUserDeleteIdsRequired reports that a batch delete request has no user IDs.
+	CodeUserDeleteIdsRequired = bizerr.MustDefine(
+		"USER_DELETE_IDS_REQUIRED",
+		"Please select users to delete",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeUserCurrentDisableDenied reports that the current user cannot disable itself.
 	CodeUserCurrentDisableDenied = bizerr.MustDefine(
 		"USER_CURRENT_DISABLE_DENIED",

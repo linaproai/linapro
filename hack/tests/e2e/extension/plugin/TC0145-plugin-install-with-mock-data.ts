@@ -1,5 +1,7 @@
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 
+import { execFileSync } from "node:child_process";
+
 import { request as playwrightRequest } from "@playwright/test";
 
 import { test, expect } from "../../../fixtures/auth";
@@ -8,6 +10,10 @@ import { PluginPage } from "../../../pages/PluginPage";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
+const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
+const mysqlUser = process.env.E2E_DB_USER ?? "root";
+const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
+const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 const targetPluginID = "content-notice";
 // Mock data file 001-content-notice-mock-data.sql ships these notice titles.
 // The first one is asserted on screen to prove the mock load committed; the
@@ -19,11 +25,6 @@ type PluginListItem = {
   enabled?: number;
   hasMockData?: number;
   installed?: number;
-};
-
-type NoticeListItem = {
-  id?: number;
-  title?: string;
 };
 
 function unwrapApiData(payload: unknown) {
@@ -93,20 +94,55 @@ async function ensurePluginUninstalled(
   assertOk(uninstallResponse, "卸载插件失败");
 }
 
-async function listNotices(
-  adminApi: APIRequestContext,
-): Promise<NoticeListItem[]> {
-  const response = await adminApi.get("plugins/content-notice/notices");
-  // Plugin-owned route may 404 when the plugin is not enabled. Treat that as
-  // "no notices" so the helper stays callable in negative-state assertions.
-  if (response.status() === 404) {
+function queryMysqlLines(sql: string): string[] {
+  const output = execFileSync(
+    mysqlBin,
+    [
+      `-u${mysqlUser}`,
+      `-p${mysqlPassword}`,
+      "-N",
+      "-B",
+      mysqlDatabase,
+      "-e",
+      sql,
+    ],
+    { encoding: "utf8" },
+  );
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function noticeTableExists(): boolean {
+  const escapedDatabase = mysqlDatabase.replaceAll("'", "''");
+  const rows = queryMysqlLines(
+    `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${escapedDatabase}' AND table_name = 'plugin_content_notice';`,
+  );
+  return rows[0] === "1";
+}
+
+function listNoticeTitlesFromDatabase(): string[] {
+  if (!noticeTableExists()) {
     return [];
   }
-  assertOk(response, "查询通知公告列表失败");
-  const payload = unwrapApiData(await response.json()) as {
-    list?: NoticeListItem[];
-  };
-  return payload?.list ?? [];
+  return queryMysqlLines(
+    "SELECT title FROM plugin_content_notice ORDER BY id ASC;",
+  );
+}
+
+function dropNoticeTableIfExists() {
+  execFileSync(
+    mysqlBin,
+    [
+      `-u${mysqlUser}`,
+      `-p${mysqlPassword}`,
+      mysqlDatabase,
+      "-e",
+      "DROP TABLE IF EXISTS plugin_content_notice;",
+    ],
+    { stdio: "ignore" },
+  );
 }
 
 test.describe("TC-145 Install plugin with mock data opt-in", () => {
@@ -127,6 +163,7 @@ test.describe("TC-145 Install plugin with mock data opt-in", () => {
     // Each subtest starts from a clean uninstalled state so the install dialog
     // and the post-install navigation reflect a fresh load every time.
     await ensurePluginUninstalled(adminApi, targetPluginID);
+    dropNoticeTableIfExists();
   });
 
   test("TC-145a: install dialog exposes the mock-data checkbox for plugins shipping mock SQL", async ({
@@ -139,11 +176,27 @@ test.describe("TC-145 Install plugin with mock data opt-in", () => {
     const item = await fetchPlugin(adminApi, targetPluginID);
     expect(item, "插件应可被发现").toBeTruthy();
     expect(item?.hasMockData, "content-notice 应携带 mock-data 标识").toBe(1);
-    await expect(pluginPage.pluginMockDataTag(targetPluginID)).toBeVisible();
+    await expect(pluginPage.tableColumn("示例数据")).toBeVisible();
+    await expect(pluginPage.pluginListHelpIcon()).toBeVisible();
+    await pluginPage.pluginListHelpIcon().hover();
+    await expect(pluginPage.antTooltip()).toContainText(/源码插件.*动态插件/su);
+    await expect(pluginPage.antTooltip()).toContainText(
+      /示例数据.*是.*否/su,
+    );
+    await expect(pluginPage.pluginMockDataValue(targetPluginID)).toContainText(
+      "是",
+    );
+
+    await pluginPage.searchByPluginId("demo-control");
+    await expect(pluginPage.pluginMockDataValue("demo-control")).toContainText(
+      "否",
+    );
+    await pluginPage.searchByPluginId(targetPluginID);
 
     await pluginPage.openInstallAuthorization(targetPluginID);
     await expect(pluginPage.pluginInstallMockDataSection()).toBeVisible();
     await expect(pluginPage.pluginInstallMockDataCheckbox()).not.toBeChecked();
+    await expect(pluginPage.pluginInstallMockDataHelpIcon()).toBeVisible();
 
     // Cancel without submitting so beforeEach can restore state for TC-145b.
     await adminPage.keyboard.press("Escape");
@@ -157,7 +210,18 @@ test.describe("TC-145 Install plugin with mock data opt-in", () => {
     await pluginPage.gotoManage();
     await pluginPage.searchByPluginId(targetPluginID);
 
+    const installRequestPromise = adminPage.waitForRequest(
+      (request) =>
+        request.url().includes(`/plugins/${targetPluginID}/install`) &&
+        request.method() === "POST",
+    );
+
     await pluginPage.installPluginWithMockData(targetPluginID, true);
+
+    const installRequest = await installRequestPromise;
+    expect(installRequest.postDataJSON()).toMatchObject({
+      installMockData: true,
+    });
 
     // The host returns success without a mock-data warning toast; the install
     // success message is shared with the no-mock path.
@@ -168,10 +232,7 @@ test.describe("TC-145 Install plugin with mock data opt-in", () => {
         .last(),
     ).toBeVisible();
 
-    const notices = await listNotices(adminApi);
-    const titles = notices
-      .map((notice) => notice.title ?? "")
-      .filter(Boolean);
+    const titles = listNoticeTitlesFromDatabase();
     expect(
       titles,
       "勾选示例数据后插件页面应包含 mock-data SQL 写入的通知",

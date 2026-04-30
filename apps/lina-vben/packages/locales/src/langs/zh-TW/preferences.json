@@ -34,7 +34,7 @@
   "copyPreferences": "複製偏好設置",
   "enableCopyPreferences": "顯示覆制偏好設置按鈕",
   "copyPreferencesSuccessTitle": "複製成功",
-  "copyPreferencesSuccess": "複製成功，請在 app 下的 `src/preferences.ts`內進行覆蓋",
+  "copyPreferencesSuccess": "複製成功，請在 app 下的 src/preferences.ts 內進行覆蓋",
   "clearAndLogout": "清空緩存 & 退出登錄",
   "mode": "模式",
   "general": "通用",
@@ -62,7 +62,7 @@
     "autoActivateChild": "自動激活子菜單",
     "autoActivateChildTip": "點擊頂層菜單時,自動激活第一個子菜單或者上一次激活的子菜單",
     "expandOnHover": "鼠標懸停展開",
-    "expandOnHoverTip": "鼠標在摺疊區域懸浮時，`啟用`則展開當前子菜單，`禁用`則展開整個側邊欄"
+    "expandOnHoverTip": "鼠標在摺疊區域懸浮時，啟用則展開當前子菜單，禁用則展開整個側邊欄"
   },
   "tabbar": {
     "title": "標籤欄",

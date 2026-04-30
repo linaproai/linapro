@@ -19,6 +19,7 @@ import {
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
+  userBatchDelete,
   userDelete,
   userExport,
   userList,
@@ -246,9 +247,7 @@ function handleMultiDelete() {
       count: ids.length,
     }),
     onOk: async () => {
-      for (const id of ids) {
-        await userDelete(id);
-      }
+      await userBatchDelete(ids);
       checkedRows.value = [];
       await gridApi.query();
       deptTreeRef.value?.refreshTree();
@@ -324,6 +323,7 @@ function handleResetPwd(row: any) {
               {{ $t('pages.common.import') }}
             </a-button>
             <a-button
+              data-testid="user-batch-delete-button"
               :disabled="!hasChecked"
               danger
               type="primary"

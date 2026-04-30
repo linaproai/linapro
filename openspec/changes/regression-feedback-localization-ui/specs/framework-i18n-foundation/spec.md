@@ -18,3 +18,12 @@
 - **THEN** `zh-CN` 展示为 `版本信息`
 - **AND** `en-US` 展示为 `Version Info`
 - **AND** `zh-TW` 展示为 `版本資訊`
+
+### Requirement: Runtime locale JSON values must avoid markdown-only code markers
+运行时翻译 JSON SHALL 避免在用户可见字符串中使用 markdown 式反引号标记，因为普通 UI 渲染不会执行代码高亮，原始反引号会影响阅读体验。
+
+#### Scenario: Locale JSON strings are displayed as plain UI text
+- **WHEN** 前端、宿主或插件交付的 locale JSON 字符串包含文件路径、参数示例、通配符或扩展名
+- **THEN** 字符串 SHALL 直接展示对应内容本身
+- **AND** 字符串 SHALL NOT 使用反引号包裹这些内容
+- **AND** 自动化检查 SHALL 阻止 locale JSON 字符串重新引入反引号

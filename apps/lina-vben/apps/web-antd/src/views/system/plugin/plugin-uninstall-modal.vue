@@ -132,13 +132,25 @@ function handleClosed() {
         </DescriptionsItem>
       </Descriptions>
 
-      <Checkbox
+      <Alert
         v-if="supportsPurgeStorageData"
-        v-model:checked="purgeStorageData"
-        data-testid="plugin-uninstall-purge-checkbox"
+        data-testid="plugin-uninstall-purge-warning"
+        type="error"
       >
-        {{ $t('pages.system.plugin.uninstall.purgeStorage') }}
-      </Checkbox>
+        <template #message>
+          <Checkbox
+            v-model:checked="purgeStorageData"
+            data-testid="plugin-uninstall-purge-checkbox"
+          >
+            <span class="font-semibold">
+              {{ $t('pages.system.plugin.uninstall.purgeStorage') }}
+            </span>
+          </Checkbox>
+        </template>
+        <template #description>
+          {{ $t('pages.system.plugin.uninstall.purgeStorageWarning') }}
+        </template>
+      </Alert>
     </div>
   </BasicModal>
 </template>

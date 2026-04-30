@@ -42,7 +42,7 @@ export class MainLayout {
   }
 
   get brandLogoImage() {
-    return this.page.locator('img[alt="LinaPro"]:visible').first();
+    return this.page.locator('img[alt^="LinaPro"]:visible').first();
   }
 
   get brandLogoMark() {
@@ -135,6 +135,28 @@ export class MainLayout {
       .poll(async () => await this.page.locator("html").getAttribute("lang"))
       .toBe(locale);
     await this.page.waitForLoadState("networkidle");
+    await waitForRouteReady(this.page);
+  }
+
+  async switchLanguageFromPreferences(
+    label: "English" | "简体中文" | "繁體中文",
+  ) {
+    const localeMap = {
+      English: "en-US",
+      简体中文: "zh-CN",
+      繁體中文: "zh-TW",
+    } as const;
+    const locale = localeMap[label];
+    if (!(await this.preferencesDrawer.isVisible().catch(() => false))) {
+      await this.openPreferences();
+    }
+    await this.preferencesDrawer.getByRole("tab", { name: /General|通用/ }).click();
+    await this.preferencesDrawer.getByRole("combobox").first().click();
+    await this.page.getByRole("option", { name: label }).click();
+    await this.waitForLocalePersistence(locale);
+    await expect
+      .poll(async () => await this.page.locator("html").getAttribute("lang"))
+      .toBe(locale);
     await waitForRouteReady(this.page);
   }
 

@@ -12,6 +12,7 @@ import (
 
 type IRoleV1 interface {
 	RoleAssignUsers(ctx context.Context, req *v1.RoleAssignUsersReq) (res *v1.RoleAssignUsersRes, err error)
+	RoleBatchDelete(ctx context.Context, req *v1.RoleBatchDeleteReq) (res *v1.RoleBatchDeleteRes, err error)
 	RoleCreate(ctx context.Context, req *v1.RoleCreateReq) (res *v1.RoleCreateRes, err error)
 	RoleDelete(ctx context.Context, req *v1.RoleDeleteReq) (res *v1.RoleDeleteRes, err error)
 	RoleGet(ctx context.Context, req *v1.RoleGetReq) (res *v1.RoleGetRes, err error)

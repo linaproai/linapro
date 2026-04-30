@@ -102,6 +102,13 @@ export function userDelete(id: number) {
   return requestClient.delete(`/user/${id}`);
 }
 
+/** 批量删除用户 */
+export function userBatchDelete(ids: number[]) {
+  const params = new URLSearchParams();
+  ids.forEach((id) => params.append('ids', String(id)));
+  return requestClient.delete(`/user?${params.toString()}`);
+}
+
 /** 获取用户详情 */
 export function userInfo(id: number) {
   return requestClient.get<SysUser>(`/user/${id}`);

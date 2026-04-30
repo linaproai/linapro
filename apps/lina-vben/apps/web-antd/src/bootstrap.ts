@@ -14,7 +14,6 @@ import { useDictStore } from '#/store/dict';
 
 import { initComponentAdapter } from './adapter/component';
 import { initSetupVbenForm } from './adapter/form';
-import { refreshAccessibleState } from './router/access-refresh';
 import { syncPublicFrontendSettings } from './runtime/public-frontend';
 import App from './app.vue';
 import { setupGlobalComponent } from './components/global';
@@ -85,9 +84,6 @@ async function bootstrap(namespace: string) {
       }
       await syncPublicFrontendSettings(locale);
       useDictStore().resetCache();
-      await refreshAccessibleState(router, {
-        showLoadingToast: false,
-      });
     },
   );
 

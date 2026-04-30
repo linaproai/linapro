@@ -8,7 +8,7 @@ import { computed, onMounted, useSlots, watch } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { useRefresh } from '@vben/hooks';
-import { $t, i18n } from '@vben/locales';
+import { $t, $te, i18n } from '@vben/locales';
 import {
   preferences,
   updatePreferences,
@@ -138,11 +138,18 @@ const {
 function wrapperMenus(menus: MenuRecordRaw[], deep: boolean = true) {
   return deep
     ? mapTree(menus, (item) => {
-        return { ...cloneDeep(item), name: $t(item.name) };
+        return { ...cloneDeep(item), name: translateMenuName(item) };
       })
     : menus.map((item) => {
-        return { ...cloneDeep(item), name: $t(item.name) };
+        return { ...cloneDeep(item), name: translateMenuName(item) };
       });
+}
+
+function translateMenuName(item: MenuRecordRaw) {
+  if (item.i18nKey && $te(item.i18nKey)) {
+    return $t(item.i18nKey);
+  }
+  return $t(item.name);
 }
 
 function toggleSidebar() {

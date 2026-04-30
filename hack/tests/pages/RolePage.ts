@@ -218,6 +218,29 @@ export class RolePage {
     await waitForBusyIndicatorsToClear(this.page);
   }
 
+  /** Select multiple visible role rows by display name. */
+  async selectVisibleRoleRows(roleNames: string[]) {
+    for (const roleName of roleNames) {
+      const row = this.page
+        .locator(".vxe-body--row:visible", { hasText: roleName })
+        .first();
+      await row.waitFor({ state: "visible", timeout: 10000 });
+      await row.locator(".vxe-checkbox--icon").first().click();
+      await waitForBusyIndicatorsToClear(this.page);
+    }
+  }
+
+  /** Click toolbar batch delete and confirm the overlay. */
+  async confirmSelectedRoleBatchDelete() {
+    await this.page.getByTestId("role-batch-delete-button").click();
+    const confirmOverlay = await waitForConfirmOverlay(this.page);
+    await confirmOverlay
+      .getByRole("button", { name: /确\s*定|OK|是/i })
+      .last()
+      .click();
+    await waitForBusyIndicatorsToClear(this.page);
+  }
+
   /** Reset search */
   async resetSearch() {
     await this.page

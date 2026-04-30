@@ -4,10 +4,11 @@ import type {
   ServerNodeInfo,
 } from '#/api/monitor/server/model';
 
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import { Page } from '@vben/common-ui';
 
+import { useDocumentVisibility, useIntervalFn } from '@vueuse/core';
 import { Progress, Table, Tooltip } from 'ant-design-vue';
 
 import { getServerMonitor } from '#/api/monitor/server';
@@ -19,11 +20,32 @@ const nodes = ref<ServerNodeInfo[]>([]);
 const dbInfo = ref<ServerMonitorResult['dbInfo'] | null>(null);
 const loading = ref(false);
 const expandedNodes = ref<Set<string>>(new Set());
+const visibility = useDocumentVisibility();
 
 const hasData = computed(() => nodes.value.length > 0);
 
+const { pause, resume } = useIntervalFn(loadData, 30_000, {
+  immediate: false,
+});
+
 onMounted(async () => {
-  await loadData();
+  if (visibility.value === 'visible') {
+    await loadData();
+    resume();
+  }
+});
+
+watch(visibility, async (state) => {
+  if (state === 'visible') {
+    await loadData();
+    resume();
+    return;
+  }
+  pause();
+});
+
+onBeforeUnmount(() => {
+  pause();
 });
 
 async function loadData() {

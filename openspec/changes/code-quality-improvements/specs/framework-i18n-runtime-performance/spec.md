@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 语言切换 MUST NOT 触发整套权限/菜单/路由重载
-前端在用户切换语言时 SHALL 仅刷新与语言强相关的本地状态，包括公共配置同步与字典缓存重置。语言切换 MUST NOT 触发 `refreshAccessibleState` 等"重新拉取菜单 + 重新生成路由"的全量权限重载流程；菜单与路由标题 MUST 通过响应式 `$t(...)` 自动更新，禁止在路由生成阶段把当前语言文案"烘焙"成静态字符串。
+前端在用户切换语言时 SHALL 仅刷新与语言强相关的本地状态，包括公共配置同步与字典缓存重置。语言切换 MUST NOT 触发 `refreshAccessibleState` 等"重新拉取菜单 + 重新生成路由"的全量权限重载流程；菜单与路由标题 MUST 通过响应式 `$t(...)` 或首次菜单响应携带的 `meta.i18nKey` 自动更新，禁止在路由生成阶段把当前语言文案"烘焙"成静态字符串后失去本地重绘能力。
 
 #### Scenario: 语言切换只更新公共配置与字典缓存
 - **WHEN** 用户在 UI 中切换 `preferences.app.locale`
@@ -13,6 +13,7 @@
 - **WHEN** 用户切换语言后停留在当前页面
 - **THEN** 菜单与面包屑 MUST 自动以新语言文案展示
 - **AND** 此过程 MUST NOT 重新请求 `/api/v1/user/info` 或菜单接口
+- **AND** 首次菜单路由响应中的 `meta.i18nKey` MUST 足以让前端在本地运行时语言包中重新解析菜单标题
 
 #### Scenario: 路由 meta.title MUST 通过 i18n key 引用
 - **WHEN** 任意路由配置定义 `meta.title`

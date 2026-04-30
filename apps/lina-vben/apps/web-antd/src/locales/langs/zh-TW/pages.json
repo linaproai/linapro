@@ -731,7 +731,7 @@
       "validation": {
         "cronInvalidCount": "Cron 表達式必須為 5 段或 6 段。",
         "cronRequired": "請輸入 Cron 表達式。",
-        "cronSecondInvalid": "秒字段必須為 `*` 或 0 到 59 之間的數值。",
+        "cronSecondInvalid": "秒字段必須為 * 或 0 到 59 之間的數值。",
         "cronTooLong": "Cron 表達式過長。",
         "groupRequired": "請選擇任務分組。",
         "integerRequired": "{label} 必須為整數。",
@@ -741,7 +741,7 @@
         "nameRequired": "請輸入任務名稱。",
         "nameTooLong": "任務名稱不能超過 128 個字符。",
         "retentionValuePositive": "保留值必須大於 0。",
-        "timezoneInvalid": "請輸入有效的時區，例如 `Asia/Shanghai`。",
+        "timezoneInvalid": "請輸入有效的時區，例如 Asia/Shanghai。",
         "timezoneRequired": "請輸入時區。"
       }
     },
@@ -848,13 +848,13 @@
       },
       "help": {
         "cache": "開啟後使用 KeepAlive 緩存該路由頁面，保留頁面狀態。",
-        "component": "填寫相對於 views 目錄的前端組件路徑，例如 `system/user/index`。",
+        "component": "填寫相對於 views 目錄的前端組件路徑，例如 system/user/index。",
         "externalLink": "外鏈地址必須使用以 http:// 或 https:// 開頭的完整 URL。",
         "icon": "填寫 Iconify 圖標名稱，用於側邊欄和路由展示。",
         "name": "用於側邊欄、麵包屑和頁籤標題顯示。",
         "path": "內部頁面使用相對路由地址，外鏈請填寫完整 URL。",
         "permission": "請使用唯一的權限標識，參與統一菜單和按鈕鑑權。",
-        "queryParam": "可選的路由附加參數，例如 `id=1&type=detail`。",
+        "queryParam": "可選的路由附加參數，例如 id=1&type=detail。",
         "sort": "同級菜單中，值越小越靠前。",
         "status": "停用後菜單將不會在正常導航中顯示，也無法正常打開。",
         "visible": "隱藏後仍保留路由訪問能力，但不會出現在側邊欄中。"
@@ -893,6 +893,11 @@
     },
     "plugin": {
       "tableTitle": "插件列表",
+      "tableTitleHelp": {
+        "ariaLabel": "插件列表說明",
+        "sourceDynamic": "源碼插件隨宿主源碼與編譯產物交付，適合內建能力和可信擴展；動態插件以 wasm 製品上傳和切換，適合運行時安裝、升級與隔離治理。",
+        "mockData": "示例資料列的「是」表示插件隨包提供示例資料，可在安裝時選擇載入；「否」表示沒有可載入的示例資料。"
+      },
       "fields": {
         "id": "插件標識",
         "name": "插件名稱",
@@ -903,8 +908,7 @@
         "version": "版本號",
         "authorizationStatus": "授權狀態",
         "startupManagement": "啟動管理",
-        "hasMockDataBadge": "示例資料",
-        "hasMockDataTooltip": "該插件攜帶 manifest/sql/mock-data 示例資料，可在安裝時按需載入用於演示與功能驗證"
+        "hasMockData": "示例資料"
       },
       "type": {
         "source": "源碼插件",
@@ -921,7 +925,7 @@
         "installAndEnable": "安裝並啟用",
         "uninstall": "卸載",
         "continueAction": "繼續{actionLabel}",
-        "installMockDataLabel": "安裝示例資料",
+        "installMockDataLabel": "是否安裝示例資料",
         "installMockDataTooltip": "勾選後，宿主會在該插件安裝 SQL 全部成功後將 manifest/sql/mock-data 目錄的 SQL 檔案以單一資料庫交易執行；任一檔案失敗將整體回滾示例資料，但插件本身仍處於已安裝狀態。示例資料僅用於展示與功能驗證，不建議於生產環境使用。",
         "installMockDataHelpHint": "瞭解詳情"
       },
@@ -1013,14 +1017,15 @@
         "defaultWarning": "卸載該插件會移除其運行時註冊信息，請先確認影響範圍。",
         "dynamicWarning": "卸載動態插件會移除已上傳產物，並可選擇同時清理插件自有數據和存儲文件。",
         "purgeStorage": "同時清理插件自有存儲數據",
+        "purgeStorageWarning": "勾選後將執行插件卸載 SQL 並物理刪除插件自有表數據、授權存儲文件和治理資源引用；確認後不可恢復。",
         "sourceWarning": "卸載源碼插件會移除其同步到宿主的治理記錄，並可選擇同時清理插件自有數據和存儲文件。"
       },
       "upload": {
         "acknowledge": "知道了",
-        "dragHint": "上傳單個 `.wasm` 動態插件包，宿主會校驗清單並註冊插件產物。",
-        "dragText": "點擊或拖拽 `.wasm` 插件包到此處上傳",
+        "dragHint": "上傳單個 .wasm 動態插件包，宿主會校驗清單並註冊插件產物。",
+        "dragText": "點擊或拖拽 .wasm 插件包到此處上傳",
         "overwriteHint": "允許覆蓋相同插件標識和版本的已有插件包",
-        "selectFile": "請先選擇 `.wasm` 插件包",
+        "selectFile": "請先選擇 .wasm 插件包",
         "success": "插件包上傳成功",
         "title": "上傳動態插件"
       }

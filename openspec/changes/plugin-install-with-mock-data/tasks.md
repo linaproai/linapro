@@ -53,18 +53,18 @@
 - [x] 8.1 `apps/lina-vben/apps/web-antd/src/api/system/plugin/model.d.ts`：`SystemPlugin` 新增 `hasMockData: number`（与 GoFrame `boolToInt` 一致），`PluginAuthorizationPayload` 新增可选 `installMockData?: boolean`，复用既有 `pluginInstall` API 调用通道。
 - [x] 8.2 `plugin-host-service-auth-modal.vue` 接入：导入 `Checkbox` + `Tooltip`，新增 `installMockData` ref 与 `showMockDataOption` 计算属性（仅 install 模式 + `hasMockData=1` 时渲染），勾选后通过 `buildAuthorizationPayload` 注入 `installMockData: true`；`handleOpenChange` 与 `handleClosed` 都重置该 ref，避免跨次安装泄漏勾选状态。复选框块带 `data-testid="plugin-install-mock-data-section"` / `plugin-install-mock-data-checkbox` 便于 E2E 选择。
 - [x] 8.3 在 `handleSubmit` 的 `pluginInstall` 调用周围捕获错误，新增 `handleMockDataFailure` + `extractMockDataFailureParams` 识别 `errorCode === 'PLUGIN_INSTALL_MOCK_DATA_FAILED'`，提取 `messageParams { pluginId, failedFile, rolledBackFiles, cause }`，调用 `message.warning` 展示 `pages.system.plugin.messages.mockDataRolledBack` 本地化文案（duration=8s 让用户看清失败 SQL 名）。识别成功后触发 `reload + handleClosed` 让列表立即反映"已装、无 mock"状态。
-- [x] 8.4 `index.vue` 的 `#name` 插槽追加 `<Tag color="purple">` 示例数据标记，悬停 `Tooltip` 解释含义；仅 `row.hasMockData === 1` 时渲染，`data-testid="plugin-mock-data-tag-{pluginId}"`。位置紧邻 autoEnable 标签，不新增独立列保持表格节奏。
+- [x] 8.4 `index.vue` 初版曾在 `#name` 插槽追加 `<Tag color="purple">` 示例数据标记；根据反馈已在 FB-4 中改为独立"示例数据"列，名称列不再展示该标记。
 
 ## 9. i18n 资源同步
 
 - [x] 9.1 后端运行时翻译键集中在 apidoc 资源（task 4.5 已覆盖）和 bizerr 错误文案（`CodePluginInstallMockDataFailed.MessageKey="Plugin {pluginId} installed successfully, but mock data file {failedFile} failed to load and was rolled back: {cause}"`）。`plugins.install.error.mockDataFailed` 在前端 i18n 中对应 `pages.system.plugin.messages.mockDataRolledBack`，由 9.3 三语覆盖。无需新增 `manifest/i18n/<locale>/plugin.json` 入口（宿主侧无独立 mock 提示文案）。
 - [x] 9.2 `apidoc/core-api-plugin.json` 已在 task 4.5 阶段同步 zh-CN / zh-TW 翻译并通过 `python3 -m json.tool` 校验；`en-US/apidoc/` 维持空占位（直接使用 DTO 英文源文本）。
-- [x] 9.3 `apps/lina-vben/apps/web-antd/src/locales/langs/{zh-CN,zh-TW,en-US}/pages.json` 新增三组键：`fields.hasMockDataBadge` + `fields.hasMockDataTooltip`（列表标记），`actions.installMockDataLabel` + `actions.installMockDataTooltip` + `actions.installMockDataHelpHint`（弹窗复选框），`messages.mockDataRolledBack`（失败提示，含 `{pluginId}`、`{failedFile}`、`{cause}` 占位符）。三语 JSON 全部通过 `python3 -m json.tool` 校验；`pnpm vue-tsc --noEmit` 类型检查通过。
+- [x] 9.3 `apps/lina-vben/apps/web-antd/src/locales/langs/{zh-CN,zh-TW,en-US}/pages.json` 新增运行时文案键：`fields.hasMockData`（独立列表列）、`tableTitleHelp.*`（列表标题问号说明）、`actions.installMockDataLabel` + `actions.installMockDataTooltip` + `actions.installMockDataHelpHint`（弹窗复选框与问号说明图标）、`messages.mockDataRolledBack`（失败提示，含 `{pluginId}`、`{failedFile}`、`{cause}` 占位符）。三语 JSON 全部通过 `python3 -m json.tool` 校验；`pnpm vue-tsc --noEmit` 类型检查通过。
 - [x] 9.4 任务 5.4 已在 `config.template.yaml` / `config.yaml` / `internal/packed/...` 中以中英双语完整说明 `plugin.autoEnable` 的字符串与对象两种写法、`withMockData` 缺省行为、生产环境注意事项。
 
 ## 10. E2E 测试用例
 
-- [x] 10.1 创建 `hack/tests/e2e/extension/plugin/TC0145-plugin-install-with-mock-data.ts`：含 `TC-145a`（弹窗暴露 mock 复选框，默认未勾选；列表 `plugin-mock-data-tag-content-notice` 可见）+ `TC-145b`（勾选示例数据 → 通过 `installPluginWithMockData(..., true)` 安装 → 调用 `plugins/content-notice/notices` 列表 API 断言 mock 标题 `系统升级通知` 出现）。`PluginPage` 新增 `pluginInstallMockDataSection`、`pluginInstallMockDataCheckbox`、`pluginMockDataTag` 与 `installPluginWithMockData(pluginId, withMockData)` 助手方法。
+- [x] 10.1 创建 `hack/tests/e2e/extension/plugin/TC0145-plugin-install-with-mock-data.ts`：含 `TC-145a`（弹窗暴露 mock 复选框，默认未勾选；列表"示例数据"列分别展示"是"/"否"；列表标题和弹窗问号说明图标可见，标题 tooltip 覆盖源码/动态差异与示例数据是/否含义）+ `TC-145b`（勾选示例数据 → 通过 `installPluginWithMockData(..., true)` 安装 → 调用 `plugins/content-notice/notices` 列表 API 断言 mock 标题 `系统升级通知` 出现）。`PluginPage` 新增 `pluginListHelpIcon`、`pluginInstallMockDataSection`、`pluginInstallMockDataCheckbox`、`pluginMockDataValue` 与 `installPluginWithMockData(pluginId, withMockData)` 助手方法。
 - [x] 10.2 创建 `hack/tests/e2e/extension/plugin/TC0146-plugin-install-without-mock-data.ts`：复用相同插件 `content-notice`，不勾选示例数据安装；通过 `plugins/content-notice/notices` 断言三条 mock 标题（`系统升级通知` / `关于规范使用系统的公告` / `新功能上线预告`）均不出现。`beforeEach` 自动 disable+uninstall 保证干净起点。
 - [x] 10.3 跳过 E2E 实现：`TC0147-plugin-install-mock-data-rollback` 需要构造"注定失败"的 fixture 插件，工程成本高于价值；mock 阶段事务化回滚行为已由 Go DB-driven 测试 `TestExecuteManifestMockSQLFilesInTxRollsBackOnFailure` 完整覆盖（断言 mock 表零行 + sys_plugin_migration phase=mock 零行 + install ledger 仍存在）。在审查阶段（任务 11.2）记录该决策。
 - [x] 10.4 跳过 E2E 实现：`TC0148-plugin-auto-enable-mock-data-opt-in` 需要测试中重启服务并切换 `plugin.autoEnable` 配置，Playwright 测试套件不支持。autoEnable 联合 schema + per-entry `withMockData` 行为已由 Go DB-driven 测试 `TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn` 完整覆盖（构造两个测试源码插件，分别声明 `WithMockData=false / true` 并断言 mock 表行计数与 phase=mock 账本行计数）。
@@ -88,3 +88,11 @@
 
 - [x] **FB-1**: `config_plugin.go` 中的 panic 使用过度，违反"非必须业务场景不直接 panic"的项目偏好——已在 12.1 收敛为单一边界 panic，三个 helper 全部改为 `(value, error)` 返回；详情见 12.1。
 - [x] **FB-2**: 审查 `pluginfs.go` mock 数据加载方式，发现源码插件 embed-first 路径已正确（`ListMockSQLPaths` → `DiscoverMockSQLPathsFromFS` → 文件系统 fallback，与 install/uninstall 一致），但**动态插件 wasm artifact 链路缺失** mock SQL section 解析与构建——已在 12.3 补齐 `WasmSectionMockSQL` 常量、metadata 字段、artifact 解析、builder 打包与 testutil 支持；详情见 12.3。
+- [x] **FB-3**: 安装弹窗示例数据选项文案、问号说明图标与动态插件弹窗位置需要优化——已将文案改为"是否安装示例数据"，用问号图标承载 tooltip，并把选项移动到插件基础信息表格之后；`TC0145` 已验证复选框默认未勾选且问号图标可见。
+- [x] **FB-4**: 插件列表需要从名称后标识改为独立"示例数据"列并用是/否彩色标签展示——已移除名称列示例数据标记，在状态列和安装时间列之间新增"示例数据"列；带示例数据显示绿色"是"，不带示例数据显示灰色"否"；`TC0145` 已覆盖两种状态。
+- [x] **FB-5**: 卸载弹窗清理插件自有存储数据选项需要增强警示效果并审查硬删除语义——已将清理选项放入 error alert 警示区；审查确认插件卸载 SQL 使用 `DROP TABLE` / `DELETE FROM`、菜单和资源引用清理使用 `Unscoped().Delete()`、授权存储文件使用物理删除；`TC-66q` 已验证勾选清理后插件表和存储文件被删除。
+- [x] **FB-6**: 卸载弹窗清理数据警示区左侧图标需要从过大的 X 号改为与上方提示一致的感叹号图标，同时保持红色背景——已保留 `type="error"` 红色警示背景，改用 16px 感叹号图标；`TC-66q` 已验证图标和清理警示区可见且卸载清理行为通过。
+- [x] **FB-7**: 卸载弹窗红色清理警示区左侧图标需要与上方黄色提示图标保持相同宽度，并在警示区内垂直居中——已将红色警示区图标容器调整为 14px 并绝对定位到 Alert 垂直中心；Playwright DOM 测量确认红色图标与上方黄色图标实际宽高一致（约 13.33px），中心偏移约 0px。
+- [x] **FB-8**: 卸载弹窗红色清理提醒板块左侧图标改为不展示，仅保留红色提醒背景和清理说明内容——已移除 `show-icon`、自定义图标插槽和图标对齐样式；DOM 检查确认红色提醒区内 `.ant-alert-icon` 数量为 0，`TC-66q` 通过。
+- [x] **FB-9**: 插件列表标题需要增加问号帮助图标，悬停说明源码插件/动态插件差异以及"示例数据"列是/否含义——已在标题 slot 中新增问号 tooltip，三语 `tableTitleHelp.*` 文案覆盖两类说明；`TC0145` 已补充标题问号悬停断言。
+- [x] **FB-10**: 插件列表标题问号中"示例数据"列说明不应直接暴露 `manifest/sql/mock-data` 路径——已将三语 `tableTitleHelp.mockData` 改为面向用户的"随包提供示例数据"说明。

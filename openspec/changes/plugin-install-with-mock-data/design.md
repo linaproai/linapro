@@ -21,7 +21,7 @@ plugin/manifest/sql/
 
 **Goals:**
 
-- 用户在插件安装弹窗里看到"安装示例数据"复选框，勾选即在安装链路中执行 `manifest/sql/mock-data/*.sql`。
+- 用户在插件安装弹窗里看到"是否安装示例数据"复选框，勾选即在安装链路中执行 `manifest/sql/mock-data/*.sql`。
 - 多个 mock-data SQL 文件以及对应的迁移账本写入在**同一数据库事务**中执行；任一失败则整体回滚，插件不会出现"半加载 mock"的脏状态。
 - `plugin.autoEnable` 配置可以**逐项 opt-in**示例数据，默认关闭。
 - 失败响应里携带可操作信息（失败文件、原因、"已自动回滚"提示），让用户决定是接受现状还是修复后卸载重装。
@@ -72,11 +72,11 @@ plugin/manifest/sql/
 
 **选择**：
 
-| 失败点 | 处理 |
-|---|---|
-| install SQL 中途失败 | 与现状一致——返回错误，依赖用户修复并重试（幂等保证安全） |
-| mock SQL 中途失败 | 整个 mock 事务回滚，插件保持"已安装、无 mock"状态；响应携带失败文件名 + 原因 + "已自动回滚 mock 数据"提示 |
-| 未勾选 mock 选项 | mock 阶段完全跳过，等价于现状 |
+| 失败点               | 处理                                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------------------- |
+| install SQL 中途失败 | 与现状一致——返回错误，依赖用户修复并重试（幂等保证安全）                                                  |
+| mock SQL 中途失败    | 整个 mock 事务回滚，插件保持"已安装、无 mock"状态；响应携带失败文件名 + 原因 + "已自动回滚 mock 数据"提示 |
+| 未勾选 mock 选项     | mock 阶段完全跳过，等价于现状                                                                             |
 
 **理由**：用户的明确诉求是"mock 失败时告知失败原因，由用户决定是否解决问题、还是取消 mock 重新安装"。这意味着**安装本身不应被 mock 失败连带回滚**——否则用户连"接受现状"的选择都没有了。"修复后卸载重装"是用户已接受的重试路径。
 
@@ -92,10 +92,10 @@ plugin/manifest/sql/
 ```yaml
 plugin:
   autoEnable:
-    - "demo-control"                       # 字符串：默认不带 mock
-    - id: "plugin-demo-source"             # 对象：可显式 opt-in
+    - "demo-control" # 字符串：默认不带 mock
+    - id: "plugin-demo-source" # 对象：可显式 opt-in
       withMockData: true
-    - id: "plugin-demo-dynamic"            # 对象但不 opt-in，等价于字符串写法
+    - id: "plugin-demo-dynamic" # 对象但不 opt-in，等价于字符串写法
 ```
 
 **理由**：
@@ -138,8 +138,8 @@ plugin:
     "pluginId": "content-notice",
     "failedFile": "001-content-notice-mock-data.sql",
     "rolledBackFiles": ["001-content-notice-mock-data.sql"],
-    "cause": "Duplicate entry 'admin' for key ..."
-  }
+    "cause": "Duplicate entry 'admin' for key ...",
+  },
 }
 ```
 
@@ -149,10 +149,10 @@ i18n key `plugins.install.error.mockDataFailed` 在三个 locale 下分别表达
 
 ### Decision 8：前端复选框位置与默认值
 
-**选择**：复用现有 `plugin-host-service-auth-modal.vue`（**所有插件**安装时都会经过的弹窗，包括没有 host service 授权需求的源码插件），在弹窗底部"操作"区域增加：
+**选择**：复用现有 `plugin-host-service-auth-modal.vue`（**所有插件**安装时都会经过的弹窗，包括没有 host service 授权需求的源码插件），在插件基础信息表格之后增加：
 
 ```
-☐ 安装示例数据   ⓘ
+☐ 是否安装示例数据   ?
    仅用于演示和功能验证；生产环境不建议勾选。
 ```
 
@@ -165,7 +165,7 @@ i18n key `plugins.install.error.mockDataFailed` 在三个 locale 下分别表达
 - **[Risk] 插件作者写出的 mock SQL 在某些环境下失败（如时区差异、外键依赖错乱）** → Mitigation：mock 失败已设计为不影响 install；提供清晰的失败响应让用户知道如何处置；E2E 用例覆盖典型失败路径。
 - **[Risk] autoEnable opt-in mock 在 CI/E2E 环境意外打开后出现幂等冲突** → Mitigation：现有 mock SQL 全部使用 `INSERT IGNORE` 或 `WHERE NOT EXISTS` 模式，已是仓库治理规范要求；启动失败时账本能定位到具体 SQL 文件。
 - **[Risk] 联合类型 schema 在 GoFrame 反序列化下踩坑（YAML 数组元素既可能是 string 也可能是 map）** → Mitigation：通过 `interface{}` 接收后由 `normalizePluginAutoEnableIDs` 改造为 `normalizePluginAutoEnableEntries` 方法做标准化；补 panic allowlist 与 unit test 防回归。
-- **[Risk] 前端复选框与现有"安装并启用"复选框混杂，UX 拥挤** → Mitigation：将"安装示例数据"放在独立区域并加描述性 tooltip；E2E 用例验证布局可见性。
+- **[Risk] 前端复选框与现有"安装并启用"操作混杂，UX 拥挤** → Mitigation：将"是否安装示例数据"放在插件基础信息表格下方的独立区域并加问号 tooltip；E2E 用例验证布局可见性。
 - **[Risk] mock 阶段日志噪音过大（每个 SQL 文件一行 INFO）** → Mitigation：复用 install 阶段已有的日志策略；失败时使用 `logger.Warningf(ctx, ...)` 携带 pluginID + filename，避免吞噪。
 - **[Trade-off] install 自身失败仍然不可回滚**：用户接受了这一物理限制；通过文档（错误码消息 + 提示）引导用户走"幂等重试"路径，已是当前最优解。
 

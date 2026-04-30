@@ -20,12 +20,16 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
-// Service defines the middleware service contract.
+// Service defines the complete middleware service contract by composing
+// request middleware and non-middleware support capabilities.
 type Service interface {
-	// SessionStore returns the session store for external use (e.g., cleanup tasks).
-	SessionStore() session.Store
-	// PublishedRouteMiddlewares returns the published host middleware directory for plugin route composition.
-	PublishedRouteMiddlewares() pluginhost.RouteMiddlewares
+	HTTPMiddleware
+	RuntimeSupport
+}
+
+// HTTPMiddleware defines the request handlers that can be installed directly
+// into GoFrame HTTP route groups.
+type HTTPMiddleware interface {
 	// Response serializes the unified JSON response payload.
 	Response(r *ghttp.Request)
 	// Ctx injects business context into request.
@@ -36,13 +40,28 @@ type Service interface {
 	RequestBodyLimit(r *ghttp.Request)
 	// Auth validates JWT token and injects user info into context.
 	Auth(r *ghttp.Request)
+	// RequirePermission declares static permission requirements for manually registered routes.
+	RequirePermission(permissions ...string) ghttp.HandlerFunc
 	// Permission enforces declarative permission requirements declared on static host API handlers.
 	Permission(r *ghttp.Request)
 }
 
+// RuntimeSupport defines non-middleware helpers shared with host runtime
+// services and source-plugin route publication.
+type RuntimeSupport interface {
+	// SessionStore returns the session store for external use, such as cleanup tasks.
+	SessionStore() session.Store
+	// PublishedRouteMiddlewares returns the published host middleware directory for plugin route composition.
+	PublishedRouteMiddlewares() pluginhost.RouteMiddlewares
+}
+
 // Interface compliance assertion for the default middleware service
 // implementation.
-var _ Service = (*serviceImpl)(nil)
+var (
+	_ Service        = (*serviceImpl)(nil)
+	_ HTTPMiddleware = (*serviceImpl)(nil)
+	_ RuntimeSupport = (*serviceImpl)(nil)
+)
 
 // serviceImpl implements Service.
 type serviceImpl struct {

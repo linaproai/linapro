@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS sys_role (
 CREATE TABLE IF NOT EXISTS sys_role_menu (
     role_id INT NOT NULL COMMENT  'Role ID',
     menu_id INT NOT NULL COMMENT  'Menu ID',
-    PRIMARY KEY (role_id, menu_id)
+    PRIMARY KEY (role_id, menu_id),
+    KEY idx_menu_id (menu_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Role-menu relation table';
 
 -- ============================================================
@@ -63,7 +64,8 @@ CREATE TABLE IF NOT EXISTS sys_role_menu (
 CREATE TABLE IF NOT EXISTS sys_user_role (
     user_id INT NOT NULL COMMENT  'User ID',
     role_id INT NOT NULL COMMENT  'Role ID',
-    PRIMARY KEY (user_id, role_id)
+    PRIMARY KEY (user_id, role_id),
+    KEY idx_role_id (role_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User-role relation table';
 
 -- ============================================================

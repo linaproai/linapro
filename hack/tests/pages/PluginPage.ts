@@ -21,6 +21,10 @@ export class PluginPage {
     return this.page.getByText(pluginTableTitlePattern).first();
   }
 
+  pluginListHelpIcon(): Locator {
+    return this.page.getByTestId("plugin-list-help-icon").first();
+  }
+
   get dynamicUploadTrigger(): Locator {
     return this.page.getByTestId("plugin-dynamic-upload-trigger").first();
   }
@@ -277,23 +281,23 @@ export class PluginPage {
   }
 
   pluginInstallMockDataSection(): Locator {
-    return this.page
-      .getByTestId("plugin-install-mock-data-section")
-      .last();
+    return this.page.getByTestId("plugin-install-mock-data-section").last();
   }
 
   pluginInstallMockDataCheckbox(): Locator {
-    // ant-design Checkbox renders the actual <input type="checkbox"> inside
-    // the wrapper carrying the data-testid. Drill into it for keyboard/click
-    // operations that accurately reflect the user-visible toggle state.
-    return this.page
-      .getByTestId("plugin-install-mock-data-checkbox")
-      .locator('input[type="checkbox"]')
+    return this.hostServiceAuthDialog()
+      .getByRole("checkbox", {
+        name: /是否安装示例数据|是否安裝示例資料|Install mock data\?/iu,
+      })
       .last();
   }
 
-  pluginMockDataTag(pluginId: string): Locator {
-    return this.page.getByTestId(`plugin-mock-data-tag-${pluginId}`).first();
+  pluginInstallMockDataHelpIcon(): Locator {
+    return this.page.getByTestId("plugin-install-mock-data-help-icon").last();
+  }
+
+  pluginMockDataValue(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-mock-data-value-${pluginId}`).first();
   }
 
   uninstallDialog(): Locator {
@@ -341,7 +345,19 @@ export class PluginPage {
   }
 
   uninstallPurgeCheckbox(): Locator {
+    return this.uninstallDialog()
+      .getByRole("checkbox", {
+        name: /同时清理插件自有存储数据|同時清理插件自有存儲數據|Also clear plugin-owned storage data/iu,
+      })
+      .last();
+  }
+
+  uninstallPurgeCheckboxWrapper(): Locator {
     return this.page.getByTestId("plugin-uninstall-purge-checkbox").last();
+  }
+
+  uninstallPurgeWarning(): Locator {
+    return this.page.getByTestId("plugin-uninstall-purge-warning").last();
   }
 
   pluginEnabledSwitch(pluginId: string): Locator {
@@ -681,10 +697,11 @@ export class PluginPage {
     await expect(uninstallButton).toBeVisible();
     await uninstallButton.click();
     await expect(this.uninstallDialog()).toBeVisible();
-    const checkboxVisible = await this.uninstallPurgeCheckbox()
+    const checkboxVisible = await this.uninstallPurgeCheckboxWrapper()
       .isVisible({ timeout: 1500 })
       .catch(() => false);
     if (checkboxVisible) {
+      await expect(this.uninstallPurgeWarning()).toBeVisible();
       const isChecked = await this.uninstallPurgeCheckbox().isChecked();
       if (isChecked !== purgeStorageData) {
         await this.uninstallPurgeCheckbox().click();

@@ -9,7 +9,7 @@
 - 角色删除（`internal/service/role/role.go` `Delete`）现有事务内角色菜单关联与用户角色关联删除失败仅 `Warningf` 后继续执行，必须改为 `return err` 让事务回滚，避免角色被删但关联记录残留。
 - 角色用户分配（`internal/service/role/role.go` `AssignUsers`）必须改为整体事务 + 批量插入，禁止逐条插入并 `Warningf` 吞错。
 - 菜单删除（`internal/service/menu/menu.go` Delete 流程）事务内角色菜单关联清理同样必须从 `Warningf` 改为返回错误。
-- 上传文件路由（`internal/cmd/cmd_http.go` `bindUploadRoutes`）必须挂载到受保护路由分组下，由统一 Auth + Permission 中间件鉴权，禁止匿名访问已上传文件。
+- 上传文件访问路由 `GET /api/v1/uploads/*` 必须由文件 API/controller 模块声明并挂载到受保护路由分组下，由统一 Auth + Permission 中间件鉴权，且必须通过文件服务与存储后端读取文件，禁止在 `cmd_http.go` 中直接拼接本地文件路径访问。
 
 ### 数据库结构与性能
 项目无历史负担，按规范直接修改原有 SQL 文件并通过 `make init` 重新初始化数据库，所有改动保持幂等。
@@ -29,8 +29,9 @@
 - 语言切换流程（`bootstrap.ts`）保留公共配置同步与字典缓存重置，但不再触发整套权限/菜单/路由重载；菜单标题须依赖响应式 `$t()` 自动更新。
 
 ### 宿主运行期可观测性与运维基础
-- 新增公开 `GET /api/v1/health` 健康探针：执行一次轻量 DB 探活，正常返回 `{status:"ok"}`，DB 不可达返回 503，可被 K8s/反向代理直接消费。
-- 在 HTTP 入口处增加 `SIGTERM` / `SIGINT` 信号处理，按顺序优雅关停 HTTP Server、Cron 调度器与数据库连接池；`shutdown.timeout` 默认 `30s` 可配。
+- 新增公开 `GET /api/v1/health` 健康探针：通过标准 API/controller 暴露，执行一次轻量 DB 探活，正常返回 `{status:"ok"}`，DB 不可达返回 503 和稳定脱敏原因，可被 K8s/反向代理直接消费。
+- HTTP 入口统一使用 GoFrame `Server.Run()` 内置的信号监听与 HTTP graceful shutdown；`cmd_http.go` 不重复注册 `os/signal`，`Server.Run()` 返回后仅按 `shutdown.timeout` 顺序清理 Cron 调度器、集群服务与数据库连接池。
+- 宿主基础服务接口按职责拆分：`config.Service` 通过分类 reader/syncer 接口组合，`middleware.Service` 通过 HTTP 中间件接口与非中间件运行期支撑接口组合，降低单接口复杂度并方便测试依赖窄接口。
 - 删除空包 `apps/lina-core/pkg/auditi18n/` 与 `apps/lina-core/pkg/audittype/`，避免造成"已存在审计能力"的误导。审计日志能力的真实落地由独立迭代承接。
 - `internal/service/cron/cron_managed_jobs.go` 的 `defaultManagedJobTimezone` 常量改为读取配置 `scheduler.defaultTimezone`，默认值改为 `UTC`，便于多区域部署。
 
@@ -65,9 +66,9 @@
 ## Impact
 
 - **代码影响**：
-  - 后端：`internal/service/{user,role,menu,cron}/`、`internal/cmd/cmd_http.go`、`internal/controller/{user,role}/`、`api/{user,role}/v1/`、`pkg/auditi18n`、`pkg/audittype`。
+  - 后端：`internal/service/{user,role,menu,cron,config,middleware,file}/`、`internal/cmd/cmd_http*.go`、`internal/controller/{user,role,file,health}/`、`api/{user,role,file,health}/v1/`、`pkg/auditi18n`、`pkg/audittype`。
   - SQL：`manifest/sql/001-project-init.sql`、`002-dict-dept-post.sql`、`008-menu-role-management.sql`、`014-scheduled-job-management.sql`，以及 `sys_online_session` 所在 SQL 文件。
-  - 配置：`apps/lina-core/manifest/config/config.yaml` 增加 `scheduler.defaultTimezone`、`shutdown.timeout`。
+  - 配置：`apps/lina-core/manifest/config/config.template.yaml` 增加 `scheduler.defaultTimezone`、`health.timeout`、`shutdown.timeout`。
   - 前端：`views/system/user/index.vue`、`views/system/role/index.vue`、`views/monitor/server/index.vue`、`store/message.ts`、`router/guard.ts`、`bootstrap.ts`、`api/system/{user,role}/index.ts`。
 - **运维影响**：补齐 `/health` 与优雅关停后，K8s/容器编排平台可以使用标准探针与回收流程；移除外键后高并发下任务调度锁开销下降。
 - **测试影响**：新增/扩展 `apps/lina-core` 单元测试覆盖批量删除、删除事务回滚；扩展 `hack/tests/e2e/` 覆盖批量删除前端流程、健康探针匿名访问与监控页面自动刷新。

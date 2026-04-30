@@ -13,6 +13,7 @@ import { accessRoutes } from './routes';
 
 let accessRefreshTask: null | Promise<void> = null;
 let accessRefreshQueued = false;
+let accessRefreshRefreshUserInfo = false;
 let accessRefreshShowLoadingToast = false;
 
 function collectAccessibleRouteNames(
@@ -36,9 +37,11 @@ function collectAccessibleRouteNames(
 async function performAccessibleStateRefresh(
   router: Router,
   {
+    refreshUserInfo = true,
     showLoadingToast = false,
     skipRouteNavigation = false,
   }: {
+    refreshUserInfo?: boolean;
     showLoadingToast?: boolean;
     skipRouteNavigation?: boolean;
   } = {},
@@ -52,8 +55,10 @@ async function performAccessibleStateRefresh(
   }
 
   const currentFullPath = router.currentRoute.value.fullPath;
-  const userInfo = await authStore.fetchUserInfo();
-  const userRoles = userStore.userInfo?.roles ?? [];
+  const userInfo = refreshUserInfo
+    ? await authStore.fetchUserInfo()
+    : userStore.userInfo;
+  const userRoles = userInfo?.roles ?? userStore.userRoles ?? [];
 
   resetStaticRoutes(router, routes);
   accessStore.setIsAccessChecked(false);
@@ -104,7 +109,7 @@ async function performAccessibleStateRefresh(
   }
 
   const fallbackPath =
-    userInfo.homePath || preferences.app.defaultHomePath || '/';
+    userInfo?.homePath || preferences.app.defaultHomePath || '/';
   if (router.currentRoute.value.fullPath !== fallbackPath) {
     await router.replace(fallbackPath);
   }
@@ -122,24 +127,30 @@ async function performAccessibleStateRefresh(
 async function refreshAccessibleState(
   router: Router,
   {
+    refreshUserInfo = true,
     showLoadingToast = false,
     skipRouteNavigation = false,
   }: {
+    refreshUserInfo?: boolean;
     showLoadingToast?: boolean;
     skipRouteNavigation?: boolean;
   } = {},
 ) {
   accessRefreshQueued = true;
+  accessRefreshRefreshUserInfo ||= refreshUserInfo;
   accessRefreshShowLoadingToast ||= showLoadingToast;
 
   if (!accessRefreshTask) {
     accessRefreshTask = (async () => {
       while (accessRefreshQueued) {
+        const shouldRefreshUserInfo = accessRefreshRefreshUserInfo;
         const shouldShowLoadingToast = accessRefreshShowLoadingToast;
         accessRefreshQueued = false;
+        accessRefreshRefreshUserInfo = false;
         accessRefreshShowLoadingToast = false;
 
         await performAccessibleStateRefresh(router, {
+          refreshUserInfo: shouldRefreshUserInfo,
           showLoadingToast: shouldShowLoadingToast,
           skipRouteNavigation,
         });
@@ -147,6 +158,7 @@ async function refreshAccessibleState(
     })().finally(() => {
       accessRefreshTask = null;
       accessRefreshQueued = false;
+      accessRefreshRefreshUserInfo = false;
       accessRefreshShowLoadingToast = false;
     });
   }

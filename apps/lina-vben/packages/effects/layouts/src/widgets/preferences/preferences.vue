@@ -44,11 +44,8 @@ const listen = computed(() => {
           if (key === 'app' && subKey === 'locale') {
             updatePreferences({ [key]: { [subKey]: val } });
             await loadLocaleMessages(val);
-            if (!window.location.pathname.startsWith('/auth/')) {
-              updatePreferences({ [key]: { [subKey]: val } });
-              window.location.reload();
-              return;
-            }
+            updatePreferences({ [key]: { [subKey]: val } });
+            return;
           }
           updatePreferences({ [key]: { [subKey]: val } });
         };

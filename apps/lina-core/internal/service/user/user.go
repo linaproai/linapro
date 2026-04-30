@@ -52,6 +52,8 @@ type Service interface {
 	Update(ctx context.Context, in UpdateInput) error
 	// Delete soft-deletes a user.
 	Delete(ctx context.Context, id int) error
+	// BatchDelete soft-deletes multiple users atomically.
+	BatchDelete(ctx context.Context, ids []int) error
 	// UpdateStatus updates user status.
 	UpdateStatus(ctx context.Context, id int, status Status) error
 	// GetProfile retrieves current user profile.
@@ -541,7 +543,45 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 // Delete soft-deletes a user.
 func (s *serviceImpl) Delete(ctx context.Context, id int) error {
-	// Cannot delete default admin
+	if err := s.runUserDeletionTransaction(ctx, []int{id}); err != nil {
+		return err
+	}
+	s.roleSvc.NotifyAccessTopologyChanged(ctx)
+	return nil
+}
+
+// BatchDelete soft-deletes multiple users atomically.
+func (s *serviceImpl) BatchDelete(ctx context.Context, ids []int) error {
+	normalizedIds := normalizeUserDeleteIDs(ids)
+	if len(normalizedIds) == 0 {
+		return bizerr.NewCode(CodeUserDeleteIdsRequired)
+	}
+	if err := s.runUserDeletionTransaction(ctx, normalizedIds); err != nil {
+		return err
+	}
+	s.roleSvc.NotifyAccessTopologyChanged(ctx)
+	return nil
+}
+
+// runUserDeletionTransaction validates and deletes users with all associations in one transaction.
+func (s *serviceImpl) runUserDeletionTransaction(ctx context.Context, ids []int) error {
+	return dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		for _, id := range ids {
+			if err := s.ensureUserDeleteAllowed(ctx, id); err != nil {
+				return err
+			}
+		}
+		for _, id := range ids {
+			if err := s.deleteUserRecordAndAssociations(ctx, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ensureUserDeleteAllowed enforces built-in and current-user deletion protection.
+func (s *serviceImpl) ensureUserDeleteAllowed(ctx context.Context, id int) error {
 	user, err := s.GetById(ctx, id)
 	if err != nil {
 		return err
@@ -550,30 +590,37 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 		return bizerr.NewCode(CodeUserBuiltinAdminDeleteDenied)
 	}
 
-	// Cannot delete self
 	bizCtx := s.bizCtxSvc.Get(ctx)
 	if bizCtx != nil && bizCtx.UserId == id {
 		return bizerr.NewCode(CodeUserCurrentDeleteDenied)
 	}
+	return nil
+}
 
-	// Soft delete using GoFrame's auto soft-delete feature
-	_, err = dao.SysUser.Ctx(ctx).
-		Where(do.SysUser{Id: id}).
-		Delete()
-	if err != nil {
+// deleteUserRecordAndAssociations soft-deletes one user and clears dependent associations.
+func (s *serviceImpl) deleteUserRecordAndAssociations(ctx context.Context, id int) error {
+	if _, err := dao.SysUser.Ctx(ctx).Where(do.SysUser{Id: id}).Delete(); err != nil {
 		return err
 	}
-
-	// Clean up optional organization associations only when org capability is enabled.
 	if err := s.orgCapSvc.CleanupUserAssignments(ctx, id); err != nil {
-		logger.Warningf(ctx, "failed to delete user organization associations for user %d: %v", id, err)
+		return err
 	}
-	if _, err := dao.SysUserRole.Ctx(ctx).Where(dao.SysUserRole.Columns().UserId, id).Delete(); err != nil {
-		logger.Warningf(ctx, "failed to delete user role association for user %d: %v", id, err)
-	}
+	_, err := dao.SysUserRole.Ctx(ctx).Where(dao.SysUserRole.Columns().UserId, id).Delete()
+	return err
+}
 
-	s.roleSvc.NotifyAccessTopologyChanged(ctx)
-	return nil
+// normalizeUserDeleteIDs removes duplicate IDs while preserving request order.
+func normalizeUserDeleteIDs(ids []int) []int {
+	normalizedIds := make([]int, 0, len(ids))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		normalizedIds = append(normalizedIds, id)
+	}
+	return normalizedIds
 }
 
 // UpdateStatus updates user status.

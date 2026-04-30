@@ -33,7 +33,7 @@ test.describe('TC0110 可编辑主数据退出 i18n 投影专项回归', () => {
     await expect(await postPage.hasPostName('总经理')).toBe(true);
 
     await rolePage.goto();
-    await expect(await rolePage.hasRole('普通用户')).toBe(true);
+    await expect(await rolePage.hasRole('User')).toBe(true);
   });
 
   test('TC-110b: 英文环境下参数管理页中的可编辑主数据保持数据库原值', async ({

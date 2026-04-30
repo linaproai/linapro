@@ -1,8 +1,10 @@
 import type { UserMessage } from '#/api/system/message/model';
 
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import { defineStore } from 'pinia';
+
+import { useDocumentVisibility, useIntervalFn } from '@vueuse/core';
 
 import {
   messageClear,
@@ -19,7 +21,9 @@ export const useMessageStore = defineStore('message', () => {
   const unreadCount = ref(0);
   const messages = ref<UserMessage[]>([]);
   const messagesTotal = ref(0);
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const visibility = useDocumentVisibility();
+  let pollControls: ReturnType<typeof useIntervalFn> | null = null;
+  let stopVisibilityWatch: null | (() => void) = null;
 
   /** Fetch unread count from server, and refresh message list if count changed */
   async function fetchUnreadCount() {
@@ -40,16 +44,29 @@ export const useMessageStore = defineStore('message', () => {
    */
   function startPolling(interval: number = DEFAULT_POLL_INTERVAL) {
     stopPolling();
-    fetchUnreadCount();
-    pollTimer = setInterval(fetchUnreadCount, interval);
+    pollControls = useIntervalFn(fetchUnreadCount, interval, {
+      immediate: false,
+    });
+    stopVisibilityWatch = watch(
+      visibility,
+      async (state) => {
+        if (state === 'visible') {
+          await fetchUnreadCount();
+          pollControls?.resume();
+          return;
+        }
+        pollControls?.pause();
+      },
+      { immediate: true },
+    );
   }
 
   /** Stop polling */
   function stopPolling() {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
+    pollControls?.pause();
+    pollControls = null;
+    stopVisibilityWatch?.();
+    stopVisibilityWatch = null;
   }
 
   /** Fetch message list */

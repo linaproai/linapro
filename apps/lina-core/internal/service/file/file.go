@@ -6,8 +6,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"mime"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -52,8 +56,10 @@ type Service interface {
 	InfoByIds(ctx context.Context, ids []int64) ([]*entity.SysFile, error)
 	// Delete removes files by IDs (soft delete in DB, also removes physical files).
 	Delete(ctx context.Context, idsStr string) error
-	// GetStorage returns the underlying storage backend (for download use).
-	GetStorage() Storage
+	// OpenByID opens a stored file stream by metadata ID for download.
+	OpenByID(ctx context.Context, id int64) (*OpenOutput, error)
+	// OpenByPath opens a stored file stream by metadata storage path for URL access.
+	OpenByPath(ctx context.Context, storagePath string) (*OpenOutput, error)
 	// UsageScenes returns all usage scenes from dictionary.
 	UsageScenes(ctx context.Context) ([]*UsageScenesOutput, error)
 	// Suffixes returns distinct file suffixes from the database.
@@ -102,6 +108,15 @@ type UploadOutput struct {
 	Url      string `json:"url"`      // File access URL
 	Suffix   string `json:"suffix"`   // File suffix
 	Size     int64  `json:"size"`     // File size (bytes)
+}
+
+// OpenOutput contains an opened file stream and response metadata.
+type OpenOutput struct {
+	Reader      io.ReadCloser // Reader streams file content from the configured storage backend
+	Original    string        // Original filename
+	Suffix      string        // File suffix
+	ContentType string        // HTTP content type derived from file metadata
+	Size        int64         // File size in bytes
 }
 
 // Upload handles file upload: computes SHA-256 hash, checks for duplicates, saves file via storage backend and records metadata in DB.
@@ -410,7 +425,7 @@ func (s *serviceImpl) Info(ctx context.Context, id int64) (*entity.SysFile, erro
 	var file *entity.SysFile
 	err := dao.SysFile.Ctx(ctx).Where(dao.SysFile.Columns().Id, id).Scan(&file)
 	if err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, CodeFileRecordQueryFailed)
 	}
 	if file == nil {
 		return nil, bizerr.NewCode(CodeFileNotFound)
@@ -423,7 +438,7 @@ func (s *serviceImpl) InfoByIds(ctx context.Context, ids []int64) ([]*entity.Sys
 	var files []*entity.SysFile
 	err := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, ids).Scan(&files)
 	if err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, CodeFileRecordQueryFailed)
 	}
 	// Build full URL prefix from HTTP request context
 	baseUrl := s.getBaseUrl(ctx)
@@ -472,11 +487,6 @@ func (s *serviceImpl) Delete(ctx context.Context, idsStr string) error {
 	return nil
 }
 
-// GetStorage returns the underlying storage backend (for download use).
-func (s *serviceImpl) GetStorage() Storage {
-	return s.storage
-}
-
 // getBaseUrl returns the base URL (scheme + host) from the current HTTP request context.
 func (s *serviceImpl) getBaseUrl(ctx context.Context) string {
 	r := g.RequestFromCtx(ctx)
@@ -488,6 +498,88 @@ func (s *serviceImpl) getBaseUrl(ctx context.Context) string {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host
+}
+
+// OpenByID opens a stored file stream by metadata ID for download.
+func (s *serviceImpl) OpenByID(ctx context.Context, id int64) (*OpenOutput, error) {
+	fileInfo, err := s.Info(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.openStoredFile(ctx, fileInfo)
+}
+
+// OpenByPath opens a stored file stream by metadata storage path for URL access.
+func (s *serviceImpl) OpenByPath(ctx context.Context, storagePath string) (*OpenOutput, error) {
+	normalizedPath := normalizeStoragePath(storagePath)
+	if normalizedPath == "" {
+		return nil, bizerr.NewCode(CodeFileNotFound)
+	}
+
+	var fileInfo *entity.SysFile
+	err := dao.SysFile.Ctx(ctx).
+		Where(dao.SysFile.Columns().Path, normalizedPath).
+		Scan(&fileInfo)
+	if err != nil {
+		return nil, bizerr.WrapCode(err, CodeFileRecordQueryFailed)
+	}
+	if fileInfo == nil {
+		return nil, bizerr.NewCode(CodeFileNotFound)
+	}
+	return s.openStoredFile(ctx, fileInfo)
+}
+
+// openStoredFile opens the object represented by file metadata through the
+// configured storage backend and attaches response metadata.
+func (s *serviceImpl) openStoredFile(ctx context.Context, fileInfo *entity.SysFile) (*OpenOutput, error) {
+	if fileInfo == nil || strings.TrimSpace(fileInfo.Path) == "" {
+		return nil, bizerr.NewCode(CodeFileNotFound)
+	}
+
+	reader, err := s.storage.Get(ctx, fileInfo.Path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, bizerr.NewCode(CodeFileNotFound)
+		}
+		return nil, bizerr.WrapCode(err, CodeFileStorageReadFailed)
+	}
+
+	return &OpenOutput{
+		Reader:      reader,
+		Original:    fileInfo.Original,
+		Suffix:      fileInfo.Suffix,
+		ContentType: contentTypeForSuffix(fileInfo.Suffix),
+		Size:        fileInfo.Size,
+	}, nil
+}
+
+// normalizeStoragePath converts a URL path segment into a relative object key
+// and rejects absolute or parent-directory paths before any storage access.
+func normalizeStoragePath(raw string) string {
+	candidate := strings.TrimSpace(strings.ReplaceAll(raw, "\\", "/"))
+	candidate = strings.TrimPrefix(candidate, "/")
+	if candidate == "" {
+		return ""
+	}
+
+	cleaned := path.Clean(candidate)
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return ""
+	}
+	return cleaned
+}
+
+// contentTypeForSuffix returns a safe content type for browser access and
+// download responses based on stored file metadata.
+func contentTypeForSuffix(suffix string) string {
+	normalizedSuffix := strings.TrimPrefix(gstr.ToLower(strings.TrimSpace(suffix)), ".")
+	switch normalizedSuffix {
+	case "jpg", "jpeg", "png", "gif", "webp", "svg", "pdf":
+		if contentType := mime.TypeByExtension("." + normalizedSuffix); contentType != "" {
+			return contentType
+		}
+	}
+	return "application/octet-stream"
 }
 
 // UsageScenesOutput defines output for usage scenes list.

@@ -6,6 +6,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gogf/gf/v2/os/gcron"
+
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
@@ -27,6 +29,8 @@ const (
 type Service interface {
 	// Start registers and starts all cron jobs.
 	Start(ctx context.Context)
+	// Stop gracefully stops cron scheduling and waits for in-flight jobs.
+	Stop(ctx context.Context)
 	// IsPrimary reports whether the current node should execute primary-only jobs.
 	IsPrimary() bool
 }
@@ -114,6 +118,17 @@ func (s *serviceImpl) Start(ctx context.Context) {
 		if err := s.persistentScheduler.LoadAndRegister(ctx); err != nil {
 			logger.Warningf(ctx, "register persistent cron jobs failed: %v", err)
 		}
+	}
+}
+
+// Stop gracefully stops cron scheduling and waits for in-flight jobs.
+func (s *serviceImpl) Stop(ctx context.Context) {
+	doneCtx := gcron.StopGracefullyNonBlocking()
+	select {
+	case <-doneCtx.Done():
+		return
+	case <-ctx.Done():
+		logger.Warningf(ctx, "cron graceful stop timed out or was canceled: %v", ctx.Err())
 	}
 }
 

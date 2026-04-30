@@ -34,7 +34,7 @@
   "copyPreferences": "Copy Preferences",
   "enableCopyPreferences": "Show copy preferences button",
   "copyPreferencesSuccessTitle": "Copy successful",
-  "copyPreferencesSuccess": "Copy successful, please override in `src/preferences.ts` under app",
+  "copyPreferencesSuccess": "Copy successful, please override in src/preferences.ts under app",
   "clearAndLogout": "Clear Cache & Logout",
   "mode": "Mode",
   "general": "General",
@@ -60,9 +60,9 @@
     "collapsed": "Collpase Menu",
     "collapsedShowTitle": "Show Menu Title",
     "autoActivateChild": "Auto Activate SubMenu",
-    "autoActivateChildTip": "`Enabled` to automatically activate the submenu while click menu.",
+    "autoActivateChildTip": "Enabled to automatically activate the submenu while click menu.",
     "expandOnHover": "Expand On Hover",
-    "expandOnHoverTip": "When the mouse hovers over menu, \n `Enabled` to expand children menus \n `Disabled` to expand whole sidebar."
+    "expandOnHoverTip": "When the mouse hovers over menu, \n Enabled to expand children menus \n Disabled to expand whole sidebar."
   },
   "tabbar": {
     "title": "Tabbar",

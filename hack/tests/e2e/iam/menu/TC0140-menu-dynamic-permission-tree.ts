@@ -184,6 +184,7 @@ test.describe('TC-140 Dynamic plugin permission menu tree regression', () => {
 
     await mainLayout.switchLanguage('English');
     await menuPage.goto();
+    await menuPage.expandAll();
 
     const pluginRow = adminPage
       .locator('.vxe-body--row:visible', { hasText: 'Dynamic Plugin Demo' })

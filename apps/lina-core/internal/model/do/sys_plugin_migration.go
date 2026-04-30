@@ -15,7 +15,7 @@ type SysPluginMigration struct {
 	Id             any         // Primary key ID
 	PluginId       any         // Plugin unique identifier (kebab-case)
 	ReleaseId      any         // Owning plugin release ID
-	Phase          any         // Migration phase: install/uninstall/upgrade/rollback
+	Phase          any         // Migration phase: install/uninstall/upgrade/rollback/mock
 	MigrationKey   any         // Migration execution key such as install-step-001, without concrete SQL path
 	Checksum       any         // Migration file checksum
 	ExecutionOrder any         // Execution order starting from 1

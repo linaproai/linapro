@@ -19,4 +19,5 @@ type SysDictType struct {
 	Remark    any         // Remark
 	CreatedAt *gtime.Time // Creation time
 	UpdatedAt *gtime.Time // Update time
+	DeletedAt *gtime.Time // Deletion time
 }

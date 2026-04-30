@@ -139,7 +139,11 @@ const [Grid, gridApi] = useVbenVxeGrid({
         title: $t('pages.system.plugin.fields.type'),
         width: 120,
       },
-      { field: 'version', title: $t('pages.system.plugin.fields.version'), width: 120 },
+      {
+        field: 'version',
+        title: $t('pages.system.plugin.fields.version'),
+        width: 120,
+      },
       {
         className: 'plugin-description-column',
         field: 'description',
@@ -155,11 +159,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
         width: 130,
       },
       {
-        field: 'action',
-        fixed: 'right',
-        slots: { default: 'action' },
-        title: $t('pages.common.actions'),
-        width: 240,
+        field: 'hasMockData',
+        slots: { default: 'hasMockData' },
+        title: $t('pages.system.plugin.fields.hasMockData'),
+        width: 120,
       },
       {
         field: 'installedAt',
@@ -170,6 +173,13 @@ const [Grid, gridApi] = useVbenVxeGrid({
         field: 'updatedAt',
         title: $t('pages.common.updatedAt'),
         width: 180,
+      },
+      {
+        field: 'action',
+        fixed: 'right',
+        slots: { default: 'action' },
+        title: $t('pages.common.actions'),
+        width: 240,
       },
     ],
     height: 'auto',
@@ -209,6 +219,10 @@ function getPluginTypeColor(type: string) {
 
 function isAutoEnableManaged(row: SystemPlugin) {
   return row.autoEnableManaged === 1;
+}
+
+function hasPluginMockData(row: SystemPlugin) {
+  return row.hasMockData === 1;
 }
 
 function buildAutoEnableManagedTooltip(row: SystemPlugin) {
@@ -366,6 +380,31 @@ async function handleUninstallReload() {
 <template>
   <Page :auto-content-height="true">
     <Grid :table-title="$t('pages.system.plugin.tableTitle')">
+      <template #table-title>
+        <div class="flex-center gap-1 text-[1rem] font-bold">
+          <span>{{ $t('pages.system.plugin.tableTitle') }}</span>
+          <Tooltip placement="right">
+            <template #title>
+              <div class="max-w-[320px] space-y-1.5 text-xs leading-5">
+                <div>
+                  {{ $t('pages.system.plugin.tableTitleHelp.sourceDynamic') }}
+                </div>
+                <div>
+                  {{ $t('pages.system.plugin.tableTitleHelp.mockData') }}
+                </div>
+              </div>
+            </template>
+            <span
+              :aria-label="$t('pages.system.plugin.tableTitleHelp.ariaLabel')"
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[15px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-list-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </div>
+      </template>
+
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -403,17 +442,6 @@ async function handleUninstallReload() {
               {{ $t('pages.system.plugin.autoEnableBadge') }}
             </Tag>
           </Tooltip>
-          <Tooltip
-            v-if="row.hasMockData === 1"
-            :title="$t('pages.system.plugin.fields.hasMockDataTooltip')"
-          >
-            <Tag
-              :data-testid="`plugin-mock-data-tag-${row.id}`"
-              color="purple"
-            >
-              {{ $t('pages.system.plugin.fields.hasMockDataBadge') }}
-            </Tag>
-          </Tooltip>
         </Space>
       </template>
 
@@ -447,6 +475,19 @@ async function handleUninstallReload() {
         </Tooltip>
       </template>
 
+      <template #hasMockData="{ row }">
+        <Tag
+          :color="hasPluginMockData(row) ? 'green' : 'default'"
+          :data-testid="`plugin-mock-data-value-${row.id}`"
+        >
+          {{
+            hasPluginMockData(row)
+              ? $t('pages.common.yes')
+              : $t('pages.common.no')
+          }}
+        </Tag>
+      </template>
+
       <template #action="{ row }">
         <Space>
           <ghost-button
@@ -463,7 +504,11 @@ async function handleUninstallReload() {
           </ghost-button>
           <Tooltip
             v-else-if="canUninstallPlugin() && isAutoEnableManaged(row)"
-            :title="buildAutoEnableManagedRuntimeHint($t('pages.system.plugin.actions.uninstall'))"
+            :title="
+              buildAutoEnableManagedRuntimeHint(
+                $t('pages.system.plugin.actions.uninstall'),
+              )
+            "
           >
             <ghost-button danger @click.stop="handleOpenUninstall(row)">
               {{ $t('pages.system.plugin.actions.uninstall') }}

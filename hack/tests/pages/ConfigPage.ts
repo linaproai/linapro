@@ -16,18 +16,47 @@ export class ConfigPage {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  private resolveLocalizedLabel(scope: Page | Locator, label: string) {
+  private localizedLabelPattern(label: string) {
     const labelMap: Record<string, RegExp> = {
       参数名称: /参数名称|Parameter Name/i,
       参数键名: /参数键名|Parameter Key/i,
       参数键值: /参数键值|Parameter Value/i,
       备注: /备注|Remark/i,
     };
-    const localizedLabel = labelMap[label];
-    if (localizedLabel) {
-      return scope.getByLabel(localizedLabel).first();
+    return labelMap[label] ?? new RegExp(`^\\s*${this.escapeRegex(label)}\\s*$`);
+  }
+
+  private resolveLocalizedLabel(scope: Page | Locator, label: string) {
+    return scope.getByLabel(this.localizedLabelPattern(label)).first();
+  }
+
+  private searchFieldName(label: string) {
+    const fieldMap: Record<string, string> = {
+      参数名称: 'name',
+      参数键名: 'key',
+    };
+    return fieldMap[label];
+  }
+
+  private get searchForm() {
+    return this.page.locator('.vxe-grid--form-wrapper').first();
+  }
+
+  private async fillInputAndWaitForStableValue(input: Locator, value: string) {
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      await input.waitFor({ state: 'visible', timeout: 2000 });
+      await input.clear();
+      await input.fill(value);
+      await this.page.waitForTimeout(600);
+      await waitForBusyIndicatorsToClear(this.page, 2000);
+      if ((await input.inputValue().catch(() => '')) === value) {
+        return;
+      }
     }
-    return scope.getByLabel(label, { exact: true }).first();
+
+    await input.clear();
+    await input.fill(value);
   }
 
   /** The modal dialog container */
@@ -149,13 +178,30 @@ export class ConfigPage {
   // ========== Search helpers ==========
 
   async fillSearchField(label: string, value: string) {
-    const input = this.resolveLocalizedLabel(this.page, label);
-    await input.clear();
-    await input.fill(value);
+    const fieldName = this.searchFieldName(label);
+    if (fieldName) {
+      const namedInput = this.searchForm.locator(`input[name="${fieldName}"]`).first();
+      if (await namedInput.isVisible().catch(() => false)) {
+        await this.fillInputAndWaitForStableValue(namedInput, value);
+        return;
+      }
+    }
+
+    const input = this.searchForm
+      .locator('.ant-form-item')
+      .filter({ hasText: this.localizedLabelPattern(label) })
+      .locator('input')
+      .first();
+    if (await input.isVisible().catch(() => false)) {
+      await this.fillInputAndWaitForStableValue(input, value);
+      return;
+    }
+    const fallbackInput = this.resolveLocalizedLabel(this.searchForm, label);
+    await this.fillInputAndWaitForStableValue(fallbackInput, value);
   }
 
   async clickSearch() {
-    await this.page
+    await this.searchForm
       .getByRole('button', { name: /搜\s*索|Search/i })
       .first()
       .click();
@@ -163,7 +209,7 @@ export class ConfigPage {
   }
 
   async clickReset() {
-    await this.page
+    await this.searchForm
       .getByRole('button', { name: /重\s*置|Reset/i })
       .first()
       .click();

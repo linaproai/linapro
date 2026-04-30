@@ -45,6 +45,12 @@ var (
 		"Failed to save file record",
 		gcode.CodeInternalError,
 	)
+	// CodeFileRecordQueryFailed reports that file metadata cannot be queried.
+	CodeFileRecordQueryFailed = bizerr.MustDefine(
+		"FILE_RECORD_QUERY_FAILED",
+		"Failed to query file record",
+		gcode.CodeInternalError,
+	)
 	// CodeFileRecordSaveCleanupFailed reports that both file metadata save and stored-file cleanup failed.
 	CodeFileRecordSaveCleanupFailed = bizerr.MustDefine(
 		"FILE_RECORD_SAVE_CLEANUP_FAILED",
@@ -67,6 +73,12 @@ var (
 	CodeFileStoreFailed = bizerr.MustDefine(
 		"FILE_STORE_FAILED",
 		"Failed to store uploaded file",
+		gcode.CodeInternalError,
+	)
+	// CodeFileStorageReadFailed reports that a stored file object cannot be read.
+	CodeFileStorageReadFailed = bizerr.MustDefine(
+		"FILE_STORAGE_READ_FAILED",
+		"Failed to read stored file",
 		gcode.CodeInternalError,
 	)
 	// CodeFileNotFound reports that the requested file record does not exist.

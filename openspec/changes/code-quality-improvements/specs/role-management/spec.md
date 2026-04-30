@@ -11,7 +11,7 @@
 - **AND** 提交后触发一次访问拓扑变更通知
 
 #### Scenario: 批量包含超级管理员角色被拒绝
-- **WHEN** 调用方调用 `DELETE /api/v1/role?ids=1,2,3`
+- **WHEN** 调用方调用 `DELETE /api/v1/role?ids=1&ids=2&ids=3`
 - **AND** id `1` 是超级管理员角色
 - **THEN** 整个批次 MUST 被拒绝
 - **AND** 没有任何角色被删除

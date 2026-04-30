@@ -82,8 +82,7 @@ const showInstallAndEnableAction = computed(() => {
 
 const showMockDataOption = computed(() => {
   return (
-    currentMode.value === 'install' &&
-    currentPlugin.value?.hasMockData === 1
+    currentMode.value === 'install' && currentPlugin.value?.hasMockData === 1
   );
 });
 
@@ -351,6 +350,30 @@ function hasServiceTargets(service: HostServicePermissionItem) {
         </DescriptionsItem>
       </Descriptions>
 
+      <div
+        v-if="showMockDataOption"
+        class="bg-muted/40 flex items-center gap-2 rounded-md border border-dashed p-3"
+        data-testid="plugin-install-mock-data-section"
+      >
+        <Checkbox
+          v-model:checked="installMockData"
+          data-testid="plugin-install-mock-data-checkbox"
+        >
+          {{ $t('pages.system.plugin.actions.installMockDataLabel') }}
+        </Checkbox>
+        <Tooltip
+          :title="$t('pages.system.plugin.actions.installMockDataTooltip')"
+        >
+          <span
+            :aria-label="
+              $t('pages.system.plugin.actions.installMockDataHelpHint')
+            "
+            class="icon-[ant-design--question-circle-outlined] inline-flex h-4 w-4 cursor-help items-center justify-center text-[15px] leading-none text-[var(--ant-color-text-secondary)]"
+            data-testid="plugin-install-mock-data-help-icon"
+          ></span>
+        </Tooltip>
+      </div>
+
       <template v-if="requestedServices.length > 0">
         <PluginSectionTitle test-id="plugin-host-service-section-title">
           {{
@@ -370,28 +393,6 @@ function hasServiceTargets(service: HostServicePermissionItem) {
 
         <PluginRouteReviewList :routes="declaredRoutes" />
       </template>
-
-      <div
-        v-if="showMockDataOption"
-        class="bg-muted/40 flex items-start gap-2 rounded-md border border-dashed p-3"
-        data-testid="plugin-install-mock-data-section"
-      >
-        <Checkbox
-          v-model:checked="installMockData"
-          data-testid="plugin-install-mock-data-checkbox"
-        >
-          {{ $t('pages.system.plugin.actions.installMockDataLabel') }}
-        </Checkbox>
-        <Tooltip
-          :title="$t('pages.system.plugin.actions.installMockDataTooltip')"
-        >
-          <span
-            class="text-muted-foreground cursor-help text-xs underline decoration-dotted"
-          >
-            {{ $t('pages.system.plugin.actions.installMockDataHelpHint') }}
-          </span>
-        </Tooltip>
-      </div>
     </div>
   </BasicModal>
 </template>

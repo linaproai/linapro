@@ -17,10 +17,7 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
-const (
-	defaultManagedJobTimezone = "Asia/Shanghai"
-	defaultManagedJobTimeout  = 5 * time.Minute
-)
+const defaultManagedJobTimeout = 5 * time.Minute
 
 // syncBuiltinScheduledJobs ensures code-owned host and plugin jobs are synced
 // into sys_job before the persistent scheduler loads enabled rows.
@@ -32,7 +29,7 @@ func (s *serviceImpl) syncBuiltinScheduledJobs(ctx context.Context) error {
 		return err
 	}
 
-	jobs := s.buildHostBuiltinJobs()
+	jobs := s.buildHostBuiltinJobs(ctx)
 	pluginJobs, err := s.buildPluginBuiltinJobs(ctx)
 	if err != nil {
 		return err
@@ -99,7 +96,7 @@ func (s *serviceImpl) registerManagedHandlers() error {
 
 // buildHostBuiltinJobs returns host-owned scheduled-job definitions that should
 // always appear in unified scheduled-job management.
-func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
+func (s *serviceImpl) buildHostBuiltinJobs(ctx context.Context) []jobmgmtsvc.BuiltinJobDef {
 	if s == nil {
 		return nil
 	}
@@ -108,6 +105,7 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 	if s.sessionCfg != nil && s.sessionCfg.CleanupInterval > 0 {
 		sessionCleanupInterval = s.sessionCfg.CleanupInterval
 	}
+	defaultTimezone := s.managedJobDefaultTimezone(ctx)
 
 	jobs := []jobmgmtsvc.BuiltinJobDef{
 		{
@@ -119,7 +117,7 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 			Params:         map[string]any{},
 			Timeout:        defaultManagedJobTimeout,
 			Pattern:        "# 17 3 * * *",
-			Timezone:       defaultManagedJobTimezone,
+			Timezone:       defaultTimezone,
 			Scope:          jobmeta.JobScopeMasterOnly,
 			Concurrency:    jobmeta.JobConcurrencySingleton,
 			MaxConcurrency: 1,
@@ -135,7 +133,7 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 			Params:         map[string]any{},
 			Timeout:        defaultManagedJobTimeout,
 			Pattern:        formatEveryPattern(sessionCleanupInterval),
-			Timezone:       defaultManagedJobTimezone,
+			Timezone:       defaultTimezone,
 			Scope:          jobmeta.JobScopeMasterOnly,
 			Concurrency:    jobmeta.JobConcurrencySingleton,
 			MaxConcurrency: 1,
@@ -155,7 +153,7 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 				Params:         map[string]any{},
 				Timeout:        defaultManagedJobTimeout,
 				Pattern:        formatEveryPattern(10 * time.Second),
-				Timezone:       defaultManagedJobTimezone,
+				Timezone:       defaultTimezone,
 				Scope:          jobmeta.JobScopeAllNode,
 				Concurrency:    jobmeta.JobConcurrencySingleton,
 				MaxConcurrency: 1,
@@ -171,7 +169,7 @@ func (s *serviceImpl) buildHostBuiltinJobs() []jobmgmtsvc.BuiltinJobDef {
 				Params:         map[string]any{},
 				Timeout:        defaultManagedJobTimeout,
 				Pattern:        formatEveryPattern(10 * time.Second),
-				Timezone:       defaultManagedJobTimezone,
+				Timezone:       defaultTimezone,
 				Scope:          jobmeta.JobScopeAllNode,
 				Concurrency:    jobmeta.JobConcurrencySingleton,
 				MaxConcurrency: 1,
@@ -215,7 +213,7 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 		}
 		timezone := strings.TrimSpace(item.Timezone)
 		if timezone == "" {
-			timezone = defaultManagedJobTimezone
+			timezone = s.managedJobDefaultTimezone(ctx)
 		}
 		name := strings.TrimSpace(item.DisplayName)
 		if name == "" {
@@ -244,6 +242,14 @@ func (s *serviceImpl) buildPluginBuiltinJobs(ctx context.Context) ([]jobmgmtsvc.
 		})
 	}
 	return jobs, nil
+}
+
+// managedJobDefaultTimezone returns the configured timezone for code-owned managed jobs.
+func (s *serviceImpl) managedJobDefaultTimezone(ctx context.Context) string {
+	if s == nil || s.configSvc == nil {
+		return "UTC"
+	}
+	return s.configSvc.GetSchedulerDefaultTimezone(ctx)
 }
 
 // invokeSessionCleanup runs the session cleanup built-in handler.

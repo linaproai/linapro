@@ -46,7 +46,7 @@ export class LoginPage {
   }
 
   get brandLogoImage() {
-    return this.page.locator('img[alt="LinaPro"]:visible').first();
+    return this.page.locator('img[alt^="LinaPro"]:visible').first();
   }
 
   get pageDescription() {

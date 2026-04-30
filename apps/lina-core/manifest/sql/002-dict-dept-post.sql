@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS sys_dict_type (
     remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
     created_at  DATETIME                         COMMENT  'Creation time',
     updated_at  DATETIME                         COMMENT  'Update time',
+    deleted_at  DATETIME DEFAULT NULL            COMMENT  'Deletion time',
     UNIQUE KEY uk_type (type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Dictionary type table';
 
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS sys_dict_data (
     remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
     created_at  DATETIME                         COMMENT  'Creation time',
     updated_at  DATETIME                         COMMENT  'Update time',
+    deleted_at  DATETIME DEFAULT NULL            COMMENT  'Deletion time',
     UNIQUE KEY uk_dict_type_value (dict_type, value)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Dictionary data table';
 

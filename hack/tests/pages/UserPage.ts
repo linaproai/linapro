@@ -15,6 +15,9 @@ export class UserPage {
   /** Role column index within the main user table row. */
   private static readonly ROLE_COLUMN_INDEX = 5;
 
+  /** Drawer submit can settle slowly in full-suite parallel runs. */
+  private static readonly DRAWER_HIDDEN_TIMEOUT = 20000;
+
   /** The Vben drawer (Sheet/Dialog) container */
   private get drawer() {
     return this.page
@@ -114,7 +117,10 @@ export class UserPage {
 
     await this.page.waitForLoadState("networkidle");
     await this.waitForGridIdle();
-    await this.drawer.waitFor({ state: "hidden", timeout: 10000 });
+    await this.drawer.waitFor({
+      state: "hidden",
+      timeout: UserPage.DRAWER_HIDDEN_TIMEOUT,
+    });
   }
 
   async editUser(username: string, fields: { nickname?: string }) {
@@ -143,7 +149,10 @@ export class UserPage {
 
     await this.page.waitForLoadState("networkidle");
     await this.waitForGridIdle();
-    await this.drawer.waitFor({ state: "hidden", timeout: 10000 });
+    await this.drawer.waitFor({
+      state: "hidden",
+      timeout: UserPage.DRAWER_HIDDEN_TIMEOUT,
+    });
   }
 
   async deleteUser(username: string) {
@@ -275,6 +284,39 @@ export class UserPage {
     await this.usernameSearchInput.clear();
     await this.usernameSearchInput.fill(username);
     await this.clickSearch();
+  }
+
+  /** Search by a username keyword without forcing exact-match semantics. */
+  async searchByUsernameKeyword(keyword: string) {
+    await this.clickReset();
+    await this.usernameSearchInput.waitFor({
+      state: "visible",
+      timeout: 10000,
+    });
+    await this.usernameSearchInput.clear();
+    await this.usernameSearchInput.fill(keyword);
+    await this.clickSearch();
+  }
+
+  /** Select multiple visible user rows by username. */
+  async selectVisibleUserRows(usernames: string[]) {
+    for (const username of usernames) {
+      const row = this.getUserDataRow(username);
+      await expect(row).toBeVisible();
+      await row.locator(".vxe-checkbox--icon").first().click();
+      await waitForBusyIndicatorsToClear(this.page);
+    }
+  }
+
+  /** Click toolbar batch delete and confirm the overlay. */
+  async confirmSelectedUserBatchDelete() {
+    await this.page.getByTestId("user-batch-delete-button").click();
+    const confirmOverlay = await waitForConfirmOverlay(this.page);
+    await confirmOverlay
+      .getByRole("button", { name: /确\s*定|OK|是/i })
+      .last()
+      .click();
+    await waitForBusyIndicatorsToClear(this.page);
   }
 
   /** Click export button */
@@ -423,7 +465,10 @@ export class UserPage {
     await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
     await this.page.waitForLoadState("networkidle");
     await this.waitForGridIdle();
-    await this.drawer.waitFor({ state: "hidden", timeout: 10000 });
+    await this.drawer.waitFor({
+      state: "hidden",
+      timeout: UserPage.DRAWER_HIDDEN_TIMEOUT,
+    });
   }
 
   /** Edit user's roles */
@@ -457,6 +502,9 @@ export class UserPage {
     await this.drawer.getByRole("button", { name: /确\s*认/ }).click();
     await this.page.waitForLoadState("networkidle");
     await this.waitForGridIdle();
-    await this.drawer.waitFor({ state: "hidden", timeout: 10000 });
+    await this.drawer.waitFor({
+      state: "hidden",
+      timeout: UserPage.DRAWER_HIDDEN_TIMEOUT,
+    });
   }
 }

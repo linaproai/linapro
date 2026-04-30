@@ -29,9 +29,6 @@ async function handleUpdate(value: string | undefined) {
       locale,
     },
   });
-  if (!window.location.pathname.startsWith('/auth/')) {
-    window.location.reload();
-  }
 }
 </script>
 

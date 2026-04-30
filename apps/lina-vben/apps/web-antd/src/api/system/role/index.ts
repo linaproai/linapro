@@ -48,7 +48,10 @@ export interface RoleUsersParams {
 
 /** 角色列表 */
 export async function roleList(params?: RoleListParams) {
-  const res = await requestClient.get<{ list: Role[]; total: number }>('/role', { params });
+  const res = await requestClient.get<{ list: Role[]; total: number }>(
+    '/role',
+    { params },
+  );
   return { items: res.list, total: res.total };
 }
 
@@ -72,6 +75,13 @@ export function roleRemove(id: number) {
   return requestClient.delete(`/role/${id}`);
 }
 
+/** 批量删除角色 */
+export function roleBatchDelete(ids: number[]) {
+  const params = new URLSearchParams();
+  ids.forEach((id) => params.append('ids', String(id)));
+  return requestClient.delete(`/role?${params.toString()}`);
+}
+
 /** 修改角色状态 */
 export function roleStatusChange(id: number, status: number) {
   return requestClient.put(`/role/${id}/status`, { status });
@@ -86,7 +96,10 @@ export async function roleOptions() {
 /** 角色用户列表 */
 export async function roleUsers(params: RoleUsersParams) {
   const { id, ...rest } = params;
-  const res = await requestClient.get<{ list: RoleUser[]; total: number }>(`/role/${id}/users`, { params: rest });
+  const res = await requestClient.get<{ list: RoleUser[]; total: number }>(
+    `/role/${id}/users`,
+    { params: rest },
+  );
   return { items: res.list, total: res.total };
 }
 

@@ -56,11 +56,10 @@ CREATE TABLE IF NOT EXISTS sys_job (
     deleted_at              DATETIME                            COMMENT  'Deletion time',
     UNIQUE KEY uk_sys_job_group_name (group_id, name),
     INDEX idx_sys_job_status (status),
-    INDEX idx_sys_job_group_id (group_id),
+    KEY idx_group_id (group_id),
     INDEX idx_sys_job_task_type (task_type),
     INDEX idx_sys_job_handler_ref (handler_ref),
-    INDEX idx_sys_job_is_builtin (is_builtin),
-    CONSTRAINT fk_sys_job_group_id FOREIGN KEY (group_id) REFERENCES sys_job_group (id)
+    INDEX idx_sys_job_is_builtin (is_builtin)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Scheduled job table';
 
 -- ============================================================

@@ -149,6 +149,7 @@ func cloneMenuItem(item *entity.SysMenu) *menusvc.MenuItem {
 		Id:         item.Id,
 		ParentId:   item.ParentId,
 		Name:       item.Name,
+		MenuKey:    item.MenuKey,
 		Path:       item.Path,
 		Component:  item.Component,
 		Perms:      item.Perms,
@@ -185,6 +186,7 @@ func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 			Meta: &v1.MenuRouteMeta{
 				Title:            item.Name,
 				Icon:             item.Icon,
+				I18nKey:          buildRouteTitleI18nKey(item.MenuKey, item.Name),
 				HideInMenu:       item.Visible == 0,
 				KeepAlive:        item.IsCache == 1,
 				Order:            item.Sort,
@@ -245,6 +247,21 @@ func convertToRouteItems(items []*menusvc.MenuItem) []*v1.MenuRouteItem {
 		result = append(result, route)
 	}
 	return result
+}
+
+// buildRouteTitleI18nKey derives the runtime i18n key that lets the frontend
+// relocalize a route title without refetching the menu tree.
+func buildRouteTitleI18nKey(menuKey string, name string) string {
+	trimmedMenuKey := strings.TrimSpace(menuKey)
+	if trimmedMenuKey != "" {
+		return "menu." + trimmedMenuKey + ".title"
+	}
+
+	trimmedName := strings.TrimSpace(name)
+	if strings.Contains(trimmedName, ".") {
+		return trimmedName
+	}
+	return ""
 }
 
 // generateRouteName generates route name from menu

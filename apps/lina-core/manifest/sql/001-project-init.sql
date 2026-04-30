@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS sys_user (
     created_at  DATETIME                         COMMENT  'Creation time',
     updated_at  DATETIME                         COMMENT  'Update time',
     deleted_at  DATETIME                         COMMENT  'Deletion time',
-    UNIQUE(username)
+    UNIQUE(username),
+    KEY idx_status (status),
+    KEY idx_phone (phone),
+    KEY idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User information table';
 
 -- Default admin user (password: admin123, bcrypt hash)

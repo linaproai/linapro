@@ -27,4 +27,16 @@ var (
 		"Role permission key already exists",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeRoleBuiltinDeleteDenied reports that the built-in administrator role cannot be deleted.
+	CodeRoleBuiltinDeleteDenied = bizerr.MustDefine(
+		"ROLE_BUILTIN_DELETE_DENIED",
+		"Cannot delete the built-in administrator role",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeRoleDeleteIdsRequired reports that a batch delete request has no role IDs.
+	CodeRoleDeleteIdsRequired = bizerr.MustDefine(
+		"ROLE_DELETE_IDS_REQUIRED",
+		"Please select roles to delete",
+		gcode.CodeInvalidParameter,
+	)
 )

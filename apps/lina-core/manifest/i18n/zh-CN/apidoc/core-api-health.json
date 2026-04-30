@@ -1,0 +1,56 @@
+{
+  "core": {
+    "api": {
+      "health": {
+        "v1": {
+          "GetReq": {
+            "meta": {
+              "dc": "执行轻量级数据库探测并返回宿主进程是否可以提供流量服务。该接口匿名开放，便于容器探针和负载均衡器在认证前调用",
+              "summary": "获取宿主健康状态",
+              "tags": "宿主运行时运维"
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "mode": {
+                            "dc": "部署模式：single=单机宿主 master=集群主节点 slave=集群从节点"
+                          },
+                          "reason": {
+                            "dc": "脱敏失败原因，状态为 ok 时省略"
+                          },
+                          "status": {
+                            "dc": "健康状态：ok=宿主可以提供流量 unavailable=健康探测失败"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "执行轻量级数据库探测并返回宿主进程是否可以提供流量服务。该接口匿名开放，便于容器探针和负载均衡器在认证前调用"
+            }
+          },
+          "GetRes": {
+            "fields": {
+              "mode": {
+                "dc": "部署模式：single=单机宿主 master=集群主节点 slave=集群从节点"
+              },
+              "reason": {
+                "dc": "脱敏失败原因，状态为 ok 时省略"
+              },
+              "status": {
+                "dc": "健康状态：ok=宿主可以提供流量 unavailable=健康探测失败"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -35,6 +35,7 @@ test.describe('TC0115 内置超级管理员角色英文展示专项回归', () =
     await expect(adminRow).not.toContainText('超级管理员');
 
     const standardUserRow = rolePage.roleRowByKey('user');
-    await expect(standardUserRow).toContainText('普通用户');
+    await expect(standardUserRow).toContainText('User');
+    await expect(standardUserRow).not.toContainText('普通用户');
   });
 });

@@ -4,7 +4,7 @@
 
 ## What Changes
 
-- **插件安装请求新增 `installMockData` 选项**：手动安装路径（`POST /plugins/{id}/install`）的请求 DTO 增加 `installMockData bool` 字段，由用户在前端"安装"按钮的弹窗中通过复选框勾选；勾选即视为"知情同意"加载示例数据，无须额外栅栏。
+- **插件安装请求新增 `installMockData` 选项**：手动安装路径（`POST /plugins/{id}/install`）的请求 DTO 增加 `installMockData bool` 字段，由用户在前端"安装"按钮的弹窗中通过"是否安装示例数据"复选框勾选；勾选即视为"知情同意"加载示例数据，无须额外栅栏。
 - **Mock SQL 全成全败语义**：当 `installMockData=true` 时，宿主会在 install SQL 全部执行完成后，将插件 `manifest/sql/mock-data/*.sql` 的所有文件以及对应的迁移账本写入操作**包裹在同一个数据库事务中**执行；任一文件失败时整体回滚，保证插件不会停留在"加载到一半"的脏状态。Install SQL 自身因含 DDL 在 MySQL 上无法事务化，仍按现状逐文件执行并依赖幂等保证。
 - **失败响应携带可操作信息**：mock 阶段失败时，响应里返回失败 SQL 文件名、失败原因，以及"已自动回滚 mock 数据"的明确提示；用户可以选择接受当前"已装、无 mock"状态，或修复 SQL 后卸载重装。
 - **覆盖源码插件与动态插件**：源码插件直接读 embed FS；动态插件通过既有的 SQL 资源发现机制读取制品包内的 `manifest/sql/mock-data/`，两类插件 UX 一致。
@@ -34,7 +34,7 @@
   - `apps/lina-core/internal/service/config/config_plugin.go`：`PluginConfig.AutoEnable` 升级为联合类型并补 `validatePluginAutoEnableRawValue` 校验分支。
   - `apps/lina-core/pkg/bizerr/`：在插件模块的 `*_code.go` 中新增 `plugin.install.mockDataFailed` 错误码。
 - **前端**
-  - `apps/lina-vben/apps/web-antd/src/views/system/plugin/plugin-host-service-auth-modal.vue`：增加"安装示例数据"复选框（带说明 tooltip），勾选后随安装请求发送 `installMockData: true`。
+  - `apps/lina-vben/apps/web-antd/src/views/system/plugin/plugin-host-service-auth-modal.vue`：增加"是否安装示例数据"复选框（带问号图标 tooltip），勾选后随安装请求发送 `installMockData: true`。
   - `apps/lina-vben/apps/web-antd/src/api/system/plugin/`：`pluginInstall` API 类型签名扩展。
 - **配置文件**
   - `apps/lina-core/manifest/config/config.template.yaml`：`plugin.autoEnable` 注释新增对象写法的示例与说明。

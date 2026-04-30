@@ -15,7 +15,6 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/logger"
 )
 
 const (
@@ -51,6 +50,8 @@ type Service interface {
 	Update(ctx context.Context, in UpdateInput) error
 	// Delete deletes a role.
 	Delete(ctx context.Context, id int) error
+	// BatchDelete deletes multiple roles atomically.
+	BatchDelete(ctx context.Context, ids []int) error
 	// UpdateStatus updates role status.
 	UpdateStatus(ctx context.Context, id int, status int) error
 	// GetOptions returns role options for dropdown.
@@ -466,47 +467,83 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 // Delete deletes a role.
 func (s *serviceImpl) Delete(ctx context.Context, id int) error {
-	// Check role exists
-	_, err := s.GetById(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	// Use transaction
-	err = dao.SysRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
-		// Delete role-menu associations
-		rmCols := dao.SysRoleMenu.Columns()
-		_, err = dao.SysRoleMenu.Ctx(ctx).
-			Where(rmCols.RoleId, id).
-			Delete()
-		if err != nil {
-			logger.Warningf(ctx, "failed to delete role-menu associations: %v", err)
-		}
-
-		// Delete user-role associations
-		urCols := dao.SysUserRole.Columns()
-		_, err = dao.SysUserRole.Ctx(ctx).
-			Where(urCols.RoleId, id).
-			Delete()
-		if err != nil {
-			logger.Warningf(ctx, "failed to delete user-role associations: %v", err)
-		}
-
-		// Delete role
-		_, err = dao.SysRole.Ctx(ctx).
-			Where(do.SysRole{Id: id}).
-			Delete()
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-	if err != nil {
+	if err := s.runRoleDeletionTransaction(ctx, []int{id}); err != nil {
 		return err
 	}
 	s.NotifyAccessTopologyChanged(ctx)
 	return nil
+}
+
+// BatchDelete deletes multiple roles atomically.
+func (s *serviceImpl) BatchDelete(ctx context.Context, ids []int) error {
+	normalizedIds := normalizeRoleDeleteIDs(ids)
+	if len(normalizedIds) == 0 {
+		return bizerr.NewCode(CodeRoleDeleteIdsRequired)
+	}
+	if err := s.runRoleDeletionTransaction(ctx, normalizedIds); err != nil {
+		return err
+	}
+	s.NotifyAccessTopologyChanged(ctx)
+	return nil
+}
+
+// runRoleDeletionTransaction validates and deletes roles with associations in one transaction.
+func (s *serviceImpl) runRoleDeletionTransaction(ctx context.Context, ids []int) error {
+	return dao.SysRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		for _, id := range ids {
+			if err := s.ensureRoleDeleteAllowed(ctx, id); err != nil {
+				return err
+			}
+		}
+		for _, id := range ids {
+			if err := s.deleteRoleRecordAndAssociations(ctx, id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ensureRoleDeleteAllowed enforces built-in role deletion protection.
+func (s *serviceImpl) ensureRoleDeleteAllowed(ctx context.Context, id int) error {
+	role, err := s.GetById(ctx, id)
+	if err != nil {
+		return err
+	}
+	if role.Key == builtinAdminRoleKey {
+		return bizerr.NewCode(CodeRoleBuiltinDeleteDenied)
+	}
+	return nil
+}
+
+// deleteRoleRecordAndAssociations soft-deletes one role and clears its associations.
+func (s *serviceImpl) deleteRoleRecordAndAssociations(ctx context.Context, id int) error {
+	rmCols := dao.SysRoleMenu.Columns()
+	if _, err := dao.SysRoleMenu.Ctx(ctx).Where(rmCols.RoleId, id).Delete(); err != nil {
+		return err
+	}
+
+	urCols := dao.SysUserRole.Columns()
+	if _, err := dao.SysUserRole.Ctx(ctx).Where(urCols.RoleId, id).Delete(); err != nil {
+		return err
+	}
+
+	_, err := dao.SysRole.Ctx(ctx).Where(do.SysRole{Id: id}).Delete()
+	return err
+}
+
+// normalizeRoleDeleteIDs removes duplicate IDs while preserving request order.
+func normalizeRoleDeleteIDs(ids []int) []int {
+	normalizedIds := make([]int, 0, len(ids))
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		normalizedIds = append(normalizedIds, id)
+	}
+	return normalizedIds
 }
 
 // UpdateStatus updates role status.
@@ -678,33 +715,40 @@ func (s *serviceImpl) AssignUsers(ctx context.Context, roleId int, userIds []int
 		return err
 	}
 
-	// Get existing user-role associations
-	urCols := dao.SysUserRole.Columns()
-	var existingRoles []*entity.SysUserRole
-	err = dao.SysUserRole.Ctx(ctx).
-		Where(urCols.RoleId, roleId).
-		Scan(&existingRoles)
+	err = dao.SysUserRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		// Get existing user-role associations.
+		urCols := dao.SysUserRole.Columns()
+		var existingRoles []*entity.SysUserRole
+		if scanErr := dao.SysUserRole.Ctx(ctx).
+			Where(urCols.RoleId, roleId).
+			Scan(&existingRoles); scanErr != nil {
+			return scanErr
+		}
+
+		existingUserIds := make(map[int]bool, len(existingRoles))
+		for _, ur := range existingRoles {
+			existingUserIds[ur.UserId] = true
+		}
+
+		newRelations := make([]do.SysUserRole, 0, len(userIds))
+		for _, userId := range userIds {
+			if existingUserIds[userId] {
+				continue
+			}
+			existingUserIds[userId] = true
+			newRelations = append(newRelations, do.SysUserRole{
+				UserId: userId,
+				RoleId: roleId,
+			})
+		}
+		if len(newRelations) == 0 {
+			return nil
+		}
+		_, insertErr := dao.SysUserRole.Ctx(ctx).Data(newRelations).Insert()
+		return insertErr
+	})
 	if err != nil {
 		return err
-	}
-
-	existingUserIds := make(map[int]bool)
-	for _, ur := range existingRoles {
-		existingUserIds[ur.UserId] = true
-	}
-
-	// Insert new associations (skip existing)
-	for _, userId := range userIds {
-		if existingUserIds[userId] {
-			continue
-		}
-		_, err = dao.SysUserRole.Ctx(ctx).Data(do.SysUserRole{
-			UserId: userId,
-			RoleId: roleId,
-		}).Insert()
-		if err != nil {
-			logger.Warningf(ctx, "failed to assign user %d to role %d: %v", userId, roleId, err)
-		}
 	}
 
 	s.NotifyAccessTopologyChanged(ctx)

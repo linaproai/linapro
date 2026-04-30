@@ -12,7 +12,7 @@ System SHALL provide a RESTful batch delete endpoint to remove multiple users in
 - **AND** access topology is notified once after the transaction commits
 
 #### Scenario: Batch delete rejects built-in admin id
-- **WHEN** the caller invokes `DELETE /api/v1/user?ids=1,2,3`
+- **WHEN** the caller invokes `DELETE /api/v1/user?ids=1&ids=2&ids=3`
 - **AND** id `1` belongs to the built-in admin
 - **THEN** the entire batch MUST be rejected with `bizerr` `CodeUserBuiltinAdminDeleteDenied`
 - **AND** no user is deleted, no association is cleaned

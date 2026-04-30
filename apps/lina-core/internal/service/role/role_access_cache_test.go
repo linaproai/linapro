@@ -135,6 +135,26 @@ func (f *fakeRoleConfigService) GetMonitor(_ context.Context) *hostconfig.Monito
 	return &hostconfig.MonitorConfig{}
 }
 
+// GetHealth returns an empty health config for tests.
+func (f *fakeRoleConfigService) GetHealth(_ context.Context) *hostconfig.HealthConfig {
+	return &hostconfig.HealthConfig{}
+}
+
+// GetShutdown returns an empty shutdown config for tests.
+func (f *fakeRoleConfigService) GetShutdown(_ context.Context) *hostconfig.ShutdownConfig {
+	return &hostconfig.ShutdownConfig{}
+}
+
+// GetScheduler returns an empty scheduler config for tests.
+func (f *fakeRoleConfigService) GetScheduler(_ context.Context) *hostconfig.SchedulerConfig {
+	return &hostconfig.SchedulerConfig{DefaultTimezone: "UTC"}
+}
+
+// GetSchedulerDefaultTimezone returns UTC for deterministic tests.
+func (f *fakeRoleConfigService) GetSchedulerDefaultTimezone(_ context.Context) string {
+	return "UTC"
+}
+
 // GetOpenApi returns an empty OpenAPI config for tests.
 func (f *fakeRoleConfigService) GetOpenApi(_ context.Context) *hostconfig.OpenApiConfig {
 	return &hostconfig.OpenApiConfig{}

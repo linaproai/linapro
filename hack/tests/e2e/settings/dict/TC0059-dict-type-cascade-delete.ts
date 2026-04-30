@@ -25,7 +25,7 @@ test.describe('TC0059 字典类型级联删除', () => {
     await dictPage.clickTypeSearch();
 
     // Click delete button
-    await dictPage.clickCurrentTypeDeleteAction();
+    await dictPage.clickCurrentTypeDeleteAction(testTypeName);
 
     // Wait for confirmation modal
     const modal = adminPage.locator('.ant-modal-confirm');
@@ -63,7 +63,7 @@ test.describe('TC0059 字典类型级联删除', () => {
     await dictPage.clickTypeSearch();
 
     // Click single row delete button (ghost button in action column)
-    await dictPage.clickCurrentTypeDeleteAction();
+    await dictPage.clickCurrentTypeDeleteAction(typeName);
 
     // Wait for modal and verify cascade delete warning
     const modal = adminPage.locator('.ant-modal-confirm');
@@ -120,9 +120,9 @@ test.describe('TC0059 字典类型级联删除', () => {
     await dictPage.fillTypeSearchField('字典名称', '批量删除');
     await dictPage.clickTypeSearch();
 
-    // Select first two rows
-    await dictPage.selectTypeRow(0);
-    await dictPage.selectTypeRow(1);
+    // Select the two dedicated rows by text to avoid touching built-in system dictionaries.
+    await dictPage.selectTypeRowByText(typeName1);
+    await dictPage.selectTypeRowByText(typeName2);
 
     // Click batch delete button - it's the danger button in toolbar (not the small action column buttons)
     // The toolbar button does NOT have the .ant-btn-sm class - use .first() to select the toolbar button

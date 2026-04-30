@@ -11,6 +11,7 @@ import (
 )
 
 type IFileV1 interface {
+	Access(ctx context.Context, req *v1.AccessReq) (res *v1.AccessRes, err error)
 	Delete(ctx context.Context, req *v1.DeleteReq) (res *v1.DeleteRes, err error)
 	Detail(ctx context.Context, req *v1.DetailReq) (res *v1.DetailRes, err error)
 	Download(ctx context.Context, req *v1.DownloadReq) (res *v1.DownloadRes, err error)
