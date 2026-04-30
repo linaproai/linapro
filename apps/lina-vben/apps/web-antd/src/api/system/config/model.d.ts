@@ -3,6 +3,7 @@ export interface SysConfig {
   name: string;
   key: string;
   value: string;
+  isBuiltin: number;
   remark: string;
   createdAt: string;
   updatedAt: string;

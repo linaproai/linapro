@@ -7,7 +7,7 @@ import { useVbenModal } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 
-import { message, Modal, Space } from 'ant-design-vue';
+import { message, Modal, Space, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
@@ -45,6 +45,7 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
   },
   gridOptions: {
     checkboxConfig: {
+      checkMethod: ({ row }: { row: DictType }) => !isBuiltInRecord(row),
       highlight: true,
       reserve: true,
     },
@@ -106,7 +107,14 @@ function handleEdit(record: DictType) {
   modalApi.open();
 }
 
+function isBuiltInRecord(row: DictType) {
+  return row.isBuiltin === 1;
+}
+
 async function handleDelete(row: DictType) {
+  if (isBuiltInRecord(row)) {
+    return;
+  }
   Modal.confirm({
     title: $t('pages.common.confirmTitle'),
     okType: 'danger',
@@ -130,8 +138,13 @@ async function handleDelete(row: DictType) {
 }
 
 function handleMultiDelete() {
-  const rows = tableApi.grid.getCheckboxRecords() as DictType[];
+  const rows = (tableApi.grid.getCheckboxRecords() as DictType[]).filter(
+    (row) => !isBuiltInRecord(row),
+  );
   const ids = rows.map((row) => row.id);
+  if (ids.length === 0) {
+    return;
+  }
   Modal.confirm({
     title: $t('pages.common.confirmTitle'),
     okType: 'danger',
@@ -205,11 +218,18 @@ watch(
 
 <template>
   <div>
-    <BasicTable id="dict-type" :table-title="$t('pages.system.dict.type.tableTitle')">
+    <BasicTable
+      id="dict-type"
+      :table-title="$t('pages.system.dict.type.tableTitle')"
+    >
       <template #toolbar-tools>
         <Space>
-          <a-button @click="handleExport">{{ $t('pages.common.export') }}</a-button>
-          <a-button @click="handleImport">{{ $t('pages.common.import') }}</a-button>
+          <a-button @click="handleExport">{{
+            $t('pages.common.export')
+          }}</a-button>
+          <a-button @click="handleImport">{{
+            $t('pages.common.import')
+          }}</a-button>
           <a-button
             :disabled="!hasChecked"
             danger
@@ -218,13 +238,36 @@ watch(
           >
             {{ $t('pages.common.delete') }}
           </a-button>
-          <a-button type="primary" @click="handleAdd">{{ $t('pages.common.add') }}</a-button>
+          <a-button type="primary" @click="handleAdd">{{
+            $t('pages.common.add')
+          }}</a-button>
         </Space>
       </template>
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">{{ $t('pages.common.edit') }}</ghost-button>
-          <ghost-button danger @click.stop="handleDelete(row)">
+          <ghost-button @click.stop="handleEdit(row)">{{
+            $t('pages.common.edit')
+          }}</ghost-button>
+          <Tooltip
+            v-if="isBuiltInRecord(row)"
+            :title="$t('pages.common.builtinDeleteDisabled')"
+          >
+            <span
+              class="inline-flex"
+              :data-testid="`dict-type-delete-${row.id}`"
+              @click.stop
+            >
+              <ghost-button danger disabled>
+                {{ $t('pages.common.delete') }}
+              </ghost-button>
+            </span>
+          </Tooltip>
+          <ghost-button
+            v-else
+            danger
+            :data-testid="`dict-type-delete-${row.id}`"
+            @click.stop="handleDelete(row)"
+          >
             {{ $t('pages.common.delete') }}
           </ghost-button>
         </Space>

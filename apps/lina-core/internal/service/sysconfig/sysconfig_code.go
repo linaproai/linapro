@@ -34,10 +34,10 @@ var (
 		"Built-in runtime configuration keys cannot be renamed",
 		gcode.CodeNotAuthorized,
 	)
-	// CodeSysConfigBuiltinDeleteDenied reports that a protected runtime parameter cannot be deleted.
+	// CodeSysConfigBuiltinDeleteDenied reports that a built-in system parameter cannot be deleted.
 	CodeSysConfigBuiltinDeleteDenied = bizerr.MustDefine(
 		"SYSCONFIG_BUILTIN_DELETE_DENIED",
-		"Built-in runtime configurations cannot be deleted",
+		"Built-in system parameters cannot be deleted",
 		gcode.CodeNotAuthorized,
 	)
 	// CodeSysConfigProtectedValueInvalid reports that a protected runtime parameter value is invalid.

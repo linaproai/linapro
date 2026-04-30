@@ -6,6 +6,7 @@ package sysconfig
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/pkg/bizerr"
 )
 
 // TestDeleteRejectsProtectedRuntimeParam verifies built-in runtime parameters
@@ -39,6 +41,51 @@ func TestDeleteRejectsProtectedPublicFrontendSetting(t *testing.T) {
 	err := New().Delete(ctx, int(publicSetting.Id))
 	if err == nil {
 		t.Fatal("expected deleting protected public frontend setting to fail")
+	}
+}
+
+// TestDeleteRejectsBuiltInFlaggedSystemParameter verifies persisted built-in
+// markers also protect records whose keys are not consumed by runtime code.
+func TestDeleteRejectsBuiltInFlaggedSystemParameter(t *testing.T) {
+	ctx := context.Background()
+	record := insertConfigForBuiltInGuard(t, ctx, true)
+
+	err := New().Delete(ctx, int(record.Id))
+	if !bizerr.Is(err, CodeSysConfigBuiltinDeleteDenied) {
+		t.Fatalf("expected %s, got %v", CodeSysConfigBuiltinDeleteDenied.RuntimeCode(), err)
+	}
+
+	assertConfigRecordExists(t, ctx, record.Id)
+}
+
+// TestUpdateAllowsBuiltInFlaggedSystemParameter verifies built-in records stay
+// editable even though deletion is blocked.
+func TestUpdateAllowsBuiltInFlaggedSystemParameter(t *testing.T) {
+	ctx := context.Background()
+	record := insertConfigForBuiltInGuard(t, ctx, true)
+	updatedValue := "updated builtin value"
+
+	err := New().Update(ctx, UpdateInput{
+		Id:    int(record.Id),
+		Value: &updatedValue,
+	})
+	if err != nil {
+		t.Fatalf("update built-in config value: %v", err)
+	}
+
+	var updated *entity.SysConfig
+	err = dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: record.Id}).Scan(&updated)
+	if err != nil {
+		t.Fatalf("query updated built-in config: %v", err)
+	}
+	if updated == nil {
+		t.Fatal("expected updated built-in config to exist")
+	}
+	if updated.Value != updatedValue {
+		t.Fatalf("expected updated value %q, got %q", updatedValue, updated.Value)
+	}
+	if updated.IsBuiltin != 1 {
+		t.Fatalf("expected built-in marker to remain 1, got %d", updated.IsBuiltin)
 	}
 }
 
@@ -274,10 +321,11 @@ func ensureRuntimeParamRecord(
 				Unscoped().
 				Where(do.SysConfig{Id: original.Id}).
 				Data(do.SysConfig{
-					Name:   original.Name,
-					Key:    original.Key,
-					Value:  original.Value,
-					Remark: original.Remark,
+					Name:      original.Name,
+					Key:       original.Key,
+					Value:     original.Value,
+					IsBuiltin: original.IsBuiltin,
+					Remark:    original.Remark,
 				}).
 				Update()
 			if cleanupErr != nil {
@@ -289,10 +337,11 @@ func ensureRuntimeParamRecord(
 	}
 
 	_, err = dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-		Name:   key,
-		Key:    key,
-		Value:  value,
-		Remark: "test runtime param",
+		Name:      key,
+		Key:       key,
+		Value:     value,
+		IsBuiltin: builtInConfigFlag(key),
+		Remark:    "test runtime param",
 	}).Insert()
 	if err != nil {
 		t.Fatalf("insert runtime param %s: %v", key, err)
@@ -339,17 +388,69 @@ func withRuntimeParamRemoved(t *testing.T, ctx context.Context, key string) {
 			t.Fatalf("delete recreated runtime param %s before restore: %v", key, cleanupErr)
 		}
 		_, cleanupErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-			Id:     existing.Id,
-			Name:   existing.Name,
-			Key:    existing.Key,
-			Value:  existing.Value,
-			Remark: existing.Remark,
+			Id:        existing.Id,
+			Name:      existing.Name,
+			Key:       existing.Key,
+			Value:     existing.Value,
+			IsBuiltin: existing.IsBuiltin,
+			Remark:    existing.Remark,
 		}).Insert()
 		if cleanupErr != nil {
 			t.Fatalf("restore removed runtime param %s: %v", key, cleanupErr)
 		}
 		markRuntimeParamChanged(t, ctx)
 	})
+}
+
+// insertConfigForBuiltInGuard creates one isolated sys_config record for
+// built-in deletion guard tests.
+func insertConfigForBuiltInGuard(t *testing.T, ctx context.Context, builtin bool) *entity.SysConfig {
+	t.Helper()
+
+	key := fmt.Sprintf("test.builtin.guard.%d", time.Now().UnixNano())
+	builtinFlag := 0
+	if builtin {
+		builtinFlag = 1
+	}
+
+	insertedID, err := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
+		Name:      "Built-in guard parameter",
+		Key:       key,
+		Value:     "initial builtin value",
+		IsBuiltin: builtinFlag,
+		Remark:    "built-in guard test",
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("insert built-in guard config: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if _, cleanupErr := dao.SysConfig.Ctx(ctx).
+			Unscoped().
+			Where(do.SysConfig{Id: uint64(insertedID)}).
+			Delete(); cleanupErr != nil {
+			t.Fatalf("cleanup built-in guard config %s: %v", key, cleanupErr)
+		}
+	})
+
+	return &entity.SysConfig{
+		Id:        uint64(insertedID),
+		Key:       key,
+		IsBuiltin: builtinFlag,
+	}
+}
+
+// assertConfigRecordExists verifies a sys_config row remains queryable.
+func assertConfigRecordExists(t *testing.T, ctx context.Context, id uint64) {
+	t.Helper()
+
+	count, err := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: id}).Count()
+	if err != nil {
+		t.Fatalf("query config %d: %v", id, err)
+	}
+	if count != 1 {
+		t.Fatalf("expected config %d to remain, got count %d", id, count)
+	}
 }
 
 // buildConfigImportFile builds one in-memory sysconfig import workbook for a

@@ -17,7 +17,7 @@
     "sysconfig": {
       "builtin": {
         "delete": {
-          "denied": "内置运行时参数不允许删除"
+          "denied": "系统内置参数不支持删除"
         },
         "key": {
           "rename": {
@@ -69,6 +69,11 @@
     },
     "dict": {
       "data": {
+        "builtin": {
+          "delete": {
+            "denied": "系统内置字典数据不支持删除"
+          }
+        },
         "not": {
           "found": "字典数据不存在"
         }
@@ -87,6 +92,11 @@
         }
       },
       "type": {
+        "builtin": {
+          "delete": {
+            "denied": "系统内置字典类型不支持删除"
+          }
+        },
         "exists": "字典类型已存在",
         "not": {
           "found": "字典类型不存在"

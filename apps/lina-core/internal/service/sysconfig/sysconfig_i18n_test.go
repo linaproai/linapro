@@ -258,10 +258,11 @@ func ensureConfigRecordState(
 	}
 	if existing == nil {
 		_, err = dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-			Name:   name,
-			Key:    key,
-			Value:  value,
-			Remark: remark,
+			Name:      name,
+			Key:       key,
+			Value:     value,
+			IsBuiltin: builtInConfigFlag(key),
+			Remark:    remark,
 		}).Insert()
 		if err != nil {
 			t.Fatalf("insert config record %s: %v", key, err)
@@ -300,10 +301,11 @@ func ensureConfigRecordState(
 			Unscoped().
 			Where(do.SysConfig{Id: original.Id}).
 			Data(do.SysConfig{
-				Name:   original.Name,
-				Key:    original.Key,
-				Value:  original.Value,
-				Remark: original.Remark,
+				Name:      original.Name,
+				Key:       original.Key,
+				Value:     original.Value,
+				IsBuiltin: original.IsBuiltin,
+				Remark:    original.Remark,
 			}).
 			Update()
 		if cleanupErr != nil {

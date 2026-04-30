@@ -107,13 +107,17 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 					return bizerr.NewCode(CodeSysConfigKeyExists, bizerr.P("key", key))
 				}
 				// Overwrite mode: update existing record (GoFrame auto-fills updated_at)
+				data := do.SysConfig{
+					Name:   name,
+					Value:  value,
+					Remark: remark,
+				}
+				if hostconfig.IsProtectedConfigParam(key) {
+					data.IsBuiltin = 1
+				}
 				_, updateErr := dao.SysConfig.Ctx(ctx).
 					Where(do.SysConfig{Id: existing.Id}).
-					Data(do.SysConfig{
-						Name:   name,
-						Value:  value,
-						Remark: remark,
-					}).
+					Data(data).
 					Update()
 				if updateErr != nil {
 					return bizerr.WrapCode(updateErr, CodeSysConfigImportUpdateFailed)
@@ -123,10 +127,11 @@ func (s *serviceImpl) Import(ctx context.Context, fileReader io.Reader, updateSu
 
 			// Create new record (GoFrame auto-fills created_at and updated_at)
 			_, insertErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-				Name:   name,
-				Key:    key,
-				Value:  value,
-				Remark: remark,
+				Name:      name,
+				Key:       key,
+				Value:     value,
+				IsBuiltin: builtInConfigFlag(key),
+				Remark:    remark,
 			}).Insert()
 			if insertErr != nil {
 				return bizerr.WrapCode(insertErr, CodeSysConfigImportInsertFailed)

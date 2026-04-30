@@ -18,6 +18,7 @@ type SysDictData struct {
 	TagStyle  string      `json:"tagStyle"  orm:"tag_style"  description:"Tag style: primary/success/danger/warning, etc."`
 	CssClass  string      `json:"cssClass"  orm:"css_class"  description:"CSS class name"`
 	Status    int         `json:"status"    orm:"status"     description:"Status: 0=disabled, 1=enabled"`
+	IsBuiltin int         `json:"isBuiltin" orm:"is_builtin" description:"Built-in record flag: 1=yes, 0=no"`
 	Remark    string      `json:"remark"    orm:"remark"     description:"Remark"`
 	CreatedAt *gtime.Time `json:"createdAt" orm:"created_at" description:"Creation time"`
 	UpdatedAt *gtime.Time `json:"updatedAt" orm:"updated_at" description:"Update time"`

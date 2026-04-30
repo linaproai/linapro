@@ -25,6 +25,7 @@
     "status": "Status",
     "confirmTitle": "Confirm",
     "deleteConfirm": "Delete this record?",
+    "builtinDeleteDisabled": "System built-in data cannot be deleted",
     "deleteSuccess": "Deleted successfully",
     "createSuccess": "Created successfully",
     "updateSuccess": "Updated successfully",

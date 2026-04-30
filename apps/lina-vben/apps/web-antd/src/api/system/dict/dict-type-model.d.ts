@@ -3,6 +3,7 @@ export interface DictType {
   name: string;
   type: string;
   status: number;
+  isBuiltin: number;
   remark: string;
   createdAt: string;
 }

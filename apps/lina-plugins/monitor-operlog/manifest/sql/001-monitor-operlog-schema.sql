@@ -23,24 +23,24 @@ CREATE TABLE IF NOT EXISTS plugin_monitor_operlog (
     oper_time       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT  'Operation time'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Operation log table';
 
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('操作类型', 'sys_oper_type', 1, '操作日志操作类型列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('操作状态', 'sys_oper_status', 1, '操作日志操作状态列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('操作类型', 'sys_oper_type', 1, 1, '操作日志操作类型列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('操作状态', 'sys_oper_status', 1, 1, '操作日志操作状态列表', NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_type', '新增', 'create', 1, 'success', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_type', '修改', 'update', 2, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_type', '删除', 'delete', 3, 'danger', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_type', '导出', 'export', 4, 'warning', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_type', '导入', 'import', 5, 'processing', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_type', '其他', 'other', 6, 'default', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_status', '成功', '0', 1, 'success', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_oper_status', '失败', '1', 2, 'danger', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_type', '新增', 'create', 1, 'success', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_type', '修改', 'update', 2, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_type', '删除', 'delete', 3, 'danger', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_type', '导出', 'export', 4, 'warning', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_type', '导入', 'import', 5, 'processing', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_type', '其他', 'other', 6, 'default', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_status', '成功', '0', 1, 'success', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_oper_status', '失败', '1', 2, 'danger', 1, 1, NOW(), NOW());

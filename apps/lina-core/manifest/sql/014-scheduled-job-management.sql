@@ -92,21 +92,23 @@ CREATE TABLE IF NOT EXISTS sys_job_log (
 INSERT IGNORE INTO sys_job_group (code, name, remark, sort_order, is_default, created_at, updated_at)
 VALUES ('default', 'Default Group', 'The system default job group. Jobs are moved here when other groups are deleted.', 0, 1, NOW(), NOW());
 
-INSERT IGNORE INTO sys_config (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`)
+INSERT IGNORE INTO sys_config (`name`, `key`, `value`, `is_builtin`, `remark`, `created_at`, `updated_at`)
 VALUES (
     '定时任务-Shell 模式全局开关',
     'cron.shell.enabled',
     'true',
+    1,
     '控制 Shell 类型任务是否允许创建、修改、触发与终止，可选值：true、false。',
     NOW(),
     NOW()
 );
 
-INSERT IGNORE INTO sys_config (`name`, `key`, `value`, `remark`, `created_at`, `updated_at`)
+INSERT IGNORE INTO sys_config (`name`, `key`, `value`, `is_builtin`, `remark`, `created_at`, `updated_at`)
 VALUES (
     '定时任务-执行日志保留策略',
     'cron.log.retention',
     '{"mode":"days","value":30}',
+    1,
     '控制定时任务执行日志默认保留策略，使用 JSON：{"mode":"days|count|none","value":N}。',
     NOW(),
     NOW()
@@ -116,71 +118,71 @@ VALUES (
 -- Dictionary types and dictionary data
 -- 字典类型与字典数据
 -- ============================================================
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('定时任务状态', 'cron_job_status', 1, '定时任务状态列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('定时任务类型', 'cron_job_task_type', 1, '定时任务类型列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('定时任务调度范围', 'cron_job_scope', 1, '定时任务调度范围列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('定时任务并发策略', 'cron_job_concurrency', 1, '定时任务并发策略列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('定时任务触发方式', 'cron_job_trigger', 1, '定时任务触发方式列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('定时任务日志状态', 'cron_job_log_status', 1, '定时任务执行日志状态列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('定时任务日志保留模式', 'cron_log_retention_mode', 1, '定时任务日志保留模式列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('定时任务状态', 'cron_job_status', 1, 1, '定时任务状态列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('定时任务类型', 'cron_job_task_type', 1, 1, '定时任务类型列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('定时任务调度范围', 'cron_job_scope', 1, 1, '定时任务调度范围列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('定时任务并发策略', 'cron_job_concurrency', 1, 1, '定时任务并发策略列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('定时任务触发方式', 'cron_job_trigger', 1, 1, '定时任务触发方式列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('定时任务日志状态', 'cron_job_log_status', 1, 1, '定时任务执行日志状态列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('定时任务日志保留模式', 'cron_log_retention_mode', 1, 1, '定时任务日志保留模式列表', NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_status', '启用', 'enabled', 1, 'success', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_status', '停用', 'disabled', 2, 'default', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_status', '不可用', 'paused_by_plugin', 3, 'danger', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_status', '启用', 'enabled', 1, 'success', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_status', '停用', 'disabled', 2, 'default', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_status', '不可用', 'paused_by_plugin', 3, 'danger', 1, 1, NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_task_type', 'Handler 任务', 'handler', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_task_type', 'Shell 任务', 'shell', 2, 'warning', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_task_type', 'Handler 任务', 'handler', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_task_type', 'Shell 任务', 'shell', 2, 'warning', 1, 1, NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_scope', '仅主节点执行', 'master_only', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_scope', '所有节点执行', 'all_node', 2, 'success', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_scope', '仅主节点执行', 'master_only', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_scope', '所有节点执行', 'all_node', 2, 'success', 1, 1, NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_concurrency', '单例执行', 'singleton', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_concurrency', '允许并行执行', 'parallel', 2, 'warning', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_concurrency', '单例执行', 'singleton', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_concurrency', '允许并行执行', 'parallel', 2, 'warning', 1, 1, NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_trigger', 'Cron 调度', 'cron', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_trigger', '手动触发', 'manual', 2, 'success', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_trigger', 'Cron 调度', 'cron', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_trigger', '手动触发', 'manual', 2, 'success', 1, 1, NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '运行中', 'running', 1, 'processing', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '成功', 'success', 2, 'success', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '失败', 'failed', 3, 'danger', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '已取消', 'cancelled', 4, 'warning', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '超时', 'timeout', 5, 'danger', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '非主节点跳过', 'skipped_not_primary', 6, 'default', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '单例冲突跳过', 'skipped_singleton', 7, 'default', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_job_log_status', '并发上限跳过', 'skipped_max_concurrency', 8, 'default', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '运行中', 'running', 1, 'processing', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '成功', 'success', 2, 'success', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '失败', 'failed', 3, 'danger', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '已取消', 'cancelled', 4, 'warning', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '超时', 'timeout', 5, 'danger', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '非主节点跳过', 'skipped_not_primary', 6, 'default', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '单例冲突跳过', 'skipped_singleton', 7, 'default', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_job_log_status', '并发上限跳过', 'skipped_max_concurrency', 8, 'default', 1, 1, NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_log_retention_mode', '按天保留', 'days', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_log_retention_mode', '按条数保留', 'count', 2, 'success', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('cron_log_retention_mode', '不清理', 'none', 3, 'warning', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_log_retention_mode', '按天保留', 'days', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_log_retention_mode', '按条数保留', 'count', 2, 'success', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('cron_log_retention_mode', '不清理', 'none', 3, 'warning', 1, 1, NOW(), NOW());
 
 -- ============================================================
 -- Menus and button permissions

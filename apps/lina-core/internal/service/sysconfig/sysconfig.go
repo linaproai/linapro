@@ -162,10 +162,11 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 		// Insert config (GoFrame auto-fills created_at and updated_at)
 		insertedID, insertErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-			Name:   in.Name,
-			Key:    in.Key,
-			Value:  in.Value,
-			Remark: in.Remark,
+			Name:      in.Name,
+			Key:       in.Key,
+			Value:     in.Value,
+			IsBuiltin: builtInConfigFlag(in.Key),
+			Remark:    in.Remark,
 		}).InsertAndGetId()
 		if insertErr != nil {
 			return insertErr
@@ -198,7 +199,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		if err != nil {
 			return err
 		}
-		if hostconfig.IsProtectedConfigParam(existing.Key) && in.Key != nil && *in.Key != existing.Key {
+		if isBuiltInConfigRecord(existing) && in.Key != nil && *in.Key != existing.Key {
 			return bizerr.NewCode(CodeSysConfigBuiltinKeyRenameDenied)
 		}
 
@@ -259,7 +260,7 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	if hostconfig.IsProtectedConfigParam(existing.Key) {
+	if isBuiltInConfigRecord(existing) {
 		return bizerr.NewCode(CodeSysConfigBuiltinDeleteDenied)
 	}
 
@@ -277,6 +278,24 @@ func validateManagedConfigValue(key string, value string) error {
 		return bizerr.WrapCode(err, CodeSysConfigProtectedValueInvalid)
 	}
 	return nil
+}
+
+// isBuiltInConfigRecord reports whether one sys_config record is delivered by
+// the host as a built-in system parameter.
+func isBuiltInConfigRecord(record *entity.SysConfig) bool {
+	if record == nil {
+		return false
+	}
+	return record.IsBuiltin == 1 || hostconfig.IsProtectedConfigParam(record.Key)
+}
+
+// builtInConfigFlag returns the persisted built-in marker for protected
+// system parameters that are created through management or import paths.
+func builtInConfigFlag(key string) int {
+	if hostconfig.IsProtectedConfigParam(key) {
+		return 1
+	}
+	return 0
 }
 
 // GetByKey retrieves config by key name.

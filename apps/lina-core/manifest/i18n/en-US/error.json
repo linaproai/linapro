@@ -17,7 +17,7 @@
     "sysconfig": {
       "builtin": {
         "delete": {
-          "denied": "Built-in runtime configurations cannot be deleted"
+          "denied": "Built-in system parameters cannot be deleted"
         },
         "key": {
           "rename": {
@@ -69,6 +69,11 @@
     },
     "dict": {
       "data": {
+        "builtin": {
+          "delete": {
+            "denied": "Built-in dictionary data cannot be deleted"
+          }
+        },
         "not": {
           "found": "Dictionary data does not exist"
         }
@@ -87,6 +92,11 @@
         }
       },
       "type": {
+        "builtin": {
+          "delete": {
+            "denied": "Built-in dictionary types cannot be deleted"
+          }
+        },
         "exists": "Dictionary type already exists",
         "not": {
           "found": "Dictionary type does not exist"

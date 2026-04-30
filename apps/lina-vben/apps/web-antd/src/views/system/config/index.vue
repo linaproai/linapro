@@ -6,14 +6,10 @@ import { computed, ref } from 'vue';
 import { Page, useVbenModal } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 
-import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
+import { message, Modal, Popconfirm, Space, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
-import {
-  configDelete,
-  configExport,
-  configList,
-} from '#/api/system/config';
+import { configDelete, configExport, configList } from '#/api/system/config';
 import { downloadBlob } from '#/utils/download';
 
 import { columns, querySchema } from './data';
@@ -44,6 +40,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridOptions: {
     checkboxConfig: {
+      checkMethod: ({ row }: { row: SysConfig }) => !isBuiltInRecord(row),
       highlight: true,
       reserve: true,
     },
@@ -53,7 +50,10 @@ const [Grid, gridApi] = useVbenVxeGrid({
     pagerConfig: {},
     proxyConfig: {
       ajax: {
-        query: async ({ page }: { page: { currentPage: number; pageSize: number } }, formValues = {}) => {
+        query: async (
+          { page }: { page: { currentPage: number; pageSize: number } },
+          formValues = {},
+        ) => {
           return await configList({
             pageNum: page.currentPage,
             pageSize: page.pageSize,
@@ -69,10 +69,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
   gridEvents: {
     checkboxChange: () => {
-      checkedRows.value = (gridApi.grid?.getCheckboxRecords() || []) as SysConfig[];
+      checkedRows.value = (gridApi.grid?.getCheckboxRecords() ||
+        []) as SysConfig[];
     },
     checkboxAll: () => {
-      checkedRows.value = (gridApi.grid?.getCheckboxRecords() || []) as SysConfig[];
+      checkedRows.value = (gridApi.grid?.getCheckboxRecords() ||
+        []) as SysConfig[];
     },
   },
 });
@@ -90,15 +92,27 @@ function handleEdit(row: SysConfig) {
   modalApi.open();
 }
 
+function isBuiltInRecord(row: SysConfig) {
+  return row.isBuiltin === 1;
+}
+
 async function handleDelete(row: SysConfig) {
+  if (isBuiltInRecord(row)) {
+    return;
+  }
   await configDelete(row.id);
   message.success($t('pages.common.deleteSuccess'));
   await gridApi.query();
 }
 
 function handleMultiDelete() {
-  const rows = gridApi.grid.getCheckboxRecords() as SysConfig[];
+  const rows = (gridApi.grid.getCheckboxRecords() as SysConfig[]).filter(
+    (row) => !isBuiltInRecord(row),
+  );
   const ids = rows.map((row) => row.id);
+  if (ids.length === 0) {
+    return;
+  }
   Modal.confirm({
     title: $t('pages.common.confirmTitle'),
     okType: 'danger',
@@ -116,9 +130,10 @@ function handleMultiDelete() {
 }
 
 async function handleExport() {
-  const content = checkedRows.value.length > 0
-    ? $t('pages.system.config.messages.exportSelectedConfirm')
-    : $t('pages.system.config.messages.exportAllConfirm');
+  const content =
+    checkedRows.value.length > 0
+      ? $t('pages.system.config.messages.exportSelectedConfirm')
+      : $t('pages.system.config.messages.exportAllConfirm');
 
   Modal.confirm({
     title: $t('pages.common.confirmTitle'),
@@ -160,8 +175,12 @@ function handleImport() {
     <Grid :table-title="$t('pages.system.config.tableTitle')">
       <template #toolbar-tools>
         <Space>
-          <a-button @click="handleExport">{{ $t('pages.common.export') }}</a-button>
-          <a-button @click="handleImport">{{ $t('pages.common.import') }}</a-button>
+          <a-button @click="handleExport">{{
+            $t('pages.common.export')
+          }}</a-button>
+          <a-button @click="handleImport">{{
+            $t('pages.common.import')
+          }}</a-button>
           <a-button
             :disabled="!hasChecked"
             danger
@@ -170,19 +189,44 @@ function handleImport() {
           >
             {{ $t('pages.common.delete') }}
           </a-button>
-          <a-button type="primary" @click="handleAdd">{{ $t('pages.common.add') }}</a-button>
+          <a-button type="primary" @click="handleAdd">{{
+            $t('pages.common.add')
+          }}</a-button>
         </Space>
       </template>
 
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">{{ $t('pages.common.edit') }}</ghost-button>
+          <ghost-button @click.stop="handleEdit(row)">{{
+            $t('pages.common.edit')
+          }}</ghost-button>
+          <Tooltip
+            v-if="isBuiltInRecord(row)"
+            :title="$t('pages.common.builtinDeleteDisabled')"
+          >
+            <span
+              class="inline-flex"
+              :data-testid="`config-delete-${row.id}`"
+              @click.stop
+            >
+              <ghost-button danger disabled>
+                {{ $t('pages.common.delete') }}
+              </ghost-button>
+            </span>
+          </Tooltip>
           <Popconfirm
+            v-else
             placement="left"
             :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">{{ $t('pages.common.delete') }}</ghost-button>
+            <ghost-button
+              danger
+              :data-testid="`config-delete-${row.id}`"
+              @click.stop=""
+            >
+              {{ $t('pages.common.delete') }}
+            </ghost-button>
           </Popconfirm>
         </Space>
       </template>

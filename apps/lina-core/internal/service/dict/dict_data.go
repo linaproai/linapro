@@ -165,12 +165,16 @@ func (s *serviceImpl) DataUpdate(ctx context.Context, in DataUpdateInput) error 
 // DataDelete hard-deletes a dict data entry.
 func (s *serviceImpl) DataDelete(ctx context.Context, id int) error {
 	// Check dict data exists
-	if _, err := s.DataGetById(ctx, id); err != nil {
+	dictData, err := s.DataGetById(ctx, id)
+	if err != nil {
 		return err
+	}
+	if dictData.IsBuiltin == 1 {
+		return bizerr.NewCode(CodeDictDataBuiltinDeleteDenied)
 	}
 
 	// Hard delete
-	_, err := dao.SysDictData.Ctx(ctx).
+	_, err = dao.SysDictData.Ctx(ctx).
 		Where(do.SysDictData{Id: id}).
 		Delete()
 	return err

@@ -166,6 +166,19 @@ func (s *serviceImpl) Delete(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
+	if dictType.IsBuiltin == 1 {
+		return bizerr.NewCode(CodeDictTypeBuiltinDeleteDenied)
+	}
+
+	count, err := dao.SysDictData.Ctx(ctx).
+		Where(do.SysDictData{DictType: dictType.Type, IsBuiltin: 1}).
+		Count()
+	if err != nil {
+		return err
+	}
+	if count > 0 {
+		return bizerr.NewCode(CodeDictDataBuiltinDeleteDenied)
+	}
 
 	// Hard delete associated dict data first
 	_, err = dao.SysDictData.Ctx(ctx).

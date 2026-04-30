@@ -72,35 +72,35 @@ CREATE TABLE IF NOT EXISTS sys_user_role (
 -- Dictionary types and dictionary data
 -- 字典类型与字典数据
 -- ============================================================
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('菜单状态', 'sys_menu_status', 1, '菜单状态列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('显示状态', 'sys_show_hide', 1, '显示状态列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('菜单类型', 'sys_menu_type', 1, '菜单类型列表', NOW(), NOW());
-INSERT IGNORE INTO sys_dict_type (name, type, status, remark, created_at, updated_at)
-VALUES ('数据权限范围', 'sys_data_scope', 1, '数据权限范围列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('菜单状态', 'sys_menu_status', 1, 1, '菜单状态列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('显示状态', 'sys_show_hide', 1, 1, '显示状态列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('菜单类型', 'sys_menu_type', 1, 1, '菜单类型列表', NOW(), NOW());
+INSERT IGNORE INTO sys_dict_type (name, type, status, is_builtin, remark, created_at, updated_at)
+VALUES ('数据权限范围', 'sys_data_scope', 1, 1, '数据权限范围列表', NOW(), NOW());
 
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_menu_status', '正常', '1', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_menu_status', '停用', '0', 2, 'danger', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_show_hide', '显示', '1', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_show_hide', '隐藏', '0', 2, 'danger', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_menu_type', '目录', 'D', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_menu_type', '菜单', 'M', 2, 'success', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_menu_type', '按钮', 'B', 3, 'warning', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_data_scope', '全部数据', '1', 1, 'primary', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_data_scope', '本部门数据', '2', 2, 'success', 1, NOW(), NOW());
-INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, created_at, updated_at)
-VALUES ('sys_data_scope', '仅本人数据', '3', 3, 'warning', 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_menu_status', '正常', '1', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_menu_status', '停用', '0', 2, 'danger', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_show_hide', '显示', '1', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_show_hide', '隐藏', '0', 2, 'danger', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_menu_type', '目录', 'D', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_menu_type', '菜单', 'M', 2, 'success', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_menu_type', '按钮', 'B', 3, 'warning', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_data_scope', '全部数据', '1', 1, 'primary', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_data_scope', '本部门数据', '2', 2, 'success', 1, 1, NOW(), NOW());
+INSERT IGNORE INTO sys_dict_data (dict_type, label, value, sort, tag_style, status, is_builtin, created_at, updated_at)
+VALUES ('sys_data_scope', '仅本人数据', '3', 3, 'warning', 1, 1, NOW(), NOW());
 
 -- ============================================================
 -- Initial role data

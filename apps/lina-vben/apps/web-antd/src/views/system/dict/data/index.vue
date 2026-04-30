@@ -7,7 +7,7 @@ import { useVbenDrawer } from '@vben/common-ui';
 import { $t } from '@vben/locales';
 import { preferences } from '@vben/preferences';
 
-import { message, Modal, Popconfirm, Space } from 'ant-design-vue';
+import { message, Modal, Popconfirm, Space, Tooltip } from 'ant-design-vue';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { dictDataDelete, dictDataList } from '#/api/system/dict/dict-data';
@@ -33,6 +33,7 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
   },
   gridOptions: {
     checkboxConfig: {
+      checkMethod: ({ row }: { row: DictData }) => !isBuiltInRecord(row),
       highlight: true,
       reserve: true,
     },
@@ -92,7 +93,14 @@ function handleEdit(row: DictData) {
   drawerApi.open();
 }
 
+function isBuiltInRecord(row: DictData) {
+  return row.isBuiltin === 1;
+}
+
 async function handleDelete(row: DictData) {
+  if (isBuiltInRecord(row)) {
+    return;
+  }
   await dictDataDelete(row.id);
   message.success($t('pages.common.deleteSuccess'));
   dictStore.resetCache();
@@ -100,8 +108,13 @@ async function handleDelete(row: DictData) {
 }
 
 function handleMultiDelete() {
-  const rows = tableApi.grid.getCheckboxRecords() as DictData[];
+  const rows = (tableApi.grid.getCheckboxRecords() as DictData[]).filter(
+    (row) => !isBuiltInRecord(row),
+  );
   const ids = rows.map((row) => row.id);
+  if (ids.length === 0) {
+    return;
+  }
   Modal.confirm({
     title: $t('pages.common.confirmTitle'),
     okType: 'danger',
@@ -143,7 +156,10 @@ watch(
 
 <template>
   <div>
-    <BasicTable id="dict-data" :table-title="$t('pages.system.dict.data.tableTitle')">
+    <BasicTable
+      id="dict-data"
+      :table-title="$t('pages.system.dict.data.tableTitle')"
+    >
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -165,13 +181,36 @@ watch(
       </template>
       <template #action="{ row }">
         <Space>
-          <ghost-button @click.stop="handleEdit(row)">{{ $t('pages.common.edit') }}</ghost-button>
+          <ghost-button @click.stop="handleEdit(row)">{{
+            $t('pages.common.edit')
+          }}</ghost-button>
+          <Tooltip
+            v-if="isBuiltInRecord(row)"
+            :title="$t('pages.common.builtinDeleteDisabled')"
+          >
+            <span
+              class="inline-flex"
+              :data-testid="`dict-data-delete-${row.id}`"
+              @click.stop
+            >
+              <ghost-button danger disabled>
+                {{ $t('pages.common.delete') }}
+              </ghost-button>
+            </span>
+          </Tooltip>
           <Popconfirm
+            v-else
             placement="left"
             :title="$t('pages.common.deleteConfirm')"
             @confirm="handleDelete(row)"
           >
-            <ghost-button danger @click.stop="">{{ $t('pages.common.delete') }}</ghost-button>
+            <ghost-button
+              danger
+              :data-testid="`dict-data-delete-${row.id}`"
+              @click.stop=""
+            >
+              {{ $t('pages.common.delete') }}
+            </ghost-button>
           </Popconfirm>
         </Space>
       </template>

@@ -7,6 +7,7 @@ export interface DictData {
   tagStyle: string;
   cssClass: string;
   status: number;
+  isBuiltin: number;
   remark: string;
   createdAt: string;
 }

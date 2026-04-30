@@ -25,6 +25,7 @@
     "status": "狀態",
     "confirmTitle": "提示",
     "deleteConfirm": "確認刪除？",
+    "builtinDeleteDisabled": "系統內置數據不支援刪除",
     "deleteSuccess": "刪除成功",
     "createSuccess": "創建成功",
     "updateSuccess": "更新成功",

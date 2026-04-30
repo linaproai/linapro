@@ -16,6 +16,7 @@ type SysDictType struct {
 	Name      any         // Dictionary name
 	Type      any         // Dictionary type
 	Status    any         // Status: 0=disabled, 1=enabled
+	IsBuiltin any         // Built-in record flag: 1=yes, 0=no
 	Remark    any         // Remark
 	CreatedAt *gtime.Time // Creation time
 	UpdatedAt *gtime.Time // Update time

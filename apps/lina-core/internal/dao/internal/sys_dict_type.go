@@ -25,6 +25,7 @@ type SysDictTypeColumns struct {
 	Name      string // Dictionary name
 	Type      string // Dictionary type
 	Status    string // Status: 0=disabled, 1=enabled
+	IsBuiltin string // Built-in record flag: 1=yes, 0=no
 	Remark    string // Remark
 	CreatedAt string // Creation time
 	UpdatedAt string // Update time
@@ -37,6 +38,7 @@ var sysDictTypeColumns = SysDictTypeColumns{
 	Name:      "name",
 	Type:      "type",
 	Status:    "status",
+	IsBuiltin: "is_builtin",
 	Remark:    "remark",
 	CreatedAt: "created_at",
 	UpdatedAt: "updated_at",

@@ -22,11 +22,23 @@ var (
 		"Dictionary type does not exist",
 		gcode.CodeNotFound,
 	)
+	// CodeDictTypeBuiltinDeleteDenied reports that a built-in dictionary type cannot be deleted.
+	CodeDictTypeBuiltinDeleteDenied = bizerr.MustDefine(
+		"DICT_TYPE_BUILTIN_DELETE_DENIED",
+		"Built-in dictionary types cannot be deleted",
+		gcode.CodeNotAuthorized,
+	)
 	// CodeDictDataNotFound reports that the requested dictionary data entry does not exist.
 	CodeDictDataNotFound = bizerr.MustDefine(
 		"DICT_DATA_NOT_FOUND",
 		"Dictionary data does not exist",
 		gcode.CodeNotFound,
+	)
+	// CodeDictDataBuiltinDeleteDenied reports that built-in dictionary data cannot be deleted.
+	CodeDictDataBuiltinDeleteDenied = bizerr.MustDefine(
+		"DICT_DATA_BUILTIN_DELETE_DENIED",
+		"Built-in dictionary data cannot be deleted",
+		gcode.CodeNotAuthorized,
 	)
 	// CodeDictImportExcelParseFailed reports that an uploaded dictionary workbook cannot be parsed.
 	CodeDictImportExcelParseFailed = bizerr.MustDefine(

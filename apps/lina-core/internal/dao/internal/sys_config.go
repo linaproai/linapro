@@ -25,6 +25,7 @@ type SysConfigColumns struct {
 	Name      string // Config parameter name
 	Key       string // Config parameter key
 	Value     string // Config parameter value
+	IsBuiltin string // Built-in record flag: 1=yes, 0=no
 	Remark    string // Remark
 	CreatedAt string // Creation time
 	UpdatedAt string // Modification time
@@ -37,6 +38,7 @@ var sysConfigColumns = SysConfigColumns{
 	Name:      "name",
 	Key:       "key",
 	Value:     "value",
+	IsBuiltin: "is_builtin",
 	Remark:    "remark",
 	CreatedAt: "created_at",
 	UpdatedAt: "updated_at",
