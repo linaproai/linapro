@@ -24,25 +24,34 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+	rootCtx := ctx
+	syncCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	syncCtx, err = s.integrationSvc.WithStartupDataSnapshot(syncCtx)
+	if err != nil {
+		return nil, err
+	}
 
 	covered := make(map[string]struct{}, len(manifests))
 	items := make([]*PluginItem, 0, len(manifests))
 	for _, manifest := range manifests {
 		covered[manifest.ID] = struct{}{}
-		registry, syncErr := s.catalogSvc.SyncManifest(ctx, manifest)
+		registry, syncErr := s.catalogSvc.SyncManifest(syncCtx, manifest)
 		if syncErr != nil {
 			return nil, syncErr
 		}
-		items = append(items, s.runtimeSvc.BuildPluginItem(ctx, manifest, registry))
+		items = append(items, s.runtimeSvc.BuildPluginItem(syncCtx, manifest, registry))
 	}
 
-	runtimeItems, err := s.runtimeSvc.BuildRuntimeItems(ctx, covered)
+	runtimeItems, err := s.runtimeSvc.BuildRuntimeItems(rootCtx, covered)
 	if err != nil {
 		return nil, err
 	}
 	items = append(items, runtimeItems...)
 	runtime.SortPluginItems(items)
-	if err = s.integrationSvc.RefreshEnabledSnapshot(ctx); err != nil {
+	if err = s.integrationSvc.RefreshEnabledSnapshot(rootCtx); err != nil {
 		return nil, err
 	}
 	return &ListOutput{List: items, Total: len(items)}, nil
@@ -83,7 +92,11 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	registries, err := s.catalogSvc.ListAllRegistries(ctx)
+	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	registries, err := s.catalogSvc.ListAllRegistries(readCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,12 +109,12 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 			continue
 		}
 		covered[manifest.ID] = struct{}{}
-		if item := s.runtimeSvc.BuildPluginItem(ctx, manifest, registryByPluginID[manifest.ID]); item != nil {
+		if item := s.runtimeSvc.BuildPluginItem(readCtx, manifest, registryByPluginID[manifest.ID]); item != nil {
 			items = append(items, item)
 		}
 	}
 
-	runtimeItems, err := s.runtimeSvc.BuildRuntimeItemsReadOnly(ctx, covered)
+	runtimeItems, err := s.runtimeSvc.BuildRuntimeItemsReadOnly(readCtx, covered)
 	if err != nil {
 		return nil, err
 	}
@@ -125,23 +138,20 @@ func buildRegistryByPluginID(registries []*entity.SysPlugin) map[string]*entity.
 // ListEnabledPluginIDs returns the IDs of plugins that are currently
 // installed and enabled.
 func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
-	statusEnabled := catalog.StatusEnabled
-	installedYes := catalog.InstalledYes
-
-	out, err := s.List(ctx, ListInput{
-		Status:    &statusEnabled,
-		Installed: &installedYes,
-	})
+	registries, err := s.catalogSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	pluginIDs := make([]string, 0, len(out.List))
-	for _, item := range out.List {
-		if item == nil || strings.TrimSpace(item.Id) == "" {
+	pluginIDs := make([]string, 0, len(registries))
+	for _, registry := range registries {
+		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
 			continue
 		}
-		pluginIDs = append(pluginIDs, strings.TrimSpace(item.Id))
+		if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+			continue
+		}
+		pluginIDs = append(pluginIDs, strings.TrimSpace(registry.PluginId))
 	}
 	return pluginIDs, nil
 }

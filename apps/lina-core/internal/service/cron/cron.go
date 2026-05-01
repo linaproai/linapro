@@ -8,6 +8,7 @@ import (
 
 	"github.com/gogf/gf/v2/os/gcron"
 
+	"lina-core/internal/model/entity"
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
@@ -37,8 +38,9 @@ type Service interface {
 
 // builtinJobSyncer syncs code-owned scheduled-job definitions into sys_job.
 type builtinJobSyncer interface {
-	// SyncBuiltinJobs upserts code-owned scheduled-job definitions into sys_job.
-	ReconcileBuiltinJobs(ctx context.Context, jobs []jobmgmtsvc.BuiltinJobDef) error
+	// ReconcileBuiltinJobs refreshes code-owned scheduled-job projections and
+	// returns declaration-derived snapshots keyed with sys_job IDs.
+	ReconcileBuiltinJobs(ctx context.Context, jobs []jobmgmtsvc.BuiltinJobDef) ([]*entity.SysJob, error)
 }
 
 // startupJob abstracts warm-up and watcher registration logic selected during

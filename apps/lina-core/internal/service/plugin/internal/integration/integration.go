@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -157,6 +156,9 @@ type MenuFilterService interface {
 
 // DependencyWiringService defines provider wiring operations required by integration runtime.
 type DependencyWiringService interface {
+	// WithStartupDataSnapshot returns a child context carrying full-table
+	// snapshots for small plugin integration tables during startup reconciliation.
+	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
 	// SetBizCtxProvider wires the business-context provider used by route handlers.
 	SetBizCtxProvider(p BizCtxProvider)
 	// SetTopologyProvider wires the cluster-topology provider used by plugin integrations.
@@ -375,10 +377,7 @@ func (s *serviceImpl) buildEnabledPluginMap(
 		return enabledByID, nil
 	}
 
-	var registries []*entity.SysPlugin
-	err := dao.SysPlugin.Ctx(ctx).
-		WhereIn(dao.SysPlugin.Columns().PluginId, pluginIDs).
-		Scan(&registries)
+	registries, err := s.catalogSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -388,6 +387,9 @@ func (s *serviceImpl) buildEnabledPluginMap(
 			continue
 		}
 		pluginID := strings.TrimSpace(registry.PluginId)
+		if _, ok := enabledByID[pluginID]; !ok {
+			continue
+		}
 		enabledByID[pluginID] = registry.Installed == catalog.InstalledYes &&
 			registry.Status == catalog.StatusEnabled
 	}

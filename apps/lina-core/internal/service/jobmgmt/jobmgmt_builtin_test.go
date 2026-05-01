@@ -90,7 +90,7 @@ func TestSyncBuiltinJobsReusesBuiltinRowByGroupAndName(t *testing.T) {
 	defer cleanupJobHard(t, ctx, jobID)
 
 	def.HandlerRef = "plugin:monitor-server/cron:" + def.Name
-	if err := svc.SyncBuiltinJobs(ctx, []BuiltinJobDef{def}); err != nil {
+	if _, err := svc.SyncBuiltinJobs(ctx, []BuiltinJobDef{def}); err != nil {
 		t.Fatalf("expected builtin job rename sync to succeed, got error: %v", err)
 	}
 
@@ -174,7 +174,7 @@ func TestSyncBuiltinJobsPrunesRemovedBuiltins(t *testing.T) {
 		Status:         jobmeta.JobStatusEnabled,
 	}
 	desired := append(existingDefs, current)
-	if err := svc.ReconcileBuiltinJobs(ctx, desired); err != nil {
+	if _, err := svc.ReconcileBuiltinJobs(ctx, desired); err != nil {
 		t.Fatalf("expected builtin job reconciliation to succeed, got error: %v", err)
 	}
 

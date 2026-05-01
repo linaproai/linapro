@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"lina-core/internal/model/entity"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
@@ -20,7 +21,7 @@ import (
 const defaultManagedJobTimeout = 5 * time.Minute
 
 // syncBuiltinScheduledJobs ensures code-owned host and plugin jobs are synced
-// into sys_job before the persistent scheduler loads enabled rows.
+// into sys_job and registered from their declaration-derived snapshots.
 func (s *serviceImpl) syncBuiltinScheduledJobs(ctx context.Context) error {
 	if s == nil || s.builtinSyncer == nil {
 		return nil
@@ -35,7 +36,29 @@ func (s *serviceImpl) syncBuiltinScheduledJobs(ctx context.Context) error {
 		return err
 	}
 	jobs = append(jobs, pluginJobs...)
-	return s.builtinSyncer.ReconcileBuiltinJobs(ctx, jobs)
+	projections, err := s.builtinSyncer.ReconcileBuiltinJobs(ctx, jobs)
+	if err != nil {
+		return err
+	}
+	return s.registerBuiltinJobSnapshots(ctx, projections)
+}
+
+// registerBuiltinJobSnapshots refreshes gcron entries using the just-built
+// declaration snapshots rather than reloading built-in execution definitions
+// through the persistent sys_job startup scan.
+func (s *serviceImpl) registerBuiltinJobSnapshots(ctx context.Context, jobs []*entity.SysJob) error {
+	if s == nil || s.persistentScheduler == nil {
+		return nil
+	}
+	for _, job := range jobs {
+		if job == nil || job.Id == 0 {
+			continue
+		}
+		if err := s.persistentScheduler.RegisterJobSnapshot(ctx, job); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ensureManagedHandlersRegistered registers host-owned handlers exactly once so

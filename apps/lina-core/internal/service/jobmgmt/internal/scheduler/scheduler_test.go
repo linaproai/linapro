@@ -287,6 +287,98 @@ func TestRefreshRegistersAndRemoveUnregistersJob(t *testing.T) {
 	}
 }
 
+// TestRegisterJobSnapshotReplacesExistingEntry verifies declaration-driven
+// registration is idempotent through an explicit remove-then-register path.
+func TestRegisterJobSnapshotReplacesExistingEntry(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		registry = newRegistryWithHandler(t, "host:scheduler-replace", func(ctx context.Context, params json.RawMessage) (any, error) {
+			return nil, nil
+		})
+		svc   = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
+		jobID = insertTestJob(t, ctx, "host:scheduler-replace", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+	)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
+
+	job := &entity.SysJob{
+		Id:             jobID,
+		TaskType:       string(jobmeta.TaskTypeHandler),
+		HandlerRef:     "host:scheduler-replace",
+		Params:         `{}`,
+		TimeoutSeconds: 30,
+		CronExpr:       "* * * * *",
+		Timezone:       "Asia/Shanghai",
+		Scope:          string(jobmeta.JobScopeMasterOnly),
+		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		MaxConcurrency: 1,
+		MaxExecutions:  0,
+		Status:         string(jobmeta.JobStatusEnabled),
+	}
+
+	if err := svc.RegisterJobSnapshot(ctx, job); err != nil {
+		t.Fatalf("expected first snapshot registration to succeed, got error: %v", err)
+	}
+	if err := svc.RegisterJobSnapshot(ctx, job); err != nil {
+		t.Fatalf("expected repeated snapshot registration to replace existing entry, got error: %v", err)
+	}
+	if entry := gcron.Search(jobEntryName(jobID)); entry == nil {
+		t.Fatal("expected gcron entry to exist after repeated registration")
+	}
+}
+
+// TestLoadAndRegisterSkipsBuiltinJobs verifies persistent startup loading only
+// registers user-defined jobs and leaves built-in projections to the cron
+// declaration synchronization path.
+func TestLoadAndRegisterSkipsBuiltinJobs(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		registry = newRegistryWithHandler(t, "host:scheduler-load-custom", func(ctx context.Context, params json.RawMessage) (any, error) {
+			return nil, nil
+		})
+		svc = New(fakeClusterService{primary: true}, registry, fakeShellExecutor{
+			execute: func(ctx context.Context, in shellexec.ExecuteInput) (*shellexec.ExecuteOutput, error) {
+				return &shellexec.ExecuteOutput{}, nil
+			},
+		}).(*serviceImpl)
+		customJobID  = insertTestJob(t, ctx, "host:scheduler-load-custom", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
+		builtinJobID uint64
+	)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, customJobID) })
+	registerEnabledHostHandlersAsNoop(t, ctx, registry)
+
+	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
+		GroupId:        testDefaultGroupID(t, ctx),
+		Name:           fmt.Sprintf("scheduler-load-builtin-%d", time.Now().UnixNano()),
+		TaskType:       string(jobmeta.TaskTypeHandler),
+		HandlerRef:     "host:scheduler-load-custom",
+		Params:         `{}`,
+		TimeoutSeconds: 30,
+		CronExpr:       "* * * * *",
+		Timezone:       "Asia/Shanghai",
+		Scope:          string(jobmeta.JobScopeMasterOnly),
+		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		MaxConcurrency: 1,
+		MaxExecutions:  0,
+		Status:         string(jobmeta.JobStatusEnabled),
+		IsBuiltin:      1,
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("expected builtin projection insert to succeed, got error: %v", err)
+	}
+	builtinJobID = uint64(insertID)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, builtinJobID) })
+
+	if err = svc.LoadAndRegister(ctx); err != nil {
+		t.Fatalf("expected startup load to register custom jobs only, got error: %v", err)
+	}
+	if entry := gcron.Search(jobEntryName(customJobID)); entry == nil {
+		t.Fatal("expected custom job to be registered by startup load")
+	}
+	if entry := gcron.Search(jobEntryName(builtinJobID)); entry != nil {
+		t.Fatalf("expected builtin projection to be skipped by startup load, got %#v", entry)
+	}
+}
+
 // TestRunCronJobSkipsOnNonPrimaryNode verifies master-only jobs emit skipped_not_primary logs on follower nodes.
 func TestRunCronJobSkipsOnNonPrimaryNode(t *testing.T) {
 	var (
@@ -306,9 +398,10 @@ func TestRunCronJobSkipsOnNonPrimaryNode(t *testing.T) {
 	})
 }
 
-// TestLoadAndRegisterPausesMissingPluginHandlerJobs verifies startup loading
-// downgrades enabled plugin cron jobs when their handler is unavailable.
-func TestLoadAndRegisterPausesMissingPluginHandlerJobs(t *testing.T) {
+// TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs verifies startup
+// loading downgrades enabled user-defined plugin cron jobs when their handler
+// is unavailable while leaving built-in projections to plugin lifecycle sync.
+func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	var (
 		ctx      = context.Background()
 		registry = jobhandler.New()
@@ -338,6 +431,7 @@ func TestLoadAndRegisterPausesMissingPluginHandlerJobs(t *testing.T) {
 		MaxConcurrency: 1,
 		MaxExecutions:  0,
 		Status:         string(jobmeta.JobStatusEnabled),
+		IsBuiltin:      0,
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("expected missing plugin handler job insert to succeed, got error: %v", err)
@@ -364,6 +458,45 @@ func TestLoadAndRegisterPausesMissingPluginHandlerJobs(t *testing.T) {
 	}
 	if entry := gcron.Search(jobEntryName(jobID)); entry != nil {
 		t.Fatalf("expected missing plugin handler job not to register into gcron, got %#v", entry)
+	}
+
+	insertID, err = dao.SysJob.Ctx(ctx).Data(do.SysJob{
+		GroupId:        testDefaultGroupID(t, ctx),
+		Name:           fmt.Sprintf("scheduler-missing-builtin-plugin-%d", time.Now().UnixNano()),
+		TaskType:       string(jobmeta.TaskTypeHandler),
+		HandlerRef:     "plugin:test-missing/cron:built-in",
+		Params:         `{}`,
+		TimeoutSeconds: 30,
+		CronExpr:       "* * * * *",
+		Timezone:       "Asia/Shanghai",
+		Scope:          string(jobmeta.JobScopeMasterOnly),
+		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		MaxConcurrency: 1,
+		MaxExecutions:  0,
+		Status:         string(jobmeta.JobStatusEnabled),
+		IsBuiltin:      1,
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("expected missing builtin plugin job insert to succeed, got error: %v", err)
+	}
+	builtinJobID := uint64(insertID)
+	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, builtinJobID) })
+
+	if err = svc.LoadAndRegister(ctx); err != nil {
+		t.Fatalf("expected second startup load to skip builtin plugin job, got error: %v", err)
+	}
+	var builtinRow *entity.SysJob
+	if err = dao.SysJob.Ctx(ctx).Where(do.SysJob{Id: builtinJobID}).Scan(&builtinRow); err != nil {
+		t.Fatalf("expected builtin plugin job query to succeed, got error: %v", err)
+	}
+	if builtinRow == nil {
+		t.Fatal("expected builtin plugin job to remain present")
+	}
+	if got := jobmeta.NormalizeJobStatus(builtinRow.Status); got != jobmeta.JobStatusEnabled {
+		t.Fatalf("expected persistent load to leave builtin plugin job status unchanged, got %s", got)
+	}
+	if entry := gcron.Search(jobEntryName(builtinJobID)); entry != nil {
+		t.Fatalf("expected builtin plugin job not to register through persistent load, got %#v", entry)
 	}
 }
 

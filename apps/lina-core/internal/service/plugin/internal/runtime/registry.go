@@ -63,13 +63,16 @@ type PluginItem struct {
 
 // listRuntimeRegistries returns all dynamic-type plugin registry rows.
 func (s *serviceImpl) listRuntimeRegistries(ctx context.Context) ([]*entity.SysPlugin, error) {
-	var list []*entity.SysPlugin
-	err := dao.SysPlugin.Ctx(ctx).
-		Where(do.SysPlugin{Type: catalog.TypeDynamic.String()}).
-		OrderAsc(dao.SysPlugin.Columns().PluginId).
-		Scan(&list)
+	registries, err := s.catalogSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err
+	}
+	list := make([]*entity.SysPlugin, 0)
+	for _, registry := range registries {
+		if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+			continue
+		}
+		list = append(list, registry)
 	}
 	return list, nil
 }

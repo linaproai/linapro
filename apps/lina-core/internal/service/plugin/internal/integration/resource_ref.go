@@ -102,6 +102,9 @@ func (s *serviceImpl) SyncPluginResourceReferences(ctx context.Context, manifest
 				OwnerKey:  descriptor.OwnerKey,
 				Remark:    descriptor.Remark,
 			}
+			if existing.DeletedAt == nil && pluginResourceRefMatches(existing, data) {
+				continue
+			}
 			_, err = dao.SysPluginResourceRef.Ctx(ctx).
 				Unscoped().
 				Where(do.SysPluginResourceRef{Id: existing.Id}).
@@ -119,13 +122,16 @@ func (s *serviceImpl) SyncPluginResourceReferences(ctx context.Context, manifest
 					return err
 				}
 			}
+			if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+				snapshot.storeResourceRef(buildPluginResourceRefEntity(existing.Id, manifest.ID, release.Id, descriptor, data))
+			}
 			continue
 		}
 
 		// Persist stable governance resource identities that describe what the host
 		// discovered, not where each file lives inside a framework-specific
 		// directory tree.
-		_, err = dao.SysPluginResourceRef.Ctx(ctx).Data(do.SysPluginResourceRef{
+		data := do.SysPluginResourceRef{
 			PluginId:     manifest.ID,
 			ReleaseId:    release.Id,
 			ResourceType: descriptor.Kind.String(),
@@ -134,9 +140,13 @@ func (s *serviceImpl) SyncPluginResourceReferences(ctx context.Context, manifest
 			OwnerType:    descriptor.OwnerType.String(),
 			OwnerKey:     descriptor.OwnerKey,
 			Remark:       descriptor.Remark,
-		}).Insert()
+		}
+		insertID, err := dao.SysPluginResourceRef.Ctx(ctx).Data(data).InsertAndGetId()
 		if err != nil {
 			return err
+		}
+		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+			snapshot.storeResourceRef(buildPluginResourceRefEntity(int(insertID), manifest.ID, release.Id, descriptor, data))
 		}
 	}
 
@@ -154,6 +164,9 @@ func (s *serviceImpl) SyncPluginResourceReferences(ctx context.Context, manifest
 			Delete(); err != nil {
 			return err
 		}
+		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+			snapshot.deleteResourceRef(item.Id)
+		}
 	}
 
 	return nil
@@ -162,6 +175,10 @@ func (s *serviceImpl) SyncPluginResourceReferences(ctx context.Context, manifest
 // listPluginResourceRefs returns all governance index rows for one plugin
 // release, including soft-deleted rows.
 func (s *serviceImpl) listPluginResourceRefs(ctx context.Context, pluginID string, releaseID int) ([]*entity.SysPluginResourceRef, error) {
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.resourceRefs(pluginID, releaseID), nil
+	}
+
 	items := make([]*entity.SysPluginResourceRef, 0)
 	err := dao.SysPluginResourceRef.Ctx(ctx).
 		Unscoped().
@@ -171,6 +188,42 @@ func (s *serviceImpl) listPluginResourceRefs(ctx context.Context, pluginID strin
 		}).
 		Scan(&items)
 	return items, err
+}
+
+// buildPluginResourceRefEntity creates the startup snapshot projection for one
+// resource-reference row after an insert or update.
+func buildPluginResourceRefEntity(
+	refID int,
+	pluginID string,
+	releaseID int,
+	descriptor *catalog.ResourceRefDescriptor,
+	data do.SysPluginResourceRef,
+) *entity.SysPluginResourceRef {
+	if descriptor == nil {
+		return nil
+	}
+	return &entity.SysPluginResourceRef{
+		Id:           refID,
+		PluginId:     strings.TrimSpace(pluginID),
+		ReleaseId:    releaseID,
+		ResourceType: descriptor.Kind.String(),
+		ResourceKey:  descriptor.Key,
+		ResourcePath: "",
+		OwnerType:    strings.TrimSpace(fmt.Sprint(data.OwnerType)),
+		OwnerKey:     strings.TrimSpace(fmt.Sprint(data.OwnerKey)),
+		Remark:       strings.TrimSpace(fmt.Sprint(data.Remark)),
+	}
+}
+
+// pluginResourceRefMatches reports whether a persisted governance resource row
+// already contains the desired mutable projection fields.
+func pluginResourceRefMatches(existing *entity.SysPluginResourceRef, data do.SysPluginResourceRef) bool {
+	if existing == nil {
+		return false
+	}
+	return existing.OwnerType == strings.TrimSpace(fmt.Sprint(data.OwnerType)) &&
+		existing.OwnerKey == strings.TrimSpace(fmt.Sprint(data.OwnerKey)) &&
+		existing.Remark == strings.TrimSpace(fmt.Sprint(data.Remark))
 }
 
 // buildPluginResourceRefDescriptors converts concrete discovery results into

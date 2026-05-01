@@ -188,6 +188,9 @@ type FrontendAssetCatalog interface {
 // Registry covers sys_plugin registry row reads and the lifecycle-state writes
 // that orchestrate post-install/post-enable governance projection.
 type Registry interface {
+	// WithStartupDataSnapshot returns a child context carrying full-table
+	// snapshots for small plugin catalog tables during startup reconciliation.
+	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
 	// GetRegistry returns the sys_plugin row for the given plugin ID, or nil if not found.
 	GetRegistry(ctx context.Context, pluginID string) (*entity.SysPlugin, error)
 	// ListAllRegistries returns all sys_plugin rows ordered by plugin_id.

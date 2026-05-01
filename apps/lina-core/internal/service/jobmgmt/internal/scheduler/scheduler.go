@@ -30,6 +30,9 @@ type Scheduler interface {
 	LoadAndRegister(ctx context.Context) error
 	// Refresh removes and re-registers one job according to its latest persisted state.
 	Refresh(ctx context.Context, jobID uint64) error
+	// RegisterJobSnapshot removes and registers one provided job snapshot without
+	// reloading it from sys_job.
+	RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error
 	// Remove unregisters one persistent job from gcron.
 	Remove(jobID uint64)
 	// Trigger starts one manual execution and returns the created log ID.
@@ -81,7 +84,7 @@ func (s *serviceImpl) LoadAndRegister(ctx context.Context) error {
 		return err
 	}
 	for _, job := range jobs {
-		if err = s.registerJob(job); err != nil {
+		if err = s.registerJob(ctx, job); err != nil {
 			if handled, handleErr := s.handleLoadRegisterError(ctx, job, err); handleErr != nil {
 				return handleErr
 			} else if handled {
@@ -104,7 +107,24 @@ func (s *serviceImpl) Refresh(ctx context.Context, jobID uint64) error {
 	if job == nil || jobmeta.NormalizeJobStatus(job.Status) != jobmeta.JobStatusEnabled {
 		return nil
 	}
-	return s.registerJob(job)
+	return s.registerJob(ctx, job)
+}
+
+// RegisterJobSnapshot removes and registers one provided job snapshot without
+// reloading it from sys_job. Code-owned built-ins use this path after their
+// declaration snapshot has been projected into sys_job for display and logs.
+func (s *serviceImpl) RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error {
+	if job == nil || job.Id == 0 {
+		return nil
+	}
+	// Refresh the gcron entry from the declaration snapshot, not from sys_job.
+	// This removes only the in-memory scheduler entry so changed cron metadata
+	// takes effect and paused built-ins cannot keep running from a stale entry.
+	s.Remove(job.Id)
+	if jobmeta.NormalizeJobStatus(job.Status) != jobmeta.JobStatusEnabled {
+		return nil
+	}
+	return s.registerJob(ctx, job)
 }
 
 // Remove unregisters one persistent job from gcron.
@@ -160,11 +180,11 @@ func normalizeGcronPattern(expr string) (string, error) {
 }
 
 // registerJob validates and registers one persistent job with gcron.
-func (s *serviceImpl) registerJob(job *entity.SysJob) error {
+func (s *serviceImpl) registerJob(ctx context.Context, job *entity.SysJob) error {
 	if job == nil {
 		return nil
 	}
-	if err := s.validateExecutableJob(context.Background(), job); err != nil {
+	if err := s.validateExecutableJob(ctx, job); err != nil {
 		return err
 	}
 	pattern, err := normalizeGcronPattern(job.CronExpr)
@@ -185,6 +205,9 @@ func (s *serviceImpl) handleLoadRegisterError(
 	registerErr error,
 ) (bool, error) {
 	if job == nil || registerErr == nil {
+		return false, nil
+	}
+	if job.IsBuiltin == 1 {
 		return false, nil
 	}
 	if jobmeta.NormalizeTaskType(job.TaskType) != jobmeta.TaskTypeHandler {
@@ -217,7 +240,10 @@ func (s *serviceImpl) handleLoadRegisterError(
 func (s *serviceImpl) listEnabledJobs(ctx context.Context) ([]*entity.SysJob, error) {
 	var jobs []*entity.SysJob
 	err := dao.SysJob.Ctx(ctx).
-		Where(do.SysJob{Status: string(jobmeta.JobStatusEnabled)}).
+		Where(do.SysJob{
+			IsBuiltin: 0,
+			Status:    string(jobmeta.JobStatusEnabled),
+		}).
 		Scan(&jobs)
 	return jobs, err
 }

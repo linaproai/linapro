@@ -28,6 +28,9 @@ func (noopScheduler) LoadAndRegister(ctx context.Context) error { return nil }
 // Refresh is a no-op for validation-focused unit tests.
 func (noopScheduler) Refresh(ctx context.Context, jobID uint64) error { return nil }
 
+// RegisterJobSnapshot is a no-op for validation-focused unit tests.
+func (noopScheduler) RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error { return nil }
+
 // Remove is a no-op for validation-focused unit tests.
 func (noopScheduler) Remove(jobID uint64) {}
 
@@ -53,6 +56,14 @@ func (s *trackingScheduler) Refresh(ctx context.Context, jobID uint64) error {
 	defer s.mu.Unlock()
 	s.refreshed = append(s.refreshed, jobID)
 	return nil
+}
+
+// RegisterJobSnapshot records refreshed job IDs for declaration-driven tests.
+func (s *trackingScheduler) RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error {
+	if job == nil {
+		return nil
+	}
+	return s.Refresh(ctx, job.Id)
 }
 
 // Remove records removed job IDs.
@@ -172,13 +183,18 @@ func decodeJobParams(raw string) map[string]any {
 		return map[string]any{}
 	}
 	var result map[string]any
-	_ = json.Unmarshal([]byte(raw), &result)
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		panic(fmt.Sprintf("invalid persisted job params JSON: %v", err))
+	}
 	return result
 }
 
 // retentionOverrideFromJob converts one persisted override JSON string to a typed option for tests.
 func retentionOverrideFromJob(raw string) *jobmeta.RetentionOption {
-	option, _ := jobmeta.ParseRetentionOption(raw)
+	option, err := jobmeta.ParseRetentionOption(raw)
+	if err != nil {
+		panic(fmt.Sprintf("invalid persisted job retention override JSON: %v", err))
+	}
 	return option
 }
 
@@ -195,7 +211,7 @@ func syncBuiltinHandlerJob(
 	if svc == nil {
 		t.Fatal("expected service to be initialized")
 	}
-	if err := svc.SyncBuiltinJobs(ctx, []BuiltinJobDef{def}); err != nil {
+	if _, err := svc.SyncBuiltinJobs(ctx, []BuiltinJobDef{def}); err != nil {
 		t.Fatalf("expected builtin job sync to succeed, got error: %v", err)
 	}
 

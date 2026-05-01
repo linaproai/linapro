@@ -67,7 +67,7 @@ func (o *pluginLifecycleObserver) OnPluginInstalled(ctx context.Context, pluginI
 
 // OnPluginEnabled registers all scheduled-job handlers declared by one enabled plugin.
 func (o *pluginLifecycleObserver) OnPluginEnabled(ctx context.Context, pluginID string) error {
-	return o.registerPluginHandlers(strings.TrimSpace(pluginID))
+	return o.registerPluginHandlers(ctx, strings.TrimSpace(pluginID))
 }
 
 // OnPluginDisabled unregisters all scheduled-job handlers declared by one disabled plugin.
@@ -96,10 +96,7 @@ func (o *pluginLifecycleObserver) syncEnabledPlugins(
 		return err
 	}
 	for _, pluginID := range pluginIDs {
-		if !bridge.IsEnabled(ctx, pluginID) {
-			continue
-		}
-		if err := o.registerPluginHandlers(strings.TrimSpace(pluginID)); err != nil {
+		if err := o.registerPluginHandlers(ctx, strings.TrimSpace(pluginID)); err != nil {
 			return err
 		}
 	}
@@ -108,7 +105,7 @@ func (o *pluginLifecycleObserver) syncEnabledPlugins(
 
 // registerPluginHandlers publishes all projected builtin cron handlers declared
 // by one enabled plugin.
-func (o *pluginLifecycleObserver) registerPluginHandlers(pluginID string) error {
+func (o *pluginLifecycleObserver) registerPluginHandlers(ctx context.Context, pluginID string) error {
 	if o == nil || o.registry == nil || pluginID == "" {
 		return nil
 	}
@@ -122,7 +119,7 @@ func (o *pluginLifecycleObserver) registerPluginHandlers(pluginID string) error 
 		return nil
 	}
 
-	managedJobs, err := o.bridge.ListManagedCronJobsByPlugin(context.Background(), pluginID)
+	managedJobs, err := o.bridge.ListManagedCronJobsByPlugin(ctx, pluginID)
 	if err != nil {
 		for _, registeredRef := range registeredRefs {
 			o.registry.Unregister(registeredRef)

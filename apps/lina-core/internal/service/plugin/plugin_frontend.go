@@ -6,7 +6,11 @@ import "context"
 
 // PrewarmRuntimeFrontendBundles preloads frontend bundles for enabled dynamic plugins.
 func (s *serviceImpl) PrewarmRuntimeFrontendBundles(ctx context.Context) error {
-	return s.frontendSvc.PrewarmRuntimeFrontendBundles(ctx)
+	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	return s.frontendSvc.PrewarmRuntimeFrontendBundles(readCtx)
 }
 
 // ResolveRuntimeFrontendAsset resolves one frontend asset for a dynamic plugin.

@@ -30,7 +30,9 @@ func (s *serviceImpl) syncHandlerAvailability(
 	return s.pauseJobsForHandler(ctx, trimmedRef)
 }
 
-// pauseJobsForHandler marks enabled handler jobs as paused when their handler disappears.
+// pauseJobsForHandler marks enabled user-defined handler jobs as paused when
+// their handler disappears. Built-in plugin jobs are projected and scheduled by
+// the plugin lifecycle synchronization path.
 func (s *serviceImpl) pauseJobsForHandler(ctx context.Context, ref string) error {
 	jobIDs, err := s.matchingJobIDs(ctx, ref, jobmeta.JobStatusEnabled, "")
 	if err != nil {
@@ -42,8 +44,9 @@ func (s *serviceImpl) pauseJobsForHandler(ctx context.Context, ref string) error
 
 	_, err = dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
-			TaskType: string(jobmeta.TaskTypeHandler),
-			Status:   string(jobmeta.JobStatusEnabled),
+			IsBuiltin: 0,
+			TaskType:  string(jobmeta.TaskTypeHandler),
+			Status:    string(jobmeta.JobStatusEnabled),
 		}).
 		Where(dao.SysJob.Columns().HandlerRef, ref).
 		Data(do.SysJob{
@@ -63,7 +66,9 @@ func (s *serviceImpl) pauseJobsForHandler(ctx context.Context, ref string) error
 	return nil
 }
 
-// resumeJobsForHandler restores previously paused handler jobs when the handler returns.
+// resumeJobsForHandler restores previously paused user-defined handler jobs
+// when the handler returns. Built-in plugin jobs are restored by declaration
+// synchronization so registry callbacks do not register them from sys_job.
 func (s *serviceImpl) resumeJobsForHandler(ctx context.Context, ref string) error {
 	jobIDs, err := s.matchingJobIDs(
 		ctx,
@@ -80,6 +85,7 @@ func (s *serviceImpl) resumeJobsForHandler(ctx context.Context, ref string) erro
 
 	_, err = dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
+			IsBuiltin:  0,
 			TaskType:   string(jobmeta.TaskTypeHandler),
 			Status:     string(jobmeta.JobStatusPausedByPlugin),
 			StopReason: string(jobmeta.StopReasonPluginUnavailable),
@@ -117,8 +123,9 @@ func (s *serviceImpl) matchingJobIDs(
 
 	model := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{
-			TaskType: string(jobmeta.TaskTypeHandler),
-			Status:   string(status),
+			IsBuiltin: 0,
+			TaskType:  string(jobmeta.TaskTypeHandler),
+			Status:    string(status),
 		}).
 		Where(dao.SysJob.Columns().HandlerRef, ref)
 	if strings.TrimSpace(stopReason) != "" {

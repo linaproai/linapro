@@ -14,7 +14,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
@@ -130,62 +129,62 @@ func pathJoinOpenAPIWorkspaceBundleDir(pluginID string) string {
 func listOpenAPIEnabledDynamicPluginReleases(ctx context.Context) ([]*entity.SysPluginRelease, error) {
 	var plugins []*entity.SysPlugin
 	if err := dao.SysPlugin.Ctx(ctx).
-		Where(do.SysPlugin{
-			Type:      openAPIDynamicPluginType,
-			Installed: openAPIDynamicPluginInstalledYes,
-			Status:    openAPIDynamicPluginStatusEnabled,
-		}).
 		OrderAsc(dao.SysPlugin.Columns().PluginId).
 		Scan(&plugins); err != nil {
 		return nil, err
 	}
+
+	var allReleases []*entity.SysPluginRelease
+	if err := dao.SysPluginRelease.Ctx(ctx).Scan(&allReleases); err != nil {
+		return nil, err
+	}
+	releasesByID, activeReleasesByPluginID := buildOpenAPIReleaseIndexes(allReleases)
 
 	releases := make([]*entity.SysPluginRelease, 0, len(plugins))
 	for _, plugin := range plugins {
 		if plugin == nil || strings.TrimSpace(plugin.PluginId) == "" {
 			continue
 		}
-		release, err := getOpenAPIEnabledDynamicPluginRelease(ctx, plugin)
-		if err != nil {
-			return nil, err
-		}
-		if release == nil || strings.TrimSpace(release.PackagePath) == "" {
+		if strings.TrimSpace(plugin.Type) != openAPIDynamicPluginType ||
+			plugin.Installed != openAPIDynamicPluginInstalledYes ||
+			plugin.Status != openAPIDynamicPluginStatusEnabled {
 			continue
 		}
-		releases = append(releases, release)
+		release := releasesByID[plugin.ReleaseId]
+		if release == nil || strings.TrimSpace(release.PackagePath) == "" {
+			release = activeReleasesByPluginID[strings.TrimSpace(plugin.PluginId)]
+		}
+		if release != nil && strings.TrimSpace(release.PackagePath) != "" {
+			releases = append(releases, release)
+		}
 	}
 	return releases, nil
 }
 
-// getOpenAPIEnabledDynamicPluginRelease resolves the active release row for one
-// enabled dynamic plugin.
-func getOpenAPIEnabledDynamicPluginRelease(ctx context.Context, plugin *entity.SysPlugin) (*entity.SysPluginRelease, error) {
-	if plugin == nil {
-		return nil, nil
-	}
-
-	var release *entity.SysPluginRelease
-	if plugin.ReleaseId > 0 {
-		if err := dao.SysPluginRelease.Ctx(ctx).
-			Where(do.SysPluginRelease{Id: plugin.ReleaseId}).
-			Scan(&release); err != nil {
-			return nil, err
+// buildOpenAPIReleaseIndexes prepares release lookup maps from one full-table
+// snapshot so apidoc startup loading does not issue one release query per plugin.
+func buildOpenAPIReleaseIndexes(
+	releases []*entity.SysPluginRelease,
+) (map[int]*entity.SysPluginRelease, map[string]*entity.SysPluginRelease) {
+	releasesByID := make(map[int]*entity.SysPluginRelease, len(releases))
+	activeReleasesByPluginID := make(map[string]*entity.SysPluginRelease)
+	for _, release := range releases {
+		if release == nil {
+			continue
 		}
-		if release != nil {
-			return release, nil
+		releasesByID[release.Id] = release
+		if strings.TrimSpace(release.Status) != openAPIDynamicPluginReleaseStatusActive {
+			continue
+		}
+		pluginID := strings.TrimSpace(release.PluginId)
+		if pluginID == "" {
+			continue
+		}
+		if existing := activeReleasesByPluginID[pluginID]; existing == nil || release.Id > existing.Id {
+			activeReleasesByPluginID[pluginID] = release
 		}
 	}
-
-	if err := dao.SysPluginRelease.Ctx(ctx).
-		Where(do.SysPluginRelease{
-			PluginId: strings.TrimSpace(plugin.PluginId),
-			Status:   openAPIDynamicPluginReleaseStatusActive,
-		}).
-		OrderDesc(dao.SysPluginRelease.Columns().Id).
-		Scan(&release); err != nil {
-		return nil, err
-	}
-	return release, nil
+	return releasesByID, activeReleasesByPluginID
 }
 
 // loadOpenAPIDynamicPluginBundle reads one active dynamic-plugin artifact and

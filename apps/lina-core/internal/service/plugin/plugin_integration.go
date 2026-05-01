@@ -42,7 +42,11 @@ func (s *serviceImpl) DispatchHookEvent(
 	event pluginhost.ExtensionPoint,
 	values map[string]interface{},
 ) error {
-	return s.integrationSvc.DispatchPluginHookEvent(ctx, event, values)
+	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+	return s.integrationSvc.DispatchPluginHookEvent(readCtx, event, values)
 }
 
 // FilterMenus filters disabled plugin menus from the given menu list.

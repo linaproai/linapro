@@ -90,3 +90,7 @@
 - [x] **FB-7**: Keep plugin install SQL seed-only and avoid cleanup DELETE statements in install scripts
 - [x] **FB-8**: Split middleware Service into HTTP middleware and non-middleware support interfaces
 - [x] **FB-9**: Harden dict E2E deletion targeting so tests cannot soft-delete built-in system dictionaries
+- [x] **FB-10**: Reduce redundant database reads and writes during lina-core startup reconciliation
+- [x] **FB-11**: Make persistent cron registration idempotent when startup handler restoration refreshes the same job
+- [x] **FB-12**: Load small plugin and menu governance tables as startup snapshots to avoid N+1 reconciliation queries
+- [x] **FB-13**: Load scheduled-job startup governance rows as snapshots to avoid built-in job reconciliation N+1 queries

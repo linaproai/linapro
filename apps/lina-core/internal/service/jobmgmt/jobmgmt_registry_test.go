@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
-	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -23,7 +22,6 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 		ctx       = context.Background()
 		registry  = jobhandler.New()
 		scheduler = &trackingScheduler{}
-		svc       = newTestServiceWithRegistry(t, registry, scheduler)
 		handler   = jobhandler.HandlerDef{
 			Ref:          "plugin:test-job-handler/cron:wait",
 			DisplayName:  "Plugin Test Wait Handler",
@@ -47,6 +45,7 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 			},
 		}
 	)
+	newTestServiceWithRegistry(t, registry, scheduler)
 
 	if err := registry.Register(handler); err != nil {
 		t.Fatalf("expected plugin handler registration to succeed, got error: %v", err)
@@ -55,38 +54,10 @@ func TestHandlerUnregisterPausesEnabledJobs(t *testing.T) {
 		t.Fatalf("expected disabled plugin handler registration to succeed, got error: %v", err)
 	}
 
-	enabledJobID := syncBuiltinHandlerJob(t, ctx, svc, BuiltinJobDef{
-		GroupCode:      "default",
-		Name:           uniqueTestName("plugin-enabled-job"),
-		Description:    "Enabled plugin builtin job.",
-		TaskType:       jobmeta.TaskTypeHandler,
-		HandlerRef:     handler.Ref,
-		Params:         map[string]any{},
-		Timeout:        5 * time.Minute,
-		Pattern:        "*/5 * * * *",
-		Timezone:       "Asia/Shanghai",
-		Scope:          jobmeta.JobScopeMasterOnly,
-		Concurrency:    jobmeta.JobConcurrencySingleton,
-		MaxConcurrency: 1,
-		Status:         jobmeta.JobStatusEnabled,
-	})
+	enabledJobID := insertRegistryHandlerJob(t, ctx, handler.Ref, jobmeta.JobStatusEnabled)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, enabledJobID) })
 
-	disabledJobID := syncBuiltinHandlerJob(t, ctx, svc, BuiltinJobDef{
-		GroupCode:      "default",
-		Name:           uniqueTestName("plugin-disabled-job"),
-		Description:    "Disabled plugin builtin job.",
-		TaskType:       jobmeta.TaskTypeHandler,
-		HandlerRef:     disabledHandler.Ref,
-		Params:         map[string]any{},
-		Timeout:        5 * time.Minute,
-		Pattern:        "*/5 * * * *",
-		Timezone:       "Asia/Shanghai",
-		Scope:          jobmeta.JobScopeMasterOnly,
-		Concurrency:    jobmeta.JobConcurrencySingleton,
-		MaxConcurrency: 1,
-		Status:         jobmeta.JobStatusDisabled,
-	})
+	disabledJobID := insertRegistryHandlerJob(t, ctx, disabledHandler.Ref, jobmeta.JobStatusDisabled)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, disabledJobID) })
 
 	scheduler.reset()
@@ -118,7 +89,6 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 		ctx       = context.Background()
 		registry  = jobhandler.New()
 		scheduler = &trackingScheduler{}
-		svc       = newTestServiceWithRegistry(t, registry, scheduler)
 		handler   = jobhandler.HandlerDef{
 			Ref:          "plugin:test-job-handler/cron:restore",
 			DisplayName:  "Plugin Restore Handler",
@@ -131,26 +101,13 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 			},
 		}
 	)
+	newTestServiceWithRegistry(t, registry, scheduler)
 
 	if err := registry.Register(handler); err != nil {
 		t.Fatalf("expected plugin handler registration to succeed, got error: %v", err)
 	}
 
-	jobID := syncBuiltinHandlerJob(t, ctx, svc, BuiltinJobDef{
-		GroupCode:      "default",
-		Name:           uniqueTestName("plugin-restorable-job"),
-		Description:    "Restorable plugin builtin job.",
-		TaskType:       jobmeta.TaskTypeHandler,
-		HandlerRef:     handler.Ref,
-		Params:         map[string]any{},
-		Timeout:        5 * time.Minute,
-		Pattern:        "*/5 * * * *",
-		Timezone:       "Asia/Shanghai",
-		Scope:          jobmeta.JobScopeMasterOnly,
-		Concurrency:    jobmeta.JobConcurrencySingleton,
-		MaxConcurrency: 1,
-		Status:         jobmeta.JobStatusEnabled,
-	})
+	jobID := insertRegistryHandlerJob(t, ctx, handler.Ref, jobmeta.JobStatusEnabled)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
 	registry.Unregister(handler.Ref)
@@ -186,4 +143,37 @@ func mustLoadJobRow(t *testing.T, ctx context.Context, jobID uint64) *entity.Sys
 		t.Fatalf("expected scheduled job %d to exist", jobID)
 	}
 	return jobRow
+}
+
+// insertRegistryHandlerJob stores one user-defined plugin handler job used by
+// registry availability cascade tests.
+func insertRegistryHandlerJob(
+	t *testing.T,
+	ctx context.Context,
+	handlerRef string,
+	status jobmeta.JobStatus,
+) uint64 {
+	t.Helper()
+
+	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
+		GroupId:        defaultGroupID(t, ctx),
+		Name:           uniqueTestName("plugin-handler-job"),
+		Description:    "Plugin handler cascade test job.",
+		TaskType:       string(jobmeta.TaskTypeHandler),
+		HandlerRef:     handlerRef,
+		Params:         `{}`,
+		TimeoutSeconds: 30,
+		CronExpr:       "*/5 * * * *",
+		Timezone:       "Asia/Shanghai",
+		Scope:          string(jobmeta.JobScopeMasterOnly),
+		Concurrency:    string(jobmeta.JobConcurrencySingleton),
+		MaxConcurrency: 1,
+		MaxExecutions:  0,
+		Status:         string(status),
+		IsBuiltin:      0,
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("expected registry cascade job insert to succeed, got error: %v", err)
+	}
+	return uint64(insertID)
 }

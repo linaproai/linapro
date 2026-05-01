@@ -309,6 +309,14 @@ func (s *serviceImpl) listSourceUpgradeCandidates(
 	if err != nil {
 		return nil, err
 	}
+	registryByPluginID := map[string]*entity.SysPlugin{}
+	if !synchronize {
+		registries, registryErr := s.catalogSvc.ListAllRegistries(ctx)
+		if registryErr != nil {
+			return nil, registryErr
+		}
+		registryByPluginID = buildRegistryByPluginID(registries)
+	}
 
 	items := make([]*sourceUpgradeCandidate, 0)
 	for _, manifest := range manifests {
@@ -323,10 +331,7 @@ func (s *serviceImpl) listSourceUpgradeCandidates(
 				return nil, err
 			}
 		} else {
-			registry, err = s.catalogSvc.GetRegistry(ctx, manifest.ID)
-			if err != nil {
-				return nil, err
-			}
+			registry = registryByPluginID[strings.TrimSpace(manifest.ID)]
 		}
 		status, err := buildSourceUpgradeStatus(manifest, registry)
 		if err != nil {
@@ -339,6 +344,19 @@ func (s *serviceImpl) listSourceUpgradeCandidates(
 		})
 	}
 	return items, nil
+}
+
+// buildRegistryByPluginID maps registry rows by stable plugin ID for
+// source-upgrade planning so startup validation does not read one row per plugin.
+func buildRegistryByPluginID(registries []*entity.SysPlugin) map[string]*entity.SysPlugin {
+	result := make(map[string]*entity.SysPlugin, len(registries))
+	for _, registry := range registries {
+		if registry == nil || strings.TrimSpace(registry.PluginId) == "" {
+			continue
+		}
+		result[strings.TrimSpace(registry.PluginId)] = registry
+	}
+	return result
 }
 
 // findSourceUpgradeCandidate returns the synchronized upgrade candidate for the

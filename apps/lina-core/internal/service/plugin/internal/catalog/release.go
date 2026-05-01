@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/util/gconv"
 	"gopkg.in/yaml.v3"
 
 	"lina-core/internal/dao"
@@ -57,14 +58,10 @@ func (s *serviceImpl) resolveReleasePackagePath(ctx context.Context, packagePath
 
 // GetRelease returns the sys_plugin_release row for a plugin ID + version pair.
 func (s *serviceImpl) GetRelease(ctx context.Context, pluginID string, version string) (*entity.SysPluginRelease, error) {
-	var release *entity.SysPluginRelease
-	err := dao.SysPluginRelease.Ctx(ctx).
-		Where(do.SysPluginRelease{
-			PluginId:       pluginID,
-			ReleaseVersion: version,
-		}).
-		Scan(&release)
-	return release, err
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.releaseByPluginVersion(pluginID, version), nil
+	}
+	return s.getReleaseFromDB(ctx, pluginID, version)
 }
 
 // GetReleaseByID returns the sys_plugin_release row with the given primary key.
@@ -72,11 +69,10 @@ func (s *serviceImpl) GetReleaseByID(ctx context.Context, releaseID int) (*entit
 	if releaseID <= 0 {
 		return nil, nil
 	}
-	var release *entity.SysPluginRelease
-	err := dao.SysPluginRelease.Ctx(ctx).
-		Where(do.SysPluginRelease{Id: releaseID}).
-		Scan(&release)
-	return release, err
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.releaseByID(releaseID), nil
+	}
+	return s.getReleaseByIDFromDB(ctx, releaseID)
 }
 
 // GetRegistryRelease returns the active release row for a registry entry, preferring
@@ -168,13 +164,46 @@ func (s *serviceImpl) syncReleaseMetadata(ctx context.Context, manifest *Manifes
 
 	if existing == nil {
 		_, err = dao.SysPluginRelease.Ctx(ctx).Data(data).Insert()
+		if err != nil {
+			return err
+		}
+		_, err = s.refreshStartupRelease(ctx, manifest.ID, manifest.Version)
 		return err
+	}
+	if pluginReleaseMetadataMatches(existing, data) {
+		return nil
 	}
 	_, err = dao.SysPluginRelease.Ctx(ctx).
 		Where(do.SysPluginRelease{Id: existing.Id}).
 		Data(data).
 		Update()
+	if err != nil {
+		return err
+	}
+	_, err = s.refreshStartupRelease(ctx, manifest.ID, manifest.Version)
 	return err
+}
+
+// pluginReleaseMetadataMatches reports whether a release row already matches
+// the manifest metadata projection produced during startup reconciliation.
+func pluginReleaseMetadataMatches(existing *entity.SysPluginRelease, data do.SysPluginRelease) bool {
+	if existing == nil {
+		return false
+	}
+	return existing.PluginId == dataString(data.PluginId) &&
+		existing.ReleaseVersion == dataString(data.ReleaseVersion) &&
+		existing.Type == dataString(data.Type) &&
+		existing.RuntimeKind == dataString(data.RuntimeKind) &&
+		existing.Status == dataString(data.Status) &&
+		existing.ManifestPath == dataString(data.ManifestPath) &&
+		existing.PackagePath == dataString(data.PackagePath) &&
+		existing.Checksum == dataString(data.Checksum) &&
+		existing.ManifestSnapshot == dataString(data.ManifestSnapshot)
+}
+
+// dataString normalizes a DO field into its persisted string value.
+func dataString(value any) string {
+	return gconv.String(value)
 }
 
 // SyncReleaseMetadata is the exported form of syncReleaseMetadata for runtime callers.

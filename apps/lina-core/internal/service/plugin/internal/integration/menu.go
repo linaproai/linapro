@@ -13,6 +13,7 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/util/gconv"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
@@ -404,6 +405,9 @@ func (s *serviceImpl) upsertPluginMenu(
 			Delete(); err != nil {
 			return 0, err
 		}
+		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+			snapshot.deleteMenus([]string{existing.MenuKey})
+		}
 		existing = nil
 	}
 
@@ -430,7 +434,14 @@ func (s *serviceImpl) upsertPluginMenu(
 		if err != nil {
 			return 0, err
 		}
+		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+			snapshot.storeMenu(buildPluginMenuEntity(int(menuID), data))
+		}
 		return int(menuID), nil
+	}
+
+	if pluginMenuMatches(existing, data) {
+		return existing.Id, nil
 	}
 
 	if _, err = dao.SysMenu.Ctx(ctx).
@@ -439,12 +450,75 @@ func (s *serviceImpl) upsertPluginMenu(
 		Update(); err != nil {
 		return 0, err
 	}
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		snapshot.storeMenu(buildPluginMenuEntity(existing.Id, data))
+	}
 	return existing.Id, nil
+}
+
+// buildPluginMenuEntity creates the startup snapshot projection for one menu row
+// after an insert or update.
+func buildPluginMenuEntity(menuID int, data do.SysMenu) *entity.SysMenu {
+	return &entity.SysMenu{
+		Id:         menuID,
+		ParentId:   dataInt(data.ParentId),
+		MenuKey:    dataString(data.MenuKey),
+		Name:       dataString(data.Name),
+		Path:       dataString(data.Path),
+		Component:  dataString(data.Component),
+		Perms:      dataString(data.Perms),
+		Icon:       dataString(data.Icon),
+		Type:       dataString(data.Type),
+		Sort:       dataInt(data.Sort),
+		Visible:    dataInt(data.Visible),
+		Status:     dataInt(data.Status),
+		IsFrame:    dataInt(data.IsFrame),
+		IsCache:    dataInt(data.IsCache),
+		QueryParam: dataString(data.QueryParam),
+		Remark:     dataString(data.Remark),
+	}
+}
+
+// pluginMenuMatches reports whether a persisted plugin menu already matches
+// the desired manifest projection.
+func pluginMenuMatches(existing *entity.SysMenu, data do.SysMenu) bool {
+	if existing == nil {
+		return false
+	}
+	return existing.ParentId == dataInt(data.ParentId) &&
+		existing.MenuKey == dataString(data.MenuKey) &&
+		existing.Name == dataString(data.Name) &&
+		existing.Path == dataString(data.Path) &&
+		existing.Component == dataString(data.Component) &&
+		existing.Perms == dataString(data.Perms) &&
+		existing.Icon == dataString(data.Icon) &&
+		existing.Type == dataString(data.Type) &&
+		existing.Sort == dataInt(data.Sort) &&
+		existing.Visible == dataInt(data.Visible) &&
+		existing.Status == dataInt(data.Status) &&
+		existing.IsFrame == dataInt(data.IsFrame) &&
+		existing.IsCache == dataInt(data.IsCache) &&
+		existing.QueryParam == dataString(data.QueryParam) &&
+		existing.Remark == dataString(data.Remark)
+}
+
+// dataString normalizes a DO field into its persisted string value.
+func dataString(value any) string {
+	return gconv.String(value)
+}
+
+// dataInt normalizes a DO field into its persisted integer value.
+func dataInt(value any) int {
+	return gconv.Int(value)
 }
 
 // listPluginMenusByPlugin loads all menus owned by the given plugin, including
 // soft-deleted rows when needed by cleanup flows.
 func (s *serviceImpl) listPluginMenusByPlugin(ctx context.Context, pluginID string) ([]*entity.SysMenu, error) {
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.pluginMenus(pluginID), nil
+	}
+
 	pattern := fmt.Sprintf("%s%s:%%", catalog.MenuKeyPrefix, strings.TrimSpace(pluginID))
 	cols := dao.SysMenu.Columns()
 	items := make([]*entity.SysMenu, 0)
@@ -461,6 +535,9 @@ func (s *serviceImpl) listMenusByKeys(ctx context.Context, menuKeys []string, un
 	result := make(map[string]*entity.SysMenu, len(menuKeys))
 	if len(menuKeys) == 0 {
 		return result, nil
+	}
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.menusByKeys(menuKeys, unscoped), nil
 	}
 
 	m := dao.SysMenu.Ctx(ctx)
@@ -520,6 +597,9 @@ func (s *serviceImpl) deletePluginMenusByKeys(ctx context.Context, menuKeys []st
 		WhereIn(dao.SysMenu.Columns().MenuKey, menuKeys).
 		Delete(); err != nil {
 		return err
+	}
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		snapshot.deleteMenus(menuKeys)
 	}
 	return nil
 }

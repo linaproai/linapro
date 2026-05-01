@@ -63,10 +63,10 @@ type JobService interface {
 	// PreviewCron returns the next five fire times for one cron expression.
 	PreviewCron(ctx context.Context, expr string, timezone string) ([]time.Time, error)
 	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job.
-	SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
+	SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) ([]*entity.SysJob, error)
 	// ReconcileBuiltinJobs refreshes the full code-owned job projection and
 	// prunes removed built-ins from sys_job.
-	ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error
+	ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) ([]*entity.SysJob, error)
 }
 
 // LogService defines the scheduled-job execution log management contract.
@@ -97,6 +97,9 @@ type Scheduler interface {
 	LoadAndRegister(ctx context.Context) error
 	// Refresh removes and re-registers one job according to its latest persisted state.
 	Refresh(ctx context.Context, jobID uint64) error
+	// RegisterJobSnapshot removes and registers one provided job snapshot without
+	// reloading it from sys_job.
+	RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error
 	// Remove unregisters one persistent job from gcron.
 	Remove(jobID uint64)
 	// Trigger starts one manual execution and returns the created log ID.

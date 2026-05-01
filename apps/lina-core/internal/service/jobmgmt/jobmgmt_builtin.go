@@ -39,44 +39,59 @@ type builtinJobPlanItem struct {
 }
 
 // SyncBuiltinJobs upserts code-owned scheduled-job definitions into sys_job
-// without pruning removed built-ins.
-func (s *serviceImpl) SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error {
+// without pruning removed built-ins and returns declaration-derived projection
+// snapshots keyed with stable sys_job IDs.
+func (s *serviceImpl) SyncBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) ([]*entity.SysJob, error) {
 	if len(jobs) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	for _, job := range jobs {
-		record, existing, err := s.buildBuiltinJobRecord(ctx, job)
-		if err != nil {
-			return err
-		}
-		if err = s.upsertBuiltinJobRecord(ctx, record, existing); err != nil {
-			return err
-		}
+	syncCtx, err := s.withStartupDataSnapshot(ctx)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	projections := make([]*entity.SysJob, 0, len(jobs))
+	for _, job := range jobs {
+		record, existing, err := s.buildBuiltinJobRecord(syncCtx, job)
+		if err != nil {
+			return nil, err
+		}
+		projection, err := s.upsertBuiltinJobRecord(syncCtx, record, existing)
+		if err != nil {
+			return nil, err
+		}
+		projections = append(projections, projection)
+	}
+	return projections, nil
 }
 
 // ReconcileBuiltinJobs refreshes the full code-owned job projection and
 // removes stale built-ins before writing the current snapshot.
-func (s *serviceImpl) ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) error {
+func (s *serviceImpl) ReconcileBuiltinJobs(ctx context.Context, jobs []BuiltinJobDef) ([]*entity.SysJob, error) {
 	if len(jobs) == 0 {
-		return nil
+		return nil, nil
 	}
 
-	plan, err := s.buildBuiltinJobPlan(ctx, jobs)
+	syncCtx, err := s.withStartupDataSnapshot(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err = s.pruneRemovedBuiltinJobs(ctx, plan); err != nil {
-		return err
+	plan, err := s.buildBuiltinJobPlan(syncCtx, jobs)
+	if err != nil {
+		return nil, err
 	}
+	if err = s.pruneRemovedBuiltinJobs(syncCtx, plan); err != nil {
+		return nil, err
+	}
+	projections := make([]*entity.SysJob, 0, len(plan.items))
 	for _, item := range plan.items {
-		if err = s.upsertBuiltinJobRecord(ctx, item.record, item.existing); err != nil {
-			return err
+		projection, err := s.upsertBuiltinJobRecord(syncCtx, item.record, item.existing)
+		if err != nil {
+			return nil, err
 		}
+		projections = append(projections, projection)
 	}
-	return nil
+	return projections, nil
 }
 
 // buildBuiltinJobPlan materializes one full synchronization plan so removed
@@ -123,11 +138,15 @@ func (s *serviceImpl) pruneRemovedBuiltinJobs(
 		return nil
 	}
 
-	var jobs []*entity.SysJob
-	if err := dao.SysJob.Ctx(ctx).
-		Where(do.SysJob{IsBuiltin: 1}).
-		Scan(&jobs); err != nil {
-		return err
+	jobs := []*entity.SysJob(nil)
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		jobs = snapshot.listBuiltinJobs()
+	} else {
+		if err := dao.SysJob.Ctx(ctx).
+			Where(do.SysJob{IsBuiltin: 1}).
+			Scan(&jobs); err != nil {
+			return err
+		}
 	}
 
 	for _, job := range jobs {
@@ -142,6 +161,9 @@ func (s *serviceImpl) pruneRemovedBuiltinJobs(
 		}
 		if err := s.deleteBuiltinJobHard(ctx, job.Id); err != nil {
 			return err
+		}
+		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+			snapshot.deleteBuiltinJob(job.Id)
 		}
 	}
 	return nil
@@ -182,17 +204,67 @@ func (s *serviceImpl) upsertBuiltinJobRecord(
 	ctx context.Context,
 	record do.SysJob,
 	existing *entity.SysJob,
-) error {
+) (*entity.SysJob, error) {
 	if existing == nil {
-		_, err := dao.SysJob.Ctx(ctx).Data(record).Insert()
-		return err
+		insertID, err := dao.SysJob.Ctx(ctx).Data(record).InsertAndGetId()
+		if err != nil {
+			return nil, err
+		}
+		projection := buildBuiltinJobEntity(uint64(insertID), record)
+		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+			snapshot.storeBuiltinJob(projection)
+		}
+		return projection, nil
+	}
+
+	if builtinJobRecordMatches(existing, record) {
+		return buildBuiltinJobEntity(existing.Id, record), nil
 	}
 
 	_, err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{Id: existing.Id}).
 		Data(record).
 		Update()
-	return err
+	if err != nil {
+		return nil, err
+	}
+	projection := buildBuiltinJobEntity(existing.Id, record)
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		snapshot.storeBuiltinJob(projection)
+	}
+	return projection, nil
+}
+
+// builtinJobRecordMatches reports whether an existing built-in job row already
+// matches the code-owned projection that would otherwise be written.
+func builtinJobRecordMatches(existing *entity.SysJob, record do.SysJob) bool {
+	if existing == nil {
+		return false
+	}
+	return existing.GroupId == gconv.Uint64(record.GroupId) &&
+		existing.Name == gconv.String(record.Name) &&
+		existing.Description == gconv.String(record.Description) &&
+		existing.TaskType == gconv.String(record.TaskType) &&
+		existing.HandlerRef == gconv.String(record.HandlerRef) &&
+		existing.Params == gconv.String(record.Params) &&
+		existing.TimeoutSeconds == gconv.Int(record.TimeoutSeconds) &&
+		existing.ShellCmd == gconv.String(record.ShellCmd) &&
+		existing.WorkDir == gconv.String(record.WorkDir) &&
+		existing.Env == gconv.String(record.Env) &&
+		existing.CronExpr == gconv.String(record.CronExpr) &&
+		existing.Timezone == gconv.String(record.Timezone) &&
+		existing.Scope == gconv.String(record.Scope) &&
+		existing.Concurrency == gconv.String(record.Concurrency) &&
+		existing.MaxConcurrency == gconv.Int(record.MaxConcurrency) &&
+		existing.MaxExecutions == gconv.Int(record.MaxExecutions) &&
+		existing.ExecutedCount == gconv.Int64(record.ExecutedCount) &&
+		existing.StopReason == gconv.String(record.StopReason) &&
+		existing.LogRetentionOverride == gconv.String(record.LogRetentionOverride) &&
+		existing.Status == gconv.String(record.Status) &&
+		existing.IsBuiltin == gconv.Int(record.IsBuiltin) &&
+		existing.SeedVersion == gconv.Int(record.SeedVersion) &&
+		existing.CreatedBy == gconv.Int64(record.CreatedBy) &&
+		existing.UpdatedBy == gconv.Int64(record.UpdatedBy)
 }
 
 // buildBuiltinJobRecord validates one code-owned job definition and converts it
@@ -358,6 +430,10 @@ func (s *serviceImpl) buildBuiltinJobRecord(
 
 // groupByCode queries one job group by stable code.
 func (s *serviceImpl) groupByCode(ctx context.Context, code string) (*entity.SysJobGroup, error) {
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.groupByCode(code), nil
+	}
+
 	var group *entity.SysJobGroup
 	err := dao.SysJobGroup.Ctx(ctx).
 		Where(do.SysJobGroup{Code: strings.TrimSpace(code)}).
@@ -370,6 +446,9 @@ func (s *serviceImpl) builtinJobByHandlerRef(ctx context.Context, handlerRef str
 	trimmedRef := strings.TrimSpace(handlerRef)
 	if trimmedRef == "" {
 		return nil, nil
+	}
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.builtinJobByHandlerRef(trimmedRef), nil
 	}
 
 	var job *entity.SysJob
@@ -388,6 +467,9 @@ func (s *serviceImpl) builtinJobByGroupAndName(
 	trimmedName := strings.TrimSpace(name)
 	if groupID == 0 || trimmedName == "" {
 		return nil, nil
+	}
+	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
+		return snapshot.builtinJobByGroupAndName(groupID, trimmedName), nil
 	}
 
 	var job *entity.SysJob

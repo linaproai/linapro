@@ -270,31 +270,62 @@ func (s *serviceImpl) getLatestDynamicPluginReleaseForI18N(ctx context.Context, 
 func (s *serviceImpl) listEnabledDynamicPluginReleases(ctx context.Context) ([]*entity.SysPluginRelease, error) {
 	var plugins []*entity.SysPlugin
 	if err := dao.SysPlugin.Ctx(ctx).
-		Where(do.SysPlugin{
-			Type:      dynamicPluginType,
-			Installed: dynamicPluginInstalledYes,
-			Status:    dynamicPluginStatusEnabled,
-		}).
 		OrderAsc(dao.SysPlugin.Columns().PluginId).
 		Scan(&plugins); err != nil {
 		return nil, err
 	}
+
+	var allReleases []*entity.SysPluginRelease
+	if err := dao.SysPluginRelease.Ctx(ctx).Scan(&allReleases); err != nil {
+		return nil, err
+	}
+	releasesByID, activeReleasesByPluginID := buildDynamicPluginReleaseIndexes(allReleases)
 
 	releases := make([]*entity.SysPluginRelease, 0, len(plugins))
 	for _, plugin := range plugins {
 		if plugin == nil || strings.TrimSpace(plugin.PluginId) == "" {
 			continue
 		}
-		release, err := s.getEnabledDynamicPluginRelease(ctx, plugin)
-		if err != nil {
-			return nil, err
-		}
-		if release == nil || strings.TrimSpace(release.PackagePath) == "" {
+		if strings.TrimSpace(plugin.Type) != dynamicPluginType ||
+			plugin.Installed != dynamicPluginInstalledYes ||
+			plugin.Status != dynamicPluginStatusEnabled {
 			continue
 		}
-		releases = append(releases, release)
+		release := releasesByID[plugin.ReleaseId]
+		if release == nil || strings.TrimSpace(release.PackagePath) == "" {
+			release = activeReleasesByPluginID[strings.TrimSpace(plugin.PluginId)]
+		}
+		if release != nil && strings.TrimSpace(release.PackagePath) != "" {
+			releases = append(releases, release)
+		}
 	}
 	return releases, nil
+}
+
+// buildDynamicPluginReleaseIndexes prepares release lookup maps from one
+// full-table snapshot for runtime i18n startup bundle loading.
+func buildDynamicPluginReleaseIndexes(
+	releases []*entity.SysPluginRelease,
+) (map[int]*entity.SysPluginRelease, map[string]*entity.SysPluginRelease) {
+	releasesByID := make(map[int]*entity.SysPluginRelease, len(releases))
+	activeReleasesByPluginID := make(map[string]*entity.SysPluginRelease)
+	for _, release := range releases {
+		if release == nil {
+			continue
+		}
+		releasesByID[release.Id] = release
+		if strings.TrimSpace(release.Status) != dynamicPluginReleaseStatusActive {
+			continue
+		}
+		pluginID := strings.TrimSpace(release.PluginId)
+		if pluginID == "" {
+			continue
+		}
+		if existing := activeReleasesByPluginID[pluginID]; existing == nil || release.Id > existing.Id {
+			activeReleasesByPluginID[pluginID] = release
+		}
+	}
+	return releasesByID, activeReleasesByPluginID
 }
 
 // getEnabledDynamicPluginRelease resolves the active release row for one enabled dynamic plugin.
