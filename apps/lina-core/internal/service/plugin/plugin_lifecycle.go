@@ -34,9 +34,21 @@ func (s *serviceImpl) Install(
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
 		if err = s.installSourcePlugin(ctx, manifest); err != nil {
+			if !isMockDataLoadError(err) {
+				return err
+			}
+			if snapshotErr := s.syncEnabledSnapshotFromRegistry(ctx, pluginID); snapshotErr != nil {
+				return snapshotErr
+			}
+			if markErr := s.markRuntimeCacheChanged(ctx, "source_plugin_installed"); markErr != nil {
+				return markErr
+			}
 			return err
 		}
 		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
+			return err
+		}
+		if err = s.markRuntimeCacheChanged(ctx, "source_plugin_installed"); err != nil {
 			return err
 		}
 		return notifyPluginInstalled(ctx, pluginID)
@@ -73,6 +85,9 @@ func (s *serviceImpl) UninstallWithOptions(
 			return err
 		}
 		if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
+			return err
+		}
+		if err = s.markRuntimeCacheChanged(ctx, "source_plugin_uninstalled"); err != nil {
 			return err
 		}
 		return notifyPluginUninstalled(ctx, pluginID)
@@ -151,6 +166,9 @@ func (s *serviceImpl) updateStatus(
 	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
 	}
+	if err = s.markRuntimeCacheChanged(ctx, "source_plugin_status_changed"); err != nil {
+		return err
+	}
 	if status == catalog.StatusEnabled {
 		return notifyPluginEnabled(ctx, pluginID)
 	}
@@ -204,5 +222,6 @@ func (s *serviceImpl) IsInstalled(ctx context.Context, pluginID string) bool {
 
 // IsEnabled returns whether a plugin is enabled.
 func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
+	s.ensureRuntimeCacheFreshBestEffort(ctx, "is_enabled")
 	return s.integrationSvc.IsEnabled(ctx, pluginID)
 }

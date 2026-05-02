@@ -150,6 +150,11 @@ func (disabledRuntimeLocaleService) GetLocale(_ context.Context) string {
 	return i18nsvc.DefaultLocale
 }
 
+// EnsureRuntimeBundleCacheFresh is a no-op for the disabled-locale fake.
+func (disabledRuntimeLocaleService) EnsureRuntimeBundleCacheFresh(_ context.Context) error {
+	return nil
+}
+
 // BundleVersion returns a stable fake bundle version.
 func (disabledRuntimeLocaleService) BundleVersion(_ string) uint64 {
 	return 1

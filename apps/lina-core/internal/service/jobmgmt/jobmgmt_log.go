@@ -69,6 +69,7 @@ func (s *serviceImpl) ListLogs(ctx context.Context, in ListLogsInput) (*ListLogs
 	if err != nil {
 		return nil, err
 	}
+	i18nCache := make(handlerSourceTextCache)
 	items := make([]*LogListItem, 0, len(logs))
 	for _, logRow := range logs {
 		if logRow == nil {
@@ -76,7 +77,7 @@ func (s *serviceImpl) ListLogs(ctx context.Context, in ListLogsInput) (*ListLogs
 		}
 		items = append(items, &LogListItem{
 			SysJobLog: logRow,
-			JobName:   s.resolveLogJobName(ctx, logRow, jobMap),
+			JobName:   s.resolveLogJobName(ctx, logRow, jobMap, i18nCache),
 		})
 	}
 	return &ListLogsOutput{List: items, Total: total}, nil
@@ -101,7 +102,7 @@ func (s *serviceImpl) GetLog(ctx context.Context, id uint64) (*LogDetailOutput, 
 	}
 	return &LogDetailOutput{
 		SysJobLog: logRow,
-		JobName:   s.resolveLogJobName(ctx, logRow, jobMap),
+		JobName:   s.resolveLogJobName(ctx, logRow, jobMap, make(handlerSourceTextCache)),
 	}, nil
 }
 
@@ -284,12 +285,13 @@ func (s *serviceImpl) resolveLogJobName(
 	ctx context.Context,
 	logRow *entity.SysJobLog,
 	jobs map[uint64]logJobDisplay,
+	cache handlerSourceTextCache,
 ) string {
 	if logRow == nil {
 		return ""
 	}
 	if job, ok := jobs[logRow.JobId]; ok && job.Name != "" {
-		return s.localizeBuiltinJobName(ctx, job.HandlerRef, job.Name, job.IsBuiltin)
+		return s.localizeBuiltinJobNameWithCache(ctx, job.HandlerRef, job.Name, job.IsBuiltin, cache)
 	}
 
 	var snapshot struct {
@@ -300,5 +302,5 @@ func (s *serviceImpl) resolveLogJobName(
 	if err := json.Unmarshal([]byte(logRow.JobSnapshot), &snapshot); err != nil {
 		return ""
 	}
-	return s.localizeBuiltinJobName(ctx, snapshot.HandlerRef, snapshot.Name, snapshot.IsBuiltin)
+	return s.localizeBuiltinJobNameWithCache(ctx, snapshot.HandlerRef, snapshot.Name, snapshot.IsBuiltin, cache)
 }

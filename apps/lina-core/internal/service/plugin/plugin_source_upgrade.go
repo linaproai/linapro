@@ -27,7 +27,16 @@ func (s *serviceImpl) ListSourceUpgradeStatuses(ctx context.Context) ([]*SourceU
 // UpgradeSourcePlugin applies one explicit source-plugin upgrade from the
 // current effective version to the newer discovered source version.
 func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) (*SourceUpgradeResult, error) {
-	return s.sourceUpgradeSvc.UpgradeSourcePlugin(ctx, pluginID)
+	result, err := s.sourceUpgradeSvc.UpgradeSourcePlugin(ctx, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	if result != nil && result.Executed {
+		if err = s.markRuntimeCacheChanged(ctx, "source_plugin_upgraded"); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
 }
 
 // ValidateSourcePluginUpgradeReadiness fails fast when any installed source

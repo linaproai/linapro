@@ -215,6 +215,9 @@ func (s *serviceImpl) storeUploadedPackage(
 		}
 		return nil, err
 	}
+	if err = s.notifyReconcilerChanged(ctx, "dynamic_package_uploaded"); err != nil {
+		return nil, err
+	}
 
 	return &DynamicUploadOutput{
 		Id:          reloadedManifest.ID,

@@ -277,7 +277,7 @@ func (s *serviceImpl) RefreshEnabledSnapshot(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	enabledByID, err := s.buildEnabledPluginMap(ctx, manifests)
+	enabledByID, err := s.buildEnabledPluginMapFromCatalog(ctx, manifests, false)
 	if err != nil {
 		return err
 	}
@@ -355,6 +355,17 @@ func (s *serviceImpl) buildEnabledPluginMap(
 	ctx context.Context,
 	manifests []*catalog.Manifest,
 ) (map[string]bool, error) {
+	return s.buildEnabledPluginMapFromCatalog(ctx, manifests, true)
+}
+
+// buildEnabledPluginMapFromCatalog queries or reuses registry state for the
+// supplied manifests. Refresh callers can disable snapshot reuse to rebuild the
+// process-wide view after lifecycle changes.
+func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
+	ctx context.Context,
+	manifests []*catalog.Manifest,
+	allowLoadedSnapshot bool,
+) (map[string]bool, error) {
 	var (
 		enabledByID = make(map[string]bool, len(manifests))
 		pluginIDs   = make([]string, 0, len(manifests))
@@ -376,11 +387,15 @@ func (s *serviceImpl) buildEnabledPluginMap(
 	if len(pluginIDs) == 0 {
 		return enabledByID, nil
 	}
+	if allowLoadedSnapshot && s.applyLoadedEnabledSnapshot(enabledByID) {
+		return enabledByID, nil
+	}
 
 	registries, err := s.catalogSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err
 	}
+	s.storeLoadedEnabledSnapshot(registries)
 
 	for _, registry := range registries {
 		if registry == nil {
@@ -394,6 +409,47 @@ func (s *serviceImpl) buildEnabledPluginMap(
 			registry.Status == catalog.StatusEnabled
 	}
 	return enabledByID, nil
+}
+
+// storeLoadedEnabledSnapshot refreshes the process-local enablement snapshot
+// from one registry read so later filters in the same process can reuse it.
+func (s *serviceImpl) storeLoadedEnabledSnapshot(registries []*entity.SysPlugin) {
+	if s == nil || s.sharedState == nil {
+		return
+	}
+	snapshot := make(map[string]bool, len(registries))
+	for _, registry := range registries {
+		if registry == nil {
+			continue
+		}
+		pluginID := strings.TrimSpace(registry.PluginId)
+		if pluginID == "" {
+			continue
+		}
+		snapshot[pluginID] = registry.Installed == catalog.InstalledYes &&
+			registry.Status == catalog.StatusEnabled
+	}
+	s.sharedState.enabledSnapshotMu.Lock()
+	defer s.sharedState.enabledSnapshotMu.Unlock()
+	s.sharedState.enabledSnapshot = snapshot
+	s.sharedState.enabledSnapshotLoaded = true
+}
+
+// applyLoadedEnabledSnapshot copies the process-local enablement snapshot into
+// the requested plugin map when a lifecycle path has already warmed it.
+func (s *serviceImpl) applyLoadedEnabledSnapshot(enabledByID map[string]bool) bool {
+	if s == nil || s.sharedState == nil || len(enabledByID) == 0 {
+		return false
+	}
+	s.sharedState.enabledSnapshotMu.RLock()
+	defer s.sharedState.enabledSnapshotMu.RUnlock()
+	if !s.sharedState.enabledSnapshotLoaded {
+		return false
+	}
+	for pluginID := range enabledByID {
+		enabledByID[pluginID] = s.sharedState.enabledSnapshot[pluginID]
+	}
+	return true
 }
 
 // buildBackgroundEnabledChecker returns a PluginEnabledChecker for use in source plugin

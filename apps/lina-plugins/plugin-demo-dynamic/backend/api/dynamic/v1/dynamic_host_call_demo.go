@@ -6,7 +6,7 @@ import "github.com/gogf/gf/v2/util/gmeta"
 
 // HostCallDemoReq is the request for invoking the host call demo endpoint.
 type HostCallDemoReq struct {
-	gmeta.Meta  `path:"/host-call-demo" method:"get" tags:"Dynamic Plugin Demo" summary:"Host calling capability demonstration" dc:"Demonstrate dynamic plugin calls to runtime, storage, network, and data capabilities through the unified host service model. The endpoint writes runtime logs, reads and writes isolated plugin storage, accesses governed upstreams, and performs structured CRUD on authorized data tables. Passing skipNetwork=1 skips external network requests for offline verification." access:"login" permission:"plugin-demo-dynamic:backend:view" operLog:"other"`
+	gmeta.Meta  `path:"/host-call-demo" method:"post" tags:"Dynamic Plugin Demo" summary:"Host calling capability demonstration" dc:"Demonstrate dynamic plugin calls to runtime, storage, network, and data capabilities through the unified host service model. The endpoint writes runtime logs, reads and writes isolated plugin storage, accesses governed upstreams, and performs structured CRUD on authorized data tables. Passing skipNetwork=1 skips external network requests for offline verification." access:"login" permission:"plugin-demo-dynamic:backend:view" operLog:"other"`
 	SkipNetwork bool `json:"skipNetwork" dc:"Whether to skip external network requests: true=skip false=normal access, default is false when omitted" eg:"false"`
 }
 

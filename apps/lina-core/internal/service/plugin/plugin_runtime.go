@@ -20,16 +20,29 @@ func (s *serviceImpl) ReconcileRuntimePlugins(ctx context.Context) error {
 
 // ListRuntimeStates returns public plugin runtime states for shell slot rendering.
 func (s *serviceImpl) ListRuntimeStates(ctx context.Context) (*RuntimeStateListOutput, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 	return s.runtimeSvc.ListRuntimeStates(ctx)
 }
 
 // UploadDynamicPackage validates and stores a runtime WASM package.
 func (s *serviceImpl) UploadDynamicPackage(ctx context.Context, in *DynamicUploadInput) (*DynamicUploadOutput, error) {
-	return s.runtimeSvc.UploadDynamicPackage(ctx, in)
+	out, err := s.runtimeSvc.UploadDynamicPackage(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.markRuntimeCacheChanged(ctx, "dynamic_package_uploaded"); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // PrepareDynamicRouteMiddleware prepares dynamic route state before the main handler.
 func (s *serviceImpl) PrepareDynamicRouteMiddleware(r *ghttp.Request) {
+	if r != nil {
+		s.ensureRuntimeCacheFreshBestEffort(r.Context(), "prepare_dynamic_route")
+	}
 	s.runtimeSvc.PrepareDynamicRouteMiddleware(r)
 }
 

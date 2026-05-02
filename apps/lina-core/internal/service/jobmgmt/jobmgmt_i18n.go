@@ -25,6 +25,9 @@ const (
 	pluginHandlerRefPrefix = "plugin:"
 )
 
+// handlerSourceTextCache stores request-local handler metadata translations.
+type handlerSourceTextCache map[string]string
+
 // jobmgmtI18nTranslator defines the narrow source-text translation capabilities jobmgmt needs.
 type jobmgmtI18nTranslator interface {
 	// TranslateSourceText returns one source-text-backed key with source text fallback.
@@ -60,11 +63,21 @@ func (s *serviceImpl) defaultGroupMatchesKeyword(ctx context.Context, keyword st
 // localizeBuiltinJobForDisplay translates code-owned job display fields while
 // preserving operator-created jobs exactly as stored.
 func (s *serviceImpl) localizeBuiltinJobForDisplay(ctx context.Context, job *entity.SysJob) {
+	s.localizeBuiltinJobForDisplayWithCache(ctx, job, nil)
+}
+
+// localizeBuiltinJobForDisplayWithCache translates one built-in job using the
+// caller's request-local translation cache when many jobs share handler refs.
+func (s *serviceImpl) localizeBuiltinJobForDisplayWithCache(
+	ctx context.Context,
+	job *entity.SysJob,
+	cache handlerSourceTextCache,
+) {
 	if job == nil || job.IsBuiltin != 1 {
 		return
 	}
-	job.Name = s.localizeBuiltinJobName(ctx, job.HandlerRef, job.Name, job.IsBuiltin)
-	job.Description = s.localizeBuiltinJobDescription(ctx, job.HandlerRef, job.Description, job.IsBuiltin)
+	job.Name = s.localizeBuiltinJobNameWithCache(ctx, job.HandlerRef, job.Name, job.IsBuiltin, cache)
+	job.Description = s.localizeBuiltinJobDescriptionWithCache(ctx, job.HandlerRef, job.Description, job.IsBuiltin, cache)
 }
 
 // localizeBuiltinJobName translates one built-in job name by handler ref.
@@ -74,10 +87,22 @@ func (s *serviceImpl) localizeBuiltinJobName(
 	fallback string,
 	isBuiltin int,
 ) string {
+	return s.localizeBuiltinJobNameWithCache(ctx, handlerRef, fallback, isBuiltin, nil)
+}
+
+// localizeBuiltinJobNameWithCache translates one built-in job name using a
+// request-local cache to avoid repeated dynamic-plugin artifact lookups.
+func (s *serviceImpl) localizeBuiltinJobNameWithCache(
+	ctx context.Context,
+	handlerRef string,
+	fallback string,
+	isBuiltin int,
+	cache handlerSourceTextCache,
+) string {
 	if isBuiltin != 1 {
 		return fallback
 	}
-	return s.translateHandlerSourceText(ctx, handlerRef, jobNameI18nField, fallback)
+	return s.translateHandlerSourceTextWithCache(ctx, handlerRef, jobNameI18nField, fallback, cache)
 }
 
 // localizeBuiltinJobDescription translates one built-in job description by handler ref.
@@ -87,10 +112,22 @@ func (s *serviceImpl) localizeBuiltinJobDescription(
 	fallback string,
 	isBuiltin int,
 ) string {
+	return s.localizeBuiltinJobDescriptionWithCache(ctx, handlerRef, fallback, isBuiltin, nil)
+}
+
+// localizeBuiltinJobDescriptionWithCache translates one built-in job
+// description using a request-local cache to avoid repeated metadata reads.
+func (s *serviceImpl) localizeBuiltinJobDescriptionWithCache(
+	ctx context.Context,
+	handlerRef string,
+	fallback string,
+	isBuiltin int,
+	cache handlerSourceTextCache,
+) string {
 	if isBuiltin != 1 {
 		return fallback
 	}
-	return s.translateHandlerSourceText(ctx, handlerRef, jobDescriptionI18nField, fallback)
+	return s.translateHandlerSourceTextWithCache(ctx, handlerRef, jobDescriptionI18nField, fallback, cache)
 }
 
 // localizedHandlerRefsMatchingKeyword returns handler refs whose localized
@@ -102,10 +139,11 @@ func (s *serviceImpl) localizedHandlerRefsMatchingKeyword(ctx context.Context, k
 	}
 
 	refSet := make(map[string]struct{})
+	cache := make(handlerSourceTextCache)
 	if s != nil && s.registry != nil {
 		for _, handler := range s.registry.List() {
-			displayName := s.translateHandlerSourceText(ctx, handler.Ref, jobNameI18nField, handler.DisplayName)
-			description := s.translateHandlerSourceText(ctx, handler.Ref, jobDescriptionI18nField, handler.Description)
+			displayName := s.translateHandlerSourceTextWithCache(ctx, handler.Ref, jobNameI18nField, handler.DisplayName, cache)
+			description := s.translateHandlerSourceTextWithCache(ctx, handler.Ref, jobDescriptionI18nField, handler.Description, cache)
 			if localizedTextMatchesKeyword(displayName, description, normalizedKeyword) {
 				refSet[handler.Ref] = struct{}{}
 			}
@@ -125,8 +163,8 @@ func (s *serviceImpl) localizedHandlerRefsMatchingKeyword(ctx context.Context, k
 		if job == nil || strings.TrimSpace(job.HandlerRef) == "" {
 			continue
 		}
-		displayName := s.localizeBuiltinJobName(ctx, job.HandlerRef, job.Name, job.IsBuiltin)
-		description := s.localizeBuiltinJobDescription(ctx, job.HandlerRef, job.Description, job.IsBuiltin)
+		displayName := s.localizeBuiltinJobNameWithCache(ctx, job.HandlerRef, job.Name, job.IsBuiltin, cache)
+		description := s.localizeBuiltinJobDescriptionWithCache(ctx, job.HandlerRef, job.Description, job.IsBuiltin, cache)
 		if localizedTextMatchesKeyword(displayName, description, normalizedKeyword) {
 			refSet[job.HandlerRef] = struct{}{}
 		}
@@ -149,13 +187,44 @@ func localizedTextMatchesKeyword(name string, description string, normalizedKeyw
 // translateHandlerSourceText resolves handler-owned display metadata, including
 // dynamic-plugin artifact-local resources before a plugin is enabled.
 func (s *serviceImpl) translateHandlerSourceText(ctx context.Context, handlerRef string, field string, sourceText string) string {
+	return s.translateHandlerSourceTextWithCache(ctx, handlerRef, field, sourceText, nil)
+}
+
+// translateHandlerSourceTextWithCache resolves handler metadata and reuses the
+// result for duplicate handler-ref/field/fallback triples in one request.
+func (s *serviceImpl) translateHandlerSourceTextWithCache(
+	ctx context.Context,
+	handlerRef string,
+	field string,
+	sourceText string,
+	cache handlerSourceTextCache,
+) string {
+	if cache != nil {
+		cacheKey := handlerSourceTextCacheKey(handlerRef, field, sourceText)
+		if value, ok := cache[cacheKey]; ok {
+			return value
+		}
+		translated := s.translateHandlerSourceTextWithCache(ctx, handlerRef, field, sourceText, nil)
+		cache[cacheKey] = translated
+		return translated
+	}
+
 	key := jobmeta.HandlerI18nKey(handlerRef, field)
 	translated := s.translateSourceText(ctx, key, sourceText)
+	if translated != sourceText {
+		return translated
+	}
 	pluginID := pluginIDFromHandlerRef(handlerRef)
 	if pluginID == "" || s == nil || s.i18nSvc == nil {
 		return translated
 	}
 	return s.i18nSvc.TranslateDynamicPluginSourceText(ctx, pluginID, key, translated)
+}
+
+// handlerSourceTextCacheKey builds a stable key for request-local handler
+// metadata translation caching.
+func handlerSourceTextCacheKey(handlerRef string, field string, sourceText string) string {
+	return strings.TrimSpace(handlerRef) + "\x00" + strings.TrimSpace(field) + "\x00" + sourceText
 }
 
 // translateSourceText resolves code-owned display metadata with source-text

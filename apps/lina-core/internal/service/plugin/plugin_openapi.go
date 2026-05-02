@@ -12,6 +12,9 @@ import (
 
 // ProjectDynamicRoutesToOpenAPI projects dynamic routes into the host OpenAPI paths.
 func (s *serviceImpl) ProjectDynamicRoutesToOpenAPI(ctx context.Context, paths goai.Paths) error {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return err
+	}
 	return s.openapiSvc.ProjectDynamicRoutesToOpenAPI(ctx, paths)
 }
 

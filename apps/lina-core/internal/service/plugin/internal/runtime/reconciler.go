@@ -25,8 +25,10 @@ import (
 	"lina-core/pkg/pluginhost"
 )
 
-// runtimeReconcilerInterval is the clustered background reconcile cadence.
-const runtimeReconcilerInterval = 2 * time.Second
+// runtimeReconcilerRevisionPollInterval is the clustered background cadence for
+// checking the shared reconciler revision. Full scans run only when the revision
+// changes or when the low-frequency safety sweep interval elapses.
+const runtimeReconcilerRevisionPollInterval = 2 * time.Second
 
 // Background reconciler singletons ensure only one reconcile loop and one
 // convergence pass run at a time inside the current process.
@@ -49,19 +51,36 @@ func (s *serviceImpl) StartRuntimeReconciler(ctx context.Context) {
 // runReconciler executes the periodic background convergence loop used by
 // clustered deployments.
 func (s *serviceImpl) runReconciler(ctx context.Context) {
-	ticker := time.NewTicker(runtimeReconcilerInterval)
+	ticker := time.NewTicker(runtimeReconcilerRevisionPollInterval)
 	defer ticker.Stop()
 
+	s.runReconcilerTick(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.ReconcileRuntimePlugins(ctx); err != nil {
-				logger.Warningf(ctx, "dynamic plugin reconciler tick failed: %v", err)
-			}
+			s.runReconcilerTick(ctx)
 		}
 	}
+}
+
+// runReconcilerTick executes one revision-gated background reconcile check.
+func (s *serviceImpl) runReconcilerTick(ctx context.Context) {
+	decision, err := s.nextBackgroundReconcileDecision(ctx)
+	if err != nil {
+		logger.Warningf(ctx, "dynamic plugin reconciler revision check failed: %v", err)
+		return
+	}
+	if !decision.shouldRun {
+		return
+	}
+	if err = s.ReconcileRuntimePlugins(ctx); err != nil {
+		logger.Warningf(ctx, "dynamic plugin reconciler tick failed reason=%s revision=%d err=%v", decision.reason, decision.revision, err)
+		return
+	}
+	s.markBackgroundReconcileObserved(decision.revision, time.Now())
+	logger.Debugf(ctx, "dynamic plugin reconciler tick completed reason=%s revision=%d", decision.reason, decision.revision)
 }
 
 // ReconcileRuntimePlugins runs one convergence pass. It is safe to call from
@@ -99,7 +118,10 @@ func (s *serviceImpl) reconcileDynamicPluginRequest(
 		return err
 	}
 	if !s.isPrimaryNode() {
-		return nil
+		return s.notifyReconcilerChanged(ctx, "desired_state_changed")
+	}
+	if err := s.publishReconcilerChanged(ctx, "desired_state_changed", false); err != nil {
+		return err
 	}
 	return s.reconcileRuntimePlugin(ctx, pluginID)
 }
@@ -320,6 +342,12 @@ func (s *serviceImpl) applyInstall(
 	if enabled == catalog.StatusEnabled {
 		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_installed")
 	}
+	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_installed"); err != nil {
+		return err
+	}
+	if err = s.notifyReconcilerChanged(ctx, "plugin_installed"); err != nil {
+		return err
+	}
 	if err = s.dispatchHookEvent(
 		ctx,
 		pluginhost.ExtensionPointPluginInstalled,
@@ -474,7 +502,13 @@ func (s *serviceImpl) applyUpgrade(
 	if enabled == catalog.StatusEnabled {
 		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_upgraded")
 	}
-	return s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release upgraded on primary node.")
+	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release upgraded on primary node."); err != nil {
+		return err
+	}
+	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_upgraded"); err != nil {
+		return err
+	}
+	return s.notifyReconcilerChanged(ctx, "plugin_upgraded")
 }
 
 // applyStateToggle flips enable/disable status for the current active release
@@ -523,6 +557,12 @@ func (s *serviceImpl) applyStateToggle(
 		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_enabled")
 	}
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin status converged on primary node."); err != nil {
+		return err
+	}
+	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_status_changed"); err != nil {
+		return err
+	}
+	if err = s.notifyReconcilerChanged(ctx, "plugin_status_changed"); err != nil {
 		return err
 	}
 	return s.dispatchHookEvent(
@@ -593,7 +633,13 @@ func (s *serviceImpl) applyRefresh(
 	if enabled == catalog.StatusEnabled {
 		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_refreshed")
 	}
-	return s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release refreshed on primary node.")
+	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release refreshed on primary node."); err != nil {
+		return err
+	}
+	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_refreshed"); err != nil {
+		return err
+	}
+	return s.notifyReconcilerChanged(ctx, "plugin_refreshed")
 }
 
 // applyUninstall removes live governance, runs uninstall cleanup according to
@@ -668,6 +714,12 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 		Generation:   registry.Generation,
 		Message:      "Dynamic plugin uninstalled on primary node.",
 	}); err != nil {
+		return err
+	}
+	if err = s.notifyRuntimeCacheChanged(ctx, "plugin_uninstalled"); err != nil {
+		return err
+	}
+	if err = s.notifyReconcilerChanged(ctx, "plugin_uninstalled"); err != nil {
 		return err
 	}
 	return s.dispatchHookEvent(

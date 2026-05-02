@@ -6,6 +6,8 @@ import (
 	"context"
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/integration"
@@ -13,6 +15,7 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
 	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
+	"lina-core/internal/service/pluginruntimecache"
 
 	"lina-core/internal/model/entity"
 
@@ -338,6 +341,8 @@ type serviceImpl struct {
 	frontendSvc frontend.Service
 	// openapiSvc projects dynamic routes into the host OpenAPI document.
 	openapiSvc openapi.Service
+	// runtimeCacheRevisionCtrl coordinates process-local runtime caches in cluster deployments.
+	runtimeCacheRevisionCtrl *pluginruntimecache.Controller
 }
 
 // New creates and returns a new plugin Service.
@@ -359,6 +364,14 @@ func New(topology Topology) Service {
 		runtimeSvc       = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc)
 		integrationSvc   = integration.New(catalogSvc)
 		sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc)
+		i18nSvc          = i18nsvc.New()
+		cacheRevisionCtl = newRuntimeCacheRevisionController(
+			topo,
+			kvcache.New(),
+			integrationSvc,
+			frontendSvc,
+			i18nSvc,
+		)
 	)
 
 	// Wire cross-package dependencies via setter injection so each sub-package
@@ -387,15 +400,18 @@ func New(topology Topology) Service {
 	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{configProvider})
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{bizCtxProvider})
 
-	return &serviceImpl{
-		configSvc:        configProvider,
-		topology:         topo,
-		catalogSvc:       catalogSvc,
-		lifecycleSvc:     lifecycleSvc,
-		runtimeSvc:       runtimeSvc,
-		integrationSvc:   integrationSvc,
-		sourceUpgradeSvc: sourceUpgradeSvc,
-		frontendSvc:      frontendSvc,
-		openapiSvc:       openapiSvc,
+	service := &serviceImpl{
+		configSvc:                configProvider,
+		topology:                 topo,
+		catalogSvc:               catalogSvc,
+		lifecycleSvc:             lifecycleSvc,
+		runtimeSvc:               runtimeSvc,
+		integrationSvc:           integrationSvc,
+		sourceUpgradeSvc:         sourceUpgradeSvc,
+		frontendSvc:              frontendSvc,
+		openapiSvc:               openapiSvc,
+		runtimeCacheRevisionCtrl: cacheRevisionCtl,
 	}
+	runtimeSvc.SetRuntimeCacheChangeNotifier(service)
+	return service
 }

@@ -47,6 +47,8 @@ type Service interface {
 	BuildRuntimeFrontendPublicBaseURL(pluginID string, version string) string
 	// InvalidateBundle removes all cached bundle entries for the given plugin ID.
 	InvalidateBundle(ctx context.Context, pluginID string, reason string)
+	// InvalidateAllBundles removes every cached runtime frontend bundle.
+	InvalidateAllBundles(ctx context.Context, reason string)
 	// EnsureBundle guarantees an in-memory frontend bundle exists for the given manifest,
 	// building and caching it if necessary. Returns the bundle for immediate use.
 	// This is called by the runtime reconciler to pre-warm bundles after reconciliation.
@@ -192,6 +194,11 @@ func (s *serviceImpl) BuildRuntimeFrontendPublicBaseURL(pluginID string, version
 // InvalidateBundle removes all cached bundle entries for the given plugin ID.
 func (s *serviceImpl) InvalidateBundle(ctx context.Context, pluginID string, reason string) {
 	invalidateBundle(ctx, pluginID, reason)
+}
+
+// InvalidateAllBundles removes every cached runtime frontend bundle.
+func (s *serviceImpl) InvalidateAllBundles(ctx context.Context, reason string) {
+	invalidateAllBundles(ctx, reason)
 }
 
 // EnsureBundle guarantees an in-memory frontend bundle exists for the given manifest,

@@ -140,6 +140,14 @@ For every change that touches the host i18n service or any caller of it, also pe
 4. Every call to `InvalidateContentCache` MUST pass an explicit `i18n.ContentInvalidateScope`. Pure `ContentInvalidateScope{}` (wipe-all) is permitted only for test cleanup or for full reload paths; production callers must scope by `BusinessType` and/or `Locale`.
 5. Any new sector contributing to the runtime cache MUST be registered in `apps/lina-core/internal/service/i18n/i18n_cache.go` (the `Sector` enum and the merge order in `mergeLocaleSectors`). Do not introduce ad-hoc sectors in business modules.
 
+For every design or implementation change that introduces, modifies, invalidates, refreshes, or relies on cached data, also perform a **distributed cache consistency and reliability review**:
+1. The OpenSpec design, task notes, implementation, or review conclusion MUST state the cache's authoritative data source, consistency model, invalidation/refresh trigger, cross-instance synchronization mechanism, maximum tolerated staleness, and failure fallback. If the change has no cache impact, say that explicitly in the review result.
+2. Cache behavior MUST be explicitly gated by the host's existing cluster-mode switch and topology abstraction (`cluster.enabled`, `cluster.Service`, or the package-local interface that wraps it). In single-node mode, process-local caches with local invalidation are acceptable and should not require distributed coordination; in cluster mode, the same cache must use cross-node invalidation, shared revisions, event/message broadcast, shared distributed cache, primary-node coordination, or an equivalent strategy.
+3. Local in-process caches MUST NOT be treated as distributed-consistent by themselves. Flag cache designs that rely only on per-process memory, local timers, or node-local state while `cluster.enabled=true`, or cache-control branches that duplicate ad-hoc cluster flags instead of using the shared topology source.
+4. For critical runtime data such as authorization, configuration, plugin lifecycle state, tenant isolation, dictionaries, routes, i18n resources, API documentation bundles, and security-sensitive metadata, cache invalidation/update paths MUST be scoped, idempotent, retryable or safely repeatable, and observable through logs/metrics/tests. Flag broad wipe-all invalidation unless it is a deliberate full reload path with justification.
+5. Verify cache updates are coupled to successful source-of-truth writes, not emitted before a transaction can still roll back. Missed invalidation events, process restarts, and stale distributed entries MUST have a recovery path such as TTL, version checks, rebuild/read-through, reconciliation, or explicit reload.
+6. Tests or review evidence should cover the changed cache behavior at the right risk level, especially single-node vs cluster-mode branching, multi-instance invalidation, bounded staleness, retry/rebuild behavior, and caller-facing behavior when the cache backend is unavailable.
+
 For every frontend change that touches locale direction handling, also perform a **fixed LTR direction review**:
 1. The current `framework-i18n-improvements` scope fixes `<html dir>` and Ant Design Vue `ConfigProvider.direction` to `ltr` for every runtime locale.
 2. The default config `i18n` section MUST NOT expose `direction`, and the frontend MUST NOT maintain `RTL_LOCALES` or equivalent direction registration.
@@ -190,6 +198,7 @@ Check against `CLAUDE.md` SQL file management specifications, at minimum coverin
 ✓ Compliant with CLAUDE.md / ⚠ N violations found
 ✓ i18n impact reviewed / ⚠ N i18n governance issues found
 ✓ Dictionary-vs-locale single-source compliant / ⚠ N dict double-source issues found
+✓ Distributed cache consistency reviewed / ⚠ N cache consistency issues found
 
 ### SQL Review
 ✓ No SQL changes / ✓ SQL changes compliant / ⚠ N SQL issues found

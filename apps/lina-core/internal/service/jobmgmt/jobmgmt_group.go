@@ -55,25 +55,63 @@ func (s *serviceImpl) ListGroups(ctx context.Context, in ListGroupsInput) (*List
 		return nil, err
 	}
 
+	jobCounts, err := jobCountMapByGroupIDs(ctx, groups)
+	if err != nil {
+		return nil, err
+	}
+
 	items := make([]*GroupListItem, 0, len(groups))
-	jobCols := dao.SysJob.Columns()
 	for _, group := range groups {
 		if group == nil {
 			continue
 		}
 		s.localizeGroupForDisplay(ctx, group)
-		jobCount, countErr := dao.SysJob.Ctx(ctx).
-			Where(jobCols.GroupId, group.Id).
-			Count()
-		if countErr != nil {
-			return nil, countErr
-		}
 		items = append(items, &GroupListItem{
 			SysJobGroup: group,
-			JobCount:    int64(jobCount),
+			JobCount:    jobCounts[group.Id],
 		})
 	}
 	return &ListGroupsOutput{List: items, Total: total}, nil
+}
+
+// groupJobCountRow stores one aggregated job count grouped by job-group ID.
+type groupJobCountRow struct {
+	GroupID uint64 `orm:"group_id"`  // GroupID is the owning scheduled-job group ID.
+	Count   int64  `orm:"job_count"` // Count is the number of jobs in the group.
+}
+
+// jobCountMapByGroupIDs loads job counts for all listed groups in one grouped query.
+func jobCountMapByGroupIDs(ctx context.Context, groups []*entity.SysJobGroup) (map[uint64]int64, error) {
+	groupIDs := make([]uint64, 0, len(groups))
+	for _, group := range groups {
+		if group == nil || group.Id == 0 {
+			continue
+		}
+		groupIDs = append(groupIDs, group.Id)
+	}
+	if len(groupIDs) == 0 {
+		return map[uint64]int64{}, nil
+	}
+
+	var rows []*groupJobCountRow
+	jobCols := dao.SysJob.Columns()
+	err := dao.SysJob.Ctx(ctx).
+		Fields(jobCols.GroupId, "COUNT(1) AS job_count").
+		WhereIn(jobCols.GroupId, groupIDs).
+		Group(jobCols.GroupId).
+		Scan(&rows)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make(map[uint64]int64, len(groupIDs))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		counts[row.GroupID] = row.Count
+	}
+	return counts, nil
 }
 
 // CreateGroup persists one new scheduled-job group.

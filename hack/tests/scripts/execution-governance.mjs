@@ -49,6 +49,7 @@ export const highRiskRules = [
     label: 'plugin lifecycle or artifact mutation',
     patterns: [
       /\b(?:installPlugin|enablePlugin|disablePlugin|uninstallPlugin|syncPlugins|setPluginEnabled|uploadDynamicPlugin|uploadDynamicPluginViaAPI|uninstallPluginWithOptions|ensureSourcePluginDisabled|ensureSourcePluginUninstalled)\b/u,
+      /\b(?:ensureSourcePluginInstalled|ensureSourcePluginEnabled|ensureSourcePluginsEnabled|loadSourcePluginMockData)\b/u,
       /plugins\/sync/u,
       /plugins\/[^`'"\s]+\/(?:install|enable|disable)/u,
     ],

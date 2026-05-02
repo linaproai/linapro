@@ -278,6 +278,12 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 	}
 
 	s.invalidateRuntimeCaches(ctx, registry.PluginId, "runtime_artifact_missing")
+	if err = s.notifyRuntimeCacheChanged(ctx, "runtime_artifact_missing"); err != nil {
+		return nil, err
+	}
+	if err = s.notifyReconcilerChanged(ctx, "runtime_artifact_missing"); err != nil {
+		return nil, err
+	}
 
 	updated, err := s.catalogSvc.GetRegistry(ctx, registry.PluginId)
 	if err != nil {

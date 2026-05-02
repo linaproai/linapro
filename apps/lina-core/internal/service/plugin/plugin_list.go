@@ -88,6 +88,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 // ReadOnlyList scans plugin manifests and projects current registry state
 // without synchronizing governance tables.
 func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 	manifests, err := s.catalogSvc.ScanManifests()
 	if err != nil {
 		return nil, err
@@ -138,6 +141,9 @@ func buildRegistryByPluginID(registries []*entity.SysPlugin) map[string]*entity.
 // ListEnabledPluginIDs returns the IDs of plugins that are currently
 // installed and enabled.
 func (s *serviceImpl) ListEnabledPluginIDs(ctx context.Context) ([]string, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 	registries, err := s.catalogSvc.ListAllRegistries(ctx)
 	if err != nil {
 		return nil, err

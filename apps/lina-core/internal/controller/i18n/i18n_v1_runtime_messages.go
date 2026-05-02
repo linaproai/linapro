@@ -35,6 +35,9 @@ const (
 // skipping the bundle clone and nesting work entirely on the revalidation path.
 func (c *ControllerV1) RuntimeMessages(ctx context.Context, req *v1.RuntimeMessagesReq) (res *v1.RuntimeMessagesRes, err error) {
 	locale := c.localeResolver.ResolveLocale(ctx, req.Lang)
+	if err = c.bundleProvider.EnsureRuntimeBundleCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 
 	r := g.RequestFromCtx(ctx)
 	// BundleVersion is 0 only when the locale entry has never been built.

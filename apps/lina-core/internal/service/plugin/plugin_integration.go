@@ -28,11 +28,17 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 
 // ListManagedCronJobs returns plugin-owned cron definitions for scheduled-job projection.
 func (s *serviceImpl) ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 	return s.integrationSvc.ListManagedCronJobs(ctx)
 }
 
 // ListManagedCronJobsByPlugin returns plugin-owned cron definitions for one plugin.
 func (s *serviceImpl) ListManagedCronJobsByPlugin(ctx context.Context, pluginID string) ([]ManagedCronJob, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 	return s.integrationSvc.ListManagedCronJobsByPlugin(ctx, pluginID)
 }
 
@@ -42,6 +48,9 @@ func (s *serviceImpl) DispatchHookEvent(
 	event pluginhost.ExtensionPoint,
 	values map[string]interface{},
 ) error {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return err
+	}
 	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return err
@@ -51,20 +60,28 @@ func (s *serviceImpl) DispatchHookEvent(
 
 // FilterMenus filters disabled plugin menus from the given menu list.
 func (s *serviceImpl) FilterMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
+	s.ensureRuntimeCacheFreshBestEffort(ctx, "filter_menus")
 	return s.integrationSvc.FilterMenus(ctx, menus)
 }
 
 // FilterPermissionMenus filters permission menus based on plugin enablement.
 func (s *serviceImpl) FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
+	s.ensureRuntimeCacheFreshBestEffort(ctx, "filter_permission_menus")
 	return s.integrationSvc.FilterPermissionMenus(ctx, menus)
 }
 
 // ResolveResourcePermission resolves the plugin-scoped permission required by one plugin resource.
 func (s *serviceImpl) ResolveResourcePermission(ctx context.Context, pluginID string, resourceID string) (string, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return "", err
+	}
 	return s.integrationSvc.ResolveResourcePermission(ctx, pluginID, resourceID)
 }
 
 // ListResourceRecords queries plugin-owned backend resource rows.
 func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListInput) (*ResourceListOutput, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 	return s.integrationSvc.ListResourceRecords(ctx, in)
 }

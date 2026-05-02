@@ -357,16 +357,8 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		roleId = id
 
 		// Insert role-menu associations
-		if len(in.MenuIds) > 0 {
-			for _, menuId := range in.MenuIds {
-				_, err = dao.SysRoleMenu.Ctx(ctx).Data(do.SysRoleMenu{
-					RoleId: int(roleId),
-					MenuId: menuId,
-				}).Insert()
-				if err != nil {
-					return err
-				}
-			}
+		if err = insertRoleMenus(ctx, int(roleId), in.MenuIds); err != nil {
+			return err
 		}
 
 		return nil
@@ -444,16 +436,8 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		}
 
 		// Insert new role-menu associations
-		if len(in.MenuIds) > 0 {
-			for _, menuId := range in.MenuIds {
-				_, err = dao.SysRoleMenu.Ctx(ctx).Data(do.SysRoleMenu{
-					RoleId: in.Id,
-					MenuId: menuId,
-				}).Insert()
-				if err != nil {
-					return err
-				}
-			}
+		if err = insertRoleMenus(ctx, in.Id, in.MenuIds); err != nil {
+			return err
 		}
 
 		return nil
@@ -463,6 +447,39 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	}
 	s.NotifyAccessTopologyChanged(ctx)
 	return nil
+}
+
+// insertRoleMenus inserts all role-menu associations for one role in a single batch.
+func insertRoleMenus(ctx context.Context, roleID int, menuIDs []int) error {
+	relations := buildRoleMenuRelations(roleID, menuIDs)
+	if len(relations) == 0 {
+		return nil
+	}
+	_, err := dao.SysRoleMenu.Ctx(ctx).Data(relations).Insert()
+	return err
+}
+
+// buildRoleMenuRelations normalizes menu IDs into distinct role-menu rows.
+func buildRoleMenuRelations(roleID int, menuIDs []int) []do.SysRoleMenu {
+	if roleID <= 0 || len(menuIDs) == 0 {
+		return []do.SysRoleMenu{}
+	}
+	seen := make(map[int]struct{}, len(menuIDs))
+	relations := make([]do.SysRoleMenu, 0, len(menuIDs))
+	for _, menuID := range menuIDs {
+		if menuID <= 0 {
+			continue
+		}
+		if _, ok := seen[menuID]; ok {
+			continue
+		}
+		seen[menuID] = struct{}{}
+		relations = append(relations, do.SysRoleMenu{
+			RoleId: roleID,
+			MenuId: menuID,
+		})
+	}
+	return relations
 }
 
 // Delete deletes a role.

@@ -38,6 +38,8 @@ type Service interface {
 	// ResolveRouteText resolves one route's localized module tag and operation
 	// summary from the dedicated apidoc i18n catalog.
 	ResolveRouteText(ctx context.Context, input RouteTextInput) RouteTextOutput
+	// ResolveRouteTexts resolves multiple route texts with one apidoc catalog load.
+	ResolveRouteTexts(ctx context.Context, inputs []RouteTextInput) []RouteTextOutput
 	// FindRouteTitleOperationKeys finds operation key bases whose localized
 	// module tag contains the given keyword in the current request locale.
 	FindRouteTitleOperationKeys(ctx context.Context, keyword string) []string
@@ -67,6 +69,31 @@ func (s *serviceAdapter) ResolveRouteText(ctx context.Context, input RouteTextIn
 		FallbackSummary: input.FallbackSummary,
 	})
 	return RouteTextOutput{Title: output.Title, Summary: output.Summary}
+}
+
+// ResolveRouteTexts resolves multiple route texts with one apidoc catalog load.
+func (s *serviceAdapter) ResolveRouteTexts(ctx context.Context, inputs []RouteTextInput) []RouteTextOutput {
+	outputs := make([]RouteTextOutput, 0, len(inputs))
+	if s == nil || s.service == nil {
+		for _, input := range inputs {
+			outputs = append(outputs, RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary})
+		}
+		return outputs
+	}
+	internalInputs := make([]internalapidoc.RouteTextInput, 0, len(inputs))
+	for _, input := range inputs {
+		internalInputs = append(internalInputs, internalapidoc.RouteTextInput{
+			OperationKey:    input.OperationKey,
+			Method:          input.Method,
+			Path:            input.Path,
+			FallbackTitle:   input.FallbackTitle,
+			FallbackSummary: input.FallbackSummary,
+		})
+	}
+	for _, output := range s.service.ResolveRouteTexts(ctx, internalInputs) {
+		outputs = append(outputs, RouteTextOutput{Title: output.Title, Summary: output.Summary})
+	}
+	return outputs
 }
 
 // FindRouteTitleOperationKeys finds operation key bases whose localized module

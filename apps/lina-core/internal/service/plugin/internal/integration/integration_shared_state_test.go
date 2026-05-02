@@ -7,6 +7,8 @@ package integration
 import (
 	"testing"
 
+	"lina-core/internal/model/entity"
+	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -50,5 +52,46 @@ func TestSharedStateCrossInstance(t *testing.T) {
 	second.DeletePluginEnabledState("plugin-demo")
 	if firstChecker("plugin-demo") {
 		t.Fatal("expected deleting shared snapshot entry to affect all instances")
+	}
+}
+
+// TestStoreLoadedEnabledSnapshotBackfillsSharedState verifies a registry read
+// warms the shared enablement snapshot for later filter passes.
+func TestStoreLoadedEnabledSnapshotBackfillsSharedState(t *testing.T) {
+	shared := &sharedState{
+		sourceRouteBindings: make(map[string][]pluginhost.SourceRouteBinding),
+		enabledSnapshot:     make(map[string]bool),
+	}
+	svc := &serviceImpl{sharedState: shared}
+
+	svc.storeLoadedEnabledSnapshot([]*entity.SysPlugin{
+		{
+			PluginId:  "plugin-enabled",
+			Installed: catalog.InstalledYes,
+			Status:    catalog.StatusEnabled,
+		},
+		{
+			PluginId:  "plugin-disabled",
+			Installed: catalog.InstalledYes,
+			Status:    catalog.StatusDisabled,
+		},
+	})
+
+	enabledByID := map[string]bool{
+		"plugin-enabled":  false,
+		"plugin-disabled": true,
+		"plugin-missing":  true,
+	}
+	if !svc.applyLoadedEnabledSnapshot(enabledByID) {
+		t.Fatal("expected loaded snapshot to be applied")
+	}
+	if !enabledByID["plugin-enabled"] {
+		t.Fatal("expected enabled plugin to remain enabled")
+	}
+	if enabledByID["plugin-disabled"] {
+		t.Fatal("expected disabled plugin to be disabled")
+	}
+	if enabledByID["plugin-missing"] {
+		t.Fatal("expected missing plugin to default to disabled")
 	}
 }

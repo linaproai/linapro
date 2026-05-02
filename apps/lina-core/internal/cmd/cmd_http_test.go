@@ -29,6 +29,15 @@ func (f *fakeApiDocService) ResolveRouteText(_ context.Context, input apidoc.Rou
 	return apidoc.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary}
 }
 
+// ResolveRouteTexts returns fallback route text for hosted-doc binding tests.
+func (f *fakeApiDocService) ResolveRouteTexts(_ context.Context, inputs []apidoc.RouteTextInput) []apidoc.RouteTextOutput {
+	outputs := make([]apidoc.RouteTextOutput, 0, len(inputs))
+	for _, input := range inputs {
+		outputs = append(outputs, apidoc.RouteTextOutput{Title: input.FallbackTitle, Summary: input.FallbackSummary})
+	}
+	return outputs
+}
+
 // FindRouteTitleOperationKeys returns no route-title matches for hosted-doc binding tests.
 func (f *fakeApiDocService) FindRouteTitleOperationKeys(_ context.Context, _ string) []string {
 	return []string{}

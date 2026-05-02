@@ -356,7 +356,21 @@ func invalidateBundle(ctx context.Context, pluginID string, reason string) {
 	logger.Debugf(ctx, "runtime frontend bundle invalidate skipped plugin=%s reason=%s cache=empty", normalizedPluginID, strings.TrimSpace(reason))
 }
 
-// ResetBundleCache clears all in-memory frontend bundles. Intended for use in tests.
+// invalidateAllBundles removes all cached runtime frontend bundles after a
+// cluster revision change where the changed plugin set is not locally known.
+func invalidateAllBundles(ctx context.Context, reason string) {
+	frontendBundleCache.mu.Lock()
+	defer frontendBundleCache.mu.Unlock()
+
+	deletedCount := len(frontendBundleCache.items)
+	frontendBundleCache.items = map[string]*bundle{}
+	if deletedCount > 0 {
+		logger.Debugf(ctx, "runtime frontend bundle cache cleared reason=%s deleted=%d", strings.TrimSpace(reason), deletedCount)
+		return
+	}
+	logger.Debugf(ctx, "runtime frontend bundle cache clear skipped reason=%s cache=empty", strings.TrimSpace(reason))
+}
+
 // ResetBundleCache clears all in-memory frontend bundles. Intended for use in tests.
 func ResetBundleCache() {
 	frontendBundleCache.mu.Lock()

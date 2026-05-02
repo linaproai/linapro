@@ -66,6 +66,9 @@ func (s *serviceImpl) dispatchAuthHookEvent(
 	defaultReason string,
 	defaultMessage string,
 ) error {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return err
+	}
 	if input.ClientType == "" {
 		input.ClientType = "web"
 	}

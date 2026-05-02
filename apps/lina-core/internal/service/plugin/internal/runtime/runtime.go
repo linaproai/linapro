@@ -1,11 +1,14 @@
 // Package runtime provides the dynamic plugin execution environment: WASM artifact
 // parsing, upload handling, background reconciliation, per-node state projection,
 // and route dispatch for enabled dynamic plugins.
-
 package runtime
 
 import (
 	"context"
+	"sync"
+	"time"
+
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/model/entity"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -13,10 +16,9 @@ import (
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/openapi"
-	"lina-core/pkg/pluginhost"
-
-	"github.com/gogf/gf/v2/net/ghttp"
+	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/pluginhost"
 )
 
 // TopologyProvider abstracts cluster topology information needed by the reconciler.
@@ -75,6 +77,13 @@ type UserContextSetter interface {
 type PermissionMenuFilter interface {
 	// FilterPermissionMenus returns only the menus that pass plugin-level enablement checks.
 	FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
+}
+
+// CacheChangeNotifier publishes successful dynamic runtime cache mutations to
+// the root plugin facade.
+type CacheChangeNotifier interface {
+	// MarkRuntimeCacheChanged records one cache-affecting runtime change.
+	MarkRuntimeCacheChanged(ctx context.Context, reason string) error
 }
 
 // Service defines the runtime service contract.
@@ -199,6 +208,8 @@ type Service interface {
 	SetUserContextSetter(p UserContextSetter)
 	// SetPermissionMenuFilter wires the plugin-level permission menu filter.
 	SetPermissionMenuFilter(f PermissionMenuFilter)
+	// SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
+	SetRuntimeCacheChangeNotifier(n CacheChangeNotifier)
 	// UploadDynamicPackage validates one runtime wasm package and writes it into the
 	// configured plugin.dynamic.storagePath directory.
 	UploadDynamicPackage(ctx context.Context, in *DynamicUploadInput) (out *DynamicUploadOutput, err error)
@@ -233,6 +244,16 @@ type serviceImpl struct {
 	userCtx UserContextSetter
 	// menuFilter filters button-type permission menus by plugin enablement.
 	menuFilter PermissionMenuFilter
+	// cacheChangeNotifier publishes runtime cache changes after successful convergence.
+	cacheChangeNotifier CacheChangeNotifier
+	// reconcilerRevisionObserved records the reconciler revision consumed by this runtime service.
+	reconcilerRevisionObserved *pluginruntimecache.ObservedRevision
+	// reconcilerRevisionCtrl coordinates cluster-wide dynamic-plugin reconciler wake-up.
+	reconcilerRevisionCtrl *pluginruntimecache.Controller
+	// reconcilerSafetyMu protects the last full-sweep timestamp.
+	reconcilerSafetyMu sync.Mutex
+	// lastReconcilerSweepAt records the last successful background full-scan pass.
+	lastReconcilerSweepAt time.Time
 	// i18nSvc localizes plugin metadata and invalidates dynamic-plugin bundles.
 	i18nSvc runtimeI18nService
 }
@@ -254,17 +275,19 @@ func New(
 ) Service {
 	i18nSvc := i18nsvc.New()
 	return &serviceImpl{
-		catalogSvc:   catalogSvc,
-		lifecycleSvc: lifecycleSvc,
-		frontendSvc:  frontendSvc,
-		openapiSvc:   openapiSvc,
-		i18nSvc:      i18nSvc,
+		catalogSvc:                 catalogSvc,
+		lifecycleSvc:               lifecycleSvc,
+		frontendSvc:                frontendSvc,
+		openapiSvc:                 openapiSvc,
+		reconcilerRevisionObserved: pluginruntimecache.NewObservedRevision(),
+		i18nSvc:                    i18nSvc,
 	}
 }
 
 // SetTopology wires the cluster topology provider.
 func (s *serviceImpl) SetTopology(t TopologyProvider) {
 	s.topology = t
+	s.configureReconcilerRevisionController()
 }
 
 // SetMenuManager wires the menu synchronization provider.
@@ -295,6 +318,11 @@ func (s *serviceImpl) SetUserContextSetter(p UserContextSetter) {
 // SetPermissionMenuFilter wires the plugin-level permission menu filter.
 func (s *serviceImpl) SetPermissionMenuFilter(f PermissionMenuFilter) {
 	s.menuFilter = f
+}
+
+// SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
+func (s *serviceImpl) SetRuntimeCacheChangeNotifier(n CacheChangeNotifier) {
+	s.cacheChangeNotifier = n
 }
 
 // isClusterModeEnabled is a nil-safe wrapper around the topology provider.
@@ -387,4 +415,13 @@ func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, pluginID stri
 			DynamicPluginID: pluginID,
 		})
 	}
+}
+
+// notifyRuntimeCacheChanged publishes a successful dynamic runtime mutation to
+// other cluster nodes through the root plugin facade.
+func (s *serviceImpl) notifyRuntimeCacheChanged(ctx context.Context, reason string) error {
+	if s.cacheChangeNotifier == nil {
+		return nil
+	}
+	return s.cacheChangeNotifier.MarkRuntimeCacheChanged(ctx, reason)
 }

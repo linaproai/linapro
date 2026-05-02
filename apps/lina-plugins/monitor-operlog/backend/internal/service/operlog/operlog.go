@@ -500,8 +500,39 @@ func applyOperLogFilters(
 
 // localizeRecords translates route metadata fallback fields on every record.
 func (s *serviceImpl) localizeRecords(ctx context.Context, records []*OperLogEntity) {
+	if len(records) == 0 {
+		return
+	}
+	if s == nil || s.apiDocSvc == nil {
+		return
+	}
+
+	inputs := make([]hostapidoc.RouteTextInput, 0, len(records))
+	targets := make([]*OperLogEntity, 0, len(records))
 	for _, record := range records {
-		s.localizeRecord(ctx, record)
+		if record == nil {
+			continue
+		}
+		inputs = append(inputs, hostapidoc.RouteTextInput{
+			OperationKey:    record.RouteDocKey,
+			Method:          record.RouteMethod,
+			Path:            record.RoutePath,
+			FallbackTitle:   record.Title,
+			FallbackSummary: record.OperSummary,
+		})
+		targets = append(targets, record)
+	}
+	if len(inputs) == 0 {
+		return
+	}
+
+	outputs := s.apiDocSvc.ResolveRouteTexts(ctx, inputs)
+	for index, output := range outputs {
+		if index >= len(targets) {
+			break
+		}
+		targets[index].Title = output.Title
+		targets[index].OperSummary = output.Summary
 	}
 }
 

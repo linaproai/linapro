@@ -43,27 +43,37 @@ type RouteTextOutput struct {
 // ResolveRouteText resolves one route's localized module tag and operation
 // summary from the dedicated apidoc i18n catalog.
 func (s *serviceImpl) ResolveRouteText(ctx context.Context, input RouteTextInput) RouteTextOutput {
-	output := RouteTextOutput{
-		Title:   input.FallbackTitle,
-		Summary: input.FallbackSummary,
-	}
 	if s == nil || s.i18nSvc == nil {
-		return output
-	}
-	keyBase := strings.TrimSpace(input.OperationKey)
-	if keyBase == "" {
-		keyBase = BuildRouteOperationKeyFromPath(input.Path, input.Method)
-	}
-	if keyBase == "" {
-		return output
+		return routeTextFallback(input)
 	}
 
 	localizer := &openAPILocalizer{
 		catalog: s.loadOpenAPIMessageCatalog(ctx, s.i18nSvc.GetLocale(ctx)),
 	}
-	output.Title = localizer.translate(keyBase+routeTextTagsSuffix, input.FallbackTitle)
-	output.Summary = localizer.translate(keyBase+routeTextSummarySuffix, input.FallbackSummary)
-	return output
+	return resolveRouteTextWithLocalizer(localizer, input)
+}
+
+// ResolveRouteTexts resolves multiple route text projections with one apidoc
+// catalog load so operation-log pages do not reload plugin metadata per row.
+func (s *serviceImpl) ResolveRouteTexts(ctx context.Context, inputs []RouteTextInput) []RouteTextOutput {
+	outputs := make([]RouteTextOutput, 0, len(inputs))
+	if len(inputs) == 0 {
+		return outputs
+	}
+	if s == nil || s.i18nSvc == nil {
+		for _, input := range inputs {
+			outputs = append(outputs, routeTextFallback(input))
+		}
+		return outputs
+	}
+
+	localizer := &openAPILocalizer{
+		catalog: s.loadOpenAPIMessageCatalog(ctx, s.i18nSvc.GetLocale(ctx)),
+	}
+	for _, input := range inputs {
+		outputs = append(outputs, resolveRouteTextWithLocalizer(localizer, input))
+	}
+	return outputs
 }
 
 // FindRouteTitleOperationKeys finds operation key bases whose localized module
@@ -91,6 +101,33 @@ func (s *serviceImpl) FindRouteTitleOperationKeys(ctx context.Context, keyword s
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// routeTextFallback returns untranslated route text fallback values.
+func routeTextFallback(input RouteTextInput) RouteTextOutput {
+	return RouteTextOutput{
+		Title:   input.FallbackTitle,
+		Summary: input.FallbackSummary,
+	}
+}
+
+// resolveRouteTextWithLocalizer resolves one route text from an already loaded
+// apidoc catalog.
+func resolveRouteTextWithLocalizer(localizer *openAPILocalizer, input RouteTextInput) RouteTextOutput {
+	output := routeTextFallback(input)
+	if localizer == nil {
+		return output
+	}
+	keyBase := strings.TrimSpace(input.OperationKey)
+	if keyBase == "" {
+		keyBase = BuildRouteOperationKeyFromPath(input.Path, input.Method)
+	}
+	if keyBase == "" {
+		return output
+	}
+	output.Title = localizer.translate(keyBase+routeTextTagsSuffix, input.FallbackTitle)
+	output.Summary = localizer.translate(keyBase+routeTextSummarySuffix, input.FallbackSummary)
+	return output
 }
 
 // BuildRouteOperationKeyFromHandlerType returns the static-route apidoc key

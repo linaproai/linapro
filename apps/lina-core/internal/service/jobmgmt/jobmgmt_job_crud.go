@@ -80,16 +80,19 @@ func (s *serviceImpl) ListJobs(ctx context.Context, in ListJobsInput) (*ListJobs
 	if err != nil {
 		return nil, err
 	}
+	i18nCache := make(handlerSourceTextCache)
+	for _, group := range groupMap {
+		s.localizeGroupForDisplay(ctx, group)
+	}
 	items := make([]*JobListItem, 0, len(jobs))
 	for _, job := range jobs {
 		if job == nil {
 			continue
 		}
 		group := groupMap[job.GroupId]
-		s.localizeBuiltinJobForDisplay(ctx, job)
+		s.localizeBuiltinJobForDisplayWithCache(ctx, job, i18nCache)
 		item := &JobListItem{SysJob: job}
 		if group != nil {
-			s.localizeGroupForDisplay(ctx, group)
 			item.GroupCode = group.Code
 			item.GroupName = group.Name
 		}

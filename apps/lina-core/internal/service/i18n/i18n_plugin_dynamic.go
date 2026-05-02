@@ -133,10 +133,29 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundle(ctx context.Context, locale 
 		return map[string]string{}
 	}
 
-	assets, err := s.readDynamicPluginI18NAssets(ctx, release.PackagePath)
+	bundle, err := s.loadDynamicPluginLocaleBundleFromRelease(ctx, resolvedLocale, trimmedPluginID, release)
 	if err != nil {
 		logger.Warningf(ctx, "load dynamic plugin i18n assets failed plugin=%s locale=%s err=%v", trimmedPluginID, resolvedLocale, err)
 		return map[string]string{}
+	}
+	return bundle
+}
+
+// loadDynamicPluginLocaleBundleFromRelease loads one plugin locale bundle from
+// an already resolved release row.
+func (s *serviceImpl) loadDynamicPluginLocaleBundleFromRelease(
+	ctx context.Context,
+	resolvedLocale string,
+	pluginID string,
+	release *entity.SysPluginRelease,
+) (map[string]string, error) {
+	if release == nil || strings.TrimSpace(release.PackagePath) == "" {
+		return map[string]string{}, nil
+	}
+
+	assets, err := s.readDynamicPluginI18NAssets(ctx, release.PackagePath)
+	if err != nil {
+		return nil, err
 	}
 	localeAssets := make([]i18nresource.LocaleAsset, 0, len(assets))
 	for _, asset := range assets {
@@ -149,7 +168,7 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundle(ctx context.Context, locale 
 		})
 	}
 	if len(localeAssets) == 0 {
-		return map[string]string{}
+		return map[string]string{}, nil
 	}
 
 	bundles := i18nresource.ResourceLoader{
@@ -157,11 +176,11 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundle(ctx context.Context, locale 
 		ValueMode:   i18nresource.ValueModeStringifyScalars,
 	}.LoadDynamicPluginBundles(ctx, resolvedLocale, []i18nresource.ReleaseRef{
 		{
-			PluginID: trimmedPluginID,
+			PluginID: pluginID,
 			Assets:   localeAssets,
 		},
 	})
-	return bundles[trimmedPluginID]
+	return bundles[pluginID], nil
 }
 
 // TranslateDynamicPluginSourceText resolves source-owned text from the latest
@@ -193,34 +212,7 @@ func (s *serviceImpl) loadDynamicPluginReleaseLocaleBundle(ctx context.Context, 
 		return map[string]string{}, err
 	}
 
-	assets, err := s.readDynamicPluginI18NAssets(ctx, release.PackagePath)
-	if err != nil {
-		return nil, err
-	}
-	localeAssets := make([]i18nresource.LocaleAsset, 0, len(assets))
-	for _, asset := range assets {
-		if asset == nil {
-			continue
-		}
-		localeAssets = append(localeAssets, i18nresource.LocaleAsset{
-			Locale:  asset.Locale,
-			Content: asset.Content,
-		})
-	}
-	if len(localeAssets) == 0 {
-		return map[string]string{}, nil
-	}
-
-	bundles := i18nresource.ResourceLoader{
-		PluginScope: i18nresource.PluginScopeOpen,
-		ValueMode:   i18nresource.ValueModeStringifyScalars,
-	}.LoadDynamicPluginBundles(ctx, s.ResolveLocale(ctx, locale), []i18nresource.ReleaseRef{
-		{
-			PluginID: pluginID,
-			Assets:   localeAssets,
-		},
-	})
-	return bundles[pluginID], nil
+	return s.loadDynamicPluginLocaleBundleFromRelease(ctx, s.ResolveLocale(ctx, locale), pluginID, release)
 }
 
 // getLatestDynamicPluginReleaseForI18N returns the release artifact that should
@@ -333,6 +325,7 @@ func (s *serviceImpl) getEnabledDynamicPluginRelease(ctx context.Context, plugin
 	if plugin == nil {
 		return nil, nil
 	}
+	trimmedPluginID := strings.TrimSpace(plugin.PluginId)
 
 	var release *entity.SysPluginRelease
 	if plugin.ReleaseId > 0 {
@@ -348,7 +341,7 @@ func (s *serviceImpl) getEnabledDynamicPluginRelease(ctx context.Context, plugin
 
 	if err := dao.SysPluginRelease.Ctx(ctx).
 		Where(do.SysPluginRelease{
-			PluginId: strings.TrimSpace(plugin.PluginId),
+			PluginId: trimmedPluginID,
 			Status:   dynamicPluginReleaseStatusActive,
 		}).
 		OrderDesc(dao.SysPluginRelease.Columns().Id).

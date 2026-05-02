@@ -20,6 +20,9 @@ func (s *serviceImpl) ResolveRuntimeFrontendAsset(
 	version string,
 	relativePath string,
 ) (*RuntimeFrontendAssetOutput, error) {
+	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {
+		return nil, err
+	}
 	return s.frontendSvc.ResolveRuntimeFrontendAsset(ctx, pluginID, version, relativePath)
 }
 

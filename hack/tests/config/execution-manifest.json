@@ -25,6 +25,7 @@
     "iam:user": ["e2e/iam/user"],
     "iam:role": ["e2e/iam/role"],
     "iam:menu": ["e2e/iam/menu"],
+    "install": ["e2e/install"],
     "settings": ["e2e/settings"],
     "settings:dict": ["e2e/settings/dict"],
     "settings:config": ["e2e/settings/config"],
@@ -63,8 +64,13 @@
     "e2e/content",
     "e2e/extension/plugin",
     "e2e/iam/menu",
+    "e2e/iam/user/TC0005-user-crud.ts",
+    "e2e/iam/user/TC0062-user-role.ts",
     "e2e/i18n/TC0107-runtime-i18n-switch.ts",
     "e2e/i18n/TC0108-english-runtime-page-audit.ts",
+    "e2e/i18n/TC0110-editable-master-data-raw-in-english.ts",
+    "e2e/i18n/TC0111-plugin-page-static-labels-no-raw-i18n-keys.ts",
+    "e2e/i18n/TC0112-english-layout-regression.ts",
     "e2e/i18n/TC0116-english-built-in-governance-data-localization.ts",
     "e2e/i18n/TC0124-runtime-i18n-etag.ts",
     "e2e/i18n/TC0128-traditional-chinese-plugin-pages.ts",
@@ -118,6 +124,16 @@
       "reason": "Menu tests create and update shared menu and permission matrix data, authorization tests sync plugin menus before assigning permissions, and dynamic plugin menu regressions may build runtime artifacts."
     },
     {
+      "entry": "e2e/iam/user/TC0005-user-crud.ts",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "User CRUD enables the org-center source plugin before validating department and post fields backed by plugin mock data."
+    },
+    {
+      "entry": "e2e/iam/user/TC0062-user-role.ts",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "User-role association checks enable the org-center source plugin and read shared organization mock data."
+    },
+    {
       "entry": "e2e/i18n/TC0107-runtime-i18n-switch.ts",
       "categories": ["pluginLifecycle", "runtimeI18nCache", "filesystemArtifact"],
       "reason": "Runtime i18n switching verifies dynamic plugin language bundles and cache refresh behavior."
@@ -131,6 +147,21 @@
         "filesystemArtifact"
       ],
       "reason": "English runtime page audit enables source and dynamic plugins and validates translated runtime pages."
+    },
+    {
+      "entry": "e2e/i18n/TC0110-editable-master-data-raw-in-english.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Editable master data localization checks enable source plugins and read their shared mock data under the English runtime locale."
+    },
+    {
+      "entry": "e2e/i18n/TC0111-plugin-page-static-labels-no-raw-i18n-keys.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache", "sharedDatabaseSeed"],
+      "reason": "Plugin static-label localization checks enable multiple source plugins and load their mock data before auditing English pages."
+    },
+    {
+      "entry": "e2e/i18n/TC0112-english-layout-regression.ts",
+      "categories": ["pluginLifecycle", "runtimeI18nCache"],
+      "reason": "English layout checks enable the plugin-demo-source plugin and depend on runtime i18n resources."
     },
     {
       "entry": "e2e/i18n/TC0116-english-built-in-governance-data-localization.ts",

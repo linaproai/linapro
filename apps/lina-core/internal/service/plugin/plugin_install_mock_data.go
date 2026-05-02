@@ -106,3 +106,10 @@ func wrapMockDataLoadError(err error) error {
 		bizerr.P("cause", causeText),
 	)
 }
+
+// isMockDataLoadError reports whether err represents an install that succeeded
+// except for the optional mock-data load phase.
+func isMockDataLoadError(err error) bool {
+	var mockErr *lifecycle.MockDataLoadError
+	return errors.As(err, &mockErr)
+}

@@ -38,6 +38,8 @@ type Service interface {
 	// ResolveRouteText resolves one route's localized module tag and operation
 	// summary from the dedicated apidoc i18n catalog.
 	ResolveRouteText(ctx context.Context, input RouteTextInput) RouteTextOutput
+	// ResolveRouteTexts resolves multiple route texts with a single apidoc catalog load.
+	ResolveRouteTexts(ctx context.Context, inputs []RouteTextInput) []RouteTextOutput
 	// FindRouteTitleOperationKeys finds operation key bases whose localized
 	// module tag contains the given keyword in the current request locale.
 	FindRouteTitleOperationKeys(ctx context.Context, keyword string) []string

@@ -12,7 +12,10 @@ import (
 	"lina-core/internal/packed"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/pkg/i18nresource"
+	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -104,6 +107,9 @@ type DynamicPluginTranslator interface {
 
 // BundleProvider defines runtime locale descriptors, runtime bundles, and bundle versioning.
 type BundleProvider interface {
+	// EnsureRuntimeBundleCacheFresh synchronizes clustered plugin-runtime cache
+	// revisions before callers make HTTP cache decisions.
+	EnsureRuntimeBundleCacheFresh(ctx context.Context) error
 	// BundleVersion returns the per-locale runtime translation bundle version.
 	// It increases monotonically whenever any sector that contributes to that
 	// locale's merged view is invalidated, so HTTP ETag handlers can produce
@@ -150,15 +156,53 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc bizctx.Service
-	configSvc config.Service
+	bizCtxSvc               bizctx.Service
+	configSvc               config.Service
+	runtimeCacheRevisionCtl *pluginruntimecache.Controller
 }
 
 // New creates and returns a new i18n service instance.
 func New() Service {
-	return &serviceImpl{
+	configSvc := config.New()
+	service := &serviceImpl{
 		bizCtxSvc: bizctx.New(),
-		configSvc: config.New(),
+		configSvc: configSvc,
+	}
+	service.runtimeCacheRevisionCtl = pluginruntimecache.NewController(
+		configSvc.IsClusterEnabled(context.Background()),
+		kvcache.New(),
+		runtimeI18nCacheObservedRevision,
+		func(ctx context.Context) error {
+			service.InvalidateRuntimeBundleCache(InvalidateScope{
+				Sectors: []Sector{
+					SectorSourcePlugin,
+					SectorDynamicPlugin,
+				},
+			})
+			return nil
+		},
+	)
+	return service
+}
+
+// runtimeI18nCacheObservedRevision records the shared revision consumed by the
+// runtime i18n cache domain inside this process.
+var runtimeI18nCacheObservedRevision = pluginruntimecache.NewObservedRevision()
+
+// EnsureRuntimeBundleCacheFresh synchronizes clustered plugin-runtime cache
+// revisions before callers make HTTP cache decisions.
+func (s *serviceImpl) EnsureRuntimeBundleCacheFresh(ctx context.Context) error {
+	if s == nil || s.runtimeCacheRevisionCtl == nil {
+		return nil
+	}
+	return s.runtimeCacheRevisionCtl.EnsureFresh(ctx)
+}
+
+// ensureRuntimeBundleCacheFreshBestEffort keeps translation read paths
+// available while still surfacing cluster revision failures in logs.
+func (s *serviceImpl) ensureRuntimeBundleCacheFreshBestEffort(ctx context.Context) {
+	if err := s.EnsureRuntimeBundleCacheFresh(ctx); err != nil {
+		logger.Warningf(ctx, "refresh runtime i18n cache failed: %v", err)
 	}
 }
 
@@ -260,6 +304,7 @@ func (s *serviceImpl) ListRuntimeLocales(ctx context.Context, locale string) []L
 // BuildRuntimeMessages returns the current-locale runtime translation bundle for
 // one locale. For example, en-US output omits keys that only exist in zh-CN.
 func (s *serviceImpl) BuildRuntimeMessages(ctx context.Context, locale string) map[string]interface{} {
+	s.ensureRuntimeBundleCacheFreshBestEffort(ctx)
 	// The returned tree leaves the cache so it MUST be a clone; nesting alone
 	// does not isolate frontend mutations from concurrent cache reads.
 	return nestFlatMessageMap(cloneFlatMessageMap(s.snapshotMergedCatalog(ctx, locale)))

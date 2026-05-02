@@ -140,6 +140,69 @@ func TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable(t *test
 	}
 }
 
+// TestTranslateDynamicPluginSourceTextReloadsLatestRelease verifies source-text
+// translation does not keep a stale cross-request process cache when a newer
+// dynamic plugin release is uploaded.
+func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
+	resetRuntimeBundleCache()
+
+	var (
+		ctx      = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: DefaultLocale})
+		svc      = New()
+		pluginID = "plugin-i18n-dynamic-source-text-reload"
+		key      = "job.handler.plugin.plugin-i18n-dynamic-source-text-reload.cron.heartbeat.name"
+	)
+
+	firstArtifactPath := writeDynamicPluginI18NArtifactForTest(t, pluginID, []*dynamicPluginI18NAsset{
+		{
+			Locale:  DefaultLocale,
+			Content: `{"job":{"handler":{"plugin":{"plugin-i18n-dynamic-source-text-reload":{"cron":{"heartbeat":{"name":"旧动态插件心跳"}}}}}}}`,
+		},
+	})
+	firstReleaseID := insertDynamicPluginReleaseForTest(t, ctx, do.SysPluginRelease{
+		PluginId:       pluginID,
+		ReleaseVersion: "v0.1.0",
+		Type:           dynamicPluginType,
+		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		Status:         dynamicPluginReleaseStatusActive,
+		PackagePath:    firstArtifactPath,
+		Checksum:       "dynamic-plugin-source-text-reload-test-checksum-1",
+	})
+	t.Cleanup(func() {
+		deleteDynamicPluginReleaseByID(t, ctx, firstReleaseID)
+		resetRuntimeBundleCache()
+	})
+
+	actual := svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Heartbeat")
+	if actual != "旧动态插件心跳" {
+		t.Fatalf("expected first dynamic plugin translation, got %q", actual)
+	}
+
+	secondArtifactPath := writeDynamicPluginI18NArtifactForTest(t, pluginID, []*dynamicPluginI18NAsset{
+		{
+			Locale:  DefaultLocale,
+			Content: `{"job":{"handler":{"plugin":{"plugin-i18n-dynamic-source-text-reload":{"cron":{"heartbeat":{"name":"新动态插件心跳"}}}}}}}`,
+		},
+	})
+	secondReleaseID := insertDynamicPluginReleaseForTest(t, ctx, do.SysPluginRelease{
+		PluginId:       pluginID,
+		ReleaseVersion: "v0.2.0",
+		Type:           dynamicPluginType,
+		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		Status:         dynamicPluginReleaseStatusActive,
+		PackagePath:    secondArtifactPath,
+		Checksum:       "dynamic-plugin-source-text-reload-test-checksum-2",
+	})
+	t.Cleanup(func() {
+		deleteDynamicPluginReleaseByID(t, ctx, secondReleaseID)
+	})
+
+	actual = svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "Dynamic Plugin Heartbeat")
+	if actual != "新动态插件心跳" {
+		t.Fatalf("expected latest dynamic plugin translation, got %q", actual)
+	}
+}
+
 // writeDynamicPluginI18NArtifactForTest writes one minimal wasm artifact carrying a plugin i18n section.
 func writeDynamicPluginI18NArtifactForTest(t *testing.T, pluginID string, assets []*dynamicPluginI18NAsset) string {
 	t.Helper()
