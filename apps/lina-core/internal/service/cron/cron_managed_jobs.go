@@ -87,6 +87,16 @@ func (s *serviceImpl) registerManagedHandlers() error {
 			Invoke:       s.invokeSessionCleanup,
 		},
 	}
+	if s.kvCacheSvc != nil && s.kvCacheSvc.RequiresExpiredCleanup() {
+		handlers = append(handlers, jobhandlersvc.HandlerDef{
+			Ref:          "host:kvcache-cleanup-expired",
+			DisplayName:  "KV Cache Expired Entry Cleanup",
+			Description:  "Cleans up expired KV cache entries for backends that require scheduled expiration maintenance.",
+			ParamsSchema: `{"type":"object","properties":{}}`,
+			Source:       jobmeta.HandlerSourceHost,
+			Invoke:       s.invokeKVCacheExpiredCleanup,
+		})
+	}
 
 	if s.clusterSvc != nil && s.clusterSvc.IsEnabled() {
 		handlers = append(handlers,
@@ -163,6 +173,24 @@ func (s *serviceImpl) buildHostBuiltinJobs(ctx context.Context) []jobmgmtsvc.Bui
 			MaxExecutions:  0,
 			Status:         jobmeta.JobStatusEnabled,
 		},
+	}
+	if s.kvCacheSvc != nil && s.kvCacheSvc.RequiresExpiredCleanup() {
+		jobs = append(jobs, jobmgmtsvc.BuiltinJobDef{
+			GroupCode:      "default",
+			Name:           "KV Cache Expired Entry Cleanup",
+			Description:    "Cleans up expired KV cache entries for backends that require scheduled expiration maintenance.",
+			TaskType:       jobmeta.TaskTypeHandler,
+			HandlerRef:     "host:kvcache-cleanup-expired",
+			Params:         map[string]any{},
+			Timeout:        defaultManagedJobTimeout,
+			Pattern:        formatEveryPattern(time.Hour),
+			Timezone:       defaultTimezone,
+			Scope:          jobmeta.JobScopeMasterOnly,
+			Concurrency:    jobmeta.JobConcurrencySingleton,
+			MaxConcurrency: 1,
+			MaxExecutions:  0,
+			Status:         jobmeta.JobStatusEnabled,
+		})
 	}
 
 	if s.clusterSvc != nil && s.clusterSvc.IsEnabled() {
@@ -285,6 +313,20 @@ func (s *serviceImpl) invokeSessionCleanup(ctx context.Context, _ json.RawMessag
 		return nil, err
 	}
 	return map[string]any{"cleanedCount": cleaned}, nil
+}
+
+// invokeKVCacheExpiredCleanup runs the kvcache expired-entry cleanup handler.
+func (s *serviceImpl) invokeKVCacheExpiredCleanup(ctx context.Context, _ json.RawMessage) (any, error) {
+	if s == nil || s.kvCacheSvc == nil {
+		return nil, bizerr.NewCode(CodeCronKVCacheDependencyMissing)
+	}
+	if err := s.kvCacheSvc.CleanupExpired(ctx); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"backend": string(s.kvCacheSvc.BackendName()),
+		"cleaned": true,
+	}, nil
 }
 
 // invokeAccessTopologySync runs the access-topology watcher handler.

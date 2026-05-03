@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/service/config"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/internal/service/kvcache"
 	pluginsvc "lina-core/internal/service/plugin"
 	rolesvc "lina-core/internal/service/role"
 	"lina-core/internal/service/session"
@@ -58,6 +59,7 @@ type serviceImpl struct {
 	sessionCfg            *config.SessionConfig  // Session configuration
 	configSvc             config.Service         // Config service
 	roleSvc               rolesvc.Service        // Role service
+	kvCacheSvc            kvcache.Service        // kvCacheSvc cleans backend-owned expired cache rows.
 	sessionStore          session.Store          // Session store
 	clusterSvc            cluster.Service        // Cluster topology service
 	registry              jobhandlersvc.Registry // registry stores managed host and plugin handlers.
@@ -81,6 +83,7 @@ func New(
 ) Service {
 	var (
 		configSvc      = config.New()
+		kvCacheSvc     = kvcache.New()
 		pluginSvc      = pluginsvc.New(clusterSvc)
 		roleSvc        = rolesvc.New(pluginSvc)
 		clusterEnabled = clusterSvc != nil && clusterSvc.IsEnabled()
@@ -90,6 +93,7 @@ func New(
 		sessionCfg:          sessionCfg,
 		configSvc:           configSvc,
 		roleSvc:             roleSvc,
+		kvCacheSvc:          kvCacheSvc,
 		sessionStore:        sessionStore,
 		clusterSvc:          clusterSvc,
 		registry:            registry,

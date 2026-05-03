@@ -53,7 +53,7 @@
 
 集群模式下修订号递增必须在事务中使用行级锁或原子更新，禁止读改写导致丢失递增。单节点模式不访问该表，直接使用进程内 revision。
 
-`sys_kv_cache` 保持 `MEMORY` 缓存表语义，用于插件和宿主模块显式 KV 缓存。数据库重启后缓存丢失是可接受行为，调用方必须按缓存未命中恢复，禁止把它用作权限、配置、插件稳定状态或其他关键修订号的可靠来源。
+`kvcache` 保持宿主通用 KV cache 基础模块定位，通过 backend/provider 抽象隐藏底层实现。当前默认 backend 为 MySQL `MEMORY` 表，对应 `sys_kv_cache`，后续可以按同一接口提供 Redis backend。公开 `kvcache` 包只保留 backend-agnostic facade、服务契约、构造选项、默认 provider adapter 和缓存键编码入口；MySQL `MEMORY` 的错误码、缓存键解析、字段约束和 CRUD/incr/expire/cleanup 实现细节收敛到 `internal/service/kvcache/internal/mysql-memory`，避免默认实现污染通用契约，并按 backend 实现维度隔离后续 Redis provider 扩展空间。数据库重启后 MySQL `MEMORY` backend 缓存丢失是可接受行为，调用方必须按缓存未命中恢复；所有 backend 均禁止把缓存数据用作权限、配置、插件稳定状态或其他关键修订号的可靠来源。
 
 备选方案是继续复用 `sys_kv_cache`。该方案会把插件业务缓存和宿主协调元数据混在一起，并且 `MEMORY` 表重启清空后会丢失已发布的缓存版本，不适合作为关键一致性基础。
 
@@ -65,12 +65,12 @@
 
 ### 4. 插件 host-cache 保留可丢失缓存语义并修复并发语义
 
-`sys_kv_cache` 不改为 InnoDB，继续承载插件/模块显式 KV 缓存数据，且不再承担宿主缓存协调修订号职责。
+`kvcache` 不改为持久状态存储，继续承载插件/模块显式 KV 缓存数据，且不再承担宿主缓存协调修订号职责。服务接口使用 `time.Duration` 表达 TTL，避免把 MySQL 秒数字段、Redis 过期命令或协议层 `expireSeconds` 泄漏到通用缓存接口中。
 
 - `set`：同 key last-write-wins，写入后返回当前缓存结果；数据库重启后可丢失。
 - `delete`、`expire`：幂等。
 - `incr`：同一数据库存活期间必须线性递增，使用单 SQL 原子更新或等价机制，不能因读改写竞态丢增量；数据库重启后的缓存值不承诺保留。
-- TTL 清理：读路径可懒清理当前 key；全表清理交给主节点或可重入后台任务，避免每次读写扫描全表。
+- TTL 清理：读路径只能按过期条件返回未命中，不得执行删除；默认 MySQL backend 通过每小时一次的内置 `host:kvcache-cleanup-expired` 主节点任务调用 `CleanupExpired` 批量删除过期行。后续 Redis backend 可以依赖原生 TTL，并将 `CleanupExpired` 作为 no-op。
 
 ### 5. 动态插件缓存按 checksum 或 generation 失效
 
@@ -105,7 +105,7 @@
 1. 调整 SQL：新增 `sys_cache_revision`，保留 `sys_kv_cache` 的 `MEMORY` 缓存语义，并停止通过 `sys_kv_cache` 存储关键缓存修订号。
 2. 实现 `cachecoord`，先接入运行时参数和权限拓扑两个关键域。
 3. 重构 `pluginruntimecache` 或用 `cachecoord` 替代其共享 revision 逻辑，并补齐 Wasm 缓存失效。
-4. 修复 `kvcache.Incr` 同一数据库存活期间的并发递增语义，以及 `Set`、`Get`、`Expire` 的 TTL 清理策略。
+4. 修复 `kvcache.Incr` 同一数据库存活期间的并发递增语义，抽象 backend/provider，改用 `time.Duration` TTL，并将 `Get` 的过期处理调整为只读过滤。
 5. 增加健康诊断输出与测试覆盖。
 6. 执行 `make init`、`make dao`，再运行后端单元测试和必要 E2E。
 

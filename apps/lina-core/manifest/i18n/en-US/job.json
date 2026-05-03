@@ -16,6 +16,10 @@
           "description": "Cleans up scheduled-job execution logs according to global and job-level retention policies.",
           "name": "Job Log Cleanup"
         },
+        "kvcache-cleanup-expired": {
+          "description": "Cleans up expired KV cache entries for backends that require scheduled expiration maintenance.",
+          "name": "KV Cache Expired Entry Cleanup"
+        },
         "runtime-param-sync": {
           "description": "Synchronizes protected runtime parameter snapshots across the cluster so each node keeps a fresh local cache.",
           "name": "Runtime Parameter Sync"

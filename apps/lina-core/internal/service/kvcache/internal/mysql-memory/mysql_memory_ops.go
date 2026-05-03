@@ -1,6 +1,7 @@
-// This file implements distributed KV cache CRUD, increment, expire, and cleanup behaviors.
+// This file implements MySQL MEMORY KV cache CRUD, increment, expire, and
+// cleanup behaviors.
 
-package kvcache
+package mysqlmemory
 
 import (
 	"context"
@@ -31,28 +32,26 @@ const expiredCleanupBatchSize = 500
 //
 // Returns:
 //   - *Item: the cache entry snapshot when the entry exists, including value kind, value, and expiration time.
-//   - bool: whether the cache entry exists after expired data has been cleaned up.
-//   - error: returned when the scoped cache key is invalid, expired-entry cleanup fails, or the database query fails.
-func (s *serviceImpl) Get(
+//   - bool: whether the unexpired cache entry exists.
+//   - error: returned when the scoped cache key is invalid or the database query fails.
+func (b *MySQLMemoryBackend) Get(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 ) (*Item, bool, error) {
-	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	identity, err := b.resolveIdentity(ownerType, cacheKey)
 	if err != nil {
-		return nil, false, err
-	}
-	if err := s.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
 		return nil, false, err
 	}
 
 	var row *entity.SysKvCache
+	cols := dao.SysKvCache.Columns()
 	err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
 		CacheKey:  identity.cacheKey,
-	}).Scan(&row)
+	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).Scan(&row)
 	if err != nil {
 		return nil, false, err
 	}
@@ -72,39 +71,32 @@ func (s *serviceImpl) Get(
 //
 // Returns:
 //   - int64: the integer cache value when the entry exists and is stored as an integer.
-//   - bool: whether the cache entry exists after optional single-row expiration cleanup.
+//   - bool: whether the unexpired cache entry exists.
 //   - error: returned when the scoped cache key is invalid, the existing entry is not stored
-//     as an integer, or the database query/delete fails.
-func (s *serviceImpl) GetInt(
+//     as an integer, or the database query fails.
+func (b *MySQLMemoryBackend) GetInt(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 ) (int64, bool, error) {
-	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	identity, err := b.resolveIdentity(ownerType, cacheKey)
 	if err != nil {
 		return 0, false, err
 	}
 
-	// Keep revision reads lightweight: unlike Get/Incr, this path intentionally
-	// skips global CleanupExpired so watcher polling stays read-dominant.
 	var row *entity.SysKvCache
+	cols := dao.SysKvCache.Columns()
 	err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
 		CacheKey:  identity.cacheKey,
-	}).Scan(&row)
+	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).Scan(&row)
 	if err != nil {
 		return 0, false, err
 	}
 	if row == nil {
 		return 0, false, nil
-	}
-	if row.ExpireAt != nil && row.ExpireAt.Before(gtime.Now()) {
-		// Lazily remove only the expired row we just touched so hot keys do not
-		// pay the cost of scanning unrelated cache entries.
-		_, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{Id: row.Id}).Delete()
-		return 0, false, err
 	}
 	if row.ValueKind != ValueKindInt {
 		return 0, false, bizerr.NewCode(CodeKVCacheValueNotInteger)
@@ -119,20 +111,20 @@ func (s *serviceImpl) GetInt(
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
 //   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //   - value: string payload to persist in the cache entry.
-//   - expireSeconds: entry lifetime in seconds; 0 means never expire, and positive values create an absolute expiration time.
+//   - ttl: entry lifetime; 0 means never expire, and positive values create an absolute expiration time.
 //
 // Returns:
 //   - *Item: the latest cache entry snapshot after the value has been written successfully.
 //   - error: returned when the scoped cache key is invalid, the value exceeds the allowed size,
-//     expireSeconds is negative, expired-entry cleanup fails, or the upsert operation fails.
-func (s *serviceImpl) Set(
+//     ttl is negative or the upsert operation fails.
+func (b *MySQLMemoryBackend) Set(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 	value string,
-	expireSeconds int64,
+	ttl time.Duration,
 ) (*Item, error) {
-	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	identity, err := b.resolveIdentity(ownerType, cacheKey)
 	if err != nil {
 		return nil, err
 	}
@@ -140,11 +132,11 @@ func (s *serviceImpl) Set(
 		return nil, err
 	}
 
-	expireAt, err := normalizeExpireAt(expireSeconds)
+	expireAt, err := normalizeExpireAt(ttl)
 	if err != nil {
 		return nil, err
 	}
-	err = s.upsert(ctx, ownerType, identity, do.SysKvCache{
+	err = b.upsert(ctx, ownerType, identity, do.SysKvCache{
 		ValueKind:  ValueKindString,
 		ValueBytes: []byte(value),
 		ValueInt:   0,
@@ -172,12 +164,12 @@ func (s *serviceImpl) Set(
 // Returns:
 //   - error: returned when the scoped cache key is invalid or the delete statement fails.
 //     Deleting a non-existent entry is treated as a successful no-op.
-func (s *serviceImpl) Delete(
+func (b *MySQLMemoryBackend) Delete(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 ) error {
-	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	identity, err := b.resolveIdentity(ownerType, cacheKey)
 	if err != nil {
 		return err
 	}
@@ -197,29 +189,29 @@ func (s *serviceImpl) Delete(
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
 //   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 //   - delta: increment amount added to the current integer value; when the entry does not exist, delta becomes the initial value.
-//   - expireSeconds: new entry lifetime in seconds; 0 keeps the entry non-expiring when creating a new item and preserves the current expiration when updating an existing item.
+//   - ttl: new entry lifetime; 0 keeps the entry non-expiring when creating a new item and preserves the current expiration when updating an existing item.
 //
 // Returns:
 //   - *Item: the latest cache entry snapshot after the increment succeeds.
-//   - error: returned when the scoped cache key is invalid, expireSeconds is negative,
+//   - error: returned when the scoped cache key is invalid, ttl is negative,
 //     expired-entry cleanup fails, the existing entry is not stored as an integer, or any database operation fails.
-func (s *serviceImpl) Incr(
+func (b *MySQLMemoryBackend) Incr(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 	delta int64,
-	expireSeconds int64,
+	ttl time.Duration,
 ) (*Item, error) {
-	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	identity, err := b.resolveIdentity(ownerType, cacheKey)
 	if err != nil {
 		return nil, err
 	}
 
-	expireAt, err := normalizeExpireAt(expireSeconds)
+	expireAt, err := normalizeExpireAt(ttl)
 	if err != nil {
 		return nil, err
 	}
-	if err = s.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
+	if err = b.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
 		return nil, err
 	}
 
@@ -304,35 +296,35 @@ func (s *serviceImpl) Incr(
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
 //   - ownerType: cache owner category, used to isolate entries across different business scopes.
 //   - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
-//   - expireSeconds: new lifetime in seconds; 0 clears the expiration and makes the entry persistent.
+//   - ttl: new lifetime; 0 clears the expiration and makes the entry persistent.
 //
 // Returns:
 //   - bool: whether an existing cache entry was found and updated.
 //   - *gtime.Time: the normalized absolute expiration time; nil means the entry will not expire.
-//   - error: returned when the scoped cache key is invalid, expireSeconds is negative,
+//   - error: returned when the scoped cache key is invalid, ttl is negative,
 //     expired-entry cleanup fails, or the database update fails.
-func (s *serviceImpl) Expire(
+func (b *MySQLMemoryBackend) Expire(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
-	expireSeconds int64,
+	ttl time.Duration,
 ) (bool, *gtime.Time, error) {
-	identity, err := s.resolveIdentity(ownerType, cacheKey)
+	identity, err := b.resolveIdentity(ownerType, cacheKey)
 	if err != nil {
 		return false, nil, err
 	}
 
-	expireAt, err := normalizeExpireAt(expireSeconds)
+	expireAt, err := normalizeExpireAt(ttl)
 	if err != nil {
 		return false, nil, err
 	}
-	if err = s.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
+	if err = b.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
 		return false, nil, err
 	}
 
 	var affected int64
 	if expireAt == nil {
-		affected, err = s.clearIdentityExpireAt(ctx, ownerType, identity)
+		affected, err = b.clearIdentityExpireAt(ctx, ownerType, identity)
 	} else {
 		affected, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 			OwnerType: ownerType.String(),
@@ -358,7 +350,7 @@ func (s *serviceImpl) Expire(
 // Returns:
 //   - error: returned when the cleanup delete statement fails. When no expired entries
 //     exist, the method returns nil.
-func (s *serviceImpl) CleanupExpired(ctx context.Context) error {
+func (b *MySQLMemoryBackend) CleanupExpired(ctx context.Context) error {
 	cols := dao.SysKvCache.Columns()
 	_, err := dao.SysKvCache.Ctx(ctx).
 		WhereNotNull(cols.ExpireAt).
@@ -371,7 +363,7 @@ func (s *serviceImpl) CleanupExpired(ctx context.Context) error {
 
 // upsert inserts one cache entry when absent and always updates the matching
 // unique key in place so concurrent writers follow last-write-wins semantics.
-func (s *serviceImpl) upsert(
+func (b *MySQLMemoryBackend) upsert(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
@@ -409,13 +401,13 @@ func (s *serviceImpl) upsert(
 	}
 	_, err = updateModel.Update()
 	if err == nil && data.ExpireAt == nil {
-		_, err = s.clearIdentityExpireAt(ctx, ownerType, identity)
+		_, err = b.clearIdentityExpireAt(ctx, ownerType, identity)
 	}
 	return err
 }
 
 // clearIdentityExpireAt clears the expiration column for one cache identity.
-func (s *serviceImpl) clearIdentityExpireAt(
+func (b *MySQLMemoryBackend) clearIdentityExpireAt(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
@@ -429,9 +421,9 @@ func (s *serviceImpl) clearIdentityExpireAt(
 	}).Data(cols.ExpireAt, gdb.Raw("NULL")).UpdateAndGetAffected()
 }
 
-// cleanupExpiredIdentity lazily deletes only the expired cache row touched by
-// the current request path.
-func (s *serviceImpl) cleanupExpiredIdentity(
+// cleanupExpiredIdentity deletes one expired cache row before a write path
+// mutates the same identity.
+func (b *MySQLMemoryBackend) cleanupExpiredIdentity(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
@@ -452,7 +444,7 @@ func (s *serviceImpl) cleanupExpiredIdentity(
 
 // resolveIdentity parses and validates one public cache key under the provided
 // owner type.
-func (s *serviceImpl) resolveIdentity(
+func (b *MySQLMemoryBackend) resolveIdentity(
 	ownerType OwnerType,
 	cacheKey string,
 ) (*cacheIdentity, error) {
@@ -460,7 +452,7 @@ func (s *serviceImpl) resolveIdentity(
 	if err != nil {
 		return nil, err
 	}
-	if err = s.validateIdentity(ownerType, identity.ownerKey, identity.namespace, identity.cacheKey); err != nil {
+	if err = b.validateIdentity(ownerType, identity.ownerKey, identity.namespace, identity.cacheKey); err != nil {
 		return nil, err
 	}
 	return identity, nil
@@ -468,7 +460,7 @@ func (s *serviceImpl) resolveIdentity(
 
 // validateIdentity validates the byte-length constraints for one decoded cache
 // identity.
-func (s *serviceImpl) validateIdentity(
+func (b *MySQLMemoryBackend) validateIdentity(
 	ownerType OwnerType,
 	ownerKey string,
 	namespace string,
@@ -491,14 +483,14 @@ func (s *serviceImpl) validateIdentity(
 
 // normalizeExpireAt converts an expiration duration in seconds into an
 // absolute expiration time, or nil for persistent entries.
-func normalizeExpireAt(expireSeconds int64) (*gtime.Time, error) {
-	if expireSeconds < 0 {
+func normalizeExpireAt(ttl time.Duration) (*gtime.Time, error) {
+	if ttl < 0 {
 		return nil, bizerr.NewCode(CodeKVCacheExpireSecondsNegative)
 	}
-	if expireSeconds == 0 {
+	if ttl == 0 {
 		return nil, nil
 	}
-	return gtime.Now().Add(time.Duration(expireSeconds) * time.Second), nil
+	return gtime.Now().Add(ttl), nil
 }
 
 // validateByteLength enforces a non-empty string field with a maximum byte

@@ -1,9 +1,10 @@
-// This file defines the distributed KV cache service component and shared value models.
-
+// Package kvcache defines the host KV cache service facade and backend-agnostic
+// service contract.
 package kvcache
 
 import (
 	"context"
+	"time"
 
 	"github.com/gogf/gf/v2/os/gtime"
 )
@@ -29,18 +30,12 @@ const (
 	ValueKindInt = 2
 )
 
-// Cache-size constants bound the persisted identity and payload lengths for KV
-// cache entries.
-const (
-	maxOwnerTypeBytes = 16
-	maxOwnerKeyBytes  = 64
-	maxNamespaceBytes = 64
-	maxCacheKeyBytes  = 128
-	maxValueBytes     = 4096
-)
-
 // Service defines the kvcache service contract.
 type Service interface {
+	// BackendName returns the concrete cache backend used by this service.
+	BackendName() BackendName
+	// RequiresExpiredCleanup reports whether the backend needs an external cleanup task.
+	RequiresExpiredCleanup() bool
 	// Get returns the current cache entry snapshot identified by ownerType and
 	// one scoped cache key built by BuildCacheKey.
 	// Parameters:
@@ -49,8 +44,8 @@ type Service interface {
 	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// Returns:
 	// - *Item: the cache entry snapshot when the entry exists, including value kind, value, and expiration time.
-	// - bool: whether the cache entry exists after expired data has been cleaned up.
-	// - error: returned when the scoped cache key is invalid, expired-entry cleanup fails, or the database query fails.
+	// - bool: whether the unexpired cache entry exists.
+	// - error: returned when the scoped cache key is invalid or the database query fails.
 	Get(
 		ctx context.Context,
 		ownerType OwnerType,
@@ -64,9 +59,9 @@ type Service interface {
 	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// Returns:
 	// - int64: the integer cache value when the entry exists and is stored as an integer.
-	// - bool: whether the cache entry exists after optional single-row expiration cleanup.
+	// - bool: whether the unexpired cache entry exists.
 	// - error: returned when the scoped cache key is invalid, the existing entry is not stored
-	// as an integer, or the database query/delete fails.
+	// as an integer, or the database query fails.
 	GetInt(
 		ctx context.Context,
 		ownerType OwnerType,
@@ -78,17 +73,17 @@ type Service interface {
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
 	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// - value: string payload to persist in the cache entry.
-	// - expireSeconds: entry lifetime in seconds; 0 means never expire, and positive values create an absolute expiration time.
+	// - ttl: entry lifetime; 0 means never expire, and positive values create an absolute expiration time.
 	// Returns:
 	// - *Item: the latest cache entry snapshot after the value has been written successfully.
 	// - error: returned when the scoped cache key is invalid, the value exceeds the allowed size,
-	// expireSeconds is negative, expired-entry cleanup fails, or the upsert operation fails.
+	// ttl is negative or the upsert operation fails.
 	Set(
 		ctx context.Context,
 		ownerType OwnerType,
 		cacheKey string,
 		value string,
-		expireSeconds int64,
+		ttl time.Duration,
 	) (*Item, error)
 	// Delete removes the cache entry identified by ownerType and one scoped cache key.
 	// Parameters:
@@ -109,34 +104,34 @@ type Service interface {
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
 	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
 	// - delta: increment amount added to the current integer value; when the entry does not exist, delta becomes the initial value.
-	// - expireSeconds: new entry lifetime in seconds; 0 keeps the entry non-expiring when creating a new item and preserves the current expiration when updating an existing item.
+	// - ttl: new entry lifetime; 0 keeps the entry non-expiring when creating a new item and preserves the current expiration when updating an existing item.
 	// Returns:
 	// - *Item: the latest cache entry snapshot after the increment succeeds.
-	// - error: returned when the scoped cache key is invalid, expireSeconds is negative,
+	// - error: returned when the scoped cache key is invalid, ttl is negative,
 	// expired-entry cleanup fails, the existing entry is not stored as an integer, or any database operation fails.
 	Incr(
 		ctx context.Context,
 		ownerType OwnerType,
 		cacheKey string,
 		delta int64,
-		expireSeconds int64,
+		ttl time.Duration,
 	) (*Item, error)
 	// Expire updates the expiration policy of a cache entry without changing its value.
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// - ownerType: cache owner category, used to isolate entries across different business scopes.
 	// - cacheKey: scoped cache key that encodes ownerKey, namespace, and the logical key.
-	// - expireSeconds: new lifetime in seconds; 0 clears the expiration and makes the entry persistent.
+	// - ttl: new lifetime; 0 clears the expiration and makes the entry persistent.
 	// Returns:
 	// - bool: whether an existing cache entry was found and updated.
 	// - *gtime.Time: the normalized absolute expiration time; nil means the entry will not expire.
-	// - error: returned when the scoped cache key is invalid, expireSeconds is negative,
+	// - error: returned when the scoped cache key is invalid, ttl is negative,
 	// expired-entry cleanup fails, or the database update fails.
 	Expire(
 		ctx context.Context,
 		ownerType OwnerType,
 		cacheKey string,
-		expireSeconds int64,
+		ttl time.Duration,
 	) (bool, *gtime.Time, error)
 	// CleanupExpired removes one bounded batch of cache entries whose expiration
 	// time is earlier than the current time.
@@ -153,7 +148,9 @@ type Service interface {
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
-type serviceImpl struct{}
+type serviceImpl struct {
+	backend Backend
+}
 
 // Item defines one cache entry snapshot.
 type Item struct {
@@ -170,11 +167,30 @@ type Item struct {
 }
 
 // New creates and returns a new distributed KV cache service instance.
-func New() Service {
-	return &serviceImpl{}
+func New(options ...Option) Service {
+	config := newServiceConfig()
+	for _, option := range options {
+		if option != nil {
+			option(config)
+		}
+	}
+	backend := config.backend
+	if backend == nil && config.provider != nil {
+		backend = config.provider.NewBackend()
+	}
+	if backend == nil {
+		backend = NewMySQLMemoryProvider().NewBackend()
+	}
+	return &serviceImpl{backend: backend}
 }
 
 // String returns the canonical owner type value.
 func (value OwnerType) String() string {
 	return string(value)
+}
+
+// TTLFromSeconds converts the plugin host-service wire TTL into the duration
+// used by the backend-agnostic kvcache service contract.
+func TTLFromSeconds(seconds int64) time.Duration {
+	return time.Duration(seconds) * time.Second
 }

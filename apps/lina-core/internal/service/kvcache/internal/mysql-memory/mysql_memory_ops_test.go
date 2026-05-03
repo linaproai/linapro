@@ -1,6 +1,6 @@
 // This file tests distributed KV cache mutation and expiration behavior.
 
-package kvcache
+package mysqlmemory
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 // key do not lose successful updates while the MEMORY table is alive.
 func TestIncrConcurrentCallsAreAtomic(t *testing.T) {
 	ctx := context.Background()
-	service := New()
+	service := NewMySQLMemoryBackend()
 	cacheKey := BuildCacheKey("unit-plugin", "counter", "atomic")
 	cleanupKVCacheKey(t, ctx, OwnerTypePlugin, cacheKey)
 
@@ -71,7 +71,7 @@ func TestIncrConcurrentCallsAreAtomic(t *testing.T) {
 // rejected and preserved.
 func TestIncrRejectsExistingStringWithoutMutation(t *testing.T) {
 	ctx := context.Background()
-	service := New()
+	service := NewMySQLMemoryBackend()
 	cacheKey := BuildCacheKey("unit-plugin", "counter", "string-value")
 	cleanupKVCacheKey(t, ctx, OwnerTypePlugin, cacheKey)
 
@@ -90,11 +90,11 @@ func TestIncrRejectsExistingStringWithoutMutation(t *testing.T) {
 	}
 }
 
-// TestGetExpiredKeyOnlyCleansTouchedRow verifies request-path expiration cleanup
-// deletes the requested key without scanning unrelated expired entries.
-func TestGetExpiredKeyOnlyCleansTouchedRow(t *testing.T) {
+// TestGetExpiredKeyIsReadOnlyMiss verifies request-path expiration handling
+// returns a miss without deleting touched or unrelated expired rows.
+func TestGetExpiredKeyIsReadOnlyMiss(t *testing.T) {
 	ctx := context.Background()
-	service := New()
+	service := NewMySQLMemoryBackend()
 	targetKey := BuildCacheKey("unit-plugin", "ttl", "target")
 	otherKey := BuildCacheKey("unit-plugin", "ttl", "other")
 	cleanupKVCacheKey(t, ctx, OwnerTypePlugin, targetKey)
@@ -120,8 +120,8 @@ func TestGetExpiredKeyOnlyCleansTouchedRow(t *testing.T) {
 
 	targetCount := countKVCacheKey(t, ctx, OwnerTypePlugin, targetIdentity)
 	otherCount := countKVCacheKey(t, ctx, OwnerTypePlugin, otherIdentity)
-	if targetCount != 0 {
-		t.Fatalf("expected touched expired row to be deleted, got %d", targetCount)
+	if targetCount != 1 {
+		t.Fatalf("expected touched expired row to remain for background cleanup, got %d", targetCount)
 	}
 	if otherCount != 1 {
 		t.Fatalf("expected unrelated expired row to remain for background cleanup, got %d", otherCount)
@@ -132,11 +132,11 @@ func TestGetExpiredKeyOnlyCleansTouchedRow(t *testing.T) {
 // an existing TTL instead of leaving stale expire_at metadata behind.
 func TestExpireAndSetCanClearExpiration(t *testing.T) {
 	ctx := context.Background()
-	service := New()
+	service := NewMySQLMemoryBackend()
 	cacheKey := BuildCacheKey("unit-plugin", "ttl", "clear")
 	cleanupKVCacheKey(t, ctx, OwnerTypePlugin, cacheKey)
 
-	if _, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "temporary", 60); err != nil {
+	if _, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "temporary", 60*time.Second); err != nil {
 		t.Fatalf("seed expiring value failed: %v", err)
 	}
 	if found, expireAt, err := service.Expire(ctx, OwnerTypePlugin, cacheKey, 0); err != nil {
@@ -152,7 +152,7 @@ func TestExpireAndSetCanClearExpiration(t *testing.T) {
 		t.Fatalf("expected database expire_at to be NULL after Expire(0), got %v", expireAt)
 	}
 
-	if _, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "temporary-again", 60); err != nil {
+	if _, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "temporary-again", 60*time.Second); err != nil {
 		t.Fatalf("reset expiring value failed: %v", err)
 	}
 	if _, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "persistent", 0); err != nil {
@@ -167,7 +167,7 @@ func TestExpireAndSetCanClearExpiration(t *testing.T) {
 // is idempotent and later reads treat removed MEMORY-table cache rows as misses.
 func TestCleanupExpiredRemovesExpiredRowsAsMisses(t *testing.T) {
 	ctx := context.Background()
-	service := New()
+	service := NewMySQLMemoryBackend()
 	cacheKey := BuildCacheKey("unit-plugin", "ttl", "cleanup")
 	cleanupKVCacheKey(t, ctx, OwnerTypePlugin, cacheKey)
 
@@ -194,7 +194,7 @@ func TestCleanupExpiredRemovesExpiredRowsAsMisses(t *testing.T) {
 // and payload fields fail before any truncated value can be persisted.
 func TestSetRejectsOversizedInputsWithoutWriting(t *testing.T) {
 	ctx := context.Background()
-	service := New()
+	service := NewMySQLMemoryBackend()
 	validKey := BuildCacheKey("unit-plugin", "oversized", "value")
 	cleanupKVCacheKey(t, ctx, OwnerTypePlugin, validKey)
 
@@ -240,7 +240,7 @@ func TestSetRejectsOversizedInputsWithoutWriting(t *testing.T) {
 // table row loss as a normal cache miss.
 func TestDeletedMemoryCacheRowBehavesAsMiss(t *testing.T) {
 	ctx := context.Background()
-	service := New()
+	service := NewMySQLMemoryBackend()
 	cacheKey := BuildCacheKey("unit-plugin", "restart", "lost-row")
 	cleanupKVCacheKey(t, ctx, OwnerTypePlugin, cacheKey)
 

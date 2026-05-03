@@ -16,6 +16,10 @@
           "description": "按全局与任务级日志保留策略清理定时任务执行日志。",
           "name": "任务日志清理"
         },
+        "kvcache-cleanup-expired": {
+          "description": "清理需要定时过期维护的 backend 中已过期的 KV 缓存数据。",
+          "name": "KV 缓存过期数据清理"
+        },
         "runtime-param-sync": {
           "description": "同步集群内受保护运行时参数快照，保持各节点本地缓存一致。",
           "name": "运行时参数同步"

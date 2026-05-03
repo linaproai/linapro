@@ -1056,6 +1056,11 @@
             "missing": "運行時參數同步依賴未初始化"
           }
         }
+      },
+      "kvcache": {
+        "dependency": {
+          "missing": "KV 緩存清理依賴未初始化"
+        }
       }
     }
   },

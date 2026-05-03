@@ -1,7 +1,7 @@
 // This file defines distributed KV-cache business error codes and their i18n
 // metadata.
 
-package kvcache
+package mysqlmemory
 
 import (
 	"github.com/gogf/gf/v2/errors/gcode"

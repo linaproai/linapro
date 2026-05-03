@@ -1056,6 +1056,11 @@
             "missing": "Runtime parameter sync dependency is not initialized"
           }
         }
+      },
+      "kvcache": {
+        "dependency": {
+          "missing": "KV cache cleanup dependency is not initialized"
+        }
       }
     }
   },

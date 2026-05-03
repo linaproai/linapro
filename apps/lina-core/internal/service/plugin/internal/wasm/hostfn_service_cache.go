@@ -56,7 +56,7 @@ func dispatchCacheHostService(
 			kvcache.OwnerTypePlugin,
 			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
 			request.Value,
-			request.ExpireSeconds,
+			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
 		if callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
@@ -87,7 +87,7 @@ func dispatchCacheHostService(
 			kvcache.OwnerTypePlugin,
 			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
 			request.Delta,
-			request.ExpireSeconds,
+			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
 		if callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
@@ -104,7 +104,7 @@ func dispatchCacheHostService(
 			ctx,
 			kvcache.OwnerTypePlugin,
 			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
-			request.ExpireSeconds,
+			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
 		if callErr != nil {
 			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())

@@ -2,32 +2,26 @@
 
 package kvcache
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
-// TestBuildCacheKeyRoundTrip verifies cache keys round-trip through the public
-// encoder and internal decoder.
-func TestBuildCacheKeyRoundTrip(t *testing.T) {
+// TestBuildCacheKeyEncodesTrimmedParts verifies the public encoder trims and
+// encodes each scoped cache-key segment deterministically.
+func TestBuildCacheKeyEncodesTrimmedParts(t *testing.T) {
 	key := BuildCacheKey(" module.scope ", " runtime/config ", " revision.v1 ")
 
-	identity, err := parseCacheKey(key)
-	if err != nil {
-		t.Fatalf("expected cache key to parse, got %v", err)
-	}
-	if identity.ownerKey != "module.scope" {
-		t.Fatalf("expected owner key to round-trip, got %q", identity.ownerKey)
-	}
-	if identity.namespace != "runtime/config" {
-		t.Fatalf("expected namespace to round-trip, got %q", identity.namespace)
-	}
-	if identity.cacheKey != "revision.v1" {
-		t.Fatalf("expected logical cache key to round-trip, got %q", identity.cacheKey)
+	const expected = "bW9kdWxlLnNjb3Bl.cnVudGltZS9jb25maWc.cmV2aXNpb24udjE"
+	if key != expected {
+		t.Fatalf("expected encoded cache key %q, got %q", expected, key)
 	}
 }
 
-// TestParseCacheKeyRejectsInvalidFormat verifies non-encoded cache keys are
-// rejected with a validation error.
-func TestParseCacheKeyRejectsInvalidFormat(t *testing.T) {
-	if _, err := parseCacheKey("plain-cache-key"); err == nil {
+// TestInvalidCacheKeyRejected verifies non-encoded cache keys are rejected
+// before any backend read can reach the database.
+func TestInvalidCacheKeyRejected(t *testing.T) {
+	if _, _, err := New().Get(context.Background(), OwnerTypePlugin, "plain-cache-key"); err == nil {
 		t.Fatal("expected invalid cache key format to fail")
 	}
 }
