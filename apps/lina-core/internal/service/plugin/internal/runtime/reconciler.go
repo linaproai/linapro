@@ -336,6 +336,7 @@ func (s *serviceImpl) applyInstall(
 	if err = s.catalogSvc.UpdateReleaseState(ctx, release.Id, catalog.BuildReleaseStatus(catalog.InstalledYes, enabled), archivedPath); err != nil {
 		return err
 	}
+	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
 	if err = s.catalogSvc.SyncMetadata(ctx, manifest, registry, "Dynamic plugin release installed on primary node."); err != nil {
 		return err
 	}
@@ -448,7 +449,7 @@ func (s *serviceImpl) applyUpgrade(
 	// Invalidate the Wasm module cache for the previous active artifact before
 	// replacing it so subsequent requests compile from the new artifact.
 	if activeManifest != nil && activeManifest.RuntimeArtifact != nil {
-		wasm.InvalidateCache(activeManifest.RuntimeArtifact.Path)
+		wasm.InvalidateCache(ctx, activeManifest.RuntimeArtifact.Path)
 	}
 	release, err := s.catalogSvc.GetRelease(ctx, manifest.ID, manifest.Version)
 	if err != nil {
@@ -499,6 +500,7 @@ func (s *serviceImpl) applyUpgrade(
 	if err = s.catalogSvc.UpdateReleaseState(ctx, release.Id, catalog.BuildReleaseStatus(catalog.InstalledYes, enabled), archivedPath); err != nil {
 		return err
 	}
+	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
 	if enabled == catalog.StatusEnabled {
 		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_upgraded")
 	}
@@ -597,10 +599,15 @@ func (s *serviceImpl) applyRefresh(
 		return err
 	}
 
-	// Invalidate any previously cached compiled module so the refreshed artifact
-	// is recompiled on next bridge invocation.
+	activeManifest, activeManifestErr := s.loadActiveManifest(ctx, registry)
+	if activeManifestErr != nil {
+		logger.Warningf(ctx, "load active dynamic manifest before refresh failed plugin=%s err=%v", manifest.ID, activeManifestErr)
+	}
+	if activeManifest != nil && activeManifest.RuntimeArtifact != nil {
+		wasm.InvalidateCache(ctx, activeManifest.RuntimeArtifact.Path)
+	}
 	if manifest.RuntimeArtifact != nil {
-		wasm.InvalidateCache(manifest.RuntimeArtifact.Path)
+		wasm.InvalidateCache(ctx, manifest.RuntimeArtifact.Path)
 	}
 	archivedPath, err := s.archiveReleaseArtifact(ctx, manifest)
 	if err != nil {
@@ -630,6 +637,7 @@ func (s *serviceImpl) applyRefresh(
 	if err = s.catalogSvc.UpdateReleaseState(ctx, release.Id, catalog.BuildReleaseStatus(catalog.InstalledYes, enabled), archivedPath); err != nil {
 		return err
 	}
+	s.cleanupStaleReleaseArtifacts(ctx, manifest.ID)
 	if enabled == catalog.StatusEnabled {
 		s.invalidateRuntimeCaches(ctx, manifest.ID, "plugin_refreshed")
 	}
@@ -651,7 +659,7 @@ func (s *serviceImpl) applyUninstall(ctx context.Context, registry *entity.SysPl
 		return err
 	}
 	if manifest != nil && manifest.RuntimeArtifact != nil {
-		wasm.InvalidateCache(manifest.RuntimeArtifact.Path)
+		wasm.InvalidateCache(ctx, manifest.RuntimeArtifact.Path)
 	}
 	release, err := s.catalogSvc.GetRegistryRelease(ctx, registry)
 	if err != nil {

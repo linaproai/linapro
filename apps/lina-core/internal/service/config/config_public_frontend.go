@@ -293,28 +293,71 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendCon
 	if err != nil {
 		return nil, err
 	}
+	appName, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppName)
+	if err != nil {
+		return nil, err
+	}
+	appLogo, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppLogo)
+	if err != nil {
+		return nil, err
+	}
+	appLogoDark, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppLogoDark)
+	if err != nil {
+		return nil, err
+	}
+	authPageTitle, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthPageTitle)
+	if err != nil {
+		return nil, err
+	}
+	authPageDesc, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthPageDesc)
+	if err != nil {
+		return nil, err
+	}
+	authLoginSubtitle, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthLoginSubtitle)
+	if err != nil {
+		return nil, err
+	}
+	authPanelLayout, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthLoginPanelLayout)
+	if err != nil {
+		return nil, err
+	}
+	userDefaultAvatar, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUserDefaultAvatar)
+	if err != nil {
+		return nil, err
+	}
+	uiThemeMode, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIThemeMode)
+	if err != nil {
+		return nil, err
+	}
+	uiLayout, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUILayout)
+	if err != nil {
+		return nil, err
+	}
+	uiWatermarkContent, err := s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkContent)
+	if err != nil {
+		return nil, err
+	}
+
 	return &PublicFrontendConfig{
 		App: PublicFrontendAppConfig{
-			Name:     s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppName),
-			Logo:     s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppLogo),
-			LogoDark: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAppLogoDark),
+			Name:     appName,
+			Logo:     appLogo,
+			LogoDark: appLogoDark,
 		},
 		Auth: PublicFrontendAuthConfig{
-			PageTitle:     s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthPageTitle),
-			PageDesc:      s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthPageDesc),
-			LoginSubtitle: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthLoginSubtitle),
-			PanelLayout: PublicFrontendAuthPanelLayout(
-				s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyAuthLoginPanelLayout),
-			),
+			PageTitle:     authPageTitle,
+			PageDesc:      authPageDesc,
+			LoginSubtitle: authLoginSubtitle,
+			PanelLayout:   PublicFrontendAuthPanelLayout(authPanelLayout),
 		},
 		User: PublicFrontendUserConfig{
-			DefaultAvatar: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUserDefaultAvatar),
+			DefaultAvatar: userDefaultAvatar,
 		},
 		UI: PublicFrontendUIConfig{
-			ThemeMode:        s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIThemeMode),
-			Layout:           s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUILayout),
+			ThemeMode:        uiThemeMode,
+			Layout:           uiLayout,
 			WatermarkEnabled: watermarkEnabled,
-			WatermarkContent: s.getProtectedConfigValueOrDefault(ctx, PublicFrontendSettingKeyUIWatermarkContent),
+			WatermarkContent: uiWatermarkContent,
 		},
 		Cron: PublicFrontendCronConfig{
 			LogRetention: PublicFrontendCronLogRetentionConfig{
@@ -360,28 +403,33 @@ func appendProtectedConfigKeys() []string {
 
 // getProtectedConfigValueOrDefault returns the runtime override when present or
 // falls back to the built-in default from the protected setting spec.
-func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key string) string {
-	if value, ok := s.lookupRuntimeParamValue(ctx, key); ok {
+func (s *serviceImpl) getProtectedConfigValueOrDefault(ctx context.Context, key string) (string, error) {
+	if value, ok, err := s.lookupRuntimeParamValue(ctx, key); err != nil {
+		return "", err
+	} else if ok {
 		trimmed := strings.TrimSpace(value)
 		if trimmed != "" {
-			return trimmed
+			return trimmed, nil
 		}
 	}
 	spec, ok := LookupPublicFrontendSettingSpec(key)
 	if ok {
-		return spec.DefaultValue
+		return spec.DefaultValue, nil
 	}
 	specRuntime, ok := LookupRuntimeParamSpec(key)
 	if ok {
-		return specRuntime.DefaultValue
+		return specRuntime.DefaultValue, nil
 	}
-	return ""
+	return "", nil
 }
 
 // getProtectedConfigBoolOrDefault returns one protected boolean setting using
 // the default-aware string lookup path first.
 func (s *serviceImpl) getProtectedConfigBoolOrDefault(ctx context.Context, key string) (bool, error) {
-	value := s.getProtectedConfigValueOrDefault(ctx, key)
+	value, err := s.getProtectedConfigValueOrDefault(ctx, key)
+	if err != nil {
+		return false, err
+	}
 	parsed, err := parseStrictBoolValue(key, value)
 	if err != nil {
 		return false, err

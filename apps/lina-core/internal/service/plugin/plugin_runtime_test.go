@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -557,6 +558,17 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	if registryBeforeRefresh == nil {
 		t.Fatal("expected registry row before same-version refresh")
 	}
+	releaseBeforeRefresh, err := service.getPluginRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected release lookup before refresh to succeed, got error: %v", err)
+	}
+	if releaseBeforeRefresh == nil {
+		t.Fatal("expected release row before same-version refresh")
+	}
+	initialPackagePath := filepath.ToSlash(releaseBeforeRefresh.PackagePath)
+	if initialPackagePath == "" {
+		t.Fatal("expected initial same-version release to store an archived package path")
+	}
 
 	refreshedRoutes := []*pluginbridge.RouteContract{
 		{
@@ -598,6 +610,20 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	if registryAfterRefresh.Generation <= registryBeforeRefresh.Generation {
 		t.Fatalf("expected same-version refresh to advance generation, before=%d after=%d", registryBeforeRefresh.Generation, registryAfterRefresh.Generation)
 	}
+	releaseAfterRefresh, err := service.getPluginRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected release lookup after refresh to succeed, got error: %v", err)
+	}
+	if releaseAfterRefresh == nil {
+		t.Fatal("expected release row after same-version refresh")
+	}
+	refreshedPackagePath := filepath.ToSlash(releaseAfterRefresh.PackagePath)
+	if refreshedPackagePath == initialPackagePath {
+		t.Fatalf("expected same-version refresh to move archive path by checksum, still got %s", refreshedPackagePath)
+	}
+	if !strings.Contains(refreshedPackagePath, releaseAfterRefresh.Checksum) {
+		t.Fatalf("expected refreshed package path %q to include checksum %q", refreshedPackagePath, releaseAfterRefresh.Checksum)
+	}
 
 	activeManifest, err := service.getActivePluginManifest(ctx, pluginID)
 	if err != nil {
@@ -606,8 +632,15 @@ func TestInstallSameVersionDynamicPluginRefreshesArchivedReleaseArtifact(t *test
 	if activeManifest == nil || activeManifest.RuntimeArtifact == nil {
 		t.Fatalf("expected active manifest runtime artifact after refresh, got %#v", activeManifest)
 	}
+	if activeManifest.RuntimeArtifact.Checksum != releaseAfterRefresh.Checksum {
+		t.Fatalf("expected active manifest checksum %s to match release checksum %s", activeManifest.RuntimeArtifact.Checksum, releaseAfterRefresh.Checksum)
+	}
 	if len(activeManifest.Routes) != 1 || activeManifest.Routes[0].Permission != pluginID+":review:inspect" {
 		t.Fatalf("expected active manifest routes to refresh with new permission, got %#v", activeManifest.Routes)
+	}
+	oldArchivePath := filepath.Join(testutil.TestDynamicStorageDir(), filepath.FromSlash(initialPackagePath))
+	if _, statErr := os.Stat(oldArchivePath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected old same-version archive to be cleaned path=%s err=%v", oldArchivePath, statErr)
 	}
 
 	asset, err := service.ResolveRuntimeFrontendAsset(ctx, pluginID, version, "index.html")

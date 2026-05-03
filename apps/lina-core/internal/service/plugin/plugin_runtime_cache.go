@@ -5,8 +5,9 @@ package plugin
 import (
 	"context"
 
+	"lina-core/internal/service/cachecoord"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/pkg/logger"
 )
@@ -26,7 +27,6 @@ type runtimeBundleInvalidator interface {
 // controller used by the root plugin service.
 func newRuntimeCacheRevisionController(
 	topology Topology,
-	kvCacheSvc kvcache.Service,
 	integrationSvc pluginRuntimeIntegrationRefresher,
 	frontendSvc pluginRuntimeFrontendInvalidator,
 	i18nSvc runtimeBundleInvalidator,
@@ -35,9 +35,9 @@ func newRuntimeCacheRevisionController(
 	if topology != nil {
 		clusterEnabled = topology.IsEnabled()
 	}
-	return pluginruntimecache.NewController(
+	return pluginruntimecache.NewControllerWithCoordinator(
 		clusterEnabled,
-		kvCacheSvc,
+		cachecoord.Default(topology),
 		pluginRuntimeCacheObservedRevision,
 		func(ctx context.Context) error {
 			if integrationSvc != nil {
@@ -48,6 +48,7 @@ func newRuntimeCacheRevisionController(
 			if frontendSvc != nil {
 				frontendSvc.InvalidateAllBundles(ctx, "cluster_runtime_revision_changed")
 			}
+			wasm.InvalidateAllCache(ctx)
 			if i18nSvc != nil {
 				i18nSvc.InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 					Sectors: []i18nsvc.Sector{

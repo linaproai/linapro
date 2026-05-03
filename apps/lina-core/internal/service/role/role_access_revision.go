@@ -5,8 +5,19 @@ package role
 
 import (
 	"context"
+	"time"
 
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/cachecoord"
+)
+
+// Permission-access cache coordination reasons.
+const (
+	// accessTopologyCacheDomain coordinates token-scoped permission access snapshots.
+	accessTopologyCacheDomain cachecoord.Domain = "permission-access"
+	// accessTopologyCacheChangeReason records permission-topology mutations.
+	accessTopologyCacheChangeReason cachecoord.ChangeReason = "access_topology_changed"
+	// accessTopologyCacheMaxStale is the permission-access freshness budget.
+	accessTopologyCacheMaxStale = 3 * time.Second
 )
 
 // accessRevisionController hides the single-node and clustered revision
@@ -24,22 +35,41 @@ type accessRevisionController interface {
 // in process memory for single-node deployments.
 type localAccessRevisionController struct{}
 
-// clusterAccessRevisionController synchronizes topology revision through shared
-// KV while preserving a local hot-path copy for request-time permission checks.
+// clusterAccessRevisionController synchronizes topology revision through
+// cachecoord while preserving a local hot-path copy for request-time permission checks.
 type clusterAccessRevisionController struct {
-	kvCacheSvc kvcache.Service
+	cacheCoordSvc cachecoord.Service
 }
 
-// newAccessRevisionController selects the deployment-specific controller once
-// during service construction so access-cache call sites remain branch-free.
-func newAccessRevisionController(
-	clusterEnabled bool,
-	kvCacheSvc kvcache.Service,
-) accessRevisionController {
+// newCacheCoordAccessRevisionController selects the deployment-specific
+// revision strategy backed by cachecoord in cluster mode.
+func newCacheCoordAccessRevisionController(clusterEnabled bool) accessRevisionController {
 	if clusterEnabled {
-		return &clusterAccessRevisionController{kvCacheSvc: kvCacheSvc}
+		cacheCoordSvc := cachecoord.Default(cachecoord.NewStaticTopology(true))
+		configureAccessTopologyCacheDomain(cacheCoordSvc)
+		return &clusterAccessRevisionController{
+			cacheCoordSvc: cacheCoordSvc,
+		}
 	}
 	return &localAccessRevisionController{}
+}
+
+// configureAccessTopologyCacheDomain declares the permission-access consistency
+// contract in the role module that owns the cache semantics.
+func configureAccessTopologyCacheDomain(cacheCoordSvc cachecoord.Service) {
+	if cacheCoordSvc == nil {
+		return
+	}
+	if err := cacheCoordSvc.ConfigureDomain(cachecoord.DomainSpec{
+		Domain:           accessTopologyCacheDomain,
+		AuthoritySource:  "sys_role, sys_role_menu, sys_user_role, sys_menu, plugin permissions",
+		ConsistencyModel: cachecoord.ConsistencySharedRevision,
+		MaxStale:         accessTopologyCacheMaxStale,
+		SyncMechanism:    "persistent MySQL sys_cache_revision plus request or watcher refresh",
+		FailureStrategy:  cachecoord.FailureStrategyFailClosed,
+	}); err != nil {
+		panic(err)
+	}
 }
 
 // CurrentRevision reuses the last in-process value or lazily initializes one
@@ -65,70 +95,65 @@ func (c *localAccessRevisionController) MarkChanged(_ context.Context) (int64, e
 }
 
 // CurrentRevision first tries the short-lived local copy and only re-reads
-// shared KV when this process needs to resynchronize.
+// cachecoord when this process needs to resynchronize.
 func (c *clusterAccessRevisionController) CurrentRevision(ctx context.Context) (int64, error) {
 	if revision, ok := getLocalAccessRevision(); ok {
 		return revision, nil
 	}
 
-	revision, err := c.getSharedRevision(ctx)
-	if err != nil {
-		// Keep permission checks soft-degraded during transient shared-KV
-		// failures by reusing the last synchronized revision when one exists.
-		if fallbackRevision, ok := getLocalAccessRevisionForce(); ok {
-			return fallbackRevision, nil
-		}
-		return 0, err
-	}
-
-	storeLocalAccessRevision(revision)
-	return revision, nil
+	return c.ensureFresh(ctx)
 }
 
 // SyncRevision is used by the background watcher, so it must always consult
-// shared KV and optionally trigger token-cache eviction when another node wrote
-// a newer topology revision.
+// cachecoord and optionally trigger token-cache eviction when another node
+// wrote a newer topology revision.
 func (c *clusterAccessRevisionController) SyncRevision(
 	ctx context.Context,
 	onRevisionChange func(),
 ) (int64, error) {
-	revision, err := c.getSharedRevision(ctx)
+	localRevision, hadLocalRevision := getLocalAccessRevisionForce()
+	revision, err := c.ensureFresh(ctx)
 	if err != nil {
 		return 0, err
 	}
 
-	if localRevision, ok := getLocalAccessRevisionForce(); ok && localRevision != revision && onRevisionChange != nil {
+	if hadLocalRevision && localRevision != revision && onRevisionChange != nil {
 		onRevisionChange()
 	}
-	storeLocalAccessRevision(revision)
 	return revision, nil
 }
 
 // MarkChanged publishes one shared revision bump and then updates the local
 // copy so the writing node observes its own topology mutation immediately.
 func (c *clusterAccessRevisionController) MarkChanged(ctx context.Context) (int64, error) {
-	item, err := c.kvCacheSvc.Incr(
+	revision, err := c.cacheCoordSvc.MarkChanged(
 		ctx,
-		kvcache.OwnerTypeModule,
-		accessRevisionCacheKey,
-		1,
-		0,
+		accessTopologyCacheDomain,
+		cachecoord.ScopeGlobal,
+		accessTopologyCacheChangeReason,
 	)
 	if err != nil {
 		return 0, err
 	}
-
-	storeLocalAccessRevision(item.IntValue)
-	return item.IntValue, nil
+	storeLocalAccessRevision(revision)
+	return revision, nil
 }
 
-// getSharedRevision reads the current shared counter without incrementing it so
-// background refreshes stay side-effect free.
-func (c *clusterAccessRevisionController) getSharedRevision(ctx context.Context) (int64, error) {
-	revision, _, err := c.kvCacheSvc.GetInt(
+// ensureFresh confirms that the local permission snapshot has consumed the
+// latest coordinated revision or fails closed after the stale window.
+func (c *clusterAccessRevisionController) ensureFresh(ctx context.Context) (int64, error) {
+	revision, err := c.cacheCoordSvc.EnsureFresh(
 		ctx,
-		kvcache.OwnerTypeModule,
-		accessRevisionCacheKey,
+		accessTopologyCacheDomain,
+		cachecoord.ScopeGlobal,
+		func(_ context.Context, revision int64) error {
+			storeLocalAccessRevision(revision)
+			return nil
+		},
 	)
-	return revision, err
+	if err != nil {
+		return 0, err
+	}
+	storeLocalAccessRevision(revision)
+	return revision, nil
 }

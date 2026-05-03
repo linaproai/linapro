@@ -7,9 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/pluginruntimecache"
 )
 
@@ -36,92 +34,92 @@ func (t reconcilerRevisionTestTopology) CurrentNodeID() string {
 	return t.nodeID
 }
 
-// reconcilerRevisionKV provides deterministic shared-KV behavior for runtime
-// reconciler revision tests.
-type reconcilerRevisionKV struct {
-	revision  int64
-	found     bool
-	getCalls  int
-	getKey    string
-	incrCalls int
-	incrKey   string
+// reconcilerRevisionCacheCoord provides deterministic cachecoord behavior for
+// runtime reconciler revision tests.
+type reconcilerRevisionCacheCoord struct {
+	revision     int64
+	currentCall  int
+	currentScope cachecoord.Scope
+	markCalls    int
+	markScope    cachecoord.Scope
+	markReason   cachecoord.ChangeReason
 }
 
-// Get is unused by reconciler revision tests.
-func (f *reconcilerRevisionKV) Get(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (*kvcache.Item, bool, error) {
-	return nil, false, nil
+// ConfigureDomain is a no-op because these tests configure domain metadata elsewhere.
+func (f *reconcilerRevisionCacheCoord) ConfigureDomain(_ cachecoord.DomainSpec) error {
+	return nil
 }
 
-// GetInt returns the configured reconciler revision.
-func (f *reconcilerRevisionKV) GetInt(
+// MarkChanged advances and returns the in-memory reconciler revision.
+func (f *reconcilerRevisionCacheCoord) MarkChanged(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	cacheKey string,
-) (int64, bool, error) {
-	f.getCalls++
-	f.getKey = cacheKey
-	return f.revision, f.found, nil
+	_ cachecoord.Domain,
+	scope cachecoord.Scope,
+	reason cachecoord.ChangeReason,
+) (int64, error) {
+	f.markCalls++
+	f.markScope = scope
+	f.markReason = reason
+	f.revision++
+	return f.revision, nil
 }
 
-// Set is unused by reconciler revision tests.
-func (f *reconcilerRevisionKV) Set(
+// EnsureFresh runs the refresher against the configured revision.
+func (f *reconcilerRevisionCacheCoord) EnsureFresh(
+	ctx context.Context,
+	domain cachecoord.Domain,
+	scope cachecoord.Scope,
+	refresher cachecoord.Refresher,
+) (int64, error) {
+	revision, err := f.CurrentRevision(ctx, domain, scope)
+	if err != nil {
+		return 0, err
+	}
+	if refresher != nil {
+		if err = refresher(ctx, revision); err != nil {
+			return 0, err
+		}
+	}
+	return revision, nil
+}
+
+// CurrentRevision returns the configured reconciler revision.
+func (f *reconcilerRevisionCacheCoord) CurrentRevision(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ string,
-	_ int64,
-) (*kvcache.Item, error) {
+	_ cachecoord.Domain,
+	scope cachecoord.Scope,
+) (int64, error) {
+	f.currentCall++
+	f.currentScope = scope
+	return f.revision, nil
+}
+
+// Snapshot is unused by reconciler revision tests.
+func (f *reconcilerRevisionCacheCoord) Snapshot(_ context.Context) ([]cachecoord.SnapshotItem, error) {
 	return nil, nil
 }
 
-// Delete is unused by reconciler revision tests.
-func (f *reconcilerRevisionKV) Delete(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) error {
-	return nil
-}
-
-// Incr advances and returns the in-memory reconciler revision.
-func (f *reconcilerRevisionKV) Incr(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	cacheKey string,
-	delta int64,
-	_ int64,
-) (*kvcache.Item, error) {
-	f.incrCalls++
-	f.incrKey = cacheKey
-	f.revision += delta
-	f.found = true
-	return &kvcache.Item{IntValue: f.revision}, nil
-}
-
-// Expire is unused by reconciler revision tests.
-func (f *reconcilerRevisionKV) Expire(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-) (bool, *gtime.Time, error) {
-	return false, nil, nil
-}
-
-// CleanupExpired is unused by reconciler revision tests.
-func (f *reconcilerRevisionKV) CleanupExpired(_ context.Context) error {
-	return nil
+// newTestReconcilerRevisionController creates a cachecoord-backed reconciler
+// revision controller for tests.
+func newTestReconcilerRevisionController(
+	fakeCoord cachecoord.Service,
+	observed *pluginruntimecache.ObservedRevision,
+) *pluginruntimecache.Controller {
+	return pluginruntimecache.NewControllerForScopeWithCoordinator(
+		cachecoord.ScopeReconciler,
+		pluginruntimecache.ReconcilerCacheChangeReason,
+		true,
+		fakeCoord,
+		observed,
+		nil,
+	)
 }
 
 // TestNextBackgroundReconcileDecisionUsesSharedRevision verifies the background
 // loop skips full scans after it has consumed the current shared revision.
 func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 	ctx := context.Background()
-	fakeKV := &reconcilerRevisionKV{revision: 3, found: true}
+	fakeCoord := &reconcilerRevisionCacheCoord{revision: 3}
 	observed := pluginruntimecache.NewObservedRevision()
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
@@ -130,14 +128,8 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 			nodeID:  "node-a",
 		},
 		reconcilerRevisionObserved: observed,
-		reconcilerRevisionCtrl: pluginruntimecache.NewControllerForKey(
-			pluginruntimecache.ReconcilerRevisionCacheKey,
-			true,
-			fakeKV,
-			observed,
-			nil,
-		),
-		lastReconcilerSweepAt: time.Now(),
+		reconcilerRevisionCtrl:     newTestReconcilerRevisionController(fakeCoord, observed),
+		lastReconcilerSweepAt:      time.Now(),
 	}
 
 	decision, err := service.nextBackgroundReconcileDecision(ctx)
@@ -157,7 +149,7 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 		t.Fatalf("expected unchanged revision to skip full scan, got %+v", decision)
 	}
 
-	fakeKV.revision = 4
+	fakeCoord.revision = 4
 	decision, err = service.nextBackgroundReconcileDecision(ctx)
 	if err != nil {
 		t.Fatalf("third reconcile decision failed: %v", err)
@@ -165,8 +157,8 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 	if !decision.shouldRun || decision.revision != 4 || decision.reason != "revision_changed" {
 		t.Fatalf("expected revision-changed run for revision 4, got %+v", decision)
 	}
-	if fakeKV.getKey != pluginruntimecache.ReconcilerRevisionCacheKey {
-		t.Fatalf("expected shared reconciler key %q, got %q", pluginruntimecache.ReconcilerRevisionCacheKey, fakeKV.getKey)
+	if fakeCoord.currentScope != cachecoord.ScopeReconciler {
+		t.Fatalf("expected reconciler scope %q, got %q", cachecoord.ScopeReconciler, fakeCoord.currentScope)
 	}
 }
 
@@ -174,7 +166,7 @@ func TestNextBackgroundReconcileDecisionUsesSharedRevision(t *testing.T) {
 // still performs a low-frequency full scan when the revision is unchanged.
 func TestNextBackgroundReconcileDecisionAllowsSafetySweep(t *testing.T) {
 	ctx := context.Background()
-	fakeKV := &reconcilerRevisionKV{revision: 9, found: true}
+	fakeCoord := &reconcilerRevisionCacheCoord{revision: 9}
 	observed := pluginruntimecache.NewObservedRevision()
 	observed.Store(9)
 	service := &serviceImpl{
@@ -184,14 +176,8 @@ func TestNextBackgroundReconcileDecisionAllowsSafetySweep(t *testing.T) {
 			nodeID:  "node-primary",
 		},
 		reconcilerRevisionObserved: observed,
-		reconcilerRevisionCtrl: pluginruntimecache.NewControllerForKey(
-			pluginruntimecache.ReconcilerRevisionCacheKey,
-			true,
-			fakeKV,
-			observed,
-			nil,
-		),
-		lastReconcilerSweepAt: time.Now().Add(-runtimeReconcilerSafetySweepInterval - time.Second),
+		reconcilerRevisionCtrl:     newTestReconcilerRevisionController(fakeCoord, observed),
+		lastReconcilerSweepAt:      time.Now().Add(-runtimeReconcilerSafetySweepInterval - time.Second),
 	}
 
 	decision, err := service.nextBackgroundReconcileDecision(ctx)
@@ -203,10 +189,10 @@ func TestNextBackgroundReconcileDecisionAllowsSafetySweep(t *testing.T) {
 	}
 }
 
-// TestNotifyReconcilerChangedUsesSharedReconcilerKey verifies dynamic runtime
+// TestNotifyReconcilerChangedUsesReconcilerScope verifies dynamic runtime
 // mutations publish wake-up revisions under the reconciler coordination domain.
-func TestNotifyReconcilerChangedUsesSharedReconcilerKey(t *testing.T) {
-	fakeKV := &reconcilerRevisionKV{revision: 12, found: true}
+func TestNotifyReconcilerChangedUsesReconcilerScope(t *testing.T) {
+	fakeCoord := &reconcilerRevisionCacheCoord{revision: 12}
 	observed := pluginruntimecache.NewObservedRevision()
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
@@ -215,23 +201,20 @@ func TestNotifyReconcilerChangedUsesSharedReconcilerKey(t *testing.T) {
 			nodeID:  "node-b",
 		},
 		reconcilerRevisionObserved: observed,
-		reconcilerRevisionCtrl: pluginruntimecache.NewControllerForKey(
-			pluginruntimecache.ReconcilerRevisionCacheKey,
-			true,
-			fakeKV,
-			observed,
-			nil,
-		),
+		reconcilerRevisionCtrl:     newTestReconcilerRevisionController(fakeCoord, observed),
 	}
 
 	if err := service.notifyReconcilerChanged(context.Background(), "test_mutation"); err != nil {
 		t.Fatalf("notify reconciler changed failed: %v", err)
 	}
-	if fakeKV.incrCalls != 1 {
-		t.Fatalf("expected one shared revision increment, got %d", fakeKV.incrCalls)
+	if fakeCoord.markCalls != 1 {
+		t.Fatalf("expected one shared revision publish, got %d", fakeCoord.markCalls)
 	}
-	if fakeKV.incrKey != pluginruntimecache.ReconcilerRevisionCacheKey {
-		t.Fatalf("expected shared reconciler key %q, got %q", pluginruntimecache.ReconcilerRevisionCacheKey, fakeKV.incrKey)
+	if fakeCoord.markScope != cachecoord.ScopeReconciler {
+		t.Fatalf("expected reconciler scope %q, got %q", cachecoord.ScopeReconciler, fakeCoord.markScope)
+	}
+	if fakeCoord.markReason != pluginruntimecache.ReconcilerCacheChangeReason {
+		t.Fatalf("expected reconciler reason %q, got %q", pluginruntimecache.ReconcilerCacheChangeReason, fakeCoord.markReason)
 	}
 	if !service.reconcilerRevisionCtrl.IsObserved(13) {
 		t.Fatalf("expected published revision 13 to be observed locally")
@@ -242,7 +225,7 @@ func TestNotifyReconcilerChangedUsesSharedReconcilerKey(t *testing.T) {
 // foreground requests can publish desired-state changes while preserving
 // background retry behavior if the immediate convergence fails.
 func TestPublishReconcilerChangedCanLeaveLocalRevisionUnobserved(t *testing.T) {
-	fakeKV := &reconcilerRevisionKV{revision: 20, found: true}
+	fakeCoord := &reconcilerRevisionCacheCoord{revision: 20}
 	observed := pluginruntimecache.NewObservedRevision()
 	service := &serviceImpl{
 		topology: reconcilerRevisionTestTopology{
@@ -251,14 +234,8 @@ func TestPublishReconcilerChangedCanLeaveLocalRevisionUnobserved(t *testing.T) {
 			nodeID:  "node-primary",
 		},
 		reconcilerRevisionObserved: observed,
-		reconcilerRevisionCtrl: pluginruntimecache.NewControllerForKey(
-			pluginruntimecache.ReconcilerRevisionCacheKey,
-			true,
-			fakeKV,
-			observed,
-			nil,
-		),
-		lastReconcilerSweepAt: time.Now(),
+		reconcilerRevisionCtrl:     newTestReconcilerRevisionController(fakeCoord, observed),
+		lastReconcilerSweepAt:      time.Now(),
 	}
 
 	if err := service.publishReconcilerChanged(context.Background(), "desired_state_changed", false); err != nil {

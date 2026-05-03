@@ -135,14 +135,19 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		}
 	}
 
-	if s.configSvc.IsLoginIPBlacklisted(ctx, ip) {
+	blacklisted, err := s.configSvc.IsLoginIPBlacklisted(ctx, ip)
+	if err != nil {
+		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageInvalidCredentials, pluginhost.AuthHookReasonInvalidCredentials)
+		return nil, err
+	}
+	if blacklisted {
 		dispatchLoginFailed(in.Username, pluginsvc.AuthEventMessageIPBlacklisted, pluginhost.AuthHookReasonIPBlacklisted)
 		return nil, gerror.New("error.auth.login.ipBlacklisted")
 	}
 
 	// Query user by username (GoFrame auto-adds deleted_at IS NULL condition)
 	var user *entity.SysUser
-	err := dao.SysUser.Ctx(ctx).
+	err = dao.SysUser.Ctx(ctx).
 		Where(do.SysUser{Username: in.Username}).
 		Scan(&user)
 	if err != nil {

@@ -134,12 +134,13 @@ func ValidateRuntimeParamValue(key string, value string) error {
 
 // lookupRuntimeParamValue reads one protected runtime parameter value from the
 // current immutable snapshot.
-func (s *serviceImpl) lookupRuntimeParamValue(ctx context.Context, key string) (value string, ok bool) {
-	snapshot := s.getRuntimeParamSnapshot(ctx)
-	if snapshot == nil {
-		return "", false
+func (s *serviceImpl) lookupRuntimeParamValue(ctx context.Context, key string) (value string, ok bool, err error) {
+	snapshot, err := s.getRuntimeParamSnapshot(ctx)
+	if err != nil || snapshot == nil {
+		return "", false, err
 	}
-	return snapshot.lookupValue(key)
+	value, ok = snapshot.lookupValue(key)
+	return value, ok, nil
 }
 
 // resolveRuntimeDurationOverride returns one runtime duration override when the
@@ -149,7 +150,10 @@ func (s *serviceImpl) resolveRuntimeDurationOverride(
 	key string,
 	current time.Duration,
 ) (time.Duration, error) {
-	snapshot := s.getRuntimeParamSnapshot(ctx)
+	snapshot, err := s.getRuntimeParamSnapshot(ctx)
+	if err != nil {
+		return 0, err
+	}
 	if snapshot == nil {
 		return current, nil
 	}
@@ -170,7 +174,10 @@ func (s *serviceImpl) resolveRuntimeInt64Override(
 	key string,
 	current int64,
 ) (int64, error) {
-	snapshot := s.getRuntimeParamSnapshot(ctx)
+	snapshot, err := s.getRuntimeParamSnapshot(ctx)
+	if err != nil {
+		return 0, err
+	}
 	if snapshot == nil {
 		return current, nil
 	}

@@ -14,6 +14,25 @@
         "invalid": "Invalid token"
       }
     },
+    "cache": {
+      "coord": {
+        "domain": {
+          "invalid": "Cache coordination domain is invalid"
+        },
+        "scope": {
+          "invalid": "Cache coordination scope is invalid"
+        },
+        "publish": {
+          "failed": "Cache coordination revision publish failed for {domain}/{scope}"
+        },
+        "revision": {
+          "unavailable": "Cache coordination revision is unavailable for {domain}/{scope}"
+        },
+        "freshness": {
+          "unavailable": "Cache freshness cannot be confirmed for {domain}/{scope}"
+        }
+      }
+    },
     "sysconfig": {
       "builtin": {
         "delete": {
@@ -1005,6 +1024,13 @@
           },
           "mode": {
             "unsupported": "Parameter {key} mode is not supported"
+          }
+        }
+      },
+      "runtime": {
+        "param": {
+          "revision": {
+            "unavailable": "Runtime configuration revision is unavailable"
           }
         }
       }

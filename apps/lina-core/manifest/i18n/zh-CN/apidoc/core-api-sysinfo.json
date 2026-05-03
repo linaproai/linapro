@@ -41,9 +41,46 @@
               }
             }
           },
+          "CacheCoordinationInfo": {
+            "fields": {
+              "authoritySource": {
+                "dc": "用于重建该缓存域的权威数据源"
+              },
+              "consistencyModel": {
+                "dc": "缓存域使用的一致性模型"
+              },
+              "domain": {
+                "dc": "缓存协调域标识"
+              },
+              "failureStrategy": {
+                "dc": "无法确认 freshness 时对调用方可见的降级策略"
+              },
+              "lastSyncedAt": {
+                "dc": "最近一次本地同步成功时间，尚未同步时为空"
+              },
+              "localRevision": {
+                "dc": "当前宿主进程已消费的最新修订号"
+              },
+              "maxStaleSeconds": {
+                "dc": "最大可接受陈旧窗口，单位为秒"
+              },
+              "recentError": {
+                "dc": "最近一次缓存协调失败信息，健康时为空"
+              },
+              "scope": {
+                "dc": "缓存域内的显式失效作用域"
+              },
+              "sharedRevision": {
+                "dc": "从协调存储观测到的最新共享修订号"
+              },
+              "staleSeconds": {
+                "dc": "距离最近一次本地同步成功已过去的秒数"
+              }
+            }
+          },
           "GetInfoReq": {
             "meta": {
-              "dc": "获取系统运行时信息，包括Go版本、GoFrame版本、操作系统、数据库版本、启动时间、运行时长以及前后端组件列表",
+              "dc": "获取系统运行时信息，包括Go版本、GoFrame版本、操作系统、数据库版本、启动时间、运行时长、前后端组件列表以及缓存协调诊断信息",
               "summary": "获取系统运行信息",
               "tags": "系统信息"
             },
@@ -59,6 +96,9 @@
                           },
                           "backendComponents": {
                             "dc": "后端组件列表"
+                          },
+                          "cacheCoordination": {
+                            "dc": "关键运行时缓存域的缓存协调诊断信息"
                           },
                           "dbVersion": {
                             "dc": "数据库版本"
@@ -95,7 +135,7 @@
               }
             },
             "schema": {
-              "dc": "获取系统运行时信息，包括Go版本、GoFrame版本、操作系统、数据库版本、启动时间、运行时长以及前后端组件列表"
+              "dc": "获取系统运行时信息，包括Go版本、GoFrame版本、操作系统、数据库版本、启动时间、运行时长、前后端组件列表以及缓存协调诊断信息"
             }
           },
           "GetInfoRes": {
@@ -105,6 +145,9 @@
               },
               "backendComponents": {
                 "dc": "后端组件列表"
+              },
+              "cacheCoordination": {
+                "dc": "关键运行时缓存域的缓存协调诊断信息"
               },
               "dbVersion": {
                 "dc": "数据库版本"

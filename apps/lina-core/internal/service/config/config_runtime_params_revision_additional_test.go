@@ -10,92 +10,77 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogf/gf/v2/os/gtime"
-
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/pkg/bizerr"
 )
 
-// fakeClusterRevisionKVCacheService provides deterministic shared-KV behavior
+// fakeClusterRevisionCacheCoordService provides deterministic cachecoord behavior
 // for clustered runtime-parameter revision tests.
-type fakeClusterRevisionKVCacheService struct {
-	getIntValue int64
-	getIntErr   error
-	getIntCalls int32
-	incrValue   int64
-	incrErr     error
-	incrCalls   int32
+type fakeClusterRevisionCacheCoordService struct {
+	currentRevision int64
+	currentErr      error
+	currentCalls    int32
+	markRevision    int64
+	markErr         error
+	markCalls       int32
 }
 
-// Get returns no string cache item because these tests only exercise integer revisions.
-func (f *fakeClusterRevisionKVCacheService) Get(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (*kvcache.Item, bool, error) {
-	return nil, false, nil
+// ConfigureDomain is a no-op because these tests configure domain metadata elsewhere.
+func (f *fakeClusterRevisionCacheCoordService) ConfigureDomain(_ cachecoord.DomainSpec) error {
+	return nil
 }
 
-// GetInt returns the configured revision value or the configured error.
-func (f *fakeClusterRevisionKVCacheService) GetInt(
+// MarkChanged returns the configured changed revision or error.
+func (f *fakeClusterRevisionCacheCoordService) MarkChanged(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (int64, bool, error) {
-	atomic.AddInt32(&f.getIntCalls, 1)
-	if f.getIntErr != nil {
-		return 0, false, f.getIntErr
+	_ cachecoord.Domain,
+	_ cachecoord.Scope,
+	_ cachecoord.ChangeReason,
+) (int64, error) {
+	atomic.AddInt32(&f.markCalls, 1)
+	if f.markErr != nil {
+		return 0, f.markErr
 	}
-	return f.getIntValue, true, nil
+	return f.markRevision, nil
 }
 
-// Set is a no-op success stub because these tests never write string cache values.
-func (f *fakeClusterRevisionKVCacheService) Set(
+// EnsureFresh runs the refresher against the configured current revision.
+func (f *fakeClusterRevisionCacheCoordService) EnsureFresh(
+	ctx context.Context,
+	domain cachecoord.Domain,
+	scope cachecoord.Scope,
+	refresher cachecoord.Refresher,
+) (int64, error) {
+	revision, err := f.CurrentRevision(ctx, domain, scope)
+	if err != nil {
+		return 0, err
+	}
+	if refresher != nil {
+		if err = refresher(ctx, revision); err != nil {
+			return 0, err
+		}
+	}
+	return revision, nil
+}
+
+// CurrentRevision returns the configured revision value or the configured error.
+func (f *fakeClusterRevisionCacheCoordService) CurrentRevision(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ string,
-	_ int64,
-) (*kvcache.Item, error) {
+	_ cachecoord.Domain,
+	_ cachecoord.Scope,
+) (int64, error) {
+	atomic.AddInt32(&f.currentCalls, 1)
+	if f.currentErr != nil {
+		return 0, f.currentErr
+	}
+	return f.currentRevision, nil
+}
+
+// Snapshot is unused by runtime-parameter revision tests.
+func (f *fakeClusterRevisionCacheCoordService) Snapshot(_ context.Context) ([]cachecoord.SnapshotItem, error) {
 	return nil, nil
-}
-
-// Delete is a no-op success stub because these tests never delete shared KV keys.
-func (f *fakeClusterRevisionKVCacheService) Delete(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) error {
-	return nil
-}
-
-// Incr returns the configured incremented revision value or the configured error.
-func (f *fakeClusterRevisionKVCacheService) Incr(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-	_ int64,
-) (*kvcache.Item, error) {
-	atomic.AddInt32(&f.incrCalls, 1)
-	if f.incrErr != nil {
-		return nil, f.incrErr
-	}
-	return &kvcache.Item{IntValue: f.incrValue}, nil
-}
-
-// Expire is a no-op stub because expiration is irrelevant to revision tests.
-func (f *fakeClusterRevisionKVCacheService) Expire(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-) (bool, *gtime.Time, error) {
-	return false, nil, nil
-}
-
-// CleanupExpired is a no-op success stub because expiration cleanup is not part of these tests.
-func (f *fakeClusterRevisionKVCacheService) CleanupExpired(_ context.Context) error {
-	return nil
 }
 
 // fakeRuntimeParamRevisionController provides deterministic revision behavior
@@ -135,14 +120,15 @@ func (f *fakeRuntimeParamRevisionController) MarkChanged(_ context.Context) (int
 	return f.markRevision, nil
 }
 
-// TestClusterRuntimeParamRevisionControllerCurrentRevisionCachesSharedValue verifies
-// the clustered controller reads shared KV once and then serves the local copy.
-func TestClusterRuntimeParamRevisionControllerCurrentRevisionCachesSharedValue(t *testing.T) {
+// TestClusterRuntimeParamRevisionControllerCurrentRevisionEnsuresFreshValue verifies
+// request-path revision checks consult cachecoord instead of indefinitely
+// trusting the process-local copy.
+func TestClusterRuntimeParamRevisionControllerCurrentRevisionEnsuresFreshValue(t *testing.T) {
 	clearLocalRuntimeParamRevision()
 	t.Cleanup(clearLocalRuntimeParamRevision)
 
-	fakeKV := &fakeClusterRevisionKVCacheService{getIntValue: 7}
-	controller := &clusterRuntimeParamRevisionController{kvCacheSvc: fakeKV}
+	fakeCoord := &fakeClusterRevisionCacheCoordService{currentRevision: 7}
+	controller := &clusterRuntimeParamRevisionController{cacheCoordSvc: fakeCoord}
 
 	revision, err := controller.CurrentRevision(context.Background())
 	if err != nil {
@@ -154,25 +140,25 @@ func TestClusterRuntimeParamRevisionControllerCurrentRevisionCachesSharedValue(t
 
 	revision, err = controller.CurrentRevision(context.Background())
 	if err != nil {
-		t.Fatalf("load cached local revision: %v", err)
+		t.Fatalf("reload shared revision: %v", err)
 	}
 	if revision != 7 {
-		t.Fatalf("expected cached revision 7, got %d", revision)
+		t.Fatalf("expected refreshed revision 7, got %d", revision)
 	}
-	if calls := atomic.LoadInt32(&fakeKV.getIntCalls); calls != 1 {
-		t.Fatalf("expected one shared GetInt call, got %d", calls)
+	if calls := atomic.LoadInt32(&fakeCoord.currentCalls); calls != 2 {
+		t.Fatalf("expected two cachecoord read calls, got %d", calls)
 	}
 }
 
 // TestClusterRuntimeParamRevisionControllerSyncRevisionRefreshesLocalState verifies
-// explicit sync always refreshes from shared KV and replaces the local revision.
+// explicit sync always refreshes from cachecoord and replaces the local revision.
 func TestClusterRuntimeParamRevisionControllerSyncRevisionRefreshesLocalState(t *testing.T) {
 	clearLocalRuntimeParamRevision()
 	storeLocalRuntimeParamRevision(3)
 	t.Cleanup(clearLocalRuntimeParamRevision)
 
-	fakeKV := &fakeClusterRevisionKVCacheService{getIntValue: 9}
-	controller := &clusterRuntimeParamRevisionController{kvCacheSvc: fakeKV}
+	fakeCoord := &fakeClusterRevisionCacheCoordService{currentRevision: 9}
+	controller := &clusterRuntimeParamRevisionController{cacheCoordSvc: fakeCoord}
 
 	revision, err := controller.SyncRevision(context.Background())
 	if err != nil {
@@ -192,8 +178,8 @@ func TestClusterRuntimeParamRevisionControllerMarkChangedStoresReturnedRevision(
 	clearLocalRuntimeParamRevision()
 	t.Cleanup(clearLocalRuntimeParamRevision)
 
-	fakeKV := &fakeClusterRevisionKVCacheService{incrValue: 11}
-	controller := &clusterRuntimeParamRevisionController{kvCacheSvc: fakeKV}
+	fakeCoord := &fakeClusterRevisionCacheCoordService{markRevision: 11}
+	controller := &clusterRuntimeParamRevisionController{cacheCoordSvc: fakeCoord}
 
 	revision, err := controller.MarkChanged(context.Background())
 	if err != nil {
@@ -205,20 +191,20 @@ func TestClusterRuntimeParamRevisionControllerMarkChangedStoresReturnedRevision(
 	if local, ok := getLocalRuntimeParamRevision(); !ok || local != 11 {
 		t.Fatalf("expected local revision to be updated to 11, got value=%d ok=%t", local, ok)
 	}
-	if calls := atomic.LoadInt32(&fakeKV.incrCalls); calls != 1 {
-		t.Fatalf("expected one shared Incr call, got %d", calls)
+	if calls := atomic.LoadInt32(&fakeCoord.markCalls); calls != 1 {
+		t.Fatalf("expected one cachecoord publish call, got %d", calls)
 	}
 }
 
-// TestClusterRuntimeParamRevisionControllerPropagatesSharedKVErrors verifies
-// shared-KV read and increment failures surface to callers.
-func TestClusterRuntimeParamRevisionControllerPropagatesSharedKVErrors(t *testing.T) {
+// TestClusterRuntimeParamRevisionControllerPropagatesCacheCoordErrors verifies
+// cachecoord read and publish failures surface to callers.
+func TestClusterRuntimeParamRevisionControllerPropagatesCacheCoordErrors(t *testing.T) {
 	clearLocalRuntimeParamRevision()
 	t.Cleanup(clearLocalRuntimeParamRevision)
 
 	readErr := errors.New("read revision failed")
-	readKV := &fakeClusterRevisionKVCacheService{getIntErr: readErr}
-	readController := &clusterRuntimeParamRevisionController{kvCacheSvc: readKV}
+	readCoord := &fakeClusterRevisionCacheCoordService{currentErr: readErr}
+	readController := &clusterRuntimeParamRevisionController{cacheCoordSvc: readCoord}
 	if _, err := readController.CurrentRevision(context.Background()); !errors.Is(err, readErr) {
 		t.Fatalf("expected CurrentRevision error %v, got %v", readErr, err)
 	}
@@ -227,10 +213,44 @@ func TestClusterRuntimeParamRevisionControllerPropagatesSharedKVErrors(t *testin
 	}
 
 	writeErr := errors.New("increment revision failed")
-	writeKV := &fakeClusterRevisionKVCacheService{incrErr: writeErr}
-	writeController := &clusterRuntimeParamRevisionController{kvCacheSvc: writeKV}
+	writeCoord := &fakeClusterRevisionCacheCoordService{markErr: writeErr}
+	writeController := &clusterRuntimeParamRevisionController{cacheCoordSvc: writeCoord}
 	if _, err := writeController.MarkChanged(context.Background()); !errors.Is(err, writeErr) {
 		t.Fatalf("expected MarkChanged error %v, got %v", writeErr, err)
+	}
+}
+
+// TestClusterRuntimeParamRevisionControllerConsumesCrossInstanceRevision
+// verifies a second controller instance can observe a revision published by
+// another clustered writer through the persistent coordination row.
+func TestClusterRuntimeParamRevisionControllerConsumesCrossInstanceRevision(t *testing.T) {
+	ctx := context.Background()
+	cleanupRuntimeConfigRevision(t, ctx)
+	clearLocalRuntimeParamRevision()
+	t.Cleanup(clearLocalRuntimeParamRevision)
+
+	publisher := &clusterRuntimeParamRevisionController{
+		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+	}
+	consumer := &clusterRuntimeParamRevisionController{
+		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+	}
+
+	revision, err := publisher.MarkChanged(ctx)
+	if err != nil {
+		t.Fatalf("publish runtime-param revision failed: %v", err)
+	}
+	clearLocalRuntimeParamRevision()
+
+	observed, err := consumer.SyncRevision(ctx)
+	if err != nil {
+		t.Fatalf("consume runtime-param revision from second controller failed: %v", err)
+	}
+	if observed != revision {
+		t.Fatalf("expected consumer revision %d, got %d", revision, observed)
+	}
+	if local, ok := getLocalRuntimeParamRevision(); !ok || local != revision {
+		t.Fatalf("expected local runtime-param revision %d, got value=%d ok=%t", revision, local, ok)
 	}
 }
 
@@ -242,6 +262,80 @@ func TestNotifyRuntimeParamsChangedSwallowsRevisionErrors(t *testing.T) {
 	}
 
 	svc.NotifyRuntimeParamsChanged(context.Background())
+}
+
+// TestRuntimeParamSnapshotReturnsControllerUnavailableError verifies malformed
+// service construction no longer relies on recover to hide missing revision wiring.
+func TestRuntimeParamSnapshotReturnsControllerUnavailableError(t *testing.T) {
+	ctx := context.Background()
+	resetRuntimeParamCacheTestState(t)
+
+	snapshot, err := (&serviceImpl{}).getRuntimeParamSnapshot(ctx)
+	if err == nil {
+		t.Fatal("expected missing runtime-param revision controller to return an error")
+	}
+	if snapshot != nil {
+		t.Fatal("expected no snapshot when revision controller is unavailable")
+	}
+	if !bizerr.Is(err, CodeConfigRuntimeParamRevisionUnavailable) {
+		t.Fatalf("expected runtime-param revision unavailable error, got %v", err)
+	}
+}
+
+// TestRuntimeParamSnapshotPropagatesRevisionErrorWithCachedSnapshot verifies a
+// stale process-local snapshot is not reused when freshness cannot be confirmed.
+func TestRuntimeParamSnapshotPropagatesRevisionErrorWithCachedSnapshot(t *testing.T) {
+	ctx := context.Background()
+	resetRuntimeParamCacheTestState(t)
+
+	currentErr := errors.New("current revision failed")
+	svc := &serviceImpl{
+		runtimeParamRevisionCtrl: &fakeRuntimeParamRevisionController{currentErr: currentErr},
+	}
+	cached := &cachedRuntimeParamSnapshot{
+		Revision:    3,
+		RefreshedAt: time.Now(),
+		Snapshot: &runtimeParamSnapshot{
+			revision:       3,
+			values:         map[string]string{RuntimeParamKeyJWTExpire: "12h"},
+			durationValues: map[string]time.Duration{RuntimeParamKeyJWTExpire: 12 * time.Hour},
+			int64Values:    map[string]int64{},
+			parseErrors:    map[string]error{},
+		},
+	}
+	if err := runtimeParamSnapshotCache.Set(
+		ctx,
+		runtimeParamSnapshotCacheKey,
+		cached,
+		runtimeParamSnapshotCacheTTL,
+	); err != nil {
+		t.Fatalf("seed runtime param snapshot cache: %v", err)
+	}
+
+	snapshot, err := svc.getRuntimeParamSnapshot(ctx)
+	if !errors.Is(err, currentErr) {
+		t.Fatalf("expected revision error %v, got %v", currentErr, err)
+	}
+	if snapshot != nil {
+		t.Fatal("expected no snapshot when revision freshness check fails")
+	}
+}
+
+// cleanupRuntimeConfigRevision removes the shared runtime-config revision row
+// used by cross-instance tests.
+func cleanupRuntimeConfigRevision(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	cleanup := func() {
+		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
+			Domain: runtimeParamCacheDomain,
+			Scope:  cachecoord.ScopeGlobal,
+		}).Delete(); err != nil {
+			t.Fatalf("cleanup runtime-config revision failed: %v", err)
+		}
+	}
+	cleanup()
+	t.Cleanup(cleanup)
 }
 
 // TestRuntimeParamSnapshotSyncIntervalExposesWatcherInterval verifies the

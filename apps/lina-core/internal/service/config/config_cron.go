@@ -88,7 +88,10 @@ func (s *serviceImpl) IsCronShellEnabled(ctx context.Context) (bool, error) {
 
 // GetCronLogRetention returns the runtime-effective default cron log retention policy.
 func (s *serviceImpl) GetCronLogRetention(ctx context.Context) (*CronLogRetentionConfig, error) {
-	value := s.getProtectedConfigValueOrDefault(ctx, RuntimeParamKeyCronLogRetention)
+	value, err := s.getProtectedConfigValueOrDefault(ctx, RuntimeParamKeyCronLogRetention)
+	if err != nil {
+		return nil, err
+	}
 	cfg, err := parseCronLogRetentionValue(RuntimeParamKeyCronLogRetention, value)
 	if err != nil {
 		return nil, err

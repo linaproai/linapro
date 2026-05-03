@@ -11,28 +11,16 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcache"
 
-	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/logger"
 )
 
 // Permission access-cache keys and synchronization intervals.
 const (
 	accessCacheKeyPrefix       = "role:user-access:"
-	accessRevisionOwnerKey     = "authz"
-	accessRevisionNamespace    = "permission-access"
-	accessRevisionLogicalKey   = "topology-revision"
 	accessRevisionSyncInterval = 3 * time.Second
 	// Refresh the shared revision infrequently because permission topology changes
 	// are rare, while local invalidation still takes effect immediately on writes.
 	accessRevisionRefreshInterval = accessRevisionSyncInterval
-)
-
-// accessRevisionCacheKey is the shared KV key used to synchronize permission
-// topology revision changes across nodes.
-var accessRevisionCacheKey = kvcache.BuildCacheKey(
-	accessRevisionOwnerKey,
-	accessRevisionNamespace,
-	accessRevisionLogicalKey,
 )
 
 // cachedUserAccessContext stores one token-bound permission snapshot together
@@ -423,7 +411,7 @@ func getLocalAccessRevisionForce() (int64, bool) {
 }
 
 // storeLocalAccessRevision records the shared revision in process memory so hot
-// permission checks do not hit the shared KV cache on every request.
+// permission checks do not hit cachecoord on every request.
 func storeLocalAccessRevision(revision int64) {
 	accessRevisionState.Lock()
 	accessRevisionState.value = revision

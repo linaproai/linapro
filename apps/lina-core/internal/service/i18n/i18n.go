@@ -11,8 +11,8 @@ import (
 
 	"lina-core/internal/packed"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/config"
-	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
@@ -168,9 +168,9 @@ func New() Service {
 		bizCtxSvc: bizctx.New(),
 		configSvc: configSvc,
 	}
-	service.runtimeCacheRevisionCtl = pluginruntimecache.NewController(
+	service.runtimeCacheRevisionCtl = pluginruntimecache.NewControllerWithCoordinator(
 		configSvc.IsClusterEnabled(context.Background()),
-		kvcache.New(),
+		cachecoord.Default(cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background()))),
 		runtimeI18nCacheObservedRevision,
 		func(ctx context.Context) error {
 			service.InvalidateRuntimeBundleCache(InvalidateScope{

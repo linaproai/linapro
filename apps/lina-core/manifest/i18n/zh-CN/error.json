@@ -14,6 +14,25 @@
         "invalid": "无效的Token"
       }
     },
+    "cache": {
+      "coord": {
+        "domain": {
+          "invalid": "缓存协调域无效"
+        },
+        "scope": {
+          "invalid": "缓存协调作用域无效"
+        },
+        "publish": {
+          "failed": "发布缓存协调修订号失败：{domain}/{scope}"
+        },
+        "revision": {
+          "unavailable": "无法读取缓存协调修订号：{domain}/{scope}"
+        },
+        "freshness": {
+          "unavailable": "无法确认缓存新鲜度：{domain}/{scope}"
+        }
+      }
+    },
     "sysconfig": {
       "builtin": {
         "delete": {
@@ -1005,6 +1024,13 @@
           },
           "mode": {
             "unsupported": "参数 {key} 的 mode 不在支持范围内"
+          }
+        }
+      },
+      "runtime": {
+        "param": {
+          "revision": {
+            "unavailable": "运行时配置修订号不可用"
           }
         }
       }

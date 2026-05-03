@@ -6,110 +6,30 @@ package config
 import (
 	"context"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/service/kvcache"
 )
 
-// fakeRuntimeParamKVCacheService provides deterministic revision reads and
-// counters for runtime-parameter cache tests.
-type fakeRuntimeParamKVCacheService struct {
-	getIntValue int64
-	getIntCalls int32
-	incrCalls   int32
-}
-
-// Get returns no cached string item because these tests only exercise integer
-// revision paths.
-func (f *fakeRuntimeParamKVCacheService) Get(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (*kvcache.Item, bool, error) {
-	return nil, false, nil
-}
-
-// GetInt returns the configured revision value and tracks read calls.
-func (f *fakeRuntimeParamKVCacheService) GetInt(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (int64, bool, error) {
-	atomic.AddInt32(&f.getIntCalls, 1)
-	return f.getIntValue, true, nil
-}
-
-// Set is a no-op success stub for tests.
-func (f *fakeRuntimeParamKVCacheService) Set(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ string,
-	_ int64,
-) (*kvcache.Item, error) {
-	return nil, nil
-}
-
-// Delete is a no-op success stub for tests.
-func (f *fakeRuntimeParamKVCacheService) Delete(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) error {
-	return nil
-}
-
-// Incr returns the configured integer value and tracks increment calls.
-func (f *fakeRuntimeParamKVCacheService) Incr(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-	_ int64,
-) (*kvcache.Item, error) {
-	atomic.AddInt32(&f.incrCalls, 1)
-	return &kvcache.Item{IntValue: f.getIntValue}, nil
-}
-
-// Expire is a no-op stub because expiration is irrelevant to these tests.
-func (f *fakeRuntimeParamKVCacheService) Expire(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-) (bool, *gtime.Time, error) {
-	return false, nil, nil
-}
-
-// CleanupExpired is a no-op success stub for tests.
-func (f *fakeRuntimeParamKVCacheService) CleanupExpired(_ context.Context) error {
-	return nil
-}
-
-// TestNewRuntimeParamRevisionControllerSelectsByClusterMode verifies the
+// TestNewCacheCoordRuntimeParamRevisionControllerSelectsByClusterMode verifies the
 // constructor selects the local or clustered revision strategy correctly.
-func TestNewRuntimeParamRevisionControllerSelectsByClusterMode(t *testing.T) {
-	if _, ok := newRuntimeParamRevisionController(
-		false,
-		&fakeRuntimeParamKVCacheService{},
-	).(*localRuntimeParamRevisionController); !ok {
+func TestNewCacheCoordRuntimeParamRevisionControllerSelectsByClusterMode(t *testing.T) {
+	if _, ok := newCacheCoordRuntimeParamRevisionController(false).(*localRuntimeParamRevisionController); !ok {
 		t.Fatal("expected single-node mode to use local runtime-param revision controller")
 	}
 
-	if _, ok := newRuntimeParamRevisionController(
-		true,
-		&fakeRuntimeParamKVCacheService{},
-	).(*clusterRuntimeParamRevisionController); !ok {
+	controller, ok := newCacheCoordRuntimeParamRevisionController(true).(*clusterRuntimeParamRevisionController)
+	if !ok {
 		t.Fatal("expected cluster mode to use shared runtime-param revision controller")
+	}
+	if controller.cacheCoordSvc == nil {
+		t.Fatal("expected clustered runtime-param revision controller to use cachecoord")
 	}
 }
 
@@ -309,7 +229,10 @@ func TestGetLoginUsesRuntimeBlacklist(t *testing.T) {
 	withRuntimeParamValue(t, RuntimeParamKeyLoginBlackIPList, "127.0.0.1;10.0.0.0/8")
 
 	svc := New()
-	cfg := svc.GetLogin(context.Background())
+	cfg, err := svc.GetLogin(context.Background())
+	if err != nil {
+		t.Fatalf("get runtime login config: %v", err)
+	}
 
 	if !cfg.IsBlacklisted("127.0.0.1") {
 		t.Fatal("expected 127.0.0.1 to be blacklisted")
@@ -320,10 +243,18 @@ func TestGetLoginUsesRuntimeBlacklist(t *testing.T) {
 	if cfg.IsBlacklisted("192.168.1.10") {
 		t.Fatal("expected 192.168.1.10 not to be blacklisted")
 	}
-	if !svc.IsLoginIPBlacklisted(context.Background(), "10.1.2.3") {
+	blacklisted, err := svc.IsLoginIPBlacklisted(context.Background(), "10.1.2.3")
+	if err != nil {
+		t.Fatalf("check blacklisted runtime IP: %v", err)
+	}
+	if !blacklisted {
 		t.Fatal("expected runtime blacklist getter to match 10.1.2.3")
 	}
-	if svc.IsLoginIPBlacklisted(context.Background(), "192.168.1.10") {
+	blacklisted, err = svc.IsLoginIPBlacklisted(context.Background(), "192.168.1.10")
+	if err != nil {
+		t.Fatalf("check allowed runtime IP: %v", err)
+	}
+	if blacklisted {
 		t.Fatal("expected runtime blacklist getter not to match 192.168.1.10")
 	}
 }
@@ -578,22 +509,17 @@ func TestSyncRuntimeParamSnapshotReloadsAfterRevisionChange(t *testing.T) {
 }
 
 // TestSingleNodeRuntimeParamSnapshotStaysLocal verifies single-node mode avoids
-// shared-KV traffic while still invalidating local snapshots.
+// cachecoord traffic while still invalidating local snapshots.
 func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
 	ctx := context.Background()
 	withRuntimeParamValue(t, RuntimeParamKeyJWTExpire, "12h")
 
 	svc := New().(*serviceImpl)
 	resetRuntimeParamCacheTestState(t)
-	fakeKV := &fakeRuntimeParamKVCacheService{getIntValue: 11}
-	svc.kvCacheSvc = fakeKV
-	svc.runtimeParamRevisionCtrl = newRuntimeParamRevisionController(false, fakeKV)
+	svc.runtimeParamRevisionCtrl = &localRuntimeParamRevisionController{}
 
 	if err := svc.SyncRuntimeParamSnapshot(ctx); err != nil {
 		t.Fatalf("single-node runtime param sync failed: %v", err)
-	}
-	if atomic.LoadInt32(&fakeKV.getIntCalls) != 0 {
-		t.Fatalf("expected single-node sync to avoid GetInt, got %d calls", atomic.LoadInt32(&fakeKV.getIntCalls))
 	}
 	cfg, err := svc.GetJwt(ctx)
 	if err != nil {
@@ -642,9 +568,6 @@ func TestSingleNodeRuntimeParamSnapshotStaysLocal(t *testing.T) {
 
 	if err = svc.MarkRuntimeParamsChanged(ctx); err != nil {
 		t.Fatalf("mark runtime params changed in single-node mode: %v", err)
-	}
-	if atomic.LoadInt32(&fakeKV.incrCalls) != 0 {
-		t.Fatalf("expected single-node invalidation to avoid Incr, got %d calls", atomic.LoadInt32(&fakeKV.incrCalls))
 	}
 	cfg, err = svc.GetJwt(ctx)
 	if err != nil {

@@ -8,104 +8,92 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gogf/gf/v2/os/gtime"
+	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
+	"lina-core/internal/service/cachecoord"
 )
 
-// fakeKVCacheService provides deterministic shared-KV behavior for revision tests.
-type fakeKVCacheService struct {
-	getIntValue int64
-	getIntFound bool
-	getIntErr   error
-	getIntCalls int32
-	getIntKey   string
-	incrValue   int64
-	incrErr     error
-	incrCalls   int32
-	incrKey     string
+// fakePluginRuntimeCacheCoordService provides deterministic cachecoord behavior
+// for revision tests.
+type fakePluginRuntimeCacheCoordService struct {
+	currentRevision int64
+	currentErr      error
+	currentCalls    int32
+	currentScope    cachecoord.Scope
+	markRevision    int64
+	markErr         error
+	markCalls       int32
+	markScope       cachecoord.Scope
+	markReason      cachecoord.ChangeReason
 }
 
-// Get returns no string item because revision tests only exercise integer values.
-func (f *fakeKVCacheService) Get(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (*kvcache.Item, bool, error) {
-	return nil, false, nil
+// ConfigureDomain is a no-op because these tests configure domain metadata elsewhere.
+func (f *fakePluginRuntimeCacheCoordService) ConfigureDomain(_ cachecoord.DomainSpec) error {
+	return nil
 }
 
-// GetInt returns the configured shared revision.
-func (f *fakeKVCacheService) GetInt(
+// MarkChanged returns the configured changed revision and tracks publish metadata.
+func (f *fakePluginRuntimeCacheCoordService) MarkChanged(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	cacheKey string,
-) (int64, bool, error) {
-	atomic.AddInt32(&f.getIntCalls, 1)
-	f.getIntKey = cacheKey
-	if f.getIntErr != nil {
-		return 0, false, f.getIntErr
+	_ cachecoord.Domain,
+	scope cachecoord.Scope,
+	reason cachecoord.ChangeReason,
+) (int64, error) {
+	atomic.AddInt32(&f.markCalls, 1)
+	f.markScope = scope
+	f.markReason = reason
+	if f.markErr != nil {
+		return 0, f.markErr
 	}
-	return f.getIntValue, f.getIntFound, nil
+	return f.markRevision, nil
 }
 
-// Set is unused by revision tests.
-func (f *fakeKVCacheService) Set(
+// EnsureFresh runs the refresher against the configured current revision.
+func (f *fakePluginRuntimeCacheCoordService) EnsureFresh(
+	ctx context.Context,
+	domain cachecoord.Domain,
+	scope cachecoord.Scope,
+	refresher cachecoord.Refresher,
+) (int64, error) {
+	revision, err := f.CurrentRevision(ctx, domain, scope)
+	if err != nil {
+		return 0, err
+	}
+	if refresher != nil {
+		if err = refresher(ctx, revision); err != nil {
+			return 0, err
+		}
+	}
+	return revision, nil
+}
+
+// CurrentRevision returns the configured shared revision.
+func (f *fakePluginRuntimeCacheCoordService) CurrentRevision(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ string,
-	_ int64,
-) (*kvcache.Item, error) {
+	_ cachecoord.Domain,
+	scope cachecoord.Scope,
+) (int64, error) {
+	atomic.AddInt32(&f.currentCalls, 1)
+	f.currentScope = scope
+	if f.currentErr != nil {
+		return 0, f.currentErr
+	}
+	return f.currentRevision, nil
+}
+
+// Snapshot is unused by revision tests.
+func (f *fakePluginRuntimeCacheCoordService) Snapshot(_ context.Context) ([]cachecoord.SnapshotItem, error) {
 	return nil, nil
 }
 
-// Delete is unused by revision tests.
-func (f *fakeKVCacheService) Delete(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) error {
-	return nil
-}
-
-// Incr returns the configured incremented revision.
-func (f *fakeKVCacheService) Incr(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	cacheKey string,
-	_ int64,
-	_ int64,
-) (*kvcache.Item, error) {
-	atomic.AddInt32(&f.incrCalls, 1)
-	f.incrKey = cacheKey
-	if f.incrErr != nil {
-		return nil, f.incrErr
-	}
-	return &kvcache.Item{IntValue: f.incrValue}, nil
-}
-
-// Expire is unused by revision tests.
-func (f *fakeKVCacheService) Expire(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-) (bool, *gtime.Time, error) {
-	return false, nil, nil
-}
-
-// CleanupExpired is unused by revision tests.
-func (f *fakeKVCacheService) CleanupExpired(_ context.Context) error {
-	return nil
-}
-
-// TestControllerSingleNodeNoops verifies single-node deployments avoid shared
-// KV reads, writes, and refresh callbacks.
+// TestControllerSingleNodeNoops verifies single-node deployments avoid
+// cachecoord reads, writes, and refresh callbacks.
 func TestControllerSingleNodeNoops(t *testing.T) {
-	fakeKV := &fakeKVCacheService{getIntFound: true, getIntValue: 3, incrValue: 4}
+	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 3, markRevision: 4}
 	var refreshCalls int32
-	controller := NewController(false, fakeKV, NewObservedRevision(), func(_ context.Context) error {
+	controller := NewControllerWithCoordinator(false, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
 		atomic.AddInt32(&refreshCalls, 1)
 		return nil
 	})
@@ -120,8 +108,8 @@ func TestControllerSingleNodeNoops(t *testing.T) {
 	if revision != 0 {
 		t.Fatalf("expected single-node revision 0, got %d", revision)
 	}
-	if atomic.LoadInt32(&fakeKV.getIntCalls) != 0 || atomic.LoadInt32(&fakeKV.incrCalls) != 0 {
-		t.Fatalf("expected no shared KV traffic, got get=%d incr=%d", fakeKV.getIntCalls, fakeKV.incrCalls)
+	if atomic.LoadInt32(&fakeCoord.currentCalls) != 0 || atomic.LoadInt32(&fakeCoord.markCalls) != 0 {
+		t.Fatalf("expected no cachecoord traffic, got current=%d mark=%d", fakeCoord.currentCalls, fakeCoord.markCalls)
 	}
 	if atomic.LoadInt32(&refreshCalls) != 0 {
 		t.Fatalf("expected no refresh callback, got %d", refreshCalls)
@@ -131,9 +119,9 @@ func TestControllerSingleNodeNoops(t *testing.T) {
 // TestControllerEnsureFreshRefreshesOnRevisionChange verifies each cache domain
 // refreshes once per newly observed shared revision.
 func TestControllerEnsureFreshRefreshesOnRevisionChange(t *testing.T) {
-	fakeKV := &fakeKVCacheService{getIntFound: true, getIntValue: 5}
+	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 5}
 	var refreshCalls int32
-	controller := NewController(true, fakeKV, NewObservedRevision(), func(_ context.Context) error {
+	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
 		atomic.AddInt32(&refreshCalls, 1)
 		return nil
 	})
@@ -148,7 +136,7 @@ func TestControllerEnsureFreshRefreshesOnRevisionChange(t *testing.T) {
 		t.Fatalf("expected one refresh for revision 5, got %d", refreshCalls)
 	}
 
-	fakeKV.getIntValue = 6
+	fakeCoord.currentRevision = 6
 	if err := controller.EnsureFresh(context.Background()); err != nil {
 		t.Fatalf("third ensure fresh failed: %v", err)
 	}
@@ -160,9 +148,9 @@ func TestControllerEnsureFreshRefreshesOnRevisionChange(t *testing.T) {
 // TestControllerMarkChangedStoresReturnedRevision verifies the mutating node
 // records the revision it published so its next read path does not refresh again.
 func TestControllerMarkChangedStoresReturnedRevision(t *testing.T) {
-	fakeKV := &fakeKVCacheService{getIntFound: true, getIntValue: 9, incrValue: 9}
+	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 9, markRevision: 9}
 	var refreshCalls int32
-	controller := NewController(true, fakeKV, NewObservedRevision(), func(_ context.Context) error {
+	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
 		atomic.AddInt32(&refreshCalls, 1)
 		return nil
 	})
@@ -185,9 +173,9 @@ func TestControllerMarkChangedStoresReturnedRevision(t *testing.T) {
 // TestControllerPublishChangedLeavesRevisionUnobserved verifies callers can
 // publish a revision that the same local process should still consume later.
 func TestControllerPublishChangedLeavesRevisionUnobserved(t *testing.T) {
-	fakeKV := &fakeKVCacheService{getIntFound: true, getIntValue: 10, incrValue: 10}
+	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 10, markRevision: 10}
 	var refreshCalls int32
-	controller := NewController(true, fakeKV, NewObservedRevision(), func(_ context.Context) error {
+	controller := NewControllerWithCoordinator(true, fakeCoord, NewObservedRevision(), func(_ context.Context) error {
 		atomic.AddInt32(&refreshCalls, 1)
 		return nil
 	})
@@ -207,13 +195,13 @@ func TestControllerPublishChangedLeavesRevisionUnobserved(t *testing.T) {
 	}
 }
 
-// TestControllerPropagatesSharedKVErrors verifies shared KV failures are
+// TestControllerPropagatesCacheCoordErrors verifies cachecoord failures are
 // returned to callers that can fail closed.
-func TestControllerPropagatesSharedKVErrors(t *testing.T) {
+func TestControllerPropagatesCacheCoordErrors(t *testing.T) {
 	readErr := errors.New("read revision failed")
-	readController := NewController(
+	readController := NewControllerWithCoordinator(
 		true,
-		&fakeKVCacheService{getIntErr: readErr},
+		&fakePluginRuntimeCacheCoordService{currentErr: readErr},
 		NewObservedRevision(),
 		nil,
 	)
@@ -222,9 +210,9 @@ func TestControllerPropagatesSharedKVErrors(t *testing.T) {
 	}
 
 	writeErr := errors.New("write revision failed")
-	writeController := NewController(
+	writeController := NewControllerWithCoordinator(
 		true,
-		&fakeKVCacheService{incrErr: writeErr},
+		&fakePluginRuntimeCacheCoordService{markErr: writeErr},
 		NewObservedRevision(),
 		nil,
 	)
@@ -233,14 +221,15 @@ func TestControllerPropagatesSharedKVErrors(t *testing.T) {
 	}
 }
 
-// TestControllerForKeyUsesExplicitCacheKey verifies non-default coordination
-// domains can store revisions under an independent shared KV key.
-func TestControllerForKeyUsesExplicitCacheKey(t *testing.T) {
-	fakeKV := &fakeKVCacheService{getIntFound: true, getIntValue: 11, incrValue: 12}
-	controller := NewControllerForKey(
-		ReconcilerRevisionCacheKey,
+// TestControllerForScopeUsesExplicitCacheCoordScope verifies non-default
+// coordination scopes store revisions independently.
+func TestControllerForScopeUsesExplicitCacheCoordScope(t *testing.T) {
+	fakeCoord := &fakePluginRuntimeCacheCoordService{currentRevision: 11, markRevision: 12}
+	controller := NewControllerForScopeWithCoordinator(
+		cachecoord.ScopeReconciler,
+		ReconcilerCacheChangeReason,
 		true,
-		fakeKV,
+		fakeCoord,
 		NewObservedRevision(),
 		nil,
 	)
@@ -252,8 +241,8 @@ func TestControllerForKeyUsesExplicitCacheKey(t *testing.T) {
 	if revision != 11 {
 		t.Fatalf("expected revision 11, got %d", revision)
 	}
-	if fakeKV.getIntKey != ReconcilerRevisionCacheKey {
-		t.Fatalf("expected get key %q, got %q", ReconcilerRevisionCacheKey, fakeKV.getIntKey)
+	if fakeCoord.currentScope != cachecoord.ScopeReconciler {
+		t.Fatalf("expected current scope %q, got %q", cachecoord.ScopeReconciler, fakeCoord.currentScope)
 	}
 
 	revision, err = controller.MarkChanged(context.Background())
@@ -263,7 +252,71 @@ func TestControllerForKeyUsesExplicitCacheKey(t *testing.T) {
 	if revision != 12 {
 		t.Fatalf("expected incremented revision 12, got %d", revision)
 	}
-	if fakeKV.incrKey != ReconcilerRevisionCacheKey {
-		t.Fatalf("expected incr key %q, got %q", ReconcilerRevisionCacheKey, fakeKV.incrKey)
+	if fakeCoord.markScope != cachecoord.ScopeReconciler {
+		t.Fatalf("expected mark scope %q, got %q", cachecoord.ScopeReconciler, fakeCoord.markScope)
 	}
+	if fakeCoord.markReason != ReconcilerCacheChangeReason {
+		t.Fatalf("expected mark reason %q, got %q", ReconcilerCacheChangeReason, fakeCoord.markReason)
+	}
+}
+
+// TestControllerConsumesCrossInstancePluginRuntimeRevision verifies a second
+// cache controller can observe plugin-runtime changes published by another
+// instance through cachecoord.
+func TestControllerConsumesCrossInstancePluginRuntimeRevision(t *testing.T) {
+	ctx := context.Background()
+	scope := cachecoord.Scope("unit-test-plugin-runtime-dual")
+	cleanupPluginRuntimeRevision(t, ctx, scope)
+
+	publisher := NewControllerForScopeWithCoordinator(
+		scope,
+		RuntimeCacheChangeReason,
+		true,
+		cachecoord.New(cachecoord.NewStaticTopology(true)),
+		NewObservedRevision(),
+		nil,
+	)
+	var refreshCalls int32
+	consumer := NewControllerForScopeWithCoordinator(
+		scope,
+		RuntimeCacheChangeReason,
+		true,
+		cachecoord.New(cachecoord.NewStaticTopology(true)),
+		NewObservedRevision(),
+		func(_ context.Context) error {
+			atomic.AddInt32(&refreshCalls, 1)
+			return nil
+		},
+	)
+
+	revision, err := publisher.MarkChanged(ctx)
+	if err != nil {
+		t.Fatalf("publish plugin-runtime revision failed: %v", err)
+	}
+	if err = consumer.EnsureFresh(ctx); err != nil {
+		t.Fatalf("consume plugin-runtime revision from second controller failed: %v", err)
+	}
+	if !consumer.IsObserved(revision) {
+		t.Fatalf("expected consumer to observe revision %d", revision)
+	}
+	if atomic.LoadInt32(&refreshCalls) != 1 {
+		t.Fatalf("expected one cache refresh after cross-instance revision, got %d", refreshCalls)
+	}
+}
+
+// cleanupPluginRuntimeRevision removes one shared plugin-runtime revision row
+// used by cross-instance tests.
+func cleanupPluginRuntimeRevision(t *testing.T, ctx context.Context, scope cachecoord.Scope) {
+	t.Helper()
+
+	cleanup := func() {
+		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
+			Domain: runtimeCacheDomain,
+			Scope:  scope,
+		}).Delete(); err != nil {
+			t.Fatalf("cleanup plugin-runtime revision failed: %v", err)
+		}
+	}
+	cleanup()
+	t.Cleanup(cleanup)
 }

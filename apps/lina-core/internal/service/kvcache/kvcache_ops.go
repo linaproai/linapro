@@ -17,6 +17,10 @@ import (
 	"lina-core/pkg/bizerr"
 )
 
+// expiredCleanupBatchSize bounds each global cleanup pass so repeated
+// cluster-node invocations stay idempotent and avoid full-table pressure.
+const expiredCleanupBatchSize = 500
+
 // Get returns the current cache entry snapshot identified by ownerType and one
 // scoped cache key.
 //
@@ -38,7 +42,7 @@ func (s *serviceImpl) Get(
 	if err != nil {
 		return nil, false, err
 	}
-	if err := s.CleanupExpired(ctx); err != nil {
+	if err := s.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
 		return nil, false, err
 	}
 
@@ -140,10 +144,6 @@ func (s *serviceImpl) Set(
 	if err != nil {
 		return nil, err
 	}
-	if err = s.CleanupExpired(ctx); err != nil {
-		return nil, err
-	}
-
 	err = s.upsert(ctx, ownerType, identity, do.SysKvCache{
 		ValueKind:  ValueKindString,
 		ValueBytes: []byte(value),
@@ -219,13 +219,27 @@ func (s *serviceImpl) Incr(
 	if err != nil {
 		return nil, err
 	}
-	if err = s.CleanupExpired(ctx); err != nil {
+	if err = s.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
 		return nil, err
 	}
 
 	var updatedItem *Item
 	err = dao.SysKvCache.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		var row *entity.SysKvCache
+		_, insertErr := dao.SysKvCache.Ctx(ctx).Data(do.SysKvCache{
+			OwnerType:  ownerType.String(),
+			OwnerKey:   identity.ownerKey,
+			Namespace:  identity.namespace,
+			CacheKey:   identity.cacheKey,
+			ValueKind:  ValueKindInt,
+			ValueBytes: []byte{},
+			ValueInt:   0,
+			ExpireAt:   expireAt,
+		}).InsertIgnore()
+		if insertErr != nil {
+			return insertErr
+		}
+
 		if scanErr := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
 			OwnerType: ownerType.String(),
 			OwnerKey:  identity.ownerKey,
@@ -245,20 +259,29 @@ func (s *serviceImpl) Incr(
 			}
 		}
 
-		nextValue := delta
-		if row != nil {
-			nextValue = row.ValueInt + delta
-		}
-
-		updateErr := s.upsert(ctx, ownerType, identity, do.SysKvCache{
+		updateData := do.SysKvCache{
 			ValueKind:  ValueKindInt,
 			ValueBytes: []byte{},
-			ValueInt:   nextValue,
-			ExpireAt:   currentExpireAt,
-		})
+			ValueInt:   gdb.Raw("LAST_INSERT_ID(value_int + " + strconv.FormatInt(delta, 10) + ")"),
+		}
+		if expireAt != nil {
+			updateData.ExpireAt = expireAt
+		}
+		_, updateErr := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+			OwnerType: ownerType.String(),
+			OwnerKey:  identity.ownerKey,
+			Namespace: identity.namespace,
+			CacheKey:  identity.cacheKey,
+			ValueKind: ValueKindInt,
+		}).Data(updateData).Update()
 		if updateErr != nil {
 			return updateErr
 		}
+		nextValueVar, valueErr := dao.SysKvCache.Ctx(ctx).Raw("SELECT LAST_INSERT_ID()").Value()
+		if valueErr != nil {
+			return valueErr
+		}
+		nextValue := nextValueVar.Int64()
 
 		updatedItem = &Item{
 			Key:       identity.cacheKey,
@@ -303,26 +326,31 @@ func (s *serviceImpl) Expire(
 	if err != nil {
 		return false, nil, err
 	}
-	if err = s.CleanupExpired(ctx); err != nil {
+	if err = s.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
 		return false, nil, err
 	}
 
-	affected, err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
-		OwnerType: ownerType.String(),
-		OwnerKey:  identity.ownerKey,
-		Namespace: identity.namespace,
-		CacheKey:  identity.cacheKey,
-	}).Data(do.SysKvCache{
-		ExpireAt: expireAt,
-	}).UpdateAndGetAffected()
+	var affected int64
+	if expireAt == nil {
+		affected, err = s.clearIdentityExpireAt(ctx, ownerType, identity)
+	} else {
+		affected, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+			OwnerType: ownerType.String(),
+			OwnerKey:  identity.ownerKey,
+			Namespace: identity.namespace,
+			CacheKey:  identity.cacheKey,
+		}).Data(do.SysKvCache{
+			ExpireAt: expireAt,
+		}).UpdateAndGetAffected()
+	}
 	if err != nil {
 		return false, nil, err
 	}
 	return affected > 0, expireAt, nil
 }
 
-// CleanupExpired removes all cache entries whose expiration time is earlier than
-// the current time.
+// CleanupExpired removes one bounded batch of cache entries whose expiration
+// time is earlier than the current time.
 //
 // Parameters:
 //   - ctx: request-scoped context used for database access, tracing, and cancellation.
@@ -335,49 +363,90 @@ func (s *serviceImpl) CleanupExpired(ctx context.Context) error {
 	_, err := dao.SysKvCache.Ctx(ctx).
 		WhereNotNull(cols.ExpireAt).
 		WhereLT(cols.ExpireAt, gtime.Now()).
+		OrderAsc(cols.ExpireAt).
+		Limit(expiredCleanupBatchSize).
 		Delete()
 	return err
 }
 
-// upsert inserts one cache entry when absent or updates the existing entry in
-// place.
+// upsert inserts one cache entry when absent and always updates the matching
+// unique key in place so concurrent writers follow last-write-wins semantics.
 func (s *serviceImpl) upsert(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
 	data do.SysKvCache,
 ) error {
-	var row *entity.SysKvCache
-	err := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
-		OwnerType: ownerType.String(),
-		OwnerKey:  identity.ownerKey,
-		Namespace: identity.namespace,
-		CacheKey:  identity.cacheKey,
-	}).Scan(&row)
-	if err != nil {
-		return err
-	}
-
-	if row == nil {
-		_, err = dao.SysKvCache.Ctx(ctx).Data(do.SysKvCache{
-			OwnerType:  ownerType.String(),
-			OwnerKey:   identity.ownerKey,
-			Namespace:  identity.namespace,
-			CacheKey:   identity.cacheKey,
-			ValueKind:  data.ValueKind,
-			ValueBytes: data.ValueBytes,
-			ValueInt:   data.ValueInt,
-			ExpireAt:   data.ExpireAt,
-		}).Insert()
-		return err
-	}
-
-	_, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{Id: row.Id}).Data(do.SysKvCache{
+	insertData := do.SysKvCache{
+		OwnerType:  ownerType.String(),
+		OwnerKey:   identity.ownerKey,
+		Namespace:  identity.namespace,
+		CacheKey:   identity.cacheKey,
 		ValueKind:  data.ValueKind,
 		ValueBytes: data.ValueBytes,
 		ValueInt:   data.ValueInt,
 		ExpireAt:   data.ExpireAt,
-	}).Update()
+	}
+	_, err := dao.SysKvCache.Ctx(ctx).Data(insertData).InsertIgnore()
+	if err != nil {
+		return err
+	}
+
+	updateModel := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+		OwnerType: ownerType.String(),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
+	}).Data(do.SysKvCache{
+		ValueKind:  data.ValueKind,
+		ValueBytes: data.ValueBytes,
+		ValueInt:   data.ValueInt,
+		ExpireAt:   data.ExpireAt,
+	})
+	if data.ExpireAt == nil {
+		cols := dao.SysKvCache.Columns()
+		updateModel = updateModel.Fields(cols.ValueKind, cols.ValueBytes, cols.ValueInt)
+	}
+	_, err = updateModel.Update()
+	if err == nil && data.ExpireAt == nil {
+		_, err = s.clearIdentityExpireAt(ctx, ownerType, identity)
+	}
+	return err
+}
+
+// clearIdentityExpireAt clears the expiration column for one cache identity.
+func (s *serviceImpl) clearIdentityExpireAt(
+	ctx context.Context,
+	ownerType OwnerType,
+	identity *cacheIdentity,
+) (int64, error) {
+	cols := dao.SysKvCache.Columns()
+	return dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+		OwnerType: ownerType.String(),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
+	}).Data(cols.ExpireAt, gdb.Raw("NULL")).UpdateAndGetAffected()
+}
+
+// cleanupExpiredIdentity lazily deletes only the expired cache row touched by
+// the current request path.
+func (s *serviceImpl) cleanupExpiredIdentity(
+	ctx context.Context,
+	ownerType OwnerType,
+	identity *cacheIdentity,
+) error {
+	cols := dao.SysKvCache.Columns()
+	_, err := dao.SysKvCache.Ctx(ctx).
+		Where(do.SysKvCache{
+			OwnerType: ownerType.String(),
+			OwnerKey:  identity.ownerKey,
+			Namespace: identity.namespace,
+			CacheKey:  identity.cacheKey,
+		}).
+		WhereNotNull(cols.ExpireAt).
+		WhereLT(cols.ExpireAt, gtime.Now()).
+		Delete()
 	return err
 }
 

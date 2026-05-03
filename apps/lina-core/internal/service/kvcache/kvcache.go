@@ -138,8 +138,8 @@ type Service interface {
 		cacheKey string,
 		expireSeconds int64,
 	) (bool, *gtime.Time, error)
-	// CleanupExpired removes all cache entries whose expiration time is earlier than
-	// the current time.
+	// CleanupExpired removes one bounded batch of cache entries whose expiration
+	// time is earlier than the current time.
 	// Parameters:
 	// - ctx: request-scoped context used for database access, tracing, and cancellation.
 	// Returns:

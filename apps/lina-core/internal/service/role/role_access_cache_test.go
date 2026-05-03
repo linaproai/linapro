@@ -11,11 +11,13 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/os/gcache"
-	"github.com/gogf/gf/v2/os/gtime"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
+	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
-	"lina-core/internal/service/kvcache"
 )
 
 // fakeRoleConfigService provides deterministic config values for access-cache tests.
@@ -79,8 +81,8 @@ func (f *fakeRoleConfigService) GetI18n(_ context.Context) *hostconfig.I18nConfi
 }
 
 // GetLogin returns an empty login config for tests.
-func (f *fakeRoleConfigService) GetLogin(_ context.Context) *hostconfig.LoginConfig {
-	return &hostconfig.LoginConfig{}
+func (f *fakeRoleConfigService) GetLogin(_ context.Context) (*hostconfig.LoginConfig, error) {
+	return &hostconfig.LoginConfig{}, nil
 }
 
 // GetCron returns default cron settings for tests.
@@ -111,8 +113,8 @@ func (f *fakeRoleConfigService) GetCronLogRetention(_ context.Context) (*hostcon
 }
 
 // IsLoginIPBlacklisted always reports false in tests.
-func (f *fakeRoleConfigService) IsLoginIPBlacklisted(_ context.Context, _ string) bool {
-	return false
+func (f *fakeRoleConfigService) IsLoginIPBlacklisted(_ context.Context, _ string) (bool, error) {
+	return false, nil
 }
 
 // GetServerExtensions returns an empty server extensions config for tests.
@@ -228,78 +230,112 @@ func (f *fakeRoleConfigService) SyncRuntimeParamSnapshot(_ context.Context) erro
 	return nil
 }
 
-// fakeKVCacheService tracks minimal cache interactions needed by access-cache tests.
-type fakeKVCacheService struct {
-	getIntValue int64
-	getIntErr   error
-	getIntCalls int32
-	incrCalls   int32
+// fakeRoleCacheCoordService provides deterministic cachecoord behavior for
+// access revision controller tests.
+type fakeRoleCacheCoordService struct {
+	revision     int64
+	currentErr   error
+	markErr      error
+	currentCalls int32
+	markCalls    int32
 }
 
-// Get returns no cached string item because these tests only exercise int revision paths.
-func (f *fakeKVCacheService) Get(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (*kvcache.Item, bool, error) {
-	return nil, false, nil
+// ConfigureDomain is a no-op because these tests configure domain metadata elsewhere.
+func (f *fakeRoleCacheCoordService) ConfigureDomain(_ cachecoord.DomainSpec) error {
+	return nil
 }
 
-// GetInt returns the configured revision value and tracks read calls.
-func (f *fakeKVCacheService) GetInt(
+// MarkChanged returns the configured shared revision and tracks publish calls.
+func (f *fakeRoleCacheCoordService) MarkChanged(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) (int64, bool, error) {
-	atomic.AddInt32(&f.getIntCalls, 1)
-	return f.getIntValue, true, f.getIntErr
+	_ cachecoord.Domain,
+	_ cachecoord.Scope,
+	_ cachecoord.ChangeReason,
+) (int64, error) {
+	atomic.AddInt32(&f.markCalls, 1)
+	if f.markErr != nil {
+		return 0, f.markErr
+	}
+	return f.revision, nil
 }
 
-// Set is a no-op success stub for tests that do not inspect string values.
-func (f *fakeKVCacheService) Set(
+// EnsureFresh runs the refresher against the configured revision.
+func (f *fakeRoleCacheCoordService) EnsureFresh(
+	ctx context.Context,
+	domain cachecoord.Domain,
+	scope cachecoord.Scope,
+	refresher cachecoord.Refresher,
+) (int64, error) {
+	revision, err := f.CurrentRevision(ctx, domain, scope)
+	if err != nil {
+		return 0, err
+	}
+	if refresher != nil {
+		if err = refresher(ctx, revision); err != nil {
+			return 0, err
+		}
+	}
+	return revision, nil
+}
+
+// CurrentRevision returns the configured shared revision and tracks read calls.
+func (f *fakeRoleCacheCoordService) CurrentRevision(
 	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ string,
-	_ int64,
-) (*kvcache.Item, error) {
+	_ cachecoord.Domain,
+	_ cachecoord.Scope,
+) (int64, error) {
+	atomic.AddInt32(&f.currentCalls, 1)
+	if f.currentErr != nil {
+		return 0, f.currentErr
+	}
+	return f.revision, nil
+}
+
+// Snapshot is unused by access revision tests.
+func (f *fakeRoleCacheCoordService) Snapshot(_ context.Context) ([]cachecoord.SnapshotItem, error) {
 	return nil, nil
 }
 
-// Delete is a no-op success stub for tests.
-func (f *fakeKVCacheService) Delete(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-) error {
-	return nil
+// fakeAccessRevisionController provides deterministic revision behavior for
+// service-level access-cache tests that do not need the concrete controller.
+type fakeAccessRevisionController struct {
+	revision     int64
+	currentErr   error
+	syncErr      error
+	markErr      error
+	currentCalls int32
+	syncCalls    int32
+	markCalls    int32
 }
 
-// Incr returns the configured integer value and tracks increment calls.
-func (f *fakeKVCacheService) Incr(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-	_ int64,
-) (*kvcache.Item, error) {
-	atomic.AddInt32(&f.incrCalls, 1)
-	return &kvcache.Item{IntValue: f.getIntValue}, nil
+// CurrentRevision returns the configured current revision.
+func (f *fakeAccessRevisionController) CurrentRevision(_ context.Context) (int64, error) {
+	atomic.AddInt32(&f.currentCalls, 1)
+	if f.currentErr != nil {
+		return 0, f.currentErr
+	}
+	return f.revision, nil
 }
 
-// Expire is a no-op stub because expiration is not exercised by these tests.
-func (f *fakeKVCacheService) Expire(
-	_ context.Context,
-	_ kvcache.OwnerType,
-	_ string,
-	_ int64,
-) (bool, *gtime.Time, error) {
-	return false, nil, nil
+// SyncRevision returns the configured revision after optionally invoking the callback.
+func (f *fakeAccessRevisionController) SyncRevision(_ context.Context, onRevisionChange func()) (int64, error) {
+	atomic.AddInt32(&f.syncCalls, 1)
+	if f.syncErr != nil {
+		return 0, f.syncErr
+	}
+	if onRevisionChange != nil {
+		onRevisionChange()
+	}
+	return f.revision, nil
 }
 
-// CleanupExpired is a no-op success stub for tests.
-func (f *fakeKVCacheService) CleanupExpired(_ context.Context) error {
-	return nil
+// MarkChanged returns the configured changed revision.
+func (f *fakeAccessRevisionController) MarkChanged(_ context.Context) (int64, error) {
+	atomic.AddInt32(&f.markCalls, 1)
+	if f.markErr != nil {
+		return 0, f.markErr
+	}
+	return f.revision, nil
 }
 
 // resetRoleAccessCacheTestState clears process-local access cache state before
@@ -318,31 +354,19 @@ func resetRoleAccessCacheTestState(t *testing.T, svc *serviceImpl) {
 	})
 }
 
-// setAccessRevisionControllerForTest swaps the service revision controller with
-// one built from the supplied test configuration.
-func setAccessRevisionControllerForTest(
-	svc *serviceImpl,
-	clusterEnabled bool,
-	kvCacheSvc kvcache.Service,
-) {
-	svc.accessRevisionCtrl = newAccessRevisionController(clusterEnabled, kvCacheSvc)
-}
-
-// TestNewAccessRevisionControllerSelectsByClusterMode verifies controller
+// TestNewCacheCoordAccessRevisionControllerSelectsByClusterMode verifies controller
 // selection switches between local and cluster implementations.
-func TestNewAccessRevisionControllerSelectsByClusterMode(t *testing.T) {
-	if _, ok := newAccessRevisionController(
-		false,
-		&fakeKVCacheService{},
-	).(*localAccessRevisionController); !ok {
+func TestNewCacheCoordAccessRevisionControllerSelectsByClusterMode(t *testing.T) {
+	if _, ok := newCacheCoordAccessRevisionController(false).(*localAccessRevisionController); !ok {
 		t.Fatal("expected single-node mode to use local access revision controller")
 	}
 
-	if _, ok := newAccessRevisionController(
-		true,
-		&fakeKVCacheService{},
-	).(*clusterAccessRevisionController); !ok {
+	controller, ok := newCacheCoordAccessRevisionController(true).(*clusterAccessRevisionController)
+	if !ok {
 		t.Fatal("expected cluster mode to use shared access revision controller")
+	}
+	if controller.cacheCoordSvc == nil {
+		t.Fatal("expected cluster access revision controller to use cachecoord")
 	}
 }
 
@@ -480,9 +504,8 @@ func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
 	resetRoleAccessCacheTestState(t, svc)
 
 	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
-	fakeKV := &fakeKVCacheService{getIntValue: 9}
-	svc.kvCacheSvc = fakeKV
-	setAccessRevisionControllerForTest(svc, true, fakeKV)
+	fakeCoord := &fakeRoleCacheCoordService{revision: 9}
+	svc.accessRevisionCtrl = &clusterAccessRevisionController{cacheCoordSvc: fakeCoord}
 
 	revision, err := svc.getAccessRevision(ctx)
 	if err != nil {
@@ -491,11 +514,11 @@ func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
 	if revision != 9 {
 		t.Fatalf("expected revision 9, got %d", revision)
 	}
-	if atomic.LoadInt32(&fakeKV.getIntCalls) != 1 {
-		t.Fatalf("expected exactly one GetInt call, got %d", atomic.LoadInt32(&fakeKV.getIntCalls))
+	if atomic.LoadInt32(&fakeCoord.currentCalls) != 1 {
+		t.Fatalf("expected exactly one cachecoord read, got %d", atomic.LoadInt32(&fakeCoord.currentCalls))
 	}
-	if atomic.LoadInt32(&fakeKV.incrCalls) != 0 {
-		t.Fatalf("expected no Incr calls for read path, got %d", atomic.LoadInt32(&fakeKV.incrCalls))
+	if atomic.LoadInt32(&fakeCoord.markCalls) != 0 {
+		t.Fatalf("expected no cachecoord writes for read path, got %d", atomic.LoadInt32(&fakeCoord.markCalls))
 	}
 
 	revision, err = svc.getAccessRevision(ctx)
@@ -505,8 +528,8 @@ func TestGetAccessRevisionUsesPureReadPath(t *testing.T) {
 	if revision != 9 {
 		t.Fatalf("expected cached revision 9, got %d", revision)
 	}
-	if atomic.LoadInt32(&fakeKV.getIntCalls) != 1 {
-		t.Fatalf("expected cached local revision to avoid extra GetInt calls, got %d", atomic.LoadInt32(&fakeKV.getIntCalls))
+	if atomic.LoadInt32(&fakeCoord.currentCalls) != 1 {
+		t.Fatalf("expected cached local revision to avoid extra cachecoord reads, got %d", atomic.LoadInt32(&fakeCoord.currentCalls))
 	}
 }
 
@@ -518,9 +541,8 @@ func TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged(t *testing.T)
 	resetRoleAccessCacheTestState(t, svc)
 
 	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
-	fakeKV := &fakeKVCacheService{getIntValue: 7}
-	svc.kvCacheSvc = fakeKV
-	setAccessRevisionControllerForTest(svc, true, fakeKV)
+	fakeCoord := &fakeRoleCacheCoordService{revision: 7}
+	svc.accessRevisionCtrl = &clusterAccessRevisionController{cacheCoordSvc: fakeCoord}
 	storeLocalAccessRevision(7)
 	svc.cacheTokenAccessContext(ctx, "sync-same-revision", 1, 7, &UserAccessContext{
 		Permissions: []string{"system:user:list"},
@@ -547,9 +569,8 @@ func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) 
 	resetRoleAccessCacheTestState(t, svc)
 
 	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
-	fakeKV := &fakeKVCacheService{getIntValue: 8}
-	svc.kvCacheSvc = fakeKV
-	setAccessRevisionControllerForTest(svc, true, fakeKV)
+	fakeCoord := &fakeRoleCacheCoordService{revision: 8}
+	svc.accessRevisionCtrl = &clusterAccessRevisionController{cacheCoordSvc: fakeCoord}
 	storeLocalAccessRevision(7)
 	svc.cacheTokenAccessContext(ctx, "sync-new-revision", 1, 7, &UserAccessContext{
 		Permissions: []string{"system:user:list"},
@@ -576,16 +597,51 @@ func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) 
 	}
 }
 
+// TestClusterAccessRevisionControllerConsumesCrossInstanceRevision verifies a
+// watcher-style controller instance consumes a revision published by another
+// clustered writer and triggers stale token-cache eviction.
+func TestClusterAccessRevisionControllerConsumesCrossInstanceRevision(t *testing.T) {
+	ctx := context.Background()
+	cleanupPermissionAccessRevision(t, ctx)
+	clearLocalAccessRevision()
+	t.Cleanup(clearLocalAccessRevision)
+
+	publisher := &clusterAccessRevisionController{
+		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+	}
+	consumer := &clusterAccessRevisionController{
+		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+	}
+
+	revision, err := publisher.MarkChanged(ctx)
+	if err != nil {
+		t.Fatalf("publish permission-access revision failed: %v", err)
+	}
+	storeLocalAccessRevision(revision - 1)
+
+	evicted := false
+	observed, err := consumer.SyncRevision(ctx, func() {
+		evicted = true
+	})
+	if err != nil {
+		t.Fatalf("consume permission-access revision from second controller failed: %v", err)
+	}
+	if observed != revision {
+		t.Fatalf("expected consumer revision %d, got %d", revision, observed)
+	}
+	if !evicted {
+		t.Fatal("expected revision change to trigger stale token-cache eviction")
+	}
+}
+
 // TestSingleNodeAccessRevisionStaysLocal verifies single-node mode maintains
-// revisions locally without calling the shared KV cache.
+// revisions locally without calling cachecoord.
 func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	ctx := context.Background()
 	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
-	fakeKV := &fakeKVCacheService{getIntValue: 9}
-	svc.kvCacheSvc = fakeKV
-	setAccessRevisionControllerForTest(svc, false, fakeKV)
+	svc.accessRevisionCtrl = &localAccessRevisionController{}
 
 	revision, err := svc.getAccessRevision(ctx)
 	if err != nil {
@@ -594,10 +650,6 @@ func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	if revision != 1 {
 		t.Fatalf("expected initial single-node revision 1, got %d", revision)
 	}
-	if atomic.LoadInt32(&fakeKV.getIntCalls) != 0 {
-		t.Fatalf("expected single-node getAccessRevision to avoid GetInt, got %d calls", atomic.LoadInt32(&fakeKV.getIntCalls))
-	}
-
 	svc.cacheTokenAccessContext(ctx, "single-node-token", 1, revision, &UserAccessContext{
 		Permissions: []string{"system:user:list"},
 	})
@@ -605,10 +657,6 @@ func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	if err = svc.MarkAccessTopologyChanged(ctx); err != nil {
 		t.Fatalf("mark single-node access topology changed failed: %v", err)
 	}
-	if atomic.LoadInt32(&fakeKV.incrCalls) != 0 {
-		t.Fatalf("expected single-node topology change to avoid Incr, got %d calls", atomic.LoadInt32(&fakeKV.incrCalls))
-	}
-
 	revision, err = svc.getAccessRevision(ctx)
 	if err != nil {
 		t.Fatalf("get single-node access revision after invalidation failed: %v", err)
@@ -621,6 +669,23 @@ func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	}
 }
 
+// cleanupPermissionAccessRevision removes the shared permission-access revision
+// row used by cross-instance tests.
+func cleanupPermissionAccessRevision(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	cleanup := func() {
+		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
+			Domain: accessTopologyCacheDomain,
+			Scope:  cachecoord.ScopeGlobal,
+		}).Delete(); err != nil {
+			t.Fatalf("cleanup permission-access revision failed: %v", err)
+		}
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+}
+
 // TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads verifies one
 // cold load is shared across concurrent cache misses.
 func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.T) {
@@ -628,9 +693,7 @@ func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.
 	svc := New(nil).(*serviceImpl)
 	resetRoleAccessCacheTestState(t, svc)
 
-	svc.configSvc = &fakeRoleConfigService{clusterEnabled: true}
-	svc.kvCacheSvc = &fakeKVCacheService{getIntValue: 3}
-	setAccessRevisionControllerForTest(svc, true, svc.kvCacheSvc)
+	svc.accessRevisionCtrl = &fakeAccessRevisionController{revision: 3}
 
 	var loadCalls atomic.Int32
 	loader := func(context.Context) (*UserAccessContext, error) {

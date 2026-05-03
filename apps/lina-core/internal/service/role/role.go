@@ -13,7 +13,6 @@ import (
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/bizerr"
 )
 
@@ -108,7 +107,6 @@ type serviceImpl struct {
 	bizCtxSvc          bizctx.Service
 	configSvc          config.Service
 	i18nSvc            roleI18nTranslator
-	kvCacheSvc         kvcache.Service
 	permissionFilter   PermissionMenuFilter
 	accessRevisionCtrl accessRevisionController
 }
@@ -118,10 +116,9 @@ type serviceImpl struct {
 // plugin-owned permission menu visibility; pass nil to use the default no-op filter.
 func New(permissionFilter PermissionMenuFilter) Service {
 	var (
-		bizCtxSvc  = bizctx.New()
-		configSvc  = config.New()
-		i18nSvc    = i18nsvc.New()
-		kvCacheSvc = kvcache.New()
+		bizCtxSvc = bizctx.New()
+		configSvc = config.New()
+		i18nSvc   = i18nsvc.New()
 	)
 	if permissionFilter == nil {
 		permissionFilter = noopPermissionMenuFilter{}
@@ -131,11 +128,9 @@ func New(permissionFilter PermissionMenuFilter) Service {
 		bizCtxSvc:        bizCtxSvc,
 		configSvc:        configSvc,
 		i18nSvc:          i18nSvc,
-		kvCacheSvc:       kvCacheSvc,
 		permissionFilter: permissionFilter,
-		accessRevisionCtrl: newAccessRevisionController(
+		accessRevisionCtrl: newCacheCoordAccessRevisionController(
 			configSvc.IsClusterEnabled(context.Background()),
-			kvCacheSvc,
 		),
 	}
 }

@@ -94,4 +94,10 @@ var (
 		"Parameter {key} mode is not supported",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeConfigRuntimeParamRevisionUnavailable reports that runtime-configuration freshness cannot be checked.
+	CodeConfigRuntimeParamRevisionUnavailable = bizerr.MustDefine(
+		"CONFIG_RUNTIME_PARAM_REVISION_UNAVAILABLE",
+		"Runtime configuration revision is unavailable",
+		gcode.CodeInternalError,
+	)
 )

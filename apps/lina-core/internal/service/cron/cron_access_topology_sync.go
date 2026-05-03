@@ -51,7 +51,7 @@ func (j *localAccessTopologyRevisionSyncJob) Start(ctx context.Context) {
 	}
 
 	// Warm the local revision snapshot during startup so most protected requests
-	// can stay on process memory instead of reading shared KV on first access.
+	// can stay on process memory instead of reading cachecoord on first access.
 	if err := j.roleSvc.SyncAccessTopologyRevision(ctx); err != nil {
 		logger.Warningf(ctx, "initial access topology sync failed: %v", err)
 	}

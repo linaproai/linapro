@@ -72,6 +72,22 @@ func (c *ControllerV1) GetInfo(ctx context.Context, req *v1.GetInfoReq) (res *v1
 		})
 	}
 
+	for _, item := range info.CacheCoordination {
+		res.CacheCoordination = append(res.CacheCoordination, v1.CacheCoordinationInfo{
+			Domain:           item.Domain,
+			Scope:            item.Scope,
+			AuthoritySource:  item.AuthoritySource,
+			ConsistencyModel: item.ConsistencyModel,
+			MaxStaleSeconds:  int64(item.MaxStale / time.Second),
+			FailureStrategy:  item.FailureStrategy,
+			LocalRevision:    item.LocalRevision,
+			SharedRevision:   item.SharedRevision,
+			LastSyncedAt:     formatOptionalTime(item.LastSyncedAt),
+			RecentError:      item.RecentError,
+			StaleSeconds:     item.StaleSeconds,
+		})
+	}
+
 	return res, nil
 }
 
@@ -121,4 +137,12 @@ func normalizeComponentKey(name string) string {
 		return "unknown"
 	}
 	return normalized
+}
+
+// formatOptionalTime returns an empty value for unset diagnostic timestamps.
+func formatOptionalTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.Format("2006-01-02 15:04:05")
 }

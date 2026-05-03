@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/pkg/logger"
 )
@@ -33,13 +33,41 @@ func (s *serviceImpl) configureReconcilerRevisionController() {
 	if s.reconcilerRevisionObserved == nil {
 		s.reconcilerRevisionObserved = pluginruntimecache.NewObservedRevision()
 	}
-	s.reconcilerRevisionCtrl = pluginruntimecache.NewControllerForKey(
-		pluginruntimecache.ReconcilerRevisionCacheKey,
+	s.reconcilerRevisionCtrl = pluginruntimecache.NewControllerForScopeWithCoordinator(
+		cachecoord.ScopeReconciler,
+		pluginruntimecache.ReconcilerCacheChangeReason,
 		s.isClusterModeEnabled(),
-		kvcache.New(),
+		cachecoord.Default(runtimeCacheCoordTopology{s: s}),
 		s.reconcilerRevisionObserved,
 		nil,
 	)
+}
+
+// runtimeCacheCoordTopology adapts the runtime topology provider to cachecoord.
+type runtimeCacheCoordTopology struct {
+	s *serviceImpl
+}
+
+// IsEnabled reports whether clustered runtime reconciliation is active.
+func (t runtimeCacheCoordTopology) IsEnabled() bool {
+	return t.s != nil && t.s.isClusterModeEnabled()
+}
+
+// IsPrimary reports whether this runtime instance owns primary work.
+func (t runtimeCacheCoordTopology) IsPrimary() bool {
+	return t.s == nil || t.s.isPrimaryNode()
+}
+
+// NodeID returns the current runtime node identifier.
+func (t runtimeCacheCoordTopology) NodeID() string {
+	if t.s == nil {
+		return "local-node"
+	}
+	nodeID := t.s.currentNodeID()
+	if nodeID == "" {
+		return "local-node"
+	}
+	return nodeID
 }
 
 // ensureReconcilerRevisionController returns the configured controller, creating

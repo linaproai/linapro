@@ -13,30 +13,37 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/wasm"
+	"lina-core/pkg/logger"
 )
 
 // buildReleaseArtifactRelativePath returns the versioned archive location used by
 // sys_plugin_release.package_path for dynamic-plugin artifacts.
-func buildReleaseArtifactRelativePath(pluginID string, version string) string {
+func buildReleaseArtifactRelativePath(pluginID string, version string, checksum string) string {
 	return filepath.ToSlash(
 		filepath.Join(
 			"releases",
 			strings.TrimSpace(pluginID),
 			strings.TrimSpace(version),
+			strings.TrimSpace(checksum),
 			buildArtifactFileName(pluginID),
 		),
 	)
 }
 
 // archiveReleaseArtifact copies the currently discovered runtime artifact into a
-// versioned archive path and returns that stable relative path. Same-version
-// refreshes overwrite the archive when bytes differ so the active release always
-// points at the exact content currently reconciled.
+// checksum-versioned archive path and returns that stable relative path.
 func (s *serviceImpl) archiveReleaseArtifact(ctx context.Context, manifest *catalog.Manifest) (string, error) {
 	if manifest == nil || manifest.RuntimeArtifact == nil {
 		return "", gerror.New("dynamic plugin archive requires a valid artifact")
+	}
+	checksum := strings.TrimSpace(manifest.RuntimeArtifact.Checksum)
+	if checksum == "" {
+		return "", gerror.New("dynamic plugin archive requires an artifact checksum")
 	}
 
 	storageDir, err := s.catalogSvc.RuntimeStorageDir(ctx)
@@ -44,7 +51,7 @@ func (s *serviceImpl) archiveReleaseArtifact(ctx context.Context, manifest *cata
 		return "", err
 	}
 
-	relativePath := buildReleaseArtifactRelativePath(manifest.ID, manifest.Version)
+	relativePath := buildReleaseArtifactRelativePath(manifest.ID, manifest.Version, checksum)
 	targetPath := filepath.Join(storageDir, filepath.FromSlash(relativePath))
 
 	sourcePath := strings.TrimSpace(manifest.RuntimeArtifact.Path)
@@ -58,8 +65,7 @@ func (s *serviceImpl) archiveReleaseArtifact(ctx context.Context, manifest *cata
 	}
 	if gfile.Exists(targetPath) {
 		existingContent := gfile.GetBytes(targetPath)
-		// Reuse the archived file only when the bytes are identical. A rebuilt
-		// artifact with the same version must replace the old archive content.
+		// Reuse the immutable checksum path only when the bytes are identical.
 		if bytes.Equal(existingContent, content) {
 			return relativePath, nil
 		}
@@ -71,6 +77,81 @@ func (s *serviceImpl) archiveReleaseArtifact(ctx context.Context, manifest *cata
 		return "", gerror.Wrap(err, "write dynamic plugin release archive file failed")
 	}
 	return relativePath, nil
+}
+
+// cleanupStaleReleaseArtifacts removes archived dynamic artifacts that are no
+// longer referenced by any release row for the plugin. Active and historical
+// release rows keep their current package_path entries, so rollback/drain
+// artifacts remain intact while same-version refresh leftovers are cleaned.
+func (s *serviceImpl) cleanupStaleReleaseArtifacts(ctx context.Context, pluginID string) {
+	pluginID = strings.TrimSpace(pluginID)
+	if pluginID == "" {
+		return
+	}
+
+	storageDir, err := s.catalogSvc.RuntimeStorageDir(ctx)
+	if err != nil {
+		logger.Warningf(ctx, "resolve runtime storage dir for artifact cleanup failed plugin=%s err=%v", pluginID, err)
+		return
+	}
+
+	keepPaths, err := s.referencedReleaseArtifactPaths(ctx, storageDir, pluginID)
+	if err != nil {
+		logger.Warningf(ctx, "load referenced release artifact paths failed plugin=%s err=%v", pluginID, err)
+		return
+	}
+
+	releaseRoot := filepath.Join(storageDir, "releases", pluginID)
+	if !gfile.Exists(releaseRoot) {
+		return
+	}
+	files, err := gfile.ScanDirFile(releaseRoot, "*.wasm", true)
+	if err != nil {
+		logger.Warningf(ctx, "scan release artifact archive failed plugin=%s err=%v", pluginID, err)
+		return
+	}
+	for _, file := range files {
+		absolutePath := filepath.Clean(file)
+		if _, ok := keepPaths[absolutePath]; ok {
+			continue
+		}
+		wasm.InvalidateCache(ctx, absolutePath)
+		if removeErr := gfile.Remove(absolutePath); removeErr != nil {
+			logger.Warningf(ctx, "remove stale release artifact failed plugin=%s path=%s err=%v", pluginID, absolutePath, removeErr)
+		}
+	}
+}
+
+// referencedReleaseArtifactPaths returns absolute archive paths still referenced
+// by release rows so cleanup never removes the current active artifact.
+func (s *serviceImpl) referencedReleaseArtifactPaths(
+	ctx context.Context,
+	storageDir string,
+	pluginID string,
+) (map[string]struct{}, error) {
+	var releases []*entity.SysPluginRelease
+	if err := dao.SysPluginRelease.Ctx(ctx).
+		Where(do.SysPluginRelease{PluginId: pluginID}).
+		Scan(&releases); err != nil {
+		return nil, err
+	}
+
+	keepPaths := make(map[string]struct{}, len(releases))
+	for _, release := range releases {
+		if release == nil {
+			continue
+		}
+		packagePath := strings.TrimSpace(release.PackagePath)
+		if packagePath == "" {
+			continue
+		}
+		if filepath.IsAbs(packagePath) {
+			keepPaths[filepath.Clean(packagePath)] = struct{}{}
+			continue
+		}
+		keepPaths[filepath.Clean(filepath.Join(storageDir, filepath.FromSlash(packagePath)))] = struct{}{}
+	}
+	return keepPaths, nil
 }
 
 // resolveReleasePackagePath resolves one persisted release package path into an

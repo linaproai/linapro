@@ -1,40 +1,25 @@
 // Package pluginruntimecache coordinates plugin runtime cache revisions across
-// cluster nodes through the host KV cache.
+// cluster nodes through cachecoord.
 package pluginruntimecache
 
 import (
 	"context"
 	"sync"
+	"time"
 
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/cachecoord"
 )
 
+// Plugin runtime cache coordination reasons.
 const (
-	// revisionOwnerKey identifies the host module that owns plugin runtime revisions.
-	revisionOwnerKey = "plugin-runtime"
-	// revisionNamespace groups runtime cache coordination entries.
-	revisionNamespace = "runtime-cache"
-	// reconcilerRevisionNamespace groups dynamic runtime reconciler wake-up entries.
-	reconcilerRevisionNamespace = "reconciler"
-	// revisionLogicalKey stores the monotonic plugin runtime cache revision.
-	revisionLogicalKey = "revision"
-)
-
-// RevisionCacheKey is the shared KV key used by all plugin runtime cache
-// consumers. Each cache domain keeps its own observed revision while reading
-// this same shared value.
-var RevisionCacheKey = kvcache.BuildCacheKey(
-	revisionOwnerKey,
-	revisionNamespace,
-	revisionLogicalKey,
-)
-
-// ReconcilerRevisionCacheKey is the shared KV key used to wake clustered
-// dynamic-plugin reconcilers only when desired runtime state may have changed.
-var ReconcilerRevisionCacheKey = kvcache.BuildCacheKey(
-	revisionOwnerKey,
-	reconcilerRevisionNamespace,
-	revisionLogicalKey,
+	// runtimeCacheDomain coordinates plugin runtime, frontend, i18n, and Wasm derived caches.
+	runtimeCacheDomain cachecoord.Domain = "plugin-runtime"
+	// RuntimeCacheChangeReason records normal plugin runtime derived-cache invalidation.
+	RuntimeCacheChangeReason cachecoord.ChangeReason = "plugin_runtime_changed"
+	// ReconcilerCacheChangeReason records dynamic reconciler wake-up changes.
+	ReconcilerCacheChangeReason cachecoord.ChangeReason = "plugin_reconciler_changed"
+	// runtimeCacheMaxStale is the plugin-runtime freshness budget.
+	runtimeCacheMaxStale = 5 * time.Second
 )
 
 // Refresher rebuilds or invalidates one process-local plugin runtime cache
@@ -106,63 +91,87 @@ func (r *ObservedRevision) Ensure(
 	return nil
 }
 
-// Controller hides the cluster switch and shared KV protocol for one local
+// Controller hides the cluster switch and cachecoord protocol for one local
 // plugin runtime cache domain.
 type Controller struct {
 	clusterEnabled bool
-	kvCacheSvc     kvcache.Service
+	cacheCoordSvc  cachecoord.Service
 	observed       *ObservedRevision
 	refresher      Refresher
-	cacheKey       string
+	scope          cachecoord.Scope
+	changeReason   cachecoord.ChangeReason
 }
 
-// NewController creates a runtime cache revision controller. When cluster mode
-// is disabled, all methods become local no-ops so single-node deployments keep
-// direct in-process invalidation behavior.
-func NewController(
+// NewControllerWithCoordinator creates a controller backed by the unified
+// cachecoord service.
+func NewControllerWithCoordinator(
 	clusterEnabled bool,
-	kvCacheSvc kvcache.Service,
+	cacheCoordSvc cachecoord.Service,
 	observed *ObservedRevision,
 	refresher Refresher,
 ) *Controller {
-	return NewControllerForKey(
-		RevisionCacheKey,
+	return NewControllerForScopeWithCoordinator(
+		cachecoord.ScopeGlobal,
+		RuntimeCacheChangeReason,
 		clusterEnabled,
-		kvCacheSvc,
+		cacheCoordSvc,
 		observed,
 		refresher,
 	)
 }
 
-// NewControllerForKey creates a revision controller for one explicit shared KV
-// key. It is used when multiple plugin-runtime coordination domains need
-// independent revisions, such as runtime cache invalidation and reconciler wake-up.
-func NewControllerForKey(
-	cacheKey string,
+// NewControllerForScopeWithCoordinator creates a cachecoord-backed controller
+// for one explicit plugin-runtime scope.
+func NewControllerForScopeWithCoordinator(
+	scope cachecoord.Scope,
+	reason cachecoord.ChangeReason,
 	clusterEnabled bool,
-	kvCacheSvc kvcache.Service,
+	cacheCoordSvc cachecoord.Service,
 	observed *ObservedRevision,
 	refresher Refresher,
 ) *Controller {
 	if observed == nil {
 		observed = NewObservedRevision()
 	}
-	if cacheKey == "" {
-		cacheKey = RevisionCacheKey
+	if scope == "" {
+		scope = cachecoord.ScopeGlobal
 	}
+	if reason == "" {
+		reason = RuntimeCacheChangeReason
+	}
+	configureRuntimeCacheDomain(clusterEnabled, cacheCoordSvc)
 	return &Controller{
 		clusterEnabled: clusterEnabled,
-		kvCacheSvc:     kvCacheSvc,
+		cacheCoordSvc:  cacheCoordSvc,
 		observed:       observed,
 		refresher:      refresher,
-		cacheKey:       cacheKey,
+		scope:          scope,
+		changeReason:   reason,
+	}
+}
+
+// configureRuntimeCacheDomain declares plugin-runtime consistency policy in
+// the package that owns the plugin runtime cache semantics.
+func configureRuntimeCacheDomain(clusterEnabled bool, cacheCoordSvc cachecoord.Service) {
+	if !clusterEnabled || cacheCoordSvc == nil {
+		return
+	}
+	if err := cacheCoordSvc.ConfigureDomain(cachecoord.DomainSpec{
+		Domain:           runtimeCacheDomain,
+		AuthoritySource:  "plugin registry, active releases, plugin node state, and artifacts",
+		ConsistencyModel: cachecoord.ConsistencySharedRevision,
+		MaxStale:         runtimeCacheMaxStale,
+		SyncMechanism:    "persistent MySQL sys_cache_revision plus runtime cache invalidation",
+		FailureStrategy:  cachecoord.FailureStrategyConservativeHide,
+	}); err != nil {
+		panic(err)
 	}
 }
 
 // EnsureFresh refreshes this process-local cache domain when cluster mode is
-// enabled and shared KV reports a newer plugin runtime revision.
+// enabled and cachecoord reports a newer plugin runtime revision.
 func (c *Controller) EnsureFresh(ctx context.Context) error {
-	if c == nil || !c.clusterEnabled || c.kvCacheSvc == nil {
+	if c == nil || !c.clusterEnabled || c.cacheCoordSvc == nil {
 		return nil
 	}
 	revision, err := c.CurrentRevision(ctx)
@@ -172,24 +181,16 @@ func (c *Controller) EnsureFresh(ctx context.Context) error {
 	return c.observed.Ensure(ctx, revision, c.refresher)
 }
 
-// CurrentRevision returns the current shared revision for this controller. A
-// missing shared entry is treated as revision 0.
+// CurrentRevision returns the current shared revision for this controller.
 func (c *Controller) CurrentRevision(ctx context.Context) (int64, error) {
-	if c == nil || !c.clusterEnabled || c.kvCacheSvc == nil {
+	if c == nil || !c.clusterEnabled || c.cacheCoordSvc == nil {
 		return 0, nil
 	}
-	revision, found, err := c.kvCacheSvc.GetInt(
+	return c.cacheCoordSvc.CurrentRevision(
 		ctx,
-		kvcache.OwnerTypeModule,
-		c.cacheKey,
+		runtimeCacheDomain,
+		c.scope,
 	)
-	if err != nil {
-		return 0, err
-	}
-	if !found {
-		return 0, nil
-	}
-	return revision, nil
 }
 
 // IsObserved reports whether this process-local domain has consumed revision.
@@ -209,7 +210,7 @@ func (c *Controller) StoreObserved(revision int64) {
 }
 
 // MarkChanged publishes one plugin runtime cache mutation to other cluster
-// nodes. Single-node deployments skip shared KV and return revision 0.
+// nodes. Single-node deployments skip cachecoord and return revision 0.
 func (c *Controller) MarkChanged(ctx context.Context) (int64, error) {
 	return c.markChanged(ctx, true)
 }
@@ -224,21 +225,20 @@ func (c *Controller) PublishChanged(ctx context.Context) (int64, error) {
 // markChanged increments the shared revision and optionally records the
 // returned value as already consumed by this local cache domain.
 func (c *Controller) markChanged(ctx context.Context, storeObserved bool) (int64, error) {
-	if c == nil || !c.clusterEnabled || c.kvCacheSvc == nil {
+	if c == nil || !c.clusterEnabled || c.cacheCoordSvc == nil {
 		return 0, nil
 	}
-	item, err := c.kvCacheSvc.Incr(
+	revision, err := c.cacheCoordSvc.MarkChanged(
 		ctx,
-		kvcache.OwnerTypeModule,
-		c.cacheKey,
-		1,
-		0,
+		runtimeCacheDomain,
+		c.scope,
+		c.changeReason,
 	)
 	if err != nil {
 		return 0, err
 	}
 	if storeObserved {
-		c.observed.Store(item.IntValue)
+		c.observed.Store(revision)
 	}
-	return item.IntValue, nil
+	return revision, nil
 }

@@ -7,7 +7,6 @@ import (
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
-	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/integration"
@@ -367,7 +366,6 @@ func New(topology Topology) Service {
 		i18nSvc          = i18nsvc.New()
 		cacheRevisionCtl = newRuntimeCacheRevisionController(
 			topo,
-			kvcache.New(),
 			integrationSvc,
 			frontendSvc,
 			i18nSvc,

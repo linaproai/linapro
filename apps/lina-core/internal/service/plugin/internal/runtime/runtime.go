@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/openapi"
+	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/pluginruntimecache"
 	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
@@ -406,6 +407,7 @@ func (s *serviceImpl) validateFrontendMenuBindings(ctx context.Context, manifest
 // the affected plugin is invalidated; host and source-plugin sectors stay hot
 // for unrelated locales and plugins.
 func (s *serviceImpl) invalidateRuntimeCaches(ctx context.Context, pluginID string, reason string) {
+	wasm.InvalidateAllCache(ctx)
 	if s.frontendSvc != nil {
 		s.frontendSvc.InvalidateBundle(ctx, pluginID, reason)
 	}

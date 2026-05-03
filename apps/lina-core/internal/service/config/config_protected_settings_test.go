@@ -120,10 +120,18 @@ func TestProtectedConfigHelpersPreferOverridesAndFallbackDefaults(t *testing.T) 
 	withCachedRuntimeParamValue(t, PublicFrontendSettingKeyAppName, " LinaPro Custom ")
 	svc := New().(*serviceImpl)
 
-	if value := svc.getProtectedConfigValueOrDefault(context.Background(), PublicFrontendSettingKeyAppName); value != "LinaPro Custom" {
+	value, err := svc.getProtectedConfigValueOrDefault(context.Background(), PublicFrontendSettingKeyAppName)
+	if err != nil {
+		t.Fatalf("get protected override value: %v", err)
+	}
+	if value != "LinaPro Custom" {
 		t.Fatalf("expected trimmed protected override value, got %q", value)
 	}
-	if value := svc.getProtectedConfigValueOrDefault(context.Background(), RuntimeParamKeyJWTExpire); value != runtimeParamSpecByKey[RuntimeParamKeyJWTExpire].DefaultValue {
+	value, err = svc.getProtectedConfigValueOrDefault(context.Background(), RuntimeParamKeyJWTExpire)
+	if err != nil {
+		t.Fatalf("get protected default value: %v", err)
+	}
+	if value != runtimeParamSpecByKey[RuntimeParamKeyJWTExpire].DefaultValue {
 		t.Fatalf("expected runtime default value fallback, got %q", value)
 	}
 

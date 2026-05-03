@@ -5,8 +5,19 @@ package config
 
 import (
 	"context"
+	"time"
 
-	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/cachecoord"
+)
+
+// Runtime-configuration cache coordination reasons.
+const (
+	// runtimeParamCacheDomain coordinates protected runtime configuration snapshots.
+	runtimeParamCacheDomain cachecoord.Domain = "runtime-config"
+	// runtimeParamCacheChangeReason records protected runtime parameter mutations.
+	runtimeParamCacheChangeReason cachecoord.ChangeReason = "runtime_params_changed"
+	// runtimeParamCacheMaxStale is the runtime-config freshness budget.
+	runtimeParamCacheMaxStale = 10 * time.Second
 )
 
 // runtimeParamRevisionController hides the single-node and clustered revision
@@ -21,25 +32,44 @@ type runtimeParamRevisionController interface {
 }
 
 // localRuntimeParamRevisionController keeps revision ownership entirely inside
-// the current process so single-node deployments avoid any shared-KV traffic.
+// the current process so single-node deployments avoid any cachecoord traffic.
 type localRuntimeParamRevisionController struct{}
 
 // clusterRuntimeParamRevisionController coordinates revision changes through
-// shared KV while still caching the last synchronized value in process memory.
+// cachecoord while still caching the last synchronized value in process memory.
 type clusterRuntimeParamRevisionController struct {
-	kvCacheSvc kvcache.Service
+	cacheCoordSvc cachecoord.Service
 }
 
-// newRuntimeParamRevisionController selects the deployment-specific revision
-// strategy once during service construction so business methods can stay branch-free.
-func newRuntimeParamRevisionController(
-	clusterEnabled bool,
-	kvCacheSvc kvcache.Service,
-) runtimeParamRevisionController {
+// newCacheCoordRuntimeParamRevisionController selects the deployment-specific
+// revision strategy backed by cachecoord in cluster mode.
+func newCacheCoordRuntimeParamRevisionController(clusterEnabled bool) runtimeParamRevisionController {
 	if clusterEnabled {
-		return &clusterRuntimeParamRevisionController{kvCacheSvc: kvCacheSvc}
+		cacheCoordSvc := cachecoord.Default(cachecoord.NewStaticTopology(true))
+		configureRuntimeParamCacheDomain(cacheCoordSvc)
+		return &clusterRuntimeParamRevisionController{
+			cacheCoordSvc: cacheCoordSvc,
+		}
 	}
 	return &localRuntimeParamRevisionController{}
+}
+
+// configureRuntimeParamCacheDomain declares the runtime-config consistency
+// contract without making cachecoord own a global domain registry.
+func configureRuntimeParamCacheDomain(cacheCoordSvc cachecoord.Service) {
+	if cacheCoordSvc == nil {
+		return
+	}
+	if err := cacheCoordSvc.ConfigureDomain(cachecoord.DomainSpec{
+		Domain:           runtimeParamCacheDomain,
+		AuthoritySource:  "sys_config protected runtime parameters",
+		ConsistencyModel: cachecoord.ConsistencySharedRevision,
+		MaxStale:         runtimeParamCacheMaxStale,
+		SyncMechanism:    "persistent MySQL sys_cache_revision plus request or watcher refresh",
+		FailureStrategy:  cachecoord.FailureStrategyReturnVisibleError,
+	}); err != nil {
+		panic(err)
+	}
 }
 
 // CurrentRevision lazily initializes the local revision so a single-node
@@ -67,57 +97,50 @@ func (c *localRuntimeParamRevisionController) MarkChanged(_ context.Context) (in
 	return revision, nil
 }
 
-// CurrentRevision prefers the synchronized local copy on the request path and
-// only falls back to shared KV when this process has not seen a revision yet.
+// CurrentRevision verifies freshness through cachecoord on the request path so
+// protected runtime readers do not indefinitely trust a process-local revision.
 func (c *clusterRuntimeParamRevisionController) CurrentRevision(ctx context.Context) (int64, error) {
-	if revision, ok := getLocalRuntimeParamRevision(); ok {
-		return revision, nil
-	}
-
-	revision, err := c.getSharedRevision(ctx)
-	if err != nil {
-		return 0, err
-	}
-	storeLocalRuntimeParamRevision(revision)
-	return revision, nil
+	return c.ensureFresh(ctx)
 }
 
-// SyncRevision always refreshes from shared KV because watcher-driven sync must
+// SyncRevision always refreshes from cachecoord because watcher-driven sync must
 // observe cross-node writes even when this process already has a local copy.
 func (c *clusterRuntimeParamRevisionController) SyncRevision(ctx context.Context) (int64, error) {
-	revision, err := c.getSharedRevision(ctx)
-	if err != nil {
-		return 0, err
-	}
-	storeLocalRuntimeParamRevision(revision)
-	return revision, nil
+	return c.ensureFresh(ctx)
 }
 
 // MarkChanged publishes one cross-node revision bump and then mirrors the new
 // value locally so the mutating node does not wait for the next watcher cycle.
 func (c *clusterRuntimeParamRevisionController) MarkChanged(ctx context.Context) (int64, error) {
-	item, err := c.kvCacheSvc.Incr(
+	revision, err := c.cacheCoordSvc.MarkChanged(
 		ctx,
-		kvcache.OwnerTypeModule,
-		runtimeParamRevisionCacheKey,
-		1,
-		0,
+		runtimeParamCacheDomain,
+		cachecoord.ScopeGlobal,
+		runtimeParamCacheChangeReason,
 	)
 	if err != nil {
 		return 0, err
 	}
 
-	storeLocalRuntimeParamRevision(item.IntValue)
-	return item.IntValue, nil
+	storeLocalRuntimeParamRevision(revision)
+	return revision, nil
 }
 
-// getSharedRevision uses the pure read path so clustered refreshes do not
-// mutate the shared counter when they only need the current effective version.
-func (c *clusterRuntimeParamRevisionController) getSharedRevision(ctx context.Context) (int64, error) {
-	revision, _, err := c.kvCacheSvc.GetInt(
+// ensureFresh confirms that the local runtime-parameter snapshot has consumed
+// the latest coordinated revision or returns a visible freshness error.
+func (c *clusterRuntimeParamRevisionController) ensureFresh(ctx context.Context) (int64, error) {
+	revision, err := c.cacheCoordSvc.EnsureFresh(
 		ctx,
-		kvcache.OwnerTypeModule,
-		runtimeParamRevisionCacheKey,
+		runtimeParamCacheDomain,
+		cachecoord.ScopeGlobal,
+		func(_ context.Context, revision int64) error {
+			storeLocalRuntimeParamRevision(revision)
+			return nil
+		},
 	)
-	return revision, err
+	if err != nil {
+		return 0, err
+	}
+	storeLocalRuntimeParamRevision(revision)
+	return revision, nil
 }

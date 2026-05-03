@@ -5,8 +5,6 @@ package config
 import (
 	"context"
 	"time"
-
-	"lina-core/internal/service/kvcache"
 )
 
 // Service defines the complete config service contract by composing narrower
@@ -50,10 +48,10 @@ type AuthConfigReader interface {
 // LoginConfigReader reads login policy settings.
 type LoginConfigReader interface {
 	// GetLogin reads runtime login parameters from sys_config.
-	GetLogin(ctx context.Context) *LoginConfig
+	GetLogin(ctx context.Context) (*LoginConfig, error)
 	// IsLoginIPBlacklisted reports whether the input IP is denied by the
 	// runtime-effective blacklist without constructing a full config object.
-	IsLoginIPBlacklisted(ctx context.Context, ip string) bool
+	IsLoginIPBlacklisted(ctx context.Context, ip string) (bool, error)
 }
 
 // FrontendConfigReader reads public frontend shell settings.
@@ -150,18 +148,14 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	kvCacheSvc               kvcache.Service
 	runtimeParamRevisionCtrl runtimeParamRevisionController
 }
 
 // New creates one config service instance.
 func New() Service {
-	svc := &serviceImpl{
-		kvCacheSvc: kvcache.New(),
-	}
-	svc.runtimeParamRevisionCtrl = newRuntimeParamRevisionController(
+	svc := &serviceImpl{}
+	svc.runtimeParamRevisionCtrl = newCacheCoordRuntimeParamRevisionController(
 		svc.IsClusterEnabled(context.Background()),
-		svc.kvCacheSvc,
 	)
 	return svc
 }

@@ -26,6 +26,9 @@ func (s *serviceImpl) GetUserAccessContext(ctx context.Context, userId int) (*Us
 	if tokenID != "" {
 		return s.getTokenAccessContext(ctx, tokenID, userId)
 	}
+	if _, err := s.getAccessRevision(ctx); err != nil {
+		return nil, err
+	}
 	return s.loadUserAccessContext(ctx, userId)
 }
 

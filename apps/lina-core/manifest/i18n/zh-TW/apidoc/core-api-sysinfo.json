@@ -41,9 +41,46 @@
               }
             }
           },
+          "CacheCoordinationInfo": {
+            "fields": {
+              "authoritySource": {
+                "dc": "用於重建該緩存域的權威數據源"
+              },
+              "consistencyModel": {
+                "dc": "緩存域使用的一致性模型"
+              },
+              "domain": {
+                "dc": "緩存協調域標識"
+              },
+              "failureStrategy": {
+                "dc": "無法確認 freshness 時對調用方可見的降級策略"
+              },
+              "lastSyncedAt": {
+                "dc": "最近一次本地同步成功時間，尚未同步時為空"
+              },
+              "localRevision": {
+                "dc": "當前宿主進程已消費的最新修訂號"
+              },
+              "maxStaleSeconds": {
+                "dc": "最大可接受陳舊窗口，單位為秒"
+              },
+              "recentError": {
+                "dc": "最近一次緩存協調失敗信息，健康時為空"
+              },
+              "scope": {
+                "dc": "緩存域內的顯式失效作用域"
+              },
+              "sharedRevision": {
+                "dc": "從協調存儲觀測到的最新共享修訂號"
+              },
+              "staleSeconds": {
+                "dc": "距離最近一次本地同步成功已過去的秒數"
+              }
+            }
+          },
           "GetInfoReq": {
             "meta": {
-              "dc": "獲取系統運行時信息，包括Go版本、GoFrame版本、操作系統、數據庫版本、啟動時間、運行時長以及前後端組件列表",
+              "dc": "獲取系統運行時信息，包括Go版本、GoFrame版本、操作系統、數據庫版本、啟動時間、運行時長、前後端組件列表以及緩存協調診斷信息",
               "summary": "獲取系統運行信息",
               "tags": "系統信息"
             },
@@ -59,6 +96,9 @@
                           },
                           "backendComponents": {
                             "dc": "後端組件列表"
+                          },
+                          "cacheCoordination": {
+                            "dc": "關鍵運行時緩存域的緩存協調診斷信息"
                           },
                           "dbVersion": {
                             "dc": "數據庫版本"
@@ -95,7 +135,7 @@
               }
             },
             "schema": {
-              "dc": "獲取系統運行時信息，包括Go版本、GoFrame版本、操作系統、數據庫版本、啟動時間、運行時長以及前後端組件列表"
+              "dc": "獲取系統運行時信息，包括Go版本、GoFrame版本、操作系統、數據庫版本、啟動時間、運行時長、前後端組件列表以及緩存協調診斷信息"
             }
           },
           "GetInfoRes": {
@@ -105,6 +145,9 @@
               },
               "backendComponents": {
                 "dc": "後端組件列表"
+              },
+              "cacheCoordination": {
+                "dc": "關鍵運行時緩存域的緩存協調診斷信息"
               },
               "dbVersion": {
                 "dc": "數據庫版本"

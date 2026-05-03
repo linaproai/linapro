@@ -11,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2"
 	"github.com/gogf/gf/v2/frame/g"
 
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/config"
 	"lina-core/pkg/logger"
 )
@@ -32,31 +33,37 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	startTime time.Time      // startTime stores the host service boot time.
-	configSvc config.Service // configSvc loads embedded metadata and runtime config values.
+	startTime     time.Time          // startTime stores the host service boot time.
+	configSvc     config.Service     // configSvc loads embedded metadata and runtime config values.
+	cacheCoordSvc cachecoord.Service // cacheCoordSvc exposes process-wide cache coordination diagnostics.
 }
 
 // New creates and returns a new Service instance.
 func New() Service {
+	configSvc := config.New()
 	return &serviceImpl{
 		startTime: time.Now(),
-		configSvc: config.New(),
+		configSvc: configSvc,
+		cacheCoordSvc: cachecoord.Default(
+			cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background())),
+		),
 	}
 }
 
 // SystemInfo holds the system runtime information.
 type SystemInfo struct {
-	Framework          FrameworkInfo   // Framework contains top-level framework metadata.
-	GoVersion          string          // GoVersion is the active Go runtime version.
-	GfVersion          string          // GfVersion is the active GoFrame runtime version.
-	Os                 string          // Os is the operating system name.
-	Arch               string          // Arch is the runtime architecture.
-	DbVersion          string          // DbVersion is the database server version string.
-	StartTime          string          // StartTime is the host start timestamp.
-	RunDuration        string          // RunDuration is the English fallback uptime string.
-	RunDurationSeconds int64           // RunDurationSeconds is the total uptime in seconds.
-	BackendComponents  []ComponentInfo // BackendComponents lists backend technology cards.
-	FrontendComponents []ComponentInfo // FrontendComponents lists frontend technology cards.
+	Framework          FrameworkInfo           // Framework contains top-level framework metadata.
+	GoVersion          string                  // GoVersion is the active Go runtime version.
+	GfVersion          string                  // GfVersion is the active GoFrame runtime version.
+	Os                 string                  // Os is the operating system name.
+	Arch               string                  // Arch is the runtime architecture.
+	DbVersion          string                  // DbVersion is the database server version string.
+	StartTime          string                  // StartTime is the host start timestamp.
+	RunDuration        string                  // RunDuration is the English fallback uptime string.
+	RunDurationSeconds int64                   // RunDurationSeconds is the total uptime in seconds.
+	BackendComponents  []ComponentInfo         // BackendComponents lists backend technology cards.
+	FrontendComponents []ComponentInfo         // FrontendComponents lists frontend technology cards.
+	CacheCoordination  []CacheCoordinationInfo // CacheCoordination lists critical cache coordination diagnostics.
 }
 
 // FrameworkInfo holds framework-level project information.
@@ -75,6 +82,21 @@ type ComponentInfo struct {
 	Version     string // Version is the resolved component version label.
 	Url         string // Url is the component homepage.
 	Description string // Description is the short component summary.
+}
+
+// CacheCoordinationInfo holds one cache coordination diagnostic row.
+type CacheCoordinationInfo struct {
+	Domain           string        // Domain is the cache coordination domain identifier.
+	Scope            string        // Scope is the explicit invalidation scope inside the domain.
+	AuthoritySource  string        // AuthoritySource is the canonical data source for rebuilds.
+	ConsistencyModel string        // ConsistencyModel is the declared freshness model.
+	MaxStale         time.Duration // MaxStale is the configured stale window.
+	FailureStrategy  string        // FailureStrategy is the caller-visible degradation behavior.
+	LocalRevision    int64         // LocalRevision is the latest revision consumed by this process.
+	SharedRevision   int64         // SharedRevision is the latest shared coordination revision observed.
+	LastSyncedAt     time.Time     // LastSyncedAt is the latest successful local synchronization time.
+	RecentError      string        // RecentError is the most recent coordination failure.
+	StaleSeconds     int64         // StaleSeconds is the elapsed time since LastSyncedAt.
 }
 
 // GetInfo returns system runtime information.
@@ -110,8 +132,39 @@ func (s *serviceImpl) GetInfo(ctx context.Context) (*SystemInfo, error) {
 
 	info.BackendComponents = s.loadComponents(metadata, componentSectionBackend, dbVersion)
 	info.FrontendComponents = s.loadComponents(metadata, componentSectionFrontend, "")
+	info.CacheCoordination = s.loadCacheCoordination(ctx)
 
 	return info, nil
+}
+
+// loadCacheCoordination returns best-effort cache coordination diagnostics.
+func (s *serviceImpl) loadCacheCoordination(ctx context.Context) []CacheCoordinationInfo {
+	if s.cacheCoordSvc == nil {
+		return nil
+	}
+
+	items, err := s.cacheCoordSvc.Snapshot(ctx)
+	if err != nil {
+		logger.Warningf(ctx, "Failed to get cache coordination snapshot: %v", err)
+		return nil
+	}
+	diagnostics := make([]CacheCoordinationInfo, 0, len(items))
+	for _, item := range items {
+		diagnostics = append(diagnostics, CacheCoordinationInfo{
+			Domain:           string(item.Domain),
+			Scope:            string(item.Scope),
+			AuthoritySource:  item.AuthoritySource,
+			ConsistencyModel: string(item.ConsistencyModel),
+			MaxStale:         item.MaxStale,
+			FailureStrategy:  string(item.FailureStrategy),
+			LocalRevision:    item.LocalRevision,
+			SharedRevision:   item.SharedRevision,
+			LastSyncedAt:     item.LastSyncedAt,
+			RecentError:      item.RecentError,
+			StaleSeconds:     item.StaleSeconds,
+		})
+	}
+	return diagnostics
 }
 
 // formatRunDurationFallback formats uptime with an English developer fallback.

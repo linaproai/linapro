@@ -14,25 +14,31 @@ type LoginConfig struct {
 }
 
 // GetLogin reads runtime login parameters from sys_config.
-func (s *serviceImpl) GetLogin(ctx context.Context) *LoginConfig {
+func (s *serviceImpl) GetLogin(ctx context.Context) (*LoginConfig, error) {
 	cfg := &LoginConfig{}
-	snapshot := s.getRuntimeParamSnapshot(ctx)
+	snapshot, err := s.getRuntimeParamSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if snapshot == nil {
-		return cfg
+		return cfg, nil
 	}
 	cfg.BlackIPList = snapshot.loginBlacklist()
-	return cfg
+	return cfg, nil
 }
 
 // IsLoginIPBlacklisted reports whether the input IP is denied by the
 // runtime-effective blacklist snapshot. Auth hot paths should call this method
 // directly so they avoid allocating a LoginConfig and reparsing blacklist rules.
-func (s *serviceImpl) IsLoginIPBlacklisted(ctx context.Context, ip string) bool {
-	snapshot := s.getRuntimeParamSnapshot(ctx)
-	if snapshot == nil {
-		return false
+func (s *serviceImpl) IsLoginIPBlacklisted(ctx context.Context, ip string) (bool, error) {
+	snapshot, err := s.getRuntimeParamSnapshot(ctx)
+	if err != nil {
+		return false, err
 	}
-	return snapshot.isLoginIPBlacklisted(ip)
+	if snapshot == nil {
+		return false, nil
+	}
+	return snapshot.isLoginIPBlacklisted(ip), nil
 }
 
 // IsBlacklisted reports whether the input IP matches one configured deny rule.
