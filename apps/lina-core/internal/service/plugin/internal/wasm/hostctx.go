@@ -84,7 +84,18 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 		if spec == nil || spec.Service != normalizedService {
 			continue
 		}
-		if !containsString(spec.Methods, normalizedMethod) {
+		methods := spec.Methods
+		if len(methods) == 0 && normalizedService == pluginbridge.HostServiceConfig {
+			methods = []string{
+				pluginbridge.HostServiceMethodConfigGet,
+				pluginbridge.HostServiceMethodConfigExists,
+				pluginbridge.HostServiceMethodConfigString,
+				pluginbridge.HostServiceMethodConfigBool,
+				pluginbridge.HostServiceMethodConfigInt,
+				pluginbridge.HostServiceMethodConfigDuration,
+			}
+		}
+		if !containsString(methods, normalizedMethod) {
 			continue
 		}
 		if normalizedService == pluginbridge.HostServiceStorage && normalizedResourceRef != "" {

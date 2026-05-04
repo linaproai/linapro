@@ -46,6 +46,8 @@ const (
 	CapabilityQueueEnqueue = "host:queue:enqueue"
 	// CapabilityNotify grants access to governed notification services.
 	CapabilityNotify = "host:notify"
+	// CapabilityConfig grants access to read-only host configuration services.
+	CapabilityConfig = "host:config"
 )
 
 // Host service identifiers declare the logical service families exposed by the
@@ -73,6 +75,8 @@ const (
 	HostServiceQueue = "queue"
 	// HostServiceNotify is the notify host service identifier.
 	HostServiceNotify = "notify"
+	// HostServiceConfig is the read-only configuration host service identifier.
+	HostServiceConfig = "config"
 )
 
 // Runtime host-service methods describe runtime logging, state, and info
@@ -171,6 +175,22 @@ const (
 	HostServiceMethodNotifySend = "send"
 )
 
+// Config host-service methods describe read-only host configuration access.
+const (
+	// HostServiceMethodConfigGet reads one configuration value as JSON.
+	HostServiceMethodConfigGet = "get"
+	// HostServiceMethodConfigExists reports whether one configuration key exists.
+	HostServiceMethodConfigExists = "exists"
+	// HostServiceMethodConfigString reads one configuration value as a string.
+	HostServiceMethodConfigString = "string"
+	// HostServiceMethodConfigBool reads one configuration value as a bool.
+	HostServiceMethodConfigBool = "bool"
+	// HostServiceMethodConfigInt reads one configuration value as an int.
+	HostServiceMethodConfigInt = "int"
+	// HostServiceMethodConfigDuration reads one configuration value as a duration string.
+	HostServiceMethodConfigDuration = "duration"
+)
+
 // Storage visibility constants describe the serving posture attached to plugin
 // storage objects.
 const (
@@ -184,7 +204,8 @@ const (
 type HostServiceSpec struct {
 	// Service is the logical host service identifier.
 	Service string `json:"service" yaml:"service"`
-	// Methods lists the allowed methods under the host service.
+	// Methods lists the allowed methods under the host service. Config service
+	// declarations default to all read-only config methods when methods are omitted.
 	Methods []string `json:"methods" yaml:"methods"`
 	// Paths lists the authorized logical paths for the storage host service.
 	Paths []string `json:"paths,omitempty" yaml:"paths,omitempty"`
@@ -270,6 +291,14 @@ var (
 		HostServiceNotify: {
 			HostServiceMethodNotifySend: CapabilityNotify,
 		},
+		HostServiceConfig: {
+			HostServiceMethodConfigGet:      CapabilityConfig,
+			HostServiceMethodConfigExists:   CapabilityConfig,
+			HostServiceMethodConfigString:   CapabilityConfig,
+			HostServiceMethodConfigBool:     CapabilityConfig,
+			HostServiceMethodConfigInt:      CapabilityConfig,
+			HostServiceMethodConfigDuration: CapabilityConfig,
+		},
 	}
 
 	allCapabilities = map[string]struct{}{
@@ -285,11 +314,13 @@ var (
 		CapabilityEventPublish: {},
 		CapabilityQueueEnqueue: {},
 		CapabilityNotify:       {},
+		CapabilityConfig:       {},
 	}
 
 	hostServicesWithoutResources = map[string]struct{}{
 		HostServiceRuntime: {},
 		HostServiceCron:    {},
+		HostServiceConfig:  {},
 	}
 
 	hostServicesWithTables = map[string]struct{}{
@@ -333,7 +364,11 @@ func CapabilityMapFromHostServices(specs []*HostServiceSpec) map[string]struct{}
 			continue
 		}
 		service := normalizeHostServiceName(spec.Service)
-		for _, rawMethod := range spec.Methods {
+		methods := spec.Methods
+		if len(methods) == 0 {
+			methods = defaultHostServiceMethods(service)
+		}
+		for _, rawMethod := range methods {
 			method := normalizeHostServiceMethod(rawMethod)
 			capability := RequiredCapabilityForHostServiceMethod(service, method)
 			if capability != "" {
@@ -367,6 +402,9 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 		}
 		seenServices[spec.Service] = struct{}{}
 
+		if len(spec.Methods) == 0 {
+			spec.Methods = defaultHostServiceMethods(spec.Service)
+		}
 		methodSeen := make(map[string]struct{}, len(spec.Methods))
 		methods := make([]string, 0, len(spec.Methods))
 		for _, rawMethod := range spec.Methods {
@@ -504,6 +542,21 @@ func ValidateHostServiceSpecs(specs []*HostServiceSpec) error {
 	sort.Slice(specs, func(i, j int) bool {
 		return specs[i].Service < specs[j].Service
 	})
+	return nil
+}
+
+// defaultHostServiceMethods returns service-specific default method grants.
+func defaultHostServiceMethods(service string) []string {
+	if service == HostServiceConfig {
+		return []string{
+			HostServiceMethodConfigGet,
+			HostServiceMethodConfigExists,
+			HostServiceMethodConfigString,
+			HostServiceMethodConfigBool,
+			HostServiceMethodConfigInt,
+			HostServiceMethodConfigDuration,
+		}
+	}
 	return nil
 }
 

@@ -1,130 +1,184 @@
-# User Message
+# User Message Specification
 
 ## Purpose
 
-定义用户消息的数据结构、未读统计、列表查询、已读处理与清空行为，确保系统能够稳定管理用户侧的站内消息体验。
+Define user message data structure, unread-count query, list query, read handling, deletion, notification bell behavior, message panel behavior, notice detail navigation, and frontend store polling.
 
 ## Requirements
 
-### Requirement: 用户消息数据库表设计
-系统 SHALL 提供 `sys_user_message` 表存储用户消息数据。
+### Requirement: User message database table design
 
-#### Scenario: sys_user_message 表结构
-- **WHEN** 查看 `sys_user_message` 表结构
-- **THEN** 表包含：`id`（BIGINT PK AUTO_INCREMENT）、`user_id`（BIGINT 接收用户ID）、`title`（VARCHAR(255) 消息标题）、`type`（TINYINT 消息类型：1=通知 2=公告）、`source_type`（VARCHAR(50) 来源类型）、`source_id`（BIGINT 来源ID）、`is_read`（TINYINT 是否已读：0=未读 1=已读）、`read_at`（DATETIME 阅读时间）、`created_at`（DATETIME 创建时间）
-- **THEN** 在 `user_id` + `is_read` 上建立联合索引
+The system SHALL provide `sys_user_message` to store user message data.
 
-### Requirement: 查询未读消息数量
-系统 SHALL 提供查询当前用户未读消息数量的接口。
+#### Scenario: sys_user_message table structure
 
-#### Scenario: 获取未读消息数
-- **WHEN** 调用 `GET /api/v1/user/message/count`
-- **THEN** 返回当前登录用户的未读消息总数 `{count: number}`
+- **WHEN** the `sys_user_message` table structure is inspected
+- **THEN** the table includes `id` (BIGINT PK AUTO_INCREMENT), `user_id` (BIGINT recipient user ID), `title` (VARCHAR(255) message title), `type` (TINYINT message type: 1=notification, 2=announcement), `source_type` (VARCHAR(50) source type), `source_id` (BIGINT source ID), `is_read` (TINYINT read flag: 0=unread, 1=read), `read_at` (DATETIME read time), and `created_at` (DATETIME creation time)
+- **AND** a composite index is created on `user_id` and `is_read`
 
-#### Scenario: 无未读消息
-- **WHEN** 当前用户没有未读消息
-- **THEN** 返回 `{count: 0}`
+### Requirement: Query unread message count
 
-### Requirement: 查询消息列表
-系统 SHALL 提供查询当前用户消息列表的接口。
+The system SHALL provide an endpoint to query the unread message count for the current user.
 
-#### Scenario: 获取消息列表
-- **WHEN** 调用 `GET /api/v1/user/message` 并传入分页参数
-- **THEN** 返回当前登录用户的消息列表，按创建时间倒序排列
-- **THEN** 每条消息包含：`id`、`title`、`type`、`sourceType`、`sourceId`、`isRead`、`readAt`、`createdAt`
+#### Scenario: Get unread message count
 
-### Requirement: 标记消息已读
-系统 SHALL 提供标记消息为已读的接口。
+- **WHEN** the caller invokes `GET /api/v1/user/message/count`
+- **THEN** the system returns the unread message count for the current logged-in user as `{count: number}`
 
-#### Scenario: 标记单条消息已读
-- **WHEN** 调用 `PUT /api/v1/user/message/{id}/read`
-- **THEN** 将该消息的 `is_read` 设为 1，`read_at` 设为当前时间
-- **THEN** 仅允许操作当前登录用户自己的消息
+#### Scenario: No unread messages
 
-#### Scenario: 标记所有消息已读
-- **WHEN** 调用 `PUT /api/v1/user/message/read-all`
-- **THEN** 将当前登录用户的所有未读消息标记为已读
+- **WHEN** the current user has no unread messages
+- **THEN** the system returns `{count: 0}`
 
-### Requirement: 删除消息
-系统 SHALL 提供删除消息的接口。
+### Requirement: Query message list
 
-#### Scenario: 删除单条消息
-- **WHEN** 调用 `DELETE /api/v1/user/message/{id}`
-- **THEN** 物理删除该消息记录
-- **THEN** 仅允许删除当前登录用户自己的消息
+The system SHALL provide an endpoint to query the current user's message list.
 
-#### Scenario: 清空所有消息
-- **WHEN** 调用 `DELETE /api/v1/user/message/clear`
-- **THEN** 物理删除当前登录用户的所有消息记录
+#### Scenario: Get message list
 
-### Requirement: 消息通知铃铛组件
-系统 SHALL 在页面顶部导航栏提供消息通知铃铛组件。
+- **WHEN** the caller invokes `GET /api/v1/user/message` with pagination parameters
+- **THEN** the system returns the current user's messages sorted by creation time descending
+- **AND** each message includes `id`, `title`, `type`, `sourceType`, `sourceId`, `isRead`, `readAt`, and `createdAt`
 
-#### Scenario: 铃铛图标展示
-- **WHEN** 用户登录后查看顶部导航栏
-- **THEN** 显示铃铛图标，当有未读消息时在图标右上角显示未读数量徽标
+### Requirement: Mark messages as read
 
-#### Scenario: 无未读消息
-- **WHEN** 用户没有未读消息
-- **THEN** 铃铛图标不显示数量徽标
+The system SHALL provide endpoints to mark messages as read.
 
-#### Scenario: 定时轮询
-- **WHEN** 用户登录后
-- **THEN** 前端每 60 秒自动调用未读消息数量接口更新徽标
+#### Scenario: Mark a single message as read
 
-### Requirement: 消息面板
-系统 SHALL 提供消息面板，用户点击铃铛图标后展开。
+- **WHEN** the caller invokes `PUT /api/v1/user/message/{id}/read`
+- **THEN** the system sets `is_read` to 1 and `read_at` to the current time for that message
+- **AND** only the current logged-in user's own message can be modified
 
-#### Scenario: 打开消息面板
-- **WHEN** 用户点击铃铛图标
-- **THEN** 展开 Popover 消息面板，显示消息列表
-- **THEN** 每条消息显示标题、消息类型、时间
-- **THEN** 未读消息有视觉标识（如加粗或圆点标记）
+#### Scenario: Mark all messages as read
 
-#### Scenario: 点击消息跳转详情
-- **WHEN** 用户点击消息面板中的某条消息
-- **THEN** 自动标记该消息为已读
-- **THEN** 跳转至通知公告详情页 `/system/notice/detail/{sourceId}`
+- **WHEN** the caller invokes `PUT /api/v1/user/message/read-all`
+- **THEN** the system marks all unread messages for the current logged-in user as read
 
-#### Scenario: 全部已读
-- **WHEN** 用户点击消息面板中的"全部已读"按钮
-- **THEN** 调用标记所有消息已读接口，更新面板中所有消息状态
+### Requirement: Delete messages
 
-#### Scenario: 清空消息
-- **WHEN** 用户点击消息面板中的"清空"按钮
-- **THEN** 弹出确认对话框，确认后调用清空接口，消息面板清空
+The system SHALL provide endpoints to delete messages.
 
-#### Scenario: 删除单条消息
-- **WHEN** 用户在消息面板中点击某条消息的删除按钮
-- **THEN** 调用删除单条消息接口，该消息从面板中移除
+#### Scenario: Delete one message
 
-### Requirement: 通知公告详情页
-系统 SHALL 提供通知公告详情页面。
+- **WHEN** the caller invokes `DELETE /api/v1/user/message/{id}`
+- **THEN** the system physically deletes that message record
+- **AND** only the current logged-in user's own message can be deleted
 
-#### Scenario: 详情页展示
-- **WHEN** 用户访问 `/system/notice/detail/{id}`
-- **THEN** 页面显示通知公告的标题、类型（字典渲染）、创建人、创建时间
-- **THEN** 以富文本方式展示公告内容
+#### Scenario: Clear all messages
 
-#### Scenario: 从消息面板跳转
-- **WHEN** 用户从消息面板点击消息跳转至详情页
-- **THEN** 该消息自动标记为已读
+- **WHEN** the caller invokes `DELETE /api/v1/user/message/clear`
+- **THEN** the system physically deletes all messages for the current logged-in user
 
-### Requirement: 消息 Store（Pinia）
-系统 SHALL 提供 Pinia Store 管理用户消息状态。
+### Requirement: Message notification bell component
 
-#### Scenario: 初始化轮询
-- **WHEN** 用户登录后进入宿主工作区
-- **THEN** 消息 Store 启动 60 秒间隔轮询，获取未读消息数量
+The system SHALL provide a message notification bell component in the top navigation bar.
 
-#### Scenario: 停止轮询
-- **WHEN** 用户退出登录
-- **THEN** 消息 Store 停止轮询
+#### Scenario: Bell icon display
 
-#### Scenario: 未读数量响应式更新
-- **WHEN** 轮询获取到新的未读数量
-- **THEN** Store 中的 `unreadCount` 响应式更新，铃铛徽标同步变化
+- **WHEN** a user signs in and views the top navigation bar
+- **THEN** the bell icon is displayed
+- **AND** when unread messages exist, an unread-count badge is displayed at the top-right of the icon
 
-#### Scenario: 预留 SSE 扩展点
-- **WHEN** 查看消息 Store 的轮询实现
-- **THEN** 轮询逻辑封装在独立方法中，未来可替换为 SSE 监听而无需修改 Store 外部接口
+#### Scenario: No unread messages
+
+- **WHEN** the user has no unread messages
+- **THEN** the bell icon does not display a count badge
+
+#### Scenario: Periodic polling
+
+- **WHEN** the user signs in
+- **THEN** the frontend periodically calls the unread-count endpoint to update the badge
+
+### Requirement: Message panel
+
+The system SHALL provide a message panel that opens when the user clicks the bell icon.
+
+#### Scenario: Open message panel
+
+- **WHEN** the user clicks the bell icon
+- **THEN** a popover message panel opens and displays the message list
+- **AND** each message displays title, message type, and time
+- **AND** unread messages have a visual marker such as bold text or a dot
+
+#### Scenario: Click message to navigate to detail
+
+- **WHEN** the user clicks a message in the message panel
+- **THEN** the message is automatically marked as read
+- **AND** the user navigates to notice detail page `/system/notice/detail/{sourceId}`
+
+#### Scenario: Mark all as read
+
+- **WHEN** the user clicks Mark All Read in the message panel
+- **THEN** the system calls the mark-all-read endpoint and updates all message states in the panel
+
+#### Scenario: Clear messages
+
+- **WHEN** the user clicks Clear in the message panel
+- **THEN** a confirmation dialog is shown, and after confirmation the clear endpoint is called and the panel becomes empty
+
+#### Scenario: Delete one message
+
+- **WHEN** the user clicks the delete button for a message in the message panel
+- **THEN** the system calls the delete-one endpoint and removes that message from the panel
+
+### Requirement: Notice detail page
+
+The system SHALL provide a notice detail page.
+
+#### Scenario: Detail page display
+
+- **WHEN** the user opens `/system/notice/detail/{id}`
+- **THEN** the page displays notice title, dictionary-rendered type, creator, and creation time
+- **AND** displays notice content as rich text
+
+#### Scenario: Navigate from message panel
+
+- **WHEN** the user clicks a message in the message panel to navigate to detail
+- **THEN** that message is automatically marked as read
+
+### Requirement: Message Store in Pinia
+
+The system SHALL provide a Pinia store to manage user message state.
+
+#### Scenario: Initialize polling
+
+- **WHEN** the user signs in and enters the host workspace
+- **THEN** the message store starts interval polling to fetch unread message count
+
+#### Scenario: Stop polling
+
+- **WHEN** the user signs out
+- **THEN** the message store stops polling
+
+#### Scenario: Unread count updates reactively
+
+- **WHEN** polling fetches a new unread count
+- **THEN** `unreadCount` in the store updates reactively, and the bell badge updates accordingly
+
+#### Scenario: Reserve SSE extension point
+
+- **WHEN** the message store polling implementation is inspected
+- **THEN** polling logic is encapsulated in an independent method so future SSE listening can replace polling without changing the external store interface
+
+### Requirement: User-message polling must be page-visibility aware
+
+Unread-count polling for user messages SHALL listen to page visibility events. When `document.visibilityState === 'hidden'`, polling MUST pause. When the page becomes visible again, the message store MUST immediately refresh unread count once and resume periodic polling. The underlying timer MUST be explicitly stopped when the user logs out or the store is disposed.
+
+#### Scenario: Unread-count polling pauses while page is hidden
+
+- **WHEN** the user switches to another tab
+- **THEN** the message store MUST pause unread-count polling
+- **AND** no `GET /api/v1/user/message/count` requests are produced
+
+#### Scenario: One refresh runs immediately when the page is visible again
+
+- **WHEN** the user switches back to the current application
+- **THEN** the message store MUST immediately trigger one unread-count refresh
+- **AND** periodic polling resumes afterward
+
+#### Scenario: Polling timer stops on logout
+
+- **WHEN** the user logs out
+- **THEN** the message store MUST explicitly stop the polling timer
+- **AND** no unread-count requests are produced afterward

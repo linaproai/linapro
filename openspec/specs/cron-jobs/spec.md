@@ -1,94 +1,121 @@
-# cron-jobs Specification
+# Cron Jobs Specification
 
 ## Purpose
-TBD - created by archiving change distributed-locker. Update Purpose after archive.
+
+Define host scheduled-job categories, master-only and all-node execution rules, and persistent scheduler registration boundaries for user-manageable jobs.
+
 ## Requirements
-### Requirement: 定时任务分类
-系统 SHALL 支持两种类型的定时任务：主节点专属任务和全节点任务。单节点模式下，主节点专属任务必须由当前节点直接执行；集群模式下，主节点专属任务仅在主节点执行。
 
-#### Scenario: 定义主节点专属任务
-- **WHEN** 注册定时任务时指定为主节点专属类型
-- **THEN** 该任务在单节点模式下由当前节点执行
-- **AND** 在集群模式下仅由主节点执行
+### Requirement: Scheduled job categories
 
-#### Scenario: 定义全节点任务
-- **WHEN** 注册定时任务时指定为全节点类型
-- **THEN** 该任务在所有运行节点上执行
+The system SHALL support two scheduled-job categories: master-only jobs and all-node jobs. In single-node mode, master-only jobs execute directly on the current node. In cluster mode, master-only jobs execute only on the primary node.
 
-### Requirement: 主节点专属任务主节点检查
-系统 SHALL 在执行主节点专属任务前根据部署模式判断当前节点是否应当执行。
+#### Scenario: Define master-only job
 
-#### Scenario: 集群模式主节点执行主节点专属任务
-- **WHEN** `cluster.enabled=true` 且主节点专属任务触发时当前节点是主节点
-- **THEN** 任务正常执行
+- **WHEN** a scheduled job is registered as master-only
+- **THEN** the job executes on the current node in single-node mode
+- **AND** executes only on the primary node in cluster mode
 
-#### Scenario: 集群模式从节点跳过主节点专属任务
-- **WHEN** `cluster.enabled=true` 且主节点专属任务触发时当前节点是从节点
-- **THEN** 任务立即返回
-- **AND** 不执行任何业务逻辑
+#### Scenario: Define all-node job
 
-#### Scenario: 单节点模式执行主节点专属任务
-- **WHEN** `cluster.enabled=false` 且主节点专属任务触发
-- **THEN** 当前节点直接执行该任务
+- **WHEN** a scheduled job is registered as all-node
+- **THEN** the job executes on every running node
 
-### Requirement: 现有定时任务分类
-系统 SHALL 对现有定时任务按部署模式应用统一的调度规则。
+### Requirement: Master-only jobs must check primary-node eligibility
 
-#### Scenario: Session Cleanup 分类为主节点专属任务
-- **WHEN** Session Cleanup 定时任务注册时
-- **THEN** 系统将其标记为主节点专属任务
-- **AND** 在单节点模式下由当前节点执行
+The system SHALL decide whether the current node should execute a master-only job before running it.
 
-#### Scenario: Server Monitor Collector 分类为全节点任务
-- **WHEN** Server Monitor Collector 定时任务注册时
-- **THEN** 系统将其标记为全节点任务
-- **AND** 在所有节点执行
+#### Scenario: Cluster primary executes master-only job
 
-#### Scenario: Server Monitor Cleanup 分类为主节点专属任务
-- **WHEN** Server Monitor Cleanup 定时任务注册时
-- **THEN** 系统将其标记为主节点专属任务
-- **AND** 在单节点模式下由当前节点执行
+- **WHEN** `cluster.enabled=true` and the current node is primary when a master-only job triggers
+- **THEN** the job executes normally
 
-### Requirement: 用户可管理任务的调度范围一致性
+#### Scenario: Cluster secondary skips master-only job
 
-系统 SHALL 将现有"主节点/全节点"调度语义统一应用到用户可管理的定时任务,不区分内置任务与用户任务。
+- **WHEN** `cluster.enabled=true` and the current node is secondary when a master-only job triggers
+- **THEN** the job returns immediately
+- **AND** no business logic is executed
 
-#### Scenario: 用户创建 master-only 任务
+#### Scenario: Single-node mode executes master-only job
 
-- **WHEN** 用户创建 `scope=master_only` 的定时任务
-- **THEN** 该任务 SHALL 在集群模式下仅由主节点执行
-- **AND** 在单节点模式下由当前节点直接执行
+- **WHEN** `cluster.enabled=false` and a master-only job triggers
+- **THEN** the current node executes the job directly
 
-#### Scenario: 用户创建 all-node 任务
+### Requirement: Existing scheduled jobs use deployment-aware categories
 
-- **WHEN** 用户创建 `scope=all_node` 的定时任务
-- **THEN** 该任务 SHALL 在所有运行节点上各自执行一份
-- **AND** 每次执行的 `sys_job_log.node_id` 记录触发节点
+The system SHALL apply unified scheduling rules to existing scheduled jobs according to deployment mode.
 
-#### Scenario: 非主节点 master-only 跳过记录
+#### Scenario: Session Cleanup is master-only
 
-- **WHEN** `cluster.enabled=true` 且 `scope=master_only` 任务在非主节点触发
-- **THEN** 系统 SHALL 立即返回且不执行业务逻辑
-- **AND** 写入一条 `sys_job_log` 记录,`status=skipped_not_primary`
+- **WHEN** the Session Cleanup scheduled job is registered
+- **THEN** the system marks it as master-only
+- **AND** it executes on the current node in single-node mode
 
-### Requirement: 用户可管理任务的调度器注册
+#### Scenario: Server Monitor Collector is all-node
 
-系统 SHALL 在启动和 CRUD 期间维护 gcron 注册表,使之与 `sys_job` 表中处于 `status=enabled` 的任务保持一致。
+- **WHEN** the Server Monitor Collector scheduled job is registered
+- **THEN** the system marks it as all-node
+- **AND** it executes on every node
 
-#### Scenario: 启动加载
+#### Scenario: Server Monitor Cleanup is master-only
 
-- **WHEN** 宿主进程启动且 `service/cron` 启动
-- **THEN** 系统 SHALL 扫描 `sys_job where status=enabled`
-- **AND** 将每条任务按其 `scope / concurrency / timezone / cron_expr` 注册到 gcron
+- **WHEN** the Server Monitor Cleanup scheduled job is registered
+- **THEN** the system marks it as master-only
+- **AND** it executes on the current node in single-node mode
 
-#### Scenario: CRUD 动态刷新
+### Requirement: Scheduling-scope consistency for user-manageable jobs
 
-- **WHEN** 任务被创建、更新或删除
-- **THEN** 系统 SHALL 原子地从 gcron 注销旧条目并重新注册新条目(如适用)
-- **AND** 在刷新过程中加单任务互斥锁,避免与调度 tick 产生竞态
+The system SHALL apply the existing master-only and all-node scheduling semantics consistently to user-manageable scheduled jobs. User-manageable jobs are jobs with `sys_job.is_builtin=0`. Built-in jobs MUST also follow the same scope execution rules, but their execution definition comes from host code or plugin declarations rather than from `sys_job` records.
 
-#### Scenario: 启用/禁用刷新
+#### Scenario: User creates a master-only job
 
-- **WHEN** 任务 `status` 从 `disabled` 变为 `enabled` 或反之
-- **THEN** 系统 SHALL 在调度器中相应地注册或注销该任务
+- **WHEN** a user creates a scheduled job with `scope=master_only`
+- **THEN** the job SHALL execute only on the primary node in cluster mode
+- **AND** execute directly on the current node in single-node mode
 
+#### Scenario: User creates an all-node job
+
+- **WHEN** a user creates a scheduled job with `scope=all_node`
+- **THEN** the job SHALL execute once on every running node
+- **AND** each execution SHALL record the triggering node in `sys_job_log.node_id`
+
+#### Scenario: Non-primary master-only skip record
+
+- **WHEN** `cluster.enabled=true` and a `scope=master_only` job is triggered on a non-primary node
+- **THEN** the system SHALL return immediately without executing business logic
+- **AND** write a `sys_job_log` record with `status=skipped_not_primary`
+
+#### Scenario: Built-in jobs follow the unified scope rules
+
+- **WHEN** a built-in job declared by host code or a plugin is registered with the scheduler
+- **THEN** the system SHALL apply master-only or all-node execution rules according to the declared `scope`
+- **AND** the `sys_job.is_builtin=1` projection row MUST NOT become the execution-definition source for that built-in job
+
+### Requirement: Scheduler registration for user-manageable jobs
+
+The system SHALL maintain the gcron registry during startup and CRUD operations so it stays consistent with user-defined jobs in `sys_job` where `status=enabled` and `is_builtin=0`. Built-in jobs with `sys_job.is_builtin=1` MUST NOT be registered by persistent scheduler startup scanning. Built-in jobs SHALL be registered by host code or plugin declaration synchronization paths.
+
+#### Scenario: Startup loading
+
+- **WHEN** the host process starts and `service/cron` starts
+- **THEN** the system SHALL scan `sys_job where status=enabled and is_builtin=0`
+- **AND** register each user-defined job into gcron with its `scope / concurrency / timezone / cron_expr`
+- **AND** MUST NOT register `is_builtin=1` built-in jobs through that persistent scan
+
+#### Scenario: Dynamic CRUD refresh
+
+- **WHEN** a user-defined job is created, updated, or deleted
+- **THEN** the system SHALL atomically unregister the old gcron entry and register the new entry when applicable
+- **AND** hold a per-job mutex during refresh to avoid races with scheduler ticks
+
+#### Scenario: Enable/disable refresh
+
+- **WHEN** a user-defined job `status` changes from `disabled` to `enabled` or the reverse
+- **THEN** the system SHALL register or unregister that job in the scheduler accordingly
+
+#### Scenario: Built-in jobs do not participate in persistent loading
+
+- **WHEN** `sys_job` contains a built-in job projection with `is_builtin=1 and status=enabled`
+- **AND** the host process starts and runs persistent scheduler loading
+- **THEN** the persistent scheduler MUST NOT use that record as a registration source
+- **AND** the built-in job may only be registered by the corresponding host code definition or plugin cron declaration

@@ -1,159 +1,165 @@
-# cron-handler-registry Specification
+# Cron Handler Registry Specification
 
 ## Purpose
-TBD - created by archiving change scheduled-job-management. Update Purpose after archive.
+
+Define the scheduled-job handler registry, parameter schema contract, plugin built-in job handler lifecycle, dynamic plugin cron declaration contract, and handler execution behavior.
+
 ## Requirements
-### Requirement: Handler 注册表
 
-系统 SHALL 提供统一的定时任务 Handler 注册表,管理宿主与插件侧的可用 handler,并作为任务调度、UI 下拉与参数校验的唯一真理来源。
+### Requirement: Handler registry
 
-#### Scenario: 注册 handler
+The system SHALL provide a unified scheduled-job handler registry that manages available host-side and plugin-side handlers and acts as the single source of truth for scheduling, UI options, and parameter validation.
 
-- **WHEN** 宿主或插件通过注册表 `Register(ref, def)` 注册 handler
-- **THEN** 系统 SHALL 将 handler 定义持久化到内存注册表
-- **AND** `ref` 形如 `host:<name>` 或 `plugin:<pluginID>/cron:<name>`,且全局唯一
-- **AND** `def` 至少包含 `DisplayName / Description / ParamsSchema / Source / Invoke`
+#### Scenario: Register handler
 
-#### Scenario: 重复注册冲突
+- **WHEN** the host or a plugin registers a handler through `Register(ref, def)`
+- **THEN** the system SHALL store the handler definition in the in-memory registry
+- **AND** `ref` uses a globally unique form such as `host:<name>` or `plugin:<pluginID>/cron:<name>`
+- **AND** `def` includes at least `DisplayName / Description / ParamsSchema / Source / Invoke`
 
-- **WHEN** 尝试注册已存在的 `ref`
-- **THEN** 系统 SHALL 返回明确错误
-- **AND** 不覆盖已注册 handler
+#### Scenario: Duplicate registration conflict
 
-#### Scenario: 注销 handler
+- **WHEN** a caller attempts to register an existing `ref`
+- **THEN** the system SHALL return an explicit error
+- **AND** SHALL NOT overwrite the registered handler
 
-- **WHEN** 宿主或插件调用 `Unregister(ref)`
-- **THEN** 系统 SHALL 从内存注册表移除该 handler
-- **AND** 触发任务状态级联
+#### Scenario: Unregister handler
 
-### Requirement: Handler 参数 JSON Schema
+- **WHEN** the host or a plugin calls `Unregister(ref)`
+- **THEN** the system SHALL remove that handler from the in-memory registry
+- **AND** trigger job status cascade handling
 
-系统 SHALL 要求 handler 声明参数的 `JSON Schema draft-07` 受限标量子集,供参数校验与 UI 动态渲染使用。
+### Requirement: Handler parameter JSON Schema
 
-#### Scenario: 仅接受受限 Schema 子集
+The system SHALL require handlers to declare parameters with the supported scalar subset of `JSON Schema draft-07` so parameters can be validated and UI forms can be rendered dynamically.
 
-- **WHEN** 宿主或插件注册一个 handler 的 `ParamsSchema`
-- **THEN** 根节点 SHALL 为 `type=object`
-- **AND** 字段类型仅支持 `string / integer / number / boolean`
-- **AND** 关键字仅支持 `properties / required / description / default / enum / format`
-- **AND** 系统 SHALL 拒绝 `array`、嵌套 `object`、`$ref`、`allOf`、`anyOf`、`oneOf`、`not`、`patternProperties` 等超出本迭代表单映射能力的结构
+#### Scenario: Only supported schema subset is accepted
 
-#### Scenario: 创建任务时参数校验
+- **WHEN** the host or a plugin registers a handler `ParamsSchema`
+- **THEN** the root node SHALL be `type=object`
+- **AND** field types SHALL only include `string / integer / number / boolean`
+- **AND** supported keywords SHALL only include `properties / required / description / default / enum / format`
+- **AND** the system SHALL reject unsupported structures such as `array`, nested `object`, `$ref`, `allOf`, `anyOf`, `oneOf`, `not`, and `patternProperties`
 
-- **WHEN** 创建或修改 `task_type=handler` 的任务
-- **THEN** 系统 SHALL 按 handler 对应的 JSON Schema 校验 `params`
-- **AND** 校验失败时返回具体字段错误信息
+#### Scenario: Validate parameters when creating a job
 
-#### Scenario: 执行时参数校验
+- **WHEN** a caller creates or updates a job with `task_type=handler`
+- **THEN** the system SHALL validate `params` against the selected handler JSON Schema
+- **AND** return field-specific errors when validation fails
 
-- **WHEN** handler 执行前
-- **THEN** 系统 SHALL 再次按最新 Schema 校验 `params_snapshot`
-- **AND** 校验失败时记日志 `status=failed` 并终止本次执行
+#### Scenario: Validate parameters during execution
 
-#### Scenario: UI 下拉数据
+- **WHEN** a handler is about to execute
+- **THEN** the system SHALL validate `params_snapshot` against the latest schema again
+- **AND** when validation fails, write a `status=failed` log and stop that execution
 
-- **WHEN** 前端调用 `GET /job/handler`
-- **THEN** 系统 SHALL 返回所有已注册 handler 列表
-- **AND** 列表包含 `ref / displayName / description / source / pluginId`
+#### Scenario: UI option data
 
-#### Scenario: UI 详情获取 Schema
+- **WHEN** the frontend calls `GET /job/handler`
+- **THEN** the system SHALL return all registered handlers
+- **AND** the list includes `ref / displayName / description / source / pluginId`
 
-- **WHEN** 前端调用 `GET /job/handler/{ref}`
-- **THEN** 系统 SHALL 返回该 handler 的完整 `ParamsSchema`
-- **AND** 前端可据此动态渲染表单控件
+#### Scenario: UI fetches schema details
 
-### Requirement: 插件内置任务 Handler 生命周期
+- **WHEN** the frontend calls `GET /job/handler/{ref}`
+- **THEN** the system SHALL return the complete `ParamsSchema` for that handler
+- **AND** the frontend can render form controls from that schema
 
-系统 SHALL 订阅插件安装/启用/禁用/卸载事件,自动同步 handler 注册表与关联任务状态。
+### Requirement: Plugin built-in job handler lifecycle
 
-#### Scenario: 生命周期回调与响应边界
+The system SHALL subscribe to plugin install, enable, disable, and uninstall events and synchronize the handler registry, plugin built-in scheduler entries, and related job projection state. The execution source for plugin built-in jobs SHALL be plugin declarations and the handler registry. `sys_job.is_builtin=1` projection rows SHALL be used for display, log linkage, and status governance, and MUST NOT be used as the registration source for startup persistent scanning.
 
-- **WHEN** 插件安装、启用、禁用或卸载请求成功
-- **THEN** 系统 SHALL 在同一请求链路内通过显式生命周期回调完成 handler 注册表与关联任务状态同步
-- **AND** 不依赖独立的 best-effort 异步事件总线再补偿
+#### Scenario: Lifecycle callbacks and response boundary
 
-#### Scenario: 插件安装时补齐内置任务投影
+- **WHEN** a plugin install, enable, disable, or uninstall request succeeds
+- **THEN** the system SHALL synchronize the handler registry, built-in job projection, and scheduler entries through explicit lifecycle callbacks in the same request chain
+- **AND** the system SHALL NOT depend on a separate best-effort asynchronous event bus for later compensation
 
-- **WHEN** 插件安装成功但尚未启用
-- **THEN** 系统 SHALL 先将该插件声明的内置定时任务同步到 `sys_job`
-- **AND** 若对应 handler 当前尚未可用,这些任务 SHALL 直接进入 `paused_by_plugin` 状态
-- **AND** 后续启用插件时再通过 handler 注册表恢复执行能力
+#### Scenario: Plugin install creates built-in job projections
 
-#### Scenario: 插件启用时恢复内置任务 handler
+- **WHEN** a plugin is installed successfully but is not yet enabled
+- **THEN** the system SHALL first synchronize declared built-in scheduled jobs for that plugin into `sys_job`
+- **AND** if the corresponding handler is not currently available, those jobs SHALL enter `paused_by_plugin` directly
+- **AND** later plugin enablement SHALL restore executability through the handler registry
+- **AND** the install phase MUST NOT register executable scheduler entries solely from the `sys_job` projection
 
-- **WHEN** 插件启用
-- **THEN** 系统 SHALL 读取该插件声明的内置定时任务投影结果
-- **AND** 仅按 `plugin:<pluginID>/cron:<name>` 形式注册对应 handler
-- **AND** 对 `stop_reason=plugin_unavailable` 的任务恢复为 `status=enabled` 并重新注册到调度器
+#### Scenario: Plugin enable restores built-in job handlers
 
-#### Scenario: 插件禁用时注销 handler 并级联任务
+- **WHEN** a plugin is enabled
+- **THEN** the system SHALL read that plugin's declared built-in scheduled jobs
+- **AND** register corresponding handlers only in the `plugin:<pluginID>/cron:<name>` form
+- **AND** restore jobs with `stop_reason=plugin_unavailable` to `status=enabled`
+- **AND** register scheduler entries from the plugin declaration and current projected `sys_job.id`
 
-- **WHEN** 插件被禁用
-- **THEN** 系统 SHALL 注销该插件所有 handler
-- **AND** 将 `handler_ref=plugin:<pluginID>/cron:*` 且 `status=enabled` 的任务置为 `paused_by_plugin`
-- **AND** 在对应任务上写入 `stop_reason=plugin_unavailable`
-- **AND** 从调度器注销这些任务
+#### Scenario: Plugin disable unregisters handlers and cascades jobs
 
-#### Scenario: 插件卸载时保留任务数据
+- **WHEN** a plugin is disabled
+- **THEN** the system SHALL unregister all handlers for that plugin
+- **AND** unregister all built-in scheduler entries for that plugin
+- **AND** set jobs with `handler_ref=plugin:<pluginID>/cron:*` and `status=enabled` to `paused_by_plugin`
+- **AND** write `stop_reason=plugin_unavailable` on the corresponding jobs
 
-- **WHEN** 插件被卸载
-- **THEN** 系统 SHALL 执行与禁用相同的级联(标记 `paused_by_plugin`)
-- **AND** 不删除已有任务与历史日志
-- **AND** UI 明显标红任务并提示 handler 不可用
+#### Scenario: Plugin uninstall preserves job data
 
-#### Scenario: UI 可见性
+- **WHEN** a plugin is uninstalled
+- **THEN** the system SHALL perform the same cascade as disable, marking jobs `paused_by_plugin` and unregistering scheduler entries
+- **AND** it SHALL NOT delete existing jobs or historical logs
+- **AND** the UI SHALL clearly highlight the job and indicate that the handler is unavailable
 
-- **WHEN** 任务列表返回 `paused_by_plugin` 任务
-- **THEN** 前端 SHALL 在状态列显式提示"插件处理器不可用"
-- **AND** 禁用"立即触发""启用"按钮
+#### Scenario: UI visibility
 
-### Requirement: 动态插件定时任务声明契约
+- **WHEN** the job list returns a `paused_by_plugin` job
+- **THEN** the frontend SHALL explicitly indicate in the status column that the plugin handler is unavailable
+- **AND** disable Run Now and Enable buttons
 
-系统 SHALL 为动态插件提供独立的定时任务声明契约,并将其与 runtime host service 边界分离。
+### Requirement: Dynamic plugin scheduled job declaration contract
 
-#### Scenario: 动态插件通过 cron host service 代码注册定时任务
+The system SHALL provide an independent scheduled-job declaration contract for dynamic plugins and keep it separate from the runtime host service boundary. Scheduled jobs declared by dynamic plugins SHALL be the execution source for plugin built-in jobs. The host SHALL synchronize them as `sys_job.is_builtin=1` projections and register or unregister scheduler entries according to plugin lifecycle.
 
-- **WHEN** 动态插件需要提供内置定时任务
-- **THEN** 插件 SHALL 通过独立 `cron` host service 在 guest 代码中调用 `pluginbridge.Cron().Register(...)` 提交任务元数据与 guest 处理器绑定信息
-- **AND** 宿主 SHALL 通过保留的 guest 注册入口执行一次受控 discovery 来收集这些声明
-- **AND** 收集到的声明 SHALL 纳入统一任务投影链路
+#### Scenario: Dynamic plugin registers scheduled jobs through cron host service code
 
-#### Scenario: runtime host service 保持聚焦
+- **WHEN** a dynamic plugin needs to provide built-in scheduled jobs
+- **THEN** the plugin SHALL use an independent `cron` host service in guest code and call `pluginbridge.Cron().Register(...)` to submit job metadata and guest-handler binding information
+- **AND** the host SHALL run a controlled discovery through the reserved guest registration entry point to collect these declarations
+- **AND** collected declarations SHALL enter the unified job projection path
+- **AND** collected declarations SHALL be the runtime registration source for plugin built-in jobs
 
-- **WHEN** 宿主暴露 guest-side `runtime` host service SDK
-- **THEN** 其职责 SHALL 继续限定为运行时日志、状态与轻量信息查询
-- **AND** 不直接承担动态插件定时任务的注册治理入口
-- **AND** 若未来需要开放插件侧任务治理能力,应以独立 `cron`/`job` host service 形式扩展
+#### Scenario: Runtime host service remains focused
 
-#### Scenario: 动态插件授权页展示 cron 注册明细
+- **WHEN** the host exposes the guest-side `runtime` host service SDK
+- **THEN** its responsibility SHALL remain limited to runtime logs, status, and lightweight information queries
+- **AND** it SHALL NOT directly own the registration governance entry point for dynamic-plugin scheduled jobs
+- **AND** if future plugin-side job governance is needed, it should be added through an independent `cron` or `job` host service
 
-- **WHEN** 动态插件在安装或启用前打开宿主服务授权审查页，且当前 release 已声明 `cron` host service 并成功发现定时任务合同
-- **THEN** 前端 SHALL 将该服务名称展示为“任务服务”
-- **AND** 在该卡片下展示已注册定时任务的名称、表达式、调度范围与并发策略等摘要信息
-- **AND** 数据服务、存储服务、网络服务等治理目标摘要标签 SHALL 使用“数据表名”“存储路径”“访问地址”等不带“申请/授权”前缀的等长中文文案
-- **AND** `runtime` 服务卡片 SHALL 排在授权页宿主服务列表的最底部，位于“任务服务”之后
-- **AND** “任务服务”卡片 SHALL 直接展示任务面板，不额外渲染“定时任务”摘要标签行
-- **AND** 每个任务面板中的属性标题（如表达式、调度范围、并发策略）SHALL 使用粗体强调显示
-- **AND** 授权页中“申请清单”与“数据表名/存储路径/访问地址”等资源类型标签的背景色 SHALL 与详情页对应标签保持一致
-- **AND** 插件详情页中的“当前生效范围”文案 SHALL 统一改为“生效范围”
+#### Scenario: Dynamic plugin authorization page displays cron registration details
 
-### Requirement: Handler 执行契约
+- **WHEN** the dynamic plugin authorization review page is opened before install or enable, and the current release has declared the `cron` host service and successfully discovered scheduled-job contracts
+- **THEN** the frontend SHALL display that service name as Task Service
+- **AND** show summary information under that card, including registered job name, expression, scheduling scope, and concurrency policy
+- **AND** governance target summary labels for data, storage, network, and similar services SHALL use concise resource-type labels such as Data Table, Storage Path, and Access URL without request or authorization prefixes
+- **AND** the `runtime` service card SHALL be listed at the bottom of host services, after Task Service
+- **AND** the Task Service card SHALL directly show the task panel without rendering an additional scheduled-job summary tag row
+- **AND** each task-panel property title, such as expression, scheduling scope, and concurrency policy, SHALL be emphasized in bold
+- **AND** background colors for the authorization-page checklist and resource-type labels SHALL match the corresponding labels on the details page
+- **AND** the plugin details page label Current Effective Scope SHALL be normalized to Effective Scope
 
-系统 SHALL 在 handler 规范中要求所有 handler 支持 context 取消,并在取消时尽快退出。
+### Requirement: Handler execution contract
 
-#### Scenario: Handler 接受 context
+The system SHALL require every handler to support context cancellation and exit as soon as practical after cancellation.
 
-- **WHEN** 系统调用 handler 的 `Invoke(ctx, params)` 方法
-- **THEN** handler SHALL 在长阻塞操作中检查 `ctx.Done()` 或把 `ctx` 透传到下游
-- **AND** 收到取消信号后应尽快返回 `ctx.Err()`
+#### Scenario: Handler accepts context
 
-#### Scenario: Handler 返回结构化结果
+- **WHEN** the system calls handler method `Invoke(ctx, params)`
+- **THEN** the handler SHALL check `ctx.Done()` during long blocking operations or pass `ctx` downstream
+- **AND** return `ctx.Err()` as soon as practical after receiving cancellation
 
-- **WHEN** handler 执行成功
-- **THEN** handler SHALL 返回可 JSON 序列化的结果
-- **AND** 系统 SHALL 将结果写入 `sys_job_log.result_json`
+#### Scenario: Handler returns structured result
 
-#### Scenario: Handler 抛错
+- **WHEN** a handler executes successfully
+- **THEN** the handler SHALL return a JSON-serializable result
+- **AND** the system SHALL write the result into `sys_job_log.result_json`
 
-- **WHEN** handler 执行返回非 nil error
-- **THEN** 系统 SHALL 记 `status=failed` 且 `err_msg` 为 error.Error() 摘要
+#### Scenario: Handler returns error
+
+- **WHEN** handler execution returns a non-nil error
+- **THEN** the system SHALL write `status=failed` and set `err_msg` to a summary of `error.Error()`

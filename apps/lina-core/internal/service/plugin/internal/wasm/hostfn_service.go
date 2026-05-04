@@ -10,7 +10,6 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
-// handleHostServiceInvoke validates and dispatches one structured host service invocation.
 // handleHostServiceInvoke validates capability and authorization state before
 // dispatching one structured host service invocation.
 func handleHostServiceInvoke(
@@ -74,6 +73,8 @@ func handleHostServiceInvoke(
 		return dispatchLockHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
 	case pluginbridge.HostServiceNotify:
 		return dispatchNotifyHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
+	case pluginbridge.HostServiceConfig:
+		return dispatchConfigHostService(ctx, hcc, request.Method, request.Payload)
 	default:
 		return pluginbridge.NewHostCallErrorResponse(
 			pluginbridge.HostCallStatusNotFound,

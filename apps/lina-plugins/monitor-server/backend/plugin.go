@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"lina-core/pkg/pluginhost"
-	configsvc "lina-core/pkg/pluginservice/config"
 	monitorserverplugin "lina-plugin-monitor-server"
 	servercontroller "lina-plugin-monitor-server/backend/internal/controller/monitor"
+	monitorconfig "lina-plugin-monitor-server/backend/internal/service/config"
 	monitorsvc "lina-plugin-monitor-server/backend/internal/service/monitor"
 )
 
@@ -77,11 +77,12 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 
 // registerBuiltinCrons contributes managed cron definitions for server-monitor collection and cleanup.
 func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistrar) error {
-	monitorCfg := configsvc.New().GetMonitor(ctx)
-	interval := monitorCfg.Interval
-	if interval <= 0 {
-		interval = time.Minute
+	monitorCfg, err := monitorconfig.Load(ctx)
+	if err != nil {
+		return err
 	}
+	interval := monitorCfg.Interval
+	monitorSvc := monitorsvc.New()
 
 	if err := registrar.AddWithMetadata(
 		ctx,
@@ -89,7 +90,9 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 		serviceMonitorCollectorName,
 		serviceMonitorCollectorDisplayName,
 		serviceMonitorCollectorDescription,
-		collectSnapshot,
+		func(ctx context.Context) error {
+			return collectSnapshot(ctx, monitorSvc)
+		},
 	); err != nil {
 		return err
 	}
@@ -100,7 +103,7 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 		serviceMonitorCleanupDisplayName,
 		serviceMonitorCleanupDescription,
 		func(ctx context.Context) error {
-			return cleanupSnapshots(ctx, registrar)
+			return cleanupSnapshots(ctx, registrar, monitorSvc)
 		},
 	)
 }
@@ -112,28 +115,22 @@ func collectOnSystemStarted(ctx context.Context, payload pluginhost.HookPayload)
 }
 
 // collectSnapshot writes one fresh monitoring snapshot.
-func collectSnapshot(ctx context.Context) error {
-	monitorsvc.New().CollectAndStore(ctx)
+func collectSnapshot(ctx context.Context, monitorSvc monitorsvc.Service) error {
+	monitorSvc.CollectAndStore(ctx)
 	return nil
 }
 
 // cleanupSnapshots removes expired monitoring snapshots.
-func cleanupSnapshots(ctx context.Context, registrar pluginhost.CronRegistrar) error {
+func cleanupSnapshots(ctx context.Context, registrar pluginhost.CronRegistrar, monitorSvc monitorsvc.Service) error {
 	if registrar != nil && !registrar.IsPrimaryNode() {
 		return nil
 	}
 
-	monitorCfg := configsvc.New().GetMonitor(ctx)
-	interval := monitorCfg.Interval
-	if interval <= 0 {
-		interval = time.Minute
+	monitorCfg, err := monitorconfig.Load(ctx)
+	if err != nil {
+		return err
 	}
 
-	retentionMultiplier := monitorCfg.RetentionMultiplier
-	if retentionMultiplier <= 0 {
-		retentionMultiplier = 120
-	}
-
-	_, err := monitorsvc.New().CleanupStale(ctx, interval*time.Duration(retentionMultiplier))
+	_, err = monitorSvc.CleanupStale(ctx, monitorCfg.Interval*time.Duration(monitorCfg.RetentionMultiplier))
 	return err
 }

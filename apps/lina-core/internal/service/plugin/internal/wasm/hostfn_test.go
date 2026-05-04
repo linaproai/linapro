@@ -98,6 +98,28 @@ func TestHostCallContextHasHostServiceAccess(t *testing.T) {
 	}
 }
 
+// TestHostCallContextDefaultsConfigMethods verifies config declarations with
+// omitted methods authorize the complete read-only config method set.
+func TestHostCallContextDefaultsConfigMethods(t *testing.T) {
+	hcc := &hostCallContext{
+		pluginID: "test-plugin",
+		hostServices: []*pluginbridge.HostServiceSpec{
+			{
+				Service: pluginbridge.HostServiceConfig,
+			},
+		},
+	}
+	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceConfig, pluginbridge.HostServiceMethodConfigGet, "", "") {
+		t.Error("expected config get to be authorized when methods are omitted")
+	}
+	if !hcc.hasHostServiceAccess(pluginbridge.HostServiceConfig, pluginbridge.HostServiceMethodConfigExists, "", "") {
+		t.Error("expected config exists to be authorized when methods are omitted")
+	}
+	if hcc.hasHostServiceAccess(pluginbridge.HostServiceConfig, "set", "", "") {
+		t.Error("expected unsupported config method to remain unauthorized")
+	}
+}
+
 // TestHostCallContextHasDataTableAccess verifies data-table authorization is
 // limited to explicitly granted tables.
 func TestHostCallContextHasDataTableAccess(t *testing.T) {

@@ -5,6 +5,7 @@ package pluginbridge
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -100,6 +101,83 @@ func TestValidateHostServiceSpecsAcceptsCronWithoutResources(t *testing.T) {
 	}})
 	if err != nil {
 		t.Fatalf("expected cron host service without resources to validate, got %v", err)
+	}
+}
+
+// TestValidateHostServiceSpecsAcceptsConfigWithoutResources verifies config
+// read access is authorized at the service/method level for full config reads.
+func TestValidateHostServiceSpecsAcceptsConfigWithoutResources(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceConfig,
+		Methods: []string{
+			HostServiceMethodConfigGet,
+			HostServiceMethodConfigExists,
+			HostServiceMethodConfigDuration,
+		},
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err != nil {
+		t.Fatalf("expected config host service without resources to validate, got %v", err)
+	}
+
+	capabilities := CapabilityMapFromHostServices(specs)
+	if _, ok := capabilities[CapabilityConfig]; !ok {
+		t.Fatalf("expected config declaration to derive %s capability", CapabilityConfig)
+	}
+}
+
+// TestValidateHostServiceSpecsDefaultsConfigMethods verifies omitted config
+// methods grant the complete read-only config permission surface.
+func TestValidateHostServiceSpecsDefaultsConfigMethods(t *testing.T) {
+	specs := []*HostServiceSpec{{
+		Service: HostServiceConfig,
+	}}
+
+	if err := ValidateHostServiceSpecs(specs); err != nil {
+		t.Fatalf("expected config host service without explicit methods to validate, got %v", err)
+	}
+	expectedMethods := []string{
+		HostServiceMethodConfigBool,
+		HostServiceMethodConfigDuration,
+		HostServiceMethodConfigExists,
+		HostServiceMethodConfigGet,
+		HostServiceMethodConfigInt,
+		HostServiceMethodConfigString,
+	}
+	if !reflect.DeepEqual(specs[0].Methods, expectedMethods) {
+		t.Fatalf("expected omitted config methods to default to all read-only methods, got %#v", specs[0].Methods)
+	}
+
+	capabilities := CapabilitiesFromHostServices([]*HostServiceSpec{{Service: HostServiceConfig}})
+	if len(capabilities) != 1 || capabilities[0] != CapabilityConfig {
+		t.Fatalf("expected omitted config methods to derive config capability, got %#v", capabilities)
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsConfigUnsupportedMethods verifies config
+// declarations only accept known read-only config methods.
+func TestValidateHostServiceSpecsRejectsConfigUnsupportedMethods(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: HostServiceConfig,
+		Methods: []string{HostServiceMethodConfigGet, "set"},
+	}})
+	if err == nil {
+		t.Fatal("expected unsupported config host service methods to be rejected")
+	}
+}
+
+// TestValidateHostServiceSpecsRejectsConfigResources verifies config service
+// declarations do not accept key-level resource restrictions in this model.
+func TestValidateHostServiceSpecsRejectsConfigResources(t *testing.T) {
+	err := ValidateHostServiceSpecs([]*HostServiceSpec{{
+		Service: HostServiceConfig,
+		Methods: []string{HostServiceMethodConfigGet},
+		Resources: []*HostServiceResourceSpec{{
+			Ref: "monitor.*",
+		}},
+	}})
+	if err == nil {
+		t.Fatal("expected config host service resources to be rejected")
 	}
 }
 

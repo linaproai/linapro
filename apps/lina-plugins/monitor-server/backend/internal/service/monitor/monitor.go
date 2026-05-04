@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -137,6 +138,7 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
+	networkMu     sync.Mutex
 	startTime     time.Time
 	lastNetBytes  *netutil.IOCountersStat
 	lastCollectAt time.Time
@@ -370,6 +372,10 @@ func (s *serviceImpl) collectNetwork() *NetworkInfo {
 	}
 	current := &counters[0]
 	info := &NetworkInfo{BytesSent: current.BytesSent, BytesRecv: current.BytesRecv}
+
+	s.networkMu.Lock()
+	defer s.networkMu.Unlock()
+
 	if s.lastNetBytes != nil && !s.lastCollectAt.IsZero() {
 		elapsed := time.Since(s.lastCollectAt).Seconds()
 		if elapsed > 0 {

@@ -1,73 +1,105 @@
-# User Role Association
+# User Role Association Specification
 
 ## Purpose
 
-定义用户与角色之间的关联管理、角色分配和角色选项读取行为，确保用户权限归属能够在用户管理流程中被一致维护。
+Define user-role association management, role assignment, and role option behavior so user permission ownership is consistently maintained in user-management workflows.
 
 ## Requirements
 
-### Requirement: 用户列表展示角色信息
+### Requirement: User list displays role information
 
-系统 SHALL 在用户列表中展示每个用户关联的角色信息。
+The system SHALL display role information associated with each user in the user list.
 
-#### Scenario: 用户列表包含角色列
-- **WHEN** 用户访问用户管理页面
-- **THEN** 用户列表包含"角色"列
-- **AND** 角色列显示用户关联的所有角色名称，以逗号分隔
-- **AND** 未分配角色的用户显示为空或"未分配"
+#### Scenario: User list contains role column
 
-#### Scenario: 用户详情包含角色信息
-- **WHEN** 用户查看用户详情
-- **THEN** 系统返回用户关联的角色ID列表（roleIds）和角色名称列表（roleNames）
+- **WHEN** a user opens user management
+- **THEN** the user list includes a Role column
+- **AND** the Role column displays all associated role names separated by commas
+- **AND** users without assigned roles display an empty value or an unassigned state
 
-### Requirement: 用户创建时分配角色
+#### Scenario: User details include role information
 
-系统 SHALL 支持在创建用户时选择关联角色。
+- **WHEN** a user views user details
+- **THEN** the system returns associated role ID list `roleIds` and role name list `roleNames`
 
-#### Scenario: 创建用户并分配角色
-- **WHEN** 用户在创建用户表单中选择一个或多个角色并提交
-- **THEN** 系统创建用户记录
-- **AND** 系统在 sys_user_role 表中插入用户-角色关联记录
+### Requirement: Assign roles when creating users
 
-#### Scenario: 创建用户不分配角色
-- **WHEN** 用户在创建用户表单中不选择任何角色并提交
-- **THEN** 系统创建用户记录
-- **AND** sys_user_role 表中无该用户的关联记录
+The system SHALL support selecting associated roles when creating a user.
 
-### Requirement: 用户更新时修改角色
+#### Scenario: Create user and assign roles
 
-系统 SHALL 支持在更新用户时修改关联角色。
+- **WHEN** a user selects one or more roles in the create-user form and submits
+- **THEN** the system creates the user record
+- **AND** inserts user-role association records into `sys_user_role`
 
-#### Scenario: 更新用户角色
-- **WHEN** 用户在编辑用户表单中修改角色选择并提交
-- **THEN** 系统更新用户基本信息
-- **AND** 系统删除旧的 sys_user_role 关联记录
-- **AND** 系统插入新的 sys_user_role 关联记录
+#### Scenario: Create user without assigning roles
 
-#### Scenario: 清空用户角色
-- **WHEN** 用户在编辑用户表单中取消所有角色选择并提交
-- **THEN** 系统更新用户基本信息
-- **AND** 系统删除该用户的所有 sys_user_role 关联记录
+- **WHEN** a user submits the create-user form without selecting roles
+- **THEN** the system creates the user record
+- **AND** no association record for that user exists in `sys_user_role`
 
-### Requirement: 用户删除时清理角色关联
+### Requirement: Modify roles when updating users
 
-系统 SHALL 在删除用户时清理角色关联数据。
+The system SHALL support modifying associated roles when updating a user.
 
-#### Scenario: 删除用户清理角色关联
-- **WHEN** 用户删除一个用户
-- **THEN** 系统软删除用户记录
-- **AND** 系统删除 sys_user_role 中该用户的所有关联记录
+#### Scenario: Update user roles
 
-### Requirement: 角色下拉选项加载
+- **WHEN** a user changes role selection in the edit-user form and submits
+- **THEN** the system updates user base information
+- **AND** deletes old `sys_user_role` association records
+- **AND** inserts new `sys_user_role` association records
 
-系统 SHALL 在用户表单中提供角色下拉选项。
+#### Scenario: Clear user roles
 
-#### Scenario: 加载角色下拉选项
-- **WHEN** 用户打开创建/编辑用户的表单
-- **THEN** 系统请求角色下拉选项接口
-- **AND** 表单中的角色选择器显示所有启用状态的角色
+- **WHEN** a user clears all role selection in the edit-user form and submits
+- **THEN** the system updates user base information
+- **AND** deletes all `sys_user_role` association records for that user
 
-#### Scenario: 角色多选
-- **WHEN** 用户在角色选择器中选择多个角色
-- **THEN** 选择器以标签形式展示已选角色
-- **AND** 用户可以移除已选角色
+### Requirement: Clean role associations when deleting users
+
+The system SHALL clean role association data when deleting users. User soft delete and `sys_user_role` association cleanup MUST run inside the same transaction, and any failure MUST roll back the whole operation.
+
+#### Scenario: User deletion transactionally cleans role associations
+
+- **WHEN** a user deletes another user
+- **AND** all cleanup steps succeed
+- **THEN** the system soft-deletes the user record inside the transaction
+- **AND** deletes all `sys_user_role` associations for that user
+- **AND** notifies access topology change only after transaction commit
+
+#### Scenario: Association cleanup failure rolls back the whole operation
+
+- **WHEN** a user deletes another user
+- **AND** `sys_user_role` association cleanup returns an error inside the transaction
+- **THEN** user soft delete MUST roll back as well
+- **AND** the operation returns the underlying error
+
+### Requirement: Role option loading
+
+The system SHALL provide role options in user forms.
+
+#### Scenario: Load role options
+
+- **WHEN** a user opens the create-user or edit-user form
+- **THEN** the system requests role options
+- **AND** the role selector displays all enabled roles
+
+#### Scenario: Select multiple roles
+
+- **WHEN** a user selects multiple roles in the role selector
+- **THEN** the selector displays selected roles as tags
+- **AND** the user can remove selected roles
+
+### Requirement: sys_user_role must include role_id reverse index
+
+The system SHALL maintain `KEY idx_role_id (role_id)` on the `sys_user_role` table to support access paths such as querying users by role and deleting associations by role in batch. This avoids full table scans when only the `(user_id, role_id)` composite primary key exists.
+
+#### Scenario: sys_user_role reverse index exists
+
+- **WHEN** `make init` completes database initialization
+- **THEN** `SHOW INDEX FROM sys_user_role` MUST include `idx_role_id` on column `role_id`
+
+#### Scenario: Query users by role uses the index
+
+- **WHEN** the service executes queries of the form `WHERE role_id = ?`
+- **THEN** the database MUST select `idx_role_id` to avoid a full table scan
