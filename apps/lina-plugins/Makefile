@@ -1,4 +1,5 @@
-## wasm: 构建全部或指定 dynamic wasm 插件；可通过 `p=<plugin-id>` 定向构建
+# wasm: Build all dynamic wasm plugins, or use p=<plugin-id> for one plugin
+# wasm: 构建全部或指定 dynamic wasm 插件；可通过 `p=<plugin-id>` 定向构建
 .PHONY: wasm
 wasm:
 	@set -e; \
@@ -21,19 +22,19 @@ wasm:
 		done); \
 	fi; \
 	if [ -z "$$plugin_list" ]; then \
-		echo "未发现可构建的 dynamic wasm 插件"; \
+		echo "No buildable dynamic wasm plugins found"; \
 		exit 0; \
 	fi; \
 	for plugin in $$plugin_list; do \
 		manifest="./$$plugin/plugin.yaml"; \
 		if [ ! -f "$$manifest" ]; then \
-			echo "插件不存在: $$plugin"; \
+			echo "Plugin does not exist: $$plugin"; \
 			exit 1; \
 		fi; \
 		if ! grep -Eq '^type:[[:space:]]*dynamic[[:space:]]*$$' "$$manifest"; then \
-			echo "插件不是 dynamic 类型，无法构建 wasm: $$plugin"; \
+			echo "Plugin is not dynamic and cannot be built as wasm: $$plugin"; \
 			exit 1; \
 		fi; \
-		echo "构建 dynamic wasm 插件: $$plugin"; \
+		echo "Building dynamic wasm plugin: $$plugin"; \
 		(cd "$$builder_dir" && go run . --plugin-dir "$$repo_root/apps/lina-plugins/$$plugin" --output-dir "$$output_dir"); \
 	done

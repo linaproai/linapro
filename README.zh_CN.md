@@ -203,8 +203,21 @@ make dev
 make stop         # 停止所有本地服务
 make status       # 查看服务运行状态
 make test-install # 运行安装脚本 smoke test
+make image        # 构建生产 Docker 镜像
 make test         # 运行完整 E2E 测试套件
 ```
+
+### 容器镜像
+
+`make image`会基于嵌入式单体二进制交付产物构建生产`Docker`镜像。默认值读取自根目录`hack/config.yaml`的`image`配置段，命令行参数只覆盖本次调用。`Dockerfile`位于`hack/docker/Dockerfile`。跨平台工具`hack/tools/image-builder`会先准备前端静态资源、宿主`manifest`资源、动态插件产物和`Linux`后端二进制，然后执行`docker build`。
+
+| 命令 | 效果 |
+|------|------|
+| `make image` | 在本地构建`linapro:<git-derived-tag>` |
+| `make image tag=v0.6.0` | 在本地构建`linapro:v0.6.0` |
+| `make image tag=v0.6.0 registry=ghcr.io/linaproai push=1` | 构建并推送`ghcr.io/linaproai/linapro:v0.6.0` |
+
+远端仓库可以在`hack/config.yaml`中配置，也可以通过`LINAPRO_IMAGE_REGISTRY=ghcr.io/linaproai`或命令行`registry=...`配置。默认镜像架构跟随本机，可通过`arch=amd64`或`arch=arm64`覆盖。镜像暴露`8080`端口，并从默认模板内置`manifest/config/config.yaml`；生产环境请挂载或替换该文件以配置数据库连接和密钥。
 
 ### 升级
 

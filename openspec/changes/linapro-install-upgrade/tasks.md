@@ -292,6 +292,22 @@
     - Tests: `openspec validate linapro-install-upgrade --strict`; `git diff --check`; Docker `koalaman/shellcheck:stable shellcheck -x`; `bash -n` for installer/upgrade/test shell scripts; `make test-install`; `bash hack/tests/scripts/upgrade-classify.sh`; `bash hack/tests/scripts/upgrade-baseline-check.sh`; install E2E `TC0155` / `TC0156` / `TC0157`; `make build`; `pnpm run check:type`; `go test -p 1 ./... -count=1`; `go test ./... -count=1`. Known residuals: `pnpm lint` fails on unrelated existing style/prettier files; latest full `make test` still has the recorded `TC0054h` long-suite timeout, while targeted rerun passes.
   - i18n 影响评估:本变更修改了源码插件升级待处理错误提示,已同步 `apps/lina-core/manifest/i18n/{en-US,zh-CN,zh-TW}/error.json`;未新增或修改 API DTO,因此无需新增 apidoc i18n 资源;前端运行时语言包、菜单、路由、按钮、表单、表格文案无新增影响;OpenAPI title 源文本从 Service 调整为 Framework,中文文档站已有源数据展示路径,无需新增 apidoc 翻译键。
 
+## Feedback
+
+- [x] **FB-1**: 补充根目录 `make image` 镜像构建指令,支持指定镜像 tag 并按配置推送到远端仓库
+- [x] **FB-2**: 镜像编译配置统一收敛到根目录 `hack/config.yaml`,镜像编译执行层需具备跨平台能力
+  - 2026-05-04 执行记录:新增根目录 `hack/config.yaml` 的 `image` 配置段,新增跨平台 Go 工具 `hack/tools/image-builder`,根 `make image` / `make image-build` 已改为调用该工具;已验证 `make image-build`、`make image tag=linapro-config-test skip_build=1`、`docker image inspect linapro:linapro-config-test`、容器内 `/app/lina --help`、`go test ./...`(image-builder)、`git diff --check` 与 `openspec validate linapro-install-upgrade --strict` 通过。`push=1` 缺少 registry 的场景已验证会在 Docker build 前失败。
+- [x] **FB-3**: 将生产镜像 `Dockerfile` 移到 `hack/docker/`,并从 `hack/config.yaml` 移除项目结构约定路径配置
+  - 2026-05-04 执行记录:`Dockerfile` 已从 `apps/lina-core/manifest/docker/Dockerfile` 移至 `hack/docker/Dockerfile`,`hack/config.yaml` 仅保留镜像名、tag、registry、push、baseImage、平台、Dockerfile 与构建产物位置等用户可调配置;`apps/lina-core`、`apps/lina-vben`、`apps/lina-plugins`、嵌入资源目录和 `build-wasm` 工具路径已收敛为 `image-builder` 内部项目约定。已验证 `make image-build`、`make image tag=linapro-moved-dockerfile-test skip_build=1`、`docker image inspect linapro:linapro-moved-dockerfile-test`、容器内 `/app/lina --help`、`go test ./...`(image-builder)、`git diff --check` 与 `openspec validate linapro-install-upgrade --strict` 通过。
+- [x] **FB-4**: 完善根目录 `hack/config.yaml` 配置注释,统一提供中英文说明
+  - 2026-05-04 执行记录:`hack/config.yaml` 的文件级说明与 `image` 配置项注释已改为英文 + 中文双语说明;已通过 `go run ./hack/tools/image-builder --build-only --skip-build=1 --tag=linapro-comment-test` 验证配置仍可解析。
+- [x] **FB-5**: 将 Makefile 中所有打印到终端的内容统一改为英文,普通注释统一补充中英文说明
+  - 2026-05-04 执行记录:根目录 `Makefile`、`hack/makefiles/*.mk`、`apps/lina-core/Makefile`、`apps/lina-core/hack/*.mk` 与 `apps/lina-plugins/Makefile` 的普通注释已补充为英文 + 中文双语说明;`##` help 描述因会被 `make help` 打印到终端,保持英文。状态提示、确认错误和构建输出已统一改为英文。已验证 `rg -n '^## .*[\p{Han}]' --glob 'Makefile' --glob '*.mk' .` 无命中,`rg -n '(^|[;{[:space:]])(@?echo|printf)\b.*[\p{Han}]|\bprint\b.*[\p{Han}]' --glob 'Makefile' --glob '*.mk' .` 无命中,`make help | rg -n '\p{Han}'`、`make status | rg -n '\p{Han}'`、`make init 2>&1 | rg -n '\p{Han}'` 与 `make -C apps/lina-core init 2>&1 | rg -n '\p{Han}'` 均无输出;`git diff --check` 与 `openspec validate linapro-install-upgrade --strict` 通过。本次仅调整开发命令终端输出与 Makefile 注释,不影响前端运行时语言包、manifest i18n 或 apidoc i18n 资源。
+- [x] **FB-6**: 将 `hack/makefiles/image.mk` 中的普通注释统一补充为中英文说明
+  - 2026-05-04 执行记录:`hack/makefiles/image.mk` 的文件级注释、参数转换说明、`image` 和 `image-build` 目标功能说明已补充为英文 + 中文双语注释;`image` / `image-build` 的 `##` 目标说明保持英文,确保 `make help` 终端输出仍为英文且继续展示镜像目标。
+- [x] **FB-7**: 将 Makefile 中解释 `make help` 机制的元注释改为具体功能描述
+  - 2026-05-04 执行记录:已将根 `Makefile`、`hack/makefiles/build.mk`、`hack/makefiles/image.mk` 中 `Help text printed by make help` 一类元说明替换为对应目标的中英文功能描述;同时恢复根 `Makefile`、`hack/makefiles/dev.mk`、`hack/makefiles/test.mk`、`hack/makefiles/i18n.mk`、`hack/makefiles/image.mk` 中被降级为普通注释的 `##` 目标说明,确保 `make help` 继续完整展示目标且输出不混入中文。
+
 ## 19. 归档前确认(由用户决定是否走 /opsx:archive)
 
 - [ ] 19.1 用户确认本次迭代功能完整、无遗漏反馈

@@ -14,34 +14,42 @@ FRONTEND_LOG  := $(TEMP_DIR)/lina-vben.log
 EMBED_DIR     := $(BACKEND_DIR)/internal/packed/public
 OUTPUT_DIR    := $(TEMP_DIR)/output
 
-# 引用复杂指令子文件
+# Include split makefile targets.
+# 引入拆分后的 Makefile 目标文件。
 include hack/makefiles/dev.mk
 include hack/makefiles/build.mk
+include hack/makefiles/image.mk
 include hack/makefiles/test.mk
 include hack/makefiles/i18n.mk
 
-## init: 初始化数据库（仅执行 DDL 建表和 Seed 数据）
+# Initialize the backend database with schema and required seed data.
+# 初始化后端数据库表结构和系统必需的种子数据。
+## init: Initialize the database with DDL and seed data only
 .PHONY: init
 init:
 	@if [ "$(confirm)" != "init" ]; then \
-		echo "✗ 出于安全原因，执行 make init 需要显式确认"; \
-		echo "  请使用: make init confirm=init"; \
-		echo "  如需重建 linapro 数据库: make init confirm=init rebuild=true"; \
+		echo "✗ make init requires explicit confirmation for safety"; \
+		echo "  Use: make init confirm=init"; \
+		echo "  To rebuild the linapro database: make init confirm=init rebuild=true"; \
 		exit 1; \
 	fi
 	@cd $(BACKEND_DIR) && $(MAKE) init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
 
-## mock: 加载 Mock 演示数据（需先执行 init）
+# Load optional mock data for local demos and development verification.
+# 加载用于本地演示和开发验证的可选 Mock 数据。
+## mock: Load mock demo data after init
 .PHONY: mock
 mock:
 	@if [ "$(confirm)" != "mock" ]; then \
-		echo "✗ 出于安全原因，执行 make mock 需要显式确认"; \
-		echo "  请使用: make mock confirm=mock"; \
+		echo "✗ make mock requires explicit confirmation for safety"; \
+		echo "  Use: make mock confirm=mock"; \
 		exit 1; \
 	fi
 	@cd $(BACKEND_DIR) && $(MAKE) mock confirm=$(confirm)
 
-## help: 显示帮助信息
+# Print the available root Make targets from this file and included target files.
+# 打印根 Makefile 及其引入目标文件中可用的 make 目标。
+## help: Show help
 .PHONY: help
 help:
 	@set -e; \

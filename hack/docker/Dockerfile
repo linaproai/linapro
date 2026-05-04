@@ -1,16 +1,20 @@
-FROM loads/alpine:3.8
+ARG BASE_IMAGE=alpine:3.22
+FROM ${BASE_IMAGE}
 
 ###############################################################################
 #                                INSTALLATION
 ###############################################################################
 
-ENV WORKDIR                 /app
-ADD resource                $WORKDIR/
-ADD ./temp/linux_amd64/main $WORKDIR/main
-RUN chmod +x $WORKDIR/main
+ENV WORKDIR=/app
+ENV TZ=Asia/Shanghai
+RUN apk add --no-cache ca-certificates tzdata 
+
+COPY temp/image/lina $WORKDIR/lina
+COPY apps/lina-core/manifest/config/config.template.yaml $WORKDIR/config.yaml
 
 ###############################################################################
 #                                   START
 ###############################################################################
 WORKDIR $WORKDIR
-CMD ./main
+EXPOSE 8080
+ENTRYPOINT ["./lina"]

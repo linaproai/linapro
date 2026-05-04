@@ -72,6 +72,7 @@ make status                      # 查看服务状态
 make test                        # 运行完整E2E测试
 make init                        # 初始化数据库（DDL + Seed 数据）
 make mock                        # 加载 Mock 演示数据（需先执行 init）
+make image tag=v0.6.0            # 构建生产 Docker 镜像，可追加 registry=ghcr.io/linaproai push=1 推送
 bash hack/scripts/install/bootstrap.sh # 本地验证安装入口（远程入口为 curl -fsSL https://linapro.ai/install.sh | bash）
 # 升级框架/源码插件：通过 AI 工具调用 .claude/skills/lina-upgrade/ 技能，例如 "upgrade LinaPro framework to v0.6.0"
 make up                          # 默认用 claude 生成 commit message 并推送

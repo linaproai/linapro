@@ -1,5 +1,6 @@
 
-# Install/Update to the latest CLI tool.
+# Install/update to the latest GoFrame CLI tool.
+# 安装或更新到最新的 GoFrame CLI 工具。
 .PHONY: cli
 cli:
 	@set -e; \
@@ -10,11 +11,12 @@ cli:
 	rm ./gf
 
 
-# Check and install CLI tool.
+# Check and install the GoFrame CLI tool when missing.
+# 检查 GoFrame CLI 工具，缺失时自动安装。
 .PHONY: cli.install
 cli.install:
 	@set -e; \
 	gf -v > /dev/null 2>&1 || if [[ "$?" -ne "0" ]]; then \
-  		echo "GoFame CLI is not installed, start proceeding auto installation..."; \
+		echo "GoFrame CLI is not installed; starting automatic installation..."; \
 		make cli; \
 	fi;

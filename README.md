@@ -215,8 +215,21 @@ The backend API is available at `http://localhost:8080`.
 make stop         # Stop all local services
 make status       # Show service status
 make test-install # Run installer smoke tests
+make image        # Build the production Docker image
 make test         # Run the full E2E suite
 ```
+
+### Container Image
+
+`make image` builds the production Docker image from the embedded single-binary delivery artifact. Defaults are read from the root `hack/config.yaml` `image` section, while command-line parameters override them for one invocation. The Dockerfile lives at `hack/docker/Dockerfile`. The cross-platform `hack/tools/image-builder` tool prepares frontend static assets, host manifest assets, dynamic plugin artifacts, and a Linux backend binary before running `docker build`.
+
+| Command | Effect |
+|---------|--------|
+| `make image` | Build `linapro:<git-derived-tag>` locally |
+| `make image tag=v0.6.0` | Build `linapro:v0.6.0` locally |
+| `make image tag=v0.6.0 registry=ghcr.io/linaproai push=1` | Build and push `ghcr.io/linaproai/linapro:v0.6.0` |
+
+The registry can be configured in `hack/config.yaml`, with `LINAPRO_IMAGE_REGISTRY=ghcr.io/linaproai`, or with `registry=...` on the command line. The default image architecture follows the local machine; use `arch=amd64` or `arch=arm64` to override. The image exposes port `8080` and includes `manifest/config/config.yaml` from the default template; mount or replace that file for production database and secret settings.
 
 ### Upgrades
 

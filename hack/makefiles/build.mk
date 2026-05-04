@@ -1,4 +1,5 @@
-# LinaPro Build Target
+# LinaPro Build Commands
+# LinaPro 构建目标
 # =================
 
 HOST_BINARY_NAME         := lina
@@ -8,6 +9,8 @@ ifneq ($(origin v), undefined)
 verbose := $(v)
 endif
 
+# Helper macro that optionally hides noisy build command output.
+# 构建命令辅助宏，可按需隐藏详细输出。
 define run_build_command
 	@set -e; \
 	if [ "$(verbose)" = "1" ]; then \
@@ -24,28 +27,32 @@ define run_build_command
 	fi
 endef
 
-## build: 构建前端静态资源、宿主 manifest 嵌入资源、runtime wasm 插件与宿主单体二进制；输出到 temp/output，可追加 verbose=1 或 v=1 查看详细日志
+# Build frontend assets, packed manifests, dynamic plugins, and the host binary.
+# 构建前端资源、嵌入 manifest、动态插件和宿主后端二进制。
+## build: Build frontend assets, host manifest assets, runtime wasm plugins, and the host single binary into temp/output; use verbose=1 or v=1 for detailed logs
 .PHONY: build
 build:
-	@echo "准备构建输出目录..."
+	@echo "Preparing build output directory..."
 	@rm -rf $(OUTPUT_DIR)
 	@mkdir -p $(OUTPUT_DIR)
-	@echo "构建前端..."
+	@echo "Building frontend..."
 	$(call run_build_command,cd $(FRONTEND_DIR) && pnpm run build)
 	@rm -rf $(EMBED_DIR)/*
 	@mkdir -p $(EMBED_DIR)
 	@cp -r $(FRONTEND_DIR)/apps/web-antd/dist/* $(EMBED_DIR)/
-	@echo "✓ 宿主前端嵌入资源已生成"
+	@echo "✓ Host frontend embedded assets generated"
 	@./hack/scripts/prepare-packed-assets.sh
-	@echo "✓ 宿主 manifest 嵌入资源已生成"
-	@echo "构建动态插件产物..."
+	@echo "✓ Host manifest embedded assets generated"
+	@echo "Building dynamic plugin artifacts..."
 	$(call run_build_command,$(MAKE) wasm verbose=$(verbose))
-	@echo "✓ 动态插件产物已生成"
-	@echo "构建后端（嵌入前端静态文件）..."
+	@echo "✓ Dynamic plugin artifacts generated"
+	@echo "Building backend with embedded frontend assets..."
 	$(call run_build_command,cd $(BACKEND_DIR) && go build -o ../../$(HOST_BINARY_PATH) .)
-	@echo "✓ 构建完成: $(HOST_BINARY_PATH)"
+	@echo "✓ Build complete: $(HOST_BINARY_PATH)"
 
-## wasm: 编译 apps/lina-plugins 下全部 runtime wasm 插件，或通过 p=<plugin-id> 指定单个插件；输出到 temp/output，可追加 verbose=1 或 v=1 查看详细日志
+# Build runtime Wasm plugin artifacts into the shared output directory.
+# 将 runtime Wasm 插件产物构建到共享输出目录。
+## wasm: Build all runtime wasm plugins under apps/lina-plugins, or use p=<plugin-id> for one plugin; outputs to temp/output, use verbose=1 or v=1 for detailed logs
 .PHONY: wasm
 wasm:
 	@mkdir -p $(OUTPUT_DIR)

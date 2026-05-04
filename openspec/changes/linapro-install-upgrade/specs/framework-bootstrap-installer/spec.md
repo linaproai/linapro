@@ -159,6 +159,37 @@ The platform-specific `install-*.sh` scripts MUST read the same variables when i
 - **THEN** `bootstrap.sh` invokes `git clone --branch <tag> --depth 1`
 - **AND** prints a notice that the `lina-upgrade` skill will require `git fetch --unshallow` on first upgrade
 
+### Requirement: Delivery image build must provide a root Make target
+
+The system SHALL provide a root-level `make image` target that builds a Docker image for the production LinaPro host. The target MUST reuse the same embedded single-binary delivery model as `make build`: the management workspace static assets, host manifest assets, and dynamic plugin artifacts are prepared before the Linux host binary is compiled and copied into the Docker build context.
+
+The target MUST read its user-facing build configuration from the repository root `hack/config.yaml`, including at least image name, remote registry prefix, base image, Dockerfile path, output directory, target OS, target architecture, and push default. Repository convention paths such as `apps/lina-core`, `apps/lina-vben`, `apps/lina-plugins`, embedded frontend assets, packed manifest assets, and the `build-wasm` tool path MUST NOT be exposed as ordinary image configuration fields. Command-line parameters such as `tag=<value>`, `registry=<registry-prefix>`, `push=1`, `arch=amd64`, and `base_image=alpine:3.22` MUST override the configuration file for that invocation only.
+
+The target MUST support a configurable image tag through `tag=<value>`, MUST default to a git-derived tag when both the command line and `hack/config.yaml` omit the tag, and MUST support a configured remote registry through `hack/config.yaml`, `registry=<registry-prefix>`, or `LINAPRO_IMAGE_REGISTRY`. The target MUST build the image for the local machine architecture by default and MUST allow `arch=amd64` or `arch=arm64` overrides. The target MUST build locally by default and MUST push only when `push=1` (or an equivalent truthy value) is explicitly provided. When push is requested, the target MUST require a configured registry prefix to avoid accidentally pushing an unqualified local image name.
+
+The build orchestration MUST be cross-platform: file copying, manifest packing, Docker argument assembly, and push validation MUST be implemented in a platform-neutral executable instead of shell-only logic. The `make image` target may remain as the repository entry point, but it SHOULD delegate orchestration to the cross-platform tool.
+
+The production Dockerfile SHALL be maintained under `hack/docker/Dockerfile` as repository delivery tooling, not under the host runtime manifest directory.
+
+#### Scenario: Build local image with default tag
+
+- **WHEN** a developer runs `make image`
+- **THEN** the system prepares frontend assets, manifest assets, dynamic plugin artifacts, and a Linux host binary
+- **AND** builds a Docker image named `linapro:<git-derived-tag>`
+- **AND** does not push the image
+
+#### Scenario: Build local image with explicit tag
+
+- **WHEN** a developer runs `make image tag=v0.6.0`
+- **THEN** the system builds a Docker image named `linapro:v0.6.0`
+- **AND** does not push the image
+
+#### Scenario: Push image to configured remote registry
+
+- **WHEN** a developer runs `make image tag=v0.6.0 registry=ghcr.io/linaproai push=1`
+- **THEN** the system builds and tags the image as `ghcr.io/linaproai/linapro:v0.6.0`
+- **AND** pushes that image to the configured remote registry
+
 ### Requirement: Installation scripts must enforce LF line endings via .gitattributes
 
 The system SHALL include `.gitattributes` rules that force all `*.sh` files (and `bootstrap.sh` specifically) to use LF line endings, preventing Windows automatic CRLF conversion from corrupting bash scripts when the repository is cloned on Windows. The repository MUST contain a `.gitattributes` file at the root with at least the following entries:
