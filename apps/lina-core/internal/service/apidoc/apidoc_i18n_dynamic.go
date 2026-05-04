@@ -84,46 +84,6 @@ func (s *serviceImpl) loadOpenAPIDynamicPluginBundles(ctx context.Context, local
 	return bundle
 }
 
-// loadOpenAPIWorkspacePluginBundles reads plugin-owned apidoc resources from
-// the local monorepo source tree when it is available. Source-plugin embedded
-// files and dynamic release artifacts remain the production discovery paths;
-// this fallback keeps development and tests aligned with plugin-owned files.
-func loadOpenAPIWorkspacePluginBundles(ctx context.Context, locale string) map[string]string {
-	bundle := make(map[string]string)
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return bundle
-	}
-	repoRoot, err := findRepoRootForOpenAPIDynamicPlugin(workingDir)
-	if err != nil {
-		return bundle
-	}
-	pluginsRoot := filepath.Join(repoRoot, "apps", "lina-plugins")
-	entries, err := os.ReadDir(pluginsRoot)
-	if err != nil {
-		return bundle
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		pluginBundle := loadOpenAPIEmbeddedBundle(
-			ctx,
-			os.DirFS(repoRoot),
-			pathJoinOpenAPIWorkspaceBundleDir(entry.Name()),
-			locale,
-		)
-		mergeOpenAPIPluginMessageCatalog(ctx, bundle, entry.Name(), pluginBundle)
-	}
-	return bundle
-}
-
-// pathJoinOpenAPIWorkspaceBundleDir returns the slash-separated plugin apidoc
-// i18n directory path used with os.DirFS.
-func pathJoinOpenAPIWorkspaceBundleDir(pluginID string) string {
-	return filepath.ToSlash(filepath.Join("apps", "lina-plugins", pluginID, filepath.FromSlash(openAPIPluginI18nDir)))
-}
-
 // listOpenAPIEnabledDynamicPluginReleases returns active release rows for
 // enabled dynamic plugins so the apidoc service can read plugin-owned resources.
 func listOpenAPIEnabledDynamicPluginReleases(ctx context.Context) ([]*entity.SysPluginRelease, error) {

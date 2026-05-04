@@ -307,6 +307,8 @@
   - 2026-05-04 执行记录:`hack/makefiles/image.mk` 的文件级注释、参数转换说明、`image` 和 `image-build` 目标功能说明已补充为英文 + 中文双语注释;`image` / `image-build` 的 `##` 目标说明保持英文,确保 `make help` 终端输出仍为英文且继续展示镜像目标。
 - [x] **FB-7**: 将 Makefile 中解释 `make help` 机制的元注释改为具体功能描述
   - 2026-05-04 执行记录:已将根 `Makefile`、`hack/makefiles/build.mk`、`hack/makefiles/image.mk` 中 `Help text printed by make help` 一类元说明替换为对应目标的中英文功能描述;同时恢复根 `Makefile`、`hack/makefiles/dev.mk`、`hack/makefiles/test.mk`、`hack/makefiles/i18n.mk`、`hack/makefiles/image.mk` 中被降级为普通注释的 `##` 目标说明,确保 `make help` 继续完整展示目标且输出不混入中文。
+- [x] **FB-8**: 运行时 i18n JSON 资源加载必须统一使用 embed 内容,禁止依赖本地 `manifest/i18n` 文件路径
+  - 2026-05-04 执行记录:已移除 apidoc i18n 加载链路中的本地工作区插件 `manifest/i18n` fallback,运行时插件 apidoc 翻译仅来自源码插件 `EmbeddedFiles` 与动态插件 artifact custom section。新增 `TestServiceOpenAPIMessageCatalogIgnoresWorkspacePluginI18NFiles` 覆盖本地插件 i18n 文件存在但未 embed 时不会被服务加载。已验证 `rg` 检查运行时代码不再存在 `loadOpenAPIWorkspacePluginBundles` / `os.DirFS(repoRoot)` 本地插件 i18n 读取路径,并通过 `go test ./internal/service/apidoc -run 'TestServiceOpenAPIMessageCatalogIgnoresWorkspacePluginI18NFiles|TestOpenAPIBundleLoaderSupportsNestedSplitFiles|TestBuildLocalizesOpenAPIForRequestLocale' -count=1` 与 `go test ./pkg/i18nresource ./internal/service/i18n ./internal/service/apidoc -count=1`。本次未修改 i18n JSON 文案资源;缓存影响为 apidoc 进程内 catalog 缓存的数据来源收窄到 embed/artifact,无新增缓存域或跨实例一致性要求。
 
 ## 19. 归档前确认(由用户决定是否走 /opsx:archive)
 

@@ -65,7 +65,6 @@ func loadOpenAPIMessageCatalog(ctx context.Context, locale string) map[string]st
 func (s *serviceImpl) loadOpenAPIMessageCatalog(ctx context.Context, locale string) map[string]string {
 	catalog := loadOpenAPIMessageCatalog(ctx, locale)
 	normalizedLocale := normalizeOpenAPILocale(locale)
-	mergeOpenAPIMessageCatalog(catalog, loadOpenAPIWorkspacePluginBundles(ctx, normalizedLocale))
 	mergeOpenAPIMessageCatalog(catalog, s.loadOpenAPIDynamicPluginBundles(ctx, normalizedLocale))
 	return catalog
 }

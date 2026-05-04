@@ -332,6 +332,46 @@ func TestOpenAPIBundleLoaderSupportsNestedSplitFiles(t *testing.T) {
 	}
 }
 
+// TestServiceOpenAPIMessageCatalogIgnoresWorkspacePluginI18NFiles verifies
+// runtime apidoc loading does not depend on local plugin manifest/i18n files.
+func TestServiceOpenAPIMessageCatalogIgnoresWorkspacePluginI18NFiles(t *testing.T) {
+	repoRoot := filepath.Join(t.TempDir(), "repo")
+	pluginBundleDir := filepath.Join(repoRoot, "apps", "lina-plugins", "workspace-only", "manifest", "i18n", "zh-CN", "apidoc")
+	if err := os.MkdirAll(pluginBundleDir, 0o755); err != nil {
+		t.Fatalf("create workspace plugin apidoc bundle dir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "go.work"), []byte("go 1.22\n"), 0o644); err != nil {
+		t.Fatalf("write temporary go.work failed: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(pluginBundleDir, "plugin-api-main.json"),
+		[]byte(`{"plugins":{"workspace_only":{"api":{"demo":{"v1":{"PingReq":{"meta":{"summary":"Workspace Only"}}}}}}}}`),
+		0o644,
+	); err != nil {
+		t.Fatalf("write workspace plugin apidoc bundle failed: %v", err)
+	}
+
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory failed: %v", err)
+	}
+	if err = os.Chdir(repoRoot); err != nil {
+		t.Fatalf("change working directory failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if cleanupErr := os.Chdir(originalDir); cleanupErr != nil {
+			t.Errorf("restore working directory failed: %v", cleanupErr)
+		}
+		invalidateOpenAPIMessageCache()
+	})
+	invalidateOpenAPIMessageCache()
+
+	catalog := (&serviceImpl{}).loadOpenAPIMessageCatalog(context.Background(), "zh-CN")
+	if value, ok := catalog["plugins.workspace_only.api.demo.v1.PingReq.meta.summary"]; ok {
+		t.Fatalf("expected runtime apidoc loader to ignore local workspace i18n file, got %q", value)
+	}
+}
+
 // TestOpenAPICommonFallbackKeys verifies generated wrapper metadata can share
 // common apidoc translations without repeating the same exact key per API.
 func TestOpenAPICommonFallbackKeys(t *testing.T) {
