@@ -11,6 +11,7 @@ assets/
 .aiprompt.zh.md
 .codex/config.toml
 temp/
+.agents/skills/goframe-v2/
 
 
 # Backend

@@ -153,7 +153,7 @@ apps/
   lina-vben/      Default management workspace (Vue 3 + Vben 5)
   lina-plugins/   Built-in and sample plugins
 hack/
-  scripts/install/ Bootstrap installers for macOS/Linux and Windows
+  scripts/install/ Source-download bootstrap installer
   tests/          Playwright E2E test suite
 openspec/
   changes/        Active and archived change records
@@ -165,7 +165,7 @@ openspec/
 ### Prerequisites
 
 - Go 1.22+
-- Node.js 20+
+- Node.js 20.19+
 - pnpm 8+
 - MySQL 8.0+
 
@@ -179,12 +179,17 @@ openspec/
 The repository-backed bootstrap source lives at `hack/scripts/install/bootstrap.sh`.
 Windows users must run the command from Git Bash or WSL; native PowerShell is not a supported installer entry point.
 
+The installer only clones the LinaPro source and prints next steps. It does not run dependency checks, install development tools, initialize the database, or load mock data.
+
+1. Run the installer and clone the source.
+2. Enter the cloned project and ask your AI tool to invoke the `lina-doctor` skill if Go, Node, pnpm, OpenSpec, GoFrame CLI, Playwright browsers, or the `goframe-v2` skill may be missing.
+3. Run `make init && make dev` after the environment is ready.
+
 - By default, the installer clones into a new `./linapro` directory under the current working path.
 - Without `LINAPRO_VERSION`, the installer resolves the latest stable GitHub release and fails clearly if no tag can be resolved.
 - Use `LINAPRO_DIR=/path/to/app` to install into a specific directory.
-- Use `LINAPRO_SKIP_MOCK=1` to skip demo/mock data after database initialization.
 - Use `LINAPRO_SHALLOW=1` only for bandwidth-constrained environments; the first upgrade later requires `git fetch --unshallow`.
-- The installer runs dependency checks, backend/frontend dependency installation, `make init confirm=init`, and `make mock confirm=mock` unless mock data is skipped.
+- Use `LINAPRO_FORCE=1` only when intentionally replacing a non-empty target directory after checking the path.
 
 Example local usage:
 
@@ -192,6 +197,8 @@ Example local usage:
 bash ./hack/scripts/install/bootstrap.sh
 LINAPRO_VERSION=v0.5.0 LINAPRO_DIR=~/Workspace/linapro bash ./hack/scripts/install/bootstrap.sh
 ```
+
+If your environment is missing development tools (Go, Node, openspec, gf, goframe-v2 skill, etc.), invoke the `lina-doctor` skill via your AI tool.
 
 ### Quick Start
 

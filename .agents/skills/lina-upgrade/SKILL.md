@@ -31,6 +31,8 @@ If the request does not clearly say `framework` or `source-plugin`, ask one conc
 
 # Inputs the AI Must Collect from the User
 
+Prerequisite: ensure `gf` and `openspec` are installed; invoke `lina-doctor` first if any tool is missing.
+
 | Input | Required When | Notes |
 | --- | --- | --- |
 | Target version | `framework` upgrades | Must be greater than `apps/lina-core/manifest/config/metadata.yaml.framework.version`. |

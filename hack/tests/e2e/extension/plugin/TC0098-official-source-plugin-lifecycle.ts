@@ -24,6 +24,12 @@ type AccessibleRouteNode = {
   };
 };
 
+type RuntimePluginState = {
+  enabled?: number;
+  id: string;
+  installed?: number;
+};
+
 type OfficialPluginCase = {
   assertAvailable: (page: Page) => Promise<void>;
   id: string;
@@ -133,6 +139,15 @@ async function expectMountedTitles(
   }
 }
 
+async function fetchRuntimePluginStates(
+  adminApi: APIRequestContext,
+): Promise<RuntimePluginState[]> {
+  const response = await adminApi.get('plugins/dynamic');
+  assertOk(response, '查询插件运行时状态失败');
+  const payload = unwrapApiData(await response.json());
+  return payload?.list ?? [];
+}
+
 async function expectPluginState(
   adminApi: APIRequestContext,
   pluginId: string,
@@ -145,13 +160,52 @@ async function expectPluginState(
   expect(plugin?.enabled ?? 0).toBe(enabled);
 }
 
+async function expectRuntimePluginState(
+  adminApi: APIRequestContext,
+  pluginId: string,
+  installed: number,
+  enabled: number,
+) {
+  let plugin: RuntimePluginState | undefined;
+  for (let attempt = 1; attempt <= 20; attempt += 1) {
+    const items = await fetchRuntimePluginStates(adminApi);
+    plugin = items.find((item) => item.id === pluginId);
+    if (
+      (plugin?.installed ?? 0) === installed &&
+      (plugin?.enabled ?? 0) === enabled
+    ) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  expect(plugin, `未找到插件运行时状态: ${pluginId}`).toBeTruthy();
+  expect(plugin?.installed ?? 0).toBe(installed);
+  expect(plugin?.enabled ?? 0).toBe(enabled);
+}
+
 async function expectPluginRouteAvailable(
   page: Page,
   item: OfficialPluginCase,
 ) {
-  await page.goto(item.route);
-  await page.waitForLoadState('networkidle');
-  await item.assertAvailable(page);
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await page.goto(item.route, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await page
+      .locator('.ant-message-notice-content', { hasText: /加载菜单中|Loading menu/i })
+      .waitFor({ state: 'hidden', timeout: 5000 })
+      .catch(() => {});
+
+    try {
+      await item.assertAvailable(page);
+      return;
+    } catch (error) {
+      lastError = error;
+      await refreshPluginProjection(page);
+    }
+  }
+  throw lastError;
 }
 
 async function expectPluginRouteMissing(page: Page, route: string) {
@@ -174,30 +228,36 @@ test.describe('TC-98 官方源码插件生命周期', () => {
 
         await ensureSourcePluginUninstalled(adminPage, item.id);
         await expectPluginState(adminApi, item.id, 0, 0);
+        await expectRuntimePluginState(adminApi, item.id, 0, 0);
+        await refreshPluginProjection(adminPage);
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);
 
         await installPlugin(adminApi, item.id);
-        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 1, 0);
+        await expectRuntimePluginState(adminApi, item.id, 1, 0);
+        await refreshPluginProjection(adminPage);
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);
 
         await updatePluginStatus(adminApi, item.id, true);
-        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 1, 1);
+        await expectRuntimePluginState(adminApi, item.id, 1, 1);
+        await refreshPluginProjection(adminPage);
         await expectMountedTitles(adminApi, item.mountedTitles, true);
         await expectPluginRouteAvailable(adminPage, item);
 
         await updatePluginStatus(adminApi, item.id, false);
-        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 1, 0);
+        await expectRuntimePluginState(adminApi, item.id, 1, 0);
+        await refreshPluginProjection(adminPage);
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);
 
         await uninstallPlugin(adminApi, item.id);
-        await refreshPluginProjection(adminPage);
         await expectPluginState(adminApi, item.id, 0, 0);
+        await expectRuntimePluginState(adminApi, item.id, 0, 0);
+        await refreshPluginProjection(adminPage);
         await expectMountedTitles(adminApi, item.mountedTitles, false);
         await expectPluginRouteMissing(adminPage, item.route);
       } finally {

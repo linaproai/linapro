@@ -141,7 +141,7 @@ apps/
   lina-vben/      默认管理工作台（Vue3 + Vben5）
   lina-plugins/   内置插件与插件开发样例
 hack/
-  scripts/install/ 快速安装脚本（`macOS`、`Linux`、`Windows`）
+  scripts/install/ 源码下载安装入口
   tests/          Playwright E2E 测试集
 openspec/
   changes/        活跃与已归档的变更记录
@@ -153,7 +153,7 @@ openspec/
 ### 环境要求
 
 - Go 1.22+
-- Node.js 20+
+- Node.js 20.19+
 - pnpm 8+
 - MySQL 8.0+
 
@@ -164,15 +164,20 @@ openspec/
 | `macOS` / `Linux` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
 | `Windows Git Bash 或 WSL` | `curl -fsSL https://linapro.ai/install.sh \| bash` |
 
-仓库内对应的正式入口源码位于 `hack/scripts/install/bootstrap.sh`。
+仓库内对应的正式入口源码位于`hack/scripts/install/bootstrap.sh`。
 Windows 用户必须在 Git Bash 或 WSL 中执行安装命令；原生 PowerShell 不再作为安装入口维护。
 
-- 默认会在当前工作目录下新建一个 `./linapro` 子目录并克隆源码。
-- 未设置 `LINAPRO_VERSION` 时，安装器会解析 GitHub 最新稳定发布版本；如果无法解析标签，会明确失败。
-- 使用 `LINAPRO_DIR=/path/to/app` 可以安装到指定目录。
-- 使用 `LINAPRO_SKIP_MOCK=1` 可以在数据库初始化后跳过演示/`mock`数据。
-- 只有在带宽受限时才建议使用 `LINAPRO_SHALLOW=1`；后续第一次升级需要先执行 `git fetch --unshallow`。
-- 安装器会执行依赖检查、后端/前端依赖安装、`make init confirm=init`，并在未跳过时执行 `make mock confirm=mock`。
+安装器只克隆`LinaPro`源码并打印下一步指引。它不会执行依赖检查、不会安装开发工具、不会初始化数据库，也不会加载 mock 数据。
+
+1. 运行安装器并克隆源码。
+2. 进入克隆后的项目目录；如果 Go、Node、pnpm、OpenSpec、GoFrame CLI、Playwright browsers 或`goframe-v2`技能可能缺失，请让你的 AI 工具调用`lina-doctor`技能。
+3. 环境就绪后执行`make init && make dev`。
+
+- 默认会在当前工作目录下新建一个`./linapro`子目录并克隆源码。
+- 未设置`LINAPRO_VERSION`时，安装器会解析 GitHub 最新稳定发布版本；如果无法解析标签，会明确失败。
+- 使用`LINAPRO_DIR=/path/to/app`可以安装到指定目录。
+- 只有在带宽受限时才建议使用`LINAPRO_SHALLOW=1`；后续第一次升级需要先执行`git fetch --unshallow`。
+- 仅在明确要替换非空目标目录且已确认路径安全时，使用`LINAPRO_FORCE=1`。
 
 本地执行示例：
 
@@ -180,6 +185,8 @@ Windows 用户必须在 Git Bash 或 WSL 中执行安装命令；原生 PowerShe
 bash ./hack/scripts/install/bootstrap.sh
 LINAPRO_VERSION=v0.5.0 LINAPRO_DIR=~/Workspace/linapro bash ./hack/scripts/install/bootstrap.sh
 ```
+
+如果开发工具缺失（Go、Node、openspec、gf、goframe-v2 skill 等），请通过 AI 工具调用`lina-doctor`技能。
 
 ### 启动步骤
 

@@ -17,10 +17,19 @@ assert_file() {
   [ -f "$path" ] || fail "expected file to exist: $path"
 }
 
-assert_contains() {
-  local path="$1"
+assert_contains_text() {
+  local text="$1"
   local pattern="$2"
-  grep -F "$pattern" "$path" >/dev/null 2>&1 || fail "expected '$path' to contain '$pattern'"
+  printf '%s\n' "$text" | grep -F "$pattern" >/dev/null 2>&1 ||
+    fail "expected output to contain '$pattern'"
+}
+
+assert_not_contains_text() {
+  local text="$1"
+  local pattern="$2"
+  if printf '%s\n' "$text" | grep -F "$pattern" >/dev/null 2>&1; then
+    fail "expected output not to contain '$pattern'"
+  fi
 }
 
 create_fixture_remote() {
@@ -32,14 +41,6 @@ create_fixture_remote() {
   git -C "$source_repo" config user.email "fixture@example.test"
   git -C "$source_repo" config user.name "Fixture"
   mkdir -p "$source_repo/hack/scripts/install"
-  cat >"$source_repo/hack/scripts/install/install-linux.sh" <<'SCRIPT'
-#!/usr/bin/env bash
-set -euo pipefail
-printf 'version=%s\n' "$(cat VERSION)" >>"${LINAPRO_INSTALL_FIXTURE_LOG:?}"
-printf 'skip_mock=%s\n' "${LINAPRO_SKIP_MOCK:-0}" >>"${LINAPRO_INSTALL_FIXTURE_LOG:?}"
-SCRIPT
-  cp "$source_repo/hack/scripts/install/install-linux.sh" "$source_repo/hack/scripts/install/install-macos.sh"
-  cp "$source_repo/hack/scripts/install/install-linux.sh" "$source_repo/hack/scripts/install/install-windows.sh"
   printf 'v0.0.1\n' >"$source_repo/VERSION"
   git -C "$source_repo" add .
   git -C "$source_repo" commit -m "fixture v0.0.1" >/dev/null
@@ -52,12 +53,24 @@ SCRIPT
   printf '%s\n' "$remote_repo"
 }
 
+assert_bootstrap_output() {
+  local output="$1"
+  assert_contains_text "$output" "LinaPro source downloaded successfully."
+  assert_contains_text "$output" "lina-doctor"
+  assert_contains_text "$output" "make init && make dev"
+  assert_not_contains_text "$output" "make mock"
+  assert_not_contains_text "$output" "go mod download"
+  assert_not_contains_text "$output" "pnpm install"
+  assert_not_contains_text "$output" "install-linux.sh"
+  assert_not_contains_text "$output" "install-macos.sh"
+  assert_not_contains_text "$output" "install-windows.sh"
+}
+
 run_bootstrap_case() {
   local name="$1"
   local version="$2"
   local target_mode="$3"
-  local skip_mock="$4"
-  local temp_dir remote_repo workspace git_config log_file target_dir
+  local temp_dir remote_repo workspace git_config target_dir output
   local env_vars
 
   temp_dir="$(mktemp -d)"
@@ -66,7 +79,6 @@ run_bootstrap_case() {
   workspace="$temp_dir/workspace"
   mkdir -p "$workspace"
   git_config="$temp_dir/gitconfig"
-  log_file="$temp_dir/install.log"
   cat >"$git_config" <<EOF
 [url "file://$remote_repo"]
 	insteadOf = https://github.com/linaproai/linapro.git
@@ -75,37 +87,31 @@ EOF
   env_vars=(
     "GIT_CONFIG_GLOBAL=$git_config"
     "LINAPRO_VERSION=$version"
-    "LINAPRO_INSTALL_FIXTURE_LOG=$log_file"
   )
-  if [ "$skip_mock" = "1" ]; then
-    env_vars+=("LINAPRO_SKIP_MOCK=1")
-  fi
 
   if [ "$target_mode" = "default" ]; then
     target_dir="$workspace/linapro"
-    (
+    output="$(
       cd "$workspace"
       env "${env_vars[@]}" bash "$BOOTSTRAP"
-    )
+    )"
   else
     target_dir="$workspace/custom"
     env_vars+=("LINAPRO_DIR=$target_dir")
-    (
+    output="$(
       cd "$workspace"
       env "${env_vars[@]}" bash "$BOOTSTRAP"
-    )
+    )"
   fi
 
   assert_file "$target_dir/VERSION"
-  assert_contains "$log_file" "version=$version"
-  if [ "$skip_mock" = "1" ]; then
-    assert_contains "$log_file" "skip_mock=1"
-  fi
+  assert_contains_text "$(cat "$target_dir/VERSION")" "$version"
+  assert_bootstrap_output "$output"
   printf 'PASS install-bootstrap %s\n' "$name"
 }
 
 test_force_home_refused() {
-  local temp_dir remote_repo workspace git_config log_file target_dir output rc
+  local temp_dir remote_repo workspace git_config target_dir output rc
   temp_dir="$(mktemp -d)"
   trap 'rm -rf "$temp_dir"' RETURN
   remote_repo="$(create_fixture_remote "$temp_dir")"
@@ -114,7 +120,6 @@ test_force_home_refused() {
   mkdir -p "$target_dir"
   printf 'existing\n' >"$target_dir/existing.txt"
   git_config="$temp_dir/gitconfig"
-  log_file="$temp_dir/install.log"
   cat >"$git_config" <<EOF
 [url "file://$remote_repo"]
 	insteadOf = https://github.com/linaproai/linapro.git
@@ -129,15 +134,13 @@ EOF
         "LINAPRO_VERSION=v0.0.1" \
         "LINAPRO_DIR=$target_dir" \
         "LINAPRO_FORCE=1" \
-        "LINAPRO_INSTALL_FIXTURE_LOG=$log_file" \
         bash "$BOOTSTRAP" 2>&1
   )"
   rc=$?
   set -e
 
   [ "$rc" -ne 0 ] || fail "force-home-refused should fail"
-  printf '%s\n' "$output" | grep -F 'Refusing to overwrite unsafe target directory' >/dev/null ||
-    fail "expected unsafe target refusal, got: $output"
+  assert_contains_text "$output" "Refusing to overwrite unsafe target directory"
   assert_file "$target_dir/existing.txt"
   printf 'PASS install-bootstrap force-home-refused\n'
 }
@@ -161,20 +164,16 @@ SCRIPT
   set -e
 
   [ "$rc" -ne 0 ] || fail "latest-non-tag should fail"
-  printf '%s\n' "$output" | grep -F 'not a stable version tag' >/dev/null ||
-    fail "expected stable tag refusal, got: $output"
+  assert_contains_text "$output" "not a stable version tag"
   printf 'PASS install-bootstrap latest-non-tag-refused\n'
 }
 
 case "$CASE_NAME" in
   default)
-    run_bootstrap_case default v0.0.1 default 0
+    run_bootstrap_case default v0.0.1 default
     ;;
   version-override)
-    run_bootstrap_case version-override v0.0.2 custom 0
-    ;;
-  skip-mock)
-    run_bootstrap_case skip-mock v0.0.1 custom 1
+    run_bootstrap_case version-override v0.0.2 custom
     ;;
   force-home-refused)
     test_force_home_refused
@@ -183,9 +182,8 @@ case "$CASE_NAME" in
     test_latest_non_tag_refused
     ;;
   all)
-    run_bootstrap_case default v0.0.1 default 0
-    run_bootstrap_case version-override v0.0.2 custom 0
-    run_bootstrap_case skip-mock v0.0.1 custom 1
+    run_bootstrap_case default v0.0.1 default
+    run_bootstrap_case version-override v0.0.2 custom
     test_force_home_refused
     test_latest_non_tag_refused
     ;;

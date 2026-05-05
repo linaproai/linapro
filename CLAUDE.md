@@ -73,7 +73,6 @@ make test                        # 运行完整E2E测试
 make init                        # 初始化数据库（DDL + Seed 数据）
 make mock                        # 加载 Mock 演示数据（需先执行 init）
 make image tag=v0.6.0            # 构建生产 Docker 镜像，可追加 registry=ghcr.io/linaproai push=1 推送
-bash hack/scripts/install/bootstrap.sh # 本地验证安装入口（远程入口为 curl -fsSL https://linapro.ai/install.sh | bash）
 # 升级框架/源码插件：通过 AI 工具调用 .claude/skills/lina-upgrade/ 技能，例如 "upgrade LinaPro framework to v0.6.0"
 make up                          # 默认用 claude 生成 commit message 并推送
 make up tool=codex               # 使用 codex 生成 commit message 并推送
@@ -205,7 +204,7 @@ pnpm report            # 查看 HTML 报告
 ## 后端代码规范
 
 ### Go代码开发规范
-- 必须使用`goframe-v2`技能
+- 必须使用`goframe-v2`技能；该技能不随仓库源码附带，需先通过`lina-doctor`安装到用户全局技能目录，等价安装命令为`npx skills add github.com/gogf/skills -g`
 - 不能修改通过脚手架工具维护的代码文件，例如`api`层的接口方法定义文件、`dao`/`do`/`entity`层的代码文件等
 - 所有的源码必须要有注释介绍，例如包注释、文件注释、方法注释（无论公开方法还是私有方法）、常量注释、变量注释、关键逻辑注释等。
 - `DAO/DO/Entity`源码文件由`gf gen dao`自动生成，不要手动创建或修改

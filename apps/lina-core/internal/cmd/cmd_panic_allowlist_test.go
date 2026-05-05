@@ -147,6 +147,27 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "test override helpers receive already-validated entries; a normalization failure indicates broken test fixtures and must surface immediately",
 		},
 		{
+			Path:     "apps/lina-core/internal/service/config/config_runtime_params_revision.go",
+			Function: "configureRuntimeParamCacheDomain",
+			Count:    1,
+			Category: panicCategoryStaticConfig,
+			Reason:   "runtime-config cachecoord domain registration is a static consistency contract and failures make protected config freshness undefined",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/pluginruntimecache/pluginruntimecache.go",
+			Function: "configureRuntimeCacheDomain",
+			Count:    1,
+			Category: panicCategoryStaticConfig,
+			Reason:   "plugin-runtime cachecoord domain registration is a static consistency contract and failures make plugin cache freshness undefined",
+		},
+		{
+			Path:     "apps/lina-core/internal/service/role/role_access_revision.go",
+			Function: "configureAccessTopologyCacheDomain",
+			Count:    1,
+			Category: panicCategoryStaticConfig,
+			Reason:   "permission-access cachecoord domain registration is a static consistency contract and failures must fail closed before serving authorization checks",
+		},
+		{
 			Path:     "apps/lina-core/internal/service/middleware/middleware_request_body_limit.go",
 			Function: "(*serviceImpl).RequestBodyLimit",
 			Count:    1,

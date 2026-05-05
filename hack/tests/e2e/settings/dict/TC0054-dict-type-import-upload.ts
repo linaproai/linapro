@@ -397,13 +397,13 @@ test.describe('TC0054 字典管理导入完整流程', () => {
 
     // Cleanup: delete any created test data
     await dictPage.clickTypeReset();
-    // Search for the empty name dict type
+    // Search by the explicit type code; an empty display name would match any row.
     await dictPage.fillTypeSearchField('字典类型', 'test.empty.name.valid');
     await dictPage.clickTypeSearch();
     // Delete if exists (might not exist if failed)
     try {
-      if (await dictPage.hasType('')) {
-        await dictPage.deleteType('');
+      if (await dictPage.hasType('test.empty.name.valid')) {
+        await dictPage.deleteType('test.empty.name.valid');
       }
     } catch {
       // Ignore if not found

@@ -47,8 +47,13 @@ detect_os() {
     Darwin) printf 'macos\n' ;;
     Linux) printf 'linux\n' ;;
     MINGW*|MSYS*|CYGWIN*) printf 'windows\n' ;;
-    *) printf 'unsupported\n' ;;
+    *) die "Unsupported OS. LinaPro supports macOS, Linux, and Windows via Git Bash or WSL." ;;
   esac
+}
+
+is_stable_version_tag() {
+  local tag="$1"
+  printf '%s\n' "$tag" | grep -E '^v[0-9]+[.][0-9]+[.][0-9]+$' >/dev/null 2>&1
 }
 
 resolve_version() {
@@ -72,11 +77,6 @@ resolve_version() {
     die "Resolved release target is not a stable version tag: $tag. Retry with: LINAPRO_VERSION=v0.x.y curl -fsSL https://linapro.ai/install.sh | bash"
   fi
   printf '%s\n' "$tag"
-}
-
-is_stable_version_tag() {
-  local tag="$1"
-  printf '%s\n' "$tag" | grep -E '^v[0-9]+[.][0-9]+[.][0-9]+$' >/dev/null 2>&1
 }
 
 target_is_non_empty() {
@@ -132,9 +132,13 @@ prepare_target() {
   parent="$(dirname "$target")"
   mkdir -p "$parent"
 
+  if [ -e "$target" ] && [ ! -d "$target" ]; then
+    die "Target path exists but is not a directory: $target"
+  fi
+
   if target_is_non_empty "$target"; then
     if [ "${LINAPRO_FORCE:-}" != "1" ]; then
-      die "Target directory is not empty: $target. Set LINAPRO_FORCE=1 to overwrite."
+      die "Target directory is not empty: $target. Choose another LINAPRO_DIR or rerun with LINAPRO_FORCE=1."
     fi
     target_abs="$(cd "$target" && pwd -P)"
     current_abs="$(pwd -P)"
@@ -155,13 +159,24 @@ print_banner() {
   printf '\n'
 }
 
-main() {
-  local os_name version target clone_args
-  os_name="$(detect_os)"
-  if [ "$os_name" = "unsupported" ]; then
-    die "Unsupported OS. LinaPro supports macOS, Linux, and Windows via Git Bash or WSL."
-  fi
+print_next_steps() {
+  local project_dir="$1"
+  printf '\n'
+  printf 'LinaPro source downloaded successfully.\n'
+  printf 'Project directory: %s\n' "$project_dir"
+  printf 'Default admin: admin / admin123\n'
+  printf '\n'
+  printf 'Next steps:\n'
+  printf '  cd "%s"\n' "$project_dir"
+  printf '  ask Claude Code "run lina-doctor to set up my LinaPro environment"\n'
+  printf '  make init && make dev\n'
+}
 
+main() {
+  local os_name version target target_abs
+  local clone_args
+
+  os_name="$(detect_os)"
   version="$(resolve_version)"
   target="${LINAPRO_DIR:-./linapro}"
   print_banner "$version" "$target" "$os_name"
@@ -183,8 +198,8 @@ main() {
     die "git clone failed. Check network access and verify that tag '$version' exists."
   fi
 
-  cd "$target"
-  exec bash "hack/scripts/install/install-${os_name}.sh" "$@"
+  target_abs="$(cd "$target" && pwd -P)"
+  print_next_steps "$target_abs"
 }
 
 main "$@"
