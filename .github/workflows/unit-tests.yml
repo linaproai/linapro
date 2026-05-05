@@ -1,0 +1,80 @@
+# LinaPro backend unit test workflow.
+# Runs on every push and pull request to main.
+name: Unit Tests
+
+on:
+  push:
+    branches:
+    - main
+    - develop
+    - feat/**
+    - fix/**
+
+  pull_request:
+    branches:
+    - main
+    - develop
+    - feat/**
+    - fix/**
+    
+  workflow_dispatch:
+    inputs:
+      debug:
+        type: boolean
+        description: 'Enable tmate Debug'
+        required: false
+        default: false
+
+# Cancel in-progress runs for the same branch/PR to save CI minutes.
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 12345678
+          MYSQL_DATABASE: linapro
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p12345678"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Setup Timezone
+        uses: szenius/set-timezone@v2.0
+        with:
+          timezoneLinux: "Asia/Shanghai"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup tmate Session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug }}
+        with:
+          detached: true
+          limit-access-to-actor: false
+          
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: '**/go.sum'
+
+      - name: Initialize Database Schema
+        run: make init confirm=init
+
+      - name: Run Unit Tests
+        run: go test -v ./...
