@@ -16,7 +16,7 @@ on:
     - develop
     - feat/**
     - fix/**
-    
+
   workflow_dispatch:
     inputs:
       debug:
@@ -74,7 +74,9 @@ jobs:
           cache-dependency-path: '**/go.sum'
 
       - name: Initialize Database Schema
-        run: make init confirm=init
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init
 
       - name: Run Unit Tests
         run: go test -v ./...
