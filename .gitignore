@@ -8,6 +8,8 @@
 .vscode/
 **/.DS_Store
 assets/
+!.github/assets/
+!.github/assets/linapro-logo.webp
 .aiprompt.zh.md
 .codex/config.toml
 temp/
