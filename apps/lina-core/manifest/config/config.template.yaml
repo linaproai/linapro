@@ -54,7 +54,7 @@ database:
     link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
     # Whether to enable SQL debug logs
     # 是否开启 SQL 调试日志
-    debug: true
+    debug: false
 
 # JWT configuration
 # JWT 配置
