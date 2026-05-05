@@ -1,7 +1,7 @@
 <div align=center>
 <img src="./.github/assets/linapro-logo.webp" width="300" alt="linapro logo"/>
 
-**[English](README.md) | 简体中文**
+[English](README.md) | 简体中文
 
 </div>
 
