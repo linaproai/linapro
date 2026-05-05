@@ -17,3 +17,14 @@ test:
 test-install:
 	@echo "Running installer smoke tests..."
 	@bash hack/tests/scripts/install-bootstrap.sh all
+
+# Run shell script unit and smoke tests for repository tooling.
+# 运行仓库工具脚本的单元与 smoke 测试。
+## test-scripts: Run shell script unit and smoke tests
+.PHONY: test-scripts
+test-scripts:
+	@echo "Running shell script tests..."
+	@for test_file in hack/tests/scripts/*.sh; do \
+		echo "==> $$test_file"; \
+		bash "$$test_file"; \
+	done

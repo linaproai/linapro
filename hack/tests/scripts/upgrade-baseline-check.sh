@@ -70,6 +70,51 @@ test_tag_not_found() {
   printf '%s\n' "$output" | grep -F 'ERR_TAG_NOT_FOUND' >/dev/null || fail "expected ERR_TAG_NOT_FOUND, got: $output"
 }
 
+test_metadata_not_found() {
+  local temp_dir work_repo output rc
+  temp_dir="$(mktemp -d)"
+  trap 'rm -rf "$temp_dir"' RETURN
+  work_repo="$(clone_fixture "$temp_dir" v0.5.0)"
+  rm -f "$work_repo/apps/lina-core/manifest/config/metadata.yaml"
+  set +e
+  output="$(LINAPRO_REPO_ROOT="$work_repo" bash "$CHECKER" 2>&1)"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "metadata-not-found should fail"
+  printf '%s\n' "$output" | grep -F 'ERR_METADATA_NOT_FOUND' >/dev/null || fail "expected ERR_METADATA_NOT_FOUND, got: $output"
+}
+
+test_metadata_version_missing() {
+  local temp_dir work_repo output rc
+  temp_dir="$(mktemp -d)"
+  trap 'rm -rf "$temp_dir"' RETURN
+  work_repo="$(clone_fixture "$temp_dir" v0.5.0)"
+  cat >"$work_repo/apps/lina-core/manifest/config/metadata.yaml" <<'EOF'
+framework:
+  channel: stable
+EOF
+  set +e
+  output="$(LINAPRO_REPO_ROOT="$work_repo" bash "$CHECKER" 2>&1)"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "metadata-version-missing should fail"
+  printf '%s\n' "$output" | grep -F 'ERR_METADATA_VERSION_MISSING' >/dev/null || fail "expected ERR_METADATA_VERSION_MISSING, got: $output"
+}
+
+test_fetch_failed() {
+  local temp_dir work_repo output rc
+  temp_dir="$(mktemp -d)"
+  trap 'rm -rf "$temp_dir"' RETURN
+  work_repo="$(clone_fixture "$temp_dir" v0.5.0)"
+  git -C "$work_repo" remote set-url upstream "$temp_dir/missing-remote.git"
+  set +e
+  output="$(LINAPRO_REPO_ROOT="$work_repo" bash "$CHECKER" 2>&1)"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "fetch-failed should fail"
+  printf '%s\n' "$output" | grep -F 'ERR_FETCH_TAGS_FAILED' >/dev/null || fail "expected ERR_FETCH_TAGS_FAILED, got: $output"
+}
+
 test_head_not_descendant() {
   local temp_dir work_repo output rc
   temp_dir="$(mktemp -d)"
@@ -113,6 +158,9 @@ EOF
 
 test_ok
 test_tag_not_found
+test_metadata_not_found
+test_metadata_version_missing
+test_fetch_failed
 test_head_not_descendant
 test_non_official_origin_uses_official_url
 printf 'PASS upgrade-baseline-check\n'

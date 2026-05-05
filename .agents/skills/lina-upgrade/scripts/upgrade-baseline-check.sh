@@ -43,7 +43,17 @@ recent_stable_tags() {
 
 count_sql_files_at_ref() {
   local ref="$1"
-  git -C "$REPO_ROOT" ls-tree -r --name-only "$ref" -- apps/lina-core/manifest/sql 2>/dev/null | grep -E -c '\.sql$' | tr -d ' '
+  git -C "$REPO_ROOT" ls-tree -r --name-only "$ref" -- apps/lina-core/manifest/sql 2>/dev/null |
+    awk '/\.sql$/ { count++ } END { print count + 0 }'
+}
+
+count_sql_files_in_worktree() {
+  local sql_dir="$REPO_ROOT/apps/lina-core/manifest/sql"
+  if [ ! -d "$sql_dir" ]; then
+    printf '0\n'
+    return 0
+  fi
+  find "$sql_dir" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' '
 }
 
 main() {
@@ -61,7 +71,10 @@ main() {
   fi
 
   upstream="$(select_upstream_remote)"
-  git -C "$REPO_ROOT" fetch --quiet "$upstream" '+refs/tags/*:refs/tags/*'
+  if ! git -C "$REPO_ROOT" fetch --quiet "$upstream" '+refs/tags/*:refs/tags/*'; then
+    printf 'ERR_FETCH_TAGS_FAILED upstream=%s\n' "$upstream"
+    exit 1
+  fi
 
   tag_ref="refs/tags/$declared"
   if ! git -C "$REPO_ROOT" rev-parse -q --verify "${tag_ref}^{commit}" >/dev/null; then
@@ -81,7 +94,7 @@ main() {
   commits_ahead="$(git -C "$REPO_ROOT" rev-list --count "${tag_commit}..HEAD")"
   core_changed="$(git -C "$REPO_ROOT" diff --name-only "${tag_commit}...HEAD" -- apps/lina-core apps/lina-vben | wc -l | tr -d ' ')"
   sql_at_tag="$(count_sql_files_at_ref "$tag_commit")"
-  sql_at_head="$(find "$REPO_ROOT/apps/lina-core/manifest/sql" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
+  sql_at_head="$(count_sql_files_in_worktree)"
 
   if [ "$sql_at_head" -lt "$sql_at_tag" ]; then
     printf 'WARN_SQL_COUNT_DECREASED sql_at_tag=%s sql_at_head=%s\n' "$sql_at_tag" "$sql_at_head"

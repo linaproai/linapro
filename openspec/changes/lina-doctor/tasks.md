@@ -275,3 +275,4 @@
 - [x] **FB-14**: Use the official `@fission-ai/openspec` npm package and raise Node minimum to 20.19 for OpenSpec compatibility
 - [x] **FB-15**: Align active OpenSpec delta specs to Chinese, keep parser-required `SHALL`/`MUST` markers, and complete PR description i18n/cache conclusions
 - [x] **FB-16**: Ensure `doctor-install.sh` timeout failures append a timeout marker so escalation can classify them as `network`
+- [x] **FB-17**: Add automated coverage for the `lina-upgrade` skill workflow and failure handling

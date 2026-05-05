@@ -14,7 +14,7 @@ framework:
   # IMPORTANT: do not edit this field manually.
   # The lina-upgrade skill validates this value as the upgrade baseline.
   # 重要:请勿手工修改此字段。lina-upgrade 技能会以此值作为升级基线进行校验。
-  version: "v0.5.0"
+  version: "v0.1.0"
   # Framework introduction
   # 框架简介
   description: "An AI-native full-stack framework engineered for sustainable delivery."
@@ -39,7 +39,7 @@ openapi:
   description: "LinaPro Service API Documentation."
   # Document version
   # 文档版本
-  version: "v0.5.0"
+  version: "v0.1.0"
   # Backend service access URL
   # 后端服务访问地址
   serverUrl: "http://localhost:8080"

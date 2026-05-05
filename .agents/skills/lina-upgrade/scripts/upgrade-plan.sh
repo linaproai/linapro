@@ -21,6 +21,38 @@ read_declared_version() {
   ' "$METADATA_FILE"
 }
 
+is_stable_semver() {
+  local value="${1#v}"
+  [[ "$value" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]]
+}
+
+semver_gt() {
+  local left="${1#v}"
+  local right="${2#v}"
+  local left_major left_minor left_patch right_major right_minor right_patch
+
+  IFS=. read -r left_major left_minor left_patch <<EOF
+$left
+EOF
+  IFS=. read -r right_major right_minor right_patch <<EOF
+$right
+EOF
+
+  if [ "$left_major" -gt "$right_major" ]; then
+    return 0
+  fi
+  if [ "$left_major" -lt "$right_major" ]; then
+    return 1
+  fi
+  if [ "$left_minor" -gt "$right_minor" ]; then
+    return 0
+  fi
+  if [ "$left_minor" -lt "$right_minor" ]; then
+    return 1
+  fi
+  [ "$left_patch" -gt "$right_patch" ]
+}
+
 select_upstream_remote() {
   local official_url origin_url
   official_url="https://github.com/linaproai/linapro.git"
@@ -48,6 +80,10 @@ classify_changed_files() {
 }
 
 current_max_sql_number() {
+  local sql_dir="$REPO_ROOT/apps/lina-core/manifest/sql"
+  if [ ! -d "$sql_dir" ]; then
+    return 0
+  fi
   find "$REPO_ROOT/apps/lina-core/manifest/sql" -maxdepth 1 -type f -name '[0-9][0-9][0-9]-*.sql' \
     | sed -E 's#^.*/([0-9]{3})-.*#\1#' \
     | sort -n \
@@ -59,8 +95,11 @@ new_sql_files() {
   local max_number="$2"
   local file number
   git -C "$REPO_ROOT" ls-tree -r --name-only "$target_ref" -- apps/lina-core/manifest/sql \
-    | grep -E '/[0-9]{3}-.*\.sql$' \
     | while IFS= read -r file; do
+      case "$file" in
+        apps/lina-core/manifest/sql/[0-9][0-9][0-9]-*.sql) ;;
+        *) continue ;;
+      esac
       number="$(printf '%s\n' "$file" | sed -E 's#^.*/([0-9]{3})-.*#\1#')"
       if [ "$number" -gt "$max_number" ]; then
         printf '%s\n' "$file"
@@ -69,21 +108,32 @@ new_sql_files() {
 }
 
 print_changelog_summary() {
-  local changelog="$REPO_ROOT/CHANGELOG.md"
-  if [ ! -f "$changelog" ]; then
+  local target_ref="$1"
+  if git -C "$REPO_ROOT" cat-file -e "$target_ref:CHANGELOG.md" 2>/dev/null; then
+    git -C "$REPO_ROOT" show "$target_ref:CHANGELOG.md" |
+      grep -n -E 'BREAKING|\*\*BREAKING\*\*|Tier 1|apps/lina-core/pkg/' | head -n 30 || true
+    return 0
+  fi
+  if [ ! -f "$REPO_ROOT/CHANGELOG.md" ]; then
     printf 'No CHANGELOG.md found.\n'
     return 0
   fi
-  grep -n -E 'BREAKING|\*\*BREAKING\*\*|Tier 1|apps/lina-core/pkg/' "$changelog" | head -n 30 || true
+  grep -n -E 'BREAKING|\*\*BREAKING\*\*|Tier 1|apps/lina-core/pkg/' "$REPO_ROOT/CHANGELOG.md" | head -n 30 || true
 }
 
 print_openspec_breaking_summary() {
-  local archive_root="$REPO_ROOT/openspec/changes/archive"
-  if [ ! -d "$archive_root" ]; then
+  local target_ref="$1"
+  if git -C "$REPO_ROOT" cat-file -e "$target_ref:openspec/changes/archive" 2>/dev/null; then
+    git -C "$REPO_ROOT" grep -n -E '\*\*BREAKING\*\*|BREAKING|Tier 1' "$target_ref" -- 'openspec/changes/archive/*/proposal.md' 2>/dev/null |
+      sed -E "s#^${target_ref}:##" |
+      head -n 50 || true
+    return 0
+  fi
+  if [ ! -d "$REPO_ROOT/openspec/changes/archive" ]; then
     printf 'No OpenSpec archive directory found.\n'
     return 0
   fi
-  grep -R -n -E '\*\*BREAKING\*\*|BREAKING|Tier 1' "$archive_root"/*/proposal.md 2>/dev/null | head -n 50 || true
+  grep -R -n -E '\*\*BREAKING\*\*|BREAKING|Tier 1' "$REPO_ROOT/openspec/changes/archive"/*/proposal.md 2>/dev/null | head -n 50 || true
 }
 
 main() {
@@ -99,13 +149,44 @@ main() {
   fi
 
   baseline="$(read_declared_version)"
+  if [ -z "$baseline" ]; then
+    printf 'ERR_METADATA_VERSION_MISSING metadata=%s\n' "$METADATA_FILE" >&2
+    exit 1
+  fi
+  if ! is_stable_semver "$baseline"; then
+    printf 'ERR_BASELINE_VERSION_INVALID baseline=%s\n' "$baseline" >&2
+    exit 1
+  fi
+  if ! is_stable_semver "$TARGET_VERSION"; then
+    printf 'ERR_TARGET_VERSION_INVALID target=%s\n' "$TARGET_VERSION" >&2
+    exit 1
+  fi
+  if ! semver_gt "$TARGET_VERSION" "$baseline"; then
+    printf 'ERR_TARGET_NOT_GREATER baseline=%s target=%s\n' "$baseline" "$TARGET_VERSION" >&2
+    exit 1
+  fi
+
   upstream="$(select_upstream_remote)"
-  git -C "$REPO_ROOT" fetch --quiet "$upstream" '+refs/tags/*:refs/tags/*'
+  if ! git -C "$REPO_ROOT" fetch --quiet "$upstream" '+refs/tags/*:refs/tags/*'; then
+    printf 'ERR_FETCH_TAGS_FAILED upstream=%s\n' "$upstream" >&2
+    exit 1
+  fi
 
   baseline_ref="refs/tags/$baseline"
   target_ref="refs/tags/$TARGET_VERSION"
-  baseline_commit="$(git -C "$REPO_ROOT" rev-parse "${baseline_ref}^{commit}")"
-  target_commit="$(git -C "$REPO_ROOT" rev-parse "${target_ref}^{commit}")"
+  if ! baseline_commit="$(git -C "$REPO_ROOT" rev-parse "${baseline_ref}^{commit}" 2>/dev/null)"; then
+    printf 'ERR_BASELINE_TAG_NOT_FOUND baseline=%s upstream=%s\n' "$baseline" "$upstream" >&2
+    exit 1
+  fi
+  if ! target_commit="$(git -C "$REPO_ROOT" rev-parse "${target_ref}^{commit}" 2>/dev/null)"; then
+    printf 'ERR_TARGET_TAG_NOT_FOUND target=%s upstream=%s\n' "$TARGET_VERSION" "$upstream" >&2
+    exit 1
+  fi
+  if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$baseline_commit" "$target_commit"; then
+    printf 'ERR_TARGET_NOT_DESCENDANT baseline=%s target=%s\n' "$baseline" "$TARGET_VERSION" >&2
+    exit 1
+  fi
+
   commits_ahead="$(git -C "$REPO_ROOT" rev-list --count "${baseline_commit}..${target_commit}")"
   max_sql="$(current_max_sql_number)"
   max_sql="${max_sql:-000}"
@@ -117,9 +198,9 @@ main() {
   printf -- "- Commits ahead: \`%s\`\n\n" "$commits_ahead"
 
   printf '## Changelog Highlights\n\n'
-  print_changelog_summary
+  print_changelog_summary "$target_ref"
   printf '\n## OpenSpec Breaking Highlights\n\n'
-  print_openspec_breaking_summary
+  print_openspec_breaking_summary "$target_ref"
   printf '\n## Changed Files by Tier\n\n'
   classify_changed_files "$baseline_commit" "$target_commit"
   printf '\n## New Host SQL Files\n\n'
