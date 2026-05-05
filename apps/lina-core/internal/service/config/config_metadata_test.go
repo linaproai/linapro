@@ -4,9 +4,12 @@ package config
 
 import (
 	"context"
+	"io/fs"
 	"testing"
 
 	"github.com/gogf/gf/v2/os/gcfg"
+
+	"lina-core/internal/packed"
 )
 
 // TestGetMetadataMergesOpenApiAndComponentSections verifies metadata parsing can
@@ -78,15 +81,28 @@ frontend:
 // TestGetOpenApiUsesEmbeddedMetadataAsset verifies the embedded metadata asset
 // provides the public OpenAPI document metadata.
 func TestGetOpenApiUsesEmbeddedMetadataAsset(t *testing.T) {
-	cfg := New().GetOpenApi(context.Background())
+	ctx := context.Background()
 
-	if cfg.Title != "LinaPro Framework API" {
-		t.Fatalf("expected embedded metadata title, got %q", cfg.Title)
+	content, err := fs.ReadFile(packed.Files, metadataConfigPath)
+	if err != nil {
+		t.Fatalf("read embedded metadata asset: %v", err)
 	}
-	if cfg.Version != "v0.5.0" {
-		t.Fatalf("expected embedded metadata version v0.5.0, got %q", cfg.Version)
+	adapter, err := gcfg.NewAdapterContent(string(content))
+	if err != nil {
+		t.Fatalf("parse embedded metadata asset: %v", err)
 	}
-	if cfg.ServerUrl != "http://localhost:8080" {
-		t.Fatalf("expected embedded metadata server url, got %q", cfg.ServerUrl)
+	var want OpenApiConfig
+	mustScanMetadataConfig(ctx, adapter, "openapi", &want)
+
+	got := New().GetOpenApi(ctx)
+
+	if got.Title != want.Title {
+		t.Fatalf("title: want %q, got %q", want.Title, got.Title)
+	}
+	if got.Version != want.Version {
+		t.Fatalf("version: want %q, got %q", want.Version, got.Version)
+	}
+	if got.ServerUrl != want.ServerUrl {
+		t.Fatalf("serverUrl: want %q, got %q", want.ServerUrl, got.ServerUrl)
 	}
 }
