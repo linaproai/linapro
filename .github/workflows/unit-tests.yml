@@ -79,4 +79,5 @@ jobs:
           make init confirm=init
 
       - name: Run Unit Tests
-        run: go test -v ./...
+        run: |
+          cd apps/lina-core && go test -v ./...
