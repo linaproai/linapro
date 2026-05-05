@@ -78,6 +78,10 @@ jobs:
           cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
           make init confirm=init
 
+      - name: Prepare Packed Assets
+        run: |
+          cd apps/lina-core && make prepare-packed-assets
+
       - name: Run Unit Tests
         run: |
           cd apps/lina-core && go test -v ./...
