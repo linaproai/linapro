@@ -1,6 +1,6 @@
-# LinaPro backend unit test workflow.
+# LinaPro backend main CI workflow.
 # Runs on every push and pull request to main.
-name: Unit Tests
+name: Main CI
 
 on:
   push:
