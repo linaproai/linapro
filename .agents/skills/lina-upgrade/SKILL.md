@@ -1,6 +1,6 @@
 ---
 name: lina-upgrade
-description: 通过 AI 引导、脚本驱动的工作流升级 LinaPro 框架或源码插件，覆盖升级、LinaPro、框架和插件任务。
+description: Upgrade the LinaPro framework or source plugins through an AI-guided, script-driven workflow covering framework-wide and per-plugin upgrade tasks.
 ---
 
 **交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。

@@ -13,23 +13,23 @@
 - [x] 1.5.2 删除 `hack/scripts/install/install-macos.sh` / `install-linux.sh` / `install-windows.sh`
 - [x] 1.5.3 删除 `hack/scripts/install/checks/prereq.sh`,并清理空的 `checks/` 目录(连同 `.gitkeep`)
 - [x] 1.5.4 删除 `hack/scripts/install/lib/_common.sh`,并清理空的 `lib/` 目录(连同 `.gitkeep`)
-- [x] 1.5.5 重写 `hack/scripts/install/bootstrap.sh`,只保留以下逻辑:
+- [x] 1.5.5 重写 `hack/scripts/install/install.sh`,只保留以下逻辑:
   - 文件顶部注释保留"本文件 = `linapro.ai/install.sh` 部署内容"声明
   - `set -Eeuo pipefail` + `trap on_error / on_exit`
   - `detect_os`(失败立即 die)
-  - `resolve_version`(读 `LINAPRO_VERSION` 或解析 GitHub `releases/latest` redirect)
+  - `resolve_version`(读 `LINAPRO_VERSION` 或通过 `git ls-remote --tags --refs` 解析远程最高稳定标签)
   - `prepare_target`(读 `LINAPRO_DIR`,默认 `./linapro`;非空检查 + `LINAPRO_FORCE` 安全门)
-  - `git clone --branch <tag> <url> <dir>`(`LINAPRO_SHALLOW=1` 时附加 `--depth 1`)
+  - 默认完整 `git clone <url> <dir>` 后 `git fetch --tags --force origin` 并 `git checkout --detach <tag>`;`LINAPRO_SHALLOW=1` 时使用浅克隆并提示升级限制
   - 打印 next-steps banner(三行指引:`cd <dir>` / `ask Claude Code "run lina-doctor ..."` / `make init && make dev`)
   - **完全移除** `exec bash hack/scripts/install/install-${os_name}.sh "$@"` 行
   - **完全移除** 任何对 `prereq.sh` / `make init` / `make mock` / `go mod download` / `pnpm install` / `is_port_in_use` 的调用
-- [x] 1.5.6 移除 `bootstrap.sh` 中对 `LINAPRO_NON_INTERACTIVE` 与 `LINAPRO_SKIP_MOCK` 环境变量的处理逻辑(它们不再有意义);保留 `LINAPRO_VERSION` / `LINAPRO_DIR` / `LINAPRO_SHALLOW` / `LINAPRO_FORCE`
-- [x] 1.5.7 跑 Docker `koalaman/shellcheck:stable` 对新版 `bootstrap.sh` 校验,并用 `bash -n` 做语法校验
+- [x] 1.5.6 移除 `install.sh` 中对 `LINAPRO_NON_INTERACTIVE` 与 `LINAPRO_SKIP_MOCK` 环境变量的处理逻辑(它们不再有意义);保留 `LINAPRO_VERSION` / `LINAPRO_DIR` / `LINAPRO_SHALLOW` / `LINAPRO_FORCE`
+- [x] 1.5.7 跑 Docker `koalaman/shellcheck:stable` 对新版 `install.sh` 校验,并用 `bash -n` 做语法校验
 - [x] 1.5.8 重写 `hack/tests/e2e/install/TC0155-install-default.ts` 用例:断言 clone 完成 + next-steps 文本包含 `lina-doctor` 关键字 + 不再 `make init` / `make mock`
 - [x] 1.5.9 重写 `hack/tests/e2e/install/TC0156-install-version-override.ts` 用例:仅断言 `LINAPRO_VERSION` 覆盖逻辑生效,不验证后续 init 行为
 - [x] 1.5.10 删除 `hack/tests/e2e/install/TC0157-install-skip-mock.ts` 用例;`LINAPRO_SKIP_MOCK` 不再存在,该用例失去语义
-- [x] 1.5.11 同步精简 `hack/scripts/install/README.md` / `README.zh_CN.md`,移除"prereq.sh"、"install-*.sh"、"环境探测"、"`make init`"等章节;只保留 `bootstrap.sh` 单文件入口的语义说明 + Next steps 指引
-- [x] 1.5.12 在 PR 描述中显式列出"运维侧需要把更新版 `bootstrap.sh` 重新部署到 `https://linapro.ai/install.sh`"
+- [x] 1.5.11 同步精简 `hack/scripts/install/README.md` / `README.zh_CN.md`,移除"prereq.sh"、"install-*.sh"、"环境探测"、"`make init`"等章节;只保留 `install.sh` 单文件入口的语义说明 + Next steps 指引
+- [x] 1.5.12 在 PR 描述中显式列出"运维侧需要把更新版 `install.sh` 重新部署到 `https://linapro.ai/install.sh`"
 
 ## 2. 技能目录结构搭建
 
@@ -43,7 +43,7 @@
   ---
   ```
 - [x] 2.4 SKILL.md 正文按以下结构组织(中文撰写,命令名/环境变量/JSON 字段保持英文原文):
-  - **Purpose**: 技能的目标与边界(诊断 + AI 引导安装,不替代 bootstrap.sh)
+  - **Purpose**: 技能的目标与边界(诊断 + AI 引导安装,不替代 install.sh)
   - **When to invoke**: 触发关键词举例(中英文都覆盖)
   - **Inputs the AI must collect from the user**: 是否启用 `--check-only`、是否启用 `LINAPRO_DOCTOR_SKIP_PLAYWRIGHT` / `LINAPRO_DOCTOR_SKIP_GOFRAME_SKILL` / `LINAPRO_DOCTOR_NON_INTERACTIVE`
   - **Workflow (10 steps)**: 严格按 design.md "10 步工作流"列出每一步,标注调用脚本、可能失败模式、转人工的判定条件
@@ -235,7 +235,7 @@
 ## 14. 自检与发布前检查
 
 - [x] 14.1 跑 `openspec validate lina-doctor --strict`,所有 spec 验证通过
-- [x] 14.2 用 `koalaman/shellcheck:stable` Docker 镜像跑 `shellcheck -x` 校验所有新建脚本以及精简后的 `bootstrap.sh`
+- [x] 14.2 用 `koalaman/shellcheck:stable` Docker 镜像跑 `shellcheck -x` 校验所有新建脚本以及精简后的 `install.sh`
 - [x] 14.3 跑 `bash -n` 校验所有新建脚本的语法
 - [x] 14.4 跑 `make build`(后端) + `pnpm run build`(前端),确认无回归
 - [x] 14.5 跑 `make test`,确保 E2E 全部通过
@@ -245,7 +245,7 @@
 - [x] 14.9 准备 PR 描述,包含:
   - 变更摘要(install 脚本收敛 + lina-doctor 新增 + goframe-v2 外部化)
   - 已知 BREAKING:`make init` / `make mock` 不再由 install 链路触发;`LINAPRO_SKIP_MOCK` / `LINAPRO_NON_INTERACTIVE` 移除;`.claude/skills/goframe-v2/` 仓库自带形态移除;平台 install 脚本与 `prereq.sh` 删除
-  - 运维侧动作:更新版 `bootstrap.sh` 重新部署到 `https://linapro.ai/install.sh`
+  - 运维侧动作:更新版 `install.sh` 重新部署到 `https://linapro.ai/install.sh`
   - 测试覆盖情况
   - i18n 评估结论(无影响)
   - 缓存一致性评估结论(不涉及)
@@ -277,3 +277,4 @@
 - [x] **FB-16**: Ensure `doctor-install.sh` timeout failures append a timeout marker so escalation can classify them as `network`
 - [x] **FB-17**: Add automated coverage for the `lina-upgrade` skill workflow and failure handling
 - [x] **FB-18**: `make build` 应从 `hack/config.yaml` 读取目标平台/架构等构建配置，`image` 配置段不再维护二进制构建参数并改为复用 `make build` 产物
+- [x] **FB-19**: 安装脚本默认通过 Git 解析并检出最新稳定标签，同时保留后续通过 Git 拉取新标签升级的能力

@@ -1,6 +1,6 @@
 ---
 name: lina-e2e
-description: OpenSpec 工作流中的 Playwright E2E 测试用例管理规范。定义测试文件命名（TC{NNNN}）、按模块组织目录、TC ID 分配、文件独立性规则和子断言模式。在 OpenSpec 变更中创建、规划或审查 E2E 测试用例时使用。
+description: Playwright E2E test case management standards for the OpenSpec workflow. Defines file naming conventions (TC{NNNN}), module-based directory layout, TC ID assignment, file isolation rules, and sub-assertion patterns. Use when creating, planning, or reviewing E2E test cases within an OpenSpec change.
 compatibility: 依赖 Playwright。
 ---
 

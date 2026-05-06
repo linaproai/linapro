@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Self-contained installer bootstrap. This file is the exact content deployed as https://linapro.ai/install.sh.
+# Self-contained installer. This file is the exact content deployed as https://linapro.ai/install.sh.
 
 set -Eeuo pipefail
 
 LINAPRO_REPO_URL="https://github.com/linaproai/linapro.git"
-LINAPRO_LATEST_URL="https://github.com/linaproai/linapro/releases/latest"
 
 log_info() {
   printf '[linapro] INFO: %s\n' "$*"
@@ -56,25 +55,54 @@ is_stable_version_tag() {
   printf '%s\n' "$tag" | grep -E '^v[0-9]+[.][0-9]+[.][0-9]+$' >/dev/null 2>&1
 }
 
+select_latest_version_tag() {
+  awk '
+    function version_gt(left, right, leftParts, rightParts) {
+      split(substr(left, 2), leftParts, ".")
+      split(substr(right, 2), rightParts, ".")
+      if ((leftParts[1] + 0) != (rightParts[1] + 0)) {
+        return (leftParts[1] + 0) > (rightParts[1] + 0)
+      }
+      if ((leftParts[2] + 0) != (rightParts[2] + 0)) {
+        return (leftParts[2] + 0) > (rightParts[2] + 0)
+      }
+      return (leftParts[3] + 0) > (rightParts[3] + 0)
+    }
+    {
+      tag = $2
+      sub("^refs/tags/", "", tag)
+      if (tag ~ /^v[0-9]+[.][0-9]+[.][0-9]+$/) {
+        if (!found || version_gt(tag, latest)) {
+          latest = tag
+          found = 1
+        }
+      }
+    }
+    END {
+      if (!found) {
+        exit 1
+      }
+      print latest
+    }
+  '
+}
+
 resolve_version() {
   if [ -n "${LINAPRO_VERSION:-}" ]; then
+    if ! is_stable_version_tag "$LINAPRO_VERSION"; then
+      die "LINAPRO_VERSION must be a stable version tag like v0.x.y: $LINAPRO_VERSION"
+    fi
     printf '%s\n' "$LINAPRO_VERSION"
     return 0
   fi
 
-  if ! command -v curl >/dev/null 2>&1; then
-    die "curl is required to resolve the latest release. Example: LINAPRO_VERSION=v0.x.y curl -fsSL https://linapro.ai/install.sh | bash"
+  local refs tag
+  if ! refs="$(git ls-remote --tags --refs "$LINAPRO_REPO_URL" 'v*' 2>/dev/null)"; then
+    die "Could not list LinaPro release tags with git. Retry with: LINAPRO_VERSION=v0.x.y curl -fsSL https://linapro.ai/install.sh | bash"
   fi
-
-  local headers location tag
-  headers="$(curl -sIL "$LINAPRO_LATEST_URL" || true)"
-  location="$(printf '%s\n' "$headers" | awk 'BEGIN{IGNORECASE=1} /^location:/ {print $2}' | tr -d '\r' | tail -n 1)"
-  tag="${location##*/}"
-  if [ -z "$tag" ] || [ "$tag" = "$location" ]; then
-    die "Could not resolve the latest LinaPro release. Retry with: LINAPRO_VERSION=v0.x.y curl -fsSL https://linapro.ai/install.sh | bash"
-  fi
-  if ! is_stable_version_tag "$tag"; then
-    die "Resolved release target is not a stable version tag: $tag. Retry with: LINAPRO_VERSION=v0.x.y curl -fsSL https://linapro.ai/install.sh | bash"
+  tag="$(printf '%s\n' "$refs" | select_latest_version_tag || true)"
+  if [ -z "$tag" ]; then
+    die "Could not resolve the latest stable LinaPro release tag. Retry with: LINAPRO_VERSION=v0.x.y curl -fsSL https://linapro.ai/install.sh | bash"
   fi
   printf '%s\n' "$tag"
 }
@@ -170,33 +198,56 @@ print_next_steps() {
   printf '  cd "%s"\n' "$project_dir"
   printf '  ask Claude Code "run lina-doctor to set up my LinaPro environment"\n'
   printf '  make init && make dev\n'
+  printf '\n'
+  printf 'Upgrade later with Git tags:\n'
+  printf '  git fetch --tags --force origin\n'
+  printf '  git checkout --detach <new-version-tag>\n'
+}
+
+clone_release() {
+  local version="$1"
+  local target="$2"
+  local clone_args
+
+  clone_args=()
+  if [ "${LINAPRO_SHALLOW:-}" = "1" ]; then
+    clone_args+=(--depth 1 --no-single-branch)
+    log_warn "Shallow clone enabled. Run git fetch --unshallow --tags --force origin before the first tag-based upgrade if Git reports a shallow-history limitation."
+  fi
+
+  log_info "Cloning $LINAPRO_REPO_URL."
+  if ! git clone "${clone_args[@]}" "$LINAPRO_REPO_URL" "$target"; then
+    die "git clone failed. Check network access and repository availability."
+  fi
+
+  if ! git -C "$target" config remote.origin.tagOpt --tags; then
+    die "Failed to configure origin to fetch release tags."
+  fi
+
+  if ! git -C "$target" fetch --tags --force origin; then
+    die "Failed to fetch release tags from origin."
+  fi
+
+  log_info "Checking out LinaPro $version."
+  if ! git -C "$target" checkout --detach "$version"; then
+    die "Failed to check out release tag '$version'. Check that the tag exists in origin."
+  fi
 }
 
 main() {
   local os_name version target target_abs
-  local clone_args
 
   os_name="$(detect_os)"
-  version="$(resolve_version)"
-  target="${LINAPRO_DIR:-./linapro}"
-  print_banner "$version" "$target" "$os_name"
-
   if ! command -v git >/dev/null 2>&1; then
     die "git is required before running this installer."
   fi
 
+  version="$(resolve_version)"
+  target="${LINAPRO_DIR:-./linapro}"
+  print_banner "$version" "$target" "$os_name"
+
   prepare_target "$target"
-
-  clone_args=(--branch "$version")
-  if [ "${LINAPRO_SHALLOW:-}" = "1" ]; then
-    clone_args+=(--depth 1)
-    log_warn "Shallow clone enabled. The lina-upgrade skill will require git fetch --unshallow before the first upgrade."
-  fi
-
-  log_info "Cloning $LINAPRO_REPO_URL at $version."
-  if ! git clone "${clone_args[@]}" "$LINAPRO_REPO_URL" "$target"; then
-    die "git clone failed. Check network access and verify that tag '$version' exists."
-  fi
+  clone_release "$version" "$target"
 
   target_abs="$(cd "$target" && pwd -P)"
   print_next_steps "$target_abs"

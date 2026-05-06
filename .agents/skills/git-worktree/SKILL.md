@@ -1,6 +1,6 @@
 ---
 name: git-worktree
-description: 为当前任务创建并使用独立的 Git 工作树，在新目录中继续执行任务。当用户要求独立的工作树、隔离的检出、干净的分支目录、更安全的并行变更，或需要全新的工作空间以避免干扰本地已有修改时使用此技能。
+description: Create and switch to an isolated Git worktree for the current task, continuing work in a new directory instead of the original checkout. Use when the user wants an isolated worktree, a clean branch directory, safer parallel changes, or a fresh workspace that won't interfere with existing local modifications.
 ---
 
 # Git 工作树

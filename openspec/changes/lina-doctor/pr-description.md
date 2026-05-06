@@ -2,7 +2,8 @@
 
 ## 变更摘要
 
-- 精简`hack/scripts/install/bootstrap.sh`：托管安装入口现在只下载`LinaPro`仓库源码，并打印后续步骤。
+- 精简`hack/scripts/install/install.sh`：托管安装入口现在只下载`LinaPro`仓库源码，并打印后续步骤。
+- 安装入口默认通过 Git 解析最高稳定发布标签并保留`origin`远程地址，后续可通过`git fetch --tags --force origin`拉取新标签升级。
 - 新增中文`lina-doctor`技能：通过 AI 工具诊断并按计划安装 Go、Node、pnpm、OpenSpec、GoFrame CLI、Playwright browsers 与`goframe-v2`技能。
 - 外部化`goframe-v2`技能：仓库不再附带该技能目录，改由`npx skills add github.com/gogf/skills -g`安装到用户全局技能目录。
 
@@ -15,13 +16,13 @@
 
 ## 运维动作
 
-- 将更新后的`hack/scripts/install/bootstrap.sh`重新部署到`https://linapro.ai/install.sh`。
+- 将更新后的`hack/scripts/install/install.sh`重新部署到`https://linapro.ai/install.sh`。
 - 部署后刷新 CDN 缓存，并在干净环境验证`curl -fsSL https://linapro.ai/install.sh | bash`只完成 clone 与 next steps 输出。
 
 ## 验证结果
 
 - `openspec validate lina-doctor --strict`
-- `bash -n hack/scripts/install/bootstrap.sh`
+- `bash -n hack/scripts/install/install.sh`
 - `bash -n .agents/skills/lina-doctor/scripts/doctor-*.sh`
 - `bash hack/tests/scripts/install-bootstrap.sh all`
 - `bash hack/tests/scripts/doctor-check.sh`

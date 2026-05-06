@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Smoke-tests bootstrap.sh against local fixture repositories without network access.
+# Smoke-tests install.sh against local fixture repositories without network access.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-BOOTSTRAP="$REPO_ROOT/hack/scripts/install/bootstrap.sh"
+INSTALLER="$REPO_ROOT/hack/scripts/install/install.sh"
 CASE_NAME="${1:-all}"
 
 fail() {
@@ -53,11 +53,30 @@ create_fixture_remote() {
   printf '%s\n' "$remote_repo"
 }
 
+add_fixture_release() {
+  local remote_repo="$1"
+  local version="$2"
+  local work_dir source_repo
+
+  work_dir="$(mktemp -d)"
+  source_repo="$work_dir/source"
+  git clone "$remote_repo" "$source_repo" >/dev/null
+  git -C "$source_repo" config user.email "fixture@example.test"
+  git -C "$source_repo" config user.name "Fixture"
+  printf '%s\n' "$version" >"$source_repo/VERSION"
+  git -C "$source_repo" add VERSION
+  git -C "$source_repo" commit -m "fixture $version" >/dev/null
+  git -C "$source_repo" tag "$version"
+  git -C "$source_repo" push origin HEAD:main --tags >/dev/null
+  rm -rf "$work_dir"
+}
+
 assert_bootstrap_output() {
   local output="$1"
   assert_contains_text "$output" "LinaPro source downloaded successfully."
   assert_contains_text "$output" "lina-doctor"
   assert_contains_text "$output" "make init && make dev"
+  assert_contains_text "$output" "git fetch --tags --force origin"
   assert_not_contains_text "$output" "make mock"
   assert_not_contains_text "$output" "go mod download"
   assert_not_contains_text "$output" "pnpm install"
@@ -68,9 +87,10 @@ assert_bootstrap_output() {
 
 run_bootstrap_case() {
   local name="$1"
-  local version="$2"
+  local expected_version="$2"
   local target_mode="$3"
-  local temp_dir remote_repo workspace git_config target_dir output
+  local version_env="$4"
+  local temp_dir remote_repo workspace git_config target_dir output git_head git_origin
   local env_vars
 
   temp_dir="$(mktemp -d)"
@@ -86,28 +106,63 @@ EOF
 
   env_vars=(
     "GIT_CONFIG_GLOBAL=$git_config"
-    "LINAPRO_VERSION=$version"
   )
+  if [ "$version_env" != "auto" ]; then
+    env_vars+=("LINAPRO_VERSION=$version_env")
+  fi
 
   if [ "$target_mode" = "default" ]; then
     target_dir="$workspace/linapro"
     output="$(
       cd "$workspace"
-      env "${env_vars[@]}" bash "$BOOTSTRAP"
+      env "${env_vars[@]}" bash "$INSTALLER"
     )"
   else
     target_dir="$workspace/custom"
     env_vars+=("LINAPRO_DIR=$target_dir")
     output="$(
       cd "$workspace"
-      env "${env_vars[@]}" bash "$BOOTSTRAP"
+      env "${env_vars[@]}" bash "$INSTALLER"
     )"
   fi
 
   assert_file "$target_dir/VERSION"
-  assert_contains_text "$(cat "$target_dir/VERSION")" "$version"
+  assert_contains_text "$(cat "$target_dir/VERSION")" "$expected_version"
+  git_head="$(git -C "$target_dir" describe --tags --exact-match HEAD)"
+  [ "$git_head" = "$expected_version" ] || fail "expected HEAD tag $expected_version, got $git_head"
+  git_origin="$(git -C "$target_dir" remote get-url origin)"
+  [ -n "$git_origin" ] || fail "expected origin remote to remain configured"
   assert_bootstrap_output "$output"
   printf 'PASS install-bootstrap %s\n' "$name"
+}
+
+test_git_tag_upgrade() {
+  local temp_dir remote_repo workspace git_config target_dir output
+  temp_dir="$(mktemp -d)"
+  trap 'rm -rf "$temp_dir"' RETURN
+  remote_repo="$(create_fixture_remote "$temp_dir")"
+  workspace="$temp_dir/workspace"
+  target_dir="$workspace/linapro"
+  mkdir -p "$workspace"
+  git_config="$temp_dir/gitconfig"
+  cat >"$git_config" <<EOF
+[url "file://$remote_repo"]
+	insteadOf = https://github.com/linaproai/linapro.git
+EOF
+
+  output="$(
+    cd "$workspace"
+    env "GIT_CONFIG_GLOBAL=$git_config" bash "$INSTALLER"
+  )"
+  assert_contains_text "$output" "Version: v0.0.2"
+  assert_contains_text "$(cat "$target_dir/VERSION")" "v0.0.2"
+
+  add_fixture_release "$remote_repo" v0.0.3
+  GIT_CONFIG_GLOBAL="$git_config" git -C "$target_dir" fetch --tags --force origin >/dev/null
+  git -C "$target_dir" checkout --detach v0.0.3 >/dev/null
+
+  assert_contains_text "$(cat "$target_dir/VERSION")" "v0.0.3"
+  printf 'PASS install-bootstrap git-tag-upgrade\n'
 }
 
 test_force_home_refused() {
@@ -134,7 +189,7 @@ EOF
         "LINAPRO_VERSION=v0.0.1" \
         "LINAPRO_DIR=$target_dir" \
         "LINAPRO_FORCE=1" \
-        bash "$BOOTSTRAP" 2>&1
+        bash "$INSTALLER" 2>&1
   )"
   rc=$?
   set -e
@@ -146,34 +201,41 @@ EOF
 }
 
 test_latest_non_tag_refused() {
-  local temp_dir fake_bin output rc
+  local temp_dir fake_bin real_git output rc
   temp_dir="$(mktemp -d)"
   trap 'rm -rf "$temp_dir"' RETURN
+  real_git="$(command -v git)"
   fake_bin="$temp_dir/bin"
   mkdir -p "$fake_bin"
-  cat >"$fake_bin/curl" <<'SCRIPT'
+  cat >"$fake_bin/git" <<SCRIPT
 #!/usr/bin/env bash
-printf 'HTTP/2 302\r\n'
-printf 'location: https://github.com/linaproai/linapro/releases\r\n'
+if [ "\${1:-}" = "ls-remote" ]; then
+  printf '0000000000000000000000000000000000000000\trefs/tags/latest\n'
+  exit 0
+fi
+exec "$real_git" "\$@"
 SCRIPT
-  chmod +x "$fake_bin/curl"
+  chmod +x "$fake_bin/git"
 
   set +e
-  output="$(PATH="$fake_bin:$PATH" bash "$BOOTSTRAP" 2>&1)"
+  output="$(PATH="$fake_bin:$PATH" bash "$INSTALLER" 2>&1)"
   rc=$?
   set -e
 
   [ "$rc" -ne 0 ] || fail "latest-non-tag should fail"
-  assert_contains_text "$output" "not a stable version tag"
+  assert_contains_text "$output" "Could not resolve the latest stable LinaPro release tag"
   printf 'PASS install-bootstrap latest-non-tag-refused\n'
 }
 
 case "$CASE_NAME" in
   default)
-    run_bootstrap_case default v0.0.1 default
+    run_bootstrap_case default v0.0.2 default auto
     ;;
   version-override)
-    run_bootstrap_case version-override v0.0.2 custom
+    run_bootstrap_case version-override v0.0.1 custom v0.0.1
+    ;;
+  git-tag-upgrade)
+    test_git_tag_upgrade
     ;;
   force-home-refused)
     test_force_home_refused
@@ -182,8 +244,9 @@ case "$CASE_NAME" in
     test_latest_non_tag_refused
     ;;
   all)
-    run_bootstrap_case default v0.0.1 default
-    run_bootstrap_case version-override v0.0.2 custom
+    run_bootstrap_case default v0.0.2 default auto
+    run_bootstrap_case version-override v0.0.1 custom v0.0.1
+    test_git_tag_upgrade
     test_force_home_refused
     test_latest_non_tag_refused
     ;;

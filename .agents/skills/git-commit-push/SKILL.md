@@ -1,6 +1,6 @@
 ---
 name: git-commit-push
-description: 审查当前 Git 工作区变更，根据仓库的提交或 PR 命名规范从实际差异中生成提交信息，在当前分支上提交所有变更并推送到 `origin`。当用户要求"提交"、"推送"、"提交并推送"、"生成提交信息"、"提交当前变更"，或将当前分支变更推送到远程时使用此技能。
+description: Review current Git workspace changes, generate a commit message from actual diffs following the repo's commit or PR naming conventions, commit all changes on the current branch, and push to `origin`. Use when the user asks to "commit", "push", "commit and push", "generate a commit message", "commit current changes", or push the current branch changes to the remote.
 ---
 
 # Git 提交与推送

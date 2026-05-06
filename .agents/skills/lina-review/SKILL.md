@@ -1,9 +1,9 @@
 ---
 name: lina-review
 description: >-
-  OpenSpec 工作流的代码与规范审查。在 /opsx:apply 任务完成后、/opsx:feedback 任务完成后、
-  以及 /opsx:archive 执行前自动触发。当用户请求代码审查、规范合规检查，
-  或通过 /lina-review 显式调用时使用。
+  Code and spec review for the OpenSpec workflow. Automatically triggered after /opsx:apply tasks
+  complete, after /opsx:feedback tasks complete, and before /opsx:archive runs. Also use when the
+  user requests a code review, spec compliance check, or invokes /lina-review explicitly.
 compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 ---
 
