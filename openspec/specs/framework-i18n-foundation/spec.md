@@ -1,154 +1,163 @@
-# Framework I18n Foundation
+# 框架国际化基础
 
-## Purpose
+## 目的
 
-Define the host i18n foundation, including language discovery, runtime bundle distribution, shared resource loading, cache invalidation, and maintenance capabilities.
-## Requirements
-### Requirement: Host translation service interface must be split into multiple small interfaces by responsibility
-The host system SHALL split the i18n translation service interface into `LocaleResolver`, `Translator`, `BundleProvider`, and `Maintainer` four small interfaces. Each small interface MUST only carry one responsibility: `LocaleResolver` resolves request language and context language; `Translator` provides translation lookup and error localization; `BundleProvider` outputs runtime translation bundles and language lists; `Maintainer` provides resource export, missing checks, source diagnostics, and cache invalidation. The `Service` type MUST be a composition of these four small interfaces, and business modules' `i18nSvc` field types SHALL converge to the minimum interface they actually depend on rather than the entire `Service`. The host core i18n service must not provide database translation override import or generic business content multilingual persistence interfaces.
+定义宿主国际化基础，包括语言发现、运行时语言包分发、共享资源加载、缓存失效和维护能力。
 
-#### Scenario: Business modules only declare minimum interface dependencies
-- **WHEN** `menu` / `dict` / `sysconfig` / `jobmgmt` and other modules need localization translation capabilities
-- **THEN** the module declares its `i18nSvc` field as the minimum combination of `LocaleResolver` and `Translator` in its own struct
-- **AND** module unit tests can mock only these two small interfaces without stubbing maintenance methods
+## 需求
 
-#### Scenario: Controller tests complete via minimum interface stubs
-- **WHEN** testing `i18n` management controllers (export, diagnostics, missing checks)
-- **THEN** tests can individually mock the `Maintainer` interface
-- **AND** do not need to simultaneously provide placeholder implementations for `Translator` / `BundleProvider`
+### 需求：宿主翻译服务接口必须按职责拆分为多个小接口
 
-### Requirement: Host must discover built-in languages via resource conventions and default configuration
-The host system SHALL auto-discover built-in runtime languages from `manifest/i18n/<locale>/*.json` files, and maintain default language, multi-language toggle, display sorting, native names and other metadata that cannot be derived from filenames through the `i18n` configuration section in the default config file. Adding a new built-in language MUST only require adding corresponding runtime JSON, apidoc JSON, plugin JSON, and optional default config metadata, and MUST NOT require adding backend Go language enumerations, SQL seeds, or frontend TS language lists. Runtime text direction is fixed to `ltr` per current host convention, and MUST NOT require maintaining `direction` in configuration. Runtime language list, missing translation checks, resource source diagnostics, runtime translation bundle API, ETag negotiation, and frontend persistent cache MUST automatically cover `zh-TW`.
+宿主系统 SHALL 将国际化翻译服务接口拆分为 `LocaleResolver`、`Translator`、`BundleProvider` 和 `Maintainer` 四个小接口。每个小接口必须只承担一个职责：`LocaleResolver` 解析请求语言和上下文语言；`Translator` 提供翻译查找和错误本地化；`BundleProvider` 输出运行时翻译包和语言列表；`Maintainer` 提供资源导出、缺失检查、源诊断和缓存失效。`Service` 类型必须是这四个小接口的组合，业务模块的 `i18nSvc` 字段类型 SHALL 收敛到实际依赖的最小接口，而非整个 `Service`。宿主核心国际化服务不得提供数据库翻译覆盖导入或通用业务内容多语言持久化接口。
 
-#### Scenario: Traditional Chinese auto-joins runtime language list from resource files after startup
-- **WHEN** the project has `manifest/i18n/zh-TW/*.json`
-- **AND** the default config file `i18n.locales` provides `nativeName` for `zh-TW`
-- **AND** after service startup the frontend requests the runtime language list
-- **THEN** the `/i18n/runtime/locales` API returns a language list containing `zh-TW`
-- **AND** `zh-TW` is marked as non-default language
-- **AND** `zh-TW`'s direction field is the fixed value `ltr`
+#### 场景：业务模块仅声明最小接口依赖
+- **当** `menu` / `dict` / `sysconfig` / `jobmgmt` 等模块需要本地化翻译能力时
+- **则** 模块在其结构体中将 `i18nSvc` 字段声明为 `LocaleResolver` 和 `Translator` 的最小组合
+- **且** 模块单元测试可以仅 mock 这两个小接口，无需桩化维护方法
 
-#### Scenario: Adding a new language requires no Go, SQL, or frontend TS language list changes
-- **WHEN** the delivery project adds `manifest/i18n/<locale>/*.json` and `manifest/i18n/<locale>/apidoc/**/*.json` resources for a language
-- **AND** source plugins and dynamic plugins add that language's resources following the same directory convention
-- **AND** if default language, sorting, native name, or enable/disable state needs to be controlled, only modify the `i18n` config section in the default config file
-- **THEN** menu, dictionary, config, scheduled tasks, plugins, roles, system info and other dynamic metadata automatically return localized results in that language
-- **AND** the runtime language list automatically includes that language
-- **AND** no changes to backend Go constants, SQL seeds, frontend `SUPPORT_LANGUAGES`, or third-party locale switch branches are needed
+#### 场景：控制器测试通过最小接口桩完成
+- **当** 测试 `i18n` 管理控制器（导出、诊断、缺失检查）时
+- **则** 测试可以单独 mock `Maintainer` 接口
+- **且** 无需同时为 `Translator` / `BundleProvider` 提占位实现
 
-#### Scenario: Disabling multi-language uses only the default language
-- **WHEN** `i18n.enabled` is `false` in the default config file
-- **AND** the user's browser or request parameters pass a non-default language
-- **THEN** the host request language resolution falls back to `i18n.default`
-- **AND** the `/i18n/runtime/locales` response marks the multi-language toggle as off, and only returns the default language descriptor
-- **AND** the default management workbench hides the language switch button, loading static language packs, runtime translation bundles, and public frontend config in the default language
+### 需求：宿主必须通过资源约定和默认配置发现内置语言
 
-#### Scenario: Removing a language from the locales list disables it
-- **WHEN** the project has multiple `manifest/i18n/<locale>/*.json` resources
-- **AND** the default config file `i18n.locales` only lists a subset of those languages
-- **THEN** `/i18n/runtime/locales` only returns languages listed in `i18n.locales`
-- **AND** requests for unlisted languages fall back to `i18n.default`
+宿主系统 SHALL 从 `manifest/i18n/<locale>/*.json` 文件自动发现内置运行时语言，并通过默认配置文件中的 `i18n` 配置段维护无法从文件名推导的默认语言、多语言开关、显示排序、原生名称等元数据。新增内置语言必须只需添加对应的运行时 JSON、apidoc JSON、插件 JSON 和可选的默认配置元数据，不得需要新增后端 Go 语言枚举、SQL 种子或前端 TS 语言清单。运行时文本方向按当前宿主约定固定为 `ltr`，不得需要在配置中维护 `direction`。运行时语言列表、缺失翻译检查、资源源诊断、运行时翻译包 API、ETag 协商和前端持久缓存必须自动覆盖 `zh-TW`。
 
-### Requirement: Default management workbench must maintain fixed LTR document direction
-The default management workbench SHALL fix document direction to `ltr` per current host convention. During language switching, the workbench MUST simultaneously set `<html dir>` to `ltr` and inject `direction="ltr"` into `Ant Design Vue`'s `ConfigProvider`. The frontend must not maintain a static RTL language registry, and must not require modifying direction-related TypeScript branches when adding new languages.
+#### 场景：繁体中文在启动后从资源文件自动加入运行时语言列表
+- **当** 项目存在 `manifest/i18n/zh-TW/*.json`
+- **且** 默认配置文件 `i18n.locales` 为 `zh-TW` 提供 `nativeName`
+- **且** 服务启动后前端请求运行时语言列表
+- **则** `/i18n/runtime/locales` API 返回包含 `zh-TW` 的语言列表
+- **且** `zh-TW` 标记为非默认语言
+- **且** `zh-TW` 的 direction 字段为固定值 `ltr`
 
-#### Scenario: html direction remains LTR when switching to Traditional Chinese
-- **WHEN** a user switches language to `zh-TW` in the default management workbench
-- **THEN** `document.documentElement`'s `dir` attribute remains `ltr`
-- **AND** `Ant Design Vue`'s `ConfigProvider` receives `direction="ltr"`
-- **AND** switching back to `zh-CN` or `en-US` still keeps `dir` as `ltr`
+#### 场景：新增语言无需 Go、SQL 或前端 TS 语言清单变更
+- **当** 交付项目为某语言添加 `manifest/i18n/<locale>/*.json` 和 `manifest/i18n/<locale>/apidoc/**/*.json` 资源
+- **且** 源码插件和动态插件按相同目录约定添加该语言的资源
+- **且** 如需控制默认语言、排序、原生名称或启用/禁用状态，仅修改默认配置文件中的 `i18n` 配置段
+- **则** 菜单、字典、配置、定时任务、插件、角色、系统信息等动态元数据自动返回该语言的本地化结果
+- **且** 运行时语言列表自动包含该语言
+- **且** 无需修改后端 Go 常量、SQL 种子、前端 `SUPPORT_LANGUAGES` 或第三方语言切换分支
 
-#### Scenario: Traditional Chinese page copy completeness is sufficient
-- **WHEN** a user opens framework default-delivered list pages, drawers and modals in Traditional Chinese environment
-- **THEN** page copy is displayed in Traditional Chinese and layout does not block core operations
-- **AND** RTL mirrored layout is not required
+#### 场景：禁用多语言仅使用默认语言
+- **当** 默认配置文件中 `i18n.enabled` 为 `false`
+- **且** 用户的浏览器或请求参数传递非默认语言
+- **则** 宿主请求语言解析回退到 `i18n.default`
+- **且** `/i18n/runtime/locales` 响应将多语言开关标记为关闭，仅返回默认语言描述符
+- **且** 默认管理工作台隐藏语言切换按钮，以默认语言加载静态语言包、运行时翻译包和公共前端配置
 
-### Requirement: Translation resource loader must be shared between host and plugins, UI and apidoc
-The host system SHALL provide a unified `ResourceLoader` component in the `pkg/i18nresource` package, accepting `Subdir`, `LocaleSubdir`, `PluginScope`, `LayoutMode` and other configuration parameters, centrally implementing the discovery and loading logic for "host embedded resources -> source plugin resources -> dynamic plugin resources". Runtime UI translation resource loading and API documentation translation resource loading MUST be completed through different `ResourceLoader` instances, and MUST NOT each maintain duplicate implementations, and MUST NOT cause the API documentation module to reverse-depend on runtime `internal/service/i18n` just to reuse the loader. Source plugin apidoc namespace isolation MUST be achieved by `ResourceLoader` configuration rather than additional duplicate code.
+#### 场景：从 locales 列表移除语言即禁用该语言
+- **当** 项目存在多个 `manifest/i18n/<locale>/*.json` 资源
+- **且** 默认配置文件 `i18n.locales` 仅列出部分语言
+- **则** `/i18n/runtime/locales` 仅返回 `i18n.locales` 中列出的语言
+- **且** 请求未列出的语言回退到 `i18n.default`
 
-#### Scenario: Runtime bundle and apidoc share the same resource loader implementation
-- **WHEN** the system loads runtime UI translation resources or apidoc translation resources
-- **THEN** both pipelines complete host, source plugin, and dynamic plugin resource traversal through the same `i18nresource.ResourceLoader` implementation
-- **AND** the apidoc pipeline constrains plugin namespace via `PluginScope=RestrictedToPluginNamespace` configuration
-- **AND** the runtime UI pipeline allows plugins to contribute arbitrary keys via `PluginScope=Open` configuration
+### 需求：默认管理工作台必须维护固定 LTR 文档方向
 
-### Requirement: Host must provide runtime translation bundle distribution capability
-The host system SHALL provide a runtime translation bundle API and language list API, returning aggregated message resources and current available language descriptor information by language, for the default management workbench and host embedded plugin pages to load. The runtime translation bundle MUST be able to simultaneously contain host, source plugin, and currently enabled dynamic plugin i18n messages, and convert them to nested message objects directly consumable by the frontend on output. The runtime translation bundle API MUST output an `ETag` header in the response, with a value derived from the current language and runtime translation bundle version that must differ when the version changes; the system MUST receive the `If-None-Match` header from requests and return `304 Not Modified` without carrying a message body when matched. Any sector cache invalidation MUST trigger runtime translation bundle version auto-increment, ensuring different bundle contents for the same language have different ETags.
+默认管理工作台 SHALL 按当前宿主约定将文档方向固定为 `ltr`。语言切换时，工作台必须同时设置 `<html dir>` 为 `ltr` 并向 `Ant Design Vue` 的 `ConfigProvider` 注入 `direction="ltr"`。前端不得维护静态 RTL 语言注册表，新增语言时不得需要修改方向相关的 TypeScript 分支。
 
-#### Scenario: Default workbench loads runtime translation bundle
-- **WHEN** the frontend requests the runtime translation bundle with `zh-CN`
-- **THEN** the host returns the aggregated message set for that language
-- **AND** the result contains the merged result of host resources, source plugin resources, and enabled dynamic plugin resources
-- **AND** the response contains an `ETag` header
+#### 场景：切换到繁体中文时 html 方向保持 LTR
+- **当** 用户在默认管理工作台切换语言到 `zh-TW` 时
+- **则** `document.documentElement` 的 `dir` 属性保持 `ltr`
+- **且** `Ant Design Vue` 的 `ConfigProvider` 接收 `direction="ltr"`
+- **且** 切换回 `zh-CN` 或 `en-US` 仍保持 `dir` 为 `ltr`
 
-#### Scenario: Frontend obtains host-supported language list
-- **WHEN** the frontend requests the runtime language list
-- **THEN** the host returns the multi-language toggle, current supported language codes, default language marker, display name, native name, and fixed LTR text direction
-- **AND** display names are returned in the current request language, while native names remain in the corresponding language's own text
-- **AND** the list includes `zh-CN`, `en-US` and `zh-TW`
+#### 场景：繁体中文页面文案完整性足够
+- **当** 用户在繁体中文环境下打开框架默认交付的列表页、抽屉和弹窗时
+- **则** 页面文案以繁体中文显示，布局不阻塞核心操作
+- **且** 不需要 RTL 镜像布局
 
-#### Scenario: Runtime language pack supports hierarchical maintenance while maintaining flat governance
-- **WHEN** the host loads translation resources from files, source plugins, or dynamic plugins
-- **THEN** the host allows runtime UI file resources to use hierarchical JSON or flat dotted key format
-- **AND** the host internally aggregates messages uniformly as flat keys
-- **AND** the runtime API returns results to the frontend as nested object structures, for direct merging into the frontend `vue-i18n` message tree
+### 需求：翻译资源加载器必须在宿主和插件、UI 和 apidoc 之间共享
 
-#### Scenario: Disabled plugin's translation resources are no longer exposed
-- **WHEN** a plugin is disabled or uninstalled
-- **THEN** subsequent runtime translation bundle results no longer contain translation messages contributed by that plugin
-- **AND** other host and enabled plugin resources remain available
-- **AND** the system correspondingly triggers cache invalidation for the sectors related to that plugin, and the runtime translation bundle version auto-increments
+宿主系统 SHALL 在 `pkg/i18nresource` 包中提供统一的 `ResourceLoader` 组件，接受 `Subdir`、`LocaleSubdir`、`PluginScope`、`LayoutMode` 等配置参数，集中实现"宿主嵌入资源 -> 源码插件资源 -> 动态插件资源"的发现和加载逻辑。运行时 UI 翻译资源加载和 API 文档翻译资源加载必须通过不同的 `ResourceLoader` 实例完成，不得各自维护重复实现，也不得导致 API 文档模块反向依赖运行时 `internal/service/i18n` 仅为复用加载器。源码插件 apidoc 命名空间隔离必须通过 `ResourceLoader` 配置实现，而非额外重复代码。
 
-#### Scenario: Second request for the same translation bundle returns 304
-- **WHEN** the frontend saves the `ETag` from the first runtime translation bundle request
-- **AND** no cache invalidation has occurred on the backend between the two requests
-- **AND** the frontend carries `If-None-Match` equal to the previous `ETag` in the second request
-- **THEN** the backend returns `304 Not Modified` without carrying a message body
+#### 场景：运行时语言包和 apidoc 共享同一资源加载器实现
+- **当** 系统加载运行时 UI 翻译资源或 apidoc 翻译资源时
+- **则** 两条管线通过相同的 `i18nresource.ResourceLoader` 实现完成宿主、源码插件和动态插件资源遍历
+- **且** apidoc 管线通过 `PluginScope=RestrictedToPluginNamespace` 配置约束插件命名空间
+- **且** 运行时 UI 管线通过 `PluginScope=Open` 配置允许插件贡献任意键
 
-### Requirement: Host must provide internationalization maintenance and validation capabilities
-The host system SHALL provide translation resource export, missing translation check, and resource source diagnostics capabilities to support delivery projects in maintaining multilingual resources during development. Delivery projects and plugins MUST follow unified directory conventions and translation key specifications when adding i18n resources. Cache invalidation MUST provide fine-grained control by "language x sector (host / source-plugin / dynamic-plugin)" dimension, and MUST NOT clear the entire cache for all languages and all sectors on any single-point change. All determinations of "this key is owned by a code source" MUST be completed through an explicit namespace registry, and the system MUST NOT hardcode any specific business module's namespace prefix in the i18n package. The host core must not create or depend on `sys_i18n_locale`, `sys_i18n_message`, `sys_i18n_content` three runtime i18n persistence tables; the single source of truth for translation content is development-time JSON/YAML resources.
+### 需求：宿主必须提供运行时翻译包分发能力
 
-#### Scenario: Export translation resources for a language
-- **WHEN** an administrator or delivery tool requests exporting `en-US` translation resources
-- **THEN** the system returns the aggregated message result for that language
-- **AND** the export content can be used for offline proofreading and writing back to the corresponding JSON resource file
+宿主系统 SHALL 提供运行时翻译包 API 和语言列表 API，按语言返回聚合消息资源和当前可用语言描述符信息，供默认管理工作台和宿主嵌入插件页面加载。运行时翻译包必须能够同时包含宿主、源码插件和当前启用的动态插件的 i18n 消息，并在输出时转换为前端可直接消费的嵌套消息对象。运行时翻译包 API 必须在响应中输出 `ETag` 头，其值由当前语言和运行时翻译包版本派生，版本变化时值必须不同；系统必须接收请求中的 `If-None-Match` 头，匹配时返回 `304 Not Modified` 且不携带消息体。任何扇区缓存失效必须触运行时翻译包版本自动递增，确保同一语言的不同翻译包内容具有不同的 ETag。
 
-#### Scenario: Check missing translation keys
-- **WHEN** an administrator or delivery tool executes a missing translation check
-- **THEN** the system returns the list of translation keys missing in the current language relative to the default language
-- **AND** the results can locate which host module, project resource, or plugin resource scope the missing keys belong to
-- **AND** translation keys registered as code-owned namespaces do not appear in missing results
+#### 场景：默认工作台加载运行时翻译包
+- **当** 前端请求 `zh-CN` 的运行时翻译包时
+- **则** 宿主返回该语言的聚合消息集
+- **且** 结果包含宿主资源、源码插件资源和启用的动态插件资源的合并结果
+- **且** 响应包含 `ETag` 头
 
-#### Scenario: Plugin resource change only clears affected plugin sector
-- **WHEN** a dynamic plugin is enabled, disabled, uninstalled, or upgraded
-- **THEN** the system only clears the dynamic plugin sector cache and merged view related to that plugin
-- **AND** other languages, host resources, and unaffected plugin resources remain valid
-- **AND** the runtime translation bundle version for that language auto-increments, ensuring the frontend can detect changes on next negotiation
+#### 场景：前端获取宿主支持的语言列表
+- **当** 前端请求运行时语言列表时
+- **则** 宿主返回多语言开关、当前支持的语言代码、默认语言标记、显示名称、原生名称和固定 LTR 文本方向
+- **且** 显示名称以当前请求语言返回，原生名称保持对应语言自身的文本
+- **且** 列表包含 `zh-CN`、`en-US` 和 `zh-TW`
 
-### Requirement: English regression sweep must cover framework-delivered pages and seed display content
-The default management workbench SHALL provide English regression coverage for framework-delivered pages from manual feedback, ensuring system-generated content, default seed display content, and static UI copy do not retain Chinese text.
+#### 场景：运行时语言包支持分层维护同时保持扁平治理
+- **当** 宿主从文件、源码插件或动态插件加载翻译资源时
+- **则** 宿主允许运行时 UI 文件资源使用分层 JSON 或扁平点分键格式
+- **且** 宿主内部统一将消息聚合为扁平键
+- **且** 运行时 API 以嵌套对象结构返回结果给前端，供直接合并到前端 `vue-i18n` 消息树
 
-#### Scenario: English regression pages contain no Chinese system copy
-- **WHEN** an administrator switches to `en-US` and opens workbench, user management, role management, department management, post management, dictionary management, system config, service monitoring, and scheduled jobs
-- **THEN** framework-delivered titles, buttons, form labels, table columns, system-generated nodes, built-in record displays, and confirmation modals use English
-- **AND** user-editable business fields are localized only when explicitly included in framework-delivered projection rules
+#### 场景：禁用插件的翻译资源不再暴露
+- **当** 插件被禁用或卸载时
+- **则** 后续运行时翻译包结果不再包含该插件贡献的翻译消息
+- **且** 其他宿主和启用的插件资源保持可用
+- **且** 系统相应触发该插件相关扇区的缓存失效，运行时翻译包版本自动递增
 
-#### Scenario: English layout regressions are screenshot checked
-- **WHEN** Playwright captures post forms, dictionary forms, and service monitoring disk tables in `en-US`
-- **THEN** key labels, options, headers, and values do not wrap unreadably or overlap
-- **AND** screenshot results are part of acceptance evidence
+#### 场景：对同一翻译包的第二次请求返回 304
+- **当** 前端保存了第一次运行时翻译包请求的 `ETag`
+- **且** 两次请求之间后端未发生缓存失效
+- **且** 前端在第二次请求中携带 `If-None-Match` 等于之前的 `ETag`
+- **则** 后端返回 `304 Not Modified` 且不携带消息体
 
-#### Scenario: Version information menu title is localized consistently
-- **WHEN** an administrator views the version information menu entry under the development center
-- **THEN** Simplified Chinese, English, and Traditional Chinese locales each show the locale-appropriate title
-- **AND** the English title is `Version Info`
+### 需求：宿主必须提供国际化维护和验证能力
 
-### Requirement: Runtime locale JSON values must avoid markdown-only code markers
-Runtime translation JSON SHALL avoid markdown-style backtick markers in user-visible strings because ordinary UI rendering does not apply code highlighting and raw backticks reduce readability.
+宿主系统 SHALL 提供翻译资源导出、缺失翻译检查和资源源诊断能力，支持交付项目在开发过程中维护多语言资源。交付项目和插件在添加 i18n 资源时必须遵循统一的目录约定和翻译键规范。缓存失效必须提供按"语言 × 扇区（宿主 / 源码插件 / 动态插件）"维度的细粒度控制，不得在任何单点变更时清除所有语言和所有扇区的整个缓存。所有"此键由代码源拥有"的判断必须通过显式的命名空间注册表完成，系统不得在 i18n 包中硬编码任何特定业务模块的命名空间前缀。宿主核心不得创建或依赖 `sys_i18n_locale`、`sys_i18n_message`、`sys_i18n_content` 三张运行时 i18n 持久化表；翻译内容的单一事实来源是开发时 JSON/YAML 资源。
 
-#### Scenario: Locale JSON strings are displayed as plain UI text
-- **WHEN** frontend, host, or plugin locale JSON strings contain file paths, parameter examples, wildcards, or extensions
-- **THEN** strings display the content directly
-- **AND** strings do not wrap those values in backticks
-- **AND** automated checks prevent locale JSON strings from reintroducing backticks
+#### 场景：导出某语言的翻译资源
+- **当** 管理员或交付工具请求导出 `en-US` 翻译资源时
+- **则** 系统返回该语言的聚合消息结果
+- **且** 导出内容可用于离线校对并回写到对应的 JSON 资源文件
 
+#### 场景：检查缺失翻译键
+- **当** 管理员或交付工具执行缺失翻译检查时
+- **则** 系统返回当前语言相对于默认语言缺失的翻译键列表
+- **且** 结果可定位缺失键属于哪个宿主模块、项目资源或插件资源范围
+- **且** 注册为代码源命名空间的翻译键不会出现在缺失结果中
+
+#### 场景：插件资源变更仅清除受影响的插件扇区
+- **当** 动态插件被启用、禁用、卸载或升级时
+- **则** 系统仅清除该插件相关的动态插件扇区缓存和合并视图
+- **且** 其他语言、宿主资源和不受影响的插件资源保持有效
+- **且** 该语言的运行时翻译包版本自动递增，确保前端可在下次协商时检测到变更
+
+### 需求：英文回归扫描必须覆盖框架交付页面和种子显示内容
+
+默认管理工作台 SHALL 为框架交付页面提供英文回归覆盖，确保系统生成内容、默认种子显示内容和静态 UI 文案不保留中文文本。
+
+#### 场景：英文回归页面不包含中文系统文案
+- **当** 管理员切换到 `en-US` 并打开工作台、用户管理、角色管理、部门管理、岗位管理、字典管理、系统配置、服务监控和定时任务时
+- **则** 框架交付的标题、按钮、表单标签、表格列、系统生成节点、内置记录显示和确认弹窗使用英文
+- **且** 用户可编辑的业务字段仅在明确包含在框架交付投影规则中时才本地化
+
+#### 场景：英文布局回归截图检查
+- **当** Playwright 在 `en-US` 下捕获岗位表单、字典表单和服务监控磁盘表格时
+- **则** 关键标签、选项、表头和值不会不可读地换行或重叠
+- **且** 截图结果作为验收证据的一部分
+
+#### 场景：版本信息菜单标题本地化一致
+- **当** 管理员查看开发中心下的版本信息菜单项时
+- **则** 简体中文、英文和繁体中文各显示对应语言的标题
+- **且** 英文标题为 `Version Info`
+
+### 需求：运行时语言 JSON 值必须避免纯 markdown 代码标记
+
+运行时翻译 JSON SHALL 避免在用户可见字符串中使用 markdown 风格的反引号标记，因为普通 UI 渲染不应用代码高亮，原始反引号会降低可读性。
+
+#### 场景：语言 JSON 字符串显示为纯 UI 文本
+- **当** 前端、宿主或插件语言 JSON 字符串包含文件路径、参数示例、通配符或扩展名时
+- **则** 字符串直接显示内容
+- **且** 字符串不将这些值包裹在反引号中
+- **且** 自动检查防止语言 JSON 字符串重新引入反引号

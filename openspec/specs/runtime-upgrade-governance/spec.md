@@ -1,14 +1,14 @@
-# runtime-upgrade-governance Specification
+# 运行时升级治理规范
 
-## Purpose
-Record the directional constraints for future runtime business-system upgrades while keeping the current iteration focused on source upgrades.
+## 目的
+记录未来运行时业务系统升级的方向性约束，同时保持当前迭代聚焦于源码升级。
 
-## Requirements
-### Requirement: Runtime business upgrades remain a directional constraint in this iteration
+## 需求
+### 需求：运行时业务升级在本迭代中保持为方向性约束
 
-The framework SHALL keep runtime business-system upgrade capability only as a directional constraint in the current change. Future work still needs versioning, framework-version linkage, upgrade SQL binding, and execution recording, but this iteration MUST prioritize source upgrades and not implement runtime business upgrades.
+框架 SHALL 在当前变更中仅将运行时业务系统升级能力作为方向性约束保留。未来工作仍需要版本化、框架版本联动、升级 SQL 绑定和执行记录，但本迭代必须优先源码升级而不实现运行时业务升级。
 
-#### Scenario: The current iteration limits its implementation scope
-- **WHEN** the team executes the `upgrade-governance` iteration
-- **THEN** runtime business upgrades remain only as a future P1 direction
-- **AND** the current implementation scope stays focused on source upgrades
+#### 场景：当前迭代限制其实现范围
+- **当** 团队执行 `upgrade-governance` 迭代时
+- **则** 运行时业务升级仅作为未来的 P1 方向保留
+- **且** 当前实现范围保持聚焦于源码升级

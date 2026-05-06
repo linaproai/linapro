@@ -1,192 +1,192 @@
-# Post Management
+# 岗位管理
 
-## Purpose
+## 目的
 
-Define the position management query, maintenance, department association and option reading behaviors provided by the `org-center` source plugin to ensure that position data can be stably coordinated with the organizational structure and user management capabilities.
-## Requirements
-### Requirement: Job list query
-The system SHALL provides a paging list query interface for positions and supports filtering by department.
+定义 `org-center` 源码插件提供的岗位管理查询、维护、部门关联和选项读取行为，确保岗位数据能够稳定地与组织架构和用户管理能力协同工作。
 
-#### Scenario: Check the job list
-- **WHEN** Call `GET /api/v1/post` and pass in the paging parameters `pageNum` and `pageSize`
-- **THEN** returns the position list and total number in the format of `{list: [...], total: number}`
+## 需求
+### 需求：岗位列表查询
+系统 SHALL 提供岗位分页列表查询接口，支持按部门筛选。
 
-#### Scenario: Filter jobs by department
-- **WHEN** Pass in the `deptId` parameter when querying
-- **THEN** Return only positions belonging to this department
+#### 场景：查看岗位列表
+- **当** 调用 `GET /api/v1/post` 并传入分页参数 `pageNum` 和 `pageSize` 时
+- **则** 返回 `{list: [...], total: number}` 格式的岗位列表和总数
 
-#### Scenario: Job list supports conditional filtering
-- **WHEN** Pass in the filter parameters `code` (position code), `name` (position name) or `status` (status) when querying
-- **THEN** `code` and `name` use fuzzy matching (LIKE)
-- **THEN** `status` uses exact match
+#### 场景：按部门筛选岗位
+- **当** 查询时传入 `deptId` 参数
+- **则** 仅返回属于该部门的岗位
 
-#### Scenario: Exclude deleted records from the job list
-- **WHEN** Query job list
-- **THEN** Soft deleted records are not included in the results
+#### 场景：岗位列表支持条件筛选
+- **当** 查询时传入筛选参数 `code`（岗位编码）、`name`（岗位名称）或 `status`（状态）
+- **则** `code` 和 `name` 使用模糊匹配（LIKE）
+- **且** `status` 使用精确匹配
 
-### Requirement: Create a position
-The system SHALL provides an interface for creating positions.
+#### 场景：岗位列表排除已删除记录
+- **当** 查询岗位列表时
+- **则** 软删除的记录不包含在结果中
 
-#### Scenario: Position created successfully
-- **WHEN** Call `POST /api/v1/post` and submit fields such as deptId, code, name, sort etc.
-- **THEN** The system creates the position and returns success
+### 需求：创建岗位
+系统 SHALL 提供创建岗位接口。
 
-#### Scenario: Duplicate position code
-- **WHEN** Submit the existing code value when creating a position
-- **THEN** The system returns an error message, indicating that the position code already exists
+#### 场景：岗位创建成功
+- **当** 调用 `POST /api/v1/post` 并提交 deptId、code、name、sort 等字段时
+- **则** 系统创建岗位并返回成功
 
-#### Scenario: Required field verification
-- **WHEN** Missing deptId, code or name when creating position
-- **THEN** The system returns parameter verification error
+#### 场景：岗位编码重复
+- **当** 创建岗位时提交已存在的 code 值
+- **则** 系统返回错误消息，提示岗位编码已存在
 
-### Requirement: Update position
-The system SHALL provides an interface for updating position information.
+#### 场景：必填字段验证
+- **当** 创建岗位时缺少 deptId、code 或 name
+- **则** 系统返回参数验证错误
 
-#### Scenario: Position updated successfully
-- **WHEN** Call `PUT /api/v1/post/{id}` and submit the fields to be updated
-- **THEN** The system updates the corresponding position information and returns success
+### 需求：更新岗位
+系统 SHALL 提供更新岗位信息接口。
 
-#### Scenario: Update non-existent positions
-- **WHEN** Update a non-existent position ID
-- **THEN** The system returns an error message
+#### 场景：岗位更新成功
+- **当** 调用 `PUT /api/v1/post/{id}` 并提交要更新的字段时
+- **则** 系统更新对应的岗位信息并返回成功
 
-### Requirement: Delete position
-The system SHALL provides an interface for deleting positions and supports batch deletion.
+#### 场景：更新不存在的岗位
+- **当** 更新不存在的岗位 ID
+- **则** 系统返回错误消息
 
-#### Scenario: Delete a single position
-- **WHEN** calls `DELETE /api/v1/post/{id}`
-- **THEN** posts are soft deleted
+### 需求：删除岗位
+系统 SHALL 提供删除岗位接口，支持批量删除。
 
-#### Scenario: Delete positions in batches
-- **WHEN** calls `DELETE /api/v1/post/{ids}`, ids is multiple IDs separated by commas
-- **THEN** All specified positions are soft deleted
+#### 场景：删除单个岗位
+- **当** 调用 `DELETE /api/v1/post/{id}` 时
+- **则** 岗位被软删除
 
-#### Scenario: Posts with associated users cannot be deleted
-- **WHEN** Delete a post with associated user in `plugin_org_center_user_post`
-- **THEN** The system returns an error message, prompting that there is a user under this position and the user MUST be removed first.
+#### 场景：批量删除岗位
+- **当** 调用 `DELETE /api/v1/post/{ids}`，ids 为逗号分隔的多个 ID 时
+- **则** 所有指定岗位被软删除
 
-### Requirement: View job details
-The system SHALL provides a job details query interface.
+#### 场景：关联用户的岗位不能删除
+- **当** 删除在 `plugin_org_center_user_post` 中有关联用户的岗位时
+- **则** 系统返回错误消息，提示该岗位下有用户，必须先移除用户
 
-#### Scenario: Check job details
-- **WHEN** calls `GET /api/v1/post/{id}`
-- **THEN** Returns complete information for this position
+### 需求：查看岗位详情
+系统 SHALL 提供岗位详情查询接口。
 
-### Requirement: Export position
-The system SHALL provides the function of exporting the position list to an Excel file.
+#### 场景：查看详情
+- **当** 调用 `GET /api/v1/post/{id}` 时
+- **则** 返回该岗位的完整信息
 
-#### Scenario: Export jobs
-- **WHEN** Call `GET /api/v1/post/export` and pass in filter parameters
-- **THEN** returns Excel file stream
-- **THEN** The exported fields include: position code, position name, sorting, status, remarks, creation time
+### 需求：导出岗位
+系统 SHALL 提供将岗位列表导出为 Excel 文件的功能。
 
-### Requirement: Position department tree interface
-The system SHALL provides a department tree interface for left-side filtering of position management, including the "Unassigned" virtual node.
+#### 场景：导出岗位
+- **当** 调用 `GET /api/v1/post/export` 并传入筛选参数时
+- **则** 返回 Excel 文件流
+- **且** 导出字段包括：岗位编码、岗位名称、排序、状态、备注、创建时间
 
-#### Scenario: Get the job department tree
-- **WHEN** calls `GET /api/v1/post/dept-tree`
-- **THEN** Returns department tree structure data
+### 需求：岗位部门树接口
+系统 SHALL 提供岗位管理左侧筛选的部门树接口，包含"未分配"虚拟节点。
 
-#### Scenario: Unassigned virtual node
-- **WHEN** Department tree returns data
-- **THEN** contains an "Unassigned" virtual node with id -1
+#### 场景：获取岗位部门树
+- **当** 调用 `GET /api/v1/post/dept-tree` 时
+- **则** 返回部门树结构数据
 
-#### Scenario: Filter jobs by Unassigned
-- **WHEN** Pass in `deptId=-1` when querying the job list
-- **THEN** Returns all positions with dept_id 0 (positions without assigned departments)
+#### 场景：未分配虚拟节点
+- **当** 部门树返回数据时
+- **则** 包含 id 为 -1 的"未分配"虚拟节点
 
-### Requirement: Get job options by department
-The system SHALL provides an interface for obtaining position options by department for users to edit forms.
+#### 场景：按未分配筛选岗位
+- **当** 查询岗位列表时传入 `deptId=-1`
+- **则** 返回所有 dept_id 为 0 的岗位（未分配部门的岗位）
 
-#### Scenario: Get the position options under the department
-- **WHEN** Call `GET /api/v1/post/option-select` and pass in the `deptId` parameter
-- **THEN** Returns a list of all normal positions in the department, including id and name
+### 需求：按部门获取岗位选项
+系统 SHALL 提供按部门获取岗位选项的接口，用于用户编辑表单。
 
-#### Scenario: There are no positions under the department
-- **WHEN** There are no positions under the queried department.
-- **THEN** returns an empty list
+#### 场景：获取部门下的岗位选项
+- **当** 调用 `GET /api/v1/post/option-select` 并传入 `deptId` 参数时
+- **则** 返回该部门下所有正常状态岗位的列表，包含 id 和 name
 
-### Requirement: Position data table design
-The The system SHALL provides the `plugin_org_center_post` table and the `plugin_org_center_user_post` related table.
+#### 场景：部门下无岗位
+- **当** 查询的部门下没有岗位时
+- **则** 返回空列表
 
-#### Scenario: plugin_org_center_post table structure
-- **WHEN** View `plugin_org_center_post` table structure
-- **THEN** table contains: id, dept_id (INTEGER, referencing `plugin_org_center_dept`.id), code (VARCHAR, UNIQUE), name, sort, status, remark, created_at, updated_at, deleted_at
+### 需求：岗位数据表设计
+系统 SHALL 提供 `plugin_org_center_post` 表和 `plugin_org_center_user_post` 关联表。
 
-#### Scenario: plugin_org_center_user_post association table structure
-- **WHEN** View `plugin_org_center_user_post` table structure
-- **THEN** table contains: user_id (INTEGER), post_id (INTEGER), joint primary key
-- **THEN** user_id refers to sys_user.id, post_id refers to `plugin_org_center_post`.id
+#### 场景：plugin_org_center_post 表结构
+- **当** 查看 `plugin_org_center_post` 表结构时
+- **则** 表包含：id、dept_id（INTEGER，引用 `plugin_org_center_dept`.id）、code（VARCHAR，UNIQUE）、name、sort、status、remark、created_at、updated_at、deleted_at
 
-### Requirement: Position management frontend left tree and right table layout
-The system SHALL adopts the layout of department tree on the left + position list on the right on the position management page.
+#### 场景：plugin_org_center_user_post 关联表结构
+- **当** 查看 `plugin_org_center_user_post` 表结构时
+- **则** 表包含：user_id（INTEGER）、post_id（INTEGER），联合主键
+- **且** user_id 引用 sys_user.id，post_id 引用 `plugin_org_center_post`.id
 
-#### Scenario: layout structure
-- **WHEN** Open the position management page
-- **THEN** The DeptTree component (260px width) is displayed on the left and the position list (flex-1) is displayed on the right
+### 需求：岗位管理前端左树右表布局
+系统 SHALL 在岗位管理页面采用左侧部门树 + 右侧岗位列表的布局。
 
-#### Scenario: Department screening linkage
-- **WHEN** Select a department on the left
-- **THEN** The job list on the right is automatically filtered by the department
-- **WHEN** Cancel department selection
-- **THEN** All positions are displayed on the right
+#### 场景：布局结构
+- **当** 打开岗位管理页面时
+- **则** 左侧显示 DeptTree 组件（260px 宽度），右侧显示岗位列表（flex-1）
 
-#### Scenario: table column definition
-- **WHEN** View the job list table
-- **THEN** Display the following columns: checkbox, position code, position name, sort, status (DictTag rendering), creation time, operation
+#### 场景：部门筛选联动
+- **当** 左侧选择部门时
+- **则** 右侧岗位列表自动按该部门筛选
+- **当** 取消部门选择时
+- **则** 右侧显示所有岗位
 
-#### Scenario: Toolbar operations
-- **WHEN** View toolbar
-- **THEN** Display: new button (primary), batch delete button (danger, enabled after checked), export button
+#### 场景：表格列定义
+- **当** 查看岗位列表表格时
+- **则** 显示以下列：复选框、岗位编码、岗位名称、排序、状态（DictTag 渲染）、创建时间、操作
 
-#### Scenario: Row action button
-- **WHEN** View the action column of each row
-- **THEN** Displays two buttons: Edit (ghost), Delete (ghost, red, Popconfirm to confirm)
+#### 场景：工具栏操作
+- **当** 查看工具栏时
+- **则** 显示：新增按钮（primary）、批量删除按钮（danger，勾选后启用）、导出按钮
 
-### Requirement: Position editing drawer
-The The system SHALL provides a 600px width Drawer for adding and editing positions.
+#### 场景：行操作按钮
+- **当** 查看每行的操作列时
+- **则** 显示两个按钮：编辑（ghost）、删除（ghost，红色，Popconfirm 确认）
 
-#### Scenario: Position form fields
-- **WHEN** Open the position editing Drawer
-- **THEN** Form fields include: department (TreeSelect, required, display full path), position name (required), position code (required), sort (required, default 0), status (RadioGroup button style, default normal), remarks (Textarea, full width)
-- **THEN** The form uses a 2-column grid layout
+### 需求：岗位编辑抽屉
+系统 SHALL 提供 600px 宽度的 Drawer 用于新增和编辑岗位。
 
-### Requirement: Position initialization data
-The system SHALL provides basic job initialization data.
+#### 场景：岗位表单字段
+- **当** 打开岗位编辑 Drawer 时
+- **则** 表单字段包括：部门（TreeSelect，必填，显示完整路径）、岗位名称（必填）、岗位编码（必填）、排序（必填，默认 0）、状态（RadioGroup 按钮样式，默认正常）、备注（Textarea，全宽）
+- **且** 表单使用 2 列网格布局
 
-#### Scenario: Initialize position data
-- **WHEN** Execute v0.2.0 database migration script
-- **THEN** Create the following job data:
-  - General Manager (code: CEO, dept: Lina Technology, sort: 1)
-  - Technical Director (code: CTO, dept: R&D department, sort: 2)
-  - Project manager (code: PM, dept: R&D department, sort: 3)
-  - Development engineer (code: DEV, dept: R&D department, sort: 4)
-  - Test engineer (code: QA, dept: test department, sort: 5)
+### 需求：岗位初始化数据
+系统 SHALL 提供基础岗位初始化数据。
 
-### Requirement: Position management is delivered by the organization source plugin
+#### 场景：初始化岗位数据
+- **当** 执行 v0.2.0 数据库迁移脚本时
+- **则** 创建以下岗位数据：
+  - 总经理（code: CEO，dept: 莱纳科技，sort: 1）
+  - 技术总监（code: CTO，dept: 研发部门，sort: 2）
+  - 项目经理（code: PM，dept: 研发部门，sort: 3）
+  - 开发工程师（code: DEV，dept: 研发部门，sort: 4）
+  - 测试工程师（code: QA，dept: 测试部门，sort: 5）
 
-The The system SHALL deliver position management capabilities as an `org-center` source plugin, rather than continuing as the host's default built-in module.
+### 需求：岗位管理由组织源码插件交付
 
-#### Scenario: Provides position management when the organization plugin is enabled
-- **WHEN** `org-center` is installed and enabled
-- **THEN** The host exposes position management API, page and menu
-- **AND** The position management menu is mounted to the host `Organization Management` directory, and the top-level `parent_key` is `org`
+系统 SHALL 将岗位管理能力作为 `org-center` 源码插件交付，而非继续作为宿主默认内置模块。
 
-#### Scenario: Hide the position management entrance when the organization plugin is missing
-- **WHEN** `org-center` is not installed or not enabled
-- **THEN** The host does not display the position management menu and page entry
-- **AND** Hosting capabilities such as user management will continue to be available according to organization downgrade rules.
+#### 场景：组织插件启用时提供岗位管理
+- **当** `org-center` 已安装并启用时
+- **则** 宿主暴露岗位管理 API、页面和菜单
+- **且** 岗位管理菜单挂载到宿主 `组织管理` 目录，顶层 `parent_key` 为 `org`
 
-### Requirement: Position form status selector must remain readable in English
-Position create and edit forms SHALL keep the status field label and options readable in English, avoiding awkward wrapping caused by insufficient space.
+#### 场景：组织插件缺失时隐藏岗位管理入口
+- **当** `org-center` 未安装或未启用时
+- **则** 宿主不显示岗位管理菜单和页面入口
+- **且** 用户管理等宿主能力将按组织降级规则继续可用
 
-#### Scenario: English position status options stay on one line
-- **WHEN** an administrator opens a position create or edit form in `en-US`
-- **THEN** the status label and options such as `Normal` and `Disabled` remain readable on one line where space permits
-- **AND** the form layout does not obscure later fields or action buttons
+### 需求：岗位表单状态选择器在英文下必须保持可读
+岗位新增和编辑表单 SHALL 保持状态字段标签和选项在英文下可读，避免因空间不足导致的尴尬换行。
 
-#### Scenario: Position form remains responsive
-- **WHEN** the viewport is too narrow for a two-column form
-- **THEN** the form can degrade to one column or use a reasonable wider layout
-- **AND** status options remain readable and operable
+#### 场景：英文岗位状态选项保持单行
+- **当** 管理员在 `en-US` 下打开岗位新增或编辑表单时
+- **则** 状态标签和选项如 `Normal` 和 `Disabled` 在空间允许时保持单行可读
+- **且** 表单布局不遮挡后续字段或操作按钮
 
+#### 场景：岗位表单保持响应式
+- **当** 视口太窄无法容纳双列表单时
+- **则** 表单可降级为单列或使用合理的更宽布局
+- **且** 状态选项保持可读和可操作

@@ -1,166 +1,165 @@
-# Dict Management
+# 字典管理
 
-## Purpose
+## 目的
 
-Define dictionary type and dictionary data management, frontend dictionary rendering, import/export behavior, initialization data, built-in protection, and English layout requirements.
+定义字典类型和字典数据管理、前端字典渲染、导入/导出行为、初始化数据、内置保护和英文布局要求。
 
-## Requirements
+## 需求
 
-### Requirement: Dictionary type management APIs
+### 需求：字典类型管理 API
 
-The system SHALL provide RESTful APIs to list, create, update, delete, export, and read dictionary types.
+系统 SHALL 提供 RESTful API 用于列表、创建、更新、删除、导出和读取字典类型。
 
-#### Scenario: Query dictionary type list
-- **WHEN** a caller requests dictionary types with pagination and optional name, type, or status filters
-- **THEN** the system returns matching non-deleted dictionary types and total count
+#### 场景：查询字典类型列表
+- **当** 调用方请求带分页和可选名称、类型或状态筛选的字典类型时
+- **则** 系统返回匹配的未删除字典类型和总数
 
-#### Scenario: Create or update dictionary type
-- **WHEN** a caller submits valid dictionary type fields
-- **THEN** the system creates or updates the dictionary type
-- **AND** duplicate dictionary type keys are rejected
+#### 场景：创建或更新字典类型
+- **当** 调用方提交有效的字典类型字段时
+- **则** 系统创建或更新字典类型
+- **且** 重复的字典类型键被拒绝
 
-#### Scenario: Delete dictionary type
-- **WHEN** a caller deletes a dictionary type
-- **THEN** the system soft-deletes the type according to existing governance rules
+#### 场景：删除字典类型
+- **当** 调用方删除字典类型时
+- **则** 系统按现有治理规则软删除该类型
 
-### Requirement: Dictionary data management APIs
+### 需求：字典数据管理 API
 
-The system SHALL provide RESTful APIs to list, create, update, delete, export, and query dictionary data by dictionary type.
+系统 SHALL 提供 RESTful API 用于按字典类型列表、创建、更新、删除、导出和查询字典数据。
 
-#### Scenario: Query dictionary data list
-- **WHEN** a caller requests dictionary data with optional dict type, label, value, or status filters
-- **THEN** the system returns matching non-deleted data rows ordered by sort
+#### 场景：查询字典数据列表
+- **当** 调用方请求带可选字典类型、标签、值或状态筛选的字典数据时
+- **则** 系统返回按排序排列的匹配未删除数据行
 
-#### Scenario: Create or update dictionary data
-- **WHEN** a caller submits valid dict type, label, value, sort, tag style, CSS class, status, and remark fields
-- **THEN** the system creates or updates the dictionary data row
+#### 场景：创建或更新字典数据
+- **当** 调用方提交有效的字典类型、标签、值、排序、标签样式、CSS 类、状态和备注字段时
+- **则** 系统创建或更新字典数据行
 
-#### Scenario: Get dictionary options by type
-- **WHEN** a caller requests options for a dictionary type
-- **THEN** the system returns enabled rows with label, value, tag style, and CSS class
+#### 场景：按类型获取字典选项
+- **当** 调用方请求某字典类型的选项时
+- **则** 系统返回包含标签、值、标签样式和 CSS 类的启用行
 
-### Requirement: Dictionary tables must support type and data records
+### 需求：字典表必须支持类型和数据记录
 
-The system SHALL provide `sys_dict_type` and `sys_dict_data` tables for dictionary governance.
+系统 SHALL 提供 `sys_dict_type` 和 `sys_dict_data` 表用于字典治理。
 
-#### Scenario: Dictionary type table structure
-- **WHEN** the dictionary type table is inspected
-- **THEN** it includes identifier, name, unique type key, status, remark, timestamps, and soft-delete fields
+#### 场景：字典类型表结构
+- **当** 检查字典类型表时
+- **则** 包含标识符、名称、唯一类型键、状态、备注、时间戳和软删除字段
 
-#### Scenario: Dictionary data table structure
-- **WHEN** the dictionary data table is inspected
-- **THEN** it includes identifier, dict type key, label, value, sort, tag style, CSS class, status, remark, timestamps, and soft-delete fields
+#### 场景：字典数据表结构
+- **当** 检查字典数据表时
+- **则** 包含标识符、字典类型键、标签、值、排序、标签样式、CSS 类、状态、备注、时间戳和软删除字段
 
-### Requirement: Tag style rendering must support preset and custom styles
+### 需求：标签样式渲染必须支持预设和自定义样式
 
-The system SHALL provide dictionary tag style configuration with preset colors, custom colors, and CSS class support.
+系统 SHALL 提供字典标签样式配置，支持预设颜色、自定义颜色和 CSS 类。
 
-#### Scenario: Preset color rendering
-- **WHEN** dictionary data has a preset tag style such as `cyan`, `green`, `orange`, `purple`, `red`, `success`, `warning`, or `default`
-- **THEN** `DictTag` renders the matching Ant Design tag color
+#### 场景：预设颜色渲染
+- **当** 字典数据有 `cyan`、`green`、`orange`、`purple`、`red`、`success`、`warning` 或 `default` 等预设标签样式时
+- **则** `DictTag` 渲染匹配的 Ant Design 标签颜色
 
-#### Scenario: Custom color rendering
-- **WHEN** dictionary data has a hex color tag style
-- **THEN** `DictTag` renders the tag with that custom color
+#### 场景：自定义颜色渲染
+- **当** 字典数据有十六进制颜色标签样式时
+- **则** `DictTag` 以该自定义颜色渲染标签
 
-#### Scenario: TagStylePicker component
-- **WHEN** a user edits dictionary data tag style
-- **THEN** the UI offers default color and custom color modes
-- **AND** custom color mode uses a hex color picker without transparency
+#### 场景：TagStylePicker 组件
+- **当** 用户编辑字典数据标签样式时
+- **则** UI 提供默认颜色和自定义颜色模式
+- **且** 自定义颜色模式使用无透明度的十六进制颜色选择器
 
-### Requirement: Dictionary management frontend must use a two-panel layout
+### 需求：字典管理前端必须使用双面板布局
 
-The dictionary management page SHALL use a left dictionary-type panel and a right dictionary-data panel.
+字典管理页面 SHALL 使用左侧字典类型面板和右侧字典数据面板。
 
-#### Scenario: Two-panel interaction
-- **WHEN** a user opens dictionary management
-- **THEN** the left panel shows dictionary types and the right panel shows data for the selected type
-- **AND** the right panel starts empty until a type is selected
+#### 场景：双面板交互
+- **当** 用户打开字典管理时
+- **则** 左侧面板显示字典类型，右侧面板显示选中类型的数据
+- **且** 右侧面板在选择类型前为空
 
-#### Scenario: Responsive layout
-- **WHEN** the page is viewed on desktop
-- **THEN** panels display side by side
-- **WHEN** the page is viewed on mobile
-- **THEN** panels stack vertically
+#### 场景：响应式布局
+- **当** 在桌面端查看页面时
+- **则** 面板并排显示
+- **当** 在移动端查看页面时
+- **则** 面板垂直堆叠
 
-### Requirement: Global dictionary components and store must cache dictionary data
+### 需求：全局字典组件和 Store 必须缓存字典数据
 
-The system SHALL provide a reusable `DictTag` component and Pinia dictionary store so dictionary options are loaded once and reused across pages.
+系统 SHALL 提供可复用的 `DictTag` 组件和 Pinia 字典 Store，使字典选项加载一次后跨页面复用。
 
-#### Scenario: DictTag renders dictionary value
-- **WHEN** `DictTag` receives dictionary options and a value
-- **THEN** it displays the matching label and configured tag style
-- **AND** unmatched values display fallback text
+#### 场景：DictTag 渲染字典值
+- **当** `DictTag` 接收字典选项和值时
+- **则** 显示匹配的标签和配置的标签样式
+- **且** 不匹配的值显示回退文本
 
-#### Scenario: Dictionary store deduplicates requests
-- **WHEN** multiple components request the same dictionary type concurrently
-- **THEN** only one API request is issued
-- **AND** all callers share the same result
+#### 场景：字典 Store 请求去重
+- **当** 多个组件并发请求同一字典类型时
+- **则** 仅发出一个 API 请求
+- **且** 所有调用方共享同一结果
 
-#### Scenario: Dictionary cache refresh
-- **WHEN** a user refreshes dictionary cache
-- **THEN** cached dictionary data is cleared and later requests reload it from the API
+#### 场景：字典缓存刷新
+- **当** 用户刷新字典缓存时
+- **则** 缓存的字典数据被清除，后续请求从 API 重新加载
 
-### Requirement: Dictionary initialization data must be delivered
+### 需求：字典初始化数据必须交付
 
-The system SHALL provide baseline dictionary types and data needed by framework modules, including normal/disabled status and user gender values.
+系统 SHALL 提供框架模块所需的基线字典类型和数据，包括正常/禁用状态和用户性别值。
 
-#### Scenario: Initialize common dictionaries
-- **WHEN** database initialization runs
-- **THEN** common framework dictionary types and data are created idempotently
+#### 场景：初始化通用字典
+- **当** 数据库初始化运行时
+- **则** 通用框架字典类型和数据被幂等创建
 
-### Requirement: Dictionary import and export must be supported
+### 需求：必须支持字典导入和导出
 
-The system SHALL provide Excel templates, import flows, and export files for dictionary types and dictionary data.
+系统 SHALL 为字典类型和字典数据提供 Excel 模板、导入流程和导出文件。
 
-#### Scenario: Export dictionary data
-- **WHEN** a user exports dictionaries
-- **THEN** the system returns an Excel file containing dictionary type and dictionary data sheets
+#### 场景：导出字典数据
+- **当** 用户导出字典时
+- **则** 系统返回包含字典类型和字典数据工作表的 Excel 文件
 
-#### Scenario: Import dictionary type or data
-- **WHEN** a user imports a valid template
-- **THEN** the system validates required columns and writes dictionary records according to existing idempotent rules
+#### 场景：导入字典类型或数据
+- **当** 用户导入有效模板时
+- **则** 系统验证必填列并按现有幂等规则写入字典记录
 
-### Requirement: Dictionary form layout must remain readable in English
+### 需求：字典表单布局在英文下必须保持可读
 
-Dictionary create and edit forms SHALL provide enough label width in English so labels such as `Dictionary Type` and `Tag Style` do not wrap or harm visual alignment.
+字典创建和编辑表单 SHALL 在英文下提供足够的标签宽度，使 `Dictionary Type` 和 `Tag Style` 等标签不会换行或损害视觉对齐。
 
-#### Scenario: Dictionary type label stays readable
-- **WHEN** an administrator opens dictionary type add or edit form in `en-US`
-- **THEN** `Dictionary Type` remains readable and is not forced into an awkward line break
-- **AND** input fields align clearly with labels
+#### 场景：字典类型标签保持可读
+- **当** 管理员以 `en-US` 打开字典类型新增或编辑表单时
+- **则** `Dictionary Type` 保持可读，不被强制尴尬换行
+- **且** 输入字段与标签清晰对齐
 
-#### Scenario: Dictionary data tag style label stays readable
-- **WHEN** an administrator opens dictionary data add or edit form in `en-US`
-- **THEN** `Tag Style` remains readable
-- **AND** the tag style selector does not overlap other fields
+#### 场景：字典数据标签样式标签保持可读
+- **当** 管理员以 `en-US` 打开字典数据新增或编辑表单时
+- **则** `Tag Style` 保持可读
+- **且** 标签样式选择器不与其他字段重叠
 
-### Requirement: Tag Style dropdown must show readable localized options
+### 需求：标签样式下拉必须显示可读的本地化选项
 
-The dictionary data form Tag Style dropdown SHALL display human-readable option text in the current language and MUST NOT expose runtime i18n keys.
+字典数据表单的标签样式下拉 SHALL 以当前语言显示人类可读的选项文本，不得暴露运行时 i18n 键。
 
-#### Scenario: English tag style dropdown labels
-- **WHEN** an administrator opens the Tag Style dropdown in `en-US`
-- **THEN** options display labels such as `Default`, `Primary`, and `Success`
-- **AND** no raw `pages.*` or `component.*` key is shown
+#### 场景：英文标签样式下拉标签
+- **当** 管理员以 `en-US` 打开标签样式下拉时
+- **则** 选项显示 `Default`、`Primary` 和 `Success` 等标签
+- **且** 不显示原始的 `pages.*` 或 `component.*` 键
 
-### Requirement: Built-in dictionary types and data must be editable but not deletable
+### 需求：内置字典类型和数据必须可编辑但不可删除
 
-System-owned dictionary types and dictionary data SHALL be marked built-in. They remain editable where allowed, but deletion MUST be blocked in both frontend and backend.
+系统拥有的字典类型和字典数据 SHALL 标记为内置。在允许的情况下保持可编辑，但前端和后端都必须阻断删除。
 
-#### Scenario: Built-in dictionary type delete action is disabled
-- **WHEN** an administrator views a built-in dictionary type
-- **THEN** the delete action is disabled and does not open confirmation
-- **AND** hover text explains that built-in data cannot be deleted
-- **AND** edit remains available
+#### 场景：内置字典类型删除操作被禁用
+- **当** 管理员查看内置字典类型时
+- **则** 删除操作被禁用，不打开确认
+- **且** 悬停文本说明内置数据不可删除
+- **且** 编辑保持可用
 
-#### Scenario: Built-in dictionary data delete action is disabled
-- **WHEN** an administrator views built-in dictionary data
-- **THEN** the delete action is disabled and does not open confirmation
-- **AND** edit remains available
+#### 场景：内置字典数据删除操作被禁用
+- **当** 管理员查看内置字典数据时
+- **则** 删除操作被禁用，不打开确认
+- **且** 编辑保持可用
 
-#### Scenario: Backend rejects built-in dictionary deletion
-- **WHEN** a caller bypasses the frontend and requests deletion of built-in dictionary type or data
-- **THEN** the backend returns a structured business error and preserves the record
-- **AND** non-built-in dictionary records remain deletable under existing rules
-
+#### 场景：后端拒绝内置字典删除
+- **当** 调用方绕过前端请求删除内置字典类型或数据时
+- **则** 后端返回结构化业务错误并保留记录
+- **且** 非内置字典记录在现有规则下保持可删除

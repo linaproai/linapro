@@ -1,77 +1,76 @@
-# Plugin Manifest Lifecycle
+# 插件清单生命周期
 
-## Purpose
+## 目的
 
-Define plugin manifest discovery, lifecycle resource synchronization, read-only governance queries, SQL asset classification, and language-resource extension behavior for source and dynamic plugins.
+定义源码插件和动态插件的插件清单发现、生命周期资源同步、只读治理查询、SQL 资源分类和语言资源扩展行为。
 
-## Requirements
+## 需求
 
-### Requirement: Plugin manifest and lifecycle must support zero-code extension when adding new languages
+### 需求：插件清单和生命周期必须支持新增语言时的零代码扩展
 
-The plugin manifest and lifecycle SHALL automatically cover new language runtime UI translation resources and apidoc translation resources when the host adds a new built-in language, without modifying host code or individual plugin source code. Source plugins SHALL append that language's resources in their own `manifest/i18n/<locale>/*.json` and `manifest/i18n/<locale>/apidoc/**/*.json`; dynamic plugins SHALL write that language's resources into release custom sections during packaging; the host automatically discovers, loads, and cleans up these resources during loading, enable, disable, upgrade, and uninstall flows.
+插件清单和生命周期 SHALL 在宿主新增内置语言时自动覆盖新的语言运行时 UI 翻译资源和 apidoc 翻译资源，无需修改宿主代码或各插件源码。源码插件 SHALL 在自己的 `manifest/i18n/<locale>/*.json` 和 `manifest/i18n/<locale>/apidoc/**/*.json` 中追加该语言的资源；动态插件 SHALL 在打包时将该语言的资源写入发布自定义段；宿主在加载、启用、禁用、升级和卸载流程中自动发现、加载和清理这些资源。
 
-#### Scenario: Plugin resources auto-integrate after enabling a new language
-- **WHEN** the host enables an additional built-in language
-- **AND** a source plugin provides `manifest/i18n/<locale>/*.json`
-- **THEN** enabling the plugin adds that language's resources to runtime translation aggregation
-- **AND** disabling or uninstalling the plugin removes those resources from aggregation
-- **AND** the flow requires no host code modifications and no unrelated plugin code modifications
+#### 场景：启用新语言后插件资源自动集成
+- **当** 宿主启用额外的内置语言
+- **且** 源码插件提供 `manifest/i18n/<locale>/*.json`
+- **则** 启用插件将该语言的资源添加到运行时翻译聚合
+- **且** 禁用或卸载插件从聚合中移除这些资源
+- **且** 该流程不需要宿主代码修改和不相关插件代码修改
 
-#### Scenario: Dynamic plugins carry new language resources via release
-- **WHEN** a dynamic plugin adds `manifest/i18n/<locale>/*.json` in a new version and repackages
-- **AND** the host upgrades the plugin to that release
-- **THEN** the new language resources take effect and old release resources are no longer used
-- **AND** cache invalidation is scoped to the affected plugin sector
+#### 场景：动态插件通过发布携带新语言资源
+- **当** 动态插件在新版本中添加 `manifest/i18n/<locale>/*.json` 并重新打包
+- **且** 宿主将插件升级到该发布
+- **则** 新语言资源生效，旧发布资源不再使用
+- **且** 缓存失效范围限定在受影响的插件扇区
 
-### Requirement: Plugin list query is side-effect free
+### 需求：插件列表查询无副作用
 
-The system SHALL treat plugin list queries as side-effect-free read operations. The list query may read discovered source manifests, dynamic plugin registry data, release snapshots, and governance projections, but MUST NOT create, update, or delete plugin governance table data. Plugin scanning and governance synchronization MUST be triggered only by explicit synchronization actions.
+系统 SHALL 将插件列表查询视为无副作用的读操作。列表查询可读取发现的源码清单、动态插件注册表数据、发布快照和治理投影，但不得创建、更新或删除插件治理表数据。插件扫描和治理同步必须仅由显式同步操作触发。
 
-#### Scenario: Query plugin list from management page
-- **WHEN** an administrator opens plugin management and calls `GET /api/v1/plugins`
-- **THEN** the system returns the plugin list and current governance state
-- **AND** the GET request does not write `sys_plugin`, `sys_plugin_release`, `sys_plugin_resource_ref`, `sys_menu`, or `sys_role_menu`
+#### 场景：从管理页面查询插件列表
+- **当** 管理员打开插件管理并调用 `GET /api/v1/plugins` 时
+- **则** 系统返回插件列表和当前治理状态
+- **且** GET 请求不写入 `sys_plugin`、`sys_plugin_release`、`sys_plugin_resource_ref`、`sys_menu` 或 `sys_role_menu`
 
-#### Scenario: Synchronize plugins explicitly
-- **WHEN** an administrator triggers plugin synchronization with `POST /api/v1/plugins/sync`
-- **THEN** the system scans source plugins and dynamic plugin artifacts
-- **AND** the system may synchronize registry, release snapshot, resource index, menu, and permission governance data from manifests
+#### 场景：显式同步插件
+- **当** 管理员通过 `POST /api/v1/plugins/sync` 触发插件同步时
+- **则** 系统扫描源码插件和动态插件产物
+- **且** 系统可从清单同步注册表、发布快照、资源索引、菜单和权限治理数据
 
-### Requirement: Plugin host-service metadata lookup must avoid schema probing errors
+### 需求：插件宿主服务元数据查找必须避免模式探测错误
 
-The system SHALL read host database metadata for plugin list host-service projections through read-only metadata queries. This lookup MUST NOT trigger incorrect business-table schema probing for `information_schema.TABLES`; if the database does not support the metadata lookup or the lookup fails, the plugin list API SHALL degrade to returning raw table names.
+系统 SHALL 通过只读元数据查询读取插件列表宿主服务投影的宿主数据库元数据。该查找不得触发 `information_schema.TABLES` 的错误业务表模式探测；如果数据库不支持元数据查找或查找失败，插件列表 API SHALL 降级返回原始表名。
 
-#### Scenario: Resolve data table comments for dynamic plugin permissions
-- **WHEN** a plugin list item declares `data.resources.tables`
-- **THEN** the system attempts to read table comments for permission review display
-- **AND** the lookup does not emit `SHOW FULL COLUMNS FROM TABLES` errors
+#### 场景：解析动态插件权限的数据表注释
+- **当** 插件列表项声明 `data.resources.tables` 时
+- **则** 系统尝试读取表注释用于权限审查展示
+- **且** 查找不发出 `SHOW FULL COLUMNS FROM TABLES` 错误
 
-#### Scenario: Metadata lookup unavailable
-- **WHEN** the current database dialect does not support host table comment lookup or the lookup fails
-- **THEN** the plugin list API still returns successfully
-- **AND** hostServices permission display uses raw table names as fallback information
+#### 场景：元数据查找不可用
+- **当** 当前数据库方言不支持宿主表注释查找或查找失败时
+- **则** 插件列表 API 仍成功返回
+- **且** hostServices 权限展示使用原始表名作为回退信息
 
-### Requirement: Plugin manifest SQL resources must classify mock-data as a separate asset type
+### 需求：插件清单 SQL 资源必须将 mock-data 分类为独立资产类型
 
-When scanning a plugin `manifest/sql/` directory, the host SHALL distinguish install, uninstall, and mock-data SQL assets without overlap. `manifest/sql/*.sql` belongs to install assets, `manifest/sql/uninstall/*.sql` belongs to uninstall assets, and `manifest/sql/mock-data/*.sql` belongs to mock assets. Mock SQL files MUST NOT appear in install or uninstall asset lists. Source plugins and dynamic plugins MUST use the same scanning logic.
+扫描插件 `manifest/sql/` 目录时，宿主 SHALL 区分安装、卸载和 mock-data SQL 资产，不重叠。`manifest/sql/*.sql` 属于安装资产，`manifest/sql/uninstall/*.sql` 属于卸载资产，`manifest/sql/mock-data/*.sql` 属于 mock 资产。Mock SQL 文件不得出现在安装或卸载资产列表中。源码插件和动态插件必须使用相同的扫描逻辑。
 
-#### Scenario: Install asset list excludes mock-data files
-- **WHEN** the host resolves install SQL assets for a plugin containing `manifest/sql/001-schema.sql` and `manifest/sql/mock-data/001-mock.sql`
-- **THEN** the returned install asset list contains only `001-schema.sql`
-- **AND** it does not contain `mock-data/001-mock.sql` or any variant of that path
+#### 场景：安装资产列表排除 mock-data 文件
+- **当** 宿主解析包含 `manifest/sql/001-schema.sql` 和 `manifest/sql/mock-data/001-mock.sql` 的插件的安装 SQL 资产时
+- **则** 返回的安装资产列表仅包含 `001-schema.sql`
+- **且** 不包含 `mock-data/001-mock.sql` 或该路径的任何变体
 
-#### Scenario: Mock asset scan returns mock-data files only
-- **WHEN** the host resolves mock SQL assets for the same plugin
-- **THEN** the returned asset list contains only files under `manifest/sql/mock-data/`
-- **AND** the files are sorted by file name ascending
+#### 场景：Mock 资产扫描仅返回 mock-data 文件
+- **当** 宿主解析同一插件的 mock SQL 资产时
+- **则** 返回的资产列表仅包含 `manifest/sql/mock-data/` 下的文件
+- **且** 文件按文件名升序排列
 
-### Requirement: Dynamic plugin packaging must preserve the mock-data directory convention
+### 需求：动态插件打包必须保留 mock-data 目录约定
 
-Dynamic plugin packaging SHALL preserve `manifest/sql/mock-data/` in the artifact file-system view and use the same runtime scanning method as source plugins. Packaging tools and artifact schema MUST NOT introduce a different mock-data path or additional manifest fields for this purpose.
+动态插件打包 SHALL 在产物文件系统视图中保留 `manifest/sql/mock-data/`，并使用与源码插件相同的运行时扫描方法。打包工具和产物模式不得为此引入不同的 mock-data 路径或额外的清单字段。
 
-#### Scenario: Dynamic plugin upgrade preserves mock-data visibility
-- **WHEN** a dynamic plugin adds or modifies `manifest/sql/mock-data/*.sql` in a new version
-- **AND** the host upgrades to the new artifact
-- **THEN** mock SQL scanning reflects the new version contents
-- **AND** the mock-data directory remains visible through the artifact file-system view
-
+#### 场景：动态插件升级保留 mock-data 可见性
+- **当** 动态插件在新版本中添加或修改 `manifest/sql/mock-data/*.sql`
+- **且** 宿主升级到新产物
+- **则** mock SQL 扫描反映新版本内容
+- **且** mock-data 目录通过产物文件系统视图保持可见

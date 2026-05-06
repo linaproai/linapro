@@ -1,112 +1,111 @@
-# Plugin Mock Data Installation
+# 插件模拟数据安装
 
-## Purpose
+## 目的
 
-Define optional plugin mock-data loading during manual installation and startup bootstrap, including resource discovery, transaction boundaries, rollback behavior, migration ledger records, list metadata, and uninstall cleanup warnings.
+定义手动安装和启动引导期间可选的插件模拟数据加载，包括资源发现、事务边界、回滚行为、迁移记账记录、列表元数据和卸载清理警告。
 
-## Requirements
+## 需求
 
-### Requirement: Plugin install requests must support optional mock-data loading
+### 需求：插件安装请求必须支持可选的模拟数据加载
 
-The manual plugin install request (`POST /plugins/{id}/install`) SHALL expose `installMockData bool`, defaulting to `false`. When explicitly true, the host SHALL execute SQL files from the plugin `manifest/sql/mock-data/` directory after install SQL succeeds. When false or omitted, the host MUST skip scanning and execution of that directory. The frontend install modal SHALL show an unchecked mock-data checkbox only when plugin metadata reports `hasMockData=true`; the option itself is sufficient user consent and MUST NOT require an additional guard, permission, or confirmation.
+手动插件安装请求（`POST /plugins/{id}/install`） SHALL 暴露 `installMockData bool`，默认为 `false`。显式为 true 时，宿主 SHALL 在安装 SQL 成功后执行插件 `manifest/sql/mock-data/` 目录下的 SQL 文件。为 false 或省略时，宿主必须跳过该目录的扫描和执行。前端安装弹窗 SHALL 仅在插件元数据报告 `hasMockData=true` 时显示未勾选的模拟数据复选框；该选项本身即为充分的用户同意，不得要求额外的守卫、权限或确认。
 
-#### Scenario: User opts in and mock data installs successfully
-- **WHEN** the user checks the mock-data checkbox in the install modal and submits
-- **AND** the plugin has valid SQL files under `manifest/sql/mock-data/`
-- **AND** install SQL succeeds
-- **THEN** the host executes the mock-data SQL files in file-name order
-- **AND** the plugin is marked installed after all mock SQL succeeds
+#### 场景：用户选择加入且模拟数据安装成功
+- **当** 用户在安装弹窗中勾选模拟数据复选框并提交
+- **且** 插件在 `manifest/sql/mock-data/` 下有有效的 SQL 文件
+- **且** 安装 SQL 成功
+- **则** 宿主按文件名顺序执行模拟数据 SQL 文件
+- **且** 所有模拟 SQL 成功后插件标记为已安装
 
-#### Scenario: User does not opt in
-- **WHEN** the user submits installation without checking the mock-data checkbox
-- **AND** the plugin has SQL files under `manifest/sql/mock-data/`
-- **THEN** the host does not scan or execute any file in that directory
-- **AND** no mock data rows are created
+#### 场景：用户未选择加入
+- **当** 用户提交安装但未勾选模拟数据复选框
+- **且** 插件在 `manifest/sql/mock-data/` 下有 SQL 文件
+- **则** 宿主不扫描或执行该目录下的任何文件
+- **且** 不创建模拟数据行
 
-#### Scenario: Plugin has no mock-data directory
-- **WHEN** the frontend opens the install modal for a plugin with `hasMockData=false`
-- **THEN** the mock-data checkbox is not rendered
-- **AND** a manually injected `installMockData=true` request does not cause any SQL execution if no mock-data directory exists
+#### 场景：插件无模拟数据目录
+- **当** 前端为 `hasMockData=false` 的插件打开安装弹窗时
+- **则** 不渲染模拟数据复选框
+- **且** 如果不存在模拟数据目录，手动注入的 `installMockData=true` 请求不会导致任何 SQL 执行
 
-### Requirement: Mock SQL and ledger writes must share one database transaction
+### 需求：模拟 SQL 和记账写入必须共享同一数据库事务
 
-When `installMockData=true`, the host SHALL execute all mock SQL files and corresponding `sys_plugin_migration` ledger writes inside one database transaction. If any mock SQL file fails, the transaction MUST roll back both data rows and ledger rows. Install SQL, menu synchronization, and plugin registration MUST NOT share this mock transaction boundary.
+当 `installMockData=true` 时，宿主 SHALL 在一个数据库事务内执行所有模拟 SQL 文件和对应的 `sys_plugin_migration` 记账写入。如果任何模拟 SQL 文件失败，事务必须回滚数据行和记账行。安装 SQL、菜单同步和插件注册不得共享此模拟事务边界。
 
-#### Scenario: Any mock SQL failure rolls back all mock effects
-- **WHEN** install SQL succeeds and the third mock SQL file fails after two earlier files succeeded
-- **THEN** the host rolls back the mock transaction
-- **AND** data rows from earlier mock SQL files are absent
-- **AND** `sys_plugin_migration` contains no rows for that mock phase
-- **AND** the plugin remains installed without mock data
+#### 场景：任何模拟 SQL 失败回滚所有模拟效果
+- **当** 安装 SQL 成功且第三个模拟 SQL 文件在前两个文件成功后失败时
+- **则** 宿主回滚模拟事务
+- **且** 前面模拟 SQL 文件的数据行不存在
+- **且** `sys_plugin_migration` 不包含该模拟阶段的行
+- **且** 插件保持已安装状态但无模拟数据
 
-#### Scenario: Successful mock phase commits
-- **WHEN** all mock SQL files execute successfully
-- **THEN** the transaction commits the mock data rows
-- **AND** each mock SQL file has a successful `direction='mock'` ledger row
+#### 场景：模拟阶段成功提交
+- **当** 所有模拟 SQL 文件执行成功时
+- **则** 事务提交模拟数据行
+- **且** 每个模拟 SQL 文件有一条 `direction='mock'` 的成功记账行
 
-### Requirement: Mock phase failures must return actionable failure information
+### 需求：模拟阶段失败必须返回可操作的失败信息
 
-When the mock phase fails and rolls back, the host SHALL return a `bizerr` response with stable error code `plugin.install.mockDataFailed`, i18n key `plugins.install.error.mockDataFailed`, and message parameters containing `pluginId`, `failedFile`, `rolledBackFiles`, and `cause`. The frontend SHALL recognize this error and show localized guidance explaining that plugin installation succeeded, mock data was rolled back, and the user may accept the current state or uninstall and reinstall after fixing SQL.
+模拟阶段失败并回滚时，宿主 SHALL 返回 `bizerr` 响应，包含稳定错误码 `plugin.install.mockDataFailed`、国际化键 `plugins.install.error.mockDataFailed` 和包含 `pluginId`、`failedFile`、`rolledBackFiles` 和 `cause` 的消息参数。前端 SHALL 识别此错误并显示本地化指导，说明插件安装成功、模拟数据已回滚，用户可接受当前状态或修复 SQL 后卸载重装。
 
-#### Scenario: Frontend shows localized mock failure guidance
-- **WHEN** the backend returns `plugin.install.mockDataFailed`
-- **THEN** the frontend displays plugin ID, failed SQL file, and failure cause in the current language
-- **AND** the message explains that mock data was automatically rolled back
+#### 场景：前端显示本地化模拟失败指导
+- **当** 后端返回 `plugin.install.mockDataFailed` 时
+- **则** 前端以当前语言显示插件 ID、失败 SQL 文件和失败原因
+- **且** 消息说明模拟数据已自动回滚
 
-#### Scenario: Error response still reflects install success
-- **WHEN** install SQL succeeded and only mock SQL failed
-- **THEN** the HTTP response is an error response
-- **AND** plugin registry and menu synchronization remain installed effects
-- **AND** a later plugin list request shows the plugin as installed
+#### 场景：错误响应仍反映安装成功
+- **当** 安装 SQL 成功且仅模拟 SQL 失败时
+- **则** HTTP 响应为错误响应
+- **且** 插件注册表和菜单同步保持已安装效果
+- **且** 后续插件列表请求显示插件为已安装
 
-### Requirement: Migration ledger must distinguish install, uninstall, and mock phases
+### 需求：迁移记账必须区分安装、卸载和模拟阶段
 
-The host SHALL support `MigrationDirectionMock = "mock"` alongside install and uninstall directions. `sys_plugin_migration.direction` MUST accept `install`, `uninstall`, and `mock`. Each successful mock SQL file SHALL write one `direction='mock'` ledger row with the same metadata style as install rows, and rollback MUST remove those rows together with mock data.
+宿主 SHALL 支持 `MigrationDirectionMock = "mock"` 以及安装和卸载方向。`sys_plugin_migration.direction` 必须接受 `install`、`uninstall` 和 `mock`。每个成功的模拟 SQL 文件 SHALL 写入一条 `direction='mock'` 的记账行，元数据风格与安装行相同，回滚必须连同模拟数据一起移除这些行。
 
-#### Scenario: Operators can query ledger counts by phase
-- **WHEN** an operator groups `sys_plugin_migration` rows by `direction` for a plugin that installed mock data
-- **THEN** the result includes separate `install` and `mock` counts
-- **AND** the counts match the install SQL and mock SQL file counts
+#### 场景：运维人员可按阶段查询记账计数
+- **当** 运维人员按 `direction` 对已安装模拟数据的插件的 `sys_plugin_migration` 行进行分组时
+- **则** 结果包含独立的 `install` 和 `mock` 计数
+- **且** 计数与安装 SQL 和模拟 SQL 文件数量匹配
 
-### Requirement: Source and dynamic plugins must share the same mock-data loading mechanism
+### 需求：源码插件和动态插件必须共享相同的模拟数据加载机制
 
-Source plugins and dynamic plugins SHALL use the same `manifest/sql/mock-data/` directory convention, SQL file naming constraints, transactional execution entry point, failure response format, frontend checkbox behavior, config opt-in behavior, error code, and i18n text. Dynamic plugin artifacts MUST carry mock SQL assets so runtime loading can use the same scanner as source plugins.
+源码插件和动态插件 SHALL 使用相同的 `manifest/sql/mock-data/` 目录约定、SQL 文件命名约束、事务执行入口、失败响应格式、前端复选框行为、配置选择行为、错误码和国际化文本。动态插件产物必须携带模拟 SQL 资产，使运行时加载可使用与源码插件相同的扫描器。
 
-#### Scenario: Dynamic plugin supports mock-data loading
-- **WHEN** a dynamic plugin artifact contains `manifest/sql/mock-data/001-*.sql`
-- **AND** the user installs it with mock data selected
-- **THEN** the host loads mock data through the same transactional flow as source plugins
-- **AND** failures return the same error code format
+#### 场景：动态插件支持模拟数据加载
+- **当** 动态插件产物包含 `manifest/sql/mock-data/001-*.sql`
+- **且** 用户选择模拟数据安装
+- **则** 宿主通过与源码插件相同的事务流程加载模拟数据
+- **且** 失败返回相同的错误码格式
 
-#### Scenario: Source and dynamic plugin UX is consistent
-- **WHEN** a user opens install modals for one source plugin and one dynamic plugin that both have mock data
-- **THEN** checkbox text, tooltip, default value, and submit behavior are identical
+#### 场景：源码插件和动态插件用户体验一致
+- **当** 用户为有模拟数据的源码插件和动态插件打开安装弹窗时
+- **则** 复选框文本、工具提示、默认值和提交行为完全相同
 
-### Requirement: Plugin list must display mock-data availability in a dedicated column
+### 需求：插件列表必须在专用列中显示模拟数据可用性
 
-The plugin management list SHALL display a dedicated mock-data availability column between status and install time. The column MUST use API metadata `hasMockData` as its only source. Plugins with mock data display a positive tag, plugins without mock data display a neutral negative tag, and the plugin name column MUST NOT duplicate that marker. The list title SHALL include a help icon explaining source versus dynamic plugins and the mock-data column meaning.
+插件管理列表 SHALL 在状态和安装时间之间显示专用的模拟数据可用性列。该列必须使用 API 元数据 `hasMockData` 作为唯一来源。有模拟数据的插件显示正面标签，无模拟数据的插件显示中性负面标签，插件名称列不得重复该标记。列表标题 SHALL 包含帮助图标，解释源码插件与动态插件的区别以及模拟数据列的含义。
 
-#### Scenario: Plugin with mock data displays positive availability
-- **WHEN** a plugin list row has `hasMockData=true`
-- **THEN** the mock-data column displays a positive availability tag
-- **AND** the plugin name does not include an additional mock-data marker
+#### 场景：有模拟数据的插件显示正面可用性
+- **当** 插件列表行有 `hasMockData=true` 时
+- **则** 模拟数据列显示正面可用性标签
+- **且** 插件名称不包含额外的模拟数据标记
 
-#### Scenario: Plugin without mock data displays negative availability
-- **WHEN** a plugin list row has `hasMockData=false`
-- **THEN** the mock-data column displays a neutral negative tag
+#### 场景：无模拟数据的插件显示负面可用性
+- **当** 插件列表行有 `hasMockData=false` 时
+- **则** 模拟数据列显示中性负面标签
 
-#### Scenario: Plugin list title provides help
-- **WHEN** the user hovers the help icon next to the plugin list title
-- **THEN** the frontend explains source and dynamic plugin differences
-- **AND** it explains the mock-data column meaning
+#### 场景：插件列表标题提供帮助
+- **当** 用户悬停插件列表标题旁的帮助图标时
+- **则** 前端解释源码插件和动态插件的区别
+- **且** 解释模拟数据列的含义
 
-### Requirement: Uninstall confirmation must emphasize plugin-owned data cleanup risk and hard-delete semantics
+### 需求：卸载确认必须强调插件自有数据清理风险和硬删除语义
 
-The plugin uninstall modal SHALL place the plugin-owned storage cleanup option in a visually risky warning area. When the user confirms uninstall with cleanup enabled, the host SHALL execute uninstall SQL, authorization storage cleanup, menu cleanup, and resource-reference cleanup. Plugin-owned data and resource references MUST be hard-deleted or physically removed rather than left as soft-deleted stale rows.
+插件卸载弹窗 SHALL 将插件自有存储清理选项置于视觉风险警告区域。当用户确认启用清理的卸载时，宿主 SHALL 执行卸载 SQL、授权存储清理、菜单清理和资源引用清理。插件自有数据和资源引用必须被硬删除或物理移除，而非保留为软删除的过期行。
 
-#### Scenario: User confirms uninstall with plugin-owned data cleanup
-- **WHEN** the user keeps the plugin-owned storage cleanup option checked and confirms uninstall
-- **THEN** the frontend highlights the cleanup risk before confirmation
-- **AND** the backend physically removes plugin-owned data or authorization storage files
-- **AND** governance resource references do not remain as soft-deleted stale rows
-
+#### 场景：用户确认启用插件自有数据清理的卸载
+- **当** 用户保持插件自有存储清理选项勾选并确认卸载时
+- **则** 前端在确认前高亮清理风险
+- **且** 后端物理移除插件自有数据或授权存储文件
+- **且** 治理资源引用不保留为软删除的过期行

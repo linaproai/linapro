@@ -1,128 +1,128 @@
-# Cron Job Management
+# 定时任务管理
 
-## Purpose
+## 目的
 
-Define scheduled job management behavior, including log cleanup policy governance, built-in job projection, manual trigger confirmation, and shell-job action availability.
+定义定时任务管理行为，包括日志清理策略治理、内置任务投射、手动触发确认和 Shell 任务操作可用性。
 
-## Requirements
+## 需求
 
-### Requirement: Log Cleanup Policy
+### 需求：日志清理策略
 
-The system SHALL provide a global default cleanup policy with task-level overrides, executed periodically by a built-in system cron job. The built-in cleanup task SHALL be registered through host source code and projected into `sys_job` during service startup; delivery SQL SHALL NOT write initialization seed data for `host:cleanup-job-logs` into `sys_job`. The `sys_job` row for this built-in task SHALL be a governance projection for display, logs, and audit linkage, not the execution-definition source used by startup persistent loading.
+系统 SHALL 提供带任务级覆盖的全局默认清理策略，由内置系统定时任务定期执行。内置清理任务 SHALL 通过宿主源码注册并在服务启动时投射到 `sys_job`；交付 SQL 不得将 `host:cleanup-job-logs` 的初始化种子数据写入 `sys_job`。该内置任务的 `sys_job` 行是用于展示、日志和审计关联的治理投影，而非启动持久化加载使用的执行定义源。
 
-#### Scenario: Global default policy
-- **WHEN** the task `log_retention_override` is empty
-- **THEN** task logs are cleaned according to system parameter `cron.log.retention`
+#### 场景：全局默认策略
+- **当** 任务 `log_retention_override` 为空时
+- **则** 任务日志按系统参数 `cron.log.retention` 清理
 
-#### Scenario: Task-level override
-- **WHEN** the task `log_retention_override` is configured as `{mode: days, value: 60}` or `{mode: count, value: 500}`
-- **THEN** the system cleans that task's logs by the task-level policy and ignores the global default
+#### 场景：任务级覆盖
+- **当** 任务 `log_retention_override` 配置为 `{mode: days, value: 60}` 或 `{mode: count, value: 500}` 时
+- **则** 系统按任务级策略清理该任务的日志，忽略全局默认
 
-#### Scenario: No cleanup policy
-- **WHEN** the policy has `mode=none`
-- **THEN** the system does not clean logs for that task
+#### 场景：无清理策略
+- **当** 策略为 `mode=none` 时
+- **则** 系统不清理该任务的日志
 
-#### Scenario: Built-in cleanup task
-- **WHEN** the host starts and synchronizes built-in jobs
-- **THEN** it projects `host:cleanup-job-logs` into `sys_job`
-- **AND** the default `cron_expr` runs daily at midnight
-- **AND** the task has `is_builtin=1`
-- **AND** delivery SQL does not seed this job into `sys_job`
-- **AND** the cleanup task runtime registration uses the host code definition rather than a later persistent scan of `sys_job`
+#### 场景：内置清理任务
+- **当** 宿主启动并同步内置任务时
+- **则** 将 `host:cleanup-job-logs` 投射到 `sys_job`
+- **且** 默认 `cron_expr` 每天午夜运行
+- **且** 任务有 `is_builtin=1`
+- **且** 交付 SQL 不将该任务种子到 `sys_job`
+- **且** 清理任务运行时注册使用宿主代码定义而非后续的 `sys_job` 持久化扫描
 
-### Requirement: Manual job trigger must require confirmation
+### 需求：手动任务触发必须要求确认
 
-The Run Now action for scheduled jobs SHALL show a confirmation modal before triggering execution so administrators do not accidentally run operational tasks. Built-in scheduled jobs SHALL remain manually triggerable when their current code-owned or plugin-owned handler is available, but the manual trigger MUST NOT imply that administrators can edit the built-in job execution definition stored in `sys_job`.
+定时任务的"立即运行"操作 SHALL 在触发执行前显示确认弹窗，防止管理员误操作运行运维任务。内置定时任务在其当前代码拥有或插件拥有的处理器可用时 SHALL 保持可手动触发，但手动触发不得暗示管理员可以编辑存储在 `sys_job` 中的内置任务执行定义。
 
-#### Scenario: Trigger action asks for confirmation
-- **WHEN** an administrator clicks Run Now in the scheduled-job list
-- **THEN** the frontend displays a confirmation modal
-- **AND** no trigger API is called before the administrator confirms
+#### 场景：触发操作要求确认
+- **当** 管理员在定时任务列表中点击"立即运行"时
+- **则** 前端显示确认弹窗
+- **且** 管理员确认前不调用触发 API
 
-#### Scenario: Trigger confirmation uses execution styling
-- **WHEN** the confirmation modal is shown for Run Now
-- **THEN** it reuses the existing confirmation component pattern
-- **AND** the confirm action uses execution-specific styling and wording rather than delete styling
+#### 场景：触发确认使用执行样式
+- **当** "立即运行"的确认弹窗显示时
+- **则** 复用现有确认组件模式
+- **且** 确认操作使用执行特定的样式和措辞而非删除样式
 
-#### Scenario: Canceling trigger does nothing
-- **WHEN** an administrator cancels the Run Now confirmation
-- **THEN** the frontend does not call `POST /job/{id}/trigger`
-- **AND** the job list state remains unchanged
+#### 场景：取消触发不做任何事
+- **当** 管理员取消"立即运行"确认时
+- **则** 前端不调用 `POST /job/{id}/trigger`
+- **且** 任务列表状态保持不变
 
-#### Scenario: Shell trigger remains available when shell editing is blocked
-- **WHEN** a shell job cannot be created or edited because of environment switches or missing shell permissions
-- **THEN** rows for runnable shell jobs still show a clickable Run Now action
-- **AND** clicking it shows the confirmation modal
-- **AND** the action column shows only one edit entry
+#### 场景：Shell 编辑被阻断时触发仍可用
+- **当** 因环境开关或缺少 Shell 权限无法创建或编辑 Shell 任务时
+- **则** 可运行的 Shell 任务行仍显示可点击的"立即运行"操作
+- **且** 点击后显示确认弹窗
+- **且** 操作列仅显示一个编辑入口
 
-#### Scenario: Shell jobs are enabled by default
-- **WHEN** the system initializes `cron.shell.enabled` or falls back because the parameter is missing
-- **THEN** the default value is `true`
-- **AND** platform-level unsupported-shell protection can still disable shell jobs safely
+#### 场景：Shell 任务默认启用
+- **当** 系统初始化 `cron.shell.enabled` 或因参数缺失回退时
+- **则** 默认值为 `true`
+- **且** 平台级不支持 Shell 的保护仍可安全禁用 Shell 任务
 
-#### Scenario: Built-in job manual trigger is allowed
-- **WHEN** an administrator confirms Run Now for an `is_builtin=1` job whose handler is currently available
-- **THEN** the backend SHALL execute the job through the current host code or plugin handler declaration
-- **AND** the backend SHALL create a `sys_job_log` record linked to the projected `sys_job.id`
-- **AND** the execution snapshot SHALL preserve the projected job metadata for audit display
+#### 场景：允许手动触发内置任务
+- **当** 管理员确认对处理器当前可用的 `is_builtin=1` 任务执行"立即运行"时
+- **则** 后端 SHALL 通过当前宿主代码或插件处理器声明执行该任务
+- **且** 后端 SHALL 创建关联到投射的 `sys_job.id` 的 `sys_job_log` 记录
+- **且** 执行快照 SHALL 保留投射的任务元数据用于审计展示
 
-#### Scenario: Built-in job manual trigger is blocked when handler unavailable
-- **WHEN** an administrator confirms Run Now for an `is_builtin=1` plugin job whose handler is unavailable
-- **THEN** the backend SHALL reject the trigger with handler-unavailable semantics
-- **AND** the frontend SHALL not show a clickable Run Now action for `paused_by_plugin` rows
+#### 场景：处理器不可用时阻断内置任务手动触发
+- **当** 管理员确认对处理器不可用的 `is_builtin=1` 插件任务执行"立即运行"时
+- **则** 后端 SHALL 以处理器不可用语义拒绝触发
+- **且** 前端 SHALL 不为 `paused_by_plugin` 行显示可点击的"立即运行"操作
 
-### Requirement: Built-in job projection-only execution boundary
+### 需求：内置任务仅投射执行边界
 
-The system SHALL treat `sys_job.is_builtin=1` rows as governance projections for framework-owned or plugin-owned scheduled jobs. These rows SHALL support list display, detail display, localization projection, log association, and manual trigger lookup, but administrators MUST NOT modify their execution definition through scheduled-job management APIs or frontend forms.
+系统 SHALL 将 `sys_job.is_builtin=1` 行视为框架拥有或插件拥有的定时任务的治理投影。这些行 SHALL 支持列表展示、详情展示、本地化投射、日志关联和手动触发查找，但管理员不得通过定时任务管理 API 或前端表单修改其执行定义。
 
-#### Scenario: Built-in job projection is synchronized from declarations
-- **WHEN** the host starts or plugin lifecycle synchronization runs
-- **THEN** the system SHALL upsert built-in job projection rows from host code definitions and plugin cron declarations
-- **AND** each projected row SHALL keep `is_builtin=1`
-- **AND** delivery SQL SHALL NOT be the source of built-in job seed rows
+#### 场景：内置任务投射从声明同步
+- **当** 宿主启动或插件生命周期同步运行时
+- **则** 系统 SHALL 从宿主代码定义和插件 cron 声明 upsert 内置任务投射行
+- **且** 每个投射行 SHALL 保持 `is_builtin=1`
+- **且** 交付 SQL 不得作为内置任务种子行的来源
 
-#### Scenario: Built-in job definition changes are denied
-- **WHEN** a caller attempts to edit, delete, enable, disable, reset, or otherwise mutate execution-definition fields of an `is_builtin=1` job through scheduled-job management APIs
-- **THEN** the backend SHALL reject the request with a stable business error
-- **AND** the frontend SHALL hide or disable those mutation actions for built-in rows
+#### 场景：拒绝内置任务定义变更
+- **当** 调用方尝试通过定时任务管理 API 编辑、删除、启用、禁用、重置或以其他方式变更 `is_builtin=1` 任务的执行定义字段时
+- **则** 后端 SHALL 以稳定业务错误拒绝请求
+- **且** 前端 SHALL 对内置行隐藏或禁用这些变更操作
 
-#### Scenario: Built-in job projection remains visible
-- **WHEN** an administrator opens scheduled-job management
-- **THEN** built-in rows SHALL remain visible with localized display metadata
-- **AND** their source SHALL indicate whether they are host built-ins or plugin built-ins
+#### 场景：内置任务投射保持可见
+- **当** 管理员打开定时任务管理时
+- **则** 内置行 SHALL 以本地化显示元数据保持可见
+- **且** 其来源 SHALL 指明是宿主内置还是插件内置
 
-### Requirement: Scheduled job default timezone must be configurable
+### 需求：定时任务默认时区必须可配置
 
-The system SHALL read the default timezone for built-in cron jobs from configuration key `scheduler.defaultTimezone`, defaulting to `UTC`. Source code MUST NOT keep hard-coded constants such as `defaultManagedJobTimezone = "Asia/Shanghai"`.
+系统 SHALL 从配置键 `scheduler.defaultTimezone` 读取内置定时任务的默认时区，默认为 `UTC`。源码不得保留 `defaultManagedJobTimezone = "Asia/Shanghai"` 等硬编码常量。
 
-#### Scenario: Missing configuration uses UTC
+#### 场景：缺失配置使用 UTC
 
-- **WHEN** the configuration file does not declare `scheduler.defaultTimezone`
-- **AND** the service starts and registers built-in jobs
-- **THEN** built-in jobs MUST use `UTC` as the default timezone
+- **当** 配置文件未声明 `scheduler.defaultTimezone`
+- **且** 服务启动并注册内置任务时
+- **则** 内置任务必须使用 `UTC` 作为默认时区
 
-#### Scenario: Custom timezone takes effect
+#### 场景：自定义时区生效
 
-- **WHEN** the configuration file sets `scheduler.defaultTimezone: "Asia/Shanghai"`
-- **AND** the service starts and registers built-in jobs
-- **THEN** built-in jobs MUST use `Asia/Shanghai` as the default timezone
+- **当** 配置文件设置 `scheduler.defaultTimezone: "Asia/Shanghai"`
+- **且** 服务启动并注册内置任务时
+- **则** 内置任务必须使用 `Asia/Shanghai` 作为默认时区
 
-### Requirement: sys_job table must not use foreign key constraints
+### 需求：sys_job 表不得使用外键约束
 
-The system SHALL remove the `fk_sys_job_group_id` foreign key constraint from the `sys_job` table, maintain `group_id` to `sys_job_group` reference consistency in the application layer, and keep `KEY idx_group_id (group_id)` on `sys_job` for group-based query and cleanup paths. Other association tables in this repository rely on application-level consistency, and this table MUST follow that convention to avoid extra foreign-key lock overhead in high-concurrency scheduler scenarios.
+系统 SHALL 从 `sys_job` 表移除 `fk_sys_job_group_id` 外键约束，在应用层维护 `group_id` 到 `sys_job_group` 的引用一致性，并在 `sys_job` 上保留 `KEY idx_group_id (group_id)` 用于基于分组的查询和清理路径。本仓库的其他关联表依赖应用层一致性，该表必须遵循该约定以避免高并发调度场景下的额外外键锁开销。
 
-#### Scenario: sys_job table no longer contains foreign key constraints
+#### 场景：sys_job 表不再包含外键约束
 
-- **WHEN** `make init` completes database initialization
-- **THEN** the `sys_job` table MUST NOT contain `fk_sys_job_group_id` or any `FOREIGN KEY` constraint pointing to `sys_job_group`
+- **当** `make init` 完成数据库初始化时
+- **则** `sys_job` 表不得包含 `fk_sys_job_group_id` 或任何指向 `sys_job_group` 的 `FOREIGN KEY` 约束
 
-#### Scenario: sys_job keeps group_id index
+#### 场景：sys_job 保留 group_id 索引
 
-- **WHEN** `make init` completes database initialization
-- **THEN** `SHOW INDEX FROM sys_job` MUST include `idx_group_id` on column `group_id`
+- **当** `make init` 完成数据库初始化时
+- **则** `SHOW INDEX FROM sys_job` 必须包含列 `group_id` 上的 `idx_group_id`
 
-#### Scenario: Write path validates group_id reference consistency
+#### 场景：写路径验证 group_id 引用一致性
 
-- **WHEN** an upper-layer caller creates or updates a `sys_job` record with `group_id`
-- **THEN** the service layer MUST validate that the referenced group exists
-- **AND** validation failure MUST return a `bizerr` business error instead of relying on database foreign-key interception
+- **当** 上层调用方创建或更新带 `group_id` 的 `sys_job` 记录时
+- **则** 服务层必须验证引用的分组存在
+- **且** 验证失败必须返回 `bizerr` 业务错误而非依赖数据库外键拦截

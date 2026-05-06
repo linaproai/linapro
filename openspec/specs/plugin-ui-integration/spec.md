@@ -1,186 +1,186 @@
-# plugin-ui-integration Specification
+# 插件 UI 集成规范
 
-## Purpose
-TBD - created by archiving change plugin-framework. Update Purpose after archive.
-## Requirements
-### Requirement: Plugin pages support multiple host integration modes
-The system SHALL support three plugin page integration modes: `iframe`, new-tab navigation, and host-embedded mounting.
+## 目的
+待定 - 由归档变更 plugin-framework 创建。归档后更新目的。
 
-#### Scenario: Integrate a plugin page in iframe mode
-- **WHEN** a plugin menu declares a page that uses `iframe` mode
-- **THEN** the host loads the plugin page URL in an iframe within the unified layout
-- **AND** the host still manages the page entry with LinaPro menus, permissions, and navigation
+## 需求
+### 需求：插件页面支持多种宿主集成模式
+系统 SHALL 支持三种插件页面集成模式：`iframe`、新标签页导航和宿主嵌入式挂载。
 
-#### Scenario: Integrate a plugin page in new-tab mode
-- **WHEN** a plugin menu declares a page that uses new-tab mode
-- **THEN** the host opens the corresponding plugin page in a new browser tab when the menu is clicked
-- **AND** the original host workspace navigation state remains unaffected
+#### 场景：以 iframe 模式集成插件页面
+- **当** 插件菜单声明使用 `iframe` 模式的页面时
+- **则** 宿主在统一布局内的 iframe 中加载插件页面 URL
+- **且** 宿主仍通过 LinaPro 菜单、权限和导航管理页面入口
 
-#### Scenario: Integrate a plugin page in host-embedded mode
-- **WHEN** a plugin page declares host-embedded mounting mode
-- **THEN** the host loads the plugin frontend mount entry into the designated container
-- **AND** the plugin can use any frontend framework internally
-- **AND** the frontend entry MUST satisfy the host-defined mount contract
+#### 场景：以新标签页模式集成插件页面
+- **当** 插件菜单声明使用新标签页模式的页面时
+- **则** 点击菜单时宿主在新浏览器标签页中打开对应的插件页面
+- **且** 原始宿主工作区导航状态不受影响
 
-### Requirement: The host manages plugin frontend assets
-The system SHALL host frontend assets according to plugin type and provide stable asset access URLs for each page integration mode.
+#### 场景：以宿主嵌入模式集成插件页面
+- **当** 插件页面声明宿主嵌入式挂载模式时
+- **则** 宿主将插件前端挂载入口加载到指定容器中
+- **且** 插件内部可使用任何前端框架
+- **且** 前端入口必须满足宿主定义的挂载契约
 
-#### Scenario: Source plugins participate in the host build
-- **WHEN** a source plugin provides frontend assets according to convention
-- **THEN** those frontend assets participate in the host frontend build pipeline
-- **AND** host-embedded pages for source plugins MUST be implemented with real frontend source files instead of declarative JSON-only page descriptions
-- **AND** those source files are placed under `frontend/pages/` by default and discovered during the host build
-- **AND** the final assets are embedded into the backend binary together with the host frontend
+### 需求：宿主管理插件前端资产
+系统 SHALL 根据插件类型托管前端资产，并为每种页面集成模式提供稳定的资产访问 URL。
 
-#### Scenario: Dynamic plugins provide frontend assets
-- **WHEN** a runtime `wasm` plugin with assets is installed
-- **THEN** the host extracts and hosts the plugin's static frontend assets
-- **AND** the host generates a stable static asset path for the plugin
-- **AND** plugin pages without correctly prepared frontend assets cannot be enabled
+#### 场景：源码插件参与宿主构建
+- **当** 源码插件按约定提供前端资产时
+- **则** 这些前端资产参与宿主前端构建管线
+- **且** 源码插件的宿主嵌入页面必须使用真实的前端源文件实现，而非仅声明式 JSON 页面描述
+- **且** 这些源文件默认放置在 `frontend/pages/` 下，在宿主构建时发现
+- **且** 最终资产与宿主前端一起嵌入后端二进制文件
 
-#### Scenario: Dynamic plugin frontend assets can come from embedded resource declarations
-- **WHEN** a dynamic plugin author declares `frontend` directory assets with `go:embed`
-- **THEN** the builder MUST extract frontend static assets from the embedded file system and write them into the runtime snapshot
-- **AND** the host continues to serve `/plugin-assets/<plugin-id>/<version>/...` from that runtime snapshot
-- **AND** the host does not need to read frontend asset contents item by item through guest runtime methods
+#### 场景：动态插件提供前端资产
+- **当** 安装了带资产的运行时 `wasm` 插件时
+- **则** 宿主提取并托管插件的静态前端资产
+- **且** 宿主为插件生成稳定的静态资产路径
+- **且** 未正确准备前端资产的插件页面无法启用
 
-### Requirement: Plugin pages participate in host routing and generation awareness
-The system SHALL include enabled plugin pages in the host's dynamic routing system and protect the current user experience when plugin generations change.
+#### 场景：动态插件前端资产可来自嵌入式资源声明
+- **当** 动态插件作者通过 `go:embed` 声明 `frontend` 目录资产时
+- **则** 构建器必须从嵌入式文件系统提取前端静态资产并写入运行时快照
+- **且** 宿主继续从该运行时快照提供 `/plugin-assets/<plugin-id>/<version>/...` 服务
+- **且** 宿主不需要通过 guest 运行时方法逐项读取前端资产内容
 
-#### Scenario: The host generates plugin page routes
-- **WHEN** an enabled plugin declares visible menus and page entries
-- **THEN** the host adds those entries to the current user's accessible menu set and dynamic routes
-- **AND** plugin page visibility remains controlled by LinaPro role permissions
+### 需求：插件页面参与宿主路由和 generation 感知
+系统 SHALL 将已启用的插件页面纳入宿主动态路由系统，并在插件 generation 变更时保护当前用户体验。
 
-#### Scenario: A plugin inserts a top-level entry into the left navigation menu
-- **WHEN** an enabled plugin declares a top-level entry for the left navigation menu
-- **THEN** the host shows that plugin entry near the top of the left menu
-- **AND** clicking the entry opens the plugin tab page in the main content area
-- **AND** the page content clearly indicates that the entry comes from the plugin extension mechanism
+#### 场景：宿主生成插件页面路由
+- **当** 已启用的插件声明可见菜单和页面入口时
+- **则** 宿主将这些入口添加到当前用户的可访问菜单集和动态路由中
+- **且** 插件页面可见性仍由 LinaPro 角色权限控制
 
-#### Scenario: Refresh the left navigation menu immediately after enabling a plugin in the current session
-- **WHEN** an administrator enables a source plugin that is installed but currently disabled in an already logged-in session
-- **THEN** the host refreshes dynamic routes and the left navigation menu without requiring a new login
-- **AND** the new top-level menu entry added by the plugin becomes visible immediately
-- **AND** the current page remains inside the host workspace environment
+#### 场景：插件向左侧导航菜单插入顶级入口
+- **当** 已启用的插件声明左侧导航菜单的顶级入口时
+- **则** 宿主在左侧菜单顶部附近显示该插件入口
+- **且** 点击入口在主内容区域打开插件标签页
+- **且** 页面内容清晰指示该入口来自插件扩展机制
 
-#### Scenario: The current session regains focus after plugin state changes
-- **WHEN** another operation outside the current logged-in session changes plugin enablement state and the current browser tab regains focus
-- **THEN** the host automatically resynchronizes plugin-related dynamic routes and the left navigation menu
-- **AND** entries for enabled plugins become visible again
-- **AND** entries for disabled plugins are hidden in time
+#### 场景：当前会话中启用插件后立即刷新左侧导航菜单
+- **当** 管理员在已登录会话中启用已安装但当前禁用的源码插件时
+- **则** 宿主刷新动态路由和左侧导航菜单，无需重新登录
+- **且** 插件新增的顶级菜单入口立即可见
+- **且** 当前页面保持在宿主工作区环境内
 
-#### Scenario: A hot upgrade happens while the current user stays on a plugin page
-- **WHEN** the current user is visiting a plugin page and that plugin upgrades to a new generation
-- **THEN** the host shows a prompt telling the user that the plugin has been updated and the current page should be refreshed
-- **AND** users who are not on that plugin page are not forcibly interrupted
+#### 场景：插件状态变更后当前会话重新获得焦点
+- **当** 当前登录会话外的其他操作更改了插件启用状态，且当前浏览器标签页重新获得焦点时
+- **则** 宿主自动重新同步插件相关动态路由和左侧导航菜单
+- **且** 已启用插件的入口重新可见
+- **且** 已禁用插件的入口及时隐藏
 
-#### Scenario: The current plugin page switches to the new generation after refresh
-- **WHEN** the current user stays on a dynamic plugin page and that plugin has already completed its generation switch
-- **THEN** after the user clicks `Refresh current page`, the host first rebuilds the accessible menus and dynamic routes for the current logged-in user
-- **AND** the host does not forcibly navigate the user to another workspace page first
-- **AND** the current plugin page then remounts with the new-generation assets and updates the related tab metadata
+#### 场景：当前用户停留在插件页面时发生热升级
+- **当** 当前用户正在访问插件页面且该插件升级到新 generation 时
+- **则** 宿主显示提示告知用户插件已更新，当前页面应刷新
+- **且** 不在该插件页面上的用户不被强制中断
 
-#### Scenario: Users on non-plugin pages remain unaffected after a hot upgrade
-- **WHEN** a dynamic plugin completes a hot upgrade but the current user is not staying on that plugin page
-- **THEN** the host does not show the plugin refresh prompt
-- **AND** the host does not forcibly interrupt browsing on the current non-plugin page because of that upgrade
-- **AND** users only start using the new-generation assets when they enter the plugin page later
+#### 场景：刷新后当前插件页面切换到新 generation
+- **当** 当前用户停留在动态插件页面且该插件已完成 generation 切换时
+- **则** 用户点击"刷新当前页面"后，宿主先为当前登录用户重建可访问菜单和动态路由
+- **且** 宿主不强制先将用户导航到其他工作区页面
+- **且** 当前插件页面随后以新 generation 资产重新挂载并更新相关标签页元数据
 
-### Requirement: The plugin management page focuses on key governance information
-The system SHALL prioritize the key governance fields needed on the plugin management page and avoid crowding the list overview with low-value information.
+#### 场景：热升级后非插件页面上的用户不受影响
+- **当** 动态插件完成热升级但当前用户未停留在该插件页面时
+- **则** 宿主不显示插件刷新提示
+- **且** 宿主不因该升级强制中断当前非插件页面的浏览
+- **且** 用户仅在稍后进入插件页面时才开始使用新 generation 资产
 
-#### Scenario: Show the governance category for source plugins
-- **WHEN** the plugin type in the manifest is `source`
-- **THEN** the plugin management page shows it as `Source Plugin` in the `Plugin Type` column
+### 需求：插件管理页面聚焦关键治理信息
+系统 SHALL 优先展示插件管理页面所需的关键治理字段，避免在列表概览中挤满低价值信息。
 
-#### Scenario: Show the governance category for dynamic plugins
-- **WHEN** the plugin type in the manifest is `dynamic`
-- **THEN** the plugin management page consistently shows it as `Dynamic Plugin` in the `Plugin Type` column
-- **AND** the current `dynamic` plugin is still shown and filtered as `Dynamic Plugin` in the governance list even when the concrete artifact is a `wasm` product
+#### 场景：显示源码插件的治理类别
+- **当** 清单中的插件类型为 `source` 时
+- **则** 插件管理页面在"插件类型"列显示为"源码插件"
 
-#### Scenario: Simplify the plugin management list overview fields
-- **WHEN** an administrator views the plugin management list
-- **THEN** the page no longer shows the `Delivery Mode`, `Integration Mode`, and `Entry` columns
-- **AND** the page shows `Installed At` before `Updated At`
+#### 场景：显示动态插件的治理类别
+- **当** 清单中的插件类型为 `dynamic` 时
+- **则** 插件管理页面在"插件类型"列一致显示为"动态插件"
+- **且** 当前 `dynamic` 插件在治理列表中仍显示和筛选为"动态插件"，即使具体产物是 `wasm` 产品
 
-### Requirement: Plugin Management Supports a Detail Dialog
-The system SHALL provide a detail dialog for plugin records in plugin management so administrators can inspect plugin governance information without leaving the list page.
+#### 场景：简化插件管理列表概览字段
+- **当** 管理员查看插件管理列表时
+- **则** 页面不再显示"交付模式"、"集成模式"和"入口"列
+- **且** 页面在"更新时间"前显示"安装时间"
 
-#### Scenario: Administrator opens plugin details from the list
-- **WHEN** an administrator clicks the detail action for a plugin record
-- **THEN** the system opens a detail dialog
-- **AND** the dialog shows the plugin’s identity, type, version, description, installation state, status, authorization requirements, authorization status, install time, and update time
+### 需求：插件管理支持详情弹窗
+系统 SHALL 为插件管理中的插件记录提供详情弹窗，使管理员无需离开列表页即可查看插件治理信息。
 
-### Requirement: Dynamic Plugin Details Merge Requested and Effective Host-Service Scope
-The system SHALL present dynamic-plugin host-service information in a way that distinguishes declared intent from effective authorization only when the two differ.
+#### 场景：管理员从列表打开插件详情
+- **当** 管理员点击插件记录的详情操作时
+- **则** 系统打开详情弹窗
+- **且** 弹窗显示插件的标识、类型、版本、描述、安装状态、状态、授权要求、授权状态、安装时间和更新时间
 
-#### Scenario: Requested and authorized host-service scopes are identical
-- **WHEN** a dynamic plugin has the same requested and authorized host-service scope
-- **THEN** the dialog merges them into one effective scope presentation
-- **AND** the UI avoids duplicate explanatory text
+### 需求：动态插件详情合并请求的和有效的宿主服务范围
+系统 SHALL 以区分声明意图和有效授权的方式呈现动态插件宿主服务信息，仅在两者不同时进行区分。
 
-#### Scenario: Requested and authorized host-service scopes differ
-- **WHEN** a dynamic plugin’s authorized host-service scope differs from its requested scope
-- **THEN** the dialog shows requested scope and authorized scope as distinct sections
-- **AND** resource groups use one semantic heading plus a resource list instead of repeating the same prefix for every resource item
+#### 场景：请求的和授权的宿主服务范围相同
+- **当** 动态插件的请求和授权宿主服务范围相同时
+- **则** 弹窗将它们合并为一个有效范围展示
+- **且** UI 避免重复的解释文本
 
-### Requirement: Empty Host-Service State Is Only Shown for Dynamic Plugins
-The system SHALL show an empty host-service state only when a dynamic plugin has no host-service governance data.
+#### 场景：请求的和授权的宿主服务范围不同
+- **当** 动态插件的授权宿主服务范围与请求范围不同时
+- **则** 弹窗将请求范围和授权范围显示为独立部分
+- **且** 资源组使用一个语义标题加资源列表，而非为每个资源项重复相同前缀
 
-#### Scenario: Source plugin without host-service governance data
-- **WHEN** a source plugin has no host-service governance information
-- **THEN** the detail dialog does not show an unnecessary host-service empty-state block
+### 需求：空宿主服务状态仅对动态插件显示
+系统 SHALL 仅在动态插件没有宿主服务治理数据时显示空宿主服务状态。
 
-### Requirement: Dynamic Plugin Demo Records Support Pagination
-The system SHALL let administrators page through demo records on the dynamic plugin sample page.
+#### 场景：无宿主服务治理数据的源码插件
+- **当** 源码插件没有宿主服务治理信息时
+- **则** 详情弹窗不显示不必要的宿主服务空状态块
 
-#### Scenario: Administrator switches demo-record pages
-- **WHEN** an administrator changes the page in the dynamic plugin demo record list
-- **THEN** the page reloads the target page and updates the range summary and current page state accordingly
+### 需求：动态插件演示记录支持分页
+系统 SHALL 让管理员在动态插件示例页面上分页查看演示记录。
 
-### Requirement: Plugin installation dialog supports an install-and-enable shortcut
+#### 场景：管理员切换演示记录页面
+- **当** 管理员在动态插件演示记录列表中更改页面时
+- **则** 页面重新加载目标页面并相应更新范围摘要和当前页面状态
 
-The system SHALL provide both `Install Only` and `Install and Enable` governance actions in the plugin installation dialog so administrators can complete immediate enablement after reviewing plugin information without returning to the list for a second step.
+### 需求：插件安装弹窗支持安装并启用快捷操作
 
-#### Scenario: Show the shortcut action when the user has install and enable permissions
-- **WHEN** an administrator opens the installation dialog for a plugin that is not installed and the current account has both `plugin:install` and `plugin:enable`
-- **THEN** the dialog shows the `Install and Enable` shortcut action
-- **AND** the dialog still keeps the `Install Only` action so the administrator can explicitly choose installation without enablement
+系统 SHALL 在插件安装弹窗中提供"仅安装"和"安装并启用"两种治理操作，使管理员在审查插件信息后可立即完成启用，无需返回列表执行第二步。
 
-#### Scenario: Hide the shortcut action when the user only has install permission
-- **WHEN** an administrator opens the installation dialog for a plugin that is not installed but the current account has `plugin:install` without `plugin:enable`
-- **THEN** the dialog shows only the `Install Only` action
-- **AND** the UI MUST NOT show the `Install and Enable` button so it does not imply access to a governance action outside the user's permission scope
+#### 场景：用户有安装和启用权限时显示快捷操作
+- **当** 管理员为未安装的插件打开安装弹窗，且当前帐户同时拥有 `plugin:install` 和 `plugin:enable` 权限时
+- **则** 弹窗显示"安装并启用"快捷操作
+- **且** 弹窗仍保留"仅安装"操作，使管理员可明确选择仅安装不启用
 
-#### Scenario: Show the real state when the second step of the composite action fails
-- **WHEN** an administrator chooses `Install and Enable` in the installation dialog and the install step succeeds but the enable step fails
-- **THEN** the refreshed plugin management page MUST show the plugin as `installed but disabled`
-- **AND** the UI clearly tells the administrator that installation completed but enablement did not succeed and can be retried later
+#### 场景：用户仅有安装权限时隐藏快捷操作
+- **当** 管理员为未安装的插件打开安装弹窗，但当前帐户仅有 `plugin:install` 而无 `plugin:enable` 权限时
+- **则** 弹窗仅显示"仅安装"操作
+- **且** UI 不得显示"安装并启用"按钮，以免暗示可执行超出用户权限范围的治理操作
 
-### Requirement: Host-embedded plugin pages must participate in host locale context and message refresh
-The system SHALL let host-managed plugin pages participate in the host locale context and runtime message refresh flow. When the active language changes, host-embedded plugin pages and their route metadata MUST refresh to the new language without requiring plugin reinstallation.
+#### 场景：复合操作第二步失败时显示真实状态
+- **当** 管理员在安装弹窗中选择"安装并启用"，安装步骤成功但启用步骤失败时
+- **则** 刷新后的插件管理页面必须显示该插件为"已安装但已禁用"
+- **且** UI 清晰告知管理员安装已完成但启用未成功，可稍后重试
 
-#### Scenario: Plugin route titles refresh after language switch
-- **WHEN** a user switches workspace language in an authenticated session
-- **THEN** the host rebuilds plugin route titles and menu titles accessible to the current user
-- **AND** enabled plugin pages switch their navigation and tab display copy to the new language
+### 需求：宿主嵌入式插件页面必须参与宿主语言上下文和消息刷新
+系统 SHALL 让宿主管理的插件页面参与宿主语言上下文和运行时消息刷新流程。当前语言变更时，宿主嵌入式插件页面及其路由元数据必须刷新为新语言，无需重新安装插件。
 
-#### Scenario: Host-embedded plugin pages load runtime message bundles
-- **WHEN** the host loads a plugin frontend page in embedded mode
-- **THEN** the plugin page can access the host current-locale context and matching runtime translation resources
-- **AND** the plugin does not need to reimplement language resolution rules detached from the host
+#### 场景：语言切换后插件路由标题刷新
+- **当** 用户在已认证会话中切换工作区语言时
+- **则** 宿主重建当前用户可访问的插件路由标题和菜单标题
+- **且** 已启用的插件页面将其导航和标签页显示文案切换为新语言
 
-### Requirement: Plugin language resource changes must be observed by the host promptly
-The system SHALL refresh plugin-related runtime messages after plugin enablement, disablement, or upgrade so that the host UI does not continue showing stale plugin translations.
+#### 场景：宿主嵌入式插件页面加载运行时消息包
+- **当** 宿主以嵌入模式加载插件前端页面时
+- **则** 插件页面可访问宿主当前语言上下文和匹配的运行时翻译资源
+- **且** 插件不需要重新实现脱离宿主的语言解析规则
 
-#### Scenario: Enabled plugin immediately displays plugin translations
-- **WHEN** an administrator enables a plugin that has i18n resources in the current session
-- **THEN** the host refreshes runtime message bundles and dynamic menus
-- **AND** the plugin's navigation title and page copy can immediately display in the current language
+### 需求：插件语言资源变更必须被宿主及时观察
+系统 SHALL 在插件启用、禁用或升级后刷新插件相关运行时消息，使宿主 UI 不继续显示过期的插件翻译。
 
-#### Scenario: Plugin upgrade switches to new-version translation resources
-- **WHEN** a plugin is upgraded to a release containing new translation resources and the switch becomes effective
-- **THEN** subsequent runtime message bundles provided by the host use the new release resources
-- **AND** old release translation messages are no longer consumed by the frontend
+#### 场景：启用的插件立即显示插件翻译
+- **当** 管理员在当前会话中启用有 i18n 资源的插件时
+- **则** 宿主刷新运行时消息包和动态菜单
+- **且** 插件的导航标题和页面文案可立即以当前语言显示
 
+#### 场景：插件升级切换到新版本翻译资源
+- **当** 插件升级到包含新翻译资源的发布且切换生效时
+- **则** 宿主后续提供的运行时消息包使用新发布资源
+- **且** 前端不再消费旧发布的翻译消息

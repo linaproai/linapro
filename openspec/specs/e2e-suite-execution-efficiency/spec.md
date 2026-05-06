@@ -1,67 +1,67 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: E2E shared global state tests MUST declare isolation categories
-The E2E suite SHALL classify tests that mutate or depend on cross-file shared global state. Files that mutate plugin lifecycle, runtime i18n bundle versions, public frontend configuration, system parameters, dictionaries, menu or role permission matrices, shared database seed data, or filesystem-backed plugin artifacts MUST declare an isolation category and MUST be routed into an execution boundary that prevents unsafe parallel overlap.
+### 需求：E2E 共享全局状态测试必须声明隔离类别
+E2E 测试套件 SHALL 分类变更或依赖跨文件共享全局状态的测试。变更插件生命周期、运行时 i18n 包版本、公共前端配置、系统参数、字典、菜单或角色权限矩阵、共享数据库种子数据或文件系统支持的插件产物的文件，必须声明隔离类别，并必须路由到防止不安全并行重叠的执行边界。
 
-#### Scenario: Plugin lifecycle test is classified as serial
-- **WHEN** a test file installs, enables, disables, uninstalls, uploads, syncs, or upgrades a plugin
-- **THEN** the E2E execution manifest MUST classify that file with a plugin lifecycle isolation category
-- **AND** the full-regression runner MUST keep that file out of the parallel pool
+#### 场景：插件生命周期测试分类为串行
+- **当** 测试文件安装、启用、禁用、卸载、上传、同步或升级插件时
+- **则** E2E 执行清单必须将该文件分类为插件生命周期隔离类别
+- **且** 全回归运行器必须将该文件排除在并行池外
 
-#### Scenario: Global configuration test is classified as serial
-- **WHEN** a test file mutates system parameters, public frontend configuration, dictionaries, menu permissions, role permissions, or other shared governance data
-- **THEN** the E2E execution manifest MUST classify that file with the matching shared-state category
-- **AND** the full-regression runner MUST keep that file out of the parallel pool unless an explicit documented safe exception exists
+#### 场景：全局配置测试分类为串行
+- **当** 测试文件变更系统参数、公共前端配置、字典、菜单权限、角色权限或其他共享治理数据时
+- **则** E2E 执行清单必须将该文件分类为匹配的共享状态类别
+- **且** 全回归运行器必须将该文件排除在并行池外，除非存在显式文档化的安全例外
 
-#### Scenario: Validator rejects unclassified high-risk tests
-- **WHEN** the E2E validator detects high-risk operations in a test file that is not serial or not classified
-- **THEN** validation MUST fail with a message that identifies the file, detected risk category, and expected manifest action
+#### 场景：验证器拒绝未分类的高风险测试
+- **当** E2E 验证器在未串行或未分类的测试文件中检测到高风险操作时
+- **则** 验证必须失败，并显示标识文件、检测到的风险类别和预期清单操作的消息
 
-### Requirement: E2E cache revalidation tests MUST tolerate legitimate global version refreshes
-The E2E suite SHALL test cache and ETag behavior by validating protocol semantics instead of assuming that global resource versions remain unchanged for the duration of a full regression run. Conditional requests MUST verify the request precondition and the correctness of either a not-modified response or a refreshed-resource response.
+### 需求：E2E 缓存重验证测试必须容忍合法的全局版本刷新
+E2E 测试套件 SHALL 通过验证协议语义而非假设全局资源版本在全回归运行期间保持不变来测试缓存和 ETag 行为。条件请求必须验证请求前提条件以及未修改响应或刷新资源响应的正确性。
 
-#### Scenario: Conditional request hits unchanged resource version
-- **WHEN** a cache test sends a conditional request with an ETag that still matches the current resource version
-- **THEN** the test MUST accept a `304 Not Modified` response
-- **AND** it MUST verify that the returned ETag matches the cached ETag and that no body is required
+#### 场景：条件请求命中未变更的资源版本
+- **当** 缓存测试发送带有仍匹配当前资源版本的 ETag 的条件请求时
+- **则** 测试必须接受 `304 Not Modified` 响应
+- **且** 必须验证返回的 ETag 匹配缓存的 ETag 且不需要响应体
 
-#### Scenario: Conditional request observes refreshed resource version
-- **WHEN** a cache test sends a conditional request with an ETag that no longer matches because another legitimate test or lifecycle operation refreshed the resource version
-- **THEN** the test MUST accept a `200 OK` response only if the response includes a new ETag that differs from the cached ETag
-- **AND** it MUST verify that the refreshed response body is present and valid
+#### 场景：条件请求观察到刷新的资源版本
+- **当** 缓存测试发送带有因其他合法测试或生命周期操作刷新了资源版本而不再匹配的 ETag 的条件请求时
+- **则** 测试必须仅在响应包含与缓存 ETag 不同的新 ETag 时接受 `200 OK` 响应
+- **且** 必须验证刷新的响应体存在且有效
 
-#### Scenario: Cache test still verifies conditional request behavior
-- **WHEN** a cache test reloads a page or resource that should use persistent cache metadata
-- **THEN** the test MUST verify that the request carries the expected conditional header or equivalent cache precondition
-- **AND** it MUST NOT pass solely because the resource endpoint returned a successful body
+#### 场景：缓存测试仍验证条件请求行为
+- **当** 缓存测试重新加载应使用持久缓存元数据的页面或资源时
+- **则** 测试必须验证请求携带了预期的条件头或等效缓存前提条件
+- **且** 不得仅因资源端点返回了成功响应体而通过
 
-### Requirement: E2E prerequisites MUST be fixture-owned and idempotent
-The E2E suite SHALL make plugin state, mock data, authenticated state, and shared filesystem prerequisites explicit through reusable fixtures or support helpers. A test file MUST be independently runnable without relying on another test file to create plugin rows, install source plugins, load mock SQL, refresh frontend plugin projection, or create reusable authenticated state.
+### 需求：E2E 前置条件必须由固件拥有且幂等
+E2E 测试套件 SHALL 通过可复用的固件或支持辅助器使插件状态、模拟数据、认证状态和共享文件系统前置条件显式化。测试文件必须可独立运行，不依赖其他测试文件创建插件行、安装源码插件、加载模拟 SQL、刷新前端插件投影或创建可复用认证状态。
 
-#### Scenario: Test depends on a source plugin
-- **WHEN** a test file needs a source plugin page, API, menu, or mock data
-- **THEN** the test MUST call a shared fixture/helper that idempotently syncs, installs, enables, and refreshes the plugin projection
-- **AND** the helper MUST load plugin mock SQL only when the plugin provides a matching mock-data resource
+#### 场景：测试依赖源码插件
+- **当** 测试文件需要源码插件页面、API、菜单或模拟数据时
+- **则** 测试必须调用幂等同步、安装、启用和刷新插件投影的共享固件/辅助器
+- **且** 辅助器必须仅在插件提供匹配的模拟数据资源时加载插件模拟 SQL
 
-#### Scenario: Test depends on generated user or business data
-- **WHEN** a test file creates users, departments, posts, notices, files, plugin records, or import/export data
-- **THEN** the test MUST use unique names or stable test prefixes
-- **AND** it MUST clean up its own data in `finally`, `afterEach`, or `afterAll` without depending on cross-file cleanup
+#### 场景：测试依赖生成的用户或业务数据
+- **当** 测试文件创建用户、部门、岗位、通知、文件、插件记录或导入/导出数据时
+- **则** 测试必须使用唯一名称或稳定测试前缀
+- **且** 必须在 `finally`、`afterEach` 或 `afterAll` 中清理自己的数据，不依赖跨文件清理
 
-#### Scenario: Test reads business state under localized UI
-- **WHEN** a test needs to compare business counts, identities, permissions, or state transitions under different languages
-- **THEN** it MUST use stable API fields such as IDs, codes, permission keys, label keys, or numeric counters for the business assertion
-- **AND** localized UI text MUST be asserted separately as presentation behavior
+#### 场景：测试在本地化 UI 下读取业务状态
+- **当** 测试需要在不同语言下比较业务计数、标识、权限或状态转换时
+- **则** 必须使用 ID、代码、权限键、标签键或数字计数器等稳定 API 字段进行业务断言
+- **且** 本地化 UI 文本必须作为展示行为单独断言
 
-### Requirement: E2E full-regression reports MUST expose serial and parallel boundaries
-The E2E full-regression runner SHALL report enough information to make execution isolation auditable. Reports MUST show which files were run in the parallel pool, which files were run in the serial pool, and which isolation categories caused files to be serialized.
+### 需求：E2E 全回归报告必须暴露串行和并行边界
+E2E 全回归运行器 SHALL 报告足够信息使执行隔离可审计。报告必须显示哪些文件在并行池中运行、哪些文件在串行池中运行、以及哪些隔离类别导致文件被串行化。
 
-#### Scenario: Full regression starts
-- **WHEN** a developer or CI starts the full-regression entrypoint
-- **THEN** the runner MUST print or persist a summary of parallel file count, serial file count, and configured worker count
-- **AND** it MUST include the isolation categories represented in the serial set
+#### 场景：全回归启动
+- **当** 开发者或 CI 启动全回归入口点时
+- **则** 运行器必须打印或持久化并行文件数、串行文件数和配置的工作线程数摘要
+- **且** 必须包含串行集中表示的隔离类别
 
-#### Scenario: Module-scoped regression starts
-- **WHEN** a developer runs a module-scoped E2E command
-- **THEN** the runner MUST apply the same serial-versus-parallel split to the resolved module files
-- **AND** it MUST report any serialized files and categories within that module scope
+#### 场景：模块范围回归启动
+- **当** 开发者运行模块范围 E2E 命令时
+- **则** 运行器必须对解析的模块文件应用相同的串行与并行拆分
+- **且** 必须报告该模块范围内的任何串行化文件和类别

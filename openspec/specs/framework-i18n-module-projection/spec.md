@@ -1,27 +1,27 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Business modules must own their own localization projection rules
-The host system SHALL let business modules such as menu, dictionary, config, scheduled tasks, roles, and plugin runtime maintain localization projection rules within their own module boundaries. `internal/service/i18n` SHALL only provide foundational capabilities such as language resolution, translation lookup, resource loading, caching, and missing checks, and MUST NOT reference business entities, business protection rules, or business translation key derivation logic. Business modules can depend on underlying capabilities like `ResolveLocale`, `Translate`, `TranslateSourceText` through narrow interfaces, but MUST NOT require the i18n foundation service to reverse-know business modules.
+### 需求：业务模块必须拥有自己的本地化投影规则
+宿主系统 SHALL 让菜单、字典、配置、定时任务、角色和插件运行时等业务模块在自己的模块边界内维护本地化投影规则。`internal/service/i18n` SHALL 仅提供语言解析、翻译查找、资源加载、缓存和缺失检查等基础能力，不得引用业务实体、业务保护规则或业务翻译键派生逻辑。业务模块可通过窄接口依赖 `ResolveLocale`、`Translate`、`TranslateSourceText` 等底层能力，但不得要求 i18n 基础服务反向了解业务模块。
 
-#### Scenario: Business modules complete projection within their own boundaries
-- **WHEN** `menu` / `dict` / `sysconfig` / `jobmgmt` / `role` / `plugin runtime` and other modules need to localize query results for display
-- **THEN** the module derives translation keys, determines whether to skip default language, and determines whether records are protected built-in records in its own `*_i18n.go` or equivalent module
-- **AND** `internal/service/i18n` does not import these business modules or business entities
+#### 场景：业务模块在自己的边界内完成投影
+- **当** `menu` / `dict` / `sysconfig` / `jobmgmt` / `role` / `plugin runtime` 等模块需要本地化查询结果用于显示时
+- **则** 模块在自己的 `*_i18n.go` 或等效模块中派生翻译键、判断是否跳过默认语言、判断记录是否为受保护的内置记录
+- **且** `internal/service/i18n` 不导入这些业务模块或业务实体
 
-#### Scenario: i18n foundation service only provides underlying capabilities
-- **WHEN** a business module needs to translate a display field
-- **THEN** the business module calls `Translate` / `TranslateSourceText` and other underlying methods with its own key and fallback
-- **AND** the i18n service does not expose business-entity-named methods like `ProjectMenu`, `ProjectDictType`, `ProjectBuiltinJob`
+#### 场景：i18n 基础服务仅提供底层能力
+- **当** 业务模块需要翻译显示字段时
+- **则** 业务模块以自己的键和回退调用 `Translate` / `TranslateSourceText` 等底层方法
+- **且** i18n 服务不暴露 `ProjectMenu`、`ProjectDictType`、`ProjectBuiltinJob` 等业务实体命名方法
 
-### Requirement: Judgment rules for protected built-in records must remain in the owning business module
-Business modules SHALL maintain judgment rules and translation key conventions for protected built-in records in their own services. For example: the display projection of the built-in `admin` role is maintained by the `role` module, the display projection of default task groups and built-in tasks is maintained by the `jobmgmt` module, and the display projection of plugin metadata is maintained by the plugin runtime module. The generic i18n foundation service must not contain these business determination constants.
+### 需求：受保护内置记录的判断规则必须保留在所属业务模块
+业务模块 SHALL 在自己的服务中维护受保护内置记录的判断规则和翻译键约定。例如：内置 `admin` 角色的显示投影由 `role` 模块维护，默认任务组和内置任务的显示投影由 `jobmgmt` 模块维护，插件元数据的显示投影由插件运行时模块维护。通用 i18n 基础服务不得包含这些业务判断常量。
 
-#### Scenario: Built-in admin role displays localized name in English environment read-only list
-- **WHEN** an administrator queries the role list in the `en-US` environment
-- **THEN** the `role` module only provides localized display for the built-in `admin` role via the `role.builtin.admin.name` translation key
-- **AND** other editable roles' `name` fields retain their original database values
+#### 场景：内置管理员角色在英文环境只读列表中显示本地化名称
+- **当** 管理员在 `en-US` 环境查询角色列表时
+- **则** `role` 模块仅通过 `role.builtin.admin.name` 翻译键为内置 `admin` 角色提供本地化显示
+- **且** 其他可编辑角色的 `name` 字段保留原始数据库值
 
-#### Scenario: User-created custom tasks retain original values
-- **WHEN** an administrator queries the scheduled task list in any non-default language
-- **THEN** the `jobmgmt` module does not apply translation projection to user-created tasks where `is_builtin = 0`
-- **AND** the task's `name` / `description` display their original database values
+#### 场景：用户创建的自定义任务保留原始值
+- **当** 管理员在任何非默认语言下查询定时任务列表时
+- **则** `jobmgmt` 模块不对 `is_builtin = 0` 的用户创建任务应用翻译投影
+- **且** 任务的 `name` / `description` 显示其原始数据库值

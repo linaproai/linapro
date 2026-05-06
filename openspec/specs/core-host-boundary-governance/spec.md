@@ -1,121 +1,121 @@
-# core-host-boundary-governance Specification
+# 核心宿主边界治理规范
 
-## Purpose
-TBD - created by archiving change framework-positioning-core-boundary-and-readme-i18n. Update Purpose after archive.
-## Requirements
-### Requirement: lina-core core hosting capabilities maintain common boundaries
-The system SHALL regards `apps/lina-core` as the core host service of the framework, and gives priority to ensuring the stability and reusability of common module interface capabilities, component capabilities, system governance capabilities and plugin expansion capabilities.
+## 目的
+待定 - 由归档变更 framework-positioning-core-boundary-and-readme-i18n 创建。归档后更新目的。
 
-#### Scenario: Page requirements only affect workbench display
-- **WHEN** A requirement only changes table columns, filter items, tree selectors, workbench aggregations, routing assemblies, or other specific page display structures
-- **THEN** The system gives priority to completing the change through the workbench adaptation interface or frontend adaptation layer.
-- **AND** Do not directly modify the core domain contract, general service semantics or storage model of `lina-core` due to the needs of this page
+## 需求
+### 需求：lina-core 核心宿主能力保持通用边界
+系统 SHALL 将 `apps/lina-core` 视为框架的核心宿主服务，优先保证通用模块接口能力、组件能力、系统治理能力和插件扩展能力的稳定性和可复用性。
 
-#### Scenario: Plan to modify the core interface or model
-- **WHEN** The developer plans to modify the core interface, domain model or persistence structure of `lina-core` due to the needs of a certain frontend page.
-- **THEN** The modification MUST be able to prove that it serves framework-level general capabilities rather than a single page form
-- **AND** If it cannot be proven, it should fall back to the workbench adaptation implementation solution
+#### 场景：页面需求仅影响工作台展示
+- **当** 需求仅变更表格列、筛选项、树选择器、工作台聚合、路由组装或其他特定页面展示结构时
+- **则** 系统优先通过工作台适配接口或前端适配层完成变更
+- **且** 不因该页面需求直接修改 `lina-core` 的核心领域契约、通用服务语义或存储模型
 
-### Requirement: The workbench adapter interface MUST be explicitly classified
-The system SHALL explicitly classifies output that is clearly workbench assembly oriented, such as menu routing projections, current user workbench startup data, tree selectors, drop-down options, etc., as workbench adaptation interfaces rather than generic domain interfaces.
+#### 场景：计划修改核心接口或模型
+- **当** 开发者因某前端页面需求计划修改 `lina-core` 的核心接口、领域模型或持久化结构时
+- **则** 修改必须能够证明其服务于框架级通用能力而非单个页面表单
+- **且** 如果无法证明，应回退到工作台适配实现方案
 
-#### Scenario: The interface returns the workbench assembly data
-- **WHEN** An interface that returns workbench assembly data such as menu routing, host workspace startup data, tree selector nodes, or drop-down options.
-- **THEN** Its interface description, DTO annotations and related specifications clearly mark the output as belonging to workbench adaptation semantics
-- **AND** Do not describe this output as a generic domain model itself
+### 需求：工作台适配接口必须显式分类
+系统 SHALL 将明确面向工作台组装的输出（如菜单路由投影、当前用户工作台启动数据、树选择器、下拉选项等）显式分类为工作台适配接口，而非通用领域接口。
 
-#### Scenario: Common domain capabilities are reused by multiple workbenches
-- **WHEN** A capability needs to be consumed by different workstations or different access methods at the same time
-- **THEN** The system gives priority to retaining stable common domain interfaces
-- **AND** The menus, routing, presentation structures or aggregate views required for different workbenches are assembled through independent adaptation outputs
+#### 场景：接口返回工作台组装数据
+- **当** 接口返回菜单路由、宿主工作区启动数据、树选择器节点或下拉选项等工作台组装数据时
+- **则** 其接口描述、DTO 注解和相关规范清晰标记输出属于工作台适配语义
+- **且** 不将此输出描述为通用领域模型本身
 
-### Requirement: The open source stage host only retains the framework core and management base.
+#### 场景：通用领域能力被多个工作台复用
+- **当** 能力需要被不同工作站或不同访问方式同时消费时
+- **则** 系统优先保留稳定的通用领域接口
+- **且** 不同工作台所需的菜单、路由、展示结构或聚合视图通过独立适配输出组装
 
-The system SHALL converges `apps/lina-core` into the framework core and management base during the open source stage, and no longer has all management backend business modules built-in by default.
+### 需求：开源阶段宿主仅保留框架核心和管理基座
 
-#### Scenario: Planning to add new backend module
-- **WHEN** The team plans to add a new management backend module
-- **THEN** First determine whether the capability belongs to the host base capabilities such as authentication, permissions, menus, plugin management, task scheduling, configuration, dictionary or files, etc.
-- **AND** If it does not belong to the host base capability, priority will be given to the source plugin design rather than being directly incorporated into the host.
+系统 SHALL 在开源阶段将 `apps/lina-core` 收敛为框架核心和管理基座，默认不再内置所有管理后台业务模块。
 
-#### Scenario: Determine whether the ability should remain in the host
-- **WHEN** A capability is reused by multiple modules and assumes unified governance responsibilities at the framework level.
-- **THEN** The system keeps it on the host
-- **AND** Do not continue to expand the host boundary to the business side due to the needs of an optional business module
+#### 场景：规划新增后台模块
+- **当** 团队规划新增管理后台模块时
+- **则** 先判断能力是否属于宿主基座能力（如认证、权限、菜单、插件管理、任务调度、配置、字典或文件等）
+- **且** 如果不属于宿主基座能力，优先采用源码插件设计而非直接纳入宿主
 
-### Requirement: The default backend first-level directory is stably provided by the host
+#### 场景：判断能力是否应保留在宿主
+- **当** 能力被多个模块复用且承担框架级统一治理职责时
+- **则** 系统将其保留在宿主
+- **且** 不因可选业务模块需求继续扩展宿主边界到业务侧
 
-The system SHALL is provided by the host as the default backend first-level directory mount point to ensure that developers do not need to repeatedly adjust the top-level navigation structure when expanding their business in the long term.
+### 需求：默认后台一级目录由宿主稳定提供
 
-#### Scenario: The plugin provides a background function menu
-- **WHEN** A source plugin needs to register the menu with the default backend
-- **THEN** The menu of this plugin MUST be mounted to the stable first-level directory provided by the host
-- **AND** Plug-ins MUST not bypass host management and create new first-level directory systems on their own
+系统 SHALL 由宿主提供默认后台一级目录挂载点，确保开发者长期扩展业务时无需反复调整顶层导航结构。
 
-#### Scenario: Plug-in not installed or enabled
-- **WHEN** All submenus under a certain level of directory come from plugins that are not installed or enabled.
-- **THEN** The host automatically hides the empty directory
-- **AND** Do not keep empty shell parent directory in left navigation
+#### 场景：插件提供后台功能菜单
+- **当** 源码插件需要向默认后台注册菜单时
+- **则** 该插件菜单必须挂载到宿主提供的稳定一级目录下
+- **且** 插件不得绕过宿主管理自行创建新的一级目录体系
 
-### Requirement: The host stable directory MUST exist as a real governance record
+#### 场景：插件未安装或未启用
+- **当** 某级目录下的所有子菜单均来自未安装或未启用的插件时
+- **则** 宿主自动隐藏该空目录
+- **且** 左侧导航中不保留空壳父目录
 
-The system SHALL maintains the nine first-level directories in the default backend as stable menu records owned by the host, instead of just temporarily assembling them in the frontend projection layer.
+### 需求：宿主稳定目录必须作为真实治理记录存在
 
-#### Scenario: Initialize the host stable directory
-- **WHEN** The host initializes the default background menu skeleton
-- **THEN** The host creates and maintains `dashboard`, `iam`, `org`, `setting`, `content`, `monitor`, `scheduler`, `extension`, `developer` 9 stable parents `menu_key`
-- **AND** These directory records can be stably parsed by the plugin `parent_key`
+系统 SHALL 将默认后台的九个一级目录作为宿主拥有的稳定菜单记录维护，而非仅在前端投影层临时组装。
 
-#### Scenario: There is no visible submenu in a certain directory.
-- **WHEN** The `Content Management`, `Organization Management` or `System Monitoring` directories currently do not have any visible submenus
-- **THEN** They are hidden in the navigation projection
-- **AND** The host does not delete the corresponding stable directory record
+#### 场景：初始化宿主稳定目录
+- **当** 宿主初始化默认后台菜单骨架时
+- **则** 宿主创建并维护 `dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`extension`、`developer` 9 个稳定父级 `menu_key`
+- **且** 这些目录记录可被插件 `parent_key` 稳定解析
 
-### Requirement: Authentication session kernel and unified event publishing capabilities remain on the host
+#### 场景：某目录下无可见子菜单
+- **当** `内容管理`、`组织管理` 或 `系统监控` 目录当前没有任何可见子菜单时
+- **则** 它们在导航投影中被隐藏
+- **且** 宿主不删除对应的稳定目录记录
 
-The system SHALL retains the authentication session truth source and the publishing capabilities of unified login events and unified audit events on the host, rather than delegating them to optional source plugins.
+### 需求：认证会话内核和统一事件发布能力保留在宿主
 
-#### Scenario: Planning online user plugin boundaries
-- **WHEN** Team planning capability boundaries of `monitor-online`
-- **THEN** plugin only carries online user query and forced offline management
-- **AND** JWT verification, session touch refresh, timeout determination and cleanup tasks still remain on the host
+系统 SHALL 将认证会话事实源和统一登录事件、统一审计事件的发布能力保留在宿主，而非委托给可选源码插件。
 
-#### Scenario: Planning log plugin boundaries
-- **WHEN** Team planning capability boundaries of `monitor-loginlog` or `monitor-operlog`
-- **THEN** The host publishes unified events on the authentication link and request link
-- **AND** The host core link does not directly depend on the specific persistence implementation of these plugins.
+#### 场景：规划在线用户插件边界
+- **当** 团队规划 `monitor-online` 的能力边界时
+- **则** 插件仅承载在线用户查询和强制下线管理
+- **且** JWT 验证、会话触碰刷新、超时判定和清理任务仍保留在宿主
 
-### Requirement: Host and plugin MUST be decoupled through stable capability seams
+#### 场景：规划日志插件边界
+- **当** 团队规划 `monitor-loginlog` 或 `monitor-operlog` 的能力边界时
+- **则** 宿主在认证链路和请求链路上发布统一事件
+- **且** 宿主核心链路不直接依赖这些插件的具体持久化实现
 
-The system SHALL completes the collaboration between the host and the plugin through stable joints such as capability interfaces, event Hooks, routing registers, and Cron registers, instead of scattering plugin-specific placeholder logic and a large number of `if pluginEnabled` branches in the host business code.
+### 需求：宿主和插件必须通过稳定能力接缝解耦
 
-#### Scenario: Host invokes optional organizational capabilities
-- **WHEN** User management, authentication or other host core modules require access to optional capabilities such as departments and positions.
-- **THEN** The host accesses these capabilities through a unified organizational capability interface
-- **AND** The plugin status judgment and function branches of `org-center` are not directly scattered in the host implementation.
-- **AND** The host only holds the interface, DTO and empty implementation of this capability, and does not directly query or maintain the physical table of `org-center`
+系统 SHALL 通过能力接口、事件 Hook、路由注册器和 Cron 注册器等稳定接缝完成宿主与插件的协作，而非在宿主业务代码中散落插件特定的占位逻辑和大量 `if pluginEnabled` 分支。
 
-#### Scenario: The host expands plugin logging or monitoring capabilities
-- **WHEN** Non-core capabilities are split into source plugins
-- **THEN** The host only retains stable events, governance interfaces and registration entrances
-- **AND** Do not keep a lot of functionality placeholder logic for individual plugins in hosting controllers, services or middleware
+#### 场景：宿主调用可选组织能力
+- **当** 用户管理、认证或其他宿主核心模块需要访问部门和岗位等可选能力时
+- **则** 宿主通过统一的组织能力接口访问这些能力
+- **且** `org-center` 的插件状态判断和功能分支不直接散落在宿主实现中
+- **且** 宿主仅持有该能力的接口、DTO 和空实现，不直接查询或维护 `org-center` 的物理表
 
-### Requirement: The host MUST not hold the source plugin’s own business storage
+#### 场景：宿主扩展插件日志或监控能力
+- **当** 非核心能力拆分为源码插件时
+- **则** 宿主仅保留稳定的事件、治理接口和注册入口
+- **且** 不在宿主控制器、服务或中间件中为个别插件保留大量功能占位逻辑
 
-The system SHALL treats the source plugin business table, corresponding ORM artifacts, and demo data as plugin private assets, and does not retain long-term copies during host default database initialization, Mock loading, or in the host source tree.
+### 需求：宿主不得持有源码插件自有业务存储
 
-#### Scenario: Initialize the default database
-- **WHEN** Administrator performs host default database initialization
-- **THEN** The host only creates and initializes the host core tables and necessary Seed data
-- **AND** Do not create any source plugin business table
+系统 SHALL 将源码插件业务表、对应 ORM 产物和演示数据视为插件私有资产，在宿主默认数据库初始化、Mock 加载或宿主源码树中不保留长期副本。
 
-#### Scenario: Migrate business modules to source plugins
-- **WHEN** A certain business module has been migrated to an official source plugin
-- **THEN** The `dao`, `do`, `entity` and direct table lookup logic corresponding to the business table of this module are no longer retained in the host source.
-- **AND** The host only works with the plugin through the stability capability seam or plugin registration portal
+#### 场景：初始化默认数据库
+- **当** 管理员执行宿主默认数据库初始化时
+- **则** 宿主仅创建和初始化宿主核心表和必要的 Seed 数据
+- **且** 不创建任何源码插件业务表
 
-#### Scenario: Load default demo data
-- **WHEN** Administrator performs host default Mock data loading
-- **THEN** The host does not write any source plugin business tables
-- **AND** The plugin demo data is responsible for the plugin's own life cycle resources
+#### 场景：迁移业务模块到源码插件
+- **当** 某业务模块已迁移到官方源码插件时
+- **则** 该模块业务表对应的 `dao`、`do`、`entity` 和直接查表逻辑不再保留在宿主源码中
+- **且** 宿主仅通过稳定能力接缝或插件注册入口与插件协作
 
+#### 场景：加载默认演示数据
+- **当** 管理员执行宿主默认 Mock 数据加载时
+- **则** 宿主不写入任何源码插件业务表
+- **且** 插件演示数据由插件自身的生命周期资源负责

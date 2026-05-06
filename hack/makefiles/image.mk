@@ -27,11 +27,17 @@ endif
 ifneq ($(origin platform), undefined)
 IMAGE_BUILDER_ARGS += --platform=$(platform)
 endif
+ifneq ($(origin cgo_enabled), undefined)
+IMAGE_BUILDER_ARGS += --cgo-enabled=$(cgo_enabled)
+endif
+ifneq ($(origin output_dir), undefined)
+IMAGE_BUILDER_ARGS += --output-dir=$(output_dir)
+endif
+ifneq ($(origin binary_name), undefined)
+IMAGE_BUILDER_ARGS += --binary-name=$(binary_name)
+endif
 ifneq ($(origin base_image), undefined)
 IMAGE_BUILDER_ARGS += --base-image=$(base_image)
-endif
-ifneq ($(origin skip_build), undefined)
-IMAGE_BUILDER_ARGS += --skip-build=$(skip_build)
 endif
 ifneq ($(origin verbose), undefined)
 IMAGE_BUILDER_ARGS += --verbose=$(verbose)
@@ -40,16 +46,16 @@ ifneq ($(origin v), undefined)
 IMAGE_BUILDER_ARGS += --verbose=$(v)
 endif
 
-# Build the production Docker image using hack/config.yaml and optional overrides.
-# 使用 hack/config.yaml 和可选覆盖参数构建生产 Docker 镜像。
-## image: Build the production Docker image from hack/config.yaml; supports tag=v0.6.0 registry=ghcr.io/linaproai push=1
+# Build the production Docker image from the standard make build output.
+# 基于标准 make build 产物构建生产 Docker 镜像。
+## image: Build the production Docker image from make build output and hack/config.yaml; supports tag=v0.6.0 registry=ghcr.io/linaproai push=1
 .PHONY: image
-image:
+image: build
 	@go run ./hack/tools/image-builder $(IMAGE_BUILDER_ARGS)
 
 # Prepare image build artifacts without invoking Docker build.
 # 仅准备镜像构建产物，不执行 Docker build。
-## image-build: Prepare image build artifacts from hack/config.yaml without running docker build
+## image-build: Stage image build artifacts from make build output without running docker build
 .PHONY: image-build
-image-build:
+image-build: build
 	@go run ./hack/tools/image-builder --build-only $(IMAGE_BUILDER_ARGS)

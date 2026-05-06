@@ -1,146 +1,147 @@
-# User Management
+# 用户管理
 
-## Purpose
+## 目的
 
-Define the query, maintenance, role association and collaboration rules for the `org-center` optional organizational capabilities of the host user management module to ensure that user management can work stably when the organization plugin is enabled or missing.
-## Requirements
-### Requirement: User list query
-The system SHALL provides a paging query interface for user lists, supporting multi-field sorting, enhanced conditional filtering, and role information aggregation. When `org-center` is installed and enabled, the system additionally supports filtering by department and returns department fields; when the plugin is missing, the host ignores the organization extended filtering and keeps the user list main function available.
+定义宿主用户管理模块对 `org-center` 可选组织能力的查询、维护、角色关联和协作规则，确保组织插件启用或缺失时用户管理都能稳定工作。
 
-#### Scenario: Filter user list by department when organization plugin is available
-- **WHEN** `org-center` is installed and enabled, and `deptId` is passed in when querying
-- **THEN** The system filters users belonging to this department through the organizational relationship provided by the organization plugin.
-- **AND** The returned user data can contain the `deptId` and `deptName` fields
+## 需求
+### 需求：用户列表查询
+系统 SHALL 提供用户列表分页查询接口，支持多字段排序、增强条件筛选和角色信息聚合。当 `org-center` 已安装并启用时，系统额外支持按部门筛选并返回部门字段；当插件缺失时，宿主忽略组织扩展筛选并保持用户列表主功能可用。
 
-#### Scenario: Query the user list when the organization plugin is missing
-- **WHEN** `org-center` is not installed or enabled, and the user list is queried
-- **THEN** The system still returns the user paginated list and role information
-- **AND** Department-related filters and fields are safely ignored or omitted
+#### 场景：组织插件可用时按部门筛选用户列表
+- **当** `org-center` 已安装并启用，且查询时传入 `deptId` 时
+- **则** 系统通过组织插件提供的组织关系筛选属于该部门的用户
+- **且** 返回的用户数据可包含 `deptId` 和 `deptName` 字段
 
-### Requirement: Create user
-The system SHALL provides a user interface for creation and always supports role association; when `org-center` is installed and enabled, the system additionally supports associated departments and positions; when the plugin is missing, these organization extension fields do not block user creation.
+#### 场景：组织插件缺失时查询用户列表
+- **当** `org-center` 未安装或未启用，且查询用户列表时
+- **则** 系统仍返回用户分页列表和角色信息
+- **且** 部门相关筛选和字段被安全忽略或省略
 
-#### Scenario: Create users when organization plugin is missing
-- **WHEN** `org-center` is not installed or enabled and the administrator created the user
-- **THEN** The system still successfully created the user and processed the role association
-- **AND** Lack of department and position information will not cause creation failure
+### 需求：创建用户
+系统 SHALL 提供创建用户接口并始终支持角色关联；当 `org-center` 已安装并启用时，系统额外支持关联部门和岗位；当插件缺失时，这些组织扩展字段不阻塞用户创建。
 
-### Requirement: Update user information
-The system SHALL provides an interface for updating user information and always supports role association; when `org-center` is installed and enabled, the system additionally supports updating department and position associations; when the plugin is missing, these organization extension fields do not block user updates.
+#### 场景：组织插件缺失时创建用户
+- **当** `org-center` 未安装或未启用且管理员创建用户时
+- **则** 系统仍成功创建用户并处理角色关联
+- **且** 缺少部门和岗位信息不会导致创建失败
 
-#### Scenario: Update users when organization plugin is missing
-- **WHEN** `org-center` is not installed or enabled and the administrator updates the user
-- **THEN** The system still successfully updated the user's basic information and role association
-- **AND** Fields related to departments and positions are safely ignored
+### 需求：更新用户信息
+系统 SHALL 提供更新用户信息接口并始终支持角色关联；当 `org-center` 已安装并启用时，系统额外支持更新部门和岗位关联；当插件缺失时，这些组织扩展字段不阻塞用户更新。
 
-### Requirement: View user details
-The system SHALL provides user details query interface. When `org-center` is installed and enabled, the associated department and position information is returned; when the plugin is missing, basic user information and role information are still returned.
+#### 场景：组织插件缺失时更新用户
+- **当** `org-center` 未安装或未启用且管理员更新用户时
+- **则** 系统仍成功更新用户基本信息和角色关联
+- **且** 与部门和岗位相关的字段被安全忽略
 
-#### Scenario: Query user details when the organization plugin is missing
-- **WHEN** `org-center` is not installed or enabled and calling `GET /api/v1/user/{id}`
-- **THEN** The system returns the complete basic information (excluding password) and role information of the user
-- **AND** `deptId`, `deptName`, `postIds` and other organization extension fields are omitted, set to zero values or set to empty sets
+### 需求：查看用户详情
+系统 SHALL 提供用户详情查询接口。当 `org-center` 已安装并启用时，返回关联的部门和岗位信息；当插件缺失时，仍返回基本用户信息和角色信息。
 
-### Requirement: Delete user
+#### 场景：组织插件缺失时查询用户详情
+- **当** `org-center` 未安装或未启用且调用 `GET /api/v1/user/{id}` 时
+- **则** 系统返回用户的完整基本信息（不含密码）和角色信息
+- **且** `deptId`、`deptName`、`postIds` 等组织扩展字段被省略、设为零值或设为空集
 
-System SHALL support deleting a single user with full transactional cleanup of all associated data. Soft-deleting the user record, removing organization assignments (when `org-center` is installed and enabled), and removing entries in `sys_user_role` MUST occur within a single database transaction. Any failure in associated cleanup MUST cause the entire deletion to roll back. Access topology change notification MUST be issued only after the transaction successfully commits.
+### 需求：删除用户
 
-#### Scenario: Delete user atomically cleans associated data
-- **WHEN** the caller deletes a user
-- **AND** all cleanup steps succeed
-- **THEN** the system soft-deletes the user record
-- **AND** when `org-center` is installed and enabled, removes department/position assignments
-- **AND** removes the matching `sys_user_role` rows
-- **AND** notifies access topology change after commit
+系统 SHALL 支持删除单个用户并完整事务性清理所有关联数据。软删除用户记录、移除组织分配（当 `org-center` 已安装并启用时）和移除 `sys_user_role` 中的条目必须在单个数据库事务内发生。关联清理的任何失败必须导致整个删除回滚。访问拓扑变更通知必须仅在事务成功提交后发出。
 
-#### Scenario: Association cleanup failure rolls back user deletion
-- **WHEN** the caller deletes a user
-- **AND** organization or `sys_user_role` cleanup fails inside the transaction
-- **THEN** the user soft-delete MUST be rolled back
-- **AND** the operation returns the underlying error
-- **AND** no access topology notification is issued
+#### 场景：删除用户原子清理关联数据
+- **当** 调用方删除用户
+- **且** 所有清理步骤成功
+- **则** 系统软删除用户记录
+- **且** 当 `org-center` 已安装并启用时，移除部门/岗位分配
+- **且** 移除匹配的 `sys_user_role` 行
+- **且** 提交后通知访问拓扑变更
 
-### Requirement: User department tree interface
-The system SHALL provides a department tree interface for user management left filtering when `org-center` is installed and enabled; when the plugin is missing, the host no longer exposes the organization extension interface.
+#### 场景：关联清理失败回滚用户删除
+- **当** 调用方删除用户
+- **且** 组织或 `sys_user_role` 清理在事务内失败
+- **则** 用户软删除必须回滚
+- **且** 操作返回底层错误
+- **且** 不发出访问拓扑通知
 
-#### Scenario: Get user department tree when organization plugin is available
-- **WHEN** `org-center` is installed and enabled, and calls `GET /api/v1/user/dept-tree`
-- **THEN** The system returns department tree structure data, each node contains id, label, children, userCount
-- **AND** The first level of the tree can still contain `Unassigned` virtual nodes
+### 需求：用户部门树接口
+系统 SHALL 在 `org-center` 已安装并启用时提供用户管理左侧筛选的部门树接口；当插件缺失时，宿主不再暴露组织扩展接口。
 
-#### Scenario: User department tree is unavailable when the organization plugin is missing
-- **WHEN** `org-center` is not installed or not enabled
-- **THEN** The host no longer exposes `GET /api/v1/user/dept-tree` as the default user management dependency interface
-- **AND** The user management main process does not depend on this interface to work properly.
+#### 场景：组织插件可用时获取用户部门树
+- **当** `org-center` 已安装并启用，且调用 `GET /api/v1/user/dept-tree` 时
+- **则** 系统返回部门树结构数据，每个节点包含 id、label、children、userCount
+- **且** 树的第一级仍可包含 `未分配` 虚拟节点
 
-### Requirement: User management frontend department tree filtering
-The system SHALL only displays the `DeptTree` filter area on the left side of the user management page when `org-center` is installed and enabled; when the plugin is missing, the page degrades to a full-width user list.
+#### 场景：组织插件缺失时用户部门树不可用
+- **当** `org-center` 未安装或未启用时
+- **则** 宿主不再将 `GET /api/v1/user/dept-tree` 作为默认用户管理依赖接口暴露
+- **且** 用户管理主流程不依赖此接口正常工作
 
-#### Scenario: Page layout degraded when organization plugin is missing
-- **WHEN** `org-center` is not installed or enabled, and the administrator opens the user management page
-- **THEN** The page does not display the `DeptTree` component
-- **AND** The user list area is displayed in a single-column full-width layout
+### 需求：用户管理前端部门树筛选
+系统 SHALL 仅在 `org-center` 已安装并启用时在用户管理页面左侧显示 `DeptTree` 筛选区域；当插件缺失时，页面降级为全宽用户列表。
 
-### Requirement: User edit form to add department and position fields
-The system SHALL only displays department selection and position multi-select fields in user edit forms when `org-center` is installed and enabled; these fields are hidden when the plugin is missing.
+#### 场景：组织插件缺失时页面布局降级
+- **当** `org-center` 未安装或未启用，且管理员打开用户管理页面时
+- **则** 页面不显示 `DeptTree` 组件
+- **且** 用户列表区域以单列全宽布局显示
 
-#### Scenario: Hide the department position field when the organization plugin is missing
-- **WHEN** `org-center` is not installed or enabled and the administrator opens the user edit drawer
-- **THEN** Department fields and position fields are not displayed in the form
-- **AND** Users can still complete editing of basic information and role information
+### 需求：用户编辑表单添加部门和岗位字段
+系统 SHALL 仅在 `org-center` 已安装并启用时在用户编辑表单中显示部门选择和岗位多选字段；当插件缺失时，这些字段被隐藏。
 
-### Requirement: Add a department name column to the user list
-The system SHALL only displays the department name column in the user list table when `org-center` is installed and enabled; the column is hidden when the plugin is missing.
+#### 场景：组织插件缺失时隐藏部门岗位字段
+- **当** `org-center` 未安装或未启用且管理员打开用户编辑抽屉时
+- **则** 表单中不显示部门字段和岗位字段
+- **且** 用户仍可完成基本信息和角色信息的编辑
 
-#### Scenario: Hide department column when organization plugin is missing
-- **WHEN** `org-center` is not installed or enabled and the administrator views the user list table
-- **THEN** The `Department` column is not displayed in the table
-- **AND** The remaining core user columns continue to display normally
+### 需求：用户列表添加部门名称列
+系统 SHALL 仅在 `org-center` 已安装并启用时在用户列表表格中显示部门名称列；当插件缺失时，该列被隐藏。
 
-### Requirement: User list role names must match backend-localized role display
-The user management list SHALL use role display names returned by the backend and keep built-in role display consistent with role management in the same language.
+#### 场景：组织插件缺失时隐藏部门列
+- **当** `org-center` 未安装或未启用且管理员查看用户列表表格时
+- **则** 表格中不显示 `部门` 列
+- **且** 其余核心用户列继续正常显示
 
-#### Scenario: User list shows administrator role in English
-- **WHEN** an administrator opens user management in `en-US`
-- **THEN** the `admin` user's associated administrator role displays the same English name as role management
-- **AND** the frontend does not maintain extra mappings based on Chinese role names or role keys
+### 需求：用户列表角色名称必须与后端本地化角色显示匹配
+用户管理列表 SHALL 使用后端返回的角色显示名称，并保持内置角色显示与角色管理在同一语言下一致。
 
-#### Scenario: Role selector keeps governance semantics
-- **WHEN** an administrator opens the user create or edit form
-- **THEN** the role selector continues to use backend role option data
-- **AND** saving user-role relationships still submits stable role IDs rather than localized display text
+#### 场景：用户列表以英文显示管理员角色
+- **当** 管理员以 `en-US` 打开用户管理时
+- **则** `admin` 用户关联的管理员角色显示与角色管理相同的英文名称
+- **且** 前端不维护基于中文角色名称或角色键的额外映射
 
-### Requirement: User batch delete
-System SHALL provide a RESTful batch delete endpoint to remove multiple users in a single request, sharing the same protection rules and atomicity as single-user delete.
+#### 场景：角色选择器保持治理语义
+- **当** 管理员打开用户创建或编辑表单时
+- **则** 角色选择器继续使用后端角色选项数据
+- **且** 保存用户角色关系仍提交稳定的角色 ID 而非本地化显示文本
 
-#### Scenario: Successful batch delete
-- **WHEN** a caller with `user:remove` permission invokes `DELETE /api/v1/user?ids=2,3,4`
-- **AND** none of the ids match the built-in admin or the current logged-in user
-- **THEN** the system soft-deletes all specified users in a single transaction
-- **AND** clears their organization assignments and `sys_user_role` associations atomically
-- **AND** returns success
-- **AND** access topology is notified once after the transaction commits
+### 需求：用户批量删除
+系统 SHALL 提供 RESTful 批量删除端点，在单个请求中删除多个用户，共享与单用户删除相同的保护规则和原子性。
 
-#### Scenario: Batch delete rejects built-in admin id
-- **WHEN** the caller invokes `DELETE /api/v1/user?ids=1&ids=2&ids=3`
-- **AND** id `1` belongs to the built-in admin
-- **THEN** the entire batch MUST be rejected with `bizerr` `CodeUserBuiltinAdminDeleteDenied`
-- **AND** no user is deleted, no association is cleaned
+#### 场景：批量删除成功
+- **当** 拥有 `user:remove` 权限的调用方调用 `DELETE /api/v1/user?ids=2,3,4`
+- **且** 没有 id 匹配内置管理员或当前登录用户
+- **则** 系统在单个事务内软删除所有指定用户
+- **且** 原子清理其组织分配和 `sys_user_role` 关联
+- **且** 返回成功
+- **且** 事务提交后通知一次访问拓扑
 
-#### Scenario: Batch delete rejects current user id
-- **WHEN** the caller invokes `DELETE /api/v1/user?ids=...`
-- **AND** the id list contains the current logged-in user's id
-- **THEN** the entire batch MUST be rejected with `bizerr` `CodeUserCurrentDeleteDenied`
-- **AND** no user is deleted
+#### 场景：批量删除拒绝内置管理员 id
+- **当** 调用方调用 `DELETE /api/v1/user?ids=1&ids=2&ids=3`
+- **且** id `1` 属于内置管理员
+- **则** 整个批量必须以 `bizerr` `CodeUserBuiltinAdminDeleteDenied` 被拒绝
+- **且** 不删除任何用户，不清理任何关联
 
-#### Scenario: Empty id list rejected at validation
-- **WHEN** the caller invokes `DELETE /api/v1/user?ids=`
-- **THEN** the system MUST reject the request with a validation error
-- **AND** no transaction is started
+#### 场景：批量删除拒绝当前用户 id
+- **当** 调用方调用 `DELETE /api/v1/user?ids=...`
+- **且** id 列表包含当前登录用户的 id
+- **则** 整个批量必须以 `bizerr` `CodeUserCurrentDeleteDenied` 被拒绝
+- **且** 不删除任何用户
 
-### Requirement: sys_user table must carry common query indexes
-System SHALL maintain `KEY idx_status (status)`, `KEY idx_phone (phone)`, and `KEY idx_created_at (created_at)` on the `sys_user` table so that user list queries filtering by status, phone, or created-time range avoid full table scans.
+#### 场景：空 id 列表在验证时被拒绝
+- **当** 调用方调用 `DELETE /api/v1/user?ids=` 时
+- **则** 系统必须以验证错误拒绝请求
+- **且** 不启动事务
 
-#### Scenario: sys_user indexes present after init
-- **WHEN** `make init` finishes initializing the database
-- **THEN** `SHOW INDEX FROM sys_user` returns entries `idx_status`, `idx_phone`, and `idx_created_at` in addition to the existing primary key and `username` unique key
+### 需求：sys_user 表必须携带常用查询索引
+系统 SHALL 在 `sys_user` 表上维护 `KEY idx_status (status)`、`KEY idx_phone (phone)` 和 `KEY idx_created_at (created_at)`，使按状态、手机或创建时间范围筛选的用户列表查询避免全表扫描。
+
+#### 场景：init 后 sys_user 索引存在
+- **当** `make init` 完成数据库初始化时
+- **则** `SHOW INDEX FROM sys_user` 除现有主键和 `username` 唯一键外，返回 `idx_status`、`idx_phone` 和 `idx_created_at` 条目

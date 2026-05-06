@@ -1,159 +1,159 @@
-# Notice Management
+# 通知公告管理
 
-## Purpose
+## 目的
 
-Define the notification announcement data structure, list query, detail maintenance and message distribution behavior provided by the `content-notice` source plugin to ensure that the announcement content can be managed by the plugin and delivered to the target user through the host notification domain.
-## Requirements
-### Requirement: Notification and announcement database table design
-The system SHALL provides the `plugin_content_notice` table to store notification announcement data.
+定义 `content-notice` 源码插件提供的通知公告数据结构、列表查询、详情维护和消息分发行为，确保公告内容可由插件管理并通过宿主通知域投递给目标用户。
 
-#### Scenario: plugin_content_notice table structure
-- **WHEN** View `plugin_content_notice` table structure
-- **THEN** table contains: `id` (BIGINT PK AUTO_INCREMENT), `title` (VARCHAR(255) title), `type` (TINYINT type: 1=notification 2=announcement), `content` (LONGTEXT rich text content), `file_ids` (VARCHAR(500) attachment file ID list), `status` (TINYINT status: 0=draft 1=published), `remark` (VARCHAR(500) remarks), `created_by` (BIGINT creator ID), `updated_by` (BIGINT updater ID), `created_at` (DATETIME), `updated_at` (DATETIME), `deleted_at` (DATETIME soft deletion)
+## 需求
+### 需求：通知公告数据库表设计
+系统 SHALL 提供 `plugin_content_notice` 表存储通知公告数据。
 
-### Requirement: Notification announcement list query
-System SHALL provides a paging list query interface for notification announcements.
+#### 场景：plugin_content_notice 表结构
+- **当** 查看 `plugin_content_notice` 表结构时
+- **则** 表包含：`id`（BIGINT 主键自增）、`title`（VARCHAR(255) 标题）、`type`（TINYINT 类型：1=通知 2=公告）、`content`（LONGTEXT 富文本内容）、`file_ids`（VARCHAR(500) 附件文件 ID 列表）、`status`（TINYINT 状态：0=草稿 1=已发布）、`remark`（VARCHAR(500) 备注）、`created_by`（BIGINT 创建者 ID）、`updated_by`（BIGINT 更新者 ID）、`created_at`（DATETIME）、`updated_at`（DATETIME）、`deleted_at`（DATETIME 软删除）
 
-#### Scenario: Query notification announcement list
-- **WHEN** Call `GET /api/v1/notice` and pass in the paging parameters `pageNum` and `pageSize`
-- **THEN** returns the notification announcement list and total number in the format of `{list: [...], total: number}`
-- **THEN** The list is sorted in reverse order of creation time
+### 需求：通知公告列表查询
+系统 SHALL 提供通知公告分页列表查询接口。
 
-#### Scenario: The notification list supports conditional filtering
-- **WHEN** Pass in the filter parameters `title` (title), `type` (type) or `createdBy` (creator) when querying
-- **THEN** `title` uses fuzzy matching (LIKE), `type` uses exact matching
-- **THEN** `createdBy` matches the creator username through the associated user table (fuzzy matching)
-- **THEN** Returns the list of eligible notification announcements
+#### 场景：查询通知公告列表
+- **当** 调用 `GET /api/v1/notice` 并传入分页参数 `pageNum` 和 `pageSize` 时
+- **则** 返回 `{list: [...], total: number}` 格式的通知公告列表和总数
+- **且** 列表按创建时间倒序排列
 
-#### Scenario: Notification announcement list excludes deleted records
-- **WHEN** Query notification announcement list
-- **THEN** Soft deleted records are not included in the results
+#### 场景：通知列表支持条件筛选
+- **当** 查询时传入筛选参数 `title`（标题）、`type`（类型）或 `createdBy`（创建者）
+- **则** `title` 使用模糊匹配（LIKE），`type` 使用精确匹配
+- **且** `createdBy` 通过关联用户表匹配创建者用户名（模糊匹配）
+- **且** 返回符合条件的通知公告列表
 
-#### Scenario: List returns the name of the creator
-- **WHEN** Query notification announcement list
-- **THEN** Each record contains the `createdByName` field, which is the user name of the creator
+#### 场景：通知公告列表排除已删除记录
+- **当** 查询通知公告列表时
+- **则** 软删除的记录不包含在结果中
 
-### Requirement: Get notification announcement details
-System SHALL provides an interface for querying notification and announcement details.
+#### 场景：列表返回创建者名称
+- **当** 查询通知公告列表时
+- **则** 每条记录包含 `createdByName` 字段，即创建者的用户名
 
-#### Scenario: Query notification announcement details
-- **WHEN** calls `GET /api/v1/notice/{id}`
-- **THEN** Returns the complete information of the notification announcement, including rich text content
+### 需求：获取通知公告详情
+系统 SHALL 提供查询通知公告详情接口。
 
-#### Scenario: Query non-existent notification announcements
-- **WHEN** calls `GET /api/v1/notice/{id}` and the ID does not exist
-- **THEN** The system returns an error message
+#### 场景：查询通知公告详情
+- **当** 调用 `GET /api/v1/notice/{id}` 时
+- **则** 返回通知公告的完整信息，包括富文本内容
 
-### Requirement: Create notification announcement
-System SHALL provides an interface for creating notification announcements.
+#### 场景：查询不存在的通知公告
+- **当** 调用 `GET /api/v1/notice/{id}` 且 ID 不存在时
+- **则** 系统返回错误消息
 
-#### Scenario: Create notification announcement successfully
-- **WHEN** Call `POST /api/v1/notice` and submit the `title`, `type`, `content`, `status` fields
-- **THEN** The system creates notification announcements and automatically records `created_by` as the current logged in user ID
-- **THEN** returns success
+### 需求：创建通知公告
+系统 SHALL 提供创建通知公告接口。
 
-#### Scenario: Create and publish notifications directly
-- **WHEN** The notification announcement was created with `status` as 1 (published)
-- **THEN** After the system creates the notification announcement, it creates the notification master record and inbox delivery record for the target user through the host unified `notify` service.
+#### 场景：创建通知公告成功
+- **当** 调用 `POST /api/v1/notice` 并提交 `title`、`type`、`content`、`status` 字段时
+- **则** 系统创建通知公告并自动将 `created_by` 记录为当前登录用户 ID
+- **且** 返回成功
 
-#### Scenario: Create draft notifications
-- **WHEN** Create notification announcement with `status` as 0 (draft)
-- **THEN** Only creates notification announcement records and does not distribute user messages
+#### 场景：直接创建并发布通知
+- **当** 创建通知公告时 `status` 为 1（已发布）
+- **则** 系统创建通知公告后，通过宿主统一 `notify` 服务为目标用户创建通知主记录和收件箱投递记录
 
-#### Scenario: Required field verification
-- **WHEN** Missing `title`, `type` or `content` when creating notification announcement
-- **THEN** The system returns parameter verification error
+#### 场景：创建草稿通知
+- **当** 创建通知公告时 `status` 为 0（草稿）
+- **则** 仅创建通知公告记录，不分发用户消息
 
-### Requirement: Update notification announcement
-System SHALL provides an interface for update notification announcements.
+#### 场景：必填字段验证
+- **当** 创建通知公告时缺少 `title`、`type` 或 `content`
+- **则** 系统返回参数验证错误
 
-#### Scenario: Update notification announcement successful
-- **WHEN** Call `PUT /api/v1/notice/{id}` and submit the fields to be updated
-- **THEN** The system updates corresponding notification and announcement information, and automatically records `updated_by` as the current logged in user ID.
+### 需求：更新通知公告
+系统 SHALL 提供更新通知公告接口。
 
-#### Scenario: Draft updated to published
-- **WHEN** Change `status` from 0 to 1 when updating notification announcements
-- **THEN** After the system updates the notification announcement status, it creates a notification master record and inbox delivery record for the target user through the host unified `notify` service.
+#### 场景：更新通知公告成功
+- **当** 调用 `PUT /api/v1/notice/{id}` 并提交要更新的字段时
+- **则** 系统更新对应的通知公告信息，并自动将 `updated_by` 记录为当前登录用户 ID
 
-#### Scenario: Notification posted for editing again
-- **WHEN** Update the content of a published notification announcement (do not change status)
-- **THEN** Only updates notification announcement records and does not repeatedly distribute user messages
+#### 场景：草稿更新为已发布
+- **当** 更新通知公告时将 `status` 从 0 改为 1
+- **则** 系统更新通知公告状态后，通过宿主统一 `notify` 服务为目标用户创建通知主记录和收件箱投递记录
 
-#### Scenario: Update non-existent notification announcements
-- **WHEN** Update a non-existent notification announcement ID
-- **THEN** The system returns an error message
+#### 场景：已发布通知再次编辑
+- **当** 更新已发布通知公告的内容（不改变状态）时
+- **则** 仅更新通知公告记录，不重复分发用户消息
 
-### Requirement: Delete notification announcement
-System SHALL provides an interface for deleting notification announcements and supports batch deletion.
+#### 场景：更新不存在的通知公告
+- **当** 更新不存在的通知公告 ID
+- **则** 系统返回错误消息
 
-#### Scenario: Deletion notification announcement successful
-- **WHEN** Call `DELETE /api/v1/notice` and pass in the `ids` parameter (comma separated list of IDs)
-- **THEN** The corresponding notification announcement is soft deleted (set `deleted_at`)
+### 需求：删除通知公告
+系统 SHALL 提供删除通知公告接口，支持批量删除。
 
-### Requirement: Notification announcement dictionary data
-System SHALL provides dictionary data related to notification announcements.
+#### 场景：删除通知公告成功
+- **当** 调用 `DELETE /api/v1/notice` 并传入 `ids` 参数（逗号分隔的 ID 列表）时
+- **则** 对应的通知公告被软删除（设置 `deleted_at`）
 
-#### Scenario: Initialize notification type dictionary
-- **WHEN** Execute v0.4.0 database migration script
-- **THEN** Create dictionary type `sys_notice_type` (notification type), including dictionary data: notification (1), announcement (2)
+### 需求：通知公告字典数据
+系统 SHALL 提供通知公告相关的字典数据。
 
-#### Scenario: Initialize announcement status dictionary
-- **WHEN** Execute v0.4.0 database migration script
-- **THEN** Create dictionary type `sys_notice_status` (notice status), including dictionary data: draft (0), published (1)
+#### 场景：初始化通知类型字典
+- **当** 执行 v0.4.0 数据库迁移脚本时
+- **则** 创建字典类型 `sys_notice_type`（通知类型），包含字典数据：通知（1）、公告（2）
 
-### Requirement: Notification and announcement management frontend list page
-System SHALL provides a notification and announcement management list page.
+#### 场景：初始化公告状态字典
+- **当** 执行 v0.4.0 数据库迁移脚本时
+- **则** 创建字典类型 `sys_notice_status`（公告状态），包含字典数据：草稿（0）、已发布（1）
 
-#### Scenario: List page display
-- **WHEN** The user enters the notification and announcement management page
-- **THEN** Display the notification announcement list in VXE-Grid form, supporting paging
-- **THEN** Display columns: announcement title, announcement type (dictionary rendering), status (dictionary rendering), creator, creation time
-- **THEN** supports multiple selection of check boxes
+### 需求：通知公告管理前端列表页
+系统 SHALL 提供通知公告管理列表页。
 
-#### Scenario: Search filters
-- **WHEN** The user enters the title, selects the type or enters the creator in the search bar and clicks search
-- **THEN** The table refreshes to display eligible notification announcements
+#### 场景：列表页展示
+- **当** 用户进入通知公告管理页面时
+- **则** 以 VXE-Grid 形式展示通知公告列表，支持分页
+- **且** 展示列：公告标题、公告类型（字典渲染）、状态（字典渲染）、创建者、创建时间
+- **且** 支持复选框多选
 
-#### Scenario: New notification announcement
-- **WHEN** User clicks the "Add" button
-- **THEN** Pop-up window (800px wide), including title, status (RadioButton), type (RadioButton), content (Tiptap editor) fields
+#### 场景：搜索筛选
+- **当** 用户在搜索栏输入标题、选择类型或输入创建者并点击搜索时
+- **则** 表格刷新展示符合条件的通知公告
 
-#### Scenario: Editorial Notice Announcement
-- **WHEN** The user clicks the "Edit" button of a record
-- **THEN** Pops up a pop-up window and echoes the notification announcement information. Submit the update after modification.
+#### 场景：新增通知公告
+- **当** 用户点击"新增"按钮时
+- **则** 弹出弹窗（800px 宽），包含标题、状态（RadioButton）、类型（RadioButton）、内容（Tiptap 编辑器）字段
 
-#### Scenario: Deletion notification announcement
-- **WHEN** The user clicks the "Delete" button of a record
-- **THEN** A confirmation dialog box pops up. After confirmation, the notification announcement is deleted and the list is automatically refreshed.
+#### 场景：编辑通知公告
+- **当** 用户点击某条记录的"编辑"按钮时
+- **则** 弹出弹窗并回显通知公告信息，修改后提交更新
 
-#### Scenario: Batch delete
-- **WHEN** The user selects multiple records and clicks the "Delete" button on the toolbar.
-- **THEN** A confirmation dialog box will pop up. After confirmation, the selected notification announcements will be deleted in batches.
+#### 场景：删除通知公告
+- **当** 用户点击某条记录的"删除"按钮时
+- **则** 弹出确认对话框，确认后删除通知公告并自动刷新列表
 
-### Requirement: Notification announcement menu and permissions
-The system SHALL mounts the notification announcement menu as the `content-notice` source plugin menu to the host `content management` directory instead of to `system management`.
+#### 场景：批量删除
+- **当** 用户选择多条记录并点击工具栏上的"删除"按钮时
+- **则** 弹出确认对话框，确认后批量删除所选通知公告
 
-#### Scenario: Menu display
-- **WHEN** `content-notice` is installed, enabled and the current user has menu access
-- **THEN** `Content Management` displays the `Notification Announcement` menu item under the group
-- **AND** Plugin governance is still the responsibility of `Extension Center / Plugin Management`
+### 需求：通知公告菜单和权限
+系统 SHALL 将通知公告菜单作为 `content-notice` 源码插件菜单挂载到宿主 `内容管理` 目录，而非 `系统管理`。
 
-#### Scenario: Plug-in missing or disabled
-- **WHEN** `content-notice` is not installed, not enabled, or the current user does not have access to its menu
-- **THEN** The host does not display the `Notification Announcement` menu entry
-- **AND** If there are no other visible submenus in `Content Management`, the parent directory will be hidden as well.
+#### 场景：菜单展示
+- **当** `content-notice` 已安装、已启用且当前用户有菜单访问权限时
+- **则** `内容管理` 分组下显示 `通知公告` 菜单项
+- **且** 插件治理仍由 `扩展中心 / 插件管理` 负责
 
-### Requirement: Notification announcements are delivered by the content source plugin
+#### 场景：插件缺失或禁用
+- **当** `content-notice` 未安装、未启用或当前用户无权访问其菜单时
+- **则** 宿主不显示 `通知公告` 菜单入口
+- **且** 如果 `内容管理` 下没有其他可见子菜单，父目录也将被隐藏
 
-The The system SHALL deliver the notification announcement capability as a `content-notice` source plugin, rather than continuing as the host's default built-in module.
+### 需求：通知公告由内容源码插件交付
 
-#### Scenario: Provides notification announcement capability when the content plugin is enabled
-- **WHEN** `content-notice` is installed and enabled
-- **THEN** The host exposes notification announcement related APIs, pages and menus
-- **AND** This plugin continues to host the announcement content management and publishing process
+系统 SHALL 将通知公告能力作为 `content-notice` 源码插件交付，而非继续作为宿主默认内置模块。
 
-#### Scenario: Hide the notification announcement entrance when the content plugin is missing
-- **WHEN** `content-notice` is not installed or enabled
-- **THEN** The host does not display the notification announcement menu and page entry
-- **AND** The remaining core capabilities of the host continue to operate normally
+#### 场景：内容插件启用时提供通知公告能力
+- **当** `content-notice` 已安装并启用时
+- **则** 宿主暴露通知公告相关 API、页面和菜单
+- **且** 该插件继续承载公告内容管理和发布流程
 
+#### 场景：内容插件缺失时隐藏通知公告入口
+- **当** `content-notice` 未安装或未启用时
+- **则** 宿主不显示通知公告菜单和页面入口
+- **且** 宿主其余核心能力继续正常运行

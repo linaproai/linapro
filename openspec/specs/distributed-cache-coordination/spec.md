@@ -1,104 +1,104 @@
-# Distributed Cache Coordination
+# 分布式缓存协调
 
-## Purpose
+## 目的
 
-Define topology-aware cache coordination for single-node and cluster deployments, including persistent shared revisions, scoped invalidation, domain policy fallback, observability, and failure handling for critical cache paths.
+定义单节点和集群部署的拓扑感知缓存协调，包括持久化共享修订号、范围失效、域策略回退、可观测性和关键缓存路径的故障处理。
 
-## Requirements
+## 需求
 
-### Requirement: Host must provide topology-aware cache coordination
+### 需求：宿主必须提供拓扑感知缓存协调
 
-The system SHALL provide unified cache coordination for publishing explicit scoped revisions for any legal cache domain, synchronizing in-process derived caches, and differentiating single-node and cluster strategies according to `cluster.enabled`.
+系统 SHALL 为发布显式范围修订号、同步进程内派生缓存以及根据 `cluster.enabled` 区分单节点和集群策略提供统一的缓存协调。
 
-#### Scenario: Single-node mode uses local coordination
+#### 场景：单节点模式使用本地协调
 
-- **WHEN** `cluster.enabled=false` and a business write path publishes a cache change
-- **THEN** the system only updates the local revision in the current process
-- **AND** the corresponding cache domain in the current process is invalidated or refreshed immediately
-- **AND** the system MUST NOT depend on a shared revision table or distributed coordination component
+- **当** `cluster.enabled=false` 且业务写路径发布缓存变更时
+- **则** 系统仅更新当前进程中的本地修订号
+- **且** 当前进程中对应的缓存域立即失效或刷新
+- **且** 系统不得依赖共享修订号表或分布式协调组件
 
-#### Scenario: Cluster mode uses shared revisions
+#### 场景：集群模式使用共享修订号
 
-- **WHEN** `cluster.enabled=true` and a business write path publishes a cache change
-- **THEN** the system persistently increments the shared revision for the corresponding cache domain and scope
-- **AND** all nodes refresh local cache after observing the new revision on a request path or watcher path
-- **AND** revision publishing must be idempotent, retryable, and observable
+- **当** `cluster.enabled=true` 且业务写路径发布缓存变更时
+- **则** 系统持久化递增对应缓存域和范围的共享修订号
+- **且** 所有节点在请求路径或监听路径上观察到新修订号后刷新本地缓存
+- **且** 修订号发布必须是幂等的、可重试的和可观测的
 
-### Requirement: Shared cache revisions must be persistent and atomically incremented
+### 需求：共享缓存修订号必须持久化且原子递增
 
-The system SHALL store critical cache-domain revisions in persistent shared storage and ensure concurrent increments for the same cache domain and scope are not lost.
+系统 SHALL 将关键缓存域修订号存储在持久化共享存储中，并确保同一缓存域和范围的并发递增不会丢失。
 
-#### Scenario: Concurrent revision publishing for the same scope
+#### 场景：同一范围的并发修订号发布
 
-- **WHEN** multiple nodes concurrently publish changes for the same cache domain and scope
-- **THEN** the system generates a monotonically increasing revision for every successful publish
-- **AND** the final shared revision increases by at least the number of successful publishes
-- **AND** no node may overwrite another node's increment through a read-modify-write race
+- **当** 多个节点并发发布同一缓存域和范围的变更时
+- **则** 系统为每次成功发布生成单调递增的修订号
+- **且** 最终共享修订号至少增加成功发布的次数
+- **且** 任何节点不得通过读-修改-写竞争覆盖其他节点的递增
 
-#### Scenario: Revisions remain available after database restart
+#### 场景：数据库重启后修订号仍然可用
 
-- **WHEN** the shared database restarts and recovers
-- **THEN** committed cache revisions still exist
-- **AND** newly started nodes can use persistent revisions to determine whether local cache must be refreshed
+- **当** 共享数据库重启并恢复时
+- **则** 已提交的缓存修订号仍然存在
+- **且** 新启动的节点可使用持久化修订号判断本地缓存是否必须刷新
 
-#### Scenario: Lossy cache must not carry critical revisions
+#### 场景：有损缓存不得承载关键修订号
 
-- **WHEN** the system publishes revisions for critical cache domains such as permissions, runtime configuration, or plugin runtime
-- **THEN** the system writes to the persistent revision table
-- **AND** MUST NOT store critical revisions in `sys_kv_cache` or any other lossy cache
+- **当** 系统为权限、运行时配置或插件运行时等关键缓存域发布修订号时
+- **则** 系统写入持久化修订号表
+- **且** 不得将关键修订号存储在 `sys_kv_cache` 或任何其他有损缓存中
 
-### Requirement: Cache-domain policy configuration must not gate usage
+### 需求：缓存域策略配置不得阻塞使用
 
-The system SHALL allow callers to publish and read revisions for any legal cache-domain string directly. It MUST NOT require prior cache-domain registration before a domain participates in coordination. Critical cache domains SHALL declare authoritative data source, consistency model, invalidation trigger, maximum tolerated staleness, cross-instance synchronization mechanism, and failure fallback in their owning implementation code. Unconfigured domains SHALL use the component default policy.
+系统 SHALL 允许调用方直接为任何合法的缓存域字符串发布和读取修订号。不得要求域在参与协调前进行预先注册。关键缓存域 SHALL 在其所属实现代码中声明权威数据源、一致性模型、失效触发点、最大可容忍陈旧时间、跨实例同步机制和故障回退策略。未配置的域 SHALL 使用组件默认策略。
 
-#### Scenario: Use an unconfigured policy domain
+#### 场景：使用未配置策略的域
 
-- **WHEN** host module or plugin logic publishes a revision for a new legal cache-domain string
-- **THEN** the system accepts the domain and uses default consistency and failure policy
-- **AND** the caller does not need to modify `cachecoord` component source or delivery manifest to add that domain
+- **当** 宿主模块或插件逻辑为新的合法缓存域字符串发布修订号时
+- **则** 系统接受该域并使用默认一致性和故障策略
+- **且** 调用方无需修改 `cachecoord` 组件源码或交付清单来添加该域
 
-#### Scenario: Configure critical cache-domain policy
+#### 场景：配置关键缓存域策略
 
-- **WHEN** a host critical cache domain needs a staleness window or fallback behavior different from the default
-- **THEN** that domain's implementation code configures authoritative source and maximum tolerated staleness
-- **AND** that domain's implementation code configures refresh-failure fallback behavior
-- **AND** review can use that configuration to determine whether the domain satisfies cluster consistency requirements
+- **当** 宿主关键缓存域需要不同于默认的陈旧窗口或回退行为时
+- **则** 该域的实现代码配置权威源和最大可容忍陈旧时间
+- **且** 该域的实现代码配置刷新失败回退行为
+- **且** 审查可使用该配置判断域是否满足集群一致性要求
 
-#### Scenario: Critical cache exceeds staleness window
+#### 场景：关键缓存超过陈旧窗口
 
-- **WHEN** a node in cluster mode cannot read the shared revision and local cache exceeds the domain's maximum staleness window
-- **THEN** the system handles the request according to that domain's failure policy
-- **AND** permission caches MUST NOT silently allow requests after the failure window is exceeded
+- **当** 集群模式下的节点无法读取共享修订号且本地缓存超过域的最大陈旧窗口时
+- **则** 系统按该域的故障策略处理请求
+- **且** 权限缓存在超过故障窗口后不得静默允许请求
 
-### Requirement: Critical write paths must reliably publish invalidation
+### 需求：关键写路径必须可靠发布失效
 
-Critical write paths for permissions, configuration, plugin runtime stable state, and equivalent domains MUST reliably publish the corresponding cache-domain revision after business data changes succeed. If publishing fails, callers MUST NOT receive silent success.
+权限、配置、插件运行时稳定状态和等效域的关键写路径必须在业务数据变更成功后可靠发布对应的缓存域修订号。如果发布失败，调用方不得收到静默成功。
 
-#### Scenario: Publish cache revision inside the transaction
+#### 场景：在事务内发布缓存修订号
 
-- **WHEN** the business data change and cache revision publishing can use the same database transaction
-- **THEN** the system commits the business data and revision increment in the same transaction
-- **AND** there is no state where business data commits successfully but the revision is missing
+- **当** 业务数据变更和缓存修订号发布可使用同一数据库事务时
+- **则** 系统在同一事务中提交业务数据和修订号递增
+- **且** 不存在业务数据提交成功但修订号缺失的状态
 
-#### Scenario: Publishing failure returns an error
+#### 场景：发布失败返回错误
 
-- **WHEN** a critical write path completes business data change but cache revision publishing fails
-- **THEN** the system returns a structured business error
-- **AND** the system records observable logs
-- **AND** the caller can retry the operation or trigger a repair flow
+- **当** 关键写路径完成业务数据变更但缓存修订号发布失败时
+- **则** 系统返回结构化业务错误
+- **且** 系统记录可观测日志
+- **且** 调用方可重试操作或触发修复流程
 
-### Requirement: Cache coordination state must be observable
+### 需求：缓存协调状态必须可观测
 
-The system SHALL expose cache coordination state with at least cache domain, scope, local revision, shared revision, last sync time, latest error, and stale seconds.
+系统 SHALL 暴露缓存协调状态，至少包含缓存域、范围、本地修订号、共享修订号、上次同步时间、最新错误和陈旧秒数。
 
-#### Scenario: Query cache coordination state
+#### 场景：查询缓存协调状态
 
-- **WHEN** operations tooling or health checks query cache coordination state
-- **THEN** the system returns synchronization state for configured or touched cache domains
-- **AND** cluster mode can identify whether a node lags behind the shared revision
+- **当** 运维工具或健康检查查询缓存协调状态时
+- **则** 系统返回已配置或已触及缓存域的同步状态
+- **且** 集群模式可识别节点是否落后于共享修订号
 
-#### Scenario: Cache synchronization failure is diagnosable
+#### 场景：缓存同步失败可诊断
 
-- **WHEN** a node fails to refresh a cache domain
-- **THEN** the system records the latest failure reason and time
-- **AND** subsequent state queries can show that domain as abnormal or stale
+- **当** 节点刷新缓存域失败时
+- **则** 系统记录最新失败原因和时间
+- **且** 后续状态查询可将该域显示为异常或陈旧

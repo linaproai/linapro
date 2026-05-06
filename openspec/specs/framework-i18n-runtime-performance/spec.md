@@ -1,95 +1,95 @@
-# Framework i18n Runtime Performance Specification
+# 框架国际化运行时性能规范
 
-## Purpose
+## 目的
 
-Define runtime i18n cache hot-path behavior, layered cache invalidation, ETag negotiation, persistent frontend translation bundles, and language-switch behavior without full route reloads.
+定义运行时国际化缓存热路径行为、分层缓存失效、ETag 协商、持久化前端翻译包以及无需完整路由重载的语言切换行为。
 
-## Requirements
+## 需求
 
-### Requirement: Translation lookup hot path must avoid cloning the entire runtime message bundle
-The host system SHALL let `Translate`, `TranslateSourceText`, `TranslateOrKey`, `TranslateWithDefaultLocale` and other single-value-returning translation lookup methods directly hold a read lock on the internal message bundle and look up values when the cache hits, and MUST NOT clone or copy the entire runtime message bundle. Only when a method semantically needs to return the message set to the caller (such as the runtime translation bundle API or message export API), the system MAY clone once before returning.
+### 需求：翻译查找热路径必须避免克隆整个运行时消息包
+宿主系统 SHALL 让 `Translate`、`TranslateSourceText`、`TranslateOrKey`、`TranslateWithDefaultLocale` 等单值返回的翻译查找方法在缓存命中时直接持有内部消息包的读锁并查找值，不得克隆或复制整个运行时消息包。仅当方法语义上需要向调用方返回消息集时（如运行时翻译包 API 或消息导出 API），系统可在返回前克隆一次。
 
-#### Scenario: Single key translation lookup does not clone entire message bundle on cache hit
-- **WHEN** a business module calls `Translate(ctx, key, fallback)` and the current language runtime message cache already exists
-- **THEN** the system only holds a read lock on the internal message bundle and looks up the value, directly returning the found string
-- **AND** no `cloneFlatMessageMap` or equivalent full `map[string]string` copy is performed
-- **AND** the caller still receives semantically consistent results as before
+#### 场景：单键翻译查找在缓存命中时不克隆整个消息包
+- **当** 业务模块调用 `Translate(ctx, key, fallback)` 且当前语言运行时消息缓存已存在时
+- **则** 系统仅持有内部消息包的读锁并查找值，直接返回找到的字符串
+- **且** 不执行 `cloneFlatMessageMap` 或等效的完整 `map[string]string` 复制
+- **且** 调用方仍收到与之前语义一致的结果
 
-#### Scenario: Translation bundle retains clone semantics when returned externally
-- **WHEN** a controller calls `BuildRuntimeMessages` or `ExportMessages` to return the message set to the frontend or for export
-- **THEN** the system clones once before handing over the message set, ensuring the caller can safely hold it independently
-- **AND** this clone does not corrupt or overwrite the internal cache
+#### 场景：翻译包在外部返回时保留克隆语义
+- **当** 控制器调用 `BuildRuntimeMessages` 或 `ExportMessages` 向前端返回消息集或用于导出时
+- **则** 系统在移交消息集前克隆一次，确保调用方可安全独立持有
+- **且** 该克隆不损坏或覆盖内部缓存
 
-### Requirement: Runtime translation cache must support layered invalidation by language and sector
-The host system SHALL organize the runtime translation message cache into a "language x sector (host / source-plugin / dynamic-plugin)" layered structure, and provide fine-grained invalidation capabilities by sector dimension. Any business-event-triggered invalidation MUST only clear the affected language or sector, and MUST NOT "clear all" caches for all languages and all sectors. The host core i18n must not introduce a database override sector or runtime business content cache; translation content uses development-time JSON/YAML resources as the single source of truth.
+### 需求：运行时翻译缓存必须支持按语言和扇区分层失效
+宿主系统 SHALL 将运行时翻译消息缓存组织为"语言 × 扇区（宿主 / 源码插件 / 动态插件）"分层结构，并提供按扇区维度的细粒度失效能力。任何业务事件触发的失效必须仅清除受影响的语言或扇区，不得"清除所有"语言和所有扇区的缓存。宿主核心国际化不得引入数据库覆盖扇区或运行时业务内容缓存；翻译内容使用开发时 JSON/YAML 资源作为单一事实来源。
 
-#### Scenario: Host resource invalidation only clears target language host sector
-- **WHEN** a maintenance tool or test flow triggers `en-US` host resource cache invalidation
-- **THEN** the system only clears the `en-US` language's host sector cache and merged view
-- **AND** `zh-CN` and other enabled languages' caches retain their original values
-- **AND** source plugin and dynamic plugin sectors in `en-US` do not need to be reloaded
+#### 场景：宿主资源失效仅清除目标语言宿主扇区
+- **当** 维护工具或测试流程触发 `en-US` 宿主资源缓存失效时
+- **则** 系统仅清除 `en-US` 语言的宿主扇区缓存和合并视图
+- **且** `zh-CN` 和其他已启用语言的缓存保留原始值
+- **且** `en-US` 中的源码插件和动态插件扇区不需要重新加载
 
-#### Scenario: Dynamic plugin enable/disable only clears that plugin's relevant sectors
-- **WHEN** a dynamic plugin is enabled, disabled, or upgraded
-- **THEN** the system only clears the dynamic plugin sector cache and merged view related to that plugin
-- **AND** host and unaffected plugins' translation data continues to hit cache
-- **AND** during re-merge, only that plugin ID's resources are loaded or removed
+#### 场景：动态插件启用/禁用仅清除该插件的相关扇区
+- **当** 动态插件被启用、禁用或升级时
+- **则** 系统仅清除该插件相关的动态插件扇区缓存和合并视图
+- **且** 宿主和不受影响的插件翻译数据继续命中缓存
+- **且** 重新合并时仅加载或移除该插件 ID 的资源
 
-### Requirement: Runtime translation bundle API must support ETag negotiation
-The host system SHALL output an `ETag` header in the `/i18n/runtime/messages` API response, with a value derived from the current language and runtime translation bundle version (`bundleVersion`) that must differ when the version changes. The system MUST receive the `If-None-Match` header from requests and return `304 Not Modified` without carrying a message body when the value matches the current response ETag. Every sector cache invalidation MUST trigger `bundleVersion` auto-increment, ensuring different bundle contents for the same language have different ETags.
+### 需求：运行时翻译包 API 必须支持 ETag 协商
+宿主系统 SHALL 在 `/i18n/runtime/messages` API 响应中输出 `ETag` 头，其值由当前语言和运行时翻译包版本（`bundleVersion`）派生，版本变化时值必须不同。系统必须接收请求中的 `If-None-Match` 头，值与当前响应 ETag 匹配时返回 `304 Not Modified` 且不携带消息体。每次扇区缓存失效必须触发 `bundleVersion` 自动递增，确保同一语言的不同翻译包内容具有不同的 ETag。
 
-#### Scenario: Same bundle returns 304 on second request
-- **WHEN** the frontend first requests the runtime translation bundle with `Accept-Language: en-US` and saves the returned `ETag`
-- **AND** no cache invalidation has occurred on the backend between the two requests
-- **AND** the frontend carries `If-None-Match` equal to the previous `ETag` in the second request
-- **THEN** the backend returns `304 Not Modified` without carrying a message body
+#### 场景：同一翻译包第二次请求返回 304
+- **当** 前端首次请求 `Accept-Language: en-US` 的运行时翻译包并保存返回的 `ETag`
+- **且** 两次请求之间后端未发生缓存失效
+- **且** 前端在第二次请求中携带 `If-None-Match` 等于之前的 `ETag`
+- **则** 后端返回 `304 Not Modified` 且不携带消息体
 
-#### Scenario: ETag must change after translation resource changes
-- **WHEN** any sector (host / source-plugin / dynamic-plugin) experiences cache invalidation
-- **THEN** `bundleVersion` auto-increments
-- **AND** the `ETag` returned on the next request for the same language differs from before
-- **AND** requests carrying the old `If-None-Match` return `200` with the latest message body
+#### 场景：翻译资源变更后 ETag 必须变化
+- **当** 任何扇区（宿主 / 源码插件 / 动态插件）发生缓存失效时
+- **则** `bundleVersion` 自动递增
+- **且** 下次对同一语言请求返回的 `ETag` 与之前不同
+- **且** 携带旧 `If-None-Match` 的请求返回 `200` 和最新消息体
 
-### Requirement: Default management workbench must persist runtime translations via ETag and integrate auth chain
-The default management workbench SHALL call the runtime translation bundle API through the unified `requestClient`, enabling it to participate in the authentication, error handling, and degradation chain. The frontend SHALL persist each successful response's `{locale, etag, messages, savedAt}` to `localStorage`, and on subsequent page loads or language switches, prioritize using persistent data for fast rendering, then negotiate with `If-None-Match` in the background. Persistent data MUST have a TTL of no more than 7 days, forcing a re-fetch when the TTL is exceeded.
+### 需求：默认管理工作台必须通过 ETag 持久化运行时翻译并集成认证链
+默认管理工作台 SHALL 通过统一的 `requestClient` 调用运行时翻译包 API，使其参与认证、错误处理和降级链。前端 SHALL 将每次成功响应的 `{locale, etag, messages, savedAt}` 持久化到 `localStorage`，在后续页面加载或语言切换时优先使用持久化数据快速渲染，然后在后台通过 `If-None-Match` 协商。持久化数据 TTL 不得超过 7 天，超过 TTL 时强制重新获取。
 
-#### Scenario: Zero-network language switching on subsequent page loads
-- **WHEN** a user has successfully loaded the runtime translation bundle in a language and written it to persistent cache
-- **AND** the user reopens the page or switches to that language within 7 days
-- **THEN** the frontend directly uses persistent data to complete `vue-i18n` injection
-- **AND** asynchronously negotiates with `If-None-Match` in the background; on `304` hit, does not update in-memory or persistent data
+#### 场景：后续页面加载零网络语言切换
+- **当** 用户已成功加载某语言的运行时翻译包并写入持久化缓存
+- **且** 用户在 7 天内重新打开页面或切换到该语言
+- **则** 前端直接使用持久化数据完成 `vue-i18n` 注入
+- **且** 在后台异步通过 `If-None-Match` 协商；命中 `304` 时不更新内存或持久化数据
 
-#### Scenario: Persistent data forces refresh when TTL expires
-- **WHEN** the persistent entry's `savedAt` is more than 7 days from the current time
-- **THEN** the frontend ignores persistent data and sends a request with empty `If-None-Match` or without that header
-- **AND** after successful fetch, updates in-memory and persistent data, refreshing `savedAt`
+#### 场景：TTL 过期时持久化数据强制刷新
+- **当** 持久化条目的 `savedAt` 距当前时间超过 7 天时
+- **则** 前端忽略持久化数据，发送空 `If-None-Match` 或不带该头的请求
+- **且** 成功获取后更新内存和持久化数据，刷新 `savedAt`
 
-#### Scenario: Degrades to persistent fallback when runtime translation fails
-- **WHEN** the runtime translation bundle API fails due to network error, timeout, or server 5xx
-- **AND** a valid entry for that language exists in persistent cache
-- **THEN** the frontend uses the persistent entry to complete rendering, without blocking the page
-- **AND** the frontend notifies the user through the unified degradation notification mechanism that translations may have version discrepancies
+#### 场景：运行时翻译失败时降级到持久化回退
+- **当** 运行时翻译包 API 因网络错误、超时或服务器 5xx 失败时
+- **且** 持久化缓存中存在该语言的有效条目
+- **则** 前端使用持久化条目完成渲染，不阻塞页面
+- **且** 前端通过统一降级通知机制告知用户翻译可能存在版本差异
 
-### Requirement: Language switching MUST NOT reload the full permission, menu, and route state
+### 需求：语言切换不得重载完整的权限、菜单和路由状态
 
-When the user switches language, the frontend SHALL only refresh local state that is strongly tied to language, including public configuration synchronization and dictionary cache reset. Language switching MUST NOT trigger full permission reload flows such as `refreshAccessibleState`, which refetch menus and regenerate routes. Menu and route titles MUST update automatically through reactive `$t(...)` usage or `meta.i18nKey` values carried by the first menu response. The frontend MUST NOT bake the current-language text into static strings during route generation and lose local redraw capability.
+用户切换语言时，前端 SHALL 仅刷新与语言强相关的本地状态，包括公共配置同步和字典缓存重置。语言切换不得触发 `refreshAccessibleState` 等完整权限重载流程（重新获取菜单和重新生成路由）。菜单和路由标题必须通过响应式 `$t(...)` 用法或首次菜单响应携带的 `meta.i18nKey` 值自动更新。前端不得在路由生成期间将当前语言文本烘焙为静态字符串而丢失本地重绘能力。
 
-#### Scenario: Language switching only updates public config and dict cache
+#### 场景：语言切换仅更新公共配置和字典缓存
 
-- **WHEN** the user switches `preferences.app.locale` in the UI
-- **THEN** the frontend MUST call `syncPublicFrontendSettings(locale)` to synchronize public configuration
-- **AND** MUST call `useDictStore().resetCache()` to reset dictionary cache
-- **AND** MUST NOT call `refreshAccessibleState(router)` to regenerate routes
+- **当** 用户在 UI 中切换 `preferences.app.locale` 时
+- **则** 前端必须调用 `syncPublicFrontendSettings(locale)` 同步公共配置
+- **且** 必须调用 `useDictStore().resetCache()` 重置字典缓存
+- **且** 不得调用 `refreshAccessibleState(router)` 重新生成路由
 
-#### Scenario: Menu titles update reactively after language switching
+#### 场景：语言切换后菜单标题响应式更新
 
-- **WHEN** the user switches language and stays on the current page
-- **THEN** menus and breadcrumbs MUST automatically display text in the new language
-- **AND** this process MUST NOT refetch `/api/v1/user/info` or any menu API
-- **AND** `meta.i18nKey` from the initial menu route response MUST be sufficient for the frontend to re-resolve menu titles from local runtime language packs
+- **当** 用户切换语言并停留在当前页面时
+- **则** 菜单和面包屑必须自动以新语言显示文本
+- **且** 该过程不得重新获取 `/api/v1/user/info` 或任何菜单 API
+- **且** 首次菜单路由响应中的 `meta.i18nKey` 必须足以让前端从本地运行时语言包重新解析菜单标题
 
-#### Scenario: Route meta.title MUST reference i18n keys
+#### 场景：路由 meta.title 必须引用 i18n 键
 
-- **WHEN** any route configuration defines `meta.title`
-- **THEN** the field MUST be an i18n key or `() => $t(...)`
-- **AND** MUST NOT be evaluated once during route initialization into a string for a specific language
+- **当** 任何路由配置定义 `meta.title` 时
+- **则** 该字段必须是 i18n 键或 `() => $t(...)`
+- **且** 不得在路由初始化期间一次性求值为特定语言的字符串

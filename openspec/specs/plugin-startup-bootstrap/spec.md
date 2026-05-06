@@ -1,126 +1,125 @@
-# Plugin Startup Bootstrap
+# 插件启动引导
 
-## Purpose
+## 目的
 
-Define how plugins listed in `plugin.autoEnable` are installed, optionally seeded with mock data, enabled, and converged during host startup.
+定义 `plugin.autoEnable` 中列出的插件在宿主启动期间如何被安装、可选地加载模拟数据、启用和收敛。
 
-## Requirements
+## 需求
 
-### Requirement: The host must provide structured plugin auto-enable entries in the main config file
+### 需求：宿主必须在主配置文件中提供结构化的插件自动启用条目
 
-The host SHALL provide `plugin.autoEnable` in `apps/lina-core/manifest/config/config.yaml` as a list of structured entries. Each entry MUST be an object with required `id` and optional `withMockData` fields. `withMockData` defaults to `false`; only entries with `withMockData=true` load plugin mock data during first-time startup installation. Bare string entries MUST be rejected.
+宿主 SHALL 在 `apps/lina-core/manifest/config/config.yaml` 中提供 `plugin.autoEnable` 作为结构化条目列表。每个条目必须是包含必填 `id` 和可选 `withMockData` 字段的对象。`withMockData` 默认为 `false`；仅 `withMockData=true` 的条目在首次启动安装时加载插件模拟数据。裸字符串条目必须被拒绝。
 
-#### Scenario: Parse a valid structured auto-enable list
-- **WHEN** `plugin.autoEnable` contains `{id: "demo-control", withMockData: false}`, `{id: "plugin-demo-source", withMockData: true}`, and `{id: "plugin-demo-dynamic"}`
-- **THEN** the host parses those entries as `[(demo-control, false), (plugin-demo-source, true), (plugin-demo-dynamic, false)]`
-- **AND** startup loads mock data only for `plugin-demo-source`
+#### 场景：解析有效的结构化自动启用列表
+- **当** `plugin.autoEnable` 包含 `{id: "demo-control", withMockData: false}`、`{id: "plugin-demo-source", withMockData: true}` 和 `{id: "plugin-demo-dynamic"}` 时
+- **则** 宿主将这些条目解析为 `[(demo-control, false), (plugin-demo-source, true), (plugin-demo-dynamic, false)]`
+- **且** 启动时仅为 `plugin-demo-source` 加载模拟数据
 
-#### Scenario: Reject invalid auto-enable config
-- **WHEN** config contains `{id: ""}`, `{withMockData: true}`, `{id: "x", withMockData: "yes"}`, or a bare string entry
-- **THEN** the host fails during config loading or startup
-- **AND** the error identifies the invalid entry position or key
+#### 场景：拒绝无效的自动启用配置
+- **当** 配置包含 `{id: ""}`、`{withMockData: true}`、`{id: "x", withMockData: "yes"}` 或裸字符串条目时
+- **则** 宿主在配置加载或启动期间失败
+- **且** 错误标识无效条目的位置或键
 
-### Requirement: The host must execute startup bootstrap before plugin wiring
+### 需求：宿主必须在插件接线前执行启动引导
 
-The system SHALL advance lifecycle state for plugins listed in `plugin.autoEnable` before plugin HTTP route registration, plugin cron wiring, and dynamic frontend bundle warm-up.
+系统 SHALL 在插件 HTTP 路由注册、插件 cron 接线和动态前端包预热之前推进 `plugin.autoEnable` 中列出的插件的生命周期状态。
 
-#### Scenario: A source plugin reaches enabled state before startup wiring
-- **WHEN** a discovered source plugin appears in `plugin.autoEnable`
-- **THEN** the host installs and enables that source plugin before route and cron registration
-- **AND** later enabled-snapshot reads see that plugin as enabled
+#### 场景：源码插件在启动接线前达到启用状态
+- **当** 发现的源码插件出现在 `plugin.autoEnable` 中时
+- **则** 宿主在路由和 cron 注册前安装并启用该源码插件
+- **且** 后续的启用快照读取将该插件视为已启用
 
-#### Scenario: Plugins not in the auto-enable list remain under manual governance
-- **WHEN** a plugin is discovered but not present in `plugin.autoEnable`
-- **THEN** the host only performs routine manifest sync and registry refresh
-- **AND** the host MUST NOT auto-install or auto-enable it because of startup bootstrap
+#### 场景：不在自动启用列表中的插件保持手动治理
+- **当** 插件被发现但不在 `plugin.autoEnable` 中时
+- **则** 宿主仅执行常规清单同步和注册表刷新
+- **且** 宿主不得因启动引导而自动安装或自动启用它
 
-### Requirement: The auto-enable list must implicitly include install and enable semantics
+### 需求：自动启用列表必须隐式包含安装和启用语义
 
-For each `plugin.autoEnable` entry, `BootstrapAutoEnable(ctx)` SHALL execute implicit install-if-needed plus enable semantics. If `withMockData=true`, first-time installation MUST reuse the manual install path's transactional mock SQL execution. If `withMockData=false`, startup MUST NOT scan or execute the mock-data directory. Already installed plugins MUST NOT reload mock data even when their entry has `withMockData=true`; the option applies only to first-time installation.
+对于每个 `plugin.autoEnable` 条目，`BootstrapAutoEnable(ctx)` SHALL 执行隐式的"按需安装 + 启用"语义。如果 `withMockData=true`，首次安装必须复用手动安装路径的事务性模拟 SQL 执行。如果 `withMockData=false`，启动不得扫描或执行模拟数据目录。已安装的插件即使其条目有 `withMockData=true` 也不得重新加载模拟数据；该选项仅适用于首次安装。
 
-#### Scenario: Auto-enable a newly discovered plugin without mock data
-- **WHEN** `plugin.autoEnable` contains `{id: "plugin-demo-source"}` and the plugin is not installed
-- **AND** the host executes `BootstrapAutoEnable`
-- **THEN** the host executes install SQL, registration, menu synchronization, and enablement
-- **AND** it does not scan `manifest/sql/mock-data/`
-- **AND** no mock data rows from that plugin are created
+#### 场景：自动启用新发现的插件（无模拟数据）
+- **当** `plugin.autoEnable` 包含 `{id: "plugin-demo-source"}` 且插件未安装
+- **且** 宿主执行 `BootstrapAutoEnable`
+- **则** 宿主执行安装 SQL、注册、菜单同步和启用
+- **且** 不扫描 `manifest/sql/mock-data/`
+- **且** 不创建该插件的模拟数据行
 
-#### Scenario: Auto-enable a newly discovered plugin with mock data opt-in
-- **WHEN** `plugin.autoEnable` contains `{id: "plugin-demo-source", withMockData: true}` and the plugin is not installed
-- **AND** the host executes `BootstrapAutoEnable`
-- **THEN** the host transactionally executes all plugin `manifest/sql/mock-data/*.sql` files after install SQL succeeds
-- **AND** the plugin is enabled after the mock phase succeeds
+#### 场景：自动启用新发现的插件（选择模拟数据）
+- **当** `plugin.autoEnable` 包含 `{id: "plugin-demo-source", withMockData: true}` 且插件未安装
+- **且** 宿主执行 `BootstrapAutoEnable`
+- **则** 安装 SQL 成功后宿主事务性执行所有插件 `manifest/sql/mock-data/*.sql` 文件
+- **且** 模拟阶段成功后插件被启用
 
-#### Scenario: An installed plugin reappears with mock-data opt-in
-- **WHEN** `plugin.autoEnable` contains `{id: "x", withMockData: true}` and the plugin is already installed
-- **AND** the host executes `BootstrapAutoEnable`
-- **THEN** the host only ensures the plugin is enabled
-- **AND** it does not re-run install SQL or mock-data SQL
+#### 场景：已安装插件再次出现并选择模拟数据
+- **当** `plugin.autoEnable` 包含 `{id: "x", withMockData: true}` 且插件已安装
+- **且** 宿主执行 `BootstrapAutoEnable`
+- **则** 宿主仅确保插件被启用
+- **且** 不重新运行安装 SQL 或模拟数据 SQL
 
-### Requirement: Any failure for a listed auto-enable plugin must block host startup
+### 需求：列出的自动启用插件的任何失败必须阻塞宿主启动
 
-Any `BootstrapAutoEnable` stage failure MUST block host startup. Mock phase failures for entries with `withMockData=true` SHALL also block startup; after the mock transaction rolls back, the host MUST surface an error that includes the plugin ID, failed SQL file, and rollback fact so operations can fix the issue and restart.
+任何 `BootstrapAutoEnable` 阶段失败必须阻塞宿主启动。`withMockData=true` 条目的模拟阶段失败也应阻塞启动；模拟事务回滚后，宿主必须暴露包含插件 ID、失败 SQL 文件和回滚事实的错误，以便运维人员修复问题并重启。
 
-#### Scenario: A missing auto-enable plugin causes startup failure
-- **WHEN** a plugin ID listed in `plugin.autoEnable` does not exist in the catalog
-- **THEN** startup fails
-- **AND** the error includes the plugin ID
+#### 场景：缺失的自动启用插件导致启动失败
+- **当** `plugin.autoEnable` 中列出的插件 ID 在目录中不存在时
+- **则** 启动失败
+- **且** 错误包含插件 ID
 
-#### Scenario: Install failure causes startup failure
-- **WHEN** install SQL fails for an auto-enabled plugin
-- **THEN** startup fails
-- **AND** the error includes the failure cause
+#### 场景：安装失败导致启动失败
+- **当** 自动启用插件的安装 SQL 失败时
+- **则** 启动失败
+- **且** 错误包含失败原因
 
-#### Scenario: Mock SQL failure during auto-enable causes startup failure
-- **WHEN** `plugin.autoEnable` contains `{id: "x", withMockData: true}`
-- **AND** install SQL succeeds
-- **AND** any SQL file under `manifest/sql/mock-data/` fails
-- **THEN** the host rolls back the mock transaction and fails startup
-- **AND** the error includes the plugin ID, failed mock SQL file, and failure cause
+#### 场景：自动启用期间模拟 SQL 失败导致启动失败
+- **当** `plugin.autoEnable` 包含 `{id: "x", withMockData: true}`
+- **且** 安装 SQL 成功
+- **且** `manifest/sql/mock-data/` 下任何 SQL 文件失败时
+- **则** 宿主回滚模拟事务并使启动失败
+- **且** 错误包含插件 ID、失败的模拟 SQL 文件和失败原因
 
-### Requirement: Startup bootstrap must separate shared lifecycle side effects from local convergence in cluster mode
+### 需求：启动引导必须在集群模式下分离共享生命周期副作用和本地收敛
 
-The system SHALL allow only the primary node to execute shared plugin lifecycle actions in cluster mode, such as install SQL, menu writes, release switches, and shared-state advancement. Follower nodes only wait for shared-state results and refresh their local projections.
+系统 SHALL 在集群模式下仅允许主节点执行共享插件生命周期操作，如安装 SQL、菜单写入、发布切换和共享状态推进。从节点仅等待共享状态结果并刷新其本地投影。
 
-#### Scenario: The primary node executes shared plugin actions
-- **WHEN** a plugin appears in `plugin.autoEnable` in cluster mode and installation or enablement must advance
-- **THEN** only the primary node executes shared install, enable, or reconcile actions
-- **AND** follower nodes MUST NOT repeat those shared side effects
+#### 场景：主节点执行共享插件操作
+- **当** 集群模式下插件出现在 `plugin.autoEnable` 中且安装或启用必须推进时
+- **则** 仅主节点执行共享的安装、启用或协调操作
+- **且** 从节点不得重复这些共享副作用
 
-#### Scenario: Follower nodes refresh local views after shared convergence
-- **WHEN** a follower starts in cluster mode and finds a plugin in `plugin.autoEnable`
-- **THEN** the follower waits for the primary node to write shared stable state or for the wait window to time out
-- **AND** it refreshes its local enabled snapshot and runtime projection from that shared result
+#### 场景：从节点在共享收敛后刷新本地视图
+- **当** 集群模式下从节点启动并发现 `plugin.autoEnable` 中的插件时
+- **则** 从节点等待主节点写入共享稳定状态或等待窗口超时
+- **且** 从该共享结果刷新其本地启用快照和运行时投影
 
-### Requirement: Startup auto-enable of dynamic plugins must reuse existing authorization snapshots
+### 需求：动态插件的启动自动启用必须复用现有授权快照
 
-The system SHALL reuse the host-approved authorization snapshot of the current release when a dynamic plugin that declares governed host services appears in `plugin.autoEnable`. The host MUST NOT require authorization details in the main config file.
+当声明受治理宿主服务的动态插件出现在 `plugin.autoEnable` 中时，系统 SHALL 复用当前发布的宿主已批准授权快照。宿主不得在主配置文件中要求授权详情。
 
-#### Scenario: Reuse an existing authorization snapshot during dynamic-plugin auto-enable
-- **WHEN** a dynamic plugin appears in `plugin.autoEnable` and its current release already has an approved authorization snapshot
-- **THEN** the host reuses that snapshot to drive startup auto-enable
-- **AND** the host does not require authorization details from the main config file again
+#### 场景：动态插件自动启用期间复用现有授权快照
+- **当** 动态插件出现在 `plugin.autoEnable` 中且其当前发布已有已批准的授权快照时
+- **则** 宿主复用该快照驱动启动自动启用
+- **且** 宿主不要求主配置文件再次提供授权详情
 
-#### Scenario: Reject startup auto-enable when no authorization snapshot exists
-- **WHEN** a dynamic plugin appears in `plugin.autoEnable`, declares governed host services, and has no authorization snapshot
-- **THEN** the host stops startup
-- **AND** the error clearly says a normal reviewed flow is required first
+#### 场景：无授权快照时拒绝启动自动启用
+- **当** 动态插件出现在 `plugin.autoEnable` 中、声明受治理宿主服务且无授权快照时
+- **则** 宿主停止启动
+- **且** 错误明确说明需要先经过正常审查流程
 
-### Requirement: The plugin-management UI must label startup auto-enabled plugins and warn about temporary governance actions
+### 需求：插件管理 UI 必须标记启动自动启用的插件并警告临时治理操作
 
-The system SHALL show whether a plugin is matched by `plugin.autoEnable` through read-only indicators in plugin-management list and detail views. When administrators disable or uninstall those plugins, the UI MUST warn that the action is immediate but the host will reinstall or re-enable the plugin after restart unless the config changes.
+系统 SHALL 通过插件管理列表和详情视图中的只读指示器显示插件是否被 `plugin.autoEnable` 匹配。管理员禁用或卸载这些插件时，UI 必须警告该操作是即时的，但除非配置更改，宿主将在重启后重新安装或重新启用该插件。
 
-#### Scenario: The list and detail views show the startup auto-enable indicator
-- **WHEN** a plugin ID exists in `plugin.autoEnable`
-- **THEN** plugin-management list and detail views show a read-only auto-enable indicator
+#### 场景：列表和详情视图显示启动自动启用指示器
+- **当** 插件 ID 存在于 `plugin.autoEnable` 中时
+- **则** 插件管理列表和详情视图显示只读的自动启用指示器
 
-#### Scenario: Disabling a startup auto-enabled plugin warns about restart behavior
-- **WHEN** an administrator attempts to disable an auto-enabled plugin
-- **THEN** the UI shows a risk-confirmation prompt
-- **AND** the prompt states that permanent disablement requires editing `plugin.autoEnable`
+#### 场景：禁用启动自动启用的插件时警告重启行为
+- **当** 管理员尝试禁用自动启用的插件时
+- **则** UI 显示风险确认提示
+- **且** 提示说明永久禁用需要编辑 `plugin.autoEnable`
 
-#### Scenario: Uninstalling a startup auto-enabled plugin warns about restart behavior
-- **WHEN** an administrator attempts to uninstall an auto-enabled plugin
-- **THEN** the uninstall confirmation shows a risk warning
-- **AND** the warning states that startup will reinstall and enable the plugin if the config remains unchanged
-
+#### 场景：卸载启动自动启用的插件时警告重启行为
+- **当** 管理员尝试卸载自动启用的插件时
+- **则** 卸载确认显示风险警告
+- **且** 警告说明如果配置不变，启动将重新安装并启用该插件

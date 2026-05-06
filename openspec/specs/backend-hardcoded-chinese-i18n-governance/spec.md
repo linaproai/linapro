@@ -1,110 +1,109 @@
-# Backend Hardcoded Chinese I18n Governance
+# 后端硬编码中文国际化治理
 
-## Purpose
+## 目的
 
-Define how backend Chinese string literals are identified, classified, remediated, and guarded so caller-visible behavior, exported artifacts, API documentation, and developer diagnostics remain localizable and stable.
+定义后端中文字符串字面量的识别、分类、整改和防护机制，确保调用端可见的行为、导出产物、API 文档和开发者诊断信息保持可本地化和稳定。
 
-## Requirements
+## 需求
 
-### Requirement: Backend hardcoded Chinese strings must be classified
+### 需求：后端硬编码中文字符串必须分类
 
-The system MUST classify Chinese string literals in backend Go source by caller-visible errors, user-visible projections, user deliverables, developer diagnostics, generated sources, test fixtures, and user-data examples.
+系统必须将后端 Go 源码中的中文字符串字面量按调用端可见错误、用户可见投影、用户交付物、开发者诊断、生成源、测试固件和用户数据示例进行分类。
 
-#### Scenario: Scan output is classified
-- **WHEN** a developer runs the backend hardcoded-Chinese scanner
-- **THEN** each finding includes a category or allowlist reason
-- **AND** uncategorized handwritten non-test Go Chinese strings are reported as issues to handle
+#### 场景：扫描输出已分类
+- **当** 开发者运行后端硬编码中文扫描器时
+- **则** 每个发现项都包含分类或白名单原因
+- **且** 未分类的手写非测试 Go 中文字符串将作为待处理问题报告
 
-#### Scenario: Tests and generated files do not block business cleanup
-- **WHEN** the scanner finds Chinese text in `_test.go`, `internal/dao`, `internal/model/do`, or `internal/model/entity`
-- **THEN** those findings are counted separately
-- **AND** developers MUST NOT hand-edit generated DAO, DO, or Entity files
+#### 场景：测试和生成文件不阻塞业务清理
+- **当** 扫描器在 `_test.go`、`internal/dao`、`internal/model/do` 或 `internal/model/entity` 中发现中文文本时
+- **则** 这些发现项单独计数
+- **且** 开发者不得手动生成的 DAO、DO 或 Entity 文件
 
-### Requirement: Caller-visible errors must be structured
+### 需求：调用端可见错误必须结构化
 
-Business, authorization, validation, and user-visible failure reasons that can reach HTTP APIs, source-plugin APIs, dynamic-plugin routes, WASM host services, plugin host services, or unified response payloads MUST use `bizerr` or an equivalent structured error format.
+可能进入 HTTP API、源码插件 API、动态插件路由、WASM 宿主服务、插件宿主服务或统一响应载荷的业务错误、授权错误、验证错误和用户可见失败原因，必须使用 `bizerr` 或等效的结构化错误格式。
 
-#### Scenario: Business error reaches an HTTP caller
-- **WHEN** a backend service returns a caller-visible error
-- **THEN** the unified response contains a stable `errorCode`
-- **AND** the unified response contains a `messageKey`
-- **AND** the unified response localizes `message` by request language
-- **AND** the call site MUST NOT directly return Chinese `gerror.New*`, `errors.New`, or `fmt.Errorf` text
+#### 场景：业务错误到达 HTTP 调用端
+- **当** 后端服务返回调用端可见错误时
+- **则** 统一响应包含稳定的 `errorCode`
+- **且** 统一响应包含 `messageKey`
+- **且** 统一响应根据请求语言本地化 `message`
+- **且** 调用点不得直接返回中文 `gerror.New*`、`errors.New` 或 `fmt.Errorf` 文本
 
-#### Scenario: Module defines its own error codes
-- **WHEN** a module adds a visible business error
-- **THEN** the error is defined in the module's own `*_code.go`
-- **AND** the definition includes an English fallback, stable machine error code, and runtime i18n key
-- **AND** call sites create or wrap errors through the defined code variable
+#### 场景：模块定义自己的错误码
+- **当** 模块添加可见业务错误时
+- **则** 错误在模块自己的 `*_code.go` 中定义
+- **且** 定义包含英文回退、稳定机器错误码和运行时 i18n 键
+- **且** 调用点通过定义的代码变量创建或包装错误
 
-### Requirement: Plugin errors and language resources must belong to the plugin
+### 需求：插件错误和语言资源必须归属插件
 
-When a source-plugin backend adds or changes user-visible errors, export text, page summaries, demo prompts, or business projection text, the corresponding runtime i18n resources MUST live under that plugin's own `manifest/i18n/<locale>/*.json` files.
+当源码插件后端添加或更改用户可见错误、导出文本、页面摘要、演示提示或业务投影文本时，对应的运行时 i18n 资源必须存放在该插件自己的 `manifest/i18n/<locale>/*.json` 文件中。
 
-#### Scenario: Plugin business errors are localized by plugin resources
-- **WHEN** `org-center`, `content-notice`, `monitor-loginlog`, `monitor-operlog`, `plugin-demo-source`, `plugin-demo-dynamic`, or another source plugin adds business errors
-- **THEN** the error definitions use stable plugin-namespace codes and message keys
-- **AND** `zh-CN`, `en-US`, and `zh-TW` translation resources are maintained in that plugin directory
-- **AND** lina-core runtime language packs MUST NOT centrally own plugin business-error translations
+#### 场景：插件业务错误由插件资源本地化
+- **当** `org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`plugin-demo-source`、`plugin-demo-dynamic` 或其他源码插件添加业务错误时
+- **则** 错误定义使用稳定的插件命名空间代码和消息键
+- **且** 在该插件目录中维护 `zh-CN`、`en-US` 和 `zh-TW` 翻译资源
+- **且** lina-core 运行时语言包不得集中拥有插件业务错误翻译
 
-#### Scenario: Plugin exported artifacts are localized
-- **WHEN** a plugin generates Excel, CSV, or another user deliverable
-- **THEN** headers, sheet names, and enum display values use plugin runtime i18n resources
-- **AND** user-entered or database business content is exported unchanged
+#### 场景：插件导出产物已本地化
+- **当** 插件生成 Excel、CSV 或其他用户交付物时
+- **则** 表头、工作表名称和枚举显示值使用插件运行时 i18n 资源
+- **且** 用户输入或数据库业务内容按原样导出
 
-### Requirement: User-visible projections and deliverables must render by language
+### 需求：用户可见投影和交付物必须按语言渲染
 
-Backend-owned user-visible display fields, export headers, import-template fields, import failure reasons, status fallbacks, and runtime configuration display reasons MUST render by request language or return structured values that the frontend can render.
+后端拥有的用户可见显示字段、导出表头、导入模板字段、导入失败原因、状态回退和运行时配置显示原因，必须根据请求语言渲染或返回前端可渲染的结构化值。
 
-#### Scenario: Export files vary by language
-- **WHEN** a user triggers the same export API in different runtime languages
-- **THEN** system headers and system enum display values in the exported file use the current request language
-- **AND** user data in the exported file remains unchanged
+#### 场景：导出文件按语言变化
+- **当** 用户在不同运行时语言下触发相同的导出 API 时
+- **则** 导出文件中的系统表头和系统枚举显示值使用当前请求语言
+- **且** 导出文件中的用户数据保持不变
 
-#### Scenario: Backend projection fields vary by language
-- **WHEN** a user requests department trees, post trees, system information, or runtime configuration display fields
-- **THEN** backend-generated labels, units, and reason text use the current request language
-- **OR** the backend returns structured values and codes that the frontend renders by language
+#### 场景：后端投影字段按语言变化
+- **当** 用户请求部门树、岗位树、系统信息或运行时配置显示字段时
+- **则** 后端生成的标签、单位和原因文本使用当前请求语言
+- **或** 后端返回结构化值和代码，前端按语言渲染
 
-### Requirement: Plugin-platform developer diagnostics must be stable
+### 需求：插件平台开发者诊断必须稳定
 
-Developer diagnostic errors in plugin bridges, plugin file systems, plugin database services, WASM host services, and plugin catalog or runtime validation MUST use stable English source text; if such errors cross into user UI or caller response boundaries, they MUST be wrapped as structured errors or structured plugin error payloads.
+插件桥接、插件文件系统、插件数据库服务、WASM 宿主服务以及插件目录或运行时验证中的开发者诊断错误，必须使用稳定的英文源文本；如果此类错误进入用户 UI 或调用端响应边界，必须包装为结构化错误或结构化插件错误载荷。
 
-#### Scenario: Plugin protocol parsing fails
-- **WHEN** a plugin bridge codec or host-service codec fails to parse a protocol payload
-- **THEN** the internal diagnostic error uses stable English text
-- **AND** protocol callers MUST NOT rely on localized natural-language text to identify error types
+#### 场景：插件协议解析失败
+- **当** 插件桥接编解码器或宿主服务编解码器无法解析协议载荷时
+- **则** 内部诊断错误使用稳定英文文本
+- **且** 协议调用端不得依赖本地化自然语言文本来识别错误类型
 
-#### Scenario: Plugin management API exposes platform errors
-- **WHEN** a plugin-platform internal error reaches a plugin management API response
-- **THEN** the response carries a stable error code or message key
-- **AND** the user-facing display text can be localized by runtime language
+#### 场景：插件管理 API 暴露平台错误
+- **当** 插件平台内部错误到达插件管理 API 响应时
+- **则** 响应携带稳定错误码或消息键
+- **且** 用户面向的显示文本可根据运行时语言本地化
 
-### Requirement: Generated schema text must be governed at the generation source
+### 需求：生成的模式文本必须在生成源治理
 
-The system MUST NOT hand-edit Chinese comments or `description` tags in generated DAO, DO, or Entity files. When generated schema metadata enters OpenAPI or user-visible documentation, the corresponding SQL comments or code generation inputs MUST be changed and regenerated.
+系统不得手动生成的 DAO、DO 或 Entity 文件中的中文注释或 `description` 标签。当生成的模式元数据进入 OpenAPI 或用户可见文档时，必须更改并重新生成对应的 SQL 注释或代码生成输入。
 
-#### Scenario: Entity descriptions enter API documentation
-- **WHEN** generated Entity schema `description` metadata appears in OpenAPI documentation
-- **THEN** the corresponding SQL table or field comments, or generation source, MUST provide English source text
-- **AND** the apidoc service MUST NOT maintain temporary Chinese-to-English conversion tables
+#### 场景：Entity 描述进入 API 文档
+- **当** 生成的 Entity 模式 `description` 元数据出现在 OpenAPI 文档中时
+- **则** 对应的 SQL 表或字段注释，或生成源，必须提供英文源文本
+- **且** apidoc 服务不得维护临时的中英文转换表
 
-#### Scenario: DAO artifacts are regenerated
-- **WHEN** SQL comments or generation inputs change to govern schema text
-- **THEN** developers run the repository's DAO generation flow
-- **AND** generated results remain reproducible without manual edits
+#### 场景：DAO 产物重新生成
+- **当** SQL 注释或生成输入更改以治理模式文本时
+- **则** 开发者运行仓库的 DAO 生成流程
+- **且** 生成结果保持可重现，无需手动编辑
 
-### Requirement: Regression scans must cover high-risk positions
+### 需求：回归扫描必须覆盖高风险位置
 
-The project MUST provide backend runtime hardcoded-Chinese scanner gates for high-risk positions including caller-visible errors, user-visible fields, export headers, status labels, plugin diagnostics, and structured error fallbacks.
+项目必须为高风险位置提供后端运行时硬编码中文扫描器门禁，包括调用端可见错误、用户可见字段、导出表头、状态标签、插件诊断和结构化错误回退。
 
-#### Scenario: New Chinese gerror text is blocked
-- **WHEN** a developer adds Chinese `gerror.New*`, `gerror.Wrap*`, `errors.New`, or `fmt.Errorf` text in handwritten non-test Go files
-- **THEN** the scanner reports the new item as a violation
-- **AND** the violation MUST be converted to `bizerr`, stable English developer diagnostics, or a justified allowlist entry
+#### 场景：新的中文 gerror 文本被阻断
+- **当** 开发者在手写非测试 Go 文件中添加中文 `gerror.New*`、`gerror.Wrap*`、`errors.New` 或 `fmt.Errorf` 文本时
+- **则** 扫描器将新项目报告为违规
+- **且** 违规必须转换为 `bizerr`、稳定英文开发者诊断或合理的白名单条目
 
-#### Scenario: Allowlist entries explain their boundary
-- **WHEN** a Chinese string is allowed to remain
-- **THEN** the allowlist records the file, category, retention reason, and applicability scope
-- **AND** user-visible errors and user deliverable text MUST NOT be exempted only through the allowlist
-
+#### 场景：白名单条目说明其边界
+- **当** 允许中文字符串保留时
+- **则** 白名单记录文件、分类、保留原因和适用范围
+- **且** 用户可见错误和用户交付物文本不得仅通过白名单豁免

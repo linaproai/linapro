@@ -1,35 +1,36 @@
-# plugin-notify-service Specification
+# 插件通知服务规范
 
-## Purpose
-TBD - created by archiving change dynamic-plugin-host-service-extension. Update Purpose after archive.
-## Requirements
-### Requirement: 宿主通知域与通知公告内容管理解耦
+## 目的
+待定 - 由归档变更 dynamic-plugin-host-service-extension 创建。归档后更新目的。
+
+## 需求
+### 需求： 宿主通知域与通知公告内容管理解耦
 
 系统 SHALL 将宿主通知域设计为独立于 `content-notice` 插件中 `plugin_content_notice` 公告内容模型的统一通知发送与投递模型；通知公告内容管理继续由该插件负责，消息中心与插件 `notify` 能力统一基于新的通知域表实现，不再继续使用 `sys_user_message`。
 
-#### Scenario: 发布通知公告时走统一通知域
+#### 场景： 发布通知公告时走统一通知域
 
 - **WHEN** `content-notice` 将一条 `plugin_content_notice` 从草稿发布为生效状态
 - **THEN** 宿主通过统一的 `notify` 服务创建消息主记录与 inbox 投递记录
 - **AND** 宿主不得继续直接写入 `sys_user_message`
 
-#### Scenario: 用户消息中心继续保留现有预览语义
+#### 场景： 用户消息中心继续保留现有预览语义
 
 - **WHEN** 当前用户在消息中心查看一条由通知公告产生的站内消息
 - **THEN** 宿主仍然返回可用于预览公告的 `sourceType/sourceId` 语义
 - **AND** 前端可以继续据此打开通知公告预览
 
-### Requirement: 动态插件通过命名通知通道发送宿主通知
+### 需求： 动态插件通过命名通知通道发送宿主通知
 
 系统 SHALL 为动态插件提供受治理的通知服务，插件只能通过宿主授权的通知通道发送站内信、邮件、Webhook 等通知。
 
-#### Scenario: 插件使用授权通知通道
+#### 场景： 插件使用授权通知通道
 
 - **WHEN** 插件调用通知服务向已授权的`host-notify-channel`发送通知
 - **THEN** 宿主校验通道权限、模板或消息体约束
 - **AND** 宿主按对应通知通道完成发送
 
-#### Scenario: 插件尝试使用未授权通知通道
+#### 场景： 插件尝试使用未授权通知通道
 
 - **WHEN** 插件调用一个未授权的通知通道
 - **THEN** 宿主拒绝该调用

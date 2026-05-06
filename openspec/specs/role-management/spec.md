@@ -1,209 +1,209 @@
-# Role Management
+# 角色管理
 
-## Purpose
+## 目的
 
-Define role query, maintenance, permission assignment, status control, user assignment, plugin menu authorization, localized seed display behavior, batch deletion, and distributed permission cache invalidation.
+定义角色查询、维护、权限分配、状态控制、用户分配、插件菜单授权、本地化种子展示行为、批量删除和分布式权限缓存失效。
 
-## Requirements
+## 需求
 
-### Requirement: Role list and detail queries
+### 需求：角色列表和详情查询
 
-The system SHALL provide paginated role list and detail APIs that return role identity, permission key, sort order, data scope, status, remark, timestamps, and assigned menu IDs where applicable.
+系统 SHALL 提供分页角色列表和详情 API，返回角色标识、权限键、排序、数据范围、状态、备注、时间戳以及适用时的已分配菜单 ID。
 
-#### Scenario: Query role list
+#### 场景：查询角色列表
 
-- **WHEN** a user opens role management
-- **THEN** the system returns paginated roles
-- **AND** filtering by role name, permission key, and status is supported
+- **当** 用户打开角色管理时
+- **则** 系统返回分页角色
+- **且** 支持按角色名称、权限键和状态筛选
 
-#### Scenario: Query role details
+#### 场景：查询角色详情
 
-- **WHEN** a user opens an existing role for editing
-- **THEN** the system returns the role details and assigned menu IDs
+- **当** 用户打开现有角色进行编辑时
+- **则** 系统返回角色详情和已分配的菜单 ID
 
-### Requirement: Role create and update operations
+### 需求：角色创建和更新操作
 
-The system SHALL support creating and updating roles while enforcing unique role names and permission keys.
+系统 SHALL 支持创建和更新角色，同时强制角色名称和权限键唯一。
 
-#### Scenario: Create role
+#### 场景：创建角色
 
-- **WHEN** a user submits valid role name, permission key, sort, data scope, status, and remark
-- **THEN** the system creates the role and timestamps it
+- **当** 用户提交有效的角色名称、权限键、排序、数据范围、状态和备注时
+- **则** 系统创建角色并记录时间戳
 
-#### Scenario: Reject duplicate role identity
+#### 场景：拒绝重复的角色标识
 
-- **WHEN** a submitted role name or permission key already exists
-- **THEN** the system returns a validation or business error
+- **当** 提交的角色名称或权限键已存在时
+- **则** 系统返回验证或业务错误
 
-#### Scenario: Update role menu permissions
+#### 场景：更新角色菜单权限
 
-- **WHEN** a user updates menu assignments for a role
-- **THEN** old `sys_role_menu` records are replaced by the new selection
-- **AND** parent-child menu assignment semantics are preserved
+- **当** 用户更新角色的菜单分配时
+- **则** 旧的 `sys_role_menu` 记录被新选择替换
+- **且** 父子菜单分配语义被保留
 
-### Requirement: Role deletion and status control
+### 需求：角色删除和状态控制
 
-The system SHALL support deleting roles and toggling enabled or disabled status while preserving protected built-in role rules. Deletion MUST be atomic through a transaction, and any associated-record deletion failure inside the transaction MUST roll back the whole operation. The service MUST NOT only log a warning and continue deleting the role itself. Access topology change notification MUST be emitted after the transaction commits.
+系统 SHALL 支持删除角色和切换启用或禁用状态，同时保留受保护的内置角色规则。删除必须通过事务原子执行，事务内任何关联记录删除失败必须回滚整个操作。服务不得仅记录警告并继续删除角色本身。访问拓扑变更通知必须在事务提交后发出。
 
-#### Scenario: Delete unassigned role
+#### 场景：删除未分配给用户的角色
 
-- **WHEN** a user deletes a role that is not assigned to users
-- **THEN** the system soft-deletes the role inside the transaction by setting `deleted_at`
-- **AND** synchronously deletes related records in `sys_role_menu` and `sys_user_role`
-- **AND** notifies access topology change only after transaction commit
+- **当** 用户删除未分配给用户的角色时
+- **则** 系统在事务内通过设置 `deleted_at` 软删除该角色
+- **且** 同步删除 `sys_role_menu` 和 `sys_user_role` 中的相关记录
+- **且** 仅在事务提交后通知访问拓扑变更
 
-#### Scenario: Delete role assigned to users
+#### 场景：删除已分配给用户的角色
 
-- **WHEN** a user attempts to delete a role assigned to users
-- **THEN** the system asks for confirmation that the role is assigned and will be removed from those users
-- **AND** after confirmation, the system deletes the role and cancels those role assignments inside the transaction
+- **当** 用户尝试删除已分配给用户的角色时
+- **则** 系统要求确认该角色已分配并将从这些用户中移除
+- **且** 确认后，系统在事务内删除该角色并取消这些角色分配
 
-#### Scenario: Protected administrator role cannot be deleted
+#### 场景：受保护的管理员角色不能被删除
 
-- **WHEN** a user attempts to delete the built-in administrator role
-- **THEN** the system rejects the deletion
+- **当** 用户尝试删除内置管理员角色时
+- **则** 系统拒绝删除
 
-#### Scenario: Association cleanup failure rolls back the whole operation
+#### 场景：关联清理失败回滚整个操作
 
-- **WHEN** a user deletes a role
-- **AND** cleanup for `sys_role_menu` or `sys_user_role` returns an error inside the transaction
-- **THEN** role soft delete MUST roll back as well
-- **AND** the operation returns the underlying error rather than only logging a warning
-- **AND** no access topology change notification is emitted
+- **当** 用户删除角色
+- **且** `sys_role_menu` 或 `sys_user_role` 的清理在事务内返回错误时
+- **则** 角色软删除也必须回滚
+- **且** 操作返回底层错误而非仅记录警告
+- **且** 不发出访问拓扑变更通知
 
-#### Scenario: Disable role
+#### 场景：禁用角色
 
-- **WHEN** a role status changes to disabled
-- **THEN** users associated with the role no longer obtain that role's menu permissions after login
+- **当** 角色状态变为禁用时
+- **则** 与该角色关联的用户登录后不再获得该角色的菜单权限
 
-### Requirement: Role option and user assignment capabilities
+### 需求：角色选项和用户分配能力
 
-The system SHALL provide role option APIs for user management and role-user assignment workflows. Batch grant and revoke operations MUST commit inside one transaction. All insert or delete operations MUST succeed together or roll back together. The system MUST NOT continue processing later items after logging a warning for a failed per-row insert.
+系统 SHALL 为用户管理和角色用户分配工作流提供角色选项 API。批量授予和撤销操作必须在一个事务内提交。所有插入或删除操作必须一起成功或一起回滚。系统不得在记录失败的逐行插入警告后继续处理后续项。
 
-#### Scenario: Get role options
+#### 场景：获取角色选项
 
-- **WHEN** the user form loads
-- **THEN** the system returns enabled role options with `id`, `name`, and `key`
+- **当** 用户表单加载时
+- **则** 系统返回包含 `id`、`name` 和 `key` 的启用角色选项
 
-#### Scenario: View users assigned to a role
+#### 场景：查看分配给角色的用户
 
-- **WHEN** a user clicks role assignment
-- **THEN** the system shows assigned users with pagination and search
+- **当** 用户点击角色分配时
+- **则** 系统显示已分配用户的分页和搜索
 
-#### Scenario: Revoke a user's role authorization
+#### 场景：撤销用户的角色授权
 
-- **WHEN** a user clicks revoke authorization in the role-user list
-- **THEN** the system deletes the corresponding `sys_user_role` record inside a transaction
-- **AND** the user list refreshes automatically
+- **当** 用户在角色用户列表中点击撤销授权时
+- **则** 系统在事务内删除对应的 `sys_user_role` 记录
+- **且** 用户列表自动刷新
 
-#### Scenario: Batch authorization commits atomically
+#### 场景：批量授权原子提交
 
-- **WHEN** a user selects multiple users not assigned to the role and clicks authorize
-- **THEN** the system batch-inserts `sys_user_role` association records inside one transaction
-- **AND** any insert failure MUST roll back the whole operation
-- **AND** those users can obtain the role menu permissions after signing in again
+- **当** 用户选择多个未分配该角色的用户并点击授权时
+- **则** 系统在一个事务内批量插入 `sys_user_role` 关联记录
+- **且** 任何插入失败必须回滚整个操作
+- **且** 这些用户再次登录后可获得该角色的菜单权限
 
-### Requirement: Data scope options must be supported
+### 需求：必须支持数据范围选项
 
-The system SHALL support simplified data scope values for all data, current department data, and own created data.
+系统 SHALL 支持全部数据、本部门数据和本人创建数据的简化数据范围值。
 
-#### Scenario: Configure data scope
+#### 场景：配置数据范围
 
-- **WHEN** a role data scope is set to one of the supported values
-- **THEN** the system stores that value for later governance use
+- **当** 角色数据范围设置为支持的值之一时
+- **则** 系统存储该值供后续治理使用
 
-### Requirement: Roles must support plugin menu and permission authorization
+### 需求：角色必须支持插件菜单和权限授权
 
-The system SHALL allow administrators to assign plugin menus and plugin button permissions in the role authorization flow, and SHALL preserve authorization relationships while plugins are disabled.
+系统 SHALL 允许管理员在角色授权流程中分配插件菜单和插件按钮权限，并 SHALL 在插件禁用时保留授权关系。
 
-#### Scenario: Assign plugin menus to a role
+#### 场景：为角色分配插件菜单
 
-- **WHEN** an administrator opens the role menu authorization tree and a plugin is installed and enabled
-- **THEN** plugin menus and button permissions appear in the assignable tree
+- **当** 管理员打开角色菜单授权树且插件已安装并启用时
+- **则** 插件菜单和按钮权限出现在可分配树中
 
-#### Scenario: Plugin disabled keeps role authorization records
+#### 场景：插件禁用保留角色授权记录
 
-- **WHEN** a plugin with existing role authorizations is disabled
-- **THEN** those roles temporarily stop receiving the plugin menus and permissions
-- **AND** the system preserves the original authorization records for later recovery
+- **当** 有现有角色授权的插件被禁用时
+- **则** 这些角色暂时停止接收该插件的菜单和权限
+- **且** 系统保留原始授权记录供后续恢复
 
-### Requirement: Built-in role display must be localized consistently
+### 需求：内置角色展示必须本地化一致
 
-Built-in protected roles and default seed roles SHALL display according to current language in framework-delivered pages. User management and role management MUST show the same localized display value for the same built-in role.
+内置受保护角色和默认种子角色 SHALL 在框架交付页面中按当前语言显示。用户管理和角色管理必须对同一内置角色显示相同的本地化显示值。
 
-#### Scenario: Default user role displays in English
+#### 场景：默认用户角色以英文显示
 
-- **WHEN** an administrator opens role management in `en-US`
-- **THEN** the default user role displays an English name
-- **AND** it does not remain as the original Chinese seed value
+- **当** 管理员以 `en-US` 打开角色管理时
+- **则** 默认用户角色显示英文名称
+- **且** 不保持为原始中文种子值
 
-#### Scenario: User management role display matches role management
+#### 场景：用户管理角色显示与角色管理匹配
 
-- **WHEN** an administrator opens user management in `en-US`
-- **THEN** the administrator user's role name matches the English role-management display
-- **AND** the frontend does not maintain extra mappings based on Chinese names or role keys
+- **当** 管理员以 `en-US` 打开用户管理时
+- **则** 管理员用户的角色名称与英文角色管理显示匹配
+- **且** 前端不维护基于中文名称或角色键的额外映射
 
-### Requirement: Role batch delete
+### 需求：角色批量删除
 
-The system SHALL provide `DELETE /api/v1/role?ids=...` to delete roles in batch, reuse all single-delete protection rules, and guarantee whole-operation transaction atomicity.
+系统 SHALL 提供 `DELETE /api/v1/role?ids=...` 用于批量删除角色，复用所有单条删除保护规则，并保证整个操作的事务原子性。
 
-#### Scenario: Delete multiple roles that are not assigned to users
+#### 场景：删除多个未分配给用户的角色
 
-- **WHEN** a caller with `system:role:remove` permission calls `DELETE /api/v1/role?ids=2,3,4`
-- **AND** none of the target roles are assigned to users and none are the super administrator role
-- **THEN** the system soft-deletes all roles inside one transaction
-- **AND** synchronously deletes related `sys_role_menu` and `sys_user_role` association records
-- **AND** triggers one access topology change notification after commit
+- **当** 拥有 `system:role:remove` 权限的调用方调用 `DELETE /api/v1/role?ids=2,3,4`
+- **且** 目标角色均未分配给用户且均非超级管理员角色
+- **则** 系统在一个事务内软删除所有角色
+- **且** 同步删除相关的 `sys_role_menu` 和 `sys_user_role` 关联记录
+- **且** 提交后触发一次访问拓扑变更通知
 
-#### Scenario: Batch containing the super administrator role is rejected
+#### 场景：包含超级管理员角色的批量被拒绝
 
-- **WHEN** a caller calls `DELETE /api/v1/role?ids=1&ids=2&ids=3`
-- **AND** id `1` is the super administrator role
-- **THEN** the entire batch MUST be rejected
-- **AND** no role is deleted
+- **当** 调用方调用 `DELETE /api/v1/role?ids=1&ids=2&ids=3`
+- **且** id `1` 是超级管理员角色
+- **则** 整个批量必须被拒绝
+- **且** 不删除任何角色
 
-#### Scenario: Empty id list is rejected during validation
+#### 场景：空 id 列表在验证时被拒绝
 
-- **WHEN** a caller calls `DELETE /api/v1/role?ids=`
-- **THEN** the system returns a parameter validation error
-- **AND** no transaction is started
+- **当** 调用方调用 `DELETE /api/v1/role?ids=` 时
+- **则** 系统返回参数验证错误
+- **且** 不启动事务
 
-### Requirement: Permission topology cache must reliably invalidate across nodes
+### 需求：权限拓扑缓存必须可靠地跨节点失效
 
-After role, menu, user-role, plugin permission menu, or permission resource relationships change, the system SHALL reliably invalidate token permission snapshots on all nodes through the unified cache coordination mechanism.
+角色、菜单、用户角色、插件权限菜单或权限资源关系变更后，系统 SHALL 通过统一缓存协调机制可靠地使所有节点上的 Token 权限快照失效。
 
-#### Scenario: Role menu permission changes
+#### 场景：角色菜单权限变更
 
-- **WHEN** an administrator updates role menu or button permissions
-- **THEN** the system commits role permission relationship changes
-- **AND** reliably publishes a permission topology cache revision
-- **AND** all nodes discard old token permission snapshots within the staleness window allowed by the permission cache domain
+- **当** 管理员更新角色菜单或按钮权限时
+- **则** 系统提交角色权限关系变更
+- **且** 可靠发布权限拓扑缓存修订号
+- **且** 所有节点在权限缓存域允许的陈旧窗口内丢弃旧的 Token 权限快照
 
-#### Scenario: Menu permission identifier changes
+#### 场景：菜单权限标识变更
 
-- **WHEN** an administrator creates, updates, deletes, or disables menu permissions
-- **THEN** the system publishes a permission topology cache revision
-- **AND** later protected API permission checks MUST NOT keep using old menu permission topology indefinitely
+- **当** 管理员创建、更新、删除或禁用菜单权限时
+- **则** 系统发布权限拓扑缓存修订号
+- **且** 后续受保护 API 权限检查不得无限期使用旧的菜单权限拓扑
 
-#### Scenario: Plugin permission topology changes
+#### 场景：插件权限拓扑变更
 
-- **WHEN** plugin install, enable, disable, uninstall, or synchronization changes plugin menus or button permissions
-- **THEN** the system publishes a permission topology cache revision
-- **AND** affected permissions participate in authorization decisions on all nodes according to the latest plugin state
+- **当** 插件安装、启用、禁用、卸载或同步变更插件菜单或按钮权限时
+- **则** 系统发布权限拓扑缓存修订号
+- **且** 受影响的权限根据最新插件状态在所有节点上参与授权决策
 
-### Requirement: Permission topology invalidation publish failure must not silently succeed
+### 需求：权限拓扑失效发布失败不得静默成功
 
-Critical permission topology write paths MUST return structured errors or roll back business changes when they cannot publish a permission cache revision. This prevents cluster nodes from continuing to use old authorization snapshots.
+关键权限拓扑写路径在无法发布权限缓存修订号时必须返回结构化错误或回滚业务变更。这防止集群节点继续使用旧的授权快照。
 
-#### Scenario: Permission revision publishing fails
+#### 场景：权限修订号发布失败
 
-- **WHEN** a role, menu, or user-role write path needs to publish a permission topology revision but publishing fails
-- **THEN** the system returns a structured business error
-- **AND** callers MUST NOT receive a success response claiming the permission change is fully effective
-- **AND** the system records the failure reason for retry or repair
+- **当** 角色、菜单或用户角色写路径需要发布权限拓扑修订号但发布失败时
+- **则** 系统返回结构化业务错误
+- **且** 调用方不得收到声称权限变更已完全生效的成功响应
+- **且** 系统记录失败原因供重试或修复
 
-#### Scenario: Protected API sees stale permission cache
+#### 场景：受保护 API 看到过期的权限缓存
 
-- **WHEN** a protected API validates permissions, cannot confirm local permission snapshot freshness, and exceeds the failure window
-- **THEN** the system rejects the request according to fail-closed policy
-- **AND** the system MUST NOT continue allowing uncertain permissions because of an old local permission snapshot
+- **当** 受保护 API 验证权限、无法确认本地权限快照新鲜度且超过故障窗口时
+- **则** 系统按失败关闭策略拒绝请求
+- **且** 系统不得因旧的本地权限快照而继续允许不确定的权限

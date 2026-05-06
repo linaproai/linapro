@@ -1,69 +1,69 @@
-# Plugin Runtime Loading Specification
+# 插件运行时加载规范
 
-## Purpose
+## 目的
 
-Define dynamic plugin runtime loading behavior, centralized Wasm custom-section parsing, cross-node derived-cache invalidation, Wasm compilation cache keys, and artifact refresh consistency.
+定义动态插件运行时加载行为、集中式 Wasm 自定义段解析、跨节点派生缓存失效、Wasm 编译缓存键和产物刷新一致性。
 
-## Requirements
+## 需求
 
-### Requirement: WASM custom section parsing capability must be centrally provided by pluginbridge
-The host system SHALL provide `ReadCustomSection(content []byte, name string) ([]byte, bool, error)` and `ListCustomSections(content []byte) (map[string][]byte, error)` public capabilities in `apps/lina-core/pkg/pluginbridge/pluginbridge_wasm_section.go`, centrally implementing `wasm` file header validation, section traversal and ULEB128 decoding. `apps/lina-core/internal/service/i18n`, `apps/lina-core/internal/service/apidoc`, and plugin runtime MUST read custom sections (such as `i18n_assets`, `apidoc_assets`) from dynamic plugin runtime artifacts through this public capability, and MUST NOT maintain duplicate WASM parsing implementations in business packages. `pluginbridge.WasmSection*` section name constants MUST be centrally maintained by the `pluginbridge` package.
+### 需求：WASM 自定义段解析能力必须由 pluginbridge 集中提供
+宿主系统 SHALL 在 `apps/lina-core/pkg/pluginbridge/pluginbridge_wasm_section.go` 中提供 `ReadCustomSection(content []byte, name string) ([]byte, bool, error)` 和 `ListCustomSections(content []byte) (map[string][]byte, error)` 公共能力，集中实现 `wasm` 文件头验证、段遍历和 ULEB128 解码。`apps/lina-core/internal/service/i18n`、`apps/lina-core/internal/service/apidoc` 和插件运行时必须通过此公共能力从动态插件运行时产物中读取自定义段（如 `i18n_assets`、`apidoc_assets`），不得在业务包中维护重复的 WASM 解析实现。`pluginbridge.WasmSection*` 段名常量必须由 `pluginbridge` 包集中维护。
 
-#### Scenario: i18n reads dynamic plugin i18n section via pluginbridge
-- **WHEN** the system needs to read the `i18n_assets` custom section from a dynamic plugin runtime artifact
-- **THEN** the caller completes this via `pluginbridge.ReadCustomSection(content, pluginbridge.WasmSectionI18NAssets)`
-- **AND** no dedicated parsing functions like `parseWasmCustomSectionsForI18N` / `readWasmULEB128ForI18N` exist in the `i18n` package
+#### 场景：i18n 通过 pluginbridge 读取动态插件 i18n 段
+- **当** 系统需要从动态插件运行时产物中读取 `i18n_assets` 自定义段时
+- **则** 调用方通过 `pluginbridge.ReadCustomSection(content, pluginbridge.WasmSectionI18NAssets)` 完成
+- **且** `i18n` 包中不存在 `parseWasmCustomSectionsForI18N` / `readWasmULEB128ForI18N` 等专用解析函数
 
-#### Scenario: Fixing WASM parsing defects only requires modifying pluginbridge
-- **WHEN** WASM parsing needs to be extended to support new sections, fix decoding bugs, or add boundary checks
-- **THEN** modifying `pkg/pluginbridge/pluginbridge_wasm_section.go` in one place is sufficient
-- **AND** the `i18n` package and plugin runtime require no duplicate changes
+#### 场景：修复 WASM 解析缺陷只需修改 pluginbridge
+- **当** WASM 解析需要扩展以支持新段、修复解码错误或添加边界检查时
+- **则** 修改 `pkg/pluginbridge/pluginbridge_wasm_section.go` 一处即可
+- **且** `i18n` 包和插件运行时不需要重复变更
 
-### Requirement: Dynamic plugin runtime derived caches must invalidate across nodes
+### 需求：动态插件运行时派生缓存必须跨节点失效
 
-After dynamic plugin install, enable, disable, uninstall, upgrade, or same-version refresh, the system SHALL use the unified cache coordination mechanism to invalidate or refresh plugin runtime derived caches on all nodes.
+动态插件安装、启用、禁用、卸载、升级或同版本刷新后，系统 SHALL 使用统一缓存协调机制使所有节点上的插件运行时派生缓存失效或刷新。
 
-#### Scenario: Non-primary node observes plugin runtime revision change
+#### 场景：非主节点观察到插件运行时修订号变更
 
-- **WHEN** the primary node completes a dynamic plugin runtime state transition in cluster mode and publishes a plugin runtime cache revision
-- **THEN** non-primary nodes observe the new revision on the next request path or watcher path
-- **AND** non-primary nodes refresh the plugin enabled snapshot
-- **AND** non-primary nodes invalidate plugin frontend bundle, runtime i18n bundle, and Wasm compilation cache
+- **当** 集群模式下主节点完成动态插件运行时状态转换并发布插件运行时缓存修订号时
+- **则** 非主节点在下一个请求路径或监听路径上观察到新修订号
+- **且** 非主节点刷新插件启用快照
+- **且** 非主节点使插件前端包、运行时 i18n 包和 Wasm 编译缓存失效
 
-#### Scenario: Non-primary node does not keep exposing capability after plugin disable
+#### 场景：插件禁用后非主节点不再暴露能力
 
-- **WHEN** a dynamic plugin is disabled or uninstalled on the primary node
-- **THEN** non-primary nodes MUST NOT continue exposing that plugin's menu, frontend assets, or dynamic route capabilities from stale local cache beyond the staleness window allowed by the plugin runtime cache domain
+- **当** 主节点上动态插件被禁用或卸载时
+- **则** 非主节点不得在插件运行时缓存域允许的陈旧窗口之外继续从过期本地缓存暴露该插件的菜单、前端资产或动态路由能力
 
-### Requirement: Wasm compilation cache must bind to artifact checksum or generation
+### 需求：Wasm 编译缓存必须绑定到产物校验和或 generation
 
-The system SHALL bind dynamic-plugin Wasm compilation cache to the artifact checksum or generation of the current active release. It MUST NOT decide cache reuse only by mutable artifact path.
+系统 SHALL 将动态插件 Wasm 编译缓存绑定到当前活跃发布的产物校验和或 generation。不得仅通过可变产物路径决定缓存复用。
 
-#### Scenario: Same-version dynamic plugin refresh recompiles
+#### 场景：同版本动态插件刷新重新编译
 
-- **WHEN** a dynamic plugin is refreshed with the same version but a changed artifact checksum
-- **THEN** after nodes observe the plugin runtime revision change, they MUST NOT keep hitting the Wasm compilation cache for the old checksum
-- **AND** the next dynamic route or dynamic task execution must compile or load from the new artifact
+- **当** 动态插件以相同版本但产物校验和变更进行刷新时
+- **则** 节点观察到插件运行时修订号变更后，不得继续命中旧校验和的 Wasm 编译缓存
+- **且** 下一次动态路由或动态任务执行必须从新产物编译或加载
 
-#### Scenario: Same artifact path but different checksum
+#### 场景：相同产物路径但不同校验和
 
-- **WHEN** the active release artifact path is the same as the old cache path but the checksum differs
-- **THEN** the system treats it as a different compilation cache entry
-- **AND** the old entry must be invalidated or naturally cleaned up
+- **当** 活跃发布产物路径与旧缓存路径相同但校验和不同时
+- **则** 系统将其视为不同的编译缓存条目
+- **且** 旧条目必须失效或自然清理
 
-### Requirement: Dynamic plugin artifact archive must support same-version refresh consistency
+### 需求：动态插件产物归档必须支持同版本刷新一致性
 
-The system SHALL ensure that the active release after same-version refresh points to verifiable new artifact content, and that other nodes can use shared release state to decide whether local cache is stale.
+系统 SHALL 确保同版本刷新后的活跃发布指向可验证的新产物内容，并且其他节点可使用共享发布状态判断本地缓存是否过期。
 
-#### Scenario: Same-version refresh writes new artifact
+#### 场景：同版本刷新写入新产物
 
-- **WHEN** a plugin same-version refresh commits new artifact content
-- **THEN** the system updates the active release checksum or generation
-- **AND** publishes a plugin runtime cache revision
-- **AND** other nodes can use the active release checksum or generation to decide whether local cache needs rebuilding
+- **当** 插件同版本刷新提交新产物内容时
+- **则** 系统更新活跃发布的校验和或 generation
+- **且** 发布插件运行时缓存修订号
+- **且** 其他节点可使用活跃发布的校验和或 generation 判断本地缓存是否需要重建
 
-#### Scenario: Old artifact cleanup does not affect current active release
+#### 场景：旧产物清理不影响当前活跃发布
 
-- **WHEN** the system cleans old dynamic plugin artifacts
-- **THEN** the artifact referenced by the current active release MUST NOT be deleted
-- **AND** artifacts still referenced by local caches but no longer active can be cleaned later according to the retention policy
+- **当** 系统清理旧动态插件产物时
+- **则** 当前活跃发布引用的产物不得被删除
+- **且** 仍被本地缓存引用但不再活跃的产物可根据保留策略稍后清理

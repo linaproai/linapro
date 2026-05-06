@@ -1,132 +1,132 @@
-# plugin-config-service Specification
+# 插件配置服务规范
 
-## Purpose
+## 目的
 
-Define the general read-only configuration access contract exposed by LinaPro to source plugins and dynamic plugins. The capability lets plugins read static host configuration through business-neutral APIs while keeping plugin-specific configuration structures, defaults, and validation inside each plugin.
+定义 LinaPro 向源码插件和动态插件暴露的通用只读配置访问契约。该能力允许插件通过业务无关的 API 读取宿主静态配置，同时将插件特定的配置结构、默认值和验证逻辑保留在各插件内部。
 
-## Requirements
-### Requirement: Plugin Configuration Service Provides General Read-Only Configuration Access
+## 需求
+### 需求：插件配置服务提供通用只读配置访问
 
-The system SHALL provide a business-neutral read-only configuration access service to source plugins through `apps/lina-core/pkg/pluginservice/config`. The service MUST allow source plugins to read host configuration file content by arbitrary configuration key and MUST NOT expose plugin-specific `GetXxx()` configuration methods for specific plugins or business modules.
+系统 SHALL 通过 `apps/lina-core/pkg/pluginservice/config` 向源码插件提供业务无关的只读配置访问服务。该服务必须允许源码插件通过任意配置键读取宿主配置文件内容，不得为特定插件或业务模块暴露插件特定的 `GetXxx()` 配置方法。
 
-#### Scenario: Plugin reads an arbitrary configuration key
+#### 场景：插件读取任意配置键
 
-- **WHEN** a source plugin reads an existing configuration key through the plugin configuration service
-- **THEN** the system returns the configuration value for that key
-- **AND** the configuration service does not require the key to be under a plugin-specific prefix
+- **当** 源码插件通过插件配置服务读取现有配置键时
+- **则** 系统返回该键的配置值
+- **且** 配置服务不要求键位于插件特定前缀下
 
-#### Scenario: Public component contains no plugin business configuration methods
+#### 场景：公共组件不包含插件业务配置方法
 
-- **WHEN** a private configuration structure is added or modified for a source plugin
-- **THEN** developers define the configuration structure, defaults, and validation logic inside the plugin
-- **AND** no plugin-specific `GetXxx()` method or plugin business configuration type needs to be added to `apps/lina-core/pkg/pluginservice/config`
+- **当** 为源码插件添加或修改私有配置结构时
+- **则** 开发者在插件内部定义配置结构、默认值和验证逻辑
+- **且** 无需在 `apps/lina-core/pkg/pluginservice/config` 中添加插件特定的 `GetXxx()` 方法或插件业务配置类型
 
-### Requirement: Plugin Configuration Service Supports Struct Scanning and Basic Type Reads
+### 需求：插件配置服务支持结构体扫描和基本类型读取
 
-The system SHALL support source plugins scanning a configuration section into a caller-provided struct through the generic configuration service, and SHALL support reading common types including strings, booleans, integers, and `time.Duration`. Missing or blank configuration keys MUST use the default value provided by the caller.
+系统 SHALL 支持源码插件通过通用配置服务将配置段扫描到调用方提供的结构体中，并支持读取字符串、布尔值、整数和 `time.Duration` 等常见类型。缺失或空白的配置键必须使用调用方提供的默认值。
 
-#### Scenario: Plugin scans a configuration section into a private struct
+#### 场景：插件将配置段扫描到私有结构体
 
-- **WHEN** a source plugin calls the configuration service to scan an existing configuration section
-- **THEN** the system binds that section to the struct instance provided by the plugin
-- **AND** the plugin can apply its own defaults and business validation after scanning
+- **当** 源码插件调用配置服务扫描现有配置段时
+- **则** 系统将该段绑定到插件提供的结构体实例
+- **且** 插件可在扫描后应用自己的默认值和业务验证
 
-#### Scenario: Plugin reads basic type configuration with defaults
+#### 场景：插件读取带默认值的基本类型配置
 
-- **WHEN** a source plugin reads a missing or blank string, boolean, integer, or duration configuration key
-- **THEN** the system returns the default value provided by the caller
-- **AND** the missing key does not cause a failure
+- **当** 源码插件读取缺失或空白的字符串、布尔值、整数或时长配置键时
+- **则** 系统返回调用方提供的默认值
+- **且** 缺失的键不会导致失败
 
-#### Scenario: Duration configuration parsing fails
+#### 场景：时长配置解析失败
 
-- **WHEN** a source plugin reads a duration configuration key whose value is not a valid duration string
-- **THEN** the system returns an explicit error
-- **AND** the plugin caller can choose fail-fast behavior, fallback behavior, or upstream error wrapping
+- **当** 源码插件读取值不是有效时长字符串的时长配置键时
+- **则** 系统返回明确错误
+- **且** 插件调用方可选择快速失败行为、回退行为或上游错误包装
 
-### Requirement: Plugin Configuration Service Preserves a Read-Only Boundary
+### 需求：插件配置服务保持只读边界
 
-The system SHALL limit the plugin configuration service to read-only access. The service MUST NOT expose methods for writing, saving, hot reloading, or mutating configuration at runtime.
+系统 SHALL 将插件配置服务限制为只读访问。该服务不得暴露在运行时写入、保存、热重载或变更配置的方法。
 
-#### Scenario: Plugin can only read configuration
+#### 场景：插件只能读取配置
 
-- **WHEN** a source plugin depends on `apps/lina-core/pkg/pluginservice/config`
-- **THEN** the public service provides only methods for reading, scanning, and parsing configuration
-- **AND** it provides no capability to modify configuration files or system runtime configuration
+- **当** 源码插件依赖 `apps/lina-core/pkg/pluginservice/config` 时
+- **则** 公共服务仅提供读取、扫描和解析配置的方法
+- **且** 不提供修改配置文件或系统运行时配置的能力
 
-### Requirement: Plugin Business Configuration Is Maintained Inside the Plugin
+### 需求：插件业务配置在插件内部维护
 
-The system SHALL require each plugin's configuration structure, defaults, validation, and business semantics to be maintained inside that plugin instead of in the host generic configuration service.
+系统 SHALL 要求每个插件的配置结构、默认值、验证和业务语义在该插件内部维护，而非在宿主通用配置服务中。
 
-#### Scenario: Monitor server plugin loads monitor configuration
+#### 场景：监控服务插件加载监控配置
 
-- **WHEN** the `monitor-server` source plugin needs to read the monitor collection interval and retention multiplier
-- **THEN** the plugin reads the existing monitor configuration keys through the generic configuration service
-- **AND** the plugin maintains the monitor configuration structure, defaults, and validation logic inside itself
-- **AND** the host generic configuration service does not expose `MonitorConfig` or `GetMonitor()`
+- **当** `monitor-server` 源码插件需要读取监控采集间隔和保留倍数时
+- **则** 插件通过通用配置服务读取现有监控配置键
+- **且** 插件在内部维护监控配置结构、默认值和验证逻辑
+- **且** 宿主通用配置服务不暴露 `MonitorConfig` 或 `GetMonitor()`
 
-### Requirement: Plugin Configuration Reads Do Not Add Distributed Cache Consistency Burden
+### 需求：插件配置读取不增加分布式缓存一致性负担
 
-The system SHALL limit this plugin configuration service capability to static configuration reads and SHALL NOT add a runtime mutable configuration cache. If the capability is later extended to runtime mutable configuration reads, the system MUST separately design cross-instance revision numbers, broadcast invalidation, shared cache, or an equivalent cluster consistency mechanism.
+系统 SHALL 将此插件配置服务能力限制为静态配置读取，不得添加运行时可变配置缓存。如果未来扩展到运行时可变配置读取，系统必须单独设计跨实例修订号、广播失效、共享缓存或等效的集群一致性机制。
 
-#### Scenario: Read static configuration files
+#### 场景：读取静态配置文件
 
-- **WHEN** a source plugin reads static configuration file content through the plugin configuration service
-- **THEN** the system can reuse the host's existing configuration read mechanism
-- **AND** no new distributed cache invalidation or cross-instance refresh mechanism is required
+- **当** 源码插件通过插件配置服务读取静态配置文件内容时
+- **则** 系统可复用宿主现有的配置读取机制
+- **且** 不需要新的分布式缓存失效或跨实例刷新机制
 
-#### Scenario: Future runtime mutable configuration extension
+#### 场景：未来运行时可变配置扩展
 
-- **WHEN** the plugin configuration service needs to read configuration data that can be modified at runtime in the future
-- **THEN** the design must define the authoritative data source, consistency model, invalidation trigger, cross-instance synchronization mechanism, and failure fallback strategy
-- **AND** it must not rely only on single-node in-process cache to guarantee cluster consistency
+- **当** 插件配置服务未来需要读取可在运行时修改的配置数据时
+- **则** 设计必须定义权威数据源、一致性模型、失效触发点、跨实例同步机制和故障回退策略
+- **且** 不得仅依赖单节点进程内缓存来保证集群一致性
 
-### Requirement: Dynamic Plugins Read Complete Static Configuration Through the Config Host Service
+### 需求：动态插件通过配置宿主服务读取完整静态配置
 
-The system SHALL provide the `config` host service through the dynamic plugin `hostServices` authorization model so dynamic plugins can read host GoFrame static configuration content through `lina_env.host_call`. The host service MUST allow complete configuration reads, MUST NOT require configuration keys to be under plugin-specific prefixes or resource allowlists, and MUST remain read-only.
+系统 SHALL 通过动态插件 `hostServices` 授权模型提供 `config` 宿主服务，使动态插件可通过 `lina_env.host_call` 读取宿主 GoFrame 静态配置内容。宿主服务必须允许完整配置读取，不得要求配置键位于插件特定前缀或资源白名单下，且必须保持只读。
 
-#### Scenario: Dynamic plugin declares configuration read service
+#### 场景：动态插件声明配置读取服务
 
-- **WHEN** a dynamic plugin declares `service: config` in `plugin.yaml` and `methods` is any non-empty subset of `get`, `exists`, `string`, `bool`, `int`, and `duration`
-- **THEN** the system accepts the host service declaration and derives configuration read capability from it
-- **AND** the plugin runtime authorization snapshot includes the `config` host service
+- **当** 动态插件在 `plugin.yaml` 中声明 `service: config` 且 `methods` 为 `get`、`exists`、`string`、`bool`、`int` 和 `duration` 的任意非空子集时
+- **则** 系统接受宿主服务声明并从中派生配置读取能力
+- **且** 插件运行时授权快照包含 `config` 宿主服务
 
-#### Scenario: Dynamic plugin omits configuration read methods
+#### 场景：动态插件省略配置读取方法
 
-- **WHEN** a dynamic plugin declares `service: config` in `plugin.yaml` without `methods`
-- **THEN** the system accepts the host service declaration and defaults it to the current complete read-only configuration method set
-- **AND** the config host service methods in the authorization snapshot are normalized to `get`, `exists`, `string`, `bool`, `int`, and `duration`
+- **当** 动态插件在 `plugin.yaml` 中声明 `service: config` 但未指定 `methods` 时
+- **则** 系统接受宿主服务声明并默认为当前完整的只读配置方法集
+- **且** 授权快照中的配置宿主服务方法规范化为 `get`、`exists`、`string`、`bool`、`int` 和 `duration`
 
-#### Scenario: Dynamic plugin declares an unsupported configuration method
+#### 场景：动态插件声明不支持的配置方法
 
-- **WHEN** a dynamic plugin declares a method other than `get`, `exists`, `string`, `bool`, `int`, or `duration` in the `config` host service in `plugin.yaml`
-- **THEN** the system rejects the host service declaration
-- **AND** it does not derive configuration capability for write, save, hot reload, or runtime configuration mutation methods
+- **当** 动态插件在 `plugin.yaml` 的 `config` 宿主服务中声明 `get`、`exists`、`string`、`bool`、`int` 或 `duration` 以外的方法时
+- **则** 系统拒绝宿主服务声明
+- **且** 不为写入、保存、热重载或运行时配置变更方法派生配置能力
 
-#### Scenario: Dynamic plugin uses guest SDK convenience read methods
+#### 场景：动态插件使用 guest SDK 便捷读取方法
 
-- **WHEN** dynamic plugin code calls guest SDK configuration helpers such as `Exists`, `String`, `Bool`, `Int`, or `Duration`
-- **THEN** the guest SDK initiates a host_call through the corresponding `config.exists`, `config.string`, `config.bool`, `config.int`, or `config.duration` method
-- **AND** the host performs existence checks or type parsing inside the read-only configuration service
+- **当** 动态插件代码调用 guest SDK 配置辅助方法如 `Exists`、`String`、`Bool`、`Int` 或 `Duration` 时
+- **则** guest SDK 通过对应的 `config.exists`、`config.string`、`config.bool`、`config.int` 或 `config.duration` 方法发起 host_call
+- **且** 宿主在只读配置服务内部执行存在性检查或类型解析
 
-#### Scenario: Dynamic plugin reads an arbitrary configuration key
+#### 场景：动态插件读取任意配置键
 
-- **WHEN** an authorized dynamic plugin reads any existing configuration key through `config.get`
-- **THEN** the system returns the JSON representation of the configuration value for that key
-- **AND** it does not reject the read by plugin ID, prefix, or key pattern
+- **当** 已授权的动态插件通过 `config.get` 读取任何现有配置键时
+- **则** 系统返回该键配置值的 JSON 表示
+- **且** 不按插件 ID、前缀或键模式拒绝读取
 
-#### Scenario: Dynamic plugin reads complete configuration snapshot
+#### 场景：动态插件读取完整配置快照
 
-- **WHEN** an authorized dynamic plugin passes an empty key or `.` to `config.get`
-- **THEN** the system returns the complete static configuration snapshot JSON exposed by the GoFrame configuration system
+- **当** 已授权的动态插件向 `config.get` 传递空键或 `.` 时
+- **则** 系统返回 GoFrame 配置系统暴露的完整静态配置快照 JSON
 
-#### Scenario: Dynamic plugin reads a missing configuration key
+#### 场景：动态插件读取缺失的配置键
 
-- **WHEN** an authorized dynamic plugin reads a missing configuration key through any read-only config method
-- **THEN** the system returns a `found=false` result
-- **AND** it does not treat the missing key as a host_call failure
+- **当** 已授权的动态插件通过任何只读配置方法读取缺失的配置键时
+- **则** 系统返回 `found=false` 结果
+- **且** 不将缺失的键视为 host_call 失败
 
-#### Scenario: Dynamic plugin configuration service remains read-only
+#### 场景：动态插件配置服务保持只读
 
-- **WHEN** a dynamic plugin declares or calls the `config` host service
-- **THEN** the host service permission declaration supports only the read-only methods `get`, `exists`, `string`, `bool`, `int`, and `duration`
-- **AND** it does not support write, save, hot reload, or runtime configuration mutation methods
+- **当** 动态插件声明或调用 `config` 宿主服务时
+- **则** 宿主服务权限声明仅支持只读方法 `get`、`exists`、`string`、`bool`、`int` 和 `duration`
+- **且** 不支持写入、保存、热重载或运行时配置变更方法

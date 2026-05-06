@@ -1,65 +1,65 @@
-# source-upgrade-governance Specification
+# 源码升级治理规范
 
-## Purpose
-Define the framework-level source upgrade entry point, safety checks, metadata sourcing, and full host-SQL replay behavior used during development-time upgrades.
+## 目的
+定义框架级源码升级入口、安全检查、元数据来源和开发时升级使用的完整宿主 SQL 重放行为。
 
-## Requirements
-### Requirement: Framework metadata must be maintained centrally and shown directly in system info
+## 需求
+### 需求：框架元数据必须集中维护并直接在系统信息中展示
 
-The framework SHALL keep its name, version, description, homepage, repository URL, and license in `apps/lina-core/manifest/config/metadata.yaml`. The system-info API must return that metadata directly so the system-info page can render the project card without frontend hard-coded values.
+框架 SHALL 将其名称、版本、描述、主页、仓库 URL 和许可证保存在 `apps/lina-core/manifest/config/metadata.yaml` 中。系统信息 API 必须直接返回该元数据，使系统信息页面无需前端硬编码值即可渲染项目卡片。
 
-#### Scenario: The system-info API returns framework metadata
-- **WHEN** the management workbench requests system information
-- **THEN** the response includes the framework name, version, description, homepage, repository URL, and license
-- **AND** every value comes from the host `metadata.yaml`
+#### 场景：系统信息 API 返回框架元数据
+- **当** 管理工作台请求系统信息时
+- **则** 响应包含框架名称、版本、描述、主页、仓库 URL 和许可证
+- **且** 每个值来自宿主 `metadata.yaml`
 
-### Requirement: Source upgrades must provide a unified development-time entry point
+### 需求：源码升级必须提供统一的开发时入口
 
-The framework SHALL provide a unified development-time source upgrade entry point invoked by `make upgrade`. That entry point MUST support both `scope=framework` and `scope=source-plugin`, and the implementation must remain in the repository-root upgrade tool rather than becoming a runtime `lina-core` command.
+框架 SHALL 提供通过 `make upgrade` 调用的统一开发时源码升级入口。该入口必须同时支持 `scope=framework` 和 `scope=source-plugin`，且实现必须保留在仓库根目录的升级工具中，而非成为运行时 `lina-core` 命令。
 
-#### Scenario: Run a framework upgrade through `scope=framework`
-- **WHEN** an operator runs `make upgrade confirm=upgrade scope=framework`
-- **THEN** the system performs version checks, code replacement, and full host-SQL replay for a framework upgrade
-- **AND** the operator does not need to decide manually where SQL execution should resume
+#### 场景：通过 `scope=framework` 运行框架升级
+- **当** 运维人员运行 `make upgrade confirm=upgrade scope=framework` 时
+- **则** 系统对框架升级执行版本检查、代码替换和完整宿主 SQL 重放
+- **且** 运维人员无需手动决定 SQL 执行应从何处恢复
 
-#### Scenario: Run a source-plugin upgrade through `scope=source-plugin`
-- **WHEN** an operator runs `make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo`
-- **THEN** the system enters the source-plugin upgrade planning and execution flow
-- **AND** it does not reinterpret the command as a dynamic-plugin runtime upgrade request
+#### 场景：通过 `scope=source-plugin` 运行源码插件升级
+- **当** 运维人员运行 `make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo` 时
+- **则** 系统进入源码插件升级规划和执行流程
+- **且** 不将命令重新解释为动态插件运行时升级请求
 
-### Requirement: Source upgrades must complete safety checks before execution
+### 需求：源码升级必须在执行前完成安全检查
 
-The unified upgrade command SHALL remind operators to back up data and verify that the Git worktree is clean before any upgrade starts. If tracked files are modified, unstaged, or uncommitted, the command MUST refuse to continue.
+统一升级命令 SHALL 在任何升级开始前提醒运维人员备份数据并验证 Git 工作树是干净的。如果已跟踪文件被修改、未暂存或未提交，命令必须拒绝继续。
 
-#### Scenario: The worktree contains local changes before an upgrade
-- **WHEN** an operator runs the upgrade command while the Git worktree contains modified, unstaged, or uncommitted files
-- **THEN** the command refuses to continue
-- **AND** it tells the operator to commit or stash the current changes first
+#### 场景：升级前工作树包含本地变更
+- **当** 运维人员在 Git 工作树包含已修改、未暂存或未提交的文件时运行升级命令
+- **则** 命令拒绝继续
+- **且** 告知运维人员先提交或暂存当前变更
 
-### Requirement: Framework upgrades must read upgrade metadata only from hack config
+### 需求：框架升级必须仅从 hack 配置读取升级元数据
 
-The framework upgrade path SHALL read the current upgrade baseline from `frameworkUpgrade.version` in `apps/lina-core/hack/config.yaml` and compare it with the target upgrade version found in the target source's `apps/lina-core/hack/config.yaml`. The default upstream repository URL must also come from `frameworkUpgrade.repositoryUrl` in the same file unless the operator overrides it. The upgrade implementation MUST NOT read host runtime configuration.
+框架升级路径 SHALL 从 `apps/lina-core/hack/config.yaml` 中的 `frameworkUpgrade.version` 读取当前升级基线，并与目标源码中 `apps/lina-core/hack/config.yaml` 的目标升级版本进行比较。默认上游仓库 URL 也必须来自同一文件中的 `frameworkUpgrade.repositoryUrl`，除非运维人员覆盖。升级实现不得读取宿主运行时配置。
 
-#### Scenario: The target version is not higher than the current version
-- **WHEN** the upgrade command resolves a target framework version that is less than or equal to the current project's `frameworkUpgrade.version`
-- **THEN** the command reports that the project already uses the same or a higher framework version
-- **AND** it does not overwrite code or execute SQL
+#### 场景：目标版本不高于当前版本
+- **当** 升级命令解析到小于或等于当前项目 `frameworkUpgrade.version` 的目标框架版本时
+- **则** 命令报告项目已使用相同或更高的框架版本
+- **且** 不覆盖代码或执行 SQL
 
-#### Scenario: The upgrade command reads the upstream repository URL from hack config
-- **WHEN** an operator does not pass `--repo`
-- **THEN** the command reads the default upstream repository URL from `apps/lina-core/hack/config.yaml`
-- **AND** it does not fall back to host runtime configuration
+#### 场景：升级命令从 hack 配置读取上游仓库 URL
+- **当** 运维人员未传递 `--repo` 时
+- **则** 命令从 `apps/lina-core/hack/config.yaml` 读取默认上游仓库 URL
+- **且** 不回退到宿主运行时配置
 
-### Requirement: Framework upgrades must replay all host SQL from the first file
+### 需求：框架升级必须从第一个文件重放所有宿主 SQL
 
-The framework upgrade path SHALL replay every host SQL file from the first file in sorted order after the target source code is applied. The process MUST NOT rely on SQL cursors or extra upgrade metadata tables.
+框架升级路径 SHALL 在应用目标源码后从第一个文件开始按排序顺序重放每个宿主 SQL 文件。该过程不得依赖 SQL 游标或额外的升级元数据表。
 
-#### Scenario: Framework upgrade replays host SQL from the beginning
-- **WHEN** the upgrade command starts replaying host SQL
-- **THEN** it begins with the first sorted host SQL file
-- **AND** it continues in order until the final host SQL file
+#### 场景：框架升级从头重放宿主 SQL
+- **当** 升级命令开始重放宿主 SQL 时
+- **则** 从第一个排序的宿主 SQL 文件开始
+- **且** 按顺序继续直到最后一个宿主 SQL 文件
 
-#### Scenario: Framework upgrade stops on the first SQL failure
-- **WHEN** one host SQL file fails during replay
-- **THEN** the command stops immediately
-- **AND** it returns the failing SQL file and the error details
+#### 场景：框架升级在第一个 SQL 失败时停止
+- **当** 一个宿主 SQL 文件在重放期间失败时
+- **则** 命令立即停止
+- **且** 返回失败的 SQL 文件和错误详情

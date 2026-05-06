@@ -1,344 +1,349 @@
-# Menu Management
+# 菜单管理
 
-## Purpose
+## 目的
 
-The menu management function is responsible for the creation, editing, deletion, tree display and permission association management of system menus, ensuring that frontend routing, menu permissions and host menu configurations are consistent.
-## Requirements
-### Requirement: Menu list query
+菜单管理功能负责系统菜单的创建、编辑、删除、树形展示和权限关联管理，确保前端路由、菜单权限和宿主菜单配置保持一致。
 
-System SHALL supports tree query of menu list, returning all menus and their hierarchical relationships.
+## 需求
+### 需求：菜单列表查询
 
-#### Scenario: Query menu tree list
-- **WHEN** User accesses the menu management page
-- **THEN** The system returns a menu tree list, including all directories, menus, and button types
-- **AND** Each menu node contains information such as id, parentId, name, path, icon, type, sort, visible, status, etc.
-- **AND** The submenu is nested in the children field of the parent menu
+系统 SHALL 支持菜单列表的树形查询，返回所有菜单及其层级关系。
 
-#### Scenario: Filter menu by criteria
-- **WHEN** User enters menu name to search
-- **THEN** The system returns a menu list whose name contains keywords (fuzzy matching)
-- **AND** The returned result still maintains the tree structure
+#### 场景：查询菜单树列表
+- **当** 用户访问菜单管理页面时
+- **则** 系统返回菜单树列表，包括所有目录、菜单和按钮类型
+- **且** 每个菜单节点包含 id、parentId、name、path、icon、type、sort、visible、status 等信息
+- **且** 子菜单嵌套在父菜单的 children 字段中
 
-### Requirement: Menu details query
+#### 场景：按条件筛选菜单
+- **当** 用户输入菜单名称搜索时
+- **则** 系统返回名称包含关键词的菜单列表（模糊匹配）
+- **且** 返回的结果仍保持树形结构
 
-System SHALL supports querying menu details based on menu ID.
+### 需求：菜单详情查询
 
-#### Scenario: Query existing menu details
-- **WHEN** User clicks the edit button in the menu list
-- **THEN** The system returns the complete information of the menu, including the name of the parent menu
+系统 SHALL 支持根据菜单 ID 查询菜单详情。
 
-#### Scenario: Query a menu that does not exist
-- **WHEN** The user requested a menu ID that does not exist
-- **THEN** The system returns the error message "Menu does not exist"
+#### 场景：查询已有菜单详情
+- **当** 用户点击菜单列表中的编辑按钮时
+- **则** 系统返回菜单的完整信息，包括父菜单名称
 
-### Requirement: Create menu
+#### 场景：查询不存在的菜单
+- **当** 用户请求的菜单 ID 不存在时
+- **则** 系统返回错误消息"菜单不存在"
 
-System SHALL supports the creation of new menus, including three types: directory, menu, and button.
+### 需求：创建菜单
 
-#### Scenario: Create catalog type menu
-- **WHEN** The user fills in the directory information (name, icon, sorting, whether to display, status) and submits
-- **THEN** The system creates directory type menu, type is "D"
-- **AND** The system automatically sets created_at and updated_at
-- **AND** path field of directory type is used for routing grouping
+系统 SHALL 支持创建新菜单，包括目录、菜单和按钮三种类型。
 
-#### Scenario: Create menu type menu
-- **WHEN** The user fills in the menu information (name, routing address, component path, permission identifier, icon, sorting, whether to display, whether to cache, status) and submit
-- **THEN** The system creates menu type menu, type is "M"
-- **AND** menu type MUST have path and component fields
+#### 场景：创建目录类型菜单
+- **当** 用户填写目录信息（名称、图标、排序、是否显示、状态）并提交时
+- **则** 系统创建目录类型菜单，type 为 "D"
+- **且** 系统自动设置 created_at 和 updated_at
+- **且** 目录类型的 path 字段用于路由分组
 
-#### Scenario: Create button type menu
-- **WHEN** The user fills in the button information (name, permission ID, upper-level menu) and submits
-- **THEN** The system creates a button type menu, type is "B"
-- **AND** button type has no path, component, icon and other fields
+#### 场景：创建菜单类型菜单
+- **当** 用户填写菜单信息（名称、路由地址、组件路径、权限标识、图标、排序、是否显示、是否缓存、状态）并提交时
+- **则** 系统创建菜单类型菜单，type 为 "M"
+- **且** 菜单类型必须有 path 和 component 字段
 
-#### Scenario: Create external link menu
-- **WHEN** User creates menu and sets is_frame to 1
-- **THEN** The system treats path as an external link address
-- **AND** When the frontend clicks on the menu, a new window opens the external link
+#### 场景：创建按钮类型菜单
+- **当** 用户填写按钮信息（名称、权限标识、上级菜单）并提交时
+- **则** 系统创建按钮类型菜单，type 为 "B"
+- **且** 按钮类型没有 path、component、icon 等字段
 
-#### Scenario: Duplicate menu name
-- **WHEN** Use the existing menu name when the user creates the menu
-- **THEN** The system returns the error message "Menu name already exists"
+#### 场景：创建外链菜单
+- **当** 用户创建菜单并将 is_frame 设置为 1 时
+- **则** 系统将 path 视为外链地址
+- **且** 前端点击该菜单时新窗口打开外链
 
-### Requirement: Update menu
+#### 场景：菜单名称重复
+- **当** 用户创建菜单时使用已存在的菜单名称
+- **则** 系统返回错误消息"菜单名称已存在"
 
-System SHALL supports updating menu information.
+### 需求：更新菜单
 
-#### Scenario: Update menu information
-- **WHEN** The user modifies the menu information and submits it
-- **THEN** updated_at timestamp of system update menu
-- **AND** All editable fields of the system update menu
+系统 SHALL 支持更新菜单信息。
 
-#### Scenario: Update non-existent menu
-- **WHEN** The user attempted to update a menu that does not exist
-- **THEN** The system returns the error message "Menu does not exist"
+#### 场景：更新菜单信息
+- **当** 用户修改菜单信息并提交时
+- **则** 系统更新菜单的 updated_at 时间戳
+- **且** 系统更新菜单的所有可编辑字段
 
-#### Scenario: Upper menu selection restrictions when editing menus
-- **WHEN** Open the upper-level menu selector when the user edits the menu
-- **THEN** The system will gray out the current menu and all its descendant menus in the tree list and disable it.
-- **AND** Disabled nodes cannot be selected
-- **AND** There is no disabled node when adding a menu
+#### 场景：更新不存在的菜单
+- **当** 用户尝试更新不存在的菜单时
+- **则** 系统返回错误消息"菜单不存在"
 
-#### Scenario: Select the upper level menu when adding a new menu
-- **WHEN** Open the upper-level menu selector when the user adds a menu
-- **THEN** All menu nodes are selectable
-- **AND** No disabled nodes
+#### 场景：编辑菜单时上级菜单选择限制
+- **当** 用户编辑菜单时打开上级菜单选择器
+- **则** 系统在树形列表中将当前菜单及其所有后代菜单置灰并禁用
+- **且** 禁用的节点不能被选择
+- **且** 新增菜单时没有禁用节点
 
-### Requirement: Delete menu
+#### 场景：新增菜单时选择上级菜单
+- **当** 用户新增菜单时打开上级菜单选择器
+- **则** 所有菜单节点都可选择
+- **且** 没有禁用节点
 
-System SHALL support deleting menus and cascading deletion of submenus. The deletion process MUST run inside a single transaction; any failure in deleting `sys_role_menu` associations MUST cause the entire operation to roll back, rather than only logging a warning and continuing to delete the menu itself.
+### 需求：删除菜单
 
-#### Scenario: Remove menus without submenus
+系统 SHALL 支持删除菜单并级联删除子菜单。删除过程必须在单个事务内运行；删除 `sys_role_menu` 关联的任何失败必须导致整个操作回滚，而非仅记录警告并继续删除菜单本身。
 
-- **WHEN** User deletes a menu that has no submenus
-- **THEN** The system soft deletes this menu (set deleted_at) inside a transaction
-- **AND** Synchronously delete the associated records of this menu in sys_role_menu
+#### 场景：删除无子菜单的菜单
 
-#### Scenario: Delete menu with submenus
+- **当** 用户删除没有子菜单的菜单时
+- **则** 系统在事务内软删除该菜单（设置 deleted_at）
+- **且** 同步删除该菜单在 sys_role_menu 中的关联记录
 
-- **WHEN** The user deletes a menu with submenus
-- **THEN** The system asks for cascade-delete confirmation
-- **AND** After user confirmation, delete this menu and all its submenus inside a single transaction
-- **AND** Synchronously delete all associated role-menu relationships
+#### 场景：删除有子菜单的菜单
 
-#### Scenario: Association cleanup failure rolls back menu deletion
+- **当** 用户删除有子菜单的菜单时
+- **则** 系统要求级联删除确认
+- **且** 用户确认后，在单个事务内删除该菜单及其所有子菜单
+- **且** 同步删除所有关联的角色菜单关系
 
-- **WHEN** User deletes a menu
-- **AND** `sys_role_menu` association cleanup returns an error inside the transaction
-- **THEN** The menu soft delete MUST also roll back
-- **AND** The operation MUST return the underlying error rather than swallowing it as a warning
+#### 场景：关联清理失败回滚菜单删除
 
-### Requirement: Get the menu drop-down tree
+- **当** 用户删除菜单
+- **且** `sys_role_menu` 关联清理在事务内返回错误时
+- **则** 菜单软删除也必须回滚
+- **且** 操作必须返回底层错误而非吞没为警告
 
-System SHALL provides a menu drop-down tree interface for selection in the role assignment menu.
+### 需求：获取菜单下拉树
 
-#### Scenario: Get menu drop-down tree
-- **WHEN** Request menu tree when role assignment menu
-- **THEN** The system returns to the tree menu list
-- **AND** Filter out menus with button type (type="B")
-- **AND** Each node contains id, parentId, label, children
+系统 SHALL 提供菜单下拉树接口，用于角色分配菜单时的选择。
 
-### Requirement: Get the role's menu tree
+#### 场景：获取菜单下拉树
+- **当** 角色分配菜单时请求菜单树
+- **则** 系统返回树形菜单列表
+- **且** 过滤掉按钮类型（type="B"）的菜单
+- **且** 每个节点包含 id、parentId、label、children
 
-System SHALL provides an interface to obtain the menu tree of a specified role, which is used to display the assigned menu when editing the role.
+### 需求：获取角色的菜单树
 
-#### Scenario: Get the menu permissions of the character
-- **WHEN** Request the character's menu tree when editing a character
-- **THEN** The system returns to all menu trees
-- **AND** Returns the list of menu IDs assigned to this role (checkedKeys)
-- **AND** When the menu tree is displayed, the assigned menu is checked
+系统 SHALL 提供获取指定角色菜单树的接口，用于编辑角色时展示已分配的菜单。
 
-### Requirement: Menu status control
+#### 场景：获取角色的菜单权限
+- **当** 编辑角色时请求角色的菜单树
+- **则** 系统返回所有菜单树
+- **且** 返回该角色已分配的菜单 ID 列表（checkedKeys）
+- **且** 展示菜单树时已分配的菜单被勾选
 
-System SHALL supports menu enable/disable status switching.
+### 需求：菜单状态控制
 
-#### Scenario: Disable menu
-- **WHEN** User changes menu status to disabled
-- **THEN** This menu will not appear in the frontend menu bar
-- **AND** When accessing this menu route directly via URL, the frontend should deny access
+系统 SHALL 支持菜单启用/禁用状态切换。
 
-#### Scenario: Hide menu
-- **WHEN** The user sets the visible field of the menu to hidden
-- **THEN** This menu will not appear in the frontend menu bar
-- **AND** Users can still access the menu directly via the URL
+#### 场景：禁用菜单
+- **当** 用户将菜单状态更改为禁用时
+- **则** 该菜单不会出现在前端菜单栏
+- **且** 通过 URL 直接访问该菜单路由时，前端应拒绝访问
 
-### Requirement: Menu management displays plugin menu ownership information
+#### 场景：隐藏菜单
+- **当** 用户将菜单的 visible 字段设置为隐藏时
+- **则** 该菜单不会出现在前端菜单栏
+- **且** 用户仍可通过 URL 直接访问该菜单
 
-System SHALL displays the ownership and life cycle status of plugin menus in the menu management capability to facilitate unified management by administrators.
+### 需求：菜单管理展示插件菜单归属信息
 
-#### Scenario: View plugin menu ownership
+系统 SHALL 在菜单管理能力中展示插件菜单的归属和生命周期状态，便于管理员统一管理。
 
-- **WHEN** The administrator views a menu registered by the plugin on the menu management page
-- **THEN** The system can identify the plugin to which this menu belongs, the source type and the current plugin status
-- **AND** Administrators can differentiate between host menu and plugin menu
+#### 场景：查看插件菜单归属
 
-### Requirement: Plug-in status linkage menu visibility and accessibility
+- **当** 管理员在菜单管理页面查看插件注册的菜单时
+- **则** 系统能够识别该菜单所属的插件、来源类型和当前插件状态
+- **且** 管理员可以区分宿主菜单和插件菜单
 
-System SHALL jointly controls the display and access behavior of the plugin's menu when it is deactivated, uninstalled, or the upgrade does not take effect.
+### 需求：插件状态联动菜单可见性和可访问性
 
-#### Scenario: Plugin disabled
+系统 SHALL 在插件停用、卸载或升级未生效时联合控制插件菜单的展示和访问行为。
 
-- **WHEN** A plugin is disabled
-- **THEN** The menu registered by this plugin will not appear in the frontend menu bar
-- **AND** Users will receive controlled unavailability feedback when accessing the plugin page route directly.
+#### 场景：插件被禁用
 
-#### Scenario: Plugin re-enabled
+- **当** 插件被禁用时
+- **则** 该插件注册的菜单不会出现在前端菜单栏
+- **且** 用户直接访问插件页面路由时会收到受控的不可用反馈
 
-- **WHEN** A disabled plugin is re-enabled
-- **THEN** The original menu can reappear in the frontend menu bar according to the authorization relationship
-- **AND** Administrators do not need to recreate menu records
+#### 场景：插件重新启用
 
-#### Scenario: Administrator modifies menu display status
+- **当** 被禁用的插件重新启用时
+- **则** 原有菜单能够根据授权关系重新出现在前端菜单栏
+- **且** 管理员无需重新创建菜单记录
 
-- **WHEN** The administrator changes a menu visible to the current user to hidden on the menu management page
-- **THEN** The left navigation of the currently logged in user will remove the menu immediately after this operation is completed.
-- **AND** If the administrator restores the display again, the left navigation will immediately restore the menu under the same refresh link
+#### 场景：管理员修改菜单显示状态
 
-#### Scenario: Menu or plugin state changes occur again during refresh
+- **当** 管理员在菜单管理页面将当前用户可见的菜单改为隐藏时
+- **则** 当前登录用户的左侧导航会在该操作完成后立即移除该菜单
+- **且** 如果管理员再次恢复显示，左侧导航会在同一刷新链路中立即恢复该菜单
 
-- **WHEN** The host is refreshing the accessible menus and dynamic routes for the currently logged in user, and during this period it receives new menu visibility or plugin status changes.
-- **THEN** The host will make up a round of the latest status immediately after the current refresh is completed.
-- **AND** The left navigation finally converges to the menu result after the latest operation instead of staying in the old state
+#### 场景：刷新期间再次发生菜单或插件状态变更
 
-### Requirement: The plugin management menu uses stable business identifiers
+- **当** 宿主正在为当前登录用户刷新可访问菜单和动态路由，期间收到新的菜单可见性或插件状态变更时
+- **则** 宿主会在当前刷新完成后立即补一轮最新状态
+- **且** 左侧导航最终收敛到最新操作后的菜单结果而非停留在旧状态
 
-System SHALL provides a stable business identifier `menu_key` for menus governed by plugins, and uses this as the main anchor for menu life cycle management.
+### 需求：插件管理菜单使用稳定业务标识
 
-#### Scenario: Identify plugin menu ownership
+系统 SHALL 为插件治理的菜单提供稳定的业务标识 `menu_key`，并以此作为菜单生命周期管理的主要锚点。
 
-- **WHEN** The host needs to determine whether a menu belongs to a certain plugin
-- **THEN** Host priority is based on `sys_menu.menu_key` to parse menu ownership
-- **AND** `remark` is only used as a remark display field, not as a formal function identifier
+#### 场景：识别插件菜单归属
 
-#### Scenario: Plug-in menu installation or upgrade
+- **当** 宿主需要判断菜单属于某个插件时
+- **则** 宿主优先基于 `sys_menu.menu_key` 解析菜单归属
+- **且** `remark` 仅作为备注展示字段，不作为正式功能标识
 
-- **WHEN** Dynamic plugin installer or source plugin synchronization process creates or updates menus based on manifest menu metadata
-- **THEN** The host presses `menu_key` to perform idempotent writing
-- **AND** The host parses the real `parent_id` based on `parent_key`
-- **AND** The same `menu_key` remains unique within the host scope
+#### 场景：插件菜单安装或升级
 
-#### Scenario: Plug-in uninstallation menu metadata cleanup menu
+- **当** 动态插件安装器或源码插件同步流程基于清单菜单元数据创建或更新菜单时
+- **则** 宿主按 `menu_key` 执行幂等写入
+- **且** 宿主根据 `parent_key` 解析真实的 `parent_id`
+- **且** 相同 `menu_key` 在宿主范围内保持唯一
 
-- **WHEN** Dynamic plugin uninstallation or host execution plugin menu cleaning
-- **THEN** The host deletes the corresponding menu and role association based on the `menu_key` declared in the manifest
-- **AND** The host does not rely on plugin uninstallation and SQL manual maintenance menu deletion statements.
+#### 场景：插件卸载菜单元数据清理菜单
 
-### Requirement: By default, the background uses a stable first-level directory structure
+- **当** 动态插件卸载或宿主执行插件菜单清理时
+- **则** 宿主根据清单中声明的 `menu_key` 删除对应菜单和角色关联
+- **且** 宿主不依赖插件卸载 SQL 手动维护菜单删除语句
 
-The system SHALL provides the default management backend with a stable first-level directory structure oriented to the main scene of the project management backend.
+### 需求：默认后台使用稳定的一级目录结构
 
-#### Scenario: Query the default background menu skeleton
-- **WHEN** The host projects the default background menu for the current user
-- **THEN** The first-level directory is organized according to the following structure: `Workbench`, `Permission Management`, `Organization Management`, `System Settings`, `Content Management`, `System Monitoring`, `Task Scheduling`, `Extension Center`, `Development Center`
-- **AND** The stable host parent `menu_key` corresponding to these first-level directories is exactly `dashboard`, `iam`, `org`, `setting`, `content`, `monitor`, `scheduler`, `extension`, `developer`
+系统 SHALL 为默认管理后台提供面向项目管理后台主场景的稳定一级目录结构。
 
-#### Scenario: The first-level directory exists as a host stable directory record
-- **WHEN** The host initializes or synchronizes the default background menu skeleton
-- **THEN** These first-level directories are created and owned by the host
-- **AND** The plugin can only mount submenus to these directories instead of creating new sibling first-level directories.
+#### 场景：查询默认后台菜单骨架
+- **当** 宿主为当前用户投射默认后台菜单时
+- **则** 一级目录按以下结构组织：`工作台`、`权限管理`、`组织管理`、`系统设置`、`内容管理`、`系统监控`、`任务调度`、`扩展中心`、`开发中心`
+- **且** 这些一级目录对应的宿主稳定父级 `menu_key` 分别为 `dashboard`、`iam`、`org`、`setting`、`content`、`monitor`、`scheduler`、`extension`、`developer`
 
-#### Scenario: Default background extension business module
-- **WHEN** Developers continue to add business modules or official source plugins to the project
-- **THEN** New menus will be placed in existing stable directories first.
-- **AND** No need to frequently restructure first-level navigation naming and structure
+#### 场景：一级目录作为宿主稳定目录记录存在
+- **当** 宿主初始化或同步默认后台菜单骨架时
+- **则** 这些一级目录由宿主创建和拥有
+- **且** 插件只能将子菜单挂载到这些目录下，而非创建新的同级一级目录
 
-### Requirement: The plugin menu is semantically mounted to the host directory
+#### 场景：默认后台扩展业务模块
+- **当** 开发者持续向项目添加业务模块或官方源码插件时
+- **则** 新菜单会优先放置在现有稳定目录中
+- **且** 无需频繁重构一级导航命名和结构
 
-The system SHALL requires the plugin menu to fall in the semantically corresponding host directory, rather than being unified into the plugin management directory.
+### 需求：插件菜单语义化挂载到宿主目录
 
-#### Scenario: Organize plugin mounting menu
-- **WHEN** `org-center` synchronizes its menu to the host
-- **THEN** Its menu is mounted to `Organization Management`
-- **AND** Do not mount to `Extension Center`
+系统 SHALL 要求插件菜单落入语义对应的宿主目录，而非统一归入插件管理目录。
 
-#### Scenario: Content plugin mounting menu
-- **WHEN** `content-notice` synchronizes its menu to the host
-- **THEN** whose menu is mounted to `Content Management`
-- **AND** Do not mount to `Extension Center`
+#### 场景：组织插件挂载菜单
+- **当** `org-center` 将其菜单同步到宿主时
+- **则** 其菜单挂载到 `组织管理`
+- **且** 不挂载到 `扩展中心`
 
-#### Scenario: Monitoring plugin mounting menu
-- **WHEN** `monitor-online`, `monitor-server`, `monitor-operlog` or `monitor-loginlog` sync menu to host
-- **THEN** These menus are mounted to `System Monitor`
-- **AND** `Extension Center/Plug-in Management` is still responsible for installation and start-up and stop management
+#### 场景：内容插件挂载菜单
+- **当** `content-notice` 将其菜单同步到宿主时
+- **则** 其菜单挂载到 `内容管理`
+- **且** 不挂载到 `扩展中心`
 
-### Requirement: Empty parent directories are automatically hidden.
+#### 场景：监控插件挂载菜单
+- **当** `monitor-online`、`monitor-server`、`monitor-operlog` 或 `monitor-loginlog` 将菜单同步到宿主时
+- **则** 这些菜单挂载到 `系统监控`
+- **且** `扩展中心/插件管理` 仍负责安装和启停管理
 
-The system SHALL automatically hides a directory at a certain level when there is no visible submenu to avoid empty shell navigation in the default background.
+### 需求：空父目录自动隐藏
 
-#### Scenario: No visible menu for content management
-- **WHEN** `content-notice` is not installed, not enabled, or the current user does not have access to its menu
-- **THEN** `Content Management` does not appear in the left navigation
+系统 SHALL 在某级目录下没有可见子菜单时自动隐藏该目录，避免默认后台出现空壳导航。
 
-#### Scenario: Some system monitoring plugins are missing
-- **WHEN** Only some monitoring plugins are installed and visible under `System Monitoring`
-- **THEN** The left navigation only displays visible monitoring submenus
-- **AND** The parent directory `System Monitor` continues to be retained
-- **AND** If all monitoring submenus are invisible, the parent directory will be hidden as well.
+#### 场景：内容管理无可见菜单
+- **当** `content-notice` 未安装、未启用或当前用户无权访问其菜单时
+- **则** `内容管理` 不出现在左侧导航中
 
-### Requirement: Menu capability must return localized titles for the current language
-The system SHALL return localized menu titles in menu trees, parent menu display, role menu trees, and dynamic route projections according to the current request language. Menu localization MUST derive translation keys from stable `menu_key` anchors. When the current language lacks a translation, the system MUST fall back to the default language or the menu default name. The directly editable `name` field in menu edit forms MUST keep the database value to avoid writing display titles back into governance data during language switching.
+#### 场景：部分系统监控插件缺失
+- **当** 仅安装了部分监控插件且 `系统监控` 下有可见菜单时
+- **则** 左侧导航仅显示可见的监控子菜单
+- **且** 父目录 `系统监控` 继续保留
+- **且** 如果所有监控子菜单都不可见，父目录也将被隐藏
 
-#### Scenario: Menu tree returns English titles
-- **WHEN** a user requests the menu tree or current-user dynamic routes with `en-US`
-- **THEN** menu titles in the response use localized values for that language
-- **AND** the same menu remains consistent between tree node names and route `meta.title`
-- **AND** English menu titles use concise, natural product wording instead of literal translations from Chinese names
+### 需求：菜单能力必须返回当前语言的本地化标题
 
-#### Scenario: Button titles under resource menus use short action words
-- **WHEN** a user views button menus in the menu management page, parent menu tree, or role menu tree with `en-US`
-- **THEN** button titles under resource menus use short action words such as `Query`, `Create`, `Update`, `Delete`, and `Export`
-- **AND** button titles avoid repeating the parent resource menu name, such as `Users / Create` instead of `Users / Create User`
-- **AND** buttons that cannot be clearly expressed by generic actions may keep short business actions such as `Reset Password`, `Force Logout`, or `Run Now`
+系统 SHALL 在菜单树、父菜单展示、角色菜单树和动态路由投射中根据当前请求语言返回本地化菜单标题。菜单本地化必须从稳定的 `menu_key` 锚点派生翻译键。当前语言缺少翻译时，系统必须回退到默认语言或菜单默认名称。菜单编辑表单中可直接编辑的 `name` 字段必须保持数据库值，避免语言切换时将显示标题写回治理数据。
 
-#### Scenario: Missing menu translations fall back to default names
-- **WHEN** a menu has no translation for the current language
-- **THEN** the system falls back to the default-language title or menu default name
-- **AND** menu structure, permissions, and sort order remain unaffected
+#### 场景：菜单树返回英文标题
+- **当** 用户以 `en-US` 请求菜单树或当前用户动态路由时
+- **则** 响应中的菜单标题使用该语言的本地化值
+- **且** 同一菜单在树节点名称和路由 `meta.title` 之间保持一致
+- **且** 英文菜单标题使用简洁自然的产品措辞而非中文名称的直译
 
-#### Scenario: Administrator edits menus in English
-- **WHEN** an administrator opens menu detail or edit drawer in an `en-US` environment
-- **THEN** the menu list tree, parent menu display name, and parent menu selector tree show localized titles for the current language
-- **AND** the editable `name` field in the form keeps the original database value
+#### 场景：资源菜单下的按钮标题使用简短动作词
+- **当** 用户以 `en-US` 在菜单管理页面、父菜单树或角色菜单树中查看按钮菜单时
+- **则** 资源菜单下的按钮标题使用 `Query`、`Create`、`Update`、`Delete` 和 `Export` 等简短动作词
+- **且** 按钮标题避免重复父资源菜单名称，如 `Users / Create` 而非 `Users / Create User`
+- **且** 无法通过通用动作清晰表达的按钮可保留 `Reset Password`、`Force Logout` 或 `Run Now` 等简短业务动作
 
-### Requirement: Menu management must support stable business keys for i18n copy
-The system SHALL preserve stable business keys as i18n anchors in menu governance and allow host and plugin resources to maintain menu titles through unified translation resources instead of hard-coding the same menu copy in multiple pages.
+#### 场景：缺失的菜单翻译回退到默认名称
+- **当** 菜单没有当前语言的翻译时
+- **则** 系统回退到默认语言标题或菜单默认名称
+- **且** 菜单结构、权限和排序不受影响
 
-#### Scenario: Plugin menus integrate with i18n resources
-- **WHEN** a plugin declares a menu with a stable `menu_key` and provides matching translation resources
-- **THEN** the host uses the menu's localized title in the menu management page, left navigation, and role authorization tree
-- **AND** administrators do not need to configure multiple translation mappings for the same plugin menu
+#### 场景：管理员以英文编辑菜单
+- **当** 管理员在 `en-US` 环境下打开菜单详情或编辑抽屉时
+- **则** 菜单列表树、父菜单展示名称和父菜单选择器树显示当前语言的本地化标题
+- **且** 表单中可编辑的 `name` 字段保持原始数据库值
 
-#### Scenario: Administrator views menu detail
-- **WHEN** an administrator views a menu detail in the current language
-- **THEN** the system returns the localized parent menu display title and related read-only copy for the current language
-- **AND** the menu's editable fields continue to keep database values while the stable business key remains available for later translation maintenance and diagnostics
+### 需求：菜单管理必须支持稳定业务键用于国际化文案
 
-### Requirement: Dynamic route permission buttons must mount under their owning plugin menu
-Button permission menus generated from dynamic plugin route declarations SHALL mount under the owning dynamic plugin page menu or plugin root menu. They MUST NOT appear as floating button collections disconnected from business entry points in menu management.
+系统 SHALL 在菜单治理中保留稳定业务键作为国际化锚点，并允许宿主和插件资源通过统一翻译资源维护菜单标题，而非在多个页面硬编码相同的菜单文案。
 
-#### Scenario: Dynamic plugin route buttons are children of plugin menu
-- **WHEN** `plugin-demo-dynamic` is enabled and dynamic route permissions are synchronized
-- **THEN** corresponding button permissions appear as child nodes under that plugin page menu or plugin root menu
-- **AND** menu management does not show many top-level or wrongly mounted buttons prefixed with `Dynamic Route Permission:plugin-demo-dynamic:`
+#### 场景：插件菜单集成国际化资源
+- **当** 插件声明带有稳定 `menu_key` 的菜单并提供匹配的翻译资源时
+- **则** 宿主在菜单管理页面、左侧导航和角色授权树中使用菜单的本地化标题
+- **且** 管理员无需为同一插件菜单配置多个翻译映射
 
-#### Scenario: Dynamic plugin route buttons show readable English names
-- **WHEN** an administrator views `plugin-demo-dynamic` child buttons in menu management under `en-US`
-- **THEN** dynamic route button names display readable English resource and action names
-- **AND** raw `Dynamic Route Permission:plugin-demo-dynamic:*` placeholder text is not shown
+#### 场景：管理员查看菜单详情
+- **当** 管理员以当前语言查看菜单详情时
+- **则** 系统返回当前语言的本地化父菜单展示标题和相关只读文案
+- **且** 菜单的可编辑字段继续保留数据库值，稳定业务键可用于后续翻译维护和诊断
 
-#### Scenario: Dynamic plugin buttons remain assignable
-- **WHEN** an administrator views dynamic plugin permissions in the role authorization tree
-- **THEN** dynamic route buttons remain assignable under their owning plugin menu
-- **AND** plugin disablement temporarily invalidates permissions by existing plugin menu governance rules without losing authorization records
+### 需求：动态路由权限按钮必须挂载在其所属插件菜单下
 
-### Requirement: Menu tree expandable rows must be clickable
-Menu management tree rows that can expand SHALL show a clear clickable pointer and allow clicking the node title area to expand or collapse.
+从动态插件路由声明生成的按钮权限菜单 SHALL 挂载在所属动态插件页面菜单或插件根菜单下。不得在菜单管理中显示为与业务入口断开的浮动按钮集合。
 
-#### Scenario: Expandable menu row pointer and click
-- **WHEN** an administrator hovers the title area of a directory or menu row with children
-- **THEN** the cursor changes to a pointer
-- **AND** clicking that area expands or collapses the node
+#### 场景：动态插件路由按钮是插件菜单的子节点
+- **当** `plugin-demo-dynamic` 已启用且动态路由权限已同步时
+- **则** 对应的按钮权限作为该插件页面菜单或插件根菜单的子节点出现
+- **且** 菜单管理不显示大量以 `Dynamic Route Permission:plugin-demo-dynamic:` 为前缀的顶层或错误挂载的按钮
 
-#### Scenario: Redundant title icon hint is removed
-- **WHEN** an administrator views the menu management list title area
-- **THEN** the extra expand hint icon after the title is not shown
-- **AND** tree node expansion remains discoverable and operable
+#### 场景：动态插件路由按钮显示可读的英文名称
+- **当** 管理员在 `en-US` 下的菜单管理中查看 `plugin-demo-dynamic` 子按钮时
+- **则** 动态路由按钮名称显示可读的英文资源和动作名称
+- **且** 不显示原始的 `Dynamic Route Permission:plugin-demo-dynamic:*` 占位文本
 
-### Requirement: Menu subtree checks must use in-memory traversal
+#### 场景：动态插件按钮保持可分配
+- **当** 管理员在角色授权树中查看动态插件权限时
+- **则** 动态路由按钮在其所属插件菜单下保持可分配
+- **且** 插件禁用通过现有插件菜单治理规则临时失效权限，不丢失授权记录
 
-The system SHALL determine whether `targetId` belongs to the subtree of `parentId` (`isDescendant`) by loading the menu parent-child mapping once and running BFS/DFS in memory. It MUST NOT issue a separate SQL query for each `parent_id` level inside a loop.
+### 需求：菜单树可展开行必须可点击
 
-#### Scenario: Subtree check does not create per-level SQL round trips
+菜单管理中可展开的树形行 SHALL 显示清晰的可点击指针，并允许点击节点标题区域展开或折叠。
 
-- **WHEN** the service calls `isDescendant(ctx, parentId, targetId)`
-- **THEN** the whole check MUST issue at most one `dao.SysMenu` query to load the parent-child mapping
-- **AND** all subsequent traversal MUST happen in memory
+#### 场景：可展开菜单行的指针和点击
+- **当** 管理员悬停有子节点的目录或菜单行的标题区域时
+- **则** 光标变为指针
+- **且** 点击该区域展开或折叠节点
 
-### Requirement: sys_role_menu must include menu_id reverse index
+#### 场景：移除冗余的标题图标提示
+- **当** 管理员查看菜单管理列表标题区域时
+- **则** 不显示标题后的额外展开提示图标
+- **且** 树节点展开仍可发现和操作
 
-The system SHALL maintain `KEY idx_menu_id (menu_id)` on the `sys_role_menu` table to support query paths that batch delete role-menu associations by `menu_id` during menu cascade deletion.
+### 需求：菜单子树检查必须使用内存遍历
 
-#### Scenario: sys_role_menu reverse index exists
+系统 SHALL 通过一次加载菜单父子映射并在内存中运行 BFS/DFS 来判断 `targetId` 是否属于 `parentId` 的子树（`isDescendant`）。不得在循环内为每个 `parent_id` 级别发出单独的 SQL 查询。
 
-- **WHEN** `make init` completes database initialization
-- **THEN** `SHOW INDEX FROM sys_role_menu` MUST include `idx_menu_id` on column `menu_id`
+#### 场景：子树检查不产生逐级 SQL 往返
+
+- **当** 服务调用 `isDescendant(ctx, parentId, targetId)` 时
+- **则** 整个检查必须最多发出一次 `dao.SysMenu` 查询来加载父子映射
+- **且** 所有后续遍历必须在内存中进行
+
+### 需求：sys_role_menu 必须包含 menu_id 反向索引
+
+系统 SHALL 在 `sys_role_menu` 表上维护 `KEY idx_menu_id (menu_id)`，以支持菜单级联删除时按 `menu_id` 批量删除角色菜单关联的查询路径。
+
+#### 场景：sys_role_menu 反向索引存在
+
+- **当** `make init` 完成数据库初始化时
+- **则** `SHOW INDEX FROM sys_role_menu` 必须包含列 `menu_id` 上的 `idx_menu_id`

@@ -1,130 +1,131 @@
-# Online User
+# 在线用户
 
-## Purpose
+## 目的
 
-Define online session storage abstraction, login status tracking, list query, and forced offline capabilities to ensure that the system can steadily manage current online users and their session lifecycles.
-## Requirements
-### Requirement: Session Storage Abstraction Layer
-The system SHALL treats online session storage, session validity verification and session active time maintenance as host authentication session core; `monitor-online` only consumes the session projection and management capabilities provided by the host.
+定义在线会话存储抽象、登录状态跟踪、列表查询和强制下线能力，确保系统能够稳定管理当前在线用户及其会话生命周期。
 
-#### Scenario: Online user plugin not installed
-- **WHEN** `monitor-online` is not installed or not enabled
-- **THEN** The host is still creating, deleting, verifying and cleaning session records in `sys_online_session`
-- **AND** Login, logout, protected interface authentication and timeout determination continue to work normally
+## 需求
+### 需求：会话存储抽象层
+系统 SHALL 将在线会话存储、会话有效性验证和会话活跃时间维护视为宿主认证会话核心；`monitor-online` 仅消费宿主提供的会话投影和管理能力。
 
-#### Scenario: Online User Plugin Enabled
-- **WHEN** `monitor-online` is installed and enabled
-- **THEN** plugin queries online users through the session projection provided by the host and performs forced offline management
-- **AND** The plugin does not have a JWT validation, `last_active_time` maintenance or cleanup task truth source
+#### 场景：在线用户插件未安装
+- **当** `monitor-online` 未安装或未启用时
+- **则** 宿主仍在 `sys_online_session` 中创建、删除、验证和清理会话记录
+- **且** 登录、退出、受保护接口认证和超时判定继续正常工作
 
-### Requirement: Online user list query
-The system SHALL provides administrators with the ability to query current online users when `monitor-online` is installed and enabled, and supports filtering by username and IP address.
+#### 场景：在线用户插件已启用
+- **当** `monitor-online` 已安装并启用时
+- **则** 插件通过宿主提供的会话投影查询在线用户并执行强制下线管理
+- **且** 插件不持有 JWT 验证、`last_active_time` 维护或清理任务的事实源
 
-#### Scenario: Query online user list
-- **WHEN** `monitor-online` is installed and enabled and the administrator requests a list of online users
-- **THEN** plugin returns a list of online session records in the host session projection
-- **AND** Each record still contains governance fields such as token_id, username, dept_name, ip, login_location, browser, os, login_time, etc.
+### 需求：在线用户列表查询
+系统 SHALL 在 `monitor-online` 已安装并启用时为管理员提供查询当前在线用户的能力，支持按用户名和 IP 地址筛选。
 
-### Requirement: Force offline
-The system SHALL supports administrators to force offline specified online users when `monitor-online` is installed and enabled. Subsequent requests by offline users MUST return 401.
+#### 场景：查询在线用户列表
+- **当** `monitor-online` 已安装并启用且管理员请求在线用户列表时
+- **则** 插件返回宿主会话投影中的在线会话记录列表
+- **且** 每条记录仍包含 token_id、用户名、部门名称、IP、登录地点、浏览器、操作系统、登录时间等治理字段
 
-#### Scenario: Plug-in execution is forced offline
-- **WHEN** The administrator uses `monitor-online` to force the specified `tokenId` offline
-- **THEN** The host session kernel fails the session record
-- **AND** Subsequent requests carrying the Token are rejected by the host authentication middleware
+### 需求：强制下线
+系统 SHALL 在 `monitor-online` 已安装并启用时支持管理员强制下线指定在线用户。下线用户的后续请求必须返回 401。
 
-### Requirement: Online User Frontend Page
+#### 场景：插件执行强制下线
+- **当** 管理员使用 `monitor-online` 强制指定 `tokenId` 下线时
+- **则** 宿主会话内核使该会话记录失效
+- **且** 后续携带该 Token 的请求被宿主认证中间件拒绝
 
-The system SHALL provides an online user management page that displays the current list of online users and supports forced offline operations.
+### 需求：在线用户前端页面
 
-#### Scenario: Page shows a list of online users
-- **WHEN** Admin visits online user page
-- **THEN** page displays the VXE-Grid form, including the following: login account, department name, IP address, login location, browser (with icon), operating system (with icon), login time, operation (forced offline button); the toolbar shows the online number of people statistics
+系统 SHALL 提供在线用户管理页面，展示当前在线用户列表并支持强制下线操作。
 
-#### Scenario: Search Filter
-- **WHEN** Admin enters username or IP address in search bar and searches
-- **THEN** table data refreshes based on filters
+#### 场景：页面展示在线用户列表
+- **当** 管理员访问在线用户页面时
+- **则** 页面以 VXE-Grid 形式展示，包含：登录账号、部门名称、IP 地址、登录地点、浏览器（带图标）、操作系统（带图标）、登录时间、操作（强制下线按钮）；工具栏显示在线人数统计
 
-#### Scenario: Enforce offline interactions
-- **WHEN** Admin clicks "Force Offline" button on a user line
-- **THEN** pops up a confirmation dialog box, calls the forced downline API after confirmation, refreshes the table data after success
+#### 场景：搜索筛选
+- **当** 管理员在搜索栏输入用户名或 IP 地址并搜索时
+- **则** 表格数据根据筛选条件刷新
 
-### Requirement: Session Activity Time Tracking
+#### 场景：强制下线交互
+- **当** 管理员点击某用户行的"强制下线"按钮时
+- **则** 弹出确认对话框，确认后调用强制下线 API，成功后刷新表格数据
 
-The system SHALL tracks the last active time of each online user and is used to determine if a session has timed out. The authentication middleware MUST validate the session and timeout on every protected request, but MAY skip writing `last_active_time` when the persisted active time is still within the configured short update window.
+### 需求：会话活跃时间跟踪
 
-#### Scenario: Initial active time at login
-- **WHEN** User successfully logged in, system created `sys_online_session` session record
-- **THEN** `last_active_time` field MUST be set to the current time
+系统 SHALL 跟踪每个在线用户的最后活跃时间，用于判断会话是否超时。认证中间件必须在每个受保护请求上验证会话和超时，但当持久化的活跃时间仍在配置的短更新窗口内时，可跳过写入 `last_active_time`。
 
-#### Scenario: Validate active session on every protected request
-- **WHEN** logged in user with a valid token accessing the protected API
-- **THEN** The authentication middleware MUST verify that the session record exists
-- **AND** The authentication middleware MUST reject the request if the persisted `last_active_time` has exceeded the effective timeout threshold
+#### 场景：登录时的初始活跃时间
+- **当** 用户成功登录，系统创建 `sys_online_session` 会话记录时
+- **则** `last_active_time` 字段必须设置为当前时间
 
-#### Scenario: Refresh active time after update window
-- **WHEN** logged in user with a valid token accesses a protected API and the persisted `last_active_time` is older than the short update window
-- **THEN** The authentication middleware MUST update `last_active_time` to the current time
-- **AND** The request is processed normally when the update succeeds
+#### 场景：每个受保护请求验证活跃会话
+- **当** 持有有效 Token 的已登录用户访问受保护 API 时
+- **则** 认证中间件必须验证会话记录存在
+- **且** 如果持久化的 `last_active_time` 已超过有效超时阈值，认证中间件必须拒绝请求
 
-#### Scenario: Skip duplicate active time write within update window
-- **WHEN** logged in user with a valid token repeatedly accesses protected APIs within the short update window
-- **THEN** The authentication middleware MAY skip the duplicate `last_active_time` update
-- **AND** The request is still processed normally if the session has not timed out
+#### 场景：更新窗口后刷新活跃时间
+- **当** 持有有效 Token 的已登录用户访问受保护 API 且持久化的 `last_active_time` 早于短更新窗口时
+- **则** 认证中间件必须将 `last_active_time` 更新为当前时间
+- **且** 更新成功后请求正常处理
 
-### Requirement: Automatic cleanup of inactive sessions
-System SHALL provides scheduled tasks to automatically clean up online sessions that have been inactive for a long time, preventing the session table from growing indefinitely.Timeout threshold and cleanup frequency MUST support adjustment via the duration string profile.
+#### 场景：更新窗口内跳过重复活跃时间写入
+- **当** 持有有效 Token 的已登录用户在短更新窗口内重复访问受保护 API 时
+- **则** 认证中间件可跳过重复的 `last_active_time` 更新
+- **且** 如果会话未超时，请求仍正常处理
 
-#### Scenario: Scheduled cleanup of timeout sessions
-- **WHEN** When scheduled cleanup tasks are performed (default every 5 minutes)
-- **THEN** System MUST query `last_active_time` in the `sys_online_session` table for records whose current time exceeds the timeout threshold (default 24 hours) and delete them
+### 需求：不活跃会话自动清理
+系统 SHALL 提供定时任务自动清理长时间不活跃的在线会话，防止会话表无限增长。超时阈值和清理频率必须支持通过时长字符串配置调整。
 
-#### Scenario: Timeout thresholds can be adjusted with new configurations
-- **WHEN** Admin set `session.timeout = 24h` in `config.yaml`
-- **THEN** The system MUST uses this duration value as the session timeout threshold, which defaults to 24 hours when not set
+#### 场景：定时清理超时会话
+- **当** 定时清理任务执行时（默认每 5 分钟）
+- **则** 系统必须查询 `sys_online_session` 表中 `last_active_time` 超过超时阈值（默认 24 小时）的记录并删除
 
-#### Scenario: Cleaning frequency can be adjusted with the new configuration
-- **WHEN** Admin set `session.cleanupInterval = 5m` in `config.yaml`
-- **THEN** The system MUST uses this duration value as the cleanup task execution interval, which defaults to 5 minutes when not set
+#### 场景：超时阈值可通过新配置调整
+- **当** 管理员在 `config.yaml` 中设置 `session.timeout = 24h` 时
+- **则** 系统必须使用该时长值作为会话超时阈值，未设置时默认 24 小时
 
-### Requirement: System monitoring menu
-The system SHALL When `monitor-online` is installed and enabled, the `online user` menu is mounted as a plugin menu to the host `system monitoring` directory, instead of requiring it to appear as a fixed built-in submenu together with `service monitoring`.
+#### 场景：清理频率可通过新配置调整
+- **当** 管理员在 `config.yaml` 中设置 `session.cleanupInterval = 5m` 时
+- **则** 系统必须使用该时长值作为清理任务执行间隔，未设置时默认 5 分钟
 
-#### Scenario: Menu display
-- **WHEN** `monitor-online` is installed, enabled and the current user has access to its menu
-- **THEN** The `Online Users` submenu is displayed under `System Monitoring`
-- **AND** This rule does not require that `Service Monitoring` also exists
+### 需求：系统监控菜单
+系统 SHALL 在 `monitor-online` 已安装并启用时，将 `在线用户` 菜单作为插件菜单挂载到宿主 `系统监控` 目录，而非要求它与 `服务监控` 一起作为固定内置子菜单出现。
 
-#### Scenario: Plug-in missing or disabled
-- **WHEN** `monitor-online` is not installed, not enabled, or the current user does not have access to its menu
-- **THEN** The host hides the `Online User` menu entry
-- **AND** Host authentication session kernel continues to run independently
+#### 场景：菜单展示
+- **当** `monitor-online` 已安装、已启用且当前用户有权访问其菜单时
+- **则** `系统监控` 下显示 `在线用户` 子菜单
+- **且** 此规则不要求 `服务监控` 也存在
 
-### Requirement: Runtime-Configured Session Timeout
-The system SHALL allow `sys.session.timeout` to control the online-session timeout threshold at runtime and SHALL fall back to static configuration when no runtime override exists.
+#### 场景：插件缺失或禁用
+- **当** `monitor-online` 未安装、未启用或当前用户无权访问其菜单时
+- **则** 宿主隐藏 `在线用户` 菜单入口
+- **且** 宿主认证会话内核继续独立运行
 
-#### Scenario: Runtime timeout value becomes effective
-- **WHEN** an administrator maintains `sys.session.timeout=24h`
-- **THEN** the host uses that duration as the effective online-session timeout threshold
+### 需求：运行时配置的会话超时
+系统 SHALL 允许 `sys.session.timeout` 在运行时控制在线会话超时阈值，无运行时覆盖时回退到静态配置。
 
-### Requirement: Authentication Checks Session Timeout on Every Protected Request
-The system SHALL evaluate session timeout during authentication instead of relying only on scheduled cleanup.
+#### 场景：运行时超时值生效
+- **当** 管理员维护 `sys.session.timeout=24h` 时
+- **则** 宿主使用该时长作为有效的在线会话超时阈值
 
-#### Scenario: Expired session is rejected during authentication
-- **WHEN** a protected request carries a token whose session `last_active_time` exceeds the effective timeout threshold
-- **THEN** the authentication chain rejects the request with `401`
-- **AND** the host cleans up the corresponding online-session record
+### 需求：认证在每个受保护请求上检查会话超时
+系统 SHALL 在认证期间评估会话超时，而非仅依赖定时清理。
 
-### Requirement: sys_online_session must include last_active_time index
+#### 场景：过期会话在认证期间被拒绝
+- **当** 受保护请求携带的 Token 对应的会话 `last_active_time` 超过有效超时阈值时
+- **则** 认证链以 `401` 拒绝请求
+- **且** 宿主清理对应的在线会话记录
 
-The system SHALL maintain `KEY idx_last_active_time (last_active_time)` on the `sys_online_session` table to support inactive-session cleanup queries by `last_active_time` range and avoid full table scans.
+### 需求：sys_online_session 必须包含 last_active_time 索引
 
-#### Scenario: Index exists
+系统 SHALL 在 `sys_online_session` 表上维护 `KEY idx_last_active_time (last_active_time)`，以支持按 `last_active_time` 范围的不活跃会话清理查询，避免全表扫描。
 
-- **WHEN** `make init` completes database initialization
-- **THEN** `SHOW INDEX FROM sys_online_session` MUST include `idx_last_active_time` on column `last_active_time`
+#### 场景：索引存在
 
-#### Scenario: Inactive-session cleanup uses the index
+- **当** `make init` 完成数据库初始化时
+- **则** `SHOW INDEX FROM sys_online_session` 必须包含列 `last_active_time` 上的 `idx_last_active_time`
 
-- **WHEN** the service executes cleanup queries of the form `WHERE last_active_time < ?`
-- **THEN** the database MUST select `idx_last_active_time` to avoid a full table scan
+#### 场景：不活跃会话清理使用索引
+
+- **当** 服务执行 `WHERE last_active_time < ?` 形式的清理查询时
+- **则** 数据库必须选择 `idx_last_active_time` 以避免全表扫描

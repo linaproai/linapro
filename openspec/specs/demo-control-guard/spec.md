@@ -1,93 +1,92 @@
-# Demo Control Guard
+# 演示控制守卫
 
-## Purpose
+## 目的
 
-Define how the official `demo-control` source plugin enables read-only demo protection while preserving required session access and blocking plugin governance writes when demo mode is enabled.
+定义官方 `demo-control` 源码插件在启用演示模式时如何启用只读演示保护，同时保留必要的会话访问并阻断插件治理写操作。
 
-## Requirements
+## 需求
 
-### Requirement: Demo read-only mode is controlled by the plugin's enabled state
+### 需求：演示只读模式由插件的启用状态控制系统
 
-The system MUST treat the installed-and-enabled state of `demo-control` as the runtime switch for demo protection. `plugin.autoEnable` only controls startup installation and enablement; it MUST NOT be treated as a separate runtime switch after startup.
+系统必须将 `demo-control` 的已安装并启用状态视为演示保护的运行时开关。`plugin.autoEnable` 仅控制启动安装和启用；启动后不得将其视为单独的运行时开关。
 
-#### Scenario: Demo protection stays disabled in the default configuration
-- **WHEN** the host starts with default delivered configuration and `plugin.autoEnable` does not contain `demo-control`
-- **THEN** the host does not install or enable `demo-control`
-- **AND** deployments that never enable the plugin do not block writes by default
+#### 场景：默认配置下演示保护保持禁用
+- **当** 宿主以默认交付配置启动且 `plugin.autoEnable` 不包含 `demo-control` 时
+- **则** 宿主不安装或启用 `demo-control`
+- **且** 从未启用该插件的部署默认不阻断写操作
 
-#### Scenario: Manual enablement activates demo protection
-- **WHEN** an administrator installs and enables `demo-control`
-- **THEN** demo-control middleware becomes active for later requests
-- **AND** write requests are blocked by read-only demo rules
+#### 场景：手动启用激活演示保护
+- **当** 管理员安装并启用 `demo-control` 时
+- **则** demo-control 中间件对后续请求生效
+- **且** 写请求被只读演示规则阻断
 
-### Requirement: The host must deliver a demo-control source plugin with the source tree
+### 需求：宿主必须随源码树交付 demo-control 源码插件
 
-The system MUST deliver an official source plugin named `demo-control` so deployments can enable the capability through startup config or plugin governance.
+系统必须交付名为 `demo-control` 的官方源码插件，使部署可通过启动配置或插件治理启用该能力。
 
-#### Scenario: The host discovers the demo-control source plugin
-- **WHEN** the host scans source plugins and synchronizes registry data
-- **THEN** it discovers `demo-control`
-- **AND** operators can decide whether to enable it
+#### 场景：宿主发现 demo-control 源码插件
+- **当** 宿主扫描源码插件并同步注册表数据时
+- **则** 发现 `demo-control`
+- **且** 运维人员可决定是否启用
 
-### Requirement: The demo-control plugin must block system write operations when enabled
+### 需求：demo-control 插件启用时必须阻断系统写操作
 
-When enabled, demo-control MUST block write requests across the system by HTTP method semantics while allowing read-style requests.
+启用时，demo-control 必须按 HTTP 方法语义阻断系统写请求，同时允许读式请求。
 
-#### Scenario: No write interception while disabled
-- **WHEN** `demo-control` is not enabled
-- **THEN** `POST`, `PUT`, and `DELETE` requests are not rejected by demo-control
+#### 场景：禁用时无写拦截
+- **当** `demo-control` 未启用时
+- **则** `POST`、`PUT` 和 `DELETE` 请求不被 demo-control 拒绝
 
-#### Scenario: Query-style requests remain allowed
-- **WHEN** `demo-control` is enabled
-- **AND** a request uses `GET`, `HEAD`, or `OPTIONS`
-- **THEN** demo-control allows the request to continue
+#### 场景：查询式请求保持允许
+- **当** `demo-control` 已启用
+- **且** 请求使用 `GET`、`HEAD` 或 `OPTIONS` 时
+- **则** demo-control 允许请求继续
 
-#### Scenario: Write requests are rejected
-- **WHEN** `demo-control` is enabled
-- **AND** a request uses `POST`, `PUT`, or `DELETE`
-- **THEN** demo-control rejects the request with a clear read-only demo message
-- **AND** the request does not continue into business processing
+#### 场景：写请求被拒绝
+- **当** `demo-control` 已启用
+- **且** 请求使用 `POST`、`PUT` 或 `DELETE` 时
+- **则** demo-control 以清晰的只读演示消息拒绝请求
+- **且** 请求不继续进入业务处理
 
-### Requirement: The demo-control plugin must preserve a minimal session whitelist
+### 需求：demo-control 插件必须保留最小会话白名单
 
-The system MUST preserve login and logout behavior while demo-control is enabled so the demo environment remains usable.
+系统必须在 demo-control 启用时保留登录和退出行为，使演示环境保持可用。
 
-#### Scenario: Login stays allowed
-- **WHEN** `demo-control` is enabled
-- **AND** the request is `POST /api/v1/auth/login`
-- **THEN** demo-control allows the request to continue
+#### 场景：登录保持允许
+- **当** `demo-control` 已启用
+- **且** 请求为 `POST /api/v1/auth/login` 时
+- **则** demo-control 允许请求继续
 
-#### Scenario: Logout stays allowed
-- **WHEN** `demo-control` is enabled
-- **AND** the request is `POST /api/v1/auth/logout`
-- **THEN** demo-control allows the request to continue
+#### 场景：退出保持允许
+- **当** `demo-control` 已启用
+- **且** 请求为 `POST /api/v1/auth/logout` 时
+- **则** demo-control 允许请求继续
 
-### Requirement: The demo-control plugin must reject plugin-governance write operations when enabled
+### 需求：demo-control 插件启用时必须拒绝插件治理写操作
 
-When `demo-control` is enabled, the system SHALL reject plugin governance writes, including plugin synchronization, dynamic package upload, installation, uninstallation, enablement, and disablement. Plugin management `GET`, `HEAD`, and `OPTIONS` requests remain allowed as read-only operations.
+`demo-control` 启用时，系统 SHALL 拒绝插件治理写操作，包括插件同步、动态包上传、安装、卸载、启用和禁用。插件管理的 `GET`、`HEAD` 和 `OPTIONS` 请求作为只读操作保持允许。
 
-#### Scenario: Plugin installations are rejected while demo-control is enabled
-- **WHEN** `demo-control` is enabled
-- **AND** the request is `POST /api/v1/plugins/{id}/install`
-- **THEN** demo-control rejects the request with a read-only demo message
+#### 场景：启用 demo-control 时拒绝插件安装
+- **当** `demo-control` 已启用
+- **且** 请求为 `POST /api/v1/plugins/{id}/install` 时
+- **则** demo-control 以只读演示消息拒绝请求
 
-#### Scenario: Plugin enable and disable requests are rejected
-- **WHEN** `demo-control` is enabled
-- **AND** the request is `PUT /api/v1/plugins/{id}/enable` or `PUT /api/v1/plugins/{id}/disable`
-- **THEN** demo-control rejects the request with a read-only demo message
+#### 场景：拒绝插件启用和禁用请求
+- **当** `demo-control` 已启用
+- **且** 请求为 `PUT /api/v1/plugins/{id}/enable` 或 `PUT /api/v1/plugins/{id}/disable` 时
+- **则** demo-control 以只读演示消息拒绝请求
 
-#### Scenario: Plugin uninstalls are rejected
-- **WHEN** `demo-control` is enabled
-- **AND** the request is `DELETE /api/v1/plugins/{id}`
-- **THEN** demo-control rejects the request with a read-only demo message
+#### 场景：拒绝插件卸载
+- **当** `demo-control` 已启用
+- **且** 请求为 `DELETE /api/v1/plugins/{id}` 时
+- **则** demo-control 以只读演示消息拒绝请求
 
-#### Scenario: Plugin sync and upload writes are rejected
-- **WHEN** `demo-control` is enabled
-- **AND** the request is `POST /api/v1/plugins/sync` or `POST /api/v1/plugins/dynamic/package`
-- **THEN** demo-control rejects the request with a read-only demo message
+#### 场景：拒绝插件同步和上传写操作
+- **当** `demo-control` 已启用
+- **且** 请求为 `POST /api/v1/plugins/sync` 或 `POST /api/v1/plugins/dynamic/package` 时
+- **则** demo-control 以只读演示消息拒绝请求
 
-#### Scenario: Plugin management reads stay allowed
-- **WHEN** `demo-control` is enabled
-- **AND** the request is a plugin management query using `GET`, `HEAD`, or `OPTIONS`
-- **THEN** demo-control allows the request to continue
-
+#### 场景：插件管理读取保持允许
+- **当** `demo-control` 已启用
+- **且** 请求为使用 `GET`、`HEAD` 或 `OPTIONS` 的插件管理查询时
+- **则** demo-control 允许请求继续

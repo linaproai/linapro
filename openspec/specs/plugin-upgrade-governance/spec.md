@@ -1,63 +1,63 @@
-# plugin-upgrade-governance Specification
+# 插件升级治理规范
 
-## Purpose
-Define how source-plugin upgrades are discovered, validated, and executed as explicit development-time operations while keeping dynamic-plugin upgrades on the runtime model.
+## 目的
+定义源码插件升级如何被发现、验证和执行为显式的开发时操作，同时保持动态插件升级在运行时模型上。
 
-## Requirements
-### Requirement: Source plugins must separate the effective version from discovered source versions
+## 需求
+### 需求：源码插件必须分离有效版本和发现的源码版本
 
-The system SHALL distinguish the current effective source-plugin version from higher versions discovered in the source tree. `sys_plugin.version` and `release_id` represent only the effective version, while newly discovered versions are stored as release records and must not overwrite the effective version before an explicit upgrade.
+系统 SHALL 区分当前有效的源码插件版本和在源码树中发现的更高版本。`sys_plugin.version` 和 `release_id` 仅代表有效版本，新发现的版本存储为发布记录，在显式升级前不得覆盖有效版本。
 
-#### Scenario: An installed source plugin discovers a higher version
-- **WHEN** source plugin `plugin-demo` is effectively running `v0.1.0` and its `plugin.yaml` in source has been bumped to `v0.5.0`
-- **THEN** `sys_plugin.version` remains `v0.1.0`
-- **AND** the system records a `v0.5.0` source-plugin release snapshot
-- **AND** that new release is not treated as the current effective version until an explicit upgrade completes
+#### 场景：已安装的源码插件发现更高版本
+- **当** 源码插件 `plugin-demo` 有效运行 `v0.1.0` 且其源码中的 `plugin.yaml` 已升级到 `v0.5.0` 时
+- **则** `sys_plugin.version` 保持 `v0.1.0`
+- **且** 系统记录 `v0.5.0` 源码插件发布快照
+- **且** 该新发布不被视为当前有效版本，直到显式升级完成
 
-### Requirement: Source-plugin upgrades must be explicit development-time operations
+### 需求：源码插件升级必须是显式的开发时操作
 
-The system SHALL require source-plugin upgrades to be executed through the shared development-time upgrade command instead of being repaired automatically during host startup. The command must support both single-plugin and bulk source-plugin upgrades.
+系统 SHALL 要求源码插件升级通过共享的开发时升级命令执行，而非在宿主启动期间自动修复。命令必须支持单插件和批量源码插件升级。
 
-#### Scenario: Upgrade one source plugin explicitly
-- **WHEN** a developer runs `make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo`
-- **THEN** the system generates and executes an upgrade plan only for `plugin-demo`
-- **AND** it does not trigger upgrades for other source plugins or any dynamic plugin
+#### 场景：显式升级单个源码插件
+- **当** 开发者运行 `make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo` 时
+- **则** 系统仅为 `plugin-demo` 生成并执行升级计划
+- **且** 不触发其他源码插件或任何动态插件的升级
 
-#### Scenario: Upgrade all source plugins in one run
-- **WHEN** a developer runs `make upgrade confirm=upgrade scope=source-plugin plugin=all`
-- **THEN** the system scans all source plugins and processes pending upgrades in a deterministic order
-- **AND** it prints explicit skip results for plugins that are not installed or do not require upgrades
+#### 场景：一次运行升级所有源码插件
+- **当** 开发者运行 `make upgrade confirm=upgrade scope=source-plugin plugin=all` 时
+- **则** 系统扫描所有源码插件并按确定性顺序处理待处理的升级
+- **且** 为未安装或不需要升级的插件打印明确的跳过结果
 
-### Requirement: Host startup must verify that source-plugin upgrades are complete
+### 需求：宿主启动必须验证源码插件升级已完成
 
-The host SHALL scan source plugins during startup and then validate whether any installed source plugin has a higher discovered version than the effective version. If such a plugin exists, the host MUST refuse to start and print the matching development-time upgrade command.
+宿主 SHALL 在启动期间扫描源码插件，然后验证是否有已安装的源码插件发现版本高于有效版本。如果存在此类插件，宿主必须拒绝启动并打印匹配的开发时升级命令。
 
-#### Scenario: A pending source-plugin upgrade blocks startup
-- **WHEN** the host starts and discovers that `plugin-demo` is effectively running `v0.1.0` while source discovery reports `v0.5.0`
-- **THEN** the startup flow fails
-- **AND** the error message includes the plugin ID, the effective version, the discovered version, and the recommended `make upgrade` command
+#### 场景：待处理的源码插件升级阻塞启动
+- **当** 宿主启动并发现 `plugin-demo` 有效运行 `v0.1.0` 而源码发现报告 `v0.5.0` 时
+- **则** 启动流程失败
+- **且** 错误消息包含插件 ID、有效版本、发现版本和推荐的 `make upgrade` 命令
 
-### Requirement: Source-plugin upgrades must record `phase=upgrade` and synchronize governance resources
+### 需求：源码插件升级必须记录 `phase=upgrade` 并同步治理资源
 
-The source-plugin upgrade command SHALL execute upgrade-phase migration bookkeeping and synchronize menus, permissions, and governance resource references. After a successful run, the new release becomes the effective release.
+源码插件升级命令 SHALL 执行升级阶段迁移记账并同步菜单、权限和治理资源引用。成功运行后，新发布成为有效发布。
 
-#### Scenario: A source-plugin upgrade succeeds
-- **WHEN** a developer upgrades an installed source plugin and all SQL and governance synchronization steps succeed
-- **THEN** `sys_plugin.version` and `release_id` are updated to the new release
-- **AND** `sys_plugin_migration` records an entry with `phase=upgrade`
-- **AND** the new release becomes the effective release
+#### 场景：源码插件升级成功
+- **当** 开发者升级已安装的源码插件且所有 SQL 和治理同步步骤成功时
+- **则** `sys_plugin.version` 和 `release_id` 更新为新发布
+- **且** `sys_plugin_migration` 记录 `phase=upgrade` 条目
+- **且** 新发布成为有效发布
 
-#### Scenario: A source-plugin upgrade fails
-- **WHEN** an upgrade SQL statement or a governance synchronization step fails during a source-plugin upgrade
-- **THEN** the command stops immediately
-- **AND** it preserves failed upgrade records and error information
-- **AND** the iteration does not perform rollback automatically
+#### 场景：源码插件升级失败
+- **当** 源码插件升级期间升级 SQL 语句或治理同步步骤失败时
+- **则** 命令立即停止
+- **且** 保留失败的升级记录和错误信息
+- **且** 迭代不自动执行回滚
 
-### Requirement: Dynamic-plugin upgrades stay on the runtime model
+### 需求：动态插件升级保持在运行时模型上
 
-The system SHALL keep dynamic-plugin upgrades on the existing runtime upload plus install/reconcile model. The development-time `make upgrade` command must not scan, migrate, or switch dynamic-plugin releases.
+系统 SHALL 保持动态插件升级在现有的运行时上传加安装/协调模型上。开发时 `make upgrade` 命令不得扫描、迁移或切换动态插件发布。
 
-#### Scenario: The development-time upgrade command ignores dynamic plugins
-- **WHEN** a developer runs `make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo`
-- **THEN** the system does not scan or switch any dynamic-plugin release
-- **AND** dynamic plugins continue to upgrade only through upload plus install/reconcile
+#### 场景：开发时升级命令忽略动态插件
+- **当** 开发者运行 `make upgrade confirm=upgrade scope=source-plugin plugin=plugin-demo` 时
+- **则** 系统不扫描或切换任何动态插件发布
+- **且** 动态插件仅通过上传加安装/协调继续升级

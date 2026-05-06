@@ -276,3 +276,4 @@
 - [x] **FB-15**: Align active OpenSpec delta specs to Chinese, keep parser-required `SHALL`/`MUST` markers, and complete PR description i18n/cache conclusions
 - [x] **FB-16**: Ensure `doctor-install.sh` timeout failures append a timeout marker so escalation can classify them as `network`
 - [x] **FB-17**: Add automated coverage for the `lina-upgrade` skill workflow and failure handling
+- [x] **FB-18**: `make build` 应从 `hack/config.yaml` 读取目标平台/架构等构建配置，`image` 配置段不再维护二进制构建参数并改为复用 `make build` 产物

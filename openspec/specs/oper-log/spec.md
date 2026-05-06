@@ -1,148 +1,148 @@
-# Oper Log
+# 操作日志
 
-## Purpose
+## 目的
 
-Define the automatic recording, querying, deleting and exporting behavior of the operation logs undertaken by the `monitor-operlog` source plugin to ensure that the system's key write operations and specified read operations have traceable and auditable operation traceability.
-## Requirements
-### Requirement: Automatic recording of operation logs
-The system SHALL uses the global audit middleware declared on the host unified HTTP registration portal through the `monitor-operlog` source plugin to automatically emit unified audit events for all write operations (POST/PUT/DELETE) and query operations marked with the `operLog` tag. The host only provides managed global middleware registration joints and unified event distribution, and does not retain fixed operation log business middleware. When `monitor-operlog` is installed and enabled, the plugin middleware participates in the request chain and persists the logs to the `plugin_monitor_operlog` table; when the plugin is unavailable, the host core request link MUST bypass the collection logic and continue normal execution.
+定义 `monitor-operlog` 源码插件承担的操作日志自动记录、查询、删除和导出行为，确保系统的关键写操作和指定读操作具有可追溯和可审计的操作痕迹。
 
-#### Scenario: Operation log plugin is enabled
-- **WHEN** The user initiates an audited request and `monitor-operlog` is installed and enabled
-- **THEN** `monitor-operlog` wraps matching requests through the host's global HTTP middleware registrar
-- **AND** The host emits unified audit events
-- **AND** `monitor-operlog` writes a corresponding operation log record
+## 需求
+### 需求：操作日志自动记录
+系统 SHALL 通过 `monitor-operlog` 源码插件使用宿主统一 HTTP 注册入口声明的全局审计中间件，为所有写操作（POST/PUT/DELETE）和标记了 `operLog` 标签的查询操作自动发出统一审计事件。宿主仅提供托管的全局中间件注册接缝和统一事件分发，不保留固定的操作日志业务中间件。当 `monitor-operlog` 已安装并启用时，插件中间件参与请求链路并将日志持久化到 `plugin_monitor_operlog` 表；当插件不可用时，宿主核心请求链路必须绕过采集逻辑并继续正常执行。
 
-#### Scenario: Operation log plugin is missing or disabled
-- **WHEN** The user initiates an audited request but `monitor-operlog` is not installed, not enabled, or fails to initialize
-- **THEN** Host bypass plugin self-registered audit middleware logic
-- **AND** The host still completes the original business request normally
-- **AND** The host does not return an error due to lack of specific operation log implementation.
+#### 场景：操作日志插件已启用
+- **当** 用户发起已审计的请求且 `monitor-operlog` 已安装并启用时
+- **则** `monitor-operlog` 通过宿主的全局 HTTP 中间件注册器包装匹配的请求
+- **且** 宿主发出统一审计事件
+- **且** `monitor-operlog` 写入对应的操作日志记录
 
-#### Scenario: Downstream middleware ends the request early
-- **WHEN** The global audit middleware of `monitor-operlog` has wrapped a request, and the subsequent middleware or processor ends the current request early after writing a response.
-- **THEN** The audit middleware can still read the current response snapshot and emit matching audit events after `Next` returns
-- **AND** Ending the request early will not cause the operation log to be omitted.
+#### 场景：操作日志插件缺失或禁用
+- **当** 用户发起已审计的请求但 `monitor-operlog` 未安装、未启用或初始化失败时
+- **则** 宿主绕过插件自注册的审计中间件逻辑
+- **且** 宿主仍正常完成原始业务请求
+- **且** 宿主不因缺少特定操作日志实现而返回错误
 
-### Requirement: Operational logging content
-The system SHALL record the following operation information: module name (title, `tags` tag from `g.Meta'), operation name (oper_summary, `summary` tag from `g.Meta'), operation type (oper_type), request method (request_method), request URL (oper_url), operator username (oper_name), operation IP (oper_ip), request parameters (oper_param), response result (json_result), operation status (status), error information (error_msg), cost_time (cost_time), operation time (oper_time).
+#### 场景：下游中间件提前结束请求
+- **当** `monitor-operlog` 的全局审计中间件已包装请求，而后续中间件或处理器在写入响应后提前结束当前请求时
+- **则** 审计中间件仍可在 `Next` 返回后读取当前响应快照并发出匹配的审计事件
+- **且** 提前结束请求不会导致操作日志被遗漏
 
-#### Scenario: Document full operation information
-- **WHEN** One write operation completed (successful or unsuccessful)
-- **THEN** The log record contains all the above fields, `status` is 0 (success) or 1 (failure), `cost_time` is the request processing time (milliseconds)
+### 需求：操作日志记录内容
+系统 SHALL 记录以下操作信息：模块名称（title、`g.Meta` 的 `tags` 标签）、操作名称（oper_summary、`g.Meta` 的 `summary` 标签）、操作类型（oper_type）、请求方法（request_method）、请求 URL（oper_url）、操作人员用户名（oper_name）、操作 IP（oper_ip）、请求参数（oper_param）、响应结果（json_result）、操作状态（status）、错误信息（error_msg）、耗时（cost_time）、操作时间（oper_time）。
 
-#### Scenario: Request parameter length truncation
-- **WHEN** Request parameter JSON length exceeds 2000 characters
-- **THEN** truncate to 2000 characters and append `... (truncated)`
+#### 场景：记录完整操作信息
+- **当** 一次写操作完成（成功或不成功）时
+- **则** 日志记录包含上述所有字段，`status` 为 0（成功）或 1（失败），`cost_time` 为请求处理时间（毫秒）
 
-#### Scenario: Response result length truncation
-- **WHEN** Response result JSON length exceeds 2000 characters
-- **THEN** truncate to 2000 characters and append `... (truncated)`
+#### 场景：请求参数长度截断
+- **当** 请求参数 JSON 长度超过 2000 字符时
+- **则** 截断到 2000 字符并追加 `... (truncated)`
 
-#### Scenario: Password Field Desensitization
-- **WHEN** The request parameter contains a `password` or `Password` field
-- **THEN** Replace the field value with `* * *`
+#### 场景：响应结果长度截断
+- **当** 响应结果 JSON 长度超过 2000 字符时
+- **则** 截断到 2000 字符并追加 `... (truncated)`
 
-#### Scenario: Operation type uses semantic string constants
-- **WHEN** System records, queries, or exports action logs
-- **THEN** `oper_type` uses semantic strings like `create`, `update`, `delete`, `export`, `import`, `other`
-- **AND** host and plugin code multiplex these values through strongly typed constants instead of scattered hardcoded or `1 ~ 6` integer numbers
+#### 场景：密码字段脱敏
+- **当** 请求参数包含 `password` 或 `Password` 字段时
+- **则** 将字段值替换为 `* * *`
 
-### Requirement: Operation log list query
-The system SHALL provides the operation log paging query interface `get/api/v1/operlog`, which supports filtering by operation module, operator, operation type, status, and time range.
+#### 场景：操作类型使用语义化字符串常量
+- **当** 系统记录、查询或导出操作日志时
+- **则** `oper_type` 使用 `create`、`update`、`delete`、`export`、`import`、`other` 等语义化字符串
+- **且** 宿主和插件代码通过强类型常量复用这些值，而非散落的硬编码或 `1~6` 整数
 
-#### Scenario: Paging Query Action Log
-- **WHEN** Admin request `get/api/v1/operlog? pageNum = 1 & pageSize = 10`
-- **THEN** Returns a paginated list of operation logs, arranged in reverse order by operation time
+### 需求：操作日志列表查询
+系统 SHALL 提供操作日志分页查询接口 `GET /api/v1/operlog`，支持按操作模块、操作人员、操作类型、状态和时间范围筛选。
 
-#### Scenario: Filter by criteria
-- **WHEN** Admin requests a query with filters (e.g. `title = User&operName = admin&operType = create&status = 0 & beginTime = 2026-01-01 & endTime = 2026-03-15`)
-- **THEN** returns log records that meet all conditions
+#### 场景：分页查询操作日志
+- **当** 管理员请求 `GET /api/v1/operlog?pageNum=1&pageSize=10` 时
+- **则** 返回按操作时间倒序排列的操作日志分页列表
 
-### Requirement: View operation log details
-The system SHALL provides the operation log detail interface `get/api/v1/operlog/{id}` and returns the complete log information.
+#### 场景：按条件筛选
+- **当** 管理员请求带筛选条件的查询（如 `title=用户&operName=admin&operType=create&status=0&beginTime=2026-01-01&endTime=2026-03-15`）时
+- **则** 返回满足所有条件的日志记录
 
-#### Scenario: View log details
-- **WHEN** admin request `get/api/v1/operlog/1`
-- **THEN** returns all field information for the log, including full request parameters and response results
+### 需求：查看操作日志详情
+系统 SHALL 提供操作日志详情接口 `GET /api/v1/operlog/{id}`，返回完整的日志信息。
 
-### Requirement: Operation log cleanup by time range
-The system SHALL provides the operation log cleaning interface `delete/api/v1/operlog/clean`, which supports hard deletion of log records by time range.
+#### 场景：查看详情
+- **当** 管理员请求 `GET /api/v1/operlog/1` 时
+- **则** 返回该日志的所有字段信息，包括完整的请求参数和响应结果
 
-#### Scenario: Clean up logs by time range
-- **WHEN** Admin request `delete/api/v1/operlog/clean? beginTime = 2026-01-01 & endTime = 2026-01-31`
-- **THEN** Hard delete all operation log records within the time range, returning the number of deleted records
+### 需求：按时间范围清理操作日志
+系统 SHALL 提供操作日志清理接口 `DELETE /api/v1/operlog/clean`，支持按时间范围硬删除日志记录。
 
-#### Scenario: Clean up all logs
-- **WHEN** Admin request `delete/api/v1/operlog/clean` (without time parameter)
-- **THEN** hard delete all operation log records
+#### 场景：按时间范围清理日志
+- **当** 管理员请求 `DELETE /api/v1/operlog/clean?beginTime=2026-01-01&endTime=2026-01-31` 时
+- **则** 硬删除时间范围内的所有操作日志记录，返回删除记录数
 
-### Requirement: Bulk deletion of operation logs
-The system SHALL provides the operation log bulk deletion interface `delete/api/v1/operlog/{ids}`, which supports hard deletion of log records by ID list.
+#### 场景：清理所有日志
+- **当** 管理员请求 `DELETE /api/v1/operlog/clean`（不带时间参数）时
+- **则** 硬删除所有操作日志记录
 
-#### Scenario: Bulk delete by ID
-- **WHEN** admin request `delete/api/v1/operlog/1,2,3`
-- **THEN** Hard delete the operation log record with the specified ID, and return the number of deleted records
+### 需求：批量删除操作日志
+系统 SHALL 提供操作日志批量删除接口 `DELETE /api/v1/operlog/{ids}`，支持按 ID 列表硬删除日志记录。
 
-#### Scenario: frontend bulk delete operation
-- **WHEN** Admin checks one or more action logs and clicks the "Delete" button
-- **THEN** pops up a confirmation dialog box showing the selected number, confirming and performing batch deletion
+#### 场景：按 ID 批量删除
+- **当** 管理员请求 `DELETE /api/v1/operlog/1,2,3` 时
+- **则** 硬删除指定 ID 的操作日志记录，返回删除记录数
 
-### Requirement: Operation log export
-The system SHALL provides the operation log export interface `get/api/v1/operlog/export`, which is exported to the xlsx format according to the current filter conditions.
+#### 场景：前端批量删除操作
+- **当** 管理员勾选一条或多条操作日志并点击"删除"按钮时
+- **则** 弹出确认对话框显示已选数量，确认后执行批量删除
 
-#### Scenario: Export by filter
-- **WHEN** Admin request `get/api/v1/operlog/export? title = User&status = 0`
-- **THEN** returns an xlsx file with all eligible log records, including all fields
+### 需求：操作日志导出
+系统 SHALL 提供操作日志导出接口 `GET /api/v1/operlog/export`，按当前筛选条件导出为 xlsx 格式。
 
-#### Scenario: Export all
-- **WHEN** Admin request `get/api/v1/operlog/export` (without filters)
-- **THEN** returns an xlsx file with all action logs
+#### 场景：按筛选条件导出
+- **当** 管理员请求 `GET /api/v1/operlog/export?title=用户&status=0` 时
+- **则** 返回包含所有符合条件日志记录的 xlsx 文件，包含所有字段
 
-### Requirement: Operation log frontend page
-The system SHALL provides the operation log management page under the frontend system monitoring menu through the `monitor-operlog` source plugin.
+#### 场景：导出全部
+- **当** 管理员请求 `GET /api/v1/operlog/export`（不带筛选条件）时
+- **则** 返回包含所有操作日志的 xlsx 文件
 
-#### Scenario: Operation Log List Page
-- **WHEN** Admin access action log page
-- **THEN** shows the action log table, including the filter area (module name, operator, operation type, status, time range), table columns (module name, operation name, operator, operation IP, operation status, operation date, operation time), toolbar (empty, export, delete buttons), line actions (view details button).The delete button is grayed out when no record is checked.
+### 需求：操作日志前端页面
+系统 SHALL 通过 `monitor-operlog` 源码插件在前端系统监控菜单下提供操作日志管理页面。
 
-#### Scenario: View details drawer
-- **WHEN** Admin clicks "Details" button on a log
-- **THEN** Open the right drawer to show the full information of the log, including the formatted request parameters and the response result JSON
+#### 场景：操作日志列表页
+- **当** 管理员访问操作日志页面时
+- **则** 显示操作日志表格，包括筛选区域（模块名称、操作人员、操作类型、状态、时间范围）、表格列（模块名称、操作名称、操作人员、操作 IP、操作状态、操作日期、操作时间）、工具栏（清空、导出、删除按钮）、行操作（查看详情按钮）。未勾选记录时删除按钮置灰。
 
-#### Scenario: Cleanup actions
-- **WHEN** Admin clicks "Clean" button
-- **THEN** pops up a confirmation dialog box with a time range selector, confirmation and cleanup
+#### 场景：查看详情抽屉
+- **当** 管理员点击某条日志的"详情"按钮时
+- **则** 打开右侧抽屉显示该日志的完整信息，包括格式化的请求参数和响应结果 JSON
 
-#### Scenario: Export Actions
-- **WHEN** Admin clicks "Export" button
-- **THEN** Export the action log as an xlsx file with the current filters and download it
+#### 场景：清理操作
+- **当** 管理员点击"清理"按钮时
+- **则** 弹出带时间范围选择器的确认对话框，确认后执行清理
 
-### Requirement: Operation log type uses semantic string constants
+#### 场景：导出操作
+- **当** 管理员点击"导出"按钮时
+- **则** 按当前筛选条件将操作日志导出为 xlsx 文件并下载
 
-The system SHALL uses string constants with business semantics to express operation log types, instead of propagating position-sensitive integer encodings such as `1~6` in the host, plugins, interfaces and storage layers.
+### 需求：操作日志类型使用语义化字符串常量
 
-#### Scenario: Write semantic types when audit events are logged into the database
-- **WHEN** The host emits an operation log audit event
-- **THEN** `monitor-operlog` writes `oper_type` using strongly typed constants
-- **AND** The persistent value of `oper_type` is one of `create`, `update`, `delete`, `export`, `import`, `other`
+系统 SHALL 使用具有业务语义的字符串常量表达操作日志类型，而非在宿主、插件、接口和存储层传播位置敏感的 `1~6` 整数编码。
 
-#### Scenario: Operation log interface returns semantic type
-- **WHEN** Administrator queries or exports operation logs
-- **THEN** The `operType` field in the interface returns a semantic string value
-- **AND** The front end continues to render the corresponding localized labels through the `sys_oper_type` dictionary
+#### 场景：审计事件入库时写入语义化类型
+- **当** 宿主发出操作日志审计事件时
+- **则** `monitor-operlog` 使用强类型常量写入 `oper_type`
+- **且** `oper_type` 的持久化值为 `create`、`update`、`delete`、`export`、`import`、`other` 之一
 
-### Requirement: The operation log management interface is delivered by the source plugin
+#### 场景：操作日志接口返回语义化类型
+- **当** 管理员查询或导出操作日志时
+- **则** 接口中的 `operType` 字段返回语义化字符串值
+- **且** 前端继续通过 `sys_oper_type` 字典渲染对应的本地化标签
 
-The The system SHALL deliver operation log query, details, export, cleaning and page capabilities as the `monitor-operlog` source plugin.
+### 需求：操作日志管理接口由源码插件交付
 
-#### Scenario: Expose the management entrance when the plugin is enabled
-- **WHEN** `monitor-operlog` is installed and enabled
-- **THEN** The host exposes operation log query, details, export, cleanup interface and frontend page
-- **AND** The plugin menu is mounted to the host `system monitoring` directory, and the top-level `parent_key` is `monitor`
+系统 SHALL 将操作日志查询、详情、导出、清理和页面能力作为 `monitor-operlog` 源码插件交付。
 
-#### Scenario: Hide the management entrance when the plugin is missing
-- **WHEN** `monitor-operlog` is not installed or not enabled
-- **THEN** The host does not display the operation log menu and page entry
-- **AND** Ordinary service request links continue to operate normally
+#### 场景：插件启用时暴露管理入口
+- **当** `monitor-operlog` 已安装并启用时
+- **则** 宿主暴露操作日志查询、详情、导出、清理接口和前端页面
+- **且** 插件菜单挂载到宿主 `系统监控` 目录，顶层 `parent_key` 为 `monitor`
 
+#### 场景：插件缺失时隐藏管理入口
+- **当** `monitor-operlog` 未安装或未启用时
+- **则** 宿主不显示操作日志菜单和页面入口
+- **且** 普通业务请求链路继续正常运行

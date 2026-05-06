@@ -1,95 +1,95 @@
-# Config Management
+# 配置管理
 
-## Purpose
+## 目的
 
-Define configuration management behavior, including localized import/export metadata, built-in parameter display, and deletion protection for system-owned records.
+定义配置管理行为，包括本地化导入/导出元数据、内置参数展示和系统拥有记录的删除保护。
 
-## Requirements
+## 需求
 
-### Requirement: Config export and import headers must be resolved via translation keys by current language
+### 需求：配置导出和导入表头必须通过翻译键按当前语言解析
 
-The system SHALL resolve column headers (`name`, `key`, `value`, `remark`, `createdAt`, `updatedAt`) in config Excel export and import flows through `config.field.<name>` translation keys for the current request language. Backend Go source MUST NOT maintain literal English/Chinese header maps. Adding a new language only requires adding corresponding `config.field.*` resources under `apps/lina-core/manifest/i18n/<locale>/*.json`.
+系统 SHALL 在配置 Excel 导出和导入流程中通过 `config.field.<name>` 翻译键按当前请求语言解析列头（`name`、`key`、`value`、`remark`、`createdAt`、`updatedAt`）。后端 Go 源码不得维护字面的英文/中文表头映射。新增语言只需在 `apps/lina-core/manifest/i18n/<locale>/*.json` 下添加对应的 `config.field.*` 资源。
 
-#### Scenario: Export uses current-language headers
-- **WHEN** an administrator exports configs in a non-default runtime language
-- **THEN** the Excel column headers use that language's `config.field.*` translations
-- **AND** backend source does not contain duplicate literal header maps
+#### 场景：导出使用当前语言的表头
+- **当** 管理员以非默认运行时语言导出配置时
+- **则** Excel 列头使用该语言的 `config.field.*` 翻译
+- **且** 后端源码不包含重复的字面表头映射
 
-#### Scenario: Adding a language requires no backend code change
-- **WHEN** the project enables a new built-in language and provides `config.field.*` resources
-- **THEN** config import and export headers display in that language
-- **AND** no source code change in config services is required
+#### 场景：新增语言无需后端代码变更
+- **当** 项目启用新的内置语言并提供 `config.field.*` 资源时
+- **则** 配置导入和导出表头以该语言显示
+- **且** 配置服务无需源码变更
 
-### Requirement: Built-in system parameter names and default copy must be localized in English
+### 需求：内置系统参数名称和默认文案必须以英文本地化
 
-The config management page SHALL localize built-in system parameter names, descriptions, and default display values by current language so English environments do not show default Chinese system copy.
+配置管理页面 SHALL 按当前语言本地化内置系统参数名称、描述和默认显示值，使英文环境不显示默认中文系统文案。
 
-#### Scenario: Login and IP blacklist parameters display English metadata
-- **WHEN** an administrator opens system config in `en-US`
-- **THEN** built-in login, page-title, page-description, subtitle, and IP blacklist parameter metadata display in English
-- **AND** the page does not show Chinese built-in labels for those parameters
+#### 场景：登录和 IP 黑名单参数显示英文元数据
+- **当** 管理员以 `en-US` 打开系统配置时
+- **则** 内置登录、页面标题、页面描述、副标题和 IP 黑名单参数元数据以英文显示
+- **且** 页面不显示这些参数的中文内置标签
 
-#### Scenario: Built-in public frontend copy can project English display content
-- **WHEN** the config list displays default login-page title, description, or subtitle in `en-US`
-- **THEN** the visible display content uses an English projection or English default
-- **AND** edit details still preserve stable `configKey` and the actual stored value
+#### 场景：内置公共前端文案可投射英文显示内容
+- **当** 配置列表以 `en-US` 显示默认登录页标题、描述或副标题时
+- **则** 可见显示内容使用英文投射或英文默认值
+- **且** 编辑详情仍保留稳定的 `configKey` 和实际存储值
 
-#### Scenario: Config localization resources stay complete
-- **WHEN** built-in config translation keys are added or changed
-- **THEN** `zh-CN`, `en-US`, and `zh-TW` runtime resources keep matching key coverage
-- **AND** missing-translation checks report no newly missing built-in config keys
+#### 场景：配置本地化资源保持完整
+- **当** 内置配置翻译键被添加或更改时
+- **则** `zh-CN`、`en-US` 和 `zh-TW` 运行时资源保持匹配的键覆盖
+- **且** 缺失翻译检查不报告新缺失的内置配置键
 
-### Requirement: Built-in system parameters must be editable but not deletable
+### 需求：内置系统参数必须可编辑但不可删除
 
-System-owned config records SHALL be marked as built-in. Administrators may edit their editable fields and values, but deletion of built-in records MUST be blocked in both frontend and backend.
+系统拥有的配置记录 SHALL 标记为内置。管理员可编辑其可编辑字段和值，但前端和后端都必须阻断内置记录的删除。
 
-#### Scenario: Built-in system parameter delete action is disabled
-- **WHEN** an administrator views built-in config rows
-- **THEN** delete actions are disabled and do not open delete confirmation
-- **AND** hover text explains that built-in system data cannot be deleted
-- **AND** edit actions remain available
+#### 场景：内置系统参数删除操作被禁用
+- **当** 管理员查看内置配置行时
+- **则** 删除操作被禁用，不打开删除确认
+- **且** 悬停文本说明内置系统数据不可删除
+- **且** 编辑操作保持可用
 
-#### Scenario: Backend rejects built-in system parameter deletion
-- **WHEN** a caller bypasses the frontend and requests deletion of a built-in config record
-- **THEN** the backend returns a structured business error and preserves the record
-- **AND** non-built-in config records remain deletable under existing permission and validation rules
+#### 场景：后端拒绝内置系统参数删除
+- **当** 调用方绕过前端请求删除内置配置记录时
+- **则** 后端返回结构化业务错误并保留记录
+- **且** 非内置配置记录在现有权限和验证规则下保持可删除
 
-### Requirement: Protected runtime parameter cache must be bounded-consistent across nodes
+### 需求：受保护的运行时参数缓存必须跨节点有界一致
 
-The system SHALL synchronize protected runtime parameter cache through the unified cache coordination mechanism so that, in cluster mode, no node keeps using an old parameter snapshot indefinitely.
+系统 SHALL 通过统一缓存协调机制同步受保护的运行时参数缓存，使集群模式下没有节点无限期使用旧参数快照。
 
-#### Scenario: Protected runtime parameter changed in cluster mode
+#### 场景：集群模式下受保护的运行时参数变更
 
-- **WHEN** an administrator changes protected runtime parameters
-- **THEN** the system commits the parameter change
-- **AND** reliably publishes a runtime configuration cache revision
-- **AND** other nodes refresh their local parameter snapshots within the staleness window allowed by the runtime configuration cache domain
+- **当** 管理员更改受保护的运行时参数时
+- **则** 系统提交参数变更
+- **且** 可靠发布运行时配置缓存修订号
+- **且** 其他节点在运行时配置缓存域允许的陈旧窗口内刷新其本地参数快照
 
-#### Scenario: Runtime parameter revision publishing fails
+#### 场景：运行时参数修订号发布失败
 
-- **WHEN** a parameter change requires runtime configuration cache refresh but revision publishing fails
-- **THEN** the system returns a structured business error
-- **AND** the caller MUST NOT receive a silent success result
-- **AND** the system records a retryable failure reason
+- **当** 参数变更需要运行时配置缓存刷新但修订号发布失败时
+- **则** 系统返回结构化业务错误
+- **且** 调用方不得收到静默成功结果
+- **且** 系统记录可重试的失败原因
 
-### Requirement: Runtime parameter reads must execute freshness checks
+### 需求：运行时参数读取必须执行新鲜度检查
 
-Before reading protected parameters that affect authentication, sessions, upload, scheduling, or other runtime behavior, the system SHALL verify that the local snapshot has not exceeded the allowed staleness window.
+在读取影响认证、会话、上传、调度或其他运行时行为的受保护参数前，系统 SHALL 验证本地快照未超过允许的陈旧窗口。
 
-#### Scenario: Local parameter snapshot is already at the latest revision
+#### 场景：本地参数快照已在最新修订号
 
-- **WHEN** a node reads protected runtime parameters and its local revision has consumed the shared revision
-- **THEN** the system returns parameters from the local cache snapshot
-- **AND** does not requery the complete `sys_config` parameter set
+- **当** 节点读取受保护的运行时参数且其本地修订号已消费共享修订号时
+- **则** 系统从本地缓存快照返回参数
+- **且** 不重新查询完整的 `sys_config` 参数集
 
-#### Scenario: Local parameter snapshot lags behind shared revision
+#### 场景：本地参数快照落后于共享修订号
 
-- **WHEN** a node reads protected runtime parameters and observes a newer shared revision
-- **THEN** the system rebuilds the local parameter snapshot from `sys_config`
-- **AND** subsequent reads use the snapshot for the new revision
+- **当** 节点读取受保护的运行时参数并观察到更新的共享修订号时
+- **则** 系统从 `sys_config` 重建本地参数快照
+- **且** 后续读取使用新修订号的快照
 
-#### Scenario: Freshness cannot be confirmed and the failure window is exceeded
+#### 场景：新鲜度无法确认且超过故障窗口
 
-- **WHEN** a node cannot read shared revisions and its local runtime parameter snapshot exceeds the failure window
-- **THEN** the system returns a visible error or degrades according to the declared policy for that parameter domain
-- **AND** the system MUST NOT silently use the old parameter snapshot indefinitely
+- **当** 节点无法读取共享修订号且其本地运行时参数快照超过故障窗口时
+- **则** 系统返回可见错误或按该参数域声明的策略降级
+- **且** 系统不得无限期静默使用旧参数快照

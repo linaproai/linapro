@@ -1,166 +1,166 @@
-# module-decoupling Specification
+# 模块解耦规范
 
-## Purpose
-Define backend degradation and data integrity requirements when business modules are enabled or disabled as needed to ensure loose coupling between modules.
-## Requirements
-### Requirement: Module enablement status configurable
-System SHALL provides a clear enable/disable configuration portal for business modules, enabling module capabilities to be turned on or off as needed.
+## 目的
+定义业务模块按需启用或禁用时的后端降级和数据完整性要求，确保模块间的松耦合。
 
-#### Scenario: Close Business Module
-- **WHEN** An admin or configuration marks a business module as disabled
-- **THEN** The backend recognizes the disabled status of the module
-- **AND** rely on the module's aggregation logic, extended fields or associated queries to be able to enter the downgrade process
+## 需求
+### 需求：模块启用状态可配置
+系统 SHALL 为业务模块提供清晰的启用/禁用配置入口，使模块能力可按需开启或关闭。
 
-### Requirement: Smooth degradation of service layer when module is disabled
-The backend service tier SHALL return a zero value, an empty collection, or skip association logic instead of throwing a runtime error when a dependency module is disabled.
+#### 场景：关闭业务模块
+- **当** 管理员或配置将业务模块标记为禁用时
+- **则** 后端识别该模块的禁用状态
+- **且** 依赖该模块的聚合逻辑、扩展字段或关联查询能够进入降级流程
 
-#### Scenario: Aggregation interface access to disabled module data
-- **WHEN** An interface aggregates data from an optional business module and that module is currently disabled
-- **THEN** interface body still returns normally
-- **AND** Data fields corresponding to disabled modules return zero values, empty sets, or are safely ignored
+### 需求：模块禁用时服务层平滑降级
+后端服务层 SHALL 在依赖模块禁用时返回零值、空集合或跳过关联逻辑，而非抛出运行时错误。
 
-### Requirement: Module Disable does not destroy historical data
-Module disabling SHALL affect only functional exposure and runtime dependencies, and MUST NOT directly delete or destroy existing business data.
+#### 场景：聚合接口访问禁用模块数据
+- **当** 一个接口聚合了来自可选业务模块的数据且该模块当前已禁用时
+- **则** 接口体仍正常返回
+- **且** 禁用模块对应的数据字段返回零值、空集合或被安全忽略
 
-#### Scenario: Re-enable module after disabling
-- **WHEN** A business module is first disabled and then re-enabled
-- **THEN** The module history data can still be re-read and used
-- **AND** No additional data repair steps are required to restore basic capabilities
+### 需求：模块禁用不破坏历史数据
+模块禁用 SHALL 仅影响功能暴露和运行时依赖，不得直接删除或破坏已有业务数据。
 
-### Requirement: Host smooth demotion when plugin is disabled
-The system SHALL treats the plugin as an extension module that can be enabled or disabled independently and guarantees a smooth downgrade of the host when the plugin is not available.
+#### 场景：禁用后重新启用模块
+- **当** 业务模块先被禁用后重新启用时
+- **则** 模块历史数据仍可重新读取和使用
+- **且** 恢复基本能力不需要额外的数据修复步骤
 
-#### Scenario: Access the host aggregation page after the plugin is disabled
-- **WHEN** hosts an optional extension of a page or interface that relies on a disabled plugin
-- **THEN** Host body content still returns as normal
-- **AND** UI, fields or extension logic associated with the plugin is safely hidden or ignored
+### 需求：插件禁用时宿主平滑降级
+系统 SHALL 将插件视为可独立启用或禁用的扩展模块，并在插件不可用时保证宿主平滑降级。
 
-### Requirement: Host stability is not compromised during missing or upgraded plugins
-System SHALL protect the host core functionality during missing plugin products, load failures, or hot upgrades.
+#### 场景：插件禁用后访问宿主聚合页面
+- **当** 宿主页面或接口依赖已禁用插件的可选扩展时
+- **则** 宿主体内容仍正常返回
+- **且** 与插件关联的 UI、字段或扩展逻辑被安全隐藏或忽略
 
-#### Scenario: Dynamic plugin failed to load
-- **WHEN** A dynamic plugin could not be loaded due to missing products, failed checksumming, or an initialization exception
-- **THEN** The host marked the plugin as unavailable
-- **AND** pages, interfaces and modules that are not part of the plugin continue to function normally
-- **AND** The system provides the administrator with diagnosable failure information
+### 需求：插件缺失或升级期间宿主稳定性不受影响
+系统 SHALL 在插件产物缺失、加载失败或热升级期间保护宿主核心功能。
 
-### Requirement: Non-core management modules are delivered as source plugins.
+#### 场景：动态插件加载失败
+- **当** 动态插件因产物缺失、校验失败或初始化异常无法加载时
+- **则** 宿主将该插件标记为不可用
+- **且** 不属于该插件的页面、接口和模块继续正常运行
+- **且** 系统为管理员提供可诊断的失败信息
 
-The The system SHALL deliver non-core modules in organization management, content management, and system monitoring as source plugins that developers can install and enable on demand.
+### 需求：非核心管理模块作为源码插件交付
 
-#### Scenario: Planning Organization and Content Modules
-- **WHEN** The host delivers default background capabilities
-- **THEN** Department management and position management are provided by the `org-center` source plugin
-- **AND** Notification announcements are provided by the `content-notice` source plugin
+系统 SHALL 将组织管理、内容管理和系统监控中的非核心模块作为源码插件交付，开发者可按需安装和启用。
 
-#### Scenario: Planning system monitoring module
-- **WHEN** Host delivery system monitoring related capabilities
-- **THEN** Online users, service monitoring, operation logs and login logs are provided by independent source plugins.
-- **AND** Their plugin IDs are `monitor-online`, `monitor-server`, `monitor-operlog`, `monitor-loginlog`
+#### 场景：规划组织和内容模块
+- **当** 宿主交付默认后台能力时
+- **则** 部门管理和岗位管理由 `org-center` 源码插件提供
+- **且** 通知公告由 `content-notice` 源码插件提供
 
-### Requirement: The monitoring plugin MUST support independent installation and startup and shutdown.
+#### 场景：规划系统监控模块
+- **当** 宿主交付系统监控相关能力时
+- **则** 在线用户、服务监控、操作日志和登录日志由独立的源码插件提供
+- **且** 它们的插件 ID 分别为 `monitor-online`、`monitor-server`、`monitor-operlog`、`monitor-loginlog`
 
-The system SHALL treats online users, service monitoring, operation logs and login logs as four independent source plugins instead of a single monitoring plugin suite.
+### 需求：监控插件必须支持独立安装和启停
 
-#### Scenario: Only some monitoring plugins are installed
-- **WHEN** The administrator only installs or enables some monitoring plugins
-- **THEN** The host only displays the monitoring menu corresponding to these installed and enabled plugins.
-- **AND** Uninstalled monitoring plugins will not block other monitoring plugins from running.
+系统 SHALL 将在线用户、服务监控、操作日志和登录日志视为四个独立的源码插件，而非单一的监控插件套件。
 
-#### Scenario: Disable individual monitoring plugins
-- **WHEN** Administrator disables any of `monitor-online`, `monitor-server`, `monitor-operlog` or `monitor-loginlog`
-- **THEN** The host only hides the function entrance corresponding to the plugin
-- **AND** Other monitoring plugins and host core links continue to operate normally
+#### 场景：仅安装部分监控插件
+- **当** 管理员仅安装或启用部分监控插件时
+- **则** 宿主仅显示这些已安装并启用的插件对应的监控菜单
+- **且** 未安装的监控插件不会阻塞其他监控插件运行
 
-### Requirement: The host MUST be gracefully downgraded when the plugin is missing.
+#### 场景：禁用单个监控插件
+- **当** 管理员禁用 `monitor-online`、`monitor-server`、`monitor-operlog` 或 `monitor-loginlog` 中的任何一个时
+- **则** 宿主仅隐藏该插件对应的功能入口
+- **且** 其他监控插件和宿主核心链路继续正常运行
 
-The system SHALL ensures that host principal functions continue to be available when the source plugin is missing, not installed, or not enabled.
+### 需求：插件缺失时宿主必须优雅降级
 
-#### Scenario: Access user management when organization plugin is missing
-- **WHEN** `org-center` is not installed or not enabled
-- **THEN** The user management page and interface still work normally
-- **AND** Fields, filter items, tree selectors and form items related to departments and positions are safely hidden or ignored
+系统 SHALL 确保源码插件缺失、未安装或未启用时宿主主体功能继续可用。
 
-#### Scenario: The host continues to process requests when the log plugin is missing
-- **WHEN** `monitor-operlog` or `monitor-loginlog` is not installed or enabled
-- **THEN** The host core request link still executes normally
-- **AND** Capabilities related to corresponding log persistence enter the controlled downgrade process
-- **AND** No authentication, authentication or ordinary business requests will fail due to missing log plugin
+#### 场景：组织插件缺失时访问用户管理
+- **当** `org-center` 未安装或未启用时
+- **则** 用户管理页面和接口仍正常工作
+- **且** 与部门和岗位相关的字段、筛选项、树选择器和表单项被安全隐藏或忽略
 
-### Requirement: The online user plugin MUST not carry the authentication main link
+#### 场景：日志插件缺失时宿主继续处理请求
+- **当** `monitor-operlog` 或 `monitor-loginlog` 未安装或未启用时
+- **则** 宿主核心请求链路仍正常执行
+- **且** 对应日志持久化相关的能力进入受控降级流程
+- **且** 不会因缺少日志插件导致认证、鉴权或普通业务请求失败
 
-The system SHALL ensures that `monitor-online` only carries online user management capabilities and will not take over the host authentication main link.
+### 需求：在线用户插件不得承载认证主链路
 
-#### Scenario: Online user plugin missing
-- **WHEN** `monitor-online` is not installed or not enabled
-- **THEN** The host still performs login, logout, protected interface authentication and session timeout cleanup normally
-- **AND** The host continues to use its own session truth source to maintain `last_active_time` and timeout determination
+系统 SHALL 确保 `monitor-online` 仅承载在线用户管理能力，不会接管宿主认证主链路。
 
-#### Scenario: Online user plugin execution forced offline
-- **WHEN** `monitor-online` has been installed and enforced offline management
-- **THEN** The plugin uses the session management capability provided by the host to invalidate the specified session.
-- **AND** Plugin does not have JWT validation, session hit refresh or timeout clean source
+#### 场景：在线用户插件缺失
+- **当** `monitor-online` 未安装或未启用时
+- **则** 宿主仍正常执行登录、退出、受保护接口认证和会话超时清理
+- **且** 宿主继续使用自己的会话事实源维护 `last_active_time` 和超时判定
 
-### Requirement: The log plugin accepts non-core logs and logs into the database through host events.
+#### 场景：在线用户插件执行强制下线
+- **当** `monitor-online` 已安装并执行强制下线管理时
+- **则** 插件使用宿主提供的会话管理能力使指定会话失效
+- **且** 插件不持有 JWT 验证、会话触碰刷新或超时清理源头
 
-The system SHALL decouples the logging responsibilities of login logs and operation logs into "host-emitted events + plugin on-demand subscription persistence".
+### 需求：日志插件通过宿主事件接收非核心日志并入库
 
-#### Scenario: Login log plugin is enabled
-- **WHEN** The user has successfully logged in, failed to log in, or successfully logged out.
-- **THEN** The host launches the unified login event first
-- **AND** `monitor-loginlog` completes the logout and subsequent query management after subscribing to the event
+系统 SHALL 将登录日志和操作日志的日志记录职责解耦为"宿主发出事件 + 插件按需订阅持久化"。
 
-#### Scenario: Operation log plugin is enabled
-- **WHEN** User triggered write operation or audited query with `operLog` tag
-- **THEN** The host launches unified audit events first
-- **AND** `monitor-operlog` completes the logout and subsequent query management after subscribing to the event
+#### 场景：登录日志插件已启用
+- **当** 用户成功登录、登录失败或成功退出时
+- **则** 宿主先发出统一登录事件
+- **且** `monitor-loginlog` 订阅事件后完成入库和后续查询管理
 
-#### Scenario: Logging plugin is not enabled
-- **WHEN** `monitor-loginlog` or `monitor-operlog` is not installed, not enabled, or failed to initialize
-- **THEN** The host continues processing the original authentication or request process
-- **AND** The host does not return an error due to lack of specific log persistence implementation
+#### 场景：操作日志插件已启用
+- **当** 用户触发写操作或标记了 `operLog` 的审计查询时
+- **则** 宿主先发出统一审计事件
+- **且** `monitor-operlog` 订阅事件后完成入库和后续查询管理
 
-### Requirement: The backend database access of the source plugin is closed loop within the plugin.
+#### 场景：日志插件未启用
+- **当** `monitor-loginlog` 或 `monitor-operlog` 未安装、未启用或初始化失败时
+- **则** 宿主继续处理原始认证或请求流程
+- **且** 宿主不因缺少特定日志持久化实现而返回错误
 
-The system SHALL requires official source plugins to maintain independent GoFrame ORM code generation configurations in their respective `backend/` directories, and complete database access through the plugin's local `dao/do/entity` to avoid re-reliance on the host `dao/model` package or long-term retention of scattered `g.DB().Model(...)` direct connection implementations.
+### 需求：源码插件后端数据库访问在插件内闭环
 
-#### Scenario: Maintain independent codegen configuration for plugin backend
-- **WHEN** team creates or maintains official source plugin backends
-- **THEN** The plugin `backend/` directory contains `hack/config.yaml`
-- **AND** Developers can directly execute `gf gen dao` in the `backend/` directory of the plugin
-- **AND** The generated results fall into `internal/dao`, `internal/model/do` and `internal/model/entity` local to the plugin
+系统 SHALL 要求官方源码插件在各自的 `backend/` 目录中维护独立的 GoFrame ORM 代码生成配置，并通过插件本地的 `dao/do/entity` 完成数据库访问，避免重新依赖宿主 `dao/model` 包或长期保留散落的 `g.DB().Model(...)` 直连实现。
 
-#### Scenario: The plugin service accesses the plugin’s own table or shared reading table
-- **WHEN** `backend/internal/service/` of `org-center`, `content-notice`, `monitor-loginlog`, `monitor-operlog`, `monitor-server` or `plugin-demo-source` to access the database
-- **THEN** plugin service uses `dao/do/entity` generated locally by the plugin
-- **AND** Access to shared read tables such as `sys_user` and `sys_dict_data` is also completed through the plugin's local generation of artifacts
-- **AND** The plugin backend does not directly depend on the host `dao/model` package
-- **AND** The host no longer retains the ORM artifacts of these plugin business tables in parallel
+#### 场景：插件后端维护独立的代码生成配置
+- **当** 团队创建或维护官方源码插件后端时
+- **则** 插件 `backend/` 目录包含 `hack/config.yaml`
+- **且** 开发者可直接在插件的 `backend/` 目录执行 `gf gen dao`
+- **且** 生成结果落入插件本地的 `internal/dao`、`internal/model/do` 和 `internal/model/entity`
 
-#### Scenario: The current version does not directly access the source plugin of the database.
-- **WHEN** The current version of an official source plugin only completes business processing through the host's stable capabilities.
-- **THEN** The plugin still retains the local `backend/hack/config.yaml`
-- **AND** If new database access is added in the future, the plugin’s local `gf gen dao` and `dao/do/entity` structures will continue to be used.
+#### 场景：插件服务访问插件自有表或共享读表
+- **当** `org-center`、`content-notice`、`monitor-loginlog`、`monitor-operlog`、`monitor-server` 或 `plugin-demo-source` 的 `backend/internal/service/` 访问数据库时
+- **则** 插件服务使用插件本地生成的 `dao/do/entity`
+- **且** 对 `sys_user`、`sys_dict_data` 等共享读表的访问也通过插件本地生成的产物完成
+- **且** 插件后端不直接依赖宿主 `dao/model` 包
+- **且** 宿主不再并行保留这些插件业务表的 ORM 产物
 
-### Requirement: Source plugins have independent storage life cycles and namespaces
+#### 场景：当前版本不直接访问数据库的源码插件
+- **当** 官方源码插件当前版本仅通过宿主稳定能力完成业务处理时
+- **则** 插件仍保留本地 `backend/hack/config.yaml`
+- **且** 未来新增数据库访问时继续使用插件本地的 `gf gen dao` 和 `dao/do/entity` 结构
 
-The system SHALL establishes clear data table naming and loading boundaries for official source plugins, so that plugin own storage and host core storage can be stably distinguished in the same database.
+### 需求：源码插件有独立的存储生命周期和命名空间
 
-#### Scenario: Plug-in installation business table
-- **WHEN** Official source plugin creates its own business table
-- **THEN** Created by installing SQL under the plugin `manifest/sql/`
-- **AND** Host `manifest/sql/` does not create these tables
-- **AND** Host `manifest/sql/mock-data/` does not write to these tables
+系统 SHALL 为官方源码插件建立清晰的数据表命名和加载边界，使插件自有存储和宿主核心存储在同一数据库中可稳定区分。
 
-#### Scenario: Naming of the planning plugin’s own business tables
-- **WHEN** team designs new business physics table for official source plugin
-- **THEN** table name uses `plugin_<plugin_id_snake_case>` scope naming
-- **AND** Single table plugins preferentially use `plugin_<plugin_id_snake_case>` as the complete table name.
-- **AND** Multi-table plugin adds business suffix as needed on this basis (such as `plugin_org_center_dept`)
-- **AND** Host core table prefix `sys_` is no longer used
+#### 场景：插件安装业务表
+- **当** 官方源码插件创建自己的业务表时
+- **则** 通过插件 `manifest/sql/` 下的安装 SQL 创建
+- **且** 宿主 `manifest/sql/` 不创建这些表
+- **且** 宿主 `manifest/sql/mock-data/` 不写入这些表
 
-#### Scenario: Uninstall plugin and clean data
-- **WHEN** Administrator uninstalls the plugin and chooses to clean its business data
-- **THEN** The plugin `manifest/sql/uninstall/` is responsible for deleting the plugin scope business table
-- **AND** The host does not additionally maintain the cleaning SQL of the plugin business table
+#### 场景：规划插件自有业务表的命名
+- **当** 团队为官方源码插件设计新的业务物理表时
+- **则** 表名使用 `plugin_<plugin_id_snake_case>` 范围命名
+- **且** 单表插件优先使用 `plugin_<plugin_id_snake_case>` 作为完整表名
+- **且** 多表插件在此基础上按需添加业务后缀（如 `plugin_org_center_dept`）
+- **且** 不再使用宿主核心表前缀 `sys_`
 
+#### 场景：卸载插件并清理数据
+- **当** 管理员卸载插件并选择清理其业务数据时
+- **则** 插件 `manifest/sql/uninstall/` 负责删除插件范围的业务表
+- **且** 宿主不额外维护插件业务表的清理 SQL

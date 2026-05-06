@@ -1,6 +1,5 @@
-// This file implements the cross-platform Docker image build orchestration used
-// by the repository-level make image target.
-
+// Package main implements the Docker image build orchestration used by the
+// repository-level make image target.
 package main
 
 import (
@@ -12,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -21,54 +19,52 @@ import (
 
 // rootConfig stores repository-level tool configuration from hack/config.yaml.
 type rootConfig struct {
+	Build buildConfig `yaml:"build"`
 	Image imageConfig `yaml:"image"`
 }
 
 // Repository convention paths used by LinaPro image builds.
 const (
-	conventionBackendDir        = "apps/lina-core"
-	conventionFrontendDir       = "apps/lina-vben"
-	conventionPluginsDir        = "apps/lina-plugins"
-	conventionEmbedPublicDir    = "apps/lina-core/internal/packed/public"
-	conventionManifestSourceDir = "apps/lina-core/manifest"
-	conventionPackedManifestDir = "apps/lina-core/internal/packed/manifest"
-	conventionWasmBuilderDir    = "hack/tools/build-wasm"
+	conventionImageBinaryPath = "temp/image/lina"
 )
 
-// imageConfig stores user-facing image build defaults.
+// buildConfig stores user-facing build defaults.
+type buildConfig struct {
+	OS         string `yaml:"os"`
+	Arch       string `yaml:"arch"`
+	Platform   string `yaml:"platform"`
+	CGOEnabled bool   `yaml:"cgoEnabled"`
+	OutputDir  string `yaml:"outputDir"`
+	BinaryName string `yaml:"binaryName"`
+}
+
+// imageConfig stores user-facing image metadata defaults.
 type imageConfig struct {
 	Name       string `yaml:"name"`
 	Tag        string `yaml:"tag"`
 	Registry   string `yaml:"registry"`
 	Push       bool   `yaml:"push"`
 	BaseImage  string `yaml:"baseImage"`
-	OS         string `yaml:"os"`
-	Arch       string `yaml:"arch"`
-	Platform   string `yaml:"platform"`
 	Dockerfile string `yaml:"dockerfile"`
-	OutputDir  string `yaml:"outputDir"`
-	BinaryName string `yaml:"binaryName"`
 }
 
 // cliOptions stores one invocation's command-line overrides.
 type cliOptions struct {
-	ConfigPath string
-	BuildOnly  bool
-	Image      string
-	Tag        string
-	Registry   string
-	Push       string
-	OS         string
-	Arch       string
-	Platform   string
-	BaseImage  string
-	SkipBuild  string
-	Verbose    string
-}
-
-// pluginManifest stores the minimal plugin metadata needed for dynamic plugin discovery.
-type pluginManifest struct {
-	Type string `yaml:"type"`
+	ConfigPath    string
+	BuildOnly     bool
+	PrintBuildEnv bool
+	Image         string
+	Tag           string
+	Registry      string
+	Push          string
+	OS            string
+	Arch          string
+	Platform      string
+	CGOEnabled    string
+	OutputDir     string
+	BinaryName    string
+	BaseImage     string
+	Verbose       string
 }
 
 // commandRunner executes external tools from the repository root.
@@ -92,14 +88,26 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	cfg := defaultImageConfig()
+
+	cfg := defaultRootConfig()
 	if err = loadConfig(configPath, &cfg); err != nil {
 		return err
 	}
-	if err = applyOverrides(&cfg, opts, specified); err != nil {
+	if err = applyBuildOverrides(&cfg.Build, opts, specified); err != nil {
 		return err
 	}
-	if err = normalizeConfig(repoRoot, &cfg); err != nil {
+	if err = normalizeBuildConfig(&cfg.Build); err != nil {
+		return err
+	}
+	if opts.PrintBuildEnv {
+		printBuildEnv(cfg.Build)
+		return nil
+	}
+
+	if err = applyImageOverrides(&cfg.Image, opts, specified); err != nil {
+		return err
+	}
+	if err = normalizeImageConfig(repoRoot, &cfg.Image); err != nil {
 		return err
 	}
 
@@ -107,37 +115,33 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("parse verbose: %w", err)
 	}
-	skipBuild, err := parseOptionalBool(opts.SkipBuild, false)
-	if err != nil {
-		return fmt.Errorf("parse skip-build: %w", err)
-	}
 
 	runner := commandRunner{Root: repoRoot, Verbose: verbose}
-	binaryPath := filepath.Join(repoRoot, cfg.OutputDir, cfg.BinaryName)
-	if !skipBuild {
-		if err = prepareImageBuild(repoRoot, cfg, runner, binaryPath); err != nil {
-			return err
-		}
-	} else if err = validateExistingBinary(binaryPath); err != nil {
+	binaryPath := filepath.Join(repoRoot, cfg.Build.OutputDir, cfg.Build.BinaryName)
+	if err = validateExistingBinary(binaryPath); err != nil {
+		return err
+	}
+	stagedBinaryPath := filepath.Join(repoRoot, conventionImageBinaryPath)
+	if err = stageImageBinary(binaryPath, stagedBinaryPath); err != nil {
 		return err
 	}
 
 	if opts.BuildOnly {
-		fmt.Printf("✓ image build artifact is ready: %s\n", binaryPath)
+		fmt.Printf("✓ image build artifact is ready: %s\n", stagedBinaryPath)
 		return nil
 	}
 
-	if cfg.Push {
-		if strings.TrimSpace(cfg.Registry) == "" {
+	if cfg.Image.Push {
+		if strings.TrimSpace(cfg.Image.Registry) == "" {
 			return errors.New("push=true requires image.registry in hack/config.yaml, registry=<prefix>, or LINAPRO_IMAGE_REGISTRY")
 		}
 	}
 
-	imageRef := buildImageRef(cfg)
-	if err = buildDockerImage(repoRoot, cfg, runner, imageRef); err != nil {
+	imageRef := buildImageRef(cfg.Image)
+	if err = buildDockerImage(repoRoot, cfg.Image, cfg.Build, runner, imageRef); err != nil {
 		return err
 	}
-	if cfg.Push {
+	if cfg.Image.Push {
 		dockerRunner := runner
 		dockerRunner.Verbose = true
 		if err = dockerRunner.Run(".", nil, "docker", "push", imageRef); err != nil {
@@ -155,15 +159,18 @@ func parseOptions() (cliOptions, map[string]bool) {
 	opts := cliOptions{}
 	flag.StringVar(&opts.ConfigPath, "config", "hack/config.yaml", "Repository tool config path")
 	flag.BoolVar(&opts.BuildOnly, "build-only", false, "Prepare image build artifacts without running docker build")
+	flag.BoolVar(&opts.PrintBuildEnv, "print-build-env", false, "Print normalized build config as shell assignments")
 	flag.StringVar(&opts.Image, "image", "", "Override image repository name")
 	flag.StringVar(&opts.Tag, "tag", "", "Override image tag")
 	flag.StringVar(&opts.Registry, "registry", "", "Override image registry prefix")
 	flag.StringVar(&opts.Push, "push", "", "Override push behavior")
-	flag.StringVar(&opts.OS, "os", "", "Override target OS")
-	flag.StringVar(&opts.Arch, "arch", "", "Override target architecture")
-	flag.StringVar(&opts.Platform, "platform", "", "Override Docker platform")
+	flag.StringVar(&opts.OS, "os", "", "Override build target OS")
+	flag.StringVar(&opts.Arch, "arch", "", "Override build target architecture")
+	flag.StringVar(&opts.Platform, "platform", "", "Override Docker build platform")
+	flag.StringVar(&opts.CGOEnabled, "cgo-enabled", "", "Override CGO build behavior")
+	flag.StringVar(&opts.OutputDir, "output-dir", "", "Override build output directory")
+	flag.StringVar(&opts.BinaryName, "binary-name", "", "Override build binary filename")
 	flag.StringVar(&opts.BaseImage, "base-image", "", "Override Docker base image")
-	flag.StringVar(&opts.SkipBuild, "skip-build", "", "Skip frontend, wasm, and backend binary build")
 	flag.StringVar(&opts.Verbose, "verbose", "", "Show child command output")
 	flag.Parse()
 
@@ -174,17 +181,32 @@ func parseOptions() (cliOptions, map[string]bool) {
 	return opts, specified
 }
 
-// defaultImageConfig returns stable defaults used when config values are omitted.
+// defaultRootConfig returns stable defaults used when config values are omitted.
+func defaultRootConfig() rootConfig {
+	return rootConfig{
+		Build: defaultBuildConfig(),
+		Image: defaultImageConfig(),
+	}
+}
+
+// defaultBuildConfig returns stable build defaults.
+func defaultBuildConfig() buildConfig {
+	return buildConfig{
+		OS:         "linux",
+		Arch:       "auto",
+		Platform:   "auto",
+		CGOEnabled: false,
+		OutputDir:  "temp/output",
+		BinaryName: "lina",
+	}
+}
+
+// defaultImageConfig returns stable image metadata defaults.
 func defaultImageConfig() imageConfig {
 	return imageConfig{
 		Name:       "linapro",
 		BaseImage:  "alpine:3.22",
-		OS:         "linux",
-		Arch:       "auto",
-		Platform:   "auto",
 		Dockerfile: "hack/docker/Dockerfile",
-		OutputDir:  "temp/image",
-		BinaryName: "lina",
 	}
 }
 
@@ -215,22 +237,49 @@ func discoverRepoRoot(configPath string) (string, string, error) {
 	return "", "", fmt.Errorf("cannot find %s from %s or its parents", configPath, start)
 }
 
-// loadConfig overlays image config from a YAML file.
-func loadConfig(configPath string, cfg *imageConfig) error {
+// loadConfig overlays root config from a YAML file.
+func loadConfig(configPath string, cfg *rootConfig) error {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
 	}
-	parsed := rootConfig{Image: *cfg}
+	parsed := *cfg
 	if err = yaml.Unmarshal(content, &parsed); err != nil {
 		return err
 	}
-	*cfg = parsed.Image
+	*cfg = parsed
 	return nil
 }
 
-// applyOverrides merges environment and command-line overrides into config values.
-func applyOverrides(cfg *imageConfig, opts cliOptions, specified map[string]bool) error {
+// applyBuildOverrides merges command-line overrides into build config values.
+func applyBuildOverrides(cfg *buildConfig, opts cliOptions, specified map[string]bool) error {
+	if specified["os"] {
+		cfg.OS = opts.OS
+	}
+	if specified["arch"] {
+		cfg.Arch = opts.Arch
+	}
+	if specified["platform"] {
+		cfg.Platform = opts.Platform
+	}
+	if specified["cgo-enabled"] {
+		value, err := parseOptionalBool(opts.CGOEnabled, cfg.CGOEnabled)
+		if err != nil {
+			return fmt.Errorf("parse cgo-enabled: %w", err)
+		}
+		cfg.CGOEnabled = value
+	}
+	if specified["output-dir"] {
+		cfg.OutputDir = opts.OutputDir
+	}
+	if specified["binary-name"] {
+		cfg.BinaryName = opts.BinaryName
+	}
+	return nil
+}
+
+// applyImageOverrides merges environment and command-line overrides into image metadata values.
+func applyImageOverrides(cfg *imageConfig, opts cliOptions, specified map[string]bool) error {
 	if envRegistry := strings.TrimSpace(os.Getenv("LINAPRO_IMAGE_REGISTRY")); envRegistry != "" && !specified["registry"] {
 		cfg.Registry = envRegistry
 	}
@@ -250,32 +299,53 @@ func applyOverrides(cfg *imageConfig, opts cliOptions, specified map[string]bool
 		}
 		cfg.Push = value
 	}
-	if specified["os"] {
-		cfg.OS = opts.OS
-	}
-	if specified["arch"] {
-		cfg.Arch = opts.Arch
-	}
-	if specified["platform"] {
-		cfg.Platform = opts.Platform
-	}
 	if specified["base-image"] {
 		cfg.BaseImage = opts.BaseImage
 	}
 	return nil
 }
 
-// normalizeConfig validates and completes derived config values.
-func normalizeConfig(repoRoot string, cfg *imageConfig) error {
-	cfg.Name = strings.TrimSpace(cfg.Name)
-	cfg.Tag = strings.TrimSpace(cfg.Tag)
-	cfg.Registry = strings.Trim(strings.TrimSpace(cfg.Registry), "/")
-	cfg.BaseImage = strings.TrimSpace(cfg.BaseImage)
+// normalizeBuildConfig validates and completes derived build config values.
+func normalizeBuildConfig(cfg *buildConfig) error {
 	cfg.OS = normalizeAuto(cfg.OS, "linux")
 	cfg.Arch = normalizeAuto(cfg.Arch, runtime.GOARCH)
 	if cfg.Platform = normalizeAuto(cfg.Platform, cfg.OS+"/"+cfg.Arch); cfg.Platform == "" {
 		cfg.Platform = cfg.OS + "/" + cfg.Arch
 	}
+	cfg.OutputDir = filepath.Clean(strings.TrimSpace(cfg.OutputDir))
+	cfg.BinaryName = strings.TrimSpace(cfg.BinaryName)
+
+	if cfg.OS == "" {
+		return errors.New("build.os cannot be empty")
+	}
+	if cfg.Arch == "" {
+		return errors.New("build.arch cannot be empty")
+	}
+	if cfg.Platform == "" {
+		return errors.New("build.platform cannot be empty")
+	}
+	if cfg.OutputDir == "." || cfg.OutputDir == "" {
+		return errors.New("build.outputDir cannot be empty")
+	}
+	if filepath.IsAbs(cfg.OutputDir) {
+		return errors.New("build.outputDir must be relative to the repository root")
+	}
+	if cfg.BinaryName == "" {
+		return errors.New("build.binaryName cannot be empty")
+	}
+	if strings.ContainsAny(cfg.BinaryName, `/\`) {
+		return errors.New("build.binaryName must be a file name, not a path")
+	}
+	return nil
+}
+
+// normalizeImageConfig validates and completes derived image metadata values.
+func normalizeImageConfig(repoRoot string, cfg *imageConfig) error {
+	cfg.Name = strings.TrimSpace(cfg.Name)
+	cfg.Tag = strings.TrimSpace(cfg.Tag)
+	cfg.Registry = strings.Trim(strings.TrimSpace(cfg.Registry), "/")
+	cfg.BaseImage = strings.TrimSpace(cfg.BaseImage)
+	cfg.Dockerfile = filepath.Clean(strings.TrimSpace(cfg.Dockerfile))
 	if cfg.Tag == "" {
 		tag, err := deriveGitTag(repoRoot)
 		if err != nil {
@@ -292,15 +362,11 @@ func normalizeConfig(repoRoot string, cfg *imageConfig) error {
 	if cfg.BaseImage == "" {
 		return errors.New("image.baseImage cannot be empty")
 	}
-	requiredPaths := map[string]string{
-		"dockerfile": cfg.Dockerfile,
-		"outputDir":  cfg.OutputDir,
-		"binaryName": cfg.BinaryName,
+	if cfg.Dockerfile == "." || cfg.Dockerfile == "" {
+		return errors.New("image.dockerfile cannot be empty")
 	}
-	for name, value := range requiredPaths {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("image.%s cannot be empty", name)
-		}
+	if filepath.IsAbs(cfg.Dockerfile) {
+		return errors.New("image.dockerfile must be relative to the repository root")
 	}
 	return nil
 }
@@ -342,167 +408,81 @@ func deriveGitTag(repoRoot string) (string, error) {
 	return tag, nil
 }
 
-// prepareImageBuild builds frontend assets, dynamic plugins, and the host binary.
-func prepareImageBuild(repoRoot string, cfg imageConfig, runner commandRunner, binaryPath string) error {
-	outputDir := filepath.Join(repoRoot, cfg.OutputDir)
-	fmt.Println("Preparing image build output directory...")
-	if err := os.RemoveAll(outputDir); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return err
-	}
-
-	fmt.Println("Building frontend assets...")
-	if err := runner.Run(conventionFrontendDir, nil, "pnpm", "run", "build"); err != nil {
-		return err
-	}
-	if err := syncFrontendAssets(repoRoot, cfg); err != nil {
-		return err
-	}
-	fmt.Println("✓ host frontend assets prepared")
-
-	if err := preparePackedManifest(repoRoot, cfg); err != nil {
-		return err
-	}
-	fmt.Println("✓ host manifest assets prepared")
-
-	fmt.Println("Building dynamic plugin artifacts...")
-	if err := buildDynamicPlugins(repoRoot, cfg, runner, outputDir); err != nil {
-		return err
-	}
-	fmt.Println("✓ dynamic plugin artifacts prepared")
-
-	fmt.Printf("Building host binary for image (%s/%s)...\n", cfg.OS, cfg.Arch)
-	env := []string{
-		"CGO_ENABLED=0",
-		"GOOS=" + cfg.OS,
-		"GOARCH=" + cfg.Arch,
-	}
-	if err := runner.Run(conventionBackendDir, env, "go", "build", "-o", binaryPath, "."); err != nil {
-		return err
-	}
-	return validateExistingBinary(binaryPath)
+// printBuildEnv emits normalized build config as shell-safe assignments for make recipes.
+func printBuildEnv(cfg buildConfig) {
+	fmt.Printf("BUILD_OS=%s\n", shellQuote(cfg.OS))
+	fmt.Printf("BUILD_ARCH=%s\n", shellQuote(cfg.Arch))
+	fmt.Printf("BUILD_PLATFORM=%s\n", shellQuote(cfg.Platform))
+	fmt.Printf("BUILD_CGO_ENABLED=%s\n", shellQuote(cgoEnabledValue(cfg.CGOEnabled)))
+	fmt.Printf("BUILD_OUTPUT_DIR=%s\n", shellQuote(filepath.ToSlash(cfg.OutputDir)))
+	fmt.Printf("BUILD_BINARY_NAME=%s\n", shellQuote(cfg.BinaryName))
+	fmt.Printf("BUILD_BINARY_PATH=%s\n", shellQuote(filepath.ToSlash(filepath.Join(cfg.OutputDir, cfg.BinaryName))))
 }
 
-// syncFrontendAssets copies the Vben production build into the host embed directory.
-func syncFrontendAssets(repoRoot string, cfg imageConfig) error {
-	source := filepath.Join(repoRoot, conventionFrontendDir, "apps", "web-antd", "dist")
-	target := filepath.Join(repoRoot, conventionEmbedPublicDir)
-	if err := os.RemoveAll(target); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(target, 0o755); err != nil {
-		return err
-	}
-	if err := copyDirContents(source, target); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(target, ".gitkeep"), []byte{}, 0o644)
+// shellQuote returns a POSIX shell single-quoted literal.
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
-// preparePackedManifest mirrors distributable manifest assets into the embed workspace.
-func preparePackedManifest(repoRoot string, cfg imageConfig) error {
-	source := filepath.Join(repoRoot, conventionManifestSourceDir)
-	target := filepath.Join(repoRoot, conventionPackedManifestDir)
-	if err := os.RemoveAll(target); err != nil {
-		return err
+// cgoEnabledValue converts a boolean into the value expected by CGO_ENABLED.
+func cgoEnabledValue(enabled bool) string {
+	if enabled {
+		return "1"
 	}
-	if err := os.MkdirAll(filepath.Join(target, "config"), 0o755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(target, "sql"), 0o755); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Join(target, "i18n"), 0o755); err != nil {
-		return err
-	}
-	if err := copyFile(filepath.Join(source, "config", "config.template.yaml"), filepath.Join(target, "config", "config.template.yaml")); err != nil {
-		return err
-	}
-	if err := copyFile(filepath.Join(source, "config", "metadata.yaml"), filepath.Join(target, "config", "metadata.yaml")); err != nil {
-		return err
-	}
-	if err := copyDirContents(filepath.Join(source, "sql"), filepath.Join(target, "sql")); err != nil {
-		return err
-	}
-	if err := copyDirContents(filepath.Join(source, "i18n"), filepath.Join(target, "i18n")); err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(target, ".gitkeep"), []byte{}, 0o644)
-}
-
-// buildDynamicPlugins discovers dynamic source plugins and invokes build-wasm for each.
-func buildDynamicPlugins(repoRoot string, cfg imageConfig, runner commandRunner, outputDir string) error {
-	pluginIDs, err := discoverDynamicPlugins(filepath.Join(repoRoot, conventionPluginsDir))
-	if err != nil {
-		return err
-	}
-	if len(pluginIDs) == 0 {
-		fmt.Println("No dynamic wasm plugins found")
-		return nil
-	}
-	for _, pluginID := range pluginIDs {
-		fmt.Printf("Building dynamic wasm plugin: %s\n", pluginID)
-		pluginDir := filepath.Join(repoRoot, conventionPluginsDir, pluginID)
-		if err = runner.Run(conventionWasmBuilderDir, nil, "go", "run", ".", "--plugin-dir", pluginDir, "--output-dir", outputDir); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// discoverDynamicPlugins returns source plugin IDs whose manifest type is dynamic.
-func discoverDynamicPlugins(pluginsRoot string) ([]string, error) {
-	entries, err := os.ReadDir(pluginsRoot)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, 0)
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		manifestPath := filepath.Join(pluginsRoot, entry.Name(), "plugin.yaml")
-		content, readErr := os.ReadFile(manifestPath)
-		if readErr != nil {
-			if os.IsNotExist(readErr) {
-				continue
-			}
-			return nil, readErr
-		}
-		manifest := pluginManifest{}
-		if err = yaml.Unmarshal(content, &manifest); err != nil {
-			return nil, err
-		}
-		if strings.EqualFold(strings.TrimSpace(manifest.Type), "dynamic") {
-			ids = append(ids, entry.Name())
-		}
-	}
-	sort.Strings(ids)
-	return ids, nil
+	return "0"
 }
 
 // validateExistingBinary checks that the image input binary exists.
 func validateExistingBinary(binaryPath string) error {
 	info, err := os.Stat(binaryPath)
 	if err != nil {
-		return fmt.Errorf("image binary is missing: %s", binaryPath)
+		return fmt.Errorf("build binary is missing: %s; run make build first", binaryPath)
 	}
 	if info.IsDir() {
-		return fmt.Errorf("image binary path is a directory: %s", binaryPath)
+		return fmt.Errorf("build binary path is a directory: %s", binaryPath)
 	}
-	fmt.Printf("✓ image binary is ready: %s\n", binaryPath)
+	fmt.Printf("✓ build binary is ready: %s\n", binaryPath)
 	return nil
 }
 
+// stageImageBinary copies the standard build output into the Dockerfile input path.
+func stageImageBinary(source string, target string) error {
+	if sameFile(source, target) {
+		fmt.Printf("✓ image binary staged: %s\n", target)
+		return nil
+	}
+	if err := copyFile(source, target); err != nil {
+		return err
+	}
+	fmt.Printf("✓ image binary staged: %s\n", target)
+	return nil
+}
+
+// sameFile reports whether two paths point to the same filesystem object.
+func sameFile(source string, target string) bool {
+	sourceAbs, sourceErr := filepath.Abs(source)
+	targetAbs, targetErr := filepath.Abs(target)
+	if sourceErr == nil && targetErr == nil && sourceAbs == targetAbs {
+		return true
+	}
+	sourceInfo, sourceErr := os.Stat(source)
+	if sourceErr != nil {
+		return false
+	}
+	targetInfo, targetErr := os.Stat(target)
+	if targetErr != nil {
+		return false
+	}
+	return os.SameFile(sourceInfo, targetInfo)
+}
+
 // buildDockerImage runs docker build with the configured image platform and base image.
-func buildDockerImage(repoRoot string, cfg imageConfig, runner commandRunner, imageRef string) error {
+func buildDockerImage(repoRoot string, image imageConfig, build buildConfig, runner commandRunner, imageRef string) error {
 	args := []string{
 		"build",
-		"--platform", cfg.Platform,
-		"--build-arg", "BASE_IMAGE=" + cfg.BaseImage,
-		"-f", filepath.Join(repoRoot, cfg.Dockerfile),
+		"--platform", build.Platform,
+		"--build-arg", "BASE_IMAGE=" + image.BaseImage,
+		"-f", filepath.Join(repoRoot, image.Dockerfile),
 		"-t", imageRef,
 		".",
 	}
@@ -543,37 +523,11 @@ func (r commandRunner) Run(dir string, env []string, name string, args ...string
 	return nil
 }
 
-// copyDirContents copies all entries from source into target.
-func copyDirContents(source string, target string) error {
-	entries, err := os.ReadDir(source)
-	if err != nil {
-		return err
-	}
-	for _, entry := range entries {
-		if err = copyPath(filepath.Join(source, entry.Name()), filepath.Join(target, entry.Name())); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// copyPath recursively copies a file or directory.
-func copyPath(source string, target string) error {
-	info, err := os.Stat(source)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		if err = os.MkdirAll(target, info.Mode().Perm()); err != nil {
-			return err
-		}
-		return copyDirContents(source, target)
-	}
-	return copyFile(source, target)
-}
-
 // copyFile copies one regular file preserving permission bits.
 func copyFile(source string, target string) error {
+	if sameFile(source, target) {
+		return nil
+	}
 	info, err := os.Stat(source)
 	if err != nil {
 		return err

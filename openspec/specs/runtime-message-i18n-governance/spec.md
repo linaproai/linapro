@@ -1,237 +1,237 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Runtime-visible messages must have explicit classification
+### 需求：运行时可见消息必须有明确分类
 
-The system SHALL classify strings in source code by runtime usage surface, and apply different governance strategies for user-visible messages, user deliverables, user display projections, developer diagnostics, operations logs, and user data. User-visible messages, user deliverables, and user display projections MUST be output through runtime i18n resources or backend localization projections; operations logs MUST use stable English and structured fields; user input and external system raw text MUST preserve original values and MUST NOT be auto-translated.
+系统 SHALL 按运行时使用表面分类源码中的字符串，并对用户可见消息、用户交付物、用户显示投影、开发者诊断、运维日志和用户数据应用不同的治理策略。用户可见消息、用户交付物和用户显示投影必须通过运行时 i18n 资源或后端本地化投影输出；运维日志必须使用稳定的英文和结构化字段；用户输入和外部系统原始文本必须保留原始值，不得自动翻译。
 
-#### Scenario: User-visible errors must not return hardcoded Chinese
+#### 场景：用户可见错误不得返回硬编码中文
 
-- **WHEN** a backend business service needs to return a user-visible error
-- **THEN** the error MUST carry a stable error code, runtime translation key, parameters, and English source message
-- **AND** the unified response MUST output a localized `message` by request language
-- **AND** business services MUST NOT construct errors through Chinese free text like `gerror.New("字典类型不存在")`
+- **当** 后端业务服务需要返回用户可见错误时
+- **则** 错误必须携带稳定错误码、运行时翻译键、参数和英文源消息
+- **且** 统一响应必须按请求语言输出本地化的 `message`
+- **且** 业务服务不得通过 `gerror.New("字典类型不存在")` 等中文自由文本构造错误
 
-#### Scenario: Operations logs maintain stable English
+#### 场景：运维日志保持稳定英文
 
-- **WHEN** a backend service records logs used only for troubleshooting, metrics, or startup diagnostics
-- **THEN** log templates MUST use stable English
-- **AND** logs MUST record error codes, resource IDs, plugin IDs, paths, or underlying errors through structured fields
-- **AND** logs MUST NOT depend on the current request language to generate localized text
+- **当** 后端服务记录仅用于故障排查、指标或启动诊断的日志时
+- **则** 日志模板必须使用稳定英文
+- **且** 日志必须通过结构化字段记录错误码、资源 ID、插件 ID、路径或底层错误
+- **且** 日志不得依赖当前请求语言生成本地化文本
 
-#### Scenario: User data preserves original values
+#### 场景：用户数据保留原始值
 
-- **WHEN** a string comes from user input, external interface responses, database business names, or file content
-- **THEN** the system MUST save and return the string as-is
-- **AND** the system MUST NOT attempt to auto-translate the string as a translation key
+- **当** 字符串来自用户输入、外部接口响应、数据库业务名称或文件内容时
+- **则** 系统必须原样保存和返回该字符串
+- **且** 系统不得尝试将该字符串作为翻译键自动翻译
 
-### Requirement: Unified response must output structured error fields
+### 需求：统一响应必须输出结构化错误字段
 
-The system SHALL extend the unified JSON response error payload so that runtime message errors output machine-readable `errorCode`, `messageKey`, and `messageParams` alongside the localized `message`. Frontend, plugins, and tests MUST use `errorCode` or `messageKey` to determine error semantics and MUST NOT rely on the natural language `message` for business logic.
+系统 SHALL 扩展统一 JSON 响应错误载荷，使运行时消息错误在本地化 `message` 旁输出机器可读的 `errorCode`、`messageKey` 和 `messageParams`。前端、插件和测试必须使用 `errorCode` 或 `messageKey` 判断错误语义，不得依赖自然语言 `message` 进行业务逻辑判断。
 
-#### Scenario: Structured business error response includes localized message and stable fields
+#### 场景：结构化业务错误响应包含本地化消息和稳定字段
 
-- **WHEN** a request with `Accept-Language: zh-CN` triggers a `USER_NOT_FOUND` error
-- **THEN** the response JSON MUST contain `message` with a Simplified Chinese localized value
-- **AND** the response JSON MUST contain `errorCode: "USER_NOT_FOUND"`
-- **AND** the response JSON MUST contain the corresponding `messageKey`
-- **AND** the response JSON MUST contain `messageParams` used for message formatting
+- **当** 带 `Accept-Language: zh-CN` 的请求触发 `USER_NOT_FOUND` 错误时
+- **则** 响应 JSON 必须包含简体中文本地化值的 `message`
+- **且** 响应 JSON 必须包含 `errorCode: "USER_NOT_FOUND"`
+- **且** 响应 JSON 必须包含对应的 `messageKey`
+- **且** 响应 JSON 必须包含用于消息格式化的 `messageParams`
 
-#### Scenario: The same error returns English display text under an English request
+#### 场景：同一错误在英文请求下返回英文显示文本
 
-- **WHEN** a request with `Accept-Language: en-US` triggers the same `USER_NOT_FOUND` error
-- **THEN** the `errorCode` and `messageKey` in the response JSON MUST be consistent with the `zh-CN` request
-- **AND** the `message` in the response JSON MUST be the English display text
-- **AND** the response MUST NOT contain hardcoded Chinese fallback text
+- **当** 带 `Accept-Language: en-US` 的请求触发相同的 `USER_NOT_FOUND` 错误时
+- **则** 响应 JSON 中的 `errorCode` 和 `messageKey` 必须与 `zh-CN` 请求一致
+- **且** 响应 JSON 中的 `message` 必须是英文显示文本
+- **且** 响应不得包含硬编码的中文回退文本
 
-#### Scenario: Unstructured errors still fall back through existing localization
+#### 场景：非结构化错误仍通过现有本地化回退
 
-- **WHEN** legacy code or a third-party library returns an unstructured error
-- **THEN** the unified response MUST continue attempting translation through the existing `LocalizeError` logic
-- **AND** if translation is not possible, the system MUST return a controlled fallback message
-- **AND** new business errors MUST NOT continue to use unstructured free text as the primary implementation
+- **当** 遗留代码或第三方库返回非结构化错误时
+- **则** 统一响应必须继续尝试通过现有 `LocalizeError` 逻辑翻译
+- **且** 如果无法翻译，系统必须返回受控的回退消息
+- **且** 新业务错误不得继续使用非结构化自由文本作为主要实现
 
-### Requirement: Backend business errors must use runtime message resources
+### 需求：后端业务错误必须使用运行时消息资源
 
-Backend host and source plugin business errors SHALL use the host or plugin's own runtime language packs to maintain translated text. Host error keys MUST be written to `apps/lina-core/manifest/i18n/<locale>/*.json`; plugin error keys MUST be written to the corresponding `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>/*.json`. Runtime error messages MUST NOT be written to or reuse `manifest/i18n/<locale>/apidoc` resources.
+后端宿主和源码插件业务错误 SHALL 使用宿主或插件自有的运行时语言包维护翻译文本。宿主错误键必须写入 `apps/lina-core/manifest/i18n/<locale>/*.json`；插件错误键必须写入对应的 `apps/lina-plugins/<plugin-id>/manifest/i18n/<locale>/*.json`。运行时错误消息不得写入或复用 `manifest/i18n/<locale>/apidoc` 资源。
 
-#### Scenario: Host business error resources are complete
+#### 场景：宿主业务错误资源完整
 
-- **WHEN** the host adds a new `error.dict.type.exists` error key
-- **THEN** the `zh-CN`, `en-US`, and `zh-TW` host runtime language packs MUST all contain the key
-- **AND** the missing translation check MUST fail when any target language is missing
+- **当** 宿主新增 `error.dict.type.exists` 错误键时
+- **则** `zh-CN`、`en-US` 和 `zh-TW` 宿主运行时语言包必须都包含该键
+- **且** 任何目标语言缺失时，缺失翻译检查必须失败
 
-#### Scenario: Plugin business error resources belong to the plugin
+#### 场景：插件业务错误资源归属插件
 
-- **WHEN** the `org-center` plugin adds a new `plugin.org-center.error.deptNotFound` error key
-- **THEN** the key MUST be written to `apps/lina-plugins/org-center/manifest/i18n/<locale>/*.json`
-- **AND** plugin runtime error keys MUST NOT be centralized into the `lina-core` runtime language pack
+- **当** `org-center` 插件新增 `plugin.org-center.error.deptNotFound` 错误键时
+- **则** 该键必须写入 `apps/lina-plugins/org-center/manifest/i18n/<locale>/*.json`
+- **且** 插件运行时错误键不得集中到 `lina-core` 运行时语言包
 
-### Requirement: Business error semantics must be governed by module namespace
+### 需求：业务错误语义必须由模块命名空间治理
 
-Backend host, plugin platform components, and source plugins SHALL maintain business error semantic identifiers by business module. Business error definitions MUST be placed in the module's `*_code.go` file; business implementations MUST only reference `bizerr.Code` variables defined in that file and MUST NOT hardcode machine error codes, translation keys, or borrow error definitions from other modules at business call sites. All interface errors that may be returned to HTTP API, plugin calls, source plugin backend interfaces, WASM host service, or other caller response payloads MUST be created/wrapped through `bizerr.NewCode`, `bizerr.WrapCode`, or equivalent wrappers. The `code` field in HTTP responses MUST use GoFrame `gcode.Code` type error codes to express the error category; specific business semantics MUST be expressed by `errorCode`, `messageKey`, and `messageParams`.
+后端宿主、插件平台组件和源码插件 SHALL 按业务模块维护业务错误语义标识符。业务错误定义必须放在模块的 `*_code.go` 文件中；业务实现必须仅引用该文件中定义的 `bizerr.Code` 变量，不得在业务调用点硬编码机器错误码、翻译键或借用其他模块的错误定义。所有可能返回给 HTTP API、插件调用、源码插件后端接口、WASM 宿主服务或其他调用端响应载荷的接口错误，必须通过 `bizerr.NewCode`、`bizerr.WrapCode` 或等效包装器创建/包装。HTTP 响应中的 `code` 字段必须使用 GoFrame `gcode.Code` 类型错误码表达错误类别；具体业务语义必须由 `errorCode`、`messageKey` 和 `messageParams` 表达。
 
-#### Scenario: Host business module uses independent business semantic namespace
+#### 场景：宿主业务模块使用独立业务语义命名空间
 
-- **WHEN** the user module adds a new `USER_EMAIL_EXISTS` error
-- **THEN** the error MUST be defined in `internal/service/user/user_code.go`
-- **AND** the `errorCode` MUST use the user module prefix, e.g. `USER_EMAIL_EXISTS`
-- **AND** the response `code` MUST use the closest GoFrame type error code, e.g. `gcode.CodeInvalidParameter`
-- **AND** other modules such as role, menu, dictionary MUST NOT reuse this business semantic identifier
+- **当** 用户模块新增 `USER_EMAIL_EXISTS` 错误时
+- **则** 错误必须定义在 `internal/service/user/user_code.go`
+- **且** `errorCode` 必须使用用户模块前缀，如 `USER_EMAIL_EXISTS`
+- **且** 响应 `code` 必须使用最接近的 GoFrame 类型错误码，如 `gcode.CodeInvalidParameter`
+- **且** 角色、菜单、字典等其他模块不得复用此业务语义标识符
 
-#### Scenario: Error code definitions are decoupled from business usage
+#### 场景：错误码定义与业务使用解耦
 
-- **WHEN** dictionary module business code needs to return a "dictionary type already exists" error
-- **THEN** the business code MUST use `bizerr.NewCode(CodeDictTypeExists)` or equivalent wrapper
-- **AND** the business code MUST NOT write `"DICT_TYPE_EXISTS"`, `"error.dict.type.exists"`, or raw numeric error codes
-- **AND** the response `code` MUST come from the GoFrame type error code bound to that definition
+- **当** 字典模块业务代码需要返回"字典类型已存在"错误时
+- **则** 业务代码必须使用 `bizerr.NewCode(CodeDictTypeExists)` 或等效包装器
+- **且** 业务代码不得写入 `"DICT_TYPE_EXISTS"`、`"error.dict.type.exists"` 或原始数字错误码
+- **且** 响应 `code` 必须来自绑定到该定义的 GoFrame 类型错误码
 
-#### Scenario: Caller-visible errors must carry structured metadata through bizerr
+#### 场景：调用端可见错误必须通过 bizerr 携带结构化元数据
 
-- **WHEN** a controller, middleware, business service, or plugin host service needs to return a parameter error, authentication error, business validation failure, or user-visible failure reason
-- **THEN** the error MUST use a `bizerr.Code` defined in the module's `*_code.go`
-- **AND** the error MUST be returned through `bizerr.NewCode`, `bizerr.WrapCode`, or equivalent wrapper
-- **AND** business paths MUST NOT directly return `gerror.New("请选择要导入的文件")`, `gerror.NewCode(gcode.CodeInvalidParameter, "error.xxx")`, `errors.New(...)`, or `fmt.Errorf(...)` as caller-visible interface errors
-- **AND** low-level technical errors are only allowed as causes if they are wrapped by `bizerr.WrapCode` into business semantic errors before reaching the return boundary
+- **当** 控制器、中间件、业务服务或插件宿主服务需要返回参数错误、认证错误、业务验证失败或用户可见失败原因时
+- **则** 错误必须使用模块 `*_code.go` 中定义的 `bizerr.Code`
+- **且** 错误必须通过 `bizerr.NewCode`、`bizerr.WrapCode` 或等效包装器返回
+- **且** 业务路径不得直接返回 `gerror.New("请选择要导入的文件")`、`gerror.NewCode(gcode.CodeInvalidParameter, "error.xxx")`、`errors.New(...)` 或 `fmt.Errorf(...)` 作为调用端可见接口错误
+- **且** 低层技术错误仅允许作为 cause，如果在到达返回边界前被 `bizerr.WrapCode` 包装为业务语义错误
 
-#### Scenario: Source plugin internal modules are also divided by namespace
+#### 场景：源码插件内部模块也按命名空间划分
 
-- **WHEN** the `org-center` plugin adds department module and post module errors
-- **THEN** department module errors MUST use `ORG_CENTER_DEPT_*` or equivalent module prefix
-- **AND** post module errors MUST use `ORG_CENTER_POST_*` or equivalent module prefix
-- **AND** plugin error definitions MUST NOT be written into host `lina-core` error definition files
+- **当** `org-center` 插件新增部门模块和岗位模块错误时
+- **则** 部门模块错误必须使用 `ORG_CENTER_DEPT_*` 或等效模块前缀
+- **且** 岗位模块错误必须使用 `ORG_CENTER_POST_*` 或等效模块前缀
+- **且** 插件错误定义不得写入宿主 `lina-core` 错误定义文件
 
-### Requirement: Import/export deliverables must render by request language
+### 需求：导入/导出交付物必须按请求语言渲染
 
-The system SHALL render Excel exports, import templates, import failure reasons, sheet names, headers, statuses, genders, operation types, and operation results — and other user deliverable text — by request language. The import/export flow MUST parse the locale at the request level and reuse the translation results needed by the module; it MUST NOT repeatedly build runtime language packs inside batch row loops.
+系统 SHALL 按请求语言渲染 Excel 导出、导入模板、导入失败原因、工作表名称、表头、状态、性别、操作类型和操作结果等用户交付物文本。导入/导出流程必须在请求级解析语言环境并复用模块所需的翻译结果；不得在批量行循环内重复构建运行时语言包。
 
-#### Scenario: User export outputs English headers under an English request
+#### 场景：英文请求下用户导出输出英文表头
 
-- **WHEN** a user requests user list export with `Accept-Language: en-US`
-- **THEN** the exported Excel headers MUST use English text
-- **AND** gender, status, and other enum display MUST use English text
-- **AND** the exported file MUST NOT contain hardcoded Chinese headers or statuses like `用户名`, `正常`, `停用`
+- **当** 用户以 `Accept-Language: en-US` 请求用户列表导出时
+- **则** 导出的 Excel 表头必须使用英文文本
+- **且** 性别、状态等枚举显示必须使用英文文本
+- **且** 导出的文件不得包含硬编码的中文表头或状态如 `用户名`、`正常`、`停用`
 
-#### Scenario: Dictionary import failure reasons return in request language
+#### 场景：字典导入失败原因以请求语言返回
 
-- **WHEN** a user imports an Excel file containing invalid dictionary types with `Accept-Language: zh-TW`
-- **THEN** the failure reasons in the import results MUST use Traditional Chinese text
-- **AND** failure reasons MUST preserve parameters such as row number, field name, and invalid value
-- **AND** underlying technical errors MUST NOT be directly concatenated into user display text causing mixed Chinese-English
+- **当** 用户以 `Accept-Language: zh-TW` 导入包含无效字典类型的 Excel 文件时
+- **则** 导入结果中的失败原因必须使用繁体中文文本
+- **且** 失败原因必须保留行号、字段名和无效值等参数
+- **且** 底层技术错误不得直接拼接到用户显示文本中导致中英混杂
 
-#### Scenario: Export loop must not repeatedly build language packs
+#### 场景：导出循环不得重复构建语言包
 
-- **WHEN** the system exports 10,000 rows of data
-- **THEN** translation resources MUST be resolved and cached into the request-level context by module or key set when entering the export flow
-- **AND** the row loop MUST only perform already-resolved translation result lookups, parameter formatting, or user data writing
+- **当** 系统导出 10,000 行数据时
+- **则** 进入导出流程时必须按模块或键集将翻译资源解析并缓存到请求级上下文
+- **且** 行循环必须仅执行已解析的翻译结果查找、参数格式化或用户数据写入
 
-### Requirement: Plugin bridging and host service errors must be stable and localizable
+### 需求：插件桥接和宿主服务错误必须稳定且可本地化
 
-Plugin bridging protocol, WASM host call, host service calls, plugin manifest validation, plugin resource validation, and dynamic plugin runtime errors SHALL return stable status codes or error codes, and provide runtime translation keys for errors that enter admin display. Protocol-layer default developer diagnostic messages MUST use English, and admin display MUST be localized by request language.
+插件桥接协议、WASM 宿主调用、宿主服务调用、插件清单验证、插件资源验证和动态插件运行时错误 SHALL 返回稳定的状态码或错误码，并为进入管理员显示的错误提供运行时翻译键。协议层默认开发者诊断消息必须使用英文，管理员显示必须按请求语言本地化。
 
-#### Scenario: Host call protocol errors contain stable error codes
+#### 场景：宿主调用协议错误包含稳定错误码
 
-- **WHEN** a dynamic plugin calls host service with an illegal network URL
-- **THEN** the host call response MUST contain a stable status code or error code
-- **AND** the developer diagnostic message MUST use English source text
-- **AND** admin display of this error MUST map through `messageKey` or error code to the current language text
+- **当** 动态插件以非法网络 URL 调用宿主服务时
+- **则** 宿主调用响应必须包含稳定的状态码或错误码
+- **且** 开发者诊断消息必须使用英文源文本
+- **且** 此错误的管理员显示必须通过 `messageKey` 或错误码映射到当前语言文本
 
-#### Scenario: Plugin manifest validation errors no longer use mixed Chinese-English
+#### 场景：插件清单验证错误不再使用中英混杂
 
-- **WHEN** plugin manifest validation finds an illegal menu key
-- **THEN** the validation error MUST use a stable error code and parameters describing the plugin ID, field name, actual value, and expected rule
-- **AND** user-visible display MUST be generated through runtime translation resources
-- **AND** it MUST NOT return mixed Chinese-English free text like `插件菜单 key 必须使用当前插件前缀 plugin:<id>:*`
+- **当** 插件清单验证发现非法菜单键时
+- **则** 验证错误必须使用稳定错误码和描述插件 ID、字段名、实际值和预期规则的参数
+- **且** 用户可见显示必须通过运行时翻译资源生成
+- **且** 不得返回 `插件菜单 key 必须使用当前插件前缀 plugin:<id>:*` 等中英混杂自由文本
 
-### Requirement: Plugin lifecycle and upgrade results must use message keys
+### 需求：插件生命周期和升级结果必须使用消息键
 
-Plugin install, uninstall, enable, disable, auto-enable, source plugin upgrade, and dynamic plugin publish governance results SHALL return or store stable `messageKey`, `messageParams`, and `errorCode`. If the interface still needs a simple display field, `message` MUST be rendered from structured fields by request language or command locale.
+插件安装、卸载、启用、禁用、自动启用、源码插件升级和动态插件发布治理结果 SHALL 返回或存储稳定的 `messageKey`、`messageParams` 和 `errorCode`。如果接口仍需要简单显示字段，`message` 必须由结构化字段按请求语言或命令语言环境渲染。
 
-#### Scenario: Source plugin returns structured result when no upgrade is needed
+#### 场景：源码插件无需升级时返回结构化结果
 
-- **WHEN** the source plugin's current effective version equals the discovered version
-- **THEN** the upgrade result MUST contain a stable `messageKey` indicating no upgrade is needed
-- **AND** the result MUST contain parameters such as plugin ID, current version, and discovered version
-- **AND** it MUST NOT only return a fixed Chinese string like `当前源码插件已是最新版本，无需升级。`
+- **当** 源码插件当前有效版本等于发现版本时
+- **则** 升级结果必须包含指示无需升级的稳定 `messageKey`
+- **且** 结果必须包含插件 ID、当前版本和发现版本等参数
+- **且** 不得仅返回 `当前源码插件已是最新版本，无需升级。` 等固定中文字符串
 
-#### Scenario: Plugin lifecycle failures can be displayed by language
+#### 场景：插件生命周期失败可按语言显示
 
-- **WHEN** plugin installation fails and is displayed by the admin console
-- **THEN** the backend MUST return a stable error code and translation key
-- **AND** the frontend MUST use the current language to display the localized failure reason
-- **AND** logs MUST retain English diagnostics and structured parameters for troubleshooting
+- **当** 插件安装失败并在管理控制台显示时
+- **则** 后端必须返回稳定错误码和翻译键
+- **且** 前端必须使用当前语言显示本地化失败原因
+- **且** 日志必须保留英文诊断和结构化参数供故障排查
 
-### Requirement: Frontend user-visible text must render through i18n
+### 需求：前端用户可见文本必须通过 i18n 渲染
 
-The default management console and plugin frontend SHALL use `$t` or runtime language packs for user-visible text such as page titles, form labels, table columns, empty states, prompts, confirm dialogs, toasts, tooltips, and time units. The frontend request error interceptor MUST prioritize consuming backend-returned `messageKey/messageParams`, and only then fall back to the backend's already-localized `message`.
+默认管理控制台和插件前端 SHALL 对页面标题、表单标签、表格列、空状态、提示、确认对话框、Toast、工具提示和时间单位等用户可见文本使用 `$t` 或运行时语言包。前端请求错误拦截器必须优先消费后端返回的 `messageKey/messageParams`，其次才回退到后端已本地化的 `message`。
 
-#### Scenario: Monitoring page labels change after language switch
+#### 场景：语言切换后监控页面标签变化
 
-- **WHEN** a user switches from `zh-CN` to `en-US`
-- **THEN** database info, server info, service info, disk column names, empty states, and time units on the server monitoring page MUST switch to English
-- **AND** the page MUST NOT continue displaying hardcoded Chinese labels
+- **当** 用户从 `zh-CN` 切换到 `en-US` 时
+- **则** 服务器监控页面上的数据库信息、服务器信息、服务信息、磁盘列名、空状态和时间单位必须切换为英文
+- **且** 页面不得继续显示硬编码的中文标签
 
-#### Scenario: Online users page column names use translation keys
+#### 场景：在线用户页面列名使用翻译键
 
-- **WHEN** a user opens the online users page
-- **THEN** query form labels and table column headers MUST render through `$t` or runtime language packs
-- **AND** `data.ts` MUST NOT retain hardcoded Chinese labels like `用户账号`, `登录账号`, `部门名称`
+- **当** 用户打开在线用户页面时
+- **则** 查询表单标签和表格列头必须通过 `$t` 或运行时语言包渲染
+- **且** `data.ts` 不得保留 `用户账号`、`登录账号`、`部门名称` 等硬编码中文标签
 
-#### Scenario: Request errors prioritize messageKey
+#### 场景：请求错误优先使用 messageKey
 
-- **WHEN** a backend error response contains both `messageKey`, `messageParams`, and `message`
-- **THEN** the frontend request interceptor MUST prioritize using `$t(messageKey, messageParams)` to display the error
-- **AND** when the frontend lacks the translation key, it MUST fall back to the backend `message`
+- **当** 后端错误响应同时包含 `messageKey`、`messageParams` 和 `message` 时
+- **则** 前端请求拦截器必须优先使用 `$t(messageKey, messageParams)` 显示错误
+- **且** 前端缺少翻译键时，必须回退到后端 `message`
 
-### Requirement: Audit and operation display must store stable semantics and project by language
+### 需求：审计和操作显示必须存储稳定语义并按语言投影
 
-Operation logs, login logs, task logs, notification messages, plugin upgrade results, and other user-facing or exportable run records SHALL preferentially store stable type codes, status codes, translation keys, and parameters. Lists, details, exports, and message previews MUST project display text by request language. The system MUST NOT persist only already-localized Chinese display values as the sole semantic source.
+操作日志、登录日志、任务日志、通知消息、插件升级结果等面向用户或可导出的运行记录 SHALL 优先存储稳定类型码、状态码、翻译键和参数。列表、详情、导出和消息预览必须按请求语言投影显示文本。系统不得仅持久化已本地化的中文显示值作为唯一语义源。
 
-#### Scenario: Operation log export displays operation type by request language
+#### 场景：操作日志导出按请求语言显示操作类型
 
-- **WHEN** a user exports operation logs with `en-US`
-- **THEN** operation type and operation status MUST render in English based on stable codes
-- **AND** the export MUST NOT depend on persisted Chinese strings like `导出`, `成功`, `失败`
+- **当** 用户以 `en-US` 导出操作日志时
+- **则** 操作类型和操作状态必须基于稳定码以英文渲染
+- **且** 导出不得依赖持久化的中文字符串如 `导出`、`成功`、`失败`
 
-#### Scenario: Task log details preserve machine semantics and localized display
+#### 场景：任务日志详情保留机器语义和本地化显示
 
-- **WHEN** a user views task log details
-- **THEN** the backend or frontend MUST use task status code, handler key, and error code to project display text
-- **AND** original stdout/stderr or user script output MUST preserve original values
+- **当** 用户查看任务日志详情时
+- **则** 后端或前端必须使用任务状态码、处理器键和错误码投影显示文本
+- **且** 原始 stdout/stderr 或用户脚本输出必须保留原始值
 
-### Requirement: Automated governance must block new high-risk hardcoded messages
+### 需求：自动化治理必须阻断新的高风险硬编码消息
 
-The system SHALL provide automated scanning or test gates to identify hardcoded Chinese or mixed Chinese-English text in runtime-visible positions in Go, Vue, and TypeScript. Scanning MUST support an allowlist, but each exception MUST state the classification, reason, and responsible module. When adding or modifying runtime translation keys, the missing translation check MUST cover all enabled built-in languages.
+系统 SHALL 提供自动扫描或测试门禁，识别 Go、Vue 和 TypeScript 中运行时可见位置的硬编码中文或中英混杂文本。扫描必须支持白名单，但每个例外必须说明分类、原因和负责模块。新增或修改运行时翻译键时，缺失翻译检查必须覆盖所有已启用的内置语言。
 
-#### Scenario: Go high-risk string scanning fails
+#### 场景：Go 高风险字符串扫描失败
 
-- **WHEN** a developer adds `gerror.New("部门不存在")` in production Go code
-- **THEN** the hardcoded message scan MUST report this location
-- **AND** the check MUST require changing to a structured error with a runtime translation key
+- **当** 开发者在生产 Go 代码中添加 `gerror.New("部门不存在")` 时
+- **则** 硬编码消息扫描必须报告此位置
+- **且** 检查必须要求更改为带运行时翻译键的结构化错误
 
-#### Scenario: Frontend high-risk string scanning fails
+#### 场景：前端高风险字符串扫描失败
 
-- **WHEN** a developer adds `title: '操作'` in a Vue page table column
-- **THEN** the frontend scan MUST report this location
-- **AND** the check MUST require changing to `$t` or a runtime language pack key
+- **当** 开发者在 Vue 页面表格列中添加 `title: '操作'` 时
+- **则** 前端扫描必须报告此位置
+- **且** 检查必须要求更改为 `$t` 或运行时语言包键
 
-#### Scenario: Allowed non-runtime Chinese does not block
+#### 场景：允许的非运行时不阻塞
 
-- **WHEN** a Chinese string appears only in comments, test fixtures, user example data, or explicitly annotated allowlist items
-- **THEN** the scan rules allow the string to pass
-- **AND** allowlist items MUST record the reason why the string is not a runtime-visible framework message
+- **当** 中文字符串仅出现在注释、测试固件、用户示例数据或显式标注的白名单项中时
+- **则** 扫描规则允许该字符串通过
+- **且** 白名单项必须记录该字符串不是运行时可见框架消息的原因
 
-### Requirement: Localization lookups must satisfy hot-path performance constraints
+### 需求：本地化查找必须满足热路径性能约束
 
-Runtime error localization, list projection, import/export, and frontend language switching SHALL reuse the existing runtime translation cache. The system MUST NOT clone or rebuild the full language pack for a single error, a single export row, a single table column render, or a single log projection.
+运行时错误本地化、列表投影、导入/导出和前端语言切换 SHALL 复用现有运行时翻译缓存。系统不得为单个错误、单个导出行、单个表格列渲染或单个日志投影克隆或重建完整语言包。
 
-#### Scenario: Single error localization only performs cache lookup
+#### 场景：单个错误本地化仅执行缓存查找
 
-- **WHEN** the unified response middleware renders a structured business error
-- **THEN** the system MUST look up the corresponding key through the current locale's runtime cache
-- **AND** it MUST NOT build the full runtime message pack for that error
+- **当** 统一响应中间件渲染结构化业务错误时
+- **则** 系统必须通过当前语言环境的运行时缓存查找对应键
+- **且** 不得为该错误构建完整运行时消息包
 
-#### Scenario: Batch list projection reuses the same request language context
+#### 场景：批量列表投影复用同一请求语言上下文
 
-- **WHEN** the backend returns an operation log list containing 1,000 records
-- **THEN** the system MUST reuse the locale and translation lookup capability within the same request
-- **AND** it MUST NOT repeatedly parse the request language or load language resources for each record
+- **当** 后端返回包含 1,000 条记录的操作日志列表时
+- **则** 系统必须在同一请求内复用语言环境和翻译查找能力
+- **且** 不得为每条记录重复解析请求语言或加载语言资源

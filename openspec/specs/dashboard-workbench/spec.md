@@ -1,91 +1,90 @@
-# Dashboard Workbench
+# 仪表盘工作台
 
-## Purpose
+## 目的
 
-Define the default management workbench and analysis page behavior, including real LinaPro navigation, runtime i18n copy, project cards, logo treatment, and theme preference precedence.
+定义默认管理工作台和分析页面行为，包括真实的 LinaPro 导航、运行时国际化文案、项目卡片、Logo 处理和主题偏好优先级。
 
-## Requirements
+## 需求
 
-### Requirement: Workbench home must expose real LinaPro management entries
+### 需求：工作台首页必须暴露真实的 LinaPro 管理入口
 
-The system SHALL align dashboard shortcuts, project cards, activities, and operational todos with real LinaPro management semantics. It MUST NOT keep unreachable template demo links or unrelated template narratives.
+系统 SHALL 将仪表盘快捷方式、项目卡片、活动和待办事项与真实的 LinaPro 管理语义对齐。不得保留不可达的模板演示链接或不相关的模板叙述。
 
-#### Scenario: Click workbench shortcuts
-- **WHEN** an administrator clicks a workbench shortcut
-- **THEN** the app navigates to an accessible LinaPro internal page or a clear official external resource
-- **AND** template placeholder routes such as `/demos/...` are not used
+#### 场景：点击工作台快捷方式
+- **当** 管理员点击工作台快捷方式时
+- **则** 应用导航到可访问的 LinaPro 内部页面或清晰的官方外部资源
+- **且** 不使用 `/demos/...` 等模板占位路由
 
-#### Scenario: Browse workbench home content
-- **WHEN** an administrator opens the workbench home page
-- **THEN** projects, activity, and todos are organized around the core host, default workbench, plugin extension, and OpenSpec delivery workflow
-- **AND** page copy stays aligned with LinaPro positioning
+#### 场景：浏览工作台首页内容
+- **当** 管理员打开工作台首页时
+- **则** 项目、活动和待办围绕核心宿主、默认工作台、插件扩展和 OpenSpec 交付工作流组织
+- **且** 页面文案与 LinaPro 定位保持一致
 
-### Requirement: Analysis page must provide clear metric semantics and time-range switching
+### 需求：分析页面必须提供清晰的指标语义和时间范围切换
 
-The default analysis page SHALL provide switchable time-range views and clear non-duplicated titles for metric and chart blocks.
+默认分析页面 SHALL 提供可切换的时间范围视图，以及指标和图表块的清晰不重复标题。
 
-#### Scenario: Switch analysis time range
-- **WHEN** an administrator switches a preset time range
-- **THEN** the page refreshes overview metrics, trend summaries, and insights for that range
-- **AND** the selected range remains visibly active
+#### 场景：切换分析时间范围
+- **当** 管理员切换预设时间范围时
+- **则** 页面刷新该范围的概览指标、趋势摘要和洞察
+- **且** 选中的范围保持可见激活状态
 
-#### Scenario: Browse analysis chart sections
-- **WHEN** an administrator views analysis chart cards
-- **THEN** each card title accurately describes its content
-- **AND** different charts do not share the same ambiguous title
+#### 场景：浏览分析图表部分
+- **当** 管理员查看分析图表卡片时
+- **则** 每个卡片标题准确描述其内容
+- **且** 不同图表不共享相同的模糊标题
 
-### Requirement: Workbench page copy must use runtime i18n resources
+### 需求：工作台页面文案必须使用运行时国际化资源
 
-The workbench SHALL load delivered page content through runtime i18n resources so English environments do not display Chinese activities, todos, shortcuts, project cards, or explanatory copy.
+工作台 SHALL 通过运行时国际化资源加载交付的页面内容，使英文环境不显示中文活动、待办、快捷方式、项目卡片或说明文案。
 
-#### Scenario: Workbench displays English default copy
-- **WHEN** an administrator opens the workbench in `en-US`
-- **THEN** titles, metrics, shortcuts, project cards, activities, and todos use English runtime copy
-- **AND** no Chinese default system copy is shown
+#### 场景：工作台显示英文默认文案
+- **当** 管理员在 `en-US` 下打开工作台时
+- **则** 标题、指标、快捷方式、项目卡片、活动和待办使用英文运行时文案
+- **且** 不显示中文默认系统文案
 
-#### Scenario: Workbench copy changes with language switch
-- **WHEN** an administrator switches from `zh-CN` to `en-US`
-- **THEN** the workbench refreshes to English without requiring login again
-- **AND** route title, tab title, and page content language remain consistent
+#### 场景：工作台文案随语言切换变化
+- **当** 管理员从 `zh-CN` 切换到 `en-US` 时
+- **则** 工作台刷新为英文，无需重新登录
+- **且** 路由标题、标签页标题和页面内容语言保持一致
 
-#### Scenario: Workbench quick navigation targets core pages
-- **WHEN** an administrator opens the workbench
-- **THEN** quick navigation shows User Management, Menu Management, System Config, Extension Center, API Docs, and Scheduled Jobs
-- **AND** those entries navigate to `/system/user`, `/system/menu`, `/system/config`, `/system/plugin`, `/about/api-docs`, and `/system/job`
+#### 场景：工作台快速导航指向核心页面
+- **当** 管理员打开工作台时
+- **则** 快速导航显示用户管理、菜单管理、系统配置、扩展中心、API 文档和定时任务
+- **且** 这些入口分别导航到 `/system/user`、`/system/menu`、`/system/config`、`/system/plugin`、`/about/api-docs` 和 `/system/job`
 
-#### Scenario: Workbench project cards reflect the delivered admin stack
-- **WHEN** an administrator opens the workbench
-- **THEN** project cards show LinaPro, GoFrame, Vue, Vben, Ant Design, and TypeScript
-- **AND** each card links to the matching official site or documentation
-- **AND** card dates show `2026-05-01`
-- **AND** card descriptions remain short and use ellipsis when too long
+#### 场景：工作台项目卡片反映交付的管理栈
+- **当** 管理员打开工作台时
+- **则** 项目卡片显示 LinaPro、GoFrame、Vue、Vben、Ant Design 和 TypeScript
+- **且** 每个卡片链接到匹配的官方网站或文档
+- **且** 卡片日期显示 `2026-05-01`
+- **且** 卡片描述保持简短，过长时使用省略号
 
-### Requirement: Management workbench logo must provide subtle dark-mode edge depth
+### 需求：管理工作台 Logo 必须提供微妙的暗色模式边缘深度
 
-The management workbench SHALL add a very subtle cyan edge glow to the brand logo icon in dark mode, without affecting light mode, clickable area, or navigation layout stability.
+管理工作台 SHALL 在暗色模式下为品牌 Logo 图标添加非常微妙的青色边缘光晕，不影响亮色模式、可点击区域或导航布局稳定性。
 
-#### Scenario: Dark-mode logo edge glow remains subtle and layout-safe
-- **WHEN** an administrator opens the workbench in dark mode
-- **THEN** the logo icon edge shows a subtle cyan glow following the icon pixels
-- **AND** logo text, sidebar menu, and top navigation do not shift
+#### 场景：暗色模式 Logo 边缘光晕保持微妙且布局安全
+- **当** 管理员在暗色模式下打开工作台时
+- **则** Logo 图标边缘显示跟随图标像素的微妙青色光晕
+- **且** Logo 文字、侧边栏菜单和顶部导航不偏移
 
-#### Scenario: Light-mode logo keeps original treatment
-- **WHEN** an administrator switches to light mode
-- **THEN** the logo icon does not show the dark-mode-only cyan edge glow
+#### 场景：亮色模式 Logo 保持原始处理
+- **当** 管理员切换到亮色模式时
+- **则** Logo 图标不显示暗色模式专用的青色边缘光晕
 
-### Requirement: User theme preference must override the public frontend default
+### 需求：用户主题偏好必须覆盖公共前端默认值
 
-The workbench SHALL preserve a user-explicit theme preference when synchronizing public frontend config. The system parameter `sys.ui.theme.mode` applies only when the user has no explicit local preference.
+工作台 SHALL 在同步公共前端配置时保留用户显式的主题偏好。系统参数 `sys.ui.theme.mode` 仅在用户没有显式本地偏好时生效。
 
-#### Scenario: Existing user theme preference survives page refresh
-- **GIVEN** the user explicitly selected dark mode
-- **AND** public frontend config declares `sys.ui.theme.mode=light`
-- **WHEN** the user refreshes the workbench
-- **THEN** the workbench remains in dark mode
+#### 场景：现有用户主题偏好在页面刷新后保留
+- **假设** 用户已显式选择暗色模式
+- **且** 公共前端配置声明 `sys.ui.theme.mode=light`
+- **当** 用户刷新工作台时
+- **则** 工作台保持暗色模式
 
-#### Scenario: System default applies when no user theme preference exists
-- **GIVEN** the user has no explicit local theme preference
-- **AND** public frontend config declares `light`, `dark`, or `auto`
-- **WHEN** the user opens or refreshes the workbench
-- **THEN** the workbench uses that system-provided theme mode as default
-
+#### 场景：无用户主题偏好时应用系统默认值
+- **假设** 用户没有显式本地主题偏好
+- **且** 公共前端配置声明 `light`、`dark` 或 `auto`
+- **当** 用户打开或刷新工作台时
+- **则** 工作台使用该系统提供的主题模式作为默认值

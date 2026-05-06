@@ -1,66 +1,68 @@
-# login-page-presentation Specification
+# 登录页展示规范
 
-## Purpose
-TBD - created by archiving change login-page-simplification-and-positioning. Update Purpose after archive.
-## Requirements
-### Requirement: Only the username/password login entry is exposed in the current stage
+## 目的
+待定 - 由归档变更 login-page-simplification-and-positioning 创建。归档后更新目的。
 
-The system MUST expose only the username/password login capability in the current stage and MUST NOT continue to show or preserve unfinished authentication entry points as formal public capabilities.
+## 需求
+### 需求：当前阶段仅暴露用户名/密码登录入口
 
-#### Scenario: The standard login page shows only the username/password form
-- **WHEN** an unauthenticated user visits `/auth/login`
-- **THEN** the page shows username, password, remember-me, and login controls
-- **AND** the page does not show forgot password, registration, mobile login, QR-code login, or third-party login entry points
+系统在当前阶段必须仅暴露用户名/密码登录能力，不得继续展示或保留未完成的认证入口作为正式公开能力。
 
-#### Scenario: Users visit unfinished authentication sub-routes
-- **WHEN** a user visits `/auth/code-login`, `/auth/qrcode-login`, `/auth/forget-password`, or `/auth/register`
-- **THEN** the system redirects back to the standard login page at `/auth/login`
-- **AND** the page still exposes only the username/password login capability
+#### 场景：标准登录页仅显示用户名/密码表单
+- **当** 未认证用户访问 `/auth/login` 时
+- **则** 页面显示用户名、密码、记住我和登录控件
+- **且** 页面不显示忘记密码、注册、手机登录、二维码登录或第三方登录入口
 
-### Requirement: The login panel defaults to the right-aligned layout and supports position configuration
+#### 场景：用户访问未完成的认证子路由
+- **当** 用户访问 `/auth/code-login`、`/auth/qrcode-login`、`/auth/forget-password` 或 `/auth/register` 时
+- **则** 系统重定向回标准登录页 `/auth/login`
+- **且** 页面仍仅暴露用户名/密码登录能力
 
-The system MUST render the login panel in the right-aligned layout by default and MUST allow the host public-frontend config to switch it to the left, center, or right layout.
+### 需求：登录面板默认右对齐布局并支持位置配置
 
-#### Scenario: The login panel defaults to the right side when no override exists
-- **WHEN** a browser loads the login page and the host does not provide a login-panel position override
-- **THEN** the login page uses the `panel-right` layout
-- **AND** the login panel is shown on the right side of the main page area
+系统必须默认以右对齐布局渲染登录面板，并允许宿主公共前端配置切换到左、中或右布局。
 
-#### Scenario: Host config overrides the login-panel position
-- **WHEN** the host public-frontend config returns `auth.panelLayout` as `panel-left`, `panel-center`, or `panel-right`
-- **THEN** the login page renders the corresponding layout mode
-- **AND** the layout switcher in the login-page toolbar still allows switching among all three layout options
+#### 场景：无覆盖时登录面板默认右侧
+- **当** 浏览器加载登录页且宿主未提供登录面板位置覆盖时
+- **则** 登录页使用 `panel-right` 布局
+- **且** 登录面板显示在主页面区域的右侧
 
-### Requirement: The default login-page description supports host configuration
+#### 场景：宿主配置覆盖登录面板位置
+- **当** 宿主公共前端配置返回 `auth.panelLayout` 为 `panel-left`、`panel-center` 或 `panel-right` 时
+- **则** 登录页渲染对应的布局模式
+- **且** 登录页工具栏中的布局切换器仍允许在三种布局选项间切换
 
-The system MUST display the default login-page description when the host does not provide an override, and MUST display the configured value when the host public-frontend config provides one.
+### 需求：默认登录页描述支持宿主配置
 
-#### Scenario: The default description is shown when no override exists
-- **WHEN** a browser loads the login page and the host does not provide an `auth.pageDesc` override
-- **THEN** the login page shows the description `Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model`
+系统必须在宿主未提供覆盖时显示默认登录页描述，并在宿主公共前端配置提供时显示配置值。
 
-#### Scenario: Host config overrides the login-page description
-- **WHEN** the host public-frontend config returns a non-empty `auth.pageDesc`
-- **THEN** the login page shows the returned description
+#### 场景：无覆盖时显示默认描述
+- **当** 浏览器加载登录页且宿主未提供 `auth.pageDesc` 覆盖时
+- **则** 登录页显示描述 `Built for evolving business needs, with an out-of-the-box admin entry point and a flexible pluggable extension model`
 
-### Requirement: Login page must support host i18n copy and language-switch refresh
-The system SHALL render login-page title, description, and subtitle according to the active language, combining frontend static language resources with localized public frontend settings returned by the host. When the active language changes, the login page MUST refresh the displayed copy without requiring a new login session.
+#### 场景：宿主配置覆盖登录页描述
+- **当** 宿主公共前端配置返回非空的 `auth.pageDesc` 时
+- **则** 登录页显示返回的描述
 
-#### Scenario: Login page displays host copy in English
-- **WHEN** the browser language is `en-US` and the host provides public frontend config copy for that language
-- **THEN** the login page displays English title, description, and login subtitle
-- **AND** static form field copy continues to be rendered from frontend static locale bundles
+### 需求：登录页必须支持宿主国际化文案和语言切换刷新
 
-#### Scenario: Login-page copy refreshes after language switch
-- **WHEN** a user switches the workspace language before or after login
-- **THEN** host copy in the login page or authentication layout refreshes to the new language result
-- **AND** the login-page component structure does not need to be reconfigured
+系统 SHALL 根据当前语言渲染登录页标题、描述和副标题，结合前端静态语言资源和宿主返回的本地化公共前端设置。当前语言变化时，登录页必须刷新显示的文案，无需新的登录会话。
 
-### Requirement: Login-page i18n misses must fall back to default copy
-The system SHALL fall back to the default language copy or built-in static copy when the host does not provide localized login-page text for the current language.
+#### 场景：登录页以英文显示宿主文案
+- **当** 浏览器语言为 `en-US` 且宿主提供该语言的公共前端配置文案时
+- **则** 登录页显示英文标题、描述和登录副标题
+- **且** 静态表单字段文案继续从前端静态语言包渲染
 
-#### Scenario: Current language lacks login-page description translation
-- **WHEN** the current language has no available localized result for `auth.pageDesc`
-- **THEN** the login page falls back to the default-language description or built-in default description copy
-- **AND** login-page layout and authentication flow remain usable
+#### 场景：语言切换后登录页文案刷新
+- **当** 用户在登录前或登录后切换工作区语言时
+- **则** 登录页或认证布局中的宿主文案刷新为新语言结果
+- **且** 登录页组件结构无需重新配置
 
+### 需求：登录页国际化缺失必须回退到默认文案
+
+当宿主未为当前语言提供本地化登录页文本时，系统 SHALL 回退到默认语言文案或内置静态文案。
+
+#### 场景：当前语言缺少登录页描述翻译
+- **当** 当前语言没有 `auth.pageDesc` 的可用本地化结果时
+- **则** 登录页回退到默认语言描述或内置默认描述文案
+- **且** 登录页布局和认证流程保持可用

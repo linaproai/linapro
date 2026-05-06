@@ -1,121 +1,121 @@
-# Cron Jobs Specification
+# 定时任务规范
 
-## Purpose
+## 目的
 
-Define host scheduled-job categories, master-only and all-node execution rules, and persistent scheduler registration boundaries for user-manageable jobs.
+定义宿主定时任务类别、仅主节点和全节点执行规则，以及用户可管理任务的持久化调度器注册边界。
 
-## Requirements
+## 需求
 
-### Requirement: Scheduled job categories
+### 需求：定时任务类别
 
-The system SHALL support two scheduled-job categories: master-only jobs and all-node jobs. In single-node mode, master-only jobs execute directly on the current node. In cluster mode, master-only jobs execute only on the primary node.
+系统 SHALL 支持两类定时任务：仅主节点任务和全节点任务。单节点模式下，仅主节点任务直接在当前节点执行。集群模式下，仅主节点任务仅在主节点执行。
 
-#### Scenario: Define master-only job
+#### 场景：定义仅主节点任务
 
-- **WHEN** a scheduled job is registered as master-only
-- **THEN** the job executes on the current node in single-node mode
-- **AND** executes only on the primary node in cluster mode
+- **当** 定时任务注册为仅主节点时
+- **则** 单节点模式下任务在当前节点执行
+- **且** 集群模式下仅在主节点执行
 
-#### Scenario: Define all-node job
+#### 场景：定义全节点任务
 
-- **WHEN** a scheduled job is registered as all-node
-- **THEN** the job executes on every running node
+- **当** 定时任务注册为全节点时
+- **则** 任务在每个运行中的节点上执行
 
-### Requirement: Master-only jobs must check primary-node eligibility
+### 需求：仅主节点任务必须检查主节点资格
 
-The system SHALL decide whether the current node should execute a master-only job before running it.
+系统 SHALL 在运行仅主节点任务前判断当前节点是否应该执行。
 
-#### Scenario: Cluster primary executes master-only job
+#### 场景：集群主节点执行仅主节点任务
 
-- **WHEN** `cluster.enabled=true` and the current node is primary when a master-only job triggers
-- **THEN** the job executes normally
+- **当** `cluster.enabled=true` 且仅主节点任务触发时当前节点为主节点
+- **则** 任务正常执行
 
-#### Scenario: Cluster secondary skips master-only job
+#### 场景：集群从节点跳过仅主节点任务
 
-- **WHEN** `cluster.enabled=true` and the current node is secondary when a master-only job triggers
-- **THEN** the job returns immediately
-- **AND** no business logic is executed
+- **当** `cluster.enabled=true` 且仅主节点任务触发时当前节点为从节点
+- **则** 任务立即返回
+- **且** 不执行任何业务逻辑
 
-#### Scenario: Single-node mode executes master-only job
+#### 场景：单节点模式执行仅主节点任务
 
-- **WHEN** `cluster.enabled=false` and a master-only job triggers
-- **THEN** the current node executes the job directly
+- **当** `cluster.enabled=false` 且仅主节点任务触发时
+- **则** 当前节点直接执行任务
 
-### Requirement: Existing scheduled jobs use deployment-aware categories
+### 需求：现有定时任务使用部署感知类别
 
-The system SHALL apply unified scheduling rules to existing scheduled jobs according to deployment mode.
+系统 SHALL 根据部署模式对现有定时任务应用统一的调度规则。
 
-#### Scenario: Session Cleanup is master-only
+#### 场景：会话清理为仅主节点
 
-- **WHEN** the Session Cleanup scheduled job is registered
-- **THEN** the system marks it as master-only
-- **AND** it executes on the current node in single-node mode
+- **当** 会话清理定时任务注册时
+- **则** 系统将其标记为仅主节点
+- **且** 单节点模式下在当前节点执行
 
-#### Scenario: Server Monitor Collector is all-node
+#### 场景：服务监控采集为全节点
 
-- **WHEN** the Server Monitor Collector scheduled job is registered
-- **THEN** the system marks it as all-node
-- **AND** it executes on every node
+- **当** 服务监控采集定时任务注册时
+- **则** 系统将其标记为全节点
+- **且** 在每个节点上执行
 
-#### Scenario: Server Monitor Cleanup is master-only
+#### 场景：服务监控清理为仅主节点
 
-- **WHEN** the Server Monitor Cleanup scheduled job is registered
-- **THEN** the system marks it as master-only
-- **AND** it executes on the current node in single-node mode
+- **当** 服务监控清理定时任务注册时
+- **则** 系统将其标记为仅主节点
+- **且** 单节点模式下在当前节点执行
 
-### Requirement: Scheduling-scope consistency for user-manageable jobs
+### 需求：用户可管理任务的调度范围一致性
 
-The system SHALL apply the existing master-only and all-node scheduling semantics consistently to user-manageable scheduled jobs. User-manageable jobs are jobs with `sys_job.is_builtin=0`. Built-in jobs MUST also follow the same scope execution rules, but their execution definition comes from host code or plugin declarations rather than from `sys_job` records.
+系统 SHALL 对用户可管理的定时任务一致地应用现有的仅主节点和全节点调度语义。用户可管理任务是 `sys_job.is_builtin=0` 的任务。内置任务也必须遵循相同的范围执行规则，但其执行定义来自宿主代码或插件声明而非 `sys_job` 记录。
 
-#### Scenario: User creates a master-only job
+#### 场景：用户创建仅主节点任务
 
-- **WHEN** a user creates a scheduled job with `scope=master_only`
-- **THEN** the job SHALL execute only on the primary node in cluster mode
-- **AND** execute directly on the current node in single-node mode
+- **当** 用户创建 `scope=master_only` 的定时任务时
+- **则** 集群模式下任务仅在主节点执行
+- **且** 单节点模式下直接在当前节点执行
 
-#### Scenario: User creates an all-node job
+#### 场景：用户创建全节点任务
 
-- **WHEN** a user creates a scheduled job with `scope=all_node`
-- **THEN** the job SHALL execute once on every running node
-- **AND** each execution SHALL record the triggering node in `sys_job_log.node_id`
+- **当** 用户创建 `scope=all_node` 的定时任务时
+- **则** 任务在每个运行中的节点上执行一次
+- **且** 每次执行在 `sys_job_log.node_id` 中记录触发节点
 
-#### Scenario: Non-primary master-only skip record
+#### 场景：非主节点的仅主节点跳过记录
 
-- **WHEN** `cluster.enabled=true` and a `scope=master_only` job is triggered on a non-primary node
-- **THEN** the system SHALL return immediately without executing business logic
-- **AND** write a `sys_job_log` record with `status=skipped_not_primary`
+- **当** `cluster.enabled=true` 且 `scope=master_only` 任务在非主节点上触发时
+- **则** 系统立即返回，不执行业务逻辑
+- **且** 写入 `status=skipped_not_primary` 的 `sys_job_log` 记录
 
-#### Scenario: Built-in jobs follow the unified scope rules
+#### 场景：内置任务遵循统一的范围规则
 
-- **WHEN** a built-in job declared by host code or a plugin is registered with the scheduler
-- **THEN** the system SHALL apply master-only or all-node execution rules according to the declared `scope`
-- **AND** the `sys_job.is_builtin=1` projection row MUST NOT become the execution-definition source for that built-in job
+- **当** 宿主代码或插件声明的内置任务注册到调度器时
+- **则** 系统根据声明的 `scope` 应用仅主节点或全节点执行规则
+- **且** `sys_job.is_builtin=1` 投影行不得成为该内置任务的执行定义源
 
-### Requirement: Scheduler registration for user-manageable jobs
+### 需求：用户可管理任务的调度器注册
 
-The system SHALL maintain the gcron registry during startup and CRUD operations so it stays consistent with user-defined jobs in `sys_job` where `status=enabled` and `is_builtin=0`. Built-in jobs with `sys_job.is_builtin=1` MUST NOT be registered by persistent scheduler startup scanning. Built-in jobs SHALL be registered by host code or plugin declaration synchronization paths.
+系统 SHALL 在启动和 CRUD 操作期间维护 gcron 注册表，使其与 `sys_job` 中 `status=enabled` 且 `is_builtin=0` 的用户定义任务保持一致。`sys_job.is_builtin=1` 的内置任务不得通过持久化调度器启动扫描注册。内置任务 SHALL 由宿主代码或插件声明同步路径注册。
 
-#### Scenario: Startup loading
+#### 场景：启动加载
 
-- **WHEN** the host process starts and `service/cron` starts
-- **THEN** the system SHALL scan `sys_job where status=enabled and is_builtin=0`
-- **AND** register each user-defined job into gcron with its `scope / concurrency / timezone / cron_expr`
-- **AND** MUST NOT register `is_builtin=1` built-in jobs through that persistent scan
+- **当** 宿主进程启动且 `service/cron` 启动时
+- **则** 系统扫描 `sys_job where status=enabled and is_builtin=0`
+- **且** 将每个用户定义任务以其 `scope / concurrency / timezone / cron_expr` 注册到 gcron
+- **且** 不得通过该持久化扫描注册 `is_builtin=1` 的内置任务
 
-#### Scenario: Dynamic CRUD refresh
+#### 场景：动态 CRUD 刷新
 
-- **WHEN** a user-defined job is created, updated, or deleted
-- **THEN** the system SHALL atomically unregister the old gcron entry and register the new entry when applicable
-- **AND** hold a per-job mutex during refresh to avoid races with scheduler ticks
+- **当** 用户定义任务被创建、更新或删除时
+- **则** 系统原子地注销旧的 gcron 条目，并在适用时注册新条目
+- **且** 在刷新期间持有每任务互斥锁以避免与调度器 tick 竞争
 
-#### Scenario: Enable/disable refresh
+#### 场景：启用/禁用刷新
 
-- **WHEN** a user-defined job `status` changes from `disabled` to `enabled` or the reverse
-- **THEN** the system SHALL register or unregister that job in the scheduler accordingly
+- **当** 用户定义任务 `status` 从 `disabled` 变为 `enabled` 或反之
+- **则** 系统相应地在调度器中注册或注销该任务
 
-#### Scenario: Built-in jobs do not participate in persistent loading
+#### 场景：内置任务不参与持久化加载
 
-- **WHEN** `sys_job` contains a built-in job projection with `is_builtin=1 and status=enabled`
-- **AND** the host process starts and runs persistent scheduler loading
-- **THEN** the persistent scheduler MUST NOT use that record as a registration source
-- **AND** the built-in job may only be registered by the corresponding host code definition or plugin cron declaration
+- **当** `sys_job` 包含 `is_builtin=1 and status=enabled` 的内置任务投影
+- **且** 宿主进程启动并运行持久化调度器加载
+- **则** 持久化调度器不得使用该记录作为注册源
+- **且** 内置任务只能由对应的宿主代码定义或插件 cron 声明注册

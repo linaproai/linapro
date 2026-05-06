@@ -1,89 +1,89 @@
-# Plugin Cache Service Specification
+# 插件缓存服务规范
 
-## Purpose
+## 目的
 
-Define governed host-cache access for dynamic plugins, including authorized namespaces, lossy cache semantics, backend/provider abstraction, critical revision separation, atomic increments, and expiration cleanup behavior.
+定义动态插件受治理的宿主缓存访问，包括授权命名空间、有损缓存语义、后端/提供者抽象、关键修订号分离、原子递增和过期清理行为。
 
-## Requirements
+## 需求
 
-### Requirement: Dynamic plugins access host distributed cache through authorized namespaces backed by MEMORY table
+### 需求：动态插件通过基于 MEMORY 表的授权命名空间访问宿主分布式缓存
 
-The system SHALL provide a governed cache service for dynamic plugins. Plugins can access the host generic KV cache foundation only through host-authorized named cache namespaces, and must not receive local cache implementations or other low-level cache clients directly. The generic cache module SHALL hide the underlying implementation through backend/provider abstraction. The current default backend is a MySQL `MEMORY` table, and future backends such as Redis can replace it. All backends SHALL be treated as lossy cache and MUST NOT be authoritative sources for permissions, configuration, plugin stable state, cache revisions, or any other reliable business state.
+系统 SHALL 为动态插件提供受治理的缓存服务。插件只能通过宿主授权的命名缓存命名空间访问宿主通用 KV 缓存基础，不得直接接收本地缓存实现或其他低级缓存客户端。通用缓存模块 SHALL 通过后端/提供者抽象隐藏底层实现。当前默认后端是 MySQL `MEMORY` 表，未来后端如 Redis 可替换它。所有后端 SHALL 被视为有损缓存，不得作为权限、配置、插件稳定状态、缓存修订号或任何其他可靠业务状态的权威来源。
 
-#### Scenario: Plugin accesses authorized cache namespace
+#### 场景：插件访问授权的缓存命名空间
 
-- **WHEN** a plugin calls the cache service to execute `get`, `set`, `delete`, `incr`, or `expire`
-- **THEN** the host only allows access to the current plugin's authorized `host-cache` resources
-- **AND** the host executes the operation according to that cache namespace's naming rules and backend-agnostic TTL policy
-- **AND** the default MySQL backend stores cache data in the shared database `MEMORY` cache table, not in host process-local cache
+- **当** 插件调用缓存服务执行 `get`、`set`、`delete`、`incr` 或 `expire` 时
+- **则** 宿主仅允许访问当前插件授权的 `host-cache` 资源
+- **且** 宿主根据该缓存命名空间的命名规则和后端无关的 TTL 策略执行操作
+- **且** 默认 MySQL 后端将缓存数据存储在共享数据库 `MEMORY` 缓存表中，而非宿主进程本地缓存
 
-#### Scenario: Plugin cache is lost after database restart
+#### 场景：数据库重启后插件缓存丢失
 
-- **WHEN** shared database restart clears the `MEMORY` cache table
-- **THEN** plugin cache reads are handled as cache misses
-- **AND** the system MUST NOT rely on `sys_kv_cache` to restore critical business state or cache revisions
+- **当** 共享数据库重启清除 `MEMORY` 缓存表时
+- **则** 插件缓存读取作为缓存未命中处理
+- **且** 系统不得依赖 `sys_kv_cache` 恢复关键业务状态或缓存修订号
 
-#### Scenario: Plugin writes cache value exceeding field length limits
+#### 场景：插件写入超过字段长度限制的缓存值
 
-- **WHEN** a plugin calls the cache service to write data that exceeds namespace, cache key, or cache value length limits
-- **THEN** the host returns an explicit error
-- **AND** the host MUST NOT truncate the write
-- **AND** the host MUST NOT write partial data
+- **当** 插件调用缓存服务写入超过命名空间、缓存键或缓存值长度限制的数据时
+- **则** 宿主返回明确错误
+- **且** 宿主不得截断写入
+- **且** 宿主不得写入部分数据
 
-#### Scenario: Plugin attempts to access unauthorized cache namespace
+#### 场景：插件尝试访问未授权的缓存命名空间
 
-- **WHEN** a plugin calls an unauthorized cache namespace
-- **THEN** the host rejects the call
-- **AND** the host does not expose underlying cache connection information to the guest
+- **当** 插件调用未授权的缓存命名空间时
+- **则** 宿主拒绝调用
+- **且** 宿主不向 guest 暴露底层缓存连接信息
 
-### Requirement: Plugin cache must not coordinate critical revisions
+### 需求：插件缓存不得协调关键修订号
 
-The system SHALL use an independent persistent revision mechanism to coordinate critical cache domains such as permissions, configuration, and plugin runtime. It MUST NOT store shared revisions for those domains in `sys_kv_cache`.
+系统 SHALL 使用独立的持久化修订号机制来协调权限、配置和插件运行时等关键缓存域。不得在 `sys_kv_cache` 中存储这些域的共享修订号。
 
-#### Scenario: Publish critical cache revision
+#### 场景：发布关键缓存修订号
 
-- **WHEN** permission, runtime configuration, or plugin runtime critical cache domains publish a revision
-- **THEN** the system writes to persistent revision storage
-- **AND** the system MUST NOT write that critical cache-domain revision to `sys_kv_cache`
+- **当** 权限、运行时配置或插件运行时关键缓存域发布修订号时
+- **则** 系统写入持久化修订号存储
+- **且** 系统不得将该关键缓存域修订号写入 `sys_kv_cache`
 
-#### Scenario: Plugin cache clearing does not affect critical cache coordination
+#### 场景：插件缓存清除不影响关键缓存协调
 
-- **WHEN** `sys_kv_cache` becomes empty because of database restart or cache cleanup
-- **THEN** committed critical cache revisions remain readable from persistent revision storage
-- **AND** nodes can still determine whether local permission, configuration, and plugin runtime caches need refresh
+- **当** `sys_kv_cache` 因数据库重启或缓存清理变空时
+- **则** 已提交的关键缓存修订号仍可从持久化修订号存储读取
+- **且** 节点仍可判断本地权限、配置和插件运行时缓存是否需要刷新
 
-### Requirement: Plugin cache increment must be atomic while the cache is alive
+### 需求：插件缓存递增在缓存存活期间必须是原子的
 
-The system SHALL guarantee that `incr` for the same plugin cache key increments linearly while the shared database and cache table are alive. After database restart causes `MEMORY` cache loss, later increments may restart from the new cache value.
+系统 SHALL 保证同一插件缓存键的 `incr` 在共享数据库和缓存表存活期间线性递增。数据库重启导致 `MEMORY` 缓存丢失后，后续递增可能从新缓存值重新开始。
 
-#### Scenario: Multiple nodes increment the same cache key concurrently
+#### 场景：多节点并发递增同一缓存键
 
-- **WHEN** multiple nodes concurrently execute `incr` on the same plugin cache key
-- **THEN** every successful call returns a unique incremented integer value
-- **AND** the final cache value equals the initial value plus the sum of all successful increments
-- **AND** no node may lose increments through a read-modify-write race
+- **当** 多个节点并发对同一插件缓存键执行 `incr` 时
+- **则** 每次成功调用返回唯一的递增整数值
+- **且** 最终缓存值等于初始值加上所有成功递增的总和
+- **且** 任何节点不得通过读-修改-写竞争丢失递增
 
-#### Scenario: Increment a non-integer cache value
+#### 场景：递增非整数缓存值
 
-- **WHEN** a plugin executes `incr` on an existing string cache key
-- **THEN** the host returns a structured error
-- **AND** the original cache value remains unchanged
+- **当** 插件对现有字符串缓存键执行 `incr` 时
+- **则** 宿主返回结构化错误
+- **且** 原始缓存值保持不变
 
-### Requirement: Plugin cache expiration cleanup must avoid hot-path full table scans
+### 需求：插件缓存过期清理必须避免热路径全表扫描
 
-When reading plugin cache, the system SHALL execute read-only queries only. It MUST NOT delete data in the query request just because a cache entry is expired. Expiration cleanup must be handled by backend expiration filtering on read results and by background batch cleanup or write-path replacement.
+读取插件缓存时，系统 SHALL 仅执行只读查询。不得仅因缓存条目过期就在查询请求中删除数据。过期清理必须由后端在读取结果上的过期过滤和后台批量清理或写路径替换处理。
 
-#### Scenario: Read an expired cache key
+#### 场景：读取过期的缓存键
 
-- **WHEN** a plugin reads an expired cache key
-- **THEN** the host returns a cache miss
-- **AND** the host MUST NOT delete the cache row during that query request
-- **AND** the host MUST NOT require this read to clean expired cache for any namespace
+- **当** 插件读取过期的缓存键时
+- **则** 宿主返回缓存未命中
+- **且** 宿主不得在该查询请求中删除缓存行
+- **且** 宿主不得要求此次读取为任何命名空间清理过期缓存
 
-#### Scenario: Background batch cleanup removes expired cache
+#### 场景：后台批量清理移除过期缓存
 
-- **WHEN** the expired-cache batch cleanup task is triggered
-- **THEN** the system deletes expired cache rows
-- **AND** the default MySQL backend SHALL provide a built-in scheduled task that calls `CleanupExpired` once per hour
-- **AND** in cluster mode, the task MUST NOT create uncontrolled duplicate pressure across multiple nodes
-- **AND** backends that do not require external expiration cleanup, such as Redis, can implement `CleanupExpired` as a no-op and need not project the MySQL cleanup task
+- **当** 过期缓存批量清理任务触发时
+- **则** 系统删除过期缓存行
+- **且** 默认 MySQL 后端 SHALL 提供内置定时任务，每小时调用一次 `CleanupExpired`
+- **且** 集群模式下，任务不得在多个节点间产生不受控的重复压力
+- **且** 不需要外部过期清理的后端（如 Redis）可将 `CleanupExpired` 实现为空操作，无需投射 MySQL 清理任务

@@ -1,59 +1,59 @@
-## ADDED Requirements
+## 新增需求
 
-### Requirement: Installation entry point must provide consistent cross-platform capabilities
-The system SHALL provide a quick installation script entry point for the entire `LinaPro` repository under the repository root `hack/scripts/install/`, where `install.sh` is for `macOS/Linux` and `install.ps1` is for `Windows PowerShell`. The two entry points MUST share consistent core parameter semantics, covering at least repository source, source reference, target directory mode, and overwrite protection behaviors, rather than implementing incompatible interaction models separately.
+### 需求：安装入口点必须提供一致的跨平台能力
+系统 SHALL 在仓库根目录 `hack/scripts/install/` 下为整个 `LinaPro` 仓库提供快速安装脚本入口点，其中 `install.sh` 用于 `macOS/Linux`，`install.ps1` 用于 `Windows PowerShell`。两个入口点必须共享一致的核心参数语义，至少覆盖仓库源、源引用、目标目录模式和覆盖保护行为，而非分别实现不兼容的交互模型。
 
-#### Scenario: Unix-like user executes installation via Shell entry point
-- **WHEN** a user executes `hack/scripts/install/install.sh` on `macOS` or `Linux`
-- **THEN** the script can parse core parameters related to quick installation
-- **AND** the script begins executing the source code download and deployment flow for the entire `LinaPro` repository
+#### 场景：类 Unix 用户通过 Shell 入口点执行安装
+- **当** 用户在 `macOS` 或 `Linux` 上执行 `hack/scripts/install/install.sh` 时
+- **则** 脚本可解析与快速安装相关的核心参数
+- **且** 脚本开始执行整个 `LinaPro` 仓库的源码下载和部署流程
 
-#### Scenario: Windows user executes installation via PowerShell entry point
-- **WHEN** a user executes `hack/scripts/install/install.ps1` on `Windows PowerShell`
-- **THEN** the script can parse core installation parameters equivalent to the Shell entry point
-- **AND** the script begins executing the source code download and deployment flow for the entire `LinaPro` repository
+#### 场景：Windows 用户通过 PowerShell 入口点执行安装
+- **当** 用户在 `Windows PowerShell` 上执行 `hack/scripts/install/install.ps1` 时
+- **则** 脚本可解析与 Shell 入口点等效的核心安装参数
+- **且** 脚本开始执行整个 `LinaPro` 仓库的源码下载和部署流程
 
-### Requirement: Installation flow must be based on source archive download rather than Git clone
-The system SHALL support downloading `LinaPro` source archives based on user-specified repository and `ref`, and use the archive contents to complete local project deployment. The main installation flow MUST NOT depend on `git clone` or Git being pre-installed locally; on `macOS/Linux` it should prefer archive formats suitable for Shell environments, and on `Windows` it should prefer archive formats suitable for native PowerShell extraction.
+### 需求：安装流程必须基于源码归档下载而非 Git clone
+系统 SHALL 支持基于用户指定的仓库和 `ref` 下载 `LinaPro` 源码归档，并使用归档内容完成本地项目部署。主安装流程不得依赖 `git clone` 或本地预装 Git；在 `macOS/Linux` 上应优先使用适合 Shell 环境的归档格式，在 `Windows` 上应优先使用适合原生 PowerShell 提取的归档格式。
 
-#### Scenario: Download source archive using default repository and default reference
-- **WHEN** a user executes the installation script without explicitly specifying the repository or `ref` parameters
-- **THEN** the script downloads the source archive from the official default repository with the default reference
-- **AND** the default reference preferably resolves to the latest stable semantic tag version of the repository
-- **AND** the local installation flow does not require the user to have Git pre-installed
+#### 场景：使用默认仓库和默认引用下载源码归档
+- **当** 用户执行安装脚本但未显式指定仓库或 `ref` 参数时
+- **则** 脚本从官方默认仓库以默认引用下载源码归档
+- **且** 默认引用优先解析为仓库最新的稳定语义标签版本
+- **且** 本地安装流程不要求用户预装 Git
 
-#### Scenario: Download source archive using specified repository and specified reference
-- **WHEN** a user explicitly passes a repository address and `ref` to the installation script
-- **THEN** the script downloads the source archive from that repository at the corresponding reference
-- **AND** then uses the archive contents to perform extraction and local directory deployment
+#### 场景：使用指定仓库和指定引用下载源码归档
+- **当** 用户显式传递仓库地址和 `ref` 给安装脚本时
+- **则** 脚本从该仓库以对应引用下载源码归档
+- **且** 然后使用归档内容执行提取和本地目录部署
 
-#### Scenario: Fall back to main branch when default stable tag is missing
-- **WHEN** the user does not explicitly specify `ref`, and the target repository has no identifiable stable semantic tag version
-- **THEN** the script falls back to the agreed default main branch reference to continue source archive download
-- **AND** the output clearly displays the final resolved reference value
+#### 场景：默认稳定标签缺失时回退到 main 分支
+- **当** 用户未显式指定 `ref`，且目标仓库无可识别的稳定语义标签版本时
+- **则** 脚本回退到约定的默认 main 分支引用继续源码归档下载
+- **且** 输出清晰显示最终解析的引用值
 
-### Requirement: Installation script must safely handle current directory and specified directory modes
-The system SHALL support extracting source code to the current directory or an explicitly specified directory, and by default avoid directly overwriting into non-empty directories. The script MUST first complete archive extraction and top-level directory identification in a temporary directory, then move the actual project files to the final target location; when the target directory is non-empty and the user has not explicitly allowed overwriting, the script MUST refuse to continue execution.
+### 需求：安装脚本必须安全处理当前目录和指定目录模式
+系统 SHALL 支持将源码提取到当前目录或显式指定的目录，并默认避免直接覆盖到非空目录。脚本必须先在临时目录中完成归档提取和顶层目录识别，然后将实际项目文件移动到最终目标位置；当目标目录非空且用户未显式允许覆盖时，脚本必须拒绝继续执行。
 
-#### Scenario: User explicitly requests deployment to current directory
-- **WHEN** a user executes the installation script with the current directory mode parameter
-- **THEN** the script deploys the extracted project contents to the current working directory
-- **AND** if the current directory already has content not created by the installation script and overwriting is not explicitly allowed, the script refuses to continue execution
+#### 场景：用户显式请求部署到当前目录
+- **当** 用户以当前目录模式参数执行安装脚本时
+- **则** 脚本将提取的项目内容部署到当前工作目录
+- **且** 如果当前目录已有非安装脚本创建的内容且未显式允许覆盖，脚本拒绝继续执行
 
-#### Scenario: User explicitly requests deployment to specified directory
-- **WHEN** a user executes the installation script with a target directory parameter
-- **THEN** the script deploys the extracted project contents to the specified directory
-- **AND** if the target directory does not exist, the script creates the directory or its parent directories before completing the installation
+#### 场景：用户显式请求部署到指定目录
+- **当** 用户以目标目录参数执行安装脚本时
+- **则** 脚本将提取的项目内容部署到指定目录
+- **且** 如果目标目录不存在，脚本在完成安装前创建该目录或其父目录
 
-### Requirement: Post-installation output must include environment health check and next-step guidance
-The system SHALL check key dependencies required for the `LinaPro` development flow after source code deployment is complete, and output clear post-installation guidance. The health check results MUST cover at least the presence or version information of `Go`, `Node.js`, `pnpm`, `MySQL`, and `make`; the installation success output MUST inform the user of the project path and the recommended key commands to execute next.
+### 需求：安装后输出必须包含环境健康检查和后续指导
+系统 SHALL 在源码部署完成后检查 `LinaPro` 开发流程所需的关键依赖，并输出清晰的安装后指导。健康检查结果必须至少覆盖 `Go`、`Node.js`、`pnpm`、`MySQL` 和 `make` 的存在或版本信息；安装成功输出必须告知用户项目路径和建议接下来执行的关键命令。
 
-#### Scenario: Output guidance to proceed when all key dependencies are present
-- **WHEN** the installation script completes source code deployment and detects that all key dependencies are satisfied
-- **THEN** the script outputs the project directory
-- **AND** the script prompts the user to continue executing subsequent commands such as `make init`, `make mock`, `make dev`
+#### 场景：所有关键依赖存在时输出继续指导
+- **当** 安装脚本完成源码部署并检测到所有关键依赖满足时
+- **则** 脚本输出项目目录
+- **且** 脚本提示用户继续执行 `make init`、`make mock`、`make dev` 等后续命令
 
-#### Scenario: Output diagnostic results when dependencies are missing
-- **WHEN** the installation script completes source code deployment but finds one or more key dependencies missing
-- **THEN** the script outputs each missing or unsatisfied dependency item
-- **AND** the script still clearly informs the user that the project has been successfully deployed and provides direction for supplementing the environment
+#### 场景：依赖缺失时输出诊断结果
+- **当** 安装脚本完成源码部署但发现一个或多个关键依赖缺失时
+- **则** 脚本输出每个缺失或不满足的依赖项
+- **且** 脚本仍清晰告知用户项目已成功部署，并提供补充环境的方向

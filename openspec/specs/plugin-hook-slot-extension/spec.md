@@ -1,276 +1,276 @@
-# plugin-hook-slot-extension Specification
+# 插件 Hook Slot 扩展规范
 
-## Purpose
-TBD - created by archiving change plugin-framework. Update Purpose after archive.
-## Requirements
-### Requirement: The host publishes a stable backend extension point contract
-The system SHALL publishes a set of named, versioned, auditable backend extension points for plugins to register callbacks and extend behavior on host critical business events or host governance links.
+## 目的
+待定 - 由归档变更 plugin-framework 创建。归档后更新目的。
 
-#### Scenario: The host maintains a formal catalog of backend extension points
-- **WHEN** The host publishes plugin backend expansion capabilities
-- **THEN** The host MUST maintain a formal backend extension point directory
-- **AND** At least `auth.login.succeeded`, `auth.logout.succeeded`, `system.started`, `plugin.installed`, `plugin.enabled`, `plugin.disabled`, `plugin.uninstalled` are made public in one issue
-- **AND** Each extension point MUST describe the triggering time, context, execution sequence, execution mode and failure isolation strategy
+## 需求
+### 需求：宿主发布稳定的后端扩展点契约
+系统 SHALL 发布一组命名、版本化、可审计的后端扩展点，供插件注册回调并在宿主关键业务事件或宿主治理链路上扩展行为。
 
-#### Scenario: Login success event triggers Hook
-- **WHEN** The user logs in successfully and the host publishes `auth.login.succeeded` Hook
-- **THEN** The host distributes this event to enabled plugins according to the agreed context
-- **AND** The context contains at least user ID, login time, client information, request context and current plugin running generation information
+#### 场景：宿主维护正式的后端扩展点目录
+- **当** 宿主发布插件后端扩展能力时
+- **则** 宿主必须维护正式的后端扩展点目录
+- **且** 一期至少公开 `auth.login.succeeded`、`auth.logout.succeeded`、`system.started`、`plugin.installed`、`plugin.enabled`、`plugin.disabled`、`plugin.uninstalled`
+- **且** 每个扩展点必须描述触发时机、上下文、执行顺序、执行模式和失败隔离策略
 
-#### Scenario: Logout success event triggers Hook
-- **WHEN** The user logs out successfully and the host publishes the `auth.logout.succeeded` Hook
-- **THEN** The host dispatches events to enabled plugins that subscribe to this Hook
-- **AND** Plugins can only read context fields exposed by the host
+#### 场景：登录成功事件触发 Hook
+- **当** 用户登录成功且宿主发布 `auth.login.succeeded` Hook 时
+- **则** 宿主按约定上下文将此事件分发给已启用的插件
+- **且** 上下文至少包含用户 ID、登录时间、客户端信息、请求上下文和当前插件运行 generation 信息
 
-### Requirement: Hook execution failure MUST be isolated from the main process
-The system SHALL implements isolation on timeouts, exceptions and return errors of plugin Hooks, and plugin extensions MUST not be allowed to destroy the host's main link.
+#### 场景：退出成功事件触发 Hook
+- **当** 用户退出成功且宿主发布 `auth.logout.succeeded` Hook 时
+- **则** 宿主将事件分发给订阅了此 Hook 的已启用插件
+- **且** 插件只能读取宿主暴露的上下文字段
 
-#### Scenario: Plug-in Hook execution failed
-- **WHEN** A plugin times out, crashes, or returns an error in the login success Hook
-- **THEN** The main user login process still returns success
-- **AND** The host records the execution failure information of the plugin
-- **AND** Hooks of other plugins still continue to execute in order or are safely skipped according to the policy
+### 需求：Hook 执行失败必须与主流程隔离
+系统 SHALL 对插件 Hook 的超时、异常和返回错误实现隔离，不得允许插件扩展破坏宿主主链路。
 
-#### Scenario: The currently active dynamic release Hook contract is continuously available
-- **WHEN** A dynamic plugin has been switched to an active release, and then a staged upgrade, failed rollback, or active release reload occurs.
-- **THEN** The host still distributes events according to the Hook contract declared inline in the current active release.
-- **AND** The host will not lose the release's Hook statement because only the top-level manifest metadata is restored.
+#### 场景：插件 Hook 执行失败
+- **当** 插件在登录成功 Hook 中超时、崩溃或返回错误时
+- **则** 主用户登录流程仍返回成功
+- **且** 宿主记录插件的执行失败信息
+- **且** 其他插件的 Hook 仍按策略继续执行或安全跳过
 
-### Requirement: The host publishes common backend extension points through callback registration.
-The system SHALL provides a minimized, callback-registered backend extension interface for source plugins, preventing plugin authors from maintaining complex declarative properties for common extension scenarios.
+#### 场景：当前活跃动态发布 Hook 契约持续可用
+- **当** 动态插件已切换到活跃发布，随后发生分段升级、失败回滚或活跃发布重载时
+- **则** 宿主仍按当前活跃发布中内联声明的 Hook 契约分发事件
+- **且** 宿主不会因仅恢复顶层清单元数据而丢失该发布的 Hook 声明
 
-#### Scenario: Event Hook and registered interface belong to the same type of backend extension point
-- **WHEN** The host publishes event-type Hooks and registered callback extension points at the same time
-- **THEN** Both types of capabilities MUST be considered "callback registrations on the host's published backend extension points"
-- **AND** Plug-in developers uniformly select extension points and register callback functions through Go type constants
-- **AND** The host only allows the execution mode to determine whether the callback blocks the main process or executes asynchronously
+### 需求：宿主通过回调注册发布通用后端扩展点
+系统 SHALL 为源码插件提供最小化的、回调注册式后端扩展接口，防止插件作者为常见扩展场景维护复杂的声明式属性。
 
-#### Scenario: The host maintains a formal backend callback extension point directory
-- **WHEN** The host publishes source plugin backend expansion capabilities
-- **THEN** The host MUST provide a unified Go registration entrance and callback registration method
-- **AND** Provide at least `http.route.register`, `cron.register`, `menu.filter`, `permission.filter` in one phase
-- **AND** These extension points MUST be maintained in the same technical documentation as published Hooks
+#### 场景：事件 Hook 和注册接口属于同一类后端扩展点
+- **当** 宿主同时发布事件型 Hook 和注册式回调扩展点时
+- **则** 两类能力必须被视为"在宿主发布的后端扩展点上的回调注册"
+- **且** 插件开发者统一通过 Go 类型常量选择扩展点并注册回调函数
+- **且** 宿主仅允许执行模式决定回调是阻塞主流程还是异步执行
 
-#### Scenario: The host manages all backend extension points in a unified Go type directory
-- **WHEN** The host publishes event-type Hooks and registered callback extension points at the same time
-- **THEN** The host MUST maintain these backend extension points using a unified Go `type` and constant directory
-- **AND** Plug-in code, host scheduling code and technical documentation MUST all reference the same set of type constants
-- **AND** Do not allow hardcoded backend extension point strings littered with host implementations or plugin examples
+#### 场景：宿主维护正式的后端回调扩展点目录
+- **当** 宿主发布源码插件后端扩展能力时
+- **则** 宿主必须提供统一的 Go 注册入口和回调注册方式
+- **且** 一期至少提供 `http.route.register`、`cron.register`、`menu.filter`、`permission.filter`
+- **且** 这些扩展点必须与已发布的 Hook 在同一技术文档中维护
 
-#### Scenario: The host declares the execution mode for the backend callback extension point
-- **WHEN** The plugin registers a certain backend extension point callback with the host
-- **THEN** The registration interface MUST explicitly declare the execution mode of the callback
-- **AND** execution modes differentiate at least between `blocking` and `async`
-- **AND** The host MUST verify whether the current extension point supports the declared execution mode
-- **AND** Unsupported execution modes MUST be rejected during the registration phase
+#### 场景：宿主在统一 Go 类型目录中管理所有后端扩展点
+- **当** 宿主同时发布事件型 Hook 和注册式回调扩展点时
+- **则** 宿主必须使用统一的 Go `type` 和常量目录维护这些后端扩展点
+- **且** 插件代码、宿主调度代码和技术文档必须都引用同一套类型常量
+- **且** 不允许硬编码的后端扩展点字符串散落在宿主实现或插件示例中
 
-#### Scenario: The host exposes the callback input object as an interface type
-- **WHEN** The host exposes callback input objects such as Hook, Route, Cron, menu filtering or permission filtering to the plugin.
-- **THEN** The host MUST give priority to exposing abstract interfaces rather than concrete structure pointers
-- **AND** Plug-in callbacks only rely on the method contract exposed by the host
-- **AND** When the host subsequently extends fields or capabilities, it should not require plugins to directly couple the internal structure implementation.
+#### 场景：宿主为后端回调扩展点声明执行模式
+- **当** 插件向宿主注册某后端扩展点回调时
+- **则** 注册接口必须显式声明回调的执行模式
+- **且** 执行模式至少区分 `blocking` 和 `async`
+- **且** 宿主必须验证当前扩展点是否支持声明的执行模式
+- **且** 不支持的执行模式必须在注册阶段被拒绝
 
-#### Scenario: Plug-in registers HTTP routes governed by the host through callbacks
-- **WHEN** A source plugin registers its own HTTP route
-- **THEN** The host automatically assembles this route at startup
-- **AND** When the plugin is disabled, these routing requests will be rejected or downgraded by the host
-- **AND** Plug-in authors do not need to manually modify the host controller or routing skeleton code
-- **AND** Plugin authors only need to maintain explicit import relationships of plugin backend packages in `apps/lina-plugins/lina-plugins.go`
+#### 场景：宿主以接口类型暴露回调输入对象
+- **当** 宿主向插件暴露 Hook、Route、Cron、菜单过滤或权限过滤等回调输入对象时
+- **则** 宿主必须优先暴露抽象接口而非具体结构体指针
+- **且** 插件回调仅依赖宿主暴露的方法契约
+- **且** 宿主后续扩展字段或能力时，不应要求插件直接耦合内部结构体实现
 
-#### Scenario: The host provides independent unprefixed route groupings for plugins
-- **WHEN** The host opens HTTP route registration capabilities to source plugins.
-- **THEN** The host MUST provide a plugin routing group independent of the main service `/api/v1` group
-- **AND** The plugin routing group itself MUST not have any built-in fixed routing prefixes
-- **AND** The plugin can choose whether to mount to `/api/v1`, other business prefixes or no prefix paths
+#### 场景：插件通过回调注册宿主治理的 HTTP 路由
+- **当** 源码插件注册自己的 HTTP 路由时
+- **则** 宿主在启动时自动组装该路由
+- **且** 插件被禁用后，这些路由请求将被宿主拒绝或降级
+- **且** 插件作者无需手动修改宿主控制器或路由骨架代码
+- **且** 插件作者只需在 `apps/lina-plugins/lina-plugins.go` 中维护插件后端包的显式导入关系
 
-#### Scenario: The host exposes the optional main service middleware directory to the plugin
-- **WHEN** The host opens HTTP route registration capabilities to source plugins.
-- **THEN** The host MUST expose the published main service middleware directory to the plugin
-- **AND** One phase includes at least `NeverDoneCtx`, `HandlerResponse`, `CORS`, `Ctx`, `Auth`, `OperLog`
-- **AND** The plugin can select any subset according to its own route grouping needs and determine the combination order
-- **AND** Plug-ins can also use host middleware in combination with plugin custom middleware
+#### 场景：宿主为插件提供独立无前缀的路由分组
+- **当** 宿主向源码插件开放 HTTP 路由注册能力时
+- **则** 宿主必须提供独立于主服务 `/api/v1` 分组的插件路由分组
+- **且** 插件路由分组本身不得有任何内置固定路由前缀
+- **且** 插件可选择挂载到 `/api/v1`、其他业务前缀或无前缀路径
 
-#### Scenario: The plugin can split multiple routing groups with different governance strategies
-- **WHEN** The same source plugin needs to expose both the authentication-free interface and the protected interface.
-- **THEN** The plugin MUST be able to declare multiple independent route groups in one route registration callback
-- **AND** The routing group registration method MUST be consistent with the host main service, and supports the `group.Group(prefix, func(group *ghttp.RouterGroup) { ... })` style
-- **AND** Each routing group can choose to host any subset and combination of published middleware in any order
-- **AND** Each routing group can continue to append its own sub-path prefix
+#### 场景：宿主向插件暴露可选的主服务中间件目录
+- **当** 宿主向源码插件开放 HTTP 路由注册能力时
+- **则** 宿主必须向插件暴露已发布的主服务中间件目录
+- **且** 一期至少包含 `NeverDoneCtx`、`HandlerResponse`、`CORS`、`Ctx`、`Auth`、`OperLog`
+- **且** 插件可根据自身路由分组需求选择任意子集并决定组合顺序
+- **且** 插件也可将宿主中间件与插件自定义中间件组合使用
 
-#### Scenario: The plugin registers scheduled tasks that are controlled by the host's start and stop.
-- **WHEN** A source plugin registers its own scheduled tasks
-- **THEN** The host completes registration through the unified `cron` component
-- **AND** After the plugin is disabled, the host will not execute the scheduled task callback of the plugin.
-- **AND** Plug-in authors do not need to manually add scheduled task code at the host `cmd` layer
+#### 场景：插件可拆分多个具有不同治理策略的路由分组
+- **当** 同一源码插件需要同时暴露免认证接口和受保护接口时
+- **则** 插件必须能在一次路由注册回调中声明多个独立路由分组
+- **且** 路由分组注册方式必须与宿主主服务一致，支持 `group.Group(prefix, func(group *ghttp.RouterGroup) { ... })` 风格
+- **且** 每个路由分组可选择以任意顺序承载已发布中间件的任意子集和组合
+- **且** 每个路由分组可继续追加自己的子路径前缀
 
-#### Scenario: Scheduled task register exposes master node identification capability
-- **WHEN** The host exposes the scheduled task registration input object to the plugin
-- **THEN** This object MUST provide an identification method for "whether the current node is the main node"
-- **AND** The plugin can decide whether to execute timing logic that only takes effect on the master node based on this method
+#### 场景：插件注册由宿主控制启停的定时任务
+- **当** 源码插件注册自己的定时任务时
+- **则** 宿主通过统一的 `cron` 组件完成注册
+- **且** 插件被禁用后，宿主不执行该插件的定时任务回调
+- **且** 插件作者无需在宿主 `cmd` 层手动添加定时任务代码
 
-#### Scenario: Plug-ins participate in host management links by menu and permission filter
-- **WHEN** The host generates a menu list or permissions list
-- **THEN** The host publishes `menu.filter` and `permission.filter` callbacks to enabled plugins
-- **AND** The plugin can only filter and judge the menu/permission descriptions exposed by the host.
-- **AND** Failure to filter will not destroy the host's original menu and permission calculation process
+#### 场景：定时任务注册暴露主节点标识能力
+- **当** 宿主向插件暴露定时任务注册输入对象时
+- **则** 该对象必须提供"当前节点是否为主节点"的标识方法
+- **且** 插件可根据该方法决定是否执行仅在主节点生效的定时逻辑
 
-### Requirement: Host publishes frontend Slot extension point
-The system SHALL publishes controlled Slot extension points for frontend pages and layouts, allowing plugins to insert UI content in locations exposed by the host.
+#### 场景：插件通过菜单和权限过滤参与宿主管理链路
+- **当** 宿主生成菜单列表或权限列表时
+- **则** 宿主向已启用的插件发布 `menu.filter` 和 `permission.filter` 回调
+- **且** 插件只能过滤和判断宿主暴露的菜单/权限描述
+- **且** 过滤失败不会破坏宿主原有的菜单和权限计算流程
 
-#### Scenario: The host maintains a formal frontend slot directory
-- **WHEN** The host can publish frontend slots to the outside world.
-- **THEN** The host MUST maintain a formal frontend slot directory
-- **AND** Expose at least `layout.user-dropdown.after` and `dashboard.workspace.after` in one phase
-- **AND** Each slot MUST specify the hosting location, rendering container, recommended usage, ordering rules and failure degradation strategy
+### 需求：宿主发布前端 Slot 扩展点
+系统 SHALL 为前端页面和布局发布受控的 Slot 扩展点，允许插件在宿主暴露的位置插入 UI 内容。
 
-### Requirement: The host gives priority to publishing the universal frontend slot in the public interface layer.
-The system SHALL gives priority to publishing universal frontend slots in the layout interface, login interface, workbench interface and CRUD general interface to avoid binding extension points to a single business module.
+#### 场景：宿主维护正式的前端 Slot 目录
+- **当** 宿主可向外部发布前端 Slot 时
+- **则** 宿主必须维护正式的前端 Slot 目录
+- **且** 一期至少暴露 `layout.user-dropdown.after` 和 `dashboard.workspace.after`
+- **且** 每个 Slot 必须指定托管位置、渲染容器、推荐用法、排序规则和失败降级策略
 
-#### Scenario: The host releases the first batch of general public slots
-- **WHEN** Host expands frontend slot capabilities
-- **THEN** At least `layout.header.actions.before`, `layout.header.actions.after`, `auth.login.after`, `dashboard.workspace.before`, `crud.toolbar.after`, `crud.table.after` will be added in the first phase
-- **AND** These Slots MUST be attached to the existing public interface layer rather than a private page of a business module
-- **AND** The development document MUST simultaneously describe the host location and recommended content of each Slot.
+### 需求：宿主优先在公共接口层发布通用前端 Slot
+系统 SHALL 优先在布局接口、登录接口、工作台接口和 CRUD 通用接口中发布通用前端 Slot，避免将扩展点绑定到单个业务模块。
 
-#### Scenario: The plugin inserts content in the public area of the login page
-- **WHEN** An enabled plugin declares inserting frontend content into `auth.login.after`
-- **THEN** The host renders this content after the login page form
-- **AND** The content will be hidden immediately after the plugin is disabled
+#### 场景：宿主发布首批通用公共 Slot
+- **当** 宿主扩展前端 Slot 能力时
+- **则** 一期至少添加 `layout.header.actions.before`、`layout.header.actions.after`、`auth.login.after`、`dashboard.workspace.before`、`crud.toolbar.after`、`crud.table.after`
+- **且** 这些 Slot 必须附加到现有公共接口层，而非业务模块的私有页面
+- **且** 开发文档必须同时描述每个 Slot 的宿主位置和推荐内容
 
-#### Scenario: Plug-in inserts content into the CRUD universal interface
-- **WHEN** An enabled plugin declares inserting frontend content into `crud.toolbar.after` or `crud.table.after`
-- **THEN** The host renders the content below the general Grid toolbar area or table area
-- **AND** All pages that reuse this common interface can automatically obtain extension bits
+#### 场景：插件在登录页公共区域插入内容
+- **当** 已启用的插件声明向前端 `auth.login.after` 插入内容时
+- **则** 宿主在登录页表单后渲染该内容
+- **且** 插件禁用后该内容立即隐藏
 
-#### Scenario: Plug-in inserts content into the host layout
-- **WHEN** An enabled plugin declares inserting frontend content into `layout.user-dropdown.after`
-- **THEN** The host attempts to load the frontend entry declared by the plugin at the corresponding location of the Slot.
-- **AND** The Slot content of the source plugin MUST come from the real frontend source file, rather than relying solely on declarative JSON configuration
-- **AND** These source files are placed in the `frontend/slots/` directory by default and are discovered and mounted by the host during build
-- **AND** Plug-in content is only rendered within the scope of the container exposed by the host
-- **AND** Plug-ins cannot have unauthorized access to undisclosed host internal implementations
+#### 场景：插件向 CRUD 通用接口插入内容
+- **当** 已启用的插件声明向 `crud.toolbar.after` 或 `crud.table.after` 插入内容时
+- **则** 宿主在通用 Grid 工具栏区域或表格区域下方渲染内容
+- **且** 所有复用该通用接口的页面可自动获得扩展位
 
-#### Scenario: The plugin inserts the page entry into the menu bar in the upper right corner
-- **WHEN** An enabled plugin declaration inserts the plugin menu entry into `layout.user-dropdown.after`
-- **THEN** The host displays the entry copy in the menu bar in the upper right corner
-- **AND** After clicking this entry, the host will open the plugin Tab page using internal page navigation.
-- **AND** This process does not trigger a full page refresh
+#### 场景：插件向宿主布局插入内容
+- **当** 已启用的插件声明向 `layout.user-dropdown.after` 插入内容时
+- **则** 宿主在 Slot 对应位置尝试加载插件声明的前端入口
+- **且** 源码插件的 Slot 内容必须来自真实的前端源文件，而非仅依赖声明式 JSON 配置
+- **且** 这些源文件默认放置在 `frontend/slots/` 目录中，在构建时由宿主发现和挂载
+- **且** 插件内容仅在宿主暴露的容器范围内渲染
+- **且** 插件不得未经授权访问未公开的宿主内部实现
 
-#### Scenario: Activate the entrance route in the upper right corner immediately after enabling the plugin online in the login state.
-- **WHEN** The administrator enables a plugin that injects entries into `layout.user-dropdown.after` in the currently logged in session
-- **THEN** The host can synchronously refresh the dynamic routing corresponding to the entry without logging in again.
-- **AND** Users will not enter the 404 page after clicking this entry
-- **AND** The host directly opens the plugin page in Tab mode.
+#### 场景：插件在右上角菜单栏插入页面入口
+- **当** 已启用的插件声明将插件菜单入口插入 `layout.user-dropdown.after` 时
+- **则** 宿主在右上角菜单栏显示该入口文案
+- **且** 点击该入口后，宿主使用内部页面导航打开插件 Tab 页
+- **且** 该过程不触发整页刷新
 
-#### Scenario: The current session regains focus after the plugin state changes
-- **WHEN** Operations other than the currently logged in session change the plugin state which will inject `layout.user-dropdown.after` and the current tab regains focus
-- **THEN** The host automatically synchronizes the visibility of the Slot and the corresponding dynamic routing
-- **AND** The upper right corner entrance for enabled plugins reappears and can be opened normally
-- **AND** The upper right corner entrance of disabled plugins is hidden in time
+#### 场景：登录状态下在线启用插件后立即激活右上角入口路由
+- **当** 管理员在当前已登录会话中启用了向 `layout.user-dropdown.after` 注入入口的插件时
+- **则** 宿主可无需重新登录即可同步刷新该入口对应的动态路由
+- **且** 用户点击该入口后不会进入 404 页面
+- **且** 宿主以 Tab 模式直接打开插件页面
 
-#### Scenario: Plugin Slot contract mismatch
-- **WHEN** The frontend entry declared by the plugin is incompatible with the contract required by Slot
-- **THEN** The host skips the rendering of the plugin content
-- **AND** Host record contract mismatch error
-- **AND** Other host contents of the current page are rendered normally.
+#### 场景：插件状态变更后当前会话重新获得焦点
+- **当** 当前已登录会话外的操作变更了会注入 `layout.user-dropdown.after` 的插件状态，且当前标签页重新获得焦点时
+- **则** 宿主自动同步 Slot 的可见性和对应的动态路由
+- **且** 已启用插件的右上角入口重新出现并可正常打开
+- **且** 已禁用插件的右上角入口及时隐藏
 
-### Requirement: Hook and Slot execution order is predictable
-The system SHALL defines a stable execution order for multiple plugins on the same Hook or Slot.
+#### 场景：插件 Slot 契约不匹配
+- **当** 插件声明的前端入口与 Slot 要求的契约不兼容时
+- **则** 宿主跳过该插件内容的渲染
+- **且** 宿主记录契约不匹配错误
+- **且** 当前页面的其他宿主内容正常渲染
 
-#### Scenario: Multiple plugins subscribe to the same Hook
-- **WHEN** Multiple plugins subscribe to the same backend Hook or frontend Slot at the same time
-- **THEN** The host executes according to manifest explicit priority or unified default ordering rules
-- **AND** The execution order under the same input remains consistent on each node
+### 需求：Hook 和 Slot 执行顺序可预测
+系统 SHALL 为同一 Hook 或 Slot 上的多个插件定义稳定的执行顺序。
 
-### Requirement: Hook and Slot identifiers MUST use special type definitions
-The system SHALL uses specialized types to define legal plugin installation locations to avoid littering the host implementation and plugin examples with hard-coded strings.
+#### 场景：多个插件订阅同一 Hook
+- **当** 多个插件同时订阅同一后端 Hook 或前端 Slot 时
+- **则** 宿主按清单显式优先级或统一默认排序规则执行
+- **且** 相同输入下的执行顺序在每个节点上保持一致
 
-#### Scenario: Backend extension points declared in Go
-- **WHEN** The host implements the backend Hook slot or registered callback extension point
-- **THEN** The host MUST declare legal backend extension point identifiers using Go `type` and constants
-- **AND** The plugin backend example refers to the extension point through this type constant instead of writing the event name string directly.
-- **AND** The host's internal service layer shall not maintain an additional set of semantically repeated alias constants.
+### 退求：Hook 和 Slot 标识符必须使用专用类型定义
+系统 SHALL 使用专用类型定义合法的插件安装位置，避免硬编码字符串散落在宿主实现和插件示例中。
 
-#### Scenario: Front-end Slot slot declared in TypeScript
-- **WHEN** The host implements the frontend Slot slot
-- **THEN** The host MUST use TypeScript constants and type declarations to declare legal slot identifiers
-- **AND** The host page, Slot loader and plugin frontend examples reference slots through a unified type instead of directly writing the Slot name string.
+#### 场景：Go 中声明的后端扩展点
+- **当** 宿主实现后端 Hook Slot 或注册式回调扩展点时
+- **则** 宿主必须使用 Go `type` 和常量声明合法的后端扩展点标识符
+- **且** 插件后端示例通过该类型常量引用扩展点，而非直接写事件名字符串
+- **且** 宿主内部服务层不得维护额外一套语义重复的别名常量
 
-#### Scenario: Plugin declares unknown slot
-- **WHEN** The plugin declares a Hook or Slot identifier that is not published by the host
-- **THEN** The host rejects the declaration or skips loading
-- **AND** The host logs the error message "The slot is not released or the contract is not supported"
+#### 场景：TypeScript 中声明的前端 Slot
+- **当** 宿主实现前端 Slot 时
+- **则** 宿主必须使用 TypeScript 常量和类型声明合法的 Slot 标识符
+- **且** 宿主页面、Slot 加载器和插件前端示例通过统一类型引用 Slot，而非直接写 Slot 名称字符串
 
-### Requirement: The host provides slot technical documentation for plugin developers.
-The system SHALL precipitates the frontend and backend slot directories, type definitions and example usage into technical documents that plugin developers can directly consult.
+#### 场景：插件声明未知 Slot
+- **当** 插件声明宿主未发布的 Hook 或 Slot 标识符时
+- **则** 宿主拒绝声明或跳过加载
+- **且** 宿主记录错误消息"The slot is not released or the contract is not supported"
 
-#### Scenario: Publish plugin development guide
-- **WHEN** The host adds, adjusts or officially releases Hook/Slot slots
-- **THEN** Host synchronization update `apps/lina-plugins/README.md`
-- **AND** Clear distinction between "released slots" and "subsequent planned slots" in the document
-- **AND** The recommended citation method for Go and frontend source plugins is given in the document
+### 需求：宿主为插件开发者提供 Slot 技术文档
+系统 SHALL 将前端和后端 Slot 目录、类型定义和示例用法沉淀为插件开发者可直接查阅的技术文档。
 
-### Requirement: Dynamic plugin routing management metadata is concentrated in `g.Meta`
+#### 场景：发布插件开发指南
+- **当** 宿主新增、调整或正式发布 Hook/Slot 时
+- **则** 宿主同步更新 `apps/lina-plugins/README.md`
+- **且** 文档中明确区分"已发布 Slot"和"后续规划 Slot"
+- **且** 文档中给出 Go 和前端源码插件的推荐引用方式
 
-The system SHALL require the dynamic plugin to centrally define backend dynamic-routing management metadata in `g.Meta` of the API-layer request structure, avoiding a second scattered routing-management configuration source. Host-governed route fields SHALL remain explicit, while plugin-defined route metadata SHALL be transported through the generic route-contract `meta` map without host interpretation.
+### 需求：动态插件路由管理元数据集中在 `g.Meta` 中
 
-#### Scenario: Dynamic plugin declares minimum governance fields
+系统 SHALL 要求动态插件在 API 层请求结构体的 `g.Meta` 中集中定义后端动态路由管理元数据，避免二次分散的路由管理配置源。宿主治理的路由字段 SHALL 保持显式，插件定义的路由元数据 SHALL 通过通用路由契约 `meta` map 传输，宿主不解释。
 
-- **WHEN** a developer defines a dynamic plugin backend interface
-- **THEN** the interface can declare `access` and `permission` in `g.Meta`
-- **AND** plugin-specific route declarations can be added as extra `g.Meta` tags and will be preserved in route-contract `meta`
-- **AND** `access` supports only `public` and `login`
-- **AND** missing `access` is treated as `login`
+#### 场景：动态插件声明最小治理字段
 
-#### Scenario: Public routing governance boundaries are limited
+- **当** 开发者定义动态插件后端接口时
+- **则** 接口可在 `g.Meta` 中声明 `access` 和 `permission`
+- **且** 插件特定的路由声明可作为额外 `g.Meta` 标签添加，并保留在路由契约 `meta` 中
+- **且** `access` 仅支持 `public` 和 `login`
+- **且** 缺少 `access` 视为 `login`
 
-- **WHEN** a developer declares a `public` dynamic route
-- **THEN** the route MUST NOT declare `permission`
-- **AND** the route MUST NOT rely on host login state injection
-- **AND** illegal host-governance configurations are rejected during the host loading phase
+#### 场景：公共路由治理边界有限
 
-### Requirement: Dynamic plugin permission declaration reuses the host’s existing permission system
+- **当** 开发者声明 `public` 动态路由时
+- **则** 路由不得声明 `permission`
+- **且** 路由不得依赖宿主登录状态注入
+- **且** 非法的宿主治理配置在宿主加载阶段被拒绝
 
-The system SHALL automatically connects the `permission` statement in dynamic routing to the host's existing `sys_menu.perms` permission system, instead of introducing an independent dynamic permission storage model.
+### 需求：动态插件权限声明复用宿主现有权限系统
 
-#### Scenario: Dynamic routing permissions are materialized as hidden menu items
+系统 SHALL 将动态路由中的 `permission` 声明自动接入宿主现有的 `sys_menu.perms` 权限系统，而非引入独立的动态权限存储模型。
 
-- **WHEN** A dynamic route declares a valid `permission`
-- **THEN** The host automatically generates corresponding hidden permission menu items during the plugin menu synchronization phase.
-- **AND** These permission menu items are mounted in the plugin's exclusive dynamic routing permission directory.
-- **AND** The permission value directly reuses the `permission` declared by the dynamic routing
+#### 场景：动态路由权限物化为隐藏菜单项
 
-#### Scenario: Dynamic routing permissions are synchronized with the plugin life cycle
+- **当** 动态路由声明有效的 `permission` 时
+- **则** 宿主在插件菜单同步阶段自动生成对应的隐藏权限菜单项
+- **且** 这些权限菜单项挂载在插件专属的动态路由权限目录下
+- **且** 权限值直接复用动态路由声明的 `permission`
 
-- **WHEN** Dynamic plugins are enabled, disabled, uninstalled or switched to active versions
-- **THEN** The host synchronously adds, updates or removes the corresponding hidden permission menu items
-- **AND** The default administrator role continues to have these permissions automatically
+#### 场景：动态路由权限与插件生命周期同步
 
-### Requirement: Dynamic plugins do not directly combine host management middleware
+- **当** 动态插件被启用、禁用、卸载或切换活跃版本时
+- **则** 宿主同步添加、更新或移除对应的隐藏权限菜单项
+- **且** 默认管理员角色继续自动拥有这些权限
 
-The system SHALL maintains dynamic plugins as a restricted business extension model and does not open the free assembly capabilities of host `Auth`, `Ctx`, `OperLog` and other management middleware to dynamic plugins.
+### 需求：动态插件不得自由组合宿主管理中间件
 
-#### Scenario: Dynamic governance is uniformly executed by the host
+系统 SHALL 将动态插件作为受限的业务扩展模型维护，不向动态插件开放宿主 `Auth`、`Ctx`、`OperLog` 等管理中间件的自由组合能力。
 
-- **WHEN** A dynamic plugin route is hit by an external request
-- **THEN** Login verification, permission verification and business context injection are uniformly executed by the host based on the routing contract
-- **AND** The dynamic plugin only declares governance requirements and does not directly call the host governance middleware.
+#### 场景：动态治理由宿主统一执行
 
-### Requirement: Dynamic plugins reuse public bridge components to reduce writing complexity
+- **当** 动态插件路由被外部请求命中时
+- **则** 登录验证、权限验证和业务上下文注入由宿主基于路由契约统一执行
+- **且** 动态插件仅声明治理需求，不直接调用宿主治理中间件
 
-The system SHALL abstracts the dynamic plugin bridge envelope, binary codec, guest-side processor adaptation, error response assistance, and typed guest controller adaptation into `apps/lina-core/pkg` public components, preventing plugin authors from repeatedly writing the underlying ABI, codec templates, and manual conversion logic from envelope to API DTO in each dynamic plugin.
+### 需求：动态插件复用公共桥接组件降低编写复杂度
 
-#### Scenario: Dynamic plugin controller directly reuses API request and response DTO
+系统 SHALL 将动态插件桥接信封、二进制编解码、guest 端处理器适配、错误响应辅助和类型化 guest 控制器适配抽象到 `apps/lina-core/pkg` 公共组件中，防止插件作者在每个动态插件中重复编写底层 ABI、编解码模板和从信封到 API DTO 的手动转换逻辑。
 
-- **WHEN** Developer implements guest controller for a dynamic plugin route that has declared DTO in `backend/api/.../v1`
-- **THEN** The controller can declare methods using the form `func(ctx context.Context, req *v1.XxxReq) (res *v1.XxxRes, err error)`
-- **AND** guest route dispatcher matches runtime `RequestType` based on request DTO type name
-- **AND** The dynamic routing contract built by the host continues to reuse the same API DTO metadata
+#### 场景：动态插件控制器直接复用 API 请求和响应 DTO
 
-#### Scenario: typed guest controller can still access the bridge context and write custom responses
+- **当** 开发者为已在 `backend/api/.../v1` 中声明 DTO 的动态插件路由实现 guest 控制器时
+- **则** 控制器可使用 `func(ctx context.Context, req *v1.XxxReq) (res *v1.XxxRes, err error)` 形式声明方法
+- **且** guest 路由分发器根据请求 DTO 类型名匹配运行时 `RequestType`
+- **且** 宿主构建的动态路由契约继续复用同一 API DTO 元数据
 
-- **WHEN** typed guest controller needs to read `pluginId`, `requestId`, identity snapshot, routing metadata, or return download stream / additional response header / custom status code
-- **THEN** `pkg/pluginbridge` MUST provide helper methods for reading the bridge envelope from `context.Context`
-- **AND** The component MUST provide helper methods for writing response headers, raw response bodies, or custom status codes
-- **AND** Plugin authors do not need to fall back to directly declaring `func(*BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)` to complete these scenarios
+#### 场景：类型化 guest 控制器仍可访问桥接上下文和写入自定义响应
 
+- **当** 类型化 guest 控制器需要读取 `pluginId`、`requestId`、身份快照、路由元数据，或返回下载流/额外响应头/自定义状态码时
+- **则** `pkg/pluginbridge` 必须提供从 `context.Context` 读取桥接信封的辅助方法
+- **且** 组件必须提供写入响应头、原始响应体或自定义状态码的辅助方法
+- **且** 插件作者无需回退到直接声明 `func(*BridgeRequestEnvelopeV1) (*BridgeResponseEnvelopeV1, error)` 来完成这些场景

@@ -1,48 +1,48 @@
-# E2E Suite Organization
+# E2E 测试套件组织规范
 
-## Purpose
+## 目的
 
-Define the directory ownership, helper placement, and TC-governance rules of the Playwright E2E suite so the test tree remains aligned with stable LinaPro capability boundaries and stays easy to maintain.
+定义 Playwright E2E 测试套件的目录归属、辅助文件放置和 TC 治理规则，确保测试树与稳定的 LinaPro 能力边界保持对齐且易于维护。
 
-## Requirements
+## 需求
 
-### Requirement: E2E test cases MUST be organized by stable capability boundaries
-The E2E suite SHALL organize test directories by the current stable workbench capability boundaries and plugin ownership. It MUST NOT continue to pile most capability tests into an overloaded legacy catch-all directory. Second-level directories MAY be used for finer-grained capability splits, but the first-level directories MUST still reflect stable capability boundaries.
+### 需求：E2E 测试用例必须按稳定能力边界组织
+E2E 测试套件 SHALL 按当前稳定的工作台能力边界和插件归属组织测试目录。不得继续将大多数能力测试堆积到超载的遗留兜底目录中。二级目录可用于更细粒度的能力拆分，但一级目录必须仍反映稳定的能力边界。
 
-#### Scenario: Host-owned capability tests land in the matching capability directory
-- **WHEN** a team adds or migrates a host-owned capability test file
-- **THEN** that file MUST land in a directory aligned with the current workbench capability boundary, such as `iam/`, `settings/`, `scheduler/`, `extension/`, `dashboard/`, or `about/`
+#### 场景：宿主归属的能力测试落入匹配的能力目录
+- **当** 团队添加或迁移宿主归属的能力测试文件时
+- **则** 该文件必须落入与当前工作台能力边界对齐的目录，如 `iam/`、`settings/`、`scheduler/`、`extension/`、`dashboard/` 或 `about/`
 
-#### Scenario: Plugin-owned capability tests land in the matching plugin capability directory
-- **WHEN** a team adds or migrates a plugin capability test file
-- **THEN** that file MUST land in a directory that expresses the plugin capability boundary, such as `monitor/operlog/`, `monitor/loginlog/`, `org/dept/`, or `content/notice/`
+#### 场景：插件归属的能力测试落入匹配的插件能力目录
+- **当** 团队添加或迁移插件能力测试文件时
+- **则** 该文件必须落入表达插件能力边界的目录，如 `monitor/operlog/`、`monitor/loginlog/`、`org/dept/` 或 `content/notice/`
 
-#### Scenario: Second-level directories express subdomains instead of reviving legacy buckets
-- **WHEN** a capability contains multiple clear subdomains
-- **THEN** the suite MAY use second-level directories to express those subdomains
-- **AND** it MUST NOT reintroduce a new overloaded catch-all directory in place of the stable capability boundary
+#### 场景：二级目录表达子域而非恢复遗留桶
+- **当** 一个能力包含多个清晰的子域时
+- **则** 测试套件可使用二级目录表达这些子域
+- **且** 不得重新引入新的超载兜底目录来替代稳定的能力边界
 
-### Requirement: Non-test files MUST NOT be mixed into the E2E test tree
-The `hack/tests/e2e/` directory tree SHALL contain only real test-case files. Shared helpers, wait utilities, debug scripts, and execution-governance scripts MUST live in dedicated support directories and MUST NOT be mixed with `TC*.ts` files.
+### 需求：非测试文件不得混入 E2E 测试树
+`hack/tests/e2e/` 目录树 SHALL 仅包含真实的测试用例文件。共享辅助、等待工具、调试脚本和执行治理脚本必须位于专用支持目录中，不得与 `TC*.ts` 文件混放。
 
-#### Scenario: Shared helpers live in support directories
-- **WHEN** tests need shared API helpers, wait utilities, or data builders
-- **THEN** those files MUST live in `fixtures/`, `support/`, `scripts/`, or an equivalent dedicated support directory
-- **AND** they MUST NOT live under `hack/tests/e2e/`
+#### 场景：共享辅助位于支持目录
+- **当** 测试需要共享 API 辅助、等待工具或数据构建器时
+- **则** 这些文件必须位于 `fixtures/`、`support/`、`scripts/` 或等效的专用支持目录
+- **且** 不得位于 `hack/tests/e2e/` 下
 
-#### Scenario: Debug scripts do not pollute test discovery
-- **WHEN** the team adds a temporary debug or investigation script
-- **THEN** that file MUST live in a dedicated debug directory
-- **AND** it MUST NOT appear in the E2E discovery scope
+#### 场景：调试脚本不污染测试发现
+- **当** 团队添加临时调试或调查脚本时
+- **则** 该文件必须位于专用调试目录
+- **且** 不得出现在 E2E 发现范围内
 
-### Requirement: TC numbering and directory ownership MUST be automatically validated
-The E2E suite SHALL provide automated inventory and validation to check TC naming, global uniqueness, and directory ownership so duplicate TC IDs, invalid files, and misplaced tests do not linger in the repository.
+### 需求：TC 编号和目录归属必须自动验证
+E2E 测试套件 SHALL 提供自动化的清单和验证来检查 TC 命名、全局唯一性和目录归属，确保重复的 TC ID、无效文件和错放的测试不会在仓库中滞留。
 
-#### Scenario: TC identifiers are globally unique
-- **WHEN** the validator scans all `TC*.ts` files
-- **THEN** the system MUST detect and report any duplicate TC identifier
+#### 场景：TC 标识符全局唯一
+- **当** 验证器扫描所有 `TC*.ts` 文件时
+- **则** 系统必须检测并报告任何重复的 TC 标识符
 
-#### Scenario: Invalid files are reported automatically
-- **WHEN** the validator scans `hack/tests/e2e/`
-- **THEN** the system MUST report any file that does not follow the `TC{NNNN}-{brief-name}.ts` convention
-- **AND** it MUST report any test file that lives outside the allowed capability-directory mapping
+#### 场景：无效文件自动报告
+- **当** 验证器扫描 `hack/tests/e2e/` 时
+- **则** 系统必须报告任何不遵循 `TC{NNNN}-{brief-name}.ts` 约定的文件
+- **且** 必须报告任何位于允许的能力目录映射之外的测试文件

@@ -1,118 +1,118 @@
-# Host Runtime Operations
+# 宿主运行时操作
 
-## Purpose
+## 目的
 
-Define host operational behavior for health probing, graceful shutdown, protected upload access, HTTP entry organization, configuration service boundaries, and runtime defaults.
+定义宿主在健康探测、优雅关闭、受保护上传访问、HTTP 入口组织、配置服务边界和运行时默认值方面的操作行为。
 
-## Requirements
+## 需求
 
-### Requirement: Host must provide an anonymous health probe endpoint
+### 需求：宿主必须提供匿名健康探测端点
 
-The host SHALL provide `GET /api/v1/health` under the public route group, accessible without login state. The endpoint MUST be exposed through standard API DTO and controller flow, return service self-check results, and include one lightweight database probe. When the database is unavailable or the probe times out, it MUST return HTTP `503` with a stable redacted unavailable reason. When healthy, it MUST return HTTP `200` with `{"status":"ok","mode":"<single|master|slave>"}`. Probe timeout SHALL be controlled by configuration key `health.timeout`, default `5s`, and parsed as `time.Duration`.
+宿主 SHALL 在公共路由组下提供 `GET /api/v1/health`，无需登录状态即可访问。该端点必须通过标准 API DTO 和控制器流程暴露，返回服务自检结果，并包含一个轻量级数据库探测。数据库不可用或探测超时时，必须返回 HTTP `503` 和稳定的脱敏不可用原因。健康时，必须返回 HTTP `200` 和 `{"status":"ok","mode":"<single|master|slave>"}`。探测超时 SHALL 由配置键 `health.timeout` 控制，默认 `5s`，解析为 `time.Duration`。
 
-#### Scenario: Health probe returns 200 when database is healthy
+#### 场景：数据库健康时健康探测返回 200
 
-- **WHEN** a caller anonymously accesses `GET /api/v1/health`
-- **AND** the database is reachable and the probe completes within the timeout
-- **THEN** the endpoint returns `200` and the response body includes `status="ok"` plus current deployment `mode`
-- **AND** the endpoint does not require an `Authorization` header
+- **当** 调用方匿名访问 `GET /api/v1/health`
+- **且** 数据库可达且探测在超时内完成
+- **则** 端点返回 `200`，响应体包含 `status="ok"` 加当前部署 `mode`
+- **且** 端点不要求 `Authorization` 头
 
-#### Scenario: Health probe returns 503 when database is unavailable
+#### 场景：数据库不可用时健康探测返回 503
 
-- **WHEN** a caller anonymously accesses `GET /api/v1/health`
-- **AND** the database probe does not return within `health.timeout`
-- **THEN** the endpoint returns `503` and the response body includes `status="unavailable"` plus a stable redacted reason
-- **AND** raw database, network, or schema errors MUST only be logged and MUST NOT be returned to anonymous callers
+- **当** 调用方匿名访问 `GET /api/v1/health`
+- **且** 数据库探测未在 `health.timeout` 内返回
+- **则** 端点返回 `503`，响应体包含 `status="unavailable"` 加稳定的脱敏原因
+- **且** 原始数据库、网络或模式错误必须仅记录日志，不得返回给匿名调用方
 
-#### Scenario: Health probe is not mounted under protected routes
+#### 场景：健康探测不挂载在受保护路由下
 
-- **WHEN** the service starts and route registration completes
-- **THEN** `/api/v1/health` MUST be registered under the public route group
-- **AND** Auth and Permission middleware MUST NOT intercept that route
+- **当** 服务启动且路由注册完成时
+- **则** `/api/v1/health` 必须注册在公共路由组下
+- **且** Auth 和 Permission 中间件不得拦截该路由
 
-### Requirement: Host must reuse GoFrame HTTP graceful shutdown
+### 需求：宿主必须复用 GoFrame HTTP 优雅关闭
 
-The host SHALL use the built-in process signal handling and HTTP graceful shutdown behavior of GoFrame `Server.Run()` for `SIGTERM`, `SIGINT`, and similar shutdown signals. `internal/cmd/cmd_http.go` MUST NOT register `os/signal` again or reimplement an HTTP server shutdown loop. After GoFrame `Server.Run()` returns, the host MUST clean up owned runtime resources in this order: stop the cron scheduler, stop the cluster service, and close the database connection pool. Host-owned cleanup MUST be bounded by `shutdown.timeout`, default `30s`; `shutdown.timeout` MUST use a unit-bearing string configuration value parsed as `time.Duration`.
+宿主 SHALL 对 `SIGTERM`、`SIGINT` 和类似关闭信号使用 GoFrame `Server.Run()` 的内置进程信号处理和 HTTP 优雅关闭行为。`internal/cmd/cmd_http.go` 不得再次注册 `os/signal` 或重新实现 HTTP 服务器关闭循环。GoFrame `Server.Run()` 返回后，宿主必须按此顺序清理拥有的运行时资源：停止 cron 调度器、停止集群服务、关闭数据库连接池。宿主拥有的清理必须受 `shutdown.timeout` 约束，默认 `30s`；`shutdown.timeout` 必须使用带单位的字符串配置值，解析为 `time.Duration`。
 
-#### Scenario: SIGTERM reuses GoFrame HTTP shutdown
+#### 场景：SIGTERM 复用 GoFrame HTTP 关闭
 
-- **WHEN** the host process receives `SIGTERM`
-- **THEN** HTTP server shutdown MUST be triggered by GoFrame `Server.Run()` built-in signal handling
-- **AND** `cmd_http.go` MUST NOT also register an extra `signal.NotifyContext` or equivalent `os/signal` listener
-- **AND** the Cron scheduler MUST stop accepting new triggers and wait for in-flight jobs after `Server.Run()` returns
-- **AND** the cluster service MUST stop after the Cron scheduler shuts down
-- **AND** the database connection pool MUST close after Cron shutdown
-- **AND** host-owned runtime cleanup MUST complete within `shutdown.timeout`
+- **当** 宿主进程收到 `SIGTERM` 时
+- **则** HTTP 服务器关闭必须由 GoFrame `Server.Run()` 内置信号处理触发
+- **且** `cmd_http.go` 不得再注册额外的 `signal.NotifyContext` 或等效的 `os/signal` 监听器
+- **且** Cron 调度器必须在 `Server.Run()` 返回后停止接受新触发并等待进行中的任务
+- **且** 集群服务必须在 Cron 调度器关闭后停止
+- **且** 数据库连接池必须在 Cron 关闭后关闭
+- **且** 宿主拥有的运行时清理必须在 `shutdown.timeout` 内完成
 
-#### Scenario: Owned runtime cleanup times out
+#### 场景：拥有的运行时清理超时
 
-- **WHEN** shutdown exceeds `shutdown.timeout`
-- **THEN** the host MUST log a timeout warning and return an error
-- **AND** the process MUST NOT hang forever
+- **当** 关闭超过 `shutdown.timeout` 时
+- **则** 宿主必须记录超时警告并返回错误
+- **且** 进程不得永久挂起
 
-### Requirement: Upload file access endpoint must belong to the file module and use host unified authorization
+### 需求：上传文件访问端点必须归属文件模块并使用宿主统一授权
 
-The host SHALL declare `GET /api/v1/uploads/*` through file API DTOs and the file controller, and register it with the file controller under the protected route group. Unified Auth and Permission middleware MUST handle authentication and permission checks. Anonymous callers MUST NOT directly access uploaded files. The endpoint permission tag SHALL align with the file module menu/button permission. The implementation MUST query file metadata from the relative storage path in the URL and read file streams through the file service storage backend. It MUST NOT concatenate local upload directories or directly access local filesystem paths in `internal/cmd/cmd_http.go`.
+宿主 SHALL 通过文件 API DTO 和文件控制器声明 `GET /api/v1/uploads/*`，并在受保护路由组下注册到文件控制器。统一 Auth 和 Permission 中间件必须处理认证和权限检查。匿名调用方不得直接访问上传文件。端点权限标签 SHALL 与文件模块菜单/按钮权限对齐。实现必须从 URL 中的相对存储路径查询文件元数据，并通过文件服务存储后端读取文件流。不得在 `internal/cmd/cmd_http.go` 中拼接本地上传目录或直接访问本地文件系统路径。
 
-#### Scenario: Unauthenticated access is rejected
+#### 场景：未认证访问被拒绝
 
-- **WHEN** an anonymous caller requests `GET /api/v1/uploads/<path>`
-- **THEN** the host MUST return a standard unauthenticated response, such as 401 or equivalent business code
-- **AND** file content MUST NOT appear in the response body
+- **当** 匿名调用方请求 `GET /api/v1/uploads/<path>` 时
+- **则** 宿主必须返回标准未认证响应，如 401 或等效业务码
+- **且** 文件内容不得出现在响应体中
 
-#### Scenario: Authenticated caller without permission is rejected
+#### 场景：已认证但无权限的调用方被拒绝
 
-- **WHEN** an authenticated caller without file read permission requests `GET /api/v1/uploads/<path>`
-- **THEN** the host MUST return a standard forbidden response, such as 403 or equivalent business code
+- **当** 无文件读取权限的已认证调用方请求 `GET /api/v1/uploads/<path>` 时
+- **则** 宿主必须返回标准禁止响应，如 403 或等效业务码
 
-#### Scenario: Authenticated caller with permission gets the file
+#### 场景：有权限的已认证调用方获取文件
 
-- **WHEN** an authenticated caller with file read permission requests `GET /api/v1/uploads/<path>`
-- **AND** the file exists
-- **THEN** the host returns `200` with file content
-- **AND** file content is read through the file service and storage backend, not through a local-path handler in `cmd_http.go`
+- **当** 有文件读取权限的已认证调用方请求 `GET /api/v1/uploads/<path>`
+- **且** 文件存在时
+- **则** 宿主返回 `200` 和文件内容
+- **且** 文件内容通过文件服务和存储后端读取，而非通过 `cmd_http.go` 中的本地路径处理器
 
-### Requirement: Host must remove empty audit placeholder packages
+### 需求：宿主必须移除空的审计占位包
 
-Host source MUST NOT keep zero-file placeholder directories such as `apps/lina-core/pkg/auditi18n/` and `apps/lina-core/pkg/audittype/`. Real audit-log capability MAY be introduced by a separate iteration, but the main codebase MUST NOT retain placeholders that imply audit capability already exists.
+宿主源码不得保留 `apps/lina-core/pkg/auditi18n/` 和 `apps/lina-core/pkg/audittype/` 等零文件占位目录。真正的审计日志能力可通过单独迭代引入，但主代码库不得保留暗示审计能力已存在的占位符。
 
-#### Scenario: Repository does not contain empty audit placeholder directories
+#### 场景：仓库不包含空的审计占位目录
 
-- **WHEN** `apps/lina-core/pkg/` is inspected
-- **THEN** `auditi18n` and `audittype` directories MUST NOT exist
-- **OR** if they exist, they MUST contain at least one effective `.go` file
+- **当** 检查 `apps/lina-core/pkg/` 时
+- **则** `auditi18n` 和 `audittype` 目录不得存在
+- **或** 如果存在，必须包含至少一个有效的 `.go` 文件
 
-### Requirement: HTTP entry code must be split by responsibility
+### 需求：HTTP 入口代码必须按职责拆分
 
-The host SHALL keep `apps/lina-core/internal/cmd/cmd_http.go` focused on HTTP command entry orchestration. HTTP runtime service construction, API route binding, frontend static resource serving, host OpenAPI binding, and post-start lifecycle hooks MUST be maintained in separately named source files in the same package, so one HTTP entry file does not carry multiple infrastructure implementation details.
+宿主 SHALL 保持 `apps/lina-core/internal/cmd/cmd_http.go` 聚焦于 HTTP 命令入口编排。HTTP 运行时服务构建、API 路由绑定、前端静态资源服务、宿主 OpenAPI 绑定和启动后生命周期钩子必须在同一包中的独立命名源文件中维护，避免一个 HTTP 入口文件承载多个基础设施实现细节。
 
-#### Scenario: HTTP entry file remains lightweight orchestration
+#### 场景：HTTP 入口文件保持轻量编排
 
-- **WHEN** a maintainer opens `apps/lina-core/internal/cmd/cmd_http.go`
-- **THEN** the file SHOULD contain only `HttpInput`, `HttpOutput`, and `Main.Http` startup orchestration
-- **AND** concrete route binding, runtime construction, static resource serving, and OpenAPI handlers MUST live in independent `cmd_http_*.go` files
+- **当** 维护者打开 `apps/lina-core/internal/cmd/cmd_http.go` 时
+- **则** 文件应仅包含 `HttpInput`、`HttpOutput` 和 `Main.Http` 启动编排
+- **且** 具体的路由绑定、运行时构建、静态资源服务和 OpenAPI 处理器必须位于独立的 `cmd_http_*.go` 文件中
 
-### Requirement: Configuration service interface must compose categories
+### 需求：配置服务接口必须组合分类
 
-The top-level host configuration `Service` interface SHALL compose narrower responsibility-based interfaces through embedding. Configuration capabilities for auth, login, cluster, frontend, i18n, cron, host runtime, delivery metadata, plugin, upload, and runtime parameter synchronization MUST be maintained in clearly named category interfaces, avoiding direct accumulation of every method on the top-level `Service`.
+顶层宿主配置 `Service` 接口 SHALL 通过嵌入组合更窄的基于职责的接口。认证、登录、集群、前端、国际化、cron、宿主运行时、交付元数据、插件、上传和运行时参数同步的配置能力必须在命名清晰的分类接口中维护，避免在顶层 `Service` 上直接累积每个方法。
 
-#### Scenario: Service interface composes category interfaces
+#### 场景：Service 接口组合分类接口
 
-- **WHEN** a maintainer reviews `apps/lina-core/internal/service/config/config.go`
-- **THEN** the `Service` interface MUST embed multiple category interfaces
-- **AND** methods in each category interface MUST keep responsibility comments next to their declarations
-- **AND** `serviceImpl` MUST continue implementing the complete `Service` contract
+- **当** 维护者审查 `apps/lina-core/internal/service/config/config.go` 时
+- **则** `Service` 接口必须嵌入多个分类接口
+- **且** 每个分类接口中的方法必须在声明旁保留职责注释
+- **且** `serviceImpl` 必须继续实现完整的 `Service` 契约
 
-### Requirement: Scheduler default timezone must be configurable
+### 需求：调度器默认时区必须可配置
 
-The host SHALL replace the hard-coded default timezone in `cron_managed_jobs.go` with configuration key `scheduler.defaultTimezone`, defaulting to `UTC`. Source code MUST NOT keep hard-coded constants such as `defaultManagedJobTimezone = "Asia/Shanghai"`.
+宿主 SHALL 将 `cron_managed_jobs.go` 中的硬编码默认时区替换为配置键 `scheduler.defaultTimezone`，默认为 `UTC`。源码不得保留 `defaultManagedJobTimezone = "Asia/Shanghai"` 等硬编码常量。
 
-#### Scenario: Missing configuration uses UTC
+#### 场景：缺失配置使用 UTC
 
-- **WHEN** the configuration file does not declare `scheduler.defaultTimezone`
-- **THEN** the host uses `UTC` as the default timezone when registering built-in jobs
+- **当** 配置文件未声明 `scheduler.defaultTimezone` 时
+- **则** 宿主在注册内置任务时使用 `UTC` 作为默认时区
 
-#### Scenario: Custom configured timezone takes effect
+#### 场景：自定义配置的时区生效
 
-- **WHEN** the configuration file sets `scheduler.defaultTimezone: "Asia/Shanghai"`
-- **THEN** the host uses `Asia/Shanghai` when registering built-in jobs
+- **当** 配置文件设置 `scheduler.defaultTimezone: "Asia/Shanghai"` 时
+- **则** 宿主在注册内置任务时使用 `Asia/Shanghai`
