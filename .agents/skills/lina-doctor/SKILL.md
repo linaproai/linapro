@@ -3,7 +3,9 @@ name: lina-doctor
 description: "LinaPro 环境检查与依赖安装技能, covers environment, install, fix, lina-doctor, dependencies, toolchain"
 ---
 
-# Lina Doctor 环境医生
+# Lina Doctor 环境检查与依赖安装
+
+**交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
 
 ## 用途
 

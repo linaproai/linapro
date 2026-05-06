@@ -1,78 +1,80 @@
 ---
 name: lina-upgrade
-description: Upgrade LinaPro framework or source plugins through an AI-guided, script-driven workflow covering upgrade, linapro, framework, and plugin tasks.
+description: 通过 AI 引导、脚本驱动的工作流升级 LinaPro 框架或源码插件，覆盖升级、LinaPro、框架和插件任务。
 ---
 
-# Purpose
+**交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
 
-`lina-upgrade` guides AI tools through development-time upgrades for `LinaPro`.
-It replaces the removed `make upgrade` entry point and keeps upgrades script-driven with `bash`, `git`, and `make`.
+# 用途
 
-The skill has two scopes:
+`lina-upgrade` 引导 AI 工具完成 `LinaPro` 的开发期升级。
+它替代了已移除的 `make upgrade` 入口，保持升级流程通过 `bash`、`git` 和 `make` 脚本驱动。
 
-- `framework`: upgrade `apps/lina-core/`, `apps/lina-vben/`, shared manifests, and generated host artifacts.
-- `source-plugin`: upgrade one source plugin or all source plugins under `apps/lina-plugins/`.
+此技能有两个范围：
 
-It does not upgrade dynamic plugins and does not introduce a new binary `CLI` or project-level configuration file.
+- `framework`：升级 `apps/lina-core/`、`apps/lina-vben/`、共享清单和生成的宿主工件。
+- `source-plugin`：升级 `apps/lina-plugins/` 下的单个或所有源码插件。
 
-# When to Invoke
+不升级动态插件，也不引入新的二进制 `CLI` 或项目级配置文件。
 
-Invoke this skill when the user asks for any of these intents:
+# 调用时机
 
-- "upgrade LinaPro to `v0.6.0`"
-- "upgrade the framework"
-- "run framework upgrade"
+当用户表达以下意图时调用此技能：
+
+- "升级 LinaPro 到 `v0.6.0`"
+- "升级框架"
+- "运行框架升级"
 - "升级 LinaPro 框架到 `v0.6.0`"
 - "升级源码插件 `plugin-demo-source`"
 - "upgrade source plugin `plugin-demo-source`"
 - "upgrade all source plugins"
 
-If the request does not clearly say `framework` or `source-plugin`, ask one concise clarification question before running scripts.
+如果请求未明确说明 `framework` 或 `source-plugin`，在运行脚本前先提出一个简短的澄清问题。
 
-# Inputs the AI Must Collect from the User
+# AI 必须从用户收集的输入
 
-Prerequisite: ensure `gf` and `openspec` are installed; invoke `lina-doctor` first if any tool is missing.
+前提条件：确保 `gf` 和 `openspec` 已安装；如有缺失，先调用 `lina-doctor`。
 
-| Input | Required When | Notes |
+| 输入 | 何时必需 | 说明 |
 | --- | --- | --- |
-| Target version | `framework` upgrades | Must be greater than `apps/lina-core/manifest/config/metadata.yaml.framework.version`. |
-| Scope | Always | Must be `framework` or `source-plugin`. |
-| Plugin ID | `source-plugin` upgrades | Use a concrete plugin ID or `all` for bulk source-plugin upgrade. |
-| Database backup confirmation | SQL migrations are detected | Print the backup reminder even in non-interactive mode. |
+| 目标版本 | `framework` 升级 | 必须大于 `apps/lina-core/manifest/config/metadata.yaml.framework.version` 中声明的版本。 |
+| 范围 | 始终 | 必须为 `framework` 或 `source-plugin`。 |
+| 插件 ID | `source-plugin` 升级 | 使用具体的插件 ID 或 `all` 进行批量源码插件升级。 |
+| 数据库备份确认 | 检测到 SQL 迁移 | 即使在非交互模式下也要打印备份提醒。 |
 
-# Workflow
+# 工作流
 
-Run the following steps in order. Stop when a step requires human intervention.
+按顺序执行以下步骤。当步骤需要人工干预时停止。
 
-1. **Pre-flight guard**: verify `git status --short` is clean, `metadata.yaml` exists, and target version is greater than the declared baseline. Failure mode: dirty worktree or ambiguous target; ask the user to commit, stash, or clarify.
-2. **Baseline validation**: run `scripts/upgrade-baseline-check.sh`. Failure mode: `ERR_TAG_NOT_FOUND` or `ERR_HEAD_NOT_DESCENDANT`; show the script output and ask the user to confirm the actual baseline.
-3. **Plan generation**: run `scripts/upgrade-plan.sh <target-version>`. Failure mode: missing target tag or unreadable changelog; fix inputs before continuing. Present the plan to the user for confirmation.
-4. **Merge execution**: run `git merge --no-commit upstream/<target>` or the equivalent remote ref selected in the plan. Failure mode: merge conflicts; continue to conflict handling.
-5. **Conflict handling**: classify each conflicted path with `scripts/upgrade-classify.sh <path>`. Tier 1 conflicts always escalate. Tier 2 conflicts require AI confidence; low confidence escalates. Tier 3 conflicts use `git checkout --theirs <path>`.
-6. **Regeneration**: run `scripts/upgrade-regenerate.sh`. Failure mode: `make dao` or `make ctrl` fails; report the log path and stop.
-7. **Database migration**: remind the user to back up the database, then run `make init confirm=init` for the incremental SQL set. Failure mode: migration risk or destructive SQL; escalate.
-8. **Verification**: run `scripts/upgrade-verify.sh`. Failure mode: build, typecheck, lint, or smoke test failure; stop and report the failing command.
-9. **Commit**: run `git commit -m "chore: upgrade to <target-version>"` after verification passes. Failure mode: user asks not to commit; leave changes staged or unstaged as requested.
-10. **Report**: summarize automatic resolutions, manual decisions, migration status, test results, and remaining user checks.
+1. **预检查**：验证 `git status --short` 是否干净、`metadata.yaml` 是否存在、目标版本是否大于已声明的基线版本。失败场景：工作区有未提交变更或目标版本不明确；请用户提交、暂存或澄清。
+2. **基线校验**：运行 `scripts/upgrade-baseline-check.sh`。失败场景：`ERR_TAG_NOT_FOUND` 或 `ERR_HEAD_NOT_DESCENDANT`；显示脚本输出并请用户确认实际基线。
+3. **计划生成**：运行 `scripts/upgrade-plan.sh <target-version>`。失败场景：缺少目标标签或变更日志不可读；修复输入后继续。将计划展示给用户确认。
+4. **合并执行**：运行 `git merge --no-commit upstream/<target>` 或计划中选择的等价远程引用。失败场景：合并冲突；进入冲突处理。
+5. **冲突处理**：使用 `scripts/upgrade-classify.sh <path>` 对每个冲突路径分类。第 1 级冲突始终上报。第 2 级冲突需要 AI 判断置信度；低置信度时上报。第 3 级冲突使用 `git checkout --theirs <path>`。
+6. **重新生成**：运行 `scripts/upgrade-regenerate.sh`。失败场景：`make dao` 或 `make ctrl` 失败；报告日志路径并停止。
+7. **数据库迁移**：提醒用户备份数据库，然后运行 `make init confirm=init` 执行增量 SQL 集。失败场景：迁移风险或破坏性 SQL；上报。
+8. **验证**：运行 `scripts/upgrade-verify.sh`。失败场景：构建、类型检查、代码检查或冒烟测试失败；停止并报告失败的命令。
+9. **提交**：验证通过后运行 `git commit -m "chore: upgrade to <target-version>"`。失败场景：用户要求不提交；按要求保留为已暂存或未暂存状态。
+10. **报告**：汇总自动解决的冲突、人工决策、迁移状态、测试结果和剩余的用户检查项。
 
-# Source-Plugin Sub-flow
+# 源码插件子流程
 
-For `source-plugin` upgrades, skip framework merge steps. Inspect `apps/lina-plugins/<plugin-id>/plugin.yaml` or all plugin manifests, compare discovered versions with the effective installed versions reported by host governance data, then execute the existing explicit source-plugin upgrade service path through host commands or focused scripts. Dynamic plugins are ignored.
+对于 `source-plugin` 升级，跳过框架合并步骤。检查 `apps/lina-plugins/<plugin-id>/plugin.yaml` 或所有插件清单，将发现的版本与宿主治理数据报告的有效已安装版本进行比较，然后通过宿主命令或专项脚本执行现有的显式源码插件升级服务路径。忽略动态插件。
 
-# Outputs the AI Must Produce
+# AI 必须生成的输出
 
-- Upgrade plan before merge: target version, baseline version, changed paths grouped by tier, SQL migration summary, and breaking-change notes.
-- Final report after execution: commands run, conflicts resolved, migrations run, verification results, and manual action list.
-- Escalation report when blocked: exact path, tier, failure code, and why the skill cannot safely proceed.
+- 合并前的升级计划：目标版本、基线版本、按级别分组的变更路径、SQL 迁移摘要和破坏性变更说明。
+- 执行后的最终报告：已运行的命令、已解决的冲突、已执行的迁移、验证结果和待办操作列表。
+- 受阻时的上报报告：具体路径、级别、失败代码以及技能无法安全继续的原因。
 
-# References
+# 参考文件
 
 - `references/tier-classification.md`
 - `references/conflict-resolution.md`
 - `references/escalation-rules.md`
 - `references/changelog-conventions.md`
 
-# Allowed Tools
+# 允许使用的工具
 
 - `Bash`
 - `Read`

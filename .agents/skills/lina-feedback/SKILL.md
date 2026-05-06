@@ -1,279 +1,281 @@
 ---
 name: lina-feedback
 description: >-
-  Track, fix, verify, and test any bugs, improvements, or gaps reported against an OpenSpec change.
-  MUST use this skill whenever user reports problems, defects, issues, bugs, or gaps related to
-  existing implementations, even if they don't explicitly say "feedback" or mention OpenSpec.
-compatibility: Requires openspec CLI, lina-e2e skill, lina-review skill.
+  跟踪、修复、验证和测试针对 OpenSpec 变更报告的 Bug、改进点或缺口。
+  当用户报告与现有实现相关的问题、缺陷、Bug 或缺口时，必须使用此技能，
+  即使用户未明确提及"反馈"或 OpenSpec。
+compatibility: 依赖 openspec CLI、lina-e2e 技能、lina-review 技能。
 ---
 
-# Lina Feedback: Structured Fix, Verification & Test Coverage Loop
+# Lina 反馈：结构化的修复、验证与测试覆盖循环
 
-When users discover bugs or improvement points after implementation, this skill captures those issues, organizes them into a traceable task list in `tasks.md`, systematically fixes and verifies each one, and ensures every fix is covered by E2E tests.
+当用户在实现后发现 Bug 或改进点时，此技能捕获这些问题，将它们组织到 `tasks.md` 中的可追踪任务列表中，系统性地修复和验证每个问题，并确保每个修复都有 E2E 测试覆盖。
 
-**Core principles:**
-1. **Spec is the source of truth** — Spec-level changes require spec update before task recording
-2. **Write it down first, then fix it** — Every issue gets recorded before any code change
-3. **Every fix deserves a test** — User-observable behavior changes require E2E test coverage
+**核心原则：**
+1. **规范是唯一事实来源** — 规范级别的变更需先更新规范再记录任务
+2. **先记录再修复** — 每个问题在代码变更前都必须先记录
+3. **每个修复都需要测试** — 用户可观察到的行为变更需要 E2E 测试覆盖
+
+**交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
 
 ---
 
-## Workflow
+## 工作流
 
-### 1. Identify Target Change
+### 1. 确定目标变更
 
-**CRITICAL:** 
-1. Always append to existing active changes. Only create new change when none exist.
-2. An **active change** is any change directory that still exists directly under `openspec/changes/` and has **not** been moved into `openspec/changes/archive/`. Do **not** treat `status: complete`, all tasks checked off, or similar completion signals as "inactive" until archive actually happens.
-3. Regardless of whether the feedback content is related to the main functionality of the current active iteration, it MUST be appended to the current active iteration. This ensures all changes are tracked in a single change record for unified management and archiving.
+**关键规则：**
+1. 始终追加到现有的活跃变更中。仅在不存在活跃变更时才创建新变更。
+2. **活跃变更**是指仍直接存在于 `openspec/changes/` 下、且**未被移入** `openspec/changes/archive/` 的变更目录。不要将 `status: complete`、所有任务已勾选或其他完成信号视为"非活跃"，除非实际已归档。
+3. 无论反馈内容是否与当前活跃迭代的主要功能相关，都必须追加到当前活跃迭代中。确保所有变更在单个变更记录中统一管理和归档。
 
 ```bash
 openspec list --json
-# Or: ls openspec/changes/ | grep -v archive
+# 或：ls openspec/changes/ | grep -v archive
 ```
 
-When the two signals disagree, prefer the filesystem rule:
+当两个信号不一致时，优先遵循文件系统规则：
 
-- If a change directory still exists under `openspec/changes/` and is not inside `archive/`, it is active.
-- `openspec list --json` may still report such a change as `status: complete`; that only means implementation tasks are done, **not** that the change is inactive.
-- Only archived changes under `openspec/changes/archive/` are inactive.
+- 如果变更目录仍存在于 `openspec/changes/` 下且不在 `archive/` 中，则为活跃变更。
+- `openspec list --json` 可能仍将此类变更报告为 `status: complete`；这仅表示实现任务已完成，**不**表示变更已归档。
+- 只有位于 `openspec/changes/archive/` 下的已归档变更才是非活跃的。
 
-| Active Changes | Action |
-|----------------|--------|
-| None | Create new change (see below) |
-| One | Auto-select it, announce and proceed |
-| Multiple | Ask user to select from list |
+| 操作活跃变更 | 操作 |
+|-------------|------|
+| 无 | 创建新变更（见下文） |
+| 一个 | 自动选择，告知并继续 |
+| 多个 | 要求用户从列表中选择 |
 
-**When multiple active changes exist:**
+**存在多个活跃变更时：**
 ```
-Multiple active changes detected. Which change should this feedback be appended to?
+检测到多个活跃变更。此反馈应追加到哪个变更？
 
-1. config-management — System config CRUD management
-2. user-auth — User authentication enhancement
+1. config-management — 系统配置 CRUD 管理
+2. user-auth — 用户认证增强
 
-Please select 1 or 2:
+请选择 1 或 2：
 ```
 
-**When no active change exists:**
-1. Derive kebab-case name from feedback (e.g., "fix-menu-circular-ref")
-2. If name exists, append suffix ("-2")
-3. Create: `openspec new change "<name>"`
-4. Generate minimal `proposal.md` (one paragraph summarizing context)
-5. Skip `design.md` for pure bug fixes unless architectural changes needed
+**不存在活跃变更时：**
+1. 从反馈内容派生 kebab-case 名称（如 "fix-menu-circular-ref"）
+2. 如果名称已存在，添加后缀 ("-2")
+3. 执行：`openspec new change "<name>"`
+4. 生成最小化的 `proposal.md`（一段话概述上下文）
+5. 纯 Bug 修复可跳过 `design.md`，除非涉及架构变更
 
-Announce: "Applying feedback fixes to change: **<name>**"
+告知："将反馈修复应用到变更：**<名称>**"
 
 ---
 
-### 2. Read Current Context
+### 2. 读取当前上下文
 
-| File | Purpose |
-|------|---------|
-| `tasks.md` | Task structure, naming conventions, numbering |
-| `design.md` | Architectural context |
-| `proposal.md` | Feature scope and intent |
-| `specs/` | Delta spec definitions |
+| 文件 | 用途 |
+|------|------|
+| `tasks.md` | 任务结构、命名规范、编号 |
+| `design.md` | 架构上下文 |
+| `proposal.md` | 功能范围和意图 |
+| `specs/` | 增量规范定义 |
 
 ```bash
-# Find highest TC ID for test planning
+# 查找最大 TC ID 用于测试规划
 find hack/tests/e2e -name 'TC*.ts' | sort | tail -1
 ```
 
 ---
 
-### 3. Analyze and Organize Issues
+### 3. 分析和组织问题
 
-For each reported issue:
+对每个报告的问题：
 
-**Classify by type:**
-- **bug** — Incorrect behavior, code doesn't match spec
-- **missing** — Feature incomplete, gaps in implementation
-- **ux** — UX improvement, no spec change needed
-- **test-gap** — Missing test coverage only
+**按类型分类：**
+- **bug** — 行为不正确，代码与规范不匹配
+- **missing** — 功能不完整，实现存在缺口
+- **ux** — 用户体验改进，无需修改规范
+- **test-gap** — 仅缺少测试覆盖
 
-**Classify by spec impact:**
+**按规范影响分类：**
 
-| Level | Definition | Action |
-|-------|------------|--------|
-| **implementation** | Spec is correct, code is wrong | Fix code only |
-| **spec-level** | Requirement missing/incomplete/changed | Update spec first, then fix |
-| **internal** | No user-observable change | Fix code, test optional |
+| 级别 | 定义 | 操作 |
+|------|------|------|
+| **implementation** | 规范正确，代码有误 | 仅修复代码 |
+| **spec-level** | 需求缺失/不完整/已变更 | 先更新规范，再修复 |
+| **internal** | 无用户可观察变更 | 修复代码，测试可选 |
 
-**Group related issues** — Same root cause → single task with multiple verification points.
+**关联问题分组** — 同一根因 → 合并为单个任务，包含多个验证点。
 
 ---
 
-### 4. Update Delta Specs (for Spec-Level Issues Only)
+### 4. 更新增量规范（仅限规范级别问题）
 
-For spec-level issues, update specs **before** recording tasks:
+对于规范级别的问题，在记录任务前先更新规范：
 
-1. Identify affected capability: `specs/<capability>/spec.md`
-2. Apply delta operation:
+1. 确定受影响的能力：`specs/<capability>/spec.md`
+2. 执行增量操作：
 
 ```markdown
-<!-- ADDED: New requirement -->
-### Requirement: Parent Selector Circular Prevention
-The system SHALL disable the current menu and all its descendants in the parent selector
-to prevent circular references.
+<!-- ADDED: 新增需求 -->
+### Requirement: 父级选择器循环引用防护
+系统应在父级选择器中禁用当前菜单及其所有子菜单，
+以防止循环引用。
 
-#### Scenario: Edit menu with children
-WHEN user edits a menu that has child menus
-THEN the parent selector SHALL disable the current menu and all descendant menus
+#### Scenario: 编辑包含子菜单的菜单
+WHEN 用户编辑一个包含子菜单的菜单
+THEN 父级选择器应禁用当前菜单及所有子菜单
 
-<!-- MODIFIED: Changed requirement (include full original block) -->
-### Requirement: Import Error Handling
-The system SHALL display error messages when import fails.
-**MODIFIED:** Error messages SHALL include row number, field name, and validation failure reason.
+<!-- MODIFIED: 变更需求（包含完整原始块） -->
+### Requirement: 导入错误处理
+系统应在导入失败时显示错误信息。
+**MODIFIED:** 错误信息应包含行号、字段名和校验失败原因。
 
-<!-- REMOVED: Deprecated requirement -->
-### Requirement: Legacy Import Format
-The system SHALL support legacy CSV format.
-**REMOVED:** This format is no longer supported.
-**Migration:** Use the new CSV format with header row.
+<!-- REMOVED: 废弃需求 -->
+### Requirement: 旧版导入格式
+系统应支持旧版 CSV 格式。
+**REMOVED:** 此格式不再支持。
+**迁移方案：** 使用带表头行的新版 CSV 格式。
 ```
 
 ---
 
-### 5. Write Task List to tasks.md
+### 5. 将任务列表写入 tasks.md
 
-Append a **Feedback section** to `tasks.md`:
+在 `tasks.md` 中追加**反馈章节**：
 
 ```markdown
 ## Feedback
 
-- [ ] **FB-1**: Parent selector allows circular references in menu edit
-- [ ] **FB-2**: Import error messages lack row and field details
-- [ ] **FB-3**: No test coverage for reset password feature
+- [ ] **FB-1**: 父级选择器在菜单编辑中允许循环引用
+- [ ] **FB-2**: 导入错误信息缺少行号和字段详情
+- [ ] **FB-3**: 重置密码功能缺少测试覆盖
 ```
 
-**Numbering:** Sequential `FB-1`, `FB-2`, etc. Continue from last number if section exists.
+**编号：** 顺序使用 `FB-1`、`FB-2` 等。如果章节已存在，从最后编号继续。
 
-**One line per task** — No sub-fields. Analysis happens during fix phase.
+**每个任务一行** — 不使用子字段。分析在修复阶段进行。
 
-**Confirm with user** before writing to file.
+**写入文件前与用户确认。**
 
-**Test coverage planning (internal):**
-- User-observable behavior change → Test required
-- Internal-only optimization → Test optional
-- Prefer sub-assertions in existing TC when scenario fits
+**测试覆盖规划（内部）：**
+- 用户可观察的行为变更 → 需要测试
+- 仅内部优化 → 测试可选
+- 场景合适时优先在现有 TC 中添加子断言
 
 ---
 
-### 6. Execute Fixes (Loop)
+### 6. 执行修复（循环）
 
-For each task:
+对每个任务：
 
-**a. Announce:** `## Fixing FB-X: <issue title>`
+**a. 告知：** `## 修复 FB-X: <问题标题>`
 
-**b. Investigate** — Read source files, confirm root cause
+**b. 调查** — 读取源文件，确认根因
 
-**c. Implement** — Minimal, focused fix following existing patterns
+**c. 实现** — 最小化、聚焦的修复，遵循现有模式
 
-**d. Write/update E2E tests** — Follow `lina-e2e` conventions
+**d. 编写/更新 E2E 测试** — 遵循 `lina-e2e` 规范
 
-**e. Assess Impact Scope (MANDATORY)**
+**e. 评估影响范围（必须）**
 
-After implementing, identify regression risk:
+实现后，识别回归风险：
 
-| Change Type | Map To Tests |
-|-------------|--------------|
-| Backend API endpoint | All frontend pages calling that endpoint |
-| Shared component/utility | All pages using that component |
-| DB schema/DAO | All features reading/writing affected tables |
-| Auth/permission | All auth tests + permission-dependent tests |
-| Page-specific | All tests under that module directory |
+| 变更类型 | 关联测试 |
+|---------|---------|
+| 后端 API 端点 | 所有调用该端点的前端页面 |
+| 共享组件/工具函数 | 所有使用该组件的页面 |
+| 数据库 Schema/DAO | 所有读写受影响表的功能 |
+| 认证/权限 | 所有认证测试 + 权限相关测试 |
+| 页面特定 | 该模块目录下的所有测试 |
 
 ```bash
-# Example: Find tests for user API changes
+# 示例：查找用户 API 变更的相关测试
 grep -r "api/user" hack/tests/e2e --include="*.ts" -l
 ```
 
-Announce:
+告知：
 ```
-### Impact Analysis for FB-X
-- Modified: apps/lina-core/internal/controller/menu.go
-- Affected modules: menu management
-- Regression tests: TC0005-menu-tree.ts, TC0006-menu-crud.ts
+### FB-X 影响分析
+- 修改文件：apps/lina-core/internal/controller/menu.go
+- 受影响模块：菜单管理
+- 回归测试：TC0005-menu-tree.ts, TC0006-menu-crud.ts
 ```
 
-**f. Verify (MANDATORY before marking complete)**
+**f. 验证（标记完成前必须执行）**
 
-1. Run new/updated E2E tests for this task → **must pass**
-2. Run ALL identified regression tests → **must pass**
-3. Only then: mark task `[x]` in tasks.md
+1. 运行此任务新增/更新的 E2E 测试 → **必须通过**
+2. 运行所有已识别的回归测试 → **必须通过**
+3. 仅在以上都通过后：在 tasks.md 中将任务标记为 `[x]`
 
-If regression fails:
-- Fix inline if related to current change
-- Add as new FB task if separate issue
+如果回归测试失败：
+- 如果与当前变更相关，直接修复
+- 如果是独立问题，作为新的 FB 任务添加
 
-**g. Run review** — Invoke `lina-review` skill after completion
+**g. 运行审查** — 完成后调用 `lina-review` 技能
 
 ---
 
-### 7. Comprehensive Verification
+### 7. 综合验证
 
-After all fixes:
+所有修复完成后：
 
-1. Aggregate regression tests from all tasks
-2. Run full set in single pass
-3. Report:
+1. 汇总所有任务的回归测试
+2. 一次性运行全部测试
+3. 报告：
 ```
-### Comprehensive Verification Results
-- Total tests: N
-- Passed: N
-- Failed: N (list with details)
-- Regression tests: all passed ✓ / X failures
+### 综合验证结果
+- 总测试数：N
+- 通过：N
+- 失败：N（列出详情）
+- 回归测试：全部通过 ✓ / X 个失败
 ```
 
-If failures → add new FB tasks, loop to Step 6.
+如果存在失败 → 添加新的 FB 任务，回到步骤 6。
 
 ---
 
-### 8. Report Completion
+### 8. 报告完成
 
 ```markdown
-## Feedback Complete
+## 反馈完成
 
-**Change:** <name>
-**Issues reported:** X
-**Issues fixed:** Y/X
-**Tests added:** Z new test cases / sub-assertions
-**Regression tests run:** R tests across N modules
-**Verification:** all passed / N issues remaining
+**变更：** <名称>
+**报告问题数：** X
+**已修复问题数：** Y/X
+**新增测试：** Z 个测试用例 / 子断言
+**回归测试：** 跨 N 个模块运行 R 个测试
+**验证结果：** 全部通过 / 剩余 N 个问题
 
-### Fixed This Session
-- [x] FB-1: <title> ✓ (test: TC0010a | regression: TC0005, TC0006 ✓)
-- [x] FB-2: <title> ✓ (test: existing coverage | regression: TC0003 ✓)
+### 本次已修复
+- [x] FB-1: <标题> ✓（测试：TC0010a | 回归：TC0005, TC0006 ✓）
+- [x] FB-2: <标题> ✓（测试：已有覆盖 | 回归：TC0003 ✓）
 
-### Remaining (if any)
-- [ ] FB-3: <title> — blocked by <reason>
+### 剩余（如有）
+- [ ] FB-3: <标题> — 被 <原因> 阻塞
 ```
 
 ---
 
-## Edge Cases
+## 边界情况
 
-| Situation | Handling |
-|-----------|----------|
-| Single issue | Still follow full workflow |
-| Missing test cases only | Classify as test-gap, implement tests |
-| Fix reveals more issues | Add as new FB tasks |
-| "Bug" is actually feature request | Re-classify as spec-level, update specs first |
-| Test not feasible (timing, infra) | Verify via full suite, note reason in summary |
-| Multiple feedback rounds | All tasks in single Feedback section, sequential numbering |
+| 场景 | 处理方式 |
+|------|---------|
+| 单个问题 | 仍遵循完整工作流 |
+| 仅缺少测试用例 | 分类为 test-gap，实现测试 |
+| 修复后发现更多问题 | 作为新的 FB 任务添加 |
+| "Bug"实为功能请求 | 重新分类为 spec-level，先更新规范 |
+| 测试不可行（时序、基础设施） | 通过完整测试套件验证，在摘要中说明原因 |
+| 多轮反馈 | 所有任务在单个 Feedback 章节中，顺序编号 |
 
 ---
 
-## Guardrails
+## 护栏规则
 
-- **Append to active change if exists** — Never create new change when active ones exist
-- **Specs before tasks for spec-level issues** — Update delta specs first
-- **Write tasks before fixing** — Never code without recording
-- **Confirm task list with user** — User validates analysis
-- **Minimal fixes** — No refactoring beyond issue scope
-- **User-visible fix needs test** — No exceptions unless technically infeasible
-- **No green check without green tests** — Mark `[x]` only after tests pass
-- **Impact analysis mandatory** — Every fix requires regression test identification
-- **Regression failures block completion** — Must resolve before marking done
-- **Update tasks.md in real time** — Mark complete immediately after verification
-- **Match file language** — Use same language as existing content in target file
+- **存在活跃变更时追加** — 存在活跃变更时不要创建新变更
+- **规范级别问题先更新规范** — 先更新增量规范
+- **修复前先记录任务** — 不要在未记录的情况下编码
+- **与用户确认任务列表** — 用户验证分析结果
+- **最小化修复** — 不进行问题范围之外的重构
+- **用户可见的修复需要测试** — 除非技术上不可行，否则无例外
+- **测试未通过不得标记完成** — 仅在测试通过后标记 `[x]`
+- **必须进行影响分析** — 每个修复都需要识别回归测试
+- **回归失败阻塞完成** — 必须在标记完成前解决
+- **实时更新 tasks.md** — 验证后立即标记完成
+- **匹配文件语言** — 使用目标文件中已有内容的相同语言

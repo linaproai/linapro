@@ -1,80 +1,82 @@
 ---
 name: lina-perf-audit
-description: "MANUAL TRIGGER ONLY. Run the LinaPro backend API performance audit only after the user explicitly asks for lina-perf-audit or confirms a full audit. This workflow performs reset DB via make init/mock, stops and restarts services, installs and enables all built-in plugins, adds stress fixtures, launches concurrent sub agents, has high elapsed time (tens of minutes to hours), and carries significant token cost. Never invoke from other skills, CI, scheduled jobs, git hooks, or ambiguous performance requests."
+description: "仅限手动触发。仅在用户明确要求执行 lina-perf-audit 或确认进行全面审计时，才运行 LinaPro 后端 API 性能审计。此工作流会通过 make init/mock 重置数据库、停止并重启服务、安装并启用所有内置插件、添加压力测试数据、启动并发子代理，耗时较长（数十分钟到数小时），且消耗大量 Token。禁止从其他技能、CI、定时任务、Git 钩子或模糊的性能请求中调用。"
 ---
 
-# LinaPro Performance Audit
+# LinaPro 性能审计
 
-Use this skill to run a full LinaPro backend API audit for `apps/lina-core` and all built-in plugins under `apps/lina-plugins`. The audit finds performance risks such as N+1 queries, missing indexes, unbounded list responses, repeated reads, mergeable SQL calls, blocking operations in loops, and read/query endpoints that execute write SQL such as INSERT, UPDATE, DELETE, REPLACE, TRUNCATE, or ALTER. It produces reports and issue cards only; it does not fix production code.
+使用此技能对 `apps/lina-core` 和 `apps/lina-plugins` 下的所有内置插件进行全面的 LinaPro 后端 API 审计。审计内容包括 N+1 查询、缺少索引、无限制的列表响应、重复读取、可合并的 SQL 调用、循环中的阻塞操作，以及读/查询端点中执行了 INSERT、 UPDATE、DELETE、REPLACE、TRUNCATE 或 ALTER 等写入 SQL 的问题。此技能仅生成报告和问题卡片，不修复生产代码。
 
-This skill is plain markdown so Claude Code, Codex, and other AI coding tools can read it.
+此技能为纯 Markdown 格式，以便 Claude Code、Codex 及其他 AI 编码工具均可读取。
 
-## Manual Trigger Gate
+**交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
 
-This skill is destructive to the local development environment and expensive to run. It resets the database, reloads mock data, restarts services, installs and enables all built-in plugins, writes temporary audit logs, runs multiple sub agents, and may consume a large token budget.
+## 手动触发门槛
 
-Proceed only when the user explicitly requests a full audit, for example:
+此技能会对本地开发环境产生破坏性影响，且运行成本较高。它会重置数据库、重新加载模拟数据、重启服务、安装并启用所有内置插件、写入临时审计日志、运行多个子代理，并可能消耗大量 Token 预算。
+
+仅在用户明确要求全面审计时才继续执行，例如：
 
 - `run lina-perf-audit`
-- `execute the LinaPro performance audit`
-- `perform a full backend API performance audit`
-- `check all backend APIs for N+1 with the perf audit skill`
+- `执行 LinaPro 性能审计`
+- `对所有后端 API 进行全面性能审计`
+- `使用性能审计技能检查所有后端 API 的 N+1 问题`
 
-For ambiguous requests such as `the API seems slow`, `how is performance`, or `check interface performance`, ask for confirmation first. The confirmation message must mention database reset, service restart, elapsed time, sub agent fan-out, and token cost. Before confirmation, do not run `make stop`, `make init`, `make mock`, `setup-audit-env.sh`, `prepare-builtin-plugins.sh`, or `stress-fixture.sh`.
+对于模糊请求，如 `API 好像有点慢`、`性能怎么样` 或 `检查接口性能`，应先请求用户确认。确认消息中必须提及数据库重置、服务重启、耗时、子代理扇出和 Token 成本。在确认前，不得运行 `make stop`、`make init`、`make mock`、`setup-audit-env.sh`、`prepare-builtin-plugins.sh` 或 `stress-fixture.sh`。
 
-## When to Use
+## 适用场景
 
-- The user explicitly names `lina-perf-audit` or asks to run the full LinaPro API performance audit.
-- The user explicitly asks for a systematic backend API audit across `lina-core` and built-in plugins.
-- The user explicitly asks to generate run reports under `temp/lina-perf-audit/<run-id>/` and persistent issue cards under `perf-issues/`.
-- The user confirms an ambiguous performance request after being told the cost and destructive local effects.
+- 用户明确指定 `lina-perf-audit` 或要求运行完整的 LinaPro API 性能审计。
+- 用户明确要求对 `lina-core` 和内置插件进行系统性后端 API 审计。
+- 用户明确要求在 `temp/lina-perf-audit/<run-id>/` 下生成运行报告，并在 `perf-issues/` 下生成持久化问题卡片。
+- 用户在了解成本和本地破坏性影响后确认了模糊的性能请求。
 
-## When NOT to Use
+## 不适用场景
 
-- Do not trigger from another skill such as `lina-review`, `lina-feedback`, or `lina-e2e`. Those skills may suggest that the user manually run `lina-perf-audit`, but must not invoke it.
-- Do not run from CI, scheduled jobs, git hooks, automation, or background workflows.
-- Do not run for a single endpoint investigation unless the user explicitly wants the full audit. Use a focused manual analysis instead.
-- Do not run before user confirmation for ambiguous performance concerns.
-- Do not run if the user cannot tolerate database reset, mock data reload, service restart, or the token/time cost.
+- 禁止从其他技能（如 `lina-review`、`lina-feedback` 或 `lina-e2e`）触发。这些技能可以建议用户手动运行 `lina-perf-audit`，但不得自行调用。
+- 禁止从 CI、定时任务、Git 钩子、自动化流程或后台工作流中运行。
+- 除非用户明确要求全面审计，否则不要为单个端点调查运行此技能。应使用针对性的手动分析。
+- 对于模糊的性能关切，在用户确认前不要运行。
+- 如果用户无法接受数据库重置、模拟数据重载、服务重启或 Token/时间成本，则不要运行。
 
-## Reference Files
+## 参考文件
 
-Load these files only when needed:
+仅在需要时加载以下文件：
 
-- `references/sub-agent-prompt.md`: prompt template for Stage 1 sub agents, including endpoint or small-module sharding.
-- `references/severity-rubric.md`: HIGH / MEDIUM / LOW classification and anti-pattern signatures.
-- `references/report-template.md`: `audits/<module>.md`, `SUMMARY.md`, and `meta.json` templates.
-- `references/issue-card-template.md`: persistent `perf-issues/*.md` issue card template.
-- `references/fingerprint-rule.md`: exact fingerprint generation, de-duplication, update, and cross-run rules.
+- `references/sub-agent-prompt.md`：阶段 1 子代理的提示模板，包括端点或小型模块分片。
+- `references/severity-rubric.md`：HIGH / MEDIUM / LOW 分级标准和反模式签名。
+- `references/report-template.md`：`audits/<module>.md`、`SUMMARY.md` 和 `meta.json` 模板。
+- `references/issue-card-template.md`：持久化 `perf-issues/*.md` 问题卡片模板。
+- `references/fingerprint-rule.md`：精确的指纹生成、去重、更新和跨运行规则。
 
-## Bundled Scripts
+## 内置脚本
 
-Deterministic helper scripts are maintained inside this skill under `scripts/`. Run them from the repository root with paths like `bash .agents/skills/lina-perf-audit/scripts/scan-endpoints.sh ...`. Do not copy these scripts into `hack/` or maintain a second script set outside the skill; the skill directory is the ownership boundary for the audit workflow.
+确定性的辅助脚本维护在此技能目录下的 `scripts/` 中。从仓库根目录运行，路径格式如 `bash .agents/skills/lina-perf-audit/scripts/scan-endpoints.sh ...`。不要将这些脚本复制到 `hack/` 或在技能目录外维护第二套脚本；技能目录是审计工作流的所有权边界。
 
-## Workflow
+## 工作流
 
-Run the audit in exactly three stages.
+严格按三个阶段运行审计。
 
-### Stage 0: Preparation
+### 阶段 0：准备
 
-1. Confirm the user explicitly approved the full audit.
-2. Create a unique `run_id` in `YYYYMMDD-HHMMSS` format and set `run_dir=temp/lina-perf-audit/<run_id>`.
-3. Run `make stop`.
-4. Reset local data with `make init confirm=init rebuild=true` and `make mock confirm=mock`.
-5. Run `bash .agents/skills/lina-perf-audit/scripts/setup-audit-env.sh --run-id <run_id>` to patch audit logging, start the backend, wait for readiness, and obtain the `admin` token.
-6. Run `bash .agents/skills/lina-perf-audit/scripts/prepare-builtin-plugins.sh --run-dir <run_dir>` to discover, sync, install, enable, and load mock data for all built-in plugins.
-7. Run `bash .agents/skills/lina-perf-audit/scripts/stress-fixture.sh --run-dir <run_dir>` after host mock data and plugin mock data are ready.
-8. Run `bash .agents/skills/lina-perf-audit/scripts/scan-endpoints.sh --run-dir <run_dir>` to generate `catalog.json` from host and plugin API DTOs.
-9. Run `bash .agents/skills/lina-perf-audit/scripts/probe-fixtures.sh --run-dir <run_dir>` to generate `fixtures.json` and fail fast on declared routes that are not reachable.
-10. Record skipped plugins with no backend API in `meta.json` using reason `no backend API`.
+1. 确认用户已明确批准全面审计。
+2. 创建 `YYYYMMDD-HHMMSS` 格式的唯一 `run_id`，并设置 `run_dir=temp/lina-perf-audit/<run_id>`。
+3. 运行 `make stop`。
+4. 通过 `make init confirm=init rebuild=true` 和 `make mock confirm=mock` 重置本地数据。
+5. 运行 `bash .agents/skills/lina-perf-audit/scripts/setup-audit-env.sh --run-id <run_id>`，修补审计日志配置、启动后端、等待就绪并获取 `admin` Token。
+6. 运行 `bash .agents/skills/lina-perf-audit/scripts/prepare-builtin-plugins.sh --run-dir <run_dir>`，发现、同步、安装、启用所有内置插件并加载模拟数据。
+7. 在宿主模拟数据和插件模拟数据就绪后，运行 `bash .agents/skills/lina-perf-audit/scripts/stress-fixture.sh --run-dir <run_dir>`。
+8. 运行 `bash .agents/skills/lina-perf-audit/scripts/scan-endpoints.sh --run-dir <run_dir>`，从宿主和插件 API DTO 生成 `catalog.json`。
+9. 运行 `bash .agents/skills/lina-perf-audit/scripts/probe-fixtures.sh --run-dir <run_dir>`，生成 `fixtures.json` 并对不可达的声明路由快速失败。
+10. 将没有后端 API 的跳过插件记录到 `meta.json` 中，原因为 `no backend API`。
 
-Always restore the temporary logger settings and stop services on success or failure with `bash .agents/skills/lina-perf-audit/scripts/restore-audit-env.sh --run-dir <run_dir>`.
+无论成功或失败，都必须通过 `bash .agents/skills/lina-perf-audit/scripts/restore-audit-env.sh --run-dir <run_dir>` 恢复临时日志设置并停止服务。
 
-### Stage 1: Concurrent Sub-Agent Audit
+### 阶段 1：并发子代理审计
 
-Use sub agents for endpoint audit tasks. Default to one sub agent per module from `catalog.json`. If a module is too large for a single prompt, split it into endpoint shards or small module shards; each sub agent prompt must remain under 5KB and include only its assigned endpoint subset.
+使用子代理执行端点审计任务。默认为 `catalog.json` 中的每个模块分配一个子代理。如果模块过大无法在单个提示中处理，将其拆分为端点分片或小型模块分片；每个子代理提示必须保持在 5KB 以下，且仅包含其分配的端点子集。
 
-Each sub agent receives:
+每个子代理接收：
 
 - `module`
 - `endpoints[]`
@@ -83,59 +85,59 @@ Each sub agent receives:
 - `token`
 - `run_dir`
 
-Each sub agent calls its assigned endpoints serially, reads the GoFrame `Trace-ID` response header, greps `server.log` for matching SQL lines, checks relevant controller/service source, classifies findings, and writes one audit markdown file under `temp/lina-perf-audit/<run-id>/audits/`. For every GET/read/query endpoint, the sub agent must also verify that the request trace does not contain write SQL statements (`INSERT`, `UPDATE`, `DELETE`, `REPLACE`, `TRUNCATE`, `ALTER`, `DROP`, or `CREATE`). Observed write SQL in a read request is a finding even when the endpoint is fast, except when the trace also contains read SQL and every write statement only touches `sys_online_session` and/or `plugin_monitor_operlog`.
+每个子代理串行调用其分配的端点，读取 GoFrame `Trace-ID` 响应头，在 `server.log` 中搜索匹配的 SQL 行，检查相关的控制器/服务源码，对发现进行分类，并在 `temp/lina-perf-audit/<run-id>/audits/` 下编写一个审计 Markdown 文件。对于每个 GET/读取/查询端点，子代理还必须验证请求追踪中不包含写入 SQL 语句（`INSERT`、`UPDATE`、`DELETE`、`REPLACE`、`TRUNCATE`、`ALTER`、`DROP` 或 `CREATE`）。在读取请求中观察到写入 SQL 即为发现，即使端点响应很快也是如此，除非追踪中同时包含读取 SQL 且每个写入语句仅操作 `sys_online_session` 和/或 `plugin_monitor_operlog`。
 
-If `Trace-ID` is unavailable, the sub agent must use a fallback search by call timestamp window plus request URL and mark the evidence as `trace ID unavailable, evidence quality reduced`. It must not skip the endpoint solely because `Trace-ID` is missing.
+如果 `Trace-ID` 不可用，子代理必须使用按调用时间窗口加请求 URL 的回退搜索方式，并将证据标记为 `trace ID unavailable, evidence quality reduced`。不得仅因 `Trace-ID` 缺失而跳过端点。
 
-Before launching Stage 1, load `references/sub-agent-prompt.md` and use it as the base template.
+启动阶段 1 前，加载 `references/sub-agent-prompt.md` 作为基础模板。
 
-### Stage 2: Summary And Perf-Issue Cards
+### 阶段 2：汇总与性能问题卡片
 
-1. Run `bash .agents/skills/lina-perf-audit/scripts/aggregate-reports.sh --run-dir <run_dir>`.
-2. The script reads all `audits/*.md`, merges results into `temp/lina-perf-audit/<run-id>/SUMMARY.md`, and classifies findings into HIGH, MEDIUM, and LOW using the report severities reviewed against `references/severity-rubric.md`.
-3. The script generates or updates one persistent issue card per finding under `perf-issues/<severity>-<module>-<slug>.md`.
-4. The script de-duplicates cards by fingerprint using `references/fingerprint-rule.md`.
-5. The script regenerates `perf-issues/INDEX.md` with all `open` and `in-progress` cards ordered by severity.
-6. The script writes final `meta.json` with start/end time, git commit, stress fixture status, sub agent count, sub agent status, skipped plugins, logger settings, and restore result.
-7. Confirm `SUMMARY.md` links to every new or updated issue card using repository-relative paths.
+1. 运行 `bash .agents/skills/lina-perf-audit/scripts/aggregate-reports.sh --run-dir <run_dir>`。
+2. 脚本读取所有 `audits/*.md`，将结果合并到 `temp/lina-perf-audit/<run-id>/SUMMARY.md`，并根据 `references/severity-rubric.md` 审查报告严重性，将发现分类为 HIGH、MEDIUM 和 LOW。
+3. 脚本在 `perf-issues/<severity>-<module>-<slug>.md` 下为每个发现生成或更新一张持久化问题卡片。
+4. 脚本根据 `references/fingerprint-rule.md` 按指纹对卡片进行去重。
+5. 脚本重新生成 `perf-issues/INDEX.md`，按严重性排列所有 `open` 和 `in-progress` 状态的卡片。
+6. 脚本写入最终的 `meta.json`，包含开始/结束时间、Git 提交、压力测试数据状态、子代理数量、子代理状态、跳过的插件、日志设置和恢复结果。
+7. 确认 `SUMMARY.md` 使用仓库相对路径链接到每张新建或更新的问题卡片。
 
-`temp/lina-perf-audit/<run-id>/` is a per-run snapshot. `perf-issues/` is a cross-run persistent backlog and must not be placed under `temp/`.
+`temp/lina-perf-audit/<run-id>/` 是每次运行的快照。`perf-issues/` 是跨运行的持久化积压列表，不得放在 `temp/` 下。
 
-## Destructive Endpoint Handling
+## 破坏性端点处理
 
-Sub agents must handle destructive endpoints without damaging shared audit data.
+子代理必须处理破坏性端点，同时不损坏共享的审计数据。
 
-- For DELETE, reset, clear, uninstall, and equivalent destructive operations, first create a dedicated audit fixture in the same module when a matching create endpoint exists.
-- Use the returned resource ID or stable key only for the destructive call being audited.
-- Attempt cleanup even if the destructive call fails.
-- Mark the report entry with `autonomous fixture completed, shared data not polluted`.
-- If no same-module create endpoint exists, mark the endpoint as `SKIPPED: no matching create endpoint, manual follow-up required`.
-- Never uninstall built-in plugins, clear shared system logs, or destroy global state as a substitute for module-owned fixture handling.
+- 对于 DELETE、重置、清空、卸载等破坏性操作，当同一模块存在匹配的创建端点时，先创建一个专用的审计测试数据。
+- 仅将返回的资源 ID 或稳定键用于正在审计的破坏性调用。
+- 即使破坏性调用失败，也应尝试清理。
+- 在报告条目标记 `autonomous fixture completed, shared data not polluted`。
+- 如果同一模块没有匹配的创建端点，将端点标记为 `SKIPPED: no matching create endpoint, manual follow-up required`。
+- 禁止以卸载内置插件、清除共享系统日志或销毁全局状态来替代模块自身的测试数据处理。
 
-## Severity Classification
+## 严重性分类
 
-Use three severities:
+使用三个严重性级别：
 
-- `HIGH`: N+1 on list/detail with source evidence, missing index on potentially large data, non-batch endpoint over 1s, blocking remote/file/transaction work inside loops, or any GET/read/query endpoint whose own request trace executes non-operational write SQL.
-- `MEDIUM`: small-sample N+1, missing pagination, repeated same-data reads, or multiple SELECT calls that should be merged by JOIN or WHERE IN.
-- `LOW`: slightly high SQL count with indexed fast queries, application-layer filtering that can be pushed down, or static risk not observed at runtime.
+- `HIGH`：列表/详情中存在 N+1 问题且有源码证据、大数据量表缺少索引、非批量端点超过 1 秒、循环中存在阻塞的远程/文件/事务操作，或任何 GET/读取/查询端点的请求追踪中执行了非运维性写入 SQL。
+- `MEDIUM`：小样本 N+1、缺少分页、重复读取相同数据，或多个 SELECT 调用可通过 JOIN 或 WHERE IN 合并。
+- `LOW`：SQL 次数略高但查询有索引且快速、可在应用层过滤的内容可下推到数据库，或仅在静态分析中发现的风险。
 
-Every finding must include method and path, module, trace ID or fallback marker, SQL count, write SQL count when applicable, key SQL excerpts, relative source file and line, and at least one concrete remediation suggestion.
+每个发现必须包含方法和路径、模块、Trace ID 或回退标记、SQL 次数、适用时的写入 SQL 次数、关键 SQL 片段、相对源文件和行号，以及至少一条具体的改进建议。
 
-## Read Request Side-Effect Check
+## 读取请求副作用检查
 
-GET endpoints and endpoints described as list, query, tree, option, count, health, current, or detail are expected to be read-only. Their traced SQL must not contain write operations. The check covers SQL statements whose first significant token is one of `INSERT`, `UPDATE`, `DELETE`, `REPLACE`, `TRUNCATE`, `ALTER`, `DROP`, or `CREATE`.
+GET 端点以及描述为列表、查询、树、选项、计数、健康检查、当前状态或详情的端点应为只读。其追踪的 SQL 不得包含写入操作。检查范围为首个有效 Token 为 `INSERT`、`UPDATE`、`DELETE`、`REPLACE`、`TRUNCATE`、`ALTER`、`DROP` 或 `CREATE` 的 SQL 语句。
 
-- Count only SQL generated by the audited endpoint trace. Do not count Stage 0 setup, login, stress fixture insertion, or autonomous fixture create/delete calls for destructive endpoint handling.
-- If a read endpoint writes only `sys_online_session` and/or `plugin_monitor_operlog` while also reading data, treat that session heartbeat or operation-log write as an expected operational side effect. Record it only as a PASS note in the module audit file, and do not emit a finding, summary violation, or `perf-issues/` card for it.
-- If the trace includes only those expected write tables but does not include any read SQL, keep it reportable because it no longer matches the normal read-plus-operational-side-effect pattern.
-- If a read endpoint writes any other business, plugin state, runtime state, or storage table, report it as `HIGH` with anti-pattern signature prefix `read-write-side-effect`.
-- The remediation must recommend moving the side effect to an explicit POST/PUT/DELETE action, splitting the endpoint into read and write operations, or replacing persistent writes with a non-mutating cache/read model.
-- If source code suggests a write but runtime SQL does not show it in the sampled path, report `LOW` with a static-only note instead of fabricating runtime evidence.
+- 仅计算由审计端点追踪生成的 SQL。不计算阶段 0 的设置、登录、压力测试数据插入或破坏性端点处理的自主测试数据创建/删除调用。
+- 如果读取端点仅写入 `sys_online_session` 和/或 `plugin_monitor_operlog` 且同时读取数据，将该会话心跳或操作日志写入视为预期的运维性副作用。仅在模块审计文件中记录为 PASS 说明，不要为此生成发现、汇总违规或 `perf-issues/` 卡片。
+- 如果追踪仅包含上述预期写入表但不包含任何读取 SQL，则仍应报告，因为它不再符合正常的读取加运维性副作用模式。
+- 如果读取端点写入任何其他业务、插件状态、运行时状态或存储表，报告为 `HIGH`，反模式签名前缀为 `read-write-side-effect`。
+- 改进建议应推荐将副作用移至显式的 POST/PUT/DELETE 操作、将端点拆分为读和写操作，或用非变更性的缓存/读取模型替代持久化写入。
+- 如果源码暗示存在写入但运行时 SQL 在采样路径中未显示，报告为 `LOW` 并标注仅静态分析，不要伪造运行时证据。
 
-## Report Schema
+## 报告结构
 
-Per-run outputs:
+每次运行输出：
 
 ```text
 temp/lina-perf-audit/<run-id>/
@@ -147,7 +149,7 @@ temp/lina-perf-audit/<run-id>/
   meta.json
 ```
 
-Persistent issue cards:
+持久化问题卡片：
 
 ```text
 perf-issues/
@@ -157,26 +159,26 @@ perf-issues/
   INDEX.md
 ```
 
-Use `references/report-template.md` for run reports and `references/issue-card-template.md` for issue cards.
+运行报告使用 `references/report-template.md`，问题卡片使用 `references/issue-card-template.md`。
 
-## Issue Card Lifecycle
+## 问题卡片生命周期
 
-Each performance issue becomes one persistent markdown card. Stage 2 owns all card creation and updates.
+每个性能问题对应一张持久化 Markdown 卡片。阶段 2 负责所有卡片的创建和更新。
 
-- New issue: create `perf-issues/<severity>-<module>-<slug>.md` with `status: open`.
-- Existing fingerprint: update `last_seen_run`, increment `seen_count`, append a history entry, and do not create a duplicate card.
-- Existing card with `status: fixed` or `status: obsolete` and the issue is observed again: change status back to `open` and append a regression history entry.
-- Existing card with `status: in-progress`: keep status and update observation fields.
-- Regenerate `perf-issues/INDEX.md` from current cards after all updates.
-- Each card body must include the fixed sections `问题描述`, `复现方式`, `证据`, `改进方案`, and `历史记录`.
-- Descriptive card content and `perf-issues/INDEX.md` headings must be written in Chinese. Keep API paths, SQL excerpts, Trace IDs, fingerprints, frontmatter field names, and status enum values unchanged.
+- 新问题：创建 `perf-issues/<severity>-<module>-<slug>.md`，状态为 `open`。
+- 已有指纹：更新 `last_seen_run`、递增 `seen_count`、追加历史记录，不创建重复卡片。
+- 已有卡片状态为 `fixed` 或 `obsolete` 且问题再次出现：将状态改回 `open` 并追加回归历史记录。
+- 已有卡片状态为 `in-progress`：保持状态并更新观察字段。
+- 所有更新后重新生成 `perf-issues/INDEX.md`。
+- 每张卡片正文必须包含固定章节：`问题描述`、`复现方式`、`证据`、`改进方案` 和 `历史记录`。
+- 卡片描述性内容和 `perf-issues/INDEX.md` 标题必须使用中文编写。API 路径、SQL 片段、Trace ID、指纹、frontmatter 字段名和状态枚举值保持不变。
 
-Allowed statuses are `open`, `in-progress`, `fixed`, and `obsolete`. The skill must not introduce an automated state machine beyond these field updates.
+允许的状态为 `open`、`in-progress`、`fixed` 和 `obsolete`。此技能不得引入超出这些字段更新的自动状态机。
 
-## Cross-Reference Rules
+## 交叉引用规则
 
-- `SUMMARY.md` must link to all issue cards created or updated in the current run using repository-relative paths.
-- Each issue card history entry must reference the `run_id` and `temp/lina-perf-audit/<run-id>/audits/<module-or-shard>.md`.
-- Persistent cards should use repository-relative source paths, for example `apps/lina-core/internal/service/user/user.go:142`.
-- Do not use absolute local machine paths in persistent cards.
-- Do not move issue cards into OpenSpec archive directories. Later OpenSpec changes may consume or update cards, but archiving this skill does not archive `perf-issues/`.
+- `SUMMARY.md` 必须使用仓库相对路径链接到当前运行中创建或更新的所有问题卡片。
+- 每张问题卡片的历史记录必须引用 `run_id` 和 `temp/lina-perf-audit/<run-id>/audits/<module-or-shard>.md`。
+- 持久化卡片应使用仓库相对源路径，例如 `apps/lina-core/internal/service/user/user.go:142`。
+- 持久化卡片中不要使用本地机器的绝对路径。
+- 不要将问题卡片移入 OpenSpec 归档目录。后续的 OpenSpec 变更可能会引用或更新卡片，但此技能的归档不会归档 `perf-issues/`。

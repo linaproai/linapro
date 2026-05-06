@@ -1,89 +1,92 @@
 ---
 name: git-commit-push
-description: Review the current git working tree, generate a commit message from the actual diff using the repository's commit or PR-title convention, commit all current changes on the active branch, and push that branch to `origin`. Use this whenever the user asks to "commit", "push", "commit and push", "generate a commit message", "commit the current changes", or wants the current branch changes sent upstream without hand-writing the git commands.
+description: 审查当前 Git 工作区变更，根据仓库的提交或 PR 命名规范从实际差异中生成提交信息，在当前分支上提交所有变更并推送到 `origin`。当用户要求"提交"、"推送"、"提交并推送"、"生成提交信息"、"提交当前变更"，或将当前分支变更推送到远程时使用此技能。
 ---
 
-# Git Commit Push
+# Git 提交与推送
 
-Inspect the current repository changes, derive a concise commit subject that matches the repository convention, commit every current modification on the active branch, and push that branch to `origin`.
+审查当前仓库变更，生成符合仓库规范的简洁提交主题，在当前分支上提交所有修改，并将分支推送到 `origin`。
 
-This skill is for execution, not just advice. When it triggers, actually run the git workflow unless the repository state makes that unsafe or impossible.
+此技能用于执行而非仅提供建议。触发时应直接运行 Git 工作流，除非仓库状态导致操作不安全或无法执行。
 
-## When To Use
+**交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
 
-- The user asks you to commit the current changes, with or without asking for push
-- The user wants you to write the commit message from the diff instead of inventing one up front
-- The user mentions the repo's PR or commit naming convention and wants you to follow it
-- The user says things like "commit the current branch", "help me commit", "commit and push", "generate a commit message and push", or "send these changes to origin"
+## 适用场景
 
-## Core Behavior
+- 用户要求提交当前变更，无论是否需要推送
+- 用户希望从差异内容生成提交信息，而非预先编写
+- 用户提及仓库的 PR 或提交命名规范并希望遵循
+- 用户说"提交当前分支"、"帮我提交"、"提交并推送"、"生成提交信息并推送"，或"将变更推送到 origin"
 
-1. Confirm you are inside a Git repository and detect the active branch with `git branch --show-current`.
-2. Inspect the working tree before committing:
+## 核心行为
+
+1. 确认当前处于 Git 仓库中，通过 `git branch --show-current` 检测当前分支。
+2. 提交前检查工作区状态：
    - `git status --short --branch`
    - `git diff --stat`
    - `git diff --cached --stat`
-   - `git diff -- . ':(exclude)package-lock.json'` or narrower path filters only when needed for readability
-3. Generate a commit subject from the actual changed files and diff content, not from the user prompt alone.
-4. Stage every current modification on the branch with `git add -A`.
-5. Commit once with the generated message.
-6. Push the current branch to `origin` with `git push origin <current-branch>`.
+   - `git diff -- . ':(exclude)package-lock.json'` 或按需使用更精确的路径过滤以提高可读性
+3. 根据实际变更文件和差异内容生成提交主题，而非仅依赖用户描述。
+4. 使用 `git add -A` 暂存当前分支上的所有修改。
+5. 使用生成的信息执行一次提交。
+6. 使用 `git push origin <当前分支>` 推送当前分支到 `origin`。
 
-## Commit Message Rules
+## 提交信息规范
 
-The commit message is formatted as follows: `<type>[optional scope]: <description>` For example, `fix(os/gtime): fix time zone issue`
-  + `<type>` is mandatory and can be one of `fix`, `feat`, `build`, `ci`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`
-    + `fix`: Used when a bug has been fixed.
-    + `feat`: Used when a new feature has been added.
-    + `build`: Used for modifications to the project build system, such as changes to dependencies, external interfaces, or upgrading Node version.
-    + `ci`: Used for modifications to continuous integration processes, such as changes to Travis, Jenkins workflow configurations.
-    + `docs`: Used for modifications to documentation, such as changes to README files, API documentation, etc.
-    + `style`: Used for changes to code style, such as adjustments to indentation, spaces, blank lines, etc.
-    + `refactor`: Used for code refactoring, such as changes to code structure, variable names, function names, without altering functionality.
-    + `perf`: Used for performance optimization, such as improving code performance, reducing memory usage, etc.
-    + `test`: Used for modifications to test cases, such as adding, deleting, or modifying test cases for code.
-    + `chore`: Used for modifications to non-business-related code, such as changes to build processes or tool configurations.
-  + After `<type>`, specify the affected package name or scope in parentheses, for example, `(os/gtime)`.
-  + The part after the colon uses the verb tense + phrase that completes the blank in
-  + Lowercase verb after the colon
-  + No trailing period
-  + Keep the title as short as possible. ideally under 76 characters or shorter
-+ If there is a corresponding issue, add either `fixes #1234` (the latter if this is not a complete fix) to this comment
+提交信息格式为：`<类型>[可选作用域]: <描述>`，例如 `fix(os/gtime): fix time zone issue`
+  + `<类型>` 为必填项，可选值包括 `fix`、`feat`、`build`、`ci`、`docs`、`style`、`refactor`、`perf`、`test`、`chore`
+    + `fix`：修复 Bug
+    + `feat`：新增功能
+    + `build`：构建系统或外部依赖变更，如依赖升级、Node 版本变更等
+    + `ci`：持续集成配置变更，如 Travis、Jenkins 工作流调整
+    + `docs`：文档变更，如 README、API 文档更新等
+    + `style`：代码风格调整，如缩进、空格、空行等
+    + `refactor`：代码重构，如结构调整、变量/函数重命名等，不涉及功能变更
+    + `perf`：性能优化，如提升代码性能、降低内存占用等
+    + `test`：测试用例变更，如新增、删除或修改测试用例
+    + `chore`：非业务代码变更，如构建流程或工具配置调整
+  + `<类型>` 后用括号指定受影响的包名或作用域，例如 `(os/gtime)`
+  + 冒号后使用动词短语，以动词原形开头
+  + 冒号后首字母小写
+  + 末尾不加句号
+  + 标题尽量简短，理想情况下不超过 76 个字符
++ 如有对应的 Issue，在提交信息末尾添加 `fixes #1234`（若未完全修复则使用 `refs #1234`）
 
-### Examples
-#### Commit message with description and breaking change footer
+### 示例
+
+#### 包含描述和破坏性变更脚注的提交信息
 ```
 feat: allow provided config object to extend other configs
 BREAKING CHANGE: `extends` key in config file is now used for extending other config files
 ```
 
-#### Commit message with ! to draw attention to breaking change
+#### 使用 ! 标记破坏性变更
 ```
 feat!: send an email to the customer when a product is shipped
 ```
 
-#### Commit message with scope and ! to draw attention to breaking change
+#### 包含作用域和 ! 标记的提交信息
 ```
 feat(api)!: send an email to the customer when a product is shipped
 ```
 
-#### Commit message with both ! and BREAKING CHANGE footer
+#### 同时使用 ! 和 BREAKING CHANGE 脚注
 ```
 feat!: drop support for Node 6
 BREAKING CHANGE: use JavaScript features not available in Node 6.
 ```
 
-#### Commit message with no body
+#### 无正文的提交信息
 ```
 docs: correct spelling of CHANGELOG
 ```
 
-#### Commit message with scope
+#### 包含作用域的提交信息
 ```
 feat(lang): add Polish language
 ```
 
-#### Commit message with multi-paragraph body and multiple footers
+#### 包含多段正文和多个脚注的提交信息
 ```
 fix: prevent racing of requests
 
@@ -97,16 +100,16 @@ Reviewed-by: Z
 Refs: #123
 ```
 
-## Execution Rules
+## 执行规则
 
-- Commit all current tracked and untracked changes in the working tree, because this skill is for "commit the current state" requests
-- If there are no changes, say so clearly and stop before commit or push
-- If `git branch --show-current` is empty, explain that `HEAD` is detached and stop unless the user explicitly asks you to commit from detached `HEAD`
-- Never use `--force`, `--force-with-lease`, or history-rewriting commands unless the user explicitly asks
-- If push fails because the remote branch moved, report the exact failure and stop instead of auto-rebasing or auto-merging
-- Do not silently drop files from the commit unless the user asked to exclude them
+- 提交工作区中所有已跟踪和未跟踪的变更，因为此技能用于"提交当前状态"的请求
+- 如果没有变更，明确告知用户并在提交或推送前停止
+- 如果 `git branch --show-current` 为空，说明当前处于分离 HEAD 状态并停止，除非用户明确要求从分离 HEAD 提交
+- 除非用户明确要求，否则禁止使用 `--force`、`--force-with-lease` 或历史重写命令
+- 如果推送因远程分支已更新而失败，报告具体错误并停止，不要自动变基或合并
+- 除非用户要求排除，否则不要静默丢弃文件
 
-## Suggested Command Flow
+## 建议的命令流程
 
 ```bash
 git status --short --branch
@@ -118,29 +121,29 @@ git commit -m "<generated-subject>"
 git push origin "$branch_name"
 ```
 
-Inspect `git diff --cached` again after staging if the pre-stage diff was noisy or if untracked files materially change the scope.
+如果暂存前的差异内容嘈杂，或未跟踪文件显著改变了变更范围，暂存后应再次检查 `git diff --cached`。
 
-## Output Contract
+## 输出约定
 
-When you use this skill:
+使用此技能时：
 
-- Tell the user which branch you committed
-- Provide the final commit subject you used
-- Mention that you staged all current changes
-- Report the push target as `origin/<branch>`
-- If commit or push did not happen, explain exactly why
+- 告知用户提交到了哪个分支
+- 提供最终使用的提交主题
+- 说明已暂存所有当前变更
+- 报告推送目标为 `origin/<分支名>`
+- 如果提交或推送未执行，说明具体原因
 
-## Example
+## 示例
 
-User request:
+用户请求：
 
 ```text
-Generate a commit message that follows this repository's convention, then commit and push the current branch
+根据此仓库的规范生成提交信息，然后提交并推送当前分支
 ```
 
-Expected behavior:
+预期行为：
 
-- Inspect the repo status and diff
-- Generate a conventional subject from the real changes
-- Run one commit for the whole current working tree
-- Push the active branch to `origin`
+- 检查仓库状态和差异
+- 根据实际变更生成符合规范的主题
+- 对当前工作区执行一次提交
+- 将当前分支推送到 `origin`

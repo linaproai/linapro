@@ -1,55 +1,57 @@
 ---
 name: git-worktree
-description: Create and actively use an isolated git worktree for the user's task, then continue the task inside that new directory. Use this whenever the user asks for a separate worktree, isolated checkout, clean branch directory, safer parallel changes, or a fresh workspace to avoid unrelated local edits.
+description: 为当前任务创建并使用独立的 Git 工作树，在新目录中继续执行任务。当用户要求独立的工作树、隔离的检出、干净的分支目录、更安全的并行变更，或需要全新的工作空间以避免干扰本地已有修改时使用此技能。
 ---
 
-# Git Worktree
+# Git 工作树
 
-Create a dedicated `git worktree` for the current task, then keep working inside that new directory instead of the original checkout.
+为当前任务创建专用的 `git worktree`，然后在新目录中继续工作，而非使用原始检出。
 
-This skill is about execution, not just advice. When it triggers, actually create the worktree unless the repository state makes that impossible.
+此技能用于执行而非仅提供建议。触发时应直接创建工作树，除非仓库状态导致无法执行。
 
-Do not introduce helper scripts for this skill. Use direct `git` and shell commands inline.
+此技能不引入辅助脚本，直接使用内联的 `git` 和 shell 命令。
 
-## When To Use
+**交互语言**：与用户交互的内容语言以用户上下文使用的语言为准，用户使用英文则使用英文，用户使用中文则使用中文。
 
-- The user explicitly asks for a new `git worktree`, independent branch directory, or isolated workspace
-- The current checkout contains unrelated local changes and isolation is the safest way forward
-- The user wants parallel work on multiple tasks without stashing or disturbing the original worktree
-- The user says things like "create a separate branch folder", "open a fresh worktree", "use a clean checkout", or "work in an isolated workspace"
+## 适用场景
 
-## Core Rule
+- 用户明确要求创建新的 `git worktree`、独立分支目录或隔离工作空间
+- 当前检出包含无关的本地变更，隔离是最安全的方式
+- 用户希望在多个任务上并行工作，无需暂存或干扰原始工作树
+- 用户说"创建独立的分支目录"、"打开新的工作树"、"使用干净的检出"，或"在隔离空间中工作"
 
-After creating the worktree, treat the new path as the active working directory for the rest of the task.
+## 核心规则
 
-In any agent environment, "enter the directory" means:
+创建工作树后，将新路径视为任务执行期间的活跃工作目录。
 
-- Run subsequent commands against the new worktree path
-- Apply all edits under that worktree path
-- Do not keep using the original checkout by accident
-- Confirm the handoff by running at least one follow-up command in the new worktree
+在任何代理环境中，"进入目录"意味着：
 
-Never claim you "switched" unless your subsequent actions actually target the new `worktree_path`.
+- 后续命令以新工作树路径为执行目标
+- 所有编辑操作都在该工作树路径下进行
+- 不要意外继续使用原始检出
+- 通过在新工作树中至少执行一条后续命令来确认切换完成
 
-If your environment supports a per-command working directory, use it for every later command. If it does not, prefix later commands with an explicit `cd <worktree_path> && ...`.
+除非后续操作确实指向新的 `worktree_path`，否则不要声称已"切换"。
 
-## Name Derivation
+如果环境支持按命令设置工作目录，则为后续每个命令使用该设置。如果不支持，则在后续命令前添加显式的 `cd <worktree_path> && ...`。
 
-- Derive a short ASCII kebab-case task slug from the user's real task, such as `login-timeout-fix` or `user-export`
-- Do not use generic names like `git-worktree`, `new-worktree`, or `task` unless the request is too vague
-- If the request is mostly non-ASCII or no good slug is obvious, fall back to `task-$(date +%Y%m%d-%H%M%S)`
-- Default branch prefix is `worktree/`
-- Default worktree directory is a sibling of the repository root, named `<repo-name>-<slug>`
+## 名称派生
 
-## Default Workflow
+- 根据用户的实际任务派生简短的 ASCII kebab-case 任务标识，如 `login-timeout-fix` 或 `user-export`
+- 除非请求过于模糊，否则不要使用 `git-worktree`、`new-worktree` 或 `task` 等通用名称
+- 如果请求主要为非 ASCII 内容或没有明显的标识可用，回退到 `task-$(date +%Y%m%d-%H%M%S)`
+- 默认分支前缀为 `worktree/`
+- 默认工作树目录为仓库根目录的同级目录，命名为 `<仓库名>-<标识>`
 
-1. Inspect the repository context from the current checkout:
+## 默认工作流
+
+1. 从当前检出检查仓库上下文：
    - `git rev-parse --show-toplevel`
    - `git branch --show-current`
    - `git status --short`
    - `git worktree list --porcelain`
-2. Decide a task slug yourself using the rules above
-3. Build branch and path names inline, then create the worktree with direct shell commands like:
+2. 根据上述规则自行确定任务标识
+3. 内联构建分支和路径名称，然后使用直接的 shell 命令创建工作树：
 
    ```bash
    repo_root=$(git rev-parse --show-toplevel)
@@ -78,65 +80,65 @@ If your environment supports a per-command working directory, use it for every l
    git -C "$repo_root" worktree add -b "$branch_name" "$worktree_path" HEAD
    ```
 
-4. Immediately verify the handoff inside the new worktree, for example:
+4. 立即在新工作树中验证切换，例如：
 
    ```bash
    pwd
    git status --short --branch
    ```
 
-   These verification commands must run against `worktree_path`.
+   这些验证命令必须以 `worktree_path` 为执行目标。
 
-5. Announce the new active path briefly, then continue the main task there
-6. For the remainder of the task, use `worktree_path` as the working directory for every relevant command or edit operation
+5. 简要告知新活跃路径，然后在新目录中继续执行主任务
+6. 任务剩余部分中，所有相关命令或编辑操作均以 `worktree_path` 为工作目录
 
-## Behavior Rules
+## 行为规则
 
-- Default base ref is `HEAD` from the current checkout so uncommitted local changes are not dragged into the new worktree
-- If a branch name or path already exists, auto-increment it instead of failing
-- If you are already inside a non-default worktree and the user still wants another isolated workspace, create a new one from the current `HEAD`
-- If the directory is not a Git repository, explain that clearly and do not pretend a worktree was created
-- If worktree creation succeeds, continue the user's actual task instead of stopping at setup
-- If worktree creation fails because of filesystem permissions, request the minimal approval needed and retry
+- 默认基准引用为当前检出的 `HEAD`，以避免将未提交的本地变更带入新工作树
+- 如果分支名或路径已存在，自动递增后缀而非报错
+- 如果已在非默认工作树中且用户仍需要另一个隔离空间，从当前 `HEAD` 创建新工作树
+- 如果目录不是 Git 仓库，明确说明并不要假装已创建工作树
+- 如果工作树创建成功，继续执行用户的实际任务，而非停留在设置阶段
+- 如果工作树因文件系统权限创建失败，请求最小必要权限后重试
 
-## Uncommitted Change Policy
+## 未提交变更策略
 
-The safe default is isolation from uncommitted changes.
+安全默认策略是与未提交变更隔离。
 
-- If the source checkout is dirty, still create the new worktree from `HEAD` unless the user explicitly asks to carry local edits over
-- Do not silently stash, reset, or move the user's existing changes
-- If the user wants local edits copied into the new worktree, use an explicit flow such as a temporary commit, patch, or cherry-pick, and say what you are doing
+- 如果源检出有未提交变更，仍从 `HEAD` 创建新工作树，除非用户明确要求携带本地修改
+- 不要静默暂存、重置或移动用户现有的变更
+- 如果用户希望将本地修改复制到新工作树中，使用显式流程（如临时提交、补丁或拣选），并说明正在执行的操作
 
-## Output Contract
+## 输出约定
 
-When you use this skill:
+使用此技能时：
 
-- Tell the user which branch and directory were created
-- Make it clear that subsequent work is now happening inside that path
-- Mention the source ref and whether the original checkout was dirty when that context matters
-- Do not stop after setup if the user asked for additional work; continue the task in the new worktree
+- 告知用户创建了哪个分支和目录
+- 明确后续工作将在该路径下进行
+- 在上下文相关时说明源引用和原始检出是否有未提交变更
+- 如果用户要求额外工作，不要在设置完成后停止，继续在新工作树中执行任务
 
-## Example
+## 示例
 
-User request:
+用户请求：
 
 ```text
-Create a separate worktree for this task and then start implementing it.
+为这个任务创建一个独立的工作树，然后开始实现。
 ```
 
-Expected behavior:
+预期行为：
 
-- Inspect current repo status
-- Create a new `worktree/...` branch and sibling directory with direct `git worktree` commands
-- Switch all following commands to that directory
-- Continue the requested implementation there
+- 检查当前仓库状态
+- 使用直接的 `git worktree` 命令创建新的 `worktree/...` 分支和同级目录
+- 将后续所有命令切换到该目录
+- 在新目录中继续执行请求的实现工作
 
-## Cleanup
+## 清理
 
-Only remove a worktree when the user asks or when cleanup is clearly part of the task.
+仅在用户要求或清理明显是任务一部分时才移除工作树。
 
-Before cleanup:
+清理前：
 
-- Check status in the worktree you created
-- Make sure you are removing the correct path
-- Never remove the user's original checkout
+- 检查所创建工作树的状态
+- 确认正在移除的是正确的路径
+- 永远不要移除用户的原始检出
