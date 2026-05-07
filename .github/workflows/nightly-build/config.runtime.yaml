@@ -21,7 +21,7 @@ logger:
 # 数据库配置
 database:
   default:
-    link: "sqlite::@file(./data/sqlite/linapro.db)"
+    link: "sqlite::@file(/app/data/sqlite/linapro.db)"
     debug: false
 
 # JWT configuration
@@ -81,12 +81,12 @@ cluster:
 # Upload configuration
 # 上传配置
 upload:
-  path: "data/upload"
+  path: "/app/data/upload"
   maxSize: 20
 
 # Plugin configuration
 # 插件配置
 plugin:
   dynamic:
-    storagePath: "data/wasm"
+    storagePath: "/app/data/wasm"
   autoEnable: []
