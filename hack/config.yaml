@@ -7,7 +7,7 @@ build:
   # 宿主二进制与 Docker 镜像的目标平台列表。
   # 每一项使用 goos/goarch 格式，或使用 "auto" 表示当前系统平台。
   platforms:
-    - "linux/amd64"
+    - "auto"
   # Whether to enable CGO when building the host binary.
   # 构建宿主二进制时是否启用 CGO。
   cgoEnabled: false

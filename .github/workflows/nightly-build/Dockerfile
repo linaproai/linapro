@@ -8,16 +8,22 @@ ARG TARGETARCH
 ###############################################################################
 
 ENV WORKDIR=/app
-ENV TZ=Asia/Shanghai
 
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY temp/image/${TARGETOS}/${TARGETARCH}/lina $WORKDIR/lina
 COPY .github/workflows/nightly-build/config.runtime.yaml $WORKDIR/config.yaml
 
+WORKDIR $WORKDIR
+
+# init and mock commands are used to prepare the runtime environment, 
+# such as creating necessary directories and files. 
+# This ensures that when the container starts, it has all the required setup to run properly.
+RUN lina init --confirm=init
+RUN lina mock --confirm=mock
+
 ###############################################################################
 #                                   START
 ###############################################################################
-WORKDIR $WORKDIR
 EXPOSE 8080
-ENTRYPOINT ["./lina"]
+CMD ["./lina"]
