@@ -10,14 +10,8 @@ ifneq ($(origin v), undefined)
 verbose := $(v)
 endif
 
-ifneq ($(origin os), undefined)
-BUILD_CONFIG_ARGS += --os=$(os)
-endif
-ifneq ($(origin arch), undefined)
-BUILD_CONFIG_ARGS += --arch=$(arch)
-endif
-ifneq ($(origin platform), undefined)
-BUILD_CONFIG_ARGS += --platform=$(platform)
+ifneq ($(origin platforms), undefined)
+BUILD_CONFIG_ARGS += --platforms=$(platforms)
 endif
 ifneq ($(origin cgo_enabled), undefined)
 BUILD_CONFIG_ARGS += --cgo-enabled=$(cgo_enabled)
@@ -49,7 +43,7 @@ endef
 
 # Build frontend assets, packed manifests, dynamic plugins, and the host binary.
 # 构建前端资源、嵌入 manifest、动态插件和宿主后端二进制。
-## build: Build frontend assets, host manifest assets, runtime wasm plugins, and host binaries using hack/config.yaml build settings; supports os=linux arch=amd64, platform=linux/amd64,linux/arm64, verbose=1, or v=1
+## build: Build frontend assets, host manifest assets, runtime wasm plugins, and host binaries using hack/config.yaml build settings; supports platforms=linux/amd64,linux/arm64, verbose=1, or v=1
 .PHONY: build
 build:
 	@set -e; \

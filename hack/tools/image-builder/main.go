@@ -31,12 +31,11 @@ const (
 
 // buildConfig stores user-facing build defaults.
 type buildConfig struct {
-	OS         string           `yaml:"os"`
-	Arch       string           `yaml:"arch"`
-	Platform   string           `yaml:"platform"`
+	Platforms  []string         `yaml:"platforms"`
 	CGOEnabled bool             `yaml:"cgoEnabled"`
 	OutputDir  string           `yaml:"outputDir"`
 	BinaryName string           `yaml:"binaryName"`
+	Platform   string           `yaml:"-"`
 	Targets    []targetPlatform `yaml:"-"`
 }
 
@@ -60,9 +59,7 @@ type cliOptions struct {
 	Tag           string
 	Registry      string
 	Push          string
-	OS            string
-	Arch          string
-	Platform      string
+	Platforms     string
 	CGOEnabled    string
 	OutputDir     string
 	BinaryName    string
@@ -105,7 +102,7 @@ func run() error {
 	if err = applyBuildOverrides(&cfg.Build, opts, specified); err != nil {
 		return err
 	}
-	if err = normalizeBuildConfig(&cfg.Build, specified); err != nil {
+	if err = normalizeBuildConfig(&cfg.Build); err != nil {
 		return err
 	}
 	if opts.PrintBuildEnv {
@@ -185,9 +182,7 @@ func parseOptions() (cliOptions, map[string]bool) {
 	flag.StringVar(&opts.Tag, "tag", "", "Override image tag")
 	flag.StringVar(&opts.Registry, "registry", "", "Override image registry prefix")
 	flag.StringVar(&opts.Push, "push", "", "Override push behavior")
-	flag.StringVar(&opts.OS, "os", "", "Override build target OS")
-	flag.StringVar(&opts.Arch, "arch", "", "Override build target architecture")
-	flag.StringVar(&opts.Platform, "platform", "", "Override Docker build platform")
+	flag.StringVar(&opts.Platforms, "platforms", "", "Override build target platforms")
 	flag.StringVar(&opts.CGOEnabled, "cgo-enabled", "", "Override CGO build behavior")
 	flag.StringVar(&opts.OutputDir, "output-dir", "", "Override build output directory")
 	flag.StringVar(&opts.BinaryName, "binary-name", "", "Override build binary filename")
@@ -213,9 +208,7 @@ func defaultRootConfig() rootConfig {
 // defaultBuildConfig returns stable build defaults.
 func defaultBuildConfig() buildConfig {
 	return buildConfig{
-		OS:         "linux",
-		Arch:       "auto",
-		Platform:   "auto",
+		Platforms:  []string{"linux/" + runtime.GOARCH},
 		CGOEnabled: false,
 		OutputDir:  "temp/output",
 		BinaryName: "lina",
@@ -274,14 +267,12 @@ func loadConfig(configPath string, cfg *rootConfig) error {
 
 // applyBuildOverrides merges command-line overrides into build config values.
 func applyBuildOverrides(cfg *buildConfig, opts cliOptions, specified map[string]bool) error {
-	if specified["os"] {
-		cfg.OS = opts.OS
-	}
-	if specified["arch"] {
-		cfg.Arch = opts.Arch
-	}
-	if specified["platform"] {
-		cfg.Platform = opts.Platform
+	if specified["platforms"] {
+		platforms, err := splitPlatformCSV(opts.Platforms)
+		if err != nil {
+			return err
+		}
+		cfg.Platforms = platforms
 	}
 	if specified["cgo-enabled"] {
 		value, err := parseOptionalBool(opts.CGOEnabled, cfg.CGOEnabled)
@@ -327,52 +318,19 @@ func applyImageOverrides(cfg *imageConfig, opts cliOptions, specified map[string
 }
 
 // normalizeBuildConfig validates and completes derived build config values.
-func normalizeBuildConfig(cfg *buildConfig, specified map[string]bool) error {
-	cfg.OS = normalizeAuto(cfg.OS, "linux")
-	cfg.Arch = normalizeAuto(cfg.Arch, runtime.GOARCH)
-	platformExplicit := strings.TrimSpace(cfg.Platform) != "" && !strings.EqualFold(strings.TrimSpace(cfg.Platform), "auto")
-	if cfg.Platform = normalizeAuto(cfg.Platform, cfg.OS+"/"+cfg.Arch); cfg.Platform == "" {
-		cfg.Platform = cfg.OS + "/" + cfg.Arch
-	}
-	targets, err := parsePlatformList(cfg.Platform)
+func normalizeBuildConfig(cfg *buildConfig) error {
+	targets, err := parsePlatformList(cfg.Platforms)
 	if err != nil {
 		return err
 	}
-	if len(targets) == 1 {
-		target := targets[0]
-		if platformExplicit {
-			if specified["os"] && cfg.OS != target.OS {
-				return fmt.Errorf("build.os %q does not match build.platform %q", cfg.OS, target.String())
-			}
-			if specified["arch"] && cfg.Arch != target.Arch {
-				return fmt.Errorf("build.arch %q does not match build.platform %q", cfg.Arch, target.String())
-			}
-			if !specified["os"] {
-				cfg.OS = target.OS
-			}
-			if !specified["arch"] {
-				cfg.Arch = target.Arch
-			}
-		}
-	} else if specified["os"] || specified["arch"] {
-		return errors.New("build.os and build.arch cannot be combined with multiple build.platform entries")
-	} else {
-		cfg.OS = targets[0].OS
-		cfg.Arch = targets[0].Arch
-	}
 	cfg.Platform = joinPlatformCSV(targets)
+	cfg.Platforms = platformValues(targets)
 	cfg.Targets = targets
 	cfg.OutputDir = filepath.Clean(strings.TrimSpace(cfg.OutputDir))
 	cfg.BinaryName = strings.TrimSpace(cfg.BinaryName)
 
-	if cfg.OS == "" {
-		return errors.New("build.os cannot be empty")
-	}
-	if cfg.Arch == "" {
-		return errors.New("build.arch cannot be empty")
-	}
 	if cfg.Platform == "" {
-		return errors.New("build.platform cannot be empty")
+		return errors.New("build.platforms cannot be empty")
 	}
 	if cfg.OutputDir == "." || cfg.OutputDir == "" {
 		return errors.New("build.outputDir cannot be empty")
@@ -389,13 +347,32 @@ func normalizeBuildConfig(cfg *buildConfig, specified map[string]bool) error {
 	return nil
 }
 
-// parsePlatformList parses one comma-separated Docker/Go platform list.
-func parsePlatformList(value string) ([]targetPlatform, error) {
+// splitPlatformCSV parses a command-line comma-separated platform override.
+func splitPlatformCSV(value string) ([]string, error) {
 	items := strings.Split(value, ",")
-	targets := make([]targetPlatform, 0, len(items))
-	seen := map[string]bool{}
+	platforms := make([]string, 0, len(items))
 	for _, item := range items {
-		target, err := parseTargetPlatform(item)
+		normalized := strings.TrimSpace(item)
+		if normalized == "" {
+			return nil, errors.New("build.platforms contains an empty platform entry")
+		}
+		platforms = append(platforms, normalized)
+	}
+	if len(platforms) == 0 {
+		return nil, errors.New("build.platforms cannot be empty")
+	}
+	return platforms, nil
+}
+
+// parsePlatformList parses one Docker/Go platform list from configuration.
+func parsePlatformList(values []string) ([]targetPlatform, error) {
+	if len(values) == 0 {
+		return nil, errors.New("build.platforms cannot be empty")
+	}
+	targets := make([]targetPlatform, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		target, err := parseTargetPlatform(value)
 		if err != nil {
 			return nil, err
 		}
@@ -407,7 +384,7 @@ func parsePlatformList(value string) ([]targetPlatform, error) {
 		targets = append(targets, target)
 	}
 	if len(targets) == 0 {
-		return nil, errors.New("build.platform cannot be empty")
+		return nil, errors.New("build.platforms cannot be empty")
 	}
 	return targets, nil
 }
@@ -416,21 +393,24 @@ func parsePlatformList(value string) ([]targetPlatform, error) {
 func parseTargetPlatform(value string) (targetPlatform, error) {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	if normalized == "" {
-		return targetPlatform{}, errors.New("build.platform contains an empty platform entry")
+		return targetPlatform{}, errors.New("build.platforms contains an empty platform entry")
+	}
+	if normalized == "auto" {
+		return targetPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH}, nil
 	}
 	parts := strings.Split(normalized, "/")
 	if len(parts) != 2 {
-		return targetPlatform{}, fmt.Errorf("build.platform entry %q must use goos/goarch form", value)
+		return targetPlatform{}, fmt.Errorf("build.platforms entry %q must use goos/goarch form or auto", value)
 	}
 	target := targetPlatform{
 		OS:   strings.TrimSpace(parts[0]),
 		Arch: strings.TrimSpace(parts[1]),
 	}
 	if target.OS == "" || target.Arch == "" {
-		return targetPlatform{}, fmt.Errorf("build.platform entry %q must include both goos and goarch", value)
+		return targetPlatform{}, fmt.Errorf("build.platforms entry %q must include both goos and goarch", value)
 	}
 	if strings.ContainsAny(target.OS+target.Arch, " \t\r\n") {
-		return targetPlatform{}, fmt.Errorf("build.platform entry %q must not contain whitespace", value)
+		return targetPlatform{}, fmt.Errorf("build.platforms entry %q must not contain whitespace", value)
 	}
 	return target, nil
 }
@@ -467,15 +447,6 @@ func normalizeImageConfig(repoRoot string, cfg *imageConfig) error {
 	return nil
 }
 
-// normalizeAuto resolves blank or auto values to a default.
-func normalizeAuto(value string, fallback string) string {
-	normalized := strings.TrimSpace(value)
-	if normalized == "" || strings.EqualFold(normalized, "auto") {
-		return strings.TrimSpace(fallback)
-	}
-	return normalized
-}
-
 // parseOptionalBool parses optional bool-ish values used by make variables.
 func parseOptionalBool(value string, fallback bool) (bool, error) {
 	normalized := strings.TrimSpace(value)
@@ -510,8 +481,6 @@ func printBuildEnv(cfg buildConfig) {
 	if cfg.MultiPlatform() {
 		multiPlatform = "1"
 	}
-	fmt.Printf("BUILD_OS=%s\n", shellQuote(cfg.OS))
-	fmt.Printf("BUILD_ARCH=%s\n", shellQuote(cfg.Arch))
 	fmt.Printf("BUILD_PLATFORM=%s\n", shellQuote(cfg.Platform))
 	fmt.Printf("BUILD_PLATFORMS=%s\n", shellQuote(joinPlatformSpace(cfg.Targets)))
 	fmt.Printf("BUILD_PLATFORM_COUNT=%d\n", len(cfg.Targets))
@@ -694,6 +663,15 @@ func joinPlatformCSV(targets []targetPlatform) string {
 		values = append(values, target.String())
 	}
 	return strings.Join(values, ",")
+}
+
+// platformValues returns normalized platform strings for the in-memory config.
+func platformValues(targets []targetPlatform) []string {
+	values := make([]string, 0, len(targets))
+	for _, target := range targets {
+		values = append(values, target.String())
+	}
+	return values
 }
 
 // joinPlatformSpace joins targets for shell for-loops in make recipes.

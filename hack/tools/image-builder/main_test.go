@@ -5,25 +5,20 @@ package main
 
 import (
 	"reflect"
+	"runtime"
 	"testing"
 )
 
-// TestNormalizeBuildConfigSinglePlatform verifies os/arch overrides keep the
-// standard single-binary output contract.
+// TestNormalizeBuildConfigSinglePlatform verifies one configured platform keeps
+// the standard single-binary output contract.
 func TestNormalizeBuildConfigSinglePlatform(t *testing.T) {
 	cfg := defaultBuildConfig()
-	cfg.Arch = "arm64"
+	cfg.Platforms = []string{"linux/arm64"}
 
-	if err := normalizeBuildConfig(&cfg, map[string]bool{"arch": true}); err != nil {
+	if err := normalizeBuildConfig(&cfg); err != nil {
 		t.Fatalf("normalizeBuildConfig returned error: %v", err)
 	}
 
-	if cfg.OS != "linux" {
-		t.Fatalf("OS = %q, want linux", cfg.OS)
-	}
-	if cfg.Arch != "arm64" {
-		t.Fatalf("Arch = %q, want arm64", cfg.Arch)
-	}
 	if cfg.Platform != "linux/arm64" {
 		t.Fatalf("Platform = %q, want linux/arm64", cfg.Platform)
 	}
@@ -36,13 +31,32 @@ func TestNormalizeBuildConfigSinglePlatform(t *testing.T) {
 	}
 }
 
+// TestNormalizeBuildConfigAutoPlatform verifies auto resolves to the current
+// execution platform.
+func TestNormalizeBuildConfigAutoPlatform(t *testing.T) {
+	cfg := defaultBuildConfig()
+	cfg.Platforms = []string{"auto"}
+
+	if err := normalizeBuildConfig(&cfg); err != nil {
+		t.Fatalf("normalizeBuildConfig returned error: %v", err)
+	}
+
+	want := runtimePlatform().String()
+	if cfg.Platform != want {
+		t.Fatalf("Platform = %q, want %q", cfg.Platform, want)
+	}
+	if len(cfg.Platforms) != 1 || cfg.Platforms[0] != want {
+		t.Fatalf("Platforms = %#v, want [%q]", cfg.Platforms, want)
+	}
+}
+
 // TestNormalizeBuildConfigMultiPlatform verifies platform lists become stable
 // per-platform binary output directories.
 func TestNormalizeBuildConfigMultiPlatform(t *testing.T) {
 	cfg := defaultBuildConfig()
-	cfg.Platform = "linux/amd64,linux/arm64"
+	cfg.Platforms = []string{"linux/amd64", "linux/arm64"}
 
-	if err := normalizeBuildConfig(&cfg, map[string]bool{"platform": true}); err != nil {
+	if err := normalizeBuildConfig(&cfg); err != nil {
 		t.Fatalf("normalizeBuildConfig returned error: %v", err)
 	}
 
@@ -52,9 +66,6 @@ func TestNormalizeBuildConfigMultiPlatform(t *testing.T) {
 	if cfg.Platform != "linux/amd64,linux/arm64" {
 		t.Fatalf("Platform = %q, want linux/amd64,linux/arm64", cfg.Platform)
 	}
-	if cfg.OS != "linux" || cfg.Arch != "amd64" {
-		t.Fatalf("primary target = %s/%s, want linux/amd64", cfg.OS, cfg.Arch)
-	}
 	if got := buildOutputBinaryRelPath(cfg, cfg.Targets[0]); got != "temp/output/linux_amd64/lina" {
 		t.Fatalf("amd64 binary path = %q, want temp/output/linux_amd64/lina", got)
 	}
@@ -63,16 +74,17 @@ func TestNormalizeBuildConfigMultiPlatform(t *testing.T) {
 	}
 }
 
-// TestNormalizeBuildConfigRejectsMixedOSArchWithMultiPlatform verifies that
-// explicit os/arch overrides cannot conflict with a platform matrix.
-func TestNormalizeBuildConfigRejectsMixedOSArchWithMultiPlatform(t *testing.T) {
-	cfg := defaultBuildConfig()
-	cfg.Platform = "linux/amd64,linux/arm64"
-	cfg.Arch = "amd64"
+// TestSplitPlatformCSV verifies command-line platform overrides use a compact
+// comma-separated form that becomes the config array.
+func TestSplitPlatformCSV(t *testing.T) {
+	got, err := splitPlatformCSV("linux/amd64,linux/arm64")
+	if err != nil {
+		t.Fatalf("splitPlatformCSV returned error: %v", err)
+	}
 
-	err := normalizeBuildConfig(&cfg, map[string]bool{"platform": true, "arch": true})
-	if err == nil {
-		t.Fatalf("normalizeBuildConfig returned nil, want error")
+	want := []string{"linux/amd64", "linux/arm64"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("splitPlatformCSV = %#v, want %#v", got, want)
 	}
 }
 
@@ -80,8 +92,8 @@ func TestNormalizeBuildConfigRejectsMixedOSArchWithMultiPlatform(t *testing.T) {
 // multi-platform publishing is rejected unless push is enabled.
 func TestValidateImageBuildRequestRequiresPushForMultiPlatform(t *testing.T) {
 	cfg := defaultBuildConfig()
-	cfg.Platform = "linux/amd64,linux/arm64"
-	if err := normalizeBuildConfig(&cfg, map[string]bool{"platform": true}); err != nil {
+	cfg.Platforms = []string{"linux/amd64", "linux/arm64"}
+	if err := normalizeBuildConfig(&cfg); err != nil {
 		t.Fatalf("normalizeBuildConfig returned error: %v", err)
 	}
 
@@ -102,8 +114,8 @@ func TestValidateImageBuildRequestRequiresPushForMultiPlatform(t *testing.T) {
 // with a platform matrix and push.
 func TestBuildxDockerArgs(t *testing.T) {
 	cfg := defaultBuildConfig()
-	cfg.Platform = "linux/amd64,linux/arm64"
-	if err := normalizeBuildConfig(&cfg, map[string]bool{"platform": true}); err != nil {
+	cfg.Platforms = []string{"linux/amd64", "linux/arm64"}
+	if err := normalizeBuildConfig(&cfg); err != nil {
 		t.Fatalf("normalizeBuildConfig returned error: %v", err)
 	}
 	image := defaultImageConfig()
@@ -144,4 +156,9 @@ func TestDockerBuildArgs(t *testing.T) {
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("docker build args = %#v, want %#v", args, want)
 	}
+}
+
+// runtimePlatform returns the current Go execution target.
+func runtimePlatform() targetPlatform {
+	return targetPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH}
 }

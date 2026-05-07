@@ -18,14 +18,8 @@ endif
 ifneq ($(origin push), undefined)
 IMAGE_BUILDER_ARGS += --push=$(push)
 endif
-ifneq ($(origin os), undefined)
-IMAGE_BUILDER_ARGS += --os=$(os)
-endif
-ifneq ($(origin arch), undefined)
-IMAGE_BUILDER_ARGS += --arch=$(arch)
-endif
-ifneq ($(origin platform), undefined)
-IMAGE_BUILDER_ARGS += --platform=$(platform)
+ifneq ($(origin platforms), undefined)
+IMAGE_BUILDER_ARGS += --platforms=$(platforms)
 endif
 ifneq ($(origin cgo_enabled), undefined)
 IMAGE_BUILDER_ARGS += --cgo-enabled=$(cgo_enabled)
@@ -48,11 +42,11 @@ endif
 
 # Build the production Docker image from the standard make build output.
 # 基于标准 make build 产物构建生产 Docker 镜像。
-## image: Build the production Docker image from make build output and hack/config.yaml; supports tag=v0.6.0 registry=ghcr.io/linaproai push=1 platform=linux/amd64,linux/arm64
+## image: Build the production Docker image from make build output and hack/config.yaml; supports tag=v0.6.0 registry=ghcr.io/linaproai push=1 platforms=linux/amd64,linux/arm64
 .PHONY: image
 image:
 	@go run ./hack/tools/image-builder --preflight $(IMAGE_BUILDER_ARGS)
-	@$(MAKE) build $(if $(os),os=$(os),) $(if $(arch),arch=$(arch),) $(if $(platform),platform=$(platform),) $(if $(cgo_enabled),cgo_enabled=$(cgo_enabled),) $(if $(output_dir),output_dir=$(output_dir),) $(if $(binary_name),binary_name=$(binary_name),) $(if $(verbose),verbose=$(verbose),) $(if $(v),v=$(v),)
+	@$(MAKE) build $(if $(platforms),platforms=$(platforms),) $(if $(cgo_enabled),cgo_enabled=$(cgo_enabled),) $(if $(output_dir),output_dir=$(output_dir),) $(if $(binary_name),binary_name=$(binary_name),) $(if $(verbose),verbose=$(verbose),) $(if $(v),v=$(v),)
 	@go run ./hack/tools/image-builder $(IMAGE_BUILDER_ARGS)
 
 # Prepare image build artifacts without invoking Docker build.

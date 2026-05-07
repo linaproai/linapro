@@ -42,10 +42,10 @@ make ctrl
 make init confirm=init
 ```
 
-For release builds, use `make build os=linux arch=arm64` to cross-compile one target, or run multi-platform image publishing from the repository root:
+For release builds, use `make build platforms=linux/arm64` to cross-compile one target, or run multi-platform image publishing from the repository root:
 
 ```bash
-make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
 ```
 
 ## Database Configuration

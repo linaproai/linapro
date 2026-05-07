@@ -166,10 +166,10 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 
 # Release Builds
 
-`make build` supports cross-compiling the host binary, for example `make build os=linux arch=arm64`. `make image` supports multi-platform Docker publishing through `Docker buildx`:
+`make build` supports cross-compiling the host binary, for example `make build platforms=linux/arm64`. `make image` supports multi-platform Docker publishing through `Docker buildx`:
 
 ```bash
-make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
 ```
 
 Multi-platform image builds require `push=1` so the remote image manifest is published.

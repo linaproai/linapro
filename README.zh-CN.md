@@ -167,10 +167,10 @@ graph TB
 
 # 发布构建
 
-`make build`支持交叉编译宿主二进制，例如`make build os=linux arch=arm64`。`make image`支持通过`Docker buildx`发布多平台镜像：
+`make build`支持交叉编译宿主二进制，例如`make build platforms=linux/arm64`。`make image`支持通过`Docker buildx`发布多平台镜像：
 
 ```bash
-make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
 ```
 
 多平台镜像构建必须启用`push=1`，以便发布远端镜像 manifest。

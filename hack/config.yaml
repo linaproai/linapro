@@ -2,17 +2,12 @@
 # 仓库级开发与交付工具配置。
 
 build:
-  # Target OS for the host binary built by make build.
-  # make build 构建宿主二进制时使用的目标操作系统。
-  os: "linux"
-  # Target architecture. "auto" follows the local Go architecture.
-  # 目标架构。"auto" 表示跟随本机 Go 架构。
-  arch: "auto"
-  # Docker build platform list. "auto" resolves to "<os>/<arch>".
-  # Use comma-separated values for multi-platform builds, for example "linux/amd64,linux/arm64".
-  # Docker 构建平台列表。"auto" 会解析为 "<os>/<arch>"。
-  # 多平台构建使用英文逗号分隔，例如 "linux/amd64,linux/arm64"。
-  platform: "auto"
+  # Target platforms for host binaries and Docker images.
+  # Each item uses goos/goarch form, or "auto" for the current system platform.
+  # 宿主二进制与 Docker 镜像的目标平台列表。
+  # 每一项使用 goos/goarch 格式，或使用 "auto" 表示当前系统平台。
+  platforms:
+    - "linux/amd64"
   # Whether to enable CGO when building the host binary.
   # 构建宿主二进制时是否启用 CGO。
   cgoEnabled: false

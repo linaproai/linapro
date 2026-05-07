@@ -42,10 +42,10 @@ make ctrl
 make init confirm=init
 ```
 
-发布构建可使用`make build os=linux arch=arm64`交叉编译单一目标，或在仓库根目录发布多平台镜像：
+发布构建可使用`make build platforms=linux/arm64`交叉编译单一目标，或在仓库根目录发布多平台镜像：
 
 ```bash
-make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
 ```
 
 ## 数据库配置
