@@ -135,13 +135,13 @@ graph TB
 
 `lina-vben`是框架内置的功能完整的管理工作台，开发者可直接在此基础上构建业务应用：
 
-![LinaPro I18N](https://linapro.ai/img/preview/linapro-i18n.webp)
+![LinaPro I18N](https://linapro.ai/img/preview/linapro-i18n.webp?v=v0.1.0)
 
-![LinaPro Plugin](https://linapro.ai/img/preview/linapro-plugin.webp)
+![LinaPro Plugin](https://linapro.ai/img/preview/linapro-plugin.webp?v=v0.1.0)
 
-![LinaPro API Docs](https://linapro.ai/img/preview/linapro-apidoc.webp)
+![LinaPro API Docs](https://linapro.ai/img/preview/linapro-apidoc.webp?v=v0.1.0)
 
-![LinaPro Menu](https://linapro.ai/img/preview/linapro-menu.webp)
+![LinaPro Menu](https://linapro.ai/img/preview/linapro-menu.webp?v=v0.1.0)
 
 
 

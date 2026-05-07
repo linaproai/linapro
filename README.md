@@ -137,13 +137,13 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 
 `lina-vben` is the framework's fully featured built-in management workspace. Teams can build business applications directly on top of it:
 
-![LinaPro I18N](https://linapro.ai/img/preview/linapro-i18n.webp)
+![LinaPro I18N](https://linapro.ai/img/preview/linapro-i18n.webp?v=v0.1.0)
 
-![LinaPro Plugin](https://linapro.ai/img/preview/linapro-plugin.webp)
+![LinaPro Plugin](https://linapro.ai/img/preview/linapro-plugin.webp?v=v0.1.0)
 
-![LinaPro API Docs](https://linapro.ai/img/preview/linapro-apidoc.webp)
+![LinaPro API Docs](https://linapro.ai/img/preview/linapro-apidoc.webp?v=v0.1.0)
 
-![LinaPro Menu](https://linapro.ai/img/preview/linapro-menu.webp)
+![LinaPro Menu](https://linapro.ai/img/preview/linapro-menu.webp?v=v0.1.0)
 
 ## Native Distributed Architecture
 

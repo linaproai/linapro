@@ -3,7 +3,10 @@
 
 package main
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 // TestNormalizeBuildConfigSinglePlatform verifies os/arch overrides keep the
 // standard single-binary output contract.
@@ -92,5 +95,53 @@ func TestValidateImageBuildRequestRequiresPushForMultiPlatform(t *testing.T) {
 	image.Registry = "ghcr.io/linaproai"
 	if err := validateImageBuildRequest(image, cfg); err != nil {
 		t.Fatalf("validateImageBuildRequest returned error: %v", err)
+	}
+}
+
+// TestBuildxDockerArgs verifies multi-platform image publishing uses buildx
+// with a platform matrix and push.
+func TestBuildxDockerArgs(t *testing.T) {
+	cfg := defaultBuildConfig()
+	cfg.Platform = "linux/amd64,linux/arm64"
+	if err := normalizeBuildConfig(&cfg, map[string]bool{"platform": true}); err != nil {
+		t.Fatalf("normalizeBuildConfig returned error: %v", err)
+	}
+	image := defaultImageConfig()
+	args := buildxDockerArgs("/repo", image, cfg, "ghcr.io/linaproai/linapro:v1.0.0")
+
+	want := []string{
+		"buildx",
+		"build",
+		"--platform", "linux/amd64,linux/arm64",
+		"--build-arg", "BASE_IMAGE=alpine:3.22",
+		"-f", "/repo/hack/docker/Dockerfile",
+		"-t", "ghcr.io/linaproai/linapro:v1.0.0",
+		"--push",
+		".",
+	}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("buildx args = %#v, want %#v", args, want)
+	}
+}
+
+// TestDockerBuildArgs verifies single-platform local builds pass the target
+// platform to Dockerfile ARGs.
+func TestDockerBuildArgs(t *testing.T) {
+	image := defaultImageConfig()
+	target := targetPlatform{OS: "linux", Arch: "arm64"}
+	args := dockerBuildArgs("/repo", image, target, "linapro:test")
+
+	want := []string{
+		"build",
+		"--platform", "linux/arm64",
+		"--build-arg", "BASE_IMAGE=alpine:3.22",
+		"--build-arg", "TARGETOS=linux",
+		"--build-arg", "TARGETARCH=arm64",
+		"-f", "/repo/hack/docker/Dockerfile",
+		"-t", "linapro:test",
+		".",
+	}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("docker build args = %#v, want %#v", args, want)
 	}
 }
