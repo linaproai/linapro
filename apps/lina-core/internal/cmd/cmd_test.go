@@ -18,6 +18,10 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
+	"github.com/gogf/gf/v2/os/glog"
+
+	"lina-core/internal/service/startupstats"
+	"lina-core/pkg/logger"
 )
 
 // TestRequireCommandConfirmation verifies sensitive command confirmation tokens
@@ -205,6 +209,50 @@ func TestParseInitRebuildFlag(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tt.want, got)
 			}
 		})
+	}
+}
+
+// TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL verifies startup observability
+// uses an aggregate summary instead of ORM SQL text.
+func TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL(t *testing.T) {
+	ctx := context.Background()
+	collector := startupstats.New()
+	collector.Add(startupstats.CounterCatalogSnapshotBuilds, 1)
+	collector.Add(startupstats.CounterIntegrationSnapshotBuilds, 1)
+	collector.Add(startupstats.CounterJobSnapshotBuilds, 1)
+	collector.Add(startupstats.CounterPluginScans, 1)
+	collector.Add(startupstats.CounterPluginSyncChanged, 2)
+	collector.Add(startupstats.CounterPluginSyncNoop, 3)
+	collector.RecordPhase(startupstats.PhasePluginBootstrapAutoEnable, 12)
+
+	var logs []string
+	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
+		logs = append(logs, in.ValuesContent())
+	})
+	t.Cleanup(func() {
+		logger.Logger().SetHandlers()
+	})
+
+	logHTTPStartupSummary(ctx, collector)
+
+	joined := strings.Join(logs, "\n")
+	for _, expected := range []string{
+		"startup summary",
+		"catalogSnapshots=1",
+		"integrationSnapshots=1",
+		"jobSnapshots=1",
+		"pluginScans=1",
+		"pluginChanged=2",
+		"pluginNoop=3",
+	} {
+		if !strings.Contains(joined, expected) {
+			t.Fatalf("expected startup summary to contain %q, got %q", expected, joined)
+		}
+	}
+	for _, forbidden := range []string{"SHOW FULL COLUMNS", "SELECT ", "INSERT INTO", "UPDATE ", "DELETE "} {
+		if strings.Contains(strings.ToUpper(joined), forbidden) {
+			t.Fatalf("expected startup summary to omit SQL text %q, got %q", forbidden, joined)
+		}
 	}
 }
 

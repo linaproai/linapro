@@ -173,6 +173,11 @@ func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int
 	a.svc.SetUser(ctx, tokenID, userID, username, status)
 }
 
+// SetUserAccess injects cached access-snapshot fields into the test request context.
+func (a *userCtxAdapter) SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int) {
+	a.svc.SetUserAccess(ctx, dataScope, dataScopeUnsupported, unsupportedDataScope)
+}
+
 // bizCtxAdapter exposes the current request user ID to integration-layer tests.
 type bizCtxAdapter struct {
 	svc bizctx.Service
@@ -185,6 +190,24 @@ func (a *bizCtxAdapter) GetUserId(ctx context.Context) int {
 		return 0
 	}
 	return localCtx.UserId
+}
+
+// GetDataScope returns the current request user's effective role data-scope.
+func (a *bizCtxAdapter) GetDataScope(ctx context.Context) int {
+	localCtx := a.svc.Get(ctx)
+	if localCtx == nil {
+		return 0
+	}
+	return localCtx.DataScope
+}
+
+// GetDataScopeUnsupported returns the unsupported data-scope state from the current request.
+func (a *bizCtxAdapter) GetDataScopeUnsupported(ctx context.Context) (bool, int) {
+	localCtx := a.svc.Get(ctx)
+	if localCtx == nil {
+		return false, 0
+	}
+	return localCtx.DataScopeUnsupported, localCtx.UnsupportedDataScope
 }
 
 // FindRepoRoot walks up from startDir until it locates the repository root.

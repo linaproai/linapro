@@ -85,7 +85,8 @@
     "e2e/org",
     "e2e/scheduler/job",
     "e2e/settings/config",
-    "e2e/settings/dict"
+    "e2e/settings/dict",
+    "e2e/settings/user/TC0170-user-data-permission.ts"
   ],
   "serialIsolation": [
     {
@@ -105,8 +106,8 @@
     },
     {
       "entry": "e2e/content",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Content tests depend on the content-notice source plugin and its mock data being installed and enabled."
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed", "permissionMatrix"],
+      "reason": "Content tests depend on the content-notice source plugin and its mock data being installed and enabled; message boundary regressions also create temporary role permissions."
     },
     {
       "entry": "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
@@ -139,6 +140,11 @@
       "entry": "e2e/iam/user/TC0062-user-role.ts",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
       "reason": "User-role association checks enable the org-center source plugin and read shared organization mock data."
+    },
+    {
+      "entry": "e2e/settings/user/TC0170-user-data-permission.ts",
+      "categories": ["pluginLifecycle", "permissionMatrix", "sharedDatabaseSeed"],
+      "reason": "User data-scope regression enables the org-center source plugin, creates temporary department data, and assigns menu permissions to temporary roles."
     },
     {
       "entry": "e2e/i18n/TC0107-runtime-i18n-switch.ts",

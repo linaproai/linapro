@@ -27,7 +27,10 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
 	dictsvc "lina-core/internal/service/dict"
+	"lina-core/internal/service/orgcap"
+	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 	"lina-core/pkg/gdbutil"
@@ -77,21 +80,37 @@ type serviceImpl struct {
 	storage   Storage         // Storage backend
 	bizCtxSvc bizctx.Service  // Business context service
 	dictSvc   dictsvc.Service // Dictionary service for scene labels
+	orgCapSvc orgcap.Service  // Optional organization capability service
+	scopeSvc  datascope.Service
 }
 
 // New creates and returns a new Service instance with local storage.
-func New() Service {
+func New(orgCapSvcs ...orgcap.Service) Service {
 	var (
 		ctx         = context.Background()
 		configSvc   = config.New()
 		storagePath = configSvc.GetUploadPath(ctx)
 	)
-	return &serviceImpl{
+	var orgCapSvc orgcap.Service
+	if len(orgCapSvcs) > 0 {
+		orgCapSvc = orgCapSvcs[0]
+	}
+	if orgCapSvc == nil {
+		orgCapSvc = orgcap.New(nil)
+	}
+	svc := &serviceImpl{
 		configSvc: configSvc,
 		storage:   NewLocalStorage(storagePath),
 		bizCtxSvc: bizctx.New(),
 		dictSvc:   dictsvc.New(),
+		orgCapSvc: orgCapSvc,
 	}
+	svc.scopeSvc = datascope.New(datascope.Dependencies{
+		BizCtxSvc: svc.bizCtxSvc,
+		RoleSvc:   role.New(nil),
+		OrgCapSvc: svc.orgCapSvc,
+	})
+	return svc
 }
 
 // UploadInput defines input for file upload.
@@ -344,6 +363,11 @@ func (s *serviceImpl) List(ctx context.Context, in *ListInput) (*ListOutput, err
 	if in.Scene != "" {
 		m = m.Where(dao.SysFile.Columns().Scene, in.Scene)
 	}
+	var err error
+	m, err = s.applyFileDataScope(ctx, m)
+	if err != nil {
+		return nil, err
+	}
 
 	total, err := m.Count()
 	if err != nil {
@@ -422,6 +446,9 @@ func (s *serviceImpl) List(ctx context.Context, in *ListInput) (*ListOutput, err
 
 // Info returns file info by ID.
 func (s *serviceImpl) Info(ctx context.Context, id int64) (*entity.SysFile, error) {
+	if err := s.ensureFilesVisible(ctx, []int64{id}); err != nil {
+		return nil, err
+	}
 	var file *entity.SysFile
 	err := dao.SysFile.Ctx(ctx).Where(dao.SysFile.Columns().Id, id).Scan(&file)
 	if err != nil {
@@ -435,6 +462,9 @@ func (s *serviceImpl) Info(ctx context.Context, id int64) (*entity.SysFile, erro
 
 // InfoByIds returns file info by multiple IDs.
 func (s *serviceImpl) InfoByIds(ctx context.Context, ids []int64) ([]*entity.SysFile, error) {
+	if err := s.ensureFilesVisible(ctx, ids); err != nil {
+		return nil, err
+	}
 	var files []*entity.SysFile
 	err := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, ids).Scan(&files)
 	if err != nil {
@@ -462,6 +492,9 @@ func (s *serviceImpl) Delete(ctx context.Context, idsStr string) error {
 	idList := make([]int64, 0, len(ids))
 	for _, idStr := range ids {
 		idList = append(idList, gconv.Int64(idStr))
+	}
+	if err := s.ensureFilesVisible(ctx, idList); err != nil {
+		return err
 	}
 
 	// Get file records first to delete physical files
@@ -612,8 +645,11 @@ type SuffixesOutput struct {
 
 // Suffixes returns distinct file suffixes from the database.
 func (s *serviceImpl) Suffixes(ctx context.Context) ([]*SuffixesOutput, error) {
-	result, err := dao.SysFile.Ctx(ctx).
-		Fields(dao.SysFile.Columns().Suffix).
+	model, err := s.applyFileDataScope(ctx, dao.SysFile.Ctx(ctx))
+	if err != nil {
+		return nil, err
+	}
+	result, err := model.Fields(dao.SysFile.Columns().Suffix).
 		Group(dao.SysFile.Columns().Suffix).
 		OrderAsc(dao.SysFile.Columns().Suffix).
 		Array()
@@ -643,6 +679,9 @@ type DetailOutput struct {
 
 // Detail returns file info with scene label.
 func (s *serviceImpl) Detail(ctx context.Context, id int64) (*DetailOutput, error) {
+	if err := s.ensureFilesVisible(ctx, []int64{id}); err != nil {
+		return nil, err
+	}
 	// Get file info
 	var file *entity.SysFile
 	err := dao.SysFile.Ctx(ctx).Where(dao.SysFile.Columns().Id, id).Scan(&file)

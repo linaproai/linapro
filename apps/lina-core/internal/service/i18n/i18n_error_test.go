@@ -111,6 +111,115 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 	}
 }
 
+// TestLocalizeErrorUsesHostDataScopeErrorResources verifies every host
+// data-permission error introduced for governed resources has shipped runtime
+// translations in all built-in locales.
+func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
+	resetRuntimeBundleCache()
+	t.Cleanup(resetRuntimeBundleCache)
+
+	svc := New()
+	testCases := []struct {
+		name     string
+		key      string
+		fallback string
+		params   []bizerr.Param
+		expected map[string]string
+	}{
+		{
+			name:     "shared denied",
+			key:      "error.datascope.denied",
+			fallback: "Data is outside the current data permission scope",
+			expected: map[string]string{
+				DefaultLocale: "数据不在当前数据权限范围内",
+				EnglishLocale: "Data is outside the current data permission scope",
+				"zh-TW":       "數據不在當前數據權限範圍內",
+			},
+		},
+		{
+			name:     "shared unauthenticated",
+			key:      "error.datascope.not.authenticated",
+			fallback: "Not signed in",
+			expected: map[string]string{
+				DefaultLocale: "请先登录",
+				EnglishLocale: "Not signed in",
+				"zh-TW":       "請先登錄",
+			},
+		},
+		{
+			name:     "shared unsupported",
+			key:      "error.datascope.unsupported",
+			fallback: "Unsupported data permission scope: {scope}",
+			params:   []bizerr.Param{bizerr.P("scope", 9)},
+			expected: map[string]string{
+				DefaultLocale: "不支持的数据权限范围：9",
+				EnglishLocale: "Unsupported data permission scope: 9",
+				"zh-TW":       "不支持的數據權限範圍：9",
+			},
+		},
+		{
+			name:     "user denied",
+			key:      "error.user.data.scope.denied",
+			fallback: "User data is outside the current data permission scope",
+			expected: map[string]string{
+				DefaultLocale: "用户数据超出当前数据权限范围",
+				EnglishLocale: "User data is outside the current data permission scope",
+				"zh-TW":       "用戶數據超出當前數據權限範圍",
+			},
+		},
+		{
+			name:     "file denied",
+			key:      "error.file.data.scope.denied",
+			fallback: "File data is outside the current data permission scope",
+			expected: map[string]string{
+				DefaultLocale: "文件数据不在当前数据权限范围内",
+				EnglishLocale: "File data is outside the current data permission scope",
+				"zh-TW":       "文件數據不在當前數據權限範圍內",
+			},
+		},
+		{
+			name:     "job denied",
+			key:      "error.job.data.scope.denied",
+			fallback: "Scheduled job data is outside the current data permission scope",
+			expected: map[string]string{
+				DefaultLocale: "定时任务数据不在当前数据权限范围内",
+				EnglishLocale: "Scheduled job data is outside the current data permission scope",
+				"zh-TW":       "定時任務數據不在當前數據權限範圍內",
+			},
+		},
+		{
+			name:     "role dept unavailable",
+			key:      "error.role.data.scope.dept.unavailable",
+			fallback: "Department data scope requires the organization management plugin to be enabled",
+			expected: map[string]string{
+				DefaultLocale: "本部门数据权限需要先启用组织管理插件",
+				EnglishLocale: "Department data scope requires the organization management plugin to be enabled",
+				"zh-TW":       "本部門數據權限需要先啟用組織管理插件",
+			},
+		},
+	}
+
+	for index, testCase := range testCases {
+		testCase := testCase
+		index := index
+		t.Run(testCase.name, func(t *testing.T) {
+			code := bizerr.MustDefineWithKey(
+				fmt.Sprintf("TEST_HOST_DATASCOPE_ERROR_%d", index),
+				testCase.key,
+				testCase.fallback,
+				gcode.CodeInvalidParameter,
+			)
+			for locale, expected := range testCase.expected {
+				ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: locale})
+				err := bizerr.NewCode(code, testCase.params...)
+				if actual := svc.LocalizeError(ctx, err); actual != expected {
+					t.Fatalf("expected %s localized error %q, got %q", locale, expected, actual)
+				}
+			}
+		})
+	}
+}
+
 // TestLocalizeErrorUsesRealPluginErrorResources verifies representative source
 // plugin business errors render through the shipped plugin runtime i18n files.
 func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {

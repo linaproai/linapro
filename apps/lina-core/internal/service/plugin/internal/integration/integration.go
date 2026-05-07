@@ -66,6 +66,10 @@ type DynamicCronExecutor interface {
 type BizCtxProvider interface {
 	// GetUserId returns the user ID stored in the current request business context.
 	GetUserId(ctx context.Context) int
+	// GetDataScope returns the effective role data-scope stored in the current request business context.
+	GetDataScope(ctx context.Context) int
+	// GetDataScopeUnsupported returns the unsupported data-scope state stored in the current request business context.
+	GetDataScopeUnsupported(ctx context.Context) (bool, int)
 }
 
 // TopologyProvider abstracts cluster topology for primary-node routing decisions.

@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
 )
 
 // fakeRoleConfigService provides deterministic config values for access-cache tests.
@@ -389,6 +390,7 @@ func TestTokenAccessContextCacheLifecycle(t *testing.T) {
 		RoleNames:    []string{"admin", "editor"},
 		MenuIds:      []int{10, 11},
 		Permissions:  []string{"system:user:query", "system:user:edit"},
+		DataScope:    datascope.ScopeDept,
 		IsSuperAdmin: false,
 	}
 
@@ -453,6 +455,7 @@ func TestCloneUserAccessContextCopiesSlices(t *testing.T) {
 		RoleNames:    []string{"admin", "ops"},
 		MenuIds:      []int{10, 20},
 		Permissions:  []string{"user:list", "user:update"},
+		DataScope:    datascope.ScopeDept,
 		IsSuperAdmin: true,
 	}
 
@@ -465,6 +468,7 @@ func TestCloneUserAccessContextCopiesSlices(t *testing.T) {
 	cloned.RoleNames[0] = "guest"
 	cloned.MenuIds[0] = 88
 	cloned.Permissions[0] = "guest:list"
+	cloned.DataScope = datascope.ScopeSelf
 	cloned.IsSuperAdmin = false
 
 	if original.RoleIds[0] != 1 {
@@ -478,6 +482,9 @@ func TestCloneUserAccessContextCopiesSlices(t *testing.T) {
 	}
 	if original.Permissions[0] != "user:list" {
 		t.Fatalf("expected original Permissions to stay unchanged, got %v", original.Permissions)
+	}
+	if original.DataScope != datascope.ScopeDept {
+		t.Fatalf("expected original DataScope to stay unchanged, got %d", original.DataScope)
 	}
 	if !original.IsSuperAdmin {
 		t.Fatal("expected original IsSuperAdmin to stay unchanged")
@@ -709,6 +716,7 @@ func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.
 			RoleNames:    []string{"admin"},
 			MenuIds:      []int{101},
 			Permissions:  []string{"system:user:list"},
+			DataScope:    datascope.ScopeAll,
 			IsSuperAdmin: true,
 		}, nil
 	}
@@ -760,6 +768,9 @@ func TestLoadTokenAccessContextWithCacheLockSuppressesDuplicateLoads(t *testing.
 		}
 		if len(access.Permissions) != 1 || access.Permissions[0] != "system:user:list" {
 			t.Fatalf("unexpected permissions from cached access context: %#v", access)
+		}
+		if access.DataScope != datascope.ScopeAll {
+			t.Fatalf("unexpected data scope from cached access context: %#v", access)
 		}
 	}
 	if count != workers {

@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -127,6 +128,10 @@ func (s *serviceImpl) UpdateReleaseState(ctx context.Context, releaseID int, sta
 		Where(do.SysPluginRelease{Id: releaseID}).
 		Data(data).
 		Update()
+	if err != nil {
+		return err
+	}
+	_, err = s.RefreshStartupReleaseByID(ctx, releaseID)
 	return err
 }
 
@@ -163,14 +168,20 @@ func (s *serviceImpl) syncReleaseMetadata(ctx context.Context, manifest *Manifes
 	}
 
 	if existing == nil {
-		_, err = dao.SysPluginRelease.Ctx(ctx).Data(data).Insert()
+		insertID, insertErr := dao.SysPluginRelease.Ctx(ctx).Data(data).InsertAndGetId()
+		err = insertErr
 		if err != nil {
 			return err
+		}
+		startupstats.Add(ctx, startupstats.CounterPluginSyncChanged, 1)
+		if insertStartupRelease(ctx, int(insertID), data) != nil {
+			return nil
 		}
 		_, err = s.refreshStartupRelease(ctx, manifest.ID, manifest.Version)
 		return err
 	}
 	if pluginReleaseMetadataMatches(existing, data) {
+		startupstats.Add(ctx, startupstats.CounterPluginSyncNoop, 1)
 		return nil
 	}
 	_, err = dao.SysPluginRelease.Ctx(ctx).
@@ -179,6 +190,10 @@ func (s *serviceImpl) syncReleaseMetadata(ctx context.Context, manifest *Manifes
 		Update()
 	if err != nil {
 		return err
+	}
+	startupstats.Add(ctx, startupstats.CounterPluginSyncChanged, 1)
+	if updateStartupRelease(ctx, existing, data) != nil {
+		return nil
 	}
 	_, err = s.refreshStartupRelease(ctx, manifest.ID, manifest.Version)
 	return err
@@ -338,6 +353,9 @@ func (s *serviceImpl) PersistReleaseUninstallPurgePolicy(
 		Where(do.SysPluginRelease{Id: release.Id}).
 		Data(do.SysPluginRelease{ManifestSnapshot: string(content)}).
 		Update(); err != nil {
+		return nil, err
+	}
+	if _, err = s.RefreshStartupReleaseByID(ctx, release.Id); err != nil {
 		return nil, err
 	}
 	return snapshot, nil

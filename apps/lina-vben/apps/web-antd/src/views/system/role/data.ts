@@ -8,24 +8,29 @@ import { Tag } from 'ant-design-vue';
 import { $t } from '#/locales';
 
 /** 数据权限选项 */
-export function getDataScopeOptions() {
-  return [
+export function getDataScopeOptions(orgEnabled = true) {
+  const options = [
     {
       color: 'green',
       label: $t('pages.system.role.dataScope.all'),
       value: 1,
     },
-    {
+  ];
+  if (orgEnabled) {
+    options.push({
       color: 'default',
       label: $t('pages.system.role.dataScope.dept'),
       value: 2,
-    },
+    });
+  }
+  options.push(
     {
       color: 'error',
       label: $t('pages.system.role.dataScope.self'),
       value: 3,
     },
-  ];
+  );
+  return options;
 }
 
 /** 查询表单schema */
@@ -122,7 +127,7 @@ export function columns(): VxeGridProps['columns'] {
 }
 
 /** 新增/编辑表单schema */
-export function getDrawerSchema(): VbenFormSchema[] {
+export function getDrawerSchema(orgEnabled = true): VbenFormSchema[] {
   return [
     {
       component: 'Input',
@@ -190,7 +195,7 @@ export function getDrawerSchema(): VbenFormSchema[] {
       componentProps: {
         optionType: 'button',
         buttonStyle: 'solid',
-        options: getDataScopeOptions(),
+        options: getDataScopeOptions(orgEnabled),
       },
     },
     {

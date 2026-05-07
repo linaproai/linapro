@@ -475,6 +475,7 @@ func TestBundledDynamicPluginEnableMakesDynamicRouteExecutable(t *testing.T) {
 		Identity: &pluginbridge.IdentitySnapshotV1{
 			UserID:       1,
 			Username:     "admin",
+			DataScope:    1,
 			IsSuperAdmin: true,
 		},
 		Request: &pluginbridge.HTTPRequestSnapshotV1{

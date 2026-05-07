@@ -17,6 +17,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
 )
 
@@ -210,6 +211,7 @@ func (s *serviceImpl) upsertBuiltinJobRecord(
 		if err != nil {
 			return nil, err
 		}
+		startupstats.Add(ctx, startupstats.CounterBuiltinJobProjections, 1)
 		projection := buildBuiltinJobEntity(uint64(insertID), record)
 		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
 			snapshot.storeBuiltinJob(projection)
@@ -218,6 +220,7 @@ func (s *serviceImpl) upsertBuiltinJobRecord(
 	}
 
 	if builtinJobRecordMatches(existing, record) {
+		startupstats.Add(ctx, startupstats.CounterBuiltinJobProjectionNoop, 1)
 		return buildBuiltinJobEntity(existing.Id, record), nil
 	}
 
@@ -228,6 +231,7 @@ func (s *serviceImpl) upsertBuiltinJobRecord(
 	if err != nil {
 		return nil, err
 	}
+	startupstats.Add(ctx, startupstats.CounterBuiltinJobProjections, 1)
 	projection := buildBuiltinJobEntity(existing.Id, record)
 	if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
 		snapshot.storeBuiltinJob(projection)

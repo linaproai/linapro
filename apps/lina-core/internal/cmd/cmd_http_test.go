@@ -5,13 +5,21 @@ package cmd
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"unsafe"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/net/goai"
+	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/service/apidoc"
+	"lina-core/internal/service/cluster"
+	"lina-core/internal/service/config"
+	jobhandlersvc "lina-core/internal/service/jobhandler"
+	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/internal/service/middleware"
+	pluginsvc "lina-core/internal/service/plugin"
 )
 
 // fakeApiDocService is the apidoc stub used by hosted OpenAPI binding tests.
@@ -79,6 +87,52 @@ func TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath(t *
 	}
 }
 
+// TestUploadedFileAccessRouteIsPublic verifies direct upload URLs remain
+// browser-loadable without making the whole file controller public.
+func TestUploadedFileAccessRouteIsPublic(t *testing.T) {
+	ctx := context.Background()
+	server := ghttp.GetServer("cmd-http-upload-public-" + guid.S())
+	server.SetPort(0)
+	server.SetDumpRouterMap(false)
+
+	configSvc := config.New()
+	jobRegistry := jobhandlersvc.New()
+	runtime := &httpRuntime{
+		configSvc:     configSvc,
+		clusterSvc:    cluster.New(configSvc.GetCluster(ctx)),
+		pluginSvc:     pluginsvc.New(nil),
+		jobRegistry:   jobRegistry,
+		jobMgmtSvc:    jobmgmtsvc.New(configSvc, jobRegistry, nil),
+		middlewareSvc: middleware.New(),
+	}
+	bindHostAPIRoutes(ctx, server, runtime)
+
+	if err := server.Start(); err != nil {
+		t.Fatalf("start route test server: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := server.Shutdown(); err != nil {
+			t.Fatalf("shutdown route test server: %v", err)
+		}
+	})
+
+	uploadAccess := mustFindRoute(t, server, "GET", "/api/v1/uploads/*path")
+	if strings.Contains(uploadAccess.Middleware, "Service.Auth") {
+		t.Fatalf("expected upload URL access route to be public, middleware=%s", uploadAccess.Middleware)
+	}
+	if strings.Contains(uploadAccess.Middleware, "Service.Permission") {
+		t.Fatalf("expected upload URL access route to skip permission middleware, middleware=%s", uploadAccess.Middleware)
+	}
+
+	fileUpload := mustFindRoute(t, server, "POST", "/api/v1/file/upload")
+	if !strings.Contains(fileUpload.Middleware, "Service.Auth") {
+		t.Fatalf("expected file upload route to remain authenticated, middleware=%s", fileUpload.Middleware)
+	}
+	if !strings.Contains(fileUpload.Middleware, "Service.Permission") {
+		t.Fatalf("expected file upload route to keep permission middleware, middleware=%s", fileUpload.Middleware)
+	}
+}
+
 // TestParsePluginAssetRequestPath verifies hosted runtime asset URLs are parsed
 // into plugin ID, version, and relative asset path segments.
 func TestParsePluginAssetRequestPath(t *testing.T) {
@@ -143,6 +197,19 @@ func TestParsePluginAssetRequestPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+// mustFindRoute returns one route item by method and path.
+func mustFindRoute(t *testing.T, server *ghttp.Server, method string, route string) ghttp.RouterItem {
+	t.Helper()
+
+	for _, item := range server.GetRoutes() {
+		if item.Method == method && item.Route == route {
+			return item
+		}
+	}
+	t.Fatalf("expected route %s %s to be registered", method, route)
+	return ghttp.RouterItem{}
 }
 
 // unsafeFieldString reads an unexported string field value for test assertions.

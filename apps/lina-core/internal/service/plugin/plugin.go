@@ -259,6 +259,9 @@ type SourceUpgradeGovernanceService interface {
 
 // RegistryQueryService defines manifest synchronization and plugin list query operations.
 type RegistryQueryService interface {
+	// WithStartupDataSnapshot returns a child context carrying plugin startup
+	// snapshots shared by one host startup orchestration.
+	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
 	// SyncSourcePlugins scans source plugin manifests and synchronizes default status.
 	SyncSourcePlugins(ctx context.Context) error
 	// SyncAndList scans plugin manifests, synchronizes plugin registry rows, and

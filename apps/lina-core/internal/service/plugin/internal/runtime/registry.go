@@ -285,7 +285,7 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 		return nil, err
 	}
 
-	updated, err := s.catalogSvc.GetRegistry(ctx, registry.PluginId)
+	updated, err := s.catalogSvc.RefreshStartupRegistry(ctx, registry.PluginId)
 	if err != nil {
 		return nil, err
 	}

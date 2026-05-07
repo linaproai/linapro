@@ -40,14 +40,23 @@ func (s *serviceImpl) ListJobs(ctx context.Context, in ListJobsInput) (*ListJobs
 		model = model.Where(cols.Concurrency, string(in.Concurrency))
 	}
 	if keyword := strings.TrimSpace(in.Keyword); keyword != "" {
-		model = model.WhereLike(cols.Name, "%"+keyword+"%").WhereOrLike(cols.Description, "%"+keyword+"%")
+		keywordPattern := "%" + keyword + "%"
+		keywordFilter := model.Builder().
+			WhereLike(cols.Name, keywordPattern).
+			WhereOrLike(cols.Description, keywordPattern)
 		handlerRefs, matchErr := s.localizedHandlerRefsMatchingKeyword(ctx, keyword)
 		if matchErr != nil {
 			return nil, matchErr
 		}
 		if len(handlerRefs) > 0 {
-			model = model.WhereOrIn(cols.HandlerRef, handlerRefs)
+			keywordFilter = keywordFilter.WhereOrIn(cols.HandlerRef, handlerRefs)
 		}
+		model = model.Where(keywordFilter)
+	}
+	var scopeErr error
+	model, scopeErr = s.applyJobDataScope(ctx, model)
+	if scopeErr != nil {
+		return nil, scopeErr
 	}
 
 	total, err := model.Count()
@@ -110,6 +119,9 @@ func (s *serviceImpl) GetJob(ctx context.Context, id uint64) (*JobDetailOutput, 
 	if job == nil {
 		return nil, bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
+	if err = s.ensureJobVisible(ctx, job); err != nil {
+		return nil, err
+	}
 
 	group, err := s.groupByID(ctx, job.GroupId)
 	if err != nil {
@@ -161,6 +173,9 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 	if existing.IsBuiltin == 1 {
 		return bizerr.NewCode(CodeJobBuiltinUpdateDenied)
 	}
+	if err = s.ensureJobVisible(ctx, existing); err != nil {
+		return err
+	}
 	if in.TaskType != jobmeta.TaskTypeShell {
 		return bizerr.NewCode(CodeJobUpdateShellOnly)
 	}
@@ -207,6 +222,9 @@ func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
 		}
 		if job.IsBuiltin == 1 {
 			return bizerr.NewCode(CodeJobBuiltinDeleteDenied)
+		}
+		if err = s.ensureJobVisible(ctx, job); err != nil {
+			return err
 		}
 	}
 

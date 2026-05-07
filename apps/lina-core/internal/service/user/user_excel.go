@@ -26,15 +26,29 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	m := dao.SysUser.Ctx(ctx)
 
 	if len(in.Ids) > 0 {
+		if err = s.ensureUsersVisible(ctx, in.Ids); err != nil {
+			return nil, err
+		}
 		m = m.WhereIn(cols.Id, in.Ids)
+	} else {
+		var scopeEmpty bool
+		m, scopeEmpty, err = s.applyUserDataScope(ctx, m)
+		if err != nil {
+			return nil, err
+		}
+		if scopeEmpty {
+			m = nil
+		}
 	}
 
 	var list []*entity.SysUser
-	err = m.FieldsEx(cols.Password).
-		OrderAsc(cols.Id).
-		Scan(&list)
-	if err != nil {
-		return nil, err
+	if m != nil {
+		err = m.FieldsEx(cols.Password).
+			OrderAsc(cols.Id).
+			Scan(&list)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Create Excel file

@@ -72,6 +72,8 @@ type UploadSizeProvider interface {
 type UserContextSetter interface {
 	// SetUser populates the context with the resolved token and user identity fields.
 	SetUser(ctx context.Context, tokenID string, userID int, username string, status int)
+	// SetUserAccess populates cached access-snapshot fields for downstream plugin integrations.
+	SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int)
 }
 
 // PermissionMenuFilter filters button-type permission menus based on plugin enablement.

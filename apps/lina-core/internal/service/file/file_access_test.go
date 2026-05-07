@@ -9,9 +9,12 @@ import (
 	"testing"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
+	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
 )
 
@@ -64,24 +67,29 @@ func TestOpenByPathRejectsParentTraversalWithoutStorageAccess(t *testing.T) {
 	}
 }
 
-// TestOpenByPathReadsThroughStorageBackend verifies upload URL access resolves
-// file metadata before reading through the configured storage backend.
-func TestOpenByPathReadsThroughStorageBackend(t *testing.T) {
+// TestOpenByPathReadsThroughStorageBackendWithoutUserContext verifies public
+// upload URL access resolves metadata before reading through the storage backend.
+func TestOpenByPathReadsThroughStorageBackendWithoutUserContext(t *testing.T) {
 	ctx := context.Background()
 	storagePath := "e2e/storage-backed-access.txt"
 	storage := &fakeAccessStorage{content: "stored-content"}
-	svc := &serviceImpl{storage: storage}
+	adminUserID := mustQueryFileAccessAdminUserID(t, ctx)
+	svc := &serviceImpl{
+		storage:   storage,
+		bizCtxSvc: fileAccessStaticBizCtx{},
+	}
 
 	result, err := dao.SysFile.Ctx(ctx).Data(do.SysFile{
-		Name:     "storage-backed-access.txt",
-		Original: "storage-backed-access.txt",
-		Suffix:   "txt",
-		Scene:    "other",
-		Size:     int64(len(storage.content)),
-		Hash:     "storage-backed-access-hash",
-		Url:      "/api/v1/uploads/" + storagePath,
-		Path:     storagePath,
-		Engine:   EngineLocal,
+		Name:      "storage-backed-access.txt",
+		Original:  "storage-backed-access.txt",
+		Suffix:    "txt",
+		Scene:     "other",
+		Size:      int64(len(storage.content)),
+		Hash:      "storage-backed-access-hash",
+		Url:       "/api/v1/uploads/" + storagePath,
+		Path:      storagePath,
+		Engine:    EngineLocal,
+		CreatedBy: adminUserID,
 	}).Insert()
 	if err != nil {
 		t.Fatalf("insert file metadata: %v", err)
@@ -119,4 +127,40 @@ func TestOpenByPathReadsThroughStorageBackend(t *testing.T) {
 	if output.ContentType != "application/octet-stream" {
 		t.Fatalf("expected default content type, got %q", output.ContentType)
 	}
+}
+
+// fileAccessStaticBizCtx returns a fixed request business context for file tests.
+type fileAccessStaticBizCtx struct {
+	ctx *model.Context
+}
+
+// Init is unused by file service tests because they inject context directly.
+func (s fileAccessStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
+
+// Get returns the configured business context.
+func (s fileAccessStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
+
+// SetLocale is unused by file service tests.
+func (s fileAccessStaticBizCtx) SetLocale(context.Context, string) {}
+
+// SetUser is unused by file service tests.
+func (s fileAccessStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+
+// SetUserAccess is unused by file service tests.
+func (s fileAccessStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
+
+// mustQueryFileAccessAdminUserID resolves the built-in administrator user ID for data-scope tests.
+func mustQueryFileAccessAdminUserID(t *testing.T, ctx context.Context) int {
+	t.Helper()
+
+	var admin *entity.SysUser
+	if err := dao.SysUser.Ctx(ctx).
+		Where(do.SysUser{Username: "admin"}).
+		Scan(&admin); err != nil {
+		t.Fatalf("query built-in admin user: %v", err)
+	}
+	if admin == nil {
+		t.Fatal("expected built-in admin user to exist")
+	}
+	return admin.Id
 }

@@ -20,6 +20,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginbridge"
@@ -107,9 +108,12 @@ type dynamicRouteClaims struct {
 
 // dynamicRouteAccessContext stores role-derived access data used by permission checks.
 type dynamicRouteAccessContext struct {
-	Permissions  []string
-	RoleNames    []string
-	IsSuperAdmin bool
+	Permissions          []string
+	RoleNames            []string
+	DataScope            int
+	DataScopeUnsupported bool
+	UnsupportedDataScope int
+	IsSuperAdmin         bool
 }
 
 // RegisterDynamicRouteDispatcher binds the fixed-prefix dispatcher into one host
@@ -494,15 +498,26 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 	if match.Route.Permission != "" && !hasDynamicRoutePermission(accessContext, match.Route.Permission) {
 		return nil, pluginbridge.NewForbiddenResponse("Permission denied"), nil
 	}
+	if s.userCtx != nil {
+		s.userCtx.SetUserAccess(
+			ctx,
+			accessContext.DataScope,
+			accessContext.DataScopeUnsupported,
+			accessContext.UnsupportedDataScope,
+		)
+	}
 
 	return &pluginbridge.IdentitySnapshotV1{
-		TokenID:      claims.TokenId,
-		UserID:       int32(claims.UserId),
-		Username:     claims.Username,
-		Status:       int32(claims.Status),
-		Permissions:  append([]string(nil), accessContext.Permissions...),
-		RoleNames:    append([]string(nil), accessContext.RoleNames...),
-		IsSuperAdmin: accessContext.IsSuperAdmin,
+		TokenID:              claims.TokenId,
+		UserID:               int32(claims.UserId),
+		Username:             claims.Username,
+		Status:               int32(claims.Status),
+		Permissions:          append([]string(nil), accessContext.Permissions...),
+		RoleNames:            append([]string(nil), accessContext.RoleNames...),
+		DataScope:            int32(accessContext.DataScope),
+		DataScopeUnsupported: accessContext.DataScopeUnsupported,
+		UnsupportedDataScope: int32(accessContext.UnsupportedDataScope),
+		IsSuperAdmin:         accessContext.IsSuperAdmin,
 	}, nil, nil
 }
 
@@ -560,18 +575,23 @@ func (s *serviceImpl) getDynamicRouteAccessContext(ctx context.Context, userID i
 	if err != nil {
 		return nil, err
 	}
-	roleNames, err := s.getDynamicRouteRoleNames(ctx, roleIDs)
+	roles, err := s.getDynamicRouteRoles(ctx, roleIDs)
 	if err != nil {
 		return nil, err
 	}
+	roleNames := dynamicRouteRoleNames(roles)
+	dataScope, unsupported, unsupportedValue := dynamicRouteDataScope(roles)
 	permissions, err := s.getDynamicRoutePermissionsByRoleIDs(ctx, roleIDs)
 	if err != nil {
 		return nil, err
 	}
 	return &dynamicRouteAccessContext{
-		Permissions:  permissions,
-		RoleNames:    roleNames,
-		IsSuperAdmin: containsInt(roleIDs, 1),
+		Permissions:          permissions,
+		RoleNames:            roleNames,
+		DataScope:            dataScope,
+		DataScopeUnsupported: unsupported,
+		UnsupportedDataScope: unsupportedValue,
+		IsSuperAdmin:         containsInt(roleIDs, 1),
 	}, nil
 }
 
@@ -598,10 +618,10 @@ func (s *serviceImpl) getDynamicRouteUserRoleIDs(ctx context.Context, userID int
 	return roleIDs, nil
 }
 
-// getDynamicRouteRoleNames loads active role names for the given role IDs.
-func (s *serviceImpl) getDynamicRouteRoleNames(ctx context.Context, roleIDs []int) ([]string, error) {
+// getDynamicRouteRoles loads active roles for the given role IDs.
+func (s *serviceImpl) getDynamicRouteRoles(ctx context.Context, roleIDs []int) ([]*entity.SysRole, error) {
 	if len(roleIDs) == 0 {
-		return []string{}, nil
+		return []*entity.SysRole{}, nil
 	}
 	items := make([]*entity.SysRole, 0)
 	if err := dao.SysRole.Ctx(ctx).
@@ -610,14 +630,45 @@ func (s *serviceImpl) getDynamicRouteRoleNames(ctx context.Context, roleIDs []in
 		Scan(&items); err != nil {
 		return nil, err
 	}
-	roleNames := make([]string, 0, len(items))
-	for _, item := range items {
+	return items, nil
+}
+
+// dynamicRouteRoleNames projects active role rows into the identity snapshot.
+func dynamicRouteRoleNames(roles []*entity.SysRole) []string {
+	roleNames := make([]string, 0, len(roles))
+	for _, item := range roles {
 		if item == nil {
 			continue
 		}
 		roleNames = append(roleNames, item.Name)
 	}
-	return roleNames, nil
+	return roleNames
+}
+
+// dynamicRouteDataScope resolves one user's effective role data-scope from the
+// role rows already used to build the dynamic-route identity snapshot.
+func dynamicRouteDataScope(roles []*entity.SysRole) (int, bool, int) {
+	scope := datascope.ScopeNone
+	for _, item := range roles {
+		if item == nil {
+			continue
+		}
+		switch datascope.Scope(item.DataScope) {
+		case datascope.ScopeAll:
+			return int(datascope.ScopeAll), false, 0
+		case datascope.ScopeDept:
+			if scope == datascope.ScopeNone || scope == datascope.ScopeSelf {
+				scope = datascope.ScopeDept
+			}
+		case datascope.ScopeSelf:
+			if scope == datascope.ScopeNone {
+				scope = datascope.ScopeSelf
+			}
+		default:
+			return int(datascope.ScopeNone), true, item.DataScope
+		}
+	}
+	return int(scope), false, 0
 }
 
 // getDynamicRoutePermissionsByRoleIDs merges the role-menu and menu-permission

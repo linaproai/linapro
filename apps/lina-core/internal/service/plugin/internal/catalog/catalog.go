@@ -193,6 +193,9 @@ type Registry interface {
 	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
 	// GetRegistry returns the sys_plugin row for the given plugin ID, or nil if not found.
 	GetRegistry(ctx context.Context, pluginID string) (*entity.SysPlugin, error)
+	// RefreshStartupRegistry reloads one registry row from the database and
+	// refreshes the startup snapshot when present.
+	RefreshStartupRegistry(ctx context.Context, pluginID string) (*entity.SysPlugin, error)
 	// ListAllRegistries returns all sys_plugin rows ordered by plugin_id.
 	ListAllRegistries(ctx context.Context) ([]*entity.SysPlugin, error)
 	// SyncManifest creates or updates the registry row for a discovered manifest and
@@ -225,6 +228,9 @@ type ReleaseStore interface {
 	GetRelease(ctx context.Context, pluginID string, version string) (*entity.SysPluginRelease, error)
 	// GetReleaseByID returns the sys_plugin_release row with the given primary key.
 	GetReleaseByID(ctx context.Context, releaseID int) (*entity.SysPluginRelease, error)
+	// RefreshStartupReleaseByID reloads one release row from the database and
+	// refreshes the startup snapshot when present.
+	RefreshStartupReleaseByID(ctx context.Context, releaseID int) (*entity.SysPluginRelease, error)
 	// GetRegistryRelease returns the active release row for a registry entry, preferring
 	// the ReleaseId pointer and falling back to a version lookup.
 	GetRegistryRelease(ctx context.Context, registry *entity.SysPlugin) (*entity.SysPluginRelease, error)

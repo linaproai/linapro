@@ -10,6 +10,7 @@ import (
 	"time"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
@@ -32,6 +33,7 @@ func TestDeleteRollsBackWhenOrgCleanupFails(t *testing.T) {
 	expectedErr := errors.New("cleanup failed")
 	svc := New(nil).(*serviceImpl)
 	svc.orgCapSvc = userDeleteFailingOrgCap{cleanupErr: expectedErr}
+	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx)}}
 
 	err := svc.Delete(ctx, userID)
 	if !errors.Is(err, expectedErr) {
@@ -48,9 +50,12 @@ func TestBatchDeleteRejectsCurrentUserAtomically(t *testing.T) {
 	ctx := context.Background()
 	currentUserID := insertUserDeleteTestUser(t, ctx, "current-user")
 	otherUserID := insertUserDeleteTestUser(t, ctx, "other-user")
+	roleID := insertUserDeleteTestRole(t, ctx, "current-user-role")
 	t.Cleanup(func() {
 		cleanupUserDeleteTestRows(t, ctx, []int{currentUserID, otherUserID})
+		cleanupUserDeleteTestRoles(t, ctx, []int{roleID})
 	})
+	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
 	svc := New(nil).(*serviceImpl)
 	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
@@ -91,7 +96,9 @@ func TestBatchDeleteRemovesUsersAndAssociations(t *testing.T) {
 		}
 	}
 
-	if err := New(nil).BatchDelete(ctx, userIDs); err != nil {
+	svc := New(nil).(*serviceImpl)
+	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: mustQueryBuiltinAdminUserID(t, ctx)}}
+	if err := svc.BatchDelete(ctx, userIDs); err != nil {
 		t.Fatalf("batch delete users: %v", err)
 	}
 	for _, userID := range userIDs {
@@ -114,7 +121,9 @@ func TestBatchDeleteRejectsBuiltinAdminAtomically(t *testing.T) {
 		cleanupUserDeleteTestRows(t, ctx, []int{otherUserID})
 	})
 
-	err := New(nil).BatchDelete(ctx, []int{otherUserID, adminUserID})
+	svc := New(nil).(*serviceImpl)
+	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: adminUserID}}
+	err := svc.BatchDelete(ctx, []int{otherUserID, adminUserID})
 	if err == nil {
 		t.Fatal("expected builtin admin batch delete to be rejected")
 	}
@@ -166,13 +175,25 @@ func insertUserDeleteTestRole(t *testing.T, ctx context.Context, label string) i
 		Name:      fmt.Sprintf("%s-%d", label, suffix),
 		Key:       fmt.Sprintf("%s-%d", label, suffix),
 		Sort:      99,
-		DataScope: 1,
+		DataScope: int(userDataScopeAll),
 		Status:    1,
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("insert test role: %v", err)
 	}
 	return int(id)
+}
+
+// insertUserDeleteTestUserRole inserts one temporary user-role relation.
+func insertUserDeleteTestUserRole(t *testing.T, ctx context.Context, userID int, roleID int) {
+	t.Helper()
+
+	if _, err := dao.SysUserRole.Ctx(ctx).Data(do.SysUserRole{
+		UserId: userID,
+		RoleId: roleID,
+	}).Insert(); err != nil {
+		t.Fatalf("insert test user-role relation: %v", err)
+	}
 }
 
 // cleanupUserDeleteTestRows removes temporary user rows and their role bindings.
@@ -254,6 +275,9 @@ func (s userDeleteStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetUserAccess is unused by delete tests.
+func (s userDeleteStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
+
 // userDeleteFailingOrgCap fails cleanup while otherwise behaving as disabled.
 type userDeleteFailingOrgCap struct {
 	cleanupErr error
@@ -290,6 +314,16 @@ func (f userDeleteFailingOrgCap) GetUserDeptName(context.Context, int) (string, 
 // GetUserDeptIDs returns no department IDs.
 func (f userDeleteFailingOrgCap) GetUserDeptIDs(context.Context, int) ([]int, error) {
 	return []int{}, nil
+}
+
+// ApplyUserDeptScope reports an empty department scope for delete tests.
+func (f userDeleteFailingOrgCap) ApplyUserDeptScope(_ context.Context, model *gdb.Model, _ string, _ int) (*gdb.Model, bool, error) {
+	return model, true, nil
+}
+
+// BuildUserDeptScopeExists reports an empty department scope for delete tests.
+func (f userDeleteFailingOrgCap) BuildUserDeptScopeExists(context.Context, string, int) (*gdb.Model, bool, error) {
+	return nil, true, nil
 }
 
 // GetUserPostIDs returns no post IDs.

@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/startupstats"
 )
 
 // startupDataSnapshotContextKey stores integration startup snapshots in context.
@@ -32,11 +33,15 @@ func (s *serviceImpl) WithStartupDataSnapshot(ctx context.Context) (context.Cont
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if startupDataSnapshotFromContext(ctx) != nil {
+		return ctx, nil
+	}
 
 	snapshot, err := s.buildStartupDataSnapshot(ctx)
 	if err != nil {
 		return ctx, err
 	}
+	startupstats.Add(ctx, startupstats.CounterIntegrationSnapshotBuilds, 1)
 	return context.WithValue(ctx, startupDataSnapshotContextKey{}, snapshot), nil
 }
 

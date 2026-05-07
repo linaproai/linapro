@@ -11,13 +11,16 @@ import { useVbenForm } from '#/adapter/form';
 import { menuTreeSelect, roleMenuTreeSelect } from '#/api/system/menu';
 import { roleAdd, roleInfo, roleUpdate } from '#/api/system/role';
 import { MenuSelectTable } from '#/components/tree';
+import { getPluginStateMap } from '#/plugins/slot-registry';
 import { defaultFormValueGetter, useBeforeCloseDiff } from '#/utils/popup';
 
-import { getDrawerSchema } from './data';
+import { getDataScopeOptions, getDrawerSchema } from './data';
 
 const emit = defineEmits<{ reload: [] }>();
+const orgCenterPluginId = 'org-center';
 
 const isUpdate = ref(false);
+const orgEnabled = ref(true);
 const title = computed(() => {
   return isUpdate.value ? $t('pages.common.edit') : $t('pages.common.add');
 });
@@ -36,6 +39,25 @@ const [BasicForm, formApi] = useVbenForm({
 });
 
 const menuTree = ref<any[]>([]);
+
+function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
+  const pluginState = pluginStateMap.get(pluginId);
+  return pluginState?.installed === 1 && pluginState?.enabled === 1;
+}
+
+async function syncOrgCapability() {
+  const pluginStateMap = await getPluginStateMap(true);
+  orgEnabled.value = isPluginEnabled(orgCenterPluginId, pluginStateMap);
+  formApi.updateSchema([
+    {
+      fieldName: 'dataScope',
+      componentProps: {
+        options: getDataScopeOptions(orgEnabled.value),
+      },
+    },
+  ]);
+}
+
 async function setupMenuTree(id?: number) {
   if (id) {
     const resp = await roleMenuTreeSelect(id);
@@ -87,9 +109,13 @@ const [BasicDrawer, drawerApi] = useVbenDrawer({
 
     const { id } = drawerApi.getData() as { id?: number };
     isUpdate.value = !!id;
+    await syncOrgCapability();
 
     if (isUpdate.value && id) {
       const record = await roleInfo(id);
+      if (!orgEnabled.value && record.dataScope === 2) {
+        record.dataScope = 3;
+      }
       await formApi.setValues(record);
     } else {
       // 新增模式：调用 resetForm 以应用 schema 中定义的 defaultValue

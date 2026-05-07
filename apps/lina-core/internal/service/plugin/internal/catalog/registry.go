@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -64,18 +65,30 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 			Remark:       manifest.Description,
 		}
 
-		_, err = dao.SysPlugin.Ctx(ctx).Data(data).Insert()
+		insertID, insertErr := dao.SysPlugin.Ctx(ctx).Data(data).InsertAndGetId()
+		err = insertErr
 		if err != nil {
 			return nil, err
 		}
-		registry, err := s.refreshStartupRegistry(ctx, manifest.ID)
+		startupstats.Add(ctx, startupstats.CounterPluginSyncChanged, 1)
+		registry := insertStartupRegistry(ctx, int(insertID), data)
+		if registry == nil {
+			registry, err = s.refreshStartupRegistry(ctx, manifest.ID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if err = s.syncReleaseMetadata(ctx, manifest, registry); err != nil {
+			return nil, err
+		}
+		registry, err = s.syncRegistryReleaseReference(ctx, registry, manifest)
 		if err != nil {
 			return nil, err
 		}
-		if err = s.syncMetadata(ctx, manifest, registry, PluginNodeStateMessageManifestSynchronized); err != nil {
+		if err = s.syncMetadataDependents(ctx, manifest, registry, PluginNodeStateMessageManifestSynchronized); err != nil {
 			return nil, err
 		}
-		return s.syncRegistryReleaseReference(ctx, registry, manifest)
+		return registry, nil
 	}
 
 	data := do.SysPlugin{
@@ -133,11 +146,18 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 		if err != nil {
 			return nil, err
 		}
+		startupstats.Add(ctx, startupstats.CounterPluginSyncChanged, 1)
 
-		registry, err = s.refreshStartupRegistry(ctx, manifest.ID)
-		if err != nil {
-			return nil, err
+		if updated := updateStartupRegistry(ctx, manifest.ID, data); updated != nil {
+			registry = updated
+		} else {
+			registry, err = s.refreshStartupRegistry(ctx, manifest.ID)
+			if err != nil {
+				return nil, err
+			}
 		}
+	} else {
+		startupstats.Add(ctx, startupstats.CounterPluginSyncNoop, 1)
 	}
 	if NormalizeType(manifest.Type) == TypeSource &&
 		registry != nil &&
@@ -157,10 +177,17 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 		}
 		return registry, nil
 	}
-	if err = s.syncMetadata(ctx, manifest, registry, PluginNodeStateMessageManifestSynchronized); err != nil {
+	if err = s.syncReleaseMetadata(ctx, manifest, registry); err != nil {
 		return nil, err
 	}
-	return s.syncRegistryReleaseReference(ctx, registry, manifest)
+	registry, err = s.syncRegistryReleaseReference(ctx, registry, manifest)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.syncMetadataDependents(ctx, manifest, registry, PluginNodeStateMessageManifestSynchronized); err != nil {
+		return nil, err
+	}
+	return registry, nil
 }
 
 // pluginRegistryDataMatches reports whether a registry row already contains all
@@ -233,6 +260,9 @@ func (s *serviceImpl) SetPluginStatus(ctx context.Context, pluginID string, enab
 	if err != nil {
 		return err
 	}
+	if updated := updateStartupRegistry(ctx, pluginID, data); updated != nil {
+		registry = updated
+	}
 
 	if s.hookDispatcher != nil {
 		eventName := pluginhost.ExtensionPointPluginDisabled
@@ -251,9 +281,11 @@ func (s *serviceImpl) SetPluginStatus(ctx context.Context, pluginID string, enab
 		}
 	}
 
-	registry, err = s.GetRegistry(ctx, pluginID)
-	if err != nil {
-		return err
+	if registry == nil || startupDataSnapshotFromContext(ctx) == nil {
+		registry, err = s.GetRegistry(ctx, pluginID)
+		if err != nil {
+			return err
+		}
 	}
 	if registry == nil {
 		return nil
@@ -299,6 +331,9 @@ func (s *serviceImpl) SetPluginInstalled(ctx context.Context, pluginID string, i
 		Where(do.SysPlugin{PluginId: pluginID}).
 		Data(data).
 		Update()
+	if err == nil {
+		updateStartupRegistry(ctx, pluginID, data)
+	}
 	return err
 }
 
@@ -336,6 +371,9 @@ func (s *serviceImpl) syncRegistryReleaseReference(
 	if err != nil {
 		return nil, err
 	}
+	if updated := updateStartupRegistry(ctx, registry.PluginId, do.SysPlugin{ReleaseId: release.Id}); updated != nil {
+		return updated, nil
+	}
 	return s.refreshStartupRegistry(ctx, registry.PluginId)
 }
 
@@ -364,6 +402,15 @@ func (s *serviceImpl) syncMetadata(ctx context.Context, manifest *Manifest, regi
 	}
 	if err := s.syncReleaseMetadata(ctx, manifest, registry); err != nil {
 		return err
+	}
+	return s.syncMetadataDependents(ctx, manifest, registry, message)
+}
+
+// syncMetadataDependents synchronizes release-dependent resource and node
+// projections after the caller has already prepared the release row.
+func (s *serviceImpl) syncMetadataDependents(ctx context.Context, manifest *Manifest, registry *entity.SysPlugin, message string) error {
+	if manifest == nil || registry == nil {
+		return nil
 	}
 	if registry.Installed == InstalledYes && s.resourceRefSyncer != nil {
 		if err := s.resourceRefSyncer.SyncPluginResourceReferences(ctx, manifest); err != nil {

@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS plugin_org_center_user_dept (
     user_id INT NOT NULL COMMENT  'User ID',
     dept_id INT NOT NULL COMMENT  'Department ID',
     PRIMARY KEY (user_id, dept_id),
-    KEY idx_plugin_org_center_user_dept_dept_id (dept_id)
+    KEY idx_plugin_org_center_user_dept_dept_user (dept_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User-department relation table';
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_user_post (

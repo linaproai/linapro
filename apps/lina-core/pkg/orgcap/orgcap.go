@@ -7,7 +7,13 @@ package orgcap
 import (
 	"context"
 	"sync"
+
+	"github.com/gogf/gf/v2/database/gdb"
 )
+
+// ProviderPluginID is the official source-plugin identifier that provides the
+// organization capability.
+const ProviderPluginID = "org-center"
 
 // UserDeptAssignment describes one optional department projection for a user.
 type UserDeptAssignment struct {
@@ -51,6 +57,12 @@ type Provider interface {
 	GetUserDeptInfo(ctx context.Context, userID int) (int, string, error)
 	// GetUserDeptIDs returns one user's department identifier list.
 	GetUserDeptIDs(ctx context.Context, userID int) ([]int, error)
+	// ApplyUserDeptScope injects a database-side department-scope constraint for
+	// rows owned by the supplied user ID column.
+	ApplyUserDeptScope(ctx context.Context, model *gdb.Model, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
+	// BuildUserDeptScopeExists builds the database-side department-scope EXISTS
+	// subquery for callers that need to compose it with additional OR branches.
+	BuildUserDeptScopeExists(ctx context.Context, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
 	// GetUserPostIDs returns one user's post association list.
 	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
 	// ReplaceUserAssignments rewrites one user's department and post associations.

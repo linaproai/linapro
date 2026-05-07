@@ -2,6 +2,8 @@
 // plugin menu parent relationships and stable top-level catalog bindings.
 package menu
 
+import "lina-core/pkg/orgcap"
+
 // Stable host catalog menu keys.
 const (
 	// Dashboard is the stable key of the workspace catalog.
@@ -46,7 +48,7 @@ func IsStableCatalogKey(menuKey string) bool {
 // Official source-plugin identifiers bound to stable host menu catalogs.
 const (
 	// OrgCenter provides department and post management.
-	OrgCenter = "org-center"
+	OrgCenter = orgcap.ProviderPluginID
 	// ContentNotice provides notice management.
 	ContentNotice = "content-notice"
 	// MonitorOnline provides online-user query and force-logout governance.

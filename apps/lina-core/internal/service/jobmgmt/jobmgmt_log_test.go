@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
+	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
@@ -99,6 +100,7 @@ func TestClearLogsSupportsDeleteAllAndSelectedIDs(t *testing.T) {
 		svc   = newTestService(t)
 		jobID = insertLogCleanupTestJob(t, ctx)
 	)
+	svc.bizCtxSvc = jobmgmtStaticBizCtx{ctx: &model.Context{UserId: 1}}
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
 	const rollbackMessage = "rollback execution-log cleanup test transaction"

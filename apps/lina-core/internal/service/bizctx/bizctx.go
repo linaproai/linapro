@@ -24,6 +24,8 @@ type Service interface {
 	SetLocale(ctx context.Context, locale string)
 	// SetUser sets user info into business context.
 	SetUser(ctx context.Context, tokenId string, userId int, username string, status int)
+	// SetUserAccess sets cached access-snapshot fields into business context.
+	SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int)
 }
 
 // Ensure serviceImpl implements Service.
@@ -68,5 +70,14 @@ func (s *serviceImpl) SetUser(ctx context.Context, tokenId string, userId int, u
 		c.UserId = userId
 		c.Username = username
 		c.Status = status
+	}
+}
+
+// SetUserAccess sets cached access-snapshot fields into business context.
+func (s *serviceImpl) SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int) {
+	if c := s.Get(ctx); c != nil {
+		c.DataScope = dataScope
+		c.DataScopeUnsupported = dataScopeUnsupported
+		c.UnsupportedDataScope = unsupportedDataScope
 	}
 }

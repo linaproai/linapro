@@ -12,8 +12,11 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
+	orgcapsvc "lina-core/internal/service/orgcap"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/orgcap"
 )
 
 const (
@@ -27,6 +30,16 @@ const (
 	builtinUserRoleNameI18n = "role.builtin.user.name"
 )
 
+// Role data-scope values stored in sys_role.data_scope.
+const (
+	// roleDataScopeAll grants access to all governed records.
+	roleDataScopeAll = 1
+	// roleDataScopeDept grants access to records owned by users in the current department scope.
+	roleDataScopeDept = 2
+	// roleDataScopeSelf grants access only to the current user's own records.
+	roleDataScopeSelf = 3
+)
+
 // PermissionMenuFilter defines the narrow dependency required by the role
 // service to hide plugin-owned permission menus that are not currently active.
 type PermissionMenuFilter interface {
@@ -35,14 +48,37 @@ type PermissionMenuFilter interface {
 	FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
 }
 
-// Service defines the role service contract.
-type Service interface {
+// OrganizationCapabilityState defines the narrow organization-capability
+// dependency role needs to validate organization-dependent data-scope values.
+type OrganizationCapabilityState interface {
+	// Enabled reports whether organization capability is currently usable.
+	Enabled(ctx context.Context) bool
+}
+
+// pluginEnablementState defines the plugin-status reader used to derive
+// organization capability state in production controllers.
+type pluginEnablementState interface {
+	// IsEnabled returns whether the given plugin ID is currently enabled.
+	IsEnabled(ctx context.Context, pluginID string) bool
+}
+
+// RoleQueryService defines read-only role management operations.
+type RoleQueryService interface {
 	// List queries role list with pagination.
 	List(ctx context.Context, in ListInput) (*ListOutput, error)
 	// GetById retrieves role by ID.
 	GetById(ctx context.Context, id int) (*entity.SysRole, error)
 	// GetDetail retrieves role detail with menu IDs.
 	GetDetail(ctx context.Context, id int) (*GetDetailOutput, error)
+	// GetOptions returns role options for dropdown.
+	GetOptions(ctx context.Context) ([]*OptionItem, error)
+	// DisplayName returns the read-only display name for one role, localizing
+	// protected built-in roles while preserving custom role names.
+	DisplayName(ctx context.Context, role *entity.SysRole) string
+}
+
+// RoleMutationService defines role create, update, delete, and status operations.
+type RoleMutationService interface {
 	// Create creates a new role.
 	Create(ctx context.Context, in CreateInput) (int, error)
 	// Update updates role information.
@@ -53,8 +89,10 @@ type Service interface {
 	BatchDelete(ctx context.Context, ids []int) error
 	// UpdateStatus updates role status.
 	UpdateStatus(ctx context.Context, id int, status int) error
-	// GetOptions returns role options for dropdown.
-	GetOptions(ctx context.Context) ([]*OptionItem, error)
+}
+
+// RoleUserAssignmentService defines role-to-user assignment operations.
+type RoleUserAssignmentService interface {
 	// GetUsers queries users assigned to a role.
 	GetUsers(ctx context.Context, in GetUsersInput) (*GetUsersOutput, error)
 	// AssignUsers assigns users to a role.
@@ -63,21 +101,30 @@ type Service interface {
 	UnassignUser(ctx context.Context, roleId int, userId int) error
 	// UnassignUsers removes multiple users from a role.
 	UnassignUsers(ctx context.Context, roleId int, userIds []int) error
+}
+
+// UserRoleLookupService defines read-only user role lookup operations.
+type UserRoleLookupService interface {
 	// GetUserRoleIds returns role IDs for a user.
 	GetUserRoleIds(ctx context.Context, userId int) ([]int, error)
 	// GetUserRoles returns role entities for a user.
 	GetUserRoles(ctx context.Context, userId int) ([]*entity.SysRole, error)
 	// GetUserRoleNames returns role names for a user.
 	GetUserRoleNames(ctx context.Context, userId int) ([]string, error)
-	// DisplayName returns the read-only display name for one role, localizing
-	// protected built-in roles while preserving custom role names.
-	DisplayName(ctx context.Context, role *entity.SysRole) string
+}
+
+// UserPermissionLookupService defines role-derived menu and permission lookup operations.
+type UserPermissionLookupService interface {
 	// GetUserMenuIds returns menu IDs accessible by a user through their roles.
 	GetUserMenuIds(ctx context.Context, userId int) ([]int, error)
 	// GetUserPermissions returns effective menu and button permission strings for a user.
 	GetUserPermissions(ctx context.Context, userId int) ([]string, error)
 	// IsSuperAdmin checks whether the user is the built-in admin account.
 	IsSuperAdmin(ctx context.Context, userId int) bool
+}
+
+// RoleAccessSnapshotService defines token access snapshot and topology invalidation operations.
+type RoleAccessSnapshotService interface {
 	// PrimeTokenAccessContext preloads the access context cache for one freshly issued login token.
 	PrimeTokenAccessContext(
 		ctx context.Context,
@@ -97,6 +144,18 @@ type Service interface {
 	SyncAccessTopologyRevision(ctx context.Context) error
 	// GetUserAccessContext loads the user's roles, menus, and permissions with token-aware caching when available.
 	GetUserAccessContext(ctx context.Context, userId int) (*UserAccessContext, error)
+	// GetUserDataScopeSnapshot returns the user's effective role data-scope from the cached access snapshot.
+	GetUserDataScopeSnapshot(ctx context.Context, userId int) (*datascope.AccessSnapshot, error)
+}
+
+// Service defines the full role service contract by composing feature-scoped contracts.
+type Service interface {
+	RoleQueryService
+	RoleMutationService
+	RoleUserAssignmentService
+	UserRoleLookupService
+	UserPermissionLookupService
+	RoleAccessSnapshotService
 }
 
 // Ensure serviceImpl implements Service.
@@ -108,7 +167,10 @@ type serviceImpl struct {
 	configSvc          config.Service
 	i18nSvc            roleI18nTranslator
 	permissionFilter   PermissionMenuFilter
+	orgCapabilityState OrganizationCapabilityState
+	orgCapSvc          orgcapsvc.Service
 	accessRevisionCtrl accessRevisionController
+	scopeSvc           datascope.Service
 }
 
 // New creates and returns a new role Service.
@@ -123,16 +185,25 @@ func New(permissionFilter PermissionMenuFilter) Service {
 	if permissionFilter == nil {
 		permissionFilter = noopPermissionMenuFilter{}
 	}
+	orgCapSvc := orgCapServiceFromPermissionFilter(permissionFilter)
 
-	return &serviceImpl{
-		bizCtxSvc:        bizCtxSvc,
-		configSvc:        configSvc,
-		i18nSvc:          i18nSvc,
-		permissionFilter: permissionFilter,
+	svc := &serviceImpl{
+		bizCtxSvc:          bizCtxSvc,
+		configSvc:          configSvc,
+		i18nSvc:            i18nSvc,
+		permissionFilter:   permissionFilter,
+		orgCapabilityState: organizationCapabilityStateFromPermissionFilter(permissionFilter),
+		orgCapSvc:          orgCapSvc,
 		accessRevisionCtrl: newCacheCoordAccessRevisionController(
 			configSvc.IsClusterEnabled(context.Background()),
 		),
 	}
+	svc.scopeSvc = datascope.New(datascope.Dependencies{
+		BizCtxSvc: svc.bizCtxSvc,
+		RoleSvc:   svc,
+		OrgCapSvc: svc.orgCapSvc,
+	})
+	return svc
 }
 
 // roleI18nTranslator defines the narrow translation capability role needs.
@@ -148,6 +219,40 @@ type noopPermissionMenuFilter struct{}
 // FilterPermissionMenus returns the original menu slice unchanged.
 func (noopPermissionMenuFilter) FilterPermissionMenus(_ context.Context, menus []*entity.SysMenu) []*entity.SysMenu {
 	return menus
+}
+
+// organizationCapabilityStateFromPermissionFilter reuses the plugin service
+// dependency when it also exposes plugin enablement state.
+func organizationCapabilityStateFromPermissionFilter(permissionFilter PermissionMenuFilter) OrganizationCapabilityState {
+	if state, ok := permissionFilter.(OrganizationCapabilityState); ok {
+		return state
+	}
+	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
+		return pluginBackedOrganizationCapabilityState{pluginState: pluginState}
+	}
+	return nil
+}
+
+// orgCapServiceFromPermissionFilter constructs organization data-scope support
+// from the same plugin enablement reader used by permission-menu filtering.
+func orgCapServiceFromPermissionFilter(permissionFilter PermissionMenuFilter) orgcapsvc.Service {
+	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
+		return orgcapsvc.New(pluginState)
+	}
+	return orgcapsvc.New(nil)
+}
+
+// pluginBackedOrganizationCapabilityState derives organization capability from
+// both plugin enablement state and the registered orgcap provider.
+type pluginBackedOrganizationCapabilityState struct {
+	pluginState pluginEnablementState
+}
+
+// Enabled reports whether org-center is enabled and the orgcap provider exists.
+func (s pluginBackedOrganizationCapabilityState) Enabled(ctx context.Context) bool {
+	return s.pluginState != nil &&
+		s.pluginState.IsEnabled(ctx, orgcap.ProviderPluginID) &&
+		orgcap.HasProvider()
 }
 
 // ListInput defines filters and pagination for role list queries.
@@ -324,6 +429,10 @@ type CreateInput struct {
 
 // Create creates a new role.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
+	if err := s.ensureRoleDataScopeAllowed(ctx, in.DataScope); err != nil {
+		return 0, err
+	}
+
 	// Check name uniqueness
 	if err := s.checkNameUnique(ctx, in.Name, 0); err != nil {
 		return 0, err
@@ -380,6 +489,12 @@ type UpdateInput struct {
 
 // Update updates role information.
 func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
+	if in.DataScope != nil {
+		if err := s.ensureRoleDataScopeAllowed(ctx, *in.DataScope); err != nil {
+			return err
+		}
+	}
+
 	// Check role exists
 	_, err := s.GetById(ctx, in.Id)
 	if err != nil {
@@ -442,6 +557,18 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	}
 	s.NotifyAccessTopologyChanged(ctx)
 	return nil
+}
+
+// ensureRoleDataScopeAllowed rejects organization-dependent role scopes when
+// the organization management capability is not enabled.
+func (s *serviceImpl) ensureRoleDataScopeAllowed(ctx context.Context, dataScope int) error {
+	if dataScope != roleDataScopeDept {
+		return nil
+	}
+	if s != nil && s.orgCapabilityState != nil && s.orgCapabilityState.Enabled(ctx) {
+		return nil
+	}
+	return bizerr.NewCode(CodeRoleDataScopeDeptUnavailable)
 }
 
 // insertRoleMenus inserts all role-menu associations for one role in a single batch.
@@ -678,6 +805,13 @@ func (s *serviceImpl) GetUsers(ctx context.Context, in GetUsersInput) (*GetUsers
 	if in.Status != nil {
 		m = m.Where(userCols.Status, *in.Status)
 	}
+	m, scopeEmpty, err := s.applyRoleUserDataScope(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	if scopeEmpty {
+		return &GetUsersOutput{List: []*RoleUserItem{}, Total: 0}, nil
+	}
 
 	// Get total count
 	total, err := m.Count()
@@ -724,6 +858,9 @@ func (s *serviceImpl) AssignUsers(ctx context.Context, roleId int, userIds []int
 	// Check role exists
 	_, err := s.GetById(ctx, roleId)
 	if err != nil {
+		return err
+	}
+	if err = s.ensureRoleUsersVisible(ctx, userIds); err != nil {
 		return err
 	}
 
@@ -774,6 +911,9 @@ func (s *serviceImpl) UnassignUser(ctx context.Context, roleId int, userId int) 
 	if err != nil {
 		return err
 	}
+	if err = s.ensureRoleUsersVisible(ctx, []int{userId}); err != nil {
+		return err
+	}
 
 	urCols := dao.SysUserRole.Columns()
 	_, err = dao.SysUserRole.Ctx(ctx).
@@ -792,6 +932,9 @@ func (s *serviceImpl) UnassignUsers(ctx context.Context, roleId int, userIds []i
 	// Check role exists
 	_, err := s.GetById(ctx, roleId)
 	if err != nil {
+		return err
+	}
+	if err = s.ensureRoleUsersVisible(ctx, userIds); err != nil {
 		return err
 	}
 

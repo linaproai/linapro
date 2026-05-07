@@ -27,6 +27,9 @@ func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id uint64, status job
 	if job.IsBuiltin == 1 {
 		return bizerr.NewCode(CodeJobBuiltinStatusUpdateDenied)
 	}
+	if err = s.ensureJobVisible(ctx, job); err != nil {
+		return err
+	}
 	if status == jobmeta.JobStatusEnabled {
 		if err = s.validateExecutableJob(ctx, job); err != nil {
 			return err
@@ -70,6 +73,9 @@ func (s *serviceImpl) ResetJob(ctx context.Context, id uint64) error {
 	if job.IsBuiltin == 1 {
 		return bizerr.NewCode(CodeJobBuiltinResetDenied)
 	}
+	if err = s.ensureJobVisible(ctx, job); err != nil {
+		return err
+	}
 
 	_, err = dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{Id: id}).
@@ -92,6 +98,16 @@ func (s *serviceImpl) ResetJob(ctx context.Context, id uint64) error {
 func (s *serviceImpl) TriggerJob(ctx context.Context, id uint64) (uint64, error) {
 	if s.scheduler == nil {
 		return 0, bizerr.NewCode(CodeJobSchedulerUninitialized)
+	}
+	job, err := s.jobByID(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	if job == nil {
+		return 0, bizerr.NewCode(jobmeta.CodeJobNotFound)
+	}
+	if err = s.ensureJobVisible(ctx, job); err != nil {
+		return 0, err
 	}
 	return s.scheduler.Trigger(ctx, id)
 }

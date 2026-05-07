@@ -46,6 +46,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 	)
 
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
+		fileCtrl := filectrl.NewV1()
 		group.Middleware(
 			ghttp.MiddlewareNeverDoneCtx,
 			middlewareSvc.Response,
@@ -62,6 +63,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			i18nCtrl.RuntimeMessages,
 			pluginCtrl.DynamicList,
 			publicCfgCtrl.Frontend,
+			fileCtrl.Access,
 		)
 		bindProtectedStaticAPIRoutes(
 			group,
@@ -76,7 +78,14 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			role.NewV1(),
 			usermsg.NewV1(),
 			sysinfo.NewV1(),
-			filectrl.NewV1(),
+			fileCtrl.Delete,
+			fileCtrl.Detail,
+			fileCtrl.Download,
+			fileCtrl.InfoByIds,
+			fileCtrl.List,
+			fileCtrl.FileSuffixes,
+			fileCtrl.Upload,
+			fileCtrl.UsageScenes,
 			configctrl.NewV1(),
 			jobCtrl,
 			jobGroupCtrl,
@@ -135,7 +144,12 @@ func bindDynamicPluginAPIRoutes(parent *ghttp.RouterGroup, pluginSvc pluginsvc.S
 
 // bindSourcePluginHTTPRoutes lets source plugins contribute host routes and
 // starts dynamic-runtime background work that depends on route publication.
-func bindSourcePluginHTTPRoutes(ctx context.Context, server *ghttp.Server, runtime *httpRuntime) {
+func bindSourcePluginHTTPRoutes(
+	ctx context.Context,
+	backgroundCtx context.Context,
+	server *ghttp.Server,
+	runtime *httpRuntime,
+) {
 	var pluginGroup *ghttp.RouterGroup
 	server.Group("/", func(group *ghttp.RouterGroup) {
 		pluginGroup = group
@@ -151,5 +165,5 @@ func bindSourcePluginHTTPRoutes(ctx context.Context, server *ghttp.Server, runti
 	if err := runtime.pluginSvc.PrewarmRuntimeFrontendBundles(ctx); err != nil {
 		logger.Warningf(ctx, "prewarm runtime frontend bundles failed: %v", err)
 	}
-	runtime.pluginSvc.StartRuntimeReconciler(ctx)
+	runtime.pluginSvc.StartRuntimeReconciler(backgroundCtx)
 }

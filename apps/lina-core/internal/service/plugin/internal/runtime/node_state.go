@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/os/gtime"
+	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -161,10 +162,47 @@ func (s *serviceImpl) syncNodeProjection(ctx context.Context, in nodeProjectionI
 		_, err = dao.SysPluginNodeState.Ctx(ctx).Data(data).Insert()
 		return err
 	}
+	if shouldSkipStartupManifestNodeProjection(existing, data) {
+		return nil
+	}
 
 	_, err = dao.SysPluginNodeState.Ctx(ctx).
 		Where(do.SysPluginNodeState{Id: existing.Id}).
 		Data(data).
 		Update()
 	return err
+}
+
+// shouldSkipStartupManifestNodeProjection avoids rewriting an unchanged
+// manifest-sync node projection while preserving lifecycle heartbeat updates.
+func shouldSkipStartupManifestNodeProjection(existing *entity.SysPluginNodeState, data do.SysPluginNodeState) bool {
+	if existing == nil {
+		return false
+	}
+	message := strings.TrimSpace(dataString(data.ErrorMessage))
+	if message != catalog.PluginNodeStateMessageManifestSynchronized {
+		return false
+	}
+	return existing.PluginId == strings.TrimSpace(dataString(data.PluginId)) &&
+		existing.ReleaseId == dataInt(data.ReleaseId) &&
+		existing.NodeKey == strings.TrimSpace(dataString(data.NodeKey)) &&
+		existing.DesiredState == strings.TrimSpace(dataString(data.DesiredState)) &&
+		existing.CurrentState == strings.TrimSpace(dataString(data.CurrentState)) &&
+		existing.Generation == dataInt64(data.Generation) &&
+		strings.TrimSpace(existing.ErrorMessage) == message
+}
+
+// dataString normalizes a DO field into its persisted string value.
+func dataString(value any) string {
+	return strings.TrimSpace(gconv.String(value))
+}
+
+// dataInt normalizes a DO field into its persisted integer value.
+func dataInt(value any) int {
+	return gconv.Int(value)
+}
+
+// dataInt64 normalizes a DO field into its persisted int64 value.
+func dataInt64(value any) int64 {
+	return gconv.Int64(value)
 }

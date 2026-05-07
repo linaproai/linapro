@@ -73,6 +73,12 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 		)
 		return
 	}
+	s.bizCtxSvc.SetUserAccess(
+		r.Context(),
+		int(accessContext.DataScope),
+		accessContext.DataScopeUnsupported,
+		accessContext.UnsupportedDataScope,
+	)
 	if hasRequiredPermissions(accessContext, requiredPermissions) {
 		r.Middleware.Next()
 		return

@@ -9,7 +9,22 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
+	"lina-core/internal/service/startupstats"
 )
+
+// WithStartupDataSnapshot returns a child context carrying catalog and
+// integration startup snapshots for one host startup orchestration.
+func (s *serviceImpl) WithStartupDataSnapshot(ctx context.Context) (context.Context, error) {
+	startupCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		return ctx, err
+	}
+	startupCtx, err = s.integrationSvc.WithStartupDataSnapshot(startupCtx)
+	if err != nil {
+		return ctx, err
+	}
+	return startupCtx, nil
+}
 
 // SyncSourcePlugins scans source plugin manifests and synchronizes default status.
 func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
@@ -24,12 +39,10 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	rootCtx := ctx
-	syncCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	syncCtx, err = s.integrationSvc.WithStartupDataSnapshot(syncCtx)
+	startupstats.Add(ctx, startupstats.CounterPluginScans, 1)
+	startupstats.Add(ctx, startupstats.CounterPluginScanItems, len(manifests))
+
+	syncCtx, err := s.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -45,13 +58,13 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 		items = append(items, s.runtimeSvc.BuildPluginItem(syncCtx, manifest, registry))
 	}
 
-	runtimeItems, err := s.runtimeSvc.BuildRuntimeItems(rootCtx, covered)
+	runtimeItems, err := s.runtimeSvc.BuildRuntimeItems(syncCtx, covered)
 	if err != nil {
 		return nil, err
 	}
 	items = append(items, runtimeItems...)
 	runtime.SortPluginItems(items)
-	if err = s.integrationSvc.RefreshEnabledSnapshot(rootCtx); err != nil {
+	if err = s.integrationSvc.RefreshEnabledSnapshot(syncCtx); err != nil {
 		return nil, err
 	}
 	return &ListOutput{List: items, Total: len(items)}, nil
@@ -95,6 +108,9 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
+	startupstats.Add(ctx, startupstats.CounterPluginScans, 1)
+	startupstats.Add(ctx, startupstats.CounterPluginScanItems, len(manifests))
+
 	readCtx, err := s.catalogSvc.WithStartupDataSnapshot(ctx)
 	if err != nil {
 		return nil, err

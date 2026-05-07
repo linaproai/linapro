@@ -47,6 +47,7 @@ func TestHandleHostServiceInvokeDataLifecycle(t *testing.T) {
 		identity: &pluginbridge.IdentitySnapshotV1{
 			UserID:       1,
 			Username:     "admin",
+			DataScope:    1,
 			IsSuperAdmin: true,
 		},
 	}

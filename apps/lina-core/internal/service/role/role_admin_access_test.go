@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/user/accountpolicy"
 )
 
@@ -48,6 +49,9 @@ func TestAdminUserRetainsBypassWithoutRoleBinding(t *testing.T) {
 	}
 	if accessContext == nil || !accessContext.IsSuperAdmin {
 		t.Fatal("expected admin access context to keep built-in admin bypass flag")
+	}
+	if accessContext.DataScope != datascope.ScopeAll {
+		t.Fatalf("expected admin access context to carry all-data scope, got %d", accessContext.DataScope)
 	}
 
 	menuIDs, err := svc.GetUserMenuIds(ctx, adminUserID)
@@ -121,6 +125,9 @@ func TestAdminRoleDoesNotUpgradeOtherUsers(t *testing.T) {
 	}
 	if accessContext.IsSuperAdmin {
 		t.Fatal("expected temp user access context to keep IsSuperAdmin=false")
+	}
+	if accessContext.DataScope != datascope.ScopeAll {
+		t.Fatalf("expected admin-role user to carry all-data scope without super-admin bypass, got %d", accessContext.DataScope)
 	}
 }
 

@@ -32,17 +32,22 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 	if err != nil {
 		return nil, err
 	}
-	if err = startHTTPRuntime(ctx, runtime); err != nil {
+	startupCtx, startupCollector, err := newHTTPStartupContext(ctx, runtime)
+	if err != nil {
+		return nil, err
+	}
+	if err = startHTTPRuntime(startupCtx, runtime); err != nil {
 		return nil, err
 	}
 
-	bindHostAPIRoutes(ctx, s, runtime)
-	bindSourcePluginHTTPRoutes(ctx, s, runtime)
-	if err = bindFrontendAssetRoutes(ctx, s, runtime.pluginSvc); err != nil {
+	bindHostAPIRoutes(startupCtx, s, runtime)
+	bindSourcePluginHTTPRoutes(startupCtx, ctx, s, runtime)
+	if err = bindFrontendAssetRoutes(startupCtx, s, runtime.pluginSvc); err != nil {
 		return nil, err
 	}
 
-	bindHostedOpenAPIDocs(ctx, s, runtime.apiDocSvc, runtime.serverCfg.ApiDocPath)
+	bindHostedOpenAPIDocs(startupCtx, s, runtime.apiDocSvc, runtime.serverCfg.ApiDocPath)
+	logHTTPStartupSummary(startupCtx, startupCollector)
 	dispatchSystemStartedHook(ctx, runtime.pluginSvc)
 
 	s.Run()

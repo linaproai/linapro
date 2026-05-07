@@ -4,9 +4,14 @@ package plugin
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/glog"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -75,4 +80,106 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 	if snapshot.NodeState != catalog.NodeStateEnabled.String() {
 		t.Fatalf("expected governance snapshot to derive enabled node state, got %s", snapshot.NodeState)
 	}
+}
+
+// TestClusterStartupManifestNoopSkipsNodeStateWrite verifies repeated startup
+// manifest sync avoids rewriting the current-node projection when nothing changed.
+func TestClusterStartupManifestNoopSkipsNodeStateWrite(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		pluginID = "plugin-source-cluster-node-noop"
+		version  = "v0.1.0"
+		topology = &testTopology{
+			enabled: true,
+			primary: true,
+			nodeID:  "startup-node-noop",
+		}
+		service = newTestServiceWithTopology(topology)
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	testutil.WriteTestFile(
+		t,
+		manifestPath,
+		"id: "+pluginID+"\n"+
+			"name: Source Cluster Node Noop Plugin\n"+
+			"version: "+version+"\n"+
+			"type: source\n",
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	manifest := &catalog.Manifest{}
+	if err := service.catalogSvc.LoadManifestFromYAML(manifestPath, manifest); err != nil {
+		t.Fatalf("expected source manifest load to succeed, got error: %v", err)
+	}
+	if _, err := service.catalogSvc.SyncManifest(ctx, manifest); err != nil {
+		t.Fatalf("expected initial manifest sync to succeed, got error: %v", err)
+	}
+
+	startupCtx, err := service.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("expected startup snapshot build to succeed, got error: %v", err)
+	}
+	sqls, logs, err := captureSQLDuringStartupTopologyTest(t, startupCtx, func(ctx context.Context) error {
+		_, syncErr := service.catalogSvc.SyncManifest(ctx, manifest)
+		return syncErr
+	})
+	if err != nil {
+		t.Fatalf("expected no-op manifest sync to succeed, got error: %v", err)
+	}
+	assertNoNodeStateMutationSQL(t, sqls)
+	assertNoNodeStateMutationSQL(t, logs)
+}
+
+// assertNoNodeStateMutationSQL fails when captured SQL rewrites plugin node state.
+func assertNoNodeStateMutationSQL(t *testing.T, sqls []string) {
+	t.Helper()
+
+	for _, sql := range sqls {
+		normalized := strings.ToUpper(strings.TrimSpace(sql))
+		if !strings.Contains(normalized, "SYS_PLUGIN_NODE_STATE") {
+			continue
+		}
+		for _, keyword := range []string{"INSERT ", "UPDATE ", "DELETE "} {
+			if strings.Contains(normalized, keyword) {
+				t.Fatalf("expected no sys_plugin_node_state mutation SQL, got %q from %#v", sql, sqls)
+			}
+		}
+	}
+}
+
+// captureSQLDuringStartupTopologyTest captures GoFrame SQL and debug log lines
+// emitted by fn so no-op startup paths can assert write avoidance.
+func captureSQLDuringStartupTopologyTest(
+	t *testing.T,
+	ctx context.Context,
+	fn func(context.Context) error,
+) ([]string, []string, error) {
+	t.Helper()
+
+	db := g.DB()
+	previousDebug := db.GetDebug()
+	previousLogger := db.GetLogger()
+	captureLogger := glog.New()
+	captureLogger.SetStdoutPrint(false)
+
+	db.SetDebug(true)
+	db.SetLogger(captureLogger)
+	defer func() {
+		db.SetLogger(previousLogger)
+		db.SetDebug(previousDebug)
+	}()
+
+	var logs []string
+	captureLogger.SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
+		logs = append(logs, in.ValuesContent())
+	})
+
+	sqls, err := gdb.CatchSQL(ctx, fn)
+	return sqls, logs, err
 }

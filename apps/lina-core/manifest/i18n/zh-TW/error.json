@@ -131,6 +131,11 @@
       "unauthorized": "請先登錄"
     },
     "file": {
+      "data": {
+        "scope": {
+          "denied": "文件數據不在當前數據權限範圍內"
+        }
+      },
       "delete": {
         "required": "請選擇要刪除的文件"
       },
@@ -423,6 +428,11 @@
       },
       "delete": {
         "required": "請選擇要刪除的定时任務"
+      },
+      "data": {
+        "scope": {
+          "denied": "定時任務數據不在當前數據權限範圍內"
+        }
       },
       "name": {
         "required": "任務名稱不能為空",
@@ -820,6 +830,13 @@
       },
       "not": {
         "found": "角色不存在"
+      },
+      "data": {
+        "scope": {
+          "dept": {
+            "unavailable": "本部門數據權限需要先啟用組織管理插件"
+          }
+        }
       }
     },
     "user": {
@@ -844,6 +861,12 @@
         },
         "edit": {
           "denied": "不能編輯當前登錄用戶"
+        }
+      },
+      "data": {
+        "scope": {
+          "denied": "用戶數據超出當前數據權限範圍",
+          "unsupported": "不支持的用戶數據權限範圍：{scope}"
         }
       },
       "import": {
@@ -1062,6 +1085,13 @@
           "missing": "KV 緩存清理依賴未初始化"
         }
       }
+    },
+    "datascope": {
+      "denied": "數據不在當前數據權限範圍內",
+      "not": {
+        "authenticated": "請先登錄"
+      },
+      "unsupported": "不支持的數據權限範圍：{scope}"
     }
   },
   "validation": {

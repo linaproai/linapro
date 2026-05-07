@@ -17,6 +17,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/integration"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -229,6 +230,80 @@ func TestDynamicPluginInstallAndUninstallManageMenusFromManifest(t *testing.T) {
 	}
 	if menu != nil {
 		t.Fatalf("expected runtime plugin menu %s to be deleted on uninstall", menuKey)
+	}
+}
+
+// TestSyncPluginMenusAndPermissionsNoopSkipsWritesAndTransactions verifies a
+// no-op startup sync performs no menu writes and opens no empty transaction.
+func TestSyncPluginMenusAndPermissionsNoopSkipsWritesAndTransactions(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID   = "plugin-menu-noop-startup"
+		menuKey    = "plugin:plugin-menu-noop-startup:main-entry"
+		permission = "plugin-menu-noop-startup:review:view"
+	)
+
+	manifest := &catalog.Manifest{
+		ID:          pluginID,
+		Name:        "Menu Noop Startup Plugin",
+		Version:     "v0.1.0",
+		Type:        catalog.TypeDynamic.String(),
+		Description: "Menu no-op startup test plugin",
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       menuKey,
+				Name:      "Menu Noop Startup Plugin",
+				Path:      "/plugin-assets/plugin-menu-noop-startup/v0.1.0/index.html",
+				Perms:     "plugin-menu-noop-startup:view",
+				Icon:      "ant-design:deployment-unit-outlined",
+				Type:      catalog.MenuTypePage.String(),
+				Sort:      -1,
+				Component: "system/plugin/dynamic-page",
+			},
+		},
+		Routes: []*pluginbridge.RouteContract{
+			{
+				Path:       "/review-summary",
+				Method:     http.MethodGet,
+				Access:     pluginbridge.AccessLogin,
+				Permission: permission,
+			},
+		},
+	}
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	})
+
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
+		t.Fatalf("expected initial menu sync to succeed, got error: %v", err)
+	}
+
+	collector := startupstats.New()
+	startupCtx := startupstats.WithCollector(ctx, collector)
+	startupCtx, err := services.Integration.WithStartupDataSnapshot(startupCtx)
+	if err != nil {
+		t.Fatalf("build integration startup snapshot: %v", err)
+	}
+
+	sqls, logs, err := captureSQLDuring(t, startupCtx, func(ctx context.Context) error {
+		return services.Integration.SyncPluginMenusAndPermissions(ctx, manifest)
+	})
+	if err != nil {
+		t.Fatalf("expected no-op menu sync to succeed, got error: %v", err)
+	}
+	assertNoMutationSQL(t, sqls)
+	assertNoMutationSQL(t, logs)
+
+	snapshot := collector.Snapshot()
+	if got := snapshot.CounterValue(startupstats.CounterPluginMenuSyncNoop); got != 1 {
+		t.Fatalf("expected one no-op menu sync, got %d", got)
+	}
+	if got := snapshot.CounterValue(startupstats.CounterPluginMenuSyncChanged); got != 0 {
+		t.Fatalf("expected no changed menu sync, got %d", got)
 	}
 }
 

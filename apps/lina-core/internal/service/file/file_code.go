@@ -93,4 +93,10 @@ var (
 		"Please select files to delete",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeFileDataScopeDenied reports that the requested file is outside the current data scope.
+	CodeFileDataScopeDenied = bizerr.MustDefine(
+		"FILE_DATA_SCOPE_DENIED",
+		"File data is outside the current data permission scope",
+		gcode.CodeNotAuthorized,
+	)
 )

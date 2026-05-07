@@ -57,6 +57,18 @@ var (
 		"Not signed in",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeUserDataScopeDenied reports that the requested user row is outside the current data scope.
+	CodeUserDataScopeDenied = bizerr.MustDefine(
+		"USER_DATA_SCOPE_DENIED",
+		"User data is outside the current data permission scope",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeUserDataScopeUnsupported reports that an enabled role has an unsupported data scope.
+	CodeUserDataScopeUnsupported = bizerr.MustDefine(
+		"USER_DATA_SCOPE_UNSUPPORTED",
+		"Unsupported user data permission scope: {scope}",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeUserImportExcelParseFailed reports that the uploaded user workbook cannot be parsed.
 	CodeUserImportExcelParseFailed = bizerr.MustDefine(
 		"USER_IMPORT_EXCEL_PARSE_FAILED",

@@ -186,6 +186,80 @@ func (p *Provider) GetUserDeptIDs(ctx context.Context, userID int) ([]int, error
 	return deptIDs, nil
 }
 
+// ApplyUserDeptScope injects an EXISTS-based department membership constraint
+// into a host-owned query without materializing all visible user IDs in memory.
+func (p *Provider) ApplyUserDeptScope(
+	ctx context.Context,
+	model *gdb.Model,
+	userIDColumn string,
+	currentUserID int,
+) (*gdb.Model, bool, error) {
+	subQuery, empty, err := p.BuildUserDeptScopeExists(ctx, userIDColumn, currentUserID)
+	if err != nil || empty {
+		return model, empty, err
+	}
+	return model.WhereExists(subQuery), false, nil
+}
+
+// BuildUserDeptScopeExists builds an EXISTS subquery for department membership
+// without applying it immediately, allowing host callers to compose it with
+// additional OR branches.
+func (p *Provider) BuildUserDeptScopeExists(
+	ctx context.Context,
+	userIDColumn string,
+	currentUserID int,
+) (*gdb.Model, bool, error) {
+	deptIDs, err := p.currentVisibleDeptIDs(ctx, currentUserID)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(deptIDs) == 0 {
+		return nil, true, nil
+	}
+
+	cols := dao.UserDept.Columns()
+	subQuery := dao.UserDept.Ctx(ctx).
+		Fields(cols.UserId).
+		Where(fmt.Sprintf("%s = %s", qualifiedUserDeptColumn(cols.UserId), userIDColumn)).
+		WhereIn(cols.DeptId, deptIDs)
+	return subQuery, false, nil
+}
+
+// currentVisibleDeptIDs returns the current user's department IDs plus all
+// descendant department IDs with duplicates removed.
+func (p *Provider) currentVisibleDeptIDs(ctx context.Context, currentUserID int) ([]int, error) {
+	deptIDs, err := p.GetUserDeptIDs(ctx, currentUserID)
+	if err != nil {
+		return nil, err
+	}
+	if len(deptIDs) == 0 {
+		return []int{}, nil
+	}
+
+	seen := make(map[int]struct{})
+	visibleDeptIDs := make([]int, 0, len(deptIDs))
+	for _, deptID := range deptIDs {
+		descendantIDs, resolveErr := p.deptSvc.DescendantDeptIDs(ctx, deptID)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		for _, descendantID := range descendantIDs {
+			if _, ok := seen[descendantID]; ok {
+				continue
+			}
+			seen[descendantID] = struct{}{}
+			visibleDeptIDs = append(visibleDeptIDs, descendantID)
+		}
+	}
+	return visibleDeptIDs, nil
+}
+
+// qualifiedUserDeptColumn returns one fully qualified user-department column
+// name for correlated subqueries.
+func qualifiedUserDeptColumn(column string) string {
+	return fmt.Sprintf("%s.%s", dao.UserDept.Table(), column)
+}
+
 // GetUserPostIDs returns one user's post association list.
 func (p *Provider) GetUserPostIDs(ctx context.Context, userID int) ([]int, error) {
 	var userPosts []*entitymodel.UserPost

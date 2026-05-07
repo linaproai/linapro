@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/startupstats"
 )
 
 // startupDataSnapshotContextKey stores scheduled-job startup snapshots in context.
@@ -33,12 +34,22 @@ func (s *serviceImpl) withStartupDataSnapshot(ctx context.Context) (context.Cont
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if startupDataSnapshotFromContext(ctx) != nil {
+		return ctx, nil
+	}
 
 	snapshot, err := s.buildStartupDataSnapshot(ctx)
 	if err != nil {
 		return ctx, err
 	}
+	startupstats.Add(ctx, startupstats.CounterJobSnapshotBuilds, 1)
 	return context.WithValue(ctx, startupDataSnapshotContextKey{}, snapshot), nil
+}
+
+// WithStartupDataSnapshot returns a child context containing scheduled-job
+// startup snapshots for host startup orchestration.
+func (s *serviceImpl) WithStartupDataSnapshot(ctx context.Context) (context.Context, error) {
+	return s.withStartupDataSnapshot(ctx)
 }
 
 // buildStartupDataSnapshot loads scheduled-job governance rows in bulk.

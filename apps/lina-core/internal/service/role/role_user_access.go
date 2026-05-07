@@ -8,16 +8,21 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/user/accountpolicy"
+	"lina-core/pkg/bizerr"
 )
 
 // UserAccessContext describes the role, menu, and permission data required by the current user session.
 type UserAccessContext struct {
-	RoleIds      []int    // RoleIds contains all role IDs bound to the user.
-	RoleNames    []string // RoleNames contains enabled role names bound to the user.
-	MenuIds      []int    // MenuIds contains all menu IDs reachable through the user's roles.
-	Permissions  []string // Permissions contains effective menu and button permissions after plugin filtering.
-	IsSuperAdmin bool     // IsSuperAdmin reports whether the user is the built-in admin account.
+	RoleIds              []int           // RoleIds contains all role IDs bound to the user.
+	RoleNames            []string        // RoleNames contains enabled role names bound to the user.
+	MenuIds              []int           // MenuIds contains all menu IDs reachable through the user's roles.
+	Permissions          []string        // Permissions contains effective menu and button permissions after plugin filtering.
+	DataScope            datascope.Scope // DataScope is the widest enabled role data-scope for governed resources.
+	DataScopeUnsupported bool            // DataScopeUnsupported reports whether an enabled role carries an unsupported data-scope value.
+	UnsupportedDataScope int             // UnsupportedDataScope stores the first unsupported role data-scope value.
+	IsSuperAdmin         bool            // IsSuperAdmin reports whether the user is the built-in admin account.
 }
 
 // GetUserAccessContext loads the user's roles, menus, and permissions with token-aware caching when available.
@@ -85,14 +90,74 @@ func (s *serviceImpl) loadUserAccessContext(ctx context.Context, userId int) (*U
 	if permissions == nil {
 		permissions = []string{}
 	}
+	dataScope, unsupported, unsupportedValue := resolveEffectiveDataScope(roles, isSuperAdmin)
 
 	return &UserAccessContext{
-		RoleIds:      roleIds,
-		RoleNames:    roleNames,
-		MenuIds:      menuIds,
-		Permissions:  permissions,
-		IsSuperAdmin: isSuperAdmin,
+		RoleIds:              roleIds,
+		RoleNames:            roleNames,
+		MenuIds:              menuIds,
+		Permissions:          permissions,
+		DataScope:            dataScope,
+		DataScopeUnsupported: unsupported,
+		UnsupportedDataScope: unsupportedValue,
+		IsSuperAdmin:         isSuperAdmin,
 	}, nil
+}
+
+// GetUserDataScopeSnapshot returns the user's effective role data-scope using
+// the same token-bound access snapshot as menu and button permissions.
+func (s *serviceImpl) GetUserDataScopeSnapshot(ctx context.Context, userId int) (*datascope.AccessSnapshot, error) {
+	if userId <= 0 {
+		return &datascope.AccessSnapshot{UserID: userId, Scope: datascope.ScopeNone}, nil
+	}
+	accessContext, err := s.GetUserAccessContext(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+	if accessContext == nil {
+		return &datascope.AccessSnapshot{UserID: userId, Scope: datascope.ScopeNone}, nil
+	}
+	if accessContext.DataScopeUnsupported {
+		return nil, bizerr.NewCode(
+			datascope.CodeDataScopeUnsupported,
+			bizerr.P("scope", accessContext.UnsupportedDataScope),
+		)
+	}
+	return &datascope.AccessSnapshot{
+		UserID:       userId,
+		Scope:        accessContext.DataScope,
+		IsSuperAdmin: accessContext.IsSuperAdmin,
+	}, nil
+}
+
+// resolveEffectiveDataScope collapses enabled role data-scope values into the
+// widest range that can be cached with the token access context.
+func resolveEffectiveDataScope(roles []*entity.SysRole, isSuperAdmin bool) (datascope.Scope, bool, int) {
+	if isSuperAdmin {
+		return datascope.ScopeAll, false, 0
+	}
+
+	scope := datascope.ScopeNone
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		switch datascope.Scope(role.DataScope) {
+		case datascope.ScopeAll:
+			return datascope.ScopeAll, false, 0
+		case datascope.ScopeDept:
+			if scope == datascope.ScopeNone || scope == datascope.ScopeSelf {
+				scope = datascope.ScopeDept
+			}
+		case datascope.ScopeSelf:
+			if scope == datascope.ScopeNone {
+				scope = datascope.ScopeSelf
+			}
+		default:
+			return datascope.ScopeNone, true, role.DataScope
+		}
+	}
+	return scope, false, 0
 }
 
 // isDefaultAdminUser reports whether the requested user ID belongs to the

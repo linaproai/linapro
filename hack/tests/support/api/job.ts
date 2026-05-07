@@ -109,6 +109,13 @@ function flattenMenus(list: MenuNode[]): MenuNode[] {
   return list.flatMap((item) => [item, ...flattenMenus(item.children ?? [])]);
 }
 
+function menuTreeHasPermission(node: MenuNode, permission: string): boolean {
+  return (
+    node.perms === permission ||
+    Boolean(node.children?.some((child) => menuTreeHasPermission(child, permission)))
+  );
+}
+
 export async function createApiContext(
   username: string,
   password: string,
@@ -214,6 +221,35 @@ export async function getMenuIdsByPerms(
     expect(menu, `missing menu permission: ${permission}`).toBeTruthy();
     return menu!.id;
   });
+}
+
+export async function getMenuIdsByPermsWithAncestors(
+  api: APIRequestContext,
+  perms: string[],
+) {
+  const result = await expectSuccess<{ list: MenuNode[] }>(
+    await api.get("menu"),
+  );
+  const requiredPerms = new Set(perms);
+  const selectedIds = new Set<number>();
+
+  function visit(node: MenuNode, ancestors: number[]) {
+    const nextAncestors = [...ancestors, node.id];
+    if (requiredPerms.has(node.perms)) {
+      nextAncestors.forEach((id) => selectedIds.add(id));
+    }
+    node.children?.forEach((child) => visit(child, nextAncestors));
+  }
+
+  result.list.forEach((node) => visit(node, []));
+  for (const permission of requiredPerms) {
+    expect(
+      result.list.some((node) => menuTreeHasPermission(node, permission)),
+      `missing menu permission: ${permission}`,
+    ).toBeTruthy();
+  }
+
+  return [...selectedIds];
 }
 
 export async function getAccessibleMenus(api: APIRequestContext) {
@@ -430,6 +466,7 @@ export async function createUser(
     username: string;
     password: string;
     nickname: string;
+    deptId?: number;
     roleIds?: number[];
   },
 ) {

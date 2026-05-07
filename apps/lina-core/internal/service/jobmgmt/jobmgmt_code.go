@@ -202,6 +202,12 @@ var (
 		"Current authenticated user is unavailable",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeJobDataScopeDenied reports that the requested scheduled job is outside the current data scope.
+	CodeJobDataScopeDenied = bizerr.MustDefine(
+		"JOB_DATA_SCOPE_DENIED",
+		"Scheduled job data is outside the current data permission scope",
+		gcode.CodeNotAuthorized,
+	)
 	// CodeJobLogShellCancelPermissionDenied reports that the current user cannot cancel shell job logs.
 	CodeJobLogShellCancelPermissionDenied = bizerr.MustDefine(
 		"JOB_LOG_SHELL_CANCEL_PERMISSION_DENIED",

@@ -138,6 +138,9 @@ func (s *serviceImpl) PersistReleaseHostServiceAuthorization(
 		Update(); err != nil {
 		return nil, err
 	}
+	if _, err = s.RefreshStartupReleaseByID(ctx, release.Id); err != nil {
+		return nil, err
+	}
 	return snapshot, nil
 }
 

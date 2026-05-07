@@ -57,6 +57,11 @@ func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int
 	a.svc.SetUser(ctx, tokenID, userID, username, status)
 }
 
+// SetUserAccess injects cached access-snapshot fields into the request context.
+func (a *userCtxAdapter) SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int) {
+	a.svc.SetUserAccess(ctx, dataScope, dataScopeUnsupported, unsupportedDataScope)
+}
+
 // bizCtxAdapter adapts bizctx.Service to integration.BizCtxProvider.
 type bizCtxAdapter struct{ svc bizctx.Service }
 
@@ -67,4 +72,22 @@ func (a *bizCtxAdapter) GetUserId(ctx context.Context) int {
 		return 0
 	}
 	return bizUser.UserId
+}
+
+// GetDataScope returns the current request user's effective role data-scope.
+func (a *bizCtxAdapter) GetDataScope(ctx context.Context) int {
+	bizUser := a.svc.Get(ctx)
+	if bizUser == nil {
+		return 0
+	}
+	return bizUser.DataScope
+}
+
+// GetDataScopeUnsupported returns the unsupported data-scope state from the current request.
+func (a *bizCtxAdapter) GetDataScopeUnsupported(ctx context.Context) (bool, int) {
+	bizUser := a.svc.Get(ctx)
+	if bizUser == nil {
+		return false, 0
+	}
+	return bizUser.DataScopeUnsupported, bizUser.UnsupportedDataScope
 }

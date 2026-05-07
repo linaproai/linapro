@@ -19,6 +19,7 @@ import (
 	"lina-core/internal/model/entity"
 	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/startupstats"
 )
 
 // Plugin menu defaults and synthetic permission-menu settings used during menu sync.
@@ -36,6 +37,15 @@ func (s *serviceImpl) SyncPluginMenusAndPermissions(ctx context.Context, manifes
 	if manifest == nil {
 		return nil
 	}
+	changed, err := s.pluginMenusAndPermissionsNeedSync(ctx, manifest)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		startupstats.Add(ctx, startupstats.CounterPluginMenuSyncNoop, 1)
+		return nil
+	}
+	startupstats.Add(ctx, startupstats.CounterPluginMenuSyncChanged, 1)
 	return dao.SysMenu.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		if err := s.syncPluginMenusInTx(ctx, manifest); err != nil {
 			return err
@@ -51,6 +61,15 @@ func (s *serviceImpl) SyncPluginMenus(ctx context.Context, manifest *catalog.Man
 	if manifest == nil {
 		return nil
 	}
+	changed, err := s.pluginDeclaredMenusNeedSync(ctx, manifest)
+	if err != nil {
+		return err
+	}
+	if !changed {
+		startupstats.Add(ctx, startupstats.CounterPluginMenuSyncNoop, 1)
+		return nil
+	}
+	startupstats.Add(ctx, startupstats.CounterPluginMenuSyncChanged, 1)
 	return dao.SysMenu.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		return s.syncPluginMenusInTx(ctx, manifest)
 	})
@@ -74,6 +93,135 @@ func (s *serviceImpl) DeletePluginMenusByManifest(ctx context.Context, manifest 
 		menuKeys = append(menuKeys, strings.TrimSpace(item.MenuKey))
 	}
 	return s.deletePluginMenusByKeys(ctx, menuKeys)
+}
+
+// pluginMenusAndPermissionsNeedSync checks whether the full menu projection
+// differs before opening a transaction.
+func (s *serviceImpl) pluginMenusAndPermissionsNeedSync(ctx context.Context, manifest *catalog.Manifest) (bool, error) {
+	changed, existingByKey, err := s.pluginDeclaredMenusNeedSyncWithExisting(ctx, manifest)
+	if err != nil || changed {
+		return changed, err
+	}
+	return s.dynamicRoutePermissionMenusNeedSync(manifest, existingByKey)
+}
+
+// pluginDeclaredMenusNeedSync checks whether manifest-declared menus differ.
+func (s *serviceImpl) pluginDeclaredMenusNeedSync(ctx context.Context, manifest *catalog.Manifest) (bool, error) {
+	changed, _, err := s.pluginDeclaredMenusNeedSyncWithExisting(ctx, manifest)
+	return changed, err
+}
+
+// pluginDeclaredMenusNeedSyncWithExisting returns whether declared plugin menus
+// differ and the existing plugin-owned menu lookup for permission checks.
+func (s *serviceImpl) pluginDeclaredMenusNeedSyncWithExisting(
+	ctx context.Context,
+	manifest *catalog.Manifest,
+) (bool, map[string]*entity.SysMenu, error) {
+	declaredKeys := s.listDeclaredPluginMenuKeys(manifest)
+	existingMenus, err := s.listPluginMenusByPlugin(ctx, manifest.ID)
+	if err != nil {
+		return false, nil, err
+	}
+
+	existingByKey := make(map[string]*entity.SysMenu, len(existingMenus))
+	for _, item := range existingMenus {
+		if item == nil {
+			continue
+		}
+		existingByKey[item.MenuKey] = item
+		if _, ok := declaredKeys[item.MenuKey]; !ok && !isDynamicRoutePermissionMenuKey(item.MenuKey) {
+			return true, existingByKey, nil
+		}
+	}
+
+	externalParents, err := s.listPluginMenuExternalParents(ctx, manifest)
+	if err != nil {
+		return false, nil, err
+	}
+
+	resolvedIDs := make(map[string]int, len(manifest.Menus))
+	pendingMenus := append([]*catalog.MenuSpec(nil), manifest.Menus...)
+	for len(pendingMenus) > 0 {
+		nextPending := make([]*catalog.MenuSpec, 0, len(pendingMenus))
+		progressed := false
+
+		for _, spec := range pendingMenus {
+			if spec == nil {
+				continue
+			}
+			parentID, resolved, err := s.resolvePluginMenuParentID(spec, declaredKeys, resolvedIDs, externalParents)
+			if err != nil {
+				return false, nil, err
+			}
+			if !resolved {
+				nextPending = append(nextPending, spec)
+				continue
+			}
+
+			data, err := buildPluginMenuData(spec, parentID)
+			if err != nil {
+				return false, nil, err
+			}
+			existing := existingByKey[spec.Key]
+			if existing == nil || existing.DeletedAt != nil || !pluginMenuMatches(existing, data) {
+				return true, existingByKey, nil
+			}
+			resolvedIDs[spec.Key] = existing.Id
+			progressed = true
+		}
+
+		if !progressed {
+			unresolved := make([]string, 0, len(nextPending))
+			for _, spec := range nextPending {
+				if spec == nil {
+					continue
+				}
+				unresolved = append(unresolved, spec.Key)
+			}
+			sort.Strings(unresolved)
+			return false, nil, gerror.Newf("plugin menu parent_key cannot be resolved: %s", strings.Join(unresolved, ", "))
+		}
+
+		pendingMenus = nextPending
+	}
+	return false, existingByKey, nil
+}
+
+// dynamicRoutePermissionMenusNeedSync checks whether synthetic route permission
+// menus differ from the current plugin-owned menu projection.
+func (s *serviceImpl) dynamicRoutePermissionMenusNeedSync(
+	manifest *catalog.Manifest,
+	existingByKey map[string]*entity.SysMenu,
+) (bool, error) {
+	permissionMenus := s.buildDynamicRoutePermissionMenuSpecs(manifest)
+	desiredKeys := make(map[string]struct{}, len(permissionMenus))
+	for _, spec := range permissionMenus {
+		if spec == nil {
+			continue
+		}
+		desiredKeys[spec.Key] = struct{}{}
+		parentID, err := s.resolveDynamicRoutePermissionParentID(spec, existingByKey)
+		if err != nil {
+			return false, err
+		}
+		data, err := buildPluginMenuData(spec, parentID)
+		if err != nil {
+			return false, err
+		}
+		existing := existingByKey[spec.Key]
+		if existing == nil || existing.DeletedAt != nil || !pluginMenuMatches(existing, data) {
+			return true, nil
+		}
+	}
+	for _, menu := range existingByKey {
+		if menu == nil || !isDynamicRoutePermissionMenuKey(menu.MenuKey) {
+			continue
+		}
+		if _, ok := desiredKeys[strings.TrimSpace(menu.MenuKey)]; !ok {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // syncPluginMenusInTx reconciles one plugin's declared menus inside the caller's transaction.
@@ -377,23 +525,7 @@ func (s *serviceImpl) upsertPluginMenu(
 		return 0, gerror.New("plugin menu declaration cannot be nil")
 	}
 
-	queryParam, err := buildMenuQueryParam(spec)
-	if err != nil {
-		return 0, err
-	}
-	visible, err := normalizeMenuFlag(spec.Visible, pluginMenuDefaultVisible)
-	if err != nil {
-		return 0, err
-	}
-	status, err := normalizeMenuFlag(spec.Status, pluginMenuDefaultStatus)
-	if err != nil {
-		return 0, err
-	}
-	isFrame, err := normalizeMenuFlag(spec.IsFrame, pluginMenuDefaultIsFrame)
-	if err != nil {
-		return 0, err
-	}
-	isCache, err := normalizeMenuFlag(spec.IsCache, pluginMenuDefaultIsCache)
+	data, err := buildPluginMenuData(spec, parentID)
 	if err != nil {
 		return 0, err
 	}
@@ -409,24 +541,6 @@ func (s *serviceImpl) upsertPluginMenu(
 			snapshot.deleteMenus([]string{existing.MenuKey})
 		}
 		existing = nil
-	}
-
-	data := do.SysMenu{
-		ParentId:   parentID,
-		MenuKey:    spec.Key,
-		Name:       spec.Name,
-		Path:       spec.Path,
-		Component:  spec.Component,
-		Perms:      spec.Perms,
-		Icon:       spec.Icon,
-		Type:       catalog.NormalizeMenuType(spec.Type).String(),
-		Sort:       spec.Sort,
-		Visible:    visible,
-		Status:     status,
-		IsFrame:    isFrame,
-		IsCache:    isCache,
-		QueryParam: queryParam,
-		Remark:     spec.Remark,
 	}
 
 	if existing == nil {
@@ -454,6 +568,53 @@ func (s *serviceImpl) upsertPluginMenu(
 		snapshot.storeMenu(buildPluginMenuEntity(existing.Id, data))
 	}
 	return existing.Id, nil
+}
+
+// buildPluginMenuData converts one normalized manifest menu specification into
+// the persisted menu projection.
+func buildPluginMenuData(spec *catalog.MenuSpec, parentID int) (do.SysMenu, error) {
+	if spec == nil {
+		return do.SysMenu{}, gerror.New("plugin menu declaration cannot be nil")
+	}
+
+	queryParam, err := buildMenuQueryParam(spec)
+	if err != nil {
+		return do.SysMenu{}, err
+	}
+	visible, err := normalizeMenuFlag(spec.Visible, pluginMenuDefaultVisible)
+	if err != nil {
+		return do.SysMenu{}, err
+	}
+	status, err := normalizeMenuFlag(spec.Status, pluginMenuDefaultStatus)
+	if err != nil {
+		return do.SysMenu{}, err
+	}
+	isFrame, err := normalizeMenuFlag(spec.IsFrame, pluginMenuDefaultIsFrame)
+	if err != nil {
+		return do.SysMenu{}, err
+	}
+	isCache, err := normalizeMenuFlag(spec.IsCache, pluginMenuDefaultIsCache)
+	if err != nil {
+		return do.SysMenu{}, err
+	}
+
+	return do.SysMenu{
+		ParentId:   parentID,
+		MenuKey:    spec.Key,
+		Name:       spec.Name,
+		Path:       spec.Path,
+		Component:  spec.Component,
+		Perms:      spec.Perms,
+		Icon:       spec.Icon,
+		Type:       catalog.NormalizeMenuType(spec.Type).String(),
+		Sort:       spec.Sort,
+		Visible:    visible,
+		Status:     status,
+		IsFrame:    isFrame,
+		IsCache:    isCache,
+		QueryParam: queryParam,
+		Remark:     spec.Remark,
+	}, nil
 }
 
 // buildPluginMenuEntity creates the startup snapshot projection for one menu row

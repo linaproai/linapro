@@ -10,6 +10,10 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 
 	internalauth "lina-core/internal/service/auth"
+	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/orgcap"
+	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/role"
 	internalsession "lina-core/internal/service/session"
 )
 
@@ -62,14 +66,18 @@ type Service interface {
 // serviceAdapter bridges host auth/session services into the published plugin contract.
 type serviceAdapter struct {
 	authSvc      internalauth.Service
+	scopeSvc     datascope.Service
 	sessionStore internalsession.Store
 }
 
 // New creates and returns the published session service adapter.
 func New() Service {
-	authSvc := internalauth.New(nil)
+	pluginSvc := pluginsvc.New(nil)
+	orgCapSvc := orgcap.New(pluginSvc)
+	authSvc := internalauth.New(orgCapSvc)
 	return &serviceAdapter{
 		authSvc:      authSvc,
+		scopeSvc:     datascope.New(datascope.Dependencies{RoleSvc: role.New(pluginSvc), OrgCapSvc: orgCapSvc}),
 		sessionStore: authSvc.SessionStore(),
 	}
 }
@@ -79,7 +87,7 @@ func (s *serviceAdapter) ListPage(ctx context.Context, filter *ListFilter, pageN
 	if s == nil || s.sessionStore == nil {
 		return &ListResult{Items: []*Session{}, Total: 0}, nil
 	}
-	result, err := s.sessionStore.ListPage(ctx, toInternalFilter(filter), pageNum, pageSize)
+	result, err := s.sessionStore.ListPageScoped(ctx, toInternalFilter(filter), pageNum, pageSize, s.currentScopeSvc())
 	if err != nil {
 		return nil, err
 	}
@@ -88,10 +96,32 @@ func (s *serviceAdapter) ListPage(ctx context.Context, filter *ListFilter, pageN
 
 // Revoke invalidates one online session by token ID.
 func (s *serviceAdapter) Revoke(ctx context.Context, tokenID string) error {
-	if s == nil || s.authSvc == nil {
+	if s == nil {
+		return nil
+	}
+	if s.sessionStore != nil {
+		sessionItem, err := s.sessionStore.Get(ctx, tokenID)
+		if err != nil {
+			return err
+		}
+		if sessionItem != nil {
+			if err = s.currentScopeSvc().EnsureUsersVisible(ctx, []int{sessionItem.UserId}); err != nil {
+				return err
+			}
+		}
+	}
+	if s.authSvc == nil {
 		return nil
 	}
 	return s.authSvc.RevokeSession(ctx, tokenID)
+}
+
+// currentScopeSvc returns the shared data-scope service for plugin-facing session operations.
+func (s *serviceAdapter) currentScopeSvc() datascope.Service {
+	if s.scopeSvc != nil {
+		return s.scopeSvc
+	}
+	return datascope.New(datascope.Dependencies{RoleSvc: role.New(nil)})
 }
 
 // toInternalFilter converts the published filter contract into the host-internal

@@ -180,10 +180,8 @@ func From(link string) (Dialect, error)
 **警告日志示例**：
 
 ```
-[WARNING] 当前为 SQLite 模式（database.default.link = sqlite::@file(./temp/sqlite/linapro.db)）
-[WARNING] SQLite 模式仅支持单节点部署，cluster.enabled 已被强制覆盖为 false
-[WARNING] 所有功能在单机模式下运行；切勿将 SQLite 模式用于生产环境
-[WARNING] 如需多节点集群部署，请将 database.default.link 改回 MySQL 链接并重启
+当前为 SQLite 模式（database.default.link = sqlite::@file(./temp/sqlite/linapro.db)）
+SQLite 模式仅支持单节点部署，cluster.enabled 已被强制覆盖为 false
 ```
 
 **理由**：

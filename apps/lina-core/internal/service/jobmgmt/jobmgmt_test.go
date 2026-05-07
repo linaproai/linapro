@@ -11,8 +11,10 @@ import (
 	"time"
 
 	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
+	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobhandler"
@@ -39,6 +41,26 @@ func (noopScheduler) Trigger(ctx context.Context, jobID uint64) (uint64, error) 
 
 // CancelLog is unsupported in validation-focused unit tests.
 func (noopScheduler) CancelLog(ctx context.Context, logID uint64) error { return nil }
+
+// jobmgmtStaticBizCtx returns a fixed request business context for service tests.
+type jobmgmtStaticBizCtx struct {
+	ctx *model.Context
+}
+
+// Init is unused by service tests because they inject context directly.
+func (s jobmgmtStaticBizCtx) Init(_ *ghttp.Request, _ *model.Context) {}
+
+// Get returns the configured business context.
+func (s jobmgmtStaticBizCtx) Get(context.Context) *model.Context { return s.ctx }
+
+// SetLocale is unused by job-management service tests.
+func (s jobmgmtStaticBizCtx) SetLocale(context.Context, string) {}
+
+// SetUser is unused by job-management service tests.
+func (s jobmgmtStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
+
+// SetUserAccess is unused by job-management service tests.
+func (s jobmgmtStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 
 // trackingScheduler captures refresh and remove calls for registry-cascade tests.
 type trackingScheduler struct {

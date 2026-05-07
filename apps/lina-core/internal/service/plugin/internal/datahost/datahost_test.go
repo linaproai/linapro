@@ -23,6 +23,7 @@ func TestExecuteCRUDLifecycle(t *testing.T) {
 	identity := &pluginbridge.IdentitySnapshotV1{
 		UserID:       1,
 		Username:     "admin",
+		DataScope:    1,
 		IsSuperAdmin: true,
 	}
 	pluginMarker := "test-datahost-crud"
@@ -150,6 +151,7 @@ func TestExecuteTransactionAppliesMutationsAtomically(t *testing.T) {
 	identity := &pluginbridge.IdentitySnapshotV1{
 		UserID:       1,
 		Username:     "admin",
+		DataScope:    1,
 		IsSuperAdmin: true,
 	}
 	pluginMarker := "test-datahost-transaction"
@@ -224,6 +226,7 @@ func TestExecuteListSupportsPlugindbPlan(t *testing.T) {
 	identity := &pluginbridge.IdentitySnapshotV1{
 		UserID:       1,
 		Username:     "admin",
+		DataScope:    1,
 		IsSuperAdmin: true,
 	}
 	pluginMarker := "test-datahost-plan-list"
@@ -339,6 +342,7 @@ func TestExecuteGetSupportsPlugindbFieldSelection(t *testing.T) {
 	identity := &pluginbridge.IdentitySnapshotV1{
 		UserID:       1,
 		Username:     "admin",
+		DataScope:    1,
 		IsSuperAdmin: true,
 	}
 	pluginMarker := "test-datahost-plan-get"

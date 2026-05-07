@@ -101,7 +101,7 @@ func insertTestRole(t *testing.T, ctx context.Context, label string) int {
 		Name:      fmt.Sprintf("%s-%d", label, suffix),
 		Key:       fmt.Sprintf("%s-%d", label, suffix),
 		Sort:      99,
-		DataScope: 1,
+		DataScope: roleDataScopeAll,
 		Status:    1,
 	}).InsertAndGetId()
 	if err != nil {

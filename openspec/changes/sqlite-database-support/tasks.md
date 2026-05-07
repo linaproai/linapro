@@ -125,3 +125,4 @@
 - [x] **FB-20**: `hack/config.yaml` 的 `build.os` / `build.arch` / `build.platform` 应收敛为 `build.platforms` 数组；数组项支持 `<goos>/<goarch>` 与 `auto`，命令行覆盖使用 `platforms=linux/amd64,linux/arm64`
 - [x] **FB-21**: 新增 GitHub Actions nightly build workflow，每天凌晨自动构建并发布 `linux/amd64` 与 `linux/arm64` 多架构 Docker 镜像到 `ghcr.io`
 - [x] **FB-22**: `make build` 与 `make image` 支持 `config=<path>` 构建配置参数，用于指定默认读取 `hack/config.yaml` 的配置文件路径
+- [x] **FB-23**: 新增 GitHub Actions 标签发布镜像 workflow，仅在新建标签时构建并发布对应标签与 `latest` 的 `linux/amd64`、`linux/arm64` 多架构 Docker 镜像

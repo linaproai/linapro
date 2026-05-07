@@ -12,6 +12,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -86,8 +87,15 @@ func (s *serviceImpl) SyncPluginResourceReferences(ctx context.Context, manifest
 		existingMap[buildPluginResourceIdentity(item.ResourceType, item.ResourceKey)] = item
 	}
 
+	descriptors := s.buildPluginResourceRefDescriptors(manifest)
+	if pluginResourceRefsMatch(existingMap, descriptors) {
+		startupstats.Add(ctx, startupstats.CounterPluginResourceSyncNoop, 1)
+		return nil
+	}
+	startupstats.Add(ctx, startupstats.CounterPluginResourceSyncChanged, 1)
+
 	seen := make(map[string]struct{})
-	for _, descriptor := range s.buildPluginResourceRefDescriptors(manifest) {
+	for _, descriptor := range descriptors {
 		identity := buildPluginResourceIdentity(descriptor.Kind.String(), descriptor.Key)
 		seen[identity] = struct{}{}
 
@@ -170,6 +178,37 @@ func (s *serviceImpl) SyncPluginResourceReferences(ctx context.Context, manifest
 	}
 
 	return nil
+}
+
+// pluginResourceRefsMatch reports whether the release-scoped governance index
+// already matches the desired descriptor projection.
+func pluginResourceRefsMatch(
+	existingMap map[string]*entity.SysPluginResourceRef,
+	descriptors []*catalog.ResourceRefDescriptor,
+) bool {
+	if len(existingMap) != len(descriptors) {
+		return false
+	}
+	seen := make(map[string]struct{}, len(descriptors))
+	for _, descriptor := range descriptors {
+		if descriptor == nil {
+			continue
+		}
+		identity := buildPluginResourceIdentity(descriptor.Kind.String(), descriptor.Key)
+		seen[identity] = struct{}{}
+		existing := existingMap[identity]
+		if existing == nil || existing.DeletedAt != nil {
+			return false
+		}
+		if !pluginResourceRefMatches(existing, do.SysPluginResourceRef{
+			OwnerType: descriptor.OwnerType.String(),
+			OwnerKey:  descriptor.OwnerKey,
+			Remark:    descriptor.Remark,
+		}) {
+			return false
+		}
+	}
+	return len(seen) == len(existingMap)
 }
 
 // listPluginResourceRefs returns all governance index rows for one plugin

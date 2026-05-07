@@ -21,6 +21,7 @@ import (
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/jobmgmt/internal/shellexec"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/bizerr"
 )
 
@@ -83,6 +84,7 @@ func (s *serviceImpl) LoadAndRegister(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	startupstats.Add(ctx, startupstats.CounterPersistentJobStartupLoaded, len(jobs))
 	for _, job := range jobs {
 		if err = s.registerJob(ctx, job); err != nil {
 			if handled, handleErr := s.handleLoadRegisterError(ctx, job, err); handleErr != nil {

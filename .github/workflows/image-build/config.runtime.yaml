@@ -89,4 +89,16 @@ upload:
 plugin:
   dynamic:
     storagePath: "/app/data/wasm"
-  autoEnable: []
+  autoEnable:
+    - id: "content-notice"
+      withMockData: true
+    - id: "monitor-loginlog"
+      withMockData: true
+    - id: "monitor-online"
+      withMockData: true
+    - id: "monitor-operlog"
+      withMockData: true
+    - id: "monitor-server"
+      withMockData: true
+    - id: "org-center"
+      withMockData: true

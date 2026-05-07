@@ -528,10 +528,13 @@ func cloneUserAccessContext(access *UserAccessContext) *UserAccessContext {
 		return nil
 	}
 	return &UserAccessContext{
-		RoleIds:      cloneSliceWithCopy(access.RoleIds),
-		RoleNames:    cloneSliceWithCopy(access.RoleNames),
-		MenuIds:      cloneSliceWithCopy(access.MenuIds),
-		Permissions:  cloneSliceWithCopy(access.Permissions),
-		IsSuperAdmin: access.IsSuperAdmin,
+		RoleIds:              cloneSliceWithCopy(access.RoleIds),
+		RoleNames:            cloneSliceWithCopy(access.RoleNames),
+		MenuIds:              cloneSliceWithCopy(access.MenuIds),
+		Permissions:          cloneSliceWithCopy(access.Permissions),
+		DataScope:            access.DataScope,
+		DataScopeUnsupported: access.DataScopeUnsupported,
+		UnsupportedDataScope: access.UnsupportedDataScope,
+		IsSuperAdmin:         access.IsSuperAdmin,
 	}
 }

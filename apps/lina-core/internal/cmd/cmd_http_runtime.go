@@ -17,7 +17,9 @@ import (
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	"lina-core/internal/service/middleware"
+	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 )
@@ -34,6 +36,28 @@ type httpRuntime struct {
 	middlewareSvc middleware.Service             // middlewareSvc publishes host middleware chains for static and plugin routes.
 	cronSvc       cron.Service                   // cronSvc starts host-level and persistent scheduled jobs.
 	serverCfg     *config.ServerExtensionsConfig // serverCfg contains host extension route settings such as API docs.
+}
+
+// newHTTPStartupContext creates the context shared by one HTTP startup
+// orchestration pass. It carries only short-lived snapshots and statistics.
+func newHTTPStartupContext(ctx context.Context, runtime *httpRuntime) (context.Context, *startupstats.Collector, error) {
+	collector := startupstats.New()
+	startupCtx := startupstats.WithCollector(ctx, collector)
+
+	var err error
+	if runtime != nil && runtime.pluginSvc != nil {
+		startupCtx, err = runtime.pluginSvc.WithStartupDataSnapshot(startupCtx)
+		if err != nil {
+			return startupCtx, collector, err
+		}
+	}
+	if runtime != nil && runtime.jobMgmtSvc != nil {
+		startupCtx, err = runtime.jobMgmtSvc.WithStartupDataSnapshot(startupCtx)
+		if err != nil {
+			return startupCtx, collector, err
+		}
+	}
+	return startupCtx, collector, nil
 }
 
 // configureHTTPServer applies process-level server configuration that must be
@@ -87,7 +111,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		apiDocSvc     = apidoc.New(configSvc, pluginSvc)
 		jobRegistry   = jobhandlersvc.New()
 		jobScheduler  = jobmgmtsvc.NewScheduler(clusterSvc, jobRegistry, configSvc)
-		jobMgmtSvc    = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler)
+		jobMgmtSvc    = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler, orgcap.New(pluginSvc))
 		middlewareSvc = middleware.New()
 	)
 
@@ -129,24 +153,66 @@ func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
 
 	// Auto-enable and source-upgrade validation run before plugin routes and
 	// cron jobs are registered so stale plugin state fails the process early.
-	if err := runtime.pluginSvc.BootstrapAutoEnable(ctx); err != nil {
+	if err := startupstats.Observe(ctx, startupstats.PhasePluginBootstrapAutoEnable, func() error {
+		return runtime.pluginSvc.BootstrapAutoEnable(ctx)
+	}); err != nil {
 		return err
 	}
-	if err := runtime.pluginSvc.ValidateSourcePluginUpgradeReadiness(ctx); err != nil {
+	if err := startupstats.Observe(ctx, startupstats.PhasePluginSourceUpgradeReadiness, func() error {
+		return runtime.pluginSvc.ValidateSourcePluginUpgradeReadiness(ctx)
+	}); err != nil {
 		return err
 	}
-	if _, err := jobhandlersvc.AttachPluginLifecycle(
-		ctx,
-		runtime.jobRegistry,
-		runtime.pluginSvc,
-	); err != nil {
+	if err := startupstats.Observe(ctx, startupstats.PhasePluginLifecycleAttach, func() error {
+		_, attachErr := jobhandlersvc.AttachPluginLifecycle(
+			ctx,
+			runtime.jobRegistry,
+			runtime.pluginSvc,
+		)
+		return attachErr
+	}); err != nil {
 		return err
 	}
 
 	// Cron startup comes after plugin lifecycle wiring so plugin-owned scheduled
 	// jobs are visible when the persistent scheduler loads enabled jobs.
-	runtime.cronSvc.Start(ctx)
+	if err := startupstats.Observe(ctx, startupstats.PhaseCronStart, func() error {
+		runtime.cronSvc.Start(ctx)
+		return nil
+	}); err != nil {
+		return err
+	}
 	return nil
+}
+
+// logHTTPStartupSummary emits the startup metric summary without ORM SQL text.
+func logHTTPStartupSummary(ctx context.Context, collector *startupstats.Collector) {
+	if collector == nil {
+		return
+	}
+	snapshot := collector.Snapshot()
+	logger.Infof(
+		ctx,
+		"startup summary elapsed=%s catalogSnapshots=%d integrationSnapshots=%d jobSnapshots=%d pluginScans=%d pluginItems=%d pluginChanged=%d pluginNoop=%d menuChanged=%d menuNoop=%d resourceChanged=%d resourceNoop=%d builtinJobs=%d builtinNoop=%d persistentJobs=%d",
+		snapshot.Elapsed.Round(time.Millisecond),
+		snapshot.CounterValue(startupstats.CounterCatalogSnapshotBuilds),
+		snapshot.CounterValue(startupstats.CounterIntegrationSnapshotBuilds),
+		snapshot.CounterValue(startupstats.CounterJobSnapshotBuilds),
+		snapshot.CounterValue(startupstats.CounterPluginScans),
+		snapshot.CounterValue(startupstats.CounterPluginScanItems),
+		snapshot.CounterValue(startupstats.CounterPluginSyncChanged),
+		snapshot.CounterValue(startupstats.CounterPluginSyncNoop),
+		snapshot.CounterValue(startupstats.CounterPluginMenuSyncChanged),
+		snapshot.CounterValue(startupstats.CounterPluginMenuSyncNoop),
+		snapshot.CounterValue(startupstats.CounterPluginResourceSyncChanged),
+		snapshot.CounterValue(startupstats.CounterPluginResourceSyncNoop),
+		snapshot.CounterValue(startupstats.CounterBuiltinJobProjections),
+		snapshot.CounterValue(startupstats.CounterBuiltinJobProjectionNoop),
+		snapshot.CounterValue(startupstats.CounterPersistentJobStartupLoaded),
+	)
+	for _, phase := range snapshot.PhaseNames() {
+		logger.Debugf(ctx, "startup phase duration phase=%s duration=%s", phase, snapshot.Phases[phase].Round(time.Millisecond))
+	}
 }
 
 // shutdownHTTPRuntime stops non-HTTP runtime components after GoFrame Server.Run

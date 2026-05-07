@@ -9,9 +9,9 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/internal/dao"
-	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/bizerr"
 	pkgorgcap "lina-core/pkg/orgcap"
 	"lina-core/pkg/pluginbridge"
 )
@@ -41,11 +41,13 @@ func applyResourceDataScope(
 		return nil, gerror.Newf("data table %s requires user context to apply data scope", resource.Table)
 	}
 
-	scope, err := getCurrentResourceDataScope(ctx, int(identity.UserID))
-	if err != nil {
-		return nil, err
+	if identity.DataScopeUnsupported {
+		return nil, bizerr.NewCode(
+			datascope.CodeDataScopeUnsupported,
+			bizerr.P("scope", identity.UnsupportedDataScope),
+		)
 	}
-	switch scope {
+	switch int(identity.DataScope) {
 	case resourceDataScopeAll:
 		return model, nil
 	case resourceDataScopeDept:
@@ -68,72 +70,6 @@ func applyResourceDataScope(
 	default:
 		return model.Where("1 = 0"), nil
 	}
-}
-
-// getCurrentResourceDataScope resolves the effective host data scope for the user.
-func getCurrentResourceDataScope(ctx context.Context, userID int) (int, error) {
-	roleIDs, err := getCurrentResourceRoleIDs(ctx, userID)
-	if err != nil {
-		return resourceDataScopeNone, err
-	}
-	if len(roleIDs) == 0 {
-		return resourceDataScopeNone, nil
-	}
-
-	var roles []*entity.SysRole
-	err = dao.SysRole.Ctx(ctx).
-		WhereIn(dao.SysRole.Columns().Id, roleIDs).
-		Scan(&roles)
-	if err != nil {
-		return resourceDataScopeNone, err
-	}
-
-	scope := resourceDataScopeNone
-	for _, roleItem := range roles {
-		if roleItem == nil {
-			continue
-		}
-		switch roleItem.DataScope {
-		case resourceDataScopeAll:
-			return resourceDataScopeAll, nil
-		case resourceDataScopeDept:
-			if scope == resourceDataScopeNone || scope == resourceDataScopeSelf {
-				scope = resourceDataScopeDept
-			}
-		case resourceDataScopeSelf:
-			if scope == resourceDataScopeNone {
-				scope = resourceDataScopeSelf
-			}
-		default:
-			return resourceDataScopeNone, gerror.Newf("unsupported role data scope: %d", roleItem.DataScope)
-		}
-	}
-	return scope, nil
-}
-
-// getCurrentResourceRoleIDs returns the deduplicated role IDs assigned to the user.
-func getCurrentResourceRoleIDs(ctx context.Context, userID int) ([]int, error) {
-	var userRoles []*entity.SysUserRole
-	err := dao.SysUserRole.Ctx(ctx).
-		Where(dao.SysUserRole.Columns().UserId, userID).
-		Scan(&userRoles)
-	if err != nil {
-		return nil, err
-	}
-
-	roleIDs := make([]int, 0, len(userRoles))
-	seen := make(map[int]struct{}, len(userRoles))
-	for _, item := range userRoles {
-		if item == nil {
-			continue
-		}
-		if _, ok := seen[item.RoleId]; ok {
-			continue
-		}
-		seen[item.RoleId] = struct{}{}
-		roleIDs = append(roleIDs, item.RoleId)
-	}
-	return roleIDs, nil
 }
 
 // getCurrentResourceDeptIDs returns the deduplicated department IDs assigned to the user.

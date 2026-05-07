@@ -131,6 +131,11 @@
       "unauthorized": "Authentication required"
     },
     "file": {
+      "data": {
+        "scope": {
+          "denied": "File data is outside the current data permission scope"
+        }
+      },
       "delete": {
         "required": "Please select files to delete"
       },
@@ -423,6 +428,11 @@
       },
       "delete": {
         "required": "Please select scheduled jobs to delete"
+      },
+      "data": {
+        "scope": {
+          "denied": "Scheduled job data is outside the current data permission scope"
+        }
       },
       "name": {
         "required": "Scheduled-job name cannot be empty",
@@ -820,6 +830,13 @@
       },
       "not": {
         "found": "Role does not exist"
+      },
+      "data": {
+        "scope": {
+          "dept": {
+            "unavailable": "Department data scope requires the organization management plugin to be enabled"
+          }
+        }
       }
     },
     "user": {
@@ -844,6 +861,12 @@
         },
         "edit": {
           "denied": "Cannot edit the current signed-in user"
+        }
+      },
+      "data": {
+        "scope": {
+          "denied": "User data is outside the current data permission scope",
+          "unsupported": "Unsupported user data permission scope: {scope}"
         }
       },
       "import": {
@@ -1062,6 +1085,13 @@
           "missing": "KV cache cleanup dependency is not initialized"
         }
       }
+    },
+    "datascope": {
+      "denied": "Data is outside the current data permission scope",
+      "not": {
+        "authenticated": "Not signed in"
+      },
+      "unsupported": "Unsupported data permission scope: {scope}"
     }
   },
   "validation": {

@@ -7,7 +7,8 @@ package orgcap
 import (
 	"context"
 
-	menusvc "lina-core/internal/service/menu"
+	"github.com/gogf/gf/v2/database/gdb"
+
 	pkgorgcap "lina-core/pkg/orgcap"
 )
 
@@ -45,6 +46,12 @@ type Service interface {
 	GetUserDeptName(ctx context.Context, userID int) (string, error)
 	// GetUserDeptIDs returns one user's department identifier list.
 	GetUserDeptIDs(ctx context.Context, userID int) ([]int, error)
+	// ApplyUserDeptScope injects a database-side department-scope constraint for
+	// rows owned by the supplied user ID column.
+	ApplyUserDeptScope(ctx context.Context, model *gdb.Model, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
+	// BuildUserDeptScopeExists builds the database-side department-scope EXISTS
+	// subquery for callers that need to compose it with additional OR branches.
+	BuildUserDeptScopeExists(ctx context.Context, userIDColumn string, currentUserID int) (*gdb.Model, bool, error)
 	// GetUserPostIDs returns one user's post association list.
 	GetUserPostIDs(ctx context.Context, userID int) ([]int, error)
 	// ReplaceUserAssignments rewrites one user's department and post associations.
@@ -82,7 +89,7 @@ func (s *serviceImpl) Enabled(ctx context.Context) bool {
 	if s == nil || s.enablementReader == nil {
 		return false
 	}
-	if !s.enablementReader.IsEnabled(ctx, menusvc.OrgCenter) {
+	if !s.enablementReader.IsEnabled(ctx, pkgorgcap.ProviderPluginID) {
 		return false
 	}
 	return pkgorgcap.HasProvider()
@@ -159,6 +166,35 @@ func (s *serviceImpl) GetUserDeptIDs(ctx context.Context, userID int) ([]int, er
 		return []int{}, nil
 	}
 	return provider.GetUserDeptIDs(ctx, userID)
+}
+
+// ApplyUserDeptScope injects a database-side department-scope constraint for
+// rows owned by the supplied user ID column.
+func (s *serviceImpl) ApplyUserDeptScope(
+	ctx context.Context,
+	model *gdb.Model,
+	userIDColumn string,
+	currentUserID int,
+) (*gdb.Model, bool, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return model, true, nil
+	}
+	return provider.ApplyUserDeptScope(ctx, model, userIDColumn, currentUserID)
+}
+
+// BuildUserDeptScopeExists builds the database-side department-scope EXISTS
+// subquery for callers that need to compose it with additional OR branches.
+func (s *serviceImpl) BuildUserDeptScopeExists(
+	ctx context.Context,
+	userIDColumn string,
+	currentUserID int,
+) (*gdb.Model, bool, error) {
+	provider := s.currentProvider(ctx)
+	if provider == nil {
+		return nil, true, nil
+	}
+	return provider.BuildUserDeptScopeExists(ctx, userIDColumn, currentUserID)
 }
 
 // GetUserPostIDs returns one user's post association list.

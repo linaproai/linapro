@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/orgcap"
 	"lina-core/internal/service/role"
@@ -86,6 +87,7 @@ type serviceImpl struct {
 	i18nSvc   userI18nTranslator
 	orgCapSvc orgcap.Service
 	roleSvc   role.Service // Role service
+	scopeSvc  datascope.Service
 }
 
 // New creates and returns a new Service instance.
@@ -95,13 +97,19 @@ func New(orgCapSvc orgcap.Service) Service {
 	if orgCapSvc == nil {
 		orgCapSvc = orgcap.New(nil)
 	}
-	return &serviceImpl{
+	svc := &serviceImpl{
 		authSvc:   auth.New(orgCapSvc),
 		bizCtxSvc: bizctx.New(),
 		i18nSvc:   i18nsvc.New(),
 		orgCapSvc: orgCapSvc,
 		roleSvc:   role.New(nil),
 	}
+	svc.scopeSvc = datascope.New(datascope.Dependencies{
+		BizCtxSvc: svc.bizCtxSvc,
+		RoleSvc:   svc.roleSvc,
+		OrgCapSvc: svc.orgCapSvc,
+	})
+	return svc
 }
 
 // ListInput defines input for List function.
@@ -187,6 +195,14 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 			}
 			m = m.WhereIn(cols.Id, userIds)
 		}
+	}
+
+	m, scopeEmpty, err := s.applyUserDataScope(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	if scopeEmpty {
+		return &ListOutput{List: []*ListOutputItem{}, Total: 0}, nil
 	}
 
 	// Get total count
@@ -427,6 +443,16 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 // GetById retrieves user by ID.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysUser, error) {
+	if err := s.ensureUserVisible(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.getById(ctx, id)
+}
+
+// getById retrieves one user row without applying role data-scope. It is used
+// by self-service paths after they have already resolved the target as the
+// current authenticated user.
+func (s *serviceImpl) getById(ctx context.Context, id int) (*entity.SysUser, error) {
 	var user *entity.SysUser
 	cols := dao.SysUser.Columns()
 	err := dao.SysUser.Ctx(ctx).
@@ -631,6 +657,10 @@ func (s *serviceImpl) UpdateStatus(ctx context.Context, id int, status Status) e
 		return bizerr.NewCode(CodeUserCurrentDisableDenied)
 	}
 
+	if _, err := s.GetById(ctx, id); err != nil {
+		return err
+	}
+
 	_, err := dao.SysUser.Ctx(ctx).
 		Where(do.SysUser{Id: id}).
 		Data(do.SysUser{
@@ -650,7 +680,7 @@ func (s *serviceImpl) GetProfile(ctx context.Context) (*entity.SysUser, error) {
 	if bizCtx == nil {
 		return nil, bizerr.NewCode(CodeUserNotAuthenticated)
 	}
-	return s.GetById(ctx, bizCtx.UserId)
+	return s.getById(ctx, bizCtx.UserId)
 }
 
 // UpdateProfileInput defines input for UpdateProfile function.

@@ -83,6 +83,7 @@ func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 			Status:       1,
 			Permissions:  []string{"plugin-demo-dynamic:review:view"},
 			RoleNames:    []string{"超级管理员"},
+			DataScope:    1,
 			IsSuperAdmin: true,
 		},
 		RequestID: "req-1",
@@ -107,6 +108,9 @@ func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 	}
 	if output.Identity == nil || !output.Identity.IsSuperAdmin {
 		t.Fatalf("unexpected identity snapshot: %#v", output.Identity)
+	}
+	if output.Identity.DataScope != input.Identity.DataScope {
+		t.Fatalf("unexpected identity data scope: %#v", output.Identity)
 	}
 	if !bytes.Equal(output.Request.Body, input.Request.Body) {
 		t.Fatalf("unexpected request body: %q", string(output.Request.Body))

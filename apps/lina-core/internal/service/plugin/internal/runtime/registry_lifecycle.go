@@ -102,7 +102,7 @@ func (s *serviceImpl) finalizeState(
 	if err != nil {
 		return nil, err
 	}
-	return s.catalogSvc.GetRegistry(ctx, registry.PluginId)
+	return s.catalogSvc.RefreshStartupRegistry(ctx, registry.PluginId)
 }
 
 // restoreStableState clears a transient reconcile marker and rewrites
@@ -129,5 +129,5 @@ func (s *serviceImpl) restoreStableState(
 	if err != nil {
 		return nil, err
 	}
-	return s.catalogSvc.GetRegistry(ctx, registry.PluginId)
+	return s.catalogSvc.RefreshStartupRegistry(ctx, registry.PluginId)
 }

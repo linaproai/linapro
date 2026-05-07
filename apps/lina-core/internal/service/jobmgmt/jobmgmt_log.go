@@ -39,6 +39,11 @@ func (s *serviceImpl) ListLogs(ctx context.Context, in ListLogsInput) (*ListLogs
 	if endTime := strings.TrimSpace(in.EndTime); endTime != "" {
 		model = model.WhereLTE(cols.StartAt, endTime)
 	}
+	var scopeErr error
+	model, scopeErr = s.applyJobLogDataScope(ctx, model)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
 
 	total, err := model.Count()
 	if err != nil {
@@ -95,6 +100,9 @@ func (s *serviceImpl) GetLog(ctx context.Context, id uint64) (*LogDetailOutput, 
 	if logRow == nil {
 		return nil, bizerr.NewCode(CodeJobLogNotFound)
 	}
+	if err = s.ensureLogVisible(ctx, logRow); err != nil {
+		return nil, err
+	}
 
 	jobMap, err := s.jobDisplayMapByLogs(ctx, []*entity.SysJobLog{logRow})
 	if err != nil {
@@ -115,9 +123,20 @@ func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64, ids string) 
 	switch {
 	case len(logIDs) > 0:
 		model = model.WhereIn(cols.Id, logIDs)
+		if err := s.ensureLogsVisible(ctx, logIDs); err != nil {
+			return err
+		}
 	case jobID != nil && *jobID > 0:
+		if err := s.ensureJobsVisibleByID(ctx, []uint64{*jobID}); err != nil {
+			return err
+		}
 		model = model.Where(do.SysJobLog{JobId: *jobID})
 	default:
+		var err error
+		model, err = s.applyJobLogDataScope(ctx, model)
+		if err != nil {
+			return err
+		}
 		// GoFrame blocks DELETE without WHERE by default, so explicit full-table
 		// cleanup must still provide a tautology condition.
 		model = model.Where("1 = 1")
@@ -131,6 +150,18 @@ func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64, ids string) 
 func (s *serviceImpl) CancelLog(ctx context.Context, id uint64) error {
 	if s.scheduler == nil {
 		return bizerr.NewCode(CodeJobSchedulerUninitialized)
+	}
+	var logRow *entity.SysJobLog
+	if err := dao.SysJobLog.Ctx(ctx).
+		Where(do.SysJobLog{Id: id}).
+		Scan(&logRow); err != nil {
+		return err
+	}
+	if logRow == nil {
+		return bizerr.NewCode(CodeJobLogNotFound)
+	}
+	if err := s.ensureLogVisible(ctx, logRow); err != nil {
+		return err
 	}
 	return s.scheduler.CancelLog(ctx, id)
 }

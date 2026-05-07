@@ -10,6 +10,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 )
 
 // sessionLastActiveUpdateWindow is the minimum interval between two
@@ -57,6 +58,8 @@ type Store interface {
 	List(ctx context.Context, filter *ListFilter) ([]*Session, error)
 	// ListPage returns one paginated online-session list for the optional filter.
 	ListPage(ctx context.Context, filter *ListFilter, pageNum, pageSize int) (*ListResult, error)
+	// ListPageScoped returns one paginated online-session list constrained by the supplied data-scope service.
+	ListPageScoped(ctx context.Context, filter *ListFilter, pageNum, pageSize int, scopeSvc datascope.Service) (*ListResult, error)
 	// Count returns the total number of active online sessions.
 	Count(ctx context.Context) (int, error)
 	// TouchOrValidate validates the session timeout and refreshes last_active_time
@@ -213,6 +216,69 @@ func (s *DBStore) ListPage(ctx context.Context, filter *ListFilter, pageNum, pag
 		Items: sessions,
 		Total: total,
 	}, nil
+}
+
+// ListPageScoped returns a paginated session list constrained by user data scope.
+func (s *DBStore) ListPageScoped(ctx context.Context, filter *ListFilter, pageNum, pageSize int, scopeSvc datascope.Service) (*ListResult, error) {
+	m := dao.SysOnlineSession.Ctx(ctx)
+	if filter != nil {
+		cols := dao.SysOnlineSession.Columns()
+		if filter.Username != "" {
+			m = m.WhereLike(cols.Username, "%"+filter.Username+"%")
+		}
+		if filter.Ip != "" {
+			m = m.WhereLike(cols.Ip, "%"+filter.Ip+"%")
+		}
+	}
+	if scopeSvc != nil {
+		var err error
+		var empty bool
+		m, empty, err = scopeSvc.ApplyUserScope(ctx, m, qualifiedOnlineSessionUserIDColumn())
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			return &ListResult{Items: []*Session{}, Total: 0}, nil
+		}
+	}
+
+	total, err := m.Count()
+	if err != nil {
+		return nil, err
+	}
+
+	var entities []*entity.SysOnlineSession
+	err = m.OrderDesc(dao.SysOnlineSession.Columns().LoginTime).
+		Page(pageNum, pageSize).
+		Scan(&entities)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions := make([]*Session, len(entities))
+	for i, e := range entities {
+		sessions[i] = &Session{
+			TokenId:        e.TokenId,
+			UserId:         e.UserId,
+			Username:       e.Username,
+			DeptName:       e.DeptName,
+			Ip:             e.Ip,
+			Browser:        e.Browser,
+			Os:             e.Os,
+			LoginTime:      e.LoginTime,
+			LastActiveTime: e.LastActiveTime,
+		}
+	}
+
+	return &ListResult{
+		Items: sessions,
+		Total: total,
+	}, nil
+}
+
+// qualifiedOnlineSessionUserIDColumn returns the fully qualified session owner column.
+func qualifiedOnlineSessionUserIDColumn() string {
+	return dao.SysOnlineSession.Table() + "." + dao.SysOnlineSession.Columns().UserId
 }
 
 // Count returns the total number of active sessions.
