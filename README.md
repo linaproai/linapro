@@ -163,3 +163,13 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 | Build Tool | `Vite` | Lightning-fast frontend builds |
 | Database | `MySQL` / optional `SQLite` | `MySQL 8.0+` is the primary data store. `SQLite` can be used for demo or local test mode without MySQL; it is single-node only and not for production. |
 | Plugin Runtime | `WebAssembly` | `tetratelabs/wazero`, powering WASM dynamic plugins |
+
+# Release Builds
+
+`make build` supports cross-compiling the host binary, for example `make build os=linux arch=arm64`. `make image` supports multi-platform Docker publishing through `Docker buildx`:
+
+```bash
+make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+```
+
+Multi-platform image builds require `push=1` so the remote image manifest is published.

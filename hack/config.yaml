@@ -8,8 +8,10 @@ build:
   # Target architecture. "auto" follows the local Go architecture.
   # 目标架构。"auto" 表示跟随本机 Go 架构。
   arch: "auto"
-  # Docker build platform. "auto" resolves to "<os>/<arch>".
-  # Docker 构建平台。"auto" 会解析为 "<os>/<arch>"。
+  # Docker build platform list. "auto" resolves to "<os>/<arch>".
+  # Use comma-separated values for multi-platform builds, for example "linux/amd64,linux/arm64".
+  # Docker 构建平台列表。"auto" 会解析为 "<os>/<arch>"。
+  # 多平台构建使用英文逗号分隔，例如 "linux/amd64,linux/arm64"。
   platform: "auto"
   # Whether to enable CGO when building the host binary.
   # 构建宿主二进制时是否启用 CGO。

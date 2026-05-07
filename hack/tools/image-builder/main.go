@@ -25,17 +25,19 @@ type rootConfig struct {
 
 // Repository convention paths used by LinaPro image builds.
 const (
-	conventionImageBinaryPath = "temp/image/lina"
+	conventionImageBinaryRoot = "temp/image"
+	conventionImageBinaryName = "lina"
 )
 
 // buildConfig stores user-facing build defaults.
 type buildConfig struct {
-	OS         string `yaml:"os"`
-	Arch       string `yaml:"arch"`
-	Platform   string `yaml:"platform"`
-	CGOEnabled bool   `yaml:"cgoEnabled"`
-	OutputDir  string `yaml:"outputDir"`
-	BinaryName string `yaml:"binaryName"`
+	OS         string           `yaml:"os"`
+	Arch       string           `yaml:"arch"`
+	Platform   string           `yaml:"platform"`
+	CGOEnabled bool             `yaml:"cgoEnabled"`
+	OutputDir  string           `yaml:"outputDir"`
+	BinaryName string           `yaml:"binaryName"`
+	Targets    []targetPlatform `yaml:"-"`
 }
 
 // imageConfig stores user-facing image metadata defaults.
@@ -52,6 +54,7 @@ type imageConfig struct {
 type cliOptions struct {
 	ConfigPath    string
 	BuildOnly     bool
+	Preflight     bool
 	PrintBuildEnv bool
 	Image         string
 	Tag           string
@@ -65,6 +68,12 @@ type cliOptions struct {
 	BinaryName    string
 	BaseImage     string
 	Verbose       string
+}
+
+// targetPlatform stores one normalized Go and Docker target platform.
+type targetPlatform struct {
+	OS   string
+	Arch string
 }
 
 // commandRunner executes external tools from the repository root.
@@ -96,7 +105,7 @@ func run() error {
 	if err = applyBuildOverrides(&cfg.Build, opts, specified); err != nil {
 		return err
 	}
-	if err = normalizeBuildConfig(&cfg.Build); err != nil {
+	if err = normalizeBuildConfig(&cfg.Build, specified); err != nil {
 		return err
 	}
 	if opts.PrintBuildEnv {
@@ -110,6 +119,9 @@ func run() error {
 	if err = normalizeImageConfig(repoRoot, &cfg.Image); err != nil {
 		return err
 	}
+	if opts.Preflight {
+		return validateImageBuildRequest(cfg.Image, cfg.Build)
+	}
 
 	verbose, err := parseOptionalBool(opts.Verbose, false)
 	if err != nil {
@@ -117,29 +129,37 @@ func run() error {
 	}
 
 	runner := commandRunner{Root: repoRoot, Verbose: verbose}
-	binaryPath := filepath.Join(repoRoot, cfg.Build.OutputDir, cfg.Build.BinaryName)
-	if err = validateExistingBinary(binaryPath); err != nil {
+
+	if !opts.BuildOnly {
+		err = validateImageBuildRequest(cfg.Image, cfg.Build)
+	}
+	if err != nil {
 		return err
 	}
-	stagedBinaryPath := filepath.Join(repoRoot, conventionImageBinaryPath)
-	if err = stageImageBinary(binaryPath, stagedBinaryPath); err != nil {
-		return err
+
+	for _, target := range cfg.Build.Targets {
+		binaryPath := buildOutputBinaryPath(repoRoot, cfg.Build, target)
+		if err = validateExistingBinary(binaryPath); err != nil {
+			return err
+		}
+		stagedBinaryPath := imageStagedBinaryPath(repoRoot, cfg.Build, target)
+		if err = stageImageBinary(binaryPath, stagedBinaryPath); err != nil {
+			return err
+		}
 	}
 
 	if opts.BuildOnly {
-		fmt.Printf("✓ image build artifact is ready: %s\n", stagedBinaryPath)
+		fmt.Printf("✓ image build artifacts are ready: %s\n", filepath.Join(repoRoot, conventionImageBinaryRoot))
 		return nil
-	}
-
-	if cfg.Image.Push {
-		if strings.TrimSpace(cfg.Image.Registry) == "" {
-			return errors.New("push=true requires image.registry in hack/config.yaml, registry=<prefix>, or LINAPRO_IMAGE_REGISTRY")
-		}
 	}
 
 	imageRef := buildImageRef(cfg.Image)
 	if err = buildDockerImage(repoRoot, cfg.Image, cfg.Build, runner, imageRef); err != nil {
 		return err
+	}
+	if cfg.Build.MultiPlatform() {
+		fmt.Printf("✓ Docker image pushed: %s\n", imageRef)
+		return nil
 	}
 	if cfg.Image.Push {
 		dockerRunner := runner
@@ -159,6 +179,7 @@ func parseOptions() (cliOptions, map[string]bool) {
 	opts := cliOptions{}
 	flag.StringVar(&opts.ConfigPath, "config", "hack/config.yaml", "Repository tool config path")
 	flag.BoolVar(&opts.BuildOnly, "build-only", false, "Prepare image build artifacts without running docker build")
+	flag.BoolVar(&opts.Preflight, "preflight", false, "Validate image build request without checking artifacts or running docker build")
 	flag.BoolVar(&opts.PrintBuildEnv, "print-build-env", false, "Print normalized build config as shell assignments")
 	flag.StringVar(&opts.Image, "image", "", "Override image repository name")
 	flag.StringVar(&opts.Tag, "tag", "", "Override image tag")
@@ -306,12 +327,41 @@ func applyImageOverrides(cfg *imageConfig, opts cliOptions, specified map[string
 }
 
 // normalizeBuildConfig validates and completes derived build config values.
-func normalizeBuildConfig(cfg *buildConfig) error {
+func normalizeBuildConfig(cfg *buildConfig, specified map[string]bool) error {
 	cfg.OS = normalizeAuto(cfg.OS, "linux")
 	cfg.Arch = normalizeAuto(cfg.Arch, runtime.GOARCH)
+	platformExplicit := strings.TrimSpace(cfg.Platform) != "" && !strings.EqualFold(strings.TrimSpace(cfg.Platform), "auto")
 	if cfg.Platform = normalizeAuto(cfg.Platform, cfg.OS+"/"+cfg.Arch); cfg.Platform == "" {
 		cfg.Platform = cfg.OS + "/" + cfg.Arch
 	}
+	targets, err := parsePlatformList(cfg.Platform)
+	if err != nil {
+		return err
+	}
+	if len(targets) == 1 {
+		target := targets[0]
+		if platformExplicit {
+			if specified["os"] && cfg.OS != target.OS {
+				return fmt.Errorf("build.os %q does not match build.platform %q", cfg.OS, target.String())
+			}
+			if specified["arch"] && cfg.Arch != target.Arch {
+				return fmt.Errorf("build.arch %q does not match build.platform %q", cfg.Arch, target.String())
+			}
+			if !specified["os"] {
+				cfg.OS = target.OS
+			}
+			if !specified["arch"] {
+				cfg.Arch = target.Arch
+			}
+		}
+	} else if specified["os"] || specified["arch"] {
+		return errors.New("build.os and build.arch cannot be combined with multiple build.platform entries")
+	} else {
+		cfg.OS = targets[0].OS
+		cfg.Arch = targets[0].Arch
+	}
+	cfg.Platform = joinPlatformCSV(targets)
+	cfg.Targets = targets
 	cfg.OutputDir = filepath.Clean(strings.TrimSpace(cfg.OutputDir))
 	cfg.BinaryName = strings.TrimSpace(cfg.BinaryName)
 
@@ -337,6 +387,52 @@ func normalizeBuildConfig(cfg *buildConfig) error {
 		return errors.New("build.binaryName must be a file name, not a path")
 	}
 	return nil
+}
+
+// parsePlatformList parses one comma-separated Docker/Go platform list.
+func parsePlatformList(value string) ([]targetPlatform, error) {
+	items := strings.Split(value, ",")
+	targets := make([]targetPlatform, 0, len(items))
+	seen := map[string]bool{}
+	for _, item := range items {
+		target, err := parseTargetPlatform(item)
+		if err != nil {
+			return nil, err
+		}
+		key := target.String()
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		targets = append(targets, target)
+	}
+	if len(targets) == 0 {
+		return nil, errors.New("build.platform cannot be empty")
+	}
+	return targets, nil
+}
+
+// parseTargetPlatform parses one target platform in goos/goarch form.
+func parseTargetPlatform(value string) (targetPlatform, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return targetPlatform{}, errors.New("build.platform contains an empty platform entry")
+	}
+	parts := strings.Split(normalized, "/")
+	if len(parts) != 2 {
+		return targetPlatform{}, fmt.Errorf("build.platform entry %q must use goos/goarch form", value)
+	}
+	target := targetPlatform{
+		OS:   strings.TrimSpace(parts[0]),
+		Arch: strings.TrimSpace(parts[1]),
+	}
+	if target.OS == "" || target.Arch == "" {
+		return targetPlatform{}, fmt.Errorf("build.platform entry %q must include both goos and goarch", value)
+	}
+	if strings.ContainsAny(target.OS+target.Arch, " \t\r\n") {
+		return targetPlatform{}, fmt.Errorf("build.platform entry %q must not contain whitespace", value)
+	}
+	return target, nil
 }
 
 // normalizeImageConfig validates and completes derived image metadata values.
@@ -410,13 +506,20 @@ func deriveGitTag(repoRoot string) (string, error) {
 
 // printBuildEnv emits normalized build config as shell-safe assignments for make recipes.
 func printBuildEnv(cfg buildConfig) {
+	multiPlatform := "0"
+	if cfg.MultiPlatform() {
+		multiPlatform = "1"
+	}
 	fmt.Printf("BUILD_OS=%s\n", shellQuote(cfg.OS))
 	fmt.Printf("BUILD_ARCH=%s\n", shellQuote(cfg.Arch))
 	fmt.Printf("BUILD_PLATFORM=%s\n", shellQuote(cfg.Platform))
+	fmt.Printf("BUILD_PLATFORMS=%s\n", shellQuote(joinPlatformSpace(cfg.Targets)))
+	fmt.Printf("BUILD_PLATFORM_COUNT=%d\n", len(cfg.Targets))
+	fmt.Printf("BUILD_MULTI_PLATFORM=%s\n", shellQuote(multiPlatform))
 	fmt.Printf("BUILD_CGO_ENABLED=%s\n", shellQuote(cgoEnabledValue(cfg.CGOEnabled)))
 	fmt.Printf("BUILD_OUTPUT_DIR=%s\n", shellQuote(filepath.ToSlash(cfg.OutputDir)))
 	fmt.Printf("BUILD_BINARY_NAME=%s\n", shellQuote(cfg.BinaryName))
-	fmt.Printf("BUILD_BINARY_PATH=%s\n", shellQuote(filepath.ToSlash(filepath.Join(cfg.OutputDir, cfg.BinaryName))))
+	fmt.Printf("BUILD_BINARY_PATH=%s\n", shellQuote(filepath.ToSlash(defaultBuildBinaryPath(cfg))))
 }
 
 // shellQuote returns a POSIX shell single-quoted literal.
@@ -430,6 +533,19 @@ func cgoEnabledValue(enabled bool) string {
 		return "1"
 	}
 	return "0"
+}
+
+// validateImageBuildRequest verifies Docker build settings before invoking Docker.
+func validateImageBuildRequest(image imageConfig, build buildConfig) error {
+	if image.Push {
+		if strings.TrimSpace(image.Registry) == "" {
+			return errors.New("push=true requires image.registry in hack/config.yaml, registry=<prefix>, or LINAPRO_IMAGE_REGISTRY")
+		}
+	}
+	if build.MultiPlatform() && !image.Push {
+		return errors.New("multi-platform Docker image builds require push=1 so Docker buildx can publish a usable manifest")
+	}
+	return nil
 }
 
 // validateExistingBinary checks that the image input binary exists.
@@ -458,6 +574,32 @@ func stageImageBinary(source string, target string) error {
 	return nil
 }
 
+// buildOutputBinaryPath returns the expected make build binary path for one target.
+func buildOutputBinaryPath(repoRoot string, build buildConfig, target targetPlatform) string {
+	return filepath.Join(repoRoot, buildOutputBinaryRelPath(build, target))
+}
+
+// buildOutputBinaryRelPath returns the repository-relative binary path for one target.
+func buildOutputBinaryRelPath(build buildConfig, target targetPlatform) string {
+	if build.MultiPlatform() {
+		return filepath.Join(build.OutputDir, target.DirName(), build.BinaryName)
+	}
+	return filepath.Join(build.OutputDir, build.BinaryName)
+}
+
+// defaultBuildBinaryPath returns the printable primary build artifact path.
+func defaultBuildBinaryPath(build buildConfig) string {
+	if build.MultiPlatform() && len(build.Targets) > 0 {
+		return buildOutputBinaryRelPath(build, build.Targets[0])
+	}
+	return filepath.Join(build.OutputDir, build.BinaryName)
+}
+
+// imageStagedBinaryPath returns the Dockerfile input binary path for one target.
+func imageStagedBinaryPath(repoRoot string, build buildConfig, target targetPlatform) string {
+	return filepath.Join(repoRoot, conventionImageBinaryRoot, target.OS, target.Arch, conventionImageBinaryName)
+}
+
 // sameFile reports whether two paths point to the same filesystem object.
 func sameFile(source string, target string) bool {
 	sourceAbs, sourceErr := filepath.Abs(source)
@@ -476,20 +618,49 @@ func sameFile(source string, target string) bool {
 	return os.SameFile(sourceInfo, targetInfo)
 }
 
-// buildDockerImage runs docker build with the configured image platform and base image.
+// buildDockerImage runs docker build or buildx with the configured image platforms.
 func buildDockerImage(repoRoot string, image imageConfig, build buildConfig, runner commandRunner, imageRef string) error {
-	args := []string{
+	if build.MultiPlatform() {
+		args := buildxDockerArgs(repoRoot, image, build, imageRef)
+		fmt.Printf("Building multi-platform Docker image: %s (%s)\n", imageRef, build.Platform)
+		dockerRunner := runner
+		dockerRunner.Verbose = true
+		return dockerRunner.Run(".", nil, "docker", args...)
+	}
+	target := build.Targets[0]
+	args := dockerBuildArgs(repoRoot, image, target, imageRef)
+	fmt.Printf("Building Docker image: %s\n", imageRef)
+	dockerRunner := runner
+	dockerRunner.Verbose = true
+	return dockerRunner.Run(".", nil, "docker", args...)
+}
+
+// buildxDockerArgs returns Docker buildx arguments for multi-platform publishing.
+func buildxDockerArgs(repoRoot string, image imageConfig, build buildConfig, imageRef string) []string {
+	return []string{
+		"buildx",
 		"build",
 		"--platform", build.Platform,
 		"--build-arg", "BASE_IMAGE=" + image.BaseImage,
 		"-f", filepath.Join(repoRoot, image.Dockerfile),
 		"-t", imageRef,
+		"--push",
 		".",
 	}
-	fmt.Printf("Building Docker image: %s\n", imageRef)
-	dockerRunner := runner
-	dockerRunner.Verbose = true
-	return dockerRunner.Run(".", nil, "docker", args...)
+}
+
+// dockerBuildArgs returns Docker build arguments for one local image platform.
+func dockerBuildArgs(repoRoot string, image imageConfig, target targetPlatform, imageRef string) []string {
+	return []string{
+		"build",
+		"--platform", target.String(),
+		"--build-arg", "BASE_IMAGE=" + image.BaseImage,
+		"--build-arg", "TARGETOS=" + target.OS,
+		"--build-arg", "TARGETARCH=" + target.Arch,
+		"-f", filepath.Join(repoRoot, image.Dockerfile),
+		"-t", imageRef,
+		".",
+	}
 }
 
 // buildImageRef composes the final Docker image reference.
@@ -499,6 +670,39 @@ func buildImageRef(cfg imageConfig) string {
 		return name
 	}
 	return strings.Trim(cfg.Registry, "/") + "/" + name
+}
+
+// MultiPlatform reports whether the build targets more than one platform.
+func (cfg buildConfig) MultiPlatform() bool {
+	return len(cfg.Targets) > 1
+}
+
+// String returns the canonical goos/goarch representation.
+func (p targetPlatform) String() string {
+	return p.OS + "/" + p.Arch
+}
+
+// DirName returns the filesystem-safe directory segment for build outputs.
+func (p targetPlatform) DirName() string {
+	return p.OS + "_" + p.Arch
+}
+
+// joinPlatformCSV joins targets in Docker platform-list format.
+func joinPlatformCSV(targets []targetPlatform) string {
+	values := make([]string, 0, len(targets))
+	for _, target := range targets {
+		values = append(values, target.String())
+	}
+	return strings.Join(values, ",")
+}
+
+// joinPlatformSpace joins targets for shell for-loops in make recipes.
+func joinPlatformSpace(targets []targetPlatform) string {
+	values := make([]string, 0, len(targets))
+	for _, target := range targets {
+		values = append(values, target.String())
+	}
+	return strings.Join(values, " ")
 }
 
 // Run executes one external command in a repository-relative directory.

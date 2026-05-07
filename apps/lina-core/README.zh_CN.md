@@ -42,6 +42,12 @@ make ctrl
 make init confirm=init
 ```
 
+发布构建可使用`make build os=linux arch=arm64`交叉编译单一目标，或在仓库根目录发布多平台镜像：
+
+```bash
+make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+```
+
 ## 数据库配置
 
 宿主运行时数据库方言只从配置文件中的 `database.default.link` 读取。MySQL 仍是默认生产数据库。如需无需 MySQL 的演示或本地测试模式，可将链接改为 SQLite，例如：

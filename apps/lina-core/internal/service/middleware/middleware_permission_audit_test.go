@@ -24,6 +24,7 @@ var staticPermissionExemptionAllowlist = map[string]string{
 	"GET /i18n/runtime/messages":             "public runtime i18n message bootstrap",
 	"GET /config/public/frontend":            "public frontend bootstrap whitelist",
 	"GET /plugins/dynamic":                   "public shell plugin state bootstrap",
+	"GET /dict/data/type/{dictType}":         "login-bound dictionary option lookup reused by authorized business modules",
 	"POST /auth/logout":                      "login-bound session logout",
 	"GET /menus/all":                         "login-bound menu bootstrap",
 	"GET /user/info":                         "login-bound permission bootstrap",

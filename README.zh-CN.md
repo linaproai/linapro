@@ -164,3 +164,13 @@ graph TB
 | 构建工具 | `Vite` | 极速前端构建 |
 | 数据库 | `MySQL` / 可选 `SQLite` | `MySQL 8.0+` 为主数据存储；`SQLite` 可用于无需 MySQL 的演示或本地测试模式，仅支持单节点，不适用于生产 |
 | 插件运行时 | `WebAssembly` | `tetratelabs/wazero`，支持`WASM`动态插件 |
+
+# 发布构建
+
+`make build`支持交叉编译宿主二进制，例如`make build os=linux arch=arm64`。`make image`支持通过`Docker buildx`发布多平台镜像：
+
+```bash
+make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+```
+
+多平台镜像构建必须启用`push=1`，以便发布远端镜像 manifest。

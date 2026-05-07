@@ -27,7 +27,6 @@
     "iam:user": ["e2e/iam/user"],
     "iam:role": ["e2e/iam/role"],
     "iam:menu": ["e2e/iam/menu"],
-    "install": ["e2e/install"],
     "settings": ["e2e/settings"],
     "settings:dict": ["e2e/settings/dict"],
     "settings:config": ["e2e/settings/config"],
@@ -238,8 +237,8 @@
     },
     {
       "entry": "e2e/settings/dict",
-      "categories": ["dictionaryData"],
-      "reason": "Dictionary tests create, import, edit, export, and delete shared dictionary types and data."
+      "categories": ["dictionaryData", "pluginLifecycle"],
+      "reason": "Dictionary tests create, import, edit, export, and delete shared dictionary types and data; dictionary option permission regressions also prepare source plugin menus before assigning business-only permissions."
     }
   ],
   "parallelIsolationAllowlist": []

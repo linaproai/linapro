@@ -7,7 +7,7 @@ This directory stores repository-level development tools that are implemented as
 | Directory | Purpose |
 | --- | --- |
 | `build-wasm/` | Builds dynamic plugin `Wasm` runtime artifacts from source plugins. |
-| `image-builder/` | Builds and optionally pushes the production LinaPro Docker image from root `hack/config.yaml`. |
+| `image-builder/` | Builds and optionally pushes single-platform or multi-platform production LinaPro Docker images from root `hack/config.yaml`. |
 | `runtime-i18n/` | Scans runtime-visible hard-coded copy and validates host/plugin i18n key coverage. |
 
 ## Placement Rules

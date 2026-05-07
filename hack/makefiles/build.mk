@@ -49,7 +49,7 @@ endef
 
 # Build frontend assets, packed manifests, dynamic plugins, and the host binary.
 # 构建前端资源、嵌入 manifest、动态插件和宿主后端二进制。
-## build: Build frontend assets, host manifest assets, runtime wasm plugins, and the host single binary using hack/config.yaml build settings; supports os=linux arch=amd64, verbose=1, or v=1
+## build: Build frontend assets, host manifest assets, runtime wasm plugins, and host binaries using hack/config.yaml build settings; supports os=linux arch=amd64, platform=linux/amd64,linux/arm64, verbose=1, or v=1
 .PHONY: build
 build:
 	@set -e; \
@@ -85,9 +85,19 @@ build:
 	echo "Building dynamic plugin artifacts..."; \
 	run_in_dir "." "$$make_cmd" -C apps/lina-plugins wasm out="$$PWD/$$BUILD_OUTPUT_DIR"; \
 	echo "✓ Dynamic plugin artifacts generated"; \
-	echo "Building backend with embedded frontend assets for $$BUILD_OS/$$BUILD_ARCH..."; \
-	run_in_dir "$(BACKEND_DIR)" env CGO_ENABLED="$$BUILD_CGO_ENABLED" GOOS="$$BUILD_OS" GOARCH="$$BUILD_ARCH" go build -o "../../$$BUILD_BINARY_PATH" .; \
-	echo "✓ Build complete: $$BUILD_BINARY_PATH"
+	for target_platform in $$BUILD_PLATFORMS; do \
+		target_os="$${target_platform%%/*}"; \
+		target_arch="$${target_platform##*/}"; \
+		if [ "$$BUILD_MULTI_PLATFORM" = "1" ]; then \
+			target_binary_path="$$BUILD_OUTPUT_DIR/$${target_os}_$${target_arch}/$$BUILD_BINARY_NAME"; \
+		else \
+			target_binary_path="$$BUILD_BINARY_PATH"; \
+		fi; \
+		mkdir -p "$$(dirname "$$target_binary_path")"; \
+		echo "Building backend with embedded frontend assets for $$target_os/$$target_arch..."; \
+		run_in_dir "$(BACKEND_DIR)" env CGO_ENABLED="$$BUILD_CGO_ENABLED" GOOS="$$target_os" GOARCH="$$target_arch" go build -o "../../$$target_binary_path" .; \
+		echo "✓ Build complete: $$target_binary_path"; \
+	done
 
 # Build runtime Wasm plugin artifacts into the shared output directory.
 # 将 runtime Wasm 插件产物构建到共享输出目录。

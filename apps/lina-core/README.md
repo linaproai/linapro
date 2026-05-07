@@ -42,6 +42,12 @@ make ctrl
 make init confirm=init
 ```
 
+For release builds, use `make build os=linux arch=arm64` to cross-compile one target, or run multi-platform image publishing from the repository root:
+
+```bash
+make image platform=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+```
+
 ## Database Configuration
 
 The host reads the active database dialect only from `database.default.link` in the runtime config. MySQL remains the default production database. For demo or local test usage without MySQL, set the link to SQLite, for example:
