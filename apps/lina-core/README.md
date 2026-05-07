@@ -42,6 +42,18 @@ make ctrl
 make init confirm=init
 ```
 
+## Database Configuration
+
+The host reads the active database dialect only from `database.default.link` in the runtime config. MySQL remains the default production database. For demo or local test usage without MySQL, set the link to SQLite, for example:
+
+```yaml
+database:
+  default:
+    link: "sqlite::@file(./temp/sqlite/linapro.db)"
+```
+
+SQLite mode is single-node only, automatically forces `cluster.enabled=false`, and is not supported for production deployments.
+
 ## Source Plugin Upgrade
 
 Source plugins now follow an explicit development-time upgrade flow instead of

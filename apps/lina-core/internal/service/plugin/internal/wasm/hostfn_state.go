@@ -7,13 +7,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/database/gdb"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	"lina-core/pkg/pluginbridge"
 )
-
-// pluginStateTable is the backing table for plugin-scoped runtime state values.
-const pluginStateTable = "sys_plugin_state"
 
 // handleHostStateGet processes OpcodeStateGet requests.
 // handleHostStateGet loads one plugin-scoped runtime state value.
@@ -27,10 +26,10 @@ func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "state key must not be empty")
 	}
 
-	value, err := g.DB().Model(pluginStateTable).Ctx(ctx).
-		Where("plugin_id", hcc.pluginID).
-		Where("state_key", key).
-		Value("state_value")
+	cols := dao.SysPluginState.Columns()
+	value, err := dao.SysPluginState.Ctx(ctx).
+		Where(do.SysPluginState{PluginId: hcc.pluginID, StateKey: key}).
+		Value(cols.StateValue)
 	if err != nil {
 		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
 	}
@@ -55,17 +54,34 @@ func handleHostStateSet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "state key must not be empty")
 	}
 
-	// Upsert: insert or update on duplicate key.
-	_, err = g.DB().Ctx(ctx).Exec(ctx,
-		"INSERT INTO "+pluginStateTable+" (plugin_id, state_key, state_value, created_at, updated_at) "+
-			"VALUES (?, ?, ?, NOW(), NOW()) "+
-			"ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = NOW()",
-		hcc.pluginID, key, req.Value,
-	)
+	err = upsertHostStateValue(ctx, hcc.pluginID, key, req.Value)
 	if err != nil {
 		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
 	}
 	return pluginbridge.NewHostCallEmptySuccessResponse()
+}
+
+// upsertHostStateValue writes one plugin state value using a dialect-neutral
+// insert-ignore plus update sequence inside a transaction.
+func upsertHostStateValue(ctx context.Context, pluginID string, key string, value string) error {
+	return dao.SysPluginState.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		_, err := dao.SysPluginState.Ctx(ctx).Data(do.SysPluginState{
+			PluginId:   pluginID,
+			StateKey:   key,
+			StateValue: value,
+		}).InsertIgnore()
+		if err != nil {
+			return err
+		}
+
+		_, err = dao.SysPluginState.Ctx(ctx).
+			Where(do.SysPluginState{PluginId: pluginID, StateKey: key}).
+			Data(do.SysPluginState{
+				StateValue: value,
+			}).
+			Update()
+		return err
+	})
 }
 
 // handleHostStateDelete processes OpcodeStateDelete requests.
@@ -80,9 +96,8 @@ func handleHostStateDelete(ctx context.Context, hcc *hostCallContext, reqBytes [
 		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "state key must not be empty")
 	}
 
-	_, err = g.DB().Model(pluginStateTable).Ctx(ctx).
-		Where("plugin_id", hcc.pluginID).
-		Where("state_key", key).
+	_, err = dao.SysPluginState.Ctx(ctx).
+		Where(do.SysPluginState{PluginId: hcc.pluginID, StateKey: key}).
 		Delete()
 	if err != nil {
 		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())

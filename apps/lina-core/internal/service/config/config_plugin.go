@@ -34,8 +34,8 @@ var pluginAutoEnableOverride atomic.Value
 // PluginAutoEnableEntry represents one normalized entry of plugin.autoEnable.
 // The YAML schema enforces a single structured object form per entry:
 //
-//	- id: "plugin-demo-source"
-//	  withMockData: false
+//   - id: "plugin-demo-source"
+//     withMockData: false
 //
 // withMockData defaults to false when omitted. Operators must explicitly opt
 // in to mock data per plugin so auto-installed plugins do not accidentally
@@ -385,4 +385,3 @@ func normalizePluginAutoEnableEntries(entries []PluginAutoEnableEntry) ([]Plugin
 	}
 	return normalized, nil
 }
-

@@ -59,6 +59,34 @@ export async function waitForConfirmOverlay(page: Page, timeout = 5000) {
   return overlay;
 }
 
+export async function dismissTourOverlayIfPresent(page: Page) {
+  const endTourBtn = page.getByRole('button', {
+    name: /结束导览|End Tour/i,
+  });
+  if (await endTourBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await endTourBtn.click({ force: true });
+    await waitForBusyIndicatorsToClear(page);
+  }
+
+  const tourClose = page.locator('.ant-tour-close');
+  if (await tourClose.isVisible({ timeout: 300 }).catch(() => false)) {
+    await tourClose.click({ force: true });
+    await waitForBusyIndicatorsToClear(page);
+  }
+
+  await page
+    .locator('.ant-tour:visible, .ant-tour-mask:visible')
+    .first()
+    .waitFor({ state: 'hidden', timeout: 1000 })
+    .catch(async () => {
+      await page.evaluate(() => {
+        for (const selector of ['.ant-tour', '.ant-tour-mask']) {
+          document.querySelectorAll(selector).forEach((element) => element.remove());
+        }
+      });
+    });
+}
+
 export async function waitForDropdown(page: Page, timeout = 5000) {
   const dropdown = page.locator('.ant-select-dropdown:visible').last();
   await dropdown.waitFor({ state: 'visible', timeout });

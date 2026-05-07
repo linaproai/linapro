@@ -42,6 +42,18 @@ make ctrl
 make init confirm=init
 ```
 
+## 数据库配置
+
+宿主运行时数据库方言只从配置文件中的 `database.default.link` 读取。MySQL 仍是默认生产数据库。如需无需 MySQL 的演示或本地测试模式，可将链接改为 SQLite，例如：
+
+```yaml
+database:
+  default:
+    link: "sqlite::@file(./temp/sqlite/linapro.db)"
+```
+
+SQLite 模式仅支持单节点，会自动强制 `cluster.enabled=false`，不支持生产部署。
+
 ## 源码插件升级
 
 源码插件现在采用显式的开发阶段升级流程，不再允许在宿主启动期间静默切换版本。

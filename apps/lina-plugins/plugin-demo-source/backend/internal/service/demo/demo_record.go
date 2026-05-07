@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/gtime"
@@ -26,16 +25,9 @@ import (
 // Demo-record constants define the table schema fields and paging defaults
 // used by the source-plugin sample service.
 const (
-	demoRecordColumnID            = "id"
-	demoRecordColumnTitle         = "title"
-	demoRecordColumnContent       = "content"
-	demoRecordColumnAttachment    = "attachment_name"
-	demoRecordColumnAttachmentRef = "attachment_path"
-	demoRecordColumnCreatedAt     = "created_at"
-	demoRecordColumnUpdatedAt     = "updated_at"
-	defaultPageNum                = 1
-	defaultPageSize               = 10
-	maxPageSize                   = 100
+	defaultPageNum  = 1
+	defaultPageSize = 10
+	maxPageSize     = 100
 )
 
 // ListRecordsInput defines the demo record list query.
@@ -141,7 +133,7 @@ func (s *serviceImpl) ListRecords(ctx context.Context, in *ListRecordsInput) (ou
 	model := dao.PluginDemoSourceRecord.Ctx(ctx)
 	keyword := strings.TrimSpace(in.Keyword)
 	if keyword != "" {
-		model = model.WhereLike(demoRecordColumnTitle, "%"+keyword+"%")
+		model = model.WhereLike(dao.PluginDemoSourceRecord.Columns().Title, "%"+keyword+"%")
 	}
 
 	total, err := model.Count()
@@ -151,8 +143,8 @@ func (s *serviceImpl) ListRecords(ctx context.Context, in *ListRecordsInput) (ou
 
 	items := make([]*demoRecordEntity, 0)
 	err = model.
-		OrderDesc(demoRecordColumnUpdatedAt).
-		OrderDesc(demoRecordColumnID).
+		OrderDesc(dao.PluginDemoSourceRecord.Columns().UpdatedAt).
+		OrderDesc(dao.PluginDemoSourceRecord.Columns().Id).
 		Page(pageNum, pageSize).
 		Scan(&items)
 	if err != nil {
@@ -258,7 +250,7 @@ func (s *serviceImpl) UpdateRecord(ctx context.Context, in *UpdateRecordInput) (
 	}
 
 	_, err = dao.PluginDemoSourceRecord.Ctx(ctx).
-		Where(demoRecordColumnID, in.Id).
+		Where(do.PluginDemoSourceRecord{Id: in.Id}).
 		Data(updateData).
 		Update()
 	if err != nil {
@@ -281,7 +273,7 @@ func (s *serviceImpl) DeleteRecord(ctx context.Context, id int64) error {
 	}
 
 	_, err = dao.PluginDemoSourceRecord.Ctx(ctx).
-		Where(demoRecordColumnID, id).
+		Where(do.PluginDemoSourceRecord{Id: id}).
 		Delete()
 	if err != nil {
 		return bizerr.WrapCode(err, CodeDemoRecordDeleteFailed)
@@ -337,7 +329,7 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 
 	var record *demoRecordEntity
 	err := dao.PluginDemoSourceRecord.Ctx(ctx).
-		Where(demoRecordColumnID, id).
+		Where(do.PluginDemoSourceRecord{Id: id}).
 		Scan(&record)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeDemoRecordDetailQueryFailed)
@@ -351,7 +343,7 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 // ensureDemoRecordTableReady verifies the sample table exists before CRUD work
 // continues.
 func ensureDemoRecordTableReady(ctx context.Context) error {
-	fields, err := g.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
+	fields, err := dao.PluginDemoSourceRecord.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
 	if err != nil {
 		return bizerr.WrapCode(err, CodeDemoRecordTableCheckFailed)
 	}
@@ -422,7 +414,7 @@ func stringPointer(value string) *string {
 // listAllAttachmentPaths returns all persisted attachment paths stored by the
 // sample records table.
 func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
-	fields, err := g.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
+	fields, err := dao.PluginDemoSourceRecord.DB().TableFields(ctx, dao.PluginDemoSourceRecord.Table())
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeDemoRecordTableCheckFailed)
 	}
@@ -431,7 +423,7 @@ func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 	}
 
 	rows, err := dao.PluginDemoSourceRecord.Ctx(ctx).
-		Fields(demoRecordColumnAttachmentRef).
+		Fields(dao.PluginDemoSourceRecord.Columns().AttachmentPath).
 		All()
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeDemoRecordAttachmentPathQueryFailed)
@@ -439,7 +431,7 @@ func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 
 	paths := make([]string, 0, len(rows))
 	for _, row := range rows {
-		value := strings.TrimSpace(row[demoRecordColumnAttachmentRef].String())
+		value := strings.TrimSpace(row[dao.PluginDemoSourceRecord.Columns().AttachmentPath].String())
 		if value != "" {
 			paths = append(paths, value)
 		}

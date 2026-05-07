@@ -29,6 +29,9 @@ type ClusterConfigReader interface {
 	GetCluster(ctx context.Context) *ClusterConfig
 	// IsClusterEnabled reports whether multi-node cluster mode is enabled.
 	IsClusterEnabled(ctx context.Context) bool
+	// OverrideClusterEnabledForDialect locks cluster.enabled in memory when the
+	// active database dialect cannot support multi-node coordination.
+	OverrideClusterEnabledForDialect(value bool)
 }
 
 // AuthConfigReader reads authentication and session settings.
@@ -149,6 +152,7 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	runtimeParamRevisionCtrl runtimeParamRevisionController
+	clusterOverride          *bool
 }
 
 // New creates one config service instance.

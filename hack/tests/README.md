@@ -42,6 +42,8 @@ The `e2e/` tree is organized by stable capability boundaries instead of the lega
 | `pnpm test:full` | Run the full layered suite explicitly. |
 | `pnpm test:smoke` | Run the curated high-value smoke pack. |
 | `pnpm test:module -- <scope>` | Run a module scope from the execution manifest. |
+| `pnpm test:sqlite` | Prepare a SQLite config-file database, restart the app, and run SQLite-only E2E cases. |
+| `pnpm test:sqlite:e2e-smoke` | Run only the SQLite browser startup/login E2E case. |
 | `pnpm test:validate` | Validate `TC` uniqueness, directory ownership, and manifest references. |
 | `pnpm report` | Open the Playwright HTML report. |
 
@@ -52,6 +54,18 @@ Example module scopes:
 - `monitor:operlog`
 - `scheduler:job`
 - `extension:plugin`
+- `dialect`
+
+`pnpm test:sqlite` is the dedicated full SQLite channel. The script backs up
+`apps/lina-core/manifest/config/config.yaml`, writes
+`database.default.link=sqlite::@file(./temp/sqlite/linapro.db)` into that config
+file, runs `make init confirm=init rebuild=true`, `make mock confirm=mock`,
+starts `make dev`, runs `TC0164` to `TC0166`, then restores the original config.
+The backend still derives the active database dialect only from its config file.
+`pnpm test:sqlite:e2e-smoke` uses the same preparation path but only runs
+`TC0164`. Main CI does not install frontend dependencies or Playwright for
+SQLite; it calls `hack/tests/scripts/run-sqlite-smoke.sh`, which starts only the
+backend and checks SQLite startup warnings, health mode, and admin login.
 
 ## Execution Model
 

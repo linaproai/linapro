@@ -346,7 +346,7 @@ export default defineConfig(async () => {
   return {
     application: {
       printInfoMap: {
-        'LinaPro Repository': 'https://github.com/gqcn/lina',
+        'LinaPro Repository': 'https://github.com/linaproai/linapro',
       },
       pwaOptions: {
         manifest: {

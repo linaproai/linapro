@@ -12,11 +12,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/internal/packed"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 )
 
@@ -52,6 +54,11 @@ type sqlAsset struct {
 
 // sqlExecutor executes one SQL statement for shared command SQL processing.
 type sqlExecutor func(ctx context.Context, sql string) error
+
+// commandDatabase returns the database used by init/mock SQL execution.
+var commandDatabase = func() gdb.DB {
+	return g.DB()
+}
 
 // requireCommandConfirmation validates the explicit confirmation value for a
 // sensitive command before any destructive step is executed.
@@ -112,18 +119,43 @@ func resolveSQLAssetSource(value string) (sqlAssetSource, error) {
 // executeSQLAssets runs the provided SQL assets in order, splitting each file
 // into executable statements and stopping immediately on the first failure.
 func executeSQLAssets(ctx context.Context, assets []sqlAsset) error {
-	return executeSQLAssetsWithExecutor(ctx, assets, func(ctx context.Context, sql string) error {
-		_, err := g.DB().Exec(ctx, sql)
+	link, err := currentDatabaseLink(ctx)
+	if err != nil {
 		return err
-	})
+	}
+	dbDialect, err := dialect.From(link)
+	if err != nil {
+		return err
+	}
+	return executeSQLAssetsWithExecutor(ctx, assets, func(ctx context.Context, sql string) error {
+		_, err := commandDatabase().Exec(ctx, sql)
+		return err
+	}, dbDialect)
 }
 
 // executeSQLAssetsWithExecutor executes prepared SQL assets statement by
 // statement through the provided executor, allowing unit tests to verify
 // stop-on-error behavior without a real DB.
-func executeSQLAssetsWithExecutor(ctx context.Context, assets []sqlAsset, executor sqlExecutor) error {
+func executeSQLAssetsWithExecutor(
+	ctx context.Context,
+	assets []sqlAsset,
+	executor sqlExecutor,
+	dbDialect ...dialect.Dialect,
+) error {
+	var activeDialect dialect.Dialect
+	if len(dbDialect) > 0 {
+		activeDialect = dbDialect[0]
+	}
 	for _, asset := range assets {
-		statements := splitSQLStatements(asset.Content)
+		content := asset.Content
+		if activeDialect != nil {
+			translated, err := activeDialect.TranslateDDL(ctx, asset.Path, asset.Content)
+			if err != nil {
+				return gerror.Wrapf(err, "translate SQL file %s failed", asset.Path)
+			}
+			content = translated
+		}
+		statements := splitSQLStatements(content)
 		if len(statements) == 0 {
 			continue
 		}

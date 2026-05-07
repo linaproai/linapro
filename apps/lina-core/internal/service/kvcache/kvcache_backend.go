@@ -8,7 +8,7 @@ import (
 
 	"github.com/gogf/gf/v2/os/gtime"
 
-	mysqlmemory "lina-core/internal/service/kvcache/internal/mysql-memory"
+	sqltable "lina-core/internal/service/kvcache/internal/sqltable"
 )
 
 // BackendName identifies one kvcache backend implementation.
@@ -16,8 +16,8 @@ type BackendName string
 
 // Supported backend names for the kvcache service.
 const (
-	// BackendMySQLMemory stores cache entries in the host MySQL MEMORY table.
-	BackendMySQLMemory BackendName = "mysql-memory"
+	// BackendSQLTable stores cache entries in the host sys_kv_cache SQL table.
+	BackendSQLTable BackendName = "sql-table"
 )
 
 // Backend defines the backend-specific KV cache operations used by Service.
@@ -58,19 +58,19 @@ type serviceConfig struct {
 	backend  Backend
 }
 
-// mysqlMemoryProvider adapts the internal MySQL MEMORY implementation to the
+// sqlTableProvider adapts the internal SQL table implementation to the
 // public kvcache provider contract.
-type mysqlMemoryProvider struct{}
+type sqlTableProvider struct{}
 
-// mysqlMemoryBackend adapts the internal MySQL MEMORY implementation to the
+// sqlTableBackend adapts the internal SQL table implementation to the
 // public kvcache backend contract.
-type mysqlMemoryBackend struct {
-	backend *mysqlmemory.MySQLMemoryBackend
+type sqlTableBackend struct {
+	backend *sqltable.SQLTableBackend
 }
 
 // newServiceConfig returns the default kvcache service configuration.
 func newServiceConfig() *serviceConfig {
-	return &serviceConfig{provider: NewMySQLMemoryProvider()}
+	return &serviceConfig{provider: NewSQLTableProvider()}
 }
 
 // WithProvider configures the backend provider used by the kvcache service.
@@ -93,85 +93,85 @@ func WithBackend(backend Backend) Option {
 	}
 }
 
-// NewMySQLMemoryProvider returns the default MySQL MEMORY backend provider.
-func NewMySQLMemoryProvider() Provider {
-	return mysqlMemoryProvider{}
+// NewSQLTableProvider returns the default SQL table backend provider.
+func NewSQLTableProvider() Provider {
+	return sqlTableProvider{}
 }
 
-// NewBackend creates one MySQL MEMORY backend instance.
-func (mysqlMemoryProvider) NewBackend() Backend {
-	return &mysqlMemoryBackend{backend: mysqlmemory.NewMySQLMemoryBackend()}
+// NewBackend creates one SQL table backend instance.
+func (sqlTableProvider) NewBackend() Backend {
+	return &sqlTableBackend{backend: sqltable.NewSQLTableBackend()}
 }
 
-// Name returns the stable MySQL MEMORY backend name.
-func (b *mysqlMemoryBackend) Name() BackendName {
-	return BackendMySQLMemory
+// Name returns the stable SQL table backend name.
+func (b *sqlTableBackend) Name() BackendName {
+	return BackendSQLTable
 }
 
-// RequiresExpiredCleanup reports that MySQL MEMORY entries need scheduled
+// RequiresExpiredCleanup reports that SQL table entries need scheduled
 // cleanup because expiration is enforced by kvcache rather than the database.
-func (b *mysqlMemoryBackend) RequiresExpiredCleanup() bool {
+func (b *sqlTableBackend) RequiresExpiredCleanup() bool {
 	return true
 }
 
-// Get reads one cache entry through the internal MySQL MEMORY implementation.
-func (b *mysqlMemoryBackend) Get(ctx context.Context, ownerType OwnerType, cacheKey string) (*Item, bool, error) {
-	item, ok, err := b.backend.Get(ctx, mysqlmemory.OwnerType(ownerType.String()), cacheKey)
+// Get reads one cache entry through the internal SQL table implementation.
+func (b *sqlTableBackend) Get(ctx context.Context, ownerType OwnerType, cacheKey string) (*Item, bool, error) {
+	item, ok, err := b.backend.Get(ctx, sqltable.OwnerType(ownerType.String()), cacheKey)
 	return convertInternalItem(item), ok, err
 }
 
-// GetInt reads one integer cache value through the internal MySQL MEMORY implementation.
-func (b *mysqlMemoryBackend) GetInt(ctx context.Context, ownerType OwnerType, cacheKey string) (int64, bool, error) {
-	return b.backend.GetInt(ctx, mysqlmemory.OwnerType(ownerType.String()), cacheKey)
+// GetInt reads one integer cache value through the internal SQL table implementation.
+func (b *sqlTableBackend) GetInt(ctx context.Context, ownerType OwnerType, cacheKey string) (int64, bool, error) {
+	return b.backend.GetInt(ctx, sqltable.OwnerType(ownerType.String()), cacheKey)
 }
 
-// Set writes one string cache value through the internal MySQL MEMORY implementation.
-func (b *mysqlMemoryBackend) Set(
+// Set writes one string cache value through the internal SQL table implementation.
+func (b *sqlTableBackend) Set(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 	value string,
 	ttl time.Duration,
 ) (*Item, error) {
-	item, err := b.backend.Set(ctx, mysqlmemory.OwnerType(ownerType.String()), cacheKey, value, ttl)
+	item, err := b.backend.Set(ctx, sqltable.OwnerType(ownerType.String()), cacheKey, value, ttl)
 	return convertInternalItem(item), err
 }
 
-// Delete removes one cache entry through the internal MySQL MEMORY implementation.
-func (b *mysqlMemoryBackend) Delete(ctx context.Context, ownerType OwnerType, cacheKey string) error {
-	return b.backend.Delete(ctx, mysqlmemory.OwnerType(ownerType.String()), cacheKey)
+// Delete removes one cache entry through the internal SQL table implementation.
+func (b *sqlTableBackend) Delete(ctx context.Context, ownerType OwnerType, cacheKey string) error {
+	return b.backend.Delete(ctx, sqltable.OwnerType(ownerType.String()), cacheKey)
 }
 
-// Incr increments one integer cache value through the internal MySQL MEMORY implementation.
-func (b *mysqlMemoryBackend) Incr(
+// Incr increments one integer cache value through the internal SQL table implementation.
+func (b *sqlTableBackend) Incr(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 	delta int64,
 	ttl time.Duration,
 ) (*Item, error) {
-	item, err := b.backend.Incr(ctx, mysqlmemory.OwnerType(ownerType.String()), cacheKey, delta, ttl)
+	item, err := b.backend.Incr(ctx, sqltable.OwnerType(ownerType.String()), cacheKey, delta, ttl)
 	return convertInternalItem(item), err
 }
 
-// Expire updates one cache entry expiration through the internal MySQL MEMORY implementation.
-func (b *mysqlMemoryBackend) Expire(
+// Expire updates one cache entry expiration through the internal SQL table implementation.
+func (b *sqlTableBackend) Expire(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
 	ttl time.Duration,
 ) (bool, *gtime.Time, error) {
-	return b.backend.Expire(ctx, mysqlmemory.OwnerType(ownerType.String()), cacheKey, ttl)
+	return b.backend.Expire(ctx, sqltable.OwnerType(ownerType.String()), cacheKey, ttl)
 }
 
-// CleanupExpired removes expired entries through the internal MySQL MEMORY implementation.
-func (b *mysqlMemoryBackend) CleanupExpired(ctx context.Context) error {
+// CleanupExpired removes expired entries through the internal SQL table implementation.
+func (b *sqlTableBackend) CleanupExpired(ctx context.Context) error {
 	return b.backend.CleanupExpired(ctx)
 }
 
 // convertInternalItem maps one internal backend item into the public kvcache
 // item shape.
-func convertInternalItem(item *mysqlmemory.Item) *Item {
+func convertInternalItem(item *sqltable.Item) *Item {
 	if item == nil {
 		return nil
 	}

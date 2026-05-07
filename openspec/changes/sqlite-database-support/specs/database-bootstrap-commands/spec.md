@@ -2,27 +2,33 @@
 
 ### Requirement: 数据库引导命令必须按方言分发数据库准备逻辑
 
-系统 SHALL 在 `init` / `mock` 命令执行 SQL 资源前，根据 `database.default.link` 协议头分发到对应方言的 `PrepareDatabase`。MySQL 方言执行 `CREATE DATABASE` / 可选 `DROP DATABASE`；SQLite 方言执行父目录创建 / 可选数据库文件删除。引导命令实现不得直接编写 MySQL 专属的链接解析或 `DROP/CREATE DATABASE` 逻辑。
+系统 SHALL 在 `init` 命令执行 SQL 资源前，根据 `database.default.link` 协议头分发到对应方言的 `PrepareDatabase`。MySQL 方言执行 `CREATE DATABASE` / 可选 `DROP DATABASE`；SQLite 方言执行父目录创建 / 可选数据库文件删除。`mock` 命令 SHALL 依赖已由 `init` 初始化完成的目标数据库，不得创建、重建或准备数据库。引导命令实现不得直接编写 MySQL 专属的链接解析或 `DROP/CREATE DATABASE` 逻辑。
 
 #### Scenario: MySQL 链接下 init 走 MySQL 方言准备
 - **当** 配置文件 `database.default.link` 以 `mysql:` 开头且运维人员运行 `make init confirm=init` 时
-- **则** 命令调用 `MySQLDialect.PrepareDatabase` 创建或确认数据库存在
+- **则** 命令调用当前 MySQL 方言实例的 `PrepareDatabase` 创建或确认数据库存在
 - **且** 后续 SQL 执行连接到该数据库
 
 #### Scenario: SQLite 链接下 init 走 SQLite 方言准备
 - **当** 配置文件 `database.default.link` 以 `sqlite:` 开头且运维人员运行 `make init confirm=init` 时
-- **则** 命令调用 `SQLiteDialect.PrepareDatabase`，自动创建数据库文件父目录
+- **则** 命令调用当前 SQLite 方言实例的 `PrepareDatabase`，自动创建数据库文件父目录
 - **且** 后续 SQL 执行连接到该 SQLite 文件
 
 #### Scenario: rebuild 参数下 SQLite 方言删除数据库文件
 - **当** 配置文件链接以 `sqlite:` 开头且运维人员运行 `make init confirm=init rebuild=true` 时
-- **则** 命令调用 `SQLiteDialect.PrepareDatabase(rebuild=true)` 删除现有数据库文件
+- **则** 命令调用当前 SQLite 方言实例的 `PrepareDatabase(rebuild=true)` 删除现有数据库文件
 - **且** 删除范围包括主 `.db` 文件以及可能存在的 WAL / SHM 等附属文件
 - **且** 父目录被保留（不删除目录本身）
 
+#### Scenario: mock 不执行数据库准备
+- **当** 运维人员运行 `make mock confirm=mock` 时
+- **则** 命令不调用 `Dialect.PrepareDatabase`
+- **且** 命令直接使用当前配置中的 `database.default.link` 连接已初始化数据库并加载 mock SQL
+- **且** 如果目标数据库文件、数据表或基础 seed 不存在，命令快速失败并返回数据库错误，不静默创建或重建数据库
+
 ### Requirement: 数据库引导命令必须在执行 SQL 前调用方言转译
 
-系统 SHALL 在 `init` / `mock` 执行每个 SQL 文件前，先调用当前方言的 `TranslateDDL` 将单一 MySQL 方言来源的 SQL 内容转换为目标方言可执行的内容。MySQL 方言下转译为 no-op；SQLite 方言下转译产出 SQLite 兼容语句。SQL 文件的源文件保持单一 MySQL 方言来源。
+系统 SHALL 在 `init` / `mock` 执行每个 SQL 文件前，先调用当前方言的 `TranslateDDL(ctx, sourceName, ddl)` 将单一 MySQL 方言来源的 SQL 内容转换为目标方言可执行的内容。`sourceName` SHALL 使用源 SQL 文件路径或嵌入资产路径。MySQL 方言下转译为 no-op；SQLite 方言下转译产出 SQLite 兼容语句。SQL 文件的源文件保持单一 MySQL 方言来源。
 
 #### Scenario: MySQL 模式下转译保持原 SQL 字节一致
 - **当** 当前方言为 MySQL 且 `init` 加载某 SQL 文件时
@@ -31,14 +37,14 @@
 
 #### Scenario: SQLite 模式下转译产出 SQLite 兼容语句
 - **当** 当前方言为 SQLite 且 `init` 加载 `001-project-init.sql` 时
-- **则** 命令先用 `SQLiteDialect.TranslateDDL` 转译文件内容
+- **则** 命令先用当前 SQLite 方言实例的 `TranslateDDL(ctx, sourceName, ddl)` 转译文件内容
 - **且** 再调用现有 `splitSQLStatements` 分割
 - **且** 每条转译后的语句在 SQLite 上成功执行
 
 #### Scenario: 转译失败时命令快速失败
 - **当** 当前方言转译某 SQL 文件返回错误时
 - **则** 命令立即停止后续 SQL 执行
-- **且** 错误日志包含失败的源文件名
+- **且** 错误日志包含失败的 `sourceName`、行号提示与未覆盖关键字
 - **且** 命令向调用方返回失败状态
 
 ## MODIFIED Requirements

@@ -10,6 +10,8 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -84,6 +86,35 @@ func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	}
 	if !getPayload.Found || getPayload.Value != "value-1" {
 		t.Fatalf("expected stored state value to round-trip, got %#v", getPayload)
+	}
+
+	updateResponse := invokeRuntimeHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodRuntimeStateSet,
+		pluginbridge.MarshalHostCallStateSetRequest(&pluginbridge.HostCallStateSetRequest{
+			Key:   "demo",
+			Value: "value-2",
+		}),
+	)
+	if updateResponse.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("expected second state.set success, got status=%d payload=%s", updateResponse.Status, string(updateResponse.Payload))
+	}
+	getUpdatedResponse := invokeRuntimeHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodRuntimeStateGet,
+		pluginbridge.MarshalHostCallStateGetRequest(&pluginbridge.HostCallStateGetRequest{Key: "demo"}),
+	)
+	if getUpdatedResponse.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("expected updated state.get success, got status=%d payload=%s", getUpdatedResponse.Status, string(getUpdatedResponse.Payload))
+	}
+	getUpdatedPayload, err := pluginbridge.UnmarshalHostCallStateGetResponse(getUpdatedResponse.Payload)
+	if err != nil {
+		t.Fatalf("expected updated state.get payload decode to succeed, got error: %v", err)
+	}
+	if !getUpdatedPayload.Found || getUpdatedPayload.Value != "value-2" {
+		t.Fatalf("expected updated state value to round-trip, got %#v", getUpdatedPayload)
 	}
 
 	deleteResponse := invokeRuntimeHostService(
@@ -163,9 +194,8 @@ func invokeRuntimeHostService(
 // tests can run repeatedly without leftover state.
 func cleanupRuntimeStateKey(t *testing.T, ctx context.Context, pluginID string, key string) {
 	t.Helper()
-	if _, err := g.DB().Model(pluginStateTable).Ctx(ctx).
-		Where("plugin_id", pluginID).
-		Where("state_key", key).
+	if _, err := dao.SysPluginState.Ctx(ctx).
+		Where(do.SysPluginState{PluginId: pluginID, StateKey: key}).
 		Delete(); err != nil {
 		t.Fatalf("failed to cleanup runtime state key %s/%s: %v", pluginID, key, err)
 	}

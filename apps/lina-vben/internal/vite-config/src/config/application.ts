@@ -43,7 +43,7 @@ function defineApplicationConfig(userConfigPromise?: DefineApplicationOptions) {
       nitroMockOptions: {},
       print: !isBuild,
       printInfoMap: {
-        'LinaPro Repository': 'https://github.com/gqcn/lina',
+        'LinaPro Repository': 'https://github.com/linaproai/linapro',
       },
       pwa: true,
       pwaOptions: getDefaultPwaOptions(appTitle),

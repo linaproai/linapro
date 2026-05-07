@@ -13,16 +13,20 @@ English | [简体中文](README.zh-CN.md)
 
 # Overview
 
-`LinaPro` is an **AI-native full-stack framework engineered for sustainable delivery**. It unifies a specification-driven AI R&D workflow, a comprehensive AI skill system spanning the full development lifecycle, a complete plugin runtime, and an integrated full-stack design — with enterprise-grade capabilities like access control, system configuration, and job scheduling built right in. Teams skip the infrastructure bootstrapping phase and put AI to work on real business development from day one.
+`LinaPro` is an **AI-native full-stack framework engineered for sustainable delivery**.
+
+It unifies a specification-driven AI R&D workflow, a comprehensive AI skill system spanning the full development lifecycle, a complete plugin runtime, and an integrated full-stack design — with enterprise-grade capabilities like access control, system configuration, and job scheduling built right in.
+
+Teams skip the infrastructure bootstrapping phase and put AI to work on real business development from day one.
 
 
 # Quick Links
 
 | Resource | URL |
 |----------|-----|
-| Repository | https://github.com/linaproai/linapro |
-| Live Demo | http://demo.linapro.ai/ <br/>Username: `admin` <br/>Password: `admin123` |
-| Website | https://linapro.ai/ |
+| **Repository** | https://github.com/linaproai/linapro |
+| **Live Demo** | http://demo.linapro.ai/ <br/>Username: `admin` <br/>Password: `admin123` |
+| **Website** | https://linapro.ai/ |
 
 # Who It's For
 
@@ -133,48 +137,13 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 
 `lina-vben` is the framework's fully featured built-in management workspace. Teams can build business applications directly on top of it:
 
-### Access Control
+![LinaPro I18N](https://linapro.ai/img/preview/linapro-i18n.webp)
 
-- **User Management**: Full CRUD, role assignment, password reset, status management, batch export
-- **Role Management**: Role definition, menu permission assignment, button-level authorization
-- **Menu Management**: Dynamic menu tree supporting directory, menu, and button three-level structure
+![LinaPro Plugin](https://linapro.ai/img/preview/linapro-plugin.webp)
 
-### Organization Management
+![LinaPro API Docs](https://linapro.ai/img/preview/linapro-apidoc.webp)
 
-- **Department Management**: Organization structure tree maintenance with multi-level departments
-- **Position Management**: Position definitions and staff associations
-
-### System Settings
-
-- **Data Dictionary**: Centralized dictionary type and data maintenance with import/export
-- **Parameter Settings**: Runtime parameter maintenance with configuration import/export
-- **File Management**: File upload, download, and storage management
-
-### Content Management
-
-- **Notices & Announcements**: Announcement CRUD supporting multiple notice types
-
-### Job Scheduling
-
-- **Job Management**: Cron expression configuration, immediate execution, pause/resume, execution history
-- **Group Management**: Job grouping by business domain
-- **Execution Logs**: Execution record queries and exception log inspection
-
-### System Monitoring
-
-- **Online Users**: Real-time online session visibility with force-logout capability
-- **Server Monitor**: CPU, memory, disk, and runtime information collection and display
-- **Operation Logs**: User operation audit with request parameters, duration, and outcome
-- **Login Logs**: Login record queries with IP address, device information, and result
-
-### Extension Center
-
-- **Plugin Management**: Plugin install, enable, disable, uninstall, and version management
-
-### Developer Center
-
-- **API Docs**: Online API documentation browsing and debugging, automatically aggregating host and all plugin endpoints
-- **System Info**: Runtime environment information
+![LinaPro Menu](https://linapro.ai/img/preview/linapro-menu.webp)
 
 ## Native Distributed Architecture
 
@@ -192,5 +161,5 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 | Frontend Framework | `Vue 3` | Built on the `Vben 5` admin template |
 | Frontend UI | `Ant Design Vue` | Enterprise-grade UI component library |
 | Build Tool | `Vite` | Lightning-fast frontend builds |
-| Database | `MySQL` | `8.0+`, primary data store |
+| Database | `MySQL` / optional `SQLite` | `MySQL 8.0+` is the primary data store. `SQLite` can be used for demo or local test mode without MySQL; it is single-node only and not for production. |
 | Plugin Runtime | `WebAssembly` | `tetratelabs/wazero`, powering WASM dynamic plugins |

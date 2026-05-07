@@ -1,10 +1,11 @@
-// This file implements MySQL MEMORY KV cache CRUD, increment, expire, and
+// This file implements SQL table KV cache CRUD, increment, expire, and
 // cleanup behaviors.
 
-package mysqlmemory
+package sqltable
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -16,11 +17,28 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/dialect"
 )
 
 // expiredCleanupBatchSize bounds each global cleanup pass so repeated
 // cluster-node invocations stay idempotent and avoid full-table pressure.
-const expiredCleanupBatchSize = 500
+const (
+	expiredCleanupBatchSize = 500
+	incrMaxAttempts         = 64
+	incrRetryBaseDelay      = 2 * time.Millisecond
+	incrRetryMaxDelay       = 20 * time.Millisecond
+)
+
+// errIncrConflict is an internal sentinel used to trigger bounded CAS retries.
+var errIncrConflict = errors.New("cache increment compare-and-swap conflict")
+
+// incrSnapshot carries the integer value and expiration metadata selected
+// after an atomic increment.
+type incrSnapshot struct {
+	ValueKind int         `orm:"value_kind"`
+	ValueInt  int64       `orm:"value_int"`
+	ExpireAt  *gtime.Time `orm:"expire_at"`
+}
 
 // Get returns the current cache entry snapshot identified by ownerType and one
 // scoped cache key.
@@ -34,7 +52,7 @@ const expiredCleanupBatchSize = 500
 //   - *Item: the cache entry snapshot when the entry exists, including value kind, value, and expiration time.
 //   - bool: whether the unexpired cache entry exists.
 //   - error: returned when the scoped cache key is invalid or the database query fails.
-func (b *MySQLMemoryBackend) Get(
+func (b *SQLTableBackend) Get(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
@@ -46,7 +64,7 @@ func (b *MySQLMemoryBackend) Get(
 
 	var row *entity.SysKvCache
 	cols := dao.SysKvCache.Columns()
-	err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	err = b.model(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -74,7 +92,7 @@ func (b *MySQLMemoryBackend) Get(
 //   - bool: whether the unexpired cache entry exists.
 //   - error: returned when the scoped cache key is invalid, the existing entry is not stored
 //     as an integer, or the database query fails.
-func (b *MySQLMemoryBackend) GetInt(
+func (b *SQLTableBackend) GetInt(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
@@ -86,7 +104,7 @@ func (b *MySQLMemoryBackend) GetInt(
 
 	var row *entity.SysKvCache
 	cols := dao.SysKvCache.Columns()
-	err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	err = b.model(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -117,7 +135,7 @@ func (b *MySQLMemoryBackend) GetInt(
 //   - *Item: the latest cache entry snapshot after the value has been written successfully.
 //   - error: returned when the scoped cache key is invalid, the value exceeds the allowed size,
 //     ttl is negative or the upsert operation fails.
-func (b *MySQLMemoryBackend) Set(
+func (b *SQLTableBackend) Set(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
@@ -164,7 +182,7 @@ func (b *MySQLMemoryBackend) Set(
 // Returns:
 //   - error: returned when the scoped cache key is invalid or the delete statement fails.
 //     Deleting a non-existent entry is treated as a successful no-op.
-func (b *MySQLMemoryBackend) Delete(
+func (b *SQLTableBackend) Delete(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
@@ -173,7 +191,7 @@ func (b *MySQLMemoryBackend) Delete(
 	if err != nil {
 		return err
 	}
-	_, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	_, err = b.model(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -195,7 +213,7 @@ func (b *MySQLMemoryBackend) Delete(
 //   - *Item: the latest cache entry snapshot after the increment succeeds.
 //   - error: returned when the scoped cache key is invalid, ttl is negative,
 //     expired-entry cleanup fails, the existing entry is not stored as an integer, or any database operation fails.
-func (b *MySQLMemoryBackend) Incr(
+func (b *SQLTableBackend) Incr(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
@@ -215,79 +233,187 @@ func (b *MySQLMemoryBackend) Incr(
 		return nil, err
 	}
 
-	var updatedItem *Item
-	err = dao.SysKvCache.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
-		var row *entity.SysKvCache
-		_, insertErr := dao.SysKvCache.Ctx(ctx).Data(do.SysKvCache{
-			OwnerType:  ownerType.String(),
-			OwnerKey:   identity.ownerKey,
-			Namespace:  identity.namespace,
-			CacheKey:   identity.cacheKey,
-			ValueKind:  ValueKindInt,
-			ValueBytes: []byte{},
-			ValueInt:   0,
-			ExpireAt:   expireAt,
-		}).InsertIgnore()
-		if insertErr != nil {
-			return insertErr
+	var lastErr error
+	for attempt := 1; attempt <= incrMaxAttempts; attempt++ {
+		item, attemptErr := b.incrOnce(ctx, ownerType, identity, delta, expireAt)
+		if attemptErr == nil {
+			return item, nil
 		}
+		lastErr = attemptErr
+		if !isRetryableIncrConflict(attemptErr) {
+			return nil, attemptErr
+		}
+		if attempt == incrMaxAttempts {
+			return nil, bizerr.WrapCode(attemptErr, CodeKVCacheIncrementConflict)
+		}
+		if sleepErr := sleepBeforeIncrRetry(ctx, attempt); sleepErr != nil {
+			return nil, sleepErr
+		}
+	}
+	return nil, lastErr
+}
 
-		if scanErr := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
-			OwnerType: ownerType.String(),
-			OwnerKey:  identity.ownerKey,
-			Namespace: identity.namespace,
-			CacheKey:  identity.cacheKey,
-		}).Scan(&row); scanErr != nil {
-			return scanErr
-		}
-
-		currentExpireAt := expireAt
-		if row != nil {
-			if row.ValueKind != ValueKindInt {
-				return bizerr.NewCode(CodeKVCacheIncrementValueNotInteger)
-			}
-			if currentExpireAt == nil {
-				currentExpireAt = row.ExpireAt
-			}
-		}
-
-		updateData := do.SysKvCache{
-			ValueKind:  ValueKindInt,
-			ValueBytes: []byte{},
-			ValueInt:   gdb.Raw("LAST_INSERT_ID(value_int + " + strconv.FormatInt(delta, 10) + ")"),
-		}
-		if expireAt != nil {
-			updateData.ExpireAt = expireAt
-		}
-		_, updateErr := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
-			OwnerType: ownerType.String(),
-			OwnerKey:  identity.ownerKey,
-			Namespace: identity.namespace,
-			CacheKey:  identity.cacheKey,
-			ValueKind: ValueKindInt,
-		}).Data(updateData).Update()
-		if updateErr != nil {
-			return updateErr
-		}
-		nextValueVar, valueErr := dao.SysKvCache.Ctx(ctx).Raw("SELECT LAST_INSERT_ID()").Value()
-		if valueErr != nil {
-			return valueErr
-		}
-		nextValue := nextValueVar.Int64()
-
-		updatedItem = &Item{
-			Key:       identity.cacheKey,
-			ValueKind: ValueKindInt,
-			Value:     strconv.FormatInt(nextValue, 10),
-			IntValue:  nextValue,
-			ExpireAt:  currentExpireAt,
-		}
-		return nil
-	})
+// incrOnce performs one compare-and-swap increment attempt. It preserves the
+// original MEMORY-table delivery schema by avoiding transaction-lock semantics
+// that MEMORY cannot provide.
+func (b *SQLTableBackend) incrOnce(
+	ctx context.Context,
+	ownerType OwnerType,
+	identity *cacheIdentity,
+	delta int64,
+	expireAt *gtime.Time,
+) (*Item, error) {
+	snapshot, found, err := b.readIdentitySnapshot(ctx, ownerType, identity)
 	if err != nil {
 		return nil, err
 	}
-	return updatedItem, nil
+	if !found {
+		if err = b.ensureIncrementSeedRow(ctx, ownerType, identity, expireAt); err != nil {
+			return nil, err
+		}
+		snapshot, found, err = b.readIdentitySnapshot(ctx, ownerType, identity)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if !found {
+		return nil, errIncrConflict
+	}
+	if snapshot.ValueKind != ValueKindInt {
+		return nil, bizerr.NewCode(CodeKVCacheIncrementValueNotInteger)
+	}
+	if delta == 0 && expireAt == nil {
+		return &Item{
+			Key:       identity.cacheKey,
+			ValueKind: ValueKindInt,
+			Value:     strconv.FormatInt(snapshot.ValueInt, 10),
+			IntValue:  snapshot.ValueInt,
+			ExpireAt:  snapshot.ExpireAt,
+		}, nil
+	}
+
+	nextValue := snapshot.ValueInt + delta
+	updateData := do.SysKvCache{
+		ValueKind:  ValueKindInt,
+		ValueBytes: []byte{},
+		ValueInt:   nextValue,
+	}
+	if expireAt != nil {
+		updateData.ExpireAt = expireAt
+	}
+	updateModel := b.model(ctx).Where(do.SysKvCache{
+		OwnerType: ownerType.String(),
+		OwnerKey:  identity.ownerKey,
+		Namespace: identity.namespace,
+		CacheKey:  identity.cacheKey,
+		ValueKind: ValueKindInt,
+		ValueInt:  snapshot.ValueInt,
+	}).Data(updateData)
+	if expireAt == nil {
+		cols := dao.SysKvCache.Columns()
+		updateModel = updateModel.Fields(cols.ValueKind, cols.ValueBytes, cols.ValueInt)
+	}
+	affected, err := updateModel.UpdateAndGetAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, errIncrConflict
+	}
+	return &Item{
+		Key:       identity.cacheKey,
+		ValueKind: ValueKindInt,
+		Value:     strconv.FormatInt(nextValue, 10),
+		IntValue:  nextValue,
+		ExpireAt:  resolveIncrementExpireAt(snapshot.ExpireAt, expireAt),
+	}, nil
+}
+
+// ensureIncrementSeedRow initializes a missing cache row as integer zero using
+// an idempotent insert.
+func (b *SQLTableBackend) ensureIncrementSeedRow(
+	ctx context.Context,
+	ownerType OwnerType,
+	identity *cacheIdentity,
+	expireAt *gtime.Time,
+) error {
+	_, err := b.model(ctx).Data(do.SysKvCache{
+		OwnerType:  ownerType.String(),
+		OwnerKey:   identity.ownerKey,
+		Namespace:  identity.namespace,
+		CacheKey:   identity.cacheKey,
+		ValueKind:  ValueKindInt,
+		ValueBytes: []byte{},
+		ValueInt:   0,
+		ExpireAt:   expireAt,
+	}).InsertIgnore()
+	return err
+}
+
+// readIdentitySnapshot returns the value kind, integer value, and expiration
+// for one cache identity before a compare-and-swap increment.
+func (b *SQLTableBackend) readIdentitySnapshot(
+	ctx context.Context,
+	ownerType OwnerType,
+	identity *cacheIdentity,
+) (*incrSnapshot, bool, error) {
+	cols := dao.SysKvCache.Columns()
+	var row *incrSnapshot
+	err := b.model(ctx).
+		Fields(cols.ValueKind, cols.ValueInt, cols.ExpireAt).
+		Where(do.SysKvCache{
+			OwnerType: ownerType.String(),
+			OwnerKey:  identity.ownerKey,
+			Namespace: identity.namespace,
+			CacheKey:  identity.cacheKey,
+		}).
+		Scan(&row)
+	if err != nil {
+		return nil, false, err
+	}
+	if row == nil {
+		return nil, false, nil
+	}
+	return row, true, nil
+}
+
+// resolveIncrementExpireAt returns the effective expiration after one
+// successful increment write.
+func resolveIncrementExpireAt(current *gtime.Time, requested *gtime.Time) *gtime.Time {
+	if requested != nil {
+		return requested
+	}
+	return current
+}
+
+// isRetryableIncrConflict reports whether an increment failed because the
+// database asked the caller to retry a conflicted compare-and-swap write.
+func isRetryableIncrConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, errIncrConflict) {
+		return true
+	}
+	return dialect.IsRetryableWriteConflict(err)
+}
+
+// sleepBeforeIncrRetry waits a short bounded backoff before retrying a
+// conflicted increment compare-and-swap write.
+func sleepBeforeIncrRetry(ctx context.Context, attempt int) error {
+	delay := time.Duration(attempt*attempt) * incrRetryBaseDelay
+	if delay > incrRetryMaxDelay {
+		delay = incrRetryMaxDelay
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // Expire updates the expiration policy of a cache entry without changing its value.
@@ -303,7 +429,7 @@ func (b *MySQLMemoryBackend) Incr(
 //   - *gtime.Time: the normalized absolute expiration time; nil means the entry will not expire.
 //   - error: returned when the scoped cache key is invalid, ttl is negative,
 //     expired-entry cleanup fails, or the database update fails.
-func (b *MySQLMemoryBackend) Expire(
+func (b *SQLTableBackend) Expire(
 	ctx context.Context,
 	ownerType OwnerType,
 	cacheKey string,
@@ -326,7 +452,7 @@ func (b *MySQLMemoryBackend) Expire(
 	if expireAt == nil {
 		affected, err = b.clearIdentityExpireAt(ctx, ownerType, identity)
 	} else {
-		affected, err = dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+		affected, err = b.model(ctx).Where(do.SysKvCache{
 			OwnerType: ownerType.String(),
 			OwnerKey:  identity.ownerKey,
 			Namespace: identity.namespace,
@@ -350,9 +476,9 @@ func (b *MySQLMemoryBackend) Expire(
 // Returns:
 //   - error: returned when the cleanup delete statement fails. When no expired entries
 //     exist, the method returns nil.
-func (b *MySQLMemoryBackend) CleanupExpired(ctx context.Context) error {
+func (b *SQLTableBackend) CleanupExpired(ctx context.Context) error {
 	cols := dao.SysKvCache.Columns()
-	_, err := dao.SysKvCache.Ctx(ctx).
+	_, err := b.model(ctx).
 		WhereNotNull(cols.ExpireAt).
 		WhereLT(cols.ExpireAt, gtime.Now()).
 		OrderAsc(cols.ExpireAt).
@@ -363,7 +489,7 @@ func (b *MySQLMemoryBackend) CleanupExpired(ctx context.Context) error {
 
 // upsert inserts one cache entry when absent and always updates the matching
 // unique key in place so concurrent writers follow last-write-wins semantics.
-func (b *MySQLMemoryBackend) upsert(
+func (b *SQLTableBackend) upsert(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
@@ -379,12 +505,12 @@ func (b *MySQLMemoryBackend) upsert(
 		ValueInt:   data.ValueInt,
 		ExpireAt:   data.ExpireAt,
 	}
-	_, err := dao.SysKvCache.Ctx(ctx).Data(insertData).InsertIgnore()
+	_, err := b.model(ctx).Data(insertData).InsertIgnore()
 	if err != nil {
 		return err
 	}
 
-	updateModel := dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	updateModel := b.model(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -407,13 +533,13 @@ func (b *MySQLMemoryBackend) upsert(
 }
 
 // clearIdentityExpireAt clears the expiration column for one cache identity.
-func (b *MySQLMemoryBackend) clearIdentityExpireAt(
+func (b *SQLTableBackend) clearIdentityExpireAt(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
 ) (int64, error) {
 	cols := dao.SysKvCache.Columns()
-	return dao.SysKvCache.Ctx(ctx).Where(do.SysKvCache{
+	return b.model(ctx).Where(do.SysKvCache{
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -423,13 +549,13 @@ func (b *MySQLMemoryBackend) clearIdentityExpireAt(
 
 // cleanupExpiredIdentity deletes one expired cache row before a write path
 // mutates the same identity.
-func (b *MySQLMemoryBackend) cleanupExpiredIdentity(
+func (b *SQLTableBackend) cleanupExpiredIdentity(
 	ctx context.Context,
 	ownerType OwnerType,
 	identity *cacheIdentity,
 ) error {
 	cols := dao.SysKvCache.Columns()
-	_, err := dao.SysKvCache.Ctx(ctx).
+	_, err := b.model(ctx).
 		Where(do.SysKvCache{
 			OwnerType: ownerType.String(),
 			OwnerKey:  identity.ownerKey,
@@ -444,7 +570,7 @@ func (b *MySQLMemoryBackend) cleanupExpiredIdentity(
 
 // resolveIdentity parses and validates one public cache key under the provided
 // owner type.
-func (b *MySQLMemoryBackend) resolveIdentity(
+func (b *SQLTableBackend) resolveIdentity(
 	ownerType OwnerType,
 	cacheKey string,
 ) (*cacheIdentity, error) {
@@ -460,7 +586,7 @@ func (b *MySQLMemoryBackend) resolveIdentity(
 
 // validateIdentity validates the byte-length constraints for one decoded cache
 // identity.
-func (b *MySQLMemoryBackend) validateIdentity(
+func (b *SQLTableBackend) validateIdentity(
 	ownerType OwnerType,
 	ownerKey string,
 	namespace string,

@@ -100,7 +100,7 @@ func (f *fakeKVCacheService) CleanupExpired(ctx context.Context) error {
 func TestKVCacheCleanupJobProjectedForCleanupBackend(t *testing.T) {
 	ctx := context.Background()
 	cacheSvc := &fakeKVCacheService{
-		backendName:     kvcache.BackendMySQLMemory,
+		backendName:     kvcache.BackendSQLTable,
 		cleanupRequired: true,
 	}
 	registry := jobhandler.New()
@@ -140,7 +140,7 @@ func TestKVCacheCleanupJobProjectedForCleanupBackend(t *testing.T) {
 // calls CleanupExpired and returns backend diagnostics.
 func TestInvokeKVCacheExpiredCleanupDelegatesToCacheService(t *testing.T) {
 	cacheSvc := &fakeKVCacheService{
-		backendName:     kvcache.BackendMySQLMemory,
+		backendName:     kvcache.BackendSQLTable,
 		cleanupRequired: true,
 	}
 	svc := &serviceImpl{kvCacheSvc: cacheSvc}
@@ -153,7 +153,7 @@ func TestInvokeKVCacheExpiredCleanupDelegatesToCacheService(t *testing.T) {
 		t.Fatalf("expected one cleanup call, got %d", cacheSvc.cleanupCalls)
 	}
 	resultMap, ok := result.(map[string]any)
-	if !ok || resultMap["backend"] != string(kvcache.BackendMySQLMemory) || resultMap["cleaned"] != true {
+	if !ok || resultMap["backend"] != string(kvcache.BackendSQLTable) || resultMap["cleaned"] != true {
 		t.Fatalf("unexpected cleanup result: %#v", result)
 	}
 }

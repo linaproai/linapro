@@ -37,6 +37,11 @@ func (f *fakeRoleConfigService) IsClusterEnabled(_ context.Context) bool {
 	return f.clusterEnabled
 }
 
+// OverrideClusterEnabledForDialect locks the fake cluster mode for dialect tests.
+func (f *fakeRoleConfigService) OverrideClusterEnabledForDialect(value bool) {
+	f.clusterEnabled = value
+}
+
 // GetJwt returns a JWT config assembled from the test service fields.
 func (f *fakeRoleConfigService) GetJwt(_ context.Context) (*hostconfig.JwtConfig, error) {
 	expire, err := f.GetJwtExpire(context.Background())

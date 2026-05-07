@@ -1,8 +1,27 @@
+import { $t } from '@vben/locales';
+
+import { Modal } from 'ant-design-vue';
+
 /**
  * 获取表单默认值获取器
  */
-export function defaultFormValueGetter(formApi: { form: { values: Record<string, any> } }) {
+export function defaultFormValueGetter(formApi: {
+  form: { values: Record<string, any> };
+}) {
   return () => formApi.form?.values || {};
+}
+
+function confirmDiscardChanges() {
+  return new Promise<boolean>((resolve) => {
+    Modal.confirm({
+      title: $t('pages.common.confirmTitle'),
+      content: $t('pages.common.discardChangesConfirm'),
+      okText: $t('pages.common.confirm'),
+      cancelText: $t('pages.common.cancel'),
+      onCancel: () => resolve(false),
+      onOk: () => resolve(true),
+    });
+  });
 }
 
 /**
@@ -30,9 +49,10 @@ export function useBeforeCloseDiff(options: {
       return true;
     }
     const currentValue = await options.currentGetter();
-    const hasChanged = JSON.stringify(currentValue) !== JSON.stringify(initializedValue);
+    const hasChanged =
+      JSON.stringify(currentValue) !== JSON.stringify(initializedValue);
     if (hasChanged) {
-      return false;
+      return await confirmDiscardChanges();
     }
     return true;
   };

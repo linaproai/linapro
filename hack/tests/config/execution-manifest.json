@@ -20,6 +20,8 @@
   "moduleScopes": {
     "auth": ["e2e/auth"],
     "dashboard": ["e2e/dashboard"],
+    "dialect": ["e2e/dialect"],
+    "doctor": ["e2e/doctor"],
     "about": ["e2e/about"],
     "iam": ["e2e/iam"],
     "iam:user": ["e2e/iam/user"],
@@ -62,6 +64,7 @@
     "e2e/auth/TC0003-logout.ts",
     "e2e/auth/TC0102-login-page-presentation.ts",
     "e2e/content",
+    "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
     "e2e/extension/plugin",
     "e2e/iam/menu",
     "e2e/iam/user/TC0005-user-crud.ts",
@@ -105,6 +108,11 @@
       "entry": "e2e/content",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
       "reason": "Content tests depend on the content-notice source plugin and its mock data being installed and enabled."
+    },
+    {
+      "entry": "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
+      "categories": ["pluginLifecycle"],
+      "reason": "SQLite business zero-impact validation installs, enables, disables, and uninstalls a source plugin against the shared runtime."
     },
     {
       "entry": "e2e/extension/plugin",

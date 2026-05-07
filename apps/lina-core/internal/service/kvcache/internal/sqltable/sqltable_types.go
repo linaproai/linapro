@@ -1,7 +1,7 @@
-// This file defines shared cache models used by the MySQL MEMORY kvcache
+// This file defines shared cache models used by the SQL table kvcache
 // implementation.
 
-package mysqlmemory
+package sqltable
 
 import "github.com/gogf/gf/v2/os/gtime"
 

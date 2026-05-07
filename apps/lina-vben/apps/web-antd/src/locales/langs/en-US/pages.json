@@ -32,7 +32,8 @@
     "exportSuccess": "Export completed",
     "exportFailed": "Export failed",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "discardChangesConfirm": "This form has unsaved changes. Discard them and close?"
   },
   "fields": {
     "username": "Username",

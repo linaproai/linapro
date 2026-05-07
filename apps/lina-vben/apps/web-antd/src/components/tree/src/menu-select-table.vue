@@ -96,7 +96,8 @@ function getTableRecords() {
 }
 
 function getCheckedRecords() {
-  return (tableApi?.grid?.getCheckboxRecords?.(true) ?? []) as MenuPermissionOption[];
+  return (tableApi?.grid?.getCheckboxRecords?.(true) ??
+    []) as MenuPermissionOption[];
 }
 
 function updateCheckedNumber() {
@@ -261,24 +262,35 @@ defineExpose({
   <div class="flex h-full flex-col" id="menu-select-table">
     <BasicTable>
       <template #toolbar-actions>
-        <RadioGroup
-          v-model:value="association"
-          :options="nodeOptions"
-          button-style="solid"
-          option-type="button"
-          @change="handleAssociationChange"
-        />
-        <Alert class="mx-2" type="info">
-          <template #message>
-            <div>
-              {{ $t('pages.tree.messages.selectedPrefix') }}
-              <span class="text-primary mx-1 font-semibold">
-                {{ checkedNum }}
-              </span>
-              {{ $t('pages.tree.messages.selectedSuffix') }}
-            </div>
-          </template>
-        </Alert>
+        <div
+          class="permission-selection-toolbar flex items-center gap-4"
+          data-testid="menu-permission-toolbar"
+        >
+          <RadioGroup
+            class="shrink-0"
+            data-testid="menu-permission-association-mode"
+            v-model:value="association"
+            :options="nodeOptions"
+            button-style="solid"
+            option-type="button"
+            @change="handleAssociationChange"
+          />
+          <Alert
+            class="permission-selection-count shrink-0"
+            data-testid="menu-permission-selected-count"
+            type="info"
+          >
+            <template #message>
+              <div>
+                {{ $t('pages.tree.messages.selectedPrefix') }}
+                <span class="text-primary mx-1 font-semibold">
+                  {{ checkedNum }}
+                </span>
+                {{ $t('pages.tree.messages.selectedSuffix') }}
+              </div>
+            </template>
+          </Alert>
+        </div>
       </template>
       <template #toolbar-tools>
         <Space>

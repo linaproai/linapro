@@ -12,7 +12,7 @@
   "type": "module",
   "scripts": {
     "build": "pnpm unbuild",
-    "stub": "pnpm unbuild --stub"
+    "stub": "pnpm unbuild --stub && node ../../../../scripts/sanitize-unbuild-stub.mjs ."
   },
   "files": [
     "dist"

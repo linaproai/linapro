@@ -44,11 +44,27 @@ func (s *serviceImpl) getStaticClusterConfig(ctx context.Context) *ClusterConfig
 
 // GetCluster reads cluster config from configuration file.
 func (s *serviceImpl) GetCluster(ctx context.Context) *ClusterConfig {
-	return cloneClusterConfig(s.getStaticClusterConfig(ctx))
+	cfg := cloneClusterConfig(s.getStaticClusterConfig(ctx))
+	if s != nil && s.clusterOverride != nil {
+		cfg.Enabled = *s.clusterOverride
+	}
+	return cfg
 }
 
 // IsClusterEnabled reports whether multi-node cluster mode is enabled.
 func (s *serviceImpl) IsClusterEnabled(ctx context.Context) bool {
+	if s != nil && s.clusterOverride != nil {
+		return *s.clusterOverride
+	}
 	cfg := s.getStaticClusterConfig(ctx)
 	return cfg != nil && cfg.Enabled
+}
+
+// OverrideClusterEnabledForDialect locks cluster.enabled in memory for dialects
+// that cannot safely back multi-node coordination.
+func (s *serviceImpl) OverrideClusterEnabledForDialect(value bool) {
+	if s == nil {
+		return
+	}
+	s.clusterOverride = &value
 }

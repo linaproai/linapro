@@ -179,7 +179,7 @@ func New(options ...Option) Service {
 		backend = config.provider.NewBackend()
 	}
 	if backend == nil {
-		backend = NewMySQLMemoryProvider().NewBackend()
+		backend = NewSQLTableProvider().NewBackend()
 	}
 	return &serviceImpl{backend: backend}
 }

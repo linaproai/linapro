@@ -1,7 +1,7 @@
 // This file defines distributed KV-cache business error codes and their i18n
 // metadata.
 
-package mysqlmemory
+package sqltable
 
 import (
 	"github.com/gogf/gf/v2/errors/gcode"
@@ -27,6 +27,12 @@ var (
 		"KV_CACHE_INCREMENT_VALUE_NOT_INTEGER",
 		"Cache value is not an integer and cannot be incremented",
 		gcode.CodeInvalidParameter,
+	)
+	// CodeKVCacheIncrementConflict reports that a cache increment remained conflicted after bounded retries.
+	CodeKVCacheIncrementConflict = bizerr.MustDefine(
+		"KV_CACHE_INCREMENT_CONFLICT",
+		"Cache increment is busy; retry the operation later",
+		gcode.CodeInternalError,
 	)
 	// CodeKVCacheExpireSecondsNegative reports that cache expiration seconds cannot be negative.
 	CodeKVCacheExpireSecondsNegative = bizerr.MustDefine(

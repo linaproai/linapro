@@ -5,11 +5,16 @@ package config
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
+	"github.com/gogf/gf/v2/os/glog"
+
+	"lina-core/pkg/dialect"
+	"lina-core/pkg/logger"
 )
 
 // TestGetClusterUsesClusterElectionConfig verifies nested cluster election
@@ -77,6 +82,126 @@ election:
 	if cfg.Election.RenewInterval != 10*time.Second {
 		t.Fatalf("expected default renew interval to remain 10s, got %s", cfg.Election.RenewInterval)
 	}
+}
+
+// TestOverrideClusterEnabledForDialect verifies a dialect can lock cluster
+// mode off in memory regardless of the configured cluster.enabled value.
+func TestOverrideClusterEnabledForDialect(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: true
+  election:
+    lease: 45s
+    renewInterval: 15s
+`)
+
+	svc := New()
+	if !svc.IsClusterEnabled(context.Background()) {
+		t.Fatal("expected config to enable cluster mode before dialect override")
+	}
+
+	svc.OverrideClusterEnabledForDialect(false)
+	if svc.IsClusterEnabled(context.Background()) {
+		t.Fatal("expected dialect override to force cluster mode off")
+	}
+
+	cfg := svc.GetCluster(context.Background())
+	if cfg.Enabled {
+		t.Fatal("expected GetCluster to reflect dialect cluster override")
+	}
+	if cfg.Election.Lease != 45*time.Second {
+		t.Fatalf("expected election lease to be preserved, got %s", cfg.Election.Lease)
+	}
+}
+
+// TestSQLiteDialectOnStartupOverridesConfigService verifies the concrete config
+// service satisfies dialect.RuntimeConfig during startup.
+func TestSQLiteDialectOnStartupOverridesConfigService(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: true
+  election:
+    lease: 45s
+    renewInterval: 15s
+`)
+
+	svc := New()
+	var warnings []string
+	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
+		warnings = append(warnings, in.ValuesContent())
+	})
+	t.Cleanup(func() {
+		logger.Logger().SetHandlers()
+	})
+
+	dbDialect, err := dialect.From("sqlite::@file(./temp/sqlite/linapro.db)")
+	if err != nil {
+		t.Fatalf("resolve SQLite dialect failed: %v", err)
+	}
+	if err = dbDialect.OnStartup(context.Background(), svc); err != nil {
+		t.Fatalf("run SQLite startup hook failed: %v", err)
+	}
+
+	if svc.IsClusterEnabled(context.Background()) {
+		t.Fatal("expected SQLite startup hook to force config service cluster mode off")
+	}
+	if len(warnings) != 4 {
+		t.Fatalf("expected 4 SQLite startup warnings, got %d: %#v", len(warnings), warnings)
+	}
+	for _, needle := range []string{
+		"[WARNING]",
+		"sqlite::@file(./temp/sqlite/linapro.db)",
+		"cluster.enabled",
+		"production",
+		"MySQL",
+	} {
+		if !containsCapturedWarning(warnings, needle) {
+			t.Fatalf("expected SQLite startup warning to contain %q, got %#v", needle, warnings)
+		}
+	}
+}
+
+// TestMySQLDialectOnStartupKeepsConfigServiceClusterEnabled verifies MySQL
+// startup hooks are no-op for cluster mode and SQLite warnings.
+func TestMySQLDialectOnStartupKeepsConfigServiceClusterEnabled(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: true
+`)
+
+	svc := New()
+	var warnings []string
+	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
+		warnings = append(warnings, in.ValuesContent())
+	})
+	t.Cleanup(func() {
+		logger.Logger().SetHandlers()
+	})
+
+	dbDialect, err := dialect.From("mysql:root:12345678@tcp(127.0.0.1:3306)/linapro")
+	if err != nil {
+		t.Fatalf("resolve MySQL dialect failed: %v", err)
+	}
+	if err = dbDialect.OnStartup(context.Background(), svc); err != nil {
+		t.Fatalf("run MySQL startup hook failed: %v", err)
+	}
+
+	if !svc.IsClusterEnabled(context.Background()) {
+		t.Fatal("expected MySQL startup hook to preserve enabled cluster mode")
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("expected no MySQL startup warnings, got %#v", warnings)
+	}
+}
+
+// containsCapturedWarning reports whether one captured warning contains a substring.
+func containsCapturedWarning(warnings []string, needle string) bool {
+	for _, warning := range warnings {
+		if strings.Contains(warning, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 // setTestConfigContent swaps the config adapter content for one test case and

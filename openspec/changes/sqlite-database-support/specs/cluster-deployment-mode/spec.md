@@ -28,7 +28,7 @@
 系统 SHALL 在以 SQLite 方言启动时，向终端日志输出至少 4 行 `[WARNING]` 级别的警告，明确告知用户：当前为 SQLite 模式、数据库链接路径、`cluster.enabled` 已被强制锁定为 `false`、所有功能在单机模式下运行、不得用于生产环境、如需多节点部署应改回 MySQL 链接。该警告必须使用 `WARNING` 或更高级别（不得为 `INFO` 或 `DEBUG`），以保证在终端默认日志输出中醒目可见。
 
 #### Scenario: SQLite 启动时打印警告
-- **当** 宿主以 `sqlite::./temp/sqlite/linapro.db` 链接启动时
+- **当** 宿主以 `sqlite::@file(./temp/sqlite/linapro.db)` 链接启动时
 - **则** 终端日志至少出现 4 行 `[WARNING]` 级别消息
 - **且** 至少一行包含完整的数据库链接字符串
 - **且** 至少一行包含"cluster.enabled 强制覆盖"的明确说明

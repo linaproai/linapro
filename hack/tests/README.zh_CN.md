@@ -42,6 +42,8 @@ hack/tests/
 | `pnpm test:full` | 显式运行完整的分层 `E2E` 套件。 |
 | `pnpm test:smoke` | 运行预定义的高价值 `smoke` 套件。 |
 | `pnpm test:module -- <scope>` | 运行 `execution manifest` 中声明的模块范围。 |
+| `pnpm test:sqlite` | 准备基于配置文件的 SQLite 数据库，重启应用，并运行 SQLite 专用 E2E 用例。 |
+| `pnpm test:sqlite:e2e-smoke` | 只运行 SQLite 浏览器启动/登录 E2E 用例。 |
 | `pnpm test:validate` | 校验 `TC` 唯一性、目录归属与 manifest 引用。 |
 | `pnpm report` | 打开 Playwright `HTML` 报告。 |
 
@@ -52,6 +54,14 @@ hack/tests/
 - `monitor:operlog`
 - `scheduler:job`
 - `extension:plugin`
+- `dialect`
+
+`pnpm test:sqlite` 是完整 SQLite 专用通道。脚本会先备份
+`apps/lina-core/manifest/config/config.yaml`，再把
+`database.default.link=sqlite::@file(./temp/sqlite/linapro.db)` 写入该配置文件，
+随后执行 `make init confirm=init rebuild=true`、`make mock confirm=mock`、
+启动 `make dev`，运行 `TC0164` 到 `TC0166`，最后恢复原配置。后端运行时仍然只从配置文件解析当前数据库方言。
+`pnpm test:sqlite:e2e-smoke` 使用相同准备流程，但只运行 `TC0164`。主 CI 不再为 SQLite 安装前端依赖或 Playwright，而是调用 `hack/tests/scripts/run-sqlite-smoke.sh`，只启动后端并检查 SQLite 启动警告、health 单节点状态和管理员登录接口。
 
 ## 执行模型
 

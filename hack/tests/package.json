@@ -6,6 +6,8 @@
     "test": "node ./scripts/run-suite.mjs full",
     "test:smoke": "node ./scripts/run-suite.mjs smoke",
     "test:module": "node ./scripts/run-suite.mjs module",
+    "test:sqlite": "node ./scripts/run-sqlite-suite.mjs",
+    "test:sqlite:e2e-smoke": "node ./scripts/run-sqlite-suite.mjs smoke",
     "test:full": "node ./scripts/run-suite.mjs full",
     "test:validate": "node ./scripts/validate-e2e.mjs",
     "test:headed": "playwright test --headed",

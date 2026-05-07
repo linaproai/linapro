@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/dialect"
 )
 
 // SQLAsset describes one install/uninstall SQL step after host extraction.
@@ -65,7 +66,7 @@ func (s *serviceImpl) ExecuteManifestSQLFiles(
 		}
 		migrationKey := buildMigrationKey(direction, index+1)
 		executedAt := gtime.Now()
-		_, execErr := g.DB().Exec(ctx, asset.Content)
+		execErr := s.executeSQLAsset(ctx, manifest.ID, direction, asset)
 		if recordErr := s.recordMigration(ctx, manifest.ID, release.Id, direction, migrationKey, index+1, checksum, executedAt, execErr); recordErr != nil {
 			return recordErr
 		}
@@ -237,7 +238,7 @@ func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
 		checksum := fmt.Sprintf("%x", sha256.Sum256([]byte(asset.Content)))
 		migrationKey := buildMigrationKey(catalog.MigrationDirectionMock, index+1)
 		executedAt := gtime.Now()
-		if _, execErr := g.DB().Exec(ctx, asset.Content); execErr != nil {
+		if execErr := s.executeSQLAsset(ctx, manifest.ID, catalog.MigrationDirectionMock, asset); execErr != nil {
 			return MockSQLExecutionResult{
 				ExecutedFiles: executed,
 				FailedFile:    asset.Key,
@@ -264,6 +265,55 @@ func (s *serviceImpl) ExecuteManifestMockSQLFilesInTx(
 		executed = append(executed, asset.Key)
 	}
 	return MockSQLExecutionResult{ExecutedFiles: executed}
+}
+
+// executeSQLAsset translates and executes one plugin SQL asset statement by
+// statement so SQLite does not depend on driver-level multi-statement support.
+func (s *serviceImpl) executeSQLAsset(
+	ctx context.Context,
+	pluginID string,
+	direction catalog.MigrationDirection,
+	asset *SQLAsset,
+) error {
+	if asset == nil {
+		return gerror.New("plugin SQL asset cannot be nil")
+	}
+	dbDialect, err := currentDialect(ctx)
+	if err != nil {
+		return err
+	}
+	sourceName := pluginSQLSourceName(pluginID, direction, asset.Key)
+	content, err := dbDialect.TranslateDDL(ctx, sourceName, asset.Content)
+	if err != nil {
+		return gerror.Wrapf(err, "translate plugin SQL failed: %s", sourceName)
+	}
+	for index, statement := range dialect.SplitSQLStatements(content) {
+		if _, err = g.DB().Exec(ctx, statement); err != nil {
+			return gerror.Wrapf(err, "execute plugin SQL statement %d failed: %s", index+1, sourceName)
+		}
+	}
+	return nil
+}
+
+// currentDialect resolves the active database dialect from database.default.link.
+func currentDialect(ctx context.Context) (dialect.Dialect, error) {
+	linkVar, err := g.Cfg().Get(ctx, "database.default.link")
+	if err != nil {
+		return nil, gerror.Wrap(err, "read database connection configuration failed")
+	}
+	if linkVar == nil {
+		return nil, gerror.New("database connection configuration database.default.link must not be empty")
+	}
+	link := strings.TrimSpace(linkVar.String())
+	if link == "" {
+		return nil, gerror.New("database connection configuration database.default.link must not be empty")
+	}
+	return dialect.From(link)
+}
+
+// pluginSQLSourceName builds the diagnostic source name passed to the dialect.
+func pluginSQLSourceName(pluginID string, direction catalog.MigrationDirection, key string) string {
+	return fmt.Sprintf("plugin=%s phase=%s file=%s", pluginID, direction.String(), key)
 }
 
 // ResolvePluginSQLAssets resolves SQL assets from the manifest and returns them as catalog.ArtifactSQLAsset

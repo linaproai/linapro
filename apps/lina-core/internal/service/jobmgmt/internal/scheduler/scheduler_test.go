@@ -611,10 +611,8 @@ func TestRunCronJobHandlerTimeoutMarksLogTimeout(t *testing.T) {
 			<-ctx.Done()
 			return nil, ctx.Err()
 		})
-		svc serviceImpl
+		svc = New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl)
 	)
-
-	svc = *(New(fakeClusterService{primary: true}, registry, nil).(*serviceImpl))
 
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
 		GroupId:        testDefaultGroupID(t, ctx),

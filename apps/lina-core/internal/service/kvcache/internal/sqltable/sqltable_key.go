@@ -1,7 +1,7 @@
 // This file implements scoped cache-key encoding and decoding helpers used by
 // kvcache backends.
 
-package mysqlmemory
+package sqltable
 
 import (
 	"encoding/base64"
@@ -22,7 +22,7 @@ type cacheIdentity struct {
 	cacheKey  string
 }
 
-// BuildCacheKey encodes one owner-scoped logical cache key for MySQL MEMORY
+// BuildCacheKey encodes one owner-scoped logical cache key for SQL table
 // backend tests and internal fixtures.
 func BuildCacheKey(ownerKey string, namespace string, cacheKey string) string {
 	parts := []string{ownerKey, namespace, cacheKey}

@@ -18,6 +18,7 @@ import (
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	"lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 )
 
@@ -68,6 +69,18 @@ func configureHTTPServer(
 // newHTTPRuntime constructs the shared services used by the HTTP server and
 // keeps their startup dependencies in one place.
 func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime, error) {
+	link, err := currentDatabaseLink(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dbDialect, err := dialect.From(link)
+	if err != nil {
+		return nil, err
+	}
+	if err = dbDialect.OnStartup(ctx, configSvc); err != nil {
+		return nil, err
+	}
+
 	var (
 		clusterSvc    = cluster.New(configSvc.GetCluster(ctx))
 		pluginSvc     = pluginsvc.New(clusterSvc)

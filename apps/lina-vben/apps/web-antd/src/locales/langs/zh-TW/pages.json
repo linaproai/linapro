@@ -32,7 +32,8 @@
     "exportSuccess": "導出成功",
     "exportFailed": "導出失敗",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "discardChangesConfirm": "當前表單有未保存的修改，確認放棄並關閉嗎？"
   },
   "fields": {
     "username": "用戶名",

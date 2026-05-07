@@ -3,12 +3,12 @@
 `LinaPro` 的数据库设计当前完全围绕 `MySQL` 展开，体现在以下事实层面：
 
 - **链接配置**：`database.default.link` 默认值为 `mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true`，且 `cmd_init_database.go` 中的 `databaseNameFromMySQLLink` / `serverLinkFromMySQLLink` / `quoteMySQLIdentifier` 三个工具函数硬编码假设链接是 MySQL 协议
-- **DDL 方言**：14 个宿主 SQL 文件 + 7 个插件 SQL 文件 + 7 个 mock SQL 文件统一使用 MySQL 方言，包含 `ENGINE=InnoDB` / `ENGINE=MEMORY` / `AUTO_INCREMENT` / `BIGINT UNSIGNED` / `TINYINT` / `LONGTEXT` / 反引号标识符 / 列级与表级 `COMMENT '...'` / `DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci` / `INSERT IGNORE` / `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` / 表内联 `KEY` 与 `INDEX` / `CREATE DATABASE IF NOT EXISTS` 等 SQLite 不支持或语法不同的特性
-- **MEMORY 引擎专用语义**：`sys_locker`（010）、`sys_kv_cache`（013，动态插件宿主服务扩展）、`sys_online_session`（006）三张表使用 MySQL `MEMORY` 引擎，借其"重启即清"的语义简化分布式锁、易失性 KV 缓存与在线会话的清理逻辑
+- **DDL / DML 方言**：当前宿主与插件的安装、mock、卸载 SQL 资产统一使用 MySQL 方言，包含 `ENGINE=InnoDB` / `ENGINE=MEMORY` / `AUTO_INCREMENT` / `BIGINT UNSIGNED` / `TINYINT` / `LONGTEXT` / 反引号标识符 / 列级与表级 `COMMENT '...'` / `DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci` / `INSERT IGNORE` / `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` / 表内联 `KEY` 与 `INDEX` / `CREATE DATABASE IF NOT EXISTS` / `CONCAT(...)` 等 SQLite 不支持或语法不同的特性
+- **MEMORY 引擎专用语义**：`sys_locker`（010）、`sys_online_session`（006）与 `sys_kv_cache`（013）使用 MySQL `MEMORY` 引擎，借其"重启即清"的语义简化分布式锁、在线会话与易失性 KV 缓存的清理逻辑；本变更不得为了 SQLite 修改原有 MySQL 交付 SQL 的表结构或引擎类型
 - **应用层 MySQL 专用代码**：`apps/lina-core/internal/service/kvcache/internal/mysql-memory/mysql_memory_ops.go` 第 257、272 行使用 `gdb.Raw("LAST_INSERT_ID(value_int + " + delta + ")")` 与 `Raw("SELECT LAST_INSERT_ID()")` 实现"原子自增并取回新值"，这是 MySQL 的会话级 Last-Insert-ID 技巧，SQLite 无此机制
 - **集群协调依赖**：`sys_locker` / `sys_kv_cache` 既是业务存储又是多节点共享协调的载体，依赖 MySQL 跨连接共享可见性
 
-GoFrame 已通过 `github.com/gogf/gf/contrib/drivers/sqlite/v2` 原生支持 SQLite，链接格式为 `sqlite::path/to/file.db`；DAO/DO/Entity 层的 `do.Xxx` 模式与 GoFrame 内置的查询构建器对绝大多数业务 SQL 自动方言化，加上项目已有规则禁止 `FIND_IN_SET` / `GROUP_CONCAT` / `IF()` / `ON DUPLICATE KEY UPDATE` 等数据库专用函数，DAO 层的运行时查询基本可移植。需要额外处理的只有 DDL 方言、初始化流程、MEMORY 引擎专用语义、kvcache 的 MySQL 专用 SQL 这四类。
+GoFrame 已通过 `github.com/gogf/gf/contrib/drivers/sqlite/v2` 原生支持 SQLite，文件链接格式为 `sqlite::@file(path/to/file.db)`；DAO/DO/Entity 层的 `do.Xxx` 模式与 GoFrame 内置的查询构建器对绝大多数业务 SQL 自动方言化，加上项目已有规则禁止 `FIND_IN_SET` / `GROUP_CONCAT` / `IF()` / `ON DUPLICATE KEY UPDATE` 等数据库专用函数，DAO 层的运行时查询基本可移植。需要额外处理的只有 DDL 方言、初始化流程、MEMORY 引擎专用语义、kvcache 的 MySQL 专用 SQL 这四类。
 
 用户对本次迭代的约束已澄清：
 
@@ -16,15 +16,22 @@ GoFrame 已通过 `github.com/gogf/gf/contrib/drivers/sqlite/v2` 原生支持 SQ
 2. 不需要 SQLite ↔ MySQL 数据迁移，SQLite 数据可丢失
 3. 业务模块必须对数据库引擎差异零感知，所有适配收敛在数据访问层
 4. SQLite 模式必须强制 `cluster.enabled=false` 并在终端日志中输出醒目提示
+5. `TranslateDDL` 接口必须接收 `sourceName`，用于在转译错误中输出源文件或嵌入资产定位
+6. `make mock` 必须依赖已初始化数据库，不负责创建、重建或准备数据库
+7. SQLite DDL 转译覆盖范围必须与当前 SQL 文件真实写法完全对齐，不允许只覆盖示例写法
+8. 数据库方言切换的唯一运行时来源是配置文件 `database.default.link`，不引入命令行参数或环境变量
+9. `apps/lina-core/pkg/dialect/` 明确为公共稳定包，对宿主、插件与工具链提供稳定方言能力边界
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- 用户在 `config.yaml` 中将 `database.default.link` 改为 `sqlite::./temp/sqlite/linapro.db` 即可零依赖运行整个框架，无需启动 MySQL
+- 用户在 `config.yaml` 中将 `database.default.link` 改为 `sqlite::@file(./temp/sqlite/linapro.db)` 即可零依赖运行整个框架，无需启动 MySQL
 - 业务模块（`controller` / `service` / `model` / `dao`）零代码改动，对底层数据库引擎差异完全无感知
+- `pkg/dialect` 作为公共稳定包暴露窄接口，不在公开签名中绑定宿主 `internal` 具体服务类型
 - 单一 MySQL 方言 SQL 文件来源（保持"同迭代单文件"原则），不引入并存的 `xxx.mysql.sql` / `xxx.sqlite.sql`
 - 插件 SQL 资源在 SQLite 模式下也可正确执行，插件源码无需任何改动
+- SQLite DDL 转译器必须覆盖当前宿主、插件与 mock SQL 文件中所有真实语法形态，包括主键顺序差异、表级主键、`UNIQUE INDEX`、表达式索引与 mock DML 中的 `CONCAT(...)`
 - SQLite 模式启动时强制锁定单节点模式，并在终端打印明确的警告日志，避免误用
 - 默认 SQLite 数据库文件路径 `./temp/sqlite/linapro.db` 可通过修改 `link` 配置自定义；启动时若父目录不存在则自动创建
 - 现有 MySQL 用户的默认配置与运行时行为完全向后兼容
@@ -36,13 +43,15 @@ GoFrame 已通过 `github.com/gogf/gf/contrib/drivers/sqlite/v2` 原生支持 SQ
 - 不实现 SQLite 模式下的"启动期生产环境检测安全网"（用户明确将其推迟到后续迭代）
 - 不修改业务模块代码、不引入数据库引擎相关的业务分支判断
 - 不优化 SQLite 模式下的性能（演示 / 测试场景的并发要求极低）
-- 不为 SQLite 模式重新设计或裁剪现有 MEMORY 表（在 SQLite 下退化为普通表即可，不影响正确性）
+- 不为 SQLite 模式重新设计或裁剪现有 MEMORY 表（`sys_locker` 与 `sys_online_session` 在 SQLite 下退化为普通表即可，不影响正确性）
+- 不让 `make mock` 替代 `make init`，mock 数据加载必须运行在已存在且已初始化的目标库之上
+- 不通过命令行参数、Make 参数或环境变量选择运行时数据库方言；测试环境如需 SQLite，只能在启动前生成或修改测试用配置文件中的 `database.default.link`
 
 ## Decisions
 
 ### 决策一：单点收敛适配，定义 `pkg/dialect` 抽象层
 
-**选择**：新增 `apps/lina-core/pkg/dialect/` 包，定义统一的 `Dialect` 接口作为数据库引擎差异收敛的唯一边界。所有方言相关逻辑（DDL 转译、数据库准备、集群能力查询、启动期钩子）都通过该接口暴露给上层调用方。
+**选择**：新增 `apps/lina-core/pkg/dialect/` 公共稳定包，定义统一的 `Dialect` 接口作为数据库引擎差异收敛的唯一边界。所有方言相关逻辑（DDL 转译、数据库准备、集群能力查询、启动期钩子）都通过该接口暴露给上层调用方。该包面向宿主、插件生命周期、初始化命令与工具链复用，公开签名必须保持窄接口，不直接引用宿主 `internal` 具体服务类型；MySQL / SQLite 具体实现收敛在 `pkg/dialect/internal/mysql` 与 `pkg/dialect/internal/sqlite`，公共包只保留工厂函数、`Dialect` 接口与必要公共门面能力。
 
 ```go
 // Dialect 抽象数据库引擎相关的所有差异点。
@@ -51,8 +60,9 @@ type Dialect interface {
     Name() string
 
     // TranslateDDL 将单一 MySQL 方言来源的 DDL 内容转译为目标方言可执行的语句。
+    // sourceName 是文件路径、嵌入资产路径或调用方提供的诊断名，用于错误定位。
     // MySQL 实现为 no-op；SQLite 实现执行 token 替换 + 结构提取。
-    TranslateDDL(ctx context.Context, ddl string) (string, error)
+    TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error)
 
     // PrepareDatabase 在执行 DDL 资源前准备数据库（创建库 / 文件、可选 rebuild）。
     // MySQL 实现执行 DROP/CREATE DATABASE；SQLite 实现 mkdir 父目录、可选删除文件。
@@ -64,11 +74,16 @@ type Dialect interface {
 
     // OnStartup 在启动 bootstrap 阶段调用，用于方言相关的运行时初始化
     // （如 SQLite 模式锁定 cluster.enabled 并输出警告日志）。
-    OnStartup(ctx context.Context, configSvc config.Service) error
+    OnStartup(ctx context.Context, runtime RuntimeConfig) error
+}
+
+// RuntimeConfig 是方言启动期只需要的稳定窄接口，由宿主 config.Service 适配实现。
+type RuntimeConfig interface {
+    OverrideClusterEnabledForDialect(value bool)
 }
 
 // From 根据 link 的协议头返回对应方言实现。
-// 链接 "mysql:..." → MySQLDialect；"sqlite::..." → SQLiteDialect。
+// 调用方只能依赖 Dialect 接口，不能依赖具体实现类型。
 func From(link string) (Dialect, error)
 ```
 
@@ -76,6 +91,7 @@ func From(link string) (Dialect, error)
 
 - 业务模块零感知：所有方言差异不在业务路径上出现，约束 #3 落地的物理保证
 - 单一扩展点：未来支持 PostgreSQL 仅需增加一个 `Dialect` 实现，无需修改任何调用方
+- 公共包边界稳定：`pkg/dialect` 不暴露 `internal/service/config` 等宿主私有类型，也不导出 `MySQLDialect` / `SQLiteDialect` 具体类型，避免插件或工具链依赖宿主内部实现
 - 测试隔离：方言层可被独立单元测试覆盖（DDL 转译、链接解析），不依赖真实数据库
 - 启动期钩子集中：`OnStartup` 让"SQLite 锁 cluster + 警告"等启动期行为有明确归宿，不散落在各处
 
@@ -92,35 +108,38 @@ func From(link string) (Dialect, error)
 - 词法层：纯 token 级正则替换（反引号去除、`AUTO_INCREMENT` / `UNSIGNED` / `LONGTEXT` 等关键词替换、`INSERT IGNORE` 改写）
 - 结构层：识别 CREATE TABLE 的列定义块，抽取内联的 `KEY` / `INDEX` / `UNIQUE KEY` 行作为独立的 `CREATE INDEX` 语句拼接到表创建语句之后
 - 行扫描层：识别并整体删除 `CREATE DATABASE ... ;` 与 `USE ... ;` 语句
+- 覆盖层：以当前仓库真实宿主安装 SQL、插件安装 SQL、宿主 mock SQL、插件 mock SQL 与插件卸载 SQL 为强制 fixture，覆盖真实出现的 `INT/BIGINT [UNSIGNED] PRIMARY KEY AUTO_INCREMENT`、`AUTO_INCREMENT PRIMARY KEY`、`NOT NULL AUTO_INCREMENT` + 表级 `PRIMARY KEY(id)`、`UNIQUE INDEX`、表达式索引（如 `NULLIF(code, '')`）、`CONCAT(...)` 等写法；如果实现无法无损转译某个真实写法，应修改转译器而不是要求 SQL 作者临时避开该写法
 
 **理由**：
 
-- 当前所有 MySQL 方言 DDL 是受控来源（项目自己写的），不会出现 fancy 语法（如 generated columns / partitioning / spatial index 等），简单的行扫描即可覆盖 100% 用例
-- 单元测试以 14+7+7=28 个真实 SQL 文件作为 fixture，**端到端断言转译结果可在 SQLite 上成功执行**，避免转译器实现细节漂移
+- 当前所有 MySQL 方言 DDL 是受控来源（项目自己写的），不会出现 generated columns / partitioning / spatial index 等明确禁止的语法；但现有文件中已经存在多种主键和索引排列，因此转译器必须以真实文件 fixture 为准覆盖完整项目子集
+- 单元测试按 glob 自动扫描当前真实 SQL 资产作为 fixture，**端到端断言安装、mock、卸载转译结果可在 SQLite 上成功执行**，避免转译器实现细节漂移
 - 实现规模约 200~300 LOC + 测试，避免引入完整 SQL 解析器依赖
 
 **替代方案与拒绝理由**：
 
 - *方案 A：引入 `vitess/sqlparser` 等完整解析器*。被拒绝：依赖太重，且我们的 DDL 子集极小，性价比低
-- *方案 B：手写 schema-as-code DSL，按方言生成 DDL*。被拒绝：要求重写所有 28 个 SQL 文件，违反"演示用途、最小成本"的迭代定位
+- *方案 B：手写 schema-as-code DSL，按方言生成 DDL*。被拒绝：要求重写所有交付 SQL 文件，违反"演示用途、最小成本"的迭代定位
 
-### 决策三：MEMORY 表在 SQLite 下退化为普通表，不做特殊适配
+### 决策三：MySQL MEMORY 表保持原样，仅在 SQLite 转译结果中退化为普通表
 
-**选择**：`sys_locker` / `sys_kv_cache` / `sys_online_session` 三张原 MEMORY 表在 SQLite 模式下由 DDL 转译器去除 `ENGINE=MEMORY` 子句，变为普通持久化表。**业务逻辑零变更**。
+**选择**：原有 MySQL 交付 SQL 保持单一来源，不为 SQLite 改写表结构、索引或引擎类型。`sys_locker` / `sys_online_session` / `sys_kv_cache` 在 MySQL SQL 资产中继续使用既有 `ENGINE=MEMORY`；SQLite 模式下仅由 DDL 转译器在执行前去除 `ENGINE=MEMORY` 子句，转译结果变为普通 SQLite 表。
 
 **理由**：
 
-- 三张表的正确性**根本不依赖** "重启即清"语义：
+- 三张 MEMORY 表的正确性**根本不依赖** "重启即清"语义：
   - `sys_locker` 已有 `expire_time` 字段，应用层 TTL 检查兜底；重启后陈旧锁会在首次 TTL 检查时被清理
-  - `sys_kv_cache` 已有 `expire_at` 字段 + 应用层 TTL，且业务规则明确"缓存是有损的，不得作为权威数据源"
   - `sys_online_session` 已有 `last_active_time` + 现有 cron 定时任务清理，重启后短暂残留几秒陈旧会话不影响功能
+- `sys_kv_cache` 仍是有损缓存，正确性依赖唯一键约束、应用层 TTL、后台清理与 `incr` 的 CAS 重试，而不是依赖表引擎提供持久可靠状态；缓存不得作为权威数据源
 - "重启即清"语义在 MEMORY 引擎中是性能优化（无需扫描过期条目），在 SQLite 演示场景中性能不重要
 - 不需要业务层做"SQLite 模式启动时清空表"等适配，约束 #3 落地
+- 不修改 MySQL SQL 资产可以保证 SQLite 支持始终是执行期方言适配，而不是把原始交付 SQL 退化成 SQLite 兼容子集
 
 **替代方案与拒绝理由**：
 
 - *方案 A：SQLite 模式下用进程内 `sync.Map` / `lru.Cache` 实现 locker / kvcache / online_session*。被拒绝：违反约束 #3，业务模块需要感知后端差异；且需要新增三个 backend 实现与启动期切换逻辑
 - *方案 B：SQLite 模式启动时清空这三张表以模拟"重启即清"*。被拒绝：用户已明确"业务模块不受数据库引擎差异影响"；且模拟成本高于让业务依赖 TTL 兜底（事实上业务已经依赖 TTL）
+- *方案 C：把 `013` 中的 `sys_kv_cache` 改成 InnoDB 或普通表*。被拒绝：违反"不修改原有 MySQL 表结构或引擎类型"的边界；原子递增应通过方言中性 CAS 实现，而不是通过改变 MySQL 交付 SQL 获取事务行锁
 
 ### 决策四：`kvcache` 后端重命名为 `sqltable` 并改写为方言中性 SQL
 
@@ -128,31 +147,40 @@ func From(link string) (Dialect, error)
 
 - 包路径 `apps/lina-core/internal/service/kvcache/internal/mysql-memory/` → `apps/lina-core/internal/service/kvcache/internal/sqltable/`
 - 常量 `BackendMySQLMemory` → `BackendSQLTable`，字符串值 `"mysql-memory"` → `"sql-table"`
-- `Incr` 操作的实现：`gdb.Raw("LAST_INSERT_ID(value_int + N)")` + `Raw("SELECT LAST_INSERT_ID()")` 改为事务内 `UPDATE sys_kv_cache SET value_int = value_int + ? WHERE owner_type=? AND cache_key=?` + `SELECT value_int FROM sys_kv_cache WHERE owner_type=? AND cache_key=?`
+- `Incr` 操作的实现：`gdb.Raw("LAST_INSERT_ID(value_int + N)")` + `Raw("SELECT LAST_INSERT_ID()")` 改为方言中性的 CAS + 有限重试流程：
+  1. 读取当前行的 `value_kind`、`value_int`、`expire_at` 快照
+  2. 若行不存在，用 `INSERT IGNORE value_int=0` 幂等初始化缺失整数行后重新读取快照
+  3. 若现有行不是整数，返回结构化错误且不修改原值
+  4. 计算 `next=value_int+delta`，执行 `UPDATE ... SET value_int=next ... WHERE value_kind=int AND value_int=<snapshot>`
+  5. 若 `affected=0`，说明并发写入已改变快照，按有限退避重试；对 MySQL 死锁 / 锁等待超时与 SQLite busy/locked 等数据库建议重试的锁冲突也执行同一套有限退避重试
 
 **理由**：
 
 - 包名 `mysql-memory` 已经误导：在 SQLite 下它依然工作但名字暴露 MySQL 实现细节，违背抽象层意图
 - 改写后的实现**单一 backend 同时跑 MySQL 与 SQLite**，不需要为 SQLite 单独新增 backend 实现，符合约束 #3
 - 项目编码规范明确禁用 `FIND_IN_SET` 等 MySQL 专用函数，`LAST_INSERT_ID(v + δ)` 实质上是同类问题，理应一并消除
+- CAS 方案不依赖事务行锁或 InnoDB 引擎：MySQL MEMORY 的单条 `UPDATE` 在表锁下原子执行，SQLite 写入会串行化；`WHERE value_int=<snapshot>` 能检测竞争写入，成功调用均返回唯一递增值
+- 缺失键初始化通过 `INSERT IGNORE value_int=0` 与后续 CAS 更新保持和现有语义一致，首次 `incr(delta)` 返回 `delta`
+- 该方案保留 `013` 原始 MySQL `ENGINE=MEMORY` 资产，同时避免引入 `RETURNING`、`LAST_INSERT_ID` 等数据库专用原子技巧
 
 **替代方案与拒绝理由**：
 
 - *方案 A：保留 `mysql-memory` 名字，新增并列的 `sqlite` backend*。被拒绝：两个 backend 实现绝大部分代码重复；启动期分发逻辑徒增复杂度
-- *方案 B：使用 `RETURNING` 子句*。被拒绝：MySQL 8.0.21+ 才支持 `RETURNING`，向下兼容性不如事务内 UPDATE+SELECT
+- *方案 B：使用 `RETURNING` 子句*。被拒绝：引入数据库版本差异与专用语法，不如 CAS 方案稳定覆盖 MySQL 与 SQLite
+- *方案 C：将 `sys_kv_cache` 改为 InnoDB 后使用事务锁*。被拒绝：会修改既有 MySQL 交付 SQL 的表引擎；SQLite 支持应通过方言转译和方言中性写法完成
 
 ### 决策五：SQLite 模式下集群锁定通过 `OnStartup` 钩子在启动 bootstrap 中实现
 
 **选择**：
 
-- `SQLiteDialect.OnStartup(ctx, configSvc)` 在启动期被调用一次
+- SQLite 方言实例的 `OnStartup(ctx, runtime)` 在启动期被调用一次
 - 实现：调用 `configSvc.OverrideClusterEnabledForDialect(false)`（新增内存层覆盖方法），并 `logger.Warningf(ctx, ...)` 输出明确的警告日志
 - `IsClusterEnabled` 在被覆盖后稳定返回 `false`，不需要在每个调用点感知方言
 
 **警告日志示例**：
 
 ```
-[WARNING] 当前为 SQLite 模式（database.default.link = sqlite::./temp/sqlite/linapro.db）
+[WARNING] 当前为 SQLite 模式（database.default.link = sqlite::@file(./temp/sqlite/linapro.db)）
 [WARNING] SQLite 模式仅支持单节点部署，cluster.enabled 已被强制覆盖为 false
 [WARNING] 所有功能在单机模式下运行；切勿将 SQLite 模式用于生产环境
 [WARNING] 如需多节点集群部署，请将 database.default.link 改回 MySQL 链接并重启
@@ -168,10 +196,10 @@ func From(link string) (Dialect, error)
 
 **选择**：
 
-- 默认值（在 `config.template.yaml` 注释中给出示例）：`sqlite::./temp/sqlite/linapro.db`
-- 用户可通过修改 `link` 字段自由更改路径，例如 `sqlite::/var/lib/myapp/db.sqlite`
-- `SQLiteDialect.PrepareDatabase` 在执行前自动 `mkdir -p` 父目录；目录创建失败时返回明确错误（含路径与权限提示）
-- `.gitignore` 增加 `temp/sqlite/*.db*` 条目，避免数据库文件被误提交
+- 默认值（在 `config.template.yaml` 注释中给出示例）：`sqlite::@file(./temp/sqlite/linapro.db)`
+- 用户可通过修改 `link` 字段自由更改路径，例如 `sqlite::@file(/var/lib/myapp/db.sqlite)`
+- SQLite 方言实例的 `PrepareDatabase` 在执行前自动 `mkdir -p` 父目录；目录创建失败时返回明确错误（含路径与权限提示）
+- 默认路径落在仓库根已有 `.gitignore` 的 `temp/` 忽略规则内，无需新增专用 SQLite 忽略条目
 
 **理由**：
 
@@ -183,9 +211,10 @@ func From(link string) (Dialect, error)
 
 **选择**：
 
-- `make init` / `make mock` / `make dev` 等命令保持现状，不增加 `dialect=sqlite` / `--dialect=...` 参数
-- 唯一切换方式是修改 `config.yaml` 的 `database.default.link`
+- `make init` / `make mock` / `make dev` 等命令保持现状，不增加 `dialect=sqlite` / `--dialect=...` 参数，也不读取 `LINAPRO_*` 环境变量作为运行时方言选择来源
+- 唯一切换方式是修改配置文件中的 `database.default.link`
 - `cmd init` / `cmd mock` 内部读取 `link` 后调用 `dialect.From(link)` 自动分发
+- E2E 如需 SQLite 模式，测试夹具必须在启动服务前写入测试配置文件中的 `database.default.link`；不得通过环境变量或命令行参数作为数据库方言选择来源，即使在测试通道中也应保持配置文件为唯一运行时来源；主 CI 中的轻量 SQLite smoke 同样通过写入配置文件切换方言
 
 **理由**：
 
@@ -197,12 +226,12 @@ func From(link string) (Dialect, error)
 
 | 风险 | 缓解措施 |
 |---|---|
-| **DDL 转译器漏覆盖某个 MySQL 语法** → 转译结果在 SQLite 上执行失败 | 单元测试以现有 28 个 SQL 文件为 fixture，端到端断言转译结果可执行；新增 SQL 文件时强制走相同测试路径 |
+| **DDL / DML 转译器漏覆盖某个 MySQL 语法** → 转译结果在 SQLite 上执行失败 | 单元测试以当前真实 SQL 资产为 fixture，端到端断言安装、mock、卸载转译结果可执行；新增 SQL 文件时强制走相同测试路径 |
 | **新增插件 SQL 引入未覆盖的 MySQL 语法**（变更归档后才发现） | 插件 install pipeline 在转译失败时返回明确错误，定位到具体 SQL 文件与行号；同时在 spec `plugin-manifest-lifecycle` 中明确"插件 SQL 必须能被默认方言转译器处理"的约束 |
-| **SQLite 模式下无 MEMORY 表的"重启即清"语义** → 重启后短暂出现陈旧锁 / 在线会话 / 缓存条目 | 三种数据均已有 TTL / 定时任务清理，应用层在首次 TTL 检查时自动清理；演示场景对短暂残留无敏感度 |
-| **`Incr` 由 `LAST_INSERT_ID(v+δ)` 改为 UPDATE+SELECT** → 高并发下事务内两次往返略慢于原方案 | 仅 `kvcache` 一处使用；演示 / 单实例场景并发要求极低；MySQL 生产场景的两次 SQL 在事务内仍是单连接内顺序执行，性能差距可忽略 |
+| **SQLite 模式下无 MEMORY 表的"重启即清"语义** → 重启后短暂出现陈旧锁 / 在线会话 | 两类数据均已有 TTL / 定时任务清理，应用层在首次 TTL 检查时自动清理；演示场景对短暂残留无敏感度 |
+| **`Incr` 由 `LAST_INSERT_ID(v+δ)` 改为 CAS + 锁冲突重试** → 高并发下竞争调用可能因快照变化重试 | 仅 `kvcache` 一处使用；MySQL MEMORY 与 SQLite 均能通过单条条件 `UPDATE` 检测竞争写入，成功调用仍线性递增；超过有限重试上限时向调用方返回明确错误 |
 | **用户误将 SQLite 模式用于多实例部署** | 启动期 `WARNING` 日志 + cluster 强制锁定 + 文档明确警示三重防御 |
-| **`temp/sqlite/` 目录被 CI 误清理导致测试失败** | `.gitignore` 仅忽略文件不忽略目录；CI 流程在 `make init` 之前不需要保留 db 文件，初始化会自动重建 |
+| **`temp/sqlite/` 目录被 CI 误清理导致测试失败** | `temp/` 是临时产物目录且已被忽略；CI smoke 在 `make init` 之前不需要保留 db 文件，初始化会自动重建 |
 | **现有插件 mock SQL 包含 `INSERT INTO ... ON DUPLICATE KEY UPDATE`** | 项目规则已禁止该语法，本次仅做兜底排查；若发现违规交付应当作 bug 在本变更中一并修复 |
 
 ## Migration Plan
@@ -215,13 +244,13 @@ func From(link string) (Dialect, error)
 
 对希望切换到 SQLite 的用户，迁移路径为：
 
-1. 将 `database.default.link` 改为 `sqlite::./temp/sqlite/linapro.db`
+1. 将 `database.default.link` 改为 `sqlite::@file(./temp/sqlite/linapro.db)`
 2. 执行 `make init` → 自动创建 `temp/sqlite/` 目录与数据库文件，加载所有 DDL
-3. （可选）执行 `make mock` 加载演示数据
+3. （可选）执行 `make mock` 加载演示数据；该命令要求数据库已由 `make init` 初始化，不会自行创建或重建数据库
 4. 启动 `make dev`，注意终端会输出 `WARNING` 提示
 
 如需切回 MySQL：恢复原 `link` 值即可。两种模式数据完全独立，互不影响。
 
 ## Open Questions
 
-无。前置探索阶段已澄清所有关键决策（SQLite 用户画像、不需要数据迁移、业务模块零适配、cluster 锁定 + 警告、文件路径、包重命名、仅走配置文件、不做安全网）。
+无。前置探索阶段与本次反馈已澄清所有关键决策（SQLite 用户画像、不需要数据迁移、业务模块零适配、cluster 锁定 + 警告、文件路径、包重命名、`TranslateDDL` 传入 `sourceName`、`make mock` 依赖 `make init`、DDL 转译覆盖当前真实 SQL 写法、`kvcache incr` 方言中性原子流程、仅走配置文件、不做安全网、`pkg/dialect` 是公共稳定包）。
