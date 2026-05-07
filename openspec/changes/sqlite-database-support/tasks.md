@@ -123,3 +123,5 @@
 - [x] **FB-18**: `make build` 与 `make image` 需要支持跨平台构建；`make image platforms=linux/amd64,linux/arm64 registry=<registry> push=1` 必须构建并推送多架构 `Docker` 镜像
 - [x] **FB-19**: 普通用户仅授权组织管理和内容管理目录权限后，访问对应插件页面不应因为页面复用字典选项接口缺少 `system:dict:query` 而报无权限
 - [x] **FB-20**: `hack/config.yaml` 的 `build.os` / `build.arch` / `build.platform` 应收敛为 `build.platforms` 数组；数组项支持 `<goos>/<goarch>` 与 `auto`，命令行覆盖使用 `platforms=linux/amd64,linux/arm64`
+- [x] **FB-21**: 新增 GitHub Actions nightly build workflow，每天凌晨自动构建并发布 `linux/amd64` 与 `linux/arm64` 多架构 Docker 镜像到 `ghcr.io`
+- [x] **FB-22**: `make build` 与 `make image` 支持 `config=<path>` 构建配置参数，用于指定默认读取 `hack/config.yaml` 的配置文件路径

@@ -12,6 +12,7 @@ make image tag=v0.6.0
 make image tag=v0.6.0 registry=ghcr.io/linaproai push=1
 make image platforms=linux/amd64
 make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+make image config=.github/workflows/nightly-build/config.yaml
 ```
 
 也可以直接调用工具：
@@ -49,7 +50,7 @@ make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6
 | `baseImage` | 传递给`Dockerfile`的运行时基础镜像。 |
 | `dockerfile` | 相对于仓库根目录的`Dockerfile`路径，默认是`hack/docker/Dockerfile`。 |
 
-命令行参数会覆盖本次调用的配置文件默认值。未通过配置或`registry=...`设置远端仓库时，也可以使用`LINAPRO_IMAGE_REGISTRY`提供仓库前缀。
+命令行参数会覆盖本次调用的配置文件默认值。`make build`或`make image`可使用`config=<path>`选择仓库级 image-builder 配置文件而不是`hack/config.yaml`。未通过配置或`registry=...`设置远端仓库时，也可以使用`LINAPRO_IMAGE_REGISTRY`提供仓库前缀。
 
 `apps/lina-core`、`apps/lina-vben`、`apps/lina-plugins`、前端嵌入资源、宿主`manifest`嵌入资源以及`build-wasm`工具路径属于项目结构约定，因此不会暴露到`hack/config.yaml`中。
 
@@ -61,5 +62,6 @@ make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6
 - `make build`会按配置的目标平台编译宿主二进制。
 - `make build platforms=linux/amd64,linux/arm64`会分别写入`temp/output/linux_amd64/lina`和`temp/output/linux_arm64/lina`。
 - `make image`会把标准宿主二进制 staged 到`Docker`构建上下文，而不是重新构建。
+- `make image config=<path>`会使用指定的 image-builder 配置文件而不是`hack/config.yaml`。
 - 单平台镜像使用`docker build`，多平台镜像使用`docker buildx build --push`。
 - `Docker`会构建`<registry-prefix>/<name>:<tag>`，只有`push=true`时才推送。多平台构建必须启用`push=true`，以便发布远端 manifest。

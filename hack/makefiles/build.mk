@@ -22,6 +22,9 @@ endif
 ifneq ($(origin binary_name), undefined)
 BUILD_CONFIG_ARGS += --binary-name=$(binary_name)
 endif
+ifneq ($(origin config), undefined)
+BUILD_CONFIG_ARGS += --config=$(config)
+endif
 
 # Helper macro that optionally hides noisy build command output.
 # 构建命令辅助宏，可按需隐藏详细输出。
@@ -43,7 +46,7 @@ endef
 
 # Build frontend assets, packed manifests, dynamic plugins, and the host binary.
 # 构建前端资源、嵌入 manifest、动态插件和宿主后端二进制。
-## build: Build frontend assets, host manifest assets, runtime wasm plugins, and host binaries using hack/config.yaml build settings; supports platforms=linux/amd64,linux/arm64, verbose=1, or v=1
+## build: Build frontend assets, host manifest assets, runtime wasm plugins, and host binaries using hack/config.yaml or config=<path>; supports platforms=linux/amd64,linux/arm64
 .PHONY: build
 build:
 	@set -e; \

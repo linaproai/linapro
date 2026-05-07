@@ -12,6 +12,7 @@ make image tag=v0.6.0
 make image tag=v0.6.0 registry=ghcr.io/linaproai push=1
 make image platforms=linux/amd64
 make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6.0 push=1
+make image config=.github/workflows/nightly-build/config.yaml
 ```
 
 Direct tool invocation:
@@ -49,7 +50,7 @@ Image metadata defaults are read from `hack/config.yaml` under the `image` secti
 | `baseImage` | Runtime base image passed to the Dockerfile. |
 | `dockerfile` | Repository-relative Dockerfile path. Defaults to `hack/docker/Dockerfile`. |
 
-Command-line flags override the config file for one invocation. `LINAPRO_IMAGE_REGISTRY` can also provide the registry prefix when neither the config nor `registry=...` is set.
+Command-line flags override the config file for one invocation. Use `config=<path>` on `make build` or `make image` to select a repository-level image-builder config file instead of `hack/config.yaml`. `LINAPRO_IMAGE_REGISTRY` can also provide the registry prefix when neither the config nor `registry=...` is set.
 
 Repository structure paths such as `apps/lina-core`, `apps/lina-vben`, `apps/lina-plugins`, embedded public assets, packed manifest assets, and the `build-wasm` tool path are project conventions and are intentionally not exposed in `hack/config.yaml`.
 
@@ -61,5 +62,6 @@ Repository structure paths such as `apps/lina-core`, `apps/lina-vben`, `apps/lin
 - `make build` compiles the host binary for the configured target platform.
 - `make build platforms=linux/amd64,linux/arm64` writes host binaries into `temp/output/linux_amd64/lina` and `temp/output/linux_arm64/lina`.
 - `make image` stages the standard host binary into the Docker build context instead of rebuilding it.
+- `make image config=<path>` uses the given image-builder config file instead of `hack/config.yaml`.
 - Single-platform Docker builds use `docker build`; multi-platform Docker builds use `docker buildx build --push`.
 - Docker builds `<registry-prefix>/<name>:<tag>` and only pushes when `push=true`. Multi-platform builds require `push=true` so the remote manifest is published.

@@ -1,0 +1,92 @@
+# HTTP server configuration
+# HTTP 服务配置
+server:
+  address: ":8080"
+  dumpRouterMap: false
+  extensions:
+    apiDocPath: "/api.json"
+
+# Logging configuration
+# 日志配置
+logger:
+  path: ""
+  file: "{Y-m-d}.log"
+  level: "all"
+  stdout: true
+  extensions:
+    structured: false
+    traceIDEnabled: false
+
+# Database configuration
+# 数据库配置
+database:
+  default:
+    link: "sqlite::@file(./data/sqlite/linapro.db)"
+    debug: false
+
+# JWT configuration
+# JWT 配置
+jwt:
+  secret: "lina-jwt-secret-key-change-in-production"
+  expire: 24h
+
+# Online session configuration
+# 在线会话配置
+session:
+  timeout: 24h
+  cleanupInterval: 5m
+
+# Service monitoring configuration
+# 服务监控配置
+monitor:
+  interval: 1m
+
+# Health probe configuration
+# 健康探针配置
+health:
+  timeout: 5s
+
+# Graceful shutdown configuration
+# 优雅关停配置
+shutdown:
+  timeout: 30s
+
+# Scheduler configuration
+# 调度器配置
+scheduler:
+  defaultTimezone: "UTC"
+
+# Internationalization configuration
+# 国际化配置
+i18n:
+  default: zh-CN
+  enabled: true
+  locales:
+    - locale: en-US
+      nativeName: English
+    - locale: zh-CN
+      nativeName: 简体中文
+    - locale: zh-TW
+      nativeName: 繁體中文
+
+# Cluster deployment configuration
+# SQLite forces cluster mode off at startup.
+# SQLite 会在启动期强制关闭集群模式。
+cluster:
+  enabled: false
+  election:
+    lease: 30s
+    renewInterval: 10s
+
+# Upload configuration
+# 上传配置
+upload:
+  path: "data/upload"
+  maxSize: 20
+
+# Plugin configuration
+# 插件配置
+plugin:
+  dynamic:
+    storagePath: "data/wasm"
+  autoEnable: []
