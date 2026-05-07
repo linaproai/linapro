@@ -21,6 +21,13 @@ function difference<T>(arr1: T[], arr2: T[]): T[] {
 }
 
 /**
+ * 保留可持久化的真实菜单 ID，过滤权限树展示用的合成节点 ID。
+ */
+export function filterPersistedMenuIds(ids: (number | string)[]) {
+  return ids.filter((id) => Number(id) > 0);
+}
+
+/**
  * 权限列设置是否全选
  */
 export function setPermissionsChecked(

@@ -263,6 +263,8 @@ type serviceImpl struct {
 type runtimeI18nService interface {
 	// Translate returns one runtime translation key with caller-provided fallback text.
 	Translate(ctx context.Context, key string, fallback string) string
+	// TranslateDynamicPluginSourceText resolves inactive dynamic-plugin source text from its release artifact.
+	TranslateDynamicPluginSourceText(ctx context.Context, pluginID string, key string, sourceText string) string
 	// InvalidateRuntimeBundleCache clears cached runtime bundles for one explicit scope.
 	InvalidateRuntimeBundleCache(scope i18nsvc.InvalidateScope)
 }

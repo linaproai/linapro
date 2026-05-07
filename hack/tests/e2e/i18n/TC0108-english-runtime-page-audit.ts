@@ -14,6 +14,7 @@ import {
   enablePlugin,
   getPlugin,
   installPlugin,
+  listPlugins,
   syncPlugins,
   uninstallPlugin,
 } from "../../support/api/job";
@@ -130,7 +131,46 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     expect(operlogBodyText).not.toContain("禁用插件");
   });
 
-  test("TC-108b: 英文环境下运行时字典标签保持英文而可编辑标题仍可保留原值", async ({
+  test("TC-108b: 英文环境下未安装动态插件列表元数据保持英文", async ({
+    adminPage,
+    mainLayout,
+  }) => {
+    let plugin = await getPlugin(adminApi, pluginID);
+    if (plugin.enabled === 1) {
+      await disablePlugin(adminApi, pluginID);
+      plugin = await getPlugin(adminApi, pluginID);
+    }
+    if (plugin.installed === 1) {
+      await uninstallPlugin(adminApi, pluginID);
+    }
+
+    await mainLayout.switchLanguage("English");
+
+    const apiList = await listPlugins(adminApi, pluginID, "en-US");
+    const apiPlugin = apiList.list.find((item) => item.id === pluginID);
+    expect(apiPlugin).toBeTruthy();
+    expect(apiPlugin?.installed).toBe(0);
+    expect(apiPlugin?.name).toBe("Dynamic Plugin Demo");
+    expect(apiPlugin?.description).toBe(
+      "Dynamic wasm sample that demonstrates a host-embedded menu page, plugin-owned SQL CRUD, and a hosted standalone page.",
+    );
+
+    const pluginPage = new PluginPage(adminPage);
+    await pluginPage.gotoManage();
+    await pluginPage.searchByPluginId(pluginID);
+
+    await expect(pluginPage.pluginRow(pluginID)).toContainText(
+      "Dynamic Plugin Demo",
+    );
+    await expect(pluginPage.pluginDescriptionCell(pluginID)).toContainText(
+      "Dynamic wasm sample that demonstrates a host-embedded menu page, plugin-owned SQL CRUD, and a hosted standalone page.",
+    );
+    const rowText = await pluginPage.pluginRow(pluginID).innerText();
+    expect(rowText).not.toContain("动态插件示例");
+    expect(rowText).not.toContain("提供独立的 dynamic wasm 插件样例");
+  });
+
+  test("TC-108c: 英文环境下运行时字典标签保持英文而可编辑标题仍可保留原值", async ({
     adminPage,
     mainLayout,
   }) => {
@@ -158,11 +198,13 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     await expect(await noticePage.hasNotice("系统升级通知")).toBe(true);
   });
 
-  test("TC-108c: 英文环境下动态插件页面与独立页种子内容保持英文", async ({
+  test("TC-108d: 英文环境下动态插件页面与独立页种子内容保持英文", async ({
     adminPage,
     mainLayout,
   }) => {
     await ensurePluginInstalledAndEnabled();
+    await adminPage.reload({ waitUntil: "domcontentloaded" });
+    await waitForRouteReady(adminPage);
 
     const pluginPage = new PluginPage(adminPage);
 

@@ -475,31 +475,7 @@ func (s *serviceImpl) GetTreeSelect(ctx context.Context) ([]*MenuTreeNode, error
 	}
 	s.localizeMenuEntities(ctx, list)
 
-	// Build map
-	nodeMap := make(map[int]*MenuTreeNode)
-	for _, m := range list {
-		nodeMap[m.Id] = &MenuTreeNode{
-			Id:       m.Id,
-			ParentId: m.ParentId,
-			Label:    m.Name,
-			Type:     m.Type,
-			Icon:     m.Icon,
-			Children: make([]*MenuTreeNode, 0),
-		}
-	}
-
-	// Build tree
-	var roots []*MenuTreeNode
-	for _, m := range list {
-		node := nodeMap[m.Id]
-		if parent, ok := nodeMap[m.ParentId]; ok {
-			parent.Children = append(parent.Children, node)
-		} else {
-			roots = append(roots, node)
-		}
-	}
-
-	return roots, nil
+	return s.buildPermissionTreeNodes(ctx, list), nil
 }
 
 // RoleMenuTreeOutput defines output for role menu tree.

@@ -212,6 +212,12 @@
     },
     "system:user:resetPwd": {
       "title": "Reset Password"
+    },
+    "dynamic-permissions": {
+      "title": "Dynamic Permissions",
+      "route-permissions": {
+        "title": "Runtime Route Permissions"
+      }
     }
   }
 }

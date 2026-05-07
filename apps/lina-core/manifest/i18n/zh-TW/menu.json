@@ -212,6 +212,12 @@
     },
     "system:user:resetPwd": {
       "title": "重置密碼"
+    },
+    "dynamic-permissions": {
+      "title": "動態權限",
+      "route-permissions": {
+        "title": "運行時路由權限"
+      }
     }
   }
 }

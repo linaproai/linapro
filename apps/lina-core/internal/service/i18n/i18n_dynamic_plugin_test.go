@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -203,8 +204,79 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 	}
 }
 
+// TestTranslateDynamicPluginSourceTextFallsBackToStagingArtifact verifies
+// inactive metadata localization can still use the current upload artifact when
+// a stale registry release path is no longer readable.
+func TestTranslateDynamicPluginSourceTextFallsBackToStagingArtifact(t *testing.T) {
+	resetRuntimeBundleCache()
+
+	var (
+		ctx          = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
+		svc          = New()
+		pluginID     = "plugin-i18n-dynamic-source-text-staging"
+		key          = "plugin.plugin-i18n-dynamic-source-text-staging.name"
+		storageDir   = t.TempDir()
+		stagingPath  = filepath.Join(storageDir, pluginID+".wasm")
+		stalePackage = filepath.Join("missing-release", pluginID+".wasm")
+	)
+
+	configsvc.SetPluginDynamicStoragePathOverride(storageDir)
+	t.Cleanup(func() {
+		configsvc.SetPluginDynamicStoragePathOverride("")
+		resetRuntimeBundleCache()
+	})
+
+	writeDynamicPluginI18NArtifactAtPathForTest(t, stagingPath, []*dynamicPluginI18NAsset{
+		{
+			Locale:  EnglishLocale,
+			Content: `{"plugin":{"plugin-i18n-dynamic-source-text-staging":{"name":"Dynamic Staging Plugin"}}}`,
+		},
+	})
+	releaseID := insertDynamicPluginReleaseForTest(t, ctx, do.SysPluginRelease{
+		PluginId:       pluginID,
+		ReleaseVersion: testDynamicPluginI18NVersion,
+		Type:           dynamicPluginType,
+		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		Status:         dynamicPluginReleaseStatusActive,
+		PackagePath:    stalePackage,
+		Checksum:       "dynamic-plugin-source-text-staging-stale-checksum",
+	})
+	pluginRowID := insertDynamicPluginRegistryForTest(t, ctx, do.SysPlugin{
+		PluginId:     pluginID,
+		Name:         "动态暂存插件",
+		Version:      testDynamicPluginI18NVersion,
+		Type:         dynamicPluginType,
+		Installed:    0,
+		Status:       0,
+		DesiredState: "uninstalled",
+		CurrentState: "uninstalled",
+		Generation:   int64(1),
+		ReleaseId:    releaseID,
+		Checksum:     "dynamic-plugin-source-text-staging-stale-checksum",
+	})
+	t.Cleanup(func() {
+		deleteDynamicPluginRegistryByID(t, ctx, pluginRowID)
+		deleteDynamicPluginReleaseByID(t, ctx, releaseID)
+	})
+
+	actual := svc.TranslateDynamicPluginSourceText(ctx, pluginID, key, "动态暂存插件")
+	if actual != "Dynamic Staging Plugin" {
+		t.Fatalf("expected staging artifact translation, got %q", actual)
+	}
+}
+
 // writeDynamicPluginI18NArtifactForTest writes one minimal wasm artifact carrying a plugin i18n section.
 func writeDynamicPluginI18NArtifactForTest(t *testing.T, pluginID string, assets []*dynamicPluginI18NAsset) string {
+	t.Helper()
+
+	artifactPath := filepath.Join(t.TempDir(), pluginID+".wasm")
+	writeDynamicPluginI18NArtifactAtPathForTest(t, artifactPath, assets)
+	return artifactPath
+}
+
+// writeDynamicPluginI18NArtifactAtPathForTest writes one minimal wasm artifact
+// with plugin i18n assets to an explicit filesystem path.
+func writeDynamicPluginI18NArtifactAtPathForTest(t *testing.T, artifactPath string, assets []*dynamicPluginI18NAsset) {
 	t.Helper()
 
 	payload, err := json.Marshal(assets)
@@ -215,11 +287,12 @@ func writeDynamicPluginI18NArtifactForTest(t *testing.T, pluginID string, assets
 	content := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
 	content = appendTestWasmCustomSection(content, pluginbridge.WasmSectionI18NAssets, payload)
 
-	artifactPath := filepath.Join(t.TempDir(), pluginID+".wasm")
+	if err = os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
+		t.Fatalf("create dynamic plugin i18n artifact dir: %v", err)
+	}
 	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
 		t.Fatalf("write dynamic plugin i18n artifact: %v", err)
 	}
-	return artifactPath
 }
 
 // appendTestWasmCustomSection appends one custom section to a synthetic wasm payload.

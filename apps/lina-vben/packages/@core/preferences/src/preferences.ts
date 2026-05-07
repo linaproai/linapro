@@ -27,6 +27,24 @@ interface UpdatePreferenceOptions {
   markUserThemePreference?: boolean;
 }
 
+function getBrowserPrimaryLanguage() {
+  if (typeof navigator === 'undefined') {
+    return '';
+  }
+  return String(navigator.languages?.[0] || navigator.language || '').trim();
+}
+
+function resolveBrowserDefaultLocale() {
+  return getBrowserPrimaryLanguage().toLowerCase().startsWith('zh')
+    ? 'zh-CN'
+    : 'en-US';
+}
+
+function hasExplicitLocaleOverride(overrides?: DeepPartial<Preferences>) {
+  const locale = overrides?.app?.locale;
+  return typeof locale === 'string' && locale.trim() !== '';
+}
+
 class PreferenceManager {
   private cache: StorageManager;
   private debouncedSave: (preference: Preferences) => void;
@@ -89,7 +107,12 @@ class PreferenceManager {
     this.cache = new StorageManager({ prefix: namespace });
 
     // 合并初始偏好设置
-    this.initialPreferences = merge({}, overrides, defaultPreferences);
+    this.initialPreferences = merge(
+      {},
+      overrides,
+      this.resolveBrowserLocaleDefaults(overrides),
+      defaultPreferences,
+    );
 
     // 加载缓存的偏好设置并与初始配置合并
     const cachedPreferences = this.loadFromCache() || {};
@@ -200,6 +223,24 @@ class PreferenceManager {
   }
 
   /**
+   * 解析浏览器语言默认值
+   * @param overrides - 初始化覆盖项
+   */
+  private resolveBrowserLocaleDefaults(
+    overrides?: DeepPartial<Preferences>,
+  ): DeepPartial<Preferences> {
+    if (hasExplicitLocaleOverride(overrides) || this.loadFromCache()) {
+      return {};
+    }
+
+    return {
+      app: {
+        locale: resolveBrowserDefaultLocale(),
+      },
+    };
+  }
+
+  /**
    * 保存偏好设置到缓存
    * @param preference - 要保存的偏好设置
    */
@@ -286,4 +327,4 @@ class PreferenceManager {
 
 const preferencesManager = new PreferenceManager();
 
-export { PreferenceManager, preferencesManager };
+export { PreferenceManager, preferencesManager, resolveBrowserDefaultLocale };

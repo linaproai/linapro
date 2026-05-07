@@ -1,8 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultPreferences } from '../src/config';
-import { PreferenceManager } from '../src/preferences';
+import {
+  PreferenceManager,
+  resolveBrowserDefaultLocale,
+} from '../src/preferences';
 import { isDarkTheme } from '../src/update-css-variables';
+
+function mockNavigatorLanguages(language: string, languages = [language]) {
+  Object.defineProperty(window.navigator, 'language', {
+    configurable: true,
+    value: language,
+  });
+  Object.defineProperty(window.navigator, 'languages', {
+    configurable: true,
+    value: languages,
+  });
+}
 
 describe('preferences', () => {
   let preferenceManager: PreferenceManager;
@@ -24,6 +38,7 @@ describe('preferences', () => {
   beforeEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+    mockNavigatorLanguages('zh-CN');
     preferenceManager = new PreferenceManager();
   });
 
@@ -55,6 +70,82 @@ describe('preferences', () => {
     };
 
     expect(preferenceManager.getPreferences()).toEqual(expected);
+  });
+
+  it('resolves Chinese primary browser language to zh-CN by default', () => {
+    mockNavigatorLanguages('zh-TW', ['zh-TW', 'en-US']);
+
+    expect(resolveBrowserDefaultLocale()).toBe('zh-CN');
+  });
+
+  it('resolves non-Chinese primary browser language to en-US by default', () => {
+    mockNavigatorLanguages('fr-FR', ['fr-FR', 'zh-CN']);
+
+    expect(resolveBrowserDefaultLocale()).toBe('en-US');
+  });
+
+  it('initializes locale from browser language when no saved preference exists', async () => {
+    mockNavigatorLanguages('en-US');
+
+    await preferenceManager.initPreferences({
+      namespace: 'browserLocaleNamespace',
+      overrides: {},
+    });
+
+    expect(preferenceManager.getPreferences().app.locale).toBe('en-US');
+  });
+
+  it('keeps explicit locale overrides ahead of browser language', async () => {
+    mockNavigatorLanguages('en-US');
+
+    await preferenceManager.initPreferences({
+      namespace: 'explicitLocaleNamespace',
+      overrides: {
+        app: {
+          locale: 'zh-CN',
+        },
+      },
+    });
+
+    expect(preferenceManager.getPreferences().app.locale).toBe('zh-CN');
+  });
+
+  it('ignores empty locale overrides and falls back to browser language', async () => {
+    mockNavigatorLanguages('en-US');
+
+    await preferenceManager.initPreferences({
+      namespace: 'emptyLocaleNamespace',
+      overrides: {
+        app: {
+          locale: undefined,
+        },
+      },
+    });
+
+    expect(preferenceManager.getPreferences().app.locale).toBe('en-US');
+  });
+
+  it('keeps saved locale preferences ahead of browser language', async () => {
+    mockNavigatorLanguages('en-US');
+    localStorage.setItem(
+      'savedLocaleNamespace-preferences',
+      JSON.stringify({
+        value: {
+          ...defaultPreferences,
+          app: {
+            ...defaultPreferences.app,
+            locale: 'zh-CN',
+          },
+        },
+      }),
+    );
+
+    await preferenceManager.initPreferences({
+      namespace: 'savedLocaleNamespace',
+      overrides: {},
+    });
+
+    expect(preferenceManager.getPreferences().app.locale).toBe('zh-CN');
   });
 
   it('updates theme mode correctly', () => {

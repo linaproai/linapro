@@ -82,6 +82,7 @@ export type ConfigItem = {
 export type PluginItem = {
   id: string;
   name: string;
+  description: string;
   version: string;
   type: string;
   installed: number;
@@ -236,9 +237,18 @@ export async function syncPlugins(api: APIRequestContext) {
   return expectSuccess<{ total: number }>(await api.post("plugins/sync"));
 }
 
-export async function listPlugins(api: APIRequestContext, id = "") {
+export async function listPlugins(
+  api: APIRequestContext,
+  id = "",
+  lang?: string,
+) {
+  const params = new URLSearchParams();
+  params.set("id", id);
+  if (lang) {
+    params.set("lang", lang);
+  }
   return expectSuccess<{ list: PluginItem[]; total: number }>(
-    await api.get(`plugins?id=${encodeURIComponent(id)}`),
+    await api.get(`plugins?${params.toString()}`),
   );
 }
 

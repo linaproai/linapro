@@ -18,6 +18,7 @@ function confirmDiscardChanges() {
       content: $t('pages.common.discardChangesConfirm'),
       okText: $t('pages.common.confirm'),
       cancelText: $t('pages.common.cancel'),
+      zIndex: 2100,
       onCancel: () => resolve(false),
       onOk: () => resolve(true),
     });

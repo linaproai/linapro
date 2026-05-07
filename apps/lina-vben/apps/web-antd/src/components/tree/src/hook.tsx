@@ -45,6 +45,7 @@ export function useFullScreenGuide() {
     setup() {
       return () => (
         <Tour
+          mask={false}
           onClose={closeGuide}
           open={open.value}
           steps={steps}

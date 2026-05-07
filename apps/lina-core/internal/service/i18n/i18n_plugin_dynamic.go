@@ -37,6 +37,13 @@ type dynamicPluginI18NAsset struct {
 	Content string `json:"content"`
 }
 
+// dynamicPluginI18NArtifactCandidate describes one artifact path that may
+// contain source-text translations for an inactive dynamic plugin.
+type dynamicPluginI18NArtifactCandidate struct {
+	label       string
+	packagePath string
+}
+
 // loadDynamicPluginLocaleBundles loads enabled dynamic-plugin translations for
 // one locale, returning a per-plugin map. The cache stores each plugin entry
 // separately so a single plugin lifecycle change can invalidate only its slice.
@@ -153,7 +160,22 @@ func (s *serviceImpl) loadDynamicPluginLocaleBundleFromRelease(
 		return map[string]string{}, nil
 	}
 
-	assets, err := s.readDynamicPluginI18NAssets(ctx, release.PackagePath)
+	return s.loadDynamicPluginLocaleBundleFromPackagePath(ctx, resolvedLocale, pluginID, release.PackagePath)
+}
+
+// loadDynamicPluginLocaleBundleFromPackagePath loads one plugin locale bundle
+// from a resolved dynamic artifact path.
+func (s *serviceImpl) loadDynamicPluginLocaleBundleFromPackagePath(
+	ctx context.Context,
+	resolvedLocale string,
+	pluginID string,
+	packagePath string,
+) (map[string]string, error) {
+	if strings.TrimSpace(packagePath) == "" {
+		return map[string]string{}, nil
+	}
+
+	assets, err := s.readDynamicPluginI18NAssets(ctx, packagePath)
 	if err != nil {
 		return nil, err
 	}
@@ -205,23 +227,59 @@ func (s *serviceImpl) TranslateDynamicPluginSourceText(ctx context.Context, plug
 }
 
 // loadDynamicPluginReleaseLocaleBundle loads one locale bundle from the latest
-// known dynamic-plugin release artifact regardless of install or enable state.
+// known dynamic-plugin artifacts regardless of install or enable state.
 func (s *serviceImpl) loadDynamicPluginReleaseLocaleBundle(ctx context.Context, locale string, pluginID string) (map[string]string, error) {
-	release, err := s.getLatestDynamicPluginReleaseForI18N(ctx, pluginID)
-	if err != nil || release == nil || strings.TrimSpace(release.PackagePath) == "" {
+	candidates, err := s.listDynamicPluginI18NArtifactCandidates(ctx, pluginID)
+	if err != nil {
 		return map[string]string{}, err
 	}
 
-	return s.loadDynamicPluginLocaleBundleFromRelease(ctx, s.ResolveLocale(ctx, locale), pluginID, release)
+	resolvedLocale := s.ResolveLocale(ctx, locale)
+	var firstErr error
+	mergedBundle := make(map[string]string)
+	for _, candidate := range candidates {
+		bundle, loadErr := s.loadDynamicPluginLocaleBundleFromPackagePath(
+			ctx,
+			resolvedLocale,
+			pluginID,
+			candidate.packagePath,
+		)
+		if loadErr != nil {
+			if firstErr == nil {
+				firstErr = gerror.Wrapf(loadErr, "load %s", candidate.label)
+			}
+			continue
+		}
+		for key, value := range bundle {
+			if _, exists := mergedBundle[key]; exists {
+				continue
+			}
+			mergedBundle[key] = value
+		}
+	}
+	if len(mergedBundle) > 0 {
+		return mergedBundle, nil
+	}
+	if firstErr != nil {
+		return map[string]string{}, firstErr
+	}
+	return map[string]string{}, nil
 }
 
-// getLatestDynamicPluginReleaseForI18N returns the release artifact that should
-// provide pre-enable dynamic-plugin metadata translation.
-func (s *serviceImpl) getLatestDynamicPluginReleaseForI18N(ctx context.Context, pluginID string) (*entity.SysPluginRelease, error) {
+// listDynamicPluginI18NArtifactCandidates returns artifact paths that can
+// provide pre-enable dynamic-plugin metadata translation, ordered from most
+// authoritative to broader fallbacks.
+func (s *serviceImpl) listDynamicPluginI18NArtifactCandidates(
+	ctx context.Context,
+	pluginID string,
+) ([]dynamicPluginI18NArtifactCandidate, error) {
 	trimmedPluginID := strings.TrimSpace(pluginID)
 	if trimmedPluginID == "" {
 		return nil, nil
 	}
+
+	candidates := make([]dynamicPluginI18NArtifactCandidate, 0, 4)
+	seenPackagePaths := make(map[string]struct{})
 
 	var plugin *entity.SysPlugin
 	if err := dao.SysPlugin.Ctx(ctx).
@@ -240,22 +298,92 @@ func (s *serviceImpl) getLatestDynamicPluginReleaseForI18N(ctx context.Context, 
 			return nil, err
 		}
 		if release != nil && strings.TrimSpace(release.PackagePath) != "" {
-			return release, nil
+			candidates = appendDynamicPluginI18NArtifactCandidate(
+				candidates,
+				seenPackagePaths,
+				"dynamic plugin registry release",
+				release.PackagePath,
+			)
 		}
 	}
 
-	var release *entity.SysPluginRelease
+	var releases []*entity.SysPluginRelease
 	err := dao.SysPluginRelease.Ctx(ctx).
 		Where(do.SysPluginRelease{
 			PluginId: trimmedPluginID,
 			Type:     dynamicPluginType,
 		}).
 		OrderDesc(dao.SysPluginRelease.Columns().Id).
-		Scan(&release)
+		Scan(&releases)
 	if err != nil {
 		return nil, err
 	}
-	return release, nil
+	for _, release := range releases {
+		if release == nil || strings.TrimSpace(release.PackagePath) == "" {
+			continue
+		}
+		candidates = appendDynamicPluginI18NArtifactCandidate(
+			candidates,
+			seenPackagePaths,
+			"dynamic plugin release",
+			release.PackagePath,
+		)
+	}
+
+	candidates = s.appendDynamicPluginStagingI18NArtifactCandidate(ctx, trimmedPluginID, candidates, seenPackagePaths)
+	return candidates, nil
+}
+
+// appendDynamicPluginI18NArtifactCandidate appends a non-empty artifact path
+// while avoiding duplicate reads within one source-text lookup.
+func appendDynamicPluginI18NArtifactCandidate(
+	candidates []dynamicPluginI18NArtifactCandidate,
+	seenPackagePaths map[string]struct{},
+	label string,
+	packagePath string,
+) []dynamicPluginI18NArtifactCandidate {
+	trimmedPackagePath := strings.TrimSpace(packagePath)
+	if trimmedPackagePath == "" {
+		return candidates
+	}
+	normalizedPackagePath := filepath.Clean(filepath.FromSlash(trimmedPackagePath))
+	if _, ok := seenPackagePaths[normalizedPackagePath]; ok {
+		return candidates
+	}
+	seenPackagePaths[normalizedPackagePath] = struct{}{}
+	return append(candidates, dynamicPluginI18NArtifactCandidate{
+		label:       label,
+		packagePath: trimmedPackagePath,
+	})
+}
+
+// appendDynamicPluginStagingI18NArtifactCandidate appends the current upload
+// artifact when it exists in plugin.dynamic.storagePath.
+func (s *serviceImpl) appendDynamicPluginStagingI18NArtifactCandidate(
+	ctx context.Context,
+	pluginID string,
+	candidates []dynamicPluginI18NArtifactCandidate,
+	seenPackagePaths map[string]struct{},
+) []dynamicPluginI18NArtifactCandidate {
+	stagingPackagePath := dynamicPluginStagingArtifactPackagePath(pluginID)
+	absolutePath, err := s.resolveDynamicPluginPackagePath(ctx, stagingPackagePath)
+	if err == nil {
+		if _, statErr := os.Stat(absolutePath); statErr != nil && os.IsNotExist(statErr) {
+			return candidates
+		}
+	}
+	return appendDynamicPluginI18NArtifactCandidate(
+		candidates,
+		seenPackagePaths,
+		"dynamic plugin staging artifact",
+		stagingPackagePath,
+	)
+}
+
+// dynamicPluginStagingArtifactPackagePath returns the flat upload artifact name
+// used for dynamic plugin discovery before a release package is selected.
+func dynamicPluginStagingArtifactPackagePath(pluginID string) string {
+	return strings.TrimSpace(pluginID) + ".wasm"
 }
 
 // listEnabledDynamicPluginReleases returns active release rows for plugins that are currently enabled.

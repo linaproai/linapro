@@ -38,16 +38,57 @@ export class RolePage {
     });
   }
 
-  async openCreateDrawer() {
+  async openCreateDrawer(options: { keepTourOpen?: boolean } = {}) {
     await waitForRouteReady(this.page);
     await this.page
-      .getByRole("button", { name: /新\s*增/ })
+      .getByRole("button", { name: /新\s*增|Add/i })
       .first()
       .click({ force: true });
 
     const drawer = await waitForDialogReady(this.drawer);
-    await this.dismissTourOverlayIfPresent();
+    if (!options.keepTourOpen) {
+      await this.dismissTourOverlayIfPresent();
+    }
     return drawer;
+  }
+
+  async openEditDrawer(
+    roleName: string,
+    options: { keepTourOpen?: boolean } = {},
+  ) {
+    await waitForRouteReady(this.page);
+    const rows = this.page.locator(".vxe-body--row:visible");
+    const row = rows.filter({ hasText: roleName }).first();
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    const rowIndex = await rows.evaluateAll((elements, targetText) => {
+      return elements.findIndex((element) =>
+        element.textContent?.includes(String(targetText)),
+      );
+    }, roleName);
+    if (rowIndex < 0) {
+      throw new Error(`Role row not found: ${roleName}`);
+    }
+    await this.page
+      .locator(".vxe-table:visible .ant-btn-sm")
+      .filter({ hasText: /编\s*辑|Edit/i })
+      .nth(rowIndex)
+      .click();
+
+    const drawer = await waitForDialogReady(this.drawer);
+    if (!options.keepTourOpen) {
+      await this.dismissTourOverlayIfPresent();
+    }
+    return drawer;
+  }
+
+  async clickDrawerCloseIcon(drawer: Locator) {
+    await drawer.locator(".flex-center button").first().click();
+  }
+
+  async clickDrawerOverlay() {
+    await this.page
+      .locator("[data-dismissable-drawer]")
+      .click({ position: { x: 10, y: 10 } });
   }
 
   /** Create a new role by clicking "新增" toolbar button */
@@ -211,7 +252,7 @@ export class RolePage {
 
     // Click search button
     await this.page
-      .getByRole("button", { name: /搜\s*索/ })
+      .getByRole("button", { name: /搜\s*索|Search/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -244,7 +285,7 @@ export class RolePage {
   /** Reset search */
   async resetSearch() {
     await this.page
-      .getByRole("button", { name: /重\s*置/ })
+      .getByRole("button", { name: /重\s*置|Reset/i })
       .first()
       .click();
     await waitForRouteReady(this.page);
@@ -264,7 +305,7 @@ export class RolePage {
   async clickAssign(roleName: string) {
     const row = this.page.locator(".vxe-body--row", { hasText: roleName });
     await row
-      .getByRole("button", { name: /分\s*配/ })
+      .getByRole("button", { name: /分\s*配|Assign/i })
       .first()
       .click();
     await this.page.waitForLoadState("load");

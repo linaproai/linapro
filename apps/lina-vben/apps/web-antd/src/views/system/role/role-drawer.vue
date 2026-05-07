@@ -51,17 +51,28 @@ async function setupMenuTree(id?: number) {
 }
 
 async function customFormValueGetter() {
-  const v = await defaultFormValueGetter(formApi)();
+  const formValues = await defaultFormValueGetter(formApi)();
   const menuIds = menuSelectRef.value?.getCheckedKeys?.() ?? [];
-  return v + menuIds.join(',');
+  return {
+    ...formValues,
+    menuIds,
+  };
 }
 
-const { onBeforeClose, markInitialized, resetInitialized } = useBeforeCloseDiff(
-  {
-    initializedGetter: customFormValueGetter,
-    currentGetter: customFormValueGetter,
-  },
-);
+const {
+  onBeforeClose: checkBeforeClose,
+  markInitialized,
+  resetInitialized,
+} = useBeforeCloseDiff({
+  initializedGetter: customFormValueGetter,
+  currentGetter: customFormValueGetter,
+});
+
+async function onBeforeClose() {
+  menuSelectRef.value?.closeGuide?.();
+  await nextTick();
+  return await checkBeforeClose();
+}
 
 const [BasicDrawer, drawerApi] = useVbenDrawer({
   onBeforeClose,
@@ -127,6 +138,10 @@ async function handleClosed() {
 function handleMenuCheckStrictlyChange(value: boolean) {
   formApi.setFieldValue('menuCheckStrictly', value);
 }
+
+function handleMenuIdsChange(value: (number | string)[]) {
+  formApi.setFieldValue('menuIds', value);
+}
 </script>
 
 <template>
@@ -139,6 +154,7 @@ function handleMenuCheckStrictlyChange(value: boolean) {
             :checked-keys="slotProps.value"
             :association="formApi.form.values.menuCheckStrictly"
             :menus="menuTree"
+            @update:checked-keys="handleMenuIdsChange"
             @update:association="handleMenuCheckStrictlyChange"
           />
         </div>

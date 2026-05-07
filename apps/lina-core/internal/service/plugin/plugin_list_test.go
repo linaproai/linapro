@@ -4,13 +4,20 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/gogf/gf/v2/os/gctx"
+
 	"lina-core/internal/dao"
+	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/pluginbridge"
 )
 
 // TestSyncAndListRetainsMissingRuntimeRegistryAndReconcilesState verifies that
@@ -202,6 +209,95 @@ func TestListProjectsMissingRuntimeRegistryWithoutWriting(t *testing.T) {
 	}
 }
 
+// TestListLocalizesUninstalledDynamicPluginMetadataInEnglish verifies that
+// plugin management can display artifact-owned metadata before installation.
+func TestListLocalizesUninstalledDynamicPluginMetadataInEnglish(t *testing.T) {
+	var (
+		service      = newTestService()
+		ctx          = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: i18nsvc.EnglishLocale})
+		pluginID     = "plugin-dynamic-list-i18n"
+		artifactPath = filepath.Join(testutil.TestDynamicStorageDir(), pluginID+".wasm")
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		if err := os.Remove(artifactPath); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("failed to remove dynamic i18n test artifact %s: %v", artifactPath, err)
+		}
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:          pluginID,
+			Name:        "动态插件列表中文名",
+			Version:     "v0.9.8",
+			Type:        catalog.TypeDynamic.String(),
+			Description: "未安装动态插件的中文描述",
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind:        pluginbridge.RuntimeKindWasm,
+			ABIVersion:         pluginbridge.SupportedABIVersion,
+			FrontendAssetCount: len(testutil.DefaultTestRuntimeFrontendAssets()),
+		},
+		testutil.DefaultTestRuntimeFrontendAssets(),
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+	appendRuntimeI18NSectionForPluginListTest(
+		t,
+		artifactPath,
+		[]map[string]string{
+			{
+				"locale": "en-US",
+				"content": `{
+  "plugin": {
+    "plugin-dynamic-list-i18n": {
+      "name": "Dynamic List I18N Plugin",
+      "description": "English dynamic plugin description before installation."
+    }
+  }
+}`,
+			},
+		},
+	)
+
+	manifest, err := service.loadRuntimePluginManifestFromArtifact(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic i18n artifact manifest to load, got error: %v", err)
+	}
+	registry, err := service.syncPluginManifest(ctx, manifest)
+	if err != nil {
+		t.Fatalf("expected dynamic i18n manifest sync to succeed, got error: %v", err)
+	}
+	if registry == nil || registry.Installed != catalog.InstalledNo {
+		t.Fatalf("expected dynamic i18n plugin to remain uninstalled after sync, got %#v", registry)
+	}
+
+	out, err := service.List(ctx, ListInput{})
+	if err != nil {
+		t.Fatalf("expected plugin list to succeed, got error: %v", err)
+	}
+	item := findPluginItem(out, pluginID)
+	if item == nil {
+		t.Fatalf("expected dynamic i18n plugin to appear in plugin list")
+	}
+	if item.Name != "Dynamic List I18N Plugin" {
+		t.Fatalf("expected English plugin name before install, got %q", item.Name)
+	}
+	if item.Description != "English dynamic plugin description before installation." {
+		t.Fatalf("expected English plugin description before install, got %q", item.Description)
+	}
+	if item.Installed != catalog.InstalledNo {
+		t.Fatalf("expected plugin to remain not installed, got %d", item.Installed)
+	}
+}
+
 // TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection verifies
 // that sync does not recreate release-bound governance after uninstall.
 func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *testing.T) {
@@ -311,4 +407,61 @@ func findPluginItem(out *ListOutput, pluginID string) *PluginItem {
 		}
 	}
 	return nil
+}
+
+// appendRuntimeI18NSectionForPluginListTest appends one runtime i18n custom
+// section to the synthetic wasm artifact used by plugin list localization tests.
+func appendRuntimeI18NSectionForPluginListTest(
+	t *testing.T,
+	artifactPath string,
+	payload any,
+) {
+	t.Helper()
+
+	content, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact read to succeed, got error: %v", err)
+	}
+	sectionPayload, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("expected runtime i18n payload marshal to succeed, got error: %v", err)
+	}
+	content = appendPluginListTestWasmCustomSection(
+		content,
+		pluginbridge.WasmSectionI18NAssets,
+		sectionPayload,
+	)
+	if err = os.WriteFile(artifactPath, content, 0o644); err != nil {
+		t.Fatalf("expected runtime artifact write to succeed, got error: %v", err)
+	}
+}
+
+// appendPluginListTestWasmCustomSection appends one custom section using WASM
+// section-length encoding.
+func appendPluginListTestWasmCustomSection(content []byte, name string, payload []byte) []byte {
+	sectionPayload := append([]byte{}, encodePluginListTestWasmULEB128(uint32(len(name)))...)
+	sectionPayload = append(sectionPayload, []byte(name)...)
+	sectionPayload = append(sectionPayload, payload...)
+
+	result := append([]byte{}, content...)
+	result = append(result, 0x00)
+	result = append(result, encodePluginListTestWasmULEB128(uint32(len(sectionPayload)))...)
+	result = append(result, sectionPayload...)
+	return result
+}
+
+// encodePluginListTestWasmULEB128 encodes one unsigned integer for custom sections.
+func encodePluginListTestWasmULEB128(value uint32) []byte {
+	result := make([]byte, 0, 5)
+	for {
+		current := byte(value & 0x7f)
+		value >>= 7
+		if value != 0 {
+			current |= 0x80
+		}
+		result = append(result, current)
+		if value == 0 {
+			return result
+		}
+	}
 }

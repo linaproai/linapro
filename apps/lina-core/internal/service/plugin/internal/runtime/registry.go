@@ -183,7 +183,7 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	if manifest != nil {
 		declaredRoutes = cloneRouteContracts(manifest.Routes)
 	}
-	name, description = s.localizePluginMetadata(ctx, id, name, description)
+	name, description = s.localizePluginMetadata(ctx, id, pluginType, name, description)
 
 	hasMockData := false
 	if manifest != nil {

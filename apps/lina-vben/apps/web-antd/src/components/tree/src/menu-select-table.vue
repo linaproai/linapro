@@ -25,6 +25,7 @@ function uniq<T>(arr: T[]): T[] {
 
 import { columns, nodeOptions } from './data';
 import {
+  filterPersistedMenuIds,
   menusWithPermissions,
   rowAndChildrenChecked,
   setPermissionsChecked,
@@ -52,6 +53,9 @@ const props = withDefaults(
 const association = defineModel<boolean>('association', {
   default: true,
 });
+const emit = defineEmits<{
+  'update:checkedKeys': [keys: (number | string)[]];
+}>();
 
 const gridOptions: VxeGridProps = {
   checkboxConfig: {
@@ -100,8 +104,12 @@ function getCheckedRecords() {
     []) as MenuPermissionOption[];
 }
 
-function updateCheckedNumber() {
-  checkedNum.value = getCheckedKeys().length;
+function updateCheckedState(emitChange = false) {
+  const checkedKeys = getCheckedKeys();
+  checkedNum.value = checkedKeys.length;
+  if (emitChange) {
+    emit('update:checkedKeys', checkedKeys);
+  }
 }
 
 const [BasicTable, tableApi] = useVbenVxeGrid({
@@ -115,14 +123,14 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
       } else {
         setPermissionsChecked(record, checked);
       }
-      updateCheckedNumber();
+      updateCheckedState(true);
     },
     checkboxAll: (params: any) => {
       const records = params.$grid.getData();
       records.forEach((item: any) => {
         rowAndChildrenChecked(item, params.checked);
       });
-      updateCheckedNumber();
+      updateCheckedState(true);
     },
   },
 });
@@ -140,7 +148,7 @@ function setCheckedByKeys(
       item.permissions.forEach((permission) => {
         if (keys.includes(permission.id)) {
           permission.checked = true;
-          triggerOnchange && handlePermissionChange(item);
+          triggerOnchange && handlePermissionChange(item, false);
         }
       });
     }
@@ -150,7 +158,7 @@ function setCheckedByKeys(
   });
 }
 
-const { FullScreenGuide, openGuide } = useFullScreenGuide();
+const { FullScreenGuide, closeGuide, openGuide } = useFullScreenGuide();
 onMounted(() => {
   watch(
     () => props.menus,
@@ -179,7 +187,7 @@ onMounted(() => {
       const allCheckedKeys = uniq([...value]);
       const records = getTableRecords();
       setCheckedByKeys(records, allCheckedKeys, association.value);
-      updateCheckedNumber();
+      updateCheckedState();
       setTimeout(openGuide, 1000);
     },
   );
@@ -195,14 +203,14 @@ async function handleAssociationChange(e: RadioChangeEvent) {
   await tableApi.grid.clearCheckboxRow();
   await tableApi.grid.scrollTo(0, 0);
   setTableChecked(lastCheckedKeys.value, records, tableApi, !e.target.value);
-  updateCheckedNumber();
+  updateCheckedState(true);
 }
 
 function setExpandOrCollapse(expand: boolean) {
   tableApi.grid?.setAllTreeExpand(expand);
 }
 
-function handlePermissionChange(row: any) {
+function handlePermissionChange(row: any, emitChange = true) {
   if (association.value) {
     const checkedPermissions = row.permissions.filter(
       (item: any) => item.checked === true,
@@ -214,7 +222,7 @@ function handlePermissionChange(row: any) {
       tableApi.grid.setCheckboxRow(row, false);
     }
   }
-  updateCheckedNumber();
+  updateCheckedState(emitChange);
 }
 
 function getKeys(records: MenuPermissionOption[], addCurrent: boolean) {
@@ -241,7 +249,7 @@ function getCheckedKeys() {
     const records = getCheckedRecords();
     const nodeKeys = getKeys(records, true);
     const parentIds = findGroupParentIds(props.menus, nodeKeys as number[]);
-    const realKeys = uniq([...parentIds, ...nodeKeys]);
+    const realKeys = filterPersistedMenuIds(uniq([...parentIds, ...nodeKeys]));
     return realKeys;
   }
 
@@ -249,11 +257,14 @@ function getCheckedKeys() {
   const allRecords = getTableRecords();
   const checkedIds = records.map((item: any) => item.id);
   const permissionIds = getKeys(allRecords, false);
-  const allIds = uniq([...checkedIds, ...permissionIds]);
+  const allIds = filterPersistedMenuIds(
+    uniq([...checkedIds, ...permissionIds]),
+  );
   return allIds;
 }
 
 defineExpose({
+  closeGuide,
   getCheckedKeys,
 });
 </script>
@@ -320,6 +331,10 @@ defineExpose({
 </template>
 
 <style scoped>
+.permission-selection-toolbar {
+  gap: 16px;
+}
+
 :deep(.ant-alert) {
   padding: 4px 8px;
 }

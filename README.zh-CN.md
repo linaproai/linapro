@@ -2,8 +2,8 @@
 <img src="./.github/assets/linapro-logo.webp" width="300" alt="linapro logo"/>
 
 [![LinaPro CI](https://github.com/linaproai/linapro/actions/workflows/main-ci.yml/badge.svg)](https://github.com/linaproai/linapro/actions/workflows/main-ci.yml)
-[![LinaPro Stable Release](https://img.shields.io/github/v/release/linaproai/linapro?style=flat)](https://github.com/linaproai/linapro/releases)
-[![LinaPro License](https://img.shields.io/github/license/linaproai/linapro.svg?style=flat)](https://github.com/linaproai/linapro)
+[![LinaPro Stable Release](https://img.shields.io/github/v/release/linaproai/linapro?style=flat&v=2)](https://github.com/linaproai/linapro/releases)
+[![LinaPro License](https://img.shields.io/github/license/linaproai/linapro.svg?style=flat&v=2)](https://github.com/linaproai/linapro)
 [![LinaPro Is Production Ready](https://img.shields.io/badge/production-ready-blue.svg?style=flat)](https://github.com/linaproai/linapro)
 
 [English](README.md) | 简体中文
