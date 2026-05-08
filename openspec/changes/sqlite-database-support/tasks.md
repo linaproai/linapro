@@ -126,3 +126,5 @@
 - [x] **FB-21**: 新增 GitHub Actions nightly build workflow，每天凌晨自动构建并发布 `linux/amd64` 与 `linux/arm64` 多架构 Docker 镜像到 `ghcr.io`
 - [x] **FB-22**: `make build` 与 `make image` 支持 `config=<path>` 构建配置参数，用于指定默认读取 `hack/config.yaml` 的配置文件路径
 - [x] **FB-23**: 新增 GitHub Actions 标签发布镜像 workflow，仅在新建标签时构建并发布对应标签与 `latest` 的 `linux/amd64`、`linux/arm64` 多架构 Docker 镜像
+- [x] **FB-24**: 新增 GitHub Actions nightly test workflow，每天 `Asia/Shanghai 00:00` 自动运行完整 Go/前端单元测试与完整 Playwright E2E 套件，持续验证项目健康度
+- [x] **FB-25**: 移除 Nightly Test Go 单测目录硬编码，改为从 `go.work` 自动发现 workspace 模块并执行全量 `go test ./...`

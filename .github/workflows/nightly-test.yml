@@ -1,34 +1,19 @@
-# LinaPro backend main CI workflow.
-# Runs on every push and pull request to main.
-name: Main CI
+# LinaPro nightly health test workflow.
+# GitHub cron uses UTC. 16:00 UTC is 00:00 Asia/Shanghai.
+name: Nightly Test
 
 on:
-  push:
-    branches:
-    - main
-    - develop
-    - feat/**
-    - fix/**
-
-  pull_request:
-    branches:
-    - main
-    - develop
-    - feat/**
-    - fix/**
+  schedule:
+    - cron: "0 16 * * *"
 
   workflow_dispatch:
-    inputs:
-      debug:
-        type: boolean
-        description: 'Enable tmate Debug'
-        required: false
-        default: false
 
-# Cancel in-progress runs for the same branch/PR to save CI minutes.
+permissions:
+  contents: read
+
 concurrency:
-  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
-  cancel-in-progress: true
+  group: "${{ github.workflow }} @ nightly"
+  cancel-in-progress: false
 
 env:
   TZ: "Asia/Shanghai"
@@ -130,9 +115,24 @@ jobs:
         working-directory: apps/lina-vben
         run: pnpm test:unit
 
-  # SQLite Backend Smoke Tests
-  sqlite-smoke:
+  e2e-tests:
+    name: Full E2E tests
     runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 12345678
+          MYSQL_DATABASE: linapro
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p12345678"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - name: Setup Timezone
@@ -147,8 +147,69 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.25"
-          cache-dependency-path: '**/go.sum'
+          cache-dependency-path: "**/go.sum"
 
-      - name: Run SQLite Backend Smoke
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      - name: Install MySQL Client
         run: |
-          ./hack/tests/scripts/run-sqlite-smoke.sh
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client lsof
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      - name: Install E2E Dependencies
+        working-directory: hack/tests
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: hack/tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Initialize Database
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init rebuild=true
+          make mock confirm=mock
+
+      - name: Start Services
+        run: make dev
+
+      - name: Run Full E2E Suite
+        working-directory: hack/tests
+        env:
+          E2E_BASE_URL: "http://127.0.0.1:5666"
+          E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
+          E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
+          E2E_PARALLEL_WORKERS: "4"
+        run: pnpm test
+
+      - name: Stop Services
+        if: always()
+        run: make stop
+
+      - name: Upload E2E Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-e2e-report
+          path: |
+            hack/tests/playwright-report/
+            hack/tests/test-results/
+            temp/lina-core.log
+            temp/lina-vben.log
+          if-no-files-found: ignore
+          retention-days: 14
