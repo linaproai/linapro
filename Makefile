@@ -22,13 +22,11 @@ include hack/makefiles/image.mk
 include hack/makefiles/test.mk
 include hack/makefiles/i18n.mk
 
-# Initialize the backend database with schema and required seed data,
-# then install frontend dependencies so the workspace is ready to use.
+# Initialize the backend database with schema and required seed data.
 # The backend dispatches by database.default.link, for example MySQL or SQLite.
-# 初始化后端数据库表结构和系统必需的种子数据，
-# 并安装前端依赖，使工作区进入可用状态。
+# 初始化后端数据库表结构和系统必需的种子数据。
 # 后端会按 database.default.link 自动分发到 MySQL 或 SQLite 等方言。
-## init: Initialize the database and install frontend deps
+## init: Initialize the database with DDL and seed data only
 .PHONY: init
 init:
 	@if [ "$(confirm)" != "init" ]; then \
@@ -38,13 +36,7 @@ init:
 		exit 1; \
 	fi
 	@cd $(BACKEND_DIR) && $(MAKE) init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
-	@echo ""
-	@echo "→ Check and install frontend dependencies in $(FRONTEND_DIR)..."
-	@if ! command -v pnpm >/dev/null 2>&1; then \
-		echo "✗ pnpm is not installed. Please install pnpm first: https://pnpm.io/installation"; \
-		exit 1; \
-	fi
-	@cd $(FRONTEND_DIR) && pnpm install
+
 
 # Load optional mock data for local demos and development verification.
 # Mock loading uses the same database.default.link dialect and requires init first.
