@@ -1,0 +1,47 @@
+# Reusable LinaPro frontend unit test workflow.
+name: Reusable Frontend Unit Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  frontend-unit-tests:
+    name: Frontend unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Setup Timezone
+        uses: szenius/set-timezone@v2.0
+        with:
+          timezoneLinux: "Asia/Shanghai"
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Frontend Unit Tests
+        working-directory: apps/lina-vben
+        run: pnpm test:unit

@@ -73,10 +73,9 @@ func OnStartup(ctx context.Context, link string, runtime StartupRuntime) error {
 	if linkText == "" {
 		linkText = "sqlite::<unknown>"
 	}
-	logger.Warningf(ctx, "[WARNING] SQLite mode is active (database.default.link = %s)", linkText)
-	logger.Warning(ctx, "[WARNING] SQLite mode only supports single-node deployment; cluster.enabled has been forced to false")
-	logger.Warning(ctx, "[WARNING] All features run in single-node mode; do not use SQLite mode in production")
-	logger.Warning(ctx, "[WARNING] Switch database.default.link back to a MySQL link for multi-node deployment")
+	logger.Infof(ctx, "SQLite mode is active (database.default.link = %s)", linkText)
+	logger.Info(ctx, "SQLite mode only supports single-node deployment; cluster.enabled has been forced to false")
+	logger.Info(ctx, "All features run in single-node mode; do not use SQLite mode in production")
 	return nil
 }
 
