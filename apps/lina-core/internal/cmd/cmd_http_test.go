@@ -4,6 +4,9 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -84,6 +87,108 @@ func TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath(t *
 	}
 	if !foundHostedRoute {
 		t.Fatal("expected hosted OpenAPI route to be bound at /api.json")
+	}
+}
+
+// TestBindHostedOpenAPIDocsUsesRequestOrigin verifies the generated OpenAPI
+// server URL follows the request entrypoint instead of static metadata.
+func TestBindHostedOpenAPIDocsUsesRequestOrigin(t *testing.T) {
+	testCases := []struct {
+		name       string
+		host       string
+		proto      string
+		wantOrigin string
+	}{
+		{
+			name:       "backend direct mapped port",
+			host:       "127.0.0.1:18088",
+			wantOrigin: "http://127.0.0.1:18088",
+		},
+		{
+			name:       "frontend proxy reaches backend port",
+			host:       "localhost:8080",
+			wantOrigin: "http://localhost:8080",
+		},
+		{
+			name:       "https reverse proxy",
+			host:       "api.example.com:8443",
+			proto:      "https",
+			wantOrigin: "https://api.example.com:8443",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			server := ghttp.GetServer("cmd-http-openapi-origin-" + guid.S())
+			server.SetPort(0)
+			server.SetDumpRouterMap(false)
+			bindHostedOpenAPIDocs(
+				context.Background(),
+				server,
+				&fakeApiDocService{document: &goai.OpenApiV3{
+					Servers: &goai.Servers{
+						{
+							URL:         "http://localhost:8080",
+							Description: "CoreHostEndpoint",
+						},
+					},
+				}},
+				"/api.json",
+			)
+			if err := server.Start(); err != nil {
+				t.Fatalf("start OpenAPI origin test server: %v", err)
+			}
+			t.Cleanup(func() {
+				if err := server.Shutdown(); err != nil {
+					t.Fatalf("shutdown OpenAPI origin test server: %v", err)
+				}
+			})
+
+			request, err := http.NewRequest(
+				http.MethodGet,
+				fmt.Sprintf("http://127.0.0.1:%d/api.json", server.GetListenedPort()),
+				nil,
+			)
+			if err != nil {
+				t.Fatalf("create OpenAPI origin request: %v", err)
+			}
+			request.Host = testCase.host
+			if testCase.proto != "" {
+				request.Header.Set("X-Forwarded-Proto", testCase.proto)
+			}
+
+			response, err := http.DefaultClient.Do(request)
+			if err != nil {
+				t.Fatalf("request hosted OpenAPI document: %v", err)
+			}
+			defer func() {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Fatalf("close hosted OpenAPI response body: %v", closeErr)
+				}
+			}()
+			if response.StatusCode != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", response.StatusCode)
+			}
+
+			var payload struct {
+				Servers []struct {
+					URL         string `json:"url"`
+					Description string `json:"description"`
+				} `json:"servers"`
+			}
+			if err = json.NewDecoder(response.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode hosted OpenAPI response: %v", err)
+			}
+			if len(payload.Servers) != 1 {
+				t.Fatalf("expected one OpenAPI server, got %#v", payload.Servers)
+			}
+			if payload.Servers[0].URL != testCase.wantOrigin {
+				t.Fatalf("expected server url %q, got %q", testCase.wantOrigin, payload.Servers[0].URL)
+			}
+			if payload.Servers[0].Description != "CoreHostEndpoint" {
+				t.Fatalf("expected server description to stay, got %q", payload.Servers[0].Description)
+			}
+		})
 	}
 }
 

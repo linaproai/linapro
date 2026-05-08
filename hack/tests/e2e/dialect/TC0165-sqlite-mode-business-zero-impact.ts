@@ -12,6 +12,7 @@ import {
   requireSQLiteE2E,
   sqliteSourcePluginId,
 } from "../../support/sqlite-e2e";
+import { listLogs } from "../../support/api/job";
 
 type UserListItem = {
   id: number;
@@ -26,7 +27,7 @@ type UserCreateResult = {
 test.describe("TC-165 SQLite mode business zero impact", () => {
   requireSQLiteE2E();
 
-  test("TC-165a~b: user CRUD and source plugin lifecycle work on SQLite", async () => {
+  test("TC-165a~c: user CRUD, execution log list, and source plugin lifecycle work on SQLite", async () => {
     const api = await createAdminApiContext();
     const username = `sqlite_e2e_${Date.now()}`;
     let createdUserId = 0;
@@ -79,6 +80,10 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
         "query deleted user in SQLite mode",
       );
       expect(users.list.some((item) => item.username === username)).toBe(false);
+
+      const logs = await listLogs(api);
+      expect(logs.total).toBeGreaterThanOrEqual(0);
+      expect(Array.isArray(logs.list)).toBe(true);
 
       await syncPlugins(api);
       let plugin = await findPlugin(api, sqliteSourcePluginId);

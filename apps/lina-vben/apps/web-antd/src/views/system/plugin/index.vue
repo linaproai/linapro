@@ -128,8 +128,9 @@ const [Grid, gridApi] = useVbenVxeGrid({
         title: $t('pages.system.plugin.fields.id'),
       },
       {
+        className: 'plugin-name-column',
         field: 'name',
-        minWidth: 220,
+        minWidth: 280,
         slots: { default: 'name' },
         title: $t('pages.system.plugin.fields.name'),
       },
@@ -432,17 +433,24 @@ async function handleUninstallReload() {
       </template>
 
       <template #name="{ row }">
-        <Space :size="6" wrap>
-          <span>{{ row.name }}</span>
+        <div
+          class="inline-flex min-w-max max-w-full items-center gap-1.5 whitespace-nowrap"
+          :data-testid="`plugin-name-cell-${row.id}`"
+        >
+          <span class="shrink-0 whitespace-nowrap">{{ row.name }}</span>
           <Tooltip
             v-if="isAutoEnableManaged(row)"
             :title="buildAutoEnableManagedTooltip(row)"
           >
-            <Tag :data-testid="`plugin-auto-enable-tag-${row.id}`" color="gold">
+            <Tag
+              class="m-0 shrink-0 whitespace-nowrap leading-5"
+              :data-testid="`plugin-auto-enable-tag-${row.id}`"
+              color="gold"
+            >
               {{ $t('pages.system.plugin.autoEnableBadge') }}
             </Tag>
           </Tooltip>
-        </Space>
+        </div>
       </template>
 
       <template #description="{ row, isHidden }">

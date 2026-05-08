@@ -34,6 +34,10 @@ async function mockAutoEnableManagedPlugin(page: Page, targetPluginID: string) {
       data.list = data.list.map((item: Record<string, unknown>) => ({
         ...item,
         autoEnableManaged: item.id === targetPluginID ? 1 : 0,
+        name:
+          item.id === targetPluginID
+            ? "内容管理插件-通知公告中心"
+            : item.name,
       }));
     }
 
@@ -110,6 +114,36 @@ test.describe("TC-104 plugin.autoEnable 管理提示", () => {
     await pluginPage.searchByPluginId(pluginID);
 
     await expect(pluginPage.pluginAutoEnableTag(pluginID)).toBeVisible();
+    await expect(pluginPage.pluginNameCell(pluginID)).toHaveCSS(
+      "white-space",
+      "nowrap",
+    );
+    const autoEnableLayout = await pluginPage
+      .pluginAutoEnableTag(pluginID)
+      .evaluate((tag) => {
+        const nameCell = tag.closest("[data-testid^='plugin-name-cell-']");
+        const nameText = nameCell?.querySelector("span:first-child");
+        const cell = tag.closest(".vxe-cell");
+        const tagRect = tag.getBoundingClientRect();
+        const nameRect = nameText?.getBoundingClientRect();
+        const cellRect = cell?.getBoundingClientRect();
+        return {
+          clipped:
+            !!cellRect &&
+            (tagRect.top < cellRect.top || tagRect.bottom > cellRect.bottom),
+          sameLineAsName:
+            nameRect === undefined
+              ? false
+              : Math.abs(
+                  nameRect.top + nameRect.height / 2 -
+                    (tagRect.top + tagRect.height / 2),
+                ) < 4,
+        };
+      });
+    expect(autoEnableLayout).toEqual({
+      clipped: false,
+      sameLineAsName: true,
+    });
     await pluginPage.pluginAutoEnableTag(pluginID).hover();
     await expect(pluginPage.antTooltip()).toContainText(
       "宿主自动启用策略管理",

@@ -43,3 +43,14 @@
 - 验证记录：已通过 `cd apps/lina-plugins/plugin-demo-dynamic && go test ./... && GOOS=wasip1 GOARCH=wasm go build ./...`。
 - 验证记录：已通过 `openspec validate pluginbridge-subcomponent-refactor --strict`。
 - lina-review 审查结论：未发现阻断问题；本次未新增 API 端点、SQL、前端 UI 或 E2E 用例，不涉及 RESTful/API DTO/apidoc 翻译变更；未新增或扩大数据操作接口，仅调整插件桥接组件包结构与宿主内部 import；根包生产源码已收敛为 `pluginbridge.go` 与 `pluginbridge_guest_wasip1.go` 两个文件，生产代码已改用精确子组件 import，子组件未 import 根包 `pluginbridge`。
+
+## Feedback
+
+- [x] **FB-1**: 在项目规范和 `lina-review` 技能中补充 bugfix 反馈修复必须具备单元测试或 E2E 测试覆盖的要求
+
+## Feedback Implementation Notes
+
+- FB-1 实施记录：已在 `AGENTS.md` 的开发流程关键规则和 E2E 测试规范中补充 bugfix 反馈修复必须新增或更新单元测试 / E2E 测试的硬性要求。
+- FB-1 实施记录：已在 `lina-review` 技能中新增 Bugfix 反馈测试覆盖审查步骤，并将该项加入审查报告模板；缺少测试覆盖或缺少测试运行证据会作为严重问题报告。
+- FB-1 验证记录：本次为项目规范和技能说明变更，不涉及后端运行时代码、前端 UI、API、SQL、缓存或 i18n 资源变更，不需要新增单元测试或 E2E 测试；已通过文本定位检查和 `openspec validate pluginbridge-subcomponent-refactor --strict`。
+- FB-1 lina-review 审查结论：范围来源为 `git status --short`、`git ls-files --others --exclude-standard` 与本次反馈上下文；未发现阻断问题。本次变更未新增业务 bugfix 修复代码，因此新增的 bugfix 测试覆盖要求不适用于本次规范治理任务本身。

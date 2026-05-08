@@ -175,14 +175,14 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "unknown framework panic is rethrown after known request-size errors are normalized",
 		},
 		{
-			Path:     "apps/lina-core/pkg/pluginbridge/pluginbridge_guest_router.go",
+			Path:     "apps/lina-core/pkg/pluginbridge/guest/guest_router.go",
 			Function: "MustNewGuestControllerRouteDispatcher",
 			Count:    1,
 			Category: panicCategoryMustConstructor,
 			Reason:   "Must constructor documents fail-fast behavior and has a non-Must alternative",
 		},
 		{
-			Path:     "apps/lina-core/pkg/pluginbridge/pluginbridge_hostservice.go",
+			Path:     "apps/lina-core/pkg/pluginbridge/hostservice/hostservice.go",
 			Function: "MustNormalizeHostServiceSpecs",
 			Count:    1,
 			Category: panicCategoryMustConstructor,

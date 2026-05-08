@@ -130,3 +130,8 @@
 - [x] **FB-25**: 移除 Nightly Test Go 单测目录硬编码，改为从 `go.work` 自动发现 workspace 模块并执行全量 `go test ./...`
 - [x] **FB-26**: 主 CI 的 SQLite smoke 与 SQLite E2E 支持代码不应继续断言已删除的 “Switch database.default.link back to a MySQL link” 启动日志
 - [x] **FB-27**: 定位并修复主 CI 中 `Go unit tests / Go unit tests` job 失败
+- [x] **FB-28**: SQLite 运行时启用 `monitor-server` 插件后首次采集服务监控数据不应因隐式 `Save()` 缺少冲突列而报错
+- [x] **FB-29**: SQLite 模式下执行日志管理列表接口不应因 `EXISTS ((SELECT ...))` 子查询语法报 `Database Operation Error`
+- [x] **FB-30**: Go 单元测试入口与 GitHub Actions 后端单测流程应统一使用 `go test -race` 检测潜在竞态条件
+  - 2026-05-08: 已新增 `make test-go` 本地入口，按 `go.work` 自动发现所有 Go workspace 模块并执行 `go test -race -v ./...`；GitHub Actions 后端单测 reusable workflow 同步改为 `go test -race -v ./...`，并将超时时间提高到 120 分钟以覆盖 race detector 开销。验证通过：`make test-go`。
+  - 2026-05-08: lina-review 结论：本次仅调整 Go 单测执行入口、CI 命令、测试治理 allowlist 和 OpenSpec 任务记录；不涉及 API、数据库、前端运行时文案、i18n 资源、数据权限或缓存一致性变更。

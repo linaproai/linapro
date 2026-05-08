@@ -105,4 +105,7 @@ func TestGetOpenApiUsesEmbeddedMetadataAsset(t *testing.T) {
 	if got.ServerUrl != want.ServerUrl {
 		t.Fatalf("serverUrl: want %q, got %q", want.ServerUrl, got.ServerUrl)
 	}
+	if got.ServerUrl != "" {
+		t.Fatalf("expected embedded serverUrl to stay runtime-derived, got %q", got.ServerUrl)
+	}
 }

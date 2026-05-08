@@ -198,7 +198,7 @@ func (p *Provider) ApplyUserDeptScope(
 	if err != nil || empty {
 		return model, empty, err
 	}
-	return model.WhereExists(subQuery), false, nil
+	return model.Where("EXISTS ?", subQuery), false, nil
 }
 
 // BuildUserDeptScopeExists builds an EXISTS subquery for department membership

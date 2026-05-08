@@ -14,7 +14,7 @@ jobs:
   backend-unit-tests:
     name: Go unit tests
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     services:
       mysql:
@@ -68,6 +68,6 @@ jobs:
             if [ -z "${module_dir}" ]; then
               continue
             fi
-            echo "==> go test ${module_dir}"
-            (cd "${module_dir}" && go test -v ./...)
+            echo "==> go test -race ${module_dir}"
+            (cd "${module_dir}" && go test -race -v ./...)
           done < "${module_file}"

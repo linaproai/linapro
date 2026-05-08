@@ -42,7 +42,7 @@ openapi:
   version: "v0.1.0"
   # Backend service access URL
   # 后端服务访问地址
-  serverUrl: "http://localhost:8080"
+  serverUrl: ""
   # Service URL description
   # 服务地址说明
   serverDescription: "CoreHostEndpoint"

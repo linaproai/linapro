@@ -41,7 +41,7 @@ func (s *serviceImpl) applyJobLogDataScope(ctx context.Context, model *gdb.Model
 	if err != nil {
 		return nil, err
 	}
-	return model.WhereExists(scopedSubQuery), nil
+	return model.Where("EXISTS ?", scopedSubQuery), nil
 }
 
 // ensureJobVisible verifies one job entity is inside the current data scope.

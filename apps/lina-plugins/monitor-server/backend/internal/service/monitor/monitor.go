@@ -31,6 +31,7 @@ import (
 // Storage metadata constants for server-monitor persistence.
 const (
 	colNodeName  = "node_name"
+	colNodeIp    = "node_ip"
 	colCreatedAt = "created_at"
 	colUpdatedAt = "updated_at"
 )
@@ -165,14 +166,23 @@ func (s *serviceImpl) CollectAndStore(ctx context.Context) {
 		logger.Warningf(ctx, "resolve monitor node hostname failed: %v", hostnameErr)
 	}
 
-	_, err = dao.Server.Ctx(ctx).Data(do.Server{
-		NodeName: nodeName,
-		NodeIp:   getLocalIP(),
-		Data:     string(jsonData),
-	}).Save()
-	if err != nil {
+	if err = upsertMonitorSnapshot(ctx, nodeName, getLocalIP(), string(jsonData)); err != nil {
 		logger.Errorf(ctx, "store monitor data failed: %v", err)
 	}
+}
+
+// upsertMonitorSnapshot stores the latest snapshot for one node using the
+// table's stable node identity as explicit upsert conflict columns.
+func upsertMonitorSnapshot(ctx context.Context, nodeName string, nodeIP string, data string) error {
+	_, err := dao.Server.Ctx(ctx).
+		Data(do.Server{
+			NodeName: nodeName,
+			NodeIp:   nodeIP,
+			Data:     data,
+		}).
+		OnConflict(colNodeName, colNodeIp).
+		Save()
+	return err
 }
 
 // Collect gathers all server metrics.

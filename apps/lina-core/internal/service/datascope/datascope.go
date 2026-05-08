@@ -155,7 +155,7 @@ func (s *serviceImpl) ApplyUserScopeWithBypass(
 				return nil, false, buildErr
 			}
 			if !empty {
-				builder = builder.WhereOrf("EXISTS (?)", subQuery)
+				builder = builder.WhereOrf("EXISTS ?", subQuery)
 			}
 			return model.Where(builder), false, nil
 		}

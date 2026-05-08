@@ -75,13 +75,15 @@ func (s *serviceImpl) newDocument(ctx context.Context) *goai.OpenApiV3 {
 	document.Info.Title = oaiCfg.Title
 	document.Info.Description = oaiCfg.Description
 	document.Info.Version = oaiCfg.Version
-	if strings.TrimSpace(oaiCfg.ServerUrl) != "" {
-		document.Servers = &goai.Servers{
-			{
-				URL:         oaiCfg.ServerUrl,
-				Description: oaiCfg.ServerDescription,
-			},
-		}
+	serverURL := strings.TrimSpace(oaiCfg.ServerUrl)
+	if serverURL == "" {
+		serverURL = "/"
+	}
+	document.Servers = &goai.Servers{
+		{
+			URL:         serverURL,
+			Description: oaiCfg.ServerDescription,
+		},
 	}
 	return document
 }

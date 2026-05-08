@@ -332,6 +332,10 @@ export class PluginPage {
     return this.page.getByTestId(`plugin-auto-enable-tag-${pluginId}`).first();
   }
 
+  pluginNameCell(pluginId: string): Locator {
+    return this.page.getByTestId(`plugin-name-cell-${pluginId}`).first();
+  }
+
   pluginAutoEnableDetailAlert(): Locator {
     return this.page.getByTestId("plugin-auto-enable-detail-alert").last();
   }
