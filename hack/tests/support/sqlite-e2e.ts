@@ -30,7 +30,6 @@ export async function expectSQLiteStartupWarnings() {
     "SQLite mode is active",
     "SQLite mode only supports single-node deployment",
     "do not use SQLite mode in production",
-    "Switch database.default.link back to a MySQL link",
   ];
   await expect
     .poll(

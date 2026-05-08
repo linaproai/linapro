@@ -134,7 +134,6 @@ wait_for_backend
 assert_log_contains "SQLite mode is active"
 assert_log_contains "SQLite mode only supports single-node deployment"
 assert_log_contains "do not use SQLite mode in production"
-assert_log_contains "Switch database.default.link back to a MySQL link"
 assert_health
 assert_login
 

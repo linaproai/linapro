@@ -49,9 +49,9 @@ func TestSQLiteOnStartupOverridesCluster(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve SQLite dialect failed: %v", err)
 	}
-	var warnings []string
+	var messages []string
 	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		warnings = append(warnings, in.ValuesContent())
+		messages = append(messages, in.ValuesContent())
 	})
 	t.Cleanup(func() {
 		logger.Logger().SetHandlers()
@@ -66,26 +66,24 @@ func TestSQLiteOnStartupOverridesCluster(t *testing.T) {
 	if runtime.value {
 		t.Fatal("expected SQLite startup hook to force cluster mode off")
 	}
-	if len(warnings) != 4 {
-		t.Fatalf("expected 4 SQLite warnings, got %d: %#v", len(warnings), warnings)
+	if len(messages) != 3 {
+		t.Fatalf("expected 3 SQLite startup messages, got %d: %#v", len(messages), messages)
 	}
 	for _, needle := range []string{
-		"[WARNING]",
 		"sqlite::@file(./temp/sqlite/linapro.db)",
 		"cluster.enabled",
 		"production",
-		"MySQL",
 	} {
-		if !containsAnyWarning(warnings, needle) {
-			t.Fatalf("expected SQLite warning to contain %q, got %#v", needle, warnings)
+		if !containsAnyMessage(messages, needle) {
+			t.Fatalf("expected SQLite startup message to contain %q, got %#v", needle, messages)
 		}
 	}
 }
 
-// containsAnyWarning reports whether one captured warning contains a substring.
-func containsAnyWarning(warnings []string, needle string) bool {
-	for _, warning := range warnings {
-		if strings.Contains(warning, needle) {
+// containsAnyMessage reports whether one captured message contains a substring.
+func containsAnyMessage(messages []string, needle string) bool {
+	for _, message := range messages {
+		if strings.Contains(message, needle) {
 			return true
 		}
 	}

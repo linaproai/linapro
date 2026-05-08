@@ -18,7 +18,7 @@
 
 - [x] 3.1 在 SQLite 方言实现中实现 `PrepareDatabase`：解析 SQLite link 取得文件路径，自动 `mkdir -p` 父目录；`rebuild=true` 时删除主 db 文件以及可能存在的 `.db-shm` / `.db-wal` 附属文件；目录创建失败返回包含路径的明确错误
 - [x] 3.2 在 SQLite 方言实现中实现 `SupportsCluster() = false`，`Name() = "sqlite"`
-- [x] 3.3 在 SQLite 方言实现中实现 `OnStartup`：调用 `runtime.OverrideClusterEnabledForDialect(false)`（步骤 5.1 新增方法由宿主 config service 适配实现），并通过 `logger.Warningf(ctx, ...)` 输出至少 4 行 `[WARNING]` 级别日志，覆盖：当前为 SQLite 模式、cluster 强制锁定原因、不得用于生产、切换回 MySQL 的指引
+- [x] 3.3 在 SQLite 方言实现中实现 `OnStartup`：调用 `runtime.OverrideClusterEnabledForDialect(false)`（步骤 5.1 新增方法由宿主 config service 适配实现），并输出启动提示日志，覆盖：当前为 SQLite 模式、cluster 强制锁定原因、不得用于生产
 - [x] 3.4 在 `dialect_sqlite_translate.go` 实现 SQLite DDL 转译器，覆盖以下转换规则：
   - 反引号标识符去除（含字符串内反引号识别避免误伤）
   - 当前 SQL 真实出现的 `INT/BIGINT [UNSIGNED] PRIMARY KEY AUTO_INCREMENT`、`AUTO_INCREMENT PRIMARY KEY`、`NOT NULL AUTO_INCREMENT` + 表级 `PRIMARY KEY(id)` 等写法 → `INTEGER PRIMARY KEY AUTOINCREMENT`
@@ -50,7 +50,7 @@
 
 - [x] 5.1 在 `apps/lina-core/internal/service/config/config_cluster.go` 新增 `OverrideClusterEnabledForDialect(value bool)` 方法：方言层调用后将内存中的 `cluster.enabled` 锁定为指定值，后续所有 `IsClusterEnabled` 调用稳定返回该值，不再读取配置文件
 - [x] 5.2 在 `apps/lina-core/internal/cmd/cmd_http_runtime.go`（或等价启动 bootstrap 入口）找到 cluster 服务初始化前的位置，调用 `dialect.From(link).OnStartup(ctx, runtime)`；`runtime` 由宿主 config service 适配，且该调用必须早于 `clusterSvc` 初始化与选举循环启动
-- [x] 5.3 编写单元测试：模拟 SQLite link 启动场景，断言 `IsClusterEnabled` 返回 `false` 且日志输出至少 4 行 `[WARNING]` 级别消息覆盖必要内容
+- [x] 5.3 编写单元测试：模拟 SQLite link 启动场景，断言 `IsClusterEnabled` 返回 `false` 且日志输出 SQLite 模式、cluster 锁定和不得用于生产等必要内容
 - [x] 5.4 编写单元测试：模拟 MySQL link + `cluster.enabled=true` 启动场景，断言 `IsClusterEnabled` 返回 `true` 且无 SQLite 相关警告日志
 
 ## 6. 插件 install / uninstall pipeline 接入方言层
@@ -79,7 +79,7 @@
 ## 9. E2E 测试套件参数化运行
 
 - [x] 9.1 在 `hack/tests/` 增加 SQLite 模式执行通道：测试夹具必须在启动服务前写入测试配置文件中的 `database.default.link=sqlite::@file(./temp/sqlite/linapro.db)` 并自动准备 `temp/sqlite/linapro.db`；后端运行时不得读取命令行参数或环境变量作为数据库方言来源
-- [x] 9.2 新增测试用例 `hack/tests/e2e/dialect/TC0164-sqlite-mode-startup.ts`：启动 SQLite 模式后断言终端日志包含至少 4 行 SQLite 警告、`/api/v1/cluster/status`（或等价端点）返回单节点状态、登录 admin/admin123 成功
+- [x] 9.2 新增测试用例 `hack/tests/e2e/dialect/TC0164-sqlite-mode-startup.ts`：启动 SQLite 模式后断言终端日志包含 SQLite 启动提示、`/api/v1/cluster/status`（或等价端点）返回单节点状态、登录 admin/admin123 成功
 - [x] 9.3 新增测试用例 `hack/tests/e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts`：在 SQLite 模式下完整跑通"用户列表 → 创建用户 → 修改用户 → 删除用户"与"插件列表 → 启用插件 → 禁用插件"两类核心业务场景，断言行为与 MySQL 模式一致
 - [x] 9.4 新增测试用例 `hack/tests/e2e/dialect/TC0166-sqlite-mode-rebuild-and-reseed.ts`：执行 `make init confirm=init rebuild=true` + `make mock confirm=mock` 验证 SQLite 模式下重建数据库 + 加载 mock 数据完整流程
 - [x] 9.5 在 CI 配置中保留 SQLite 后端 smoke 通道，覆盖 SQLite 启动警告、单节点 health 与管理员登录；完整 SQLite E2E 通道保留为手动验证入口，避免主 CI 每次运行完整浏览器与插件生命周期回归
@@ -95,7 +95,7 @@
 
 - [x] 11.1 运行 `gofmt`、`go vet ./...` 通过；运行 `go test ./...` 后端单元测试全绿
 - [ ] 11.2 在 MySQL 链接下完整执行 `make init confirm=init` → `make mock confirm=mock` → `make dev` → 浏览器访问管理工作台 → 登录 admin/admin123，确认零回归
-- [x] 11.3 在 SQLite 链接下完整执行 `make init confirm=init` → `make mock confirm=mock` → `make dev` → 浏览器访问管理工作台 → 登录 admin/admin123，确认终端有醒目 `[WARNING]` 输出且业务功能可用
+- [x] 11.3 在 SQLite 链接下完整执行 `make init confirm=init` → `make mock confirm=mock` → `make dev` → 浏览器访问管理工作台 → 登录 admin/admin123，确认终端有清晰 SQLite 单机模式提示且业务功能可用
 - [x] 11.4 在 SQLite 链接 + `cluster.enabled=true` 配置下启动，确认 `IsClusterEnabled` 实际为 `false` 且警告日志醒目
 - [x] 11.5 在 SQLite 链接下完整跑通插件管理"安装 → 启用 → 卸载"流程（至少覆盖 `monitor-loginlog` 一个源码插件与 `plugin-demo-dynamic` 一个动态插件）
 - [x] 11.6 调用 `/lina-review` 技能进行最终代码与规范审查
@@ -128,3 +128,5 @@
 - [x] **FB-23**: 新增 GitHub Actions 标签发布镜像 workflow，仅在新建标签时构建并发布对应标签与 `latest` 的 `linux/amd64`、`linux/arm64` 多架构 Docker 镜像
 - [x] **FB-24**: 新增 GitHub Actions nightly test workflow，每天 `Asia/Shanghai 00:00` 自动运行完整 Go/前端单元测试与完整 Playwright E2E 套件，持续验证项目健康度
 - [x] **FB-25**: 移除 Nightly Test Go 单测目录硬编码，改为从 `go.work` 自动发现 workspace 模块并执行全量 `go test ./...`
+- [x] **FB-26**: 主 CI 的 SQLite smoke 与 SQLite E2E 支持代码不应继续断言已删除的 “Switch database.default.link back to a MySQL link” 启动日志
+- [x] **FB-27**: 定位并修复主 CI 中 `Go unit tests / Go unit tests` job 失败

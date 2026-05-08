@@ -8,7 +8,7 @@
 
 - **新增** `apps/lina-core/pkg/dialect/` 公共稳定包，定义 `Dialect` 接口（`Name()` / `TranslateDDL(ctx, sourceName, ddl)` / `PrepareDatabase()` / `SupportsCluster()` / `OnStartup()`）作为数据库引擎差异收敛的统一边界；该包暴露稳定窄接口，禁止在公开签名中绑定宿主 `internal` 具体服务类型，MySQL / SQLite 具体实现收敛到 `pkg/dialect/internal/mysql` 与 `pkg/dialect/internal/sqlite`
 - **新增** MySQL 内部方言实现：`TranslateDDL` 为 no-op，`PrepareDatabase` 沿用现有 `DROP DATABASE` / `CREATE DATABASE` 行为，`SupportsCluster` 返回 `true`
-- **新增** SQLite 内部方言实现：`TranslateDDL` 调用 SQLite DDL 转译器，`PrepareDatabase` 在 `rebuild=true` 时删除数据库文件，`SupportsCluster` 返回 `false`，`OnStartup` 强制覆盖 `cluster.enabled=false` 并输出警告日志
+- **新增** SQLite 内部方言实现：`TranslateDDL` 调用 SQLite DDL 转译器，`PrepareDatabase` 在 `rebuild=true` 时删除数据库文件，`SupportsCluster` 返回 `false`，`OnStartup` 强制覆盖 `cluster.enabled=false` 并输出启动提示日志
 - **新增** SQLite DDL 转译器，覆盖以下 MySQL → SQLite 方言映射：
   - 反引号标识符去除
   - 当前所有 SQL 中真实出现的 `INT/BIGINT [UNSIGNED] AUTO_INCREMENT PRIMARY KEY` / `PRIMARY KEY AUTO_INCREMENT` / 表级 `PRIMARY KEY(id)` 组合 → SQLite 可执行的 `INTEGER PRIMARY KEY AUTOINCREMENT` 语义
@@ -31,7 +31,7 @@
 
 ### 修改集群模式开关
 
-- **修改** `cluster-deployment-mode` 规范：在 SQLite 链接下，`cluster.enabled` 配置值在内存层被强制覆盖为 `false`，无论用户在 `config.yaml` 中写的是什么；启动期间输出醒目的 `WARNING` 日志，明确告知"当前为 SQLite 模式，仅支持单节点部署，所有功能在单机模式下运行，请勿用于生产"
+- **修改** `cluster-deployment-mode` 规范：在 SQLite 链接下，`cluster.enabled` 配置值在内存层被强制覆盖为 `false`，无论用户在 `config.yaml` 中写的是什么；启动期间输出清晰提示，明确告知"当前为 SQLite 模式，仅支持单节点部署，所有功能在单机模式下运行，请勿用于生产"
 
 ### 修改插件清单生命周期
 
@@ -53,7 +53,7 @@
 
 - **新增** SQLite DDL 转译器单元测试，按当前仓库真实 SQL 资产自动扫描宿主安装 SQL、插件安装 SQL、宿主 mock SQL、插件 mock SQL 与插件卸载 SQL，断言转译结果可在 SQLite 上成功执行
 - **新增** SQLite 模式 E2E 用例：通过测试夹具在启动前写入测试配置文件来切换 `database.default.link`，不引入命令行参数或环境变量作为运行时方言来源，验证业务模块在 SQLite 引擎下行为一致、零感知；主 CI 仅运行轻量后端 SQLite smoke，完整 SQLite E2E 保留为手动验证入口
-- **新增** 启动期 cluster 锁定与警告日志的单元测试
+- **新增** 启动期 cluster 锁定与启动提示日志的单元测试
 
 ## Capabilities
 
@@ -64,7 +64,7 @@
 ### Modified Capabilities
 
 - `database-bootstrap-commands`：新增按方言分发的初始化 / 重建语义；新增执行 SQL 资源前必须经方言转译的需求；新增 SQLite 数据库文件路径与父目录自动创建语义
-- `cluster-deployment-mode`：新增 SQLite 链接下 `cluster.enabled` 强制为 `false` 的需求；新增启动期警告日志的可见性需求
+- `cluster-deployment-mode`：新增 SQLite 链接下 `cluster.enabled` 强制为 `false` 的需求；新增启动期提示日志的可见性需求
 - `plugin-cache-service`：明确 MySQL 交付 SQL 中 `sys_kv_cache` 保持既有 `ENGINE=MEMORY` 表结构与引擎类型；SQLite 模式仅在执行期通过 DDL 转译器去除引擎子句，并继续把缓存视为有损缓存
 - `plugin-manifest-lifecycle`：新增插件 SQL 资源（`manifest/sql/` / `uninstall/` / `mock-data/`）执行前必须经当前方言转译的需求
 
@@ -77,14 +77,14 @@
 - `apps/lina-core/internal/service/kvcache/internal/mysql-memory/` → `sqltable/`（重命名 + 重写 `Incr`）
 - `apps/lina-core/internal/service/kvcache/kvcache_backend.go`（常量名调整）
 - `apps/lina-core/internal/service/plugin/`（插件 install/uninstall pipeline 接入方言转译）
-- `apps/lina-core/internal/cmd/cmd_http_runtime.go` 或等价启动 bootstrap 入口（SQLite 启动期锁 cluster + 警告日志）
+- `apps/lina-core/internal/cmd/cmd_http_runtime.go` 或等价启动 bootstrap 入口（SQLite 启动期锁 cluster + 启动提示日志）
 - `apps/lina-core/manifest/config/config.template.yaml`、`config.yaml`（注释新增 SQLite 链接示例）
 
 ### 受影响测试
 
 - 新增方言转译器单元测试（覆盖当前宿主 / 插件安装、mock、卸载 SQL 资产）
 - 新增启动期 cluster 锁定与日志输出的单元测试
-- 复用现有 E2E 套件，新增 SQLite 模式参数化执行通道；主 CI 使用后端 SQLite smoke 覆盖启动警告、单节点 health 与管理员登录链路
+- 复用现有 E2E 套件，新增 SQLite 模式参数化执行通道；主 CI 使用后端 SQLite smoke 覆盖启动提示、单节点 health 与管理员登录链路
 
 ### 受影响依赖
 

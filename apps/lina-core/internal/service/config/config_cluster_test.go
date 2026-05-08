@@ -126,9 +126,9 @@ cluster:
 `)
 
 	svc := New()
-	var warnings []string
+	var messages []string
 	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		warnings = append(warnings, in.ValuesContent())
+		messages = append(messages, in.ValuesContent())
 	})
 	t.Cleanup(func() {
 		logger.Logger().SetHandlers()
@@ -145,18 +145,16 @@ cluster:
 	if svc.IsClusterEnabled(context.Background()) {
 		t.Fatal("expected SQLite startup hook to force config service cluster mode off")
 	}
-	if len(warnings) != 4 {
-		t.Fatalf("expected 4 SQLite startup warnings, got %d: %#v", len(warnings), warnings)
+	if len(messages) != 3 {
+		t.Fatalf("expected 3 SQLite startup messages, got %d: %#v", len(messages), messages)
 	}
 	for _, needle := range []string{
-		"[WARNING]",
 		"sqlite::@file(./temp/sqlite/linapro.db)",
 		"cluster.enabled",
 		"production",
-		"MySQL",
 	} {
-		if !containsCapturedWarning(warnings, needle) {
-			t.Fatalf("expected SQLite startup warning to contain %q, got %#v", needle, warnings)
+		if !containsCapturedWarning(messages, needle) {
+			t.Fatalf("expected SQLite startup message to contain %q, got %#v", needle, messages)
 		}
 	}
 }

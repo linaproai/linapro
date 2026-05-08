@@ -32,7 +32,7 @@ GoFrame 已通过 `github.com/gogf/gf/contrib/drivers/sqlite/v2` 原生支持 SQ
 - 单一 MySQL 方言 SQL 文件来源（保持"同迭代单文件"原则），不引入并存的 `xxx.mysql.sql` / `xxx.sqlite.sql`
 - 插件 SQL 资源在 SQLite 模式下也可正确执行，插件源码无需任何改动
 - SQLite DDL 转译器必须覆盖当前宿主、插件与 mock SQL 文件中所有真实语法形态，包括主键顺序差异、表级主键、`UNIQUE INDEX`、表达式索引与 mock DML 中的 `CONCAT(...)`
-- SQLite 模式启动时强制锁定单节点模式，并在终端打印明确的警告日志，避免误用
+- SQLite 模式启动时强制锁定单节点模式，并在终端打印明确的启动提示日志，避免误用
 - 默认 SQLite 数据库文件路径 `./temp/sqlite/linapro.db` 可通过修改 `link` 配置自定义；启动时若父目录不存在则自动创建
 - 现有 MySQL 用户的默认配置与运行时行为完全向后兼容
 
@@ -73,7 +73,7 @@ type Dialect interface {
     SupportsCluster() bool
 
     // OnStartup 在启动 bootstrap 阶段调用，用于方言相关的运行时初始化
-    // （如 SQLite 模式锁定 cluster.enabled 并输出警告日志）。
+    // （如 SQLite 模式锁定 cluster.enabled 并输出启动提示日志）。
     OnStartup(ctx context.Context, runtime RuntimeConfig) error
 }
 
@@ -93,7 +93,7 @@ func From(link string) (Dialect, error)
 - 单一扩展点：未来支持 PostgreSQL 仅需增加一个 `Dialect` 实现，无需修改任何调用方
 - 公共包边界稳定：`pkg/dialect` 不暴露 `internal/service/config` 等宿主私有类型，也不导出 `MySQLDialect` / `SQLiteDialect` 具体类型，避免插件或工具链依赖宿主内部实现
 - 测试隔离：方言层可被独立单元测试覆盖（DDL 转译、链接解析），不依赖真实数据库
-- 启动期钩子集中：`OnStartup` 让"SQLite 锁 cluster + 警告"等启动期行为有明确归宿，不散落在各处
+- 启动期钩子集中：`OnStartup` 让"SQLite 锁 cluster + 启动提示"等启动期行为有明确归宿，不散落在各处
 
 **替代方案与拒绝理由**：
 
@@ -174,10 +174,10 @@ func From(link string) (Dialect, error)
 **选择**：
 
 - SQLite 方言实例的 `OnStartup(ctx, runtime)` 在启动期被调用一次
-- 实现：调用 `configSvc.OverrideClusterEnabledForDialect(false)`（新增内存层覆盖方法），并 `logger.Warningf(ctx, ...)` 输出明确的警告日志
+- 实现：调用 `configSvc.OverrideClusterEnabledForDialect(false)`（新增内存层覆盖方法），并输出明确的启动提示日志
 - `IsClusterEnabled` 在被覆盖后稳定返回 `false`，不需要在每个调用点感知方言
 
-**警告日志示例**：
+**启动提示日志示例**：
 
 ```
 当前为 SQLite 模式（database.default.link = sqlite::@file(./temp/sqlite/linapro.db)）
@@ -188,7 +188,7 @@ SQLite 模式仅支持单节点部署，cluster.enabled 已被强制覆盖为 fa
 
 - 启动期钩子让"锁定 cluster"行为有单一明确执行点，不散落在 `cluster.Service` / `config.Service` / 各个调用方
 - 在 `IsClusterEnabled` 内部覆盖而非每个调用点判断，保留所有现有 cluster 联动逻辑（前端 UI 隐藏、定时任务退化、缓存协调降级）的可复用性
-- 警告日志使用 `WARNING` 级别（不是 `INFO`），在终端默认日志输出中醒目可见
+- 启动提示日志在终端默认日志输出中清晰可见
 
 ### 决策六：默认 SQLite 数据库文件路径 `./temp/sqlite/linapro.db`，可通过 `link` 自定义
 
@@ -228,7 +228,7 @@ SQLite 模式仅支持单节点部署，cluster.enabled 已被强制覆盖为 fa
 | **新增插件 SQL 引入未覆盖的 MySQL 语法**（变更归档后才发现） | 插件 install pipeline 在转译失败时返回明确错误，定位到具体 SQL 文件与行号；同时在 spec `plugin-manifest-lifecycle` 中明确"插件 SQL 必须能被默认方言转译器处理"的约束 |
 | **SQLite 模式下无 MEMORY 表的"重启即清"语义** → 重启后短暂出现陈旧锁 / 在线会话 | 两类数据均已有 TTL / 定时任务清理，应用层在首次 TTL 检查时自动清理；演示场景对短暂残留无敏感度 |
 | **`Incr` 由 `LAST_INSERT_ID(v+δ)` 改为 CAS + 锁冲突重试** → 高并发下竞争调用可能因快照变化重试 | 仅 `kvcache` 一处使用；MySQL MEMORY 与 SQLite 均能通过单条条件 `UPDATE` 检测竞争写入，成功调用仍线性递增；超过有限重试上限时向调用方返回明确错误 |
-| **用户误将 SQLite 模式用于多实例部署** | 启动期 `WARNING` 日志 + cluster 强制锁定 + 文档明确警示三重防御 |
+| **用户误将 SQLite 模式用于多实例部署** | 启动期提示日志 + cluster 强制锁定 + 文档明确警示三重防御 |
 | **`temp/sqlite/` 目录被 CI 误清理导致测试失败** | `temp/` 是临时产物目录且已被忽略；CI smoke 在 `make init` 之前不需要保留 db 文件，初始化会自动重建 |
 | **现有插件 mock SQL 包含 `INSERT INTO ... ON DUPLICATE KEY UPDATE`** | 项目规则已禁止该语法，本次仅做兜底排查；若发现违规交付应当作 bug 在本变更中一并修复 |
 
@@ -245,10 +245,10 @@ SQLite 模式仅支持单节点部署，cluster.enabled 已被强制覆盖为 fa
 1. 将 `database.default.link` 改为 `sqlite::@file(./temp/sqlite/linapro.db)`
 2. 执行 `make init` → 自动创建 `temp/sqlite/` 目录与数据库文件，加载所有 DDL
 3. （可选）执行 `make mock` 加载演示数据；该命令要求数据库已由 `make init` 初始化，不会自行创建或重建数据库
-4. 启动 `make dev`，注意终端会输出 `WARNING` 提示
+4. 启动 `make dev`，注意终端会输出 SQLite 单机模式提示
 
 如需切回 MySQL：恢复原 `link` 值即可。两种模式数据完全独立，互不影响。
 
 ## Open Questions
 
-无。前置探索阶段与本次反馈已澄清所有关键决策（SQLite 用户画像、不需要数据迁移、业务模块零适配、cluster 锁定 + 警告、文件路径、包重命名、`TranslateDDL` 传入 `sourceName`、`make mock` 依赖 `make init`、DDL 转译覆盖当前真实 SQL 写法、`kvcache incr` 方言中性原子流程、仅走配置文件、不做安全网、`pkg/dialect` 是公共稳定包）。
+无。前置探索阶段与本次反馈已澄清所有关键决策（SQLite 用户画像、不需要数据迁移、业务模块零适配、cluster 锁定 + 启动提示、文件路径、包重命名、`TranslateDDL` 传入 `sourceName`、`make mock` 依赖 `make init`、DDL 转译覆盖当前真实 SQL 写法、`kvcache incr` 方言中性原子流程、仅走配置文件、不做安全网、`pkg/dialect` 是公共稳定包）。
