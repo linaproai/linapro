@@ -40,8 +40,8 @@
 ## 6. 回归验证
 
 - [x] 6.1 运行 `gofmt` 和相关后端单元测试，至少覆盖 `apps/lina-core/internal/service/plugin/...`、`cron`、`jobmgmt`、`cmd` 相关包
-- [ ] 6.2 在 MySQL 配置下执行 `make init`、`make mock`、后端启动 smoke，确认 admin/admin123 登录链路不回归
-- [ ] 6.3 在 SQLite 配置下执行后端启动 smoke，确认 SQLite 警告、单节点模式、admin/admin123 登录链路不回归
+- [x] 6.2 在 MySQL 配置下执行 `make init`、`make mock`、后端启动 smoke，确认 admin/admin123 登录链路不回归
+- [x] 6.3 在 SQLite 配置下执行后端启动 smoke，确认 SQLite 警告、单节点模式、admin/admin123 登录链路不回归
 - [x] 6.4 对比优化前后启动 SQL 基线，记录默认 debug=false 下日志行数变化，以及 debug=true 诊断模式下项目可控 SQL 数量变化
 - [x] 6.5 明确记录 i18n 影响判断：本变更不新增、修改或删除运行时语言包、插件 manifest i18n 或 apidoc i18n 资源
 - [x] 6.6 明确记录缓存一致性判断：启动快照仅限单次启动编排，不跨请求、不跨进程、不作为业务缓存；集群模式仍以数据库和现有拓扑/修订机制为权威
@@ -55,12 +55,14 @@
 - 启动后 `10s` 窗口内日志 `116` 行，其中 ORM SQL 明细 `97` 条、事务明细 `14` 条、累计 DB 日志耗时约 `319ms`。
 - 主要重复来源：默认 SQL debug、插件 catalog/integration 快照重复构造、插件菜单 no-op 空事务、registry/release 写后回读、runtime frontend prewarm 重复读取插件治理表、monitor-server 首轮定时任务与启动日志混杂。
 - `apps/lina-core/manifest/config/config.yaml` 为 `.gitignore` 忽略的本地配置；当前工作区本地值已调整为 `debug: false`。版本化交付模板 `manifest/config/config.template.yaml` 与嵌入模板 `internal/packed/manifest/config/config.template.yaml` 均保持 `debug: false` 并补充诊断模式注释。
-- 默认 debug=false 的日志行为通过配置文件测试和启动摘要日志单元测试覆盖；显式 debug=true 通过 `TestDatabaseDebugCanBeEnabledExplicitly` 覆盖配置可读性。由于 8080 已有本地 `lina` 进程监听，本轮未执行真实后端启动 smoke。
+- 默认 debug=false 的日志行为通过配置文件测试和启动摘要日志单元测试覆盖；显式 debug=true 通过 `TestDatabaseDebugCanBeEnabledExplicitly` 覆盖配置可读性。2026-05-08 已补充 MySQL 与 SQLite 后端启动 smoke。
 - 插件 no-op 菜单和 resource ref 同步通过 `gdb.CatchSQL` 与临时 ORM debug logger 捕获验证，第二次同步不包含 `INSERT`、`UPDATE`、`DELETE`、`BEGIN`、`COMMIT`、`ROLLBACK`。
 - Cron 审查结论：`persistentScheduler.LoadAndRegister` 已按 `is_builtin=0` 扫描启用持久化任务，内置任务由 `SyncBuiltinJobs` 返回的 projection snapshot 调用 `RegisterJobSnapshot` 注册；monitor-server 首轮采集属于启动后首轮定时任务，不纳入宿主启动摘要统计，本轮不调整首轮执行语义。
 - 3.4 已完成：`SyncManifest` 先准备 release metadata，再绑定 registry 的 `release_id`，最后同步 release 依赖的 resource ref 与 node state，避免首次发现后第二次启动再补写 `sys_plugin_node_state.release_id`。集群模式下针对 `PluginNodeStateMessageManifestSynchronized` 的无差异节点投影新增 no-op 判断，重复清单同步不再刷新 `last_heartbeat_at`；动态运行时收敛和真实生命周期变更仍保留节点心跳写入语义。
-- 6.2、6.3 保留未完成：未执行 `make init`、`make mock`、MySQL/SQLite 后端启动和 admin/admin123 登录 smoke。
+- MySQL smoke 已完成：在 `database.default.link=mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?...`、`database.default.debug=false` 下执行 `make init confirm=init rebuild=true` 与 `make mock confirm=mock` 通过；随后构建 `temp/bin/lina-mysql-smoke` 并启动后端，`GET /api/v1/health` 返回 `code=0,status=ok,mode=single`，`POST /api/v1/auth/login` 使用 `admin/admin123` 返回 `code=0` 且 `accessToken` 非空。该轮启动摘要为 `elapsed=2.044s catalogSnapshots=1 integrationSnapshots=1 jobSnapshots=1 pluginScans=1 pluginItems=9 pluginChanged=0 pluginNoop=18 builtinNoop=7 persistentJobs=0`。
+- SQLite smoke 已完成：执行 `bash hack/tests/scripts/run-sqlite-smoke.sh` 通过；脚本临时写入 `sqlite::@file(./temp/sqlite/linapro.db)` 配置，执行 `make init confirm=init rebuild=true` 与 `make mock confirm=mock`，启动后端并断言日志包含 `SQLite mode is active`、`SQLite mode only supports single-node deployment`、`do not use SQLite mode in production`，同时确认 health 返回单节点模式且 `admin/admin123` 登录返回非空 token。脚本退出后已恢复 MySQL 本地配置。
 - `lina-review` 审查结论：未修改 `dao` / `do` / `entity` 生成文件；本变更无 API DTO、SQL 文件、前端 UI、运行时 i18n 或 apidoc i18n 资源变更；新增启动快照只挂载在单次启动 context，不跨请求和进程。审查中已修复两点：忽略文件 `internal/packed/manifest/config/config.template.yaml` 在配置测试中改为存在才校验；`ReadOnlyList` 仅构造 catalog 快照，避免管理页只读 GET 额外读取 integration 表。
+- 补充验证后复审结论：`git status --short` 与 `git ls-files --others --exclude-standard` 显示仅 `tasks.md` 有验证记录变更，无未跟踪文件；`openspec status --change startup-sql-optimization --json` 显示变更 complete，`openspec validate startup-sql-optimization --strict` 通过，`git diff --check` 通过。补充内容未引入代码、API、SQL、前端、i18n 或缓存行为变更，无阻塞问题。
 - i18n 影响判断：本变更不新增、修改或删除用户可见前端文案、菜单、路由、按钮、表单、表格、API DTO 文档源文本、插件 manifest i18n 或 apidoc i18n 资源；无需同步运行时语言包。
 - 缓存一致性判断：启动快照仅挂载在一次 HTTP 启动编排 context 上，不跨请求、不跨进程、不作为业务缓存；权威数据源仍为数据库。单机模式只使用进程内启动快照；集群模式下插件生命周期和任务治理仍复用现有 cluster/topology、数据库投影和节点状态机制，启动摘要不承担跨实例一致性职责。
 
