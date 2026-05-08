@@ -39,7 +39,7 @@ init:
 	fi
 	@cd $(BACKEND_DIR) && $(MAKE) init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
 	@echo ""
-	@echo "→ Installing frontend dependencies in $(FRONTEND_DIR)..."
+	@echo "→ Check and install frontend dependencies in $(FRONTEND_DIR)..."
 	@if ! command -v pnpm >/dev/null 2>&1; then \
 		echo "✗ pnpm is not installed. Please install pnpm first: https://pnpm.io/installation"; \
 		exit 1; \
