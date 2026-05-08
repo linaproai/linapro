@@ -123,6 +123,16 @@ func (s *trackingScheduler) removedIDs() []uint64 {
 	return append([]uint64(nil), s.removed...)
 }
 
+// containsJobID reports whether one scheduler call snapshot contains the given job ID.
+func containsJobID(jobIDs []uint64, target uint64) bool {
+	for _, jobID := range jobIDs {
+		if jobID == target {
+			return true
+		}
+	}
+	return false
+}
+
 // noopCleaner keeps host-handler registration lightweight for unit tests.
 type noopCleaner struct{}
 

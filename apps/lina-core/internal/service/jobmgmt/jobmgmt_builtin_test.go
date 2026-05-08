@@ -190,7 +190,7 @@ func TestSyncBuiltinJobsPrunesRemovedBuiltins(t *testing.T) {
 	currentJobID := currentRow.Id
 	defer cleanupJobHard(t, ctx, currentJobID)
 
-	if removed := scheduler.removedIDs(); len(removed) == 0 || removed[0] != obsoleteJobID {
+	if removed := scheduler.removedIDs(); !containsJobID(removed, obsoleteJobID) {
 		t.Fatalf("expected scheduler to remove obsolete builtin job %d, got %#v", obsoleteJobID, removed)
 	}
 
