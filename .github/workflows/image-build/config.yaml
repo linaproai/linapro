@@ -38,4 +38,4 @@ image:
   baseImage: "alpine:3.22"
   # Dockerfile path, relative to the repository root.
   # Dockerfile 路径，相对于仓库根目录。
-  dockerfile: ".github/workflows/nightly-build/Dockerfile"
+  dockerfile: ".github/workflows/image-build/Dockerfile"

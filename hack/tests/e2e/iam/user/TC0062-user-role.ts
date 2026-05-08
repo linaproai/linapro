@@ -1,5 +1,8 @@
 import { test, expect } from '../../../fixtures/auth';
-import { ensureSourcePluginEnabled } from '../../../fixtures/plugin';
+import {
+  createAdminApiContext,
+  ensureSourcePluginEnabled,
+} from '../../../fixtures/plugin';
 import { UserPage } from '../../../pages/UserPage';
 
 test.describe('TC0062 用户角色关联', () => {
@@ -21,11 +24,32 @@ test.describe('TC0062 用户角色关联', () => {
     await userPage.searchByUsername(username);
   }
 
-  async function deleteUserIfExists(userPage: UserPage, username: string) {
-    await searchUser(userPage, username);
-    const hasUser = await userPage.hasUser(username);
-    if (hasUser) {
-      await userPage.deleteUser(username);
+  function unwrapApiData(payload: any) {
+    if (payload && typeof payload === 'object' && 'data' in payload) {
+      return payload.data;
+    }
+    return payload;
+  }
+
+  async function deleteUserIfExists(username: string) {
+    const adminApi = await createAdminApiContext();
+    try {
+      const listResponse = await adminApi.get(
+        `user?pageNum=1&pageSize=20&username=${encodeURIComponent(username)}`,
+      );
+      expect(listResponse.ok(), `查询测试用户失败: ${username}`).toBeTruthy();
+      const payload = unwrapApiData(await listResponse.json());
+      const user = (payload?.list ?? []).find(
+        (item: { id?: number; username?: string }) => item.username === username,
+      );
+      if (!user?.id) {
+        return;
+      }
+
+      const deleteResponse = await adminApi.delete(`user?ids=${user.id}`);
+      expect(deleteResponse.ok(), `清理测试用户失败: ${username}`).toBeTruthy();
+    } finally {
+      await adminApi.dispose();
     }
   }
 
@@ -48,7 +72,7 @@ test.describe('TC0062 用户角色关联', () => {
       await searchUser(userPage, testUsername);
       expect(await userPage.hasUser(testUsername)).toBeTruthy();
     } finally {
-      await deleteUserIfExists(userPage, testUsername);
+      await deleteUserIfExists(testUsername);
     }
   });
 
@@ -72,7 +96,7 @@ test.describe('TC0062 用户角色关联', () => {
       const roleNames = await userPage.getRoleNames(testUsername);
       expect(roleNames).toContain(initialRoleName);
     } finally {
-      await deleteUserIfExists(userPage, testUsername);
+      await deleteUserIfExists(testUsername);
     }
   });
 
@@ -101,7 +125,7 @@ test.describe('TC0062 用户角色关联', () => {
       const roleNames = await userPage.getRoleNames(testUsername);
       expect(roleNames).toContain(updatedRoleName);
     } finally {
-      await deleteUserIfExists(userPage, testUsername);
+      await deleteUserIfExists(testUsername);
     }
   });
 

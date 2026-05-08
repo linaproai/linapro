@@ -12,7 +12,7 @@ ENV WORKDIR=/app
 RUN apk add --no-cache ca-certificates tzdata
 
 COPY temp/image/${TARGETOS}/${TARGETARCH}/lina $WORKDIR/lina
-COPY .github/workflows/nightly-build/config.runtime.yaml $WORKDIR/config.yaml
+COPY .github/workflows/image-build/config.runtime.yaml $WORKDIR/config.yaml
 
 
 

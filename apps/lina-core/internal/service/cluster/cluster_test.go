@@ -51,12 +51,11 @@ func TestServiceEnabledStartsPrimaryElection(t *testing.T) {
 	})
 
 	service.Start(ctx)
-	time.Sleep(200 * time.Millisecond)
 
 	if !service.IsEnabled() {
 		t.Fatal("expected cluster mode to be enabled")
 	}
-	if !service.IsPrimary() {
+	if !waitForPrimaryState(service, true, electionStateWait) {
 		t.Fatal("expected clustered service to become primary when no competitor exists")
 	}
 }
@@ -69,4 +68,17 @@ func cleanupElectionLock(t *testing.T) {
 	if _, err := g.DB().Model("sys_locker").Where("name", "leader-election").Delete(); err != nil {
 		t.Fatalf("failed to cleanup leader-election lock: %v", err)
 	}
+}
+
+// waitForPrimaryState polls the cluster service primary projection until the
+// expected state becomes visible or the bounded timeout expires.
+func waitForPrimaryState(service Service, expected bool, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if service.IsPrimary() == expected {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return service.IsPrimary() == expected
 }

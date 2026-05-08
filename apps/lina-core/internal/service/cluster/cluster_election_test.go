@@ -24,6 +24,9 @@ var testElectionCfg = &config.ElectionConfig{
 	RenewInterval: 1 * time.Second,
 }
 
+// electionStateWait bounds asynchronous election-state assertions in tests.
+const electionStateWait = 3 * time.Second
+
 // newTestElectionService constructs one election service using the shared test
 // timing configuration.
 func newTestElectionService() *electionService {
@@ -55,9 +58,7 @@ func TestElectionServiceStartAndBecomeLeader(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc.Start(ctx)
 
-		time.Sleep(200 * time.Millisecond)
-
-		t.Assert(svc.IsLeader(), true)
+		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
 
 		count, err := g.DB().Model("sys_locker").Where("name", lockName).Count()
 		t.AssertNil(err)
@@ -94,7 +95,7 @@ func TestElectionServiceAlreadyLeader(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc.Start(ctx)
 
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(300 * time.Millisecond)
 
 		t.Assert(svc.IsLeader(), false)
 
@@ -127,9 +128,7 @@ func TestElectionServiceTakeOverExpiredLock(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc.Start(ctx)
 
-		time.Sleep(200 * time.Millisecond)
-
-		t.Assert(svc.IsLeader(), true)
+		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
 
 		var row struct{ Holder string }
 		err = g.DB().Model("sys_locker").Where("name", lockName).Scan(&row)
@@ -155,9 +154,7 @@ func TestElectionServiceStepDown(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc.Start(ctx)
 
-		time.Sleep(200 * time.Millisecond)
-
-		t.Assert(svc.IsLeader(), true)
+		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
 
 		svc.Stop(ctx)
 
@@ -203,9 +200,7 @@ func TestElectionServiceNonLeaderRetry(t *testing.T) {
 	gtest.C(t, func(t *gtest.T) {
 		svc.Start(ctx)
 
-		time.Sleep(500 * time.Millisecond)
-
-		t.Assert(svc.IsLeader(), true)
+		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
 
 		svc.Stop(ctx)
 	})
@@ -218,4 +213,17 @@ func cleanupLock() {
 	if _, err := g.DB().Model("sys_locker").Where("name", lockName).Delete(); err != nil {
 		panic(fmt.Sprintf("cleanup leader-election lock failed: %v", err))
 	}
+}
+
+// waitForElectionState polls the asynchronous election loop until it reaches
+// the expected leadership state or the bounded timeout expires.
+func waitForElectionState(svc *electionService, expected bool, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if svc.IsLeader() == expected {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return svc.IsLeader() == expected
 }

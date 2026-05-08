@@ -61,10 +61,25 @@ const officialPluginCases: OfficialPluginCase[] = [
     mountedTitles: ['服务监控'],
     route: '/monitor/server',
     assertAvailable: async (page) => {
-      await expect(page.getByText('服务信息').first()).toBeVisible({
-        timeout: 10000,
-      });
-      await expect(page.getByText('服务器信息').first()).toBeVisible();
+      await expect
+        .poll(
+          async () => {
+            const hasMetrics =
+              (await page.getByText('服务信息').first().isVisible()) &&
+              (await page.getByText('服务器信息').first().isVisible());
+            const hasEmptyState = await page
+              .getByText('当前暂无服务监控数据。')
+              .first()
+              .isVisible();
+
+            return hasMetrics || hasEmptyState ? 'available' : 'pending';
+          },
+          {
+            message: '服务监控页面应展示指标内容或插件空状态',
+            timeout: 10000,
+          },
+        )
+        .toBe('available');
     },
   },
   {

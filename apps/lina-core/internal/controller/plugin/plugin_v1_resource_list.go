@@ -86,6 +86,15 @@ func (c *ControllerV1) ensurePluginResourcePermission(
 	if err != nil {
 		return false, bizerr.WrapCode(err, middlewaresvc.CodeMiddlewarePermissionContextLoadFailed)
 	}
+	if accessContext != nil {
+		c.bizCtxSvc.SetUserAccess(
+			ctx,
+			int(accessContext.DataScope),
+			accessContext.DataScopeUnsupported,
+			accessContext.UnsupportedDataScope,
+		)
+	}
+
 	requiredPermission, err := c.pluginSvc.ResolveResourcePermission(ctx, pluginID, resourceID)
 	if err != nil {
 		return false, err

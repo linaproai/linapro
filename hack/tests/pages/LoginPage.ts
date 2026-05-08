@@ -174,16 +174,19 @@ export class LoginPage {
       )
       .toBeGreaterThan(0);
 
-    return this.brandLogoImage.evaluate((img) => ({
-      currentSrc: img.currentSrc,
-      height: img.clientHeight,
-      naturalHeight: img.naturalHeight,
-      naturalWidth: img.naturalWidth,
-      parentText:
-        (img.closest("a") ?? img.parentElement)?.textContent?.trim() ?? "",
-      src: img.getAttribute("src") ?? "",
-      width: img.clientWidth,
-    }));
+    return this.brandLogoImage.evaluate((node) => {
+      const img = node as HTMLImageElement;
+      return {
+        currentSrc: img.currentSrc,
+        height: img.clientHeight,
+        naturalHeight: img.naturalHeight,
+        naturalWidth: img.naturalWidth,
+        parentText:
+          (img.closest("a") ?? img.parentElement)?.textContent?.trim() ?? "",
+        src: img.getAttribute("src") ?? "",
+        width: img.clientWidth,
+      };
+    });
   }
 
   async switchLanguage(label: "English" | "简体中文" | "繁體中文") {

@@ -78,6 +78,12 @@ type UserInfoPayload = {
   permissions?: string[];
 };
 
+type PluginListItem = {
+  id: string;
+  installed: number;
+  enabled: number;
+};
+
 type MenuTreeNode = {
   name?: string;
   children?: MenuTreeNode[];

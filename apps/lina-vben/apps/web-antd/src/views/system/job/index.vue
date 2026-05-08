@@ -27,7 +27,10 @@ import {
   JOB_STATUS_FILTER_OPTIONS,
 } from '#/api/system/job/meta';
 import { jobGroupList } from '#/api/system/jobGroup';
-import { publicFrontendSettings } from '#/runtime/public-frontend';
+import {
+  publicFrontendSettings,
+  syncPublicFrontendSettings,
+} from '#/runtime/public-frontend';
 
 import JobForm from './form.vue';
 
@@ -130,6 +133,7 @@ const checkedRows = ref<JobRecord[]>([]);
 const hasChecked = computed(() => checkedRows.value.length > 0);
 
 onMounted(async () => {
+  await syncPublicFrontendSettings();
   await loadGroupOptions();
 });
 

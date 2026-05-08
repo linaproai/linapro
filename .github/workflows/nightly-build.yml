@@ -1,10 +1,10 @@
 # LinaPro nightly multi-platform Docker image publishing workflow.
-# GitHub cron uses UTC. 16:00 UTC is 00:00 Asia/Shanghai.
+# GitHub cron uses UTC. 19:00 UTC is 03:00 Asia/Shanghai.
 name: Nightly Build
 
 on:
   schedule:
-    - cron: "0 16 * * *"
+    - cron: "0 19 * * *"
 
   workflow_dispatch:
 

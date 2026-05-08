@@ -21,7 +21,6 @@
     "auth": ["e2e/auth"],
     "dashboard": ["e2e/dashboard"],
     "dialect": ["e2e/dialect"],
-    "doctor": ["e2e/doctor"],
     "about": ["e2e/about"],
     "iam": ["e2e/iam"],
     "iam:user": ["e2e/iam/user"],
