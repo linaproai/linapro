@@ -379,12 +379,17 @@ func (s *serviceImpl) GetPublicFrontend(ctx context.Context) (*PublicFrontendCon
 
 // resolveCurrentSystemTimezone returns the host timezone identifier exposed to the frontend.
 func resolveCurrentSystemTimezone() string {
-	if timezone := strings.TrimSpace(os.Getenv("TZ")); timezone != "" && timezone != "Local" {
+	return resolveSystemTimezone(os.Getenv("TZ"), time.Now().Location().String())
+}
+
+// resolveSystemTimezone selects the first valid system timezone candidate.
+func resolveSystemTimezone(envTimezone string, processTimezone string) string {
+	if timezone := strings.TrimSpace(envTimezone); timezone != "" && timezone != "Local" {
 		if _, err := time.LoadLocation(timezone); err == nil {
 			return timezone
 		}
 	}
-	if timezone := strings.TrimSpace(time.Now().Location().String()); timezone != "" && timezone != "Local" {
+	if timezone := strings.TrimSpace(processTimezone); timezone != "" && timezone != "Local" {
 		if _, err := time.LoadLocation(timezone); err == nil {
 			return timezone
 		}

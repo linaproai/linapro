@@ -6,7 +6,6 @@ package config
 import (
 	"context"
 	"testing"
-	"time"
 )
 
 // TestRuntimeParamSpecsReturnsCopy verifies callers cannot mutate the shared
@@ -148,14 +147,7 @@ func TestProtectedConfigHelpersPreferOverridesAndFallbackDefaults(t *testing.T) 
 // TestResolveCurrentSystemTimezoneUsesEnvironment verifies a valid TZ
 // environment variable is exposed directly to the frontend.
 func TestResolveCurrentSystemTimezoneUsesEnvironment(t *testing.T) {
-	t.Setenv("TZ", "Asia/Tokyo")
-	oldLocal := time.Local
-	time.Local = time.UTC
-	t.Cleanup(func() {
-		time.Local = oldLocal
-	})
-
-	if timezone := resolveCurrentSystemTimezone(); timezone != "Asia/Tokyo" {
+	if timezone := resolveSystemTimezone("Asia/Tokyo", "UTC"); timezone != "Asia/Tokyo" {
 		t.Fatalf("expected timezone from TZ environment, got %q", timezone)
 	}
 }
@@ -163,14 +155,7 @@ func TestResolveCurrentSystemTimezoneUsesEnvironment(t *testing.T) {
 // TestResolveCurrentSystemTimezoneFallsBackToProcessLocation verifies the
 // process location is used when TZ is invalid.
 func TestResolveCurrentSystemTimezoneFallsBackToProcessLocation(t *testing.T) {
-	t.Setenv("TZ", "Invalid/Timezone")
-	oldLocal := time.Local
-	time.Local = time.UTC
-	t.Cleanup(func() {
-		time.Local = oldLocal
-	})
-
-	if timezone := resolveCurrentSystemTimezone(); timezone != "UTC" {
+	if timezone := resolveSystemTimezone("Invalid/Timezone", "UTC"); timezone != "UTC" {
 		t.Fatalf("expected timezone fallback to process location UTC, got %q", timezone)
 	}
 }
@@ -178,14 +163,7 @@ func TestResolveCurrentSystemTimezoneFallsBackToProcessLocation(t *testing.T) {
 // TestResolveCurrentSystemTimezoneUsesProjectDefault verifies the helper uses
 // the project default when both environment and process location are local.
 func TestResolveCurrentSystemTimezoneUsesProjectDefault(t *testing.T) {
-	t.Setenv("TZ", "")
-	oldLocal := time.Local
-	time.Local = time.FixedZone("Local", 0)
-	t.Cleanup(func() {
-		time.Local = oldLocal
-	})
-
-	if timezone := resolveCurrentSystemTimezone(); timezone != "Asia/Shanghai" {
+	if timezone := resolveSystemTimezone("", "Local"); timezone != "Asia/Shanghai" {
 		t.Fatalf("expected project default timezone Asia/Shanghai, got %q", timezone)
 	}
 }

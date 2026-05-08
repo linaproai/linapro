@@ -140,3 +140,9 @@
   - 2026-05-08: 已补充 SQLite 回归测试：`pkg/dialect` 版本查询、宿主 `sysinfo.getDbVersion`、`monitor-server.GetDBInfo`；并在 SQLite E2E 业务零影响用例中追加 `/monitor/server` 接口 `dbInfo.version` 非空断言。验证通过：`go test ./pkg/dialect ./internal/service/sysinfo`、`go test -race ./pkg/dialect ./internal/service/sysinfo`、`go test ./backend/internal/service/monitor`、`go test -race ./backend/internal/service/monitor`、`pnpm test:validate`、`openspec validate sqlite-database-support --strict`。
   - 2026-05-08: 本次修复不新增 API 字段、菜单、路由、按钮、表单、表格或前端文案，不需要调整运行时 i18n、插件 manifest i18n 或 apidoc i18n 资源；不涉及缓存读写或失效策略；不读取业务数据，不影响数据权限边界。
   - 2026-05-08: lina-review 结论：本次变更符合方言抽象边界，业务服务不再硬编码 SQLite/MySQL 分支；错误日志使用传入 `ctx`；没有新增调用方可见业务错误码、数据访问面或缓存控制面。未发现阻塞问题。系统信息页后端组件清单名称仍来自既有 metadata 中的 `MySQL` 项，本次反馈仅修复版本值查询，组件名称泛化可作为后续独立改进。
+- [x] **FB-32**: 定位并修复 GitHub Actions run `25544849415` 中 `Main CI / Go unit tests` 失败
+  - 2026-05-08: 通过 GitHub API 确认失败 job 为 `Go unit tests / Go unit tests`，本地按 CI 顺序执行 `cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml`、`make init confirm=init`、`make -C apps/lina-core prepare-packed-assets`、`make test-go` 复现失败。
+  - 2026-05-08: 根因是 `lina-core/internal/service/config` 的时区单元测试直接改写 `time.Local`，在 `go test -race` 下与标准库计时器读取本地时区并发，触发 race detector。已将时区选择逻辑拆为 `resolveSystemTimezone(envTimezone, processTimezone)`，生产入口仍读取 `TZ` 与进程时区，测试改为传入候选值，不再写 Go 标准库全局状态。
+  - 2026-05-08: 验证通过：`go test -race -v ./internal/service/config`、`make test-go`。
+  - 2026-05-08: 本次修复不新增 API、数据库、前端 UI 文案、菜单、路由、按钮、表单、表格或 apidoc 文档，不需要调整运行时 i18n、插件 manifest i18n 或 apidoc i18n 资源；不新增数据访问接口，不影响数据权限边界；不新增或修改缓存读写、失效、刷新或分布式一致性策略。
+  - 2026-05-08: lina-review 结论：修复仅将时区选择纯逻辑拆出以避免测试改写 `time.Local`，生产行为保持 `TZ` 优先、进程时区次之、`Asia/Shanghai` 兜底；未修改生成文件、API DTO、DAO/DO/Entity 或外部调用方错误边界。Bugfix 已通过可复现的 race detector 测试覆盖，未发现阻塞问题。
