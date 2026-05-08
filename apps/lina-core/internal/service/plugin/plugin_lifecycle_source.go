@@ -253,6 +253,10 @@ func (s *serviceImpl) applySourcePluginStableState(
 		Where(do.SysPlugin{PluginId: registry.PluginId}).
 		Data(data).
 		Update()
+	if err != nil {
+		return err
+	}
+	_, err = s.catalogSvc.RefreshStartupRegistry(ctx, registry.PluginId)
 	return err
 }
 

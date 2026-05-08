@@ -73,6 +73,57 @@ func TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin(t *testing.T) {
 	}
 }
 
+// TestBootstrapAutoEnableSourcePluginUpdatesStartupSnapshot verifies startup
+// bootstrap keeps the shared startup snapshot fresh after installing a source
+// plugin so the immediate enable step can observe the installed state.
+func TestBootstrapAutoEnableSourcePluginUpdatesStartupSnapshot(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		service  = newTestService()
+		pluginID = "plugin-source-auto-enable-snapshot"
+		version  = "v0.1.0"
+	)
+
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	testutil.WriteTestFile(
+		t,
+		filepath.Join(pluginDir, "plugin.yaml"),
+		"id: "+pluginID+"\n"+
+			"name: Source Auto Enable Snapshot Plugin\n"+
+			"version: "+version+"\n"+
+			"type: source\n",
+	)
+
+	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		configsvc.SetPluginAutoEnableOverride(nil)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	startupCtx, err := service.WithStartupDataSnapshot(ctx)
+	if err != nil {
+		t.Fatalf("expected startup snapshot context build to succeed, got error: %v", err)
+	}
+	if err = service.BootstrapAutoEnable(startupCtx); err != nil {
+		t.Fatalf("expected source plugin startup bootstrap with snapshot to succeed, got error: %v", err)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected source plugin registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatal("expected source plugin registry row after startup bootstrap")
+	}
+	if registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
+		t.Fatalf("expected source plugin to be installed and enabled, got %#v", registry)
+	}
+	if registry.CurrentState != catalog.HostStateEnabled.String() {
+		t.Fatalf("expected source plugin current state enabled, got %s", registry.CurrentState)
+	}
+}
+
 // TestBootstrapAutoEnableReusesDynamicAuthorizationSnapshot verifies startup
 // bootstrap can reinstall and enable a dynamic plugin after one confirmed host
 // service authorization snapshot already exists for the target release.
