@@ -18,7 +18,8 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // PluginItem is a flattened, display-ready projection of one plugin entry combining
@@ -49,12 +50,12 @@ type PluginItem struct {
 	// AuthorizationStatus identifies whether host-service authorization is pending or already confirmed.
 	AuthorizationStatus AuthorizationStatus
 	// RequestedHostServices is the current requested host service snapshot.
-	RequestedHostServices []*pluginbridge.HostServiceSpec
+	RequestedHostServices []*bridgehostservice.HostServiceSpec
 	// AuthorizedHostServices is the host-confirmed host service snapshot.
-	AuthorizedHostServices []*pluginbridge.HostServiceSpec
+	AuthorizedHostServices []*bridgehostservice.HostServiceSpec
 	// DeclaredRoutes is the current release route-declaration snapshot used by
 	// install and enable review UIs for dynamic plugins.
-	DeclaredRoutes []*pluginbridge.RouteContract
+	DeclaredRoutes []*bridgecontract.RouteContract
 	// HasMockData reports whether the plugin ships any mock-data SQL files
 	// under manifest/sql/mock-data/. Used by the management UI to decide
 	// whether to render the optional Install mock data checkbox.
@@ -149,21 +150,21 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		}
 	}
 
-	normalizeHostServices := func(source string, specs []*pluginbridge.HostServiceSpec) []*pluginbridge.HostServiceSpec {
-		normalized, normalizeErr := pluginbridge.NormalizeHostServiceSpecs(specs)
+	normalizeHostServices := func(source string, specs []*bridgehostservice.HostServiceSpec) []*bridgehostservice.HostServiceSpec {
+		normalized, normalizeErr := bridgehostservice.NormalizeHostServiceSpecs(specs)
 		if normalizeErr != nil {
 			logger.Warningf(ctx, "normalize plugin host services failed plugin=%s source=%s err=%v", id, source, normalizeErr)
-			return []*pluginbridge.HostServiceSpec{}
+			return []*bridgehostservice.HostServiceSpec{}
 		}
 		return normalized
 	}
 
 	var (
-		requestedHostServices  = []*pluginbridge.HostServiceSpec{}
-		authorizedHostServices = []*pluginbridge.HostServiceSpec{}
+		requestedHostServices  = []*bridgehostservice.HostServiceSpec{}
+		authorizedHostServices = []*bridgehostservice.HostServiceSpec{}
 		authorizationRequired  bool
 		authorizationStatus    = AuthorizationStatusNotRequired
-		declaredRoutes         []*pluginbridge.RouteContract
+		declaredRoutes         []*bridgecontract.RouteContract
 	)
 
 	if snapshot != nil {

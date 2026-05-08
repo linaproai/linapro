@@ -18,7 +18,9 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginbridge"
+	bridgeartifact "lina-core/pkg/pluginbridge/artifact"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 	"lina-core/pkg/pluginfs"
 )
 
@@ -108,21 +110,21 @@ func (s *serviceImpl) ParseRuntimeWasmArtifact(filePath string) (*catalog.Artifa
 // ParseRuntimeWasmArtifactContent parses one WASM artifact from an in-memory byte slice.
 // It implements the catalog.ArtifactParser interface.
 func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content []byte) (*catalog.ArtifactSpec, error) {
-	sections, err := pluginbridge.ListCustomSections(content)
+	sections, err := bridgeartifact.ListCustomSections(content)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin artifact: %s", filePath)
 	}
 
-	manifestSection, ok := sections[pluginbridge.WasmSectionManifest]
+	manifestSection, ok := sections[bridgeartifact.WasmSectionManifest]
 	if !ok {
-		return nil, gerror.Newf("Dynamic plugin artifact is missing custom section %s: %s", pluginbridge.WasmSectionManifest, filePath)
+		return nil, gerror.Newf("Dynamic plugin artifact is missing custom section %s: %s", bridgeartifact.WasmSectionManifest, filePath)
 	}
-	runtimeSection, ok := sections[pluginbridge.WasmSectionRuntime]
+	runtimeSection, ok := sections[bridgeartifact.WasmSectionRuntime]
 	if !ok {
-		runtimeSection, ok = sections[pluginbridge.WasmSectionLegacyRuntime]
+		runtimeSection, ok = sections[bridgeartifact.WasmSectionLegacyRuntime]
 	}
 	if !ok {
-		return nil, gerror.Newf("Dynamic plugin artifact is missing custom section %s: %s", pluginbridge.WasmSectionRuntime, filePath)
+		return nil, gerror.Newf("Dynamic plugin artifact is missing custom section %s: %s", bridgeartifact.WasmSectionRuntime, filePath)
 	}
 
 	embeddedManifest := &catalog.ArtifactManifest{}
@@ -136,32 +138,32 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 		return nil, gerror.Newf("Dynamic plugin embedded manifest is missing required fields: %s", filePath)
 	}
 
-	runtimeMetadata := &pluginbridge.RuntimeArtifactMetadata{}
+	runtimeMetadata := &bridgeartifact.RuntimeArtifactMetadata{}
 	if err = unmarshalRuntimeArtifactSection(runtimeSection, runtimeMetadata); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin runtime metadata: %s", filePath)
 	}
 
-	frontendAssets, err := parseRuntimeArtifactFrontendAssets(filePath, sections, pluginbridge.WasmSectionFrontendAssets)
+	frontendAssets, err := parseRuntimeArtifactFrontendAssets(filePath, sections, bridgeartifact.WasmSectionFrontendAssets)
 	if err != nil {
 		return nil, err
 	}
-	runtimeI18NAssets, err := parseRuntimeArtifactLocaleJSONAssets(filePath, sections, pluginbridge.WasmSectionI18NAssets)
+	runtimeI18NAssets, err := parseRuntimeArtifactLocaleJSONAssets(filePath, sections, bridgeartifact.WasmSectionI18NAssets)
 	if err != nil {
 		return nil, err
 	}
-	apiDocI18NAssets, err := parseRuntimeArtifactLocaleJSONAssets(filePath, sections, pluginbridge.WasmSectionAPIDocI18NAssets)
+	apiDocI18NAssets, err := parseRuntimeArtifactLocaleJSONAssets(filePath, sections, bridgeartifact.WasmSectionAPIDocI18NAssets)
 	if err != nil {
 		return nil, err
 	}
-	installSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, pluginbridge.WasmSectionInstallSQL)
+	installSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, bridgeartifact.WasmSectionInstallSQL)
 	if err != nil {
 		return nil, err
 	}
-	uninstallSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, pluginbridge.WasmSectionUninstallSQL)
+	uninstallSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, bridgeartifact.WasmSectionUninstallSQL)
 	if err != nil {
 		return nil, err
 	}
-	mockSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, pluginbridge.WasmSectionMockSQL)
+	mockSQLAssets, err := parseRuntimeArtifactSQLAssets(filePath, sections, bridgeartifact.WasmSectionMockSQL)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +192,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	}
 	// Runtime capability checks remain in place, but the capability set is now
 	// derived from the single hostServices snapshot instead of a second embedded section.
-	capabilities := pluginbridge.CapabilitiesFromHostServices(hostServices)
+	capabilities := bridgehostservice.CapabilitiesFromHostServices(hostServices)
 
 	runtimeKind := strings.TrimSpace(strings.ToLower(runtimeMetadata.RuntimeKind))
 	if runtimeKind == "" {
@@ -204,7 +206,7 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 	if abiVersion == "" {
 		return nil, gerror.Newf("Dynamic plugin artifact is missing ABI version: %s", filePath)
 	}
-	if abiVersion != pluginbridge.SupportedABIVersion {
+	if abiVersion != bridgecontract.SupportedABIVersion {
 		return nil, gerror.Newf("Dynamic plugin ABI version is not supported: %s", runtimeMetadata.ABIVersion)
 	}
 
@@ -518,7 +520,7 @@ func parseRuntimeArtifactHookSpecs(
 	pluginID string,
 	sections map[string][]byte,
 ) ([]*catalog.HookSpec, error) {
-	content, ok := sections[pluginbridge.WasmSectionBackendHooks]
+	content, ok := sections[bridgeartifact.WasmSectionBackendHooks]
 	if !ok {
 		return []*catalog.HookSpec{}, nil
 	}
@@ -541,7 +543,7 @@ func parseRuntimeArtifactResourceSpecs(
 	pluginID string,
 	sections map[string][]byte,
 ) ([]*catalog.ResourceSpec, error) {
-	content, ok := sections[pluginbridge.WasmSectionBackendResources]
+	content, ok := sections[bridgeartifact.WasmSectionBackendResources]
 	if !ok {
 		return []*catalog.ResourceSpec{}, nil
 	}
@@ -565,17 +567,17 @@ func parseRuntimeArtifactRouteContracts(
 	filePath string,
 	pluginID string,
 	sections map[string][]byte,
-) ([]*pluginbridge.RouteContract, error) {
-	content, ok := sections[pluginbridge.WasmSectionBackendRoutes]
+) ([]*bridgecontract.RouteContract, error) {
+	content, ok := sections[bridgeartifact.WasmSectionBackendRoutes]
 	if !ok {
-		return []*pluginbridge.RouteContract{}, nil
+		return []*bridgecontract.RouteContract{}, nil
 	}
 
-	items := make([]*pluginbridge.RouteContract, 0)
+	items := make([]*bridgecontract.RouteContract, 0)
 	if err := json.Unmarshal(content, &items); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin backend route contracts: %s", filePath)
 	}
-	if err := pluginbridge.ValidateRouteContracts(pluginID, items); err != nil {
+	if err := bridgecontract.ValidateRouteContracts(pluginID, items); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin backend route contracts: %s", filePath)
 	}
 	return items, nil
@@ -585,17 +587,17 @@ func parseRuntimeArtifactRouteContracts(
 func parseRuntimeArtifactBridgeSpec(
 	filePath string,
 	sections map[string][]byte,
-) (*pluginbridge.BridgeSpec, error) {
-	content, ok := sections[pluginbridge.WasmSectionBackendBridge]
+) (*bridgecontract.BridgeSpec, error) {
+	content, ok := sections[bridgeartifact.WasmSectionBackendBridge]
 	if !ok {
 		return nil, nil
 	}
 
-	spec := &pluginbridge.BridgeSpec{}
+	spec := &bridgecontract.BridgeSpec{}
 	if err := json.Unmarshal(content, spec); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin bridge contract: %s", filePath)
 	}
-	if err := pluginbridge.ValidateBridgeSpec(spec); err != nil {
+	if err := bridgecontract.ValidateBridgeSpec(spec); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin bridge contract: %s", filePath)
 	}
 	return spec, nil
@@ -607,18 +609,18 @@ func rejectDeprecatedRuntimeArtifactCapabilities(
 	filePath string,
 	sections map[string][]byte,
 ) error {
-	content, ok := sections[pluginbridge.WasmSectionBackendCapabilities]
+	content, ok := sections[bridgeartifact.WasmSectionBackendCapabilities]
 	if !ok {
 		return nil
 	}
 
 	var items []string
 	if err := json.Unmarshal(content, &items); err == nil {
-		normalizedItems := pluginbridge.NormalizeCapabilities(items)
+		normalizedItems := bridgehostservice.NormalizeCapabilities(items)
 		if len(normalizedItems) > 0 {
 			return gerror.Newf(
 				"Dynamic plugin artifact contains deprecated custom section %s; remove the legacy capabilities declaration and rebuild: %s (%s)",
-				pluginbridge.WasmSectionBackendCapabilities,
+				bridgeartifact.WasmSectionBackendCapabilities,
 				filePath,
 				strings.Join(normalizedItems, ", "),
 			)
@@ -626,7 +628,7 @@ func rejectDeprecatedRuntimeArtifactCapabilities(
 	}
 	return gerror.Newf(
 		"Dynamic plugin artifact contains deprecated custom section %s; remove the legacy capabilities declaration and rebuild: %s",
-		pluginbridge.WasmSectionBackendCapabilities,
+		bridgeartifact.WasmSectionBackendCapabilities,
 		filePath,
 	)
 }
@@ -635,20 +637,20 @@ func rejectDeprecatedRuntimeArtifactCapabilities(
 func parseRuntimeArtifactHostServices(
 	filePath string,
 	sections map[string][]byte,
-) ([]*pluginbridge.HostServiceSpec, error) {
-	content, ok := sections[pluginbridge.WasmSectionBackendHostServices]
+) ([]*bridgehostservice.HostServiceSpec, error) {
+	content, ok := sections[bridgeartifact.WasmSectionBackendHostServices]
 	if !ok {
-		return []*pluginbridge.HostServiceSpec{}, nil
+		return []*bridgehostservice.HostServiceSpec{}, nil
 	}
 
-	items := make([]*pluginbridge.HostServiceSpec, 0)
+	items := make([]*bridgehostservice.HostServiceSpec, 0)
 	if err := json.Unmarshal(content, &items); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to parse dynamic plugin host-service declarations: %s", filePath)
 	}
-	if err := pluginbridge.ValidateHostServiceSpecs(items); err != nil {
+	if err := bridgehostservice.ValidateHostServiceSpecs(items); err != nil {
 		return nil, gerror.Wrapf(err, "Failed to validate dynamic plugin host-service declarations: %s", filePath)
 	}
-	normalized, err := pluginbridge.NormalizeHostServiceSpecs(items)
+	normalized, err := bridgehostservice.NormalizeHostServiceSpecs(items)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "Failed to normalize dynamic plugin host-service declarations: %s", filePath)
 	}

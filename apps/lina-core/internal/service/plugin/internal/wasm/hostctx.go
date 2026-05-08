@@ -8,7 +8,8 @@ import (
 	"context"
 	"strings"
 
-	"lina-core/pkg/pluginbridge"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // hostCallContextKey is the private context key for host call state.
@@ -23,15 +24,15 @@ type hostCallContext struct {
 	// capabilities is the set of granted host capabilities for this plugin.
 	capabilities map[string]struct{}
 	// hostServices is the structured host service authorization snapshot for this plugin.
-	hostServices []*pluginbridge.HostServiceSpec
+	hostServices []*bridgehostservice.HostServiceSpec
 	// executionSource identifies what triggered this Wasm execution.
-	executionSource pluginbridge.ExecutionSource
+	executionSource bridgecontract.ExecutionSource
 	// routePath records the matched route path when execution is request-bound.
 	routePath string
 	// requestID carries the host request identifier for tracing.
 	requestID string
 	// identity carries the current user identity snapshot when available.
-	identity *pluginbridge.IdentitySnapshotV1
+	identity *bridgecontract.IdentitySnapshotV1
 	// cronCollector captures dynamic-plugin cron registrations during reserved
 	// discovery executions.
 	cronCollector CronRegistrationCollector
@@ -85,23 +86,23 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 			continue
 		}
 		methods := spec.Methods
-		if len(methods) == 0 && normalizedService == pluginbridge.HostServiceConfig {
+		if len(methods) == 0 && normalizedService == bridgehostservice.HostServiceConfig {
 			methods = []string{
-				pluginbridge.HostServiceMethodConfigGet,
-				pluginbridge.HostServiceMethodConfigExists,
-				pluginbridge.HostServiceMethodConfigString,
-				pluginbridge.HostServiceMethodConfigBool,
-				pluginbridge.HostServiceMethodConfigInt,
-				pluginbridge.HostServiceMethodConfigDuration,
+				bridgehostservice.HostServiceMethodConfigGet,
+				bridgehostservice.HostServiceMethodConfigExists,
+				bridgehostservice.HostServiceMethodConfigString,
+				bridgehostservice.HostServiceMethodConfigBool,
+				bridgehostservice.HostServiceMethodConfigInt,
+				bridgehostservice.HostServiceMethodConfigDuration,
 			}
 		}
 		if !containsString(methods, normalizedMethod) {
 			continue
 		}
-		if normalizedService == pluginbridge.HostServiceStorage && normalizedResourceRef != "" {
+		if normalizedService == bridgehostservice.HostServiceStorage && normalizedResourceRef != "" {
 			return matchAuthorizedStoragePath(hcc.hostServices, normalizedResourceRef) != ""
 		}
-		if normalizedService == pluginbridge.HostServiceNetwork && normalizedResourceRef != "" {
+		if normalizedService == bridgehostservice.HostServiceNetwork && normalizedResourceRef != "" {
 			return hcc.hostServiceResource(normalizedService, normalizedResourceRef) != nil
 		}
 		if normalizedTable != "" {
@@ -117,7 +118,7 @@ func (hcc *hostCallContext) hasHostServiceAccess(service string, method string, 
 
 // hostServiceResource returns the authorized governed resource snapshot for one service/ref pair.
 // hostServiceResource returns the authorized resource snapshot for one service/ref pair.
-func (hcc *hostCallContext) hostServiceResource(service string, resourceRef string) *pluginbridge.HostServiceResourceSpec {
+func (hcc *hostCallContext) hostServiceResource(service string, resourceRef string) *bridgehostservice.HostServiceResourceSpec {
 	if hcc == nil || len(hcc.hostServices) == 0 {
 		return nil
 	}
@@ -132,10 +133,10 @@ func (hcc *hostCallContext) hostServiceResource(service string, resourceRef stri
 		if spec == nil || spec.Service != normalizedService {
 			continue
 		}
-		if normalizedService == pluginbridge.HostServiceStorage {
+		if normalizedService == bridgehostservice.HostServiceStorage {
 			return nil
 		}
-		if normalizedService == pluginbridge.HostServiceNetwork {
+		if normalizedService == bridgehostservice.HostServiceNetwork {
 			return matchAuthorizedNetworkResource(hcc.hostServices, normalizedResourceRef)
 		}
 		for _, resource := range spec.Resources {
@@ -152,7 +153,7 @@ func (hcc *hostCallContext) hostServiceResource(service string, resourceRef stri
 
 // hostServiceSpec returns the authorized service snapshot for one logical service.
 // hostServiceSpec returns the authorized host-service specification for the service.
-func (hcc *hostCallContext) hostServiceSpec(service string) *pluginbridge.HostServiceSpec {
+func (hcc *hostCallContext) hostServiceSpec(service string) *bridgehostservice.HostServiceSpec {
 	if hcc == nil || len(hcc.hostServices) == 0 {
 		return nil
 	}

@@ -7,7 +7,8 @@ import (
 	"encoding/json"
 
 	notifysvc "lina-core/internal/service/notify"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // notifyHostService is the shared governed notification backend used by wasm host calls.
@@ -20,25 +21,25 @@ func dispatchNotifyHostService(
 	channelKey string,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	if hcc == nil || hcc.pluginID == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, "host call context not available")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "host call context not available")
 	}
 	if channelKey == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusCapabilityDenied, "notify host service requires one authorized channel key")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "notify host service requires one authorized channel key")
 	}
 
 	switch method {
-	case pluginbridge.HostServiceMethodNotifySend:
-		request, err := pluginbridge.UnmarshalHostServiceNotifySendRequest(payload)
+	case bridgehostservice.HostServiceMethodNotifySend:
+		request, err := bridgehostservice.UnmarshalHostServiceNotifySendRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 
 		var metadata map[string]any
 		if len(request.PayloadJSON) > 0 {
 			if err = json.Unmarshal(request.PayloadJSON, &metadata); err != nil {
-				return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "notify payloadJson must be valid JSON")
+				return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, "notify payloadJson must be valid JSON")
 			}
 		}
 
@@ -59,15 +60,15 @@ func dispatchNotifyHostService(
 			RecipientUserIDs: recipientUserIDs,
 		})
 		if callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostServiceNotifySendResponse(&pluginbridge.HostServiceNotifySendResponse{
+		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceNotifySendResponse(&bridgehostservice.HostServiceNotifySendResponse{
 			MessageID:     output.MessageID,
 			DeliveryCount: int32(output.DeliveryCount),
 		}))
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported notify host service method: "+method,
 		)
 	}

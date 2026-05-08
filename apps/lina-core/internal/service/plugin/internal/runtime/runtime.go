@@ -18,7 +18,7 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/pluginruntimecache"
-	"lina-core/pkg/pluginbridge"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -106,20 +106,20 @@ type Service interface {
 	ExecuteDynamicRoute(
 		ctx context.Context,
 		manifest *catalog.Manifest,
-		request *pluginbridge.BridgeRequestEnvelopeV1,
-	) (*pluginbridge.BridgeResponseEnvelopeV1, error)
+		request *bridgecontract.BridgeRequestEnvelopeV1,
+	) (*bridgecontract.BridgeResponseEnvelopeV1, error)
 	// DiscoverCronContracts runs the reserved guest-side cron registration entry
 	// point and collects all declared dynamic-plugin cron contracts.
 	DiscoverCronContracts(
 		ctx context.Context,
 		manifest *catalog.Manifest,
-	) ([]*pluginbridge.CronContract, error)
+	) ([]*bridgecontract.CronContract, error)
 	// ExecuteDeclaredCronJob runs one declared dynamic-plugin cron job through
 	// the active runtime bridge.
 	ExecuteDeclaredCronJob(
 		ctx context.Context,
 		manifest *catalog.Manifest,
-		contract *pluginbridge.CronContract,
+		contract *bridgecontract.CronContract,
 	) error
 	// ReconcileDynamicPluginRequest implements lifecycle.ReconcileProvider.
 	// It submits a desired-state transition to the reconciler loop.
@@ -196,7 +196,7 @@ type Service interface {
 	DispatchDynamicRoute(
 		ctx context.Context,
 		in *DynamicRouteDispatchInput,
-	) (*pluginbridge.BridgeResponseEnvelopeV1, error)
+	) (*bridgecontract.BridgeResponseEnvelopeV1, error)
 	// SetTopology wires the cluster topology provider.
 	SetTopology(t TopologyProvider)
 	// SetMenuManager wires the menu synchronization provider.

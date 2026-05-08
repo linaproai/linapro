@@ -6,7 +6,8 @@ import (
 	"context"
 
 	"lina-core/internal/service/plugin/internal/datahost"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // dispatchDataHostService routes governed data service methods to the structured data host layer.
@@ -16,23 +17,23 @@ func dispatchDataHostService(
 	table string,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	if hcc == nil {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusInternalError,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusInternalError,
 			"host call context not available",
 		)
 	}
-	serviceSpec := hcc.hostServiceSpec(pluginbridge.HostServiceData)
+	serviceSpec := hcc.hostServiceSpec(bridgehostservice.HostServiceData)
 	if serviceSpec == nil {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			"data host service authorization snapshot not found",
 		)
 	}
 	resource, err := datahost.BuildAuthorizedTableContract(ctx, table, serviceSpec.Methods)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	var (
@@ -40,10 +41,10 @@ func dispatchDataHostService(
 		execErr         error
 	)
 	switch method {
-	case pluginbridge.HostServiceMethodDataList:
-		request, decodeErr := pluginbridge.UnmarshalHostServiceDataListRequest(payload)
+	case bridgehostservice.HostServiceMethodDataList:
+		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataListRequest(payload)
 		if decodeErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, decodeErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, decodeErr.Error())
 		}
 		response, callErr := datahost.ExecuteList(
 			ctx,
@@ -58,11 +59,11 @@ func dispatchDataHostService(
 			execErr = callErr
 			break
 		}
-		responsePayload = pluginbridge.MarshalHostServiceDataListResponse(response)
-	case pluginbridge.HostServiceMethodDataGet:
-		request, decodeErr := pluginbridge.UnmarshalHostServiceDataGetRequest(payload)
+		responsePayload = bridgehostservice.MarshalHostServiceDataListResponse(response)
+	case bridgehostservice.HostServiceMethodDataGet:
+		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataGetRequest(payload)
 		if decodeErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, decodeErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, decodeErr.Error())
 		}
 		response, callErr := datahost.ExecuteGet(
 			ctx,
@@ -77,11 +78,11 @@ func dispatchDataHostService(
 			execErr = callErr
 			break
 		}
-		responsePayload = pluginbridge.MarshalHostServiceDataGetResponse(response)
-	case pluginbridge.HostServiceMethodDataCreate:
-		request, decodeErr := pluginbridge.UnmarshalHostServiceDataMutationRequest(payload)
+		responsePayload = bridgehostservice.MarshalHostServiceDataGetResponse(response)
+	case bridgehostservice.HostServiceMethodDataCreate:
+		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataMutationRequest(payload)
 		if decodeErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, decodeErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, decodeErr.Error())
 		}
 		response, callErr := datahost.ExecuteCreate(
 			ctx,
@@ -96,11 +97,11 @@ func dispatchDataHostService(
 			execErr = callErr
 			break
 		}
-		responsePayload = pluginbridge.MarshalHostServiceDataMutationResponse(response)
-	case pluginbridge.HostServiceMethodDataUpdate:
-		request, decodeErr := pluginbridge.UnmarshalHostServiceDataMutationRequest(payload)
+		responsePayload = bridgehostservice.MarshalHostServiceDataMutationResponse(response)
+	case bridgehostservice.HostServiceMethodDataUpdate:
+		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataMutationRequest(payload)
 		if decodeErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, decodeErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, decodeErr.Error())
 		}
 		response, callErr := datahost.ExecuteUpdate(
 			ctx,
@@ -115,11 +116,11 @@ func dispatchDataHostService(
 			execErr = callErr
 			break
 		}
-		responsePayload = pluginbridge.MarshalHostServiceDataMutationResponse(response)
-	case pluginbridge.HostServiceMethodDataDelete:
-		request, decodeErr := pluginbridge.UnmarshalHostServiceDataMutationRequest(payload)
+		responsePayload = bridgehostservice.MarshalHostServiceDataMutationResponse(response)
+	case bridgehostservice.HostServiceMethodDataDelete:
+		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataMutationRequest(payload)
 		if decodeErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, decodeErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, decodeErr.Error())
 		}
 		response, callErr := datahost.ExecuteDelete(
 			ctx,
@@ -134,11 +135,11 @@ func dispatchDataHostService(
 			execErr = callErr
 			break
 		}
-		responsePayload = pluginbridge.MarshalHostServiceDataMutationResponse(response)
-	case pluginbridge.HostServiceMethodDataTransaction:
-		request, decodeErr := pluginbridge.UnmarshalHostServiceDataTransactionRequest(payload)
+		responsePayload = bridgehostservice.MarshalHostServiceDataMutationResponse(response)
+	case bridgehostservice.HostServiceMethodDataTransaction:
+		request, decodeErr := bridgehostservice.UnmarshalHostServiceDataTransactionRequest(payload)
 		if decodeErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, decodeErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, decodeErr.Error())
 		}
 		response, callErr := datahost.ExecuteTransaction(
 			ctx,
@@ -153,15 +154,15 @@ func dispatchDataHostService(
 			execErr = callErr
 			break
 		}
-		responsePayload = pluginbridge.MarshalHostServiceDataTransactionResponse(response)
+		responsePayload = bridgehostservice.MarshalHostServiceDataTransactionResponse(response)
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported data host service method: "+method,
 		)
 	}
 	if execErr != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, execErr.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, execErr.Error())
 	}
-	return pluginbridge.NewHostCallSuccessResponse(responsePayload)
+	return bridgehostcall.NewHostCallSuccessResponse(responsePayload)
 }

@@ -17,7 +17,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgeartifact "lina-core/pkg/pluginbridge/artifact"
 )
 
 const (
@@ -272,7 +272,7 @@ func findRepoRootForOpenAPIDynamicPlugin(startDir string) (string, error) {
 // parseOpenAPIDynamicPluginI18NAssets extracts apidoc i18n asset snapshots from
 // one dynamic plugin wasm artifact.
 func parseOpenAPIDynamicPluginI18NAssets(content []byte) ([]*openAPIDynamicPluginI18NAsset, error) {
-	sectionContent, ok, err := pluginbridge.ReadCustomSection(content, pluginbridge.WasmSectionAPIDocI18NAssets)
+	sectionContent, ok, err := bridgeartifact.ReadCustomSection(content, bridgeartifact.WasmSectionAPIDocI18NAssets)
 	if err != nil {
 		return nil, err
 	}

@@ -17,7 +17,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/pkg/i18nresource"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgeartifact "lina-core/pkg/pluginbridge/artifact"
 )
 
 const (
@@ -490,7 +490,7 @@ func (s *serviceImpl) readDynamicPluginI18NAssets(ctx context.Context, packagePa
 		return nil, err
 	}
 
-	sectionContent, ok, err := pluginbridge.ReadCustomSection(content, pluginbridge.WasmSectionI18NAssets)
+	sectionContent, ok, err := bridgeartifact.ReadCustomSection(content, bridgeartifact.WasmSectionI18NAssets)
 	if err != nil {
 		return nil, err
 	}

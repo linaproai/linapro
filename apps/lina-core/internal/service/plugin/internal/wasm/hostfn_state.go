@@ -11,19 +11,19 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 )
 
 // handleHostStateGet processes OpcodeStateGet requests.
 // handleHostStateGet loads one plugin-scoped runtime state value.
-func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
-	req, err := pluginbridge.UnmarshalHostCallStateGetRequest(reqBytes)
+func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *bridgehostcall.HostCallResponseEnvelope {
+	req, err := bridgehostcall.UnmarshalHostCallStateGetRequest(reqBytes)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	key := strings.TrimSpace(req.Key)
 	if key == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "state key must not be empty")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, "state key must not be empty")
 	}
 
 	cols := dao.SysPluginState.Columns()
@@ -31,34 +31,34 @@ func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 		Where(do.SysPluginState{PluginId: hcc.pluginID, StateKey: key}).
 		Value(cols.StateValue)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 
-	resp := &pluginbridge.HostCallStateGetResponse{}
+	resp := &bridgehostcall.HostCallStateGetResponse{}
 	if !value.IsNil() && !value.IsEmpty() {
 		resp.Value = value.String()
 		resp.Found = true
 	}
-	return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostCallStateGetResponse(resp))
+	return bridgehostcall.NewHostCallSuccessResponse(bridgehostcall.MarshalHostCallStateGetResponse(resp))
 }
 
 // handleHostStateSet processes OpcodeStateSet requests.
 // handleHostStateSet upserts one plugin-scoped runtime state value.
-func handleHostStateSet(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
-	req, err := pluginbridge.UnmarshalHostCallStateSetRequest(reqBytes)
+func handleHostStateSet(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *bridgehostcall.HostCallResponseEnvelope {
+	req, err := bridgehostcall.UnmarshalHostCallStateSetRequest(reqBytes)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	key := strings.TrimSpace(req.Key)
 	if key == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "state key must not be empty")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, "state key must not be empty")
 	}
 
 	err = upsertHostStateValue(ctx, hcc.pluginID, key, req.Value)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
-	return pluginbridge.NewHostCallEmptySuccessResponse()
+	return bridgehostcall.NewHostCallEmptySuccessResponse()
 }
 
 // upsertHostStateValue writes one plugin state value using a dialect-neutral
@@ -86,21 +86,21 @@ func upsertHostStateValue(ctx context.Context, pluginID string, key string, valu
 
 // handleHostStateDelete processes OpcodeStateDelete requests.
 // handleHostStateDelete removes one plugin-scoped runtime state value.
-func handleHostStateDelete(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
-	req, err := pluginbridge.UnmarshalHostCallStateDeleteRequest(reqBytes)
+func handleHostStateDelete(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *bridgehostcall.HostCallResponseEnvelope {
+	req, err := bridgehostcall.UnmarshalHostCallStateDeleteRequest(reqBytes)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	key := strings.TrimSpace(req.Key)
 	if key == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "state key must not be empty")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, "state key must not be empty")
 	}
 
 	_, err = dao.SysPluginState.Ctx(ctx).
 		Where(do.SysPluginState{PluginId: hcc.pluginID, StateKey: key}).
 		Delete()
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
-	return pluginbridge.NewHostCallEmptySuccessResponse()
+	return bridgehostcall.NewHostCallEmptySuccessResponse()
 }

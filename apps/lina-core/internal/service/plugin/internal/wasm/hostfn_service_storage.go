@@ -18,7 +18,8 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 
 	"lina-core/internal/service/config"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 	"lina-core/pkg/pluginfs"
 )
 
@@ -47,33 +48,33 @@ func dispatchStorageHostService(
 	targetPath string,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	if strings.TrimSpace(targetPath) == "" {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			"storage host service requires one authorized target path",
 		)
 	}
 
 	resourceConfig, err := buildStorageResourceConfig(ctx, hcc)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 
 	switch method {
-	case pluginbridge.HostServiceMethodStoragePut:
+	case bridgehostservice.HostServiceMethodStoragePut:
 		return handleStoragePut(resourceConfig, targetPath, payload)
-	case pluginbridge.HostServiceMethodStorageGet:
+	case bridgehostservice.HostServiceMethodStorageGet:
 		return handleStorageGet(resourceConfig, targetPath, payload)
-	case pluginbridge.HostServiceMethodStorageDelete:
+	case bridgehostservice.HostServiceMethodStorageDelete:
 		return handleStorageDelete(resourceConfig, targetPath, payload)
-	case pluginbridge.HostServiceMethodStorageList:
+	case bridgehostservice.HostServiceMethodStorageList:
 		return handleStorageList(resourceConfig, targetPath, payload)
-	case pluginbridge.HostServiceMethodStorageStat:
+	case bridgehostservice.HostServiceMethodStorageStat:
 		return handleStorageStat(resourceConfig, targetPath, payload)
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported storage host service method: "+method,
 		)
 	}
@@ -84,49 +85,49 @@ func handleStoragePut(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
-	request, err := pluginbridge.UnmarshalHostServiceStoragePutRequest(payload)
+) *bridgehostcall.HostCallResponseEnvelope {
+	request, err := bridgehostservice.UnmarshalHostServiceStoragePutRequest(payload)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	objectPath, err := normalizeStorageObjectPath(request.Path)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = validateStorageRequestTarget(targetPath, objectPath); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = resourceConfig.validateWritePolicy(int64(len(request.Body))); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	absolutePath, err := resourceConfig.resolveObjectPath(objectPath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	_, exists, err := lookupStorageFileInfo(absolutePath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 	if exists && !request.Overwrite {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "storage object already exists")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, "storage object already exists")
 	}
 
 	if err = gfile.Mkdir(filepath.Dir(absolutePath)); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 	if err = os.WriteFile(absolutePath, request.Body, 0o644); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 
 	fileInfo, _, err := lookupStorageFileInfo(absolutePath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 
-	response := &pluginbridge.HostServiceStoragePutResponse{
+	response := &bridgehostservice.HostServiceStoragePutResponse{
 		Object: buildStorageObjectSnapshot(
 			objectPath,
 			fileInfo,
@@ -134,8 +135,8 @@ func handleStoragePut(
 			resourceConfig.visibility,
 		),
 	}
-	return pluginbridge.NewHostCallSuccessResponse(
-		pluginbridge.MarshalHostServiceStoragePutResponse(response),
+	return bridgehostcall.NewHostCallSuccessResponse(
+		bridgehostservice.MarshalHostServiceStoragePutResponse(response),
 	)
 }
 
@@ -144,41 +145,41 @@ func handleStorageGet(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
-	request, err := pluginbridge.UnmarshalHostServiceStorageGetRequest(payload)
+) *bridgehostcall.HostCallResponseEnvelope {
+	request, err := bridgehostservice.UnmarshalHostServiceStorageGetRequest(payload)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	objectPath, err := normalizeStorageObjectPath(request.Path)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = validateStorageRequestTarget(targetPath, objectPath); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	absolutePath, err := resourceConfig.resolveObjectPath(objectPath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	fileInfo, exists, err := lookupStorageFileInfo(absolutePath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 	if !exists {
-		return pluginbridge.NewHostCallSuccessResponse(
-			pluginbridge.MarshalHostServiceStorageGetResponse(&pluginbridge.HostServiceStorageGetResponse{Found: false}),
+		return bridgehostcall.NewHostCallSuccessResponse(
+			bridgehostservice.MarshalHostServiceStorageGetResponse(&bridgehostservice.HostServiceStorageGetResponse{Found: false}),
 		)
 	}
 
 	body, err := os.ReadFile(absolutePath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 
-	response := &pluginbridge.HostServiceStorageGetResponse{
+	response := &bridgehostservice.HostServiceStorageGetResponse{
 		Found: true,
 		Object: buildStorageObjectSnapshot(
 			objectPath,
@@ -188,8 +189,8 @@ func handleStorageGet(
 		),
 		Body: body,
 	}
-	return pluginbridge.NewHostCallSuccessResponse(
-		pluginbridge.MarshalHostServiceStorageGetResponse(response),
+	return bridgehostcall.NewHostCallSuccessResponse(
+		bridgehostservice.MarshalHostServiceStorageGetResponse(response),
 	)
 }
 
@@ -198,29 +199,29 @@ func handleStorageDelete(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
-	request, err := pluginbridge.UnmarshalHostServiceStorageDeleteRequest(payload)
+) *bridgehostcall.HostCallResponseEnvelope {
+	request, err := bridgehostservice.UnmarshalHostServiceStorageDeleteRequest(payload)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	objectPath, err := normalizeStorageObjectPath(request.Path)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = validateStorageRequestTarget(targetPath, objectPath); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	absolutePath, err := resourceConfig.resolveObjectPath(objectPath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	if err = os.Remove(absolutePath); err != nil && !os.IsNotExist(err) {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
-	return pluginbridge.NewHostCallEmptySuccessResponse()
+	return bridgehostcall.NewHostCallEmptySuccessResponse()
 }
 
 // handleStorageList lists governed storage objects under the authorized prefix.
@@ -228,18 +229,18 @@ func handleStorageList(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
-	request, err := pluginbridge.UnmarshalHostServiceStorageListRequest(payload)
+) *bridgehostcall.HostCallResponseEnvelope {
+	request, err := bridgehostservice.UnmarshalHostServiceStorageListRequest(payload)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	prefix, err := normalizeStorageListPrefix(request.Prefix)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = validateStorageRequestTarget(targetPath, prefix); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	limit := int(request.Limit)
@@ -252,10 +253,10 @@ func handleStorageList(
 
 	objects, err := listStorageObjects(resourceConfig, prefix, limit)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
-	return pluginbridge.NewHostCallSuccessResponse(
-		pluginbridge.MarshalHostServiceStorageListResponse(&pluginbridge.HostServiceStorageListResponse{Objects: objects}),
+	return bridgehostcall.NewHostCallSuccessResponse(
+		bridgehostservice.MarshalHostServiceStorageListResponse(&bridgehostservice.HostServiceStorageListResponse{Objects: objects}),
 	)
 }
 
@@ -264,37 +265,37 @@ func handleStorageStat(
 	resourceConfig *storageResourceConfig,
 	targetPath string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
-	request, err := pluginbridge.UnmarshalHostServiceStorageStatRequest(payload)
+) *bridgehostcall.HostCallResponseEnvelope {
+	request, err := bridgehostservice.UnmarshalHostServiceStorageStatRequest(payload)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	objectPath, err := normalizeStorageObjectPath(request.Path)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = validateStorageRequestTarget(targetPath, objectPath); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	absolutePath, err := resourceConfig.resolveObjectPath(objectPath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	fileInfo, exists, err := lookupStorageFileInfo(absolutePath)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 	if !exists {
-		return pluginbridge.NewHostCallSuccessResponse(
-			pluginbridge.MarshalHostServiceStorageStatResponse(&pluginbridge.HostServiceStorageStatResponse{Found: false}),
+		return bridgehostcall.NewHostCallSuccessResponse(
+			bridgehostservice.MarshalHostServiceStorageStatResponse(&bridgehostservice.HostServiceStorageStatResponse{Found: false}),
 		)
 	}
 
-	return pluginbridge.NewHostCallSuccessResponse(
-		pluginbridge.MarshalHostServiceStorageStatResponse(&pluginbridge.HostServiceStorageStatResponse{
+	return bridgehostcall.NewHostCallSuccessResponse(
+		bridgehostservice.MarshalHostServiceStorageStatResponse(&bridgehostservice.HostServiceStorageStatResponse{
 			Found: true,
 			Object: buildStorageObjectSnapshot(
 				objectPath,
@@ -328,7 +329,7 @@ func buildStorageResourceConfig(
 
 	return &storageResourceConfig{
 		rootDir:    filepath.Clean(absoluteRootDir),
-		visibility: pluginbridge.HostServiceStorageVisibilityPrivate,
+		visibility: bridgehostservice.HostServiceStorageVisibilityPrivate,
 	}, nil
 }
 
@@ -394,7 +395,7 @@ func normalizeStorageAuthorizedPath(rawPath string) (string, error) {
 }
 
 // matchAuthorizedStoragePath returns the authorized path pattern that matches the target.
-func matchAuthorizedStoragePath(specs []*pluginbridge.HostServiceSpec, targetPath string) string {
+func matchAuthorizedStoragePath(specs []*bridgehostservice.HostServiceSpec, targetPath string) string {
 	normalizedTarget, err := normalizeStorageAuthorizedPath(targetPath)
 	if err != nil {
 		return ""
@@ -403,7 +404,7 @@ func matchAuthorizedStoragePath(specs []*pluginbridge.HostServiceSpec, targetPat
 	// prefixes ending with `/`, so both the approval snapshot and request path
 	// must be normalized before matching.
 	for _, spec := range specs {
-		if spec == nil || spec.Service != pluginbridge.HostServiceStorage {
+		if spec == nil || spec.Service != bridgehostservice.HostServiceStorage {
 			continue
 		}
 		for _, authorizedPath := range spec.Paths {
@@ -453,12 +454,12 @@ func listStorageObjects(
 	resourceConfig *storageResourceConfig,
 	prefix string,
 	limit int,
-) ([]*pluginbridge.HostServiceStorageObject, error) {
+) ([]*bridgehostservice.HostServiceStorageObject, error) {
 	if resourceConfig == nil {
-		return []*pluginbridge.HostServiceStorageObject{}, nil
+		return []*bridgehostservice.HostServiceStorageObject{}, nil
 	}
 	if !gfile.Exists(resourceConfig.rootDir) {
-		return []*pluginbridge.HostServiceStorageObject{}, nil
+		return []*bridgehostservice.HostServiceStorageObject{}, nil
 	}
 
 	files, err := gfile.ScanDirFile(resourceConfig.rootDir, "*", true)
@@ -467,7 +468,7 @@ func listStorageObjects(
 	}
 	sort.Strings(files)
 
-	objects := make([]*pluginbridge.HostServiceStorageObject, 0, len(files))
+	objects := make([]*bridgehostservice.HostServiceStorageObject, 0, len(files))
 	for _, absolutePath := range files {
 		fileInfo, err := os.Stat(absolutePath)
 		if err != nil {
@@ -520,15 +521,15 @@ func buildStorageObjectSnapshot(
 	fileInfo os.FileInfo,
 	contentType string,
 	visibility string,
-) *pluginbridge.HostServiceStorageObject {
+) *bridgehostservice.HostServiceStorageObject {
 	if fileInfo == nil {
-		return &pluginbridge.HostServiceStorageObject{
+		return &bridgehostservice.HostServiceStorageObject{
 			Path:        objectPath,
 			ContentType: contentType,
 			Visibility:  visibility,
 		}
 	}
-	return &pluginbridge.HostServiceStorageObject{
+	return &bridgehostservice.HostServiceStorageObject{
 		Path:        objectPath,
 		Size:        fileInfo.Size(),
 		ContentType: contentType,

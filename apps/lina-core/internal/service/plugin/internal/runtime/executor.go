@@ -9,13 +9,14 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/pkg/pluginbridge"
+	bridgecodec "lina-core/pkg/pluginbridge/codec"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
 // dynamicRouteExecutor executes one encoded bridge request against one active runtime.
 type dynamicRouteExecutor interface {
 	// Execute runs one bridge request against the selected runtime implementation.
-	Execute(ctx context.Context, manifest *catalog.Manifest, request *pluginbridge.BridgeRequestEnvelopeV1) (*pluginbridge.BridgeResponseEnvelopeV1, error)
+	Execute(ctx context.Context, manifest *catalog.Manifest, request *bridgecontract.BridgeRequestEnvelopeV1) (*bridgecontract.BridgeResponseEnvelopeV1, error)
 }
 
 // dynamicPlaceholderExecutor is the fallback executor returned when no bridge runtime
@@ -26,9 +27,9 @@ type dynamicPlaceholderExecutor struct{}
 func (e *dynamicPlaceholderExecutor) Execute(
 	_ context.Context,
 	_ *catalog.Manifest,
-	_ *pluginbridge.BridgeRequestEnvelopeV1,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
-	return pluginbridge.NewFailureResponse(
+	_ *bridgecontract.BridgeRequestEnvelopeV1,
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
+	return bridgecodec.NewFailureResponse(
 		http.StatusNotImplemented,
 		"BRIDGE_NOT_IMPLEMENTED",
 		"Dynamic route bridge is not executable for the active plugin release",
@@ -42,12 +43,12 @@ type dynamicWasmExecutor struct{}
 func (e *dynamicWasmExecutor) Execute(
 	ctx context.Context,
 	manifest *catalog.Manifest,
-	request *pluginbridge.BridgeRequestEnvelopeV1,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+	request *bridgecontract.BridgeRequestEnvelopeV1,
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
 	if manifest == nil || manifest.RuntimeArtifact == nil {
-		return pluginbridge.NewInternalErrorResponse("Dynamic wasm executor: manifest or artifact is nil"), nil
+		return bridgecodec.NewInternalErrorResponse("Dynamic wasm executor: manifest or artifact is nil"), nil
 	}
-	requestContent, err := pluginbridge.EncodeRequestEnvelope(request)
+	requestContent, err := bridgecodec.EncodeRequestEnvelope(request)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (e *dynamicWasmExecutor) Execute(
 		BridgeSpec:      manifest.BridgeSpec,
 		Capabilities:    manifest.HostCapabilities,
 		HostServices:    manifest.HostServices,
-		ExecutionSource: pluginbridge.ExecutionSourceRoute,
+		ExecutionSource: bridgecontract.ExecutionSourceRoute,
 		RoutePath:       routePath,
 		RequestID:       request.RequestID,
 		Identity:        request.Identity,
@@ -72,8 +73,8 @@ func (e *dynamicWasmExecutor) Execute(
 func (s *serviceImpl) executeDynamicRoute(
 	ctx context.Context,
 	manifest *catalog.Manifest,
-	request *pluginbridge.BridgeRequestEnvelopeV1,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+	request *bridgecontract.BridgeRequestEnvelopeV1,
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
 	executor := s.selectDynamicRouteExecutor(manifest)
 	return executor.Execute(ctx, manifest, request)
 }
@@ -82,8 +83,8 @@ func (s *serviceImpl) executeDynamicRoute(
 func (s *serviceImpl) ExecuteDynamicRoute(
 	ctx context.Context,
 	manifest *catalog.Manifest,
-	request *pluginbridge.BridgeRequestEnvelopeV1,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+	request *bridgecontract.BridgeRequestEnvelopeV1,
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
 	return s.executeDynamicRoute(ctx, manifest, request)
 }
 
@@ -92,7 +93,7 @@ func (s *serviceImpl) selectDynamicRouteExecutor(manifest *catalog.Manifest) dyn
 	if manifest == nil || manifest.BridgeSpec == nil {
 		return &dynamicPlaceholderExecutor{}
 	}
-	if manifest.BridgeSpec.RouteExecution && manifest.BridgeSpec.RuntimeKind == pluginbridge.RuntimeKindWasm {
+	if manifest.BridgeSpec.RouteExecution && manifest.BridgeSpec.RuntimeKind == bridgecontract.RuntimeKindWasm {
 		return &dynamicWasmExecutor{}
 	}
 	return &dynamicPlaceholderExecutor{}

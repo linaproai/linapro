@@ -14,7 +14,8 @@ import (
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/wasm"
-	"lina-core/pkg/pluginbridge"
+	bridgecodec "lina-core/pkg/pluginbridge/codec"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
 // cronDiscoveryCollector stores dynamic-plugin cron declarations discovered
@@ -22,7 +23,7 @@ import (
 type cronDiscoveryCollector struct {
 	pluginID string
 	seen     map[string]struct{}
-	items    []*pluginbridge.CronContract
+	items    []*bridgecontract.CronContract
 }
 
 // Ensure cronDiscoveryCollector satisfies the shared Wasm discovery contract.
@@ -34,18 +35,18 @@ func newCronDiscoveryCollector(pluginID string) *cronDiscoveryCollector {
 	return &cronDiscoveryCollector{
 		pluginID: strings.TrimSpace(pluginID),
 		seen:     make(map[string]struct{}),
-		items:    make([]*pluginbridge.CronContract, 0),
+		items:    make([]*bridgecontract.CronContract, 0),
 	}
 }
 
 // Register validates and stores one discovered cron contract.
-func (c *cronDiscoveryCollector) Register(contract *pluginbridge.CronContract) error {
+func (c *cronDiscoveryCollector) Register(contract *bridgecontract.CronContract) error {
 	if contract == nil {
 		return gerror.New("dynamic plugin cron declaration cannot be nil")
 	}
 
 	contractSnapshot := *contract
-	if err := pluginbridge.ValidateCronContracts(c.pluginID, []*pluginbridge.CronContract{&contractSnapshot}); err != nil {
+	if err := bridgecontract.ValidateCronContracts(c.pluginID, []*bridgecontract.CronContract{&contractSnapshot}); err != nil {
 		return err
 	}
 	if _, exists := c.seen[contractSnapshot.Name]; exists {
@@ -57,11 +58,11 @@ func (c *cronDiscoveryCollector) Register(contract *pluginbridge.CronContract) e
 }
 
 // Items returns a detached copy of the discovered cron contract list.
-func (c *cronDiscoveryCollector) Items() []*pluginbridge.CronContract {
+func (c *cronDiscoveryCollector) Items() []*bridgecontract.CronContract {
 	if c == nil || len(c.items) == 0 {
-		return []*pluginbridge.CronContract{}
+		return []*bridgecontract.CronContract{}
 	}
-	items := make([]*pluginbridge.CronContract, 0, len(c.items))
+	items := make([]*bridgecontract.CronContract, 0, len(c.items))
 	for _, item := range c.items {
 		if item == nil {
 			continue
@@ -77,7 +78,7 @@ func (c *cronDiscoveryCollector) Items() []*pluginbridge.CronContract {
 func (s *serviceImpl) DiscoverCronContracts(
 	ctx context.Context,
 	manifest *catalog.Manifest,
-) ([]*pluginbridge.CronContract, error) {
+) ([]*bridgecontract.CronContract, error) {
 	if manifest == nil {
 		return nil, gerror.New("dynamic plugin manifest cannot be nil")
 	}
@@ -89,16 +90,16 @@ func (s *serviceImpl) DiscoverCronContracts(
 	}
 
 	collector := newCronDiscoveryCollector(manifest.ID)
-	request := &pluginbridge.BridgeRequestEnvelopeV1{
+	request := &bridgecontract.BridgeRequestEnvelopeV1{
 		PluginID: strings.TrimSpace(manifest.ID),
-		Route: &pluginbridge.RouteMatchSnapshotV1{
-			RoutePath:    pluginbridge.DeclaredCronRegistrationInternalPath,
-			InternalPath: pluginbridge.DeclaredCronRegistrationInternalPath,
-			RequestType:  pluginbridge.DeclaredCronRegistrationRequestType,
+		Route: &bridgecontract.RouteMatchSnapshotV1{
+			RoutePath:    bridgecontract.DeclaredCronRegistrationInternalPath,
+			InternalPath: bridgecontract.DeclaredCronRegistrationInternalPath,
+			RequestType:  bridgecontract.DeclaredCronRegistrationRequestType,
 		},
 		RequestID: guid.S(),
 	}
-	requestContent, err := pluginbridge.EncodeRequestEnvelope(request)
+	requestContent, err := bridgecodec.EncodeRequestEnvelope(request)
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +110,8 @@ func (s *serviceImpl) DiscoverCronContracts(
 		BridgeSpec:      manifest.BridgeSpec,
 		Capabilities:    manifest.HostCapabilities,
 		HostServices:    manifest.HostServices,
-		ExecutionSource: pluginbridge.ExecutionSourceCronDiscovery,
-		RoutePath:       pluginbridge.DeclaredCronRegistrationInternalPath,
+		ExecutionSource: bridgecontract.ExecutionSourceCronDiscovery,
+		RoutePath:       bridgecontract.DeclaredCronRegistrationInternalPath,
 		RequestID:       request.RequestID,
 		CronCollector:   collector,
 	}, requestContent)
@@ -125,7 +126,7 @@ func (s *serviceImpl) DiscoverCronContracts(
 func (s *serviceImpl) ExecuteDeclaredCronJob(
 	ctx context.Context,
 	manifest *catalog.Manifest,
-	contract *pluginbridge.CronContract,
+	contract *bridgecontract.CronContract,
 ) error {
 	if manifest == nil {
 		return gerror.New("dynamic plugin manifest cannot be nil")
@@ -140,16 +141,16 @@ func (s *serviceImpl) ExecuteDeclaredCronJob(
 		return gerror.Newf("dynamic plugin %s does not declare an executable Wasm bridge", manifest.ID)
 	}
 
-	request := &pluginbridge.BridgeRequestEnvelopeV1{
+	request := &bridgecontract.BridgeRequestEnvelopeV1{
 		PluginID: strings.TrimSpace(manifest.ID),
-		Route: &pluginbridge.RouteMatchSnapshotV1{
-			RoutePath:    pluginbridge.BuildDeclaredCronRoutePath(contract),
+		Route: &bridgecontract.RouteMatchSnapshotV1{
+			RoutePath:    bridgecontract.BuildDeclaredCronRoutePath(contract),
 			InternalPath: strings.TrimSpace(contract.InternalPath),
 			RequestType:  strings.TrimSpace(contract.RequestType),
 		},
 		RequestID: guid.S(),
 	}
-	requestContent, err := pluginbridge.EncodeRequestEnvelope(request)
+	requestContent, err := bridgecodec.EncodeRequestEnvelope(request)
 	if err != nil {
 		return err
 	}
@@ -160,8 +161,8 @@ func (s *serviceImpl) ExecuteDeclaredCronJob(
 		BridgeSpec:      manifest.BridgeSpec,
 		Capabilities:    manifest.HostCapabilities,
 		HostServices:    manifest.HostServices,
-		ExecutionSource: pluginbridge.ExecutionSourceCron,
-		RoutePath:       pluginbridge.BuildDeclaredCronRoutePath(contract),
+		ExecutionSource: bridgecontract.ExecutionSourceCron,
+		RoutePath:       bridgecontract.BuildDeclaredCronRoutePath(contract),
 		RequestID:       request.RequestID,
 	}, requestContent)
 	if err != nil {
@@ -174,14 +175,14 @@ func (s *serviceImpl) ExecuteDeclaredCronJob(
 // discovered cron contract list expected by the integration layer.
 func normalizeDiscoveredCronContracts(
 	pluginID string,
-	response *pluginbridge.BridgeResponseEnvelopeV1,
+	response *bridgecontract.BridgeResponseEnvelopeV1,
 	collector *cronDiscoveryCollector,
-) ([]*pluginbridge.CronContract, error) {
+) ([]*bridgecontract.CronContract, error) {
 	if response == nil {
 		return nil, gerror.New("dynamic plugin cron registration returned no execution result")
 	}
 	if response.StatusCode == http.StatusNotFound {
-		return []*pluginbridge.CronContract{}, nil
+		return []*bridgecontract.CronContract{}, nil
 	}
 	if response.Failure != nil {
 		return nil, gerror.New(strings.TrimSpace(response.Failure.Message))
@@ -195,7 +196,7 @@ func normalizeDiscoveredCronContracts(
 	}
 
 	contracts := collector.Items()
-	if err := pluginbridge.ValidateCronContracts(pluginID, contracts); err != nil {
+	if err := bridgecontract.ValidateCronContracts(pluginID, contracts); err != nil {
 		return nil, err
 	}
 	return contracts, nil
@@ -204,8 +205,8 @@ func normalizeDiscoveredCronContracts(
 // normalizeDeclaredCronResponse converts one bridge response into the shared
 // cron handler error contract expected by scheduled-job execution.
 func normalizeDeclaredCronResponse(
-	contract *pluginbridge.CronContract,
-	response *pluginbridge.BridgeResponseEnvelopeV1,
+	contract *bridgecontract.CronContract,
+	response *bridgecontract.BridgeResponseEnvelopeV1,
 ) error {
 	if response == nil {
 		return gerror.New("dynamic plugin cron returned no execution result")

@@ -10,7 +10,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 )
 
 // registerHostCallModule registers the lina_env host module with the host_call
@@ -19,14 +19,14 @@ import (
 // from lina_env and wazero validates imports at compile time.
 // registerHostCallModule registers the lina_env host module and host_call export.
 func registerHostCallModule(ctx context.Context, rt wazero.Runtime) error {
-	_, err := rt.NewHostModuleBuilder(pluginbridge.HostModuleName).
+	_, err := rt.NewHostModuleBuilder(bridgehostcall.HostModuleName).
 		NewFunctionBuilder().
 		WithGoModuleFunction(
 			api.GoModuleFunc(hostCallHandler),
 			[]api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32},
 			[]api.ValueType{api.ValueTypeI64},
 		).
-		Export(pluginbridge.HostCallFunctionName).
+		Export(bridgehostcall.HostCallFunctionName).
 		Instantiate(ctx)
 	return err
 }
@@ -48,7 +48,7 @@ func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 	// Extract per-request context.
 	hcc := hostCallContextFrom(ctx)
 	if hcc == nil {
-		stack[0] = writeHostCallError(ctx, mod, pluginbridge.HostCallStatusInternalError, "host call context not available")
+		stack[0] = writeHostCallError(ctx, mod, bridgehostcall.HostCallStatusInternalError, "host call context not available")
 		return
 	}
 
@@ -58,7 +58,7 @@ func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 		var ok bool
 		reqBytes, ok = mod.Memory().Read(reqPtr, reqLen)
 		if !ok {
-			stack[0] = writeHostCallError(ctx, mod, pluginbridge.HostCallStatusInternalError, "failed to read host call request from guest memory")
+			stack[0] = writeHostCallError(ctx, mod, bridgehostcall.HostCallStatusInternalError, "failed to read host call request from guest memory")
 			return
 		}
 		// Make a copy since guest memory may be invalidated by re-entrant alloc.
@@ -67,8 +67,8 @@ func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 		reqBytes = copied
 	}
 
-	if opcode != pluginbridge.OpcodeServiceInvoke {
-		stack[0] = writeHostCallError(ctx, mod, pluginbridge.HostCallStatusNotFound,
+	if opcode != bridgehostcall.OpcodeServiceInvoke {
+		stack[0] = writeHostCallError(ctx, mod, bridgehostcall.HostCallStatusNotFound,
 			fmt.Sprintf("unknown host call opcode: 0x%04x", opcode))
 		return
 	}
@@ -77,18 +77,18 @@ func hostCallHandler(ctx context.Context, mod api.Module, stack []uint64) {
 	respEnvelope := dispatchHostCall(ctx, hcc, opcode, reqBytes)
 
 	// Encode and write response to guest memory.
-	respBytes := pluginbridge.MarshalHostCallResponse(respEnvelope)
+	respBytes := bridgehostcall.MarshalHostCallResponse(respEnvelope)
 	stack[0] = writeHostCallResponse(ctx, mod, respBytes)
 }
 
 // dispatchHostCall routes the opcode to the correct structured host service handler.
 // dispatchHostCall routes the opcode to the correct structured host service handler.
-func dispatchHostCall(ctx context.Context, hcc *hostCallContext, opcode uint32, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
+func dispatchHostCall(ctx context.Context, hcc *hostCallContext, opcode uint32, reqBytes []byte) *bridgehostcall.HostCallResponseEnvelope {
 	switch opcode {
-	case pluginbridge.OpcodeServiceInvoke:
+	case bridgehostcall.OpcodeServiceInvoke:
 		return handleHostServiceInvoke(ctx, hcc, reqBytes)
 	default:
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusNotFound,
 			fmt.Sprintf("unhandled host call opcode: 0x%04x", opcode))
 	}
 }
@@ -102,7 +102,7 @@ func writeHostCallResponse(ctx context.Context, mod api.Module, respBytes []byte
 		return 0
 	}
 
-	allocFn := mod.ExportedFunction(pluginbridge.DefaultGuestHostCallAllocExport)
+	allocFn := mod.ExportedFunction(bridgehostcall.DefaultGuestHostCallAllocExport)
 	if allocFn == nil {
 		// Guest does not export the host call alloc function; cannot write response.
 		return 0
@@ -124,6 +124,6 @@ func writeHostCallResponse(ctx context.Context, mod api.Module, respBytes []byte
 // and writes it to guest memory.
 // writeHostCallError encodes one error envelope and writes it to guest memory.
 func writeHostCallError(ctx context.Context, mod api.Module, status uint32, message string) uint64 {
-	envelope := pluginbridge.NewHostCallErrorResponse(status, message)
-	return writeHostCallResponse(ctx, mod, pluginbridge.MarshalHostCallResponse(envelope))
+	envelope := bridgehostcall.NewHostCallErrorResponse(status, message)
+	return writeHostCallResponse(ctx, mod, bridgehostcall.MarshalHostCallResponse(envelope))
 }

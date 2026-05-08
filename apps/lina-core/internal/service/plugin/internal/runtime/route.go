@@ -23,7 +23,8 @@ import (
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgecodec "lina-core/pkg/pluginbridge/codec"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
 // RoutePublicPrefix is the fixed host URL prefix for all dynamic plugin routes.
@@ -71,7 +72,7 @@ type dynamicRouteMatch struct {
 	PluginID     string
 	PublicPath   string
 	InternalPath string
-	Route        *pluginbridge.RouteContract
+	Route        *bridgecontract.RouteContract
 	PathParams   map[string]string
 }
 
@@ -135,7 +136,7 @@ func (s *serviceImpl) PrepareDynamicRouteMiddleware(r *ghttp.Request) {
 	}
 	runtimeState, failure, err := s.prepareDynamicRouteRuntime(r.Context(), r)
 	if err != nil {
-		s.writeDynamicRouteResponse(r, pluginbridge.NewInternalErrorResponse(err.Error()))
+		s.writeDynamicRouteResponse(r, bridgecodec.NewInternalErrorResponse(err.Error()))
 		r.ExitAll()
 		return
 	}
@@ -159,7 +160,7 @@ func (s *serviceImpl) AuthenticateDynamicRouteMiddleware(r *ghttp.Request) {
 	if runtimeState == nil {
 		s.writeDynamicRouteResponse(
 			r,
-			pluginbridge.NewInternalErrorResponse("Dynamic route runtime state is missing"),
+			bridgecodec.NewInternalErrorResponse("Dynamic route runtime state is missing"),
 		)
 		r.ExitAll()
 		return
@@ -167,7 +168,7 @@ func (s *serviceImpl) AuthenticateDynamicRouteMiddleware(r *ghttp.Request) {
 
 	identity, failure, err := s.authorizeDynamicRouteRequest(r.Context(), runtimeState, r)
 	if err != nil {
-		s.writeDynamicRouteResponse(r, pluginbridge.NewInternalErrorResponse(err.Error()))
+		s.writeDynamicRouteResponse(r, bridgecodec.NewInternalErrorResponse(err.Error()))
 		r.ExitAll()
 		return
 	}
@@ -190,7 +191,7 @@ func (s *serviceImpl) handleDynamicRouteRequest(r *ghttp.Request) {
 	}
 	runtimeState := getDynamicRouteRuntimeState(r)
 	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Manifest == nil {
-		s.writeDynamicRouteResponse(r, pluginbridge.NewInternalErrorResponse("Dynamic route runtime state is missing"))
+		s.writeDynamicRouteResponse(r, bridgecodec.NewInternalErrorResponse("Dynamic route runtime state is missing"))
 		r.ExitAll()
 		return
 	}
@@ -202,10 +203,10 @@ func (s *serviceImpl) handleDynamicRouteRequest(r *ghttp.Request) {
 		r,
 	)
 	if err != nil {
-		response = pluginbridge.NewInternalErrorResponse(err.Error())
+		response = bridgecodec.NewInternalErrorResponse(err.Error())
 	}
 	if response == nil {
-		response = pluginbridge.NewInternalErrorResponse("Dynamic route dispatcher returned nil response")
+		response = bridgecodec.NewInternalErrorResponse("Dynamic route dispatcher returned nil response")
 	}
 	s.writeDynamicRouteResponse(r, response)
 	r.ExitAll()
@@ -217,9 +218,9 @@ func (s *serviceImpl) handleDynamicRouteRequest(r *ghttp.Request) {
 func (s *serviceImpl) DispatchDynamicRoute(
 	ctx context.Context,
 	in *DynamicRouteDispatchInput,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
 	if in == nil || in.Request == nil {
-		return pluginbridge.NewBadRequestResponse("Dynamic route request is missing"), nil
+		return bridgecodec.NewBadRequestResponse("Dynamic route request is missing"), nil
 	}
 
 	runtimeState, failure, err := s.prepareDynamicRouteRuntime(ctx, in.Request)
@@ -343,29 +344,29 @@ func normalizeDynamicRoutePath(path string) string {
 func (s *serviceImpl) prepareDynamicRouteRuntime(
 	ctx context.Context,
 	request *ghttp.Request,
-) (*dynamicRouteRuntimeState, *pluginbridge.BridgeResponseEnvelopeV1, error) {
+) (*dynamicRouteRuntimeState, *bridgecontract.BridgeResponseEnvelopeV1, error) {
 	if request == nil {
-		return nil, pluginbridge.NewBadRequestResponse("Dynamic route request is missing"), nil
+		return nil, bridgecodec.NewBadRequestResponse("Dynamic route request is missing"), nil
 	}
 
 	match, err := s.matchDynamicRoute(ctx, request)
 	if err != nil {
-		return nil, pluginbridge.NewBadRequestResponse(err.Error()), nil
+		return nil, bridgecodec.NewBadRequestResponse(err.Error()), nil
 	}
 	if match == nil || match.Route == nil {
-		return nil, pluginbridge.NewNotFoundResponse("Dynamic route not found"), nil
+		return nil, bridgecodec.NewNotFoundResponse("Dynamic route not found"), nil
 	}
 
 	manifest, err := s.catalogSvc.GetActiveManifest(ctx, match.PluginID)
 	if err != nil {
-		return nil, pluginbridge.NewNotFoundResponse(err.Error()), nil
+		return nil, bridgecodec.NewNotFoundResponse(err.Error()), nil
 	}
 	registry, err := s.catalogSvc.GetRegistry(ctx, match.PluginID)
 	if err != nil {
 		return nil, nil, err
 	}
 	if registry == nil || registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
-		return nil, pluginbridge.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
+		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
 	}
 	return &dynamicRouteRuntimeState{
 		Manifest: manifest,
@@ -379,11 +380,11 @@ func (s *serviceImpl) authorizeDynamicRouteRequest(
 	ctx context.Context,
 	runtimeState *dynamicRouteRuntimeState,
 	request *ghttp.Request,
-) (*pluginbridge.IdentitySnapshotV1, *pluginbridge.BridgeResponseEnvelopeV1, error) {
+) (*bridgecontract.IdentitySnapshotV1, *bridgecontract.BridgeResponseEnvelopeV1, error) {
 	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Match.Route == nil {
-		return nil, pluginbridge.NewInternalErrorResponse("Dynamic route runtime state is incomplete"), nil
+		return nil, bridgecodec.NewInternalErrorResponse("Dynamic route runtime state is incomplete"), nil
 	}
-	if runtimeState.Match.Route.Access != pluginbridge.AccessLogin {
+	if runtimeState.Match.Route.Access != bridgecontract.AccessLogin {
 		return nil, nil, nil
 	}
 	return s.buildDynamicRouteIdentitySnapshot(ctx, runtimeState.Match, request)
@@ -394,11 +395,11 @@ func (s *serviceImpl) authorizeDynamicRouteRequest(
 func (s *serviceImpl) executePreparedDynamicRoute(
 	ctx context.Context,
 	runtimeState *dynamicRouteRuntimeState,
-	identity *pluginbridge.IdentitySnapshotV1,
+	identity *bridgecontract.IdentitySnapshotV1,
 	request *ghttp.Request,
-) (*pluginbridge.BridgeResponseEnvelopeV1, error) {
+) (*bridgecontract.BridgeResponseEnvelopeV1, error) {
 	if runtimeState == nil || runtimeState.Match == nil || runtimeState.Manifest == nil {
-		return pluginbridge.NewInternalErrorResponse("Dynamic route runtime state is incomplete"), nil
+		return bridgecodec.NewInternalErrorResponse("Dynamic route runtime state is incomplete"), nil
 	}
 
 	requestEnvelope, err := s.buildDynamicRouteRequestEnvelopeWithIdentity(
@@ -410,7 +411,7 @@ func (s *serviceImpl) executePreparedDynamicRoute(
 		return nil, err
 	}
 	if runtimeState.Manifest.BridgeSpec == nil || !runtimeState.Manifest.BridgeSpec.RouteExecution {
-		return pluginbridge.NewFailureResponse(
+		return bridgecodec.NewFailureResponse(
 			http.StatusNotImplemented,
 			"BRIDGE_NOT_IMPLEMENTED",
 			"Dynamic route bridge is not executable for the active plugin release",
@@ -424,13 +425,13 @@ func (s *serviceImpl) executePreparedDynamicRoute(
 func (s *serviceImpl) buildDynamicRouteRequestEnvelopeWithIdentity(
 	match *dynamicRouteMatch,
 	request *ghttp.Request,
-	identity *pluginbridge.IdentitySnapshotV1,
-) (*pluginbridge.BridgeRequestEnvelopeV1, error) {
+	identity *bridgecontract.IdentitySnapshotV1,
+) (*bridgecontract.BridgeRequestEnvelopeV1, error) {
 	body := request.GetBody()
 	queryValues := request.URL.Query()
-	return &pluginbridge.BridgeRequestEnvelopeV1{
+	return &bridgecontract.BridgeRequestEnvelopeV1{
 		PluginID: match.PluginID,
-		Route: &pluginbridge.RouteMatchSnapshotV1{
+		Route: &bridgecontract.RouteMatchSnapshotV1{
 			Method:       strings.ToUpper(strings.TrimSpace(request.Method)),
 			PublicPath:   match.PublicPath,
 			InternalPath: match.InternalPath,
@@ -441,7 +442,7 @@ func (s *serviceImpl) buildDynamicRouteRequestEnvelopeWithIdentity(
 			PathParams:   cloneStringMap(match.PathParams),
 			QueryValues:  cloneURLValues(queryValues),
 		},
-		Request: &pluginbridge.HTTPRequestSnapshotV1{
+		Request: &bridgecontract.HTTPRequestSnapshotV1{
 			Method:       strings.ToUpper(strings.TrimSpace(request.Method)),
 			PublicPath:   match.PublicPath,
 			InternalPath: match.InternalPath,
@@ -467,25 +468,25 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 	ctx context.Context,
 	match *dynamicRouteMatch,
 	request *ghttp.Request,
-) (*pluginbridge.IdentitySnapshotV1, *pluginbridge.BridgeResponseEnvelopeV1, error) {
+) (*bridgecontract.IdentitySnapshotV1, *bridgecontract.BridgeResponseEnvelopeV1, error) {
 	tokenHeader := strings.TrimSpace(request.GetHeader("Authorization"))
 	if tokenHeader == "" {
-		return nil, pluginbridge.NewUnauthorizedResponse("Missing Authorization header"), nil
+		return nil, bridgecodec.NewUnauthorizedResponse("Missing Authorization header"), nil
 	}
 	tokenString := strings.TrimSpace(strings.TrimPrefix(tokenHeader, "Bearer "))
 	if tokenString == "" || tokenString == tokenHeader {
-		return nil, pluginbridge.NewUnauthorizedResponse("Invalid bearer token"), nil
+		return nil, bridgecodec.NewUnauthorizedResponse("Invalid bearer token"), nil
 	}
 	claims, err := s.parseDynamicRouteToken(ctx, tokenString)
 	if err != nil {
-		return nil, pluginbridge.NewUnauthorizedResponse(err.Error()), nil
+		return nil, bridgecodec.NewUnauthorizedResponse(err.Error()), nil
 	}
 	exists, err := s.touchDynamicRouteSession(ctx, claims.TokenId)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !exists {
-		return nil, pluginbridge.NewUnauthorizedResponse("Session has expired"), nil
+		return nil, bridgecodec.NewUnauthorizedResponse("Session has expired"), nil
 	}
 
 	if s.userCtx != nil {
@@ -496,7 +497,7 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 		return nil, nil, err
 	}
 	if match.Route.Permission != "" && !hasDynamicRoutePermission(accessContext, match.Route.Permission) {
-		return nil, pluginbridge.NewForbiddenResponse("Permission denied"), nil
+		return nil, bridgecodec.NewForbiddenResponse("Permission denied"), nil
 	}
 	if s.userCtx != nil {
 		s.userCtx.SetUserAccess(
@@ -507,7 +508,7 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 		)
 	}
 
-	return &pluginbridge.IdentitySnapshotV1{
+	return &bridgecontract.IdentitySnapshotV1{
 		TokenID:              claims.TokenId,
 		UserID:               int32(claims.UserId),
 		Username:             claims.Username,
@@ -847,7 +848,7 @@ func getDynamicRouteRuntimeState(request *ghttp.Request) *dynamicRouteRuntimeSta
 }
 
 // setDynamicRouteIdentitySnapshot stores the resolved identity snapshot on the request.
-func setDynamicRouteIdentitySnapshot(request *ghttp.Request, identity *pluginbridge.IdentitySnapshotV1) {
+func setDynamicRouteIdentitySnapshot(request *ghttp.Request, identity *bridgecontract.IdentitySnapshotV1) {
 	if request == nil {
 		return
 	}
@@ -855,7 +856,7 @@ func setDynamicRouteIdentitySnapshot(request *ghttp.Request, identity *pluginbri
 }
 
 // getDynamicRouteIdentitySnapshot reads the cached identity snapshot from the request.
-func getDynamicRouteIdentitySnapshot(request *ghttp.Request) *pluginbridge.IdentitySnapshotV1 {
+func getDynamicRouteIdentitySnapshot(request *ghttp.Request) *bridgecontract.IdentitySnapshotV1 {
 	if request == nil {
 		return nil
 	}
@@ -863,7 +864,7 @@ func getDynamicRouteIdentitySnapshot(request *ghttp.Request) *pluginbridge.Ident
 	if value == nil {
 		return nil
 	}
-	identity, _ := value.(*pluginbridge.IdentitySnapshotV1)
+	identity, _ := value.(*bridgecontract.IdentitySnapshotV1)
 	return identity
 }
 
@@ -909,7 +910,7 @@ func GetDynamicRouteMetadata(request *ghttp.Request) *DynamicRouteMetadata {
 // writeDynamicRouteResponse writes the guest response back without going through
 // GoFrame's default success wrapper, otherwise raw plugin payloads would be
 // polluted by host-managed response formatting.
-func (s *serviceImpl) writeDynamicRouteResponse(request *ghttp.Request, response *pluginbridge.BridgeResponseEnvelopeV1) {
+func (s *serviceImpl) writeDynamicRouteResponse(request *ghttp.Request, response *bridgecontract.BridgeResponseEnvelopeV1) {
 	if request == nil || response == nil {
 		return
 	}

@@ -4,21 +4,21 @@
 
 package runtime
 
-import "lina-core/pkg/pluginbridge"
+import bridgecontract "lina-core/pkg/pluginbridge/contract"
 
 // cloneRouteContracts deep-copies dynamic route contracts for management-list
 // projections so response models do not alias catalog manifest slices.
-func cloneRouteContracts(routes []*pluginbridge.RouteContract) []*pluginbridge.RouteContract {
+func cloneRouteContracts(routes []*bridgecontract.RouteContract) []*bridgecontract.RouteContract {
 	if len(routes) == 0 {
 		return nil
 	}
 
-	items := make([]*pluginbridge.RouteContract, 0, len(routes))
+	items := make([]*bridgecontract.RouteContract, 0, len(routes))
 	for _, route := range routes {
 		if route == nil {
 			continue
 		}
-		items = append(items, &pluginbridge.RouteContract{
+		items = append(items, &bridgecontract.RouteContract{
 			Path:        route.Path,
 			Method:      route.Method,
 			Tags:        append([]string(nil), route.Tags...),

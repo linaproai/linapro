@@ -6,14 +6,16 @@ package wasm
 import (
 	"context"
 
-	"lina-core/pkg/pluginbridge"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // CronRegistrationCollector captures dynamic-plugin cron declarations during
 // one host-driven discovery execution.
 type CronRegistrationCollector interface {
 	// Register validates and stores one discovered cron contract.
-	Register(contract *pluginbridge.CronContract) error
+	Register(contract *bridgecontract.CronContract) error
 }
 
 // dispatchCronHostService routes cron host service methods to the discovery
@@ -23,13 +25,13 @@ func dispatchCronHostService(
 	hcc *hostCallContext,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	switch method {
-	case pluginbridge.HostServiceMethodCronRegister:
+	case bridgehostservice.HostServiceMethodCronRegister:
 		return handleHostCronRegister(hcc, payload)
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported cron host service method: "+method,
 		)
 	}
@@ -40,36 +42,36 @@ func dispatchCronHostService(
 func handleHostCronRegister(
 	hcc *hostCallContext,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	if hcc == nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, "host call context not available")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "host call context not available")
 	}
-	if pluginbridge.NormalizeExecutionSource(hcc.executionSource) != pluginbridge.ExecutionSourceCronDiscovery {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+	if bridgecontract.NormalizeExecutionSource(hcc.executionSource) != bridgecontract.ExecutionSourceCronDiscovery {
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			"cron host service only supports cron discovery executions",
 		)
 	}
 	if hcc.cronCollector == nil {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusInternalError,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusInternalError,
 			"cron discovery collector not configured",
 		)
 	}
 
-	request, err := pluginbridge.UnmarshalHostServiceCronRegisterRequest(payload)
+	request, err := bridgehostservice.UnmarshalHostServiceCronRegisterRequest(payload)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if request == nil || request.Contract == nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "cron registration contract is required")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, "cron registration contract is required")
 	}
 	contractSnapshot := *request.Contract
-	if err = pluginbridge.ValidateCronContracts(hcc.pluginID, []*pluginbridge.CronContract{&contractSnapshot}); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+	if err = bridgecontract.ValidateCronContracts(hcc.pluginID, []*bridgecontract.CronContract{&contractSnapshot}); err != nil {
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = hcc.cronCollector.Register(&contractSnapshot); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
-	return pluginbridge.NewHostCallSuccessResponse(nil)
+	return bridgehostcall.NewHostCallSuccessResponse(nil)
 }

@@ -17,7 +17,8 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // Default timeout and size limits for governed outbound network requests.
@@ -46,20 +47,20 @@ func dispatchNetworkHostService(
 	targetURL string,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	if strings.TrimSpace(targetURL) == "" {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			"network host service requires one authorized target URL",
 		)
 	}
 
 	switch method {
-	case pluginbridge.HostServiceMethodNetworkRequest:
+	case bridgehostservice.HostServiceMethodNetworkRequest:
 		return handleNetworkRequest(ctx, hcc, targetURL, payload)
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported network host service method: "+method,
 		)
 	}
@@ -72,22 +73,22 @@ func handleNetworkRequest(
 	hcc *hostCallContext,
 	targetURL string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
-	request, err := pluginbridge.UnmarshalHostServiceNetworkRequest(payload)
+) *bridgehostcall.HostCallResponseEnvelope {
+	request, err := bridgehostservice.UnmarshalHostServiceNetworkRequest(payload)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if request == nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, "network request is required")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, "network request is required")
 	}
 
 	resolvedURL, err := normalizeNetworkTargetURL(targetURL)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
-	if hcc != nil && !hcc.hasHostServiceAccess(pluginbridge.HostServiceNetwork, pluginbridge.HostServiceMethodNetworkRequest, resolvedURL, "") {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+	if hcc != nil && !hcc.hasHostServiceAccess(bridgehostservice.HostServiceNetwork, bridgehostservice.HostServiceMethodNetworkRequest, resolvedURL, "") {
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			"network request target URL is not authorized: "+resolvedURL,
 		)
 	}
@@ -97,18 +98,18 @@ func handleNetworkRequest(
 		method = http.MethodGet
 	}
 	if int64(len(request.Body)) > defaultNetworkMaxBodyBytes {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusInvalidRequest,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusInvalidRequest,
 			"network request body exceeds platform size limit",
 		)
 	}
 
 	httpRequest, err := http.NewRequestWithContext(ctx, method, resolvedURL, bytes.NewReader(request.Body))
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 	if err = applyNetworkRequestHeaders(httpRequest, request.Headers); err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	clientCtx, cancel := context.WithTimeout(ctx, defaultNetworkTimeout)
@@ -117,7 +118,7 @@ func handleNetworkRequest(
 
 	httpResponse, err := (&http.Client{}).Do(httpRequest)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 	defer func() {
 		if closeErr := httpResponse.Body.Close(); closeErr != nil {
@@ -127,17 +128,17 @@ func handleNetworkRequest(
 
 	body, err := readNetworkResponseBody(httpResponse.Body, defaultNetworkMaxBodyBytes)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
-	response := &pluginbridge.HostServiceNetworkResponse{
+	response := &bridgehostservice.HostServiceNetworkResponse{
 		StatusCode:  int32(httpResponse.StatusCode),
 		Headers:     flattenResponseHeaders(httpResponse.Header),
 		Body:        body,
 		ContentType: normalizeNetworkContentType(httpResponse.Header.Get("Content-Type")),
 	}
-	return pluginbridge.NewHostCallSuccessResponse(
-		pluginbridge.MarshalHostServiceNetworkResponse(response),
+	return bridgehostcall.NewHostCallSuccessResponse(
+		bridgehostservice.MarshalHostServiceNetworkResponse(response),
 	)
 }
 
@@ -188,9 +189,9 @@ func applyNetworkRequestHeaders(
 
 // matchAuthorizedNetworkResource finds the authorized upstream resource that matches the target URL.
 func matchAuthorizedNetworkResource(
-	specs []*pluginbridge.HostServiceSpec,
+	specs []*bridgehostservice.HostServiceSpec,
 	targetURL string,
-) *pluginbridge.HostServiceResourceSpec {
+) *bridgehostservice.HostServiceResourceSpec {
 	normalizedTarget, err := url.Parse(strings.TrimSpace(targetURL))
 	if err != nil || normalizedTarget == nil {
 		return nil
@@ -205,7 +206,7 @@ func matchAuthorizedNetworkResource(
 	)
 
 	for _, spec := range specs {
-		if spec == nil || spec.Service != pluginbridge.HostServiceNetwork {
+		if spec == nil || spec.Service != bridgehostservice.HostServiceNetwork {
 			continue
 		}
 		for _, resource := range spec.Resources {

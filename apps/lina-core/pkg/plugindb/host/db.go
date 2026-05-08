@@ -15,7 +15,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // pluginDataDriverTypePrefix prefixes governed driver types registered for
@@ -197,10 +197,10 @@ func validatePluginDataCommit(metadata *AuditMetadata, in gdb.DoCommitInput) err
 	case gdb.SqlTypeQueryContext, gdb.SqlTypeStmtQueryContext, gdb.SqlTypeStmtQueryRowContext:
 		return validatePluginDataCommitTable(metadata, in)
 	case gdb.SqlTypeExecContext, gdb.SqlTypeStmtExecContext, gdb.SqlTypePrepareContext:
-		if metadata.Method != pluginbridge.HostServiceMethodDataCreate &&
-			metadata.Method != pluginbridge.HostServiceMethodDataUpdate &&
-			metadata.Method != pluginbridge.HostServiceMethodDataDelete &&
-			metadata.Method != pluginbridge.HostServiceMethodDataTransaction {
+		if metadata.Method != bridgehostservice.HostServiceMethodDataCreate &&
+			metadata.Method != bridgehostservice.HostServiceMethodDataUpdate &&
+			metadata.Method != bridgehostservice.HostServiceMethodDataDelete &&
+			metadata.Method != bridgehostservice.HostServiceMethodDataTransaction {
 			return gerror.Newf("plugin data service method %s cannot execute mutation commit type %s", metadata.Method, in.Type)
 		}
 	}

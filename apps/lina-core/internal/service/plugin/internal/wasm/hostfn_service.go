@@ -7,7 +7,9 @@ import (
 	"context"
 	"fmt"
 
-	"lina-core/pkg/pluginbridge"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // handleHostServiceInvoke validates capability and authorization state before
@@ -16,28 +18,28 @@ func handleHostServiceInvoke(
 	ctx context.Context,
 	hcc *hostCallContext,
 	reqBytes []byte,
-) *pluginbridge.HostCallResponseEnvelope {
-	request, err := pluginbridge.UnmarshalHostServiceRequestEnvelope(reqBytes)
+) *bridgehostcall.HostCallResponseEnvelope {
+	request, err := bridgehostservice.UnmarshalHostServiceRequestEnvelope(reqBytes)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
-	requiredCapability := pluginbridge.RequiredCapabilityForHostServiceMethod(request.Service, request.Method)
+	requiredCapability := bridgehostservice.RequiredCapabilityForHostServiceMethod(request.Service, request.Method)
 	if requiredCapability == "" {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			fmt.Sprintf("unsupported host service method: %s.%s", request.Service, request.Method),
 		)
 	}
 	if !hcc.hasCapability(requiredCapability) {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			fmt.Sprintf("plugin %s lacks capability %s", hcc.pluginID, requiredCapability),
 		)
 	}
 	if !hcc.hasHostServiceAccess(request.Service, request.Method, request.ResourceRef, request.Table) {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			fmt.Sprintf(
 				"plugin %s is not authorized for host service %s.%s resource=%s table=%s",
 				hcc.pluginID,
@@ -48,36 +50,36 @@ func handleHostServiceInvoke(
 			),
 		)
 	}
-	if pluginbridge.NormalizeExecutionSource(hcc.executionSource) == pluginbridge.ExecutionSourceCronDiscovery &&
-		request.Service != pluginbridge.HostServiceCron {
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusCapabilityDenied,
+	if bridgecontract.NormalizeExecutionSource(hcc.executionSource) == bridgecontract.ExecutionSourceCronDiscovery &&
+		request.Service != bridgehostservice.HostServiceCron {
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusCapabilityDenied,
 			fmt.Sprintf("cron discovery execution does not allow host service %s", request.Service),
 		)
 	}
 
 	switch request.Service {
-	case pluginbridge.HostServiceRuntime:
+	case bridgehostservice.HostServiceRuntime:
 		return dispatchRuntimeHostService(ctx, hcc, request.Method, request.Payload)
-	case pluginbridge.HostServiceCron:
+	case bridgehostservice.HostServiceCron:
 		return dispatchCronHostService(ctx, hcc, request.Method, request.Payload)
-	case pluginbridge.HostServiceStorage:
+	case bridgehostservice.HostServiceStorage:
 		return dispatchStorageHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case pluginbridge.HostServiceNetwork:
+	case bridgehostservice.HostServiceNetwork:
 		return dispatchNetworkHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case pluginbridge.HostServiceData:
+	case bridgehostservice.HostServiceData:
 		return dispatchDataHostService(ctx, hcc, request.Table, request.Method, request.Payload)
-	case pluginbridge.HostServiceCache:
+	case bridgehostservice.HostServiceCache:
 		return dispatchCacheHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case pluginbridge.HostServiceLock:
+	case bridgehostservice.HostServiceLock:
 		return dispatchLockHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case pluginbridge.HostServiceNotify:
+	case bridgehostservice.HostServiceNotify:
 		return dispatchNotifyHostService(ctx, hcc, request.ResourceRef, request.Method, request.Payload)
-	case pluginbridge.HostServiceConfig:
+	case bridgehostservice.HostServiceConfig:
 		return dispatchConfigHostService(ctx, hcc, request.Method, request.Payload)
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			fmt.Sprintf("host service not implemented yet: %s", request.Service),
 		)
 	}

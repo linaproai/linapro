@@ -10,7 +10,8 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/pluginbridge"
+	bridgeguest "lina-core/pkg/pluginbridge/guest"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 	"lina-core/pkg/plugindb/shared"
 )
 
@@ -48,13 +49,13 @@ func (q *Query) One() (map[string]any, bool, error) {
 	if err := q.ensureExecutionReady(shared.DataPlanActionGet); err != nil {
 		return nil, false, err
 	}
-	dataSvc := pluginbridge.Data()
+	dataSvc := bridgeguest.Data()
 	if len(q.plan.KeyJSON) > 0 {
 		planJSON, err := shared.MarshalQueryPlanJSON(q.plan)
 		if err != nil {
 			return nil, false, err
 		}
-		responsePayload, err := dataSvc.GetRequest(q.table, &pluginbridge.HostServiceDataGetRequest{
+		responsePayload, err := dataSvc.GetRequest(q.table, &bridgehostservice.HostServiceDataGetRequest{
 			KeyJSON:  append([]byte(nil), q.plan.KeyJSON...),
 			PlanJSON: planJSON,
 		})
@@ -82,7 +83,7 @@ func (q *Query) All() ([]map[string]any, int32, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	result, err := pluginbridge.Data().ListRequest(q.table, &pluginbridge.HostServiceDataListRequest{
+	result, err := bridgeguest.Data().ListRequest(q.table, &bridgehostservice.HostServiceDataListRequest{
 		PlanJSON: planJSON,
 	})
 	if err != nil {
@@ -110,7 +111,7 @@ func (q *Query) Count() (int32, error) {
 	if err != nil {
 		return 0, err
 	}
-	result, err := pluginbridge.Data().ListRequest(q.table, &pluginbridge.HostServiceDataListRequest{
+	result, err := bridgeguest.Data().ListRequest(q.table, &bridgehostservice.HostServiceDataListRequest{
 		PlanJSON: planJSON,
 	})
 	if err != nil {
@@ -127,7 +128,7 @@ func (q *Query) Insert(record map[string]any) (*MutationResult, error) {
 	if err := q.ensureExecutionReady(shared.DataPlanActionCreate); err != nil {
 		return nil, err
 	}
-	result, err := pluginbridge.Data().Create(q.table, record)
+	result, err := bridgeguest.Data().Create(q.table, record)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +147,7 @@ func (q *Query) Update(record map[string]any) (*MutationResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	result, err := pluginbridge.Data().Update(q.table, key, record)
+	result, err := bridgeguest.Data().Update(q.table, key, record)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func (q *Query) Delete() (*MutationResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	result, err := pluginbridge.Data().Delete(q.table, key)
+	result, err := bridgeguest.Data().Delete(q.table, key)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (db *DB) Transaction(fn func(tx *Tx) error) error {
 	if strings.TrimSpace(tx.table) == "" {
 		return gerror.New("plugindb transaction table cannot be empty")
 	}
-	operations := make([]*pluginbridge.DataTransactionInput, 0, len(tx.operations))
+	operations := make([]*bridgeguest.DataTransactionInput, 0, len(tx.operations))
 	for _, operation := range tx.operations {
 		if operation == nil {
 			continue
@@ -201,19 +202,19 @@ func (db *DB) Transaction(fn func(tx *Tx) error) error {
 			return err
 		}
 		record, _ := recordValue.(map[string]any)
-		operations = append(operations, &pluginbridge.DataTransactionInput{
+		operations = append(operations, &bridgeguest.DataTransactionInput{
 			Method: operation.Action.String(),
 			Key:    key,
 			Record: record,
 		})
 	}
-	_, err := pluginbridge.Data().Transaction(tx.table, operations)
+	_, err := bridgeguest.Data().Transaction(tx.table, operations)
 	return err
 }
 
 // decodeMutationResult maps the host bridge mutation result into the guest
 // facade result type.
-func decodeMutationResult(result *pluginbridge.DataMutationResult) *MutationResult {
+func decodeMutationResult(result *bridgeguest.DataMutationResult) *MutationResult {
 	if result == nil {
 		return &MutationResult{}
 	}

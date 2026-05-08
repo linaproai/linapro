@@ -6,7 +6,8 @@ import (
 	"context"
 
 	"lina-core/internal/service/kvcache"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // cacheHostService is the shared governed cache backend used by wasm host calls.
@@ -19,19 +20,19 @@ func dispatchCacheHostService(
 	namespace string,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	if hcc == nil || hcc.pluginID == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, "host call context not available")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "host call context not available")
 	}
 	if namespace == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusCapabilityDenied, "cache host service requires one authorized namespace")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "cache host service requires one authorized namespace")
 	}
 
 	switch method {
-	case pluginbridge.HostServiceMethodCacheGet:
-		request, err := pluginbridge.UnmarshalHostServiceCacheGetRequest(payload)
+	case bridgehostservice.HostServiceMethodCacheGet:
+		request, err := bridgehostservice.UnmarshalHostServiceCacheGetRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		item, found, callErr := cacheHostService.Get(
 			ctx,
@@ -39,17 +40,17 @@ func dispatchCacheHostService(
 			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
 		)
 		if callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		response := &pluginbridge.HostServiceCacheGetResponse{Found: found}
+		response := &bridgehostservice.HostServiceCacheGetResponse{Found: found}
 		if found {
 			response.Value = buildCacheValueResponse(item)
 		}
-		return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostServiceCacheGetResponse(response))
-	case pluginbridge.HostServiceMethodCacheSet:
-		request, err := pluginbridge.UnmarshalHostServiceCacheSetRequest(payload)
+		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceCacheGetResponse(response))
+	case bridgehostservice.HostServiceMethodCacheSet:
+		request, err := bridgehostservice.UnmarshalHostServiceCacheSetRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		item, callErr := cacheHostService.Set(
 			ctx,
@@ -59,28 +60,28 @@ func dispatchCacheHostService(
 			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
 		if callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostServiceCacheSetResponse(&pluginbridge.HostServiceCacheSetResponse{
+		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceCacheSetResponse(&bridgehostservice.HostServiceCacheSetResponse{
 			Value: buildCacheValueResponse(item),
 		}))
-	case pluginbridge.HostServiceMethodCacheDelete:
-		request, err := pluginbridge.UnmarshalHostServiceCacheDeleteRequest(payload)
+	case bridgehostservice.HostServiceMethodCacheDelete:
+		request, err := bridgehostservice.UnmarshalHostServiceCacheDeleteRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		if callErr := cacheHostService.Delete(
 			ctx,
 			kvcache.OwnerTypePlugin,
 			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
 		); callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		return pluginbridge.NewHostCallEmptySuccessResponse()
-	case pluginbridge.HostServiceMethodCacheIncr:
-		request, err := pluginbridge.UnmarshalHostServiceCacheIncrRequest(payload)
+		return bridgehostcall.NewHostCallEmptySuccessResponse()
+	case bridgehostservice.HostServiceMethodCacheIncr:
+		request, err := bridgehostservice.UnmarshalHostServiceCacheIncrRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		item, callErr := cacheHostService.Incr(
 			ctx,
@@ -90,15 +91,15 @@ func dispatchCacheHostService(
 			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
 		if callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostServiceCacheIncrResponse(&pluginbridge.HostServiceCacheIncrResponse{
+		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceCacheIncrResponse(&bridgehostservice.HostServiceCacheIncrResponse{
 			Value: buildCacheValueResponse(item),
 		}))
-	case pluginbridge.HostServiceMethodCacheExpire:
-		request, err := pluginbridge.UnmarshalHostServiceCacheExpireRequest(payload)
+	case bridgehostservice.HostServiceMethodCacheExpire:
+		request, err := bridgehostservice.UnmarshalHostServiceCacheExpireRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		found, expireAt, callErr := cacheHostService.Expire(
 			ctx,
@@ -107,28 +108,28 @@ func dispatchCacheHostService(
 			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
 		if callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		response := &pluginbridge.HostServiceCacheExpireResponse{Found: found}
+		response := &bridgehostservice.HostServiceCacheExpireResponse{Found: found}
 		if expireAt != nil {
 			response.ExpireAt = expireAt.String()
 		}
-		return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostServiceCacheExpireResponse(response))
+		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceCacheExpireResponse(response))
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported cache host service method: "+method,
 		)
 	}
 }
 
 // buildCacheValueResponse maps one cache item into the protobuf response model.
-func buildCacheValueResponse(item *kvcache.Item) *pluginbridge.HostServiceCacheValue {
+func buildCacheValueResponse(item *kvcache.Item) *bridgehostservice.HostServiceCacheValue {
 	if item == nil {
 		return nil
 	}
 
-	value := &pluginbridge.HostServiceCacheValue{
+	value := &bridgehostservice.HostServiceCacheValue{
 		ValueKind: int32(item.ValueKind),
 		Value:     item.Value,
 		IntValue:  item.IntValue,

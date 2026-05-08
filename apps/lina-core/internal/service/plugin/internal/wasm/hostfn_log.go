@@ -10,14 +10,14 @@ import (
 	"strings"
 
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 )
 
 // handleHostLog processes OpcodeLog requests from the guest.
-func handleHostLog(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *pluginbridge.HostCallResponseEnvelope {
-	req, err := pluginbridge.UnmarshalHostCallLogRequest(reqBytes)
+func handleHostLog(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *bridgehostcall.HostCallResponseEnvelope {
+	req, err := bridgehostcall.UnmarshalHostCallLogRequest(reqBytes)
 	if err != nil {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 	}
 
 	message := fmt.Sprintf("[plugin:%s] %s", hcc.pluginID, strings.TrimSpace(req.Message))
@@ -37,17 +37,17 @@ func handleHostLog(ctx context.Context, hcc *hostCallContext, reqBytes []byte) *
 	}
 
 	switch req.Level {
-	case pluginbridge.LogLevelDebug:
+	case bridgehostcall.LogLevelDebug:
 		logger.Debug(ctx, message)
-	case pluginbridge.LogLevelInfo:
+	case bridgehostcall.LogLevelInfo:
 		logger.Info(ctx, message)
-	case pluginbridge.LogLevelWarning:
+	case bridgehostcall.LogLevelWarning:
 		logger.Warning(ctx, message)
-	case pluginbridge.LogLevelError:
+	case bridgehostcall.LogLevelError:
 		logger.Error(ctx, message)
 	default:
 		logger.Info(ctx, message)
 	}
 
-	return pluginbridge.NewHostCallEmptySuccessResponse()
+	return bridgehostcall.NewHostCallEmptySuccessResponse()
 }

@@ -5,7 +5,7 @@ package host
 import (
 	"context"
 
-	"lina-core/pkg/pluginbridge"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
 // auditContextKey is the private context key used to store AuditMetadata.
@@ -23,7 +23,7 @@ type AuditMetadata struct {
 	// ResourceTable is the resolved authorized host table.
 	ResourceTable string
 	// ExecutionSource identifies the calling source such as route or hook.
-	ExecutionSource pluginbridge.ExecutionSource
+	ExecutionSource bridgecontract.ExecutionSource
 	// UserID is the current authenticated user when present.
 	UserID int32
 	// Transaction reports whether the current call is inside one governed transaction.

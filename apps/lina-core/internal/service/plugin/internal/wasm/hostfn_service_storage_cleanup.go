@@ -12,7 +12,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
-	"lina-core/pkg/pluginbridge"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // PurgeAuthorizedStoragePaths removes all files under the given plugin's
@@ -20,7 +20,7 @@ import (
 func PurgeAuthorizedStoragePaths(
 	ctx context.Context,
 	pluginID string,
-	hostServices []*pluginbridge.HostServiceSpec,
+	hostServices []*bridgehostservice.HostServiceSpec,
 ) error {
 	resourceConfig, err := buildStorageResourceConfigForPlugin(ctx, pluginID)
 	if err != nil {
@@ -65,16 +65,16 @@ func buildStorageResourceConfigForPlugin(
 	}
 	return &storageResourceConfig{
 		rootDir:    filepath.Clean(absoluteRootDir),
-		visibility: pluginbridge.HostServiceStorageVisibilityPrivate,
+		visibility: bridgehostservice.HostServiceStorageVisibilityPrivate,
 	}, nil
 }
 
 // collectAuthorizedStoragePaths collects unique authorized storage paths from host services.
-func collectAuthorizedStoragePaths(hostServices []*pluginbridge.HostServiceSpec) []string {
+func collectAuthorizedStoragePaths(hostServices []*bridgehostservice.HostServiceSpec) []string {
 	seen := make(map[string]struct{})
 	paths := make([]string, 0)
 	for _, spec := range hostServices {
-		if spec == nil || spec.Service != pluginbridge.HostServiceStorage {
+		if spec == nil || spec.Service != bridgehostservice.HostServiceStorage {
 			continue
 		}
 		for _, item := range spec.Paths {

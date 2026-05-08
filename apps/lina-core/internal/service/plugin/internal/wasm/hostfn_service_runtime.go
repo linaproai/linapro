@@ -10,7 +10,8 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
 
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // dispatchRuntimeHostService routes runtime host service methods to log, state,
@@ -20,38 +21,38 @@ func dispatchRuntimeHostService(
 	hcc *hostCallContext,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	switch method {
-	case pluginbridge.HostServiceMethodRuntimeLogWrite:
+	case bridgehostservice.HostServiceMethodRuntimeLogWrite:
 		return handleHostLog(ctx, hcc, payload)
-	case pluginbridge.HostServiceMethodRuntimeStateGet:
+	case bridgehostservice.HostServiceMethodRuntimeStateGet:
 		return handleHostStateGet(ctx, hcc, payload)
-	case pluginbridge.HostServiceMethodRuntimeStateSet:
+	case bridgehostservice.HostServiceMethodRuntimeStateSet:
 		return handleHostStateSet(ctx, hcc, payload)
-	case pluginbridge.HostServiceMethodRuntimeStateDelete:
+	case bridgehostservice.HostServiceMethodRuntimeStateDelete:
 		return handleHostStateDelete(ctx, hcc, payload)
-	case pluginbridge.HostServiceMethodRuntimeInfoNow:
+	case bridgehostservice.HostServiceMethodRuntimeInfoNow:
 		return buildRuntimeInfoValueResponse(gtime.Now().String())
-	case pluginbridge.HostServiceMethodRuntimeInfoUUID:
+	case bridgehostservice.HostServiceMethodRuntimeInfoUUID:
 		return buildRuntimeInfoValueResponse(guid.S())
-	case pluginbridge.HostServiceMethodRuntimeInfoNode:
+	case bridgehostservice.HostServiceMethodRuntimeInfoNode:
 		nodeName, err := os.Hostname()
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 		}
 		return buildRuntimeInfoValueResponse(nodeName)
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported runtime host service method: "+method,
 		)
 	}
 }
 
 // buildRuntimeInfoValueResponse wraps one scalar runtime info value in a success envelope.
-func buildRuntimeInfoValueResponse(value string) *pluginbridge.HostCallResponseEnvelope {
-	payload := pluginbridge.MarshalHostServiceValueResponse(&pluginbridge.HostServiceValueResponse{
+func buildRuntimeInfoValueResponse(value string) *bridgehostcall.HostCallResponseEnvelope {
+	payload := bridgehostservice.MarshalHostServiceValueResponse(&bridgehostservice.HostServiceValueResponse{
 		Value: value,
 	})
-	return pluginbridge.NewHostCallSuccessResponse(payload)
+	return bridgehostcall.NewHostCallSuccessResponse(payload)
 }

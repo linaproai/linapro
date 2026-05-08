@@ -14,7 +14,9 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginbridge"
+	bridgecodec "lina-core/pkg/pluginbridge/codec"
+	bridgecontract "lina-core/pkg/pluginbridge/contract"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // ExecutionInput carries the minimum manifest data needed to run one bridge call.
@@ -24,19 +26,19 @@ type ExecutionInput struct {
 	// ArtifactPath is the filesystem path to the compiled wasm artifact.
 	ArtifactPath string
 	// BridgeSpec carries the guest-exported function names for the bridge ABI.
-	BridgeSpec *pluginbridge.BridgeSpec
+	BridgeSpec *bridgecontract.BridgeSpec
 	// Capabilities is the set of host capabilities granted to this plugin.
 	Capabilities map[string]struct{}
 	// HostServices is the structured host service authorization snapshot for this plugin.
-	HostServices []*pluginbridge.HostServiceSpec
+	HostServices []*bridgehostservice.HostServiceSpec
 	// ExecutionSource identifies what triggered this bridge execution.
-	ExecutionSource pluginbridge.ExecutionSource
+	ExecutionSource bridgecontract.ExecutionSource
 	// RoutePath is the matched dynamic route path when execution is route-bound.
 	RoutePath string
 	// RequestID is the host-generated request identifier for this execution.
 	RequestID string
 	// Identity carries the sanitized user identity snapshot when available.
-	Identity *pluginbridge.IdentitySnapshotV1
+	Identity *bridgecontract.IdentitySnapshotV1
 	// CronCollector receives dynamic-plugin cron registrations during reserved
 	// discovery executions.
 	CronCollector CronRegistrationCollector
@@ -99,7 +101,7 @@ func ExecuteBridge(
 	ctx context.Context,
 	input ExecutionInput,
 	requestContent []byte,
-) (response *pluginbridge.BridgeResponseEnvelopeV1, err error) {
+) (response *bridgecontract.BridgeResponseEnvelopeV1, err error) {
 	if input.BridgeSpec == nil {
 		return nil, gerror.New("dynamic plugin is missing Wasm bridge metadata")
 	}
@@ -179,7 +181,7 @@ func ExecuteBridge(
 	if !ok {
 		return nil, gerror.New("read dynamic plugin response memory failed")
 	}
-	response, err = pluginbridge.DecodeResponseEnvelope(responseContent)
+	response, err = bridgecodec.DecodeResponseEnvelope(responseContent)
 	if err != nil {
 		return nil, err
 	}

@@ -6,7 +6,8 @@ import (
 	"context"
 
 	"lina-core/internal/service/hostlock"
-	"lina-core/pkg/pluginbridge"
+	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
+	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // lockHostService is the shared governed lock backend used by wasm host calls.
@@ -19,19 +20,19 @@ func dispatchLockHostService(
 	resourceRef string,
 	method string,
 	payload []byte,
-) *pluginbridge.HostCallResponseEnvelope {
+) *bridgehostcall.HostCallResponseEnvelope {
 	if hcc == nil || hcc.pluginID == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInternalError, "host call context not available")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, "host call context not available")
 	}
 	if resourceRef == "" {
-		return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusCapabilityDenied, "lock host service requires one authorized logical lock name")
+		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "lock host service requires one authorized logical lock name")
 	}
 
 	switch method {
-	case pluginbridge.HostServiceMethodLockAcquire:
-		request, err := pluginbridge.UnmarshalHostServiceLockAcquireRequest(payload)
+	case bridgehostservice.HostServiceMethodLockAcquire:
+		request, err := bridgehostservice.UnmarshalHostServiceLockAcquireRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		output, callErr := lockHostService.Acquire(ctx, hostlock.AcquireInput{
 			PluginID:    hcc.pluginID,
@@ -40,39 +41,39 @@ func dispatchLockHostService(
 			RequestID:   hcc.requestID,
 		})
 		if callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		response := &pluginbridge.HostServiceLockAcquireResponse{Acquired: output.Acquired, Ticket: output.Ticket}
+		response := &bridgehostservice.HostServiceLockAcquireResponse{Acquired: output.Acquired, Ticket: output.Ticket}
 		if output.ExpireAt != nil {
 			response.ExpireAt = output.ExpireAt.String()
 		}
-		return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostServiceLockAcquireResponse(response))
-	case pluginbridge.HostServiceMethodLockRenew:
-		request, err := pluginbridge.UnmarshalHostServiceLockRenewRequest(payload)
+		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceLockAcquireResponse(response))
+	case bridgehostservice.HostServiceMethodLockRenew:
+		request, err := bridgehostservice.UnmarshalHostServiceLockRenewRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		expireAt, callErr := lockHostService.Renew(ctx, hcc.pluginID, resourceRef, request.Ticket)
 		if callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		response := &pluginbridge.HostServiceLockRenewResponse{}
+		response := &bridgehostservice.HostServiceLockRenewResponse{}
 		if expireAt != nil {
 			response.ExpireAt = expireAt.String()
 		}
-		return pluginbridge.NewHostCallSuccessResponse(pluginbridge.MarshalHostServiceLockRenewResponse(response))
-	case pluginbridge.HostServiceMethodLockRelease:
-		request, err := pluginbridge.UnmarshalHostServiceLockReleaseRequest(payload)
+		return bridgehostcall.NewHostCallSuccessResponse(bridgehostservice.MarshalHostServiceLockRenewResponse(response))
+	case bridgehostservice.HostServiceMethodLockRelease:
+		request, err := bridgehostservice.UnmarshalHostServiceLockReleaseRequest(payload)
 		if err != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, err.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
 		if callErr := lockHostService.Release(ctx, hcc.pluginID, resourceRef, request.Ticket); callErr != nil {
-			return pluginbridge.NewHostCallErrorResponse(pluginbridge.HostCallStatusInvalidRequest, callErr.Error())
+			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
-		return pluginbridge.NewHostCallEmptySuccessResponse()
+		return bridgehostcall.NewHostCallEmptySuccessResponse()
 	default:
-		return pluginbridge.NewHostCallErrorResponse(
-			pluginbridge.HostCallStatusNotFound,
+		return bridgehostcall.NewHostCallErrorResponse(
+			bridgehostcall.HostCallStatusNotFound,
 			"unsupported lock host service method: "+method,
 		)
 	}
