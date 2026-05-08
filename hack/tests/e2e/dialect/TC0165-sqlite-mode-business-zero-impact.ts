@@ -24,10 +24,16 @@ type UserCreateResult = {
   id: number;
 };
 
+type ServerMonitorResult = {
+  dbInfo?: {
+    version?: string;
+  };
+};
+
 test.describe("TC-165 SQLite mode business zero impact", () => {
   requireSQLiteE2E();
 
-  test("TC-165a~c: user CRUD, execution log list, and source plugin lifecycle work on SQLite", async () => {
+  test("TC-165a~d: user CRUD, execution log list, source plugin lifecycle, and monitor database version work on SQLite", async () => {
     const api = await createAdminApiContext();
     const username = `sqlite_e2e_${Date.now()}`;
     let createdUserId = 0;
@@ -98,6 +104,12 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
       plugin = await findPlugin(api, sqliteSourcePluginId);
       expect(plugin?.installed).toBe(1);
       expect(plugin?.enabled).toBe(1);
+
+      const monitor = await expectApiSuccess<ServerMonitorResult>(
+        await api.get("monitor/server"),
+        "query server monitor in SQLite mode",
+      );
+      expect(monitor.dbInfo?.version ?? "").toMatch(/^SQLite\s+\S+/);
 
       await updatePluginStatus(api, sqliteSourcePluginId, false);
       plugin = await findPlugin(api, sqliteSourcePluginId);

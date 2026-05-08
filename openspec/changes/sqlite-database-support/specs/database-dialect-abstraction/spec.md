@@ -2,7 +2,7 @@
 
 ### Requirement: 宿主必须通过统一的方言抽象层收敛数据库引擎差异
 
-系统 SHALL 在 `apps/lina-core/pkg/dialect/` 提供公共稳定的 `Dialect` 接口与方言辅助能力作为数据库引擎差异的唯一收敛点。所有数据库引擎相关的差异化行为（DDL 转译、数据库准备、集群能力查询、启动期钩子、驱动错误分类）必须通过该包暴露，业务模块（`controller` / `service` / `model` / `dao`）不得在自身代码路径中出现 `if isMySQL / if isSQLite` 等数据库引擎判断。`pkg/dialect` 的公开签名 SHALL 只依赖稳定窄接口，不得暴露宿主 `internal` 包中的具体服务类型，也不得导出 MySQL / SQLite 方言具体实现类型；具体方言实现应收敛在 `pkg/dialect/internal/mysql`、`pkg/dialect/internal/sqlite` 等内部子包中，由公共工厂与公共门面能力统一委托。
+系统 SHALL 在 `apps/lina-core/pkg/dialect/` 提供公共稳定的 `Dialect` 接口与方言辅助能力作为数据库引擎差异的唯一收敛点。所有数据库引擎相关的差异化行为（DDL 转译、数据库准备、集群能力查询、启动期钩子、驱动错误分类、数据库版本查询）必须通过该包暴露，业务模块（`controller` / `service` / `model` / `dao`）不得在自身代码路径中出现 `if isMySQL / if isSQLite` 等数据库引擎判断。`pkg/dialect` 的公开签名 SHALL 只依赖稳定窄接口，不得暴露宿主 `internal` 包中的具体服务类型，也不得导出 MySQL / SQLite 方言具体实现类型；具体方言实现应收敛在 `pkg/dialect/internal/mysql`、`pkg/dialect/internal/sqlite` 等内部子包中，由公共工厂与公共门面能力统一委托。
 
 #### Scenario: 业务模块不感知数据库引擎差异
 - **当** 业务模块（如 `user` / `role` / `dict` / `kvcache` / `locker`）通过 DAO 层执行查询、写入、更新、删除操作时
@@ -10,7 +10,7 @@
 - **且** 同一份业务代码在 MySQL 和 SQLite 两种引擎下行为一致
 
 #### Scenario: 所有方言相关行为通过 Dialect 接口暴露
-- **当** 宿主需要执行"DDL 转译 / 数据库准备 / 集群能力查询 / 启动期钩子"中的任一行为时
+- **当** 宿主需要执行"DDL 转译 / 数据库准备 / 集群能力查询 / 启动期钩子 / 数据库版本查询"中的任一行为时
 - **则** 调用方通过 `dialect.From(link)` 获取当前方言实例
 - **且** 调用方仅依赖 `Dialect` 接口的方法签名，不依赖具体实现的内部细节
 
@@ -25,6 +25,14 @@
 - **则** 调用方通过 `dialect.IsRetryableWriteConflict(err)` 判断
 - **且** 调用方不得硬编码 MySQL / SQLite 错误文案、错误码或具体驱动错误类型
 - **且** `pkg/dialect` 使用驱动暴露的结构化错误码进行分类，错误文案匹配最多只能作为方言包内部的显式兜底
+
+#### Scenario: 数据库版本查询由 dialect 公共包提供
+- **当** 宿主系统信息或 `monitor-server` 服务监控需要展示数据库版本时
+- **则** 调用方通过 `dialect.DatabaseVersion(ctx, db)` 或等价 `Dialect` 方法查询
+- **且** MySQL 方言使用 MySQL 可执行的版本查询语句
+- **且** SQLite 方言使用 SQLite 可执行的版本查询语句
+- **且** SQLite 模式下不得执行 `SELECT VERSION()` 或因为缺少 `VERSION()` 函数而返回空版本
+- **且** 返回给页面的版本文本必须包含数据库引擎名称与非空版本号
 
 #### Scenario: dialect 公共包不暴露宿主 internal 具体类型
 - **当** 插件生命周期、初始化命令或工具链代码导入 `apps/lina-core/pkg/dialect` 时

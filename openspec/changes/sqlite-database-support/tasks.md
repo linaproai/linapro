@@ -135,3 +135,8 @@
 - [x] **FB-30**: Go 单元测试入口与 GitHub Actions 后端单测流程应统一使用 `go test -race` 检测潜在竞态条件
   - 2026-05-08: 已新增 `make test-go` 本地入口，按 `go.work` 自动发现所有 Go workspace 模块并执行 `go test -race -v ./...`；GitHub Actions 后端单测 reusable workflow 同步改为 `go test -race -v ./...`，并将超时时间提高到 120 分钟以覆盖 race detector 开销。验证通过：`make test-go`。
   - 2026-05-08: lina-review 结论：本次仅调整 Go 单测执行入口、CI 命令、测试治理 allowlist 和 OpenSpec 任务记录；不涉及 API、数据库、前端运行时文案、i18n 资源、数据权限或缓存一致性变更。
+- [x] **FB-31**: SQLite 模式下宿主系统信息与 `monitor-server` 服务监控不得继续使用 MySQL 专用 `SELECT VERSION()` 查询数据库版本，页面应展示非空 SQLite 版本信息
+  - 2026-05-08: 已将数据库版本查询收敛到 `pkg/dialect`，MySQL 方言使用 `SELECT VERSION()`，SQLite 方言使用 `SELECT sqlite_version()`，宿主 `sysinfo` 与 `monitor-server` 服务监控统一调用 `dialect.DatabaseVersion(ctx, g.DB())`。SQLite 模式下返回 `SQLite <version>`，避免 `no such function: VERSION` 警告和页面空值。
+  - 2026-05-08: 已补充 SQLite 回归测试：`pkg/dialect` 版本查询、宿主 `sysinfo.getDbVersion`、`monitor-server.GetDBInfo`；并在 SQLite E2E 业务零影响用例中追加 `/monitor/server` 接口 `dbInfo.version` 非空断言。验证通过：`go test ./pkg/dialect ./internal/service/sysinfo`、`go test -race ./pkg/dialect ./internal/service/sysinfo`、`go test ./backend/internal/service/monitor`、`go test -race ./backend/internal/service/monitor`、`pnpm test:validate`、`openspec validate sqlite-database-support --strict`。
+  - 2026-05-08: 本次修复不新增 API 字段、菜单、路由、按钮、表单、表格或前端文案，不需要调整运行时 i18n、插件 manifest i18n 或 apidoc i18n 资源；不涉及缓存读写或失效策略；不读取业务数据，不影响数据权限边界。
+  - 2026-05-08: lina-review 结论：本次变更符合方言抽象边界，业务服务不再硬编码 SQLite/MySQL 分支；错误日志使用传入 `ctx`；没有新增调用方可见业务错误码、数据访问面或缓存控制面。未发现阻塞问题。系统信息页后端组件清单名称仍来自既有 metadata 中的 `MySQL` 项，本次反馈仅修复版本值查询，组件名称泛化可作为后续独立改进。

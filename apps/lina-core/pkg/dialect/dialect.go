@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gcode"
 
 	"lina-core/pkg/bizerr"
@@ -48,6 +49,8 @@ type Dialect interface {
 	// SupportsCluster reports whether this database can back multi-node
 	// coordination state.
 	SupportsCluster() bool
+	// DatabaseVersion returns a display-ready database engine and version label.
+	DatabaseVersion(ctx context.Context, db gdb.DB) (string, error)
 	// OnStartup applies dialect-specific runtime bootstrap behavior before
 	// cluster services start.
 	OnStartup(ctx context.Context, runtime RuntimeConfig) error
@@ -81,6 +84,30 @@ func From(link string) (Dialect, error) {
 	}
 }
 
+// FromDatabase resolves one database dialect from the active GoFrame database
+// configuration.
+func FromDatabase(db gdb.DB) (Dialect, error) {
+	link := ""
+	if db != nil && db.GetConfig() != nil {
+		configNode := db.GetConfig()
+		link = strings.TrimSpace(configNode.Link)
+		if link == "" && strings.TrimSpace(configNode.Type) != "" {
+			link = strings.TrimSpace(configNode.Type) + ":"
+		}
+	}
+	return From(link)
+}
+
+// DatabaseVersion returns a display-ready database engine and version label for
+// the active GoFrame database.
+func DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
+	dbDialect, err := FromDatabase(db)
+	if err != nil {
+		return "", err
+	}
+	return dbDialect.DatabaseVersion(ctx, db)
+}
+
 // mysqlDialect is the public package wrapper for the internal MySQL dialect.
 type mysqlDialect struct{}
 
@@ -102,6 +129,11 @@ func (mysqlDialect) PrepareDatabase(ctx context.Context, link string, rebuild bo
 // SupportsCluster reports whether MySQL can back cluster coordination tables.
 func (mysqlDialect) SupportsCluster() bool {
 	return internalmysql.SupportsCluster()
+}
+
+// DatabaseVersion returns the MySQL server version label.
+func (mysqlDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
+	return internalmysql.DatabaseVersion(ctx, db)
 }
 
 // OnStartup has no MySQL-specific startup side effects.
@@ -132,6 +164,11 @@ func (sqliteDialect) PrepareDatabase(ctx context.Context, link string, rebuild b
 // SupportsCluster reports whether SQLite can back cluster coordination tables.
 func (sqliteDialect) SupportsCluster() bool {
 	return internalsqlite.SupportsCluster()
+}
+
+// DatabaseVersion returns the SQLite library version label.
+func (sqliteDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
+	return internalsqlite.DatabaseVersion(ctx, db)
 }
 
 // OnStartup applies SQLite-specific startup behavior before cluster services start.

@@ -66,6 +66,18 @@ func SupportsCluster() bool {
 	return true
 }
 
+// DatabaseVersion returns the MySQL server version label.
+func DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
+	if db == nil {
+		return "", gerror.New("database connection is required")
+	}
+	result, err := db.GetValue(ctx, "SELECT VERSION()")
+	if err != nil {
+		return "", err
+	}
+	return "MySQL " + strings.TrimSpace(result.String()), nil
+}
+
 // ConfigNodeFromLink returns the GoFrame-parsed MySQL configuration node.
 func ConfigNodeFromLink(link string) (*gdb.ConfigNode, error) {
 	db, err := gdb.New(gdb.ConfigNode{Link: link})

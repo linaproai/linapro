@@ -22,6 +22,7 @@ import (
 	netutil "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
 
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 	"lina-plugin-monitor-server/backend/internal/dao"
 	"lina-plugin-monitor-server/backend/internal/model/do"
@@ -200,8 +201,12 @@ func (s *serviceImpl) Collect(ctx context.Context) *MonitorData {
 // GetDBInfo collects database metrics on demand.
 func (s *serviceImpl) GetDBInfo(ctx context.Context) *DBInfo {
 	info := &DBInfo{}
-	if value, err := g.DB().GetValue(ctx, "SELECT VERSION()"); err == nil {
-		info.Version = value.String()
+	dbVersion, err := dialect.DatabaseVersion(ctx, g.DB())
+	if err != nil {
+		logger.Warningf(ctx, "collect database version failed: %v", err)
+		info.Version = "unknown"
+	} else {
+		info.Version = dbVersion
 	}
 	statsItems := g.DB().GetCore().Stats(ctx)
 	if len(statsItems) > 0 {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
 
@@ -62,6 +63,18 @@ func PrepareDatabase(ctx context.Context, link string, rebuild bool) error {
 // SupportsCluster reports that SQLite cannot back multi-node coordination.
 func SupportsCluster() bool {
 	return false
+}
+
+// DatabaseVersion returns the SQLite library version label.
+func DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
+	if db == nil {
+		return "", gerror.New("database connection is required")
+	}
+	result, err := db.GetValue(ctx, "SELECT sqlite_version()")
+	if err != nil {
+		return "", err
+	}
+	return "SQLite " + strings.TrimSpace(result.String()), nil
 }
 
 // OnStartup locks cluster mode off and prints prominent warnings for SQLite.

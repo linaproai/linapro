@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
@@ -53,6 +54,25 @@ func TestUpsertMonitorSnapshotWorksOnSQLite(t *testing.T) {
 	}
 	if row.Data != secondData {
 		t.Fatalf("expected latest monitor data %s, got %s", secondData, row.Data)
+	}
+}
+
+// TestGetDBInfoReturnsSQLiteVersion verifies monitor-server database
+// diagnostics return a non-empty SQLite version label instead of silently
+// swallowing the MySQL-only VERSION() failure.
+func TestGetDBInfoReturnsSQLiteVersion(t *testing.T) {
+	ctx := context.Background()
+	setupSQLiteMonitorServerDB(t, ctx)
+
+	info := New().GetDBInfo(ctx)
+	if info == nil {
+		t.Fatal("expected SQLite DB info to be returned")
+	}
+	if !strings.HasPrefix(info.Version, "SQLite ") {
+		t.Fatalf("expected SQLite database version label, got %q", info.Version)
+	}
+	if strings.TrimSpace(strings.TrimPrefix(info.Version, "SQLite ")) == "" {
+		t.Fatalf("expected SQLite database version number to be non-empty, got %q", info.Version)
 	}
 }
 

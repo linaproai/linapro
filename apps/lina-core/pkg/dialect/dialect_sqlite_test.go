@@ -4,9 +4,12 @@ package dialect
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/os/glog"
 
 	"lina-core/pkg/logger"
@@ -77,6 +80,33 @@ func TestSQLiteOnStartupOverridesCluster(t *testing.T) {
 		if !containsAnyMessage(messages, needle) {
 			t.Fatalf("expected SQLite startup message to contain %q, got %#v", needle, messages)
 		}
+	}
+}
+
+// TestSQLiteDatabaseVersionUsesSQLiteFunction verifies version diagnostics do
+// not call the MySQL-only VERSION() function on SQLite connections.
+func TestSQLiteDatabaseVersionUsesSQLiteFunction(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "version.db")
+	db, err := gdb.New(gdb.ConfigNode{Link: "sqlite::@file(" + dbPath + ")"})
+	if err != nil {
+		t.Fatalf("open SQLite database failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := db.Close(ctx); closeErr != nil {
+			t.Errorf("close SQLite database failed: %v", closeErr)
+		}
+	})
+
+	version, err := DatabaseVersion(ctx, db)
+	if err != nil {
+		t.Fatalf("query SQLite database version failed: %v", err)
+	}
+	if !strings.HasPrefix(version, "SQLite ") {
+		t.Fatalf("expected SQLite version label, got %q", version)
+	}
+	if strings.TrimSpace(strings.TrimPrefix(version, "SQLite ")) == "" {
+		t.Fatalf("expected SQLite version number to be non-empty, got %q", version)
 	}
 }
 

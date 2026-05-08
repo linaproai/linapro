@@ -13,6 +13,7 @@ import (
 
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/config"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 )
 
@@ -227,9 +228,5 @@ func (s *serviceImpl) loadComponents(metadata *config.MetadataConfig, sectionKey
 
 // getDbVersion retrieves the database version.
 func (s *serviceImpl) getDbVersion(ctx context.Context) (string, error) {
-	result, err := g.DB().GetValue(ctx, "SELECT VERSION()")
-	if err != nil {
-		return "", err
-	}
-	return result.String(), nil
+	return dialect.DatabaseVersion(ctx, g.DB())
 }
