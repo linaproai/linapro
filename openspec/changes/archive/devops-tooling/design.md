@@ -1,10 +1,11 @@
 ## Context
 
-This consolidation merges three archived changes that all address developer tooling and operational infrastructure for LinaPro:
+This consolidation merges archived changes that address developer tooling and operational infrastructure for LinaPro:
 
 1. **Upgrade governance** -- establishing a unified development-time upgrade entry point for both framework and source-plugin upgrades, with effective-version separation and startup fail-fast validation.
 2. **Development database configuration deduplication** -- removing duplicated connection settings and `multiStatements` dependency from the host development toolchain.
 3. **Framework bootstrap installer** -- providing cross-platform installation scripts for quick source code deployment with environment health checks.
+4. **Performance audit skill** -- turning existing runtime observability into a reusable AI governance workflow for repeatable backend API performance and read-side-effect auditing.
 
 These changes share a common theme: improving the developer experience around tooling, configuration, and operational workflows. The merged design organizes them by functional area.
 
@@ -18,6 +19,9 @@ These changes share a common theme: improving the developer experience around to
 - Remove `multiStatements=true` dependency from local SQL bootstrap execution.
 - Establish cross-platform installation scripts as a first-landing entry point for new developers.
 - Project the built-in log cleanup task through startup code rather than SQL seed data.
+- Provide a manual-trigger-only skill that runs a full backend API audit for the host and all built-in plugins.
+- Detect common API performance anti-patterns including N+1, missing indexes, missing pagination, repeated same-data reads, mergeable SQL calls, blocking loop work, and read/query endpoints that execute unexpected write SQL.
+- Produce stable per-run artifacts and persistent cross-run issue cards for the audit workflow.
 
 **Non-Goals:**
 - Do not implement rollback commands, automatic rollback, or rollback SQL directories.
@@ -25,6 +29,11 @@ These changes share a common theme: improving the developer experience around to
 - Do not change runtime config structures or the delivery strategy under `manifest/config/`.
 - Do not automatically install system dependencies during the bootstrap installation flow.
 - Do not introduce a `git clone`-based primary installation path.
+- Do not automatically fix issues discovered by the audit. Fixes are handled by later OpenSpec changes.
+- Do not implement real-time monitoring or APM.
+- Do not replace pprof, database `EXPLAIN`, or specialized performance tooling.
+- Do not audit frontend performance.
+- Do not archive individual audit run outputs. Only the skill capability and helper scripts are archived.
 
 ## Upgrade Governance
 
@@ -110,6 +119,44 @@ After source code deployment, the script checks for the presence of key dependen
 
 The built-in `host:cleanup-job-logs` task is registered through host source code and projected into `sys_job` during service startup. Delivery SQL does not write initialization seed data for this task. The default `cron_expr` triggers daily at midnight and the task has `is_builtin=1`.
 
+## Performance Audit Skill
+
+### Decision 20: Implement the audit as an agent skill
+
+The workflow is implemented at `.agents/skills/lina-perf-audit/`. The skill owns `SKILL.md`, references, and bundled scripts. This matches the repository's AI-governance workflow and keeps orchestration instructions close to deterministic helper scripts. A single repository-level shell script was rejected because it cannot express agent sharding, review responsibilities, evidence aggregation, and issue-card lifecycle rules.
+
+### Decision 21: Keep endpoint audit execution in sub agents
+
+The main agent performs Stage 0 setup, endpoint catalog generation, shard planning, status tracking, and Stage 2 aggregation. Each concrete API endpoint audit is executed by a sub agent. Sub-agent prompts include only the assigned module or endpoint shard, fixture data, token, log path, and run directory. If a module prompt would exceed the size budget, the module is split into smaller shards. Destructive endpoints stay with the create path needed to create and clean an autonomous fixture.
+
+### Decision 22: Cover all built-in plugins
+
+Stage 0 scans every `apps/lina-plugins/*/plugin.yaml`, syncs each plugin through host plugin APIs, installs and enables it, and loads plugin mock data when a plugin provides `manifest/sql/mock-data/`. The endpoint catalog is built from both host DTOs and plugin DTOs. Plugins with no backend API are recorded as skipped with reason `no backend API`. A plugin that declares API DTOs but has unreachable runtime routes causes environment preparation to fail instead of silently reducing coverage.
+
+### Decision 23: Correlate requests through the default `Trace-ID` header
+
+Sub agents call endpoints with `curl -i` or equivalent tooling, read the `Trace-ID` response header, and grep `temp/lina-perf-audit/<run-id>/server.log` for matching SQL lines. No audit-specific middleware, custom response header, build tag, or runtime feature flag is introduced. If a trace ID is unavailable, the sub agent falls back to request time window plus URL matching and marks evidence quality as reduced.
+
+### Decision 24: Make destructive endpoint handling autonomous
+
+For DELETE, reset, clear, uninstall, or equivalent destructive operations, the sub agent first creates a dedicated audit fixture in the same module when a matching create endpoint exists. It then calls the destructive operation against that resource and attempts cleanup even on failure. If no matching create endpoint exists, the sub agent marks the endpoint as skipped and records it in the manual follow-up list. It must not uninstall built-in plugins, clear global logs, or use resources from another module as substitutes.
+
+### Decision 25: Add audit-only stress fixtures
+
+`stress-fixture.sh` inserts additional data after host mock data and plugin mock data are ready. The goal is to make N+1 behavior visible by increasing listable row counts to tens or hundreds. Stress data is generated only for audit runs. It is not written to `apps/lina-core/manifest/sql/`, `apps/lina-core/manifest/sql/mock-data/`, or plugin delivery SQL directories, and it disappears on the next database reset. Inserts use idempotent patterns such as `INSERT IGNORE` or existence checks.
+
+### Decision 26: Produce two report layers
+
+Each audit run writes a disposable snapshot under `temp/lina-perf-audit/<run-id>/` containing `catalog.json`, `fixtures.json`, `server.log`, `audits/<module-or-shard>.md`, `SUMMARY.md`, and `meta.json`. Each finding also updates a persistent issue card under repository-root `perf-issues/`. Cards are de-duplicated by `sha256(module + ":" + method + ":" + path + ":" + severity + ":" + anti-pattern signature)`. A repeated finding updates `last_seen_run`, `seen_count`, and history instead of creating another card. If a previously fixed or obsolete card is observed again, it is reopened and marked as a regression. `perf-issues/` is intentionally outside `temp/` and outside OpenSpec archive directories. It is a cross-run backlog consumed by later fix iterations.
+
+### Decision 27: Use three severity levels
+
+`HIGH` covers clearly harmful patterns: observable N+1 on list/detail endpoints, missing indexes on potentially large data, non-batch endpoints over 1s, blocking loop work, and read/query endpoints whose trace executes unexpected write SQL. `MEDIUM` covers near-term risks: small-sample N+1, missing pagination, repeated same-data reads, or SELECT calls that should be merged by `JOIN` or `WHERE IN`. `LOW` covers weaker or static-only evidence: slightly high SQL count with fast indexed queries, filtering that can be pushed into SQL, or a write-risk branch not observed at runtime.
+
+### Decision 28: Treat operational read-side-effect writes as expected only in a narrow case
+
+Read/query endpoints are reportable when their own trace writes business, plugin-state, runtime-state, or storage tables. Writes are treated as expected operational side effects only when the trace also contains read SQL and every write statement touches only `sys_online_session` or `plugin_monitor_operlog`. This prevents session heartbeat and operation-log persistence from creating noisy cards while still catching real read-endpoint mutations.
+
 ## Risks / Trade-offs
 
 - Historical source-plugin releases still reference the same evolving source tree rather than frozen artifacts. The iteration accepts this limitation to deliver a clear upgrade path first.
@@ -119,3 +166,8 @@ The built-in `host:cleanup-job-logs` task is registered through host source code
 - A custom SQL splitter may miss edge cases. Mitigation: targeted tests against current delivered SQL style, prioritizing common boundaries such as strings, line comments, and block comments.
 - When dependencies are not automatically installed, some users still need to manually supplement their environment. Mitigation: clear missing-item output and next-step commands.
 - Current directory mode can easily damage existing files. Mitigation: explicitly triggered parameter with non-empty directory refusal.
+- Destructive local setup from the audit skill: the skill is manual-trigger-only and requires explicit confirmation for ambiguous requests.
+- Service or config pollution from audit runs: setup backs up logger settings and restore is required on success and failure.
+- Plugin coverage gaps in audit: Stage 0 fails when declared plugin routes are unreachable.
+- Report duplication in audit: persistent cards are fingerprinted and updated instead of duplicated.
+- Prompt growth in audit: endpoint work is split across sub agents with a small prompt budget.

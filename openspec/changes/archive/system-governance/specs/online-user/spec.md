@@ -1,105 +1,121 @@
 ## ADDED Requirements
 
-### Requirement: 会话存储抽象层
+### Requirement: Session Storage Abstraction Layer
 
-系统 SHALL 定义 `SessionStore` 抽象接口用于会话管理，当前使用 MySQL MEMORY 引擎实现。接口 MUST 支持以下操作：创建会话、查询会话、删除会话、列表查询（支持按用户名和 IP 过滤）、TouchOrValidate（更新活跃时间并判断会话存在性）、CleanupInactive（清理超时会话）。
+The system SHALL define a `SessionStore` abstract interface for session management, currently implemented using MySQL MEMORY engine. The interface MUST support the following operations: create session, query session, delete session, list query (supporting filtering by username and IP), TouchOrValidate (update active time and determine session existence), CleanupInactive (clean up timed-out sessions).
 
-#### Scenario: 登录时创建会话
-- **WHEN** 用户通过 `POST /api/v1/auth/login` 成功登录
-- **THEN** 系统在 `sys_online_session` 表中创建一条会话记录，包含 token_id（UUID）、user_id、username、dept_name、ip、browser、os、login_time、last_active_time 等字段
+#### Scenario: Create Session on Login
+- **WHEN** user successfully logs in via `POST /api/v1/auth/login`
+- **THEN** the system creates a session record in `sys_online_session` table, containing token_id (UUID), user_id, username, dept_name, ip, browser, os, login_time, last_active_time, and other fields
 
-#### Scenario: 登出时删除会话
-- **WHEN** 已登录用户调用 `POST /api/v1/auth/logout`
-- **THEN** 系统从 `sys_online_session` 表中删除该用户对应的会话记录
+#### Scenario: Delete Session on Logout
+- **WHEN** logged-in user calls `POST /api/v1/auth/logout`
+- **THEN** the system deletes the user's corresponding session record from `sys_online_session` table
 
-#### Scenario: 请求校验会话有效性
-- **WHEN** 用户携带有效 JWT Token 访问受保护 API
-- **THEN** 中间件除校验 JWT 签名外，还 MUST 通过 TouchOrValidate 方法检查 `sys_online_session` 表中是否存在对应的会话记录；若不存在（已被强制下线或超时清理），返回 401
+#### Scenario: Validate Session on Request
+- **WHEN** user accesses a protected API with a valid JWT Token
+- **THEN** the middleware MUST, in addition to verifying JWT signature, check via TouchOrValidate whether a corresponding session record exists in `sys_online_session` table; if not (forced offline or timed out), return 401
 
-### Requirement: 在线用户列表查询
+### Requirement: Online User List Query
 
-系统 SHALL 提供管理员查询当前所有在线用户的 API，支持按用户名和 IP 地址过滤。
+The system SHALL provide administrators with the ability to query all currently online users, supporting filtering by username and IP address. The online user list SHALL integrate host data permission governance: all-data scope can query all online sessions; department-data scope only queries online sessions of users within the current user's department scope; self-only scope only queries the current user's own online sessions.
 
-#### Scenario: 查询在线用户列表
-- **WHEN** 管理员调用 `GET /api/v1/monitor/online/list`
-- **THEN** 系统返回所有在线会话记录列表，每条记录包含：token_id、username、dept_name（部门名称）、ip（登录 IP）、login_location（登录地点）、browser（浏览器）、os（操作系统）、login_time（登录时间）
+#### Scenario: Query Online User List
+- **WHEN** admin calls `GET /api/v1/monitor/online/list`
+- **THEN** the system returns all online session record list, each containing: token_id, username, dept_name (department name), ip (login IP), login_location (login location), browser, os, login_time
 
-#### Scenario: 按用户名过滤
-- **WHEN** 管理员调用 `GET /api/v1/monitor/online/list?username=admin`
-- **THEN** 系统仅返回用户名包含 "admin" 的在线会话记录
+#### Scenario: Filter by Username
+- **WHEN** admin calls `GET /api/v1/monitor/online/list?username=admin`
+- **THEN** the system only returns online session records whose username contains "admin"
 
-#### Scenario: 按 IP 地址过滤
-- **WHEN** 管理员调用 `GET /api/v1/monitor/online/list?ip=192.168`
-- **THEN** 系统仅返回 IP 地址包含 "192.168" 的在线会话记录
+#### Scenario: Filter by IP Address
+- **WHEN** admin calls `GET /api/v1/monitor/online/list?ip=192.168`
+- **THEN** the system only returns online session records whose IP address contains "192.168"
 
-### Requirement: 强制下线
+#### Scenario: Department Scope Restricts Online User List
+- **WHEN** a normal user's role data scope is department data
+- **AND** queries the online user list
+- **THEN** the system only returns online sessions of users within the current user's visible department scope
 
-系统 SHALL 支持管理员强制下线指定在线用户，被下线用户的后续请求 MUST 返回 401。
+#### Scenario: Self-Only Scope Restricts Online User List
+- **WHEN** a normal user's role data scope is self-only data
+- **AND** queries the online user list
+- **THEN** the system only returns the current logged-in user's own online sessions
 
-#### Scenario: 强制下线成功
-- **WHEN** 管理员调用 `DELETE /api/v1/monitor/online/{tokenId}`
-- **THEN** 系统删除该 tokenId 对应的会话记录，返回成功响应
+### Requirement: Forced Offline
 
-#### Scenario: 被下线用户再次请求
-- **WHEN** 已被强制下线的用户携带原 Token 访问任意受保护 API
-- **THEN** 中间件检测到会话不存在，返回 401 状态码
+The system SHALL support administrators forcing specified online users offline. Subsequent requests from the forced-offline user MUST return 401. Forced offline SHALL integrate host data permission governance; the caller can only force offline online sessions within their data permission scope.
 
-#### Scenario: 下线不存在的 tokenId
-- **WHEN** 管理员调用 `DELETE /api/v1/monitor/online/{tokenId}` 但该 tokenId 不存在
-- **THEN** 系统返回成功响应（幂等操作）
+#### Scenario: Successful Forced Offline
+- **WHEN** admin calls `DELETE /api/v1/monitor/online/{tokenId}`
+- **THEN** the system deletes the session record corresponding to that tokenId, returns success response
 
-### Requirement: 在线用户前端页面
+#### Scenario: Forced-Offline User Requests Again
+- **WHEN** a user who has been forced offline accesses any protected API with the original Token
+- **THEN** the middleware detects that the session does not exist, returns 401 status code
 
-系统 SHALL 提供在线用户管理页面，展示当前在线用户列表并支持强制下线操作。
+#### Scenario: Force Offline Non-Existent tokenId
+- **WHEN** admin calls `DELETE /api/v1/monitor/online/{tokenId}` but the tokenId does not exist
+- **THEN** the system returns success response (idempotent operation)
 
-#### Scenario: 页面展示在线用户列表
-- **WHEN** 管理员访问在线用户页面
-- **THEN** 页面展示 VXE-Grid 表格，包含以下列：登录账号、部门名称、IP 地址、登录地点、浏览器（带图标）、操作系统（带图标）、登录时间、操作（强制下线按钮）；工具栏显示在线人数统计
+#### Scenario: Reject Forced Offline of Out-of-Scope Session
+- **WHEN** a normal user's role data scope is department data
+- **AND** the target `tokenId` belongs to a user outside the department scope
+- **THEN** the system rejects the forced offline operation
+- **AND** the target session remains valid until the user logs out or times out
 
-#### Scenario: 搜索过滤
-- **WHEN** 管理员在搜索栏输入用户名或 IP 地址并搜索
-- **THEN** 表格数据根据筛选条件刷新
+### Requirement: Online User Frontend Page
 
-#### Scenario: 强制下线交互
-- **WHEN** 管理员点击某用户行的"强制下线"按钮
-- **THEN** 弹出确认对话框，确认后调用强制下线 API，成功后刷新表格数据
+The system SHALL provide an online user management page displaying the current online user list and supporting forced offline operations.
 
-### Requirement: 会话活跃时间跟踪
+#### Scenario: Page Displays Online User List
+- **WHEN** admin visits the online user page
+- **THEN** the page displays a VXE-Grid table with columns: login account, department name, IP address, login location, browser (with icon), OS (with icon), login time, operations (forced offline button); toolbar shows online user count
 
-系统 SHALL 跟踪每个在线用户的最后活跃时间，用于判断会话是否超时。
+#### Scenario: Search and Filter
+- **WHEN** admin enters username or IP address in the search bar and searches
+- **THEN** the table data refreshes based on filter conditions
 
-#### Scenario: 登录时初始化活跃时间
-- **WHEN** 用户成功登录，系统创建 `sys_online_session` 会话记录
-- **THEN** `last_active_time` 字段 MUST 设置为当前时间
+#### Scenario: Forced Offline Interaction
+- **WHEN** admin clicks the "Force Offline" button on a user row
+- **THEN** a confirmation dialog appears; after confirmation, the forced offline API is called, and the table data refreshes on success
 
-#### Scenario: 每次请求时更新活跃时间
-- **WHEN** 已登录用户携带有效 Token 访问受保护 API
-- **THEN** 认证中间件 MUST 通过 UPDATE 操作更新该会话的 `last_active_time` 为当前时间，并通过受影响行数判断会话是否存在（>0 存在，=0 不存在或已被清除）
+### Requirement: Session Active Time Tracking
 
-### Requirement: 不活跃会话自动清理
+The system SHALL track each online user's last active time to determine session timeout.
 
-系统 SHALL 提供定时任务自动清理长时间未操作的在线会话，防止会话表无限增长。超时阈值和清理频率 MUST 支持通过配置文件调整。
+#### Scenario: Initialize Active Time on Login
+- **WHEN** user successfully logs in and system creates `sys_online_session` session record
+- **THEN** the `last_active_time` field MUST be set to the current time
 
-#### Scenario: 定时清理超时会话
-- **WHEN** 定时清理任务执行时（默认每 5 分钟一次）
-- **THEN** 系统 MUST 查询 `sys_online_session` 表中 `last_active_time` 距当前时间超过超时阈值（默认 24 小时）的记录，并将其删除
+#### Scenario: Update Active Time on Each Request
+- **WHEN** logged-in user accesses a protected API with a valid Token
+- **THEN** the authentication middleware MUST update the session's `last_active_time` to the current time via UPDATE operation, and determine session existence by affected row count (>0 exists, =0 does not exist or has been cleared)
 
-#### Scenario: 超时阈值可配置
-- **WHEN** 管理员在 `config.yaml` 中设置 `session.timeoutHour` 配置项
-- **THEN** 系统 MUST 使用该配置值作为会话超时阈值，不设置时默认为 24 小时
+### Requirement: Inactive Session Auto-Cleanup
 
-#### Scenario: 清理频率可配置
-- **WHEN** 管理员在 `config.yaml` 中设置 `session.cleanupMinute` 配置项
-- **THEN** 系统 MUST 使用该配置值作为清理任务执行间隔，不设置时默认为 5 分钟
+The system SHALL provide a scheduled task to automatically clean up long-inactive online sessions, preventing unlimited session table growth. The timeout threshold and cleanup frequency MUST support adjustment through configuration file.
 
-### Requirement: 系统监控菜单
+#### Scenario: Scheduled Cleanup of Timed-Out Sessions
+- **WHEN** the scheduled cleanup task executes (default every 5 minutes)
+- **THEN** the system MUST query `sys_online_session` table for records where `last_active_time` exceeds the timeout threshold (default 24 hours) from current time, and delete them
 
-系统 SHALL 在导航菜单中新增"系统监控"一级菜单，包含"在线用户"和"服务监控"两个子菜单项。
+#### Scenario: Configurable Timeout Threshold
+- **WHEN** admin sets `session.timeoutHour` in `config.yaml`
+- **THEN** the system MUST use that config value as session timeout threshold; default is 24 hours if not set
 
-#### Scenario: 菜单展示
-- **WHEN** 管理员登录系统后查看左侧导航
-- **THEN** 可见"系统监控"一级菜单，展开后包含"在线用户"和"服务监控"子菜单
+#### Scenario: Configurable Cleanup Frequency
+- **WHEN** admin sets `session.cleanupMinute` in `config.yaml`
+- **THEN** the system MUST use that config value as cleanup task execution interval; default is 5 minutes if not set
 
-#### Scenario: 菜单导航
-- **WHEN** 管理员点击"在线用户"或"服务监控"菜单项
-- **THEN** 页面跳转到对应的功能页面
+### Requirement: System Monitor Menu
+
+The system SHALL add a "System Monitor" top-level menu in the navigation menu, containing "Online Users" and "Server Monitor" sub-menu items.
+
+#### Scenario: Menu Display
+- **WHEN** admin logs in and views the left navigation
+- **THEN** the "System Monitor" top-level menu is visible; expanding it shows "Online Users" and "Server Monitor" sub-menus
+
+#### Scenario: Menu Navigation
+- **WHEN** admin clicks "Online Users" or "Server Monitor" menu item
+- **THEN** the page navigates to the corresponding function page

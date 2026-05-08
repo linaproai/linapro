@@ -58,6 +58,7 @@ The plugin declares `hostServices` in `plugin.yaml`; the builder validates and e
 **Cache service**: `get/set/delete/incr/expire` via MySQL `MEMORY` table with namespace/key/value length validation
 **Lock service**: `acquire/renew/release` reusing host distributed lock with ticket-based isolation
 **Notify service**: `send` through authorized notification channels with unified notification domain tables
+**Config service**: `get/exists/string/bool/int/duration` for reading host GoFrame static configuration, with arbitrary key access and no key-pattern restrictions
 
 ## 3. Plugin UI Integration
 
@@ -93,6 +94,8 @@ Single-node mode: plugin operations complete synchronously. Cluster mode: primar
 
 Source plugins: synchronous install/enable on primary; followers refresh after convergence. Dynamic plugins: reuse existing authorization snapshots; missing snapshots block startup.
 
+**Startup snapshot synchronization**: The HTTP startup phase creates a startup data snapshot via `WithStartupDataSnapshot` covering plugin governance tables and reuses it across bootstrap, route wiring, and warmup. When a source plugin auto-install writes the installed state to the database through `applySourcePluginStableState`, the helper must also refresh the in-memory startup snapshot so that the subsequent enable check within the same startup orchestration reads the latest `installed`, `status`, `desiredState`, and `currentState` projections. Without this synchronization, the enable phase reads stale `installed=0` from the snapshot and fails with `Plugin is not installed`.
+
 ### 5.2 Install-and-Enable Shortcut
 
 The installation dialog offers "Install Only" and "Install and Enable." The frontend calls install then enable sequentially, reusing existing APIs. Requires both `plugin:install` and `plugin:enable` permissions. Partial success (install succeeds, enable fails) shows real `installed but disabled` state.
@@ -122,3 +125,35 @@ Plugin list queries are read-only; synchronization is explicit via `POST /plugin
 ### 7.4 Declarative Permission Middleware
 
 Static APIs declare `permission` in `g.Meta`. Middleware executes permission check. Access context is cached per login token with topology-revision-based invalidation. Cluster mode shares revision via `kvcache`.
+
+## 8. Plugin Configuration Service
+
+### 8.1 Problem
+
+`apps/lina-core/pkg/pluginservice/config` had started exposing plugin-specific strongly typed configuration through `GetMonitor()`. Each new plugin or plugin configuration shape would require another change to a host public component. The configuration service itself should remain business-neutral and provide only stable, general, read-only access.
+
+### 8.2 Generic Key Access Instead of Business Methods
+
+`pluginservice/config.Service` exposes generic methods: `Get(ctx, key)` for raw GoFrame configuration values, `Exists(ctx, key)` for key existence checks, `Scan(ctx, key, target)` for scanning a section into a caller-provided struct, and `String/Bool/Int/Duration(ctx, key, defaultValue)` for basic type reads with default-value support. Each plugin maintains its own `Config` structure and `Load(ctx)` method. For example, `monitor-server` scans the `monitor` section inside the plugin, reads `monitor.interval` as a `time.Duration`, and applies whole-second alignment validation.
+
+The `MonitorConfig` type alias and `GetMonitor()` plugin-specific business method are removed from the public component.
+
+### 8.3 Arbitrary Key Reads with Read-Only Boundary
+
+Source plugins are trusted extensions built in the same process and repository as the host. The configuration service does not add prefix restrictions to keys, so a plugin can read the full configuration file. The service is strictly read-only: no write, save, hot reload, or runtime mutation methods are exposed.
+
+### 8.4 Duration Parsing and Business Validation Separation
+
+The public service parses configuration strings into `time.Duration` and keeps default-value semantics stable. Business constraints such as "must be greater than 0", "must be at least 1 second", and "must align to whole seconds" are validated by the plugin in its own configuration loading method.
+
+### 8.5 Error Returns
+
+Generic read methods return `error` and do not directly `panic`. Plugin startup or cron registration paths can choose fail-fast behavior, while normal business paths can wrap errors as caller-visible business errors.
+
+### 8.6 Config Host Service for Dynamic Plugins
+
+Dynamic plugins cannot import `pkg/pluginservice/config` directly, so the `config` host service is provided through `lina_env.host_call`. A dynamic plugin declares `service: config` in `plugin.yaml` `hostServices`. `methods` may be omitted; omission grants the complete read-only method set: `get`, `exists`, `string`, `bool`, `int`, and `duration`. The request payload carries the key. `get` returns the configuration value as JSON; an empty key or `.` returns the complete static configuration snapshot. `exists` returns a found flag. `string`, `bool`, `int`, and `duration` return string representations of their respective types. The wasip1 guest SDK helpers call the corresponding host service methods directly.
+
+### 8.7 Trust Boundary
+
+Source plugins can read the full host configuration. Dynamic or third-party plugins must use host service authorization and auditing before reusing this capability. The service does not perform runtime cache invalidation; it reads only static configuration files.

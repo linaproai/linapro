@@ -34,7 +34,7 @@
 
 ## 6. Cache Coordination Data Model
 
-- [x] 6.1 Add persistent `sys_cache_revision` to host delivery SQL and preserve lossy `MEMORY` cache semantics of `sys_kv_cache`
+- [x] 6.1 Add persistent `sys_cache_revision` (InnoDB) to host delivery SQL and preserve lossy `MEMORY` cache semantics of `sys_kv_cache`
 - [x] 6.2 Add idempotent indexes, unique keys, and concurrent-increment constraints for `sys_cache_revision`; review existing TTL query indexes and unique keys on `sys_kv_cache`
 - [x] 6.3 Run `make init` and `make dao`, updating DAO/DO/Entity artifacts only through code generation
 - [x] 6.4 Review `cluster.enabled` and `cluster.Service` topology abstractions and determine single-node and cluster-mode branch integration points for `cachecoord`

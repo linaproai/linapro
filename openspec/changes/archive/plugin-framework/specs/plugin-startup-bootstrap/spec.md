@@ -43,3 +43,22 @@ When a dynamic plugin with governed host services appears in `plugin.autoEnable`
 ### Requirement: Management UI Labels Auto-Enabled Plugins
 
 The plugin management UI SHALL show read-only indicators for auto-enabled plugins and warn before disable/uninstall that the host will restore on restart unless config changes.
+
+### Requirement: Startup Auto-Enable Must Synchronize Lifecycle Writes to the Startup Snapshot
+
+The system SHALL maintain consistency between plugin lifecycle writes and the shared startup snapshot within a single host startup orchestration. When `plugin.autoEnable` performs an on-demand install for a source plugin, the subsequent enable check, status inspection, route wiring, and warmup phases within the same startup context MUST read the updated `installed`, `status`, `desiredState`, and `currentState` projections.
+
+#### Scenario: Source plugin auto-installs then enables immediately
+
+- **WHEN** the host startup context already carries a plugin governance startup snapshot
+- **AND** `plugin.autoEnable` contains a source plugin that is not yet installed
+- **THEN** the auto-install must synchronize the current startup snapshot's plugin registry projection
+- **AND** the subsequent enable check must recognize the plugin as installed
+- **AND** the host startup must not fail with `Plugin is not installed` for that plugin
+
+#### Scenario: Already-installed source plugin auto-enables
+
+- **WHEN** the host startup context already carries a plugin governance startup snapshot
+- **AND** `plugin.autoEnable` contains a source plugin that is installed but not enabled
+- **THEN** the enable phase must reuse the installed state from the current startup snapshot
+- **AND** the enable must synchronize the current startup snapshot's enabled-state projection after completion

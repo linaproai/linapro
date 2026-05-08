@@ -6,7 +6,7 @@
 - The underlying scheduler is GoFrame's `gcron`; leader election comes from `service/cluster`; distributed lock capabilities come from `service/locker` and `service/hostlock`.
 - All built-in tasks are registered by code at process startup, with no user-visible entry point and no unified persistent projection.
 
-Initially, the startup path used `sys_job` as both the governance projection and the execution registration source for built-in jobs. This created duplicate registration paths and forced the scheduler to use an idempotency patch for same-name gcron entries. The boundary was refined so that built-in jobs are executed from host code or plugin declarations, and `sys_job.is_builtin=1` only stores console display data, log linkage, audit snapshots, and governance state.
+The startup path initially used `sys_job` as both the governance projection and the execution registration source for built-in jobs. This created duplicate registration paths and forced the scheduler to use an idempotency patch for same-name gcron entries. The boundary was refined so that built-in jobs are executed from host code or plugin declarations, and `sys_job.is_builtin=1` only stores console display data, log linkage, audit snapshots, and governance state.
 
 ### Requirements Overview
 
@@ -318,6 +318,7 @@ sys_job_log
 - **Built-in job registration needs `sys_job.id` for log linkage**: Mitigation: upsert the projection first and return or reload the projection before runtime registration.
 - **Plugin lifecycle and cron registration order creating short unavailable window**: Mitigation: keep lifecycle callbacks in the same request chain and complete handler registration, projection sync, and scheduler refresh together.
 - **Manual trigger code reading `sys_job` being misread as table-driven execution**: Mitigation: specs and code comments clarify that `sys_job` is only a governance projection and log snapshot, while executability is determined by the handler registry and declaration index.
+- **Removing the `gcron.Remove` startup idempotency patch exposes real duplicate registrations again**: Mitigation: reposition duplicate-registration tests to verify that built-in jobs do not enter `LoadAndRegister`, while preserving explicit remove-then-register behavior for CRUD refresh.
 - **result_json causing overly wide rows**: Shell output 64KB * 2 paths, extreme case 128KB per row. Mitigation: MySQL uses `longtext`; frontend query list does not include `result_json`, detail API returns it.
 - **Task migration on group deletion**: Deleting group migrates tasks to default group. Mitigation: clearly irreversible; UI shows confirmation dialog explaining impact scope.
 - **Timezone drift**: When multi-node servers have inconsistent TZ, tasks without timezone have inconsistent trigger points. Mitigation: `timezone` is required, seed defaults to `Asia/Shanghai`, task form defaults to server TZ.

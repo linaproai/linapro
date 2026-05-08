@@ -3,10 +3,12 @@
 LinaPro uses GoFrame with `gcron` for scheduled tasks, in-process derived caches for permissions and configuration, and `pkg/pluginbridge` for dynamic plugin Wasm bridge infrastructure. In single-node deployment these work correctly, but multi-node deployment (Kubernetes, multiple load-balanced instances) exposes several infrastructure gaps:
 
 - All nodes execute every cron job simultaneously, causing duplicate Session Cleanup and race conditions in Server Monitor Cleanup.
-- Critical cache domains (permissions, runtime configuration, plugin runtime state) share `sys_kv_cache`, a `MEMORY` engine table that loses data on restart and whose `Incr` uses non-atomic read-modify-write. Nodes can use stale authorization or configuration snapshots indefinitely.
-- Dynamic-plugin same-version refresh cannot invalidate Wasm compilation cache on other nodes because cache keys depend only on mutable artifact paths.
+- Critical cache domains (permissions, runtime configuration, plugin runtime state) share `sys_kv_cache`, a `MEMORY` engine table that loses data on restart and whose `Incr` uses non-atomic read-modify-write. Nodes can use stale authorization or configuration snapshots indefinitely. The solution moves critical cache revisions to persistent InnoDB `sys_cache_revision` and keeps `sys_kv_cache` as lossy plugin/module KV cache only.
+- Dynamic-plugin same-version refresh cannot invalidate Wasm compilation cache on other nodes because cache keys depend only on mutable artifact paths. The solution binds Wasm compilation cache to artifact checksum or generation.
 - `pkg/pluginbridge` mixes ABI contracts, codecs, WASM artifact helpers, host call protocols, host service protocols, and guest SDK in one flat package of 40+ files, making it hard to distinguish stable contracts from internal details.
 - `/user/info` returns a hardcoded `/analytics` homePath, causing 404 for users without that route permission.
+
+The authoritative cache sources remain the MySQL business tables, plugin release tables, and runtime parameter tables. In-process caches are derived acceleration layers only. The project is new, so there is no need to preserve legacy SQL compatibility; existing SQL can be adjusted and applied by reinitializing tables.
 
 ## Goals / Non-Goals
 
@@ -17,6 +19,7 @@ LinaPro uses GoFrame with `gcron` for scheduled tasks, in-process derived caches
 - Establish unified `cachecoord` component for free-form cache-domain revision publishing, single-node local invalidation, cluster-mode shared persistent revisions, cross-node synchronization, and observability.
 - Move critical cache revisions to persistent InnoDB `sys_cache_revision`; keep `sys_kv_cache` as lossy plugin/module KV cache only.
 - Fix `kvcache.Incr` atomicity, abstract backend/provider, use `time.Duration` TTL, and add background expiration cleanup.
+- Give permission topology, runtime parameters, plugin runtime, Wasm compilation cache, frontend bundles, and runtime i18n bundles explicit consistency models.
 - Bind dynamic-plugin Wasm compilation cache to artifact checksum or generation for same-version refresh consistency.
 - Refactor `pkg/pluginbridge` into responsibility-scoped subcomponent packages with backward-compatible root facade.
 - Fix login homePath to return user's first accessible menu route.
@@ -24,7 +27,7 @@ LinaPro uses GoFrame with `gcron` for scheduled tasks, in-process derived caches
 **Non-Goals:**
 
 - Do not introduce Redis, etcd, NATS, or other external coordination dependencies; default implementations use existing MySQL.
-- Do not refactor every normal query cache or browser cache; cover only critical derived caches affecting permissions, configuration, and plugin runtime.
+- Do not refactor every normal query cache or browser cache; cover only critical derived caches affecting permissions, configuration, and plugin runtime. Plugin host-cache is governed only for lossy-cache boundaries, concurrent increments, and expiration cleanup semantics.
 - Do not change business module REST API semantics. Diagnostic APIs are only for governance and observability.
 - Do not change dynamic plugin Wasm bridge protocol, host call entry, host service method names, or payload field numbers.
 - Do not modify database schema, REST API, or frontend pages beyond what is required for the listed infrastructure improvements.
@@ -80,9 +83,11 @@ service/locker/
 
 ## Unified Cache Coordination
 
-### Architecture: `cachecoord` Component
+### Decisions
 
-Add `internal/service/cachecoord` with these capabilities:
+#### 1. Add `cachecoord` as the unified coordination entry point
+
+Add host internal component `internal/service/cachecoord` with these capabilities:
 
 - `MarkChanged(ctx, domain, scope, reason)`: publish a scoped revision change for a cache domain.
 - `EnsureFresh(ctx, domain, scope, refresher)`: check shared revisions on request or watcher paths and refresh when local process has not consumed the latest version.
@@ -91,33 +96,48 @@ Add `internal/service/cachecoord` with these capabilities:
 
 `cachecoord` does not maintain a global cache-domain allowlist. Policy configuration is not a prerequisite for using a domain. Only domains requiring non-default staleness windows or failure policies need to call `ConfigureDomain`.
 
-### Persistent Revision Table
+The alternative is to keep independent revision controllers in `config`, `role`, and `pluginruntimecache`. That is smaller short-term work, but it keeps duplicating consistency policy and prevents unified observability and review.
 
-`sys_cache_revision` (InnoDB) with fields:
+#### 2. Use an InnoDB persistent revision table instead of reusing `sys_kv_cache`
+
+Add SQL for `sys_cache_revision`, with fields:
 
 - `domain`: cache domain string (e.g., `runtime-config`, `permission-access`, `plugin-runtime`)
-- `scope`: explicit invalidation scope (e.g., `global`, `plugin:<id>`, `locale:<locale>`)
+- `scope`: explicit invalidation scope (e.g., `global`, `plugin:<id>`, `locale:<locale>`, `user:<id>`)
 - `revision`: monotonically increasing version
 - `reason`, `updated_at`: observability data
 
-In cluster mode, revision increments use row-level locking or atomic update. Read-modify-write that can lose increments is forbidden. Single-node mode does not access this table and uses in-process revisions directly.
+In cluster mode, revision increments use row-level locking, atomic update, or equivalent transactional behavior. Read-modify-write that can lose increments is forbidden. Single-node mode does not access this table and uses in-process revisions directly.
 
-### Critical Write Path Binding
+`kvcache` remains the host generic KV cache foundation module and hides its implementation through backend/provider abstraction. The current default backend is the MySQL `MEMORY` table `sys_kv_cache`; future Redis backends can use the same interface. The public `kvcache` package keeps only backend-agnostic facade, service contract, construction options, default provider adapter, and cache key encoding entry points. MySQL `MEMORY` error codes, cache key parsing, field constraints, CRUD/incr/expire/cleanup implementation details are contained under `internal/service/kvcache/internal/mysql-memory`, so default implementation details do not pollute the generic contract and future Redis providers have clear isolation. Losing cache data after a database restart is acceptable for the MySQL `MEMORY` backend, and callers must recover as cache miss. No backend may use cache data as the reliable source for permissions, configuration, plugin stable state, or other critical revisions.
 
-Permission topology, runtime parameters, and plugin stable-state changes are critical cache domains. If the business write succeeds but revision publishing fails, callers must not receive silent success. Preferred: bump `sys_cache_revision` in the same database transaction. Paths that cannot join the same transaction must publish successfully before returning; otherwise they return a structured business error.
+The alternative is to keep reusing `sys_kv_cache`. That mixes plugin business cache with host coordination metadata, and `MEMORY` table restart clears already-published cache versions. It is not suitable as a critical consistency foundation.
 
-### kvcache Refactoring
+#### 3. Critical write paths must be bound to revision publishing
 
-`kvcache` becomes a generic KV cache foundation with backend/provider abstraction:
+Permission topology, runtime parameters, and plugin stable-state changes are critical cache domains. If the business write succeeds but the corresponding revision cannot be published, callers must not receive silent success. The preferred implementation is to bump `sys_cache_revision` in the same database transaction as the business write. Paths that cannot join the same transaction must publish successfully before returning; otherwise they return a structured business error and log observability data.
 
-- `set`: last write wins; data can be lost after database restart.
+Plugin frontend bundles and runtime i18n derived caches can tolerate brief staleness, but they must be invalidated through the `plugin-runtime` domain revision on request paths or background sync.
+
+#### 4. Plugin host-cache remains lossy cache and fixes concurrent semantics
+
+`kvcache` is not converted into persistent state storage. It continues to hold explicit plugin/module KV cache data and no longer carries host cache coordination revisions. Service interfaces use `time.Duration` for TTL so MySQL seconds fields, Redis expiration commands, and protocol-level `expireSeconds` do not leak into the generic cache interface.
+
+- `set`: last write wins for the same key; return the current cache result after write; data can be lost after database restart.
 - `delete` and `expire`: idempotent.
-- `incr`: linearizable while the same database is alive using single-SQL atomic update. Read-modify-write races must not lose increments.
-- TTL: uses `time.Duration` throughout; MySQL seconds fields and Redis expiration commands do not leak into the generic interface.
-- Expiration cleanup: read paths only filter expired rows and return cache miss (no deletion); background hourly primary-node job `host:kvcache-cleanup-expired` calls `CleanupExpired` to delete expired rows in batch. Future Redis backends can rely on native TTL and implement `CleanupExpired` as no-op.
-- Backend isolation: MySQL `MEMORY` implementation lives in `kvcache/internal/mysql-memory`; public facade keeps only backend-agnostic contract.
+- `incr`: must be linearizable while the same database and cache table are alive, using single-SQL atomic update or equivalent behavior. Read-modify-write races must not lose increments. Cache value retention after database restart is not guaranteed.
+- TTL cleanup: read paths only filter expired rows and return cache miss (no deletion); background hourly primary-node job `host:kvcache-cleanup-expired` calls `CleanupExpired` to delete expired rows in batch. Future Redis backends can rely on native TTL and implement `CleanupExpired` as no-op.
 
-### Cache-Domain Policies
+#### 5. Dynamic plugin caches invalidate by checksum or generation
+
+For same-version dynamic-plugin refresh, Wasm compilation cache reuse must no longer depend only on `pluginID/version` paths. The implementation can choose either:
+
+- Archive paths containing checksum: `releases/<plugin>/<version>/<checksum>/<artifact>`
+- Wasm cache keys using `artifactPath@checksum`
+
+The `plugin-runtime` revision refresher must cover enabled snapshot, frontend bundle, runtime i18n bundle, and Wasm compilation cache. When non-primary nodes observe a plugin runtime revision change, they must discard old derived caches and rebuild from the current release table plus artifact checksum.
+
+#### 6. Freshness and failure fallback are configured by cache domain
 
 | Domain | Max Staleness | Failure Fallback |
 |--------|--------------|-----------------|
@@ -125,6 +145,8 @@ Permission topology, runtime parameters, and plugin stable-state changes are cri
 | `runtime-config` | 10 seconds | Visible error after grace window |
 | `plugin-runtime` | 5 seconds | Conservatively hide/reject uncertain capability |
 | `plugin-cache` | N/A (lossy) | Cache miss on restart or cleanup miss |
+
+These values can be constants or configuration in implementation. If the user wants a looser high-availability-first policy, confirm before applying.
 
 ### Single-Node vs Cluster Mode
 

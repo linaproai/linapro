@@ -23,6 +23,7 @@ The project is new and has no legacy burden. SQL can be modified in place and ve
 - No one-time large-scale frontend visual or interaction redesign.
 - No full rewrite of all historical modules; changes are batched by risk and benefit.
 - No audit-log modeling, API rate limiting, TraceID middleware, or DI containerization.
+- No dictionary-management spec changes; the spec is already correct and only SQL implementation needs alignment.
 
 ## Decisions
 
@@ -58,7 +59,13 @@ Runtime paths (Excel helpers, resource closing, configuration parsing, dynamic p
 
 User, role, and menu deletion with association cleanup are placed in single `dao.Xxx.Transaction` closures. Any failure inside the transaction returns the error and rolls back. Notifications like `NotifyAccessTopologyChanged` run after commit. The previous pattern of logging warnings and continuing produced orphaned data on partial failures.
 
+**Why not only add retries:** retries do not provide atomicity, and association cleanup failures usually indicate external state problems. Rolling back is safer than repeatedly logging warnings.
+
+**Alternative:** compensation transactions or Saga. That is overdesigned for this project scale; GoFrame transaction closures cover the need.
+
 `AssignUsers` collects new associations into `[]do.SysUserRole` and executes one `Insert(slice)` inside a transaction, replacing per-row inserts with swallowed `Warningf` failures.
+
+**Why not chunking:** one assignment operation is constrained by UI selection size. At the expected scale under 1000 rows, one insert has comparable cost and keeps the transaction simpler.
 
 ### D5: SQL indexes and foreign-key replacement
 
@@ -73,9 +80,16 @@ User, role, and menu deletion with association cleanup are placed in single `dao
 
 The project SQL style uses `KEY` rather than `INDEX`, so all additions follow the existing convention.
 
+**Why soft delete for dictionary tables instead of hard delete:**
+
+1. The `dict-management` spec already declares `deleted_at` in the table design.
+2. Dictionary types and data are widely referenced. Hard deletion can make historic logs lose label interpretation, while soft delete preserves audit recovery.
+
 ### D6: Menu `isDescendant` uses in-memory traversal
 
 Load all menus once with `dao.SysMenu.Ctx(ctx).Scan(&all)`, build `parentChildren := map[int][]int`, and run BFS to determine subtree membership. Complexity changes from per-depth SQL round trips to one `O(N)` load and in-memory traversal. Menu count is far below 1000; memory cost is negligible.
+
+**Why not add an explicit path column:** that requires maintaining path data in every create and move API, expanding the scope. Current data size does not justify a path-column design over in-memory traversal.
 
 ### D7: RESTful batch delete design
 
@@ -89,6 +103,10 @@ DELETE /api/v1/role?ids=1&ids=2&ids=3
 - Service `BatchDelete` reuses all single-delete protections in one transaction. Any `bizerr` rejects the whole batch.
 - Frontend replaces loop-over-single-delete with one batch API call.
 
+**Why not forward to the single-delete API:** that would still create N transactions and cannot guarantee whole-batch rollback.
+
+**Why query parameters instead of a body:** this matches the project style for query-string resource selection and keeps the `DELETE` semantics bodyless with good browser and middleware compatibility.
+
 ### D8: Health probe and graceful shutdown
 
 **Health probe**: Public `GET /api/v1/health` runs `dao.SysUser.Ctx(ctx).Limit(1).Count()` as a DB probe. Returns `200 {status:"ok", mode:"<single|master|slave>"}` when healthy, `503` when unavailable. Timeout controlled by `health.timeout` (default `5s`). Internal errors logged but not exposed to anonymous callers.
@@ -98,6 +116,8 @@ DELETE /api/v1/role?ids=1&ids=2&ids=3
 ### D9: Upload route protection
 
 `GET /api/v1/uploads/*` moves into `api/file/v1` and `internal/controller/file`, mounted under the protected route group with Auth and Permission middleware. Permission tag reuses `system:file:download`. The controller queries file metadata from the relative storage path and reads streams through the file service storage backend, not by concatenating local paths.
+
+**Why not signed-on-demand links:** accessing uploaded files is a business action that should go through unified authorization and audit. Signed URL mode is out of scope. Anonymous access remains reserved for explicitly public download scenarios, which are not required now.
 
 ### D10: Configurable scheduler timezone
 
@@ -127,6 +147,8 @@ Delete `apps/lina-core/pkg/auditi18n/` and `apps/lina-core/pkg/audittype/` which
 - [Removing `sys_job` foreign key shifts consistency to application code] Mitigation: job write paths already validate `group_id` in the service layer.
 - [Explicit runtime configuration errors will fail requests] Mitigation: intended fail-visible behavior; strict write validation prevents normal entries from saving invalid values.
 - [Allowlist can degrade into "register and pass"] Mitigation: each entry requires category and reason; tests freeze the current allowed set.
+- [Graceful shutdown timeout handling] Mitigation: HTTP graceful shutdown remains GoFrame-owned; host-owned cleanup is bounded by `shutdown.timeout` (default `30s`) and logs warnings on timeout.
+- [`/health` DB probe adds baseline QPS] Mitigation: `Limit(1).Count()` is lightweight, and Kubernetes probe intervals are normally at least 10 seconds.
 
 ## Migration Plan
 

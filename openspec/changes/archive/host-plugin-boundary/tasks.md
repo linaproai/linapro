@@ -92,6 +92,31 @@
 - [x] 10.4 Check whether the host still only retains core capabilities against the specifications
 - [x] 10.5 Call `lina-review` for change review
 
+## 11. Pluginbridge Subcomponent Restructuring
+
+- [x] 11.1 Create `pkg/pluginbridge/{contract,codec,artifact,hostcall,hostservice,guest}` subcomponent directories with compliant package-level and file-level documentation comments
+- [x] 11.2 Define subcomponent dependency direction; migrate low-level contract/artifact/codec capabilities first, ensuring no subcomponent imports the root `pluginbridge` package
+- [x] 11.3 Move protobuf wire, WASM section low-level reading, and other pure implementation details into corresponding subcomponent `internal` packages, avoiding new cross-domain `util/common/helper` packages
+- [x] 11.4 Migrate `BridgeSpec`, `RouteContract`, `BridgeRequestEnvelopeV1`, `BridgeResponseEnvelopeV1`, `IdentitySnapshotV1`, `CronContract`, `ExecutionSource`, and other stable contracts to the `contract` subcomponent
+- [x] 11.5 Migrate bridge request/response/route/identity/HTTP snapshot codec to the `codec` subcomponent, preserving existing round-trip tests
+- [x] 11.6 Migrate WASM section constants, `RuntimeArtifactMetadata`, `ReadCustomSection`, `ListCustomSections` to the `artifact` subcomponent, updating i18n, apidoc, and runtime call paths
+- [x] 11.7 Add facade and subcomponent consistency tests covering bridge envelope and WASM section representative entry points
+- [x] 11.8 Migrate host call opcode, status codes, `HostCallResponseEnvelope`, and generic host call codec to the `hostcall` subcomponent
+- [x] 11.9 Migrate `HostServiceSpec`, capability derivation, host service manifest codec, and service/method constants to the `hostservice` subcomponent
+- [x] 11.10 Migrate runtime, storage, network, data, cache, lock, config, notify, cron host service payload codec to the `hostservice` subcomponent, preserving field numbering and default value semantics
+- [x] 11.11 Update Wasm host function, runtime, and plugindb host code to prefer importing `hostcall`/`hostservice`/`codec` and other precise subcomponents
+- [x] 11.12 Migrate guest runtime, guest controller dispatcher, context response helper, `BindJSON`/`WriteJSON`, `ErrorClassifier` to the `guest` subcomponent
+- [x] 11.13 Migrate guest host service client helpers to the `guest` subcomponent, preserving `Runtime()`, `Storage()`, `HTTP()`, `Data()`, `Cache()`, `Lock()`, `Config()`, `Notify()`, `Cron()` compatibility entry points
+- [x] 11.14 Converge the root `pluginbridge` package into a thin facade using type aliases, const aliases, and wrapper functions delegating to subcomponents; constrain root-directory production source files to 1-3 files
+- [x] 11.15 Update dynamic plugin samples or add compatibility tests ensuring both root-package old entry points and `guest` subcomponent entry points compile and function correctly
+- [x] 11.16 Run and fix `go test ./pkg/pluginbridge/...`
+- [x] 11.17 Run and fix plugin runtime, WASM host function, and plugindb related tests: `go test ./internal/service/plugin/internal/runtime/... ./internal/service/plugin/internal/wasm/... ./pkg/plugindb/...`
+- [x] 11.18 Execute ordinary Go tests and `GOOS=wasip1 GOARCH=wasm go build ./...` on `apps/lina-plugins/plugin-demo-dynamic`
+- [x] 11.19 Run `openspec validate pluginbridge-subcomponent-refactor --strict` to ensure proposal, design, specs, and tasks are archivable
+- [x] 11.20 Record i18n impact assessment: this change does not add, modify, or delete runtime language packs, plugin manifest i18n resources, or apidoc i18n JSON resources
+- [x] 11.21 Record cache consistency assessment: this change does not add business caches or alter the authoritative data sources, cache keys, invalidation triggers, cross-instance synchronization mechanisms, or failure degradation strategies for plugin runtime cache, i18n resource cache, or WASM compilation cache
+- [x] 11.22 Call `lina-review` for code and specification review
+
 ## Feedback
 
 - [x] **FB-1**: Change the collaboration between host and plugin to stabilize the capability seam, and remove scattered plugin occupancy judgment and high-coupling branches.
@@ -141,3 +166,4 @@
 - [x] **FB-45**: Expand the demo-control global middleware scope to `/*`, cover the full system request chain, and preserve the login whitelist.
 - [x] **FB-46**: Fix the issue where removing `demo-control` from `plugin.autoEnable` still left write interception active at runtime.
 - [x] **FB-47**: Allow install, uninstall, enable, and disable operations for plugins other than `demo-control` while demo mode is active.
+- [x] **FB-48**: Add bugfix feedback test coverage requirements to the project specification and `lina-review` skill.

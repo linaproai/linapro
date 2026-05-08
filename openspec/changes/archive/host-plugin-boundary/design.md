@@ -1,8 +1,8 @@
 ## Overview
 
-This change establishes a clear boundary between the LinaPro host framework and its plugin ecosystem. The host retains only framework core capabilities -- authentication, permissions, menus, plugin management, task scheduling, configuration, and dictionary -- while delivering non-core management modules (organization, content, monitoring) as official source plugins. It also introduces a demo-control source plugin that enforces environment-level write protection through the same plugin lifecycle and global middleware seams.
+This change establishes a clear boundary between the LinaPro host framework and its plugin ecosystem. The host retains only framework core capabilities -- authentication, permissions, menus, plugin management, task scheduling, configuration, and dictionary -- while delivering non-core management modules (organization, content, monitoring) as official source plugins. It also introduces a demo-control source plugin that enforces environment-level write protection through the same plugin lifecycle and global middleware seams, and refactors the plugin bridge infrastructure into responsibility-scoped subcomponents.
 
-The design follows two complementary principles: the host provides stable mount points and capability seams, while plugins provide domain-specific business logic and participate in menus, routing, permissions, and page assembly through the plugin lifecycle.
+The design follows two complementary principles: the host provides stable mount points and capability seams, while plugins provide domain-specific business logic and participate in menus, routing, permissions, and page assembly through the plugin lifecycle. The plugin bridge infrastructure follows the same principle of responsibility separation, with each subcomponent owning a clear slice of the bridge protocol.
 
 ## Goals
 
@@ -11,6 +11,7 @@ The design follows two complementary principles: the host provides stable mount 
 - Support independent installation, activation, deactivation, and uninstallation of source plugins, with smooth host degradation when plugins are missing.
 - Provide stable menu mounting points for subsequent official plugins and business modules.
 - Protect demo environments through a plugin-driven write guard that reuses RESTful HTTP Method semantics.
+- Organize `pkg/pluginbridge` into responsibility-scoped subcomponents so that plugin developers and host maintainers can locate bridge capabilities by their purpose rather than scanning a flat root package.
 
 ## Non-Goals
 
@@ -19,6 +20,8 @@ The design follows two complementary principles: the host provides stable mount 
 - Complete code migration is not required in one iteration; the focus is fixing boundaries, menus, and migration order.
 - No dedicated frontend page, banner, or toolbar hint for demo mode in this iteration.
 - No fine-grained resource whitelists, role-level exceptions, or module-specific bypasses for demo control.
+- The pluginbridge subcomponent refactoring does not change the dynamic plugin Wasm bridge protocol, host call entry, host service method names, or payload field numbering.
+- No new external dependencies or code generation flows are introduced for the pluginbridge restructuring.
 
 ## Menu Architecture
 
@@ -184,6 +187,90 @@ Source plugin data storage must be clearly identifiable outside the host boundar
 - The host only provides task scheduling base and plugin lifecycle capabilities.
 - Plugin startup and shutdown are linked to collection task registration and cancellation.
 
+## Pluginbridge Subcomponent Architecture
+
+### Context
+
+`pkg/pluginbridge` is the shared infrastructure for the dynamic plugin Wasm bridge. It is used by the host runtime, WASM host functions, `plugindb`, dynamic plugin samples, and guest code. The root package directory contained approximately 41 production Go files spanning multiple responsibility layers: stable ABI and manifest contracts, bridge envelope codec, WASM artifact helpers, host call protocol, host service protocol, and guest SDK. Placing all of these in a single root package made it difficult for users to distinguish "the API plugin authors should use" from "the protocol details host runtime maintainers care about."
+
+### Subcomponent Package Structure
+
+The refactored `pkg/pluginbridge` is organized into the following subcomponent packages:
+
+```text
+pkg/pluginbridge/
+  pluginbridge.go      # Root package facade: aliases and wrappers
+  contract/            # ABI, route, cron, execution source stable contracts
+  codec/               # Bridge request/response envelope codec
+  artifact/            # Wasm section constants, custom section reading, runtime metadata
+  hostcall/            # Host call opcode, generic host call envelope and status codes
+  hostservice/         # Host service spec, capability derivation, payload codec
+  guest/               # Guest runtime, controller dispatcher, BindJSON, host service clients
+```
+
+Each subcomponent has clear responsibilities:
+
+- `contract` owns stable bridge contracts: `BridgeSpec`, `RouteContract`, `CronContract`, `ExecutionSource`, `HostServiceSpec`, and related DTOs.
+- `codec` owns bridge request/response/route/identity/HTTP snapshot envelope encoding and decoding, including protobuf wire tools in its `internal` package.
+- `artifact` owns WASM section constants (`WasmSectionI18NAssets`, `WasmSectionApidocAssets`, etc.), `RuntimeArtifactMetadata`, `ReadCustomSection`, and `ListCustomSections`.
+- `hostcall` owns host call opcodes, status codes, `HostCallResponseEnvelope`, and generic host call codec.
+- `hostservice` owns host service spec, capability derivation, manifest codec, and all host service method/payload codec (runtime, storage, network, data, cache, lock, config, notify, cron).
+- `guest` owns guest runtime, typed guest controller dispatcher, context response helpers, `BindJSON`/`WriteJSON`, `ErrorClassifier`, and host service client helpers.
+
+### Root Package Facade
+
+The root package `pluginbridge` is preserved as a backward-compatible facade. Public constants, types, and functions continue to be accessible through the root package using:
+
+- `type X = contract.X` for type aliases
+- `const X = contract.X` for constant aliases
+- `func EncodeRequestEnvelope(...) { return codec.EncodeRequestEnvelope(...) }` for wrapper functions
+- `func Runtime() guest.RuntimeHostService { return guest.Runtime() }` for facade delegates
+
+This ensures existing host code, dynamic plugin samples, and user plugin code that imports `lina-core/pkg/pluginbridge` continues to compile and behave identically. The facade does not replicate protocol implementation logic; all implementation resides in exactly one authoritative subcomponent.
+
+### Dependency Direction
+
+The subcomponent dependency graph flows from low-level to high-level:
+
+```text
+contract
+  ^
+codec --> internal/wire
+  ^
+artifact --> internal/wasmsection
+  ^
+hostservice --> contract, codec internal wire
+  ^
+hostcall --> hostservice
+  ^
+guest --> contract, codec, hostcall, hostservice
+  ^
+pluginbridge facade --> all subcomponents
+```
+
+Low-level contract and protocol subcomponents must not import the root package facade or the guest SDK. Any subcomponent's `internal` package serves only that subcomponent or sibling packages within the same parent path, and must not become a cross-domain utility dump.
+
+### Host Internal Import Migration
+
+Host internal code is migrated to use precise subcomponent imports:
+
+- Runtime artifact parsing uses `pluginbridge/artifact`.
+- Wasm executor uses `pluginbridge/codec`, `pluginbridge/hostcall`, `pluginbridge/hostservice`.
+- Manifest and route contract validation uses `pluginbridge/contract`, `pluginbridge/hostservice`.
+
+Dynamic plugin sample code may migrate to `pluginbridge/guest` but the root-package facade remains available as a compatibility path.
+
+### Verification Strategy
+
+Verification centers on protocol invariance, not file counts:
+
+- `EncodeRequestEnvelope` / `DecodeRequestEnvelope` byte-level round trip must remain identical.
+- All host service payload `Marshal` / `Unmarshal` round trips must remain identical.
+- WASM custom section reading error boundaries must remain identical.
+- `HostCallResponseEnvelope` and structured host service envelope must remain identical.
+- Guest runtime, typed controller dispatcher, `BindJSON`/`WriteJSON` behavior must remain identical.
+- Root package facade calls and direct subcomponent calls must produce identical results.
+
 ## Demo Control Guard
 
 ### Design
@@ -255,6 +342,15 @@ When `demo-control` is enabled:
 - Add `demo-control` source plugin with global middleware integration.
 - Wire into `plugin.autoEnable` as the demo-mode switch.
 
+### Phase 6: Pluginbridge Subcomponent Restructuring
+
+- Create subcomponent package skeletons with package-level documentation.
+- Migrate low-dependency capabilities (`contract`, `artifact`, `codec`) and maintain root package facade compilation.
+- Migrate `hostservice` and `hostcall`, preserving existing serialization tests and adding facade consistency tests.
+- Migrate `guest` SDK, update dynamic plugin samples or add compatibility tests.
+- Update host internal imports to use precise subcomponent packages while preserving root-package external compatibility.
+- Run related Go tests, `wasip1/wasm` builds, and OpenSpec validation.
+
 ## Risks and Mitigations
 
 ### Risk: User Management Loses Required Fields
@@ -280,3 +376,19 @@ Any interface that violates the repository's RESTful contract could bypass demo 
 ### Risk: Demo Mode Requires Config Edit Plus Host Restart
 
 Using plugin enablement as the only switch means changing demo mode requires a config edit and host restart. Mitigation: demo protection is an environment-level governance strategy, and startup-time config is clearer than adding a second boolean switch.
+
+### Risk: Pluginbridge Subcomponent Split Causes Import Cycles
+
+Subcomponent refactoring may introduce circular dependencies if dependency direction is not enforced. Mitigation: move contract types and pure implementation utilities first, then migrate upper-level packages; root package facade connects last, and subcomponents are prohibited from importing the root package.
+
+### Risk: Facade Alias/Wrapper Omissions Break Existing Callers
+
+Missing aliases or wrappers in the root-package facade could cause compilation failures in existing code. Mitigation: run `go test ./pkg/pluginbridge/... ./internal/service/plugin/... ./pkg/plugindb/...` and build dynamic plugin samples during the refactoring process.
+
+### Risk: Serialization Field Numbers or Defaults Change During Split
+
+Protocol fields or default values could be inadvertently modified when code is moved between packages. Mitigation: preserve and migrate existing codec round-trip tests, and add facade-vs-subcomponent consistency tests.
+
+### Risk: Too Many Fine-Grained Subcomponents Cause Import Confusion
+
+Excessively granular subcomponent packages could make it difficult for users to choose the right import. Mitigation: establish only 5-6 stable subcomponents; the root-package facade and `guest` package serve as the primary entry points for plugin authors, with documentation explaining recommended imports.

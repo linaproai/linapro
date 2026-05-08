@@ -75,6 +75,7 @@
 - [x] 9.3 Implement source-plugin auto-install and auto-enable with cluster primary protection
 - [x] 9.4 Implement dynamic-plugin auto-install and auto-enable with authorization snapshot reuse
 - [x] 9.5 Implement fail-fast, convergence waiting, and enabled-snapshot refresh
+- [x] 9.6 Fix source plugin startup snapshot synchronization after install so that the enable phase within the same startup orchestration reads the latest installed state
 
 ## 10. Install-and-Enable Shortcut
 
@@ -127,27 +128,38 @@
 - [x] 17.3 Add access context caching with topology-revision-based invalidation
 - [x] 17.4 Add permission coverage audit tests
 
-## 18. Documentation and Developer Tools
+## 18. Plugin Configuration Service
 
-- [x] 18.1 Write plugin development guide covering source and dynamic WASM modes
-- [x] 18.2 Write plugin operations guide covering install/stop/uninstall/upgrade/rollback/multi-node
-- [x] 18.3 Use `plugin-demo-source` and `plugin-demo-dynamic` as reference samples (no separate template directory)
-- [x] 18.4 Provide `hack/build-wasm` builder tool with unified output to `temp/output/`
+- [x] 18.1 Update the public interface of `apps/lina-core/pkg/pluginservice/config` to provide `Get`, `Exists`, `Scan`, basic type reads, and `Duration` reads
+- [x] 18.2 Remove the `MonitorConfig` type alias and the `GetMonitor()` plugin-specific business method
+- [x] 18.3 Add Go comments, error handling, and default-value semantics for generic configuration read methods
+- [x] 18.4 Add private configuration loading logic inside the `monitor-server` plugin to maintain the monitor configuration structure, defaults, duration parsing, and business validation
+- [x] 18.5 Migrate `monitor-server` scheduled collection registration and cleanup logic to the new generic configuration service read path
+- [x] 18.6 Add the dynamic plugin `config` host service constants, capability derivation, codec, guest helpers, and host dispatcher
+- [x] 18.7 Add unit tests for `pluginservice/config` covering arbitrary key reads, missing key defaults, struct scanning, basic type reads, and duration parsing
+- [x] 18.8 Add unit tests for `monitor-server` plugin configuration loading covering defaults, overrides, invalid duration values, and business validation
 
-## 19. E2E and Acceptance Verification
+## 19. Documentation and Developer Tools
 
-- [x] 19.1 `TC0066-source-plugin-lifecycle`: sync, enable/disable, compilation, slot rendering
-- [x] 19.2 `TC0067-runtime-wasm-lifecycle`: upload, install, enable, disable, uninstall, resource hosting, dynamic routes
-- [x] 19.3 `TC0068-runtime-wasm-failure-isolation`: hook timeout/error isolation, disable/enable recovery
-- [x] 19.4 `TC0069-plugin-permission-governance`: role authorization, menu visibility, permission recovery, data permission
-- [x] 19.5 `TC0070-plugin-hot-upgrade`: generation switch, page refresh prompt, non-plugin-page user unaffected, rollback
-- [x] 19.6 `TC0071-runtime-wasm-host-services`: core host services success and unauthorized rejection
-- [x] 19.7 `TC0072-runtime-wasm-host-services-low-priority`: cache, lock, notify services
-- [x] 19.8 `TC0073-plugin-host-service-authorization-review`: install/enable authorization dialog with route review
-- [x] 19.9 `TC0074-plugin-management-action-permissions`: upload/install/enable/disable/uninstall permission checks
-- [x] 19.10 `TC0075-runtime-wasm-lifecycle-boundaries`: uninstall cleanup and version compatibility
-- [x] 19.11 `TC0103-plugin-install-enable-shortcut`: shortcut flow, permission visibility, dynamic-plugin authorization reuse
+- [x] 19.1 Write plugin development guide covering source and dynamic WASM modes
+- [x] 19.2 Write plugin operations guide covering install/stop/uninstall/upgrade/rollback/multi-node
+- [x] 19.3 Use `plugin-demo-source` and `plugin-demo-dynamic` as reference samples (no separate template directory)
+- [x] 19.4 Provide `hack/build-wasm` builder tool with unified output to `temp/output/`
 
-## 20. Feedback and Bugfixes
+## 20. E2E and Acceptance Verification
+
+- [x] 20.1 `TC0066-source-plugin-lifecycle`: sync, enable/disable, compilation, slot rendering
+- [x] 20.2 `TC0067-runtime-wasm-lifecycle`: upload, install, enable, disable, uninstall, resource hosting, dynamic routes
+- [x] 20.3 `TC0068-runtime-wasm-failure-isolation`: hook timeout/error isolation, disable/enable recovery
+- [x] 20.4 `TC0069-plugin-permission-governance`: role authorization, menu visibility, permission recovery, data permission
+- [x] 20.5 `TC0070-plugin-hot-upgrade`: generation switch, page refresh prompt, non-plugin-page user unaffected, rollback
+- [x] 20.6 `TC0071-runtime-wasm-host-services`: core host services success and unauthorized rejection
+- [x] 20.7 `TC0072-runtime-wasm-host-services-low-priority`: cache, lock, notify services
+- [x] 20.8 `TC0073-plugin-host-service-authorization-review`: install/enable authorization dialog with route review
+- [x] 20.9 `TC0074-plugin-management-action-permissions`: upload/install/enable/disable/uninstall permission checks
+- [x] 20.10 `TC0075-runtime-wasm-lifecycle-boundaries`: uninstall cleanup and version compatibility
+- [x] 20.11 `TC0103-plugin-install-enable-shortcut`: shortcut flow, permission visibility, dynamic-plugin authorization reuse
+
+## 21. Feedback and Bugfixes
 
 - [x] All feedback items from individual change archives have been addressed and merged into the corresponding functional areas above.

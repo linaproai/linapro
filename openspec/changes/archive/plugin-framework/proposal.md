@@ -9,8 +9,8 @@ LinaPro needs a formal, stable, and extensible plugin platform to support source
 - Implement dynamic WASM plugin runtime loading, including manifest validation, custom-section artifact parsing, frontend asset extraction and hosting, and `wazero`-based execution.
 - Build the dynamic plugin REST runtime with route contracts extracted from `g.Meta`, fixed-prefix dispatch at `/api/v1/extensions/{pluginId}/...`, host-managed authentication and permission checks, protobuf bridge envelopes, and real WASM bridge execution with 501 fallback.
 - Unify dynamic plugin resource declaration through `go:embed`, where the builder reads embedded resources and converts them to host-governable snapshot custom sections.
-- Extend host-service capabilities from discrete opcodes to a structured host-service model with `runtime`, `storage`, `network`, `data`, `cache`, `lock`, and `notify` services, each with resource authorization, execution context, and audit.
-- Add startup auto-enable via `plugin.autoEnable` in the host main config file, with a dedicated bootstrap phase before plugin wiring, fail-fast behavior, and cluster-aware primary-node execution.
+- Extend host-service capabilities from discrete opcodes to a structured host-service model with `runtime`, `storage`, `network`, `data`, `cache`, `lock`, `notify`, and `config` services, each with resource authorization, execution context, and audit.
+- Add startup auto-enable via `plugin.autoEnable` in the host main config file, with a dedicated bootstrap phase before plugin wiring, fail-fast behavior, and cluster-aware primary-node execution. The bootstrap phase must synchronize the startup snapshot after any source plugin lifecycle write so that subsequent enable checks within the same startup orchestration read the latest installed state.
 - Add an install-and-enable shortcut in the plugin installation dialog, with permission gating, partial-success messaging, and E2E coverage.
 - Add mock-data installation support with `installMockData` option, transactional mock SQL execution, structured rollback errors, and startup bootstrap integration.
 - Show dynamic route exposure in the authorization review dialog alongside host-service authorization, with backend route projection and collapsible route lists.
@@ -19,6 +19,7 @@ LinaPro needs a formal, stable, and extensible plugin platform to support source
 - Unify duration configuration across `jwt.expire`, `session.timeout`, `session.cleanupInterval`, and `monitor.interval` using duration strings parsed to `time.Duration`.
 - Rebuild the notification domain with `sys_notify_channel`, `sys_notify_message`, and `sys_notify_delivery` tables, replacing `sys_user_message`.
 - Establish declarative permission middleware for static APIs with access context caching and topology-revision-based invalidation.
+- Generalize the plugin configuration service from plugin-specific `GetMonitor()` to a business-neutral read-only accessor, keeping each plugin's configuration structure, defaults, and validation inside the plugin. Add the `config` host service for dynamic plugins.
 
 ## Capabilities
 
@@ -36,7 +37,8 @@ LinaPro needs a formal, stable, and extensible plugin platform to support source
 - `plugin-cache-service`: Distributed KV cache via MySQL `MEMORY` table with namespace isolation, strict length validation, and expiry cleanup.
 - `plugin-lock-service`: Named lock resources reusing host distributed lock with ticket-based renew/release.
 - `plugin-notify-service`: Unified notification domain with channel-based send, message records, and delivery tracking.
-- `plugin-startup-bootstrap`: `plugin.autoEnable` config, startup bootstrap phase, source/dynamic branching, fail-fast, and cluster-aware primary execution.
+- `plugin-config-service`: Business-neutral read-only configuration access for plugins, including arbitrary key reads, section scanning, basic type parsing, `time.Duration` parsing, and a `config` host service for dynamic plugins.
+- `plugin-startup-bootstrap`: `plugin.autoEnable` config, startup bootstrap phase, source/dynamic branching, fail-fast, cluster-aware primary execution, and startup snapshot synchronization after source plugin lifecycle writes.
 - `plugin-mock-data-installation`: Optional mock-data loading during install, transactional mock SQL, structured rollback errors, and startup bootstrap integration.
 - `plugin-api-query-performance`: Read-only plugin list queries, safe metadata lookup, and session activity write throttling.
 - `plugin-install-enable-shortcut`: Install-and-enable shortcut in the installation dialog with permission gating and partial-success messaging.
@@ -58,7 +60,7 @@ LinaPro needs a formal, stable, and extensible plugin platform to support source
 
 ## Impact
 
-- Backend: New plugin registration, lifecycle management, runtime loading, hook bus, resource indexing, host-service dispatch, multi-node convergence, startup bootstrap, declarative permission middleware, notification domain, and cluster topology infrastructure.
+- Backend: New plugin registration, lifecycle management, runtime loading, hook bus, resource indexing, host-service dispatch, multi-node convergence, startup bootstrap with snapshot synchronization, declarative permission middleware, notification domain, cluster topology infrastructure, and generalized plugin configuration service.
 - Frontend: Plugin page mounting protocol, resource access mechanism, slot extension registry, generation-aware refresh prompts, install-and-enable shortcut, mock-data checkbox, route exposure review in authorization dialog, and dynamic routing adjustments.
 - Data layer: New tables for `sys_plugin`, `sys_plugin_release`, `sys_plugin_migration`, `sys_plugin_resource_ref`, `sys_plugin_node_state`, `sys_plugin_state`, `sys_kv_cache`, `sys_notify_channel`, `sys_notify_message`, `sys_notify_delivery`, and removal of `sys_user_message`.
 - Build and delivery: `apps/lina-plugins/` source scanning, `hack/build-wasm` builder for WASM artifacts, `go:embed` resource declaration, and unified output directory.

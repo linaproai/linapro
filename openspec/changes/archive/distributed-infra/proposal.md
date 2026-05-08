@@ -3,9 +3,9 @@
 LinaPro targets multi-node deployment (Kubernetes, multi-instance load balancing) but originally lacked distributed infrastructure for leader election, cross-node cache coordination, and plugin bridge component organization. Specific problems include:
 
 - **Duplicate cron execution**: all nodes run Session Cleanup and Server Monitor Cleanup simultaneously, causing redundant operations and race conditions.
-- **Stale cache across nodes**: shared revisions for permissions, runtime configuration, and plugin runtime state reuse a lossy `MEMORY` cache table (`sys_kv_cache`), which loses data on database restart and does not guarantee atomic increment. Nodes can continue using stale authorization or configuration snapshots indefinitely.
+- **Stale cache across nodes**: critical cache domains (permissions, runtime configuration, plugin runtime state) previously reused `sys_kv_cache`, a lossy `MEMORY` engine cache table that loses data on database restart and does not guarantee atomic increment. Nodes could continue using stale authorization or configuration snapshots indefinitely. The solution introduces a persistent `sys_cache_revision` (InnoDB) table for critical cache-domain revisions, keeps `sys_kv_cache` as lossy plugin/module KV cache only, and fixes `kvcache.Incr` atomicity with single-SQL atomic update.
 - **Unstructured pluginbridge package**: `pkg/pluginbridge` accumulates 40+ production files mixing ABI contracts, codecs, WASM artifact helpers, host call protocols, host service protocols, and guest SDK, making it difficult for developers to distinguish stable contracts from internal protocol details.
-- **Stale Wasm compilation cache**: same-version dynamic-plugin refresh cannot reliably invalidate Wasm compilation cache on other nodes because cache keys depend only on mutable artifact paths.
+- **Stale Wasm compilation cache**: same-version dynamic-plugin refresh cannot reliably invalidate Wasm compilation cache on other nodes because cache keys depend only on mutable artifact paths. The solution binds Wasm compilation cache to artifact checksum so same-version refresh invalidates stale cache on all nodes.
 - **Missing login homePath fallback**: `/user/info` returns a fixed `/analytics` homePath, causing 404 for users without that route permission.
 
 ## What Changes
@@ -15,6 +15,7 @@ LinaPro targets multi-node deployment (Kubernetes, multi-instance load balancing
 - Add unified `cachecoord` cache coordination component for free-form cache-domain revision publishing, single-node local invalidation, cluster-mode shared persistent revisions, cross-node synchronization, explicit scoped invalidation, and observability.
 - Add persistent `sys_cache_revision` (InnoDB) for critical cache-domain revisions; keep `sys_kv_cache` as lossy plugin/module KV cache only.
 - Fix `kvcache.Incr` to use single-SQL atomic update; refactor `kvcache` into generic KV cache foundation with backend/provider abstraction and `time.Duration` TTL.
+- Coordinate critical cache domains (permission topology, runtime parameters, plugin runtime) through `cachecoord` with persistent revisions, freshness checks, and failure policies.
 - Bind dynamic-plugin Wasm compilation cache to artifact checksum or generation so same-version refresh invalidates stale cache on all nodes.
 - Refactor `pkg/pluginbridge` into responsibility-scoped public subcomponent packages (`contract`, `codec`, `artifact`, `hostcall`, `hostservice`, `guest`) with a thin root-package facade preserving backward compatibility.
 - Fix login `homePath` to return the user's first accessible menu route instead of a hardcoded path.
@@ -25,14 +26,16 @@ LinaPro targets multi-node deployment (Kubernetes, multi-instance load balancing
 
 - `distributed-locker`: database-backed distributed lock with acquisition, release, lease renewal, and state checking.
 - `leader-election`: automatic leader election on service start, lease auto-renewal, failover, and Master-Only job gating.
-- `cache-coordination`: unified cache coordination for revision publishing, freshness checks, topology-aware single-node/cluster strategies, protected runtime parameter bounded consistency, and permission topology cross-node invalidation.
+- `distributed-cache-coordination`: defines unified host cache coordination, revision publishing, free-form cache domains, optional policy configuration, cross-node synchronization, staleness windows, fallback behavior, and observability.
 - `pluginbridge-subcomponent-architecture`: pluginbridge subcomponent package structure, dependency boundaries, compatibility facade, and verification requirements.
 
 ### Modified Capabilities
 
 - `cron-jobs`: cron task management gains Master-Only / All-Node classification and leader-node check logic.
-- `plugin-cache-service`: plugin host-cache boundaries, concurrent `incr` atomicity, expiration cleanup semantics, and separation from critical revision coordination.
-- `plugin-runtime-loading`: plugin runtime derived cache invalidation across nodes, Wasm compilation cache checksum binding, and WASM custom section parsing centralization through pluginbridge.
+- `plugin-cache-service`: changes lossy plugin host-cache boundaries, TTL, `incr` atomicity, and expired-data cleanup requirements; plugin cache must not carry critical cache revisions.
+- `plugin-runtime-loading`: changes cross-node invalidation requirements for dynamic-plugin runtime cache, Wasm compilation cache checksum binding, frontend bundles, and i18n derived caches.
+- `config-management`: protected runtime parameter cache must use the unified coordination mechanism for cross-node visibility and bounded staleness.
+- `role-management`: role, menu, user-role, and plugin permission topology changes must reliably invalidate token permission snapshots through the unified coordination mechanism.
 
 ## Impact
 

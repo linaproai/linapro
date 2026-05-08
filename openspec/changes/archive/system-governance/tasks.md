@@ -1,171 +1,267 @@
-## 1. 数据库与基础设施
+## 1. Database and Infrastructure
 
-- [x] 1.1 创建操作日志和登录日志 SQL 文件，包含 `sys_oper_log` 和 `sys_login_log` 建表语句，以及 `sys_oper_type` 字典类型和字典数据的 Seed DML
-- [x] 1.2 创建在线用户和服务监控 SQL 文件，新增 `sys_online_session`（MEMORY 引擎）和 `sys_server_monitor` 表的 DDL，新增系统监控菜单数据
-- [x] 1.3 创建参数设置 SQL 文件，新增 `sys_config` 表 DDL 和菜单/按钮权限种子数据
-- [x] 1.4 执行 `make init` 更新数据库，执行 `make dao` 生成 DAO/DO/Entity 文件
-- [x] 1.5 添加 User-Agent 解析依赖（`mssola/useragent`）和系统指标采集依赖（`github.com/shirou/gopsutil/v4`）
+- [x] 1.1 Create operation log and login log SQL files, including `sys_oper_log` and `sys_login_log` table creation statements, and `sys_oper_type` dictionary type and dictionary data Seed DML
+- [x] 1.2 Create online user and server monitor SQL files, adding `sys_online_session` (MEMORY engine) and `sys_server_monitor` table DDL, and new system monitoring menu data
+- [x] 1.3 Create parameter settings SQL file, adding `sys_config` table DDL and menu/button permission seed data
+- [x] 1.4 Execute `make init` to update database, execute `make dao` to generate DAO/DO/Entity files
+- [x] 1.5 Add User-Agent parsing dependency (`mssola/useragent`) and system metric collection dependency (`github.com/shirou/gopsutil/v4`)
 
-## 2. 后端 - 审计日志模块
+## 2. Backend - Audit Log Module
 
-### 2.1 登录日志
+### 2.1 Login Log
 
-- [x] 2.1.1 创建 `api/loginlog/v1/` 接口定义：List、Get、Clean、Export、Delete（批量删除）
-- [x] 2.1.2 执行 `make ctrl` 生成控制器骨架
-- [x] 2.1.3 实现 `internal/service/loginlog/` 服务层：Create、List、Get、Clean、Export、Delete
-- [x] 2.1.4 填写控制器方法实现，在 `cmd_http.go` 中注册登录日志路由
+- [x] 2.1.1 Create `api/loginlog/v1/` interface definitions: List, Get, Clean, Export, Delete (batch delete)
+- [x] 2.1.2 Execute `make ctrl` to generate controller skeleton
+- [x] 2.1.3 Implement `internal/service/loginlog/` service layer: Create, List, Get, Clean, Export, Delete
+- [x] 2.1.4 Fill controller method implementations, register login log routes in `cmd_http.go`
 
-### 2.2 操作日志
+### 2.2 Operation Log
 
-- [x] 2.2.1 创建 `api/operlog/v1/` 接口定义：List、Get、Clean、Export、Delete（批量删除）
-- [x] 2.2.2 执行 `make ctrl` 生成控制器骨架
-- [x] 2.2.3 实现 `internal/service/operlog/` 服务层：Create、List、Get、Clean、Export、Delete
-- [x] 2.2.4 填写控制器方法实现，在 `cmd_http.go` 中注册操作日志路由
+- [x] 2.2.1 Create `api/operlog/v1/` interface definitions: List, Get, Clean, Export, Delete (batch delete)
+- [x] 2.2.2 Execute `make ctrl` to generate controller skeleton
+- [x] 2.2.3 Implement `internal/service/operlog/` service layer: Create, List, Get, Clean, Export, Delete
+- [x] 2.2.4 Fill controller method implementations, register operation log routes in `cmd_http.go`
 
-### 2.3 操作日志中间件
+### 2.3 Operation Log Middleware
 
-- [x] 2.3.1 实现操作日志中间件 `internal/service/middleware/operlog.go`：拦截写操作、解析 `g.Meta` 标签获取模块名和操作类型、记录请求参数（截断+脱敏）和响应结果（截断）、计算耗时、异步写入数据库
-- [x] 2.3.2 在 `cmd_http.go` 中将操作日志中间件注册到 Auth 中间件之后
-- [x] 2.3.3 为现有导出接口的 `g.Meta` 添加 `operLog:"4"` 标签
+- [x] 2.3.1 Implement operation log middleware `internal/service/middleware/operlog.go`: intercept write operations, parse `g.Meta` tags for module name and operation type, record request parameters (truncated + masked) and response results (truncated), calculate elapsed time, async database write
+- [x] 2.3.2 Register operation log middleware after Auth middleware in `cmd_http.go`
+- [x] 2.3.3 Add `operLog:"4"` tag to existing export interface `g.Meta`
 
-## 3. 后端 - 认证模块改造
+## 3. Backend - Authentication Module Refactoring
 
-- [x] 3.1 定义会话存储抽象接口 `SessionStore`，实现基于 MySQL 的 `DBSessionStore`（创建、查询、删除、列表过滤、TouchOrValidate、CleanupInactive）
-- [x] 3.2 改造认证服务（`internal/service/auth/`）：登录成功后创建会话记录并写入登录日志，登出时删除会话记录并写入登录日志
-- [x] 3.3 改造认证中间件（`internal/service/middleware/`）：在 JWT 校验后通过 TouchOrValidate 检查会话有效性，会话不存在时返回 401
-- [x] 3.4 实现不活跃会话自动清理定时任务，超时阈值和清理频率通过配置文件调整
+- [x] 3.1 Define session storage abstract interface `SessionStore`, implement MySQL-based `DBSessionStore` (Create, Query, Delete, List filtering, TouchOrValidate, CleanupInactive)
+- [x] 3.2 Refactor auth service (`internal/service/auth/`): create session record and write login log on successful login, delete session record and write login log on logout
+- [x] 3.3 Refactor auth middleware (`internal/service/middleware/`): check session validity via TouchOrValidate after JWT verification, return 401 when session does not exist
+- [x] 3.4 Implement inactive session auto-cleanup scheduled task, with timeout threshold and cleanup frequency configurable through config file
 
-## 4. 后端 - 在线用户模块
+## 4. Backend - Online User Module
 
-- [x] 4.1 创建在线用户 API 定义（`api/monitor/v1/`）：`GET /monitor/online/list`、`DELETE /monitor/online/{tokenId}`
-- [x] 4.2 实现在线用户 Controller 和 Service：列表查询、强制下线逻辑
-- [x] 4.3 注册在线用户路由到 `cmd_http.go`
+- [x] 4.1 Create online user API definition (`api/monitor/v1/`): `GET /monitor/online/list`, `DELETE /monitor/online/{tokenId}`
+- [x] 4.2 Implement online user Controller and Service: list query, forced offline logic
+- [x] 4.3 Register online user routes in `cmd_http.go`
 
-## 5. 后端 - 服务监控模块
+## 5. Backend - Server Monitor Module
 
-- [x] 5.1 实现指标采集服务（CPU、内存、磁盘、网络、Go 运行时、服务器基本信息）
-- [x] 5.2 实现定时采集任务：服务启动时立即采集一次，此后每 30 秒采集一次，采用 UPSERT 策略每个节点只保留最新一条记录
-- [x] 5.3 创建服务监控 API 定义（`api/monitor/v1/`）：`GET /monitor/server`
-- [x] 5.4 实现服务监控 Controller 和 Service：读取数据库中各节点最新监控数据
-- [x] 5.5 注册服务监控路由和定时采集任务到 `cmd_http.go`
+- [x] 5.1 Implement metric collection service (CPU, memory, disk, network, Go runtime, server basic info)
+- [x] 5.2 Implement periodic collection task: collect once immediately on service startup, then every 30 seconds, UPSERT strategy keeping only latest record per node
+- [x] 5.3 Create server monitor API definition (`api/monitor/v1/`): `GET /monitor/server`
+- [x] 5.4 Implement server monitor Controller and Service: read latest monitoring data per node from database
+- [x] 5.5 Register server monitor routes and periodic collection task in `cmd_http.go`
 
-## 6. 后端 - 系统信息模块
+## 6. Backend - System Info Module
 
-- [x] 6.1 创建 API 定义 `api/sysinfo/v1/info.go`，定义 `GET /api/v1/system/info` 的请求/响应结构体
-- [x] 6.2 实现 `internal/service/sysinfo/sysinfo.go` 系统信息服务层，获取运行时信息
-- [x] 6.3 填写控制器方法实现，在 `cmd_http.go` 中注册系统信息路由（鉴权路由组内）
+- [x] 6.1 Create API definition `api/sysinfo/v1/info.go`, define request/response structs for `GET /api/v1/system/info`
+- [x] 6.2 Implement `internal/service/sysinfo/sysinfo.go` system info service layer, obtain runtime information
+- [x] 6.3 Fill controller method implementations, register system info routes in `cmd_http.go` (within auth route group)
 
-## 7. 后端 - 参数设置模块
+## 7. Backend - Parameter Settings Module
 
-- [x] 7.1 创建 API 定义 `api/config/v1/`：List、Get、Create、Update、Delete、ByKey、Export、Import、ImportTemplate（7 个文件）
-- [x] 7.2 执行 `make ctrl` 生成控制器骨架
-- [x] 7.3 实现 `internal/service/sysconfig/` 服务层：完整 CRUD、按键名查询、导出、导入（覆盖/忽略模式）
-- [x] 7.4 填写控制器方法实现，在 `cmd_http.go` 中注册参数设置路由
+- [x] 7.1 Create API definition `api/config/v1/`: List, Get, Create, Update, Delete, ByKey, Export, Import, ImportTemplate (7 files)
+- [x] 7.2 Execute `make ctrl` to generate controller skeleton
+- [x] 7.3 Implement `internal/service/sysconfig/` service layer: complete CRUD, query by key name, export, import (overwrite/ignore modes)
+- [x] 7.4 Fill controller method implementations, register parameter settings routes in `cmd_http.go`
 
-## 8. 后端 - 字典导出导入优化
+## 8. Backend - Dictionary Export/Import Optimization
 
-- [x] 8.1 新增字典合并导出接口（`GET /dict/export`），同时导出字典类型和字典数据到双 Sheet Excel 文件
-- [x] 8.2 新增字典合并导入接口（`POST /dict/import`），支持同时导入字典类型和字典数据
-- [x] 8.3 新增字典导入模板下载接口，返回包含两个 Sheet 的模板文件
-- [x] 8.4 字典类型删除逻辑改为级联删除，删除字典类型时同时删除关联的字典数据
+- [x] 8.1 New dictionary merged export endpoint (`GET /dict/export`), simultaneously exporting dictionary types and dictionary data to dual-sheet Excel file
+- [x] 8.2 New dictionary merged import endpoint (`POST /dict/import`), supporting simultaneous import of dictionary types and dictionary data
+- [x] 8.3 New dictionary import template download endpoint, returning template file with two sheets
+- [x] 8.4 Dictionary type delete logic changed to cascade delete; deleting dictionary type also deletes associated dictionary data
 
-## 9. 后端 - 定时任务与配置重构
+## 9. Backend - Scheduled Tasks and Configuration Refactoring
 
-- [x] 9.1 将所有定时任务从 gtimer 迁移到 gcron 组件，使用 crontab 表达式
-- [x] 9.2 将所有硬编码配置读取改为 struct 维护，按配置分组创建配置结构体
-- [x] 9.3 将 `internal/config/` 迁移到 `internal/service/config/`，按模块拆分为独立 Go 文件
-- [x] 9.4 将 cmd_http.go 中的定时任务逻辑提取到 service/cron 独立组件中封装
+- [x] 9.1 Migrate all scheduled tasks from gtimer to gcron component, using crontab expressions
+- [x] 9.2 Change all hardcoded config reads to struct-based maintenance, create config structs grouped by module
+- [x] 9.3 Migrate `internal/config/` to `internal/service/config/`, split into independent Go files by module
+- [x] 9.4 Extract scheduled task logic from cmd_http.go into service/cron independent component
 
-## 10. 前端 - 操作日志页面
+## 10. Backend - Host Data Permission Governance
 
-- [x] 10.1 创建操作日志 API 层：`src/api/monitor/operlog/`
-- [x] 10.2 创建操作日志列表页：`src/views/monitor/operlog/index.vue` 和 `data.ts`（表格+筛选）
-- [x] 10.3 创建操作日志详情抽屉组件，请求参数和响应结果使用 vue-json-pretty 实现 JSON 代码高亮
-- [x] 10.4 实现清理功能（弹窗选择时间范围后硬删除）和批量删除功能
+### 10.1 Core Data Permission Service
 
-## 11. 前端 - 登录日志页面
+- [x] 10.1.1 Review GoFrame DAO / gdb.Model integration approach using `goframe-v2` skill, avoid manual SQL concatenation
+- [x] 10.1.2 Add host internal data permission service, parse current user, superadmin, enabled roles and effective `dataScope`
+- [x] 10.1.3 Implement multi-role widest-range merge rules: all data > department data > self only > no permission
+- [x] 10.1.4 Define data permission named types and constants; prohibit hardcoding data scope strings or bare enum semantics in business branches
+- [x] 10.1.5 Define explicit per-module policy integration approach, supporting user column, department semi-join, and custom visibility check resource integration
+- [x] 10.1.6 Implement list query constraint injection capability, supporting empty-scope fast-return
+- [x] 10.1.7 Implement detail, write operation, and execution-type operation target record visibility check capability
+- [x] 10.1.8 Define `bizerr.Code` for data permission rejection, context missing, and org capability unavailable
 
-- [x] 11.1 创建登录日志 API 层：`src/api/monitor/loginlog/`
-- [x] 11.2 创建登录日志列表页：`src/views/monitor/loginlog/index.vue` 和 `data.ts`
-- [x] 11.3 创建登录日志详情弹窗组件
-- [x] 11.4 实现清理功能和批量删除功能
+### 10.2 Organizational Capability and Cache Consistency
 
-## 12. 前端 - 在线用户页面
+- [x] 10.2.1 Review `orgcap` current capabilities, supplement department user set resolution interfaces or adapter methods needed by data permission
+- [x] 10.2.2 Implement safe degradation strategy when org capability unavailable: all data unaffected, department degrades to self-only, self-only continues to work
+- [x] 10.2.3 Include role `dataScope` changes, role enable/disable, and user-role relationship changes in access topology or data permission cache invalidation
+- [x] 10.2.4 Effective role data scope merged into token permission snapshot; department user set not cached; future independent cache must introduce explicit scope/revision
+- [x] 10.2.5 No independent data permission cache domain this phase; reuse access topology cache invalidation and cross-node revision testing
 
-- [x] 12.1 创建前端 API 文件 `src/api/monitor/online/`
-- [x] 12.2 创建在线用户页面 `src/views/monitor/online/index.vue` 和 `data.ts`：搜索表单、VXE-Grid 表格、工具栏在线人数统计、强制下线 Popconfirm
-- [x] 12.3 新增系统监控路由模块 `src/router/routes/modules/monitor.ts`
+### 10.3 User Management Integration
 
-## 13. 前端 - 服务监控页面
+- [x] 10.3.1 User list and export integrate data permission, supporting all, department, and self-only scopes
+- [x] 10.3.2 User detail integrates data permission; out-of-range users return structured data-not-visible error
+- [x] 10.3.3 User update, status change, password reset, and role association change integrate target user visibility check
+- [x] 10.3.4 User single and batch delete integrate data permission; batch operation rejects entirely if any target is not visible
+- [x] 10.3.5 Role-authorized user list and user selection range integrate data permission, avoiding exposing out-of-range users on authorization page
+- [x] 10.3.6 Preserve built-in admin and current user deletion protection rules, ensuring data permission does not bypass existing protections
 
-- [x] 13.1 创建前端 API 文件 `src/api/monitor/server/`
-- [x] 13.2 创建服务监控页面 `src/views/monitor/server/index.vue` 及子组件：服务器信息卡片、CPU/内存圆形进度条、Go 运行时信息、磁盘使用表格、网络流量信息
-- [x] 13.3 实现多节点切换逻辑和可折叠节点列表布局
+### 10.4 File Management Integration
 
-## 14. 前端 - 系统信息页面
+- [x] 10.4.1 File list integrates `sys_file.created_by` uploader range filtering
+- [x] 10.4.2 File detail, batch info integrate uploader visibility check; uploaded file URL access remains public with path normalization and metadata validation
+- [x] 10.4.3 File download integrates data permission; out-of-range files must not return binary content
+- [x] 10.4.4 File delete integrates data permission; refuse to delete out-of-range database records and physical files
+- [x] 10.4.5 File suffix, scenario, and other aggregate queries filter by current data permission scope, avoiding leaking out-of-range data existence
 
-- [x] 14.1 创建路由模块 `src/router/routes/modules/about.ts`，定义"系统信息"顶级菜单及三个子路由
-- [x] 14.2 创建前端配置文件 `src/views/about/config.ts`，定义可配置项
-- [x] 14.3 实现系统接口页面：iframe 嵌入 Stoplight Elements 静态文档页面
-- [x] 14.4 实现版本信息页面：关于项目、后端组件、前端组件三个区块
-- [x] 14.5 实现组件演示页面：iframe 嵌入 vben5 官网演示，含加载失败处理
-- [x] 14.6 创建 API 文件 `src/api/about/index.ts`，调用 `GET /api/v1/system/info`
+### 10.5 Cron Job and Log Integration
 
-## 15. 前端 - 参数设置页面
+- [x] 10.5.1 User-created task list integrates `sys_job.created_by` data permission filtering
+- [x] 10.5.2 Maintain `sys_job.is_builtin=1` built-in task projection without data permission filtering, continuing to use built-in task governance rules
+- [x] 10.5.3 User-created task detail, edit, delete, enable, disable, reset integrate target task visibility check
+- [x] 10.5.4 Manual trigger of user-created tasks checks data permission first; out-of-range tasks must not create `sys_job_log`
+- [x] 10.5.5 Task log list, detail, cleanup, and terminate running log integrate parent task's data permission boundary
+- [x] 10.5.6 Confirm Shell task independent permission point and data permission both apply; lacking either must reject
 
-- [x] 15.1 创建前端 API 层 `src/api/system/config/`
-- [x] 15.2 创建参数设置页面 `src/views/system/config/index.vue`、`config-modal.vue`、`data.ts`
-- [x] 15.3 添加参数设置路由到系统路由模块
+### 10.6 Online User and User Message Integration
 
-## 16. 前端 - 字典导出导入优化
+- [x] 10.6.1 Online user list integrates data permission filtering by `sys_online_session.user_id`
+- [x] 10.6.2 Forced offline checks target `tokenId`'s owning user against current data permission scope before execution
+- [x] 10.6.3 User message unread count, list, mark read, and delete paths confirmed to maintain current user self-isolation
+- [x] 10.6.4 Add user message tests confirming users with all data permission still cannot read, mark, or delete others' messages
 
-- [x] 16.1 前端字典类型面板更新导出导入功能，使用合并接口
-- [x] 16.2 前端字典数据面板移除导出和导入按钮
-- [x] 16.3 抽象通用导出确认弹窗组件 `ExportConfirmModal`，复用至所有导出模块
-- [x] 16.4 统一所有模块导出文件命名规范
+### 10.7 i18n and API Documentation Governance
 
-## 17. 前端 - 通用改进
+- [x] 10.7.1 Add `zh-CN`, `en-US`, `zh-TW` runtime translations for new `bizerr` errors
+- [x] 10.7.2 Check whether this change modifies API DTO documentation metadata; if so, maintain non-English apidoc i18n JSON
+- [x] 10.7.3 Confirm role page does not add new frontend visible fields; no new role form translations needed in frontend runtime language pack
+- [x] 10.7.4 Add or update i18n completeness tests ensuring new error translations are not missing
 
-- [x] 17.1 用户管理页面状态字段改为从字典模块动态读取
-- [x] 17.2 部门/岗位管理页面状态选项改为从字典模块动态读取
-- [x] 17.3 字典管理页面修改字典数据后清除 dictStore 缓存
-- [x] 17.4 移除头像下拉菜单中的多余菜单项，修正用户邮箱和昵称显示
-- [x] 17.5 个人中心表单字段调整（昵称必填、非必填字段修正）
-- [x] 17.6 全局分页选项增加 100 条/页
+## 11. Frontend - Operation Log Page
 
-## 18. 接口文档完善
+- [x] 11.1 Create operation log API layer: `src/api/monitor/operlog/`
+- [x] 11.2 Create operation log list page: `src/views/monitor/operlog/index.vue` and `data.ts` (table + filters)
+- [x] 11.3 Create operation log detail drawer component, request parameters and response results use vue-json-pretty for JSON syntax highlighting
+- [x] 11.4 Implement cleanup functionality (modal with time range selection then hard delete) and batch delete functionality
 
-- [x] 18.1 完善 auth 模块接口文档：为 g.Meta 添加 dc 标签，为所有输入输出字段补充 dc 和 eg 标签
-- [x] 18.2 完善 user 模块接口文档（13 个文件）
-- [x] 18.3 完善 dept 模块接口文档（8 个文件）
-- [x] 18.4 完善 post 模块接口文档（8 个文件）
-- [x] 18.5 完善 dict 模块接口文档（14 个文件）
-- [x] 18.6 完善 notice 模块接口文档（5 个文件）
-- [x] 18.7 完善 loginlog 模块接口文档（5 个文件）
-- [x] 18.8 完善 operlog 模块接口文档（5 个文件）
-- [x] 18.9 完善 usermsg 模块接口文档（6 个文件）
-- [x] 18.10 完善 sysinfo 模块接口文档（1 个文件）
+## 12. Frontend - Login Log Page
 
-## 19. E2E 测试
+- [x] 12.1 Create login log API layer: `src/api/monitor/loginlog/`
+- [x] 12.2 Create login log list page: `src/views/monitor/loginlog/index.vue` and `data.ts`
+- [x] 12.3 Create login log detail modal component
+- [x] 12.4 Implement cleanup functionality and batch delete functionality
 
-- [x] 19.1 TC0026-TC0034：操作日志和登录日志的列表查询、详情查看、清理、导出、自动记录测试
-- [x] 19.2 TC0044-TC0045：系统接口页面和版本信息页面加载测试
-- [x] 19.3 TC0049-TC0052：在线用户列表、搜索、强制下线、服务监控页面测试
-- [x] 19.4 参数设置页面 CRUD、搜索、导出导入测试
-- [x] 19.5 字典合并导出导入测试
-- [x] 19.6 导出确认弹窗测试（所有导出模块）
-- [x] 19.7 字典修改后全局生效测试
-- [x] 19.8 运行全部 E2E 测试确认无回归
+## 13. Frontend - Online User Page
 
-## 20. 代码质量与重构
+- [x] 13.1 Create frontend API file `src/api/monitor/online/`
+- [x] 13.2 Create online user page `src/views/monitor/online/index.vue` and `data.ts`: search form, VXE-Grid table, toolbar online user count, forced offline Popconfirm
+- [x] 13.3 Add system monitor route module `src/router/routes/modules/monitor.ts`
 
-- [x] 20.1 user/dept/file 服务的事务管理修复，Create/Update 方法使用事务确保数据一致性
-- [x] 20.2 user 和 post 服务中重复的部门树遍历逻辑抽取到 dept 服务复用
-- [x] 20.3 将部门层级查询中的 MySQL 特有 FIND_IN_SET 替换为基于 parent_id 迭代查询的跨数据库通用实现
-- [x] 20.4 用户列表查询 N+1 问题修复，批量查询部门信息
-- [x] 20.5 字典类型更新时校验 Type 字段唯一性
-- [x] 20.6 日志导出方法添加条数限制防止内存溢出
-- [x] 20.7 文件上传添加文件名清洗防止路径遍历攻击
-- [x] 20.8 通知公告 NoticeModal formRules 改为 reactive 对象修复 Vue warn
-- [x] 20.9 暗黑模式下面包屑链接颜色修正
-- [x] 20.10 容器环境兼容优化：过滤虚拟文件系统挂载点，采集失败时优雅降级
+## 14. Frontend - Server Monitor Page
+
+- [x] 14.1 Create frontend API file `src/api/monitor/server/`
+- [x] 14.2 Create server monitor page `src/views/monitor/server/index.vue` and sub-components: server info cards, CPU/memory circular progress bars, Go runtime info, disk usage table, network traffic info
+- [x] 14.3 Implement multi-node switching logic and collapsible node list layout
+
+## 15. Frontend - System Info Page
+
+- [x] 15.1 Create route module `src/router/routes/modules/about.ts`, define "System Info" top-level menu with three child routes
+- [x] 15.2 Create frontend config file `src/views/about/config.ts`, define configurable items
+- [x] 15.3 Implement system API docs page: iframe embedding Stoplight Elements static document page
+- [x] 15.4 Implement version info page: about project, backend components, frontend components three sections
+- [x] 15.5 Implement component demo page: iframe embedding vben5 official demo, with load failure handling
+- [x] 15.6 Create API file `src/api/about/index.ts`, call `GET /api/v1/system/info`
+
+## 16. Frontend - Parameter Settings Page
+
+- [x] 16.1 Create frontend API layer `src/api/system/config/`
+- [x] 16.2 Create parameter settings page `src/views/system/config/index.vue`, `config-modal.vue`, `data.ts`
+- [x] 16.3 Add parameter settings route to system route module
+
+## 17. Frontend - Dictionary Export/Import Optimization
+
+- [x] 17.1 Frontend dictionary type panel updates export/import functionality to use merged interface
+- [x] 17.2 Frontend dictionary data panel removes export and import buttons
+- [x] 17.3 Abstract generic export confirmation modal component `ExportConfirmModal`, reuse across all export modules
+- [x] 17.4 Unify export file naming conventions across all modules
+
+## 18. Frontend - General Improvements
+
+- [x] 18.1 User management page status field changed to dynamically read from dictionary module
+- [x] 18.2 Department/post management page status options changed to dynamically read from dictionary module
+- [x] 18.3 Dictionary management page clears dictStore cache after modifying dictionary data
+- [x] 18.4 Remove extra menu items from avatar dropdown menu, fix user email and nickname display
+- [x] 18.5 Personal center form field adjustments (nickname required, non-required field corrections)
+- [x] 18.6 Global pagination options add 100 items/page
+
+## 19. API Documentation Completion
+
+- [x] 19.1 Complete auth module API documentation: add dc tags to g.Meta, supplement dc and eg tags for all input/output fields
+- [x] 19.2 Complete user module API documentation (13 files)
+- [x] 19.3 Complete dept module API documentation (8 files)
+- [x] 19.4 Complete post module API documentation (8 files)
+- [x] 19.5 Complete dict module API documentation (14 files)
+- [x] 19.6 Complete notice module API documentation (5 files)
+- [x] 19.7 Complete loginlog module API documentation (5 files)
+- [x] 19.8 Complete operlog module API documentation (5 files)
+- [x] 19.9 Complete usermsg module API documentation (6 files)
+- [x] 19.10 Complete sysinfo module API documentation (1 file)
+
+## 20. API Documentation Dynamic Server URL
+
+- [x] 20.1 Override OpenAPI `servers[0].url` in host `/api.json` handler based on current request origin
+- [x] 20.2 Retain `serverDescription` as service address description, with safe fallback when host is missing
+- [x] 20.3 Remove dependency on fixed `openapi.serverUrl` as runtime request address authoritative source
+
+## 21. Backend Tests
+
+- [x] 21.1 TC0026-TC0034: Operation log and login log list query, detail view, cleanup, export, auto-recording tests
+- [x] 21.2 TC0044-TC0045: System API docs page and version info page load tests
+- [x] 21.3 TC0049-TC0052: Online user list, search, forced offline, server monitor page tests
+- [x] 21.4 Parameter settings page CRUD, search, export/import tests
+- [x] 21.5 Dictionary merged export/import tests
+- [x] 21.6 Export confirmation modal tests (all export modules)
+- [x] 21.7 Dictionary modification global effect tests
+- [x] 21.8 Run all E2E tests to confirm no regressions
+- [x] 21.9 Add backend unit tests covering direct-mapped port, frontend proxy to backend port, and `X-Forwarded-Proto=https` origin scenarios
+- [x] 21.10 New E2E case `TC0175-api-docs-request-origin.ts` verifying `/api.json` `servers[0].url` dynamically changes with frontend proxy and backend direct access
+
+## 22. Data Permission Backend Tests
+
+- [x] 22.1 New data permission parsing unit tests covering superadmin, multi-role widest range, disabled roles, no roles, no user context
+- [x] 22.2 New org capability degradation tests covering department-to-self degradation and self-only without org capability
+- [x] 22.3 New user management data permission tests covering list, detail, export, write operations, batch delete
+- [x] 22.4 New file management data permission tests covering list, detail, download, delete, aggregate queries
+- [x] 22.5 New cron job and task log data permission tests covering user-created tasks, built-in task projection, and log termination
+- [x] 22.6 New online user data permission tests covering list and forced offline
+- [x] 22.7 New user message self-isolation regression tests covering all-data-permission not widening message boundary
+- [x] 22.8 Run `cd apps/lina-core && go test ./...`
+
+## 23. Data Permission E2E Tests
+
+- [x] 23.1 Create `hack/tests/e2e/settings/user/TC0170-user-data-permission.ts`, covering TC-170a department user list filtering, TC-170b self-only detail restriction, TC-170c out-of-range user write operation rejection
+- [x] 23.2 Create `hack/tests/e2e/settings/file/TC0171-file-data-permission.ts`, covering TC-171a file list filtering, TC-171b out-of-range download rejection, TC-171c out-of-range delete rejection
+- [x] 23.3 Create `hack/tests/e2e/scheduler/job/TC0172-job-data-permission.ts`, covering TC-172a user-created task list filtering, TC-172b built-in task projection visibility, TC-172c out-of-range trigger rejection
+- [x] 23.4 Create `hack/tests/e2e/monitor/TC0173-online-user-data-permission.ts`, covering TC-173a online user list filtering, TC-173b out-of-range forced offline rejection
+- [x] 23.5 Create `hack/tests/e2e/content/message/TC0174-user-message-self-boundary.ts`, covering TC-174a all-data-permission does not read others' messages, TC-174b does not mark others' messages, TC-174c does not delete others' messages
+- [x] 23.6 Run affected E2E test cases and record results
+
+## 24. Code Quality and Refactoring
+
+- [x] 24.1 user/dept/file service transaction management fix; Create/Update methods use transactions to ensure data consistency
+- [x] 24.2 Extract duplicate department tree traversal logic from user and post services into dept service for reuse
+- [x] 24.3 Replace MySQL-specific FIND_IN_SET in department hierarchy query with cross-database generic parent_id iterative query implementation
+- [x] 24.4 Fix user list query N+1 problem, batch query department info
+- [x] 24.5 Dictionary type update validates Type field uniqueness
+- [x] 24.6 Log export method adds record count limit to prevent memory overflow
+- [x] 24.7 File upload adds filename sanitization to prevent path traversal attacks
+- [x] 24.8 Notice announcement NoticeModal formRules changed to reactive object to fix Vue warn
+- [x] 24.9 Fix breadcrumb link color in dark mode
+- [x] 24.10 Container environment compatibility optimization: filter virtual filesystem mount points, graceful degradation on collection failure
+
+## 25. Verification and Review
+
+- [x] 25.1 Run `openspec validate host-data-permission-governance --strict`
+- [x] 25.2 This round of data permission did not add host SQL; org-center plugin indexes verified via backend and E2E paths, database not reset
+- [x] 25.3 Run affected frontend type checks or build commands
+- [x] 25.4 Execute `/lina-review`, focusing on data permission gaps, cache consistency, and i18n completeness

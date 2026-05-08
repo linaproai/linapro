@@ -1,190 +1,332 @@
 ## Context
 
-LinaPro 管理后台当前已具备用户管理、部门管理、岗位管理、字典管理、通知公告、文件管理等基础业务模块。系统使用纯无状态 JWT 认证，后端不跟踪用户会话。缺少操作审计、系统监控、API 文档展示和运行时参数配置等系统治理能力。
+LinaPro's admin console currently has foundational business modules including user management, department management, post management, dictionary management, notifications, and file management. The system uses pure stateless JWT authentication, with no backend session tracking. It lacks operation auditing, system monitoring, API documentation display, runtime parameter configuration, and host-side data permission governance.
 
-技术栈：GoFrame v2 + MySQL + JWT（HS256），前端 Vben5 + Vue 3 + Ant Design Vue。已有完整的中间件链（CORS → 响应包装 → 上下文注入 → JWT 认证），以及基于 `g.Meta` 的路由定义机制。现有导出功能使用 `excelize` 库生成 xlsx 格式文件。
+The host role management already stores three data scopes in `sys_role.data_scope`: `1` (all data), `2` (department data), `3` (self only). Current host static APIs primarily use `g.Meta permission` for menu/button permission checks. The user access context includes roles, menus, permission codes, and superadmin flag, but lacks a stable data permission snapshot. The plugin resource layer already has implementation for injecting `userColumn`/`deptColumn` based on plugin resource declarations, but host built-in business interfaces have not yet formed equivalent governance capability.
+
+Tech stack: GoFrame v2 + MySQL + JWT (HS256), frontend Vben5 + Vue 3 + Ant Design Vue. There is a complete middleware chain (CORS -> Response Wrapper -> Context Injection -> JWT Auth), and a route definition mechanism based on `g.Meta`. Existing export functionality uses the `excelize` library for xlsx format.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- 通过中间件自动记录所有写操作到操作日志表，在登录/登出流程中记录登录日志
-- 实现基于 MySQL MEMORY 引擎的会话跟踪机制，支持在线用户列表查询和强制下线
-- 实现基于 gopsutil 的服务器指标定时采集，写入 MySQL，支持多节点分布式部署
-- 集成 Stoplight Elements 作为 OpenAPI 文档 UI，提供系统运行时信息展示
-- 提供系统参数的完整 CRUD 管理，支持 Excel 导出导入
-- 优化字典管理导出导入功能，支持合并导出导入
+- Auto-record all write operations to operation log table via middleware, record login logs during login/logout flows
+- Implement MySQL MEMORY engine-based session tracking with online user list query and forced offline
+- Implement gopsutil-based periodic server metric collection written to MySQL, supporting multi-node distributed deployment
+- Integrate Stoplight Elements as OpenAPI document UI with dynamic server URL generation from request origin
+- Provide complete CRUD management for system parameters with Excel export/import
+- Optimize dictionary management export/import with merged functionality
+- Establish unified host data permission component for centralized parsing of caller's effective data scope
+- Declare clear policies for suitable host resources, avoiding each service writing duplicate rules
+- Cover user, file, user-created tasks, online sessions, and user messages in first batch
+- Guarantee list, detail, export, download, update, delete, status change, and execution operations use the same data boundary
+- Reuse existing `orgcap` optional organizational capabilities; safe degradation when org module is disabled
 
 **Non-Goals:**
-- 不实现 IP 地理位置解析
-- 不实现日志的软删除（日志清理为硬删除）
-- 不实现实时推送（WebSocket）刷新监控数据
-- 不实现历史指标趋势图表，仅展示最新一次采集的快照数据
-- 不实现报警/告警功能
-- 不实现参数缓存机制
-- 不自行托管 vben5 组件演示的静态文件
+- Do not implement IP geolocation parsing
+- Do not implement soft delete for logs (log cleanup is hard delete)
+- Do not implement real-time push (WebSocket) for monitoring data refresh
+- Do not implement historical metric trend charts, only display latest collection snapshot
+- Do not implement alerting/alarm functionality
+- Do not implement parameter caching mechanism
+- Do not self-host vben5 component demo static files
+- Do not add custom data scope, department-and-below, cross-department combination, or other complex scopes
+- Do not filter menu, role base governance, dictionary, configuration, plugin governance, i18n, health check, system info, or other global governance data by department or self
+- Do not redo tenant isolation in this change; data permission only addresses data visibility within the same tenant or single tenant
+- Do not change the plugin resource data permission manifest declaration model; only reuse or extract common capabilities in the host implementation
 
 ## Decisions
 
-### 一、审计日志体系
+### I. Audit Log System
 
-#### 1. 操作日志记录方式 — 中间件自动拦截 + API 标签混合方案
+#### 1. Operation Log Recording Approach -- Middleware Auto-Interception + API Tag Hybrid
 
-**选择**：在中间件层自动拦截写操作，并通过 `g.Meta` 标签标记需要特殊记录的查询操作。
+**Choice**: Automatically intercept write operations at the middleware layer, and mark query operations needing special recording through `g.Meta` tags.
 
-**备选方案**：
-- A. 纯中间件方案：全局拦截所有写操作，无需修改业务代码。但无法精确区分操作类型和模块名。
-- B. 纯服务层埋点：在每个 Service 方法中手动调用日志记录。精确但侵入性强，容易遗漏。
-- C. 本方案（A+B 混合）：中间件自动处理 POST/PUT/DELETE，通过 `g.Meta` 的 `tags` 字段获取模块名、`summary` 获取操作描述。对于需要记录的 GET 操作（如导出），在 `g.Meta` 中添加 `operLog` 标签。
+**Alternatives**:
+- A. Pure middleware approach: globally intercept all write operations without modifying business code. But cannot precisely distinguish operation types and module names.
+- B. Pure service-layer instrumentation: manually call log recording in each Service method. Precise but highly invasive, easy to miss.
+- C. This approach (A+B hybrid): middleware auto-handles POST/PUT/DELETE, obtains module name from `g.Meta`'s `tags` field and operation description from `summary`. For GET operations needing recording (such as exports), add `operLog` tag in `g.Meta`.
 
-**理由**：GoFrame 的 `g.Meta` 已包含 `tags`（模块名）和 `summary`（操作描述），中间件可通过 `r.GetServeHandler()` 获取这些元信息，无需额外编码即可获得操作语义。
+**Rationale**: GoFrame's `g.Meta` already contains `tags` (module name) and `summary` (operation description); middleware can obtain these meta-info via `r.GetServeHandler()` without additional encoding.
 
-#### 2. 操作类型（oper_type）推断规则
+#### 2. Operation Type (oper_type) Inference Rules
 
-根据 HTTP 方法和 `g.Meta` 中的 `operLog` 标签自动推断：
+Auto-infer based on HTTP method and `operLog` tag in `g.Meta`:
 
-| HTTP 方法 | 默认 oper_type | 说明 |
+| HTTP Method | Default oper_type | Description |
 |-----------|---------------|------|
-| POST | 1（新增） | 如果路径含 `import` 则为 5（导入） |
-| PUT | 2（修改） | — |
-| DELETE | 3（删除） | — |
-| GET + `operLog:"4"` | 4（导出） | 仅标记了 operLog 的 GET 请求 |
-| 其他 | 6（其他） | 自定义标签值 |
+| POST | 1 (Create) | If path contains `import`, then 5 (Import) |
+| PUT | 2 (Update) | -- |
+| DELETE | 3 (Delete) | -- |
+| GET + `operLog:"4"` | 4 (Export) | Only GET requests marked with operLog |
+| Other | 6 (Other) | Custom tag values |
 
-#### 3. 请求/响应参数记录策略
+#### 3. Request/Response Parameter Recording Strategy
 
-**截断长度**：请求参数和响应结果各截断至 **2000 字符**。超出部分直接截断并追加 `...(truncated)`。
+**Truncation Length**: Request parameters and response results each truncated to **2000 characters**. Excess is directly truncated with `...(truncated)` appended.
 
-**脱敏规则**：对请求参数 JSON 中的 `password`、`Password` 字段值替换为 `***`。
+**Masking Rules**: Replace `password` and `Password` field values in request parameter JSON with `***`.
 
-**理由**：2000 字符足以记录绝大多数业务操作的参数，同时避免批量导入等场景下日志表膨胀。仅对密码字段脱敏，其他字段保留原值以便审计。
+**Rationale**: 2000 characters are sufficient for recording most business operation parameters while preventing log table bloat in batch import scenarios. Only password fields are masked; other fields retain original values for auditing.
 
-#### 4. 日志不使用软删除
+#### 4. Logs Do Not Use Soft Delete
 
-操作日志和登录日志表**不设 `deleted_at` 字段**，清理操作直接执行 `DELETE FROM` 硬删除。
+Operation log and login log tables **do not have a `deleted_at` field**; cleanup operations directly execute `DELETE FROM` hard delete.
 
-**理由**：日志数据本身是审计记录，对日志进行软删除会导致日志表无限增长且无法真正释放存储空间。清理功能的目的就是释放空间，硬删除更符合预期。
+**Rationale**: Log data is audit records; soft-deleting logs causes unlimited log table growth without truly releasing storage. The purpose of cleanup is to free space, making hard delete more appropriate.
 
-#### 5. 中间件注册位置
+#### 5. Middleware Registration Position
 
-操作日志中间件注册在 Auth 中间件**之后**，确保已获取当前用户信息（用户名）。
-
-```
-CORS → ResponseHandler → Ctx → Auth → OperLog → Controller
-```
-
-#### 6. 登录日志记录位置
-
-直接在 Auth Service 的登录/登出方法中调用 LoginLog Service 写入记录，而非通过中间件。
-
-**理由**：登录接口在 Auth 中间件之前（公开接口），中间件无法拦截。且登录日志需要记录登录结果（成功/失败），只有在业务逻辑中才能准确获取。
-
-#### 7. 异步写入
-
-操作日志中间件在请求处理完成后，通过 **goroutine 异步写入**数据库，避免影响接口响应时间。
-
-### 二、系统可观测性
-
-#### 8. 会话存储使用 MySQL MEMORY 引擎
-
-**选择**: MySQL MEMORY 引擎表 `sys_online_session`
-
-**备选方案**:
-- A) gcache 内存缓存：性能最优，但进程重启丢失，且不支持跨实例共享
-- B) Redis：支持分布式，但引入额外组件依赖
-- C) MySQL MEMORY 引擎：通过 MySQL 存储在内存中，性能接近内存缓存，无需额外依赖
-
-**理由**: MEMORY 引擎降低组件依赖复杂度，利用已有 MySQL 基础设施。MySQL 重启后数据丢失可以接受（用户重新登录即可）。通过定义 `SessionStore` 抽象接口，未来可无缝切换到 gcache + Redis 方案。
-
-#### 9. 服务监控采用定时采集 + 数据库存储
-
-**选择**: gopsutil 定时采集 → 写入 `sys_server_monitor` 表 → API 从数据库读取
-
-**备选方案**:
-- A) 实时查询（API 请求时现场采集）：简单但不支持多节点，且响应慢
-- B) 定时采集写数据库：支持多节点、无状态部署，历史数据可查
-
-**理由**: 定时采集使 Lina 服务保持无状态。每个节点独立采集自身指标并写入数据库，新增节点只需部署服务即可自动上报。
-
-**采集参数**:
-- 采集频率：默认 30 秒
-- 数据保留：每个节点只保留最新一条记录（UPSERT 策略）
-- 节点标识：hostname + 本机 IP 自动获取
-
-#### 10. 会话活跃时间跟踪与自动清理
-
-`sys_online_session` 表新增 `last_active_time` 字段，登录时初始化，每次请求通过 UPDATE 操作更新并根据受影响行数判断会话是否存在。定时任务清理超时会话，超时阈值和清理频率通过配置文件调整。
-
-### 三、系统自我描述
-
-#### 11. OpenAPI 文档 UI 选型：Stoplight Elements（iframe 方案）
-
-**选择**: 使用静态 HTML 文件 + iframe 嵌入 Stoplight Elements
-
-**演进路径**: Scalar → Stoplight Elements（Web Component）→ Stoplight Elements（iframe）
-
-**理由**: Scalar 的 API Client 弹窗被遮挡，Stoplight Elements 通过 Web Component 集成后 CSS 污染全局样式，最终采用 iframe 嵌入实现样式完全隔离。文档 HTML 改为静态文件方式提供，移除后端 API 路由，减少系统复杂度。
-
-#### 12. 系统信息页面架构
-
-**选择**: 后端提供 `GET /api/v1/system/info` 接口 + 前端配置对象
-
-- **后端 API 返回**: Go 版本、GoFrame 版本、操作系统、数据库版本、系统启动时间、运行时长等运行时信息
-- **前端配置对象**: 项目名称、版本、描述、许可证、主页链接、后端组件列表、前端组件列表
-- 外链地址集中在前端配置文件中定义，修改时无需改动组件代码
-
-#### 13. 组件演示方案：iframe 嵌入外部网站
-
-**选择**: iframe 嵌入 `https://www.vben.pro/`
-
-**理由**: vben.pro 未设置 X-Frame-Options 限制，可正常嵌入。零体积增加，零维护成本。加载失败时展示友好错误页面。
-
-### 四、运行时配置管理
-
-#### 14. 参数设置数据表设计
-
-表名 `sys_config`，字段保持简洁：id、name、key（UNIQUE）、value、remark、created_at、updated_at、deleted_at。
-
-**决策**：`key` 和 `value` 虽为 MySQL 保留字，但在 GoFrame 的 ORM 中会自动用反引号包裹，不影响使用。
-
-#### 15. 参数设置 API 设计
-
-遵循 RESTful 规范：GET `/config`（列表）、GET `/config/{id}`（详情）、POST `/config`（新增）、PUT `/config/{id}`（修改）、DELETE `/config/{id}`（删除）、GET `/config/key/{key}`（按键名查询）、GET `/config/export`（导出）、POST `/config/import`（导入）。
-
-#### 16. 字典合并导出导入
-
-新增 `GET /dict/export` 合并导出接口，同时导出字典类型和字典数据到双 Sheet Excel 文件。新增 `POST /dict/import` 合并导入接口，支持同时导入字典类型和字典数据。前端字典类型面板使用合并接口，字典数据面板移除独立的导出导入按钮。
-
-### 五、通用设计决策
-
-#### 17. 浏览器和操作系统解析
-
-通过解析 HTTP 请求头 `User-Agent` 字段获取浏览器和操作系统信息。使用 `mssola/useragent` 库。
-
-#### 18. 前端菜单与路由结构
+Operation log middleware is registered **after** the Auth middleware, ensuring current user information (username) is already available.
 
 ```
-系统监控 (/monitor)
-├── 操作日志 (/monitor/operlog)
-├── 登录日志 (/monitor/loginlog)
-├── 在线用户 (/monitor/online)
-└── 服务监控 (/monitor/server)
-
-系统信息 (/about)
-├── 系统接口 (/about/api-docs)
-├── 版本信息 (/about/system-info)
-└── 组件演示 (/about/component-demo)
-
-系统管理 (/system)
-└── 参数设置 (/system/config)
+CORS -> ResponseHandler -> Ctx -> Auth -> OperLog -> Controller
 ```
+
+#### 6. Login Log Recording Position
+
+Directly call LoginLog Service in Auth Service's login/logout methods rather than through middleware.
+
+**Rationale**: Login endpoint is before the Auth middleware (public endpoint), so middleware cannot intercept it. Login logs need to record login results (success/failure), which can only be accurately obtained in business logic.
+
+#### 7. Async Write
+
+Operation log middleware writes to the database **asynchronously via goroutine** after request processing completes, avoiding impact on API response time.
+
+### II. System Observability
+
+#### 8. Session Storage Uses MySQL MEMORY Engine
+
+**Choice**: MySQL MEMORY engine table `sys_online_session`
+
+**Alternatives**:
+- A) gcache in-memory cache: best performance, but lost on process restart, no cross-instance sharing
+- B) Redis: supports distributed, but introduces additional component dependency
+- C) MySQL MEMORY engine: stored in memory via MySQL, performance close to in-memory cache, no additional dependency
+
+**Rationale**: MEMORY engine reduces component dependency complexity, leveraging existing MySQL infrastructure. Data loss after MySQL restart is acceptable (users re-login). By defining a `SessionStore` abstract interface, seamless switching to gcache + Redis solution in the future is possible.
+
+#### 9. Server Monitoring Uses Periodic Collection + Database Storage
+
+**Choice**: gopsutil periodic collection -> write to `sys_server_monitor` table -> API reads from database
+
+**Alternatives**:
+- A) Real-time query (collect at API request time): simple but no multi-node support, slow response
+- B) Periodic collection to database: supports multi-node, stateless deployment, historical data queryable
+
+**Rationale**: Periodic collection keeps Lina service stateless. Each node independently collects its own metrics and writes to database; new nodes just need deployment to automatically report.
+
+**Collection Parameters**:
+- Collection frequency: default 30 seconds
+- Data retention: each node keeps only the latest record (UPSERT strategy)
+- Node identification: hostname + local IP auto-obtained
+
+#### 10. Session Active Time Tracking and Auto-Cleanup
+
+`sys_online_session` table adds `last_active_time` field, initialized at login, updated via UPDATE operation on each request with affected row count to determine session existence. Scheduled task cleans up timed-out sessions; timeout threshold and cleanup frequency configurable through config file.
+
+### III. System Self-Description
+
+#### 11. OpenAPI Document UI Selection: Stoplight Elements (iframe approach)
+
+**Choice**: Static HTML file + iframe embedding of Stoplight Elements
+
+**Evolution Path**: Scalar -> Stoplight Elements (Web Component) -> Stoplight Elements (iframe)
+
+**Rationale**: Scalar's API Client popup was obscured; Stoplight Elements via Web Component integration polluted global styles with CSS; iframe embedding achieves complete style isolation. Document HTML changed to static file serving, removing backend API routes, reducing system complexity.
+
+#### 12. Dynamic Server URL Generation for API Documentation
+
+**Problem**: The `openapi.serverUrl` in `metadata.yaml` was fixed at `http://localhost:8080`. When the service is deployed behind container port mapping, reverse proxy, or direct host-mapped port access, the API documentation request addresses would not match the browser's actual accessible address.
+
+**Choice**: Dynamically generate `servers[0].url` from the current request origin in the `/api.json` handler.
+
+**Implementation**:
+1. Keep `apidoc.Build(ctx, server)` responsibility for building routes, plugin projections, document title, description, version, and service description.
+2. In the `/api.json` HTTP handler, after document build completes and before writing JSON, generate origin from current request and override `document.Servers`.
+3. Origin generation rules:
+   - Scheme uses GoFrame request's `GetSchema()`, supporting `X-Forwarded-Proto` and TLS.
+   - Host uses raw `r.Host`, preserving port, avoiding `GetHost()` stripping the port.
+   - When request host is empty, do not override `servers`, preserving build result as fallback.
+4. `metadata.yaml` retains `serverDescription` as `servers[0].description`, but no longer relies on `serverUrl` as runtime address source.
+5. Stoplight static page continues using relative path `/api.json?lang=...` to load documents; both frontend proxy and backend direct access naturally determine `/api.json`'s origin from the current request.
+
+#### 13. System Info Page Architecture
+
+**Choice**: Backend provides `GET /api/v1/system/info` endpoint + frontend config object
+
+- **Backend API returns**: Go version, GoFrame version, operating system, database version, system startup time, runtime duration, and other runtime information
+- **Frontend config object**: project name, version, description, license, homepage link, backend component list, frontend component list
+- External link addresses concentrated in frontend config file, no need to modify component code when changing
+
+#### 14. Component Demo Approach: iframe Embedding of External Website
+
+**Choice**: iframe embedding of `https://www.vben.pro/`
+
+**Rationale**: vben.pro has not set X-Frame-Options restrictions, can be normally embedded. Zero size increase, zero maintenance cost. Friendly error page shown on load failure.
+
+### IV. Runtime Configuration Management
+
+#### 15. Parameter Settings Table Design
+
+Table name `sys_config`, fields kept simple: id, name, key (UNIQUE), value, remark, created_at, updated_at, deleted_at.
+
+**Decision**: `key` and `value` are MySQL reserved words, but GoFrame's ORM automatically wraps them with backticks, not affecting usage.
+
+#### 16. Parameter Settings API Design
+
+Follows RESTful conventions: GET `/config` (list), GET `/config/{id}` (detail), POST `/config` (create), PUT `/config/{id}` (update), DELETE `/config/{id}` (delete), GET `/config/key/{key}` (query by key name), GET `/config/export` (export), POST `/config/import` (import).
+
+#### 17. Dictionary Merged Export/Import
+
+New `GET /dict/export` merged export endpoint, simultaneously exporting dictionary types and dictionary data to dual-sheet Excel file. New `POST /dict/import` merged import endpoint, supporting simultaneous import of dictionary types and dictionary data. Frontend dictionary type panel uses merged interface; dictionary data panel removes independent export/import buttons.
+
+### V. Host Data Permission Governance
+
+#### 18. New Host Unified Data Permission Service
+
+Data permission needs to inject query conditions based on resource tables, fields, and business relationships, and also check target record ownership before write operations. HTTP permission middleware only knows routes and `permission` tags, not business query models, target tables, and association relationships.
+
+Therefore, a new internal service is introduced, such as `internal/service/dataperm`, responsible for:
+- Obtaining user identity from current `context.Context` and `bizctx`
+- Resolving user roles' effective `dataScope`
+- Merging multi-role scopes: `all > department > self only > no permission`
+- Determining superadmin bypass
+- Generating reusable constraint results based on resource policies
+- Providing `ApplyListScope(ctx, model, resourceKey)`, `EnsureRecordVisible(ctx, resourceKey, id)` or equivalent narrow interfaces
+
+The alternative of each service reading roles and concatenating conditions itself is fast to implement but scattered, making it very difficult to audit whether detail, export, or delete paths are missed, so it is not adopted.
+
+#### 19. Explicit Resource Policy Registration
+
+Each governable resource must explicitly declare a policy, for example:
+
+| resourceKey | Resource | Self Policy | Department Policy | Notes |
+| --- | --- | --- | --- | --- |
+| `system.user` | `sys_user` | `sys_user.id = currentUserID` | Inject database-side semi-join via org capability; fallback to resolving department user set | User table has no `dept_id` column |
+| `system.file` | `sys_file` | `created_by = currentUserID` | Uploader belongs to current department user set | Table only has uploader, no department column |
+| `system.job` | `sys_job` | `created_by = currentUserID` and `is_builtin=0` | Creator belongs to current department user set and `is_builtin=0` | Built-in task projection not filtered by data permission |
+| `system.online-session` | `sys_online_session` | `user_id = currentUserID` | Session user belongs to current department user set | Forced offline also requires validation |
+| `system.user-message` | User messages | Always current user | Always current user | Self-isolation, not widened by role scope |
+
+Column-name auto-inference (e.g., auto-filtering when seeing `created_by`) is not adopted because different tables' `created_by` may be audit fields, projection fields, or system seed fields, with semantics not necessarily equivalent to business ownership.
+
+#### 20. First-Batch Module Classification by Applicability
+
+**A. First-batch host business modules integrating data permission:**
+
+| Module | Applicable Reason | Filtering Basis | Controlled Operations |
+| --- | --- | --- | --- |
+| User Management | Users naturally have organizational ownership and self-identity | `sys_user.id` + `orgcap` department user set | List, detail, export, update, delete, batch delete, status, password reset, role-authorized user list |
+| File Management | Files have uploader `created_by` | `sys_file.created_by` + uploader department set | List, detail, batch info, download-by-id, delete, suffix/scenario aggregation; uploaded file URL access is public |
+| Cron Job Management | User-created tasks have creator `created_by` | `sys_job.created_by` + creator department set | User task list, detail, edit, delete, enable/disable, trigger, log query, log termination |
+| Online User | Sessions have `user_id` | `sys_online_session.user_id` + user department set | Online list, forced offline |
+
+**B. Modules with stronger existing self-isolation semantics:**
+
+| Module | Existing Boundary | This Change Requirement |
+| --- | --- | --- |
+| User Message | Only queries and modifies current user's own messages | Maintain current user boundary; disallow `all data permission` widening |
+| Current User Profile | Only reads/writes current logged-in user | Maintain self-isolation; not included in role data scope |
+
+**C. System governance modules not suitable for data permission filtering:**
+
+| Module | Reason for Exclusion | Governance Method |
+| --- | --- | --- |
+| Menu Management | Global permission topology data, no department/self ownership | Function permission + built-in protection |
+| Role Management Base CRUD | Role is authorization governance data; filtering would break authorization management | Function permission + built-in role protection; `dataScope` only serves as subsequent business data scope input |
+| Dictionary Management | Dictionary is cross-module enumeration infrastructure | Function permission + built-in dictionary delete protection |
+| Configuration Management | Configuration is system runtime parameters | Function permission + built-in config delete protection + config cache consistency |
+| Plugin Governance | Plugin state and resource references are global runtime governance | Function permission + plugin lifecycle protection |
+| i18n / apidoc | Translation and document resources are global delivery resources | Function permission + i18n cache scope |
+| Health Check / System Info / Public Config | Not business data ownership model | Existing public or protected read rules |
+| Cache / Locks / Cluster Revision | Infrastructure state, not user business data | Component internal consistency and permission boundary |
+
+#### 21. Department Scope Resolution via orgcap with Safe Degradation
+
+The host core user table has no `dept_id`; department relationships are provided by optional organizational capability. Therefore department scope cannot directly concatenate `dept_id = ?` but must resolve through `orgcap`:
+- Current user's department set.
+- Prefer database-side `EXISTS`, `JOIN`, or equivalent semi-join to associate target resource's owning user ID with organizational relationship table.
+- For providers that cannot provide database-side constraints, returning visible user ID set as fallback is allowed; this fallback must not become the default implementation for large data volume paths.
+
+When `org-center` is not installed, not enabled, or `orgcap` provider is unavailable:
+- `all data permission` does not depend on organizational capability and continues to work normally.
+- `department data permission` cannot resolve department boundaries; degrades to `self only data permission` execution.
+- `self only data permission` does not depend on organizational capability and continues filtering by current user.
+
+This is safer than "degrading to all data when org is missing" and more aligned with minimal usable experience when org module is not enabled than returning empty results directly. Frontend role management synchronously hides or disables the "department data" option to reduce non-effective configurations.
+
+#### 22. Unified Read/Write Boundary
+
+Each integrated resource must cover:
+- List queries and tree/option queries.
+- Detail queries.
+- Export, download-by-id, batch info, and other data-reading paths.
+- Update, delete, status toggle, password reset, forced offline, trigger task, terminate task, and other write or execution operations.
+
+Write operations must first verify the target record is within the current caller's data scope. Batch operations must verify all targets before execution; partial success is not allowed.
+
+#### 23. Data Permission Change Reuses Access Topology Cache Invalidation
+
+Role `dataScope`, user-role relationships, and organizational ownership affect data permission results. The current access topology cache invalidation mechanism already triggers on role and user-role write paths. Effective role data permission should be merged into the login token access snapshot, sharing the `permission-access` revision number with roles, menus, and button permissions, avoiding repeated queries of `sys_user_role` and `sys_role` for each data permission check.
+
+This round of cache only stores "effective data scope type" (all / department / self only / no permission) and exception status, not department user sets. Department data scope continues to inject semi-join or equivalent constraints through organizational capability at the database side, preventing large department user sets from lingering in process memory. Dynamic plugin routes and host data services should also use the same identity snapshot to pass effective data scope, avoiding plugin data access paths re-scanning role tables.
+
+### VI. General Design Decisions
+
+#### 24. Browser and Operating System Parsing
+
+Obtain browser and operating system information by parsing the HTTP request header `User-Agent` field. Uses `mssola/useragent` library.
+
+#### 25. Frontend Menu and Route Structure
+
+```
+System Monitor (/monitor)
+  Operation Log (/monitor/operlog)
+  Login Log (/monitor/loginlog)
+  Online Users (/monitor/online)
+  Server Monitor (/monitor/server)
+
+System Info (/about)
+  System API Docs (/about/api-docs)
+  Version Info (/about/system-info)
+  Component Demo (/about/component-demo)
+
+System Management (/system)
+  Parameter Settings (/system/config)
+```
+
+#### 26. i18n Impact Assessment
+
+Role form does not add new text, so frontend runtime language packs typically do not need changes. If new user-visible business errors are added (e.g., "target data is outside current data permission scope"), the following is required:
+- Define `bizerr.Code` in module `*_code.go`.
+- Add runtime error translations for `zh-CN`, `en-US`, `zh-TW`.
+- If modifying API DTO documentation, supplement non-English apidoc resources and translation completeness checks.
 
 ## Risks / Trade-offs
 
-- **[日志丢失]** 异步写入可能在进程崩溃时丢失少量日志 → 对于后台管理系统可接受
-- **[存储增长]** 操作日志记录请求/响应参数，长期运行会占用大量存储 → 提供按时间范围清理功能
-- **[MEMORY 引擎限制]** MEMORY 引擎不支持 BLOB/TEXT 类型，所有字段需使用定长类型 → VARCHAR 即可满足需求
-- **[MySQL 重启丢失会话]** MySQL 重启后所有在线会话丢失，用户需重新登录 → 对管理后台场景影响可控
-- **[采集间隔与实时性]** 30 秒采集间隔意味着前端看到的数据最多有 30 秒延迟 → 对监控场景可接受
-- **[iframe 嵌入局限]** 组件演示依赖外部网站可用性 → 展示加载失败提示，不影响其他功能
-- **[保留字字段名]** `key`、`value` 为 MySQL 保留字 → GoFrame ORM 自动处理反引号包裹
-- **[无缓存机制]** 每次按键名查询都查数据库 → 参数数据量小、查询频率低，当前阶段不需要缓存
+- **[Log Loss]** Async write may lose a small number of logs on process crash -> acceptable for admin console scenarios
+- **[Storage Growth]** Operation logs record request/response parameters, which will consume significant storage over long-term operation -> provide time-range-based cleanup functionality
+- **[MEMORY Engine Limitations]** MEMORY engine does not support BLOB/TEXT types, all fields must use fixed-length types -> VARCHAR is sufficient
+- **[MySQL Restart Loses Sessions]** All online sessions lost after MySQL restart, users must re-login -> impact is manageable for admin console scenarios
+- **[Collection Interval vs Real-time]** 30-second collection interval means frontend data has up to 30-second delay -> acceptable for monitoring scenarios
+- **[iframe Embedding Limitations]** Component demo depends on external website availability -> display load failure prompt, does not affect other features
+- **[Reserved Word Field Names]** `key`, `value` are MySQL reserved words -> GoFrame ORM automatically handles backtick wrapping
+- **[No Caching Mechanism]** Every key-name query hits database -> parameter data volume is small, query frequency is low, caching not needed at current stage
+- **[Data Permission Misses Detail/Export/Write Operations]** Lists invisible but operations allowed -> Mitigation: resource integration tasks enumerate by operation type; tests cover list, detail, export/download, and write paths
+- **[Large User Sets for Department Scope]** Department scope requires organizational relationship association; large user volumes may produce long `WHERE IN` user sets -> Mitigation: user management switched to database-side semi-join from first phase; organizational relationship table supplemented with covering indexes
+- **[Incorrectly Including System Governance Data]** System governance data mistakenly included in data permission causing admins unable to maintain system -> Mitigation: design explicitly lists excluded modules; specification requires unregistered resource policies not to auto-apply data permission
+- **[Org Capability Disabled]** Department data permission cannot express department boundaries when organizational capability is disabled -> Mitigation: backend safely degrades to self-only scope; role add/edit form hides or disables department option
+- **[Multi-role User Data Scope Merge]** Multi-role user data scope merge does not meet expectations -> Mitigation: adopt widest-range merge and write into specification; test covers `all + self`, `department + self` combinations
+- **[Cache Invalidation Misses Org Ownership Changes]** Organizational capability provider must trigger data permission cache invalidation on relationship changes; first phase avoids long-term caching of department user sets when no independent cache exists
+
+## Migration Plan
+
+1. Create host data permission service and resource policy registration, without changing existing business behavior.
+2. Integrate first-batch modules' read paths, first covering list, detail, export, download-by-id.
+3. Integrate first-batch modules' write paths and execution operations.
+4. Supplement backend unit/integration tests and necessary E2E tests.
+5. Run `make init`, backend tests, and affected E2E tests.
+6. If a module's business ownership semantics are unclear, keep it unintegrated and append "subsequent evaluation" records in design.
+
+Rollback strategy: Data permission service integrates as internal calls, no destructive database structure changes; removing integration calls restores original behavior. If new SQL indexes or fields are added, initialization must be able to rebuild them.

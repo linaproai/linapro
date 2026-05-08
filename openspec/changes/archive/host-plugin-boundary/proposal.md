@@ -4,7 +4,9 @@ LinaPro's host service has accumulated multiple backend capabilities -- permissi
 
 Beyond boundary slimming, the project also needs environment-level governance. Demo environments require a data-protection layer that preserves full browse/query behavior while preventing accidental or malicious writes. This cannot be solved by administrator discipline alone; it needs a systematic, plugin-driven guard.
 
-This change addresses both concerns: converging the host into its framework core and management base while delivering non-core modules as source plugins, and adding a demo-control source plugin that enforces read-only protection through the same plugin lifecycle and global middleware seams.
+The plugin bridge infrastructure also needed structural clarity. `pkg/pluginbridge` accumulated bridge ABI, codec, WASM artifact parsing, host call, host service protocol, and guest SDK code in a single root package, making it difficult for users to distinguish stable contracts from host-internal protocols from plugin-facing helpers. Refactoring into responsibility-scoped subcomponents improves readability and maintainability.
+
+This change addresses all three concerns: converging the host into its framework core and management base while delivering non-core modules as source plugins, adding a demo-control source plugin that enforces read-only protection through the same plugin lifecycle and global middleware seams, and restructuring the pluginbridge package into responsibility-scoped subcomponents with a thin root-package facade.
 
 ## What Changes
 
@@ -22,6 +24,7 @@ This change addresses both concerns: converging the host into its framework core
 - Introduce stable capability seams (capability interfaces, event hooks, HTTP route/middleware registrars, Cron registers) instead of scattering `if pluginEnabled` branches throughout host code.
 - Define plugin-local ORM generation, plugin-scoped table naming (`plugin_<plugin_id_snake_case>`), and plugin-owned storage lifecycle boundaries.
 - Add a `demo-control` source plugin that blocks write operations across `/*` based on HTTP Method semantics when enabled via `plugin.autoEnable`, preserving a minimal session and plugin-governance whitelist.
+- Refactor `pkg/pluginbridge` from a flat package into responsibility-scoped subcomponent packages (`contract`, `codec`, `artifact`, `hostcall`, `hostservice`, `guest`) with a thin root-package facade that maintains backward compatibility through type aliases, const aliases, and wrapper functions.
 
 ## Capabilities
 
@@ -32,6 +35,7 @@ This change addresses both concerns: converging the host into its framework core
 - `menu-management`: Introduces a stable first-level directory structure, plugin menu semantic mounting, and empty directory hiding rules for the default backend.
 - `plugin-manifest-lifecycle`: Supplements fixed mount points, domain-capability plugin IDs, and host directory parent key constraints for official source plugins.
 - `demo-control-guard`: Defines a demo-control source plugin governed by `plugin.autoEnable`, together with global write-interception rules based on HTTP Method semantics.
+- `pluginbridge-subcomponent-architecture`: Defines the `pkg/pluginbridge` subcomponent package structure, dependency boundaries, backward-compatible facade, and verification requirements after structural refactoring.
 
 ### Modified Capabilities
 
@@ -47,6 +51,7 @@ This change addresses both concerns: converging the host into its framework core
 - `config-management`: Log TraceID output is controlled only by static configuration, not runtime parameters.
 - `plugin-hook-slot-extension`: Dynamic plugins reuse public bridge components for ABI, codec, and typed guest controller adaptation.
 - `plugin-http-slot-extension`: The host publishes backend extension points through callback registration (HTTP routes, Cron, menu/permission filters).
+- `plugin-runtime-loading`: WASM custom section parsing is still provided centrally by the pluginbridge ecosystem, but the implementation is no longer required to reside in the root package file `pluginbridge_wasm_section.go`; it may be housed in a responsibility-scoped subcomponent such as `pluginbridge/artifact`.
 
 ## Impact
 
@@ -59,6 +64,7 @@ This change addresses both concerns: converging the host into its framework core
 - Tighten plugin storage boundaries: the host no longer holds `dao/do/entity`, mock data, or direct table lookup logic for plugin business tables.
 - Add `demo-control` source plugin with global HTTP middleware integration for write protection.
 - Publish unified event contracts for login lifecycle and audit events, removing direct host dependencies on specific log implementations.
+- Refactor `pkg/pluginbridge` into subcomponent packages (`contract`, `codec`, `artifact`, `hostcall`, `hostservice`, `guest`) with a thin root-package facade preserving backward compatibility.
 
 ### Frontend Impact
 
@@ -72,3 +78,4 @@ This change addresses both concerns: converging the host into its framework core
 - Add plugin-owned table naming constraints and default database loading boundary constraints.
 - Add E2E coverage for plugin start/stop, empty directory hiding, host downgrade, menu refresh, and demo-control write interception.
 - Subsequent module implementation must evaluate whether a capability belongs to the host or a source plugin.
+- The pluginbridge subcomponent structure provides clearer import paths for plugin developers and host maintainers; the root-package facade ensures existing plugin code continues to compile without immediate migration.
