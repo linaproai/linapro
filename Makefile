@@ -22,14 +22,12 @@ include hack/makefiles/image.mk
 include hack/makefiles/test.mk
 include hack/makefiles/i18n.mk
 
-# Initialize the backend database with schema and required seed data.
+# Initialize the backend database with schema and required seed data,
+# then install frontend dependencies so the workspace is ready to use.
 # The backend dispatches by database.default.link, for example MySQL or SQLite.
-# After database init, install frontend dependencies so that a fresh checkout
-# is ready to run `make dev` without a separate manual `pnpm install` step.
-# 初始化后端数据库表结构和系统必需的种子数据。
+# 初始化后端数据库表结构和系统必需的种子数据，
+# 并安装前端依赖，使工作区进入可用状态。
 # 后端会按 database.default.link 自动分发到 MySQL 或 SQLite 等方言。
-# 数据库初始化完成后，自动安装前端依赖，
-# 让首次拉取的项目无需手动执行 `pnpm install` 即可直接运行 `make dev`。
 ## init: Initialize the database and install frontend deps
 .PHONY: init
 init:
