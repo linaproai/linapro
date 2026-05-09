@@ -39,6 +39,8 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
     const api = await createAdminApiContext();
     const username = `sqlite_e2e_${Date.now()}`;
     let createdUserId = 0;
+    let originalSourceInstalled = 0;
+    let originalSourceEnabled = 0;
     let originalMonitorInstalled = 0;
     let originalMonitorEnabled = 0;
 
@@ -98,6 +100,8 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
       await syncPlugins(api);
       let plugin = await findPlugin(api, sqliteSourcePluginId);
       expect(plugin, `expected ${sqliteSourcePluginId} to be discoverable`).toBeTruthy();
+      originalSourceInstalled = plugin?.installed ?? 0;
+      originalSourceEnabled = plugin?.enabled ?? 0;
       if (plugin?.installed === 1 && plugin.enabled === 1) {
         await updatePluginStatus(api, sqliteSourcePluginId, false);
       }
@@ -147,9 +151,16 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
           () => undefined,
         );
       }
-      await uninstallPlugin(api, sqliteSourcePluginId, true).catch(
-        () => undefined,
-      );
+      if (originalSourceEnabled !== 1) {
+        await updatePluginStatus(api, sqliteSourcePluginId, false).catch(
+          () => undefined,
+        );
+      }
+      if (originalSourceInstalled !== 1) {
+        await uninstallPlugin(api, sqliteSourcePluginId, true).catch(
+          () => undefined,
+        );
+      }
       await api.dispose();
     }
   });
