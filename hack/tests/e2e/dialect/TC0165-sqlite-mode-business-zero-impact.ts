@@ -30,6 +30,8 @@ type ServerMonitorResult = {
   };
 };
 
+const sqliteMonitorPluginId = "monitor-server";
+
 test.describe("TC-165 SQLite mode business zero impact", () => {
   requireSQLiteE2E();
 
@@ -37,6 +39,8 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
     const api = await createAdminApiContext();
     const username = `sqlite_e2e_${Date.now()}`;
     let createdUserId = 0;
+    let originalMonitorInstalled = 0;
+    let originalMonitorEnabled = 0;
 
     try {
       const created = await expectApiSuccess<UserCreateResult>(
@@ -105,6 +109,21 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
       expect(plugin?.installed).toBe(1);
       expect(plugin?.enabled).toBe(1);
 
+      let monitorPlugin = await findPlugin(api, sqliteMonitorPluginId);
+      expect(
+        monitorPlugin,
+        `expected ${sqliteMonitorPluginId} to be discoverable`,
+      ).toBeTruthy();
+      originalMonitorInstalled = monitorPlugin?.installed ?? 0;
+      originalMonitorEnabled = monitorPlugin?.enabled ?? 0;
+      if (monitorPlugin?.installed !== 1) {
+        await installPlugin(api, sqliteMonitorPluginId);
+        monitorPlugin = await findPlugin(api, sqliteMonitorPluginId);
+      }
+      if (monitorPlugin?.enabled !== 1) {
+        await updatePluginStatus(api, sqliteMonitorPluginId, true);
+      }
+
       const monitor = await expectApiSuccess<ServerMonitorResult>(
         await api.get("monitor/server"),
         "query server monitor in SQLite mode",
@@ -117,6 +136,16 @@ test.describe("TC-165 SQLite mode business zero impact", () => {
     } finally {
       if (createdUserId > 0) {
         await api.delete(`user/${createdUserId}`).catch(() => undefined);
+      }
+      if (originalMonitorEnabled !== 1) {
+        await updatePluginStatus(api, sqliteMonitorPluginId, false).catch(
+          () => undefined,
+        );
+      }
+      if (originalMonitorInstalled !== 1) {
+        await uninstallPlugin(api, sqliteMonitorPluginId, true).catch(
+          () => undefined,
+        );
       }
       await uninstallPlugin(api, sqliteSourcePluginId, true).catch(
         () => undefined,

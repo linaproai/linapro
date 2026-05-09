@@ -3,7 +3,7 @@ import type { TabDefinition } from '@vben-core/typings';
 
 import type { TabConfig, TabsProps } from '../../types';
 
-import { computed } from 'vue';
+import { computed, unref } from 'vue';
 
 import { Pin, X } from '@vben-core/icons';
 import { VbenContextMenu, VbenIcon } from '@vben-core/shadcn-ui';
@@ -58,7 +58,7 @@ const tabsView = computed(() => {
       meta,
       name,
       path,
-      title: (newTabTitle || title || name) as string,
+      title: String(unref(newTabTitle) || title || name || ''),
     } as TabConfig;
   });
 });

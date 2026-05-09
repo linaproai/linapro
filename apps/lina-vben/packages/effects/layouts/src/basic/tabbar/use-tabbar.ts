@@ -4,7 +4,7 @@ import type { TabDefinition } from '@vben/types';
 
 import type { IContextMenuItem } from '@vben-core/tabs-ui';
 
-import { computed, ref, watch } from 'vue';
+import { computed, ref, unref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { useContentMaximize, useTabs } from '@vben/hooks';
@@ -21,7 +21,7 @@ import {
   RotateCw,
   X,
 } from '@vben/icons';
-import { $t, useI18n } from '@vben/locales';
+import { $t, $te, useI18n } from '@vben/locales';
 import { getTabKey, useAccessStore, useTabbarStore } from '@vben/stores';
 import { filterTree } from '@vben/utils';
 
@@ -86,13 +86,43 @@ export function useTabbar() {
   };
 
   function wrapperTabLocale(tab: RouteLocationNormalizedGeneric) {
+    const title = resolveTabTitle(tab);
+    const newTabTitle = tab?.meta?.newTabTitle
+      ? computed(() => translateIfExists(tab?.meta?.newTabTitle))
+      : undefined;
     return {
       ...tab,
       meta: {
         ...tab?.meta,
-        title: $t(tab?.meta?.title as string),
+        ...(newTabTitle ? { newTabTitle } : {}),
+        title,
       },
     };
+  }
+
+  function translateIfExists(title: unknown) {
+    const rawTitle = String(unref(title) ?? '');
+    const titleKey = rawTitle.trim();
+    if (!titleKey) {
+      return '';
+    }
+    return $te(titleKey) ? $t(titleKey) : rawTitle;
+  }
+
+  function resolveTabTitle(tab: RouteLocationNormalizedGeneric) {
+    const meta = tab?.meta;
+
+    const i18nKey = String(meta?.i18nKey || '').trim();
+    if (i18nKey && $te(i18nKey)) {
+      return $t(i18nKey);
+    }
+
+    const title = translateIfExists(meta?.title);
+    if (title) {
+      return title;
+    }
+
+    return String(tab?.name || '');
   }
 
   watch(
