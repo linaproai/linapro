@@ -76,13 +76,13 @@ func (s *serviceImpl) ListGroups(ctx context.Context, in ListGroupsInput) (*List
 
 // groupJobCountRow stores one aggregated job count grouped by job-group ID.
 type groupJobCountRow struct {
-	GroupID uint64 `orm:"group_id"`  // GroupID is the owning scheduled-job group ID.
-	Count   int64  `orm:"job_count"` // Count is the number of jobs in the group.
+	GroupID int64 `orm:"group_id"`  // GroupID is the owning scheduled-job group ID.
+	Count   int64 `orm:"job_count"` // Count is the number of jobs in the group.
 }
 
 // jobCountMapByGroupIDs loads job counts for all listed groups in one grouped query.
-func jobCountMapByGroupIDs(ctx context.Context, groups []*entity.SysJobGroup) (map[uint64]int64, error) {
-	groupIDs := make([]uint64, 0, len(groups))
+func jobCountMapByGroupIDs(ctx context.Context, groups []*entity.SysJobGroup) (map[int64]int64, error) {
+	groupIDs := make([]int64, 0, len(groups))
 	for _, group := range groups {
 		if group == nil || group.Id == 0 {
 			continue
@@ -90,7 +90,7 @@ func jobCountMapByGroupIDs(ctx context.Context, groups []*entity.SysJobGroup) (m
 		groupIDs = append(groupIDs, group.Id)
 	}
 	if len(groupIDs) == 0 {
-		return map[uint64]int64{}, nil
+		return map[int64]int64{}, nil
 	}
 
 	var rows []*groupJobCountRow
@@ -104,7 +104,7 @@ func jobCountMapByGroupIDs(ctx context.Context, groups []*entity.SysJobGroup) (m
 		return nil, err
 	}
 
-	counts := make(map[uint64]int64, len(groupIDs))
+	counts := make(map[int64]int64, len(groupIDs))
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -115,7 +115,7 @@ func jobCountMapByGroupIDs(ctx context.Context, groups []*entity.SysJobGroup) (m
 }
 
 // CreateGroup persists one new scheduled-job group.
-func (s *serviceImpl) CreateGroup(ctx context.Context, in SaveGroupInput) (uint64, error) {
+func (s *serviceImpl) CreateGroup(ctx context.Context, in SaveGroupInput) (int64, error) {
 	code := strings.TrimSpace(in.Code)
 	name := strings.TrimSpace(in.Name)
 	if code == "" {
@@ -145,7 +145,7 @@ func (s *serviceImpl) CreateGroup(ctx context.Context, in SaveGroupInput) (uint6
 	if err != nil {
 		return 0, err
 	}
-	return gconv.Uint64(insertID), nil
+	return gconv.Int64(insertID), nil
 }
 
 // UpdateGroup updates one existing scheduled-job group.
@@ -192,7 +192,7 @@ func (s *serviceImpl) UpdateGroup(ctx context.Context, in UpdateGroupInput) erro
 
 // DeleteGroups removes one or more groups and migrates their jobs to the default group.
 func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
-	groupIDs := parseUint64IDs(ids)
+	groupIDs := parseInt64IDs(ids)
 	if len(groupIDs) == 0 {
 		return bizerr.NewCode(CodeJobGroupDeleteRequired)
 	}
@@ -202,7 +202,7 @@ func (s *serviceImpl) DeleteGroups(ctx context.Context, ids string) error {
 		return err
 	}
 
-	validIDs := make([]uint64, 0, len(groupIDs))
+	validIDs := make([]int64, 0, len(groupIDs))
 	for _, groupID := range groupIDs {
 		group, groupErr := s.groupByID(ctx, groupID)
 		if groupErr != nil {

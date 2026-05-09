@@ -30,21 +30,21 @@ type Scheduler interface {
 	// LoadAndRegister registers all currently enabled persistent jobs at startup.
 	LoadAndRegister(ctx context.Context) error
 	// Refresh removes and re-registers one job according to its latest persisted state.
-	Refresh(ctx context.Context, jobID uint64) error
+	Refresh(ctx context.Context, jobID int64) error
 	// RegisterJobSnapshot removes and registers one provided job snapshot without
 	// reloading it from sys_job.
 	RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error
 	// Remove unregisters one persistent job from gcron.
-	Remove(jobID uint64)
+	Remove(jobID int64)
 	// Trigger starts one manual execution and returns the created log ID.
-	Trigger(ctx context.Context, jobID uint64) (uint64, error)
+	Trigger(ctx context.Context, jobID int64) (int64, error)
 	// CancelLog cancels one currently running job-log instance.
-	CancelLog(ctx context.Context, logID uint64) error
+	CancelLog(ctx context.Context, logID int64) error
 }
 
 // runningExecution stores one cancellable execution instance.
 type runningExecution struct {
-	jobID   uint64             // jobID identifies the owning job definition.
+	jobID   int64              // jobID identifies the owning job definition.
 	cancel  context.CancelFunc // cancel stops the execution context.
 	release func()             // release decrements concurrency bookkeeping.
 }
@@ -55,9 +55,9 @@ type serviceImpl struct {
 	registry      jobhandler.Registry // registry resolves handler callbacks.
 	shellExecutor shellexec.Executor  // shellExecutor runs shell-type jobs.
 
-	mu               sync.Mutex                   // mu protects running instance bookkeeping.
-	runningCounts    map[uint64]int               // runningCounts tracks concurrent in-flight runs per job.
-	runningInstances map[uint64]*runningExecution // runningInstances tracks cancellable log instances.
+	mu               sync.Mutex                  // mu protects running instance bookkeeping.
+	runningCounts    map[int64]int               // runningCounts tracks concurrent in-flight runs per job.
+	runningInstances map[int64]*runningExecution // runningInstances tracks cancellable log instances.
 }
 
 // Ensure serviceImpl implements Scheduler.
@@ -73,8 +73,8 @@ func New(
 		clusterSvc:       clusterSvc,
 		registry:         registry,
 		shellExecutor:    shellExecutor,
-		runningCounts:    make(map[uint64]int),
-		runningInstances: make(map[uint64]*runningExecution),
+		runningCounts:    make(map[int64]int),
+		runningInstances: make(map[int64]*runningExecution),
 	}
 }
 
@@ -99,7 +99,7 @@ func (s *serviceImpl) LoadAndRegister(ctx context.Context) error {
 }
 
 // Refresh removes and re-registers one job according to its latest persisted state.
-func (s *serviceImpl) Refresh(ctx context.Context, jobID uint64) error {
+func (s *serviceImpl) Refresh(ctx context.Context, jobID int64) error {
 	s.Remove(jobID)
 
 	job, err := s.getJob(ctx, jobID)
@@ -130,12 +130,12 @@ func (s *serviceImpl) RegisterJobSnapshot(ctx context.Context, job *entity.SysJo
 }
 
 // Remove unregisters one persistent job from gcron.
-func (s *serviceImpl) Remove(jobID uint64) {
+func (s *serviceImpl) Remove(jobID int64) {
 	gcron.Remove(jobEntryName(jobID))
 }
 
 // Trigger starts one manual execution and returns the created log ID.
-func (s *serviceImpl) Trigger(ctx context.Context, jobID uint64) (uint64, error) {
+func (s *serviceImpl) Trigger(ctx context.Context, jobID int64) (int64, error) {
 	job, err := s.getJob(ctx, jobID)
 	if err != nil {
 		return 0, err
@@ -161,7 +161,7 @@ func (s *serviceImpl) Trigger(ctx context.Context, jobID uint64) (uint64, error)
 }
 
 // jobEntryName builds the stable gcron entry name for one persistent job.
-func jobEntryName(jobID uint64) string {
+func jobEntryName(jobID int64) string {
 	return fmt.Sprintf("scheduled-job:%d", jobID)
 }
 
@@ -251,7 +251,7 @@ func (s *serviceImpl) listEnabledJobs(ctx context.Context) ([]*entity.SysJob, er
 }
 
 // getJob queries one job by ID.
-func (s *serviceImpl) getJob(ctx context.Context, jobID uint64) (*entity.SysJob, error) {
+func (s *serviceImpl) getJob(ctx context.Context, jobID int64) (*entity.SysJob, error) {
 	var job *entity.SysJob
 	err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{Id: jobID}).
@@ -264,7 +264,7 @@ func (s *serviceImpl) createExecution(
 	ctx context.Context,
 	job *entity.SysJob,
 	trigger jobmeta.TriggerType,
-) (uint64, executionState, error) {
+) (int64, executionState, error) {
 	if job == nil {
 		return 0, executionState{}, bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
@@ -337,7 +337,7 @@ func (s *serviceImpl) createRunningLog(
 	job *entity.SysJob,
 	trigger jobmeta.TriggerType,
 	startedAt time.Time,
-) (uint64, error) {
+) (int64, error) {
 	snapshot, err := json.Marshal(job)
 	if err != nil {
 		return 0, bizerr.WrapCode(err, jobmeta.CodeJobSnapshotMarshalFailed)
@@ -359,7 +359,7 @@ func (s *serviceImpl) createRunningLog(
 	if err != nil {
 		return 0, err
 	}
-	return gconv.Uint64(insertID), nil
+	return gconv.Int64(insertID), nil
 }
 
 // createTerminalLog inserts one already-finished log row for skipped executions.
@@ -398,7 +398,7 @@ func (s *serviceImpl) createTerminalLog(
 // finishLog updates one running log row with its terminal result snapshot.
 func (s *serviceImpl) finishLog(
 	ctx context.Context,
-	logID uint64,
+	logID int64,
 	startedAt time.Time,
 	status jobmeta.LogStatus,
 	errMsg string,

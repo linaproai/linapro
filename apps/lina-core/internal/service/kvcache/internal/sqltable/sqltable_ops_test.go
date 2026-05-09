@@ -10,34 +10,34 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/model/do"
 	"lina-core/pkg/dialect"
 )
 
 // currentSQLTableKVCacheDDL keeps package tests aligned with the delivered
-// MySQL sys_kv_cache SQL table definition.
+// persistent sys_kv_cache SQL table definition.
 const currentSQLTableKVCacheDDL = `
 CREATE TABLE IF NOT EXISTS sys_kv_cache (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'Primary key ID',
-    owner_type VARCHAR(16) NOT NULL DEFAULT '' COMMENT 'Owner type: plugin=dynamic plugin, module=host module',
-    owner_key VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'Owner key: plugin ID or module name',
-    namespace VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'Cache namespace mapped to the host-cache resource identifier',
-    cache_key VARCHAR(128) NOT NULL DEFAULT '' COMMENT 'Cache key',
-    value_kind TINYINT NOT NULL DEFAULT 1 COMMENT 'Value type: 1=string, 2=integer',
-    value_bytes VARBINARY(4096) NOT NULL COMMENT 'Cache byte value used by get/set',
-    value_int BIGINT NOT NULL DEFAULT 0 COMMENT 'Cache integer value used by incr',
-    expire_at DATETIME NULL DEFAULT NULL COMMENT 'Expiration time, NULL means never expires',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation time',
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
-    UNIQUE KEY uk_owner_namespace_key (owner_type, owner_key, namespace, cache_key),
-    KEY idx_expire_at (expire_at)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Host distributed KV cache table';
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_type  VARCHAR(16) NOT NULL DEFAULT '',
+    owner_key   VARCHAR(64) NOT NULL DEFAULT '',
+    namespace   VARCHAR(64) NOT NULL DEFAULT '',
+    cache_key   VARCHAR(128) NOT NULL DEFAULT '',
+    value_kind  SMALLINT NOT NULL DEFAULT 1,
+    value_bytes BYTEA NOT NULL,
+    value_int   BIGINT NOT NULL DEFAULT 0,
+    expire_at   TIMESTAMP NULL DEFAULT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_owner_namespace_key ON sys_kv_cache (owner_type, owner_key, namespace, cache_key);
+CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at);
 `
 
 // TestIncrConcurrentCallsAreAtomic verifies concurrent increments on one cache
@@ -174,7 +174,7 @@ func TestIncrZeroDeltaIsStable(t *testing.T) {
 		name       string
 		newService func(*testing.T, context.Context) *SQLTableBackend
 	}{
-		{name: "mysql", newService: newTestSQLTableBackend},
+		{name: "postgres", newService: newTestSQLTableBackend},
 		{name: "sqlite", newService: newSQLiteTestSQLTableBackend},
 	}
 
@@ -239,7 +239,7 @@ func TestIncrRejectsExistingStringWithoutMutation(t *testing.T) {
 // returns a miss without deleting touched or unrelated expired rows.
 func TestGetExpiredKeyIsReadOnlyMiss(t *testing.T) {
 	ctx := context.Background()
-	service := newTestSQLTableBackend(t, ctx)
+	service := newSQLitePersistentTestSQLTableBackend(t, ctx)
 	targetKey := BuildCacheKey("unit-plugin", "ttl", "target")
 	otherKey := BuildCacheKey("unit-plugin", "ttl", "other")
 	cleanupKVCacheKey(t, ctx, service, OwnerTypePlugin, targetKey)
@@ -270,6 +270,79 @@ func TestGetExpiredKeyIsReadOnlyMiss(t *testing.T) {
 	}
 	if otherCount != 1 {
 		t.Fatalf("expected unrelated expired row to remain for background cleanup, got %d", otherCount)
+	}
+}
+
+// TestSetReplacesExpiredRowAsFreshValue verifies write paths inspect
+// expiration before reusing a persistent row left behind by an earlier process.
+func TestSetReplacesExpiredRowAsFreshValue(t *testing.T) {
+	ctx := context.Background()
+	service := newSQLitePersistentTestSQLTableBackend(t, ctx)
+	cacheKey := BuildCacheKey("unit-plugin", "ttl", "set-expired")
+	cleanupKVCacheKey(t, ctx, service, OwnerTypePlugin, cacheKey)
+
+	identity, err := parseCacheKey(cacheKey)
+	if err != nil {
+		t.Fatalf("parse cache key failed: %v", err)
+	}
+	insertExpiredKVRow(t, ctx, service, OwnerTypePlugin, identity, gtime.Now().Add(-time.Minute))
+
+	item, err := service.Set(ctx, OwnerTypePlugin, cacheKey, "fresh", 0)
+	if err != nil {
+		t.Fatalf("set fresh value over expired row failed: %v", err)
+	}
+	if item.Value != "fresh" || item.ExpireAt != nil {
+		t.Fatalf("expected fresh persistent value, got %#v", item)
+	}
+	if count := countKVCacheKey(t, ctx, service, OwnerTypePlugin, identity); count != 1 {
+		t.Fatalf("expected exactly one fresh cache row, got %d", count)
+	}
+}
+
+// TestUnexpiredRowSurvivesBackendRecreation verifies valid SQL-table cache
+// entries are not cleared when a new backend instance is created after restart.
+func TestUnexpiredRowSurvivesBackendRecreation(t *testing.T) {
+	ctx := context.Background()
+	firstService := newTestSQLTableBackend(t, ctx)
+	cacheKey := BuildCacheKey("unit-plugin", "restart", "survives")
+	cleanupKVCacheKey(t, ctx, firstService, OwnerTypePlugin, cacheKey)
+
+	if _, err := firstService.Set(ctx, OwnerTypePlugin, cacheKey, "warm", time.Hour); err != nil {
+		t.Fatalf("seed cache value before backend recreation failed: %v", err)
+	}
+
+	secondService := NewSQLTableBackend()
+	item, ok, err := secondService.Get(ctx, OwnerTypePlugin, cacheKey)
+	if err != nil {
+		t.Fatalf("read cache value after backend recreation failed: %v", err)
+	}
+	if !ok || item == nil || item.Value != "warm" {
+		t.Fatalf("expected cache value to survive backend recreation, got item=%#v ok=%t", item, ok)
+	}
+
+	cleanupKVCacheKey(t, ctx, firstService, OwnerTypePlugin, cacheKey)
+}
+
+// TestIncrExpiredIntegerStartsFromDelta verifies increment paths do not add to
+// stale integer values after the persistent row has expired.
+func TestIncrExpiredIntegerStartsFromDelta(t *testing.T) {
+	ctx := context.Background()
+	service := newSQLitePersistentTestSQLTableBackend(t, ctx)
+	cacheKey := BuildCacheKey("unit-plugin", "ttl", "incr-expired")
+	cleanupKVCacheKey(t, ctx, service, OwnerTypePlugin, cacheKey)
+
+	identity, err := parseCacheKey(cacheKey)
+	if err != nil {
+		t.Fatalf("parse cache key failed: %v", err)
+	}
+	insertExpiredKVIntRow(t, ctx, service, OwnerTypePlugin, identity, 40, gtime.Now().Add(-time.Minute))
+
+	item, err := service.Incr(ctx, OwnerTypePlugin, cacheKey, 2, 0)
+	if err != nil {
+		t.Fatalf("increment expired integer row failed: %v", err)
+	}
+	if item.IntValue != 2 {
+		t.Fatalf("expected expired integer row to restart at delta 2, got %d", item.IntValue)
 	}
 }
 
@@ -413,7 +486,7 @@ func TestDeletedSQLTableCacheRowBehavesAsMiss(t *testing.T) {
 }
 
 // newTestSQLTableBackend creates one backend on the process default database,
-// preserving the existing MySQL-backed package test coverage.
+// preserving the existing PostgreSQL-backed package test coverage.
 func newTestSQLTableBackend(t *testing.T, ctx context.Context) *SQLTableBackend {
 	t.Helper()
 
@@ -443,6 +516,38 @@ func newSQLiteTestSQLTableBackend(t *testing.T, ctx context.Context) *SQLTableBa
 	return NewSQLTableBackendWithDB(db)
 }
 
+// newSQLitePersistentTestSQLTableBackend creates an isolated SQLite backend
+// with direct test DDL for expiration behavior that must not depend on the
+// process default database.
+func newSQLitePersistentTestSQLTableBackend(t *testing.T, ctx context.Context) *SQLTableBackend {
+	t.Helper()
+
+	db := newSQLiteKVCacheDB(t, ctx)
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS sys_kv_cache (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			owner_type TEXT NOT NULL DEFAULT '',
+			owner_key TEXT NOT NULL DEFAULT '',
+			namespace TEXT NOT NULL DEFAULT '',
+			cache_key TEXT NOT NULL DEFAULT '',
+			value_kind INTEGER NOT NULL DEFAULT 1,
+			value_bytes BLOB NOT NULL,
+			value_int INTEGER NOT NULL DEFAULT 0,
+			expire_at DATETIME NULL DEFAULT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (owner_type, owner_key, namespace, cache_key)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at)`,
+	}
+	for _, statement := range statements {
+		if _, err := db.Exec(ctx, statement); err != nil {
+			t.Fatalf("execute SQLite persistent kv-cache test DDL failed: %v\nSQL:\n%s", err, statement)
+		}
+	}
+	return NewSQLTableBackendWithDB(db)
+}
+
 // newSQLiteKVCacheDB opens one temporary SQLite database and closes it with the test.
 func newSQLiteKVCacheDB(t *testing.T, ctx context.Context) gdb.DB {
 	t.Helper()
@@ -460,17 +565,14 @@ func newSQLiteKVCacheDB(t *testing.T, ctx context.Context) gdb.DB {
 	return db
 }
 
-// ensureCurrentSQLTableKVCacheTable creates or normalizes sys_kv_cache for
-// package tests so stale local databases from older iterations do not keep a
-// non-delivered engine.
+// ensureCurrentSQLTableKVCacheTable creates sys_kv_cache for package tests.
 func ensureCurrentSQLTableKVCacheTable(t *testing.T, ctx context.Context) {
 	t.Helper()
 
-	if _, err := g.DB().Exec(ctx, currentSQLTableKVCacheDDL); err != nil {
-		t.Fatalf("ensure sys_kv_cache table failed: %v", err)
-	}
-	if _, err := g.DB().Exec(ctx, "ALTER TABLE sys_kv_cache ENGINE=MEMORY;"); err != nil {
-		t.Fatalf("ensure sys_kv_cache SQL table engine failed: %v", err)
+	for _, statement := range dialect.SplitSQLStatements(currentSQLTableKVCacheDDL) {
+		if _, err := g.DB().Exec(ctx, statement); err != nil {
+			t.Fatalf("ensure sys_kv_cache table failed: %v\nSQL:\n%s", err, statement)
+		}
 	}
 }
 
@@ -497,6 +599,34 @@ func insertExpiredKVRow(
 	}).InsertIgnore()
 	if err != nil {
 		t.Fatalf("insert expired kv row failed: %v", err)
+	}
+}
+
+// insertExpiredKVIntRow inserts one expired integer cache row for stale-value
+// increment tests.
+func insertExpiredKVIntRow(
+	t *testing.T,
+	ctx context.Context,
+	service *SQLTableBackend,
+	ownerType OwnerType,
+	identity *cacheIdentity,
+	value int64,
+	expiredAt *gtime.Time,
+) {
+	t.Helper()
+
+	_, err := service.model(ctx).Data(do.SysKvCache{
+		OwnerType:  ownerType.String(),
+		OwnerKey:   identity.ownerKey,
+		Namespace:  identity.namespace,
+		CacheKey:   identity.cacheKey,
+		ValueKind:  ValueKindInt,
+		ValueBytes: []byte{},
+		ValueInt:   value,
+		ExpireAt:   expiredAt,
+	}).InsertIgnore()
+	if err != nil {
+		t.Fatalf("insert expired integer kv row failed: %v", err)
 	}
 }
 

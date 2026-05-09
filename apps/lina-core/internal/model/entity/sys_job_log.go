@@ -10,8 +10,8 @@ import (
 
 // SysJobLog is the golang structure for table sys_job_log.
 type SysJobLog struct {
-	Id             uint64      `json:"id"             orm:"id"              description:"Log ID"`
-	JobId          uint64      `json:"jobId"          orm:"job_id"          description:"Owning job ID"`
+	Id             int64       `json:"id"             orm:"id"              description:"Log ID"`
+	JobId          int64       `json:"jobId"          orm:"job_id"          description:"Owning job ID"`
 	JobSnapshot    string      `json:"jobSnapshot"    orm:"job_snapshot"    description:"Job snapshot JSON at execution time"`
 	NodeId         string      `json:"nodeId"         orm:"node_id"         description:"Execution node identifier"`
 	Trigger        string      `json:"trigger"        orm:"trigger"         description:"Trigger type: cron/manual"`

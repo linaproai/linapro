@@ -4,6 +4,9 @@ package plugin
 
 import (
 	"context"
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -12,11 +15,6 @@ import (
 	"sort"
 	"strings"
 	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
 
 	"lina-core/internal/packed"
 	"lina-core/internal/service/plugin/internal/catalog"

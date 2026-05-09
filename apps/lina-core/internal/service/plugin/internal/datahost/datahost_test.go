@@ -5,8 +5,11 @@ package datahost
 import (
 	"context"
 	"encoding/json"
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -219,6 +222,46 @@ func TestExecuteTransactionAppliesMutationsAtomically(t *testing.T) {
 	}
 }
 
+// TestBuildAuthorizedTableContractSkipsPostgreSQLIdentityFields verifies live
+// PostgreSQL identity primary keys stay outside guest writable fields.
+func TestBuildAuthorizedTableContractSkipsPostgreSQLIdentityFields(t *testing.T) {
+	ctx := context.Background()
+	tableName := "test_datahost_identity_contract"
+	dropIdentityContractTable(t, ctx, tableName)
+	t.Cleanup(func() {
+		dropIdentityContractTable(t, ctx, tableName)
+	})
+	if _, err := g.DB().Exec(ctx, `
+CREATE TABLE test_datahost_identity_contract (
+    id         INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    title      VARCHAR(64) NOT NULL DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`); err != nil {
+		t.Fatalf("failed to create identity contract table: %v", err)
+	}
+
+	resource, err := BuildAuthorizedTableContract(ctx, tableName, []string{
+		pluginbridge.HostServiceMethodDataCreate,
+		pluginbridge.HostServiceMethodDataList,
+		pluginbridge.HostServiceMethodDataUpdate,
+	})
+	if err != nil {
+		t.Fatalf("build authorized table contract failed: %v", err)
+	}
+	if resource.KeyField != "id" {
+		t.Fatalf("expected identity primary key to remain keyField=id, got %s", resource.KeyField)
+	}
+	if containsFieldName(resource.WritableFields, "id") {
+		t.Fatalf("expected identity id field to be auto-managed, got writableFields=%#v", resource.WritableFields)
+	}
+	if containsFieldName(resource.WritableFields, "createdAt") {
+		t.Fatalf("expected createdAt field to be auto-managed, got writableFields=%#v", resource.WritableFields)
+	}
+	if !containsFieldName(resource.WritableFields, "title") {
+		t.Fatalf("expected title to remain writable, got writableFields=%#v", resource.WritableFields)
+	}
+}
+
 // TestExecuteListSupportsPlugindbPlan verifies typed plugindb list plans are honored.
 func TestExecuteListSupportsPlugindbPlan(t *testing.T) {
 	ctx := context.Background()
@@ -331,6 +374,33 @@ func TestExecuteListSupportsPlugindbPlan(t *testing.T) {
 	}
 	if countResponse.Total != 2 || len(countResponse.Records) != 0 {
 		t.Fatalf("unexpected count response: %#v", countResponse)
+	}
+}
+
+// TestBuildResourceRecordWithSelectionFallsBackToColumnName verifies selected
+// field projection still works when the driver returns physical column keys.
+func TestBuildResourceRecordWithSelectionFallsBackToColumnName(t *testing.T) {
+	t.Parallel()
+
+	record := buildResourceRecordWithSelection(
+		map[string]interface{}{
+			"user_name":  "admin",
+			"event_name": "Login successful",
+		},
+		&catalog.ResourceSpec{
+			Fields: []*catalog.ResourceField{
+				{Name: "userName", Column: "user_name"},
+				{Name: "eventName", Column: "event_name"},
+			},
+		},
+		[]string{"userName", "eventName"},
+	)
+
+	if record["userName"] != "admin" {
+		t.Fatalf("expected userName to fall back to user_name column, got %#v", record)
+	}
+	if record["eventName"] != "Login successful" {
+		t.Fatalf("expected eventName to fall back to event_name column, got %#v", record)
 	}
 }
 
@@ -489,6 +559,32 @@ func cleanupNodeStates(t *testing.T, ctx context.Context, pluginID string) {
 		Delete(); err != nil {
 		t.Fatalf("failed to delete plugin node states for %s: %v", pluginID, err)
 	}
+}
+
+// dropIdentityContractTable removes the temporary identity table used by
+// contract synthesis tests.
+func dropIdentityContractTable(t *testing.T, ctx context.Context, tableName string) {
+	t.Helper()
+	if !testTableIdentifierPattern.MatchString(tableName) {
+		t.Fatalf("unsafe identity contract table name: %s", tableName)
+	}
+	if _, err := g.DB().Exec(ctx, "DROP TABLE IF EXISTS "+tableName); err != nil {
+		t.Fatalf("failed to drop identity contract table %s: %v", tableName, err)
+	}
+}
+
+// testTableIdentifierPattern restricts temporary test table names before they
+// are embedded in DDL statements.
+var testTableIdentifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// containsFieldName reports whether one field list contains target.
+func containsFieldName(fields []string, target string) bool {
+	for _, field := range fields {
+		if field == target {
+			return true
+		}
+	}
+	return false
 }
 
 // mustMarshalJSON marshals a value and fails the test on error.

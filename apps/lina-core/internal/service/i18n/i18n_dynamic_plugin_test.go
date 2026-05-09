@@ -6,12 +6,10 @@ package i18n
 import (
 	"context"
 	"encoding/json"
+	"github.com/gogf/gf/v2/os/gctx"
 	"os"
 	"path/filepath"
 	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"

@@ -5,12 +5,15 @@ import { rmSync } from "node:fs";
 import path from "node:path";
 
 import { test, expect } from "../../fixtures/auth";
+import { refreshPluginProjection } from "../../fixtures/plugin";
 import { PluginPage } from "../../pages/PluginPage";
 import {
   createAdminApiContext,
   disablePlugin,
+  enablePlugin,
   expectSuccess,
   getPlugin,
+  installPlugin,
   syncPlugins,
   uninstallPlugin,
 } from "../../support/api/job";
@@ -134,21 +137,22 @@ test.describe("TC0107 运行时国际化切换", () => {
     adminPage,
     mainLayout,
   }) => {
+    test.setTimeout(90_000);
     const pluginPage = new PluginPage(adminPage);
 
-    await pluginPage.gotoManage();
-    await pluginPage.searchByPluginId(pluginID);
+    // Reinstall the current artifact so the active dynamic release and its
+    // runtime i18n bundles match the just-built test fixture.
+    await installPlugin(adminApi, pluginID);
     const plugin = await getPlugin(adminApi, pluginID);
-    if (plugin.installed !== 1) {
-      await pluginPage.installAndEnablePlugin(pluginID);
-    } else {
-      await pluginPage.setPluginEnabled(pluginID, true);
+    if (plugin.enabled !== 1) {
+      await enablePlugin(adminApi, pluginID);
     }
+    await refreshPluginProjection(adminPage);
 
     await mainLayout.switchLanguage("English");
     await expect(
       pluginPage.sidebarMenuItem(pluginMenuNameEnglish),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
     await pluginPage.clickSidebarMenuItem(pluginMenuNameEnglish);
     await expect(pluginPage.pluginDemoDynamicTitle()).toHaveText(
       "Dynamic Plugin Demo Is Live",

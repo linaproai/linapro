@@ -6,10 +6,10 @@ package locker
 import (
 	"context"
 	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
@@ -112,6 +112,18 @@ func TestService_Lock_ExistingExpiredLock(t *testing.T) {
 	cleanupLock(name)
 }
 
+// TestIsExpiredLockUsesExpireTime verifies lock takeover decisions are based
+// on expire_time before holder data is reused.
+func TestIsExpiredLockUsesExpireTime(t *testing.T) {
+	now := gtime.Now()
+	if !isExpiredLock(now.Add(-time.Second), now) {
+		t.Fatal("expected past expire_time to be expired")
+	}
+	if isExpiredLock(now.Add(time.Second), now) {
+		t.Fatal("expected future expire_time to remain held")
+	}
+}
+
 // TestService_Lock_ExistingNonExpiredLock verifies a lock held by another node
 // cannot be acquired before expiry.
 func TestService_Lock_ExistingNonExpiredLock(t *testing.T) {
@@ -142,6 +154,125 @@ func TestService_Lock_ExistingNonExpiredLock(t *testing.T) {
 	})
 
 	cleanupLock(name)
+}
+
+// TestService_Lock_RecordSurvivesServiceRecreation verifies a valid lock row
+// remains effective when a new service instance is constructed after restart.
+func TestService_Lock_RecordSurvivesServiceRecreation(t *testing.T) {
+	var (
+		firstService  = newTestService()
+		secondService = newTestService()
+		name          = "test-lock-restart-" + gtime.TimestampMilliStr()
+		reason        = "test reason"
+		ctx           = context.Background()
+	)
+
+	cleanupLock(name)
+
+	instance, ok, err := firstService.Lock(ctx, name, testHolder, reason, 30*time.Second)
+	if err != nil {
+		t.Fatalf("acquire lock before service recreation: %v", err)
+	}
+	if !ok || instance == nil {
+		t.Fatal("expected first service to acquire lock")
+	}
+
+	restartedInstance, ok, err := secondService.Lock(ctx, name, "other-node", "after restart", 30*time.Second)
+	if err != nil {
+		t.Fatalf("acquire lock after service recreation: %v", err)
+	}
+	if ok || restartedInstance != nil {
+		t.Fatal("expected valid lock to remain held after service recreation")
+	}
+
+	if err = instance.Unlock(ctx); err != nil {
+		t.Fatalf("unlock retained lock: %v", err)
+	}
+	cleanupLock(name)
+}
+
+// TestService_Lock_ConcurrentFreshLockRace verifies duplicate insert races are
+// reported as clean acquisition misses instead of database errors.
+func TestService_Lock_ConcurrentFreshLockRace(t *testing.T) {
+	var (
+		name   = "test-lock-concurrent-" + gtime.TimestampMilliStr()
+		reason = "test concurrent reason"
+		ctx    = context.Background()
+	)
+
+	cleanupLock(name)
+	t.Cleanup(func() {
+		cleanupLock(name)
+	})
+
+	const contenders = 16
+	var (
+		start      = make(chan struct{})
+		ready      sync.WaitGroup
+		done       sync.WaitGroup
+		successes  int32
+		failures   int32
+		firstError = make(chan error, 1)
+	)
+
+	for i := 0; i < contenders; i++ {
+		holder := fmt.Sprintf("test-holder-%02d", i)
+		ready.Add(1)
+		done.Add(1)
+		go func(holder string) {
+			defer done.Done()
+			svc := newTestService()
+			ready.Done()
+			<-start
+			instance, ok, err := svc.Lock(ctx, name, holder, reason, 30*time.Second)
+			if err != nil {
+				select {
+				case firstError <- err:
+				default:
+				}
+				atomic.AddInt32(&failures, 1)
+				return
+			}
+			if ok {
+				atomic.AddInt32(&successes, 1)
+				if instance == nil {
+					select {
+					case firstError <- fmt.Errorf("nil instance for holder %s", holder):
+					default:
+					}
+				}
+				return
+			}
+			if instance != nil {
+				select {
+				case firstError <- fmt.Errorf("unexpected instance for holder %s", holder):
+				default:
+				}
+			}
+		}(holder)
+	}
+	ready.Wait()
+	close(start)
+	done.Wait()
+
+	select {
+	case errValue := <-firstError:
+		t.Fatalf("concurrent lock acquisition surfaced error: %v", errValue)
+	default:
+	}
+	if failures != 0 {
+		t.Fatalf("expected no failed acquisitions, got %d", failures)
+	}
+	if successes != 1 {
+		t.Fatalf("expected exactly one successful acquisition, got %d", successes)
+	}
+	count, err := g.DB().Model("sys_locker").Where("name", name).Count()
+	if err != nil {
+		t.Fatalf("count lock row failed: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly one lock row, got %d", count)
+	}
 }
 
 // TestService_Lock_SameHolder verifies the current holder can reacquire its

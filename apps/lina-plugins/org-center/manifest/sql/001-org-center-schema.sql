@@ -2,50 +2,87 @@
 -- 001：org-center 数据结构
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_dept (
-    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Department ID',
-    parent_id   INT          NOT NULL DEFAULT 0  COMMENT  'Parent department ID',
-    ancestors   VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Ancestor list',
-    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Department name',
-    code        VARCHAR(64)  NOT NULL DEFAULT '' COMMENT  'Department code',
-    order_num   INT          NOT NULL DEFAULT 0  COMMENT  'Display order',
-    leader      INT          NOT NULL DEFAULT 0  COMMENT  'Leader user ID',
-    phone       VARCHAR(20)  NOT NULL DEFAULT '' COMMENT  'Contact phone number',
-    email       VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Email address',
-    status      TINYINT      NOT NULL DEFAULT 1  COMMENT  'Status: 0=disabled, 1=enabled',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
-    created_at  DATETIME                         COMMENT  'Creation time',
-    updated_at  DATETIME                         COMMENT  'Update time',
-    deleted_at  DATETIME                         COMMENT  'Deletion time',
-    UNIQUE KEY uk_plugin_org_center_dept_code ((NULLIF(code, ''))),
-    KEY idx_plugin_org_center_dept_code (code),
-    KEY idx_plugin_org_center_dept_parent_id (parent_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Department table';
+    "id"          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "parent_id"   INT          NOT NULL DEFAULT 0,
+    "ancestors"   VARCHAR(512) NOT NULL DEFAULT '',
+    "name"        VARCHAR(128) NOT NULL DEFAULT '',
+    "code"        VARCHAR(64)  NOT NULL DEFAULT '',
+    "order_num"   INT          NOT NULL DEFAULT 0,
+    "leader"      INT          NOT NULL DEFAULT 0,
+    "phone"       VARCHAR(20)  NOT NULL DEFAULT '',
+    "email"       VARCHAR(128) NOT NULL DEFAULT '',
+    "status"      SMALLINT     NOT NULL DEFAULT 1,
+    "remark"      VARCHAR(512) NOT NULL DEFAULT '',
+    "created_at"  TIMESTAMP,
+    "updated_at"  TIMESTAMP,
+    "deleted_at"  TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_post (
-    id          INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Post ID',
-    dept_id     INT          NOT NULL DEFAULT 0  COMMENT  'Owning department ID',
-    code        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Post code',
-    name        VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Post name',
-    sort        INT          NOT NULL DEFAULT 0  COMMENT  'Display order',
-    status      TINYINT      NOT NULL DEFAULT 1  COMMENT  'Status: 0=disabled, 1=enabled',
-    remark      VARCHAR(512) NOT NULL DEFAULT '' COMMENT  'Remark',
-    created_at  DATETIME                         COMMENT  'Creation time',
-    updated_at  DATETIME                         COMMENT  'Update time',
-    deleted_at  DATETIME                         COMMENT  'Deletion time',
-    UNIQUE KEY uk_plugin_org_center_post_code (code),
-    KEY idx_plugin_org_center_post_dept_id (dept_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Post information table';
+    "id"          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "dept_id"     INT          NOT NULL DEFAULT 0,
+    "code"        VARCHAR(128) NOT NULL DEFAULT '',
+    "name"        VARCHAR(128) NOT NULL DEFAULT '',
+    "sort"        INT          NOT NULL DEFAULT 0,
+    "status"      SMALLINT     NOT NULL DEFAULT 1,
+    "remark"      VARCHAR(512) NOT NULL DEFAULT '',
+    "created_at"  TIMESTAMP,
+    "updated_at"  TIMESTAMP,
+    "deleted_at"  TIMESTAMP
+);
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_user_dept (
-    user_id INT NOT NULL COMMENT  'User ID',
-    dept_id INT NOT NULL COMMENT  'Department ID',
-    PRIMARY KEY (user_id, dept_id),
-    KEY idx_plugin_org_center_user_dept_dept_user (dept_id, user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User-department relation table';
+    "user_id" INT NOT NULL,
+    "dept_id" INT NOT NULL,
+    PRIMARY KEY ("user_id", "dept_id")
+);
 
 CREATE TABLE IF NOT EXISTS plugin_org_center_user_post (
-    user_id INT NOT NULL COMMENT  'User ID',
-    post_id INT NOT NULL COMMENT  'Post ID',
-    PRIMARY KEY (user_id, post_id),
-    KEY idx_plugin_org_center_user_post_post_id (post_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'User-post relation table';
+    "user_id" INT NOT NULL,
+    "post_id" INT NOT NULL,
+    PRIMARY KEY ("user_id", "post_id")
+);
+
+COMMENT ON TABLE plugin_org_center_dept IS 'Department table';
+COMMENT ON COLUMN plugin_org_center_dept."id" IS 'Department ID';
+COMMENT ON COLUMN plugin_org_center_dept."parent_id" IS 'Parent department ID';
+COMMENT ON COLUMN plugin_org_center_dept."ancestors" IS 'Ancestor list';
+COMMENT ON COLUMN plugin_org_center_dept."name" IS 'Department name';
+COMMENT ON COLUMN plugin_org_center_dept."code" IS 'Department code';
+COMMENT ON COLUMN plugin_org_center_dept."order_num" IS 'Display order';
+COMMENT ON COLUMN plugin_org_center_dept."leader" IS 'Leader user ID';
+COMMENT ON COLUMN plugin_org_center_dept."phone" IS 'Contact phone number';
+COMMENT ON COLUMN plugin_org_center_dept."email" IS 'Email address';
+COMMENT ON COLUMN plugin_org_center_dept."status" IS 'Status: 0=disabled, 1=enabled';
+COMMENT ON COLUMN plugin_org_center_dept."remark" IS 'Remark';
+COMMENT ON COLUMN plugin_org_center_dept."created_at" IS 'Creation time';
+COMMENT ON COLUMN plugin_org_center_dept."updated_at" IS 'Update time';
+COMMENT ON COLUMN plugin_org_center_dept."deleted_at" IS 'Deletion time';
+
+COMMENT ON TABLE plugin_org_center_post IS 'Post information table';
+COMMENT ON COLUMN plugin_org_center_post."id" IS 'Post ID';
+COMMENT ON COLUMN plugin_org_center_post."dept_id" IS 'Owning department ID';
+COMMENT ON COLUMN plugin_org_center_post."code" IS 'Post code';
+COMMENT ON COLUMN plugin_org_center_post."name" IS 'Post name';
+COMMENT ON COLUMN plugin_org_center_post."sort" IS 'Display order';
+COMMENT ON COLUMN plugin_org_center_post."status" IS 'Status: 0=disabled, 1=enabled';
+COMMENT ON COLUMN plugin_org_center_post."remark" IS 'Remark';
+COMMENT ON COLUMN plugin_org_center_post."created_at" IS 'Creation time';
+COMMENT ON COLUMN plugin_org_center_post."updated_at" IS 'Update time';
+COMMENT ON COLUMN plugin_org_center_post."deleted_at" IS 'Deletion time';
+
+COMMENT ON TABLE plugin_org_center_user_dept IS 'User-department relation table';
+COMMENT ON COLUMN plugin_org_center_user_dept."user_id" IS 'User ID';
+COMMENT ON COLUMN plugin_org_center_user_dept."dept_id" IS 'Department ID';
+
+COMMENT ON TABLE plugin_org_center_user_post IS 'User-post relation table';
+COMMENT ON COLUMN plugin_org_center_user_post."user_id" IS 'User ID';
+COMMENT ON COLUMN plugin_org_center_user_post."post_id" IS 'Post ID';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_plugin_org_center_dept_code ON plugin_org_center_dept ((NULLIF("code", '')));
+CREATE INDEX IF NOT EXISTS idx_plugin_org_center_dept_code ON plugin_org_center_dept ("code");
+CREATE INDEX IF NOT EXISTS idx_plugin_org_center_dept_parent_id ON plugin_org_center_dept ("parent_id");
+CREATE UNIQUE INDEX IF NOT EXISTS uk_plugin_org_center_post_code ON plugin_org_center_post ("code");
+CREATE INDEX IF NOT EXISTS idx_plugin_org_center_post_dept_id ON plugin_org_center_post ("dept_id");
+CREATE INDEX IF NOT EXISTS idx_plugin_org_center_user_dept_dept_user ON plugin_org_center_user_dept ("dept_id", "user_id");
+CREATE INDEX IF NOT EXISTS idx_plugin_org_center_user_post_post_id ON plugin_org_center_user_post ("post_id");

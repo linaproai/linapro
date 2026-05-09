@@ -53,7 +53,7 @@ type GetInfoRes struct {
 	GfVersion          string                  `json:"gfVersion" dc:"GoFrame version" eg:"v2.10.0"`
 	Os                 string                  `json:"os" dc:"operating system" eg:"linux"`
 	Arch               string                  `json:"arch" dc:"System architecture" eg:"amd64"`
-	DbVersion          string                  `json:"dbVersion" dc:"Database version" eg:"MySQL 8.0.36"`
+	DbVersion          string                  `json:"dbVersion" dc:"Database version" eg:"PostgreSQL 14.0"`
 	StartTime          string                  `json:"startTime" dc:"System startup time" eg:"2025-01-01 08:00:00"`
 	RunDuration        string                  `json:"runDuration" dc:"System running time" eg:"3 days, 5 hours and 20 minutes"`
 	RunDurationSeconds int64                   `json:"runDurationSeconds" dc:"System running time represented as total seconds for client-side structured formatting" eg:"12345"`

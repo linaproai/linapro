@@ -80,7 +80,7 @@ func TestJobDataScopeFiltersUserJobsKeepsBuiltinsAndProtectsLogs(t *testing.T) {
 	if _, err = svc.TriggerJob(ctx, hiddenJobID); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden job trigger denied, got %v", err)
 	}
-	if err = svc.ClearLogs(ctx, nil, uint64ToString(hiddenLogID)); !bizerr.Is(err, CodeJobDataScopeDenied) {
+	if err = svc.ClearLogs(ctx, nil, int64ToString(hiddenLogID)); !bizerr.Is(err, CodeJobDataScopeDenied) {
 		t.Fatalf("expected hidden log clear denied, got %v", err)
 	}
 
@@ -139,7 +139,7 @@ func insertJobScopeUserRole(t *testing.T, ctx context.Context, userID int, roleI
 }
 
 // insertJobScopeJob inserts one temporary scheduled job.
-func insertJobScopeJob(t *testing.T, ctx context.Context, ownerID int, suffix string, isBuiltin int) uint64 {
+func insertJobScopeJob(t *testing.T, ctx context.Context, ownerID int, suffix string, isBuiltin int) int64 {
 	t.Helper()
 
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
@@ -164,11 +164,11 @@ func insertJobScopeJob(t *testing.T, ctx context.Context, ownerID int, suffix st
 	if err != nil {
 		t.Fatalf("insert job-scope job: %v", err)
 	}
-	return uint64(insertID)
+	return int64(insertID)
 }
 
 // insertJobScopeLog inserts one temporary execution log.
-func insertJobScopeLog(t *testing.T, ctx context.Context, jobID uint64, name string) uint64 {
+func insertJobScopeLog(t *testing.T, ctx context.Context, jobID int64, name string) int64 {
 	t.Helper()
 	now := gtime.NewFromTime(time.Now())
 	insertID, err := dao.SysJobLog.Ctx(ctx).Data(do.SysJobLog{
@@ -186,7 +186,7 @@ func insertJobScopeLog(t *testing.T, ctx context.Context, jobID uint64, name str
 	if err != nil {
 		t.Fatalf("insert job-scope log: %v", err)
 	}
-	return uint64(insertID)
+	return int64(insertID)
 }
 
 // cleanupJobScopeUsers removes temporary users.
@@ -218,8 +218,8 @@ func cleanupJobScopeRoles(t *testing.T, ctx context.Context, ids []int) {
 }
 
 // jobScopeListIDSet returns job IDs from list output.
-func jobScopeListIDSet(items []*JobListItem) map[uint64]struct{} {
-	result := make(map[uint64]struct{}, len(items))
+func jobScopeListIDSet(items []*JobListItem) map[int64]struct{} {
+	result := make(map[int64]struct{}, len(items))
 	for _, item := range items {
 		if item == nil || item.SysJob == nil {
 			continue
@@ -230,8 +230,8 @@ func jobScopeListIDSet(items []*JobListItem) map[uint64]struct{} {
 }
 
 // jobScopeLogIDSet returns log IDs from list output.
-func jobScopeLogIDSet(items []*LogListItem) map[uint64]struct{} {
-	result := make(map[uint64]struct{}, len(items))
+func jobScopeLogIDSet(items []*LogListItem) map[int64]struct{} {
+	result := make(map[int64]struct{}, len(items))
 	for _, item := range items {
 		if item == nil || item.SysJobLog == nil {
 			continue
@@ -241,7 +241,7 @@ func jobScopeLogIDSet(items []*LogListItem) map[uint64]struct{} {
 	return result
 }
 
-// uint64ToString formats one ID without importing strconv at call sites.
-func uint64ToString(id uint64) string {
+// int64ToString formats one ID without importing strconv at call sites.
+func int64ToString(id int64) string {
 	return gconv.String(id)
 }

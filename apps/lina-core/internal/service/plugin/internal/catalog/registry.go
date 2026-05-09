@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/startupstats"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -68,7 +69,18 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 		insertID, insertErr := dao.SysPlugin.Ctx(ctx).Data(data).InsertAndGetId()
 		err = insertErr
 		if err != nil {
-			return nil, err
+			if !dialect.IsUniqueConstraintViolation(err) {
+				return nil, err
+			}
+			registry, refreshErr := s.refreshStartupRegistry(ctx, manifest.ID)
+			if refreshErr != nil {
+				return nil, err
+			}
+			if registry == nil {
+				return nil, err
+			}
+			existing = registry
+			goto existingRegistry
 		}
 		startupstats.Add(ctx, startupstats.CounterPluginSyncChanged, 1)
 		registry := insertStartupRegistry(ctx, int(insertID), data)
@@ -91,6 +103,7 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 		return registry, nil
 	}
 
+existingRegistry:
 	data := do.SysPlugin{
 		Name:   manifest.Name,
 		Type:   manifest.Type,

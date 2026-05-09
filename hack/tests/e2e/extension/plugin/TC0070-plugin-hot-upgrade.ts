@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -9,15 +8,16 @@ import { request as playwrightRequest, expect } from "@playwright/test";
 import { test } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { PluginPage } from "../../../pages/PluginPage";
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  queryPgRows,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 const publicBaseURL =
   process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 
 const pluginID = "plugin-dynamic-hot-upgrade";
 const pluginName = "Dynamic Hot Upgrade Plugin";
@@ -121,47 +121,18 @@ function cleanupRuntimeWorkspace() {
 }
 
 function cleanupRuntimeRows() {
-  const escapedID = pluginID.replaceAll("'", "''");
-  const escapedMenuKey = pluginMenuKey.replaceAll("'", "''");
+  const escapedID = pgEscapeLiteral(pluginID);
+  const escapedMenuKey = pgEscapeLiteral(pluginMenuKey);
 
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      [
-        `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT menu_ids.id FROM (SELECT id FROM sys_menu WHERE menu_key = '${escapedMenuKey}') AS menu_ids);`,
-        `DELETE FROM sys_menu WHERE menu_key = '${escapedMenuKey}';`,
-        `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin WHERE plugin_id = '${escapedID}';`,
-      ].join(" "),
-    ],
-    { stdio: "ignore" },
-  );
-}
-
-function querySQLRows(sql: string) {
-  return execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-N",
-      "-B",
-      "-e",
-      sql,
-    ],
-    { encoding: "utf8" },
-  )
-    .trim()
-    .split("\n")
-    .filter(Boolean);
+  execPgSQLStatements([
+    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key = '${escapedMenuKey}');`,
+    `DELETE FROM sys_menu WHERE menu_key = '${escapedMenuKey}';`,
+    `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin WHERE plugin_id = '${escapedID}';`,
+  ]);
 }
 
 function writeULEB128(buffer: number[], value: number) {
@@ -353,15 +324,15 @@ async function setPluginEnabled(
 }
 
 function getPluginRegistryRow() {
-  const escapedID = pluginID.replaceAll("'", "''");
-  const rows = querySQLRows(
+  const escapedID = pgEscapeLiteral(pluginID);
+  const rows = queryPgRows(
     [
       "SELECT",
-      "  IFNULL(version, ''),",
+      "  COALESCE(version, ''),",
       "  installed,",
       "  status,",
       "  generation,",
-      "  IFNULL(current_state, '')",
+      "  COALESCE(current_state, '')",
       "FROM sys_plugin",
       `WHERE plugin_id = '${escapedID}'`,
       "LIMIT 1;",
@@ -372,7 +343,7 @@ function getPluginRegistryRow() {
   }
 
   const [version = "", installed = "0", enabled = "0", generation = "0", currentState = ""] =
-    rows[0]!.split("\t");
+    rows[0]!.split("|");
   return {
     version,
     installed: Number(installed),

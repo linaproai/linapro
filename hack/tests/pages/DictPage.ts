@@ -265,6 +265,14 @@ export class DictPage {
     await this.hoverDeleteButtonInRow(row);
   }
 
+  typeHeader(text: RegExp | string): Locator {
+    return this.typePanel.locator(".vxe-header--column, th", { hasText: text });
+  }
+
+  dataHeader(text: RegExp | string): Locator {
+    return this.dataPanel.locator(".vxe-header--column, th", { hasText: text });
+  }
+
   async clickTypeRow(typeName: string) {
     // Click a row in the type panel to load data in the right panel.
     const row = await this.resolveTypeRow(typeName);

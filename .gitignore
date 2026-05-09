@@ -3,6 +3,7 @@
 .project
 .orig
 .swp
+.tmp/
 .idea/
 .settings/
 .vscode/

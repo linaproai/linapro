@@ -7,12 +7,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"testing"
-	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/xuri/excelize/v2"
+	"testing"
+	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"

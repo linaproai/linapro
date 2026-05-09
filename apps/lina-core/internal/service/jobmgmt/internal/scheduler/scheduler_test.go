@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gcron"
 
 	"lina-core/internal/dao"
@@ -69,7 +69,7 @@ func (f fakeShellExecutor) Execute(
 }
 
 // testDefaultGroupID resolves the default job group ID for scheduler tests.
-func testDefaultGroupID(t *testing.T, ctx context.Context) uint64 {
+func testDefaultGroupID(t *testing.T, ctx context.Context) int64 {
 	t.Helper()
 
 	var group *entity.SysJobGroup
@@ -164,7 +164,7 @@ func insertTestJob(
 	concurrency jobmeta.JobConcurrency,
 	maxConcurrency int,
 	maxExecutions int,
-) uint64 {
+) int64 {
 	t.Helper()
 
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
@@ -185,11 +185,11 @@ func insertTestJob(
 	if err != nil {
 		t.Fatalf("expected scheduler test job insert to succeed, got error: %v", err)
 	}
-	return uint64(insertID)
+	return int64(insertID)
 }
 
 // cleanupSchedulerJob removes scheduler test jobs, logs, and gcron registrations.
-func cleanupSchedulerJob(t *testing.T, ctx context.Context, jobID uint64) {
+func cleanupSchedulerJob(t *testing.T, ctx context.Context, jobID int64) {
 	t.Helper()
 	if jobID == 0 {
 		return
@@ -217,7 +217,7 @@ func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool
 }
 
 // latestLogStatuses returns all statuses currently stored for the target job.
-func latestLogStatuses(t *testing.T, ctx context.Context, jobID uint64) []string {
+func latestLogStatuses(t *testing.T, ctx context.Context, jobID int64) []string {
 	t.Helper()
 	var logs []*entity.SysJobLog
 	if err := dao.SysJobLog.Ctx(ctx).
@@ -237,7 +237,7 @@ func latestLogStatuses(t *testing.T, ctx context.Context, jobID uint64) []string
 }
 
 // latestLogs returns all persisted logs for one scheduler test job.
-func latestLogs(t *testing.T, ctx context.Context, jobID uint64) []*entity.SysJobLog {
+func latestLogs(t *testing.T, ctx context.Context, jobID int64) []*entity.SysJobLog {
 	t.Helper()
 
 	var logs []*entity.SysJobLog
@@ -341,7 +341,7 @@ func TestLoadAndRegisterSkipsBuiltinJobs(t *testing.T) {
 			},
 		}).(*serviceImpl)
 		customJobID  = insertTestJob(t, ctx, "host:scheduler-load-custom", jobmeta.JobScopeMasterOnly, jobmeta.JobConcurrencySingleton, 1, 0)
-		builtinJobID uint64
+		builtinJobID int64
 	)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, customJobID) })
 	registerEnabledHostHandlersAsNoop(t, ctx, registry)
@@ -365,7 +365,7 @@ func TestLoadAndRegisterSkipsBuiltinJobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected builtin projection insert to succeed, got error: %v", err)
 	}
-	builtinJobID = uint64(insertID)
+	builtinJobID = int64(insertID)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, builtinJobID) })
 
 	if err = svc.LoadAndRegister(ctx); err != nil {
@@ -436,7 +436,7 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected missing plugin handler job insert to succeed, got error: %v", err)
 	}
-	jobID := uint64(insertID)
+	jobID := int64(insertID)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
 	if err = svc.LoadAndRegister(ctx); err != nil {
@@ -479,7 +479,7 @@ func TestLoadAndRegisterPausesMissingCustomPluginHandlerJobs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected missing builtin plugin job insert to succeed, got error: %v", err)
 	}
-	builtinJobID := uint64(insertID)
+	builtinJobID := int64(insertID)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, builtinJobID) })
 
 	if err = svc.LoadAndRegister(ctx); err != nil {
@@ -632,7 +632,7 @@ func TestRunCronJobHandlerTimeoutMarksLogTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected timeout test job insert to succeed, got error: %v", err)
 	}
-	jobID := uint64(insertID)
+	jobID := int64(insertID)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
 	svc.runCronJob(ctx, jobID)
@@ -690,12 +690,12 @@ func TestCancelLogCancelsRunningShellExecution(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected shell cancel test job insert to succeed, got error: %v", err)
 	}
-	jobID := uint64(insertID)
+	jobID := int64(insertID)
 	t.Cleanup(func() { cleanupSchedulerJob(t, ctx, jobID) })
 
 	svc.runCronJob(ctx, jobID)
 
-	var logID uint64
+	var logID int64
 	waitForCondition(t, 2*time.Second, func() bool {
 		logs := latestLogs(t, ctx, jobID)
 		if len(logs) != 1 || logs[0] == nil || logs[0].Status != string(jobmeta.LogStatusRunning) {

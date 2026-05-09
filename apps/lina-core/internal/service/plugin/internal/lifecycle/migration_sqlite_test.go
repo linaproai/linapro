@@ -1,5 +1,5 @@
 // This file verifies plugin lifecycle SQL execution against SQLite without
-// mutating the package's default MySQL-oriented test database.
+// mutating the package's default PostgreSQL-oriented test database.
 
 package lifecycle_test
 
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -75,13 +75,13 @@ func TestSQLitePluginLifecycleSQLChild(t *testing.T) {
 			{
 				Key: "001-plugin-sqlite-lifecycle-create.sql",
 				Content: fmt.Sprintf(
-					"CREATE TABLE %s (id INT PRIMARY KEY AUTO_INCREMENT, marker VARCHAR(32) NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+					"CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);",
 					tableName,
 				),
 			},
 			{
 				Key:     "002-plugin-sqlite-lifecycle-install.sql",
-				Content: fmt.Sprintf("INSERT IGNORE INTO %s (marker) VALUES ('install');", tableName),
+				Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('install');", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
@@ -98,7 +98,7 @@ func TestSQLitePluginLifecycleSQLChild(t *testing.T) {
 	manifest.RuntimeArtifact.MockSQLAssets = []*catalog.ArtifactSQLAsset{
 		{
 			Key:     "001-plugin-sqlite-lifecycle-mock.sql",
-			Content: fmt.Sprintf("INSERT IGNORE INTO %s (marker) VALUES ('mock');", tableName),
+			Content: fmt.Sprintf("INSERT INTO %s (marker) VALUES ('mock');", tableName),
 		},
 	}
 

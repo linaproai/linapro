@@ -3,9 +3,9 @@
 
 build:
   # Target platforms for host binaries and Docker images.
-  # Each item uses goos/goarch form, or "auto" for the current system platform.
+  # Each item uses goos/goarch form, or "auto" for linux/<current-arch>.
   # 宿主二进制与 Docker 镜像的目标平台列表。
-  # 每一项使用 goos/goarch 格式，或使用 "auto" 表示当前系统平台。
+  # 每一项使用 goos/goarch 格式，或使用 "auto" 表示 linux/<当前架构>。
   platforms:
     - "auto"
   # Whether to enable CGO when building the host binary.

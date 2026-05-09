@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"

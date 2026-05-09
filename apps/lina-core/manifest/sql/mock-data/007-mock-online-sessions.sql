@@ -1,21 +1,21 @@
 -- Mock data: online session records for session and monitoring demos.
 -- 模拟数据：会话与监控演示使用的在线会话记录。
 
-INSERT IGNORE INTO sys_online_session (
-    token_id,
-    user_id,
-    username,
-    dept_name,
-    ip,
-    browser,
-    os,
-    login_time,
-    last_active_time
+INSERT INTO sys_online_session (
+    "token_id",
+    "user_id",
+    "username",
+    "dept_name",
+    "ip",
+    "browser",
+    "os",
+    "login_time",
+    "last_active_time"
 )
 SELECT
     'mock-host-admin-session',
-    u.id,
-    u.username,
+    u."id",
+    u."username",
     'LinaPro.AI',
     '192.168.10.11',
     'Chrome 124.0',
@@ -23,23 +23,24 @@ SELECT
     '2026-04-20 08:45:00',
     '2026-04-20 10:45:00'
 FROM sys_user u
-WHERE u.username = 'admin';
+WHERE u."username" = 'admin'
+ON CONFLICT DO NOTHING;
 
-INSERT IGNORE INTO sys_online_session (
-    token_id,
-    user_id,
-    username,
-    dept_name,
-    ip,
-    browser,
-    os,
-    login_time,
-    last_active_time
+INSERT INTO sys_online_session (
+    "token_id",
+    "user_id",
+    "username",
+    "dept_name",
+    "ip",
+    "browser",
+    "os",
+    "login_time",
+    "last_active_time"
 )
 SELECT
     'mock-host-user002-session',
-    u.id,
-    u.username,
+    u."id",
+    u."username",
     '研发部门',
     '192.168.10.42',
     'Edge 124.0',
@@ -47,23 +48,24 @@ SELECT
     '2026-04-20 09:12:00',
     '2026-04-20 10:40:00'
 FROM sys_user u
-WHERE u.username = 'user002';
+WHERE u."username" = 'user002'
+ON CONFLICT DO NOTHING;
 
-INSERT IGNORE INTO sys_online_session (
-    token_id,
-    user_id,
-    username,
-    dept_name,
-    ip,
-    browser,
-    os,
-    login_time,
-    last_active_time
+INSERT INTO sys_online_session (
+    "token_id",
+    "user_id",
+    "username",
+    "dept_name",
+    "ip",
+    "browser",
+    "os",
+    "login_time",
+    "last_active_time"
 )
 SELECT
     'mock-host-user060-session',
-    u.id,
-    u.username,
+    u."id",
+    u."username",
     '研发部门',
     '198.51.100.18',
     'Safari 17.4',
@@ -71,4 +73,5 @@ SELECT
     '2026-04-21 14:35:00',
     '2026-04-21 15:05:00'
 FROM sys_user u
-WHERE u.username = 'user060';
+WHERE u."username" = 'user060'
+ON CONFLICT DO NOTHING;

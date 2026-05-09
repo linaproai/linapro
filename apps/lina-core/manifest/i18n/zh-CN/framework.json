@@ -47,7 +47,7 @@
         "jwt": {
           "description": "身份认证"
         },
-        "mysql": {
+        "postgresql": {
           "description": "关系型数据库"
         }
       },

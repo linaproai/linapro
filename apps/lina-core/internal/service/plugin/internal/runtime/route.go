@@ -542,7 +542,7 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 }
 
 // touchDynamicRouteSession refreshes the last-active timestamp and tolerates
-// second-level DATETIME precision when no row is reported as updated.
+// second-level TIMESTAMP precision when no row is reported as updated.
 func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tokenID string) (bool, error) {
 	result, err := dao.SysOnlineSession.Ctx(ctx).
 		Where(do.SysOnlineSession{TokenId: tokenID}).
@@ -558,9 +558,9 @@ func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tokenID stri
 		return true, nil
 	}
 
-	// DATETIME precision in sys_online_session is second-level. When the dynamic
-	// route is hit within the same second, MySQL reports zero affected rows even
-	// though the session still exists and remains valid.
+	// TIMESTAMP precision can still produce a zero affected-row update when a
+	// dynamic route is hit without changing last_active_time, even though the
+	// session still exists and remains valid.
 	count, err := dao.SysOnlineSession.Ctx(ctx).
 		Where(do.SysOnlineSession{TokenId: tokenID}).
 		Count()

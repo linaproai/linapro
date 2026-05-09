@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -10,13 +9,10 @@ import { test } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { PluginPage } from "../../../pages/PluginPage";
 import { RolePage } from "../../../pages/RolePage";
+import { execPgSQLStatements, pgEscapeLiteral } from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 
 const pluginID = "plugin-dynamic-host-auth-ui";
 const pluginVersion = "v0.1.0";
@@ -130,26 +126,14 @@ function runtimeStorageArtifactPath() {
 }
 
 function cleanupPluginRows() {
-  const escapedId = pluginID.replaceAll("'", "''");
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      [
-        `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin WHERE plugin_id = '${escapedId}';`,
-      ].join(" "),
-    ],
-    {
-      stdio: "ignore",
-    },
-  );
+  const escapedId = pgEscapeLiteral(pluginID);
+  execPgSQLStatements([
+    `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin WHERE plugin_id = '${escapedId}';`,
+  ]);
 }
 
 function cleanupPluginWorkspace() {

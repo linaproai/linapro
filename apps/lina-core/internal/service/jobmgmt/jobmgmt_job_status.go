@@ -12,7 +12,7 @@ import (
 )
 
 // UpdateJobStatus toggles one job between enabled and disabled states.
-func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id uint64, status jobmeta.JobStatus) error {
+func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id int64, status jobmeta.JobStatus) error {
 	if status != jobmeta.JobStatusEnabled && status != jobmeta.JobStatusDisabled {
 		return bizerr.NewCode(CodeJobStatusToggleInvalid)
 	}
@@ -62,7 +62,7 @@ func (s *serviceImpl) UpdateJobStatus(ctx context.Context, id uint64, status job
 }
 
 // ResetJob resets executed_count and stop_reason for one scheduled job.
-func (s *serviceImpl) ResetJob(ctx context.Context, id uint64) error {
+func (s *serviceImpl) ResetJob(ctx context.Context, id int64) error {
 	job, err := s.jobByID(ctx, id)
 	if err != nil {
 		return err
@@ -95,7 +95,7 @@ func (s *serviceImpl) ResetJob(ctx context.Context, id uint64) error {
 }
 
 // TriggerJob starts one manual execution and returns the created log ID.
-func (s *serviceImpl) TriggerJob(ctx context.Context, id uint64) (uint64, error) {
+func (s *serviceImpl) TriggerJob(ctx context.Context, id int64) (int64, error) {
 	if s.scheduler == nil {
 		return 0, bizerr.NewCode(CodeJobSchedulerUninitialized)
 	}

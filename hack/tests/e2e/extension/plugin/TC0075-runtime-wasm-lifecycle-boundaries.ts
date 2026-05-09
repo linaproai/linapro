@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -8,15 +7,17 @@ import { request as playwrightRequest } from "@playwright/test";
 
 import { test, expect } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  queryPgRows,
+  queryPgScalar,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 const publicBaseURL =
   process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 
 const primaryPluginID = "plugin-lifecycle-boundary-e2e";
 const badABIPluginID = "plugin-lifecycle-bad-abi-e2e";
@@ -112,54 +113,21 @@ function runtimeStorageArtifactPath(pluginID: string) {
   return path.join(tempDir(), "output", `${pluginID}.wasm`);
 }
 
-function querySQLRows(sql: string) {
-  return execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-N",
-      "-B",
-      "-e",
-      sql,
-    ],
-    { encoding: "utf8" },
-  )
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-}
-
-function querySQLInt(sql: string) {
-  const rows = querySQLRows(sql);
-  if (rows.length === 0) {
+function queryPgInt(sql: string) {
+  const value = queryPgScalar(sql);
+  if (value === "") {
     return 0;
   }
-  return Number.parseInt(rows[0]!, 10) || 0;
-}
-
-function execSQL(statements: string[]) {
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      statements.join(" "),
-    ],
-    { stdio: "ignore" },
-  );
+  return Number.parseInt(value, 10) || 0;
 }
 
 function cleanupPluginRows(pluginIDs: string[]) {
   const statements: string[] = [];
 
   for (const pluginID of pluginIDs) {
-    const escapedID = pluginID.replaceAll("'", "''");
+    const escapedID = pgEscapeLiteral(pluginID);
     statements.push(
-      `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT menu_ids.id FROM (SELECT id FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%') AS menu_ids);`,
+      `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%');`,
       `DELETE FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%';`,
       `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
       `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
@@ -169,7 +137,7 @@ function cleanupPluginRows(pluginIDs: string[]) {
     );
   }
 
-  execSQL(statements);
+  execPgSQLStatements(statements);
 }
 
 function cleanupWorkspace() {
@@ -518,18 +486,18 @@ test.describe("TC-75 Runtime Wasm Lifecycle Boundaries", () => {
       .toBe(1);
 
     const menuKeys = [pageMenuKey, buttonMenuKey];
-    const menuIDs = querySQLRows(
-      `SELECT id FROM sys_menu WHERE menu_key IN ('${pageMenuKey}', '${buttonMenuKey}') ORDER BY menu_key ASC;`,
+    const menuIDs = queryPgRows(
+      `SELECT id FROM sys_menu WHERE menu_key IN ('${pgEscapeLiteral(pageMenuKey)}', '${pgEscapeLiteral(buttonMenuKey)}') ORDER BY menu_key ASC;`,
     );
     expect(menuIDs.length, "安装后应生成插件菜单和按钮权限").toBe(2);
 
-    const roleMenuCount = querySQLInt(
+    const roleMenuCount = queryPgInt(
       `SELECT COUNT(*) FROM sys_role_menu WHERE menu_id IN (${menuIDs.join(",")});`,
     );
     expect(roleMenuCount, "安装后不应再依赖管理员角色菜单绑定").toBe(0);
 
-    const resourceRefCount = querySQLInt(
-      `SELECT COUNT(*) FROM sys_plugin_resource_ref WHERE plugin_id = '${primaryPluginID}';`,
+    const resourceRefCount = queryPgInt(
+      `SELECT COUNT(*) FROM sys_plugin_resource_ref WHERE plugin_id = '${pgEscapeLiteral(primaryPluginID)}';`,
     );
     expect(resourceRefCount, "安装后应写入插件治理资源索引").toBeGreaterThan(0);
 
@@ -553,18 +521,18 @@ test.describe("TC-75 Runtime Wasm Lifecycle Boundaries", () => {
       .poll(async () => (await findPlugin(adminApi, primaryPluginID))?.enabled ?? 1)
       .toBe(0);
 
-    const menuCountAfterUninstall = querySQLInt(
-      `SELECT COUNT(*) FROM sys_menu WHERE menu_key IN ('${menuKeys.join("','")}');`,
+    const menuCountAfterUninstall = queryPgInt(
+      `SELECT COUNT(*) FROM sys_menu WHERE menu_key IN ('${menuKeys.map(pgEscapeLiteral).join("','")}');`,
     );
     expect(menuCountAfterUninstall).toBe(0);
 
-    const roleMenuCountAfterUninstall = querySQLInt(
+    const roleMenuCountAfterUninstall = queryPgInt(
       `SELECT COUNT(*) FROM sys_role_menu WHERE menu_id IN (${menuIDs.join(",")});`,
     );
     expect(roleMenuCountAfterUninstall).toBe(0);
 
-    const resourceRefCountAfterUninstall = querySQLInt(
-      `SELECT COUNT(*) FROM sys_plugin_resource_ref WHERE plugin_id = '${primaryPluginID}';`,
+    const resourceRefCountAfterUninstall = queryPgInt(
+      `SELECT COUNT(*) FROM sys_plugin_resource_ref WHERE plugin_id = '${pgEscapeLiteral(primaryPluginID)}';`,
     );
     expect(resourceRefCountAfterUninstall).toBe(0);
 

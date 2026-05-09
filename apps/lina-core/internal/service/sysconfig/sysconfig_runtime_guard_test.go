@@ -7,11 +7,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/xuri/excelize/v2"
 	"testing"
 	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -388,7 +386,6 @@ func withRuntimeParamRemoved(t *testing.T, ctx context.Context, key string) {
 			t.Fatalf("delete recreated runtime param %s before restore: %v", key, cleanupErr)
 		}
 		_, cleanupErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-			Id:        existing.Id,
 			Name:      existing.Name,
 			Key:       existing.Key,
 			Value:     existing.Value,
@@ -427,21 +424,21 @@ func insertConfigForBuiltInGuard(t *testing.T, ctx context.Context, builtin bool
 	t.Cleanup(func() {
 		if _, cleanupErr := dao.SysConfig.Ctx(ctx).
 			Unscoped().
-			Where(do.SysConfig{Id: uint64(insertedID)}).
+			Where(do.SysConfig{Id: int64(insertedID)}).
 			Delete(); cleanupErr != nil {
 			t.Fatalf("cleanup built-in guard config %s: %v", key, cleanupErr)
 		}
 	})
 
 	return &entity.SysConfig{
-		Id:        uint64(insertedID),
+		Id:        int64(insertedID),
 		Key:       key,
 		IsBuiltin: builtinFlag,
 	}
 }
 
 // assertConfigRecordExists verifies a sys_config row remains queryable.
-func assertConfigRecordExists(t *testing.T, ctx context.Context, id uint64) {
+func assertConfigRecordExists(t *testing.T, ctx context.Context, id int64) {
 	t.Helper()
 
 	count, err := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: id}).Count()

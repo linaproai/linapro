@@ -5,24 +5,33 @@
 -- plugin-demo-dynamic 示例记录表
 -- ------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS `plugin_demo_dynamic_record` (
-    `id`              VARCHAR(64) PRIMARY KEY COMMENT  'Record ID',
-    `title`           VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Record title',
-    `content`         VARCHAR(1000) NOT NULL DEFAULT '' COMMENT  'Record content',
-    `attachment_name` VARCHAR(255) NOT NULL DEFAULT '' COMMENT  'Original attachment file name',
-    `attachment_path` VARCHAR(500) NOT NULL DEFAULT '' COMMENT  'Relative attachment storage path',
-    `created_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT  'Creation time',
-    `updated_at`      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT  'Update time'
-) COMMENT= 'Dynamic plugin demo record table';
+CREATE TABLE IF NOT EXISTS plugin_demo_dynamic_record (
+    "id"              VARCHAR(64) PRIMARY KEY,
+    "title"           VARCHAR(128) NOT NULL DEFAULT '',
+    "content"         VARCHAR(1000) NOT NULL DEFAULT '',
+    "attachment_name" VARCHAR(255) NOT NULL DEFAULT '',
+    "attachment_path" VARCHAR(500) NOT NULL DEFAULT '',
+    "created_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
-INSERT IGNORE INTO `plugin_demo_dynamic_record` (
-    `id`,
-    `title`,
-    `content`,
-    `attachment_name`,
-    `attachment_path`,
-    `created_at`,
-    `updated_at`
+COMMENT ON TABLE plugin_demo_dynamic_record IS 'Dynamic plugin demo record table';
+COMMENT ON COLUMN plugin_demo_dynamic_record."id" IS 'Record ID';
+COMMENT ON COLUMN plugin_demo_dynamic_record."title" IS 'Record title';
+COMMENT ON COLUMN plugin_demo_dynamic_record."content" IS 'Record content';
+COMMENT ON COLUMN plugin_demo_dynamic_record."attachment_name" IS 'Original attachment file name';
+COMMENT ON COLUMN plugin_demo_dynamic_record."attachment_path" IS 'Relative attachment storage path';
+COMMENT ON COLUMN plugin_demo_dynamic_record."created_at" IS 'Creation time';
+COMMENT ON COLUMN plugin_demo_dynamic_record."updated_at" IS 'Update time';
+
+INSERT INTO plugin_demo_dynamic_record (
+    "id",
+    "title",
+    "content",
+    "attachment_name",
+    "attachment_path",
+    "created_at",
+    "updated_at"
 )
 VALUES (
     'plugin-demo-dynamic-mock-record',
@@ -32,4 +41,5 @@ VALUES (
     '',
     '2026-04-16 09:00:00',
     '2026-04-16 09:00:00'
-);
+)
+ON CONFLICT DO NOTHING;

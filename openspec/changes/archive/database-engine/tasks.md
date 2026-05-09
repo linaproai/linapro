@@ -86,8 +86,8 @@
 
 ## 10. Documentation and README Sync
 
-- [x] 10.1 Update `apps/lina-core/README.md` and `README.zh_CN.md`: add SQLite link example and "demo / testing purpose, not supported in production, not supported in cluster" explanation in "Database Configuration" section
-- [x] 10.2 Update repository root `README.md` and `README.zh_CN.md`: add "optional SQLite mode without MySQL" explanation in "Quick Start / Environment Requirements" section
+- [x] 10.1 Update `apps/lina-core/README.md` and `README.zh-CN.md`: add SQLite link example and "demo / testing purpose, not supported in production, not supported in cluster" explanation in "Database Configuration" section
+- [x] 10.2 Update repository root `README.md` and `README.zh-CN.md`: add "optional SQLite mode without MySQL" explanation in "Quick Start / Environment Requirements" section
 - [x] 10.3 Update `Makefile` top comments (without modifying commands): explain `make init` / `make mock` automatically dispatch to corresponding dialect based on `database.default.link` protocol prefix
 - [x] 10.4 Check i18n impact: this change does not involve frontend UI text, menus, buttons, forms, tables, apidoc documentation or other translation resource adjustments; explicitly record "i18n resources do not need to be added, modified, or deleted" judgment
 

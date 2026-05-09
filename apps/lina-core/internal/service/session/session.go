@@ -42,9 +42,8 @@ type ListResult struct {
 	Total int        // Total count
 }
 
-// Store defines the session storage interface.
-// Current implementation uses MySQL MEMORY engine.
-// Future implementations may use gcache + Redis.
+// Store defines the session storage interface for persistent online-session
+// records.
 type Store interface {
 	// Set persists one online session record.
 	Set(ctx context.Context, session *Session) error
@@ -70,7 +69,7 @@ type Store interface {
 	CleanupInactive(ctx context.Context, timeout time.Duration) (int64, error)
 }
 
-// DBStore implements Store using MySQL MEMORY engine table.
+// DBStore implements Store using the persistent online-session table.
 type DBStore struct{}
 
 // NewDBStore creates a new DBStore instance.
@@ -289,37 +288,44 @@ func (s *DBStore) Count(ctx context.Context) (int, error) {
 // TouchOrValidate validates the session timeout and refreshes last_active_time
 // only when the previous activity is outside the short write-throttle window.
 func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout time.Duration) (bool, error) {
-	var stored *entity.SysOnlineSession
-	err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenId}).
-		Scan(&stored)
-	if err != nil {
-		return false, err
-	}
-	if stored == nil {
-		return false, nil
-	}
-	now := gtime.Now()
-	if timeout > 0 && stored.LastActiveTime != nil && stored.LastActiveTime.Before(now.Add(-timeout)) {
-		if _, err = dao.SysOnlineSession.Ctx(ctx).
+	cols := dao.SysOnlineSession.Columns()
+	if timeout > 0 {
+		cutoff := gtime.Now().Add(-timeout)
+		expiredCount, err := dao.SysOnlineSession.Ctx(ctx).
 			Where(do.SysOnlineSession{TokenId: tokenId}).
-			Delete(); err != nil {
+			WhereLTE(cols.LastActiveTime, cutoff).
+			Count()
+		if err != nil {
 			return false, err
 		}
-		return false, nil
-	}
-	if stored.LastActiveTime != nil && stored.LastActiveTime.After(now.Add(-sessionLastActiveUpdateWindow)) {
-		return true, nil
+		if expiredCount > 0 {
+			if _, err = dao.SysOnlineSession.Ctx(ctx).
+				Where(do.SysOnlineSession{TokenId: tokenId}).
+				Delete(); err != nil {
+				return false, err
+			}
+			return false, nil
+		}
 	}
 
-	_, err = dao.SysOnlineSession.Ctx(ctx).
+	now := gtime.Now()
+	updateCutoff := now.Add(-sessionLastActiveUpdateWindow)
+	_, err := dao.SysOnlineSession.Ctx(ctx).
 		Where(do.SysOnlineSession{TokenId: tokenId}).
+		WhereLT(cols.LastActiveTime, updateCutoff).
 		Data(do.SysOnlineSession{LastActiveTime: now}).
 		Update()
 	if err != nil {
 		return false, err
 	}
-	return true, nil
+
+	count, err := dao.SysOnlineSession.Ctx(ctx).
+		Where(do.SysOnlineSession{TokenId: tokenId}).
+		Count()
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // CleanupInactive removes sessions inactive longer than the configured threshold.
@@ -332,4 +338,13 @@ func (s *DBStore) CleanupInactive(ctx context.Context, timeout time.Duration) (i
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+// isSessionInactive reports whether one stored session is already expired by
+// the configured inactivity timeout before the caller uses it as valid state.
+func isSessionInactive(stored *entity.SysOnlineSession, now *gtime.Time, timeout time.Duration) bool {
+	if stored == nil || timeout <= 0 || stored.LastActiveTime == nil {
+		return false
+	}
+	return !stored.LastActiveTime.After(now.Add(-timeout))
 }

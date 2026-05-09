@@ -166,7 +166,7 @@ func buildPlanFieldArgs(resource *catalog.ResourceSpec, selected []string) ([]an
 		if column == "" {
 			return nil, gerror.Newf("plugindb selected field is not authorized: %s", normalizedField)
 		}
-		fields = append(fields, fmt.Sprintf("%s AS %s", column, normalizedField))
+		fields = append(fields, fmt.Sprintf("%s AS %s", column, quoteResourceAlias(normalizedField)))
 	}
 	return fields, nil
 }
@@ -210,7 +210,25 @@ func buildResourceRecordWithSelection(recordMap map[string]interface{}, resource
 			continue
 		}
 		seen[normalizedField] = struct{}{}
-		row[normalizedField] = normalizeResourceValue(recordMap[normalizedField])
+		field := findResourceField(resource, normalizedField)
+		if field == nil {
+			continue
+		}
+		row[normalizedField] = normalizeResourceValue(resolveResourceRecordValue(recordMap, field))
 	}
 	return row
+}
+
+// findResourceField returns the declared resource field for one logical name.
+func findResourceField(resource *catalog.ResourceSpec, fieldName string) *catalog.ResourceField {
+	if resource == nil {
+		return nil
+	}
+	targetFieldName := strings.TrimSpace(fieldName)
+	for _, field := range resource.Fields {
+		if field != nil && field.Name == targetFieldName {
+			return field
+		}
+	}
+	return nil
 }

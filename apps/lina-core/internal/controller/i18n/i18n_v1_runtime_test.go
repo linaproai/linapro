@@ -16,7 +16,7 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	middlewaresvc "lina-core/internal/service/middleware"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
 )

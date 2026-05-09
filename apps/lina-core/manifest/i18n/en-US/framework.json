@@ -47,7 +47,7 @@
         "jwt": {
           "description": "Authentication token standard"
         },
-        "mysql": {
+        "postgresql": {
           "description": "Relational database"
         }
       },

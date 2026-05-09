@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
@@ -17,7 +17,7 @@ import (
 )
 
 // TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange verifies
-// that second-level DATETIME precision does not invalidate an existing session.
+// that second-level TIMESTAMP precision does not invalidate an existing session.
 func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(t *testing.T) {
 	var (
 		ctx     = context.Background()
@@ -69,11 +69,11 @@ func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(
 		t.Fatalf("expected second session touch to succeed, got error: %v", err)
 	}
 	if !exists {
-		t.Fatal("expected existing session to remain active when DATETIME precision keeps the same second")
+		t.Fatal("expected existing session to remain active when TIMESTAMP precision keeps the same second")
 	}
 }
 
-// waitForFreshSecond aligns the test clock with a new second to avoid flaky DATETIME updates.
+// waitForFreshSecond aligns the test clock with a new second to avoid flaky TIMESTAMP updates.
 func waitForFreshSecond(t *testing.T) *gtime.Time {
 	t.Helper()
 

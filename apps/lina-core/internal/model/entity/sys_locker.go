@@ -10,7 +10,7 @@ import (
 
 // SysLocker is the golang structure for table sys_locker.
 type SysLocker struct {
-	Id         uint        `json:"id"         orm:"id"          description:"Primary key ID"`
+	Id         int         `json:"id"         orm:"id"          description:"Primary key ID"`
 	Name       string      `json:"name"       orm:"name"        description:"Lock name, unique identifier"`
 	Reason     string      `json:"reason"     orm:"reason"      description:"Reason for acquiring the lock"`
 	Holder     string      `json:"holder"     orm:"holder"      description:"Lock holder identifier (node name)"`

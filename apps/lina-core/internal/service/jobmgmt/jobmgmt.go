@@ -38,7 +38,7 @@ type GroupService interface {
 	// ListGroups returns scheduled-job groups with pagination and job counts.
 	ListGroups(ctx context.Context, in ListGroupsInput) (*ListGroupsOutput, error)
 	// CreateGroup persists one new scheduled-job group.
-	CreateGroup(ctx context.Context, in SaveGroupInput) (uint64, error)
+	CreateGroup(ctx context.Context, in SaveGroupInput) (int64, error)
 	// UpdateGroup updates one existing scheduled-job group.
 	UpdateGroup(ctx context.Context, in UpdateGroupInput) error
 	// DeleteGroups removes one or more groups and migrates their jobs to the default group.
@@ -53,19 +53,19 @@ type JobService interface {
 	// ListJobs returns scheduled jobs with pagination and group metadata.
 	ListJobs(ctx context.Context, in ListJobsInput) (*ListJobsOutput, error)
 	// GetJob returns one scheduled-job detail snapshot.
-	GetJob(ctx context.Context, id uint64) (*JobDetailOutput, error)
+	GetJob(ctx context.Context, id int64) (*JobDetailOutput, error)
 	// CreateJob persists one new scheduled job and refreshes the scheduler when needed.
-	CreateJob(ctx context.Context, in SaveJobInput) (uint64, error)
+	CreateJob(ctx context.Context, in SaveJobInput) (int64, error)
 	// UpdateJob updates one scheduled job and refreshes the scheduler when needed.
 	UpdateJob(ctx context.Context, in UpdateJobInput) error
 	// DeleteJobs removes one or more non-built-in scheduled jobs.
 	DeleteJobs(ctx context.Context, ids string) error
 	// UpdateJobStatus toggles one job between enabled and disabled states.
-	UpdateJobStatus(ctx context.Context, id uint64, status jobmeta.JobStatus) error
+	UpdateJobStatus(ctx context.Context, id int64, status jobmeta.JobStatus) error
 	// ResetJob resets executed_count and stop_reason for one scheduled job.
-	ResetJob(ctx context.Context, id uint64) error
+	ResetJob(ctx context.Context, id int64) error
 	// TriggerJob starts one manual execution and returns the created log ID.
-	TriggerJob(ctx context.Context, id uint64) (uint64, error)
+	TriggerJob(ctx context.Context, id int64) (int64, error)
 	// PreviewCron returns the next five fire times for one cron expression.
 	PreviewCron(ctx context.Context, expr string, timezone string) ([]time.Time, error)
 	// SyncBuiltinJobs upserts code-owned scheduled jobs into sys_job.
@@ -80,11 +80,11 @@ type LogService interface {
 	// ListLogs returns scheduled-job execution logs with pagination and job metadata.
 	ListLogs(ctx context.Context, in ListLogsInput) (*ListLogsOutput, error)
 	// GetLog returns one execution-log detail snapshot.
-	GetLog(ctx context.Context, id uint64) (*LogDetailOutput, error)
+	GetLog(ctx context.Context, id int64) (*LogDetailOutput, error)
 	// ClearLogs deletes matching execution logs by selected IDs, job, or all rows.
-	ClearLogs(ctx context.Context, jobID *uint64, ids string) error
+	ClearLogs(ctx context.Context, jobID *int64, ids string) error
 	// CancelLog cancels one currently running execution instance.
-	CancelLog(ctx context.Context, id uint64) error
+	CancelLog(ctx context.Context, id int64) error
 	// CleanupDueLogs removes logs that exceed the effective retention policies.
 	CleanupDueLogs(ctx context.Context) (int64, error)
 }
@@ -102,16 +102,16 @@ type Scheduler interface {
 	// LoadAndRegister registers all currently enabled persistent jobs at startup.
 	LoadAndRegister(ctx context.Context) error
 	// Refresh removes and re-registers one job according to its latest persisted state.
-	Refresh(ctx context.Context, jobID uint64) error
+	Refresh(ctx context.Context, jobID int64) error
 	// RegisterJobSnapshot removes and registers one provided job snapshot without
 	// reloading it from sys_job.
 	RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error
 	// Remove unregisters one persistent job from gcron.
-	Remove(jobID uint64)
+	Remove(jobID int64)
 	// Trigger starts one manual execution and returns the created log ID.
-	Trigger(ctx context.Context, jobID uint64) (uint64, error)
+	Trigger(ctx context.Context, jobID int64) (int64, error)
 	// CancelLog cancels one currently running job-log instance.
-	CancelLog(ctx context.Context, logID uint64) error
+	CancelLog(ctx context.Context, logID int64) error
 }
 
 // Ensure serviceImpl implements Service.
@@ -221,7 +221,7 @@ type SaveGroupInput struct {
 
 // UpdateGroupInput stores one group update request.
 type UpdateGroupInput struct {
-	ID uint64 // ID identifies the target group.
+	ID int64 // ID identifies the target group.
 	SaveGroupInput
 }
 
@@ -249,7 +249,7 @@ type ListGroupsOutput struct {
 
 // SaveJobInput stores mutable scheduled-job fields.
 type SaveJobInput struct {
-	GroupID              uint64                   // GroupID identifies the owning group.
+	GroupID              int64                    // GroupID identifies the owning group.
 	Name                 string                   // Name is unique within the group.
 	Description          string                   // Description explains the job purpose.
 	TaskType             jobmeta.TaskType         // TaskType selects handler or shell execution.
@@ -290,7 +290,7 @@ type BuiltinJobDef struct {
 
 // UpdateJobInput stores one job update request.
 type UpdateJobInput struct {
-	ID uint64 // ID identifies the target job.
+	ID int64 // ID identifies the target job.
 	SaveJobInput
 }
 
@@ -298,7 +298,7 @@ type UpdateJobInput struct {
 type ListJobsInput struct {
 	PageNum        int                    // PageNum is the 1-based page index.
 	PageSize       int                    // PageSize is the number of rows per page.
-	GroupID        *uint64                // GroupID filters by group ID.
+	GroupID        *int64                 // GroupID filters by group ID.
 	Status         jobmeta.JobStatus      // Status filters by job status.
 	TaskType       jobmeta.TaskType       // TaskType filters by job type.
 	Keyword        string                 // Keyword matches job name or description.
@@ -332,7 +332,7 @@ type JobDetailOutput struct {
 type ListLogsInput struct {
 	PageNum        int                 // PageNum is the 1-based page index.
 	PageSize       int                 // PageSize is the number of rows per page.
-	JobID          *uint64             // JobID filters by job identifier.
+	JobID          *int64              // JobID filters by job identifier.
 	Status         jobmeta.LogStatus   // Status filters by log status.
 	Trigger        jobmeta.TriggerType // Trigger filters by trigger type.
 	NodeID         string              // NodeID filters by execution node.
@@ -372,12 +372,12 @@ func (s *serviceImpl) currentUserID(ctx context.Context) int64 {
 	return int64(businessCtx.UserId)
 }
 
-// parseUint64IDs parses one comma-separated identifier list.
-func parseUint64IDs(ids string) []uint64 {
+// parseInt64IDs parses one comma-separated identifier list.
+func parseInt64IDs(ids string) []int64 {
 	parts := gstr.SplitAndTrim(ids, ",")
-	result := make([]uint64, 0, len(parts))
+	result := make([]int64, 0, len(parts))
 	for _, part := range parts {
-		currentID := gconv.Uint64(strings.TrimSpace(part))
+		currentID := gconv.Int64(strings.TrimSpace(part))
 		if currentID == 0 {
 			continue
 		}
@@ -422,7 +422,7 @@ func (s *serviceImpl) defaultGroup(ctx context.Context) (*entity.SysJobGroup, er
 }
 
 // groupByID returns one job group by ID.
-func (s *serviceImpl) groupByID(ctx context.Context, id uint64) (*entity.SysJobGroup, error) {
+func (s *serviceImpl) groupByID(ctx context.Context, id int64) (*entity.SysJobGroup, error) {
 	var group *entity.SysJobGroup
 	err := dao.SysJobGroup.Ctx(ctx).
 		Where(do.SysJobGroup{Id: id}).

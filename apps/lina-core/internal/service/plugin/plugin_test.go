@@ -12,8 +12,6 @@ import (
 	"sync"
 	"testing"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/testutil"

@@ -6,9 +6,12 @@ import "errors"
 
 // SQLite primary result codes used for retryable write conflicts.
 const (
-	primaryErrorMask = 0xff
-	errorBusy        = 5
-	errorLocked      = 6
+	primaryErrorMask      = 0xff
+	errorBusy             = 5
+	errorLocked           = 6
+	errorConstraint       = 19
+	errorConstraintPK     = errorConstraint | (6 << 8)
+	errorConstraintUnique = errorConstraint | (8 << 8)
 )
 
 // codeError is the common narrow shape exposed by modernc/glebarez SQLite
@@ -34,6 +37,22 @@ func IsRetryableWriteConflict(err error) bool {
 func IsRetryablePrimaryCode(code int) bool {
 	switch code & primaryErrorMask {
 	case errorBusy, errorLocked:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsUniqueConstraintViolation reports whether err is a SQLite unique-key or
+// primary-key conflict. A plain primary constraint code is intentionally not
+// classified because it may represent non-unique constraint failures.
+func IsUniqueConstraintViolation(err error) bool {
+	var sqliteErr codeError
+	if !errors.As(err, &sqliteErr) {
+		return false
+	}
+	switch sqliteErr.Code() {
+	case errorConstraintPK, errorConstraintUnique:
 		return true
 	default:
 		return false

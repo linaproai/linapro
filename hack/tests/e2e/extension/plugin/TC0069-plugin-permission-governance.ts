@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -8,13 +7,16 @@ import { request as playwrightRequest, expect } from "@playwright/test";
 
 import { test } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
+import {
+  execPgSQLFile,
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  pgIdentifier,
+  queryPgRows,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 
 const pluginID = "plugin-dynamic-governance";
 const pluginName = "Runtime Governance Plugin";
@@ -142,50 +144,6 @@ function runtimePluginDir() {
   return path.join(repoRoot(), "apps", "lina-plugins", pluginID);
 }
 
-function execSQL(statements: string[]) {
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      statements.join(" "),
-    ],
-    { stdio: "ignore" },
-  );
-}
-
-function execSQLFile(filePath: string) {
-  execFileSync(
-    mysqlBin,
-    [`-u${mysqlUser}`, `-p${mysqlPassword}`, mysqlDatabase],
-    {
-      input: readFileSync(filePath),
-      stdio: ["pipe", "ignore", "ignore"],
-    },
-  );
-}
-
-function querySQLRows(sql: string) {
-  return execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-N",
-      "-B",
-      "-e",
-      sql,
-    ],
-    { encoding: "utf8" },
-  )
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-}
-
 function writeULEB128(buffer: number[], value: number) {
   let current = value >>> 0;
   while (true) {
@@ -304,20 +262,22 @@ function cleanupRuntimeWorkspace() {
 }
 
 function cleanupGovernanceRows() {
-  const escapedPluginID = pluginID.replaceAll("'", "''");
-  const escapedRoleKey = testRoleKey.replaceAll("'", "''");
-  const escapedUsername = testUsername.replaceAll("'", "''");
-  execSQL([
-    `DROP TABLE IF EXISTS ${pluginRecordTable};`,
-    `DELETE FROM sys_role_menu WHERE role_id IN (SELECT role_ids.id FROM (SELECT id FROM sys_role WHERE \`key\`='${escapedRoleKey}') AS role_ids);`,
-    `DELETE FROM sys_user_role WHERE role_id IN (SELECT role_ids.id FROM (SELECT id FROM sys_role WHERE \`key\`='${escapedRoleKey}') AS role_ids);`,
+  const escapedPluginID = pgEscapeLiteral(pluginID);
+  const escapedRoleKey = pgEscapeLiteral(testRoleKey);
+  const escapedUsername = pgEscapeLiteral(testUsername);
+  const escapedPluginMenuKey = pgEscapeLiteral(pluginMenuKey);
+  const escapedPluginButtonMenuKey = pgEscapeLiteral(pluginButtonMenuKey);
+  execPgSQLStatements([
+    `DROP TABLE IF EXISTS ${pgIdentifier(pluginRecordTable)};`,
+    `DELETE FROM sys_role_menu WHERE role_id IN (SELECT id FROM sys_role WHERE "key"='${escapedRoleKey}');`,
+    `DELETE FROM sys_user_role WHERE role_id IN (SELECT id FROM sys_role WHERE "key"='${escapedRoleKey}');`,
     `DELETE FROM plugin_org_center_user_dept WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
     `DELETE FROM plugin_org_center_user_post WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
     `DELETE FROM sys_user_role WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username='${escapedUsername}') AS user_ids);`,
     `DELETE FROM sys_user WHERE username='${escapedUsername}';`,
-    `DELETE FROM sys_role WHERE \`key\`='${escapedRoleKey}';`,
-    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT menu_ids.id FROM (SELECT id FROM sys_menu WHERE menu_key IN ('${pluginMenuKey}', '${pluginButtonMenuKey}')) AS menu_ids);`,
-    `DELETE FROM sys_menu WHERE menu_key IN ('${pluginMenuKey}', '${pluginButtonMenuKey}');`,
+    `DELETE FROM sys_role WHERE "key"='${escapedRoleKey}';`,
+    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key IN ('${escapedPluginMenuKey}', '${escapedPluginButtonMenuKey}'));`,
+    `DELETE FROM sys_menu WHERE menu_key IN ('${escapedPluginMenuKey}', '${escapedPluginButtonMenuKey}');`,
     `DELETE FROM sys_plugin_node_state WHERE plugin_id='${escapedPluginID}';`,
     `DELETE FROM sys_plugin_resource_ref WHERE plugin_id='${escapedPluginID}';`,
     `DELETE FROM sys_plugin_migration WHERE plugin_id='${escapedPluginID}';`,
@@ -382,7 +342,7 @@ async function ensureOrgCenterReady(adminApi: APIRequestContext) {
     assertOk(enableResponse, "启用 org-center 失败");
   }
 
-  execSQLFile(
+  execPgSQLFile(
     path.join(
       repoRoot(),
       "apps",
@@ -493,16 +453,19 @@ function hasMenuName(list: MenuTreeNode[], name: string): boolean {
 }
 
 function getPluginMenuIDs() {
-  const rows = querySQLRows(
-    `SELECT id FROM sys_menu WHERE menu_key IN ('${pluginMenuKey}', '${pluginButtonMenuKey}') ORDER BY menu_key ASC;`,
+  const escapedPluginMenuKey = pgEscapeLiteral(pluginMenuKey);
+  const escapedPluginButtonMenuKey = pgEscapeLiteral(pluginButtonMenuKey);
+  const rows = queryPgRows(
+    `SELECT id FROM sys_menu WHERE menu_key IN ('${escapedPluginMenuKey}', '${escapedPluginButtonMenuKey}') ORDER BY menu_key ASC;`,
   );
   return rows.map((item) => Number.parseInt(item, 10)).filter(Number.isFinite);
 }
 
 function seedUserOwnedPluginRecord(userID: number, deptID: number) {
-  execSQL([
-    `INSERT INTO ${pluginRecordTable} (title, owner_user_id, owner_dept_id) VALUES ('admin-owned', 1, ${deptID});`,
-    `INSERT INTO ${pluginRecordTable} (title, owner_user_id, owner_dept_id) VALUES ('user-owned', ${userID}, ${deptID});`,
+  const tableName = pgIdentifier(pluginRecordTable);
+  execPgSQLStatements([
+    `INSERT INTO ${tableName} (title, owner_user_id, owner_dept_id) VALUES ('admin-owned', 1, ${deptID});`,
+    `INSERT INTO ${tableName} (title, owner_user_id, owner_dept_id) VALUES ('user-owned', ${userID}, ${deptID});`,
   ]);
 }
 
@@ -547,11 +510,11 @@ function buildRuntimeGovernanceArtifact() {
       {
         key: "001-plugin-dynamic-governance.sql",
         content: [
-          `CREATE TABLE IF NOT EXISTS ${pluginRecordTable} (`,
-          "  id INT PRIMARY KEY AUTO_INCREMENT,",
+          `CREATE TABLE IF NOT EXISTS ${pgIdentifier(pluginRecordTable)} (`,
+          "  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,",
           "  title VARCHAR(64) NOT NULL,",
-          "  owner_user_id INT NOT NULL,",
-          "  owner_dept_id INT NOT NULL",
+          "  owner_user_id INTEGER NOT NULL,",
+          "  owner_dept_id INTEGER NOT NULL",
           ");",
         ].join("\n"),
       },
@@ -560,7 +523,7 @@ function buildRuntimeGovernanceArtifact() {
       {
         key: "001-plugin-dynamic-governance.sql",
         content: [
-          `DROP TABLE IF EXISTS ${pluginRecordTable};`,
+          `DROP TABLE IF EXISTS ${pgIdentifier(pluginRecordTable)};`,
         ].join("\n"),
       },
     ],

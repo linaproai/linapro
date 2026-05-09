@@ -1,20 +1,21 @@
 import type { APIRequestContext, APIResponse } from "@playwright/test";
 
-import { execFileSync } from "node:child_process";
-
 import { request as playwrightRequest } from "@playwright/test";
 
 import { test, expect } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { PluginPage } from "../../../pages/PluginPage";
+import {
+  execPgSQL,
+  pgIdentifier,
+  queryPgRows,
+  queryPgScalar,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 const targetPluginID = "content-notice";
+const noticeTableName = "plugin_content_notice";
 // Mock data file 001-content-notice-mock-data.sql ships these notice titles.
 // The first one is asserted on screen to prove the mock load committed; the
 // table-empty assertion in TC0146 checks the absence of all three together.
@@ -94,55 +95,25 @@ async function ensurePluginUninstalled(
   assertOk(uninstallResponse, "卸载插件失败");
 }
 
-function queryMysqlLines(sql: string): string[] {
-  const output = execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      "-N",
-      "-B",
-      mysqlDatabase,
-      "-e",
-      sql,
-    ],
-    { encoding: "utf8" },
-  );
-  return output
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
 function noticeTableExists(): boolean {
-  const escapedDatabase = mysqlDatabase.replaceAll("'", "''");
-  const rows = queryMysqlLines(
-    `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${escapedDatabase}' AND table_name = 'plugin_content_notice';`,
+  return (
+    queryPgScalar(
+      `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '${noticeTableName}';`,
+    ) === "1"
   );
-  return rows[0] === "1";
 }
 
 function listNoticeTitlesFromDatabase(): string[] {
   if (!noticeTableExists()) {
     return [];
   }
-  return queryMysqlLines(
-    "SELECT title FROM plugin_content_notice ORDER BY id ASC;",
+  return queryPgRows(
+    `SELECT title FROM ${pgIdentifier(noticeTableName)} ORDER BY id ASC;`,
   );
 }
 
 function dropNoticeTableIfExists() {
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      "DROP TABLE IF EXISTS plugin_content_notice;",
-    ],
-    { stdio: "ignore" },
-  );
+  execPgSQL(`DROP TABLE IF EXISTS ${pgIdentifier(noticeTableName)};`);
 }
 
 test.describe("TC-145 Install plugin with mock data opt-in", () => {

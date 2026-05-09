@@ -10,8 +10,8 @@ import (
 
 // SysJob is the golang structure for table sys_job.
 type SysJob struct {
-	Id                   uint64      `json:"id"                   orm:"id"                     description:"Job ID"`
-	GroupId              uint64      `json:"groupId"              orm:"group_id"               description:"Owning group ID"`
+	Id                   int64       `json:"id"                   orm:"id"                     description:"Job ID"`
+	GroupId              int64       `json:"groupId"              orm:"group_id"               description:"Owning group ID"`
 	Name                 string      `json:"name"                 orm:"name"                   description:"Job name"`
 	Description          string      `json:"description"          orm:"description"            description:"Job description"`
 	TaskType             string      `json:"taskType"             orm:"task_type"              description:"Job type: handler/shell"`

@@ -154,6 +154,9 @@ func (b *SQLTableBackend) Set(
 	if err != nil {
 		return nil, err
 	}
+	if err = b.cleanupExpiredIdentity(ctx, ownerType, identity); err != nil {
+		return nil, err
+	}
 	err = b.upsert(ctx, ownerType, identity, do.SysKvCache{
 		ValueKind:  ValueKindString,
 		ValueBytes: []byte(value),
@@ -253,9 +256,8 @@ func (b *SQLTableBackend) Incr(
 	return nil, lastErr
 }
 
-// incrOnce performs one compare-and-swap increment attempt. It preserves the
-// original MEMORY-table delivery schema by avoiding transaction-lock semantics
-// that MEMORY cannot provide.
+// incrOnce performs one compare-and-swap increment attempt while checking
+// expiration before stale row data can affect the next value.
 func (b *SQLTableBackend) incrOnce(
 	ctx context.Context,
 	ownerType OwnerType,
@@ -263,6 +265,7 @@ func (b *SQLTableBackend) incrOnce(
 	delta int64,
 	expireAt *gtime.Time,
 ) (*Item, error) {
+	cols := dao.SysKvCache.Columns()
 	snapshot, found, err := b.readIdentitySnapshot(ctx, ownerType, identity)
 	if err != nil {
 		return nil, err
@@ -308,9 +311,8 @@ func (b *SQLTableBackend) incrOnce(
 		CacheKey:  identity.cacheKey,
 		ValueKind: ValueKindInt,
 		ValueInt:  snapshot.ValueInt,
-	}).Data(updateData)
+	}).Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).Data(updateData)
 	if expireAt == nil {
-		cols := dao.SysKvCache.Columns()
 		updateModel = updateModel.Fields(cols.ValueKind, cols.ValueBytes, cols.ValueInt)
 	}
 	affected, err := updateModel.UpdateAndGetAffected()
@@ -367,6 +369,7 @@ func (b *SQLTableBackend) readIdentitySnapshot(
 			Namespace: identity.namespace,
 			CacheKey:  identity.cacheKey,
 		}).
+		Wheref("(%s IS NULL OR %s > ?)", cols.ExpireAt, cols.ExpireAt, gtime.Now()).
 		Scan(&row)
 	if err != nil {
 		return nil, false, err
@@ -478,11 +481,28 @@ func (b *SQLTableBackend) Expire(
 //     exist, the method returns nil.
 func (b *SQLTableBackend) CleanupExpired(ctx context.Context) error {
 	cols := dao.SysKvCache.Columns()
-	_, err := b.model(ctx).
+	var expiredRows []struct {
+		Id int64 `orm:"id"`
+	}
+	if err := b.model(ctx).
+		Fields(cols.Id).
 		WhereNotNull(cols.ExpireAt).
 		WhereLT(cols.ExpireAt, gtime.Now()).
 		OrderAsc(cols.ExpireAt).
 		Limit(expiredCleanupBatchSize).
+		Scan(&expiredRows); err != nil {
+		return err
+	}
+	if len(expiredRows) == 0 {
+		return nil
+	}
+
+	expiredIDs := make([]int64, 0, len(expiredRows))
+	for _, row := range expiredRows {
+		expiredIDs = append(expiredIDs, row.Id)
+	}
+	_, err := b.model(ctx).
+		WhereIn(cols.Id, expiredIDs).
 		Delete()
 	return err
 }

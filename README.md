@@ -72,7 +72,7 @@ graph TB
         Dynamic["WASM Dynamic Plugins\nhot-loaded at runtime"]
     end
 
-    DB[("Data Store\nMySQL")]
+    DB[("Data Store\nPostgreSQL")]
 
     Workflow -.->|spec-driven| Frontend
     Workflow -.->|spec-driven| Host
@@ -161,7 +161,61 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 | Frontend Framework | `Vue 3` | Built on the `Vben 5` admin template |
 | Frontend UI | `Ant Design Vue` | Enterprise-grade UI component library |
 | Build Tool | `Vite` | Lightning-fast frontend builds |
-| Database | `MySQL` / optional `SQLite` | `MySQL 8.0+` is the primary data store. `SQLite` can be used for demo or local test mode without MySQL; it is single-node only and not for production. |
+| Database | `PostgreSQL` / optional `SQLite` | `PostgreSQL 14+` is the default data store. `SQLite` can be used for local demo or smoke testing; it is single-node only and not for production. |
 | Plugin Runtime | `WebAssembly` | `tetratelabs/wazero`, powering WASM dynamic plugins |
 
+## Quick Start
 
+`LinaPro` uses `PostgreSQL` as the default database. Prepare a `PostgreSQL 14+` instance before running `make init` or `make dev`; those commands do not start or manage the database.
+
+For local development, start a matching container:
+
+```bash
+docker run --name linapro-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=linapro \
+  -p 5432:5432 \
+  --health-cmd pg_isready \
+  --health-interval 10s \
+  --health-timeout 5s \
+  --health-retries 5 \
+  -d postgres:14-alpine
+```
+
+If local port `5432` is already occupied, map the container to another host port
+such as `15432:5432` and update `database.default.link` to use that host port.
+
+Install frontend dependencies once, then initialize and run the project:
+
+```bash
+corepack enable
+cd apps/lina-vben
+pnpm install
+cd ../..
+make init confirm=init
+make mock confirm=mock
+make dev
+```
+
+The default backend link is:
+
+```yaml
+database:
+  default:
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+```
+
+`make init` is an operations bootstrap command. It uses the configured database account and requires permission to connect to the system database, create and drop the target database, terminate target-database connections, create tables and indexes, write comments, and insert seed data. If those permissions are missing, initialization fails instead of falling back to a lower-privilege runtime mode.
+
+For external hosted `PostgreSQL`, such as `RDS` or `Aliyun PolarDB`, point `database.default.link` at the provider host and port. Use an initialization account with the permissions above for `make init`, then run the service with the same configured database unless your deployment process replaces the config with a runtime account after initialization.
+
+For a single-node development demo, switch the link to `SQLite`:
+
+```yaml
+database:
+  default:
+    link: "sqlite::@file(./temp/sqlite/linapro.db)"
+```
+
+`SQLite` mode is for local demo and smoke testing only. It is not a production deployment mode.

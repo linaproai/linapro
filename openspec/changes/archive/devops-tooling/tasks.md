@@ -18,7 +18,7 @@
 - [x] 3.3 Implement the explicit source-plugin upgrade flow: version comparison, single-plugin and bulk plans, `phase=upgrade` SQL execution, menu and permission synchronization, governance resource-reference synchronization, and release/registry switching.
 - [x] 3.4 Add a startup-time pending-upgrade check for source plugins. If an installed plugin has a higher discovered version that has not been upgraded, block startup and print the matching `make upgrade` command.
 - [x] 3.5 Clarify the dynamic-plugin upgrade boundary so runtime upload plus install/reconcile remains the only upgrade path and `make upgrade` never takes over that flow.
-- [x] 3.6 Update the related documentation, including the current OpenSpec artifacts, `apps/lina-core/README.md`, `apps/lina-core/README.zh_CN.md`, command help, and plugin governance guidance.
+- [x] 3.6 Update the related documentation, including the current OpenSpec artifacts, `apps/lina-core/README.md`, `apps/lina-core/README.zh-CN.md`, command help, and plugin governance guidance.
 
 ## 4. Development database configuration deduplication
 
@@ -34,7 +34,7 @@
 - [x] 5.3 Implement safe directory policy: default deployment to a safe directory, explicit support for current directory mode, and refusal to continue execution when the target directory is non-empty and overwrite is not allowed.
 - [x] 5.4 Add environment health check output for key dependencies such as `Go`, `Node.js`, `pnpm`, `MySQL`, `make`, as well as project path hints, at the end of the installation scripts.
 - [x] 5.5 Output unified post-installation next-step guidance, clearly listing recommended operations such as `make init`, `make mock`, `make dev` and related notes.
-- [x] 5.6 Update the repository root `README.md` and `README.zh_CN.md`, adding quick install examples for `macOS/Linux` and `Windows`, parameter descriptions, and official entry point mapping.
+- [x] 5.6 Update the repository root `README.md` and `README.zh-CN.md`, adding quick install examples for `macOS/Linux` and `Windows`, parameter descriptions, and official entry point mapping.
 
 ## 6. Cron job management: built-in cleanup task projection
 
@@ -60,7 +60,7 @@
 ## 9. Performance audit skill: preparation
 
 - [x] 9.1 Create `.agents/skills/lina-perf-audit/` with `SKILL.md`, `references/`, and `scripts/`.
-- [x] 9.2 Add `.agents/skills/lina-perf-audit/scripts/README.md` and `README.zh_CN.md` explaining that scripts are owned by the skill.
+- [x] 9.2 Add `.agents/skills/lina-perf-audit/scripts/README.md` and `README.zh-CN.md` explaining that scripts are owned by the skill.
 - [x] 9.3 Verify that the GoFrame `Trace-ID` response header is available in this repository and that the same trace ID can be found in SQL debug logs.
 
 ## 10. Performance audit skill: helper scripts
@@ -96,7 +96,7 @@
 
 ## 13. Performance audit skill: README
 
-- [x] 13.1 Add `.agents/skills/lina-perf-audit/README.md` and `README.zh_CN.md`.
+- [x] 13.1 Add `.agents/skills/lina-perf-audit/README.md` and `README.zh-CN.md`.
 - [x] 13.2 Add a short note in the root command documentation that `lina-perf-audit` is a manually triggered performance audit skill.
 
 ## 14. Performance audit skill: dry-run verification

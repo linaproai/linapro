@@ -7,13 +7,12 @@ import {
   createAdminApiContext,
   disablePlugin,
   enablePlugin,
+  ensurePluginBuiltinJobEnabled,
   expectBusinessError,
   getJob,
   getLog,
   getPlugin,
-  installPlugin,
   listHandlers,
-  listJobs,
   triggerJob,
   uninstallPlugin,
   syncPlugins,
@@ -39,48 +38,12 @@ test.describe('TC-90 插件内置任务生命周期级联', () => {
     originalInstalled = plugin.installed;
     originalEnabled = plugin.enabled;
 
-    if (plugin.installed !== 1) {
-      await installPlugin(api, pluginID);
-    }
-    if (plugin.enabled !== 1) {
-      await enablePlugin(api, pluginID);
-    }
-
-    await expect
-      .poll(
-        async () => {
-          const handlers = await listHandlers(api);
-          const hasCronHandler = handlers.list.some((item) => item.ref === handlerRef);
-          const hasRemovedGenericHandler = handlers.list.some(
-            (item) => item.ref === removedGenericHandlerRef,
-          );
-          return `${hasCronHandler}:${hasRemovedGenericHandler}`;
-        },
-        {
-          timeout: 10000,
-          message: '启用源码插件后应只注册其内置 cron 处理器，不再暴露 plugin.jobs 处理器',
-        },
-      )
-      .toBe('true:false');
-
-    await expect
-      .poll(
-        async () => {
-          const jobs = await listJobs(api, jobName);
-          const builtinJob = jobs.list.find(
-            (item) => item.name === jobName && item.isBuiltin === 1,
-          );
-          jobId = builtinJob?.id ?? 0;
-          return builtinJob
-            ? `${builtinJob.status}:${builtinJob.handlerRef}:${builtinJob.isBuiltin}`
-            : '';
-        },
-        {
-          timeout: 10000,
-          message: '插件内置定时任务应投影到 sys_job 并恢复为 enabled',
-        },
-      )
-      .toBe(`enabled:${handlerRef}:1`);
+    jobId = await ensurePluginBuiltinJobEnabled(api, {
+      pluginId: pluginID,
+      jobName,
+      handlerRef,
+      removedHandlerRef: removedGenericHandlerRef,
+    });
   });
 
   test.afterAll(async () => {

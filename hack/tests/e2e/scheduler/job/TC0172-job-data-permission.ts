@@ -13,11 +13,11 @@ import {
   deleteUser,
   expectBusinessError,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getMenuIdsByPermsWithAncestors,
   listJobs,
   setCronShellEnabled,
-  updateConfigValue,
 } from "../../../support/api/job";
 
 const password = "test123456";
@@ -107,11 +107,7 @@ test.describe("TC-172 定时任务数据权限", () => {
       await deleteRole(adminApi, roleID).catch(() => {});
     }
     if (originalShellSwitch) {
-      await updateConfigValue(
-        adminApi,
-        originalShellSwitch.id,
-        originalShellSwitch.value,
-      );
+      await restoreCronShellEnabled(adminApi, originalShellSwitch);
     }
     await adminApi?.dispose();
   });

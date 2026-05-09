@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -8,14 +7,15 @@ import { request as playwrightRequest, expect } from "@playwright/test";
 
 import { test } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  pgIdentifier,
+  queryPgScalar,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
-
 const goodPluginID = "plugin-dynamic-hook-good";
 const badPluginID = "plugin-dynamic-hook-bad";
 const goodPluginVersion = "v0.2.0";
@@ -271,10 +271,10 @@ function cleanupRuntimeWorkspace() {
 }
 
 function cleanupRuntimeRows() {
-  const goodID = goodPluginID.replaceAll("'", "''");
-  const badID = badPluginID.replaceAll("'", "''");
-  execSQL([
-    `DROP TABLE IF EXISTS ${goodPluginLogTable};`,
+  const goodID = pgEscapeLiteral(goodPluginID);
+  const badID = pgEscapeLiteral(badPluginID);
+  execPgSQLStatements([
+    `DROP TABLE IF EXISTS ${pgIdentifier(goodPluginLogTable)};`,
     `DELETE FROM sys_plugin_node_state WHERE plugin_id IN ('${goodID}', '${badID}');`,
     `DELETE FROM sys_plugin_resource_ref WHERE plugin_id IN ('${goodID}', '${badID}');`,
     `DELETE FROM sys_plugin_migration WHERE plugin_id IN ('${goodID}', '${badID}');`,
@@ -283,34 +283,10 @@ function cleanupRuntimeRows() {
   ]);
 }
 
-function execSQL(statements: string[]) {
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      statements.join(" "),
-    ],
-    { stdio: "ignore" },
-  );
-}
-
 function queryGoodHookRowCount() {
-  const output = execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-N",
-      "-B",
-      "-e",
-      `SELECT COUNT(1) FROM ${goodPluginLogTable};`,
-    ],
-    { encoding: "utf8" },
-  ).trim();
+  const output = queryPgScalar(
+    `SELECT COUNT(1) FROM ${pgIdentifier(goodPluginLogTable)};`,
+  );
   return Number.parseInt(output || "0", 10);
 }
 
@@ -420,11 +396,11 @@ function buildGoodRuntimeArtifact() {
       {
         key: "001-plugin-dynamic-hook-good.sql",
         content: [
-          `CREATE TABLE IF NOT EXISTS ${goodPluginLogTable} (`,
-          "  id INT PRIMARY KEY AUTO_INCREMENT,",
+          `CREATE TABLE IF NOT EXISTS ${pgIdentifier(goodPluginLogTable)} (`,
+          "  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,",
           "  user_name VARCHAR(64) NOT NULL,",
           "  event_name VARCHAR(128) NOT NULL,",
-          "  created_at DATETIME NULL",
+          "  created_at TIMESTAMP NULL",
           ");",
         ].join("\n"),
       },
@@ -432,7 +408,7 @@ function buildGoodRuntimeArtifact() {
     uninstallSQLAssets: [
       {
         key: "001-plugin-dynamic-hook-good.sql",
-        content: `DROP TABLE IF EXISTS ${goodPluginLogTable};`,
+        content: `DROP TABLE IF EXISTS ${pgIdentifier(goodPluginLogTable)};`,
       },
     ],
     hookSpecs: [

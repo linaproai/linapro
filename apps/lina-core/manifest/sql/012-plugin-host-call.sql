@@ -6,11 +6,20 @@
 -- ------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS sys_plugin_state (
-    id           INT PRIMARY KEY AUTO_INCREMENT COMMENT  'Primary key ID',
-    plugin_id    VARCHAR(64)   NOT NULL DEFAULT '' COMMENT  'Plugin unique identifier (kebab-case)',
-    state_key    VARCHAR(255)  NOT NULL DEFAULT '' COMMENT  'State key',
-    state_value  LONGTEXT                          COMMENT  'State value with JSON support',
-    created_at   DATETIME                          COMMENT  'Creation time',
-    updated_at   DATETIME                          COMMENT  'Update time',
-    UNIQUE KEY uk_plugin_state (plugin_id, state_key)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Plugin key-value state storage table';
+    "id"          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "plugin_id"   VARCHAR(64) NOT NULL DEFAULT '',
+    "state_key"   VARCHAR(255) NOT NULL DEFAULT '',
+    "state_value" TEXT,
+    "created_at"  TIMESTAMP,
+    "updated_at"  TIMESTAMP
+);
+
+COMMENT ON TABLE sys_plugin_state IS 'Plugin key-value state storage table';
+COMMENT ON COLUMN sys_plugin_state."id" IS 'Primary key ID';
+COMMENT ON COLUMN sys_plugin_state."plugin_id" IS 'Plugin unique identifier (kebab-case)';
+COMMENT ON COLUMN sys_plugin_state."state_key" IS 'State key';
+COMMENT ON COLUMN sys_plugin_state."state_value" IS 'State value with JSON support';
+COMMENT ON COLUMN sys_plugin_state."created_at" IS 'Creation time';
+COMMENT ON COLUMN sys_plugin_state."updated_at" IS 'Update time';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_state_plugin_id_state_key ON sys_plugin_state ("plugin_id", "state_key");

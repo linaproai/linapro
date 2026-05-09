@@ -117,7 +117,7 @@ func (s *serviceImpl) buildBuiltinJobPlan(
 			existing: existing,
 		})
 
-		nameKey := buildBuiltinJobNameKey(gconv.Uint64(record.GroupId), record.Name)
+		nameKey := buildBuiltinJobNameKey(gconv.Int64(record.GroupId), record.Name)
 		plan.nameKeys[nameKey] = struct{}{}
 
 		handlerRef := strings.TrimSpace(gconv.String(record.HandlerRef))
@@ -171,7 +171,7 @@ func (s *serviceImpl) pruneRemovedBuiltinJobs(
 }
 
 // deleteBuiltinJobHard removes one stale code-owned job and its execution logs.
-func (s *serviceImpl) deleteBuiltinJobHard(ctx context.Context, jobID uint64) error {
+func (s *serviceImpl) deleteBuiltinJobHard(ctx context.Context, jobID int64) error {
 	if jobID == 0 {
 		return nil
 	}
@@ -196,7 +196,7 @@ func (s *serviceImpl) deleteBuiltinJobHard(ctx context.Context, jobID uint64) er
 
 // buildBuiltinJobNameKey returns the stable uniqueness key for one built-in
 // job inside the persistent sys_job table.
-func buildBuiltinJobNameKey(groupID uint64, name any) string {
+func buildBuiltinJobNameKey(groupID int64, name any) string {
 	return fmt.Sprintf("%d:%s", groupID, strings.TrimSpace(fmt.Sprint(name)))
 }
 
@@ -212,7 +212,7 @@ func (s *serviceImpl) upsertBuiltinJobRecord(
 			return nil, err
 		}
 		startupstats.Add(ctx, startupstats.CounterBuiltinJobProjections, 1)
-		projection := buildBuiltinJobEntity(uint64(insertID), record)
+		projection := buildBuiltinJobEntity(int64(insertID), record)
 		if snapshot := startupDataSnapshotFromContext(ctx); snapshot != nil {
 			snapshot.storeBuiltinJob(projection)
 		}
@@ -245,7 +245,7 @@ func builtinJobRecordMatches(existing *entity.SysJob, record do.SysJob) bool {
 	if existing == nil {
 		return false
 	}
-	return existing.GroupId == gconv.Uint64(record.GroupId) &&
+	return existing.GroupId == gconv.Int64(record.GroupId) &&
 		existing.Name == gconv.String(record.Name) &&
 		existing.Description == gconv.String(record.Description) &&
 		existing.TaskType == gconv.String(record.TaskType) &&
@@ -465,7 +465,7 @@ func (s *serviceImpl) builtinJobByHandlerRef(ctx context.Context, handlerRef str
 // builtinJobByGroupAndName queries one code-owned job by group and display name.
 func (s *serviceImpl) builtinJobByGroupAndName(
 	ctx context.Context,
-	groupID uint64,
+	groupID int64,
 	name string,
 ) (*entity.SysJob, error) {
 	trimmedName := strings.TrimSpace(name)

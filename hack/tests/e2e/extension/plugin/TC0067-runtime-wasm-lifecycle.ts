@@ -19,16 +19,18 @@ import { test } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { LoginPage } from "../../../pages/LoginPage";
 import { PluginPage } from "../../../pages/PluginPage";
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  pgIdentifier,
+  queryPgScalar,
+} from "../../../support/postgres";
 import { waitForUploadReady } from "../../../support/ui";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
 const publicBaseURL =
   process.env.E2E_PUBLIC_BASE_URL ?? apiBaseURL.replace(/\/api\/v1\/?$/, "");
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 const pluginID = "plugin-dynamic-e2e";
 const pluginName = "Runtime E2E Plugin";
 const pluginVersion = "v0.1.0";
@@ -221,70 +223,35 @@ function cleanupRuntimePluginWorkspace() {
 }
 
 function cleanupRuntimePluginRows() {
-  const escapedId = pluginID.replaceAll("'", "''");
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      [
-        `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT menu_ids.id FROM (SELECT id FROM sys_menu WHERE menu_key IN ('${iframeMenuKey}', '${embeddedMenuKey}', '${newWindowMenuKey}')) AS menu_ids);`,
-        `DELETE FROM sys_menu WHERE menu_key IN ('${iframeMenuKey}', '${embeddedMenuKey}', '${newWindowMenuKey}');`,
-        `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedId}';`,
-        `DELETE FROM sys_plugin WHERE plugin_id = '${escapedId}';`,
-      ].join(" "),
-    ],
-    {
-      stdio: "ignore",
-    },
-  );
+  const escapedId = pgEscapeLiteral(pluginID);
+  execPgSQLStatements([
+    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key IN ('${pgEscapeLiteral(iframeMenuKey)}', '${pgEscapeLiteral(embeddedMenuKey)}', '${pgEscapeLiteral(newWindowMenuKey)}'));`,
+    `DELETE FROM sys_menu WHERE menu_key IN ('${pgEscapeLiteral(iframeMenuKey)}', '${pgEscapeLiteral(embeddedMenuKey)}', '${pgEscapeLiteral(newWindowMenuKey)}');`,
+    `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedId}';`,
+    `DELETE FROM sys_plugin WHERE plugin_id = '${escapedId}';`,
+  ]);
 }
 
 function cleanupBundledRuntimeDemoData() {
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      [
-        `DROP TABLE IF EXISTS \`${bundledRuntimeRecordTable}\`;`,
-        `DELETE FROM sys_plugin_state WHERE plugin_id = '${bundledRuntimePluginID.replaceAll("'", "''")}' AND state_key = '${bundledRuntimeCronStateKey.replaceAll("'", "''")}';`,
-      ].join(" "),
-    ],
-    {
-      stdio: "ignore",
-    },
-  );
+  execPgSQLStatements([
+    `DROP TABLE IF EXISTS ${pgIdentifier(bundledRuntimeRecordTable)};`,
+    `DELETE FROM sys_plugin_state WHERE plugin_id = '${pgEscapeLiteral(bundledRuntimePluginID)}' AND state_key = '${pgEscapeLiteral(bundledRuntimeCronStateKey)}';`,
+  ]);
   rmSync(bundledRuntimeStorageRootDir(), { force: true, recursive: true });
   rmSync(bundledRuntimeAttachmentFixturePath(), { force: true });
 }
 
-function mysqlScalar(query: string) {
-  return execFileSync(
-    mysqlBin,
-    [`-u${mysqlUser}`, `-p${mysqlPassword}`, mysqlDatabase, "-Nse", query],
-    {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    },
-  ).trim();
-}
-
 function runtimeUploadMaxSizeMB() {
-  const rawValue = mysqlScalar(
+  const rawValue = queryPgScalar(
     [
-      "SELECT `value`",
+      'SELECT "value"',
       "FROM sys_config",
-      "WHERE `key` = 'sys.upload.maxSize'",
-      "AND `deleted_at` IS NULL",
-      "ORDER BY `id` DESC",
+      "WHERE \"key\" = 'sys.upload.maxSize'",
+      "AND deleted_at IS NULL",
+      "ORDER BY id DESC",
       "LIMIT 1;",
     ].join(" "),
   );
@@ -296,12 +263,12 @@ function runtimeUploadMaxSizeMB() {
 }
 
 function bundledRuntimeRecordTableExists() {
-  const count = mysqlScalar(
+  const count = queryPgScalar(
     [
       "SELECT COUNT(*)",
       "FROM information_schema.tables",
-      `WHERE table_schema = '${mysqlDatabase.replaceAll("'", "''")}'`,
-      `AND table_name = '${bundledRuntimeRecordTable.replaceAll("'", "''")}'`,
+      "WHERE table_schema = 'public'",
+      `AND table_name = '${pgEscapeLiteral(bundledRuntimeRecordTable)}'`,
       ";",
     ].join(" "),
   );
@@ -312,22 +279,22 @@ function bundledRuntimeRecordCountByTitle(title: string) {
   if (!bundledRuntimeRecordTableExists()) {
     return 0;
   }
-  const escapedTitle = title.replaceAll("'", "''");
+  const escapedTitle = pgEscapeLiteral(title);
   return Number(
-    mysqlScalar(
-      `SELECT COUNT(*) FROM \`${bundledRuntimeRecordTable}\` WHERE \`title\` = '${escapedTitle}';`,
+    queryPgScalar(
+      `SELECT COUNT(*) FROM ${pgIdentifier(bundledRuntimeRecordTable)} WHERE title = '${escapedTitle}';`,
     ),
   );
 }
 
 function bundledRuntimeCronStateCount() {
   return Number(
-    mysqlScalar(
+    queryPgScalar(
       [
         "SELECT COALESCE(MAX(state_value), '0')",
         "FROM sys_plugin_state",
-        `WHERE plugin_id = '${bundledRuntimePluginID.replaceAll("'", "''")}'`,
-        `AND state_key = '${bundledRuntimeCronStateKey.replaceAll("'", "''")}'`,
+        `WHERE plugin_id = '${pgEscapeLiteral(bundledRuntimePluginID)}'`,
+        `AND state_key = '${pgEscapeLiteral(bundledRuntimeCronStateKey)}'`,
         ";",
       ].join(" "),
     ) || "0",
@@ -338,43 +305,31 @@ function seedBundledRuntimePaginationRecords(recordKey: string, count: number) {
   const titles = Array.from({ length: count }, (_value, index) => {
     return `动态插件分页记录-${recordKey}-${String(index + 1).padStart(2, "0")}`;
   });
-  const statements = [`DELETE FROM \`${bundledRuntimeRecordTable}\`;`];
+  const tableName = pgIdentifier(bundledRuntimeRecordTable);
+  const statements = [`DELETE FROM ${tableName};`];
   for (const [index, title] of titles.entries()) {
     const sequence = String(index + 1).padStart(2, "0");
-    const escapedID = `${recordKey}-${sequence}`.replaceAll("'", "''");
-    const escapedTitle = title.replaceAll("'", "''");
-    const escapedContent = `用于分页验证的动态插件示例记录 ${sequence}`.replaceAll(
-      "'",
-      "''",
+    const escapedID = pgEscapeLiteral(`${recordKey}-${sequence}`);
+    const escapedTitle = pgEscapeLiteral(title);
+    const escapedContent = pgEscapeLiteral(
+      `用于分页验证的动态插件示例记录 ${sequence}`,
     );
     statements.push(
       [
-        `INSERT INTO \`${bundledRuntimeRecordTable}\` (`,
-        "`id`, `title`, `content`, `attachment_name`, `attachment_path`, `created_at`, `updated_at`",
+        `INSERT INTO ${tableName} (`,
+        "id, title, content, attachment_name, attachment_path, created_at, updated_at",
         ") VALUES (",
         `'${escapedID}',`,
         `'${escapedTitle}',`,
         `'${escapedContent}',`,
         "'', '',",
-        `DATE_ADD('2026-04-17 09:00:00', INTERVAL ${index} MINUTE),`,
-        `DATE_ADD('2026-04-17 09:00:00', INTERVAL ${index} MINUTE)`,
+        `TIMESTAMP '2026-04-17 09:00:00' + make_interval(mins => ${index}),`,
+        `TIMESTAMP '2026-04-17 09:00:00' + make_interval(mins => ${index})`,
         ");",
       ].join(" "),
     );
   }
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      statements.join(" "),
-    ],
-    {
-      stdio: "ignore",
-    },
-  );
+  execPgSQLStatements(statements);
   return titles;
 }
 
@@ -421,7 +376,7 @@ function writeULEB128(buffer: number[], value: number) {
 
 function buildRuntimeInstallSQL() {
   return [
-    "CREATE TABLE IF NOT EXISTS plugin_runtime_e2e_log (id INT PRIMARY KEY AUTO_INCREMENT, created_at DATETIME NULL);",
+    "CREATE TABLE IF NOT EXISTS plugin_runtime_e2e_log (id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, created_at TIMESTAMP NULL);",
   ].join("\n");
 }
 

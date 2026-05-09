@@ -10,13 +10,13 @@ import (
 	"github.com/gogf/gf/v2/errors/gcode"
 
 	"lina-core/pkg/bizerr"
-	internalmysql "lina-core/pkg/dialect/internal/mysql"
+	internalpostgres "lina-core/pkg/dialect/internal/postgres"
 	internalsqlite "lina-core/pkg/dialect/internal/sqlite"
 )
 
 // Supported database link prefixes.
 const (
-	mysqlPrefix  = "mysql:"
+	pgsqlPrefix  = "pgsql:"
 	sqlitePrefix = "sqlite:"
 )
 
@@ -30,7 +30,13 @@ var (
 	// CodeDialectUnsupported reports that a database link prefix is not supported.
 	CodeDialectUnsupported = bizerr.MustDefine(
 		"DIALECT_UNSUPPORTED",
-		"Database dialect {prefix} is unsupported; supported prefixes are mysql: and sqlite:",
+		"Database dialect {prefix} is unsupported; supported prefixes are pgsql: and sqlite:",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeDialectMySQLUnsupported reports that MySQL support has been removed.
+	CodeDialectMySQLUnsupported = bizerr.MustDefine(
+		"DIALECT_MYSQL_UNSUPPORTED",
+		"mysql dialect is no longer supported; supported prefixes are pgsql: and sqlite:",
 		gcode.CodeInvalidParameter,
 	)
 )
@@ -40,7 +46,7 @@ var (
 type Dialect interface {
 	// Name returns the stable dialect name used in logs and diagnostics.
 	Name() string
-	// TranslateDDL converts one MySQL-source SQL asset into SQL executable by
+	// TranslateDDL converts one PostgreSQL-source SQL asset into SQL executable by
 	// this dialect. sourceName is a file path or embedded asset identifier used
 	// for error diagnostics.
 	TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error)
@@ -51,9 +57,19 @@ type Dialect interface {
 	SupportsCluster() bool
 	// DatabaseVersion returns a display-ready database engine and version label.
 	DatabaseVersion(ctx context.Context, db gdb.DB) (string, error)
+	// QueryTableMetadata returns metadata for the named tables that exist in
+	// the requested schema. Missing table names are skipped.
+	QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error)
 	// OnStartup applies dialect-specific runtime bootstrap behavior before
 	// cluster services start.
 	OnStartup(ctx context.Context, runtime RuntimeConfig) error
+}
+
+// TableMeta describes portable table metadata exposed through the dialect
+// boundary.
+type TableMeta struct {
+	TableName    string // TableName is the database table identifier.
+	TableComment string // TableComment is the optional table comment.
 }
 
 // RuntimeConfig is the narrow startup configuration interface needed by
@@ -71,10 +87,12 @@ func From(link string) (Dialect, error) {
 		return nil, bizerr.NewCode(CodeDialectLinkRequired)
 	}
 	switch {
-	case strings.HasPrefix(normalized, mysqlPrefix):
-		return mysqlDialect{}, nil
+	case strings.HasPrefix(normalized, pgsqlPrefix):
+		return postgresDialect{}, nil
 	case strings.HasPrefix(normalized, sqlitePrefix):
 		return sqliteDialect{link: normalized}, nil
+	case strings.HasPrefix(normalized, "mysql:"):
+		return nil, bizerr.NewCode(CodeDialectMySQLUnsupported)
 	default:
 		prefix := normalized
 		if index := strings.Index(prefix, ":"); index >= 0 {
@@ -108,37 +126,53 @@ func DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
 	return dbDialect.DatabaseVersion(ctx, db)
 }
 
-// mysqlDialect is the public package wrapper for the internal MySQL dialect.
-type mysqlDialect struct{}
+// postgresDialect is the public package wrapper for the internal PostgreSQL dialect.
+type postgresDialect struct{}
 
-// Name returns the stable MySQL dialect name.
-func (mysqlDialect) Name() string {
-	return internalmysql.Name
+// Name returns the stable PostgreSQL dialect name.
+func (postgresDialect) Name() string {
+	return internalpostgres.Name
 }
 
-// TranslateDDL leaves MySQL-source SQL unchanged.
-func (mysqlDialect) TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
-	return internalmysql.TranslateDDL(ctx, sourceName, ddl)
+// TranslateDDL leaves PostgreSQL-source SQL unchanged.
+func (postgresDialect) TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
+	return internalpostgres.TranslateDDL(ctx, sourceName, ddl)
 }
 
-// PrepareDatabase creates the configured MySQL database before init SQL runs.
-func (mysqlDialect) PrepareDatabase(ctx context.Context, link string, rebuild bool) error {
-	return internalmysql.PrepareDatabase(ctx, link, rebuild)
+// PrepareDatabase creates the configured PostgreSQL database before init SQL runs.
+func (postgresDialect) PrepareDatabase(ctx context.Context, link string, rebuild bool) error {
+	return internalpostgres.PrepareDatabase(ctx, link, rebuild)
 }
 
-// SupportsCluster reports whether MySQL can back cluster coordination tables.
-func (mysqlDialect) SupportsCluster() bool {
-	return internalmysql.SupportsCluster()
+// SupportsCluster reports whether PostgreSQL can back cluster coordination tables.
+func (postgresDialect) SupportsCluster() bool {
+	return internalpostgres.SupportsCluster()
 }
 
-// DatabaseVersion returns the MySQL server version label.
-func (mysqlDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
-	return internalmysql.DatabaseVersion(ctx, db)
+// DatabaseVersion returns the PostgreSQL server version label.
+func (postgresDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
+	return internalpostgres.DatabaseVersion(ctx, db)
 }
 
-// OnStartup has no MySQL-specific startup side effects.
-func (mysqlDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
-	return nil
+// QueryTableMetadata returns existing PostgreSQL table names and comments.
+func (postgresDialect) QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error) {
+	metas, err := internalpostgres.QueryTableMetadata(ctx, db, schema, tableNames)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]TableMeta, 0, len(metas))
+	for _, meta := range metas {
+		result = append(result, TableMeta{
+			TableName:    meta.TableName,
+			TableComment: meta.TableComment,
+		})
+	}
+	return result, nil
+}
+
+// OnStartup has no PostgreSQL-specific startup side effects.
+func (postgresDialect) OnStartup(ctx context.Context, runtime RuntimeConfig) error {
+	return internalpostgres.OnStartup(ctx, runtime)
 }
 
 // sqliteDialect is the public package wrapper for the internal SQLite dialect.
@@ -151,7 +185,7 @@ func (sqliteDialect) Name() string {
 	return internalsqlite.Name
 }
 
-// TranslateDDL converts the project's MySQL-source SQL subset to SQLite SQL.
+// TranslateDDL converts the project's PostgreSQL-source SQL subset to SQLite SQL.
 func (sqliteDialect) TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
 	return internalsqlite.TranslateDDL(ctx, sourceName, ddl)
 }
@@ -169,6 +203,22 @@ func (sqliteDialect) SupportsCluster() bool {
 // DatabaseVersion returns the SQLite library version label.
 func (sqliteDialect) DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
 	return internalsqlite.DatabaseVersion(ctx, db)
+}
+
+// QueryTableMetadata returns SQLite table names with empty comments.
+func (sqliteDialect) QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error) {
+	metas, err := internalsqlite.QueryTableMetadata(ctx, db, schema, tableNames)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]TableMeta, 0, len(metas))
+	for _, meta := range metas {
+		result = append(result, TableMeta{
+			TableName:    meta.TableName,
+			TableComment: meta.TableComment,
+		})
+	}
+	return result, nil
 }
 
 // OnStartup applies SQLite-specific startup behavior before cluster services start.

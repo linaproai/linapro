@@ -15,7 +15,9 @@ export const adminStorageStatePath = path.join(authStateDir, 'admin.json');
 export async function writeAdminStorageState(baseURL = config.baseURL) {
   mkdirSync(authStateDir, { recursive: true });
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    channel: process.env.E2E_BROWSER_CHANNEL?.trim() || undefined,
+  });
   const context = await browser.newContext({ baseURL });
   const page = await context.newPage();
   const loginPage = new LoginPage(page);

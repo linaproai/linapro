@@ -16,7 +16,7 @@ This directory stores repository-level development tools that are implemented as
 - Put short shell, `PowerShell`, or Python automation under `hack/scripts/`; long-lived verification tools should move to `hack/tools/` when Go gives stronger typing, tests, or repository integration.
 - Put `Makefile` fragments under `hack/makefiles/`.
 - Put verification assets and end-to-end test code under `hack/tests/`.
-- Every tool directory under `hack/tools/` must maintain both `README.md` and `README.zh_CN.md` with usage, options, examples, outputs, and verification notes.
+- Every tool directory under `hack/tools/` must maintain both `README.md` and `README.zh-CN.md` with usage, options, examples, outputs, and verification notes.
 
 ## Maintenance Notes
 

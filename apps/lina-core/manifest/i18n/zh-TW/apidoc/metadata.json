@@ -8,7 +8,7 @@
         "goframe": {
           "description": "Go 語言開發框架"
         },
-        "mysql": {
+        "postgresql": {
           "description": "關係型數據庫"
         }
       },

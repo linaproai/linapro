@@ -15,12 +15,12 @@ import {
   deleteUser,
   expectBusinessError,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getLog,
   getMenuIdsByPerms,
   setCronShellEnabled,
   triggerJob,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-96 Shell 终止权限校验', () => {
@@ -81,7 +81,7 @@ test.describe('TC-96 Shell 终止权限校验', () => {
       await deleteRole(adminApi, roleId);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(adminApi, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(adminApi, originalShellSwitch);
     }
     await adminApi.dispose();
   });

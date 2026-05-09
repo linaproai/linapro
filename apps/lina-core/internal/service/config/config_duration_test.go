@@ -16,7 +16,7 @@ func TestDurationConfigsUseDefaultsWhenUnset(t *testing.T) {
 	setTestConfigContent(t, `
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 `)
 	withRuntimeParamAbsent(t, RuntimeParamKeyJWTExpire)
 	withRuntimeParamAbsent(t, RuntimeParamKeySessionTimeout)
@@ -66,7 +66,7 @@ func TestGetJwtUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 jwt:
   secret: "test-secret"
   expire: 36h
@@ -102,7 +102,7 @@ func TestGetSessionUsesDurationConfig(t *testing.T) {
 	setTestConfigContent(t, `
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 session:
   timeout: 36h
   cleanupInterval: 10m
@@ -155,7 +155,7 @@ func TestGetUploadPathUsesStaticConfig(t *testing.T) {
 	setTestConfigContent(t, `
 database:
   default:
-    link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local&multiStatements=true"
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 upload:
   path: runtime/uploads
   maxSize: 32

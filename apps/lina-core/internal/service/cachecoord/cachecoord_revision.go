@@ -490,7 +490,7 @@ func defaultDomainSpec(domain Domain) DomainSpec {
 		AuthoritySource:  "caller-owned cache domain",
 		ConsistencyModel: ConsistencySharedRevision,
 		MaxStale:         DefaultDomainMaxStale,
-		SyncMechanism:    "persistent MySQL sys_cache_revision plus request or watcher refresh",
+		SyncMechanism:    "persistent sys_cache_revision plus request or watcher refresh",
 		FailureStrategy:  FailureStrategyReturnVisibleError,
 	}
 }

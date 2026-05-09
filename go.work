@@ -1,4 +1,4 @@
-go 1.25.0
+go 1.26.2
 
 use (
 	./apps/lina-core
@@ -10,8 +10,8 @@ use (
 	./apps/lina-plugins/monitor-operlog
 	./apps/lina-plugins/monitor-server
 	./apps/lina-plugins/org-center
-	./apps/lina-plugins/plugin-demo-source
 	./apps/lina-plugins/plugin-demo-dynamic
+	./apps/lina-plugins/plugin-demo-source
 	./hack/tools/build-wasm
 	./hack/tools/image-builder
 	./hack/tools/runtime-i18n

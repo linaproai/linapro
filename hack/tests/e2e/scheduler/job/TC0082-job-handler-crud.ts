@@ -7,8 +7,8 @@ import {
   createAdminApiContext,
   getConfigByKey,
   listJobs,
+  restoreCronShellEnabled,
   setCronShellEnabled,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-82 源码注册任务可见且只读', () => {
@@ -23,7 +23,7 @@ test.describe('TC-82 源码注册任务可见且只读', () => {
 
   test.afterAll(async () => {
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

@@ -65,7 +65,7 @@ func configureAccessTopologyCacheDomain(cacheCoordSvc cachecoord.Service) {
 		AuthoritySource:  "sys_role, sys_role_menu, sys_user_role, sys_menu, plugin permissions",
 		ConsistencyModel: cachecoord.ConsistencySharedRevision,
 		MaxStale:         accessTopologyCacheMaxStale,
-		SyncMechanism:    "persistent MySQL sys_cache_revision plus request or watcher refresh",
+		SyncMechanism:    "persistent sys_cache_revision plus request or watcher refresh",
 		FailureStrategy:  cachecoord.FailureStrategyFailClosed,
 	}); err != nil {
 		panic(err)

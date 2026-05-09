@@ -317,6 +317,76 @@ export async function uninstallPlugin(api: APIRequestContext, id: string) {
   await expectSuccess(await api.delete(`plugins/${id}`));
 }
 
+export async function ensurePluginBuiltinJobEnabled(
+  api: APIRequestContext,
+  options: {
+    pluginId: string;
+    jobName: string;
+    handlerRef: string;
+    removedHandlerRef?: string;
+  },
+) {
+  await syncPlugins(api);
+
+  const plugin = await getPlugin(api, options.pluginId);
+  if (plugin.installed !== 1) {
+    await installPlugin(api, options.pluginId);
+  }
+  if (plugin.enabled !== 1) {
+    await enablePlugin(api, options.pluginId);
+  }
+
+  await expect
+    .poll(
+      async () => {
+        const handlers = await listHandlers(api);
+        const hasHandler = handlers.list.some(
+          (item) => item.ref === options.handlerRef,
+        );
+        const hasRemovedHandler = options.removedHandlerRef
+          ? handlers.list.some((item) => item.ref === options.removedHandlerRef)
+          : false;
+        return `${hasHandler}:${hasRemovedHandler}`;
+      },
+      {
+        timeout: 10000,
+        message: "plugin built-in handler should be synchronized",
+      },
+    )
+    .toBe("true:false");
+
+  const jobs = await listJobs(api, options.jobName);
+  const currentJob = jobs.list.find(
+    (item) => item.name === options.jobName && item.isBuiltin === 1,
+  );
+  if (currentJob?.status.startsWith("paused_by_plugin")) {
+    await disablePlugin(api, options.pluginId);
+    await enablePlugin(api, options.pluginId);
+  }
+
+  let jobId = 0;
+  await expect
+    .poll(
+      async () => {
+        const result = await listJobs(api, options.jobName);
+        const builtinJob = result.list.find(
+          (item) => item.name === options.jobName && item.isBuiltin === 1,
+        );
+        jobId = builtinJob?.id ?? 0;
+        return builtinJob
+          ? `${builtinJob.status}:${builtinJob.handlerRef}:${builtinJob.isBuiltin}`
+          : "";
+      },
+      {
+        timeout: 10000,
+        message: "plugin built-in job should be enabled",
+      },
+    )
+    .toBe(`enabled:${options.handlerRef}:1`);
+
+  return jobId;
+}
+
 export function buildHandlerJobPayload(
   overrides: Partial<Record<string, unknown>> = {},
 ) {
@@ -507,6 +577,10 @@ export async function updateConfigValue(
   await expectSuccess(await api.put(`config/${id}`, { data: { value } }));
 }
 
+export function normalizeCronShellEnabledValue(value?: string | null) {
+  return value === "false" ? "false" : "true";
+}
+
 export async function setCronShellEnabled(
   api: APIRequestContext,
   enabled: boolean,
@@ -517,6 +591,26 @@ export async function setCronShellEnabled(
     await updateConfigValue(api, item.id, targetValue);
   }
   return item;
+}
+
+export async function restoreCronShellEnabled(
+  api: APIRequestContext,
+  original?: Pick<ConfigItem, "value"> | null,
+) {
+  const item = await getConfigByKey(api, "cron.shell.enabled");
+  const targetValue = normalizeCronShellEnabledValue(original?.value);
+  if (item.value !== targetValue) {
+    await updateConfigValue(api, item.id, targetValue);
+  }
+  await expect
+    .poll(
+      async () => (await getConfigByKey(api, "cron.shell.enabled")).value,
+      {
+        timeout: 10000,
+        message: "cron.shell.enabled should be restored",
+      },
+    )
+    .toBe(targetValue);
 }
 
 export function buildPayloadFromJob(

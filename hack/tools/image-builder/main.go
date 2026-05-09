@@ -396,7 +396,7 @@ func parseTargetPlatform(value string) (targetPlatform, error) {
 		return targetPlatform{}, errors.New("build.platforms contains an empty platform entry")
 	}
 	if normalized == "auto" {
-		return targetPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH}, nil
+		return targetPlatform{OS: "linux", Arch: runtime.GOARCH}, nil
 	}
 	parts := strings.Split(normalized, "/")
 	if len(parts) != 2 {
@@ -509,6 +509,11 @@ func validateImageBuildRequest(image imageConfig, build buildConfig) error {
 	if image.Push {
 		if strings.TrimSpace(image.Registry) == "" {
 			return errors.New("push=true requires image.registry in hack/config.yaml, registry=<prefix>, or LINAPRO_IMAGE_REGISTRY")
+		}
+	}
+	for _, target := range build.Targets {
+		if target.OS != "linux" {
+			return fmt.Errorf("Docker image builds require linux target platforms, got %s", target.String())
 		}
 	}
 	if build.MultiPlatform() && !image.Push {

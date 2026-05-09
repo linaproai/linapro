@@ -50,7 +50,36 @@ make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6
 
 ## Database Configuration
 
-The host reads the active database dialect only from `database.default.link` in the runtime config. MySQL remains the default production database. For demo or local test usage without MySQL, set the link to SQLite, for example:
+The host reads the active database dialect only from `database.default.link` in the runtime config. `PostgreSQL 14+` is the default production database. Prepare `PostgreSQL` before running `make init` or `make dev`; those commands do not start or manage the database.
+
+For local development, start a matching container:
+
+```bash
+docker run --name linapro-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=linapro \
+  -p 5432:5432 \
+  --health-cmd pg_isready \
+  --health-interval 10s \
+  --health-timeout 5s \
+  --health-retries 5 \
+  -d postgres:14-alpine
+```
+
+The default runtime link is:
+
+```yaml
+database:
+  default:
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+```
+
+`make init` is an operations bootstrap command that uses the configured database account. That account must be able to connect to the system database, create and drop the target database, terminate target-database connections, create tables and indexes, write comments, and insert seed data. Permission failures are surfaced directly; the runtime does not provide a lower-privilege initialization fallback.
+
+For external hosted `PostgreSQL`, such as `RDS` or `Aliyun PolarDB`, point `database.default.link` at the provider endpoint and run initialization with an account that has the permissions above.
+
+For a single-node development demo, set the link to `SQLite`:
 
 ```yaml
 database:
@@ -58,7 +87,7 @@ database:
     link: "sqlite::@file(./temp/sqlite/linapro.db)"
 ```
 
-SQLite mode is single-node only, automatically forces `cluster.enabled=false`, and is not supported for production deployments.
+`SQLite` mode is single-node only, automatically forces `cluster.enabled=false`, and is not supported for production deployments.
 
 ## Source Plugin Upgrade
 

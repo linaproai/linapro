@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+const browserChannel = process.env.E2E_BROWSER_CHANNEL?.trim() || undefined;
+
 export default defineConfig({
   testDir: './e2e',
   testMatch: /TC\d{4}.*\.ts$/,
@@ -22,7 +24,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { browserName: 'chromium' },
+      use: { browserName: 'chromium', channel: browserChannel },
     },
   ],
 });

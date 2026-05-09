@@ -66,7 +66,7 @@ Beyond the missing foundation, several systemic issues emerged across subsequent
 ### Project Governance and Documentation
 - Unify LinaPro project positioning as "AI-driven full-stack development framework".
 - Establish lina-core as the core host service, separate from the default management workspace.
-- Establish full-repository README bilingual governance: English `README.md` + Chinese `README.zh_CN.md`.
+- Establish full-repository README bilingual governance: English `README.md` + Chinese `README.zh-CN.md`.
 - Add explicit confirmation guards for database `init`/`mock` commands.
 - Standardize plugin installation review with a unified detail dialog and authorization snapshot.
 

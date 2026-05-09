@@ -5,11 +5,9 @@ package cluster
 
 import (
 	"context"
+	"github.com/gogf/gf/v2/frame/g"
 	"testing"
 	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/internal/service/config"
 )

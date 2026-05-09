@@ -53,8 +53,8 @@ func (s *serviceImpl) acquireSlot(job *entity.SysJob) (func(), jobmeta.LogStatus
 
 // storeRunningExecution stores one cancellable running instance.
 func (s *serviceImpl) storeRunningExecution(
-	logID uint64,
-	jobID uint64,
+	logID int64,
+	jobID int64,
 	cancel context.CancelFunc,
 	release func(),
 ) {
@@ -68,7 +68,7 @@ func (s *serviceImpl) storeRunningExecution(
 }
 
 // finishRunningExecution removes one running instance and releases its slot.
-func (s *serviceImpl) finishRunningExecution(logID uint64) {
+func (s *serviceImpl) finishRunningExecution(logID int64) {
 	s.mu.Lock()
 	execution, ok := s.runningInstances[logID]
 	if ok {

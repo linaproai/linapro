@@ -4,14 +4,12 @@ package i18n
 
 import (
 	"context"
-	"strings"
-	"testing"
-	"testing/fstest"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/util/gvalid"
+	"strings"
+	"testing"
+	"testing/fstest"
 
 	"lina-core/internal/model"
 	hostconfig "lina-core/internal/service/config"

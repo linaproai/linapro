@@ -65,7 +65,7 @@ func configureRuntimeParamCacheDomain(cacheCoordSvc cachecoord.Service) {
 		AuthoritySource:  "sys_config protected runtime parameters",
 		ConsistencyModel: cachecoord.ConsistencySharedRevision,
 		MaxStale:         runtimeParamCacheMaxStale,
-		SyncMechanism:    "persistent MySQL sys_cache_revision plus request or watcher refresh",
+		SyncMechanism:    "persistent sys_cache_revision plus request or watcher refresh",
 		FailureStrategy:  cachecoord.FailureStrategyReturnVisibleError,
 	}); err != nil {
 		panic(err)

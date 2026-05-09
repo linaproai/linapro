@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 

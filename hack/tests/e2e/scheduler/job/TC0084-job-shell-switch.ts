@@ -8,8 +8,8 @@ import {
   createAdminApiContext,
   expectBusinessError,
   getConfigByKey,
+  restoreCronShellEnabled,
   setCronShellEnabled,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-84 Shell 全局开关关闭时拒绝写入', () => {
@@ -23,7 +23,7 @@ test.describe('TC-84 Shell 全局开关关闭时拒绝写入', () => {
 
   test.afterAll(async () => {
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

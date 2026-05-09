@@ -9,12 +9,12 @@ import {
   createAdminApiContext,
   createJob,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getLog,
   listLogs,
   setCronShellEnabled,
   triggerJob,
-  updateConfigValue,
 } from "../../../support/api/job";
 
 test.describe("TC-89 执行日志查询与清理", () => {
@@ -35,7 +35,7 @@ test.describe("TC-89 执行日志查询与清理", () => {
       await api.delete(`job/${jobId}`);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

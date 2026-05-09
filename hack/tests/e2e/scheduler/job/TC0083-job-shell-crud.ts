@@ -8,11 +8,11 @@ import {
   createJob,
   deleteJob,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getJob,
   listJobs,
   setCronShellEnabled,
-  updateConfigValue,
   updateJob,
 } from '../../../support/api/job';
 
@@ -36,7 +36,7 @@ test.describe('TC-83 Shell 类型任务 CRUD', () => {
       await deleteJob(api, jobId);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

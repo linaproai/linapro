@@ -8,12 +8,12 @@ import {
   createJob,
   deleteJob,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getJob,
   listJobs,
   listLogs,
   setCronShellEnabled,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-88 最大执行次数自动停用', () => {
@@ -34,7 +34,7 @@ test.describe('TC-88 最大执行次数自动停用', () => {
       await deleteJob(api, jobId).catch(() => undefined);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

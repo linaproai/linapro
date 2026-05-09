@@ -6,12 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"testing"
-	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
+	"testing"
+	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"

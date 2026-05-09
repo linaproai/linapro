@@ -4,17 +4,15 @@ package jobmgmt
 
 import (
 	"context"
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"

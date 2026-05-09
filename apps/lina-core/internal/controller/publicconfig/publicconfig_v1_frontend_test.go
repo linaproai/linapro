@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gctx"
 
 	v1 "lina-core/api/publicconfig/v1"

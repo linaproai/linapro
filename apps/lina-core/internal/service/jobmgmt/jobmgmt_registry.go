@@ -116,7 +116,7 @@ func (s *serviceImpl) matchingJobIDs(
 	ref string,
 	status jobmeta.JobStatus,
 	stopReason string,
-) ([]uint64, error) {
+) ([]int64, error) {
 	if !status.IsValid() {
 		return nil, bizerr.NewCode(CodeJobStatusInvalid)
 	}
@@ -137,7 +137,7 @@ func (s *serviceImpl) matchingJobIDs(
 		return nil, err
 	}
 
-	result := make([]uint64, 0, len(jobs))
+	result := make([]int64, 0, len(jobs))
 	for _, job := range jobs {
 		if job == nil || job.Id == 0 {
 			continue

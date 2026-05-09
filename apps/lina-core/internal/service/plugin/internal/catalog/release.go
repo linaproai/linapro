@@ -17,6 +17,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/startupstats"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -171,6 +172,32 @@ func (s *serviceImpl) syncReleaseMetadata(ctx context.Context, manifest *Manifes
 		insertID, insertErr := dao.SysPluginRelease.Ctx(ctx).Data(data).InsertAndGetId()
 		err = insertErr
 		if err != nil {
+			if !dialect.IsUniqueConstraintViolation(err) {
+				return err
+			}
+			existing, err = s.refreshStartupRelease(ctx, manifest.ID, manifest.Version)
+			if err != nil {
+				return err
+			}
+			if existing == nil {
+				return insertErr
+			}
+			if pluginReleaseMetadataMatches(existing, data) {
+				startupstats.Add(ctx, startupstats.CounterPluginSyncNoop, 1)
+				return nil
+			}
+			_, err = dao.SysPluginRelease.Ctx(ctx).
+				Where(do.SysPluginRelease{Id: existing.Id}).
+				Data(data).
+				Update()
+			if err != nil {
+				return err
+			}
+			startupstats.Add(ctx, startupstats.CounterPluginSyncChanged, 1)
+			if updateStartupRelease(ctx, existing, data) != nil {
+				return nil
+			}
+			_, err = s.refreshStartupRelease(ctx, manifest.ID, manifest.Version)
 			return err
 		}
 		startupstats.Add(ctx, startupstats.CounterPluginSyncChanged, 1)

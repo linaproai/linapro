@@ -7,17 +7,15 @@ import (
 	"context"
 	"strings"
 
+	"github.com/gogf/gf/v2/frame/g"
+
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
-	plugindbhost "lina-core/pkg/plugindb/host"
 )
 
-// pluginDataDriverTypePrefix marks plugin-owned database driver aliases that
-// wrap one real SQL driver underneath.
-const pluginDataDriverTypePrefix = "plugin-data-"
-
-// dataTableCommentSQL reads table comments without asking the ORM to inspect
-// information_schema.TABLES as if it were an application table.
-const dataTableCommentSQL = "SELECT TABLE_NAME AS table_name, TABLE_COMMENT AS table_comment FROM information_schema.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME IN(?)"
+// dataTableMetadataSchema is the host schema used by PostgreSQL metadata
+// lookups. SQLite ignores it, and other dialects may map it internally.
+const dataTableMetadataSchema = "public"
 
 // ResolveDataTableComments resolves host-side table comments for the given
 // data-table names. It degrades to an empty map when metadata lookup is
@@ -28,45 +26,28 @@ func (s *serviceImpl) ResolveDataTableComments(ctx context.Context, tables []str
 		return map[string]string{}
 	}
 
-	db, err := plugindbhost.DB()
+	db := g.DB()
+	dbDialect, err := dialect.FromDatabase(db)
 	if err != nil {
 		logger.Warningf(ctx, "resolve plugin data table comments skipped: %v", err)
 		return map[string]string{}
 	}
 
-	dbType := normalizePluginDataMetadataDBType("")
-	if config := db.GetConfig(); config != nil {
-		dbType = normalizePluginDataMetadataDBType(config.Type)
-	}
-	switch dbType {
-	case "mariadb", "mysql", "tidb":
-	default:
-		return map[string]string{}
-	}
-
-	schema := strings.TrimSpace(db.GetSchema())
-	if schema == "" {
-		if config := db.GetConfig(); config != nil {
-			schema = strings.TrimSpace(config.Name)
-		}
-	}
-	if schema == "" {
-		return map[string]string{}
-	}
-
-	records, err := db.GetAll(ctx, dataTableCommentSQL, schema, normalizedTables)
+	metas, err := dbDialect.QueryTableMetadata(ctx, db, dataTableMetadataSchema, normalizedTables)
 	if err != nil {
-		logger.Warningf(ctx, "resolve plugin data table comments failed schema=%s tables=%v err=%v", schema, normalizedTables, err)
+		logger.Warningf(ctx, "resolve plugin data table comments failed schema=%s tables=%v err=%v", dataTableMetadataSchema, normalizedTables, err)
 		return map[string]string{}
 	}
+	return dataTableCommentsFromMetadata(metas)
+}
 
-	comments := make(map[string]string, len(records))
-	for _, record := range records {
-		if record == nil {
-			continue
-		}
-		tableName := strings.TrimSpace(record["table_name"].String())
-		tableComment := strings.TrimSpace(record["table_comment"].String())
+// dataTableCommentsFromMetadata maps dialect table metadata to the comment map
+// consumed by plugin governance projections.
+func dataTableCommentsFromMetadata(metas []dialect.TableMeta) map[string]string {
+	comments := make(map[string]string, len(metas))
+	for _, meta := range metas {
+		tableName := strings.TrimSpace(meta.TableName)
+		tableComment := strings.TrimSpace(meta.TableComment)
 		if tableName == "" || tableComment == "" {
 			continue
 		}
@@ -93,16 +74,6 @@ func normalizeDataTableNames(tables []string) []string {
 		}
 		seen[name] = struct{}{}
 		normalized = append(normalized, name)
-	}
-	return normalized
-}
-
-// normalizePluginDataMetadataDBType strips plugin driver prefixes so host
-// metadata queries can match the actual database dialect.
-func normalizePluginDataMetadataDBType(dbType string) string {
-	normalized := strings.ToLower(strings.TrimSpace(dbType))
-	if strings.HasPrefix(normalized, pluginDataDriverTypePrefix) {
-		return strings.TrimPrefix(normalized, pluginDataDriverTypePrefix)
 	}
 	return normalized
 }

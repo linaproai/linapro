@@ -432,7 +432,7 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 	testutil.WriteTestFile(
 		t,
 		filepath.Join(pluginDirWithMock, "manifest", "sql", "001-"+pluginIDWithMock+".sql"),
-		"CREATE TABLE IF NOT EXISTS "+mockTable+" (id INT PRIMARY KEY AUTO_INCREMENT, marker VARCHAR(32) NOT NULL);",
+		"CREATE TABLE IF NOT EXISTS "+mockTable+" (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);",
 	)
 	testutil.WriteTestFile(
 		t,

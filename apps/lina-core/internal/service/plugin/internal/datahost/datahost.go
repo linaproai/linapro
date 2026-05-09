@@ -369,11 +369,17 @@ func executeCreateWithProvider(
 
 	response := &pluginbridge.HostServiceDataMutationResponse{AffectedRows: 1}
 	if result != nil {
-		if rowsAffected, rowsErr := result.RowsAffected(); rowsErr == nil {
-			response.AffectedRows = rowsAffected
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return nil, rowsErr
 		}
+		response.AffectedRows = rowsAffected
 		if keyValue == nil {
-			if lastInsertID, lastInsertErr := result.LastInsertId(); lastInsertErr == nil && lastInsertID > 0 {
+			lastInsertID, lastInsertErr := result.LastInsertId()
+			if lastInsertErr != nil {
+				return nil, lastInsertErr
+			}
+			if lastInsertID > 0 {
 				keyValue = lastInsertID
 			}
 		}
@@ -431,9 +437,11 @@ func executeUpdateWithProvider(
 
 	response := &pluginbridge.HostServiceDataMutationResponse{}
 	if result != nil {
-		if rowsAffected, rowsErr := result.RowsAffected(); rowsErr == nil {
-			response.AffectedRows = rowsAffected
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return nil, rowsErr
 		}
+		response.AffectedRows = rowsAffected
 	}
 	response.KeyJSON, err = encodeJSONValue(keyValue)
 	if err != nil {
@@ -484,9 +492,11 @@ func executeDeleteWithProvider(
 
 	response := &pluginbridge.HostServiceDataMutationResponse{}
 	if result != nil {
-		if rowsAffected, rowsErr := result.RowsAffected(); rowsErr == nil {
-			response.AffectedRows = rowsAffected
+		rowsAffected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return nil, rowsErr
 		}
+		response.AffectedRows = rowsAffected
 	}
 	response.KeyJSON, err = encodeJSONValue(keyValue)
 	if err != nil {
@@ -603,7 +613,7 @@ func buildResourceFieldArgs(resource *catalog.ResourceSpec) []any {
 		if field == nil {
 			continue
 		}
-		fields = append(fields, fmt.Sprintf("%s AS %s", field.Column, field.Name))
+		fields = append(fields, fmt.Sprintf("%s AS %s", field.Column, quoteResourceAlias(field.Name)))
 	}
 	return fields
 }
@@ -633,9 +643,30 @@ func buildResourceRecord(recordMap map[string]interface{}, resource *catalog.Res
 		if field == nil {
 			continue
 		}
-		row[field.Name] = normalizeResourceValue(recordMap[field.Name])
+		row[field.Name] = normalizeResourceValue(resolveResourceRecordValue(recordMap, field))
 	}
 	return row
+}
+
+// quoteResourceAlias preserves logical camelCase field names across database
+// drivers that fold unquoted aliases, such as PostgreSQL.
+func quoteResourceAlias(alias string) string {
+	return `"` + strings.ReplaceAll(alias, `"`, `""`) + `"`
+}
+
+// resolveResourceRecordValue reads projected rows from either the logical alias
+// or the physical column name so live-schema table contracts work across drivers.
+func resolveResourceRecordValue(recordMap map[string]interface{}, field *catalog.ResourceField) interface{} {
+	if recordMap == nil || field == nil {
+		return nil
+	}
+	if value, ok := recordMap[field.Name]; ok {
+		return value
+	}
+	if value, ok := recordMap[field.Column]; ok {
+		return value
+	}
+	return nil
 }
 
 // decodeMutationRecord decodes and validates one mutation payload against the

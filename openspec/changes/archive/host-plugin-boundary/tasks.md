@@ -55,8 +55,8 @@
 ## 7. Plugin Explicit Wiring and Delivery Documentation
 
 - [x] 7.1 Update `apps/lina-plugins/lina-plugins.go` to provide explicit wiring entry for official source plugins
-- [x] 7.2 Supplement `README.md` and `README.zh_CN.md` for each official source plugin
-- [x] 7.3 Update `apps/lina-plugins/README.md` and `README.zh_CN.md` to explain the host/plugin boundary and official plugin list
+- [x] 7.2 Supplement `README.md` and `README.zh-CN.md` for each official source plugin
+- [x] 7.3 Update `apps/lina-plugins/README.md` and `README.zh-CN.md` to explain the host/plugin boundary and official plugin list
 - [x] 7.4 Supplement operation and maintenance instructions for plugin installation, start and stop, menu mounting, and uninstall cleaning
 
 ## 8. Frontend Routing and Menu Visibility Linkage

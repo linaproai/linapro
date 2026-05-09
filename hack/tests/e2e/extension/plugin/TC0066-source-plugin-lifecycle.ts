@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -16,6 +15,14 @@ import { test, expect } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { LoginPage } from "../../../pages/LoginPage";
 import { PluginPage } from "../../../pages/PluginPage";
+import {
+  execPgSQL,
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  pgIdentifier,
+  queryPgRows,
+  queryPgScalar,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
@@ -24,10 +31,6 @@ const pluginID = "plugin-demo-source";
 const pluginMenuName = "源码插件示例";
 const pluginSummaryMessage =
   "这是一条来自 plugin-demo-source 接口的简要介绍，用于验证源码插件菜单页可读取插件后端数据。";
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 const pluginRecordSeedTitle = "源码插件 SQL 示例记录";
 const pluginRecordTableName = "plugin_demo_source_record";
 const repoRoot = path.resolve(process.cwd(), "../..");
@@ -229,48 +232,24 @@ async function updatePluginStatus(
 }
 
 function resetPluginRegistryRow(id: string) {
-  const escapedID = id.replaceAll("'", "''");
+  const escapedID = pgEscapeLiteral(id);
   const menuKeyPattern = `plugin:${escapedID}:%`;
 
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      [
-        `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM (SELECT id FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}') AS plugin_menu_ids);`,
-        `DELETE FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}';`,
-        `DELETE FROM sys_plugin_state WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedID}';`,
-        `DELETE FROM sys_plugin WHERE plugin_id = '${escapedID}';`,
-      ].join(" "),
-    ],
-    {
-      stdio: "ignore",
-    },
-  );
+  execPgSQLStatements([
+    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}');`,
+    `DELETE FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}';`,
+    `DELETE FROM sys_plugin_state WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedID}';`,
+    `DELETE FROM sys_plugin WHERE plugin_id = '${escapedID}';`,
+  ]);
 }
 
 function resetPluginDemoSourceData() {
   if (pluginDemoSourceTableExists()) {
-    execFileSync(
-      mysqlBin,
-      [
-        `-u${mysqlUser}`,
-        `-p${mysqlPassword}`,
-        mysqlDatabase,
-        "-e",
-        `DROP TABLE IF EXISTS \`${pluginRecordTableName}\`;`,
-      ],
-      {
-        stdio: "ignore",
-      },
-    );
+    execPgSQL(`DROP TABLE IF EXISTS ${pgIdentifier(pluginRecordTableName)};`);
   }
   for (const storageRoot of pluginDemoSourceStorageRoots) {
     rmSync(storageRoot, { force: true, recursive: true });
@@ -278,42 +257,19 @@ function resetPluginDemoSourceData() {
   rmSync(pluginDemoSourceDownloadPath, { force: true });
 }
 
-function queryMysqlLines(sql: string) {
-  const output = execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      "-N",
-      "-B",
-      mysqlDatabase,
-      "-e",
-      sql,
-    ],
-    {
-      encoding: "utf8",
-    },
-  );
-  return output
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
 function pluginDemoSourceTableExists() {
-  const escapedDatabase = mysqlDatabase.replaceAll("'", "''");
-  const lines = queryMysqlLines(
-    `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '${escapedDatabase}' AND table_name = '${pluginRecordTableName}';`,
+  const count = queryPgScalar(
+    `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '${pgEscapeLiteral(pluginRecordTableName)}';`,
   );
-  return lines[0] === "1";
+  return count === "1";
 }
 
 function listPluginDemoSourceRecordTitles() {
   if (!pluginDemoSourceTableExists()) {
     return [];
   }
-  return queryMysqlLines(
-    `SELECT title FROM \`${pluginRecordTableName}\` ORDER BY id ASC;`,
+  return queryPgRows(
+    `SELECT title FROM ${pgIdentifier(pluginRecordTableName)} ORDER BY id ASC;`,
   );
 }
 

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
@@ -662,7 +662,6 @@ func withRuntimeParamAbsent(t *testing.T, key string) {
 
 	t.Cleanup(func() {
 		_, cleanupErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-			Id:        original.Id,
 			Name:      original.Name,
 			Key:       original.Key,
 			Value:     original.Value,

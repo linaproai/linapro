@@ -32,7 +32,7 @@ func TestNormalizeBuildConfigSinglePlatform(t *testing.T) {
 }
 
 // TestNormalizeBuildConfigAutoPlatform verifies auto resolves to the current
-// execution platform.
+// Linux image platform for the local architecture.
 func TestNormalizeBuildConfigAutoPlatform(t *testing.T) {
 	cfg := defaultBuildConfig()
 	cfg.Platforms = []string{"auto"}
@@ -41,7 +41,7 @@ func TestNormalizeBuildConfigAutoPlatform(t *testing.T) {
 		t.Fatalf("normalizeBuildConfig returned error: %v", err)
 	}
 
-	want := runtimePlatform().String()
+	want := "linux/" + runtime.GOARCH
 	if cfg.Platform != want {
 		t.Fatalf("Platform = %q, want %q", cfg.Platform, want)
 	}
@@ -110,6 +110,21 @@ func TestValidateImageBuildRequestRequiresPushForMultiPlatform(t *testing.T) {
 	}
 }
 
+// TestValidateImageBuildRequestRejectsNonLinux verifies Docker image builds do
+// not accidentally use host-only platforms such as darwin/arm64.
+func TestValidateImageBuildRequestRejectsNonLinux(t *testing.T) {
+	cfg := defaultBuildConfig()
+	cfg.Platforms = []string{"darwin/arm64"}
+	if err := normalizeBuildConfig(&cfg); err != nil {
+		t.Fatalf("normalizeBuildConfig returned error: %v", err)
+	}
+
+	image := defaultImageConfig()
+	if err := validateImageBuildRequest(image, cfg); err == nil {
+		t.Fatalf("validateImageBuildRequest returned nil, want non-linux platform error")
+	}
+}
+
 // TestBuildxDockerArgs verifies multi-platform image publishing uses buildx
 // with a platform matrix and push.
 func TestBuildxDockerArgs(t *testing.T) {
@@ -156,9 +171,4 @@ func TestDockerBuildArgs(t *testing.T) {
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("docker build args = %#v, want %#v", args, want)
 	}
-}
-
-// runtimePlatform returns the current Go execution target.
-func runtimePlatform() targetPlatform {
-	return targetPlatform{OS: runtime.GOOS, Arch: runtime.GOARCH}
 }

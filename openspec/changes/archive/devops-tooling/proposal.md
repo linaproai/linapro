@@ -43,7 +43,7 @@ LinaPro's developer tooling and operations layer previously lacked coherent gove
 - Source-plugin upgrades reuse `sys_plugin_release`, `sys_plugin_migration`, and governance resource-reference tables rather than a separate upgrade ledger.
 - `apps/lina-core/hack/config.yaml` uses YAML anchors for a single shared database connection definition, and local SQL execution no longer depends on `multiStatements=true`.
 - New `hack/scripts/install/` directory provides cross-platform installation scripts with archive download, safe directory policies, and environment health checks.
-- Repository root `README.md` and `README.zh_CN.md` include quick install instructions for macOS/Linux and Windows.
+- Repository root `README.md` and `README.zh-CN.md` include quick install instructions for macOS/Linux and Windows.
 - The built-in log cleanup cron task is registered through startup projection, removing its SQL seed dependency.
 - Runtime business upgrades remain out of implementation scope for this iteration.
 - Adds `.agents/skills/lina-perf-audit/SKILL.md`, reference templates, and bundled scripts for Claude Code, Codex, and other AI coding tools that can read project skills.

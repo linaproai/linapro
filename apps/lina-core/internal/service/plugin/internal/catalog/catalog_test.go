@@ -12,7 +12,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gfile"
 
 	menusvc "lina-core/internal/service/menu"
@@ -213,10 +213,11 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-duplicate-id")
+	peerPluginDir := testutil.CreateTestPluginDir(t, "plugin-duplicate-id-peer")
 
 	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
 	manifestContent := strings.Join([]string{
-		"id: plugin-demo-source",
+		"id: plugin-duplicate-id-shared",
 		"name: Duplicate Plugin",
 		"version: 0.1.0",
 		"type: source",
@@ -227,6 +228,10 @@ func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 	}, "\n")
 	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0o644); err != nil {
 		t.Fatalf("failed to write duplicate manifest: %v", err)
+	}
+	peerManifestPath := filepath.Join(peerPluginDir, "plugin.yaml")
+	if err := os.WriteFile(peerManifestPath, []byte(manifestContent), 0o644); err != nil {
+		t.Fatalf("failed to write duplicate peer manifest: %v", err)
 	}
 
 	_, err := svcs.Catalog.ScanManifests()

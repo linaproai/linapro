@@ -6,13 +6,11 @@ package jobmgmt
 import (
 	"context"
 	"fmt"
-	"testing"
-	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gtime"
+	"testing"
+	"time"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
@@ -22,7 +20,7 @@ import (
 )
 
 // insertLogCleanupTestJob creates one disabled handler job for execution-log tests.
-func insertLogCleanupTestJob(t *testing.T, ctx context.Context) uint64 {
+func insertLogCleanupTestJob(t *testing.T, ctx context.Context) int64 {
 	t.Helper()
 
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
@@ -43,11 +41,11 @@ func insertLogCleanupTestJob(t *testing.T, ctx context.Context) uint64 {
 	if err != nil {
 		t.Fatalf("expected execution-log test job insert to succeed, got error: %v", err)
 	}
-	return uint64(insertID)
+	return int64(insertID)
 }
 
 // insertLogCleanupTestLog creates one persisted execution log for cleanup tests.
-func insertLogCleanupTestLog(t *testing.T, ctx context.Context, jobID uint64, suffix string) uint64 {
+func insertLogCleanupTestLog(t *testing.T, ctx context.Context, jobID int64, suffix string) int64 {
 	t.Helper()
 
 	startAt := gtime.NewFromTime(time.Now())
@@ -67,11 +65,11 @@ func insertLogCleanupTestLog(t *testing.T, ctx context.Context, jobID uint64, su
 	if err != nil {
 		t.Fatalf("expected execution-log insert to succeed, got error: %v", err)
 	}
-	return uint64(insertID)
+	return int64(insertID)
 }
 
 // listJobLogIDs returns the remaining execution-log IDs for assertions.
-func listJobLogIDs(t *testing.T, ctx context.Context, jobID uint64) []uint64 {
+func listJobLogIDs(t *testing.T, ctx context.Context, jobID int64) []int64 {
 	t.Helper()
 
 	var rows []*entity.SysJobLog
@@ -82,7 +80,7 @@ func listJobLogIDs(t *testing.T, ctx context.Context, jobID uint64) []uint64 {
 		t.Fatalf("expected execution-log query to succeed, got error: %v", err)
 	}
 
-	result := make([]uint64, 0, len(rows))
+	result := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row == nil {
 			continue

@@ -9,11 +9,11 @@ import (
 	"strings"
 	"sync"
 
-	mysqlDriver "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 
+	"lina-core/pkg/dbdriver"
 	"lina-core/pkg/logger"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
@@ -81,7 +81,7 @@ func DB() (gdb.DB, error) {
 // registerPluginDataDrivers installs the governed DB drivers once per process.
 func registerPluginDataDrivers() {
 	pluginDataDriverRegisterOnce.Do(func() {
-		for _, baseType := range []string{"mysql", "mariadb", "tidb"} {
+		for _, baseType := range dbdriver.SupportedTypes() {
 			if err := gdb.Register(pluginDataDriverTypePrefix+baseType, &pluginDataDriver{baseType: baseType}); err != nil {
 				panic(gerror.Wrapf(err, "register plugin data driver failed baseType=%s", baseType))
 			}
@@ -92,13 +92,11 @@ func registerPluginDataDrivers() {
 // pluginDataDriverType normalizes one base driver type into the governed
 // wrapper driver type understood by DB.
 func pluginDataDriverType(baseType string) (string, error) {
-	normalizedBaseType := strings.ToLower(strings.TrimSpace(baseType))
-	switch normalizedBaseType {
-	case "mysql", "mariadb", "tidb":
-		return pluginDataDriverTypePrefix + normalizedBaseType, nil
-	default:
+	normalizedBaseType := dbdriver.NormalizeType(baseType)
+	if !dbdriver.IsSupported(normalizedBaseType) {
 		return "", gerror.Newf("plugin data service does not support database type: %s", baseType)
 	}
+	return pluginDataDriverTypePrefix + normalizedBaseType, nil
 }
 
 // buildPluginDataDBCacheKey builds the in-process cache key for one governed
@@ -121,7 +119,12 @@ func buildPluginDataDBCacheKey(config *gdb.ConfigNode) string {
 
 // New creates one governed DB wrapper around the base SQL driver.
 func (driver *pluginDataDriver) New(core *gdb.Core, node *gdb.ConfigNode) (gdb.DB, error) {
-	baseDB, err := mysqlDriver.New().New(core, node)
+	baseDriver, ok := dbdriver.New(driver.baseType)
+	if !ok {
+		return nil, gerror.Newf("plugin data service does not support database type: %s", driver.baseType)
+	}
+
+	baseDB, err := baseDriver.New(core, node)
 	if err != nil {
 		return nil, err
 	}

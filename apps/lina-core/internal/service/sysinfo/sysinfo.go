@@ -214,7 +214,7 @@ func (s *serviceImpl) loadComponents(metadata *config.MetadataConfig, sectionKey
 			switch component.Name {
 			case "GoFrame":
 				component.Version = gf.VERSION
-			case "MySQL":
+			case "PostgreSQL":
 				if dbVersion != "" {
 					component.Version = dbVersion
 				}

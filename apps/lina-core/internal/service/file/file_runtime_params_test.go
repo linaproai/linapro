@@ -5,11 +5,9 @@ package file
 
 import (
 	"context"
+	"github.com/gogf/gf/v2/net/ghttp"
 	"mime/multipart"
 	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

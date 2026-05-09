@@ -49,10 +49,6 @@ export const columns: VxeGridProps['columns'] = [
     field: 'remark',
   },
   {
-    title: $t('pages.common.createdAt'),
-    field: 'createdAt',
-  },
-  {
     field: 'action',
     fixed: 'right',
     slots: { default: 'action' },

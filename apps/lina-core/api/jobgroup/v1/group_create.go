@@ -18,5 +18,5 @@ type CreateReq struct {
 
 // CreateRes defines the response for creating one scheduled job group.
 type CreateRes struct {
-	Id uint64 `json:"id" dc:"Create new group ID" eg:"1"`
+	Id int64 `json:"id" dc:"Create new group ID" eg:"1"`
 }

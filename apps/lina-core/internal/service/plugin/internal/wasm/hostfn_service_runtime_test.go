@@ -12,6 +12,7 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
 
@@ -19,22 +20,25 @@ import (
 // by runtime host-service state lifecycle tests.
 const createPluginStateTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_plugin_state (
-    id           INT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    plugin_id    VARCHAR(64)   NOT NULL DEFAULT '' COMMENT '插件唯一标识（kebab-case）',
-    state_key    VARCHAR(255)  NOT NULL DEFAULT '' COMMENT '状态键',
-    state_value  LONGTEXT                          COMMENT '状态值（支持JSON）',
-    created_at   DATETIME                          COMMENT '创建时间',
-    updated_at   DATETIME                          COMMENT '更新时间',
-    UNIQUE KEY uk_plugin_state (plugin_id, state_key)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='插件键值状态存储表';
+    id          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    plugin_id   VARCHAR(64) NOT NULL DEFAULT '',
+    state_key   VARCHAR(255) NOT NULL DEFAULT '',
+    state_value TEXT,
+    created_at  TIMESTAMP,
+    updated_at  TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_state_plugin_key ON sys_plugin_state (plugin_id, state_key);
 `
 
 // TestHandleHostServiceInvokeRuntimeStateLifecycle verifies runtime state
 // get/set/delete calls persist and remove plugin-scoped values correctly.
 func TestHandleHostServiceInvokeRuntimeStateLifecycle(t *testing.T) {
 	ctx := context.Background()
-	if _, err := g.DB().Exec(ctx, createPluginStateTableSQL); err != nil {
-		t.Fatalf("expected plugin state table to be created, got error: %v", err)
+	for _, statement := range dialect.SplitSQLStatements(createPluginStateTableSQL) {
+		if _, err := g.DB().Exec(ctx, statement); err != nil {
+			t.Fatalf("expected plugin state table to be created, got error: %v\nSQL:\n%s", err, statement)
+		}
 	}
 
 	hcc := &hostCallContext{

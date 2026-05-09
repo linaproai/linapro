@@ -150,8 +150,8 @@
 
 ## 16. Documentation and Closeout
 
-- [x] 16.1 Update `apps/lina-core/README.md / README.zh_CN.md`: add "Scheduled Job Management" section in module list (Chinese and English synchronized)
-- [x] 16.2 Update `apps/lina-vben/apps/web-antd/README.md / README.zh_CN.md`: add route and page entry description
+- [x] 16.1 Update `apps/lina-core/README.md / README.zh-CN.md`: add "Scheduled Job Management" section in module list (Chinese and English synchronized)
+- [x] 16.2 Update `apps/lina-vben/apps/web-antd/README.md / README.zh-CN.md`: add route and page entry description
 - [x] 16.3 Verify `make init / make dao / make ctrl / make dev / make test` full flow passes
 - [x] 16.4 Call `/lina-review` skill for code and specification review, handle all critical issues
 - [x] 16.5 After user confirms feature completion, execute `/opsx:archive scheduled-jobs`

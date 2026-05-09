@@ -11,22 +11,24 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
 
 // createPluginLockerTableSQL prepares the governed lock table for tests.
 const createPluginLockerTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_locker (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    name VARCHAR(64) NOT NULL COMMENT '锁名称，唯一标识',
-    reason VARCHAR(255) DEFAULT '' COMMENT '获取锁的原因',
-    holder VARCHAR(64) DEFAULT '' COMMENT '锁持有者标识（节点名）',
-    expire_time DATETIME NOT NULL COMMENT '锁过期时间',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY uk_name (name),
-    INDEX idx_expire_time (expire_time)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COMMENT='分布式锁表';
+    id          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name        VARCHAR(128) NOT NULL,
+    reason      VARCHAR(255) NOT NULL DEFAULT '',
+    holder      VARCHAR(128) NOT NULL DEFAULT '',
+    expire_time TIMESTAMP NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_locker_name ON sys_locker (name);
+CREATE INDEX IF NOT EXISTS idx_sys_locker_expire_time ON sys_locker (expire_time);
 `
 
 // TestHandleHostServiceInvokeLockLifecycle verifies acquire, renew, and release lock flows.
@@ -188,8 +190,10 @@ func TestHandleHostServiceInvokeLockRejectsUnauthorizedResource(t *testing.T) {
 // ensurePluginLockerTable creates the lock table needed by lock host call tests.
 func ensurePluginLockerTable(t *testing.T, ctx context.Context) {
 	t.Helper()
-	if _, err := g.DB().Exec(ctx, createPluginLockerTableSQL); err != nil {
-		t.Fatalf("expected sys_locker table to be created, got error: %v", err)
+	for _, statement := range dialect.SplitSQLStatements(createPluginLockerTableSQL) {
+		if _, err := g.DB().Exec(ctx, statement); err != nil {
+			t.Fatalf("expected sys_locker table to be created, got error: %v\nSQL:\n%s", err, statement)
+		}
 	}
 }
 

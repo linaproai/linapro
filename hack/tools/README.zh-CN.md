@@ -16,7 +16,7 @@
 - 短小的`Shell`、`PowerShell`或`Python`自动化脚本应放在`hack/scripts/`下；长期维护的校验工具如需更强类型、测试和仓库集成，应迁移到`hack/tools/`下。
 - `Makefile`拆分片段应放在`hack/makefiles/`下。
 - 验证资产与端到端测试代码应放在`hack/tests/`下。
-- `hack/tools/`下的每个工具目录都必须同时维护`README.md`与`README.zh_CN.md`，说明用途、参数、示例、输出和验证注意事项。
+- `hack/tools/`下的每个工具目录都必须同时维护`README.md`与`README.zh-CN.md`，说明用途、参数、示例、输出和验证注意事项。
 
 ## 维护说明
 

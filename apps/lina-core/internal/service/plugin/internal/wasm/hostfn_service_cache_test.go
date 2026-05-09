@@ -12,26 +12,28 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/kvcache"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
 
 // createPluginKVCacheTableSQL prepares the governed plugin cache table for tests.
 const createPluginKVCacheTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_kv_cache (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    owner_type VARCHAR(16) NOT NULL DEFAULT '' COMMENT '所属类型：plugin=动态插件 module=宿主模块',
-    owner_key VARCHAR(64) NOT NULL DEFAULT '' COMMENT '所属标识：插件ID或模块名',
-    namespace VARCHAR(64) NOT NULL DEFAULT '' COMMENT '缓存命名空间，对应 host-cache 资源标识',
-    cache_key VARCHAR(128) NOT NULL DEFAULT '' COMMENT '缓存键',
-    value_kind TINYINT NOT NULL DEFAULT 1 COMMENT '值类型：1=字符串 2=整数',
-    value_bytes VARBINARY(4096) NOT NULL COMMENT '缓存字节值，供 get/set 使用',
-    value_int BIGINT NOT NULL DEFAULT 0 COMMENT '缓存整数值，供 incr 使用',
-    expire_at DATETIME NULL DEFAULT NULL COMMENT '过期时间，NULL表示永不过期',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY uk_owner_namespace_key (owner_type, owner_key, namespace, cache_key),
-    KEY idx_expire_at (expire_at)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='宿主分布式KV缓存表';
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_type  VARCHAR(16) NOT NULL DEFAULT '',
+    owner_key   VARCHAR(64) NOT NULL DEFAULT '',
+    namespace   VARCHAR(64) NOT NULL DEFAULT '',
+    cache_key   VARCHAR(128) NOT NULL DEFAULT '',
+    value_kind  SMALLINT NOT NULL DEFAULT 1,
+    value_bytes BYTEA NOT NULL,
+    value_int   BIGINT NOT NULL DEFAULT 0,
+    expire_at   TIMESTAMP NULL DEFAULT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_owner_namespace_key ON sys_kv_cache (owner_type, owner_key, namespace, cache_key);
+CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at);
 `
 
 // TestHandleHostServiceInvokeCacheLifecycle verifies cache get/set/incr/expire/delete flows.
@@ -200,8 +202,10 @@ func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) 
 // ensurePluginKVCacheTable creates the plugin cache table needed by cache host call tests.
 func ensurePluginKVCacheTable(t *testing.T, ctx context.Context) {
 	t.Helper()
-	if _, err := g.DB().Exec(ctx, createPluginKVCacheTableSQL); err != nil {
-		t.Fatalf("expected sys_kv_cache table to be created, got error: %v", err)
+	for _, statement := range dialect.SplitSQLStatements(createPluginKVCacheTableSQL) {
+		if _, err := g.DB().Exec(ctx, statement); err != nil {
+			t.Fatalf("expected sys_kv_cache table to be created, got error: %v\nSQL:\n%s", err, statement)
+		}
 	}
 }
 

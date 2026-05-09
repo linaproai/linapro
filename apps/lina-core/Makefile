@@ -32,7 +32,20 @@ endef
 init:
 	$(call require_confirm,init)
 	@echo "Initializing database..."
-	@go run main.go init --confirm=$(confirm) --sql-source=local $(if $(rebuild),--rebuild=$(rebuild),)
+	@tmp_log="$$(mktemp)"; \
+	if go run main.go init --confirm=$(confirm) --sql-source=local $(if $(rebuild),--rebuild=$(rebuild),) > "$$tmp_log" 2>&1; then \
+		cat "$$tmp_log"; \
+		rm -f "$$tmp_log"; \
+	else \
+		status="$$?"; \
+		cat "$$tmp_log"; \
+		if grep -Eqi "dial tcp|connection refused|connect: connection|failed to connect|i/o timeout|no such host" "$$tmp_log"; then \
+			echo "PostgreSQL is not ready. Start PostgreSQL first."; \
+			echo "Local example: docker run --name linapro-postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=linapro -p 5432:5432 -d postgres:14-alpine"; \
+		fi; \
+		rm -f "$$tmp_log"; \
+		exit "$$status"; \
+	fi
 	@echo "✓ Database initialization complete"
 
 # mock: Load mock demo/test data from manifest/sql/mock-data after init; requires confirm=mock

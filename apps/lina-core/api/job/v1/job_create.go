@@ -10,7 +10,7 @@ type LogRetentionOption struct {
 
 // JobPayload defines the shared mutable fields for scheduled job create and update APIs.
 type JobPayload struct {
-	GroupId              uint64              `json:"groupId" v:"required" dc:"The group ID to which it belongs" eg:"1"`
+	GroupId              int64               `json:"groupId" v:"required" dc:"The group ID to which it belongs" eg:"1"`
 	Name                 string              `json:"name" v:"required|length:1,128" dc:"Task name, unique within the group" eg:"Task log cleaning"`
 	Description          string              `json:"description" dc:"Task description" eg:"Clean execution logs by policy"`
 	TaskType             string              `json:"taskType" v:"required|in:shell" dc:"Task type: The public creation/editing interface only allows shell=Shell tasks; Handler tasks are registered by the source code" eg:"shell"`
@@ -38,5 +38,5 @@ type CreateReq struct {
 
 // CreateRes defines the response for creating one scheduled job.
 type CreateRes struct {
-	Id uint64 `json:"id" dc:"Create new task ID" eg:"1"`
+	Id int64 `json:"id" dc:"Create new task ID" eg:"1"`
 }

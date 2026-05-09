@@ -9,13 +9,13 @@ import { request as playwrightRequest } from "@playwright/test";
 
 import { test, expect } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 
 const successPluginID = "plugin-host-services-e2e";
 const deniedPluginID = "plugin-host-services-denied-e2e";
@@ -201,35 +201,27 @@ async function resetPlugin(adminApi: APIRequestContext, pluginID: string) {
 }
 
 function ensurePluginStateTable() {
-  execFileSync(
-    mysqlBin,
+  execPgSQLStatements([
     [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      [
-        "CREATE TABLE IF NOT EXISTS sys_plugin_state (",
-        "  id INT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',",
-        "  plugin_id VARCHAR(64) NOT NULL DEFAULT '' COMMENT '插件唯一标识（kebab-case）',",
-        "  state_key VARCHAR(255) NOT NULL DEFAULT '' COMMENT '状态键',",
-        "  state_value LONGTEXT COMMENT '状态值（支持JSON）',",
-        "  created_at DATETIME COMMENT '创建时间',",
-        "  updated_at DATETIME COMMENT '更新时间',",
-        "  UNIQUE KEY uk_plugin_state (plugin_id, state_key)",
-        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='插件键值状态存储表';",
-      ].join(" "),
-    ],
-    { stdio: "ignore" },
-  );
+      "CREATE TABLE IF NOT EXISTS sys_plugin_state (",
+      "  id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,",
+      "  plugin_id VARCHAR(64) NOT NULL DEFAULT '',",
+      "  state_key VARCHAR(255) NOT NULL DEFAULT '',",
+      "  state_value TEXT,",
+      "  created_at TIMESTAMP,",
+      "  updated_at TIMESTAMP,",
+      "  CONSTRAINT uk_plugin_state UNIQUE (plugin_id, state_key)",
+      ");",
+    ].join(" "),
+  ]);
 }
 
 function cleanupPluginRows(pluginIDs: string[]) {
   const statements: string[] = [];
   for (const pluginID of pluginIDs) {
-    const escapedID = pluginID.replaceAll("'", "''");
+    const escapedID = pgEscapeLiteral(pluginID);
     statements.push(
-      `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT menu_ids.id FROM (SELECT id FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%') AS menu_ids);`,
+      `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%');`,
       `DELETE FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%';`,
       `DELETE FROM sys_plugin_state WHERE plugin_id = '${escapedID}';`,
       `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
@@ -239,17 +231,7 @@ function cleanupPluginRows(pluginIDs: string[]) {
       `DELETE FROM sys_plugin WHERE plugin_id = '${escapedID}';`,
     );
   }
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      statements.join(" "),
-    ],
-    { stdio: "ignore" },
-  );
+  execPgSQLStatements(statements);
 }
 
 function cleanupArtifacts(pluginIDs: string[]) {

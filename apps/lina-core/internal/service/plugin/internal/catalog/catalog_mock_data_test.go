@@ -24,7 +24,8 @@ func TestListMockSQLPathsExcludedFromInstallScan(t *testing.T) {
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-mock-data-disjoint")
 
 	mockDir := filepath.Join(pluginDir, "manifest", "sql", "mock-data")
-	if err := writeFileTree(mockDir, "001-plugin-mock-data-disjoint.sql", "INSERT IGNORE INTO sys_user(username) VALUES ('alice');"); err != nil {
+	mockSQL := "INSERT INTO sys_user(username) VALUES ('alice') ON CONFLICT DO NOTHING;"
+	if err := writeFileTree(mockDir, "001-plugin-mock-data-disjoint.sql", mockSQL); err != nil {
 		t.Fatalf("failed to write mock SQL: %v", err)
 	}
 
@@ -45,7 +46,7 @@ func TestListMockSQLPathsExcludedFromInstallScan(t *testing.T) {
 		if asset.Key == "001-plugin-mock-data-disjoint.sql" && asset.Content != "SELECT 1;" {
 			continue
 		}
-		if filepath.Base(asset.Key) == "001-plugin-mock-data-disjoint.sql" && asset.Content == "INSERT IGNORE INTO sys_user(username) VALUES ('alice');" {
+		if filepath.Base(asset.Key) == "001-plugin-mock-data-disjoint.sql" && asset.Content == mockSQL {
 			t.Fatalf("mock data leaked into install scan: %#v", asset)
 		}
 	}
@@ -114,7 +115,7 @@ func TestListMockSQLPathsViaEmbeddedSourcePluginFiles(t *testing.T) {
 					Data: []byte("CREATE TABLE IF NOT EXISTS plugin_demo (id BIGINT PRIMARY KEY);"),
 				},
 				"manifest/sql/mock-data/001-plugin-embedded-mock-data-mock.sql": &fstest.MapFile{
-					Data: []byte("INSERT IGNORE INTO plugin_demo(id) VALUES (1);"),
+					Data: []byte("INSERT INTO plugin_demo(id) VALUES (1) ON CONFLICT DO NOTHING;"),
 				},
 				"manifest/sql/uninstall/001-plugin-embedded-mock-data.sql": &fstest.MapFile{
 					Data: []byte("DROP TABLE IF EXISTS plugin_demo;"),

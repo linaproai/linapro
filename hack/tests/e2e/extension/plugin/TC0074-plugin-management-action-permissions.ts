@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
@@ -10,13 +9,14 @@ import { test, expect } from "../../../fixtures/auth";
 import { config } from "../../../fixtures/config";
 import { LoginPage } from "../../../pages/LoginPage";
 import { PluginPage } from "../../../pages/PluginPage";
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  queryPgRows,
+} from "../../../support/postgres";
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? "http://127.0.0.1:8080/api/v1/";
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? "mysql";
-const mysqlUser = process.env.E2E_DB_USER ?? "root";
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? "12345678";
-const mysqlDatabase = process.env.E2E_DB_NAME ?? "linapro";
 
 const pluginID = "plugin-management-permission-e2e";
 const pluginVersion = "v0.1.0";
@@ -107,43 +107,10 @@ function runtimeStorageArtifactPath() {
   return path.join(tempDir(), "output", `${pluginID}.wasm`);
 }
 
-function querySQLRows(sql: string) {
-  return execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-N",
-      "-B",
-      "-e",
-      sql,
-    ],
-    { encoding: "utf8" },
-  )
-    .trim()
-    .split("\n")
-    .filter(Boolean);
-}
-
-function execSQL(statements: string[]) {
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      "-e",
-      statements.join(" "),
-    ],
-    { stdio: "ignore" },
-  );
-}
-
 function cleanupPluginRows() {
-  const escapedID = pluginID.replaceAll("'", "''");
-  execSQL([
-    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT menu_ids.id FROM (SELECT id FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%') AS menu_ids);`,
+  const escapedID = pgEscapeLiteral(pluginID);
+  execPgSQLStatements([
+    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%');`,
     `DELETE FROM sys_menu WHERE menu_key LIKE 'plugin:${escapedID}:%';`,
     `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
     `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
@@ -154,13 +121,13 @@ function cleanupPluginRows() {
 }
 
 function cleanupUserAndRoleRows() {
-  const escapedUsername = testUsername.replaceAll("'", "''");
-  const escapedRoleKey = testRoleKey.replaceAll("'", "''");
-  execSQL([
-    `DELETE FROM sys_user_role WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username = '${escapedUsername}') AS user_ids);`,
+  const escapedUsername = pgEscapeLiteral(testUsername);
+  const escapedRoleKey = pgEscapeLiteral(testRoleKey);
+  execPgSQLStatements([
+    `DELETE FROM sys_user_role WHERE user_id IN (SELECT id FROM sys_user WHERE username = '${escapedUsername}');`,
     `DELETE FROM sys_user WHERE username = '${escapedUsername}';`,
-    `DELETE FROM sys_role_menu WHERE role_id IN (SELECT role_ids.id FROM (SELECT id FROM sys_role WHERE \`key\` = '${escapedRoleKey}') AS role_ids);`,
-    `DELETE FROM sys_role WHERE \`key\` = '${escapedRoleKey}';`,
+    `DELETE FROM sys_role_menu WHERE role_id IN (SELECT id FROM sys_role WHERE "key" = '${escapedRoleKey}');`,
+    `DELETE FROM sys_role WHERE "key" = '${escapedRoleKey}';`,
   ]);
 }
 
@@ -340,8 +307,8 @@ async function getAdminDeptID(adminApi: APIRequestContext) {
 }
 
 function lookupMenuID(menuKey: string) {
-  const rows = querySQLRows(
-    `SELECT id FROM sys_menu WHERE menu_key = '${menuKey.replaceAll("'", "''")}' LIMIT 1;`,
+  const rows = queryPgRows(
+    `SELECT id FROM sys_menu WHERE menu_key = '${pgEscapeLiteral(menuKey)}' LIMIT 1;`,
   );
   expect(rows.length, `未找到菜单: ${menuKey}`).toBe(1);
   return Number.parseInt(rows[0]!, 10);

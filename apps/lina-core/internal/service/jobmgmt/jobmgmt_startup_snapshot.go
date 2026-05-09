@@ -22,7 +22,7 @@ type startupDataSnapshotContextKey struct{}
 // built-in scheduled jobs used during startup reconciliation.
 type startupDataSnapshot struct {
 	groupsByCode             map[string]*entity.SysJobGroup
-	builtinJobsByID          map[uint64]*entity.SysJob
+	builtinJobsByID          map[int64]*entity.SysJob
 	builtinJobsByHandlerRef  map[string]*entity.SysJob
 	builtinJobsByGroupName   map[string]*entity.SysJob
 	startupSnapshotAvailable bool
@@ -68,7 +68,7 @@ func (s *serviceImpl) buildStartupDataSnapshot(ctx context.Context) (*startupDat
 
 	snapshot := &startupDataSnapshot{
 		groupsByCode:             make(map[string]*entity.SysJobGroup, len(groups)),
-		builtinJobsByID:          make(map[uint64]*entity.SysJob, len(jobs)),
+		builtinJobsByID:          make(map[int64]*entity.SysJob, len(jobs)),
 		builtinJobsByHandlerRef:  make(map[string]*entity.SysJob, len(jobs)),
 		builtinJobsByGroupName:   make(map[string]*entity.SysJob, len(jobs)),
 		startupSnapshotAvailable: true,
@@ -115,7 +115,7 @@ func (s *startupDataSnapshot) builtinJobByHandlerRef(handlerRef string) *entity.
 }
 
 // builtinJobByGroupAndName returns one built-in job by group ID and display name.
-func (s *startupDataSnapshot) builtinJobByGroupAndName(groupID uint64, name string) *entity.SysJob {
+func (s *startupDataSnapshot) builtinJobByGroupAndName(groupID int64, name string) *entity.SysJob {
 	if s == nil {
 		return nil
 	}
@@ -153,7 +153,7 @@ func (s *startupDataSnapshot) storeBuiltinJob(job *entity.SysJob) {
 }
 
 // deleteBuiltinJob removes one built-in scheduled job from startup indexes.
-func (s *startupDataSnapshot) deleteBuiltinJob(jobID uint64) {
+func (s *startupDataSnapshot) deleteBuiltinJob(jobID int64) {
 	if s == nil || jobID == 0 {
 		return
 	}
@@ -170,10 +170,10 @@ func (s *startupDataSnapshot) deleteBuiltinJob(jobID uint64) {
 
 // buildBuiltinJobEntity creates the startup snapshot projection for one
 // scheduled-job row after an insert or update.
-func buildBuiltinJobEntity(jobID uint64, record do.SysJob) *entity.SysJob {
+func buildBuiltinJobEntity(jobID int64, record do.SysJob) *entity.SysJob {
 	return &entity.SysJob{
 		Id:                   jobID,
-		GroupId:              gconv.Uint64(record.GroupId),
+		GroupId:              gconv.Int64(record.GroupId),
 		Name:                 gconv.String(record.Name),
 		Description:          gconv.String(record.Description),
 		TaskType:             gconv.String(record.TaskType),

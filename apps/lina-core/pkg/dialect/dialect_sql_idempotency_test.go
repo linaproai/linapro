@@ -1,0 +1,408 @@
+// This file audits PostgreSQL SQL identifier and idempotency declarations.
+
+package dialect
+
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+	"testing"
+)
+
+// TestOnConflictTargetsHaveDeclaredIdempotencyBasis verifies every SQL target
+// using ON CONFLICT DO NOTHING has an explicit business-key or history policy.
+func TestOnConflictTargetsHaveDeclaredIdempotencyBasis(t *testing.T) {
+	root := repositoryRootForSQLAudit(t)
+	sqlRoots := []string{
+		filepath.Join(root, "apps", "lina-core", "manifest", "sql"),
+		filepath.Join(root, "apps", "lina-plugins"),
+	}
+	targets := collectOnConflictTargets(t, sqlRoots...)
+
+	allowedTargets := map[string]string{
+		"plugin_content_notice":       "uk_plugin_content_notice_title(title)",
+		"plugin_demo_dynamic_record":  "primary key (id)",
+		"plugin_demo_source_record":   "uk_plugin_demo_source_record_title(title)",
+		"plugin_monitor_server":       "uk_plugin_monitor_server_node(node_name,node_ip)",
+		"plugin_org_center_dept":      "uk_plugin_org_center_dept_code(NULLIF(code,''))",
+		"plugin_org_center_post":      "uk_plugin_org_center_post_code(code)",
+		"plugin_org_center_user_dept": "primary key (user_id,dept_id)",
+		"plugin_org_center_user_post": "primary key (user_id,post_id)",
+		"sys_config":                  "uk_sys_config_key(key)",
+		"sys_dict_data":               "uk_sys_dict_data_dict_type_value(dict_type,value)",
+		"sys_dict_type":               "uk_sys_dict_type_type(type)",
+		"sys_job":                     "uk_sys_job_group_id_name(group_id,name)",
+		"sys_job_group":               "uk_sys_job_group_code(code)",
+		"sys_menu":                    "uk_sys_menu_menu_key(menu_key)",
+		"sys_notify_channel":          "uk_sys_notify_channel_channel_key(channel_key)",
+		"sys_online_session":          "primary key (token_id)",
+		"sys_role":                    "uk_sys_role_key(key)",
+		"sys_role_menu":               "primary key (role_id,menu_id)",
+		"sys_user":                    "uk_sys_user_username(username)",
+		"sys_user_role":               "primary key (user_id,role_id)",
+	}
+	for _, historyTarget := range []string{
+		"plugin_monitor_loginlog",
+		"plugin_monitor_operlog",
+		"sys_job_log",
+		"sys_notify_delivery",
+		"sys_notify_message",
+	} {
+		if containsString(targets, historyTarget) {
+			t.Fatalf("history table %s must not use ON CONFLICT DO NOTHING", historyTarget)
+		}
+	}
+
+	var missing []string
+	for _, target := range targets {
+		if allowedTargets[target] == "" {
+			missing = append(missing, target)
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("ON CONFLICT targets lack declared idempotency basis: %s", strings.Join(missing, ", "))
+	}
+}
+
+// TestStaticHistoryMockInsertsHaveExistenceGuards verifies append-capable
+// history tables keep production semantics while remaining mock-idempotent.
+func TestStaticHistoryMockInsertsHaveExistenceGuards(t *testing.T) {
+	root := repositoryRootForSQLAudit(t)
+	sqlRoots := []string{
+		filepath.Join(root, "apps", "lina-core", "manifest", "sql", "mock-data"),
+		filepath.Join(root, "apps", "lina-plugins"),
+	}
+	historyTargets := map[string]struct{}{
+		"plugin_monitor_loginlog": {},
+		"plugin_monitor_operlog":  {},
+		"sys_job_log":             {},
+		"sys_notify_delivery":     {},
+		"sys_notify_message":      {},
+	}
+	statements := collectInsertStatementsForTargets(t, historyTargets, sqlRoots...)
+	if len(statements) == 0 {
+		t.Fatal("expected static history mock insert statements to be audited")
+	}
+
+	var missing []string
+	notExistsPattern := regexp.MustCompile(`(?is)\bNOT\s+EXISTS\b`)
+	for _, statement := range statements {
+		if !notExistsPattern.MatchString(statement.sql) {
+			missing = append(missing, statement.path+":"+statement.target)
+		}
+	}
+	if len(missing) > 0 {
+		t.Fatalf("static history mock inserts lack WHERE NOT EXISTS guards: %s", strings.Join(missing, ", "))
+	}
+}
+
+// TestSQLColumnIdentifiersAreQuoted verifies project SQL assets consistently
+// wrap field identifiers with PostgreSQL double quotes.
+func TestSQLColumnIdentifiersAreQuoted(t *testing.T) {
+	root := repositoryRootForSQLAudit(t)
+	sqlRoots := []string{
+		filepath.Join(root, "apps", "lina-core", "manifest", "sql"),
+		filepath.Join(root, "apps", "lina-plugins"),
+	}
+	columns := collectSQLColumnNames(t, sqlRoots...)
+	if len(columns) == 0 {
+		t.Fatal("expected SQL column definitions to be audited")
+	}
+
+	violations := collectUnquotedSQLColumnIdentifiers(t, columns, sqlRoots...)
+	if len(violations) > 0 {
+		sort.Strings(violations)
+		t.Fatalf("SQL column identifiers must use PostgreSQL double quotes:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+// collectOnConflictTargets returns the unique INSERT targets whose statements
+// contain ON CONFLICT DO NOTHING.
+func collectOnConflictTargets(t *testing.T, roots ...string) []string {
+	t.Helper()
+
+	insertTargetPattern := regexp.MustCompile(`(?is)\bINSERT\s+INTO\s+("?[\w]+"?)\b.*?\bON\s+CONFLICT\s+DO\s+NOTHING\b`)
+	targets := map[string]struct{}{}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+				return nil
+			}
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			for _, match := range insertTargetPattern.FindAllStringSubmatch(string(content), -1) {
+				targets[strings.Trim(strings.ToLower(match[1]), `"`)] = struct{}{}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan SQL root %s failed: %v", root, err)
+		}
+	}
+
+	result := make([]string, 0, len(targets))
+	for target := range targets {
+		result = append(result, target)
+	}
+	sort.Strings(result)
+	return result
+}
+
+// collectSQLColumnNames returns all column names declared by CREATE TABLE
+// statements in project SQL assets.
+func collectSQLColumnNames(t *testing.T, roots ...string) map[string]struct{} {
+	t.Helper()
+
+	columnDefinitionPattern := regexp.MustCompile(`(?i)^\s*"?([A-Za-z_][A-Za-z0-9_]*)"?\s+(?:INT|BIGINT|SMALLINT|VARCHAR|CHAR|TEXT|BYTEA|TIMESTAMP|DECIMAL|NUMERIC|REAL|DOUBLE\s+PRECISION)\b`)
+	columns := map[string]struct{}{}
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+				return nil
+			}
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			for _, statement := range splitSQLAuditStatements(string(content)) {
+				if !strings.HasPrefix(strings.ToUpper(strings.TrimSpace(statement)), "CREATE TABLE") {
+					continue
+				}
+				for _, line := range strings.Split(statement, "\n") {
+					match := columnDefinitionPattern.FindStringSubmatch(line)
+					if len(match) < 2 {
+						continue
+					}
+					columns[strings.ToLower(match[1])] = struct{}{}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan SQL root %s failed: %v", root, err)
+		}
+	}
+	return columns
+}
+
+// collectUnquotedSQLColumnIdentifiers returns source locations where known
+// column names appear as unquoted SQL tokens outside literals and comments.
+func collectUnquotedSQLColumnIdentifiers(t *testing.T, columns map[string]struct{}, roots ...string) []string {
+	t.Helper()
+
+	identifierPattern := regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
+	allowedKeywordPhrasePattern := regexp.MustCompile(`(?i)\b(?:PRIMARY|FOREIGN|UNIQUE)\s+KEY\b`)
+	var violations []string
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+				return nil
+			}
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			masked := maskSQLQuotedAndCommentedText(string(content))
+			lines := strings.Split(masked, "\n")
+			for index, line := range lines {
+				line = allowedKeywordPhrasePattern.ReplaceAllString(line, "")
+				for _, token := range identifierPattern.FindAllString(line, -1) {
+					if _, ok := columns[strings.ToLower(token)]; !ok {
+						continue
+					}
+					violations = append(violations, filepath.ToSlash(path)+":"+strconv.Itoa(index+1)+": "+token)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan SQL root %s failed: %v", root, err)
+		}
+	}
+	return violations
+}
+
+// auditedInsertStatement records one SQL INSERT statement for audit checks.
+type auditedInsertStatement struct {
+	path   string
+	target string
+	sql    string
+}
+
+// collectInsertStatementsForTargets returns INSERT statements targeting any of
+// the requested tables.
+func collectInsertStatementsForTargets(t *testing.T, targets map[string]struct{}, roots ...string) []auditedInsertStatement {
+	t.Helper()
+
+	insertTargetPattern := regexp.MustCompile(`(?is)\bINSERT\s+INTO\s+("?[\w]+"?)\b`)
+	var result []auditedInsertStatement
+	for _, root := range roots {
+		err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+				return nil
+			}
+			content, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			for _, statement := range splitSQLAuditStatements(string(content)) {
+				match := insertTargetPattern.FindStringSubmatch(statement)
+				if len(match) < 2 {
+					continue
+				}
+				target := strings.Trim(strings.ToLower(match[1]), `"`)
+				if _, ok := targets[target]; !ok {
+					continue
+				}
+				result = append(result, auditedInsertStatement{
+					path:   filepath.ToSlash(path),
+					target: target,
+					sql:    statement,
+				})
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan SQL root %s failed: %v", root, err)
+		}
+	}
+	return result
+}
+
+// maskSQLQuotedAndCommentedText replaces string literals, quoted identifiers,
+// and comments with spaces while preserving line numbers for diagnostics.
+func maskSQLQuotedAndCommentedText(content string) string {
+	var builder strings.Builder
+	for index := 0; index < len(content); {
+		switch {
+		case content[index] == '\'':
+			index = maskQuotedSQLText(&builder, content, index, '\'')
+		case content[index] == '"':
+			index = maskQuotedSQLText(&builder, content, index, '"')
+		case content[index] == '-' && index+1 < len(content) && content[index+1] == '-':
+			index = maskSQLLineComment(&builder, content, index)
+		case content[index] == '/' && index+1 < len(content) && content[index+1] == '*':
+			index = maskSQLBlockComment(&builder, content, index)
+		default:
+			builder.WriteByte(content[index])
+			index++
+		}
+	}
+	return builder.String()
+}
+
+// maskQuotedSQLText masks one SQL string literal or quoted identifier.
+func maskQuotedSQLText(builder *strings.Builder, content string, start int, quote byte) int {
+	builder.WriteByte(' ')
+	index := start + 1
+	for index < len(content) {
+		current := content[index]
+		if current == '\n' {
+			builder.WriteByte('\n')
+			index++
+			continue
+		}
+		builder.WriteByte(' ')
+		if current == quote {
+			if index+1 < len(content) && content[index+1] == quote {
+				builder.WriteByte(' ')
+				index += 2
+				continue
+			}
+			return index + 1
+		}
+		index++
+	}
+	return index
+}
+
+// maskSQLLineComment masks one line comment.
+func maskSQLLineComment(builder *strings.Builder, content string, start int) int {
+	index := start
+	for index < len(content) && content[index] != '\n' {
+		builder.WriteByte(' ')
+		index++
+	}
+	return index
+}
+
+// maskSQLBlockComment masks one block comment.
+func maskSQLBlockComment(builder *strings.Builder, content string, start int) int {
+	index := start
+	for index < len(content) {
+		if content[index] == '\n' {
+			builder.WriteByte('\n')
+			index++
+			continue
+		}
+		builder.WriteByte(' ')
+		if content[index] == '*' && index+1 < len(content) && content[index+1] == '/' {
+			builder.WriteByte(' ')
+			return index + 2
+		}
+		index++
+	}
+	return index
+}
+
+// splitSQLAuditStatements splits the project SQL subset into statements.
+func splitSQLAuditStatements(content string) []string {
+	parts := strings.Split(content, ";")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+// repositoryRootForSQLAudit finds the monorepo root from this package's test
+// working directory.
+func repositoryRootForSQLAudit(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("read test working directory failed: %v", err)
+	}
+	for {
+		if _, statErr := os.Stat(filepath.Join(dir, "go.work")); statErr == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not find repository root containing go.work")
+		}
+		dir = parent
+	}
+}
+
+// containsString reports whether values contains target.
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}

@@ -35,7 +35,7 @@ Build defaults are read from `hack/config.yaml` under the `build` section.
 
 | Field | Description |
 | --- | --- |
-| `platforms` | Target host binary and Docker image platform list. Each YAML array item uses `goos/goarch` form, or `auto` for the current system `runtime.GOOS/runtime.GOARCH`. Command-line overrides use comma-separated `platforms=...` values. |
+| `platforms` | Target host binary and Docker image platform list. Each YAML array item uses `goos/goarch` form, or `auto` for `linux/<current-arch>`. Command-line overrides use comma-separated `platforms=...` values. Docker image builds reject non-Linux targets. |
 | `cgoEnabled` | Whether `make build` enables CGO for the host binary. |
 | `outputDir` / `binaryName` | Repository-relative standard `make build` artifact location. |
 

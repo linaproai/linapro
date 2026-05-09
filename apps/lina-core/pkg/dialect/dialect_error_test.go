@@ -6,15 +6,31 @@ import (
 	"errors"
 	"testing"
 
-	mysql "github.com/go-sql-driver/mysql"
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-// Retryable test error codes reported by the MySQL driver.
+// Retryable test SQLSTATE codes reported by PostgreSQL drivers.
 const (
-	testMySQLDeadlock        uint16 = 1213
-	testMySQLLockWaitTimeout uint16 = 1205
+	testPGSerializationFailure = "40001"
+	testPGDeadlockDetected     = "40P01"
+	testPGUniqueViolation      = "23505"
 )
+
+// fakePostgreSQLError mimics the narrow SQLState shape exposed by supported
+// PostgreSQL drivers.
+type fakePostgreSQLError struct {
+	state string
+}
+
+// Error returns a compact fake PostgreSQL error message.
+func (e fakePostgreSQLError) Error() string {
+	return "fake postgres error"
+}
+
+// SQLState returns the fake PostgreSQL SQLSTATE.
+func (e fakePostgreSQLError) SQLState() string {
+	return e.state
+}
 
 // fakeSQLiteCodeError mimics the narrow Code() shape exposed by supported
 // SQLite drivers without depending on unexported driver error fields.
@@ -32,9 +48,9 @@ func (e fakeSQLiteCodeError) Code() int {
 	return e.code
 }
 
-// TestIsRetryableWriteConflictClassifiesMySQLErrors verifies MySQL retryable
-// lock conflicts are recognized by driver error number rather than text.
-func TestIsRetryableWriteConflictClassifiesMySQLErrors(t *testing.T) {
+// TestIsRetryableWriteConflictClassifiesPostgreSQLErrors verifies PostgreSQL
+// retryable write conflicts are recognized by SQLSTATE rather than text.
+func TestIsRetryableWriteConflictClassifiesPostgreSQLErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -43,21 +59,21 @@ func TestIsRetryableWriteConflictClassifiesMySQLErrors(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "deadlock",
-			err:  &mysql.MySQLError{Number: testMySQLDeadlock, Message: "deadlock found"},
+			name: "serialization failure",
+			err:  fakePostgreSQLError{state: testPGSerializationFailure},
 			want: true,
 		},
 		{
-			name: "lock wait timeout wrapped by goframe",
+			name: "deadlock wrapped by goframe",
 			err: gerror.Wrap(
-				&mysql.MySQLError{Number: testMySQLLockWaitTimeout, Message: "lock wait timeout exceeded"},
+				fakePostgreSQLError{state: testPGDeadlockDetected},
 				"update failed",
 			),
 			want: true,
 		},
 		{
-			name: "duplicate key is not retryable",
-			err:  &mysql.MySQLError{Number: 1062, Message: "duplicate entry"},
+			name: "unique violation is not retryable",
+			err:  fakePostgreSQLError{state: testPGUniqueViolation},
 			want: false,
 		},
 	}
@@ -118,6 +134,49 @@ func TestIsRetryableWriteConflictClassifiesSQLiteErrors(t *testing.T) {
 
 			if got := IsRetryableWriteConflict(test.err); got != test.want {
 				t.Fatalf("expected retryable=%t, got %t", test.want, got)
+			}
+		})
+	}
+}
+
+// TestIsUniqueConstraintViolationClassifiesDatabaseErrors verifies duplicate
+// writes are recognized without matching driver error text.
+func TestIsUniqueConstraintViolationClassifiesDatabaseErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "postgres unique",
+			err:  fakePostgreSQLError{state: testPGUniqueViolation},
+			want: true,
+		},
+		{
+			name: "postgres deadlock",
+			err:  fakePostgreSQLError{state: testPGDeadlockDetected},
+			want: false,
+		},
+		{
+			name: "sqlite unique",
+			err:  fakeSQLiteCodeError{code: 19 | (8 << 8)},
+			want: true,
+		},
+		{
+			name: "sqlite generic constraint",
+			err:  fakeSQLiteCodeError{code: 19},
+			want: false,
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := IsUniqueConstraintViolation(test.err); got != test.want {
+				t.Fatalf("expected unique constraint=%t, got %t", test.want, got)
 			}
 		})
 	}

@@ -30,7 +30,7 @@ func TestExecuteManifestSQLFilesReplaysInstallSQL(t *testing.T) {
 		[]*catalog.ArtifactSQLAsset{
 			{
 				Key:     "001-plugin-dynamic-reinstall-create.sql",
-				Content: fmt.Sprintf("CREATE TABLE %s (id INT PRIMARY KEY AUTO_INCREMENT, marker VARCHAR(32) NOT NULL);", tableName),
+				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
 			},
 			{
 				Key:     "002-plugin-dynamic-reinstall-seed.sql",
@@ -90,7 +90,7 @@ func dropTestTableIfExists(t *testing.T, ctx context.Context, tableName string) 
 func assertTestTableMissing(t *testing.T, ctx context.Context, tableName string) {
 	t.Helper()
 
-	all, err := g.DB().GetAll(ctx, fmt.Sprintf("SHOW TABLES LIKE '%s';", tableName))
+	all, err := g.DB().GetAll(ctx, "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1;", tableName)
 	if err != nil {
 		t.Fatalf("expected table existence query to succeed, got error: %v", err)
 	}

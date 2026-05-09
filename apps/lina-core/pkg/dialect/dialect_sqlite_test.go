@@ -4,13 +4,11 @@ package dialect
 
 import (
 	"context"
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/os/glog"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/glog"
 
 	"lina-core/pkg/logger"
 )

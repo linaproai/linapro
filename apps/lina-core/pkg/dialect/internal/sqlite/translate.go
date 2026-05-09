@@ -1,51 +1,103 @@
-// This file translates the project's controlled MySQL SQL asset subset into
-// SQLite-compatible SQL.
+// This file translates the project's controlled PostgreSQL SQL asset subset
+// into SQLite-compatible SQL.
 
 package sqlite
 
 import (
-	"fmt"
+	"context"
 	"regexp"
 	"strings"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/pkg/dialect/internal/sqlscan"
+	"lina-core/pkg/logger"
 )
+
+// unsupportedFeature describes one PostgreSQL-source construct that this
+// SQLite translation path intentionally rejects instead of approximating.
+type unsupportedFeature struct {
+	keyword string
+	pattern *regexp.Regexp
+}
 
 var (
-	reCreateDatabase      = regexp.MustCompile(`(?is)^\s*CREATE\s+DATABASE\b`)
-	reUseDatabase         = regexp.MustCompile(`(?is)^\s*USE\s+`)
-	reCreateTable         = regexp.MustCompile(`(?is)^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)\s*\(`)
-	reUnsupportedKeywords = regexp.MustCompile(`(?is)\b(FULLTEXT|SPATIAL|GENERATED\s+ALWAYS\s+AS|PARTITION|ON\s+DUPLICATE\s+KEY\s+UPDATE|FIND_IN_SET|GROUP_CONCAT|IF\s*\()\b`)
-	reIntegerAuto         = regexp.MustCompile(`(?i)\b(?:BIGINT|INT)\s+(?:UNSIGNED\s+)?(?:NOT\s+NULL\s+)?(?:PRIMARY\s+KEY\s+)?AUTO_INCREMENT(?:\s+PRIMARY\s+KEY)?\b`)
-	reIntegerAutoAlt      = regexp.MustCompile(`(?i)\b(?:BIGINT|INT)\s+(?:UNSIGNED\s+)?PRIMARY\s+KEY\s+AUTO_INCREMENT\b`)
-	reIntegerTypes        = regexp.MustCompile(`(?i)\b(?:BIGINT|INT|TINYINT|SMALLINT)(?:\s+UNSIGNED)?\b`)
-	reTextTypes           = regexp.MustCompile(`(?i)\b(?:VARCHAR|CHAR)\s*\(\s*\d+\s*\)|\b(?:LONGTEXT|MEDIUMTEXT)\b`)
-	reBlobTypes           = regexp.MustCompile(`(?i)\b(?:VARBINARY|BINARY)\s*\(\s*\d+\s*\)|\b(?:BLOB|LONGBLOB|MEDIUMBLOB)\b`)
-	reDecimalTypes        = regexp.MustCompile(`(?i)\bDECIMAL\s*\(\s*\d+\s*,\s*\d+\s*\)`)
-	reInsertIgnore        = regexp.MustCompile(`(?i)\bINSERT\s+IGNORE\s+INTO\b`)
-	reOnUpdate            = regexp.MustCompile(`(?i)\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP`)
-	reFromDual            = regexp.MustCompile(`(?i)\s+FROM\s+DUAL\b`)
-	reNowFunc             = regexp.MustCompile(`(?i)\bNOW\s*\(\s*\)`)
-	reDefaultCharset      = regexp.MustCompile(`(?i)(^|\s+)DEFAULT\s+CHARSET\s*=\s*[A-Za-z0-9_]+`)
-	reCharset             = regexp.MustCompile(`(?i)(^|\s+)CHARSET\s*=\s*[A-Za-z0-9_]+`)
-	reCollate             = regexp.MustCompile(`(?i)(^|\s+)COLLATE\s*=\s*[A-Za-z0-9_]+`)
-	reEngine              = regexp.MustCompile(`(?i)(^|\s+)ENGINE\s*=\s*[A-Za-z0-9_]+`)
-	reTableCommentEquals  = regexp.MustCompile(`(?is)(^|\s+)COMMENT\s*=\s*'[^']*(?:''[^']*)*'`)
-	reTableCommentSpace   = regexp.MustCompile(`(?is)(^|\s+)COMMENT\s+'[^']*(?:''[^']*)*'`)
+	reCreateTable              = regexp.MustCompile(`(?is)^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)\s*\(`)
+	reCreateAnyCollation       = regexp.MustCompile(`(?is)^\s*CREATE\s+COLLATION\b`)
+	reCommentOnSupportedObject = regexp.MustCompile(`(?is)^\s*COMMENT\s+ON\s+(?:TABLE|COLUMN)\b`)
+	reCommentOnAnyObject       = regexp.MustCompile(`(?is)^\s*COMMENT\s+ON\b`)
+	reCollateClause            = regexp.MustCompile(`(?i)\bCOLLATE\b`)
+	reIdentityColumnType       = regexp.MustCompile(`(?i)\b(?:BIGINT|INT)\s+(?:NOT\s+NULL\s+)?GENERATED\s+ALWAYS\s+AS\s+IDENTITY(?:\s*\([^)]*\))?(?:\s+PRIMARY\s+KEY)?\b`)
+	reIntegerTypes             = regexp.MustCompile(`(?i)\b(?:BIGINT|INT|SMALLINT)\b`)
+	reTextTypes                = regexp.MustCompile(`(?i)\b(?:VARCHAR|CHAR)\s*\(\s*\d+\s*\)|\bTEXT\b`)
+	reByteaType                = regexp.MustCompile(`(?i)\bBYTEA\b`)
+	reTimestampType            = regexp.MustCompile(`(?i)(^|[^A-Za-z0-9_])TIMESTAMP\b`)
+	reDecimalTypes             = regexp.MustCompile(`(?i)\b(?:DECIMAL|NUMERIC)(?:\s*\(\s*\d+\s*,\s*\d+\s*\))?`)
+	reDoublePrecisionType      = regexp.MustCompile(`(?i)\bDOUBLE\s+PRECISION\b`)
+	reNowFunc                  = regexp.MustCompile(`(?i)\bNOW\s*\(\s*\)`)
+	reTimestampCast            = regexp.MustCompile(`(?i)::\s*TIMESTAMP\b`)
+	reTimestampLiteralPrefix   = regexp.MustCompile(`(?i)\bTIMESTAMP\s*$`)
+	reConstraintPrimaryKey     = regexp.MustCompile(`(?i)^\s*CONSTRAINT\s+\S+\s+PRIMARY\s+KEY\b`)
+	reNamedInlineIndex         = regexp.MustCompile(`(?i)^(?:UNIQUE\s+)?(?:KEY|INDEX)\b`)
+	reMySQLTableOption         = regexp.MustCompile(`(?i)\b(?:ENGINE|CHARSET)\s*=`)
+	reDefaultCharset           = regexp.MustCompile(`(?i)\bDEFAULT\s+CHARSET\s*=`)
+
+	unsupportedFeatures = []unsupportedFeature{
+		{keyword: "CREATE DATABASE", pattern: regexp.MustCompile(`(?i)\bCREATE\s+DATABASE\b`)},
+		{keyword: "DROP DATABASE", pattern: regexp.MustCompile(`(?i)\bDROP\s+DATABASE\b`)},
+		{keyword: "USE", pattern: regexp.MustCompile(`(?i)^\s*USE\b`)},
+		{keyword: "CREATE EXTENSION", pattern: regexp.MustCompile(`(?i)\bCREATE\s+EXTENSION\b`)},
+		{keyword: "CREATE FUNCTION", pattern: regexp.MustCompile(`(?i)\bCREATE\s+FUNCTION\b`)},
+		{keyword: "CREATE PROCEDURE", pattern: regexp.MustCompile(`(?i)\bCREATE\s+PROCEDURE\b`)},
+		{keyword: "CREATE TRIGGER", pattern: regexp.MustCompile(`(?i)\bCREATE\s+TRIGGER\b`)},
+		{keyword: "CREATE TYPE", pattern: regexp.MustCompile(`(?i)\bCREATE\s+TYPE\b`)},
+		{keyword: "CREATE SCHEMA", pattern: regexp.MustCompile(`(?i)\bCREATE\s+SCHEMA\b`)},
+		{keyword: "CREATE DOMAIN", pattern: regexp.MustCompile(`(?i)\bCREATE\s+DOMAIN\b`)},
+		{keyword: "MERGE", pattern: regexp.MustCompile(`(?i)\bMERGE\b`)},
+		{keyword: "WITH RECURSIVE", pattern: regexp.MustCompile(`(?i)\bWITH\s+RECURSIVE\b`)},
+		{keyword: "LATERAL", pattern: regexp.MustCompile(`(?i)\bLATERAL\b`)},
+		{keyword: "TABLESAMPLE", pattern: regexp.MustCompile(`(?i)\bTABLESAMPLE\b`)},
+		{keyword: "PARTITION OF", pattern: regexp.MustCompile(`(?i)\bPARTITION\s+OF\b`)},
+		{keyword: "EXCLUDE USING", pattern: regexp.MustCompile(`(?i)\bEXCLUDE\s+USING\b`)},
+		{keyword: "TRUNCATE", pattern: regexp.MustCompile(`(?i)\bTRUNCATE\b`)},
+		{keyword: "JSONB", pattern: regexp.MustCompile(`(?i)\bJSONB\b`)},
+		{keyword: "JSON", pattern: regexp.MustCompile(`(?i)\bJSON\b`)},
+		{keyword: "JSON operator", pattern: regexp.MustCompile(`(?i)(->>|->|@>|<@|\?\s*')`)},
+		{keyword: "ARRAY", pattern: regexp.MustCompile(`(?i)\bARRAY\b|\[\s*\]`)},
+		{keyword: "TIMESTAMPTZ", pattern: regexp.MustCompile(`(?i)\bTIMESTAMPTZ\b`)},
+		{keyword: "TIME WITH TIME ZONE", pattern: regexp.MustCompile(`(?i)\bTIME\s+WITH\s+TIME\s+ZONE\b`)},
+		{keyword: "GENERATED ALWAYS AS", pattern: regexp.MustCompile(`(?i)\bGENERATED\s+ALWAYS\s+AS\s*\(`)},
+		{keyword: "GENERATED BY DEFAULT AS IDENTITY", pattern: regexp.MustCompile(`(?i)\bGENERATED\s+BY\s+DEFAULT\s+AS\s+IDENTITY\b`)},
+		{keyword: "BIGSERIAL", pattern: regexp.MustCompile(`(?i)\bBIGSERIAL\b`)},
+		{keyword: "SERIAL", pattern: regexp.MustCompile(`(?i)\bSERIAL\b`)},
+		{keyword: "ON CONFLICT DO UPDATE", pattern: regexp.MustCompile(`(?i)\bON\s+CONFLICT\b[\s\S]*\bDO\s+UPDATE\b`)},
+		{keyword: "AUTO_INCREMENT", pattern: regexp.MustCompile(`(?i)\bAUTO_INCREMENT\b`)},
+		{keyword: "INSERT IGNORE", pattern: regexp.MustCompile(`(?i)\bINSERT\s+IGNORE\b`)},
+		{keyword: "ON DUPLICATE KEY UPDATE", pattern: regexp.MustCompile(`(?i)\bON\s+DUPLICATE\s+KEY\s+UPDATE\b`)},
+		{keyword: "UNSIGNED", pattern: regexp.MustCompile(`(?i)\bUNSIGNED\b`)},
+		{keyword: "TINYINT", pattern: regexp.MustCompile(`(?i)\bTINYINT\b`)},
+		{keyword: "DATETIME", pattern: regexp.MustCompile(`(?i)\bDATETIME\b`)},
+		{keyword: "LONGTEXT", pattern: regexp.MustCompile(`(?i)\bLONGTEXT\b`)},
+		{keyword: "MEDIUMTEXT", pattern: regexp.MustCompile(`(?i)\bMEDIUMTEXT\b`)},
+		{keyword: "BLOB", pattern: regexp.MustCompile(`(?i)\b(?:BLOB|LONGBLOB|MEDIUMBLOB)\b`)},
+		{keyword: "VARBINARY", pattern: regexp.MustCompile(`(?i)\bVARBINARY\b`)},
+		{keyword: "ON UPDATE CURRENT_TIMESTAMP", pattern: regexp.MustCompile(`(?i)\bON\s+UPDATE\s+CURRENT_TIMESTAMP\b`)},
+		{keyword: "backtick identifier", pattern: regexp.MustCompile("`")},
+	}
 )
 
-// translateDDL translates a full SQL asset into SQLite-compatible SQL.
-func translateDDL(sourceName string, ddl string) (string, error) {
+// translateDDL translates a full PostgreSQL-source SQL asset into
+// SQLite-compatible SQL.
+func translateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
 	var output []string
 	for _, statement := range sqlscan.SplitStatements(ddl) {
-		if err := rejectUnsupportedSQL(sourceName, ddl, statement); err != nil {
+		line := sqlscan.LineNumberForStatement(ddl, statement)
+		if err := rejectUnsupportedSQL(sourceName, line, statement); err != nil {
 			return "", err
 		}
-		translated, err := translateSQLiteStatement(statement)
+		translated, err := translateSQLiteStatement(ctx, sourceName, line, statement)
 		if err != nil {
-			return "", gerror.Wrapf(err, "translate SQL asset %s failed", sourceName)
+			return "", err
 		}
 		if translated == "" {
 			continue
@@ -58,274 +110,217 @@ func translateDDL(sourceName string, ddl string) (string, error) {
 	return strings.Join(output, "\n") + "\n", nil
 }
 
-// rejectUnsupportedSQL fails fast for MySQL features outside the supported
-// project SQL subset.
-func rejectUnsupportedSQL(sourceName string, ddl string, statement string) error {
-	match := reUnsupportedKeywords.FindString(statement)
-	if match == "" {
+// rejectUnsupportedSQL fails fast for PostgreSQL features outside the supported
+// project SQL subset and for legacy MySQL syntax that must no longer be used as
+// source SQL.
+func rejectUnsupportedSQL(sourceName string, line int, statement string) error {
+	if reCommentOnSupportedObject.MatchString(statement) {
 		return nil
 	}
-	line := sqlscan.LineNumberForStatement(ddl, statement)
-	return gerror.Newf("unsupported MySQL syntax in %s at line %d: %s", sourceName, line, strings.TrimSpace(match))
+
+	searchable := searchableSQL(statement)
+	if reCreateAnyCollation.MatchString(searchable) {
+		return unsupportedSQLError(sourceName, line, "CREATE COLLATION")
+	}
+	if reCommentOnAnyObject.MatchString(searchable) {
+		return unsupportedSQLError(sourceName, line, "COMMENT ON")
+	}
+	if reCollateClause.MatchString(searchable) {
+		return unsupportedSQLError(sourceName, line, "COLLATE")
+	}
+	if reDefaultCharset.MatchString(searchable) {
+		return unsupportedSQLError(sourceName, line, "DEFAULT CHARSET")
+	}
+	if reMySQLTableOption.MatchString(searchable) {
+		return unsupportedSQLError(sourceName, line, "ENGINE/CHARSET")
+	}
+	for _, feature := range unsupportedFeatures {
+		if feature.pattern.MatchString(searchable) {
+			return unsupportedSQLError(sourceName, line, feature.keyword)
+		}
+	}
+	return nil
+}
+
+// unsupportedSQLError builds one source-aware translation failure.
+func unsupportedSQLError(sourceName string, line int, keyword string) error {
+	return gerror.Newf("unsupported PostgreSQL-source SQL in %s at line %d: %s", sourceName, line, keyword)
 }
 
 // translateSQLiteStatement translates one SQL statement.
-func translateSQLiteStatement(statement string) (string, error) {
+func translateSQLiteStatement(ctx context.Context, sourceName string, line int, statement string) (string, error) {
 	trimmed := strings.TrimSpace(statement)
 	switch {
 	case trimmed == "":
 		return "", nil
-	case reCreateDatabase.MatchString(trimmed), reUseDatabase.MatchString(trimmed):
+	case reCommentOnSupportedObject.MatchString(trimmed):
+		logger.Debugf(ctx, "skip PostgreSQL comment statement during SQLite translation source=%s line=%d", sourceName, line)
 		return "", nil
 	case reCreateTable.MatchString(trimmed):
-		return translateCreateTable(trimmed)
+		return translateCreateTable(sourceName, line, trimmed)
 	default:
-		return translateGeneralSQL(trimmed) + ";", nil
+		return translateCompatibleSQL(trimmed) + ";", nil
 	}
 }
 
-// translateCreateTable translates one MySQL CREATE TABLE statement and extracts
-// inline indexes into standalone CREATE INDEX statements.
-func translateCreateTable(statement string) (string, error) {
+// translateCreateTable translates one PostgreSQL CREATE TABLE statement.
+func translateCreateTable(sourceName string, line int, statement string) (string, error) {
 	openIndex := strings.Index(statement, "(")
 	closeIndex := sqlscan.FindMatchingParen(statement, openIndex)
 	if openIndex < 0 || closeIndex < 0 {
-		return "", gerror.New("CREATE TABLE statement has invalid parentheses")
+		return "", gerror.Newf("invalid CREATE TABLE statement in %s at line %d", sourceName, line)
 	}
 
 	header := strings.TrimSpace(statement[:openIndex])
 	body := statement[openIndex+1 : closeIndex]
 	suffix := strings.TrimSpace(statement[closeIndex+1:])
-	tableName := normalizeIdentifier(reCreateTable.FindStringSubmatch(statement)[1])
+	if suffix != "" {
+		return "", unsupportedSQLError(sourceName, line, firstSQLKeyword(suffix))
+	}
+
 	items := sqlscan.SplitTopLevelComma(body)
-
-	var (
-		columns        []string
-		tablePrimaryID string
-		indexes        []string
-	)
+	identityColumns := identityColumnSet(items)
+	columns := make([]string, 0, len(items))
 	for _, item := range items {
-		translatedItem, extractedIndex, primaryID := translateCreateTableItem(tableName, item)
-		if primaryID != "" {
-			tablePrimaryID = primaryID
-			continue
+		translated, err := translateCreateTableItem(sourceName, line, item, identityColumns)
+		if err != nil {
+			return "", err
 		}
-		if extractedIndex != "" {
-			indexes = append(indexes, extractedIndex)
-			continue
-		}
-		if translatedItem != "" {
-			columns = append(columns, translatedItem)
+		if translated != "" {
+			columns = append(columns, translated)
 		}
 	}
-	if tablePrimaryID != "" {
-		primaryKeyCoveredByColumn := false
-		for index, column := range columns {
-			if !equalIdentifier(columnName(column), tablePrimaryID) {
-				continue
-			}
-			if isIntegerAutoColumn(column) {
-				columns[index] = normalizeAutoIncrementColumn(column)
-				primaryKeyCoveredByColumn = true
-				break
-			}
-			if strings.Contains(strings.ToUpper(column), "PRIMARY KEY") {
-				primaryKeyCoveredByColumn = true
-				break
-			}
-		}
-		if !primaryKeyCoveredByColumn {
-			columns = append(columns, fmt.Sprintf("PRIMARY KEY (%s)", tablePrimaryID))
-		}
+	if len(columns) == 0 {
+		return "", gerror.Newf("CREATE TABLE statement in %s at line %d has no columns", sourceName, line)
 	}
+	return strings.TrimSpace(header) + " (\n    " + strings.Join(columns, ",\n    ") + "\n);", nil
+}
 
-	createSQL := stripBacktickIdentifiers(strings.TrimSpace(header)) + " (\n    " + strings.Join(columns, ",\n    ") + "\n)"
-	createSQL += translateTableSuffix(suffix) + ";"
-	if len(indexes) == 0 {
-		return createSQL, nil
+// identityColumnSet returns column names that use PostgreSQL identity syntax.
+func identityColumnSet(items []string) map[string]struct{} {
+	identityColumns := make(map[string]struct{})
+	for _, item := range items {
+		trimmed := strings.TrimSpace(strings.TrimSuffix(item, ","))
+		if trimmed == "" || isTableConstraint(trimmed) {
+			continue
+		}
+		if reIdentityColumnType.MatchString(searchableSQL(trimmed)) {
+			identityColumns[normalizedIdentifier(columnName(trimmed))] = struct{}{}
+		}
 	}
-	return createSQL + "\n" + strings.Join(indexes, "\n"), nil
+	return identityColumns
 }
 
 // translateCreateTableItem converts one comma-delimited CREATE TABLE item.
-func translateCreateTableItem(tableName string, item string) (translated string, indexSQL string, tablePrimaryID string) {
+func translateCreateTableItem(
+	sourceName string,
+	line int,
+	item string,
+	identityColumns map[string]struct{},
+) (string, error) {
 	trimmed := strings.TrimSpace(strings.TrimSuffix(item, ","))
 	if trimmed == "" {
-		return "", "", ""
+		return "", nil
 	}
-	upper := strings.ToUpper(trimmed)
-	if strings.HasPrefix(upper, "PRIMARY KEY") {
-		cols := extractIndexColumns(trimmed)
-		if len(cols) == 1 {
-			return "", "", normalizeIdentifier(cols[0])
+
+	upper := strings.ToUpper(searchableSQL(trimmed))
+	switch {
+	case strings.HasPrefix(upper, "PRIMARY KEY"):
+		if primaryKeyCoveredByIdentity(trimmed, identityColumns) {
+			return "", nil
 		}
-		return translateGeneralSQL(trimmed), "", ""
+		return translateCompatibleSQL(trimmed), nil
+	case reConstraintPrimaryKey.MatchString(upper):
+		if primaryKeyCoveredByIdentity(trimmed, identityColumns) {
+			return "", nil
+		}
+		return translateCompatibleSQL(trimmed), nil
+	case strings.HasPrefix(upper, "UNIQUE"),
+		strings.HasPrefix(upper, "CHECK"),
+		strings.HasPrefix(upper, "FOREIGN KEY"),
+		strings.HasPrefix(upper, "CONSTRAINT"):
+		return translateCompatibleSQL(trimmed), nil
+	case reNamedInlineIndex.MatchString(upper):
+		return "", unsupportedSQLError(sourceName, line, firstSQLKeyword(trimmed))
+	default:
+		return translateColumnDefinition(trimmed), nil
 	}
-	if strings.HasPrefix(upper, "KEY ") ||
-		strings.HasPrefix(upper, "INDEX ") ||
-		strings.HasPrefix(upper, "UNIQUE KEY ") ||
-		strings.HasPrefix(upper, "UNIQUE INDEX ") {
-		return "", buildCreateIndexSQL(tableName, trimmed), ""
-	}
-	return translateColumnDefinition(trimmed), "", ""
 }
 
 // translateColumnDefinition converts one column definition.
 func translateColumnDefinition(column string) string {
-	withoutComment := stripColumnComment(column)
-	if isIntegerAutoColumn(withoutComment) {
-		return normalizeAutoIncrementColumn(withoutComment)
+	name, definition := splitColumnDefinition(column)
+	if name == "" || definition == "" {
+		return translateTypeSQL(column)
 	}
-	return translateGeneralSQL(withoutComment)
+	return strings.TrimSpace(name + " " + translateTypeSQL(definition))
 }
 
-// translateGeneralSQL performs token-level conversion outside CREATE TABLE structure.
-func translateGeneralSQL(sql string) string {
-	translated := stripBacktickIdentifiers(sql)
-	translated = rewriteSQLiteFunctionCalls(translated)
-	translated = reInsertIgnore.ReplaceAllString(translated, "INSERT OR IGNORE INTO")
-	translated = reOnUpdate.ReplaceAllString(translated, "")
-	translated = reIntegerAuto.ReplaceAllString(translated, "INTEGER PRIMARY KEY AUTOINCREMENT")
-	translated = reIntegerAutoAlt.ReplaceAllString(translated, "INTEGER PRIMARY KEY AUTOINCREMENT")
-	translated = reIntegerTypes.ReplaceAllString(translated, "INTEGER")
-	translated = reBlobTypes.ReplaceAllString(translated, "BLOB")
-	translated = reTextTypes.ReplaceAllString(translated, "TEXT")
-	translated = reDecimalTypes.ReplaceAllString(translated, "NUMERIC")
-	translated = reFromDual.ReplaceAllString(translated, "")
-	translated = reNowFunc.ReplaceAllString(translated, "CURRENT_TIMESTAMP")
-	translated = stripColumnComment(translated)
+// translateCompatibleSQL performs non-type compatibility rewrites outside
+// quoted strings and quoted identifiers.
+func translateCompatibleSQL(sql string) string {
+	translated := rewriteOutsideQuotes(sql, func(segment string) string {
+		translated := reNowFunc.ReplaceAllString(segment, "CURRENT_TIMESTAMP")
+		translated = reTimestampCast.ReplaceAllString(translated, "")
+		translated = reTimestampLiteralPrefix.ReplaceAllString(translated, "")
+		return translated
+	})
 	return strings.TrimSpace(translated)
 }
 
-// rewriteSQLiteFunctionCalls rewrites MySQL functions that appear in project SQL
-// assets but are not available under SQLite with the same name.
-func rewriteSQLiteFunctionCalls(sql string) string {
-	return rewriteFunctionCall(sql, "CONCAT", rewriteConcatCall)
+// translateTypeSQL performs CREATE TABLE column type conversion outside quoted
+// strings and quoted identifiers.
+func translateTypeSQL(sql string) string {
+	translated := rewriteOutsideQuotes(sql, func(segment string) string {
+		translated := reIdentityColumnType.ReplaceAllString(segment, "INTEGER PRIMARY KEY AUTOINCREMENT")
+		translated = reNowFunc.ReplaceAllString(translated, "CURRENT_TIMESTAMP")
+		translated = reDoublePrecisionType.ReplaceAllString(translated, "REAL")
+		translated = reIntegerTypes.ReplaceAllString(translated, "INTEGER")
+		translated = reByteaType.ReplaceAllString(translated, "BLOB")
+		translated = reTextTypes.ReplaceAllString(translated, "TEXT")
+		translated = reTimestampType.ReplaceAllString(translated, "${1}DATETIME")
+		translated = reDecimalTypes.ReplaceAllString(translated, "NUMERIC")
+		return translated
+	})
+	return strings.TrimSpace(translated)
 }
 
-// rewriteFunctionCall rewrites calls to one SQL function outside string and
-// identifier quotes while preserving unrelated SQL text byte-for-byte.
-func rewriteFunctionCall(
-	sql string,
-	functionName string,
-	rewrite func(args []string) string,
-) string {
-	var (
-		builder       strings.Builder
-		inSingleQuote bool
-		inDoubleQuote bool
-		inBacktick    bool
-		upperName     = strings.ToUpper(functionName)
-	)
-	for i := 0; i < len(sql); i++ {
-		current := sql[i]
-		switch {
-		case inSingleQuote:
-			builder.WriteByte(current)
-			if sqlscan.ConsumeQuotedEscape(sql, &i, current, '\'') {
-				builder.WriteByte(sql[i])
-				continue
-			}
-			if current == '\'' {
-				inSingleQuote = false
-			}
-		case inDoubleQuote:
-			builder.WriteByte(current)
-			if sqlscan.ConsumeQuotedEscape(sql, &i, current, '"') {
-				builder.WriteByte(sql[i])
-				continue
-			}
-			if current == '"' {
-				inDoubleQuote = false
-			}
-		case inBacktick:
-			builder.WriteByte(current)
-			if current == '`' {
-				inBacktick = false
-			}
-		case current == '\'':
-			inSingleQuote = true
-			builder.WriteByte(current)
-		case current == '"':
-			inDoubleQuote = true
-			builder.WriteByte(current)
-		case current == '`':
-			inBacktick = true
-			builder.WriteByte(current)
-		case sqlscan.IsKeywordAt(sql, i, upperName):
-			openIndex := i + sqlscan.KeywordLengthAt(sql, i, upperName)
-			for openIndex < len(sql) && sqlscan.IsSQLWhitespace(sql[openIndex]) {
-				openIndex++
-			}
-			if openIndex >= len(sql) || sql[openIndex] != '(' {
-				builder.WriteByte(current)
-				continue
-			}
-			closeIndex := sqlscan.FindMatchingParen(sql, openIndex)
-			if closeIndex < 0 {
-				builder.WriteByte(current)
-				continue
-			}
-			args := sqlscan.SplitTopLevelComma(sql[openIndex+1 : closeIndex])
-			builder.WriteString(rewrite(args))
-			i = closeIndex
-		default:
-			builder.WriteByte(current)
+// splitColumnDefinition returns the column identifier and the rest of a column
+// definition while preserving the original identifier quoting style.
+func splitColumnDefinition(column string) (string, string) {
+	trimmed := strings.TrimSpace(column)
+	if trimmed == "" {
+		return "", ""
+	}
+	if trimmed[0] == '"' {
+		end := consumeQuotedSQL(trimmed, 0, '"')
+		if end <= 0 || end > len(trimmed) {
+			return "", trimmed
+		}
+		return trimmed[:end], strings.TrimSpace(trimmed[end:])
+	}
+	for index := 0; index < len(trimmed); index++ {
+		if sqlscan.IsSQLWhitespace(trimmed[index]) {
+			return trimmed[:index], strings.TrimSpace(trimmed[index:])
 		}
 	}
-	return builder.String()
+	return trimmed, ""
 }
 
-// rewriteConcatCall converts MySQL CONCAT(a, b, ...) to SQLite's string
-// concatenation operator.
-func rewriteConcatCall(args []string) string {
-	rewritten := make([]string, 0, len(args))
-	for _, arg := range args {
-		rewritten = append(rewritten, rewriteSQLiteFunctionCalls(strings.TrimSpace(arg)))
+// primaryKeyCoveredByIdentity reports whether a table-level primary key repeats
+// a single identity column already translated to SQLite's inline primary key.
+func primaryKeyCoveredByIdentity(clause string, identityColumns map[string]struct{}) bool {
+	columns := extractConstraintColumns(clause)
+	if len(columns) != 1 {
+		return false
 	}
-	return "(" + strings.Join(rewritten, " || ") + ")"
+	_, ok := identityColumns[normalizedIdentifier(columns[0])]
+	return ok
 }
 
-// translateTableSuffix removes MySQL table options after the closing paren.
-func translateTableSuffix(suffix string) string {
-	translated := reEngine.ReplaceAllString(suffix, "")
-	translated = reDefaultCharset.ReplaceAllString(translated, "")
-	translated = reCharset.ReplaceAllString(translated, "")
-	translated = reCollate.ReplaceAllString(translated, "")
-	translated = reTableCommentEquals.ReplaceAllString(translated, "")
-	translated = reTableCommentSpace.ReplaceAllString(translated, "")
-	return strings.TrimSpace(translated)
-}
-
-// buildCreateIndexSQL converts one inline KEY/INDEX clause into standalone SQL.
-func buildCreateIndexSQL(tableName string, clause string) string {
-	normalized := stripBacktickIdentifiers(strings.TrimSpace(clause))
-	upper := strings.ToUpper(normalized)
-	unique := false
-	if strings.HasPrefix(upper, "UNIQUE KEY ") {
-		unique = true
-		normalized = strings.TrimSpace(normalized[len("UNIQUE KEY "):])
-	} else if strings.HasPrefix(upper, "UNIQUE INDEX ") {
-		unique = true
-		normalized = strings.TrimSpace(normalized[len("UNIQUE INDEX "):])
-	} else if strings.HasPrefix(upper, "KEY ") {
-		normalized = strings.TrimSpace(normalized[len("KEY "):])
-	} else if strings.HasPrefix(upper, "INDEX ") {
-		normalized = strings.TrimSpace(normalized[len("INDEX "):])
-	}
-
-	openIndex := strings.Index(normalized, "(")
-	indexName := strings.TrimSpace(normalized[:openIndex])
-	columns := strings.TrimSpace(normalized[openIndex:])
-	if unique {
-		return fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s %s;", indexName, tableName, columns)
-	}
-	return fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s %s;", indexName, tableName, columns)
-}
-
-// extractIndexColumns returns the top-level comma-separated columns in one
-// PRIMARY KEY clause.
-func extractIndexColumns(clause string) []string {
+// extractConstraintColumns returns the top-level comma-separated columns in a
+// table constraint.
+func extractConstraintColumns(clause string) []string {
 	openIndex := strings.Index(clause, "(")
 	closeIndex := sqlscan.FindMatchingParen(clause, openIndex)
 	if openIndex < 0 || closeIndex < 0 {
@@ -334,105 +329,171 @@ func extractIndexColumns(clause string) []string {
 	return sqlscan.SplitTopLevelComma(clause[openIndex+1 : closeIndex])
 }
 
-// isIntegerAutoColumn reports whether a column definition contains AUTO_INCREMENT.
-func isIntegerAutoColumn(column string) bool {
-	return strings.Contains(strings.ToUpper(column), "AUTO_INCREMENT")
-}
-
-// normalizeAutoIncrementColumn converts a column into SQLite integer primary key syntax.
-func normalizeAutoIncrementColumn(column string) string {
-	name := columnName(column)
-	return name + " INTEGER PRIMARY KEY AUTOINCREMENT"
+// isTableConstraint reports whether an item is a table-level constraint rather
+// than a column definition.
+func isTableConstraint(item string) bool {
+	upper := strings.ToUpper(searchableSQL(item))
+	return strings.HasPrefix(upper, "PRIMARY KEY") ||
+		strings.HasPrefix(upper, "UNIQUE") ||
+		strings.HasPrefix(upper, "CHECK") ||
+		strings.HasPrefix(upper, "FOREIGN KEY") ||
+		strings.HasPrefix(upper, "CONSTRAINT") ||
+		reNamedInlineIndex.MatchString(upper)
 }
 
 // columnName extracts the first identifier from one column definition.
 func columnName(column string) string {
-	fields := strings.Fields(stripBacktickIdentifiers(column))
+	fields := strings.Fields(column)
 	if len(fields) == 0 {
 		return ""
 	}
-	return normalizeIdentifier(fields[0])
+	return fields[0]
 }
 
-// normalizeIdentifier removes MySQL identifier quotes from a single identifier.
-func normalizeIdentifier(identifier string) string {
-	return strings.Trim(strings.TrimSpace(identifier), "`")
-}
-
-// equalIdentifier compares SQL identifiers case-insensitively after removing
-// MySQL identifier quotes.
-func equalIdentifier(left string, right string) bool {
-	return strings.EqualFold(normalizeIdentifier(left), normalizeIdentifier(right))
-}
-
-// stripColumnComment removes a MySQL column-level COMMENT string.
-func stripColumnComment(sql string) string {
-	result := stripKeywordStringClause(sql, "COMMENT")
-	return strings.TrimSpace(result)
-}
-
-// stripKeywordStringClause removes KEYWORD 'string' segments outside quoted strings.
-func stripKeywordStringClause(sql string, keyword string) string {
-	upperKeyword := strings.ToUpper(keyword)
-	var builder strings.Builder
-	for i := 0; i < len(sql); i++ {
-		if sqlscan.IsKeywordAt(sql, i, upperKeyword) {
-			next := i + len(keyword)
-			for next < len(sql) && sqlscan.IsSQLWhitespace(sql[next]) {
-				next++
-			}
-			if next < len(sql) && sql[next] == '\'' {
-				end := sqlscan.ConsumeSQLString(sql, next)
-				if end > next {
-					i = end - 1
-					continue
-				}
-			}
+// normalizedIdentifier compares quoted and unquoted SQL identifiers by their
+// unquoted, lower-cased form.
+func normalizedIdentifier(identifier string) string {
+	trimmed := strings.TrimSpace(identifier)
+	if len(trimmed) >= 2 {
+		first := trimmed[0]
+		last := trimmed[len(trimmed)-1]
+		if (first == '"' && last == '"') || (first == '`' && last == '`') {
+			trimmed = trimmed[1 : len(trimmed)-1]
 		}
-		builder.WriteByte(sql[i])
 	}
+	return strings.ToLower(trimmed)
+}
+
+// firstSQLKeyword returns a short diagnostic keyword for unsupported fragments.
+func firstSQLKeyword(sql string) string {
+	fields := strings.Fields(searchableSQL(sql))
+	if len(fields) == 0 {
+		return "unknown"
+	}
+	if len(fields) >= 2 {
+		switch strings.ToUpper(fields[0]) {
+		case "CREATE", "DROP", "ON", "WITH", "DEFAULT":
+			return strings.ToUpper(fields[0] + " " + fields[1])
+		}
+	}
+	return strings.ToUpper(fields[0])
+}
+
+// searchableSQL masks quoted strings and identifiers so unsupported syntax
+// checks do not trigger on literal values or quoted column names.
+func searchableSQL(sql string) string {
+	return rewriteQuotedSQL(sql, func(quote byte, content string) string {
+		if quote == '\'' || quote == '"' {
+			return strings.Repeat(" ", len(content))
+		}
+		return content
+	})
+}
+
+// rewriteOutsideQuotes applies rewrite to SQL text outside single-quoted
+// strings and quoted identifiers.
+func rewriteOutsideQuotes(sql string, rewrite func(string) string) string {
+	var (
+		builder strings.Builder
+		segment strings.Builder
+	)
+	flushSegment := func() {
+		if segment.Len() == 0 {
+			return
+		}
+		builder.WriteString(rewrite(segment.String()))
+		segment.Reset()
+	}
+	written := rewriteQuotedSQL(sql, func(quote byte, content string) string {
+		if quote == 0 {
+			segment.WriteString(content)
+			return ""
+		}
+		flushSegment()
+		builder.WriteString(content)
+		return ""
+	})
+	if written != "" {
+		segment.WriteString(written)
+	}
+	flushSegment()
 	return builder.String()
 }
 
-// stripBacktickIdentifiers removes MySQL backtick identifier quotes outside string literals.
-func stripBacktickIdentifiers(sql string) string {
+// hasSQLKeywordAt reports whether keyword appears at index with identifier
+// boundaries on both sides.
+func hasSQLKeywordAt(sql string, index int, keyword string) bool {
+	if index < 0 || index+len(keyword) > len(sql) {
+		return false
+	}
+	if index > 0 && isSQLIdentifierByte(sql[index-1]) {
+		return false
+	}
+	if !strings.EqualFold(sql[index:index+len(keyword)], keyword) {
+		return false
+	}
+	next := index + len(keyword)
+	return next >= len(sql) || !isSQLIdentifierByte(sql[next])
+}
+
+// skipSQLWhitespace returns the next non-whitespace byte index.
+func skipSQLWhitespace(sql string, start int) int {
+	for start < len(sql) && sqlscan.IsSQLWhitespace(sql[start]) {
+		start++
+	}
+	return start
+}
+
+// isSQLIdentifierByte reports whether a byte can be part of a simple SQL
+// identifier or keyword token.
+func isSQLIdentifierByte(value byte) bool {
+	return value == '_' ||
+		(value >= '0' && value <= '9') ||
+		(value >= 'A' && value <= 'Z') ||
+		(value >= 'a' && value <= 'z')
+}
+
+// rewriteQuotedSQL walks SQL text and delegates each unquoted or quoted segment
+// to rewrite. A quote value of zero identifies unquoted text.
+func rewriteQuotedSQL(sql string, rewrite func(quote byte, content string) string) string {
 	var (
-		builder       strings.Builder
-		inSingleQuote bool
-		inDoubleQuote bool
+		builder strings.Builder
+		start   int
 	)
 	for i := 0; i < len(sql); i++ {
-		current := sql[i]
-		switch {
-		case inSingleQuote:
-			builder.WriteByte(current)
-			if sqlscan.ConsumeQuotedEscape(sql, &i, current, '\'') {
-				builder.WriteByte(sql[i])
-				continue
+		switch sql[i] {
+		case '\'', '"', '`':
+			if start < i {
+				builder.WriteString(rewrite(0, sql[start:i]))
 			}
-			if current == '\'' {
-				inSingleQuote = false
-			}
-		case inDoubleQuote:
-			builder.WriteByte(current)
-			if sqlscan.ConsumeQuotedEscape(sql, &i, current, '"') {
-				builder.WriteByte(sql[i])
-				continue
-			}
-			if current == '"' {
-				inDoubleQuote = false
-			}
-		case current == '\'':
-			inSingleQuote = true
-			builder.WriteByte(current)
-		case current == '"':
-			inDoubleQuote = true
-			builder.WriteByte(current)
-		case current == '`':
-			continue
-		default:
-			builder.WriteByte(current)
+			quote := sql[i]
+			end := consumeQuotedSQL(sql, i, quote)
+			builder.WriteString(rewrite(quote, sql[i:end]))
+			i = end - 1
+			start = end
 		}
 	}
+	if start < len(sql) {
+		builder.WriteString(rewrite(0, sql[start:]))
+	}
 	return builder.String()
+}
+
+// consumeQuotedSQL returns the index after one quoted SQL string or identifier.
+func consumeQuotedSQL(sql string, start int, quote byte) int {
+	for i := start + 1; i < len(sql); i++ {
+		current := sql[i]
+		if quote == '\'' || quote == '"' {
+			if sqlscan.ConsumeQuotedEscape(sql, &i, current, quote) {
+				continue
+			}
+		} else if current == quote && i+1 < len(sql) && sql[i+1] == quote {
+			i++
+			continue
+		}
+		if current == quote {
+			return i + 1
+		}
+	}
+	return len(sql)
 }

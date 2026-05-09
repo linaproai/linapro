@@ -5,34 +5,41 @@
 -- plugin-demo-source 示例记录表
 -- ------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS `plugin_demo_source_record` (
-    `id`              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT  'Primary key ID',
-    `title`           VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Record title',
-    `content`         VARCHAR(1000) NOT NULL DEFAULT '' COMMENT  'Record content',
-    `attachment_name` VARCHAR(255) NOT NULL DEFAULT '' COMMENT  'Original attachment file name',
-    `attachment_path` VARCHAR(500) NOT NULL DEFAULT '' COMMENT  'Relative attachment storage path',
-    `created_at`      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT  'Creation time',
-    `updated_at`      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT  'Update time'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Source plugin demo record table';
+CREATE TABLE IF NOT EXISTS plugin_demo_source_record (
+    "id"              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "title"           VARCHAR(128) NOT NULL DEFAULT '',
+    "content"         VARCHAR(1000) NOT NULL DEFAULT '',
+    "attachment_name" VARCHAR(255) NOT NULL DEFAULT '',
+    "attachment_path" VARCHAR(500) NOT NULL DEFAULT '',
+    "created_at"      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-INSERT IGNORE INTO `plugin_demo_source_record` (
-    `title`,
-    `content`,
-    `attachment_name`,
-    `attachment_path`,
-    `created_at`,
-    `updated_at`
+COMMENT ON TABLE plugin_demo_source_record IS 'Source plugin demo record table';
+COMMENT ON COLUMN plugin_demo_source_record."id" IS 'Primary key ID';
+COMMENT ON COLUMN plugin_demo_source_record."title" IS 'Record title';
+COMMENT ON COLUMN plugin_demo_source_record."content" IS 'Record content';
+COMMENT ON COLUMN plugin_demo_source_record."attachment_name" IS 'Original attachment file name';
+COMMENT ON COLUMN plugin_demo_source_record."attachment_path" IS 'Relative attachment storage path';
+COMMENT ON COLUMN plugin_demo_source_record."created_at" IS 'Creation time';
+COMMENT ON COLUMN plugin_demo_source_record."updated_at" IS 'Update time';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_plugin_demo_source_record_title ON plugin_demo_source_record ("title");
+
+INSERT INTO plugin_demo_source_record (
+    "title",
+    "content",
+    "attachment_name",
+    "attachment_path",
+    "created_at",
+    "updated_at"
 )
-SELECT
+VALUES (
     '源码插件 SQL 示例记录',
     '该记录由 plugin-demo-source 安装 SQL 初始化，用于演示源码插件页面如何对插件自有数据表执行增删查改操作。',
     '',
     '',
     '2026-04-16 09:00:00',
     '2026-04-16 09:00:00'
-FROM DUAL
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM `plugin_demo_source_record`
-    WHERE `title` = '源码插件 SQL 示例记录'
-);
+)
+ON CONFLICT DO NOTHING;

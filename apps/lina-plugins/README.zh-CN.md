@@ -45,7 +45,7 @@ apps/lina-plugins/<plugin-id>/
   plugin.yaml           插件清单
   plugin_embed.go       嵌入资源注册入口
   README.md             英文说明
-  README.zh_CN.md       中文说明
+  README.zh-CN.md       中文说明
 ```
 
 `backend/internal/service/` 是源码插件业务 `service` 的唯一合法目录，禁止再创建 `backend/service/`。

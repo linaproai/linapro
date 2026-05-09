@@ -290,7 +290,7 @@ Workspace adaptation interfaces (menu route projection, current-user workspace s
 
 ### README Governance
 
-All directory-level main documentation uses English `README.md` as the primary document. A Chinese mirror `README.zh_CN.md` must exist in the same directory. Both documents maintain consistent structure and information, differing only in language. Updates to one require synchronized updates to the other. The repository root provides both files as the project entry point.
+All directory-level main documentation uses English `README.md` as the primary document. A Chinese mirror `README.zh-CN.md` must exist in the same directory. Both documents maintain consistent structure and information, differing only in language. Updates to one require synchronized updates to the other. The repository root provides both files as the project entry point.
 
 ### Database Bootstrap Safety
 

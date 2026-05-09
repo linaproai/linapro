@@ -161,7 +161,7 @@ func configureRuntimeCacheDomain(clusterEnabled bool, cacheCoordSvc cachecoord.S
 		AuthoritySource:  "plugin registry, active releases, plugin node state, and artifacts",
 		ConsistencyModel: cachecoord.ConsistencySharedRevision,
 		MaxStale:         runtimeCacheMaxStale,
-		SyncMechanism:    "persistent MySQL sys_cache_revision plus runtime cache invalidation",
+		SyncMechanism:    "persistent sys_cache_revision plus runtime cache invalidation",
 		FailureStrategy:  cachecoord.FailureStrategyConservativeHide,
 	}); err != nil {
 		panic(err)

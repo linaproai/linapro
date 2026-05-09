@@ -7,11 +7,11 @@ import {
   createAdminApiContext,
   createJob,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getJob,
   previewCron,
   setCronShellEnabled,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-93 时区持久化与 Cron 预览', () => {
@@ -31,7 +31,7 @@ test.describe('TC-93 时区持久化与 Cron 预览', () => {
       await api.delete(`job/${jobId}`);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

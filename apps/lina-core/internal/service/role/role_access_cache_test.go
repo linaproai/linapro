@@ -5,14 +5,12 @@ package role
 
 import (
 	"context"
+	"github.com/gogf/gf/v2/os/gcache"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
-	"github.com/gogf/gf/v2/os/gcache"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

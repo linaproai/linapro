@@ -24,9 +24,9 @@ type StartupRuntime interface {
 	OverrideClusterEnabledForDialect(value bool)
 }
 
-// TranslateDDL converts the project's MySQL-source SQL subset to SQLite SQL.
+// TranslateDDL converts the project's PostgreSQL-source SQL subset to SQLite SQL.
 func TranslateDDL(ctx context.Context, sourceName string, ddl string) (string, error) {
-	return translateDDL(sourceName, ddl)
+	return translateDDL(ctx, sourceName, ddl)
 }
 
 // PrepareDatabase ensures the database parent directory exists and optionally
@@ -77,6 +77,48 @@ func DatabaseVersion(ctx context.Context, db gdb.DB) (string, error) {
 	return "SQLite " + strings.TrimSpace(result.String()), nil
 }
 
+// TableMeta carries SQLite table metadata needed by the public dialect wrapper.
+type TableMeta struct {
+	TableName    string
+	TableComment string
+}
+
+// QueryTableMetadata returns existing SQLite table names. SQLite does not
+// support table comments, so TableComment is always empty.
+func QueryTableMetadata(ctx context.Context, db gdb.DB, schema string, tableNames []string) ([]TableMeta, error) {
+	names := normalizeTableMetadataNames(tableNames)
+	if len(names) == 0 {
+		return []TableMeta{}, nil
+	}
+	if db == nil {
+		return nil, gerror.New("database connection is required")
+	}
+	records, err := db.GetAll(
+		ctx,
+		"SELECT name AS table_name, '' AS table_comment FROM sqlite_master WHERE type='table' AND name IN(?)",
+		names,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	metas := make([]TableMeta, 0, len(records))
+	for _, record := range records {
+		if record == nil {
+			continue
+		}
+		tableName := strings.TrimSpace(record["table_name"].String())
+		if tableName == "" {
+			continue
+		}
+		metas = append(metas, TableMeta{
+			TableName:    tableName,
+			TableComment: "",
+		})
+	}
+	return metas, nil
+}
+
 // OnStartup locks cluster mode off and prints prominent warnings for SQLite.
 func OnStartup(ctx context.Context, link string, runtime StartupRuntime) error {
 	if runtime != nil {
@@ -120,4 +162,25 @@ func PathFromLink(link string) (string, error) {
 // DatabaseFiles returns the primary SQLite file and common WAL sidecar files.
 func DatabaseFiles(dbPath string) []string {
 	return []string{dbPath, dbPath + "-shm", dbPath + "-wal"}
+}
+
+// normalizeTableMetadataNames trims blanks and removes duplicate table names.
+func normalizeTableMetadataNames(tableNames []string) []string {
+	if len(tableNames) == 0 {
+		return []string{}
+	}
+	seen := make(map[string]struct{}, len(tableNames))
+	names := make([]string, 0, len(tableNames))
+	for _, tableName := range tableNames {
+		normalized := strings.TrimSpace(tableName)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		names = append(names, normalized)
+	}
+	return names
 }

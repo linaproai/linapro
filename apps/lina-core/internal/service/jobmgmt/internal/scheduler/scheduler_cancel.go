@@ -10,7 +10,7 @@ import (
 )
 
 // CancelLog cancels one currently running job-log instance.
-func (s *serviceImpl) CancelLog(_ context.Context, logID uint64) error {
+func (s *serviceImpl) CancelLog(_ context.Context, logID int64) error {
 	s.mu.Lock()
 	execution, ok := s.runningInstances[logID]
 	s.mu.Unlock()

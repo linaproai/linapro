@@ -96,6 +96,9 @@ test.describe("TC0108 英文运行时页面巡检", () => {
     adminPage,
     mainLayout,
   }) => {
+    test.setTimeout(120_000);
+    await ensureSourcePluginEnabled(adminPage, "monitor-server");
+    await ensureSourcePluginEnabled(adminPage, "monitor-operlog");
     await ensurePluginInstalledAndEnabled();
 
     // Toggle the plugin lifecycle to create fresh operation logs for this test.
@@ -104,15 +107,24 @@ test.describe("TC0108 英文运行时页面巡检", () => {
 
     await mainLayout.switchLanguage("English");
 
+    const serverResponsePromise = adminPage.waitForResponse(
+      (res) =>
+        res.url().includes("/api/v1/monitor/server") &&
+        res.request().method() === "GET" &&
+        res.status() === 200,
+      { timeout: 20_000 },
+    );
     await adminPage.goto("/monitor/server");
+    await serverResponsePromise;
     await waitForRouteReady(adminPage);
 
-    const serviceUptimeValue = await adminPage
+    const serviceUptime = adminPage
       .locator("dt", { hasText: "Service Uptime" })
       .locator("..")
       .locator("dd")
-      .first()
-      .innerText();
+      .first();
+    await expect(serviceUptime).toBeVisible({ timeout: 20_000 });
+    const serviceUptimeValue = await serviceUptime.innerText();
     expect(serviceUptimeValue.trim()).not.toBe("");
     expect(serviceUptimeValue).not.toContain("刚启动");
     expect(/[\u3400-\u9fff]/.test(serviceUptimeValue)).toBeFalsy();

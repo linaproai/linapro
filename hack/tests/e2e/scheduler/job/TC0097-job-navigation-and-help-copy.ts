@@ -11,6 +11,7 @@ import {
   expectSuccess,
   getAccessibleMenus,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   listLogs,
   setCronShellEnabled,
@@ -114,11 +115,7 @@ test.describe('TC-97 定时任务导航与帮助文案', () => {
       await deleteJob(api, jobId);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(
-        api,
-        originalShellSwitch.id,
-        originalShellSwitch.value,
-      );
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     if (originalThemeMode) {
       await updateConfigValue(

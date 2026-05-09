@@ -132,7 +132,7 @@ func TestHandlerRegisterRestoresPausedJobs(t *testing.T) {
 }
 
 // mustLoadJobRow loads one persisted scheduled-job row for assertions.
-func mustLoadJobRow(t *testing.T, ctx context.Context, jobID uint64) *entity.SysJob {
+func mustLoadJobRow(t *testing.T, ctx context.Context, jobID int64) *entity.SysJob {
 	t.Helper()
 
 	var jobRow *entity.SysJob
@@ -152,7 +152,7 @@ func insertRegistryHandlerJob(
 	ctx context.Context,
 	handlerRef string,
 	status jobmeta.JobStatus,
-) uint64 {
+) int64 {
 	t.Helper()
 
 	insertID, err := dao.SysJob.Ctx(ctx).Data(do.SysJob{
@@ -175,5 +175,5 @@ func insertRegistryHandlerJob(
 	if err != nil {
 		t.Fatalf("expected registry cascade job insert to succeed, got error: %v", err)
 	}
-	return uint64(insertID)
+	return int64(insertID)
 }

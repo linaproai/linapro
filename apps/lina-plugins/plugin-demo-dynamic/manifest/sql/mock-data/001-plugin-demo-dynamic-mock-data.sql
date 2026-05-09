@@ -1,14 +1,14 @@
 -- Mock data: dynamic plugin demo records.
 -- 模拟数据：动态插件演示记录。
 
-INSERT IGNORE INTO `plugin_demo_dynamic_record` (
-    `id`,
-    `title`,
-    `content`,
-    `attachment_name`,
-    `attachment_path`,
-    `created_at`,
-    `updated_at`
+INSERT INTO plugin_demo_dynamic_record (
+    "id",
+    "title",
+    "content",
+    "attachment_name",
+    "attachment_path",
+    "created_at",
+    "updated_at"
 )
 VALUES (
     'plugin-demo-dynamic-mock-record',
@@ -18,16 +18,17 @@ VALUES (
     '',
     '2026-04-16 09:00:00',
     '2026-04-16 09:00:00'
-);
+)
+ON CONFLICT DO NOTHING;
 
-INSERT IGNORE INTO `plugin_demo_dynamic_record` (
-    `id`,
-    `title`,
-    `content`,
-    `attachment_name`,
-    `attachment_path`,
-    `created_at`,
-    `updated_at`
+INSERT INTO plugin_demo_dynamic_record (
+    "id",
+    "title",
+    "content",
+    "attachment_name",
+    "attachment_path",
+    "created_at",
+    "updated_at"
 )
 VALUES (
     'plugin-demo-dynamic-attachment-mock',
@@ -37,4 +38,5 @@ VALUES (
     'demo-record-files/dynamic-plugin-demo.txt',
     '2026-04-17 10:30:00',
     '2026-04-17 10:30:00'
-);
+)
+ON CONFLICT DO NOTHING;

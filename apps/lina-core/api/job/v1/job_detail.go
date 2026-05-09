@@ -9,7 +9,7 @@ import (
 // DetailReq defines the request for querying one scheduled job detail.
 type DetailReq struct {
 	g.Meta `path:"/job/{id}" method:"get" tags:"Job Scheduling / Scheduled Jobs" summary:"Get task details" dc:"Query scheduled job details based on task ID and return basic configuration, grouping information and current policy fields" permission:"system:job:list"`
-	Id     uint64 `json:"id" v:"required" dc:"Task ID" eg:"1"`
+	Id     int64 `json:"id" v:"required" dc:"Task ID" eg:"1"`
 }
 
 // DetailRes defines the response for querying one scheduled job detail.

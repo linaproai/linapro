@@ -9,10 +9,10 @@ import {
   createJob,
   deleteGroup,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getJob,
   setCronShellEnabled,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-92 删除分组自动迁移任务', () => {
@@ -38,7 +38,7 @@ test.describe('TC-92 删除分组自动迁移任务', () => {
       await api.delete(`job-group/${groupId}`);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

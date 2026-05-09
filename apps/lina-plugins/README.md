@@ -45,7 +45,7 @@ apps/lina-plugins/<plugin-id>/
   plugin.yaml           Plugin manifest
   plugin_embed.go       Embedded asset registration
   README.md             English plugin guide
-  README.zh_CN.md       Chinese plugin guide
+  README.zh-CN.md       Chinese plugin guide
 ```
 
 `backend/internal/service/` is the only valid location for plugin service components. Do not create `backend/service/`.

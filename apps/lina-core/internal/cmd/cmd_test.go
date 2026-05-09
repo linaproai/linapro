@@ -14,7 +14,7 @@ import (
 	"testing"
 	"unicode"
 
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -318,7 +318,7 @@ func TestMockCommandFailsWithoutInitializedSQLiteSchema(t *testing.T) {
 	writeTestSQLFile(
 		t,
 		filepath.Join(tempDir, "manifest", "sql", "mock-data", "001-users.sql"),
-		"INSERT IGNORE INTO sys_user(username) VALUES ('demo');",
+		"INSERT INTO sys_user(username) VALUES ('demo') ON CONFLICT DO NOTHING;",
 	)
 
 	adapter, err := gcfg.NewAdapterContent(`

@@ -55,7 +55,7 @@ func TestResolveSQLAssetsHandlesMockDirection(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(mockDir, "001-plugin-mock-resolver.sql"),
-		[]byte("INSERT IGNORE INTO sys_user(username) VALUES ('demo');"),
+		[]byte("INSERT INTO sys_user(username) VALUES ('demo') ON CONFLICT DO NOTHING;"),
 		0o644,
 	); err != nil {
 		t.Fatalf("failed to write mock SQL: %v", err)
@@ -80,7 +80,7 @@ func TestResolveSQLAssetsHandlesMockDirection(t *testing.T) {
 	if assets[0].Key != "001-plugin-mock-resolver.sql" {
 		t.Fatalf("unexpected mock asset key: %s", assets[0].Key)
 	}
-	if !strings.Contains(assets[0].Content, "INSERT IGNORE INTO sys_user") {
+	if !strings.Contains(assets[0].Content, "INSERT INTO sys_user") {
 		t.Fatalf("unexpected mock asset content: %s", assets[0].Content)
 	}
 }
@@ -104,7 +104,7 @@ func TestExecuteManifestMockSQLFilesInTxCommitsAllSuccess(t *testing.T) {
 		[]*catalog.ArtifactSQLAsset{
 			{
 				Key:     "001-plugin-mock-data-commit.sql",
-				Content: fmt.Sprintf("CREATE TABLE %s (id INT PRIMARY KEY AUTO_INCREMENT, marker VARCHAR(32) NOT NULL);", tableName),
+				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{
@@ -188,7 +188,7 @@ func TestExecuteManifestMockSQLFilesInTxRollsBackOnFailure(t *testing.T) {
 		[]*catalog.ArtifactSQLAsset{
 			{
 				Key:     "001-plugin-mock-data-rollback.sql",
-				Content: fmt.Sprintf("CREATE TABLE %s (id INT PRIMARY KEY AUTO_INCREMENT, marker VARCHAR(32) NOT NULL);", tableName),
+				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
 			},
 		},
 		[]*catalog.ArtifactSQLAsset{

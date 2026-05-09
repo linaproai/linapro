@@ -50,7 +50,36 @@ make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6
 
 ## 数据库配置
 
-宿主运行时数据库方言只从配置文件中的 `database.default.link` 读取。MySQL 仍是默认生产数据库。如需无需 MySQL 的演示或本地测试模式，可将链接改为 SQLite，例如：
+宿主运行时数据库方言只从配置文件中的`database.default.link`读取。`PostgreSQL 14+`是默认生产数据库。运行`make init`或`make dev`之前，请先准备`PostgreSQL`；这些命令不会启动或管理数据库。
+
+本地开发可使用以下容器：
+
+```bash
+docker run --name linapro-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=linapro \
+  -p 5432:5432 \
+  --health-cmd pg_isready \
+  --health-interval 10s \
+  --health-timeout 5s \
+  --health-retries 5 \
+  -d postgres:14-alpine
+```
+
+默认运行时连接为：
+
+```yaml
+database:
+  default:
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+```
+
+`make init`是运维初始化命令，会使用配置中的数据库账号。该账号必须具备连接系统库、创建和删除目标数据库、终止目标库连接、建表、建索引、写入注释和写入`Seed`数据的权限。权限不足会直接失败，运行时不会提供低权限初始化兜底。
+
+使用外部托管`PostgreSQL`，例如`RDS`或阿里云`PolarDB`时，请将`database.default.link`指向供应商端点，并使用具备上述权限的账号执行初始化。
+
+如需单节点开发演示，可将链接改为`SQLite`：
 
 ```yaml
 database:
@@ -58,7 +87,7 @@ database:
     link: "sqlite::@file(./temp/sqlite/linapro.db)"
 ```
 
-SQLite 模式仅支持单节点，会自动强制 `cluster.enabled=false`，不支持生产部署。
+`SQLite`模式仅支持单节点，会自动强制`cluster.enabled=false`，不支持生产部署。
 
 ## 源码插件升级
 

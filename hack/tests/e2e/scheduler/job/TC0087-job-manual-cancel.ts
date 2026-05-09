@@ -9,11 +9,11 @@ import {
   createAdminApiContext,
   createJob,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   getLog,
   setCronShellEnabled,
   triggerJob,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-87 长任务手动终止', () => {
@@ -37,7 +37,7 @@ test.describe('TC-87 长任务手动终止', () => {
       await api.delete(`job/${jobId}`);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(api, originalShellSwitch.id, originalShellSwitch.value);
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

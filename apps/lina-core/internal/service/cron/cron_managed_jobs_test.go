@@ -30,7 +30,7 @@ func (s *managedJobSyncerStub) ReconcileBuiltinJobs(
 	projections := make([]*entity.SysJob, 0, len(jobs))
 	for index, job := range jobs {
 		projections = append(projections, &entity.SysJob{
-			Id:             uint64(1000 + index),
+			Id:             int64(1000 + index),
 			Name:           job.Name,
 			Description:    job.Description,
 			TaskType:       string(job.TaskType),
@@ -58,7 +58,7 @@ type managedJobSchedulerStub struct {
 func (s *managedJobSchedulerStub) LoadAndRegister(ctx context.Context) error { return nil }
 
 // Refresh is unused by declaration registration tests.
-func (s *managedJobSchedulerStub) Refresh(ctx context.Context, jobID uint64) error { return nil }
+func (s *managedJobSchedulerStub) Refresh(ctx context.Context, jobID int64) error { return nil }
 
 // RegisterJobSnapshot records one declaration-derived registration snapshot.
 func (s *managedJobSchedulerStub) RegisterJobSnapshot(ctx context.Context, job *entity.SysJob) error {
@@ -67,15 +67,15 @@ func (s *managedJobSchedulerStub) RegisterJobSnapshot(ctx context.Context, job *
 }
 
 // Remove is unused by declaration registration tests.
-func (s *managedJobSchedulerStub) Remove(jobID uint64) {}
+func (s *managedJobSchedulerStub) Remove(jobID int64) {}
 
 // Trigger is unused by declaration registration tests.
-func (s *managedJobSchedulerStub) Trigger(ctx context.Context, jobID uint64) (uint64, error) {
+func (s *managedJobSchedulerStub) Trigger(ctx context.Context, jobID int64) (int64, error) {
 	return 0, nil
 }
 
 // CancelLog is unused by declaration registration tests.
-func (s *managedJobSchedulerStub) CancelLog(ctx context.Context, logID uint64) error { return nil }
+func (s *managedJobSchedulerStub) CancelLog(ctx context.Context, logID int64) error { return nil }
 
 // TestSyncBuiltinScheduledJobsRegistersDeclarationSnapshots verifies cron
 // registers built-ins from the reconciliation return value rather than a later

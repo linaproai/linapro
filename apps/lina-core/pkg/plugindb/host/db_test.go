@@ -8,8 +8,37 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 )
+
+// TestPluginDataDriverTypeUsesSharedSupportedDrivers verifies governed driver
+// wrappers are derived from LinaPro's shared database driver registry.
+func TestPluginDataDriverTypeUsesSharedSupportedDrivers(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseType string
+		want     string
+	}{
+		{name: "postgresql", baseType: " pgsql ", want: "plugin-data-pgsql"},
+		{name: "sqlite", baseType: "SQLITE", want: "plugin-data-sqlite"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := pluginDataDriverType(test.baseType)
+			if err != nil {
+				t.Fatalf("pluginDataDriverType failed: %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("expected driver type %q, got %q", test.want, got)
+			}
+		})
+	}
+
+	if _, err := pluginDataDriverType("mysql"); err == nil {
+		t.Fatal("expected mysql to be rejected by plugin data driver registry")
+	}
+}
 
 // TestDBDoCommitRejectsUnauthorizedTable verifies the governed DB wrapper
 // rejects SQL targeting a table outside the authorized resource scope.

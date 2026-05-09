@@ -142,7 +142,7 @@
 - [x] 16.1 Update `CLAUDE.md` and active specs to unify project positioning as "AI-driven full-stack development framework"
 - [x] 16.2 Establish lina-core core host boundary as top-level requirement and classify workspace adaptation interfaces
 - [x] 16.3 Update OpenAPI titles, descriptions, system info page, login page, and script banners
-- [x] 16.4 Create repository root English `README.md` and Chinese mirror `README.zh_CN.md`
+- [x] 16.4 Create repository root English `README.md` and Chinese mirror `README.zh-CN.md`
 - [x] 16.5 Inventory existing subdirectory READMEs and progressively add bilingual mirrors
 - [x] 16.6 Update `openspec/config.yaml` and active specs for new project positioning constraints
 

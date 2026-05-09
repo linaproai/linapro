@@ -111,7 +111,7 @@ func (s *serviceImpl) ListJobs(ctx context.Context, in ListJobsInput) (*ListJobs
 }
 
 // GetJob returns one scheduled-job detail snapshot.
-func (s *serviceImpl) GetJob(ctx context.Context, id uint64) (*JobDetailOutput, error) {
+func (s *serviceImpl) GetJob(ctx context.Context, id int64) (*JobDetailOutput, error) {
 	job, err := s.jobByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -139,7 +139,7 @@ func (s *serviceImpl) GetJob(ctx context.Context, id uint64) (*JobDetailOutput, 
 }
 
 // CreateJob persists one new scheduled job and refreshes the scheduler when needed.
-func (s *serviceImpl) CreateJob(ctx context.Context, in SaveJobInput) (uint64, error) {
+func (s *serviceImpl) CreateJob(ctx context.Context, in SaveJobInput) (int64, error) {
 	if in.TaskType != jobmeta.TaskTypeShell {
 		return 0, bizerr.NewCode(CodeJobCreateShellOnly)
 	}
@@ -152,7 +152,7 @@ func (s *serviceImpl) CreateJob(ctx context.Context, in SaveJobInput) (uint64, e
 	if err != nil {
 		return 0, err
 	}
-	jobID := gconv.Uint64(insertID)
+	jobID := gconv.Int64(insertID)
 	if jobmeta.NormalizeJobStatus(gconv.String(jobRecord.Status)) == jobmeta.JobStatusEnabled && s.scheduler != nil {
 		if err = s.scheduler.Refresh(ctx, jobID); err != nil {
 			return 0, err
@@ -207,7 +207,7 @@ func (s *serviceImpl) UpdateJob(ctx context.Context, in UpdateJobInput) error {
 
 // DeleteJobs removes one or more non-built-in scheduled jobs.
 func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
-	jobIDs := parseUint64IDs(ids)
+	jobIDs := parseInt64IDs(ids)
 	if len(jobIDs) == 0 {
 		return bizerr.NewCode(CodeJobDeleteRequired)
 	}
@@ -243,7 +243,7 @@ func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
 }
 
 // jobByID returns one scheduled job by ID.
-func (s *serviceImpl) jobByID(ctx context.Context, id uint64) (*entity.SysJob, error) {
+func (s *serviceImpl) jobByID(ctx context.Context, id int64) (*entity.SysJob, error) {
 	var job *entity.SysJob
 	err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{Id: id}).
@@ -255,8 +255,8 @@ func (s *serviceImpl) jobByID(ctx context.Context, id uint64) (*entity.SysJob, e
 func (s *serviceImpl) groupMapByJobGroupIDs(
 	ctx context.Context,
 	jobs []*entity.SysJob,
-) (map[uint64]*entity.SysJobGroup, error) {
-	groupIDs := make([]uint64, 0, len(jobs))
+) (map[int64]*entity.SysJobGroup, error) {
+	groupIDs := make([]int64, 0, len(jobs))
 	for _, job := range jobs {
 		if job == nil || job.GroupId == 0 {
 			continue
@@ -264,7 +264,7 @@ func (s *serviceImpl) groupMapByJobGroupIDs(
 		groupIDs = append(groupIDs, job.GroupId)
 	}
 	if len(groupIDs) == 0 {
-		return map[uint64]*entity.SysJobGroup{}, nil
+		return map[int64]*entity.SysJobGroup{}, nil
 	}
 
 	var groups []*entity.SysJobGroup
@@ -275,7 +275,7 @@ func (s *serviceImpl) groupMapByJobGroupIDs(
 		return nil, err
 	}
 
-	groupMap := make(map[uint64]*entity.SysJobGroup, len(groups))
+	groupMap := make(map[int64]*entity.SysJobGroup, len(groups))
 	for _, group := range groups {
 		if group == nil {
 			continue
@@ -457,7 +457,7 @@ func normalizeRetentionOptionJSON(option *jobmeta.RetentionOption) (string, erro
 func (s *serviceImpl) ensureJobNameUnique(
 	ctx context.Context,
 	existing *entity.SysJob,
-	groupID uint64,
+	groupID int64,
 	name string,
 ) error {
 	model := dao.SysJob.Ctx(ctx).Where(do.SysJob{GroupId: groupID, Name: name})

@@ -89,7 +89,7 @@ func (s *serviceImpl) ListLogs(ctx context.Context, in ListLogsInput) (*ListLogs
 }
 
 // GetLog returns one execution-log detail snapshot.
-func (s *serviceImpl) GetLog(ctx context.Context, id uint64) (*LogDetailOutput, error) {
+func (s *serviceImpl) GetLog(ctx context.Context, id int64) (*LogDetailOutput, error) {
 	var logRow *entity.SysJobLog
 	err := dao.SysJobLog.Ctx(ctx).
 		Where(do.SysJobLog{Id: id}).
@@ -115,9 +115,9 @@ func (s *serviceImpl) GetLog(ctx context.Context, id uint64) (*LogDetailOutput, 
 }
 
 // ClearLogs deletes matching execution logs.
-func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64, ids string) error {
+func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *int64, ids string) error {
 	model := dao.SysJobLog.Ctx(ctx)
-	logIDs := parseUint64IDs(ids)
+	logIDs := parseInt64IDs(ids)
 	cols := dao.SysJobLog.Columns()
 
 	switch {
@@ -127,7 +127,7 @@ func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64, ids string) 
 			return err
 		}
 	case jobID != nil && *jobID > 0:
-		if err := s.ensureJobsVisibleByID(ctx, []uint64{*jobID}); err != nil {
+		if err := s.ensureJobsVisibleByID(ctx, []int64{*jobID}); err != nil {
 			return err
 		}
 		model = model.Where(do.SysJobLog{JobId: *jobID})
@@ -147,7 +147,7 @@ func (s *serviceImpl) ClearLogs(ctx context.Context, jobID *uint64, ids string) 
 }
 
 // CancelLog cancels one currently running execution instance.
-func (s *serviceImpl) CancelLog(ctx context.Context, id uint64) error {
+func (s *serviceImpl) CancelLog(ctx context.Context, id int64) error {
 	if s.scheduler == nil {
 		return bizerr.NewCode(CodeJobSchedulerUninitialized)
 	}
@@ -206,7 +206,7 @@ func (s *serviceImpl) CleanupDueLogs(ctx context.Context) (int64, error) {
 // cleanupJobLogsByPolicy applies one retention policy to one job's logs.
 func (s *serviceImpl) cleanupJobLogsByPolicy(
 	ctx context.Context,
-	jobID uint64,
+	jobID int64,
 	policy *jobmeta.RetentionOption,
 ) (int64, error) {
 	if policy == nil || policy.Mode == jobmeta.RetentionModeNone {
@@ -239,7 +239,7 @@ func (s *serviceImpl) cleanupJobLogsByPolicy(
 			return 0, nil
 		}
 
-		deleteIDs := make([]uint64, 0, len(rows)-int(policy.Value))
+		deleteIDs := make([]int64, 0, len(rows)-int(policy.Value))
 		for _, row := range rows[policy.Value:] {
 			if row == nil {
 				continue
@@ -271,8 +271,8 @@ type logJobDisplay struct {
 func (s *serviceImpl) jobDisplayMapByLogs(
 	ctx context.Context,
 	logs []*entity.SysJobLog,
-) (map[uint64]logJobDisplay, error) {
-	jobIDs := make([]uint64, 0, len(logs))
+) (map[int64]logJobDisplay, error) {
+	jobIDs := make([]int64, 0, len(logs))
 	for _, logRow := range logs {
 		if logRow == nil || logRow.JobId == 0 {
 			continue
@@ -280,7 +280,7 @@ func (s *serviceImpl) jobDisplayMapByLogs(
 		jobIDs = append(jobIDs, logRow.JobId)
 	}
 	if len(jobIDs) == 0 {
-		return map[uint64]logJobDisplay{}, nil
+		return map[int64]logJobDisplay{}, nil
 	}
 
 	var jobs []*entity.SysJob
@@ -297,7 +297,7 @@ func (s *serviceImpl) jobDisplayMapByLogs(
 		return nil, err
 	}
 
-	result := make(map[uint64]logJobDisplay, len(jobs))
+	result := make(map[int64]logJobDisplay, len(jobs))
 	for _, job := range jobs {
 		if job == nil {
 			continue
@@ -315,7 +315,7 @@ func (s *serviceImpl) jobDisplayMapByLogs(
 func (s *serviceImpl) resolveLogJobName(
 	ctx context.Context,
 	logRow *entity.SysJobLog,
-	jobs map[uint64]logJobDisplay,
+	jobs map[int64]logJobDisplay,
 	cache handlerSourceTextCache,
 ) string {
 	if logRow == nil {

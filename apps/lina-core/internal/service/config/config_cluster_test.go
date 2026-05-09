@@ -159,9 +159,9 @@ cluster:
 	}
 }
 
-// TestMySQLDialectOnStartupKeepsConfigServiceClusterEnabled verifies MySQL
-// startup hooks are no-op for cluster mode and SQLite warnings.
-func TestMySQLDialectOnStartupKeepsConfigServiceClusterEnabled(t *testing.T) {
+// TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled verifies
+// PostgreSQL startup hooks are no-op for cluster mode and SQLite warnings.
+func TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
   enabled: true
@@ -176,19 +176,19 @@ cluster:
 		logger.Logger().SetHandlers()
 	})
 
-	dbDialect, err := dialect.From("mysql:root:12345678@tcp(127.0.0.1:3306)/linapro")
+	dbDialect, err := dialect.From("pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable")
 	if err != nil {
-		t.Fatalf("resolve MySQL dialect failed: %v", err)
+		t.Fatalf("resolve PostgreSQL dialect failed: %v", err)
 	}
 	if err = dbDialect.OnStartup(context.Background(), svc); err != nil {
-		t.Fatalf("run MySQL startup hook failed: %v", err)
+		t.Fatalf("run PostgreSQL startup hook failed: %v", err)
 	}
 
 	if !svc.IsClusterEnabled(context.Background()) {
-		t.Fatal("expected MySQL startup hook to preserve enabled cluster mode")
+		t.Fatal("expected PostgreSQL startup hook to preserve enabled cluster mode")
 	}
 	if len(warnings) != 0 {
-		t.Fatalf("expected no MySQL startup warnings, got %#v", warnings)
+		t.Fatalf("expected no PostgreSQL startup warnings, got %#v", warnings)
 	}
 }
 

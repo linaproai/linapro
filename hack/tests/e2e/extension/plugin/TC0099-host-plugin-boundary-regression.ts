@@ -1,5 +1,3 @@
-import { execFileSync } from 'node:child_process';
-
 import type {
   APIRequestContext,
   APIResponse,
@@ -18,13 +16,10 @@ import {
   ensureSourcePluginUninstalled,
 } from '../../../fixtures/plugin';
 import { LoginPage } from '../../../pages/LoginPage';
+import { execPgSQL, pgEscapeLiteral } from '../../../support/postgres';
 
 const apiBaseURL =
   process.env.E2E_API_BASE_URL ?? 'http://127.0.0.1:8080/api/v1/';
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? 'mysql';
-const mysqlUser = process.env.E2E_DB_USER ?? 'root';
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? '12345678';
-const mysqlDatabase = process.env.E2E_DB_NAME ?? 'linapro';
 
 function unwrapApiData(payload: any) {
   if (payload && typeof payload === 'object' && 'data' in payload) {
@@ -76,19 +71,9 @@ async function createAdminSessionContext(): Promise<{
 }
 
 function expireOnlineSession(tokenId: string) {
-  const escapedTokenId = tokenId.replaceAll("'", "''");
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      '-e',
-      `UPDATE sys_online_session SET last_active_time = DATE_SUB(NOW(), INTERVAL 3 DAY) WHERE token_id = '${escapedTokenId}';`,
-    ],
-    {
-      stdio: 'ignore',
-    },
+  const escapedTokenId = pgEscapeLiteral(tokenId);
+  execPgSQL(
+    `UPDATE sys_online_session SET last_active_time = CURRENT_TIMESTAMP - INTERVAL '3 days' WHERE token_id = '${escapedTokenId}';`,
   );
 }
 

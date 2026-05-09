@@ -15,7 +15,7 @@ type Server struct {
 	Id        any         // Record ID
 	NodeName  any         // Node name (hostname)
 	NodeIp    any         // Node IP address
-	Data      any         // Monitoring data in JSON format, including CPU, memory, disk, network, Go runtime, and other metrics
+	Data      any         // Monitoring data in structured text format, including CPU, memory, disk, network, Go runtime, and other metrics
 	CreatedAt *gtime.Time // Collection time
 	UpdatedAt *gtime.Time // Update time
 }

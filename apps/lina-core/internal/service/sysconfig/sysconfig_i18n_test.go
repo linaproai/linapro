@@ -5,11 +5,9 @@ package sysconfig
 import (
 	"bytes"
 	"context"
-	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/xuri/excelize/v2"
+	"testing"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"

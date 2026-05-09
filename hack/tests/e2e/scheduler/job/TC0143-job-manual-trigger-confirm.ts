@@ -8,9 +8,9 @@ import {
   createJob,
   deleteJob,
   getConfigByKey,
+  restoreCronShellEnabled,
   getDefaultGroup,
   setCronShellEnabled,
-  updateConfigValue,
 } from '../../../support/api/job';
 
 test.describe('TC-143 Scheduled job manual trigger confirmation', () => {
@@ -44,11 +44,7 @@ test.describe('TC-143 Scheduled job manual trigger confirmation', () => {
       await deleteJob(api, jobId);
     }
     if (originalShellSwitch) {
-      await updateConfigValue(
-        api,
-        originalShellSwitch.id,
-        originalShellSwitch.value,
-      );
+      await restoreCronShellEnabled(api, originalShellSwitch);
     }
     await api.dispose();
   });

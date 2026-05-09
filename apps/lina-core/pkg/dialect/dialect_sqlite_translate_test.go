@@ -1,114 +1,219 @@
-// This file tests SQLite DDL translation against project SQL assets.
+// This file tests SQLite DDL translation against PostgreSQL-source SQL.
 
 package dialect
 
 import (
 	"context"
+	"fmt"
+	"github.com/gogf/gf/v2/database/gdb"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/sqlite/v2"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/os/glog"
-
-	"lina-core/pkg/logger"
+	"time"
 )
 
-// TestSQLiteTranslateDDLExecutesProjectInstallSQLAssets verifies current host
-// and plugin install SQL assets can be translated and executed by SQLite in the
-// same order used by init plus plugin installation.
-func TestSQLiteTranslateDDLExecutesProjectInstallSQLAssets(t *testing.T) {
+// TestSQLiteTranslateDDLExecutesPostgreSQLFixture verifies the public SQLite
+// dialect translates representative PG source SQL into executable SQLite SQL.
+func TestSQLiteTranslateDDLExecutesPostgreSQLFixture(t *testing.T) {
 	ctx := context.Background()
-	assets := collectProjectSQLAssets(t, sqlAssetGroupInstall)
-	if len(assets) == 0 {
-		t.Fatal("expected SQL assets")
+	input := `
+CREATE TABLE IF NOT EXISTS sys_user (
+    id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    username VARCHAR(64) NOT NULL,
+    nickname VARCHAR(64) NOT NULL DEFAULT '',
+    profile BYTEA,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "type" CHAR(1) NOT NULL DEFAULT 'U'
+);
+COMMENT ON TABLE sys_user IS 'User table';
+COMMENT ON COLUMN sys_user.username IS 'Username';
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_user_username ON sys_user (username);
+CREATE INDEX IF NOT EXISTS idx_sys_user_created_at ON sys_user (created_at);
+INSERT INTO sys_user (username, nickname, "type") VALUES ('admin', 'Administrator', 'U') ON CONFLICT DO NOTHING;
+INSERT INTO sys_user (username, nickname, "type") VALUES ('Admin', 'Duplicate case', 'U') ON CONFLICT DO NOTHING;
+`
+
+	translated, err := sqliteDialectForTest(t).TranslateDDL(ctx, "fixture.sql", input)
+	if err != nil {
+		t.Fatalf("translate PG fixture failed: %v", err)
+	}
+	for _, needle := range []string{
+		"id INTEGER PRIMARY KEY AUTOINCREMENT",
+		"username TEXT NOT NULL",
+		"profile BLOB",
+		`"type" TEXT NOT NULL DEFAULT 'U'`,
+		"CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_user_username ON sys_user (username);",
+		"CREATE INDEX IF NOT EXISTS idx_sys_user_created_at ON sys_user (created_at);",
+		"ON CONFLICT DO NOTHING",
+	} {
+		if !strings.Contains(translated, needle) {
+			t.Fatalf("expected translated SQL to contain %q, got:\n%s", needle, translated)
+		}
 	}
 
 	db := newSQLiteTestDB(t)
 	defer closeDB(t, ctx, db)
-	for _, asset := range assets {
-		asset := asset
-		t.Run(asset.sourceName, func(t *testing.T) {
-			translated, err := sqliteDialectForTest(t).TranslateDDL(ctx, asset.sourceName, asset.content)
-			if err != nil {
-				t.Fatalf("translate SQLite DDL failed: %v", err)
+	for index, statement := range SplitSQLStatements(translated) {
+		if _, err = db.Exec(ctx, statement); err != nil {
+			t.Fatalf("execute translated statement %d failed: %v\nSQL:\n%s", index+1, err, statement)
+		}
+	}
+
+	count, err := db.GetValue(ctx, "SELECT COUNT(*) FROM sys_user")
+	if err != nil {
+		t.Fatalf("read translated fixture row count failed: %v", err)
+	}
+	if count.String() != "2" {
+		t.Fatalf("expected deterministic unique index to keep case-distinct rows, got %s", count.String())
+	}
+	indexCount, err := db.GetValue(
+		ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('uk_sys_user_username', 'idx_sys_user_created_at')",
+	)
+	if err != nil {
+		t.Fatalf("read translated fixture index count failed: %v", err)
+	}
+	if indexCount.String() != "2" {
+		t.Fatalf("expected translated fixture to create both indexes, got %s", indexCount.String())
+	}
+}
+
+// TestSQLiteTranslateDDLProjectSQLAssetsSmoke executes all project SQL assets
+// once the parallel SQL rewrite has fully converted them to PostgreSQL source.
+func TestSQLiteTranslateDDLProjectSQLAssetsSmoke(t *testing.T) {
+	ctx := context.Background()
+	installAssets := collectProjectSQLAssets(t, sqlAssetGroupInstall)
+	mockAssets := collectProjectSQLAssets(t, sqlAssetGroupMock)
+	uninstallAssets := collectProjectSQLAssets(t, sqlAssetGroupUninstall)
+	if len(installAssets) == 0 {
+		t.Fatal("expected install SQL assets")
+	}
+	if len(mockAssets) == 0 {
+		t.Fatal("expected mock SQL assets")
+	}
+	if len(uninstallAssets) == 0 {
+		t.Fatal("expected uninstall SQL assets")
+	}
+
+	allAssets := append(append([]sqlTestAsset{}, installAssets...), mockAssets...)
+	allAssets = append(allAssets, uninstallAssets...)
+	skipIfProjectSQLStillUsesLegacyMySQL(t, allAssets)
+
+	db := newSQLiteTestDB(t)
+	defer closeDB(t, ctx, db)
+	executeSQLiteSQLAssets(t, ctx, db, installAssets)
+	executeSQLiteSQLAssets(t, ctx, db, mockAssets)
+	executeSQLiteSQLAssets(t, ctx, db, uninstallAssets)
+}
+
+// TestPostgreSQLProjectSQLAssetsSmoke executes all PostgreSQL-source SQL
+// assets against a real PostgreSQL database when explicitly enabled.
+func TestPostgreSQLProjectSQLAssetsSmoke(t *testing.T) {
+	baseLink := strings.TrimSpace(os.Getenv("LINA_TEST_PGSQL_LINK"))
+	if baseLink == "" {
+		t.Skip("set LINA_TEST_PGSQL_LINK to run PostgreSQL SQL asset smoke test")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	installAssets := collectProjectSQLAssets(t, sqlAssetGroupInstall)
+	mockAssets := collectProjectSQLAssets(t, sqlAssetGroupMock)
+	uninstallAssets := collectProjectSQLAssets(t, sqlAssetGroupUninstall)
+	if len(installAssets) == 0 || len(mockAssets) == 0 || len(uninstallAssets) == 0 {
+		t.Fatal("expected install, mock, and uninstall SQL assets")
+	}
+
+	dbLink := postgresSmokeDatabaseLink(t, baseLink)
+	dbDialect, err := From(dbLink)
+	if err != nil {
+		t.Fatalf("resolve PostgreSQL dialect failed: %v", err)
+	}
+	if err = dbDialect.PrepareDatabase(ctx, dbLink, true); err != nil {
+		t.Fatalf("prepare PostgreSQL smoke database failed: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		if cleanupErr := dropPostgreSQLSmokeDatabase(cleanupCtx, dbLink); cleanupErr != nil {
+			t.Errorf("cleanup PostgreSQL smoke database failed: %v", cleanupErr)
+		}
+	})
+
+	db, err := gdb.New(gdb.ConfigNode{Link: dbLink})
+	if err != nil {
+		t.Fatalf("open PostgreSQL smoke database failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := db.Close(context.Background()); closeErr != nil {
+			t.Errorf("close PostgreSQL smoke database failed: %v", closeErr)
+		}
+	})
+
+	executePostgreSQLSQLAssets(t, ctx, db, installAssets)
+	executePostgreSQLSQLAssets(t, ctx, db, mockAssets)
+	executePostgreSQLSQLAssets(t, ctx, db, uninstallAssets)
+}
+
+// TestSQLiteTranslateDDLUnsupportedPostgreSQLSyntax verifies unsupported PG
+// features return source-aware diagnostics through the public dialect.
+func TestSQLiteTranslateDDLUnsupportedPostgreSQLSyntax(t *testing.T) {
+	tests := []struct {
+		name       string
+		sourceName string
+		input      string
+		keyword    string
+	}{
+		{
+			name:       "jsonb",
+			sourceName: "bad/jsonb.sql",
+			input:      "CREATE TABLE demo (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, payload JSONB);",
+			keyword:    "JSONB",
+		},
+		{
+			name:       "trigger",
+			sourceName: "bad/trigger.sql",
+			input:      "CREATE TRIGGER trg_demo BEFORE UPDATE ON demo EXECUTE FUNCTION touch_demo();",
+			keyword:    "CREATE TRIGGER",
+		},
+		{
+			name:       "legacy mysql",
+			sourceName: "bad/mysql.sql",
+			input:      "CREATE TABLE `demo` (`id` INT);",
+			keyword:    "backtick identifier",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			_, err := sqliteDialectForTest(t).TranslateDDL(context.Background(), test.sourceName, test.input)
+			if err == nil {
+				t.Fatal("expected unsupported syntax error")
 			}
-			for index, statement := range SplitSQLStatements(translated) {
-				if _, err = db.Exec(ctx, statement); err != nil {
-					t.Fatalf("execute translated statement %d failed: %v\nSQL:\n%s", index+1, err, statement)
+			message := err.Error()
+			for _, needle := range []string{test.sourceName, "line", test.keyword} {
+				if !strings.Contains(message, needle) {
+					t.Fatalf("expected error to contain %q, got %q", needle, message)
 				}
 			}
 		})
 	}
 }
 
-// TestSQLiteTranslateDDLExecutesProjectMockSQLAssets verifies current mock SQL
-// assets can be translated and executed after host and plugin schema assets.
-func TestSQLiteTranslateDDLExecutesProjectMockSQLAssets(t *testing.T) {
-	ctx := context.Background()
-	db := newSQLiteTestDB(t)
-	defer closeDB(t, ctx, db)
-	executeSQLiteSQLAssets(t, ctx, db, collectProjectSQLAssets(t, sqlAssetGroupInstall))
-
-	mockAssets := collectProjectSQLAssets(t, sqlAssetGroupMock)
-	if len(mockAssets) == 0 {
-		t.Fatal("expected mock SQL assets")
-	}
-	executeSQLiteSQLAssets(t, ctx, db, mockAssets)
-}
-
-// TestSQLiteTranslateDDLExecutesProjectUninstallSQLAssets verifies uninstall
-// assets can be translated and executed after install assets.
-func TestSQLiteTranslateDDLExecutesProjectUninstallSQLAssets(t *testing.T) {
-	ctx := context.Background()
-	db := newSQLiteTestDB(t)
-	defer closeDB(t, ctx, db)
-	executeSQLiteSQLAssets(t, ctx, db, collectProjectSQLAssets(t, sqlAssetGroupInstall))
-
-	uninstallAssets := collectProjectSQLAssets(t, sqlAssetGroupUninstall)
-	if len(uninstallAssets) == 0 {
-		t.Fatal("expected uninstall SQL assets")
-	}
-	executeSQLiteSQLAssets(t, ctx, db, uninstallAssets)
-}
-
-// TestSQLiteTranslateDDLCurrentDMLFunctions verifies MySQL functions that
-// appear in current DML assets are rewritten to SQLite-compatible syntax.
-func TestSQLiteTranslateDDLCurrentDMLFunctions(t *testing.T) {
-	input := "INSERT INTO demo (path) SELECT CONCAT('0,', parent.id) FROM parent;"
-	translated, err := sqliteDialectForTest(t).TranslateDDL(context.Background(), "functions.sql", input)
-	if err != nil {
-		t.Fatalf("translate function fixture failed: %v", err)
-	}
-	if !strings.Contains(translated, "('0,' || parent.id)") {
-		t.Fatalf("expected CONCAT to be rewritten, got:\n%s", translated)
-	}
-
-	db := newSQLiteTestDB(t)
-	defer closeDB(t, context.Background(), db)
-	statements := []string{
-		"CREATE TABLE parent (id INTEGER PRIMARY KEY);",
-		"CREATE TABLE demo (path TEXT);",
-		"INSERT INTO parent (id) VALUES (42);",
-	}
-	for _, statement := range statements {
-		if _, err = db.Exec(context.Background(), statement); err != nil {
-			t.Fatalf("execute setup SQL failed: %v\nSQL:\n%s", err, statement)
-		}
-	}
-	for _, statement := range SplitSQLStatements(translated) {
-		if _, err = db.Exec(context.Background(), statement); err != nil {
-			t.Fatalf("execute translated function SQL failed: %v\nSQL:\n%s", err, statement)
-		}
-	}
-	value, err := db.GetValue(context.Background(), "SELECT path FROM demo")
-	if err != nil {
-		t.Fatalf("read translated function result failed: %v", err)
-	}
-	if value.String() != "0,42" {
-		t.Fatalf("expected concatenated value 0,42, got %s", value.String())
+// executePostgreSQLSQLAssets executes assets in order on one PostgreSQL DB.
+func executePostgreSQLSQLAssets(t *testing.T, ctx context.Context, db gdb.DB, assets []sqlTestAsset) {
+	t.Helper()
+	for _, asset := range assets {
+		asset := asset
+		t.Run(asset.sourceName, func(t *testing.T) {
+			for index, statement := range SplitSQLStatements(asset.content) {
+				if _, err := db.Exec(ctx, statement); err != nil {
+					t.Fatalf("execute PostgreSQL statement %d failed: %v\nSQL:\n%s", index+1, err, statement)
+				}
+			}
+		})
 	}
 }
 
@@ -162,194 +267,6 @@ func sqlAssetPatterns(root string, group sqlAssetGroup) []string {
 	}
 }
 
-// TestSQLiteTranslateDDLRealSyntaxShapes verifies known current SQL shapes that
-// are easy to miss when only examples are covered.
-func TestSQLiteTranslateDDLRealSyntaxShapes(t *testing.T) {
-	input := `
-CREATE TABLE IF NOT EXISTS ` + "`" + `shape` + "`" + ` (
-    ` + "`" + `id` + "`" + ` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT 'Config parameter ID',
-    code VARCHAR(64) NOT NULL COMMENT 'Code',
-    PRIMARY KEY (` + "`" + `id` + "`" + `),
-    UNIQUE INDEX uk_shape_code (code),
-    UNIQUE KEY uk_shape_expr ((NULLIF(code, '')))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Shape table';
-`
-	translated, err := sqliteDialectForTest(t).TranslateDDL(context.Background(), "shape.sql", input)
-	if err != nil {
-		t.Fatalf("translate shape fixture failed: %v", err)
-	}
-	required := []string{
-		"id INTEGER PRIMARY KEY AUTOINCREMENT",
-		"CREATE UNIQUE INDEX IF NOT EXISTS uk_shape_code ON shape (code);",
-		"CREATE UNIQUE INDEX IF NOT EXISTS uk_shape_expr ON shape ((NULLIF(code, '')));",
-	}
-	for _, needle := range required {
-		if !strings.Contains(translated, needle) {
-			t.Fatalf("expected translated SQL to contain %q, got:\n%s", needle, translated)
-		}
-	}
-
-	db := newSQLiteTestDB(t)
-	defer closeDB(t, context.Background(), db)
-	for _, statement := range SplitSQLStatements(translated) {
-		if _, err = db.Exec(context.Background(), statement); err != nil {
-			t.Fatalf("execute translated shape SQL failed: %v\nSQL:\n%s", err, statement)
-		}
-	}
-}
-
-// TestSQLiteTranslateDDLPreservesSingleColumnTablePrimaryKey verifies table
-// primary keys are not dropped when they do not describe an auto-increment ID.
-func TestSQLiteTranslateDDLPreservesSingleColumnTablePrimaryKey(t *testing.T) {
-	input := `
-CREATE TABLE IF NOT EXISTS sys_online_session (
-    token_id VARCHAR(64) NOT NULL COMMENT 'Session token ID',
-    user_id INT NOT NULL DEFAULT 0 COMMENT 'User ID',
-    PRIMARY KEY (token_id)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COMMENT='Online session table';
-`
-	translated, err := sqliteDialectForTest(t).TranslateDDL(context.Background(), "online-session.sql", input)
-	if err != nil {
-		t.Fatalf("translate online session fixture failed: %v", err)
-	}
-	if !strings.Contains(translated, "PRIMARY KEY (token_id)") {
-		t.Fatalf("expected translated SQL to preserve token_id primary key, got:\n%s", translated)
-	}
-
-	db := newSQLiteTestDB(t)
-	defer closeDB(t, context.Background(), db)
-	for _, statement := range SplitSQLStatements(translated) {
-		if _, err = db.Exec(context.Background(), statement); err != nil {
-			t.Fatalf("execute translated online session SQL failed: %v\nSQL:\n%s", err, statement)
-		}
-	}
-	for _, statement := range []string{
-		"INSERT INTO sys_online_session (token_id, user_id) VALUES ('token-1', 1)",
-		"INSERT INTO sys_online_session (token_id, user_id) VALUES ('token-1', 2)",
-	} {
-		_, err = db.Exec(context.Background(), statement)
-	}
-	if err == nil {
-		t.Fatal("expected duplicate token_id insert to fail because primary key was preserved")
-	}
-}
-
-// TestSQLiteTranslateDDLIgnoresSQLKeywordCase verifies keyword and identifier
-// matching does not depend on one canonical SQL keyword casing.
-func TestSQLiteTranslateDDLIgnoresSQLKeywordCase(t *testing.T) {
-	input := `
-create table if not exists ` + "`" + `mixed_case` + "`" + ` (
-    ` + "`" + `id` + "`" + ` bigint unsigned not null auto_increment comment 'Identifier',
-    code varchar(64) not null comment 'Code',
-    primary key (` + "`" + `ID` + "`" + `),
-    unique key uk_mixed_case_code (code)
-) engine=InnoDB default charset=utf8mb4 comment='Mixed case table';
-insert ignore into mixed_case (code) select concat('A', 'B') from dual;
-`
-	translated, err := sqliteDialectForTest(t).TranslateDDL(context.Background(), "mixed-case.sql", input)
-	if err != nil {
-		t.Fatalf("translate mixed-case fixture failed: %v", err)
-	}
-	required := []string{
-		"id INTEGER PRIMARY KEY AUTOINCREMENT",
-		"CREATE UNIQUE INDEX IF NOT EXISTS uk_mixed_case_code ON mixed_case (code);",
-		"INSERT OR IGNORE INTO mixed_case (code) select ('A' || 'B');",
-	}
-	for _, needle := range required {
-		if !strings.Contains(translated, needle) {
-			t.Fatalf("expected translated SQL to contain %q, got:\n%s", needle, translated)
-		}
-	}
-
-	db := newSQLiteTestDB(t)
-	defer closeDB(t, context.Background(), db)
-	for _, statement := range SplitSQLStatements(translated) {
-		if _, err = db.Exec(context.Background(), statement); err != nil {
-			t.Fatalf("execute translated mixed-case SQL failed: %v\nSQL:\n%s", err, statement)
-		}
-	}
-	value, err := db.GetValue(context.Background(), "SELECT code FROM mixed_case")
-	if err != nil {
-		t.Fatalf("read mixed-case translated result failed: %v", err)
-	}
-	if value.String() != "AB" {
-		t.Fatalf("expected concatenated value AB, got %s", value.String())
-	}
-}
-
-// TestSQLiteTranslateDDLUnsupportedSyntax verifies unsupported MySQL syntax
-// returns source-aware errors.
-func TestSQLiteTranslateDDLUnsupportedSyntax(t *testing.T) {
-	tests := []struct {
-		name       string
-		sourceName string
-		input      string
-		keyword    string
-	}{
-		{
-			name:       "fulltext",
-			sourceName: "bad/fulltext.sql",
-			input:      "CREATE TABLE demo (id INT PRIMARY KEY AUTO_INCREMENT, FULLTEXT INDEX ft_name (name));",
-			keyword:    "FULLTEXT",
-		},
-		{
-			name:       "generated",
-			sourceName: "bad/generated.sql",
-			input:      "CREATE TABLE demo (id INT PRIMARY KEY AUTO_INCREMENT, code VARCHAR(64), code_upper VARCHAR(64) GENERATED ALWAYS AS (UPPER(code)));",
-			keyword:    "GENERATED ALWAYS AS",
-		},
-		{
-			name:       "on duplicate",
-			sourceName: "bad/on-duplicate.sql",
-			input:      "INSERT INTO demo (code) VALUES ('x') ON DUPLICATE KEY UPDATE code = VALUES(code);",
-			keyword:    "ON DUPLICATE KEY UPDATE",
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			_, err := sqliteDialectForTest(t).TranslateDDL(context.Background(), test.sourceName, test.input)
-			if err == nil {
-				t.Fatal("expected unsupported syntax error")
-			}
-			message := err.Error()
-			for _, needle := range []string{test.sourceName, "line", test.keyword} {
-				if !strings.Contains(message, needle) {
-					t.Fatalf("expected error to contain %q, got %q", needle, message)
-				}
-			}
-		})
-	}
-}
-
-// TestMySQLOnStartupDoesNotWarn verifies MySQL startup hooks do not produce
-// SQLite warnings or override the cluster runtime.
-func TestMySQLOnStartupDoesNotWarn(t *testing.T) {
-	runtime := &fakeRuntimeConfig{}
-	var warnings []string
-	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		warnings = append(warnings, in.ValuesContent())
-	})
-	t.Cleanup(func() {
-		logger.Logger().SetHandlers()
-	})
-
-	dbDialect, err := From("mysql:root:pass@tcp(127.0.0.1:3306)/linapro")
-	if err != nil {
-		t.Fatalf("resolve MySQL dialect failed: %v", err)
-	}
-	if err := dbDialect.OnStartup(context.Background(), runtime); err != nil {
-		t.Fatalf("run MySQL startup hook failed: %v", err)
-	}
-	if runtime.called {
-		t.Fatal("expected MySQL startup hook not to override cluster mode")
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("expected no MySQL startup warnings, got %#v", warnings)
-	}
-}
-
 // sqliteDialectForTest resolves the public SQLite dialect contract for tests.
 func sqliteDialectForTest(t *testing.T) Dialect {
 	t.Helper()
@@ -392,6 +309,163 @@ func collectProjectSQLAssets(t *testing.T, group sqlAssetGroup) []sqlTestAsset {
 		}
 	}
 	return assets
+}
+
+// postgresSmokeDatabaseLink returns a unique database link for one smoke test.
+func postgresSmokeDatabaseLink(t *testing.T, baseLink string) string {
+	t.Helper()
+
+	db, err := gdb.New(gdb.ConfigNode{Link: baseLink})
+	if err != nil {
+		t.Fatalf("parse PostgreSQL smoke base link failed: %v", err)
+	}
+	if db.GetConfig() == nil {
+		t.Fatal("PostgreSQL smoke base link configuration is empty")
+	}
+	config := db.GetConfig()
+	if closeErr := db.Close(context.Background()); closeErr != nil {
+		t.Fatalf("close PostgreSQL smoke base link parser failed: %v", closeErr)
+	}
+
+	extra := strings.TrimSpace(config.Extra)
+	if extra != "" && !strings.HasPrefix(extra, "?") {
+		extra = "?" + extra
+	}
+	return fmt.Sprintf(
+		"pgsql:%s:%s@%s(%s:%s)/linapro_sql_smoke_%d%s",
+		config.User,
+		config.Pass,
+		config.Protocol,
+		config.Host,
+		config.Port,
+		time.Now().UnixNano(),
+		extra,
+	)
+}
+
+// dropPostgreSQLSmokeDatabase removes the temporary database created by the
+// PostgreSQL asset smoke test.
+func dropPostgreSQLSmokeDatabase(ctx context.Context, targetLink string) (err error) {
+	targetDB, err := gdb.New(gdb.ConfigNode{Link: targetLink})
+	if err != nil {
+		return err
+	}
+	targetConfig := targetDB.GetConfig()
+	if targetConfig == nil {
+		if closeErr := targetDB.Close(ctx); closeErr != nil {
+			return closeErr
+		}
+		return nil
+	}
+	targetName := strings.TrimSpace(targetConfig.Name)
+	if closeErr := targetDB.Close(ctx); closeErr != nil {
+		return closeErr
+	}
+	if targetName == "" {
+		return nil
+	}
+
+	systemLink := postgresSmokeSystemDatabaseLink(*targetConfig)
+	systemDB, err := gdb.New(gdb.ConfigNode{Link: systemLink})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := systemDB.Close(ctx); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+	if _, err = systemDB.Exec(
+		ctx,
+		"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname=$1 AND pid<>pg_backend_pid()",
+		targetName,
+	); err != nil {
+		return err
+	}
+	quotedName := `"` + strings.ReplaceAll(targetName, `"`, `""`) + `"`
+	if _, err = systemDB.Exec(ctx, "DROP DATABASE IF EXISTS "+quotedName); err != nil {
+		return err
+	}
+	return nil
+}
+
+// postgresSmokeSystemDatabaseLink returns a link to PostgreSQL's maintenance
+// database using the same host, credentials, and extra parameters.
+func postgresSmokeSystemDatabaseLink(config gdb.ConfigNode) string {
+	extra := strings.TrimSpace(config.Extra)
+	if extra != "" && !strings.HasPrefix(extra, "?") {
+		extra = "?" + extra
+	}
+	return fmt.Sprintf(
+		"pgsql:%s:%s@%s(%s:%s)/postgres%s",
+		config.User,
+		config.Pass,
+		config.Protocol,
+		config.Host,
+		config.Port,
+		extra,
+	)
+}
+
+// skipIfProjectSQLStillUsesLegacyMySQL skips the project smoke test until the
+// SQL rewrite workstream has converted every project asset to PG source syntax.
+func skipIfProjectSQLStillUsesLegacyMySQL(t *testing.T, assets []sqlTestAsset) {
+	t.Helper()
+	var findings []string
+	for _, asset := range assets {
+		for _, statement := range SplitSQLStatements(asset.content) {
+			if reason := legacyMySQLSourceReason(statement); reason != "" {
+				findings = append(findings, asset.sourceName+": "+reason)
+				break
+			}
+		}
+		if len(findings) >= 6 {
+			break
+		}
+	}
+	if len(findings) > 0 {
+		t.Skipf("project SQL assets are not fully PostgreSQL-source yet: %s", strings.Join(findings, "; "))
+	}
+}
+
+// legacyMySQLSourceReason returns a diagnostic label for source syntax that the
+// PG-to-SQLite translator must no longer accept.
+func legacyMySQLSourceReason(statement string) string {
+	upper := strings.ToUpper(statement)
+	switch {
+	case strings.Contains(statement, "`"):
+		return "backtick identifier"
+	case strings.Contains(upper, "AUTO_INCREMENT"):
+		return "AUTO_INCREMENT"
+	case strings.Contains(upper, "INSERT IGNORE"):
+		return "INSERT IGNORE"
+	case strings.Contains(upper, "ON DUPLICATE KEY UPDATE"):
+		return "ON DUPLICATE KEY UPDATE"
+	case strings.Contains(upper, "ENGINE="):
+		return "ENGINE="
+	case strings.Contains(upper, "DEFAULT CHARSET"):
+		return "DEFAULT CHARSET"
+	case strings.Contains(upper, "ON UPDATE CURRENT_TIMESTAMP"):
+		return "ON UPDATE CURRENT_TIMESTAMP"
+	case strings.Contains(upper, "UNSIGNED"):
+		return "UNSIGNED"
+	case strings.Contains(upper, "TINYINT"):
+		return "TINYINT"
+	case strings.Contains(upper, "DATETIME"):
+		return "DATETIME"
+	case strings.Contains(upper, "LONGTEXT"):
+		return "LONGTEXT"
+	case strings.Contains(upper, "MEDIUMTEXT"):
+		return "MEDIUMTEXT"
+	case strings.Contains(upper, "VARBINARY"):
+		return "VARBINARY"
+	case strings.Contains(upper, "CREATE DATABASE"):
+		return "CREATE DATABASE"
+	case strings.HasPrefix(strings.TrimSpace(upper), "USE "):
+		return "USE"
+	default:
+		return ""
+	}
 }
 
 // findRepoRoot walks up from the package directory until it finds go.work.

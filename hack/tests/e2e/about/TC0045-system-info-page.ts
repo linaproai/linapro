@@ -1,7 +1,7 @@
 import { test, expect } from '../../fixtures/auth';
 
-test.describe('TC0045 版本信息页面', () => {
-  test('TC0045a: 版本信息页面显示三个区块', async ({ adminPage }) => {
+test.describe('TC-45 版本信息页面', () => {
+  test('TC-45a: 版本信息页面显示三个区块', async ({ adminPage }) => {
     await adminPage.goto('/about/system-info');
     await adminPage.waitForLoadState('networkidle');
 
@@ -36,7 +36,7 @@ test.describe('TC0045 版本信息页面', () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
-  test('TC0045b: 后端组件从配置文件动态加载', async ({ adminPage }) => {
+  test('TC-45b: 后端组件从配置文件动态加载', async ({ adminPage }) => {
     const systemInfoResponsePromise = adminPage.waitForResponse(
       (response) =>
         response.request().method() === 'GET' &&
@@ -67,7 +67,7 @@ test.describe('TC0045 版本信息页面', () => {
       content.getByText(goframeComponent!.description!, { exact: true }),
     ).toBeVisible();
     await expect(
-      content.getByText('MySQL', { exact: true }),
+      content.getByText('PostgreSQL', { exact: true }),
     ).toBeVisible();
     await expect(
       content.getByText('JWT', { exact: true }),
@@ -77,7 +77,7 @@ test.describe('TC0045 版本信息页面', () => {
     ).toBeVisible();
   });
 
-  test('TC0045c: 页面顶部不显示标题栏和版本信息介绍板块', async ({ adminPage }) => {
+  test('TC-45c: 页面顶部不显示标题栏和版本信息介绍板块', async ({ adminPage }) => {
     await adminPage.goto('/about/system-info');
     await adminPage.waitForLoadState('networkidle');
 
@@ -92,7 +92,7 @@ test.describe('TC0045 版本信息页面', () => {
     await expect(firstCard.getByText('关于项目')).toBeVisible();
   });
 
-  test('TC0045d: 关于项目区块展示官网和仓库地址', async ({ adminPage }) => {
+  test('TC-45d: 关于项目区块展示官网和仓库地址', async ({ adminPage }) => {
     const systemInfoResponsePromise = adminPage.waitForResponse(
       (response) =>
         response.request().method() === 'GET' &&

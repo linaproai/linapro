@@ -69,7 +69,7 @@ graph TB
         Dynamic["WASM 动态插件\n运行时热加载"]
     end
 
-    DB[("数据存储\nMySQL")]
+    DB[("数据存储\nPostgreSQL")]
 
     Workflow -.->|规范驱动| Frontend
     Workflow -.->|规范驱动| Host
@@ -162,7 +162,61 @@ graph TB
 | 前端框架 | `Vue 3` | 基于`Vben 5`管理台模板 |
 | 前端 UI | `Ant Design Vue` | 企业级 `UI` 组件库 |
 | 构建工具 | `Vite` | 极速前端构建 |
-| 数据库 | `MySQL` / 可选 `SQLite` | `MySQL 8.0+` 为主数据存储；`SQLite` 可用于无需 MySQL 的演示或本地测试模式，仅支持单节点，不适用于生产 |
+| 数据库 | `PostgreSQL` / 可选 `SQLite` | `PostgreSQL 14+`为默认数据存储；`SQLite`可用于本地演示或冒烟验证，仅支持单节点，不适用于生产 |
 | 插件运行时 | `WebAssembly` | `tetratelabs/wazero`，支持`WASM`动态插件 |
 
+## 快速开始
 
+`LinaPro`默认使用`PostgreSQL`作为数据库。运行`make init`或`make dev`之前，请先准备`PostgreSQL 14+`实例；这些命令不会启动或管理数据库。
+
+本地开发可使用以下容器：
+
+```bash
+docker run --name linapro-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=linapro \
+  -p 5432:5432 \
+  --health-cmd pg_isready \
+  --health-interval 10s \
+  --health-timeout 5s \
+  --health-retries 5 \
+  -d postgres:14-alpine
+```
+
+如果本机`5432`端口已被占用，可以将容器映射到其他本机端口，
+例如`15432:5432`，并同步将`database.default.link`中的端口改为该本机端口。
+
+先安装一次前端依赖，然后初始化并启动项目：
+
+```bash
+corepack enable
+cd apps/lina-vben
+pnpm install
+cd ../..
+make init confirm=init
+make mock confirm=mock
+make dev
+```
+
+默认后端连接为：
+
+```yaml
+database:
+  default:
+    link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+```
+
+`make init`是运维初始化命令，会直接使用配置中的数据库账号。该账号必须具备连接系统库、创建和删除目标数据库、终止目标库连接、建表、建索引、写入注释和写入`Seed`数据的权限。权限不足时初始化会失败，不会降级到低权限运行时模式。
+
+使用外部托管`PostgreSQL`，例如`RDS`或阿里云`PolarDB`时，请将`database.default.link`指向供应商提供的主机和端口。执行`make init`时使用具备上述权限的初始化账号；如果部署流程需要运行时低权限账号，请在初始化完成后再替换运行配置。
+
+如需单节点开发演示，可切换为`SQLite`链接：
+
+```yaml
+database:
+  default:
+    link: "sqlite::@file(./temp/sqlite/linapro.db)"
+```
+
+`SQLite`模式仅用于本地演示和冒烟验证，不属于生产部署模式。

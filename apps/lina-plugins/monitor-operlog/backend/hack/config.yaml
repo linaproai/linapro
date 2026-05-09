@@ -3,7 +3,7 @@
 gfcli:
   gen:
     dao:
-      - link: "mysql:root:12345678@tcp(127.0.0.1:3306)/linapro?charset=utf8mb4&parseTime=true&loc=Local"
+      - link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
         path: "internal"
         tables: "plugin_monitor_operlog,sys_dict_data"
         removePrefix: "plugin_monitor_"

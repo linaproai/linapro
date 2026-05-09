@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -20,11 +19,11 @@ import {
 } from '../../../fixtures/plugin';
 import { LoginPage } from '../../../pages/LoginPage';
 import { PluginPage } from '../../../pages/PluginPage';
-
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? 'mysql';
-const mysqlUser = process.env.E2E_DB_USER ?? 'root';
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? '12345678';
-const mysqlDatabase = process.env.E2E_DB_NAME ?? 'linapro';
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+  queryPgRows,
+} from '../../../support/postgres';
 
 const dynamicPluginID = 'plugin-install-enable-shortcut-e2e';
 const dynamicPluginVersion = 'v0.1.0';
@@ -84,41 +83,12 @@ function runtimeStorageArtifactPath() {
   return path.join(tempDir(), 'output', `${dynamicPluginID}.wasm`);
 }
 
-function querySQLRows(sql: string) {
-  return execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      '-N',
-      '-B',
-      '-e',
-      sql,
-    ],
-    { encoding: 'utf8' },
-  )
-    .trim()
-    .split('\n')
-    .filter(Boolean);
-}
-
 function execSQL(statements: string[]) {
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      '-e',
-      statements.join(' '),
-    ],
-    { stdio: 'ignore' },
-  );
+  execPgSQLStatements(statements);
 }
 
 function cleanupDynamicPluginRows() {
-  const escapedID = dynamicPluginID.replaceAll("'", "''");
+  const escapedID = pgEscapeLiteral(dynamicPluginID);
   execSQL([
     `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedID}';`,
     `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedID}';`,
@@ -129,13 +99,13 @@ function cleanupDynamicPluginRows() {
 }
 
 function cleanupUserAndRoleRows() {
-  const escapedUsername = installOnlyUsername.replaceAll("'", "''");
-  const escapedRoleKey = installOnlyRoleKey.replaceAll("'", "''");
+  const escapedUsername = pgEscapeLiteral(installOnlyUsername);
+  const escapedRoleKey = pgEscapeLiteral(installOnlyRoleKey);
   execSQL([
-    `DELETE FROM sys_user_role WHERE user_id IN (SELECT user_ids.id FROM (SELECT id FROM sys_user WHERE username = '${escapedUsername}') AS user_ids);`,
+    `DELETE FROM sys_user_role WHERE user_id IN (SELECT id FROM sys_user WHERE username = '${escapedUsername}');`,
     `DELETE FROM sys_user WHERE username = '${escapedUsername}';`,
-    `DELETE FROM sys_role_menu WHERE role_id IN (SELECT role_ids.id FROM (SELECT id FROM sys_role WHERE \`key\` = '${escapedRoleKey}') AS role_ids);`,
-    `DELETE FROM sys_role WHERE \`key\` = '${escapedRoleKey}';`,
+    `DELETE FROM sys_role_menu WHERE role_id IN (SELECT id FROM sys_role WHERE "key" = '${escapedRoleKey}');`,
+    `DELETE FROM sys_role WHERE "key" = '${escapedRoleKey}';`,
   ]);
 }
 
@@ -281,8 +251,8 @@ async function resetSourcePlugin(
 }
 
 function lookupMenuID(menuKey: string) {
-  const rows = querySQLRows(
-    `SELECT id FROM sys_menu WHERE menu_key = '${menuKey.replaceAll("'", "''")}' LIMIT 1;`,
+  const rows = queryPgRows(
+    `SELECT id FROM sys_menu WHERE menu_key = '${pgEscapeLiteral(menuKey)}' LIMIT 1;`,
   );
   expect(rows.length, `未找到菜单: ${menuKey}`).toBe(1);
   return Number.parseInt(rows[0]!, 10);
@@ -393,7 +363,7 @@ test.describe('TC-103 插件安装弹窗快捷启用', () => {
     await resetSourcePlugin(adminApi, true, true);
   });
 
-  test('TC0103a: 动态插件可在授权审查弹窗中直接安装并启用', async ({
+  test('TC-103a: 动态插件可在授权审查弹窗中直接安装并启用', async ({
     adminPage,
   }) => {
     await prepareDynamicPlugin(adminApi);
@@ -425,7 +395,7 @@ test.describe('TC-103 插件安装弹窗快捷启用', () => {
     );
   });
 
-  test('TC0103b: 安装并启用的第二步失败时保留已安装未启用状态', async ({
+  test('TC-103b: 安装并启用的第二步失败时保留已安装未启用状态', async ({
     adminPage,
   }) => {
     await prepareDynamicPlugin(adminApi);
@@ -459,7 +429,7 @@ test.describe('TC-103 插件安装弹窗快捷启用', () => {
     }
   });
 
-  test('TC0103c: 源码插件可在安装弹窗中直接安装并启用', async ({
+  test('TC-103c: 源码插件可在安装弹窗中直接安装并启用', async ({
     adminPage,
   }) => {
     await resetSourcePlugin(adminApi, false);
@@ -491,7 +461,7 @@ test.describe('TC-103 插件安装弹窗快捷启用', () => {
     await expect(adminPage.getByText(sourcePluginMenuTitle).first()).toBeVisible();
   });
 
-  test('TC0103d: 仅具备安装权限的用户看不到安装并启用按钮', async ({
+  test('TC-103d: 仅具备安装权限的用户看不到安装并启用按钮', async ({
     page,
   }) => {
     await resetSourcePlugin(adminApi, false);

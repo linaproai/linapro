@@ -10,7 +10,7 @@ import (
 
 // SysConfig is the golang structure for table sys_config.
 type SysConfig struct {
-	Id        uint64      `json:"id"        orm:"id"         description:"Config parameter ID"`
+	Id        int64       `json:"id"        orm:"id"         description:"Config parameter ID"`
 	Name      string      `json:"name"      orm:"name"       description:"Config parameter name"`
 	Key       string      `json:"key"       orm:"key"        description:"Config parameter key"`
 	Value     string      `json:"value"     orm:"value"      description:"Config parameter value"`

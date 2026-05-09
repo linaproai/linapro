@@ -4,14 +4,12 @@ package plugin
 
 import (
 	"context"
-	"path/filepath"
-	"strings"
-	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/glog"
+	"path/filepath"
+	"strings"
+	"testing"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

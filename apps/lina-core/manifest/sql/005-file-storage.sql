@@ -6,23 +6,40 @@
 -- 文件管理表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_file (
-    id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT  'File ID',
-    name        VARCHAR(255)  NOT NULL DEFAULT '' COMMENT  'Stored file name',
-    original    VARCHAR(255)  NOT NULL DEFAULT '' COMMENT  'Original file name',
-    suffix      VARCHAR(32)   NOT NULL DEFAULT '' COMMENT  'File suffix',
-    scene       VARCHAR(64)   NOT NULL DEFAULT 'other' COMMENT  'Usage scene: avatar=user avatar, notice_image=notice image, notice_attachment=notice attachment, other=other',
-    size        BIGINT        NOT NULL DEFAULT 0  COMMENT  'File size in bytes',
-    hash        VARCHAR(64)   NOT NULL DEFAULT '' COMMENT  'File SHA-256 hash for deduplication',
-    url         VARCHAR(512)  NOT NULL DEFAULT '' COMMENT  'File access URL',
-    path        VARCHAR(512)  NOT NULL DEFAULT '' COMMENT  'File storage path',
-    engine      VARCHAR(32)   NOT NULL DEFAULT 'local' COMMENT  'Storage engine: local=local storage',
-    created_by  BIGINT        NOT NULL DEFAULT 0  COMMENT  'Uploader user ID',
-    created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT  'Creation time',
-    updated_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT  'Update time',
-    deleted_at  DATETIME      NULL     DEFAULT NULL COMMENT  'Deletion time',
-    INDEX idx_engine (engine),
-    INDEX idx_created_by (created_by),
-    INDEX idx_suffix (suffix),
-    INDEX idx_hash (hash),
-    INDEX idx_scene (scene)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'File management table';
+    "id"         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "name"       VARCHAR(255) NOT NULL DEFAULT '',
+    "original"   VARCHAR(255) NOT NULL DEFAULT '',
+    "suffix"     VARCHAR(32) NOT NULL DEFAULT '',
+    "scene"      VARCHAR(64) NOT NULL DEFAULT 'other',
+    "size"       BIGINT NOT NULL DEFAULT 0,
+    "hash"       VARCHAR(64) NOT NULL DEFAULT '',
+    "url"        VARCHAR(512) NOT NULL DEFAULT '',
+    "path"       VARCHAR(512) NOT NULL DEFAULT '',
+    "engine"     VARCHAR(32) NOT NULL DEFAULT 'local',
+    "created_by" BIGINT NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP NULL DEFAULT NULL
+);
+
+COMMENT ON TABLE sys_file IS 'File management table';
+COMMENT ON COLUMN sys_file."id" IS 'File ID';
+COMMENT ON COLUMN sys_file."name" IS 'Stored file name';
+COMMENT ON COLUMN sys_file."original" IS 'Original file name';
+COMMENT ON COLUMN sys_file."suffix" IS 'File suffix';
+COMMENT ON COLUMN sys_file."scene" IS 'Usage scene: avatar=user avatar, notice_image=notice image, notice_attachment=notice attachment, other=other';
+COMMENT ON COLUMN sys_file."size" IS 'File size in bytes';
+COMMENT ON COLUMN sys_file."hash" IS 'File SHA-256 hash for deduplication';
+COMMENT ON COLUMN sys_file."url" IS 'File access URL';
+COMMENT ON COLUMN sys_file."path" IS 'File storage path';
+COMMENT ON COLUMN sys_file."engine" IS 'Storage engine: local=local storage';
+COMMENT ON COLUMN sys_file."created_by" IS 'Uploader user ID';
+COMMENT ON COLUMN sys_file."created_at" IS 'Creation time';
+COMMENT ON COLUMN sys_file."updated_at" IS 'Update time';
+COMMENT ON COLUMN sys_file."deleted_at" IS 'Deletion time';
+
+CREATE INDEX IF NOT EXISTS idx_sys_file_engine ON sys_file ("engine");
+CREATE INDEX IF NOT EXISTS idx_sys_file_created_by ON sys_file ("created_by");
+CREATE INDEX IF NOT EXISTS idx_sys_file_suffix ON sys_file ("suffix");
+CREATE INDEX IF NOT EXISTS idx_sys_file_hash ON sys_file ("hash");
+CREATE INDEX IF NOT EXISTS idx_sys_file_scene ON sys_file ("scene");

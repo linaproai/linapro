@@ -49,11 +49,11 @@ func (s *serviceImpl) ensureJobVisible(ctx context.Context, job *entity.SysJob) 
 	if job == nil {
 		return bizerr.NewCode(jobmeta.CodeJobNotFound)
 	}
-	return s.ensureJobsVisibleByID(ctx, []uint64{job.Id})
+	return s.ensureJobsVisibleByID(ctx, []int64{job.Id})
 }
 
 // ensureJobsVisibleByID verifies all selected jobs are visible.
-func (s *serviceImpl) ensureJobsVisibleByID(ctx context.Context, ids []uint64) error {
+func (s *serviceImpl) ensureJobsVisibleByID(ctx context.Context, ids []int64) error {
 	normalizedIDs := normalizeJobIDs(ids)
 	if len(normalizedIDs) == 0 {
 		return nil
@@ -78,11 +78,11 @@ func (s *serviceImpl) ensureLogVisible(ctx context.Context, logRow *entity.SysJo
 	if logRow == nil {
 		return bizerr.NewCode(CodeJobLogNotFound)
 	}
-	return s.ensureLogsVisible(ctx, []uint64{logRow.Id})
+	return s.ensureLogsVisible(ctx, []int64{logRow.Id})
 }
 
 // ensureLogsVisible verifies all selected logs are visible through their jobs.
-func (s *serviceImpl) ensureLogsVisible(ctx context.Context, ids []uint64) error {
+func (s *serviceImpl) ensureLogsVisible(ctx context.Context, ids []int64) error {
 	normalizedIDs := normalizeJobIDs(ids)
 	if len(normalizedIDs) == 0 {
 		return nil
@@ -123,9 +123,9 @@ func mapJobDataScopeError(err error) error {
 }
 
 // normalizeJobIDs removes invalid and duplicate job or log IDs.
-func normalizeJobIDs(ids []uint64) []uint64 {
-	result := make([]uint64, 0, len(ids))
-	seen := make(map[uint64]struct{}, len(ids))
+func normalizeJobIDs(ids []int64) []int64 {
+	result := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {
 		if id == 0 {
 			continue

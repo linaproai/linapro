@@ -6,13 +6,11 @@ package cluster
 import (
 	"context"
 	"fmt"
-	"testing"
-	"time"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/test/gtest"
+	"testing"
+	"time"
 
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/locker"
@@ -164,6 +162,43 @@ func TestElectionServiceStepDown(t *testing.T) {
 	cleanupLock()
 }
 
+// TestElectionServiceTwoNodesFailOver verifies two independent election loops
+// share one persistent lock and fail over without clearing volatile tables.
+func TestElectionServiceTwoNodesFailOver(t *testing.T) {
+	var (
+		cfg = &config.ElectionConfig{
+			Lease:         2 * time.Second,
+			RenewInterval: 100 * time.Millisecond,
+		}
+		first  = newElectionService(locker.New(), cfg, "node-a-"+gtime.TimestampMilliStr())
+		second = newElectionService(locker.New(), cfg, "node-b-"+gtime.TimestampMilliStr())
+		ctx    = context.Background()
+	)
+
+	cleanupLock()
+
+	gtest.C(t, func(t *gtest.T) {
+		first.Start(ctx)
+		second.Start(ctx)
+
+		t.Assert(waitForAnyElectionLeader(first, second, electionStateWait), true)
+		t.Assert(first.IsLeader() && second.IsLeader(), false)
+
+		firstWasLeader := first.IsLeader()
+		if firstWasLeader {
+			first.Stop(ctx)
+			t.Assert(waitForElectionState(second, true, 4*time.Second), true)
+			second.Stop(ctx)
+		} else {
+			second.Stop(ctx)
+			t.Assert(waitForElectionState(first, true, 4*time.Second), true)
+			first.Stop(ctx)
+		}
+	})
+
+	cleanupLock()
+}
+
 // TestElectionServiceStopWithoutStart verifies Stop is safe before Start is
 // called.
 func TestElectionServiceStopWithoutStart(t *testing.T) {
@@ -226,4 +261,17 @@ func waitForElectionState(svc *electionService, expected bool, timeout time.Dura
 		time.Sleep(20 * time.Millisecond)
 	}
 	return svc.IsLeader() == expected
+}
+
+// waitForAnyElectionLeader polls until exactly one of two election services is
+// leader or the bounded timeout expires.
+func waitForAnyElectionLeader(first *electionService, second *electionService, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if first.IsLeader() != second.IsLeader() {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return first.IsLeader() != second.IsLeader()
 }

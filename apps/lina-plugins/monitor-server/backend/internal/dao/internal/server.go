@@ -24,7 +24,7 @@ type ServerColumns struct {
 	Id        string // Record ID
 	NodeName  string // Node name (hostname)
 	NodeIp    string // Node IP address
-	Data      string // Monitoring data in JSON format, including CPU, memory, disk, network, Go runtime, and other metrics
+	Data      string // Monitoring data in structured text format, including CPU, memory, disk, network, Go runtime, and other metrics
 	CreatedAt string // Collection time
 	UpdatedAt string // Update time
 }

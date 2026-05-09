@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gfile"
@@ -18,6 +19,10 @@ import (
 	"lina-core/pkg/pluginfs"
 	"lina-core/pkg/pluginhost"
 )
+
+// pluginRootDirOverride stores an optional process-wide source plugin root used
+// by tests to isolate manifest discovery from the shared workspace.
+var pluginRootDirOverride atomic.Value
 
 // ScanManifests merges source-plugin discovery and runtime-wasm discovery
 // into one normalized manifest list used by lifecycle and governance services.
@@ -233,6 +238,13 @@ func (s *serviceImpl) LoadManifestFromYAML(filePath string, manifest *Manifest) 
 
 // resolvePluginRootDir resolves the plugin root directory from the current working directory.
 func (s *serviceImpl) resolvePluginRootDir() (string, error) {
+	if override := getPluginRootDirOverride(); override != "" {
+		if gfile.Exists(override) && gfile.IsDir(override) {
+			return override, nil
+		}
+		return "", gerror.Newf("plugin root override is not a directory: %s", override)
+	}
+
 	workingDir, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -260,6 +272,28 @@ func (s *serviceImpl) resolvePluginRootDir() (string, error) {
 	}
 
 	return "", gerror.Newf("plugin directory was not found, candidate paths: %s", strings.Join(candidateDirs, ", "))
+}
+
+// SetPluginRootDirOverride overrides source-plugin discovery for tests.
+func SetPluginRootDirOverride(path string) {
+	pluginRootDirOverride.Store(strings.TrimSpace(path))
+}
+
+// getPluginRootDirOverride returns the cleaned source-plugin root override.
+func getPluginRootDirOverride() string {
+	value := pluginRootDirOverride.Load()
+	if value == nil {
+		return ""
+	}
+	path, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	return filepath.Clean(path)
 }
 
 // resolveRuntimeStorageDir resolves the configured runtime WASM storage

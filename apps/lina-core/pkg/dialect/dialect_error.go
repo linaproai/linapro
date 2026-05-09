@@ -4,7 +4,7 @@
 package dialect
 
 import (
-	internalmysql "lina-core/pkg/dialect/internal/mysql"
+	internalpostgres "lina-core/pkg/dialect/internal/postgres"
 	internalsqlite "lina-core/pkg/dialect/internal/sqlite"
 )
 
@@ -14,5 +14,14 @@ func IsRetryableWriteConflict(err error) bool {
 	if err == nil {
 		return false
 	}
-	return internalmysql.IsRetryableWriteConflict(err) || internalsqlite.IsRetryableWriteConflict(err)
+	return internalpostgres.IsRetryableWriteConflict(err) || internalsqlite.IsRetryableWriteConflict(err)
+}
+
+// IsUniqueConstraintViolation reports whether err represents a database
+// unique-key conflict.
+func IsUniqueConstraintViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	return internalpostgres.IsUniqueConstraintViolation(err) || internalsqlite.IsUniqueConstraintViolation(err)
 }

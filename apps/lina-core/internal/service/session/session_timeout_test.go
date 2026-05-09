@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
@@ -45,6 +45,19 @@ func TestTouchOrValidateRejectsExpiredSession(t *testing.T) {
 	}
 }
 
+// TestIsSessionInactiveUsesTimeout verifies expiration is checked before a
+// persistent session row can be treated as valid.
+func TestIsSessionInactiveUsesTimeout(t *testing.T) {
+	now := gtime.Now()
+	stored := &entity.SysOnlineSession{LastActiveTime: now.Add(-2 * time.Hour)}
+	if !isSessionInactive(stored, now, time.Hour) {
+		t.Fatal("expected stale session row to be inactive")
+	}
+	if isSessionInactive(stored, now, 0) {
+		t.Fatal("expected disabled timeout to keep the session active")
+	}
+}
+
 // TestTouchOrValidateRefreshesActiveSession verifies valid sessions keep their
 // record and refresh the last-active timestamp.
 func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
@@ -78,6 +91,34 @@ func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 	}
 }
 
+// TestSessionRecordSurvivesStoreRecreation verifies valid online-session rows
+// are retained across process-local store recreation and remain usable.
+func TestSessionRecordSurvivesStoreRecreation(t *testing.T) {
+	ctx := context.Background()
+	tokenID := fmt.Sprintf("session-restart-%d", time.Now().UnixNano())
+	lastActive := gtime.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+
+	insertSessionRecord(t, ctx, tokenID, lastActive)
+
+	firstStore := NewDBStore()
+	stored, err := firstStore.Get(ctx, tokenID)
+	if err != nil {
+		t.Fatalf("get session before store recreation: %v", err)
+	}
+	if stored == nil {
+		t.Fatal("expected session before store recreation")
+	}
+
+	secondStore := NewDBStore()
+	exists, err := secondStore.TouchOrValidate(ctx, tokenID, time.Hour)
+	if err != nil {
+		t.Fatalf("touch session after store recreation: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected unexpired session to survive store recreation")
+	}
+}
+
 // TestTouchOrValidateSkipsRecentActiveSessionUpdate verifies recent activity
 // remains valid without writing another last-active timestamp.
 func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
@@ -106,7 +147,7 @@ func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
 	if stored == nil || stored.LastActiveTime == nil {
 		t.Fatal("expected recent session record to remain after validation")
 	}
-	if stored.LastActiveTime.Timestamp() != lastActive.Timestamp() {
+	if stored.LastActiveTime.String() != lastActive.String() {
 		t.Fatalf("expected recent last active time to remain unchanged, got %v want %v", stored.LastActiveTime, lastActive)
 	}
 }

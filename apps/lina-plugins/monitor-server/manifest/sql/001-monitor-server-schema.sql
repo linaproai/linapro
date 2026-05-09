@@ -2,11 +2,20 @@
 -- 001：monitor-server 数据结构
 
 CREATE TABLE IF NOT EXISTS plugin_monitor_server (
-    id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT  'Record ID',
-    node_name   VARCHAR(128) NOT NULL DEFAULT '' COMMENT  'Node name (hostname)',
-    node_ip     VARCHAR(64)  NOT NULL DEFAULT '' COMMENT  'Node IP address',
-    data        JSON         NOT NULL             COMMENT  'Monitoring data in JSON format, including CPU, memory, disk, network, Go runtime, and other metrics',
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT  'Collection time',
-    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT  'Update time',
-    UNIQUE INDEX uk_plugin_monitor_server_node (node_name, node_ip)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT= 'Server monitoring table';
+    "id"          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "node_name"   VARCHAR(128) NOT NULL DEFAULT '',
+    "node_ip"     VARCHAR(64)  NOT NULL DEFAULT '',
+    "data"        TEXT                            NOT NULL,
+    "created_at"  TIMESTAMP                       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"  TIMESTAMP                       NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE plugin_monitor_server IS 'Server monitoring table';
+COMMENT ON COLUMN plugin_monitor_server."id" IS 'Record ID';
+COMMENT ON COLUMN plugin_monitor_server."node_name" IS 'Node name (hostname)';
+COMMENT ON COLUMN plugin_monitor_server."node_ip" IS 'Node IP address';
+COMMENT ON COLUMN plugin_monitor_server."data" IS 'Monitoring data in structured text format, including CPU, memory, disk, network, Go runtime, and other metrics';
+COMMENT ON COLUMN plugin_monitor_server."created_at" IS 'Collection time';
+COMMENT ON COLUMN plugin_monitor_server."updated_at" IS 'Update time';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_plugin_monitor_server_node ON plugin_monitor_server ("node_name", "node_ip");

@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -13,16 +12,16 @@ import {
   updatePluginStatus,
 } from '../../../fixtures/plugin';
 import { PluginPage } from '../../../pages/PluginPage';
+import {
+  execPgSQLStatements,
+  pgEscapeLiteral,
+} from '../../../support/postgres';
 
 const pluginID = 'plugin-demo-source';
 const originalMenuName = '源码插件示例';
 const upgradedMenuName = '源码插件示例升级版';
 const originalMenuKey = 'plugin:plugin-demo-source:sidebar-entry';
 const upgradedMenuKey = 'plugin:plugin-demo-source:sidebar-entry-upgraded';
-const mysqlBin = process.env.E2E_MYSQL_BIN ?? 'mysql';
-const mysqlUser = process.env.E2E_DB_USER ?? 'root';
-const mysqlPassword = process.env.E2E_DB_PASSWORD ?? '12345678';
-const mysqlDatabase = process.env.E2E_DB_NAME ?? 'linapro';
 const repoRoot = path.resolve(process.cwd(), '../..');
 const pluginManifestPath = path.resolve(
   repoRoot,
@@ -92,31 +91,19 @@ function buildUpgradedManifestContent(originalContent: string) {
 }
 
 function resetSourcePluginGovernance(pluginId: string) {
-  const escapedPluginID = pluginId.replaceAll("'", "''");
+  const escapedPluginID = pgEscapeLiteral(pluginId);
   const menuKeyPattern = `plugin:${escapedPluginID}:%`;
 
-  execFileSync(
-    mysqlBin,
-    [
-      `-u${mysqlUser}`,
-      `-p${mysqlPassword}`,
-      mysqlDatabase,
-      '-e',
-      [
-        `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM (SELECT id FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}') AS plugin_menu_ids);`,
-        `DELETE FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}';`,
-        `DELETE FROM sys_plugin_state WHERE plugin_id = '${escapedPluginID}';`,
-        `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedPluginID}';`,
-        `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedPluginID}';`,
-        `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedPluginID}';`,
-        `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedPluginID}';`,
-        `DELETE FROM sys_plugin WHERE plugin_id = '${escapedPluginID}';`,
-      ].join(' '),
-    ],
-    {
-      stdio: 'ignore',
-    },
-  );
+  execPgSQLStatements([
+    `DELETE FROM sys_role_menu WHERE menu_id IN (SELECT id FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}');`,
+    `DELETE FROM sys_menu WHERE menu_key LIKE '${menuKeyPattern}';`,
+    `DELETE FROM sys_plugin_state WHERE plugin_id = '${escapedPluginID}';`,
+    `DELETE FROM sys_plugin_node_state WHERE plugin_id = '${escapedPluginID}';`,
+    `DELETE FROM sys_plugin_resource_ref WHERE plugin_id = '${escapedPluginID}';`,
+    `DELETE FROM sys_plugin_migration WHERE plugin_id = '${escapedPluginID}';`,
+    `DELETE FROM sys_plugin_release WHERE plugin_id = '${escapedPluginID}';`,
+    `DELETE FROM sys_plugin WHERE plugin_id = '${escapedPluginID}';`,
+  ]);
 }
 
 async function fetchCurrentUserMenus(

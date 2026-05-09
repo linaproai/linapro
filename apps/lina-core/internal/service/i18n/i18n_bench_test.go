@@ -5,10 +5,8 @@ package i18n
 
 import (
 	"context"
-	"testing"
-
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
 	"github.com/gogf/gf/v2/os/gctx"
+	"testing"
 
 	"lina-core/internal/model"
 )

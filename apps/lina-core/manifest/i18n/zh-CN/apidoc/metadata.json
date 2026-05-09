@@ -8,7 +8,7 @@
         "goframe": {
           "description": "Go 语言开发框架"
         },
-        "mysql": {
+        "postgresql": {
           "description": "关系型数据库"
         }
       },

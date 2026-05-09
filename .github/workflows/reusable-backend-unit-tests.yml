@@ -17,18 +17,20 @@ jobs:
     timeout-minutes: 120
 
     services:
-      mysql:
-        image: mysql:8.0
+      postgres:
+        image: postgres:14-alpine
         env:
-          MYSQL_ROOT_PASSWORD: 12345678
-          MYSQL_DATABASE: linapro
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p12345678"
+          --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 10
+          --health-retries 5
 
     steps:
       - name: Setup Timezone
@@ -55,6 +57,13 @@ jobs:
           make -C apps/lina-core prepare-packed-assets
 
       - name: Run Go Unit Tests
+        env:
+          # This link is intentionally provided as an explicit integration-test
+          # fixture instead of being read from apps/lina-core/manifest/config/config.yaml.
+          # Runtime config drives make init and application startup; PostgreSQL-backed
+          # unit tests use this env var as an opt-in guard so local go test runs do not
+          # accidentally connect to or mutate a developer/runtime database.
+          LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
         run: |
           module_file="$(mktemp)"
           go list -m -f '{{.Dir}}' > "${module_file}"

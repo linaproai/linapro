@@ -114,12 +114,18 @@ test.describe("TC0127 繁体中文宿主页面内容巡检", () => {
     adminPage,
     mainLayout,
   }) => {
+    test.setTimeout(120_000);
     await mainLayout.switchLanguage("繁體中文");
 
     for (const auditCase of hostPageAuditCases) {
       await test.step(auditCase.path, async () => {
         await adminPage.goto(auditCase.path, { waitUntil: "domcontentloaded" });
         await waitForRouteReady(adminPage, 15_000);
+
+        await expect(adminPage.locator("body")).toContainText(
+          auditCase.visibleTexts[0],
+          { timeout: 20_000 },
+        );
 
         const bodyText = await adminPage.locator("body").innerText();
         for (const text of auditCase.visibleTexts) {

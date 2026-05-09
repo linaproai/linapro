@@ -22,7 +22,7 @@ import (
 )
 
 // runCronJob handles one gcron callback for the target persistent job.
-func (s *serviceImpl) runCronJob(ctx context.Context, jobID uint64) {
+func (s *serviceImpl) runCronJob(ctx context.Context, jobID int64) {
 	job, err := s.getJob(ctx, jobID)
 	if err != nil {
 		logger.Warningf(ctx, "load scheduled job failed job_id=%d err=%v", jobID, err)
@@ -147,7 +147,7 @@ func (s *serviceImpl) prepareCronQuota(
 }
 
 // disableForMaxExecutions disables one exhausted job and returns whether the scheduler should unregister it.
-func (s *serviceImpl) disableForMaxExecutions(ctx context.Context, jobID uint64) (bool, error) {
+func (s *serviceImpl) disableForMaxExecutions(ctx context.Context, jobID int64) (bool, error) {
 	result, err := dao.SysJob.Ctx(ctx).
 		Where(do.SysJob{Id: jobID, Status: string(jobmeta.JobStatusEnabled)}).
 		Data(do.SysJob{
@@ -169,7 +169,7 @@ func (s *serviceImpl) disableForMaxExecutions(ctx context.Context, jobID uint64)
 func (s *serviceImpl) executeJob(
 	execution executionState,
 	job *entity.SysJob,
-	logID uint64,
+	logID int64,
 ) {
 	defer s.finishRunningExecution(logID)
 

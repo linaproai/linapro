@@ -3,11 +3,10 @@
 package plugin
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
-	_ "github.com/gogf/gf/contrib/drivers/mysql/v2"
+	"lina-core/pkg/dialect"
 )
 
 // TestNormalizeDataTableNamesTrimsAndDeduplicates verifies metadata lookups
@@ -20,11 +19,16 @@ func TestNormalizeDataTableNamesTrimsAndDeduplicates(t *testing.T) {
 	}
 }
 
-// TestResolveDataTableCommentsReadsInformationSchema verifies comment lookup
-// uses information_schema metadata successfully for a known host table.
-func TestResolveDataTableCommentsReadsInformationSchema(t *testing.T) {
-	comments := newTestService().ResolveDataTableComments(context.Background(), []string{" sys_plugin ", "sys_plugin"})
-	if comments["sys_plugin"] == "" {
-		t.Fatalf("expected sys_plugin table comment to be resolved, got %v", comments)
+// TestDataTableCommentsFromMetadataMapsNonBlankComments verifies dialect
+// metadata results are converted into the governance display map.
+func TestDataTableCommentsFromMetadataMapsNonBlankComments(t *testing.T) {
+	got := dataTableCommentsFromMetadata([]dialect.TableMeta{
+		{TableName: " sys_plugin ", TableComment: " Plugin registry "},
+		{TableName: "sys_user", TableComment: ""},
+		{TableName: "", TableComment: "ignored"},
+	})
+	want := map[string]string{"sys_plugin": "Plugin registry"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected metadata comments %v, got %v", want, got)
 	}
 }

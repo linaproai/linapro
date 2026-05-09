@@ -9,6 +9,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
 
 	"github.com/gogf/gf/v2/os/gtime"
@@ -60,6 +61,9 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 			ExpireTime: expireTime,
 		}).Insert()
 		if err != nil {
+			if dialect.IsUniqueConstraintViolation(err) {
+				return nil, false, nil
+			}
 			return nil, false, err
 		}
 		insertId, err := result.LastInsertId()
@@ -73,26 +77,8 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 		return &Instance{id: insertId, holder: holder, lease: lease}, true, nil
 	}
 
-	// Lock exists but expired, try to take over
-	if now.After(locker.ExpireTime) {
-		affected, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
-			Reason:     reason,
-			Holder:     holder,
-			ExpireTime: expireTime,
-		}).Where(do.SysLocker{
-			Id: locker.Id,
-		}).UpdateAndGetAffected()
-		if err != nil {
-			return nil, false, err
-		}
-		if affected <= 0 {
-			return nil, false, nil
-		}
-		logger.Infof(ctx, "[locker] acquired expired lock '%s' (holder: %s)", name, holder)
-		return &Instance{id: int64(locker.Id), holder: holder, lease: lease}, true, nil
-	}
-
-	// Lock is held by current node (same holder), extend it
+	// Lock exists and is held by current node, extend it without requiring
+	// client-side timestamp interpretation.
 	if locker.Holder == holder {
 		_, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
 			ExpireTime: expireTime,
@@ -105,8 +91,35 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 		return &Instance{id: int64(locker.Id), holder: holder, lease: lease}, true, nil
 	}
 
-	// Lock is held by another node
-	return nil, false, nil
+	// Lock exists but may be expired, try to take over atomically using the
+	// database predicate so TIMESTAMP location handling cannot affect expiry.
+	{
+		cols := dao.SysLocker.Columns()
+		affected, err := dao.SysLocker.Ctx(ctx).Data(do.SysLocker{
+			Reason:     reason,
+			Holder:     holder,
+			ExpireTime: expireTime,
+		}).Where(do.SysLocker{
+			Id: locker.Id,
+		}).Wheref("(%s IS NULL OR %s < ?)", cols.ExpireTime, cols.ExpireTime, now).UpdateAndGetAffected()
+		if err != nil {
+			return nil, false, err
+		}
+		if affected <= 0 {
+			return nil, false, nil
+		}
+		logger.Infof(ctx, "[locker] acquired expired lock '%s' (holder: %s)", name, holder)
+		return &Instance{id: int64(locker.Id), holder: holder, lease: lease}, true, nil
+	}
+}
+
+// isExpiredLock reports whether one lock row is available for takeover before
+// any holder data is reused.
+func isExpiredLock(expireTime *gtime.Time, now *gtime.Time) bool {
+	if expireTime == nil {
+		return true
+	}
+	return now.After(expireTime)
 }
 
 // LockFunc acquires a lock and executes the given function.

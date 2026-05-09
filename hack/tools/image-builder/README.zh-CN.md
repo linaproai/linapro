@@ -35,7 +35,7 @@ make image platforms=linux/amd64,linux/arm64 registry=ghcr.io/linaproai tag=v0.6
 
 | 字段 | 说明 |
 |------|------|
-| `platforms` | 宿主二进制与`Docker`镜像平台列表。每个 YAML 数组项使用`goos/goarch`格式，或使用`auto`表示当前系统的`runtime.GOOS/runtime.GOARCH`。命令行覆盖使用英文逗号分隔的`platforms=...`值。 |
+| `platforms` | 宿主二进制与`Docker`镜像平台列表。每个 YAML 数组项使用`goos/goarch`格式，或使用`auto`表示`linux/<当前架构>`。命令行覆盖使用英文逗号分隔的`platforms=...`值。`Docker`镜像构建会拒绝非 Linux 目标平台。 |
 | `cgoEnabled` | `make build`构建宿主二进制时是否启用`CGO`。 |
 | `outputDir`/`binaryName` | 相对于仓库根目录的标准`make build`产物位置。 |
 

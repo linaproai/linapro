@@ -54,7 +54,7 @@
 
 ## 8. Documentation and Verification
 
-- [x] 8.1 Add `README.md` and `README.zh_CN.md` for `hack/tests/` to document directory boundaries, execution entrypoints, manifest mechanics, governance-script usage, isolation categories, serial boundaries, fixture prerequisites, and cache semantic assertion rules.
+- [x] 8.1 Add `README.md` and `README.zh-CN.md` for `hack/tests/` to document directory boundaries, execution entrypoints, manifest mechanics, governance-script usage, isolation categories, serial boundaries, fixture prerequisites, and cache semantic assertion rules.
 - [x] 8.2 Add an E2E conflict governance record listing conflict types, representative cases, remediation approaches, and a checklist for adding new test cases.
 - [x] 8.3 Run the governance validator, `pnpm test:smoke`, at least two module-scoped regressions, and `pnpm test` / `pnpm test:full`, then record timing and stability baselines before and after the migration.
   - Completed `pnpm run test:validate`, `pnpm test:smoke`, `pnpm run test:module -- iam:user`, `pnpm run test:module -- settings:config`, `pnpm run test:module -- settings:dict`, and `pnpm test:full`.

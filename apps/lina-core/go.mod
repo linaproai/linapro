@@ -3,8 +3,7 @@ module lina-core
 go 1.25.0
 
 require (
-	github.com/go-sql-driver/mysql v1.7.1
-	github.com/gogf/gf/contrib/drivers/mysql/v2 v2.10.0
+	github.com/gogf/gf/contrib/drivers/pgsql/v2 v2.10.0
 	github.com/gogf/gf/contrib/drivers/sqlite/v2 v2.10.0
 	github.com/gogf/gf/v2 v2.10.1-0.20260422124457-cb7cfa58abb7
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -30,6 +29,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grokify/html-strip-tags-go v0.1.0 // indirect
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

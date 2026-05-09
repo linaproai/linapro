@@ -1,25 +1,26 @@
 -- Mock data: operation log records for monitoring demos.
 -- 模拟数据：监控演示使用的操作日志记录。
+-- Static operation log rows use exact existence checks so mock loading is idempotent.
 
-INSERT IGNORE INTO plugin_monitor_operlog (
-    title,
-    oper_summary,
-    route_owner,
-    route_method,
-    route_path,
-    route_doc_key,
-    oper_type,
-    method,
-    request_method,
-    oper_name,
-    oper_url,
-    oper_ip,
-    oper_param,
-    json_result,
-    status,
-    error_msg,
-    cost_time,
-    oper_time
+INSERT INTO plugin_monitor_operlog (
+    "title",
+    "oper_summary",
+    "route_owner",
+    "route_method",
+    "route_path",
+    "route_doc_key",
+    "oper_type",
+    "method",
+    "request_method",
+    "oper_name",
+    "oper_url",
+    "oper_ip",
+    "oper_param",
+    "json_result",
+    "status",
+    "error_msg",
+    "cost_time",
+    "oper_time"
 )
 SELECT
     '用户管理',
@@ -38,36 +39,37 @@ SELECT
     '{"code":0,"message":"ok"}',
     0,
     '',
-    86,
+    1,
     '2026-04-20 09:30:00'
-FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1
-    FROM plugin_monitor_operlog
-    WHERE title = '用户管理'
-      AND oper_summary = 'Create demo user'
-      AND oper_time = '2026-04-20 09:30:00'
+    FROM plugin_monitor_operlog existing
+    WHERE existing."route_owner" = 'core'
+      AND existing."route_method" = 'POST'
+      AND existing."route_path" = '/api/v1/user'
+      AND existing."oper_name" = 'admin'
+      AND existing."oper_time" = '2026-04-20 09:30:00'
 );
 
-INSERT IGNORE INTO plugin_monitor_operlog (
-    title,
-    oper_summary,
-    route_owner,
-    route_method,
-    route_path,
-    route_doc_key,
-    oper_type,
-    method,
-    request_method,
-    oper_name,
-    oper_url,
-    oper_ip,
-    oper_param,
-    json_result,
-    status,
-    error_msg,
-    cost_time,
-    oper_time
+INSERT INTO plugin_monitor_operlog (
+    "title",
+    "oper_summary",
+    "route_owner",
+    "route_method",
+    "route_path",
+    "route_doc_key",
+    "oper_type",
+    "method",
+    "request_method",
+    "oper_name",
+    "oper_url",
+    "oper_ip",
+    "oper_param",
+    "json_result",
+    "status",
+    "error_msg",
+    "cost_time",
+    "oper_time"
 )
 SELECT
     '参数设置',
@@ -86,36 +88,37 @@ SELECT
     '{"code":0,"message":"ok"}',
     0,
     '',
-    42,
+    0,
     '2026-04-20 10:05:00'
-FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1
-    FROM plugin_monitor_operlog
-    WHERE title = '参数设置'
-      AND oper_summary = 'Update public runtime config'
-      AND oper_time = '2026-04-20 10:05:00'
+    FROM plugin_monitor_operlog existing
+    WHERE existing."route_owner" = 'core'
+      AND existing."route_method" = 'PUT'
+      AND existing."route_path" = '/api/v1/config/{id}'
+      AND existing."oper_name" = 'admin'
+      AND existing."oper_time" = '2026-04-20 10:05:00'
 );
 
-INSERT IGNORE INTO plugin_monitor_operlog (
-    title,
-    oper_summary,
-    route_owner,
-    route_method,
-    route_path,
-    route_doc_key,
-    oper_type,
-    method,
-    request_method,
-    oper_name,
-    oper_url,
-    oper_ip,
-    oper_param,
-    json_result,
-    status,
-    error_msg,
-    cost_time,
-    oper_time
+INSERT INTO plugin_monitor_operlog (
+    "title",
+    "oper_summary",
+    "route_owner",
+    "route_method",
+    "route_path",
+    "route_doc_key",
+    "oper_type",
+    "method",
+    "request_method",
+    "oper_name",
+    "oper_url",
+    "oper_ip",
+    "oper_param",
+    "json_result",
+    "status",
+    "error_msg",
+    "cost_time",
+    "oper_time"
 )
 SELECT
     '插件管理',
@@ -134,36 +137,37 @@ SELECT
     '{"code":0,"message":"ok"}',
     0,
     '',
-    318,
+    4,
     '2026-04-20 11:20:00'
-FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1
-    FROM plugin_monitor_operlog
-    WHERE title = '插件管理'
-      AND oper_summary = 'Install source plugin'
-      AND oper_time = '2026-04-20 11:20:00'
+    FROM plugin_monitor_operlog existing
+    WHERE existing."route_owner" = 'core'
+      AND existing."route_method" = 'POST'
+      AND existing."route_path" = '/api/v1/plugins/{id}/install'
+      AND existing."oper_name" = 'admin'
+      AND existing."oper_time" = '2026-04-20 11:20:00'
 );
 
-INSERT IGNORE INTO plugin_monitor_operlog (
-    title,
-    oper_summary,
-    route_owner,
-    route_method,
-    route_path,
-    route_doc_key,
-    oper_type,
-    method,
-    request_method,
-    oper_name,
-    oper_url,
-    oper_ip,
-    oper_param,
-    json_result,
-    status,
-    error_msg,
-    cost_time,
-    oper_time
+INSERT INTO plugin_monitor_operlog (
+    "title",
+    "oper_summary",
+    "route_owner",
+    "route_method",
+    "route_path",
+    "route_doc_key",
+    "oper_type",
+    "method",
+    "request_method",
+    "oper_name",
+    "oper_url",
+    "oper_ip",
+    "oper_param",
+    "json_result",
+    "status",
+    "error_msg",
+    "cost_time",
+    "oper_time"
 )
 SELECT
     '文件管理',
@@ -182,13 +186,14 @@ SELECT
     '{"code":500,"message":"permission denied"}',
     1,
     'Permission denied for demo file deletion',
-    64,
+    0,
     '2026-04-21 15:40:00'
-FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1
-    FROM plugin_monitor_operlog
-    WHERE title = '文件管理'
-      AND oper_summary = 'Delete locked demo file'
-      AND oper_time = '2026-04-21 15:40:00'
+    FROM plugin_monitor_operlog existing
+    WHERE existing."route_owner" = 'core'
+      AND existing."route_method" = 'DELETE'
+      AND existing."route_path" = '/api/v1/file/{id}'
+      AND existing."oper_name" = 'user023'
+      AND existing."oper_time" = '2026-04-21 15:40:00'
 );

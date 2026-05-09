@@ -45,6 +45,10 @@ func BuildAuthorizedTableContract(
 	}
 
 	orderedFields := sortTableFields(tableFields)
+	identityColumns, err := listIdentityColumns(ctx, db, normalizedTable)
+	if err != nil {
+		return nil, err
+	}
 	var (
 		fields         = make([]*catalog.ResourceField, 0, len(orderedFields))
 		filters        = make([]*catalog.ResourceQuery, 0, len(orderedFields))
@@ -77,7 +81,7 @@ func BuildAuthorizedTableContract(
 		if orderByColumn == "" && strings.EqualFold(strings.TrimSpace(field.Key), "PRI") {
 			orderByColumn = columnName
 		}
-		if !isAutoManagedTableField(field) {
+		if !isAutoManagedTableField(field, identityColumns) {
 			writableFields = append(writableFields, fieldName)
 		}
 	}
@@ -145,12 +149,15 @@ func normalizeAuthorizedTableMethods(methods []string) []string {
 }
 
 // isAutoManagedTableField reports whether the host manages the field automatically.
-func isAutoManagedTableField(field *gdb.TableField) bool {
+func isAutoManagedTableField(field *gdb.TableField, identityColumns map[string]struct{}) bool {
 	if field == nil {
 		return true
 	}
 	name := strings.ToLower(strings.TrimSpace(field.Name))
 	extra := strings.ToLower(strings.TrimSpace(field.Extra))
+	if _, ok := identityColumns[name]; ok {
+		return true
+	}
 	if strings.EqualFold(strings.TrimSpace(field.Key), "PRI") && strings.Contains(extra, "auto_increment") {
 		return true
 	}
@@ -160,6 +167,43 @@ func isAutoManagedTableField(field *gdb.TableField) bool {
 	default:
 		return false
 	}
+}
+
+// listIdentityColumns returns PostgreSQL identity columns for table-backed
+// resource contracts. Other drivers either expose auto-increment through field
+// metadata or have no identity columns to hide from guest write contracts.
+func listIdentityColumns(ctx context.Context, db gdb.DB, table string) (map[string]struct{}, error) {
+	columns := make(map[string]struct{})
+	if db == nil || strings.TrimSpace(table) == "" {
+		return columns, nil
+	}
+	config := db.GetConfig()
+	if config == nil {
+		return columns, nil
+	}
+	dbType := strings.ToLower(strings.TrimSpace(config.Type))
+	if dbType != "pgsql" && dbType != "plugin-data-pgsql" {
+		return columns, nil
+	}
+	records, err := db.GetAll(
+		ctx,
+		`SELECT column_name FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = $1 AND is_identity = 'YES'`,
+		table,
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range records {
+		if record == nil {
+			continue
+		}
+		columnName := strings.ToLower(strings.TrimSpace(record["column_name"].String()))
+		if columnName != "" {
+			columns[columnName] = struct{}{}
+		}
+	}
+	return columns, nil
 }
 
 // buildTableFieldAlias converts snake_case columns into logical camelCase field names.

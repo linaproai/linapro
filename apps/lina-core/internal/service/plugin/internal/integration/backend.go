@@ -187,7 +187,7 @@ func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListIn
 
 	fields := make([]string, 0, len(resource.Fields))
 	for _, field := range resource.Fields {
-		fields = append(fields, fmt.Sprintf("%s AS %s", field.Column, field.Name))
+		fields = append(fields, fmt.Sprintf("%s AS %s", field.Column, quotePluginResourceAlias(field.Name)))
 	}
 	fieldArgs := make([]interface{}, 0, len(fields))
 	for _, field := range fields {
@@ -209,11 +209,32 @@ func (s *serviceImpl) ListResourceRecords(ctx context.Context, in ResourceListIn
 		recordMap := record.Map()
 		row := make(map[string]interface{}, len(resource.Fields))
 		for _, field := range resource.Fields {
-			row[field.Name] = normalizePluginResourceValue(recordMap[field.Name])
+			row[field.Name] = normalizePluginResourceValue(resolvePluginResourceRecordValue(recordMap, field))
 		}
 		items = append(items, row)
 	}
 	return &ResourceListOutput{List: items, Total: total}, nil
+}
+
+// quotePluginResourceAlias preserves logical camelCase aliases across database
+// engines that fold unquoted select aliases.
+func quotePluginResourceAlias(alias string) string {
+	return `"` + strings.ReplaceAll(alias, `"`, `""`) + `"`
+}
+
+// resolvePluginResourceRecordValue reads a projected row by logical alias first
+// and by physical column name as a fallback.
+func resolvePluginResourceRecordValue(recordMap map[string]interface{}, field *catalog.ResourceField) interface{} {
+	if recordMap == nil || field == nil {
+		return nil
+	}
+	if value, ok := recordMap[field.Name]; ok {
+		return value
+	}
+	if value, ok := recordMap[field.Column]; ok {
+		return value
+	}
+	return nil
 }
 
 // normalizePluginResourceValue converts GoFrame time values to JSON-safe strings.

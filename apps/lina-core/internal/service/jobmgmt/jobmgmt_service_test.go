@@ -38,8 +38,8 @@ func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
 		ctx       = context.Background()
 		svc       = newTestService(t)
 		defaultID = defaultGroupID(t, ctx)
-		groupID   uint64
-		jobID     uint64
+		groupID   int64
+		jobID     int64
 		groupCode = uniqueTestName("test-job-group")
 		groupName = uniqueTestName("测试任务分组")
 		jobName   = uniqueTestName("测试任务")
@@ -78,7 +78,7 @@ func TestDeleteGroupsMigratesJobsToDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected job fixture insert to succeed, got error: %v", err)
 	}
-	jobID = uint64(insertedJobID)
+	jobID = int64(insertedJobID)
 	t.Cleanup(func() { cleanupJobHard(t, ctx, jobID) })
 
 	if err = svc.DeleteGroups(ctx, gconv.String(groupID)); err != nil {
