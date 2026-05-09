@@ -64,7 +64,7 @@
 
 - [ ] 8.1 `service/tenant/`:`Service` 接口、`serviceImpl`,实现租户 CRUD、状态机迁移、code 唯一性校验、tombstone 30 天保留
 - [ ] 8.2 `service/membership/`:1:N 成员关系 CRUD、`tenant.cardinality=single` 校验、平台管理员不允许加 membership
-- [ ] 8.3 `service/resolver/`:实现 6 个 Resolver(override/header/subdomain/jwt/session/default),支持配置驱动的链
+- [ ] 8.3 `service/resolver/`:实现 6 个 Resolver(override/jwt/session/header/subdomain/default),支持配置驱动的链;正式 JWT 优先于 header/subdomain hint
 - [ ] 8.4 `service/lifecycle/`:发布 `tenant.created/suspended/resumed/archived/deleted` 事件,outbox 表写入与同步分发
 - [ ] 8.5 `service/provider/`:`tenantcap.Provider` 实现,聚合 tenant + membership service,在插件 enable 时调 `tenantcap.RegisterProvider`
 - [ ] 8.6 `service/lifecycleguard/`:实现 `CanUninstall`(active 租户存在则 false)、`CanDisable`、`CanTenantDelete`(订阅其他插件钩子聚合)
@@ -94,7 +94,7 @@
 
 ## 11. DAO 注入纪律落地
 
-- [ ] 11.1 在 `internal/service/user/` 改造所有读 `sys_user` 的 service 方法,经 `tenantcap.Apply`;写时填 TenantId
+- [ ] 11.1 在 `internal/service/user/` 改造用户 service:多租户启用时列表/详情以 membership join 作为可见性权威边界,`sys_user.tenant_id` 仅作为主租户/默认登录租户;写时填主租户并创建 membership
 - [ ] 11.2 在 `internal/service/role/` 改造所有读 `sys_role` 与 `sys_user_role`;角色查询联合考虑 `is_platform_role`
 - [ ] 11.3 在 `internal/service/menu/` 改造,菜单仍为平台全局,但解析时按 (tenant, plugin) 启用状态过滤插件菜单
 - [ ] 11.4 在 `internal/service/dict/` 改造为 `ReadWithPlatformFallback` 模式;写入按当前租户;`allow_tenant_override` 校验
@@ -233,8 +233,8 @@
 
 ## 24. E2E 测试 — 解析策略与登录流程
 
-- [ ] 24.1 TC0198 header 解析器:X-Tenant-Code 命中
-- [ ] 24.2 TC0199 subdomain 解析器:子域名命中 + 保留子域名忽略
+- [ ] 24.1 TC0198 header 解析器:登录前 X-Tenant-Code hint 命中,已登录业务请求不得覆盖 JWT TenantId
+- [ ] 24.2 TC0199 subdomain 解析器:登录前子域名 hint 命中 + 保留子域名忽略
 - [ ] 24.3 TC0200 jwt 解析器:Claims 命中
 - [ ] 24.4 TC0201 session 解析器:登录后挑选 + 持续命中
 - [ ] 24.5 TC0202 default 解析器 + ambiguous prompt 模式
@@ -279,3 +279,7 @@
 - [ ] 29.3 文档双语镜像同步(README、AGENTS、SKILL 等)
 - [ ] 29.4 `openspec validate multi-tenant --strict` 通过
 - [ ] 29.5 用户验收确认本迭代完成
+
+## Feedback
+
+- [x] **FB-1**: 固化多租户需求澄清:租户 code ASCII 约束、TenantId 优先级、平台 bypass/impersonation、暂停租户访问边界、tenant_scoped → global 强制启用、用户列表 membership 权威边界

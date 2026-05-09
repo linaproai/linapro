@@ -9,7 +9,7 @@
 - **AND** 插件无需手动加 tenant_id 参数
 
 ### Requirement: host service 拒绝跨租户调用
-插件传入的 ctx `TenantId` 与 host service 操作目标不一致时 SHALL 拒绝;只有具备 `platform:*` 权限的调用方可显式跨租户。
+插件传入的 ctx `TenantId` 与 host service 操作目标不一致时 SHALL 拒绝;只有管理平台模式(`TenantId=0`)且具备 `platform:*` 权限的调用方可通过显式 `PlatformXxx` host service 跨租户。impersonation 模式不允许全量跨租户 host service 调用。
 
 #### Scenario: 跨租户调用被拒
 - **WHEN** 插件在租户 A 上下文中调用 `hostsvc.User.GetById(ctx, userIdInTenantB)`

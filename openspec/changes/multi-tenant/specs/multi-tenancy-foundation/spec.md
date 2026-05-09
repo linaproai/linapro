@@ -14,7 +14,8 @@
 - **WHEN** `multi-tenant` 插件 enabled 并通过 `tenantcap.RegisterProvider` 注册了 Provider
 - **THEN** `tenantcap.Service.Enabled(ctx)` 返回 `true`
 - **AND** `tenantcap.Service.Apply(ctx, model, col)` 在非平台管理员上下文中追加 `WHERE col = current_tenant_id`
-- **AND** 平台管理员上下文(`PlatformBypass(ctx)=true`)下 `Apply` 不注入过滤
+- **AND** 平台管理员管理平台上下文(`TenantId=0` 且 `PlatformBypass(ctx)=true`)下 `Apply` 不注入过滤
+- **AND** 平台管理员 impersonation 某租户时不视为全量 bypass,仍追加目标租户过滤
 
 ### Requirement: bizctx 租户身份字段
 `bizctx.Context` SHALL 增加 `TenantId int` 字段,沿请求链路完整传递,所有依赖租户身份的代码路径必须从 `bizctx` 读取该值,禁止通过其他方式重新解析租户。
@@ -53,12 +54,10 @@
 #### Scenario: 写入数据的注入
 - **WHEN** service 调用 `dao.SysUser.Ctx(ctx).Data(do.SysUser{...}).Insert()`
 - **THEN** DO 字段必须填入 `TenantId = bizctx.TenantId(ctx)`
-- **AND** 平台管理员显式跨租户写时,必须调用专用 `WriteAsPlatform(ctx, do, target_tenant)` 方法,且记审计
+- **AND** 平台管理员跨租户写时,必须通过 impersonation 或专用平台 service/API 显式指定目标 `tenant_id`,且记审计
 
 ### Requirement: tenancy bypass 与平台管理员
-`tenantcap.Service.PlatformBypass(ctx)` SHALL 在以下情况返回 `true`,bypass 后查询不注入 `tenant_id` 过滤:
-1. 当前 `bizctx.UserId` 关联的角色中存在 `is_platform_role = true` 的角色,且 `bizctx.TenantId = 0`(管理平台模式)。
-2. 平台管理员显式 impersonation 某租户(`bizctx.TenantId > 0` 且 `bizctx.ActingAsTenant = true`),此时仍 bypass 但写入审计 `on_behalf_of_tenant_id`。
+`tenantcap.Service.PlatformBypass(ctx)` SHALL 仅在当前 `bizctx.UserId` 关联的角色中存在 `is_platform_role = true` 且 `bizctx.TenantId = 0`(管理平台模式)时返回 `true`,bypass 后查询不注入 `tenant_id` 过滤。平台管理员显式 impersonation 某租户(`bizctx.TenantId > 0` 且 `bizctx.ActingAsTenant = true`)时 SHALL 返回 `false`,查询/写入必须按目标租户过滤,仅在审计中记录 `on_behalf_of_tenant_id`。
 
 #### Scenario: 平台管理员管理平台
 - **WHEN** 平台管理员 `bizctx.TenantId = 0` 查询 `sys_user`
@@ -68,7 +67,8 @@
 #### Scenario: 平台管理员 impersonation 某租户
 - **WHEN** 平台管理员切换为"以租户 T 视角操作"
 - **THEN** `bizctx.TenantId = T`,`bizctx.ActingAsTenant = true`
-- **AND** 查询/写入按租户 T 视角执行
+- **AND** `PlatformBypass(ctx)=false`
+- **AND** 查询/写入按租户 T 视角执行并注入 `tenant_id = T`
 - **AND** 操作日志 `acting_user_id = 平台管理员 user_id`,`on_behalf_of_tenant_id = T`
 
 ### Requirement: 隔离模型配置占位

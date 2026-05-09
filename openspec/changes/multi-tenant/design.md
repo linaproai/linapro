@@ -40,7 +40,7 @@ stakeholders:
 
 ### 1. 隔离模型:Pool(单库 + tenant_id 列)
 
-**选择**:所有 `sys_*` 与 `plugin_*` 业务表加 `tenant_id INT NOT NULL DEFAULT 0`,索引升级为 `(tenant_id, ...)` 联合索引。
+**选择**:所有 `sys_*` 与 `plugin_*` 业务表加 `tenant_id INT NOT NULL DEFAULT 0`,索引升级为 `(tenant_id, ...)` 联合索引。`sys_user` 在 1:N 模式下以 membership 作为用户可见性权威边界,`sys_user.tenant_id` 仅表示主租户/默认登录租户。
 
 **理由**:
 - 与"插件主导"目标自洽(其他模式需要宿主级连接路由,无法插件化)。
@@ -93,9 +93,9 @@ plugin_multi_tenant_user_membership
 - impersonation 状态下,操作日志双轨记录:`acting_user_id=平台管理员` + `on_behalf_of_tenant_id=T`。
 
 **bypass 规则**:
-- 平台管理员 bypass `tenantcap.Apply`(读全租户)。
-- 平台管理员 bypass `datascope`(读全部门)。
-- 平台管理员的写操作必须显式指定 `tenant_id`(不允许"忘记选租户就写到 0")。
+- 仅管理平台模式(`bizctx.TenantId=0` 且持有平台角色)全量 bypass `tenantcap.Apply` 与 `datascope`。
+- 平台管理员 impersonation 某租户时(`bizctx.TenantId=T`,`bizctx.ActingAsTenant=true`)不全量 bypass,而是按租户 T 的普通租户视图注入过滤;区别仅体现在审计字段 `acting_user_id` / `on_behalf_of_tenant_id`。
+- 平台管理员跨租户读仅允许通过显式 `/platform/*` API;平台管理员跨租户写必须通过 impersonation 或专用平台 API,且必须显式指定目标 `tenant_id` 并记审计。
 
 **默认 admin 用户的迁移**:
 - `admin` 用户 → `tenant_id=0`,绑定新增的"平台超级管理员"角色(`is_platform_role=true`,permissions=`['*']`)。
@@ -105,18 +105,26 @@ plugin_multi_tenant_user_membership
 
 **选择**:`bizctx.Context` 增加 `TenantId int` 字段;新增 `tenancy` 中间件位于 `auth` 之后、业务处理之前。
 
-**解析责任链**(顺序由配置决定,默认 `[override, header, subdomain, jwt, session, default]`):
+**解析责任链**(顺序由配置决定,默认 `[override, jwt, session, header, subdomain, default]`):
 
 ```
 override     X-Tenant-Override (仅平台管理员)
-header       X-Tenant-Code
-subdomain    {code}.{root_domain}
 jwt          Claims.TenantId
 session      Session 中持久化的当前租户
+header       X-Tenant-Code(仅登录前/无正式 JWT 的请求作为租户 hint)
+subdomain    {code}.{root_domain}(仅登录前/无正式 JWT 的请求作为租户 hint)
 default      用户的主租户(tenant_id=0 或 membership 第一条)
 ```
 
 每个解析器实现独立接口 `tenancy.Resolver`,在 plugin 启动时注册到 `tenantcap.Service`。配置在 `config.yaml` 的 `tenant.resolution.*` 段,运行时优先读 `plugin_multi_tenant_resolver_config` 表(管理后台可改)。
+
+**TenantId 优先级固定策略**:
+- 平台管理员 `X-Tenant-Override` 最高优先级,但只允许平台管理员且必须进入 impersonation 审计语义。
+- 已签发正式 JWT 的业务请求以 `Claims.TenantId` 为权威租户身份;普通用户不得通过 `X-Tenant-Code`、子域名或 session 覆盖 JWT 中的租户。
+- session 仅作为服务端持续会话校验与无 JWT 内部链路的兜底,不得覆盖正式 JWT。
+- header/subdomain 只作为登录前或 `pre_token` 阶段的租户 hint,用于缩小候选租户或自动选择;如果与用户 membership 不匹配则拒绝。
+- default 只在没有 override、JWT、session、header/subdomain hint 时生效;在 1:N 且无主租户可判定时按 `on_ambiguous` 返回 `TENANT_REQUIRED`。
+- 切换租户必须调用 `/auth/switch-tenant` 重签 token 并撤销旧 token,禁止通过 header/subdomain 让旧 token 临时切到其他租户。
 
 **未识别请求行为**(`tenant.resolution.on_ambiguous`):
 - `prompt`(默认):返回 `TENANT_REQUIRED` 错误码,前端弹挑选器。
@@ -152,7 +160,7 @@ type Provider interface {
 - 凡读 `sys_*` 或 `plugin_*` 业务表的 host service,必须经 `tenantcap.Apply(ctx, model, "tenant_id")` 包装。
 - 与 `datascope.ApplyUserScope` 叠加时,先 tenantcap 后 datascope(租户隔离优先级最高)。
 - `Apply` 在 multi-tenant 未启用时是 no-op,启用后注入 `WHERE tenant_id = ?`。
-- 平台管理员上下文(`PlatformBypass(ctx) = true`)时跳过注入。
+- 平台管理员管理平台上下文(`TenantId=0` 且 `PlatformBypass(ctx) = true`)时跳过注入;平台管理员 impersonation 某租户时仍注入目标租户过滤。
 - 写操作:由 service 层在构造 DO 时填 `tenant_id = bizctx.TenantId`;平台管理员显式写时使用专用 service 方法(避免误写到 PLATFORM)。
 
 **理由**:
@@ -238,7 +246,7 @@ func IsEnabled(ctx, pluginID) bool {
 | 切换方向 | 是否允许 | 处理 |
 |----------|----------|------|
 | `global → tenant_scoped` | ✅ | 自动为所有 active 租户初始化 enabled=current global state |
-| `tenant_scoped → global` | ⚠️ | 二次确认 + 强制审计;立即对所有租户启用 |
+| `tenant_scoped → global` | ⚠️ | 仅平台管理员可执行;二次确认 + 强制审计;立即对所有租户强制启用 |
 | `scope_nature` 变更 | ❌ | 仅插件升级版本时随 manifest 变更,需迁移脚本 |
 
 **租户管理员可见的插件清单**:仅 `scope_nature=tenant_aware` 且 `install_mode=tenant_scoped` 的已安装插件。
@@ -340,7 +348,7 @@ default_for_new_tenants: true
 - 本地存储:文件路径前缀 `/storage/t/{tenant_id}/yyyy/mm/dd/...`,`tenant_id=0` 为平台共享。
 - 对象存储(若启用):object key 前缀 `t/{tenant_id}/...`。
 - 跨租户引用:不允许;若需共享(如平台 logo)显式写 `tenant_id=0`。
-- 文件读取接口:鉴权时校验文件 `tenant_id` 与 `bizctx.TenantId` 匹配,平台管理员 bypass。
+- 文件读取接口:鉴权时校验文件 `tenant_id` 与 `bizctx.TenantId` 匹配;平台管理员管理平台模式只能通过显式 `/platform/*` 只读接口跨租户访问,impersonation 时按目标租户校验。
 
 ### 13. 任务调度的租户感知
 
@@ -399,7 +407,7 @@ default_for_new_tenants: true
 | **`scope_nature` 误标注导致插件错位** | 安装期校验:platform_only 不允许 install_mode=tenant_scoped;租户管理员看不到 platform_only 插件即使 enabled;插件作者文档明确两值语义 |
 | **LifecycleGuard 钩子超时阻塞 UI** | 5s 钩子超时 + fail-safe(超时 = ok=false);并发执行所有钩子;UI 显示"插件 X 检查中..." |
 | **平台管理员 `--force` 滥用** | 强制审计 + 二次确认输入插件 ID + 配置开关可关;`monitor-operlog` 单独 action_kind 便于运维核对 |
-| **租户解析配置错误导致全站 401** | 配置变更前置校验(至少保留 default 解析器在链尾);后台改完后立即可视化测试一次解析(传入示例 request 看结果);failsafe:解析全失败时降级为 PLATFORM 而非 401(可配置) |
+| **租户解析配置错误导致全站 401** | 配置变更前置校验(至少保留 default 解析器在链尾);后台改完后立即可视化测试一次解析(传入示例 request 看结果);业务请求中的正式 JWT 始终优先于普通 hint,避免 header/subdomain 误覆盖已认证租户 |
 | **org-center 改造影响现有部门树用例** | mock 数据写入 PLATFORM(0),单租户场景下 dept 树行为与今天等价;e2e 既有用例保持通过 |
 | **租户暂停/删除时插件数据残留** | 通过 `CanTenantDelete` 钩子要求所有持有租户数据的插件参与确认;tenant.deleted 事件触发各插件级联清理;cleanup 失败需重试(幂等) |
 | **多租户性能下降(联合索引未命中)** | 所有原索引升级为 `(tenant_id, ...)`;用 PG `EXPLAIN` 验证关键查询;性能审计纳入 `lina-perf-audit` 后续轮次 |
@@ -425,10 +433,15 @@ default_for_new_tenants: true
 5. **代码部署**:`tenantcap` 与中间件等核心改动随版本一起上线。
 6. **回滚策略**:回退到上一个 git 标签 + 重新 `make init`(项目阶段允许重置数据库)。
 
-## Open Questions
+## Clarified Decisions
 
-- **租户编码(tenant code)的字符集与长度限制**:推荐 `[a-z0-9-]{2,32}`,排除保留子域名清单。是否允许 unicode 中文租户编码?(暂定不允许,UI 名称单独存)。
-- **平台管理员的 impersonation token 是否需要单独 audience**:推荐单独 audience `platform-impersonation`,与正常租户 token 区分;但本次先合并到一个 token,通过 `acting_user_id` 字段区分。
-- **租户级 i18n 自定义文案是否本次落地**:暂不;留 schema 扩展位 `plugin_multi_tenant_i18n_override` 不创建,等首个有此需求的项目再做。
-- **平台管理员是否应有"全平台聚合视图"页面**:本次提供"租户总览 + 用户聚合 + 操作日志全量"基础页面,深度看板留扩展。
-- **配额(quota)的强制时机**:本次仅建表,执行点为 0(默认无限制);具体 hook 由后续迭代定义。
+- **租户编码(tenant code)**:只允许 ASCII 小写字母、数字与连字符,格式固定为 `[a-z0-9-]{2,32}`;不允许中文或其他 Unicode 字符。中文、英文展示名称只写入 `name`。
+- **TenantId 优先级**:正式 JWT 是普通业务请求的权威租户身份;header/subdomain 仅是登录前 hint;切换租户必须通过 `/auth/switch-tenant` 重签。
+- **平台 bypass 与 impersonation**:只有 `TenantId=0` 管理平台模式全量 bypass;impersonation `TenantId=T` 按 T 过滤,仅审计标识平台管理员代操作。
+- **暂停租户边界**:租户成员不可读写;平台管理员可通过 `/platform/*` 执行只读排障与恢复操作。业务写入必须通过 impersonation 或专用平台 API。
+- **install_mode 切回 global**:平台管理员确认后强制所有租户启用该插件,并强审计。
+- **用户列表隔离边界**:1:N 模式下 membership 是租户可见性的权威边界;`sys_user.tenant_id` 仅表示主租户/默认登录租户,不能作为用户列表唯一过滤条件。
+- **平台管理员的 impersonation token audience**:本次不拆分单独 audience,仍使用正式 token 结构,通过 `is_impersonation`、`acting_user_id` 与审计字段区分。
+- **租户级 i18n 自定义文案**:本次不落地;留 schema 扩展位 `plugin_multi_tenant_i18n_override` 不创建。
+- **平台管理员全平台聚合视图**:本次提供"租户总览 + 用户聚合 + 操作日志全量"基础页面,深度看板留扩展。
+- **配额(quota)强制时机**:本次仅建表,执行点为 0(默认无限制);具体 hook 由后续迭代定义。

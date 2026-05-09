@@ -23,7 +23,7 @@
 - **THEN** operlog 写入 `(action_kind='lifecycle_guard', payload={plugin_id:'multi-tenant', hook:'CanUninstall', ok:false, reason:'tenants_exist'})`
 
 ### Requirement: 操作日志查询按租户隔离
-操作日志查询接口 SHALL 经 `tenantcap.Apply` 过滤;租户管理员仅可见 `tenant_id=current` 的日志;平台管理员可见全量,且 MUST 支持按 `acting_user_id`、`tenant_id`、`action_kind`、`is_impersonation` 等组合筛选。
+操作日志查询接口 SHALL 经 `tenantcap.Apply` 过滤;租户管理员仅可见 `tenant_id=current` 的日志。平台管理员仅通过 `/platform/oper-log` 管理平台接口查看全量,且 MUST 支持按 `acting_user_id`、`tenant_id`、`action_kind`、`is_impersonation` 等组合筛选;impersonation 模式下仍仅可见目标租户日志。
 
 #### Scenario: 平台运维视图
 - **WHEN** 平台管理员调查"上周谁用了 force"

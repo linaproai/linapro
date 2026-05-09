@@ -1,13 +1,18 @@
 ## ADDED Requirements
 
 ### Requirement: 租户主体表结构
-`multi-tenant` 插件 SHALL 维护 `plugin_multi_tenant_tenant` 表,字段至少包含 `id`(主键)、`code`(全局唯一,符合 `[a-z0-9-]{2,32}`)、`name`(显示名)、`status`(active/suspended/archived/deleted)、`plan`(套餐占位)、`created_at`、`updated_at`、`deleted_at`(软删除)。
+`multi-tenant` 插件 SHALL 维护 `plugin_multi_tenant_tenant` 表,字段至少包含 `id`(主键)、`code`(全局唯一,只允许 ASCII 小写字母/数字/连字符且符合 `[a-z0-9-]{2,32}`)、`name`(显示名,可包含中文或其他 Unicode 字符)、`status`(active/suspended/archived/deleted)、`plan`(套餐占位)、`created_at`、`updated_at`、`deleted_at`(软删除)。
 
 #### Scenario: 创建租户
 - **WHEN** 平台管理员调用 `POST /platform/tenants` 创建租户 `code=acme, name=ACME 集团`
-- **THEN** 系统校验 code 不在保留子域名列表,符合字符集与长度
+- **THEN** 系统校验 code 不在保留子域名列表,符合 ASCII 字符集与长度,且不允许中文或其他 Unicode 字符
 - **AND** 写入 `plugin_multi_tenant_tenant` 一行 status=active
 - **AND** 触发 `tenant.created` 事件
+
+#### Scenario: 中文租户编码被拒
+- **WHEN** 平台管理员尝试创建租户 `code=研发部, name=研发部`
+- **THEN** 返回 `bizerr.CodeTenantCodeInvalid`
+- **AND** 提示租户 code 只能使用 `[a-z0-9-]{2,32}`,显示名称可使用中文
 
 #### Scenario: 租户编码冲突
 - **WHEN** 创建租户 `code=acme` 时已存在同 code 租户
@@ -25,7 +30,8 @@
 - **WHEN** 平台管理员暂停租户 T
 - **THEN** T 的成员登录被拒绝(返回 `TENANT_SUSPENDED`)
 - **AND** T 的现有 token 立即作废
-- **AND** T 的数据保留,但应用层不可读不可写
+- **AND** T 的数据保留,租户成员不可读不可写
+- **AND** 平台管理员可通过 `/platform/*` 执行只读排障与恢复操作;业务写入必须通过 impersonation 或专用平台 API 并记录审计
 
 #### Scenario: 删除租户
 - **WHEN** 平台管理员删除已归档的租户 T

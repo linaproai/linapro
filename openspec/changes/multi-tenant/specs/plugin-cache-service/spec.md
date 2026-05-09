@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 插件缓存 key 默认携带租户维度
-插件通过 host service 调用的缓存读写接口 SHALL 默认在 cache key 上前缀 `tenant=<id>:`;插件可显式声明 `scope=platform` 来访问跨租户共享缓存(需平台管理员审计),但默认安全选项是租户维度。
+插件通过 host service 调用的缓存读写接口 SHALL 默认在 cache key 上前缀 `tenant=<id>:`;插件可在管理平台模式下显式声明 `scope=platform` 来访问跨租户共享缓存(需平台管理员权限与审计),但默认安全选项是租户维度。impersonation 模式仍使用目标租户维度缓存。
 
 #### Scenario: 默认租户维度
 - **WHEN** 插件调用 `cache.Set("foo", value)` 在租户 A 上下文

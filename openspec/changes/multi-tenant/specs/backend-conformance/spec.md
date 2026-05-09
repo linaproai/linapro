@@ -14,7 +14,7 @@
 #### Scenario: 显式 TenantId
 - **WHEN** service 调用 `dao.SysUser.Ctx(ctx).Data(do.SysUser{...}).Insert()`
 - **THEN** DO 字段 `TenantId` 必须明确填值
-- **AND** 跨租户写入需走专用 helper(`WriteAsPlatform(...)`)
+- **AND** 平台管理员跨租户写入需走 impersonation 或专用平台 API/service,显式指定目标租户并记录审计
 
 ### Requirement: 否决钩子 reason 走 i18n key
 插件实现 `LifecycleGuard.*` 接口时,reason 字符串 SHALL 是 i18n key,禁止硬编码中文/英文;插件需在自己的 `manifest/i18n/<locale>/plugin.json` 中维护翻译。

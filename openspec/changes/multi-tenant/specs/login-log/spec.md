@@ -16,7 +16,7 @@
 - **THEN** loginlog 记录 `(tenant_id=A, user_id=P, acting_user_id=P, on_behalf_of_tenant_id=A, is_impersonation=true)`
 
 ### Requirement: 登录日志查询按租户隔离
-登录日志查询接口 SHALL 经 `tenantcap.Apply` 过滤;租户管理员仅可见本租户的登录日志;平台管理员可见全量并支持按租户筛选。
+登录日志查询接口 SHALL 经 `tenantcap.Apply` 过滤;租户管理员仅可见本租户的登录日志。平台管理员仅通过 `/platform/login-log` 管理平台接口查看全量并支持按租户筛选;impersonation 模式下仍仅可见目标租户日志。
 
 #### Scenario: 跨租户日志不可见
 - **WHEN** 租户 A 管理员查询登录日志

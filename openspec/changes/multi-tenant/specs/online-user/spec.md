@@ -9,14 +9,14 @@
 - **AND** 两行互不干扰
 
 ### Requirement: 在线会话查询按租户过滤
-`GET /online/list` SHALL 经 `tenantcap.Apply` 过滤;租户管理员仅可见本租户在线会话,平台管理员可见全量(并标记 `tenant_id`)。
+`GET /online/list` SHALL 经 `tenantcap.Apply` 过滤;租户管理员仅可见本租户在线会话。平台管理员仅通过 `/platform/online/list` 管理平台接口查看全量会话并标记 `tenant_id`;impersonation 模式下仍仅可见目标租户会话。
 
 #### Scenario: 租户管理员视图
 - **WHEN** 租户 A 管理员查询在线列表
 - **THEN** 仅返回 `tenant_id=A` 的会话
 
 ### Requirement: 踢人接口按租户校验
-`POST /online/{token_id}/kick` SHALL 校验目标 session 的 `tenant_id` 与请求 `tenant_id` 匹配;不匹配返回 403,平台管理员 bypass。
+`POST /online/{token_id}/kick` SHALL 校验目标 session 的 `tenant_id` 与请求 `tenant_id` 匹配;不匹配返回 403。平台管理员踢除跨租户会话必须使用显式 `/platform/online/{tenant_id}/{token_id}/kick` 接口并记录审计;impersonation 模式不绕过目标租户校验。
 
 #### Scenario: 跨租户踢人被拒
 - **WHEN** 租户 A 管理员尝试踢租户 B 的会话

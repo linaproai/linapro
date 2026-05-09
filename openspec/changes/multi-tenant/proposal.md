@@ -7,13 +7,13 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 ## What Changes
 
 - **新增多租户能力接缝(host)**:在 `pkg/tenantcap` 与 `internal/service/tenantcap` 中建立稳定的 Provider 接缝,所有 `sys_*` DAO 必须经过 `tenantcap.Apply` 注入 `tenant_id` 过滤,与既有 `datascope` 叠加。
-- **新增 `multi-tenant` 源码插件**:owns 租户主表、用户-租户成员表、租户配置覆盖表;实现 `tenantcap.Provider`、解析责任链(override/header/subdomain/JWT/session/default)、租户生命周期事件(`tenant.created/suspended/deleted`)与平台/租户两级管理后台。
+- **新增 `multi-tenant` 源码插件**:owns 租户主表、用户-租户成员表、租户配置覆盖表;实现 `tenantcap.Provider`、解析责任链(override/JWT/session/header/subdomain/default)、租户生命周期事件(`tenant.created/suspended/deleted`)与平台/租户两级管理后台。
 - **改造 `org-center` 插件为租户感知**:dept/post/user 关联表加 `tenant_id`,DAO 接入租户过滤,监听租户生命周期事件以初始化默认部门树并清理租户数据。
 - **schema 全表加 `tenant_id` 列**:所有 `sys_*` 与现有插件 `plugin_*` 业务表新增 `tenant_id INT NOT NULL DEFAULT 0`(0 = PLATFORM),并将原索引升级为 `(tenant_id, ...)` 联合索引。
 - **bizctx 增加 `TenantId` 字段**:从中间件层注入,沿请求链路传递,所有日志、缓存、审计统一携带。
 - **JWT/会话 携带租户**:Claims 增加 `TenantId`,会话 store 主键变 `(tenant_id, token_id)`,登录后或切换租户时重签 token,旧 token 立即作废。
 - **角色与用户-角色关联租户化**:`sys_role` 增加 `tenant_id` 与 `is_platform_role`;`sys_user_role` 增加 `tenant_id`;权限/菜单解析按当前租户过滤。
-- **平台管理员 vs 租户管理员双角色模型**:平台管理员(`is_platform_role=true` 角色 + `tenant_id=0` 用户)可跨租户操作并 bypass `tenantcap`;租户管理员仅在自己租户内操作。
+- **平台管理员 vs 租户管理员双角色模型**:平台管理员(`is_platform_role=true` 角色 + `tenant_id=0` 用户)在管理平台模式(`TenantId=0`)可通过显式 `/platform/*` API 跨租户读并 bypass `tenantcap`;impersonation 某租户时按目标租户过滤,仅审计标记代操作;租户管理员仅在自己租户内操作。
 - **字典/配置 实现"平台默认 + 租户覆盖"**:`sys_dict_*` 与 `sys_config` 读路径走 `(tenant_id=current) → fallback (tenant_id=0)`;写路径默认写当前租户,平台管理员可显式写平台层。
 - **菜单保持平台全局**:`sys_menu` 不接入租户过滤;按租户隐藏功能通过"按租户启用插件"或角色分配实现。
 - **文件存储租户隔离**:本地与对象存储路径前缀按租户分隔(`/storage/t/{tenant_id}/...`)。
@@ -25,13 +25,14 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
   - 平台管理员负责安装/卸载并选择 `install_mode`;租户管理员对 `tenant_scoped` 插件负责启用/禁用。
   - `IsEnabled(ctx, pluginID)` 改造为租户感知。
 - **插件生命周期否决钩子(LifecycleGuard)**:新增 `CanUninstall` / `CanDisable` / `CanTenantDisable` / `CanTenantDelete` 接口族,插件自检卸载/禁用前置条件,宿主聚合多否决统一展示;支持平台管理员紧急 `--force` 通道并强制审计。
-- **租户解析中间件可配置**:责任链顺序、子域名根、保留子域名清单、未识别请求行为(`prompt`/`reject`/`first_owned`)在配置文件与平台管理后台中均可调整。
+- **租户解析中间件可配置**:责任链顺序、子域名根、保留子域名清单、未识别请求行为(`prompt`/`reject`/`first_owned`)在配置文件与平台管理后台中均可调整;正式 JWT 是普通业务请求的权威租户身份,header/subdomain 仅作为登录前 hint。
 - **审计日志全面租户化**:`monitor-operlog` 与 `monitor-loginlog` 表加 `tenant_id` 与 `acting_on_behalf_of_tenant_id`,平台管理员代为操作时双轨记录。
 - **i18n 资源治理**:运行时翻译缓存按 `(tenant, locale, scope)` 失效;所有新增否决理由、错误信息均通过 i18n key 维护。
 
 **重要边界**:
 - 隔离模型采用 Pool(单库 + tenant_id 列),配置项预留 `tenant.isolation.mode` 占位以便未来扩展。
 - 用户-租户关系采用 1:N membership 模型(全局身份 + 多租户绑定),配置项 `tenant.cardinality` 支持 `single`/`multi` 切换;首版默认 `multi`。
+- 租户 code 固定为 ASCII `[a-z0-9-]{2,32}`,不允许中文或其他 Unicode 字符;展示名 `name` 可本地化。
 - 默认登录解析策略为 `default`(从用户所属租户列表中挑选),所有解析器均通过配置启停。
 - 本次不实现"按租户启用插件 UI 的批量操作面板"高级形态(单租户管理员单租户内启用/禁用即可),但 schema 与接口预留扩展点。
 
@@ -40,7 +41,7 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 ### New Capabilities
 
 - `multi-tenancy-foundation`: 宿主侧多租户能力接缝(`tenantcap` 接口、Service、bizctx 集成、DAO 注入纪律、Pool 模型 schema 总则)。
-- `tenant-resolution`: 租户解析责任链(override/header/subdomain/JWT/session/default)、配置化策略与未识别请求行为。
+- `tenant-resolution`: 租户解析责任链(override/JWT/session/header/subdomain/default)、配置化策略与未识别请求行为。
 - `tenant-management`: 平台管理员侧的租户主体与生命周期(创建、暂停、归档、删除、配额占位)。
 - `tenant-membership`: 用户-租户 1:N 绑定模型(成员关系、租户内角色、状态、平台/租户管理员区分)。
 - `tenant-aware-authentication`: 多租户登录、租户选择、JWT 租户 claim、切换租户重签、平台管理员 impersonation。
@@ -76,7 +77,7 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 - `plugin-startup-bootstrap`: 启动期按 (plugin, tenant) 维度装配状态缓存与一致性校验。
 - `plugin-permission-governance`: 平台权限点与租户权限点分层语义;租户管理员仅见租户权限。
 - `plugin-cache-service`: 缓存 key 默认携带租户维度;失效广播按租户精细化。
-- `plugin-storage-service`: 文件存储路径按租户前缀;跨租户访问需平台 bypass。
+- `plugin-storage-service`: 文件存储路径按租户前缀;跨租户访问需显式平台 API 或 impersonation。
 - `plugin-host-service-extension`: 暴露给插件的 host service 自动透传 `bizctx.TenantId` 并校验租户可见性。
 - `core-host-boundary-governance`: 把"租户能力接缝"列为宿主稳定接缝之一(与 orgcap 并列)。
 - `module-decoupling`: 新增 multi-tenant 插件禁用/启用时的联动隐藏规范。

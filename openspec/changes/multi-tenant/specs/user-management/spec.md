@@ -18,12 +18,19 @@
 - **AND** U 仍可通过挑选器或 switch-tenant 进入 B 或 C
 
 ### Requirement: 用户查询按租户隔离
-`sys_user` 列表/详情查询 SHALL 经 `tenantcap.Apply(ctx, model, "tenant_id")` 过滤,租户 A 管理员仅可见 `tenant_id = A` 的用户;通过 1:N membership 加入租户 A 的用户也应在用户列表中可见(通过 join membership 表实现"在本租户活跃的用户")。
+多租户启用时,用户列表/详情查询 SHALL 以 `plugin_multi_tenant_user_membership` 作为租户可见性的权威边界;`sys_user.tenant_id` 仅表示主租户/默认登录租户,不得作为用户列表的唯一过滤条件。租户 A 管理员仅可见 `membership.tenant_id = A AND status = active` 的用户;平台管理员通过 `/platform/users` 查询全量。
 
 #### Scenario: 租户管理员查询用户列表
 - **WHEN** 租户 A 管理员调用 `GET /user/list`
-- **THEN** 返回:`sys_user.tenant_id = A` 的所有用户 ∪ `plugin_multi_tenant_user_membership.tenant_id = A AND status = active` 关联的所有用户
+- **THEN** 返回 `plugin_multi_tenant_user_membership.tenant_id = A AND status = active` 关联的所有用户
 - **AND** 不返回任何与租户 A 无关的用户
+
+#### Scenario: 主租户不同但 membership 命中
+- **WHEN** 用户 U 的 `sys_user.tenant_id = A`
+- **AND** U 同时拥有租户 B 的 active membership
+- **AND** 租户 B 管理员调用 `GET /user/list`
+- **THEN** 返回结果包含 U
+- **AND** U 在租户 B 内的角色、数据权限与状态均按 B 的 membership 与 `sys_user_role.tenant_id=B` 解析
 
 #### Scenario: 平台管理员查询全量用户
 - **WHEN** 平台管理员调用 `GET /platform/users`

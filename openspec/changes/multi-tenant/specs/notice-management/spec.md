@@ -21,7 +21,7 @@
 - **THEN** 该租户的通知走自己 SMTP,fallback 时才走平台默认
 
 ### Requirement: 通知投递日志按租户记录
-`sys_notify_delivery` SHALL 加 `tenant_id`;查询接口 MUST 按租户隔离,租户管理员仅可见本租户日志,平台管理员可见全量。
+`sys_notify_delivery` SHALL 加 `tenant_id`;查询接口 MUST 按租户隔离,租户管理员仅可见本租户日志。平台管理员仅通过 `/platform/notify/deliveries` 管理平台接口查看全量;impersonation 模式下仍仅可见目标租户投递日志。
 
 #### Scenario: 跨租户日志不可见
 - **WHEN** 租户 A 管理员查询投递日志

@@ -1,18 +1,23 @@
 ## ADDED Requirements
 
 ### Requirement: 租户解析责任链
-系统 SHALL 提供可配置的租户解析责任链,在每个 HTTP 请求进入业务处理前依次尝试 `[override, header, subdomain, jwt, session, default]` 解析器,首个返回非空 `TenantID` 的解析器胜出。
+系统 SHALL 提供可配置的租户解析责任链,在每个 HTTP 请求进入业务处理前依次尝试 `[override, jwt, session, header, subdomain, default]` 解析器,首个返回非空 `TenantID` 的解析器胜出。普通已认证业务请求中,JWT `TenantId` 是权威租户身份;`X-Tenant-Code` 与 subdomain 仅作为登录前或 `pre_token` 阶段的租户 hint,不得覆盖正式 JWT。
 
 #### Scenario: 默认解析顺序
 - **WHEN** 一个用户已登录的请求到达,JWT 中包含 `TenantId`
 - **AND** 请求头 `X-Tenant-Code` 也存在
-- **THEN** `header` 解析器先于 `jwt` 命中,采用 header 中的租户
-- **AND** JWT 中的租户与 header 不一致时,系统校验当前用户在 header 租户中存在 active membership;不满足则返回 `TENANT_FORBIDDEN`
+- **THEN** `jwt` 解析器先于 `header` 命中,采用 JWT 中的租户
+- **AND** 如果 `X-Tenant-Code` 与 JWT 租户不一致,系统忽略该 hint 并记录安全审计事件;普通用户不得用 header 临时切换租户
 
 #### Scenario: 配置的解析链可调整顺序
 - **WHEN** 平台管理员将解析链改为 `[override, jwt, default]`
 - **THEN** `header` 与 `subdomain` 解析器不参与解析
 - **AND** 仅 JWT claim 与默认解析器生效
+
+#### Scenario: 登录前 header hint
+- **WHEN** 未持正式 JWT 的登录请求携带 `X-Tenant-Code: acme`
+- **THEN** `header` 解析器可将 `acme` 作为租户 hint
+- **AND** 认证成功后仅当用户拥有 acme 的 active membership 时才允许自动选择或返回候选租户
 
 ### Requirement: override 解析器
 `override` 解析器 SHALL 解析 `X-Tenant-Override` 请求头,但仅当当前用户为平台管理员且具备 `platform:tenant:impersonate` 权限时生效;其他情况下 header 被忽略。
@@ -20,7 +25,8 @@
 #### Scenario: 平台管理员合法 impersonation
 - **WHEN** 平台管理员请求带 `X-Tenant-Override: acme`
 - **THEN** `bizctx.TenantId` 解析为 `acme.id`,`bizctx.ActingAsTenant = true`
-- **AND** 后续操作日志携带 `on_behalf_of_tenant_id = acme.id`
+- **AND** 后续查询与写入按租户 acme 的普通租户视图过滤
+- **AND** 操作日志携带 `acting_user_id = 平台管理员`,`on_behalf_of_tenant_id = acme.id`
 
 #### Scenario: 普通用户尝试 override
 - **WHEN** 普通用户(无 platform 权限)请求带 `X-Tenant-Override: acme`
@@ -41,7 +47,7 @@
 - **AND** 不影响 jwt/session 等后续解析
 
 ### Requirement: 未识别请求的处理策略
-当所有解析器均未返回有效 TenantID 时,系统 SHALL 按 `tenant.resolution.on_ambiguous` 配置处理:`prompt`(默认)返回 `TENANT_REQUIRED` 错误码;`reject` 返回 401;`first_owned` 自动选用户 membership 第一条。
+当所有解析器均未返回有效 TenantID 时,系统 SHALL 按 `tenant.resolution.on_ambiguous` 配置处理:`prompt`(默认)返回 `TENANT_REQUIRED` 错误码;`reject` 返回 401;`first_owned` 自动选用户 membership 第一条。该策略只适用于没有正式 JWT 租户身份的登录前、`pre_token` 或内部兜底链路;不得用于覆盖已认证业务请求中的 JWT `TenantId`。
 
 #### Scenario: prompt 模式下首次登录
 - **WHEN** 1:N 用户首次登录,未带任何租户 hint
@@ -67,9 +73,9 @@
 - **AND** 配置不变
 
 ### Requirement: 解析结果缓存与一致性
-解析器结果(子域名/header → TenantID 映射)SHALL 使用进程内 LRU 缓存(TTL 30s)+ 集群失效广播;租户编码变更或租户被删除时立即广播失效。
+解析器结果(子域名/header → TenantID 映射)SHALL 使用进程内 LRU 缓存(TTL 30s)+ 集群失效广播;租户被删除时立即广播失效。租户 code 一旦创建不可修改,因此不存在 code 变更导致的解析缓存重映射。
 
-#### Scenario: 租户编码变更触发失效
-- **WHEN** 平台管理员将租户 code 从 `acme` 改为 `acme-corp`
+#### Scenario: 租户删除触发失效
+- **WHEN** 平台管理员删除租户 `acme`
 - **THEN** 解析缓存全集群失效
-- **AND** 后续请求以 `acme-corp.app.com` 解析成功,以 `acme.app.com` 不再命中
+- **AND** 后续请求以 `acme.app.com` 不再命中有效 TenantID

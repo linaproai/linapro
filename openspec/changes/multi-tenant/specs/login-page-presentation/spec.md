@@ -3,7 +3,7 @@
 ### Requirement: 登录页按解析策略呈现
 登录页 SHALL 根据当前生效的解析策略呈现不同 UI:
 - subdomain 策略:不显示租户输入框(从 URL 自动解析)。
-- header 策略:显示租户编码输入框(将作为 X-Tenant-Code 发送)。
+- header 策略:显示租户编码输入框(将作为登录前 `X-Tenant-Code` hint 发送,不得覆盖已签发正式 JWT 的 `TenantId`)。
 - jwt/session/default 策略:不显示租户输入,凭 username/password 登录后由 select-tenant 决定。
 
 #### Scenario: subdomain 模式登录

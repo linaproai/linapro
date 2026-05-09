@@ -136,7 +136,7 @@
 - [x] 11.2 修改 GitHub Actions 工作流：参考 `/Users/john/Workspace/github/gogf/gf/.github/workflows/ci-main.yml:113`，使用 job `services.postgres` 声明 `postgres:14-alpine` service container、环境变量、端口和 `pg_isready` healthcheck；CI 不使用 docker-compose 启动 PostgreSQL
 - [x] 11.3 确认应用容器或本地开发路径不隐式管理数据库；如仓库维护 compose 文件，再按需配置 `depends_on` 和数据卷用于本地开发
 - [x] 11.4 检查 `apps/lina-core/Dockerfile`：如有 mysql 客户端工具依赖，移除；不需打包 PG 客户端
-- [ ] 11.5 调整 `make image` 流程，确认镜像构建仍然成功;镜像不内置数据库（外部依赖）
+- [x] 11.5 调整 `make image` 流程，确认镜像构建仍然成功;镜像不内置数据库（外部依赖）
 - [x] 11.6 保持 `make dev` 只编译并启动前后端，不自动启动或管理数据库；在 README 显式说明运行 `make init` / `make dev` 前需要由开发者或 CI 准备 PG（本地可用 `docker run` 或仓库已有 compose 文件，CI 使用 `services.postgres`）
 - [x] 11.7 调整 `make init` 命令的连接错误提示：当 `pgsql` link 连接失败时，提示运维人员"PG 未就绪，请先启动 PostgreSQL 服务"，并给出本地启动示例
 
@@ -160,18 +160,18 @@
 - [x] 13.2 集成测试 1：在 PG 数据库上 `make init confirm=init` + `make mock confirm=mock`，启动宿主，验证管理员登录、菜单加载、字典查询、用户列表、定时任务列表、分布式锁加锁/释放、KV cache 读写均正常
 - [x] 13.2.1 在 PG 数据库上重复执行 `make init confirm=init` 与 `make mock confirm=mock`，断言 host seed/mock 关键表行数和业务状态不变，尤其覆盖新增业务唯一约束触发的 `ON CONFLICT DO NOTHING` 幂等插入
 - [x] 13.3 集成测试 2：在 PG 数据库上 `make init confirm=init rebuild=true`，验证已存在的 PG 数据库被正确 DROP/CREATE，且 `pg_terminate_backend` 终止活跃连接成功
-- [x] 13.4 集成测试 3：切换到 SQLite link 跑 `make init confirm=init`，验证 SQLite 翻译器把 PG 源 SQL 转译后逐句成功执行；启动宿主跑核心功能 smoke
-- [x] 13.4.1 在 SQLite link 上重复执行 host init/mock 与插件 install/mock SQL，断言关键表行数和业务状态不变
-- [x] 13.5 E2E 用例（lina-e2e 技能新建，TC ID 按 lina-e2e 规范分配）：登录 / 字典管理 / 配置管理（含保留字列读写）/ 定时任务 / 分布式锁 / 文件上传下载 / 插件安装卸载 / 监控指标 完整业务流，全部在 PG 模式下跑通
+- [x] 13.4 集成测试 3：切换到 SQLite link 跑 `make init confirm=init`，验证 SQLite 翻译器把 PG 源 SQL 转译后逐句成功执行；启动宿主跑核心功能 smoke；SQLite 专用 E2E 映射 `TC0164` 启动/健康/管理员登录、`TC0165` 用户 CRUD/执行日志/源码插件生命周期/监控数据库版本、`TC0166` rebuild/reseed 后 seed/mock 数据可查询
+- [x] 13.4.1 在 SQLite link 上重复执行 host init/mock 与插件 install/mock SQL，断言关键表行数和业务状态不变；默认 PostgreSQL E2E 通道中 SQLite 专用用例按环境门控跳过，完整 SQLite 通道使用 `pnpm test:sqlite`
+- [x] 13.5 E2E 用例（lina-e2e 技能新建，TC ID 按 lina-e2e 规范分配）：登录 / 字典管理 / 配置管理（含保留字列读写）/ 定时任务 / 分布式锁 / 文件上传下载 / 插件安装卸载 / 监控指标 完整业务流，全部在 PG 模式下跑通；`TC0177` 覆盖 i18n 语言切换后已打开 tab 标题联动重本地化
 - [x] 13.6 E2E/集成用例：宿主启动 + 重启场景，验证 `sys_online_session`、`sys_locker`、`sys_kv_cache` 三张易失性表在重启后不会被清空，未过期记录继续可用，过期记录按业务规则失效
 - [x] 13.7 新增多进程集群模拟测试，并纳入 GitHub Actions：至少启动两个宿主进程共用 PG，验证 leader 选举、leader 切换、节点重启、主节点专属任务、缓存修订号/广播协调、分布式锁和会话/缓存自然过期行为；已补充 `TestClusterTwoHostProcessesSharePostgreSQL` 启动两个独立宿主进程、使用 `LINAPRO_NODE_ID` 区分节点、共享同一 PostgreSQL 数据库，覆盖单主健康模式、leader 停止后的接任，以及 `sys_online_session`、`sys_locker`、`sys_kv_cache` 启动不清空
 - [x] 13.8 新增 SQL 幂等性检查测试或脚本：扫描 `ON CONFLICT DO NOTHING` 语句并确认声明幂等的目标表存在覆盖稳定业务键的 `PRIMARY KEY` / `UNIQUE` 约束；对日志/历史/监控类 mock 表确认已记录业务评估策略并使用精确存在性判断保持重复加载结果一致；任何无冲突依据但声称幂等的裸 `ON CONFLICT DO NOTHING` 均视为失败；文本业务键唯一约束使用 PostgreSQL 默认大小写敏感语义
 - [x] 13.8.1 新增默认 collation 验证：在 PG 上验证用户名等文本业务键仅大小写不同会被唯一索引视为不同值；在 SQLite 翻译路径验证对应列不追加 `COLLATE NOCASE`
-- [x] 13.9 单元测试 / 集成测试 / E2E 全部通过；任何失败必须修复后再标记任务完成。Docker 镜像真实打包和全新 clone README 流程因本机 Docker daemon 无响应仍作为 11.5 / 14.1 环境阻塞项保留未完成，不计入本项的代码与功能测试完成口径
+- [x] 13.9 单元测试 / 集成测试 / E2E 全部通过；任何失败必须修复后再标记任务完成。Docker 镜像真实打包和全新 clone README 流程已在 Docker daemon 恢复后补充验证通过
 
 ## 14. 手动验证清单（实施完成前必跑）
 
-- [ ] 14.1 全新 clone 项目，按 README 步骤启动本地 PostgreSQL（`docker run` 或仓库已有 compose 文件）→ `make init confirm=init` → `make mock confirm=mock` → `make dev`，验证一键启动成功
+- [x] 14.1 全新 clone 项目，按 README 步骤启动本地 PostgreSQL（`docker run` 或仓库已有 compose 文件）→ `make init confirm=init` → `make mock confirm=mock` → `make dev`，验证一键启动成功
 - [x] 14.2 浏览器访问 http://localhost:5666，使用 admin/admin123 登录成功
 - [x] 14.3 用户管理：列表加载、新建用户、编辑、禁用/启用、删除（含数据权限校验）
 - [x] 14.4 角色管理：列表、菜单分配、用户授权
@@ -193,8 +193,6 @@
 - [x] 15.3 检查所有改动涉及的双语 README 内容一致（项目根 + apps/lina-core）
 - [x] 15.4 运行 `openspec validate switch-default-database-to-postgres` 通过验证
 - [x] 15.5 调用 `/lina-review` 技能进行全面变更审查（CLAUDE.md 要求 archive 前必须做）
-- [ ] 15.6 审查通过后，准备 git commit；commit 不在本变更任务清单内，遵循用户指令明确触发后再执行
-- [ ] 15.7 准备 archive：调用 `/opsx:archive` 触发归档流程；归档前再次调用 `/lina-review`
 
 ## 16. 风险监控点（实施过程中持续关注）
 
@@ -211,12 +209,18 @@
 - 2026-05-09: PostgreSQL local verification used Postgres.app PG 18 on `127.0.0.1:55432` with link `pgsql:postgres:postgres@tcp(127.0.0.1:55432)/linapro?sslmode=disable`. This intentionally differs from README's default Docker `5432` port because Docker Desktop is not responsive in this environment.
 - PG 14 coverage is wired into `.github/workflows/reusable-backend-unit-tests.yml` through `services.postgres` using `postgres:14-alpine` and `LINA_TEST_PGSQL_LINK=pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable`; the current workstation only has Postgres.app 18 available, so local execution evidence remains PG18 while CI covers the PG14 minimum.
 - Spike coverage is now captured in `apps/lina-core/pkg/dialect/internal/postgres/dialect_integration_test.go` and `prepare_test.go`: driver connectivity, `SELECT version()`、reserved `key`/`value` ORM access、identity `LastInsertId`、default collation case-distinct business keys、metadata lookup、and `PrepareDatabase(rebuild=true)` active-connection termination all pass when `LINA_TEST_PGSQL_LINK` is provided.
-- Full backend unit tests passed with `cd apps/lina-core && GF_GCFG_PATH="$PWD/../../temp/test-config" go test -count=1 ./...`.
+- Full backend unit tests passed with `cd apps/lina-core && GF_GCFG_PATH="$PWD/../../temp/test-config" go test -count=1 ./...`; the final 2026-05-09 rerun also passed after the earlier plugin menu uninstall failure was confirmed non-reproducible in an isolated rerun.
 - PostgreSQL multi-process cluster integration passed with `cd apps/lina-core && LINA_TEST_PGSQL_LINK='pgsql:postgres:postgres@tcp(127.0.0.1:55432)/linapro?sslmode=disable' go test -run TestClusterTwoHostProcessesSharePostgreSQL -count=1 ./internal/service/cluster -v`.
 - A real multi-process startup race was found and fixed: concurrent source-plugin release metadata sync now treats PostgreSQL unique-key conflicts on `sys_plugin_release(plugin_id, release_version)` as a reread/update path instead of a startup-fatal insert error.
-- Full E2E passed with `cd hack/tests && E2E_DB_PORT=55432 E2E_BROWSER_CHANNEL=chrome pnpm test`: 363 passed, 7 skipped. Skips are environment-gated SQLite/demo-control cases, not PostgreSQL failures.
+- Full PostgreSQL E2E passed with `cd hack/tests && E2E_DB_PORT=55432 E2E_BROWSER_CHANNEL=chrome pnpm test`: parallel phase `110 passed, 2 skipped`, serial phase `364 passed, 7 skipped` (474 passed, 9 skipped total). Skips are environment-gated SQLite/demo-control cases, not PostgreSQL failures.
+- SQLite dedicated E2E passed with `cd hack/tests && E2E_BROWSER_CHANNEL=chrome pnpm test:sqlite`: 3 passed (`TC0164`, `TC0165`, `TC0166`).
+- Frontend typecheck passed with `cd apps/lina-vben && pnpm -F @lina/web-antd run typecheck`.
+- E2E structure validation passed with `cd hack/tests && pnpm test:validate`: 164 E2E test files across 29 scopes validated.
+- Final OpenSpec and whitespace checks passed with `openspec validate switch-default-database-to-postgres` and `git diff --check`.
+- `TC0165` was made self-contained by preserving and restoring the original installed/enabled state for `plugin-demo-source`; this is E2E cleanup only. It does not change backend API behavior, runtime i18n resources, cache invalidation/consistency behavior, or role data-permission behavior.
 - Final regression verification after review fixes passed: `cd apps/lina-core && GF_GCFG_PATH="$PWD/../../temp/test-config" go test -count=1 ./...`; PostgreSQL integration subset `LINA_TEST_PGSQL_LINK='pgsql:postgres:postgres@tcp(127.0.0.1:55432)/linapro?sslmode=disable' GF_GCFG_PATH="$PWD/../../temp/test-config" go test -count=1 ./internal/service/cluster ./internal/service/plugin/internal/catalog ./pkg/dialect/internal/postgres`; and race-focused subset `go test -race -run 'TestClusterTwoHostProcessesSharePostgreSQL|TestService_Lock_ConcurrentFreshLockRace|TestPrepareDatabaseRebuildWithPostgreSQL' -count=1 ./internal/service/cluster ./internal/service/locker ./pkg/dialect/internal/postgres`.
-- `make image-build tag=postgres-validation` passed and staged image artifacts under `temp/image`; `make image tag=postgres-validation` reached `docker build` but Docker Desktop/CLI did not complete. `docker version` also hung after printing client metadata, so image Docker packaging remains environment-blocked while build artifacts are verified.
+- Docker image packaging passed after Docker Desktop recovered: `make image tag=postgres-validation-final` rebuilt frontend/backend artifacts and completed real Docker build for `linapro:postgres-validation-final`; `docker image inspect linapro:postgres-validation-final` returned `linux/arm64` image `sha256:08cbbc5aa3f51c0d613df31e86fce79b2220b490554e63b1b1bff2b4e17aa45d`; container inspection confirmed no `postgres` or `psql` binaries are present and `/app/config.yaml` points to the external PostgreSQL link `127.0.0.1:5432`.
+- Fresh clone README PostgreSQL flow passed at `/Users/john/Workspace/github/linaproai/linapro-14-1-fresh` on `feat/pgsql` commit `61a28b86c7b053245d7f303cb7ca99ad4dae9f59`: a `postgres:14-alpine` container was started as `linapro-postgres-141` with host port `15433` because local `5432` was occupied, the clone-local `database.default.link` was updated according to README guidance, `docker exec linapro-postgres-141 pg_isready -U postgres -d linapro` passed, `corepack enable`, `pnpm install`, `make init confirm=init`, `make mock confirm=mock`, and `make dev` all passed, and `E2E_BROWSER_CHANNEL=chrome pnpm exec playwright test e2e/auth/TC0001-login-success.ts e2e/auth/TC0147-health-endpoint-anonymous-access.ts --workers=1` passed with 3 tests. The temporary PG container and dev services were stopped after verification.
 - Archive MySQL references were reviewed with `rg -n "MySQL|mysql" openspec/changes/archive`. They are historical decisions/specs from archived changes; this active change supersedes them, and no targeted archive note is needed before this change itself is archived.
 - FB-11 verification passed after quoting all SQL field identifiers: `cd apps/lina-core && go test -count=1 ./pkg/dialect`; PostgreSQL asset smoke `LINA_TEST_PGSQL_LINK='pgsql:postgres:postgres@tcp(127.0.0.1:55432)/linapro?sslmode=disable' go test -run TestPostgreSQLProjectSQLAssetsSmoke -count=1 ./pkg/dialect -v`; host bootstrap `make init confirm=init rebuild=true`; host mock load `make mock confirm=mock`; and `openspec validate switch-default-database-to-postgres`.
 - FB-12 verification passed after updating `lina-review` SQL review rules: `openspec validate switch-default-database-to-postgres`; manual review confirmed the skill now checks PostgreSQL double-quoted field identifiers and no longer lists `INSERT IGNORE` as a compliant idempotency pattern.

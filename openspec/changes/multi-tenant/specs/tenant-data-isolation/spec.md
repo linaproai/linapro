@@ -14,17 +14,22 @@
 - **AND** 所有租户都可读
 
 ### Requirement: 文件读取的租户校验
-文件下载/预览接口 SHALL 校验请求 `bizctx.TenantId` 与 `sys_file.tenant_id` 匹配;不匹配时返回 403,平台管理员 bypass。
+文件下载/预览接口 SHALL 校验请求 `bizctx.TenantId` 与 `sys_file.tenant_id` 匹配;不匹配时返回 403。平台管理员管理平台模式(`TenantId=0`)只能通过显式 `/platform/*` 只读接口跨租户访问文件;impersonation 模式按目标租户执行同样的租户匹配校验。
 
 #### Scenario: 跨租户文件访问被拒
 - **WHEN** 租户 B 用户尝试下载租户 A 的文件
 - **THEN** 返回 403 `bizerr.CodeFileTenantForbidden`
 - **AND** 不返回文件内容
 
-#### Scenario: 平台管理员跨租户访问
-- **WHEN** 平台管理员请求租户 A 的文件
-- **THEN** 校验通过,返回文件内容
-- **AND** 操作日志记录跨租户访问事件
+#### Scenario: 平台管理员跨租户只读访问
+- **WHEN** 平台管理员在管理平台模式下通过 `/platform/files/{id}` 请求租户 A 的文件
+- **THEN** 校验平台权限后返回文件内容
+- **AND** 操作日志记录跨租户只读访问事件
+
+#### Scenario: impersonation 文件访问
+- **WHEN** 平台管理员以 impersonation 租户 A 的 token 请求租户 B 的文件
+- **THEN** 返回 403 `bizerr.CodeFileTenantForbidden`
+- **AND** 不因平台管理员身份绕过目标租户过滤
 
 ### Requirement: 缓存 key 必须携带租户维度
 所有运行时缓存的 key SHALL 在租户敏感场景中携带 `tenant_id` 维度;cache key 构造统一通过 helper `CacheKey(tenant, scope, key)`,禁止散点拼接。
@@ -68,11 +73,11 @@
 - **AND** 租户管理员查看此日志时附带"平台管理员代操作"标记
 
 ### Requirement: 跨租户操作必须显式
-任何"跨租户读取/写入"路径 SHALL 仅供平台管理员使用,且必须经过显式 API(以 `/platform/*` 前缀)或 impersonation 模式;严禁在普通业务 API 中存在隐式跨租户访问。
+任何"跨租户读取/写入"路径 SHALL 仅供平台管理员使用,且必须经过显式 API(以 `/platform/*` 前缀)或专用平台 service;严禁在普通业务 API 中存在隐式跨租户访问。平台管理员 impersonation 某租户不属于全量跨租户 bypass,而是按目标租户普通视图过滤。
 
 #### Scenario: 普通业务 API 不允许跨租户
 - **WHEN** 任何 `/api/*` 业务接口尝试跨租户查询
-- **THEN** 必须经过 `tenantcap.PlatformBypass(ctx)` 校验
+- **THEN** 必须经过显式 `/platform/*` API 或专用平台 service
 - **AND** 校验失败时返回 `bizerr.CodeCrossTenantNotAllowed`
 
 ### Requirement: 业务表的隔离测试覆盖

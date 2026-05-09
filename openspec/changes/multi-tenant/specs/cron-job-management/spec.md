@@ -20,14 +20,14 @@
 - **AND** handler 中所有 DAO 读取自动按 A 过滤
 
 ### Requirement: 任务查询/创建/修改按租户隔离
-租户管理员 SHALL 仅可见/改本租户任务,且 MUST NOT 创建 `tenant_id=0` 的平台任务;平台管理员可创建任意。
+租户管理员 SHALL 仅可见/改本租户任务,且 MUST NOT 创建 `tenant_id=0` 的平台任务;平台管理员创建或修改跨租户/平台任务必须通过 `/platform/jobs/*` 管理平台接口。
 
 #### Scenario: 租户尝试创建平台任务
 - **WHEN** 租户管理员请求中显式 `tenant_id=0`
 - **THEN** 返回 `bizerr.CodeJobTenantForbidden`
 
 ### Requirement: 任务日志按租户隔离查询
-`sys_job_log` 查询 SHALL 按租户过滤;租户内可见自己任务的执行日志;平台管理员可见全量。
+`sys_job_log` 查询 SHALL 按租户过滤;租户内可见自己任务的执行日志。平台管理员仅通过 `/platform/job-logs` 管理平台接口查看全量;impersonation 模式下仍仅可见目标租户任务日志。
 
 #### Scenario: 任务日志隔离
 - **WHEN** 租户 A 管理员查询 `daily-report` 执行历史
