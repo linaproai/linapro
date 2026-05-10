@@ -37,6 +37,7 @@ param(
     [string]$BinaryName,
     [string]$Config,
     [switch]$VerboseOutput,
+    [switch]$Background,
 
     [string]$Confirm,
     [string]$Rebuild,
@@ -370,10 +371,12 @@ function Invoke-Dev {
     finally { Pop-Location }
     Write-Success 'Backend built'
 
+    $procStyle = if ($Background) { @{ WindowStyle = 'Hidden' } } else { @{ NoNewWindow = $true } }
+
     Write-Step 'Starting backend...'
     $backendProc = Start-Process -FilePath $backendBinary `
         -WorkingDirectory $Script:BackendDir `
-        -NoNewWindow `
+        @procStyle `
         -RedirectStandardOutput $Script:BackendLog `
         -RedirectStandardError (Join-Path $Script:TempDir 'lina-core.err.log') `
         -PassThru
@@ -386,7 +389,7 @@ function Invoke-Dev {
     $frontendProc = Start-Process -FilePath 'cmd' `
         -ArgumentList @('/c', $viteArgs) `
         -WorkingDirectory $frontendWorkDir `
-        -NoNewWindow `
+        @procStyle `
         -RedirectStandardOutput $Script:FrontendLog `
         -RedirectStandardError (Join-Path $Script:TempDir 'lina-vben.err.log') `
         -PassThru
@@ -397,6 +400,21 @@ function Invoke-Dev {
     Wait-HttpReady 'Frontend' $Script:FrontendPidFile "http://127.0.0.1:$($Script:FrontendPort)/" 60 $Script:FrontendLog
 
     Invoke-Status
+
+    if ($Background) {
+        Write-Info 'Services running in background. Close this terminal safely. Use stop to shut down.'
+    }
+    else {
+        Write-Host ''
+        Write-Host 'Services running. Press Ctrl+C to stop all services.' -ForegroundColor Cyan
+        try {
+            while ($true) { Start-Sleep -Seconds 1 }
+        }
+        finally {
+            Write-Host ''
+            Invoke-Stop
+        }
+    }
 }
 
 # ============================================================
@@ -1008,6 +1026,7 @@ function Invoke-Help {
     Write-Host ''
     Write-Host 'Development Commands:' -ForegroundColor Cyan
     Write-Host '  dev                 Start full-stack dev server'
+    Write-Host '                      Use -Background to detach from terminal'
     Write-Host '  stop                Stop all running dev services'
     Write-Host '  status              Show backend/frontend runtime status'
     Write-Host ''
