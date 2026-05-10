@@ -3,10 +3,12 @@ import { defineConfig } from '@playwright/test';
 const browserChannel = process.env.E2E_BROWSER_CHANNEL?.trim() || undefined;
 
 export default defineConfig({
+  // The suite root is the repository root so Playwright can execute host tests
+  // and source-plugin-owned tests under apps/lina-plugins/<plugin-id>/e2e.
   testDir: '../..',
   testMatch: [
-    /hack[\\/]tests[\\/]e2e[\\/].*TC\d{4}.*\.ts$/,
-    /apps[\\/]lina-plugins[\\/][^\\/]+[\\/]e2e[\\/].*TC\d{4}.*\.ts$/,
+    /hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
+    /apps[\\/]lina-plugins[\\/][^\\/]+[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
   ],
   fullyParallel: false,
   globalSetup: './global-setup.ts',

@@ -80,7 +80,7 @@ openspec list --json
 # 查找最大 TC ID 用于测试规划，包含宿主、源码插件和 OpenSpec 任务记录中的预留编号
 {
   find hack/tests/e2e -type f -name 'TC*.ts'
-  find apps/lina-plugins -type f -path '*/e2e/TC*.ts'
+  find apps/lina-plugins -type f -path '*/e2e/*' -name 'TC*.ts'
   rg -No 'TC[0-9]{4}' openspec/changes -g 'tasks.md'
 } | rg -No 'TC[0-9]{4}' | sort -u | tail -1
 ```

@@ -103,10 +103,11 @@ if (mode === 'full') {
     );
     process.exit(1);
   }
-  if (resolveEntries(entries).length === 0 && scope !== pluginTestEntry) {
-    const pluginHint = listTcFiles(`plugins/${scope.replace(/^plugin:/u, '')}`).length === 0;
+  const resolvedEntries = resolveEntries(entries);
+  const isPluginScope = /^plugin:[^:]+$/u.test(scope);
+  if (resolvedEntries.length === 0 && scope !== pluginTestEntry) {
     console.error(`Module scope has no matching test files: ${scope}`);
-    if (/^plugin:/u.test(scope) && pluginHint) {
+    if (isPluginScope) {
       console.error('Expected plugin-owned tests under apps/lina-plugins/<plugin-id>/e2e/.');
     }
     process.exit(1);

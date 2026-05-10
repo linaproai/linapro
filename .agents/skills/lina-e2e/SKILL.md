@@ -97,7 +97,7 @@ TC{NNNN}-{brief-name}.ts
    ```bash
    {
      find hack/tests/e2e -type f -name 'TC*.ts'
-     find apps/lina-plugins -type f -path '*/e2e/TC*.ts'
+     find apps/lina-plugins -type f -path '*/e2e/*' -name 'TC*.ts'
      rg -No 'TC[0-9]{4}' openspec/changes -g 'tasks.md'
    } | rg -No 'TC[0-9]{4}' | sort -u | tail -1
    ```

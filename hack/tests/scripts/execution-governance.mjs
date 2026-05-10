@@ -175,12 +175,19 @@ export function playwrightFileArg(relativePath) {
   return relativePath;
 }
 
-// listPluginTcFiles lists all source-plugin-owned E2E TC files.
-export function listPluginTcFiles() {
+// listPluginE2EFiles lists every file under source-plugin-owned E2E
+// directories so the validator can reject misplaced helpers or bad names.
+export function listPluginE2EFiles() {
   return listPluginE2EDirs()
     .flatMap((directory) => walk(directory))
-    .filter((item) => isPluginTcFile(pluginTestRelativePath(item)))
     .map(pluginTestRelativePath)
+    .sort();
+}
+
+// listPluginTcFiles lists all source-plugin-owned E2E TC files.
+export function listPluginTcFiles() {
+  return listPluginE2EFiles()
+    .filter(isPluginTcFile)
     .sort();
 }
 
@@ -245,12 +252,12 @@ export function isTcFile(relativePath) {
 
 // isHostTcFile reports whether a path is a host-owned E2E TC file.
 export function isHostTcFile(relativePath) {
-  return /^e2e\/.*\/TC\d{4}.*\.ts$/u.test(relativePath) || /^e2e\/TC\d{4}.*\.ts$/u.test(relativePath);
+  return /^e2e\/(?:.*\/)?TC\d{4}-[^/.]+\.ts$/u.test(relativePath);
 }
 
 // isPluginTcFile reports whether a path is a source-plugin-owned E2E TC file.
 export function isPluginTcFile(relativePath) {
-  return /^apps\/lina-plugins\/[^/]+\/e2e\/(?:.*\/)?TC\d{4}[-][^.]+\.ts$/u.test(relativePath);
+  return /^apps\/lina-plugins\/[^/]+\/e2e\/(?:.*\/)?TC\d{4}-[^/.]+\.ts$/u.test(relativePath);
 }
 
 export function unique(values) {

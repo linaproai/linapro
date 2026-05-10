@@ -11,7 +11,7 @@ import {
   isHostTcFile,
   isPluginTcFile,
   knownIsolationCategorySet,
-  listPluginTcFiles,
+  listPluginE2EFiles,
   listTcFiles,
   loadManifest,
   pluginTestEntry,
@@ -85,7 +85,7 @@ function validateReason(reason, ownerLabel) {
 
 const allFiles = [
   ...walk(e2eDir).map((item) => toPosix(path.relative(testsDir, item))),
-  ...listPluginTcFiles(),
+  ...listPluginE2EFiles(),
 ];
 const testFiles = [];
 const tcRegistry = new Map();
