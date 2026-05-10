@@ -15,7 +15,7 @@
 #
 # Other common tasks:
 #   .\dev.ps1 build                          Production build
-#   .\dev.ps1 wasm -P <plugin-id>            Build a dynamic plugin
+#   .\dev.ps1 wasm -Plugin <plugin-id>            Build a dynamic plugin
 #   .\dev.ps1 test-go                        Run Go unit tests
 #   .\dev.ps1 help                           Show all commands
 
@@ -43,12 +43,12 @@ param(
     [string]$Rebuild,
 
     [string]$ImageName,
-    [string]$Tag_,
+    [string]$ImageTag,
     [string]$Registry,
     [string]$Push,
     [string]$BaseImage,
 
-    [string]$P,
+    [string]$Plugin,
 
     [switch]$Help
 )
@@ -273,7 +273,7 @@ function Get-BuildEnv {
 function Get-ImageBuilderArgs {
     $ibArgs = @()
     if ($ImageName) { $ibArgs += "--image=$ImageName" }
-    if ($Tag_) { $ibArgs += "--tag=$Tag_" }
+    if ($ImageTag) { $ibArgs += "--tag=$ImageTag" }
     if ($Registry) { $ibArgs += "--registry=$Registry" }
     if ($Push) { $ibArgs += "--push=$Push" }
     if ($Platforms) { $ibArgs += "--platforms=$Platforms" }
@@ -559,22 +559,22 @@ function Invoke-Wasm {
 
     $pluginsDir = Join-Path $Script:RootDir 'apps\lina-plugins'
 
-    if ($P) {
-        $pluginDir = Join-Path $pluginsDir $P
+    if ($Plugin) {
+        $pluginDir = Join-Path $pluginsDir $Plugin
         if (!(Test-Path $pluginDir)) {
-            throw "Plugin not found: $P"
+            throw "Plugin not found: $Plugin"
         }
         $manifestFile = Join-Path $pluginDir 'plugin.yaml'
         if (!(Test-Path $manifestFile)) {
-            throw "plugin.yaml not found in $P"
+            throw "plugin.yaml not found in $Plugin"
         }
-        Write-Info "Building: $P"
+        Write-Info "Building: $Plugin"
         Push-Location $builderDir
         try {
             go run . --plugin-dir $pluginDir --output-dir $outputDir
         }
         finally { Pop-Location }
-        Write-Success "Plugin built: $P"
+        Write-Success "Plugin built: $Plugin"
     }
     else {
         $dynamicPlugins = @()
@@ -1033,7 +1033,7 @@ function Invoke-Help {
     Write-Host 'Build Commands:' -ForegroundColor Cyan
     Write-Host '  build               Full production build (frontend + embed + plugins + backend)'
     Write-Host '                      Options: -Platforms linux/amd64 -VerboseOutput'
-    Write-Host '  wasm                Build dynamic WASM plugins (all, or use -P <plugin-id>)'
+    Write-Host '  wasm                Build dynamic WASM plugins (all, or use -Plugin <plugin-id>)'
     Write-Host ''
     Write-Host 'Database Commands:' -ForegroundColor Cyan
     Write-Host '  init                Initialize database with DDL and seed data'
@@ -1052,7 +1052,7 @@ function Invoke-Help {
     Write-Host ''
     Write-Host 'Docker Image Commands:' -ForegroundColor Cyan
     Write-Host '  image               Build production Docker image'
-    Write-Host '                      Options: -Tag_ v0.6.0 -Registry ghcr.io/linaproai -Push 1'
+    Write-Host '                      Options: -ImageTag v0.6.0 -Registry ghcr.io/linaproai -Push 1'
     Write-Host '  image-build         Stage image build artifacts (without docker build)'
     Write-Host ''
     Write-Host 'Code Generation Commands (require gf CLI):' -ForegroundColor Cyan
@@ -1081,7 +1081,7 @@ function Invoke-Help {
     Write-Host ''
     Write-Host 'Other:' -ForegroundColor DarkGray
     Write-Host '  .\dev.ps1 build -VerboseOutput           Production build' -ForegroundColor DarkGray
-    Write-Host '  .\dev.ps1 wasm -P plugin-demo-dynamic    Build single plugin' -ForegroundColor DarkGray
+    Write-Host '  .\dev.ps1 wasm -Plugin plugin-demo-dynamic Build single plugin' -ForegroundColor DarkGray
     Write-Host '  .\dev.ps1 test-go                        All Go unit tests' -ForegroundColor DarkGray
     Write-Host ''
 }
