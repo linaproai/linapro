@@ -30,7 +30,7 @@ function postgresConnection(): PostgresConnection {
   return {
     database: process.env.E2E_DB_NAME ?? 'linapro',
     host: process.env.E2E_DB_HOST ?? '127.0.0.1',
-    password: process.env.E2E_DB_PASSWORD ?? '12345678',
+    password: process.env.E2E_DB_PASSWORD ?? 'postgres',
     port: process.env.E2E_DB_PORT ?? '5432',
     sslmode: process.env.E2E_DB_SSLMODE ?? 'disable',
     user: process.env.E2E_DB_USER ?? 'postgres',
