@@ -105,15 +105,28 @@ type DynamicPluginTranslator interface {
 	TranslateDynamicPluginSourceText(ctx context.Context, pluginID string, key string, sourceText string) string
 }
 
+// RuntimeBundleRevision describes one cached runtime message representation.
+type RuntimeBundleRevision struct {
+	// Version is the monotonic per-locale invalidation counter.
+	Version uint64
+	// Fingerprint is a deterministic digest of the merged flat message catalog.
+	Fingerprint string
+}
+
 // BundleProvider defines runtime locale descriptors, runtime bundles, and bundle versioning.
 type BundleProvider interface {
 	// EnsureRuntimeBundleCacheFresh synchronizes clustered plugin-runtime cache
 	// revisions before callers make HTTP cache decisions.
 	EnsureRuntimeBundleCacheFresh(ctx context.Context) error
+	// BundleRevision returns the per-locale runtime translation bundle revision.
+	// The fingerprint is populated after the locale's merged view has been
+	// built, so callers can render content-sensitive HTTP validators without
+	// walking the nested response payload.
+	BundleRevision(locale string) RuntimeBundleRevision
 	// BundleVersion returns the per-locale runtime translation bundle version.
 	// It increases monotonically whenever any sector that contributes to that
 	// locale's merged view is invalidated, so HTTP ETag handlers can produce
-	// stable identifiers without recomputing the catalog.
+	// stable identifiers. New HTTP validators should prefer BundleRevision.
 	BundleVersion(locale string) uint64
 	// ListRuntimeLocales returns the runtime locales supported by the host.
 	ListRuntimeLocales(ctx context.Context, locale string) []LocaleDescriptor
@@ -407,6 +420,7 @@ func (s *serviceImpl) rebuildMergedCatalog(ctx context.Context, lc *localeCache,
 	merged, sources := mergeLocaleSectors(lc, locale)
 	lc.merged = merged
 	lc.sources = sources
+	lc.fingerprint = runtimeBundleFingerprint(merged)
 	lc.version++
 	return merged
 }
