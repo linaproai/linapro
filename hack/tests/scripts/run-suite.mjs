@@ -2,7 +2,11 @@ import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 
 import {
+  listTcFiles,
   loadManifest,
+  playwrightFileArg,
+  pluginTestEntry,
+  resolveEntries,
   splitBySerial,
   summarizeIsolationCategories,
   testsDir,
@@ -11,7 +15,7 @@ import {
 const manifest = loadManifest();
 
 const mode = process.argv[2] ?? 'full';
-const extraArgs = process.argv.slice(3);
+const extraArgs = normalizePassthroughArgs(process.argv.slice(3));
 const parallelWorkers = Number.parseInt(
   process.env.E2E_PARALLEL_WORKERS ?? `${Math.min(Math.max(os.cpus().length - 1, 2), 4)}`,
   10,
@@ -22,7 +26,8 @@ function runPlaywright(files, workers, label) {
     return 0;
   }
 
-  const args = ['exec', 'playwright', 'test', ...files, `--workers=${workers}`, ...extraArgs];
+  const runnableFiles = files.map(playwrightFileArg);
+  const args = ['exec', 'playwright', 'test', ...runnableFiles, `--workers=${workers}`, ...extraArgs];
   console.log(`\n[${label}] playwright test ${files.length} file(s), workers=${workers}`);
   const result = spawnSync('pnpm', args, {
     cwd: testsDir,
@@ -30,6 +35,10 @@ function runPlaywright(files, workers, label) {
     env: process.env,
   });
   return result.status ?? 1;
+}
+
+function normalizePassthroughArgs(args) {
+  return args[0] === '--' ? args.slice(1) : args;
 }
 
 function formatCategorySummary(entries) {
@@ -59,28 +68,52 @@ function runMode(entries, label) {
   return runPlaywright(serialFiles, 1, `${label}:serial`);
 }
 
+function resolveModuleEntries(scope) {
+  const configuredEntries = manifest.moduleScopes[scope];
+  if (configuredEntries) {
+    return configuredEntries;
+  }
+
+  const pluginMatch = /^plugin:([^/]+)$/u.exec(scope);
+  if (!pluginMatch) {
+    return null;
+  }
+  return [`plugins/${pluginMatch[1]}`];
+}
+
 let exitCode = 0;
 if (mode === 'full') {
-  exitCode = runMode(['e2e'], 'full');
+  exitCode = runMode(['e2e', 'plugins'], 'full');
 } else if (mode === 'smoke') {
   exitCode = runMode(manifest.smoke ?? [], 'smoke');
 } else if (mode === 'module') {
   const rawModuleArgs = process.argv.slice(3);
-  const moduleArgs = rawModuleArgs[0] === '--' ? rawModuleArgs.slice(1) : rawModuleArgs;
+  const moduleArgs = normalizePassthroughArgs(rawModuleArgs);
   const scope = moduleArgs[0];
-  const passthroughArgs = moduleArgs.slice(1);
+  const passthroughArgs = normalizePassthroughArgs(moduleArgs.slice(1));
   if (!scope) {
     console.error('Missing module scope. Example: pnpm test:module -- iam:user');
     process.exit(1);
   }
-  if (!manifest.moduleScopes[scope]) {
+  const entries = resolveModuleEntries(scope);
+  if (!entries) {
     console.error(`Unknown module scope: ${scope}`);
-    console.error(`Available scopes: ${Object.keys(manifest.moduleScopes).sort().join(', ')}`);
+    console.error(
+      `Available scopes: ${Object.keys(manifest.moduleScopes).sort().join(', ')}, plugin:<plugin-id>`,
+    );
+    process.exit(1);
+  }
+  if (resolveEntries(entries).length === 0 && scope !== pluginTestEntry) {
+    const pluginHint = listTcFiles(`plugins/${scope.replace(/^plugin:/u, '')}`).length === 0;
+    console.error(`Module scope has no matching test files: ${scope}`);
+    if (/^plugin:/u.test(scope) && pluginHint) {
+      console.error('Expected plugin-owned tests under apps/lina-plugins/<plugin-id>/e2e/.');
+    }
     process.exit(1);
   }
 
   extraArgs.splice(0, extraArgs.length, ...passthroughArgs);
-  exitCode = runMode(manifest.moduleScopes[scope], `module:${scope}`);
+  exitCode = runMode(entries, `module:${scope}`);
 } else {
   console.error(`Unknown run mode: ${mode}`);
   process.exit(1);

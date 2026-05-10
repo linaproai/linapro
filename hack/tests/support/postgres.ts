@@ -30,7 +30,7 @@ function postgresConnection(): PostgresConnection {
   return {
     database: process.env.E2E_DB_NAME ?? 'linapro',
     host: process.env.E2E_DB_HOST ?? '127.0.0.1',
-    password: process.env.E2E_DB_PASSWORD ?? 'postgres',
+    password: process.env.E2E_DB_PASSWORD ?? '12345678',
     port: process.env.E2E_DB_PORT ?? '5432',
     sslmode: process.env.E2E_DB_SSLMODE ?? 'disable',
     user: process.env.E2E_DB_USER ?? 'postgres',
@@ -76,7 +76,7 @@ export function execPgSQL(sql: string) {
   assertSafePostgresTarget();
   execFileSync(psqlBin, psqlArgs(['-q', '-c', sql]), {
     env: psqlEnv(),
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'inherit'],
   });
 }
 
@@ -88,8 +88,8 @@ export function execPgSQLFile(filePath: string) {
   assertSafePostgresTarget();
   execFileSync(psqlBin, psqlArgs(['-q']), {
     env: psqlEnv(),
-    input: readFileSync(filePath),
-    stdio: ['pipe', 'ignore', 'ignore'],
+    input: readFileSync(filePath, 'utf8'),
+    stdio: ['pipe', 'ignore', 'inherit'],
   });
 }
 

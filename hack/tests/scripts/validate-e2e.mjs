@@ -8,9 +8,14 @@ import {
   exists,
   highRiskRules,
   isolationAllowlist,
+  isHostTcFile,
+  isPluginTcFile,
   knownIsolationCategorySet,
+  listPluginTcFiles,
   listTcFiles,
   loadManifest,
+  pluginTestEntry,
+  repoRoot,
   resolveEntries,
   serialCategoryMap,
   serialFileSet,
@@ -32,6 +37,9 @@ function addError(message) {
 }
 
 function readTestFile(relativePath) {
+  if (relativePath.startsWith('apps/lina-plugins/')) {
+    return readFileSync(path.resolve(repoRoot, relativePath), 'utf8');
+  }
   return readFileSync(path.resolve(testsDir, relativePath), 'utf8');
 }
 
@@ -75,14 +83,33 @@ function validateReason(reason, ownerLabel) {
   }
 }
 
-const allFiles = walk(e2eDir).map((item) => toPosix(path.relative(testsDir, item)));
+const allFiles = [
+  ...walk(e2eDir).map((item) => toPosix(path.relative(testsDir, item))),
+  ...listPluginTcFiles(),
+];
 const testFiles = [];
 const tcRegistry = new Map();
-const allowedPrefixes = new Set(
+const allowedFiles = new Set(
   Object.values(manifest.moduleScopes)
     .flat()
-    .map((entry) => entry.replace(/\/$/, '')),
+    .flatMap((entry) => listTcFiles(entry)),
 );
+
+function entryExistsOrResolves(entry) {
+  if (listTcFiles(entry).length > 0) {
+    return true;
+  }
+  if (entry === pluginTestEntry) {
+    return true;
+  }
+  if (
+    entry.startsWith('plugins/') ||
+    entry.startsWith('apps/lina-plugins/')
+  ) {
+    return false;
+  }
+  return exists(path.resolve(testsDir, entry));
+}
 
 for (const file of allFiles) {
   if (!file.endsWith('.ts')) {
@@ -90,7 +117,7 @@ for (const file of allFiles) {
     continue;
   }
 
-  if (!/\/TC\d{4}[-][^.]+\.ts$/u.test(file) && !/^e2e\/TC\d{4}[-][^.]+\.ts$/u.test(file)) {
+  if (!isHostTcFile(file) && !isPluginTcFile(file)) {
     addError(`Non-test file found under e2e: ${file}`);
     continue;
   }
@@ -105,11 +132,7 @@ for (const file of allFiles) {
   items.push(file);
   tcRegistry.set(tcId, items);
 
-  const fileDir = path.posix.dirname(file);
-  const matchesAllowedPrefix = [...allowedPrefixes].some((prefix) => {
-    return fileDir === prefix || fileDir.startsWith(`${prefix}/`);
-  });
-  if (!matchesAllowedPrefix) {
+  if (!allowedFiles.has(file)) {
     addError(`File is not under an allowed module scope: ${file}`);
   }
 }
@@ -122,20 +145,20 @@ for (const [tcId, files] of tcRegistry.entries()) {
 
 for (const [scope, entries] of Object.entries(manifest.moduleScopes)) {
   const files = entries.flatMap((entry) => listTcFiles(entry));
-  if (files.length === 0) {
+  if (files.length === 0 && scope !== pluginTestEntry) {
     addError(`Module scope has no matching test files: ${scope}`);
   }
 }
 
 for (const entry of manifest.smoke ?? []) {
-  if (!exists(path.resolve(testsDir, entry))) {
+  if (!entryExistsOrResolves(entry)) {
     addError(`Smoke entry does not exist: ${entry}`);
   }
 }
 
 const serialEntries = requireArray(manifest.serial ?? [], 'serial');
 for (const entry of serialEntries) {
-  if (!exists(path.resolve(testsDir, entry))) {
+  if (!entryExistsOrResolves(entry)) {
     addError(`Serial entry does not exist: ${entry}`);
   }
 }
@@ -154,7 +177,7 @@ for (const [index, item] of isolationEntries.entries()) {
     addError(`${owner}.entry must be a non-empty string.`);
     continue;
   }
-  if (!exists(path.resolve(testsDir, item.entry))) {
+  if (!entryExistsOrResolves(item.entry)) {
     addError(`${owner}.entry does not exist: ${item.entry}`);
   }
   if (!serialEntrySet.has(item.entry)) {
@@ -168,7 +191,7 @@ for (const [index, item] of isolationEntries.entries()) {
   validateReason(item.reason, owner);
 
   const resolvedFiles = listTcFiles(item.entry);
-  if (resolvedFiles.length === 0) {
+  if (resolvedFiles.length === 0 && item.entry !== pluginTestEntry) {
     addError(`${owner}.entry does not resolve to any TC file: ${item.entry}`);
   }
 }

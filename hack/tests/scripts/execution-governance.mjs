@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 export const testsDir = path.resolve(scriptDir, '..');
+export const repoRoot = path.resolve(testsDir, '..', '..');
 export const e2eDir = path.resolve(testsDir, 'e2e');
+export const pluginsDir = path.resolve(repoRoot, 'apps/lina-plugins');
 export const manifestPath = path.resolve(testsDir, 'config/execution-manifest.json');
+export const pluginTestEntry = 'plugins';
 
 export const isolationCategories = [
   {
@@ -127,6 +130,9 @@ export function exists(value) {
 }
 
 export function walk(directory) {
+  if (!exists(directory)) {
+    return [];
+  }
   const result = [];
   const stack = [directory];
   while (stack.length > 0) {
@@ -145,7 +151,77 @@ export function walk(directory) {
   return result.sort();
 }
 
+// listPluginE2EDirs returns source-plugin-owned E2E directories following the
+// `apps/lina-plugins/<plugin-id>/e2e` convention.
+export function listPluginE2EDirs() {
+  if (!exists(pluginsDir)) {
+    return [];
+  }
+  return readdirSync(pluginsDir)
+    .map((name) => path.join(pluginsDir, name, 'e2e'))
+    .filter(exists)
+    .sort();
+}
+
+// pluginTestRelativePath formats a plugin E2E path relative to the repository
+// root. The governance manifest uses this canonical form for plugin-owned tests.
+export function pluginTestRelativePath(absolutePath) {
+  return toPosix(path.relative(repoRoot, absolutePath));
+}
+
+// playwrightFileArg keeps the canonical path shape used by the repo-root
+// Playwright config while leaving room for future path normalization.
+export function playwrightFileArg(relativePath) {
+  return relativePath;
+}
+
+// listPluginTcFiles lists all source-plugin-owned E2E TC files.
+export function listPluginTcFiles() {
+  return listPluginE2EDirs()
+    .flatMap((directory) => walk(directory))
+    .filter((item) => isPluginTcFile(pluginTestRelativePath(item)))
+    .map(pluginTestRelativePath)
+    .sort();
+}
+
 export function listTcFiles(entry) {
+  if (entry === pluginTestEntry) {
+    return listPluginTcFiles();
+  }
+  if (entry.startsWith('apps/lina-plugins/')) {
+    const absoluteEntry = path.resolve(repoRoot, entry);
+    if (!exists(absoluteEntry)) {
+      return [];
+    }
+    const stat = statSync(absoluteEntry);
+    if (stat.isFile()) {
+      const relativePath = pluginTestRelativePath(absoluteEntry);
+      return isPluginTcFile(relativePath) ? [relativePath] : [];
+    }
+    return walk(absoluteEntry)
+      .map(pluginTestRelativePath)
+      .filter(isPluginTcFile)
+      .sort();
+  }
+  if (entry.startsWith('plugins/')) {
+    const parts = entry.split('/').filter(Boolean);
+    if (parts.length >= 2) {
+      const absoluteEntry = path.resolve(pluginsDir, parts[1], 'e2e', ...parts.slice(2));
+      if (!exists(absoluteEntry)) {
+        return [];
+      }
+      const stat = statSync(absoluteEntry);
+      if (stat.isFile()) {
+        const relativePath = pluginTestRelativePath(absoluteEntry);
+        return isPluginTcFile(relativePath) ? [relativePath] : [];
+      }
+      return walk(absoluteEntry)
+        .map(pluginTestRelativePath)
+        .filter(isPluginTcFile)
+        .sort();
+    }
+  }
+
   const absoluteEntry = path.resolve(testsDir, entry);
   if (!exists(absoluteEntry)) {
     return [];
@@ -164,7 +240,17 @@ export function listTcFiles(entry) {
 }
 
 export function isTcFile(relativePath) {
+  return isHostTcFile(relativePath) || isPluginTcFile(relativePath);
+}
+
+// isHostTcFile reports whether a path is a host-owned E2E TC file.
+export function isHostTcFile(relativePath) {
   return /^e2e\/.*\/TC\d{4}.*\.ts$/u.test(relativePath) || /^e2e\/TC\d{4}.*\.ts$/u.test(relativePath);
+}
+
+// isPluginTcFile reports whether a path is a source-plugin-owned E2E TC file.
+export function isPluginTcFile(relativePath) {
+  return /^apps\/lina-plugins\/[^/]+\/e2e\/(?:.*\/)?TC\d{4}[-][^.]+\.ts$/u.test(relativePath);
 }
 
 export function unique(values) {
