@@ -17,34 +17,48 @@ compatibility: 依赖 Playwright。
 ```
 hack/tests/
 ├── e2e/
-│   ├── auth/                        # 模块：认证
+│   ├── auth/                        # 宿主模块：认证
 │   │   ├── TC0001-login-verification.ts
 │   │   └── TC0007-logout.ts
-│   ├── admin/                       # 模块：管理功能
+│   ├── admin/                       # 宿主模块：管理功能
 │   │   ├── TC0002-spec-management.ts
 │   │   └── TC0003-user-management.ts
-│   ├── notebook/                    # 模块：笔记本生命周期
+│   ├── notebook/                    # 宿主模块：笔记本生命周期
 │   │   ├── TC0004-create-notebook.ts
 │   │   ├── TC0005-jupyterlab-access.ts
 │   │   ├── TC0006-training-execution.ts
 │   │   ├── TC0008-multi-image-notebook.ts
 │   │   └── TC0009-shared-directory.ts
-│   └── {module}/                    # 新模块遵循相同模式
+│   └── {module}/                    # 宿主新模块遵循相同模式
 │       └── TC{NNNN}-{brief-name}.ts
 ├── fixtures/
 │   ├── auth.ts
 │   ├── config.ts
 │   └── k8s.ts
-├── pages/                           # 页面对象模型文件
+├── pages/                           # 宿主/共享页面对象模型文件
 │   ├── LoginPage.ts
 │   ├── NotebookPage.ts
 │   └── ...
 └── playwright.config.ts
 ```
 
+源码插件的插件专属 E2E 必须闭环在插件自己的目录中：
+
+```
+apps/lina-plugins/<plugin-id>/
+├── e2e/
+│   └── TC{NNNN}-{brief-name}.ts
+├── e2e-pages/
+│   └── <PluginPageObject>.ts
+└── e2e-support/
+    └── <plugin-helper>.ts
+```
+
 **关键规则：**
-- `e2e/` 下的目录以**功能模块**命名（如 `auth`、`notebook`、`admin`）。
-- 每个测试用例文件放在其主要测试的模块目录下。
+- 宿主功能测试放在 `hack/tests/e2e/{module}/`。
+- 源码插件专属测试放在 `apps/lina-plugins/<plugin-id>/e2e/`。
+- `hack/tests/e2e/extension/plugin/` 只用于宿主插件框架、动态插件运行时、源码插件生命周期这类**宿主级插件能力**测试；禁止把某个源码插件自身功能的 E2E 放到这里。
+- 每个测试用例文件放在其主要测试的所有权目录下；谁拥有功能，谁拥有测试。
 
 ---
 
@@ -81,9 +95,13 @@ TC{NNNN}-{brief-name}.ts
 
 1. **扫描所有模块目录下的现有 TC 文件**：
    ```bash
-   find hack/tests/e2e -name 'TC*.ts' | sort
+   {
+     find hack/tests/e2e -type f -name 'TC*.ts'
+     find apps/lina-plugins -type f -path '*/e2e/TC*.ts'
+     rg -No 'TC[0-9]{4}' openspec/changes -g 'tasks.md'
+   } | rg -No 'TC[0-9]{4}' | sort -u | tail -1
    ```
-2. **确定当前使用的最大 TC 编号**。
+2. **确定当前已实现和 OpenSpec 任务记录中使用或预留的最大 TC 编号**。
 3. **分配下一个顺序编号**（递增 1）。
 
 **示例：** 如果现有最大文件为 `TC0009-shared-directory.ts`，则下一个测试用例为 `TC0010`。
@@ -95,6 +113,8 @@ TC{NNNN}-{brief-name}.ts
 ## 4. 测试文件模板
 
 每个测试文件遵循以下结构：
+
+宿主测试：
 
 ```typescript
 import { test, expect } from '../../fixtures/auth'
@@ -121,6 +141,19 @@ test.describe('TC-{N} {简短描述}', () => {
 })
 ```
 
+源码插件测试：
+
+```typescript
+import { test, expect } from '../../../../hack/tests/fixtures/auth'
+import { SomePluginPage } from '../e2e-pages/SomePluginPage'
+
+test.describe('TC-{N} {插件功能描述}', () => {
+  test('TC-{N}a: {子断言描述}', async ({ adminPage }) => {
+    // 插件专属流程断言
+  })
+})
+```
+
 **文件内约定：**
 - `test.describe` 标签使用 `TC-{N}`（不补零）后跟简短描述。
 - 子测试使用 `TC-{N}{字母}:` 作为前缀（如 `TC-1a:`、`TC-1b:`）。
@@ -139,13 +172,14 @@ test.describe('TC-{N} {简短描述}', () => {
 - **可独立运行：**
   ```bash
   npx playwright test hack/tests/e2e/auth/TC0001-login-verification.ts
+  pnpm -C hack/tests test:module -- plugin:<plugin-id>
   ```
 
 ---
 
 ## 6. 页面对象模型（POM）
 
-所有页面交互必须通过 `pages/` 中的页面对象类进行：
+所有页面交互必须通过页面对象类进行：
 
 ```typescript
 import { Page, Locator } from '@playwright/test'
@@ -172,7 +206,9 @@ export class SomePage {
 
 **规则：**
 - 每个页面/功能区域一个 POM 类。
-- POM 文件放在 `pages/` 目录中（不在 `e2e/` 中）。
+- 宿主或跨模块共享 POM 放在 `hack/tests/pages/`。
+- 源码插件专属 POM 放在 `apps/lina-plugins/<plugin-id>/e2e-pages/`。
+- 源码插件专属定位器禁止加到宿主 `hack/tests/pages/` 中；只有多个宿主测试或多个插件确实复用的通用能力，才提升到宿主共享 POM。
 - 优先使用 `data-testid` 属性作为定位策略。
 - POM 方法应返回有意义的值或等待预期状态。
 
@@ -188,8 +224,11 @@ export class SomePage {
 
 使用固件而非直接导入 `@playwright/test`：
 ```typescript
-// 正确
+// 宿主测试
 import { test, expect } from '../../fixtures/auth'
+
+// 源码插件测试
+import { test, expect } from '../../../../hack/tests/fixtures/auth'
 
 // 错误
 import { test, expect } from '@playwright/test'
@@ -210,6 +249,17 @@ import { test, expect } from '@playwright/test'
 - [ ] 实现 TC-10c：页面重新加载后内容持久化
 ```
 
+源码插件示例：
+
+```markdown
+### 任务 3：E2E — TC0221 插件页面入口
+
+- [ ] 创建 `apps/lina-plugins/example-plugin/e2e/TC0221-example-plugin-entry.ts`
+- [ ] 实现 TC-221a：插件公开接口可读取
+- [ ] 实现 TC-221b：插件插槽内容可见
+- [ ] 实现 TC-221c：插件管理页可访问
+```
+
 任务标题中的 TC ID 必须与文件名匹配。子断言（`TC-10a`、`TC-10b`）应列为子项。
 
 ---
@@ -220,10 +270,12 @@ import { test, expect } from '@playwright/test'
 |----------------------|----------------------------------------------------|
 | 文件名               | `TC{NNNN}-{brief-name}.ts`                         |
 | TC ID 范围           | 全局唯一，跨所有模块                                  |
-| 目录                 | `e2e/{module}/`                                    |
+| 宿主测试目录          | `hack/tests/e2e/{module}/`                         |
+| 源码插件测试目录       | `apps/lina-plugins/<plugin-id>/e2e/`               |
 | Describe 标签        | `TC-{N} {描述}`                                     |
 | 子测试标签            | `TC-{N}{字母}: {描述}`                              |
-| 导入 test/expect     | 从 `../../fixtures/auth` 导入                       |
-| 页面交互              | 通过 `pages/` 中的 POM 类                           |
+| 宿主导入 test/expect  | 从相对路径 `../../fixtures/auth` 导入                 |
+| 插件导入 test/expect  | 从相对路径 `../../../../hack/tests/fixtures/auth` 导入 |
+| 页面交互              | 通过宿主 `pages/` 或插件 `e2e-pages/` 中的 POM 类      |
 | 独立性               | 每个文件可独立运行                                    |
-| ID 分配              | 扫描最大已有值 → 递增 1                               |
+| ID 分配              | 扫描宿主、插件和 OpenSpec 任务记录已用/预留最大值 → 递增 1 |

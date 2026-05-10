@@ -243,10 +243,11 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ### 7. E2E 测试审查
 
-**触发条件**：`hack/tests/e2e/` 目录下新增或修改的 E2E 测试文件
+**触发条件**：`hack/tests/e2e/`、`hack/tests/pages/`、`hack/tests/support/`、`apps/lina-plugins/<plugin-id>/e2e/`、`apps/lina-plugins/<plugin-id>/e2e-pages/` 或 `apps/lina-plugins/<plugin-id>/e2e-support/` 下新增或修改的 E2E 测试、页面对象或 helper
 
 1. 调用 `lina-e2e` 技能检查测试规范
 2. 对照 `AGENTS.md` E2E 测试规范进行检查
+3. 源码插件专属 E2E 必须保留在插件自己的 `e2e/` 目录；插件专属 POM/helper 必须保留在同插件的 `e2e-pages/`、`e2e-support/`，不得回流到宿主 `hack/tests/e2e/extension/plugin/` 或 `hack/tests/pages/`
 
 ### 8. 反馈验证覆盖审查
 

@@ -53,10 +53,10 @@ apps/                → MonoRepo项目目录
       plugin.yaml    → 插件清单
       plugin_embed.go → 插件嵌入资源入口
 hack/                → 项目脚本及测试用例文件
-  tests/             → E2E 测试（Playwright）
-    e2e/             → 测试用例文件
+  tests/             → 宿主与共享 E2E 测试（Playwright）
+    e2e/             → 宿主 TC 测试用例文件；源码插件自有 E2E 放在插件目录
     fixtures/        → 测试 fixtures（auth, config）
-    pages/           → 页面对象模型
+    pages/           → 宿主/共享页面对象模型
 openspec/            → OpenSpec相关文档
   changes/           → OpenSpec变更记录
 ```
@@ -111,7 +111,7 @@ pnpm test:debug        # 调试模式
 pnpm report            # 查看 HTML 报告
 ```
 
-测试文件命名规范：`TC{NNNN}*.ts`（如 `TC0001-login.ts`），放在 `hack/tests/e2e/` 对应模块目录下。
+测试文件命名规范：`TC{NNNN}*.ts`（如 `TC0001-login.ts`）。宿主测试放在 `hack/tests/e2e/` 对应模块目录下；源码插件自有测试放在 `apps/lina-plugins/<plugin-id>/e2e/`，插件专属 POM/helper 放在同插件的 `e2e-pages/`、`e2e-support/`。
 
 # 文档编写规范
 
@@ -414,6 +414,8 @@ dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: id}).Delete()
 
 - 测试用例必须要完整覆盖业务模块的各项操作（如增删改查等操作），保证功能的完整性和可用性
 - 所有的用例需要在`tasks.md`中有工作记录，并且使用`lina-e2e`技能生成和管理对应的测试用例
+- 宿主功能测试放在 `hack/tests/e2e/<module>/`；源码插件专属功能测试必须放在 `apps/lina-plugins/<plugin-id>/e2e/`，不得放到宿主 `hack/tests/e2e/extension/plugin/`
+- 插件专属页面对象和 helper 必须放在插件自己的 `e2e-pages/`、`e2e-support/`；不得为了插件功能把专属定位器加到宿主 `hack/tests/pages/`
 - 修复`bug`或新增功能涉及**用户可观察行为变化**时，必须编写或更新对应的`E2E`测试用例
 - 涉及功能行为的 `bugfix` 反馈修复必须编写或更新至少一个自动化测试来验证修复有效性：内部逻辑缺陷可使用单元测试，用户可观察行为或跨模块工作流缺陷必须使用 `E2E` 测试；测试应覆盖原始问题的失败场景和修复后的预期行为
 - 纯项目治理类反馈不要求新增单元测试或`E2E`测试，应使用 `openspec validate`、静态扫描、文件检查、格式检查或审查结论等治理验证方式

@@ -6,7 +6,7 @@ At the current open-source stage, the host keeps only stable core capabilities s
 
 ## What Lives Here
 
-LinaPro currently ships three plugin references in this directory:
+LinaPro currently ships these plugin references in this directory:
 
 - `plugin-demo-source`: sample source plugin structure and coding reference
 - `plugin-demo-dynamic`: sample dynamic WASM plugin structure and lifecycle reference
