@@ -5,6 +5,7 @@ import { waitForRouteReady } from "../../support/ui";
 
 const runtimeMessagesPath = "/api/v1/i18n/runtime/messages";
 const runtimePersistentCacheKey = "linapro:i18n:runtime:en-US";
+const runtimeETagPattern = /^"[a-z]{2}-[A-Z]{2}-\d+-[a-f0-9]{32}"$/;
 
 async function expectRuntimeRevalidationResponse(
   response: APIResponse | Response,
@@ -24,7 +25,7 @@ async function expectRuntimeRevalidationResponse(
   }
 
   const refreshedEtag = response.headers()["etag"];
-  expect(refreshedEtag).toMatch(/^"en-US-\d+"$/);
+  expect(refreshedEtag).toMatch(runtimeETagPattern);
   expect(refreshedEtag).not.toBe(cachedEtag);
 
   const payload = await response.json();
@@ -47,7 +48,7 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
 
     const etag = response.headers()["etag"];
     expect(etag, "expected ETag header on first response").toBeTruthy();
-    expect(etag).toMatch(/^"en-US-\d+"$/);
+    expect(etag).toMatch(runtimeETagPattern);
 
     const cacheControl = response.headers()["cache-control"];
     expect(cacheControl).toBe("private, must-revalidate");
@@ -95,7 +96,7 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
       },
     );
     const enEtag = enResponse.headers()["etag"];
-    expect(enEtag).toMatch(/^"en-US-\d+"$/);
+    expect(enEtag).toMatch(runtimeETagPattern);
 
     const zhResponse = await adminPage.request.get(
       `${runtimeMessagesPath}?lang=zh-CN`,
@@ -104,7 +105,7 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
       },
     );
     const zhEtag = zhResponse.headers()["etag"];
-    expect(zhEtag).toMatch(/^"zh-CN-\d+"$/);
+    expect(zhEtag).toMatch(runtimeETagPattern);
     expect(zhEtag).not.toBe(enEtag);
 
     // Sending the en-US ETag while requesting zh-CN must not produce a 304.
@@ -168,7 +169,7 @@ test.describe("TC0124 运行时翻译包 ETag 协商", () => {
     );
     const etag = JSON.parse(cachedEntry || "{}")?.etag;
     expect(etag, "expected runtime i18n ETag in persistent cache").toMatch(
-      /^"en-US-\d+"$/,
+      runtimeETagPattern,
     );
 
     const revalidationRequest = adminPage.waitForRequest((request) => {

@@ -1,6 +1,6 @@
 // This file owns the layered runtime translation cache: per-locale, per-sector
 // raw bundles, a derived merged read-view, source descriptors for diagnostics,
-// and a per-locale version counter that drives ETag invalidation.
+// and per-locale revision metadata that drives ETag invalidation.
 
 package i18n
 
@@ -59,8 +59,12 @@ type localeCache struct {
 	// the whole map reference.
 	merged map[string]string
 
+	// fingerprint is the deterministic content digest for the merged flat view.
+	// It is empty while the merged view is invalid and set when merged is built.
+	fingerprint string
+
 	// version increments on every mutation that could change the merged view.
-	// Used to render `ETag: <locale>-<version>` and decide HTTP 304 protocol.
+	// Used with fingerprint to render HTTP ETags and decide 304 protocol.
 	version uint64
 }
 
@@ -98,23 +102,37 @@ func (s *serviceImpl) InvalidateRuntimeBundleCache(scope InvalidateScope) {
 	resetRuntimeLocaleCache()
 }
 
+// BundleRevision returns the per-locale runtime translation bundle revision.
+// The fingerprint is populated after the merged view has been built.
+func (s *serviceImpl) BundleRevision(locale string) RuntimeBundleRevision {
+	normalizedLocale := normalizeLocale(locale)
+	if normalizedLocale == "" {
+		return RuntimeBundleRevision{}
+	}
+	lc := runtimeBundleCache.lookup(normalizedLocale)
+	if lc == nil {
+		return RuntimeBundleRevision{}
+	}
+	lc.mu.RLock()
+	defer lc.mu.RUnlock()
+	return RuntimeBundleRevision{
+		Version:     lc.version,
+		Fingerprint: lc.fingerprint,
+	}
+}
+
 // BundleVersion returns the per-locale runtime translation bundle version. The
 // value increases monotonically across the process lifetime whenever any
 // sector that contributes to the locale's merged view is invalidated.
 func (s *serviceImpl) BundleVersion(locale string) uint64 {
-	normalizedLocale := normalizeLocale(locale)
-	if normalizedLocale == "" {
-		return 0
-	}
-	runtimeBundleCache.mu.RLock()
-	lc, ok := runtimeBundleCache.locales[normalizedLocale]
-	runtimeBundleCache.mu.RUnlock()
-	if !ok {
-		return 0
-	}
-	lc.mu.RLock()
-	defer lc.mu.RUnlock()
-	return lc.version
+	return s.BundleRevision(locale).Version
+}
+
+// lookup returns the cached locale entry without creating it.
+func (rc *runtimeCache) lookup(locale string) *localeCache {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	return rc.locales[locale]
 }
 
 // resetRuntimeLocaleCache invalidates the locale descriptor cache so
@@ -214,6 +232,7 @@ func (lc *localeCache) invalidateSectors(scope InvalidateScope) {
 	}
 	lc.merged = nil
 	lc.sources = nil
+	lc.fingerprint = ""
 	lc.version++
 }
 

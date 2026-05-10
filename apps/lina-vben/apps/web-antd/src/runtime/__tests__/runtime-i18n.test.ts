@@ -384,4 +384,62 @@ describe('runtime-i18n', () => {
       }),
     );
   });
+
+  it('replaces stale same-version persistent cache when the server emits a content fingerprint ETag', async () => {
+    const refreshed = vi.fn();
+    const staleMessages = {
+      app: {
+        sample: {
+          metrics: {
+            total: '总数',
+          },
+          overview: {
+            kicker: 'Content operations',
+          },
+        },
+      },
+    };
+    const freshMessages = {
+      app: {
+        sample: {
+          metrics: {
+            total: '总数',
+            summary: '摘要',
+          },
+          overview: {
+            kicker: '内容运营',
+          },
+        },
+      },
+    };
+    seedPersistentRuntimeMessages('zh-CN', {
+      etag: '"zh-CN-1"',
+      messages: staleMessages,
+    });
+    requestClientGet.mockResolvedValue(
+      makeRuntimeResponse(
+        freshMessages,
+        '"zh-CN-1-0123456789abcdef0123456789abcdef"',
+      ),
+    );
+
+    const messages = await loadRuntimeLocaleMessages('zh-CN', {
+      onBackgroundRefresh: refreshed,
+    });
+
+    expect(messages).toEqual(staleMessages);
+    await vi.waitFor(() =>
+      expect(refreshed).toHaveBeenCalledWith(freshMessages),
+    );
+    const stored = JSON.parse(
+      window.localStorage.getItem('linapro:i18n:runtime:zh-CN') || '{}',
+    );
+    expect(stored).toEqual(
+      expect.objectContaining({
+        etag: '"zh-CN-1-0123456789abcdef0123456789abcdef"',
+        messages: freshMessages,
+      }),
+    );
+    expect(getRuntimeLocaleMessagesSnapshot()).toEqual(freshMessages);
+  });
 });

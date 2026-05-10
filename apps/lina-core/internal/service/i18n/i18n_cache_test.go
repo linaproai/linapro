@@ -23,6 +23,7 @@ func seedLocaleCache(locale string, populator func(lc *localeCache)) *localeCach
 	merged, sources := mergeLocaleSectors(lc, locale)
 	lc.merged = merged
 	lc.sources = sources
+	lc.fingerprint = runtimeBundleFingerprint(merged)
 	lc.version++
 	return lc
 }
@@ -54,6 +55,9 @@ func TestInvalidateRuntimeBundleCacheHostSectorIsLocaleScoped(t *testing.T) {
 
 	if enCache.snapshotMerged() != nil {
 		t.Fatal("expected en-US merged catalog to be invalidated after host sector clear")
+	}
+	if enCache.fingerprint != "" {
+		t.Fatal("expected en-US fingerprint to be cleared after host sector clear")
 	}
 	if enCache.host != nil {
 		t.Fatal("expected en-US host sector to be cleared")
@@ -114,8 +118,63 @@ func TestInvalidateRuntimeBundleCacheDynamicPluginIsPluginScoped(t *testing.T) {
 	if enCache.snapshotMerged() != nil {
 		t.Fatal("expected merged catalog to be invalidated when any dynamic plugin entry changes")
 	}
+	if enCache.fingerprint != "" {
+		t.Fatal("expected fingerprint to be cleared when any dynamic plugin entry changes")
+	}
 	if enCache.version <= versionBefore {
 		t.Fatalf("expected per-locale version to increment, before=%d after=%d", versionBefore, enCache.version)
+	}
+}
+
+// TestBundleRevisionReportsCachedFingerprint verifies that the service exposes
+// the cache-owned content digest without recomputing from a nested response map.
+func TestBundleRevisionReportsCachedFingerprint(t *testing.T) {
+	resetRuntimeBundleCache()
+	t.Cleanup(resetRuntimeBundleCache)
+
+	cache := seedLocaleCache(EnglishLocale, func(lc *localeCache) {
+		lc.host = map[string]string{
+			"app.sample.metrics.total":  "Total",
+			"app.sample.overview.title": "Overview",
+		}
+	})
+
+	svc := New().(*serviceImpl)
+	revision := svc.BundleRevision(EnglishLocale)
+	if revision.Version != cache.version {
+		t.Fatalf("expected revision version %d, got %d", cache.version, revision.Version)
+	}
+	if revision.Fingerprint != cache.fingerprint {
+		t.Fatalf("expected revision fingerprint %q, got %q", cache.fingerprint, revision.Fingerprint)
+	}
+	if len(revision.Fingerprint) != runtimeBundleFingerprintHexLength {
+		t.Fatalf("expected %d-char fingerprint, got %q", runtimeBundleFingerprintHexLength, revision.Fingerprint)
+	}
+}
+
+// TestRuntimeBundleFingerprintIsStableAndContentSensitive verifies that flat
+// catalog fingerprints ignore map iteration order and change when content does.
+func TestRuntimeBundleFingerprintIsStableAndContentSensitive(t *testing.T) {
+	t.Parallel()
+
+	first := runtimeBundleFingerprint(map[string]string{
+		"app.sample.metrics.total":  "Total",
+		"app.sample.overview.title": "Overview",
+	})
+	second := runtimeBundleFingerprint(map[string]string{
+		"app.sample.overview.title": "Overview",
+		"app.sample.metrics.total":  "Total",
+	})
+	if second != first {
+		t.Fatalf("expected same content to produce stable fingerprint %q, got %q", first, second)
+	}
+
+	changed := runtimeBundleFingerprint(map[string]string{
+		"app.sample.metrics.total":  "Total",
+		"app.sample.overview.title": "Dashboard",
+	})
+	if changed == first {
+		t.Fatalf("expected content change to alter fingerprint %q", changed)
 	}
 }
 
