@@ -516,8 +516,8 @@ func TestScanEmbeddedSQLAssetsReadsPreparedFiles(t *testing.T) {
 	if len(assets) == 0 {
 		t.Fatal("expected embedded init sql assets")
 	}
-	if assets[0].Path != path.Join("manifest/sql", "001-project-init.sql") {
-		t.Fatalf("expected first embedded sql asset %q, got %q", path.Join("manifest/sql", "001-project-init.sql"), assets[0].Path)
+	if assets[0].Path != path.Join("manifest/sql", "001-user-auth-bootstrap.sql") {
+		t.Fatalf("expected first embedded sql asset %q, got %q", path.Join("manifest/sql", "001-user-auth-bootstrap.sql"), assets[0].Path)
 	}
 }
 
@@ -538,8 +538,8 @@ func TestInitRuntimeDefaultUsesEmbeddedAssets(t *testing.T) {
 	if len(assets) == 0 {
 		t.Fatal("expected embedded init sql assets")
 	}
-	if assets[0].Path != path.Join("manifest/sql", "001-project-init.sql") {
-		t.Fatalf("expected first embedded init sql asset %q, got %q", path.Join("manifest/sql", "001-project-init.sql"), assets[0].Path)
+	if assets[0].Path != path.Join("manifest/sql", "001-user-auth-bootstrap.sql") {
+		t.Fatalf("expected first embedded init sql asset %q, got %q", path.Join("manifest/sql", "001-user-auth-bootstrap.sql"), assets[0].Path)
 	}
 }
 
@@ -560,10 +560,10 @@ func TestMockRuntimeDefaultUsesEmbeddedAssets(t *testing.T) {
 	if len(assets) == 0 {
 		t.Fatal("expected embedded mock sql assets")
 	}
-	if assets[0].Path != path.Join("manifest/sql", "mock-data", "003-mock-users.sql") {
+	if assets[0].Path != path.Join("manifest/sql", "mock-data", "001-users.sql") {
 		t.Fatalf(
 			"expected first embedded mock sql asset %q, got %q",
-			path.Join("manifest/sql", "mock-data", "003-mock-users.sql"),
+			path.Join("manifest/sql", "mock-data", "001-users.sql"),
 			assets[0].Path,
 		)
 	}

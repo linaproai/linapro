@@ -180,7 +180,7 @@ func TestSeedDictDataTagStylesAreUniquePerType(t *testing.T) {
 // preserving the business uniqueness needed by InsertIgnore upserts.
 func TestPluginStateKeepsTechnicalPrimaryKeyAndBusinessUniqueIndex(t *testing.T) {
 	root := repositoryRootForSQLAudit(t)
-	content, err := os.ReadFile(filepath.Join(root, "apps", "lina-core", "manifest", "sql", "012-plugin-host-call.sql"))
+	content, err := os.ReadFile(filepath.Join(root, "apps", "lina-core", "manifest", "sql", "009-plugin-host-call.sql"))
 	if err != nil {
 		t.Fatalf("read plugin host-call SQL failed: %v", err)
 	}

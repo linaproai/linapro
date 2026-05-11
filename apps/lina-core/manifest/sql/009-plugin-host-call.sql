@@ -1,6 +1,6 @@
 -- ------------------------------------------------------------
--- 012 plugin host-call SQL file
--- 012 插件宿主调用 SQL 文件
+-- 009: Plugin Host Call
+-- 009：插件宿主调用
 -- Purpose: Stores plugin key-value runtime state and tenant-scoped enablement flags exposed through host-call services.
 -- 用途：存储通过宿主调用服务暴露的插件键值运行态与租户级启用标记。
 -- ------------------------------------------------------------

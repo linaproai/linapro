@@ -1,5 +1,5 @@
--- 005: File Management
--- 005：文件管理
+-- 003: File Storage
+-- 003：文件存储
 
 -- ============================================================
 -- Purpose: Stores uploaded file metadata, storage location, deduplication hash, business scene, and tenant ownership.

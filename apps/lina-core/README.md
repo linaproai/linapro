@@ -101,6 +101,6 @@ silently switching versions during startup.
 
 ## Related Entry Points
 
-- `manifest/sql/014-scheduled-job-management.sql`: scheduled-job schema, seed data, menus, and dictionaries.
+- `manifest/sql/011-scheduled-job-management.sql`: scheduled-job schema, seed data, menus, and dictionaries.
 - `internal/cmd/cmd_http.go`: host wiring for job, job-group, job-log, and job-handler APIs.
 - `internal/service/cron/cron.go`: host cron startup entrypoint.

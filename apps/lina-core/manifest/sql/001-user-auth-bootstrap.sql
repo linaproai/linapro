@@ -1,5 +1,5 @@
--- Database bootstrap
--- 数据库初始化
+-- 001: User Authentication Bootstrap
+-- 001：用户认证初始化
 
 -- Purpose: Stores host user accounts, authentication credentials, profile fields, primary tenant, and login status metadata.
 -- 用途：存储宿主用户账号、认证凭据、个人资料字段、主租户与登录状态元数据。

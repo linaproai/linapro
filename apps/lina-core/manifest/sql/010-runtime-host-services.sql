@@ -1,6 +1,6 @@
 -- ------------------------------------------------------------
--- 013 dynamic plugin host service extension SQL file
--- 013 动态插件宿主服务扩展 SQL 文件
+-- 010: Runtime Host Services
+-- 010：运行时宿主服务
 -- ------------------------------------------------------------
 
 -- Purpose: Stores tenant-scoped host and plugin key-value cache entries with optional expiration.

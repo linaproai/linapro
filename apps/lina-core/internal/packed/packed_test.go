@@ -38,8 +38,8 @@ func TestFilesEmbedPreparedManifestAssets(t *testing.T) {
 	}
 
 	expectedPaths := []string{
-		"manifest/sql/001-project-init.sql",
-		"manifest/sql/mock-data/003-mock-users.sql",
+		"manifest/sql/001-user-auth-bootstrap.sql",
+		"manifest/sql/mock-data/001-users.sql",
 		"manifest/config/metadata.yaml",
 		"manifest/config/config.template.yaml",
 	}
@@ -107,7 +107,7 @@ func TestFilesEmbedUpdatedUploadDefaults(t *testing.T) {
 	}
 	assertPackedI18nSectionHasNoDirection(t, string(configContent))
 
-	sqlContent, err := fs.ReadFile(Files, "manifest/sql/007-config-management.sql")
+	sqlContent, err := fs.ReadFile(Files, "manifest/sql/005-config-management.sql")
 	if err != nil {
 		t.Fatalf("read packed config-management sql: %v", err)
 	}

@@ -1,7 +1,7 @@
--- 007: Config Management and Job Scheduling Module
--- 007：参数设置与任务调度模块
--- Includes config parameter table, login-status dictionary, file-scene dictionary, and job-status dictionary.
--- 包含：参数设置表、登录状态字典、文件场景字典、任务状态字典
+-- 005: Config Management
+-- 005：参数设置管理
+-- Includes config parameter table, login-status dictionary, and file-scene dictionary.
+-- 包含：参数设置表、登录状态字典与文件场景字典
 
 -- ----------------------------
 -- Purpose: Stores host and tenant runtime configuration parameters with platform defaults and tenant override support.

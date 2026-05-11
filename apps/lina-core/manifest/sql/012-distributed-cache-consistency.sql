@@ -1,6 +1,6 @@
 -- ------------------------------------------------------------
--- 015 distributed cache consistency SQL file
--- 015 分布式缓存一致性 SQL 文件
+-- 012: Distributed Cache Consistency
+-- 012：分布式缓存一致性
 -- Purpose: Stores monotonic cache revisions by tenant, domain, and explicit scope for distributed invalidation.
 -- 用途：按租户、缓存域和显式作用域存储单调递增缓存修订号，用于分布式失效协调。
 -- ------------------------------------------------------------

@@ -1,5 +1,5 @@
--- 002: Dict Management, Dept Management, Post Management, User-Dept-Post Association
--- 002：字典管理、部门管理、岗位管理、用户-部门-岗位关联
+-- 002: Dictionary Management
+-- 002：字典管理
 
 -- ============================================================
 -- Purpose: Stores dictionary type definitions, including tenant ownership and whether tenant overrides are allowed.

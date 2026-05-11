@@ -12,10 +12,10 @@ import (
 	"strings"
 	"testing"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -170,11 +170,11 @@ func setupSQLitePluginLifecycleDatabase(t *testing.T, ctx context.Context, link 
 	if err != nil {
 		t.Fatalf("resolve repository root: %v", err)
 	}
-	content, err := os.ReadFile(filepath.Join(repoRoot, "apps", "lina-core", "manifest", "sql", "011-plugin-framework.sql"))
+	content, err := os.ReadFile(filepath.Join(repoRoot, "apps", "lina-core", "manifest", "sql", "008-plugin-framework.sql"))
 	if err != nil {
 		t.Fatalf("read plugin governance SQL: %v", err)
 	}
-	translated, err := dbDialect.TranslateDDL(ctx, "apps/lina-core/manifest/sql/011-plugin-framework.sql", string(content))
+	translated, err := dbDialect.TranslateDDL(ctx, "apps/lina-core/manifest/sql/008-plugin-framework.sql", string(content))
 	if err != nil {
 		t.Fatalf("translate plugin governance SQL: %v", err)
 	}

@@ -100,6 +100,6 @@ database:
 
 ## 相关入口
 
-- `manifest/sql/014-scheduled-job-management.sql`：定时任务的表结构、种子数据、菜单权限与字典定义。
+- `manifest/sql/011-scheduled-job-management.sql`：定时任务的表结构、种子数据、菜单权限与字典定义。
 - `internal/cmd/cmd_http.go`：任务、分组、日志、处理器接口的宿主装配入口。
 - `internal/service/cron/cron.go`：宿主定时任务启动入口。
