@@ -2,7 +2,6 @@ import { test, expect } from '../../../fixtures/multi-tenant';
 import {
   createAdminApiContext,
   enablePlugin,
-  expectSuccess,
   getPlugin,
   installPlugin,
   syncPlugins,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -36,9 +36,9 @@ const [Modal, modalApi] = useVbenModal({
   },
 });
 
-function handleConfirmTextChange() {
-  modalApi.setState({ confirmDisabled: !canForce.value });
-}
+watch(canForce, (allowed) => {
+  modalApi.setState({ confirmDisabled: !allowed });
+});
 </script>
 
 <template>
@@ -75,8 +75,6 @@ function handleConfirmTextChange() {
           v-model:value="confirmText"
           :placeholder="pluginId"
           data-testid="lifecycle-guard-force-plugin-id"
-          @change="handleConfirmTextChange"
-          @input="handleConfirmTextChange"
         />
       </div>
     </div>

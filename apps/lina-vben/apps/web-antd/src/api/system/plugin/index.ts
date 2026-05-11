@@ -109,7 +109,7 @@ export async function pluginUninstall(
       responseReturn: 'body',
     },
   );
-  if (res.code !== 0) {
+  if (!res || res.code !== 0) {
     throw res;
   }
   return res.data;
