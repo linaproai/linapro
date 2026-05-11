@@ -1165,6 +1165,9 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
   test("TC-67k: plugin-demo-dynamic 示例记录支持 CRUD，并在禁用与卸载时按选项保留或清理数据附件", async ({
     page,
   }) => {
+    // The CRUD + dual-uninstall lifecycle runs three full install/enable
+    // cycles plus a file upload, well past the default 60s test budget.
+    test.setTimeout(180_000);
     const attachmentPath = ensureBundledRuntimeAttachmentFixture();
     const recordTitle = `动态插件示例记录-${Date.now()}`;
     const updatedRecordTitle = `${recordTitle}-更新`;

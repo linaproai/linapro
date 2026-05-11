@@ -3,15 +3,16 @@
     "e2e/system": [
       "e2e/iam",
       "e2e/settings",
-      "e2e/org",
-      "e2e/content",
+      "plugins/org-center",
+      "plugins/content-notice",
+      "e2e/content/message",
       "e2e/scheduler"
     ],
     "e2e/monitor": [
-      "e2e/monitor/operlog",
-      "e2e/monitor/loginlog",
-      "e2e/monitor/online",
-      "e2e/monitor/server"
+      "plugins/monitor-operlog",
+      "plugins/monitor-loginlog",
+      "plugins/monitor-online",
+      "plugins/monitor-server"
     ],
     "e2e/plugin": ["e2e/extension/plugin"],
     "e2e/debug": ["debug"],
@@ -30,19 +31,24 @@
     "settings:dict": ["e2e/settings/dict"],
     "settings:config": ["e2e/settings/config"],
     "settings:file": ["e2e/settings/file"],
-    "org": ["e2e/org"],
-    "org:dept": ["e2e/org/dept"],
-    "org:post": ["e2e/org/post"],
-    "org:user-org": ["e2e/org/user-org"],
-    "content": ["e2e/content"],
-    "content:notice": ["e2e/content/notice"],
+    "org": ["plugins/org-center"],
+    "org:dept": ["plugins/org-center/dept"],
+    "org:post": ["plugins/org-center/post"],
+    "org:user-org": ["plugins/org-center/user-org"],
+    "content": ["e2e/content/message", "plugins/content-notice"],
+    "content:notice": ["plugins/content-notice/notice"],
     "content:message": ["e2e/content/message"],
     "i18n": ["e2e/i18n"],
-    "monitor": ["e2e/monitor"],
-    "monitor:operlog": ["e2e/monitor/operlog"],
-    "monitor:loginlog": ["e2e/monitor/loginlog"],
-    "monitor:online": ["e2e/monitor/online"],
-    "monitor:server": ["e2e/monitor/server"],
+    "monitor": [
+      "plugins/monitor-operlog",
+      "plugins/monitor-loginlog",
+      "plugins/monitor-online",
+      "plugins/monitor-server"
+    ],
+    "monitor:operlog": ["plugins/monitor-operlog"],
+    "monitor:loginlog": ["plugins/monitor-loginlog"],
+    "monitor:online": ["plugins/monitor-online"],
+    "monitor:server": ["plugins/monitor-server"],
     "scheduler": ["e2e/scheduler"],
     "scheduler:job": ["e2e/scheduler/job"],
     "extension": ["e2e/extension"],
@@ -82,8 +88,6 @@
     "e2e/i18n/TC0136-backend-export-localization.ts",
     "e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts",
     "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
-    "e2e/monitor",
-    "e2e/org",
     "e2e/scheduler/job",
     "e2e/settings/config",
     "e2e/settings/dict",
@@ -108,7 +112,7 @@
     {
       "entry": "e2e/content",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed", "permissionMatrix"],
-      "reason": "Content tests depend on the content-notice source plugin and its mock data being installed and enabled; message boundary regressions also create temporary role permissions."
+      "reason": "Message center regressions enable the content-notice source plugin to source seed data and create temporary role permissions when validating self-boundary access."
     },
     {
       "entry": "plugins",
@@ -116,9 +120,11 @@
         "pluginLifecycle",
         "sharedDatabaseSeed",
         "permissionMatrix",
-        "runtimeI18nCache"
+        "runtimeI18nCache",
+        "filesystemArtifact",
+        "systemConfig"
       ],
-      "reason": "Source-plugin-owned E2E tests may install, enable, sync, and seed their owning plugins while validating runtime i18n cache or ETag behavior."
+      "reason": "Source-plugin-owned E2E tests may install, enable, sync, seed, and exercise their owning plugins while validating runtime i18n cache, hosted assets, permissions, or plugin-managed configuration."
     },
     {
       "entry": "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
@@ -231,16 +237,6 @@
       "entry": "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
       "reason": "Organization, dictionary, and config English layout regression enables the org-center source plugin and reads shared seed records across localized pages."
-    },
-    {
-      "entry": "e2e/monitor",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Monitor tests depend on monitor source plugins and shared login or operation log data."
-    },
-    {
-      "entry": "e2e/org",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Organization tests depend on the org-center source plugin and shared department or post seed data."
     },
     {
       "entry": "e2e/scheduler/job",
