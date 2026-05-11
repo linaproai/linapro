@@ -284,3 +284,4 @@
 
 - [x] **FB-1**: 固化多租户需求澄清:租户 code ASCII 约束、TenantId 优先级、平台 bypass/impersonation、暂停租户访问边界、tenant_scoped → global 强制启用、用户列表 membership 权威边界
 - [x] **FB-2**: 同步源码插件 E2E 项目标准为 `apps/lina-plugins/<plugin-id>/hack/tests/{e2e,pages,support}/`,并更新 `AGENTS.md`
+- [x] **FB-3**: 迁移框架内置源码插件既有 E2E 到各插件 `hack/tests/e2e` 所有权目录,并修正测试运行清单与校验规则

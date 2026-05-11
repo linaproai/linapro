@@ -30,11 +30,15 @@ apps/lina-plugins/<plugin-id>/
 - `auth/`、`dashboard/`、`about/`
 - `iam/`
 - `settings/`
-- `org/`
-- `content/`
-- `monitor/`
+- `content/message/`，用于宿主自有消息中心
 - `scheduler/`
 - `extension/`
+
+源码插件自有业务覆盖不再放在宿主 `e2e/` 树下，而是保留在对应插件目录：
+
+- `plugins/content-notice` 映射到 `apps/lina-plugins/content-notice/hack/tests/e2e/`
+- `plugins/org-center` 映射到 `apps/lina-plugins/org-center/hack/tests/e2e/`
+- `plugins/monitor-*` 映射到对应监控插件的 `hack/tests/e2e/`
 
 ## 命名规则
 

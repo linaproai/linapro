@@ -9,7 +9,9 @@
     "skipLibCheck": true,
     "paths": {
       "@pages/*": ["./pages/*"],
-      "@fixtures/*": ["./fixtures/*"]
+      "@fixtures/*": ["./fixtures/*"],
+      "@host-tests/*": ["./*"],
+      "xlsx": ["./node_modules/xlsx"]
     }
   },
   "include": [

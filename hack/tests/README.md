@@ -30,11 +30,15 @@ The `e2e/` tree is organized by stable capability boundaries instead of the lega
 - `auth/`, `dashboard/`, `about/`
 - `iam/`
 - `settings/`
-- `org/`
-- `content/`
-- `monitor/`
+- `content/message/` for the host-owned message center
 - `scheduler/`
 - `extension/`
+
+Source-plugin-owned business coverage lives in each plugin directory instead of the host `e2e/` tree:
+
+- `plugins/content-notice` maps to `apps/lina-plugins/content-notice/hack/tests/e2e/`
+- `plugins/org-center` maps to `apps/lina-plugins/org-center/hack/tests/e2e/`
+- `plugins/monitor-*` maps to the matching monitor plugin `hack/tests/e2e/`
 
 ## Naming Rules
 

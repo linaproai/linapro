@@ -6,6 +6,10 @@ export default defineConfig({
   // The suite root is the repository root so Playwright can execute host tests
   // and source-plugin-owned tests under apps/lina-plugins/<plugin-id>/hack/tests/e2e.
   testDir: '../..',
+  // Anchor TypeScript path resolution (incl. `@host-tests/*`) to this tsconfig
+  // so plugin-owned tests can import shared host assets via aliases instead of
+  // 6–7 level relative paths.
+  tsconfig: './tsconfig.json',
   testMatch: [
     /hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
     /apps[\\/]lina-plugins[\\/][^\\/]+[\\/]hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
