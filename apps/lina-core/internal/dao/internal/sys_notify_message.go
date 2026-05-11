@@ -22,6 +22,7 @@ type SysNotifyMessageDao struct {
 // SysNotifyMessageColumns defines and stores column names for the table sys_notify_message.
 type SysNotifyMessageColumns struct {
 	Id           string // Primary key ID
+	TenantId     string // Owning tenant ID, 0 means PLATFORM
 	PluginId     string // Source plugin ID, empty for host built-in flows
 	SourceType   string // Source type: notice=notice, plugin=plugin, system=system
 	SourceId     string // Source business ID
@@ -36,6 +37,7 @@ type SysNotifyMessageColumns struct {
 // sysNotifyMessageColumns holds the columns for the table sys_notify_message.
 var sysNotifyMessageColumns = SysNotifyMessageColumns{
 	Id:           "id",
+	TenantId:     "tenant_id",
 	PluginId:     "plugin_id",
 	SourceType:   "source_type",
 	SourceId:     "source_id",

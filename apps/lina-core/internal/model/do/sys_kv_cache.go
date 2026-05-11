@@ -13,6 +13,7 @@ import (
 type SysKvCache struct {
 	g.Meta     `orm:"table:sys_kv_cache, do:true"`
 	Id         any         // Primary key ID
+	TenantId   any         // Owning tenant ID, 0 means PLATFORM
 	OwnerType  any         // Owner type: plugin=dynamic plugin, module=host module
 	OwnerKey   any         // Owner key: plugin ID or module name
 	Namespace  any         // Cache namespace mapped to the host-cache resource identifier

@@ -100,10 +100,14 @@ func BuildDynamicRouteMetadata(runtimeState *DynamicRouteRuntimeState) *DynamicR
 
 // dynamicRouteClaims mirrors the JWT claims needed by host-side dynamic route auth.
 type dynamicRouteClaims struct {
-	TokenId  string `json:"tokenId"`
-	UserId   int    `json:"userId"`
-	Username string `json:"username"`
-	Status   int    `json:"status"`
+	TokenId         string `json:"tokenId"`
+	TenantId        int    `json:"tenantId"`
+	UserId          int    `json:"userId"`
+	Username        string `json:"username"`
+	Status          int    `json:"status"`
+	ActingUserId    int    `json:"actingUserId"`
+	ActingAsTenant  bool   `json:"actingAsTenant"`
+	IsImpersonation bool   `json:"isImpersonation"`
 	jwt.RegisteredClaims
 }
 
@@ -368,6 +372,9 @@ func (s *serviceImpl) prepareDynamicRouteRuntime(
 	if registry == nil || registry.Installed != catalog.InstalledYes || registry.Status != catalog.StatusEnabled {
 		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
 	}
+	if s.menuFilter != nil && !s.menuFilter.IsEnabled(ctx, match.PluginID) {
+		return nil, bridgecodec.NewNotFoundResponse("Dynamic plugin is not enabled"), nil
+	}
 	return &dynamicRouteRuntimeState{
 		Manifest: manifest,
 		Match:    match,
@@ -481,7 +488,7 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 	if err != nil {
 		return nil, bridgecodec.NewUnauthorizedResponse(err.Error()), nil
 	}
-	exists, err := s.touchDynamicRouteSession(ctx, claims.TokenId)
+	exists, err := s.touchDynamicRouteSession(ctx, claims.TenantId, claims.TokenId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -491,8 +498,20 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 
 	if s.userCtx != nil {
 		s.userCtx.SetUser(ctx, claims.TokenId, claims.UserId, claims.Username, claims.Status)
+		s.userCtx.SetTenant(ctx, claims.TenantId)
+		if claims.ActingAsTenant || claims.IsImpersonation {
+			if impersonationSetter, ok := s.userCtx.(userImpersonationSetter); ok {
+				impersonationSetter.SetImpersonation(
+					ctx,
+					claims.ActingUserId,
+					claims.TenantId,
+					claims.ActingAsTenant,
+					claims.IsImpersonation,
+				)
+			}
+		}
 	}
-	accessContext, err := s.getDynamicRouteAccessContext(ctx, claims.UserId)
+	accessContext, err := s.getDynamicRouteAccessContext(ctx, claims.UserId, claims.TenantId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -510,9 +529,13 @@ func (s *serviceImpl) buildDynamicRouteIdentitySnapshot(
 
 	return &bridgecontract.IdentitySnapshotV1{
 		TokenID:              claims.TokenId,
+		TenantId:             int32(claims.TenantId),
 		UserID:               int32(claims.UserId),
 		Username:             claims.Username,
 		Status:               int32(claims.Status),
+		ActingUserId:         int32(claims.ActingUserId),
+		ActingAsTenant:       claims.ActingAsTenant,
+		IsImpersonation:      claims.IsImpersonation,
 		Permissions:          append([]string(nil), accessContext.Permissions...),
 		RoleNames:            append([]string(nil), accessContext.RoleNames...),
 		DataScope:            int32(accessContext.DataScope),
@@ -541,11 +564,12 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 	return claims, nil
 }
 
-// touchDynamicRouteSession refreshes the last-active timestamp and tolerates
-// second-level TIMESTAMP precision when no row is reported as updated.
-func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tokenID string) (bool, error) {
+// touchDynamicRouteSession refreshes the last-active timestamp for one
+// tenant/token session and tolerates second-level TIMESTAMP precision when no
+// row is reported as updated.
+func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tenantID int, tokenID string) (bool, error) {
 	result, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenID}).
+		Where(do.SysOnlineSession{TenantId: tenantID, TokenId: tokenID}).
 		Data(do.SysOnlineSession{LastActiveTime: gtime.Now()}).Update()
 	if err != nil {
 		return false, err
@@ -562,7 +586,7 @@ func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tokenID stri
 	// dynamic route is hit without changing last_active_time, even though the
 	// session still exists and remains valid.
 	count, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenID}).
+		Where(do.SysOnlineSession{TenantId: tenantID, TokenId: tokenID}).
 		Count()
 	if err != nil {
 		return false, err
@@ -570,19 +594,24 @@ func (s *serviceImpl) touchDynamicRouteSession(ctx context.Context, tokenID stri
 	return count > 0, nil
 }
 
-// getDynamicRouteAccessContext loads permissions and role names for one user ID.
-func (s *serviceImpl) getDynamicRouteAccessContext(ctx context.Context, userID int) (*dynamicRouteAccessContext, error) {
-	roleIDs, err := s.getDynamicRouteUserRoleIDs(ctx, userID)
+// getDynamicRouteAccessContext loads permissions and role names for one user ID
+// within the tenant carried by the current dynamic-route token.
+func (s *serviceImpl) getDynamicRouteAccessContext(
+	ctx context.Context,
+	userID int,
+	tenantID int,
+) (*dynamicRouteAccessContext, error) {
+	roleIDs, err := s.getDynamicRouteUserRoleIDs(ctx, userID, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	roles, err := s.getDynamicRouteRoles(ctx, roleIDs)
+	roles, err := s.getDynamicRouteRoles(ctx, roleIDs, tenantID)
 	if err != nil {
 		return nil, err
 	}
 	roleNames := dynamicRouteRoleNames(roles)
 	dataScope, unsupported, unsupportedValue := dynamicRouteDataScope(roles)
-	permissions, err := s.getDynamicRoutePermissionsByRoleIDs(ctx, roleIDs)
+	permissions, err := s.getDynamicRoutePermissionsByRoleIDs(ctx, roleIDs, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -596,11 +625,12 @@ func (s *serviceImpl) getDynamicRouteAccessContext(ctx context.Context, userID i
 	}, nil
 }
 
-// getDynamicRouteUserRoleIDs returns the deduplicated role IDs assigned to the user.
-func (s *serviceImpl) getDynamicRouteUserRoleIDs(ctx context.Context, userID int) ([]int, error) {
+// getDynamicRouteUserRoleIDs returns the deduplicated tenant-local role IDs
+// assigned to the user.
+func (s *serviceImpl) getDynamicRouteUserRoleIDs(ctx context.Context, userID int, tenantID int) ([]int, error) {
 	items := make([]*entity.SysUserRole, 0)
 	if err := dao.SysUserRole.Ctx(ctx).
-		Where(do.SysUserRole{UserId: userID}).
+		Where(do.SysUserRole{UserId: userID, TenantId: tenantID}).
 		Scan(&items); err != nil {
 		return nil, err
 	}
@@ -619,15 +649,15 @@ func (s *serviceImpl) getDynamicRouteUserRoleIDs(ctx context.Context, userID int
 	return roleIDs, nil
 }
 
-// getDynamicRouteRoles loads active roles for the given role IDs.
-func (s *serviceImpl) getDynamicRouteRoles(ctx context.Context, roleIDs []int) ([]*entity.SysRole, error) {
+// getDynamicRouteRoles loads active tenant-local roles for the given role IDs.
+func (s *serviceImpl) getDynamicRouteRoles(ctx context.Context, roleIDs []int, tenantID int) ([]*entity.SysRole, error) {
 	if len(roleIDs) == 0 {
 		return []*entity.SysRole{}, nil
 	}
 	items := make([]*entity.SysRole, 0)
 	if err := dao.SysRole.Ctx(ctx).
 		WhereIn(dao.SysRole.Columns().Id, intsToInterfaces(roleIDs)).
-		Where(dao.SysRole.Columns().Status, statusNormal).
+		Where(do.SysRole{Status: statusNormal, TenantId: tenantID}).
 		Scan(&items); err != nil {
 		return nil, err
 	}
@@ -657,6 +687,10 @@ func dynamicRouteDataScope(roles []*entity.SysRole) (int, bool, int) {
 		switch datascope.Scope(item.DataScope) {
 		case datascope.ScopeAll:
 			return int(datascope.ScopeAll), false, 0
+		case datascope.ScopeTenant:
+			if scope != datascope.ScopeAll {
+				scope = datascope.ScopeTenant
+			}
 		case datascope.ScopeDept:
 			if scope == datascope.ScopeNone || scope == datascope.ScopeSelf {
 				scope = datascope.ScopeDept
@@ -676,13 +710,18 @@ func dynamicRouteDataScope(roles []*entity.SysRole) (int, bool, int) {
 // lookups into a single pass: it fetches menu IDs bound to the given roles, then
 // loads only button-type permission menus in one query (3 DB queries total for
 // the full access context instead of 5).
-func (s *serviceImpl) getDynamicRoutePermissionsByRoleIDs(ctx context.Context, roleIDs []int) ([]string, error) {
+func (s *serviceImpl) getDynamicRoutePermissionsByRoleIDs(
+	ctx context.Context,
+	roleIDs []int,
+	tenantID int,
+) ([]string, error) {
 	if len(roleIDs) == 0 {
 		return []string{}, nil
 	}
 	roleMenuItems := make([]*entity.SysRoleMenu, 0)
 	if err := dao.SysRoleMenu.Ctx(ctx).
 		WhereIn(dao.SysRoleMenu.Columns().RoleId, intsToInterfaces(roleIDs)).
+		Where(do.SysRoleMenu{TenantId: tenantID}).
 		Scan(&roleMenuItems); err != nil {
 		return nil, err
 	}

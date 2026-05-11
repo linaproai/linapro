@@ -125,6 +125,11 @@
         },
         "title": "Dynamic Plugin Demo Is Live",
         "workspaceSummary": "This area reads the table created by the plugin-demo-dynamic install SQL and uses the plugin backend routes for create, update, delete, and attachment downloads. Disabling the plugin does not clear the data."
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "demo_records_exist": "Dynamic demo records exist for one or more tenants. Delete demo records before uninstalling."
+        }
       }
     }
   }

@@ -14,6 +14,7 @@ import {
   pluginEnable,
   pluginList,
   pluginSync,
+  pluginUpdateTenantProvisioningPolicy,
 } from '#/api/system/plugin';
 import { $t } from '#/locales';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
@@ -22,6 +23,7 @@ import PluginDetailModal from './plugin-detail-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
 import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginUninstallModal from './plugin-uninstall-modal.vue';
+import LifecycleGuardDialog from '#/views/platform/plugins/lifecycle-guard-dialog.vue';
 
 const [DetailModal, detailModalApi] = useVbenModal({
   connectedComponent: PluginDetailModal,
@@ -39,6 +41,10 @@ const [UninstallModal, uninstallModalApi] = useVbenModal({
   connectedComponent: PluginUninstallModal,
 });
 
+const [LifecycleGuardModal, lifecycleGuardModalApi] = useVbenModal({
+  connectedComponent: LifecycleGuardDialog,
+});
+
 const typeColorMap: Record<string, string> = {
   dynamic: 'green',
   source: 'blue',
@@ -46,6 +52,7 @@ const typeColorMap: Record<string, string> = {
 
 const pluginAccessCodes = {
   disable: 'plugin:disable',
+  edit: 'plugin:edit',
   enable: 'plugin:enable',
   install: 'plugin:install',
   uninstall: 'plugin:uninstall',
@@ -136,7 +143,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         field: 'type',
-        slots: { default: 'type' },
+        slots: { default: 'type', header: 'typeHeader' },
         title: $t('pages.system.plugin.fields.type'),
         width: 120,
       },
@@ -161,9 +168,27 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         field: 'hasMockData',
-        slots: { default: 'hasMockData' },
+        slots: { default: 'hasMockData', header: 'hasMockDataHeader' },
         title: $t('pages.system.plugin.fields.hasMockData'),
         width: 120,
+      },
+      {
+        field: 'supportsMultiTenant',
+        slots: {
+          default: 'supportsMultiTenant',
+          header: 'supportsMultiTenantHeader',
+        },
+        title: $t('pages.system.plugin.fields.supportsMultiTenant'),
+        width: 140,
+      },
+      {
+        field: 'autoEnableForNewTenants',
+        slots: {
+          default: 'tenantProvisioning',
+          header: 'tenantProvisioningHeader',
+        },
+        title: $t('pages.system.plugin.fields.tenantProvisioning'),
+        width: 160,
       },
       {
         field: 'installedAt',
@@ -226,6 +251,18 @@ function hasPluginMockData(row: SystemPlugin) {
   return row.hasMockData === 1;
 }
 
+function supportsPluginMultiTenant(row: SystemPlugin) {
+  return row.supportsMultiTenant === true;
+}
+
+function isTenantProvisioningPolicySupported(row: SystemPlugin) {
+  return (
+    supportsPluginMultiTenant(row) &&
+    row.scopeNature === 'tenant_aware' &&
+    row.installMode === 'tenant_scoped'
+  );
+}
+
 function buildAutoEnableManagedTooltip(row: SystemPlugin) {
   return $t('pages.system.plugin.messages.autoEnableTooltip', {
     pluginId: row.id,
@@ -236,6 +273,10 @@ function buildAutoEnableManagedRuntimeHint(actionLabel: string) {
   return $t('pages.system.plugin.messages.autoEnableRuntimeHint', {
     actionLabel,
   });
+}
+
+function getColumnHelpAriaLabel(label: string) {
+  return $t('pages.system.plugin.columnHelp.ariaLabel', { label });
 }
 
 async function confirmAutoEnableManagedAction(actionLabel: string) {
@@ -267,6 +308,10 @@ function canInstallAndEnablePlugin() {
 
 function canSyncPlugins() {
   return hasAccessByCodes([pluginAccessCodes.install]);
+}
+
+function canEditPluginPolicy() {
+  return hasAccessByCodes([pluginAccessCodes.edit]);
 }
 
 function canUninstallPlugin() {
@@ -318,6 +363,25 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
       ? $t('pages.system.plugin.messages.enabled')
       : $t('pages.system.plugin.messages.disabled'),
   );
+}
+
+async function handleTenantProvisioningPolicyChange(
+  row: SystemPlugin,
+  checked: boolean,
+) {
+  if (!canEditPluginPolicy()) {
+    message.warning($t('pages.system.plugin.messages.noPolicyPermission'));
+    return;
+  }
+  if (!isTenantProvisioningPolicySupported(row)) {
+    message.warning(
+      $t('pages.system.plugin.messages.tenantProvisioningUnsupported'),
+    );
+    return;
+  }
+  await pluginUpdateTenantProvisioningPolicy(row.id, checked);
+  row.autoEnableForNewTenants = checked;
+  message.success($t('pages.system.plugin.messages.tenantProvisioningUpdated'));
 }
 
 async function handleInstall(row: SystemPlugin) {
@@ -376,36 +440,39 @@ async function handleUninstallReload() {
   await notifyPluginRegistryChanged();
   await gridApi.query();
 }
+
+function handleLifecycleGuard(payload: {
+  force: () => Promise<void>;
+  pluginId: string;
+  reasons: string[];
+}) {
+  lifecycleGuardModalApi.setData(payload);
+  lifecycleGuardModalApi.open();
+}
+
+async function handleLifecycleGuardForce(payload: { pluginId: string }) {
+  const data = lifecycleGuardModalApi.getData<{
+    force?: () => Promise<void>;
+    pluginId?: string;
+  }>();
+  if (!data.force || data.pluginId !== payload.pluginId) {
+    return;
+  }
+  lifecycleGuardModalApi.lock(true);
+  try {
+    await data.force();
+    lifecycleGuardModalApi.close();
+  } catch {
+    // The force callback already surfaces the backend error locally.
+  } finally {
+    lifecycleGuardModalApi.lock(false);
+  }
+}
 </script>
 
 <template>
   <Page :auto-content-height="true">
     <Grid :table-title="$t('pages.system.plugin.tableTitle')">
-      <template #table-title>
-        <div class="flex-center gap-1 text-[1rem] font-bold">
-          <span>{{ $t('pages.system.plugin.tableTitle') }}</span>
-          <Tooltip placement="right">
-            <template #title>
-              <div class="max-w-[320px] space-y-1.5 text-xs leading-5">
-                <div>
-                  {{ $t('pages.system.plugin.tableTitleHelp.sourceDynamic') }}
-                </div>
-                <div>
-                  {{ $t('pages.system.plugin.tableTitleHelp.mockData') }}
-                </div>
-              </div>
-            </template>
-            <span
-              :aria-label="$t('pages.system.plugin.tableTitleHelp.ariaLabel')"
-              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[15px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
-              data-testid="plugin-list-help-icon"
-              role="img"
-              tabindex="0"
-            ></span>
-          </Tooltip>
-        </div>
-      </template>
-
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -424,6 +491,92 @@ async function handleUninstallReload() {
             {{ $t('pages.system.plugin.actions.syncPlugins') }}
           </a-button>
         </Space>
+      </template>
+
+      <template #typeHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.type') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.type')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel($t('pages.system.plugin.fields.type'))
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-type-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
+      <template #hasMockDataHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.hasMockData') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.mockData')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.hasMockData'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-mock-data-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
+      <template #supportsMultiTenantHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.supportsMultiTenant') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.supportsMultiTenant')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.supportsMultiTenant'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-supports-multi-tenant-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
+      <template #tenantProvisioningHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.tenantProvisioning') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.tenantProvisioning')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.tenantProvisioning'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-tenant-provisioning-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
       </template>
 
       <template #type="{ row }">
@@ -496,6 +649,42 @@ async function handleUninstallReload() {
         </Tag>
       </template>
 
+      <template #supportsMultiTenant="{ row }">
+        <Tag
+          :color="supportsPluginMultiTenant(row) ? 'green' : 'default'"
+          :data-testid="`plugin-supports-multi-tenant-${row.id}`"
+        >
+          {{
+            supportsPluginMultiTenant(row)
+              ? $t('pages.common.yes')
+              : $t('pages.common.no')
+          }}
+        </Tag>
+      </template>
+
+      <template #tenantProvisioning="{ row }">
+        <Tooltip
+          :title="
+            isTenantProvisioningPolicySupported(row)
+              ? $t('pages.system.plugin.messages.tenantProvisioningEffective')
+              : $t('pages.system.plugin.messages.tenantProvisioningUnsupported')
+          "
+        >
+          <Switch
+            :checked="row.autoEnableForNewTenants === true"
+            :disabled="
+              !isTenantProvisioningPolicySupported(row) || !canEditPluginPolicy()
+            "
+            size="small"
+            :data-testid="`plugin-tenant-provisioning-${row.id}`"
+            @change="
+              (checked) =>
+                handleTenantProvisioningPolicyChange(row, Boolean(checked))
+            "
+          />
+        </Tooltip>
+      </template>
+
       <template #action="{ row }">
         <Space>
           <ghost-button
@@ -535,6 +724,10 @@ async function handleUninstallReload() {
     <DetailModal />
     <DynamicUploadModal @reload="handleDynamicUploadReload" />
     <HostServiceAuthModal @reload="handleHostServiceAuthReload" />
-    <UninstallModal @reload="handleUninstallReload" />
+    <UninstallModal
+      @lifecycle-guard="handleLifecycleGuard"
+      @reload="handleUninstallReload"
+    />
+    <LifecycleGuardModal @force="handleLifecycleGuardForce" />
   </Page>
 </template>

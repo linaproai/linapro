@@ -24,6 +24,9 @@ type FailureStrategy string
 // ChangeReason describes why a cache domain revision was published.
 type ChangeReason string
 
+// TenantID identifies the tenant scope of one cache invalidation message.
+type TenantID int
+
 // Cache scope constants centralize stable invalidation scopes.
 const (
 	// ScopeGlobal invalidates the whole cache domain.
@@ -96,12 +99,20 @@ type SnapshotItem struct {
 	StaleSeconds     int64            // StaleSeconds reports seconds elapsed since LastSyncedAt.
 }
 
+// InvalidationScope declares the tenant range for one cache invalidation.
+type InvalidationScope struct {
+	TenantID         TenantID // TenantID is the target tenant, 0 platform, or -1 all tenants.
+	CascadeToTenants bool     // CascadeToTenants invalidates tenant buckets after platform default changes.
+}
+
 // Service defines the cache coordination contract.
 type Service interface {
 	// ConfigureDomain configures or replaces one cache domain consistency contract.
 	ConfigureDomain(spec DomainSpec) error
 	// MarkChanged publishes one explicit cache domain/scope revision change.
 	MarkChanged(ctx context.Context, domain Domain, scope Scope, reason ChangeReason) (int64, error)
+	// MarkTenantChanged publishes one tenant-scoped cache domain/scope revision change.
+	MarkTenantChanged(ctx context.Context, domain Domain, scope Scope, tenantScope InvalidationScope, reason ChangeReason) (int64, error)
 	// EnsureFresh refreshes local state if the shared or local revision advanced.
 	EnsureFresh(ctx context.Context, domain Domain, scope Scope, refresher Refresher) (int64, error)
 	// CurrentRevision returns the latest visible revision for one domain/scope.

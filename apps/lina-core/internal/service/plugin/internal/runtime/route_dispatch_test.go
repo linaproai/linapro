@@ -6,11 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/gogf/gf/v2/net/ghttp"
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
@@ -66,6 +70,103 @@ func TestBuildDynamicRouteMetadataMapsRouteGovernance(t *testing.T) {
 	}
 	if metadata.Meta["x-route-purpose"] != "review" {
 		t.Fatalf("expected route metadata x-route-purpose review, got %#v", metadata.Meta)
+	}
+}
+
+// TestDispatchDynamicRouteReturnsNotFoundWhenTenantPluginDisabled verifies
+// tenant-scoped dynamic routes are hidden unless the current tenant enabled the
+// plugin, even when the platform registry row is installed and enabled.
+func TestDispatchDynamicRouteReturnsNotFoundWhenTenantPluginDisabled(t *testing.T) {
+	var (
+		services = testutil.NewServices()
+		ctx      = datascope.WithTenantForTest(context.Background(), 7001)
+		pluginID = "plugin-dynamic-route-tenant-disabled"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
+		t,
+		pluginID,
+		"Tenant Disabled Route Plugin",
+		"v1.0.0",
+		nil,
+		nil,
+		nil,
+		[]*pluginbridge.RouteContract{
+			{
+				Path:   "/summary",
+				Method: http.MethodGet,
+				Access: pluginbridge.AccessPublic,
+			},
+		},
+		&pluginbridge.BridgeSpec{
+			ABIVersion:     pluginbridge.SupportedABIVersion,
+			RuntimeKind:    pluginbridge.RuntimeKindWasm,
+			RouteExecution: true,
+			RequestCodec:   pluginbridge.CodecProtobuf,
+			ResponseCodec:  pluginbridge.CodecProtobuf,
+			AllocExport:    "allocate",
+			ExecuteExport:  "execute",
+		},
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, context.Background(), pluginID)
+	if _, err := dao.SysPluginState.Ctx(context.Background()).
+		Where(do.SysPluginState{PluginId: pluginID}).
+		Delete(); err != nil {
+		t.Fatalf("cleanup dynamic route plugin state failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := dao.SysPluginState.Ctx(context.Background()).
+			Where(do.SysPluginState{PluginId: pluginID}).
+			Delete(); err != nil {
+			t.Fatalf("cleanup dynamic route plugin state failed: %v", err)
+		}
+		testutil.CleanupPluginGovernanceRowsHard(t, context.Background(), pluginID)
+	})
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("load dynamic route manifest failed: %v", err)
+	}
+	manifest.ScopeNature = catalog.ScopeNatureTenantAware.String()
+	manifest.DefaultInstallMode = catalog.InstallModeTenantScoped.String()
+	if _, err = services.Catalog.SyncManifest(context.Background(), manifest); err != nil {
+		t.Fatalf("sync dynamic route manifest failed: %v", err)
+	}
+	if err = services.Catalog.SetPluginInstalled(context.Background(), pluginID, catalog.InstalledYes); err != nil {
+		t.Fatalf("set dynamic route plugin installed failed: %v", err)
+	}
+	if err = services.Catalog.SetPluginStatus(context.Background(), pluginID, catalog.StatusEnabled); err != nil {
+		t.Fatalf("set dynamic route plugin enabled failed: %v", err)
+	}
+	if _, err = dao.SysPlugin.Ctx(context.Background()).
+		Where(do.SysPlugin{PluginId: pluginID}).
+		Data(do.SysPlugin{
+			ScopeNature: catalog.ScopeNatureTenantAware.String(),
+			InstallMode: catalog.InstallModeTenantScoped.String(),
+		}).
+		Update(); err != nil {
+		t.Fatalf("set dynamic route plugin tenant governance failed: %v", err)
+	}
+
+	request := &ghttp.Request{}
+	request.Request = httptest.NewRequest(http.MethodGet, runtime.RoutePublicPrefix+"/"+pluginID+"/summary", nil)
+	response, err := services.Runtime.DispatchDynamicRoute(ctx, &runtime.DynamicRouteDispatchInput{Request: request})
+	if err != nil {
+		t.Fatalf("dispatch disabled tenant plugin route failed: %v", err)
+	}
+	if response == nil || response.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected disabled tenant plugin route to return 404, got %#v", response)
+	}
+
+	if err = services.Integration.SetTenantPluginEnabledState(ctx, pluginID, datascope.CurrentTenantID(ctx), true); err != nil {
+		t.Fatalf("enable plugin for tenant failed: %v", err)
+	}
+	response, err = services.Runtime.DispatchDynamicRoute(ctx, &runtime.DynamicRouteDispatchInput{Request: request})
+	if err == nil && response != nil && response.StatusCode == http.StatusNotFound {
+		t.Fatalf("expected enabled tenant plugin route to pass routing, got %#v", response)
+	}
+	if err != nil && strings.Contains(err.Error(), "not found") {
+		t.Fatalf("expected enabled tenant plugin route to pass routing, got error: %v", err)
 	}
 }
 

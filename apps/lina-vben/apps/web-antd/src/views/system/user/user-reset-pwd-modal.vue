@@ -93,7 +93,7 @@ async function handleClosed() {
         <DescriptionsItem :label="$t('pages.system.user.resetPassword.userId')">
           {{ currentUser.id }}
         </DescriptionsItem>
-        <DescriptionsItem :label="$t('pages.fields.username')">
+        <DescriptionsItem :label="$t('pages.system.user.labels.account')">
           {{ currentUser.username }}
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.fields.nickname')">

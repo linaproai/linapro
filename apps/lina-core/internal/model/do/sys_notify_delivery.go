@@ -13,6 +13,7 @@ import (
 type SysNotifyDelivery struct {
 	g.Meta         `orm:"table:sys_notify_delivery, do:true"`
 	Id             any         // Primary key ID
+	TenantId       any         // Owning tenant ID, 0 means PLATFORM
 	MessageId      any         // Notification message ID
 	ChannelKey     any         // Delivery channel key
 	ChannelType    any         // Delivery channel type

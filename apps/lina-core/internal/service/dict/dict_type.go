@@ -6,12 +6,14 @@ package dict
 import (
 	"bytes"
 	"context"
+	"sort"
 
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 )
 
@@ -35,6 +37,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		cols = dao.SysDictType.Columns()
 		m    = dao.SysDictType.Ctx(ctx)
 	)
+	m = applyDictFallbackScope(ctx, m)
 
 	if in.Name != "" {
 		m = m.WhereLike(cols.Name, "%"+in.Name+"%")
@@ -43,18 +46,17 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		m = m.WhereLike(cols.Type, "%"+in.Type+"%")
 	}
 
-	total, err := m.Count()
+	var rows []*entity.SysDictType
+	err := m.OrderDesc(cols.Id).Scan(&rows)
 	if err != nil {
 		return nil, err
 	}
-
-	var list []*entity.SysDictType
-	err = m.Page(in.PageNum, in.PageSize).
-		OrderDesc(cols.Id).
-		Scan(&list)
-	if err != nil {
-		return nil, err
-	}
+	list := visibleDictTypes(ctx, rows)
+	sort.SliceStable(list, func(i int, j int) bool {
+		return list[i].Id > list[j].Id
+	})
+	total := len(list)
+	list = paginateDictTypes(list, in.PageNum, in.PageSize)
 	s.localizeDictTypeEntities(ctx, list)
 
 	return &ListOutput{
@@ -73,9 +75,12 @@ type CreateInput struct {
 
 // Create creates a new dictionary type.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
-	count, err := dao.SysDictType.Ctx(ctx).
-		Where(do.SysDictType{Type: in.Type}).
-		Count()
+	if err := assertDictTenantOverrideAllowed(ctx, in.Type); err != nil {
+		return 0, err
+	}
+	model := dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Type: in.Type})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	count, err := model.Count()
 	if err != nil {
 		return 0, err
 	}
@@ -83,12 +88,13 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		return 0, bizerr.NewCode(CodeDictTypeExists)
 	}
 
-	id, err := dao.SysDictType.Ctx(ctx).Data(do.SysDictType{
-		Name:   in.Name,
-		Type:   in.Type,
-		Status: in.Status,
-		Remark: in.Remark,
-	}).InsertAndGetId()
+	data := currentTenantDictDO(ctx)
+	data.Name = in.Name
+	data.Type = in.Type
+	data.Status = in.Status
+	data.Remark = in.Remark
+
+	id, err := dao.SysDictType.Ctx(ctx).Data(data).InsertAndGetId()
 	if err != nil {
 		return 0, err
 	}
@@ -99,9 +105,9 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 // GetById retrieves dict type by ID.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysDictType, error) {
 	var dictType *entity.SysDictType
-	err := dao.SysDictType.Ctx(ctx).
-		Where(do.SysDictType{Id: id}).
-		Scan(&dictType)
+	model := dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: id})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&dictType)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +129,20 @@ type UpdateInput struct {
 // Update updates dict type information.
 func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	// Check dict type exists
-	if _, err := s.GetById(ctx, in.Id); err != nil {
+	existing, err := s.GetById(ctx, in.Id)
+	if err != nil {
 		return err
 	}
 
 	cols := dao.SysDictType.Columns()
+	finalType := existing.Type
+	if in.Type != nil {
+		finalType = *in.Type
+	}
+	if err := assertDictTenantOverrideAllowed(ctx, finalType); err != nil {
+		return err
+	}
+
 	data := do.SysDictType{}
 	if in.Name != nil {
 		data.Name = *in.Name
@@ -135,10 +150,11 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	if in.Type != nil {
 		// Check type uniqueness when updating the type field
 		if *in.Type != "" {
-			count, err := dao.SysDictType.Ctx(ctx).
+			model := dao.SysDictType.Ctx(ctx).
 				Where(cols.Type, *in.Type).
-				WhereNot(cols.Id, in.Id).
-				Count()
+				WhereNot(cols.Id, in.Id)
+			model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+			count, err := model.Count()
 			if err != nil {
 				return err
 			}
@@ -155,7 +171,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		data.Remark = *in.Remark
 	}
 
-	_, err := dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: in.Id}).Data(data).Update()
+	_, err = dao.SysDictType.Ctx(ctx).Where(do.SysDictType{Id: in.Id}).Data(data).Update()
 	return err
 }
 
@@ -206,6 +222,7 @@ type ExportInput struct {
 func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, err error) {
 	cols := dao.SysDictType.Columns()
 	m := dao.SysDictType.Ctx(ctx)
+	m = applyDictFallbackScope(ctx, m)
 
 	if len(in.Ids) > 0 {
 		m = m.WhereIn(cols.Id, in.Ids)
@@ -221,11 +238,12 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	// Limit export to prevent memory issues
 	m = m.Limit(10000)
 
-	var list []*entity.SysDictType
-	err = m.OrderAsc(cols.Id).Scan(&list)
+	var rows []*entity.SysDictType
+	err = m.OrderAsc(cols.Id).Scan(&rows)
 	if err != nil {
 		return nil, err
 	}
+	list := visibleDictTypes(ctx, rows)
 	s.localizeDictTypeEntities(ctx, list)
 
 	// Create Excel file
@@ -276,6 +294,23 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 	return data, nil
 }
 
+// paginateDictTypes returns one page from an already materialized effective
+// dictionary-type view.
+func paginateDictTypes(rows []*entity.SysDictType, pageNum int, pageSize int) []*entity.SysDictType {
+	if pageNum <= 0 || pageSize <= 0 {
+		return rows
+	}
+	start := (pageNum - 1) * pageSize
+	if start >= len(rows) {
+		return []*entity.SysDictType{}
+	}
+	end := start + pageSize
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return rows[start:end]
+}
+
 // OptionItem defines a single option item.
 type OptionItem struct {
 	Id   int    `json:"id"`   // Dictionary type ID
@@ -287,13 +322,15 @@ type OptionItem struct {
 func (s *serviceImpl) Options(ctx context.Context) ([]*OptionItem, error) {
 	cols := dao.SysDictType.Columns()
 	var list []*entity.SysDictType
-	err := dao.SysDictType.Ctx(ctx).
+	model := dao.SysDictType.Ctx(ctx).
 		Where(do.SysDictType{Status: 1}).
-		OrderAsc(cols.Id).
-		Scan(&list)
+		OrderAsc(cols.Id)
+	model = applyDictFallbackScope(ctx, model)
+	err := model.Scan(&list)
 	if err != nil {
 		return nil, err
 	}
+	list = visibleDictTypes(ctx, list)
 
 	options := make([]*OptionItem, 0, len(list))
 	for _, dt := range list {

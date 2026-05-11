@@ -3,6 +3,7 @@
 -- Static notification history rows use exact existence checks so mock loading is idempotent.
 
 INSERT INTO sys_notify_message (
+    "tenant_id",
     "plugin_id",
     "source_type",
     "source_id",
@@ -14,6 +15,7 @@ INSERT INTO sys_notify_message (
     "created_at"
 )
 SELECT
+    0,
     '',
     'system',
     'mock-welcome',
@@ -28,12 +30,14 @@ WHERE admin."username" = 'admin'
   AND NOT EXISTS (
       SELECT 1
       FROM sys_notify_message existing
-      WHERE existing."plugin_id" = ''
+      WHERE existing."tenant_id" = 0
+        AND existing."plugin_id" = ''
         AND existing."source_type" = 'system'
         AND existing."source_id" = 'mock-welcome'
   );
 
 INSERT INTO sys_notify_message (
+    "tenant_id",
     "plugin_id",
     "source_type",
     "source_id",
@@ -45,6 +49,7 @@ INSERT INTO sys_notify_message (
     "created_at"
 )
 SELECT
+    0,
     'content-notice',
     'notice',
     'mock-maintenance',
@@ -59,12 +64,14 @@ WHERE admin."username" = 'admin'
   AND NOT EXISTS (
       SELECT 1
       FROM sys_notify_message existing
-      WHERE existing."plugin_id" = 'content-notice'
+      WHERE existing."tenant_id" = 0
+        AND existing."plugin_id" = 'content-notice'
         AND existing."source_type" = 'notice'
         AND existing."source_id" = 'mock-maintenance'
   );
 
 INSERT INTO sys_notify_delivery (
+    "tenant_id",
     "message_id",
     "channel_key",
     "channel_type",
@@ -79,6 +86,7 @@ INSERT INTO sys_notify_delivery (
     "updated_at"
 )
 SELECT
+    0,
     "msg"."id",
     'inbox',
     'inbox',
@@ -93,12 +101,14 @@ SELECT
     TIMESTAMP '2026-04-20 09:00:10'
 FROM sys_notify_message "msg"
 JOIN sys_user u ON u."username" IN ('admin', 'user002', 'user060')
-WHERE "msg"."source_type" = 'system'
+WHERE "msg"."tenant_id" = 0
+  AND "msg"."source_type" = 'system'
   AND "msg"."source_id" = 'mock-welcome'
   AND "msg"."id" = (
       SELECT latest."id"
       FROM sys_notify_message latest
-      WHERE latest."source_type" = 'system'
+      WHERE latest."tenant_id" = 0
+        AND latest."source_type" = 'system'
         AND latest."source_id" = 'mock-welcome'
       ORDER BY latest."id" DESC
       LIMIT 1
@@ -106,13 +116,15 @@ WHERE "msg"."source_type" = 'system'
   AND NOT EXISTS (
       SELECT 1
       FROM sys_notify_delivery existing
-      WHERE existing."message_id" = "msg"."id"
+      WHERE existing."tenant_id" = 0
+        AND existing."message_id" = "msg"."id"
         AND existing."channel_key" = 'inbox'
         AND existing."recipient_type" = 'user'
         AND existing."user_id" = u."id"
   );
 
 INSERT INTO sys_notify_delivery (
+    "tenant_id",
     "message_id",
     "channel_key",
     "channel_type",
@@ -127,6 +139,7 @@ INSERT INTO sys_notify_delivery (
     "updated_at"
 )
 SELECT
+    0,
     "msg"."id",
     'inbox',
     'inbox',
@@ -141,12 +154,14 @@ SELECT
     TIMESTAMP '2026-04-21 10:31:00'
 FROM sys_notify_message "msg"
 JOIN sys_user u ON u."username" IN ('admin', 'user009', 'user021')
-WHERE "msg"."source_type" = 'notice'
+WHERE "msg"."tenant_id" = 0
+  AND "msg"."source_type" = 'notice'
   AND "msg"."source_id" = 'mock-maintenance'
   AND "msg"."id" = (
       SELECT latest."id"
       FROM sys_notify_message latest
-      WHERE latest."source_type" = 'notice'
+      WHERE latest."tenant_id" = 0
+        AND latest."source_type" = 'notice'
         AND latest."source_id" = 'mock-maintenance'
       ORDER BY latest."id" DESC
       LIMIT 1
@@ -154,7 +169,8 @@ WHERE "msg"."source_type" = 'notice'
   AND NOT EXISTS (
       SELECT 1
       FROM sys_notify_delivery existing
-      WHERE existing."message_id" = "msg"."id"
+      WHERE existing."tenant_id" = 0
+        AND existing."message_id" = "msg"."id"
         AND existing."channel_key" = 'inbox'
         AND existing."recipient_type" = 'user'
         AND existing."user_id" = u."id"

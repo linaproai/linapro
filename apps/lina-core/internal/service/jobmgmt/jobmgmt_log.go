@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
@@ -178,7 +179,9 @@ func (s *serviceImpl) CleanupDueLogs(ctx context.Context) (int64, error) {
 	}
 
 	var jobs []*entity.SysJob
-	if err := dao.SysJob.Ctx(ctx).Scan(&jobs); err != nil {
+	model := dao.SysJob.Ctx(ctx)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	if err := model.Scan(&jobs); err != nil {
 		return 0, err
 	}
 
@@ -216,10 +219,11 @@ func (s *serviceImpl) cleanupJobLogsByPolicy(
 	cols := dao.SysJobLog.Columns()
 	switch policy.Mode {
 	case jobmeta.RetentionModeDays:
-		result, err := dao.SysJobLog.Ctx(ctx).
+		model := dao.SysJobLog.Ctx(ctx).
 			Where(do.SysJobLog{JobId: jobID}).
-			WhereLT(cols.StartAt, time.Now().AddDate(0, 0, -int(policy.Value)).Format("2006-01-02 15:04:05")).
-			Delete()
+			WhereLT(cols.StartAt, time.Now().AddDate(0, 0, -int(policy.Value)).Format("2006-01-02 15:04:05"))
+		model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+		result, err := model.Delete()
 		if err != nil {
 			return 0, err
 		}
@@ -227,12 +231,13 @@ func (s *serviceImpl) cleanupJobLogsByPolicy(
 
 	case jobmeta.RetentionModeCount:
 		var rows []*entity.SysJobLog
-		if err := dao.SysJobLog.Ctx(ctx).
+		model := dao.SysJobLog.Ctx(ctx).
 			Where(do.SysJobLog{JobId: jobID}).
 			Fields(cols.Id, cols.StartAt).
 			OrderDesc(cols.StartAt).
-			OrderDesc(cols.Id).
-			Scan(&rows); err != nil {
+			OrderDesc(cols.Id)
+		model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+		if err := model.Scan(&rows); err != nil {
 			return 0, err
 		}
 		if int64(len(rows)) <= policy.Value {
@@ -249,9 +254,9 @@ func (s *serviceImpl) cleanupJobLogsByPolicy(
 		if len(deleteIDs) == 0 {
 			return 0, nil
 		}
-		result, err := dao.SysJobLog.Ctx(ctx).
-			WhereIn(cols.Id, deleteIDs).
-			Delete()
+		deleteModel := dao.SysJobLog.Ctx(ctx).WhereIn(cols.Id, deleteIDs)
+		deleteModel = datascope.ApplyTenantScope(ctx, deleteModel, datascope.TenantColumn)
+		result, err := deleteModel.Delete()
 		if err != nil {
 			return 0, err
 		}

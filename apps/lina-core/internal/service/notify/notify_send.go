@@ -14,6 +14,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 )
 
@@ -82,6 +83,7 @@ func (s *serviceImpl) sendInbox(
 
 	var (
 		now           = gtime.Now()
+		tenantID      = datascope.CurrentTenantID(ctx)
 		sourceType    = normalizeSourceType(in.SourceType)
 		categoryCode  = normalizeCategoryCode(in.CategoryCode)
 		messageID     int64
@@ -98,9 +100,10 @@ func (s *serviceImpl) sendInbox(
 			Content:      in.Content,
 			PayloadJson:  payloadJSON,
 			SenderUserId: in.SenderUserID,
+			TenantId:     tenantID,
 		}).InsertAndGetId()
 		if err != nil {
-			return err
+			return bizerr.WrapCode(err, CodeNotifyMessageCreateFailed)
 		}
 
 		for _, userID := range recipientUserIDs {
@@ -114,8 +117,9 @@ func (s *serviceImpl) sendInbox(
 				DeliveryStatus: DeliveryStatusSucceeded,
 				IsRead:         0,
 				SentAt:         now,
+				TenantId:       tenantID,
 			}).Insert(); err != nil {
-				return err
+				return bizerr.WrapCode(err, CodeNotifyDeliveryCreateFailed)
 			}
 			deliveryCount++
 		}
@@ -123,7 +127,10 @@ func (s *serviceImpl) sendInbox(
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		if _, ok := bizerr.As(err); ok {
+			return nil, err
+		}
+		return nil, bizerr.WrapCode(err, CodeNotifyMessageCreateFailed)
 	}
 
 	return &SendOutput{
@@ -132,7 +139,7 @@ func (s *serviceImpl) sendInbox(
 	}, nil
 }
 
-// getChannel loads one enabled notify channel by key.
+// getChannel loads one enabled global notify channel by key.
 func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entity.SysNotifyChannel, error) {
 	normalizedChannelKey := strings.TrimSpace(channelKey)
 	if normalizedChannelKey == "" {
@@ -145,7 +152,7 @@ func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entit
 		Status:     ChannelStatusEnabled,
 	}).Scan(&channel)
 	if err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, CodeNotifyChannelQueryFailed)
 	}
 	if channel == nil {
 		return nil, bizerr.NewCode(CodeNotifyChannelUnavailable)
@@ -153,18 +160,33 @@ func (s *serviceImpl) getChannel(ctx context.Context, channelKey string) (*entit
 	return channel, nil
 }
 
-// listActiveInboxUserIDs returns all enabled user identifiers except the
-// optional excluded sender.
+// listActiveInboxUserIDs returns deliverable enabled users except the optional
+// excluded sender. Tenant contexts use active membership as the delivery
+// boundary, while platform context stays constrained to platform users.
 func (s *serviceImpl) listActiveInboxUserIDs(ctx context.Context, excludedUserID int64) ([]int64, error) {
-	userCols := dao.SysUser.Columns()
-	model := dao.SysUser.Ctx(ctx).Fields(userCols.Id).Where(do.SysUser{Status: 1})
+	var (
+		userCols = dao.SysUser.Columns()
+		tenantID = datascope.CurrentTenantID(ctx)
+		model    = dao.SysUser.Ctx(ctx).Fields(userCols.Id).Where(do.SysUser{Status: 1})
+	)
+	if tenantID == datascope.PlatformTenantID {
+		model = model.Where(do.SysUser{TenantId: datascope.PlatformTenantID})
+	} else if s == nil || s.tenantSvc == nil || !s.tenantSvc.Enabled(ctx) {
+		model = model.Where(do.SysUser{TenantId: tenantID})
+	} else {
+		var err error
+		model, _, err = s.tenantSvc.ApplyUserTenantScope(ctx, model, userCols.Id)
+		if err != nil {
+			return nil, bizerr.WrapCode(err, CodeNotifyRecipientQueryFailed)
+		}
+	}
 	if excludedUserID > 0 {
 		model = model.WhereNot(userCols.Id, excludedUserID)
 	}
 
 	var users []*entity.SysUser
 	if err := model.Scan(&users); err != nil {
-		return nil, err
+		return nil, bizerr.WrapCode(err, CodeNotifyRecipientQueryFailed)
 	}
 
 	userIDs := make([]int64, 0, len(users))

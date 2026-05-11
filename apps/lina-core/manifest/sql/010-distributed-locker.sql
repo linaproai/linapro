@@ -1,7 +1,7 @@
 -- Distributed lock table (persistent table)
 -- 分布式锁表（持久表）
--- Used for leader election and distributed lock management.
--- 用于领导选举和分布式锁管理
+-- Purpose: Coordinates leader election and distributed lock ownership with persistent holders and expirations.
+-- 用途：通过持久化持有者与过期时间协调主节点选举和分布式锁归属。
 -- Lock state is retained across service restarts and expires through expire_time.
 -- 服务重启后保留锁状态，并通过 expire_time 自然过期
 

@@ -72,14 +72,25 @@ type UploadSizeProvider interface {
 type UserContextSetter interface {
 	// SetUser populates the context with the resolved token and user identity fields.
 	SetUser(ctx context.Context, tokenID string, userID int, username string, status int)
+	// SetTenant populates the resolved request tenant.
+	SetTenant(ctx context.Context, tenantID int)
 	// SetUserAccess populates cached access-snapshot fields for downstream plugin integrations.
 	SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int)
+}
+
+// userImpersonationSetter is optionally implemented by user context adapters
+// that can preserve tenant impersonation metadata.
+type userImpersonationSetter interface {
+	// SetImpersonation populates platform impersonation metadata.
+	SetImpersonation(ctx context.Context, actingUserID int, tenantID int, actingAsTenant bool, isImpersonation bool)
 }
 
 // PermissionMenuFilter filters button-type permission menus based on plugin enablement.
 type PermissionMenuFilter interface {
 	// FilterPermissionMenus returns only the menus that pass plugin-level enablement checks.
 	FilterPermissionMenus(ctx context.Context, menus []*entity.SysMenu) []*entity.SysMenu
+	// IsEnabled reports whether a plugin is enabled in the current tenant context.
+	IsEnabled(ctx context.Context, pluginID string) bool
 }
 
 // CacheChangeNotifier publishes successful dynamic runtime cache mutations to
@@ -175,6 +186,9 @@ type Service interface {
 	// UninstallWithOptions executes uninstall lifecycle for an installed dynamic
 	// plugin using one explicit cleanup policy snapshot.
 	UninstallWithOptions(ctx context.Context, pluginID string, purgeStorageData bool) error
+	// ForceUninstallMissingArtifact clears host governance for an installed
+	// dynamic plugin whose staging and active release artifacts are unavailable.
+	ForceUninstallMissingArtifact(ctx context.Context, registry *entity.SysPlugin) error
 	// HasArtifactStorageFile is the exported form of hasArtifactStorageFile for cross-package access.
 	HasArtifactStorageFile(ctx context.Context, pluginID string) (bool, string, error)
 	// LoadActiveDynamicPluginManifest implements catalog.DynamicManifestLoader.

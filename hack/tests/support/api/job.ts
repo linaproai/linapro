@@ -87,16 +87,22 @@ export type PluginItem = {
   type: string;
   installed: number;
   enabled: number;
+  supportsMultiTenant?: boolean;
+  autoEnableForNewTenants?: boolean;
+  installMode?: string;
+  scopeNature?: string;
 };
 
 export type MenuNode = {
   id: number;
   name: string;
   perms: string;
+  type?: string;
   children?: MenuNode[];
 };
 
 export type AccessibleMenuNode = {
+  component?: string;
   name?: string;
   path?: string;
   meta?: {

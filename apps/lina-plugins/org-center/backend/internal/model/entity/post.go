@@ -11,6 +11,7 @@ import (
 // Post is the golang structure for table post.
 type Post struct {
 	Id        int         `json:"id"        orm:"id"         description:"Post ID"`
+	TenantId  int         `json:"tenantId"  orm:"tenant_id"  description:"Owning tenant ID, 0 means PLATFORM"`
 	DeptId    int         `json:"deptId"    orm:"dept_id"    description:"Owning department ID"`
 	Code      string      `json:"code"      orm:"code"       description:"Post code"`
 	Name      string      `json:"name"      orm:"name"       description:"Post name"`

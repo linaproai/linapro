@@ -11,6 +11,7 @@ import (
 // Dept is the golang structure for table dept.
 type Dept struct {
 	Id        int         `json:"id"        orm:"id"         description:"Department ID"`
+	TenantId  int         `json:"tenantId"  orm:"tenant_id"  description:"Owning tenant ID, 0 means PLATFORM"`
 	ParentId  int         `json:"parentId"  orm:"parent_id"  description:"Parent department ID"`
 	Ancestors string      `json:"ancestors" orm:"ancestors"  description:"Ancestor list"`
 	Name      string      `json:"name"      orm:"name"       description:"Department name"`

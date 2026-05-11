@@ -13,6 +13,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/pkg/bizerr"
@@ -245,9 +246,9 @@ func (s *serviceImpl) DeleteJobs(ctx context.Context, ids string) error {
 // jobByID returns one scheduled job by ID.
 func (s *serviceImpl) jobByID(ctx context.Context, id int64) (*entity.SysJob, error) {
 	var job *entity.SysJob
-	err := dao.SysJob.Ctx(ctx).
-		Where(do.SysJob{Id: id}).
-		Scan(&job)
+	model := dao.SysJob.Ctx(ctx).Where(do.SysJob{Id: id})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&job)
 	return job, err
 }
 
@@ -268,9 +269,9 @@ func (s *serviceImpl) groupMapByJobGroupIDs(
 	}
 
 	var groups []*entity.SysJobGroup
-	err := dao.SysJobGroup.Ctx(ctx).
-		WhereIn(dao.SysJobGroup.Columns().Id, groupIDs).
-		Scan(&groups)
+	model := dao.SysJobGroup.Ctx(ctx).WhereIn(dao.SysJobGroup.Columns().Id, groupIDs)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&groups)
 	if err != nil {
 		return nil, err
 	}
@@ -461,6 +462,7 @@ func (s *serviceImpl) ensureJobNameUnique(
 	name string,
 ) error {
 	model := dao.SysJob.Ctx(ctx).Where(do.SysJob{GroupId: groupID, Name: name})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
 	if existing != nil {
 		model = model.WhereNot(dao.SysJob.Columns().Id, existing.Id)
 	}

@@ -7,6 +7,7 @@ import (
 	"context"
 
 	internalnotify "lina-core/internal/service/notify"
+	"lina-core/pkg/pluginservice/pluginstate"
 )
 
 // SourceType aliases the host notify source type enumeration.
@@ -52,7 +53,7 @@ type serviceAdapter struct {
 
 // New creates and returns the published notify service adapter.
 func New() Service {
-	return &serviceAdapter{service: internalnotify.New()}
+	return &serviceAdapter{service: internalnotify.New(pluginstate.New())}
 }
 
 // SendNoticePublication fans one published notice into the host inbox pipeline.

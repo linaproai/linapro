@@ -5,6 +5,8 @@ package kvcache
 import (
 	"encoding/base64"
 	"strings"
+
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // BuildCacheKey encodes one owner-scoped logical cache key into a single
@@ -19,4 +21,13 @@ func BuildCacheKey(ownerKey string, namespace string, cacheKey string) string {
 		)
 	}
 	return strings.Join(encodedParts, ".")
+}
+
+// BuildTenantCacheKey encodes one tenant-aware logical cache key.
+func BuildTenantCacheKey(tenantID pkgtenantcap.TenantID, scope string, ownerKey string, namespace string, cacheKey string) string {
+	return BuildCacheKey(
+		pkgtenantcap.CacheKey(tenantID, scope, ownerKey),
+		namespace,
+		cacheKey,
+	)
 }

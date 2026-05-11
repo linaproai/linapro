@@ -13,6 +13,7 @@ import (
 type SysDictData struct {
 	g.Meta    `orm:"table:sys_dict_data, do:true"`
 	Id        any         // Dictionary data ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM default
 	DictType  any         // Dictionary type
 	Label     any         // Dictionary label
 	Value     any         // Dictionary value

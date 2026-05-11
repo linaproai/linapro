@@ -11,16 +11,25 @@ import { useVbenForm } from '#/adapter/form';
 import { menuTreeSelect, roleMenuTreeSelect } from '#/api/system/menu';
 import { roleAdd, roleInfo, roleUpdate } from '#/api/system/role';
 import { MenuSelectTable } from '#/components/tree';
-import { getPluginStateMap } from '#/plugins/slot-registry';
+import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
+import { getPluginCapabilityStateMap } from '#/plugins/slot-registry';
+import { useDictStore } from '#/store/dict';
 import { defaultFormValueGetter, useBeforeCloseDiff } from '#/utils/popup';
 
-import { getDataScopeOptions, getDrawerSchema } from './data';
+import {
+  DATA_SCOPE_DICT_TYPE,
+  getDataScopeOptions,
+  getDefaultDataScope,
+  getDrawerSchema,
+  normalizeDataScopeValue,
+} from './data';
 
 const emit = defineEmits<{ reload: [] }>();
-const orgCenterPluginId = 'org-center';
+const dictStore = useDictStore();
 
 const isUpdate = ref(false);
 const orgEnabled = ref(true);
+const tenantEnabled = ref(false);
 const title = computed(() => {
   return isUpdate.value ? $t('pages.common.edit') : $t('pages.common.add');
 });
@@ -33,26 +42,27 @@ const [BasicForm, formApi] = useVbenForm({
     formItemClass: 'col-span-1',
   },
   layout: 'vertical',
-  schema: getDrawerSchema(),
+  schema: getDrawerSchema(true, false),
   showDefaultActions: false,
   wrapperClass: 'grid-cols-2 gap-x-4',
 });
 
 const menuTree = ref<any[]>([]);
 
-function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
-  const pluginState = pluginStateMap.get(pluginId);
-  return pluginState?.installed === 1 && pluginState?.enabled === 1;
-}
-
-async function syncOrgCapability() {
-  const pluginStateMap = await getPluginStateMap(true);
-  orgEnabled.value = isPluginEnabled(orgCenterPluginId, pluginStateMap);
+async function syncRoleCapabilities() {
+  const capabilityMap = await getPluginCapabilityStateMap(true);
+  await dictStore.getDictOptionsAsync(DATA_SCOPE_DICT_TYPE);
+  orgEnabled.value =
+    capabilityMap.get(pluginCapabilityKeys.organizationManagement)?.enabled ===
+    true;
+  tenantEnabled.value =
+    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true;
   formApi.updateSchema([
     {
       fieldName: 'dataScope',
+      defaultValue: getDefaultDataScope(tenantEnabled.value),
       componentProps: {
-        options: getDataScopeOptions(orgEnabled.value),
+        options: getDataScopeOptions(orgEnabled.value, tenantEnabled.value),
       },
     },
   ]);
@@ -109,17 +119,23 @@ const [BasicDrawer, drawerApi] = useVbenDrawer({
 
     const { id } = drawerApi.getData() as { id?: number };
     isUpdate.value = !!id;
-    await syncOrgCapability();
+    await syncRoleCapabilities();
 
     if (isUpdate.value && id) {
       const record = await roleInfo(id);
-      if (!orgEnabled.value && record.dataScope === 2) {
-        record.dataScope = 3;
-      }
+      record.dataScope = normalizeDataScopeValue(
+        record.dataScope,
+        orgEnabled.value,
+        tenantEnabled.value,
+      );
       await formApi.setValues(record);
     } else {
       // 新增模式：调用 resetForm 以应用 schema 中定义的 defaultValue
       await formApi.resetForm();
+      await formApi.setFieldValue(
+        'dataScope',
+        getDefaultDataScope(tenantEnabled.value),
+      );
     }
     await setupMenuTree(id);
     await markInitialized();

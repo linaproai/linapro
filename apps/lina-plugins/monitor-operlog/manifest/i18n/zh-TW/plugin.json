@@ -33,7 +33,15 @@
         "patch": "補丁"
       },
       "name": "系統監控-操作日誌",
-      "tableTitle": "操作日誌列表"
+      "tableTitle": "操作日誌列表",
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "retention_required": "操作日誌仍處於要求的保留週期內。解除安裝前請先匯出或等待過期。"
+        },
+        "disable_blocked": {
+          "audit_required": "租戶稽核策略要求操作日誌保持啟用。"
+        }
+      }
     }
   }
 }

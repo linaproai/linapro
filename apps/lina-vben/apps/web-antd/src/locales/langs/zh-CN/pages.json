@@ -308,7 +308,7 @@
     "user": {
       "tableTitle": "用户列表",
       "placeholders": {
-        "username": "请输入用户名",
+        "username": "请输入账号",
         "nickname": "请输入昵称",
         "email": "请输入邮箱",
         "phone": "请输入手机号码",
@@ -320,18 +320,20 @@
         "remark": "请输入备注"
       },
       "labels": {
-        "account": "名称",
+        "account": "账号",
         "userAccount": "用户账号",
         "userNickname": "用户昵称",
         "userStatus": "用户状态",
         "unassignedDept": "未分配部门",
         "unassignedRole": "未分配角色",
         "na": "暂无",
-        "positions": "岗位"
+        "positions": "岗位",
+        "tenantMemberships": "所属租户"
       },
       "help": {
         "positions": "选择部门后, 将自动加载该部门下所有的岗位",
-        "roles": "可分配多个角色给该用户"
+        "roles": "可分配多个角色给该用户",
+        "tenantMemberships": "平台上下文可维护用户所属租户, 不选择则为平台用户"
       },
       "messages": {
         "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",
@@ -344,7 +346,8 @@
         "resetPasswordSuccess": "重置密码成功"
       },
       "actions": {
-        "resetPassword": "重置密码"
+        "resetPassword": "重置密码",
+        "batchEdit": "编辑"
       },
       "more": "更多",
       "drawer": {
@@ -369,7 +372,26 @@
         "placeholder": "请输入新的密码，密码长度为5-20",
         "userId": "用户ID"
       },
-      "exportFileName": "用户数据导出.xlsx"
+      "exportFileName": "用户数据导出.xlsx",
+      "batchEdit": {
+        "title": "批量编辑用户",
+        "selectedCount": "已选择 {count} 个用户",
+        "fields": {
+          "updateStatus": "更新状态",
+          "updateRoles": "更新角色",
+          "updateTenant": "更新租户"
+        },
+        "help": {
+          "roles": "启用后将用所选角色替换这些用户当前上下文下的角色",
+          "tenants": "启用后将用所选租户替换这些用户的所属租户"
+        },
+        "messages": {
+          "noFields": "请选择至少一个要批量更新的字段",
+          "statusRequired": "请选择目标用户状态",
+          "success": "批量编辑成功",
+          "roleTenantConflict": "请分两次批量更新角色和所属租户"
+        }
+      }
     },
     "role": {
       "tableTitle": "角色列表",
@@ -385,16 +407,12 @@
       "placeholders": {
         "roleName": "请输入角色名称",
         "permissionKey": "请输入权限字符",
+        "dataScope": "请选择数据权限",
         "status": "请选择状态",
         "sort": "请输入排序",
         "remark": "请输入备注",
         "permissionExample": "如: admin, user等",
         "permissionHelp": "如: admin, simpleUser等"
-      },
-      "dataScope": {
-        "all": "全部数据权限",
-        "dept": "本部门数据权限",
-        "self": "仅本人数据权限"
       },
       "help": {
         "status": "修改后, 拥有该角色的用户将自动下线",
@@ -895,10 +913,12 @@
     },
     "plugin": {
       "tableTitle": "插件列表",
-      "tableTitleHelp": {
-        "ariaLabel": "插件列表说明",
-        "sourceDynamic": "源码插件随宿主源码与编译产物交付，适合内建能力和可信扩展；动态插件以 wasm 制品上传和切换，适合运行时安装、升级与隔离治理。",
-        "mockData": "示例数据列的“是”表示插件随包提供示例数据，可在安装时选择加载；“否”表示没有可加载的示例数据。"
+      "columnHelp": {
+        "ariaLabel": "{label}列说明",
+        "type": "源码插件随宿主源码与编译产物交付，适合内建能力和可信扩展；动态插件以 wasm 制品上传和切换，适合运行时安装、升级与隔离治理。",
+        "mockData": "“是”表示插件随包提供示例数据，可在安装时选择加载；“否”表示没有可加载的示例数据。",
+        "supportsMultiTenant": "“是”表示插件声明支持多租户治理，可使用租户级安装模式和租户侧启停；“否”表示插件只能按平台全局能力治理。",
+        "tenantProvisioning": "控制租户级插件在新租户创建时是否自动启用；仅支持多租户且以租户级模式安装的插件可配置。"
       },
       "fields": {
         "id": "插件标识",
@@ -910,7 +930,11 @@
         "version": "版本号",
         "authorizationStatus": "授权状态",
         "startupManagement": "启动管理",
-        "hasMockData": "示例数据"
+        "hasMockData": "示例数据",
+        "supportsMultiTenant": "支持多租户",
+        "tenantProvisioning": "新租户启用",
+        "scopeNature": "作用域性质",
+        "installMode": "安装模式"
       },
       "type": {
         "source": "源码插件",
@@ -954,6 +978,10 @@
       "autoEnableBadge": "自动启用",
       "autoEnableManaged": "宿主管理自动启用",
       "manualManaged": "手动控制",
+      "scopeNature": {
+        "platformOnly": "仅平台",
+        "tenantAware": "租户感知"
+      },
       "detail": {
         "title": "插件详情",
         "hostServicesTitle": "宿主服务范围",
@@ -1003,8 +1031,12 @@
         "installedAndEnabled": "插件已安装并启用",
         "mockDataRolledBack": "插件 {pluginId} 已成功安装，但示例数据 {failedFile} 加载失败、已自动回滚：{cause}。您可以接受当前已安装状态，或修复示例数据 SQL 后卸载重装。",
         "noInstallPermission": "当前账号没有安装或同步插件的权限",
+        "noPolicyPermission": "当前账号没有配置插件策略的权限",
         "noStatusPermission": "当前账号没有修改插件状态的权限",
         "noUninstallPermission": "当前账号没有卸载插件的权限",
+        "tenantProvisioningEffective": "当该租户级插件已安装且已启用时，新创建的租户会自动获得此插件。",
+        "tenantProvisioningUnsupported": "仅支持多租户且以租户级模式安装的插件支持此策略。",
+        "tenantProvisioningUpdated": "新租户插件策略已更新",
         "syncSuccess": "已同步 {total} 条插件记录",
         "uninstalled": "插件已卸载"
       },
@@ -1174,6 +1206,106 @@
       "systemMessageDesc": "接收公告、维护通知和其他系统级更新。",
       "todoTask": "待办任务",
       "todoTaskDesc": "接收待办事项和工作流提醒。"
+    }
+  },
+  "multiTenant": {
+    "platformScope": "平台",
+    "placeholders": {
+      "selectTenant": "请选择租户"
+    },
+    "fields": {
+      "code": "租户编码",
+      "name": "租户名称",
+      "keyword": "关键字",
+      "tenantId": "租户 ID",
+      "userId": "用户 ID",
+      "joinedAt": "加入时间"
+    },
+    "status": {
+      "active": "正常",
+      "suspended": "暂停",
+      "deleted": "已删除",
+      "unknown": "未知"
+    },
+    "empty": {
+      "tenants": "暂无租户",
+      "members": "暂无成员",
+      "plugins": "暂无可由租户管理的插件"
+    },
+    "messages": {
+      "codeRule": "租户编码只能使用 2-32 位小写字母、数字或连字符",
+      "nameRequired": "请输入租户名称",
+      "deleteTenantConfirm": "确认删除租户 {name}？",
+      "deleteSelectedConfirm": "确认删除选中的 {count} 个租户？",
+      "removeMemberConfirm": "确认移除该成员？",
+      "switchSuccess": "租户已切换",
+      "statusUpdated": "租户状态已更新",
+      "tenantSelected": "已进入租户"
+    },
+    "login": {
+      "selectTenant": "选择租户",
+      "selectTenantSubtitle": "请选择本次要进入的租户，系统将根据所选租户加载对应的工作台和权限。",
+      "enterTenant": "进入租户"
+    },
+    "impersonation": {
+      "banner": "正在以平台管理员身份代租户 {tenant} 操作",
+      "exit": "退出代操作"
+    },
+    "switcher": {
+      "placeholder": "切换租户"
+    },
+    "tenant": {
+      "tableTitle": "租户列表",
+      "actions": {
+        "create": "新增租户",
+        "edit": "编辑租户",
+        "suspend": "暂停",
+        "resume": "恢复",
+        "impersonate": "代操作"
+      },
+      "tooltips": {
+        "impersonate": "以平台身份进入该租户视角"
+      }
+    },
+    "platformMembers": {
+      "tableTitle": "租户成员列表"
+    },
+    "member": {
+      "tableTitle": "租户成员",
+      "status": {
+        "active": "正常",
+        "suspended": "已暂停",
+        "removed": "已移除"
+      }
+    },
+    "plugin": {
+      "tableTitle": "租户插件",
+      "installMode": "安装模式",
+      "platformOnlyGlobalHint": "不支持租户级安装模式的插件只能以全局模式安装。",
+      "installModes": {
+        "global": "全局",
+        "tenant_scoped": "租户级"
+      },
+      "installModeDescriptions": {
+        "global": "平台安装后所有租户共享启用状态。",
+        "tenant_scoped": "平台安装后由各租户管理员自行启用或停用。"
+      },
+      "lifecycleGuard": {
+        "title": "生命周期保护",
+        "summary": "插件返回了阻止当前操作的原因。",
+        "summaryHelp": "请先处理保护原因；只有确认风险后才使用强制卸载。",
+        "reasonTitle": "阻止原因",
+        "reasonCount": "{count} 项",
+        "forceTitle": "强制卸载确认",
+        "defaultReason": "当前资源仍有关联数据，无法继续操作。",
+        "blockedReason": "当前插件阻止操作，原因：",
+        "forceConfirm": "强制卸载会绕过上述保护并清理插件数据，请确认你理解该风险。",
+        "forceInputHint": "输入插件 ID \"{pluginId}\" 以启用强制卸载。",
+        "forceSubmitted": "强制通道请求已提交",
+        "reasons": {
+          "multiTenantUninstallBlocked": "仍存在租户，请先删除租户，再卸载插件。"
+        }
+      }
     }
   },
   "tree": {

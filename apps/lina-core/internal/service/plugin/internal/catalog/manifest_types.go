@@ -48,6 +48,12 @@ type Manifest struct {
 	Version string `yaml:"version"`
 	// Type is the normalized plugin type ("source" or "dynamic").
 	Type string `yaml:"type"`
+	// ScopeNature declares whether the plugin is platform-only or tenant-aware.
+	ScopeNature string `yaml:"scope_nature"`
+	// SupportsMultiTenant declares whether the plugin can participate in tenant-level governance.
+	SupportsMultiTenant *bool `yaml:"supports_multi_tenant"`
+	// DefaultInstallMode declares the tenant enablement model for tenant-aware plugins.
+	DefaultInstallMode string `yaml:"default_install_mode"`
 	// Description is an optional human-readable description.
 	Description string `yaml:"description"`
 	// Author is an optional author string.
@@ -78,6 +84,18 @@ type Manifest struct {
 	RuntimeArtifact *ArtifactSpec
 	// SourcePlugin is the embedded source-plugin registration for source plugins.
 	SourcePlugin pluginhost.SourcePluginDefinition
+}
+
+// SupportsTenantGovernance reports whether this manifest can use tenant-level
+// plugin governance. Missing legacy values fall back to the scope nature.
+func (manifest *Manifest) SupportsTenantGovernance() bool {
+	if manifest == nil {
+		return false
+	}
+	if manifest.SupportsMultiTenant != nil {
+		return *manifest.SupportsMultiTenant
+	}
+	return NormalizeScopeNature(manifest.ScopeNature) == ScopeNatureTenantAware
 }
 
 // MenuSpec defines one manifest-declared host menu entry.
@@ -255,6 +273,12 @@ type ArtifactManifest struct {
 	Version string `json:"version" yaml:"version"`
 	// Type is the normalized plugin type.
 	Type string `json:"type" yaml:"type"`
+	// ScopeNature declares whether the plugin is platform-only or tenant-aware.
+	ScopeNature string `json:"scopeNature,omitempty" yaml:"scopeNature,omitempty"`
+	// SupportsMultiTenant declares whether the plugin can participate in tenant-level governance.
+	SupportsMultiTenant *bool `json:"supportsMultiTenant,omitempty" yaml:"supportsMultiTenant,omitempty"`
+	// DefaultInstallMode declares the tenant enablement model for tenant-aware plugins.
+	DefaultInstallMode string `json:"defaultInstallMode,omitempty" yaml:"defaultInstallMode,omitempty"`
 	// Description is an optional human-readable description.
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	// Menus holds manifest-declared host menu entries.

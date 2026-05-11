@@ -13,6 +13,9 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// DefaultTestSupportsMultiTenant is the tenant-governance flag used by runtime artifact fixtures.
+var DefaultTestSupportsMultiTenant = true
+
 // CreateTestRuntimeStorageArtifact creates one runtime artifact in the isolated test storage directory.
 func CreateTestRuntimeStorageArtifact(
 	t *testing.T,
@@ -63,10 +66,13 @@ func CreateTestRuntimeStorageArtifactWithFilename(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      pluginID,
-			Name:    pluginName,
-			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			ID:                  pluginID,
+			Name:                pluginName,
+			Version:             version,
+			Type:                catalog.TypeDynamic.String(),
+			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
+			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        pluginbridge.RuntimeKindWasm,
@@ -135,11 +141,14 @@ func CreateTestRuntimeStorageArtifactWithMenus(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      pluginID,
-			Name:    pluginName,
-			Version: version,
-			Type:    catalog.TypeDynamic.String(),
-			Menus:   menus,
+			ID:                  pluginID,
+			Name:                pluginName,
+			Version:             version,
+			Type:                catalog.TypeDynamic.String(),
+			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
+			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+			Menus:               menus,
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        pluginbridge.RuntimeKindWasm,
@@ -187,10 +196,13 @@ func CreateTestRuntimeStorageArtifactWithFrontendAssetsAndBackendContracts(
 		t,
 		artifactPath,
 		&catalog.ArtifactManifest{
-			ID:      pluginID,
-			Name:    pluginName,
-			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			ID:                  pluginID,
+			Name:                pluginName,
+			Version:             version,
+			Type:                catalog.TypeDynamic.String(),
+			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &DefaultTestSupportsMultiTenant,
+			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        pluginbridge.RuntimeKindWasm,

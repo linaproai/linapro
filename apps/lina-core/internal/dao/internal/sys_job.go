@@ -22,6 +22,7 @@ type SysJobDao struct {
 // SysJobColumns defines and stores column names for the table sys_job.
 type SysJobColumns struct {
 	Id                   string // Job ID
+	TenantId             string // Owning tenant ID, 0 means PLATFORM
 	GroupId              string // Owning group ID
 	Name                 string // Job name
 	Description          string // Job description
@@ -54,6 +55,7 @@ type SysJobColumns struct {
 // sysJobColumns holds the columns for the table sys_job.
 var sysJobColumns = SysJobColumns{
 	Id:                   "id",
+	TenantId:             "tenant_id",
 	GroupId:              "group_id",
 	Name:                 "name",
 	Description:          "description",

@@ -84,6 +84,14 @@ interface RouteMeta {
    */
   i18nKey?: string;
   /**
+   * 多租户访问模式。
+   * disabled: 仅单租户模式展示
+   * platform: 多租户平台上下文展示
+   * tenant: 多租户租户上下文展示
+   * enabled: 任意多租户上下文展示
+   */
+  tenantAccessMode?: 'disabled' | 'enabled' | 'platform' | 'tenant';
+  /**
    * 忽略权限，直接可以访问
    * @default false
    */

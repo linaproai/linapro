@@ -2,11 +2,12 @@
 -- 模拟数据：定时任务分组、任务与执行日志。
 -- Static scheduled job execution logs use exact existence checks so mock loading is idempotent.
 
-INSERT INTO sys_job_group ("code", "name", "remark", "sort_order", "is_default", "created_at", "updated_at")
-VALUES ('mock-maintenance', 'Mock Maintenance', 'Mock job group for scheduler management demos', 10, 0, NOW(), NOW())
+INSERT INTO sys_job_group ("tenant_id", "code", "name", "remark", "sort_order", "is_default", "created_at", "updated_at")
+VALUES (0, 'mock-maintenance', 'Mock Maintenance', 'Mock job group for scheduler management demos', 10, 0, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_job (
+    "tenant_id",
     "group_id",
     "name",
     "description",
@@ -30,6 +31,7 @@ INSERT INTO sys_job (
     "updated_at"
 )
 SELECT
+    0,
     g."id",
     'Demo cache cleanup',
     'Disabled mock handler job used by the scheduler list and detail pages.',
@@ -53,10 +55,12 @@ SELECT
     '2026-04-20 08:00:00'
 FROM sys_job_group g
 JOIN sys_user admin ON admin."username" = 'admin'
-WHERE g."code" = 'mock-maintenance'
+WHERE g."tenant_id" = 0
+  AND g."code" = 'mock-maintenance'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_job (
+    "tenant_id",
     "group_id",
     "name",
     "description",
@@ -81,6 +85,7 @@ INSERT INTO sys_job (
     "updated_at"
 )
 SELECT
+    0,
     g."id",
     'Demo disk inspection',
     'Disabled mock shell job used to demonstrate shell task configuration.',
@@ -105,10 +110,12 @@ SELECT
     '2026-04-20 08:10:00'
 FROM sys_job_group g
 JOIN sys_user admin ON admin."username" = 'admin'
-WHERE g."code" = 'mock-maintenance'
+WHERE g."tenant_id" = 0
+  AND g."code" = 'mock-maintenance'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_job_log (
+    "tenant_id",
     "job_id",
     "job_snapshot",
     "node_id",
@@ -123,6 +130,7 @@ INSERT INTO sys_job_log (
     "created_at"
 )
 SELECT
+    0,
     j."id",
     '{"name":"Demo cache cleanup","taskType":"handler","mock":true}',
     'linapro-dev-01',
@@ -137,18 +145,21 @@ SELECT
     '2026-04-20 09:00:03'
 FROM sys_job j
 JOIN sys_job_group g ON g."id" = j."group_id"
-WHERE g."code" = 'mock-maintenance'
+WHERE g."tenant_id" = 0
+  AND g."code" = 'mock-maintenance'
   AND j."name" = 'Demo cache cleanup'
   AND NOT EXISTS (
       SELECT 1
       FROM sys_job_log existing
-      WHERE existing."job_id" = j."id"
+      WHERE existing."tenant_id" = 0
+        AND existing."job_id" = j."id"
         AND existing."node_id" = 'linapro-dev-01'
         AND existing."trigger" = 'manual'
         AND existing."start_at" = '2026-04-20 09:00:00'
   );
 
 INSERT INTO sys_job_log (
+    "tenant_id",
     "job_id",
     "job_snapshot",
     "node_id",
@@ -163,6 +174,7 @@ INSERT INTO sys_job_log (
     "created_at"
 )
 SELECT
+    0,
     j."id",
     '{"name":"Demo disk inspection","taskType":"shell","mock":true}',
     'linapro-dev-02',
@@ -177,12 +189,14 @@ SELECT
     '2026-04-21 02:00:01'
 FROM sys_job j
 JOIN sys_job_group g ON g."id" = j."group_id"
-WHERE g."code" = 'mock-maintenance'
+WHERE g."tenant_id" = 0
+  AND g."code" = 'mock-maintenance'
   AND j."name" = 'Demo disk inspection'
   AND NOT EXISTS (
       SELECT 1
       FROM sys_job_log existing
-      WHERE existing."job_id" = j."id"
+      WHERE existing."tenant_id" = 0
+        AND existing."job_id" = j."id"
         AND existing."node_id" = 'linapro-dev-02'
         AND existing."trigger" = 'cron'
         AND existing."start_at" = '2026-04-21 02:00:00'

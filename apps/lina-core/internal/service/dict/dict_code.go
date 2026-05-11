@@ -28,6 +28,13 @@ var (
 		"Built-in dictionary types cannot be deleted",
 		gcode.CodeNotAuthorized,
 	)
+	// CodeDictTypeTenantOverrideDenied reports that a tenant attempted to
+	// override a platform dictionary type that does not allow tenant overrides.
+	CodeDictTypeTenantOverrideDenied = bizerr.MustDefine(
+		"DICT_TYPE_TENANT_OVERRIDE_DENIED",
+		"Dictionary type does not allow tenant override",
+		gcode.CodeNotAuthorized,
+	)
 	// CodeDictDataNotFound reports that the requested dictionary data entry does not exist.
 	CodeDictDataNotFound = bizerr.MustDefine(
 		"DICT_DATA_NOT_FOUND",

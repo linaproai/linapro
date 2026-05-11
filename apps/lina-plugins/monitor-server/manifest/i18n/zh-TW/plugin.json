@@ -64,6 +64,11 @@
       },
       "units": {
         "cores": "{value} 核"
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "platform_monitoring_required": "宿主維運策略要求保留平台服務監控能力。"
+        }
       }
     }
   }

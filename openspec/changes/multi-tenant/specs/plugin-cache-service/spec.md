@@ -9,7 +9,7 @@
 - **AND** 租户 B 上下文调 `cache.Get("foo")` 不命中
 
 #### Scenario: 显式平台共享
-- **WHEN** 插件调用 `cache.SetPlatform("foo", value)` 且具备 `platform:cache:write` 权限
+- **WHEN** 插件调用 `cache.SetPlatform("foo", value)` 且当前请求处于平台上下文、有效数据权限为全部数据权限并具备对应 `system:*` 缓存写入功能权限
 - **THEN** 实际 key = `plugin-<id>:tenant=0:foo`
 - **AND** 各租户共享读写
 
@@ -21,7 +21,7 @@
 - **THEN** 仅 `tenant=A` 缓存失效
 
 ### Requirement: 平台共享缓存的审计要求
-任何对 `tenant=0` 的写入 SHALL 在 operlog 中记录 `action_kind='platform_cache_write'`;失效操作同样审计。
+任何对 `tenant=0` 的写入 SHALL 在 operlog 中以 `oper_type='other'` 记录,摘要或载荷包含 `platform_cache_write`;失效操作同样审计。
 
 #### Scenario: 审计可追溯
 - **WHEN** 插件 P 在租户 A 上下文中错误地写了 `tenant=0` 缓存(通过 force flag)

@@ -125,6 +125,11 @@
         },
         "title": "動態插件示例已生效",
         "workspaceSummary": "該區域讀取 plugin-demo-dynamic 安裝 SQL 創建的數據表，並通過動態插件後端路由完成新增、編輯、刪除與附件下載。禁用插件不會清空這些數據。"
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "demo_records_exist": "一個或多個租戶仍存在動態外掛示例記錄。解除安裝前請先刪除示例記錄。"
+        }
       }
     }
   }

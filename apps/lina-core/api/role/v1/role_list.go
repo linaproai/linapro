@@ -27,7 +27,7 @@ type RoleListItem struct {
 	Name      string `json:"name" dc:"Character name" eg:"Administrator"`
 	Key       string `json:"key" dc:"permission key" eg:"admin"`
 	Sort      int    `json:"sort" dc:"Show sort" eg:"1"`
-	DataScope int    `json:"dataScope" dc:"Data permission scope (1=all 2=this department 3=only me)" eg:"1"`
+	DataScope int    `json:"dataScope" dc:"Data permission scope (1=all 2=current tenant 3=current department 4=only me)" eg:"2"`
 	Status    int    `json:"status" dc:"Status (0=disabled 1=normal)" eg:"1"`
 	Remark    string `json:"remark" dc:"Remarks" eg:"System administrator role"`
 	CreatedAt string `json:"createdAt" dc:"creation time" eg:"2024-01-01 00:00:00"`

@@ -122,6 +122,7 @@ func bindProtectedStaticAPIRoutes(
 	parent.Group("/", func(group *ghttp.RouterGroup) {
 		group.Middleware(
 			middlewareSvc.Auth,
+			middlewareSvc.Tenancy,
 			middlewareSvc.Permission,
 		)
 		group.Bind(handlers...)

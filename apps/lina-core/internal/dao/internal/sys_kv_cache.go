@@ -22,6 +22,7 @@ type SysKvCacheDao struct {
 // SysKvCacheColumns defines and stores column names for the table sys_kv_cache.
 type SysKvCacheColumns struct {
 	Id         string // Primary key ID
+	TenantId   string // Owning tenant ID, 0 means PLATFORM
 	OwnerType  string // Owner type: plugin=dynamic plugin, module=host module
 	OwnerKey   string // Owner key: plugin ID or module name
 	Namespace  string // Cache namespace mapped to the host-cache resource identifier
@@ -37,6 +38,7 @@ type SysKvCacheColumns struct {
 // sysKvCacheColumns holds the columns for the table sys_kv_cache.
 var sysKvCacheColumns = SysKvCacheColumns{
 	Id:         "id",
+	TenantId:   "tenant_id",
 	OwnerType:  "owner_type",
 	OwnerKey:   "owner_key",
 	Namespace:  "namespace",

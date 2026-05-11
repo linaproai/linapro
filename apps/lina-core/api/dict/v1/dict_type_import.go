@@ -1,10 +1,8 @@
+// This file defines dictionary type import DTOs.
+
 package v1
 
-import (
-	"github.com/gogf/gf/v2/frame/g"
-)
-
-// DictType Import API
+import "github.com/gogf/gf/v2/frame/g"
 
 // TypeImportReq defines the request for importing dictionary types.
 type TypeImportReq struct {
@@ -23,11 +21,3 @@ type TypeImportFailItem struct {
 	Row    int    `json:"row" dc:"Line number" eg:"3"`
 	Reason string `json:"reason" dc:"Reason for failure" eg:"Dictionary type already exists"`
 }
-
-// TypeImportTemplateReq defines the request for downloading import template.
-type TypeImportTemplateReq struct {
-	g.Meta `path:"/dict/type/import-template" method:"get" tags:"Dictionary Management" summary:"Download dictionary type import template" dc:"Download the dictionary type import Excel template file, including required fields and data format instructions" permission:"system:dict:add"`
-}
-
-// TypeImportTemplateRes is the response for template download.
-type TypeImportTemplateRes struct{}

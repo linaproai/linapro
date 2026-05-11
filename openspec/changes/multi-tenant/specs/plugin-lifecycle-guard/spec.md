@@ -51,14 +51,14 @@
 ### Requirement: 平台管理员 --force 通道
 平台管理员 SHALL 可通过 `?force=true` query 参数与 UI 二次确认绕过否决执行受保护动作;`--force` 操作必须满足:
 1. UI 强制要求文本输入插件 ID 二次确认。
-2. 操作日志写入 `action_kind='platform_force_action'`,完整记录被绕过的所有 reason 与触发用户。
+2. 操作日志写入 `oper_type='other'`,并在摘要或载荷中标记 `platform_force_action`,完整记录被绕过的所有 reason 与触发用户。
 3. 配置 `plugin.allow_force_uninstall: false` 时 `--force` 通道关闭(严格合规模式)。
 
 #### Scenario: 平台管理员 force-uninstall
 - **WHEN** 卸载被否决,平台管理员选择"强制卸载"
 - **AND** 二次输入插件 ID 确认
 - **THEN** 卸载继续执行
-- **AND** 操作日志双轨记录(action_kind='platform_force_action' + 完整 reason 列表)
+- **AND** 操作日志双轨记录(`oper_type='other'` + `platform_force_action` 摘要或载荷 + 完整 reason 列表)
 
 #### Scenario: 严格合规模式下禁用 force
 - **WHEN** `plugin.allow_force_uninstall = false`
@@ -75,9 +75,9 @@
 - **AND** 总耗时不超过 10s(若任意钩子未返回则按超时处理)
 
 ### Requirement: 钩子调用的可观察性
-所有否决钩子调用 SHALL 在 `monitor-operlog` 中以 `action_kind='lifecycle_guard'` 记录,包括:`plugin_id`、`hook_method`、`ok`、`reason`、`elapsed_ms`、是否 force、是否超时、是否 panic。
+所有否决钩子调用 SHALL 在 `monitor-operlog` 中以 `oper_type='other'` 记录,并在摘要或载荷中标记 `lifecycle_guard`,包括:`plugin_id`、`hook_method`、`ok`、`reason`、`elapsed_ms`、是否 force、是否超时、是否 panic。
 
 #### Scenario: 审计可追溯
 - **WHEN** 运维事后排查"租户 T 为何被拒绝删除"
-- **THEN** 在 operlog 中可按 `tenant_id=T, action_kind='lifecycle_guard'` 检索到所有调用记录
+- **THEN** 在 operlog 中可按 `tenant_id=T, oper_type='other'` 并结合 `lifecycle_guard` 摘要或载荷检索到所有调用记录
 - **AND** 看到每个插件的具体 ok/reason

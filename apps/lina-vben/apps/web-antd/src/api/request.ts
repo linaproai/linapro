@@ -17,6 +17,7 @@ import { message } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 import { useAuthStore } from '#/store';
+import { useTenantStore } from '#/store/tenant';
 
 const { apiURL } = useAppConfig(import.meta.env, import.meta.env.PROD);
 
@@ -84,9 +85,13 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   client.addRequestInterceptor({
     fulfilled: async (config) => {
       const accessStore = useAccessStore();
+      const tenantStore = useTenantStore();
 
       config.headers.Authorization = formatToken(accessStore.accessToken);
       config.headers['Accept-Language'] = resolveRequestLocale();
+      if (tenantStore.enabled && tenantStore.currentTenant?.code) {
+        config.headers['X-Tenant-Code'] = tenantStore.currentTenant.code;
+      }
       return config;
     },
   });

@@ -1,10 +1,11 @@
 -- Database bootstrap
 -- 数据库初始化
 
--- sys_user table
--- sys_user 用户表
+-- Purpose: Stores host user accounts, authentication credentials, profile fields, primary tenant, and login status metadata.
+-- 用途：存储宿主用户账号、认证凭据、个人资料字段、主租户与登录状态元数据。
 CREATE TABLE IF NOT EXISTS sys_user (
     "id"         INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"  INT NOT NULL DEFAULT 0,
     "username"   VARCHAR(64) NOT NULL,
     "password"   VARCHAR(256) NOT NULL,
     "nickname"   VARCHAR(64) NOT NULL DEFAULT '',
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
 -- inside CREATE TABLE column definitions.
 COMMENT ON TABLE sys_user IS 'User information table';
 COMMENT ON COLUMN sys_user."id" IS 'User ID';
+COMMENT ON COLUMN sys_user."tenant_id" IS 'Primary/default tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_user."username" IS 'Username';
 COMMENT ON COLUMN sys_user."password" IS 'Password';
 COMMENT ON COLUMN sys_user."nickname" IS 'User nickname';
@@ -40,12 +42,12 @@ COMMENT ON COLUMN sys_user."updated_at" IS 'Update time';
 COMMENT ON COLUMN sys_user."deleted_at" IS 'Deletion time';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_user_username ON sys_user ("username");
-CREATE INDEX IF NOT EXISTS idx_sys_user_status ON sys_user ("status");
+CREATE INDEX IF NOT EXISTS idx_sys_user_tenant_status ON sys_user ("tenant_id", "status");
 CREATE INDEX IF NOT EXISTS idx_sys_user_phone ON sys_user ("phone");
-CREATE INDEX IF NOT EXISTS idx_sys_user_created_at ON sys_user ("created_at");
+CREATE INDEX IF NOT EXISTS idx_sys_user_tenant_created_at ON sys_user ("tenant_id", "created_at");
 
 -- Default admin user (password: admin123, bcrypt hash)
 -- 默认管理员用户（密码：admin123，bcrypt 哈希）
-INSERT INTO sys_user ("username", "password", "nickname", "status", "created_at", "updated_at")
-VALUES ('admin', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', 'Administrator', 1, NOW(), NOW())
+INSERT INTO sys_user ("tenant_id", "username", "password", "nickname", "status", "created_at", "updated_at")
+VALUES (0, 'admin', '$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe', 'Administrator', 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;

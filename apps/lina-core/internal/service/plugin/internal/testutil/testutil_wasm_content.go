@@ -116,6 +116,7 @@ func buildTestRuntimeWasmArtifactContent(
 ) []byte {
 	t.Helper()
 
+	normalizeTestArtifactManifest(manifest)
 	manifestContent, err := json.Marshal(manifest)
 	if err != nil {
 		t.Fatalf("failed to marshal dynamic manifest: %v", err)
@@ -178,6 +179,23 @@ func buildTestRuntimeWasmArtifactContent(
 		wasm = appendWasmCustomSection(wasm, pluginbridge.WasmSectionBackendHostServices, hostServiceContent)
 	}
 	return wasm
+}
+
+// normalizeTestArtifactManifest fills governance fields that every runtime
+// artifact manifest must declare in production plugin packages.
+func normalizeTestArtifactManifest(manifest *catalog.ArtifactManifest) {
+	if manifest == nil {
+		return
+	}
+	if manifest.ScopeNature == "" {
+		manifest.ScopeNature = catalog.ScopeNatureTenantAware.String()
+	}
+	if manifest.SupportsMultiTenant == nil {
+		manifest.SupportsMultiTenant = &DefaultTestSupportsMultiTenant
+	}
+	if manifest.DefaultInstallMode == "" {
+		manifest.DefaultInstallMode = catalog.InstallModeTenantScoped.String()
+	}
 }
 
 // appendWasmCustomSection appends one custom section payload to the in-memory

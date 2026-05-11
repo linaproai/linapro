@@ -13,6 +13,7 @@ import (
 type SysCacheRevision struct {
 	g.Meta    `orm:"table:sys_cache_revision, do:true"`
 	Id        any         // Primary key ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM
 	Domain    any         // Cache domain, such as runtime-config, permission-access, or plugin-runtime
 	Scope     any         // Explicit invalidation scope, such as global, plugin:<id>, locale:<locale>, or user:<id>
 	Revision  any         // Monotonic cache revision for this domain and scope

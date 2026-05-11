@@ -13,10 +13,11 @@ import (
 type SysRole struct {
 	g.Meta    `orm:"table:sys_role, do:true"`
 	Id        any         // Role ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM
 	Name      any         // Role name
 	Key       any         // Permission key
 	Sort      any         // Display order
-	DataScope any         // Data scope: 1=all, 2=department, 3=self
+	DataScope any         // Data scope: 1=all, 2=tenant, 3=department, 4=self
 	Status    any         // Status: 0=disabled, 1=enabled
 	Remark    any         // Remark
 	CreatedAt *gtime.Time // Creation time

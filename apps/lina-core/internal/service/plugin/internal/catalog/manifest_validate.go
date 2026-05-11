@@ -57,6 +57,12 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	if !IsSupportedType(manifest.Type) {
 		return gerror.Newf("plugin type only supports source/dynamic: %s", fileLabel)
 	}
+	if err := s.hydrateManifestTenantGovernanceFromFile(manifest, filePath); err != nil {
+		return gerror.Wrapf(err, "plugin tenant governance metadata cannot be loaded: %s", fileLabel)
+	}
+	if err := normalizeManifestTenantGovernance(manifest); err != nil {
+		return gerror.Wrapf(err, "plugin tenant governance metadata is invalid: %s", fileLabel)
+	}
 	if !ManifestIDPattern.MatchString(manifest.ID) {
 		return gerror.Newf("plugin ID must use kebab-case: %s", manifest.ID)
 	}
@@ -126,6 +132,9 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 	if manifest.Type != TypeDynamic.String() {
 		return gerror.New("dynamic plugin type must be dynamic")
 	}
+	if err := normalizeManifestTenantGovernance(manifest); err != nil {
+		return err
+	}
 	if manifest.ID == "" || !ManifestIDPattern.MatchString(manifest.ID) {
 		return gerror.New("dynamic plugin ID is invalid")
 	}
@@ -136,6 +145,76 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 		return err
 	}
 	return ValidateManifestMenus(manifest)
+}
+
+// hydrateManifestTenantGovernanceFromFile fills governance fields from the
+// authoring manifest when tests or callers pass a partial in-memory object.
+func (s *serviceImpl) hydrateManifestTenantGovernanceFromFile(manifest *Manifest, filePath string) error {
+	if manifest == nil || manifest.RuntimeArtifact != nil {
+		return nil
+	}
+	filePath = strings.TrimSpace(filePath)
+	if filePath == "" || strings.Contains(filePath, "://") || !gfile.Exists(filePath) {
+		return nil
+	}
+	fileManifest := &Manifest{}
+	if err := s.LoadManifestFromYAML(filePath, fileManifest); err != nil {
+		return err
+	}
+	if strings.TrimSpace(manifest.ScopeNature) == "" {
+		manifest.ScopeNature = fileManifest.ScopeNature
+	}
+	if manifest.SupportsMultiTenant == nil {
+		manifest.SupportsMultiTenant = fileManifest.SupportsMultiTenant
+	}
+	if strings.TrimSpace(manifest.DefaultInstallMode) == "" {
+		manifest.DefaultInstallMode = fileManifest.DefaultInstallMode
+	}
+	return nil
+}
+
+// normalizeManifestTenantGovernance validates and normalizes the tenant
+// governance fields carried by plugin.yaml.
+func normalizeManifestTenantGovernance(manifest *Manifest) error {
+	if manifest == nil {
+		return nil
+	}
+	if manifest.RuntimeArtifact != nil && manifest.RuntimeArtifact.Manifest != nil {
+		manifest.ScopeNature = strings.TrimSpace(manifest.RuntimeArtifact.Manifest.ScopeNature)
+		manifest.SupportsMultiTenant = manifest.RuntimeArtifact.Manifest.SupportsMultiTenant
+		manifest.DefaultInstallMode = strings.TrimSpace(manifest.RuntimeArtifact.Manifest.DefaultInstallMode)
+	}
+	scope := strings.TrimSpace(manifest.ScopeNature)
+	if scope == "" {
+		scope = ScopeNatureTenantAware.String()
+	} else if !IsSupportedScopeNature(scope) {
+		return gerror.Newf("scope_nature only supports platform_only/tenant_aware: %s", manifest.ScopeNature)
+	}
+	manifest.ScopeNature = NormalizeScopeNature(scope).String()
+
+	if manifest.SupportsMultiTenant == nil {
+		return gerror.New("supports_multi_tenant is required")
+	}
+	if manifest.ScopeNature == ScopeNaturePlatformOnly.String() && *manifest.SupportsMultiTenant {
+		return gerror.New("supports_multi_tenant cannot be true when scope_nature is platform_only")
+	}
+
+	mode := strings.TrimSpace(manifest.DefaultInstallMode)
+	if manifest.ScopeNature == ScopeNaturePlatformOnly.String() {
+		manifest.DefaultInstallMode = InstallModeGlobal.String()
+		return nil
+	}
+	if !*manifest.SupportsMultiTenant {
+		manifest.DefaultInstallMode = InstallModeGlobal.String()
+		return nil
+	}
+	if mode == "" {
+		mode = InstallModeTenantScoped.String()
+	} else if !IsSupportedInstallMode(mode) {
+		return gerror.Newf("default_install_mode only supports global/tenant_scoped: %s", manifest.DefaultInstallMode)
+	}
+	manifest.DefaultInstallMode = NormalizeInstallMode(mode).String()
+	return nil
 }
 
 // ValidateManifestMenus validates the structural constraints of all menu declarations in a manifest.
@@ -186,7 +265,8 @@ func ValidateManifestMenus(manifest *Manifest) error {
 			return gerror.Newf("plugin menu parent_key can only mount to a stable host catalog: %s -> %s", spec.Key, spec.ParentKey)
 		}
 		if spec.ParentKey != "" && parentPluginID == "" {
-			if expectedParentKey, ok := menusvc.ExpectedStableParentKey(manifest.ID); ok && expectedParentKey != spec.ParentKey {
+			if allowed, official := menusvc.IsExpectedStableParentKey(manifest.ID, spec.ParentKey); official && !allowed {
+				expectedParentKey, _ := menusvc.ExpectedStableParentKey(manifest.ID)
 				return gerror.Newf("official plugin top-level menu parent_key is invalid: %s -> %s, expected %s", spec.Key, spec.ParentKey, expectedParentKey)
 			}
 		}

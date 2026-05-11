@@ -151,6 +151,21 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 - Built-in distributed locking and key-value caching, with core components that are natively cluster-aware
 - The job scheduling subsystem is distribution-aware, automatically preventing duplicate execution across cluster nodes
 
+## Multi-Tenant Foundation
+
+`LinaPro` is being extended with a pool-based multi-tenant model that keeps the single-tenant experience available by default. When the `multi-tenant` plugin is not installed or enabled, host and plugin data use `tenant_id = 0`, which represents the `PLATFORM` tenant.
+
+When the `multi-tenant` plugin is enabled:
+
+- Tenant identity is resolved by the built-in chain: `override`, `jwt`, `session`, `header`, `subdomain`, and `default`; supported runtime policy changes are stored by the plugin, not by the host config template.
+- The isolation model is code-owned and currently fixed to `pool`.
+- User-to-tenant cardinality is code-owned and defaults to `multi`, allowing one user to belong to multiple tenants.
+- Plugins declare `scope_nature`, `supports_multi_tenant`, and `default_install_mode` in `plugin.yaml`; new-tenant auto-enable policy is managed by the platform registry, not by the manifest.
+- `platform_only` plugins are governed globally, while `tenant_aware` plugins can be enabled globally or per tenant.
+- LifecycleGuard hooks may veto plugin disable or uninstall operations, and `plugin.allowForceUninstall` controls whether platform administrators can force an audited override.
+
+Typical internal `BU` usage starts with the built-in `multi` cardinality, `prompt` ambiguity handling, and tenant-scoped enablement for audit or content plugins. This iteration uses the pool model only; `rootDomain` is reserved for a later settings release and is not configurable yet. Schema-per-tenant, database-per-tenant, quotas, billing, and branding customization are reserved for future work.
+
 
 # Tech Stack
 

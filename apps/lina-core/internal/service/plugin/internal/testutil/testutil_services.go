@@ -130,6 +130,11 @@ func (a *userCtxAdapter) SetUser(ctx context.Context, tokenID string, userID int
 	a.svc.SetUser(ctx, tokenID, userID, username, status)
 }
 
+// SetTenant injects the resolved tenant into the test request context.
+func (a *userCtxAdapter) SetTenant(ctx context.Context, tenantID int) {
+	a.svc.SetTenant(ctx, tenantID)
+}
+
 // SetUserAccess injects cached access-snapshot fields into the test request context.
 func (a *userCtxAdapter) SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int) {
 	a.svc.SetUserAccess(ctx, dataScope, dataScopeUnsupported, unsupportedDataScope)

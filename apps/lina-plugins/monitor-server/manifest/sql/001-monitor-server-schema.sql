@@ -1,6 +1,8 @@
 -- 001: monitor-server schema
 -- 001：monitor-server 数据结构
 
+-- Purpose: Stores platform-level server monitoring snapshots collected from runtime nodes.
+-- 用途：存储从运行时节点采集的平台级服务器监控快照。
 CREATE TABLE IF NOT EXISTS plugin_monitor_server (
     "id"          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     "node_name"   VARCHAR(128) NOT NULL DEFAULT '',

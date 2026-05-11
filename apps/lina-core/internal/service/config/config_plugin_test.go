@@ -20,6 +20,9 @@ func TestGetPluginUsesDefaultStoragePathAndClonesCachedConfig(t *testing.T) {
 
 	svc := New()
 	cfg := svc.GetPlugin(context.Background())
+	if !cfg.AllowForceUninstall {
+		t.Fatal("expected force uninstall to be enabled by default")
+	}
 	if cfg.Dynamic.StoragePath != "temp/output" {
 		t.Fatalf("expected default dynamic storage path, got %q", cfg.Dynamic.StoragePath)
 	}
@@ -34,6 +37,25 @@ func TestGetPluginUsesDefaultStoragePathAndClonesCachedConfig(t *testing.T) {
 	refreshed := svc.GetPlugin(context.Background())
 	if refreshed.Dynamic.StoragePath != "temp/output" {
 		t.Fatalf("expected cached plugin config to stay immutable, got %q", refreshed.Dynamic.StoragePath)
+	}
+}
+
+// TestGetPluginAllowsStrictForceUninstallOptOut verifies operators can
+// explicitly close the force-uninstall channel for strict compliance
+// deployments even though development defaults keep it enabled.
+func TestGetPluginAllowsStrictForceUninstallOptOut(t *testing.T) {
+	setTestConfigContent(t, `
+plugin:
+  allowForceUninstall: false
+`)
+	SetPluginAllowForceUninstallOverride(nil)
+	t.Cleanup(func() {
+		SetPluginAllowForceUninstallOverride(nil)
+	})
+
+	cfg := New().GetPlugin(context.Background())
+	if cfg.AllowForceUninstall {
+		t.Fatal("expected explicit plugin.allowForceUninstall=false to be honored")
 	}
 }
 

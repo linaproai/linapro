@@ -17,10 +17,11 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/orgcap"
 	"lina-core/internal/service/role"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/internal/service/user/accountpolicy"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
-	"lina-core/pkg/logger"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // Status represents user account status.
@@ -55,6 +56,8 @@ type Service interface {
 	Delete(ctx context.Context, id int) error
 	// BatchDelete soft-deletes multiple users atomically.
 	BatchDelete(ctx context.Context, ids []int) error
+	// BatchUpdate updates selected users atomically.
+	BatchUpdate(ctx context.Context, in BatchUpdateInput) error
 	// UpdateStatus updates user status.
 	UpdateStatus(ctx context.Context, id int, status Status) error
 	// GetProfile retrieves current user profile.
@@ -69,6 +72,8 @@ type Service interface {
 	GetUserPostIds(ctx context.Context, userId int) ([]int, error)
 	// GetUserRoleIds returns the role IDs associated with a user.
 	GetUserRoleIds(ctx context.Context, userId int) ([]int, error)
+	// GetUserTenantMemberships returns the tenant IDs and names associated with a user.
+	GetUserTenantMemberships(ctx context.Context, userId int) ([]int, []string, error)
 	// Export generates an Excel file with user data based on IDs.
 	Export(ctx context.Context, in ExportInput) (data []byte, err error)
 	// Import reads an Excel file and creates users from it.
@@ -88,14 +93,19 @@ type serviceImpl struct {
 	orgCapSvc orgcap.Service
 	roleSvc   role.Service // Role service
 	scopeSvc  datascope.Service
+	tenantSvc tenantcapsvc.Service
 }
 
 // New creates and returns a new Service instance.
 // Pass a non-nil orgCapSvc when user management should bind to a caller-owned
 // organization capability service; pass nil to use the default disabled reader.
-func New(orgCapSvc orgcap.Service) Service {
+func New(orgCapSvc orgcap.Service, tenantEnablementReaders ...tenantcapsvc.PluginEnablementReader) Service {
 	if orgCapSvc == nil {
 		orgCapSvc = orgcap.New(nil)
+	}
+	var tenantEnablementReader tenantcapsvc.PluginEnablementReader
+	if len(tenantEnablementReaders) > 0 {
+		tenantEnablementReader = tenantEnablementReaders[0]
 	}
 	svc := &serviceImpl{
 		authSvc:   auth.New(orgCapSvc),
@@ -103,6 +113,7 @@ func New(orgCapSvc orgcap.Service) Service {
 		i18nSvc:   i18nsvc.New(),
 		orgCapSvc: orgCapSvc,
 		roleSvc:   role.New(nil),
+		tenantSvc: tenantcapsvc.New(tenantEnablementReader),
 	}
 	svc.scopeSvc = datascope.New(datascope.Dependencies{
 		BizCtxSvc: svc.bizCtxSvc,
@@ -122,6 +133,7 @@ type ListInput struct {
 	Phone          string // Phone number, supports fuzzy search
 	Sex            *int   // Gender: 0=Unknown 1=Male 2=Female
 	DeptId         *int   // Department ID, 0 means unassigned
+	TenantId       *int   // Tenant ID filter for platform context
 	BeginTime      string // Creation time start
 	EndTime        string // Creation time end
 	OrderBy        string // Sort field
@@ -130,11 +142,13 @@ type ListInput struct {
 
 // ListOutputItem defines a single item in list output with dept info.
 type ListOutputItem struct {
-	SysUser   *entity.SysUser // User entity
-	DeptId    int             // Department ID
-	DeptName  string          // Department name
-	RoleIds   []int           // Role ID list
-	RoleNames []string        // Role name list
+	SysUser     *entity.SysUser // User entity
+	DeptId      int             // Department ID
+	DeptName    string          // Department name
+	RoleIds     []int           // Role ID list
+	RoleNames   []string        // Role name list
+	TenantIds   []int           // Tenant ID list
+	TenantNames []string        // Tenant name list
 }
 
 // ListOutput defines output for List function.
@@ -150,6 +164,10 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		m          = dao.SysUser.Ctx(ctx)
 		orgEnabled = s.orgCapSvc.Enabled(ctx)
 	)
+	m, _, err := s.tenantSvc.ApplyUserTenantScope(ctx, m, qualifiedSysUserIDColumn())
+	if err != nil {
+		return nil, err
+	}
 
 	// Apply filters
 	if in.Username != "" {
@@ -166,6 +184,20 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}
 	if in.Sex != nil {
 		m = m.Where(cols.Sex, *in.Sex)
+	}
+	if s.multiTenantEnabled(ctx) && in.TenantId != nil {
+		if err = s.ensureListTenantFilterAllowed(ctx, *in.TenantId); err != nil {
+			return nil, err
+		}
+		m, _, err = s.tenantSvc.ApplyUserTenantFilter(
+			ctx,
+			m,
+			qualifiedSysUserIDColumn(),
+			tenantcapsvc.TenantID(*in.TenantId),
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if in.BeginTime != "" {
 		m = m.WhereGTE(cols.CreatedAt, in.BeginTime)
@@ -270,12 +302,20 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		}
 	}
 
+	userTenantMap := make(map[int]*pkgtenantcap.UserTenantProjection)
+	if s.multiTenantEnabled(ctx) {
+		userTenantMap, err = s.tenantSvc.ListUserTenantProjections(ctx, userIds)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// Build user-role associations
 	urCols := dao.SysUserRole.Columns()
 	var userRoles []*entity.SysUserRole
-	err = dao.SysUserRole.Ctx(ctx).
-		WhereIn(urCols.UserId, userIds).
-		Scan(&userRoles)
+	userRoleModel := dao.SysUserRole.Ctx(ctx).WhereIn(urCols.UserId, userIds)
+	userRoleModel = datascope.ApplyTenantScope(ctx, userRoleModel, datascope.TenantColumn)
+	err = userRoleModel.Scan(&userRoles)
 	if err != nil {
 		return nil, err
 	}
@@ -298,9 +338,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	roleCols := dao.SysRole.Columns()
 	var roles []*entity.SysRole
 	if len(allRoleIds) > 0 {
-		err = dao.SysRole.Ctx(ctx).
-			WhereIn(roleCols.Id, allRoleIds).
-			Scan(&roles)
+		roleModel := dao.SysRole.Ctx(ctx).WhereIn(roleCols.Id, allRoleIds)
+		roleModel = datascope.ApplyTenantScope(ctx, roleModel, datascope.TenantColumn)
+		err = roleModel.Scan(&roles)
 		if err != nil {
 			return nil, err
 		}
@@ -331,6 +371,12 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 			item.RoleIds = []int{}
 			item.RoleNames = []string{}
 		}
+		if tenants, ok := userTenantMap[u.Id]; ok {
+			for _, tenantID := range tenants.TenantIDs {
+				item.TenantIds = append(item.TenantIds, int(tenantID))
+			}
+			item.TenantNames = tenants.TenantNames
+		}
 		items = append(items, item)
 	}
 
@@ -357,17 +403,18 @@ func (s *serviceImpl) GetUserDeptInfo(ctx context.Context, userId int) (int, str
 
 // CreateInput defines input for Create function.
 type CreateInput struct {
-	Username string // Username
-	Password string // Password
-	Nickname string // Nickname
-	Email    string // Email
-	Phone    string // Phone number
-	Sex      int    // Gender: 0=Unknown 1=Male 2=Female
-	Status   Status // Status: StatusNormal=Normal StatusDisabled=Disabled
-	Remark   string // Remark
-	DeptId   *int   // Department ID
-	PostIds  []int  // Post ID list
-	RoleIds  []int  // Role ID list
+	Username  string // Username
+	Password  string // Password
+	Nickname  string // Nickname
+	Email     string // Email
+	Phone     string // Phone number
+	Sex       int    // Gender: 0=Unknown 1=Male 2=Female
+	Status    Status // Status: StatusNormal=Normal StatusDisabled=Disabled
+	Remark    string // Remark
+	DeptId    *int   // Department ID
+	PostIds   []int  // Post ID list
+	RoleIds   []int  // Role ID list
+	TenantIds []int  // Tenant ID list
 }
 
 // Create creates a new user with transaction support.
@@ -397,6 +444,12 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 
 	var userId int
 
+	tenantPlan, err := s.resolveCreateTenantMemberships(ctx, in.TenantIds)
+	if err != nil {
+		return 0, err
+	}
+	primaryTenantID := int(tenantPlan.PrimaryTenant)
+
 	// Use transaction to ensure atomicity
 	err = dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		// Insert user (GoFrame auto-fills created_at and updated_at)
@@ -409,26 +462,25 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 			Sex:      in.Sex,
 			Status:   in.Status,
 			Remark:   in.Remark,
+			TenantId: primaryTenantID,
 		}).InsertAndGetId()
 		if err != nil {
 			return err
 		}
 
 		userId = int(id)
+		if tenantPlan.ShouldReplace {
+			if err = s.tenantSvc.ReplaceUserTenantAssignments(ctx, userId, tenantPlan); err != nil {
+				return err
+			}
+		}
 
 		if err = s.orgCapSvc.ReplaceUserAssignments(ctx, userId, in.DeptId, in.PostIds); err != nil {
 			return err
 		}
 
-		// Save role associations
-		for _, roleId := range in.RoleIds {
-			_, err = dao.SysUserRole.Ctx(ctx).Data(do.SysUserRole{
-				UserId: userId,
-				RoleId: roleId,
-			}).Insert()
-			if err != nil {
-				return err
-			}
+		if err = s.replaceUserRoleAssignments(ctx, userId, in.RoleIds); err != nil {
+			return err
 		}
 
 		return nil
@@ -470,18 +522,19 @@ func (s *serviceImpl) getById(ctx context.Context, id int) (*entity.SysUser, err
 
 // UpdateInput defines input for Update function.
 type UpdateInput struct {
-	Id       int     // User ID
-	Username *string // Username
-	Password *string // Password
-	Nickname *string // Nickname
-	Email    *string // Email
-	Phone    *string // Phone number
-	Sex      *int    // Gender: 0=Unknown 1=Male 2=Female
-	Status   *int    // Status: 1=Normal 0=Disabled
-	Remark   *string // Remark
-	DeptId   *int    // Department ID
-	PostIds  []int   // Post ID list
-	RoleIds  []int   // Role ID list
+	Id        int     // User ID
+	Username  *string // Username
+	Password  *string // Password
+	Nickname  *string // Nickname
+	Email     *string // Email
+	Phone     *string // Phone number
+	Sex       *int    // Gender: 0=Unknown 1=Male 2=Female
+	Status    *int    // Status: 1=Normal 0=Disabled
+	Remark    *string // Remark
+	DeptId    *int    // Department ID
+	PostIds   []int   // Post ID list
+	RoleIds   []int   // Role ID list
+	TenantIds []int   // Tenant ID list
 }
 
 // Update updates user information with transaction support.
@@ -526,13 +579,26 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	if in.Remark != nil {
 		data.Remark = *in.Remark
 	}
+	tenantPlan, err := s.resolveUpdateTenantMemberships(ctx, in.TenantIds)
+	if err != nil {
+		return err
+	}
+	if tenantPlan.ShouldReplace {
+		data.TenantId = int(tenantPlan.PrimaryTenant)
+	}
 
 	// Use transaction to ensure atomicity
-	err := dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
+	err = dao.SysUser.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		// Update user
 		_, err := dao.SysUser.Ctx(ctx).Where(do.SysUser{Id: in.Id}).Data(data).Update()
 		if err != nil {
 			return err
+		}
+
+		if tenantPlan.ShouldReplace {
+			if err = s.tenantSvc.ReplaceUserTenantAssignments(ctx, in.Id, tenantPlan); err != nil {
+				return err
+			}
 		}
 
 		if in.DeptId != nil || in.PostIds != nil {
@@ -541,20 +607,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			}
 		}
 
-		// Update role associations (delete and re-insert)
 		if in.RoleIds != nil {
-			_, err = dao.SysUserRole.Ctx(ctx).Where(dao.SysUserRole.Columns().UserId, in.Id).Delete()
-			if err != nil {
-				logger.Warningf(ctx, "failed to delete user role association: %v", err)
-			}
-			for _, roleId := range in.RoleIds {
-				_, err = dao.SysUserRole.Ctx(ctx).Data(do.SysUserRole{
-					UserId: in.Id,
-					RoleId: roleId,
-				}).Insert()
-				if err != nil {
-					return err
-				}
+			if err = s.replaceUserRoleAssignments(ctx, in.Id, in.RoleIds); err != nil {
+				return err
 			}
 		}
 
@@ -631,7 +686,10 @@ func (s *serviceImpl) deleteUserRecordAndAssociations(ctx context.Context, id in
 	if err := s.orgCapSvc.CleanupUserAssignments(ctx, id); err != nil {
 		return err
 	}
-	_, err := dao.SysUserRole.Ctx(ctx).Where(dao.SysUserRole.Columns().UserId, id).Delete()
+	urCols := dao.SysUserRole.Columns()
+	deleteModel := dao.SysUserRole.Ctx(ctx).Where(urCols.UserId, id)
+	deleteModel = datascope.ApplyTenantScope(ctx, deleteModel, datascope.TenantColumn)
+	_, err := deleteModel.Delete()
 	return err
 }
 
@@ -769,9 +827,9 @@ func (s *serviceImpl) GetUserPostIds(ctx context.Context, userId int) ([]int, er
 // GetUserRoleIds returns the role IDs associated with a user.
 func (s *serviceImpl) GetUserRoleIds(ctx context.Context, userId int) ([]int, error) {
 	var userRoles []*entity.SysUserRole
-	err := dao.SysUserRole.Ctx(ctx).
-		Where(dao.SysUserRole.Columns().UserId, userId).
-		Scan(&userRoles)
+	model := dao.SysUserRole.Ctx(ctx).Where(dao.SysUserRole.Columns().UserId, userId)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&userRoles)
 	if err != nil {
 		return nil, err
 	}

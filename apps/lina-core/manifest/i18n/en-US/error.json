@@ -809,6 +809,13 @@
       },
       "status": {
         "invalid": "Plugin status supports only 0 or 1"
+      },
+      "tenant": {
+        "provisioning": {
+          "policy": {
+            "invalid": "Plugin {pluginId} must support multi-tenant governance and be installed in tenant_scoped mode before it can be auto-enabled for new tenants"
+          }
+        }
       }
     },
     "role": {
@@ -835,6 +842,18 @@
         "scope": {
           "dept": {
             "unavailable": "Department data scope requires the organization management plugin to be enabled"
+          },
+          "unsupported": "Unsupported role data scope: {scope}"
+        }
+      }
+    },
+    "tenant": {
+      "role": {
+        "all": {
+          "data": {
+            "scope": {
+              "forbidden": "Tenant roles cannot use all-data scope"
+            }
           }
         }
       }
@@ -869,6 +888,27 @@
           "unsupported": "Unsupported user data permission scope: {scope}"
         }
       },
+      "tenant": {
+        "membership": {
+          "cardinality": {
+            "exceeded": "User can only belong to one tenant in the current configuration"
+          },
+          "cross": {
+            "tenant": {
+              "denied": "Cannot assign users to another tenant in the current context"
+            }
+          },
+          "query": {
+            "failed": "Failed to query tenant membership visibility"
+          },
+          "replace": {
+            "failed": "Failed to update tenant membership"
+          },
+          "tenant": {
+            "unavailable": "Selected tenant is unavailable"
+          }
+        }
+      },
       "import": {
         "excel": {
           "parse": {
@@ -890,6 +930,24 @@
       },
       "username": {
         "exists": "Username already exists"
+      },
+      "batch": {
+        "update": {
+          "ids": {
+            "required": "Please select users to update"
+          },
+          "fields": {
+            "required": "Please select at least one user field to update"
+          },
+          "status": {
+            "required": "Please select the target user status"
+          },
+          "role": {
+            "tenant": {
+              "conflict": "Update user roles and tenant memberships in separate batch requests"
+            }
+          }
+        }
       }
     },
     "usermsg": {

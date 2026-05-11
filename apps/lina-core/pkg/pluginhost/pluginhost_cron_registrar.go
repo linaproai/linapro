@@ -72,7 +72,7 @@ func (r *cronRegistrar) AddWithMetadata(
 	}
 
 	_, err := gcron.Add(ctx, pattern, func(jobCtx context.Context) {
-		if r.enabledChecker != nil && !r.enabledChecker(r.pluginID) {
+		if r.enabledChecker != nil && !r.enabledChecker(jobCtx, r.pluginID) {
 			return
 		}
 		// Guard every cron callback at runtime so disabling a plugin immediately stops

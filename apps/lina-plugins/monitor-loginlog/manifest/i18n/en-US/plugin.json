@@ -30,7 +30,15 @@
         "deleteSelectedConfirm": "Delete the selected {count} login log(s)?"
       },
       "name": "Monitoring - Login Logs",
-      "tableTitle": "Login Log List"
+      "tableTitle": "Login Log List",
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "retention_required": "Login logs are still inside the required retention window. Export or expire them before uninstalling."
+        },
+        "disable_blocked": {
+          "audit_required": "Tenant audit policy requires login logging to remain enabled."
+        }
+      }
     }
   }
 }

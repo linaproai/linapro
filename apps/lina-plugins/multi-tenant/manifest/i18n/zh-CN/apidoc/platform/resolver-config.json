@@ -1,0 +1,19 @@
+{
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigEntity.fields.chain.dc": "解析器链顺序",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigEntity.fields.reservedSubdomains.dc": "保留的子域名标签",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigEntity.fields.rootDomain.dc": "子域名解析器使用的根域名；首版固定为空，暂不支持设置",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigEntity.fields.onAmbiguous.dc": "内置租户歧义处理方式；首版固定为 prompt",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigEntity.fields.version.dc": "内置策略版本",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigGetReq.meta.tags": "平台租户",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigGetReq.meta.summary": "获取租户解析策略",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigGetReq.meta.dc": "获取代码内置的租户解析器链和歧义处理方式。",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigGetReq.schema.dc": "获取代码内置的租户解析器链和歧义处理方式。",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.meta.tags": "平台租户",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.meta.summary": "校验租户解析策略",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.meta.dc": "解析策略由代码维护；该接口仅接受与内置策略一致的空操作请求，并拒绝运行时变更。",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.schema.dc": "解析策略由代码维护；该接口仅接受与内置策略一致的空操作请求，并拒绝运行时变更。",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.fields.chain.dc": "解析器链顺序",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.fields.reservedSubdomains.dc": "保留的子域名标签",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.fields.rootDomain.dc": "预留根域名字段；首版不支持设置，仅接受空值",
+  "plugins.multi_tenant.api.platform.v1.ResolverConfigUpdateReq.fields.onAmbiguous.dc": "内置租户歧义处理方式"
+}

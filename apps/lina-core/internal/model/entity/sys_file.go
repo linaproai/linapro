@@ -11,6 +11,7 @@ import (
 // SysFile is the golang structure for table sys_file.
 type SysFile struct {
 	Id        int64       `json:"id"        orm:"id"         description:"File ID"`
+	TenantId  int         `json:"tenantId"  orm:"tenant_id"  description:"Owning tenant ID, 0 means PLATFORM"`
 	Name      string      `json:"name"      orm:"name"       description:"Stored file name"`
 	Original  string      `json:"original"  orm:"original"   description:"Original file name"`
 	Suffix    string      `json:"suffix"    orm:"suffix"     description:"File suffix"`

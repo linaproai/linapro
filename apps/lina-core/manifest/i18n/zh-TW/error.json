@@ -809,6 +809,13 @@
       },
       "status": {
         "invalid": "插件狀態僅支持 0 或 1"
+      },
+      "tenant": {
+        "provisioning": {
+          "policy": {
+            "invalid": "插件 {pluginId} 必須支援多租戶治理並以 tenant_scoped 模式安裝，才能自動啟用到新租戶"
+          }
+        }
       }
     },
     "role": {
@@ -835,6 +842,18 @@
         "scope": {
           "dept": {
             "unavailable": "本部門數據權限需要先啟用組織管理插件"
+          },
+          "unsupported": "不支持的角色數據權限範圍：{scope}"
+        }
+      }
+    },
+    "tenant": {
+      "role": {
+        "all": {
+          "data": {
+            "scope": {
+              "forbidden": "租戶角色不能使用全部數據權限"
+            }
           }
         }
       }
@@ -869,6 +888,27 @@
           "unsupported": "不支持的用戶數據權限範圍：{scope}"
         }
       },
+      "tenant": {
+        "membership": {
+          "cardinality": {
+            "exceeded": "當前配置下用戶只能歸屬於一個租戶"
+          },
+          "cross": {
+            "tenant": {
+              "denied": "當前上下文不能將用戶分配到其他租戶"
+            }
+          },
+          "query": {
+            "failed": "查詢用戶租戶歸屬可見性失敗"
+          },
+          "replace": {
+            "failed": "更新用戶租戶歸屬失敗"
+          },
+          "tenant": {
+            "unavailable": "所選租戶不可用"
+          }
+        }
+      },
       "import": {
         "excel": {
           "parse": {
@@ -890,6 +930,24 @@
       },
       "username": {
         "exists": "用戶名已存在"
+      },
+      "batch": {
+        "update": {
+          "ids": {
+            "required": "請選擇要更新的用戶"
+          },
+          "fields": {
+            "required": "請選擇至少一個要更新的用戶字段"
+          },
+          "status": {
+            "required": "請選擇目標用戶狀態"
+          },
+          "role": {
+            "tenant": {
+              "conflict": "請分兩次批量更新用戶角色和所屬租戶"
+            }
+          }
+        }
       }
     },
     "usermsg": {

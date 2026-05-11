@@ -16,5 +16,26 @@ func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.Log
 	if err != nil {
 		return nil, err
 	}
-	return &v1.LoginRes{AccessToken: out.AccessToken}, nil
+	return &v1.LoginRes{
+		AccessToken: out.AccessToken,
+		PreToken:    out.PreToken,
+		Tenants:     toLoginTenants(out.Tenants),
+	}, nil
+}
+
+// toLoginTenants converts service tenant candidates into API DTOs.
+func toLoginTenants(items []authsvc.TenantInfo) []*v1.LoginTenantEntity {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]*v1.LoginTenantEntity, 0, len(items))
+	for _, item := range items {
+		out = append(out, &v1.LoginTenantEntity{
+			Id:     item.Id,
+			Code:   item.Code,
+			Name:   item.Name,
+			Status: item.Status,
+		})
+	}
+	return out
 }

@@ -11,6 +11,7 @@ import (
 func (c *ControllerV1) Install(ctx context.Context, req *v1.InstallReq) (res *v1.InstallRes, err error) {
 	options := pluginsvc.InstallOptions{
 		Authorization:   buildAuthorizationInput(req.Authorization),
+		InstallMode:     req.InstallMode,
 		InstallMockData: req.InstallMockData,
 	}
 	if err = c.pluginSvc.Install(ctx, req.Id, options); err != nil {

@@ -34,6 +34,14 @@
         "status": "请选择状态",
         "title": "请输入公告标题",
         "type": "请选择公告类型"
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "published_notices_exist": "仍存在已发布的租户通知公告。卸载前请先归档或删除。"
+        },
+        "disable_blocked": {
+          "pending_notices_exist": "仍有待处理的租户通知公告，处理完成前不能禁用此插件。"
+        }
       }
     }
   }

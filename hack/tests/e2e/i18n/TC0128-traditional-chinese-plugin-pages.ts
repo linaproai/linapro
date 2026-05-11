@@ -42,7 +42,14 @@ const sourcePluginIDs = [
   "plugin-demo-source",
 ] as const;
 
-const sourcePluginAuditCases = [
+type SourcePluginAuditCase = {
+  forbiddenTexts: readonly string[];
+  path: string;
+  visibleTexts: readonly string[];
+  visibleAnyTexts?: readonly string[];
+};
+
+const sourcePluginAuditCases: readonly SourcePluginAuditCase[] = [
   {
     forbiddenTexts: [
       "Dept Name",
@@ -82,11 +89,14 @@ const sourcePluginAuditCases = [
     forbiddenTexts: [
       "Service Uptime",
       "Basic Info",
+      "No server monitor data is currently available.",
       "服务运行时长",
       "基础信息",
+      "当前暂无服务监控数据。",
     ],
     path: "/monitor/server",
-    visibleTexts: ["服務監控", "服務運行時長"],
+    visibleTexts: ["服務監控"],
+    visibleAnyTexts: ["服務運行時長", "當前暫無服務監控數據。"],
   },
   {
     forbiddenTexts: ["Source Plugin Demo", "Demo Records"],
@@ -102,6 +112,18 @@ let originalDynamicEnabled = 0;
 function assertNoRawI18nKeys(bodyText: string, pathLabel: string) {
   const rawKeys = [...new Set(bodyText.match(rawI18nKeyPattern) || [])];
   expect(rawKeys, `${pathLabel} still shows raw i18n keys`).toEqual([]);
+}
+
+function assertContainsAnyText(
+  bodyText: string,
+  candidates: readonly string[],
+  pathLabel: string,
+) {
+  const found = candidates.some((text) => bodyText.includes(text));
+  expect(
+    found,
+    `${pathLabel} should show one of: ${candidates.join(", ")}`,
+  ).toBe(true);
 }
 
 function ensureRuntimePluginArtifact() {
@@ -182,6 +204,13 @@ test.describe("TC0128 繁体中文插件页面巡检", () => {
         const bodyText = await adminPage.locator("body").innerText();
         for (const text of auditCase.visibleTexts) {
           expect(bodyText).toContain(text);
+        }
+        if (auditCase.visibleAnyTexts) {
+          assertContainsAnyText(
+            bodyText,
+            auditCase.visibleAnyTexts,
+            auditCase.path,
+          );
         }
         for (const text of auditCase.forbiddenTexts) {
           expect(bodyText).not.toContain(text);

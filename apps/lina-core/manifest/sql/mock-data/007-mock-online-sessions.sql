@@ -2,6 +2,7 @@
 -- 模拟数据：会话与监控演示使用的在线会话记录。
 
 INSERT INTO sys_online_session (
+    "tenant_id",
     "token_id",
     "user_id",
     "username",
@@ -13,6 +14,7 @@ INSERT INTO sys_online_session (
     "last_active_time"
 )
 SELECT
+    0,
     'mock-host-admin-session',
     u."id",
     u."username",
@@ -27,6 +29,7 @@ WHERE u."username" = 'admin'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_online_session (
+    "tenant_id",
     "token_id",
     "user_id",
     "username",
@@ -38,6 +41,7 @@ INSERT INTO sys_online_session (
     "last_active_time"
 )
 SELECT
+    0,
     'mock-host-user002-session',
     u."id",
     u."username",
@@ -52,6 +56,7 @@ WHERE u."username" = 'user002'
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_online_session (
+    "tenant_id",
     "token_id",
     "user_id",
     "username",
@@ -63,6 +68,7 @@ INSERT INTO sys_online_session (
     "last_active_time"
 )
 SELECT
+    0,
     'mock-host-user060-session',
     u."id",
     u."username",

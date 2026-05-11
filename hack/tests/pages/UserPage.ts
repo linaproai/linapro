@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 import {
   waitForBusyIndicatorsToClear,
@@ -23,9 +23,14 @@ export class UserPage {
     return this.page
       .locator('[role="dialog"]')
       .filter({
-        has: this.page.getByPlaceholder(/请输入用户名|username/i),
+        has: this.page.getByPlaceholder(/请输入(?:账号|用户名)|account|username/i),
       })
       .last();
+  }
+
+  /** User drawer account input. */
+  private get drawerAccountInput() {
+    return this.drawer.getByPlaceholder(/请输入(?:账号|用户名)|account|username/i);
   }
 
   /** Username search input in the list filter form. */
@@ -51,7 +56,7 @@ export class UserPage {
   private async waitForDrawerReady(expectedUsername: string) {
     await waitForDialogReady(this.drawer);
 
-    const usernameInput = this.drawer.getByPlaceholder("请输入用户名");
+    const usernameInput = this.drawerAccountInput;
     await usernameInput.waitFor({ state: "visible", timeout: 10000 });
     await expect(usernameInput).toHaveValue(expectedUsername, {
       timeout: 10000,
@@ -76,6 +81,18 @@ export class UserPage {
   /** Public row locator for assertions after filtering. */
   getUserRow(username: string) {
     return this.getUserDataRow(username);
+  }
+
+  /** Tenant filter is rendered only when the multi-tenant plugin is active. */
+  get tenantFilter() {
+    return this.page.getByTestId("user-tenant-filter");
+  }
+
+  /** Tenant membership header is rendered only when tenant columns are active. */
+  get tenantMembershipHeader() {
+    return this.page
+      .locator(".vxe-header--column:visible")
+      .filter({ hasText: /所属租户|Tenant Memberships/i });
   }
 
   /** Check whether the left department tree shows the expected raw department label. */
@@ -106,7 +123,7 @@ export class UserPage {
     await this.waitForDrawerReady("");
 
     // Fill form fields scoped to the drawer to avoid conflict with the search form
-    await this.drawer.getByPlaceholder("请输入用户名").fill(username);
+    await this.drawerAccountInput.fill(username);
     await this.drawer.getByPlaceholder("请输入密码").fill(password);
     if (nickname) {
       await this.drawer.getByPlaceholder("请输入昵称").fill(nickname);
@@ -319,6 +336,73 @@ export class UserPage {
     await waitForBusyIndicatorsToClear(this.page);
   }
 
+  /** Open the batch edit modal for selected users. */
+  async openSelectedUserBatchEdit() {
+    await this.page.getByTestId("user-batch-edit-button").click();
+    const dialog = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /批量编辑用户|Batch Edit Users/i })
+      .last();
+    await waitForDialogReady(dialog);
+    return dialog;
+  }
+
+  /** Assert batch edit switches keep the natural Ant Design switch width. */
+  async expectBatchEditSwitchesCompact(dialog: Locator) {
+    const widths = await dialog.locator(".ant-switch").evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().width),
+    );
+    expect(widths.length).toBeGreaterThanOrEqual(2);
+    for (const width of widths) {
+      expect(width).toBeLessThan(96);
+    }
+  }
+
+  /** Assert toolbar edit/delete/create actions are visually distinguishable. */
+  async expectToolbarPrimaryActionsDistinct() {
+    const editButton = this.page.getByTestId("user-batch-edit-button");
+    const deleteButton = this.page.getByTestId("user-batch-delete-button");
+    const createButton = this.page.getByTestId("user-create-button");
+
+    await expect(editButton).toHaveText(/编\s*辑|Edit/i);
+    await expect(deleteButton).toBeVisible();
+    await expect(createButton).toBeVisible();
+
+    const colors = await Promise.all(
+      [editButton, deleteButton, createButton].map((button) =>
+        button.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            backgroundColor: style.backgroundColor,
+            borderColor: style.borderColor,
+            color: style.color,
+          };
+        }),
+      ),
+    );
+    expect(
+      new Set(
+        colors.map(
+          (item) =>
+            `${item.backgroundColor}|${item.borderColor}|${item.color}`,
+        ),
+      ).size,
+    ).toBe(3);
+  }
+
+  /** Batch update selected users to a specific status label. */
+  async batchUpdateSelectedStatus(statusLabel: string) {
+    const dialog = await this.openSelectedUserBatchEdit();
+    await this.expectBatchEditSwitchesCompact(dialog);
+    await dialog
+      .getByRole("switch", { name: /更新状态|Update Status/i })
+      .click();
+    await dialog.getByText(statusLabel, { exact: true }).click();
+    await dialog.getByRole("button", { name: /确\s*认|OK/i }).click();
+    await dialog.waitFor({ state: "hidden", timeout: 15000 });
+    await waitForBusyIndicatorsToClear(this.page);
+  }
+
   /** Click export button */
   async clickExport() {
     await this.page.getByRole("button", { name: /导\s*出/ }).click();
@@ -455,7 +539,7 @@ export class UserPage {
     await this.page.getByRole("button", { name: /新\s*增/ }).click();
     await this.waitForDrawerReady("");
 
-    await this.drawer.getByPlaceholder("请输入用户名").fill(username);
+    await this.drawerAccountInput.fill(username);
     await this.drawer.getByPlaceholder("请输入密码").fill(password);
     await this.drawer.getByPlaceholder("请输入昵称").fill(nickname);
 

@@ -19,6 +19,7 @@ import (
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/pluginhost"
 	hosti18n "lina-core/pkg/pluginservice/i18n"
+	tenantfilter "lina-core/pkg/pluginservice/tenantfilter"
 	"lina-plugin-monitor-loginlog/backend/internal/dao"
 	"lina-plugin-monitor-loginlog/backend/internal/model/do"
 	entitymodel "lina-plugin-monitor-loginlog/backend/internal/model/entity"
@@ -105,12 +106,16 @@ type dictDataRow = entitymodel.SysDictData
 
 // CreateInput defines the login-log create input.
 type CreateInput struct {
-	UserName string
-	Status   int
-	Ip       string
-	Browser  string
-	Os       string
-	Msg      string
+	TenantID           *int
+	ActingUserID       *int
+	OnBehalfOfTenantID *int
+	IsImpersonation    *bool
+	UserName           string
+	Status             int
+	Ip                 string
+	Browser            string
+	Os                 string
+	Msg                string
 }
 
 // ListInput defines the login-log list filter input.
@@ -150,23 +155,73 @@ type ExportInput struct {
 	Ids            []int
 }
 
+// auditTenantContext stores tenant metadata persisted with one login log.
+type auditTenantContext struct {
+	TenantID           int  // TenantID owns the log row.
+	ActingUserID       int  // ActingUserID is the platform actor during impersonation.
+	OnBehalfOfTenantID int  // OnBehalfOfTenantID is the operated tenant.
+	IsImpersonation    bool // IsImpersonation marks platform impersonation.
+}
+
 // Create inserts one login-log record.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) error {
+	auditContext := resolveAuditTenantContext(
+		ctx,
+		in.TenantID,
+		in.ActingUserID,
+		in.OnBehalfOfTenantID,
+		in.IsImpersonation,
+	)
+
 	_, err := dao.Loginlog.Ctx(ctx).Data(do.Loginlog{
-		UserName:  in.UserName,
-		Status:    in.Status,
-		Ip:        in.Ip,
-		Browser:   in.Browser,
-		Os:        in.Os,
-		Msg:       in.Msg,
-		LoginTime: gtime.Now(),
+		TenantId:           auditContext.TenantID,
+		ActingUserId:       auditContext.ActingUserID,
+		OnBehalfOfTenantId: auditContext.OnBehalfOfTenantID,
+		IsImpersonation:    auditContext.IsImpersonation,
+		UserName:           in.UserName,
+		Status:             in.Status,
+		Ip:                 in.Ip,
+		Browser:            in.Browser,
+		Os:                 in.Os,
+		Msg:                in.Msg,
+		LoginTime:          gtime.Now(),
 	}).Insert()
 	return err
 }
 
+// resolveAuditTenantContext resolves tenant audit metadata from bizctx and explicit overrides.
+func resolveAuditTenantContext(
+	ctx context.Context,
+	tenantID *int,
+	actingUserID *int,
+	onBehalfOfTenantID *int,
+	isImpersonation *bool,
+) auditTenantContext {
+	current := tenantfilter.CurrentContext(ctx)
+	result := auditTenantContext{
+		TenantID:           current.TenantID,
+		ActingUserID:       current.ActingUserID,
+		OnBehalfOfTenantID: current.OnBehalfOfTenantID,
+		IsImpersonation:    current.IsImpersonation,
+	}
+	if tenantID != nil {
+		result.TenantID = *tenantID
+	}
+	if actingUserID != nil {
+		result.ActingUserID = *actingUserID
+	}
+	if onBehalfOfTenantID != nil {
+		result.OnBehalfOfTenantID = *onBehalfOfTenantID
+	}
+	if isImpersonation != nil {
+		result.IsImpersonation = *isImpersonation
+	}
+	return result
+}
+
 // List queries the paginated login-log list.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
-	model := dao.Loginlog.Ctx(ctx)
+	model := tenantfilter.Apply(ctx, dao.Loginlog.Ctx(ctx))
 	model = applyLoginLogFilters(model, in.UserName, in.Ip, in.Status, in.BeginTime, in.EndTime)
 
 	total, err := model.Count()
@@ -202,7 +257,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 // GetById retrieves one login-log record by primary key.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*LoginLogEntity, error) {
 	var record *LoginLogEntity
-	err := dao.Loginlog.Ctx(ctx).Where(colID, id).Scan(&record)
+	err := tenantfilter.Apply(ctx, dao.Loginlog.Ctx(ctx)).Where(colID, id).Scan(&record)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +270,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*LoginLogEntity, err
 
 // Clean hard-deletes login logs within one optional time range.
 func (s *serviceImpl) Clean(ctx context.Context, in CleanInput) (int, error) {
-	model := dao.Loginlog.Ctx(ctx)
+	model := tenantfilter.Apply(ctx, dao.Loginlog.Ctx(ctx))
 	hasFilter := false
 	if in.BeginTime != "" {
 		model = model.WhereGTE(colLoginTime, in.BeginTime)
@@ -245,7 +300,7 @@ func (s *serviceImpl) DeleteByIds(ctx context.Context, ids []int) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	result, err := dao.Loginlog.Ctx(ctx).WhereIn(colID, ids).Delete()
+	result, err := tenantfilter.Apply(ctx, dao.Loginlog.Ctx(ctx)).WhereIn(colID, ids).Delete()
 	if err != nil {
 		return 0, err
 	}
@@ -258,7 +313,7 @@ func (s *serviceImpl) DeleteByIds(ctx context.Context, ids []int) (int, error) {
 
 // Export generates an Excel workbook for login logs.
 func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, err error) {
-	model := dao.Loginlog.Ctx(ctx)
+	model := tenantfilter.Apply(ctx, dao.Loginlog.Ctx(ctx))
 	if len(in.Ids) > 0 {
 		model = model.WhereIn(colID, in.Ids)
 	} else {

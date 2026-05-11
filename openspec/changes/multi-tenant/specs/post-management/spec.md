@@ -14,9 +14,10 @@
 - **WHEN** 租户 A 与租户 B 各自创建 `code='engineer'` 岗位
 - **THEN** 两次创建均成功
 
-### Requirement: 租户删除时级联清理岗位
-`org-center` SHALL 订阅 `tenant.deleted` 事件,事件触发时 MUST 清理本租户所有岗位与用户-岗位关联(参见 `dept-management` 同款规则)。
+### Requirement: 租户删除时不通过事件级联清理岗位
+`org-center` SHALL NOT 依赖未实现的 `tenant.deleted` 事件总线清理本租户岗位与用户-岗位关联;需要清理时应通过显式管理流程或后续可靠生命周期编排设计实现。
 
-#### Scenario: 清理幂等
-- **WHEN** 同一 `tenant.deleted` 事件被投递两次
-- **THEN** 第一次清理成功,第二次为空操作不报错
+#### Scenario: 不写岗位清理事件
+- **WHEN** 租户 T 被删除
+- **THEN** 系统不写入 `tenant.deleted` outbox
+- **AND** 不触发岗位事件订阅者回调

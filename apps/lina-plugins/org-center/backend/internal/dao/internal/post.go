@@ -22,6 +22,7 @@ type PostDao struct {
 // PostColumns defines and stores column names for the table plugin_org_center_post.
 type PostColumns struct {
 	Id        string // Post ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM
 	DeptId    string // Owning department ID
 	Code      string // Post code
 	Name      string // Post name
@@ -36,6 +37,7 @@ type PostColumns struct {
 // postColumns holds the columns for the table plugin_org_center_post.
 var postColumns = PostColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	DeptId:    "dept_id",
 	Code:      "code",
 	Name:      "name",

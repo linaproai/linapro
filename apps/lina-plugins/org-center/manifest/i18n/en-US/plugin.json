@@ -58,6 +58,15 @@
         "tree": {
           "unassignedDept": "Unassigned"
         }
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "tenant_data_exists": "Organization data exists in one or more tenants. Archive or migrate departments, positions, and user bindings before uninstalling.",
+          "tenant_root_required": "A tenant still depends on its root department. Disable tenant organization usage before removing this plugin."
+        },
+        "disable_blocked": {
+          "active_members_exist": "Active tenant members still depend on organization assignments. Remove or migrate assignments before disabling this plugin."
+        }
       }
     }
   }

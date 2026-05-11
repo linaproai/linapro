@@ -21,14 +21,16 @@ type SysRoleMenuDao struct {
 
 // SysRoleMenuColumns defines and stores column names for the table sys_role_menu.
 type SysRoleMenuColumns struct {
-	RoleId string // Role ID
-	MenuId string // Menu ID
+	TenantId string // Role-menu relation tenant ID, 0 means PLATFORM
+	RoleId   string // Role ID
+	MenuId   string // Menu ID
 }
 
 // sysRoleMenuColumns holds the columns for the table sys_role_menu.
 var sysRoleMenuColumns = SysRoleMenuColumns{
-	RoleId: "role_id",
-	MenuId: "menu_id",
+	TenantId: "tenant_id",
+	RoleId:   "role_id",
+	MenuId:   "menu_id",
 }
 
 // NewSysRoleMenuDao creates and returns a new DAO object for table data access.

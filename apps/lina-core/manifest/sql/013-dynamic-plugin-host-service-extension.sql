@@ -1,12 +1,13 @@
 -- ------------------------------------------------------------
 -- 013 dynamic plugin host service extension SQL file
 -- 013 动态插件宿主服务扩展 SQL 文件
--- Dynamic plugin host service extension: KV cache and unified notification domain
--- 动态插件宿主服务扩展：KV缓存与统一通知域
 -- ------------------------------------------------------------
 
+-- Purpose: Stores tenant-scoped host and plugin key-value cache entries with optional expiration.
+-- 用途：存储租户级宿主与插件键值缓存条目，并支持可选过期时间。
 CREATE TABLE IF NOT EXISTS sys_kv_cache (
     "id"          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"   INT NOT NULL DEFAULT 0,
     "owner_type"  VARCHAR(16) NOT NULL DEFAULT '',
     "owner_key"   VARCHAR(64) NOT NULL DEFAULT '',
     "namespace"   VARCHAR(64) NOT NULL DEFAULT '',
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sys_kv_cache (
 
 COMMENT ON TABLE sys_kv_cache IS 'Host distributed KV cache table';
 COMMENT ON COLUMN sys_kv_cache."id" IS 'Primary key ID';
+COMMENT ON COLUMN sys_kv_cache."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_kv_cache."owner_type" IS 'Owner type: plugin=dynamic plugin, module=host module';
 COMMENT ON COLUMN sys_kv_cache."owner_key" IS 'Owner key: plugin ID or module name';
 COMMENT ON COLUMN sys_kv_cache."namespace" IS 'Cache namespace mapped to the host-cache resource identifier';
@@ -32,9 +34,12 @@ COMMENT ON COLUMN sys_kv_cache."expire_at" IS 'Expiration time, NULL means never
 COMMENT ON COLUMN sys_kv_cache."created_at" IS 'Creation time';
 COMMENT ON COLUMN sys_kv_cache."updated_at" IS 'Update time';
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_owner_namespace_key ON sys_kv_cache ("owner_type", "owner_key", "namespace", "cache_key");
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_tenant_owner_namespace_key ON sys_kv_cache ("tenant_id", "owner_type", "owner_key", "namespace", "cache_key");
+CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_tenant_owner ON sys_kv_cache ("tenant_id", "owner_type", "owner_key", "namespace");
 CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache ("expire_at");
 
+-- Purpose: Stores reusable notification delivery channels and their structured configuration.
+-- 用途：存储可复用通知投递通道及其结构化配置。
 CREATE TABLE IF NOT EXISTS sys_notify_channel (
     "id"           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     "channel_key"  VARCHAR(64) NOT NULL DEFAULT '',
@@ -62,8 +67,11 @@ COMMENT ON COLUMN sys_notify_channel."deleted_at" IS 'Deletion time';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_notify_channel_channel_key ON sys_notify_channel ("channel_key");
 
+-- Purpose: Stores notification message bodies, source metadata, tenant ownership, and sender information.
+-- 用途：存储通知消息正文、来源元数据、租户归属与发送人信息。
 CREATE TABLE IF NOT EXISTS sys_notify_message (
     "id"             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"      INT NOT NULL DEFAULT 0,
     "plugin_id"      VARCHAR(64) NOT NULL DEFAULT '',
     "source_type"    VARCHAR(32) NOT NULL DEFAULT '',
     "source_id"      VARCHAR(64) NOT NULL DEFAULT '',
@@ -77,6 +85,7 @@ CREATE TABLE IF NOT EXISTS sys_notify_message (
 
 COMMENT ON TABLE sys_notify_message IS 'Notification message table';
 COMMENT ON COLUMN sys_notify_message."id" IS 'Primary key ID';
+COMMENT ON COLUMN sys_notify_message."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_notify_message."plugin_id" IS 'Source plugin ID, empty for host built-in flows';
 COMMENT ON COLUMN sys_notify_message."source_type" IS 'Source type: notice=notice, plugin=plugin, system=system';
 COMMENT ON COLUMN sys_notify_message."source_id" IS 'Source business ID';
@@ -88,9 +97,13 @@ COMMENT ON COLUMN sys_notify_message."sender_user_id" IS 'Sender user ID';
 COMMENT ON COLUMN sys_notify_message."created_at" IS 'Creation time';
 
 CREATE INDEX IF NOT EXISTS idx_sys_notify_message_source ON sys_notify_message ("source_type", "source_id");
+CREATE INDEX IF NOT EXISTS idx_sys_notify_message_tenant_source ON sys_notify_message ("tenant_id", "source_type", "source_id");
 
+-- Purpose: Stores per-recipient notification delivery state, read status, send result, and failure diagnostics.
+-- 用途：存储每个接收方的通知投递状态、已读状态、发送结果与失败诊断。
 CREATE TABLE IF NOT EXISTS sys_notify_delivery (
     "id"              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"       INT NOT NULL DEFAULT 0,
     "message_id"      BIGINT NOT NULL DEFAULT 0,
     "channel_key"     VARCHAR(64) NOT NULL DEFAULT '',
     "channel_type"    VARCHAR(32) NOT NULL DEFAULT '',
@@ -109,6 +122,7 @@ CREATE TABLE IF NOT EXISTS sys_notify_delivery (
 
 COMMENT ON TABLE sys_notify_delivery IS 'Notification delivery record table';
 COMMENT ON COLUMN sys_notify_delivery."id" IS 'Primary key ID';
+COMMENT ON COLUMN sys_notify_delivery."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_notify_delivery."message_id" IS 'Notification message ID';
 COMMENT ON COLUMN sys_notify_delivery."channel_key" IS 'Delivery channel key';
 COMMENT ON COLUMN sys_notify_delivery."channel_type" IS 'Delivery channel type';
@@ -127,6 +141,7 @@ COMMENT ON COLUMN sys_notify_delivery."deleted_at" IS 'Deletion time';
 CREATE INDEX IF NOT EXISTS idx_sys_notify_delivery_message_id ON sys_notify_delivery ("message_id");
 CREATE INDEX IF NOT EXISTS idx_sys_notify_delivery_user_inbox ON sys_notify_delivery ("user_id", "channel_type", "delivery_status", "is_read");
 CREATE INDEX IF NOT EXISTS idx_sys_notify_delivery_channel_status ON sys_notify_delivery ("channel_key", "delivery_status");
+CREATE INDEX IF NOT EXISTS idx_sys_notify_delivery_tenant_inbox ON sys_notify_delivery ("tenant_id", "user_id", "channel_type", "delivery_status", "is_read");
 
 INSERT INTO sys_notify_channel (
     "channel_key",

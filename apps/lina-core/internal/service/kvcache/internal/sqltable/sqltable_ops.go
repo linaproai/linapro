@@ -65,6 +65,7 @@ func (b *SQLTableBackend) Get(
 	var row *entity.SysKvCache
 	cols := dao.SysKvCache.Columns()
 	err = b.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -105,6 +106,7 @@ func (b *SQLTableBackend) GetInt(
 	var row *entity.SysKvCache
 	cols := dao.SysKvCache.Columns()
 	err = b.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -195,6 +197,7 @@ func (b *SQLTableBackend) Delete(
 		return err
 	}
 	_, err = b.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -305,6 +308,7 @@ func (b *SQLTableBackend) incrOnce(
 		updateData.ExpireAt = expireAt
 	}
 	updateModel := b.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -340,6 +344,7 @@ func (b *SQLTableBackend) ensureIncrementSeedRow(
 	expireAt *gtime.Time,
 ) error {
 	_, err := b.model(ctx).Data(do.SysKvCache{
+		TenantId:   identity.tenantID,
 		OwnerType:  ownerType.String(),
 		OwnerKey:   identity.ownerKey,
 		Namespace:  identity.namespace,
@@ -364,6 +369,7 @@ func (b *SQLTableBackend) readIdentitySnapshot(
 	err := b.model(ctx).
 		Fields(cols.ValueKind, cols.ValueInt, cols.ExpireAt).
 		Where(do.SysKvCache{
+			TenantId:  identity.tenantID,
 			OwnerType: ownerType.String(),
 			OwnerKey:  identity.ownerKey,
 			Namespace: identity.namespace,
@@ -456,6 +462,7 @@ func (b *SQLTableBackend) Expire(
 		affected, err = b.clearIdentityExpireAt(ctx, ownerType, identity)
 	} else {
 		affected, err = b.model(ctx).Where(do.SysKvCache{
+			TenantId:  identity.tenantID,
 			OwnerType: ownerType.String(),
 			OwnerKey:  identity.ownerKey,
 			Namespace: identity.namespace,
@@ -516,6 +523,7 @@ func (b *SQLTableBackend) upsert(
 	data do.SysKvCache,
 ) error {
 	insertData := do.SysKvCache{
+		TenantId:   identity.tenantID,
 		OwnerType:  ownerType.String(),
 		OwnerKey:   identity.ownerKey,
 		Namespace:  identity.namespace,
@@ -531,6 +539,7 @@ func (b *SQLTableBackend) upsert(
 	}
 
 	updateModel := b.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -560,6 +569,7 @@ func (b *SQLTableBackend) clearIdentityExpireAt(
 ) (int64, error) {
 	cols := dao.SysKvCache.Columns()
 	return b.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -577,6 +587,7 @@ func (b *SQLTableBackend) cleanupExpiredIdentity(
 	cols := dao.SysKvCache.Columns()
 	_, err := b.model(ctx).
 		Where(do.SysKvCache{
+			TenantId:  identity.tenantID,
 			OwnerType: ownerType.String(),
 			OwnerKey:  identity.ownerKey,
 			Namespace: identity.namespace,

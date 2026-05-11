@@ -206,6 +206,8 @@ type Registry interface {
 	SetPluginStatus(ctx context.Context, pluginID string, enabled int) error
 	// SetPluginInstalled updates the installed flag and derived lifecycle states for one plugin registry row.
 	SetPluginInstalled(ctx context.Context, pluginID string, installed int) error
+	// SetAutoEnableForNewTenants updates the platform-owned tenant provisioning policy.
+	SetAutoEnableForNewTenants(ctx context.Context, pluginID string, enabled bool) error
 	// BuildPluginStatusKey returns the display key for a plugin's status record.
 	BuildPluginStatusKey(pluginID string) string
 	// SyncRegistryReleaseReference is the exported form of syncRegistryReleaseReference for

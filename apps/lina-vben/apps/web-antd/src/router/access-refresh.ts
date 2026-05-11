@@ -6,6 +6,7 @@ import { resetStaticRoutes } from '@vben/utils';
 
 import { useAuthStore } from '#/store';
 import { getPendingPluginPageRefresh } from '#/plugins/plugin-page-refresh';
+import { useTenantStore } from '#/store/tenant';
 
 import { generateAccess } from './access';
 import { routes } from './routes';
@@ -15,6 +16,8 @@ let accessRefreshTask: null | Promise<void> = null;
 let accessRefreshQueued = false;
 let accessRefreshRefreshUserInfo = false;
 let accessRefreshShowLoadingToast = false;
+let accessRefreshSkipRouteNavigation = false;
+let accessRefreshForceDefaultRoute = false;
 
 function collectAccessibleRouteNames(
   routeList: RouteRecordRaw[],
@@ -31,6 +34,16 @@ function collectAccessibleRouteNames(
   return names;
 }
 
+async function forceReplacePath(router: Router, path: string) {
+  const location = router.resolve(path);
+  await router.replace({
+    force: true,
+    hash: location.hash,
+    path: location.path,
+    query: location.query,
+  });
+}
+
 /**
  * Refreshes menus and dynamic routes for the current logged-in user once.
  */
@@ -38,9 +51,11 @@ async function performAccessibleStateRefresh(
   router: Router,
   {
     refreshUserInfo = true,
+    forceDefaultRoute = false,
     showLoadingToast = false,
     skipRouteNavigation = false,
   }: {
+    forceDefaultRoute?: boolean;
     refreshUserInfo?: boolean;
     showLoadingToast?: boolean;
     skipRouteNavigation?: boolean;
@@ -48,6 +63,7 @@ async function performAccessibleStateRefresh(
 ) {
   const accessStore = useAccessStore();
   const authStore = useAuthStore();
+  const tenantStore = useTenantStore();
   const userStore = useUserStore();
 
   if (!accessStore.accessToken) {
@@ -82,6 +98,15 @@ async function performAccessibleStateRefresh(
     return;
   }
 
+  const fallbackPath = tenantStore.resolveFallbackPath(
+    userInfo?.homePath || preferences.app.defaultHomePath || '/',
+  );
+
+  if (forceDefaultRoute) {
+    await forceReplacePath(router, fallbackPath);
+    return;
+  }
+
   const accessibleNames = collectAccessibleRouteNames(accessibleRoutes);
   const resolved = router.resolve(currentFullPath);
   const hasAccessibleMatch = resolved.matched.some((route) => {
@@ -108,8 +133,6 @@ async function performAccessibleStateRefresh(
     return;
   }
 
-  const fallbackPath =
-    userInfo?.homePath || preferences.app.defaultHomePath || '/';
   if (router.currentRoute.value.fullPath !== fallbackPath) {
     await router.replace(fallbackPath);
   }
@@ -127,10 +150,12 @@ async function performAccessibleStateRefresh(
 async function refreshAccessibleState(
   router: Router,
   {
+    forceDefaultRoute = false,
     refreshUserInfo = true,
     showLoadingToast = false,
     skipRouteNavigation = false,
   }: {
+    forceDefaultRoute?: boolean;
     refreshUserInfo?: boolean;
     showLoadingToast?: boolean;
     skipRouteNavigation?: boolean;
@@ -139,20 +164,28 @@ async function refreshAccessibleState(
   accessRefreshQueued = true;
   accessRefreshRefreshUserInfo ||= refreshUserInfo;
   accessRefreshShowLoadingToast ||= showLoadingToast;
+  accessRefreshSkipRouteNavigation ||= skipRouteNavigation;
+  accessRefreshForceDefaultRoute ||= forceDefaultRoute;
 
   if (!accessRefreshTask) {
     accessRefreshTask = (async () => {
       while (accessRefreshQueued) {
         const shouldRefreshUserInfo = accessRefreshRefreshUserInfo;
         const shouldShowLoadingToast = accessRefreshShowLoadingToast;
+        const shouldForceDefaultRoute = accessRefreshForceDefaultRoute;
+        const shouldSkipRouteNavigation =
+          accessRefreshSkipRouteNavigation && !shouldForceDefaultRoute;
         accessRefreshQueued = false;
         accessRefreshRefreshUserInfo = false;
         accessRefreshShowLoadingToast = false;
+        accessRefreshSkipRouteNavigation = false;
+        accessRefreshForceDefaultRoute = false;
 
         await performAccessibleStateRefresh(router, {
+          forceDefaultRoute: shouldForceDefaultRoute,
           refreshUserInfo: shouldRefreshUserInfo,
           showLoadingToast: shouldShowLoadingToast,
-          skipRouteNavigation,
+          skipRouteNavigation: shouldSkipRouteNavigation,
         });
       }
     })().finally(() => {
@@ -160,6 +193,8 @@ async function refreshAccessibleState(
       accessRefreshQueued = false;
       accessRefreshRefreshUserInfo = false;
       accessRefreshShowLoadingToast = false;
+      accessRefreshSkipRouteNavigation = false;
+      accessRefreshForceDefaultRoute = false;
     });
   }
 

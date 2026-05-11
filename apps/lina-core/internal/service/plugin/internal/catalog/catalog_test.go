@@ -12,9 +12,11 @@ import (
 	"testing"
 	"testing/fstest"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gfile"
+	_ "lina-core/pkg/dbdriver"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
@@ -72,6 +74,7 @@ func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *test
 // that dynamic plugins validate from embedded runtime artifact metadata alone.
 func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *testing.T) {
 	svcs := testutil.NewServices()
+	supportsMultiTenant := true
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
 		"plugin-dynamic-valid",
@@ -87,11 +90,14 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	manifest := &catalog.Manifest{
-		ID:          "plugin-dynamic-valid",
-		Name:        "Runtime Validation Plugin",
-		Version:     "v0.2.0",
-		Type:        catalog.TypeDynamic.String(),
-		Description: "A valid dynamic plugin manifest used by unit tests.",
+		ID:                  "plugin-dynamic-valid",
+		Name:                "Runtime Validation Plugin",
+		Version:             "v0.2.0",
+		Type:                catalog.TypeDynamic.String(),
+		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+		Description:         "A valid dynamic plugin manifest used by unit tests.",
 	}
 
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
@@ -105,6 +111,12 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 	}
 	if manifest.RuntimeArtifact.ABIVersion != pluginbridge.SupportedABIVersion {
 		t.Fatalf("expected ABI version %s, got %s", pluginbridge.SupportedABIVersion, manifest.RuntimeArtifact.ABIVersion)
+	}
+	if !manifest.SupportsTenantGovernance() {
+		t.Fatalf("expected dynamic manifest to keep supports_multi_tenant=true")
+	}
+	if manifest.ScopeNature != catalog.ScopeNatureTenantAware.String() || manifest.DefaultInstallMode != catalog.InstallModeTenantScoped.String() {
+		t.Fatalf("unexpected dynamic tenant governance: scope=%s mode=%s", manifest.ScopeNature, manifest.DefaultInstallMode)
 	}
 }
 
@@ -720,6 +732,71 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 	}
 }
 
+// TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling verifies that
+// catalog reads tolerate registry rows whose release_id no longer points to an
+// existing release row.
+func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		svcs     = testutil.NewServices()
+		pluginID = "plugin-dangling-release-pointer"
+		version  = "9.9.9"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := dao.SysPlugin.Ctx(ctx).Data(do.SysPlugin{
+		PluginId:     pluginID,
+		Name:         "Dangling Release Pointer Plugin",
+		Version:      version,
+		Type:         catalog.TypeDynamic.String(),
+		Installed:    catalog.InstalledYes,
+		Status:       catalog.StatusEnabled,
+		DesiredState: catalog.LifecycleStateRuntimeEnabled.String(),
+		CurrentState: catalog.LifecycleStateRuntimeEnabled.String(),
+		Generation:   int64(1),
+		ReleaseId:    987654321,
+		ScopeNature:  catalog.ScopeNatureTenantAware.String(),
+		InstallMode:  catalog.InstallModeTenantScoped.String(),
+		ManifestPath: "runtime/plugin-dangling-release-pointer/plugin.yaml",
+		Checksum:     "dangling-release-pointer",
+		Remark:       "Dangling release pointer test plugin",
+	}).InsertAndGetId(); err != nil {
+		t.Fatalf("failed to insert plugin registry row: %v", err)
+	}
+	insertID, err := dao.SysPluginRelease.Ctx(ctx).Data(do.SysPluginRelease{
+		PluginId:       pluginID,
+		ReleaseVersion: version,
+		Type:           catalog.TypeDynamic.String(),
+		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		Status:         catalog.ReleaseStatusActive.String(),
+		ManifestPath:   "runtime/plugin-dangling-release-pointer/plugin.yaml",
+		PackagePath:    "runtime/plugin-dangling-release-pointer.wasm",
+		Checksum:       "dangling-release-pointer",
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("failed to insert fallback plugin release row: %v", err)
+	}
+
+	registry, err := svcs.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	release, err := svcs.Catalog.GetRegistryRelease(ctx, registry)
+	if err != nil {
+		t.Fatalf("expected dangling release pointer to fall back to plugin version, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected fallback release to be returned")
+	}
+	if release.Id != int(insertID) {
+		t.Fatalf("expected fallback release id %d, got %d", insertID, release.Id)
+	}
+}
+
 // TestNormalizePluginStatusEnums verifies raw database flags are normalized
 // into the new strongly typed plugin status enums before state derivation runs.
 func TestNormalizePluginStatusEnums(t *testing.T) {
@@ -904,5 +981,113 @@ func TestValidateManifestMenusAcceptsOfficialPluginStableParent(t *testing.T) {
 
 	if err := catalog.ValidateManifestMenus(manifest); err != nil {
 		t.Fatalf("expected official plugin manifest menus to be valid, got: %v", err)
+	}
+}
+
+// TestValidateManifestMenusRejectsMultiTenantTenantCatalog verifies the
+// multi-tenant source plugin no longer declares a dedicated tenant workbench.
+func TestValidateManifestMenusRejectsMultiTenantTenantCatalog(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID: menusvc.MultiTenant,
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       "plugin:multi-tenant:tenant:members",
+				Name:      "成员管理",
+				ParentKey: "tenant",
+				Path:      "/tenant/members",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	err := catalog.ValidateManifestMenus(manifest)
+	if err == nil || !strings.Contains(err.Error(), "can only mount to a stable host catalog") {
+		t.Fatalf("expected tenant workbench parent validation error, got: %v", err)
+	}
+}
+
+// TestValidateManifestNormalizesTenantGovernance verifies tenant governance
+// manifest fields have deterministic normalization and platform-only constraints.
+func TestValidateManifestNormalizesTenantGovernance(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+	supportsMultiTenant := false
+
+	manifest := &catalog.Manifest{
+		ID:                  "plugin-tenant-governance",
+		Name:                "Tenant Governance Plugin",
+		Version:             "0.1.0",
+		Type:                catalog.TypeSource.String(),
+		ScopeNature:         catalog.ScopeNaturePlatformOnly.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+	}
+
+	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
+		t.Fatalf("expected manifest to validate, got %v", err)
+	}
+	if manifest.ScopeNature != catalog.ScopeNaturePlatformOnly.String() {
+		t.Fatalf("expected platform-only scope, got %s", manifest.ScopeNature)
+	}
+	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+		t.Fatalf("expected platform-only plugin to force global install mode, got %s", manifest.DefaultInstallMode)
+	}
+	if manifest.SupportsTenantGovernance() {
+		t.Fatalf("expected platform-only plugin to disable tenant governance support")
+	}
+}
+
+// TestValidateManifestRequiresMultiTenantSupportDeclaration verifies plugin
+// manifests must explicitly declare whether tenant governance is supported.
+func TestValidateManifestRequiresMultiTenantSupportDeclaration(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance-missing-support")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+	testutil.WriteTestFile(
+		t,
+		manifestFile,
+		"id: plugin-tenant-governance-missing-support\nname: Tenant Governance Missing Support Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\ndefault_install_mode: tenant_scoped\n",
+	)
+
+	manifest := &catalog.Manifest{
+		ID:      "plugin-tenant-governance-missing-support",
+		Name:    "Tenant Governance Missing Support Plugin",
+		Version: "0.1.0",
+		Type:    catalog.TypeSource.String(),
+	}
+
+	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
+	if err == nil || !strings.Contains(err.Error(), "supports_multi_tenant is required") {
+		t.Fatalf("expected missing supports_multi_tenant validation error, got %v", err)
+	}
+}
+
+// TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported verifies
+// tenant-aware plugins can explicitly opt out of tenant-level governance.
+func TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance-unsupported")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+	supportsMultiTenant := false
+
+	manifest := &catalog.Manifest{
+		ID:                  "plugin-tenant-governance-unsupported",
+		Name:                "Tenant Governance Unsupported Plugin",
+		Version:             "0.1.0",
+		Type:                catalog.TypeSource.String(),
+		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+	}
+
+	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
+		t.Fatalf("expected manifest to validate, got %v", err)
+	}
+	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+		t.Fatalf("expected unsupported tenant governance to force global install mode, got %s", manifest.DefaultInstallMode)
+	}
+	if manifest.SupportsTenantGovernance() {
+		t.Fatalf("expected explicit supports_multi_tenant=false to disable tenant governance")
 	}
 }

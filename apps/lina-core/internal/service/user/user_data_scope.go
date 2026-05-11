@@ -10,7 +10,9 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/service/datascope"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // userDataScope represents the role data range used by host user management tests.
@@ -18,10 +20,11 @@ type userDataScope = datascope.Scope
 
 // User data-scope levels follow sys_role.data_scope values.
 const (
-	userDataScopeNone userDataScope = datascope.ScopeNone
-	userDataScopeAll  userDataScope = datascope.ScopeAll
-	userDataScopeDept userDataScope = datascope.ScopeDept
-	userDataScopeSelf userDataScope = datascope.ScopeSelf
+	userDataScopeNone   userDataScope = datascope.ScopeNone
+	userDataScopeAll    userDataScope = datascope.ScopeAll
+	userDataScopeTenant userDataScope = datascope.ScopeTenant
+	userDataScopeDept   userDataScope = datascope.ScopeDept
+	userDataScopeSelf   userDataScope = datascope.ScopeSelf
 )
 
 // applyUserDataScope injects the current user's data-scope filter into a
@@ -41,7 +44,40 @@ func (s *serviceImpl) ensureUserVisible(ctx context.Context, userID int) error {
 // ensureUsersVisible rejects a multi-target operation unless every target user
 // is visible under the current request user's effective data-scope.
 func (s *serviceImpl) ensureUsersVisible(ctx context.Context, userIDs []int) error {
+	if err := s.ensureUsersVisibleByTenantMembership(ctx, userIDs); err != nil {
+		return err
+	}
 	return mapDataScopeError(s.currentScopeSvc().EnsureUsersVisible(ctx, userIDs))
+}
+
+// ensureUsersVisibleByTenantMembership rejects tenant-scoped detail and write
+// operations unless every target has active membership in the current tenant.
+func (s *serviceImpl) ensureUsersVisibleByTenantMembership(ctx context.Context, userIDs []int) error {
+	if len(userIDs) == 0 || currentTenantID(ctx) == datascope.PlatformTenantID {
+		return nil
+	}
+	return mapTenantMembershipVisibilityError(
+		s.tenantSvc.EnsureUsersInTenant(
+			ctx,
+			uniqueTenantMembershipUserIDs(userIDs),
+			tenantcapsvc.TenantID(currentTenantID(ctx)),
+		),
+	)
+}
+
+// uniqueTenantMembershipUserIDs returns stable unique user IDs for membership
+// visibility checks.
+func uniqueTenantMembershipUserIDs(userIDs []int) []int {
+	seen := make(map[int]struct{}, len(userIDs))
+	result := make([]int, 0, len(userIDs))
+	for _, userID := range userIDs {
+		if _, ok := seen[userID]; ok {
+			continue
+		}
+		seen[userID] = struct{}{}
+		result = append(result, userID)
+	}
+	return result
 }
 
 // qualifiedSysUserIDColumn returns the fully qualified sys_user ID column used
@@ -89,4 +125,16 @@ func mapDataScopeError(err error) error {
 	default:
 		return err
 	}
+}
+
+// mapTenantMembershipVisibilityError preserves user-management authorization
+// semantics while delegating membership details to tenantcap providers.
+func mapTenantMembershipVisibilityError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if bizerr.Is(err, pkgtenantcap.CodeTenantForbidden) {
+		return bizerr.NewCode(CodeUserDataScopeDenied)
+	}
+	return err
 }

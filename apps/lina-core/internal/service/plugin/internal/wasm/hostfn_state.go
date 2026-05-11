@@ -11,6 +11,7 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/datascope"
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 )
 
@@ -28,7 +29,7 @@ func handleHostStateGet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 
 	cols := dao.SysPluginState.Columns()
 	value, err := dao.SysPluginState.Ctx(ctx).
-		Where(do.SysPluginState{PluginId: hcc.pluginID, StateKey: key}).
+		Where(pluginStateIdentity(ctx, hcc.pluginID, key)).
 		Value(cols.StateValue)
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
@@ -64,10 +65,12 @@ func handleHostStateSet(ctx context.Context, hcc *hostCallContext, reqBytes []by
 // upsertHostStateValue writes one plugin state value using a dialect-neutral
 // insert-ignore plus update sequence inside a transaction.
 func upsertHostStateValue(ctx context.Context, pluginID string, key string, value string) error {
+	identity := pluginStateIdentity(ctx, pluginID, key)
 	return dao.SysPluginState.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		_, err := dao.SysPluginState.Ctx(ctx).Data(do.SysPluginState{
-			PluginId:   pluginID,
-			StateKey:   key,
+			PluginId:   identity.PluginId,
+			TenantId:   identity.TenantId,
+			StateKey:   identity.StateKey,
 			StateValue: value,
 		}).InsertIgnore()
 		if err != nil {
@@ -75,7 +78,7 @@ func upsertHostStateValue(ctx context.Context, pluginID string, key string, valu
 		}
 
 		_, err = dao.SysPluginState.Ctx(ctx).
-			Where(do.SysPluginState{PluginId: pluginID, StateKey: key}).
+			Where(identity).
 			Data(do.SysPluginState{
 				StateValue: value,
 			}).
@@ -97,10 +100,21 @@ func handleHostStateDelete(ctx context.Context, hcc *hostCallContext, reqBytes [
 	}
 
 	_, err = dao.SysPluginState.Ctx(ctx).
-		Where(do.SysPluginState{PluginId: hcc.pluginID, StateKey: key}).
+		Where(pluginStateIdentity(ctx, hcc.pluginID, key)).
 		Delete()
 	if err != nil {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInternalError, err.Error())
 	}
 	return bridgehostcall.NewHostCallEmptySuccessResponse()
+}
+
+// pluginStateIdentity builds the tenant-scoped plugin state identity used by
+// dynamic host state operations. Tenant 0 keeps legacy platform/single-tenant
+// behavior unchanged.
+func pluginStateIdentity(ctx context.Context, pluginID string, key string) do.SysPluginState {
+	return do.SysPluginState{
+		PluginId: strings.TrimSpace(pluginID),
+		TenantId: datascope.CurrentTenantID(ctx),
+		StateKey: strings.TrimSpace(key),
+	}
 }

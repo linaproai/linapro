@@ -17,7 +17,7 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\ndescription: standalone builder test\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n",
+		"id: plugin-dynamic-builder\nname: Dynamic Builder\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\ndescription: standalone builder test\nhostServices:\n  - service: runtime\n    methods:\n      - log.write\n      - state.get\n      - state.set\n",
 	)
 	mustWriteFile(
 		t,
@@ -99,6 +99,15 @@ func TestBuildRuntimeWasmArtifactFromSourceEmbedsDeclaredAssets(t *testing.T) {
 	}
 	if manifest.ID != "plugin-dynamic-builder" {
 		t.Fatalf("expected embedded manifest id plugin-dynamic-builder, got %s", manifest.ID)
+	}
+	if manifest.ScopeNature != pluginScopeNatureTenantAware {
+		t.Fatalf("expected embedded scope nature tenant_aware, got %s", manifest.ScopeNature)
+	}
+	if manifest.SupportsMultiTenant == nil || !*manifest.SupportsMultiTenant {
+		t.Fatalf("expected embedded supportsMultiTenant=true, got %#v", manifest.SupportsMultiTenant)
+	}
+	if manifest.DefaultInstallMode != pluginInstallModeTenantScoped {
+		t.Fatalf("expected embedded default install mode tenant_scoped, got %s", manifest.DefaultInstallMode)
 	}
 
 	metadata := &dynamicArtifactMetadata{}

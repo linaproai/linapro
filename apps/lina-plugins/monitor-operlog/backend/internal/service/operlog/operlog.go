@@ -19,6 +19,7 @@ import (
 	"lina-core/pkg/gdbutil"
 	hostapidoc "lina-core/pkg/pluginservice/apidoc"
 	hosti18n "lina-core/pkg/pluginservice/i18n"
+	tenantfilter "lina-core/pkg/pluginservice/tenantfilter"
 	"lina-plugin-monitor-operlog/backend/internal/dao"
 	"lina-plugin-monitor-operlog/backend/internal/model/do"
 	entitymodel "lina-plugin-monitor-operlog/backend/internal/model/entity"
@@ -131,23 +132,27 @@ type dictDataRow = entitymodel.SysDictData
 
 // CreateInput defines the operation-log create input.
 type CreateInput struct {
-	Title         string
-	OperSummary   string
-	RouteOwner    string
-	RouteMethod   string
-	RoutePath     string
-	RouteDocKey   string
-	OperType      operlogtype.OperType
-	Method        string
-	RequestMethod string
-	OperName      string
-	OperUrl       string
-	OperIp        string
-	OperParam     string
-	JsonResult    string
-	Status        int
-	ErrorMsg      string
-	CostTime      int
+	TenantID           *int
+	ActingUserID       *int
+	OnBehalfOfTenantID *int
+	IsImpersonation    *bool
+	Title              string
+	OperSummary        string
+	RouteOwner         string
+	RouteMethod        string
+	RoutePath          string
+	RouteDocKey        string
+	OperType           operlogtype.OperType
+	Method             string
+	RequestMethod      string
+	OperName           string
+	OperUrl            string
+	OperIp             string
+	OperParam          string
+	JsonResult         string
+	Status             int
+	ErrorMsg           string
+	CostTime           int
 }
 
 // ListInput defines the operation-log list filter input.
@@ -195,38 +200,88 @@ type exportHeader struct {
 	Fallback string // Fallback is used when the runtime bundle has no translation.
 }
 
+// auditTenantContext stores tenant metadata persisted with one operation log.
+type auditTenantContext struct {
+	TenantID           int  // TenantID owns the log row.
+	ActingUserID       int  // ActingUserID is the platform actor during impersonation.
+	OnBehalfOfTenantID int  // OnBehalfOfTenantID is the operated tenant.
+	IsImpersonation    bool // IsImpersonation marks platform impersonation.
+}
+
 // Create inserts one operation-log record.
 func (s *serviceImpl) Create(ctx context.Context, in CreateInput) error {
 	operType := in.OperType
 	if !operlogtype.IsSupported(operType) {
 		operType = operlogtype.OperTypeOther
 	}
+	auditContext := resolveAuditTenantContext(
+		ctx,
+		in.TenantID,
+		in.ActingUserID,
+		in.OnBehalfOfTenantID,
+		in.IsImpersonation,
+	)
+
 	_, err := dao.Operlog.Ctx(ctx).Data(do.Operlog{
-		Title:         in.Title,
-		OperSummary:   in.OperSummary,
-		RouteOwner:    in.RouteOwner,
-		RouteMethod:   in.RouteMethod,
-		RoutePath:     in.RoutePath,
-		RouteDocKey:   in.RouteDocKey,
-		OperType:      operType.String(),
-		Method:        in.Method,
-		RequestMethod: in.RequestMethod,
-		OperName:      in.OperName,
-		OperUrl:       in.OperUrl,
-		OperIp:        in.OperIp,
-		OperParam:     in.OperParam,
-		JsonResult:    in.JsonResult,
-		Status:        in.Status,
-		ErrorMsg:      in.ErrorMsg,
-		CostTime:      in.CostTime,
-		OperTime:      gtime.Now(),
+		TenantId:           auditContext.TenantID,
+		ActingUserId:       auditContext.ActingUserID,
+		OnBehalfOfTenantId: auditContext.OnBehalfOfTenantID,
+		IsImpersonation:    auditContext.IsImpersonation,
+		Title:              in.Title,
+		OperSummary:        in.OperSummary,
+		RouteOwner:         in.RouteOwner,
+		RouteMethod:        in.RouteMethod,
+		RoutePath:          in.RoutePath,
+		RouteDocKey:        in.RouteDocKey,
+		OperType:           operType.String(),
+		Method:             in.Method,
+		RequestMethod:      in.RequestMethod,
+		OperName:           in.OperName,
+		OperUrl:            in.OperUrl,
+		OperIp:             in.OperIp,
+		OperParam:          in.OperParam,
+		JsonResult:         in.JsonResult,
+		Status:             in.Status,
+		ErrorMsg:           in.ErrorMsg,
+		CostTime:           in.CostTime,
+		OperTime:           gtime.Now(),
 	}).Insert()
 	return err
 }
 
+// resolveAuditTenantContext resolves tenant audit metadata from bizctx and explicit overrides.
+func resolveAuditTenantContext(
+	ctx context.Context,
+	tenantID *int,
+	actingUserID *int,
+	onBehalfOfTenantID *int,
+	isImpersonation *bool,
+) auditTenantContext {
+	current := tenantfilter.CurrentContext(ctx)
+	result := auditTenantContext{
+		TenantID:           current.TenantID,
+		ActingUserID:       current.ActingUserID,
+		OnBehalfOfTenantID: current.OnBehalfOfTenantID,
+		IsImpersonation:    current.IsImpersonation,
+	}
+	if tenantID != nil {
+		result.TenantID = *tenantID
+	}
+	if actingUserID != nil {
+		result.ActingUserID = *actingUserID
+	}
+	if onBehalfOfTenantID != nil {
+		result.OnBehalfOfTenantID = *onBehalfOfTenantID
+	}
+	if isImpersonation != nil {
+		result.IsImpersonation = *isImpersonation
+	}
+	return result
+}
+
 // List queries the paginated operation-log list.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
-	model := dao.Operlog.Ctx(ctx)
+	model := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx))
 	titleOperationKeys := s.findLocalizedRouteTitleOperationKeys(ctx, in.Title)
 	model = applyOperLogFilters(model, in.Title, titleOperationKeys, in.OperName, in.OperType, in.Status, in.BeginTime, in.EndTime)
 
@@ -265,7 +320,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 // GetById retrieves one operation-log record by primary key.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*OperLogEntity, error) {
 	var record *OperLogEntity
-	err := dao.Operlog.Ctx(ctx).Where(colID, id).Scan(&record)
+	err := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx)).Where(colID, id).Scan(&record)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +333,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*OperLogEntity, erro
 
 // Clean hard-deletes operation logs within one optional time range.
 func (s *serviceImpl) Clean(ctx context.Context, in CleanInput) (int, error) {
-	model := dao.Operlog.Ctx(ctx)
+	model := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx))
 	hasFilter := false
 	if in.BeginTime != "" {
 		model = model.WhereGTE(colOperTime, in.BeginTime)
@@ -308,7 +363,7 @@ func (s *serviceImpl) DeleteByIds(ctx context.Context, ids []int) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	result, err := dao.Operlog.Ctx(ctx).WhereIn(colID, ids).Delete()
+	result, err := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx)).WhereIn(colID, ids).Delete()
 	if err != nil {
 		return 0, err
 	}
@@ -321,7 +376,7 @@ func (s *serviceImpl) DeleteByIds(ctx context.Context, ids []int) (int, error) {
 
 // Export generates an Excel workbook for operation logs.
 func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, err error) {
-	model := dao.Operlog.Ctx(ctx)
+	model := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx))
 	if len(in.Ids) > 0 {
 		model = model.WhereIn(colID, in.Ids)
 	} else {

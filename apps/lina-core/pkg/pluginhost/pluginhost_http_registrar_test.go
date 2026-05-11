@@ -50,6 +50,7 @@ func TestNewHTTPRegistrarExposeRoutesAndGlobalMiddlewares(t *testing.T) {
 		func(r *ghttp.Request) {},
 		func(r *ghttp.Request) {},
 		func(r *ghttp.Request) {},
+		func(r *ghttp.Request) {},
 	)
 	registrar := NewHTTPRegistrar(server, rootGroup, "plugin-demo", nil, middlewares)
 	if registrar == nil {
@@ -74,7 +75,7 @@ func TestGlobalMiddlewareRegistrarBypassesDisabledPlugin(t *testing.T) {
 	})
 
 	called := false
-	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(pluginID string) bool {
+	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(_ context.Context, pluginID string) bool {
 		return false
 	})
 	registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
@@ -110,7 +111,7 @@ func TestGlobalMiddlewareRegistrarCapturesHandlerResponse(t *testing.T) {
 	})
 
 	captured := ""
-	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(pluginID string) bool {
+	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(_ context.Context, pluginID string) bool {
 		return true
 	})
 	registrar.Bind("/api/v1/*", func(request *ghttp.Request) {
@@ -154,7 +155,7 @@ func TestGlobalMiddlewareRegistrarObservesDownstreamExitAll(t *testing.T) {
 	})
 
 	captured := ""
-	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(pluginID string) bool {
+	registrar := NewGlobalMiddlewareRegistrar(server, "plugin-demo", func(_ context.Context, pluginID string) bool {
 		return true
 	})
 	registrar.Bind("/api/v1/*", func(request *ghttp.Request) {

@@ -6,12 +6,14 @@ package dict
 import (
 	"bytes"
 	"context"
+	"sort"
 
 	"github.com/xuri/excelize/v2"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 )
 
@@ -35,6 +37,7 @@ func (s *serviceImpl) DataList(ctx context.Context, in DataListInput) (*DataList
 		cols = dao.SysDictData.Columns()
 		m    = dao.SysDictData.Ctx(ctx)
 	)
+	m = applyDictFallbackScope(ctx, m)
 
 	// Apply filters
 	if in.DictType != "" {
@@ -44,20 +47,20 @@ func (s *serviceImpl) DataList(ctx context.Context, in DataListInput) (*DataList
 		m = m.WhereLike(cols.Label, "%"+in.Label+"%")
 	}
 
-	// Get total count
-	total, err := m.Count()
+	var rows []*entity.SysDictData
+	err := m.OrderAsc(cols.Sort).Scan(&rows)
 	if err != nil {
 		return nil, err
 	}
-
-	// Query with pagination
-	var list []*entity.SysDictData
-	err = m.Page(in.PageNum, in.PageSize).
-		OrderAsc(cols.Sort).
-		Scan(&list)
-	if err != nil {
-		return nil, err
-	}
+	list := visibleDictData(ctx, rows)
+	sort.SliceStable(list, func(i int, j int) bool {
+		if list[i].Sort == list[j].Sort {
+			return list[i].Id < list[j].Id
+		}
+		return list[i].Sort < list[j].Sort
+	})
+	total := len(list)
+	list = paginateDictData(list, in.PageNum, in.PageSize)
 	s.localizeDictDataEntities(ctx, list)
 
 	return &DataListOutput{
@@ -80,16 +83,21 @@ type DataCreateInput struct {
 
 // DataCreate creates a new dict data entry.
 func (s *serviceImpl) DataCreate(ctx context.Context, in DataCreateInput) (int, error) {
-	id, err := dao.SysDictData.Ctx(ctx).Data(do.SysDictData{
-		DictType: in.DictType,
-		Label:    in.Label,
-		Value:    in.Value,
-		Sort:     in.Sort,
-		TagStyle: in.TagStyle,
-		CssClass: in.CssClass,
-		Status:   in.Status,
-		Remark:   in.Remark,
-	}).InsertAndGetId()
+	if err := assertDictTenantOverrideAllowed(ctx, in.DictType); err != nil {
+		return 0, err
+	}
+
+	data := currentTenantDictDataDO(ctx)
+	data.DictType = in.DictType
+	data.Label = in.Label
+	data.Value = in.Value
+	data.Sort = in.Sort
+	data.TagStyle = in.TagStyle
+	data.CssClass = in.CssClass
+	data.Status = in.Status
+	data.Remark = in.Remark
+
+	id, err := dao.SysDictData.Ctx(ctx).Data(data).InsertAndGetId()
 	if err != nil {
 		return 0, err
 	}
@@ -100,9 +108,9 @@ func (s *serviceImpl) DataCreate(ctx context.Context, in DataCreateInput) (int, 
 // DataGetById retrieves dict data by ID.
 func (s *serviceImpl) DataGetById(ctx context.Context, id int) (*entity.SysDictData, error) {
 	var dictData *entity.SysDictData
-	err := dao.SysDictData.Ctx(ctx).
-		Where(do.SysDictData{Id: id}).
-		Scan(&dictData)
+	model := dao.SysDictData.Ctx(ctx).Where(do.SysDictData{Id: id})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&dictData)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +136,16 @@ type DataUpdateInput struct {
 // DataUpdate updates dict data information.
 func (s *serviceImpl) DataUpdate(ctx context.Context, in DataUpdateInput) error {
 	// Check dict data exists
-	if _, err := s.DataGetById(ctx, in.Id); err != nil {
+	existing, err := s.DataGetById(ctx, in.Id)
+	if err != nil {
+		return err
+	}
+
+	finalType := existing.DictType
+	if in.DictType != nil {
+		finalType = *in.DictType
+	}
+	if err := assertDictTenantOverrideAllowed(ctx, finalType); err != nil {
 		return err
 	}
 
@@ -158,7 +175,7 @@ func (s *serviceImpl) DataUpdate(ctx context.Context, in DataUpdateInput) error 
 		data.Remark = *in.Remark
 	}
 
-	_, err := dao.SysDictData.Ctx(ctx).Where(do.SysDictData{Id: in.Id}).Data(data).Update()
+	_, err = dao.SysDictData.Ctx(ctx).Where(do.SysDictData{Id: in.Id}).Data(data).Update()
 	return err
 }
 
@@ -191,6 +208,7 @@ type DataExportInput struct {
 func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data []byte, err error) {
 	cols := dao.SysDictData.Columns()
 	m := dao.SysDictData.Ctx(ctx)
+	m = applyDictFallbackScope(ctx, m)
 
 	if len(in.Ids) > 0 {
 		m = m.WhereIn(cols.Id, in.Ids)
@@ -206,11 +224,12 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 	// Limit export to prevent memory issues
 	m = m.Limit(10000)
 
-	var list []*entity.SysDictData
-	err = m.OrderAsc(cols.Sort).Scan(&list)
+	var rows []*entity.SysDictData
+	err = m.OrderAsc(cols.Sort).Scan(&rows)
 	if err != nil {
 		return nil, err
 	}
+	list := visibleDictData(ctx, rows)
 	s.localizeDictDataEntities(ctx, list)
 
 	// Create Excel file
@@ -277,13 +296,32 @@ func (s *serviceImpl) DataExport(ctx context.Context, in DataExportInput) (data 
 func (s *serviceImpl) DataByType(ctx context.Context, dictType string) ([]*entity.SysDictData, error) {
 	cols := dao.SysDictData.Columns()
 	var list []*entity.SysDictData
-	err := dao.SysDictData.Ctx(ctx).
+	model := dao.SysDictData.Ctx(ctx).
 		Where(do.SysDictData{DictType: dictType, Status: 1}).
-		OrderAsc(cols.Sort).
-		Scan(&list)
+		OrderAsc(cols.Sort)
+	model = applyDictFallbackScope(ctx, model)
+	err := model.Scan(&list)
 	if err != nil {
 		return nil, err
 	}
+	list = visibleDictData(ctx, list)
 	s.localizeDictDataEntities(ctx, list)
 	return list, nil
+}
+
+// paginateDictData returns one page from an already materialized effective
+// dictionary-data view.
+func paginateDictData(rows []*entity.SysDictData, pageNum int, pageSize int) []*entity.SysDictData {
+	if pageNum <= 0 || pageSize <= 0 {
+		return rows
+	}
+	start := (pageNum - 1) * pageSize
+	if start >= len(rows) {
+		return []*entity.SysDictData{}
+	}
+	end := start + pageSize
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return rows[start:end]
 }

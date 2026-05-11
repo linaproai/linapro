@@ -25,4 +25,5 @@ type SysDictData struct {
 	CreatedAt *gtime.Time // Creation time
 	UpdatedAt *gtime.Time // Update time
 	DeletedAt *gtime.Time // Deletion time
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM default
 }

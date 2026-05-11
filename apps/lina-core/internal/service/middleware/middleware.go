@@ -17,6 +17,7 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/pluginhost"
 )
 
@@ -40,6 +41,8 @@ type HTTPMiddleware interface {
 	RequestBodyLimit(r *ghttp.Request)
 	// Auth validates JWT token and injects user info into context.
 	Auth(r *ghttp.Request)
+	// Tenancy resolves tenant identity and injects it into context.
+	Tenancy(r *ghttp.Request)
 	// RequirePermission declares static permission requirements for manually registered routes.
 	RequirePermission(permissions ...string) ghttp.HandlerFunc
 	// Permission enforces declarative permission requirements declared on static host API handlers.
@@ -71,6 +74,7 @@ type serviceImpl struct {
 	i18nSvc   middlewareI18nService // i18nSvc resolves request locale and translation context.
 	pluginSvc pluginsvc.Service     // Plugin service
 	roleSvc   role.Service          // Role and permission service
+	tenantSvc tenantcapsvc.Service  // Tenant capability service
 }
 
 // middlewareI18nService defines the locale and error localization capabilities middleware needs.
@@ -89,6 +93,7 @@ func New() Service {
 		i18nSvc:   i18nsvc.New(),
 		pluginSvc: pluginSvc,
 		roleSvc:   role.New(pluginSvc),
+		tenantSvc: tenantcapsvc.New(pluginSvc),
 	}
 }
 
@@ -110,6 +115,7 @@ func (s *serviceImpl) PublishedRouteMiddlewares() pluginhost.RouteMiddlewares {
 		s.RequestBodyLimit,
 		s.Ctx,
 		s.Auth,
+		s.Tenancy,
 		s.Permission,
 	)
 }
@@ -160,6 +166,7 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 	// Update last active time and validate session exists (supports forced logout and timeout cleanup)
 	exists, err := s.authSvc.SessionStore().TouchOrValidate(
 		r.Context(),
+		claims.TenantId,
 		claims.TokenId,
 		sessionTimeout,
 	)
@@ -171,5 +178,13 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 
 	// Inject user info into business context.
 	s.bizCtxSvc.SetUser(r.Context(), claims.TokenId, claims.UserId, claims.Username, claims.Status)
+	s.bizCtxSvc.SetTenant(r.Context(), claims.TenantId)
+	s.bizCtxSvc.SetImpersonation(
+		r.Context(),
+		claims.ActingUserId,
+		claims.TenantId,
+		claims.IsImpersonation,
+		claims.IsImpersonation,
+	)
 	r.Middleware.Next()
 }

@@ -5,12 +5,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
 
 // sessionLastActiveUpdateWindow is the minimum interval between two
@@ -20,6 +22,7 @@ const sessionLastActiveUpdateWindow time.Duration = time.Minute
 // Session represents an online user session.
 type Session struct {
 	TokenId        string      // Unique token identifier
+	TenantId       int         // Tenant ID, where 0 means platform
 	UserId         int         // User ID
 	Username       string      // Username
 	DeptName       string      // Department name
@@ -47,24 +50,31 @@ type ListResult struct {
 type Store interface {
 	// Set persists one online session record.
 	Set(ctx context.Context, session *Session) error
-	// Get returns one online session by token ID.
+	// Get returns one online session by its globally unique token ID.
 	Get(ctx context.Context, tokenId string) (*Session, error)
-	// Delete removes one online session by token ID.
+	// Delete removes one online session by its globally unique token ID.
 	Delete(ctx context.Context, tokenId string) error
-	// DeleteByUserId removes all online sessions that belong to one user.
-	DeleteByUserId(ctx context.Context, userId int) error
+	// DeleteByUserId removes all online sessions that belong to one user in one tenant.
+	DeleteByUserId(ctx context.Context, tenantId int, userId int) error
 	// List returns all online sessions that match the optional filter.
 	List(ctx context.Context, filter *ListFilter) ([]*Session, error)
 	// ListPage returns one paginated online-session list for the optional filter.
 	ListPage(ctx context.Context, filter *ListFilter, pageNum, pageSize int) (*ListResult, error)
-	// ListPageScoped returns one paginated online-session list constrained by the supplied data-scope service.
-	ListPageScoped(ctx context.Context, filter *ListFilter, pageNum, pageSize int, scopeSvc datascope.Service) (*ListResult, error)
+	// ListPageScoped returns one paginated online-session list constrained by
+	// tenant ownership and the supplied data-scope service.
+	ListPageScoped(
+		ctx context.Context,
+		filter *ListFilter,
+		pageNum, pageSize int,
+		scopeSvc datascope.Service,
+		tenantSvc tenantcapsvc.Service,
+	) (*ListResult, error)
 	// Count returns the total number of active online sessions.
 	Count(ctx context.Context) (int, error)
-	// TouchOrValidate validates the session timeout and refreshes last_active_time
-	// outside the short write-throttle window for the given tokenId. It returns
-	// true when the session remains valid.
-	TouchOrValidate(ctx context.Context, tokenId string, timeout time.Duration) (bool, error)
+	// TouchOrValidate validates tenant ownership and session timeout, then
+	// refreshes last_active_time outside the short write-throttle window for the
+	// given tokenId. It returns true when the session remains valid.
+	TouchOrValidate(ctx context.Context, tenantId int, tokenId string, timeout time.Duration) (bool, error)
 	// CleanupInactive deletes sessions whose last_active_time exceeds the given timeout duration.
 	CleanupInactive(ctx context.Context, timeout time.Duration) (int64, error)
 }
@@ -81,6 +91,7 @@ func NewDBStore() Store {
 func (s *DBStore) Set(ctx context.Context, session *Session) error {
 	_, err := dao.SysOnlineSession.Ctx(ctx).Data(do.SysOnlineSession{
 		TokenId:        session.TokenId,
+		TenantId:       session.TenantId,
 		UserId:         session.UserId,
 		Username:       session.Username,
 		DeptName:       session.DeptName,
@@ -93,12 +104,22 @@ func (s *DBStore) Set(ctx context.Context, session *Session) error {
 	return err
 }
 
-// Get returns a session by token ID.
+// tokenSessionModel builds the session lookup model for one globally unique token.
+func tokenSessionModel(ctx context.Context, tokenId string) *gdb.Model {
+	return dao.SysOnlineSession.Ctx(ctx).
+		Where(do.SysOnlineSession{TokenId: tokenId})
+}
+
+// tenantSessionModel builds the session lookup model for a tenant/token pair.
+func tenantSessionModel(ctx context.Context, tenantId int, tokenId string) *gdb.Model {
+	return tokenSessionModel(ctx, tokenId).
+		Where(do.SysOnlineSession{TenantId: tenantId})
+}
+
+// Get returns a session by globally unique token ID.
 func (s *DBStore) Get(ctx context.Context, tokenId string) (*Session, error) {
 	var e *entity.SysOnlineSession
-	err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenId}).
-		Scan(&e)
+	err := tokenSessionModel(ctx, tokenId).Scan(&e)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +128,7 @@ func (s *DBStore) Get(ctx context.Context, tokenId string) (*Session, error) {
 	}
 	return &Session{
 		TokenId:        e.TokenId,
+		TenantId:       e.TenantId,
 		UserId:         e.UserId,
 		Username:       e.Username,
 		DeptName:       e.DeptName,
@@ -118,20 +140,22 @@ func (s *DBStore) Get(ctx context.Context, tokenId string) (*Session, error) {
 	}, nil
 }
 
-// Delete removes a session by token ID.
+// Delete removes a session by globally unique token ID.
 func (s *DBStore) Delete(ctx context.Context, tokenId string) error {
-	_, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenId}).
-		Delete()
+	_, err := tokenSessionModel(ctx, tokenId).Delete()
 	return err
 }
 
-// DeleteByUserId removes all sessions belonging to a user.
-func (s *DBStore) DeleteByUserId(ctx context.Context, userId int) error {
-	_, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{UserId: userId}).
-		Delete()
+// DeleteByUserId removes all sessions belonging to a user in one tenant.
+func (s *DBStore) DeleteByUserId(ctx context.Context, tenantId int, userId int) error {
+	_, err := tenantUserSessionModel(ctx, tenantId, userId).Delete()
 	return err
+}
+
+// tenantUserSessionModel builds the session lookup model for one tenant/user.
+func tenantUserSessionModel(ctx context.Context, tenantId int, userId int) *gdb.Model {
+	return dao.SysOnlineSession.Ctx(ctx).
+		Where(do.SysOnlineSession{TenantId: tenantId, UserId: userId})
 }
 
 // List returns all sessions matching the filter.
@@ -155,6 +179,7 @@ func (s *DBStore) List(ctx context.Context, filter *ListFilter) ([]*Session, err
 	for i, e := range entities {
 		sessions[i] = &Session{
 			TokenId:        e.TokenId,
+			TenantId:       e.TenantId,
 			UserId:         e.UserId,
 			Username:       e.Username,
 			DeptName:       e.DeptName,
@@ -200,6 +225,7 @@ func (s *DBStore) ListPage(ctx context.Context, filter *ListFilter, pageNum, pag
 	for i, e := range entities {
 		sessions[i] = &Session{
 			TokenId:        e.TokenId,
+			TenantId:       e.TenantId,
 			UserId:         e.UserId,
 			Username:       e.Username,
 			DeptName:       e.DeptName,
@@ -217,8 +243,15 @@ func (s *DBStore) ListPage(ctx context.Context, filter *ListFilter, pageNum, pag
 	}, nil
 }
 
-// ListPageScoped returns a paginated session list constrained by user data scope.
-func (s *DBStore) ListPageScoped(ctx context.Context, filter *ListFilter, pageNum, pageSize int, scopeSvc datascope.Service) (*ListResult, error) {
+// ListPageScoped returns a paginated session list constrained by tenant and
+// user data scope.
+func (s *DBStore) ListPageScoped(
+	ctx context.Context,
+	filter *ListFilter,
+	pageNum, pageSize int,
+	scopeSvc datascope.Service,
+	tenantSvc tenantcapsvc.Service,
+) (*ListResult, error) {
 	m := dao.SysOnlineSession.Ctx(ctx)
 	if filter != nil {
 		cols := dao.SysOnlineSession.Columns()
@@ -227,6 +260,13 @@ func (s *DBStore) ListPageScoped(ctx context.Context, filter *ListFilter, pageNu
 		}
 		if filter.Ip != "" {
 			m = m.WhereLike(cols.Ip, "%"+filter.Ip+"%")
+		}
+	}
+	if tenantSvc != nil {
+		var err error
+		m, err = tenantSvc.Apply(ctx, m, qualifiedOnlineSessionTenantIDColumn())
+		if err != nil {
+			return nil, err
 		}
 	}
 	if scopeSvc != nil {
@@ -258,6 +298,7 @@ func (s *DBStore) ListPageScoped(ctx context.Context, filter *ListFilter, pageNu
 	for i, e := range entities {
 		sessions[i] = &Session{
 			TokenId:        e.TokenId,
+			TenantId:       e.TenantId,
 			UserId:         e.UserId,
 			Username:       e.Username,
 			DeptName:       e.DeptName,
@@ -280,28 +321,39 @@ func qualifiedOnlineSessionUserIDColumn() string {
 	return dao.SysOnlineSession.Table() + "." + dao.SysOnlineSession.Columns().UserId
 }
 
+// qualifiedOnlineSessionTenantIDColumn returns the fully qualified session tenant column.
+func qualifiedOnlineSessionTenantIDColumn() string {
+	return dao.SysOnlineSession.Table() + "." + dao.SysOnlineSession.Columns().TenantId
+}
+
 // Count returns the total number of active sessions.
 func (s *DBStore) Count(ctx context.Context) (int, error) {
 	return dao.SysOnlineSession.Ctx(ctx).Count()
 }
 
-// TouchOrValidate validates the session timeout and refreshes last_active_time
-// only when the previous activity is outside the short write-throttle window.
-func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout time.Duration) (bool, error) {
+// TouchOrValidate validates tenant ownership and the session timeout, then
+// refreshes last_active_time only when the previous activity is outside the
+// short write-throttle window.
+func (s *DBStore) TouchOrValidate(ctx context.Context, tenantId int, tokenId string, timeout time.Duration) (bool, error) {
 	cols := dao.SysOnlineSession.Columns()
+	count, err := tenantSessionModel(ctx, tenantId, tokenId).Count()
+	if err != nil {
+		return false, err
+	}
+	if count == 0 {
+		return false, nil
+	}
+
 	if timeout > 0 {
 		cutoff := gtime.Now().Add(-timeout)
-		expiredCount, err := dao.SysOnlineSession.Ctx(ctx).
-			Where(do.SysOnlineSession{TokenId: tokenId}).
+		expiredCount, err := tenantSessionModel(ctx, tenantId, tokenId).
 			WhereLTE(cols.LastActiveTime, cutoff).
 			Count()
 		if err != nil {
 			return false, err
 		}
 		if expiredCount > 0 {
-			if _, err = dao.SysOnlineSession.Ctx(ctx).
-				Where(do.SysOnlineSession{TokenId: tokenId}).
-				Delete(); err != nil {
+			if _, err = tenantSessionModel(ctx, tenantId, tokenId).Delete(); err != nil {
 				return false, err
 			}
 			return false, nil
@@ -310,8 +362,7 @@ func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout t
 
 	now := gtime.Now()
 	updateCutoff := now.Add(-sessionLastActiveUpdateWindow)
-	_, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenId}).
+	_, err = tenantSessionModel(ctx, tenantId, tokenId).
 		WhereLT(cols.LastActiveTime, updateCutoff).
 		Data(do.SysOnlineSession{LastActiveTime: now}).
 		Update()
@@ -319,9 +370,7 @@ func (s *DBStore) TouchOrValidate(ctx context.Context, tokenId string, timeout t
 		return false, err
 	}
 
-	count, err := dao.SysOnlineSession.Ctx(ctx).
-		Where(do.SysOnlineSession{TokenId: tokenId}).
-		Count()
+	count, err = tenantSessionModel(ctx, tenantId, tokenId).Count()
 	if err != nil {
 		return false, err
 	}

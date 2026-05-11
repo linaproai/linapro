@@ -11,6 +11,7 @@ import (
 // SysNotifyMessage is the golang structure for table sys_notify_message.
 type SysNotifyMessage struct {
 	Id           int64       `json:"id"           orm:"id"             description:"Primary key ID"`
+	TenantId     int         `json:"tenantId"     orm:"tenant_id"      description:"Owning tenant ID, 0 means PLATFORM"`
 	PluginId     string      `json:"pluginId"     orm:"plugin_id"      description:"Source plugin ID, empty for host built-in flows"`
 	SourceType   string      `json:"sourceType"   orm:"source_type"    description:"Source type: notice=notice, plugin=plugin, system=system"`
 	SourceId     string      `json:"sourceId"     orm:"source_id"      description:"Source business ID"`

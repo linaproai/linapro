@@ -47,6 +47,24 @@ func (f *pluginResourceFakeBizCtx) SetUser(_ context.Context, tokenId string, us
 	}
 }
 
+// SetTenant records the current tenant snapshot.
+func (f *pluginResourceFakeBizCtx) SetTenant(_ context.Context, tenantId int) {
+	if f.ctx != nil {
+		f.ctx.TenantId = tenantId
+	}
+}
+
+// SetImpersonation records the current impersonation snapshot.
+func (f *pluginResourceFakeBizCtx) SetImpersonation(_ context.Context, actingUserId int, tenantId int, actingAsTenant bool, isImpersonation bool) {
+	if f.ctx != nil {
+		f.ctx.ActingUserId = actingUserId
+		f.ctx.TenantId = tenantId
+		f.ctx.ActingAsTenant = actingAsTenant
+		f.ctx.IsImpersonation = isImpersonation
+	}
+}
+
+
 // SetUserAccess records the role-derived data-scope snapshot.
 func (f *pluginResourceFakeBizCtx) SetUserAccess(_ context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int) {
 	if f.ctx != nil {

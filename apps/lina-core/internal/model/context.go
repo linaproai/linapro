@@ -23,9 +23,25 @@ type Context struct {
 	// Example: 1.
 	Status int `json:"status"`
 
+	// TenantId is the current request tenant, where 0 means platform context.
+	// Example: 1001.
+	TenantId int `json:"tenantId"`
+
+	// ActingAsTenant reports that a platform user is operating through a tenant view.
+	// Example: true.
+	ActingAsTenant bool `json:"actingAsTenant"`
+
+	// ActingUserId is the real user ID when impersonation is active.
+	// Example: 1.
+	ActingUserId int `json:"actingUserId"`
+
+	// IsImpersonation reports whether the current token or override is impersonating a tenant.
+	// Example: false.
+	IsImpersonation bool `json:"isImpersonation"`
+
 	// DataScope is the effective role data scope cached for the current request:
 	// 0 means no governed data access, 1 means all data, 2 means current
-	// department data, and 3 means self-owned data.
+	// tenant data, 3 means current department data, and 4 means self-owned data.
 	// Example: 3.
 	DataScope int `json:"dataScope"`
 

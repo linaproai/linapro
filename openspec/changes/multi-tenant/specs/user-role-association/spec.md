@@ -8,7 +8,7 @@
 - **THEN** `sys_user_role` 中存在两行:`(U, role_admin, A)` 与 `(U, role_user, B)`
 
 ### Requirement: 角色绑定按租户校验
-绑定时 SHALL 校验 `sys_role.tenant_id` 与请求 `tenant_id` 匹配;租户管理员仅可绑定本租户角色;平台角色仅可绑定给平台用户。
+绑定时 SHALL 校验 `sys_role.tenant_id` 与请求 `tenant_id` 匹配;租户管理员仅可绑定本租户角色;平台上下文角色仅可绑定给平台用户。
 
 #### Scenario: 租户管理员绑定本租户角色
 - **WHEN** 租户 A 管理员绑定角色 R(`sys_role.tenant_id=A`)给用户 U
@@ -20,8 +20,8 @@
 - **THEN** 返回 `bizerr.CodeRoleTenantMismatch`
 - **AND** 不写入
 
-#### Scenario: 平台角色绑定到普通用户被拒
-- **WHEN** 任意用户尝试将 `is_platform_role=true` 的角色绑给租户用户
+#### Scenario: 平台上下文角色绑定到普通用户被拒
+- **WHEN** 任意用户尝试将 `tenant_id=0` 的角色绑给租户用户
 - **THEN** 返回 `bizerr.CodePlatformRoleAssignmentForbidden`
 
 ### Requirement: 权限解析按当前租户过滤

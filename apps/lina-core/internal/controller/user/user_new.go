@@ -28,7 +28,7 @@ func NewV1() userapi.IUserV1 {
 	pluginSvc := pluginsvc.New(nil)
 	orgCapSvc := orgcap.New(pluginSvc)
 	return &ControllerV1{
-		userSvc:   usersvc.New(orgCapSvc),
+		userSvc:   usersvc.New(orgCapSvc, pluginSvc),
 		roleSvc:   role.New(pluginSvc),
 		menuSvc:   menu.New(pluginSvc),
 		orgCapSvc: orgCapSvc,

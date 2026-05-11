@@ -21,28 +21,32 @@ type SysDictTypeDao struct {
 
 // SysDictTypeColumns defines and stores column names for the table sys_dict_type.
 type SysDictTypeColumns struct {
-	Id        string // Dictionary type ID
-	Name      string // Dictionary name
-	Type      string // Dictionary type
-	Status    string // Status: 0=disabled, 1=enabled
-	IsBuiltin string // Built-in record flag: 1=yes, 0=no
-	Remark    string // Remark
-	CreatedAt string // Creation time
-	UpdatedAt string // Update time
-	DeletedAt string // Deletion time
+	Id                  string // Dictionary type ID
+	TenantId            string // Owning tenant ID, 0 means PLATFORM default
+	Name                string // Dictionary name
+	Type                string // Dictionary type
+	Status              string // Status: 0=disabled, 1=enabled
+	IsBuiltin           string // Built-in record flag: 1=yes, 0=no
+	AllowTenantOverride string // Whether tenants may override this dictionary type
+	Remark              string // Remark
+	CreatedAt           string // Creation time
+	UpdatedAt           string // Update time
+	DeletedAt           string // Deletion time
 }
 
 // sysDictTypeColumns holds the columns for the table sys_dict_type.
 var sysDictTypeColumns = SysDictTypeColumns{
-	Id:        "id",
-	Name:      "name",
-	Type:      "type",
-	Status:    "status",
-	IsBuiltin: "is_builtin",
-	Remark:    "remark",
-	CreatedAt: "created_at",
-	UpdatedAt: "updated_at",
-	DeletedAt: "deleted_at",
+	Id:                  "id",
+	TenantId:            "tenant_id",
+	Name:                "name",
+	Type:                "type",
+	Status:              "status",
+	IsBuiltin:           "is_builtin",
+	AllowTenantOverride: "allow_tenant_override",
+	Remark:              "remark",
+	CreatedAt:           "created_at",
+	UpdatedAt:           "updated_at",
+	DeletedAt:           "deleted_at",
 }
 
 // NewSysDictTypeDao creates and returns a new DAO object for table data access.

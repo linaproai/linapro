@@ -198,19 +198,22 @@ func (s *serviceImpl) loadRuntimeManifestFromArtifact(artifactPath string) (*Man
 		return nil, gerror.Wrapf(err, "dynamic plugin host service declaration is invalid: %s", artifactPath)
 	}
 	manifest := &Manifest{
-		ID:               strings.TrimSpace(artifact.Manifest.ID),
-		Name:             strings.TrimSpace(artifact.Manifest.Name),
-		Version:          strings.TrimSpace(artifact.Manifest.Version),
-		Type:             NormalizeType(artifact.Manifest.Type).String(),
-		Description:      strings.TrimSpace(artifact.Manifest.Description),
-		Menus:            artifact.Manifest.Menus,
-		ManifestPath:     "",
-		RootDir:          filepath.Dir(artifactPath),
-		Routes:           artifact.RouteContracts,
-		BridgeSpec:       artifact.BridgeSpec,
-		HostCapabilities: pluginbridge.CapabilityMapFromHostServices(artifact.HostServices),
-		HostServices:     hostServices,
-		RuntimeArtifact:  artifact,
+		ID:                  strings.TrimSpace(artifact.Manifest.ID),
+		Name:                strings.TrimSpace(artifact.Manifest.Name),
+		Version:             strings.TrimSpace(artifact.Manifest.Version),
+		Type:                NormalizeType(artifact.Manifest.Type).String(),
+		ScopeNature:         strings.TrimSpace(artifact.Manifest.ScopeNature),
+		SupportsMultiTenant: artifact.Manifest.SupportsMultiTenant,
+		DefaultInstallMode:  strings.TrimSpace(artifact.Manifest.DefaultInstallMode),
+		Description:         strings.TrimSpace(artifact.Manifest.Description),
+		Menus:               artifact.Manifest.Menus,
+		ManifestPath:        "",
+		RootDir:             filepath.Dir(artifactPath),
+		Routes:              artifact.RouteContracts,
+		BridgeSpec:          artifact.BridgeSpec,
+		HostCapabilities:    pluginbridge.CapabilityMapFromHostServices(artifact.HostServices),
+		HostServices:        hostServices,
+		RuntimeArtifact:     artifact,
 	}
 	if err = s.ValidateUploadedRuntimeManifest(manifest); err != nil {
 		return nil, gerror.Wrapf(err, "dynamic plugin embedded manifest is invalid: %s", artifactPath)

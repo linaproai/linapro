@@ -1,8 +1,14 @@
 -- 001: monitor-operlog schema
 -- 001：monitor-operlog 数据结构
 
+-- Purpose: Stores operation audit logs with route metadata, request/response payloads, tenant, and impersonation context.
+-- 用途：存储操作审计日志，包括路由元数据、请求/响应载荷、租户与代操作上下文。
 CREATE TABLE IF NOT EXISTS plugin_monitor_operlog (
     "id"              INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"       INT                              NOT NULL DEFAULT 0,
+    "acting_user_id"  INT                              NOT NULL DEFAULT 0,
+    "on_behalf_of_tenant_id" INT                       NOT NULL DEFAULT 0,
+    "is_impersonation" BOOL                            NOT NULL DEFAULT FALSE,
     "title"           VARCHAR(50)   NOT NULL DEFAULT '',
     "oper_summary"    VARCHAR(200)  NOT NULL DEFAULT '',
     "route_owner"     VARCHAR(100)  NOT NULL DEFAULT '',
@@ -25,6 +31,10 @@ CREATE TABLE IF NOT EXISTS plugin_monitor_operlog (
 
 COMMENT ON TABLE plugin_monitor_operlog IS 'Operation log table';
 COMMENT ON COLUMN plugin_monitor_operlog."id" IS 'Log ID';
+COMMENT ON COLUMN plugin_monitor_operlog."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
+COMMENT ON COLUMN plugin_monitor_operlog."acting_user_id" IS 'Actual acting user ID for platform operations or impersonation';
+COMMENT ON COLUMN plugin_monitor_operlog."on_behalf_of_tenant_id" IS 'Target tenant ID when a platform administrator acts on behalf of a tenant';
+COMMENT ON COLUMN plugin_monitor_operlog."is_impersonation" IS 'Whether this log was produced during tenant impersonation';
 COMMENT ON COLUMN plugin_monitor_operlog."title" IS 'Module title';
 COMMENT ON COLUMN plugin_monitor_operlog."oper_summary" IS 'Operation summary';
 COMMENT ON COLUMN plugin_monitor_operlog."route_owner" IS 'Route owner: core or plugin ID';
@@ -43,6 +53,11 @@ COMMENT ON COLUMN plugin_monitor_operlog."status" IS 'Operation status: 0=succee
 COMMENT ON COLUMN plugin_monitor_operlog."error_msg" IS 'Error message';
 COMMENT ON COLUMN plugin_monitor_operlog."cost_time" IS 'Duration in milliseconds';
 COMMENT ON COLUMN plugin_monitor_operlog."oper_time" IS 'Operation time';
+
+CREATE INDEX IF NOT EXISTS idx_plugin_monitor_operlog_tenant_time ON plugin_monitor_operlog ("tenant_id", "oper_time");
+CREATE INDEX IF NOT EXISTS idx_plugin_monitor_operlog_tenant_type ON plugin_monitor_operlog ("tenant_id", "oper_type");
+CREATE INDEX IF NOT EXISTS idx_plugin_monitor_operlog_tenant_operator ON plugin_monitor_operlog ("tenant_id", "oper_name");
+CREATE INDEX IF NOT EXISTS idx_plugin_monitor_operlog_impersonation ON plugin_monitor_operlog ("tenant_id", "is_impersonation", "on_behalf_of_tenant_id");
 
 INSERT INTO sys_dict_type ("name", "type", "status", "is_builtin", "remark", "created_at", "updated_at")
 VALUES ('操作类型', 'sys_oper_type', 1, 1, '操作日志操作类型列表', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

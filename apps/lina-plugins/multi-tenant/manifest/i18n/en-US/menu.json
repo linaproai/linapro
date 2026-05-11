@@ -1,0 +1,22 @@
+{
+  "menu": {
+    "plugin:multi-tenant:platform:tenants": {
+      "title": "Tenants"
+    },
+    "plugin:multi-tenant:platform:tenants:add": {
+      "title": "Create"
+    },
+    "plugin:multi-tenant:platform:tenants:edit": {
+      "title": "Update"
+    },
+    "plugin:multi-tenant:platform:tenants:impersonate": {
+      "title": "Impersonate"
+    },
+    "plugin:multi-tenant:platform:tenants:query": {
+      "title": "Query"
+    },
+    "plugin:multi-tenant:platform:tenants:remove": {
+      "title": "Delete"
+    }
+  }
+}

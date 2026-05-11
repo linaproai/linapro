@@ -10,6 +10,7 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
+	"lina-core/internal/service/datascope"
 	notifysvc "lina-core/internal/service/notify"
 	"lina-core/pkg/bizerr"
 )
@@ -47,7 +48,7 @@ func (s *serviceImpl) Get(ctx context.Context, id int64) (*MessageDetail, error)
 		record       *messageDetailRecord
 	)
 
-	err = dao.SysNotifyDelivery.Ctx(ctx).
+	model := dao.SysNotifyDelivery.Ctx(ctx).
 		LeftJoin(
 			messageTbl,
 			messageTbl+"."+messageCols.Id+"="+deliveryTbl+"."+deliveryCols.MessageId,
@@ -69,8 +70,9 @@ func (s *serviceImpl) Get(ctx context.Context, id int64) (*MessageDetail, error)
 		Where(deliveryTbl+"."+deliveryCols.Id, id).
 		Where(deliveryTbl+"."+deliveryCols.UserId, userId).
 		Where(deliveryTbl+"."+deliveryCols.ChannelType, notifysvc.ChannelTypeInbox.String()).
-		Where(deliveryTbl+"."+deliveryCols.DeliveryStatus, notifysvc.DeliveryStatusSucceeded).
-		Scan(&record)
+		Where(deliveryTbl+"."+deliveryCols.DeliveryStatus, notifysvc.DeliveryStatusSucceeded)
+	model = datascope.ApplyTenantScope(ctx, model, deliveryTbl+"."+datascope.TenantColumn)
+	err = model.Scan(&record)
 	if err != nil {
 		return nil, err
 	}

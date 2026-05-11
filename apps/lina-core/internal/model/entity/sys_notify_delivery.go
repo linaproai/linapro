@@ -11,6 +11,7 @@ import (
 // SysNotifyDelivery is the golang structure for table sys_notify_delivery.
 type SysNotifyDelivery struct {
 	Id             int64       `json:"id"             orm:"id"              description:"Primary key ID"`
+	TenantId       int         `json:"tenantId"       orm:"tenant_id"       description:"Owning tenant ID, 0 means PLATFORM"`
 	MessageId      int64       `json:"messageId"      orm:"message_id"      description:"Notification message ID"`
 	ChannelKey     string      `json:"channelKey"     orm:"channel_key"     description:"Delivery channel key"`
 	ChannelType    string      `json:"channelType"    orm:"channel_type"    description:"Delivery channel type"`

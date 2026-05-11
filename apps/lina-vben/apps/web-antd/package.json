@@ -20,6 +20,7 @@
     "build:analyze": "pnpm vite build --mode analyze",
     "dev": "pnpm vite --mode development",
     "preview": "vite preview",
+    "i18n:check": "node ./scripts/check-i18n-keys.mjs",
     "typecheck": "vue-tsc --noEmit --skipLibCheck"
   },
   "imports": {

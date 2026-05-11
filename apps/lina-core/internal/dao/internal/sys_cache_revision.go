@@ -22,6 +22,7 @@ type SysCacheRevisionDao struct {
 // SysCacheRevisionColumns defines and stores column names for the table sys_cache_revision.
 type SysCacheRevisionColumns struct {
 	Id        string // Primary key ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM
 	Domain    string // Cache domain, such as runtime-config, permission-access, or plugin-runtime
 	Scope     string // Explicit invalidation scope, such as global, plugin:<id>, locale:<locale>, or user:<id>
 	Revision  string // Monotonic cache revision for this domain and scope
@@ -33,6 +34,7 @@ type SysCacheRevisionColumns struct {
 // sysCacheRevisionColumns holds the columns for the table sys_cache_revision.
 var sysCacheRevisionColumns = SysCacheRevisionColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	Domain:    "domain",
 	Scope:     "scope",
 	Revision:  "revision",

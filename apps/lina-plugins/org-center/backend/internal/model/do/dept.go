@@ -13,6 +13,7 @@ import (
 type Dept struct {
 	g.Meta    `orm:"table:plugin_org_center_dept, do:true"`
 	Id        any         // Department ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM
 	ParentId  any         // Parent department ID
 	Ancestors any         // Ancestor list
 	Name      any         // Department name

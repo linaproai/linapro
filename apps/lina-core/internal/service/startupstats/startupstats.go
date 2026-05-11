@@ -41,6 +41,8 @@ const (
 	PhasePluginBootstrapAutoEnable Phase = "plugin_bootstrap_auto_enable"
 	// PhasePluginSourceUpgradeReadiness measures source-plugin upgrade readiness checks.
 	PhasePluginSourceUpgradeReadiness Phase = "plugin_source_upgrade_readiness"
+	// PhasePluginStartupConsistency measures persisted plugin startup consistency checks.
+	PhasePluginStartupConsistency Phase = "plugin_startup_consistency"
 	// PhasePluginLifecycleAttach measures plugin lifecycle handler attachment.
 	PhasePluginLifecycleAttach Phase = "plugin_lifecycle_attach"
 	// PhaseCronStart measures cron and persistent scheduled-job startup.

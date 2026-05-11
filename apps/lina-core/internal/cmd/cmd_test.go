@@ -14,11 +14,12 @@ import (
 	"testing"
 	"unicode"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/logger"
@@ -224,6 +225,7 @@ func TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL(t *testing.T) {
 	collector.Add(startupstats.CounterPluginSyncChanged, 2)
 	collector.Add(startupstats.CounterPluginSyncNoop, 3)
 	collector.RecordPhase(startupstats.PhasePluginBootstrapAutoEnable, 12)
+	collector.RecordPhase(startupstats.PhasePluginStartupConsistency, 4)
 
 	var logs []string
 	logger.Logger().SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
@@ -254,6 +256,43 @@ func TestLogHTTPStartupSummaryEmitsFieldsWithoutSQL(t *testing.T) {
 			t.Fatalf("expected startup summary to omit SQL text %q, got %q", forbidden, joined)
 		}
 	}
+}
+
+// TestValidateHTTPStartupPluginConsistencyPanicsOnInvalidState verifies
+// startup consistency failures stop HTTP startup before later phases run.
+func TestValidateHTTPStartupPluginConsistencyPanicsOnInvalidState(t *testing.T) {
+	ctx := startupstats.WithCollector(context.Background(), startupstats.New())
+	pluginSvc := &startupConsistencyFailingPluginService{err: gerror.New("invalid startup state")}
+
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			t.Fatal("expected startup consistency failure to panic")
+		}
+		if !pluginSvc.called {
+			t.Fatal("expected startup consistency validator to be called")
+		}
+		snapshot := startupstats.FromContext(ctx).Snapshot()
+		if _, ok := snapshot.Phases[startupstats.PhasePluginStartupConsistency]; !ok {
+			t.Fatalf("expected startup consistency phase to be recorded, got %#v", snapshot.Phases)
+		}
+	}()
+
+	if err := validateHTTPStartupPluginConsistency(ctx, pluginSvc); err != nil {
+		t.Fatalf("expected panic path before returning error, got %v", err)
+	}
+}
+
+// startupConsistencyFailingPluginService is a narrow fake for startup runtime tests.
+type startupConsistencyFailingPluginService struct {
+	called bool
+	err    error
+}
+
+// ValidateStartupConsistency records the startup validation call and returns the configured error.
+func (s *startupConsistencyFailingPluginService) ValidateStartupConsistency(context.Context) error {
+	s.called = true
+	return s.err
 }
 
 // TestExecuteSQLAssetsWithExecutorStopsAfterFirstError verifies execution halts

@@ -32,14 +32,16 @@ import {
   rememberPluginPageGeneration,
   resolvePluginPageId,
 } from '#/plugins/plugin-page-refresh';
+import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
 import {
+  getPluginCapabilityStateMap,
   getPluginStateMap,
   notifyPluginRegistryChangedIfNeeded,
   onPluginRegistryChanged,
 } from '#/plugins/slot-registry';
 import { refreshAccessibleState } from '#/router/access-refresh';
-import { useAuthStore } from '#/store';
+import { useAuthStore, useTenantStore } from '#/store';
 import { useMessageStore } from '#/store/message';
 import LoginForm from '#/views/_core/authentication/login.vue';
 import NoticePreviewModal from '#/views/system/message/notice-preview-modal.vue';
@@ -50,6 +52,7 @@ const authStore = useAuthStore();
 const accessStore = useAccessStore();
 const tabbarStore = useTabbarStore();
 const messageStore = useMessageStore();
+const tenantStore = useTenantStore();
 const { destroyWatermark, updateWatermark } = useWatermark();
 
 const [PreviewModal, previewModalApi] = useVbenModal({
@@ -147,6 +150,19 @@ async function refreshPluginAwareAccess(options?: {
     showLoadingToast: false,
     skipRouteNavigation: options?.skipRouteNavigation,
   });
+}
+
+async function syncTenantManagementCapability(force = false) {
+  const capabilityMap = await getPluginCapabilityStateMap(force);
+  const tenantManagementEnabled =
+    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true;
+  if (!tenantManagementEnabled && tenantStore.enabled) {
+    tenantStore.$reset();
+    return;
+  }
+  if (tenantManagementEnabled && !tenantStore.enabled) {
+    tenantStore.setTenantContext({ enabled: true });
+  }
 }
 
 function buildCurrentRouteTab() {
@@ -501,11 +517,12 @@ function handlePluginRegistryMaybeChanged() {
 // We fetch on mount to have data ready
 onMounted(() => {
   messageStore.fetchMessages();
-  void getPluginStateMap();
+  void syncTenantManagementCapability();
   void syncPluginPageGenerationBaseline();
   disposePluginRegistryListener = onPluginRegistryChanged(async () => {
     await reloadActiveLocaleMessages(preferences.app.locale);
     const pluginStateMap = await getPluginStateMap();
+    await syncTenantManagementCapability();
     const pending = detectPendingPluginPageRefresh(
       router.currentRoute.value,
       pluginStateMap,
@@ -560,7 +577,6 @@ watch(
   },
   { immediate: true },
 );
-
 </script>
 
 <template>

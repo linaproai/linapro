@@ -30,7 +30,7 @@
 #### Scenario: 平台管理员显式写平台默认
 - **WHEN** 平台管理员调用 `PUT /platform/config/default { key: upload.max_size, value: 20MB }`
 - **THEN** 写入 `sys_config(tenant_id=0, key=upload.max_size, value=20MB)`
-- **AND** 操作日志 `action_kind='platform_default_change'`
+- **AND** 操作日志以 `oper_type='other'` 记录平台默认配置变更,摘要或载荷包含 `platform_default_change`
 
 #### Scenario: 租户管理员尝试写平台默认
 - **WHEN** 租户管理员调用 `PUT /platform/config/default`
@@ -64,10 +64,10 @@
 - **THEN** 所有 `(tenant_id=*, key=upload.max_size)` 缓存失效
 - **AND** 通过 cluster 广播一次性传播
 
-### Requirement: 角色不走 fallback 而是 union
-`sys_role` 同时包含平台角色(`is_platform_role=true, tenant_id=0`)与租户角色(`is_platform_role=false, tenant_id=T`);角色查询 SHALL 按 union 语义返回(平台角色 ∪ 当前租户角色),而非 fallback;租户管理员仅可查/改租户角色,不可查/改平台角色。
+### Requirement: 角色不走 fallback
+`sys_role` 按 `tenant_id` 归属平台上下文或租户上下文;角色查询 SHALL 使用当前 `bizctx.TenantId` 作为权威边界,而非 fallback。租户管理员仅可查/改本租户角色,不可查/改平台上下文角色。
 
 #### Scenario: 租户管理员查询角色列表
 - **WHEN** 租户 A 管理员调用 `GET /role/list`
-- **THEN** 返回 `tenant_id = A AND is_platform_role = false` 的角色
+- **THEN** 返回 `tenant_id = A` 的角色
 - **AND** 不返回平台角色,即使存在

@@ -314,6 +314,13 @@ var productionPanicPolicy = panicAuditPolicy{
 			Category: panicCategoryPluginRegistration,
 			Reason:   "nil source plugin lifecycle facade indicates broken compile-time wiring",
 		},
+		{
+			Path:     "apps/lina-core/pkg/pluginhost/lifecycle_guard.go",
+			Function: "RegisterLifecycleGuard",
+			Count:    2,
+			Category: panicCategoryPluginRegistration,
+			Reason:   "source plugin lifecycle guards are compile-time extension contracts",
+		},
 	},
 }
 

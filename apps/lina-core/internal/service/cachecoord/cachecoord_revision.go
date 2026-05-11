@@ -4,11 +4,14 @@ package cachecoord
 
 import (
 	"context"
+	"database/sql"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -79,9 +82,24 @@ func (s *serviceImpl) MarkChanged(
 	scope Scope,
 	reason ChangeReason,
 ) (int64, error) {
+	return s.MarkTenantChanged(ctx, domain, scope, InvalidationScope{}, reason)
+}
+
+// MarkTenantChanged publishes one tenant-scoped cache domain/scope revision change.
+func (s *serviceImpl) MarkTenantChanged(
+	ctx context.Context,
+	domain Domain,
+	scope Scope,
+	tenantScope InvalidationScope,
+	reason ChangeReason,
+) (int64, error) {
 	key, err := s.resolveKey(domain, scope)
 	if err != nil {
 		return 0, err
+	}
+	key = revisionKey{
+		domain: key.domain,
+		scope:  ScopedScope(key.scope, tenantScope),
 	}
 
 	if !s.clusterEnabled() {
@@ -112,6 +130,18 @@ func (s *serviceImpl) MarkChanged(
 	s.storeObservedRevision(key, revision)
 	s.recordSuccess(key, revision, revision, time.Now())
 	return revision, nil
+}
+
+// ScopedScope folds tenant invalidation metadata into the existing scope value.
+func ScopedScope(scope Scope, tenantScope InvalidationScope) Scope {
+	if tenantScope.TenantID == 0 && !tenantScope.CascadeToTenants {
+		return scope
+	}
+	suffix := "|tenant=" + strconv.FormatInt(int64(tenantScope.TenantID), 10)
+	if tenantScope.CascadeToTenants {
+		suffix += "|cascade=1"
+	}
+	return Scope(string(scope) + suffix)
 }
 
 // EnsureFresh refreshes local state if the shared or local revision advanced.
@@ -291,6 +321,9 @@ func (s *serviceImpl) currentSharedRevision(ctx context.Context, key revisionKey
 		Scope:  key.scope,
 	}).Scan(&row)
 	if err != nil {
+		if gerror.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
 		return 0, err
 	}
 	if row == nil {

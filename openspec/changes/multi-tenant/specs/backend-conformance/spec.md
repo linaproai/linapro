@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: DAO 必须经 tenantcap.Apply
-所有读取 `sys_*` 与插件业务表的 service 层代码 SHALL 通过 `tenantcap.Apply(ctx, model, "tenant_id")` 注入租户过滤;直接 `dao.Xxx.Ctx(ctx).Where(...)` 而不经接缝的代码视为违反规范。
+所有读取带 `tenant_id` 的租户敏感 `sys_*` 表、租户作用域运行时状态表与插件业务表的 service 层代码 SHALL 通过 `tenantcap.Apply(ctx, model, "tenant_id")` 注入租户过滤;直接 `dao.Xxx.Ctx(ctx).Where(...)` 而不经接缝的代码视为违反规范。平台控制面表(`sys_locker`、`sys_menu`、`sys_plugin*`、`sys_notify_channel` 等)不经 tenantcap 注入,但只能通过宿主/平台治理 service 访问。
 
 #### Scenario: 直接 DAO 调用被审查阻断
 - **WHEN** 代码 `dao.SysFile.Ctx(ctx).Where("status", 1).Scan(&list)` 未先 Apply
@@ -9,7 +9,7 @@
 - **AND** 必须重构为 `model := dao.SysFile.Ctx(ctx).Where("status", 1); model, _, _ := tenantcap.Apply(ctx, model, "tenant_id"); model.Scan(&list)`
 
 ### Requirement: DO 写入必须填 tenant_id
-所有 `do.*` 数据操作对象的 `Insert`/`Update` 调用 SHALL 在 service 层显式填入 `TenantId = bizctx.TenantId(ctx)`;不允许依赖 default 0 隐式写入。
+所有对应带 `tenant_id` 表的 `do.*` 数据操作对象的 `Insert`/`Update` 调用 SHALL 在 service 层显式填入 `TenantId = bizctx.TenantId(ctx)`;不允许依赖 default 0 隐式写入。无 `tenant_id` 的平台控制面 DO 不适用此规则。
 
 #### Scenario: 显式 TenantId
 - **WHEN** service 调用 `dao.SysUser.Ctx(ctx).Data(do.SysUser{...}).Insert()`
@@ -32,9 +32,9 @@
 - **THEN** 不存在 `dao.X.Ctx(ctx).Where("tenant_id", ...)` 这类绕过 tenantcap 的硬编码
 
 ### Requirement: 启动期租户上下文构造
-后台 worker、定时任务、消息消费者等异步路径在创建新 ctx 时 SHALL 显式构造租户上下文(从任务元数据或消息载荷读取 `tenant_id`);禁止使用空 ctx 操作 sys_* 业务数据。
+后台 worker、定时任务、消息消费者等异步路径在创建新 ctx 时 SHALL 显式构造租户上下文(从任务元数据或消息载荷读取 `tenant_id`);禁止使用空 ctx 操作租户敏感 `sys_*` 业务数据。
 
 #### Scenario: 任务执行租户上下文
 - **WHEN** 某定时任务回调被触发
 - **THEN** 调度器先构造 `bizctx` with TenantId,再调用 handler
-- **AND** handler 内访问 sys_* 数据自动按租户过滤
+- **AND** handler 内访问租户敏感 sys_* 数据自动按租户过滤

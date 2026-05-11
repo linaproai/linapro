@@ -141,7 +141,6 @@ function handleSubmitLock(lockScreenPassword: string) {
 }
 
 function handleLogout() {
-  // emit
   logoutModalApi.open();
   openPopover.value = false;
 }

@@ -4,7 +4,7 @@ import type { VbenFormProps } from '@vben/common-ui';
 import type { VxeGridProps } from '#/adapter/vxe-table';
 import type { Role } from '#/api/system/role';
 
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
@@ -20,9 +20,14 @@ import {
   roleStatusChange,
 } from '#/api/system/role';
 import { $t } from '#/locales';
+import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
+import {
+  getPluginCapabilityStateMap,
+  onPluginRegistryChanged,
+} from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
 
-import { columns, querySchema } from './data';
+import { DATA_SCOPE_DICT_TYPE, columns, querySchema } from './data';
 import RoleDrawer from './role-drawer.vue';
 
 const router = useRouter();
@@ -44,7 +49,7 @@ const gridOptions: VxeGridProps = {
     reserve: true,
     checkMethod: ({ row }) => row.id !== 1,
   },
-  columns: columns(),
+  columns: columns(true, false),
   height: 'auto',
   keepSource: true,
   pagerConfig: {},
@@ -72,6 +77,7 @@ const [BasicTable, tableApi] = useVbenVxeGrid({
 const [RoleDrawerRef, drawerApi] = useVbenDrawer({
   connectedComponent: RoleDrawer,
 });
+let disposePluginRegistryListener: null | (() => void) = null;
 
 // 加载字典数据
 const dictStore = useDictStore();
@@ -80,9 +86,23 @@ const statusLabel = ref({
   unchecked: $t('pages.status.disabled'),
 });
 
+async function syncRoleCapabilities(force = false) {
+  const capabilityMap = await getPluginCapabilityStateMap(force);
+  tableApi.setGridOptions({
+    columns: columns(
+      capabilityMap.get(pluginCapabilityKeys.organizationManagement)
+        ?.enabled === true,
+      capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled ===
+        true,
+    ),
+  });
+}
+
 onMounted(async () => {
   const statusOptions =
     await dictStore.getDictOptionsAsync('sys_normal_disable');
+  await dictStore.getDictOptionsAsync(DATA_SCOPE_DICT_TYPE);
+  await syncRoleCapabilities();
   const checked = statusOptions.find((d) => d.value === '1');
   const unchecked = statusOptions.find((d) => d.value === '0');
   statusLabel.value = {
@@ -100,6 +120,14 @@ onMounted(async () => {
       },
     },
   ]);
+  disposePluginRegistryListener = onPluginRegistryChanged(async () => {
+    await syncRoleCapabilities(true);
+  });
+});
+
+onBeforeUnmount(() => {
+  disposePluginRegistryListener?.();
+  disposePluginRegistryListener = null;
 });
 
 function handleAdd() {

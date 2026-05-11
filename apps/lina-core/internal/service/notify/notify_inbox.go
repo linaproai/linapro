@@ -12,6 +12,7 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/bizerr"
 )
 
@@ -35,12 +36,14 @@ func (s *serviceImpl) InboxUnreadCount(ctx context.Context, userID int64) (int, 
 		return 0, bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
-	return dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
+	model := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
 		UserId:         userID,
 		ChannelType:    ChannelTypeInbox.String(),
 		DeliveryStatus: DeliveryStatusSucceeded,
 		IsRead:         0,
-	}).Count()
+	})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	return model.Count()
 }
 
 // InboxList returns one paged inbox list for the current user.
@@ -64,6 +67,7 @@ func (s *serviceImpl) InboxList(ctx context.Context, in InboxListInput) (*InboxL
 			Where(deliveryTbl+"."+deliveryCols.DeliveryStatus, DeliveryStatusSucceeded)
 	)
 
+	model = datascope.ApplyTenantScope(ctx, model, deliveryTbl+"."+datascope.TenantColumn)
 	total, err := model.Count()
 	if err != nil {
 		return nil, err
@@ -117,12 +121,14 @@ func (s *serviceImpl) InboxMarkRead(ctx context.Context, userID int64, deliveryI
 		return bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
-	_, err := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
+	model := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
 		Id:             deliveryID,
 		UserId:         userID,
 		ChannelType:    ChannelTypeInbox.String(),
 		DeliveryStatus: DeliveryStatusSucceeded,
-	}).Data(do.SysNotifyDelivery{
+	})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	_, err := model.Data(do.SysNotifyDelivery{
 		IsRead: 1,
 		ReadAt: gtime.Now(),
 	}).Update()
@@ -136,15 +142,16 @@ func (s *serviceImpl) InboxMarkAllRead(ctx context.Context, userID int64) error 
 	}
 
 	deliveryCols := dao.SysNotifyDelivery.Columns()
-	_, err := dao.SysNotifyDelivery.Ctx(ctx).
+	model := dao.SysNotifyDelivery.Ctx(ctx).
 		Where(deliveryCols.UserId, userID).
 		Where(deliveryCols.ChannelType, ChannelTypeInbox.String()).
 		Where(deliveryCols.DeliveryStatus, DeliveryStatusSucceeded).
-		Where(deliveryCols.IsRead, 0).
-		Data(do.SysNotifyDelivery{
-			IsRead: 1,
-			ReadAt: gtime.Now(),
-		}).
+		Where(deliveryCols.IsRead, 0)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	_, err := model.Data(do.SysNotifyDelivery{
+		IsRead: 1,
+		ReadAt: gtime.Now(),
+	}).
 		Update()
 	return err
 }
@@ -155,11 +162,13 @@ func (s *serviceImpl) InboxDelete(ctx context.Context, userID int64, deliveryID 
 		return bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
-	_, err := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
+	model := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
 		Id:          deliveryID,
 		UserId:      userID,
 		ChannelType: ChannelTypeInbox.String(),
-	}).Delete()
+	})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	_, err := model.Delete()
 	return err
 }
 
@@ -169,10 +178,12 @@ func (s *serviceImpl) InboxClear(ctx context.Context, userID int64) error {
 		return bizerr.NewCode(CodeNotifyUserNotFound)
 	}
 
-	_, err := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
+	model := dao.SysNotifyDelivery.Ctx(ctx).Where(do.SysNotifyDelivery{
 		UserId:      userID,
 		ChannelType: ChannelTypeInbox.String(),
-	}).Delete()
+	})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	_, err := model.Delete()
 	return err
 }
 
@@ -187,11 +198,12 @@ func (s *serviceImpl) DeleteBySource(ctx context.Context, sourceType SourceType,
 	var rows []struct {
 		Id int64 `json:"id"`
 	}
-	err := dao.SysNotifyMessage.Ctx(ctx).
+	model := dao.SysNotifyMessage.Ctx(ctx).
 		Fields(messageCols.Id).
 		Where(messageCols.SourceType, sourceType.String()).
-		WhereIn(messageCols.SourceId, normalizedSourceIDs).
-		Scan(&rows)
+		WhereIn(messageCols.SourceId, normalizedSourceIDs)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&rows)
 	if err != nil {
 		return err
 	}

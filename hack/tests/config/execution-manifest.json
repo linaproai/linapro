@@ -53,7 +53,16 @@
     "scheduler:job": ["e2e/scheduler/job"],
     "extension": ["e2e/extension"],
     "extension:plugin": ["e2e/extension/plugin"],
-    "plugins": ["plugins"]
+    "plugins": ["plugins"],
+    "multi-tenant": ["e2e/multi-tenant"],
+    "multi-tenant:tenant-lifecycle": ["e2e/multi-tenant/tenant-lifecycle"],
+    "multi-tenant:tenant-isolation": ["e2e/multi-tenant/tenant-isolation"],
+    "multi-tenant:tenant-resolution": ["e2e/multi-tenant/tenant-resolution"],
+    "multi-tenant:tenant-switching": ["e2e/multi-tenant/tenant-switching"],
+    "multi-tenant:platform-admin": ["e2e/multi-tenant/platform-admin"],
+    "multi-tenant:plugin-governance": ["e2e/multi-tenant/plugin-governance"],
+    "multi-tenant:lifecycle-guard": ["e2e/multi-tenant/lifecycle-guard"],
+    "multi-tenant:cluster": ["e2e/multi-tenant/cluster"]
   },
   "smoke": [
     "e2e/auth/TC0001-login-success.ts",
@@ -88,6 +97,10 @@
     "e2e/i18n/TC0136-backend-export-localization.ts",
     "e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts",
     "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
+    "e2e/monitor",
+    "e2e/multi-tenant",
+    "e2e/multi-tenant/tenant-switching/TC0221-real-tenant-token-flow.ts",
+    "e2e/org",
     "e2e/scheduler/job",
     "e2e/settings/config",
     "e2e/settings/dict",
@@ -237,6 +250,33 @@
       "entry": "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
       "reason": "Organization, dictionary, and config English layout regression enables the org-center source plugin and reads shared seed records across localized pages."
+    },
+    {
+      "entry": "e2e/monitor",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Monitor tests depend on monitor source plugins and shared login or operation log data."
+    },
+    {
+      "entry": "e2e/multi-tenant",
+      "categories": [
+        "authSession",
+        "dictionaryData",
+        "permissionMatrix",
+        "pluginLifecycle",
+        "sharedDatabaseSeed",
+        "systemConfig"
+      ],
+      "reason": "Multi-tenant tests create tenants, memberships, roles, plugin state, built-in resolver policy checks, and tenant-bound auth sessions against the shared database and runtime."
+    },
+    {
+      "entry": "e2e/multi-tenant/tenant-switching/TC0221-real-tenant-token-flow.ts",
+      "categories": ["permissionMatrix", "sharedDatabaseSeed"],
+      "reason": "Real tenant token flow creates temporary tenant roles and role-menu grants to verify tenant-scoped permission refresh and token revocation."
+    },
+    {
+      "entry": "e2e/org",
+      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
+      "reason": "Organization tests depend on the org-center source plugin and shared department or post seed data."
     },
     {
       "entry": "e2e/scheduler/job",

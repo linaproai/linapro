@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"lina-core/internal/service/cachecoord"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // Plugin runtime cache coordination reasons.
@@ -100,6 +101,7 @@ type Controller struct {
 	refresher      Refresher
 	scope          cachecoord.Scope
 	changeReason   cachecoord.ChangeReason
+	tenantScope    cachecoord.InvalidationScope
 }
 
 // NewControllerWithCoordinator creates a controller backed by the unified
@@ -148,6 +150,18 @@ func NewControllerForScopeWithCoordinator(
 		scope:          scope,
 		changeReason:   reason,
 	}
+}
+
+// WithTenantScope returns the controller after applying tenant invalidation scope.
+func (c *Controller) WithTenantScope(tenantID pkgtenantcap.TenantID, cascadeToTenants bool) *Controller {
+	if c == nil {
+		return nil
+	}
+	c.tenantScope = cachecoord.InvalidationScope{
+		TenantID:         cachecoord.TenantID(tenantID),
+		CascadeToTenants: cascadeToTenants,
+	}
+	return c
 }
 
 // configureRuntimeCacheDomain declares plugin-runtime consistency policy in
@@ -228,10 +242,11 @@ func (c *Controller) markChanged(ctx context.Context, storeObserved bool) (int64
 	if c == nil || !c.clusterEnabled || c.cacheCoordSvc == nil {
 		return 0, nil
 	}
-	revision, err := c.cacheCoordSvc.MarkChanged(
+	revision, err := c.cacheCoordSvc.MarkTenantChanged(
 		ctx,
 		runtimeCacheDomain,
 		c.scope,
+		c.tenantScope,
 		c.changeReason,
 	)
 	if err != nil {

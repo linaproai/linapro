@@ -27,9 +27,25 @@ test.describe("TC-78 插件详情弹窗", () => {
     await expect(modal).toContainText("状态");
     await expect(modal).toContainText("启动管理");
     await expect(modal).toContainText("授权状态");
+    await expect(modal).toContainText("示例数据");
+    await expect(modal).toContainText("支持多租户");
+    await expect(modal).toContainText("新租户启用");
+    await expect(modal).toContainText("作用域性质");
+    await expect(modal).toContainText("安装模式");
     await expect(modal).toContainText("安装时间");
     await expect(modal).toContainText("更新时间");
     await expect(modal).not.toContainText("授权要求");
+    await expect(pluginPage.pluginDetailHasMockData()).toContainText("是");
+    await expect(pluginPage.pluginDetailSupportsMultiTenant()).toContainText(
+      "是",
+    );
+    await expect(pluginPage.pluginDetailTenantProvisioning()).toContainText(
+      "否",
+    );
+    await expect(pluginPage.pluginDetailScopeNature()).toContainText(
+      "租户感知",
+    );
+    await expect(pluginPage.pluginDetailInstallMode()).toContainText("租户级");
     await expect(pluginPage.pluginDetailDescriptionRow()).toBeVisible();
     await expect(pluginPage.pluginDetailDescriptionRow()).toContainText(
       pluginDescription,

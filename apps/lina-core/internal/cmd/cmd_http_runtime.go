@@ -38,6 +38,13 @@ type httpRuntime struct {
 	serverCfg     *config.ServerExtensionsConfig // serverCfg contains host extension route settings such as API docs.
 }
 
+// pluginStartupConsistencyValidator is the narrow startup contract required to
+// fail fast before HTTP route publication.
+type pluginStartupConsistencyValidator interface {
+	// ValidateStartupConsistency verifies persisted plugin and tenant governance state.
+	ValidateStartupConsistency(ctx context.Context) error
+}
+
 // newHTTPStartupContext creates the context shared by one HTTP startup
 // orchestration pass. It carries only short-lived snapshots and statistics.
 func newHTTPStartupContext(ctx context.Context, runtime *httpRuntime) (context.Context, *startupstats.Collector, error) {
@@ -163,6 +170,9 @@ func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
 	}); err != nil {
 		return err
 	}
+	if err := validateHTTPStartupPluginConsistency(ctx, runtime.pluginSvc); err != nil {
+		return err
+	}
 	if err := startupstats.Observe(ctx, startupstats.PhasePluginLifecycleAttach, func() error {
 		_, attachErr := jobhandlersvc.AttachPluginLifecycle(
 			ctx,
@@ -183,6 +193,21 @@ func startHTTPRuntime(ctx context.Context, runtime *httpRuntime) error {
 		return err
 	}
 	return nil
+}
+
+// validateHTTPStartupPluginConsistency fails fast before route publication when
+// persisted plugin or tenant-governance state is incoherent.
+func validateHTTPStartupPluginConsistency(ctx context.Context, pluginSvc pluginStartupConsistencyValidator) error {
+	if pluginSvc == nil {
+		return nil
+	}
+	err := startupstats.Observe(ctx, startupstats.PhasePluginStartupConsistency, func() error {
+		return pluginSvc.ValidateStartupConsistency(ctx)
+	})
+	if err != nil {
+		logger.Panicf(ctx, "plugin startup consistency validation failed: %v", err)
+	}
+	return err
 }
 
 // logHTTPStartupSummary emits the startup metric summary without ORM SQL text.

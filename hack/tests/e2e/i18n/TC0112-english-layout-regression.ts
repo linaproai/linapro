@@ -354,6 +354,16 @@ test.describe("TC0112 英文布局回归", () => {
       layoutPage.tableHeader(/Dictionary Label/i, dictDataPanel),
       "Dictionary data header",
     );
+    const dictLabelHeaderWidth = await readWidth(
+      layoutPage.tableHeader(/Dictionary Label/i, dictDataPanel),
+    );
+    const dictSortHeaderWidth = await readWidth(
+      layoutPage.tableHeader(/^Order$/i, dictDataPanel),
+    );
+    expect(
+      dictLabelHeaderWidth,
+      "Dictionary Label column should be wider than Order column",
+    ).toBeGreaterThanOrEqual(dictSortHeaderWidth + 80);
 
     await layoutPage.goto("/system/job-log", { tableSelector: ".vxe-table" });
     await expectSingleLine(

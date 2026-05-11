@@ -45,6 +45,31 @@ var (
 		"Please select users to delete",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeUserBatchUpdateIdsRequired reports that a batch update request has no user IDs.
+	CodeUserBatchUpdateIdsRequired = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_IDS_REQUIRED",
+		"Please select users to update",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserBatchUpdateFieldsRequired reports that no patch field is selected for batch update.
+	CodeUserBatchUpdateFieldsRequired = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_FIELDS_REQUIRED",
+		"Please select at least one user field to update",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserBatchUpdateStatusRequired reports that status update is selected without a status value.
+	CodeUserBatchUpdateStatusRequired = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_STATUS_REQUIRED",
+		"Please select the target user status",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserBatchUpdateRoleTenantConflict reports that role and tenant batch
+	// changes cannot be safely combined in one current-tenant-scoped request.
+	CodeUserBatchUpdateRoleTenantConflict = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_ROLE_TENANT_CONFLICT",
+		"Cannot update user roles and tenant memberships in the same batch request",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeUserCurrentDisableDenied reports that the current user cannot disable itself.
 	CodeUserCurrentDisableDenied = bizerr.MustDefine(
 		"USER_CURRENT_DISABLE_DENIED",
@@ -67,6 +92,36 @@ var (
 	CodeUserDataScopeUnsupported = bizerr.MustDefine(
 		"USER_DATA_SCOPE_UNSUPPORTED",
 		"Unsupported user data permission scope: {scope}",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserTenantMembershipQueryFailed reports failure while checking tenant membership visibility.
+	CodeUserTenantMembershipQueryFailed = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_QUERY_FAILED",
+		"Failed to query tenant membership visibility",
+		gcode.CodeInternalError,
+	)
+	// CodeUserTenantMembershipReplaceFailed reports failure while replacing tenant membership.
+	CodeUserTenantMembershipReplaceFailed = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_REPLACE_FAILED",
+		"Failed to update tenant membership",
+		gcode.CodeInternalError,
+	)
+	// CodeUserTenantMembershipCrossTenantDenied reports cross-tenant membership writes.
+	CodeUserTenantMembershipCrossTenantDenied = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_CROSS_TENANT_DENIED",
+		"Cannot assign users to another tenant in the current context",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeUserTenantMembershipTenantUnavailable reports unavailable tenant assignment.
+	CodeUserTenantMembershipTenantUnavailable = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_TENANT_UNAVAILABLE",
+		"Selected tenant is unavailable",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserTenantMembershipCardinalityExceeded reports single-cardinality membership violations.
+	CodeUserTenantMembershipCardinalityExceeded = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_CARDINALITY_EXCEEDED",
+		"User can only belong to one tenant in the current configuration",
 		gcode.CodeInvalidParameter,
 	)
 	// CodeUserImportExcelParseFailed reports that the uploaded user workbook cannot be parsed.

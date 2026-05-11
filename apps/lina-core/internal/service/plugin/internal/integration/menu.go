@@ -476,8 +476,9 @@ func (s *serviceImpl) listPluginMenuExternalParents(ctx context.Context, manifes
 		if !menusvc.IsStableCatalogKey(spec.ParentKey) {
 			return nil, gerror.Newf("plugin menu parent_key can only mount to a stable host catalog: %s -> %s", spec.Key, spec.ParentKey)
 		}
-		if expectedParentKey, ok := menusvc.ExpectedStableParentKey(manifest.ID); ok && expectedParentKey != spec.ParentKey {
-			return nil, gerror.Newf("official plugin top-level menu parent_key is invalid: %s -> %s, expected %s", spec.Key, spec.ParentKey, expectedParentKey)
+		if allowed, official := menusvc.IsExpectedStableParentKey(manifest.ID, spec.ParentKey); official && !allowed {
+			expectedParentKeys, _ := menusvc.ExpectedStableParentKeys(manifest.ID)
+			return nil, gerror.Newf("official plugin top-level menu parent_key is invalid: %s -> %s, expected %s", spec.Key, spec.ParentKey, strings.Join(expectedParentKeys, " or "))
 		}
 		if _, ok := seen[spec.ParentKey]; ok {
 			continue

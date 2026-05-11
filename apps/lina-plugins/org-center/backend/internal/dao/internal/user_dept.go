@@ -21,14 +21,16 @@ type UserDeptDao struct {
 
 // UserDeptColumns defines and stores column names for the table plugin_org_center_user_dept.
 type UserDeptColumns struct {
-	UserId string // User ID
-	DeptId string // Department ID
+	TenantId string // Owning tenant ID, 0 means PLATFORM
+	UserId   string // User ID
+	DeptId   string // Department ID
 }
 
 // userDeptColumns holds the columns for the table plugin_org_center_user_dept.
 var userDeptColumns = UserDeptColumns{
-	UserId: "user_id",
-	DeptId: "dept_id",
+	TenantId: "tenant_id",
+	UserId:   "user_id",
+	DeptId:   "dept_id",
 }
 
 // NewUserDeptDao creates and returns a new DAO object for table data access.

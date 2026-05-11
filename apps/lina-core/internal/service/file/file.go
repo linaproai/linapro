@@ -188,9 +188,9 @@ func (s *serviceImpl) Upload(ctx context.Context, in *UploadInput) (output *Uplo
 	err = dao.SysFile.Ctx(ctx).Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		// Check for duplicate file by hash
 		var existing *entity.SysFile
-		err := dao.SysFile.Ctx(ctx).
-			Where(dao.SysFile.Columns().Hash, fileHash).
-			Scan(&existing)
+		existingModel := dao.SysFile.Ctx(ctx).Where(dao.SysFile.Columns().Hash, fileHash)
+		existingModel = datascope.ApplyTenantScope(ctx, existingModel, datascope.TenantColumn)
+		err := existingModel.Scan(&existing)
 		if err != nil {
 			return bizerr.WrapCode(err, CodeFileHashQueryFailed)
 		}
@@ -466,7 +466,9 @@ func (s *serviceImpl) InfoByIds(ctx context.Context, ids []int64) ([]*entity.Sys
 		return nil, err
 	}
 	var files []*entity.SysFile
-	err := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, ids).Scan(&files)
+	model := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, ids)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&files)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeFileRecordQueryFailed)
 	}
@@ -499,13 +501,17 @@ func (s *serviceImpl) Delete(ctx context.Context, idsStr string) error {
 
 	// Get file records first to delete physical files
 	var files []*entity.SysFile
-	err := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, idList).Scan(&files)
+	model := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, idList)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&files)
 	if err != nil {
 		return err
 	}
 
 	// Soft delete from DB
-	_, err = dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, idList).Delete()
+	deleteModel := dao.SysFile.Ctx(ctx).WhereIn(dao.SysFile.Columns().Id, idList)
+	deleteModel = datascope.ApplyTenantScope(ctx, deleteModel, datascope.TenantColumn)
+	_, err = deleteModel.Delete()
 	if err != nil {
 		return err
 	}
@@ -550,9 +556,9 @@ func (s *serviceImpl) OpenByPath(ctx context.Context, storagePath string) (*Open
 	}
 
 	var fileInfo *entity.SysFile
-	err := dao.SysFile.Ctx(ctx).
-		Where(dao.SysFile.Columns().Path, normalizedPath).
-		Scan(&fileInfo)
+	model := dao.SysFile.Ctx(ctx).Where(dao.SysFile.Columns().Path, normalizedPath)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&fileInfo)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeFileRecordQueryFailed)
 	}

@@ -18,6 +18,10 @@ export interface SysUser {
   postIds: number[];
   roleIds: number[];
   roleNames: string[];
+  tenantId?: number;
+  tenantIds?: number[];
+  tenantName?: string;
+  tenantNames?: string[];
 }
 
 export interface DeptTree {
@@ -44,6 +48,7 @@ export interface UserListParams {
   orderBy?: string;
   orderDirection?: string;
   deptId?: number;
+  tenantId?: number;
 }
 
 export interface UserListResult {
@@ -63,6 +68,7 @@ export interface UserCreateParams {
   deptId?: number;
   postIds?: number[];
   roleIds?: number[];
+  tenantIds?: number[];
 }
 
 export interface UserUpdateParams {
@@ -78,6 +84,17 @@ export interface UserUpdateParams {
   deptId?: number;
   postIds?: number[];
   roleIds?: number[];
+  tenantIds?: number[];
+}
+
+export interface UserBatchUpdateParams {
+  ids: number[];
+  updateStatus?: boolean;
+  status?: number;
+  updateRoles?: boolean;
+  roleIds?: number[];
+  updateTenant?: boolean;
+  tenantIds?: number[];
 }
 
 /** 用户列表 */
@@ -107,6 +124,11 @@ export function userBatchDelete(ids: number[]) {
   const params = new URLSearchParams();
   ids.forEach((id) => params.append('ids', String(id)));
   return requestClient.delete(`/user?${params.toString()}`);
+}
+
+/** 批量编辑用户 */
+export function userBatchUpdate(data: UserBatchUpdateParams) {
+  return requestClient.put('/user', data);
 }
 
 /** 获取用户详情 */

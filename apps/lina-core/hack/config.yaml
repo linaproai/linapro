@@ -3,7 +3,7 @@
 
 # Shared local database connection reused by development-only tools.
 shared:
-  localDatabaseLink: &localDatabaseLink "pgsql:postgres:postgres@tcp(127.0.0.1:55432)/linapro?sslmode=disable"
+  localDatabaseLink: &localDatabaseLink "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 
 # Database config consumed by development-only SQL bootstrap/upgrade flows.
 database:

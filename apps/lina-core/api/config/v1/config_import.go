@@ -1,10 +1,8 @@
+// This file defines parameter setting import DTOs.
+
 package v1
 
-import (
-	"github.com/gogf/gf/v2/frame/g"
-)
-
-// Config Import API
+import "github.com/gogf/gf/v2/frame/g"
 
 // ConfigImportReq defines the request for importing configs.
 type ConfigImportReq struct {
@@ -23,11 +21,3 @@ type ConfigImportFailItem struct {
 	Row    int    `json:"row" dc:"Line number" eg:"3"`
 	Reason string `json:"reason" dc:"Reason for failure" eg:"Parameter key name already exists"`
 }
-
-// ConfigImportTemplateReq defines the request for downloading import template.
-type ConfigImportTemplateReq struct {
-	g.Meta `path:"/config/import-template" method:"get" tags:"Parameter Settings" summary:"Download parameter setting import template" dc:"Download the parameter settings and import the Excel template file, including required fields and data format instructions" permission:"system:config:add"`
-}
-
-// ConfigImportTemplateRes is the response for template download.
-type ConfigImportTemplateRes struct{}

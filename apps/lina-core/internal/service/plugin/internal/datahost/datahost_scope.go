@@ -18,10 +18,11 @@ import (
 
 // Host data-scope levels reused by governed data-table access.
 const (
-	resourceDataScopeNone = 0
-	resourceDataScopeAll  = 1
-	resourceDataScopeDept = 2
-	resourceDataScopeSelf = 3
+	resourceDataScopeNone   = 0
+	resourceDataScopeAll    = 1
+	resourceDataScopeTenant = 2
+	resourceDataScopeDept   = 3
+	resourceDataScopeSelf   = 4
 )
 
 // applyResourceDataScope injects host role data-scope constraints into one data-table query.
@@ -48,7 +49,7 @@ func applyResourceDataScope(
 		)
 	}
 	switch int(identity.DataScope) {
-	case resourceDataScopeAll:
+	case resourceDataScopeAll, resourceDataScopeTenant:
 		return model, nil
 	case resourceDataScopeDept:
 		if resource.DataScope.DeptColumn == "" {

@@ -3,7 +3,8 @@ import { Page, useVbenDrawer, useVbenModal } from '@vben/common-ui';
 import { preferences } from '@vben/preferences';
 import { useUserStore } from '@vben/stores';
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 
 import {
   Avatar,
@@ -26,20 +27,22 @@ import {
   userStatusChange,
 } from '#/api/system/user';
 import { $t } from '#/locales';
+import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
 import {
-  getPluginStateMap,
+  getPluginCapabilityStateMap,
   onPluginRegistryChanged,
 } from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
+import { useTenantStore } from '#/store/tenant';
 import { downloadBlob } from '#/utils/download';
 
 import { buildColumns, querySchema } from './data';
 import DeptTree from './dept-tree.vue';
 import UserDrawer from './user-drawer.vue';
+import UserBatchEditModal from './user-batch-edit-modal.vue';
 import UserImportModal from './user-import-modal.vue';
 import UserResetPwdModal from './user-reset-pwd-modal.vue';
-
-const orgCenterPluginId = 'org-center';
+import { loadUserTenantOptions } from './tenant-options';
 
 const [UserDrawerRef, userDrawerApi] = useVbenDrawer({
   connectedComponent: UserDrawer,
@@ -49,17 +52,27 @@ const [UserImportModalRef, userImportModalApi] = useVbenModal({
   connectedComponent: UserImportModal,
 });
 
+const [UserBatchEditModalRef, userBatchEditModalApi] = useVbenModal({
+  connectedComponent: UserBatchEditModal,
+});
+
 const [UserResetPwdModalRef, userResetPwdModalApi] = useVbenModal({
   connectedComponent: UserResetPwdModal,
 });
 
 const userStore = useUserStore();
 const dictStore = useDictStore();
+const tenantStore = useTenantStore();
+const route = useRoute();
 
 const orgEnabled = ref(false);
+const tenantEnabled = ref(false);
 const selectDeptId = ref<string[]>([]);
+const tenantOptions = ref<Array<{ label: string; value: number }>>([]);
+const userStatusOptions = ref<Array<{ label: string; value: number }>>([]);
 const deptTreeRef = ref<InstanceType<typeof DeptTree>>();
 const checkedRows = ref<any[]>([]);
+const managementCapabilitiesReady = ref(false);
 const hasChecked = computed(() => checkedRows.value.length > 0);
 const statusLabel = computed(() => {
   const opts = dictStore.dictOptionsMap.get('sys_normal_disable') || [];
@@ -73,13 +86,95 @@ const statusLabel = computed(() => {
 
 let disposePluginRegistryListener: null | (() => void) = null;
 
+function parseRouteTenantId() {
+  const rawTenantId = Array.isArray(route.query.tenantId)
+    ? route.query.tenantId[0]
+    : route.query.tenantId;
+  const tenantId = Number(rawTenantId);
+  return Number.isFinite(tenantId) && tenantId > 0 ? tenantId : undefined;
+}
+
 function isSelf(row: any) {
   return row.id === Number(userStore.userInfo?.userId);
 }
 
-function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
-  const pluginState = pluginStateMap.get(pluginId);
-  return pluginState?.installed === 1 && pluginState?.enabled === 1;
+async function loadTenantOptions(force = false) {
+  if (!force && tenantOptions.value.length > 0) {
+    return tenantOptions.value;
+  }
+  if (!tenantEnabled.value || !tenantStore.isPlatform) {
+    tenantOptions.value = [];
+    return tenantOptions.value;
+  }
+  tenantOptions.value = await loadUserTenantOptions({
+    currentTenant: tenantStore.currentTenant,
+    isPlatform: tenantStore.isPlatform,
+    tenants: tenantStore.tenants,
+    userId: Number(userStore.userInfo?.userId || 0),
+  });
+  return tenantOptions.value;
+}
+
+async function syncTenantQuerySchema() {
+  const schema = querySchema(tenantEnabled.value && tenantStore.isPlatform);
+  gridApi.formApi.setState({ schema });
+  syncStatusQueryOptions();
+  if (!tenantEnabled.value || !tenantStore.isPlatform) {
+    const values = gridApi.formApi.form.values;
+    Reflect.deleteProperty(values, 'tenantId');
+    gridApi.formApi.setLatestSubmissionValues(values);
+    return;
+  }
+  const options = await loadTenantOptions();
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'tenantId',
+      componentProps: {
+        options,
+      },
+    },
+  ]);
+}
+
+async function applyRouteTenantFilter({
+  clearWhenMissing = true,
+}: { clearWhenMissing?: boolean } = {}) {
+  const tenantId = parseRouteTenantId();
+  if (!tenantEnabled.value || !tenantStore.isPlatform) {
+    return;
+  }
+  if (!tenantId) {
+    if (clearWhenMissing && gridApi.formApi.form.values.tenantId) {
+      await gridApi.formApi.setFieldValue('tenantId', undefined);
+      const values = { ...gridApi.formApi.form.values };
+      Reflect.deleteProperty(values, 'tenantId');
+      gridApi.formApi.setLatestSubmissionValues(values);
+      await gridApi.reload(values);
+    }
+    return;
+  }
+  const options = await loadTenantOptions();
+  if (!options.some((item) => item.value === tenantId)) {
+    return;
+  }
+  await gridApi.formApi.setFieldValue('tenantId', tenantId);
+  const values = { ...gridApi.formApi.form.values, tenantId };
+  gridApi.formApi.setLatestSubmissionValues(values);
+  await gridApi.reload(values);
+}
+
+function syncStatusQueryOptions() {
+  if (userStatusOptions.value.length === 0) {
+    return;
+  }
+  gridApi.formApi.updateSchema([
+    {
+      fieldName: 'status',
+      componentProps: {
+        options: userStatusOptions.value,
+      },
+    },
+  ]);
 }
 
 const [Grid, gridApi] = useVbenVxeGrid({
@@ -108,7 +203,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       reserve: true,
       checkMethod: ({ row }: any) => !isSelf(row),
     },
-    columns: buildColumns(orgEnabled.value),
+    columns: buildColumns(orgEnabled.value, tenantEnabled.value),
     height: 'auto',
     keepSource: true,
     pagerConfig: {},
@@ -174,19 +269,27 @@ const [Grid, gridApi] = useVbenVxeGrid({
   },
 });
 
-async function syncOrgCapability(force = false) {
-  const pluginStateMap = await getPluginStateMap(force);
-  const nextOrgEnabled = isPluginEnabled(orgCenterPluginId, pluginStateMap);
-  const capabilityChanged = orgEnabled.value !== nextOrgEnabled;
+async function syncManagementCapabilities(force = false) {
+  const capabilityMap = await getPluginCapabilityStateMap(force);
+  const nextOrgEnabled =
+    capabilityMap.get(pluginCapabilityKeys.organizationManagement)?.enabled ===
+    true;
+  const nextTenantEnabled =
+    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true;
+  const capabilityChanged =
+    orgEnabled.value !== nextOrgEnabled ||
+    tenantEnabled.value !== nextTenantEnabled;
 
   orgEnabled.value = nextOrgEnabled;
+  tenantEnabled.value = nextTenantEnabled;
   if (!nextOrgEnabled) {
     selectDeptId.value = [];
   }
 
   gridApi.setGridOptions({
-    columns: buildColumns(nextOrgEnabled),
+    columns: buildColumns(nextOrgEnabled, nextTenantEnabled),
   });
+  await syncTenantQuerySchema();
 
   if (capabilityChanged) {
     checkedRows.value = [];
@@ -197,23 +300,30 @@ async function syncOrgCapability(force = false) {
 onMounted(async () => {
   const statusOptions =
     await dictStore.getDictOptionsAsync('sys_normal_disable');
-  gridApi.formApi.updateSchema([
-    {
-      fieldName: 'status',
-      componentProps: {
-        options: statusOptions.map((d) => ({
-          label: d.label,
-          value: Number(d.value),
-        })),
-      },
-    },
-  ]);
+  userStatusOptions.value = statusOptions.map((d) => ({
+    label: d.label,
+    value: Number(d.value),
+  }));
+  syncStatusQueryOptions();
 
-  await syncOrgCapability();
+  await syncManagementCapabilities();
+  managementCapabilitiesReady.value = true;
+  await applyRouteTenantFilter({ clearWhenMissing: false });
   disposePluginRegistryListener = onPluginRegistryChanged(async () => {
-    await syncOrgCapability(true);
+    await syncManagementCapabilities(true);
+    await applyRouteTenantFilter({ clearWhenMissing: false });
   });
 });
+
+watch(
+  () => route.query.tenantId,
+  async () => {
+    if (!managementCapabilitiesReady.value) {
+      return;
+    }
+    await applyRouteTenantFilter();
+  },
+);
 
 onBeforeUnmount(() => {
   disposePluginRegistryListener?.();
@@ -221,12 +331,21 @@ onBeforeUnmount(() => {
 });
 
 function handleAdd() {
-  userDrawerApi.setData({ isEdit: false, orgEnabled: orgEnabled.value });
+  userDrawerApi.setData({
+    isEdit: false,
+    orgEnabled: orgEnabled.value,
+    tenantEnabled: tenantEnabled.value,
+  });
   userDrawerApi.open();
 }
 
 function handleEdit(row: any) {
-  userDrawerApi.setData({ isEdit: true, orgEnabled: orgEnabled.value, row });
+  userDrawerApi.setData({
+    isEdit: true,
+    orgEnabled: orgEnabled.value,
+    row,
+    tenantEnabled: tenantEnabled.value,
+  });
   userDrawerApi.open();
 }
 
@@ -253,6 +372,14 @@ function handleMultiDelete() {
       deptTreeRef.value?.refreshTree();
     },
   });
+}
+
+function handleBatchEdit() {
+  userBatchEditModalApi.setData({
+    rows: gridApi.grid.getCheckboxRecords(),
+    tenantEnabled: tenantEnabled.value,
+  });
+  userBatchEditModalApi.open();
 }
 
 async function handleStatusChange(row: any) {
@@ -323,6 +450,13 @@ function handleResetPwd(row: any) {
               {{ $t('pages.common.import') }}
             </a-button>
             <a-button
+              data-testid="user-batch-edit-button"
+              :disabled="!hasChecked"
+              @click="handleBatchEdit"
+            >
+              {{ $t('pages.system.user.actions.batchEdit') }}
+            </a-button>
+            <a-button
               data-testid="user-batch-delete-button"
               :disabled="!hasChecked"
               danger
@@ -331,7 +465,11 @@ function handleResetPwd(row: any) {
             >
               {{ $t('pages.common.delete') }}
             </a-button>
-            <a-button type="primary" @click="handleAdd">
+            <a-button
+              data-testid="user-create-button"
+              type="primary"
+              @click="handleAdd"
+            >
               {{ $t('pages.common.add') }}
             </a-button>
           </Space>
@@ -387,6 +525,7 @@ function handleResetPwd(row: any) {
     </div>
 
     <UserDrawerRef @success="onReload" />
+    <UserBatchEditModalRef @success="onReload" />
     <UserImportModalRef @reload="onReload" />
     <UserResetPwdModalRef @reload="onReload" />
   </Page>

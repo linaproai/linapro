@@ -157,12 +157,20 @@ type HTTPRequestSnapshotV1 struct {
 type IdentitySnapshotV1 struct {
 	// TokenID identifies the authenticated session or token presented to the host.
 	TokenID string `json:"tokenId,omitempty"`
+	// TenantId is the current tenant boundary associated with the token.
+	TenantId int32 `json:"tenantId,omitempty"`
 	// UserID is the host user identifier associated with the authenticated caller.
 	UserID int32 `json:"userId,omitempty"`
 	// Username is the normalized login name of the authenticated caller.
 	Username string `json:"username,omitempty"`
 	// Status is the host-defined user status code forwarded to the guest.
 	Status int32 `json:"status,omitempty"`
+	// ActingUserId is the real platform user ID when impersonation is active.
+	ActingUserId int32 `json:"actingUserId,omitempty"`
+	// ActingAsTenant reports whether the caller is operating through a tenant view.
+	ActingAsTenant bool `json:"actingAsTenant,omitempty"`
+	// IsImpersonation reports whether the token represents an impersonated context.
+	IsImpersonation bool `json:"isImpersonation,omitempty"`
 	// Permissions lists the permission keys granted to the authenticated caller.
 	Permissions []string `json:"permissions,omitempty"`
 	// RoleNames lists the resolved role names bound to the authenticated caller.

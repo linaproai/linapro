@@ -8,6 +8,7 @@ type InstallReq struct {
 	Id              string                       `json:"id" v:"required|length:1,64" dc:"Plugin unique identifier" eg:"plugin-demo-source"`
 	Authorization   *HostServiceAuthorizationReq `json:"authorization,omitempty" dc:"The hostServices authorization result after host confirmation; if not passed, the current release will be used by default and the confirmed snapshot will be used. If it has not been confirmed, it will be fully authorized according to the plugin declaration." eg:"{}"`
 	InstallMockData bool                         `json:"installMockData,omitempty" dc:"Whether to load the plugin's mock-data SQL files alongside install. Defaults to false; only set to true when the operator explicitly opts in via the management UI checkbox. Mock data is intended for demo and feature validation, not production use. The mock load runs inside a single database transaction so any failure rolls back only the mock data and the install itself remains in effect." eg:"false"`
+	InstallMode     string                       `json:"installMode,omitempty" dc:"Plugin install mode selected by the platform operator. Tenant-aware plugins support global or tenant_scoped; platform-only plugins must use global." eg:"tenant_scoped"`
 }
 
 // InstallRes is the response for installing a plugin.

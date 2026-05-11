@@ -236,6 +236,14 @@ func TestUploadedFileAccessRouteIsPublic(t *testing.T) {
 	if !strings.Contains(fileUpload.Middleware, "Service.Permission") {
 		t.Fatalf("expected file upload route to keep permission middleware, middleware=%s", fileUpload.Middleware)
 	}
+
+	userBatchUpdate := mustFindRoute(t, server, "PUT", "/api/v1/user")
+	if !strings.Contains(userBatchUpdate.Middleware, "Service.Auth") {
+		t.Fatalf("expected user batch-update route to remain authenticated, middleware=%s", userBatchUpdate.Middleware)
+	}
+	if !strings.Contains(userBatchUpdate.Middleware, "Service.Permission") {
+		t.Fatalf("expected user batch-update route to keep permission middleware, middleware=%s", userBatchUpdate.Middleware)
+	}
 }
 
 // TestParsePluginAssetRequestPath verifies hosted runtime asset URLs are parsed

@@ -1,0 +1,178 @@
+# Plugin identifier, unique across the host and source plugin directories.
+# 插件唯一标识，必须在宿主和源码插件目录中保持唯一。
+id: multi-tenant
+
+# Plugin display name used in plugin management, menu governance, and docs.
+# 插件显示名称，用于插件管理、菜单治理和文档展示。
+name: 多租户
+
+# Plugin semantic version used for plugin sync, upgrades, and delivery asset identity.
+# 插件语义化版本号，用于插件同步、升级和交付资产识别。
+version: v0.1.0
+
+# Plugin type enum. Allowed values: `source` is compiled with the host; `dynamic` is loaded as a runtime plugin artifact.
+# 插件类型枚举。可选值：`source` 表示随宿主源码编译交付；`dynamic` 表示作为运行时动态插件产物加载。
+type: source
+
+# Multi-tenant scope enum. Allowed values: `platform_only` is platform-context only; `tenant_aware` is governed by tenant context.
+# 多租户作用域枚举。可选值：`platform_only` 表示仅平台上下文可见和治理；`tenant_aware` 表示按租户上下文治理。
+scope_nature: platform_only
+
+# Multi-tenant support flag. `true` means the plugin supports tenant-level installation and provisioning governance.
+# 多租户支持标记。`true` 表示插件支持租户级安装与开通治理。
+supports_multi_tenant: false
+
+# Default install mode enum. Allowed values: `global` enables one shared installation; `tenant_scoped` enables or disables per tenant.
+# 默认安装模式枚举。可选值：`global` 表示全局统一安装启用；`tenant_scoped` 表示按租户独立启用或禁用。
+default_install_mode: global
+
+# Plugin capability summary for management pages, delivery notes, and developer context.
+# 插件能力说明，用于插件管理页、交付说明和开发者理解边界。
+description: 提供租户主体、成员关系、租户解析和生命周期治理的官方源码插件
+
+# Plugin author or owning team.
+# 插件作者或归属团队。
+author: linapro
+
+# Plugin license identifier.
+# 插件许可证标识。
+license: Apache-2.0
+
+# Plugin menu declaration list; the host syncs menus, permissions, and route entries from it.
+# 插件菜单声明列表，宿主按该列表同步菜单、权限和路由入口。
+menus:
+  # Unique menu key; it must use the `plugin:<plugin-id>:<menu-key>` format.
+  # 菜单唯一键，必须使用 `plugin:<plugin-id>:<menu-key>` 格式。
+  - key: plugin:multi-tenant:platform:tenants
+    # Parent menu key pointing to the built-in host platform management directory.
+    # 父级菜单键，指向宿主内置平台管理目录。
+    parent_key: platform
+    # Menu display name.
+    # 菜单显示名称。
+    name: 租户管理
+    # Menu route path.
+    # 菜单路由路径。
+    path: /platform/tenants
+    # Menu render component; the dynamic page shell hosts the plugin-owned tenant management page.
+    # 菜单渲染组件，动态页壳用于承载插件自有租户管理页面。
+    component: system/plugin/dynamic-page
+    # Permission code required to access this menu.
+    # 菜单访问权限标识。
+    perms: system:tenant:list
+    # Menu icon using an Iconify icon name.
+    # 菜单图标，使用 Iconify 图标名称。
+    icon: lucide:building
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
+    type: M
+    # Menu sort order; lower values appear earlier.
+    # 菜单排序值，数值越小越靠前。
+    sort: 10
+    # Menu remark stored in host menu governance data.
+    # 菜单备注，写入宿主菜单治理数据。
+    remark: 多租户插件-平台租户管理
+  # Unique button key mounted under the tenant management menu.
+  # 按钮唯一键，挂载在租户管理菜单下。
+  - key: plugin:multi-tenant:platform:tenants:query
+    # Parent menu key pointing to the tenant management menu.
+    # 父级菜单键，指向租户管理菜单。
+    parent_key: plugin:multi-tenant:platform:tenants
+    # Button display name.
+    # 按钮显示名称。
+    name: 租户查询
+    # Button permission code.
+    # 按钮权限标识。
+    perms: system:tenant:query
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
+    type: B
+    # Visibility flag enum. Allowed values: `0` hidden from the menu tree, `1` visible in the menu tree.
+    # 可见性标记枚举。可选值：`0` 表示在菜单树中隐藏，`1` 表示在菜单树中显示。
+    visible: 0
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
+    sort: 1
+  # Unique button key mounted under the tenant management menu.
+  # 按钮唯一键，挂载在租户管理菜单下。
+  - key: plugin:multi-tenant:platform:tenants:add
+    # Parent menu key pointing to the tenant management menu.
+    # 父级菜单键，指向租户管理菜单。
+    parent_key: plugin:multi-tenant:platform:tenants
+    # Button display name.
+    # 按钮显示名称。
+    name: 租户新增
+    # Button permission code.
+    # 按钮权限标识。
+    perms: system:tenant:add
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
+    type: B
+    # Visibility flag enum. Allowed values: `0` hidden from the menu tree, `1` visible in the menu tree.
+    # 可见性标记枚举。可选值：`0` 表示在菜单树中隐藏，`1` 表示在菜单树中显示。
+    visible: 0
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
+    sort: 2
+  # Unique button key mounted under the tenant management menu.
+  # 按钮唯一键，挂载在租户管理菜单下。
+  - key: plugin:multi-tenant:platform:tenants:edit
+    # Parent menu key pointing to the tenant management menu.
+    # 父级菜单键，指向租户管理菜单。
+    parent_key: plugin:multi-tenant:platform:tenants
+    # Button display name.
+    # 按钮显示名称。
+    name: 租户修改
+    # Button permission code.
+    # 按钮权限标识。
+    perms: system:tenant:edit
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
+    type: B
+    # Visibility flag enum. Allowed values: `0` hidden from the menu tree, `1` visible in the menu tree.
+    # 可见性标记枚举。可选值：`0` 表示在菜单树中隐藏，`1` 表示在菜单树中显示。
+    visible: 0
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
+    sort: 3
+  # Unique button key mounted under the tenant management menu.
+  # 按钮唯一键，挂载在租户管理菜单下。
+  - key: plugin:multi-tenant:platform:tenants:remove
+    # Parent menu key pointing to the tenant management menu.
+    # 父级菜单键，指向租户管理菜单。
+    parent_key: plugin:multi-tenant:platform:tenants
+    # Button display name.
+    # 按钮显示名称。
+    name: 租户删除
+    # Button permission code.
+    # 按钮权限标识。
+    perms: system:tenant:remove
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
+    type: B
+    # Visibility flag enum. Allowed values: `0` hidden from the menu tree, `1` visible in the menu tree.
+    # 可见性标记枚举。可选值：`0` 表示在菜单树中隐藏，`1` 表示在菜单树中显示。
+    visible: 0
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
+    sort: 4
+  # Unique button key mounted under the tenant management menu.
+  # 按钮唯一键，挂载在租户管理菜单下。
+  - key: plugin:multi-tenant:platform:tenants:impersonate
+    # Parent menu key pointing to the tenant management menu.
+    # 父级菜单键，指向租户管理菜单。
+    parent_key: plugin:multi-tenant:platform:tenants
+    # Button display name.
+    # 按钮显示名称。
+    name: 租户代管
+    # Button permission code.
+    # 按钮权限标识。
+    perms: system:tenant:impersonate
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
+    type: B
+    # Visibility flag enum. Allowed values: `0` hidden from the menu tree, `1` visible in the menu tree.
+    # 可见性标记枚举。可选值：`0` 表示在菜单树中隐藏，`1` 表示在菜单树中显示。
+    visible: 0
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
+    sort: 5

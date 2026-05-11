@@ -17,6 +17,7 @@ type ListReq struct {
 	Phone          string `json:"phone" dc:"Filter by mobile phone number (fuzzy matching)" eg:"138"`
 	Sex            *int   `json:"sex" dc:"Filter by gender: 0=Unknown 1=Male 2=Female" eg:"1"`
 	DeptId         *int   `json:"deptId" dc:"Filter by department ID (including sub-departments)" eg:"100"`
+	TenantId       *int   `json:"tenantId" dc:"Filter by tenant ID when multi-tenancy is enabled and the current context is platform" eg:"10"`
 	BeginTime      string `json:"beginTime" dc:"Filter by creation start time" eg:"2025-01-01"`
 	EndTime        string `json:"endTime" dc:"Filter by creation end time" eg:"2025-12-31"`
 	OrderBy        string `json:"orderBy" dc:"Sorting fields: id, username, nickname, phone, email, status, created_at" eg:"id"`
@@ -26,10 +27,12 @@ type ListReq struct {
 // ListItem represents a single user in the user list.
 type ListItem struct {
 	*entity.SysUser
-	DeptId    int      `json:"deptId" dc:"Department ID" eg:"100"`
-	DeptName  string   `json:"deptName" dc:"Department name" eg:"Technology Department"`
-	RoleIds   []int    `json:"roleIds" dc:"Role ID list" eg:"[1,2]"`
-	RoleNames []string `json:"roleNames" dc:"Role name list" eg:"[\"Administrator\",\"Normal User\"]"`
+	DeptId      int      `json:"deptId" dc:"Department ID" eg:"100"`
+	DeptName    string   `json:"deptName" dc:"Department name" eg:"Technology Department"`
+	RoleIds     []int    `json:"roleIds" dc:"Role ID list" eg:"[1,2]"`
+	RoleNames   []string `json:"roleNames" dc:"Role name list" eg:"[\"Administrator\",\"Normal User\"]"`
+	TenantIds   []int    `json:"tenantIds" dc:"Tenant ID list when multi-tenancy is enabled" eg:"[10,20]"`
+	TenantNames []string `json:"tenantNames" dc:"Tenant name list when multi-tenancy is enabled" eg:"[\"Alpha Tenant\",\"Beta Tenant\"]"`
 }
 
 // ListRes is the response structure for user list query.

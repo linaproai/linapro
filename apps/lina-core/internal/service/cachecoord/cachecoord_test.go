@@ -70,6 +70,77 @@ func TestSingleNodeMarkChangedUsesProcessLocalRevision(t *testing.T) {
 	}
 }
 
+// TestTenantScopedMarkChangedIsolatesLocalRevisions verifies tenant invalidation scope uses separate revisions.
+func TestTenantScopedMarkChangedIsolatesLocalRevisions(t *testing.T) {
+	ctx := context.Background()
+	service := New(NewStaticTopology(false))
+	domain := Domain("unit-tenant-cache")
+	scope := Scope("dict")
+
+	tenantOneRevision, err := service.MarkTenantChanged(
+		ctx,
+		domain,
+		scope,
+		InvalidationScope{TenantID: 1},
+		ChangeReason("tenant_one"),
+	)
+	if err != nil {
+		t.Fatalf("tenant one mark failed: %v", err)
+	}
+	tenantTwoRevision, err := service.MarkTenantChanged(
+		ctx,
+		domain,
+		scope,
+		InvalidationScope{TenantID: 2},
+		ChangeReason("tenant_two"),
+	)
+	if err != nil {
+		t.Fatalf("tenant two mark failed: %v", err)
+	}
+	if tenantOneRevision != 1 || tenantTwoRevision != 1 {
+		t.Fatalf("expected isolated first revisions, got tenant1=%d tenant2=%d", tenantOneRevision, tenantTwoRevision)
+	}
+}
+
+// TestTenantScopedMarkChangedCascadeUsesDistinctScope verifies platform
+// cascade invalidation does not overwrite a tenant-only revision bucket.
+func TestTenantScopedMarkChangedCascadeUsesDistinctScope(t *testing.T) {
+	ctx := context.Background()
+	service := New(NewStaticTopology(false))
+	domain := Domain("unit-tenant-cache-cascade")
+	scope := Scope("permission")
+
+	tenantRevision, err := service.MarkTenantChanged(
+		ctx,
+		domain,
+		scope,
+		InvalidationScope{TenantID: 9},
+		ChangeReason("tenant_only"),
+	)
+	if err != nil {
+		t.Fatalf("tenant mark failed: %v", err)
+	}
+	cascadeRevision, err := service.MarkTenantChanged(
+		ctx,
+		domain,
+		scope,
+		InvalidationScope{TenantID: 0, CascadeToTenants: true},
+		ChangeReason("platform_cascade"),
+	)
+	if err != nil {
+		t.Fatalf("platform cascade mark failed: %v", err)
+	}
+	if tenantRevision != 1 || cascadeRevision != 1 {
+		t.Fatalf("expected isolated tenant/cascade first revisions, got tenant=%d cascade=%d", tenantRevision, cascadeRevision)
+	}
+	if scoped := ScopedScope(scope, InvalidationScope{TenantID: 9}); scoped == scope {
+		t.Fatalf("expected tenant scope to include tenant discriminator, got %q", scoped)
+	}
+	if cascade := ScopedScope(scope, InvalidationScope{TenantID: 0, CascadeToTenants: true}); cascade == scope {
+		t.Fatalf("expected cascade scope to include cascade discriminator, got %q", cascade)
+	}
+}
+
 // TestDefaultReturnsSharedCoordinatorWithUpdatedTopology verifies production
 // constructors reuse one process coordinator while later startup wiring can
 // replace the topology view with the real cluster service.
@@ -205,6 +276,24 @@ func TestClusterMarkChangedAcceptsUnconfiguredDomain(t *testing.T) {
 		return
 	}
 	t.Fatalf("expected snapshot item for unconfigured domain %q/%q, got %#v", domain, scope, items)
+}
+
+// TestClusterCurrentRevisionHandlesMissingSharedRow verifies first reads in
+// cluster mode treat a missing revision row as revision zero instead of an
+// infrastructure failure.
+func TestClusterCurrentRevisionHandlesMissingSharedRow(t *testing.T) {
+	ctx := context.Background()
+	service := New(NewStaticTopology(true))
+	scope := Scope("unit-test-missing-shared-row")
+	cleanupCacheRevision(t, ctx, testRuntimeConfigDomain, scope)
+
+	revision, err := service.CurrentRevision(ctx, testRuntimeConfigDomain, scope)
+	if err != nil {
+		t.Fatalf("expected missing shared revision row to read as zero, got error: %v", err)
+	}
+	if revision != 0 {
+		t.Fatalf("expected missing shared revision row to return 0, got %d", revision)
+	}
 }
 
 // TestEnsureFreshRefreshesOncePerRevision verifies the refresher only runs when

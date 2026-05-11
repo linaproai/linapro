@@ -22,6 +22,7 @@ type SysFileDao struct {
 // SysFileColumns defines and stores column names for the table sys_file.
 type SysFileColumns struct {
 	Id        string // File ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM
 	Name      string // Stored file name
 	Original  string // Original file name
 	Suffix    string // File suffix
@@ -40,6 +41,7 @@ type SysFileColumns struct {
 // sysFileColumns holds the columns for the table sys_file.
 var sysFileColumns = SysFileColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	Name:      "name",
 	Original:  "original",
 	Suffix:    "suffix",

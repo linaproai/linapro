@@ -18,6 +18,15 @@ func TestBuildCacheKeyEncodesTrimmedParts(t *testing.T) {
 	}
 }
 
+// TestBuildTenantCacheKeyIncludesTenantScope verifies tenant-sensitive keys are bucketed by tenant.
+func TestBuildTenantCacheKeyIncludesTenantScope(t *testing.T) {
+	keyA := BuildTenantCacheKey(1, "dict", "sys", "runtime", "user_status")
+	keyB := BuildTenantCacheKey(2, "dict", "sys", "runtime", "user_status")
+	if keyA == keyB {
+		t.Fatalf("expected tenant-specific cache keys to differ, got %q", keyA)
+	}
+}
+
 // TestInvalidCacheKeyRejected verifies non-encoded cache keys are rejected
 // before any backend read can reach the database.
 func TestInvalidCacheKeyRejected(t *testing.T) {

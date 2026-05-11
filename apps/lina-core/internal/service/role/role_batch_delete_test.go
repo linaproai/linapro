@@ -96,11 +96,12 @@ func insertTestRole(t *testing.T, ctx context.Context, label string) int {
 
 	suffix := time.Now().UnixNano()
 	id, err := dao.SysRole.Ctx(ctx).Data(do.SysRole{
-		Name:      fmt.Sprintf("%s-%d", label, suffix),
-		Key:       fmt.Sprintf("%s-%d", label, suffix),
-		Sort:      99,
-		DataScope: roleDataScopeAll,
-		Status:    1,
+		Name:           fmt.Sprintf("%s-%d", label, suffix),
+		Key:            fmt.Sprintf("%s-%d", label, suffix),
+		Sort:           99,
+		DataScope:      roleDataScopeAll,
+		Status:         1,
+		TenantId:       0,
 	}).InsertAndGetId()
 	if err != nil {
 		t.Fatalf("insert test role: %v", err)

@@ -14,13 +14,16 @@ import { BasicLayout, IFrameView } from '#/layouts';
 import { $t } from '#/locales';
 import { filterDisabledPluginRoutes } from '#/plugins/access-filter';
 
+import { filterTenantAccessRoutes } from './tenant-access';
+
 const forbiddenComponent = () => import('#/views/_core/fallback/forbidden.vue');
 
 async function generateAccess(
   options: GenerateMenuAndRoutesOptions,
   { showLoadingToast = true }: { showLoadingToast?: boolean } = {},
 ) {
-  const hiddenFrontendRoutes = collectHiddenFrontendRoutes(options.routes);
+  const accessRoutes = filterTenantAccessRoutes(options.routes);
+  const hiddenFrontendRoutes = collectHiddenFrontendRoutes(accessRoutes);
   const hostPageMap: ComponentRecordType = import.meta.glob(
     '../views/**/*.vue',
   );
@@ -32,6 +35,7 @@ async function generateAccess(
 
   const result = await generateAccessible(preferences.app.accessMode, {
     ...options,
+    routes: accessRoutes,
     fetchMenuListAsync: async () => {
       if (showLoadingToast) {
         message.loading({
@@ -40,7 +44,9 @@ async function generateAccess(
         });
       }
       const routes = await getAllMenusApi();
-      return await filterDisabledPluginRoutes(routes);
+      return await filterDisabledPluginRoutes(
+        filterTenantAccessRoutes(routes),
+      );
     },
     // 可以指定没有权限跳转403页面
     forbiddenComponent,

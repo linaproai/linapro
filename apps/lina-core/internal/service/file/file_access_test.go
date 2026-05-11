@@ -144,6 +144,13 @@ func (s fileAccessStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by file service tests.
 func (s fileAccessStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetTenant is unused by file service tests.
+func (s fileAccessStaticBizCtx) SetTenant(context.Context, int) {}
+
+// SetImpersonation is unused by file service tests.
+func (s fileAccessStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
+
+
 // SetUserAccess is unused by file service tests.
 func (s fileAccessStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 

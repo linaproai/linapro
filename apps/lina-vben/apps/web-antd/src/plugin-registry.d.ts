@@ -1,9 +1,12 @@
 declare module 'virtual:lina-plugin-pages' {
   import type { Component } from 'vue';
+  type PluginCapabilityKey =
+    import('#/plugins/plugin-capabilities').PluginCapabilityKey;
 
   export interface VirtualPluginPageModule {
     default?: Component;
     pluginPageMeta?: {
+      capabilities?: PluginCapabilityKey[];
       pluginId?: string;
       routePath?: string;
       title?: string;
@@ -20,11 +23,14 @@ declare module 'virtual:lina-plugin-pages' {
 
 declare module 'virtual:lina-plugin-slots' {
   import type { Component } from 'vue';
+  type PluginCapabilityKey =
+    import('#/plugins/plugin-capabilities').PluginCapabilityKey;
   type PluginSlotKey = import('#/plugins/plugin-slots').PluginSlotKey;
 
   export interface VirtualPluginSlotModule {
     default?: Component;
     pluginSlotMeta?: {
+      capabilities?: PluginCapabilityKey[];
       order?: number;
       pluginId?: string;
       slotKey?: PluginSlotKey;
