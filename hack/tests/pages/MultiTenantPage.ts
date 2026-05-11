@@ -264,7 +264,7 @@ export class MultiTenantPage {
             this.routeNode(
               "DeptManagement",
               "/system/dept",
-              "#/views/system/dept/index.vue",
+              "#/views/system/plugin/dynamic-page",
               "page.routes.system.deptManagement",
             ),
           ],

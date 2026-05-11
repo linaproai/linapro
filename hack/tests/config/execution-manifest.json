@@ -5,7 +5,6 @@
       "e2e/settings",
       "plugins/org-center",
       "plugins/content-notice",
-      "e2e/content/message",
       "e2e/scheduler"
     ],
     "e2e/monitor": [
@@ -35,9 +34,9 @@
     "org:dept": ["plugins/org-center/dept"],
     "org:post": ["plugins/org-center/post"],
     "org:user-org": ["plugins/org-center/user-org"],
-    "content": ["e2e/content/message", "plugins/content-notice"],
+    "content": ["plugins/content-notice"],
     "content:notice": ["plugins/content-notice/notice"],
-    "content:message": ["e2e/content/message"],
+    "content:message": ["plugins/content-notice/message"],
     "i18n": ["e2e/i18n"],
     "monitor": [
       "plugins/monitor-operlog",
@@ -54,15 +53,15 @@
     "extension": ["e2e/extension"],
     "extension:plugin": ["e2e/extension/plugin"],
     "plugins": ["plugins"],
-    "multi-tenant": ["e2e/multi-tenant"],
-    "multi-tenant:tenant-lifecycle": ["e2e/multi-tenant/tenant-lifecycle"],
-    "multi-tenant:tenant-isolation": ["e2e/multi-tenant/tenant-isolation"],
-    "multi-tenant:tenant-resolution": ["e2e/multi-tenant/tenant-resolution"],
-    "multi-tenant:tenant-switching": ["e2e/multi-tenant/tenant-switching"],
-    "multi-tenant:platform-admin": ["e2e/multi-tenant/platform-admin"],
-    "multi-tenant:plugin-governance": ["e2e/multi-tenant/plugin-governance"],
-    "multi-tenant:lifecycle-guard": ["e2e/multi-tenant/lifecycle-guard"],
-    "multi-tenant:cluster": ["e2e/multi-tenant/cluster"]
+    "multi-tenant": ["plugins/multi-tenant"],
+    "multi-tenant:tenant-lifecycle": ["plugins/multi-tenant/tenant-lifecycle"],
+    "multi-tenant:tenant-isolation": ["plugins/multi-tenant/tenant-isolation"],
+    "multi-tenant:tenant-resolution": ["plugins/multi-tenant/tenant-resolution"],
+    "multi-tenant:tenant-switching": ["plugins/multi-tenant/tenant-switching"],
+    "multi-tenant:platform-admin": ["plugins/multi-tenant/platform-admin"],
+    "multi-tenant:plugin-governance": ["plugins/multi-tenant/plugin-governance"],
+    "multi-tenant:lifecycle-guard": ["plugins/multi-tenant/lifecycle-guard"],
+    "multi-tenant:cluster": ["plugins/multi-tenant/cluster"]
   },
   "smoke": [
     "e2e/auth/TC0001-login-success.ts",
@@ -77,7 +76,6 @@
     "e2e/about/TC0044-api-docs-page.ts",
     "e2e/auth/TC0003-logout.ts",
     "e2e/auth/TC0102-login-page-presentation.ts",
-    "e2e/content",
     "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
     "e2e/extension/plugin",
     "plugins",
@@ -97,10 +95,6 @@
     "e2e/i18n/TC0136-backend-export-localization.ts",
     "e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts",
     "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
-    "e2e/monitor",
-    "e2e/multi-tenant",
-    "e2e/multi-tenant/tenant-switching/TC0221-real-tenant-token-flow.ts",
-    "e2e/org",
     "e2e/scheduler/job",
     "e2e/settings/config",
     "e2e/settings/dict",
@@ -123,11 +117,6 @@
       "reason": "The login presentation assertions mutate the global login panel layout config."
     },
     {
-      "entry": "e2e/content",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed", "permissionMatrix"],
-      "reason": "Message center regressions enable the content-notice source plugin to source seed data and create temporary role permissions when validating self-boundary access."
-    },
-    {
       "entry": "plugins",
       "categories": [
         "pluginLifecycle",
@@ -137,7 +126,7 @@
         "filesystemArtifact",
         "systemConfig"
       ],
-      "reason": "Source-plugin-owned E2E tests may install, enable, sync, seed, and exercise their owning plugins while validating runtime i18n cache, hosted assets, permissions, or plugin-managed configuration."
+      "reason": "Source-plugin-owned E2E tests may install, enable, sync, seed, and exercise their owning plugins while validating runtime i18n cache, hosted assets, permissions, tenant flows, or plugin-managed configuration."
     },
     {
       "entry": "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
@@ -250,33 +239,6 @@
       "entry": "e2e/i18n/TC0141-org-dict-config-english-layout.ts",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
       "reason": "Organization, dictionary, and config English layout regression enables the org-center source plugin and reads shared seed records across localized pages."
-    },
-    {
-      "entry": "e2e/monitor",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Monitor tests depend on monitor source plugins and shared login or operation log data."
-    },
-    {
-      "entry": "e2e/multi-tenant",
-      "categories": [
-        "authSession",
-        "dictionaryData",
-        "permissionMatrix",
-        "pluginLifecycle",
-        "sharedDatabaseSeed",
-        "systemConfig"
-      ],
-      "reason": "Multi-tenant tests create tenants, memberships, roles, plugin state, built-in resolver policy checks, and tenant-bound auth sessions against the shared database and runtime."
-    },
-    {
-      "entry": "e2e/multi-tenant/tenant-switching/TC0221-real-tenant-token-flow.ts",
-      "categories": ["permissionMatrix", "sharedDatabaseSeed"],
-      "reason": "Real tenant token flow creates temporary tenant roles and role-menu grants to verify tenant-scoped permission refresh and token revocation."
-    },
-    {
-      "entry": "e2e/org",
-      "categories": ["pluginLifecycle", "sharedDatabaseSeed"],
-      "reason": "Organization tests depend on the org-center source plugin and shared department or post seed data."
     },
     {
       "entry": "e2e/scheduler/job",

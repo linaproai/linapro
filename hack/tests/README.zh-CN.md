@@ -30,13 +30,14 @@ apps/lina-plugins/<plugin-id>/
 - `auth/`、`dashboard/`、`about/`
 - `iam/`
 - `settings/`
-- `content/message/`，用于宿主自有消息中心
 - `scheduler/`
 - `extension/`
 
 源码插件自有业务覆盖不再放在宿主 `e2e/` 树下，而是保留在对应插件目录：
 
 - `plugins/content-notice` 映射到 `apps/lina-plugins/content-notice/hack/tests/e2e/`
+- `plugins/content-notice/message` 映射到 content-notice 插件自有消息中心覆盖
+- `plugins/multi-tenant` 映射到 `apps/lina-plugins/multi-tenant/hack/tests/e2e/`
 - `plugins/org-center` 映射到 `apps/lina-plugins/org-center/hack/tests/e2e/`
 - `plugins/monitor-*` 映射到对应监控插件的 `hack/tests/e2e/`
 
@@ -96,6 +97,10 @@ apps/lina-plugins/<plugin-id>/
 
 ```bash
 pnpm test:module -- plugin:cms
+```
+
+```bash
+pnpm test:module -- plugin:multi-tenant
 ```
 
 ## 隔离类别

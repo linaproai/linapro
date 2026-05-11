@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 多租户 e2e 模块化分组
-`hack/tests/e2e/` 下 SHALL 新增 `multi-tenant/` 模块,内部按场景分组:
+`apps/lina-plugins/multi-tenant/hack/tests/e2e/` 下 SHALL 维护 multi-tenant 插件自有 E2E 模块,内部按场景分组:
 - `tenant-lifecycle/`:创建、暂停、恢复、删除租户。
 - `tenant-isolation/`:跨租户隔离反例矩阵(每张 tenancy-aware 表至少一个用例)。
 - `tenant-resolution/`:每种解析器一组用例。
@@ -20,7 +20,7 @@
 对每张 tenancy-aware 表(`sys_user / sys_role / sys_dict_data / sys_config / sys_file / sys_online_session / sys_notify_* / sys_user_message / sys_job / sys_job_log / monitor-loginlog / monitor-operlog / plugin_org_center_*`)SHALL 至少一个用例验证"租户 A 不可见租户 B 数据"在 list / get / update / delete 上的反例。
 
 #### Scenario: 矩阵覆盖
-- **WHEN** 运行 `hack/tests/e2e/multi-tenant/tenant-isolation/`
+- **WHEN** 运行 `apps/lina-plugins/multi-tenant/hack/tests/e2e/tenant-isolation/`
 - **THEN** 所有 tenancy-aware 表均有对应反例 TC
 
 ### Requirement: 多租户启用/禁用双场景验证

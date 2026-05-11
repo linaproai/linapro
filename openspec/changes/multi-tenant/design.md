@@ -385,7 +385,7 @@ default_install_mode: global
 
 ### 17. e2e 测试组织
 
-新增模块 `hack/tests/e2e/multi-tenant/`,涵盖:
+多租户源码插件自有 E2E 维护在 `apps/lina-plugins/multi-tenant/hack/tests/e2e/`,涵盖:
 
 - `tenant-lifecycle/`:创建、暂停、恢复、删除租户,验证 schema 与缓存一致性。
 - `tenant-isolation/`:租户 A 用户不可见租户 B 数据(用户、角色、菜单、字典、配置、文件、日志)。
