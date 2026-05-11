@@ -22,12 +22,12 @@
 param(
     [Parameter(Position = 0)]
     [ValidateSet(
-        'dev', 'stop', 'status', 'build', 'wasm', 'init', 'mock',
-        'test', 'test-go',
-        'check-i18n', 'check-i18n-messages',
-        'image', 'image-build',
-        'dao', 'ctrl', 'service', 'enums', 'pb', 'pbentity',
-        'help', 'clean', 'check'
+            'dev', 'stop', 'status', 'build', 'wasm', 'init', 'mock',
+            'test', 'test-go',
+            'check-i18n', 'check-i18n-messages',
+            'image', 'image-build',
+            'dao', 'ctrl', 'service', 'enums', 'pb', 'pbentity',
+            'help', 'clean', 'check', 'dev-internal'
     )]
     [string]$Command,
 
@@ -37,7 +37,6 @@ param(
     [string]$BinaryName,
     [string]$Config,
     [switch]$VerboseOutput,
-    [switch]$Background,
 
     [string]$Confirm,
     [string]$Rebuild,
@@ -58,7 +57,7 @@ $ErrorActionPreference = 'Stop'
 # ============================================================
 # Configuration
 # ============================================================
-$Script:RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Script:RootDir = Split-Path -Parent $PSCommandPath
 $Script:BackendDir = Join-Path $Script:RootDir 'apps\lina-core'
 $Script:FrontendDir = Join-Path $Script:RootDir 'apps\lina-vben'
 $Script:TempDir = Join-Path $Script:RootDir 'temp'
@@ -129,17 +128,17 @@ function Get-PortPids {
 }
 
 function Stop-ProcessTree {
-    param([int]$Pid)
+    param([int]$ProcessId)
     try {
-        $proc = Get-Process -Id $Pid -ErrorAction SilentlyContinue
+        $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
         if ($null -ne $proc) {
-            $children = Get-CimInstance -ClassName Win32_Process -Filter "ParentProcessId=$Pid" -ErrorAction SilentlyContinue
+            $children = Get-CimInstance -ClassName Win32_Process -Filter "ParentProcessId=$ProcessId" -ErrorAction SilentlyContinue
             if ($null -ne $children) {
                 foreach ($child in $children) {
-                    Stop-ProcessTree -Pid $child.ProcessId
+                    Stop-ProcessTree -ProcessId $child.ProcessId
                 }
             }
-            Stop-Process -Id $Pid -Force -ErrorAction SilentlyContinue
+            Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
         }
     }
     catch { }
@@ -160,7 +159,7 @@ function Stop-Service {
                 $filePid = [int]$Matches[0]
                 $proc = Get-Process -Id $filePid -ErrorAction SilentlyContinue
                 if ($null -ne $proc) {
-                    Stop-ProcessTree -Pid $filePid
+                    Stop-ProcessTree -ProcessId $filePid
                     $stopped = $true
                 }
             }
@@ -319,12 +318,22 @@ function Invoke-PreparePackedAssets {
 # Command: dev
 # ============================================================
 function Invoke-Dev {
+    Write-Step 'Launching dev server in new terminal...'
+    Start-Process -FilePath 'powershell' `
+        -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', $PSCommandPath, 'dev-internal' `
+        -WindowStyle Normal
+    Write-Info 'Dev terminal launched. Your current terminal is free for other tasks.'
+}
+
+# ============================================================
+# Command: dev-internal (internal, runs inside the child terminal)
+# ============================================================
+function Invoke-DevInternal {
     Write-Banner
     Write-Step 'Starting LinaPro development environment...'
 
     Invoke-Stop
 
-    # Preflight: verify frontend dependencies are installed
     $frontendNM = Join-Path $Script:FrontendDir 'apps\web-antd\node_modules'
     if (!(Test-Path $frontendNM)) {
         Write-Step 'Frontend dependencies not found. Running pnpm install...'
@@ -341,7 +350,6 @@ function Invoke-Dev {
     Ensure-Dir $Script:PidDir
     Ensure-Dir (Join-Path $Script:TempDir 'bin')
 
-    # Ensure backend config.yaml exists (copy from template on first run)
     $configTarget = Join-Path $Script:BackendDir 'manifest\config\config.yaml'
     if (!(Test-Path $configTarget)) {
         $configTemplate = Join-Path $Script:BackendDir 'manifest\config\config.template.yaml'
@@ -355,7 +363,6 @@ function Invoke-Dev {
     '' | Out-File -FilePath $Script:FrontendLog -Encoding utf8
 
     Invoke-Wasm
-
     Invoke-PreparePackedAssets
 
     $backendBinary = Join-Path $Script:TempDir 'bin\lina.exe'
@@ -363,20 +370,15 @@ function Invoke-Dev {
     Push-Location $Script:BackendDir
     try {
         $output = & go build -o $backendBinary . 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host $output
-            throw 'Backend build failed'
-        }
+        if ($LASTEXITCODE -ne 0) { Write-Host $output; throw 'Backend build failed' }
     }
     finally { Pop-Location }
     Write-Success 'Backend built'
 
-    $procStyle = if ($Background) { @{ WindowStyle = 'Hidden' } } else { @{ NoNewWindow = $true } }
-
     Write-Step 'Starting backend...'
     $backendProc = Start-Process -FilePath $backendBinary `
         -WorkingDirectory $Script:BackendDir `
-        @procStyle `
+        -NoNewWindow `
         -RedirectStandardOutput $Script:BackendLog `
         -RedirectStandardError (Join-Path $Script:TempDir 'lina-core.err.log') `
         -PassThru
@@ -389,7 +391,7 @@ function Invoke-Dev {
     $frontendProc = Start-Process -FilePath 'cmd' `
         -ArgumentList @('/c', $viteArgs) `
         -WorkingDirectory $frontendWorkDir `
-        @procStyle `
+        -NoNewWindow `
         -RedirectStandardOutput $Script:FrontendLog `
         -RedirectStandardError (Join-Path $Script:TempDir 'lina-vben.err.log') `
         -PassThru
@@ -401,19 +403,15 @@ function Invoke-Dev {
 
     Invoke-Status
 
-    if ($Background) {
-        Write-Info 'Services running in background. Close this terminal safely. Use stop to shut down.'
+    Write-Host ''
+    Write-Host 'Services running. Press Ctrl+C to stop all services.' -ForegroundColor Cyan
+    try {
+        while ($true) { Start-Sleep -Seconds 1 }
     }
-    else {
+    finally {
         Write-Host ''
-        Write-Host 'Services running. Press Ctrl+C to stop all services.' -ForegroundColor Cyan
-        try {
-            while ($true) { Start-Sleep -Seconds 1 }
-        }
-        finally {
-            Write-Host ''
-            Invoke-Stop
-        }
+        Invoke-Stop
+        Write-Host 'All services stopped. This window will close.' -ForegroundColor DarkGray
     }
 }
 
@@ -1025,8 +1023,7 @@ function Invoke-Help {
     Write-Host 'Usage: .\dev.ps1 <command> [options]' -ForegroundColor DarkGray
     Write-Host ''
     Write-Host 'Development Commands:' -ForegroundColor Cyan
-    Write-Host '  dev                 Start full-stack dev server'
-    Write-Host '                      Use -Background to detach from terminal'
+    Write-Host '  dev                 Start dev server in a new terminal window'
     Write-Host '  stop                Stop all running dev services'
     Write-Host '  status              Show backend/frontend runtime status'
     Write-Host ''
@@ -1098,6 +1095,7 @@ if ($Help -or (-not $Command)) {
 try {
     switch ($Command) {
         'dev'                   { Invoke-Dev }
+        'dev-internal'          { Invoke-DevInternal }
         'stop'                  { Invoke-Stop }
         'status'                { Invoke-Status }
         'build'                 { Invoke-Build }
