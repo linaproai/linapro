@@ -1,21 +1,24 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Alert, Checkbox, List, ListItem } from 'ant-design-vue';
+import { Alert, Input, List, ListItem } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
-const emit = defineEmits<{ force: [] }>();
+const emit = defineEmits<{ force: [payload: { pluginId: string }] }>();
 
+const pluginId = ref('');
 const reasons = ref<string[]>([]);
-const forceConfirmed = ref(false);
+const confirmText = ref('');
+
+const canForce = computed(() => confirmText.value.trim() === pluginId.value);
 
 const [Modal, modalApi] = useVbenModal({
   onConfirm() {
-    if (forceConfirmed.value) {
-      emit('force');
+    if (canForce.value) {
+      emit('force', { pluginId: pluginId.value });
       modalApi.close();
     }
   },
@@ -23,13 +26,19 @@ const [Modal, modalApi] = useVbenModal({
     if (!open) {
       return;
     }
-    const data = modalApi.getData<{ reasons?: string[] }>();
+    const data = modalApi.getData<{ pluginId?: string; reasons?: string[] }>();
+    pluginId.value = data?.pluginId?.trim() ?? '';
     reasons.value = data?.reasons?.length
       ? data.reasons
       : [$t('pages.multiTenant.plugin.lifecycleGuard.defaultReason')];
-    forceConfirmed.value = false;
+    confirmText.value = '';
+    modalApi.setState({ confirmDisabled: true });
   },
 });
+
+function handleConfirmTextChange() {
+  modalApi.setState({ confirmDisabled: !canForce.value });
+}
 </script>
 
 <template>
@@ -45,9 +54,31 @@ const [Modal, modalApi] = useVbenModal({
           {{ $t(reason) === reason ? reason : $t(reason) }}
         </ListItem>
       </List>
-      <Checkbox v-model:checked="forceConfirmed" data-testid="lifecycle-guard-force">
-        {{ $t('pages.multiTenant.plugin.lifecycleGuard.forceConfirm') }}
-      </Checkbox>
+      <Alert
+        show-icon
+        type="error"
+        :message="
+          $t('pages.multiTenant.plugin.lifecycleGuard.forceConfirm', {
+            pluginId,
+          })
+        "
+      />
+      <div class="space-y-1">
+        <div class="text-xs text-muted-foreground">
+          {{
+            $t('pages.multiTenant.plugin.lifecycleGuard.forceInputHint', {
+              pluginId,
+            })
+          }}
+        </div>
+        <Input
+          v-model:value="confirmText"
+          :placeholder="pluginId"
+          data-testid="lifecycle-guard-force-plugin-id"
+          @change="handleConfirmTextChange"
+          @input="handleConfirmTextChange"
+        />
+      </div>
     </div>
   </Modal>
 </template>

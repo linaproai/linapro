@@ -259,7 +259,7 @@ export class MainLayout {
     const confirmBtn = this.page.getByRole("button", {
       name: /确\s*认|confirm/i,
     });
-    await confirmBtn.waitFor({ state: "visible", timeout: 5000 });
+    await confirmBtn.waitFor({ state: "visible", timeout: 1500 });
     await confirmBtn.click();
 
     // Wait for redirect to login page

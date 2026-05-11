@@ -18,6 +18,10 @@ type: dynamic
 # 多租户作用域枚举。可选值：`platform_only` 表示仅平台上下文可见和治理；`tenant_aware` 表示按租户上下文治理。
 scope_nature: tenant_aware
 
+# Multi-tenant support flag. `true` means the plugin supports tenant-level installation and provisioning governance.
+# 多租户支持标记。`true` 表示插件支持租户级安装与开通治理。
+supports_multi_tenant: true
+
 # Default install mode enum. Allowed values: `global` enables one shared installation; `tenant_scoped` enables or disables per tenant.
 # 默认安装模式枚举。可选值：`global` 表示全局统一安装启用；`tenant_scoped` 表示按租户独立启用或禁用。
 default_install_mode: tenant_scoped

@@ -26,12 +26,15 @@ func buildRuntimeArtifactContent(
 	runtimePath string,
 ) ([]byte, error) {
 	manifestPayload, err := json.Marshal(&dynamicArtifactManifest{
-		ID:          manifest.ID,
-		Name:        manifest.Name,
-		Version:     manifest.Version,
-		Type:        pluginTypeDynamic,
-		Description: manifest.Description,
-		Menus:       manifest.Menus,
+		ID:                  manifest.ID,
+		Name:                manifest.Name,
+		Version:             manifest.Version,
+		Type:                pluginTypeDynamic,
+		ScopeNature:         manifest.ScopeNature,
+		SupportsMultiTenant: manifest.SupportsMultiTenant,
+		DefaultInstallMode:  manifest.DefaultInstallMode,
+		Description:         manifest.Description,
+		Menus:               manifest.Menus,
 	})
 	if err != nil {
 		return nil, err

@@ -31,6 +31,29 @@ func validateRuntimeBuildManifest(manifest *pluginManifest, manifestPath string)
 	if manifest.Type != pluginTypeDynamic {
 		return fmt.Errorf("dynamic sample manifest type must be dynamic: %s", manifestPath)
 	}
+	manifest.ScopeNature = strings.ToLower(strings.TrimSpace(manifest.ScopeNature))
+	if manifest.ScopeNature == "" {
+		manifest.ScopeNature = pluginScopeNatureTenantAware
+	}
+	if manifest.ScopeNature != pluginScopeNaturePlatformOnly &&
+		manifest.ScopeNature != pluginScopeNatureTenantAware {
+		return fmt.Errorf("dynamic plugin scope_nature only supports platform_only/tenant_aware: %s", manifest.ScopeNature)
+	}
+	if manifest.SupportsMultiTenant == nil {
+		return fmt.Errorf("dynamic plugin manifest missing supports_multi_tenant: %s", manifestPath)
+	}
+	if manifest.ScopeNature == pluginScopeNaturePlatformOnly && *manifest.SupportsMultiTenant {
+		return fmt.Errorf("dynamic plugin supports_multi_tenant cannot be true when scope_nature is platform_only")
+	}
+	manifest.DefaultInstallMode = strings.ToLower(strings.TrimSpace(manifest.DefaultInstallMode))
+	if manifest.ScopeNature == pluginScopeNaturePlatformOnly || !*manifest.SupportsMultiTenant {
+		manifest.DefaultInstallMode = pluginInstallModeGlobal
+	} else if manifest.DefaultInstallMode == "" {
+		manifest.DefaultInstallMode = pluginInstallModeTenantScoped
+	} else if manifest.DefaultInstallMode != pluginInstallModeGlobal &&
+		manifest.DefaultInstallMode != pluginInstallModeTenantScoped {
+		return fmt.Errorf("dynamic plugin default_install_mode only supports global/tenant_scoped: %s", manifest.DefaultInstallMode)
+	}
 	if !pluginManifestIDPattern.MatchString(manifest.ID) {
 		return fmt.Errorf("dynamic plugin id must use kebab-case: %s", manifest.ID)
 	}

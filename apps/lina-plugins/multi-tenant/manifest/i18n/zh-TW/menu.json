@@ -17,9 +17,6 @@
     },
     "plugin:multi-tenant:platform:tenants:remove": {
       "title": "租戶刪除"
-    },
-    "plugin:multi-tenant:platform:tenants:users": {
-      "title": "用戶管理"
     }
   }
 }

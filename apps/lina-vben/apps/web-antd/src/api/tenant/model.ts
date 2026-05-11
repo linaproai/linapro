@@ -14,27 +14,6 @@ export interface TenantAwareLoginResult {
   tenants?: LoginTenant[];
 }
 
-export interface TenantMember {
-  id: number;
-  userId: number;
-  username: string;
-  realName?: string;
-  email?: string;
-  status: 'active' | 'removed' | 'suspended' | string;
-  joinedAt?: string;
-}
-
-export interface TenantMemberListParams {
-  pageNum?: number;
-  pageSize?: number;
-  keyword?: string;
-  status?: string;
-}
-
-export interface TenantMemberPayload {
-  userId: number;
-}
-
 export interface TenantPlugin extends SystemPlugin {
   installMode?: 'global' | 'tenant_scoped' | string;
   scopeNature?: 'platform_only' | 'tenant_aware' | string;

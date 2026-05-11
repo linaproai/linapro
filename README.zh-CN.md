@@ -160,7 +160,7 @@ graph TB
 - 租户身份通过内置责任链解析：`override`、`jwt`、`session`、`header`、`subdomain`和`default`；支持的运行时策略变更由插件持久化，不再通过宿主配置模板维护。
 - 隔离模型由代码默认值维护，当前固定为`pool`。
 - 用户与租户基数由代码默认值维护，默认`multi`，允许一个用户加入多个租户。
-- 租户感知插件需要在`plugin.yaml`中声明`scope_nature`、`default_install_mode`和`default_for_new_tenants`。
+- 插件需要在`plugin.yaml`中声明`scope_nature`、`supports_multi_tenant`和`default_install_mode`；新租户自动启用策略由平台插件注册表维护，不由清单声明。
 - `platform_only`插件按平台全局治理，`tenant_aware`插件可选择全局启用或按租户独立启用。
 - `LifecycleGuard`钩子可否决插件禁用或卸载，`plugin.allowForceUninstall`控制平台管理员是否允许执行带审计的强制覆盖。
 

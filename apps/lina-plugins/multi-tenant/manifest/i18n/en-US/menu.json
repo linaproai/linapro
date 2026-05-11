@@ -17,9 +17,6 @@
     },
     "plugin:multi-tenant:platform:tenants:remove": {
       "title": "Delete"
-    },
-    "plugin:multi-tenant:platform:tenants:users": {
-      "title": "User Management"
     }
   }
 }

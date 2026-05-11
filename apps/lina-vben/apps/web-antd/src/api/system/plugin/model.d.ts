@@ -21,6 +21,7 @@ export interface SystemPlugin {
   enabled: number;
   autoEnableManaged: number;
   autoEnableForNewTenants?: boolean;
+  supportsMultiTenant?: boolean;
   statusKey: string;
   updatedAt: string;
   authorizationRequired: number;

@@ -160,7 +160,7 @@ When the `multi-tenant` plugin is enabled:
 - Tenant identity is resolved by the built-in chain: `override`, `jwt`, `session`, `header`, `subdomain`, and `default`; supported runtime policy changes are stored by the plugin, not by the host config template.
 - The isolation model is code-owned and currently fixed to `pool`.
 - User-to-tenant cardinality is code-owned and defaults to `multi`, allowing one user to belong to multiple tenants.
-- Tenant-aware plugins declare `scope_nature`, `default_install_mode`, and `default_for_new_tenants` in `plugin.yaml`.
+- Plugins declare `scope_nature`, `supports_multi_tenant`, and `default_install_mode` in `plugin.yaml`; new-tenant auto-enable policy is managed by the platform registry, not by the manifest.
 - `platform_only` plugins are governed globally, while `tenant_aware` plugins can be enabled globally or per tenant.
 - LifecycleGuard hooks may veto plugin disable or uninstall operations, and `plugin.allowForceUninstall` controls whether platform administrators can force an audited override.
 

@@ -87,6 +87,10 @@ export type PluginItem = {
   type: string;
   installed: number;
   enabled: number;
+  supportsMultiTenant?: boolean;
+  autoEnableForNewTenants?: boolean;
+  installMode?: string;
+  scopeNature?: string;
 };
 
 export type MenuNode = {

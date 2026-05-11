@@ -8,6 +8,15 @@ import type {
 
 import { requestClient } from '#/api/request';
 
+type RuntimeEnvelope<T> = {
+  code: number;
+  data: T;
+  errorCode?: string;
+  message?: string;
+  messageKey?: string;
+  messageParams?: Record<string, unknown>;
+};
+
 /** 插件列表 */
 export async function pluginList(params?: PluginListParams) {
   const res = await requestClient.get<{ list: SystemPlugin[]; total: number }>(
@@ -82,13 +91,26 @@ export function pluginUpdateTenantProvisioningPolicy(
 }
 
 /** 卸载插件 */
-export function pluginUninstall(pluginId: string, purgeStorageData?: boolean) {
-  return requestClient.delete(`/plugins/${pluginId}`, {
-    params:
-      typeof purgeStorageData === 'boolean'
-        ? {
-            purgeStorageData: purgeStorageData ? 1 : 0,
-          }
-        : undefined,
-  });
+export async function pluginUninstall(
+  pluginId: string,
+  options?: { force?: boolean; purgeStorageData?: boolean },
+) {
+  const params: Record<string, boolean | number> = {};
+  if (typeof options?.purgeStorageData === 'boolean') {
+    params.purgeStorageData = options.purgeStorageData ? 1 : 0;
+  }
+  if (options?.force) {
+    params.force = true;
+  }
+  const res = await requestClient.delete<RuntimeEnvelope<unknown>>(
+    `/plugins/${pluginId}`,
+    {
+      params: Object.keys(params).length > 0 ? params : undefined,
+      responseReturn: 'body',
+    },
+  );
+  if (res.code !== 0) {
+    throw res;
+  }
+  return res.data;
 }

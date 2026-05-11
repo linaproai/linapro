@@ -18,6 +18,10 @@ type: source
 # 多租户作用域枚举。可选值：`platform_only` 表示仅平台上下文可见和治理；`tenant_aware` 表示按租户上下文治理。
 scope_nature: platform_only
 
+# Multi-tenant support flag. `true` means the plugin supports tenant-level installation and provisioning governance.
+# 多租户支持标记。`true` 表示插件支持租户级安装与开通治理。
+supports_multi_tenant: false
+
 # Default install mode enum. Allowed values: `global` enables one shared installation; `tenant_scoped` enables or disables per tenant.
 # 默认安装模式枚举。可选值：`global` 表示全局统一安装启用；`tenant_scoped` 表示按租户独立启用或禁用。
 default_install_mode: global
@@ -172,24 +176,3 @@ menus:
     # Button sort order; lower values appear earlier.
     # 按钮排序值，数值越小越靠前。
     sort: 5
-  # Unique button key mounted under the tenant management menu.
-  # 按钮唯一键，挂载在租户管理菜单下。
-  - key: plugin:multi-tenant:platform:tenants:users
-    # Parent menu key pointing to the tenant management menu.
-    # 父级菜单键，指向租户管理菜单。
-    parent_key: plugin:multi-tenant:platform:tenants
-    # Button display name.
-    # 按钮显示名称。
-    name: 用户管理
-    # Button permission code; it reuses system user query permission for the filtered view.
-    # 按钮权限标识，复用系统用户查询权限进入对应筛选视图。
-    perms: system:user:query
-    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
-    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
-    type: B
-    # Visibility flag enum. Allowed values: `0` hidden from the menu tree, `1` visible in the menu tree.
-    # 可见性标记枚举。可选值：`0` 表示在菜单树中隐藏，`1` 表示在菜单树中显示。
-    visible: 0
-    # Button sort order; lower values appear earlier.
-    # 按钮排序值，数值越小越靠前。
-    sort: 6

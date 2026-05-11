@@ -813,7 +813,7 @@
       "tenant": {
         "provisioning": {
           "policy": {
-            "invalid": "Plugin {pluginId} must be tenant_aware and tenant_scoped before it can be auto-enabled for new tenants"
+            "invalid": "Plugin {pluginId} must support multi-tenant governance and be installed in tenant_scoped mode before it can be auto-enabled for new tenants"
           }
         }
       }

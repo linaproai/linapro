@@ -37,7 +37,7 @@ var (
 	// CodePluginTenantProvisioningPolicyInvalid reports that a new-tenant provisioning policy cannot apply to the plugin.
 	CodePluginTenantProvisioningPolicyInvalid = bizerr.MustDefine(
 		"PLUGIN_TENANT_PROVISIONING_POLICY_INVALID",
-		"Plugin {pluginId} must be tenant_aware and tenant_scoped before it can be auto-enabled for new tenants",
+		"Plugin {pluginId} must support multi-tenant governance and be installed in tenant_scoped mode before it can be auto-enabled for new tenants",
 		gcode.CodeInvalidParameter,
 	)
 	// CodePluginSourceManifestRequired reports that a source-plugin manifest is required.
@@ -210,6 +210,15 @@ var (
 	CodePluginForceUninstallDisabled = bizerr.MustDefine(
 		"PLUGIN_FORCE_UNINSTALL_DISABLED",
 		"Force uninstall is disabled by plugin.allowForceUninstall",
+		gcode.CodeInvalidOperation,
+	)
+	// CodePluginDynamicArtifactMissingForUninstall reports that a dynamic
+	// plugin cannot run a full uninstall because both staged and active release
+	// artifacts are missing. Operators may use force uninstall to clear only
+	// host governance state.
+	CodePluginDynamicArtifactMissingForUninstall = bizerr.MustDefine(
+		"PLUGIN_DYNAMIC_ARTIFACT_MISSING_FOR_UNINSTALL",
+		"Dynamic plugin {pluginId} cannot run full uninstall because its wasm artifact is missing. Use force uninstall to clear host governance only",
 		gcode.CodeInvalidOperation,
 	)
 	// CodePluginStartupConsistencyFailed reports invalid persisted plugin or tenant-governance startup state.

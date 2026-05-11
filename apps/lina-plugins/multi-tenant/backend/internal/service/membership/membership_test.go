@@ -8,19 +8,33 @@ import (
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/pkg/bizerr"
 	_ "lina-core/pkg/dbdriver"
+	"lina-core/pkg/pluginservice/bizctx"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 	"lina-plugin-multi-tenant/backend/internal/model/do"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
 )
 
-// testBizContext carries the tenant field exposed through pluginservice/bizctx.
-type testBizContext struct {
-	TenantId int
-	UserId   int
+// membershipTestBizCtxService returns a fixed business context snapshot for
+// membership tests that need tenant-scoped behavior.
+type membershipTestBizCtxService struct {
+	current bizctx.CurrentContext
+}
+
+// Current returns the configured test business context snapshot.
+func (s membershipTestBizCtxService) Current(context.Context) bizctx.CurrentContext {
+	return s.current
+}
+
+// membershipTestService creates a membership service with an explicit request
+// context snapshot, avoiding host-internal context-key dependencies in plugin tests.
+func membershipTestService(tenantID int, userID int) Service {
+	return &serviceImpl{bizCtxSvc: membershipTestBizCtxService{current: bizctx.CurrentContext{
+		TenantID: tenantID,
+		UserID:   userID,
+	}}}
 }
 
 // TestListCountsWithoutProjectedColumns verifies the member list count query
@@ -119,8 +133,7 @@ func TestListUsesCurrentTenantOverRequestedTenant(t *testing.T) {
 	insertMembershipTestRow(t, ctx, userAID, tenantAID)
 	insertMembershipTestRow(t, ctx, userBID, tenantBID)
 
-	tenantCtx := context.WithValue(ctx, gctx.StrKey("BizCtx"), &testBizContext{TenantId: int(tenantAID)})
-	out, err := New().List(tenantCtx, ListInput{
+	out, err := membershipTestService(int(tenantAID), 0).List(ctx, ListInput{
 		PageNum:  1,
 		PageSize: 10,
 		TenantID: tenantBID,
@@ -211,8 +224,7 @@ func TestUpdateRejectsOtherTenantMembership(t *testing.T) {
 
 	membershipBID := insertMembershipTestRow(t, ctx, userBID, tenantBID)
 	statusDisabled := shared.MembershipStatusDisabled
-	tenantCtx := context.WithValue(ctx, gctx.StrKey("BizCtx"), &testBizContext{TenantId: int(tenantAID), UserId: 99001})
-	err := New().Update(tenantCtx, UpdateInput{Id: membershipBID, Status: &statusDisabled})
+	err := membershipTestService(int(tenantAID), 99001).Update(ctx, UpdateInput{Id: membershipBID, Status: &statusDisabled})
 	if !bizerr.Is(err, CodeMembershipNotFound) {
 		t.Fatalf("expected cross-tenant update to be hidden as not found, got %v", err)
 	}
@@ -253,8 +265,7 @@ func TestRemoveRejectsOtherTenantMembership(t *testing.T) {
 	})
 
 	membershipBID := insertMembershipTestRow(t, ctx, userBID, tenantBID)
-	tenantCtx := context.WithValue(ctx, gctx.StrKey("BizCtx"), &testBizContext{TenantId: int(tenantAID), UserId: 99002})
-	err := New().Remove(tenantCtx, membershipBID)
+	err := membershipTestService(int(tenantAID), 99002).Remove(ctx, membershipBID)
 	if !bizerr.Is(err, CodeMembershipNotFound) {
 		t.Fatalf("expected cross-tenant remove to be hidden as not found, got %v", err)
 	}
@@ -347,8 +358,7 @@ func TestCurrentUsesContextIdentity(t *testing.T) {
 	membershipAID := insertMembershipTestRow(t, ctx, userAID, tenantAID)
 	insertMembershipTestRow(t, ctx, userBID, tenantBID)
 
-	tenantCtx := context.WithValue(ctx, gctx.StrKey("BizCtx"), &testBizContext{TenantId: int(tenantAID), UserId: int(userAID)})
-	item, err := New().Current(tenantCtx)
+	item, err := membershipTestService(int(tenantAID), int(userAID)).Current(ctx)
 	if err != nil {
 		t.Fatalf("current membership lookup failed: %v", err)
 	}

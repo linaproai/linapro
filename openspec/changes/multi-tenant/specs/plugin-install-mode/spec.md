@@ -30,7 +30,7 @@
 - **AND** 强制写入 `install_mode = global`
 
 ### Requirement: 新租户自动启用策略
-`tenant_aware` 插件不得通过 plugin.yaml 声明新租户默认启用策略;平台插件系统 SHALL 通过 `sys_plugin.auto_enable_for_new_tenants` 维护该策略。当插件已安装、宿主层已启用、`install_mode = tenant_scoped` 且 `auto_enable_for_new_tenants = true` 时,系统 SHALL 在新租户创建时自动初始化 `sys_plugin_state(tenant_id=新租户, state_key='__tenant_enabled__', enabled=true)`。
+`tenant_aware` 插件不得通过 plugin.yaml 声明新租户默认启用策略;平台插件系统 SHALL 通过 `sys_plugin.auto_enable_for_new_tenants` 维护该策略。当插件声明 `supports_multi_tenant=true`、已安装、宿主层已启用、`install_mode = tenant_scoped` 且 `auto_enable_for_new_tenants = true` 时,系统 SHALL 在新租户创建时自动初始化 `sys_plugin_state(tenant_id=新租户, state_key='__tenant_enabled__', enabled=true)`。
 
 #### Scenario: 平台策略控制新租户默认启用
 - **WHEN** `content-notice` 安装为 `tenant_scoped` 模式且宿主层已启用

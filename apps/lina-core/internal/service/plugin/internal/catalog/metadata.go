@@ -214,6 +214,7 @@ type ManifestSnapshot struct {
 	Version                   string                          `yaml:"version"`
 	Type                      string                          `yaml:"type"`
 	ScopeNature               string                          `yaml:"scopeNature,omitempty"`
+	SupportsMultiTenant       bool                            `yaml:"supportsMultiTenant,omitempty"`
 	DefaultInstallMode        string                          `yaml:"defaultInstallMode,omitempty"`
 	Description               string                          `yaml:"description,omitempty"`
 	Author                    string                          `yaml:"author,omitempty"`

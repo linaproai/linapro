@@ -23,9 +23,14 @@ export class UserPage {
     return this.page
       .locator('[role="dialog"]')
       .filter({
-        has: this.page.getByPlaceholder(/请输入用户名|username/i),
+        has: this.page.getByPlaceholder(/请输入(?:账号|用户名)|account|username/i),
       })
       .last();
+  }
+
+  /** User drawer account input. */
+  private get drawerAccountInput() {
+    return this.drawer.getByPlaceholder(/请输入(?:账号|用户名)|account|username/i);
   }
 
   /** Username search input in the list filter form. */
@@ -51,7 +56,7 @@ export class UserPage {
   private async waitForDrawerReady(expectedUsername: string) {
     await waitForDialogReady(this.drawer);
 
-    const usernameInput = this.drawer.getByPlaceholder("请输入用户名");
+    const usernameInput = this.drawerAccountInput;
     await usernameInput.waitFor({ state: "visible", timeout: 10000 });
     await expect(usernameInput).toHaveValue(expectedUsername, {
       timeout: 10000,
@@ -106,7 +111,7 @@ export class UserPage {
     await this.waitForDrawerReady("");
 
     // Fill form fields scoped to the drawer to avoid conflict with the search form
-    await this.drawer.getByPlaceholder("请输入用户名").fill(username);
+    await this.drawerAccountInput.fill(username);
     await this.drawer.getByPlaceholder("请输入密码").fill(password);
     if (nickname) {
       await this.drawer.getByPlaceholder("请输入昵称").fill(nickname);
@@ -455,7 +460,7 @@ export class UserPage {
     await this.page.getByRole("button", { name: /新\s*增/ }).click();
     await this.waitForDrawerReady("");
 
-    await this.drawer.getByPlaceholder("请输入用户名").fill(username);
+    await this.drawerAccountInput.fill(username);
     await this.drawer.getByPlaceholder("请输入密码").fill(password);
     await this.drawer.getByPlaceholder("请输入昵称").fill(nickname);
 

@@ -36,4 +36,4 @@
 
 ## 插件治理
 
-本插件使用`platform_only`和`global`，因为它自身承载租户控制面。租户感知业务插件应使用`scope_nature: tenant_aware`，并按需要选择`global`或`tenant_scoped`安装模式。
+本插件使用`platform_only`、`supports_multi_tenant: false`和`global`，因为它自身承载租户控制面。租户感知业务插件应使用`scope_nature: tenant_aware`，在支持租户级治理时声明`supports_multi_tenant: true`，并按需要选择`global`或`tenant_scoped`安装模式。

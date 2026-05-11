@@ -57,6 +57,9 @@ func (s *serviceImpl) ValidateManifest(manifest *Manifest, filePath string) erro
 	if !IsSupportedType(manifest.Type) {
 		return gerror.Newf("plugin type only supports source/dynamic: %s", fileLabel)
 	}
+	if err := s.hydrateManifestTenantGovernanceFromFile(manifest, filePath); err != nil {
+		return gerror.Wrapf(err, "plugin tenant governance metadata cannot be loaded: %s", fileLabel)
+	}
 	if err := normalizeManifestTenantGovernance(manifest); err != nil {
 		return gerror.Wrapf(err, "plugin tenant governance metadata is invalid: %s", fileLabel)
 	}
@@ -144,11 +147,42 @@ func (s *serviceImpl) ValidateUploadedRuntimeManifest(manifest *Manifest) error 
 	return ValidateManifestMenus(manifest)
 }
 
+// hydrateManifestTenantGovernanceFromFile fills governance fields from the
+// authoring manifest when tests or callers pass a partial in-memory object.
+func (s *serviceImpl) hydrateManifestTenantGovernanceFromFile(manifest *Manifest, filePath string) error {
+	if manifest == nil || manifest.RuntimeArtifact != nil {
+		return nil
+	}
+	filePath = strings.TrimSpace(filePath)
+	if filePath == "" || strings.Contains(filePath, "://") || !gfile.Exists(filePath) {
+		return nil
+	}
+	fileManifest := &Manifest{}
+	if err := s.LoadManifestFromYAML(filePath, fileManifest); err != nil {
+		return err
+	}
+	if strings.TrimSpace(manifest.ScopeNature) == "" {
+		manifest.ScopeNature = fileManifest.ScopeNature
+	}
+	if manifest.SupportsMultiTenant == nil {
+		manifest.SupportsMultiTenant = fileManifest.SupportsMultiTenant
+	}
+	if strings.TrimSpace(manifest.DefaultInstallMode) == "" {
+		manifest.DefaultInstallMode = fileManifest.DefaultInstallMode
+	}
+	return nil
+}
+
 // normalizeManifestTenantGovernance validates and normalizes the tenant
 // governance fields carried by plugin.yaml.
 func normalizeManifestTenantGovernance(manifest *Manifest) error {
 	if manifest == nil {
 		return nil
+	}
+	if manifest.RuntimeArtifact != nil && manifest.RuntimeArtifact.Manifest != nil {
+		manifest.ScopeNature = strings.TrimSpace(manifest.RuntimeArtifact.Manifest.ScopeNature)
+		manifest.SupportsMultiTenant = manifest.RuntimeArtifact.Manifest.SupportsMultiTenant
+		manifest.DefaultInstallMode = strings.TrimSpace(manifest.RuntimeArtifact.Manifest.DefaultInstallMode)
 	}
 	scope := strings.TrimSpace(manifest.ScopeNature)
 	if scope == "" {
@@ -158,8 +192,19 @@ func normalizeManifestTenantGovernance(manifest *Manifest) error {
 	}
 	manifest.ScopeNature = NormalizeScopeNature(scope).String()
 
+	if manifest.SupportsMultiTenant == nil {
+		return gerror.New("supports_multi_tenant is required")
+	}
+	if manifest.ScopeNature == ScopeNaturePlatformOnly.String() && *manifest.SupportsMultiTenant {
+		return gerror.New("supports_multi_tenant cannot be true when scope_nature is platform_only")
+	}
+
 	mode := strings.TrimSpace(manifest.DefaultInstallMode)
 	if manifest.ScopeNature == ScopeNaturePlatformOnly.String() {
+		manifest.DefaultInstallMode = InstallModeGlobal.String()
+		return nil
+	}
+	if !*manifest.SupportsMultiTenant {
 		manifest.DefaultInstallMode = InstallModeGlobal.String()
 		return nil
 	}

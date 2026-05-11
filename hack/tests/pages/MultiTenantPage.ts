@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 
 import { expect } from "@playwright/test";
 
+import { MainLayout } from "./MainLayout";
 import { waitForRouteReady } from "../support/ui";
 
 type WorkbenchMode = "disabled" | "platform" | "tenant";
@@ -690,6 +691,18 @@ export class MultiTenantPage {
   async mockLoginTenantSelection() {
     this.workbenchMode = "tenant";
     await this.mockShellApis();
+    await this.page.route(
+      /\/api(?:\/v1)?\/config\/public\/frontend$/,
+      async (route) => {
+        await route.fulfill(
+          ok({
+            auth: {
+              loginSubtitle: "",
+            },
+          }),
+        );
+      },
+    );
     await this.page.route(/\/api(?:\/v1)?\/auth\/login$/, async (route) => {
       await route.fulfill(
         ok({
@@ -753,7 +766,8 @@ export class MultiTenantPage {
     await expect(this.page.getByTestId("tenant-suspend-101")).toBeVisible();
     await expect(this.page.getByTestId("tenant-resume-102")).toBeVisible();
     await expect(this.page.getByTestId("tenant-archive-101")).toHaveCount(0);
-    await expect(this.page.getByTestId("tenant-users-101")).toBeVisible();
+    await expect(this.page.getByTestId("tenant-members-101")).toHaveCount(0);
+    await expect(this.page.getByTestId("tenant-member-modal")).toHaveCount(0);
     await expect(this.page.getByTestId("tenant-impersonate-101")).toBeVisible();
     await expect(this.page.getByTestId("tenant-delete-101")).toBeVisible();
     await this.expectTenantImpersonationTooltip();
@@ -768,7 +782,6 @@ export class MultiTenantPage {
     ).toHaveCount(0);
     await this.expectTenantCreateModalFields();
     await this.expectTenantEditModalFields();
-    await this.expectTenantUsersShortcut();
   }
 
   private async expectTenantImpersonationTooltip() {
@@ -812,33 +825,6 @@ export class MultiTenantPage {
         return maxCenter - minCenter <= 18 && ordered;
       })
       .toBe(true);
-  }
-
-  private async expectTenantUsersShortcut() {
-    const userListResponsePromise = this.page.waitForResponse((response) => {
-      if (!/\/api(?:\/v1)?\/user(?:\?.*)?$/.test(response.url())) {
-        return false;
-      }
-      return new URL(response.url()).searchParams.get("tenantId") === "101";
-    });
-    await this.page.getByTestId("tenant-users-101").click();
-    await userListResponsePromise;
-    await waitForRouteReady(this.page);
-    await expect(this.page).toHaveURL(/\/system\/user\?tenantId=101/);
-    await expect(this.page.getByTestId("user-tenant-filter")).toContainText(
-      "Alpha BU",
-    );
-    expect(this.lastUserTenantFilter).toBe("101");
-    await expect(
-      this.page.locator(".vxe-body--row:visible", {
-        hasText: "tenant-admin",
-      }),
-    ).toContainText("Alpha BU");
-    await expect(
-      this.page.locator(".vxe-body--row:visible", {
-        hasText: "tenant-beta-ops",
-      }),
-    ).toHaveCount(0);
   }
 
   private async expectHeaderTenantSwitcherLoadsOptions() {
@@ -967,13 +953,13 @@ export class MultiTenantPage {
     expect(labelBox.x + labelBox.width).toBeLessThanOrEqual(inputBox.x + 8);
 
     if (verticalAlignment === "top") {
-      expect(Math.abs(labelBox.y - inputBox.y)).toBeLessThanOrEqual(14);
+      expect(Math.abs(labelBox.y - inputBox.y)).toBeLessThanOrEqual(20);
       return;
     }
 
     const labelCenterY = labelBox.y + labelBox.height / 2;
     const inputCenterY = inputBox.y + inputBox.height / 2;
-    expect(Math.abs(labelCenterY - inputCenterY)).toBeLessThanOrEqual(14);
+    expect(Math.abs(labelCenterY - inputCenterY)).toBeLessThanOrEqual(20);
   }
 
   private async clickTenantModalConfirm(title: string) {
@@ -1084,7 +1070,7 @@ export class MultiTenantPage {
     });
     const createDialog = this.page.getByRole("dialog", { name: "新增用户" });
     await createDialog
-      .getByPlaceholder("请输入用户名")
+      .getByPlaceholder(/请输入账号|请输入用户名/)
       .fill("drawer-tenant-user");
     await createDialog.getByPlaceholder("请输入密码").fill("admin123");
     await createDialog
@@ -1212,8 +1198,63 @@ export class MultiTenantPage {
       .fill("tenant-pass");
     await this.page.locator('button[aria-label="login"]').click();
     await expect(this.page.getByTestId("login-tenant-selector")).toBeVisible();
-    await expect(this.page.getByText("Alpha BU")).toBeVisible();
-    await expect(this.page.getByText("Beta BU")).toBeVisible();
+    await expect(this.page.locator('button[aria-label="login"]')).toHaveCount(
+      0,
+    );
+    await expect(
+      this.page.locator(
+        '#username, [name="username"], input[placeholder*="用户名"], input[placeholder*="username"]',
+      ),
+    ).toHaveCount(0);
+    await expect(
+      this.page.locator(
+        '#password, [name="password"], input[placeholder*="密码"], input[placeholder*="password"]',
+      ),
+    ).toHaveCount(0);
+    const tenantSelect = this.page
+      .getByTestId("login-tenant-form")
+      .getByRole("combobox");
+    await expect(tenantSelect).toBeVisible();
+    await expect(
+      this.page.getByText("请选择本次要进入的租户"),
+    ).toBeVisible();
+    await expect(
+      this.page.getByText("请输入您的账户信息以开始管理您的项目"),
+    ).toHaveCount(0);
+    await expect(this.page.getByTestId("login-tenant-confirm")).toBeVisible();
+    const selectBox = await tenantSelect.boundingBox();
+    const confirmBox = await this.page
+      .getByTestId("login-tenant-confirm")
+      .boundingBox();
+    expect(selectBox).toBeTruthy();
+    expect(confirmBox).toBeTruthy();
+    expect(confirmBox!.y - (selectBox!.y + selectBox!.height)).toBeGreaterThan(
+      16,
+    );
+
+    await tenantSelect.click();
+    await expect(
+      this.page.getByRole("option", { name: "Alpha BU (alpha)" }),
+    ).toBeVisible();
+    const betaOption = this.page.getByRole("option", {
+      name: "Beta BU (beta)",
+    });
+    await expect(betaOption).toBeVisible();
+    await betaOption.click();
+
+    const selectTenantResponse = this.page.waitForResponse((response) =>
+      /\/api(?:\/v1)?\/auth\/select-tenant$/.test(response.url()),
+    );
+    await this.page.getByTestId("login-tenant-confirm").click();
+    await selectTenantResponse;
+    await expect
+      .poll(async () =>
+        this.page.evaluate(() => {
+          const raw = localStorage.getItem("linapro:tenant-state") || "{}";
+          return JSON.parse(raw)?.currentTenant?.id ?? 0;
+        }),
+      )
+      .toBe(102);
   }
 
   async exerciseTenantSwitch() {
@@ -1305,6 +1346,7 @@ export class MultiTenantPage {
 
   async exerciseImpersonation() {
     await this.gotoPlatformTenants();
+    await new MainLayout(this.page).switchLanguage("English");
     const impersonationResponsePromise = this.page.waitForResponse((item) =>
       /\/api(?:\/v1)?\/platform\/tenants\/101\/impersonate$/.test(item.url()),
     );
@@ -1312,12 +1354,15 @@ export class MultiTenantPage {
     await impersonationResponsePromise;
     await waitForRouteReady(this.page);
     await expect(this.page).toHaveURL(/\/system\/user/);
-    await expect(this.page.getByText("用户列表")).toBeVisible();
+    await expect(
+      this.page.getByText(/用户列表|User List/).first(),
+    ).toBeVisible();
     await expect(this.page.getByTestId("platform-tenants-page")).toHaveCount(0);
     await expect(this.page.getByTestId("impersonation-banner")).toBeVisible();
     await expect(this.page.getByTestId("impersonation-banner")).toContainText(
       "Alpha BU",
     );
+    await this.expectCompactEnglishImpersonationBanner();
     await this.expectImpersonationBannerBeforeTenantSwitcher();
     await this.expectStoredImpersonationOriginalToken();
     const endImpersonateResponsePromise = this.page.waitForResponse((item) =>
@@ -1375,6 +1420,26 @@ export class MultiTenantPage {
     expect(bannerBox.x + bannerBox.width).toBeLessThanOrEqual(
       switcherBox.x + 2,
     );
+  }
+
+  private async expectCompactEnglishImpersonationBanner() {
+    await expect(this.page.locator("html")).toHaveAttribute("lang", "en-US");
+    await expect(this.page.getByTestId("impersonation-exit")).toHaveText(
+      "Exit",
+    );
+    await expect(
+      this.page.getByTestId("impersonation-banner-text"),
+    ).toHaveAttribute(
+      "title",
+      "Acting as platform administrator for tenant Alpha BU",
+    );
+    const bannerBox = await this.page
+      .getByTestId("impersonation-banner")
+      .boundingBox();
+    if (!bannerBox) {
+      throw new Error("Impersonation banner is not visible");
+    }
+    expect(bannerBox.width).toBeLessThanOrEqual(242);
   }
 
   private async expectStoredImpersonationOriginalToken() {

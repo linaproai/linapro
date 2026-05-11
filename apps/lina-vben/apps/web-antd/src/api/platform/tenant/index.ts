@@ -1,7 +1,5 @@
 import type {
   PlatformTenant,
-  PlatformTenantMember,
-  PlatformTenantMemberListParams,
   PlatformTenantListParams,
   TenantImpersonationResult,
 } from './model';
@@ -13,16 +11,6 @@ export async function platformTenantList(params?: PlatformTenantListParams) {
     list: PlatformTenant[];
     total: number;
   }>('/platform/tenants', { params });
-  return { items: res.list, total: res.total };
-}
-
-export async function platformTenantMemberList(
-  params?: PlatformTenantMemberListParams,
-) {
-  const res = await requestClient.get<{
-    list: PlatformTenantMember[];
-    total: number;
-  }>('/platform/tenant-members', { params });
   return { items: res.list, total: res.total };
 }
 

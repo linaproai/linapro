@@ -116,6 +116,26 @@ func TestApplyInstallModeSelectionPersistsExplicitTenantAwareMode(t *testing.T) 
 	}
 }
 
+// TestApplyInstallModeSelectionRejectsUnsupportedTenantScoped verifies explicit
+// manifest opt-out from tenant governance also rejects tenant-scoped install.
+func TestApplyInstallModeSelectionRejectsUnsupportedTenantScoped(t *testing.T) {
+	supportsMultiTenant := false
+	manifest := &catalog.Manifest{
+		ID:                  "plugin-tenant-unsupported-install-mode",
+		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  catalog.InstallModeGlobal.String(),
+	}
+
+	err := applyInstallModeSelection(manifest, catalog.InstallModeTenantScoped.String())
+	if !bizerr.Is(err, CodePluginInstallModeInvalidForScopeNature) {
+		t.Fatalf("expected unsupported tenant-scoped install mode bizerr, got %v", err)
+	}
+	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+		t.Fatalf("expected unsupported tenant governance to keep global install mode, got %s", manifest.DefaultInstallMode)
+	}
+}
+
 // TestInstallPersistsExplicitDynamicInstallMode verifies dynamic install does
 // not let the runtime lifecycle's manifest reload reset the operator selection.
 func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
@@ -157,6 +177,236 @@ func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
 	if registry.InstallMode != catalog.InstallModeGlobal.String() {
 		t.Fatalf("expected explicit global install_mode to persist, got %s", registry.InstallMode)
 	}
+}
+
+// TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing verifies
+// uninstall relies on the active release archive instead of the mutable staging
+// artifact after a dynamic plugin has been installed.
+func TestUninstallDynamicUsesArchivedReleaseWhenStagingArtifactMissing(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-uninstall-missing-staging"
+		menuKey  = "plugin:plugin-dynamic-uninstall-missing-staging:entry"
+		version  = "v0.4.3"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	releaseRoot := filepath.Join(testutil.TestDynamicStorageDir(), "releases", pluginID)
+	if err := os.RemoveAll(releaseRoot); err != nil {
+		t.Fatalf("failed to clear release archive root: %v", err)
+	}
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if err := os.RemoveAll(releaseRoot); err != nil {
+			t.Fatalf("failed to cleanup release archive root: %v", err)
+		}
+	})
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
+		t,
+		pluginID,
+		"Dynamic Missing Staging Uninstall Plugin",
+		version,
+		[]*catalog.MenuSpec{
+			{
+				Key:   menuKey,
+				Name:  "Dynamic Missing Staging Uninstall Plugin",
+				Path:  "plugin-dynamic-uninstall-missing-staging",
+				Perms: "plugin-dynamic-uninstall-missing-staging:view",
+				Icon:  "ant-design:appstore-outlined",
+				Type:  catalog.MenuTypePage.String(),
+				Sort:  1,
+			},
+		},
+		nil,
+		nil,
+	)
+
+	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+	release, err := service.getPluginRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected dynamic plugin release lookup to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected dynamic plugin release row after install")
+	}
+	archivePath := resolveTestDynamicPackagePath(t, release.PackagePath)
+	if _, err = os.Stat(archivePath); err != nil {
+		t.Fatalf("expected active release archive to exist before staging removal: %v", err)
+	}
+	if err = os.Remove(artifactPath); err != nil {
+		t.Fatalf("failed to remove staging artifact: %v", err)
+	}
+
+	if err = service.Uninstall(ctx, pluginID); err != nil {
+		t.Fatalf("expected dynamic plugin uninstall to use archived release, got error: %v", err)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected plugin registry lookup after uninstall to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatalf("expected plugin registry row after uninstall")
+	}
+	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled || registry.ReleaseId != 0 {
+		t.Fatalf("expected dynamic plugin to be uninstalled+disabled with release cleared, got installed=%d enabled=%d releaseID=%d", registry.Installed, registry.Status, registry.ReleaseId)
+	}
+	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected plugin menu lookup after uninstall to succeed, got error: %v", err)
+	}
+	if menu != nil {
+		t.Fatalf("expected dynamic plugin menu to be removed after uninstall")
+	}
+}
+
+// TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing verifies force
+// uninstall can clear host governance when both staging and release artifacts
+// are unavailable.
+func TestUninstallForceClearsDynamicOrphanWhenArtifactsMissing(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-force-orphan-uninstall"
+		menuKey  = "plugin:plugin-dynamic-force-orphan-uninstall:entry"
+		version  = "v0.4.4"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	releaseRoot := filepath.Join(testutil.TestDynamicStorageDir(), "releases", pluginID)
+	if err := os.RemoveAll(releaseRoot); err != nil {
+		t.Fatalf("failed to clear release archive root: %v", err)
+	}
+	t.Cleanup(func() {
+		configsvc.SetPluginAllowForceUninstallOverride(nil)
+		testutil.CleanupPluginMenuRowsHard(t, ctx, pluginID)
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if err := os.RemoveAll(releaseRoot); err != nil {
+			t.Fatalf("failed to cleanup release archive root: %v", err)
+		}
+	})
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithMenus(
+		t,
+		pluginID,
+		"Dynamic Force Orphan Uninstall Plugin",
+		version,
+		[]*catalog.MenuSpec{
+			{
+				Key:   menuKey,
+				Name:  "Dynamic Force Orphan Uninstall Plugin",
+				Path:  "plugin-dynamic-force-orphan-uninstall",
+				Perms: "plugin-dynamic-force-orphan-uninstall:view",
+				Icon:  "ant-design:appstore-outlined",
+				Type:  catalog.MenuTypePage.String(),
+				Sort:  1,
+			},
+		},
+		nil,
+		nil,
+	)
+
+	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
+	}
+	release, err := service.getPluginRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected dynamic plugin release lookup to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected dynamic plugin release row after install")
+	}
+	archivePath := resolveTestDynamicPackagePath(t, release.PackagePath)
+	if err = os.Remove(artifactPath); err != nil {
+		t.Fatalf("failed to remove staging artifact: %v", err)
+	}
+	if err = os.Remove(archivePath); err != nil {
+		t.Fatalf("failed to remove active release artifact: %v", err)
+	}
+
+	resourceCount, err := dao.SysPluginResourceRef.Ctx(ctx).
+		Where(do.SysPluginResourceRef{PluginId: pluginID}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected governance resource count query to succeed, got error: %v", err)
+	}
+	if resourceCount == 0 {
+		t.Fatalf("expected installed dynamic plugin to materialize governance resource refs")
+	}
+
+	err = service.UninstallWithOptions(ctx, pluginID, UninstallOptions{PurgeStorageData: true})
+	if !bizerr.Is(err, CodePluginDynamicArtifactMissingForUninstall) {
+		t.Fatalf("expected missing-artifact uninstall bizerr, got %v", err)
+	}
+
+	enabled := true
+	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
+	if err = service.UninstallWithOptions(ctx, pluginID, UninstallOptions{
+		PurgeStorageData: true,
+		Force:            true,
+	}); err != nil {
+		t.Fatalf("expected force orphan uninstall to succeed, got error: %v", err)
+	}
+
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected plugin registry lookup after force uninstall to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatalf("expected plugin registry row after force uninstall")
+	}
+	if registry.Installed != catalog.InstalledNo || registry.Status != catalog.StatusDisabled || registry.ReleaseId != 0 {
+		t.Fatalf("expected force orphan uninstall to clear runtime state, got installed=%d enabled=%d releaseID=%d", registry.Installed, registry.Status, registry.ReleaseId)
+	}
+	if registry.DesiredState != catalog.HostStateUninstalled.String() || registry.CurrentState != catalog.HostStateUninstalled.String() {
+		t.Fatalf("expected force orphan uninstall to mark host states uninstalled, got desired=%s current=%s", registry.DesiredState, registry.CurrentState)
+	}
+
+	release, err = service.getPluginRelease(ctx, pluginID, version)
+	if err != nil {
+		t.Fatalf("expected dynamic plugin release lookup after force uninstall to succeed, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected dynamic plugin release row after force uninstall")
+	}
+	if release.Status != catalog.ReleaseStatusUninstalled.String() {
+		t.Fatalf("expected release to be marked uninstalled after force orphan uninstall, got %s", release.Status)
+	}
+
+	menu, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected plugin menu lookup after force uninstall to succeed, got error: %v", err)
+	}
+	if menu != nil {
+		t.Fatalf("expected force orphan uninstall to remove plugin menu")
+	}
+	resourceCount, err = dao.SysPluginResourceRef.Ctx(ctx).
+		Where(do.SysPluginResourceRef{PluginId: pluginID}).
+		Count()
+	if err != nil {
+		t.Fatalf("expected governance resource count query after force uninstall to succeed, got error: %v", err)
+	}
+	if resourceCount != 0 {
+		t.Fatalf("expected force orphan uninstall to clear governance resource refs, got count=%d", resourceCount)
+	}
+}
+
+// resolveTestDynamicPackagePath resolves a release package path inside the
+// shared dynamic-plugin test storage directory.
+func resolveTestDynamicPackagePath(t *testing.T, packagePath string) string {
+	t.Helper()
+
+	if filepath.IsAbs(packagePath) {
+		return filepath.Clean(packagePath)
+	}
+	return filepath.Join(testutil.TestDynamicStorageDir(), filepath.FromSlash(packagePath))
 }
 
 // TestDisableRunsLifecycleGuards verifies disable requests fail closed when a

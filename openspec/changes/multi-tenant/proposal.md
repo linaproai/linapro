@@ -7,7 +7,7 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 ## What Changes
 
 - **新增多租户能力接缝(host)**:在 `pkg/tenantcap` 与 `internal/service/tenantcap` 中建立稳定的 Provider 接缝,所有租户敏感业务表与租户作用域运行时状态表的 DAO 必须经过 `tenantcap.Apply` 注入 `tenant_id` 过滤,与既有 `datascope` 叠加。
-- **新增 `multi-tenant` 源码插件**:owns 租户主表、用户-租户成员表、租户配置覆盖表;实现 `tenantcap.Provider`、代码固定解析责任链(override/JWT/session/header/subdomain/default)、LifecycleGuard 前置校验与平台管理入口;租户成员关系统一在用户管理页面承载。
+- **新增 `multi-tenant` 源码插件**:owns 租户主表、用户-租户成员表、租户配置覆盖表;实现 `tenantcap.Provider`、代码固定解析责任链(override/JWT/session/header/subdomain/default)、LifecycleGuard 前置校验与平台管理入口;租户成员关系统一由系统用户管理页面承载。
 - **改造 `org-center` 插件为租户感知**:dept/post/user 关联表加 `tenant_id`,DAO 接入租户过滤,监听租户生命周期事件以初始化默认部门树并清理租户数据。
 - **schema 按职责加 `tenant_id` 列**:所有租户敏感业务表、租户作用域运行时状态表与现有插件业务表新增 `tenant_id INT NOT NULL DEFAULT 0`(0 = PLATFORM),并将对应查询索引升级为 `(tenant_id, ...)` 联合索引;平台控制面表保持全局唯一,不机械增加 `tenant_id`。
 - **bizctx 增加 `TenantId` 字段**:从中间件层注入,沿请求链路传递,所有日志、缓存、审计统一携带。
@@ -95,11 +95,11 @@ LinaPro 当前是单租户架构:`sys_*` 表无租户维度、用户角色全局
 ## Impact
 
 - **schema**:宿主租户敏感 `sys_*` 表结构按项目无历史负担策略直接合并回对应源建表 SQL;`sys_locker`、`sys_menu`、`sys_plugin`、`sys_plugin_release`、`sys_plugin_migration`、`sys_plugin_resource_ref`、`sys_plugin_node_state`、`sys_notify_channel` 等平台控制面或全局配置表不携带 `tenant_id`;`manifest/sql/016-multi-tenant-and-plugin-governance.sql` 仅保留本迭代新增的多租户 seed。
-- **新插件**:`apps/lina-plugins/multi-tenant/`,owns 租户主体、成员、配置覆盖与平台租户管理 UI;租户成员关系由宿主用户管理页面展示与管理。
+- **新插件**:`apps/lina-plugins/multi-tenant/`,owns 租户主体、成员、配置覆盖与平台租户管理 UI;租户成员关系由宿主用户管理页面展示与管理,平台租户列表不提供成员管理入口。
 - **现有插件改造**:`org-center` 全表加 `tenant_id` 并接入租户过滤;`monitor-loginlog` / `monitor-online` / `monitor-operlog` / `content-notice` / `demo-control` / `plugin-demo-source` / `plugin-demo-dynamic` 全部加 `tenant_id` 列并接入租户过滤;`monitor-server` 保持 `platform_only`。
 - **宿主代码**:新增 `pkg/tenantcap` 与 `internal/service/tenantcap`;`bizctx` 增字段;`auth` / `session` / `role` / `dict` / `sysconfig` / `file` / `notify` 消息与投递 / `usermsg` / `jobmgmt` / `jobhandler` / `jobmeta` / `online` / `cachecoord` / `kvcache` / `pluginruntimecache` / `plugin` 启用状态全面接入租户上下文;菜单目录、插件注册目录、插件发布迁移记录、分布式锁、通知通道配置保持平台全局。
 - **API**:新增 `/auth/login-tenants`(登录后挑选租户)、`/auth/switch-tenant`、`/platform/tenants/*`、`/platform/plugins/*` install_mode 选项、`/tenant/plugins/*` 启用禁用接口、`/tenant/members/*` 成员管理接口。所有现有接口的请求/响应保持兼容(租户从 ctx 注入,不暴露在 DTO 中)。
-- **前端**:登录页增加租户挑选器;工作台头部增加租户切换器;平台管理下新增"租户管理"页面;租户管理员通过"用户管理"维护本租户成员关系;不再提供独立"租户工作台"目录、平台"租户成员"菜单或租户侧成员/插件管理菜单。
+- **前端**:登录页增加租户挑选器;工作台头部增加租户切换器;平台管理下新增"租户管理"页面并仅承载租户本体操作;平台管理员和租户管理员均通过"用户管理"维护租户成员关系;不再提供独立"租户工作台"目录、平台"租户成员"菜单或租户侧成员/插件管理菜单。
 - **配置**:宿主 `config.template.yaml` 不包含 `tenant.*` 段;租户默认策略在代码中集中定义,不创建或读取运行时解析配置表。
 - **审计与可观察性**:操作日志、登录日志全面租户化;平台管理员 impersonation 双轨记录;否决钩子结果与 `--force` 操作单独审计。
 - **i18n**:新增租户管理、平台管理员、否决理由等 i18n key,zh-CN/en-US 双语完整覆盖。

@@ -13,6 +13,10 @@ const (
 	pluginTypeDynamic                = "dynamic"
 	pluginDynamicKindWasm            = pluginbridge.RuntimeKindWasm
 	pluginDynamicSupportedABIVersion = pluginbridge.SupportedABIVersion
+	pluginInstallModeGlobal          = "global"
+	pluginInstallModeTenantScoped    = "tenant_scoped"
+	pluginScopeNaturePlatformOnly    = "platform_only"
+	pluginScopeNatureTenantAware     = "tenant_aware"
 	defaultRuntimeOutputDir          = "temp/output"
 	runtimeWorkspaceDirName          = ".runtime"
 
@@ -46,24 +50,30 @@ type RuntimeBuildOutput struct {
 }
 
 type pluginManifest struct {
-	ID          string      `yaml:"id"`
-	Name        string      `yaml:"name"`
-	Version     string      `yaml:"version"`
-	Type        string      `yaml:"type"`
-	Description string      `yaml:"description"`
-	Menus       []*menuSpec `yaml:"menus"`
+	ID                  string      `yaml:"id"`
+	Name                string      `yaml:"name"`
+	Version             string      `yaml:"version"`
+	Type                string      `yaml:"type"`
+	ScopeNature         string      `yaml:"scope_nature"`
+	SupportsMultiTenant *bool       `yaml:"supports_multi_tenant"`
+	DefaultInstallMode  string      `yaml:"default_install_mode"`
+	Description         string      `yaml:"description"`
+	Menus               []*menuSpec `yaml:"menus"`
 	// Capabilities is kept only to reject deprecated author-side manifest input.
 	Capabilities []string                        `yaml:"capabilities"`
 	HostServices []*pluginbridge.HostServiceSpec `yaml:"hostServices"`
 }
 
 type dynamicArtifactManifest struct {
-	ID          string      `json:"id" yaml:"id"`
-	Name        string      `json:"name" yaml:"name"`
-	Version     string      `json:"version" yaml:"version"`
-	Type        string      `json:"type" yaml:"type"`
-	Description string      `json:"description,omitempty" yaml:"description,omitempty"`
-	Menus       []*menuSpec `json:"menus,omitempty" yaml:"menus,omitempty"`
+	ID                  string      `json:"id" yaml:"id"`
+	Name                string      `json:"name" yaml:"name"`
+	Version             string      `json:"version" yaml:"version"`
+	Type                string      `json:"type" yaml:"type"`
+	ScopeNature         string      `json:"scopeNature,omitempty" yaml:"scopeNature,omitempty"`
+	SupportsMultiTenant *bool       `json:"supportsMultiTenant,omitempty" yaml:"supportsMultiTenant,omitempty"`
+	DefaultInstallMode  string      `json:"defaultInstallMode,omitempty" yaml:"defaultInstallMode,omitempty"`
+	Description         string      `json:"description,omitempty" yaml:"description,omitempty"`
+	Menus               []*menuSpec `json:"menus,omitempty" yaml:"menus,omitempty"`
 }
 
 type dynamicArtifactMetadata = pluginbridge.RuntimeArtifactMetadata

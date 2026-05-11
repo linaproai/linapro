@@ -137,6 +137,8 @@ func (s *serviceImpl) ParseRuntimeWasmArtifactContent(filePath string, content [
 		strings.TrimSpace(embeddedManifest.Type) == "" {
 		return nil, gerror.Newf("Dynamic plugin embedded manifest is missing required fields: %s", filePath)
 	}
+	embeddedManifest.ScopeNature = strings.TrimSpace(embeddedManifest.ScopeNature)
+	embeddedManifest.DefaultInstallMode = strings.TrimSpace(embeddedManifest.DefaultInstallMode)
 
 	runtimeMetadata := &bridgeartifact.RuntimeArtifactMetadata{}
 	if err = unmarshalRuntimeArtifactSection(runtimeSection, runtimeMetadata); err != nil {

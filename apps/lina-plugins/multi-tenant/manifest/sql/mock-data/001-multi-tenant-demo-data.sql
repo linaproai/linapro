@@ -82,12 +82,12 @@ WHERE 1 = 1
 ON CONFLICT ("username") DO NOTHING;
 
 -- Mock data: user-to-tenant memberships for tenant switching, cross-tenant
--- visibility, and suspended-member scenarios. tenant_alpha_ops is intentionally
--- a member of beta-manufacturing too, so list and switch tests can verify a
--- multi-tenant user.
+-- visibility, and suspended-member scenarios. Several scenario users are
+-- intentionally active in multiple tenants so list, switch, and permission
+-- tests can verify realistic multi-tenant users.
 -- 模拟数据：用户与租户成员关系，用于租户切换、跨租户可见性和暂停成员场景。
--- tenant_alpha_ops 特意同时加入 beta-manufacturing，以便测试多租户用户的
--- 列表与切换行为。
+-- 多个场景用户特意同时加入多个租户，以便列表、切换和权限测试覆盖更真实的
+-- 多租户用户。
 WITH v("username", "tenant_code", "status", "joined_at") AS (
     VALUES
         ('tenant_alpha_admin', 'alpha-retail', 1, '2026-05-01 11:00:00'),
@@ -96,8 +96,13 @@ WITH v("username", "tenant_code", "status", "joined_at") AS (
         ('tenant_beta_auditor', 'beta-manufacturing', 1, '2026-05-01 11:15:00'),
         ('tenant_gamma_admin', 'gamma-sandbox', 0, '2026-05-01 11:20:00'),
         ('tenant_alpha_ops', 'beta-manufacturing', 1, '2026-05-03 09:00:00'),
+        ('tenant_alpha_ops', 'one-click-triple-media', 1, '2026-05-03 09:10:00'),
+        ('tenant_beta_auditor', 'alpha-retail', 1, '2026-05-03 09:20:00'),
         ('tenant_one_click_triple_media_user', 'one-click-triple-media', 1, '2026-05-01 11:25:00'),
+        ('tenant_one_click_triple_media_user', 'alpha-retail', 1, '2026-05-03 09:30:00'),
+        ('tenant_one_click_triple_media_user', 'cyber-wellness-health', 1, '2026-05-03 09:40:00'),
         ('tenant_cyber_wellness_health_user', 'cyber-wellness-health', 1, '2026-05-01 11:30:00'),
+        ('tenant_cyber_wellness_health_user', 'beta-manufacturing', 1, '2026-05-03 09:50:00'),
         ('tenant_clock_in_on_time_hr_user', 'clock-in-on-time-hr', 1, '2026-05-01 11:35:00'),
         ('tenant_crazy_thursday_catering_user', 'crazy-thursday-catering', 1, '2026-05-01 11:40:00'),
         ('tenant_deal_hunter_trading_user', 'deal-hunter-trading', 1, '2026-05-01 11:45:00'),
@@ -215,21 +220,47 @@ ON CONFLICT DO NOTHING;
 INSERT INTO sys_role_menu ("tenant_id", "role_id", "menu_id")
 SELECT r."tenant_id", r."id", m."id"
 FROM sys_role r
-JOIN sys_menu m ON m."perms" IN ('system:tenant:member:list', 'system:tenant:member:query', 'system:tenant:plugin:list', 'system:user:list', 'system:user:query')
+JOIN sys_menu m ON m."perms" IN (
+    'system:tenant:member:list',
+    'system:tenant:plugin:list',
+    'system:user:list',
+    'system:user:query',
+    'system:role:list',
+    'system:role:query',
+    'system:dict:list',
+    'system:dict:query',
+    'system:config:list',
+    'system:config:query',
+    'system:file:list',
+    'system:file:query'
+)
 WHERE r."key" IN ('tenant-alpha-admin', 'tenant-beta-admin', 'tenant-gamma-admin')
 ON CONFLICT DO NOTHING;
 
 -- Mock data: grant operational and auditor roles read-oriented member and user
--- permissions so tenant data-scope differences are visible in demos. Demo-list
--- tenant user roles also get the same read-oriented user permissions so each
--- active mock tenant can open the user list after login.
+-- permissions plus several shared management menus so tenant data-scope and
+-- permission differences are visible in demos. Demo-list tenant user roles also
+-- get the same read-oriented permissions so each active mock tenant can open
+-- several menus after login.
 -- 模拟数据：为运营和审计角色授予偏只读的成员与用户权限，使演示中可以看到
--- 不同租户数据权限的差异。列表演示租户用户角色也授予同样偏只读的用户权限,
--- 以便每个活跃 mock 租户登录后都能打开用户列表。
+-- 不同租户数据权限的差异，并补充多个共享管理菜单权限。列表演示租户用户角色
+-- 也授予同样偏只读的权限，以便每个活跃 mock 租户登录后都能打开多个菜单。
 INSERT INTO sys_role_menu ("tenant_id", "role_id", "menu_id")
 SELECT r."tenant_id", r."id", m."id"
 FROM sys_role r
-JOIN sys_menu m ON m."perms" IN ('system:tenant:member:list', 'system:tenant:member:query', 'system:user:list', 'system:user:query')
+JOIN sys_menu m ON m."perms" IN (
+    'system:tenant:member:list',
+    'system:user:list',
+    'system:user:query',
+    'system:role:list',
+    'system:role:query',
+    'system:dict:list',
+    'system:dict:query',
+    'system:config:list',
+    'system:config:query',
+    'system:file:list',
+    'system:file:query'
+)
 WHERE r."key" IN (
     'tenant-alpha-ops',
     'tenant-beta-auditor',
@@ -258,11 +289,16 @@ WITH v("username", "role_key") AS (
         ('tenant_alpha_admin', 'tenant-alpha-admin'),
         ('tenant_alpha_ops', 'tenant-alpha-ops'),
         ('tenant_alpha_ops', 'tenant-beta-auditor'),
+        ('tenant_alpha_ops', 'tenant-one-click-triple-media-user'),
         ('tenant_beta_admin', 'tenant-beta-admin'),
         ('tenant_beta_auditor', 'tenant-beta-auditor'),
+        ('tenant_beta_auditor', 'tenant-alpha-ops'),
         ('tenant_gamma_admin', 'tenant-gamma-admin'),
         ('tenant_one_click_triple_media_user', 'tenant-one-click-triple-media-user'),
+        ('tenant_one_click_triple_media_user', 'tenant-alpha-ops'),
+        ('tenant_one_click_triple_media_user', 'tenant-cyber-wellness-health-user'),
         ('tenant_cyber_wellness_health_user', 'tenant-cyber-wellness-health-user'),
+        ('tenant_cyber_wellness_health_user', 'tenant-beta-auditor'),
         ('tenant_clock_in_on_time_hr_user', 'tenant-clock-in-on-time-hr-user'),
         ('tenant_crazy_thursday_catering_user', 'tenant-crazy-thursday-catering-user'),
         ('tenant_deal_hunter_trading_user', 'tenant-deal-hunter-trading-user'),

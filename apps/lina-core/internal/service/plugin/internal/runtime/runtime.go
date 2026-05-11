@@ -186,6 +186,9 @@ type Service interface {
 	// UninstallWithOptions executes uninstall lifecycle for an installed dynamic
 	// plugin using one explicit cleanup policy snapshot.
 	UninstallWithOptions(ctx context.Context, pluginID string, purgeStorageData bool) error
+	// ForceUninstallMissingArtifact clears host governance for an installed
+	// dynamic plugin whose staging and active release artifacts are unavailable.
+	ForceUninstallMissingArtifact(ctx context.Context, registry *entity.SysPlugin) error
 	// HasArtifactStorageFile is the exported form of hasArtifactStorageFile for cross-package access.
 	HasArtifactStorageFile(ctx context.Context, pluginID string) (bool, string, error)
 	// LoadActiveDynamicPluginManifest implements catalog.DynamicManifestLoader.

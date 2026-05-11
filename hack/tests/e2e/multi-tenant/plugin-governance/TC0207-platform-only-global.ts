@@ -1,5 +1,51 @@
 import { test, expect } from '../../../fixtures/multi-tenant';
+import { ensureMultiTenantPluginEnabled } from '../../../fixtures/multi-tenant';
+import { PluginPage } from '../../../pages/PluginPage';
+import {
+  createAdminApiContext,
+  disablePlugin,
+  expectSuccess,
+  getPlugin,
+  installPlugin,
+  syncPlugins,
+} from '../../../support/api/job';
 import { scenarioTC0207 } from '../../../support/multi-tenant-scenarios';
+import { pgEscapeLiteral, queryPgScalar } from '../../../support/postgres';
+
+const pluginId = 'monitor-server';
+
+async function resetPluginForUiInstall() {
+  const api = await createAdminApiContext();
+  try {
+    await ensureMultiTenantPluginEnabled(api);
+    await syncPlugins(api);
+    const plugin = await getPlugin(api, pluginId);
+    if (plugin.enabled === 1) {
+      await disablePlugin(api, pluginId);
+    }
+    if (plugin.installed === 1) {
+      await expectSuccess(
+        await api.delete(`plugins/${pluginId}?purgeStorageData=0`),
+      );
+    }
+  } finally {
+    await api.dispose();
+  }
+}
+
+async function restorePluginInstalled() {
+  const api = await createAdminApiContext();
+  try {
+    await ensureMultiTenantPluginEnabled(api);
+    await syncPlugins(api);
+    const plugin = await getPlugin(api, pluginId);
+    if (plugin.installed !== 1) {
+      await installPlugin(api, pluginId);
+    }
+  } finally {
+    await api.dispose();
+  }
+}
 
 test.describe('TC-207 platform-only 插件强制 global', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });
@@ -7,5 +53,84 @@ test.describe('TC-207 platform-only 插件强制 global', () => {
   test('TC-207a: platform-only plugin remains global and hidden from tenant plugin API', async ({ multiTenantMode }) => {
     expect(multiTenantMode).toBe('multi-tenant-enabled');
     await scenarioTC0207();
+  });
+
+  test('TC-207b: platform-only install mode is shown and locked inside the install confirmation dialog', async ({
+    adminPage,
+    multiTenantMode,
+  }) => {
+    expect(multiTenantMode).toBe('multi-tenant-enabled');
+    await adminPage.setViewportSize({ width: 1366, height: 900 });
+    await resetPluginForUiInstall();
+
+    const pluginPage = new PluginPage(adminPage);
+    const api = await createAdminApiContext();
+    try {
+      await pluginPage.gotoManage();
+      await pluginPage.searchByPluginId(pluginId);
+      const plugin = await getPlugin(api, pluginId);
+      expect(plugin.supportsMultiTenant).toBe(false);
+      expect(plugin.autoEnableForNewTenants).toBe(false);
+      expect(
+        queryPgScalar(`
+          SELECT COUNT(1)
+          FROM sys_plugin_state
+          WHERE plugin_id = '${pgEscapeLiteral(pluginId)}'
+            AND tenant_id > 0;
+        `),
+      ).toBe('0');
+      await pluginPage.expectTableColumnBetween(
+        '支持多租户',
+        '示例数据',
+        '新租户启用',
+      );
+      await pluginPage.expectBooleanTableCell(
+        pluginPage.pluginSupportsMultiTenantValue(pluginId),
+        false,
+      );
+      await pluginPage.expectTenantProvisioningDisabled(pluginId);
+      await pluginPage.openInstallAuthorization(pluginId);
+
+      await expect(pluginPage.installModeStandaloneSelector()).toHaveCount(0);
+      await expect(pluginPage.pluginInstallModeSection()).toBeVisible();
+      await pluginPage.expectInstallModeSectionDashedBorder();
+      await expect(pluginPage.pluginInstallModeSelect()).toContainText('全局');
+      await expect(pluginPage.pluginInstallModeSelect()).toHaveClass(
+        /ant-select-disabled/,
+      );
+      await expect(pluginPage.pluginInstallModeDescription()).toContainText(
+        '所有租户共享启用状态',
+      );
+      await pluginPage.expectInstallModeDescriptionWithoutBorder();
+      await pluginPage.expectInstallModeDescriptionAfterSelect();
+      await expect(pluginPage.pluginInstallModeSelect()).not.toContainText(
+        '租户级',
+      );
+      await expect(pluginPage.pluginInstallModeSection()).toContainText(
+        '不支持租户级安装模式的插件只能以全局模式安装',
+      );
+
+      const installResponsePromise = adminPage.waitForResponse(
+        (response) =>
+          response.url().includes(`/plugins/${pluginId}/install`) &&
+          response.request().method() === 'POST',
+      );
+      await pluginPage.hostServiceAuthConfirmButton().click();
+
+      const installResponse = await installResponsePromise;
+      expect(installResponse.status()).toBe(200);
+      expect(installResponse.request().postDataJSON()).toMatchObject({
+        installMode: 'global',
+      });
+      await expect(pluginPage.hostServiceAuthDialog()).toHaveCount(0);
+      expect(
+        queryPgScalar(
+          `SELECT install_mode FROM sys_plugin WHERE plugin_id = '${pgEscapeLiteral(pluginId)}';`,
+        ),
+      ).toBe('global');
+    } finally {
+      await api.dispose();
+      await restorePluginInstalled();
+    }
   });
 });

@@ -470,6 +470,9 @@
               "autoEnableForNewTenants": {
                 "dc": "平台策略：當租戶級插件已安裝且已啟用時，是否自動為新建立租戶啟用該插件"
               },
+              "supportsMultiTenant": {
+                "dc": "插件清單是否聲明支援租戶級插件治理"
+              },
               "scopeNature": {
                 "dc": "插件作用域性質：platform_only=僅平台 tenant_aware=租戶感知"
               },

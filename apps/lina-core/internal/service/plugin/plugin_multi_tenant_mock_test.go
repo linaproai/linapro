@@ -37,7 +37,8 @@ const (
 	multiTenantMockExpectedConfigCount = 3
 	multiTenantMockExpectedLedgerCount = 1
 	multiTenantMockDemoPassword        = "admin123"
-	multiTenantMockSharedUsername      = "tenant_alpha_ops"
+	multiTenantMockMinSharedUserCount  = 4
+	multiTenantMockMinMenuPermissions  = 8
 )
 
 // multiTenantTenantManagementButtonPermissions is the exact button projection
@@ -48,7 +49,6 @@ var multiTenantTenantManagementButtonPermissions = []string{
 	"system:tenant:edit",
 	"system:tenant:remove",
 	"system:tenant:impersonate",
-	"system:user:query",
 }
 
 // multiTenantMockExpectedTenantNames lists the required tenant display names
@@ -124,15 +124,52 @@ var multiTenantMockExpectedActiveTenantUsers = map[string]string{
 	"read-random-reply-service":   "tenant_read_random_reply_service_user",
 }
 
-// multiTenantMockSharedTenantCodes lists the tenant memberships that keep one
-// demo user available for tenant switching and cross-tenant list tests.
-var multiTenantMockSharedTenantCodes = []string{"alpha-retail", "beta-manufacturing"}
+// multiTenantMockSharedTenantCodesByUsername lists users intentionally bound to
+// multiple tenants for switching, cross-tenant list, and permission demos.
+var multiTenantMockSharedTenantCodesByUsername = map[string][]string{
+	"tenant_alpha_ops":                   {"alpha-retail", "beta-manufacturing", "one-click-triple-media"},
+	"tenant_beta_auditor":                {"beta-manufacturing", "alpha-retail"},
+	"tenant_one_click_triple_media_user": {"one-click-triple-media", "alpha-retail", "cyber-wellness-health"},
+	"tenant_cyber_wellness_health_user":  {"cyber-wellness-health", "beta-manufacturing"},
+}
 
 // multiTenantMockSharedRoleKeysByTenantCode lists the tenant-local roles that
-// the shared mock user needs in each tenant it can switch to.
-var multiTenantMockSharedRoleKeysByTenantCode = map[string]string{
-	"alpha-retail":       "tenant-alpha-ops",
-	"beta-manufacturing": "tenant-beta-auditor",
+// each shared mock user needs in each tenant it can switch to.
+var multiTenantMockSharedRoleKeysByUsername = map[string]map[string]string{
+	"tenant_alpha_ops": {
+		"alpha-retail":           "tenant-alpha-ops",
+		"beta-manufacturing":     "tenant-beta-auditor",
+		"one-click-triple-media": "tenant-one-click-triple-media-user",
+	},
+	"tenant_beta_auditor": {
+		"beta-manufacturing": "tenant-beta-auditor",
+		"alpha-retail":       "tenant-alpha-ops",
+	},
+	"tenant_one_click_triple_media_user": {
+		"one-click-triple-media": "tenant-one-click-triple-media-user",
+		"alpha-retail":           "tenant-alpha-ops",
+		"cyber-wellness-health":  "tenant-cyber-wellness-health-user",
+	},
+	"tenant_cyber_wellness_health_user": {
+		"cyber-wellness-health": "tenant-cyber-wellness-health-user",
+		"beta-manufacturing":    "tenant-beta-auditor",
+	},
+}
+
+// multiTenantMockSharedRolePermissionCodes lists menu permissions that shared
+// mock-user roles need for permission-management demos.
+var multiTenantMockSharedRolePermissionCodes = []string{
+	"system:tenant:member:list",
+	"system:user:list",
+	"system:user:query",
+	"system:role:list",
+	"system:role:query",
+	"system:dict:list",
+	"system:dict:query",
+	"system:config:list",
+	"system:config:query",
+	"system:file:list",
+	"system:file:query",
 }
 
 // TestInstallMultiTenantWithMockDataOnPostgreSQL verifies the exact source
@@ -219,8 +256,8 @@ func TestMultiTenantManifestTenantManagementButtonsMatchWorkbench(t *testing.T) 
 	}
 	for key, permission := range buttons {
 		if strings.HasPrefix(permission, "system:tenant:resolver:") ||
-			strings.HasPrefix(permission, "system:tenant:member:") ||
-			strings.HasPrefix(permission, "system:tenant:plugin:") {
+			strings.HasPrefix(permission, "system:tenant:plugin:") ||
+			strings.HasPrefix(permission, "system:tenant:member:") {
 			t.Fatalf("tenant-management button %s should not expose non-page permission %q", key, permission)
 		}
 	}
@@ -247,9 +284,10 @@ func TestMultiTenantMockDataDocumentsBlocksAndNicknames(t *testing.T) {
 	assertBilingualMockSQLComments(t, "multi-tenant plugin mock SQL", pluginSQL)
 	assertMultiTenantMockNotInHostSQL(t, repoRoot)
 	assertMultiTenantMockUserPasswordComments(t, pluginSQL)
-	assertMultiTenantMockSharedMembership(t, pluginSQL, multiTenantMockSharedUsername, multiTenantMockSharedTenantCodes)
+	assertMultiTenantMockSharedMembership(t, pluginSQL, multiTenantMockSharedTenantCodesByUsername)
 	assertMultiTenantMockActiveTenantUsers(t, pluginSQL, multiTenantMockExpectedActiveTenantUsers)
-	assertMultiTenantMockSharedMembershipRoles(t, pluginSQL, multiTenantMockSharedUsername, multiTenantMockSharedRoleKeysByTenantCode)
+	assertMultiTenantMockSharedMembershipRoles(t, pluginSQL, multiTenantMockSharedRoleKeysByUsername)
+	assertMultiTenantMockSharedRolePermissions(t, pluginSQL, multiTenantMockSharedRolePermissionCodes)
 
 	for username, nickname := range multiTenantMockExpectedNicknames {
 		assertMockSQLUserNickname(t, pluginSQL, username, nickname)
@@ -335,9 +373,9 @@ func TestInstallMultiTenantWithMockDataOnPostgreSQLChild(t *testing.T) {
 		`SELECT COUNT(1) FROM sys_plugin_migration WHERE plugin_id = 'multi-tenant' AND phase = 'mock';`,
 		multiTenantMockExpectedLedgerCount,
 	)
-	assertMultiTenantMockSQLCount(t, ctx,
-		`SELECT COUNT(DISTINCT t."code") FROM plugin_multi_tenant_user_membership m JOIN sys_user u ON u."id" = m."user_id" JOIN plugin_multi_tenant_tenant t ON t."id" = m."tenant_id" WHERE u."username" = 'tenant_alpha_ops' AND t."code" IN ('alpha-retail', 'beta-manufacturing');`,
-		len(multiTenantMockSharedTenantCodes),
+	assertMultiTenantMockSQLCountAtLeast(t, ctx,
+		`SELECT COUNT(1) FROM (SELECT u."username", COUNT(DISTINCT m."tenant_id") AS tenant_count FROM plugin_multi_tenant_user_membership m JOIN sys_user u ON u."id" = m."user_id" WHERE m."status" = 1 AND u."username" LIKE 'tenant\_%' ESCAPE '\' GROUP BY u."username" HAVING COUNT(DISTINCT m."tenant_id") > 1) shared_users;`,
+		multiTenantMockMinSharedUserCount,
 	)
 	assertMultiTenantMockSQLCount(t, ctx,
 		`SELECT COUNT(1) FROM plugin_multi_tenant_tenant t WHERE t."status" = 'active' AND NOT EXISTS (SELECT 1 FROM plugin_multi_tenant_user_membership m JOIN sys_user u ON u."id" = m."user_id" WHERE m."tenant_id" = t."id" AND m."status" = 1 AND u."status" = 1);`,
@@ -345,6 +383,10 @@ func TestInstallMultiTenantWithMockDataOnPostgreSQLChild(t *testing.T) {
 	)
 	assertMultiTenantMockSQLCount(t, ctx,
 		`SELECT COUNT(1) FROM plugin_multi_tenant_user_membership m JOIN sys_user u ON u."id" = m."user_id" JOIN plugin_multi_tenant_tenant t ON t."id" = m."tenant_id" WHERE m."status" = 1 AND u."username" LIKE 'tenant\_%' ESCAPE '\' AND t."status" = 'active' AND NOT EXISTS (SELECT 1 FROM sys_user_role ur JOIN sys_role r ON r."id" = ur."role_id" WHERE ur."user_id" = u."id" AND ur."tenant_id" = m."tenant_id" AND r."tenant_id" = m."tenant_id" AND r."status" = 1);`,
+		0,
+	)
+	assertMultiTenantMockSQLCount(t, ctx,
+		fmt.Sprintf(`SELECT COUNT(1) FROM (SELECT u."username", m."tenant_id", COUNT(DISTINCT rm."menu_id") AS permission_count FROM plugin_multi_tenant_user_membership m JOIN sys_user u ON u."id" = m."user_id" JOIN sys_user_role ur ON ur."user_id" = u."id" AND ur."tenant_id" = m."tenant_id" JOIN sys_role r ON r."id" = ur."role_id" AND r."tenant_id" = m."tenant_id" AND r."status" = 1 JOIN sys_role_menu rm ON rm."role_id" = r."id" AND rm."tenant_id" = r."tenant_id" WHERE m."status" = 1 AND u."username" IN ('tenant_alpha_ops', 'tenant_beta_auditor', 'tenant_one_click_triple_media_user', 'tenant_cyber_wellness_health_user') GROUP BY u."username", m."tenant_id" HAVING COUNT(DISTINCT rm."menu_id") < %d) under_permissioned_shared_users;`, len(multiTenantMockSharedRolePermissionCodes)),
 		0,
 	)
 }
@@ -492,6 +534,20 @@ func assertMultiTenantMockSQLCount(t *testing.T, ctx context.Context, sql string
 	}
 }
 
+// assertMultiTenantMockSQLCountAtLeast checks one SQL count query against a
+// minimum value.
+func assertMultiTenantMockSQLCountAtLeast(t *testing.T, ctx context.Context, sql string, minimum int) {
+	t.Helper()
+
+	value, err := g.DB().GetValue(ctx, sql)
+	if err != nil {
+		t.Fatalf("query multi-tenant mock count failed: %v\n%s", err, sql)
+	}
+	if value.Int() < minimum {
+		t.Fatalf("expected count at least %d for SQL %s, got %d", minimum, sql, value.Int())
+	}
+}
+
 // assertMultiTenantMockTenantNames verifies every required tenant display name
 // is installed by the optional multi-tenant mock data asset.
 func assertMultiTenantMockTenantNames(t *testing.T, ctx context.Context) {
@@ -635,14 +691,22 @@ func assertMultiTenantMockUserPasswordComments(t *testing.T, sql string) {
 }
 
 // assertMultiTenantMockSharedMembership verifies that the mock asset includes
-// one user with memberships in multiple tenants for switching demos.
-func assertMultiTenantMockSharedMembership(t *testing.T, sql string, username string, tenantCodes []string) {
+// several users with memberships in multiple tenants for switching demos.
+func assertMultiTenantMockSharedMembership(t *testing.T, sql string, tenantCodesByUsername map[string][]string) {
 	t.Helper()
 
-	for _, tenantCode := range tenantCodes {
-		expected := "('" + username + "', '" + tenantCode + "'"
-		if !strings.Contains(sql, expected) {
-			t.Fatalf("expected mock user %s to have membership row for tenant %s", username, tenantCode)
+	if len(tenantCodesByUsername) < multiTenantMockMinSharedUserCount {
+		t.Fatalf("expected at least %d shared mock users, got %d", multiTenantMockMinSharedUserCount, len(tenantCodesByUsername))
+	}
+	for username, tenantCodes := range tenantCodesByUsername {
+		if len(tenantCodes) < 2 {
+			t.Fatalf("expected mock user %s to have at least two tenant memberships, got %d", username, len(tenantCodes))
+		}
+		for _, tenantCode := range tenantCodes {
+			expected := "('" + username + "', '" + tenantCode + "'"
+			if !strings.Contains(sql, expected) {
+				t.Fatalf("expected mock user %s to have membership row for tenant %s", username, tenantCode)
+			}
 		}
 	}
 }
@@ -666,16 +730,50 @@ func assertMultiTenantMockActiveTenantUsers(t *testing.T, sql string, tenantUser
 func assertMultiTenantMockSharedMembershipRoles(
 	t *testing.T,
 	sql string,
-	username string,
-	roleKeysByTenantCode map[string]string,
+	roleKeysByUsername map[string]map[string]string,
 ) {
 	t.Helper()
 
-	for tenantCode, roleKey := range roleKeysByTenantCode {
-		assertMockSQLLineContainsValues(t, sql, username, tenantCode)
-		assertMockSQLLineContainsValues(t, sql, tenantCode, roleKey)
-		assertMockSQLLineContainsValues(t, sql, username, roleKey)
+	for username, roleKeysByTenantCode := range roleKeysByUsername {
+		for tenantCode, roleKey := range roleKeysByTenantCode {
+			assertMockSQLLineContainsValues(t, sql, username, tenantCode)
+			assertMockSQLLineContainsValues(t, sql, tenantCode, roleKey)
+			assertMockSQLLineContainsValues(t, sql, username, roleKey)
+		}
 	}
+}
+
+// assertMultiTenantMockSharedRolePermissions verifies shared roles carry enough
+// menu permissions for tenant permission-management demos.
+func assertMultiTenantMockSharedRolePermissions(t *testing.T, sql string, permissions []string) {
+	t.Helper()
+
+	if len(permissions) < multiTenantMockMinMenuPermissions {
+		t.Fatalf("expected at least %d shared role permissions, got %d", multiTenantMockMinMenuPermissions, len(permissions))
+	}
+	block := extractMockSQLBlock(t, sql, "-- Mock data: grant operational and auditor roles read-oriented member and user")
+	for _, permission := range permissions {
+		if !strings.Contains(block, "'"+permission+"'") {
+			t.Fatalf("expected shared mock roles to include permission %q", permission)
+		}
+	}
+}
+
+// extractMockSQLBlock returns one mock-data DML block starting at a stable
+// comment marker.
+func extractMockSQLBlock(t *testing.T, sql string, marker string) string {
+	t.Helper()
+
+	start := strings.Index(sql, marker)
+	if start < 0 {
+		t.Fatalf("expected mock SQL block marker %q", marker)
+	}
+	remaining := sql[start:]
+	end := strings.Index(remaining, "ON CONFLICT DO NOTHING;")
+	if end < 0 {
+		t.Fatalf("expected mock SQL block %q to end with ON CONFLICT DO NOTHING", marker)
+	}
+	return remaining[:end]
 }
 
 // assertMockSQLLineContainsValues verifies one SQL line contains all expected

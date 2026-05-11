@@ -74,6 +74,7 @@ func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *test
 // that dynamic plugins validate from embedded runtime artifact metadata alone.
 func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *testing.T) {
 	svcs := testutil.NewServices()
+	supportsMultiTenant := true
 	pluginDir := testutil.CreateTestRuntimePluginDir(
 		t,
 		"plugin-dynamic-valid",
@@ -89,11 +90,14 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
 	manifest := &catalog.Manifest{
-		ID:          "plugin-dynamic-valid",
-		Name:        "Runtime Validation Plugin",
-		Version:     "v0.2.0",
-		Type:        catalog.TypeDynamic.String(),
-		Description: "A valid dynamic plugin manifest used by unit tests.",
+		ID:                  "plugin-dynamic-valid",
+		Name:                "Runtime Validation Plugin",
+		Version:             "v0.2.0",
+		Type:                catalog.TypeDynamic.String(),
+		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
+		Description:         "A valid dynamic plugin manifest used by unit tests.",
 	}
 
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
@@ -107,6 +111,12 @@ func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *t
 	}
 	if manifest.RuntimeArtifact.ABIVersion != pluginbridge.SupportedABIVersion {
 		t.Fatalf("expected ABI version %s, got %s", pluginbridge.SupportedABIVersion, manifest.RuntimeArtifact.ABIVersion)
+	}
+	if !manifest.SupportsTenantGovernance() {
+		t.Fatalf("expected dynamic manifest to keep supports_multi_tenant=true")
+	}
+	if manifest.ScopeNature != catalog.ScopeNatureTenantAware.String() || manifest.DefaultInstallMode != catalog.InstallModeTenantScoped.String() {
+		t.Fatalf("unexpected dynamic tenant governance: scope=%s mode=%s", manifest.ScopeNature, manifest.DefaultInstallMode)
 	}
 }
 
@@ -997,19 +1007,21 @@ func TestValidateManifestMenusRejectsMultiTenantTenantCatalog(t *testing.T) {
 }
 
 // TestValidateManifestNormalizesTenantGovernance verifies tenant governance
-// manifest fields have deterministic defaults and platform-only constraints.
+// manifest fields have deterministic normalization and platform-only constraints.
 func TestValidateManifestNormalizesTenantGovernance(t *testing.T) {
 	svcs := testutil.NewServices()
 	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance")
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+	supportsMultiTenant := false
 
 	manifest := &catalog.Manifest{
-		ID:                 "plugin-tenant-governance",
-		Name:               "Tenant Governance Plugin",
-		Version:            "0.1.0",
-		Type:               catalog.TypeSource.String(),
-		ScopeNature:        catalog.ScopeNaturePlatformOnly.String(),
-		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+		ID:                  "plugin-tenant-governance",
+		Name:                "Tenant Governance Plugin",
+		Version:             "0.1.0",
+		Type:                catalog.TypeSource.String(),
+		ScopeNature:         catalog.ScopeNaturePlatformOnly.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
 	}
 
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
@@ -1021,29 +1033,61 @@ func TestValidateManifestNormalizesTenantGovernance(t *testing.T) {
 	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
 		t.Fatalf("expected platform-only plugin to force global install mode, got %s", manifest.DefaultInstallMode)
 	}
+	if manifest.SupportsTenantGovernance() {
+		t.Fatalf("expected platform-only plugin to disable tenant governance support")
+	}
 }
 
-// TestValidateManifestDefaultsTenantAwareGovernance verifies omitted tenant
-// governance fields keep existing plugins tenant-aware by default.
-func TestValidateManifestDefaultsTenantAwareGovernance(t *testing.T) {
+// TestValidateManifestRequiresMultiTenantSupportDeclaration verifies plugin
+// manifests must explicitly declare whether tenant governance is supported.
+func TestValidateManifestRequiresMultiTenantSupportDeclaration(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-aware-default")
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance-missing-support")
 	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+	testutil.WriteTestFile(
+		t,
+		manifestFile,
+		"id: plugin-tenant-governance-missing-support\nname: Tenant Governance Missing Support Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\ndefault_install_mode: tenant_scoped\n",
+	)
 
 	manifest := &catalog.Manifest{
-		ID:      "plugin-tenant-aware-default",
-		Name:    "Tenant Aware Default Plugin",
+		ID:      "plugin-tenant-governance-missing-support",
+		Name:    "Tenant Governance Missing Support Plugin",
 		Version: "0.1.0",
 		Type:    catalog.TypeSource.String(),
+	}
+
+	err := svcs.Catalog.ValidateManifest(manifest, manifestFile)
+	if err == nil || !strings.Contains(err.Error(), "supports_multi_tenant is required") {
+		t.Fatalf("expected missing supports_multi_tenant validation error, got %v", err)
+	}
+}
+
+// TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported verifies
+// tenant-aware plugins can explicitly opt out of tenant-level governance.
+func TestValidateManifestForcesGlobalWhenTenantGovernanceUnsupported(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance-unsupported")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+	supportsMultiTenant := false
+
+	manifest := &catalog.Manifest{
+		ID:                  "plugin-tenant-governance-unsupported",
+		Name:                "Tenant Governance Unsupported Plugin",
+		Version:             "0.1.0",
+		Type:                catalog.TypeSource.String(),
+		ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+		SupportsMultiTenant: &supportsMultiTenant,
+		DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
 	}
 
 	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
 		t.Fatalf("expected manifest to validate, got %v", err)
 	}
-	if manifest.ScopeNature != catalog.ScopeNatureTenantAware.String() {
-		t.Fatalf("expected tenant-aware default scope, got %s", manifest.ScopeNature)
+	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+		t.Fatalf("expected unsupported tenant governance to force global install mode, got %s", manifest.DefaultInstallMode)
 	}
-	if manifest.DefaultInstallMode != catalog.InstallModeTenantScoped.String() {
-		t.Fatalf("expected tenant-scoped default install mode, got %s", manifest.DefaultInstallMode)
+	if manifest.SupportsTenantGovernance() {
+		t.Fatalf("expected explicit supports_multi_tenant=false to disable tenant governance")
 	}
 }

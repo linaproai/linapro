@@ -514,7 +514,7 @@ export async function scenarioTC0184() {
         roleName: `TC184 query ${suffix}`,
         tenantId: tenantA.id,
         userId: user.id,
-        permissions: ["system:tenant:member:query"],
+        permissions: ["system:tenant:member:list"],
       });
       const login = await loginRaw(user.username, password);
       expect(login.accessToken ?? "").toBe("");
@@ -526,10 +526,19 @@ export async function scenarioTC0184() {
       const token = await selectTenant(login.preToken!, tenantA.id);
       const tenantApi = await createTenantApiContext(token);
       try {
-        const member = await expectSuccess<{ tenantId: number; userId: number }>(
-          await tenantApi.get(`tenant/members/me?tenantId=${tenantA.id}&userId=${user.id}`),
+        const members = await expectSuccess<{
+          list: Array<{ tenantId: number; userId: number }>;
+        }>(
+          await tenantApi.get(
+            `tenant/members?tenantId=${tenantA.id}&userId=${user.id}&status=-1`,
+          ),
         );
-        expect(member.tenantId).toBe(tenantA.id);
+        expect(members.list).toContainEqual(
+          expect.objectContaining({
+            tenantId: tenantA.id,
+            userId: user.id,
+          }),
+        );
       } finally {
         await tenantApi.dispose();
       }

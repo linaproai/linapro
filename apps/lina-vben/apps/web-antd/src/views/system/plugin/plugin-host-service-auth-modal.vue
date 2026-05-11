@@ -16,6 +16,7 @@ import {
   Descriptions,
   DescriptionsItem,
   message,
+  Select,
   Tooltip,
 } from 'ant-design-vue';
 
@@ -32,6 +33,7 @@ import {
 
 type ReviewMode = 'enable' | 'install';
 type SubmitAction = 'default' | 'install-and-enable';
+type InstallMode = 'global' | 'tenant_scoped';
 
 const emit = defineEmits<{ reload: [] }>();
 
@@ -40,7 +42,7 @@ const currentMode = ref<ReviewMode>('install');
 const allowInstallAndEnable = ref(false);
 const submittingAction = ref<null | SubmitAction>(null);
 const installMockData = ref(false);
-const selectedInstallMode = ref<'global' | 'tenant_scoped' | undefined>();
+const selectedInstallMode = ref<InstallMode>('tenant_scoped');
 
 const [BasicModal, modalApi] = useVbenModal({
   onClosed: handleClosed,
@@ -87,6 +89,42 @@ const showMockDataOption = computed(() => {
   );
 });
 
+const supportsTenantScopedInstall = computed(() => {
+  return currentPlugin.value?.supportsMultiTenant === true;
+});
+
+const showInstallModeOption = computed(() => {
+  return (
+    currentMode.value === 'install' &&
+    (currentPlugin.value?.scopeNature === 'tenant_aware' ||
+      currentPlugin.value?.scopeNature === 'platform_only')
+  );
+});
+
+const installModeOptions = computed(() => {
+  const options = [
+    {
+      disabled: false,
+      label: $t('pages.multiTenant.plugin.installModes.global'),
+      value: 'global',
+    },
+  ];
+  if (supportsTenantScopedInstall.value) {
+    options.push({
+      disabled: false,
+      label: $t('pages.multiTenant.plugin.installModes.tenant_scoped'),
+      value: 'tenant_scoped',
+    });
+  }
+  return options;
+});
+
+const selectedInstallModeDescription = computed(() => {
+  return $t(
+    `pages.multiTenant.plugin.installModeDescriptions.${selectedInstallMode.value}`,
+  );
+});
+
 const showDeclaredRoutes = computed(() => {
   return declaredRoutes.value.length > 0;
 });
@@ -128,14 +166,13 @@ async function handleOpenChange(open: boolean) {
   }
   const data = modalApi.getData<{
     allowInstallAndEnable?: boolean;
-    installMode?: 'global' | 'tenant_scoped';
     mode: ReviewMode;
     row: SystemPlugin;
   }>();
   currentPlugin.value = data?.row ?? null;
   currentMode.value = data?.mode ?? 'install';
   allowInstallAndEnable.value = data?.allowInstallAndEnable === true;
-  selectedInstallMode.value = data?.installMode;
+  selectedInstallMode.value = resolveDefaultInstallMode(currentPlugin.value);
   installMockData.value = false;
 }
 
@@ -143,11 +180,11 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
   const installMock =
     currentMode.value === 'install' && installMockData.value === true;
   const installMode =
-    currentMode.value === 'install' && selectedInstallMode.value
+    currentMode.value === 'install' && showInstallModeOption.value
       ? { installMode: selectedInstallMode.value }
       : {};
   if (!authorizationRequired.value) {
-    return installMock || selectedInstallMode.value
+    return installMock || showInstallModeOption.value
       ? { ...installMode, ...(installMock ? { installMockData: true } : {}) }
       : undefined;
   }
@@ -286,6 +323,7 @@ function handleClosed() {
   allowInstallAndEnable.value = false;
   submittingAction.value = null;
   installMockData.value = false;
+  selectedInstallMode.value = 'tenant_scoped';
 }
 
 function formatPluginType(type: string) {
@@ -305,6 +343,16 @@ function hasServiceTargets(service: HostServicePermissionItem) {
     (service.cronItems ?? []).length > 0 ||
     (service.resources ?? []).length > 0
   );
+}
+
+function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
+  if (plugin?.scopeNature === 'platform_only' || plugin?.supportsMultiTenant !== true) {
+    return 'global';
+  }
+  if (plugin?.installMode === 'global' || plugin?.installMode === 'tenant_scoped') {
+    return plugin.installMode;
+  }
+  return 'tenant_scoped';
 }
 </script>
 
@@ -359,6 +407,51 @@ function hasServiceTargets(service: HostServicePermissionItem) {
           {{ currentPlugin.description || '-' }}
         </DescriptionsItem>
       </Descriptions>
+
+      <div
+        v-if="showInstallModeOption"
+        class="bg-muted/40 rounded-md border border-dashed p-3"
+        data-testid="plugin-install-mode-section"
+      >
+        <div
+          class="flex flex-col gap-3 lg:flex-row lg:items-center"
+          data-testid="plugin-install-mode-row"
+        >
+          <div
+            class="flex min-w-[120px] items-center gap-2 text-sm font-medium text-[var(--ant-color-text)]"
+          >
+            <span
+              class="inline-flex h-6 w-6 items-center justify-center rounded bg-[var(--ant-color-primary-bg)] text-[var(--ant-color-primary)]"
+              aria-hidden="true"
+            >
+              <span class="icon-[ant-design--partition-outlined] text-[15px]"></span>
+            </span>
+            {{ $t('pages.multiTenant.plugin.installMode') }}
+          </div>
+          <div class="grid min-w-0 flex-1 gap-2 md:grid-cols-[280px_minmax(0,1fr)] md:items-center">
+            <Select
+              v-model:value="selectedInstallMode"
+              class="w-full"
+              data-testid="plugin-install-mode-select"
+              :disabled="!supportsTenantScopedInstall"
+              :options="installModeOptions"
+            />
+            <div
+              class="min-w-0 border-0 bg-transparent px-1 text-xs leading-5 text-[var(--ant-color-text-secondary)]"
+              data-testid="plugin-install-mode-description"
+            >
+              {{ selectedInstallModeDescription }}
+            </div>
+          </div>
+        </div>
+        <Alert
+          v-if="!supportsTenantScopedInstall"
+          class="mt-3"
+          show-icon
+          type="info"
+          :message="$t('pages.multiTenant.plugin.platformOnlyGlobalHint')"
+        />
+      </div>
 
       <div
         v-if="showMockDataOption"

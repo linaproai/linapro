@@ -5,8 +5,10 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -59,24 +61,120 @@ func (s *serviceImpl) archiveReleaseArtifact(ctx context.Context, manifest *cata
 		return "", gerror.New("dynamic plugin archive is missing artifact path")
 	}
 
-	content := gfile.GetBytes(sourcePath)
-	if len(content) == 0 {
-		return "", gerror.Newf("read dynamic plugin archive artifact failed: %s", sourcePath)
+	content, err := readReleaseArtifactContent(sourcePath, checksum)
+	if err != nil {
+		return "", err
 	}
-	if gfile.Exists(targetPath) {
-		existingContent := gfile.GetBytes(targetPath)
-		// Reuse the immutable checksum path only when the bytes are identical.
-		if bytes.Equal(existingContent, content) {
-			return relativePath, nil
-		}
+
+	matches, err := releaseArtifactFileMatches(targetPath, checksum)
+	if err != nil {
+		return "", err
+	}
+	if matches {
+		return relativePath, nil
 	}
 	if err = gfile.Mkdir(filepath.Dir(targetPath)); err != nil {
 		return "", gerror.Wrap(err, "create dynamic plugin release archive directory failed")
 	}
-	if err = gfile.PutBytes(targetPath, content); err != nil {
-		return "", gerror.Wrap(err, "write dynamic plugin release archive file failed")
+	if err = writeReleaseArtifactFile(targetPath, content, checksum); err != nil {
+		return "", err
 	}
 	return relativePath, nil
+}
+
+// readReleaseArtifactContent reads one non-empty artifact and verifies it still
+// matches the checksum that selected the immutable release archive directory.
+func readReleaseArtifactContent(sourcePath string, expectedChecksum string) ([]byte, error) {
+	content, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return nil, gerror.Wrapf(err, "read dynamic plugin archive artifact failed: %s", sourcePath)
+	}
+	if len(content) == 0 {
+		return nil, gerror.Newf("read dynamic plugin archive artifact failed: %s", sourcePath)
+	}
+	actualChecksum := releaseArtifactChecksum(content)
+	if actualChecksum != strings.TrimSpace(expectedChecksum) {
+		return nil, gerror.Newf(
+			"dynamic plugin archive artifact checksum mismatch: expected=%s actual=%s path=%s",
+			strings.TrimSpace(expectedChecksum),
+			actualChecksum,
+			sourcePath,
+		)
+	}
+	return content, nil
+}
+
+// releaseArtifactFileMatches reports whether an existing archive file is usable
+// for the checksum-addressed release path. Empty or missing files are repairable.
+func releaseArtifactFileMatches(targetPath string, expectedChecksum string) (bool, error) {
+	info, err := os.Stat(targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, gerror.Wrapf(err, "stat dynamic plugin release archive file failed: %s", targetPath)
+	}
+	if info.IsDir() {
+		return false, gerror.Newf("dynamic plugin release archive path is a directory: %s", targetPath)
+	}
+	if info.Size() == 0 {
+		return false, nil
+	}
+	content, err := os.ReadFile(targetPath)
+	if err != nil {
+		return false, gerror.Wrapf(err, "read dynamic plugin release archive file failed: %s", targetPath)
+	}
+	return releaseArtifactChecksum(content) == strings.TrimSpace(expectedChecksum), nil
+}
+
+// writeReleaseArtifactFile writes a release artifact through a same-directory
+// temporary file, validates the bytes, and then atomically replaces the archive.
+func writeReleaseArtifactFile(targetPath string, content []byte, expectedChecksum string) error {
+	tempPath := targetPath + ".tmp"
+	if err := os.WriteFile(tempPath, content, 0o644); err != nil {
+		return gerror.Wrap(err, "write dynamic plugin release archive temp file failed")
+	}
+	if err := validateReleaseArtifactFile(tempPath, expectedChecksum); err != nil {
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return gerror.Wrapf(err, "cleanup dynamic plugin release archive temp file failed: %v", removeErr)
+		}
+		return err
+	}
+	if err := os.Rename(tempPath, targetPath); err != nil {
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			return gerror.Wrapf(err, "cleanup dynamic plugin release archive temp file failed: %v", removeErr)
+		}
+		return gerror.Wrap(err, "replace dynamic plugin release archive file failed")
+	}
+	return validateReleaseArtifactFile(targetPath, expectedChecksum)
+}
+
+// validateReleaseArtifactFile verifies that a release archive exists, is not
+// empty, and still matches the checksum recorded in sys_plugin_release.
+func validateReleaseArtifactFile(filePath string, expectedChecksum string) error {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return gerror.Wrapf(err, "read dynamic plugin release archive file failed: %s", filePath)
+	}
+	if len(content) == 0 {
+		return gerror.Newf("dynamic plugin release archive file is empty: %s", filePath)
+	}
+	actualChecksum := releaseArtifactChecksum(content)
+	if actualChecksum != strings.TrimSpace(expectedChecksum) {
+		return gerror.Newf(
+			"dynamic plugin release archive checksum mismatch: expected=%s actual=%s path=%s",
+			strings.TrimSpace(expectedChecksum),
+			actualChecksum,
+			filePath,
+		)
+	}
+	return nil
+}
+
+// releaseArtifactChecksum returns the lowercase SHA-256 checksum used in
+// dynamic release archive paths and release metadata.
+func releaseArtifactChecksum(content []byte) string {
+	return fmt.Sprintf("%x", sha256.Sum256(content))
 }
 
 // cleanupStaleReleaseArtifacts removes archived dynamic artifacts that are no

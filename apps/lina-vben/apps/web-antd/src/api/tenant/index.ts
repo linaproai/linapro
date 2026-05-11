@@ -1,8 +1,5 @@
 import type {
   LoginTenant,
-  TenantMember,
-  TenantMemberListParams,
-  TenantMemberPayload,
   TenantPlugin,
 } from './model';
 
@@ -27,26 +24,6 @@ export function authSwitchTenant(targetTenantId: number) {
   return requestClient.post<{ accessToken: string }>('/auth/switch-tenant', {
     tenantId: targetTenantId,
   });
-}
-
-export async function tenantMemberList(params?: TenantMemberListParams) {
-  const res = await requestClient.get<{ list: TenantMember[]; total: number }>(
-    '/tenant/members',
-    { params },
-  );
-  return { items: res.list, total: res.total };
-}
-
-export function tenantMemberCreate(payload: TenantMemberPayload) {
-  return requestClient.post<TenantMember>('/tenant/members', payload);
-}
-
-export function tenantMemberUpdate(id: number, payload: TenantMemberPayload) {
-  return requestClient.put<TenantMember>(`/tenant/members/${id}`, payload);
-}
-
-export function tenantMemberRemove(id: number) {
-  return requestClient.delete(`/tenant/members/${id}`);
 }
 
 export function tenantMembershipMe() {

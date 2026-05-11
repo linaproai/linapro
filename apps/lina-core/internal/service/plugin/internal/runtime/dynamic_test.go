@@ -3,8 +3,10 @@
 package runtime_test
 
 import (
+	"bytes"
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"lina-core/internal/service/plugin/internal/catalog"
@@ -85,6 +87,97 @@ func TestListRuntimeStatesProjectsMissingRuntimeArtifactWithoutMutatingRegistry(
 	}
 	if registryAfter.Installed != catalog.InstalledYes || registryAfter.Status != catalog.StatusEnabled {
 		t.Fatalf("expected runtime-state projection to avoid mutating sys_plugin, got installed=%d enabled=%d", registryAfter.Installed, registryAfter.Status)
+	}
+}
+
+// TestInstallRepairsEmptyReleaseArchive verifies a same-version lifecycle pass
+// replaces a corrupt zero-byte release artifact before the release is activated.
+func TestInstallRepairsEmptyReleaseArchive(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		pluginID = "plugin-dynamic-empty-release-repair"
+		version  = "v0.9.8"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"Runtime Empty Release Repair Plugin",
+		version,
+		nil,
+		nil,
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	releaseRoot := filepath.Join(testutil.TestDynamicStorageDir(), "releases", pluginID)
+	if err := os.RemoveAll(releaseRoot); err != nil {
+		t.Fatalf("failed to clear release archive root: %v", err)
+	}
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if err := os.RemoveAll(releaseRoot); err != nil {
+			t.Fatalf("failed to cleanup release archive root: %v", err)
+		}
+	})
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected dynamic artifact manifest to load, got error: %v", err)
+	}
+	if manifest.RuntimeArtifact == nil {
+		t.Fatal("expected runtime artifact metadata")
+	}
+
+	archivePath := filepath.Join(
+		releaseRoot,
+		version,
+		manifest.RuntimeArtifact.Checksum,
+		runtime.BuildArtifactFileName(pluginID),
+	)
+	if err = os.MkdirAll(filepath.Dir(archivePath), 0o755); err != nil {
+		t.Fatalf("failed to create empty release archive directory: %v", err)
+	}
+	if err = os.WriteFile(archivePath, nil, 0o644); err != nil {
+		t.Fatalf("failed to seed empty release archive: %v", err)
+	}
+
+	if err = services.Lifecycle.Install(ctx, pluginID); err != nil {
+		t.Fatalf("expected install to repair empty release archive, got error: %v", err)
+	}
+
+	sourceContent, err := os.ReadFile(artifactPath)
+	if err != nil {
+		t.Fatalf("failed to read source artifact: %v", err)
+	}
+	archiveContent, err := os.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("failed to read repaired release archive: %v", err)
+	}
+	if len(archiveContent) == 0 {
+		t.Fatal("expected repaired release archive to be non-empty")
+	}
+	if !bytes.Equal(archiveContent, sourceContent) {
+		t.Fatal("expected repaired release archive to match source artifact")
+	}
+
+	registry, err := services.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected runtime registry lookup to succeed, got error: %v", err)
+	}
+	if registry == nil {
+		t.Fatal("expected runtime registry row after install")
+	}
+	activeManifest, err := services.Runtime.LoadActiveDynamicPluginManifest(ctx, registry)
+	if err != nil {
+		t.Fatalf("expected active manifest to load from repaired archive, got error: %v", err)
+	}
+	if activeManifest == nil || activeManifest.ID != pluginID {
+		t.Fatalf("expected repaired active manifest for %s, got %#v", pluginID, activeManifest)
+	}
+	if err = services.Lifecycle.Uninstall(ctx, pluginID); err != nil {
+		t.Fatalf("expected uninstall to load repaired archive, got error: %v", err)
 	}
 }
 

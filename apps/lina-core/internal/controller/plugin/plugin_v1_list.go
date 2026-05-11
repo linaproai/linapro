@@ -48,6 +48,7 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			Enabled:                 item.Enabled,
 			AutoEnableManaged:       boolToInt(autoEnableManagedSet[strings.TrimSpace(item.Id)]),
 			AutoEnableForNewTenants: item.AutoEnableForNewTenants,
+			SupportsMultiTenant:     item.SupportsMultiTenant,
 			ScopeNature:             item.ScopeNature,
 			InstallMode:             item.InstallMode,
 			StatusKey:               item.StatusKey,

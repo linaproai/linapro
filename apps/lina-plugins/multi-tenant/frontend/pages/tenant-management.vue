@@ -111,7 +111,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
         fixed: 'right',
         slots: { default: 'action' },
         title: $t('pages.common.actions'),
-        width: 460,
+        width: 380,
       },
     ],
     emptyRender: {
@@ -195,13 +195,6 @@ function handleMultiDelete() {
 async function impersonate(row: PlatformTenant) {
   await tenantStore.switchTenant(row.id, router);
 }
-
-function openTenantUsers(row: PlatformTenant) {
-  void router.push({
-    path: '/system/user',
-    query: { tenantId: String(row.id) },
-  });
-}
 </script>
 
 <template>
@@ -256,12 +249,6 @@ function openTenantUsers(row: PlatformTenant) {
             @click="openEdit(row)"
           >
             {{ $t('pages.common.edit') }}
-          </ghost-button>
-          <ghost-button
-            :data-testid="`tenant-users-${row.id}`"
-            @click="openTenantUsers(row)"
-          >
-            {{ $t('pages.multiTenant.tenant.actions.users') }}
           </ghost-button>
           <Tooltip
             :title="$t('pages.multiTenant.tenant.tooltips.impersonate')"

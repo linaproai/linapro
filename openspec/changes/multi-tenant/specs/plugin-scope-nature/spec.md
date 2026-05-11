@@ -21,6 +21,20 @@
 - **THEN** 返回结果不包含 `scope_nature = platform_only` 的插件
 - **AND** 即使该插件已 enabled,也不展示在租户视图
 
+### Requirement: plugin.yaml 多租户支持声明
+所有源码插件与动态插件的 `plugin.yaml` SHALL 包含 `supports_multi_tenant` 布尔字段。该字段为 `true` 时表示插件支持租户级安装、租户级启用与新租户开通策略治理;该字段为 `false` 时,平台插件管理页 SHALL 展示“支持多租户=否”,并禁用“新租户启用”开关。
+
+#### Scenario: 多租户支持列展示
+- **WHEN** 平台管理员打开插件管理页面
+- **THEN** 列表在“新租户启用”左侧展示“支持多租户”列
+- **AND** 支持租户级治理的插件显示“是”
+- **AND** 不支持租户级治理的插件显示“否”
+
+#### Scenario: 不支持多租户的插件禁用新租户启用
+- **WHEN** 插件 `supports_multi_tenant=false`
+- **THEN** 插件管理页面中的“新租户启用”开关处于禁用状态
+- **AND** 平台管理员不能通过该开关开启或关闭新租户开通策略
+
 ### Requirement: scope_nature 不可变
 插件一旦安装,其 `scope_nature` SHALL 不可在运行时修改;只能通过插件升级到新版本(且新版本 manifest 中 scope_nature 不同)时才允许变更,且必须通过迁移脚本处理旧状态。
 

@@ -296,8 +296,42 @@ export class PluginPage {
     return this.page.getByTestId("plugin-install-mock-data-help-icon").last();
   }
 
+  pluginInstallModeSection(): Locator {
+    return this.page.getByTestId("plugin-install-mode-section").last();
+  }
+
+  pluginInstallModeRow(): Locator {
+    return this.page.getByTestId("plugin-install-mode-row").last();
+  }
+
+  pluginInstallModeSelect(): Locator {
+    return this.hostServiceAuthDialog()
+      .getByTestId("plugin-install-mode-select")
+      .last();
+  }
+
+  pluginInstallModeDescription(): Locator {
+    return this.page.getByTestId("plugin-install-mode-description").last();
+  }
+
+  installModeStandaloneSelector(): Locator {
+    return this.page.getByTestId("install-mode-selector").last();
+  }
+
   pluginMockDataValue(pluginId: string): Locator {
     return this.page.getByTestId(`plugin-mock-data-value-${pluginId}`).first();
+  }
+
+  pluginSupportsMultiTenantValue(pluginId: string): Locator {
+    return this.page
+      .getByTestId(`plugin-supports-multi-tenant-${pluginId}`)
+      .first();
+  }
+
+  pluginTenantProvisioningSwitch(pluginId: string): Locator {
+    return this.page
+      .getByTestId(`plugin-tenant-provisioning-${pluginId}`)
+      .first();
   }
 
   uninstallDialog(): Locator {
@@ -362,6 +396,22 @@ export class PluginPage {
 
   uninstallPurgeWarning(): Locator {
     return this.page.getByTestId("plugin-uninstall-purge-warning").last();
+  }
+
+  lifecycleGuardDialog(): Locator {
+    return this.page.getByTestId("lifecycle-guard-dialog").last();
+  }
+
+  lifecycleGuardForcePluginIdInput(): Locator {
+    return this.page.getByTestId("lifecycle-guard-force-plugin-id").last();
+  }
+
+  lifecycleGuardConfirmButton(): Locator {
+    return this.page
+      .getByRole("dialog", { name: /生命周期保护|Lifecycle Guard/iu })
+      .last()
+      .getByRole("button", { name: confirmActionPattern })
+      .last();
   }
 
   pluginEnabledSwitch(pluginId: string): Locator {
@@ -605,6 +655,40 @@ export class PluginPage {
     await expect(this.hostServiceAuthModal()).toBeVisible();
   }
 
+  async selectInstallMode(modeLabel: string | RegExp) {
+    await this.pluginInstallModeSelect().locator(".ant-select-selector").click();
+    const option = this.page
+      .locator(".ant-select-dropdown:visible .ant-select-item-option")
+      .filter({ hasText: modeLabel })
+      .last();
+    await expect(option).toBeVisible();
+    await option.click();
+    await expect(this.pluginInstallModeSelect()).toContainText(modeLabel);
+  }
+
+  async expectInstallModeDescriptionAfterSelect() {
+    const selectBox = await this.pluginInstallModeSelect().boundingBox();
+    const descriptionBox =
+      await this.pluginInstallModeDescription().boundingBox();
+    expect(selectBox).not.toBeNull();
+    expect(descriptionBox).not.toBeNull();
+    expect(descriptionBox!.x).toBeGreaterThan(selectBox!.x + selectBox!.width);
+  }
+
+  async expectInstallModeSectionDashedBorder() {
+    await expect(this.pluginInstallModeSection()).toHaveCSS(
+      "border-top-style",
+      "dashed",
+    );
+  }
+
+  async expectInstallModeDescriptionWithoutBorder() {
+    await expect(this.pluginInstallModeDescription()).toHaveCSS(
+      "border-top-width",
+      "0px",
+    );
+  }
+
   async installPluginWithMockData(pluginId: string, withMockData: boolean) {
     const installButton = await this.pluginActionButton(
       pluginId,
@@ -719,6 +803,14 @@ export class PluginPage {
     await expect(
       await this.pluginActionButton(pluginId, pluginInstallActionPattern),
     ).toBeVisible();
+  }
+
+  async openUninstallDialogAndConfirm(pluginId: string) {
+    await this.openUninstallDialog(pluginId);
+    await this.uninstallDialog()
+      .getByRole("button", { name: confirmActionPattern })
+      .last()
+      .click();
   }
 
   async createPluginDemoDynamicRecord(input: {
@@ -996,6 +1088,20 @@ export class PluginPage {
     ).toBeGreaterThan(previousIndex);
     expect(targetIndex, `${targetTitle} 应位于 ${nextTitle} 之前`).toBeLessThan(
       nextIndex,
+    );
+  }
+
+  async expectBooleanTableCell(
+    cell: Locator,
+    expected: boolean,
+  ) {
+    await expect(cell).toBeVisible();
+    await expect(cell).toContainText(expected ? /是|Yes/iu : /否|No/iu);
+  }
+
+  async expectTenantProvisioningDisabled(pluginId: string) {
+    await expect(this.pluginTenantProvisioningSwitch(pluginId)).toHaveClass(
+      /ant-switch-disabled/,
     );
   }
 

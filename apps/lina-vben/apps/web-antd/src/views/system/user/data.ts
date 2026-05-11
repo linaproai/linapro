@@ -94,7 +94,7 @@ export function buildColumns(
     {
       field: 'username',
       title: $t('pages.system.user.labels.account'),
-      minWidth: 120,
+      minWidth: 180,
       sortable: true,
     },
     {
@@ -106,13 +106,13 @@ export function buildColumns(
     {
       field: 'nickname',
       title: $t('pages.fields.nickname'),
-      minWidth: 120,
+      minWidth: 160,
       sortable: true,
     },
     {
       field: 'roleNames',
       title: $t('pages.fields.roles'),
-      minWidth: 120,
+      minWidth: 220,
       formatter({ cellValue }) {
         return cellValue
           ? String(cellValue)
@@ -144,7 +144,7 @@ export function buildColumns(
     {
       field: 'email',
       title: $t('pages.fields.email'),
-      minWidth: 160,
+      minWidth: 240,
       sortable: true,
     },
     {
@@ -198,7 +198,7 @@ export function drawerSchema(
     {
       component: 'Input',
       fieldName: 'username',
-      label: $t('pages.fields.username'),
+      label: $t('pages.system.user.labels.account'),
       rules: 'required',
       componentProps: {
         placeholder: $t('pages.system.user.placeholders.username'),

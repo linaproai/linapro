@@ -310,6 +310,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		Version:                   manifest.Version,
 		Type:                      manifest.Type,
 		ScopeNature:               manifest.ScopeNature,
+		SupportsMultiTenant:       manifest.SupportsTenantGovernance(),
 		DefaultInstallMode:        manifest.DefaultInstallMode,
 		Description:               manifest.Description,
 		Author:                    manifest.Author,

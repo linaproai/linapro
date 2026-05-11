@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"lina-core/internal/model/entity"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
@@ -85,6 +86,20 @@ func applyInstallModeSelection(manifest *catalog.Manifest, installMode string) e
 		return nil
 	}
 	scopeNature := catalog.NormalizeScopeNature(manifest.ScopeNature)
+	if strings.TrimSpace(installMode) != "" && !catalog.IsSupportedInstallMode(installMode) {
+		return bizerr.NewCode(CodePluginInstallModeInvalid)
+	}
+	if !manifest.SupportsTenantGovernance() {
+		manifest.DefaultInstallMode = catalog.InstallModeGlobal.String()
+		if strings.TrimSpace(installMode) != "" && catalog.NormalizeInstallMode(installMode) != catalog.InstallModeGlobal {
+			return bizerr.NewCode(
+				CodePluginInstallModeInvalidForScopeNature,
+				bizerr.P("scopeNature", scopeNature.String()),
+				bizerr.P("installMode", catalog.NormalizeInstallMode(installMode).String()),
+			)
+		}
+		return nil
+	}
 	if strings.TrimSpace(installMode) == "" {
 		installMode = manifest.DefaultInstallMode
 	}
@@ -117,7 +132,7 @@ func (s *serviceImpl) UninstallWithOptions(
 ) error {
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
-		return err
+		return s.uninstallWithoutDesiredManifest(ctx, pluginID, options, err)
 	}
 	if err = s.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, options.Force); err != nil {
 		return err
@@ -134,13 +149,117 @@ func (s *serviceImpl) UninstallWithOptions(
 		}
 		return notifyPluginUninstalled(ctx, pluginID)
 	}
-	if err = s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData); err != nil {
+	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
 		return err
 	}
 	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
 	}
 	return notifyPluginUninstalled(ctx, pluginID)
+}
+
+// uninstallWithoutDesiredManifest keeps dynamic-plugin uninstall recoverable
+// when the mutable staging artifact is missing but the registry still carries
+// enough active-release state to complete or force one uninstall.
+func (s *serviceImpl) uninstallWithoutDesiredManifest(
+	ctx context.Context,
+	pluginID string,
+	options UninstallOptions,
+	discoveryErr error,
+) error {
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return discoveryErr
+	}
+	if err = s.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, options.Force); err != nil {
+		return err
+	}
+	if err = s.uninstallDynamicPlugin(ctx, pluginID, options); err != nil {
+		return err
+	}
+	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
+		return err
+	}
+	return notifyPluginUninstalled(ctx, pluginID)
+}
+
+// uninstallDynamicPlugin chooses between the full active-release uninstall and
+// the restricted orphan cleanup path used only when active dynamic artifacts are
+// no longer readable.
+func (s *serviceImpl) uninstallDynamicPlugin(
+	ctx context.Context,
+	pluginID string,
+	options UninstallOptions,
+) error {
+	registry, err := s.catalogSvc.GetRegistry(ctx, pluginID)
+	if err != nil {
+		return err
+	}
+	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData)
+	}
+	if registry.Installed != catalog.InstalledYes {
+		if options.Force {
+			return s.forceUninstallMissingDynamicArtifact(ctx, registry)
+		}
+		return s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData)
+	}
+	if s.dynamicFullUninstallRecoverable(ctx, registry) {
+		if err = s.runtimeSvc.UninstallWithOptions(ctx, pluginID, options.PurgeStorageData); err == nil {
+			return nil
+		}
+		refreshed, refreshErr := s.catalogSvc.GetRegistry(ctx, pluginID)
+		if refreshErr != nil {
+			return refreshErr
+		}
+		if !options.Force || s.dynamicFullUninstallRecoverable(ctx, refreshed) {
+			return err
+		}
+		registry = refreshed
+	}
+	if !options.Force {
+		return bizerr.NewCode(
+			CodePluginDynamicArtifactMissingForUninstall,
+			bizerr.P("pluginId", pluginID),
+		)
+	}
+	return s.forceUninstallMissingDynamicArtifact(ctx, registry)
+}
+
+// dynamicFullUninstallRecoverable reports whether the installed dynamic plugin
+// can run full uninstall from its archived active release or repair that archive
+// from the current same-version staging artifact.
+func (s *serviceImpl) dynamicFullUninstallRecoverable(ctx context.Context, registry *entity.SysPlugin) bool {
+	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
+		return false
+	}
+	manifest, err := s.runtimeSvc.LoadActiveDynamicPluginManifest(ctx, registry)
+	if err == nil && manifest != nil {
+		return true
+	}
+	desiredManifest, err := s.catalogSvc.GetDesiredManifest(registry.PluginId)
+	if err != nil || desiredManifest == nil {
+		return false
+	}
+	if catalog.NormalizeType(desiredManifest.Type) != catalog.TypeDynamic {
+		return false
+	}
+	if strings.TrimSpace(desiredManifest.Version) != strings.TrimSpace(registry.Version) {
+		return false
+	}
+	return desiredManifest.RuntimeArtifact != nil
+}
+
+// forceUninstallMissingDynamicArtifact validates host policy before clearing
+// host-owned orphan governance for a dynamic plugin with unreadable artifacts.
+func (s *serviceImpl) forceUninstallMissingDynamicArtifact(ctx context.Context, registry *entity.SysPlugin) error {
+	if err := s.ensureForceUninstallEnabled(ctx); err != nil {
+		return err
+	}
+	return s.runtimeSvc.ForceUninstallMissingArtifact(ctx, registry)
 }
 
 // UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
@@ -318,8 +437,8 @@ func (s *serviceImpl) ensureLifecycleGuardAllowed(
 
 	reasons := summarizeGuardVetoReasons(result.Decisions)
 	if force && hook == pluginhost.GuardHookCanUninstall {
-		if !s.configSvc.GetPlugin(ctx).AllowForceUninstall {
-			return bizerr.NewCode(CodePluginForceUninstallDisabled)
+		if err := s.ensureForceUninstallEnabled(ctx); err != nil {
+			return err
 		}
 		logger.Warningf(
 			ctx,
@@ -337,6 +456,15 @@ func (s *serviceImpl) ensureLifecycleGuardAllowed(
 		bizerr.P("pluginId", pluginID),
 		bizerr.P("reasons", reasons),
 	)
+}
+
+// ensureForceUninstallEnabled verifies that host configuration explicitly
+// permits destructive force-uninstall flows.
+func (s *serviceImpl) ensureForceUninstallEnabled(ctx context.Context) error {
+	if !s.configSvc.GetPlugin(ctx).AllowForceUninstall {
+		return bizerr.NewCode(CodePluginForceUninstallDisabled)
+	}
+	return nil
 }
 
 // summarizeGuardVetoReasons builds one deterministic reason string for bizerr

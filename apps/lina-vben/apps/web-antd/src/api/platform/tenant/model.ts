@@ -18,23 +18,6 @@ export interface PlatformTenantListParams {
   status?: TenantStatus | '';
 }
 
-export interface PlatformTenantMember {
-  id: number;
-  userId: number;
-  tenantId: number;
-  username: string;
-  nickname?: string;
-  status: number;
-}
-
-export interface PlatformTenantMemberListParams {
-  pageNum?: number;
-  pageSize?: number;
-  status?: number;
-  tenantId?: number;
-  userId?: number;
-}
-
 export interface TenantImpersonationResult {
   accessToken?: string;
   tenant?: PlatformTenant;

@@ -30,6 +30,7 @@ type PluginItem struct {
 	Enabled                 int                          `json:"enabled" dc:"Enabled status: 1=enabled 0=disabled" eg:"1"`
 	AutoEnableManaged       int                          `json:"autoEnableManaged" dc:"Whether it is hit by plugin.autoEnable in the host's main configuration file: 1=yes 0=no; if hit, it means that the host will ensure that the plugin is enabled when it starts." eg:"1"`
 	AutoEnableForNewTenants bool                         `json:"autoEnableForNewTenants" dc:"Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically" eg:"true"`
+	SupportsMultiTenant     bool                         `json:"supportsMultiTenant" dc:"Whether the plugin manifest declares support for tenant-level plugin governance" eg:"true"`
 	ScopeNature             string                       `json:"scopeNature" dc:"Plugin scope nature: platform_only or tenant_aware" eg:"tenant_aware"`
 	InstallMode             string                       `json:"installMode" dc:"Plugin install mode: global or tenant_scoped" eg:"tenant_scoped"`
 	StatusKey               string                       `json:"statusKey" dc:"The location key name of the plugin status in the system plugin registry. The frontend registry monitor will use this key to determine whether the plugin status needs to be refreshed." eg:"sys_plugin.status:plugin-demo-source"`

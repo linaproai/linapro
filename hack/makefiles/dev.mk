@@ -46,6 +46,7 @@ dev: stop
 	echo "Restarting services..."; \
 	$(MAKE) wasm; \
 	./hack/scripts/prepare-packed-assets.sh; \
+	rm -f "$$backend_binary"; \
 	(cd "$$root_dir/$(BACKEND_DIR)" && go build -o "$$backend_binary" .) || { echo "Backend build failed"; exit 1; }; \
 	nohup sh -c 'cd "$$1" && exec "$$2"' sh "$$root_dir/$(BACKEND_DIR)" "$$backend_binary" >> $(BACKEND_LOG) 2>&1 < /dev/null & echo $$! > $(BACKEND_PID); \
 	nohup sh -c 'cd "'"$$root_dir"'/$(FRONTEND_DIR)/apps/web-antd" && exec ../../node_modules/.bin/vite --mode development --host 127.0.0.1 --port $(FRONTEND_PORT) --strictPort' >> $(FRONTEND_LOG) 2>&1 < /dev/null & echo $$! > $(FRONTEND_PID); \
@@ -59,42 +60,15 @@ dev: stop
 ## stop: Stop backend and frontend development servers
 .PHONY: stop
 stop:
-	@echo "Stopping services..."
-	@_kill_tree() { \
-		for child in $$(pgrep -P $$1 2>/dev/null); do \
-			_kill_tree $$child; \
-		done; \
-		kill $$1 2>/dev/null; \
-	}; \
-	_stop_service() { \
-		local name="$$1" pid_file="$$2" port="$$3"; \
-		local stopped=false; \
-		if [ -f "$$pid_file" ]; then \
-			local pid=$$(cat "$$pid_file"); \
-			if kill -0 "$$pid" 2>/dev/null; then \
-				_kill_tree "$$pid"; \
-				stopped=true; \
-			fi; \
-			rm -f "$$pid_file"; \
-		fi; \
-		local pids=$$(lsof -ti :"$$port" 2>/dev/null); \
-		if [ -n "$$pids" ]; then \
-			echo "$$pids" | xargs kill 2>/dev/null; \
-			sleep 0.5; \
-			pids=$$(lsof -ti :"$$port" 2>/dev/null); \
-			if [ -n "$$pids" ]; then \
-				echo "$$pids" | xargs kill -9 2>/dev/null; \
-			fi; \
-			stopped=true; \
-		fi; \
-		if [ "$$stopped" = true ]; then \
-			echo "✓ $$name stopped"; \
-		else \
-			echo "  $$name is not running"; \
-		fi; \
-	}; \
-	_stop_service "Backend" "$(BACKEND_PID)" "$(BACKEND_PORT)"; \
-	_stop_service "Frontend" "$(FRONTEND_PID)" "$(FRONTEND_PORT)"
+	@ROOT_DIR="$(CURDIR)" \
+		BACKEND_DIR="$(BACKEND_DIR)" \
+		FRONTEND_DIR="$(FRONTEND_DIR)" \
+		TEMP_DIR="$(TEMP_DIR)" \
+		BACKEND_PID="$(BACKEND_PID)" \
+		FRONTEND_PID="$(FRONTEND_PID)" \
+		BACKEND_PORT="$(BACKEND_PORT)" \
+		FRONTEND_PORT="$(FRONTEND_PORT)" \
+		bash hack/scripts/stop-dev-services.sh
 
 # Show backend/frontend runtime status and their log file paths.
 # 查看前后端运行状态及对应日志文件路径。

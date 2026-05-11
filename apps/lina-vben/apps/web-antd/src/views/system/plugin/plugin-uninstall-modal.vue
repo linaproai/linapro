@@ -17,7 +17,16 @@ import {
 import { pluginUninstall } from '#/api/system/plugin';
 import { $t } from '#/locales';
 
-const emit = defineEmits<{ reload: [] }>();
+const emit = defineEmits<{
+  lifecycleGuard: [
+    payload: {
+      force: () => Promise<void>;
+      pluginId: string;
+      reasons: string[];
+    },
+  ];
+  reload: [];
+}>();
 
 const currentPlugin = ref<SystemPlugin | null>(null);
 const purgeStorageData = ref(true);
@@ -47,22 +56,123 @@ async function handleOpenChange(open: boolean) {
 }
 
 async function handleConfirm() {
+  await submitUninstall(false);
+}
+
+async function forceUninstall() {
+  await submitUninstall(true);
+}
+
+async function submitUninstall(force: boolean) {
   if (!currentPlugin.value) {
     return;
   }
 
   try {
     modalApi.lock(true);
-    await pluginUninstall(
-      currentPlugin.value.id,
-      supportsPurgeStorageData.value ? purgeStorageData.value : undefined,
-    );
-    message.success($t('pages.system.plugin.messages.uninstalled'));
-    emit('reload');
-    handleClosed();
+    try {
+      await pluginUninstall(currentPlugin.value.id, {
+        force,
+        purgeStorageData: supportsPurgeStorageData.value
+          ? purgeStorageData.value
+          : undefined,
+      });
+      message.success($t('pages.system.plugin.messages.uninstalled'));
+      emit('reload');
+      handleClosed();
+    } catch (error) {
+      if (!force && handleLifecycleGuardVeto(error)) {
+        return;
+      }
+      message.error(resolveRuntimeErrorMessage(error));
+    }
   } finally {
     modalApi.lock(false);
   }
+}
+
+function handleLifecycleGuardVeto(error: unknown) {
+  const reasons = extractLifecycleGuardReasons(error);
+  if (!reasons) {
+    return false;
+  }
+  const pluginId = currentPlugin.value?.id ?? '';
+  emit('lifecycleGuard', {
+    force: forceUninstall,
+    pluginId,
+    reasons,
+  });
+  return true;
+}
+
+function extractLifecycleGuardReasons(error: unknown): null | string[] {
+  const envelope = extractRuntimeErrorEnvelope(error);
+  if (envelope?.errorCode !== 'PLUGIN_LIFECYCLE_GUARD_VETOED') {
+    return null;
+  }
+  return normalizeLifecycleGuardReasons(envelope.messageParams?.reasons);
+}
+
+function extractRuntimeErrorEnvelope(error: unknown): null | {
+  errorCode?: string;
+  message?: string;
+  messageKey?: string;
+  messageParams?: Record<string, unknown>;
+} {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+  // RequestClient surfaces backend errors as the bizerr envelope directly, but
+  // tests and raw axios paths may still expose it under response.data.
+  const response = (error as { response?: { data?: unknown } }).response;
+  const envelope = (response?.data ?? error) as {
+    errorCode?: string;
+    message?: string;
+    messageKey?: string;
+    messageParams?: Record<string, unknown>;
+  };
+  return envelope;
+}
+
+function resolveRuntimeErrorMessage(error: unknown) {
+  const envelope = extractRuntimeErrorEnvelope(error);
+  if (envelope?.messageKey) {
+    const localized = $t(envelope.messageKey, envelope.messageParams || {});
+    if (localized && localized !== envelope.messageKey) {
+      return localized;
+    }
+  }
+  if (envelope?.message) {
+    return envelope.message;
+  }
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return $t('ui.fallback.http.internalServerError');
+}
+
+function normalizeLifecycleGuardReasons(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeLifecycleGuardReason(String(item)))
+      .filter((item) => item.length > 0);
+  }
+  if (typeof value !== 'string') {
+    return [];
+  }
+  return value
+    .split(';')
+    .map((item) => normalizeLifecycleGuardReason(item))
+    .filter((item) => item.length > 0);
+}
+
+function normalizeLifecycleGuardReason(value: string) {
+  const trimmed = value.trim();
+  const separatorIndex = trimmed.indexOf(':');
+  if (separatorIndex < 0) {
+    return trimmed;
+  }
+  return trimmed.slice(separatorIndex + 1).trim();
 }
 
 function handleClosed() {
@@ -70,6 +180,8 @@ function handleClosed() {
   currentPlugin.value = null;
   purgeStorageData.value = true;
 }
+
+defineExpose({ forceUninstall });
 </script>
 
 <template>

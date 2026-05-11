@@ -43,6 +43,8 @@ type PluginItem struct {
 	Enabled int
 	// AutoEnableForNewTenants reports the platform-owned new-tenant provisioning policy.
 	AutoEnableForNewTenants bool
+	// SupportsMultiTenant reports whether the manifest supports tenant-level plugin governance.
+	SupportsMultiTenant bool
 	// ScopeNature is the plugin scope nature persisted in the host registry.
 	ScopeNature string
 	// InstallMode is the plugin install mode persisted in the host registry.
@@ -103,6 +105,7 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		scopeNature             string
 		installMode             string
 		autoEnableForNewTenants bool
+		supportsMultiTenant     bool
 		release                 *entity.SysPluginRelease
 		snapshot                *catalog.ManifestSnapshot
 		err                     error
@@ -161,6 +164,17 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 			logger.Warningf(ctx, "parse plugin release manifest snapshot failed plugin=%s releaseID=%d err=%v", id, release.Id, err)
 		}
 	}
+	if manifest != nil {
+		supportsMultiTenant = manifest.SupportsTenantGovernance()
+		if scopeNature == "" {
+			scopeNature = catalog.NormalizeScopeNature(manifest.ScopeNature).String()
+		}
+		if installMode == "" {
+			installMode = catalog.NormalizeInstallMode(manifest.DefaultInstallMode).String()
+		}
+	} else if snapshot != nil {
+		supportsMultiTenant = snapshot.SupportsMultiTenant
+	}
 
 	normalizeHostServices := func(source string, specs []*bridgehostservice.HostServiceSpec) []*bridgehostservice.HostServiceSpec {
 		normalized, normalizeErr := bridgehostservice.NormalizeHostServiceSpecs(specs)
@@ -215,6 +229,7 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		InstalledAt:             installedAt,
 		Enabled:                 enabled,
 		AutoEnableForNewTenants: autoEnableForNewTenants,
+		SupportsMultiTenant:     supportsMultiTenant,
 		ScopeNature:             scopeNature,
 		InstallMode:             installMode,
 		StatusKey:               s.catalogSvc.BuildPluginStatusKey(id),
@@ -257,7 +272,8 @@ func (s *serviceImpl) HasArtifactStorageFile(ctx context.Context, pluginID strin
 }
 
 // reconcileRegistryArtifactState resets a dynamic plugin registry row to
-// uninstalled when its runtime artifact file can no longer be found on disk.
+// uninstalled only when neither the mutable staging artifact nor the active
+// release artifact can be loaded.
 func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, registry *entity.SysPlugin) (*entity.SysPlugin, error) {
 	if registry == nil || catalog.NormalizeType(registry.Type) != catalog.TypeDynamic {
 		return registry, nil
@@ -274,6 +290,9 @@ func (s *serviceImpl) reconcileRegistryArtifactState(ctx context.Context, regist
 		return registry, nil
 	}
 	if registry.Installed != catalog.InstalledYes && registry.Status != catalog.StatusEnabled {
+		return registry, nil
+	}
+	if manifest, loadErr := s.loadActiveManifest(ctx, registry); loadErr == nil && manifest != nil {
 		return registry, nil
 	}
 
@@ -339,6 +358,9 @@ func (s *serviceImpl) projectRegistryArtifactState(ctx context.Context, registry
 		return registry
 	}
 	if registry.Installed != catalog.InstalledYes && registry.Status != catalog.StatusEnabled {
+		return registry
+	}
+	if manifest, loadErr := s.loadActiveManifest(ctx, registry); loadErr == nil && manifest != nil {
 		return registry
 	}
 

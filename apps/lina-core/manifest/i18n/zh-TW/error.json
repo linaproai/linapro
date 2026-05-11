@@ -813,7 +813,7 @@
       "tenant": {
         "provisioning": {
           "policy": {
-            "invalid": "插件 {pluginId} 必須是 tenant_aware 且以 tenant_scoped 模式安裝，才能自動啟用到新租戶"
+            "invalid": "插件 {pluginId} 必須支援多租戶治理並以 tenant_scoped 模式安裝，才能自動啟用到新租戶"
           }
         }
       }

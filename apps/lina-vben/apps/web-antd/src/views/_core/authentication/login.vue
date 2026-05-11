@@ -1,12 +1,15 @@
 <script lang="ts" setup>
 import type { VbenFormSchema } from '@vben/common-ui';
 
-import { computed, ref } from 'vue';
+import { computed, reactive } from 'vue';
 
-import { AuthenticationLogin, z } from '@vben/common-ui';
+import {
+  AuthenticationLogin,
+  useVbenForm,
+  VbenButton,
+  z,
+} from '@vben/common-ui';
 import { $t } from '@vben/locales';
-
-import { Button, Card, Radio, RadioGroup } from 'ant-design-vue';
 
 import PluginSlotOutlet from '#/components/plugin/plugin-slot-outlet.vue';
 import { pluginSlotKeys } from '#/plugins/plugin-slots';
@@ -17,11 +20,22 @@ defineOptions({ name: 'Login' });
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
-const selectedTenantId = ref<number>();
+const tenantOptions = computed(() =>
+  tenantStore.tenants.map((tenant) => ({
+    code: tenant.code,
+    label: `${tenant.name} (${tenant.code})`,
+    name: tenant.name,
+    value: String(tenant.id),
+  })),
+);
 const loginSubtitle = computed(
   () =>
     publicFrontendSettings.auth.loginSubtitle ||
     $t('authentication.loginSubtitle'),
+);
+
+const tenantSubtitle = computed(() =>
+  $t('pages.multiTenant.login.selectTenantSubtitle'),
 );
 
 const formSchema = computed((): VbenFormSchema[] => {
@@ -47,24 +61,59 @@ const formSchema = computed((): VbenFormSchema[] => {
   ];
 });
 
+const tenantFormSchema = computed((): VbenFormSchema[] => [
+  {
+    component: 'VbenSelect',
+    componentProps: {
+      class: 'h-11',
+      options: tenantOptions.value,
+      placeholder: $t('pages.multiTenant.login.selectTenant'),
+    },
+    fieldName: 'tenantId',
+    label: $t('pages.multiTenant.login.selectTenant'),
+    rules: 'selectRequired',
+  },
+]);
+
+const [TenantForm, tenantFormApi] = useVbenForm(
+  reactive({
+    commonConfig: {
+      hideLabel: true,
+      hideRequiredMark: true,
+    },
+    schema: tenantFormSchema,
+    showDefaultActions: false,
+  }),
+);
+
 async function handleSubmit(values: Record<string, any>) {
   const result = await authStore.authLogin(values);
   if (result.requiresTenantSelection && result.tenants?.[0]) {
-    selectedTenantId.value = result.tenants[0].id;
+    await tenantFormApi.setFieldValue(
+      'tenantId',
+      String(result.tenants[0].id),
+    );
   }
 }
 
 async function handleSelectTenant() {
-  if (!selectedTenantId.value) {
+  const { valid } = await tenantFormApi.validate();
+  if (!valid) {
     return;
   }
-  await authStore.selectTenant(selectedTenantId.value);
+  const values = await tenantFormApi.getValues<{ tenantId?: string }>();
+  const tenantId = Number(values.tenantId);
+  if (!Number.isFinite(tenantId) || tenantId <= 0) {
+    return;
+  }
+  await authStore.selectTenant(tenantId);
 }
 </script>
 
 <template>
   <div>
     <AuthenticationLogin
+      v-if="!authStore.pendingPreToken"
       :form-schema="formSchema"
       :loading="authStore.loginLoading"
       :show-code-login="false"
@@ -75,37 +124,35 @@ async function handleSelectTenant() {
       :sub-title="loginSubtitle"
       @submit="handleSubmit"
     />
-    <Card
-      v-if="authStore.pendingPreToken"
-      class="mt-4"
+    <div
+      v-else
       data-testid="login-tenant-selector"
-      :title="$t('pages.multiTenant.login.selectTenant')"
-      :bordered="false"
+      @keydown.enter.prevent="handleSelectTenant"
     >
-      <RadioGroup v-model:value="selectedTenantId" class="w-full">
-        <div class="grid gap-2">
-          <Radio
-            v-for="tenant in tenantStore.tenants"
-            :key="tenant.id"
-            :value="tenant.id"
-            class="m-0 rounded border p-3"
-          >
-            <span class="font-medium">{{ tenant.name }}</span>
-            <span class="ml-2 text-xs text-[var(--ant-color-text-secondary)]">
-              {{ tenant.code }}
-            </span>
-          </Radio>
-        </div>
-      </RadioGroup>
-      <Button
-        class="mt-4 w-full"
-        type="primary"
+      <div class="mb-7 sm:mx-auto sm:w-full sm:max-w-md">
+        <h2
+          class="mb-3 text-3xl/9 font-bold tracking-tight text-foreground lg:text-4xl"
+        >
+          {{ $t('pages.multiTenant.login.selectTenant') }}
+        </h2>
+        <p class="lg:text-md text-sm text-muted-foreground">
+          {{ tenantSubtitle }}
+        </p>
+      </div>
+      <TenantForm class="mb-8" data-testid="login-tenant-form" />
+      <VbenButton
+        :class="{
+          'cursor-wait': authStore.loginLoading,
+        }"
+        :loading="authStore.loginLoading"
+        aria-label="select tenant"
+        class="w-full"
         data-testid="login-tenant-confirm"
         @click="handleSelectTenant"
       >
         {{ $t('pages.multiTenant.login.enterTenant') }}
-      </Button>
-    </Card>
+      </VbenButton>
+    </div>
     <PluginSlotOutlet :slot-key="pluginSlotKeys.authLoginAfter" class="mt-4" />
   </div>
 </template>

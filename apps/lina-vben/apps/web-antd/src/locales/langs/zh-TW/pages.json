@@ -308,7 +308,7 @@
     "user": {
       "tableTitle": "用戶列表",
       "placeholders": {
-        "username": "請輸入用戶名",
+        "username": "請輸入賬號",
         "nickname": "請輸入暱稱",
         "email": "請輸入郵箱",
         "phone": "請輸入手機號碼",
@@ -320,7 +320,7 @@
         "remark": "請輸入備註"
       },
       "labels": {
-        "account": "名稱",
+        "account": "賬號",
         "userAccount": "用戶賬號",
         "userNickname": "用戶暱稱",
         "userStatus": "用戶狀態",
@@ -909,6 +909,7 @@
         "authorizationStatus": "授權狀態",
         "startupManagement": "啟動管理",
         "hasMockData": "示例資料",
+        "supportsMultiTenant": "支援多租戶",
         "tenantProvisioning": "新租戶啟用"
       },
       "type": {
@@ -1006,7 +1007,7 @@
         "noStatusPermission": "當前賬號沒有修改插件狀態的權限",
         "noUninstallPermission": "當前賬號沒有卸載插件的權限",
         "tenantProvisioningEffective": "當該租戶級插件已安裝且已啟用時，新建立的租戶會自動獲得此插件。",
-        "tenantProvisioningUnsupported": "僅 tenant_aware 且以 tenant_scoped 模式安裝的插件支援此策略。",
+        "tenantProvisioningUnsupported": "僅支援多租戶且以租戶級模式安裝的插件支援此策略。",
         "tenantProvisioningUpdated": "新租戶插件策略已更新",
         "syncSuccess": "已同步 {total} 條插件記錄",
         "uninstalled": "插件已卸載"
@@ -1281,6 +1282,7 @@
     },
     "login": {
       "selectTenant": "選擇租戶",
+      "selectTenantSubtitle": "請選擇本次要進入的租戶，系統將根據所選租戶載入對應的工作台和權限。",
       "enterTenant": "進入租戶"
     },
     "impersonation": {
@@ -1297,8 +1299,7 @@
         "edit": "編輯租戶",
         "suspend": "暫停",
         "resume": "恢復",
-        "impersonate": "代操作",
-        "users": "用戶管理"
+        "impersonate": "代操作"
       },
       "tooltips": {
         "impersonate": "以平台身分進入該租戶視角"
@@ -1318,8 +1319,7 @@
     "plugin": {
       "tableTitle": "租戶插件",
       "installMode": "安裝模式",
-      "installModeTitle": "選擇安裝模式",
-      "platformOnlyGlobalHint": "平台級插件只能以全域模式安裝。",
+      "platformOnlyGlobalHint": "不支援租戶級安裝模式的插件只能以全域模式安裝。",
       "installModes": {
         "global": "全域",
         "tenant_scoped": "租戶級"
@@ -1332,7 +1332,8 @@
         "title": "生命週期保護",
         "summary": "插件返回了阻止目前操作的原因。",
         "defaultReason": "目前資源仍有關聯資料，無法繼續操作。",
-        "forceConfirm": "我理解風險，仍要走強制通道",
+        "forceConfirm": "強制卸載會繞過上述保護並清理插件資料，請確認你理解該風險。",
+        "forceInputHint": "輸入插件 ID「{pluginId}」以啟用強制卸載。",
         "forceSubmitted": "強制通道請求已送出"
       }
     }

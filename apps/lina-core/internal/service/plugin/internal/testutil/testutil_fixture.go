@@ -41,7 +41,11 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 	WriteTestFile(t, filepath.Join(pluginDir, "frontend", "pages", "main-entry.vue"), "<template><div /></template>\n")
 	WriteTestFile(t, filepath.Join(pluginDir, "manifest", "sql", "001-"+pluginID+".sql"), "SELECT 1;\n")
 	WriteTestFile(t, filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-"+pluginID+".sql"), "SELECT 1;\n")
-	WriteTestFile(t, filepath.Join(pluginDir, "plugin.yaml"), "id: "+pluginID+"\nname: test\nversion: 0.1.0\ntype: source\n")
+	WriteTestFile(
+		t,
+		filepath.Join(pluginDir, "plugin.yaml"),
+		"id: "+pluginID+"\nname: test\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\n",
+	)
 
 	return pluginDir
 }
@@ -97,16 +101,20 @@ func CreateTestRuntimePluginDirWithFrontendAssets(
 	WriteTestFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: "+pluginID+"\nname: "+pluginName+"\nversion: "+version+"\ntype: dynamic\n",
+		"id: "+pluginID+"\nname: "+pluginName+"\nversion: "+version+"\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\n",
 	)
+	supportsMultiTenant := true
 	WriteRuntimeWasmArtifact(
 		t,
 		filepath.Join(pluginDir, runtime.BuildArtifactRelativePath(pluginID)),
 		&catalog.ArtifactManifest{
-			ID:      pluginID,
-			Name:    pluginName,
-			Version: version,
-			Type:    catalog.TypeDynamic.String(),
+			ID:                  pluginID,
+			Name:                pluginName,
+			Version:             version,
+			Type:                catalog.TypeDynamic.String(),
+			ScopeNature:         catalog.ScopeNatureTenantAware.String(),
+			SupportsMultiTenant: &supportsMultiTenant,
+			DefaultInstallMode:  catalog.InstallModeTenantScoped.String(),
 		},
 		&catalog.ArtifactSpec{
 			RuntimeKind:        pluginbridge.RuntimeKindWasm,

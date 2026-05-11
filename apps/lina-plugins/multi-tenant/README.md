@@ -36,4 +36,4 @@ Resolver policy is fixed in code in the first iteration. There is no resolver co
 
 ## Plugin Governance
 
-The plugin is `platform_only` and `global` because it owns the tenant control plane itself. Tenant-aware business plugins should use `scope_nature: tenant_aware` and choose either `global` or `tenant_scoped` install mode.
+The plugin is `platform_only`, `supports_multi_tenant: false`, and `global` because it owns the tenant control plane itself. Tenant-aware business plugins should use `scope_nature: tenant_aware`, declare `supports_multi_tenant: true` when they support tenant-level governance, and choose either `global` or `tenant_scoped` install mode.

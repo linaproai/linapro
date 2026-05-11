@@ -609,10 +609,18 @@ watch(
       <div class="mr-2 hidden items-center md:flex">
         <div
           v-if="tenantStore.isImpersonation"
-          class="mr-2 flex h-8 items-center justify-center gap-2 rounded border border-red-300 bg-red-50 px-3 text-xs font-medium text-red-700 dark:border-red-500/60 dark:bg-red-500/15 dark:text-red-200"
+          class="mr-2 flex h-8 max-w-[220px] shrink-0 items-center justify-center gap-1.5 rounded border border-red-300 bg-red-50 px-2.5 text-xs font-medium text-red-700 xl:max-w-[240px] dark:border-red-500/60 dark:bg-red-500/15 dark:text-red-200"
           data-testid="impersonation-banner"
         >
-          <span>
+          <span
+            :title="
+              $t('pages.multiTenant.impersonation.banner', {
+                tenant: tenantStore.currentTenant?.name || '',
+              })
+            "
+            class="min-w-0 flex-1 truncate"
+            data-testid="impersonation-banner-text"
+          >
             {{
               $t('pages.multiTenant.impersonation.banner', {
                 tenant: tenantStore.currentTenant?.name || '',
@@ -623,6 +631,7 @@ watch(
             danger
             ghost
             size="small"
+            class="shrink-0 whitespace-nowrap"
             data-testid="impersonation-exit"
             @click="handleExitImpersonation"
           >

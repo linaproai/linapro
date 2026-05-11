@@ -23,7 +23,6 @@ import PluginDetailModal from './plugin-detail-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
 import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginUninstallModal from './plugin-uninstall-modal.vue';
-import InstallModeSelector from '#/views/platform/plugins/install-mode-selector.vue';
 import LifecycleGuardDialog from '#/views/platform/plugins/lifecycle-guard-dialog.vue';
 
 const [DetailModal, detailModalApi] = useVbenModal({
@@ -42,11 +41,7 @@ const [UninstallModal, uninstallModalApi] = useVbenModal({
   connectedComponent: PluginUninstallModal,
 });
 
-const [InstallModeModal, installModeModalApi] = useVbenModal({
-  connectedComponent: InstallModeSelector,
-});
-
-const [LifecycleGuardModal] = useVbenModal({
+const [LifecycleGuardModal, lifecycleGuardModalApi] = useVbenModal({
   connectedComponent: LifecycleGuardDialog,
 });
 
@@ -178,6 +173,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
         width: 120,
       },
       {
+        field: 'supportsMultiTenant',
+        slots: { default: 'supportsMultiTenant' },
+        title: $t('pages.system.plugin.fields.supportsMultiTenant'),
+        width: 140,
+      },
+      {
         field: 'autoEnableForNewTenants',
         slots: { default: 'tenantProvisioning' },
         title: $t('pages.system.plugin.fields.tenantProvisioning'),
@@ -244,9 +245,15 @@ function hasPluginMockData(row: SystemPlugin) {
   return row.hasMockData === 1;
 }
 
+function supportsPluginMultiTenant(row: SystemPlugin) {
+  return row.supportsMultiTenant === true;
+}
+
 function isTenantProvisioningPolicySupported(row: SystemPlugin) {
   return (
-    row.scopeNature === 'tenant_aware' && row.installMode === 'tenant_scoped'
+    supportsPluginMultiTenant(row) &&
+    row.scopeNature === 'tenant_aware' &&
+    row.installMode === 'tenant_scoped'
   );
 }
 
@@ -372,28 +379,10 @@ async function handleInstall(row: SystemPlugin) {
     message.warning($t('pages.system.plugin.messages.noInstallPermission'));
     return;
   }
-  if (row.scopeNature === 'tenant_aware' || row.scopeNature === 'platform_only') {
-    installModeModalApi.setData({ row });
-    installModeModalApi.open();
-    return;
-  }
   hostServiceAuthModalApi.setData({
     allowInstallAndEnable: canInstallAndEnablePlugin(),
     mode: 'install',
     row,
-  });
-  hostServiceAuthModalApi.open();
-}
-
-function handleInstallModeSelected(payload: {
-  installMode: 'global' | 'tenant_scoped';
-  row: SystemPlugin;
-}) {
-  hostServiceAuthModalApi.setData({
-    allowInstallAndEnable: canInstallAndEnablePlugin(),
-    installMode: payload.installMode,
-    mode: 'install',
-    row: payload.row,
   });
   hostServiceAuthModalApi.open();
 }
@@ -442,8 +431,29 @@ async function handleUninstallReload() {
   await gridApi.query();
 }
 
-function handleLifecycleGuardForce() {
-  message.warning($t('pages.multiTenant.plugin.lifecycleGuard.forceSubmitted'));
+function handleLifecycleGuard(payload: {
+  force: () => Promise<void>;
+  pluginId: string;
+  reasons: string[];
+}) {
+  lifecycleGuardModalApi.setData(payload);
+  lifecycleGuardModalApi.open();
+}
+
+async function handleLifecycleGuardForce(payload: { pluginId: string }) {
+  const data = lifecycleGuardModalApi.getData<{
+    force?: () => Promise<void>;
+    pluginId?: string;
+  }>();
+  if (!data.force || data.pluginId !== payload.pluginId) {
+    return;
+  }
+  lifecycleGuardModalApi.lock(true);
+  try {
+    await data.force();
+  } finally {
+    lifecycleGuardModalApi.lock(false);
+  }
 }
 </script>
 
@@ -565,6 +575,19 @@ function handleLifecycleGuardForce() {
         </Tag>
       </template>
 
+      <template #supportsMultiTenant="{ row }">
+        <Tag
+          :color="supportsPluginMultiTenant(row) ? 'green' : 'default'"
+          :data-testid="`plugin-supports-multi-tenant-${row.id}`"
+        >
+          {{
+            supportsPluginMultiTenant(row)
+              ? $t('pages.common.yes')
+              : $t('pages.common.no')
+          }}
+        </Tag>
+      </template>
+
       <template #tenantProvisioning="{ row }">
         <Tooltip
           :title="
@@ -627,8 +650,10 @@ function handleLifecycleGuardForce() {
     <DetailModal />
     <DynamicUploadModal @reload="handleDynamicUploadReload" />
     <HostServiceAuthModal @reload="handleHostServiceAuthReload" />
-    <UninstallModal @reload="handleUninstallReload" />
-    <InstallModeModal @confirm="handleInstallModeSelected" />
+    <UninstallModal
+      @lifecycle-guard="handleLifecycleGuard"
+      @reload="handleUninstallReload"
+    />
     <LifecycleGuardModal @force="handleLifecycleGuardForce" />
   </Page>
 </template>

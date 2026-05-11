@@ -308,7 +308,7 @@
     "user": {
       "tableTitle": "User List",
       "placeholders": {
-        "username": "Please enter a username",
+        "username": "Please enter an account",
         "nickname": "Please enter a nickname",
         "email": "Please enter an email",
         "phone": "Please enter a phone number",
@@ -909,6 +909,7 @@
         "authorizationStatus": "Authorization Status",
         "startupManagement": "Startup Management",
         "hasMockData": "Mock Data",
+        "supportsMultiTenant": "Multi-Tenant",
         "tenantProvisioning": "New Tenants"
       },
       "type": {
@@ -1006,7 +1007,7 @@
         "noStatusPermission": "The current account does not have permission to change plugin status",
         "noUninstallPermission": "The current account does not have permission to uninstall plugins",
         "tenantProvisioningEffective": "When this tenant-scoped plugin is installed and enabled, newly created tenants will receive it automatically.",
-        "tenantProvisioningUnsupported": "Only tenant-aware plugins installed in tenant-scoped mode support this policy.",
+        "tenantProvisioningUnsupported": "Only multi-tenant plugins installed in tenant-scoped mode support this policy.",
         "tenantProvisioningUpdated": "New-tenant plugin policy updated",
         "syncSuccess": "Synchronized {total} plugin record(s)",
         "uninstalled": "Plugin uninstalled"
@@ -1215,11 +1216,12 @@
     },
     "login": {
       "selectTenant": "Select Tenant",
+      "selectTenantSubtitle": "Select the tenant you want to enter for this session. The workspace and permissions will load from that tenant.",
       "enterTenant": "Enter Tenant"
     },
     "impersonation": {
       "banner": "Acting as platform administrator for tenant {tenant}",
-      "exit": "Exit Impersonation"
+      "exit": "Exit"
     },
     "switcher": {
       "placeholder": "Switch Tenant"
@@ -1231,8 +1233,7 @@
         "edit": "Edit Tenant",
         "suspend": "Suspend",
         "resume": "Resume",
-        "impersonate": "Impersonate",
-        "users": "User Management"
+        "impersonate": "Impersonate"
       },
       "tooltips": {
         "impersonate": "Act in this tenant as platform admin"
@@ -1252,8 +1253,7 @@
     "plugin": {
       "tableTitle": "Tenant Plugins",
       "installMode": "Install Mode",
-      "installModeTitle": "Choose Install Mode",
-      "platformOnlyGlobalHint": "Platform-only plugins must be installed globally.",
+      "platformOnlyGlobalHint": "Plugins that do not support tenant-scoped installation must be installed globally.",
       "installModes": {
         "global": "Global",
         "tenant_scoped": "Tenant Scoped"
@@ -1266,7 +1266,8 @@
         "title": "Lifecycle Guard",
         "summary": "The plugin returned reasons blocking this operation.",
         "defaultReason": "Related data still exists, so the operation cannot continue.",
-        "forceConfirm": "I understand the risk and want to use the force channel",
+        "forceConfirm": "Force uninstall bypasses these guards and can remove plugin data. Confirm that you understand the risk.",
+        "forceInputHint": "Type plugin ID “{pluginId}” to enable force uninstall.",
         "forceSubmitted": "Force channel request submitted"
       }
     }
