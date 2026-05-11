@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
-import { Alert, Input, List, ListItem } from 'ant-design-vue';
+import { Alert, Input } from 'ant-design-vue';
 
 import { $t } from '#/locales';
 
@@ -14,12 +14,29 @@ const reasons = ref<string[]>([]);
 const confirmText = ref('');
 
 const canForce = computed(() => confirmText.value.trim() === pluginId.value);
+const reasonDisplayKeys: Record<string, string> = {
+  'plugin.multi-tenant.uninstall_blocked.tenants_exist':
+    'pages.multiTenant.plugin.lifecycleGuard.reasons.multiTenantUninstallBlocked',
+};
+const localizedReasons = computed(() =>
+  reasons.value.map((reason) => {
+    const displayKey = reasonDisplayKeys[reason] ?? reason;
+    const localized = $t(displayKey);
+    if (localized !== displayKey) {
+      return localized;
+    }
+    const fallback = $t(reason);
+    return fallback === reason ? reason : fallback;
+  }),
+);
+const blockedReasonText = computed(() =>
+  $t('pages.multiTenant.plugin.lifecycleGuard.blockedReason'),
+);
 
 const [Modal, modalApi] = useVbenModal({
   onConfirm() {
     if (canForce.value) {
       emit('force', { pluginId: pluginId.value });
-      modalApi.close();
     }
   },
   onOpenChange(open) {
@@ -43,40 +60,52 @@ watch(canForce, (allowed) => {
 
 <template>
   <Modal :title="$t('pages.multiTenant.plugin.lifecycleGuard.title')">
-    <div class="space-y-4" data-testid="lifecycle-guard-dialog">
+    <div
+      class="flex flex-col gap-[10px]"
+      data-testid="lifecycle-guard-dialog"
+    >
       <Alert
+        data-testid="lifecycle-guard-reason-alert"
         show-icon
         type="warning"
-        :message="$t('pages.multiTenant.plugin.lifecycleGuard.summary')"
-      />
-      <List bordered size="small">
-        <ListItem v-for="reason in reasons" :key="reason">
-          {{ $t(reason) === reason ? reason : $t(reason) }}
-        </ListItem>
-      </List>
+      >
+        <template #description>
+          <div data-testid="lifecycle-guard-reason">
+            <div>{{ blockedReasonText }}</div>
+            <div>{{ localizedReasons.join('；') }}</div>
+          </div>
+        </template>
+      </Alert>
+
       <Alert
+        data-testid="lifecycle-guard-force-alert"
         show-icon
         type="error"
-        :message="
-          $t('pages.multiTenant.plugin.lifecycleGuard.forceConfirm', {
-            pluginId,
-          })
-        "
-      />
-      <div class="space-y-1">
-        <div class="text-xs text-muted-foreground">
-          {{
-            $t('pages.multiTenant.plugin.lifecycleGuard.forceInputHint', {
-              pluginId,
-            })
-          }}
-        </div>
-        <Input
-          v-model:value="confirmText"
-          :placeholder="pluginId"
-          data-testid="lifecycle-guard-force-plugin-id"
-        />
-      </div>
+      >
+        <template #description>
+          <div class="space-y-3">
+            <div>
+              {{
+                $t('pages.multiTenant.plugin.lifecycleGuard.forceConfirm', {
+                  pluginId,
+                })
+              }}
+            </div>
+            <div>
+              {{
+                $t('pages.multiTenant.plugin.lifecycleGuard.forceInputHint', {
+                  pluginId,
+                })
+              }}
+            </div>
+            <Input
+              v-model:value="confirmText"
+              :placeholder="pluginId"
+              data-testid="lifecycle-guard-force-plugin-id"
+            />
+          </div>
+        </template>
+      </Alert>
     </div>
   </Modal>
 </template>

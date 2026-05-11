@@ -13,8 +13,11 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// Plugin config defaults used when config.yaml omits plugin.dynamic.
-const defaultPluginDynamicStoragePath = "temp/output"
+// Plugin config defaults used when config.yaml omits plugin settings.
+const (
+	defaultPluginAllowForceUninstall = true
+	defaultPluginDynamicStoragePath  = "temp/output"
+)
 
 // pluginDynamicStoragePathOverride stores an optional process-wide test
 // override for the dynamic plugin storage root.
@@ -92,12 +95,12 @@ type PluginDynamicConfig struct {
 func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 	cfg := clonePluginConfig(processStaticConfigCaches.plugin.load(func() *PluginConfig {
 		cfg := &PluginConfig{
-			AllowForceUninstall: false,
+			AllowForceUninstall: defaultPluginAllowForceUninstall,
 			Dynamic: PluginDynamicConfig{
 				StoragePath: defaultPluginDynamicStoragePath,
 			},
 		}
-		cfg.AllowForceUninstall = g.Cfg().MustGet(ctx, "plugin.allowForceUninstall", false).Bool()
+		cfg.AllowForceUninstall = g.Cfg().MustGet(ctx, "plugin.allowForceUninstall", defaultPluginAllowForceUninstall).Bool()
 		mustScanConfig(ctx, "plugin.dynamic", &cfg.Dynamic)
 		mustScanConfig(ctx, "plugin.runtime", &cfg.Runtime)
 

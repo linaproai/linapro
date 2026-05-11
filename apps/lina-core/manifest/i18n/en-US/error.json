@@ -930,6 +930,24 @@
       },
       "username": {
         "exists": "Username already exists"
+      },
+      "batch": {
+        "update": {
+          "ids": {
+            "required": "Please select users to update"
+          },
+          "fields": {
+            "required": "Please select at least one user field to update"
+          },
+          "status": {
+            "required": "Please select the target user status"
+          },
+          "role": {
+            "tenant": {
+              "conflict": "Update user roles and tenant memberships in separate batch requests"
+            }
+          }
+        }
       }
     },
     "usermsg": {

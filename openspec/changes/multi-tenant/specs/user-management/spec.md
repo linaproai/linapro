@@ -80,6 +80,30 @@
 - **AND** 同步更新 `sys_user.tenant_id` 为请求列表的第一个租户或 `0`
 - **AND** 详情接口 SHALL 返回最新 `tenantIds` 与 `tenantNames` 供编辑抽屉回显
 
+### Requirement: 用户批量编辑状态、角色和租户归属
+用户管理页面 SHALL 支持对表格中已选中的多个用户执行批量编辑,可选择性更新用户状态、用户角色和所属租户。未选择更新的字段 SHALL 保持原值不变。后端 SHALL 使用单事务处理整个批量编辑请求,任一目标用户不可见、越权、包含当前登录用户或包含非法角色/租户时 SHALL 整体拒绝并不得部分写入。
+
+#### Scenario: 批量编辑选中用户状态
+- **WHEN** 管理员在用户管理页面选中多个非当前登录用户
+- **AND** 打开批量编辑弹窗并选择更新用户状态为禁用
+- **THEN** 前端 SHALL 调用 `PUT /user`
+- **AND** 后端 SHALL 在数据权限和租户可见性校验通过后批量更新这些用户的 `sys_user.status`
+- **AND** 若选中用户包含当前登录用户,后端 SHALL 返回 `CodeUserCurrentEditDenied` 并不更新任何用户
+
+#### Scenario: 批量分配用户角色
+- **WHEN** 管理员在批量编辑弹窗选择一个或多个角色
+- **THEN** 后端 SHALL 以请求的 `roleIds` 替换每个目标用户在当前租户边界内的 `sys_user_role` 关系
+- **AND** 角色候选项 SHALL 只包含当前租户/平台上下文下启用且可见的角色
+- **AND** 若请求包含当前上下文不可见或跨租户角色,后端 SHALL 整体拒绝并不更新任何用户
+- **AND** 若同一批量请求同时选择更新用户角色和所属租户,前端与后端 SHALL 拒绝该组合,要求分两次批量操作完成
+
+#### Scenario: 批量编辑用户所属租户
+- **WHEN** 多租户启用且平台管理员在批量编辑弹窗选择所属租户
+- **THEN** 后端 SHALL 在事务中以请求的 `tenantIds` 替换每个目标用户的 active membership
+- **AND** 同步更新每个目标用户的 `sys_user.tenant_id` 为请求列表中的第一个租户或 `0`
+- **AND** 租户候选项 SHALL 继续遵循当前操作用户 active tenant membership 收敛规则
+- **AND** 租户上下文 SHALL 只允许提交当前租户归属,不得通过批量编辑跨租户写入
+
 ### Requirement: 用户名全局唯一
 `sys_user.username` SHALL 保持全局唯一(与单租户时代一致),不按租户分片;不同租户不能有相同 username。
 

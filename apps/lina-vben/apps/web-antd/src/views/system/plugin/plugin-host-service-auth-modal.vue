@@ -410,7 +410,7 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
 
       <div
         v-if="showInstallModeOption"
-        class="bg-muted/40 rounded-md border border-dashed p-3"
+        class="bg-muted/40 flex flex-col gap-3 rounded-md border border-dashed p-3"
         data-testid="plugin-install-mode-section"
       >
         <div
@@ -446,7 +446,6 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
         </div>
         <Alert
           v-if="!supportsTenantScopedInstall"
-          class="mt-3"
           show-icon
           type="info"
           :message="$t('pages.multiTenant.plugin.platformOnlyGlobalHint')"

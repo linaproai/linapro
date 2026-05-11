@@ -45,6 +45,31 @@ var (
 		"Please select users to delete",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeUserBatchUpdateIdsRequired reports that a batch update request has no user IDs.
+	CodeUserBatchUpdateIdsRequired = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_IDS_REQUIRED",
+		"Please select users to update",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserBatchUpdateFieldsRequired reports that no patch field is selected for batch update.
+	CodeUserBatchUpdateFieldsRequired = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_FIELDS_REQUIRED",
+		"Please select at least one user field to update",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserBatchUpdateStatusRequired reports that status update is selected without a status value.
+	CodeUserBatchUpdateStatusRequired = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_STATUS_REQUIRED",
+		"Please select the target user status",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserBatchUpdateRoleTenantConflict reports that role and tenant batch
+	// changes cannot be safely combined in one current-tenant-scoped request.
+	CodeUserBatchUpdateRoleTenantConflict = bizerr.MustDefine(
+		"USER_BATCH_UPDATE_ROLE_TENANT_CONFLICT",
+		"Cannot update user roles and tenant memberships in the same batch request",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeUserCurrentDisableDenied reports that the current user cannot disable itself.
 	CodeUserCurrentDisableDenied = bizerr.MustDefine(
 		"USER_CURRENT_DISABLE_DENIED",

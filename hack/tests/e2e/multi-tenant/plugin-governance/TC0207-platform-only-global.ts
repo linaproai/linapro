@@ -109,6 +109,7 @@ test.describe('TC-207 platform-only 插件强制 global', () => {
       await expect(pluginPage.pluginInstallModeSection()).toContainText(
         '不支持租户级安装模式的插件只能以全局模式安装',
       );
+      await pluginPage.expectInstallModePlatformOnlyHintGap();
 
       const installResponsePromise = adminPage.waitForResponse(
         (response) =>

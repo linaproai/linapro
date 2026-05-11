@@ -21,7 +21,6 @@ import (
 	"lina-core/internal/service/user/accountpolicy"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
-	"lina-core/pkg/logger"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
@@ -57,6 +56,8 @@ type Service interface {
 	Delete(ctx context.Context, id int) error
 	// BatchDelete soft-deletes multiple users atomically.
 	BatchDelete(ctx context.Context, ids []int) error
+	// BatchUpdate updates selected users atomically.
+	BatchUpdate(ctx context.Context, in BatchUpdateInput) error
 	// UpdateStatus updates user status.
 	UpdateStatus(ctx context.Context, id int, status Status) error
 	// GetProfile retrieves current user profile.
@@ -478,15 +479,8 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 			return err
 		}
 
-		// Save role associations
-		for _, roleId := range in.RoleIds {
-			_, err = dao.SysUserRole.Ctx(ctx).Data(do.SysUserRole{
-				UserId: userId,
-				RoleId: roleId,
-			}).Insert()
-			if err != nil {
-				return err
-			}
+		if err = s.replaceUserRoleAssignments(ctx, userId, in.RoleIds); err != nil {
+			return err
 		}
 
 		return nil
@@ -613,24 +607,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			}
 		}
 
-		// Update role associations (delete and re-insert)
 		if in.RoleIds != nil {
-			urCols := dao.SysUserRole.Columns()
-			deleteModel := dao.SysUserRole.Ctx(ctx).
-				Where(urCols.UserId, in.Id)
-			deleteModel = datascope.ApplyTenantScope(ctx, deleteModel, datascope.TenantColumn)
-			_, err = deleteModel.Delete()
-			if err != nil {
-				logger.Warningf(ctx, "failed to delete user role association: %v", err)
-			}
-			for _, roleId := range in.RoleIds {
-				_, err = dao.SysUserRole.Ctx(ctx).Data(do.SysUserRole{
-					UserId: in.Id,
-					RoleId: roleId,
-				}).Insert()
-				if err != nil {
-					return err
-				}
+			if err = s.replaceUserRoleAssignments(ctx, in.Id, in.RoleIds); err != nil {
+				return err
 			}
 		}
 

@@ -63,45 +63,73 @@ async function forceUninstall() {
   await submitUninstall(true);
 }
 
+async function forceUninstallByState(
+  pluginId: string,
+  purgeStorageDataValue?: boolean,
+) {
+  await submitUninstallByState(pluginId, purgeStorageDataValue, true);
+}
+
 async function submitUninstall(force: boolean) {
   if (!currentPlugin.value) {
     return;
   }
 
+  const pluginId = currentPlugin.value.id;
+  const purgeStorageDataValue = supportsPurgeStorageData.value
+    ? purgeStorageData.value
+    : undefined;
+
+  await submitUninstallByState(pluginId, purgeStorageDataValue, force);
+}
+
+async function submitUninstallByState(
+  pluginId: string,
+  purgeStorageDataValue: boolean | undefined,
+  force: boolean,
+) {
   try {
     modalApi.lock(true);
     try {
-      await pluginUninstall(currentPlugin.value.id, {
+      await pluginUninstall(pluginId, {
         force,
-        purgeStorageData: supportsPurgeStorageData.value
-          ? purgeStorageData.value
-          : undefined,
+        purgeStorageData: purgeStorageDataValue,
       });
       message.success($t('pages.system.plugin.messages.uninstalled'));
       emit('reload');
       handleClosed();
     } catch (error) {
-      if (!force && handleLifecycleGuardVeto(error)) {
+      if (
+        !force &&
+        handleLifecycleGuardVeto(error, pluginId, purgeStorageDataValue)
+      ) {
         return;
       }
       message.error(resolveRuntimeErrorMessage(error));
+      if (force) {
+        throw error;
+      }
     }
   } finally {
     modalApi.lock(false);
   }
 }
 
-function handleLifecycleGuardVeto(error: unknown) {
+function handleLifecycleGuardVeto(
+  error: unknown,
+  pluginId: string,
+  purgeStorageDataValue: boolean | undefined,
+) {
   const reasons = extractLifecycleGuardReasons(error);
   if (!reasons) {
     return false;
   }
-  const pluginId = currentPlugin.value?.id ?? '';
   emit('lifecycleGuard', {
-    force: forceUninstall,
+    force: () => forceUninstallByState(pluginId, purgeStorageDataValue),
     pluginId,
     reasons,
   });
+  handleClosed();
   return true;
 }
 

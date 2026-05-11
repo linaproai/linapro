@@ -52,8 +52,22 @@ test.describe('TC-227 多租户插件卸载保护弹窗', () => {
       );
 
       await expect(pluginPage.lifecycleGuardDialog()).toBeVisible();
-      await expect(pluginPage.lifecycleGuardDialog()).toContainText(
-        '仍存在租户',
+      await expect(pluginPage.uninstallDialog()).toHaveCount(0);
+      await expect(pluginPage.lifecycleGuardDialog()).toHaveCSS('gap', '10px');
+      await expect(pluginPage.lifecycleGuardReasonAlert()).not.toContainText(
+        '插件返回了阻止当前操作的原因。',
+      );
+      await expect(pluginPage.lifecycleGuardReasonText()).toContainText(
+        '当前插件阻止操作，原因：',
+      );
+      await expect(pluginPage.lifecycleGuardReasonText()).toContainText(
+        '仍存在租户，请先删除租户，再卸载插件。',
+      );
+      await expect(pluginPage.lifecycleGuardForceAlert()).toContainText(
+        '强制卸载会绕过上述保护并清理插件数据，请确认你理解该风险。',
+      );
+      await expect(pluginPage.lifecycleGuardForceAlert()).toContainText(
+        '输入插件 ID "multi-tenant" 以启用强制卸载。',
       );
       await expect(pluginPage.lifecycleGuardDialog()).toContainText(pluginId);
       await expect(pluginPage.lifecycleGuardConfirmButton()).toBeDisabled();
@@ -73,8 +87,8 @@ test.describe('TC-227 多租户插件卸载保护弹窗', () => {
       expect(forcePayload.code).toBe(0);
       await expect(pluginPage.lifecycleGuardDialog()).toHaveCount(0);
 
-      await installPlugin(api, pluginId);
-      await enablePlugin(api, pluginId);
+      const pluginAfterForce = await getPlugin(api, pluginId);
+      expect(pluginAfterForce.installed).toBe(0);
     } finally {
       await deleteTenant(api, tenant.id).catch(() => {});
       const plugin = await getPlugin(api, pluginId).catch(() => null);

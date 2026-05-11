@@ -38,6 +38,7 @@ import { downloadBlob } from '#/utils/download';
 import { buildColumns, querySchema } from './data';
 import DeptTree from './dept-tree.vue';
 import UserDrawer from './user-drawer.vue';
+import UserBatchEditModal from './user-batch-edit-modal.vue';
 import UserImportModal from './user-import-modal.vue';
 import UserResetPwdModal from './user-reset-pwd-modal.vue';
 import { loadUserTenantOptions } from './tenant-options';
@@ -51,6 +52,10 @@ const [UserDrawerRef, userDrawerApi] = useVbenDrawer({
 
 const [UserImportModalRef, userImportModalApi] = useVbenModal({
   connectedComponent: UserImportModal,
+});
+
+const [UserBatchEditModalRef, userBatchEditModalApi] = useVbenModal({
+  connectedComponent: UserBatchEditModal,
 });
 
 const [UserResetPwdModalRef, userResetPwdModalApi] = useVbenModal({
@@ -374,6 +379,14 @@ function handleMultiDelete() {
   });
 }
 
+function handleBatchEdit() {
+  userBatchEditModalApi.setData({
+    rows: gridApi.grid.getCheckboxRecords(),
+    tenantEnabled: tenantEnabled.value,
+  });
+  userBatchEditModalApi.open();
+}
+
 async function handleStatusChange(row: any) {
   await userStatusChange(row.id, row.status);
 }
@@ -442,6 +455,13 @@ function handleResetPwd(row: any) {
               {{ $t('pages.common.import') }}
             </a-button>
             <a-button
+              data-testid="user-batch-edit-button"
+              :disabled="!hasChecked"
+              @click="handleBatchEdit"
+            >
+              {{ $t('pages.system.user.actions.batchEdit') }}
+            </a-button>
+            <a-button
               data-testid="user-batch-delete-button"
               :disabled="!hasChecked"
               danger
@@ -450,7 +470,11 @@ function handleResetPwd(row: any) {
             >
               {{ $t('pages.common.delete') }}
             </a-button>
-            <a-button type="primary" @click="handleAdd">
+            <a-button
+              data-testid="user-create-button"
+              type="primary"
+              @click="handleAdd"
+            >
               {{ $t('pages.common.add') }}
             </a-button>
           </Space>
@@ -506,6 +530,7 @@ function handleResetPwd(row: any) {
     </div>
 
     <UserDrawerRef @success="onReload" />
+    <UserBatchEditModalRef @success="onReload" />
     <UserImportModalRef @reload="onReload" />
     <UserResetPwdModalRef @reload="onReload" />
   </Page>

@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 import {
   waitForBusyIndicatorsToClear,
@@ -321,6 +321,73 @@ export class UserPage {
       .getByRole("button", { name: /确\s*定|OK|是/i })
       .last()
       .click();
+    await waitForBusyIndicatorsToClear(this.page);
+  }
+
+  /** Open the batch edit modal for selected users. */
+  async openSelectedUserBatchEdit() {
+    await this.page.getByTestId("user-batch-edit-button").click();
+    const dialog = this.page
+      .locator('[role="dialog"]')
+      .filter({ hasText: /批量编辑用户|Batch Edit Users/i })
+      .last();
+    await waitForDialogReady(dialog);
+    return dialog;
+  }
+
+  /** Assert batch edit switches keep the natural Ant Design switch width. */
+  async expectBatchEditSwitchesCompact(dialog: Locator) {
+    const widths = await dialog.locator(".ant-switch").evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().width),
+    );
+    expect(widths.length).toBeGreaterThanOrEqual(2);
+    for (const width of widths) {
+      expect(width).toBeLessThan(96);
+    }
+  }
+
+  /** Assert toolbar edit/delete/create actions are visually distinguishable. */
+  async expectToolbarPrimaryActionsDistinct() {
+    const editButton = this.page.getByTestId("user-batch-edit-button");
+    const deleteButton = this.page.getByTestId("user-batch-delete-button");
+    const createButton = this.page.getByTestId("user-create-button");
+
+    await expect(editButton).toHaveText(/编\s*辑|Edit/i);
+    await expect(deleteButton).toBeVisible();
+    await expect(createButton).toBeVisible();
+
+    const colors = await Promise.all(
+      [editButton, deleteButton, createButton].map((button) =>
+        button.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            backgroundColor: style.backgroundColor,
+            borderColor: style.borderColor,
+            color: style.color,
+          };
+        }),
+      ),
+    );
+    expect(
+      new Set(
+        colors.map(
+          (item) =>
+            `${item.backgroundColor}|${item.borderColor}|${item.color}`,
+        ),
+      ).size,
+    ).toBe(3);
+  }
+
+  /** Batch update selected users to a specific status label. */
+  async batchUpdateSelectedStatus(statusLabel: string) {
+    const dialog = await this.openSelectedUserBatchEdit();
+    await this.expectBatchEditSwitchesCompact(dialog);
+    await dialog
+      .getByRole("switch", { name: /更新状态|Update Status/i })
+      .click();
+    await dialog.getByText(statusLabel, { exact: true }).click();
+    await dialog.getByRole("button", { name: /确\s*认|OK/i }).click();
+    await dialog.waitFor({ state: "hidden", timeout: 15000 });
     await waitForBusyIndicatorsToClear(this.page);
   }
 

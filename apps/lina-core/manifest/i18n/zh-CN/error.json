@@ -930,6 +930,24 @@
       },
       "username": {
         "exists": "用户名已存在"
+      },
+      "batch": {
+        "update": {
+          "ids": {
+            "required": "请选择要更新的用户"
+          },
+          "fields": {
+            "required": "请选择至少一个要更新的用户字段"
+          },
+          "status": {
+            "required": "请选择目标用户状态"
+          },
+          "role": {
+            "tenant": {
+              "conflict": "请分两次批量更新用户角色和所属租户"
+            }
+          }
+        }
       }
     },
     "usermsg": {

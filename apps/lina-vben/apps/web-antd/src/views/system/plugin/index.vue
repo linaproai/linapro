@@ -451,6 +451,9 @@ async function handleLifecycleGuardForce(payload: { pluginId: string }) {
   lifecycleGuardModalApi.lock(true);
   try {
     await data.force();
+    lifecycleGuardModalApi.close();
+  } catch {
+    // The force callback already surfaces the backend error locally.
   } finally {
     lifecycleGuardModalApi.lock(false);
   }

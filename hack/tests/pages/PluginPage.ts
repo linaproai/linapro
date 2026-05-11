@@ -402,8 +402,20 @@ export class PluginPage {
     return this.page.getByTestId("lifecycle-guard-dialog").last();
   }
 
+  lifecycleGuardReasonAlert(): Locator {
+    return this.page.getByTestId("lifecycle-guard-reason-alert").last();
+  }
+
+  lifecycleGuardForceAlert(): Locator {
+    return this.page.getByTestId("lifecycle-guard-force-alert").last();
+  }
+
   lifecycleGuardForcePluginIdInput(): Locator {
     return this.page.getByTestId("lifecycle-guard-force-plugin-id").last();
+  }
+
+  lifecycleGuardReasonText(): Locator {
+    return this.page.getByTestId("lifecycle-guard-reason");
   }
 
   lifecycleGuardConfirmButton(): Locator {
@@ -687,6 +699,10 @@ export class PluginPage {
       "border-top-width",
       "0px",
     );
+  }
+
+  async expectInstallModePlatformOnlyHintGap() {
+    await expect(this.pluginInstallModeSection()).toHaveCSS("gap", "12px");
   }
 
   async installPluginWithMockData(pluginId: string, withMockData: boolean) {

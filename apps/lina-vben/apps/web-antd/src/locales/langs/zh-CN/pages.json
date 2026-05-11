@@ -346,7 +346,8 @@
         "resetPasswordSuccess": "重置密码成功"
       },
       "actions": {
-        "resetPassword": "重置密码"
+        "resetPassword": "重置密码",
+        "batchEdit": "编辑"
       },
       "more": "更多",
       "drawer": {
@@ -371,7 +372,26 @@
         "placeholder": "请输入新的密码，密码长度为5-20",
         "userId": "用户ID"
       },
-      "exportFileName": "用户数据导出.xlsx"
+      "exportFileName": "用户数据导出.xlsx",
+      "batchEdit": {
+        "title": "批量编辑用户",
+        "selectedCount": "已选择 {count} 个用户",
+        "fields": {
+          "updateStatus": "更新状态",
+          "updateRoles": "更新角色",
+          "updateTenant": "更新租户"
+        },
+        "help": {
+          "roles": "启用后将用所选角色替换这些用户当前上下文下的角色",
+          "tenants": "启用后将用所选租户替换这些用户的所属租户"
+        },
+        "messages": {
+          "noFields": "请选择至少一个要批量更新的字段",
+          "statusRequired": "请选择目标用户状态",
+          "success": "批量编辑成功",
+          "roleTenantConflict": "请分两次批量更新角色和所属租户"
+        }
+      }
     },
     "role": {
       "tableTitle": "角色列表",
@@ -1265,10 +1285,18 @@
       "lifecycleGuard": {
         "title": "生命周期保护",
         "summary": "插件返回了阻止当前操作的原因。",
+        "summaryHelp": "请先处理保护原因；只有确认风险后才使用强制卸载。",
+        "reasonTitle": "阻止原因",
+        "reasonCount": "{count} 项",
+        "forceTitle": "强制卸载确认",
         "defaultReason": "当前资源仍有关联数据，无法继续操作。",
+        "blockedReason": "当前插件阻止操作，原因：",
         "forceConfirm": "强制卸载会绕过上述保护并清理插件数据，请确认你理解该风险。",
-        "forceInputHint": "输入插件 ID “{pluginId}” 以启用强制卸载。",
-        "forceSubmitted": "强制通道请求已提交"
+        "forceInputHint": "输入插件 ID \"{pluginId}\" 以启用强制卸载。",
+        "forceSubmitted": "强制通道请求已提交",
+        "reasons": {
+          "multiTenantUninstallBlocked": "仍存在租户，请先删除租户，再卸载插件。"
+        }
       }
     }
   },

@@ -346,7 +346,8 @@
         "resetPasswordSuccess": "Password reset successfully"
       },
       "actions": {
-        "resetPassword": "Reset Password"
+        "resetPassword": "Reset Password",
+        "batchEdit": "Edit"
       },
       "more": "More",
       "drawer": {
@@ -371,7 +372,26 @@
         "placeholder": "Please enter a new password with 5-20 characters",
         "userId": "User ID"
       },
-      "exportFileName": "user-data-export.xlsx"
+      "exportFileName": "user-data-export.xlsx",
+      "batchEdit": {
+        "title": "Batch Edit Users",
+        "selectedCount": "{count} user(s) selected",
+        "fields": {
+          "updateStatus": "Update Status",
+          "updateRoles": "Update Roles",
+          "updateTenant": "Update Tenants"
+        },
+        "help": {
+          "roles": "When enabled, selected roles replace each user's roles in the current context.",
+          "tenants": "When enabled, selected tenants replace each user's tenant memberships."
+        },
+        "messages": {
+          "noFields": "Select at least one field to update.",
+          "statusRequired": "Select the target user status.",
+          "success": "Users updated successfully.",
+          "roleTenantConflict": "Update roles and tenants in separate batches."
+        }
+      }
     },
     "role": {
       "tableTitle": "Role List",
@@ -1265,10 +1285,18 @@
       "lifecycleGuard": {
         "title": "Lifecycle Guard",
         "summary": "The plugin returned reasons blocking this operation.",
+        "summaryHelp": "Resolve the guard reasons first; use force uninstall only after confirming the risk.",
+        "reasonTitle": "Blocking Reasons",
+        "reasonCount": "{count} item(s)",
+        "forceTitle": "Force Uninstall Confirmation",
         "defaultReason": "Related data still exists, so the operation cannot continue.",
+        "blockedReason": "The current plugin blocked this operation. Reason:",
         "forceConfirm": "Force uninstall bypasses these guards and can remove plugin data. Confirm that you understand the risk.",
-        "forceInputHint": "Type plugin ID “{pluginId}” to enable force uninstall.",
-        "forceSubmitted": "Force channel request submitted"
+        "forceInputHint": "Type plugin ID \"{pluginId}\" to enable force uninstall.",
+        "forceSubmitted": "Force channel request submitted",
+        "reasons": {
+          "multiTenantUninstallBlocked": "Tenants still exist. Delete tenants before uninstalling the plugin."
+        }
       }
     }
   },

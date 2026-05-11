@@ -87,6 +87,16 @@ export interface UserUpdateParams {
   tenantIds?: number[];
 }
 
+export interface UserBatchUpdateParams {
+  ids: number[];
+  updateStatus?: boolean;
+  status?: number;
+  updateRoles?: boolean;
+  roleIds?: number[];
+  updateTenant?: boolean;
+  tenantIds?: number[];
+}
+
 /** 用户列表 */
 export async function userList(params?: UserListParams) {
   const res = await requestClient.get<UserListResult>('/user', { params });
@@ -114,6 +124,11 @@ export function userBatchDelete(ids: number[]) {
   const params = new URLSearchParams();
   ids.forEach((id) => params.append('ids', String(id)));
   return requestClient.delete(`/user?${params.toString()}`);
+}
+
+/** 批量编辑用户 */
+export function userBatchUpdate(data: UserBatchUpdateParams) {
+  return requestClient.put('/user', data);
 }
 
 /** 获取用户详情 */
