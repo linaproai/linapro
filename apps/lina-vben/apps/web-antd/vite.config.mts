@@ -58,7 +58,7 @@ function toViteFsPath(filePath: string) {
   const normalizedPath = normalizeFsPath(filePath);
   return normalizedPath.startsWith('/@fs/')
     ? normalizedPath
-    : `/@fs${normalizedPath}`;
+    : `/@fs/${normalizedPath}`;
 }
 
 function isPluginFrontendSourceFile(pluginRoot: string, filePath: string) {
