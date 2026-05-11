@@ -213,6 +213,8 @@ type ManifestSnapshot struct {
 	Name                      string                          `yaml:"name"`
 	Version                   string                          `yaml:"version"`
 	Type                      string                          `yaml:"type"`
+	ScopeNature               string                          `yaml:"scopeNature,omitempty"`
+	DefaultInstallMode        string                          `yaml:"defaultInstallMode,omitempty"`
 	Description               string                          `yaml:"description,omitempty"`
 	Author                    string                          `yaml:"author,omitempty"`
 	Homepage                  string                          `yaml:"homepage,omitempty"`

@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/service/cachecoord"
 )
@@ -46,6 +46,17 @@ func (f *fakeCacheCoordService) MarkChanged(
 	_ context.Context,
 	_ cachecoord.Domain,
 	_ cachecoord.Scope,
+	_ cachecoord.ChangeReason,
+) (int64, error) {
+	return 0, nil
+}
+
+// MarkTenantChanged is unused by sysinfo diagnostics.
+func (f *fakeCacheCoordService) MarkTenantChanged(
+	_ context.Context,
+	_ cachecoord.Domain,
+	_ cachecoord.Scope,
+	_ cachecoord.InvalidationScope,
 	_ cachecoord.ChangeReason,
 ) (int64, error) {
 	return 0, nil

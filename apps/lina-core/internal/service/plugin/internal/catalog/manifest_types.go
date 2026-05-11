@@ -48,6 +48,10 @@ type Manifest struct {
 	Version string `yaml:"version"`
 	// Type is the normalized plugin type ("source" or "dynamic").
 	Type string `yaml:"type"`
+	// ScopeNature declares whether the plugin is platform-only or tenant-aware.
+	ScopeNature string `yaml:"scope_nature"`
+	// DefaultInstallMode declares the tenant enablement model for tenant-aware plugins.
+	DefaultInstallMode string `yaml:"default_install_mode"`
 	// Description is an optional human-readable description.
 	Description string `yaml:"description"`
 	// Author is an optional author string.

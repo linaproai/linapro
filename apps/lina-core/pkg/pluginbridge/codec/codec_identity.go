@@ -47,6 +47,18 @@ func marshalIdentitySnapshot(in *IdentitySnapshotV1) []byte {
 	if in.UnsupportedDataScope != 0 {
 		content = appendVarintField(content, 10, uint64(in.UnsupportedDataScope))
 	}
+	if in.TenantId != 0 {
+		content = appendVarintField(content, 11, uint64(in.TenantId))
+	}
+	if in.ActingUserId != 0 {
+		content = appendVarintField(content, 12, uint64(in.ActingUserId))
+	}
+	if in.ActingAsTenant {
+		content = appendVarintField(content, 13, 1)
+	}
+	if in.IsImpersonation {
+		content = appendVarintField(content, 14, 1)
+	}
 	return content
 }
 
@@ -129,6 +141,34 @@ func unmarshalIdentitySnapshot(content []byte, out *IdentitySnapshotV1) error {
 				return gerror.New("failed to decode identity snapshot unsupportedDataScope")
 			}
 			out.UnsupportedDataScope = int32(value)
+			content = content[size:]
+		case 11:
+			value, size := protowire.ConsumeVarint(content)
+			if size < 0 {
+				return gerror.New("failed to decode identity snapshot tenantId")
+			}
+			out.TenantId = int32(value)
+			content = content[size:]
+		case 12:
+			value, size := protowire.ConsumeVarint(content)
+			if size < 0 {
+				return gerror.New("failed to decode identity snapshot actingUserId")
+			}
+			out.ActingUserId = int32(value)
+			content = content[size:]
+		case 13:
+			value, size := protowire.ConsumeVarint(content)
+			if size < 0 {
+				return gerror.New("failed to decode identity snapshot actingAsTenant")
+			}
+			out.ActingAsTenant = value > 0
+			content = content[size:]
+		case 14:
+			value, size := protowire.ConsumeVarint(content)
+			if size < 0 {
+				return gerror.New("failed to decode identity snapshot isImpersonation")
+			}
+			out.IsImpersonation = value > 0
 			content = content[size:]
 		default:
 			size := protowire.ConsumeFieldValue(fieldNumber, wireType, content)

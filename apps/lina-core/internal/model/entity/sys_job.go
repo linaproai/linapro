@@ -11,6 +11,7 @@ import (
 // SysJob is the golang structure for table sys_job.
 type SysJob struct {
 	Id                   int64       `json:"id"                   orm:"id"                     description:"Job ID"`
+	TenantId             int         `json:"tenantId"             orm:"tenant_id"              description:"Owning tenant ID, 0 means PLATFORM"`
 	GroupId              int64       `json:"groupId"              orm:"group_id"               description:"Owning group ID"`
 	Name                 string      `json:"name"                 orm:"name"                   description:"Job name"`
 	Description          string      `json:"description"          orm:"description"            description:"Job description"`

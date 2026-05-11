@@ -64,6 +64,11 @@
       },
       "units": {
         "cores": "{value} core(s)"
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "platform_monitoring_required": "Platform monitoring is required by host operations policy."
+        }
       }
     }
   }

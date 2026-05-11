@@ -1,0 +1,7 @@
+{
+  "plugin.multi-tenant.name": "Multi Tenant",
+  "plugin.multi-tenant.description": "Tenant management, memberships, built-in resolver policy, and lifecycle governance.",
+  "plugin.multi-tenant.uninstall_blocked.tenants_exist": "Tenants exist. Delete tenants before uninstalling the multi-tenant plugin.",
+  "plugin.multi-tenant.disable_blocked.tenants_exist": "Tenants exist. Delete tenants before disabling the multi-tenant plugin.",
+  "plugin.multi-tenant.tenant_delete_blocked.resources_exist": "The tenant still has protected resources."
+}

@@ -46,6 +46,18 @@ func (f *fakeClusterRevisionCacheCoordService) MarkChanged(
 	return f.markRevision, nil
 }
 
+// MarkTenantChanged returns the same configured revision as the global change
+// path because runtime-parameter tests only verify revision coordination.
+func (f *fakeClusterRevisionCacheCoordService) MarkTenantChanged(
+	ctx context.Context,
+	domain cachecoord.Domain,
+	scope cachecoord.Scope,
+	_ cachecoord.InvalidationScope,
+	reason cachecoord.ChangeReason,
+) (int64, error) {
+	return f.MarkChanged(ctx, domain, scope, reason)
+}
+
 // EnsureFresh runs the refresher against the configured current revision.
 func (f *fakeClusterRevisionCacheCoordService) EnsureFresh(
 	ctx context.Context,

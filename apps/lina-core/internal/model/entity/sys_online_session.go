@@ -10,6 +10,7 @@ import (
 
 // SysOnlineSession is the golang structure for table sys_online_session.
 type SysOnlineSession struct {
+	TenantId       int         `json:"tenantId"       orm:"tenant_id"        description:"Owning tenant ID, 0 means PLATFORM"`
 	TokenId        string      `json:"tokenId"        orm:"token_id"         description:"Session token ID (UUID)"`
 	UserId         int         `json:"userId"         orm:"user_id"          description:"User ID"`
 	Username       string      `json:"username"       orm:"username"         description:"Login account"`

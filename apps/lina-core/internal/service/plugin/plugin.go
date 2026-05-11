@@ -63,6 +63,9 @@ type (
 		// Authorization optionally carries a host-service authorization snapshot for
 		// dynamic plugins that require explicit confirmation before install.
 		Authorization *HostServiceAuthorizationInput
+		// InstallMode optionally carries the platform operator's explicit tenant
+		// governance selection. Empty means use the plugin manifest default.
+		InstallMode string
 		// InstallMockData enables the optional mock-data load phase. When true the host
 		// scans manifest/sql/mock-data/ and executes those SQL files inside a single
 		// database transaction; any failure rolls back only the mock load and leaves
@@ -83,6 +86,8 @@ type UninstallOptions struct {
 	// PurgeStorageData reports whether uninstall should also clear plugin-owned
 	// table data and stored files.
 	PurgeStorageData bool
+	// Force reports whether an authorized caller requested guard-veto bypass.
+	Force bool
 }
 
 // GetDynamicRouteMetadata returns generic dynamic-route metadata from the request.
@@ -234,10 +239,14 @@ type LifecycleManagementService interface {
 	Enable(ctx context.Context, pluginID string) error
 	// Disable disables the specified plugin.
 	Disable(ctx context.Context, pluginID string) error
+	// UpdateTenantProvisioningPolicy updates the platform-owned new-tenant plugin provisioning policy.
+	UpdateTenantProvisioningPolicy(ctx context.Context, pluginID string, autoEnableForNewTenants bool) error
 	// IsInstalled returns whether a plugin is installed.
 	IsInstalled(ctx context.Context, pluginID string) bool
 	// IsEnabled returns whether a plugin is enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
+	// EnsureTenantDeleteAllowed runs plugin lifecycle guards before tenant deletion.
+	EnsureTenantDeleteAllowed(ctx context.Context, tenantID int) error
 	// ListEnabledPluginIDs returns the IDs of plugins that are currently
 	// installed and enabled.
 	ListEnabledPluginIDs(ctx context.Context) ([]string, error)
@@ -255,6 +264,9 @@ type SourceUpgradeGovernanceService interface {
 	// ValidateSourcePluginUpgradeReadiness fails fast when any installed source
 	// plugin still has a newer discovered source version waiting to be upgraded.
 	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
+	// ValidateStartupConsistency fails fast when persisted plugin and tenant
+	// governance state is incoherent before routes are served.
+	ValidateStartupConsistency(ctx context.Context) error
 }
 
 // RegistryQueryService defines manifest synchronization and plugin list query operations.

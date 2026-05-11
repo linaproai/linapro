@@ -17,6 +17,7 @@ import (
 
 	"lina-core/internal/model/do"
 	"lina-core/pkg/dialect"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // currentSQLTableKVCacheDDL keeps package tests aligned with the delivered
@@ -24,6 +25,7 @@ import (
 const currentSQLTableKVCacheDDL = `
 CREATE TABLE IF NOT EXISTS sys_kv_cache (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tenant_id   INT NOT NULL DEFAULT 0,
     owner_type  VARCHAR(16) NOT NULL DEFAULT '',
     owner_key   VARCHAR(64) NOT NULL DEFAULT '',
     namespace   VARCHAR(64) NOT NULL DEFAULT '',
@@ -36,7 +38,7 @@ CREATE TABLE IF NOT EXISTS sys_kv_cache (
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_owner_namespace_key ON sys_kv_cache (owner_type, owner_key, namespace, cache_key);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_kv_cache_tenant_owner_namespace_key ON sys_kv_cache (tenant_id, owner_type, owner_key, namespace, cache_key);
 CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at);
 `
 
@@ -470,6 +472,7 @@ func TestDeletedSQLTableCacheRowBehavesAsMiss(t *testing.T) {
 		t.Fatalf("parse cache key failed: %v", err)
 	}
 	if _, err = service.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: OwnerTypePlugin.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -482,6 +485,47 @@ func TestDeletedSQLTableCacheRowBehavesAsMiss(t *testing.T) {
 		t.Fatalf("read lost SQL table cache row failed: %v", err)
 	} else if ok || item != nil {
 		t.Fatalf("expected lost SQL table row to behave as cache miss, got item=%#v ok=%t", item, ok)
+	}
+}
+
+// TestTenantCacheKeysAreIsolated verifies equal logical cache keys stay isolated
+// when the owner key carries a tenant discriminator.
+func TestTenantCacheKeysAreIsolated(t *testing.T) {
+	ctx := context.Background()
+	service := newTestSQLTableBackend(t, ctx)
+	tenantOneKey := BuildCacheKey(
+		pkgtenantcap.CacheKey(1, "dict", "sys"),
+		"runtime",
+		"user_status",
+	)
+	tenantTwoKey := BuildCacheKey(
+		pkgtenantcap.CacheKey(2, "dict", "sys"),
+		"runtime",
+		"user_status",
+	)
+	cleanupKVCacheKey(t, ctx, service, OwnerTypeModule, tenantOneKey)
+	cleanupKVCacheKey(t, ctx, service, OwnerTypeModule, tenantTwoKey)
+
+	if _, err := service.Set(ctx, OwnerTypeModule, tenantOneKey, "tenant-one", 0); err != nil {
+		t.Fatalf("set tenant one cache value failed: %v", err)
+	}
+	if _, err := service.Set(ctx, OwnerTypeModule, tenantTwoKey, "tenant-two", 0); err != nil {
+		t.Fatalf("set tenant two cache value failed: %v", err)
+	}
+
+	itemOne, ok, err := service.Get(ctx, OwnerTypeModule, tenantOneKey)
+	if err != nil {
+		t.Fatalf("read tenant one cache value failed: %v", err)
+	}
+	if !ok || itemOne.Value != "tenant-one" {
+		t.Fatalf("expected tenant one value to be isolated, got item=%#v ok=%t", itemOne, ok)
+	}
+	itemTwo, ok, err := service.Get(ctx, OwnerTypeModule, tenantTwoKey)
+	if err != nil {
+		t.Fatalf("read tenant two cache value failed: %v", err)
+	}
+	if !ok || itemTwo.Value != "tenant-two" {
+		t.Fatalf("expected tenant two value to be isolated, got item=%#v ok=%t", itemTwo, ok)
 	}
 }
 
@@ -526,6 +570,7 @@ func newSQLitePersistentTestSQLTableBackend(t *testing.T, ctx context.Context) *
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS sys_kv_cache (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			tenant_id INTEGER NOT NULL DEFAULT 0,
 			owner_type TEXT NOT NULL DEFAULT '',
 			owner_key TEXT NOT NULL DEFAULT '',
 			namespace TEXT NOT NULL DEFAULT '',
@@ -536,7 +581,7 @@ func newSQLitePersistentTestSQLTableBackend(t *testing.T, ctx context.Context) *
 			expire_at DATETIME NULL DEFAULT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE (owner_type, owner_key, namespace, cache_key)
+			UNIQUE (tenant_id, owner_type, owner_key, namespace, cache_key)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sys_kv_cache_expire_at ON sys_kv_cache (expire_at)`,
 	}
@@ -588,6 +633,7 @@ func insertExpiredKVRow(
 	t.Helper()
 
 	_, err := service.model(ctx).Data(do.SysKvCache{
+		TenantId:   identity.tenantID,
 		OwnerType:  ownerType.String(),
 		OwnerKey:   identity.ownerKey,
 		Namespace:  identity.namespace,
@@ -616,6 +662,7 @@ func insertExpiredKVIntRow(
 	t.Helper()
 
 	_, err := service.model(ctx).Data(do.SysKvCache{
+		TenantId:   identity.tenantID,
 		OwnerType:  ownerType.String(),
 		OwnerKey:   identity.ownerKey,
 		Namespace:  identity.namespace,
@@ -646,6 +693,7 @@ func cleanupKVCacheKey(
 	}
 	cleanup := func() {
 		if _, err = service.model(ctx).Where(do.SysKvCache{
+			TenantId:  identity.tenantID,
 			OwnerType: ownerType.String(),
 			OwnerKey:  identity.ownerKey,
 			Namespace: identity.namespace,
@@ -669,6 +717,7 @@ func countKVCacheKey(
 	t.Helper()
 
 	count, err := service.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,
@@ -694,6 +743,7 @@ func readKVExpireAt(
 		ExpireAt *gtime.Time
 	}
 	err := service.model(ctx).Where(do.SysKvCache{
+		TenantId:  identity.tenantID,
 		OwnerType: ownerType.String(),
 		OwnerKey:  identity.ownerKey,
 		Namespace: identity.namespace,

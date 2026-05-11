@@ -24,8 +24,8 @@ type IUserV1 interface {
 	List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error)
 	PostOptions(ctx context.Context, req *v1.PostOptionsReq) (res *v1.PostOptionsRes, err error)
 	GetProfile(ctx context.Context, req *v1.GetProfileReq) (res *v1.GetProfileRes, err error)
-	UpdateProfile(ctx context.Context, req *v1.UpdateProfileReq) (res *v1.UpdateProfileRes, err error)
 	ResetPassword(ctx context.Context, req *v1.ResetPasswordReq) (res *v1.ResetPasswordRes, err error)
 	Update(ctx context.Context, req *v1.UpdateReq) (res *v1.UpdateRes, err error)
+	UpdateProfile(ctx context.Context, req *v1.UpdateProfileReq) (res *v1.UpdateProfileRes, err error)
 	UpdateStatus(ctx context.Context, req *v1.UpdateStatusReq) (res *v1.UpdateStatusRes, err error)
 }

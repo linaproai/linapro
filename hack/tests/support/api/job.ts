@@ -93,10 +93,12 @@ export type MenuNode = {
   id: number;
   name: string;
   perms: string;
+  type?: string;
   children?: MenuNode[];
 };
 
 export type AccessibleMenuNode = {
+  component?: string;
   name?: string;
   path?: string;
   meta?: {

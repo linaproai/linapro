@@ -33,6 +33,9 @@
     "extension:plugin:enable": {
       "title": "Enable"
     },
+    "extension:plugin:edit": {
+      "title": "Configure"
+    },
     "extension:plugin:install": {
       "title": "Install"
     },
@@ -53,6 +56,9 @@
     },
     "org": {
       "title": "Organization"
+    },
+    "platform": {
+      "title": "Platform"
     },
     "scheduler": {
       "title": "Scheduler"

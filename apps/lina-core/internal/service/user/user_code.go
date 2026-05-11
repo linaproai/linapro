@@ -69,6 +69,36 @@ var (
 		"Unsupported user data permission scope: {scope}",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeUserTenantMembershipQueryFailed reports failure while checking tenant membership visibility.
+	CodeUserTenantMembershipQueryFailed = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_QUERY_FAILED",
+		"Failed to query tenant membership visibility",
+		gcode.CodeInternalError,
+	)
+	// CodeUserTenantMembershipReplaceFailed reports failure while replacing tenant membership.
+	CodeUserTenantMembershipReplaceFailed = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_REPLACE_FAILED",
+		"Failed to update tenant membership",
+		gcode.CodeInternalError,
+	)
+	// CodeUserTenantMembershipCrossTenantDenied reports cross-tenant membership writes.
+	CodeUserTenantMembershipCrossTenantDenied = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_CROSS_TENANT_DENIED",
+		"Cannot assign users to another tenant in the current context",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeUserTenantMembershipTenantUnavailable reports unavailable tenant assignment.
+	CodeUserTenantMembershipTenantUnavailable = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_TENANT_UNAVAILABLE",
+		"Selected tenant is unavailable",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeUserTenantMembershipCardinalityExceeded reports single-cardinality membership violations.
+	CodeUserTenantMembershipCardinalityExceeded = bizerr.MustDefine(
+		"USER_TENANT_MEMBERSHIP_CARDINALITY_EXCEEDED",
+		"User can only belong to one tenant in the current configuration",
+		gcode.CodeInvalidParameter,
+	)
 	// CodeUserImportExcelParseFailed reports that the uploaded user workbook cannot be parsed.
 	CodeUserImportExcelParseFailed = bizerr.MustDefine(
 		"USER_IMPORT_EXCEL_PARSE_FAILED",

@@ -22,6 +22,7 @@ type SysConfigDao struct {
 // SysConfigColumns defines and stores column names for the table sys_config.
 type SysConfigColumns struct {
 	Id        string // Config parameter ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM default
 	Name      string // Config parameter name
 	Key       string // Config parameter key
 	Value     string // Config parameter value
@@ -35,6 +36,7 @@ type SysConfigColumns struct {
 // sysConfigColumns holds the columns for the table sys_config.
 var sysConfigColumns = SysConfigColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	Name:      "name",
 	Key:       "key",
 	Value:     "value",

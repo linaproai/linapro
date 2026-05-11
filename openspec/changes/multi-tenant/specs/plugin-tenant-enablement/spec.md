@@ -6,7 +6,7 @@
 #### Scenario: 租户管理员启用 monitor-loginlog
 - **WHEN** 租户 A 管理员调用 `POST /tenant/plugins/monitor-loginlog/enable`
 - **AND** 该插件 `install_mode = tenant_scoped`
-- **THEN** 系统 upsert `sys_plugin_state(plugin_id, tenant_id=A, enabled=true)`
+- **THEN** 系统 upsert `sys_plugin_state(plugin_id, tenant_id=A, state_key='__tenant_enabled__', enabled=true)`
 - **AND** 租户 A 内的用户立即可见登录日志菜单
 - **AND** 租户 B/C 不受影响
 
@@ -25,10 +25,10 @@
 #### Scenario: 租户管理员查询插件列表
 - **WHEN** 租户 A 管理员调用 `GET /tenant/plugins`
 - **THEN** 返回结果按上述规则过滤
-- **AND** 每条目附带本租户的当前 `enabled` 状态(从 `sys_plugin_state.tenant_id=A` 读取)
+- **AND** 每条目附带本租户的当前 `enabled` 状态(从 `sys_plugin_state.tenant_id=A AND state_key='__tenant_enabled__'` 读取)
 
 ### Requirement: tenant_scoped 插件的路由命中策略
-`tenant_scoped` 插件的 HTTP 路由 SHALL 在框架启动期全局挂载;请求到达时,中间件根据 `(tenant_id, plugin_id)` 启用状态决定:
+`tenant_scoped` 插件的 HTTP 路由 SHALL 在框架启动期全局挂载;请求到达时,中间件根据 `(tenant_id, plugin_id, state_key='__tenant_enabled__')` 启用状态决定:
 - 已启用:正常路由到插件 handler。
 - 未启用:返回 404 `bizerr.CodePluginNotEnabledForTenant`。
 - 平台管理员请求:即使租户未启用,平台管理员的运维请求(以 `X-Platform-Probe: true`)允许通过(为运维查看)。
@@ -45,7 +45,7 @@
 - **THEN** 路由进入插件 handler,正常返回数据
 
 ### Requirement: 启用状态缓存与失效
-`(plugin_id, tenant_id) → enabled` 映射 SHALL 缓存于 `pluginruntimecache`,key 携带租户维度;启用/禁用变更触发该 `(plugin_id, tenant_id)` 维度失效,集群模式下广播。
+`(plugin_id, tenant_id, state_key='__tenant_enabled__') → enabled` 映射 SHALL 缓存于 `pluginruntimecache`,key 携带租户维度;启用/禁用变更触发该 `(plugin_id, tenant_id)` 维度失效,集群模式下广播。
 
 #### Scenario: 启用后立即生效
 - **WHEN** 租户管理员 enable 某插件

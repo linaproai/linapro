@@ -242,6 +242,9 @@ type fakeRoleCacheCoordService struct {
 	markErr      error
 	currentCalls int32
 	markCalls    int32
+	currentScope cachecoord.Scope
+	markScope    cachecoord.Scope
+	markTenant   cachecoord.InvalidationScope
 }
 
 // ConfigureDomain is a no-op because these tests configure domain metadata elsewhere.
@@ -253,10 +256,28 @@ func (f *fakeRoleCacheCoordService) ConfigureDomain(_ cachecoord.DomainSpec) err
 func (f *fakeRoleCacheCoordService) MarkChanged(
 	_ context.Context,
 	_ cachecoord.Domain,
-	_ cachecoord.Scope,
+	scope cachecoord.Scope,
 	_ cachecoord.ChangeReason,
 ) (int64, error) {
 	atomic.AddInt32(&f.markCalls, 1)
+	f.markScope = scope
+	if f.markErr != nil {
+		return 0, f.markErr
+	}
+	return f.revision, nil
+}
+
+// MarkTenantChanged mirrors MarkChanged for tenant-scoped revision tests.
+func (f *fakeRoleCacheCoordService) MarkTenantChanged(
+	_ context.Context,
+	_ cachecoord.Domain,
+	scope cachecoord.Scope,
+	tenantScope cachecoord.InvalidationScope,
+	_ cachecoord.ChangeReason,
+) (int64, error) {
+	atomic.AddInt32(&f.markCalls, 1)
+	f.markScope = scope
+	f.markTenant = tenantScope
 	if f.markErr != nil {
 		return 0, f.markErr
 	}
@@ -286,9 +307,10 @@ func (f *fakeRoleCacheCoordService) EnsureFresh(
 func (f *fakeRoleCacheCoordService) CurrentRevision(
 	_ context.Context,
 	_ cachecoord.Domain,
-	_ cachecoord.Scope,
+	scope cachecoord.Scope,
 ) (int64, error) {
 	atomic.AddInt32(&f.currentCalls, 1)
+	f.currentScope = scope
 	if f.currentErr != nil {
 		return 0, f.currentErr
 	}
@@ -445,6 +467,70 @@ func TestInvalidateUserAccessContextsRemovesBoundTokensOnly(t *testing.T) {
 	}
 }
 
+// TestInvalidateUserAccessContextsIsTenantScoped verifies user invalidation
+// removes only cache entries that belong to the current tenant bucket.
+func TestInvalidateUserAccessContextsIsTenantScoped(t *testing.T) {
+	svc := New(nil).(*serviceImpl)
+	resetRoleAccessCacheTestState(t, svc)
+
+	tenantOneCtx := datascope.WithTenantForTest(context.Background(), 1)
+	tenantTwoCtx := datascope.WithTenantForTest(context.Background(), 2)
+	sharedAccess := &UserAccessContext{
+		Permissions: []string{"system:role:auth"},
+	}
+
+	svc.cacheTokenAccessContext(tenantOneCtx, "tenant-1-token", 1, 3, sharedAccess)
+	svc.cacheTokenAccessContext(tenantTwoCtx, "tenant-2-token", 1, 3, sharedAccess)
+
+	svc.InvalidateUserAccessContexts(tenantOneCtx, 1)
+
+	if access := svc.getCachedTokenAccessContext(tenantOneCtx, "tenant-1-token", 1, 3); access != nil {
+		t.Fatalf("expected tenant one token to be removed, got %#v", access)
+	}
+	if access := svc.getCachedTokenAccessContext(tenantTwoCtx, "tenant-2-token", 1, 3); access == nil {
+		t.Fatal("expected tenant two token for same user to remain available")
+	}
+}
+
+// TestAccessCacheKeyUsesTenantcapBucket verifies role access cache keys use the
+// canonical tenantcap tenant/scope/key format.
+func TestAccessCacheKeyUsesTenantcapBucket(t *testing.T) {
+	ctx := datascope.WithTenantForTest(context.Background(), 42)
+	key := accessCacheKey(ctx, "issued-token")
+
+	if key != "tenant=42:scope=role:user-access:key=issued-token" {
+		t.Fatalf("expected tenantcap cache key, got %q", key)
+	}
+}
+
+// TestTokenAccessContextCacheIsTenantBucketed verifies same token values in
+// different tenants do not collide in the process-local role access cache.
+func TestTokenAccessContextCacheIsTenantBucketed(t *testing.T) {
+	svc := New(nil).(*serviceImpl)
+	resetRoleAccessCacheTestState(t, svc)
+
+	tenantOneCtx := datascope.WithTenantForTest(context.Background(), 1)
+	tenantTwoCtx := datascope.WithTenantForTest(context.Background(), 2)
+	tokenID := "shared-token-id"
+
+	svc.cacheTokenAccessContext(tenantOneCtx, tokenID, 11, 5, &UserAccessContext{
+		Permissions: []string{"system:tenant-cache:one"},
+	})
+	svc.cacheTokenAccessContext(tenantTwoCtx, tokenID, 22, 5, &UserAccessContext{
+		Permissions: []string{"system:tenant-cache:two"},
+	})
+
+	tenantOneAccess := svc.getCachedTokenAccessContext(tenantOneCtx, tokenID, 11, 5)
+	if tenantOneAccess == nil || len(tenantOneAccess.Permissions) != 1 || tenantOneAccess.Permissions[0] != "system:tenant-cache:one" {
+		t.Fatalf("expected tenant one cached access, got %#v", tenantOneAccess)
+	}
+
+	tenantTwoAccess := svc.getCachedTokenAccessContext(tenantTwoCtx, tokenID, 22, 5)
+	if tenantTwoAccess == nil || len(tenantTwoAccess.Permissions) != 1 || tenantTwoAccess.Permissions[0] != "system:tenant-cache:two" {
+		t.Fatalf("expected tenant two cached access, got %#v", tenantTwoAccess)
+	}
+}
+
 // TestCloneUserAccessContextCopiesSlices verifies cloned access contexts do not
 // share slice backing storage with the original value.
 func TestCloneUserAccessContextCopiesSlices(t *testing.T) {
@@ -562,7 +648,7 @@ func TestSyncAccessTopologyRevisionKeepsCacheWhenRevisionUnchanged(t *testing.T)
 		t.Fatalf("sync access topology revision failed: %v", err)
 	}
 
-	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey("sync-same-revision"))
+	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey(ctx, "sync-same-revision"))
 	if err != nil {
 		t.Fatalf("get cached access context after unchanged sync: %v", err)
 	}
@@ -590,7 +676,7 @@ func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) 
 		t.Fatalf("sync access topology revision failed: %v", err)
 	}
 
-	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey("sync-new-revision"))
+	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey(ctx, "sync-new-revision"))
 	if err != nil {
 		t.Fatalf("get cached access context after changed sync: %v", err)
 	}
@@ -676,6 +762,41 @@ func TestSingleNodeAccessRevisionStaysLocal(t *testing.T) {
 	}
 	if access := svc.getCachedTokenAccessContext(ctx, "single-node-token", 1, revision); access != nil {
 		t.Fatalf("expected single-node token cache to be cleared after invalidation, got %#v", access)
+	}
+}
+
+// TestClusterAccessRevisionUsesTenantScopedCacheCoord verifies clustered
+// permission-access revisions are partitioned by tenant and platform changes
+// request tenant cascade invalidation.
+func TestClusterAccessRevisionUsesTenantScopedCacheCoord(t *testing.T) {
+	fakeCoord := &fakeRoleCacheCoordService{revision: 8}
+	controller := &clusterAccessRevisionController{cacheCoordSvc: fakeCoord}
+
+	tenantCtx := datascope.WithTenantForTest(context.Background(), 44)
+	if _, err := controller.CurrentRevision(tenantCtx); err != nil {
+		t.Fatalf("read tenant access revision failed: %v", err)
+	}
+	expectedTenantScope := cachecoord.ScopedScope(
+		cachecoord.ScopeGlobal,
+		cachecoord.InvalidationScope{TenantID: 44},
+	)
+	if fakeCoord.currentScope != expectedTenantScope {
+		t.Fatalf("expected tenant current scope %q, got %q", expectedTenantScope, fakeCoord.currentScope)
+	}
+
+	if _, err := controller.MarkChanged(tenantCtx); err != nil {
+		t.Fatalf("mark tenant access revision failed: %v", err)
+	}
+	if fakeCoord.markTenant.TenantID != 44 || fakeCoord.markTenant.CascadeToTenants {
+		t.Fatalf("expected tenant-only invalidation metadata, got %#v", fakeCoord.markTenant)
+	}
+
+	platformCtx := datascope.WithTenantForTest(context.Background(), datascope.PlatformTenantID)
+	if _, err := controller.MarkChanged(platformCtx); err != nil {
+		t.Fatalf("mark platform access revision failed: %v", err)
+	}
+	if fakeCoord.markTenant.TenantID != 0 || !fakeCoord.markTenant.CascadeToTenants {
+		t.Fatalf("expected platform cascade invalidation metadata, got %#v", fakeCoord.markTenant)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/gogf/gf/v2/database/gdb"
 
 	"lina-core/pkg/orgcap"
+	tenantfilter "lina-core/pkg/pluginservice/tenantfilter"
 	"lina-plugin-org-center/backend/internal/dao"
 	"lina-plugin-org-center/backend/internal/model/do"
 	entitymodel "lina-plugin-org-center/backend/internal/model/entity"
@@ -55,7 +56,7 @@ func (p *Provider) ListUserDeptAssignments(ctx context.Context, userIDs []int) (
 	}
 
 	var userDepts []*entitymodel.UserDept
-	if err := dao.UserDept.Ctx(ctx).
+	if err := tenantfilter.Apply(ctx, dao.UserDept.Ctx(ctx)).
 		WhereIn(dao.UserDept.Columns().UserId, userIDs).
 		Scan(&userDepts); err != nil {
 		return nil, err
@@ -74,7 +75,7 @@ func (p *Provider) ListUserDeptAssignments(ctx context.Context, userIDs []int) (
 	}
 
 	var deptList []*entitymodel.Dept
-	if err := dao.Dept.Ctx(ctx).
+	if err := tenantfilter.Apply(ctx, dao.Dept.Ctx(ctx)).
 		WhereIn(dao.Dept.Columns().Id, deptIDs).
 		Scan(&deptList); err != nil {
 		return nil, err
@@ -103,7 +104,7 @@ func (p *Provider) GetUserIDsByDept(ctx context.Context, deptID int) ([]int, err
 	}
 
 	var userDepts []*entitymodel.UserDept
-	if err = dao.UserDept.Ctx(ctx).
+	if err = tenantfilter.Apply(ctx, dao.UserDept.Ctx(ctx)).
 		WhereIn(dao.UserDept.Columns().DeptId, deptIDs).
 		Scan(&userDepts); err != nil {
 		return nil, err
@@ -127,7 +128,7 @@ func (p *Provider) GetUserIDsByDept(ctx context.Context, deptID int) ([]int, err
 // GetAllAssignedUserIDs returns all user IDs that currently hold department assignments.
 func (p *Provider) GetAllAssignedUserIDs(ctx context.Context) ([]int, error) {
 	var userDepts []*entitymodel.UserDept
-	if err := dao.UserDept.Ctx(ctx).
+	if err := tenantfilter.Apply(ctx, dao.UserDept.Ctx(ctx)).
 		Fields(dao.UserDept.Columns().UserId).
 		Distinct().
 		Scan(&userDepts); err != nil {
@@ -147,14 +148,14 @@ func (p *Provider) GetAllAssignedUserIDs(ctx context.Context) ([]int, error) {
 // GetUserDeptInfo returns one user's department projection.
 func (p *Provider) GetUserDeptInfo(ctx context.Context, userID int) (int, string, error) {
 	var userDept *entitymodel.UserDept
-	if err := dao.UserDept.Ctx(ctx).
+	if err := tenantfilter.Apply(ctx, dao.UserDept.Ctx(ctx)).
 		Where(dao.UserDept.Columns().UserId, userID).
 		Scan(&userDept); err != nil || userDept == nil {
 		return 0, "", err
 	}
 
 	var deptItem *entitymodel.Dept
-	if err := dao.Dept.Ctx(ctx).
+	if err := tenantfilter.Apply(ctx, dao.Dept.Ctx(ctx)).
 		Where(dao.Dept.Columns().Id, userDept.DeptId).
 		Scan(&deptItem); err != nil || deptItem == nil {
 		return 0, "", err
@@ -165,7 +166,7 @@ func (p *Provider) GetUserDeptInfo(ctx context.Context, userID int) (int, string
 // GetUserDeptIDs returns one user's department identifier list.
 func (p *Provider) GetUserDeptIDs(ctx context.Context, userID int) ([]int, error) {
 	var userDepts []*entitymodel.UserDept
-	if err := dao.UserDept.Ctx(ctx).
+	if err := tenantfilter.Apply(ctx, dao.UserDept.Ctx(ctx)).
 		Where(dao.UserDept.Columns().UserId, userID).
 		Scan(&userDepts); err != nil {
 		return nil, err
@@ -218,7 +219,7 @@ func (p *Provider) BuildUserDeptScopeExists(
 	}
 
 	cols := dao.UserDept.Columns()
-	subQuery := dao.UserDept.Ctx(ctx).
+	subQuery := tenantfilter.Apply(ctx, dao.UserDept.Ctx(ctx)).
 		Fields(cols.UserId).
 		Where(fmt.Sprintf("%s = %s", qualifiedUserDeptColumn(cols.UserId), userIDColumn)).
 		WhereIn(cols.DeptId, deptIDs)
@@ -263,7 +264,7 @@ func qualifiedUserDeptColumn(column string) string {
 // GetUserPostIDs returns one user's post association list.
 func (p *Provider) GetUserPostIDs(ctx context.Context, userID int) ([]int, error) {
 	var userPosts []*entitymodel.UserPost
-	if err := dao.UserPost.Ctx(ctx).
+	if err := tenantfilter.Apply(ctx, dao.UserPost.Ctx(ctx)).
 		Where(dao.UserPost.Columns().UserId, userID).
 		Scan(&userPosts); err != nil {
 		return nil, err
@@ -284,12 +285,14 @@ func (p *Provider) ReplaceUserAssignments(ctx context.Context, userID int, deptI
 	return dao.UserDept.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		if _, err := tx.Model(dao.UserDept.Table()).
 			Ctx(ctx).
+			Where(tenantfilter.Column, tenantfilter.Current(ctx)).
 			Where(dao.UserDept.Columns().UserId, userID).
 			Delete(); err != nil {
 			return err
 		}
 		if _, err := tx.Model(dao.UserPost.Table()).
 			Ctx(ctx).
+			Where(tenantfilter.Column, tenantfilter.Current(ctx)).
 			Where(dao.UserPost.Columns().UserId, userID).
 			Delete(); err != nil {
 			return err
@@ -298,7 +301,7 @@ func (p *Provider) ReplaceUserAssignments(ctx context.Context, userID int, deptI
 		if deptID != nil && *deptID > 0 {
 			if _, err := tx.Model(dao.UserDept.Table()).
 				Ctx(ctx).
-				Data(do.UserDept{UserId: userID, DeptId: *deptID}).
+				Data(do.UserDept{TenantId: tenantfilter.Current(ctx), UserId: userID, DeptId: *deptID}).
 				Insert(); err != nil {
 				return err
 			}
@@ -306,7 +309,7 @@ func (p *Provider) ReplaceUserAssignments(ctx context.Context, userID int, deptI
 		for _, postID := range postIDs {
 			if _, err := tx.Model(dao.UserPost.Table()).
 				Ctx(ctx).
-				Data(do.UserPost{UserId: userID, PostId: postID}).
+				Data(do.UserPost{TenantId: tenantfilter.Current(ctx), UserId: userID, PostId: postID}).
 				Insert(); err != nil {
 				return err
 			}
@@ -320,12 +323,14 @@ func (p *Provider) CleanupUserAssignments(ctx context.Context, userID int) error
 	return dao.UserDept.Transaction(ctx, func(ctx context.Context, tx gdb.TX) error {
 		if _, err := tx.Model(dao.UserDept.Table()).
 			Ctx(ctx).
+			Where(tenantfilter.Column, tenantfilter.Current(ctx)).
 			Where(dao.UserDept.Columns().UserId, userID).
 			Delete(); err != nil {
 			return err
 		}
 		if _, err := tx.Model(dao.UserPost.Table()).
 			Ctx(ctx).
+			Where(tenantfilter.Column, tenantfilter.Current(ctx)).
 			Where(dao.UserPost.Columns().UserId, userID).
 			Delete(); err != nil {
 			return err
@@ -342,7 +347,7 @@ func (p *Provider) UserDeptTree(ctx context.Context) ([]*orgcap.DeptTreeNode, er
 	}
 
 	counts := make([]deptCountRow, 0)
-	if err = dao.UserDept.Ctx(ctx).
+	if err = tenantfilter.ApplyColumn(ctx, dao.UserDept.Ctx(ctx), qualifiedUserDeptColumn(tenantfilter.Column)).
 		Fields("dept_id, COUNT(*) AS cnt").
 		InnerJoin(
 			dao.SysUser.Table(),
@@ -352,6 +357,7 @@ func (p *Provider) UserDeptTree(ctx context.Context) ([]*orgcap.DeptTreeNode, er
 				dao.SysUser.Table(), dao.SysUser.Columns().Id,
 			),
 		).
+		Where(fmt.Sprintf("%s.%s", dao.SysUser.Table(), tenantfilter.Column), tenantfilter.Current(ctx)).
 		Group("dept_id").
 		Scan(&counts); err != nil {
 		return nil, err
@@ -365,7 +371,7 @@ func (p *Provider) UserDeptTree(ctx context.Context) ([]*orgcap.DeptTreeNode, er
 	nodes := convertDeptTreeNodes(plainTree)
 	applyDeptUserCount(nodes, countMap)
 
-	totalUsers, err := dao.SysUser.Ctx(ctx).Count()
+	totalUsers, err := tenantfilter.Apply(ctx, dao.SysUser.Ctx(ctx)).Count()
 	if err != nil {
 		return nil, err
 	}
@@ -380,7 +386,7 @@ func (p *Provider) UserDeptTree(ctx context.Context) ([]*orgcap.DeptTreeNode, er
 
 // ListPostOptions returns selectable post options for one department subtree.
 func (p *Provider) ListPostOptions(ctx context.Context, deptID *int) ([]*orgcap.PostOption, error) {
-	model := dao.Post.Ctx(ctx).Where(dao.Post.Columns().Status, postStatusEnabled)
+	model := tenantfilter.Apply(ctx, dao.Post.Ctx(ctx)).Where(dao.Post.Columns().Status, postStatusEnabled)
 	if deptID != nil {
 		deptIDs, err := p.deptSvc.DescendantDeptIDs(ctx, *deptID)
 		if err != nil {

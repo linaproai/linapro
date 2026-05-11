@@ -71,6 +71,16 @@ export function pluginDisable(pluginId: string) {
   return requestClient.put(`/plugins/${pluginId}/disable`);
 }
 
+/** 更新插件新租户自动启用策略 */
+export function pluginUpdateTenantProvisioningPolicy(
+  pluginId: string,
+  autoEnableForNewTenants: boolean,
+) {
+  return requestClient.put(`/plugins/${pluginId}/tenant-provisioning-policy`, {
+    autoEnableForNewTenants,
+  });
+}
+
 /** 卸载插件 */
 export function pluginUninstall(pluginId: string, purgeStorageData?: boolean) {
   return requestClient.delete(`/plugins/${pluginId}`, {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/datascope"
 )
 
 // Permission-access cache coordination reasons.
@@ -126,10 +127,11 @@ func (c *clusterAccessRevisionController) SyncRevision(
 // MarkChanged publishes one shared revision bump and then updates the local
 // copy so the writing node observes its own topology mutation immediately.
 func (c *clusterAccessRevisionController) MarkChanged(ctx context.Context) (int64, error) {
-	revision, err := c.cacheCoordSvc.MarkChanged(
+	revision, err := c.cacheCoordSvc.MarkTenantChanged(
 		ctx,
 		accessTopologyCacheDomain,
 		cachecoord.ScopeGlobal,
+		accessRevisionInvalidationScope(ctx),
 		accessTopologyCacheChangeReason,
 	)
 	if err != nil {
@@ -145,7 +147,7 @@ func (c *clusterAccessRevisionController) ensureFresh(ctx context.Context) (int6
 	revision, err := c.cacheCoordSvc.EnsureFresh(
 		ctx,
 		accessTopologyCacheDomain,
-		cachecoord.ScopeGlobal,
+		accessRevisionScope(ctx),
 		func(_ context.Context, revision int64) error {
 			storeLocalAccessRevision(revision)
 			return nil
@@ -156,4 +158,24 @@ func (c *clusterAccessRevisionController) ensureFresh(ctx context.Context) (int6
 	}
 	storeLocalAccessRevision(revision)
 	return revision, nil
+}
+
+// accessRevisionScope returns the tenant-partitioned permission revision scope
+// used by clustered permission access snapshots.
+func accessRevisionScope(ctx context.Context) cachecoord.Scope {
+	return cachecoord.ScopedScope(
+		cachecoord.ScopeGlobal,
+		accessRevisionInvalidationScope(ctx),
+	)
+}
+
+// accessRevisionInvalidationScope describes which tenant bucket one permission
+// topology mutation affects. Platform changes cascade because platform menus and
+// defaults can alter every tenant's effective permission set.
+func accessRevisionInvalidationScope(ctx context.Context) cachecoord.InvalidationScope {
+	tenantID := datascope.CurrentTenantID(ctx)
+	return cachecoord.InvalidationScope{
+		TenantID:         cachecoord.TenantID(tenantID),
+		CascadeToTenants: tenantID == datascope.PlatformTenantID,
+	}
 }

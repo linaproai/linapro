@@ -14,6 +14,7 @@ import {
   pluginEnable,
   pluginList,
   pluginSync,
+  pluginUpdateTenantProvisioningPolicy,
 } from '#/api/system/plugin';
 import { $t } from '#/locales';
 import { notifyPluginRegistryChanged } from '#/plugins/slot-registry';
@@ -22,6 +23,8 @@ import PluginDetailModal from './plugin-detail-modal.vue';
 import PluginDynamicUploadModal from './plugin-dynamic-upload-modal.vue';
 import PluginHostServiceAuthModal from './plugin-host-service-auth-modal.vue';
 import PluginUninstallModal from './plugin-uninstall-modal.vue';
+import InstallModeSelector from '#/views/platform/plugins/install-mode-selector.vue';
+import LifecycleGuardDialog from '#/views/platform/plugins/lifecycle-guard-dialog.vue';
 
 const [DetailModal, detailModalApi] = useVbenModal({
   connectedComponent: PluginDetailModal,
@@ -39,6 +42,14 @@ const [UninstallModal, uninstallModalApi] = useVbenModal({
   connectedComponent: PluginUninstallModal,
 });
 
+const [InstallModeModal, installModeModalApi] = useVbenModal({
+  connectedComponent: InstallModeSelector,
+});
+
+const [LifecycleGuardModal] = useVbenModal({
+  connectedComponent: LifecycleGuardDialog,
+});
+
 const typeColorMap: Record<string, string> = {
   dynamic: 'green',
   source: 'blue',
@@ -46,6 +57,7 @@ const typeColorMap: Record<string, string> = {
 
 const pluginAccessCodes = {
   disable: 'plugin:disable',
+  edit: 'plugin:edit',
   enable: 'plugin:enable',
   install: 'plugin:install',
   uninstall: 'plugin:uninstall',
@@ -166,6 +178,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
         width: 120,
       },
       {
+        field: 'autoEnableForNewTenants',
+        slots: { default: 'tenantProvisioning' },
+        title: $t('pages.system.plugin.fields.tenantProvisioning'),
+        width: 160,
+      },
+      {
         field: 'installedAt',
         title: $t('pages.system.plugin.fields.installedAt'),
         width: 180,
@@ -226,6 +244,12 @@ function hasPluginMockData(row: SystemPlugin) {
   return row.hasMockData === 1;
 }
 
+function isTenantProvisioningPolicySupported(row: SystemPlugin) {
+  return (
+    row.scopeNature === 'tenant_aware' && row.installMode === 'tenant_scoped'
+  );
+}
+
 function buildAutoEnableManagedTooltip(row: SystemPlugin) {
   return $t('pages.system.plugin.messages.autoEnableTooltip', {
     pluginId: row.id,
@@ -267,6 +291,10 @@ function canInstallAndEnablePlugin() {
 
 function canSyncPlugins() {
   return hasAccessByCodes([pluginAccessCodes.install]);
+}
+
+function canEditPluginPolicy() {
+  return hasAccessByCodes([pluginAccessCodes.edit]);
 }
 
 function canUninstallPlugin() {
@@ -320,15 +348,52 @@ async function handleStatusChange(row: SystemPlugin, checked: boolean) {
   );
 }
 
+async function handleTenantProvisioningPolicyChange(
+  row: SystemPlugin,
+  checked: boolean,
+) {
+  if (!canEditPluginPolicy()) {
+    message.warning($t('pages.system.plugin.messages.noPolicyPermission'));
+    return;
+  }
+  if (!isTenantProvisioningPolicySupported(row)) {
+    message.warning(
+      $t('pages.system.plugin.messages.tenantProvisioningUnsupported'),
+    );
+    return;
+  }
+  await pluginUpdateTenantProvisioningPolicy(row.id, checked);
+  row.autoEnableForNewTenants = checked;
+  message.success($t('pages.system.plugin.messages.tenantProvisioningUpdated'));
+}
+
 async function handleInstall(row: SystemPlugin) {
   if (!canInstallPlugin()) {
     message.warning($t('pages.system.plugin.messages.noInstallPermission'));
+    return;
+  }
+  if (row.scopeNature === 'tenant_aware' || row.scopeNature === 'platform_only') {
+    installModeModalApi.setData({ row });
+    installModeModalApi.open();
     return;
   }
   hostServiceAuthModalApi.setData({
     allowInstallAndEnable: canInstallAndEnablePlugin(),
     mode: 'install',
     row,
+  });
+  hostServiceAuthModalApi.open();
+}
+
+function handleInstallModeSelected(payload: {
+  installMode: 'global' | 'tenant_scoped';
+  row: SystemPlugin;
+}) {
+  hostServiceAuthModalApi.setData({
+    allowInstallAndEnable: canInstallAndEnablePlugin(),
+    installMode: payload.installMode,
+    mode: 'install',
+    row: payload.row,
   });
   hostServiceAuthModalApi.open();
 }
@@ -375,6 +440,10 @@ async function handleHostServiceAuthReload() {
 async function handleUninstallReload() {
   await notifyPluginRegistryChanged();
   await gridApi.query();
+}
+
+function handleLifecycleGuardForce() {
+  message.warning($t('pages.multiTenant.plugin.lifecycleGuard.forceSubmitted'));
 }
 </script>
 
@@ -496,6 +565,29 @@ async function handleUninstallReload() {
         </Tag>
       </template>
 
+      <template #tenantProvisioning="{ row }">
+        <Tooltip
+          :title="
+            isTenantProvisioningPolicySupported(row)
+              ? $t('pages.system.plugin.messages.tenantProvisioningEffective')
+              : $t('pages.system.plugin.messages.tenantProvisioningUnsupported')
+          "
+        >
+          <Switch
+            :checked="row.autoEnableForNewTenants === true"
+            :disabled="
+              !isTenantProvisioningPolicySupported(row) || !canEditPluginPolicy()
+            "
+            size="small"
+            :data-testid="`plugin-tenant-provisioning-${row.id}`"
+            @change="
+              (checked) =>
+                handleTenantProvisioningPolicyChange(row, Boolean(checked))
+            "
+          />
+        </Tooltip>
+      </template>
+
       <template #action="{ row }">
         <Space>
           <ghost-button
@@ -536,5 +628,7 @@ async function handleUninstallReload() {
     <DynamicUploadModal @reload="handleDynamicUploadReload" />
     <HostServiceAuthModal @reload="handleHostServiceAuthReload" />
     <UninstallModal @reload="handleUninstallReload" />
+    <InstallModeModal @confirm="handleInstallModeSelected" />
+    <LifecycleGuardModal @force="handleLifecycleGuardForce" />
   </Page>
 </template>

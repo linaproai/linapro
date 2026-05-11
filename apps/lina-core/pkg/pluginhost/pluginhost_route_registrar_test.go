@@ -5,6 +5,7 @@ package pluginhost
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -28,7 +29,7 @@ func testPluginPingHandler(ctx context.Context, req *testPluginPingReq) (*testPl
 // registrar exposes the root group and the published middleware directory.
 func TestNewRouteRegistrarExposeRootGroupAndPublishedMiddlewares(t *testing.T) {
 	noop := func(r *ghttp.Request) {}
-	middlewares := NewRouteMiddlewares(noop, noop, noop, noop, noop, noop, noop)
+	middlewares := NewRouteMiddlewares(noop, noop, noop, noop, noop, noop, noop, noop)
 	server := g.Server("pluginhost-route-registrar-test")
 
 	var rootGroup *ghttp.RouterGroup
@@ -116,5 +117,47 @@ func TestNormalizeRoutePrefix(t *testing.T) {
 	}
 	if got := normalizeRoutePrefix(""); got != "/" {
 		t.Fatalf("expected empty prefix to normalize to root, got %s", got)
+	}
+}
+
+// TestRouteRegistrarEnabledCheckerReceivesRequestContext verifies route guards
+// pass the active request context into the plugin-state checker.
+func TestRouteRegistrarEnabledCheckerReceivesRequestContext(t *testing.T) {
+	server := g.Server("pluginhost-route-context-checker-test")
+	server.SetDumpRouterMap(false)
+	server.SetPort(0)
+
+	type contextKey struct{}
+	ctxKey := contextKey{}
+	var rootGroup *ghttp.RouterGroup
+	server.Group("/", func(group *ghttp.RouterGroup) {
+		group.Middleware(func(request *ghttp.Request) {
+			request.SetCtx(context.WithValue(request.Context(), ctxKey, "tenant-visible"))
+			request.Middleware.Next()
+		})
+		rootGroup = group
+	})
+
+	checkerSawContext := false
+	registrar := NewRouteRegistrar(rootGroup, "plugin-demo", func(ctx context.Context, pluginID string) bool {
+		checkerSawContext = pluginID == "plugin-demo" && ctx.Value(ctxKey) == "tenant-visible"
+		return true
+	}, nil)
+	registrar.Group("/plugins/plugin-demo", func(group RouteGroup) {
+		group.GET("/ping", func(request *ghttp.Request) {
+			request.Response.Write("ok")
+		})
+	})
+
+	server.Start()
+	defer server.Shutdown()
+
+	client := g.Client()
+	client.SetPrefix(fmt.Sprintf("http://127.0.0.1:%d", server.GetListenedPort()))
+	if body := client.GetContent(context.Background(), "/plugins/plugin-demo/ping"); body != "ok" {
+		t.Fatalf("expected route response ok, got %q", body)
+	}
+	if !checkerSawContext {
+		t.Fatal("expected checker to receive active request context")
 	}
 }

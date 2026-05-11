@@ -41,6 +41,12 @@ type PluginItem struct {
 	InstalledAt string
 	// Enabled reports whether the plugin is currently enabled.
 	Enabled int
+	// AutoEnableForNewTenants reports the platform-owned new-tenant provisioning policy.
+	AutoEnableForNewTenants bool
+	// ScopeNature is the plugin scope nature persisted in the host registry.
+	ScopeNature string
+	// InstallMode is the plugin install mode persisted in the host registry.
+	InstallMode string
 	// StatusKey is the host config key used by the public shell.
 	StatusKey string
 	// UpdatedAt is the ISO timestamp of the last registry update.
@@ -85,18 +91,21 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	}
 
 	var (
-		id          string
-		name        string
-		version     string
-		pluginType  string
-		description string
-		installed   int
-		enabled     int
-		installedAt string
-		updatedAt   string
-		release     *entity.SysPluginRelease
-		snapshot    *catalog.ManifestSnapshot
-		err         error
+		id                      string
+		name                    string
+		version                 string
+		pluginType              string
+		description             string
+		installed               int
+		enabled                 int
+		installedAt             string
+		updatedAt               string
+		scopeNature             string
+		installMode             string
+		autoEnableForNewTenants bool
+		release                 *entity.SysPluginRelease
+		snapshot                *catalog.ManifestSnapshot
+		err                     error
 	)
 
 	if manifest != nil {
@@ -124,6 +133,9 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 		}
 		installed = registry.Installed
 		enabled = registry.Status
+		scopeNature = registry.ScopeNature
+		installMode = registry.InstallMode
+		autoEnableForNewTenants = registry.AutoEnableForNewTenants
 		if registry.InstalledAt != nil {
 			installedAt = registry.InstalledAt.String()
 		}
@@ -194,22 +206,25 @@ func (s *serviceImpl) buildPluginItem(ctx context.Context, manifest *catalog.Man
 	}
 
 	return &PluginItem{
-		Id:                     id,
-		Name:                   name,
-		Version:                version,
-		Type:                   pluginType,
-		Description:            description,
-		Installed:              installed,
-		InstalledAt:            installedAt,
-		Enabled:                enabled,
-		StatusKey:              s.catalogSvc.BuildPluginStatusKey(id),
-		UpdatedAt:              updatedAt,
-		AuthorizationRequired:  authorizationRequired,
-		AuthorizationStatus:    authorizationStatus,
-		RequestedHostServices:  requestedHostServices,
-		AuthorizedHostServices: authorizedHostServices,
-		DeclaredRoutes:         declaredRoutes,
-		HasMockData:            hasMockData,
+		Id:                      id,
+		Name:                    name,
+		Version:                 version,
+		Type:                    pluginType,
+		Description:             description,
+		Installed:               installed,
+		InstalledAt:             installedAt,
+		Enabled:                 enabled,
+		AutoEnableForNewTenants: autoEnableForNewTenants,
+		ScopeNature:             scopeNature,
+		InstallMode:             installMode,
+		StatusKey:               s.catalogSvc.BuildPluginStatusKey(id),
+		UpdatedAt:               updatedAt,
+		AuthorizationRequired:   authorizationRequired,
+		AuthorizationStatus:     authorizationStatus,
+		RequestedHostServices:   requestedHostServices,
+		AuthorizedHostServices:  authorizedHostServices,
+		DeclaredRoutes:          declaredRoutes,
+		HasMockData:             hasMockData,
 	}
 }
 

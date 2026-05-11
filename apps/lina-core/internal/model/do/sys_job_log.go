@@ -13,6 +13,7 @@ import (
 type SysJobLog struct {
 	g.Meta         `orm:"table:sys_job_log, do:true"`
 	Id             any         // Log ID
+	TenantId       any         // Owning tenant ID, 0 means PLATFORM
 	JobId          any         // Owning job ID
 	JobSnapshot    any         // Job snapshot JSON at execution time
 	NodeId         any         // Execution node identifier

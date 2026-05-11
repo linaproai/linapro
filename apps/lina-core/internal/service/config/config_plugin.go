@@ -27,9 +27,19 @@ type pluginAutoEnableOverrideState struct {
 	value []PluginAutoEnableEntry
 }
 
+// pluginAllowForceUninstallOverrideState stores one optional force-uninstall override.
+type pluginAllowForceUninstallOverrideState struct {
+	set   bool
+	value bool
+}
+
 // pluginAutoEnableOverride stores an optional process-wide test override for
 // startup auto-enable entries.
 var pluginAutoEnableOverride atomic.Value
+
+// pluginAllowForceUninstallOverride stores an optional process-wide test
+// override for plugin.allowForceUninstall.
+var pluginAllowForceUninstallOverride atomic.Value
 
 // PluginAutoEnableEntry represents one normalized entry of plugin.autoEnable.
 // The YAML schema enforces a single structured object form per entry:
@@ -54,6 +64,9 @@ type PluginAutoEnableEntry struct {
 type PluginConfig struct {
 	Dynamic PluginDynamicConfig `json:"dynamic"` // Dynamic contains dynamic plugin storage settings.
 	Runtime PluginDynamicConfig `json:"runtime"` // Runtime keeps legacy config compatibility for older runtime keys.
+	// AllowForceUninstall lets platform administrators bypass lifecycle guard
+	// vetoes after an explicit confirmation path.
+	AllowForceUninstall bool `json:"allowForceUninstall"`
 	// AutoEnable lists plugin entries the host must auto-install and enable
 	// during startup. Populated manually from g.Cfg() rather than via the
 	// generic scan pipeline because the YAML schema accepts a mix of bare
@@ -79,10 +92,12 @@ type PluginDynamicConfig struct {
 func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 	cfg := clonePluginConfig(processStaticConfigCaches.plugin.load(func() *PluginConfig {
 		cfg := &PluginConfig{
+			AllowForceUninstall: false,
 			Dynamic: PluginDynamicConfig{
 				StoragePath: defaultPluginDynamicStoragePath,
 			},
 		}
+		cfg.AllowForceUninstall = g.Cfg().MustGet(ctx, "plugin.allowForceUninstall", false).Bool()
 		mustScanConfig(ctx, "plugin.dynamic", &cfg.Dynamic)
 		mustScanConfig(ctx, "plugin.runtime", &cfg.Runtime)
 
@@ -106,6 +121,9 @@ func (s *serviceImpl) GetPlugin(ctx context.Context) *PluginConfig {
 	}))
 	if override, ok := getPluginAutoEnableOverride(); ok {
 		cfg.AutoEnable = override
+	}
+	if override, ok := getPluginAllowForceUninstallOverride(); ok {
+		cfg.AllowForceUninstall = override
 	}
 	return cfg
 }
@@ -201,6 +219,19 @@ func SetPluginAutoEnableEntriesOverride(entries []PluginAutoEnableEntry) {
 	})
 }
 
+// SetPluginAllowForceUninstallOverride overrides plugin.allowForceUninstall.
+// Tests pass nil to clear the override.
+func SetPluginAllowForceUninstallOverride(value *bool) {
+	if value == nil {
+		pluginAllowForceUninstallOverride.Store(pluginAllowForceUninstallOverrideState{})
+		return
+	}
+	pluginAllowForceUninstallOverride.Store(pluginAllowForceUninstallOverrideState{
+		set:   true,
+		value: *value,
+	})
+}
+
 // getPluginDynamicStoragePathOverride returns the normalized test override when set.
 func getPluginDynamicStoragePathOverride() string {
 	value := pluginDynamicStoragePathOverride.Load()
@@ -232,6 +263,19 @@ func getPluginAutoEnableOverride() ([]PluginAutoEnableEntry, bool) {
 		return []PluginAutoEnableEntry{}, true
 	}
 	return append([]PluginAutoEnableEntry(nil), state.value...), true
+}
+
+// getPluginAllowForceUninstallOverride returns the configured test override.
+func getPluginAllowForceUninstallOverride() (bool, bool) {
+	value := pluginAllowForceUninstallOverride.Load()
+	if value == nil {
+		return false, false
+	}
+	state, ok := value.(pluginAllowForceUninstallOverrideState)
+	if !ok || !state.set {
+		return false, false
+	}
+	return state.value, true
 }
 
 // readRawPluginAutoEnableEntries decodes plugin.autoEnable from the raw config

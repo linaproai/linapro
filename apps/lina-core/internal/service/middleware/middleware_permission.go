@@ -79,6 +79,9 @@ func (s *serviceImpl) Permission(r *ghttp.Request) {
 		accessContext.DataScopeUnsupported,
 		accessContext.UnsupportedDataScope,
 	)
+	if s.tenantSvc != nil && s.tenantSvc.PlatformBypass(r.Context()) {
+		s.bizCtxSvc.SetTenant(r.Context(), 0)
+	}
 	if hasRequiredPermissions(accessContext, requiredPermissions) {
 		r.Middleware.Next()
 		return

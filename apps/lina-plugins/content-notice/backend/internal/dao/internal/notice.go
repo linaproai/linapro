@@ -22,6 +22,7 @@ type NoticeDao struct {
 // NoticeColumns defines and stores column names for the table plugin_content_notice.
 type NoticeColumns struct {
 	Id        string // Notice ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM
 	Title     string // Notice title
 	Type      string // Notice type: 1=notification, 2=announcement
 	Content   string // Notice content
@@ -38,6 +39,7 @@ type NoticeColumns struct {
 // noticeColumns holds the columns for the table plugin_content_notice.
 var noticeColumns = NoticeColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	Title:     "title",
 	Type:      "type",
 	Content:   "content",

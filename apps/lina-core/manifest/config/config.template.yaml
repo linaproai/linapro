@@ -152,6 +152,9 @@ upload:
 # Plugin configuration
 # 插件配置
 plugin:
+  # Whether platform administrators may force uninstall after LifecycleGuard vetoes; force operations must be audited
+  # 是否允许平台管理员在 LifecycleGuard 否决后强制卸载；强制操作必须审计
+  allowForceUninstall: true
   # Dynamic plugin configuration
   # 动态插件相关配置
   dynamic:

@@ -21,26 +21,34 @@ type LoginlogDao struct {
 
 // LoginlogColumns defines and stores column names for the table plugin_monitor_loginlog.
 type LoginlogColumns struct {
-	Id        string // Log ID
-	UserName  string // Login account
-	Status    string // Login status: 0=succeeded, 1=failed
-	Ip        string // Login IP address
-	Browser   string // Browser type
-	Os        string // Operating system
-	Msg       string // Prompt message
-	LoginTime string // Login time
+	Id                 string // Log ID
+	TenantId           string // Owning tenant ID, 0 means PLATFORM
+	ActingUserId       string // Actual acting user ID for platform operations or impersonation
+	OnBehalfOfTenantId string // Target tenant ID when a platform administrator acts on behalf of a tenant
+	IsImpersonation    string // Whether this log was produced during tenant impersonation
+	UserName           string // Login account
+	Status             string // Login status: 0=succeeded, 1=failed
+	Ip                 string // Login IP address
+	Browser            string // Browser type
+	Os                 string // Operating system
+	Msg                string // Prompt message
+	LoginTime          string // Login time
 }
 
 // loginlogColumns holds the columns for the table plugin_monitor_loginlog.
 var loginlogColumns = LoginlogColumns{
-	Id:        "id",
-	UserName:  "user_name",
-	Status:    "status",
-	Ip:        "ip",
-	Browser:   "browser",
-	Os:        "os",
-	Msg:       "msg",
-	LoginTime: "login_time",
+	Id:                 "id",
+	TenantId:           "tenant_id",
+	ActingUserId:       "acting_user_id",
+	OnBehalfOfTenantId: "on_behalf_of_tenant_id",
+	IsImpersonation:    "is_impersonation",
+	UserName:           "user_name",
+	Status:             "status",
+	Ip:                 "ip",
+	Browser:            "browser",
+	Os:                 "os",
+	Msg:                "msg",
+	LoginTime:          "login_time",
 }
 
 // NewLoginlogDao creates and returns a new DAO object for table data access.

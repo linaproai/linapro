@@ -885,3 +885,99 @@ func TestSyncPluginMenusResolvesStableHostParent(t *testing.T) {
 		t.Fatalf("expected plugin menu parent_id=%d, got %d", hostParent.Id, menu.ParentId)
 	}
 }
+
+// TestSyncMultiTenantPluginMenusResolveAllowedHostParents verifies the
+// multi-tenant plugin mounts only under the platform host catalog.
+func TestSyncMultiTenantPluginMenusResolveAllowedHostParents(t *testing.T) {
+	services := testutil.NewServices()
+	ctx := context.Background()
+
+	const (
+		platformMenuKey = "plugin:multi-tenant:platform:tenants"
+	)
+
+	testutil.CleanupPluginMenuRowsHard(t, ctx, menusvc.MultiTenant)
+	t.Cleanup(func() {
+		testutil.CleanupPluginMenuRowsHard(t, ctx, menusvc.MultiTenant)
+	})
+
+	platformParent := ensureTestStableHostMenu(t, ctx, menusvc.Platform)
+
+	manifest := &catalog.Manifest{
+		ID:      menusvc.MultiTenant,
+		Name:    "Multi Tenant",
+		Version: "0.1.0",
+		Type:    catalog.TypeSource.String(),
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       platformMenuKey,
+				Name:      "Tenant Management",
+				ParentKey: menusvc.Platform,
+				Path:      "platform/tenant",
+				Component: "system/plugin/dynamic-page",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	if err := services.Integration.SyncPluginMenusAndPermissions(ctx, manifest); err != nil {
+		t.Fatalf("expected multi-tenant plugin menu sync to succeed, got error: %v", err)
+	}
+
+	platformMenu, err := testutil.QueryMenuByKey(ctx, platformMenuKey)
+	if err != nil {
+		t.Fatalf("expected platform plugin menu query to succeed, got error: %v", err)
+	}
+	if platformMenu == nil {
+		t.Fatalf("expected plugin menu %s to be created", platformMenuKey)
+	}
+	if platformMenu.ParentId != platformParent.Id {
+		t.Fatalf("expected platform plugin menu parent_id=%d, got %d", platformParent.Id, platformMenu.ParentId)
+	}
+}
+
+// ensureTestStableHostMenu ensures a stable host menu exists for integration
+// tests running against databases initialized before the current iteration.
+func ensureTestStableHostMenu(t *testing.T, ctx context.Context, menuKey string) *entity.SysMenu {
+	t.Helper()
+
+	existing, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected host parent query to succeed, got error: %v", err)
+	}
+	if existing != nil {
+		return existing
+	}
+
+	menuID, err := dao.SysMenu.Ctx(ctx).Data(do.SysMenu{
+		ParentId:   0,
+		MenuKey:    menuKey,
+		Name:       menuKey,
+		Path:       menuKey,
+		Type:       catalog.MenuTypeDirectory.String(),
+		Sort:       100,
+		Visible:    1,
+		Status:     1,
+		IsFrame:    0,
+		IsCache:    0,
+		QueryParam: "",
+		Remark:     "integration test stable host menu",
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("expected host parent insert to succeed, got error: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := dao.SysMenu.Ctx(ctx).Unscoped().Where(do.SysMenu{Id: int(menuID)}).Delete(); err != nil {
+			t.Fatalf("expected host parent cleanup to succeed, got error: %v", err)
+		}
+	})
+
+	created, err := testutil.QueryMenuByKey(ctx, menuKey)
+	if err != nil {
+		t.Fatalf("expected host parent query after insert to succeed, got error: %v", err)
+	}
+	if created == nil {
+		t.Fatalf("expected host stable parent menu %s to exist", menuKey)
+	}
+	return created
+}

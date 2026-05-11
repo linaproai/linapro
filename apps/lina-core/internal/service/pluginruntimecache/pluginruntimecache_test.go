@@ -27,6 +27,7 @@ type fakePluginRuntimeCacheCoordService struct {
 	markCalls       int32
 	markScope       cachecoord.Scope
 	markReason      cachecoord.ChangeReason
+	markTenantScope cachecoord.InvalidationScope
 }
 
 // ConfigureDomain is a no-op because these tests configure domain metadata elsewhere.
@@ -44,6 +45,24 @@ func (f *fakePluginRuntimeCacheCoordService) MarkChanged(
 	atomic.AddInt32(&f.markCalls, 1)
 	f.markScope = scope
 	f.markReason = reason
+	if f.markErr != nil {
+		return 0, f.markErr
+	}
+	return f.markRevision, nil
+}
+
+// MarkTenantChanged returns the configured changed revision and tracks tenant-scoped publish metadata.
+func (f *fakePluginRuntimeCacheCoordService) MarkTenantChanged(
+	_ context.Context,
+	_ cachecoord.Domain,
+	scope cachecoord.Scope,
+	tenantScope cachecoord.InvalidationScope,
+	reason cachecoord.ChangeReason,
+) (int64, error) {
+	atomic.AddInt32(&f.markCalls, 1)
+	f.markScope = scope
+	f.markReason = reason
+	f.markTenantScope = tenantScope
 	if f.markErr != nil {
 		return 0, f.markErr
 	}
@@ -257,6 +276,32 @@ func TestControllerForScopeUsesExplicitCacheCoordScope(t *testing.T) {
 	}
 	if fakeCoord.markReason != ReconcilerCacheChangeReason {
 		t.Fatalf("expected mark reason %q, got %q", ReconcilerCacheChangeReason, fakeCoord.markReason)
+	}
+}
+
+// TestControllerMarkChangedCarriesTenantScope verifies plugin-runtime
+// invalidation publishes tenant metadata instead of collapsing all tenants into
+// one undifferentiated revision.
+func TestControllerMarkChangedCarriesTenantScope(t *testing.T) {
+	fakeCoord := &fakePluginRuntimeCacheCoordService{markRevision: 14}
+	controller := NewControllerForScopeWithCoordinator(
+		cachecoord.ScopeGlobal,
+		RuntimeCacheChangeReason,
+		true,
+		fakeCoord,
+		NewObservedRevision(),
+		nil,
+	).WithTenantScope(27, true)
+
+	revision, err := controller.MarkChanged(context.Background())
+	if err != nil {
+		t.Fatalf("mark tenant-scoped plugin runtime changed failed: %v", err)
+	}
+	if revision != 14 {
+		t.Fatalf("expected revision 14, got %d", revision)
+	}
+	if fakeCoord.markTenantScope.TenantID != 27 || !fakeCoord.markTenantScope.CascadeToTenants {
+		t.Fatalf("expected tenant scoped publish metadata, got %#v", fakeCoord.markTenantScope)
 	}
 }
 

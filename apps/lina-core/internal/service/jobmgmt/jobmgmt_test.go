@@ -57,6 +57,13 @@ func (s jobmgmtStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by job-management service tests.
 func (s jobmgmtStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetTenant is unused by job-management service tests.
+func (s jobmgmtStaticBizCtx) SetTenant(context.Context, int) {}
+
+// SetImpersonation is unused by job-management service tests.
+func (s jobmgmtStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
+
+
 // SetUserAccess is unused by job-management service tests.
 func (s jobmgmtStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 

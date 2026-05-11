@@ -1,6 +1,6 @@
 -- ============================================================
--- Menu table
--- 菜单表
+-- Purpose: Stores route, menu, button, permission, and display metadata used to assemble the management workbench.
+-- 用途：存储用于装配管理工作台的路由、菜单、按钮、权限与展示元数据。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_menu (
     "id"          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -48,15 +48,16 @@ COMMENT ON COLUMN sys_menu."deleted_at" IS 'Deletion time';
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_menu_menu_key ON sys_menu ("menu_key");
 
 -- ============================================================
--- Role table
--- 角色表
+-- Purpose: Stores tenant-scoped and platform roles, including permission keys, display order, status, and data scope.
+-- 用途：存储租户级与平台级角色，包括权限标识、展示排序、状态与数据权限范围。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_role (
     "id"         INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"  INT NOT NULL DEFAULT 0,
     "name"       VARCHAR(64) NOT NULL DEFAULT '',
     "key"      VARCHAR(64) NOT NULL DEFAULT '',
     "sort"       INT NOT NULL DEFAULT 0,
-    "data_scope" SMALLINT NOT NULL DEFAULT 1,
+    "data_scope" SMALLINT NOT NULL DEFAULT 2,
     "status"     SMALLINT NOT NULL DEFAULT 1,
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
     "created_at" TIMESTAMP,
@@ -66,49 +67,56 @@ CREATE TABLE IF NOT EXISTS sys_role (
 
 COMMENT ON TABLE sys_role IS 'Role information table';
 COMMENT ON COLUMN sys_role."id" IS 'Role ID';
+COMMENT ON COLUMN sys_role."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_role."name" IS 'Role name';
 COMMENT ON COLUMN sys_role."key" IS 'Permission key';
 COMMENT ON COLUMN sys_role."sort" IS 'Display order';
-COMMENT ON COLUMN sys_role."data_scope" IS 'Data scope: 1=all, 2=department, 3=self';
+COMMENT ON COLUMN sys_role."data_scope" IS 'Data scope: 1=all, 2=tenant, 3=department, 4=self';
 COMMENT ON COLUMN sys_role."status" IS 'Status: 0=disabled, 1=enabled';
 COMMENT ON COLUMN sys_role."remark" IS 'Remark';
 COMMENT ON COLUMN sys_role."created_at" IS 'Creation time';
 COMMENT ON COLUMN sys_role."updated_at" IS 'Update time';
 COMMENT ON COLUMN sys_role."deleted_at" IS 'Deletion time';
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_role_key ON sys_role ("key");
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_role_tenant_key ON sys_role ("tenant_id", "key");
 
 -- ============================================================
--- Role-menu relation table
--- 角色-菜单关联表
+-- Purpose: Stores role-to-menu and role-to-button grants for each tenant or platform context.
+-- 用途：存储每个租户或平台上下文中的角色到菜单、按钮的授权关系。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_role_menu (
+    "tenant_id" INT NOT NULL DEFAULT 0,
     "role_id" INT NOT NULL,
     "menu_id" INT NOT NULL,
-    PRIMARY KEY ("role_id", "menu_id")
+    CONSTRAINT pk_sys_role_menu_tenant PRIMARY KEY ("role_id", "menu_id", "tenant_id")
 );
 
 COMMENT ON TABLE sys_role_menu IS 'Role-menu relation table';
+COMMENT ON COLUMN sys_role_menu."tenant_id" IS 'Role-menu relation tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_role_menu."role_id" IS 'Role ID';
 COMMENT ON COLUMN sys_role_menu."menu_id" IS 'Menu ID';
 
 CREATE INDEX IF NOT EXISTS idx_sys_role_menu_menu_id ON sys_role_menu ("menu_id");
+CREATE INDEX IF NOT EXISTS idx_sys_role_menu_tenant_role ON sys_role_menu ("tenant_id", "role_id");
 
 -- ============================================================
--- User-role relation table
--- 用户-角色关联表
+-- Purpose: Stores user role assignments within a tenant or platform context.
+-- 用途：存储用户在租户或平台上下文中的角色分配关系。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_user_role (
+    "tenant_id" INT NOT NULL DEFAULT 0,
     "user_id" INT NOT NULL,
     "role_id" INT NOT NULL,
-    PRIMARY KEY ("user_id", "role_id")
+    CONSTRAINT pk_sys_user_role_tenant PRIMARY KEY ("user_id", "role_id", "tenant_id")
 );
 
 COMMENT ON TABLE sys_user_role IS 'User-role relation table';
+COMMENT ON COLUMN sys_user_role."tenant_id" IS 'Role assignment tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_user_role."user_id" IS 'User ID';
 COMMENT ON COLUMN sys_user_role."role_id" IS 'Role ID';
 
 CREATE INDEX IF NOT EXISTS idx_sys_user_role_role_id ON sys_user_role ("role_id");
+CREATE INDEX IF NOT EXISTS idx_sys_user_role_tenant_role ON sys_user_role ("tenant_id", "role_id");
 
 -- ============================================================
 -- Dictionary types and dictionary data
@@ -152,21 +160,24 @@ INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "
 VALUES ('sys_data_scope', '全部数据', '1', 1, 'primary', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")
-VALUES ('sys_data_scope', '本部门数据', '2', 2, 'success', 1, 1, NOW(), NOW())
+VALUES ('sys_data_scope', '本租户数据', '2', 2, 'orange', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")
-VALUES ('sys_data_scope', '仅本人数据', '3', 3, 'warning', 1, 1, NOW(), NOW())
+VALUES ('sys_data_scope', '本部门数据', '3', 3, 'purple', 1, 1, NOW(), NOW())
+ON CONFLICT DO NOTHING;
+INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")
+VALUES ('sys_data_scope', '本人数据', '4', 4, 'green', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
 -- Initial role data
 -- 初始化角色数据
 -- ============================================================
-INSERT INTO sys_role ("name", "key", "sort", "data_scope", "status", "remark", "created_at", "updated_at")
-VALUES ('超级管理员', 'admin', 1, 1, 1, '超级管理员，拥有所有权限', NOW(), NOW())
+INSERT INTO sys_role ("tenant_id", "name", "key", "sort", "data_scope", "status", "remark", "created_at", "updated_at")
+VALUES (0, '超级管理员', 'admin', 1, 1, 1, '超级管理员，拥有所有权限', NOW(), NOW())
 ON CONFLICT DO NOTHING;
-INSERT INTO sys_role ("name", "key", "sort", "data_scope", "status", "remark", "created_at", "updated_at")
-VALUES ('普通用户', 'user', 2, 3, 1, '普通用户，仅查看本人数据', NOW(), NOW())
+INSERT INTO sys_role ("tenant_id", "name", "key", "sort", "data_scope", "status", "remark", "created_at", "updated_at")
+VALUES (0, '普通用户', 'user', 2, 4, 1, '普通用户，仅查看本人数据', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -180,25 +191,28 @@ INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "per
 VALUES (0, 'iam', '权限管理', 'iam', '', '', 'lucide:shield-check', 'D', 2, 1, 1, 0, 0, '宿主稳定目录：权限管理', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'org', '组织管理', 'org', '', '', 'lucide:network', 'D', 3, 1, 1, 0, 0, '宿主稳定目录：组织管理', NOW(), NOW())
+VALUES (0, 'platform', '平台管理', 'platform', '', '', 'lucide:building-2', 'D', 3, 1, 1, 0, 0, '宿主稳定目录：平台管理', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'setting', '系统设置', 'setting', '', '', 'lucide:settings-2', 'D', 4, 1, 1, 0, 0, '宿主稳定目录：系统设置', NOW(), NOW())
+VALUES (0, 'org', '组织管理', 'org', '', '', 'lucide:network', 'D', 4, 1, 1, 0, 0, '宿主稳定目录：组织管理', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'content', '内容管理', 'content', '', '', 'lucide:newspaper', 'D', 5, 1, 1, 0, 0, '宿主稳定目录：内容管理', NOW(), NOW())
+VALUES (0, 'setting', '系统设置', 'setting', '', '', 'lucide:settings-2', 'D', 5, 1, 1, 0, 0, '宿主稳定目录：系统设置', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'monitor', '系统监控', 'monitor', '', '', 'lucide:activity', 'D', 6, 1, 1, 0, 0, '宿主稳定目录：系统监控', NOW(), NOW())
+VALUES (0, 'content', '内容管理', 'content', '', '', 'lucide:newspaper', 'D', 6, 1, 1, 0, 0, '宿主稳定目录：内容管理', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'scheduler', '任务调度', 'scheduler', '', '', 'lucide:calendar-range', 'D', 7, 1, 1, 0, 0, '宿主稳定目录：任务调度', NOW(), NOW())
+VALUES (0, 'monitor', '系统监控', 'monitor', '', '', 'lucide:activity', 'D', 7, 1, 1, 0, 0, '宿主稳定目录：系统监控', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'extension', '扩展中心', 'extension', '', '', 'lucide:puzzle', 'D', 8, 1, 1, 0, 0, '宿主稳定目录：扩展中心', NOW(), NOW())
+VALUES (0, 'scheduler', '任务调度', 'scheduler', '', '', 'lucide:calendar-range', 'D', 8, 1, 1, 0, 0, '宿主稳定目录：任务调度', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES (0, 'developer', '开发中心', 'developer', '', '', 'lucide:flask-conical', 'D', 9, 1, 1, 0, 0, '宿主稳定目录：开发中心', NOW(), NOW())
+VALUES (0, 'extension', '扩展中心', 'extension', '', '', 'lucide:puzzle', 'D', 9, 1, 1, 0, 0, '宿主稳定目录：扩展中心', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
+VALUES (0, 'developer', '开发中心', 'developer', '', '', 'lucide:flask-conical', 'D', 10, 1, 1, 0, 0, '宿主稳定目录：开发中心', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -351,10 +365,13 @@ INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "per
 VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension:plugin:list') AS parent), 'extension:plugin:disable', '插件禁用', '', '', 'plugin:disable', '', 'B', 3, 1, 1, 0, 0, '插件禁用按钮', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension:plugin:list') AS parent), 'extension:plugin:install', '插件安装', '', '', 'plugin:install', '', 'B', 4, 1, 1, 0, 0, '插件安装按钮', NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension:plugin:list') AS parent), 'extension:plugin:edit', '插件配置', '', '', 'plugin:edit', '', 'B', 4, 1, 1, 0, 0, '插件配置按钮', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
-VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension:plugin:list') AS parent), 'extension:plugin:uninstall', '插件卸载', '', '', 'plugin:uninstall', '', 'B', 5, 1, 1, 0, 0, '插件卸载按钮', NOW(), NOW())
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension:plugin:list') AS parent), 'extension:plugin:install', '插件安装', '', '', 'plugin:install', '', 'B', 5, 1, 1, 0, 0, '插件安装按钮', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+INSERT INTO sys_menu ("parent_id", "menu_key", "name", "path", "component", "perms", "icon", "type", "sort", "visible", "status", "is_frame", "is_cache", "remark", "created_at", "updated_at")
+VALUES ((SELECT parent."id" FROM (SELECT "id" FROM sys_menu WHERE "menu_key" = 'extension:plugin:list') AS parent), 'extension:plugin:uninstall', '插件卸载', '', '', 'plugin:uninstall', '', 'B', 6, 1, 1, 0, 0, '插件卸载按钮', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 -- ============================================================
@@ -372,17 +389,18 @@ ON CONFLICT DO NOTHING;
 -- Role authorization and administrator binding
 -- 角色授权与管理员绑定
 -- ============================================================
-INSERT INTO sys_role_menu ("role_id", "menu_id")
-SELECT r."id", m."id"
+INSERT INTO sys_role_menu ("role_id", "menu_id", "tenant_id")
+SELECT r."id", m."id", 0
 FROM sys_role r
 CROSS JOIN sys_menu m
 WHERE r."key" = 'admin'
+  AND r."tenant_id" = 0
   AND m."menu_key" NOT LIKE 'plugin:%'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO sys_user_role ("user_id", "role_id")
-SELECT u."id", r."id"
+INSERT INTO sys_user_role ("user_id", "role_id", "tenant_id")
+SELECT u."id", r."id", 0
 FROM sys_user u
-JOIN sys_role r ON r."key" = 'admin'
+JOIN sys_role r ON r."key" = 'admin' AND r."tenant_id" = 0
 WHERE u."username" = 'admin'
 ON CONFLICT DO NOTHING;

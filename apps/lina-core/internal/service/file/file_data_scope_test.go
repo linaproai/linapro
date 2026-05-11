@@ -112,6 +112,13 @@ func (s fileScopeStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by file data-scope tests.
 func (s fileScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetTenant is unused by file data-scope tests.
+func (s fileScopeStaticBizCtx) SetTenant(context.Context, int) {}
+
+// SetImpersonation is unused by file data-scope tests.
+func (s fileScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
+
+
 // SetUserAccess is unused by file data-scope tests.
 func (s fileScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 

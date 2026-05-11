@@ -22,6 +22,24 @@ var (
 		"Plugin is not installed",
 		gcode.CodeInvalidParameter,
 	)
+	// CodePluginInstallModeInvalid reports that an install request used an unsupported install mode.
+	CodePluginInstallModeInvalid = bizerr.MustDefine(
+		"PLUGIN_INSTALL_MODE_INVALID",
+		"Plugin install mode supports only global or tenant_scoped",
+		gcode.CodeInvalidParameter,
+	)
+	// CodePluginInstallModeInvalidForScopeNature reports an install-mode and scope-nature mismatch.
+	CodePluginInstallModeInvalidForScopeNature = bizerr.MustDefine(
+		"PLUGIN_INSTALL_MODE_INVALID_FOR_SCOPE_NATURE",
+		"Plugin {pluginId} with scope_nature={scopeNature} cannot use install_mode={installMode}",
+		gcode.CodeInvalidParameter,
+	)
+	// CodePluginTenantProvisioningPolicyInvalid reports that a new-tenant provisioning policy cannot apply to the plugin.
+	CodePluginTenantProvisioningPolicyInvalid = bizerr.MustDefine(
+		"PLUGIN_TENANT_PROVISIONING_POLICY_INVALID",
+		"Plugin {pluginId} must be tenant_aware and tenant_scoped before it can be auto-enabled for new tenants",
+		gcode.CodeInvalidParameter,
+	)
 	// CodePluginSourceManifestRequired reports that a source-plugin manifest is required.
 	CodePluginSourceManifestRequired = bizerr.MustDefine(
 		"PLUGIN_SOURCE_MANIFEST_REQUIRED",
@@ -180,6 +198,24 @@ var (
 	CodePluginInstallMockDataFailed = bizerr.MustDefine(
 		"PLUGIN_INSTALL_MOCK_DATA_FAILED",
 		"Plugin {pluginId} installed successfully, but mock data file {failedFile} failed to load and was rolled back: {cause}",
+		gcode.CodeInternalError,
+	)
+	// CodePluginLifecycleGuardVetoed reports that one or more lifecycle guards blocked an operation.
+	CodePluginLifecycleGuardVetoed = bizerr.MustDefine(
+		"PLUGIN_LIFECYCLE_GUARD_VETOED",
+		"Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle guards: {reasons}",
+		gcode.CodeInvalidOperation,
+	)
+	// CodePluginForceUninstallDisabled reports that force uninstall is not enabled in host configuration.
+	CodePluginForceUninstallDisabled = bizerr.MustDefine(
+		"PLUGIN_FORCE_UNINSTALL_DISABLED",
+		"Force uninstall is disabled by plugin.allowForceUninstall",
+		gcode.CodeInvalidOperation,
+	)
+	// CodePluginStartupConsistencyFailed reports invalid persisted plugin or tenant-governance startup state.
+	CodePluginStartupConsistencyFailed = bizerr.MustDefine(
+		"PLUGIN_STARTUP_CONSISTENCY_FAILED",
+		"Plugin startup consistency validation failed: {details}",
 		gcode.CodeInternalError,
 	)
 )

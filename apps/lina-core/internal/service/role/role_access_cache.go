@@ -5,13 +5,16 @@ package role
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcache"
 
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/logger"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // Permission access-cache keys and synchronization intervals.
@@ -35,11 +38,11 @@ type cachedUserAccessContext struct {
 // invalidation can evict all related access snapshots efficiently.
 var accessCacheState = struct {
 	sync.RWMutex
-	tokenUsers map[string]int
-	userTokens map[int]map[string]struct{}
+	tokenUsers map[string]string
+	userTokens map[string]map[string]struct{}
 }{
-	tokenUsers: map[string]int{},
-	userTokens: map[int]map[string]struct{}{},
+	tokenUsers: map[string]string{},
+	userTokens: map[string]map[string]struct{}{},
 }
 
 // accessRevisionState stores the latest shared permission-topology revision
@@ -87,14 +90,15 @@ func (s *serviceImpl) InvalidateUserAccessContexts(ctx context.Context, userID i
 	}
 
 	var tokenIDs []string
+	userIndexKey := accessUserIndexKey(ctx, userID)
 	accessCacheState.Lock()
-	if boundTokens, ok := accessCacheState.userTokens[userID]; ok {
+	if boundTokens, ok := accessCacheState.userTokens[userIndexKey]; ok {
 		tokenIDs = make([]string, 0, len(boundTokens))
-		for tokenID := range boundTokens {
-			tokenIDs = append(tokenIDs, tokenID)
-			delete(accessCacheState.tokenUsers, tokenID)
+		for cacheKey := range boundTokens {
+			tokenIDs = append(tokenIDs, cacheKey)
+			delete(accessCacheState.tokenUsers, cacheKey)
 		}
-		delete(accessCacheState.userTokens, userID)
+		delete(accessCacheState.userTokens, userIndexKey)
 	}
 	accessCacheState.Unlock()
 
@@ -103,8 +107,8 @@ func (s *serviceImpl) InvalidateUserAccessContexts(ctx context.Context, userID i
 	}
 
 	keys := make([]any, 0, len(tokenIDs))
-	for _, tokenID := range tokenIDs {
-		keys = append(keys, accessCacheKey(tokenID))
+	for _, cacheKey := range tokenIDs {
+		keys = append(keys, cacheKey)
 	}
 	if err := accessContextCache.Removes(ctx, keys); err != nil {
 		logger.Warningf(ctx, "remove user access caches failed userID=%d err=%v", userID, err)
@@ -171,7 +175,7 @@ func (s *serviceImpl) getCachedTokenAccessContext(
 	userID int,
 	revision int64,
 ) *UserAccessContext {
-	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey(tokenID))
+	cachedVar, err := accessContextCache.Get(ctx, accessCacheKey(ctx, tokenID))
 	if err != nil || cachedVar == nil {
 		return nil
 	}
@@ -190,7 +194,7 @@ func (s *serviceImpl) getCachedTokenAccessContext(
 		s.evictTokenAccessContext(ctx, tokenID)
 		return nil
 	}
-	s.indexAccessToken(tokenID, userID)
+	s.indexAccessToken(ctx, tokenID, userID)
 	return cloneUserAccessContext(cached.Access)
 }
 
@@ -209,7 +213,7 @@ func (s *serviceImpl) loadTokenAccessContextWithCacheLock(
 	}
 	cachedVar, err := accessContextCache.GetOrSetFuncLock(
 		ctx,
-		accessCacheKey(tokenID),
+		accessCacheKey(ctx, tokenID),
 		func(ctx context.Context) (value any, err error) {
 			// The loader runs under one cache-key write lock, so concurrent first
 			// requests for the same token share a single access-context rebuild.
@@ -247,7 +251,7 @@ func (s *serviceImpl) loadTokenAccessContextWithCacheLock(
 		return s.rebuildTokenAccessContext(ctx, tokenID, userID, revision, loader)
 	}
 
-	s.indexAccessToken(tokenID, userID)
+	s.indexAccessToken(ctx, tokenID, userID)
 	return cloneUserAccessContext(cached.Access), nil
 }
 
@@ -293,12 +297,12 @@ func (s *serviceImpl) cacheTokenAccessContext(
 		return err
 	}
 	if err := accessContextCache.Set(
-		ctx, accessCacheKey(tokenID), cached, ttl,
+		ctx, accessCacheKey(ctx, tokenID), cached, ttl,
 	); err != nil {
 		logger.Warningf(ctx, "set token access cache failed tokenID=%s err=%v", tokenID, err)
 		return nil
 	}
-	s.indexAccessToken(tokenID, userID)
+	s.indexAccessToken(ctx, tokenID, userID)
 	return nil
 }
 
@@ -312,8 +316,8 @@ func (s *serviceImpl) clearLocalAccessCache(ctx context.Context) {
 	for tokenID := range accessCacheState.tokenUsers {
 		tokenIDs = append(tokenIDs, tokenID)
 	}
-	accessCacheState.tokenUsers = map[string]int{}
-	accessCacheState.userTokens = map[int]map[string]struct{}{}
+	accessCacheState.tokenUsers = map[string]string{}
+	accessCacheState.userTokens = map[string]map[string]struct{}{}
 	accessCacheState.Unlock()
 
 	if len(tokenIDs) == 0 {
@@ -321,8 +325,8 @@ func (s *serviceImpl) clearLocalAccessCache(ctx context.Context) {
 	}
 
 	keys := make([]any, 0, len(tokenIDs))
-	for _, tokenID := range tokenIDs {
-		keys = append(keys, accessCacheKey(tokenID))
+	for _, cacheKey := range tokenIDs {
+		keys = append(keys, cacheKey)
 	}
 	if err := accessContextCache.Removes(ctx, keys); err != nil {
 		logger.Warningf(ctx, "clear local access cache failed err=%v", err)
@@ -336,47 +340,50 @@ func (s *serviceImpl) evictTokenAccessContext(ctx context.Context, tokenID strin
 		return
 	}
 
-	if _, err := accessContextCache.Remove(ctx, accessCacheKey(tokenID)); err != nil {
+	if _, err := accessContextCache.Remove(ctx, accessCacheKey(ctx, tokenID)); err != nil {
 		logger.Warningf(ctx, "remove token access cache failed tokenID=%s err=%v", tokenID, err)
 	}
-	s.removeIndexedToken(tokenID)
+	s.removeIndexedToken(ctx, tokenID)
 }
 
 // indexAccessToken records the token-to-user relation for one cached access
 // snapshot so logout and user-level invalidation can remove all bound entries.
-func (s *serviceImpl) indexAccessToken(tokenID string, userID int) {
+func (s *serviceImpl) indexAccessToken(ctx context.Context, tokenID string, userID int) {
 	if tokenID == "" || userID <= 0 {
 		return
 	}
 
+	cacheKey := accessCacheKey(ctx, tokenID)
+	userIndexKey := accessUserIndexKey(ctx, userID)
 	accessCacheState.Lock()
-	accessCacheState.tokenUsers[tokenID] = userID
-	if _, ok := accessCacheState.userTokens[userID]; !ok {
-		accessCacheState.userTokens[userID] = make(map[string]struct{})
+	accessCacheState.tokenUsers[cacheKey] = userIndexKey
+	if _, ok := accessCacheState.userTokens[userIndexKey]; !ok {
+		accessCacheState.userTokens[userIndexKey] = make(map[string]struct{})
 	}
-	accessCacheState.userTokens[userID][tokenID] = struct{}{}
+	accessCacheState.userTokens[userIndexKey][cacheKey] = struct{}{}
 	accessCacheState.Unlock()
 }
 
 // removeIndexedToken removes one token from the local reverse indexes that map
 // token IDs back to their owning user for bulk invalidation.
-func (s *serviceImpl) removeIndexedToken(tokenID string) {
+func (s *serviceImpl) removeIndexedToken(ctx context.Context, tokenID string) {
 	accessCacheState.Lock()
 	defer accessCacheState.Unlock()
 
-	userID, ok := accessCacheState.tokenUsers[tokenID]
+	cacheKey := accessCacheKey(ctx, tokenID)
+	userIndexKey, ok := accessCacheState.tokenUsers[cacheKey]
 	if !ok {
 		return
 	}
-	delete(accessCacheState.tokenUsers, tokenID)
+	delete(accessCacheState.tokenUsers, cacheKey)
 
-	boundTokens := accessCacheState.userTokens[userID]
+	boundTokens := accessCacheState.userTokens[userIndexKey]
 	if boundTokens == nil {
 		return
 	}
-	delete(boundTokens, tokenID)
+	delete(boundTokens, cacheKey)
 	if len(boundTokens) == 0 {
-		delete(accessCacheState.userTokens, userID)
+		delete(accessCacheState.userTokens, userIndexKey)
 	}
 }
 
@@ -478,8 +485,21 @@ func (s *serviceImpl) resolveAccessCacheTTL(ctx context.Context) (time.Duration,
 }
 
 // accessCacheKey builds the token-scoped cache key used by gcache.
-func accessCacheKey(tokenID string) string {
-	return accessCacheKeyPrefix + tokenID
+func accessCacheKey(ctx context.Context, tokenID string) string {
+	return pkgtenantcap.CacheKey(
+		pkgtenantcap.TenantID(datascope.CurrentTenantID(ctx)),
+		"role:user-access",
+		tokenID,
+	)
+}
+
+// accessUserIndexKey builds the tenant-aware reverse-index key for a user.
+func accessUserIndexKey(ctx context.Context, userID int) string {
+	return pkgtenantcap.CacheKey(
+		pkgtenantcap.TenantID(datascope.CurrentTenantID(ctx)),
+		"role:user-access-user",
+		strconv.Itoa(userID),
+	)
 }
 
 // buildCachedUserAccessContext detaches one access snapshot from request-local

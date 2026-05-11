@@ -64,6 +64,8 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 			ManifestPath: manifest.ManifestPath,
 			Checksum:     s.BuildRegistryChecksum(manifest),
 			Remark:       manifest.Description,
+			ScopeNature:  NormalizeScopeNature(manifest.ScopeNature).String(),
+			InstallMode:  NormalizeInstallMode(manifest.DefaultInstallMode).String(),
 		}
 
 		insertID, insertErr := dao.SysPlugin.Ctx(ctx).Data(data).InsertAndGetId()
@@ -105,9 +107,11 @@ func (s *serviceImpl) SyncManifest(ctx context.Context, manifest *Manifest) (*en
 
 existingRegistry:
 	data := do.SysPlugin{
-		Name:   manifest.Name,
-		Type:   manifest.Type,
-		Remark: manifest.Description,
+		Name:        manifest.Name,
+		Type:        manifest.Type,
+		Remark:      manifest.Description,
+		ScopeNature: NormalizeScopeNature(manifest.ScopeNature).String(),
+		InstallMode: NormalizeInstallMode(manifest.DefaultInstallMode).String(),
 	}
 	if NormalizeType(manifest.Type) == TypeSource {
 		data.ManifestPath = manifest.ManifestPath
@@ -220,6 +224,8 @@ func pluginRegistryDataMatches(existing *entity.SysPlugin, data do.SysPlugin) bo
 		pluginRegistryFieldMatches(existing.ManifestPath, data.ManifestPath) &&
 		pluginRegistryFieldMatches(existing.Checksum, data.Checksum) &&
 		pluginRegistryFieldMatches(existing.Remark, data.Remark) &&
+		pluginRegistryFieldMatches(existing.ScopeNature, data.ScopeNature) &&
+		pluginRegistryFieldMatches(existing.InstallMode, data.InstallMode) &&
 		pluginRegistryTimeFieldMatches(existing.InstalledAt, data.InstalledAt)
 }
 
@@ -341,6 +347,21 @@ func (s *serviceImpl) SetPluginInstalled(ctx context.Context, pluginID string, i
 		data.InstalledAt = gtime.Now()
 	}
 	_, err = dao.SysPlugin.Ctx(ctx).
+		Where(do.SysPlugin{PluginId: pluginID}).
+		Data(data).
+		Update()
+	if err == nil {
+		updateStartupRegistry(ctx, pluginID, data)
+	}
+	return err
+}
+
+// SetAutoEnableForNewTenants updates the platform-owned tenant provisioning policy.
+func (s *serviceImpl) SetAutoEnableForNewTenants(ctx context.Context, pluginID string, enabled bool) error {
+	data := do.SysPlugin{
+		AutoEnableForNewTenants: enabled,
+	}
+	_, err := dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: pluginID}).
 		Data(data).
 		Update()

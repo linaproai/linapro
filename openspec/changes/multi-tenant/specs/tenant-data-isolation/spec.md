@@ -81,7 +81,7 @@
 - **AND** 校验失败时返回 `bizerr.CodeCrossTenantNotAllowed`
 
 ### Requirement: 业务表的隔离测试覆盖
-e2e 测试套件 SHALL 包含针对每张 `sys_*` 与插件业务表的"跨租户隔离"反例用例;每张表至少一个用例验证"租户 A 不可见租户 B 数据"。
+e2e 测试套件 SHALL 包含针对每张 tenancy-aware `sys_*` 表与插件业务表的"跨租户隔离"反例用例;每张表至少一个用例验证"租户 A 不可见租户 B 数据"。平台控制面表不纳入跨租户隔离矩阵,应通过平台权限与治理 service 访问控制覆盖。
 
 #### Scenario: 跨租户隔离矩阵
 - **WHEN** e2e 套件运行

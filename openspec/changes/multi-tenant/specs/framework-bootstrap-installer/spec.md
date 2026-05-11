@@ -20,7 +20,7 @@
 ### Requirement: 启动期一致性校验
 启动期 SHALL 校验:
 1. `sys_plugin.scope_nature` 与 `install_mode` 组合合法。
-2. `sys_role.is_platform_role` 与 `tenant_id` 一致。
+2. `sys_role` 不包含平台角色布尔字段,且租户角色(`tenant_id>0`)不得配置 `data_scope=1`。
 3. `sys_user.tenant_id=0` 必须无 active membership。
 4. `multi-tenant` 已 enabled 时必须有 Provider 注册。
 

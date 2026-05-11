@@ -32,6 +32,11 @@
         "validation": {
           "title": "Please enter a record title"
         }
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "demo_records_exist": "Demo records exist for one or more tenants. Delete demo records before uninstalling."
+        }
       }
     }
   }

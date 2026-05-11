@@ -11,6 +11,7 @@ import (
 // SysKvCache is the golang structure for table sys_kv_cache.
 type SysKvCache struct {
 	Id         int64       `json:"id"         orm:"id"          description:"Primary key ID"`
+	TenantId   int         `json:"tenantId"   orm:"tenant_id"   description:"Owning tenant ID, 0 means PLATFORM"`
 	OwnerType  string      `json:"ownerType"  orm:"owner_type"  description:"Owner type: plugin=dynamic plugin, module=host module"`
 	OwnerKey   string      `json:"ownerKey"   orm:"owner_key"   description:"Owner key: plugin ID or module name"`
 	Namespace  string      `json:"namespace"  orm:"namespace"   description:"Cache namespace mapped to the host-cache resource identifier"`

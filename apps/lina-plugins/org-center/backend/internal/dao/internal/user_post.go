@@ -21,14 +21,16 @@ type UserPostDao struct {
 
 // UserPostColumns defines and stores column names for the table plugin_org_center_user_post.
 type UserPostColumns struct {
-	UserId string // User ID
-	PostId string // Post ID
+	TenantId string // Owning tenant ID, 0 means PLATFORM
+	UserId   string // User ID
+	PostId   string // Post ID
 }
 
 // userPostColumns holds the columns for the table plugin_org_center_user_post.
 var userPostColumns = UserPostColumns{
-	UserId: "user_id",
-	PostId: "post_id",
+	TenantId: "tenant_id",
+	UserId:   "user_id",
+	PostId:   "post_id",
 }
 
 // NewUserPostDao creates and returns a new DAO object for table data access.

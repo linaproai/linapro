@@ -34,6 +34,7 @@ type SysDictDataColumns struct {
 	CreatedAt string // Creation time
 	UpdatedAt string // Update time
 	DeletedAt string // Deletion time
+	TenantId  string // Owning tenant ID, 0 means PLATFORM default
 }
 
 // sysDictDataColumns holds the columns for the table sys_dict_data.
@@ -51,6 +52,7 @@ var sysDictDataColumns = SysDictDataColumns{
 	CreatedAt: "created_at",
 	UpdatedAt: "updated_at",
 	DeletedAt: "deleted_at",
+	TenantId:  "tenant_id",
 }
 
 // NewSysDictDataDao creates and returns a new DAO object for table data access.

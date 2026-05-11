@@ -18,6 +18,7 @@ import (
 // applyJobDataScope keeps built-in jobs visible and filters user-created jobs
 // by created_by.
 func (s *serviceImpl) applyJobDataScope(ctx context.Context, model *gdb.Model) (*gdb.Model, error) {
+	model = datascope.ApplyTenantScope(ctx, model, dao.SysJob.Table()+"."+datascope.TenantColumn)
 	scopedModel, _, err := s.currentScopeSvc().ApplyUserScopeWithBypass(
 		ctx,
 		model,
@@ -33,6 +34,7 @@ func (s *serviceImpl) applyJobDataScope(ctx context.Context, model *gdb.Model) (
 
 // applyJobLogDataScope filters logs by the visibility of their owning job.
 func (s *serviceImpl) applyJobLogDataScope(ctx context.Context, model *gdb.Model) (*gdb.Model, error) {
+	model = datascope.ApplyTenantScope(ctx, model, dao.SysJobLog.Table()+"."+datascope.TenantColumn)
 	jobCols := dao.SysJob.Columns()
 	subQuery := dao.SysJob.Ctx(ctx).
 		Fields(jobCols.Id).

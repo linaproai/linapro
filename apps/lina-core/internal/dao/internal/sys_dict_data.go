@@ -22,6 +22,7 @@ type SysDictDataDao struct {
 // SysDictDataColumns defines and stores column names for the table sys_dict_data.
 type SysDictDataColumns struct {
 	Id        string // Dictionary data ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM default
 	DictType  string // Dictionary type
 	Label     string // Dictionary label
 	Value     string // Dictionary value
@@ -39,6 +40,7 @@ type SysDictDataColumns struct {
 // sysDictDataColumns holds the columns for the table sys_dict_data.
 var sysDictDataColumns = SysDictDataColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	DictType:  "dict_type",
 	Label:     "label",
 	Value:     "value",

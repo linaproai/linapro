@@ -33,6 +33,9 @@
     "extension:plugin:enable": {
       "title": "插件启用"
     },
+    "extension:plugin:edit": {
+      "title": "插件配置"
+    },
     "extension:plugin:install": {
       "title": "插件安装"
     },
@@ -53,6 +56,9 @@
     },
     "org": {
       "title": "组织管理"
+    },
+    "platform": {
+      "title": "平台管理"
     },
     "scheduler": {
       "title": "任务调度"

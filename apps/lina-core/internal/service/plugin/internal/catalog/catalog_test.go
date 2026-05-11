@@ -12,9 +12,11 @@ import (
 	"testing"
 	"testing/fstest"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gfile"
+	_ "lina-core/pkg/dbdriver"
 
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	menusvc "lina-core/internal/service/menu"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
@@ -720,6 +722,71 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 	}
 }
 
+// TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling verifies that
+// catalog reads tolerate registry rows whose release_id no longer points to an
+// existing release row.
+func TestGetRegistryReleaseFallsBackWhenReleasePointerIsDangling(t *testing.T) {
+	var (
+		ctx      = context.Background()
+		svcs     = testutil.NewServices()
+		pluginID = "plugin-dangling-release-pointer"
+		version  = "9.9.9"
+	)
+
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	})
+
+	if _, err := dao.SysPlugin.Ctx(ctx).Data(do.SysPlugin{
+		PluginId:     pluginID,
+		Name:         "Dangling Release Pointer Plugin",
+		Version:      version,
+		Type:         catalog.TypeDynamic.String(),
+		Installed:    catalog.InstalledYes,
+		Status:       catalog.StatusEnabled,
+		DesiredState: catalog.LifecycleStateRuntimeEnabled.String(),
+		CurrentState: catalog.LifecycleStateRuntimeEnabled.String(),
+		Generation:   int64(1),
+		ReleaseId:    987654321,
+		ScopeNature:  catalog.ScopeNatureTenantAware.String(),
+		InstallMode:  catalog.InstallModeTenantScoped.String(),
+		ManifestPath: "runtime/plugin-dangling-release-pointer/plugin.yaml",
+		Checksum:     "dangling-release-pointer",
+		Remark:       "Dangling release pointer test plugin",
+	}).InsertAndGetId(); err != nil {
+		t.Fatalf("failed to insert plugin registry row: %v", err)
+	}
+	insertID, err := dao.SysPluginRelease.Ctx(ctx).Data(do.SysPluginRelease{
+		PluginId:       pluginID,
+		ReleaseVersion: version,
+		Type:           catalog.TypeDynamic.String(),
+		RuntimeKind:    pluginbridge.RuntimeKindWasm,
+		Status:         catalog.ReleaseStatusActive.String(),
+		ManifestPath:   "runtime/plugin-dangling-release-pointer/plugin.yaml",
+		PackagePath:    "runtime/plugin-dangling-release-pointer.wasm",
+		Checksum:       "dangling-release-pointer",
+	}).InsertAndGetId()
+	if err != nil {
+		t.Fatalf("failed to insert fallback plugin release row: %v", err)
+	}
+
+	registry, err := svcs.Catalog.GetRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("expected registry lookup to succeed, got error: %v", err)
+	}
+	release, err := svcs.Catalog.GetRegistryRelease(ctx, registry)
+	if err != nil {
+		t.Fatalf("expected dangling release pointer to fall back to plugin version, got error: %v", err)
+	}
+	if release == nil {
+		t.Fatalf("expected fallback release to be returned")
+	}
+	if release.Id != int(insertID) {
+		t.Fatalf("expected fallback release id %d, got %d", insertID, release.Id)
+	}
+}
+
 // TestNormalizePluginStatusEnums verifies raw database flags are normalized
 // into the new strongly typed plugin status enums before state derivation runs.
 func TestNormalizePluginStatusEnums(t *testing.T) {
@@ -904,5 +971,79 @@ func TestValidateManifestMenusAcceptsOfficialPluginStableParent(t *testing.T) {
 
 	if err := catalog.ValidateManifestMenus(manifest); err != nil {
 		t.Fatalf("expected official plugin manifest menus to be valid, got: %v", err)
+	}
+}
+
+// TestValidateManifestMenusRejectsMultiTenantTenantCatalog verifies the
+// multi-tenant source plugin no longer declares a dedicated tenant workbench.
+func TestValidateManifestMenusRejectsMultiTenantTenantCatalog(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID: menusvc.MultiTenant,
+		Menus: []*catalog.MenuSpec{
+			{
+				Key:       "plugin:multi-tenant:tenant:members",
+				Name:      "成员管理",
+				ParentKey: "tenant",
+				Path:      "/tenant/members",
+				Type:      catalog.MenuTypePage.String(),
+			},
+		},
+	}
+
+	err := catalog.ValidateManifestMenus(manifest)
+	if err == nil || !strings.Contains(err.Error(), "can only mount to a stable host catalog") {
+		t.Fatalf("expected tenant workbench parent validation error, got: %v", err)
+	}
+}
+
+// TestValidateManifestNormalizesTenantGovernance verifies tenant governance
+// manifest fields have deterministic defaults and platform-only constraints.
+func TestValidateManifestNormalizesTenantGovernance(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-governance")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+
+	manifest := &catalog.Manifest{
+		ID:                 "plugin-tenant-governance",
+		Name:               "Tenant Governance Plugin",
+		Version:            "0.1.0",
+		Type:               catalog.TypeSource.String(),
+		ScopeNature:        catalog.ScopeNaturePlatformOnly.String(),
+		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+	}
+
+	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
+		t.Fatalf("expected manifest to validate, got %v", err)
+	}
+	if manifest.ScopeNature != catalog.ScopeNaturePlatformOnly.String() {
+		t.Fatalf("expected platform-only scope, got %s", manifest.ScopeNature)
+	}
+	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+		t.Fatalf("expected platform-only plugin to force global install mode, got %s", manifest.DefaultInstallMode)
+	}
+}
+
+// TestValidateManifestDefaultsTenantAwareGovernance verifies omitted tenant
+// governance fields keep existing plugins tenant-aware by default.
+func TestValidateManifestDefaultsTenantAwareGovernance(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-tenant-aware-default")
+	manifestFile := filepath.Join(pluginDir, "plugin.yaml")
+
+	manifest := &catalog.Manifest{
+		ID:      "plugin-tenant-aware-default",
+		Name:    "Tenant Aware Default Plugin",
+		Version: "0.1.0",
+		Type:    catalog.TypeSource.String(),
+	}
+
+	if err := svcs.Catalog.ValidateManifest(manifest, manifestFile); err != nil {
+		t.Fatalf("expected manifest to validate, got %v", err)
+	}
+	if manifest.ScopeNature != catalog.ScopeNatureTenantAware.String() {
+		t.Fatalf("expected tenant-aware default scope, got %s", manifest.ScopeNature)
+	}
+	if manifest.DefaultInstallMode != catalog.InstallModeTenantScoped.String() {
+		t.Fatalf("expected tenant-scoped default install mode, got %s", manifest.DefaultInstallMode)
 	}
 }

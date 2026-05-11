@@ -58,6 +58,15 @@
         "tree": {
           "unassignedDept": "未分配部門"
         }
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "tenant_data_exists": "一個或多個租戶仍存在組織資料。解除安裝前請先歸檔或遷移部門、職位和使用者綁定。",
+          "tenant_root_required": "仍有租戶依賴其根部門。移除此外掛前請先停用租戶組織能力。"
+        },
+        "disable_blocked": {
+          "active_members_exist": "仍有活躍租戶成員依賴組織歸屬。停用前請先移除或遷移歸屬關係。"
+        }
       }
     }
   }

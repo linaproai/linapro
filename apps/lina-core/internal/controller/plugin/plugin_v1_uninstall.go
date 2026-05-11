@@ -11,6 +11,7 @@ import (
 func (c *ControllerV1) Uninstall(ctx context.Context, req *v1.UninstallReq) (res *v1.UninstallRes, err error) {
 	options := pluginsvc.UninstallOptions{
 		PurgeStorageData: resolvePurgeStorageData(req.PurgeStorageData),
+		Force:            req.Force,
 	}
 	if err = c.pluginSvc.UninstallWithOptions(ctx, req.Id, options); err != nil {
 		return nil, err

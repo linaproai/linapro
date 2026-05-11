@@ -41,7 +41,29 @@
           "LoginRes": {
             "fields": {
               "accessToken": {
-                "dc": "JWT令牌"
+                "dc": "JWT令牌；需要选择租户时为空"
+              },
+              "preToken": {
+                "dc": "需要选择租户时返回的短期预登录令牌"
+              },
+              "tenants": {
+                "dc": "需要选择租户时返回的候选租户列表"
+              }
+            }
+          },
+          "LoginTenantEntity": {
+            "fields": {
+              "id": {
+                "dc": "租户ID"
+              },
+              "code": {
+                "dc": "租户编码"
+              },
+              "name": {
+                "dc": "租户显示名称"
+              },
+              "status": {
+                "dc": "租户状态"
               }
             }
           },

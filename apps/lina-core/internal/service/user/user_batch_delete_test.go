@@ -273,6 +273,13 @@ func (s userDeleteStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetTenant is unused by delete tests.
+func (s userDeleteStaticBizCtx) SetTenant(context.Context, int) {}
+
+// SetImpersonation is unused by delete tests.
+func (s userDeleteStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
+
+
 // SetUserAccess is unused by delete tests.
 func (s userDeleteStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 

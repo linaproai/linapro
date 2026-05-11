@@ -6,31 +6,51 @@ import { h } from 'vue';
 import { Tag } from 'ant-design-vue';
 
 import { $t } from '#/locales';
+import { getDictOptions } from '#/utils/dict';
+import { renderDict } from '#/utils/render';
+
+export const DATA_SCOPE_DICT_TYPE = 'sys_data_scope';
+export const DATA_SCOPE_ALL = 1;
+export const DATA_SCOPE_TENANT = 2;
+export const DATA_SCOPE_DEPT = 3;
+export const DATA_SCOPE_SELF = 4;
 
 /** 数据权限选项 */
-export function getDataScopeOptions(orgEnabled = true) {
-  const options = [
-    {
-      color: 'green',
-      label: $t('pages.system.role.dataScope.all'),
-      value: 1,
-    },
-  ];
-  if (orgEnabled) {
-    options.push({
-      color: 'default',
-      label: $t('pages.system.role.dataScope.dept'),
-      value: 2,
-    });
+export function getDataScopeOptions(orgEnabled = true, tenantEnabled = true) {
+  let options = getDictOptions(DATA_SCOPE_DICT_TYPE).map((item) => ({
+    ...item,
+    value: Number(item.value),
+  }));
+  if (!tenantEnabled) {
+    options = options.filter((item) => item.value !== DATA_SCOPE_TENANT);
   }
-  options.push(
-    {
-      color: 'error',
-      label: $t('pages.system.role.dataScope.self'),
-      value: 3,
-    },
-  );
+  if (!orgEnabled) {
+    options = options.filter((item) => item.value !== DATA_SCOPE_DEPT);
+  }
   return options;
+}
+
+/** 数据权限默认值 */
+export function getDefaultDataScope(tenantEnabled = true) {
+  return tenantEnabled ? DATA_SCOPE_TENANT : DATA_SCOPE_ALL;
+}
+
+/** 规范化当前上下文不可用的数据权限值 */
+export function normalizeDataScopeValue(
+  value: number,
+  orgEnabled = true,
+  tenantEnabled = true,
+) {
+  if (!tenantEnabled && value === DATA_SCOPE_TENANT) {
+    return DATA_SCOPE_ALL;
+  }
+  if (!orgEnabled && value === DATA_SCOPE_DEPT) {
+    return DATA_SCOPE_SELF;
+  }
+  const allowedValues = new Set(
+    getDataScopeOptions(orgEnabled, tenantEnabled).map((item) => item.value),
+  );
+  return allowedValues.has(value) ? value : getDefaultDataScope(tenantEnabled);
 }
 
 /** 查询表单schema */
@@ -65,7 +85,10 @@ export function querySchema(): VbenFormSchema[] {
 }
 
 /** 表格列定义 */
-export function columns(): VxeGridProps['columns'] {
+export function columns(
+  orgEnabled = true,
+  tenantEnabled = true,
+): VxeGridProps['columns'] {
   return [
     { type: 'checkbox', width: 60 },
     {
@@ -89,13 +112,14 @@ export function columns(): VxeGridProps['columns'] {
       minWidth: 120,
       slots: {
         default: ({ row }) => {
-          const found = getDataScopeOptions().find(
-            (item) => item.value === row.dataScope,
+          return renderDict(
+            normalizeDataScopeValue(
+              Number(row.dataScope),
+              orgEnabled,
+              tenantEnabled,
+            ),
+            DATA_SCOPE_DICT_TYPE,
           );
-          if (found) {
-            return h(Tag, { color: found.color }, () => found.label);
-          }
-          return h(Tag, {}, () => row.dataScope);
         },
       },
     },
@@ -127,7 +151,10 @@ export function columns(): VxeGridProps['columns'] {
 }
 
 /** 新增/编辑表单schema */
-export function getDrawerSchema(orgEnabled = true): VbenFormSchema[] {
+export function getDrawerSchema(
+  orgEnabled = true,
+  tenantEnabled = true,
+): VbenFormSchema[] {
   return [
     {
       component: 'Input',
@@ -186,16 +213,16 @@ export function getDrawerSchema(orgEnabled = true): VbenFormSchema[] {
       rules: 'required',
     },
     {
-      component: 'RadioGroup',
+      component: 'Select',
       fieldName: 'dataScope',
       label: $t('pages.system.role.fields.dataScope'),
       help: $t('pages.system.role.help.dataScope'),
       rules: 'required',
-      defaultValue: 1,
+      defaultValue: getDefaultDataScope(tenantEnabled),
       componentProps: {
-        optionType: 'button',
-        buttonStyle: 'solid',
-        options: getDataScopeOptions(orgEnabled),
+        allowClear: false,
+        options: getDataScopeOptions(orgEnabled, tenantEnabled),
+        placeholder: $t('pages.system.role.placeholders.dataScope'),
       },
     },
     {

@@ -8,21 +8,21 @@
 - **THEN** 仅返回 `tenant_id=A` 的部门节点
 - **AND** 不见租户 B 的任何部门
 
-### Requirement: 租户创建时初始化默认部门
-`org-center` 插件 SHALL 订阅 `tenant.created` 事件,在新租户创建时自动 insert 一行"租户根部门"(`name = tenant.name`,`tenant_id = 新租户 id`,`parent_id = 0`)。
+### Requirement: 租户创建默认部门暂不自动建模
+`org-center` 插件 SHALL NOT 依赖未实现的 `tenant.created` 事件总线自动创建租户根部门;租户部门数据由 org-center 的租户化 CRUD 与 mock/业务初始化流程显式维护。
 
-#### Scenario: 租户创建后部门树
+#### Scenario: 租户创建不写事件 outbox
 - **WHEN** 平台管理员创建租户 T,name="ACME"
-- **THEN** `plugin_org_center_dept` 自动新增一行 `(tenant_id=T, name='ACME', parent_id=0)`
-- **AND** 租户 T 管理员登录后部门树非空
+- **THEN** 系统不写入 `plugin_multi_tenant_event_outbox`
+- **AND** org-center 部门表不会因为事件订阅自动新增根部门
 
-### Requirement: 租户删除时级联清理部门
-`org-center` 插件 SHALL 订阅 `tenant.deleted` 事件,清理该租户所有 dept、post、user_dept、user_post 记录(幂等)。
+### Requirement: 租户删除时不通过事件级联清理部门
+`org-center` 插件 SHALL NOT 依赖未实现的 `tenant.deleted` 事件总线清理租户部门数据;需要清理时应通过显式管理流程或后续可靠生命周期编排设计实现。
 
 #### Scenario: 删除租户清理部门
 - **WHEN** 租户 T 被删除
-- **THEN** 所有 `plugin_org_center_*.tenant_id = T` 行被删除
-- **AND** 不影响其他租户
+- **THEN** 不触发 `tenant.deleted` outbox 或订阅者回调
+- **AND** 不影响其他租户数据
 
 ### Requirement: orgcap.Provider 实现按租户视图
 `org-center` 插件实现的 `orgcap.Provider` 接口方法 SHALL 内部读取 `bizctx.TenantId` 并过滤本租户数据;平台管理员 impersonation 时按目标租户视图返回。

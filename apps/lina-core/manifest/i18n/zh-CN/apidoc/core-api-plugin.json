@@ -265,6 +265,9 @@
               },
               "installMockData": {
                 "dc": "是否在安装时同时加载插件 manifest/sql/mock-data 目录下的示例数据 SQL，默认 false。仅在用户在管理工作台明确勾选「安装示例数据」复选框时才设置为 true。示例数据仅用于演示和功能验证、不建议生产环境使用；该阶段在单一数据库事务内执行，任一文件失败都会整体回滚 mock 数据，插件本身的安装结果不受影响"
+              },
+              "installMode": {
+                "dc": "平台操作员选择的插件安装模式。支持租户感知的插件可使用 global 或 tenant_scoped；仅平台级插件必须使用 global"
               }
             },
             "meta": {
@@ -281,6 +284,9 @@
                     },
                     "installMockData": {
                       "dc": "是否在安装时同时加载插件 manifest/sql/mock-data 目录下的示例数据 SQL，默认 false。仅在用户在管理工作台明确勾选「安装示例数据」复选框时才设置为 true。示例数据仅用于演示和功能验证、不建议生产环境使用；该阶段在单一数据库事务内执行，任一文件失败都会整体回滚 mock 数据，插件本身的安装结果不受影响"
+                    },
+                    "installMode": {
+                      "dc": "平台操作员选择的插件安装模式。支持租户感知的插件可使用 global 或 tenant_scoped；仅平台级插件必须使用 global"
                     }
                   },
                   "schema": {
@@ -460,6 +466,15 @@
               },
               "version": {
                 "dc": "插件当前清单版本号"
+              },
+              "autoEnableForNewTenants": {
+                "dc": "平台策略：当租户级插件已安装且已启用时，是否自动为新创建租户启用该插件"
+              },
+              "scopeNature": {
+                "dc": "插件作用域性质：platform_only=仅平台 tenant_aware=租户感知"
+              },
+              "installMode": {
+                "dc": "插件安装模式：global=全局 tenant_scoped=租户级"
               }
             }
           },
@@ -580,6 +595,9 @@
               },
               "purgeStorageData": {
                 "dc": "是否在卸载插件时同时清除插件自有存储数据：1=清除数据表数据与关联文件 0=保留；不传时默认清除"
+              },
+              "force": {
+                "dc": "是否在生命周期守卫否决后强制卸载；需要 plugin.allowForceUninstall=true"
               }
             },
             "meta": {
@@ -705,6 +723,68 @@
               },
               "version": {
                 "dc": "插件版本号，来自 wasm 嵌入清单"
+              }
+            }
+          },
+          "UpdateTenantProvisioningPolicyReq": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一标识"
+              },
+              "autoEnableForNewTenants": {
+                "dc": "新创建租户是否自动获得该租户级插件；仅在插件已安装且已启用时生效"
+              }
+            },
+            "meta": {
+              "dc": "更新已安装且已启用的租户级插件是否自动启用到新创建租户。该策略由平台维护，不从 plugin.yaml 读取。",
+              "summary": "更新插件新租户开通策略",
+              "tags": "插件管理"
+            },
+            "requestBody": {
+              "content": {
+                "application_json": {
+                  "fields": {
+                    "autoEnableForNewTenants": {
+                      "dc": "新创建租户是否自动获得该租户级插件；仅在插件已安装且已启用时生效"
+                    }
+                  },
+                  "schema": {
+                    "dc": "更新已安装且已启用的租户级插件是否自动启用到新创建租户。该策略由平台维护，不从 plugin.yaml 读取。"
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "content": {
+                  "application_json": {
+                    "fields": {
+                      "data": {
+                        "fields": {
+                          "id": {
+                            "dc": "插件唯一标识"
+                          },
+                          "autoEnableForNewTenants": {
+                            "dc": "新创建租户是否自动获得该租户级插件；仅在插件已安装且已启用时生效"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "schema": {
+              "dc": "更新已安装且已启用的租户级插件是否自动启用到新创建租户。该策略由平台维护，不从 plugin.yaml 读取。"
+            }
+          },
+          "UpdateTenantProvisioningPolicyRes": {
+            "fields": {
+              "id": {
+                "dc": "插件唯一标识"
+              },
+              "autoEnableForNewTenants": {
+                "dc": "新创建租户是否自动获得该租户级插件；仅在插件已安装且已启用时生效"
               }
             }
           }

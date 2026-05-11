@@ -1,6 +1,6 @@
 -- ============================================================
--- Host plugin table
--- 宿主插件表
+-- Purpose: Stores installed plugin catalog records, lifecycle state, scope nature, install mode, and release pointers.
+-- 用途：存储已安装插件目录记录、生命周期状态、作用域性质、安装模式与发布指针。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin (
     "id"             INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS sys_plugin (
     "name"           VARCHAR(128) NOT NULL DEFAULT '',
     "version"        VARCHAR(32) NOT NULL DEFAULT '',
     "type"         VARCHAR(32) NOT NULL DEFAULT 'source',
+    "scope_nature"   VARCHAR(32) NOT NULL DEFAULT 'tenant_aware',
+    "install_mode"   VARCHAR(32) NOT NULL DEFAULT 'global',
+    "auto_enable_for_new_tenants" BOOL NOT NULL DEFAULT FALSE,
     "installed"      SMALLINT NOT NULL DEFAULT 0,
     "status"         SMALLINT NOT NULL DEFAULT 0,
     "desired_state"  VARCHAR(32) NOT NULL DEFAULT 'uninstalled',
@@ -31,6 +34,9 @@ COMMENT ON COLUMN sys_plugin."plugin_id" IS 'Plugin unique identifier (kebab-cas
 COMMENT ON COLUMN sys_plugin."name" IS 'Plugin name';
 COMMENT ON COLUMN sys_plugin."version" IS 'Plugin version';
 COMMENT ON COLUMN sys_plugin."type" IS 'Plugin top-level type: source/dynamic';
+COMMENT ON COLUMN sys_plugin."scope_nature" IS 'Plugin scope nature: platform_only or tenant_aware';
+COMMENT ON COLUMN sys_plugin."install_mode" IS 'Plugin install mode: global or tenant_scoped';
+COMMENT ON COLUMN sys_plugin."auto_enable_for_new_tenants" IS 'Platform policy: whether installed and enabled tenant-scoped plugins are enabled for new tenants automatically';
 COMMENT ON COLUMN sys_plugin."installed" IS 'Installation status: 1=installed, 0=not installed';
 COMMENT ON COLUMN sys_plugin."status" IS 'Enablement status: 1=enabled, 0=disabled';
 COMMENT ON COLUMN sys_plugin."desired_state" IS 'Host desired state: uninstalled/installed/enabled';
@@ -48,10 +54,11 @@ COMMENT ON COLUMN sys_plugin."updated_at" IS 'Update time';
 COMMENT ON COLUMN sys_plugin."deleted_at" IS 'Deletion time';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_plugin_id ON sys_plugin ("plugin_id");
+CREATE INDEX IF NOT EXISTS idx_sys_plugin_scope ON sys_plugin ("scope_nature", "install_mode");
 
 -- ============================================================
--- Plugin release record table
--- 插件发布记录表
+-- Purpose: Stores plugin release metadata, compatibility constraints, package references, checksums, and manifest snapshots.
+-- 用途：存储插件发布元数据、兼容性约束、包引用、校验和与清单快照。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_release (
     "id"                INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -91,10 +98,11 @@ COMMENT ON COLUMN sys_plugin_release."updated_at" IS 'Update time';
 COMMENT ON COLUMN sys_plugin_release."deleted_at" IS 'Deletion time';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_release_plugin_id_release_version ON sys_plugin_release ("plugin_id", "release_version");
+CREATE INDEX IF NOT EXISTS idx_sys_plugin_release_plugin ON sys_plugin_release ("plugin_id", "release_version");
 
 -- ============================================================
--- Plugin migration execution record table
--- 插件迁移执行记录表
+-- Purpose: Records plugin install, uninstall, upgrade, rollback, and mock-data migration execution state.
+-- 用途：记录插件安装、卸载、升级、回滚与 mock 数据迁移的执行状态。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_migration (
     "id"              INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -126,10 +134,11 @@ COMMENT ON COLUMN sys_plugin_migration."created_at" IS 'Creation time';
 COMMENT ON COLUMN sys_plugin_migration."updated_at" IS 'Update time';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_migration_plugin_release_phase_key ON sys_plugin_migration ("plugin_id", "release_id", "phase", "migration_key");
+CREATE INDEX IF NOT EXISTS idx_sys_plugin_migration_plugin ON sys_plugin_migration ("plugin_id", "release_id", "phase");
 
 -- ============================================================
--- Plugin resource reference table
--- 插件资源引用表
+-- Purpose: Tracks plugin-owned resources that are projected into host menus, routes, files, or other extension points.
+-- 用途：跟踪插件投影到宿主菜单、路由、文件或其他扩展点的插件自有资源。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_resource_ref (
     "id"            INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -161,10 +170,11 @@ COMMENT ON COLUMN sys_plugin_resource_ref."updated_at" IS 'Update time';
 COMMENT ON COLUMN sys_plugin_resource_ref."deleted_at" IS 'Deletion time';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_resource_ref_plugin_release_type_key ON sys_plugin_resource_ref ("plugin_id", "release_id", "resource_type", "resource_key");
+CREATE INDEX IF NOT EXISTS idx_sys_plugin_resource_ref_plugin ON sys_plugin_resource_ref ("plugin_id", "release_id");
 
 -- ============================================================
--- Plugin node state table
--- 插件节点状态表
+-- Purpose: Stores per-node plugin reconciliation state, desired/current state, generation, heartbeat, and error diagnostics.
+-- 用途：存储每个节点的插件协调状态、期望/当前状态、代次、心跳与错误诊断。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_plugin_node_state (
     "id"                INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -194,3 +204,4 @@ COMMENT ON COLUMN sys_plugin_node_state."created_at" IS 'Creation time';
 COMMENT ON COLUMN sys_plugin_node_state."updated_at" IS 'Update time';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_node_state_plugin_id_node_key ON sys_plugin_node_state ("plugin_id", "node_key");
+CREATE INDEX IF NOT EXISTS idx_sys_plugin_node_state_plugin ON sys_plugin_node_state ("plugin_id", "node_key");

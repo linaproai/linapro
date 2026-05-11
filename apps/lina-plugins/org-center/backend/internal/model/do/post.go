@@ -13,6 +13,7 @@ import (
 type Post struct {
 	g.Meta    `orm:"table:plugin_org_center_post, do:true"`
 	Id        any         // Post ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM
 	DeptId    any         // Owning department ID
 	Code      any         // Post code
 	Name      any         // Post name

@@ -12,6 +12,7 @@ import (
 // SysOnlineSession is the golang structure of table sys_online_session for DAO operations like Where/Data.
 type SysOnlineSession struct {
 	g.Meta         `orm:"table:sys_online_session, do:true"`
+	TenantId       any         // Owning tenant ID, 0 means PLATFORM
 	TokenId        any         // Session token ID (UUID)
 	UserId         any         // User ID
 	Username       any         // Login account

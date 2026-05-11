@@ -84,6 +84,10 @@
       "jobLogManagement": "執行日誌",
       "extensionCenter": "擴展中心",
       "pluginManagement": "插件管理"
+    },
+    "platform": {
+      "title": "平台管理",
+      "tenants": "租戶管理"
     }
   }
 }

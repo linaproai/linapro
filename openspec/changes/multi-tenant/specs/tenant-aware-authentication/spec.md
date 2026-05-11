@@ -9,7 +9,7 @@ JWT Claims SHALL 增加 `TenantId int` 字段;`TenantId = 0` 表示平台级 tok
 - **AND** 该 token 在所有非平台 API 上等价于 "U as A" 上下文
 
 #### Scenario: 平台管理员的 token
-- **WHEN** 平台管理员登录(`sys_user.tenant_id=0` + 持平台角色)
+- **WHEN** 平台管理员登录(`sys_user.tenant_id=0` 且通过 `tenant_id=0,data_scope=1` 角色获得平台管理所需 `system:*` 权限)
 - **THEN** 返回 token Claims 中 `TenantId=0`
 - **AND** 不需要再调 select-tenant
 
@@ -25,7 +25,7 @@ JWT Claims SHALL 增加 `TenantId int` 字段;`TenantId = 0` 表示平台级 tok
 
 #### Scenario: 单租户用户登录优化
 - **WHEN** 用户 U 仅有 1 个 active membership
-- **AND** `tenant.cardinality = single` 或 multi 但无歧义
+- **AND** 默认 `multi` 策略下无歧义,或后续启用的 `single` 策略可直接判定租户
 - **THEN** `/auth/login` 直接返回正式 JWT(等同于服务端自动 select)
 - **AND** 不需要前端挑选
 
@@ -61,7 +61,7 @@ JWT Claims SHALL 增加 `TenantId int` 字段;`TenantId = 0` 表示平台级 tok
 
 #### Scenario: impersonation 操作的审计
 - **WHEN** 平台管理员以 impersonation token 修改租户 A 的某用户角色
-- **THEN** 操作日志写入:`tenant_id=A`,`acting_user_id=平台管理员 user_id`,`on_behalf_of_tenant_id=A`,`action_kind='impersonation'`
+- **THEN** 操作日志写入:`tenant_id=A`,`acting_user_id=平台管理员 user_id`,`on_behalf_of_tenant_id=A`,`is_impersonation=true`
 - **AND** 该日志在租户管理员视图中标记为"平台管理员代为操作"
 
 ### Requirement: 登出与 token 撤销

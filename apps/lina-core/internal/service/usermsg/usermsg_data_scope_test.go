@@ -81,6 +81,13 @@ func (s userMsgScopeStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by user-message tests.
 func (s userMsgScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetTenant is unused by user-message tests.
+func (s userMsgScopeStaticBizCtx) SetTenant(context.Context, int) {}
+
+// SetImpersonation is unused by user-message tests.
+func (s userMsgScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
+
+
 // SetUserAccess is unused by user-message tests.
 func (s userMsgScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 

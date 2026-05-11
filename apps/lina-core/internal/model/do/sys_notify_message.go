@@ -13,6 +13,7 @@ import (
 type SysNotifyMessage struct {
 	g.Meta       `orm:"table:sys_notify_message, do:true"`
 	Id           any         // Primary key ID
+	TenantId     any         // Owning tenant ID, 0 means PLATFORM
 	PluginId     any         // Source plugin ID, empty for host built-in flows
 	SourceType   any         // Source type: notice=notice, plugin=plugin, system=system
 	SourceId     any         // Source business ID

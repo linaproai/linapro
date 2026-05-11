@@ -20,11 +20,14 @@ export interface SystemPlugin {
   installedAt: string;
   enabled: number;
   autoEnableManaged: number;
+  autoEnableForNewTenants?: boolean;
   statusKey: string;
   updatedAt: string;
   authorizationRequired: number;
   authorizationStatus: 'confirmed' | 'not_required' | 'pending' | string;
   hasMockData: number;
+  installMode?: 'global' | 'tenant_scoped' | string;
+  scopeNature?: 'platform_only' | 'tenant_aware' | string;
   requestedHostServices?: HostServicePermissionItem[];
   authorizedHostServices?: HostServicePermissionItem[];
   declaredRoutes?: PluginRouteReviewItem[];
@@ -85,6 +88,8 @@ export interface PluginAuthorizationPayload {
     }>;
   };
   installMockData?: boolean;
+  installMode?: 'global' | 'tenant_scoped' | string;
+  force?: boolean;
 }
 
 export interface PluginDynamicState {

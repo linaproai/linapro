@@ -22,6 +22,7 @@ type PluginDemoSourceRecordDao struct {
 // PluginDemoSourceRecordColumns defines and stores column names for the table plugin_demo_source_record.
 type PluginDemoSourceRecordColumns struct {
 	Id             string // Primary key ID
+	TenantId       string // Owning tenant ID, 0 means PLATFORM
 	Title          string // Record title
 	Content        string // Record content
 	AttachmentName string // Original attachment file name
@@ -33,6 +34,7 @@ type PluginDemoSourceRecordColumns struct {
 // pluginDemoSourceRecordColumns holds the columns for the table plugin_demo_source_record.
 var pluginDemoSourceRecordColumns = PluginDemoSourceRecordColumns{
 	Id:             "id",
+	TenantId:       "tenant_id",
 	Title:          "title",
 	Content:        "content",
 	AttachmentName: "attachment_name",

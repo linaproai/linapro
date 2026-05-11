@@ -19,5 +19,6 @@ type IPluginV1 interface {
 	List(ctx context.Context, req *v1.ListReq) (res *v1.ListRes, err error)
 	ResourceList(ctx context.Context, req *v1.ResourceListReq) (res *v1.ResourceListRes, err error)
 	Sync(ctx context.Context, req *v1.SyncReq) (res *v1.SyncRes, err error)
+	UpdateTenantProvisioningPolicy(ctx context.Context, req *v1.UpdateTenantProvisioningPolicyReq) (res *v1.UpdateTenantProvisioningPolicyRes, err error)
 	Uninstall(ctx context.Context, req *v1.UninstallReq) (res *v1.UninstallRes, err error)
 }

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 import {
@@ -30,6 +31,27 @@ const knownCategories = knownIsolationCategorySet();
 function addError(message) {
   errors.push(message);
 }
+
+function validateFrontendI18nKeys() {
+  const result = spawnSync('pnpm', ['-F', '@lina/web-antd', 'i18n:check'], {
+    cwd: path.resolve(testsDir, '../../apps/lina-vben'),
+    encoding: 'utf8',
+  });
+
+  if (result.status !== 0) {
+    addError(
+      [
+        'Frontend i18n key validation failed.',
+        result.stdout.trim(),
+        result.stderr.trim(),
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    );
+  }
+}
+
+validateFrontendI18nKeys();
 
 function readTestFile(relativePath) {
   return readFileSync(path.resolve(testsDir, relativePath), 'utf8');

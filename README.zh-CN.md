@@ -151,6 +151,21 @@ graph TB
 - 底层内置支持分布式锁与键值缓存机制，核心组件支持集群自动感知
 - 定时任务调度子系统具备分布式感知能力，集群环境下自动避免重复执行
 
+## 多租户基础能力
+
+`LinaPro`正在扩展基于`Pool`模型的多租户能力，同时保留默认单租户开箱体验。未安装或未启用`multi-tenant`插件时，宿主与插件数据统一使用`tenant_id = 0`，表示`PLATFORM`平台租户。
+
+启用`multi-tenant`插件后：
+
+- 租户身份通过内置责任链解析：`override`、`jwt`、`session`、`header`、`subdomain`和`default`；支持的运行时策略变更由插件持久化，不再通过宿主配置模板维护。
+- 隔离模型由代码默认值维护，当前固定为`pool`。
+- 用户与租户基数由代码默认值维护，默认`multi`，允许一个用户加入多个租户。
+- 租户感知插件需要在`plugin.yaml`中声明`scope_nature`、`default_install_mode`和`default_for_new_tenants`。
+- `platform_only`插件按平台全局治理，`tenant_aware`插件可选择全局启用或按租户独立启用。
+- `LifecycleGuard`钩子可否决插件禁用或卸载，`plugin.allowForceUninstall`控制平台管理员是否允许执行带审计的强制覆盖。
+
+典型内部`BU`场景使用内置`multi`基数、`prompt`歧义处理，并对审计或内容类插件采用租户级启用。当前迭代仅支持`Pool`模型；`rootDomain`预留给后续设置入口，当前暂不支持配置。schema-per-tenant、database-per-tenant、配额、计费与品牌定制留作后续演进。
+
 
 
 # 主要技术栈

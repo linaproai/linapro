@@ -13,6 +13,7 @@ import (
 type SysFile struct {
 	g.Meta    `orm:"table:sys_file, do:true"`
 	Id        any         // File ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM
 	Name      any         // Stored file name
 	Original  any         // Original file name
 	Suffix    any         // File suffix

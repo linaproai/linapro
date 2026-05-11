@@ -22,13 +22,15 @@ const createPluginStateTableSQL = `
 CREATE TABLE IF NOT EXISTS sys_plugin_state (
     id          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     plugin_id   VARCHAR(64) NOT NULL DEFAULT '',
+    tenant_id   INT NOT NULL DEFAULT 0,
     state_key   VARCHAR(255) NOT NULL DEFAULT '',
     state_value TEXT,
+    enabled     BOOL NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMP,
     updated_at  TIMESTAMP
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_state_plugin_key ON sys_plugin_state (plugin_id, state_key);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_plugin_state_plugin_tenant_key ON sys_plugin_state (plugin_id, tenant_id, state_key);
 `
 
 // TestHandleHostServiceInvokeRuntimeStateLifecycle verifies runtime state

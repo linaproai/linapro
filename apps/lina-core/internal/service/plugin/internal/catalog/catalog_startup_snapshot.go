@@ -5,9 +5,11 @@ package catalog
 
 import (
 	"context"
+	"database/sql"
 	"sort"
 	"strings"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/internal/dao"
@@ -248,6 +250,15 @@ func applyPluginRegistryData(registry *entity.SysPlugin, data do.SysPlugin) {
 	if data.Remark != nil {
 		registry.Remark = gconv.String(data.Remark)
 	}
+	if data.ScopeNature != nil {
+		registry.ScopeNature = gconv.String(data.ScopeNature)
+	}
+	if data.InstallMode != nil {
+		registry.InstallMode = gconv.String(data.InstallMode)
+	}
+	if data.AutoEnableForNewTenants != nil {
+		registry.AutoEnableForNewTenants = gconv.Bool(data.AutoEnableForNewTenants)
+	}
 }
 
 // clonePluginRegistry copies one registry entity before snapshot mutation.
@@ -401,6 +412,9 @@ func (s *serviceImpl) getRegistryFromDB(ctx context.Context, pluginID string) (*
 	err := dao.SysPlugin.Ctx(ctx).
 		Where(do.SysPlugin{PluginId: normalizedID}).
 		Scan(&plugin)
+	if isCatalogNoRows(err) {
+		return nil, nil
+	}
 	return plugin, err
 }
 
@@ -413,6 +427,9 @@ func (s *serviceImpl) getReleaseFromDB(ctx context.Context, pluginID string, ver
 			ReleaseVersion: version,
 		}).
 		Scan(&release)
+	if isCatalogNoRows(err) {
+		return nil, nil
+	}
 	return release, err
 }
 
@@ -426,6 +443,9 @@ func (s *serviceImpl) getReleaseByIDFromDB(ctx context.Context, releaseID int) (
 	err := dao.SysPluginRelease.Ctx(ctx).
 		Where(do.SysPluginRelease{Id: releaseID}).
 		Scan(&release)
+	if isCatalogNoRows(err) {
+		return nil, nil
+	}
 	return release, err
 }
 
@@ -440,4 +460,9 @@ func (s *serviceImpl) listAllRegistriesFromDB(ctx context.Context) ([]*entity.Sy
 		return nil, err
 	}
 	return list, nil
+}
+
+// isCatalogNoRows reports whether a single-row catalog read found no matching row.
+func isCatalogNoRows(err error) bool {
+	return err != nil && gerror.Is(err, sql.ErrNoRows)
 }

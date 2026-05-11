@@ -77,14 +77,18 @@ func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 			Body: []byte(`{"hello":"world"}`),
 		},
 		Identity: &IdentitySnapshotV1{
-			TokenID:      "token-1",
-			UserID:       1,
-			Username:     "admin",
-			Status:       1,
-			Permissions:  []string{"plugin-demo-dynamic:review:view"},
-			RoleNames:    []string{"超级管理员"},
-			DataScope:    1,
-			IsSuperAdmin: true,
+			TokenID:         "token-1",
+			TenantId:        22,
+			UserID:          1,
+			Username:        "admin",
+			Status:          1,
+			ActingUserId:    7,
+			ActingAsTenant:  true,
+			IsImpersonation: true,
+			Permissions:     []string{"plugin-demo-dynamic:review:view"},
+			RoleNames:       []string{"超级管理员"},
+			DataScope:       1,
+			IsSuperAdmin:    true,
 		},
 		RequestID: "req-1",
 	}
@@ -111,6 +115,12 @@ func TestEncodeDecodeRequestEnvelopeRoundTrip(t *testing.T) {
 	}
 	if output.Identity.DataScope != input.Identity.DataScope {
 		t.Fatalf("unexpected identity data scope: %#v", output.Identity)
+	}
+	if output.Identity.TenantId != input.Identity.TenantId ||
+		output.Identity.ActingUserId != input.Identity.ActingUserId ||
+		output.Identity.ActingAsTenant != input.Identity.ActingAsTenant ||
+		output.Identity.IsImpersonation != input.Identity.IsImpersonation {
+		t.Fatalf("unexpected tenant impersonation snapshot: %#v", output.Identity)
 	}
 	if !bytes.Equal(output.Request.Body, input.Request.Body) {
 		t.Fatalf("unexpected request body: %q", string(output.Request.Body))

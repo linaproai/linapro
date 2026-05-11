@@ -197,6 +197,27 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 				"zh-TW":       "本部門數據權限需要先啟用組織管理插件",
 			},
 		},
+		{
+			name:     "role unsupported scope",
+			key:      "error.role.data.scope.unsupported",
+			fallback: "Unsupported role data scope: {scope}",
+			params:   []bizerr.Param{bizerr.P("scope", 9)},
+			expected: map[string]string{
+				DefaultLocale: "不支持的角色数据权限范围：9",
+				EnglishLocale: "Unsupported role data scope: 9",
+				"zh-TW":       "不支持的角色數據權限範圍：9",
+			},
+		},
+		{
+			name:     "tenant role all-data forbidden",
+			key:      "error.tenant.role.all.data.scope.forbidden",
+			fallback: "Tenant roles cannot use all-data scope",
+			expected: map[string]string{
+				DefaultLocale: "租户角色不能使用全部数据权限",
+				EnglishLocale: "Tenant roles cannot use all-data scope",
+				"zh-TW":       "租戶角色不能使用全部數據權限",
+			},
+		},
 	}
 
 	for index, testCase := range testCases {
@@ -212,6 +233,92 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			for locale, expected := range testCase.expected {
 				ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: locale})
 				err := bizerr.NewCode(code, testCase.params...)
+				if actual := svc.LocalizeError(ctx, err); actual != expected {
+					t.Fatalf("expected %s localized error %q, got %q", locale, expected, actual)
+				}
+			}
+		})
+	}
+}
+
+// TestLocalizeErrorUsesHostUserTenantMembershipErrorResources verifies user
+// tenant-membership business errors ship runtime translations for built-in locales.
+func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
+	resetRuntimeBundleCache()
+	t.Cleanup(resetRuntimeBundleCache)
+
+	svc := New()
+	testCases := []struct {
+		name     string
+		key      string
+		fallback string
+		expected map[string]string
+	}{
+		{
+			name:     "query failed",
+			key:      "error.user.tenant.membership.query.failed",
+			fallback: "Failed to query tenant membership visibility",
+			expected: map[string]string{
+				DefaultLocale: "查询用户租户归属可见性失败",
+				EnglishLocale: "Failed to query tenant membership visibility",
+				"zh-TW":       "查詢用戶租戶歸屬可見性失敗",
+			},
+		},
+		{
+			name:     "replace failed",
+			key:      "error.user.tenant.membership.replace.failed",
+			fallback: "Failed to update tenant membership",
+			expected: map[string]string{
+				DefaultLocale: "更新用户租户归属失败",
+				EnglishLocale: "Failed to update tenant membership",
+				"zh-TW":       "更新用戶租戶歸屬失敗",
+			},
+		},
+		{
+			name:     "cross tenant denied",
+			key:      "error.user.tenant.membership.cross.tenant.denied",
+			fallback: "Cannot assign users to another tenant in the current context",
+			expected: map[string]string{
+				DefaultLocale: "当前上下文不能将用户分配到其他租户",
+				EnglishLocale: "Cannot assign users to another tenant in the current context",
+				"zh-TW":       "當前上下文不能將用戶分配到其他租戶",
+			},
+		},
+		{
+			name:     "tenant unavailable",
+			key:      "error.user.tenant.membership.tenant.unavailable",
+			fallback: "Selected tenant is unavailable",
+			expected: map[string]string{
+				DefaultLocale: "所选租户不可用",
+				EnglishLocale: "Selected tenant is unavailable",
+				"zh-TW":       "所選租戶不可用",
+			},
+		},
+		{
+			name:     "cardinality exceeded",
+			key:      "error.user.tenant.membership.cardinality.exceeded",
+			fallback: "User can only belong to one tenant in the current configuration",
+			expected: map[string]string{
+				DefaultLocale: "当前配置下用户只能归属于一个租户",
+				EnglishLocale: "User can only belong to one tenant in the current configuration",
+				"zh-TW":       "當前配置下用戶只能歸屬於一個租戶",
+			},
+		},
+	}
+
+	for index, testCase := range testCases {
+		testCase := testCase
+		index := index
+		t.Run(testCase.name, func(t *testing.T) {
+			code := bizerr.MustDefineWithKey(
+				fmt.Sprintf("TEST_USER_TENANT_MEMBERSHIP_ERROR_%d", index),
+				testCase.key,
+				testCase.fallback,
+				gcode.CodeInvalidParameter,
+			)
+			for locale, expected := range testCase.expected {
+				ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: locale})
+				err := bizerr.NewCode(code)
 				if actual := svc.LocalizeError(ctx, err); actual != expected {
 					t.Fatalf("expected %s localized error %q, got %q", locale, expected, actual)
 				}

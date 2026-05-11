@@ -13,6 +13,7 @@ import (
 type Notice struct {
 	g.Meta    `orm:"table:plugin_content_notice, do:true"`
 	Id        any         // Notice ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM
 	Title     any         // Notice title
 	Type      any         // Notice type: 1=notification, 2=announcement
 	Content   any         // Notice content

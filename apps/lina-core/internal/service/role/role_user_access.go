@@ -39,17 +39,18 @@ func (s *serviceImpl) GetUserAccessContext(ctx context.Context, userId int) (*Us
 
 // loadUserAccessContext loads the user's roles, menus, and permissions directly from storage.
 func (s *serviceImpl) loadUserAccessContext(ctx context.Context, userId int) (*UserAccessContext, error) {
+	lookupCtx := s.accessLookupContext(ctx)
 	isSuperAdmin, err := s.isDefaultAdminUser(ctx, userId)
 	if err != nil {
 		return nil, err
 	}
 
-	roleIds, err := s.GetUserRoleIds(ctx, userId)
+	roleIds, err := s.getUserRoleIdsInScope(lookupCtx, userId)
 	if err != nil {
 		return nil, err
 	}
 
-	roles, err := s.getUserRolesByRoleIds(ctx, roleIds)
+	roles, err := s.getUserRolesByRoleIds(lookupCtx, roleIds)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +63,7 @@ func (s *serviceImpl) loadUserAccessContext(ctx context.Context, userId int) (*U
 			return nil, err
 		}
 	} else {
-		menuIds, err = s.getUserMenuIdsByRoleIds(ctx, roleIds)
+		menuIds, err = s.getUserMenuIdsByRoleIds(lookupCtx, roleIds)
 		if err != nil {
 			return nil, err
 		}
@@ -102,6 +103,20 @@ func (s *serviceImpl) loadUserAccessContext(ctx context.Context, userId int) (*U
 		UnsupportedDataScope: unsupportedValue,
 		IsSuperAdmin:         isSuperAdmin,
 	}, nil
+}
+
+// accessLookupContext returns the tenant scope used for role topology reads.
+// Impersonation keeps the request tenant for data filtering, while its
+// permission grants come from the platform administrator's platform role set.
+func (s *serviceImpl) accessLookupContext(ctx context.Context) context.Context {
+	if s == nil || s.bizCtxSvc == nil {
+		return ctx
+	}
+	businessCtx := s.bizCtxSvc.Get(ctx)
+	if businessCtx == nil || (!businessCtx.IsImpersonation && !businessCtx.ActingAsTenant) {
+		return ctx
+	}
+	return datascope.WithTenantScope(ctx, datascope.PlatformTenantID)
 }
 
 // GetUserDataScopeSnapshot returns the user's effective role data-scope using
@@ -145,6 +160,10 @@ func resolveEffectiveDataScope(roles []*entity.SysRole, isSuperAdmin bool) (data
 		switch datascope.Scope(role.DataScope) {
 		case datascope.ScopeAll:
 			return datascope.ScopeAll, false, 0
+		case datascope.ScopeTenant:
+			if scope != datascope.ScopeAll {
+				scope = datascope.ScopeTenant
+			}
 		case datascope.ScopeDept:
 			if scope == datascope.ScopeNone || scope == datascope.ScopeSelf {
 				scope = datascope.ScopeDept
@@ -197,10 +216,11 @@ func (s *serviceImpl) getUserRolesByRoleIds(ctx context.Context, roleIds []int) 
 		roles []*entity.SysRole
 	)
 
-	err := dao.SysRole.Ctx(ctx).
+	model := dao.SysRole.Ctx(ctx).
 		WhereIn(cols.Id, roleIds).
-		Where(cols.Status, 1).
-		Scan(&roles)
+		Where(cols.Status, 1)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&roles)
 	if err != nil {
 		return nil, err
 	}
@@ -219,9 +239,9 @@ func (s *serviceImpl) getUserMenuIdsByRoleIds(ctx context.Context, roleIds []int
 		roleMenus []*entity.SysRoleMenu
 	)
 
-	err := dao.SysRoleMenu.Ctx(ctx).
-		WhereIn(rmCols.RoleId, roleIds).
-		Scan(&roleMenus)
+	model := dao.SysRoleMenu.Ctx(ctx).WhereIn(rmCols.RoleId, roleIds)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&roleMenus)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +256,25 @@ func (s *serviceImpl) getUserMenuIdsByRoleIds(ctx context.Context, roleIds []int
 		menuIdSet[roleMenu.MenuId] = true
 	}
 	return menuIds, nil
+}
+
+// getUserRoleIdsInScope returns role IDs for a user in the supplied tenant
+// lookup scope.
+func (s *serviceImpl) getUserRoleIdsInScope(ctx context.Context, userId int) ([]int, error) {
+	urCols := dao.SysUserRole.Columns()
+	var userRoles []*entity.SysUserRole
+	model := dao.SysUserRole.Ctx(ctx).Where(urCols.UserId, userId)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&userRoles)
+	if err != nil {
+		return nil, err
+	}
+
+	roleIds := make([]int, 0, len(userRoles))
+	for _, ur := range userRoles {
+		roleIds = append(roleIds, ur.RoleId)
+	}
+	return roleIds, nil
 }
 
 // getUserPermissionsByMenuIds resolves enabled menu permissions and lets the

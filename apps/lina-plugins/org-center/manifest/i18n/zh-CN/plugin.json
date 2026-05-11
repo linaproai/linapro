@@ -58,6 +58,15 @@
         "tree": {
           "unassignedDept": "未分配部门"
         }
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "tenant_data_exists": "一个或多个租户仍存在组织数据。卸载前请先归档或迁移部门、岗位和用户绑定。",
+          "tenant_root_required": "仍有租户依赖其根部门。移除此插件前请先停用租户组织能力。"
+        },
+        "disable_blocked": {
+          "active_members_exist": "仍有活跃租户成员依赖组织归属。禁用前请先移除或迁移归属关系。"
+        }
       }
     }
   }

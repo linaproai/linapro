@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"testing"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/net/ghttp"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"

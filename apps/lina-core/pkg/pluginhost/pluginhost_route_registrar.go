@@ -4,6 +4,7 @@
 package pluginhost
 
 import (
+	"context"
 	"strings"
 	"sync"
 
@@ -14,8 +15,9 @@ import (
 // sourceRouteCtxVarPluginID stores the source-plugin id that owns the matched route.
 const sourceRouteCtxVarPluginID gctx.StrKey = "plugin_source_route_plugin_id"
 
-// PluginEnabledChecker defines one host callback that reports whether a plugin is currently enabled.
-type PluginEnabledChecker func(pluginID string) bool
+// PluginEnabledChecker defines one host callback that reports whether a plugin
+// is currently enabled in the supplied request or execution context.
+type PluginEnabledChecker func(ctx context.Context, pluginID string) bool
 
 // RouteMiddleware defines one plugin-usable HTTP middleware.
 type RouteMiddleware = ghttp.HandlerFunc
@@ -34,6 +36,8 @@ type RouteMiddlewares interface {
 	Ctx() RouteMiddleware
 	// Auth returns the host JWT authentication middleware.
 	Auth() RouteMiddleware
+	// Tenancy returns the host tenant-resolution middleware.
+	Tenancy() RouteMiddleware
 	// Permission returns the host declarative permission middleware.
 	Permission() RouteMiddleware
 }
@@ -108,6 +112,7 @@ type routeMiddlewares struct {
 	requestBody     RouteMiddleware
 	ctx             RouteMiddleware
 	auth            RouteMiddleware
+	tenancy         RouteMiddleware
 	permission      RouteMiddleware
 }
 
@@ -119,6 +124,7 @@ func NewRouteMiddlewares(
 	requestBody RouteMiddleware,
 	ctx RouteMiddleware,
 	auth RouteMiddleware,
+	tenancy RouteMiddleware,
 	permission RouteMiddleware,
 ) RouteMiddlewares {
 	return &routeMiddlewares{
@@ -128,6 +134,7 @@ func NewRouteMiddlewares(
 		requestBody:     requestBody,
 		ctx:             ctx,
 		auth:            auth,
+		tenancy:         tenancy,
 		permission:      permission,
 	}
 }
@@ -203,7 +210,7 @@ func (r *routeRegistrar) allow(req *ghttp.Request) bool {
 	if req == nil {
 		return false
 	}
-	if r.enabledChecker != nil && !r.enabledChecker(r.pluginID) {
+	if r.enabledChecker != nil && !r.enabledChecker(req.Context(), r.pluginID) {
 		req.Response.WriteStatus(404)
 		req.ExitAll()
 		return false
@@ -258,6 +265,14 @@ func (m *routeMiddlewares) Auth() RouteMiddleware {
 		return nil
 	}
 	return m.auth
+}
+
+// Tenancy returns the published tenant-resolution middleware.
+func (m *routeMiddlewares) Tenancy() RouteMiddleware {
+	if m == nil {
+		return nil
+	}
+	return m.tenancy
 }
 
 // Permission returns the published declarative permission middleware.

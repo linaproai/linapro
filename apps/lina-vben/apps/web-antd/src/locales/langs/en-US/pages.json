@@ -327,11 +327,13 @@
         "unassignedDept": "Unassigned",
         "unassignedRole": "Unassigned Role",
         "na": "N/A",
-        "positions": "Positions"
+        "positions": "Positions",
+        "tenantMemberships": "Tenants"
       },
       "help": {
         "positions": "After selecting a department, all positions under that department are loaded automatically.",
-        "roles": "You can assign multiple roles to this user."
+        "roles": "You can assign multiple roles to this user.",
+        "tenantMemberships": "Platform context can maintain this user's tenants. Leaving it empty keeps a platform user."
       },
       "messages": {
         "deleteSelectedConfirm": "Delete the selected {count} record(s)?",
@@ -385,16 +387,12 @@
       "placeholders": {
         "roleName": "Please enter a role name",
         "permissionKey": "Please enter a permission key",
+        "dataScope": "Please select a data scope",
         "status": "Please select a status",
         "sort": "Please enter a sort order",
         "remark": "Please enter a remark",
         "permissionExample": "For example: admin, user",
         "permissionHelp": "For example: admin, simpleUser"
-      },
-      "dataScope": {
-        "all": "All Data",
-        "dept": "Department Data",
-        "self": "Self Only"
       },
       "help": {
         "status": "After you change this, users who hold the role are signed out automatically.",
@@ -910,7 +908,8 @@
         "version": "Version",
         "authorizationStatus": "Authorization Status",
         "startupManagement": "Startup Management",
-        "hasMockData": "Mock Data"
+        "hasMockData": "Mock Data",
+        "tenantProvisioning": "New Tenants"
       },
       "type": {
         "source": "Source Plugin",
@@ -1003,8 +1002,12 @@
         "installedAndEnabled": "Plugin installed and enabled",
         "mockDataRolledBack": "Plugin {pluginId} installed successfully, but mock data {failedFile} failed to load and was rolled back: {cause}. You can keep the plugin in its installed-without-mock state or uninstall and reinstall after fixing the mock SQL.",
         "noInstallPermission": "The current account does not have permission to install or synchronize plugins",
+        "noPolicyPermission": "The current account does not have permission to configure plugin policies",
         "noStatusPermission": "The current account does not have permission to change plugin status",
         "noUninstallPermission": "The current account does not have permission to uninstall plugins",
+        "tenantProvisioningEffective": "When this tenant-scoped plugin is installed and enabled, newly created tenants will receive it automatically.",
+        "tenantProvisioningUnsupported": "Only tenant-aware plugins installed in tenant-scoped mode support this policy.",
+        "tenantProvisioningUpdated": "New-tenant plugin policy updated",
         "syncSuccess": "Synchronized {total} plugin record(s)",
         "uninstalled": "Plugin uninstalled"
       },
@@ -1174,6 +1177,98 @@
       "systemMessageDesc": "Receive announcements, maintenance notices, and other system-wide updates.",
       "todoTask": "To-do Tasks",
       "todoTaskDesc": "Receive reminders for pending tasks and workflows assigned to you."
+    }
+  },
+  "multiTenant": {
+    "platformScope": "Platform",
+    "placeholders": {
+      "selectTenant": "Select tenant"
+    },
+    "fields": {
+      "code": "Tenant Code",
+      "name": "Tenant Name",
+      "keyword": "Keyword",
+      "tenantId": "Tenant ID",
+      "userId": "User ID",
+      "joinedAt": "Joined"
+    },
+    "status": {
+      "active": "Active",
+      "suspended": "Suspended",
+      "deleted": "Deleted",
+      "unknown": "Unknown"
+    },
+    "empty": {
+      "tenants": "No tenants",
+      "members": "No members",
+      "plugins": "No tenant-managed plugins"
+    },
+    "messages": {
+      "codeRule": "Tenant code must be 2-32 lowercase letters, numbers, or hyphens",
+      "nameRequired": "Enter a tenant name",
+      "deleteTenantConfirm": "Delete tenant {name}?",
+      "deleteSelectedConfirm": "Delete {count} selected tenants?",
+      "removeMemberConfirm": "Remove this member?",
+      "switchSuccess": "Tenant switched",
+      "statusUpdated": "Tenant status updated",
+      "tenantSelected": "Tenant selected"
+    },
+    "login": {
+      "selectTenant": "Select Tenant",
+      "enterTenant": "Enter Tenant"
+    },
+    "impersonation": {
+      "banner": "Acting as platform administrator for tenant {tenant}",
+      "exit": "Exit Impersonation"
+    },
+    "switcher": {
+      "placeholder": "Switch Tenant"
+    },
+    "tenant": {
+      "tableTitle": "Tenants",
+      "actions": {
+        "create": "Create Tenant",
+        "edit": "Edit Tenant",
+        "suspend": "Suspend",
+        "resume": "Resume",
+        "impersonate": "Impersonate",
+        "users": "User Management"
+      },
+      "tooltips": {
+        "impersonate": "Act in this tenant as platform admin"
+      }
+    },
+    "platformMembers": {
+      "tableTitle": "Tenant Members"
+    },
+    "member": {
+      "tableTitle": "Tenant Members",
+      "status": {
+        "active": "Active",
+        "suspended": "Suspended",
+        "removed": "Removed"
+      }
+    },
+    "plugin": {
+      "tableTitle": "Tenant Plugins",
+      "installMode": "Install Mode",
+      "installModeTitle": "Choose Install Mode",
+      "platformOnlyGlobalHint": "Platform-only plugins must be installed globally.",
+      "installModes": {
+        "global": "Global",
+        "tenant_scoped": "Tenant Scoped"
+      },
+      "installModeDescriptions": {
+        "global": "One platform-level enabled state is shared by every tenant.",
+        "tenant_scoped": "Tenant administrators enable or disable the plugin in their own tenant."
+      },
+      "lifecycleGuard": {
+        "title": "Lifecycle Guard",
+        "summary": "The plugin returned reasons blocking this operation.",
+        "defaultReason": "Related data still exists, so the operation cannot continue.",
+        "forceConfirm": "I understand the risk and want to use the force channel",
+        "forceSubmitted": "Force channel request submitted"
+      }
     }
   },
   "tree": {

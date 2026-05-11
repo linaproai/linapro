@@ -5,6 +5,7 @@ package sysconfig
 import (
 	"bytes"
 	"context"
+	"sort"
 
 	"github.com/xuri/excelize/v2"
 
@@ -13,6 +14,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/bizerr"
 )
@@ -81,6 +83,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		cols = dao.SysConfig.Columns()
 		m    = dao.SysConfig.Ctx(ctx)
 	)
+	m = applySysconfigFallbackScope(ctx, m)
 
 	// Apply filters
 	if in.Name != "" {
@@ -96,20 +99,17 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		m = m.WhereLTE(cols.CreatedAt, in.EndTime+" 23:59:59")
 	}
 
-	// Get total count
-	total, err := m.Count()
+	var rows []*entity.SysConfig
+	err := m.OrderDesc(cols.Id).Scan(&rows)
 	if err != nil {
 		return nil, err
 	}
-
-	// Query with pagination
-	var list []*entity.SysConfig
-	err = m.Page(in.PageNum, in.PageSize).
-		OrderDesc(cols.Id).
-		Scan(&list)
-	if err != nil {
-		return nil, err
-	}
+	list := visibleConfigs(ctx, rows)
+	sort.SliceStable(list, func(i int, j int) bool {
+		return list[i].Id > list[j].Id
+	})
+	total := len(list)
+	list = paginateConfigs(list, in.PageNum, in.PageSize)
 	s.localizeConfigEntities(ctx, list)
 
 	return &ListOutput{
@@ -121,9 +121,9 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 // GetById retrieves config by ID.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysConfig, error) {
 	var cfg *entity.SysConfig
-	err := dao.SysConfig.Ctx(ctx).
-		Where(do.SysConfig{Id: id}).
-		Scan(&cfg)
+	model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Id: id})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -150,9 +150,9 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 	var createdID int64
 	err := s.withConfigMutation(ctx, func(ctx context.Context) error {
 		// Check key uniqueness (GoFrame auto-adds deleted_at IS NULL)
-		count, countErr := dao.SysConfig.Ctx(ctx).
-			Where(do.SysConfig{Key: in.Key}).
-			Count()
+		model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Key: in.Key})
+		model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+		count, countErr := model.Count()
 		if countErr != nil {
 			return countErr
 		}
@@ -161,13 +161,14 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		}
 
 		// Insert config (GoFrame auto-fills created_at and updated_at)
-		insertedID, insertErr := dao.SysConfig.Ctx(ctx).Data(do.SysConfig{
-			Name:      in.Name,
-			Key:       in.Key,
-			Value:     in.Value,
-			IsBuiltin: builtInConfigFlag(in.Key),
-			Remark:    in.Remark,
-		}).InsertAndGetId()
+		data := currentTenantConfigDO(ctx)
+		data.Name = in.Name
+		data.Key = in.Key
+		data.Value = in.Value
+		data.IsBuiltin = builtInConfigFlag(in.Key)
+		data.Remark = in.Remark
+
+		insertedID, insertErr := dao.SysConfig.Ctx(ctx).Data(data).InsertAndGetId()
 		if insertErr != nil {
 			return insertErr
 		}
@@ -206,10 +207,11 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		// Check key uniqueness (exclude self) - GoFrame auto-adds deleted_at IS NULL
 		if in.Key != nil {
 			cols := dao.SysConfig.Columns()
-			count, countErr := dao.SysConfig.Ctx(ctx).
+			model := dao.SysConfig.Ctx(ctx).
 				Where(do.SysConfig{Key: *in.Key}).
-				WhereNot(cols.Id, in.Id).
-				Count()
+				WhereNot(cols.Id, in.Id)
+			model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+			count, countErr := model.Count()
 			if countErr != nil {
 				return countErr
 			}
@@ -301,9 +303,10 @@ func builtInConfigFlag(key string) int {
 // GetByKey retrieves config by key name.
 func (s *serviceImpl) GetByKey(ctx context.Context, key string) (*entity.SysConfig, error) {
 	var cfg *entity.SysConfig
-	err := dao.SysConfig.Ctx(ctx).
-		Where(do.SysConfig{Key: key}).
-		Scan(&cfg)
+	model := dao.SysConfig.Ctx(ctx).Where(do.SysConfig{Key: key})
+	model = applySysconfigFallbackScope(ctx, model).
+		OrderDesc(datascope.TenantColumn)
+	err := model.Scan(&cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -327,6 +330,7 @@ type ExportInput struct {
 func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, err error) {
 	cols := dao.SysConfig.Columns()
 	m := dao.SysConfig.Ctx(ctx)
+	m = applySysconfigFallbackScope(ctx, m)
 
 	if len(in.Ids) > 0 {
 		m = m.WhereIn(cols.Id, in.Ids)
@@ -345,11 +349,12 @@ func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, 
 		}
 	}
 
-	var list []*entity.SysConfig
-	err = m.OrderAsc(cols.Id).Scan(&list)
+	var rows []*entity.SysConfig
+	err = m.OrderAsc(cols.Id).Scan(&rows)
 	if err != nil {
 		return nil, err
 	}
+	list := visibleConfigs(ctx, rows)
 
 	// Create Excel file
 	f := excelize.NewFile()

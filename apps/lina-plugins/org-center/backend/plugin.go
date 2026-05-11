@@ -46,6 +46,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 		group.Group("/", func(group pluginhost.RouteGroup) {
 			group.Middleware(
 				middlewares.Auth(),
+				middlewares.Tenancy(),
 				middlewares.Permission(),
 			)
 			group.Bind(

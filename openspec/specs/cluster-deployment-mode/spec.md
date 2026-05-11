@@ -1,100 +1,100 @@
 # 集群部署模式规范
 
-## 目的
-待定 - 由归档变更 plugin-framework 创建。归档后更新目的。
+## Purpose
+定义宿主在单节点、SQLite 开发模式与 PostgreSQL 集群模式下的部署拓扑、主节点语义、集群组件启停边界和插件运行时收敛规则，确保不同部署形态具备一致且可解释的启动行为。
 
-## 需求
-### 需求： 集群部署模式配置
+## Requirements
+### Requirement: 集群部署模式配置
 
-宿主 SHALL 提供基于配置文件的集群部署模式开关。系统必须支持 `cluster.enabled` 作为总开关，并支持 `cluster.election.lease`、`cluster.election.renewInterval` 作为选举子配置。未显式配置时，`cluster.enabled` 必须默认为 `false`。当数据库链接为 SQLite 方言（`database.default.link` 以 `sqlite:` 开头）时，`cluster.enabled` 在内存层被强制覆盖为 `false`，无论用户在 `config.yaml` 中显式声明的值是什么；该覆盖发生在所有 cluster 相关组件初始化之前。
+宿主 SHALL 提供基于配置文件的集群部署模式开关。系统必须支持 `cluster.enabled` 作为总开关，并支持 `cluster.election.lease`、`cluster.election.renewInterval` 作为选举子配置。未显式配置时，`cluster.enabled` 必须默认为 `false`。当数据库链接为 SQLite 方言（`database.default.link` 以 `sqlite:` 开头）时，`cluster.enabled` 在内存层被强制覆盖为 `false`，无论用户在 `config.yaml` 中显式声明的值是什么；该覆盖发生在所有 cluster 相关组件初始化之前。当数据库链接为 PostgreSQL 方言（`database.default.link` 以 `pgsql:` 开头）时，`cluster.enabled` 按用户配置生效，可启用集群模式。
 
-#### 场景： 默认按单节点模式启动
+#### Scenario: 默认按单节点模式启动
 - **WHEN** 配置文件未声明 `cluster.enabled`
 - **THEN** 宿主按单节点模式启动
 - **AND** 当前节点被视为主节点
 
-#### 场景： 显式开启集群模式
-- **WHEN** 配置文件声明 `cluster.enabled=true` 且数据库链接为 MySQL 方言
+#### Scenario: 显式开启集群模式
+- **WHEN** 配置文件声明 `cluster.enabled=true` 且数据库链接为 PostgreSQL 方言
 - **THEN** 宿主按集群模式启动
 - **AND** 选主和主节点专属行为由集群模式统一控制
 
-#### 场景： SQLite 方言下集群模式被强制锁定
+#### Scenario: SQLite 方言下集群模式被强制锁定
 - **WHEN** 配置文件 `database.default.link` 以 `sqlite:` 开头
 - **AND** 配置文件同时声明 `cluster.enabled=true`
 - **THEN** `IsClusterEnabled` 在启动后稳定返回 `false`
 - **AND** 用户写入的 `cluster.enabled=true` 不生效
 - **AND** 选举循环、租约续期、节点投影同步均不启动
 
-### 需求：SQLite 方言启动时必须输出醒目的单机模式警告
+### Requirement: SQLite 方言启动时必须输出醒目的单机模式警告
 
 系统 SHALL 在以 SQLite 方言启动时，向终端日志输出清晰的 SQLite 单机模式提示，明确告知用户：当前为 SQLite 模式、数据库链接路径、`cluster.enabled` 已被强制锁定为 `false`、所有功能在单机模式下运行、不得用于生产环境。该提示必须保证在终端默认日志输出中可见。
 
-#### 场景：SQLite 启动时打印警告
+#### Scenario: SQLite 启动时打印警告
 - **当** 宿主以 `sqlite::@file(./temp/sqlite/linapro.db)` 链接启动时
 - **则** 终端日志出现 SQLite 模式启动提示
 - **且** 至少一行包含完整的数据库链接字符串
 - **且** 至少一行包含"cluster.enabled 强制覆盖"的明确说明
 - **且** 至少一行包含"不得用于生产"的明确警示
 
-#### 场景：MySQL 启动不输出 SQLite 相关警告
-- **当** 宿主以 MySQL 链接启动时
+#### Scenario: PostgreSQL 启动不输出 SQLite 相关警告
+- **当** 宿主以 PostgreSQL 链接启动时
 - **则** 终端日志不出现任何 SQLite 模式相关提示
 - **且** 不出现"cluster.enabled 强制覆盖"消息
 
-### 需求：SQLite 方言下集群专属组件必须跳过启动
+### Requirement: SQLite 方言下集群专属组件必须跳过启动
 
 系统 SHALL 在 SQLite 方言下跳过所有仅服务于多节点部署的协调组件初始化，包括但不限于领导选举循环、租约续期任务、节点投影同步、缓存修订号广播协调。这些组件的启动判断必须基于 `IsClusterEnabled`（已被 SQLite 方言锁定为 `false`），不得基于 `database.default.link` 字符串自行判断。
 
-#### 场景：SQLite 模式跳过领导选举循环
+#### Scenario: SQLite 模式跳过领导选举循环
 - **当** 宿主以 SQLite 方言启动且 `OnStartup` 钩子完成
 - **则** 集群组件读取 `IsClusterEnabled` 为 `false`
 - **且** 不启动选举循环
 - **且** 不启动租约续期任务
 
-#### 场景：SQLite 模式直接执行主节点专属调度任务
+#### Scenario: SQLite 模式直接执行主节点专属调度任务
 - **当** 宿主以 SQLite 方言运行且触发主节点专属定时任务时
 - **则** 当前节点直接执行该任务
 - **且** 不依赖任何选举或主节点判定等待
-- **且** 与 MySQL 单节点模式（`cluster.enabled=false`）行为一致
+- **且** 与 PostgreSQL 单节点模式（`cluster.enabled=false`）行为一致
 
-### 需求： 单节点模式主节点语义
+### Requirement: 单节点模式主节点语义
 
 当 `cluster.enabled=false` 时，宿主 SHALL 将当前节点视为主节点，并跳过仅为多节点部署服务的宿主协调逻辑。
 
-#### 场景： 单节点模式跳过选主基础设施
+#### Scenario: 单节点模式跳过选主基础设施
 - **WHEN** 宿主以单节点模式启动
 - **THEN** 系统不启动领导选举循环
 - **AND** 系统不启动租约续期逻辑
 
-#### 场景： 单节点模式直接执行主节点专属任务
+#### Scenario: 单节点模式直接执行主节点专属任务
 - **WHEN** 宿主以单节点模式运行且触发主节点专属调度逻辑
 - **THEN** 当前节点直接执行该逻辑
 - **AND** 不需要额外的主节点判定等待
 
-### 需求： 插件运行时拓扑收敛
+### Requirement: 插件运行时拓扑收敛
 
 宿主 SHALL 根据集群部署模式控制动态插件运行时的收敛方式。单节点模式下，动态插件管理操作必须在当前节点同步完成；集群模式下，仍然允许由主节点负责最终切换与收敛。
 
-#### 场景： 单节点模式同步完成动态插件切换
+#### Scenario: 单节点模式同步完成动态插件切换
 - **WHEN** 宿主以单节点模式执行动态插件安装、启用、禁用、卸载或升级
 - **THEN** 当前节点同步完成目标插件的状态切换
 - **AND** 不依赖宿主主节点轮询才能生效
 
-#### 场景： 集群模式保留主节点收敛
+#### Scenario: 集群模式保留主节点收敛
 - **WHEN** 宿主以集群模式执行动态插件管理操作
 - **THEN** 系统允许先记录目标状态
 - **AND** 由主节点执行最终切换与收敛
 
-### 需求： 节点投影同步仅在集群模式启用
+### Requirement: 节点投影同步仅在集群模式启用
 
 宿主 SHALL 仅在集群模式下维护动态插件的节点投影状态。单节点模式不得要求 `sys_plugin_node_state` 成为插件运行态生效的前置条件。
 
-#### 场景： 单节点模式不写入节点投影
+#### Scenario: 单节点模式不写入节点投影
 - **WHEN** 宿主以单节点模式同步插件元数据或运行时状态
 - **THEN** 系统不依赖 `sys_plugin_node_state` 记录当前插件状态
 - **AND** 插件治理视图仍然能够根据宿主稳定状态推导出当前状态
 
-#### 场景： 集群模式写入节点投影
+#### Scenario: 集群模式写入节点投影
 - **WHEN** 宿主以集群模式同步动态插件运行时状态
 - **THEN** 系统写入或更新当前节点对应的插件投影记录
 - **AND** 记录包含节点标识、目标状态、当前状态和 generation

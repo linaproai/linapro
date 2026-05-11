@@ -30,7 +30,15 @@
         "deleteSelectedConfirm": "确认删除选中的 {count} 条登录日志吗？"
       },
       "name": "系统监控-登录日志",
-      "tableTitle": "登录日志列表"
+      "tableTitle": "登录日志列表",
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "retention_required": "登录日志仍处于要求的留存周期内。卸载前请先导出或等待过期。"
+        },
+        "disable_blocked": {
+          "audit_required": "租户审计策略要求登录日志保持启用。"
+        }
+      }
     }
   }
 }

@@ -31,20 +31,21 @@
 - **AND** 严禁在没有显式 `TenantId` 的情况下访问 `sys_*` 业务数据
 
 ### Requirement: Pool 隔离模型与 schema 总则
-所有 `sys_*` 与插件持有的业务表 SHALL 包含 `tenant_id INT NOT NULL DEFAULT 0` 列,原索引必须升级为 `(tenant_id, ...)` 联合索引;`tenant_id = 0` 表示 PLATFORM(平台默认),正整数表示具体租户。
+所有租户敏感 `sys_*` 业务表、租户作用域运行时状态表与插件持有的业务表 SHALL 包含 `tenant_id INT NOT NULL DEFAULT 0` 列,原租户相关索引必须升级为 `(tenant_id, ...)` 联合索引;`tenant_id = 0` 表示 PLATFORM(平台默认),正整数表示具体租户。平台控制面或全局配置表 SHALL NOT 机械增加 `tenant_id`,包括 `sys_locker`、`sys_menu`、`sys_plugin`、`sys_plugin_release`、`sys_plugin_migration`、`sys_plugin_resource_ref`、`sys_plugin_node_state` 与 `sys_notify_channel`。
 
 #### Scenario: 单租户开箱场景
 - **WHEN** 用户使用 LinaPro 但未启用多租户能力
-- **THEN** 所有现有数据落在 `tenant_id = 0` 上
-- **AND** 索引性能不下降(联合索引前导列为 0 的常量,等价于原索引)
+- **THEN** 所有租户敏感数据落在 `tenant_id = 0` 上
+- **AND** 平台控制面数据保持全局唯一
+- **AND** 租户敏感索引性能不下降(联合索引前导列为 0 的常量,等价于原索引)
 
 #### Scenario: 多租户启用后跨租户隔离
 - **WHEN** 多租户能力启用,租户 A 的用户查询 `sys_user`
 - **THEN** 查询自动追加 `WHERE tenant_id = A`
-- **AND** 租户 A 的用户不能查询/创建/修改/删除 `tenant_id != A` 的任意 `sys_*` 行(平台管理员除外)
+- **AND** 租户 A 的用户不能查询/创建/修改/删除 `tenant_id != A` 的任意租户敏感 `sys_*` 行(平台管理员除外)
 
 ### Requirement: DAO 注入纪律
-凡读取或写入 `sys_*` 与插件业务表的 service 层代码,SHALL 通过 `tenantcap.Apply(ctx, model, col)`(读)与 service 层 helper(写)注入租户上下文;直接访问 DAO 而不经接缝的代码视为违反规范,必须在 `lina-review` 中被拒。
+凡读取或写入带 `tenant_id` 的租户敏感 `sys_*` 表、租户作用域运行时状态表或插件业务表的 service 层代码,SHALL 通过 `tenantcap.Apply(ctx, model, col)`(读)与 service 层 helper(写)注入租户上下文;直接访问此类 DAO 而不经接缝的代码视为违反规范,必须在 `lina-review` 中被拒。平台控制面表不经 `tenantcap.Apply`,但必须通过宿主/平台治理 service 访问。
 
 #### Scenario: 读取查询的注入
 - **WHEN** service 调用 `dao.SysUser.Ctx(ctx).Where(...).Scan(&list)`
@@ -57,7 +58,7 @@
 - **AND** 平台管理员跨租户写时,必须通过 impersonation 或专用平台 service/API 显式指定目标 `tenant_id`,且记审计
 
 ### Requirement: tenancy bypass 与平台管理员
-`tenantcap.Service.PlatformBypass(ctx)` SHALL 仅在当前 `bizctx.UserId` 关联的角色中存在 `is_platform_role = true` 且 `bizctx.TenantId = 0`(管理平台模式)时返回 `true`,bypass 后查询不注入 `tenant_id` 过滤。平台管理员显式 impersonation 某租户(`bizctx.TenantId > 0` 且 `bizctx.ActingAsTenant = true`)时 SHALL 返回 `false`,查询/写入必须按目标租户过滤,仅在审计中记录 `on_behalf_of_tenant_id`。
+`tenantcap.Service.PlatformBypass(ctx)` SHALL 仅在当前请求处于平台上下文(`bizctx.TenantId = 0`)、未 impersonation、且有效数据权限为 `全部数据权限(data_scope=1)` 时返回 `true`,bypass 后查询不注入 `tenant_id` 过滤。平台管理员显式 impersonation 某租户(`bizctx.TenantId > 0` 且 `bizctx.ActingAsTenant = true`)时 SHALL 返回 `false`,查询/写入必须按目标租户过滤,仅在审计中记录 `on_behalf_of_tenant_id`。
 
 #### Scenario: 平台管理员管理平台
 - **WHEN** 平台管理员 `bizctx.TenantId = 0` 查询 `sys_user`
@@ -71,10 +72,10 @@
 - **AND** 查询/写入按租户 T 视角执行并注入 `tenant_id = T`
 - **AND** 操作日志 `acting_user_id = 平台管理员 user_id`,`on_behalf_of_tenant_id = T`
 
-### Requirement: 隔离模型配置占位
-`config.yaml` SHALL 提供 `tenant.isolation.mode` 配置项,首版仅支持 `pool`;当未来新增 schema-per-tenant 或 db-per-tenant 模式时,此配置项作为切换入口,业务代码无需修改。
+### Requirement: 隔离模型代码默认值
+系统 SHALL 在代码中以明确常量定义租户隔离模型默认值,首版固定为 `pool`;宿主 `config.template.yaml` SHALL NOT 提供 `tenant.isolation.mode` 配置项。未来新增 schema-per-tenant 或 db-per-tenant 模式时,应先通过受控管理入口开放设置,业务代码仍通过统一 tenancy/tenantcap 接缝消费有效模式。
 
-#### Scenario: 配置读取
-- **WHEN** 系统启动期读取 `tenant.isolation.mode`
-- **THEN** 仅接受 `pool` 值;其他值导致启动失败并打印明确错误
-- **AND** 配置缺省时按 `pool` 处理
+#### Scenario: 默认隔离模型
+- **WHEN** 系统启动且未安装或未启用 `multi-tenant` 插件
+- **THEN** 租户敏感数据按 `tenant_id = 0` 的 PLATFORM 租户处理
+- **AND** 隔离模型默认值在代码中记录为 `pool`,不依赖宿主配置文件

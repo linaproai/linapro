@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gtime"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -25,7 +25,7 @@ func TestTouchOrValidateRejectsExpiredSession(t *testing.T) {
 	insertSessionRecord(t, ctx, tokenID, gtime.Now().Add(-2*time.Hour))
 
 	store := NewDBStore()
-	exists, err := store.TouchOrValidate(ctx, tokenID, time.Hour)
+	exists, err := store.TouchOrValidate(ctx, 0, tokenID, time.Hour)
 	if err != nil {
 		t.Fatalf("touch expired session: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestTouchOrValidateRefreshesActiveSession(t *testing.T) {
 	insertSessionRecord(t, ctx, tokenID, lastActive)
 
 	store := NewDBStore()
-	exists, err := store.TouchOrValidate(ctx, tokenID, time.Hour)
+	exists, err := store.TouchOrValidate(ctx, 0, tokenID, time.Hour)
 	if err != nil {
 		t.Fatalf("touch active session: %v", err)
 	}
@@ -110,12 +110,45 @@ func TestSessionRecordSurvivesStoreRecreation(t *testing.T) {
 	}
 
 	secondStore := NewDBStore()
-	exists, err := secondStore.TouchOrValidate(ctx, tokenID, time.Hour)
+	exists, err := secondStore.TouchOrValidate(ctx, 0, tokenID, time.Hour)
 	if err != nil {
 		t.Fatalf("touch session after store recreation: %v", err)
 	}
 	if !exists {
 		t.Fatal("expected unexpired session to survive store recreation")
+	}
+}
+
+// TestTouchOrValidateRejectsTenantMismatch verifies token identity is global
+// while request validation still enforces the expected tenant ownership.
+func TestTouchOrValidateRejectsTenantMismatch(t *testing.T) {
+	ctx := context.Background()
+	tokenID := fmt.Sprintf("session-tenant-mismatch-%d", time.Now().UnixNano())
+	lastActive := gtime.Now().Add(-2 * sessionLastActiveUpdateWindow).Truncate(time.Second)
+
+	insertTenantSessionRecord(t, ctx, 22, tokenID, lastActive)
+
+	store := NewDBStore()
+	stored, err := store.Get(ctx, tokenID)
+	if err != nil {
+		t.Fatalf("get tenant session: %v", err)
+	}
+	if stored == nil || stored.TenantId != 22 {
+		t.Fatalf("expected tenant 22 session, got %#v", stored)
+	}
+	exists, err := store.TouchOrValidate(ctx, 11, tokenID, time.Hour)
+	if err != nil {
+		t.Fatalf("touch mismatched tenant session: %v", err)
+	}
+	if exists {
+		t.Fatal("expected mismatched tenant session to be rejected")
+	}
+	exists, err = store.TouchOrValidate(ctx, 22, tokenID, time.Hour)
+	if err != nil {
+		t.Fatalf("touch matching tenant session: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected matching tenant session to remain valid")
 	}
 }
 
@@ -129,7 +162,7 @@ func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
 	insertSessionRecord(t, ctx, tokenID, lastActive)
 
 	store := NewDBStore()
-	exists, err := store.TouchOrValidate(ctx, tokenID, time.Hour)
+	exists, err := store.TouchOrValidate(ctx, 0, tokenID, time.Hour)
 	if err != nil {
 		t.Fatalf("touch recent session: %v", err)
 	}
@@ -156,9 +189,17 @@ func TestTouchOrValidateSkipsRecentActiveSessionUpdate(t *testing.T) {
 // and registers cleanup automatically.
 func insertSessionRecord(t *testing.T, ctx context.Context, tokenID string, lastActive *gtime.Time) {
 	t.Helper()
+	insertTenantSessionRecord(t, ctx, 0, tokenID, lastActive)
+}
+
+// insertTenantSessionRecord inserts one online-session row for a specific
+// tenant and registers cleanup automatically.
+func insertTenantSessionRecord(t *testing.T, ctx context.Context, tenantID int, tokenID string, lastActive *gtime.Time) {
+	t.Helper()
 
 	_, err := dao.SysOnlineSession.Ctx(ctx).Data(do.SysOnlineSession{
 		TokenId:        tokenID,
+		TenantId:       tenantID,
 		UserId:         1,
 		Username:       "admin",
 		DeptName:       "系统管理部",

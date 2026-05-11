@@ -43,6 +43,12 @@ func (f *fakeSourceUpgradeGovernanceService) ValidateSourcePluginUpgradeReadines
 	return f.readinessErr
 }
 
+// ValidateStartupConsistency is unused by this facade but required by the host
+// plugin governance interface shared with startup validation.
+func (f *fakeSourceUpgradeGovernanceService) ValidateStartupConsistency(_ context.Context) error {
+	return nil
+}
+
 // TestServiceImplDelegatesListSourcePluginStatuses verifies the published
 // facade returns the host service list output unchanged.
 func TestServiceImplDelegatesListSourcePluginStatuses(t *testing.T) {

@@ -20,12 +20,14 @@ type Scope int
 const (
 	// ScopeNone denies governed resource access.
 	ScopeNone Scope = 0
-	// ScopeAll grants access to all governed rows.
+	// ScopeAll grants access to all governed rows across tenant boundaries.
 	ScopeAll Scope = 1
+	// ScopeTenant grants access to all governed rows in the current tenant.
+	ScopeTenant Scope = 2
 	// ScopeDept grants access to rows owned by users in the current department scope.
-	ScopeDept Scope = 2
+	ScopeDept Scope = 3
 	// ScopeSelf grants access only to rows owned by the current user.
-	ScopeSelf Scope = 3
+	ScopeSelf Scope = 4
 )
 
 // AccessSnapshot stores the effective role-governed data scope for one user.
@@ -142,7 +144,7 @@ func (s *serviceImpl) ApplyUserScopeWithBypass(
 	if err != nil {
 		return nil, false, err
 	}
-	if scopeCtx.Scope == ScopeAll {
+	if scopeCtx.Scope == ScopeAll || scopeCtx.Scope == ScopeTenant {
 		return model, false, nil
 	}
 
@@ -208,7 +210,7 @@ func (s *serviceImpl) applyResolvedScope(ctx context.Context, scopeCtx *Context,
 		return nil, false, bizerr.NewCode(CodeDataScopeNotAuthenticated)
 	}
 	switch scopeCtx.Scope {
-	case ScopeAll:
+	case ScopeAll, ScopeTenant:
 		return model, false, nil
 	case ScopeDept:
 		if s.orgCapabilityEnabled(ctx) {

@@ -21,7 +21,7 @@
 - **AND** 记录跨租户只读审计
 
 ### Requirement: 平台共享文件路径
-插件需要存储跨租户共享文件(如平台 logo)SHALL 通过 `storage.SaveAsPlatform(...)` 显式写入 `/storage/t/0/...`,需具备 `platform:storage:write` 权限。
+插件需要存储跨租户共享文件(如平台 logo)SHALL 通过 `storage.SaveAsPlatform(...)` 显式写入 `/storage/t/0/...`,需处于平台上下文、有效数据权限为全部数据权限并具备对应 `system:*` 存储写入功能权限。
 
 #### Scenario: 平台共享上传
 - **WHEN** 平台管理员上传通用模板

@@ -10,7 +10,7 @@ import (
 func (c *ControllerV1) Logout(ctx context.Context, req *v1.LogoutReq) (res *v1.LogoutRes, err error) {
 	// Record logout log and delete session
 	if bizCtx := c.bizCtxSvc.Get(ctx); bizCtx != nil {
-		c.authSvc.Logout(ctx, bizCtx.Username, bizCtx.TokenId)
+		c.authSvc.Logout(ctx, bizCtx.Username, bizCtx.TenantId, bizCtx.TokenId)
 	}
 	return &v1.LogoutRes{}, nil
 }

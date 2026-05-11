@@ -211,6 +211,13 @@ func (s dataScopeStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by data-scope tests.
 func (s dataScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetTenant is unused by data-scope tests.
+func (s dataScopeStaticBizCtx) SetTenant(context.Context, int) {}
+
+// SetImpersonation is unused by data-scope tests.
+func (s dataScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
+
+
 // SetUserAccess is unused by data-scope tests.
 func (s dataScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 

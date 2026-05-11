@@ -22,6 +22,11 @@
         },
         "tableTitlePrefix": "在线用户列表（共",
         "tableTitleSuffix": "人在线）"
+      },
+      "lifecycleGuard": {
+        "disable_blocked": {
+          "active_sessions_exist": "当前租户仍存在活跃会话。禁用在线用户治理前请先强制下线或等待过期。"
+        }
       }
     }
   }

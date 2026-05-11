@@ -14,6 +14,7 @@ import (
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/grand"
 
+	"lina-core/internal/service/datascope"
 	"lina-core/pkg/closeutil"
 )
 
@@ -32,7 +33,7 @@ func NewLocalStorage(basePath string) *LocalStorage {
 // Returns the relative path from basePath, e.g. "2026/03/20260319_abc12345.png".
 func (s *LocalStorage) Put(ctx context.Context, filename string, data io.Reader) (path string, err error) {
 	now := gtime.Now()
-	dir := fmt.Sprintf("%s/%s", now.Format("Y"), now.Format("m"))
+	dir := fmt.Sprintf("t/%d/%s/%s", datascope.CurrentTenantID(ctx), now.Format("Y"), now.Format("m"))
 	fullDir := gfile.Join(s.basePath, dir)
 	if err := gfile.Mkdir(fullDir); err != nil {
 		return "", err

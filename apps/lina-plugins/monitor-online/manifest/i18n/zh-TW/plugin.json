@@ -22,6 +22,11 @@
         },
         "tableTitlePrefix": "在線用戶列表（共",
         "tableTitleSuffix": "人在線）"
+      },
+      "lifecycleGuard": {
+        "disable_blocked": {
+          "active_sessions_exist": "目前租戶仍存在活躍工作階段。停用線上使用者治理前請先強制下線或等待過期。"
+        }
       }
     }
   }

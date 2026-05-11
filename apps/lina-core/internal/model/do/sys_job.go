@@ -13,6 +13,7 @@ import (
 type SysJob struct {
 	g.Meta               `orm:"table:sys_job, do:true"`
 	Id                   any         // Job ID
+	TenantId             any         // Owning tenant ID, 0 means PLATFORM
 	GroupId              any         // Owning group ID
 	Name                 any         // Job name
 	Description          any         // Job description

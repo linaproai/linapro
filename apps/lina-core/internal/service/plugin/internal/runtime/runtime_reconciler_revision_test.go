@@ -64,6 +64,17 @@ func (f *reconcilerRevisionCacheCoord) MarkChanged(
 	return f.revision, nil
 }
 
+// MarkTenantChanged advances and returns the in-memory tenant-scoped reconciler revision.
+func (f *reconcilerRevisionCacheCoord) MarkTenantChanged(
+	ctx context.Context,
+	domain cachecoord.Domain,
+	scope cachecoord.Scope,
+	_ cachecoord.InvalidationScope,
+	reason cachecoord.ChangeReason,
+) (int64, error) {
+	return f.MarkChanged(ctx, domain, scope, reason)
+}
+
 // EnsureFresh runs the refresher against the configured revision.
 func (f *reconcilerRevisionCacheCoord) EnsureFresh(
 	ctx context.Context,

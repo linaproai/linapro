@@ -1,0 +1,25 @@
+{
+  "menu": {
+    "plugin:multi-tenant:platform:tenants": {
+      "title": "租戶管理"
+    },
+    "plugin:multi-tenant:platform:tenants:add": {
+      "title": "租戶新增"
+    },
+    "plugin:multi-tenant:platform:tenants:edit": {
+      "title": "租戶修改"
+    },
+    "plugin:multi-tenant:platform:tenants:impersonate": {
+      "title": "租戶代管"
+    },
+    "plugin:multi-tenant:platform:tenants:query": {
+      "title": "租戶查詢"
+    },
+    "plugin:multi-tenant:platform:tenants:remove": {
+      "title": "租戶刪除"
+    },
+    "plugin:multi-tenant:platform:tenants:users": {
+      "title": "用戶管理"
+    }
+  }
+}

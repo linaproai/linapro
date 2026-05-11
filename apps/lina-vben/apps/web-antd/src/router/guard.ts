@@ -6,9 +6,10 @@ import { useAccessStore, useUserStore } from '@vben/stores';
 import { startProgress, stopProgress } from '@vben/utils';
 
 import { accessRoutes, coreRouteNames } from '#/router/routes';
-import { useAuthStore } from '#/store';
+import { useAuthStore, useTenantStore } from '#/store';
 
 import { generateAccess } from './access';
+import { canAccessTenantLocation } from './tenant-access';
 
 /**
  * 通用守卫配置
@@ -67,6 +68,7 @@ function setupAccessGuard(router: Router) {
     const accessStore = useAccessStore();
     const userStore = useUserStore();
     const authStore = useAuthStore();
+    const tenantStore = useTenantStore();
 
     // 基本路由，这些路由不需要进入权限拦截
     if (coreRouteNames.includes(to.name as string)) {
@@ -105,6 +107,14 @@ function setupAccessGuard(router: Router) {
 
     // 是否已经生成过动态路由
     if (accessStore.isAccessChecked) {
+      if (!canAccessTenantLocation(to)) {
+        return {
+          path: tenantStore.resolveFallbackPath(
+            userStore.userInfo?.homePath || preferences.app.defaultHomePath,
+          ),
+          replace: true,
+        };
+      }
       return true;
     }
 
@@ -112,6 +122,15 @@ function setupAccessGuard(router: Router) {
     // 当前登录用户拥有的角色标识列表
     const userInfo = userStore.userInfo || (await authStore.fetchUserInfo());
     const userRoles = userInfo.roles ?? [];
+
+    if (!canAccessTenantLocation(to)) {
+      return {
+        path: tenantStore.resolveFallbackPath(
+          userInfo.homePath || preferences.app.defaultHomePath,
+        ),
+        replace: true,
+      };
+    }
 
     // 生成菜单和路由
     const { accessibleMenus, accessibleRoutes } = await generateAccess({

@@ -11,6 +11,7 @@ import (
 // SysDictData is the golang structure for table sys_dict_data.
 type SysDictData struct {
 	Id        int         `json:"id"        orm:"id"         description:"Dictionary data ID"`
+	TenantId  int         `json:"tenantId"  orm:"tenant_id"  description:"Owning tenant ID, 0 means PLATFORM default"`
 	DictType  string      `json:"dictType"  orm:"dict_type"  description:"Dictionary type"`
 	Label     string      `json:"label"     orm:"label"      description:"Dictionary label"`
 	Value     string      `json:"value"     orm:"value"      description:"Dictionary value"`

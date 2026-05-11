@@ -809,6 +809,13 @@
       },
       "status": {
         "invalid": "Plugin status supports only 0 or 1"
+      },
+      "tenant": {
+        "provisioning": {
+          "policy": {
+            "invalid": "Plugin {pluginId} must be tenant_aware and tenant_scoped before it can be auto-enabled for new tenants"
+          }
+        }
       }
     },
     "role": {
@@ -835,6 +842,18 @@
         "scope": {
           "dept": {
             "unavailable": "Department data scope requires the organization management plugin to be enabled"
+          },
+          "unsupported": "Unsupported role data scope: {scope}"
+        }
+      }
+    },
+    "tenant": {
+      "role": {
+        "all": {
+          "data": {
+            "scope": {
+              "forbidden": "Tenant roles cannot use all-data scope"
+            }
           }
         }
       }
@@ -867,6 +886,27 @@
         "scope": {
           "denied": "User data is outside the current data permission scope",
           "unsupported": "Unsupported user data permission scope: {scope}"
+        }
+      },
+      "tenant": {
+        "membership": {
+          "cardinality": {
+            "exceeded": "User can only belong to one tenant in the current configuration"
+          },
+          "cross": {
+            "tenant": {
+              "denied": "Cannot assign users to another tenant in the current context"
+            }
+          },
+          "query": {
+            "failed": "Failed to query tenant membership visibility"
+          },
+          "replace": {
+            "failed": "Failed to update tenant membership"
+          },
+          "tenant": {
+            "unavailable": "Selected tenant is unavailable"
+          }
         }
       },
       "import": {

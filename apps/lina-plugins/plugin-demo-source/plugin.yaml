@@ -1,97 +1,133 @@
-# 插件唯一标识。
-# 必填。
-# 需要在宿主仓库范围内唯一，并使用`kebab-case`命名风格。
+# Plugin identifier, unique across the host and source plugin directories; use `kebab-case`.
+# 插件唯一标识，必须在宿主和源码插件目录中保持唯一，并使用 `kebab-case` 命名风格。
 id: plugin-demo-source
 
-# 插件显示名称。
-# 必填。
-# 用于插件管理页面、开发文档和展示。
+# Plugin display name used in plugin management pages, developer docs, and presentation.
+# 插件显示名称，用于插件管理页面、开发文档和展示。
 name: 源码插件示例
 
-# 插件语义化版本号。
-# 必填。
-# 需要使用`semver`格式。
-# 当前项目中的示例统一使用带`v`前缀的写法，例如`v0.1.0`。
+# Plugin semantic version; examples in this repo use the `v` prefix.
+# 插件语义化版本号，当前示例统一使用带 `v` 前缀的写法。
 version: v0.1.0
 
-# 插件一级类型。
-# 必填。
-# 可选值说明：
-# - `source`：源码插件，目录位于`apps/lina-plugins/<plugin-id>/`下，并随宿主一起编译和交付。
-# - `dynamic`：动态插件，为后续运行时安装、启停、升级链路预留的类型。
+# Plugin type enum. Allowed values: `source` is compiled with the host; `dynamic` is loaded as a runtime plugin artifact.
+# 插件类型枚举。可选值：`source` 表示随宿主源码编译交付；`dynamic` 表示作为运行时动态插件产物加载。
 type: source
 
-# 插件说明。
-# 可选。
-# 建议概述插件的能力边界，方便开发者快速理解插件用途。
+# Multi-tenant scope enum. Allowed values: `platform_only` is platform-context only; `tenant_aware` is governed by tenant context.
+# 多租户作用域枚举。可选值：`platform_only` 表示仅平台上下文可见和治理；`tenant_aware` 表示按租户上下文治理。
+scope_nature: tenant_aware
+
+# Default install mode enum. Allowed values: `global` enables one shared installation; `tenant_scoped` enables or disables per tenant.
+# 默认安装模式枚举。可选值：`global` 表示全局统一安装启用；`tenant_scoped` 表示按租户独立启用或禁用。
+default_install_mode: tenant_scoped
+
+# Plugin description summarizing the capability boundary.
+# 插件说明，概述插件的能力边界。
 description: 提供左侧菜单页面与公开/受保护路由示例的源码插件
 
+# Plugin author or owning team.
 # 插件作者或归属团队。
-# 可选。
 author: linapro
 
-# 插件主页或文档地址。
-# 可选。
-# 用于补充项目介绍、设计文档或外部说明链接。
+# Plugin homepage or documentation URL for extra project, design, or external references.
+# 插件主页或文档地址，用于补充项目介绍、设计文档或外部说明链接。
 homepage: https://example.com/lina/plugins/plugin-demo-source
 
+# Plugin license identifier.
 # 插件许可证标识。
-# 可选。
 license: Apache-2.0
 
-# 插件菜单元数据。
-# 宿主会在源码插件同步和动态插件安装时依据这些声明写入或更新 sys_menu，
-# 卸载动态插件时也会据此删除菜单和角色关联。
-# 每个菜单对象支持的常用字段说明：
-# - `key`：必填，菜单唯一键；必须使用 `plugin:<plugin-id>:<menu-key>` 前缀格式。
-# - `parent_key`：可选，父级菜单 key；只能引用宿主已有菜单或当前插件内已声明的父菜单。
-# - `name`：必填，菜单/按钮显示名称。
-# - `path`：可选，路由路径；源码插件通常填写宿主内的业务路由片段。
-# - `component`：可选，宿主路由组件；插件内嵌页面通常使用 `system/plugin/dynamic-page`。
-# - `perms`：可选，权限标识；按钮权限和菜单权限都走宿主统一鉴权。
-# - `icon`：可选，Iconify 图标名称。
-# - `type`：可选，菜单类型；`D=目录`、`M=菜单`、`B=按钮`。
-# - `sort`：可选，排序值；越小越靠前。
-# - `visible/status/is_frame/is_cache`：可选，均使用 `0/1` 语义，与宿主菜单字段保持一致。
-# - `query` / `query_param`：可选，附加路由参数；优先推荐使用结构化的 `query` 写法。
-# - `remark`：可选，写入宿主菜单备注，便于宿主治理。
+# Plugin menu declaration list; the host syncs menus, button permissions, and route entries from it.
+# 插件菜单声明列表，宿主按该列表同步菜单、按钮权限和路由入口。
 menus:
-  # 该示例声明一个左侧菜单入口，打开宿主提供的插件动态页面壳。
+  # Unique menu key; it must use the `plugin:<plugin-id>:<menu-key>` format.
+  # 菜单唯一键，必须使用 `plugin:<plugin-id>:<menu-key>` 格式。
   - key: plugin:plugin-demo-source:sidebar-entry
-    # 左侧菜单显示名称。
+    # Menu display name.
+    # 菜单显示名称。
     name: 源码插件示例
-    # 宿主内的路由路径片段；最终会挂到插件治理后的动态路由树中。
+    # Source plugin host route segment mounted into the governed dynamic route tree.
+    # 源码插件宿主内路由片段，会挂到插件治理后的动态路由树中。
     path: plugin-demo-source-sidebar-entry
-    # 宿主用于承载插件页面的统一组件。
+    # Menu render component; the dynamic page shell hosts plugin pages.
+    # 菜单渲染组件，动态页壳用于承载插件页面。
     component: system/plugin/dynamic-page
-    # 当前菜单对应的查看权限标识。
+    # Permission code required to access this menu.
+    # 菜单访问权限标识。
     perms: plugin-demo-source:example:view
-    # 菜单图标，使用 Iconify 命名格式。
+    # Menu icon using an Iconify icon name.
+    # 菜单图标，使用 Iconify 图标名称。
     icon: ant-design:appstore-outlined
-    # `M` 表示普通菜单页面。
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
     type: M
-    # 排到较靠前位置，便于在示例环境中快速看到。
+    # Menu sort order; lower values appear earlier.
+    # 菜单排序值，数值越小越靠前。
     sort: -1
-    # 宿主菜单表中的备注说明。
+    # Menu remark stored in host menu governance data.
+    # 菜单备注，写入宿主菜单治理数据。
     remark: 源码插件示例左侧菜单
+  # Unique button key mounted under the source plugin demo menu.
+  # 按钮唯一键，挂载在源码插件示例菜单下。
   - key: plugin:plugin-demo-source:record-create
+    # Parent menu key pointing to the source plugin demo menu.
+    # 父级菜单键，指向源码插件示例菜单。
     parent_key: plugin:plugin-demo-source:sidebar-entry
+    # Button display name.
+    # 按钮显示名称。
     name: 示例记录新增
+    # Button permission code.
+    # 按钮权限标识。
     perms: plugin-demo-source:example:create
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
     type: B
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
     sort: 1
+    # Button remark stored in host menu governance data.
+    # 按钮备注，写入宿主菜单治理数据。
     remark: 源码插件示例记录新增权限
+  # Unique button key mounted under the source plugin demo menu.
+  # 按钮唯一键，挂载在源码插件示例菜单下。
   - key: plugin:plugin-demo-source:record-update
+    # Parent menu key pointing to the source plugin demo menu.
+    # 父级菜单键，指向源码插件示例菜单。
     parent_key: plugin:plugin-demo-source:sidebar-entry
+    # Button display name.
+    # 按钮显示名称。
     name: 示例记录修改
+    # Button permission code.
+    # 按钮权限标识。
     perms: plugin-demo-source:example:update
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
     type: B
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
     sort: 2
+    # Button remark stored in host menu governance data.
+    # 按钮备注，写入宿主菜单治理数据。
     remark: 源码插件示例记录修改权限
+  # Unique button key mounted under the source plugin demo menu.
+  # 按钮唯一键，挂载在源码插件示例菜单下。
   - key: plugin:plugin-demo-source:record-delete
+    # Parent menu key pointing to the source plugin demo menu.
+    # 父级菜单键，指向源码插件示例菜单。
     parent_key: plugin:plugin-demo-source:sidebar-entry
+    # Button display name.
+    # 按钮显示名称。
     name: 示例记录删除
+    # Button permission code.
+    # 按钮权限标识。
     perms: plugin-demo-source:example:delete
+    # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
+    # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
     type: B
+    # Button sort order; lower values appear earlier.
+    # 按钮排序值，数值越小越靠前。
     sort: 3
+    # Button remark stored in host menu governance data.
+    # 按钮备注，写入宿主菜单治理数据。
     remark: 源码插件示例记录删除权限

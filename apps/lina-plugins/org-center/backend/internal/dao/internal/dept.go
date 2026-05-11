@@ -22,6 +22,7 @@ type DeptDao struct {
 // DeptColumns defines and stores column names for the table plugin_org_center_dept.
 type DeptColumns struct {
 	Id        string // Department ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM
 	ParentId  string // Parent department ID
 	Ancestors string // Ancestor list
 	Name      string // Department name
@@ -40,6 +41,7 @@ type DeptColumns struct {
 // deptColumns holds the columns for the table plugin_org_center_dept.
 var deptColumns = DeptColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	ParentId:  "parent_id",
 	Ancestors: "ancestors",
 	Name:      "name",

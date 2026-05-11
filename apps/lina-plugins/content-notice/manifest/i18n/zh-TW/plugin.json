@@ -34,6 +34,14 @@
         "status": "請選擇狀態",
         "title": "請輸入公告標題",
         "type": "請選擇公告類型"
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "published_notices_exist": "仍存在已發布的租戶通知公告。解除安裝前請先歸檔或刪除。"
+        },
+        "disable_blocked": {
+          "pending_notices_exist": "仍有待處理的租戶通知公告，處理完成前不能停用此外掛。"
+        }
       }
     }
   }

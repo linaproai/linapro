@@ -22,6 +22,7 @@ type SysJobLogDao struct {
 // SysJobLogColumns defines and stores column names for the table sys_job_log.
 type SysJobLogColumns struct {
 	Id             string // Log ID
+	TenantId       string // Owning tenant ID, 0 means PLATFORM
 	JobId          string // Owning job ID
 	JobSnapshot    string // Job snapshot JSON at execution time
 	NodeId         string // Execution node identifier
@@ -39,6 +40,7 @@ type SysJobLogColumns struct {
 // sysJobLogColumns holds the columns for the table sys_job_log.
 var sysJobLogColumns = SysJobLogColumns{
 	Id:             "id",
+	TenantId:       "tenant_id",
 	JobId:          "job_id",
 	JobSnapshot:    "job_snapshot",
 	NodeId:         "node_id",

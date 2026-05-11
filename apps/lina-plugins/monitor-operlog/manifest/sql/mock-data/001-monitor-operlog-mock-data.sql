@@ -3,6 +3,7 @@
 -- Static operation log rows use exact existence checks so mock loading is idempotent.
 
 INSERT INTO plugin_monitor_operlog (
+    "tenant_id",
     "title",
     "oper_summary",
     "route_owner",
@@ -23,6 +24,7 @@ INSERT INTO plugin_monitor_operlog (
     "oper_time"
 )
 SELECT
+    0,
     '用户管理',
     'Create demo user',
     'core',
@@ -44,7 +46,8 @@ SELECT
 WHERE NOT EXISTS (
     SELECT 1
     FROM plugin_monitor_operlog existing
-    WHERE existing."route_owner" = 'core'
+    WHERE existing."tenant_id" = 0
+      AND existing."route_owner" = 'core'
       AND existing."route_method" = 'POST'
       AND existing."route_path" = '/api/v1/user'
       AND existing."oper_name" = 'admin'
@@ -52,6 +55,7 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO plugin_monitor_operlog (
+    "tenant_id",
     "title",
     "oper_summary",
     "route_owner",
@@ -72,6 +76,7 @@ INSERT INTO plugin_monitor_operlog (
     "oper_time"
 )
 SELECT
+    0,
     '参数设置',
     'Update public runtime config',
     'core',
@@ -93,7 +98,8 @@ SELECT
 WHERE NOT EXISTS (
     SELECT 1
     FROM plugin_monitor_operlog existing
-    WHERE existing."route_owner" = 'core'
+    WHERE existing."tenant_id" = 0
+      AND existing."route_owner" = 'core'
       AND existing."route_method" = 'PUT'
       AND existing."route_path" = '/api/v1/config/{id}'
       AND existing."oper_name" = 'admin'
@@ -101,6 +107,7 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO plugin_monitor_operlog (
+    "tenant_id",
     "title",
     "oper_summary",
     "route_owner",
@@ -121,6 +128,7 @@ INSERT INTO plugin_monitor_operlog (
     "oper_time"
 )
 SELECT
+    0,
     '插件管理',
     'Install source plugin',
     'core',
@@ -142,7 +150,8 @@ SELECT
 WHERE NOT EXISTS (
     SELECT 1
     FROM plugin_monitor_operlog existing
-    WHERE existing."route_owner" = 'core'
+    WHERE existing."tenant_id" = 0
+      AND existing."route_owner" = 'core'
       AND existing."route_method" = 'POST'
       AND existing."route_path" = '/api/v1/plugins/{id}/install'
       AND existing."oper_name" = 'admin'
@@ -150,6 +159,7 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO plugin_monitor_operlog (
+    "tenant_id",
     "title",
     "oper_summary",
     "route_owner",
@@ -170,6 +180,7 @@ INSERT INTO plugin_monitor_operlog (
     "oper_time"
 )
 SELECT
+    0,
     '文件管理',
     'Delete locked demo file',
     'core',
@@ -191,7 +202,8 @@ SELECT
 WHERE NOT EXISTS (
     SELECT 1
     FROM plugin_monitor_operlog existing
-    WHERE existing."route_owner" = 'core'
+    WHERE existing."tenant_id" = 0
+      AND existing."route_owner" = 'core'
       AND existing."route_method" = 'DELETE'
       AND existing."route_path" = '/api/v1/file/{id}'
       AND existing."oper_name" = 'user023'

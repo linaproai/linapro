@@ -15,8 +15,10 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	orgcapsvc "lina-core/internal/service/orgcap"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/orgcap"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 const (
@@ -32,12 +34,14 @@ const (
 
 // Role data-scope values stored in sys_role.data_scope.
 const (
-	// roleDataScopeAll grants access to all governed records.
+	// roleDataScopeAll grants access to all governed records across tenant boundaries.
 	roleDataScopeAll = 1
+	// roleDataScopeTenant grants access to all governed records in the current tenant.
+	roleDataScopeTenant = 2
 	// roleDataScopeDept grants access to records owned by users in the current department scope.
-	roleDataScopeDept = 2
+	roleDataScopeDept = 3
 	// roleDataScopeSelf grants access only to the current user's own records.
-	roleDataScopeSelf = 3
+	roleDataScopeSelf = 4
 )
 
 // PermissionMenuFilter defines the narrow dependency required by the role
@@ -169,6 +173,7 @@ type serviceImpl struct {
 	permissionFilter   PermissionMenuFilter
 	orgCapabilityState OrganizationCapabilityState
 	orgCapSvc          orgcapsvc.Service
+	tenantSvc          tenantcapsvc.Service
 	accessRevisionCtrl accessRevisionController
 	scopeSvc           datascope.Service
 }
@@ -194,6 +199,7 @@ func New(permissionFilter PermissionMenuFilter) Service {
 		permissionFilter:   permissionFilter,
 		orgCapabilityState: organizationCapabilityStateFromPermissionFilter(permissionFilter),
 		orgCapSvc:          orgCapSvc,
+		tenantSvc:          tenantCapServiceFromPermissionFilter(permissionFilter),
 		accessRevisionCtrl: newCacheCoordAccessRevisionController(
 			configSvc.IsClusterEnabled(context.Background()),
 		),
@@ -240,6 +246,15 @@ func orgCapServiceFromPermissionFilter(permissionFilter PermissionMenuFilter) or
 		return orgcapsvc.New(pluginState)
 	}
 	return orgcapsvc.New(nil)
+}
+
+// tenantCapServiceFromPermissionFilter constructs multi-tenant membership
+// support from the same plugin enablement reader used by permission filtering.
+func tenantCapServiceFromPermissionFilter(permissionFilter PermissionMenuFilter) tenantcapsvc.Service {
+	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
+		return tenantcapsvc.New(pluginState)
+	}
+	return tenantcapsvc.New(nil)
 }
 
 // pluginBackedOrganizationCapabilityState derives organization capability from
@@ -289,6 +304,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		cols = dao.SysRole.Columns()
 		m    = dao.SysRole.Ctx(ctx)
 	)
+	m = datascope.ApplyTenantScope(ctx, m, datascope.TenantColumn)
 
 	// Apply filters
 	if in.Name != "" {
@@ -369,9 +385,9 @@ func (s *serviceImpl) DisplayName(ctx context.Context, role *entity.SysRole) str
 // GetById retrieves role by ID.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*entity.SysRole, error) {
 	var role *entity.SysRole
-	err := dao.SysRole.Ctx(ctx).
-		Where(do.SysRole{Id: id}).
-		Scan(&role)
+	model := dao.SysRole.Ctx(ctx).Where(do.SysRole{Id: id})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&role)
 	if err != nil {
 		return nil, err
 	}
@@ -396,11 +412,8 @@ func (s *serviceImpl) GetDetail(ctx context.Context, id int) (*GetDetailOutput, 
 	}
 
 	// Get associated menu IDs
-	rmCols := dao.SysRoleMenu.Columns()
 	var roleMenus []*entity.SysRoleMenu
-	err = dao.SysRoleMenu.Ctx(ctx).
-		Where(rmCols.RoleId, id).
-		Scan(&roleMenus)
+	err = roleMenuModelForCurrentTenant(ctx, id).Scan(&roleMenus)
 	if err != nil {
 		return nil, err
 	}
@@ -432,6 +445,10 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 	if err := s.ensureRoleDataScopeAllowed(ctx, in.DataScope); err != nil {
 		return 0, err
 	}
+	ownership := currentRoleOwnership(ctx)
+	if err := ensureTenantRoleDataScopeBoundary(ownership.TenantID, in.DataScope); err != nil {
+		return 0, err
+	}
 
 	// Check name uniqueness
 	if err := s.checkNameUnique(ctx, in.Name, 0); err != nil {
@@ -454,6 +471,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 			DataScope: in.DataScope,
 			Status:    in.Status,
 			Remark:    in.Remark,
+			TenantId:  ownership.TenantID,
 		}).InsertAndGetId()
 		if err != nil {
 			return err
@@ -461,7 +479,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int, error) {
 		roleId = id
 
 		// Insert role-menu associations
-		if err = insertRoleMenus(ctx, int(roleId), in.MenuIds); err != nil {
+		if err = insertRoleMenus(ctx, int(roleId), in.MenuIds, ownership.TenantID); err != nil {
 			return err
 		}
 
@@ -494,11 +512,16 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 			return err
 		}
 	}
-
 	// Check role exists
-	_, err := s.GetById(ctx, in.Id)
+	role, err := s.GetById(ctx, in.Id)
 	if err != nil {
 		return err
+	}
+	ownership := roleOwnershipFromRole(role)
+	if in.DataScope != nil {
+		if err := ensureTenantRoleDataScopeBoundary(ownership.TenantID, *in.DataScope); err != nil {
+			return err
+		}
 	}
 
 	// Check name uniqueness (excluding self)
@@ -537,16 +560,13 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 		}
 
 		// Delete old role-menu associations
-		rmCols := dao.SysRoleMenu.Columns()
-		_, err = dao.SysRoleMenu.Ctx(ctx).
-			Where(rmCols.RoleId, in.Id).
-			Delete()
+		_, err = roleMenuModelForCurrentTenant(ctx, in.Id).Delete()
 		if err != nil {
 			return err
 		}
 
 		// Insert new role-menu associations
-		if err = insertRoleMenus(ctx, in.Id, in.MenuIds); err != nil {
+		if err = insertRoleMenus(ctx, in.Id, in.MenuIds, ownership.TenantID); err != nil {
 			return err
 		}
 
@@ -559,9 +579,48 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 	return nil
 }
 
+// roleOwnership describes the tenant boundary attached to one role and its
+// relation rows.
+type roleOwnership struct {
+	TenantID int
+}
+
+// currentRoleOwnership derives new-role ownership from the active tenant
+// context. Platform context creates platform roles; tenant context creates
+// tenant-local roles.
+func currentRoleOwnership(ctx context.Context) roleOwnership {
+	tenantID := datascope.CurrentTenantID(ctx)
+	return roleOwnership{
+		TenantID: tenantID,
+	}
+}
+
+// roleOwnershipFromRole returns persisted role ownership metadata.
+func roleOwnershipFromRole(role *entity.SysRole) roleOwnership {
+	if role == nil {
+		return currentRoleOwnership(context.Background())
+	}
+	return roleOwnership{
+		TenantID: role.TenantId,
+	}
+}
+
+// ensureTenantRoleDataScopeBoundary rejects global data scope on tenant-local roles.
+func ensureTenantRoleDataScopeBoundary(tenantID int, dataScope int) error {
+	if tenantID != datascope.PlatformTenantID && dataScope == roleDataScopeAll {
+		return bizerr.NewCode(CodeTenantRoleAllDataScopeForbidden)
+	}
+	return nil
+}
+
 // ensureRoleDataScopeAllowed rejects organization-dependent role scopes when
 // the organization management capability is not enabled.
 func (s *serviceImpl) ensureRoleDataScopeAllowed(ctx context.Context, dataScope int) error {
+	switch dataScope {
+	case roleDataScopeAll, roleDataScopeTenant, roleDataScopeDept, roleDataScopeSelf:
+	default:
+		return bizerr.NewCode(CodeRoleDataScopeUnsupported, bizerr.P("scope", dataScope))
+	}
 	if dataScope != roleDataScopeDept {
 		return nil
 	}
@@ -571,9 +630,10 @@ func (s *serviceImpl) ensureRoleDataScopeAllowed(ctx context.Context, dataScope 
 	return bizerr.NewCode(CodeRoleDataScopeDeptUnavailable)
 }
 
-// insertRoleMenus inserts all role-menu associations for one role in a single batch.
-func insertRoleMenus(ctx context.Context, roleID int, menuIDs []int) error {
-	relations := buildRoleMenuRelations(roleID, menuIDs)
+// insertRoleMenus inserts all role-menu associations for one role in a single
+// tenant boundary in a single batch.
+func insertRoleMenus(ctx context.Context, roleID int, menuIDs []int, tenantID int) error {
+	relations := buildRoleMenuRelations(roleID, menuIDs, tenantID)
 	if len(relations) == 0 {
 		return nil
 	}
@@ -582,7 +642,7 @@ func insertRoleMenus(ctx context.Context, roleID int, menuIDs []int) error {
 }
 
 // buildRoleMenuRelations normalizes menu IDs into distinct role-menu rows.
-func buildRoleMenuRelations(roleID int, menuIDs []int) []do.SysRoleMenu {
+func buildRoleMenuRelations(roleID int, menuIDs []int, tenantID int) []do.SysRoleMenu {
 	if roleID <= 0 || len(menuIDs) == 0 {
 		return []do.SysRoleMenu{}
 	}
@@ -597,11 +657,21 @@ func buildRoleMenuRelations(roleID int, menuIDs []int) []do.SysRoleMenu {
 		}
 		seen[menuID] = struct{}{}
 		relations = append(relations, do.SysRoleMenu{
-			RoleId: roleID,
-			MenuId: menuID,
+			RoleId:   roleID,
+			MenuId:   menuID,
+			TenantId: tenantID,
 		})
 	}
 	return relations
+}
+
+// roleMenuModelForCurrentTenant returns role-menu relation rows that belong to
+// the active tenant. Platform context intentionally keeps the platform/global
+// view.
+func roleMenuModelForCurrentTenant(ctx context.Context, roleID int) *gdb.Model {
+	rmCols := dao.SysRoleMenu.Columns()
+	model := dao.SysRoleMenu.Ctx(ctx).Where(rmCols.RoleId, roleID)
+	return datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
 }
 
 // Delete deletes a role.
@@ -657,17 +727,19 @@ func (s *serviceImpl) ensureRoleDeleteAllowed(ctx context.Context, id int) error
 
 // deleteRoleRecordAndAssociations soft-deletes one role and clears its associations.
 func (s *serviceImpl) deleteRoleRecordAndAssociations(ctx context.Context, id int) error {
-	rmCols := dao.SysRoleMenu.Columns()
-	if _, err := dao.SysRoleMenu.Ctx(ctx).Where(rmCols.RoleId, id).Delete(); err != nil {
+	if _, err := roleMenuModelForCurrentTenant(ctx, id).Delete(); err != nil {
 		return err
 	}
 
-	urCols := dao.SysUserRole.Columns()
-	if _, err := dao.SysUserRole.Ctx(ctx).Where(urCols.RoleId, id).Delete(); err != nil {
+	userRoleModel := dao.SysUserRole.Ctx(ctx).Where(dao.SysUserRole.Columns().RoleId, id)
+	userRoleModel = datascope.ApplyTenantScope(ctx, userRoleModel, datascope.TenantColumn)
+	if _, err := userRoleModel.Delete(); err != nil {
 		return err
 	}
 
-	_, err := dao.SysRole.Ctx(ctx).Where(do.SysRole{Id: id}).Delete()
+	roleModel := dao.SysRole.Ctx(ctx).Where(do.SysRole{Id: id})
+	roleModel = datascope.ApplyTenantScope(ctx, roleModel, datascope.TenantColumn)
+	_, err := roleModel.Delete()
 	return err
 }
 
@@ -693,10 +765,9 @@ func (s *serviceImpl) UpdateStatus(ctx context.Context, id int, status int) erro
 		return err
 	}
 
-	_, err = dao.SysRole.Ctx(ctx).
-		Where(do.SysRole{Id: id}).
-		Data(do.SysRole{Status: status}).
-		Update()
+	model := dao.SysRole.Ctx(ctx).Where(do.SysRole{Id: id})
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	_, err = model.Data(do.SysRole{Status: status}).Update()
 	if err != nil {
 		return err
 	}
@@ -715,10 +786,11 @@ type OptionItem struct {
 func (s *serviceImpl) GetOptions(ctx context.Context) ([]*OptionItem, error) {
 	var roles []*entity.SysRole
 	cols := dao.SysRole.Columns()
-	err := dao.SysRole.Ctx(ctx).
+	model := dao.SysRole.Ctx(ctx).
 		Where(cols.Status, 1).
-		OrderAsc(cols.Sort).
-		Scan(&roles)
+		OrderAsc(cols.Sort)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	err := model.Scan(&roles)
 	if err != nil {
 		return nil, err
 	}
@@ -773,9 +845,9 @@ func (s *serviceImpl) GetUsers(ctx context.Context, in GetUsersInput) (*GetUsers
 	// Get user IDs for this role
 	urCols := dao.SysUserRole.Columns()
 	var userRoles []*entity.SysUserRole
-	err = dao.SysUserRole.Ctx(ctx).
-		Where(urCols.RoleId, in.RoleId).
-		Scan(&userRoles)
+	userRoleModel := dao.SysUserRole.Ctx(ctx).Where(urCols.RoleId, in.RoleId)
+	userRoleModel = datascope.ApplyTenantScope(ctx, userRoleModel, datascope.TenantColumn)
+	err = userRoleModel.Scan(&userRoles)
 	if err != nil {
 		return nil, err
 	}
@@ -855,22 +927,30 @@ func (s *serviceImpl) GetUsers(ctx context.Context, in GetUsersInput) (*GetUsers
 
 // AssignUsers assigns users to a role.
 func (s *serviceImpl) AssignUsers(ctx context.Context, roleId int, userIds []int) error {
+	normalizedUserIDs := normalizeRoleAssignmentUserIDs(userIds)
 	// Check role exists
-	_, err := s.GetById(ctx, roleId)
+	role, err := s.GetById(ctx, roleId)
 	if err != nil {
 		return err
 	}
-	if err = s.ensureRoleUsersVisible(ctx, userIds); err != nil {
+	if err = ensureRoleAssignmentBoundary(ctx, role); err != nil {
 		return err
 	}
+	if err = s.ensureRoleUsersVisible(ctx, normalizedUserIDs); err != nil {
+		return err
+	}
+	if err = s.ensureRoleAssignmentUsersMatchRoleBoundary(ctx, role, normalizedUserIDs); err != nil {
+		return err
+	}
+	tenantID := role.TenantId
 
 	err = dao.SysUserRole.Ctx(ctx).Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
 		// Get existing user-role associations.
 		urCols := dao.SysUserRole.Columns()
 		var existingRoles []*entity.SysUserRole
-		if scanErr := dao.SysUserRole.Ctx(ctx).
-			Where(urCols.RoleId, roleId).
-			Scan(&existingRoles); scanErr != nil {
+		existingModel := dao.SysUserRole.Ctx(ctx).Where(urCols.RoleId, roleId)
+		existingModel = datascope.ApplyTenantScope(ctx, existingModel, datascope.TenantColumn)
+		if scanErr := existingModel.Scan(&existingRoles); scanErr != nil {
 			return scanErr
 		}
 
@@ -879,15 +959,16 @@ func (s *serviceImpl) AssignUsers(ctx context.Context, roleId int, userIds []int
 			existingUserIds[ur.UserId] = true
 		}
 
-		newRelations := make([]do.SysUserRole, 0, len(userIds))
-		for _, userId := range userIds {
+		newRelations := make([]do.SysUserRole, 0, len(normalizedUserIDs))
+		for _, userId := range normalizedUserIDs {
 			if existingUserIds[userId] {
 				continue
 			}
 			existingUserIds[userId] = true
 			newRelations = append(newRelations, do.SysUserRole{
-				UserId: userId,
-				RoleId: roleId,
+				UserId:   userId,
+				RoleId:   roleId,
+				TenantId: tenantID,
 			})
 		}
 		if len(newRelations) == 0 {
@@ -904,6 +985,87 @@ func (s *serviceImpl) AssignUsers(ctx context.Context, roleId int, userIds []int
 	return nil
 }
 
+// normalizeRoleAssignmentUserIDs removes invalid and duplicate assignment
+// targets while preserving request order.
+func normalizeRoleAssignmentUserIDs(userIDs []int) []int {
+	if len(userIDs) == 0 {
+		return []int{}
+	}
+	normalizedIDs := make([]int, 0, len(userIDs))
+	seen := make(map[int]struct{}, len(userIDs))
+	for _, userID := range userIDs {
+		if userID <= 0 {
+			continue
+		}
+		if _, ok := seen[userID]; ok {
+			continue
+		}
+		seen[userID] = struct{}{}
+		normalizedIDs = append(normalizedIDs, userID)
+	}
+	return normalizedIDs
+}
+
+// ensureRoleAssignmentBoundary verifies role ownership matches the current
+// tenant boundary before user-role rows are added.
+func ensureRoleAssignmentBoundary(ctx context.Context, role *entity.SysRole) error {
+	if role == nil {
+		return bizerr.NewCode(CodeRoleNotFound)
+	}
+	tenantID := datascope.CurrentTenantID(ctx)
+	if role.TenantId != tenantID {
+		return bizerr.NewCode(CodeRoleTenantMismatch)
+	}
+	return nil
+}
+
+// ensureRoleAssignmentUsersMatchRoleBoundary prevents tenant-bound roles from
+// being granted outside their tenant/user boundary.
+func (s *serviceImpl) ensureRoleAssignmentUsersMatchRoleBoundary(ctx context.Context, role *entity.SysRole, userIDs []int) error {
+	if role == nil {
+		return bizerr.NewCode(CodeRoleNotFound)
+	}
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	if role.TenantId == datascope.PlatformTenantID {
+		count, err := dao.SysUser.Ctx(ctx).
+			WhereIn(dao.SysUser.Columns().Id, userIDs).
+			Where(do.SysUser{TenantId: datascope.PlatformTenantID}).
+			Count()
+		if err != nil {
+			return err
+		}
+		if count != len(userIDs) {
+			return bizerr.NewCode(CodePlatformRoleAssignmentForbidden)
+		}
+		return nil
+	}
+
+	count, err := dao.SysUser.Ctx(ctx).
+		WhereIn(dao.SysUser.Columns().Id, userIDs).
+		WhereNot(dao.SysUser.Columns().TenantId, datascope.PlatformTenantID).
+		Count()
+	if err != nil {
+		return err
+	}
+	if count != len(userIDs) {
+		return bizerr.NewCode(CodeTenantRoleAssignmentForbidden)
+	}
+
+	if s == nil || s.tenantSvc == nil {
+		return nil
+	}
+	if err := s.tenantSvc.EnsureUsersInTenant(ctx, userIDs, tenantcapsvc.TenantID(role.TenantId)); err != nil {
+		if bizerr.Is(err, pkgtenantcap.CodeTenantForbidden) {
+			return bizerr.NewCode(CodeTenantRoleAssignmentForbidden)
+		}
+		return err
+	}
+	return nil
+}
+
 // UnassignUser removes user from a role.
 func (s *serviceImpl) UnassignUser(ctx context.Context, roleId int, userId int) error {
 	// Check role exists
@@ -916,10 +1078,11 @@ func (s *serviceImpl) UnassignUser(ctx context.Context, roleId int, userId int) 
 	}
 
 	urCols := dao.SysUserRole.Columns()
-	_, err = dao.SysUserRole.Ctx(ctx).
+	model := dao.SysUserRole.Ctx(ctx).
 		Where(urCols.RoleId, roleId).
-		Where(urCols.UserId, userId).
-		Delete()
+		Where(urCols.UserId, userId)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	_, err = model.Delete()
 	if err != nil {
 		return err
 	}
@@ -939,10 +1102,11 @@ func (s *serviceImpl) UnassignUsers(ctx context.Context, roleId int, userIds []i
 	}
 
 	urCols := dao.SysUserRole.Columns()
-	_, err = dao.SysUserRole.Ctx(ctx).
+	model := dao.SysUserRole.Ctx(ctx).
 		Where(urCols.RoleId, roleId).
-		WhereIn(urCols.UserId, userIds).
-		Delete()
+		WhereIn(urCols.UserId, userIds)
+	model = datascope.ApplyTenantScope(ctx, model, datascope.TenantColumn)
+	_, err = model.Delete()
 	if err != nil {
 		return err
 	}
@@ -954,6 +1118,7 @@ func (s *serviceImpl) UnassignUsers(ctx context.Context, roleId int, userIds []i
 func (s *serviceImpl) checkNameUnique(ctx context.Context, name string, excludeId int) error {
 	cols := dao.SysRole.Columns()
 	m := dao.SysRole.Ctx(ctx).Where(cols.Name, name)
+	m = datascope.ApplyTenantScope(ctx, m, datascope.TenantColumn)
 	if excludeId > 0 {
 		m = m.WhereNot(cols.Id, excludeId)
 	}
@@ -971,6 +1136,7 @@ func (s *serviceImpl) checkNameUnique(ctx context.Context, name string, excludeI
 func (s *serviceImpl) checkKeyUnique(ctx context.Context, key string, excludeId int) error {
 	cols := dao.SysRole.Columns()
 	m := dao.SysRole.Ctx(ctx).Where(cols.Key, key)
+	m = datascope.ApplyTenantScope(ctx, m, datascope.TenantColumn)
 	if excludeId > 0 {
 		m = m.WhereNot(cols.Id, excludeId)
 	}
@@ -986,21 +1152,7 @@ func (s *serviceImpl) checkKeyUnique(ctx context.Context, key string, excludeId 
 
 // GetUserRoleIds returns role IDs for a user.
 func (s *serviceImpl) GetUserRoleIds(ctx context.Context, userId int) ([]int, error) {
-	urCols := dao.SysUserRole.Columns()
-	var userRoles []*entity.SysUserRole
-	err := dao.SysUserRole.Ctx(ctx).
-		Where(urCols.UserId, userId).
-		Scan(&userRoles)
-	if err != nil {
-		return nil, err
-	}
-
-	roleIds := make([]int, 0, len(userRoles))
-	for _, ur := range userRoles {
-		roleIds = append(roleIds, ur.RoleId)
-	}
-
-	return roleIds, nil
+	return s.getUserRoleIdsInScope(ctx, userId)
 }
 
 // GetUserRoles returns role entities for a user.

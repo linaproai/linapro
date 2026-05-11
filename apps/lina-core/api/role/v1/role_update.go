@@ -11,7 +11,7 @@ type RoleUpdateReq struct {
 	Name      string `json:"name" v:"required|length:2,30" dc:"Role name, length 2-30 characters" eg:"Administrator"`
 	Key       string `json:"key" v:"required|length:2,30" dc:"Permission key, length 2-30 characters" eg:"admin"`
 	Sort      int    `json:"sort" v:"min:0" dc:"Show sort" eg:"1"`
-	DataScope int    `json:"dataScope" v:"in:1,2,3" dc:"Data permission scope: 1=all 2=this department 3=only me" eg:"1"`
+	DataScope int    `json:"dataScope" v:"in:1,2,3,4" dc:"Data permission scope: 1=all 2=current tenant 3=current department 4=only me" eg:"2"`
 	Status    int    `json:"status" v:"in:0,1" dc:"Status: 1=normal 0=disabled" eg:"1"`
 	Remark    string `json:"remark" v:"length:0,200" dc:"Remarks" eg:"system administrator"`
 	MenuIds   []int  `json:"menuIds" dc:"List of associated menu IDs" eg:"[1,2,3,10]"`

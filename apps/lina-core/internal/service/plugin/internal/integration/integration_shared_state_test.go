@@ -5,9 +5,11 @@
 package integration
 
 import (
+	"context"
 	"testing"
 
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/pluginhost"
 )
@@ -27,10 +29,10 @@ func TestSharedStateCrossInstance(t *testing.T) {
 
 	firstChecker := first.buildBackgroundEnabledChecker()
 	secondChecker := second.buildBackgroundEnabledChecker()
-	if !firstChecker("plugin-demo") {
+	if !firstChecker(context.Background(), "plugin-demo") {
 		t.Fatal("expected first instance to read enabled snapshot")
 	}
-	if !secondChecker("plugin-demo") {
+	if !secondChecker(context.Background(), "plugin-demo") {
 		t.Fatal("expected second instance to share enabled snapshot updates")
 	}
 
@@ -50,7 +52,7 @@ func TestSharedStateCrossInstance(t *testing.T) {
 	}
 
 	second.DeletePluginEnabledState("plugin-demo")
-	if firstChecker("plugin-demo") {
+	if firstChecker(context.Background(), "plugin-demo") {
 		t.Fatal("expected deleting shared snapshot entry to affect all instances")
 	}
 }
@@ -93,5 +95,27 @@ func TestStoreLoadedEnabledSnapshotBackfillsSharedState(t *testing.T) {
 	}
 	if enabledByID["plugin-missing"] {
 		t.Fatal("expected missing plugin to default to disabled")
+	}
+}
+
+// TestPlatformOnlyGlobalPluginRemainsEnabledInTenantContext verifies
+// platform-only governs tenant plugin-list visibility, not runtime
+// availability for global plugin APIs and permission menus.
+func TestPlatformOnlyGlobalPluginRemainsEnabledInTenantContext(t *testing.T) {
+	svc := &serviceImpl{}
+	ctx := datascope.WithTenantForTest(context.Background(), 42)
+
+	enabled, err := svc.registryEnabledForTenant(ctx, &entity.SysPlugin{
+		PluginId:    "multi-tenant",
+		Installed:   catalog.InstalledYes,
+		Status:      catalog.StatusEnabled,
+		ScopeNature: catalog.ScopeNaturePlatformOnly.String(),
+		InstallMode: catalog.InstallModeGlobal.String(),
+	})
+	if err != nil {
+		t.Fatalf("expected platform-only global enablement check to succeed, got error: %v", err)
+	}
+	if !enabled {
+		t.Fatal("expected platform-only global plugin to stay enabled in tenant context")
 	}
 }

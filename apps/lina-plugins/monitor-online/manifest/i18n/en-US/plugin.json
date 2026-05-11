@@ -22,6 +22,11 @@
         },
         "tableTitlePrefix": "Online Users (",
         "tableTitleSuffix": " online)"
+      },
+      "lifecycleGuard": {
+        "disable_blocked": {
+          "active_sessions_exist": "Active sessions exist in this tenant. Force logout or wait for expiry before disabling online-user governance."
+        }
       }
     }
   }

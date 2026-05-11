@@ -26,4 +26,5 @@ type SysUser struct {
 	CreatedAt *gtime.Time // Creation time
 	UpdatedAt *gtime.Time // Update time
 	DeletedAt *gtime.Time // Deletion time
+	TenantId  any         // Primary/default tenant ID, 0 means PLATFORM
 }

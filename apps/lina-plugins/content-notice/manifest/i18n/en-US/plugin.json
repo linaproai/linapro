@@ -34,6 +34,14 @@
         "status": "Please select a status",
         "title": "Please enter a notice title",
         "type": "Please select a notice type"
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "published_notices_exist": "Published tenant notices still exist. Archive or delete them before uninstalling."
+        },
+        "disable_blocked": {
+          "pending_notices_exist": "Pending tenant notices still require processing before this plugin can be disabled."
+        }
       }
     }
   }

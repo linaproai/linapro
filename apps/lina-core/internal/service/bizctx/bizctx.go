@@ -11,8 +11,8 @@ import (
 	"lina-core/internal/model"
 )
 
-// contextKey is the key for business context in request context.
-const contextKey gctx.StrKey = "BizCtx"
+// ContextKey is the key for business context in request context.
+const ContextKey gctx.StrKey = "BizCtx"
 
 // Service defines the bizctx service contract.
 type Service interface {
@@ -24,6 +24,10 @@ type Service interface {
 	SetLocale(ctx context.Context, locale string)
 	// SetUser sets user info into business context.
 	SetUser(ctx context.Context, tokenId string, userId int, username string, status int)
+	// SetTenant sets tenant info into business context.
+	SetTenant(ctx context.Context, tenantId int)
+	// SetImpersonation sets platform impersonation info into business context.
+	SetImpersonation(ctx context.Context, actingUserId int, tenantId int, actingAsTenant bool, isImpersonation bool)
 	// SetUserAccess sets cached access-snapshot fields into business context.
 	SetUserAccess(ctx context.Context, dataScope int, dataScopeUnsupported bool, unsupportedDataScope int)
 }
@@ -41,12 +45,12 @@ func New() Service {
 
 // Init initializes and injects business context into request.
 func (s *serviceImpl) Init(r *ghttp.Request, ctx *model.Context) {
-	r.SetCtxVar(contextKey, ctx)
+	r.SetCtxVar(ContextKey, ctx)
 }
 
 // Get retrieves business context from context.
 func (s *serviceImpl) Get(ctx context.Context) *model.Context {
-	value := ctx.Value(contextKey)
+	value := ctx.Value(ContextKey)
 	if value == nil {
 		return nil
 	}
@@ -70,6 +74,23 @@ func (s *serviceImpl) SetUser(ctx context.Context, tokenId string, userId int, u
 		c.UserId = userId
 		c.Username = username
 		c.Status = status
+	}
+}
+
+// SetTenant sets tenant info into business context.
+func (s *serviceImpl) SetTenant(ctx context.Context, tenantId int) {
+	if c := s.Get(ctx); c != nil {
+		c.TenantId = tenantId
+	}
+}
+
+// SetImpersonation sets platform impersonation info into business context.
+func (s *serviceImpl) SetImpersonation(ctx context.Context, actingUserId int, tenantId int, actingAsTenant bool, isImpersonation bool) {
+	if c := s.Get(ctx); c != nil {
+		c.ActingUserId = actingUserId
+		c.TenantId = tenantId
+		c.ActingAsTenant = actingAsTenant
+		c.IsImpersonation = isImpersonation
 	}
 }
 

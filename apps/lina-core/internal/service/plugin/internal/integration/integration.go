@@ -8,13 +8,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/net/ghttp"
+
+	"lina-core/internal/dao"
+	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/pluginbridge"
 	"lina-core/pkg/pluginhost"
+)
 
-	"github.com/gogf/gf/v2/net/ghttp"
+const (
+	// pluginTenantEnablementStateKey is the sys_plugin_state state_key used for
+	// tenant-scoped plugin enablement rows.
+	pluginTenantEnablementStateKey = "__tenant_enabled__"
+	// pluginTenantEnabledValue stores the string value for an enabled tenant state.
+	pluginTenantEnabledValue = "enabled"
+	// pluginTenantDisabledValue stores the string value for a disabled tenant state.
+	pluginTenantDisabledValue = "disabled"
 )
 
 // ManagedCronJob describes one plugin-owned scheduled-job definition that the
@@ -176,6 +190,8 @@ type DependencyWiringService interface {
 type PluginStateService interface {
 	// IsEnabled reports whether the plugin with the given ID is currently installed and enabled.
 	IsEnabled(ctx context.Context, pluginID string) bool
+	// SetTenantPluginEnabledState persists one tenant-scoped plugin enablement row.
+	SetTenantPluginEnabledState(ctx context.Context, pluginID string, tenantID int, enabled bool) error
 	// RefreshEnabledSnapshot rebuilds the in-memory enablement snapshot used by runtime guards.
 	RefreshEnabledSnapshot(ctx context.Context) error
 	// SetPluginEnabledState updates one plugin entry in the in-memory enablement snapshot.
@@ -272,7 +288,87 @@ func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 	if err != nil || registry == nil {
 		return false
 	}
-	return registry.Installed == catalog.InstalledYes && registry.Status == catalog.StatusEnabled
+	enabled, err := s.registryEnabledForTenant(ctx, registry)
+	return err == nil && enabled
+}
+
+// SetTenantPluginEnabledState persists one tenant-scoped plugin enablement row.
+func (s *serviceImpl) SetTenantPluginEnabledState(ctx context.Context, pluginID string, tenantID int, enabled bool) error {
+	normalizedPluginID := strings.TrimSpace(pluginID)
+	if normalizedPluginID == "" {
+		return nil
+	}
+	identity := do.SysPluginState{
+		PluginId: normalizedPluginID,
+		TenantId: tenantID,
+		StateKey: pluginTenantEnablementStateKey,
+	}
+	return dao.SysPluginState.Transaction(ctx, func(ctx context.Context, _ gdb.TX) error {
+		_, err := dao.SysPluginState.Ctx(ctx).Data(do.SysPluginState{
+			PluginId:   identity.PluginId,
+			TenantId:   identity.TenantId,
+			StateKey:   identity.StateKey,
+			StateValue: pluginTenantEnablementStateValue(enabled),
+			Enabled:    enabled,
+		}).InsertIgnore()
+		if err != nil {
+			return err
+		}
+		_, err = dao.SysPluginState.Ctx(ctx).
+			Where(identity).
+			Data(do.SysPluginState{
+				StateValue: pluginTenantEnablementStateValue(enabled),
+				Enabled:    enabled,
+			}).
+			Update()
+		return err
+	})
+}
+
+// registryEnabledForTenant resolves the effective plugin enablement state for
+// the current tenant context.
+func (s *serviceImpl) registryEnabledForTenant(ctx context.Context, registry *entity.SysPlugin) (bool, error) {
+	if registry == nil ||
+		registry.Installed != catalog.InstalledYes ||
+		registry.Status != catalog.StatusEnabled {
+		return false, nil
+	}
+	tenantID := datascope.CurrentTenantID(ctx)
+	// Platform-only describes tenant governance visibility, not runtime
+	// availability. Global platform-only plugins such as multi-tenant can still
+	// publish tenant-context APIs and permissions while tenant administrators
+	// remain unable to control them through the tenant plugin list.
+	if catalog.NormalizeInstallMode(registry.InstallMode) != catalog.InstallModeTenantScoped || tenantID == datascope.PlatformTenantID {
+		return true, nil
+	}
+	return s.tenantPluginEnabled(ctx, registry.PluginId, tenantID)
+}
+
+// tenantPluginEnabled reads one tenant-scoped plugin enablement row.
+func (s *serviceImpl) tenantPluginEnabled(ctx context.Context, pluginID string, tenantID int) (bool, error) {
+	value, err := dao.SysPluginState.Ctx(ctx).
+		Where(do.SysPluginState{
+			PluginId: strings.TrimSpace(pluginID),
+			TenantId: tenantID,
+			StateKey: pluginTenantEnablementStateKey,
+		}).
+		Value(dao.SysPluginState.Columns().Enabled)
+	if err != nil {
+		return false, err
+	}
+	if value == nil || value.IsNil() {
+		return false, nil
+	}
+	return value.Bool(), nil
+}
+
+// pluginTenantEnablementStateValue converts one enablement flag to the stable
+// state_value payload used for diagnostics and manual inspection.
+func pluginTenantEnablementStateValue(enabled bool) string {
+	if enabled {
+		return pluginTenantEnabledValue
+	}
+	return pluginTenantDisabledValue
 }
 
 // RefreshEnabledSnapshot rebuilds the in-memory enablement snapshot used by runtime guards.
@@ -391,7 +487,9 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 	if len(pluginIDs) == 0 {
 		return enabledByID, nil
 	}
-	if allowLoadedSnapshot && s.applyLoadedEnabledSnapshot(enabledByID) {
+	if allowLoadedSnapshot &&
+		datascope.CurrentTenantID(ctx) == datascope.PlatformTenantID &&
+		s.applyLoadedEnabledSnapshot(enabledByID) {
 		return enabledByID, nil
 	}
 
@@ -409,8 +507,11 @@ func (s *serviceImpl) buildEnabledPluginMapFromCatalog(
 		if _, ok := enabledByID[pluginID]; !ok {
 			continue
 		}
-		enabledByID[pluginID] = registry.Installed == catalog.InstalledYes &&
-			registry.Status == catalog.StatusEnabled
+		enabled, err := s.registryEnabledForTenant(ctx, registry)
+		if err != nil {
+			return nil, err
+		}
+		enabledByID[pluginID] = enabled
 	}
 	return enabledByID, nil
 }
@@ -459,10 +560,16 @@ func (s *serviceImpl) applyLoadedEnabledSnapshot(enabledByID map[string]bool) bo
 // buildBackgroundEnabledChecker returns a PluginEnabledChecker for use in source plugin
 // route and cron registrars that need to guard runtime access.
 func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledChecker {
-	return func(pluginID string) bool {
+	return func(ctx context.Context, pluginID string) bool {
 		normalizedPluginID := strings.TrimSpace(pluginID)
 		if normalizedPluginID == "" {
 			return false
+		}
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		if datascope.CurrentTenantID(ctx) != datascope.PlatformTenantID {
+			return s.IsEnabled(ctx, normalizedPluginID)
 		}
 
 		s.sharedState.enabledSnapshotMu.RLock()
@@ -472,7 +579,7 @@ func (s *serviceImpl) buildBackgroundEnabledChecker() pluginhost.PluginEnabledCh
 		if ok || loaded {
 			return enabled
 		}
-		return s.IsEnabled(context.Background(), normalizedPluginID)
+		return s.IsEnabled(ctx, normalizedPluginID)
 	}
 }
 

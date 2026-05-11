@@ -33,7 +33,15 @@
         "patch": "Patch"
       },
       "name": "Monitoring - Operation Logs",
-      "tableTitle": "Operation Log List"
+      "tableTitle": "Operation Log List",
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "retention_required": "Operation logs are still inside the required retention window. Export or expire them before uninstalling."
+        },
+        "disable_blocked": {
+          "audit_required": "Tenant audit policy requires operation logging to remain enabled."
+        }
+      }
     }
   }
 }

@@ -96,7 +96,7 @@ func (s *serviceImpl) currentUsername(ctx context.Context) string {
 	if s == nil || s.bizCtxSvc == nil {
 		return ""
 	}
-	return s.bizCtxSvc.CurrentUsername(ctx)
+	return s.bizCtxSvc.Current(ctx).Username
 }
 
 // resolveAuditRouteMetadata loads audit tags from the static handler metadata

@@ -11,6 +11,7 @@ import (
 // Notice is the golang structure for table notice.
 type Notice struct {
 	Id        int64       `json:"id"        orm:"id"         description:"Notice ID"`
+	TenantId  int         `json:"tenantId"  orm:"tenant_id"  description:"Owning tenant ID, 0 means PLATFORM"`
 	Title     string      `json:"title"     orm:"title"      description:"Notice title"`
 	Type      int         `json:"type"      orm:"type"       description:"Notice type: 1=notification, 2=announcement"`
 	Content   string      `json:"content"   orm:"content"    description:"Notice content"`

@@ -35,6 +35,7 @@ type SysUserColumns struct {
 	CreatedAt string // Creation time
 	UpdatedAt string // Update time
 	DeletedAt string // Deletion time
+	TenantId  string // Primary/default tenant ID, 0 means PLATFORM
 }
 
 // sysUserColumns holds the columns for the table sys_user.
@@ -53,6 +54,7 @@ var sysUserColumns = SysUserColumns{
 	CreatedAt: "created_at",
 	UpdatedAt: "updated_at",
 	DeletedAt: "deleted_at",
+	TenantId:  "tenant_id",
 }
 
 // NewSysUserDao creates and returns a new DAO object for table data access.

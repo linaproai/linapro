@@ -4,11 +4,12 @@
 -- 包含：定时任务分组、定时任务、执行日志、运行时参数、菜单权限与字典种子
 
 -- ============================================================
--- Scheduled job group table
--- 定时任务分组表
+-- Purpose: Stores tenant-scoped scheduled job groups used to organize jobs and define the default group.
+-- 用途：存储租户级定时任务分组，用于组织任务并定义默认分组。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job_group (
     "id"         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"  INT NOT NULL DEFAULT 0,
     "code"       VARCHAR(64) NOT NULL DEFAULT '',
     "name"       VARCHAR(128) NOT NULL DEFAULT '',
     "remark"     VARCHAR(512) NOT NULL DEFAULT '',
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sys_job_group (
 
 COMMENT ON TABLE sys_job_group IS 'Scheduled job group table';
 COMMENT ON COLUMN sys_job_group."id" IS 'Job group ID';
+COMMENT ON COLUMN sys_job_group."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_job_group."code" IS 'Group code';
 COMMENT ON COLUMN sys_job_group."name" IS 'Group name';
 COMMENT ON COLUMN sys_job_group."remark" IS 'Remark';
@@ -30,15 +32,16 @@ COMMENT ON COLUMN sys_job_group."created_at" IS 'Creation time';
 COMMENT ON COLUMN sys_job_group."updated_at" IS 'Update time';
 COMMENT ON COLUMN sys_job_group."deleted_at" IS 'Deletion time';
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_job_group_code ON sys_job_group ("code");
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_job_group_tenant_code ON sys_job_group ("tenant_id", "code");
 CREATE INDEX IF NOT EXISTS idx_sys_job_group_is_default ON sys_job_group ("is_default");
 
 -- ============================================================
--- Scheduled job table
--- 定时任务表
+-- Purpose: Stores scheduled job definitions, execution policy, cron settings, handler or shell payload, and lifecycle status.
+-- 用途：存储定时任务定义、执行策略、Cron 配置、Handler 或 Shell 载荷与生命周期状态。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job (
     "id"                     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"              INT NOT NULL DEFAULT 0,
     "group_id"               BIGINT NOT NULL DEFAULT 0,
     "name"                   VARCHAR(128) NOT NULL DEFAULT '',
     "description"            VARCHAR(512) NOT NULL DEFAULT '',
@@ -70,6 +73,7 @@ CREATE TABLE IF NOT EXISTS sys_job (
 
 COMMENT ON TABLE sys_job IS 'Scheduled job table';
 COMMENT ON COLUMN sys_job."id" IS 'Job ID';
+COMMENT ON COLUMN sys_job."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_job."group_id" IS 'Owning group ID';
 COMMENT ON COLUMN sys_job."name" IS 'Job name';
 COMMENT ON COLUMN sys_job."description" IS 'Job description';
@@ -98,19 +102,20 @@ COMMENT ON COLUMN sys_job."created_at" IS 'Creation time';
 COMMENT ON COLUMN sys_job."updated_at" IS 'Update time';
 COMMENT ON COLUMN sys_job."deleted_at" IS 'Deletion time';
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_job_group_id_name ON sys_job ("group_id", "name");
-CREATE INDEX IF NOT EXISTS idx_sys_job_status ON sys_job ("status");
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_job_tenant_group_name ON sys_job ("tenant_id", "group_id", "name");
+CREATE INDEX IF NOT EXISTS idx_sys_job_tenant_status ON sys_job ("tenant_id", "status");
 CREATE INDEX IF NOT EXISTS idx_sys_job_group_id ON sys_job ("group_id");
 CREATE INDEX IF NOT EXISTS idx_sys_job_task_type ON sys_job ("task_type");
 CREATE INDEX IF NOT EXISTS idx_sys_job_handler_ref ON sys_job ("handler_ref");
 CREATE INDEX IF NOT EXISTS idx_sys_job_is_builtin ON sys_job ("is_builtin");
 
 -- ============================================================
--- Scheduled job execution log table
--- 定时任务执行日志表
+-- Purpose: Stores scheduled job execution history, snapshots, timing, node information, result payloads, and failures.
+-- 用途：存储定时任务执行历史、快照、耗时、节点信息、结果载荷与失败原因。
 -- ============================================================
 CREATE TABLE IF NOT EXISTS sys_job_log (
     "id"              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    "tenant_id"       INT NOT NULL DEFAULT 0,
     "job_id"          BIGINT NOT NULL DEFAULT 0,
     "job_snapshot"    TEXT,
     "node_id"         VARCHAR(128) NOT NULL DEFAULT '',
@@ -127,6 +132,7 @@ CREATE TABLE IF NOT EXISTS sys_job_log (
 
 COMMENT ON TABLE sys_job_log IS 'Scheduled job execution log table';
 COMMENT ON COLUMN sys_job_log."id" IS 'Log ID';
+COMMENT ON COLUMN sys_job_log."tenant_id" IS 'Owning tenant ID, 0 means PLATFORM';
 COMMENT ON COLUMN sys_job_log."job_id" IS 'Owning job ID';
 COMMENT ON COLUMN sys_job_log."job_snapshot" IS 'Job snapshot JSON at execution time';
 COMMENT ON COLUMN sys_job_log."node_id" IS 'Execution node identifier';
@@ -141,6 +147,7 @@ COMMENT ON COLUMN sys_job_log."result_json" IS 'Execution result JSON';
 COMMENT ON COLUMN sys_job_log."created_at" IS 'Creation time';
 
 CREATE INDEX IF NOT EXISTS idx_sys_job_log_job_id_start_at ON sys_job_log ("job_id", "start_at");
+CREATE INDEX IF NOT EXISTS idx_sys_job_log_tenant_job_start ON sys_job_log ("tenant_id", "job_id", "start_at");
 CREATE INDEX IF NOT EXISTS idx_sys_job_log_status ON sys_job_log ("status");
 CREATE INDEX IF NOT EXISTS idx_sys_job_log_start_at ON sys_job_log ("start_at");
 
@@ -148,8 +155,8 @@ CREATE INDEX IF NOT EXISTS idx_sys_job_log_start_at ON sys_job_log ("start_at");
 -- Default group and runtime parameters
 -- 默认分组与运行时参数
 -- ============================================================
-INSERT INTO sys_job_group ("code", "name", "remark", "sort_order", "is_default", "created_at", "updated_at")
-VALUES ('default', 'Default Group', 'The system default job group. Jobs are moved here when other groups are deleted.', 0, 1, NOW(), NOW())
+INSERT INTO sys_job_group ("tenant_id", "code", "name", "remark", "sort_order", "is_default", "created_at", "updated_at")
+VALUES (0, 'default', 'Default Group', 'The system default job group. Jobs are moved here when other groups are deleted.', 0, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_config ("name", "key", "value", "is_builtin", "remark", "created_at", "updated_at")
@@ -253,16 +260,16 @@ INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "
 VALUES ('cron_job_log_status', '已取消', 'cancelled', 4, 'warning', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")
-VALUES ('cron_job_log_status', '超时', 'timeout', 5, 'danger', 1, 1, NOW(), NOW())
+VALUES ('cron_job_log_status', '超时', 'timeout', 5, 'orange', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")
 VALUES ('cron_job_log_status', '非主节点跳过', 'skipped_not_primary', 6, 'default', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")
-VALUES ('cron_job_log_status', '单例冲突跳过', 'skipped_singleton', 7, 'default', 1, 1, NOW(), NOW())
+VALUES ('cron_job_log_status', '单例冲突跳过', 'skipped_singleton', 7, 'cyan', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")
-VALUES ('cron_job_log_status', '并发上限跳过', 'skipped_max_concurrency', 8, 'default', 1, 1, NOW(), NOW())
+VALUES ('cron_job_log_status', '并发上限跳过', 'skipped_max_concurrency', 8, 'purple', 1, 1, NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
 INSERT INTO sys_dict_data ("dict_type", "label", "value", "sort", "tag_style", "status", "is_builtin", "created_at", "updated_at")

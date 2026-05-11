@@ -4,6 +4,7 @@ import {
   waitForBusyIndicatorsToClear,
   waitForConfirmOverlay,
   waitForDialogReady,
+  waitForDropdown,
   waitForRouteReady,
   waitForTableReady,
 } from "../support/ui";
@@ -50,6 +51,41 @@ export class RolePage {
       await this.dismissTourOverlayIfPresent();
     }
     return drawer;
+  }
+
+  private dataScopeField(drawer: Locator) {
+    return drawer
+      .locator("label")
+      .filter({ hasText: /数据权限|Data Scope/i })
+      .first()
+      .locator('xpath=ancestor::div[contains(@class, "flex-col")][1]');
+  }
+
+  async selectDataScope(drawer: Locator, label: string) {
+    await this.dataScopeField(drawer).locator(".ant-select-selector").click();
+    const dropdown = await waitForDropdown(this.page);
+    await dropdown
+      .locator(".ant-select-item-option")
+      .filter({ hasText: label })
+      .first()
+      .click();
+    await waitForBusyIndicatorsToClear(this.page);
+  }
+
+  async getDataScopeOptions(drawer: Locator) {
+    await this.dataScopeField(drawer).locator(".ant-select-selector").click();
+    const dropdown = await waitForDropdown(this.page);
+    const labels = await dropdown
+      .locator(".ant-select-item-option-content")
+      .allTextContents();
+    await this.page.keyboard.press("Escape");
+    await waitForBusyIndicatorsToClear(this.page);
+    return labels.map((label) => label.trim()).filter(Boolean);
+  }
+
+  async selectedDataScopeText(drawer: Locator) {
+    return (await this.dataScopeField(drawer).locator(".ant-select-selection-item").innerText())
+      .trim();
   }
 
   async openEditDrawer(
@@ -138,21 +174,7 @@ export class RolePage {
       await waitForBusyIndicatorsToClear(this.page);
     }
 
-    // Select data scope (required field) - click the label text to select
-    // The RadioGroup uses ant-radio-button-wrapper with button style
-    const dataScopeLabel = drawer.getByText("全部数据权限", { exact: true });
-    await dataScopeLabel.waitFor({ state: "visible", timeout: 5000 });
-    await dataScopeLabel.click({ force: true });
-    await waitForBusyIndicatorsToClear(this.page);
-
-    // Verify the radio is selected (ant-radio-button-wrapper-checked class)
-    const checkedRadio = drawer.locator(".ant-radio-button-wrapper-checked");
-    await checkedRadio
-      .waitFor({ state: "visible", timeout: 3000 })
-      .catch(() => {
-        // If not visible, try clicking again
-        return dataScopeLabel.click({ force: true });
-      });
+    await this.selectDataScope(drawer, "全部数据");
 
     // Select menus if needed - for basic test we skip menu selection
     // Menu selection is tested separately in TC0061e
@@ -240,6 +262,11 @@ export class RolePage {
   /** Find the first role row containing the specified permission key. */
   roleRowByKey(roleKey: string): Locator {
     return this.page.locator(".vxe-body--row", { hasText: roleKey }).first();
+  }
+
+  /** Returns visible text from the first matching role row. */
+  async roleRowTextByKey(roleKey: string): Promise<string> {
+    return (await this.roleRowByKey(roleKey).innerText()).trim();
   }
 
   /** Search role by name */
@@ -367,10 +394,7 @@ export class RolePage {
       await remarkInput.fill(params.remark);
     }
 
-    const dataScopeLabel = drawer.getByText("全部数据权限", { exact: true });
-    await dataScopeLabel.waitFor({ state: "visible", timeout: 5000 });
-    await dataScopeLabel.click({ force: true });
-    await waitForBusyIndicatorsToClear(this.page);
+    await this.selectDataScope(drawer, "全部数据");
 
     if (params.menuNames && params.menuNames.length > 0) {
       await drawer

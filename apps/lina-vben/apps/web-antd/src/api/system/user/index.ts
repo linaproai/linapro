@@ -18,6 +18,10 @@ export interface SysUser {
   postIds: number[];
   roleIds: number[];
   roleNames: string[];
+  tenantId?: number;
+  tenantIds?: number[];
+  tenantName?: string;
+  tenantNames?: string[];
 }
 
 export interface DeptTree {
@@ -44,6 +48,7 @@ export interface UserListParams {
   orderBy?: string;
   orderDirection?: string;
   deptId?: number;
+  tenantId?: number;
 }
 
 export interface UserListResult {
@@ -63,6 +68,7 @@ export interface UserCreateParams {
   deptId?: number;
   postIds?: number[];
   roleIds?: number[];
+  tenantIds?: number[];
 }
 
 export interface UserUpdateParams {
@@ -78,6 +84,7 @@ export interface UserUpdateParams {
   deptId?: number;
   postIds?: number[];
   roleIds?: number[];
+  tenantIds?: number[];
 }
 
 /** 用户列表 */

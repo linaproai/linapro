@@ -107,7 +107,7 @@ func (r *globalMiddlewareRegistrar) Bind(scope MiddlewareScope, handler Middlewa
 
 	normalizedScope := normalizeMiddlewareScope(scope)
 	r.server.BindMiddleware(normalizedScope, func(req *ghttp.Request) {
-		if r.enabledChecker != nil && !r.enabledChecker(r.pluginID) {
+		if r.enabledChecker != nil && !r.enabledChecker(req.Context(), r.pluginID) {
 			req.Middleware.Next()
 			return
 		}

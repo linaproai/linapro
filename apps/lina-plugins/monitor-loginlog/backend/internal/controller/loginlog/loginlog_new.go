@@ -23,13 +23,17 @@ func toAPILoginLogEntity(entity *loginlogsvc.LoginLogEntity) *v1.LoginLogEntity 
 		return nil
 	}
 	return &v1.LoginLogEntity{
-		Id:        entity.Id,
-		UserName:  entity.UserName,
-		Status:    entity.Status,
-		Ip:        entity.Ip,
-		Browser:   entity.Browser,
-		Os:        entity.Os,
-		Msg:       entity.Msg,
-		LoginTime: entity.LoginTime,
+		Id:                 entity.Id,
+		TenantId:           entity.TenantId,
+		ActingUserId:       entity.ActingUserId,
+		OnBehalfOfTenantId: entity.OnBehalfOfTenantId,
+		IsImpersonation:    entity.IsImpersonation,
+		UserName:           entity.UserName,
+		Status:             entity.Status,
+		Ip:                 entity.Ip,
+		Browser:            entity.Browser,
+		Os:                 entity.Os,
+		Msg:                entity.Msg,
+		LoginTime:          entity.LoginTime,
 	}
 }

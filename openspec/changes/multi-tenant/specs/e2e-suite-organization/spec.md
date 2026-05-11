@@ -2,7 +2,7 @@
 
 ### Requirement: 多租户 e2e 模块化分组
 `hack/tests/e2e/` 下 SHALL 新增 `multi-tenant/` 模块,内部按场景分组:
-- `tenant-lifecycle/`:创建、暂停、恢复、归档、删除租户。
+- `tenant-lifecycle/`:创建、暂停、恢复、删除租户。
 - `tenant-isolation/`:跨租户隔离反例矩阵(每张 tenancy-aware 表至少一个用例)。
 - `tenant-resolution/`:每种解析器一组用例。
 - `tenant-switching/`:1:N 用户切租户、token 失效。

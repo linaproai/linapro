@@ -23,9 +23,11 @@ type unsupportedFeature struct {
 
 var (
 	reCreateTable              = regexp.MustCompile(`(?is)^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)\s*\(`)
+	reAlterTableAddColumn      = regexp.MustCompile(`(?is)^\s*ALTER\s+TABLE\s+\S+\s+ADD\s+COLUMN\b`)
 	reCreateAnyCollation       = regexp.MustCompile(`(?is)^\s*CREATE\s+COLLATION\b`)
 	reCommentOnSupportedObject = regexp.MustCompile(`(?is)^\s*COMMENT\s+ON\s+(?:TABLE|COLUMN)\b`)
 	reCommentOnAnyObject       = regexp.MustCompile(`(?is)^\s*COMMENT\s+ON\b`)
+	reDoBlock                  = regexp.MustCompile(`(?is)^\s*DO\s+\$[A-Za-z0-9_]*\$`)
 	reCollateClause            = regexp.MustCompile(`(?i)\bCOLLATE\b`)
 	reIdentityColumnType       = regexp.MustCompile(`(?i)\b(?:BIGINT|INT)\s+(?:NOT\s+NULL\s+)?GENERATED\s+ALWAYS\s+AS\s+IDENTITY(?:\s*\([^)]*\))?(?:\s+PRIMARY\s+KEY)?\b`)
 	reIntegerTypes             = regexp.MustCompile(`(?i)\b(?:BIGINT|INT|SMALLINT)\b`)
@@ -41,6 +43,7 @@ var (
 	reNamedInlineIndex         = regexp.MustCompile(`(?i)^(?:UNIQUE\s+)?(?:KEY|INDEX)\b`)
 	reMySQLTableOption         = regexp.MustCompile(`(?i)\b(?:ENGINE|CHARSET)\s*=`)
 	reDefaultCharset           = regexp.MustCompile(`(?i)\bDEFAULT\s+CHARSET\s*=`)
+	reAddColumnIfNotExists     = regexp.MustCompile(`(?i)\bADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\b`)
 
 	unsupportedFeatures = []unsupportedFeature{
 		{keyword: "CREATE DATABASE", pattern: regexp.MustCompile(`(?i)\bCREATE\s+DATABASE\b`)},
@@ -156,8 +159,13 @@ func translateSQLiteStatement(ctx context.Context, sourceName string, line int, 
 	case reCommentOnSupportedObject.MatchString(trimmed):
 		logger.Debugf(ctx, "skip PostgreSQL comment statement during SQLite translation source=%s line=%d", sourceName, line)
 		return "", nil
+	case reDoBlock.MatchString(trimmed):
+		logger.Debugf(ctx, "skip PostgreSQL procedural block during SQLite translation source=%s line=%d", sourceName, line)
+		return "", nil
 	case reCreateTable.MatchString(trimmed):
 		return translateCreateTable(sourceName, line, trimmed)
+	case reAlterTableAddColumn.MatchString(trimmed):
+		return translateAlterTableAddColumn(trimmed) + ";", nil
 	default:
 		return translateCompatibleSQL(trimmed) + ";", nil
 	}
@@ -254,6 +262,15 @@ func translateColumnDefinition(column string) string {
 		return translateTypeSQL(column)
 	}
 	return strings.TrimSpace(name + " " + translateTypeSQL(definition))
+}
+
+// translateAlterTableAddColumn converts PostgreSQL ADD COLUMN IF NOT EXISTS
+// into SQLite's supported ADD COLUMN form for smoke-test initialization.
+func translateAlterTableAddColumn(statement string) string {
+	translated := rewriteOutsideQuotes(statement, func(segment string) string {
+		return reAddColumnIfNotExists.ReplaceAllString(segment, "ADD COLUMN")
+	})
+	return translateTypeSQL(translated)
 }
 
 // translateCompatibleSQL performs non-type compatibility rewrites outside

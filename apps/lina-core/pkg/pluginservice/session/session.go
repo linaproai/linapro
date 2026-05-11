@@ -15,12 +15,15 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	internalsession "lina-core/internal/service/session"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
 
 // Session is the stable online-session projection published to source plugins.
 type Session struct {
 	// TokenId is the unique token identifier.
 	TokenId string
+	// TenantId is the owning tenant identifier, where 0 means platform.
+	TenantId int
 	// UserId is the authenticated user identifier.
 	UserId int
 	// Username is the authenticated username.
@@ -68,6 +71,7 @@ type serviceAdapter struct {
 	authSvc      internalauth.Service
 	scopeSvc     datascope.Service
 	sessionStore internalsession.Store
+	tenantSvc    tenantcapsvc.Service
 }
 
 // New creates and returns the published session service adapter.
@@ -79,6 +83,7 @@ func New() Service {
 		authSvc:      authSvc,
 		scopeSvc:     datascope.New(datascope.Dependencies{RoleSvc: role.New(pluginSvc), OrgCapSvc: orgCapSvc}),
 		sessionStore: authSvc.SessionStore(),
+		tenantSvc:    tenantcapsvc.New(pluginSvc),
 	}
 }
 
@@ -87,7 +92,14 @@ func (s *serviceAdapter) ListPage(ctx context.Context, filter *ListFilter, pageN
 	if s == nil || s.sessionStore == nil {
 		return &ListResult{Items: []*Session{}, Total: 0}, nil
 	}
-	result, err := s.sessionStore.ListPageScoped(ctx, toInternalFilter(filter), pageNum, pageSize, s.currentScopeSvc())
+	result, err := s.sessionStore.ListPageScoped(
+		ctx,
+		toInternalFilter(filter),
+		pageNum,
+		pageSize,
+		s.currentScopeSvc(),
+		s.currentTenantSvc(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +117,9 @@ func (s *serviceAdapter) Revoke(ctx context.Context, tokenID string) error {
 			return err
 		}
 		if sessionItem != nil {
+			if err = s.currentTenantSvc().EnsureTenantVisible(ctx, tenantcapsvc.TenantID(sessionItem.TenantId)); err != nil {
+				return err
+			}
 			if err = s.currentScopeSvc().EnsureUsersVisible(ctx, []int{sessionItem.UserId}); err != nil {
 				return err
 			}
@@ -122,6 +137,14 @@ func (s *serviceAdapter) currentScopeSvc() datascope.Service {
 		return s.scopeSvc
 	}
 	return datascope.New(datascope.Dependencies{RoleSvc: role.New(nil)})
+}
+
+// currentTenantSvc returns the shared tenant capability service for plugin-facing session operations.
+func (s *serviceAdapter) currentTenantSvc() tenantcapsvc.Service {
+	if s.tenantSvc != nil {
+		return s.tenantSvc
+	}
+	return tenantcapsvc.New(nil)
 }
 
 // toInternalFilter converts the published filter contract into the host-internal
@@ -157,6 +180,7 @@ func fromInternalSession(session *internalsession.Session) *Session {
 	}
 	return &Session{
 		TokenId:        session.TokenId,
+		TenantId:       session.TenantId,
 		UserId:         session.UserId,
 		Username:       session.Username,
 		DeptName:       session.DeptName,

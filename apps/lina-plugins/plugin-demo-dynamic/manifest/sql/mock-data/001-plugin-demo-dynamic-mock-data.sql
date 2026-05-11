@@ -3,6 +3,7 @@
 
 INSERT INTO plugin_demo_dynamic_record (
     "id",
+    "tenant_id",
     "title",
     "content",
     "attachment_name",
@@ -12,6 +13,7 @@ INSERT INTO plugin_demo_dynamic_record (
 )
 VALUES (
     'plugin-demo-dynamic-mock-record',
+    0,
     'Dynamic Plugin SQL Demo Record',
     'This record is loaded from plugin-demo-dynamic mock-data and demonstrates CRUD operations against the data table created during plugin installation.',
     '',
@@ -23,6 +25,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO plugin_demo_dynamic_record (
     "id",
+    "tenant_id",
     "title",
     "content",
     "attachment_name",
@@ -32,6 +35,7 @@ INSERT INTO plugin_demo_dynamic_record (
 )
 VALUES (
     'plugin-demo-dynamic-attachment-mock',
+    0,
     'Dynamic Plugin Attachment Demo',
     'This mock record demonstrates attachment metadata for the hosted dynamic plugin page. The file itself is not created by SQL.',
     'dynamic-plugin-demo.txt',

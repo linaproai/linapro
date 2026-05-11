@@ -107,6 +107,13 @@ func (s roleScopeStaticBizCtx) SetLocale(context.Context, string) {}
 // SetUser is unused by role data-scope tests.
 func (s roleScopeStaticBizCtx) SetUser(context.Context, string, int, string, int) {}
 
+// SetTenant is unused by role data-scope tests.
+func (s roleScopeStaticBizCtx) SetTenant(context.Context, int) {}
+
+// SetImpersonation is unused by role data-scope tests.
+func (s roleScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
+
+
 // SetUserAccess is unused by role data-scope tests.
 func (s roleScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
 

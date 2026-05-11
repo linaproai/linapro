@@ -7,8 +7,8 @@ type GridColumns = NonNullable<VxeGridProps['columns']>;
 type GridColumn = GridColumns[number];
 
 /** 查询表单schema */
-export function querySchema(): VbenFormSchema[] {
-  return [
+export function querySchema(tenantEnabled = false): VbenFormSchema[] {
+  const schema: VbenFormSchema[] = [
     {
       component: 'Input',
       fieldName: 'username',
@@ -35,6 +35,22 @@ export function querySchema(): VbenFormSchema[] {
       label: $t('pages.common.createdAt'),
     },
   ];
+
+  if (tenantEnabled) {
+    schema.splice(3, 0, {
+      component: 'Select',
+      fieldName: 'tenantId',
+      label: $t('pages.system.user.labels.tenantMemberships'),
+      componentProps: {
+        'data-testid': 'user-tenant-filter',
+        optionFilterProp: 'label',
+        placeholder: $t('pages.multiTenant.placeholders.selectTenant'),
+        showSearch: true,
+      },
+    });
+  }
+
+  return schema;
 }
 
 function buildDeptColumn(): GridColumn {
@@ -48,8 +64,31 @@ function buildDeptColumn(): GridColumn {
   };
 }
 
+function buildTenantColumn(): GridColumn {
+  return {
+    field: 'tenantNames',
+    title: $t('pages.system.user.labels.tenantMemberships'),
+    minWidth: 180,
+    formatter({ cellValue, row }: { cellValue?: string[]; row?: any }) {
+      if (Array.isArray(cellValue) && cellValue.length > 0) {
+        return cellValue.join(', ');
+      }
+      if (row?.tenantName) {
+        return row.tenantName;
+      }
+      if (row?.tenantId === 0) {
+        return $t('pages.multiTenant.platformScope');
+      }
+      return $t('pages.system.user.labels.na');
+    },
+  };
+}
+
 /** 表格列定义 */
-export function buildColumns(orgEnabled: boolean): GridColumns {
+export function buildColumns(
+  orgEnabled: boolean,
+  tenantEnabled = false,
+): GridColumns {
   const columns: GridColumns = [
     { type: 'checkbox', width: 60 },
     {
@@ -134,6 +173,16 @@ export function buildColumns(orgEnabled: boolean): GridColumns {
   if (orgEnabled) {
     columns.splice(4, 0, buildDeptColumn());
   }
+  if (tenantEnabled) {
+    const roleColumnIndex = columns.findIndex(
+      (column) => 'field' in column && column.field === 'roleNames',
+    );
+    columns.splice(
+      roleColumnIndex >= 0 ? roleColumnIndex + 1 : 5,
+      0,
+      buildTenantColumn(),
+    );
+  }
 
   return columns;
 }
@@ -142,6 +191,8 @@ export function buildColumns(orgEnabled: boolean): GridColumns {
 export function drawerSchema(
   isEdit: boolean,
   orgEnabled: boolean,
+  tenantEnabled = false,
+  tenantReadonly = false,
 ): VbenFormSchema[] {
   const schema: VbenFormSchema[] = [
     {
@@ -250,6 +301,24 @@ export function drawerSchema(
         },
       },
     );
+  }
+
+  if (tenantEnabled) {
+    schema.push({
+      component: 'Select',
+      fieldName: 'tenantIds',
+      label: $t('pages.system.user.labels.tenantMemberships'),
+      help: $t('pages.system.user.help.tenantMemberships'),
+      componentProps: {
+        'data-testid': 'user-drawer-tenant-select',
+        allowClear: true,
+        disabled: tenantReadonly,
+        mode: 'multiple',
+        optionFilterProp: 'label',
+        placeholder: $t('pages.multiTenant.placeholders.selectTenant'),
+        showSearch: true,
+      },
+    });
   }
 
   schema.push(

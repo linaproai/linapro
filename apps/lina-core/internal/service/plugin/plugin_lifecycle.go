@@ -4,9 +4,13 @@ package plugin
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/bizerr"
+	"lina-core/pkg/logger"
+	"lina-core/pkg/pluginhost"
 )
 
 // Install executes the install lifecycle and optionally persists one host-confirmed
@@ -30,6 +34,9 @@ func (s *serviceImpl) Install(
 
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
+		return err
+	}
+	if err = applyInstallModeSelection(manifest, options.InstallMode); err != nil {
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
@@ -59,10 +66,42 @@ func (s *serviceImpl) Install(
 	if err = s.lifecycleSvc.Install(ctx, pluginID); err != nil {
 		return err
 	}
+	// Dynamic lifecycle reloads the manifest from the runtime artifact. Re-sync
+	// the operator-selected governance fields so installMode cannot be reset to
+	// the artifact default after the request has already been validated.
+	if _, err = s.catalogSvc.SyncManifest(ctx, manifest); err != nil {
+		return err
+	}
 	if err = s.syncEnabledSnapshotFromRegistry(ctx, pluginID); err != nil {
 		return err
 	}
 	return notifyPluginInstalled(ctx, pluginID)
+}
+
+// applyInstallModeSelection validates the explicit install-mode request and
+// applies it to the short-lived desired manifest before registry synchronization.
+func applyInstallModeSelection(manifest *catalog.Manifest, installMode string) error {
+	if manifest == nil {
+		return nil
+	}
+	scopeNature := catalog.NormalizeScopeNature(manifest.ScopeNature)
+	if strings.TrimSpace(installMode) == "" {
+		installMode = manifest.DefaultInstallMode
+	}
+	if !catalog.IsSupportedInstallMode(installMode) {
+		return bizerr.NewCode(CodePluginInstallModeInvalid)
+	}
+	mode := catalog.NormalizeInstallMode(installMode)
+	if scopeNature == catalog.ScopeNaturePlatformOnly && mode != catalog.InstallModeGlobal {
+		return bizerr.NewCode(
+			CodePluginInstallModeInvalidForScopeNature,
+			bizerr.P("pluginId", manifest.ID),
+			bizerr.P("scopeNature", scopeNature.String()),
+			bizerr.P("installMode", mode.String()),
+		)
+	}
+	manifest.DefaultInstallMode = mode.String()
+	return nil
 }
 
 // Uninstall executes the uninstall lifecycle for an installed plugin.
@@ -78,6 +117,9 @@ func (s *serviceImpl) UninstallWithOptions(
 ) error {
 	manifest, err := s.catalogSvc.GetDesiredManifest(pluginID)
 	if err != nil {
+		return err
+	}
+	if err = s.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, options.Force); err != nil {
 		return err
 	}
 	if catalog.NormalizeType(manifest.Type) == catalog.TypeSource {
@@ -130,6 +172,11 @@ func (s *serviceImpl) updateStatus(
 	}
 	if status == catalog.StatusEnabled && catalog.NormalizeType(manifest.Type) == catalog.TypeDynamic {
 		if err = s.runtimeSvc.EnsureRuntimeArtifactAvailable(manifest, "enable"); err != nil {
+			return err
+		}
+	}
+	if status == catalog.StatusDisabled {
+		if err = s.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanDisable, false); err != nil {
 			return err
 		}
 	}
@@ -224,4 +271,93 @@ func (s *serviceImpl) IsInstalled(ctx context.Context, pluginID string) bool {
 func (s *serviceImpl) IsEnabled(ctx context.Context, pluginID string) bool {
 	s.ensureRuntimeCacheFreshBestEffort(ctx, "is_enabled")
 	return s.integrationSvc.IsEnabled(ctx, pluginID)
+}
+
+// EnsureTenantDeleteAllowed runs plugin lifecycle guards before tenant deletion
+// continues in the tenant capability provider.
+func (s *serviceImpl) EnsureTenantDeleteAllowed(ctx context.Context, tenantID int) error {
+	return s.ensureTenantLifecycleGuardAllowed(ctx, tenantID, pluginhost.GuardHookCanTenantDelete)
+}
+
+// ensureTenantLifecycleGuardAllowed runs tenant-scoped lifecycle guards and
+// converts vetoes to the same stable lifecycle guard error used by plugin
+// disable and uninstall operations.
+func (s *serviceImpl) ensureTenantLifecycleGuardAllowed(ctx context.Context, tenantID int, hook pluginhost.GuardHook) error {
+	result := pluginhost.RunLifecycleGuards(ctx, pluginhost.GuardRequest{
+		Hook:         hook,
+		TenantID:     tenantID,
+		Participants: pluginhost.ListLifecycleGuardParticipants(),
+	})
+	if result.OK {
+		return nil
+	}
+
+	return bizerr.NewCode(
+		CodePluginLifecycleGuardVetoed,
+		bizerr.P("operation", hook.String()),
+		bizerr.P("pluginId", "tenant:"+strconv.Itoa(tenantID)),
+		bizerr.P("reasons", summarizeGuardVetoReasons(result.Decisions)),
+	)
+}
+
+// ensureLifecycleGuardAllowed runs source-plugin lifecycle guards before a
+// protected plugin action and converts vetoes to stable caller-visible errors.
+func (s *serviceImpl) ensureLifecycleGuardAllowed(
+	ctx context.Context,
+	pluginID string,
+	hook pluginhost.GuardHook,
+	force bool,
+) error {
+	result := pluginhost.RunLifecycleGuards(ctx, pluginhost.GuardRequest{
+		Hook:         hook,
+		Participants: pluginhost.ListLifecycleGuardParticipantsForPlugin(pluginID),
+	})
+	if result.OK {
+		return nil
+	}
+
+	reasons := summarizeGuardVetoReasons(result.Decisions)
+	if force && hook == pluginhost.GuardHookCanUninstall {
+		if !s.configSvc.GetPlugin(ctx).AllowForceUninstall {
+			return bizerr.NewCode(CodePluginForceUninstallDisabled)
+		}
+		logger.Warningf(
+			ctx,
+			"plugin lifecycle guard force bypass operation=%s plugin=%s reasons=%s",
+			hook,
+			pluginID,
+			reasons,
+		)
+		return nil
+	}
+
+	return bizerr.NewCode(
+		CodePluginLifecycleGuardVetoed,
+		bizerr.P("operation", hook.String()),
+		bizerr.P("pluginId", pluginID),
+		bizerr.P("reasons", reasons),
+	)
+}
+
+// summarizeGuardVetoReasons builds one deterministic reason string for bizerr
+// params and audit logs.
+func summarizeGuardVetoReasons(decisions []pluginhost.GuardDecision) string {
+	items := make([]string, 0, len(decisions))
+	for _, decision := range decisions {
+		if decision.OK {
+			continue
+		}
+		reason := strings.TrimSpace(decision.Reason)
+		if reason == "" && decision.Err != nil {
+			reason = decision.Err.Error()
+		}
+		if reason == "" {
+			reason = "plugin." + strings.TrimSpace(decision.PluginID) + ".guard.vetoed"
+		}
+		items = append(items, strings.TrimSpace(decision.PluginID)+":"+reason)
+	}
+	if len(items) == 0 {
+		return "unknown"
+	}
+	return strings.Join(items, ";")
 }

@@ -22,10 +22,11 @@ type SysRoleDao struct {
 // SysRoleColumns defines and stores column names for the table sys_role.
 type SysRoleColumns struct {
 	Id        string // Role ID
+	TenantId  string // Owning tenant ID, 0 means PLATFORM
 	Name      string // Role name
 	Key       string // Permission key
 	Sort      string // Display order
-	DataScope string // Data scope: 1=all, 2=department, 3=self
+	DataScope string // Data scope: 1=all, 2=tenant, 3=department, 4=self
 	Status    string // Status: 0=disabled, 1=enabled
 	Remark    string // Remark
 	CreatedAt string // Creation time
@@ -36,6 +37,7 @@ type SysRoleColumns struct {
 // sysRoleColumns holds the columns for the table sys_role.
 var sysRoleColumns = SysRoleColumns{
 	Id:        "id",
+	TenantId:  "tenant_id",
 	Name:      "name",
 	Key:       "key",
 	Sort:      "sort",

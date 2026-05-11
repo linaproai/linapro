@@ -143,6 +143,18 @@
                             "browser": {
                               "dc": "浏览器类型"
                             },
+                            "tenantId": {
+                              "dc": "所属租户ID"
+                            },
+                            "actingUserId": {
+                              "dc": "实际操作用户ID"
+                            },
+                            "onBehalfOfTenantId": {
+                              "dc": "代表操作的目标租户ID"
+                            },
+                            "isImpersonation": {
+                              "dc": "是否为租户代入操作"
+                            },
                             "id": {
                               "dc": "日志ID"
                             },
@@ -179,6 +191,18 @@
               "fields": {
                 "browser": {
                   "dc": "浏览器类型"
+                },
+                "tenantId": {
+                  "dc": "所属租户ID"
+                },
+                "actingUserId": {
+                  "dc": "实际操作用户ID"
+                },
+                "onBehalfOfTenantId": {
+                  "dc": "代表操作的目标租户ID"
+                },
+                "isImpersonation": {
+                  "dc": "是否为租户代入操作"
                 },
                 "id": {
                   "dc": "日志ID"
@@ -265,6 +289,18 @@
               "fields": {
                 "browser": {
                   "dc": "浏览器类型"
+                },
+                "tenantId": {
+                  "dc": "所属租户ID"
+                },
+                "actingUserId": {
+                  "dc": "实际操作用户ID"
+                },
+                "onBehalfOfTenantId": {
+                  "dc": "代表操作的目标租户ID"
+                },
+                "isImpersonation": {
+                  "dc": "是否为租户代入操作"
                 },
                 "id": {
                   "dc": "日志ID"

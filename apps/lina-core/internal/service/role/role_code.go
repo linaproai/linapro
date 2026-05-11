@@ -45,4 +45,39 @@ var (
 		"Department data scope requires the organization management plugin to be enabled",
 		gcode.CodeInvalidParameter,
 	)
+	// CodeRoleDataScopeUnsupported reports that a submitted role data-scope
+	// value is outside the supported host contract.
+	CodeRoleDataScopeUnsupported = bizerr.MustDefine(
+		"ROLE_DATA_SCOPE_UNSUPPORTED",
+		"Unsupported role data scope: {scope}",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeTenantRoleAllDataScopeForbidden reports that tenant roles cannot
+	// receive cross-tenant all-data scope.
+	CodeTenantRoleAllDataScopeForbidden = bizerr.MustDefine(
+		"TENANT_ROLE_ALL_DATA_SCOPE_FORBIDDEN",
+		"Tenant roles cannot use all-data scope",
+		gcode.CodeInvalidParameter,
+	)
+	// CodeRoleTenantMismatch reports that a role or role relation does not
+	// belong to the current tenant boundary.
+	CodeRoleTenantMismatch = bizerr.MustDefine(
+		"ROLE_TENANT_MISMATCH",
+		"Role does not belong to the current tenant",
+		gcode.CodeNotAuthorized,
+	)
+	// CodePlatformRoleAssignmentForbidden reports a platform role assignment to
+	// a non-platform user or tenant context.
+	CodePlatformRoleAssignmentForbidden = bizerr.MustDefine(
+		"PLATFORM_ROLE_ASSIGNMENT_FORBIDDEN",
+		"Platform roles can only be assigned in platform context",
+		gcode.CodeNotAuthorized,
+	)
+	// CodeTenantRoleAssignmentForbidden reports a tenant role assignment to a
+	// platform user or a user without active membership in the role tenant.
+	CodeTenantRoleAssignmentForbidden = bizerr.MustDefine(
+		"TENANT_ROLE_ASSIGNMENT_FORBIDDEN",
+		"Tenant roles can only be assigned to active users in the same tenant",
+		gcode.CodeNotAuthorized,
+	)
 )

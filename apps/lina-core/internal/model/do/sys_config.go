@@ -13,6 +13,7 @@ import (
 type SysConfig struct {
 	g.Meta    `orm:"table:sys_config, do:true"`
 	Id        any         // Config parameter ID
+	TenantId  any         // Owning tenant ID, 0 means PLATFORM default
 	Name      any         // Config parameter name
 	Key       any         // Config parameter key
 	Value     any         // Config parameter value

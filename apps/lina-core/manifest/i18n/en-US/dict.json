@@ -99,10 +99,13 @@
         "label": "All Data"
       },
       "2": {
-        "label": "Department Data"
+        "label": "Current Tenant Data"
       },
       "3": {
-        "label": "Own Data Only"
+        "label": "Current Department Data"
+      },
+      "4": {
+        "label": "Own Data"
       },
       "name": "Data Scope",
       "remark": "Data scope options"

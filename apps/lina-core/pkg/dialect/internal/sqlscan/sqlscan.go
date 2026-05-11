@@ -12,14 +12,27 @@ func SplitStatements(content string) []string {
 		inSingleQuote   bool
 		inDoubleQuote   bool
 		inBacktickQuote bool
+		inDollarQuote   bool
 		inLineComment   bool
 		inBlockComment  bool
+		dollarQuoteTag  string
 	)
 
 	for i := 0; i < len(content); i++ {
 		current := content[i]
 
 		switch {
+		case inDollarQuote:
+			builder.WriteByte(current)
+			if current == '$' && strings.HasPrefix(content[i:], dollarQuoteTag) {
+				for offset := 1; offset < len(dollarQuoteTag); offset++ {
+					builder.WriteByte(content[i+offset])
+				}
+				i += len(dollarQuoteTag) - 1
+				inDollarQuote = false
+				dollarQuoteTag = ""
+			}
+			continue
 		case inLineComment:
 			if current == '\n' {
 				inLineComment = false
@@ -79,6 +92,14 @@ func SplitStatements(content string) []string {
 			appendSQLStatement(&statements, builder.String())
 			builder.Reset()
 			continue
+		case current == '$':
+			if tag := readDollarQuoteTag(content, i); tag != "" {
+				inDollarQuote = true
+				dollarQuoteTag = tag
+				builder.WriteString(tag)
+				i += len(tag) - 1
+				continue
+			}
 		case current == '\'':
 			inSingleQuote = true
 		case current == '"':
@@ -291,6 +312,23 @@ func isLineCommentStart(content string, index int) bool {
 		return true
 	}
 	return IsSQLWhitespace(content[index+2])
+}
+
+// readDollarQuoteTag returns a PostgreSQL dollar-quote tag starting at index.
+func readDollarQuoteTag(content string, index int) string {
+	if index < 0 || index >= len(content) || content[index] != '$' {
+		return ""
+	}
+	for cursor := index + 1; cursor < len(content); cursor++ {
+		current := content[cursor]
+		if current == '$' {
+			return content[index : cursor+1]
+		}
+		if !isIdentifierByte(current) {
+			return ""
+		}
+	}
+	return ""
 }
 
 // appendSQLStatement appends one non-empty SQL statement.

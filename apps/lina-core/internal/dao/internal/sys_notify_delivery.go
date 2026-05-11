@@ -22,6 +22,7 @@ type SysNotifyDeliveryDao struct {
 // SysNotifyDeliveryColumns defines and stores column names for the table sys_notify_delivery.
 type SysNotifyDeliveryColumns struct {
 	Id             string // Primary key ID
+	TenantId       string // Owning tenant ID, 0 means PLATFORM
 	MessageId      string // Notification message ID
 	ChannelKey     string // Delivery channel key
 	ChannelType    string // Delivery channel type
@@ -41,6 +42,7 @@ type SysNotifyDeliveryColumns struct {
 // sysNotifyDeliveryColumns holds the columns for the table sys_notify_delivery.
 var sysNotifyDeliveryColumns = SysNotifyDeliveryColumns{
 	Id:             "id",
+	TenantId:       "tenant_id",
 	MessageId:      "message_id",
 	ChannelKey:     "channel_key",
 	ChannelType:    "channel_type",

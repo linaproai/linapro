@@ -10,11 +10,14 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/internal/service/plugin/internal/testutil"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/pluginhost"
 )
 
 // TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets verifies
@@ -64,6 +67,235 @@ func TestUpdateStatusEnablesBackendOnlyDynamicPluginWithoutFrontendAssets(t *tes
 	if !service.IsEnabled(ctx, pluginID) {
 		t.Fatalf("expected backend-only dynamic plugin to be enabled after status update")
 	}
+}
+
+// TestApplyInstallModeSelectionRejectsInvalidMode verifies service-layer install
+// validation rejects unsupported install-mode values before registry sync.
+func TestApplyInstallModeSelectionRejectsInvalidMode(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID:                 "plugin-invalid-install-mode",
+		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+	}
+
+	err := applyInstallModeSelection(manifest, "per_tenant")
+	if !bizerr.Is(err, CodePluginInstallModeInvalid) {
+		t.Fatalf("expected invalid install mode bizerr, got %v", err)
+	}
+}
+
+// TestApplyInstallModeSelectionRejectsPlatformOnlyTenantScoped verifies
+// platform-only plugins cannot be installed with tenant-scoped enablement.
+func TestApplyInstallModeSelectionRejectsPlatformOnlyTenantScoped(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID:                 "plugin-platform-only-install-mode",
+		ScopeNature:        catalog.ScopeNaturePlatformOnly.String(),
+		DefaultInstallMode: catalog.InstallModeGlobal.String(),
+	}
+
+	err := applyInstallModeSelection(manifest, catalog.InstallModeTenantScoped.String())
+	if !bizerr.Is(err, CodePluginInstallModeInvalidForScopeNature) {
+		t.Fatalf("expected scope/install-mode mismatch bizerr, got %v", err)
+	}
+}
+
+// TestApplyInstallModeSelectionPersistsExplicitTenantAwareMode verifies an
+// explicit platform selection overrides the manifest default before install.
+func TestApplyInstallModeSelectionPersistsExplicitTenantAwareMode(t *testing.T) {
+	manifest := &catalog.Manifest{
+		ID:                 "plugin-tenant-aware-install-mode",
+		ScopeNature:        catalog.ScopeNatureTenantAware.String(),
+		DefaultInstallMode: catalog.InstallModeTenantScoped.String(),
+	}
+
+	if err := applyInstallModeSelection(manifest, catalog.InstallModeGlobal.String()); err != nil {
+		t.Fatalf("expected explicit global install mode to be accepted, got %v", err)
+	}
+	if manifest.DefaultInstallMode != catalog.InstallModeGlobal.String() {
+		t.Fatalf("expected explicit global install mode to be applied, got %s", manifest.DefaultInstallMode)
+	}
+}
+
+// TestInstallPersistsExplicitDynamicInstallMode verifies dynamic install does
+// not let the runtime lifecycle's manifest reload reset the operator selection.
+func TestInstallPersistsExplicitDynamicInstallMode(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-dynamic-explicit-install-mode"
+	)
+
+	artifactPath := testutil.CreateTestRuntimeStorageArtifactWithFrontendAssets(
+		t,
+		pluginID,
+		"Dynamic Explicit Install Mode",
+		"v0.4.2",
+		nil,
+		nil,
+		nil,
+	)
+	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+	t.Cleanup(func() {
+		testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)
+		if cleanupErr := os.Remove(artifactPath); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
+			t.Fatalf("failed to remove artifact %s: %v", artifactPath, cleanupErr)
+		}
+	})
+
+	if err := service.Install(ctx, pluginID, InstallOptions{
+		InstallMode: catalog.InstallModeGlobal.String(),
+	}); err != nil {
+		t.Fatalf("install dynamic plugin with explicit global mode: %v", err)
+	}
+	registry, err := service.getPluginRegistry(ctx, pluginID)
+	if err != nil {
+		t.Fatalf("load plugin registry after install: %v", err)
+	}
+	if registry == nil {
+		t.Fatal("expected plugin registry after install")
+	}
+	if registry.InstallMode != catalog.InstallModeGlobal.String() {
+		t.Fatalf("expected explicit global install_mode to persist, got %s", registry.InstallMode)
+	}
+}
+
+// TestDisableRunsLifecycleGuards verifies disable requests fail closed when a
+// lifecycle guard vetoes the operation.
+func TestDisableRunsLifecycleGuards(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-disable-guarded"
+	)
+	pluginhost.RegisterLifecycleGuard(pluginID, lifecycleGuardDisableVeto{})
+	t.Cleanup(func() {
+		pluginhost.UnregisterLifecycleGuard(pluginID)
+	})
+
+	err := service.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanDisable, false)
+	if !bizerr.Is(err, CodePluginLifecycleGuardVetoed) {
+		t.Fatalf("expected lifecycle guard bizerr, got %v", err)
+	}
+}
+
+// TestDisableIgnoresNonTargetLifecycleGuards verifies one plugin-owned guard
+// cannot veto lifecycle actions for unrelated plugins.
+func TestDisableIgnoresNonTargetLifecycleGuards(t *testing.T) {
+	var (
+		service        = newTestService()
+		ctx            = context.Background()
+		targetPluginID = "plugin-disable-target"
+		guardPluginID  = "plugin-disable-other-guard"
+	)
+	pluginhost.RegisterLifecycleGuard(guardPluginID, lifecycleGuardDisableVeto{})
+	t.Cleanup(func() {
+		pluginhost.UnregisterLifecycleGuard(guardPluginID)
+	})
+
+	err := service.ensureLifecycleGuardAllowed(ctx, targetPluginID, pluginhost.GuardHookCanDisable, false)
+	if err != nil {
+		t.Fatalf("expected unrelated lifecycle guard to be ignored, got %v", err)
+	}
+}
+
+// TestTenantDeleteRunsLifecycleGuards verifies tenant deletion fails closed
+// when any plugin-owned lifecycle guard vetoes the tenant delete hook.
+func TestTenantDeleteRunsLifecycleGuards(t *testing.T) {
+	var (
+		service = newTestService()
+		ctx     = context.Background()
+		guardID = "plugin-tenant-delete-guard"
+	)
+	pluginhost.RegisterLifecycleGuard(guardID, lifecycleGuardTenantDeleteVeto{})
+	t.Cleanup(func() {
+		pluginhost.UnregisterLifecycleGuard(guardID)
+	})
+
+	err := service.EnsureTenantDeleteAllowed(ctx, 8001)
+	if !bizerr.Is(err, CodePluginLifecycleGuardVetoed) {
+		t.Fatalf("expected tenant delete lifecycle guard bizerr, got %v", err)
+	}
+}
+
+// TestTenantDeleteLifecycleGuardAllowsWhenNoParticipant verifies tenant
+// deletion guard checks are a no-op when no plugin participates.
+func TestTenantDeleteLifecycleGuardAllowsWhenNoParticipant(t *testing.T) {
+	service := newTestService()
+
+	if err := service.EnsureTenantDeleteAllowed(context.Background(), 8002); err != nil {
+		t.Fatalf("expected tenant delete guard to allow without participants, got %v", err)
+	}
+}
+
+// TestUninstallForceRequiresConfig verifies force uninstall is gated by
+// plugin.allowForceUninstall before bypassing guard vetoes.
+func TestUninstallForceRequiresConfig(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-force-guarded"
+	)
+	pluginhost.RegisterLifecycleGuard(pluginID, lifecycleGuardUninstallVeto{})
+	t.Cleanup(func() {
+		pluginhost.UnregisterLifecycleGuard(pluginID)
+		configsvc.SetPluginAllowForceUninstallOverride(nil)
+	})
+
+	disabled := false
+	configsvc.SetPluginAllowForceUninstallOverride(&disabled)
+	err := service.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, true)
+	if !bizerr.Is(err, CodePluginForceUninstallDisabled) {
+		t.Fatalf("expected force-disabled bizerr, got %v", err)
+	}
+}
+
+// TestUninstallForceBypassesLifecycleGuardWhenConfigured verifies force
+// uninstall can bypass guard vetoes when the host config explicitly allows it.
+func TestUninstallForceBypassesLifecycleGuardWhenConfigured(t *testing.T) {
+	var (
+		service  = newTestService()
+		ctx      = context.Background()
+		pluginID = "plugin-force-missing-after-guard"
+	)
+	pluginhost.RegisterLifecycleGuard(pluginID, lifecycleGuardUninstallVeto{})
+	t.Cleanup(func() {
+		pluginhost.UnregisterLifecycleGuard(pluginID)
+		configsvc.SetPluginAllowForceUninstallOverride(nil)
+	})
+
+	enabled := true
+	configsvc.SetPluginAllowForceUninstallOverride(&enabled)
+	err := service.ensureLifecycleGuardAllowed(ctx, pluginID, pluginhost.GuardHookCanUninstall, true)
+	if bizerr.Is(err, CodePluginLifecycleGuardVetoed) || bizerr.Is(err, CodePluginForceUninstallDisabled) {
+		t.Fatalf("expected force to bypass guard errors, got %v", err)
+	}
+	if err != nil {
+		t.Fatalf("expected force bypass to continue, got %v", err)
+	}
+}
+
+// lifecycleGuardDisableVeto is a test guard that blocks disable.
+type lifecycleGuardDisableVeto struct{}
+
+// CanDisable returns a deterministic test veto reason.
+func (lifecycleGuardDisableVeto) CanDisable(ctx context.Context) (bool, string, error) {
+	return false, "plugin.test.disable_blocked", nil
+}
+
+// lifecycleGuardUninstallVeto is a test guard that blocks uninstall.
+type lifecycleGuardUninstallVeto struct{}
+
+// CanUninstall returns a deterministic test veto reason.
+func (lifecycleGuardUninstallVeto) CanUninstall(ctx context.Context) (bool, string, error) {
+	return false, "plugin.test.uninstall_blocked", nil
+}
+
+// lifecycleGuardTenantDeleteVeto is a test guard that blocks tenant deletion.
+type lifecycleGuardTenantDeleteVeto struct{}
+
+// CanTenantDelete returns a deterministic tenant-delete veto reason.
+func (lifecycleGuardTenantDeleteVeto) CanTenantDelete(ctx context.Context, tenantID int) (bool, string, error) {
+	return false, "plugin.test.tenant_delete_blocked", nil
 }
 
 // TestSyncAndListReportsPendingHostServiceAuthorization verifies that list

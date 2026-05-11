@@ -24,6 +24,7 @@ export const columns: VxeGridProps['columns'] = [
   {
     title: $t('pages.system.dict.data.fields.label'),
     field: 'label',
+    minWidth: 180,
     slots: {
       default: ({ row }) => {
         const { label, tagStyle, cssClass } = row as DictData;
@@ -43,6 +44,7 @@ export const columns: VxeGridProps['columns'] = [
   {
     title: $t('pages.fields.sort'),
     field: 'sort',
+    width: 80,
   },
   {
     title: $t('pages.common.remark'),

@@ -21,6 +21,7 @@ type SysOnlineSessionDao struct {
 
 // SysOnlineSessionColumns defines and stores column names for the table sys_online_session.
 type SysOnlineSessionColumns struct {
+	TenantId       string // Owning tenant ID, 0 means PLATFORM
 	TokenId        string // Session token ID (UUID)
 	UserId         string // User ID
 	Username       string // Login account
@@ -34,6 +35,7 @@ type SysOnlineSessionColumns struct {
 
 // sysOnlineSessionColumns holds the columns for the table sys_online_session.
 var sysOnlineSessionColumns = SysOnlineSessionColumns{
+	TenantId:       "tenant_id",
 	TokenId:        "token_id",
 	UserId:         "user_id",
 	Username:       "username",

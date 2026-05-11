@@ -5,6 +5,7 @@ package sqltable
 
 import (
 	"encoding/base64"
+	"strconv"
 	"strings"
 
 	"lina-core/pkg/bizerr"
@@ -17,6 +18,7 @@ const cacheKeyPartCount = 3
 // cacheIdentity stores the decoded owner key, namespace, and logical cache
 // key parsed from a public cache key string.
 type cacheIdentity struct {
+	tenantID  int
 	ownerKey  string
 	namespace string
 	cacheKey  string
@@ -53,8 +55,28 @@ func parseCacheKey(cacheKey string) (*cacheIdentity, error) {
 		decodedParts = append(decodedParts, string(decoded))
 	}
 	return &cacheIdentity{
+		tenantID:  tenantIDFromOwnerKey(decodedParts[0]),
 		ownerKey:  decodedParts[0],
 		namespace: decodedParts[1],
 		cacheKey:  decodedParts[2],
 	}, nil
+}
+
+// tenantIDFromOwnerKey extracts the canonical tenant discriminator from
+// tenantcap.CacheKey owner keys. Legacy owner keys remain platform scoped.
+func tenantIDFromOwnerKey(ownerKey string) int {
+	trimmedOwnerKey := strings.TrimSpace(ownerKey)
+	if !strings.HasPrefix(trimmedOwnerKey, "tenant=") {
+		return 0
+	}
+	tenantPart := strings.TrimPrefix(trimmedOwnerKey, "tenant=")
+	separatorIndex := strings.Index(tenantPart, ":")
+	if separatorIndex >= 0 {
+		tenantPart = tenantPart[:separatorIndex]
+	}
+	tenantID, err := strconv.Atoi(tenantPart)
+	if err != nil {
+		return 0
+	}
+	return tenantID
 }

@@ -8,7 +8,7 @@ export default defineConfig({
   fullyParallel: false,
   globalSetup: './global-setup.ts',
   workers: Number.parseInt(process.env.E2E_WORKERS ?? '1', 10),
-  retries: 0,
+  retries: Number.parseInt(process.env.E2E_RETRIES ?? (process.env.CI ? '1' : '0'), 10),
   timeout: 60000,
   expect: {
     timeout: 10000,
@@ -18,7 +18,8 @@ export default defineConfig({
     headless: true,
     locale: 'zh-CN',
     screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
+    video: 'retain-on-failure',
   },
   reporter: [['list'], ['html', { open: 'never' }]],
   projects: [

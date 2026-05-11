@@ -20,5 +20,6 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.9.3",
     "xlsx": "^0.18.5"
-  }
+  },
+  "packageManager": "pnpm@11.0.9+sha512.34ce82e6780233cf9cad8685029a8f81d2e06196c5a9bad98879f7424940c6817c4e4524fb7d38b8553ceed48b9758b8ebaf1abd3600c232c4c8cf7366086f38"
 }

@@ -1,0 +1,12 @@
+# CLI tool, only in development environment.
+# https://goframe.org/docs/cli
+gfcli:
+  gen:
+    dao:
+      - link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+        path: "internal"
+        tables: "plugin_multi_tenant_tenant,plugin_multi_tenant_user_membership,plugin_multi_tenant_config_override,sys_user,sys_plugin,sys_plugin_state"
+        removePrefix: "plugin_multi_tenant_"
+        importPrefix: "lina-plugin-multi-tenant/backend/internal"
+        descriptionTag: true
+        noModelComment: true

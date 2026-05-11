@@ -32,6 +32,11 @@
         "validation": {
           "title": "请输入记录标题"
         }
+      },
+      "lifecycleGuard": {
+        "uninstall_blocked": {
+          "demo_records_exist": "一个或多个租户仍存在示例记录。卸载前请先删除示例记录。"
+        }
       }
     }
   }

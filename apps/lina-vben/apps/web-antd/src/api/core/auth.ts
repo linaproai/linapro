@@ -1,3 +1,5 @@
+import type { TenantAwareLoginResult } from '#/api/tenant/model';
+
 import { requestClient } from '#/api/request';
 
 export namespace AuthApi {
@@ -8,9 +10,7 @@ export namespace AuthApi {
   }
 
   /** 登录接口返回值 */
-  export interface LoginResult {
-    accessToken: string;
-  }
+  export interface LoginResult extends TenantAwareLoginResult {}
 }
 
 /**
@@ -26,4 +26,3 @@ export async function loginApi(data: AuthApi.LoginParams) {
 export async function logoutApi() {
   return requestClient.post('/auth/logout');
 }
-

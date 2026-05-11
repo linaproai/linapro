@@ -24,4 +24,5 @@ type SysUser struct {
 	CreatedAt *gtime.Time `json:"createdAt" orm:"created_at" description:"Creation time"`
 	UpdatedAt *gtime.Time `json:"updatedAt" orm:"updated_at" description:"Update time"`
 	DeletedAt *gtime.Time `json:"deletedAt" orm:"deleted_at" description:"Deletion time"`
+	TenantId  int         `json:"tenantId"  orm:"tenant_id"  description:"Primary/default tenant ID, 0 means PLATFORM"`
 }

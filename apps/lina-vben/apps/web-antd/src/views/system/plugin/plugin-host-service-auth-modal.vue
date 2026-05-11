@@ -40,6 +40,7 @@ const currentMode = ref<ReviewMode>('install');
 const allowInstallAndEnable = ref(false);
 const submittingAction = ref<null | SubmitAction>(null);
 const installMockData = ref(false);
+const selectedInstallMode = ref<'global' | 'tenant_scoped' | undefined>();
 
 const [BasicModal, modalApi] = useVbenModal({
   onClosed: handleClosed,
@@ -127,20 +128,28 @@ async function handleOpenChange(open: boolean) {
   }
   const data = modalApi.getData<{
     allowInstallAndEnable?: boolean;
+    installMode?: 'global' | 'tenant_scoped';
     mode: ReviewMode;
     row: SystemPlugin;
   }>();
   currentPlugin.value = data?.row ?? null;
   currentMode.value = data?.mode ?? 'install';
   allowInstallAndEnable.value = data?.allowInstallAndEnable === true;
+  selectedInstallMode.value = data?.installMode;
   installMockData.value = false;
 }
 
 function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
   const installMock =
     currentMode.value === 'install' && installMockData.value === true;
+  const installMode =
+    currentMode.value === 'install' && selectedInstallMode.value
+      ? { installMode: selectedInstallMode.value }
+      : {};
   if (!authorizationRequired.value) {
-    return installMock ? { installMockData: true } : undefined;
+    return installMock || selectedInstallMode.value
+      ? { ...installMode, ...(installMock ? { installMockData: true } : {}) }
+      : undefined;
   }
   return {
     authorization: {
@@ -163,6 +172,7 @@ function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
           service: service.service,
         })),
     },
+    ...installMode,
     ...(installMock ? { installMockData: true } : {}),
   };
 }

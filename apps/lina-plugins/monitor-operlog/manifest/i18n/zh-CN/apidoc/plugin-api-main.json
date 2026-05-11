@@ -146,6 +146,18 @@
                             "costTime": {
                               "dc": "耗时（毫秒）"
                             },
+                            "tenantId": {
+                              "dc": "所属租户ID"
+                            },
+                            "actingUserId": {
+                              "dc": "实际操作用户ID"
+                            },
+                            "onBehalfOfTenantId": {
+                              "dc": "代表操作的目标租户ID"
+                            },
+                            "isImpersonation": {
+                              "dc": "是否为租户代入操作"
+                            },
                             "errorMsg": {
                               "dc": "错误消息"
                             },
@@ -203,6 +215,18 @@
               "fields": {
                 "costTime": {
                   "dc": "耗时（毫秒）"
+                },
+                "tenantId": {
+                  "dc": "所属租户ID"
+                },
+                "actingUserId": {
+                  "dc": "实际操作用户ID"
+                },
+                "onBehalfOfTenantId": {
+                  "dc": "代表操作的目标租户ID"
+                },
+                "isImpersonation": {
+                  "dc": "是否为租户代入操作"
                 },
                 "errorMsg": {
                   "dc": "错误消息"
@@ -313,6 +337,18 @@
               "fields": {
                 "costTime": {
                   "dc": "耗时（毫秒）"
+                },
+                "tenantId": {
+                  "dc": "所属租户ID"
+                },
+                "actingUserId": {
+                  "dc": "实际操作用户ID"
+                },
+                "onBehalfOfTenantId": {
+                  "dc": "代表操作的目标租户ID"
+                },
+                "isImpersonation": {
+                  "dc": "是否为租户代入操作"
                 },
                 "errorMsg": {
                   "dc": "错误消息"
