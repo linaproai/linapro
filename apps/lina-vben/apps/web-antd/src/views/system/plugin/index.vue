@@ -143,7 +143,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         field: 'type',
-        slots: { default: 'type' },
+        slots: { default: 'type', header: 'typeHeader' },
         title: $t('pages.system.plugin.fields.type'),
         width: 120,
       },
@@ -168,19 +168,25 @@ const [Grid, gridApi] = useVbenVxeGrid({
       },
       {
         field: 'hasMockData',
-        slots: { default: 'hasMockData' },
+        slots: { default: 'hasMockData', header: 'hasMockDataHeader' },
         title: $t('pages.system.plugin.fields.hasMockData'),
         width: 120,
       },
       {
         field: 'supportsMultiTenant',
-        slots: { default: 'supportsMultiTenant' },
+        slots: {
+          default: 'supportsMultiTenant',
+          header: 'supportsMultiTenantHeader',
+        },
         title: $t('pages.system.plugin.fields.supportsMultiTenant'),
         width: 140,
       },
       {
         field: 'autoEnableForNewTenants',
-        slots: { default: 'tenantProvisioning' },
+        slots: {
+          default: 'tenantProvisioning',
+          header: 'tenantProvisioningHeader',
+        },
         title: $t('pages.system.plugin.fields.tenantProvisioning'),
         width: 160,
       },
@@ -267,6 +273,10 @@ function buildAutoEnableManagedRuntimeHint(actionLabel: string) {
   return $t('pages.system.plugin.messages.autoEnableRuntimeHint', {
     actionLabel,
   });
+}
+
+function getColumnHelpAriaLabel(label: string) {
+  return $t('pages.system.plugin.columnHelp.ariaLabel', { label });
 }
 
 async function confirmAutoEnableManagedAction(actionLabel: string) {
@@ -463,31 +473,6 @@ async function handleLifecycleGuardForce(payload: { pluginId: string }) {
 <template>
   <Page :auto-content-height="true">
     <Grid :table-title="$t('pages.system.plugin.tableTitle')">
-      <template #table-title>
-        <div class="flex-center gap-1 text-[1rem] font-bold">
-          <span>{{ $t('pages.system.plugin.tableTitle') }}</span>
-          <Tooltip placement="right">
-            <template #title>
-              <div class="max-w-[320px] space-y-1.5 text-xs leading-5">
-                <div>
-                  {{ $t('pages.system.plugin.tableTitleHelp.sourceDynamic') }}
-                </div>
-                <div>
-                  {{ $t('pages.system.plugin.tableTitleHelp.mockData') }}
-                </div>
-              </div>
-            </template>
-            <span
-              :aria-label="$t('pages.system.plugin.tableTitleHelp.ariaLabel')"
-              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[15px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
-              data-testid="plugin-list-help-icon"
-              role="img"
-              tabindex="0"
-            ></span>
-          </Tooltip>
-        </div>
-      </template>
-
       <template #toolbar-tools>
         <Space>
           <a-button
@@ -506,6 +491,92 @@ async function handleLifecycleGuardForce(payload: { pluginId: string }) {
             {{ $t('pages.system.plugin.actions.syncPlugins') }}
           </a-button>
         </Space>
+      </template>
+
+      <template #typeHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.type') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.type')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel($t('pages.system.plugin.fields.type'))
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-type-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
+      <template #hasMockDataHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.hasMockData') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.mockData')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.hasMockData'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-mock-data-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
+      <template #supportsMultiTenantHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.supportsMultiTenant') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.supportsMultiTenant')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.supportsMultiTenant'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-supports-multi-tenant-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
+      </template>
+
+      <template #tenantProvisioningHeader>
+        <span class="inline-flex items-center gap-1">
+          <span>{{ $t('pages.system.plugin.fields.tenantProvisioning') }}</span>
+          <Tooltip
+            :title="$t('pages.system.plugin.columnHelp.tenantProvisioning')"
+            placement="top"
+          >
+            <span
+              :aria-label="
+                getColumnHelpAriaLabel(
+                  $t('pages.system.plugin.fields.tenantProvisioning'),
+                )
+              "
+              class="icon-[ant-design--question-circle-outlined] inline-flex size-4 cursor-help items-center justify-center text-[14px] leading-none text-[var(--ant-color-text-secondary)] transition-colors hover:text-[var(--ant-color-primary)]"
+              data-testid="plugin-tenant-provisioning-column-help-icon"
+              role="img"
+              tabindex="0"
+            ></span>
+          </Tooltip>
+        </span>
       </template>
 
       <template #type="{ row }">

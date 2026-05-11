@@ -1,5 +1,6 @@
 <script lang="ts">
 export const pluginPageMeta = {
+  capabilities: ['organization.management'],
   routePath: '/system/dept',
   title: 'Departments',
 };

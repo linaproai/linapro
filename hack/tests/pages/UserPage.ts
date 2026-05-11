@@ -83,6 +83,18 @@ export class UserPage {
     return this.getUserDataRow(username);
   }
 
+  /** Tenant filter is rendered only when the multi-tenant plugin is active. */
+  get tenantFilter() {
+    return this.page.getByTestId("user-tenant-filter");
+  }
+
+  /** Tenant membership header is rendered only when tenant columns are active. */
+  get tenantMembershipHeader() {
+    return this.page
+      .locator(".vxe-header--column:visible")
+      .filter({ hasText: /所属租户|Tenant Memberships/i });
+  }
+
   /** Check whether the left department tree shows the expected raw department label. */
   async hasDeptTreeNode(label: string): Promise<boolean> {
     return this.page

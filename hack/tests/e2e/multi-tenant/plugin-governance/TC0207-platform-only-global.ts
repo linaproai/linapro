@@ -68,6 +68,25 @@ test.describe('TC-207 platform-only 插件强制 global', () => {
     try {
       await pluginPage.gotoManage();
       await pluginPage.searchByPluginId(pluginId);
+      await expect(pluginPage.pluginListHelpIcon()).toHaveCount(0);
+      await expect(pluginPage.pluginColumnHelpIcon('type')).toBeVisible();
+      await expect(pluginPage.pluginColumnHelpIcon('mockData')).toBeVisible();
+      await expect(
+        pluginPage.pluginColumnHelpIcon('supportsMultiTenant'),
+      ).toBeVisible();
+      await expect(
+        pluginPage.pluginColumnHelpIcon('tenantProvisioning'),
+      ).toBeVisible();
+      await pluginPage.expectColumnHelpTooltip('type', '源码插件随宿主源码');
+      await pluginPage.expectColumnHelpTooltip('mockData', '示例数据');
+      await pluginPage.expectColumnHelpTooltip(
+        'supportsMultiTenant',
+        '支持多租户治理',
+      );
+      await pluginPage.expectColumnHelpTooltip(
+        'tenantProvisioning',
+        '新租户创建时是否自动启用',
+      );
       const plugin = await getPlugin(api, pluginId);
       expect(plugin.supportsMultiTenant).toBe(false);
       expect(plugin.autoEnableForNewTenants).toBe(false);

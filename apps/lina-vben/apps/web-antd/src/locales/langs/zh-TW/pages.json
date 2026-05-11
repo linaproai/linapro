@@ -913,10 +913,12 @@
     },
     "plugin": {
       "tableTitle": "插件列表",
-      "tableTitleHelp": {
-        "ariaLabel": "插件列表說明",
-        "sourceDynamic": "源碼插件隨宿主源碼與編譯產物交付，適合內建能力和可信擴展；動態插件以 wasm 製品上傳和切換，適合運行時安裝、升級與隔離治理。",
-        "mockData": "示例資料列的「是」表示插件隨包提供示例資料，可在安裝時選擇載入；「否」表示沒有可載入的示例資料。"
+      "columnHelp": {
+        "ariaLabel": "{label}列說明",
+        "type": "源碼插件隨宿主源碼與編譯產物交付，適合內建能力和可信擴展；動態插件以 wasm 製品上傳和切換，適合運行時安裝、升級與隔離治理。",
+        "mockData": "「是」表示插件隨包提供示例資料，可在安裝時選擇載入；「否」表示沒有可載入的示例資料。",
+        "supportsMultiTenant": "「是」表示插件聲明支援多租戶治理，可使用租戶級安裝模式和租戶側啟停；「否」表示插件只能按平台全域能力治理。",
+        "tenantProvisioning": "控制租戶級插件在新租戶建立時是否自動啟用；僅支援多租戶且以租戶級模式安裝的插件可配置。"
       },
       "fields": {
         "id": "插件標識",
@@ -930,7 +932,9 @@
         "startupManagement": "啟動管理",
         "hasMockData": "示例資料",
         "supportsMultiTenant": "支援多租戶",
-        "tenantProvisioning": "新租戶啟用"
+        "tenantProvisioning": "新租戶啟用",
+        "scopeNature": "作用域性質",
+        "installMode": "安裝模式"
       },
       "type": {
         "source": "源碼插件",
@@ -974,6 +978,10 @@
       "autoEnableBadge": "自動啟用",
       "autoEnableManaged": "宿主管理自動啟用",
       "manualManaged": "手動控制",
+      "scopeNature": {
+        "platformOnly": "僅平台",
+        "tenantAware": "租戶感知"
+      },
       "detail": {
         "title": "插件詳情",
         "hostServicesTitle": "宿主服務範圍",

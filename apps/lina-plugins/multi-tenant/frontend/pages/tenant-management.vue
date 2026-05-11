@@ -1,5 +1,6 @@
 <script lang="ts">
 export const pluginPageMeta = {
+  capabilities: ['tenant.management'],
   routePath: 'platform/tenants',
   title: 'Tenant Management',
 };

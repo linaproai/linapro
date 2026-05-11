@@ -399,7 +399,31 @@ export class MultiTenantPage {
     await this.page.route(
       /\/api(?:\/v1)?\/plugins\/dynamic(?:\?.*)?$/,
       async (route) => {
-        await route.fulfill(ok({ list: [] }));
+        await route.fulfill(
+          ok({
+            list:
+              this.workbenchMode === "disabled"
+                ? []
+                : [
+                    {
+                      enabled: 1,
+                      generation: 1,
+                      id: "multi-tenant",
+                      installed: 1,
+                      statusKey: "sys_plugin.status:multi-tenant",
+                      version: "v0.1.0",
+                    },
+                    {
+                      enabled: 1,
+                      generation: 1,
+                      id: "org-center",
+                      installed: 1,
+                      statusKey: "sys_plugin.status:org-center",
+                      version: "v0.1.0",
+                    },
+                  ],
+          }),
+        );
       },
     );
     await this.page.route(
@@ -1089,9 +1113,18 @@ export class MultiTenantPage {
         hasText: "tenant-admin",
       }),
     ).toBeVisible();
+    const userRow = this.page
+      .locator(".vxe-table--main-wrapper .vxe-body--row:visible", {
+        hasText: "tenant-admin",
+      })
+      .first();
+    const userRowID = await userRow.getAttribute("rowid");
+    expect(userRowID, "未找到租户用户行 rowid: tenant-admin").toBeTruthy();
     await this.page
+      .locator(
+        `.vxe-table--fixed-right-wrapper .vxe-body--row[rowid=\"${userRowID}\"]`,
+      )
       .getByRole("button", { name: /^编\s*辑$|^Edit$/ })
-      .first()
       .click();
     const editDialog = this.page.getByRole("dialog", { name: "编辑用户" });
     await expect(editDialog).toBeVisible();

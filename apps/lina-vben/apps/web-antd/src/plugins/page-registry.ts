@@ -1,9 +1,13 @@
 import type { Component } from 'vue';
 import type { VirtualPluginPageModuleEntry } from 'virtual:lina-plugin-pages';
 
+import type { PluginCapabilityKey } from './plugin-capabilities';
+
+import { isPluginCapabilityKey } from './plugin-capabilities';
 import { pluginPageModules } from 'virtual:lina-plugin-pages';
 
 export interface PluginPageMeta {
+  capabilities?: PluginCapabilityKey[];
   pluginId?: string;
   routePath?: string;
   title?: string;
@@ -11,6 +15,7 @@ export interface PluginPageMeta {
 
 export interface RegisteredPluginPage {
   component: Component;
+  capabilities: PluginCapabilityKey[];
   filePath: string;
   key: string;
   pluginId: string;
@@ -24,6 +29,23 @@ function inferRoutePath(pluginId: string, pagePath: string) {
 
 function normalizeRoutePath(routePath: string) {
   return routePath.replace(/^\//, '');
+}
+
+function normalizeCapabilities(
+  values: PluginCapabilityKey[] | undefined,
+  filePath: string,
+) {
+  const capabilities = new Set<PluginCapabilityKey>();
+  for (const value of values ?? []) {
+    if (isPluginCapabilityKey(value)) {
+      capabilities.add(value);
+      continue;
+    }
+    console.warn(
+      `[plugin-page] skip unpublished capability "${value}" from ${filePath}`,
+    );
+  }
+  return [...capabilities].sort();
 }
 
 const pluginPages = pluginPageModules
@@ -44,6 +66,10 @@ const pluginPages = pluginPageModules
 
     return {
       component: item.module.default as Component,
+      capabilities: normalizeCapabilities(
+        item.module.pluginPageMeta?.capabilities,
+        item.filePath,
+      ),
       filePath: item.filePath,
       key: `${pluginId}:${pagePath}`,
       pluginId,

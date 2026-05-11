@@ -11,9 +11,9 @@ import { useVbenForm } from '#/adapter/form';
 import { menuTreeSelect, roleMenuTreeSelect } from '#/api/system/menu';
 import { roleAdd, roleInfo, roleUpdate } from '#/api/system/role';
 import { MenuSelectTable } from '#/components/tree';
-import { getPluginStateMap } from '#/plugins/slot-registry';
+import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
+import { getPluginCapabilityStateMap } from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
-import { useTenantStore } from '#/store/tenant';
 import { defaultFormValueGetter, useBeforeCloseDiff } from '#/utils/popup';
 
 import {
@@ -25,10 +25,7 @@ import {
 } from './data';
 
 const emit = defineEmits<{ reload: [] }>();
-const orgCenterPluginId = 'org-center';
-const multiTenantPluginId = 'multi-tenant';
 const dictStore = useDictStore();
-const tenantStore = useTenantStore();
 
 const isUpdate = ref(false);
 const orgEnabled = ref(true);
@@ -52,23 +49,14 @@ const [BasicForm, formApi] = useVbenForm({
 
 const menuTree = ref<any[]>([]);
 
-function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
-  const pluginState = pluginStateMap.get(pluginId);
-  return pluginState?.installed === 1 && pluginState?.enabled === 1;
-}
-
-function isTenantDataScopeEnabled(pluginStateMap: Map<string, any>) {
-  if (pluginStateMap.has(multiTenantPluginId)) {
-    return isPluginEnabled(multiTenantPluginId, pluginStateMap);
-  }
-  return tenantStore.enabled;
-}
-
 async function syncRoleCapabilities() {
-  const pluginStateMap = await getPluginStateMap(true);
+  const capabilityMap = await getPluginCapabilityStateMap(true);
   await dictStore.getDictOptionsAsync(DATA_SCOPE_DICT_TYPE);
-  orgEnabled.value = isPluginEnabled(orgCenterPluginId, pluginStateMap);
-  tenantEnabled.value = isTenantDataScopeEnabled(pluginStateMap);
+  orgEnabled.value =
+    capabilityMap.get(pluginCapabilityKeys.organizationManagement)?.enabled ===
+    true;
+  tenantEnabled.value =
+    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true;
   formApi.updateSchema([
     {
       fieldName: 'dataScope',

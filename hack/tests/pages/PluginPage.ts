@@ -10,6 +10,12 @@ const pluginDetailActionPattern = /详\s*情|Detail(?:s)?/iu;
 const confirmActionPattern = /确\s*认|确\s*定|confirm|ok/iu;
 const cancelActionPattern = /取\s*消|cancel/iu;
 
+type PluginColumnHelpName =
+  | "mockData"
+  | "supportsMultiTenant"
+  | "tenantProvisioning"
+  | "type";
+
 export class PluginPage {
   readonly page: Page;
 
@@ -23,6 +29,16 @@ export class PluginPage {
 
   pluginListHelpIcon(): Locator {
     return this.page.getByTestId("plugin-list-help-icon").first();
+  }
+
+  pluginColumnHelpIcon(name: PluginColumnHelpName): Locator {
+    const testIds = {
+      mockData: "plugin-mock-data-column-help-icon",
+      supportsMultiTenant: "plugin-supports-multi-tenant-column-help-icon",
+      tenantProvisioning: "plugin-tenant-provisioning-column-help-icon",
+      type: "plugin-type-column-help-icon",
+    } as const;
+    return this.page.getByTestId(testIds[name]).first();
   }
 
   get dynamicUploadTrigger(): Locator {
@@ -362,6 +378,28 @@ export class PluginPage {
     return this.page.getByTestId("plugin-detail-empty-host-services").last();
   }
 
+  pluginDetailHasMockData(): Locator {
+    return this.page.getByTestId("plugin-detail-has-mock-data").last();
+  }
+
+  pluginDetailSupportsMultiTenant(): Locator {
+    return this.page
+      .getByTestId("plugin-detail-supports-multi-tenant")
+      .last();
+  }
+
+  pluginDetailTenantProvisioning(): Locator {
+    return this.page.getByTestId("plugin-detail-tenant-provisioning").last();
+  }
+
+  pluginDetailScopeNature(): Locator {
+    return this.page.getByTestId("plugin-detail-scope-nature").last();
+  }
+
+  pluginDetailInstallMode(): Locator {
+    return this.page.getByTestId("plugin-detail-install-mode").last();
+  }
+
   pluginAutoEnableTag(pluginId: string): Locator {
     return this.page.getByTestId(`plugin-auto-enable-tag-${pluginId}`).first();
   }
@@ -438,6 +476,14 @@ export class PluginPage {
 
   antTooltip(): Locator {
     return this.page.locator(".ant-tooltip:visible");
+  }
+
+  async expectColumnHelpTooltip(
+    name: PluginColumnHelpName,
+    text: string | RegExp,
+  ) {
+    await this.pluginColumnHelpIcon(name).hover();
+    await expect(this.antTooltip().filter({ hasText: text }).last()).toBeVisible();
   }
 
   vxeTooltip(): Locator {

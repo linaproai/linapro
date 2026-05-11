@@ -913,10 +913,12 @@
     },
     "plugin": {
       "tableTitle": "Plugin List",
-      "tableTitleHelp": {
-        "ariaLabel": "Plugin list help",
-        "sourceDynamic": "Source plugins are delivered with host source code and build artifacts for built-in or trusted extensions; dynamic plugins are uploaded as wasm artifacts for runtime install, upgrade, and isolated governance.",
-        "mockData": "Yes in Mock Data means the plugin ships bundled mock data that can be loaded during install; No means no bundled mock data is available."
+      "columnHelp": {
+        "ariaLabel": "{label} column help",
+        "type": "Source plugins are delivered with host source code and build artifacts for built-in or trusted extensions; dynamic plugins are uploaded as wasm artifacts for runtime install, upgrade, and isolated governance.",
+        "mockData": "Yes means the plugin ships bundled mock data that can be loaded during install; No means no bundled mock data is available.",
+        "supportsMultiTenant": "Yes means the plugin declares multi-tenant governance support and can use tenant-scoped install mode and tenant-side enablement; No means it is managed only as a platform-global capability.",
+        "tenantProvisioning": "Controls whether a tenant-scoped plugin is enabled automatically for newly created tenants. Only multi-tenant plugins installed in tenant-scoped mode can use this policy."
       },
       "fields": {
         "id": "Plugin ID",
@@ -930,7 +932,9 @@
         "startupManagement": "Startup Management",
         "hasMockData": "Mock Data",
         "supportsMultiTenant": "Multi-Tenant",
-        "tenantProvisioning": "New Tenants"
+        "tenantProvisioning": "New Tenants",
+        "scopeNature": "Scope Nature",
+        "installMode": "Install Mode"
       },
       "type": {
         "source": "Source Plugin",
@@ -974,6 +978,10 @@
       "autoEnableBadge": "Auto Enable",
       "autoEnableManaged": "Host-managed Auto Enable",
       "manualManaged": "Manual Control",
+      "scopeNature": {
+        "platformOnly": "Platform Only",
+        "tenantAware": "Tenant Aware"
+      },
       "detail": {
         "title": "Plugin Details",
         "hostServicesTitle": "Host Service Scopes",

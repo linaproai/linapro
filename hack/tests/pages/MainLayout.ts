@@ -103,6 +103,10 @@ export class MainLayout {
       .first();
   }
 
+  get tenantSwitcher() {
+    return this.page.getByTestId("tenant-switcher");
+  }
+
   get workspaceFooterCopyright() {
     return this.page
       .locator("footer")

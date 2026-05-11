@@ -27,8 +27,9 @@ import {
   userStatusChange,
 } from '#/api/system/user';
 import { $t } from '#/locales';
+import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
 import {
-  getPluginStateMap,
+  getPluginCapabilityStateMap,
   onPluginRegistryChanged,
 } from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
@@ -42,9 +43,6 @@ import UserBatchEditModal from './user-batch-edit-modal.vue';
 import UserImportModal from './user-import-modal.vue';
 import UserResetPwdModal from './user-reset-pwd-modal.vue';
 import { loadUserTenantOptions } from './tenant-options';
-
-const orgCenterPluginId = 'org-center';
-const multiTenantPluginId = 'multi-tenant';
 
 const [UserDrawerRef, userDrawerApi] = useVbenDrawer({
   connectedComponent: UserDrawer,
@@ -98,11 +96,6 @@ function parseRouteTenantId() {
 
 function isSelf(row: any) {
   return row.id === Number(userStore.userInfo?.userId);
-}
-
-function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
-  const pluginState = pluginStateMap.get(pluginId);
-  return pluginState?.installed === 1 && pluginState?.enabled === 1;
 }
 
 async function loadTenantOptions(force = false) {
@@ -277,10 +270,12 @@ const [Grid, gridApi] = useVbenVxeGrid({
 });
 
 async function syncManagementCapabilities(force = false) {
-  const pluginStateMap = await getPluginStateMap(force);
-  const nextOrgEnabled = isPluginEnabled(orgCenterPluginId, pluginStateMap);
+  const capabilityMap = await getPluginCapabilityStateMap(force);
+  const nextOrgEnabled =
+    capabilityMap.get(pluginCapabilityKeys.organizationManagement)?.enabled ===
+    true;
   const nextTenantEnabled =
-    tenantStore.enabled || isPluginEnabled(multiTenantPluginId, pluginStateMap);
+    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true;
   const capabilityChanged =
     orgEnabled.value !== nextOrgEnabled ||
     tenantEnabled.value !== nextTenantEnabled;

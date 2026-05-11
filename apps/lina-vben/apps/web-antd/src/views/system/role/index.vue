@@ -20,19 +20,17 @@ import {
   roleStatusChange,
 } from '#/api/system/role';
 import { $t } from '#/locales';
+import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
 import {
-  getPluginStateMap,
+  getPluginCapabilityStateMap,
   onPluginRegistryChanged,
 } from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
-import { useTenantStore } from '#/store/tenant';
 
 import { DATA_SCOPE_DICT_TYPE, columns, querySchema } from './data';
 import RoleDrawer from './role-drawer.vue';
 
 const router = useRouter();
-const orgCenterPluginId = 'org-center';
-const multiTenantPluginId = 'multi-tenant';
 
 const formOptions: VbenFormProps = {
   commonConfig: {
@@ -83,30 +81,19 @@ let disposePluginRegistryListener: null | (() => void) = null;
 
 // 加载字典数据
 const dictStore = useDictStore();
-const tenantStore = useTenantStore();
 const statusLabel = ref({
   checked: $t('pages.status.enabled'),
   unchecked: $t('pages.status.disabled'),
 });
 
-function isPluginEnabled(pluginId: string, pluginStateMap: Map<string, any>) {
-  const pluginState = pluginStateMap.get(pluginId);
-  return pluginState?.installed === 1 && pluginState?.enabled === 1;
-}
-
-function isTenantDataScopeEnabled(pluginStateMap: Map<string, any>) {
-  if (pluginStateMap.has(multiTenantPluginId)) {
-    return isPluginEnabled(multiTenantPluginId, pluginStateMap);
-  }
-  return tenantStore.enabled;
-}
-
 async function syncRoleCapabilities(force = false) {
-  const pluginStateMap = await getPluginStateMap(force);
+  const capabilityMap = await getPluginCapabilityStateMap(force);
   tableApi.setGridOptions({
     columns: columns(
-      isPluginEnabled(orgCenterPluginId, pluginStateMap),
-      isTenantDataScopeEnabled(pluginStateMap),
+      capabilityMap.get(pluginCapabilityKeys.organizationManagement)
+        ?.enabled === true,
+      capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled ===
+        true,
     ),
   });
 }

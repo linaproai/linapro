@@ -131,6 +131,50 @@ function formatAutoEnableManaged(managed: boolean) {
 function getAutoEnableManagedColor(managed: boolean) {
   return managed ? 'gold' : 'default';
 }
+
+function formatBooleanValue(value: boolean) {
+  return value ? $t('pages.common.yes') : $t('pages.common.no');
+}
+
+function getBooleanColor(value: boolean) {
+  return value ? 'green' : 'default';
+}
+
+function formatScopeNature(scopeNature?: string) {
+  switch (scopeNature) {
+    case 'platform_only': {
+      return $t('pages.system.plugin.scopeNature.platformOnly');
+    }
+    case 'tenant_aware': {
+      return $t('pages.system.plugin.scopeNature.tenantAware');
+    }
+    default: {
+      return scopeNature || '-';
+    }
+  }
+}
+
+function getScopeNatureColor(scopeNature?: string) {
+  return scopeNature === 'tenant_aware' ? 'green' : 'blue';
+}
+
+function formatInstallMode(installMode?: string) {
+  switch (installMode) {
+    case 'global': {
+      return $t('pages.multiTenant.plugin.installModes.global');
+    }
+    case 'tenant_scoped': {
+      return $t('pages.multiTenant.plugin.installModes.tenant_scoped');
+    }
+    default: {
+      return installMode || '-';
+    }
+  }
+}
+
+function getInstallModeColor(installMode?: string) {
+  return installMode === 'tenant_scoped' ? 'green' : 'blue';
+}
 </script>
 
 <template>
@@ -181,6 +225,50 @@ function getAutoEnableManagedColor(managed: boolean) {
             "
           >
             {{ formatAuthorizationStatus(currentPlugin.authorizationStatus) }}
+          </Tag>
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.hasMockData')">
+          <Tag
+            :color="getBooleanColor(currentPlugin.hasMockData === 1)"
+            data-testid="plugin-detail-has-mock-data"
+          >
+            {{ formatBooleanValue(currentPlugin.hasMockData === 1) }}
+          </Tag>
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.supportsMultiTenant')">
+          <Tag
+            :color="getBooleanColor(currentPlugin.supportsMultiTenant === true)"
+            data-testid="plugin-detail-supports-multi-tenant"
+          >
+            {{ formatBooleanValue(currentPlugin.supportsMultiTenant === true) }}
+          </Tag>
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.tenantProvisioning')">
+          <Tag
+            :color="
+              getBooleanColor(currentPlugin.autoEnableForNewTenants === true)
+            "
+            data-testid="plugin-detail-tenant-provisioning"
+          >
+            {{
+              formatBooleanValue(currentPlugin.autoEnableForNewTenants === true)
+            }}
+          </Tag>
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.scopeNature')">
+          <Tag
+            :color="getScopeNatureColor(currentPlugin.scopeNature)"
+            data-testid="plugin-detail-scope-nature"
+          >
+            {{ formatScopeNature(currentPlugin.scopeNature) }}
+          </Tag>
+        </DescriptionsItem>
+        <DescriptionsItem :label="$t('pages.system.plugin.fields.installMode')">
+          <Tag
+            :color="getInstallModeColor(currentPlugin.installMode)"
+            data-testid="plugin-detail-install-mode"
+          >
+            {{ formatInstallMode(currentPlugin.installMode) }}
           </Tag>
         </DescriptionsItem>
         <DescriptionsItem :label="$t('pages.system.plugin.fields.installedAt')">
