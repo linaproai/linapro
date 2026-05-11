@@ -77,8 +77,12 @@ openspec list --json
 | `specs/` | 增量规范定义 |
 
 ```bash
-# 查找最大 TC ID 用于测试规划
-find hack/tests/e2e -name 'TC*.ts' | sort | tail -1
+# 查找最大 TC ID 用于测试规划，包含宿主、源码插件和 OpenSpec 任务记录中的预留编号
+{
+  find hack/tests/e2e -type f -name 'TC*.ts'
+  find apps/lina-plugins -type f -path '*/hack/tests/e2e/*' -name 'TC*.ts'
+  rg -No 'TC[0-9]{4}' openspec/changes -g 'tasks.md'
+} | rg -No 'TC[0-9]{4}' | sort -u | tail -1
 ```
 
 ---
@@ -157,6 +161,7 @@ THEN 父级选择器应禁用当前菜单及所有子菜单
 
 **验证覆盖规划（内部）：**
 - 用户可观察的行为变更 → 需要 E2E 测试
+- 源码插件专属的用户可观察行为变更 → E2E 放在 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`，专属 POM/helper 放在插件同级 `hack/tests/pages/`、`hack/tests/support/`
 - 后端逻辑、服务层、工具函数、缓存、权限、数据权限、插件桥接等内部可执行行为变更 → 需要单元测试或更低成本的自动化测试
 - 纯项目治理类反馈 → 不为兜底新增单元测试或 E2E 测试，改用 `openspec validate`、静态扫描、文件存在性检查、格式检查或审查结论
 - 场景合适时优先在现有 TC 或现有测试中添加子断言
@@ -189,8 +194,8 @@ THEN 父级选择器应禁用当前菜单及所有子菜单
 | 项目治理文档/规范 | `openspec validate`、静态扫描、文件存在性检查或格式检查 |
 
 ```bash
-# 示例：查找用户 API 变更的相关测试
-grep -r "api/user" hack/tests/e2e --include="*.ts" -l
+# 示例：查找用户 API 变更的相关测试，包含宿主和源码插件自有 E2E
+rg -l "api/user" hack/tests/e2e apps/lina-plugins -g 'TC*.ts'
 ```
 
 告知：

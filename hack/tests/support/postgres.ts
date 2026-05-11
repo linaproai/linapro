@@ -76,7 +76,7 @@ export function execPgSQL(sql: string) {
   assertSafePostgresTarget();
   execFileSync(psqlBin, psqlArgs(['-q', '-c', sql]), {
     env: psqlEnv(),
-    stdio: 'ignore',
+    stdio: ['ignore', 'ignore', 'inherit'],
   });
 }
 
@@ -88,8 +88,8 @@ export function execPgSQLFile(filePath: string) {
   assertSafePostgresTarget();
   execFileSync(psqlBin, psqlArgs(['-q']), {
     env: psqlEnv(),
-    input: readFileSync(filePath),
-    stdio: ['pipe', 'ignore', 'ignore'],
+    input: readFileSync(filePath, 'utf8'),
+    stdio: ['pipe', 'ignore', 'inherit'],
   });
 }
 

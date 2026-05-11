@@ -46,7 +46,8 @@
     "scheduler": ["e2e/scheduler"],
     "scheduler:job": ["e2e/scheduler/job"],
     "extension": ["e2e/extension"],
-    "extension:plugin": ["e2e/extension/plugin"]
+    "extension:plugin": ["e2e/extension/plugin"],
+    "plugins": ["plugins"]
   },
   "smoke": [
     "e2e/auth/TC0001-login-success.ts",
@@ -64,6 +65,7 @@
     "e2e/content",
     "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",
     "e2e/extension/plugin",
+    "plugins",
     "e2e/iam/menu",
     "e2e/iam/user/TC0005-user-crud.ts",
     "e2e/iam/user/TC0062-user-role.ts",
@@ -107,6 +109,16 @@
       "entry": "e2e/content",
       "categories": ["pluginLifecycle", "sharedDatabaseSeed", "permissionMatrix"],
       "reason": "Content tests depend on the content-notice source plugin and its mock data being installed and enabled; message boundary regressions also create temporary role permissions."
+    },
+    {
+      "entry": "plugins",
+      "categories": [
+        "pluginLifecycle",
+        "sharedDatabaseSeed",
+        "permissionMatrix",
+        "runtimeI18nCache"
+      ],
+      "reason": "Source-plugin-owned E2E tests may install, enable, sync, and seed their owning plugins while validating runtime i18n cache or ETag behavior."
     },
     {
       "entry": "e2e/dialect/TC0165-sqlite-mode-business-zero-impact.ts",

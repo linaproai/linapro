@@ -6,7 +6,7 @@ At the current open-source stage, the host keeps only stable core capabilities s
 
 ## What Lives Here
 
-LinaPro currently ships three plugin references in this directory:
+LinaPro currently ships these plugin references in this directory:
 
 - `plugin-demo-source`: sample source plugin structure and coding reference
 - `plugin-demo-dynamic`: sample dynamic WASM plugin structure and lifecycle reference
@@ -42,6 +42,9 @@ apps/lina-plugins/<plugin-id>/
   manifest/sql/         Plugin-owned install SQL assets
   manifest/sql/mock-data/ Optional plugin-owned mock/demo SQL assets
   manifest/sql/uninstall/ Plugin-owned uninstall SQL assets
+  hack/tests/e2e/       Optional plugin-owned E2E TC files
+  hack/tests/pages/     Optional plugin-owned E2E page objects
+  hack/tests/support/   Optional plugin-owned E2E helpers
   plugin.yaml           Plugin manifest
   plugin_embed.go       Embedded asset registration
   README.md             English plugin guide
@@ -67,6 +70,12 @@ The host and source plugins are intentionally decoupled through stable seams ins
 3. Declare metadata, menus, frontend pages, SQL assets, and optional hooks in `plugin.yaml`.
 4. Keep plugin-owned backend code inside the plugin directory, place service logic under `backend/internal/service/`, and depend only on published host packages.
 5. Register the plugin explicitly in `apps/lina-plugins/lina-plugins.go`.
+
+## Plugin-Owned E2E Tests
+
+Source plugins should keep plugin-specific Playwright coverage under `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`.
+Plugin page objects and helpers should stay beside them in `hack/tests/pages/` and `hack/tests/support/`.
+The host test runner discovers these tests through the generic `plugins` scope, and a single plugin can be run with `pnpm -C hack/tests test:module -- plugin:<plugin-id>` without adding a plugin-specific entry to the execution manifest.
 
 ## Source Plugin Version Upgrade
 

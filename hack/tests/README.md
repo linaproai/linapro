@@ -16,6 +16,15 @@ hack/tests/
   temp/          runtime-only artifacts such as generated storage state
 ```
 
+Source plugins may keep their own test surface inside the plugin directory:
+
+```text
+apps/lina-plugins/<plugin-id>/
+  hack/tests/e2e/       plugin-owned TC test cases
+  hack/tests/pages/     plugin-owned page objects
+  hack/tests/support/   optional plugin-owned E2E helpers
+```
+
 The `e2e/` tree is organized by stable capability boundaries instead of the legacy `system/` bucket:
 
 - `auth/`, `dashboard/`, `about/`
@@ -55,6 +64,8 @@ Example module scopes:
 - `scheduler:job`
 - `extension:plugin`
 - `dialect`
+- `plugins`
+- `plugin:<plugin-id>` for a source plugin with tests under `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`
 
 `pnpm test:sqlite` is the dedicated full SQLite channel. The script backs up
 `apps/lina-core/manifest/config/config.yaml`, writes
@@ -80,6 +91,12 @@ The suite uses `config/execution-manifest.json` as the single source of truth fo
 `pnpm test`, `pnpm test:full`, `pnpm test:smoke`, and `pnpm test:module` all run through `scripts/run-suite.mjs`.
 The runner splits the selected files into a parallel pool and a serial pool so global-state heavy scenarios still execute safely.
 Every run prints the selected file count, parallel file count, serial file count, parallel worker count, and the isolation categories represented in the serial pool.
+Full-suite runs include plugin-owned tests through the generic `plugins` entry.
+Individual source plugins can be run without editing the manifest:
+
+```bash
+pnpm test:module -- plugin:cms
+```
 
 ## Isolation Categories
 

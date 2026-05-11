@@ -6,7 +6,7 @@
 
 ## 这里包含什么
 
-当前目录下包含三类参考内容：
+当前目录下包含以下参考内容：
 
 - `plugin-demo-source`：源码插件目录结构与开发方式样例
 - `plugin-demo-dynamic`：动态 WASM 插件结构与生命周期样例
@@ -42,6 +42,9 @@ apps/lina-plugins/<plugin-id>/
   manifest/sql/         插件自有安装 SQL 资源
   manifest/sql/mock-data/ 插件自有可选`mock`/演示 SQL 资源
   manifest/sql/uninstall/ 插件自有卸载 SQL 资源
+  hack/tests/e2e/       可选的插件自有 E2E TC 用例
+  hack/tests/pages/     可选的插件自有 E2E 页面对象
+  hack/tests/support/   可选的插件自有 E2E helper
   plugin.yaml           插件清单
   plugin_embed.go       嵌入资源注册入口
   README.md             英文说明
@@ -67,6 +70,12 @@ apps/lina-plugins/<plugin-id>/
 3. 在 `plugin.yaml` 中声明清单、菜单、页面、SQL 资源与可选 Hook。
 4. 插件后端代码保留在插件目录中，业务逻辑统一放在 `backend/internal/service/` 下，并且只依赖宿主公开包。
 5. 在 `apps/lina-plugins/lina-plugins.go` 中做显式接线。
+
+## 插件自有 E2E 测试
+
+源码插件应把插件专属 Playwright 覆盖放在 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` 下。
+插件页面对象和辅助 helper 应分别保留在同级的 `hack/tests/pages/` 与 `hack/tests/support/` 中。
+宿主测试运行器会通过通用 `plugins` 范围发现这些测试；单个插件也可以通过 `pnpm -C hack/tests test:module -- plugin:<plugin-id>` 直接运行，不需要为每个插件在执行清单里新增专属 scope。
 
 ## 源码插件版本升级
 
