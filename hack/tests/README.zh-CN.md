@@ -20,9 +20,9 @@ hack/tests/
 
 ```text
 apps/lina-plugins/<plugin-id>/
-  e2e/           插件自有 TC 测试用例
-  e2e-pages/     插件自有页面对象
-  e2e-support/   可选的插件自有 E2E helper
+  hack/tests/e2e/       插件自有 TC 测试用例
+  hack/tests/pages/     插件自有页面对象
+  hack/tests/support/   可选的插件自有 E2E helper
 ```
 
 `e2e/` 目录不再沿用历史上的 `system/` 大目录，而是按稳定能力边界组织：
@@ -65,7 +65,7 @@ apps/lina-plugins/<plugin-id>/
 - `extension:plugin`
 - `dialect`
 - `plugins`
-- `plugin:<plugin-id>`，用于运行 `apps/lina-plugins/<plugin-id>/e2e/` 下的源码插件测试
+- `plugin:<plugin-id>`，用于运行 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/` 下的源码插件测试
 
 `pnpm test:sqlite` 是完整 SQLite 专用通道。脚本会先备份
 `apps/lina-core/manifest/config/config.yaml`，再把

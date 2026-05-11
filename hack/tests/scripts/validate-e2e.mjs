@@ -11,10 +11,12 @@ import {
   isHostTcFile,
   isPluginTcFile,
   knownIsolationCategorySet,
+  listLegacyPluginE2EDirs,
   listPluginE2EFiles,
   listTcFiles,
   loadManifest,
   pluginTestEntry,
+  pluginTestRelativePath,
   repoRoot,
   resolveEntries,
   serialCategoryMap,
@@ -87,6 +89,7 @@ const allFiles = [
   ...walk(e2eDir).map((item) => toPosix(path.relative(testsDir, item))),
   ...listPluginE2EFiles(),
 ];
+const legacyPluginE2EDirs = listLegacyPluginE2EDirs();
 const testFiles = [];
 const tcRegistry = new Map();
 const allowedFiles = new Set(
@@ -109,6 +112,13 @@ function entryExistsOrResolves(entry) {
     return false;
   }
   return exists(path.resolve(testsDir, entry));
+}
+
+for (const directory of legacyPluginE2EDirs) {
+  const relativePath = pluginTestRelativePath(directory);
+  addError(
+    `Legacy plugin E2E directory found: ${relativePath}. Use apps/lina-plugins/<plugin-id>/hack/tests/{e2e,pages,support}/ instead.`,
+  );
 }
 
 for (const file of allFiles) {

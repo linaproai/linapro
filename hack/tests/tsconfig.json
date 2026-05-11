@@ -17,9 +17,9 @@
     "fixtures/**/*.ts",
     "pages/**/*.ts",
     "support/**/*.ts",
-    "../../apps/lina-plugins/*/e2e/**/*.ts",
-    "../../apps/lina-plugins/*/e2e-pages/**/*.ts",
-    "../../apps/lina-plugins/*/e2e-support/**/*.ts",
+    "../../apps/lina-plugins/*/hack/tests/e2e/**/*.ts",
+    "../../apps/lina-plugins/*/hack/tests/pages/**/*.ts",
+    "../../apps/lina-plugins/*/hack/tests/support/**/*.ts",
     "global-setup.ts",
     "playwright.config.ts"
   ]

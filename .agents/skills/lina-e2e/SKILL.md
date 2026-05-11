@@ -46,17 +46,18 @@ hack/tests/
 
 ```
 apps/lina-plugins/<plugin-id>/
-├── e2e/
-│   └── TC{NNNN}-{brief-name}.ts
-├── e2e-pages/
-│   └── <PluginPageObject>.ts
-└── e2e-support/
-    └── <plugin-helper>.ts
+└── hack/tests/
+    ├── e2e/
+    │   └── TC{NNNN}-{brief-name}.ts
+    ├── pages/
+    │   └── <PluginPageObject>.ts
+    └── support/
+        └── <plugin-helper>.ts
 ```
 
 **关键规则：**
 - 宿主功能测试放在 `hack/tests/e2e/{module}/`。
-- 源码插件专属测试放在 `apps/lina-plugins/<plugin-id>/e2e/`。
+- 源码插件专属测试放在 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`。
 - `hack/tests/e2e/extension/plugin/` 只用于宿主插件框架、动态插件运行时、源码插件生命周期这类**宿主级插件能力**测试；禁止把某个源码插件自身功能的 E2E 放到这里。
 - 每个测试用例文件放在其主要测试的所有权目录下；谁拥有功能，谁拥有测试。
 
@@ -97,7 +98,7 @@ TC{NNNN}-{brief-name}.ts
    ```bash
    {
      find hack/tests/e2e -type f -name 'TC*.ts'
-     find apps/lina-plugins -type f -path '*/e2e/*' -name 'TC*.ts'
+     find apps/lina-plugins -type f -path '*/hack/tests/e2e/*' -name 'TC*.ts'
      rg -No 'TC[0-9]{4}' openspec/changes -g 'tasks.md'
    } | rg -No 'TC[0-9]{4}' | sort -u | tail -1
    ```
@@ -144,8 +145,8 @@ test.describe('TC-{N} {简短描述}', () => {
 源码插件测试：
 
 ```typescript
-import { test, expect } from '../../../../hack/tests/fixtures/auth'
-import { SomePluginPage } from '../e2e-pages/SomePluginPage'
+import { test, expect } from '../../../../../../hack/tests/fixtures/auth'
+import { SomePluginPage } from '../pages/SomePluginPage'
 
 test.describe('TC-{N} {插件功能描述}', () => {
   test('TC-{N}a: {子断言描述}', async ({ adminPage }) => {
@@ -207,7 +208,7 @@ export class SomePage {
 **规则：**
 - 每个页面/功能区域一个 POM 类。
 - 宿主或跨模块共享 POM 放在 `hack/tests/pages/`。
-- 源码插件专属 POM 放在 `apps/lina-plugins/<plugin-id>/e2e-pages/`。
+- 源码插件专属 POM 放在 `apps/lina-plugins/<plugin-id>/hack/tests/pages/`。
 - 源码插件专属定位器禁止加到宿主 `hack/tests/pages/` 中；只有多个宿主测试或多个插件确实复用的通用能力，才提升到宿主共享 POM。
 - 优先使用 `data-testid` 属性作为定位策略。
 - POM 方法应返回有意义的值或等待预期状态。
@@ -228,7 +229,7 @@ export class SomePage {
 import { test, expect } from '../../fixtures/auth'
 
 // 源码插件测试
-import { test, expect } from '../../../../hack/tests/fixtures/auth'
+import { test, expect } from '../../../../../../hack/tests/fixtures/auth'
 
 // 错误
 import { test, expect } from '@playwright/test'
@@ -254,7 +255,7 @@ import { test, expect } from '@playwright/test'
 ```markdown
 ### 任务 3：E2E — TC0221 插件页面入口
 
-- [ ] 创建 `apps/lina-plugins/example-plugin/e2e/TC0221-example-plugin-entry.ts`
+- [ ] 创建 `apps/lina-plugins/example-plugin/hack/tests/e2e/TC0221-example-plugin-entry.ts`
 - [ ] 实现 TC-221a：插件公开接口可读取
 - [ ] 实现 TC-221b：插件插槽内容可见
 - [ ] 实现 TC-221c：插件管理页可访问
@@ -271,11 +272,11 @@ import { test, expect } from '@playwright/test'
 | 文件名               | `TC{NNNN}-{brief-name}.ts`                         |
 | TC ID 范围           | 全局唯一，跨所有模块                                  |
 | 宿主测试目录          | `hack/tests/e2e/{module}/`                         |
-| 源码插件测试目录       | `apps/lina-plugins/<plugin-id>/e2e/`               |
+| 源码插件测试目录       | `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`    |
 | Describe 标签        | `TC-{N} {描述}`                                     |
 | 子测试标签            | `TC-{N}{字母}: {描述}`                              |
 | 宿主导入 test/expect  | 从相对路径 `../../fixtures/auth` 导入                 |
-| 插件导入 test/expect  | 从相对路径 `../../../../hack/tests/fixtures/auth` 导入 |
-| 页面交互              | 通过宿主 `pages/` 或插件 `e2e-pages/` 中的 POM 类      |
+| 插件导入 test/expect  | 从相对路径 `../../../../../../hack/tests/fixtures/auth` 导入 |
+| 页面交互              | 通过宿主 `pages/` 或插件 `hack/tests/pages/` 中的 POM 类 |
 | 独立性               | 每个文件可独立运行                                    |
 | ID 分配              | 扫描宿主、插件和 OpenSpec 任务记录已用/预留最大值 → 递增 1 |

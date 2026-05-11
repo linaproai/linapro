@@ -152,13 +152,29 @@ export function walk(directory) {
 }
 
 // listPluginE2EDirs returns source-plugin-owned E2E directories following the
-// `apps/lina-plugins/<plugin-id>/e2e` convention.
+// `apps/lina-plugins/<plugin-id>/hack/tests/e2e` convention.
 export function listPluginE2EDirs() {
   if (!exists(pluginsDir)) {
     return [];
   }
   return readdirSync(pluginsDir)
-    .map((name) => path.join(pluginsDir, name, 'e2e'))
+    .map((name) => path.join(pluginsDir, name, 'hack', 'tests', 'e2e'))
+    .filter(exists)
+    .sort();
+}
+
+// listLegacyPluginE2EDirs returns pre-governance plugin E2E directories that
+// should no longer contain plugin-owned Playwright assets.
+export function listLegacyPluginE2EDirs() {
+  if (!exists(pluginsDir)) {
+    return [];
+  }
+  return readdirSync(pluginsDir)
+    .flatMap((name) => [
+      path.join(pluginsDir, name, 'e2e'),
+      path.join(pluginsDir, name, 'e2e-pages'),
+      path.join(pluginsDir, name, 'e2e-support'),
+    ])
     .filter(exists)
     .sort();
 }
@@ -213,7 +229,7 @@ export function listTcFiles(entry) {
   if (entry.startsWith('plugins/')) {
     const parts = entry.split('/').filter(Boolean);
     if (parts.length >= 2) {
-      const absoluteEntry = path.resolve(pluginsDir, parts[1], 'e2e', ...parts.slice(2));
+      const absoluteEntry = path.resolve(pluginsDir, parts[1], 'hack', 'tests', 'e2e', ...parts.slice(2));
       if (!exists(absoluteEntry)) {
         return [];
       }
@@ -257,7 +273,7 @@ export function isHostTcFile(relativePath) {
 
 // isPluginTcFile reports whether a path is a source-plugin-owned E2E TC file.
 export function isPluginTcFile(relativePath) {
-  return /^apps\/lina-plugins\/[^/]+\/e2e\/(?:.*\/)?TC\d{4}-[^/.]+\.ts$/u.test(relativePath);
+  return /^apps\/lina-plugins\/[^/]+\/hack\/tests\/e2e\/(?:.*\/)?TC\d{4}-[^/.]+\.ts$/u.test(relativePath);
 }
 
 export function unique(values) {

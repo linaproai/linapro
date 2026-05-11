@@ -108,7 +108,7 @@ if (mode === 'full') {
   if (resolvedEntries.length === 0 && scope !== pluginTestEntry) {
     console.error(`Module scope has no matching test files: ${scope}`);
     if (isPluginScope) {
-      console.error('Expected plugin-owned tests under apps/lina-plugins/<plugin-id>/e2e/.');
+      console.error('Expected plugin-owned tests under apps/lina-plugins/<plugin-id>/hack/tests/e2e/.');
     }
     process.exit(1);
   }

@@ -20,9 +20,9 @@ Source plugins may keep their own test surface inside the plugin directory:
 
 ```text
 apps/lina-plugins/<plugin-id>/
-  e2e/           plugin-owned TC test cases
-  e2e-pages/     plugin-owned page objects
-  e2e-support/   optional plugin-owned E2E helpers
+  hack/tests/e2e/       plugin-owned TC test cases
+  hack/tests/pages/     plugin-owned page objects
+  hack/tests/support/   optional plugin-owned E2E helpers
 ```
 
 The `e2e/` tree is organized by stable capability boundaries instead of the legacy `system/` bucket:
@@ -65,7 +65,7 @@ Example module scopes:
 - `extension:plugin`
 - `dialect`
 - `plugins`
-- `plugin:<plugin-id>` for a source plugin with tests under `apps/lina-plugins/<plugin-id>/e2e/`
+- `plugin:<plugin-id>` for a source plugin with tests under `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`
 
 `pnpm test:sqlite` is the dedicated full SQLite channel. The script backs up
 `apps/lina-core/manifest/config/config.yaml`, writes
