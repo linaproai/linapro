@@ -43,3 +43,6 @@ test-results/
 *.test
 *.out
 apps/lina-plugins/*/temp/
+
+# AI assistant files (local only, do not commit)
+.codebuddy/
