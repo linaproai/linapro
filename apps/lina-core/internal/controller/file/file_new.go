@@ -18,8 +18,7 @@ type ControllerV1 struct {
 
 // NewV1 creates and returns a new file controller instance.
 func NewV1() file.IFileV1 {
-	pluginSvc := pluginsvc.New(nil)
 	return &ControllerV1{
-		fileSvc: filesvc.New(orgcap.New(pluginSvc)),
+		fileSvc: filesvc.New(orgcap.New(pluginsvc.Instance())),
 	}
 }

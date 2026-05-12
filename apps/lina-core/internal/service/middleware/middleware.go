@@ -85,7 +85,7 @@ type middlewareI18nService interface {
 
 // New creates and returns a new Service instance.
 func New() Service {
-	pluginSvc := pluginsvc.New(nil)
+	pluginSvc := pluginsvc.Instance()
 	return &serviceImpl{
 		authSvc:   auth.New(nil),
 		bizCtxSvc: bizctx.New(),

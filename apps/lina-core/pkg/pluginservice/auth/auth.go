@@ -52,7 +52,7 @@ type serviceAdapter struct {
 
 // New creates and returns the published auth service adapter.
 func New() Service {
-	pluginSvc := pluginsvc.New(nil)
+	pluginSvc := pluginsvc.Instance()
 	return &serviceAdapter{tokenIssuer: internalauth.NewTenantTokenIssuer(orgcap.New(pluginSvc))}
 }
 

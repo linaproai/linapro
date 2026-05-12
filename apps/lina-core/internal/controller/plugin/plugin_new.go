@@ -22,7 +22,7 @@ type ControllerV1 struct {
 // Pass a non-nil topology for cluster-aware plugin orchestration; pass nil to
 // use the default single-node plugin topology.
 func NewV1(topology pluginsvc.Topology) pluginapi.IPluginV1 {
-	pluginSvc := pluginsvc.New(topology)
+	pluginSvc := pluginsvc.Instance()
 	return &ControllerV1{
 		pluginSvc: pluginSvc,
 		bizCtxSvc: bizctx.New(),

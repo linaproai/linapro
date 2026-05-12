@@ -21,7 +21,7 @@ type ControllerV1 struct {
 
 // NewV1 creates and returns a new menu controller instance.
 func NewV1() menuapi.IMenuV1 {
-	pluginSvc := pluginsvc.New(nil)
+	pluginSvc := pluginsvc.Instance()
 	return &ControllerV1{
 		menuSvc:   menusvc.New(pluginSvc),
 		roleSvc:   role.New(pluginSvc),

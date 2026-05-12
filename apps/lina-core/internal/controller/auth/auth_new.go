@@ -20,7 +20,7 @@ type ControllerV1 struct {
 
 // NewV1 creates and returns a new authentication controller instance.
 func NewV1() authapi.IAuthV1 {
-	pluginSvc := pluginsvc.New(nil)
+	pluginSvc := pluginsvc.Instance()
 	orgCapSvc := orgcap.New(pluginSvc)
 	return &ControllerV1{
 		authSvc:   authsvc.New(orgCapSvc),

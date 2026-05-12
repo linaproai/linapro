@@ -4,6 +4,7 @@ package role
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 
@@ -164,6 +165,18 @@ type Service interface {
 
 // Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
+
+// instance is the singleton instance of Service.
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton Service instance.
+func Instance() Service {
+	once.Do(func() {
+		instance = New(nil)
+	})
+	return instance
+}
 
 // serviceImpl implements Service.
 type serviceImpl struct {

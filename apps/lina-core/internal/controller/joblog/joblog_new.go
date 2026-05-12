@@ -19,10 +19,9 @@ type ControllerV1 struct {
 
 // NewV1 creates and returns the v1 scheduled job log controller.
 func NewV1(jobMgmtSvc jobmgmtsvc.Service) joblog.IJoblogV1 {
-	pluginSvc := pluginsvc.New(nil)
 	return &ControllerV1{
 		bizCtxSvc:  bizctx.New(),
 		jobMgmtSvc: jobMgmtSvc,
-		roleSvc:    rolesvc.New(pluginSvc),
+		roleSvc:    rolesvc.New(pluginsvc.Instance()),
 	}
 }

@@ -76,7 +76,7 @@ type serviceAdapter struct {
 
 // New creates and returns the published session service adapter.
 func New() Service {
-	pluginSvc := pluginsvc.New(nil)
+	pluginSvc := pluginsvc.Instance()
 	orgCapSvc := orgcap.New(pluginSvc)
 	authSvc := internalauth.New(orgCapSvc)
 	return &serviceAdapter{

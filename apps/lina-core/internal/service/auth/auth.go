@@ -4,6 +4,7 @@ package auth
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -78,6 +79,18 @@ var (
 	defaultRevoked   = newRevokeList()
 )
 
+// instance is the singleton instance of Service.
+var instance *serviceImpl
+var once sync.Once
+
+// Instance returns the singleton Service instance.
+func Instance() Service {
+	once.Do(func() {
+		instance = newService(nil)
+	})
+	return instance
+}
+
 // serviceImpl implements Service.
 type serviceImpl struct {
 	configSvc    authConfigService    // Configuration service
@@ -104,21 +117,29 @@ type authRoleService interface {
 }
 
 // New creates and returns a new Service instance.
+// Deprecated: Use Instance() for singleton access.
 // Pass a non-nil orgCapSvc to reuse a caller-owned organization capability
 // service; pass nil to create the default orgcap service bound to the default
 // plugin service instance.
 func New(orgCapSvc orgcap.Service) Service {
+	if orgCapSvc == nil {
+		return Instance()
+	}
 	return newService(orgCapSvc)
 }
 
 // NewTenantTokenIssuer creates the narrowed tenant token issuer.
+// Deprecated: Use Instance() and type assertion for tenant token operations.
 func NewTenantTokenIssuer(orgCapSvc orgcap.Service) TenantTokenIssuer {
+	if orgCapSvc == nil {
+		return Instance().(TenantTokenIssuer)
+	}
 	return newService(orgCapSvc)
 }
 
 // newService creates the concrete auth service implementation.
 func newService(orgCapSvc orgcap.Service) *serviceImpl {
-	pluginSvc := pluginsvc.New(nil)
+	pluginSvc := pluginsvc.Instance()
 	if orgCapSvc == nil {
 		orgCapSvc = orgcap.New(pluginSvc)
 	}

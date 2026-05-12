@@ -25,7 +25,7 @@ type ControllerV1 struct {
 
 // NewV1 creates and returns a new user controller instance.
 func NewV1() userapi.IUserV1 {
-	pluginSvc := pluginsvc.New(nil)
+	pluginSvc := pluginsvc.Instance()
 	orgCapSvc := orgcap.New(pluginSvc)
 	return &ControllerV1{
 		userSvc:   usersvc.New(orgCapSvc, pluginSvc),
