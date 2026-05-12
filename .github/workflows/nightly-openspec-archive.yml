@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: "${{ github.workflow }} @ ${{ github.ref }}"
@@ -100,6 +101,7 @@ jobs:
     uses: ./.github/workflows/nightly-openspec-archive-codex.yml
     permissions:
       contents: write
+      pull-requests: write
     with:
       openspec_version: ${{ vars.OPENSPEC_VERSION || '1.3.1' }}
     secrets:
@@ -113,6 +115,7 @@ jobs:
     uses: ./.github/workflows/nightly-openspec-archive-cc.yml
     permissions:
       contents: write
+      pull-requests: write
     with:
       openspec_version: ${{ vars.OPENSPEC_VERSION || '1.3.1' }}
       anthropic_custom_model: ${{ vars.ANTHROPIC_CUSTOM_MODEL }}

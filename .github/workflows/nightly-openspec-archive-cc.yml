@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   TZ: "Asia/Shanghai"
@@ -37,21 +38,14 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Setup Timezone
-        run: |
-          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-          echo Asia/Shanghai | sudo tee /etc/timezone
-
       - name: Checkout Repository
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "23"
+      - name: Prepare Shared Runtime
+        uses: ./.github/actions/nightly-openspec-setup
 
       - name: Prepare Claude Code Runtime
         env:
@@ -169,69 +163,19 @@ jobs:
 
       - name: Detect Archive Changes
         id: archive-diff
-        run: |
-          if git diff --quiet -- openspec; then
-            echo "changed=false" >> "${GITHUB_OUTPUT}"
-            echo "Auto archive produced no OpenSpec changes."
-          else
-            echo "changed=true" >> "${GITHUB_OUTPUT}"
-            echo "Auto archive produced OpenSpec changes."
-          fi
+        uses: ./.github/actions/nightly-openspec-detect-changes
 
       - name: Run Lina Archive Consolidate
         if: ${{ steps.archive-diff.outputs.changed == 'true' }}
         run: |
           "${CC_BIN}/run-cc-task" archive-consolidate < .github/prompts/nightly-openspec-archive-consolidate.zh-CN.md
 
-      - name: Validate OpenSpec
-        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
-        run: |
-          npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all
-
-      - name: Guard Generated Changes
-        run: |
-          {
-            git diff --name-only
-            git ls-files --others --exclude-standard
-          } | sort -u > "${RUNNER_TEMP}/changed-files.txt"
-
-          node <<'NODE'
-          const fs = require('node:fs');
-
-          const files = fs.readFileSync(`${process.env.RUNNER_TEMP}/changed-files.txt`, 'utf8')
-            .split(/\r?\n/)
-            .filter(Boolean);
-          const allowed = [
-            /^openspec\//,
-          ];
-          const unexpected = files.filter((file) => !allowed.some((pattern) => pattern.test(file)));
-
-          if (unexpected.length > 0) {
-            console.error('Unexpected generated file changes:');
-            for (const file of unexpected) {
-              console.error(`- ${file}`);
-            }
-            process.exit(1);
-          }
-
-          console.log('Generated file changes are within the allowed OpenSpec scope.');
-          NODE
-
-      - name: Commit Archive Changes
-        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add openspec
-
-          if git diff --cached --quiet; then
-            echo "No staged archive changes to commit."
-            exit 0
-          fi
-
-          git commit -m "chore(openspec): archive completed changes"
-          git push
+      - name: Finalize Archive Pull Request
+        uses: ./.github/actions/nightly-openspec-finalize-pr
+        with:
+          changed: ${{ steps.archive-diff.outputs.changed }}
+          openspec-version: ${{ env.OPENSPEC_VERSION }}
+          base-branch: ${{ github.event.repository.default_branch }}
 
       - name: Upload Claude Code Logs
         if: always()
