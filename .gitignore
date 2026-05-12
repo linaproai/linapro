@@ -15,7 +15,7 @@ assets/
 .codex/config.toml
 .github/codex/*
 !.github/codex/
-!.github/codex/config.toml
+!.github/codex/config.template.toml
 !.github/codex/auth.template.json
 .github/codex/auth.json
 temp/

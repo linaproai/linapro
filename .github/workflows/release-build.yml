@@ -96,7 +96,7 @@ jobs:
       - name: Build and Push Multi-Platform Image
         run: |
           make image \
-            config=".github/workflows/image-build/config.yaml" \
+            config=".github/image/config.yaml" \
             platforms="${PLATFORMS}" \
             registry="${{ steps.image.outputs.registry }}" \
             image="${{ steps.image.outputs.image_name }}" \

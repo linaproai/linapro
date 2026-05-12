@@ -1,0 +1,219 @@
+# LinaPro reusable OpenSpec archive workflow for Codex.
+name: Nightly OpenSpec Archive Codex
+
+on:
+  workflow_call:
+    inputs:
+      openspec_version:
+        description: OpenSpec CLI version to run.
+        required: false
+        type: string
+        default: "1.3.1"
+    secrets:
+      OPENAI_API_KEY:
+        required: true
+      OPENAI_BASE_URL:
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TZ: "Asia/Shanghai"
+  OPENSPEC_VERSION: ${{ inputs.openspec_version }}
+
+jobs:
+  archive:
+    name: Archive and consolidate with Codex
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "23"
+
+      - name: Prepare Codex Runtime
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "OPENAI_API_KEY secret is not configured." >&2
+            exit 1
+          fi
+          if [ -z "${OPENAI_BASE_URL}" ]; then
+            echo "OPENAI_BASE_URL secret is not configured." >&2
+            exit 1
+          fi
+
+          codex_home="${RUNNER_TEMP}/codex-home"
+          codex_bin="${RUNNER_TEMP}/codex-bin"
+          codex_logs="${RUNNER_TEMP}/codex-logs"
+          mkdir -p "${codex_home}" "${codex_bin}" "${codex_logs}"
+          cp .github/codex/config.template.toml "${codex_home}/config.toml"
+
+          CODEX_HOME="${codex_home}" python3 <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          codex_home = Path(os.environ["CODEX_HOME"])
+          api_key = os.environ["OPENAI_API_KEY"]
+          base_url = os.environ["OPENAI_BASE_URL"]
+          config_path = codex_home / "config.toml"
+          config_text = config_path.read_text(encoding="utf-8")
+          config_path.write_text(
+              config_text.replace('"${OPENAI_BASE_URL}"', json.dumps(base_url)),
+              encoding="utf-8",
+          )
+          (codex_home / "auth.json").write_text(
+              json.dumps({"OPENAI_API_KEY": api_key}, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          chmod 600 "${codex_home}/auth.json"
+
+          cat > "${codex_bin}/openspec" <<'SH'
+          #!/usr/bin/env sh
+          exec npx -y "@fission-ai/openspec@${OPENSPEC_VERSION:-1.3.1}" "$@"
+          SH
+          chmod +x "${codex_bin}/openspec"
+
+          {
+            echo "CODEX_HOME=${codex_home}"
+            echo "CODEX_BIN=${codex_bin}"
+            echo "CODEX_LOGS=${codex_logs}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Run Lina Auto Archive
+        run: |
+          mkdir -p "${CODEX_HOME}/npm-cache"
+
+          docker run --rm -i \
+            --user "$(id -u):$(id -g)" \
+            -e CODEX_HOME=/tmp/codex-home \
+            -e HOME=/tmp/codex-home \
+            -e NPM_CONFIG_CACHE=/tmp/codex-home/npm-cache \
+            -e OPENSPEC_VERSION="${OPENSPEC_VERSION}" \
+            -e PATH="/tmp/codex-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            -v "${PWD}:/workspace" \
+            -v "${CODEX_HOME}:/tmp/codex-home" \
+            -v "${CODEX_BIN}:/tmp/codex-bin:ro" \
+            -v "${CODEX_LOGS}:/tmp/codex-logs" \
+            -w /workspace \
+            loads/codex:latest \
+            codex exec \
+              --cd /workspace \
+              --sandbox danger-full-access \
+              --ask-for-approval never \
+              --output-last-message /tmp/codex-logs/auto-archive.md \
+              - < .github/prompts/nightly-openspec-auto-archive.zh-CN.md
+
+      - name: Detect Archive Changes
+        id: archive-diff
+        run: |
+          if git diff --quiet -- openspec; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+            echo "Auto archive produced no OpenSpec changes."
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+            echo "Auto archive produced OpenSpec changes."
+          fi
+
+      - name: Run Lina Archive Consolidate
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          docker run --rm -i \
+            --user "$(id -u):$(id -g)" \
+            -e CODEX_HOME=/tmp/codex-home \
+            -e HOME=/tmp/codex-home \
+            -e NPM_CONFIG_CACHE=/tmp/codex-home/npm-cache \
+            -e OPENSPEC_VERSION="${OPENSPEC_VERSION}" \
+            -e PATH="/tmp/codex-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            -v "${PWD}:/workspace" \
+            -v "${CODEX_HOME}:/tmp/codex-home" \
+            -v "${CODEX_BIN}:/tmp/codex-bin:ro" \
+            -v "${CODEX_LOGS}:/tmp/codex-logs" \
+            -w /workspace \
+            loads/codex:latest \
+            codex exec \
+              --cd /workspace \
+              --sandbox danger-full-access \
+              --ask-for-approval never \
+              --output-last-message /tmp/codex-logs/archive-consolidate.md \
+              - < .github/prompts/nightly-openspec-archive-consolidate.zh-CN.md
+
+      - name: Validate OpenSpec
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all
+
+      - name: Guard Generated Changes
+        run: |
+          {
+            git diff --name-only
+            git ls-files --others --exclude-standard
+          } | sort -u > "${RUNNER_TEMP}/changed-files.txt"
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const files = fs.readFileSync(`${process.env.RUNNER_TEMP}/changed-files.txt`, 'utf8')
+            .split(/\r?\n/)
+            .filter(Boolean);
+          const allowed = [
+            /^openspec\//,
+          ];
+          const unexpected = files.filter((file) => !allowed.some((pattern) => pattern.test(file)));
+
+          if (unexpected.length > 0) {
+            console.error('Unexpected generated file changes:');
+            for (const file of unexpected) {
+              console.error(`- ${file}`);
+            }
+            process.exit(1);
+          }
+
+          console.log('Generated file changes are within the allowed OpenSpec scope.');
+          NODE
+
+      - name: Commit Archive Changes
+        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add openspec
+
+          if git diff --cached --quiet; then
+            echo "No staged archive changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore(openspec): archive completed changes"
+          git push
+
+      - name: Upload Codex Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-openspec-codex-logs
+          path: ${{ runner.temp }}/codex-logs/
+          if-no-files-found: ignore
+          retention-days: 14

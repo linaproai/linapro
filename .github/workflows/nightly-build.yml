@@ -137,6 +137,76 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  redis-cluster-smoke:
+    name: Redis cluster smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    # Full E2E keeps the default single-node deployment shape. This narrower
+    # smoke starts the backend with cluster.enabled=true so Redis coordination is
+    # exercised without making every nightly browser test depend on leader state.
+    services:
+      # The smoke rebuilds the schema and then starts a real backend process.
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # The backend refuses to start in cluster mode unless Redis is reachable at
+      # startup, so the service health check catches broken Redis containers early.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Run Redis Cluster Smoke
+        env:
+          # The smoke script requires an explicit DB link because it runs
+          # `make init rebuild=true`; do not let it fall back to a developer DB.
+          LINAPRO_REDIS_CLUSTER_SMOKE_DB_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+          LINAPRO_REDIS_CLUSTER_SMOKE_REDIS_ADDR: "127.0.0.1:6379"
+        run: |
+          ./hack/tests/scripts/run-redis-cluster-smoke.sh
+
+      - name: Upload Redis Cluster Smoke Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-redis-cluster-smoke-log
+          path: |
+            temp/redis-cluster-smoke/lina-core.log
+          if-no-files-found: ignore
+          retention-days: 14
+
   nightly-image:
     name: Build and publish nightly image
     runs-on: ubuntu-latest
@@ -149,6 +219,7 @@ jobs:
       - backend-unit-tests
       - frontend-unit-tests
       - e2e-tests
+      - redis-cluster-smoke
 
     steps:
       - name: Checkout Repository
@@ -211,7 +282,7 @@ jobs:
       - name: Build and Push Multi-Platform Image
         run: |
           make image \
-            config=".github/workflows/image-build/config.yaml" \
+            config=".github/image/config.yaml" \
             platforms="${PLATFORMS}" \
             registry="${{ steps.image.outputs.registry }}" \
             image="${{ steps.image.outputs.image_name }}" \

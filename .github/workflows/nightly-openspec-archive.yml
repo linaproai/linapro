@@ -1,4 +1,4 @@
-# LinaPro nightly OpenSpec archive and consolidation workflow.
+# LinaPro nightly OpenSpec archive router workflow.
 # GitHub cron uses UTC. 21:30 UTC is 05:30 Asia/Shanghai.
 name: Nightly OpenSpec Archive
 
@@ -18,13 +18,17 @@ concurrency:
 env:
   TZ: "Asia/Shanghai"
   OPENSPEC_VERSION: "1.3.1"
+  AI_CODING_TOOL: ${{ vars.AI_CODING_TOOL || 'codex' }}
 
 jobs:
-  nightly-openspec-archive:
-    name: Archive and consolidate completed OpenSpec changes
+  detect:
+    name: Detect completed OpenSpec changes
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 15
     if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    outputs:
+      has_candidates: ${{ steps.detect.outputs.has_candidates }}
+      ai_coding_tool: ${{ steps.resolve.outputs.ai_coding_tool }}
 
     steps:
       - name: Setup Timezone
@@ -42,6 +46,24 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "23"
+
+      - name: Resolve AI Coding Tool
+        id: resolve
+        run: |
+          set -euo pipefail
+
+          ai_tool="$(printf '%s' "${AI_CODING_TOOL:-codex}" | tr '[:upper:]' '[:lower:]')"
+          case "${ai_tool}" in
+            codex|cc)
+              ;;
+            *)
+              echo "Unsupported AI_CODING_TOOL: ${AI_CODING_TOOL}. Use 'codex' or 'cc'." >&2
+              exit 1
+              ;;
+          esac
+
+          echo "ai_coding_tool=${ai_tool}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved AI coding tool: ${ai_tool}"
 
       - name: Detect Completed OpenSpec Changes
         id: detect
@@ -71,191 +93,30 @@ jobs:
         run: |
           echo "No completed active OpenSpec changes found. Nothing to archive."
 
-      - name: Prepare Codex Runtime
-        if: ${{ steps.detect.outputs.has_candidates == 'true' }}
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-        run: |
-          if [ -z "${OPENAI_API_KEY}" ]; then
-            echo "OPENAI_API_KEY secret is not configured." >&2
-            exit 1
-          fi
-          if [ -z "${OPENAI_BASE_URL}" ]; then
-            echo "OPENAI_BASE_URL secret is not configured." >&2
-            exit 1
-          fi
+  archive-with-codex:
+    name: Archive with Codex
+    needs: detect
+    if: ${{ needs.detect.outputs.has_candidates == 'true' && needs.detect.outputs.ai_coding_tool == 'codex' }}
+    uses: ./.github/workflows/nightly-openspec-archive-codex.yml
+    permissions:
+      contents: write
+    with:
+      openspec_version: ${{ vars.OPENSPEC_VERSION || '1.3.1' }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
 
-          codex_home="${RUNNER_TEMP}/codex-home"
-          codex_bin="${RUNNER_TEMP}/codex-bin"
-          mkdir -p "${codex_home}" "${codex_bin}"
-          cp .github/codex/config.toml "${codex_home}/config.toml"
-
-          CODEX_HOME="${codex_home}" python3 <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          codex_home = Path(os.environ["CODEX_HOME"])
-          api_key = os.environ["OPENAI_API_KEY"]
-          base_url = os.environ["OPENAI_BASE_URL"]
-          config_path = codex_home / "config.toml"
-          config_text = config_path.read_text(encoding="utf-8")
-          config_path.write_text(
-              config_text.replace('"${OPENAI_BASE_URL}"', json.dumps(base_url)),
-              encoding="utf-8",
-          )
-          (codex_home / "auth.json").write_text(
-              json.dumps({"OPENAI_API_KEY": api_key}, ensure_ascii=False, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          PY
-
-          chmod 600 "${codex_home}/auth.json"
-
-          cat > "${codex_bin}/openspec" <<'SH'
-          #!/usr/bin/env sh
-          exec npx -y "@fission-ai/openspec@${OPENSPEC_VERSION:-1.3.1}" "$@"
-          SH
-          chmod +x "${codex_bin}/openspec"
-
-          {
-            echo "CODEX_HOME=${codex_home}"
-            echo "CODEX_BIN=${codex_bin}"
-          } >> "${GITHUB_ENV}"
-
-      - name: Run Lina Auto Archive
-        if: ${{ steps.detect.outputs.has_candidates == 'true' }}
-        run: |
-          mkdir -p "${RUNNER_TEMP}/codex-logs"
-
-          mkdir -p "${CODEX_HOME}/npm-cache"
-
-          docker run --rm -i \
-            --user "$(id -u):$(id -g)" \
-            -e CODEX_HOME=/tmp/codex-home \
-            -e HOME=/tmp/codex-home \
-            -e NPM_CONFIG_CACHE=/tmp/codex-home/npm-cache \
-            -e OPENSPEC_VERSION="${OPENSPEC_VERSION}" \
-            -e PATH="/tmp/codex-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-            -v "${PWD}:/workspace" \
-            -v "${CODEX_HOME}:/tmp/codex-home" \
-            -v "${CODEX_BIN}:/tmp/codex-bin:ro" \
-            -v "${RUNNER_TEMP}/codex-logs:/tmp/codex-logs" \
-            -w /workspace \
-            loads/codex:latest \
-            codex exec \
-              --cd /workspace \
-              --sandbox danger-full-access \
-              --ask-for-approval never \
-              --output-last-message /tmp/codex-logs/auto-archive.md \
-              - <<'PROMPT'
-          这是无人值守的 nightly CI 归档任务。请使用仓库内 `.agents/skills/lina-auto-archive/SKILL.md` 的规则执行自动归档：
-          1. 只扫描 `openspec/changes/` 根目录下的活跃变更，排除 archive。
-          2. 只归档 OpenSpec 状态完成且 `tasks.md` 已全部完成的变更。
-          3. 使用 `openspec archive -y`，不要使用 `--no-validate`，不要手动移动目录。
-          4. 运行结束后输出中文结果摘要。
-          5. 不要修改与 OpenSpec 归档无关的文件；如果无法安全执行，请失败并说明原因。
-          PROMPT
-
-      - name: Detect Archive Changes
-        id: archive-diff
-        if: ${{ steps.detect.outputs.has_candidates == 'true' }}
-        run: |
-          if git diff --quiet -- openspec; then
-            echo "changed=false" >> "${GITHUB_OUTPUT}"
-            echo "Auto archive produced no OpenSpec changes."
-          else
-            echo "changed=true" >> "${GITHUB_OUTPUT}"
-            echo "Auto archive produced OpenSpec changes."
-          fi
-
-      - name: Run Lina Archive Consolidate
-        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
-        run: |
-          docker run --rm -i \
-            --user "$(id -u):$(id -g)" \
-            -e CODEX_HOME=/tmp/codex-home \
-            -e HOME=/tmp/codex-home \
-            -e NPM_CONFIG_CACHE=/tmp/codex-home/npm-cache \
-            -e OPENSPEC_VERSION="${OPENSPEC_VERSION}" \
-            -e PATH="/tmp/codex-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-            -v "${PWD}:/workspace" \
-            -v "${CODEX_HOME}:/tmp/codex-home" \
-            -v "${CODEX_BIN}:/tmp/codex-bin:ro" \
-            -v "${RUNNER_TEMP}/codex-logs:/tmp/codex-logs" \
-            -w /workspace \
-            loads/codex:latest \
-            codex exec \
-              --cd /workspace \
-              --sandbox danger-full-access \
-              --ask-for-approval never \
-              --output-last-message /tmp/codex-logs/archive-consolidate.md \
-              - <<'PROMPT'
-          这是无人值守的 nightly CI 归档聚合任务。请使用仓库内 `.agents/skills/lina-archive-consolidate/SKILL.md` 的规则执行归档聚合：
-          1. 未指定变更列表时，只处理 `openspec/changes/archive/` 下目录名以 `YYYY-MM-DD-` 开头的原始归档变更。
-          2. 不要把既有非日期前缀聚合目录再次作为默认输入。
-          3. 生成或更新聚合归档文档时保持变更范围在 `openspec/**` 内。
-          4. 不要等待人工交互；如果无法在 CI 中安全完成，请失败并说明原因。
-          5. 运行结束后输出中文结果摘要。
-          PROMPT
-
-      - name: Validate OpenSpec
-        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
-        run: |
-          npx -y "@fission-ai/openspec@${OPENSPEC_VERSION}" validate --all
-
-      - name: Guard Generated Changes
-        if: ${{ steps.detect.outputs.has_candidates == 'true' }}
-        run: |
-          {
-            git diff --name-only
-            git ls-files --others --exclude-standard
-          } | sort -u > "${RUNNER_TEMP}/changed-files.txt"
-
-          node <<'NODE'
-          const fs = require('node:fs');
-
-          const files = fs.readFileSync(`${process.env.RUNNER_TEMP}/changed-files.txt`, 'utf8')
-            .split(/\r?\n/)
-            .filter(Boolean);
-          const allowed = [
-            /^openspec\//,
-          ];
-          const unexpected = files.filter((file) => !allowed.some((pattern) => pattern.test(file)));
-
-          if (unexpected.length > 0) {
-            console.error('Unexpected generated file changes:');
-            for (const file of unexpected) {
-              console.error(`- ${file}`);
-            }
-            process.exit(1);
-          }
-
-          console.log('Generated file changes are within the allowed OpenSpec scope.');
-          NODE
-
-      - name: Commit Archive Changes
-        if: ${{ steps.archive-diff.outputs.changed == 'true' }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add openspec
-
-          if git diff --cached --quiet; then
-            echo "No staged archive changes to commit."
-            exit 0
-          fi
-
-          git commit -m "chore(openspec): archive completed changes"
-          git push
-
-      - name: Upload Codex Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-openspec-codex-logs
-          path: ${{ runner.temp }}/codex-logs/
-          if-no-files-found: ignore
-          retention-days: 14
+  archive-with-cc:
+    name: Archive with Claude Code
+    needs: detect
+    if: ${{ needs.detect.outputs.has_candidates == 'true' && needs.detect.outputs.ai_coding_tool == 'cc' }}
+    uses: ./.github/workflows/nightly-openspec-archive-cc.yml
+    permissions:
+      contents: write
+    with:
+      openspec_version: ${{ vars.OPENSPEC_VERSION || '1.3.1' }}
+      anthropic_custom_model: ${{ vars.ANTHROPIC_CUSTOM_MODEL }}
+    secrets:
+      ANTHROPIC_AUTH_TOKEN: ${{ secrets.ANTHROPIC_AUTH_TOKEN }}
+      ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+      ANTHROPIC_CUSTOM_MODEL: ${{ secrets.ANTHROPIC_CUSTOM_MODEL }}

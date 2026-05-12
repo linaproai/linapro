@@ -70,6 +70,73 @@ jobs:
     name: Go unit tests
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
 
+  redis-integration-tests:
+    name: Redis integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # Keep Redis coverage in a dedicated job. The reusable backend-unit-tests
+    # workflow owns its own service containers, so caller workflows cannot add
+    # Redis to that job without changing the reusable workflow contract.
+    services:
+      # Session Redis tests still write the PostgreSQL online-session projection,
+      # so this job needs the same initialized schema as the regular Go tests.
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # LINA_TEST_REDIS_ADDR below turns on otherwise-skipped real Redis
+      # integration tests for lock, KV, revision, event, and session hot state.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Initialize Database Schema
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init
+
+      - name: Run Redis Integration Tests
+        working-directory: apps/lina-core
+        env:
+          # These explicit test fixtures keep local/default runtime config from
+          # deciding which databases an integration test may connect to.
+          LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+          LINA_TEST_REDIS_ADDR: "127.0.0.1:6379"
+        run: |
+          go test ./internal/service/coordination ./internal/service/cachecoord ./internal/service/kvcache ./internal/service/session -run Redis -count=1
+
   frontend-unit-tests:
     name: Frontend unit tests
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
