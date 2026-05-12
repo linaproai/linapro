@@ -89,8 +89,6 @@
     "e2e/i18n/TC0112-english-layout-regression.ts",
     "e2e/i18n/TC0116-english-built-in-governance-data-localization.ts",
     "e2e/i18n/TC0124-runtime-i18n-etag.ts",
-    "e2e/i18n/TC0128-traditional-chinese-plugin-pages.ts",
-    "e2e/i18n/TC0129-traditional-chinese-apidoc.ts",
     "e2e/i18n/TC0135-backend-error-localization.ts",
     "e2e/i18n/TC0136-backend-export-localization.ts",
     "e2e/i18n/TC0137-backend-hardcoded-chinese-regression.ts",
@@ -204,21 +202,6 @@
       "entry": "e2e/i18n/TC0124-runtime-i18n-etag.ts",
       "categories": ["runtimeI18nCache"],
       "reason": "Runtime i18n ETag checks depend on shared translation bundle versions and cache revalidation semantics."
-    },
-    {
-      "entry": "e2e/i18n/TC0128-traditional-chinese-plugin-pages.ts",
-      "categories": [
-        "pluginLifecycle",
-        "runtimeI18nCache",
-        "sharedDatabaseSeed",
-        "filesystemArtifact"
-      ],
-      "reason": "Traditional Chinese plugin page checks install dynamic plugins and enable source plugins before validating translated pages."
-    },
-    {
-      "entry": "e2e/i18n/TC0129-traditional-chinese-apidoc.ts",
-      "categories": ["pluginLifecycle", "runtimeI18nCache", "filesystemArtifact"],
-      "reason": "Traditional Chinese API documentation checks install plugin API resources and validate localized API docs."
     },
     {
       "entry": "e2e/i18n/TC0135-backend-error-localization.ts",

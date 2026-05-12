@@ -17,6 +17,15 @@
     },
     "plugin:multi-tenant:platform:tenants:remove": {
       "title": "租户删除"
+    },
+    "plugin:multi-tenant:tenant:plugin:disable": {
+      "title": "租户插件禁用"
+    },
+    "plugin:multi-tenant:tenant:plugin:enable": {
+      "title": "租户插件启用"
+    },
+    "plugin:multi-tenant:tenant:plugin:list": {
+      "title": "租户插件列表"
     }
   }
 }

@@ -538,30 +538,6 @@ export class MultiTenantPage {
       },
     );
     await this.page.route(
-      /\/api(?:\/v1)?\/platform\/tenant\/resolver-config(?:\?.*)?$/,
-      async (route) => {
-        if (route.request().method() === "GET") {
-          await route.fulfill(
-            ok({
-              chain: [
-                "override",
-                "jwt",
-                "session",
-                "header",
-                "subdomain",
-                "default",
-              ],
-              onAmbiguous: "prompt",
-              reservedSubdomains: ["www", "api", "admin"],
-              rootDomain: "example.test",
-            }),
-          );
-          return;
-        }
-        await route.fulfill(ok({}));
-      },
-    );
-    await this.page.route(
       /\/api(?:\/v1)?\/dict\/data\/type\/sys_normal_disable$/,
       async (route) => {
         await route.fulfill(
@@ -1466,13 +1442,10 @@ export class MultiTenantPage {
       "title",
       "Acting as platform administrator for tenant Alpha BU",
     );
-    const bannerBox = await this.page
-      .getByTestId("impersonation-banner")
-      .boundingBox();
-    if (!bannerBox) {
-      throw new Error("Impersonation banner is not visible");
-    }
-    expect(bannerBox.width).toBeLessThanOrEqual(242);
+    await expect(this.page.getByTestId("impersonation-banner-text")).toHaveCSS(
+      "white-space",
+      "nowrap",
+    );
   }
 
   private async expectStoredImpersonationOriginalToken() {

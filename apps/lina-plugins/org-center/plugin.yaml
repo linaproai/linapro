@@ -61,7 +61,7 @@ menus:
     perms: system:dept:list
     # Menu icon using an Iconify icon name.
     # 菜单图标，使用 Iconify 图标名称。
-    icon: lucide:building-2
+    icon: lucide:landmark
     # Menu type enum. Allowed values: `D` directory, `M` menu page, `B` button permission node.
     # 菜单类型枚举。可选值：`D` 表示目录，`M` 表示菜单页面，`B` 表示按钮权限点。
     type: M

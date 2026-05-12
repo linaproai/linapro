@@ -13,6 +13,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mssola/useragent"
 
+	"lina-core/pkg/authtoken"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginservice/bizctx"
 	"lina-core/pkg/pluginservice/config"
@@ -79,6 +80,7 @@ type userRow struct {
 // tokenClaims mirrors the host JWT claim shape consumed by middleware.
 type tokenClaims struct {
 	TokenId         string `json:"tokenId"`
+	TokenType       string `json:"tokenType"`
 	UserId          int    `json:"userId"`
 	Username        string `json:"username"`
 	Status          int    `json:"status"`
@@ -253,6 +255,7 @@ func (jwtTokenSigner) Sign(secret string, ttl time.Duration, user *userRow, tena
 	now := time.Now()
 	claims := tokenClaims{
 		TokenId:         tokenID,
+		TokenType:       authtoken.KindAccess,
 		UserId:          int(user.Id),
 		Username:        user.Username,
 		Status:          user.Status,

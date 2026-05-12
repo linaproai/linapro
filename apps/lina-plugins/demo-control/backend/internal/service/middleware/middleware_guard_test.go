@@ -58,8 +58,6 @@ i18n:
       nativeName: English
     - locale: zh-CN
       nativeName: 简体中文
-    - locale: zh-TW
-      nativeName: 繁體中文
 plugin:
   dynamic:
     storagePath: "temp/output"

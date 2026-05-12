@@ -43,6 +43,8 @@ type SwitchTenantInput struct {
 type TenantTokenOutput struct {
 	// AccessToken is the host-compatible JWT.
 	AccessToken string
+	// RefreshToken is the host-compatible refresh JWT for the same session.
+	RefreshToken string
 }
 
 // serviceAdapter bridges the internal auth service into the published plugin contract.
@@ -79,7 +81,7 @@ func (s *serviceAdapter) SelectTenant(ctx context.Context, in SelectTenantInput)
 	if err != nil {
 		return nil, err
 	}
-	return &TenantTokenOutput{AccessToken: out.AccessToken}, nil
+	return &TenantTokenOutput{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken}, nil
 }
 
 // SwitchTenant validates membership, revokes the current token, and issues a new token.
@@ -94,5 +96,5 @@ func (s *serviceAdapter) SwitchTenant(ctx context.Context, in SwitchTenantInput)
 	if err != nil {
 		return nil, err
 	}
-	return &TenantTokenOutput{AccessToken: out.AccessToken}, nil
+	return &TenantTokenOutput{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken}, nil
 }

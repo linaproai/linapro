@@ -79,6 +79,10 @@ const notifications = computed<NotificationItem[]>(() =>
 
 const showDot = computed(() => messageStore.unreadCount > 0);
 
+function isPluginRuntimeEnabled(value: unknown) {
+  return value === 1 || value === '1' || value === true;
+}
+
 // Start polling on mount
 onMounted(() => {
   messageStore.startPolling();
@@ -154,8 +158,14 @@ async function refreshPluginAwareAccess(options?: {
 
 async function syncTenantManagementCapability(force = false) {
   const capabilityMap = await getPluginCapabilityStateMap(force);
+  const pluginStateMap = await getPluginStateMap();
+  const multiTenantState = pluginStateMap.get('multi-tenant');
   const tenantManagementEnabled =
-    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true;
+    multiTenantState
+      ? isPluginRuntimeEnabled(multiTenantState.installed) &&
+        isPluginRuntimeEnabled(multiTenantState.enabled)
+      : capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled ===
+          true || tenantStore.enabled;
   if (!tenantManagementEnabled && tenantStore.enabled) {
     tenantStore.$reset();
     return;

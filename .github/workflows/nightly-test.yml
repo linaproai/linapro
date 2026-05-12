@@ -19,6 +19,10 @@ env:
   TZ: "Asia/Shanghai"
 
 jobs:
+  windows-command-smoke:
+    name: Windows command smoke
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+
   backend-unit-tests:
     name: Go unit tests
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
@@ -50,21 +54,21 @@ jobs:
 
     steps:
       - name: Setup Timezone
-        uses: szenius/set-timezone@v2.0
-        with:
-          timezoneLinux: "Asia/Shanghai"
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
 
       - name: Checkout Repository
         uses: actions/checkout@v5
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.25"
-          cache-dependency-path: "**/go.sum"
+          cache: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: "10.30.3"
           run_install: false

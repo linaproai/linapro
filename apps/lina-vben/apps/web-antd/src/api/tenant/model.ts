@@ -10,7 +10,13 @@ export interface LoginTenant {
 export interface TenantAwareLoginResult {
   accessToken?: string;
   preToken?: string;
+  refreshToken?: string;
   tenants?: LoginTenant[];
+}
+
+export interface TenantTokenResult {
+  accessToken: string;
+  refreshToken?: string;
 }
 
 export interface TenantState {

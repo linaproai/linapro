@@ -110,7 +110,7 @@ func TestListMockSQLPathsViaEmbeddedSourcePluginFiles(t *testing.T) {
 		SourcePlugin: func() pluginhost.SourcePluginDefinition {
 			sourcePlugin := pluginhost.NewSourcePlugin("plugin-embedded-mock-data")
 			sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
-				"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-embedded-mock-data\nname: Embedded Mock Data Plugin\nversion: 0.1.0\ntype: source\n")},
+				"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-embedded-mock-data\nname: Embedded Mock Data Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 				"manifest/sql/001-plugin-embedded-mock-data.sql": &fstest.MapFile{
 					Data: []byte("CREATE TABLE IF NOT EXISTS plugin_demo (id BIGINT PRIMARY KEY);"),
 				},

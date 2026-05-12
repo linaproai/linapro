@@ -157,7 +157,6 @@ func translateSQLiteStatement(ctx context.Context, sourceName string, line int, 
 	case trimmed == "":
 		return "", nil
 	case reCommentOnSupportedObject.MatchString(trimmed):
-		logger.Debugf(ctx, "skip PostgreSQL comment statement during SQLite translation source=%s line=%d", sourceName, line)
 		return "", nil
 	case reDoBlock.MatchString(trimmed):
 		logger.Debugf(ctx, "skip PostgreSQL procedural block during SQLite translation source=%s line=%d", sourceName, line)

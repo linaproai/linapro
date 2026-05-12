@@ -323,6 +323,9 @@ go 1.25.0
 name: Host Services E2E
 version: v0.1.0
 type: dynamic
+scope_nature: tenant_aware
+supports_multi_tenant: false
+default_install_mode: global
 hostServices:
   - service: runtime
     methods:
@@ -622,6 +625,9 @@ go 1.25.0
 name: Host Services Denied E2E
 version: v0.1.0
 type: dynamic
+scope_nature: tenant_aware
+supports_multi_tenant: false
+default_install_mode: global
 hostServices:
   - service: storage
     methods:
@@ -787,6 +793,9 @@ function buildRawSQLInvalidArtifact() {
         name: "Host Services Raw SQL E2E",
         version: "v0.1.0",
         type: "dynamic",
+        scopeNature: "tenant_aware",
+        supportsMultiTenant: false,
+        defaultInstallMode: "global",
       }),
     ),
   );

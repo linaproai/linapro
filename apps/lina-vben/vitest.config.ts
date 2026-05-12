@@ -7,6 +7,8 @@ const virtualLocaleModules: Record<string, string> = {
     'export const antdLocaleLoaders = {};',
     'export const dayjsLocaleLoaders = {};',
   ].join('\n'),
+  'virtual:lina-plugin-pages': 'export const pluginPageModules = [];',
+  'virtual:lina-plugin-slots': 'export const pluginSlotModules = [];',
   'virtual:lina-vxe-locales': 'export const vxeLocaleLoaders = {};',
 };
 

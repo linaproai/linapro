@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/os/gctx"
+	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/model"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -39,7 +39,7 @@ func TestFormatRunDurationUsesRuntimeLocale(t *testing.T) {
 		expected string
 	}{
 		{name: "default locale hours", locale: i18nsvc.DefaultLocale, seconds: 3661, expected: "1小时1分钟1秒"},
-		{name: "traditional locale minutes", locale: "zh-TW", seconds: 125, expected: "2分鐘5秒"},
+		{name: "default locale minutes", locale: i18nsvc.DefaultLocale, seconds: 125, expected: "2分钟5秒"},
 		{name: "english locale seconds", locale: i18nsvc.EnglishLocale, seconds: 42, expected: "42 seconds"},
 		{name: "english locale hours", locale: i18nsvc.EnglishLocale, seconds: 7322, expected: "2 hours 2 minutes 2 seconds"},
 	}

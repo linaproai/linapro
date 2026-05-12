@@ -6,23 +6,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gogf/gf/v2/os/gctx"
+	"lina-core/pkg/pluginservice/bizctx"
 )
-
-// loginLogTenantTestBizContext mimics the host biz context fields consumed by tenantfilter.
-type loginLogTenantTestBizContext struct {
-	UserId          int
-	TenantId        int
-	ActingUserId    int
-	ActingAsTenant  bool
-	IsImpersonation bool
-}
 
 // TestResolveAuditTenantContextReadsBizContext verifies tenant metadata comes from bizctx.
 func TestResolveAuditTenantContextReadsBizContext(t *testing.T) {
-	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &loginLogTenantTestBizContext{
-		UserId:   3,
-		TenantId: 12,
+	ctx := bizctx.WithCurrentContext(context.Background(), bizctx.CurrentContext{
+		UserID:   3,
+		TenantID: 12,
 	})
 
 	actual := resolveAuditTenantContext(ctx, nil, nil, nil, nil)
@@ -36,10 +27,10 @@ func TestResolveAuditTenantContextReadsBizContext(t *testing.T) {
 
 // TestResolveAuditTenantContextReadsImpersonation verifies impersonation metadata comes from bizctx.
 func TestResolveAuditTenantContextReadsImpersonation(t *testing.T) {
-	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &loginLogTenantTestBizContext{
-		UserId:          10,
-		TenantId:        12,
-		ActingUserId:    3,
+	ctx := bizctx.WithCurrentContext(context.Background(), bizctx.CurrentContext{
+		UserID:          10,
+		TenantID:        12,
+		ActingUserID:    3,
 		ActingAsTenant:  true,
 		IsImpersonation: true,
 	})

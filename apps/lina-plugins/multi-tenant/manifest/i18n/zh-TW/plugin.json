@@ -1,7 +1,0 @@
-{
-  "plugin.multi-tenant.name": "多租戶",
-  "plugin.multi-tenant.description": "提供租戶管理、成員關係、內建解析策略與生命週期治理能力。",
-  "plugin.multi-tenant.uninstall_blocked.tenants_exist": "仍存在租戶。請先刪除租戶，再解除安裝多租戶插件。",
-  "plugin.multi-tenant.disable_blocked.tenants_exist": "仍存在租戶。請先刪除租戶，再停用多租戶插件。",
-  "plugin.multi-tenant.tenant_delete_blocked.resources_exist": "該租戶仍存在受保護資源。"
-}

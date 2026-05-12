@@ -11,10 +11,10 @@ test.describe('TC0006 用户列表排序', () => {
     expect(rowCount).toBeGreaterThan(0);
 
     // Click username column header to sort
-    await userPage.clickColumnSort('名称');
+    await userPage.clickColumnSort('账号');
 
     // Verify sort was applied by checking the sort class on visible header
-    const header = adminPage.locator('.vxe-header--column.fixed--visible', { hasText: '名称' }).first();
+    const header = userPage.columnHeader('账号');
     await expect(header.locator('.vxe-cell--sort')).toBeVisible({ timeout: 3000 });
   });
 
@@ -24,7 +24,7 @@ test.describe('TC0006 用户列表排序', () => {
 
     await userPage.clickColumnSort('创建时间');
 
-    const header = adminPage.locator('.vxe-header--column.fixed--visible', { hasText: '创建时间' }).first();
+    const header = userPage.columnHeader('创建时间');
     await expect(header.locator('.vxe-cell--sort')).toBeVisible({ timeout: 3000 });
   });
 
@@ -40,7 +40,7 @@ test.describe('TC0006 用户列表排序', () => {
     );
 
     // Click the column header to trigger sort
-    await userPage.clickColumnSort('名称');
+    await userPage.clickColumnSort('账号');
 
     const response = await responsePromise;
     const url = response.url();

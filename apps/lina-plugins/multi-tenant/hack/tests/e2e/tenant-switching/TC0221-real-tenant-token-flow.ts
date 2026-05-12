@@ -22,7 +22,6 @@ import {
   selectTenant,
   switchTenant,
   test,
-  type TenantMember,
 } from '@host-tests/fixtures/multi-tenant';
 
 type APIRequestContext = Awaited<ReturnType<typeof createAdminApiContext>>;
@@ -106,12 +105,12 @@ test.describe("TC-221 multi-tenant real token flow", () => {
         `INSERT INTO sys_role_menu (role_id, menu_id, tenant_id)
        SELECT ${tenantARoleId}, id, ${tenantAId}
        FROM sys_menu
-       WHERE perms IN ('system:tenant:member:list', 'system:tenant:member:query')
+       WHERE perms IN ('system:user:list', 'system:user:query')
        ON CONFLICT DO NOTHING;`,
         `INSERT INTO sys_role_menu (role_id, menu_id, tenant_id)
        SELECT ${tenantBRoleId}, id, ${tenantBId}
        FROM sys_menu
-       WHERE perms IN ('system:tenant:member:list', 'system:tenant:member:query')
+       WHERE perms IN ('system:user:list', 'system:user:query')
        ON CONFLICT DO NOTHING;`,
         `INSERT INTO sys_user_role (user_id, role_id, tenant_id) VALUES (${userId}, ${tenantARoleId}, ${tenantAId}) ON CONFLICT DO NOTHING;`,
         `INSERT INTO sys_user_role (user_id, role_id, tenant_id) VALUES (${userId}, ${tenantBRoleId}, ${tenantBId}) ON CONFLICT DO NOTHING;`,
@@ -179,13 +178,7 @@ test.describe("TC-221 multi-tenant real token flow", () => {
     const tenantAToken = await selectTenant(tenantLogin.preToken!, tenantAId);
     tenantApi = await createTenantApiContext(tenantAToken);
 
-    const memberA = await expectSuccess<TenantMember>(
-      await tenantApi.get(
-        `tenant/members/me?tenantId=${tenantAId}&userId=${userId}`,
-      ),
-    );
-    expect(memberA.tenantId).toBe(tenantAId);
-    expect(memberA.userId).toBe(userId);
+    await expectSuccess(await tenantApi.get("user/info"));
 
     const membersA = await listTenantMembers(tenantApi, tenantAId);
     expect(membersA.list.map((item) => item.userId)).toContain(userId);
@@ -197,18 +190,12 @@ test.describe("TC-221 multi-tenant real token flow", () => {
     expect(switchPayload.accessToken).toBeTruthy();
     expect(switchPayload.accessToken).not.toBe(tenantAToken);
 
-    const revokedTokenResponse = await tenantApi.get(
-      `tenant/members/me?tenantId=${tenantAId}&userId=${userId}`,
-    );
+    const revokedTokenResponse = await tenantApi.get("user/info");
     expect(revokedTokenResponse.status()).toBe(401);
 
     switchedApi = await createTenantApiContext(switchPayload.accessToken);
-    const memberB = await expectSuccess<TenantMember>(
-      await switchedApi.get(
-        `tenant/members/me?tenantId=${tenantBId}&userId=${userId}`,
-      ),
-    );
-    expect(memberB.tenantId).toBe(tenantBId);
-    expect(memberB.userId).toBe(userId);
+    await expectSuccess(await switchedApi.get("user/info"));
+    const membersB = await listTenantMembers(switchedApi, tenantBId);
+    expect(membersB.list.map((item) => item.userId)).toContain(userId);
   });
 });

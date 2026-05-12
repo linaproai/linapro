@@ -34,7 +34,6 @@ func TestLocalizeErrorSupportsStructuredRuntimeMessages(t *testing.T) {
 	registerTestSourcePluginI18N(t, pluginID, map[string]string{
 		DefaultLocale: fmt.Sprintf(`{"test":{"structured":{"%s":"用户 {username} 不存在"}}}`, pluginID),
 		EnglishLocale: fmt.Sprintf(`{"test":{"structured":{"%s":"User {username} does not exist"}}}`, pluginID),
-		"zh-TW":       fmt.Sprintf(`{"test":{"structured":{"%s":"使用者 {username} 不存在"}}}`, pluginID),
 	})
 
 	svc := New()
@@ -44,7 +43,6 @@ func TestLocalizeErrorSupportsStructuredRuntimeMessages(t *testing.T) {
 	}{
 		{locale: DefaultLocale, expected: "用户 alice 不存在"},
 		{locale: EnglishLocale, expected: "User alice does not exist"},
-		{locale: "zh-TW", expected: "使用者 alice 不存在"},
 	}
 
 	for _, testCase := range testCases {
@@ -133,7 +131,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "数据不在当前数据权限范围内",
 				EnglishLocale: "Data is outside the current data permission scope",
-				"zh-TW":       "數據不在當前數據權限範圍內",
 			},
 		},
 		{
@@ -143,7 +140,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "请先登录",
 				EnglishLocale: "Not signed in",
-				"zh-TW":       "請先登錄",
 			},
 		},
 		{
@@ -154,7 +150,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "不支持的数据权限范围：9",
 				EnglishLocale: "Unsupported data permission scope: 9",
-				"zh-TW":       "不支持的數據權限範圍：9",
 			},
 		},
 		{
@@ -164,7 +159,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "用户数据超出当前数据权限范围",
 				EnglishLocale: "User data is outside the current data permission scope",
-				"zh-TW":       "用戶數據超出當前數據權限範圍",
 			},
 		},
 		{
@@ -174,7 +168,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "文件数据不在当前数据权限范围内",
 				EnglishLocale: "File data is outside the current data permission scope",
-				"zh-TW":       "文件數據不在當前數據權限範圍內",
 			},
 		},
 		{
@@ -184,7 +177,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "定时任务数据不在当前数据权限范围内",
 				EnglishLocale: "Scheduled job data is outside the current data permission scope",
-				"zh-TW":       "定時任務數據不在當前數據權限範圍內",
 			},
 		},
 		{
@@ -194,7 +186,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "本部门数据权限需要先启用组织管理插件",
 				EnglishLocale: "Department data scope requires the organization management plugin to be enabled",
-				"zh-TW":       "本部門數據權限需要先啟用組織管理插件",
 			},
 		},
 		{
@@ -205,7 +196,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "不支持的角色数据权限范围：9",
 				EnglishLocale: "Unsupported role data scope: 9",
-				"zh-TW":       "不支持的角色數據權限範圍：9",
 			},
 		},
 		{
@@ -215,7 +205,6 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "租户角色不能使用全部数据权限",
 				EnglishLocale: "Tenant roles cannot use all-data scope",
-				"zh-TW":       "租戶角色不能使用全部數據權限",
 			},
 		},
 	}
@@ -261,7 +250,6 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "查询用户租户归属可见性失败",
 				EnglishLocale: "Failed to query tenant membership visibility",
-				"zh-TW":       "查詢用戶租戶歸屬可見性失敗",
 			},
 		},
 		{
@@ -271,7 +259,6 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "更新用户租户归属失败",
 				EnglishLocale: "Failed to update tenant membership",
-				"zh-TW":       "更新用戶租戶歸屬失敗",
 			},
 		},
 		{
@@ -281,7 +268,6 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "当前上下文不能将用户分配到其他租户",
 				EnglishLocale: "Cannot assign users to another tenant in the current context",
-				"zh-TW":       "當前上下文不能將用戶分配到其他租戶",
 			},
 		},
 		{
@@ -291,7 +277,6 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "所选租户不可用",
 				EnglishLocale: "Selected tenant is unavailable",
-				"zh-TW":       "所選租戶不可用",
 			},
 		},
 		{
@@ -301,7 +286,6 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "当前配置下用户只能归属于一个租户",
 				EnglishLocale: "User can only belong to one tenant in the current configuration",
-				"zh-TW":       "當前配置下用戶只能歸屬於一個租戶",
 			},
 		},
 	}
@@ -361,7 +345,6 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "通知公告不存在",
 				EnglishLocale: "Notice does not exist",
-				"zh-TW":       "通知公告不存在",
 			},
 		},
 		{
@@ -371,7 +354,6 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "部门不存在",
 				EnglishLocale: "Department does not exist",
-				"zh-TW":       "部門不存在",
 			},
 		},
 		{
@@ -382,7 +364,6 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "岗位ID 17 已分配给用户，不能删除",
 				EnglishLocale: "Post 17 has assigned users and cannot be deleted",
-				"zh-TW":       "崗位ID 17 已分配給用戶，不能刪除",
 			},
 		},
 		{
@@ -392,7 +373,6 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "登录日志不存在",
 				EnglishLocale: "Login log does not exist",
-				"zh-TW":       "登錄日誌不存在",
 			},
 		},
 		{
@@ -402,7 +382,6 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "操作日志不存在",
 				EnglishLocale: "Operation log does not exist",
-				"zh-TW":       "操作日誌不存在",
 			},
 		},
 		{
@@ -413,7 +392,6 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "附件大小不能超过5MB",
 				EnglishLocale: "Attachment size must not exceed 5MB",
-				"zh-TW":       "附件大小不能超過5MB",
 			},
 		},
 		{
@@ -424,7 +402,6 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 			expected: map[string]string{
 				DefaultLocale: "记录标题长度不能超过128个字符",
 				EnglishLocale: "Record title must not exceed 128 characters",
-				"zh-TW":       "記錄標題長度不能超過128個字符",
 			},
 		},
 	}

@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import enUSPages from '#/locales/langs/en-US/pages.json';
 import zhCNPages from '#/locales/langs/zh-CN/pages.json';
-import zhTWPages from '#/locales/langs/zh-TW/pages.json';
 
 import {
   formatMenuPermissionLabel,
@@ -15,14 +14,13 @@ describe('formatMenuPermissionLabel', () => {
   beforeEach(() => {
     i18n.global.setLocaleMessage('en-US', { pages: enUSPages });
     i18n.global.setLocaleMessage('zh-CN', { pages: zhCNPages });
-    i18n.global.setLocaleMessage('zh-TW', { pages: zhTWPages });
   });
 
   afterEach(() => {
     document.documentElement.lang = '';
   });
 
-  function setActiveLocale(locale: 'en-US' | 'zh-CN' | 'zh-TW') {
+  function setActiveLocale(locale: 'en-US' | 'zh-CN') {
     document.documentElement.lang = locale;
     i18n.global.locale.value = locale;
   }
@@ -43,14 +41,6 @@ describe('formatMenuPermissionLabel', () => {
     expect(
       formatMenuPermissionLabel('plugin-dynamic-host-auth-ui:audit:query'),
     ).toBe('Dynamic Route Permission (resource: Audit, action: Query)');
-  });
-
-  it('formats raw dynamic route permissions in Traditional Chinese locale', () => {
-    setActiveLocale('zh-TW');
-
-    expect(
-      formatMenuPermissionLabel('plugin-dynamic-host-auth-ui:review:query'),
-    ).toBe('動態路由權限（資源：審核，動作：查詢）');
   });
 
   it('falls back to readable unknown segments without translation entries', () => {

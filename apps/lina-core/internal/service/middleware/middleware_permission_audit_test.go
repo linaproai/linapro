@@ -20,6 +20,7 @@ import (
 var staticPermissionExemptionAllowlist = map[string]string{
 	"GET /health":                            "public host health probe for container probes and load balancers",
 	"POST /auth/login":                       "public login entrypoint",
+	"POST /auth/refresh":                     "public refresh-token endpoint; authenticates via refresh JWT in the request body",
 	"GET /i18n/runtime/locales":              "public runtime i18n locale bootstrap",
 	"GET /i18n/runtime/messages":             "public runtime i18n message bootstrap",
 	"GET /config/public/frontend":            "public frontend bootstrap whitelist",

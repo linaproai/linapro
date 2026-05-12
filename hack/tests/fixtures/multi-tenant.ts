@@ -15,6 +15,7 @@ import {
 import {
   execPgSQL,
   pgEscapeLiteral,
+  queryPgRows,
   queryPgScalar,
 } from "../support/postgres";
 
@@ -111,14 +112,28 @@ export async function deleteTenant(api: APIRequestContext, id: number) {
 }
 
 export async function addTenantMember(
-  api: APIRequestContext,
+  _api: APIRequestContext,
   payload: { tenantId: number; userId: number },
 ) {
-  return expectSuccess<{ id: number }>(
-    await api.post("tenant/members", {
-      data: payload,
-    }),
-  );
+  execPgSQL(`
+    INSERT INTO plugin_multi_tenant_user_membership ("user_id", "tenant_id", "status", "created_by", "updated_by")
+    VALUES (${payload.userId}, ${payload.tenantId}, 1, 0, 0)
+    ON CONFLICT ("user_id", "tenant_id") DO UPDATE SET
+      "status" = 1,
+      "deleted_at" = NULL,
+      "updated_at" = NOW();
+  `);
+  return {
+    id: Number(
+      queryPgScalar(`
+        SELECT id
+        FROM plugin_multi_tenant_user_membership
+        WHERE user_id = ${payload.userId}
+          AND tenant_id = ${payload.tenantId}
+        LIMIT 1;
+      `),
+    ),
+  };
 }
 
 export async function grantTenantPermissions(
@@ -182,14 +197,37 @@ export function revokeTenantPermissionGrants(grants: TenantUserGrant[]) {
   `);
 }
 
-export async function removeTenantMember(api: APIRequestContext, id: number) {
-  await api.delete(`tenant/members/${id}`).catch(() => {});
+export async function removeTenantMember(_api: APIRequestContext, id: number) {
+  if (id <= 0) {
+    return;
+  }
+  execPgSQL(
+    `DELETE FROM plugin_multi_tenant_user_membership WHERE id = ${id};`,
+  );
 }
 
-export async function listTenantMembers(api: APIRequestContext, tenantId: number) {
-  return expectSuccess<{ list: TenantMember[]; total: number }>(
-    await api.get(`tenant/members?pageNum=1&pageSize=100&tenantId=${tenantId}`),
-  );
+export function listTenantMembers(_api: APIRequestContext, tenantId: number) {
+  const list = queryPgRows(`
+    SELECT m.id || '|' || m.tenant_id || '|' || m.user_id || '|' || u.username || '|' || m.status
+    FROM plugin_multi_tenant_user_membership m
+    JOIN sys_user u ON u.id = m.user_id
+    WHERE m.tenant_id = ${tenantId}
+      AND m.deleted_at IS NULL
+    ORDER BY m.id;
+  `).map((row) => {
+    const [id, rowTenantId, userId, username, status] = row.split("|");
+    return {
+      id: Number(id),
+      tenantId: Number(rowTenantId),
+      userId: Number(userId),
+      username,
+      status: Number(status),
+    };
+  });
+  return {
+    list,
+    total: list.length,
+  };
 }
 
 export async function selectTenant(preToken: string, tenantId: number) {

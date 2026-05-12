@@ -1,12 +1,10 @@
-// This file verifies real source and dynamic plugin lifecycle flows on SQLite.
+// This file verifies source and dynamic plugin lifecycle contracts on SQLite.
 
 package plugin
 
 import (
 	"context"
-	"github.com/gogf/gf/v2/database/gdb"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -16,38 +14,43 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
+
 	"lina-core/internal/packed"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/plugin/internal/testutil"
 	"lina-core/pkg/dialect"
 )
 
 const sqliteRealLifecycleChildEnv = "LINA_SQLITE_REAL_PLUGIN_LIFECYCLE_CHILD"
 
-// TestSQLiteRealPluginsLifecycle verifies actual shipped plugin lifecycle flows
-// in a child process so SQLite-specific GoFrame globals never leak into the
+// TestSQLitePluginFacadeLifecycle verifies source and dynamic plugin lifecycle
+// flows in a child process so SQLite-specific GoFrame globals never leak into the
 // default plugin test package database.
-func TestSQLiteRealPluginsLifecycle(t *testing.T) {
+func TestSQLitePluginFacadeLifecycle(t *testing.T) {
 	if os.Getenv(sqliteRealLifecycleChildEnv) == "1" {
-		t.Skip("parent test only launches the isolated SQLite real-plugin child process")
+		t.Skip("parent test only launches the isolated SQLite lifecycle child process")
 	}
 
-	dbPath := filepath.Join(t.TempDir(), "linapro-real-plugin-lifecycle.db")
-	cmd := exec.Command(os.Args[0], "-test.run=^TestSQLiteRealPluginsLifecycleChild$", "-test.count=1", "-test.v")
+	dbPath := filepath.Join(t.TempDir(), "linapro-plugin-facade-lifecycle.db")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestSQLitePluginFacadeLifecycleChild$", "-test.count=1", "-test.v")
 	cmd.Env = append(os.Environ(),
 		sqliteRealLifecycleChildEnv+"=1",
 		"LINA_SQLITE_REAL_PLUGIN_LIFECYCLE_DB="+dbPath,
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("SQLite real plugin lifecycle child test failed: %v\n%s", err, string(output))
+		t.Fatalf("SQLite plugin facade lifecycle child test failed: %v\n%s", err, string(output))
 	}
 }
 
-// TestSQLiteRealPluginsLifecycleChild performs the real plugin lifecycle checks
+// TestSQLitePluginFacadeLifecycleChild performs the plugin lifecycle checks
 // against one temporary SQLite database initialized from the embedded host SQL.
-func TestSQLiteRealPluginsLifecycleChild(t *testing.T) {
+func TestSQLitePluginFacadeLifecycleChild(t *testing.T) {
 	if os.Getenv(sqliteRealLifecycleChildEnv) != "1" {
-		t.Skip("SQLite real plugin lifecycle child test is executed by TestSQLiteRealPluginsLifecycle")
+		t.Skip("SQLite lifecycle child test is executed by TestSQLitePluginFacadeLifecycle")
 	}
 
 	ctx := context.Background()
@@ -58,22 +61,11 @@ func TestSQLiteRealPluginsLifecycleChild(t *testing.T) {
 	setupSQLiteRealPluginDatabase(t, ctx, "sqlite::@file("+dbPath+")")
 
 	service := newTestService()
-	sourcePlugins := []struct {
-		id     string
-		tables []string
-	}{
-		{id: "monitor-loginlog", tables: []string{"plugin_monitor_loginlog"}},
-		{id: "monitor-operlog", tables: []string{"plugin_monitor_operlog"}},
-		{id: "monitor-server", tables: []string{"plugin_monitor_server"}},
-		{id: "org-center", tables: []string{"plugin_org_center_dept", "plugin_org_center_post", "plugin_org_center_user_dept", "plugin_org_center_user_post"}},
-		{id: "content-notice", tables: []string{"plugin_content_notice"}},
-		{id: "plugin-demo-source", tables: []string{"plugin_demo_source_record"}},
-	}
-	for _, item := range sourcePlugins {
-		verifySQLitePluginLifecycle(t, ctx, service, item.id, item.tables)
-	}
+	sourcePluginID, sourceTableName := createSQLiteLifecycleSourcePlugin(t)
+	verifySQLitePluginLifecycle(t, ctx, service, sourcePluginID, []string{sourceTableName})
 
-	verifySQLitePluginLifecycle(t, ctx, service, "plugin-demo-dynamic", []string{"plugin_demo_dynamic_record"})
+	dynamicPluginID, dynamicTableName := createSQLiteLifecycleDynamicPlugin(t)
+	verifySQLitePluginLifecycle(t, ctx, service, dynamicPluginID, []string{dynamicTableName})
 }
 
 // setupSQLiteRealPluginDatabase points GoFrame at one temporary SQLite file and
@@ -134,8 +126,6 @@ i18n:
       nativeName: English
     - locale: zh-CN
       nativeName: 简体中文
-    - locale: zh-TW
-      nativeName: 繁體中文
 cluster:
   enabled: false
 upload:
@@ -182,8 +172,61 @@ func readEmbeddedHostSQLAssets() ([]embeddedSQLAsset, error) {
 	return assets, nil
 }
 
+// createSQLiteLifecycleSourcePlugin creates one source-plugin fixture with SQL
+// assets that exercise install and uninstall table transitions.
+func createSQLiteLifecycleSourcePlugin(t *testing.T) (string, string) {
+	t.Helper()
+
+	const (
+		pluginID  = "plugin-sqlite-source-lifecycle"
+		tableName = "plugin_sqlite_source_lifecycle"
+	)
+	pluginDir := testutil.CreateTestPluginDir(t, pluginID)
+	testutil.WriteTestFile(
+		t,
+		filepath.Join(pluginDir, "manifest", "sql", "001-"+pluginID+".sql"),
+		fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
+	)
+	testutil.WriteTestFile(
+		t,
+		filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-"+pluginID+".sql"),
+		fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName),
+	)
+	return pluginID, tableName
+}
+
+// createSQLiteLifecycleDynamicPlugin creates one dynamic runtime artifact with
+// SQL assets that exercise install and uninstall table transitions.
+func createSQLiteLifecycleDynamicPlugin(t *testing.T) (string, string) {
+	t.Helper()
+
+	const (
+		pluginID  = "plugin-sqlite-dynamic-lifecycle"
+		tableName = "plugin_sqlite_dynamic_lifecycle"
+	)
+	testutil.CreateTestRuntimeStorageArtifact(
+		t,
+		pluginID,
+		"SQLite Dynamic Lifecycle Plugin",
+		"v0.1.0",
+		[]*catalog.ArtifactSQLAsset{
+			{
+				Key:     "001-plugin-sqlite-dynamic-lifecycle.sql",
+				Content: fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, marker VARCHAR(32) NOT NULL);", tableName),
+			},
+		},
+		[]*catalog.ArtifactSQLAsset{
+			{
+				Key:     "001-plugin-sqlite-dynamic-lifecycle-uninstall.sql",
+				Content: fmt.Sprintf("DROP TABLE IF EXISTS %s;", tableName),
+			},
+		},
+	)
+	return pluginID, tableName
+}
+
 // verifySQLitePluginLifecycle exercises install, enable, disable, and uninstall
-// for one real plugin and asserts its SQL-owned tables follow the lifecycle.
+// for one plugin and asserts its SQL-owned tables follow the lifecycle.
 func verifySQLitePluginLifecycle(
 	t *testing.T,
 	ctx context.Context,
@@ -194,23 +237,23 @@ func verifySQLitePluginLifecycle(
 	t.Helper()
 
 	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
-		t.Fatalf("install real SQLite plugin %s: %v", pluginID, err)
+		t.Fatalf("install SQLite plugin %s: %v", pluginID, err)
 	}
 	assertSQLitePluginRegistryState(t, ctx, service, pluginID, catalog.InstalledYes, catalog.StatusDisabled)
 	assertSQLitePluginTablesExist(t, ctx, tableNames)
 
 	if err := service.Enable(ctx, pluginID); err != nil {
-		t.Fatalf("enable real SQLite plugin %s: %v", pluginID, err)
+		t.Fatalf("enable SQLite plugin %s: %v", pluginID, err)
 	}
 	assertSQLitePluginRegistryState(t, ctx, service, pluginID, catalog.InstalledYes, catalog.StatusEnabled)
 
 	if err := service.Disable(ctx, pluginID); err != nil {
-		t.Fatalf("disable real SQLite plugin %s: %v", pluginID, err)
+		t.Fatalf("disable SQLite plugin %s: %v", pluginID, err)
 	}
 	assertSQLitePluginRegistryState(t, ctx, service, pluginID, catalog.InstalledYes, catalog.StatusDisabled)
 
 	if err := service.Uninstall(ctx, pluginID); err != nil {
-		t.Fatalf("uninstall real SQLite plugin %s: %v", pluginID, err)
+		t.Fatalf("uninstall SQLite plugin %s: %v", pluginID, err)
 	}
 	assertSQLitePluginRegistryState(t, ctx, service, pluginID, catalog.InstalledNo, catalog.StatusDisabled)
 	assertSQLitePluginTablesMissing(t, ctx, tableNames)

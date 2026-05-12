@@ -54,7 +54,7 @@ test.describe("TC-172 定时任务数据权限", () => {
         name: `JobScope${suffix.slice(-10)}`,
         key: `e2e_job_self_${suffix}`,
         menuIds,
-        dataScope: 3,
+        dataScope: 4,
         sort: 970,
       })
     ).id;

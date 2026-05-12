@@ -6,7 +6,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(scriptDir, '..');
 const localesRoot = path.resolve(appRoot, 'src/locales/langs');
 const referenceLocale = 'en-US';
-const requiredLocales = ['zh-CN', 'zh-TW'];
+const requiredLocales = ['zh-CN'];
 const errors = [];
 
 function readJson(filePath) {

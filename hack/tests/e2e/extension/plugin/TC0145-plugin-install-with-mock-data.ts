@@ -148,11 +148,10 @@ test.describe("TC-145 Install plugin with mock data opt-in", () => {
     expect(item, "插件应可被发现").toBeTruthy();
     expect(item?.hasMockData, "content-notice 应携带 mock-data 标识").toBe(1);
     await expect(pluginPage.tableColumn("示例数据")).toBeVisible();
-    await expect(pluginPage.pluginListHelpIcon()).toBeVisible();
-    await pluginPage.pluginListHelpIcon().hover();
-    await expect(pluginPage.antTooltip()).toContainText(/源码插件.*动态插件/su);
-    await expect(pluginPage.antTooltip()).toContainText(
-      /示例数据.*是.*否/su,
+    await expect(pluginPage.pluginColumnHelpIcon("mockData")).toBeVisible();
+    await pluginPage.expectColumnHelpTooltip(
+      "mockData",
+      /示例数据|Mock Data/iu,
     );
     await expect(pluginPage.pluginMockDataValue(targetPluginID)).toContainText(
       "是",

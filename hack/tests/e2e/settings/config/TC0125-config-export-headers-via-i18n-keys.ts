@@ -45,18 +45,6 @@ test.describe("TC0125 参数设置导出表头通过 i18n key 本地化", () => 
     ]);
   });
 
-  test("TC-125c: 繁体中文导出表头随语言切换为繁体中文", async () => {
-    const headers = await exportConfigHeaders(adminApi, "zh-TW");
-
-    expect(headers).toEqual([
-      "參數名稱",
-      "參數鍵名",
-      "參數鍵值",
-      "備註",
-      "創建時間",
-      "修改時間",
-    ]);
-  });
 });
 
 async function exportConfigHeaders(api: APIRequestContext, locale: string) {
