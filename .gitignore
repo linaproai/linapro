@@ -45,6 +45,3 @@ test-results/
 *.test
 *.out
 apps/lina-plugins/*/temp/
-
-# CodeBuddy plans
-.codebuddy/plan/
