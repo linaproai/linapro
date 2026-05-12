@@ -35,14 +35,10 @@ jobs:
   backend-unit-tests:
     name: Go unit tests
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
-    with:
-      run-windows-command-smoke: false
 
   frontend-unit-tests:
     name: Frontend unit tests
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
-    with:
-      run-windows-command-smoke: false
 
   # SQLite Backend Smoke Tests
   sqlite-smoke:
