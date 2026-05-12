@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/cluster"
+	"lina-core/internal/service/config"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	"lina-core/internal/service/jobmgmt/internal/shellexec"
@@ -63,7 +64,26 @@ type serviceImpl struct {
 // Ensure serviceImpl implements Scheduler.
 var _ Scheduler = (*serviceImpl)(nil)
 
+var instance Scheduler
+var once sync.Once
+
+// Instance returns the singleton scheduler instance.
+// It initializes the instance exactly once, using default dependencies.
+func Instance() Scheduler {
+	once.Do(func() {
+		instance = &serviceImpl{
+			clusterSvc:       cluster.Instance(),
+			registry:         jobhandler.Instance(),
+			shellExecutor:    shellexec.New(config.Instance()),
+			runningCounts:    make(map[int64]int),
+			runningInstances: make(map[int64]*runningExecution),
+		}
+	})
+	return instance
+}
+
 // New creates and returns one persistent scheduler.
+// Deprecated: Use Instance() for singleton access.
 func New(
 	clusterSvc cluster.Service,
 	registry jobhandler.Registry,

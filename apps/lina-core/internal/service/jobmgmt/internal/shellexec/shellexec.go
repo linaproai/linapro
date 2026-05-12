@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	configsvc "lina-core/internal/service/config"
@@ -64,10 +65,32 @@ type serviceImpl struct {
 // Ensure serviceImpl implements Executor.
 var _ Executor = (*serviceImpl)(nil)
 
+var instance Executor
+var once sync.Once
+
+// Instance returns the singleton shell executor instance.
+// It initializes the instance exactly once, using the default config service.
+func Instance() Executor {
+	once.Do(func() {
+		workDir, err := os.Getwd()
+		if err != nil {
+			workDir = "."
+		}
+		instance = &serviceImpl{
+			configSvc:         configsvc.Instance(),
+			goos:              strings.TrimSpace(os.Getenv("GOOS")),
+			defaultWorkDir:    workDir,
+			cancelGracePeriod: 5 * time.Second,
+		}
+	})
+	return instance
+}
+
 // New creates and returns one guarded shell executor.
+// Deprecated: Use Instance() for singleton access.
 func New(configSvc shellGate) Executor {
 	if configSvc == nil {
-		configSvc = configsvc.New()
+		configSvc = configsvc.Instance()
 	}
 
 	workDir, err := os.Getwd()

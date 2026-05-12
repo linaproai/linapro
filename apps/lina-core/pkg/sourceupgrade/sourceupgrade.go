@@ -44,7 +44,7 @@ type serviceImpl struct {
 
 // New creates and returns a new source-plugin upgrade helper service.
 func New() Service {
-	return &serviceImpl{pluginSvc: pluginsvc.New(nil)}
+	return &serviceImpl{pluginSvc: pluginsvc.Instance()}
 }
 
 // ListSourcePluginStatuses returns the current effective/discovered source-plugin version pairs.

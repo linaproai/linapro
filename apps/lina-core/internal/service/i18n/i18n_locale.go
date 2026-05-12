@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"lina-core/internal/packed"
+	"lina-core/internal/service/config"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/pkg/logger"
 )
@@ -121,11 +122,13 @@ func hostRuntimeLocaleDirectoryHasJSON(ctx context.Context, locale string) bool 
 // loadRuntimeI18nConfig loads runtime locale metadata from the shared config service.
 func (s *serviceImpl) loadRuntimeI18nConfig(ctx context.Context) *hostconfig.I18nConfig {
 	if s == nil || s.configSvc == nil {
-		return hostconfig.New().GetI18n(ctx)
+		configSvc := config.Instance()
+		return configSvc.GetI18n(ctx)
 	}
 	cfg := s.configSvc.GetI18n(ctx)
 	if cfg == nil {
-		return hostconfig.New().GetI18n(ctx)
+		configSvc := config.Instance()
+		return configSvc.GetI18n(ctx)
 	}
 	return cfg
 }

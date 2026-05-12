@@ -5,6 +5,7 @@ package user
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 
@@ -96,24 +97,33 @@ type serviceImpl struct {
 	tenantSvc tenantcapsvc.Service
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton user service instance.
+// It initializes the instance exactly once, using default dependencies.
+func Instance() Service {
+	once.Do(func() {
+		instance = New(nil)
+	})
+	return instance
+}
+
 // New creates and returns a new Service instance.
-// Pass a non-nil orgCapSvc when user management should bind to a caller-owned
-// organization capability service; pass nil to use the default disabled reader.
+// Deprecated: Use Instance() for singleton access.
+// The orgCapSvc parameter is optional; pass nil to use the default
+// organization capability service; pass nil to use the default instance.
 func New(orgCapSvc orgcap.Service, tenantEnablementReaders ...tenantcapsvc.PluginEnablementReader) Service {
+	_ = tenantEnablementReaders // Keep for API compatibility
 	if orgCapSvc == nil {
-		orgCapSvc = orgcap.New(nil)
+		orgCapSvc = orgcap.Instance()
 	}
-	var tenantEnablementReader tenantcapsvc.PluginEnablementReader
-	if len(tenantEnablementReaders) > 0 {
-		tenantEnablementReader = tenantEnablementReaders[0]
-	}
-	svc := &serviceImpl{
-		authSvc:   auth.New(orgCapSvc),
-		bizCtxSvc: bizctx.New(),
-		i18nSvc:   i18nsvc.New(),
+	svc := &serviceImpl{authSvc: auth.Instance(),
+		bizCtxSvc: bizctx.Instance(),
+		i18nSvc:   i18nsvc.Instance(),
 		orgCapSvc: orgCapSvc,
-		roleSvc:   role.New(nil),
-		tenantSvc: tenantcapsvc.New(tenantEnablementReader),
+		roleSvc:   role.Instance(),
+		tenantSvc: tenantcapsvc.Instance(),
 	}
 	svc.scopeSvc = datascope.New(datascope.Dependencies{
 		BizCtxSvc: svc.bizCtxSvc,

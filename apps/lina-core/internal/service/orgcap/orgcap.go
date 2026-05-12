@@ -2,10 +2,15 @@
 // used by user-management and auth flows. The host keeps only the stable
 // interface and delegates real organization behavior to one registered plugin
 // provider when the org-center plugin is enabled.
+//
+// Service Dependencies:
+//
+//	(orgcap is a leaf service with no internal service dependencies)
 package orgcap
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 
@@ -70,6 +75,19 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	enablementReader PluginEnablementReader
+}
+
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton organization capability service instance.
+// It initializes the instance exactly once, using the default noop reader
+// (capability disabled).
+func Instance() Service {
+	once.Do(func() {
+		instance = New(nil)
+	})
+	return instance
 }
 
 // New creates and returns a new optional organization capability service.

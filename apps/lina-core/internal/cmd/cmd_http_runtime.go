@@ -17,7 +17,6 @@ import (
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	"lina-core/internal/service/middleware"
-	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/dialect"
@@ -100,6 +99,8 @@ func configureHTTPServer(
 // newHTTPRuntime constructs the shared services used by the HTTP server and
 // keeps their startup dependencies in one place.
 func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime, error) {
+	collector := startupstats.Instance()
+	collector.RecordPhase(startupstats.PhasePluginBootstrapAutoEnable, 0)
 	link, err := currentDatabaseLink(ctx)
 	if err != nil {
 		return nil, err
@@ -112,14 +113,22 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		return nil, err
 	}
 
+	// Initialize cluster singleton first (reads config from config.Instance())
+	clusterSvc := cluster.Instance()
+
 	var (
-		clusterSvc    = cluster.New(configSvc.GetCluster(ctx))
-		pluginSvc     = pluginsvc.New(clusterSvc)
-		apiDocSvc     = apidoc.New(configSvc, pluginSvc)
-		jobRegistry   = jobhandlersvc.New()
+		pluginSvc = pluginsvc.Instance()
+	)
+
+	// Set apidoc instance params before calling Instance()
+	apidoc.SetInstanceParams(configSvc, pluginSvc)
+
+	var (
+		apiDocSvc     = apidoc.Instance()
+		jobRegistry   = jobhandlersvc.Instance()
 		jobScheduler  = jobmgmtsvc.NewScheduler(clusterSvc, jobRegistry, configSvc)
-		jobMgmtSvc    = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler, orgcap.New(pluginSvc))
-		middlewareSvc = middleware.New()
+		jobMgmtSvc    = jobmgmtsvc.Instance()
+		middlewareSvc = middleware.Instance()
 	)
 
 	// Host-owned handler definitions are registered before cron startup so the
@@ -133,6 +142,16 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		return nil, err
 	}
 
+	// Set cron instance params before calling Instance()
+	cron.SetInstanceParams(
+		sessionCfg,
+		middlewareSvc.SessionStore(),
+		clusterSvc,
+		jobRegistry,
+		jobMgmtSvc,
+		jobScheduler,
+	)
+
 	return &httpRuntime{
 		configSvc:     configSvc,
 		clusterSvc:    clusterSvc,
@@ -141,15 +160,8 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		jobRegistry:   jobRegistry,
 		jobMgmtSvc:    jobMgmtSvc,
 		middlewareSvc: middlewareSvc,
-		cronSvc: cron.New(
-			sessionCfg,
-			middlewareSvc.SessionStore(),
-			clusterSvc,
-			jobRegistry,
-			jobMgmtSvc,
-			jobScheduler,
-		),
-		serverCfg: configSvc.GetServerExtensions(ctx),
+		cronSvc:       cron.Instance(),
+		serverCfg:     configSvc.GetServerExtensions(ctx),
 	}, nil
 }
 

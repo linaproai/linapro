@@ -1,9 +1,18 @@
 // Package role implements role management, permission lookup, and shared access
 // context caching for the Lina core host service.
+//
+// Service Dependencies:
+//   - bizctx.Service    - resolves current request context (tenant, user, role)
+//   - config.Service    - reads static role and access-control settings
+//   - datascope.Service - applies data-scope filtering for role queries
+//   - i18n.Service      - provides i18n for built-in role names
+//   - orgcap.Service    - resolves organization boundaries for role assignments
+//   - tenantcap.Service - resolves tenant boundaries for role isolation
 package role
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 
@@ -165,6 +174,18 @@ type Service interface {
 // Ensure serviceImpl implements Service.
 var _ Service = (*serviceImpl)(nil)
 
+// instance is the singleton instance of Service.
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton Service instance.
+func Instance() Service {
+	once.Do(func() {
+		instance = New(nil)
+	})
+	return instance
+}
+
 // serviceImpl implements Service.
 type serviceImpl struct {
 	bizCtxSvc          bizctx.Service
@@ -183,9 +204,9 @@ type serviceImpl struct {
 // plugin-owned permission menu visibility; pass nil to use the default no-op filter.
 func New(permissionFilter PermissionMenuFilter) Service {
 	var (
-		bizCtxSvc = bizctx.New()
-		configSvc = config.New()
-		i18nSvc   = i18nsvc.New()
+		bizCtxSvc = bizctx.Instance()
+		configSvc = config.Instance()
+		i18nSvc   = i18nsvc.Instance()
 	)
 	if permissionFilter == nil {
 		permissionFilter = noopPermissionMenuFilter{}
@@ -254,7 +275,7 @@ func tenantCapServiceFromPermissionFilter(permissionFilter PermissionMenuFilter)
 	if pluginState, ok := permissionFilter.(pluginEnablementState); ok {
 		return tenantcapsvc.New(pluginState)
 	}
-	return tenantcapsvc.New(nil)
+	return tenantcapsvc.Instance()
 }
 
 // pluginBackedOrganizationCapabilityState derives organization capability from

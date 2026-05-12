@@ -4,6 +4,7 @@ package kvcache
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/os/gtime"
@@ -29,6 +30,18 @@ const (
 	// ValueKindInt identifies integer cache values.
 	ValueKindInt = 2
 )
+
+// Item represents one cache entry snapshot.
+type Item struct {
+	OwnerType OwnerType   // OwnerType identifies the business scope that owns this entry.
+	OwnerKey  string      // OwnerKey is the primary key of the owner.
+	Namespace string      // Namespace isolates entries within the same owner.
+	Key       string      // Key is the logical cache key.
+	ValueKind int         // ValueKind indicates whether the value is a string or integer.
+	Value     string      // Value stores the string value (for ValueKind = ValueKindString).
+	IntValue  int64       // IntValue stores the integer value (for ValueKind = ValueKindInt).
+	ExpireAt  *gtime.Time // ExpireAt is the absolute expiration time; nil means never expire.
+}
 
 // Service defines the kvcache service contract.
 type Service interface {
@@ -152,21 +165,20 @@ type serviceImpl struct {
 	backend Backend
 }
 
-// Item defines one cache entry snapshot.
-type Item struct {
-	// Key is the logical cache key inside the namespace.
-	Key string
-	// ValueKind identifies whether the entry stores a string or integer value.
-	ValueKind int
-	// Value is the string payload of the cache entry.
-	Value string
-	// IntValue is the integer payload of the cache entry.
-	IntValue int64
-	// ExpireAt is the optional expiration time.
-	ExpireAt *gtime.Time
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton kvcache service instance.
+// It initializes the instance exactly once, using the default backend.
+func Instance() Service {
+	once.Do(func() {
+		instance = New()
+	})
+	return instance
 }
 
 // New creates and returns a new distributed KV cache service instance.
+// Deprecated: Use Instance() for singleton access.
 func New(options ...Option) Service {
 	config := newServiceConfig()
 	for _, option := range options {

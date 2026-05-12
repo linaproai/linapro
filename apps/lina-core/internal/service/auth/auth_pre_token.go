@@ -62,7 +62,7 @@ type memoryPreTokenStore struct {
 
 // newPreTokenStore creates the default shared pre-login token store.
 func newPreTokenStore() preTokenStore {
-	return newKVPreTokenStore(kvcache.New())
+	return newKVPreTokenStore(kvcache.Instance())
 }
 
 // newKVPreTokenStore creates a kvcache-backed pre-login token store.

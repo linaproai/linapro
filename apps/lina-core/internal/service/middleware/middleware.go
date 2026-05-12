@@ -84,16 +84,21 @@ type middlewareI18nService interface {
 }
 
 // New creates and returns a new Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
-	pluginSvc := pluginsvc.New(nil)
+	return Instance()
+}
+
+// Instance returns the singleton middleware Service instance.
+func Instance() Service {
 	return &serviceImpl{
-		authSvc:   auth.New(nil),
-		bizCtxSvc: bizctx.New(),
-		configSvc: config.New(),
-		i18nSvc:   i18nsvc.New(),
-		pluginSvc: pluginSvc,
-		roleSvc:   role.New(pluginSvc),
-		tenantSvc: tenantcapsvc.New(pluginSvc),
+		authSvc:   auth.Instance(),
+		bizCtxSvc: bizctx.Instance(),
+		configSvc: config.Instance(),
+		i18nSvc:   i18nsvc.Instance(),
+		pluginSvc: pluginsvc.Instance(),
+		roleSvc:   role.Instance(),
+		tenantSvc: tenantcapsvc.Instance(),
 	}
 }
 

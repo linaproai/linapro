@@ -72,7 +72,53 @@ type serviceImpl struct {
 	pluginObserverOnce    sync.Once              // pluginObserverOnce avoids duplicate lifecycle subscriptions.
 }
 
+var instance Service
+var once sync.Once
+var instanceParams struct {
+	sessionCfg          *config.SessionConfig
+	sessionStore        session.Store
+	clusterSvc          cluster.Service
+	registry            jobhandlersvc.Registry
+	builtinSyncer       builtinJobSyncer
+	persistentScheduler jobmgmtsvc.Scheduler
+}
+
+// SetInstanceParams sets the parameters for the singleton instance.
+// This must be called before Instance() is called.
+func SetInstanceParams(
+	sessionCfg *config.SessionConfig,
+	sessionStore session.Store,
+	clusterSvc cluster.Service,
+	registry jobhandlersvc.Registry,
+	builtinSyncer builtinJobSyncer,
+	persistentScheduler jobmgmtsvc.Scheduler,
+) {
+	instanceParams.sessionCfg = sessionCfg
+	instanceParams.sessionStore = sessionStore
+	instanceParams.clusterSvc = clusterSvc
+	instanceParams.registry = registry
+	instanceParams.builtinSyncer = builtinSyncer
+	instanceParams.persistentScheduler = persistentScheduler
+}
+
+// Instance returns the singleton cron service instance.
+// SetInstanceParams must be called before the first call to Instance().
+func Instance() Service {
+	once.Do(func() {
+		instance = New(
+			instanceParams.sessionCfg,
+			instanceParams.sessionStore,
+			instanceParams.clusterSvc,
+			instanceParams.registry,
+			instanceParams.builtinSyncer,
+			instanceParams.persistentScheduler,
+		)
+	})
+	return instance
+}
+
 // New creates and returns a new Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New(
 	sessionCfg *config.SessionConfig,
 	sessionStore session.Store,
@@ -82,10 +128,10 @@ func New(
 	persistentScheduler jobmgmtsvc.Scheduler,
 ) Service {
 	var (
-		configSvc      = config.New()
-		kvCacheSvc     = kvcache.New()
-		pluginSvc      = pluginsvc.New(clusterSvc)
-		roleSvc        = rolesvc.New(pluginSvc)
+		configSvc      = config.Instance()
+		kvCacheSvc     = kvcache.Instance()
+		pluginSvc      = pluginsvc.Instance()
+		roleSvc        = rolesvc.Instance()
 		clusterEnabled = clusterSvc != nil && clusterSvc.IsEnabled()
 	)
 

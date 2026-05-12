@@ -66,7 +66,23 @@ type serviceImpl struct {
 	callbacks  map[int]ChangeCallback // callbacks stores registry observers.
 }
 
+var instance Registry
+var once sync.Once
+
+// Instance returns the singleton job handler registry instance.
+// It initializes the instance exactly once.
+func Instance() Registry {
+	once.Do(func() {
+		instance = &serviceImpl{
+			handlers:  make(map[string]HandlerDef),
+			callbacks: make(map[int]ChangeCallback),
+		}
+	})
+	return instance
+}
+
 // New creates and returns one empty handler registry.
+// Deprecated: Use Instance() for singleton access.
 func New() Registry {
 	return &serviceImpl{
 		handlers:  make(map[string]HandlerDef),

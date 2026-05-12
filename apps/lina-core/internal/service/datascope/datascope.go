@@ -82,10 +82,10 @@ type serviceImpl struct {
 // New creates one shared data-scope service.
 func New(deps Dependencies) Service {
 	if deps.BizCtxSvc == nil {
-		deps.BizCtxSvc = bizctx.New()
+		deps.BizCtxSvc = bizctx.Instance()
 	}
 	if deps.OrgCapSvc == nil {
-		deps.OrgCapSvc = orgcap.New(nil)
+		deps.OrgCapSvc = orgcap.Instance()
 	}
 	return &serviceImpl{
 		bizCtxSvc: deps.BizCtxSvc,

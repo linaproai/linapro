@@ -40,7 +40,7 @@ type memoryRevokeStore struct {
 
 // newRevokeList creates the default shared token revocation store.
 func newRevokeList() revokeStore {
-	return newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(kvcache.New()))
+	return newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(kvcache.Instance()))
 }
 
 // newLayeredRevokeStore composes process-local and shared revocation stores.

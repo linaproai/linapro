@@ -5,6 +5,7 @@ package menu
 import (
 	"context"
 	"strings"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 
@@ -48,18 +49,31 @@ type serviceImpl struct {
 	roleSvc    role.Service
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton menu service instance.
+// It initializes the instance exactly once, using the default no-op menu filter.
+func Instance() Service {
+	once.Do(func() {
+		instance = New(nil)
+	})
+	return instance
+}
+
 // New creates and returns a new menu service instance.
+// Deprecated: Use Instance() for singleton access.
 // Pass a non-nil menuFilter when menu listing must respect plugin-driven menu
 // visibility; pass nil to use the default no-op filter.
 func New(menuFilter MenuFilter) Service {
 	if menuFilter == nil {
 		menuFilter = noopMenuFilter{}
 	}
-	i18nSvc := i18nsvc.New()
+	i18nSvc := i18nsvc.Instance()
 	return &serviceImpl{
 		menuFilter: menuFilter,
 		i18nSvc:    i18nSvc,
-		roleSvc:    role.New(nil),
+		roleSvc:    role.Instance(),
 	}
 }
 

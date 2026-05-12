@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	_ "lina-core/pkg/dbdriver"
+
 	"github.com/gogf/gf/v2/os/gctx"
 
 	v1 "lina-core/api/publicconfig/v1"
@@ -49,8 +50,8 @@ func TestFrontendProjectsLocalizedSeedCopy(t *testing.T) {
 	)
 
 	controller := &ControllerV1{
-		configSvc: hostconfig.New(),
-		i18nSvc:   i18nsvc.New(),
+		configSvc: hostconfig.Instance(),
+		i18nSvc:   i18nsvc.Instance(),
 	}
 
 	res, err := controller.Frontend(ctx, &v1.FrontendReq{})
@@ -83,8 +84,8 @@ func TestFrontendKeepsCustomizedCopy(t *testing.T) {
 	)
 
 	controller := &ControllerV1{
-		configSvc: hostconfig.New(),
-		i18nSvc:   i18nsvc.New(),
+		configSvc: hostconfig.Instance(),
+		i18nSvc:   i18nsvc.Instance(),
 	}
 
 	res, err := controller.Frontend(ctx, &v1.FrontendReq{})
@@ -131,7 +132,7 @@ func ensureConfigRecordState(
 		if err != nil {
 			t.Fatalf("insert config record %s: %v", key, err)
 		}
-		if err = hostconfig.New().MarkRuntimeParamsChanged(ctx); err != nil {
+		if err = hostconfig.Instance().MarkRuntimeParamsChanged(ctx); err != nil {
 			t.Fatalf("mark runtime params changed: %v", err)
 		}
 		t.Cleanup(func() {
@@ -139,7 +140,7 @@ func ensureConfigRecordState(
 			if cleanupErr != nil {
 				t.Fatalf("delete config record %s: %v", key, cleanupErr)
 			}
-			if cleanupErr = hostconfig.New().MarkRuntimeParamsChanged(ctx); cleanupErr != nil {
+			if cleanupErr = hostconfig.Instance().MarkRuntimeParamsChanged(ctx); cleanupErr != nil {
 				t.Fatalf("mark runtime params changed after delete: %v", cleanupErr)
 			}
 		})
@@ -159,7 +160,7 @@ func ensureConfigRecordState(
 	if err != nil {
 		t.Fatalf("update config record %s: %v", key, err)
 	}
-	if err = hostconfig.New().MarkRuntimeParamsChanged(ctx); err != nil {
+	if err = hostconfig.Instance().MarkRuntimeParamsChanged(ctx); err != nil {
 		t.Fatalf("mark runtime params changed: %v", err)
 	}
 	t.Cleanup(func() {
@@ -176,7 +177,7 @@ func ensureConfigRecordState(
 		if cleanupErr != nil {
 			t.Fatalf("restore config record %s: %v", key, cleanupErr)
 		}
-		if cleanupErr = hostconfig.New().MarkRuntimeParamsChanged(ctx); cleanupErr != nil {
+		if cleanupErr = hostconfig.Instance().MarkRuntimeParamsChanged(ctx); cleanupErr != nil {
 			t.Fatalf("mark runtime params changed after restore: %v", cleanupErr)
 		}
 	})

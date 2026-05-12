@@ -4,6 +4,7 @@ package apidoc
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/net/goai"
@@ -13,6 +14,12 @@ import (
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/pluginhost"
 )
+
+// apidocI18nService defines the i18n capability needed by the apidoc service.
+type apidocI18nService interface {
+	// GetLocale returns the current request locale.
+	GetLocale(ctx context.Context) string
+}
 
 // ConfigProvider provides host OpenAPI metadata configuration.
 type ConfigProvider interface {
@@ -56,18 +63,42 @@ type serviceImpl struct {
 	pluginSvc PluginRouteProvider
 }
 
-// apidocI18nService defines the locale and translation capabilities apidoc needs.
-type apidocI18nService interface {
-	i18nsvc.LocaleResolver
-	i18nsvc.Translator
+var instance Service
+var once sync.Once
+var (
+	instanceConfigSvc ConfigProvider
+	instancePluginSvc PluginRouteProvider
+)
+
+// SetInstanceParams sets the parameters for the apidoc singleton instance.
+// This must be called before Instance() is used.
+func SetInstanceParams(configSvc ConfigProvider, pluginSvc PluginRouteProvider) {
+	instanceConfigSvc = configSvc
+	instancePluginSvc = pluginSvc
+}
+
+// Instance returns the singleton apidoc service instance.
+// It initializes the instance exactly once, using the configured parameters.
+// SetInstanceParams must be called before the first call to Instance().
+func Instance() Service {
+	once.Do(func() {
+		instance = &serviceImpl{
+			configSvc: instanceConfigSvc,
+			bizCtxSvc: bizctxsvc.Instance(),
+			i18nSvc:   i18nsvc.Instance(),
+			pluginSvc: instancePluginSvc,
+		}
+	})
+	return instance
 }
 
 // New creates and returns a new apidoc Service.
+// Deprecated: Use Instance() for singleton access.
 func New(configSvc ConfigProvider, pluginSvc PluginRouteProvider) Service {
 	return &serviceImpl{
 		configSvc: configSvc,
-		bizCtxSvc: bizctxsvc.New(),
-		i18nSvc:   i18nsvc.New(),
+		bizCtxSvc: bizctxsvc.Instance(),
+		i18nSvc:   i18nsvc.Instance(),
 		pluginSvc: pluginSvc,
 	}
 }

@@ -4,6 +4,8 @@ package plugin
 
 import (
 	"context"
+	"sync"
+
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -333,6 +335,18 @@ type Service interface {
 
 // Ensure serviceImpl satisfies the composed plugin facade contract.
 var _ Service = (*serviceImpl)(nil)
+
+// instance is the singleton instance of Service.
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton Service instance.
+func Instance() Service {
+	once.Do(func() {
+		instance = New(nil)
+	})
+	return instance
+}
 
 // serviceImpl implements Service.
 type serviceImpl struct {
