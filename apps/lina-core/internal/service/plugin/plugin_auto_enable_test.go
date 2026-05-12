@@ -36,7 +36,10 @@ func TestBootstrapAutoEnableInstallsAndEnablesSourcePlugin(t *testing.T) {
 		"id: "+pluginID+"\n"+
 			"name: Source Auto Enable Plugin\n"+
 			"version: "+version+"\n"+
-			"type: source\n",
+			"type: source\n"+
+			"scope_nature: tenant_aware\n"+
+			"supports_multi_tenant: false\n"+
+			"default_install_mode: global\n",
 	)
 
 	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
@@ -91,7 +94,10 @@ func TestBootstrapAutoEnableSourcePluginUpdatesStartupSnapshot(t *testing.T) {
 		"id: "+pluginID+"\n"+
 			"name: Source Auto Enable Snapshot Plugin\n"+
 			"version: "+version+"\n"+
-			"type: source\n",
+			"type: source\n"+
+			"scope_nature: tenant_aware\n"+
+			"supports_multi_tenant: false\n"+
+			"default_install_mode: global\n",
 	)
 
 	configsvc.SetPluginAutoEnableOverride([]string{pluginID})
@@ -419,7 +425,7 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 	testutil.WriteTestFile(
 		t,
 		filepath.Join(pluginDirNoMock, "plugin.yaml"),
-		"id: "+pluginIDNoMock+"\nname: Source Auto Enable No Mock\nversion: "+version+"\ntype: source\n",
+		"id: "+pluginIDNoMock+"\nname: Source Auto Enable No Mock\nversion: "+version+"\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 
 	// Plugin with mock-data: object entry with WithMockData=true.
@@ -427,7 +433,7 @@ func TestBootstrapAutoEnableHonorsPerEntryMockDataOptIn(t *testing.T) {
 	testutil.WriteTestFile(
 		t,
 		filepath.Join(pluginDirWithMock, "plugin.yaml"),
-		"id: "+pluginIDWithMock+"\nname: Source Auto Enable With Mock\nversion: "+version+"\ntype: source\n",
+		"id: "+pluginIDWithMock+"\nname: Source Auto Enable With Mock\nversion: "+version+"\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	testutil.WriteTestFile(
 		t,

@@ -23,7 +23,8 @@ type LoginTenantEntity struct {
 
 // LoginRes is the login response.
 type LoginRes struct {
-	AccessToken string               `json:"accessToken" dc:"JWT token. Empty when tenant selection is required." eg:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
-	PreToken    string               `json:"preToken" dc:"Short-lived pre-login token when tenant selection is required." eg:"pre_8f4f..."`
-	Tenants     []*LoginTenantEntity `json:"tenants" dc:"Tenant candidates when tenant selection is required." eg:"[]"`
+	AccessToken  string               `json:"accessToken" dc:"JWT token. Empty when tenant selection is required." eg:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	RefreshToken string               `json:"refreshToken" dc:"JWT refresh token. Empty when tenant selection is required." eg:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	PreToken     string               `json:"preToken" dc:"Short-lived pre-login token when tenant selection is required." eg:"pre_8f4f..."`
+	Tenants      []*LoginTenantEntity `json:"tenants" dc:"Tenant candidates when tenant selection is required." eg:"[]"`
 }

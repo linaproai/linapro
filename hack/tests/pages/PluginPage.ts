@@ -642,6 +642,14 @@ export class PluginPage {
 
     const uploadResponse = await uploadResponsePromise;
     expect(uploadResponse.status()).toBe(200);
+    const uploadPayload = (await uploadResponse.json().catch(() => null)) as {
+      code?: number;
+      message?: string;
+    } | null;
+    expect(
+      uploadPayload?.code,
+      `动态插件上传接口应返回成功: ${uploadPayload?.message ?? ""}`,
+    ).toBe(0);
 
     await expect(this.uploadSuccessDialog()).toBeVisible();
     const successPattern =

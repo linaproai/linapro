@@ -18,10 +18,21 @@ interface DescriptionItem {
   title: string;
 }
 
-const renderLink = (href: string, text: string) =>
+const componentTestId = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+
+const renderLink = (
+  href: string,
+  text: string,
+  className = 'vben-link',
+  title?: string,
+) =>
   h(
     'a',
-    { href, target: '_blank', class: 'vben-link' },
+    { href, target: '_blank', class: className, title },
     { default: () => text },
   );
 
@@ -54,10 +65,22 @@ const mapFramework = (framework: FrameworkInfo): DescriptionItem[] => [
 const mapComponents = (components: ComponentInfo[]): DescriptionItem[] =>
   (components || []).map((item) => ({
     title: item.name,
-    content: h('div', [
-      h('span', { class: 'text-foreground/80' }, item.version),
-      h('span', { class: 'mx-2 text-foreground/30' }, '|'),
-      renderLink(item.url, item.description),
+    content: h('div', { class: 'flex min-w-0 flex-col gap-1' }, [
+      h(
+        'span',
+        {
+          class: 'block max-w-full truncate text-foreground/80',
+          'data-testid': `system-info-component-version-${componentTestId(item.name)}`,
+          title: item.version,
+        },
+        item.version,
+      ),
+      renderLink(
+        item.url,
+        item.description,
+        'vben-link block max-w-full truncate text-xs',
+        item.description,
+      ),
     ]),
   }));
 
@@ -96,7 +119,9 @@ watch(
       <div class="mt-4">
         <dl v-if="!loading" class="grid grid-cols-2 md:grid-cols-4">
           <template v-for="item in frameworkItems" :key="item.title">
-            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
+            <div
+              class="min-w-0 border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
+            >
               <dt class="text-sm/6 font-medium text-foreground">
                 {{ item.title }}
               </dt>
@@ -134,14 +159,17 @@ watch(
       <div class="mt-4">
         <dl
           v-if="!loading"
-          class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+          class="grid grid-cols-2 gap-x-6 md:grid-cols-3 lg:grid-cols-4"
         >
           <template v-for="item in backendItems" :key="item.title">
-            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
+            <div
+              class="min-w-0 border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
+              :data-testid="`system-info-component-${componentTestId(item.title)}`"
+            >
               <dt class="text-sm text-foreground">
                 {{ item.title }}
               </dt>
-              <dd class="mt-1 text-sm text-foreground/80 sm:mt-2">
+              <dd class="mt-1 min-w-0 text-sm text-foreground/80 sm:mt-2">
                 <component
                   :is="item.content"
                   v-if="typeof item.content === 'object'"
@@ -165,14 +193,17 @@ watch(
       <div class="mt-4">
         <dl
           v-if="!loading"
-          class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+          class="grid grid-cols-2 gap-x-6 md:grid-cols-3 lg:grid-cols-4"
         >
           <template v-for="item in frontendItems" :key="item.title">
-            <div class="border-t border-border px-4 py-3 sm:col-span-1 sm:px-0">
+            <div
+              class="min-w-0 border-t border-border px-4 py-3 sm:col-span-1 sm:px-0"
+              :data-testid="`system-info-component-${componentTestId(item.title)}`"
+            >
               <dt class="text-sm text-foreground">
                 {{ item.title }}
               </dt>
-              <dd class="mt-1 text-sm text-foreground/80 sm:mt-2">
+              <dd class="mt-1 min-w-0 text-sm text-foreground/80 sm:mt-2">
                 <component
                   :is="item.content"
                   v-if="typeof item.content === 'object'"

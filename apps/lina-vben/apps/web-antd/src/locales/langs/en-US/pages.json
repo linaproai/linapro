@@ -173,7 +173,7 @@
         },
         "verifyI18n": {
           "title": "Verify Workspace i18n",
-          "content": "Check that Simplified Chinese, Traditional Chinese, and English workspace copy stay aligned."
+          "content": "Check that Simplified Chinese and English workspace copy stay aligned."
         },
         "preparePluginDemo": {
           "title": "Prepare Plugin Extension Demo",

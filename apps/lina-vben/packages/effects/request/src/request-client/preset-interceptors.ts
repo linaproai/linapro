@@ -72,10 +72,18 @@ export const authenticateResponseInterceptor = ({
       }
       // 如果正在刷新 token，则将请求加入队列，等待刷新完成
       if (client.isRefreshing) {
-        return new Promise((resolve) => {
-          client.refreshTokenQueue.push((newToken: string) => {
-            config.headers.Authorization = formatToken(newToken);
-            resolve(client.request(config.url, { ...config }));
+        return new Promise((resolve, reject) => {
+          client.refreshTokenQueue.push({
+            resolve: (newToken: string) => {
+              config.headers.Authorization = formatToken(newToken);
+              // 队列重放出去的请求也必须打上 retry 标记，
+              // 防止其再次 401 时重新进入 refresh 链路。
+              config.__isRetryRequest = true;
+              resolve(client.request(config.url, { ...config }));
+            },
+            reject: (reason: unknown) => {
+              reject(reason);
+            },
           });
         });
       }
@@ -89,17 +97,29 @@ export const authenticateResponseInterceptor = ({
         const newToken = await doRefreshToken();
 
         // 处理队列中的请求
-        client.refreshTokenQueue.forEach((callback) => callback(newToken));
+        client.refreshTokenQueue.forEach(({ resolve }) => resolve(newToken));
         // 清空队列
         client.refreshTokenQueue = [];
 
         return client.request(error.config.url, { ...error.config });
       } catch (refreshError) {
-        // 如果刷新 token 失败，处理错误（如强制登出或跳转登录页面）
-        client.refreshTokenQueue.forEach((callback) => callback(''));
+        // 如果刷新 token 失败，统一 reject 队列里的等待者，
+        // 而不是用空 token 重放业务请求，避免再次触发 401 → refresh 链路。
+        client.refreshTokenQueue.forEach(({ reject }) => reject(refreshError));
         client.refreshTokenQueue = [];
         console.error('Refresh token failed, please login again.');
-        await doReAuthenticate();
+        try {
+          await doReAuthenticate();
+        } finally {
+          // doReAuthenticate 期间 client.isRefreshing 仍为 true，
+          // 这期间到达的 401 会继续入队；这里再 drain 一次，
+          // 配合后面的外层 finally 在重置 isRefreshing 之前完成 reject，
+          // 确保 late queued 请求不会悬挂。
+          client.refreshTokenQueue.forEach(({ reject }) =>
+            reject(refreshError),
+          );
+          client.refreshTokenQueue = [];
+        }
 
         throw refreshError;
       } finally {

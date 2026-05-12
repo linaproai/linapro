@@ -20,9 +20,6 @@ func TestPlatformPermissionTagsUseSystemPrefix(t *testing.T) {
 		reflect.TypeOf(TenantDeleteReq{}),
 		reflect.TypeOf(TenantImpersonateReq{}),
 		reflect.TypeOf(TenantEndImpersonateReq{}),
-		reflect.TypeOf(MemberListReq{}),
-		reflect.TypeOf(ResolverConfigGetReq{}),
-		reflect.TypeOf(ResolverConfigUpdateReq{}),
 	}
 
 	for _, requestType := range requestTypes {

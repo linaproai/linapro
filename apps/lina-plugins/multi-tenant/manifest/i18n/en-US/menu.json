@@ -17,6 +17,15 @@
     },
     "plugin:multi-tenant:platform:tenants:remove": {
       "title": "Delete"
+    },
+    "plugin:multi-tenant:tenant:plugin:disable": {
+      "title": "Disable"
+    },
+    "plugin:multi-tenant:tenant:plugin:enable": {
+      "title": "Enable"
+    },
+    "plugin:multi-tenant:tenant:plugin:list": {
+      "title": "List"
     }
   }
 }

@@ -170,17 +170,24 @@ func setupSQLitePluginLifecycleDatabase(t *testing.T, ctx context.Context, link 
 	if err != nil {
 		t.Fatalf("resolve repository root: %v", err)
 	}
-	content, err := os.ReadFile(filepath.Join(repoRoot, "apps", "lina-core", "manifest", "sql", "008-plugin-framework.sql"))
-	if err != nil {
-		t.Fatalf("read plugin governance SQL: %v", err)
+	sqlFiles := []string{
+		"008-plugin-framework.sql",
+		"009-plugin-host-call.sql",
 	}
-	translated, err := dbDialect.TranslateDDL(ctx, "apps/lina-core/manifest/sql/008-plugin-framework.sql", string(content))
-	if err != nil {
-		t.Fatalf("translate plugin governance SQL: %v", err)
-	}
-	for index, statement := range dialect.SplitSQLStatements(translated) {
-		if _, err = g.DB().Exec(ctx, statement); err != nil {
-			t.Fatalf("execute plugin governance SQL statement %d: %v\n%s", index+1, err, statement)
+	for _, name := range sqlFiles {
+		sourcePath := filepath.Join("apps", "lina-core", "manifest", "sql", name)
+		content, readErr := os.ReadFile(filepath.Join(repoRoot, sourcePath))
+		if readErr != nil {
+			t.Fatalf("read plugin governance SQL %s: %v", name, readErr)
+		}
+		translated, translateErr := dbDialect.TranslateDDL(ctx, sourcePath, string(content))
+		if translateErr != nil {
+			t.Fatalf("translate plugin governance SQL %s: %v", name, translateErr)
+		}
+		for index, statement := range dialect.SplitSQLStatements(translated) {
+			if _, err = g.DB().Exec(ctx, statement); err != nil {
+				t.Fatalf("execute plugin governance SQL %s statement %d: %v\n%s", name, index+1, err, statement)
+			}
 		}
 	}
 }

@@ -19,14 +19,13 @@ import {
   revokeTenantPermissionGrants,
   selectTenant,
   test,
-  updateUserPrimaryTenant,
   type TenantUserGrant,
+  updateUserPrimaryTenant,
 } from '@host-tests/fixtures/multi-tenant';
 
 type APIRequestContext = Awaited<ReturnType<typeof createAdminApiContext>>;
 
 const password = "test123456";
-const tenantMemberPermissions = ["system:tenant:member:list", "system:tenant:member:query"];
 
 test.describe("TC-187 用户跨租户隔离", () => {
   test.use({ multiTenantMode: "multi-tenant-enabled" });
@@ -81,16 +80,6 @@ test.describe("TC-187 用户跨租户隔离", () => {
     updateUserPrimaryTenant(usernameA, tenantAId);
     updateUserPrimaryTenant(usernameB, tenantBId);
 
-    grants = [
-      await grantTenantPermissions(adminApi, {
-        roleKey: `tc187_role_a_${suffix}`,
-        roleName: "TC187 Tenant A Role",
-        tenantId: tenantAId,
-        userId: userAId,
-        permissions: tenantMemberPermissions,
-      }),
-    ];
-
     memberAId = (
       await addTenantMember(adminApi, {
         tenantId: tenantAId,
@@ -103,17 +92,26 @@ test.describe("TC-187 用户跨租户隔离", () => {
         userId: userBId,
       })
     ).id;
+    grants = [
+      await grantTenantPermissions(adminApi, {
+        roleKey: `tc187_user_reader_${suffix}`,
+        roleName: `TC187 User Reader ${suffix}`,
+        tenantId: tenantAId,
+        userId: userAId,
+        permissions: ["system:user:list", "system:user:query"],
+      }),
+    ];
   });
 
   test.afterAll(async () => {
     await tenantApi?.dispose();
+    revokeTenantPermissionGrants(grants);
     if (memberAId > 0) {
       await removeTenantMember(adminApi, memberAId);
     }
     if (memberBId > 0) {
       await removeTenantMember(adminApi, memberBId);
     }
-    revokeTenantPermissionGrants(grants);
     if (userAId > 0) {
       execPgSQL(`DELETE FROM sys_user_role WHERE user_id = ${userAId};`);
       await deleteUser(adminApi, userAId).catch(() => {});
@@ -131,7 +129,7 @@ test.describe("TC-187 用户跨租户隔离", () => {
     await adminApi?.dispose();
   });
 
-  test("TC-187a: tenant A member list does not expose tenant B users", async ({
+  test("TC-187a: tenant A user visibility does not expose tenant B users", async ({
     multiTenantMode,
   }) => {
     expect(multiTenantMode).toBe("multi-tenant-enabled");
@@ -154,9 +152,11 @@ test.describe("TC-187 用户跨租户隔离", () => {
     expect(membersA.list.map((member) => member.userId)).not.toContain(userBId);
 
     const tenantBListViaTenantAToken = await expectSuccess<{
-      list: Array<{ userId: number }>;
+      list: Array<{ id: number }>;
       total: number;
-    }>(await tenantApi.get(`tenant/members?pageNum=1&pageSize=100&tenantId=${tenantBId}`));
-    expect(tenantBListViaTenantAToken.list.map((member) => member.userId)).not.toContain(userBId);
+    }>(await tenantApi.get(`user?pageNum=1&pageSize=100&tenantId=${tenantBId}`));
+    expect(tenantBListViaTenantAToken.list.map((user) => user.id)).not.toContain(
+      userBId,
+    );
   });
 });

@@ -1,0 +1,44 @@
+# Reusable LinaPro Windows command smoke workflow.
+name: Reusable Windows Command Smoke
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-command-smoke:
+    name: Windows command smoke
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Verify linactl Basic Commands
+        shell: pwsh
+        run: |
+          go run ./hack/tools/linactl help
+          go run ./hack/tools/linactl status
+          go run ./hack/tools/linactl prepare-packed-assets
+          go run ./hack/tools/linactl wasm dry-run=true
+
+      - name: Verify make.cmd From cmd.exe
+        shell: cmd
+        run: |
+          make.cmd help
+          make.cmd status
+
+      - name: Verify make.cmd From PowerShell
+        shell: pwsh
+        run: |
+          .\make.cmd help
+          .\make.cmd status

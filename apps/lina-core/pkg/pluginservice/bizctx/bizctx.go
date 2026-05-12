@@ -35,9 +35,23 @@ type CurrentContext struct {
 	PlatformBypass bool
 }
 
+type currentContextKey struct{}
+
 // serviceAdapter bridges the internal bizctx service into the published plugin contract.
 type serviceAdapter struct {
 	service internalbizctx.Service
+}
+
+// WithCurrentContext returns a child context carrying a plugin-visible business
+// context snapshot without exposing host-internal context model types.
+func WithCurrentContext(ctx context.Context, current CurrentContext) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if current.TenantID == 0 {
+		current.PlatformBypass = true
+	}
+	return context.WithValue(ctx, currentContextKey{}, current)
 }
 
 // New creates and returns the published bizctx service adapter.
@@ -55,6 +69,9 @@ func (s *serviceAdapter) Current(ctx context.Context) CurrentContext {
 	}
 	if ctx == nil {
 		return CurrentContext{}
+	}
+	if current, ok := ctx.Value(currentContextKey{}).(CurrentContext); ok {
+		return current
 	}
 	if c, ok := ctx.Value(internalbizctx.ContextKey).(*model.Context); ok {
 		return currentContextFromModel(c)

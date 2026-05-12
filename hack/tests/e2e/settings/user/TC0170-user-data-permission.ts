@@ -140,7 +140,7 @@ test.describe("TC-170 用户管理数据权限", () => {
       name: `UserScope${suffix.slice(-10)}`,
       key: `e2e_user_dept_${suffix}`,
       menuIds,
-      dataScope: 2,
+      dataScope: 3,
       sort: 970,
     });
     limitedRoleID = limitedRole.id;

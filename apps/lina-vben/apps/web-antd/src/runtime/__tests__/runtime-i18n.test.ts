@@ -112,24 +112,24 @@ describe('runtime-i18n', () => {
         enabled: false,
         items: [
           {
-            isDefault: false,
-            locale: 'zh-TW',
-            name: 'Chinese (Traditional)',
-            nativeName: '繁體中文',
+            isDefault: true,
+            locale: 'zh-CN',
+            name: '简体中文',
+            nativeName: '简体中文',
           },
         ],
-        locale: 'zh-TW',
+        locale: 'zh-CN',
       }),
     ).toEqual({
-      defaultLocale: 'zh-TW',
+      defaultLocale: 'zh-CN',
       enabled: false,
-      locale: 'zh-TW',
+      locale: 'zh-CN',
       options: [
         {
-          isDefault: false,
-          label: '繁體中文',
-          nativeName: '繁體中文',
-          value: 'zh-TW',
+          isDefault: true,
+          label: '简体中文',
+          nativeName: '简体中文',
+          value: 'zh-CN',
         },
       ],
     });

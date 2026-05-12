@@ -6,10 +6,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-
-	"github.com/gogf/gf/v2/os/glog"
-
-	"lina-core/pkg/logger"
 )
 
 // TestTranslateDDLPostgreSQLSubset verifies the supported PG source syntax is
@@ -224,11 +220,12 @@ CREATE TABLE IF NOT EXISTS sys_online_session (
 	}
 }
 
-// TestTranslateDDLDropsCommentsWithDebugLogPreservingIndexes verifies SQLite
-// translation skips PG comment metadata with diagnostics while leaving index
-// maintenance statements on the compatible-SQL path.
-func TestTranslateDDLDropsCommentsWithDebugLogPreservingIndexes(t *testing.T) {
-	ctx := context.Background()
+// TestTranslateDDLDropsCommentsPreservingIndexes verifies SQLite translation
+// silently skips PG comment metadata while leaving index maintenance statements
+// on the compatible-SQL path.
+func TestTranslateDDLDropsCommentsPreservingIndexes(t *testing.T) {
+	t.Parallel()
+
 	input := `
 CREATE TABLE IF NOT EXISTS sys_config (
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -243,19 +240,7 @@ DROP INDEX IF EXISTS idx_sys_config_old;
 REINDEX uk_sys_config_key;
 `
 
-	var messages []string
-	log := logger.Logger()
-	previousLevel := log.GetLevel()
-	log.SetLevel(previousLevel | glog.LEVEL_DEBU)
-	log.SetHandlers(func(ctx context.Context, in *glog.HandlerInput) {
-		messages = append(messages, in.ValuesContent())
-	})
-	t.Cleanup(func() {
-		log.SetHandlers()
-		log.SetLevel(previousLevel)
-	})
-
-	translated, err := TranslateDDL(ctx, "comments-indexes.sql", input)
+	translated, err := TranslateDDL(context.Background(), "comments-indexes.sql", input)
 	if err != nil {
 		t.Fatalf("translate comment and index fixture failed: %v", err)
 	}
@@ -271,18 +256,6 @@ REINDEX uk_sys_config_key;
 	for _, needle := range required {
 		if !strings.Contains(translated, needle) {
 			t.Fatalf("expected translated SQL to preserve %q, got:\n%s", needle, translated)
-		}
-	}
-	if len(messages) != 2 {
-		t.Fatalf("expected two skipped comment debug logs, got %d: %#v", len(messages), messages)
-	}
-	for _, needle := range []string{
-		"skip PostgreSQL comment statement during SQLite translation",
-		"source=comments-indexes.sql",
-		"line=",
-	} {
-		if !containsAnyLogMessage(messages, needle) {
-			t.Fatalf("expected skipped comment debug logs to contain %q, got %#v", needle, messages)
 		}
 	}
 }
@@ -315,16 +288,6 @@ ON CONFLICT DO NOTHING;
 			t.Fatalf("expected translated SQL to contain %q, got:\n%s", needle, translated)
 		}
 	}
-}
-
-// containsAnyLogMessage reports whether any captured log contains a fragment.
-func containsAnyLogMessage(messages []string, needle string) bool {
-	for _, message := range messages {
-		if strings.Contains(message, needle) {
-			return true
-		}
-	}
-	return false
 }
 
 // TestTranslateDDLPreservesDMLIdentifiersNamedLikeTypes verifies DML column

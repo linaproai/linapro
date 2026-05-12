@@ -103,7 +103,10 @@ func TestClusterStartupManifestNoopSkipsNodeStateWrite(t *testing.T) {
 		"id: "+pluginID+"\n"+
 			"name: Source Cluster Node Noop Plugin\n"+
 			"version: "+version+"\n"+
-			"type: source\n",
+			"type: source\n"+
+			"scope_nature: tenant_aware\n"+
+			"supports_multi_tenant: false\n"+
+			"default_install_mode: global\n",
 	)
 
 	testutil.CleanupPluginGovernanceRowsHard(t, ctx, pluginID)

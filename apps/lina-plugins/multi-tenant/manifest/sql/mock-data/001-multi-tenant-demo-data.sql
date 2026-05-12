@@ -170,9 +170,9 @@ WHERE 1 = 1
 ON CONFLICT ("tenant_id", "key") DO NOTHING;
 
 -- Mock data: full platform tenant-management permissions for the operations
--- role. This supports CRUD, resolver, impersonation, member, and user-list demos.
--- 模拟数据：为平台运营角色授予完整租户管理权限，用于 CRUD、解析策略、代操作、
--- 成员和用户列表演示。
+-- role. This supports CRUD, impersonation, and user-list tenant membership demos.
+-- 模拟数据：为平台运营角色授予完整租户管理权限，用于 CRUD、代操作和用户列表
+-- 租户归属演示。
 INSERT INTO sys_role_menu ("tenant_id", "role_id", "menu_id")
 SELECT 0, r."id", m."id"
 FROM sys_role r
@@ -183,10 +183,6 @@ JOIN sys_menu m ON m."perms" IN (
     'system:tenant:edit',
     'system:tenant:remove',
     'system:tenant:impersonate',
-    'system:tenant:resolver:query',
-    'system:tenant:resolver:edit',
-    'system:tenant:member:list',
-    'system:tenant:member:query',
     'system:user:list',
     'system:user:query'
 )
@@ -204,8 +200,6 @@ FROM sys_role r
 JOIN sys_menu m ON m."perms" IN (
     'system:tenant:list',
     'system:tenant:query',
-    'system:tenant:member:list',
-    'system:tenant:member:query',
     'system:user:list',
     'system:user:query'
 )
@@ -213,15 +207,13 @@ WHERE r."tenant_id" = 0
   AND r."key" = 'platform-tenant-auditor'
 ON CONFLICT DO NOTHING;
 
--- Mock data: grant tenant-admin roles access to tenant member, tenant plugin,
--- and user visibility menus for tenant administration demos.
--- 模拟数据：为租户管理员角色授予租户成员、租户插件和用户可见性菜单权限，
--- 用于租户管理演示。
+-- Mock data: grant tenant-admin roles access to tenant plugin and user
+-- visibility menus for tenant administration demos.
+-- 模拟数据：为租户管理员角色授予租户插件和用户可见性菜单权限，用于租户管理演示。
 INSERT INTO sys_role_menu ("tenant_id", "role_id", "menu_id")
 SELECT r."tenant_id", r."id", m."id"
 FROM sys_role r
 JOIN sys_menu m ON m."perms" IN (
-    'system:tenant:member:list',
     'system:tenant:plugin:list',
     'system:user:list',
     'system:user:query',
@@ -237,19 +229,18 @@ JOIN sys_menu m ON m."perms" IN (
 WHERE r."key" IN ('tenant-alpha-admin', 'tenant-beta-admin', 'tenant-gamma-admin')
 ON CONFLICT DO NOTHING;
 
--- Mock data: grant operational and auditor roles read-oriented member and user
+-- Mock data: grant operational and auditor roles read-oriented user
 -- permissions plus several shared management menus so tenant data-scope and
 -- permission differences are visible in demos. Demo-list tenant user roles also
 -- get the same read-oriented permissions so each active mock tenant can open
 -- several menus after login.
--- 模拟数据：为运营和审计角色授予偏只读的成员与用户权限，使演示中可以看到
--- 不同租户数据权限的差异，并补充多个共享管理菜单权限。列表演示租户用户角色
--- 也授予同样偏只读的权限，以便每个活跃 mock 租户登录后都能打开多个菜单。
+-- 模拟数据：为运营和审计角色授予偏只读的用户权限，使演示中可以看到不同租户
+-- 数据权限的差异，并补充多个共享管理菜单权限。列表演示租户用户角色也授予
+-- 同样偏只读的权限，以便每个活跃 mock 租户登录后都能打开多个菜单。
 INSERT INTO sys_role_menu ("tenant_id", "role_id", "menu_id")
 SELECT r."tenant_id", r."id", m."id"
 FROM sys_role r
 JOIN sys_menu m ON m."perms" IN (
-    'system:tenant:member:list',
     'system:user:list',
     'system:user:query',
     'system:role:list',

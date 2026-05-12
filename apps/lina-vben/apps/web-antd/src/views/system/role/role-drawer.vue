@@ -12,8 +12,12 @@ import { menuTreeSelect, roleMenuTreeSelect } from '#/api/system/menu';
 import { roleAdd, roleInfo, roleUpdate } from '#/api/system/role';
 import { MenuSelectTable } from '#/components/tree';
 import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
-import { getPluginCapabilityStateMap } from '#/plugins/slot-registry';
+import {
+  getPluginCapabilityStateMap,
+  getPluginStateMap,
+} from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
+import { useTenantStore } from '#/store/tenant';
 import { defaultFormValueGetter, useBeforeCloseDiff } from '#/utils/popup';
 
 import {
@@ -26,6 +30,7 @@ import {
 
 const emit = defineEmits<{ reload: [] }>();
 const dictStore = useDictStore();
+const tenantStore = useTenantStore();
 
 const isUpdate = ref(false);
 const orgEnabled = ref(true);
@@ -49,14 +54,33 @@ const [BasicForm, formApi] = useVbenForm({
 
 const menuTree = ref<any[]>([]);
 
+function isPluginRuntimeEnabled(value: unknown) {
+  return value === 1 || value === '1' || value === true;
+}
+
+async function resolveTenantManagementEnabled(force = false) {
+  const capabilityMap = await getPluginCapabilityStateMap(force);
+  const pluginStateMap = await getPluginStateMap();
+  const multiTenantState = pluginStateMap.get('multi-tenant');
+  if (multiTenantState) {
+    return (
+      isPluginRuntimeEnabled(multiTenantState.installed) &&
+      isPluginRuntimeEnabled(multiTenantState.enabled)
+    );
+  }
+  return (
+    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true ||
+    tenantStore.enabled
+  );
+}
+
 async function syncRoleCapabilities() {
   const capabilityMap = await getPluginCapabilityStateMap(true);
   await dictStore.getDictOptionsAsync(DATA_SCOPE_DICT_TYPE);
   orgEnabled.value =
     capabilityMap.get(pluginCapabilityKeys.organizationManagement)?.enabled ===
     true;
-  tenantEnabled.value =
-    capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled === true;
+  tenantEnabled.value = await resolveTenantManagementEnabled();
   formApi.updateSchema([
     {
       fieldName: 'dataScope',

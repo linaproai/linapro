@@ -209,9 +209,33 @@ corepack enable
 cd apps/lina-vben
 pnpm install
 cd ../..
+go run ./hack/tools/linactl init confirm=init
+go run ./hack/tools/linactl mock confirm=mock
+go run ./hack/tools/linactl dev
+```
+
+`Linux`和`macOS`用户可以继续使用兼容`Makefile`入口：
+
+```bash
 make init confirm=init
 make mock confirm=mock
 make dev
+```
+
+`Windows`用户可以使用上面的跨平台`Go`入口。仓库根目录也提供`cmd.exe`薄包装入口`make.cmd`；在`cmd.exe`中会按可执行文件扩展名查找当前目录脚本，因此可直接省略`.cmd`后缀使用`make`：
+
+```cmd
+make init confirm=init
+make mock confirm=mock
+make dev
+```
+
+在`PowerShell`中，需要使用当前目录前缀调用；默认`Windows`环境下也可以省略`.cmd`后缀写成`.\make`。如需避免与本机已安装的其他`make`命令混淆，可使用`.\make.cmd`：
+
+```powershell
+.\make init confirm=init
+.\make mock confirm=mock
+.\make dev
 ```
 
 默认后端连接为：
@@ -222,9 +246,9 @@ database:
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 ```
 
-`make init`是运维初始化命令，会直接使用配置中的数据库账号。该账号必须具备连接系统库、创建和删除目标数据库、终止目标库连接、建表、建索引、写入注释和写入`Seed`数据的权限。权限不足时初始化会失败，不会降级到低权限运行时模式。
+`linactl init`和`make init`是运维初始化命令，会直接使用配置中的数据库账号。该账号必须具备连接系统库、创建和删除目标数据库、终止目标库连接、建表、建索引、写入注释和写入`Seed`数据的权限。权限不足时初始化会失败，不会降级到低权限运行时模式。
 
-使用外部托管`PostgreSQL`，例如`RDS`或阿里云`PolarDB`时，请将`database.default.link`指向供应商提供的主机和端口。执行`make init`时使用具备上述权限的初始化账号；如果部署流程需要运行时低权限账号，请在初始化完成后再替换运行配置。
+使用外部托管`PostgreSQL`，例如`RDS`或阿里云`PolarDB`时，请将`database.default.link`指向供应商提供的主机和端口。执行`linactl init`或`make init`时使用具备上述权限的初始化账号；如果部署流程需要运行时低权限账号，请在初始化完成后再替换运行配置。
 
 如需单节点开发演示，可切换为`SQLite`链接：
 

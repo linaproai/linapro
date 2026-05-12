@@ -1,4 +1,29 @@
+import type { Page, Route } from '@playwright/test';
+
 import { test, expect } from '../../fixtures/auth';
+
+const longPostgresVersion =
+  'PostgreSQL 16.8 (Homebrew) on arm64-apple-darwin24.4.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit';
+
+async function mockLongPostgreSqlVersion(page: Page) {
+  await page.route('**/api/v1/system/info**', async (route: Route) => {
+    const response = await route.fetch();
+    const payload = await response.json();
+    const data = payload?.data ?? payload;
+    const backendComponents = data?.backendComponents ?? [];
+    const postgresql = backendComponents.find(
+      (component: { name?: string }) => component?.name === 'PostgreSQL',
+    );
+    if (postgresql) {
+      postgresql.version = longPostgresVersion;
+    }
+    if (data) {
+      data.dbVersion = longPostgresVersion;
+    }
+
+    await route.fulfill({ json: payload, response });
+  });
+}
 
 test.describe('TC-45 版本信息页面', () => {
   test('TC-45a: 版本信息页面显示三个区块', async ({ adminPage }) => {
@@ -121,5 +146,53 @@ test.describe('TC-45 版本信息页面', () => {
       'href',
       framework.repositoryUrl,
     );
+  });
+
+  test('TC-45e: PostgreSQL 长版本信息单行省略且保留完整内容', async ({
+    adminPage,
+  }) => {
+    await mockLongPostgreSqlVersion(adminPage);
+    await adminPage.setViewportSize({ height: 900, width: 1440 });
+
+    await adminPage.goto('/about/system-info');
+    await adminPage.waitForLoadState('networkidle');
+
+    const postgresqlItem = adminPage.getByTestId(
+      'system-info-component-postgresql',
+    );
+    const jwtItem = adminPage.getByTestId('system-info-component-jwt');
+    const versionText = adminPage.getByTestId(
+      'system-info-component-version-postgresql',
+    );
+
+    await expect(versionText).toHaveAttribute('title', longPostgresVersion);
+    await expect(versionText).toHaveCSS('overflow', 'hidden');
+    await expect(versionText).toHaveCSS('text-overflow', 'ellipsis');
+    await expect(versionText).toHaveCSS('white-space', 'nowrap');
+
+    const box = await versionText.boundingBox();
+    expect(box?.height).toBeLessThanOrEqual(24);
+
+    const postgresqlBox = await postgresqlItem.boundingBox();
+    const jwtBox = await jwtItem.boundingBox();
+    expect(
+      postgresqlBox && jwtBox ? jwtBox.x - (postgresqlBox.x + postgresqlBox.width) : 0,
+    ).toBeGreaterThanOrEqual(20);
+
+    await adminPage.setViewportSize({ height: 844, width: 390 });
+    await adminPage.reload({ waitUntil: 'domcontentloaded' });
+    await adminPage.waitForLoadState('networkidle');
+
+    const mobileVersion = adminPage.getByTestId(
+      'system-info-component-version-postgresql',
+    );
+    const mobileLink = postgresqlItem.getByRole('link', { name: '关系型数据库' });
+    const mobileVersionBox = await mobileVersion.boundingBox();
+    const mobileLinkBox = await mobileLink.boundingBox();
+
+    expect(mobileVersionBox?.width).toBeGreaterThanOrEqual(100);
+    expect(
+      mobileVersionBox && mobileLinkBox ? mobileLinkBox.y - mobileVersionBox.y : 0,
+    ).toBeGreaterThanOrEqual(18);
   });
 });

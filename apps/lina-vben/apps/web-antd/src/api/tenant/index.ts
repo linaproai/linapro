@@ -1,5 +1,6 @@
 import type {
   LoginTenant,
+  TenantTokenResult,
 } from './model';
 
 import { requestClient } from '#/api/request';
@@ -13,18 +14,14 @@ export async function authLoginTenants(userId: number) {
 }
 
 export function authSelectTenant(preToken: string, tenantId: number) {
-  return requestClient.post<{ accessToken: string }>('/auth/select-tenant', {
+  return requestClient.post<TenantTokenResult>('/auth/select-tenant', {
     preToken,
     tenantId,
   });
 }
 
 export function authSwitchTenant(targetTenantId: number) {
-  return requestClient.post<{ accessToken: string }>('/auth/switch-tenant', {
+  return requestClient.post<TenantTokenResult>('/auth/switch-tenant', {
     tenantId: targetTenantId,
   });
-}
-
-export function tenantMembershipMe() {
-  return requestClient.get<LoginTenant[]>('/tenant/members/me');
 }

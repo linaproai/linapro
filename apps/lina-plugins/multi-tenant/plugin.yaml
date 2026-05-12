@@ -176,3 +176,30 @@ menus:
     # Button sort order; lower values appear earlier.
     # 按钮排序值，数值越小越靠前。
     sort: 5
+  # Hidden permission point for listing tenant-controllable plugins.
+  # 租户插件列表隐藏权限点，仅用于 API 授权，不作为租户管理页按钮展示。
+  - key: plugin:multi-tenant:tenant:plugin:list
+    parent_key: platform
+    name: 租户插件列表
+    perms: system:tenant:plugin:list
+    type: B
+    visible: 0
+    sort: 121
+  # Hidden permission point for enabling tenant-scoped plugins.
+  # 租户插件启用隐藏权限点，仅用于 API 授权，不作为租户管理页按钮展示。
+  - key: plugin:multi-tenant:tenant:plugin:enable
+    parent_key: platform
+    name: 租户插件启用
+    perms: system:tenant:plugin:enable
+    type: B
+    visible: 0
+    sort: 122
+  # Hidden permission point for disabling tenant-scoped plugins.
+  # 租户插件禁用隐藏权限点，仅用于 API 授权，不作为租户管理页按钮展示。
+  - key: plugin:multi-tenant:tenant:plugin:disable
+    parent_key: platform
+    name: 租户插件禁用
+    perms: system:tenant:plugin:disable
+    type: B
+    visible: 0
+    sort: 123

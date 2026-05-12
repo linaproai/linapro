@@ -7,40 +7,4 @@
 ## help: Show help
 .PHONY: help
 help:
-	@set -e; \
-	if [ -t 1 ]; then \
-		c_title='\033[1;36m'; \
-		c_cmd='\033[1;32m'; \
-		c_dim='\033[2m'; \
-		c_reset='\033[0m'; \
-	else \
-		c_title=''; \
-		c_cmd=''; \
-		c_dim=''; \
-		c_reset=''; \
-	fi; \
-	printf "$${c_dim}Usage:$${c_reset} make $${c_cmd}<target>$${c_reset}\n\n"; \
-	awk '/^## [^:]+:/ { \
-		line=$$0; \
-		sub(/^## /, "", line); \
-		sep=index(line, ": "); \
-		if (sep > 0) { \
-			name=substr(line, 1, sep - 1); \
-			desc=substr(line, sep + 2); \
-			printf "%s\t%s\n", name, desc; \
-		} \
-	}' $(MAKEFILE_LIST) | sort -k1,1 | \
-	awk -F '\t' -v c_cmd="$$c_cmd" -v c_dim="$$c_dim" -v c_reset="$$c_reset" ' \
-		{ \
-			names[++count]=$$1; \
-			descs[count]=$$2; \
-			if (length($$1) > max) { \
-				max=length($$1); \
-			} \
-		} \
-		END { \
-			print c_dim "Available targets:" c_reset; \
-			for (i=1; i<=count; i++) { \
-				printf "  %s%-*s%s  %s\n", c_cmd, max, names[i], c_reset, descs[i]; \
-			} \
-		}'
+	@go run ./hack/tools/linactl help

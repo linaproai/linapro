@@ -1,4 +1,4 @@
-go 1.26.2
+go 1.25.0
 
 use (
 	./apps/lina-core
@@ -15,5 +15,6 @@ use (
 	./apps/lina-plugins/plugin-demo-source
 	./hack/tools/build-wasm
 	./hack/tools/image-builder
+	./hack/tools/linactl
 	./hack/tools/runtime-i18n
 )

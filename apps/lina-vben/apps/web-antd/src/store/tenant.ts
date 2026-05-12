@@ -22,6 +22,8 @@ import { refreshAccessibleState } from '#/router/access-refresh';
 const storageKey = 'linapro:tenant-state';
 const impersonationOriginalTokenKey =
   'linapro:tenant-impersonation-original-token';
+const impersonationOriginalRefreshTokenKey =
+  'linapro:tenant-impersonation-original-refresh-token';
 
 function normalizeTenantOptions(items: LoginTenant[]) {
   return items.filter(
@@ -55,6 +57,24 @@ function setOriginalAccessToken(token?: string) {
     return;
   }
   localStorage.removeItem(impersonationOriginalTokenKey);
+}
+
+function readOriginalRefreshToken() {
+  if (typeof localStorage === 'undefined') {
+    return '';
+  }
+  return localStorage.getItem(impersonationOriginalRefreshTokenKey) || '';
+}
+
+function setOriginalRefreshToken(token?: string | null) {
+  if (typeof localStorage === 'undefined') {
+    return;
+  }
+  if (token) {
+    localStorage.setItem(impersonationOriginalRefreshTokenKey, token);
+    return;
+  }
+  localStorage.removeItem(impersonationOriginalRefreshTokenKey);
 }
 
 function readInitialState(): TenantState {
@@ -222,11 +242,13 @@ export const useTenantStore = defineStore('tenant', () => {
 
       const result = await authSwitchTenant(tenantId);
       accessStore.setAccessToken(result.accessToken);
+      accessStore.setRefreshToken(result.refreshToken ?? null);
       const nextTenant =
         tenants.value.find((item) => item.id === tenantId) ?? null;
       currentTenant.value = nextTenant;
       impersonation.value = { active: false };
       setOriginalAccessToken();
+      setOriginalRefreshToken();
       persist();
       await refreshAccessAndEnterDefaultRoute(router);
       message.success($t('pages.multiTenant.messages.switchSuccess'));
@@ -243,7 +265,9 @@ export const useTenantStore = defineStore('tenant', () => {
       return;
     }
     setOriginalAccessToken(accessStore.accessToken ?? undefined);
+    setOriginalRefreshToken(accessStore.refreshToken);
     accessStore.setAccessToken(token);
+    accessStore.setRefreshToken(null);
     enabled.value = true;
     currentTenant.value = {
       code: tenant.code,
@@ -263,7 +287,10 @@ export const useTenantStore = defineStore('tenant', () => {
     if (originalAccessToken) {
       accessStore.setAccessToken(originalAccessToken);
     }
+    const originalRefreshToken = readOriginalRefreshToken();
+    accessStore.setRefreshToken(originalRefreshToken || null);
     setOriginalAccessToken();
+    setOriginalRefreshToken();
     impersonation.value = { active: false };
     currentTenant.value = null;
     persist();
@@ -293,6 +320,7 @@ export const useTenantStore = defineStore('tenant', () => {
     currentTenant.value = null;
     impersonation.value = { active: false };
     setOriginalAccessToken();
+    setOriginalRefreshToken();
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem(storageKey);
     }

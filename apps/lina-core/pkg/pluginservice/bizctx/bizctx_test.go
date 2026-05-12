@@ -98,3 +98,24 @@ func TestServiceAdapterIgnoresUnexpectedContextValue(t *testing.T) {
 		t.Fatalf("expected zero context for unexpected context value, got %+v", current)
 	}
 }
+
+// TestWithCurrentContextProvidesPluginVisibleSnapshot verifies source-plugin
+// tests and adapters can inject context without importing host internal types.
+func TestWithCurrentContextProvidesPluginVisibleSnapshot(t *testing.T) {
+	service := &serviceAdapter{}
+	ctx := WithCurrentContext(context.Background(), CurrentContext{
+		UserID:          3,
+		TenantID:        12,
+		ActingUserID:    7,
+		ActingAsTenant:  true,
+		IsImpersonation: true,
+	})
+
+	current := service.Current(ctx)
+	if current.UserID != 3 || current.TenantID != 12 || current.ActingUserID != 7 {
+		t.Fatalf("expected injected context snapshot, got %+v", current)
+	}
+	if !current.ActingAsTenant || !current.IsImpersonation || current.PlatformBypass {
+		t.Fatalf("expected tenant impersonation snapshot, got %+v", current)
+	}
+}
