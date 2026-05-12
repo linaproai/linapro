@@ -59,4 +59,10 @@ var (
 		"Failed to update last login time",
 		gcode.CodeInternalError,
 	)
+	// CodeAuthPasswordHashFailed reports that password hashing failed due to an internal error.
+	CodeAuthPasswordHashFailed = bizerr.MustDefine(
+		"AUTH_PASSWORD_HASH_FAILED",
+		"Failed to hash password",
+		gcode.CodeInternalError,
+	)
 )
