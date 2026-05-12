@@ -11,11 +11,14 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/service/apidoc"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/cron"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/middleware"
 	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
@@ -27,15 +30,16 @@ import (
 // httpRuntime groups long-lived services that must be shared across HTTP
 // startup phases without re-constructing them in each route binding helper.
 type httpRuntime struct {
-	configSvc     config.Service                 // configSvc reads static and runtime host settings shared by startup helpers.
-	clusterSvc    cluster.Service                // clusterSvc owns primary-election lifecycle for clustered deployments.
-	pluginSvc     pluginsvc.Service              // pluginSvc owns plugin lifecycle, runtime assets, routes, and hooks.
-	apiDocSvc     apidoc.Service                 // apiDocSvc builds the host-managed OpenAPI document.
-	jobRegistry   jobhandlersvc.Registry         // jobRegistry stores host and plugin scheduled-job handlers.
-	jobMgmtSvc    jobmgmtsvc.Service             // jobMgmtSvc backs scheduled-job management controllers and cron projection.
-	middlewareSvc middleware.Service             // middlewareSvc publishes host middleware chains for static and plugin routes.
-	cronSvc       cron.Service                   // cronSvc starts host-level and persistent scheduled jobs.
-	serverCfg     *config.ServerExtensionsConfig // serverCfg contains host extension route settings such as API docs.
+	configSvc       config.Service       // configSvc reads static and runtime host settings shared by startup helpers.
+	coordinationSvc coordination.Service // coordinationSvc owns Redis-backed distributed coordination resources.
+	clusterSvc      cluster.Service      // clusterSvc owns primary-election lifecycle for clustered deployments.
+	pluginSvc       pluginsvc.Service    // pluginSvc owns plugin lifecycle, runtime assets, routes, and hooks.
+	apiDocSvc       apidoc.Service       // apiDocSvc builds the host-managed OpenAPI document.
+	jobRegistry     jobhandlersvc.Registry
+	jobMgmtSvc      jobmgmtsvc.Service
+	middlewareSvc   middleware.Service
+	cronSvc         cron.Service
+	serverCfg       *config.ServerExtensionsConfig // serverCfg contains host extension route settings such as API docs.
 }
 
 // pluginStartupConsistencyValidator is the narrow startup contract required to
@@ -112,8 +116,20 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		return nil, err
 	}
 
+	clusterCfg := configSvc.GetCluster(ctx)
+	coordinationSvc, err := newHTTPCoordinationService(ctx, clusterCfg, configSvc)
+	if err != nil {
+		return nil, err
+	}
+	clusterSvc := cluster.NewWithCoordination(clusterCfg, coordinationSvc)
+	if clusterCfg != nil && clusterCfg.Enabled {
+		cachecoord.DefaultWithCoordination(clusterSvc, coordinationSvc)
+		configureDistributedKVCache(coordinationSvc)
+	} else {
+		configureLocalKVCache()
+	}
+
 	var (
-		clusterSvc    = cluster.New(configSvc.GetCluster(ctx))
 		pluginSvc     = pluginsvc.New(clusterSvc)
 		apiDocSvc     = apidoc.New(configSvc, pluginSvc)
 		jobRegistry   = jobhandlersvc.New()
@@ -125,22 +141,25 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	// Host-owned handler definitions are registered before cron startup so the
 	// persistent scheduler can project and validate code-owned jobs immediately.
 	if err := jobhandlersvc.RegisterHostHandlers(jobRegistry, jobMgmtSvc); err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
 
 	sessionCfg, err := configSvc.GetSession(ctx)
 	if err != nil {
+		closeHTTPCoordinationAfterInitError(ctx, coordinationSvc)
 		return nil, err
 	}
 
 	return &httpRuntime{
-		configSvc:     configSvc,
-		clusterSvc:    clusterSvc,
-		pluginSvc:     pluginSvc,
-		apiDocSvc:     apiDocSvc,
-		jobRegistry:   jobRegistry,
-		jobMgmtSvc:    jobMgmtSvc,
-		middlewareSvc: middlewareSvc,
+		configSvc:       configSvc,
+		coordinationSvc: coordinationSvc,
+		clusterSvc:      clusterSvc,
+		pluginSvc:       pluginSvc,
+		apiDocSvc:       apiDocSvc,
+		jobRegistry:     jobRegistry,
+		jobMgmtSvc:      jobMgmtSvc,
+		middlewareSvc:   middlewareSvc,
 		cronSvc: cron.New(
 			sessionCfg,
 			middlewareSvc.SessionStore(),
@@ -151,6 +170,57 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		),
 		serverCfg: configSvc.GetServerExtensions(ctx),
 	}, nil
+}
+
+// configureDistributedKVCache switches process-default short-lived KV cache
+// state to the shared coordination KV backend.
+func configureDistributedKVCache(coordinationSvc coordination.Service) {
+	kvcache.SetDefaultProvider(kvcache.NewCoordinationKVProvider(coordinationSvc))
+}
+
+// configureLocalKVCache restores the SQL table backend used by single-node
+// deployments and tests.
+func configureLocalKVCache() {
+	kvcache.SetDefaultProvider(kvcache.NewSQLTableProvider())
+}
+
+// newHTTPCoordinationService creates the distributed coordination provider for
+// cluster mode and intentionally returns nil in single-node deployments.
+func newHTTPCoordinationService(
+	ctx context.Context,
+	clusterCfg *config.ClusterConfig,
+	configSvc config.Service,
+) (coordination.Service, error) {
+	if clusterCfg == nil || !clusterCfg.Enabled {
+		return nil, nil
+	}
+	if clusterCfg.Coordination != config.ClusterCoordinationRedis {
+		return nil, gerror.Newf("cluster.coordination=%s is unsupported; only redis is supported", clusterCfg.Coordination)
+	}
+	redisCfg := configSvc.GetClusterRedis(ctx)
+	if redisCfg == nil {
+		return nil, gerror.New("cluster.redis is required when cluster.coordination=redis")
+	}
+	return coordination.NewRedis(ctx, coordination.RedisOptions{
+		Address:        redisCfg.Address,
+		DB:             redisCfg.DB,
+		Password:       redisCfg.Password,
+		ConnectTimeout: redisCfg.ConnectTimeout,
+		ReadTimeout:    redisCfg.ReadTimeout,
+		WriteTimeout:   redisCfg.WriteTimeout,
+		KeyBuilder:     coordination.DefaultKeyBuilder(),
+	})
+}
+
+// closeHTTPCoordinationAfterInitError best-effort closes Redis coordination
+// resources when later HTTP runtime construction fails.
+func closeHTTPCoordinationAfterInitError(ctx context.Context, coordinationSvc coordination.Service) {
+	if coordinationSvc == nil {
+		return
+	}
+	if closeErr := coordinationSvc.Close(ctx); closeErr != nil {
+		logger.Warningf(ctx, "close coordination after runtime init failure: %v", closeErr)
+	}
 }
 
 // startHTTPRuntime starts cluster, plugin, and cron services in the order
@@ -264,6 +334,15 @@ func shutdownHTTPRuntime(ctx context.Context, runtime *httpRuntime, configSvc co
 		if err := shutdownStep(shutdownCtx, "cluster service", func(stepCtx context.Context) error {
 			runtime.clusterSvc.Stop(stepCtx)
 			return nil
+		}); err != nil {
+			logger.Warningf(shutdownBaseCtx, "runtime shutdown failed: %v", err)
+			return err
+		}
+	}
+
+	if runtime != nil && runtime.coordinationSvc != nil {
+		if err := shutdownStep(shutdownCtx, "coordination service", func(stepCtx context.Context) error {
+			return runtime.coordinationSvc.Close(stepCtx)
 		}); err != nil {
 			logger.Warningf(shutdownBaseCtx, "runtime shutdown failed: %v", err)
 			return err

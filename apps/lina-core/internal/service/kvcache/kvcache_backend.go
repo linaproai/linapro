@@ -4,6 +4,7 @@ package kvcache
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/os/gtime"
@@ -58,6 +59,15 @@ type serviceConfig struct {
 	backend  Backend
 }
 
+// processDefaultProvider stores the process-wide default kvcache backend
+// provider selected during startup.
+var processDefaultProvider = struct {
+	sync.RWMutex
+	provider Provider
+}{
+	provider: NewSQLTableProvider(),
+}
+
 // sqlTableProvider adapts the internal SQL table implementation to the
 // public kvcache provider contract.
 type sqlTableProvider struct{}
@@ -70,7 +80,7 @@ type sqlTableBackend struct {
 
 // newServiceConfig returns the default kvcache service configuration.
 func newServiceConfig() *serviceConfig {
-	return &serviceConfig{provider: NewSQLTableProvider()}
+	return &serviceConfig{provider: DefaultProvider()}
 }
 
 // WithProvider configures the backend provider used by the kvcache service.
@@ -96,6 +106,29 @@ func WithBackend(backend Backend) Option {
 // NewSQLTableProvider returns the default SQL table backend provider.
 func NewSQLTableProvider() Provider {
 	return sqlTableProvider{}
+}
+
+// DefaultProvider returns the process-wide default backend provider.
+func DefaultProvider() Provider {
+	processDefaultProvider.RLock()
+	provider := processDefaultProvider.provider
+	processDefaultProvider.RUnlock()
+	if provider == nil {
+		return NewSQLTableProvider()
+	}
+	return provider
+}
+
+// SetDefaultProvider selects the process-wide default backend provider used by
+// kvcache.New when callers do not inject a backend explicitly.
+func SetDefaultProvider(provider Provider) {
+	processDefaultProvider.Lock()
+	if provider == nil {
+		processDefaultProvider.provider = NewSQLTableProvider()
+	} else {
+		processDefaultProvider.provider = provider
+	}
+	processDefaultProvider.Unlock()
 }
 
 // NewBackend creates one SQL table backend instance.

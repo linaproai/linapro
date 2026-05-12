@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"lina-core/internal/service/config"
-	"lina-core/internal/service/locker"
+	"lina-core/internal/service/coordination"
 )
 
 // Default election timing constants keep standalone construction deterministic
@@ -44,6 +44,12 @@ type serviceImpl struct {
 
 // New creates and returns a new cluster Service instance.
 func New(cfg *config.ClusterConfig) Service {
+	return NewWithCoordination(cfg, nil)
+}
+
+// NewWithCoordination creates a cluster Service using the provided
+// coordination service for distributed leader election in cluster mode.
+func NewWithCoordination(cfg *config.ClusterConfig, coordinationSvc coordination.Service) Service {
 	normalizedCfg := normalizeClusterConfig(cfg)
 	service := &serviceImpl{
 		cfg:    normalizedCfg,
@@ -53,7 +59,10 @@ func New(cfg *config.ClusterConfig) Service {
 		return service
 	}
 
-	service.electionSvc = newElectionService(locker.New(), &normalizedCfg.Election, service.nodeID)
+	if coordinationSvc == nil || coordinationSvc.Lock() == nil {
+		return service
+	}
+	service.electionSvc = newElectionService(coordinationSvc.Lock(), &normalizedCfg.Election, service.nodeID)
 	return service
 }
 

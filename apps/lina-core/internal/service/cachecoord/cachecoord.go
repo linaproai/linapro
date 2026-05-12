@@ -6,6 +6,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"lina-core/internal/service/coordination"
 )
 
 // Domain identifies one cache domain coordinated by the host.
@@ -128,6 +130,8 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	topologyMu sync.RWMutex
 	topology   Topology
+	coordMu    sync.RWMutex
+	coord      coordination.Service
 	mu         sync.RWMutex
 	domains    map[Domain]DomainSpec
 	observed   map[revisionKey]int64
@@ -157,6 +161,14 @@ func New(topology Topology) Service {
 	return newServiceImpl(topology)
 }
 
+// NewWithCoordination creates an isolated cache coordination service that uses
+// the provided coordination backend for clustered shared revisions.
+func NewWithCoordination(topology Topology, coordinationSvc coordination.Service) Service {
+	service := newServiceImpl(topology)
+	service.setCoordination(coordinationSvc)
+	return service
+}
+
 // Default returns the process-wide cache coordination service. When a later
 // startup phase provides a richer topology, the existing coordinator is kept
 // and only its topology view is updated.
@@ -170,6 +182,26 @@ func Default(topology Topology) Service {
 	}
 	if shouldReplaceDefaultTopology(processDefaultService.service.topologySnapshot(), topology) {
 		processDefaultService.service.setTopology(topology)
+	}
+	return processDefaultService.service
+}
+
+// DefaultWithCoordination returns the process-wide cache coordination service
+// and wires the active distributed coordination backend when one is available.
+func DefaultWithCoordination(topology Topology, coordinationSvc coordination.Service) Service {
+	processDefaultService.Lock()
+	defer processDefaultService.Unlock()
+
+	if processDefaultService.service == nil {
+		processDefaultService.service = newServiceImpl(topology)
+		processDefaultService.service.setCoordination(coordinationSvc)
+		return processDefaultService.service
+	}
+	if shouldReplaceDefaultTopology(processDefaultService.service.topologySnapshot(), topology) {
+		processDefaultService.service.setTopology(topology)
+	}
+	if coordinationSvc != nil {
+		processDefaultService.service.setCoordination(coordinationSvc)
 	}
 	return processDefaultService.service
 }
@@ -200,6 +232,17 @@ func (s *serviceImpl) setTopology(topology Topology) {
 	s.topologyMu.Lock()
 	s.topology = topology
 	s.topologyMu.Unlock()
+}
+
+// setCoordination replaces the distributed coordination backend used in
+// clustered mode without resetting local cache observations.
+func (s *serviceImpl) setCoordination(coordinationSvc coordination.Service) {
+	if s == nil {
+		return
+	}
+	s.coordMu.Lock()
+	s.coord = coordinationSvc
+	s.coordMu.Unlock()
 }
 
 // shouldReplaceDefaultTopology keeps the real cluster topology once it has

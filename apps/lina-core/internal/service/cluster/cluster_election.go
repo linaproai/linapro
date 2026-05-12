@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"lina-core/internal/service/config"
-	"lina-core/internal/service/locker"
+	"lina-core/internal/service/coordination"
 	"lina-core/pkg/logger"
 )
 
@@ -20,12 +20,12 @@ const lockName = "leader-election"
 // electionService coordinates distributed leader election using the locker
 // service and a renewable lease.
 type electionService struct {
-	locker      locker.Service         // locker manages distributed lock ownership.
+	lockStore   coordination.LockStore // lockStore manages distributed lock ownership.
 	cfg         *config.ElectionConfig // cfg stores election lease and renew settings.
 	holder      string                 // holder is the current node identifier.
 	isLeader    atomic.Bool            // isLeader reports whether the current node owns leadership.
-	instance    *locker.Instance       // instance is the current lock instance when leadership is held.
-	leaseMgr    *locker.LeaseManager   // leaseMgr keeps the lock lease renewed while leader.
+	handle      *coordination.LockHandle
+	leaseMgr    *electionLeaseManager
 	stopChan    chan struct{}
 	stoppedChan chan struct{}
 	once        sync.Once // once ensures Start is only executed once.
@@ -35,15 +35,15 @@ type electionService struct {
 // newElectionService constructs one election service with safe stop semantics
 // before Start is ever called.
 func newElectionService(
-	lockerSvc locker.Service,
+	lockStore coordination.LockStore,
 	cfg *config.ElectionConfig,
 	holder string,
 ) *electionService {
 	service := &electionService{
-		locker:   lockerSvc,
-		cfg:      cfg,
-		holder:   holder,
-		stopChan: make(chan struct{}),
+		lockStore: lockStore,
+		cfg:       cfg,
+		holder:    holder,
+		stopChan:  make(chan struct{}),
 	}
 
 	// Pre-close stoppedChan so Stop is safe before Start is called.
@@ -99,7 +99,7 @@ func (s *electionService) run(ctx context.Context) {
 			return
 		case <-s.leaseStoppedChan():
 			logger.Warningf(ctx, "[cluster] lease renewal stopped, attempting to re-acquire")
-			s.instance = nil
+			s.handle = nil
 			s.leaseMgr = nil
 			s.isLeader.Store(false)
 			retryTicker.Reset(s.cfg.RenewInterval)
@@ -115,7 +115,11 @@ func (s *electionService) run(ctx context.Context) {
 // tryAcquire attempts to obtain the leader lock and starts lease renewal when
 // successful.
 func (s *electionService) tryAcquire(ctx context.Context) {
-	instance, ok, err := s.locker.Lock(ctx, lockName, s.holder, "leader election", s.cfg.Lease)
+	if s.lockStore == nil {
+		s.isLeader.Store(false)
+		return
+	}
+	handle, ok, err := s.lockStore.Acquire(ctx, lockName, s.holder, "leader election", s.cfg.Lease)
 	if err != nil {
 		logger.Warningf(ctx, "[cluster] failed to acquire leader lock: %v", err)
 		s.isLeader.Store(false)
@@ -123,11 +127,11 @@ func (s *electionService) tryAcquire(ctx context.Context) {
 	}
 
 	if ok {
-		s.instance = instance
+		s.handle = handle
 		s.isLeader.Store(true)
 		logger.Infof(ctx, "[cluster] became leader (holder: %s)", s.holder)
 
-		s.leaseMgr = locker.NewLeaseManager(instance, s.cfg.RenewInterval)
+		s.leaseMgr = newElectionLeaseManager(s.lockStore, handle, s.cfg.Lease, s.cfg.RenewInterval)
 		s.leaseMgr.Start(ctx)
 		return
 	}
@@ -143,11 +147,11 @@ func (s *electionService) stepDown(ctx context.Context) {
 		s.leaseMgr.Stop()
 		s.leaseMgr = nil
 	}
-	if s.instance != nil {
-		if err := s.instance.Unlock(ctx); err != nil {
+	if s.handle != nil && s.lockStore != nil {
+		if err := s.lockStore.Release(ctx, s.handle); err != nil {
 			logger.Warningf(ctx, "[cluster] failed to release leader lock: %v", err)
 		}
-		s.instance = nil
+		s.handle = nil
 	}
 
 	s.isLeader.Store(false)

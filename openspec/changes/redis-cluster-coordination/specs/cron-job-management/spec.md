@@ -14,11 +14,11 @@
 - **THEN** 当前节点跳过任务
 - **AND** 不产生业务副作用
 
-### Requirement: Redis kvcache backend 不得注册 SQL 过期清理任务
-系统 SHALL 根据 kvcache backend 判断是否注册 KV 过期清理任务。Redis backend MUST 不注册 SQL table cleanup job。
+### Requirement: coordination KV kvcache backend 不得注册 SQL 过期清理任务
+系统 SHALL 根据 kvcache backend 判断是否注册 KV 过期清理任务。coordination KV backend MUST 不注册 SQL table cleanup job。
 
-#### Scenario: 集群 Redis backend 启动
-- **WHEN** 宿主以集群模式启动并使用 Redis kvcache backend
+#### Scenario: 集群 coordination KV backend 启动
+- **WHEN** 宿主以集群模式启动并使用 coordination KV kvcache backend
 - **THEN** 系统不投射 `host:kvcache-cleanup-expired` 任务
 - **AND** Redis TTL 负责缓存过期
 
@@ -30,4 +30,3 @@
 - **AND** watcher 读取到 Redis revision 高于本地 observed revision
 - **THEN** 节点刷新本地派生缓存
 - **AND** 更新 observed revision
-

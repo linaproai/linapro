@@ -5,15 +5,11 @@ package cluster
 
 import (
 	"context"
-	"fmt"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gtime"
-	"github.com/gogf/gf/v2/test/gtest"
 	"testing"
 	"time"
 
 	"lina-core/internal/service/config"
-	"lina-core/internal/service/locker"
+	"lina-core/internal/service/coordination"
 )
 
 // testElectionCfg is the default election config used in tests.
@@ -28,19 +24,23 @@ const electionStateWait = 3 * time.Second
 // newTestElectionService constructs one election service using the shared test
 // timing configuration.
 func newTestElectionService() *electionService {
-	return newElectionService(locker.New(), testElectionCfg, generateNodeIdentifier())
+	return newElectionService(coordination.NewMemory(nil).Lock(), testElectionCfg, generateNodeIdentifier())
 }
 
 // TestElectionServiceNew verifies a new election service exposes an identifier
 // and starts in follower mode.
 func TestElectionServiceNew(t *testing.T) {
-	gtest.C(t, func(t *gtest.T) {
-		svc := newTestElectionService()
+	svc := newTestElectionService()
 
-		t.AssertNE(svc, nil)
-		t.AssertNE(svc.Holder(), "")
-		t.Assert(svc.IsLeader(), false)
-	})
+	if svc == nil {
+		t.Fatal("expected election service")
+	}
+	if svc.Holder() == "" {
+		t.Fatal("expected node holder")
+	}
+	if svc.IsLeader() {
+		t.Fatal("expected service to start as follower")
+	}
 }
 
 // TestElectionServiceStartAndBecomeLeader verifies an unlocked election starts
@@ -51,92 +51,72 @@ func TestElectionServiceStartAndBecomeLeader(t *testing.T) {
 		ctx = context.Background()
 	)
 
-	cleanupLock()
+	svc.Start(ctx)
 
-	gtest.C(t, func(t *gtest.T) {
-		svc.Start(ctx)
+	if !waitForElectionState(svc, true, electionStateWait) {
+		t.Fatal("expected election service to become leader")
+	}
 
-		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
+	svc.Stop(ctx)
 
-		count, err := g.DB().Model("sys_locker").Where("name", lockName).Count()
-		t.AssertNil(err)
-		t.Assert(count, 1)
-
-		svc.Stop(ctx)
-
-		t.Assert(svc.IsLeader(), false)
-	})
-
-	cleanupLock()
+	if svc.IsLeader() {
+		t.Fatal("expected service to step down after stop")
+	}
 }
 
 // TestElectionServiceAlreadyLeader verifies an existing unexpired leader lock
 // prevents the current node from becoming leader.
 func TestElectionServiceAlreadyLeader(t *testing.T) {
 	var (
-		svc = newTestElectionService()
-		ctx = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		svc      = newElectionService(coordSvc.Lock(), testElectionCfg, "node-b")
+		ctx      = context.Background()
 	)
 
-	cleanupLock()
-
-	_, err := g.DB().Model("sys_locker").Data(g.Map{
-		"name":        lockName,
-		"reason":      "election",
-		"holder":      "other-node",
-		"expire_time": gtime.Now().Add(30 * time.Second),
-	}).Insert()
+	_, ok, err := coordSvc.Lock().Acquire(ctx, lockName, "node-a", "leader election", 30*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !ok {
+		t.Fatal("expected first node to acquire leader lock")
+	}
 
-	gtest.C(t, func(t *gtest.T) {
-		svc.Start(ctx)
+	svc.Start(ctx)
 
-		time.Sleep(300 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 
-		t.Assert(svc.IsLeader(), false)
+	if svc.IsLeader() {
+		t.Fatal("expected existing leader lock to keep service as follower")
+	}
 
-		svc.Stop(ctx)
-	})
-
-	cleanupLock()
+	svc.Stop(ctx)
 }
 
 // TestElectionServiceTakeOverExpiredLock verifies the service can take over an
 // expired leader lock left by another node.
 func TestElectionServiceTakeOverExpiredLock(t *testing.T) {
 	var (
-		svc = newTestElectionService()
-		ctx = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		svc      = newElectionService(coordSvc.Lock(), testElectionCfg, "node-b")
+		ctx      = context.Background()
 	)
 
-	cleanupLock()
-
-	_, err := g.DB().Model("sys_locker").Data(g.Map{
-		"name":        lockName,
-		"reason":      "election",
-		"holder":      "other-node",
-		"expire_time": gtime.Now().Add(-10 * time.Second),
-	}).Insert()
+	_, ok, err := coordSvc.Lock().Acquire(ctx, lockName, "node-a", "leader election", 20*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !ok {
+		t.Fatal("expected first node to acquire short leader lock")
+	}
+	time.Sleep(40 * time.Millisecond)
 
-	gtest.C(t, func(t *gtest.T) {
-		svc.Start(ctx)
+	svc.Start(ctx)
 
-		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
+	if !waitForElectionState(svc, true, electionStateWait) {
+		t.Fatal("expected service to take over expired leader lock")
+	}
 
-		var row struct{ Holder string }
-		err = g.DB().Model("sys_locker").Where("name", lockName).Scan(&row)
-		t.AssertNil(err)
-		t.Assert(row.Holder, svc.Holder())
-
-		svc.Stop(ctx)
-	})
-
-	cleanupLock()
+	svc.Stop(ctx)
 }
 
 // TestElectionServiceStepDown verifies Stop releases leadership after the node
@@ -147,19 +127,17 @@ func TestElectionServiceStepDown(t *testing.T) {
 		ctx = context.Background()
 	)
 
-	cleanupLock()
+	svc.Start(ctx)
 
-	gtest.C(t, func(t *gtest.T) {
-		svc.Start(ctx)
+	if !waitForElectionState(svc, true, electionStateWait) {
+		t.Fatal("expected election service to become leader")
+	}
 
-		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
+	svc.Stop(ctx)
 
-		svc.Stop(ctx)
-
-		t.Assert(svc.IsLeader(), false)
-	})
-
-	cleanupLock()
+	if svc.IsLeader() {
+		t.Fatal("expected service to step down")
+	}
 }
 
 // TestElectionServiceTwoNodesFailOver verifies two independent election loops
@@ -170,84 +148,81 @@ func TestElectionServiceTwoNodesFailOver(t *testing.T) {
 			Lease:         2 * time.Second,
 			RenewInterval: 100 * time.Millisecond,
 		}
-		first  = newElectionService(locker.New(), cfg, "node-a-"+gtime.TimestampMilliStr())
-		second = newElectionService(locker.New(), cfg, "node-b-"+gtime.TimestampMilliStr())
-		ctx    = context.Background()
+		coordSvc = coordination.NewMemory(nil)
+		first    = newElectionService(coordSvc.Lock(), cfg, "node-a")
+		second   = newElectionService(coordSvc.Lock(), cfg, "node-b")
+		ctx      = context.Background()
 	)
 
-	cleanupLock()
+	first.Start(ctx)
+	second.Start(ctx)
 
-	gtest.C(t, func(t *gtest.T) {
-		first.Start(ctx)
-		second.Start(ctx)
+	if !waitForAnyElectionLeader(first, second, electionStateWait) {
+		t.Fatal("expected exactly one election service to become leader")
+	}
+	if first.IsLeader() && second.IsLeader() {
+		t.Fatal("expected at most one leader")
+	}
 
-		t.Assert(waitForAnyElectionLeader(first, second, electionStateWait), true)
-		t.Assert(first.IsLeader() && second.IsLeader(), false)
-
-		firstWasLeader := first.IsLeader()
-		if firstWasLeader {
-			first.Stop(ctx)
-			t.Assert(waitForElectionState(second, true, 4*time.Second), true)
-			second.Stop(ctx)
-		} else {
-			second.Stop(ctx)
-			t.Assert(waitForElectionState(first, true, 4*time.Second), true)
-			first.Stop(ctx)
+	firstWasLeader := first.IsLeader()
+	if firstWasLeader {
+		first.Stop(ctx)
+		if !waitForElectionState(second, true, 4*time.Second) {
+			t.Fatal("expected second node to become leader after first stops")
 		}
-	})
-
-	cleanupLock()
+		second.Stop(ctx)
+	} else {
+		second.Stop(ctx)
+		if !waitForElectionState(first, true, 4*time.Second) {
+			t.Fatal("expected first node to become leader after second stops")
+		}
+		first.Stop(ctx)
+	}
 }
 
 // TestElectionServiceStopWithoutStart verifies Stop is safe before Start is
 // called.
 func TestElectionServiceStopWithoutStart(t *testing.T) {
-	gtest.C(t, func(t *gtest.T) {
-		svc := newTestElectionService()
-		svc.Stop(context.Background())
-	})
+	svc := newTestElectionService()
+	svc.Stop(context.Background())
 }
 
 // TestElectionServiceNonLeaderRetry verifies the retry loop eventually acquires
-// leadership after a competing expired lock is observed.
+// leadership after a competing lock is released.
 func TestElectionServiceNonLeaderRetry(t *testing.T) {
 	var (
+		coordSvc = coordination.NewMemory(nil)
 		retryCfg = &config.ElectionConfig{
 			Lease:         30 * time.Second,
 			RenewInterval: 200 * time.Millisecond,
 		}
-		svc = newElectionService(locker.New(), retryCfg, generateNodeIdentifier())
+		svc = newElectionService(coordSvc.Lock(), retryCfg, "node-b")
 		ctx = context.Background()
 	)
 
-	cleanupLock()
-
-	_, err := g.DB().Model("sys_locker").Data(g.Map{
-		"name":        lockName,
-		"reason":      "election",
-		"holder":      "other-node",
-		"expire_time": gtime.Now().Add(-5 * time.Second),
-	}).Insert()
+	handle, ok, err := coordSvc.Lock().Acquire(ctx, lockName, "node-a", "leader election", 30*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	gtest.C(t, func(t *gtest.T) {
-		svc.Start(ctx)
-
-		t.Assert(waitForElectionState(svc, true, electionStateWait), true)
-
-		svc.Stop(ctx)
-	})
-
-	cleanupLock()
-}
-
-// cleanupLock removes the shared election lock row between test runs.
-func cleanupLock() {
-	if _, err := g.DB().Model("sys_locker").Where("name", lockName).Delete(); err != nil {
-		panic(fmt.Sprintf("cleanup leader-election lock failed: %v", err))
+	if !ok {
+		t.Fatal("expected first node to acquire leader lock")
 	}
+
+	svc.Start(ctx)
+
+	time.Sleep(300 * time.Millisecond)
+	if svc.IsLeader() {
+		t.Fatal("expected service to remain follower before lock release")
+	}
+	if err = coordSvc.Lock().Release(ctx, handle); err != nil {
+		t.Fatal(err)
+	}
+
+	if !waitForElectionState(svc, true, electionStateWait) {
+		t.Fatal("expected retry loop to acquire released leader lock")
+	}
+
+	svc.Stop(ctx)
 }
 
 // waitForElectionState polls the asynchronous election loop until it reaches

@@ -23,9 +23,12 @@ func TestGetClusterUsesClusterElectionConfig(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
   enabled: true
+  coordination: redis
   election:
     lease: 45s
     renewInterval: 15s
+  redis:
+    address: "127.0.0.1:6379"
 `)
 
 	cfg := New().GetCluster(context.Background())
@@ -38,6 +41,17 @@ cluster:
 	}
 	if cfg.Election.RenewInterval != 15*time.Second {
 		t.Fatalf("expected cluster renew interval to be 15s, got %s", cfg.Election.RenewInterval)
+	}
+	if cfg.Coordination != ClusterCoordinationRedis {
+		t.Fatalf("expected redis coordination, got %q", cfg.Coordination)
+	}
+	if cfg.Redis.Address != "127.0.0.1:6379" {
+		t.Fatalf("expected redis address to be loaded, got %q", cfg.Redis.Address)
+	}
+	if cfg.Redis.ConnectTimeout != 3*time.Second ||
+		cfg.Redis.ReadTimeout != 2*time.Second ||
+		cfg.Redis.WriteTimeout != 2*time.Second {
+		t.Fatalf("expected default redis timeouts, got connect=%s read=%s write=%s", cfg.Redis.ConnectTimeout, cfg.Redis.ReadTimeout, cfg.Redis.WriteTimeout)
 	}
 }
 
@@ -90,6 +104,9 @@ func TestOverrideClusterEnabledForDialect(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
   enabled: true
+  coordination: redis
+  redis:
+    address: "127.0.0.1:6379"
   election:
     lease: 45s
     renewInterval: 15s
@@ -120,6 +137,9 @@ func TestSQLiteDialectOnStartupOverridesConfigService(t *testing.T) {
 	setTestConfigContent(t, `
 cluster:
   enabled: true
+  coordination: redis
+  redis:
+    address: "127.0.0.1:6379"
   election:
     lease: 45s
     renewInterval: 15s
@@ -165,6 +185,9 @@ func TestPostgreSQLDialectOnStartupKeepsConfigServiceClusterEnabled(t *testing.T
 	setTestConfigContent(t, `
 cluster:
   enabled: true
+  coordination: redis
+  redis:
+    address: "127.0.0.1:6379"
 `)
 
 	svc := New()
@@ -189,6 +212,81 @@ cluster:
 	}
 	if len(warnings) != 0 {
 		t.Fatalf("expected no PostgreSQL startup warnings, got %#v", warnings)
+	}
+}
+
+// TestGetClusterPanicsWhenCoordinationMissing verifies clustered deployment
+// requires an explicit coordination backend.
+func TestGetClusterPanicsWhenCoordinationMissing(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: true
+  redis:
+    address: "127.0.0.1:6379"
+`)
+
+	defer assertConfigPanicContains(t, "cluster.coordination is required")
+	New().GetCluster(context.Background())
+}
+
+// TestGetClusterPanicsWhenCoordinationUnsupported verifies only Redis is
+// accepted as the current coordination backend.
+func TestGetClusterPanicsWhenCoordinationUnsupported(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: true
+  coordination: postgres
+  redis:
+    address: "127.0.0.1:6379"
+`)
+
+	defer assertConfigPanicContains(t, "only redis is supported")
+	New().GetCluster(context.Background())
+}
+
+// TestGetClusterPanicsWhenRedisAddressMissing verifies Redis address is
+// required whenever Redis coordination is enabled.
+func TestGetClusterPanicsWhenRedisAddressMissing(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: true
+  coordination: redis
+`)
+
+	defer assertConfigPanicContains(t, "cluster.redis.address is required")
+	New().GetCluster(context.Background())
+}
+
+// TestGetClusterPanicsWhenRedisTimeoutInvalid verifies Redis timeout fields
+// must be duration strings with units.
+func TestGetClusterPanicsWhenRedisTimeoutInvalid(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: true
+  coordination: redis
+  redis:
+    address: "127.0.0.1:6379"
+    connectTimeout: invalid
+`)
+
+	defer assertConfigPanicContains(t, "parse config cluster.redis.connectTimeout failed")
+	New().GetCluster(context.Background())
+}
+
+// TestSingleNodeModeDoesNotRequireRedis verifies local deployments can omit all
+// Redis coordination settings.
+func TestSingleNodeModeDoesNotRequireRedis(t *testing.T) {
+	setTestConfigContent(t, `
+cluster:
+  enabled: false
+`)
+
+	cfg := New().GetCluster(context.Background())
+	if cfg.Enabled {
+		t.Fatal("expected cluster mode disabled")
+	}
+	if cfg.Redis.Address != "" {
+		t.Fatalf("expected empty redis address in single-node config, got %q", cfg.Redis.Address)
 	}
 }
 

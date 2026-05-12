@@ -7,10 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	_ "lina-core/pkg/dbdriver"
-
-	"lina-core/internal/dao"
-	"lina-core/internal/model/do"
+	"lina-core/internal/service/coordination"
 )
 
 const (
@@ -191,8 +188,7 @@ func TestDefaultReturnsSharedCoordinatorWithUpdatedTopology(t *testing.T) {
 // publishers increment the same persistent row without losing revisions.
 func TestClusterMarkChangedPersistsAtomicRevision(t *testing.T) {
 	ctx := context.Background()
-	service := New(NewStaticTopology(true))
-	cleanupCacheRevision(t, ctx, testRuntimeConfigDomain, Scope("unit-test-atomic"))
+	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
 
 	const workers = 12
 	revisions := make(chan int64, workers)
@@ -246,10 +242,9 @@ func TestClusterMarkChangedPersistsAtomicRevision(t *testing.T) {
 // new valid domain without changing cachecoord code or configuring metadata.
 func TestClusterMarkChangedAcceptsUnconfiguredDomain(t *testing.T) {
 	ctx := context.Background()
-	service := New(NewStaticTopology(true))
+	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
 	domain := Domain("plugin:unit-test:custom")
 	scope := Scope("unit-test-free-domain")
-	cleanupCacheRevision(t, ctx, domain, scope)
 
 	revision, err := service.MarkChanged(ctx, domain, scope, ChangeReason("free_domain"))
 	if err != nil {
@@ -283,9 +278,8 @@ func TestClusterMarkChangedAcceptsUnconfiguredDomain(t *testing.T) {
 // infrastructure failure.
 func TestClusterCurrentRevisionHandlesMissingSharedRow(t *testing.T) {
 	ctx := context.Background()
-	service := New(NewStaticTopology(true))
+	service := NewWithCoordination(NewStaticTopology(true), coordination.NewMemory(nil))
 	scope := Scope("unit-test-missing-shared-row")
-	cleanupCacheRevision(t, ctx, testRuntimeConfigDomain, scope)
 
 	revision, err := service.CurrentRevision(ctx, testRuntimeConfigDomain, scope)
 	if err != nil {
@@ -300,9 +294,9 @@ func TestClusterCurrentRevisionHandlesMissingSharedRow(t *testing.T) {
 // the observed revision advances.
 func TestEnsureFreshRefreshesOncePerRevision(t *testing.T) {
 	ctx := context.Background()
-	publisher := New(NewStaticTopology(true))
-	consumer := New(NewStaticTopology(true))
-	cleanupCacheRevision(t, ctx, testPluginRuntimeDomain, Scope("unit-test-refresh"))
+	coordSvc := coordination.NewMemory(nil)
+	publisher := NewWithCoordination(NewStaticTopology(true), coordSvc)
+	consumer := NewWithCoordination(NewStaticTopology(true), coordSvc)
 
 	if _, err := publisher.MarkChanged(ctx, testPluginRuntimeDomain, Scope("unit-test-refresh"), ChangeReason("first")); err != nil {
 		t.Fatalf("publish first revision failed: %v", err)
@@ -342,9 +336,9 @@ func TestEnsureFreshRefreshesOncePerRevision(t *testing.T) {
 func TestSnapshotIncludesProcessStatusFromOtherInstances(t *testing.T) {
 	ctx := context.Background()
 	scope := Scope("unit-test-process-snapshot")
-	publisher := New(NewStaticTopology(true))
-	diagnosticReader := New(NewStaticTopology(true))
-	cleanupCacheRevision(t, ctx, testRuntimeConfigDomain, scope)
+	coordSvc := coordination.NewMemory(nil)
+	publisher := NewWithCoordination(NewStaticTopology(true), coordSvc)
+	diagnosticReader := NewWithCoordination(NewStaticTopology(true), coordSvc)
 
 	revision, err := publisher.MarkChanged(ctx, testRuntimeConfigDomain, scope, ChangeReason("diagnostic_snapshot"))
 	if err != nil {
@@ -365,20 +359,4 @@ func TestSnapshotIncludesProcessStatusFromOtherInstances(t *testing.T) {
 		return
 	}
 	t.Fatalf("expected snapshot item for scope %q, got %#v", scope, items)
-}
-
-// cleanupCacheRevision removes one test revision row before and after a test.
-func cleanupCacheRevision(t *testing.T, ctx context.Context, domain Domain, scope Scope) {
-	t.Helper()
-
-	cleanup := func() {
-		if _, err := dao.SysCacheRevision.Ctx(ctx).Where(do.SysCacheRevision{
-			Domain: domain,
-			Scope:  scope,
-		}).Delete(); err != nil {
-			t.Fatalf("cleanup cache revision failed: %v", err)
-		}
-	}
-	cleanup()
-	t.Cleanup(cleanup)
 }

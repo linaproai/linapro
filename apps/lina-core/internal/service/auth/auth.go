@@ -73,11 +73,6 @@ var _ Service = (*serviceImpl)(nil)
 // Ensure serviceImpl implements TenantTokenIssuer.
 var _ TenantTokenIssuer = (*serviceImpl)(nil)
 
-var (
-	defaultPreTokens = newPreTokenStore()
-	defaultRevoked   = newRevokeList()
-)
-
 // serviceImpl implements Service.
 type serviceImpl struct {
 	configSvc    authConfigService    // Configuration service
@@ -129,8 +124,8 @@ func newService(orgCapSvc orgcap.Service) *serviceImpl {
 		roleSvc:      role.New(pluginSvc),
 		tenantSvc:    tenantcapsvc.New(pluginSvc),
 		sessionStore: session.NewDBStore(),
-		preTokens:    defaultPreTokens,
-		revoked:      defaultRevoked,
+		preTokens:    newPreTokenStore(),
+		revoked:      newRevokeList(),
 	}
 }
 

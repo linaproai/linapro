@@ -105,6 +105,13 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "static scheduler intervals must be valid before cron registration",
 		},
 		{
+			Path:     "apps/lina-core/internal/service/config/config_cluster.go",
+			Function: "mustValidateClusterConfig",
+			Count:    3,
+			Category: panicCategoryStaticConfig,
+			Reason:   "cluster mode must fail fast when the required Redis coordination backend is missing or unsupported",
+		},
+		{
 			Path:     "apps/lina-core/internal/service/config/config_i18n.go",
 			Function: "normalizeAndValidateI18nConfig",
 			Count:    2,

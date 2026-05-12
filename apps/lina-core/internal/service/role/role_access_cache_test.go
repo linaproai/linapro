@@ -16,6 +16,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/cachecoord"
 	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
 )
 
@@ -29,6 +30,11 @@ type fakeRoleConfigService struct {
 // GetCluster returns the cluster config used by the test service.
 func (f *fakeRoleConfigService) GetCluster(_ context.Context) *hostconfig.ClusterConfig {
 	return &hostconfig.ClusterConfig{Enabled: f.clusterEnabled}
+}
+
+// GetClusterRedis returns empty Redis coordination settings for tests.
+func (f *fakeRoleConfigService) GetClusterRedis(_ context.Context) *hostconfig.ClusterRedisConfig {
+	return &hostconfig.ClusterRedisConfig{}
 }
 
 // IsClusterEnabled reports the configured cluster mode for the test service.
@@ -697,15 +703,15 @@ func TestSyncAccessTopologyRevisionClearsCacheWhenRevisionChanges(t *testing.T) 
 // clustered writer and triggers stale token-cache eviction.
 func TestClusterAccessRevisionControllerConsumesCrossInstanceRevision(t *testing.T) {
 	ctx := context.Background()
-	cleanupPermissionAccessRevision(t, ctx)
 	clearLocalAccessRevision()
 	t.Cleanup(clearLocalAccessRevision)
+	coordSvc := coordination.NewMemory(nil)
 
 	publisher := &clusterAccessRevisionController{
-		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+		cacheCoordSvc: cachecoord.NewWithCoordination(cachecoord.NewStaticTopology(true), coordSvc),
 	}
 	consumer := &clusterAccessRevisionController{
-		cacheCoordSvc: cachecoord.New(cachecoord.NewStaticTopology(true)),
+		cacheCoordSvc: cachecoord.NewWithCoordination(cachecoord.NewStaticTopology(true), coordSvc),
 	}
 
 	revision, err := publisher.MarkChanged(ctx)

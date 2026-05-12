@@ -13,6 +13,16 @@ import (
 // cacheHostService is the shared governed cache backend used by wasm host calls.
 var cacheHostService = kvcache.New()
 
+// ConfigureCacheHostService replaces the governed cache backend used by wasm
+// host calls. Passing nil restores the process default kvcache service.
+func ConfigureCacheHostService(service kvcache.Service) {
+	if service == nil {
+		cacheHostService = kvcache.New()
+		return
+	}
+	cacheHostService = service
+}
+
 // dispatchCacheHostService routes cache host service methods to the governed cache backend.
 func dispatchCacheHostService(
 	ctx context.Context,
