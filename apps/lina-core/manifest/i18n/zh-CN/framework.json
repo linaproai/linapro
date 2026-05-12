@@ -14,6 +14,14 @@
       }
     }
   },
+  "error": {
+    "auth": {
+      "login": {
+        "ipBlacklisted": "登录 IP 已被加入黑名单",
+        "updateLastLoginFailed": "更新最后登录时间失败"
+      }
+    }
+  },
   "locale": {
     "en-US": {
       "name": "英语",
