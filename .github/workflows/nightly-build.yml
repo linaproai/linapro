@@ -1,16 +1,15 @@
-# LinaPro nightly multi-platform Docker image publishing workflow.
-# GitHub cron uses UTC. 19:00 UTC is 03:00 Asia/Shanghai.
+# LinaPro nightly health test and multi-platform Docker image publishing workflow.
+# GitHub cron uses UTC. 16:00 UTC is 00:00 Asia/Shanghai.
 name: Nightly Build
 
 on:
   schedule:
-    - cron: "0 19 * * *"
+    - cron: "0 16 * * *"
 
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: "${{ github.workflow }} @ nightly"
@@ -26,10 +25,130 @@ jobs:
     name: Windows command smoke
     uses: ./.github/workflows/reusable-windows-command-smoke.yml
 
+  backend-unit-tests:
+    name: Go unit tests
+    uses: ./.github/workflows/reusable-backend-unit-tests.yml
+
+  frontend-unit-tests:
+    name: Frontend unit tests
+    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+
+  e2e-tests:
+    name: Full E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      # make dev/stop/status use lsof to detect and clean processes bound to
+      # the backend and frontend ports. Keep this explicit because GitHub's
+      # ubuntu-latest runner image does not guarantee lsof is preinstalled.
+      - name: Install Runtime Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsof
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      - name: Install E2E Dependencies
+        working-directory: hack/tests
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: hack/tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Initialize Database
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init rebuild=true
+          make mock confirm=mock
+
+      - name: Start Services
+        run: make dev
+
+      - name: Run Full E2E Suite
+        working-directory: hack/tests
+        env:
+          E2E_BASE_URL: "http://127.0.0.1:5666"
+          E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
+          E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
+          E2E_PARALLEL_WORKERS: "4"
+        run: pnpm test
+
+      - name: Stop Services
+        if: always()
+        run: make stop
+
+      - name: Upload E2E Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-e2e-report
+          path: |
+            hack/tests/playwright-report/
+            hack/tests/test-results/
+            temp/lina-core.log
+            temp/lina-vben.log
+          if-no-files-found: ignore
+          retention-days: 14
+
   nightly-image:
     name: Build and publish nightly image
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    needs:
+      - windows-command-smoke
+      - backend-unit-tests
+      - frontend-unit-tests
+      - e2e-tests
 
     steps:
       - name: Checkout Repository
