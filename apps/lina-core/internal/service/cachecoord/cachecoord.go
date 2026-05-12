@@ -97,6 +97,10 @@ type SnapshotItem struct {
 	LocalRevision    int64            // LocalRevision is the latest revision consumed locally.
 	SharedRevision   int64            // SharedRevision is the latest shared revision when cluster mode is enabled.
 	LastSyncedAt     time.Time        // LastSyncedAt records the latest successful local sync.
+	Backend                coordination.BackendName // Backend is the active coordination backend for this snapshot.
+	CoordinationHealthy   bool      // CoordinationHealthy reports the backend health snapshot when clustered coordination is active.
+	EventSubscriberRunning bool      // EventSubscriberRunning reports whether the backend event consumer is active.
+	LastEventReceivedAt    time.Time // LastEventReceivedAt records the latest consumed backend event time.
 	RecentError      string           // RecentError records the latest coordination failure.
 	StaleSeconds     int64            // StaleSeconds reports seconds elapsed since LastSyncedAt.
 }

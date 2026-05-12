@@ -18,5 +18,5 @@ func (c *ControllerV1) SelectTenant(ctx context.Context, req *v1.SelectTenantReq
 	if err != nil {
 		return nil, err
 	}
-	return &v1.SelectTenantRes{AccessToken: out.AccessToken}, nil
+	return &v1.SelectTenantRes{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken}, nil
 }

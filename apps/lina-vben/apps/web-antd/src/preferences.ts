@@ -10,7 +10,7 @@ export const overridesPreferences = defineOverridesPreferences({
   app: {
     accessMode: 'backend',
     authPageLayout: 'panel-right',
-    enableRefreshToken: false,
+    enableRefreshToken: true,
     name: import.meta.env.VITE_APP_TITLE,
   },
   copyright: {

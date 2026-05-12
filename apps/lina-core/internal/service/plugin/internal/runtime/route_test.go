@@ -20,6 +20,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/authtoken"
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
@@ -177,6 +178,41 @@ func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 	}
 	if failure == nil || failure.StatusCode != http.StatusForbidden {
 		t.Fatalf("expected tenant B permission to be forbidden, got %#v", failure)
+	}
+}
+
+// TestParseDynamicRouteTokenRejectsRefreshToken verifies dynamic plugin routes
+// only accept access JWTs and cannot be called with refresh tokens.
+func TestParseDynamicRouteTokenRejectsRefreshToken(t *testing.T) {
+	ctx := context.Background()
+	service := &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-token-secret"}}
+
+	testCases := []struct {
+		name      string
+		tokenType string
+	}{
+		{name: "missing token type", tokenType: ""},
+		{name: "refresh token", tokenType: authtoken.KindRefresh},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
+				TokenId:   "refresh-token-id",
+				TokenType: testCase.tokenType,
+				TenantId:  11,
+				UserId:    1,
+				Username:  "admin",
+				Status:    statusNormal,
+			})
+			tokenString, err := token.SignedString([]byte("route-token-secret"))
+			if err != nil {
+				t.Fatalf("sign token: %v", err)
+			}
+			if _, err = service.parseDynamicRouteToken(ctx, tokenString); err == nil {
+				t.Fatal("expected token to be rejected by dynamic route parser")
+			}
+		})
 	}
 }
 
@@ -348,11 +384,12 @@ func signDynamicRouteAccessTestToken(
 	t.Helper()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
-		TokenId:  tokenID,
-		TenantId: tenantID,
-		UserId:   userID,
-		Username: "dynamic-route-access",
-		Status:   statusNormal,
+		TokenId:   tokenID,
+		TokenType: authtoken.KindAccess,
+		TenantId:  tenantID,
+		UserId:    userID,
+		Username:  "dynamic-route-access",
+		Status:    statusNormal,
 	})
 	tokenString, err := token.SignedString([]byte(config.GetJwtSecret(context.Background())))
 	if err != nil {
@@ -375,6 +412,7 @@ func signDynamicRouteImpersonationTestToken(
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
 		TokenId:         tokenID,
+		TokenType:       authtoken.KindAccess,
 		TenantId:        tenantID,
 		UserId:          userID,
 		Username:        "dynamic-route-access",

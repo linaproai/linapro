@@ -19,5 +19,5 @@ func (c *ControllerV1) SwitchTenant(ctx context.Context, req *v1.SwitchTenantReq
 	if err != nil {
 		return nil, err
 	}
-	return &v1.SwitchTenantRes{AccessToken: out.AccessToken}, nil
+	return &v1.SwitchTenantRes{AccessToken: out.AccessToken, RefreshToken: out.RefreshToken}, nil
 }
