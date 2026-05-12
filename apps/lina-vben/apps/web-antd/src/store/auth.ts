@@ -73,7 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       loginLoading.value = true;
       const loginResult = await loginApi(params);
-      const { accessToken, preToken } = loginResult;
+      const { accessToken, preToken, refreshToken } = loginResult;
       const tenants = Array.isArray(loginResult.tenants)
         ? loginResult.tenants
         : [];
@@ -91,6 +91,7 @@ export const useAuthStore = defineStore('auth', () => {
       // 如果成功获取到 accessToken
       if (accessToken) {
         accessStore.setAccessToken(accessToken);
+        accessStore.setRefreshToken(refreshToken ?? null);
 
         // 获取用户信息并存储到 accessStore 中
         userInfo = await fetchUserInfo();
@@ -137,12 +138,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
     try {
       loginLoading.value = true;
-      const { accessToken } = await authSelectTenant(
+      const { accessToken, refreshToken } = await authSelectTenant(
         pendingPreToken.value,
         tenantId,
       );
       pendingPreToken.value = '';
       accessStore.setAccessToken(accessToken);
+      accessStore.setRefreshToken(refreshToken ?? null);
       const selectedTenant =
         tenantStore.tenants.find((item) => item.id === tenantId) ?? null;
       tenantStore.setTenantContext({

@@ -101,6 +101,7 @@ func BuildDynamicRouteMetadata(runtimeState *DynamicRouteRuntimeState) *DynamicR
 // dynamicRouteClaims mirrors the JWT claims needed by host-side dynamic route auth.
 type dynamicRouteClaims struct {
 	TokenId         string `json:"tokenId"`
+	TokenType       string `json:"tokenType"`
 	TenantId        int    `json:"tenantId"`
 	UserId          int    `json:"userId"`
 	Username        string `json:"username"`
@@ -559,6 +560,9 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 	}
 	claims, ok := token.Claims.(*dynamicRouteClaims)
 	if !ok || !token.Valid {
+		return nil, gerror.New("invalid token")
+	}
+	if claims.TokenType != "access" {
 		return nil, gerror.New("invalid token")
 	}
 	return claims, nil

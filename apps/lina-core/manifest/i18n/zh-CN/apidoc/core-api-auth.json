@@ -26,6 +26,9 @@
                         "fields": {
                           "accessToken": {
                             "dc": "JWT令牌"
+                          },
+                          "refreshToken": {
+                            "dc": "JWT刷新令牌"
                           }
                         }
                       }
@@ -42,6 +45,9 @@
             "fields": {
               "accessToken": {
                 "dc": "JWT令牌；需要选择租户时为空"
+              },
+              "refreshToken": {
+                "dc": "JWT刷新令牌；需要选择租户时为空"
               },
               "preToken": {
                 "dc": "需要选择租户时返回的短期预登录令牌"
@@ -75,6 +81,31 @@
             },
             "schema": {
               "dc": "退出当前登录状态，清除服务端JWT令牌缓存"
+            }
+          },
+          "RefreshReq": {
+            "fields": {
+              "refreshToken": {
+                "dc": "JWT刷新令牌"
+              }
+            },
+            "meta": {
+              "dc": "使用有效刷新令牌换取新的访问令牌，避免用户在访问令牌过期后被立即强制重新登录。",
+              "summary": "刷新访问令牌",
+              "tags": "身份认证"
+            },
+            "schema": {
+              "dc": "使用有效刷新令牌换取新的访问令牌，避免用户在访问令牌过期后被立即强制重新登录。"
+            }
+          },
+          "RefreshRes": {
+            "fields": {
+              "accessToken": {
+                "dc": "新的JWT访问令牌"
+              },
+              "refreshToken": {
+                "dc": "当前会话继续使用的JWT刷新令牌"
+              }
             }
           }
         }

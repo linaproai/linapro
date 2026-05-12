@@ -40,12 +40,26 @@ const (
 	authLoginStatusFail = 1
 )
 
+// tokenKind identifies the intended use of one signed JWT.
+type tokenKind string
+
+const (
+	// tokenKindAccess marks JWTs accepted by protected API middleware.
+	tokenKindAccess tokenKind = "access"
+	// tokenKindRefresh marks JWTs accepted only by the refresh-token endpoint.
+	tokenKindRefresh tokenKind = "refresh"
+	// defaultRefreshTokenTTL is the minimum lifetime for refresh tokens.
+	defaultRefreshTokenTTL time.Duration = 7 * 24 * time.Hour
+)
+
 // Service defines the auth service contract.
 type Service interface {
 	// SessionStore returns the session store instance.
 	SessionStore() session.Store
 	// Login verifies credentials and issues JWT token.
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
+	// Refresh validates a refresh token and issues a fresh access token.
+	Refresh(ctx context.Context, in RefreshInput) (*RefreshOutput, error)
 	// ParseToken parses and validates JWT token, returns claims.
 	ParseToken(ctx context.Context, tokenString string) (*Claims, error)
 	// HashPassword hashes password using bcrypt.
@@ -94,6 +108,7 @@ type serviceImpl struct {
 type authConfigService interface {
 	GetJwtSecret(ctx context.Context) string
 	GetJwtExpire(ctx context.Context) (time.Duration, error)
+	GetSessionTimeout(ctx context.Context) (time.Duration, error)
 	IsLoginIPBlacklisted(ctx context.Context, ip string) (bool, error)
 }
 
@@ -141,13 +156,14 @@ func (s *serviceImpl) SessionStore() session.Store {
 
 // Claims defines JWT token claims.
 type Claims struct {
-	TokenId         string `json:"tokenId"`         // Unique token identifier
-	UserId          int    `json:"userId"`          // User ID
-	Username        string `json:"username"`        // Username
-	Status          int    `json:"status"`          // Status
-	TenantId        int    `json:"tenantId"`        // Tenant ID, where 0 means platform
-	IsImpersonation bool   `json:"isImpersonation"` // Whether the token represents impersonation
-	ActingUserId    int    `json:"actingUserId"`    // Real user ID during impersonation
+	TokenId         string    `json:"tokenId"`         // Unique token identifier
+	TokenType       tokenKind `json:"tokenType"`       // TokenType identifies access or refresh token usage.
+	UserId          int       `json:"userId"`          // User ID
+	Username        string    `json:"username"`        // Username
+	Status          int       `json:"status"`          // Status
+	TenantId        int       `json:"tenantId"`        // Tenant ID, where 0 means platform
+	IsImpersonation bool      `json:"isImpersonation"` // Whether the token represents impersonation
+	ActingUserId    int       `json:"actingUserId"`    // Real user ID during impersonation
 	jwt.RegisteredClaims
 }
 
@@ -159,9 +175,21 @@ type LoginInput struct {
 
 // LoginOutput defines output for Login function.
 type LoginOutput struct {
-	AccessToken string       // JWT access token
-	PreToken    string       // Short-lived pre-login token for tenant selection
-	Tenants     []TenantInfo // Tenant candidates for two-stage login
+	AccessToken  string       // JWT access token
+	RefreshToken string       // JWT refresh token
+	PreToken     string       // Short-lived pre-login token for tenant selection
+	Tenants      []TenantInfo // Tenant candidates for two-stage login
+}
+
+// RefreshInput defines input for Refresh function.
+type RefreshInput struct {
+	RefreshToken string // JWT refresh token
+}
+
+// RefreshOutput defines output for Refresh function.
+type RefreshOutput struct {
+	AccessToken  string // Newly issued JWT access token
+	RefreshToken string // Refresh token that remains valid for the session
 }
 
 // TenantInfo defines one tenant candidate returned during two-stage login.
@@ -186,7 +214,8 @@ type TenantTokenReissueInput struct {
 
 // TenantTokenOutput defines a tenant-bound JWT response.
 type TenantTokenOutput struct {
-	AccessToken string // JWT access token
+	AccessToken  string // JWT access token
+	RefreshToken string // JWT refresh token
 }
 
 // Login verifies credentials and issues JWT token.
@@ -279,8 +308,8 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 		tenantID = tenants[0].Id
 	}
 
-	// Generate JWT token
-	token, tokenId, err := s.generateToken(ctx, user, tenantID)
+	// Generate JWT token pair
+	accessToken, refreshToken, tokenId, err := s.generateTokenPair(ctx, user, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +341,7 @@ func (s *serviceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, e
 			logger.Warningf(ctx, "plugin login succeeded hook failed: %v", err)
 		}
 	}
-	return &LoginOutput{AccessToken: token}, nil
+	return &LoginOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
 // IssueTenantToken consumes a pre-login token and issues a tenant-bound JWT.
@@ -328,14 +357,14 @@ func (s *serviceImpl) IssueTenantToken(ctx context.Context, in TenantTokenIssueI
 		return nil, err
 	}
 	user := &entity.SysUser{Id: record.UserID, Username: record.Username, Status: record.Status}
-	token, tokenID, err := s.generateToken(ctx, user, in.TenantID)
+	accessToken, refreshToken, tokenID, err := s.generateTokenPair(ctx, user, in.TenantID)
 	if err != nil {
 		return nil, err
 	}
 	if err = s.createSession(ctx, user, in.TenantID, tokenID); err != nil {
 		logger.Warningf(ctx, "create tenant token session failed tokenId=%s tenantId=%d err=%v", tokenID, in.TenantID, err)
 	}
-	return &TenantTokenOutput{AccessToken: token}, nil
+	return &TenantTokenOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
 // ReissueTenantToken validates tenant membership, revokes the current token, and issues a new JWT.
@@ -355,14 +384,14 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 		return nil, err
 	}
 	user := &entity.SysUser{Id: in.CurrentClaims.UserId, Username: in.CurrentClaims.Username, Status: in.CurrentClaims.Status}
-	token, tokenID, err := s.generateToken(ctx, user, in.TenantID)
+	accessToken, refreshToken, tokenID, err := s.generateTokenPair(ctx, user, in.TenantID)
 	if err != nil {
 		return nil, err
 	}
 	if err = s.createSession(ctx, user, in.TenantID, tokenID); err != nil {
 		logger.Warningf(ctx, "create reissued tenant session failed tokenId=%s tenantId=%d err=%v", tokenID, in.TenantID, err)
 	}
-	return &TenantTokenOutput{AccessToken: token}, nil
+	return &TenantTokenOutput{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
 // ReissueTenantTokenFromBearer parses the current token and reissues it for another tenant.
@@ -379,6 +408,62 @@ func (s *serviceImpl) ReissueTenantTokenFromBearer(ctx context.Context, tokenStr
 
 // ParseToken parses and validates JWT token, returns claims.
 func (s *serviceImpl) ParseToken(ctx context.Context, tokenString string) (*Claims, error) {
+	return s.parseToken(ctx, tokenString, tokenKindAccess)
+}
+
+// Refresh validates a refresh token and issues a fresh access token for the
+// existing online session.
+func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOutput, error) {
+	claims, err := s.parseToken(ctx, in.RefreshToken, tokenKindRefresh)
+	if err != nil {
+		return nil, err
+	}
+	sessionTimeout, err := s.configSvc.GetSessionTimeout(ctx)
+	if err != nil {
+		return nil, err
+	}
+	active, err := s.sessionStore.TouchOrValidate(ctx, claims.TenantId, claims.TokenId, sessionTimeout)
+	if err != nil {
+		return nil, err
+	}
+	if !active {
+		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+
+	var user *entity.SysUser
+	err = dao.SysUser.Ctx(ctx).
+		Where(do.SysUser{Id: claims.UserId}).
+		Scan(&user)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
+			logger.Warningf(ctx, "revoke missing-user refresh session failed tokenId=%s err=%v", claims.TokenId, revokeErr)
+		}
+		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	if user.Status == statusDisabled {
+		if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
+			logger.Warningf(ctx, "revoke disabled-user refresh session failed tokenId=%s userId=%d err=%v", claims.TokenId, user.Id, revokeErr)
+		}
+		return nil, bizerr.NewCode(CodeAuthUserDisabled)
+	}
+
+	accessToken, err := s.signToken(ctx, user, claims.TenantId, claims.TokenId, tokenKindAccess, claims.IsImpersonation, claims.ActingUserId)
+	if err != nil {
+		return nil, err
+	}
+	if s.roleSvc != nil {
+		if _, err = s.roleSvc.PrimeTokenAccessContext(ctx, claims.TokenId, user.Id); err != nil {
+			return nil, err
+		}
+	}
+	return &RefreshOutput{AccessToken: accessToken, RefreshToken: in.RefreshToken}, nil
+}
+
+// parseToken parses and validates a JWT for the expected token kind.
+func (s *serviceImpl) parseToken(ctx context.Context, tokenString string, expected tokenKind) (*Claims, error) {
 	jwtSecret := s.configSvc.GetJwtSecret(ctx)
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(jwtSecret), nil
@@ -387,6 +472,9 @@ func (s *serviceImpl) ParseToken(ctx context.Context, tokenString string) (*Clai
 		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
 	}
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		if claims.TokenType != expected {
+			return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+		}
 		revoked, err := s.revoked.Revoked(ctx, claims.TokenId)
 		if err != nil {
 			return nil, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
@@ -453,20 +541,52 @@ func (s *serviceImpl) RevokeSession(ctx context.Context, tokenId string) error {
 
 // generateToken generates JWT token for given user, returns token string and tokenId.
 func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, tenantID int) (string, string, error) {
-	jwtTTL, err := s.configSvc.GetJwtExpire(ctx)
+	tokenID := guid.S()
+	token, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, false, 0)
 	if err != nil {
 		return "", "", err
 	}
-	var (
-		jwtSecret = s.configSvc.GetJwtSecret(ctx)
-		tokenId   = guid.S()
-	)
+	return token, tokenID, nil
+}
+
+// generateTokenPair signs access and refresh JWTs for one online session.
+func (s *serviceImpl) generateTokenPair(ctx context.Context, user *entity.SysUser, tenantID int) (string, string, string, error) {
+	tokenID := guid.S()
+	accessToken, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindAccess, false, 0)
+	if err != nil {
+		return "", "", "", err
+	}
+	refreshToken, err := s.signToken(ctx, user, tenantID, tokenID, tokenKindRefresh, false, 0)
+	if err != nil {
+		return "", "", "", err
+	}
+	return accessToken, refreshToken, tokenID, nil
+}
+
+// signToken signs one JWT for the supplied token kind.
+func (s *serviceImpl) signToken(
+	ctx context.Context,
+	user *entity.SysUser,
+	tenantID int,
+	tokenID string,
+	kind tokenKind,
+	isImpersonation bool,
+	actingUserID int,
+) (string, error) {
+	jwtTTL, err := s.tokenTTL(ctx, kind)
+	if err != nil {
+		return "", err
+	}
+	jwtSecret := s.configSvc.GetJwtSecret(ctx)
 	claims := Claims{
-		TokenId:  tokenId,
-		UserId:   user.Id,
-		Username: user.Username,
-		Status:   user.Status,
-		TenantId: tenantID,
+		TokenId:         tokenID,
+		TokenType:       kind,
+		UserId:          user.Id,
+		Username:        user.Username,
+		Status:          user.Status,
+		TenantId:        tenantID,
+		IsImpersonation: isImpersonation,
+		ActingUserId:    actingUserID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(jwtTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -475,9 +595,32 @@ func (s *serviceImpl) generateToken(ctx context.Context, user *entity.SysUser, t
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(jwtSecret))
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
-	return signed, tokenId, nil
+	return signed, nil
+}
+
+// tokenTTL returns the effective lifetime for a token kind.
+func (s *serviceImpl) tokenTTL(ctx context.Context, kind tokenKind) (time.Duration, error) {
+	accessTTL, err := s.configSvc.GetJwtExpire(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if kind == tokenKindAccess {
+		return accessTTL, nil
+	}
+	sessionTTL, err := s.configSvc.GetSessionTimeout(ctx)
+	if err != nil {
+		return 0, err
+	}
+	refreshTTL := defaultRefreshTokenTTL
+	if sessionTTL > refreshTTL {
+		refreshTTL = sessionTTL
+	}
+	if accessTTL > refreshTTL {
+		refreshTTL = accessTTL
+	}
+	return refreshTTL, nil
 }
 
 // getUserDeptName queries the department name for a user by userId.

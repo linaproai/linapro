@@ -79,6 +79,7 @@ type userRow struct {
 // tokenClaims mirrors the host JWT claim shape consumed by middleware.
 type tokenClaims struct {
 	TokenId         string `json:"tokenId"`
+	TokenType       string `json:"tokenType"`
 	UserId          int    `json:"userId"`
 	Username        string `json:"username"`
 	Status          int    `json:"status"`
@@ -253,6 +254,7 @@ func (jwtTokenSigner) Sign(secret string, ttl time.Duration, user *userRow, tena
 	now := time.Now()
 	claims := tokenClaims{
 		TokenId:         tokenID,
+		TokenType:       "access",
 		UserId:          int(user.Id),
 		Username:        user.Username,
 		Status:          user.Status,
