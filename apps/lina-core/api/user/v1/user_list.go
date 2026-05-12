@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"lina-core/internal/model/entity"
-
 	"github.com/gogf/gf/v2/frame/g"
 )
 
@@ -26,13 +24,13 @@ type ListReq struct {
 
 // ListItem represents a single user in the user list.
 type ListItem struct {
-	*entity.SysUser
-	DeptId      int      `json:"deptId" dc:"Department ID" eg:"100"`
-	DeptName    string   `json:"deptName" dc:"Department name" eg:"Technology Department"`
-	RoleIds     []int    `json:"roleIds" dc:"Role ID list" eg:"[1,2]"`
-	RoleNames   []string `json:"roleNames" dc:"Role name list" eg:"[\"Administrator\",\"Normal User\"]"`
-	TenantIds   []int    `json:"tenantIds" dc:"Tenant ID list when multi-tenancy is enabled" eg:"[10,20]"`
-	TenantNames []string `json:"tenantNames" dc:"Tenant name list when multi-tenancy is enabled" eg:"[\"Alpha Tenant\",\"Beta Tenant\"]"`
+	*UserListDTO `json:",inline"`
+	DeptId       int      `json:"deptId" dc:"Department ID" eg:"100"`
+	DeptName     string   `json:"deptName" dc:"Department name" eg:"Technology Department"`
+	RoleIds      []int    `json:"roleIds" dc:"Role ID list" eg:"[1,2]"`
+	RoleNames    []string `json:"roleNames" dc:"Role name list" eg:"[\"Administrator\",\"Normal User\"]"`
+	TenantIds    []int    `json:"tenantIds" dc:"Tenant ID list when multi-tenancy is enabled" eg:"[10,20]"`
+	TenantNames  []string `json:"tenantNames" dc:"Tenant name list when multi-tenancy is enabled" eg:"[\"Alpha Tenant\",\"Beta Tenant\"]"`
 }
 
 // ListRes is the response structure for user list query.
