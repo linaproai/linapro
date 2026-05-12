@@ -4,6 +4,7 @@ package plugin
 
 import (
 	"context"
+
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -15,6 +16,7 @@ import (
 	"lina-core/internal/service/plugin/internal/runtime"
 	sourceupgradeinternal "lina-core/internal/service/plugin/internal/sourceupgrade"
 	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/session"
 
 	"lina-core/internal/model/entity"
 
@@ -412,6 +414,7 @@ func New(topology Topology) Service {
 	runtimeSvc.SetJwtConfigProvider(&jwtConfigAdapter{configProvider})
 	runtimeSvc.SetUploadSizeProvider(&uploadSizeAdapter{configProvider})
 	runtimeSvc.SetUserContextSetter(&userCtxAdapter{bizCtxProvider})
+	runtimeSvc.SetSessionStore(session.NewDBStore())
 
 	service := &serviceImpl{
 		configSvc:                configProvider,

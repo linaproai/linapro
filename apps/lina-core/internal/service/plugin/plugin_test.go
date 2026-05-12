@@ -8,6 +8,8 @@ import (
 	"sync"
 
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/pkg/pluginbridge"
 )
@@ -19,6 +21,9 @@ func newTestService() *serviceImpl {
 
 // newTestServiceWithTopology constructs the root plugin facade with one explicit topology.
 func newTestServiceWithTopology(topology Topology) *serviceImpl {
+	if topology != nil && topology.IsEnabled() {
+		cachecoord.DefaultWithCoordination(topology, coordination.NewMemory(nil))
+	}
 	return New(topology).(*serviceImpl)
 }
 

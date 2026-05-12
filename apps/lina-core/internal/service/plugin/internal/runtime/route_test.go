@@ -20,6 +20,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/internal/service/session"
 	"lina-core/pkg/authtoken"
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
@@ -29,7 +30,7 @@ import (
 func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(t *testing.T) {
 	var (
 		ctx      = context.Background()
-		service  = &serviceImpl{}
+		service  = &serviceImpl{sessionStore: session.NewDBStore()}
 		tenantID = 17
 		tokenID  = fmt.Sprintf("plugin-dynamic-route-session-%d", time.Now().UnixNano())
 	)
@@ -97,7 +98,7 @@ func TestTouchDynamicRouteSessionKeepsExistingSessionWhenTimestampDoesNotChange(
 func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 	var (
 		ctx          = context.Background()
-		service      = &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-tenant-secret"}}
+		service      = &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-tenant-secret"}, sessionStore: session.NewDBStore()}
 		tenantAID    = 61001
 		tenantBID    = 61002
 		actingUserID = 9001
@@ -185,7 +186,7 @@ func TestDynamicRouteIdentitySnapshotFiltersRolesByTokenTenant(t *testing.T) {
 // only accept access JWTs and cannot be called with refresh tokens.
 func TestParseDynamicRouteTokenRejectsRefreshToken(t *testing.T) {
 	ctx := context.Background()
-	service := &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-token-secret"}}
+	service := &serviceImpl{jwtConfig: routeTestJwtConfig{secret: "route-token-secret"}, sessionStore: session.NewDBStore()}
 
 	testCases := []struct {
 		name      string
@@ -242,6 +243,11 @@ type routeTestJwtConfig struct {
 // GetJwtSecret returns the fixed JWT signing secret for route tests.
 func (c routeTestJwtConfig) GetJwtSecret(_ context.Context) string {
 	return c.secret
+}
+
+// GetSessionTimeout returns the fixed online-session timeout for route tests.
+func (c routeTestJwtConfig) GetSessionTimeout(context.Context) (time.Duration, error) {
+	return time.Hour, nil
 }
 
 // insertDynamicRouteAccessTestUser inserts one temporary user bound to a
@@ -356,7 +362,7 @@ func insertDynamicRouteAccessTestSession(
 	t.Helper()
 
 	now := gtime.Now()
-	if _, err := dao.SysOnlineSession.Ctx(ctx).Data(do.SysOnlineSession{
+	if err := session.NewDBStore().Set(ctx, &session.Session{
 		TokenId:        tokenID,
 		TenantId:       tenantID,
 		UserId:         userID,
@@ -367,7 +373,7 @@ func insertDynamicRouteAccessTestSession(
 		Os:             "darwin",
 		LoginTime:      now,
 		LastActiveTime: now,
-	}).Insert(); err != nil {
+	}); err != nil {
 		t.Fatalf("insert dynamic route access test session: %v", err)
 	}
 }

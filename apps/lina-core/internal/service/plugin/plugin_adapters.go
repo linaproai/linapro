@@ -4,6 +4,7 @@ package plugin
 
 import (
 	"context"
+	"time"
 
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
@@ -39,6 +40,11 @@ type jwtConfigAdapter struct{ svc configsvc.Service }
 // GetJwtSecret returns the runtime JWT signing secret.
 func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
 	return a.svc.GetJwtSecret(ctx)
+}
+
+// GetSessionTimeout returns the runtime-effective session timeout.
+func (a *jwtConfigAdapter) GetSessionTimeout(ctx context.Context) (time.Duration, error) {
+	return a.svc.GetSessionTimeout(ctx)
 }
 
 // uploadSizeAdapter adapts configsvc.Service to runtime.UploadSizeProvider.

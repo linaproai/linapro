@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/wasm"
 	"lina-core/internal/service/pluginruntimecache"
+	"lina-core/internal/service/session"
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
 	"lina-core/pkg/pluginhost"
 )
@@ -60,6 +61,8 @@ type HookDispatcher interface {
 type JwtConfigProvider interface {
 	// GetJwtSecret returns the JWT signing secret used to validate bearer tokens.
 	GetJwtSecret(ctx context.Context) string
+	// GetSessionTimeout returns the runtime-effective online-session timeout.
+	GetSessionTimeout(ctx context.Context) (time.Duration, error)
 }
 
 // UploadSizeProvider provides the runtime-effective upload size ceiling in MB.
@@ -100,8 +103,8 @@ type CacheChangeNotifier interface {
 	MarkRuntimeCacheChanged(ctx context.Context, reason string) error
 }
 
-// Service defines the runtime service contract.
-type Service interface {
+// ArtifactService defines runtime WASM artifact parsing and validation operations.
+type ArtifactService interface {
 	// ParseRuntimeWasmArtifact reads one WASM artifact file and extracts all embedded custom sections.
 	// It implements the catalog.ArtifactParser interface.
 	ParseRuntimeWasmArtifact(filePath string) (*catalog.ArtifactSpec, error)
@@ -111,14 +114,42 @@ type Service interface {
 	// ValidateRuntimeArtifact loads and validates the WASM artifact for a dynamic plugin source directory.
 	// It implements the catalog.ArtifactParser interface.
 	ValidateRuntimeArtifact(manifest *catalog.Manifest, rootDir string) error
+}
+
+// RuntimeStateQueryService defines public runtime-state query operations.
+type RuntimeStateQueryService interface {
 	// ListRuntimeStates returns public plugin runtime states for shell slot rendering.
 	ListRuntimeStates(ctx context.Context) (*RuntimeStateListOutput, error)
+}
+
+// DynamicRouteService defines dynamic plugin route execution and host dispatch operations.
+type DynamicRouteService interface {
 	// ExecuteDynamicRoute is the exported form of executeDynamicRoute for cross-package access.
 	ExecuteDynamicRoute(
 		ctx context.Context,
 		manifest *catalog.Manifest,
 		request *bridgecontract.BridgeRequestEnvelopeV1,
 	) (*bridgecontract.BridgeResponseEnvelopeV1, error)
+	// RegisterDynamicRouteDispatcher binds the fixed-prefix dispatcher into one host
+	// router group so dynamic routes reuse the standard RouterGroup registration flow.
+	RegisterDynamicRouteDispatcher(group *ghttp.RouterGroup)
+	// PrepareDynamicRouteMiddleware resolves the active dynamic route contract and
+	// caches host-owned runtime state on the request before later middlewares run.
+	PrepareDynamicRouteMiddleware(r *ghttp.Request)
+	// AuthenticateDynamicRouteMiddleware applies host-owned login and permission
+	// governance for the matched dynamic route before bridge execution starts.
+	AuthenticateDynamicRouteMiddleware(r *ghttp.Request)
+	// DispatchDynamicRoute dispatches one fixed-prefix request into the active release
+	// of one dynamic plugin. Matching always happens against the archived active manifest
+	// so staged uploads cannot affect live traffic before reconcile.
+	DispatchDynamicRoute(
+		ctx context.Context,
+		in *DynamicRouteDispatchInput,
+	) (*bridgecontract.BridgeResponseEnvelopeV1, error)
+}
+
+// DynamicCronService defines dynamic plugin cron discovery and execution operations.
+type DynamicCronService interface {
 	// DiscoverCronContracts runs the reserved guest-side cron registration entry
 	// point and collects all declared dynamic-plugin cron contracts.
 	DiscoverCronContracts(
@@ -132,6 +163,11 @@ type Service interface {
 		manifest *catalog.Manifest,
 		contract *bridgecontract.CronContract,
 	) error
+}
+
+// LifecycleReconcileService defines runtime lifecycle convergence operations
+// needed by install, enable, disable, and upgrade flows.
+type LifecycleReconcileService interface {
 	// ReconcileDynamicPluginRequest implements lifecycle.ReconcileProvider.
 	// It submits a desired-state transition to the reconciler loop.
 	ReconcileDynamicPluginRequest(ctx context.Context, pluginID string, desiredState string) error
@@ -145,6 +181,11 @@ type Service interface {
 		registry interface{},
 		manifest *catalog.Manifest,
 	) bool
+}
+
+// RuntimeRegistryService defines registry-backed dynamic plugin projection and
+// artifact-state query operations.
+type RuntimeRegistryService interface {
 	// BuildPluginItem returns a PluginItem projection for one manifest + registry pair.
 	// Used by the plugin facade SyncAndList coordination method.
 	BuildPluginItem(ctx context.Context, manifest *catalog.Manifest, registry *entity.SysPlugin) *PluginItem
@@ -157,6 +198,12 @@ type Service interface {
 	// CheckIsInstalled reports whether a plugin is installed after reconciling artifact state.
 	// Used by the plugin facade UpdateStatus guard.
 	CheckIsInstalled(ctx context.Context, pluginID string) (bool, error)
+	// HasArtifactStorageFile is the exported form of hasArtifactStorageFile for cross-package access.
+	HasArtifactStorageFile(ctx context.Context, pluginID string) (bool, string, error)
+}
+
+// RuntimeProjectionService defines node and release state projection operations.
+type RuntimeProjectionService interface {
 	// SyncPluginNodeState implements catalog.NodeStateSyncer.
 	// It updates the current node projection of one plugin lifecycle state.
 	SyncPluginNodeState(
@@ -175,12 +222,20 @@ type Service interface {
 	// SyncPluginReleaseRuntimeState implements catalog.ReleaseStateSyncer.
 	// It updates the active release row to reflect current registry state.
 	SyncPluginReleaseRuntimeState(ctx context.Context, registry *entity.SysPlugin) error
+}
+
+// RuntimeReconcilerService defines background and on-demand runtime reconciliation operations.
+type RuntimeReconcilerService interface {
 	// StartRuntimeReconciler starts the background loop that keeps dynamic-plugin
 	// desired state, active release, and current-node projection converged.
 	StartRuntimeReconciler(ctx context.Context)
 	// ReconcileRuntimePlugins runs one convergence pass. It is safe to call from
 	// both the background loop and synchronous management flows.
 	ReconcileRuntimePlugins(ctx context.Context) error
+}
+
+// RuntimeLifecycleService defines dynamic plugin uninstall and emergency cleanup operations.
+type RuntimeLifecycleService interface {
 	// Uninstall executes uninstall lifecycle for an installed dynamic plugin.
 	Uninstall(ctx context.Context, pluginID string) error
 	// UninstallWithOptions executes uninstall lifecycle for an installed dynamic
@@ -189,28 +244,18 @@ type Service interface {
 	// ForceUninstallMissingArtifact clears host governance for an installed
 	// dynamic plugin whose staging and active release artifacts are unavailable.
 	ForceUninstallMissingArtifact(ctx context.Context, registry *entity.SysPlugin) error
-	// HasArtifactStorageFile is the exported form of hasArtifactStorageFile for cross-package access.
-	HasArtifactStorageFile(ctx context.Context, pluginID string) (bool, string, error)
+}
+
+// ActiveManifestService defines active dynamic release manifest loading operations.
+type ActiveManifestService interface {
 	// LoadActiveDynamicPluginManifest implements catalog.DynamicManifestLoader.
 	// It returns the currently active dynamic-plugin manifest reloaded from the stable
 	// release archive so live traffic sees the stable version during staged upgrades.
 	LoadActiveDynamicPluginManifest(ctx context.Context, registry *entity.SysPlugin) (*catalog.Manifest, error)
-	// RegisterDynamicRouteDispatcher binds the fixed-prefix dispatcher into one host
-	// router group so dynamic routes reuse the standard RouterGroup registration flow.
-	RegisterDynamicRouteDispatcher(group *ghttp.RouterGroup)
-	// PrepareDynamicRouteMiddleware resolves the active dynamic route contract and
-	// caches host-owned runtime state on the request before later middlewares run.
-	PrepareDynamicRouteMiddleware(r *ghttp.Request)
-	// AuthenticateDynamicRouteMiddleware applies host-owned login and permission
-	// governance for the matched dynamic route before bridge execution starts.
-	AuthenticateDynamicRouteMiddleware(r *ghttp.Request)
-	// DispatchDynamicRoute dispatches one fixed-prefix request into the active release
-	// of one dynamic plugin. Matching always happens against the archived active manifest
-	// so staged uploads cannot affect live traffic before reconcile.
-	DispatchDynamicRoute(
-		ctx context.Context,
-		in *DynamicRouteDispatchInput,
-	) (*bridgecontract.BridgeResponseEnvelopeV1, error)
+}
+
+// DependencyWiringService defines provider wiring operations for runtime integrations.
+type DependencyWiringService interface {
 	// SetTopology wires the cluster topology provider.
 	SetTopology(t TopologyProvider)
 	// SetMenuManager wires the menu synchronization provider.
@@ -223,10 +268,16 @@ type Service interface {
 	SetUploadSizeProvider(p UploadSizeProvider)
 	// SetUserContextSetter wires the user-context injection provider.
 	SetUserContextSetter(p UserContextSetter)
+	// SetSessionStore wires the online-session store used for dynamic route requests.
+	SetSessionStore(store session.Store)
 	// SetPermissionMenuFilter wires the plugin-level permission menu filter.
 	SetPermissionMenuFilter(f PermissionMenuFilter)
 	// SetRuntimeCacheChangeNotifier wires cluster cache revision publication.
 	SetRuntimeCacheChangeNotifier(n CacheChangeNotifier)
+}
+
+// DynamicPackageService defines runtime WASM package upload and storage operations.
+type DynamicPackageService interface {
 	// UploadDynamicPackage validates one runtime wasm package and writes it into the
 	// configured plugin.dynamic.storagePath directory.
 	UploadDynamicPackage(ctx context.Context, in *DynamicUploadInput) (out *DynamicUploadOutput, err error)
@@ -234,7 +285,23 @@ type Service interface {
 	StoreUploadedPackage(ctx context.Context, filename string, content []byte, overwriteSupport bool) (*DynamicUploadOutput, error)
 }
 
-// Ensure serviceImpl satisfies the runtime contract used by other plugin packages.
+// Service defines the runtime service contract by composing runtime sub-capabilities.
+type Service interface {
+	ArtifactService
+	RuntimeStateQueryService
+	DynamicRouteService
+	DynamicCronService
+	LifecycleReconcileService
+	RuntimeRegistryService
+	RuntimeProjectionService
+	RuntimeReconcilerService
+	RuntimeLifecycleService
+	ActiveManifestService
+	DependencyWiringService
+	DynamicPackageService
+}
+
+// Ensure serviceImpl satisfies the composed runtime contract used by other plugin packages.
 var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
@@ -259,6 +326,8 @@ type serviceImpl struct {
 	uploadSize UploadSizeProvider
 	// userCtx injects the authenticated user identity into the request context.
 	userCtx UserContextSetter
+	// sessionStore validates online-session hot state for dynamic route requests.
+	sessionStore session.Store
 	// menuFilter filters button-type permission menus by plugin enablement.
 	menuFilter PermissionMenuFilter
 	// cacheChangeNotifier publishes runtime cache changes after successful convergence.
@@ -298,6 +367,7 @@ func New(
 		lifecycleSvc:               lifecycleSvc,
 		frontendSvc:                frontendSvc,
 		openapiSvc:                 openapiSvc,
+		sessionStore:               session.NewDBStore(),
 		reconcilerRevisionObserved: pluginruntimecache.NewObservedRevision(),
 		i18nSvc:                    i18nSvc,
 	}
@@ -332,6 +402,13 @@ func (s *serviceImpl) SetUploadSizeProvider(p UploadSizeProvider) {
 // SetUserContextSetter wires the user-context injection provider.
 func (s *serviceImpl) SetUserContextSetter(p UserContextSetter) {
 	s.userCtx = p
+}
+
+// SetSessionStore wires the online-session store used for dynamic route requests.
+func (s *serviceImpl) SetSessionStore(store session.Store) {
+	if store != nil {
+		s.sessionStore = store
+	}
 }
 
 // SetPermissionMenuFilter wires the plugin-level permission menu filter.

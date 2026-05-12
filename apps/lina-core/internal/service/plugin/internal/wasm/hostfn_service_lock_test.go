@@ -11,6 +11,8 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/coordination"
+	"lina-core/internal/service/locker"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
@@ -187,6 +189,65 @@ func TestHandleHostServiceInvokeLockRejectsUnauthorizedResource(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation verifies
+// Wasm plugin locks use coordination locking and tenant-scoped lock names.
+func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testing.T) {
+	coordSvc := coordination.NewMemory(nil)
+	locker.ConfigureCoordination(coordSvc)
+	ConfigureLockHostService(nil)
+	t.Cleanup(func() {
+		locker.ConfigureCoordination(nil)
+		ConfigureLockHostService(nil)
+	})
+
+	lockName := "orders-sync"
+	tenantOne := newTenantLockHostCallContext("test-plugin-lock-tenant", 11, lockName)
+	tenantTwo := newTenantLockHostCallContext("test-plugin-lock-tenant", 22, lockName)
+	otherPlugin := newTenantLockHostCallContext("test-plugin-lock-other", 11, lockName)
+
+	tenantOneTicket := acquireLockTicket(t, tenantOne, lockName)
+	tenantTwoTicket := acquireLockTicket(t, tenantTwo, lockName)
+	otherPluginTicket := acquireLockTicket(t, otherPlugin, lockName)
+	if tenantOneTicket == tenantTwoTicket || tenantOneTicket == otherPluginTicket {
+		t.Fatal("expected isolated coordination lock tickets")
+	}
+
+	duplicateResponse := invokeLockHostService(
+		t,
+		tenantOne,
+		pluginbridge.HostServiceMethodLockAcquire,
+		lockName,
+		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+	)
+	if duplicateResponse.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("duplicate acquire expected success envelope, got status=%d payload=%s", duplicateResponse.Status, string(duplicateResponse.Payload))
+	}
+	duplicatePayload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(duplicateResponse.Payload)
+	if err != nil {
+		t.Fatalf("decode duplicate acquire payload: %v", err)
+	}
+	if duplicatePayload.Acquired {
+		t.Fatalf("expected duplicate same plugin/tenant lock acquire to miss, got %#v", duplicatePayload)
+	}
+
+	wrongRelease := invokeLockHostService(
+		t,
+		tenantOne,
+		pluginbridge.HostServiceMethodLockRelease,
+		lockName,
+		pluginbridge.MarshalHostServiceLockReleaseRequest(&pluginbridge.HostServiceLockReleaseRequest{Ticket: tenantTwoTicket}),
+	)
+	if wrongRelease.Status != pluginbridge.HostCallStatusInvalidRequest {
+		t.Fatalf("expected cross-tenant release to fail, got status=%d payload=%s", wrongRelease.Status, string(wrongRelease.Payload))
+	}
+
+	releaseLockTicket(t, tenantOne, lockName, tenantOneTicket)
+	reacquiredTicket := acquireLockTicket(t, tenantOne, lockName)
+	if reacquiredTicket == "" {
+		t.Fatal("expected reacquired ticket")
+	}
+}
+
 // ensurePluginLockerTable creates the lock table needed by lock host call tests.
 func ensurePluginLockerTable(t *testing.T, ctx context.Context) {
 	t.Helper()
@@ -207,7 +268,7 @@ func cleanupPluginLock(t *testing.T, ctx context.Context, lockName string) {
 
 // buildPluginLockName builds the fully qualified lock name used by the backend.
 func buildPluginLockName(pluginID string, lockName string) string {
-	return "plugin:" + pluginID + ":" + lockName
+	return "plugin:" + pluginID + ":tenant=0:" + lockName
 }
 
 // newLockHostCallContext builds a host call context authorized for the given lock names.
@@ -230,6 +291,51 @@ func newLockHostCallContext(pluginID string, lockNames ...string) *hostCallConte
 			},
 			Resources: resources,
 		}},
+	}
+}
+
+// newTenantLockHostCallContext builds a host call context with a tenant identity.
+func newTenantLockHostCallContext(pluginID string, tenantID int32, lockNames ...string) *hostCallContext {
+	hcc := newLockHostCallContext(pluginID, lockNames...)
+	hcc.identity = &pluginbridge.IdentitySnapshotV1{TenantId: tenantID, UserID: 1, Username: "admin"}
+	return hcc
+}
+
+// acquireLockTicket acquires one lock and returns the issued ticket.
+func acquireLockTicket(t *testing.T, hcc *hostCallContext, lockName string) string {
+	t.Helper()
+	response := invokeLockHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodLockAcquire,
+		lockName,
+		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+	)
+	if response.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("acquire coordination lock expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	payload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(response.Payload)
+	if err != nil {
+		t.Fatalf("decode acquire payload: %v", err)
+	}
+	if !payload.Acquired || strings.TrimSpace(payload.Ticket) == "" {
+		t.Fatalf("expected acquired lock ticket, got %#v", payload)
+	}
+	return payload.Ticket
+}
+
+// releaseLockTicket releases one lock ticket through the host service.
+func releaseLockTicket(t *testing.T, hcc *hostCallContext, lockName string, ticket string) {
+	t.Helper()
+	response := invokeLockHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodLockRelease,
+		lockName,
+		pluginbridge.MarshalHostServiceLockReleaseRequest(&pluginbridge.HostServiceLockReleaseRequest{Ticket: ticket}),
+	)
+	if response.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("release coordination lock expected success, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
 }
 

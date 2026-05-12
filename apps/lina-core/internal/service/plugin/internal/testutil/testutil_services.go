@@ -4,6 +4,7 @@ package testutil
 
 import (
 	"context"
+	"time"
 
 	"lina-core/internal/service/bizctx"
 	configsvc "lina-core/internal/service/config"
@@ -106,6 +107,11 @@ type jwtConfigAdapter struct {
 // GetJwtSecret returns the configured JWT signing secret for test wiring.
 func (a *jwtConfigAdapter) GetJwtSecret(ctx context.Context) string {
 	return a.svc.GetJwtSecret(ctx)
+}
+
+// GetSessionTimeout returns the runtime-effective session timeout for test wiring.
+func (a *jwtConfigAdapter) GetSessionTimeout(ctx context.Context) (time.Duration, error) {
+	return a.svc.GetSessionTimeout(ctx)
 }
 
 // uploadSizeAdapter exposes upload-size config through the runtime test seam.

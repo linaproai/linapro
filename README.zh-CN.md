@@ -150,6 +150,8 @@ graph TB
 - 支持单机或分布式集群两种部署模式，水平扩展无需改造业务代码
 - 底层内置支持分布式锁与键值缓存机制，核心组件支持集群自动感知
 - 定时任务调度子系统具备分布式感知能力，集群环境下自动避免重复执行
+- 单机模式不需要`Redis`；当`cluster.enabled=true`时，宿主启动前必须配置`cluster.coordination: redis`和可连通的`cluster.redis`端点。当前协调后端仅支持`Redis`，配置形态为后续扩展其他后端预留。
+- 可选`Redis`集成测试默认不启用。如需运行依赖真实`Redis`的测试，请设置`LINA_TEST_REDIS_ADDR`，例如`LINA_TEST_REDIS_ADDR=127.0.0.1:6379`。
 
 ## 多租户基础能力
 

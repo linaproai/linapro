@@ -225,7 +225,7 @@ cluster:
     address: "127.0.0.1:6379"
 `)
 
-	defer assertConfigPanicContains(t, "cluster.coordination is required")
+	defer assertConfigPanicContains(t, "field=cluster.coordination")
 	New().GetCluster(context.Background())
 }
 
@@ -240,7 +240,7 @@ cluster:
     address: "127.0.0.1:6379"
 `)
 
-	defer assertConfigPanicContains(t, "only redis is supported")
+	defer assertConfigPanicContains(t, "fix=set cluster.coordination=redis")
 	New().GetCluster(context.Background())
 }
 
@@ -253,7 +253,7 @@ cluster:
   coordination: redis
 `)
 
-	defer assertConfigPanicContains(t, "cluster.redis.address is required")
+	defer assertConfigPanicContains(t, "field=cluster.redis.address")
 	New().GetCluster(context.Background())
 }
 

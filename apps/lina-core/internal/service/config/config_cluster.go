@@ -122,12 +122,30 @@ func mustValidateClusterConfig(cfg *ClusterConfig) {
 		return
 	}
 	if cfg.Coordination == "" {
-		panic(gerror.New("cluster.coordination is required when cluster.enabled=true; set cluster.coordination=redis"))
+		panic(clusterStartupDiagnosticError(
+			"cluster.coordination",
+			"required when cluster.enabled=true",
+			"set cluster.coordination=redis",
+		))
 	}
 	if cfg.Coordination != ClusterCoordinationRedis {
-		panic(gerror.Newf("cluster.coordination=%s is unsupported; only redis is supported", cfg.Coordination))
+		panic(clusterStartupDiagnosticError(
+			"cluster.coordination",
+			"unsupported value "+cfg.Coordination,
+			"set cluster.coordination=redis",
+		))
 	}
 	if strings.TrimSpace(cfg.Redis.Address) == "" {
-		panic(gerror.New("cluster.redis.address is required when cluster.coordination=redis"))
+		panic(clusterStartupDiagnosticError(
+			"cluster.redis.address",
+			"required when cluster.coordination=redis",
+			"set cluster.redis.address to the Redis host:port endpoint",
+		))
 	}
+}
+
+// clusterStartupDiagnosticError formats static cluster configuration failures
+// so startup logs identify the broken field and a concrete remediation.
+func clusterStartupDiagnosticError(field string, reason string, fix string) error {
+	return gerror.Newf("cluster startup diagnostic field=%s reason=%s fix=%s", field, reason, fix)
 }

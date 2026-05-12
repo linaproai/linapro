@@ -13,6 +13,16 @@ import (
 // lockHostService is the shared governed lock backend used by wasm host calls.
 var lockHostService = hostlock.New()
 
+// ConfigureLockHostService replaces the governed lock backend used by wasm
+// host calls. Passing nil restores the process default hostlock service.
+func ConfigureLockHostService(service hostlock.Service) {
+	if service == nil {
+		lockHostService = hostlock.New()
+		return
+	}
+	lockHostService = service
+}
+
 // dispatchLockHostService routes lock host service methods to the governed lock backend.
 func dispatchLockHostService(
 	ctx context.Context,
@@ -27,6 +37,11 @@ func dispatchLockHostService(
 	if resourceRef == "" {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "lock host service requires one authorized logical lock name")
 	}
+	tenantID := int32(0)
+	if hcc.identity != nil {
+		tenantID = hcc.identity.TenantId
+	}
+	normalizedTenantID := hostlock.TenantIDFromIdentity(tenantID)
 
 	switch method {
 	case bridgehostservice.HostServiceMethodLockAcquire:
@@ -36,6 +51,7 @@ func dispatchLockHostService(
 		}
 		output, callErr := lockHostService.Acquire(ctx, hostlock.AcquireInput{
 			PluginID:    hcc.pluginID,
+			TenantID:    normalizedTenantID,
 			ResourceRef: resourceRef,
 			LeaseMillis: request.LeaseMillis,
 			RequestID:   hcc.requestID,
@@ -53,7 +69,7 @@ func dispatchLockHostService(
 		if err != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
-		expireAt, callErr := lockHostService.Renew(ctx, hcc.pluginID, resourceRef, request.Ticket)
+		expireAt, callErr := lockHostService.Renew(ctx, hcc.pluginID, normalizedTenantID, resourceRef, request.Ticket)
 		if callErr != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
@@ -67,7 +83,7 @@ func dispatchLockHostService(
 		if err != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, err.Error())
 		}
-		if callErr := lockHostService.Release(ctx, hcc.pluginID, resourceRef, request.Ticket); callErr != nil {
+		if callErr := lockHostService.Release(ctx, hcc.pluginID, normalizedTenantID, resourceRef, request.Ticket); callErr != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
 		return bridgehostcall.NewHostCallEmptySuccessResponse()

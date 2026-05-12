@@ -88,21 +88,21 @@ type DomainSpec struct {
 
 // SnapshotItem exposes one cache domain and scope coordination status.
 type SnapshotItem struct {
-	Domain           Domain           // Domain is the cache domain identifier.
-	Scope            Scope            // Scope is the explicit invalidation scope.
-	AuthoritySource  string           // AuthoritySource is the canonical data source.
-	ConsistencyModel ConsistencyModel // ConsistencyModel is the declared consistency model.
-	MaxStale         time.Duration    // MaxStale is the configured stale window.
-	FailureStrategy  FailureStrategy  // FailureStrategy is the configured degradation behavior.
-	LocalRevision    int64            // LocalRevision is the latest revision consumed locally.
-	SharedRevision   int64            // SharedRevision is the latest shared revision when cluster mode is enabled.
-	LastSyncedAt     time.Time        // LastSyncedAt records the latest successful local sync.
+	Domain                 Domain                   // Domain is the cache domain identifier.
+	Scope                  Scope                    // Scope is the explicit invalidation scope.
+	AuthoritySource        string                   // AuthoritySource is the canonical data source.
+	ConsistencyModel       ConsistencyModel         // ConsistencyModel is the declared consistency model.
+	MaxStale               time.Duration            // MaxStale is the configured stale window.
+	FailureStrategy        FailureStrategy          // FailureStrategy is the configured degradation behavior.
+	LocalRevision          int64                    // LocalRevision is the latest revision consumed locally.
+	SharedRevision         int64                    // SharedRevision is the latest shared revision when cluster mode is enabled.
+	LastSyncedAt           time.Time                // LastSyncedAt records the latest successful local sync.
 	Backend                coordination.BackendName // Backend is the active coordination backend for this snapshot.
-	CoordinationHealthy   bool      // CoordinationHealthy reports the backend health snapshot when clustered coordination is active.
-	EventSubscriberRunning bool      // EventSubscriberRunning reports whether the backend event consumer is active.
-	LastEventReceivedAt    time.Time // LastEventReceivedAt records the latest consumed backend event time.
-	RecentError      string           // RecentError records the latest coordination failure.
-	StaleSeconds     int64            // StaleSeconds reports seconds elapsed since LastSyncedAt.
+	CoordinationHealthy    bool                     // CoordinationHealthy reports the backend health snapshot when clustered coordination is active.
+	EventSubscriberRunning bool                     // EventSubscriberRunning reports whether the backend event consumer is active.
+	LastEventReceivedAt    time.Time                // LastEventReceivedAt records the latest consumed backend event time.
+	RecentError            string                   // RecentError records the latest coordination failure.
+	StaleSeconds           int64                    // StaleSeconds reports seconds elapsed since LastSyncedAt.
 }
 
 // InvalidationScope declares the tenant range for one cache invalidation.

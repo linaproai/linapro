@@ -4,6 +4,7 @@ package hostlock
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 
 	"lina-core/internal/service/locker"
 	"lina-core/pkg/bizerr"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // Lock normalization constants shared by acquire, renew, and release paths.
@@ -27,9 +29,9 @@ type Service interface {
 	// Acquire attempts to acquire one plugin-scoped distributed lock.
 	Acquire(ctx context.Context, in AcquireInput) (*AcquireOutput, error)
 	// Renew extends one held lock using the issued lock ticket.
-	Renew(ctx context.Context, pluginID string, resourceRef string, ticket string) (*gtime.Time, error)
+	Renew(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) (*gtime.Time, error)
 	// Release releases one held lock using the issued lock ticket.
-	Release(ctx context.Context, pluginID string, resourceRef string, ticket string) error
+	Release(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) error
 }
 
 // Ensure serviceImpl implements Service.
@@ -44,6 +46,8 @@ type serviceImpl struct {
 type AcquireInput struct {
 	// PluginID is the current calling plugin identifier.
 	PluginID string
+	// TenantID is the current tenant boundary for tenant-scoped plugin locks.
+	TenantID int64
 	// ResourceRef is the logical lock name declared in hostServices.
 	ResourceRef string
 	// LeaseMillis is the requested lease duration in milliseconds.
@@ -71,7 +75,7 @@ func New() Service {
 
 // Acquire attempts to acquire one plugin-scoped distributed lock.
 func (s *serviceImpl) Acquire(ctx context.Context, in AcquireInput) (*AcquireOutput, error) {
-	actualLockName, err := buildActualLockName(in.PluginID, in.ResourceRef)
+	actualLockName, err := buildActualLockName(in.PluginID, in.TenantID, in.ResourceRef)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +96,8 @@ func (s *serviceImpl) Acquire(ctx context.Context, in AcquireInput) (*AcquireOut
 
 	ticket, err := encodeLockTicket(lockTicketClaims{
 		LockID:      instance.ID(),
+		LockName:    actualLockName,
+		TenantID:    in.TenantID,
 		PluginID:    strings.TrimSpace(in.PluginID),
 		ResourceRef: strings.TrimSpace(in.ResourceRef),
 		Holder:      instance.Holder(),
@@ -109,8 +115,8 @@ func (s *serviceImpl) Acquire(ctx context.Context, in AcquireInput) (*AcquireOut
 }
 
 // Renew extends one held lock using the issued lock ticket.
-func (s *serviceImpl) Renew(ctx context.Context, pluginID string, resourceRef string, ticket string) (*gtime.Time, error) {
-	claims, err := decodeAndValidateTicket(ticket, pluginID, resourceRef)
+func (s *serviceImpl) Renew(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) (*gtime.Time, error) {
+	claims, err := decodeAndValidateTicket(ticket, pluginID, tenantID, resourceRef)
 	if err != nil {
 		return nil, err
 	}
@@ -119,24 +125,32 @@ func (s *serviceImpl) Renew(ctx context.Context, pluginID string, resourceRef st
 	if err != nil {
 		return nil, err
 	}
-	if err = s.lockerSvc.Renew(ctx, claims.LockID, claims.Holder, lease); err != nil {
+	if strings.TrimSpace(claims.LockName) != "" {
+		err = s.lockerSvc.RenewByName(ctx, claims.LockName, claims.Holder, lease)
+	} else {
+		err = s.lockerSvc.Renew(ctx, claims.LockID, claims.Holder, lease)
+	}
+	if err != nil {
 		return nil, err
 	}
 	return gtime.Now().Add(lease), nil
 }
 
 // Release releases one held lock using the issued lock ticket.
-func (s *serviceImpl) Release(ctx context.Context, pluginID string, resourceRef string, ticket string) error {
-	claims, err := decodeAndValidateTicket(ticket, pluginID, resourceRef)
+func (s *serviceImpl) Release(ctx context.Context, pluginID string, tenantID int64, resourceRef string, ticket string) error {
+	claims, err := decodeAndValidateTicket(ticket, pluginID, tenantID, resourceRef)
 	if err != nil {
 		return err
+	}
+	if strings.TrimSpace(claims.LockName) != "" {
+		return s.lockerSvc.UnlockByName(ctx, claims.LockName, claims.Holder)
 	}
 	return s.lockerSvc.Unlock(ctx, claims.LockID, claims.Holder)
 }
 
-// buildActualLockName combines the plugin identity and logical resource name
+// buildActualLockName combines the plugin, tenant, and logical resource name
 // into one bounded lock key accepted by the underlying locker service.
-func buildActualLockName(pluginID string, resourceRef string) (string, error) {
+func buildActualLockName(pluginID string, tenantID int64, resourceRef string) (string, error) {
 	normalizedPluginID := strings.TrimSpace(pluginID)
 	normalizedResourceRef := strings.TrimSpace(resourceRef)
 	if normalizedPluginID == "" {
@@ -146,11 +160,20 @@ func buildActualLockName(pluginID string, resourceRef string) (string, error) {
 		return "", bizerr.NewCode(CodeHostLockResourceRequired)
 	}
 
-	actualLockName := "plugin:" + normalizedPluginID + ":" + normalizedResourceRef
+	actualLockName := "plugin:" + normalizedPluginID + ":tenant=" + strconv.FormatInt(tenantID, 10) + ":" + normalizedResourceRef
 	if len([]byte(actualLockName)) > maxLockBytes {
 		return "", bizerr.NewCode(CodeHostLockNameTooLong, bizerr.P("maxBytes", maxLockBytes))
 	}
 	return actualLockName, nil
+}
+
+// TenantIDFromIdentity normalizes a plugin identity tenant into the hostlock
+// lock-name discriminator. Platform and anonymous executions use tenant 0.
+func TenantIDFromIdentity(tenantID int32) int64 {
+	if tenantID <= 0 {
+		return int64(pkgtenantcap.PLATFORM)
+	}
+	return int64(tenantID)
 }
 
 // normalizeLease converts the request lease in milliseconds into a validated

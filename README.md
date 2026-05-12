@@ -150,6 +150,8 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 - Supports both single-node and distributed cluster deployments — horizontal scaling requires zero changes to business code
 - Built-in distributed locking and key-value caching, with core components that are natively cluster-aware
 - The job scheduling subsystem is distribution-aware, automatically preventing duplicate execution across cluster nodes
+- Single-node mode does not require `Redis`; when `cluster.enabled=true`, the host requires `cluster.coordination: redis` and a reachable `cluster.redis` endpoint before it starts. The current coordination backend is `Redis`, with the configuration shape intentionally kept open for future backends.
+- Optional Redis integration tests are disabled by default. Set `LINA_TEST_REDIS_ADDR`, for example `LINA_TEST_REDIS_ADDR=127.0.0.1:6379`, to enable tests that require a real Redis instance.
 
 ## Multi-Tenant Foundation
 

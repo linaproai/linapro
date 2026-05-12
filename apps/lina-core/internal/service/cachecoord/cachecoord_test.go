@@ -360,3 +360,46 @@ func TestSnapshotIncludesProcessStatusFromOtherInstances(t *testing.T) {
 	}
 	t.Fatalf("expected snapshot item for scope %q, got %#v", scope, items)
 }
+
+// TestSnapshotIncludesCoordinationHealth verifies clustered cache diagnostics
+// expose the active coordination backend and event subscription status.
+func TestSnapshotIncludesCoordinationHealth(t *testing.T) {
+	ctx := context.Background()
+	scope := Scope("unit-test-coordination-health")
+	coordSvc := coordination.NewMemory(nil)
+	service := NewWithCoordination(NewStaticTopology(true), coordSvc)
+
+	subscription, err := coordSvc.Events().Subscribe(ctx, func(context.Context, coordination.Event) error {
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("subscribe coordination events: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := subscription.Close(ctx); err != nil {
+			t.Fatalf("close coordination subscription: %v", err)
+		}
+	})
+
+	if _, err := service.MarkChanged(ctx, testRuntimeConfigDomain, scope, ChangeReason("diagnostic_health")); err != nil {
+		t.Fatalf("publish revision failed: %v", err)
+	}
+
+	items, err := service.Snapshot(ctx)
+	if err != nil {
+		t.Fatalf("snapshot failed: %v", err)
+	}
+	for _, item := range items {
+		if item.Domain != testRuntimeConfigDomain || item.Scope != scope {
+			continue
+		}
+		if item.Backend != coordination.BackendMemory {
+			t.Fatalf("expected memory backend in snapshot, got %#v", item)
+		}
+		if !item.CoordinationHealthy || !item.EventSubscriberRunning {
+			t.Fatalf("expected healthy event subscriber diagnostics, got %#v", item)
+		}
+		return
+	}
+	t.Fatalf("expected snapshot item for scope %q, got %#v", scope, items)
+}

@@ -6,6 +6,10 @@ package sysinfo
 
 import (
 	"lina-core/api/sysinfo"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/cluster"
+	"lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 	i18nsvc "lina-core/internal/service/i18n"
 	sysinfosvc "lina-core/internal/service/sysinfo"
 )
@@ -16,10 +20,16 @@ type ControllerV1 struct {
 	i18nSvc    i18nsvc.Translator // i18nSvc localizes project and component descriptions.
 }
 
-// NewV1 creates and returns a new system info controller instance.
-func NewV1() sysinfo.ISysinfoV1 {
+// NewV1 creates a controller wired to runtime-owned diagnostic
+// services so /system/info reports the active HTTP process topology.
+func NewV1(
+	configSvc config.Service,
+	clusterSvc cluster.Service,
+	coordinationSvc coordination.Service,
+	cacheCoordSvc cachecoord.Service,
+) sysinfo.ISysinfoV1 {
 	return &ControllerV1{
-		sysInfoSvc: sysinfosvc.New(),
+		sysInfoSvc: sysinfosvc.NewWithDiagnostics(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc),
 		i18nSvc:    i18nsvc.New(),
 	}
 }

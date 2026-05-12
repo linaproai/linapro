@@ -8,6 +8,7 @@ import (
 	"lina-core/internal/service/kvcache"
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
+	pkgtenantcap "lina-core/pkg/tenantcap"
 )
 
 // cacheHostService is the shared governed cache backend used by wasm host calls.
@@ -37,6 +38,9 @@ func dispatchCacheHostService(
 	if namespace == "" {
 		return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusCapabilityDenied, "cache host service requires one authorized namespace")
 	}
+	cacheKey := func(logicalKey string) string {
+		return buildPluginCacheKey(hcc, namespace, logicalKey)
+	}
 
 	switch method {
 	case bridgehostservice.HostServiceMethodCacheGet:
@@ -47,7 +51,7 @@ func dispatchCacheHostService(
 		item, found, callErr := cacheHostService.Get(
 			ctx,
 			kvcache.OwnerTypePlugin,
-			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			cacheKey(request.Key),
 		)
 		if callErr != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
@@ -65,7 +69,7 @@ func dispatchCacheHostService(
 		item, callErr := cacheHostService.Set(
 			ctx,
 			kvcache.OwnerTypePlugin,
-			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			cacheKey(request.Key),
 			request.Value,
 			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
@@ -83,7 +87,7 @@ func dispatchCacheHostService(
 		if callErr := cacheHostService.Delete(
 			ctx,
 			kvcache.OwnerTypePlugin,
-			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			cacheKey(request.Key),
 		); callErr != nil {
 			return bridgehostcall.NewHostCallErrorResponse(bridgehostcall.HostCallStatusInvalidRequest, callErr.Error())
 		}
@@ -96,7 +100,7 @@ func dispatchCacheHostService(
 		item, callErr := cacheHostService.Incr(
 			ctx,
 			kvcache.OwnerTypePlugin,
-			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			cacheKey(request.Key),
 			request.Delta,
 			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
@@ -114,7 +118,7 @@ func dispatchCacheHostService(
 		found, expireAt, callErr := cacheHostService.Expire(
 			ctx,
 			kvcache.OwnerTypePlugin,
-			kvcache.BuildCacheKey(hcc.pluginID, namespace, request.Key),
+			cacheKey(request.Key),
 			kvcache.TTLFromSeconds(request.ExpireSeconds),
 		)
 		if callErr != nil {
@@ -131,6 +135,21 @@ func dispatchCacheHostService(
 			"unsupported cache host service method: "+method,
 		)
 	}
+}
+
+// buildPluginCacheKey maps a plugin-local cache key into the host kvcache
+// identity while preserving the current tenant boundary when one exists.
+func buildPluginCacheKey(hcc *hostCallContext, namespace string, logicalKey string) string {
+	if hcc != nil && hcc.identity != nil && hcc.identity.TenantId > 0 {
+		return kvcache.BuildTenantCacheKey(
+			pkgtenantcap.TenantID(hcc.identity.TenantId),
+			"plugin-cache",
+			hcc.pluginID,
+			namespace,
+			logicalKey,
+		)
+	}
+	return kvcache.BuildCacheKey(hcc.pluginID, namespace, logicalKey)
 }
 
 // buildCacheValueResponse maps one cache item into the protobuf response model.

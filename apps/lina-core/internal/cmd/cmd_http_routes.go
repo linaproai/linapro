@@ -24,6 +24,7 @@ import (
 	"lina-core/internal/controller/sysinfo"
 	"lina-core/internal/controller/user"
 	"lina-core/internal/controller/usermsg"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/middleware"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/logger"
@@ -34,19 +35,31 @@ import (
 func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRuntime) {
 	var (
 		authCtrl       = auth.NewV1()
+		configCtrl     = configctrl.NewV1()
+		dictCtrl       = dict.NewV1()
+		fileCtrl       = filectrl.NewV1()
 		healthCtrl     = healthctrl.NewV1(runtime.configSvc, runtime.clusterSvc)
 		i18nCtrl       = i18nctrl.NewV1()
 		pluginCtrl     = pluginctrl.NewV1(runtime.clusterSvc)
 		publicCfgCtrl  = publicconfigctrl.NewV1()
+		menuCtrl       = menu.NewV1()
+		roleCtrl       = role.NewV1()
+		userCtrl       = user.NewV1()
+		userMsgCtrl    = usermsg.NewV1()
 		jobCtrl        = jobctrl.NewV1(runtime.jobMgmtSvc)
 		jobGroupCtrl   = jobgroupctrl.NewV1(runtime.jobMgmtSvc)
 		jobLogCtrl     = joblogctrl.NewV1(runtime.jobMgmtSvc)
 		jobHandlerCtrl = jobhandlerctrl.NewV1(runtime.jobRegistry)
 		middlewareSvc  = runtime.middlewareSvc
+		sysInfoCtrl    = sysinfo.NewV1(
+			runtime.configSvc,
+			runtime.clusterSvc,
+			runtime.coordinationSvc,
+			cachecoord.Default(runtime.clusterSvc),
+		)
 	)
 
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
-		fileCtrl := filectrl.NewV1()
 		group.Middleware(
 			ghttp.MiddlewareNeverDoneCtx,
 			middlewareSvc.Response,
@@ -73,12 +86,12 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			i18nCtrl.ExportMessages,
 			i18nCtrl.MissingMessages,
 			i18nCtrl.DiagnoseMessages,
-			user.NewV1(),
-			dict.NewV1(),
-			menu.NewV1(),
-			role.NewV1(),
-			usermsg.NewV1(),
-			sysinfo.NewV1(),
+			userCtrl,
+			dictCtrl,
+			menuCtrl,
+			roleCtrl,
+			userMsgCtrl,
+			sysInfoCtrl,
 			fileCtrl.Delete,
 			fileCtrl.Detail,
 			fileCtrl.Download,
@@ -87,7 +100,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			fileCtrl.FileSuffixes,
 			fileCtrl.Upload,
 			fileCtrl.UsageScenes,
-			configctrl.NewV1(),
+			configCtrl,
 			jobCtrl,
 			jobGroupCtrl,
 			jobLogCtrl,

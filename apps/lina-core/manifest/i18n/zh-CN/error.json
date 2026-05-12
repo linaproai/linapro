@@ -11,7 +11,10 @@
         "hashFailed": "密码加密失败"
       },
       "token": {
-        "invalid": "无效的Token"
+        "invalid": "无效的Token",
+        "state": {
+          "unavailable": "认证Token状态暂时不可用"
+        }
       }
     },
     "cache": {
@@ -1008,6 +1011,9 @@
           "plugin": {
             "mismatch": "锁票据插件身份不匹配"
           },
+          "tenant": {
+            "mismatch": "锁票据租户身份不匹配"
+          },
           "resource": {
             "mismatch": "锁票据逻辑锁名不匹配"
           }
@@ -1150,6 +1156,11 @@
         "authenticated": "请先登录"
       },
       "unsupported": "不支持的数据权限范围：{scope}"
+    },
+    "session": {
+      "state": {
+        "unavailable": "在线会话状态暂时不可用"
+      }
     }
   },
   "validation": {

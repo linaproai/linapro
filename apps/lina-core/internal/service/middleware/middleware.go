@@ -172,6 +172,9 @@ func (s *serviceImpl) Auth(r *ghttp.Request) {
 	)
 	if err != nil || !exists {
 		s.roleSvc.InvalidateTokenAccessContext(r.Context(), claims.TokenId)
+		if err != nil {
+			r.SetError(err)
+		}
 		r.Response.WriteStatus(http.StatusUnauthorized)
 		return
 	}

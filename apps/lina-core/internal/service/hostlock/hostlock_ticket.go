@@ -14,6 +14,8 @@ import (
 // one acquired plugin lock safely.
 type lockTicketClaims struct {
 	LockID      int64  `json:"lockId"`
+	LockName    string `json:"lockName,omitempty"`
+	TenantID    int64  `json:"tenantId,omitempty"`
 	PluginID    string `json:"pluginId"`
 	ResourceRef string `json:"resourceRef"`
 	Holder      string `json:"holder"`
@@ -31,7 +33,7 @@ func encodeLockTicket(claims lockTicketClaims) (string, error) {
 
 // decodeAndValidateTicket decodes one opaque lock ticket and verifies it
 // matches the expected plugin and logical resource.
-func decodeAndValidateTicket(ticket string, pluginID string, resourceRef string) (*lockTicketClaims, error) {
+func decodeAndValidateTicket(ticket string, pluginID string, tenantID int64, resourceRef string) (*lockTicketClaims, error) {
 	normalizedTicket := strings.TrimSpace(ticket)
 	if normalizedTicket == "" {
 		return nil, bizerr.NewCode(CodeHostLockTicketRequired)
@@ -51,6 +53,9 @@ func decodeAndValidateTicket(ticket string, pluginID string, resourceRef string)
 	}
 	if strings.TrimSpace(claims.PluginID) != strings.TrimSpace(pluginID) {
 		return nil, bizerr.NewCode(CodeHostLockTicketPluginMismatch)
+	}
+	if claims.TenantID != tenantID {
+		return nil, bizerr.NewCode(CodeHostLockTicketTenantMismatch)
 	}
 	if strings.TrimSpace(claims.ResourceRef) != strings.TrimSpace(resourceRef) {
 		return nil, bizerr.NewCode(CodeHostLockTicketResourceMismatch)

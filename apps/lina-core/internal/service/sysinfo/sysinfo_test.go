@@ -17,6 +17,9 @@ import (
 	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/cluster"
+	"lina-core/internal/service/config"
+	"lina-core/internal/service/coordination"
 )
 
 const (
@@ -34,6 +37,70 @@ const (
 type fakeCacheCoordService struct {
 	items []cachecoord.SnapshotItem
 	err   error
+}
+
+// fakeCoordinationService provides deterministic coordination health snapshots
+// for sysinfo diagnostics.
+type fakeCoordinationService struct {
+	snapshot coordination.HealthSnapshot
+}
+
+// BackendName returns the configured backend name.
+func (f *fakeCoordinationService) BackendName() coordination.BackendName {
+	return f.snapshot.Backend
+}
+
+// KeyBuilder returns a default key builder for interface completeness.
+func (f *fakeCoordinationService) KeyBuilder() *coordination.KeyBuilder {
+	return coordination.DefaultKeyBuilder()
+}
+
+// Lock is unused by sysinfo diagnostics.
+func (f *fakeCoordinationService) Lock() coordination.LockStore {
+	return nil
+}
+
+// KV is unused by sysinfo diagnostics.
+func (f *fakeCoordinationService) KV() coordination.KVStore {
+	return nil
+}
+
+// Revision is unused by sysinfo diagnostics.
+func (f *fakeCoordinationService) Revision() coordination.RevisionStore {
+	return nil
+}
+
+// Events is unused by sysinfo diagnostics.
+func (f *fakeCoordinationService) Events() coordination.EventBus {
+	return nil
+}
+
+// Health returns the deterministic health checker.
+func (f *fakeCoordinationService) Health() coordination.HealthChecker {
+	return fakeCoordinationHealth{snapshot: f.snapshot}
+}
+
+// Close is a no-op for the fake service.
+func (f *fakeCoordinationService) Close(context.Context) error {
+	return nil
+}
+
+// fakeCoordinationHealth returns deterministic health snapshots.
+type fakeCoordinationHealth struct {
+	snapshot coordination.HealthSnapshot
+}
+
+// Ping returns nil only when the snapshot is healthy.
+func (f fakeCoordinationHealth) Ping(context.Context) error {
+	if f.snapshot.Healthy {
+		return nil
+	}
+	return errors.New("coordination backend error")
+}
+
+// Snapshot returns the deterministic health snapshot.
+func (f fakeCoordinationHealth) Snapshot(context.Context) coordination.HealthSnapshot {
+	return f.snapshot
 }
 
 // ConfigureDomain is unused by sysinfo diagnostics.
@@ -93,21 +160,26 @@ func (f *fakeCacheCoordService) Snapshot(_ context.Context) ([]cachecoord.Snapsh
 // exposed by sysinfo without changing their semantic fields.
 func TestLoadCacheCoordinationMapsSnapshot(t *testing.T) {
 	syncedAt := time.Date(2025, 1, 1, 8, 0, 0, 0, time.UTC)
+	eventAt := syncedAt.Add(time.Second)
 	service := &serviceImpl{
 		cacheCoordSvc: &fakeCacheCoordService{
 			items: []cachecoord.SnapshotItem{
 				{
-					Domain:           testRuntimeConfigDomain,
-					Scope:            cachecoord.ScopeGlobal,
-					AuthoritySource:  "sys_config protected runtime parameters",
-					ConsistencyModel: cachecoord.ConsistencySharedRevision,
-					MaxStale:         10 * time.Second,
-					FailureStrategy:  cachecoord.FailureStrategyReturnVisibleError,
-					LocalRevision:    3,
-					SharedRevision:   4,
-					LastSyncedAt:     syncedAt,
-					RecentError:      "previous read failed",
-					StaleSeconds:     2,
+					Domain:                 testRuntimeConfigDomain,
+					Scope:                  cachecoord.ScopeGlobal,
+					AuthoritySource:        "sys_config protected runtime parameters",
+					ConsistencyModel:       cachecoord.ConsistencySharedRevision,
+					MaxStale:               10 * time.Second,
+					FailureStrategy:        cachecoord.FailureStrategyReturnVisibleError,
+					Backend:                coordination.BackendRedis,
+					CoordinationHealthy:    true,
+					LocalRevision:          3,
+					SharedRevision:         4,
+					LastSyncedAt:           syncedAt,
+					EventSubscriberRunning: true,
+					LastEventReceivedAt:    eventAt,
+					RecentError:            "previous read failed",
+					StaleSeconds:           2,
 				},
 			},
 		},
@@ -122,13 +194,97 @@ func TestLoadCacheCoordinationMapsSnapshot(t *testing.T) {
 		item.Scope != string(cachecoord.ScopeGlobal) ||
 		item.ConsistencyModel != string(cachecoord.ConsistencySharedRevision) ||
 		item.FailureStrategy != string(cachecoord.FailureStrategyReturnVisibleError) ||
+		item.Backend != coordination.BackendRedis ||
+		!item.Healthy ||
 		item.MaxStale != 10*time.Second ||
 		item.LocalRevision != 3 ||
 		item.SharedRevision != 4 ||
 		!item.LastSyncedAt.Equal(syncedAt) ||
+		!item.EventSubscriber ||
+		!item.LastEventAt.Equal(eventAt) ||
 		item.RecentError != "previous read failed" ||
 		item.StaleSeconds != 2 {
 		t.Fatalf("unexpected cache coordination diagnostic row: %#v", item)
+	}
+}
+
+// TestLoadCoordinationUsesRuntimeServices verifies sysinfo reports the active
+// runtime cluster topology and coordination backend health.
+func TestLoadCoordinationUsesRuntimeServices(t *testing.T) {
+	coordSvc := coordination.NewMemory(nil)
+	service := &serviceImpl{
+		configSvc:       config.New(),
+		clusterSvc:      cluster.NewWithCoordination(&config.ClusterConfig{Enabled: true}, coordSvc),
+		coordinationSvc: coordSvc,
+	}
+
+	info := service.loadCoordination(context.Background())
+	if !info.ClusterEnabled ||
+		info.Backend != coordination.BackendMemory ||
+		info.NodeID == "" ||
+		info.Primary ||
+		info.LastSuccessAt.IsZero() ||
+		info.LastError != "" {
+		t.Fatalf("unexpected coordination diagnostics: %#v", info)
+	}
+}
+
+// TestLoadCoordinationReportsRedisHealth verifies Redis backend health is
+// exposed without leaking raw connection details.
+func TestLoadCoordinationReportsRedisHealth(t *testing.T) {
+	ctx := context.Background()
+	successAt := time.Date(2025, 1, 1, 8, 0, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name          string
+		healthy       bool
+		lastError     string
+		expectedError string
+	}{
+		{name: "healthy", healthy: true},
+		{
+			name:          "unhealthy sanitized",
+			healthy:       false,
+			lastError:     "redis://:secret@127.0.0.1:6379 token linapro:default:default:auth:revoke:x",
+			expectedError: "coordination backend error",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			service := &serviceImpl{
+				configSvc:  config.New(),
+				clusterSvc: cluster.NewWithCoordination(&config.ClusterConfig{Enabled: true}, nil),
+				coordinationSvc: &fakeCoordinationService{
+					snapshot: coordination.HealthSnapshot{
+						Backend:       coordination.BackendRedis,
+						Healthy:       testCase.healthy,
+						LastSuccessAt: successAt,
+						LastError:     testCase.lastError,
+					},
+				},
+			}
+
+			info := service.loadCoordination(ctx)
+			if info.Backend != coordination.BackendRedis ||
+				info.RedisHealthy != testCase.healthy ||
+				!info.LastSuccessAt.Equal(successAt) ||
+				info.LastError != testCase.expectedError {
+				t.Fatalf("unexpected redis coordination diagnostics: %#v", info)
+			}
+		})
+	}
+}
+
+// TestLoadCoordinationSanitizesErrors verifies diagnostics avoid leaking
+// connection strings, credentials, token keys, or full Redis keys.
+func TestLoadCoordinationSanitizesErrors(t *testing.T) {
+	if got := sanitizeCoordinationError("redis://:secret@127.0.0.1:6379 token linapro:default:default:auth:revoke:x"); got != "coordination backend error" {
+		t.Fatalf("expected sensitive error to be sanitized, got %q", got)
+	}
+	if got := sanitizeCoordinationError("dial tcp 127.0.0.1:6379: connect: connection refused"); got != "redis coordination connection failed" {
+		t.Fatalf("expected connection error category, got %q", got)
 	}
 }
 

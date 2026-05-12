@@ -4,6 +4,10 @@ package sysinfo
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +23,60 @@ import (
 // response mapping tests.
 type fakeSysInfoService struct {
 	info *sysinfosvc.SystemInfo
+}
+
+// TestSysinfoAPIDocI18nContainsCoordinationFields verifies newly exposed
+// diagnostics have dedicated apidoc i18n entries.
+func TestSysinfoAPIDocI18nContainsCoordinationFields(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatalf("resolve lina-core root: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(root, "manifest", "i18n", "zh-CN", "apidoc", "core-api-sysinfo.json"))
+	if err != nil {
+		t.Fatalf("read sysinfo apidoc i18n: %v", err)
+	}
+	var catalog map[string]any
+	if err = json.Unmarshal(content, &catalog); err != nil {
+		t.Fatalf("parse sysinfo apidoc i18n: %v", err)
+	}
+
+	requiredPaths := []string{
+		"core.api.sysinfo.v1.CoordinationInfo.fields.clusterEnabled.dc",
+		"core.api.sysinfo.v1.CoordinationInfo.fields.backend.dc",
+		"core.api.sysinfo.v1.CoordinationInfo.fields.redisHealthy.dc",
+		"core.api.sysinfo.v1.CoordinationInfo.fields.nodeId.dc",
+		"core.api.sysinfo.v1.CoordinationInfo.fields.primary.dc",
+		"core.api.sysinfo.v1.CoordinationInfo.fields.lastSuccessAt.dc",
+		"core.api.sysinfo.v1.CoordinationInfo.fields.lastError.dc",
+		"core.api.sysinfo.v1.CacheCoordinationInfo.fields.backend.dc",
+		"core.api.sysinfo.v1.CacheCoordinationInfo.fields.healthy.dc",
+		"core.api.sysinfo.v1.CacheCoordinationInfo.fields.eventSubscriber.dc",
+		"core.api.sysinfo.v1.CacheCoordinationInfo.fields.lastEventAt.dc",
+		"core.api.sysinfo.v1.GetInfoRes.fields.coordination.dc",
+	}
+	for _, path := range requiredPaths {
+		if value := lookupNestedString(catalog, path); value == "" {
+			t.Fatalf("expected apidoc i18n value at %s", path)
+		}
+	}
+}
+
+// lookupNestedString returns a dotted-path string from a JSON object.
+func lookupNestedString(root map[string]any, path string) string {
+	var current any = root
+	for _, part := range strings.Split(path, ".") {
+		asMap, ok := current.(map[string]any)
+		if !ok {
+			return ""
+		}
+		current = asMap[part]
+	}
+	value, ok := current.(string)
+	if !ok {
+		return ""
+	}
+	return value
 }
 
 // GetInfo returns the configured system-info payload.
@@ -71,6 +129,15 @@ func TestGetInfoMapsCacheCoordinationDiagnostics(t *testing.T) {
 		sysInfoSvc: &fakeSysInfoService{
 			info: &sysinfosvc.SystemInfo{
 				Framework: sysinfosvc.FrameworkInfo{Name: "LinaPro"},
+				Coordination: sysinfosvc.CoordinationInfo{
+					ClusterEnabled: true,
+					Backend:        "redis",
+					RedisHealthy:   true,
+					NodeID:         "node-a",
+					Primary:        true,
+					LastSuccessAt:  syncedAt,
+					LastError:      "",
+				},
 				CacheCoordination: []sysinfosvc.CacheCoordinationInfo{
 					{
 						Domain:           "runtime-config",
@@ -79,9 +146,13 @@ func TestGetInfoMapsCacheCoordinationDiagnostics(t *testing.T) {
 						ConsistencyModel: "shared-revision",
 						MaxStale:         10 * time.Second,
 						FailureStrategy:  "return-visible-error",
+						Backend:          "redis",
+						Healthy:          true,
 						LocalRevision:    3,
 						SharedRevision:   4,
 						LastSyncedAt:     syncedAt,
+						EventSubscriber:  true,
+						LastEventAt:      syncedAt.Add(time.Second),
 						RecentError:      "previous read failed",
 						StaleSeconds:     2,
 					},
@@ -97,13 +168,26 @@ func TestGetInfoMapsCacheCoordinationDiagnostics(t *testing.T) {
 	if len(res.CacheCoordination) != 1 {
 		t.Fatalf("expected one cache coordination row, got %d", len(res.CacheCoordination))
 	}
+	if !res.Coordination.ClusterEnabled ||
+		res.Coordination.Backend != "redis" ||
+		!res.Coordination.RedisHealthy ||
+		res.Coordination.NodeId != "node-a" ||
+		!res.Coordination.Primary ||
+		res.Coordination.LastSuccessAt != "2025-01-01 08:00:00" ||
+		res.Coordination.LastError != "" {
+		t.Fatalf("unexpected coordination diagnostics: %#v", res.Coordination)
+	}
 	item := res.CacheCoordination[0]
 	if item.Domain != "runtime-config" ||
 		item.Scope != "global" ||
 		item.MaxStaleSeconds != 10 ||
+		item.Backend != "redis" ||
+		!item.Healthy ||
 		item.LocalRevision != 3 ||
 		item.SharedRevision != 4 ||
 		item.LastSyncedAt != "2025-01-01 08:00:00" ||
+		!item.EventSubscriber ||
+		item.LastEventAt != "2025-01-01 08:00:01" ||
 		item.RecentError != "previous read failed" ||
 		item.StaleSeconds != 2 {
 		t.Fatalf("unexpected cache coordination response row: %#v", item)

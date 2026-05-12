@@ -3,6 +3,7 @@ package session
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -11,6 +12,7 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/datascope"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
@@ -18,6 +20,12 @@ import (
 // sessionLastActiveUpdateWindow is the minimum interval between two
 // last_active_time writes for one valid session.
 const sessionLastActiveUpdateWindow time.Duration = time.Minute
+
+const (
+	sessionHotStateComponent = "session-hot-state"
+	sessionHotStateSchema    = 1
+	sessionUserIndexSchema   = 1
+)
 
 // Session represents an online user session.
 type Session struct {
@@ -82,13 +90,89 @@ type Store interface {
 // DBStore implements Store using the persistent online-session table.
 type DBStore struct{}
 
+// SessionConfigurableStore extends Store with runtime session-timeout
+// propagation for hot-state implementations.
+type SessionConfigurableStore interface {
+	Store
+	// SetDefaultTTL updates the hot-state TTL used for login-time writes.
+	SetDefaultTTL(ttl time.Duration)
+}
+
+// processCoordinationSessionStore stores the deployment-selected coordination
+// backend used by session stores created after HTTP startup configuration.
+var processCoordinationSessionStore = struct {
+	sync.RWMutex
+	service coordination.Service
+}{}
+
 // NewDBStore creates a new DBStore instance.
 func NewDBStore() Store {
-	return &DBStore{}
+	dbStore := &DBStore{}
+	if coordinationSvc := currentCoordinationService(); coordinationSvc != nil {
+		return NewCoordinationStore(coordinationSvc, dbStore)
+	}
+	return dbStore
+}
+
+// ConfigureCoordination switches new session stores to a coordination-backed
+// hot-state implementation. Passing nil restores the DB-only implementation
+// used by single-node deployments and tests.
+func ConfigureCoordination(coordinationSvc coordination.Service) {
+	processCoordinationSessionStore.Lock()
+	processCoordinationSessionStore.service = coordinationSvc
+	processCoordinationSessionStore.Unlock()
+}
+
+// currentCoordinationService returns the process-selected coordination service.
+func currentCoordinationService() coordination.Service {
+	processCoordinationSessionStore.RLock()
+	coordinationSvc := processCoordinationSessionStore.service
+	processCoordinationSessionStore.RUnlock()
+	return coordinationSvc
 }
 
 // Set persists a session record.
 func (s *DBStore) Set(ctx context.Context, session *Session) error {
+	_, err := dao.SysOnlineSession.Ctx(ctx).
+		Data(do.SysOnlineSession{
+			TokenId:        session.TokenId,
+			TenantId:       session.TenantId,
+			UserId:         session.UserId,
+			Username:       session.Username,
+			DeptName:       session.DeptName,
+			Ip:             session.Ip,
+			Browser:        session.Browser,
+			Os:             session.Os,
+			LoginTime:      session.LoginTime,
+			LastActiveTime: normalizeSessionLastActive(session),
+		}).
+		OnConflict(dao.SysOnlineSession.Columns().TokenId).
+		OnDuplicate(
+			dao.SysOnlineSession.Columns().TenantId,
+			dao.SysOnlineSession.Columns().UserId,
+			dao.SysOnlineSession.Columns().Username,
+			dao.SysOnlineSession.Columns().DeptName,
+			dao.SysOnlineSession.Columns().Ip,
+			dao.SysOnlineSession.Columns().Browser,
+			dao.SysOnlineSession.Columns().Os,
+			dao.SysOnlineSession.Columns().LoginTime,
+			dao.SysOnlineSession.Columns().LastActiveTime,
+		).
+		Save()
+	return err
+}
+
+// normalizeSessionLastActive returns the caller-provided activity time or the
+// current time for newly created online-session projections.
+func normalizeSessionLastActive(session *Session) *gtime.Time {
+	if session != nil && session.LastActiveTime != nil {
+		return session.LastActiveTime
+	}
+	return gtime.Now()
+}
+
+// setProjection persists or refreshes a session projection in PostgreSQL.
+func (s *DBStore) setProjection(ctx context.Context, session *Session) error {
 	_, err := dao.SysOnlineSession.Ctx(ctx).Data(do.SysOnlineSession{
 		TokenId:        session.TokenId,
 		TenantId:       session.TenantId,
@@ -99,7 +183,7 @@ func (s *DBStore) Set(ctx context.Context, session *Session) error {
 		Browser:        session.Browser,
 		Os:             session.Os,
 		LoginTime:      session.LoginTime,
-		LastActiveTime: gtime.Now(),
+		LastActiveTime: normalizeSessionLastActive(session),
 	}).Insert()
 	return err
 }

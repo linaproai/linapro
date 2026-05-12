@@ -11,6 +11,7 @@ import (
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/kvcache"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
@@ -199,6 +200,31 @@ func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) 
 	}
 }
 
+// TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation verifies
+// the host cache service can run on coordination KV and keeps tenant keys apart.
+func TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation(t *testing.T) {
+	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+	ConfigureCacheHostService(cacheSvc)
+	t.Cleanup(func() {
+		ConfigureCacheHostService(nil)
+	})
+
+	if cacheSvc.BackendName() != kvcache.BackendCoordinationKV {
+		t.Fatalf("expected coordination KV backend, got %q", cacheSvc.BackendName())
+	}
+
+	pluginID := "test-plugin-cache-tenant"
+	namespace := "orders-cache"
+	tenantOne := newTenantCacheHostCallContext(pluginID, namespace, 11)
+	tenantTwo := newTenantCacheHostCallContext(pluginID, namespace, 22)
+
+	setTenantCacheValue(t, tenantOne, namespace, "profile", "tenant-one")
+	setTenantCacheValue(t, tenantTwo, namespace, "profile", "tenant-two")
+
+	assertTenantCacheValue(t, tenantOne, namespace, "profile", "tenant-one")
+	assertTenantCacheValue(t, tenantTwo, namespace, "profile", "tenant-two")
+}
+
 // ensurePluginKVCacheTable creates the plugin cache table needed by cache host call tests.
 func ensurePluginKVCacheTable(t *testing.T, ctx context.Context) {
 	t.Helper()
@@ -241,6 +267,53 @@ func newCacheHostCallContext(pluginID string, namespace string) *hostCallContext
 				{Ref: namespace},
 			},
 		}},
+	}
+}
+
+// newTenantCacheHostCallContext builds a cache host call context with a tenant identity.
+func newTenantCacheHostCallContext(pluginID string, namespace string, tenantID int32) *hostCallContext {
+	hcc := newCacheHostCallContext(pluginID, namespace)
+	hcc.identity = &pluginbridge.IdentitySnapshotV1{TenantId: tenantID, UserID: 1, Username: "admin"}
+	return hcc
+}
+
+// setTenantCacheValue writes one cache value through the host service dispatcher.
+func setTenantCacheValue(t *testing.T, hcc *hostCallContext, namespace string, key string, value string) {
+	t.Helper()
+	response := invokeCacheHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodCacheSet,
+		namespace,
+		pluginbridge.MarshalHostServiceCacheSetRequest(&pluginbridge.HostServiceCacheSetRequest{
+			Key:   key,
+			Value: value,
+		}),
+	)
+	if response.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("set cache value: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+}
+
+// assertTenantCacheValue verifies one cache value through the host service dispatcher.
+func assertTenantCacheValue(t *testing.T, hcc *hostCallContext, namespace string, key string, expected string) {
+	t.Helper()
+	response := invokeCacheHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodCacheGet,
+		namespace,
+		pluginbridge.MarshalHostServiceCacheGetRequest(&pluginbridge.HostServiceCacheGetRequest{Key: key}),
+	)
+	if response.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("get cache value: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	payload, err := pluginbridge.UnmarshalHostServiceCacheGetResponse(response.Payload)
+	if err != nil {
+		t.Fatalf("decode cache get payload failed: %v", err)
+	}
+	if !payload.Found || payload.Value == nil || payload.Value.Value != expected {
+		t.Fatalf("expected cache value %q, got %#v", expected, payload)
 	}
 }
 

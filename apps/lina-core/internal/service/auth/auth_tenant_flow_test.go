@@ -252,7 +252,9 @@ func TestLoginSelectTenantSwitchTenantLogoutFlow(t *testing.T) {
 		t.Fatalf("expected switched tenant session, active=%v err=%v", active, err)
 	}
 
-	svc.Logout(ctx, username, switchedClaims.TenantId, switchedClaims.TokenId)
+	if err = svc.Logout(ctx, username, switchedClaims.TenantId, switchedClaims.TokenId); err != nil {
+		t.Fatalf("logout switched tenant token: %v", err)
+	}
 	if active, err := svc.sessionStore.TouchOrValidate(ctx, 22, switchedClaims.TokenId, time.Hour); err != nil || active {
 		t.Fatalf("expected switched tenant session removed after logout, active=%v err=%v", active, err)
 	}
@@ -504,17 +506,134 @@ func TestRevokeSharedStoreInvalidatesAcrossInstances(t *testing.T) {
 	}
 }
 
+// TestParseTokenRevokeReadFailureFailClosed verifies a valid JWT is rejected
+// when the shared token-state store cannot confirm whether it has been revoked.
+func TestParseTokenRevokeReadFailureFailClosed(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	token, _, err := svc.generateToken(ctx, user, 11)
+	if err != nil {
+		t.Fatalf("generate token: %v", err)
+	}
+
+	svc.revoked = &failingRevokeStore{revokedErr: errors.New("simulated redis revoke read failure")}
+	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected revoke read failure to fail closed, got %v", err)
+	}
+}
+
 // TestLogoutRevokesCurrentToken verifies logout removes the supplied token from
-// the session store contract.
+// the session store contract and writes shared JWT revocation state.
 func TestLogoutRevokesCurrentToken(t *testing.T) {
 	ctx := context.Background()
 	store := newMemorySessionStore()
+	sharedCache := newSharedMemoryKVCache()
 	svc := newTenantAuthTestService()
 	svc.sessionStore = store
+	svc.revoked = newKVRevokeStore(sharedCache)
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	token, tokenID, err := svc.generateToken(ctx, user, 22)
+	if err != nil {
+		t.Fatalf("generate logout token: %v", err)
+	}
+	if err = store.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set logout session: %v", err)
+	}
 
-	svc.Logout(ctx, "tenant-user", 22, "token-22")
-	if store.deletedTokenID != "token-22" {
+	if err = svc.Logout(ctx, "tenant-user", 22, tokenID); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+	if store.deletedTokenID != tokenID {
 		t.Fatalf("expected token revoke, got token=%q", store.deletedTokenID)
+	}
+	if _, ok, err := sharedCache.Get(ctx, kvcache.OwnerTypeModule, revokeCacheKey(tokenID)); err != nil || !ok {
+		t.Fatalf("expected logout shared revoke state, ok=%v err=%v", ok, err)
+	}
+	if _, err = svc.ParseToken(ctx, token); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected logged-out token to be rejected, got %v", err)
+	}
+}
+
+// TestRevokeSessionWritesSharedRevoke verifies force-logout style token-ID
+// revocation publishes shared revoke state before removing the session row.
+func TestRevokeSessionWritesSharedRevoke(t *testing.T) {
+	ctx := context.Background()
+	store := newMemorySessionStore()
+	sharedCache := newSharedMemoryKVCache()
+	svc := newTenantAuthTestService()
+	svc.sessionStore = store
+	svc.revoked = newKVRevokeStore(sharedCache)
+
+	if err := store.Set(ctx, &session.Session{TokenId: "force-token", TenantId: 22, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set force logout session: %v", err)
+	}
+	if err := svc.RevokeSession(ctx, "force-token"); err != nil {
+		t.Fatalf("revoke session: %v", err)
+	}
+	if store.deletedTokenID != "force-token" {
+		t.Fatalf("expected force logout token delete, got token=%q", store.deletedTokenID)
+	}
+	if _, ok, err := sharedCache.Get(ctx, kvcache.OwnerTypeModule, revokeCacheKey("force-token")); err != nil || !ok {
+		t.Fatalf("expected force logout shared revoke state, ok=%v err=%v", ok, err)
+	}
+}
+
+// TestLogoutRevokeWriteFailureReturnsStructuredError verifies logout does not
+// hide shared token-state write failures.
+func TestLogoutRevokeWriteFailureReturnsStructuredError(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	store := newMemorySessionStore()
+	svc.sessionStore = store
+	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated logout revoke write failure")}
+
+	if err := svc.Logout(ctx, "tenant-user", 22, "logout-failure-token"); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected logout revoke write failure to be structured, got %v", err)
+	}
+	if store.deletedTokenID != "" {
+		t.Fatalf("expected logout revoke failure to preserve session projection, deleted token=%q", store.deletedTokenID)
+	}
+}
+
+// TestRevokeSessionWriteFailureReturnsStructuredError verifies force-logout
+// style revocation reports shared token-state write failures.
+func TestRevokeSessionWriteFailureReturnsStructuredError(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	store := newMemorySessionStore()
+	svc.sessionStore = store
+	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated force logout revoke write failure")}
+
+	if err := svc.RevokeSession(ctx, "force-failure-token"); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected force logout revoke write failure to be structured, got %v", err)
+	}
+	if store.deletedTokenID != "" {
+		t.Fatalf("expected force logout revoke failure to preserve session projection, deleted token=%q", store.deletedTokenID)
+	}
+}
+
+// TestSwitchTenantRevokeWriteFailureReturnsStructuredError verifies old-token
+// revocation write failures abort tenant switching with a stable auth error.
+func TestSwitchTenantRevokeWriteFailureReturnsStructuredError(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	user := &entity.SysUser{Id: 101, Username: "tenant-user", Status: 1}
+	oldToken, oldTokenID, err := svc.generateToken(ctx, user, 11)
+	if err != nil {
+		t.Fatalf("generate old token: %v", err)
+	}
+	oldClaims, err := svc.ParseToken(ctx, oldToken)
+	if err != nil {
+		t.Fatalf("parse old token: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: oldTokenID, TenantId: 11, UserId: 101, Username: "tenant-user"}); err != nil {
+		t.Fatalf("set old session: %v", err)
+	}
+
+	svc.revoked = &failingRevokeStore{addErr: errors.New("simulated redis revoke write failure")}
+	if _, err = svc.ReissueTenantToken(ctx, TenantTokenReissueInput{CurrentClaims: oldClaims, TenantID: 22}); !bizerr.Is(err, CodeAuthTokenStateUnavailable) {
+		t.Fatalf("expected switch tenant revoke write failure to be structured, got %v", err)
 	}
 }
 
@@ -777,6 +896,22 @@ type sharedMemoryKVCache struct {
 	mu      sync.Mutex
 	items   map[string]*kvcache.Item
 	expires map[string]time.Time
+}
+
+// failingRevokeStore simulates Redis token-state failures in auth tests.
+type failingRevokeStore struct {
+	addErr     error
+	revokedErr error
+}
+
+// Add returns the configured write error.
+func (s *failingRevokeStore) Add(context.Context, string, time.Time) error {
+	return s.addErr
+}
+
+// Revoked returns the configured read error.
+func (s *failingRevokeStore) Revoked(context.Context, string) (bool, error) {
+	return false, s.revokedErr
 }
 
 // newSharedMemoryKVCache creates an empty shared kvcache test double.

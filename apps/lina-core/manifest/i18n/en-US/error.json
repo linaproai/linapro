@@ -11,7 +11,10 @@
         "hashFailed": "Failed to hash password"
       },
       "token": {
-        "invalid": "Invalid token"
+        "invalid": "Invalid token",
+        "state": {
+          "unavailable": "Authentication token state is temporarily unavailable"
+        }
       }
     },
     "cache": {
@@ -1008,6 +1011,9 @@
           "plugin": {
             "mismatch": "Lock ticket plugin identity does not match"
           },
+          "tenant": {
+            "mismatch": "Lock ticket tenant identity does not match"
+          },
           "resource": {
             "mismatch": "Lock ticket logical resource does not match"
           }
@@ -1150,6 +1156,11 @@
         "authenticated": "Not signed in"
       },
       "unsupported": "Unsupported data permission scope: {scope}"
+    },
+    "session": {
+      "state": {
+        "unavailable": "Online-session state is temporarily unavailable"
+      }
     }
   },
   "validation": {

@@ -260,6 +260,7 @@ func (s *serviceImpl) Snapshot(ctx context.Context) ([]SnapshotItem, error) {
 	}
 	processCoordinationStatuses.RUnlock()
 
+	healthSnapshot := s.coordinationHealthSnapshot(ctx)
 	items := make([]SnapshotItem, 0, len(keys))
 	for _, key := range keys {
 		sharedRevision := int64(0)
@@ -274,7 +275,7 @@ func (s *serviceImpl) Snapshot(ctx context.Context) ([]SnapshotItem, error) {
 		} else {
 			sharedRevision = currentLocalRevision(key)
 		}
-		items = append(items, s.snapshotItem(key, sharedRevision))
+		items = append(items, s.snapshotItem(key, sharedRevision, healthSnapshot))
 	}
 	return items, nil
 }
@@ -487,7 +488,11 @@ func (s *serviceImpl) storeObservedRevision(key revisionKey, revision int64) {
 }
 
 // snapshotItem builds one detached observable snapshot row.
-func (s *serviceImpl) snapshotItem(key revisionKey, sharedRevision int64) SnapshotItem {
+func (s *serviceImpl) snapshotItem(
+	key revisionKey,
+	sharedRevision int64,
+	healthSnapshot coordination.HealthSnapshot,
+) SnapshotItem {
 	s.mu.RLock()
 	status := s.status[key]
 	var localStatus coordinationStatus
@@ -523,18 +528,35 @@ func (s *serviceImpl) snapshotItem(key revisionKey, sharedRevision int64) Snapsh
 		localStatus.localRevision = sharedRevision
 	}
 	return SnapshotItem{
-		Domain:           key.domain,
-		Scope:            key.scope,
-		AuthoritySource:  spec.AuthoritySource,
-		ConsistencyModel: spec.ConsistencyModel,
-		MaxStale:         spec.MaxStale,
-		FailureStrategy:  spec.FailureStrategy,
-		LocalRevision:    localStatus.localRevision,
-		SharedRevision:   maxInt64(sharedRevision, localStatus.sharedRevision),
-		LastSyncedAt:     localStatus.lastSyncedAt,
-		RecentError:      localStatus.recentError,
-		StaleSeconds:     staleSeconds,
+		Domain:                 key.domain,
+		Scope:                  key.scope,
+		AuthoritySource:        spec.AuthoritySource,
+		ConsistencyModel:       spec.ConsistencyModel,
+		MaxStale:               spec.MaxStale,
+		FailureStrategy:        spec.FailureStrategy,
+		LocalRevision:          localStatus.localRevision,
+		SharedRevision:         maxInt64(sharedRevision, localStatus.sharedRevision),
+		LastSyncedAt:           localStatus.lastSyncedAt,
+		Backend:                healthSnapshot.Backend,
+		CoordinationHealthy:    healthSnapshot.Healthy,
+		EventSubscriberRunning: healthSnapshot.SubscriberRunning,
+		LastEventReceivedAt:    healthSnapshot.LastEventReceivedAt,
+		RecentError:            localStatus.recentError,
+		StaleSeconds:           staleSeconds,
 	}
+}
+
+// coordinationHealthSnapshot returns active backend diagnostics when clustered
+// cache coordination is using a shared coordination service.
+func (s *serviceImpl) coordinationHealthSnapshot(ctx context.Context) coordination.HealthSnapshot {
+	if !s.clusterEnabled() {
+		return coordination.HealthSnapshot{}
+	}
+	coordinationSvc := s.coordinationSnapshot()
+	if coordinationSvc == nil || coordinationSvc.Health() == nil {
+		return coordination.HealthSnapshot{}
+	}
+	return coordinationSvc.Health().Snapshot(ctx)
 }
 
 // domainSpec returns the configured domain contract or the default contract for

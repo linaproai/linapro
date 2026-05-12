@@ -19,9 +19,11 @@ import (
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/locker"
 	"lina-core/internal/service/middleware"
 	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/session"
 	"lina-core/internal/service/startupstats"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
@@ -125,8 +127,12 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	if clusterCfg != nil && clusterCfg.Enabled {
 		cachecoord.DefaultWithCoordination(clusterSvc, coordinationSvc)
 		configureDistributedKVCache(coordinationSvc)
+		locker.ConfigureCoordination(coordinationSvc)
+		session.ConfigureCoordination(coordinationSvc)
 	} else {
 		configureLocalKVCache()
+		locker.ConfigureCoordination(nil)
+		session.ConfigureCoordination(nil)
 	}
 
 	var (

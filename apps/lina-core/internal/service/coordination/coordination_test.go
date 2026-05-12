@@ -5,6 +5,7 @@ package coordination
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -150,5 +151,98 @@ func TestMemoryEventBusPublishesToSubscribers(t *testing.T) {
 	}
 	if err = subscription.Close(ctx); err != nil {
 		t.Fatalf("close subscription: %v", err)
+	}
+}
+
+// TestRedisProviderReportsUnavailableWhenEndpointCloses verifies startup
+// probing returns a structured Redis-unavailable error for broken endpoints.
+func TestRedisProviderReportsUnavailableWhenEndpointCloses(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen on local tcp endpoint: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := listener.Close(); err != nil {
+			t.Fatalf("close local tcp listener: %v", err)
+		}
+	})
+
+	accepted := make(chan struct{})
+	go func() {
+		defer close(accepted)
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		if closeErr := conn.Close(); closeErr != nil {
+			t.Errorf("close accepted tcp connection: %v", closeErr)
+		}
+	}()
+
+	_, err = NewRedis(context.Background(), RedisOptions{
+		Address:        listener.Addr().String(),
+		ConnectTimeout: 100 * time.Millisecond,
+		ReadTimeout:    100 * time.Millisecond,
+		WriteTimeout:   100 * time.Millisecond,
+		KeyBuilder:     NewKeyBuilder("linapro-test", "redis-failure", "unit"),
+	})
+	if !bizerr.Is(err, CodeCoordinationRedisUnavailable) {
+		t.Fatalf("expected Redis unavailable error, got %v", err)
+	}
+
+	select {
+	case <-accepted:
+	case <-time.After(time.Second):
+		t.Fatal("expected local endpoint to accept Redis probe")
+	}
+}
+
+// TestRedisProviderReportsUnavailableWhenEndpointTimesOut verifies startup
+// probing respects configured timeouts for endpoints that accept but do not
+// speak the Redis protocol.
+func TestRedisProviderReportsUnavailableWhenEndpointTimesOut(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen on local tcp endpoint: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := listener.Close(); err != nil {
+			t.Fatalf("close local tcp listener: %v", err)
+		}
+	})
+
+	accepted := make(chan struct{})
+	release := make(chan struct{})
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			close(accepted)
+			return
+		}
+		close(accepted)
+		<-release
+		if closeErr := conn.Close(); closeErr != nil {
+			t.Errorf("close accepted tcp connection: %v", closeErr)
+		}
+	}()
+	t.Cleanup(func() {
+		close(release)
+	})
+
+	_, err = NewRedis(context.Background(), RedisOptions{
+		Address:        listener.Addr().String(),
+		ConnectTimeout: 100 * time.Millisecond,
+		ReadTimeout:    20 * time.Millisecond,
+		WriteTimeout:   20 * time.Millisecond,
+		KeyBuilder:     NewKeyBuilder("linapro-test", "redis-timeout", "unit"),
+	})
+	if !bizerr.Is(err, CodeCoordinationRedisUnavailable) {
+		t.Fatalf("expected Redis unavailable timeout error, got %v", err)
+	}
+
+	select {
+	case <-accepted:
+	case <-time.After(time.Second):
+		t.Fatal("expected local endpoint to accept Redis probe")
 	}
 }

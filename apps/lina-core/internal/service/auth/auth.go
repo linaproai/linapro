@@ -68,7 +68,7 @@ type Service interface {
 	// HashPassword hashes password using bcrypt.
 	HashPassword(password string) (string, error)
 	// Logout records logout login log and removes session.
-	Logout(ctx context.Context, username string, tenantId int, tokenId string)
+	Logout(ctx context.Context, username string, tenantId int, tokenId string) error
 	// RevokeSession removes one online session by token ID and its cached access context.
 	RevokeSession(ctx context.Context, tokenId string) error
 }
@@ -373,12 +373,11 @@ func (s *serviceImpl) ReissueTenantToken(ctx context.Context, in TenantTokenReis
 	if err := s.validateSwitchTenant(ctx, in.CurrentClaims.UserId, in.TenantID); err != nil {
 		return nil, err
 	}
+	expiresAt := time.Time{}
 	if in.CurrentClaims.ExpiresAt != nil {
-		if err := s.revoked.Add(ctx, in.CurrentClaims.TokenId, in.CurrentClaims.ExpiresAt.Time); err != nil {
-			return nil, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
-		}
+		expiresAt = in.CurrentClaims.ExpiresAt.Time
 	}
-	if err := s.RevokeSession(ctx, in.CurrentClaims.TokenId); err != nil {
+	if err := s.revokeSession(ctx, in.CurrentClaims.TokenId, expiresAt); err != nil {
 		return nil, err
 	}
 	user := &entity.SysUser{Id: in.CurrentClaims.UserId, Username: in.CurrentClaims.Username, Status: in.CurrentClaims.Status}
@@ -535,7 +534,7 @@ func (s *serviceImpl) HashPassword(password string) (string, error) {
 }
 
 // Logout records logout login log and removes session.
-func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int, tokenId string) {
+func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int, tokenId string) error {
 	var ip, browser, osName string
 	if r := g.RequestFromCtx(ctx); r != nil {
 		ip = r.GetClientIp()
@@ -548,6 +547,7 @@ func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int,
 	if tokenId != "" {
 		if err := s.RevokeSession(ctx, tokenId); err != nil {
 			logger.Warningf(ctx, "revoke session during logout failed tokenId=%s tenantId=%d err=%v", tokenId, tenantId, err)
+			return err
 		}
 	}
 	if s.pluginSvc != nil {
@@ -564,17 +564,60 @@ func (s *serviceImpl) Logout(ctx context.Context, username string, tenantId int,
 			logger.Warningf(ctx, "plugin logout succeeded hook failed: %v", err)
 		}
 	}
+	return nil
 }
 
 // RevokeSession removes one online session by token ID and its cached access context.
 func (s *serviceImpl) RevokeSession(ctx context.Context, tokenId string) error {
+	return s.revokeSession(ctx, tokenId, time.Time{})
+}
+
+// revokeSession marks a token ID as revoked and removes the online-session
+// projection. A zero expiration falls back to the longest host-issued token TTL
+// because force-logout callers only know the token ID, not the signed JWT.
+func (s *serviceImpl) revokeSession(ctx context.Context, tokenId string, expiresAt time.Time) error {
 	if tokenId == "" {
 		return nil
 	}
 	if s.roleSvc != nil {
 		s.roleSvc.InvalidateTokenAccessContext(ctx, tokenId)
 	}
+	if err := s.revokeTokenID(ctx, tokenId, expiresAt); err != nil {
+		return err
+	}
+	if s.sessionStore == nil {
+		return nil
+	}
 	return s.sessionStore.Delete(ctx, tokenId)
+}
+
+// revokeTokenID writes the shared JWT revoke marker used by all cluster nodes
+// before local session state is considered invalidated.
+func (s *serviceImpl) revokeTokenID(ctx context.Context, tokenID string, expiresAt time.Time) error {
+	if tokenID == "" || s == nil || s.revoked == nil {
+		return nil
+	}
+	if expiresAt.IsZero() {
+		var err error
+		expiresAt, err = s.fallbackRevocationExpiresAt(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if err := s.revoked.Add(ctx, tokenID, expiresAt); err != nil {
+		return bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+	}
+	return nil
+}
+
+// fallbackRevocationExpiresAt returns a conservative revoke expiration for
+// token-ID-only invalidation paths such as logout and monitor force-logout.
+func (s *serviceImpl) fallbackRevocationExpiresAt(ctx context.Context) (time.Time, error) {
+	ttl, err := s.tokenTTL(ctx, tokenKindRefresh)
+	if err != nil {
+		return time.Time{}, bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+	}
+	return time.Now().Add(ttl), nil
 }
 
 // generateToken generates JWT token for given user, returns token string and tokenId.
@@ -733,6 +776,13 @@ func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, t
 		osName = ua.OS()
 	}
 	deptName := s.getUserDeptName(ctx, user.Id)
+	if ttlSetter, ok := s.sessionStore.(interface{ SetDefaultTTL(time.Duration) }); ok {
+		timeout, err := s.configSvc.GetSessionTimeout(ctx)
+		if err != nil {
+			return err
+		}
+		ttlSetter.SetDefaultTTL(timeout)
+	}
 	if err := s.sessionStore.Set(ctx, &session.Session{
 		TokenId:   tokenID,
 		TenantId:  tenantID,

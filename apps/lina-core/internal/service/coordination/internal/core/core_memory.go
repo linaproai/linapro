@@ -84,6 +84,9 @@ func (m *memoryBackend) Acquire(
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return nil, false, gerror.New("coordination backend is closed")
+	}
 
 	now := time.Now()
 	if existing := m.locks[lockKey]; existing != nil && existing.expireAt.After(now) {
