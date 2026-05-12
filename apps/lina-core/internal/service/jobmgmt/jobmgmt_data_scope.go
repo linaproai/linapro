@@ -108,7 +108,7 @@ func (s *serviceImpl) ensureLogsVisible(ctx context.Context, ids []int64) error 
 func (s *serviceImpl) currentScopeSvc() datascope.Service {
 	return datascope.New(datascope.Dependencies{
 		BizCtxSvc: s.bizCtxSvc,
-		RoleSvc:   role.New(nil),
+		RoleSvc:   role.Instance(),
 		OrgCapSvc: s.orgCapSvc,
 	})
 }

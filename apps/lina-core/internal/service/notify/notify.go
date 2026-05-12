@@ -4,6 +4,7 @@ package notify
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/os/gtime"
 
@@ -38,6 +39,18 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct {
 	tenantSvc tenantcapsvc.Service
+}
+
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton notify service instance.
+// It initializes the instance exactly once, using the default tenant capability service.
+func Instance() Service {
+	once.Do(func() {
+		instance = &serviceImpl{tenantSvc: tenantcapsvc.Instance()}
+	})
+	return instance
 }
 
 // SendInput defines one unified notification send request.
@@ -133,6 +146,7 @@ type InboxListItem struct {
 }
 
 // New creates and returns a new notify service instance.
+// Deprecated: Use Instance() for singleton access.
 func New(tenantEnablementReaders ...tenantcapsvc.PluginEnablementReader) Service {
 	var tenantEnablementReader tenantcapsvc.PluginEnablementReader
 	if len(tenantEnablementReaders) > 0 {

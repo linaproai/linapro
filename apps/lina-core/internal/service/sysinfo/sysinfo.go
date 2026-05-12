@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2"
@@ -39,9 +40,29 @@ type serviceImpl struct {
 	cacheCoordSvc cachecoord.Service // cacheCoordSvc exposes process-wide cache coordination diagnostics.
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton sysinfo service instance.
+// It initializes the instance exactly once, using default dependencies.
+func Instance() Service {
+	once.Do(func() {
+		configSvc := config.Instance()
+		instance = &serviceImpl{
+			startTime: time.Now(),
+			configSvc: configSvc,
+			cacheCoordSvc: cachecoord.Default(
+				cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background())),
+			),
+		}
+	})
+	return instance
+}
+
 // New creates and returns a new Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
-	configSvc := config.New()
+	configSvc := config.Instance()
 	return &serviceImpl{
 		startTime: time.Now(),
 		configSvc: configSvc,

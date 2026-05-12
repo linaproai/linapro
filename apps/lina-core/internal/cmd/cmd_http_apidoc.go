@@ -38,8 +38,8 @@ func bindHostedOpenAPIDocs(
 		return
 	}
 
-	apiDocBizCtxSvc := bizctx.New()
-	apiDocI18nSvc := i18nsvc.New()
+	apiDocBizCtxSvc := bizctx.Instance()
+	apiDocI18nSvc := i18nsvc.Instance()
 	server.BindHandler(apiDocPath, func(r *ghttp.Request) {
 		apiDocBizCtxSvc.Init(r, &model.Context{})
 		locale := apiDocI18nSvc.ResolveRequestLocale(r)

@@ -20,7 +20,7 @@ import (
 func main() {
 	var (
 		ctx          = gctx.GetInitCtx()
-		configSvc    = config.New()
+		configSvc    = config.Instance()
 		loggerConfig = configSvc.GetLogger(ctx)
 	)
 	logger.Configure(logger.RuntimeConfig{

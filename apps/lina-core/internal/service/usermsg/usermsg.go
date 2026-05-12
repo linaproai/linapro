@@ -2,6 +2,7 @@ package usermsg
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/os/gtime"
 
@@ -10,6 +11,12 @@ import (
 	notifysvc "lina-core/internal/service/notify"
 	"lina-core/pkg/bizerr"
 )
+
+// usermsgI18nTranslator defines the i18n translation capability needed by the usermsg service.
+type usermsgI18nTranslator interface {
+	// Translate resolves one i18n message for the current request locale.
+	Translate(ctx context.Context, key string, defaultMessage string) string
+}
 
 // Stable i18n key convention used to localize inbox category labels and tag
 // colors. The host does not enumerate specific category codes here; senders
@@ -60,18 +67,29 @@ type serviceImpl struct {
 	i18nSvc   usermsgI18nTranslator // Host i18n service for category label/color localization
 }
 
-// usermsgI18nTranslator defines the narrow translation capability usermsg needs.
-type usermsgI18nTranslator interface {
-	// Translate returns one runtime translation key with caller-provided fallback text.
-	Translate(ctx context.Context, key string, fallback string) string
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton usermsg service instance.
+// It initializes the instance exactly once, using default dependencies.
+func Instance() Service {
+	once.Do(func() {
+		instance = &serviceImpl{
+			bizCtxSvc: bizctx.Instance(),
+			notifySvc: notifysvc.Instance(),
+			i18nSvc:   i18nsvc.Instance(),
+		}
+	})
+	return instance
 }
 
 // New creates and returns a new Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
 	return &serviceImpl{
-		bizCtxSvc: bizctx.New(),
-		notifySvc: notifysvc.New(),
-		i18nSvc:   i18nsvc.New(),
+		bizCtxSvc: bizctx.Instance(),
+		notifySvc: notifysvc.Instance(),
+		i18nSvc:   i18nsvc.Instance(),
 	}
 }
 

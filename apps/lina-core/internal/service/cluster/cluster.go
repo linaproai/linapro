@@ -4,6 +4,7 @@ package cluster
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"lina-core/internal/service/config"
@@ -42,7 +43,30 @@ type serviceImpl struct {
 	electionSvc *electionService      // electionSvc participates in primary election for clustered mode.
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton cluster service instance.
+// It initializes the instance exactly once, reading cluster config from the
+// config service.
+func Instance() Service {
+	once.Do(func() {
+		cfg := config.Instance().GetCluster(context.Background())
+		normalizedCfg := normalizeClusterConfig(cfg)
+		service := &serviceImpl{
+			cfg:    normalizedCfg,
+			nodeID: generateNodeIdentifier(),
+		}
+		if normalizedCfg.Enabled {
+			service.electionSvc = newElectionService(locker.New(), &normalizedCfg.Election, service.nodeID)
+		}
+		instance = service
+	})
+	return instance
+}
+
 // New creates and returns a new cluster Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New(cfg *config.ClusterConfig) Service {
 	normalizedCfg := normalizeClusterConfig(cfg)
 	service := &serviceImpl{

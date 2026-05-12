@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -173,7 +174,30 @@ func NewScheduler(
 	)
 }
 
+var (
+	instance *serviceImpl
+	once     sync.Once
+)
+
+// Instance returns the singleton instance of the service.
+func Instance() Service {
+	once.Do(func() {
+		instance = New(
+			configsvc.Instance(),
+			jobhandler.Instance(),
+			NewScheduler(
+				cluster.Instance(),
+				jobhandler.Instance(),
+				configsvc.Instance(),
+			),
+			orgcap.Instance(),
+		).(*serviceImpl)
+	})
+	return instance
+}
+
 // New creates and returns one scheduled-job management service.
+// Deprecated: Use Instance() for singleton access.
 func New(
 	configSvc configsvc.Service,
 	registry jobhandler.Registry,
@@ -181,15 +205,15 @@ func New(
 	orgCapSvcs ...orgcap.Service,
 ) Service {
 	if configSvc == nil {
-		configSvc = configsvc.New()
+		configSvc = configsvc.Instance()
 	}
-	orgCapSvc := orgcap.New(nil)
+	orgCapSvc := orgcap.Instance()
 	if len(orgCapSvcs) > 0 && orgCapSvcs[0] != nil {
 		orgCapSvc = orgCapSvcs[0]
 	}
-	i18nSvc := i18nsvc.New()
+	i18nSvc := i18nsvc.Instance()
 	svc := &serviceImpl{
-		bizCtxSvc: bizctx.New(),
+		bizCtxSvc: bizctx.Instance(),
 		configSvc: configSvc,
 		i18nSvc:   i18nSvc,
 		registry:  registry,
@@ -198,7 +222,7 @@ func New(
 	}
 	svc.scopeSvc = datascope.New(datascope.Dependencies{
 		BizCtxSvc: svc.bizCtxSvc,
-		RoleSvc:   role.New(nil),
+		RoleSvc:   role.Instance(),
 		OrgCapSvc: svc.orgCapSvc,
 	})
 	if registry != nil {

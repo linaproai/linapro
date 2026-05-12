@@ -1,8 +1,13 @@
 // Package session implements online-session storage and activity validation.
+//
+// Service Dependencies:
+//   - datascope.Service - applies data-scope filtering for session queries
+//   - tenantcap.Service - resolves tenant boundaries for session isolation
 package session
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gogf/gf/v2/database/gdb"
@@ -79,10 +84,23 @@ type Store interface {
 	CleanupInactive(ctx context.Context, timeout time.Duration) (int64, error)
 }
 
+var instance Store
+var once sync.Once
+
+// Instance returns the singleton session Store instance.
+// It is goroutine-safe and initializes the instance exactly once.
+func Instance() Store {
+	once.Do(func() {
+		instance = NewDBStore()
+	})
+	return instance
+}
+
 // DBStore implements Store using the persistent online-session table.
 type DBStore struct{}
 
 // NewDBStore creates a new DBStore instance.
+// Deprecated: Use Instance() for singleton access.
 func NewDBStore() Store {
 	return &DBStore{}
 }

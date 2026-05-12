@@ -4,6 +4,7 @@ package config
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -153,6 +154,18 @@ var _ Service = (*serviceImpl)(nil)
 type serviceImpl struct {
 	runtimeParamRevisionCtrl runtimeParamRevisionController
 	clusterOverride          *bool
+}
+
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton config service instance.
+// It is goroutine-safe and initializes the instance exactly once.
+func Instance() Service {
+	once.Do(func() {
+		instance = New()
+	})
+	return instance
 }
 
 // New creates one config service instance.

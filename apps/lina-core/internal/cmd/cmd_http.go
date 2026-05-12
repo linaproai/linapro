@@ -23,7 +23,7 @@ type HttpOutput struct{}
 // embedded frontend asset serving.
 func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err error) {
 	s := g.Server()
-	configSvc := config.New()
+	configSvc := config.Instance()
 	if err = configureHTTPServer(ctx, s, configSvc); err != nil {
 		return nil, err
 	}

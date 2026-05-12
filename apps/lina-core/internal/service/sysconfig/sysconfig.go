@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"sort"
+	"sync"
 
 	"github.com/xuri/excelize/v2"
 
@@ -52,11 +53,27 @@ type serviceImpl struct {
 	i18nSvc   sysconfigI18nTranslator
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton sysconfig service instance.
+// It initializes the instance exactly once, using default dependencies.
+func Instance() Service {
+	once.Do(func() {
+		instance = &serviceImpl{
+			configSvc: hostconfig.Instance(),
+			i18nSvc:   i18nsvc.Instance(),
+		}
+	})
+	return instance
+}
+
 // New creates and returns a new sysconfig Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
-	i18nSvc := i18nsvc.New()
+	i18nSvc := i18nsvc.Instance()
 	return &serviceImpl{
-		configSvc: hostconfig.New(),
+		configSvc: hostconfig.Instance(),
 		i18nSvc:   i18nSvc,
 	}
 }

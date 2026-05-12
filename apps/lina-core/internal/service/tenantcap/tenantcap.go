@@ -1,10 +1,14 @@
 // Package tenantcap implements the host-side multi-tenancy capability seam.
 // The host owns only no-op defaults and delegates tenant policy to the
 // registered multi-tenant plugin provider when it is enabled.
+//
+// Service Dependencies:
+//   - bizctx.Service - resolves current request context (tenant, user)
 package tenantcap
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/net/ghttp"
@@ -69,6 +73,19 @@ type serviceImpl struct {
 	bizCtxSvc        bizctx.Service
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton tenant capability service instance.
+// It initializes the instance exactly once, using the default noop reader
+// (multi-tenancy disabled).
+func Instance() Service {
+	once.Do(func() {
+		instance = New(nil)
+	})
+	return instance
+}
+
 // New creates and returns a new optional tenant capability service.
 func New(enablementReader PluginEnablementReader) Service {
 	if enablementReader == nil {
@@ -76,7 +93,7 @@ func New(enablementReader PluginEnablementReader) Service {
 	}
 	return &serviceImpl{
 		enablementReader: enablementReader,
-		bizCtxSvc:        bizctx.New(),
+		bizCtxSvc:        bizctx.Instance(),
 	}
 }
 

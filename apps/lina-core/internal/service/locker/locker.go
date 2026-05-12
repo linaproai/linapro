@@ -4,6 +4,7 @@ package locker
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"lina-core/internal/dao"
@@ -18,7 +19,7 @@ import (
 // Service defines the locker service contract.
 type Service interface {
 	// Lock acquires a distributed lock when it is absent or expired.
-	Lock(ctx context.Context, name, holder, reason string, lease time.Duration) (*Instance, bool, error)
+	Lock(ctx context.Context, name, holder, reason string, lease time.Duration) (*LockInstance, bool, error)
 	// LockFunc acquires a lock and executes the given function.
 	// The lock is automatically released after the function completes.
 	LockFunc(ctx context.Context, name, holder, reason string, lease time.Duration, f func() error) (bool, error)
@@ -34,13 +35,26 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct{}
 
+var instance Service
+var once sync.Once
+
+// LockInstance returns the singleton locker service instance.
+// It initializes the instance exactly once.
+func Instance() Service {
+	once.Do(func() {
+		instance = &serviceImpl{}
+	})
+	return instance
+}
+
 // New creates and returns a new locker Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
 	return &serviceImpl{}
 }
 
 // Lock acquires a distributed lock when it is absent or expired.
-func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lease time.Duration) (*Instance, bool, error) {
+func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lease time.Duration) (*LockInstance, bool, error) {
 	var locker *entity.SysLocker
 	err := dao.SysLocker.Ctx(ctx).Where(do.SysLocker{
 		Name: name,
@@ -74,7 +88,7 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 			return nil, false, nil
 		}
 		logger.Infof(ctx, "[locker] acquired lock '%s' (holder: %s)", name, holder)
-		return &Instance{id: insertId, holder: holder, lease: lease}, true, nil
+		return &LockInstance{id: insertId, holder: holder, lease: lease}, true, nil
 	}
 
 	// Lock exists and is held by current node, extend it without requiring
@@ -88,7 +102,7 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 		if err != nil {
 			return nil, false, err
 		}
-		return &Instance{id: int64(locker.Id), holder: holder, lease: lease}, true, nil
+		return &LockInstance{id: int64(locker.Id), holder: holder, lease: lease}, true, nil
 	}
 
 	// Lock exists but may be expired, try to take over atomically using the
@@ -109,7 +123,7 @@ func (s *serviceImpl) Lock(ctx context.Context, name, holder, reason string, lea
 			return nil, false, nil
 		}
 		logger.Infof(ctx, "[locker] acquired expired lock '%s' (holder: %s)", name, holder)
-		return &Instance{id: int64(locker.Id), holder: holder, lease: lease}, true, nil
+		return &LockInstance{id: int64(locker.Id), holder: holder, lease: lease}, true, nil
 	}
 }
 
@@ -145,7 +159,7 @@ func (s *serviceImpl) LockFunc(ctx context.Context, name, holder, reason string,
 
 // Unlock releases one distributed lock identified by lock ID and holder.
 func (s *serviceImpl) Unlock(ctx context.Context, lockID int64, holder string) error {
-	return (&Instance{
+	return (&LockInstance{
 		id:     lockID,
 		holder: holder,
 	}).Unlock(ctx)
@@ -153,7 +167,7 @@ func (s *serviceImpl) Unlock(ctx context.Context, lockID int64, holder string) e
 
 // Renew extends one distributed lock identified by lock ID and holder.
 func (s *serviceImpl) Renew(ctx context.Context, lockID int64, holder string, lease time.Duration) error {
-	return (&Instance{
+	return (&LockInstance{
 		id:     lockID,
 		holder: holder,
 		lease:  lease,

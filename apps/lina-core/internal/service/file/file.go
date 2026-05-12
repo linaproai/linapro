@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/gogf/gf/v2/database/gdb"
 	"github.com/gogf/gf/v2/frame/g"
@@ -84,11 +85,24 @@ type serviceImpl struct {
 	scopeSvc  datascope.Service
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton file service instance.
+// It initializes the instance exactly once, using default dependencies.
+func Instance() Service {
+	once.Do(func() {
+		instance = New()
+	})
+	return instance
+}
+
 // New creates and returns a new Service instance with local storage.
+// Deprecated: Use Instance() for singleton access.
 func New(orgCapSvcs ...orgcap.Service) Service {
 	var (
 		ctx         = context.Background()
-		configSvc   = config.New()
+		configSvc   = config.Instance()
 		storagePath = configSvc.GetUploadPath(ctx)
 	)
 	var orgCapSvc orgcap.Service
@@ -96,18 +110,18 @@ func New(orgCapSvcs ...orgcap.Service) Service {
 		orgCapSvc = orgCapSvcs[0]
 	}
 	if orgCapSvc == nil {
-		orgCapSvc = orgcap.New(nil)
+		orgCapSvc = orgcap.Instance()
 	}
 	svc := &serviceImpl{
 		configSvc: configSvc,
 		storage:   NewLocalStorage(storagePath),
-		bizCtxSvc: bizctx.New(),
-		dictSvc:   dictsvc.New(),
+		bizCtxSvc: bizctx.Instance(),
+		dictSvc:   dictsvc.Instance(),
 		orgCapSvc: orgCapSvc,
 	}
 	svc.scopeSvc = datascope.New(datascope.Dependencies{
 		BizCtxSvc: svc.bizCtxSvc,
-		RoleSvc:   role.New(nil),
+		RoleSvc:   role.Instance(),
 		OrgCapSvc: svc.orgCapSvc,
 	})
 	return svc

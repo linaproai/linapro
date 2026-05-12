@@ -16,7 +16,7 @@ type ControllerV1 struct {
 
 // NewV1 creates and returns a new runtime i18n controller.
 func NewV1() i18napi.II18NV1 {
-	i18nSvc := i18nsvc.New()
+	i18nSvc := i18nsvc.Instance()
 	return &ControllerV1{
 		localeResolver: i18nSvc,
 		bundleProvider: i18nSvc,

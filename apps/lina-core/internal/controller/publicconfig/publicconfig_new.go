@@ -17,7 +17,7 @@ type ControllerV1 struct {
 // NewV1 creates and returns a new public frontend-config controller.
 func NewV1() publicconfig.IPublicconfigV1 {
 	return &ControllerV1{
-		configSvc: hostconfig.New(),
-		i18nSvc:   i18nsvc.New(),
+		configSvc: hostconfig.Instance(),
+		i18nSvc:   i18nsvc.Instance(),
 	}
 }

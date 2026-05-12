@@ -12,7 +12,6 @@ import (
 	internalauth "lina-core/internal/service/auth"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/orgcap"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	internalsession "lina-core/internal/service/session"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
@@ -76,14 +75,12 @@ type serviceAdapter struct {
 
 // New creates and returns the published session service adapter.
 func New() Service {
-	pluginSvc := pluginsvc.Instance()
-	orgCapSvc := orgcap.New(pluginSvc)
-	authSvc := internalauth.New(orgCapSvc)
+	authSvc := internalauth.Instance()
 	return &serviceAdapter{
 		authSvc:      authSvc,
-		scopeSvc:     datascope.New(datascope.Dependencies{RoleSvc: role.New(pluginSvc), OrgCapSvc: orgCapSvc}),
+		scopeSvc:     datascope.New(datascope.Dependencies{RoleSvc: role.Instance(), OrgCapSvc: orgcap.Instance()}),
 		sessionStore: authSvc.SessionStore(),
-		tenantSvc:    tenantcapsvc.New(pluginSvc),
+		tenantSvc:    tenantcapsvc.Instance(),
 	}
 }
 
@@ -136,7 +133,7 @@ func (s *serviceAdapter) currentScopeSvc() datascope.Service {
 	if s.scopeSvc != nil {
 		return s.scopeSvc
 	}
-	return datascope.New(datascope.Dependencies{RoleSvc: role.New(nil)})
+	return datascope.New(datascope.Dependencies{RoleSvc: role.Instance()})
 }
 
 // currentTenantSvc returns the shared tenant capability service for plugin-facing session operations.
@@ -144,7 +141,7 @@ func (s *serviceAdapter) currentTenantSvc() tenantcapsvc.Service {
 	if s.tenantSvc != nil {
 		return s.tenantSvc
 	}
-	return tenantcapsvc.New(nil)
+	return tenantcapsvc.Instance()
 }
 
 // toInternalFilter converts the published filter contract into the host-internal

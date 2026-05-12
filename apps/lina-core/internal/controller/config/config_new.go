@@ -6,7 +6,7 @@ package config
 
 import (
 	"lina-core/api/config"
-	"lina-core/internal/service/sysconfig"
+	sysconfig "lina-core/internal/service/sysconfig"
 )
 
 // ControllerV1 implements the config API controller.
@@ -14,9 +14,9 @@ type ControllerV1 struct {
 	svc sysconfig.Service
 }
 
-// NewV1 creates and returns a new config controller.
+// NewV1 creates and returns the v1 sysconfig controller.
 func NewV1() config.IConfigV1 {
 	return &ControllerV1{
-		svc: sysconfig.New(),
+		svc: sysconfig.Instance(),
 	}
 }

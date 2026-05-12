@@ -1,5 +1,13 @@
 // Package auth implements authentication, JWT issuance, login auditing, and
 // online-session persistence for the Lina core host service.
+//
+// Service Dependencies:
+//   - config.Service    - reads JWT, session, and login settings
+//   - orgcap.Service   - resolves organization boundaries for tenant tokens
+//   - plugin.Service   - detects plugin context for plugin-scoped authentication
+//   - role.Service     - enforces role-based access during authentication
+//   - tenantcap.Service - resolves tenant boundaries and membership
+//   - session.Store    - persists and queries online sessions
 package auth
 
 import (
@@ -159,15 +167,15 @@ func NewTenantTokenIssuer(orgCapSvc orgcap.Service) TenantTokenIssuer {
 func newService(orgCapSvc orgcap.Service) *serviceImpl {
 	pluginSvc := pluginsvc.Instance()
 	if orgCapSvc == nil {
-		orgCapSvc = orgcap.New(pluginSvc)
+		orgCapSvc = orgcap.Instance()
 	}
 	return &serviceImpl{
-		configSvc:    config.New(),
+		configSvc:    config.Instance(),
 		orgCapSvc:    orgCapSvc,
 		pluginSvc:    pluginSvc,
-		roleSvc:      role.New(pluginSvc),
-		tenantSvc:    tenantcapsvc.New(pluginSvc),
-		sessionStore: session.NewDBStore(),
+		roleSvc:      role.Instance(),
+		tenantSvc:    tenantcapsvc.Instance(),
+		sessionStore: session.Instance(),
 		preTokens:    defaultPreTokens,
 		revoked:      defaultRevoked,
 	}

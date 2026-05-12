@@ -57,7 +57,7 @@ type Collector struct {
 	phases   map[Phase]time.Duration
 }
 
-// Snapshot is an immutable view of the collected startup statistics.
+// Snapshot holds an immutable copy of one Collector state.
 type Snapshot struct {
 	StartedAt time.Time
 	Elapsed   time.Duration
@@ -65,7 +65,24 @@ type Snapshot struct {
 	Phases    map[Phase]time.Duration
 }
 
+var instance *Collector
+var once sync.Once
+
+// Instance returns the singleton startup stats collector instance.
+// It initializes the instance exactly once.
+func Instance() *Collector {
+	once.Do(func() {
+		instance = &Collector{
+			started:  time.Now(),
+			counters: make(map[Counter]int),
+			phases:   make(map[Phase]time.Duration),
+		}
+	})
+	return instance
+}
+
 // New creates a startup statistics collector.
+// Deprecated: Use Instance() for singleton access.
 func New() *Collector {
 	return &Collector{
 		started:  time.Now(),

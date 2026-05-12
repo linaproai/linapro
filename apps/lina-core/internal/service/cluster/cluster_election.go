@@ -24,7 +24,7 @@ type electionService struct {
 	cfg         *config.ElectionConfig // cfg stores election lease and renew settings.
 	holder      string                 // holder is the current node identifier.
 	isLeader    atomic.Bool            // isLeader reports whether the current node owns leadership.
-	instance    *locker.Instance       // instance is the current lock instance when leadership is held.
+	instance    *locker.LockInstance   // instance is the current lock instance when leadership is held.
 	leaseMgr    *locker.LeaseManager   // leaseMgr keeps the lock lease renewed while leader.
 	stopChan    chan struct{}
 	stoppedChan chan struct{}

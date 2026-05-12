@@ -176,11 +176,11 @@ func convertInternalItem(item *sqltable.Item) *Item {
 		return nil
 	}
 	return &Item{
-		Key:       item.Key,
-		ValueKind: item.ValueKind,
-		Value:     item.Value,
-		IntValue:  item.IntValue,
-		ExpireAt:  item.ExpireAt,
+		Key:      item.Key,
+		Kind:     item.ValueKind,
+		Value:    item.Value,
+		IntValue: item.IntValue,
+		ExpireAt: item.ExpireAt,
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 
@@ -174,11 +175,43 @@ type serviceImpl struct {
 	runtimeCacheRevisionCtl *pluginruntimecache.Controller
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton i18n service instance.
+// It initializes the instance exactly once, using default dependencies.
+func Instance() Service {
+	once.Do(func() {
+		configSvc := config.Instance()
+		service := &serviceImpl{
+			bizCtxSvc: bizctx.Instance(),
+			configSvc: configSvc,
+		}
+		service.runtimeCacheRevisionCtl = pluginruntimecache.NewControllerWithCoordinator(
+			configSvc.IsClusterEnabled(context.Background()),
+			cachecoord.Default(cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background()))),
+			runtimeI18nCacheObservedRevision,
+			func(ctx context.Context) error {
+				service.InvalidateRuntimeBundleCache(InvalidateScope{
+					Sectors: []Sector{
+						SectorSourcePlugin,
+						SectorDynamicPlugin,
+					},
+				})
+				return nil
+			},
+		)
+		instance = service
+	})
+	return instance
+}
+
 // New creates and returns a new i18n service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
-	configSvc := config.New()
+	configSvc := config.Instance()
 	service := &serviceImpl{
-		bizCtxSvc: bizctx.New(),
+		bizCtxSvc: bizctx.Instance(),
 		configSvc: configSvc,
 	}
 	service.runtimeCacheRevisionCtl = pluginruntimecache.NewControllerWithCoordinator(

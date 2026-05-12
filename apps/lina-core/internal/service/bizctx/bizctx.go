@@ -4,6 +4,7 @@ package bizctx
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
@@ -38,7 +39,20 @@ var _ Service = (*serviceImpl)(nil)
 // serviceImpl implements Service.
 type serviceImpl struct{}
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton bizctx service instance.
+// It initializes the instance exactly once.
+func Instance() Service {
+	once.Do(func() {
+		instance = &serviceImpl{}
+	})
+	return instance
+}
+
 // New creates and returns a new Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
 	return &serviceImpl{}
 }

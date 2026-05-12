@@ -10,8 +10,6 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	internalauth "lina-core/internal/service/auth"
-	"lina-core/internal/service/orgcap"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/pkg/bizerr"
 )
 
@@ -54,8 +52,7 @@ type serviceAdapter struct {
 
 // New creates and returns the published auth service adapter.
 func New() Service {
-	pluginSvc := pluginsvc.Instance()
-	return &serviceAdapter{tokenIssuer: internalauth.NewTenantTokenIssuer(orgcap.New(pluginSvc))}
+	return &serviceAdapter{tokenIssuer: internalauth.Instance().(internalauth.TenantTokenIssuer)}
 }
 
 // BearerTokenFromContext extracts the bearer token from the current HTTP request.

@@ -5,6 +5,7 @@ package dict
 import (
 	"context"
 	"io"
+	"sync"
 
 	"lina-core/internal/model/entity"
 	i18nsvc "lina-core/internal/service/i18n"
@@ -92,9 +93,24 @@ type serviceImpl struct {
 	i18nSvc dictI18nTranslator
 }
 
+var instance Service
+var once sync.Once
+
+// Instance returns the singleton dict service instance.
+// It initializes the instance exactly once, using the default i18n service.
+func Instance() Service {
+	once.Do(func() {
+		instance = &serviceImpl{
+			i18nSvc: i18nsvc.Instance(),
+		}
+	})
+	return instance
+}
+
 // New creates and returns a new Service instance.
+// Deprecated: Use Instance() for singleton access.
 func New() Service {
-	i18nSvc := i18nsvc.New()
+	i18nSvc := i18nsvc.Instance()
 	return &serviceImpl{
 		i18nSvc: i18nSvc,
 	}

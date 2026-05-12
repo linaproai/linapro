@@ -36,7 +36,7 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 		}
 	})
 
-	WriteTestFile(t, filepath.Join(pluginDir, "go.mod"), "module "+strings.ReplaceAll(pluginID, "-", "_")+"\n\ngo 1.25.0\n")
+	WriteTestFile(t, filepath.Join(pluginDir, "go.mod"), "module "+strings.ReplaceAll(pluginID, "-", "_")+"\n\ngo 1.26.2\n")
 	WriteTestFile(t, filepath.Join(pluginDir, "backend", "plugin.go"), "package backend\n")
 	WriteTestFile(t, filepath.Join(pluginDir, "frontend", "pages", "main-entry.vue"), "<template><div /></template>\n")
 	WriteTestFile(t, filepath.Join(pluginDir, "manifest", "sql", "001-"+pluginID+".sql"), "SELECT 1;\n")
