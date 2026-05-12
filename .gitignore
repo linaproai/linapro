@@ -14,6 +14,8 @@ assets/
 .aiprompt.zh.md
 .codex/config.toml
 temp/
+# CodeBuddy plans
+.codebuddy/plan/
 .agents/skills/goframe-v2/
 
 
