@@ -3,10 +3,8 @@
 package resolverconfig
 
 import (
-	"context"
 	"testing"
 
-	"lina-core/pkg/bizerr"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
 )
 
@@ -36,34 +34,6 @@ func TestDefaultConfigDocumentsCodeOwnedTenantDefaults(t *testing.T) {
 	for i, expected := range defaultReserved {
 		if config.ReservedSubdomains[i] != expected {
 			t.Fatalf("expected reserved subdomain item %d to be %q, got %q", i, expected, config.ReservedSubdomains[i])
-		}
-	}
-}
-
-// TestUpdateAcceptsOnlyBuiltInPolicy verifies runtime resolver mutations are rejected.
-func TestUpdateAcceptsOnlyBuiltInPolicy(t *testing.T) {
-	svc := New()
-	ctx := context.Background()
-	defaults := defaultConfig()
-
-	if err := svc.Update(ctx, UpdateInput{
-		Chain:              defaults.Chain,
-		ReservedSubdomains: defaults.ReservedSubdomains,
-		RootDomain:         defaults.RootDomain,
-		OnAmbiguous:        defaults.OnAmbiguous,
-	}); err != nil {
-		t.Fatalf("expected built-in policy write to be a no-op: %v", err)
-	}
-
-	testCases := []UpdateInput{
-		{Chain: []string{shared.ResolverJWT, shared.ResolverDefault}, ReservedSubdomains: defaults.ReservedSubdomains, OnAmbiguous: defaults.OnAmbiguous},
-		{Chain: defaults.Chain, ReservedSubdomains: []string{"console"}, OnAmbiguous: defaults.OnAmbiguous},
-		{Chain: defaults.Chain, ReservedSubdomains: defaults.ReservedSubdomains, RootDomain: "example.com", OnAmbiguous: defaults.OnAmbiguous},
-		{Chain: defaults.Chain, ReservedSubdomains: defaults.ReservedSubdomains, OnAmbiguous: shared.OnAmbiguousReject},
-	}
-	for _, testCase := range testCases {
-		if err := svc.Update(ctx, testCase); !bizerr.Is(err, CodeResolverConfigInvalid) {
-			t.Fatalf("expected invalid resolver policy error, got %v", err)
 		}
 	}
 }

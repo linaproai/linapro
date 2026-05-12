@@ -153,6 +153,9 @@ function writeRuntimeArtifact() {
         id: dynamicPluginID,
         name: dynamicPluginName,
         type: 'dynamic',
+        scopeNature: 'tenant_aware',
+        supportsMultiTenant: false,
+        defaultInstallMode: 'global',
         version: dynamicPluginVersion,
       }),
     ),
@@ -277,7 +280,7 @@ async function createInstallOnlyRole(adminApi: APIRequestContext) {
 
   const response = await adminApi.post('role', {
     data: {
-      dataScope: 3,
+      dataScope: 4,
       key: installOnlyRoleKey,
       menuIds: menuIDs,
       name: installOnlyRoleName,

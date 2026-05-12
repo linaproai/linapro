@@ -16,10 +16,12 @@
   "plugins.multi_tenant.api.auth.v1.SelectTenantReq.fields.preToken.dc": "短期预登录令牌",
   "plugins.multi_tenant.api.auth.v1.SelectTenantReq.fields.tenantId.dc": "目标租户 ID",
   "plugins.multi_tenant.api.auth.v1.SelectTenantRes.fields.accessToken.dc": "租户绑定令牌",
+  "plugins.multi_tenant.api.auth.v1.SelectTenantRes.fields.refreshToken.dc": "租户绑定刷新令牌",
   "plugins.multi_tenant.api.auth.v1.SwitchTenantReq.meta.tags": "租户认证",
   "plugins.multi_tenant.api.auth.v1.SwitchTenantReq.meta.summary": "切换租户",
   "plugins.multi_tenant.api.auth.v1.SwitchTenantReq.meta.dc": "从当前租户切换到另一个租户并请求新的租户绑定令牌。",
   "plugins.multi_tenant.api.auth.v1.SwitchTenantReq.schema.dc": "从当前租户切换到另一个租户并请求新的租户绑定令牌。",
   "plugins.multi_tenant.api.auth.v1.SwitchTenantReq.fields.tenantId.dc": "目标租户 ID",
-  "plugins.multi_tenant.api.auth.v1.SwitchTenantRes.fields.accessToken.dc": "租户绑定令牌"
+  "plugins.multi_tenant.api.auth.v1.SwitchTenantRes.fields.accessToken.dc": "租户绑定令牌",
+  "plugins.multi_tenant.api.auth.v1.SwitchTenantRes.fields.refreshToken.dc": "租户绑定刷新令牌"
 }

@@ -14,6 +14,7 @@ export default defineConfig({
     /hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
     /apps[\\/]lina-plugins[\\/][^\\/]+[\\/]hack[\\/]tests[\\/]e2e[\\/](?:.*[\\/])?TC\d{4}-[^\\.\\/]+\.ts$/,
   ],
+  testIgnore: ['**/temp/**'],
   fullyParallel: false,
   globalSetup: './global-setup.ts',
   workers: Number.parseInt(process.env.E2E_WORKERS ?? '1', 10),

@@ -467,6 +467,9 @@ go 1.25.0
 name: Low Priority Host Services E2E
 version: v0.1.0
 type: dynamic
+scope_nature: tenant_aware
+supports_multi_tenant: false
+default_install_mode: global
 hostServices:
   - service: cache
     methods:
@@ -657,6 +660,9 @@ go 1.25.0
 name: Low Priority Host Services Denied E2E
 version: v0.1.0
 type: dynamic
+scope_nature: tenant_aware
+supports_multi_tenant: false
+default_install_mode: global
 hostServices:
   - service: cache
     methods:

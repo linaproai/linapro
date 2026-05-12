@@ -12,5 +12,6 @@ type SwitchTenantReq struct {
 
 // SwitchTenantRes defines the switch tenant response.
 type SwitchTenantRes struct {
-	AccessToken string `json:"accessToken" dc:"Tenant-bound token" eg:"eyJhbGciOi..."`
+	AccessToken  string `json:"accessToken" dc:"Tenant-bound token" eg:"eyJhbGciOi..."`
+	RefreshToken string `json:"refreshToken" dc:"Tenant-bound refresh token" eg:"eyJhbGciOi..."`
 }

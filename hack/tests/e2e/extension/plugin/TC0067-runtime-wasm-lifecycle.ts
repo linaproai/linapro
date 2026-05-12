@@ -480,6 +480,9 @@ function buildRuntimeWasmFixture() {
       name: pluginName,
       version: pluginVersion,
       type: "dynamic",
+      scopeNature: "tenant_aware",
+      supportsMultiTenant: false,
+      defaultInstallMode: "global",
       description: "Runtime plugin used by Playwright lifecycle verification.",
       menus: buildRuntimeManifestMenus(),
     }),
@@ -961,7 +964,9 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     const cronLabelFontWeight = await cronItem
       .locator("span", { hasText: "表达式：" })
       .first()
-      .evaluate((node) => Number.parseInt(getComputedStyle(node).fontWeight, 10));
+      .evaluate((node) =>
+        Number.parseInt(getComputedStyle(node).fontWeight, 10),
+      );
     expect(cronLabelFontWeight).toBeGreaterThanOrEqual(600);
     const hostServiceAuthText = await hostServiceAuthModal.innerText();
     expect(hostServiceAuthText.indexOf("Cron")).toBeLessThan(
@@ -1020,7 +1025,7 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
     await popup.close();
   });
 
-  test("TC-67i: 运行时产物被手动删除后列表仍保留条目、菜单隐藏且允许重新上传恢复", async ({
+  test("TC-67i: 运行时产物被手动删除后列表仍保留条目、菜单隐藏且拒绝同版本重新上传", async ({
     page,
   }) => {
     const wasmPath = ensureRuntimeWasmFixture();
@@ -1047,15 +1052,34 @@ test.describe("TC-67 运行时 wasm 插件生命周期", () => {
       pluginAfterArtifactRemoval,
       "删除运行时产物后插件列表仍应保留该 runtime 条目",
     ).toBeTruthy();
-    expect(pluginAfterArtifactRemoval?.installed).toBe(0);
-    expect(pluginAfterArtifactRemoval?.enabled).toBe(0);
+    expect(pluginAfterArtifactRemoval?.installed).toBe(1);
+    expect(pluginAfterArtifactRemoval?.enabled).toBe(1);
 
-    await pluginPage.uploadDynamicPlugin(wasmPath);
+    const duplicateUploadResponse = await adminApi!.post(
+      "plugins/dynamic/package",
+      {
+        multipart: {
+          overwriteSupport: "0",
+          file: {
+            name: path.basename(wasmPath),
+            mimeType: "application/wasm",
+            buffer: readFileSync(wasmPath),
+          },
+        },
+      },
+    );
+    assertOk(duplicateUploadResponse, "同版本动态插件重新上传请求失败");
+    const duplicateUploadPayload = await duplicateUploadResponse.json();
+    expect(duplicateUploadPayload?.code).not.toBe(0);
+    expect(duplicateUploadPayload?.message).toContain("higher version");
 
-    const pluginAfterReupload = await findPlugin(adminApi!);
-    expect(pluginAfterReupload, "重新上传后应重新识别动态插件").toBeTruthy();
-    expect(pluginAfterReupload?.installed).toBe(0);
-    expect(pluginAfterReupload?.enabled).toBe(0);
+    const pluginAfterDuplicateUpload = await findPlugin(adminApi!);
+    expect(
+      pluginAfterDuplicateUpload,
+      "拒绝同版本上传后仍应保留已安装插件条目",
+    ).toBeTruthy();
+    expect(pluginAfterDuplicateUpload?.installed).toBe(1);
+    expect(pluginAfterDuplicateUpload?.enabled).toBe(1);
     await expect(pluginPage.pluginRow(pluginID)).toBeVisible();
   });
 

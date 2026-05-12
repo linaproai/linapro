@@ -1,7 +1,0 @@
-{
-  "menu": {
-    "plugin:plugin-demo-dynamic:main-entry": {
-      "title": "動態插件示例"
-    }
-  }
-}

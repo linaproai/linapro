@@ -74,7 +74,20 @@ export class UserPage {
    */
   private getUserDataRow(username: string) {
     return this.page
-      .locator(".vxe-body--row:visible", { hasText: username })
+      .locator(".vxe-table--main-wrapper .vxe-body--row:visible", {
+        hasText: username,
+      })
+      .first();
+  }
+
+  /** Resolve the fixed action-row fragment for the given primary table row. */
+  private async getFixedActionRowForDataRow(row: Locator) {
+    const rowID = await row.getAttribute("rowid");
+    expect(rowID, "missing VXE rowid for user row").toBeTruthy();
+    return this.page
+      .locator(
+        `.vxe-table--fixed-right-wrapper .vxe-body--row[rowid="${rowID}"]`,
+      )
       .first();
   }
 
@@ -145,12 +158,14 @@ export class UserPage {
     // fixed overlay DOM tree. Search for the user first to narrow to one row.
     await this.searchByUsername(username);
 
-    // With search filtering to one row, click the first visible edit button
-    // Note: Ant Design adds space between Chinese chars in buttons ("编 辑")
-    await this.page
-      .getByRole("button", { name: /编\s*辑/ })
-      .first()
-      .click();
+    const row = this.getUserDataRow(username);
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    const actionRow = await this.getFixedActionRowForDataRow(row);
+    const editButton = actionRow
+      .getByRole("button", { name: /编\s*辑|Edit/i })
+      .first();
+    await editButton.waitFor({ state: "visible", timeout: 5000 });
+    await editButton.click();
 
     await this.waitForDrawerReady(username);
 
@@ -221,12 +236,18 @@ export class UserPage {
 
   /** Click a column header to trigger sorting */
   async clickColumnSort(columnTitle: string) {
-    // VXE-Grid has duplicate headers (visible + fixed-hidden), use .first() for visible one
-    const header = this.page
-      .locator(".vxe-header--column.fixed--visible", { hasText: columnTitle })
-      .first();
+    const header = this.columnHeader(columnTitle);
     await header.click();
     await waitForRouteReady(this.page);
+  }
+
+  /** Resolve a visible sortable column header in the main VXE table. */
+  columnHeader(columnTitle: string) {
+    return this.page
+      .locator(".vxe-table--main-wrapper .vxe-header--column:visible", {
+        hasText: columnTitle,
+      })
+      .first();
   }
 
   /** Get all cell values for a column by field name */
@@ -247,7 +268,9 @@ export class UserPage {
 
   /** Get visible row count */
   async getVisibleRowCount(): Promise<number> {
-    return this.page.locator(".vxe-body--row").count();
+    return this.page
+      .locator(".vxe-table--main-wrapper .vxe-body--row:visible")
+      .count();
   }
 
   /** Fill the search form field by label */
@@ -449,14 +472,21 @@ export class UserPage {
   /** Check if action buttons (edit/delete/more) are visible for a row */
   async hasActionButtons(username: string): Promise<boolean> {
     await this.searchByUsername(username);
-    const editBtn = this.page.getByRole("button", { name: /编\s*辑/ }).first();
-    return editBtn.isVisible({ timeout: 2000 }).catch(() => false);
+    const row = this.getUserDataRow(username);
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    const actionRow = await this.getFixedActionRowForDataRow(row);
+    const actionButtons = actionRow.getByRole("button", {
+      name: /编\s*辑|Edit|删\s*除|Delete|更\s*多|More/i,
+    });
+    return (await actionButtons.count()) > 0;
   }
 
   /** Check if the status switch is disabled for a row */
   async isStatusSwitchDisabled(username: string): Promise<boolean> {
     await this.searchByUsername(username);
-    const switchEl = this.page.locator(".vxe-body--row .ant-switch").first();
+    const row = this.getUserDataRow(username);
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    const switchEl = row.locator(".ant-switch").first();
     return switchEl.evaluate((el) =>
       el.classList.contains("ant-switch-disabled"),
     );
@@ -465,9 +495,9 @@ export class UserPage {
   /** Check if the row checkbox is disabled */
   async isCheckboxDisabled(username: string): Promise<boolean> {
     await this.searchByUsername(username);
-    const checkbox = this.page
-      .locator(".vxe-body--row .vxe-cell--checkbox")
-      .first();
+    const row = this.getUserDataRow(username);
+    await row.waitFor({ state: "visible", timeout: 10000 });
+    const checkbox = row.locator(".vxe-cell--checkbox").first();
     return checkbox.evaluate((el) => el.classList.contains("is--disabled"));
   }
 
@@ -562,14 +592,17 @@ export class UserPage {
     // Ensure the searched row is rendered before interacting with the fixed
     // action column. The action buttons live in a separate fixed table, but the
     // visible edit button becomes unique once the main data row is filtered.
-    await this.getUserDataRow(username).waitFor({
+    const row = this.getUserDataRow(username);
+    await row.waitFor({
       state: "visible",
       timeout: 10000,
     });
-    await this.page
-      .getByRole("button", { name: /编\s*辑/ })
-      .first()
-      .click();
+    const actionRow = await this.getFixedActionRowForDataRow(row);
+    const editButton = actionRow
+      .getByRole("button", { name: /编\s*辑|Edit/i })
+      .first();
+    await editButton.waitFor({ state: "visible", timeout: 5000 });
+    await editButton.click();
     await this.waitForDrawerReady(username);
 
     // Clear existing roles first by clicking clear button

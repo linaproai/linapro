@@ -8,6 +8,7 @@
 | --- | --- |
 | `build-wasm/` | 从源码插件构建动态插件`Wasm`运行时产物。 |
 | `image-builder/` | 根据根目录`hack/config.yaml`构建并按需推送单平台或多平台生产`Docker`镜像。 |
+| `linactl/` | 提供跨平台`LinaPro`开发命令入口，并作为`Makefile`与`Windows make.cmd`薄包装的统一实现。 |
 | `runtime-i18n/` | 扫描运行时可见硬编码文案，并校验宿主/插件`i18n`语言包`key`覆盖。 |
 
 ## 放置规则

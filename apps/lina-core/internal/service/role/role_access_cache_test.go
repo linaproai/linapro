@@ -79,7 +79,6 @@ func (f *fakeRoleConfigService) GetI18n(_ context.Context) *hostconfig.I18nConfi
 		Locales: []hostconfig.I18nLocaleConfig{
 			{Locale: "zh-CN", NativeName: "简体中文"},
 			{Locale: "en-US", NativeName: "English"},
-			{Locale: "zh-TW", NativeName: "繁體中文"},
 		},
 	}
 }

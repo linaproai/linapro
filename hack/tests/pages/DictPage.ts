@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Locator, Page, Response } from "@playwright/test";
 
 import {
   waitForBusyIndicatorsToClear,
@@ -192,7 +192,7 @@ export class DictPage {
     await waitForRouteReady(this.page);
   }
 
-  async deleteType(typeName: string) {
+  async deleteType(typeName: string): Promise<Response> {
     // Search for the type first
     await this.fillTypeSearchField("字典名称", typeName);
     await this.clickTypeSearch();
@@ -206,6 +206,13 @@ export class DictPage {
       .first()
       .click();
 
+    const deletePromise = this.page.waitForResponse(
+      (response) =>
+        response.url().includes("/dict/type/") &&
+        response.request().method() === "DELETE",
+      { timeout: 15000 },
+    );
+
     // Confirm the visible modal directly instead of relying on a global DOM query.
     const modal = await waitForConfirmOverlay(this.page);
     await modal
@@ -213,12 +220,14 @@ export class DictPage {
       .last()
       .click({ force: true });
 
+    const response = await deletePromise;
     await waitForRouteReady(this.page);
     await modal.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
     await deletedRow
       .waitFor({ state: "hidden", timeout: 10000 })
       .catch(() => {});
     await waitForBusyIndicatorsToClear(this.page);
+    return response;
   }
 
   async clickCurrentTypeDeleteAction(expectedTypeName?: string) {

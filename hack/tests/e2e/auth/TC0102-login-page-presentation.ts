@@ -67,7 +67,7 @@ test.describe("TC-102 登录页展示收口与布局", () => {
     await expect(loginPage.leftAuthPanel).toBeHidden();
   });
 
-  test("TC-102d: 登录页密码占位符跟随语言切换", async ({ loginPage }) => {
+  test("TC-102d: 登录页密码占位符跟随默认双语切换", async ({ loginPage }) => {
     await loginPage.goto();
 
     await expect(loginPage.passwordInput).toHaveAttribute(
@@ -79,12 +79,6 @@ test.describe("TC-102 登录页展示收口与布局", () => {
     await expect(loginPage.passwordInput).toHaveAttribute(
       "placeholder",
       "Please enter password",
-    );
-
-    await loginPage.switchLanguage("繁體中文");
-    await expect(loginPage.passwordInput).toHaveAttribute(
-      "placeholder",
-      "請輸入密碼",
     );
   });
 });

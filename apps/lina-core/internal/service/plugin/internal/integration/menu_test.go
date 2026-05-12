@@ -42,6 +42,9 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 			"name: Source Menu Sync Plugin\n"+
 			"version: v0.1.0\n"+
 			"type: source\n"+
+			"scope_nature: tenant_aware\n"+
+			"supports_multi_tenant: false\n"+
+			"default_install_mode: global\n"+
 			"menus:\n"+
 			"  - key: "+menuKey+"\n"+
 			"    name: Source Menu Sync Plugin\n"+
@@ -127,7 +130,7 @@ func TestSyncSourcePluginMenusFromManifest(t *testing.T) {
 	testutil.WriteTestFile(
 		t,
 		manifestPath,
-		"id: "+pluginID+"\nname: Source Menu Sync Plugin\nversion: v0.1.0\ntype: source\n",
+		"id: "+pluginID+"\nname: Source Menu Sync Plugin\nversion: v0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	manifest.Menus = nil
 	if err := services.Catalog.ValidateManifest(manifest, manifestPath); err != nil {

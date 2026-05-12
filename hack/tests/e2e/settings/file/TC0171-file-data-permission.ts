@@ -83,7 +83,7 @@ test.describe("TC-171 文件管理数据权限", () => {
         name: `FileScope${suffix.slice(-10)}`,
         key: `e2e_file_self_${suffix}`,
         menuIds,
-        dataScope: 3,
+        dataScope: 4,
         sort: 970,
       })
     ).id;

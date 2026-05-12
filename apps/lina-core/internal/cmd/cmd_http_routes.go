@@ -59,6 +59,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			group,
 			healthCtrl.Get,
 			authCtrl.Login,
+			authCtrl.RefreshToken,
 			i18nCtrl.RuntimeLocales,
 			i18nCtrl.RuntimeMessages,
 			pluginCtrl.DynamicList,
@@ -98,6 +99,7 @@ func bindHostAPIRoutes(_ context.Context, server *ghttp.Server, runtime *httpRun
 			pluginCtrl.Enable,
 			pluginCtrl.Disable,
 			pluginCtrl.Uninstall,
+			pluginCtrl.UpdateTenantProvisioningPolicy,
 			pluginCtrl.ResourceList,
 		)
 		bindDynamicPluginAPIRoutes(group, runtime.pluginSvc)

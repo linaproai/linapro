@@ -9,13 +9,7 @@
 ## init: Initialize the database with DDL and seed data only
 .PHONY: init
 init:
-	@if [ "$(confirm)" != "init" ]; then \
-		echo "✗ make init requires explicit confirmation for safety"; \
-		echo "  Use: make init confirm=init"; \
-		echo "  To rebuild the linapro database: make init confirm=init rebuild=true"; \
-		exit 1; \
-	fi
-	@cd $(BACKEND_DIR) && $(MAKE) init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
+	@go run ./hack/tools/linactl init confirm=$(confirm) $(if $(rebuild),rebuild=$(rebuild),)
 
 # Load optional mock data for local demos and development verification.
 # Mock loading uses the same database.default.link dialect and requires init first.
@@ -24,9 +18,4 @@ init:
 ## mock: Load mock demo data after init
 .PHONY: mock
 mock:
-	@if [ "$(confirm)" != "mock" ]; then \
-		echo "✗ make mock requires explicit confirmation for safety"; \
-		echo "  Use: make mock confirm=mock"; \
-		exit 1; \
-	fi
-	@cd $(BACKEND_DIR) && $(MAKE) mock confirm=$(confirm)
+	@go run ./hack/tools/linactl mock confirm=$(confirm)

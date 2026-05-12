@@ -99,7 +99,7 @@ test.describe("TC-173 在线用户数据权限", () => {
         name: `OnlineScope${suffix.slice(-10)}`,
         key: `e2e_online_self_${suffix}`,
         menuIds,
-        dataScope: 3,
+        dataScope: 4,
         sort: 970,
       })
     ).id;

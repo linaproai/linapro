@@ -248,16 +248,12 @@
           return "en-US";
         }
         if (
+          lowerLocale === "zh" ||
+          lowerLocale === "zh-cn" ||
           lowerLocale === "zh-tw" ||
           lowerLocale === "zh-hk" ||
           lowerLocale === "zh-mo" ||
-          lowerLocale.startsWith("zh-hant")
-        ) {
-          return "zh-TW";
-        }
-        if (
-          lowerLocale === "zh" ||
-          lowerLocale === "zh-cn" ||
+          lowerLocale.startsWith("zh-hant") ||
           lowerLocale.startsWith("zh-hans")
         ) {
           return "zh-CN";

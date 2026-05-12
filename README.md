@@ -208,9 +208,33 @@ corepack enable
 cd apps/lina-vben
 pnpm install
 cd ../..
+go run ./hack/tools/linactl init confirm=init
+go run ./hack/tools/linactl mock confirm=mock
+go run ./hack/tools/linactl dev
+```
+
+Linux and macOS users can keep using the compatibility `Makefile` entrypoint:
+
+```bash
 make init confirm=init
 make mock confirm=mock
 make dev
+```
+
+Windows users can use the cross-platform Go entrypoint above. The repository also provides a thin `make.cmd` wrapper for `cmd.exe`; because `cmd.exe` resolves executable file extensions in the current directory, the `.cmd` suffix can be omitted and the command can be written as `make`:
+
+```cmd
+make init confirm=init
+make mock confirm=mock
+make dev
+```
+
+In PowerShell, call the wrapper with the current-directory prefix. On default Windows environments, the `.cmd` suffix can also be omitted as `.\make`. Use `.\make.cmd` when you want to avoid ambiguity with another installed `make` command:
+
+```powershell
+.\make init confirm=init
+.\make mock confirm=mock
+.\make dev
 ```
 
 The default backend link is:
@@ -221,9 +245,9 @@ database:
     link: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
 ```
 
-`make init` is an operations bootstrap command. It uses the configured database account and requires permission to connect to the system database, create and drop the target database, terminate target-database connections, create tables and indexes, write comments, and insert seed data. If those permissions are missing, initialization fails instead of falling back to a lower-privilege runtime mode.
+`linactl init` and `make init` are operations bootstrap commands. They use the configured database account and require permission to connect to the system database, create and drop the target database, terminate target-database connections, create tables and indexes, write comments, and insert seed data. If those permissions are missing, initialization fails instead of falling back to a lower-privilege runtime mode.
 
-For external hosted `PostgreSQL`, such as `RDS` or `Aliyun PolarDB`, point `database.default.link` at the provider host and port. Use an initialization account with the permissions above for `make init`, then run the service with the same configured database unless your deployment process replaces the config with a runtime account after initialization.
+For external hosted `PostgreSQL`, such as `RDS` or `Aliyun PolarDB`, point `database.default.link` at the provider host and port. Use an initialization account with the permissions above for `linactl init` or `make init`, then run the service with the same configured database unless your deployment process replaces the config with a runtime account after initialization.
 
 For a single-node development demo, switch the link to `SQLite`:
 
