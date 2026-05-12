@@ -18,8 +18,6 @@ temp/
 .codebuddy/plan/
 .agents/skills/goframe-v2/
 
-# CodeBuddy plans
-.codebuddy/plan/
 
 # Backend
 apps/lina-core/temp/
@@ -47,6 +45,3 @@ test-results/
 *.test
 *.out
 apps/lina-plugins/*/temp/
-
-# AI assistant files (local only, do not commit)
-.codebuddy/
