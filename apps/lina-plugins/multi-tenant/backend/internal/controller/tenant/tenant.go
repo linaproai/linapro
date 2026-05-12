@@ -6,14 +6,11 @@ package tenant
 
 import (
 	tenantapi "lina-plugin-multi-tenant/backend/api/tenant"
-	v1 "lina-plugin-multi-tenant/backend/api/tenant/v1"
-	"lina-plugin-multi-tenant/backend/internal/service/membership"
 	"lina-plugin-multi-tenant/backend/internal/service/tenantplugin"
 )
 
 // ControllerV1 is the tenant-scoped multi-tenant controller.
 type ControllerV1 struct {
-	membershipSvc   membership.Service
 	tenantPluginSvc tenantplugin.Service
 }
 
@@ -25,22 +22,6 @@ func NewV1() tenantapi.ITenantV1 {
 // NewControllerV1 creates and returns the concrete tenant controller instance.
 func NewControllerV1() *ControllerV1 {
 	return &ControllerV1{
-		membershipSvc:   membership.New(),
 		tenantPluginSvc: tenantplugin.New(),
-	}
-}
-
-// toAPIMember converts a service membership into an API member DTO.
-func toAPIMember(item *membership.Entity) *v1.MemberEntity {
-	if item == nil {
-		return nil
-	}
-	return &v1.MemberEntity{
-		Id:       item.Id,
-		UserId:   item.UserID,
-		TenantId: item.TenantID,
-		Username: item.Username,
-		Nickname: item.Nickname,
-		Status:   item.Status,
 	}
 }

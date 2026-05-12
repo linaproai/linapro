@@ -20,6 +20,10 @@ env:
   PLATFORMS: "linux/amd64,linux/arm64"
 
 jobs:
+  windows-command-smoke:
+    name: Windows command smoke
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+
   release-image:
     name: Build and publish release image
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}

@@ -425,8 +425,8 @@ default_install_mode: global
 
 1. **宿主 SQL 源文件直接定义最终 schema**:
    - 在各租户敏感表所属源建表 SQL 中直接加入 `tenant_id`、租户化索引和约束;平台控制面表保持全局唯一。
-   - 在 `008-menu-role-management.sql` 中直接定义 `sys_role.tenant_id`、四级 `data_scope` 与 `sys_user_role.tenant_id`。
-   - 在 `011-plugin-framework.sql` 与 `012-plugin-host-call.sql` 中直接定义插件治理字段和 `sys_plugin_state` 租户化唯一索引。
+   - 在 `006-menu-role-management.sql` 中直接定义 `sys_role.tenant_id`、四级 `data_scope` 与 `sys_user_role.tenant_id`。
+   - 在 `008-plugin-framework.sql` 与 `009-plugin-host-call.sql` 中直接定义插件治理字段和 `sys_plugin_state` 租户化唯一索引。
    - `016-multi-tenant-and-plugin-governance.sql` 仅保留本迭代新增的多租户一级目录 seed 与 admin 授权绑定。
 2. **新增插件 SQL** `apps/lina-plugins/multi-tenant/manifest/sql/001-multi-tenant-schema.sql`:
    - `plugin_multi_tenant_tenant`、`plugin_multi_tenant_user_membership`、`plugin_multi_tenant_config_override`。

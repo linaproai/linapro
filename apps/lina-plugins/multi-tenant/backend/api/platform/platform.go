@@ -11,9 +11,6 @@ import (
 )
 
 type IPlatformV1 interface {
-	MemberList(ctx context.Context, req *v1.MemberListReq) (res *v1.MemberListRes, err error)
-	ResolverConfigGet(ctx context.Context, req *v1.ResolverConfigGetReq) (res *v1.ResolverConfigGetRes, err error)
-	ResolverConfigUpdate(ctx context.Context, req *v1.ResolverConfigUpdateReq) (res *v1.ResolverConfigUpdateRes, err error)
 	TenantList(ctx context.Context, req *v1.TenantListReq) (res *v1.TenantListRes, err error)
 	TenantCreate(ctx context.Context, req *v1.TenantCreateReq) (res *v1.TenantCreateRes, err error)
 	TenantDelete(ctx context.Context, req *v1.TenantDeleteReq) (res *v1.TenantDeleteRes, err error)

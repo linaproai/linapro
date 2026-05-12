@@ -34,6 +34,7 @@ const pluginButtonChineseNames = [
   '插件查询',
   '插件启用',
   '插件禁用',
+  '插件配置',
   '插件安装',
   '插件卸载',
 ];
@@ -42,6 +43,7 @@ const pluginButtonEnglishNames = [
   'Query',
   'Enable',
   'Disable',
+  'Configure',
   'Install',
   'Uninstall',
 ];
@@ -128,7 +130,7 @@ test.describe('TC0114 菜单治理标题国际化专项回归', () => {
         /[\u4e00-\u9fff]/,
       );
       expect(buttonMenu.name, `${buttonMenu.perms} should use a concise action title`).not.toMatch(
-        /^(?:Query|Create|Update|Delete|Export|Edit|Clear|Search|Enable|Disable|Install|Uninstall|Upload|Download|Import) .+/,
+        /^(?:Query|Create|Update|Delete|Export|Edit|Clear|Search|Enable|Disable|Configure|Install|Uninstall|Upload|Download|Import) .+/,
       );
     }
 

@@ -22,12 +22,14 @@ test.describe('TC0030 登录日志自动记录', () => {
     await responsePromise;
     await waitForRouteReady(adminPage);
 
-    // Should see at least one login log row
-    const rows = adminPage.locator('.vxe-body--row');
+    // Should see at least one successful admin login row without depending on
+    // global log ordering from other tests.
+    const rows = adminPage.locator('.vxe-table--main-wrapper .vxe-body--row');
     await expect(rows.first()).toBeVisible();
-
-    // The first row should contain admin username
-    await expect(adminPage.locator('.vxe-body--row').first()).toContainText('admin');
+    const adminSuccessRow = rows.filter({ hasText: 'admin' }).filter({
+      hasText: /成功|Success/i,
+    }).first();
+    await expect(adminSuccessRow).toBeVisible({ timeout: 10_000 });
   });
 
   test('TC0030b: 登录失败后登录日志中记录失败日志', async ({ browser }) => {

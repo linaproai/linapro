@@ -22,6 +22,10 @@ env:
   PLATFORMS: "linux/amd64,linux/arm64"
 
 jobs:
+  windows-command-smoke:
+    name: Windows command smoke
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+
   nightly-image:
     name: Build and publish nightly image
     runs-on: ubuntu-latest

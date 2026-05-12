@@ -24,7 +24,3 @@ export function authSwitchTenant(targetTenantId: number) {
     tenantId: targetTenantId,
   });
 }
-
-export function tenantMembershipMe() {
-  return requestClient.get<LoginTenant[]>('/tenant/members/me');
-}

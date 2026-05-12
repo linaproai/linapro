@@ -15,5 +15,6 @@ use (
 	./apps/lina-plugins/plugin-demo-source
 	./hack/tools/build-wasm
 	./hack/tools/image-builder
+	./hack/tools/linactl
 	./hack/tools/runtime-i18n
 )

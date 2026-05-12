@@ -355,6 +355,9 @@ func writeTestSourcePluginManifest(
 			"name: "+pluginName+"\n"+
 			"version: "+version+"\n"+
 			"type: source\n"+
+			"scope_nature: tenant_aware\n"+
+			"supports_multi_tenant: false\n"+
+			"default_install_mode: global\n"+
 			"menus:\n"+
 			"  - key: "+menuKey+"\n"+
 			"    name: "+pluginName+"\n"+

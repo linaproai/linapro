@@ -159,7 +159,6 @@ var multiTenantMockSharedRoleKeysByUsername = map[string]map[string]string{
 // multiTenantMockSharedRolePermissionCodes lists menu permissions that shared
 // mock-user roles need for permission-management demos.
 var multiTenantMockSharedRolePermissionCodes = []string{
-	"system:tenant:member:list",
 	"system:user:list",
 	"system:user:query",
 	"system:role:list",
@@ -751,7 +750,7 @@ func assertMultiTenantMockSharedRolePermissions(t *testing.T, sql string, permis
 	if len(permissions) < multiTenantMockMinMenuPermissions {
 		t.Fatalf("expected at least %d shared role permissions, got %d", multiTenantMockMinMenuPermissions, len(permissions))
 	}
-	block := extractMockSQLBlock(t, sql, "-- Mock data: grant operational and auditor roles read-oriented member and user")
+	block := extractMockSQLBlock(t, sql, "-- Mock data: grant operational and auditor roles read-oriented user")
 	for _, permission := range permissions {
 		if !strings.Contains(block, "'"+permission+"'") {
 			t.Fatalf("expected shared mock roles to include permission %q", permission)

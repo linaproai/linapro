@@ -7,7 +7,6 @@ import {
   expectBusinessError,
   expectSuccess,
   getAccessibleMenus,
-  getMenuIdsByPerms,
   getPlugin,
   type MenuNode,
   enablePlugin,
@@ -39,14 +38,6 @@ import { expect } from "../fixtures/auth";
 
 const password = "test123456";
 const tenantEnablementKey = "__tenant_enabled__";
-const defaultResolverChain = [
-  "override",
-  "jwt",
-  "session",
-  "header",
-  "subdomain",
-  "default",
-];
 
 type TenantRecord = {
   id: number;
@@ -57,14 +48,6 @@ type TenantRecord = {
 type ScenarioContext = {
   api: APIRequestContext;
   suffix: string;
-};
-
-type ResolverConfig = {
-  chain: string[];
-  reservedSubdomains: string[];
-  rootDomain: string;
-  onAmbiguous: string;
-  version: number;
 };
 
 async function withAdmin<T>(fn: (ctx: ScenarioContext) => Promise<T>) {
@@ -246,7 +229,6 @@ function assertTenantManagementButtonPermissions(list: MenuNode[]) {
       "system:tenant:impersonate",
       "system:tenant:query",
       "system:tenant:remove",
-      "system:user:query",
     ].sort(),
   );
   for (const stalePrefix of [
@@ -260,12 +242,6 @@ function assertTenantManagementButtonPermissions(list: MenuNode[]) {
   }
 }
 
-async function getResolverConfig(api: APIRequestContext) {
-  return expectSuccess<ResolverConfig>(
-    await api.get("platform/tenant/resolver-config"),
-  );
-}
-
 async function loginAndSelect(username: string, tenantId: number) {
   const login = await loginRaw(username, password);
   if (login.accessToken) {
@@ -273,6 +249,60 @@ async function loginAndSelect(username: string, tenantId: number) {
   }
   expect(login.preToken).toBeTruthy();
   return selectTenant(login.preToken!, tenantId);
+}
+
+async function expectUserListContains(
+  api: APIRequestContext,
+  tenantId: number,
+  username: string,
+) {
+  const users = await expectSuccess<{ list: Array<{ username: string; tenantIds?: number[] }> }>(
+    await api.get(`user?pageNum=1&pageSize=100&tenantId=${tenantId}&username=${encodeURIComponent(username)}`),
+  );
+  expect(users.list.map((item) => item.username)).toContain(username);
+}
+
+function expectMembershipRow(userId: number, tenantId: number) {
+  expect(
+    scalarNumber(`
+      SELECT COUNT(1)
+      FROM plugin_multi_tenant_user_membership
+      WHERE user_id = ${userId}
+        AND tenant_id = ${tenantId}
+        AND status = 1
+        AND deleted_at IS NULL;
+    `),
+  ).toBe(1);
+}
+
+function expectBuiltInResolverPolicyRemainsCodeOwned() {
+  expect(tableExists("plugin_multi_tenant_resolver_config")).toBeFalsy();
+  expect(
+    scalarNumber(`
+      SELECT COUNT(1)
+      FROM sys_cache_revision
+      WHERE domain = 'tenant-resolution'
+        AND scope = 'resolver-config';
+    `),
+  ).toBe(0);
+}
+
+async function expectResolverConfigEndpointRemoved(api: APIRequestContext) {
+  expect(
+    (
+      await api.get("platform/tenant/resolver-config", { maxRedirects: 0 })
+    ).ok(),
+  ).toBe(
+    false,
+  );
+  expect(
+    (
+      await api.put("platform/tenant/resolver-config", {
+        data: {},
+        maxRedirects: 0,
+      })
+    ).ok(),
+  ).toBe(false);
 }
 
 function insertTenantRole(
@@ -337,15 +367,33 @@ async function expectMultiTenantUninstallBlockedWithExistingTenant(
   api: APIRequestContext,
   suffix: string,
   prefix: string,
-  force: boolean,
 ) {
   await withTenant(api, suffix, prefix, async () => {
     await expectBusinessError(
       await api.delete("plugins/multi-tenant", {
-        data: { purgeStorageData: 0, force },
+        data: { purgeStorageData: 0, force: false },
       }),
     );
     expect(pluginRow("multi-tenant").installed).toBe(1);
+  });
+}
+
+async function expectMultiTenantForceUninstallBypassesGuard(
+  api: APIRequestContext,
+  suffix: string,
+  prefix: string,
+) {
+  await withTenant(api, suffix, prefix, async (tenant) => {
+    await expectSuccess(
+      await api.delete("plugins/multi-tenant?force=true", {
+        data: { purgeStorageData: 0, force: true },
+      }),
+    );
+    expect(pluginRow("multi-tenant").installed).toBe(0);
+    await ensureMultiTenantPluginEnabled(api);
+    await deleteTenant(api, tenant.id).catch(() => {});
+    expect(pluginRow("multi-tenant").installed).toBe(1);
+    expect(pluginRow("multi-tenant").enabled).toBe(1);
   });
 }
 
@@ -494,7 +542,7 @@ export async function scenarioTC0183() {
     const plugin = pluginRow("multi-tenant");
     expect(plugin.scopeNature).toBe("platform_only");
     expect(plugin.installMode).toBe("global");
-    await expectMultiTenantUninstallBlockedWithExistingTenant(api, suffix, "tc183", false);
+    await expectMultiTenantUninstallBlockedWithExistingTenant(api, suffix, "tc183");
   });
 }
 
@@ -505,17 +553,9 @@ export async function scenarioTC0184() {
     const user = await createTenantUser(api, suffix, "tc184_user", tenantA.id);
     let memberA = 0;
     let memberB = 0;
-    let grant: TenantUserGrant | undefined;
     try {
       memberA = (await addTenantMember(api, { tenantId: tenantA.id, userId: user.id })).id;
       memberB = (await addTenantMember(api, { tenantId: tenantB.id, userId: user.id })).id;
-      grant = await grantTenantPermissions(api, {
-        roleKey: `tc184_query_${suffix}`,
-        roleName: `TC184 query ${suffix}`,
-        tenantId: tenantA.id,
-        userId: user.id,
-        permissions: ["system:tenant:member:list"],
-      });
       const login = await loginRaw(user.username, password);
       expect(login.accessToken ?? "").toBe("");
       expect(login.preToken).toBeTruthy();
@@ -526,24 +566,16 @@ export async function scenarioTC0184() {
       const token = await selectTenant(login.preToken!, tenantA.id);
       const tenantApi = await createTenantApiContext(token);
       try {
-        const members = await expectSuccess<{
-          list: Array<{ tenantId: number; userId: number }>;
-        }>(
-          await tenantApi.get(
-            `tenant/members?tenantId=${tenantA.id}&userId=${user.id}&status=-1`,
-          ),
+        const userInfo = await expectSuccess<{ permissions: string[] }>(
+          await tenantApi.get("user/info"),
         );
-        expect(members.list).toContainEqual(
-          expect.objectContaining({
-            tenantId: tenantA.id,
-            userId: user.id,
-          }),
-        );
+        expect(userInfo.permissions).toContain("system:user:query");
+        await expectUserListContains(tenantApi, tenantA.id, user.username);
+        expectMembershipRow(user.id, tenantA.id);
       } finally {
         await tenantApi.dispose();
       }
     } finally {
-      revokeTenantPermissionGrants(grant ? [grant] : []);
       await cleanupTenantUser(api, user.id, memberA);
       if (memberB > 0) {
         await removeTenantMember(api, memberB).catch(() => {});
@@ -838,28 +870,17 @@ export async function scenarioTC0198() {
   await withAdmin(async ({ api, suffix }) => {
     await withTenant(api, suffix, "tc198", async (tenant) => {
       const user = await addTenantUser(api, suffix, "tc198_user", tenant.id);
-      const grant = await grantTenantPermissions(api, {
-        roleKey: `tc198_query_${suffix}`,
-        roleName: `TC198 query ${suffix}`,
-        tenantId: tenant.id,
-        userId: user.id,
-        permissions: ["system:tenant:member:query"],
-      });
       try {
         const login = await loginRaw(user.username, password);
         expect(login.accessToken).toBeTruthy();
         const tenantApi = await createTenantApiContext(login.accessToken!);
         try {
-          const response = await tenantApi.get(`tenant/members/me?tenantId=${tenant.id}&userId=${user.id}`, {
-            headers: { "X-Tenant-Code": "not-the-jwt-tenant" },
-          });
-          const member = await expectSuccess<{ tenantId: number }>(response);
-          expect(member.tenantId).toBe(tenant.id);
+          await expectUserListContains(tenantApi, tenant.id, user.username);
+          expectMembershipRow(user.id, tenant.id);
         } finally {
           await tenantApi.dispose();
         }
       } finally {
-        revokeTenantPermissionGrants([grant]);
         await cleanupTenantUser(api, user.id, user.memberId);
       }
     });
@@ -868,16 +889,7 @@ export async function scenarioTC0198() {
 
 export async function scenarioTC0199() {
   await withAdmin(async ({ api }) => {
-    const config = await getResolverConfig(api);
-    expect(config.rootDomain).toBe("");
-    expect(config.reservedSubdomains).toEqual(
-      expect.arrayContaining(["www", "api", "admin"]),
-    );
-    await expectBusinessError(
-      await api.put("platform/tenant/resolver-config", {
-        data: { ...config, rootDomain: "example.test" },
-      }),
-    );
+    expectBuiltInResolverPolicyRemainsCodeOwned();
     await expectBusinessError(
       await api.post("platform/tenants", {
         data: { code: "www", name: "Reserved" },
@@ -890,27 +902,16 @@ export async function scenarioTC0200() {
   await withAdmin(async ({ api, suffix }) => {
     await withTenant(api, suffix, "tc200", async (tenant) => {
       const user = await addTenantUser(api, suffix, "tc200_user", tenant.id);
-      const grant = await grantTenantPermissions(api, {
-        roleKey: `tc200_query_${suffix}`,
-        roleName: `TC200 query ${suffix}`,
-        tenantId: tenant.id,
-        userId: user.id,
-        permissions: ["system:tenant:member:query"],
-      });
       try {
         const token = await loginAndSelect(user.username, tenant.id);
         const tenantApi = await createTenantApiContext(token);
         try {
-          const member = await expectSuccess<{ tenantId: number; userId: number }>(
-            await tenantApi.get(`tenant/members/me?tenantId=${tenant.id}&userId=${user.id}`),
-          );
-          expect(member.tenantId).toBe(tenant.id);
-          expect(member.userId).toBe(user.id);
+          await expectUserListContains(tenantApi, tenant.id, user.username);
+          expectMembershipRow(user.id, tenant.id);
         } finally {
           await tenantApi.dispose();
         }
       } finally {
-        revokeTenantPermissionGrants([grant]);
         await cleanupTenantUser(api, user.id, user.memberId);
       }
     });
@@ -947,13 +948,10 @@ export async function scenarioTC0202() {
 
 export async function scenarioTC0203() {
   await withAdmin(async ({ api }) => {
-    const config = await getResolverConfig(api);
-    expect(config.chain).toEqual(defaultResolverChain);
-    expect(config.onAmbiguous).toBe("prompt");
-    expect(tableExists("plugin_multi_tenant_resolver_config")).toBeFalsy();
+    expectBuiltInResolverPolicyRemainsCodeOwned();
     await expectBusinessError(
-      await api.put("platform/tenant/resolver-config", {
-        data: { ...config, onAmbiguous: "reject" },
+      await api.post("auth/login", {
+        data: { username: "missing-tenant-user", password },
       }),
     );
   });
@@ -970,26 +968,18 @@ export async function scenarioTC0204() {
       expect(out.tenantId).toBe(tenant.id);
       expect(out.isImpersonated).toBeTruthy();
       const user = await addTenantUser(api, suffix, "tc204_user", tenant.id);
-      const grant = await grantTenantPermissions(api, {
-        roleKey: `tc204_query_${suffix}`,
-        roleName: `TC204 query ${suffix}`,
-        tenantId: tenant.id,
-        userId: user.id,
-        permissions: ["system:tenant:member:query"],
-      });
       try {
         const token = await loginAndSelect(user.username, tenant.id);
         const tenantApi = await createTenantApiContext(token);
         try {
-          const response = await tenantApi.get(`tenant/members/me?tenantId=999999&userId=${user.id}`, {
-            headers: { "X-Tenant-Override": "999999" },
+          const response = await tenantApi.post("auth/switch-tenant", {
+            data: { tenantId: 999999 },
           });
           expect(response.status()).toBe(403);
         } finally {
           await tenantApi.dispose();
         }
       } finally {
-        revokeTenantPermissionGrants([grant]);
         await cleanupTenantUser(api, user.id, user.memberId);
       }
     });
@@ -998,14 +988,8 @@ export async function scenarioTC0204() {
 
 export async function scenarioTC0205() {
   await withAdmin(async ({ api }) => {
-    const config = await getResolverConfig(api);
-    await expectSuccess(
-      await api.put("platform/tenant/resolver-config", {
-        data: config,
-      }),
-    );
-    const after = await getResolverConfig(api);
-    expect(after).toEqual(config);
+    expectBuiltInResolverPolicyRemainsCodeOwned();
+    await expectResolverConfigEndpointRemoved(api);
   });
 }
 
@@ -1055,13 +1039,13 @@ export async function scenarioTC0208() {
 
 export async function scenarioTC0210() {
   await withAdmin(async ({ api, suffix }) => {
-    await expectMultiTenantUninstallBlockedWithExistingTenant(api, suffix, "tc210", false);
+    await expectMultiTenantUninstallBlockedWithExistingTenant(api, suffix, "tc210");
   });
 }
 
 export async function scenarioTC0211() {
   await withAdmin(async ({ api, suffix }) => {
-    await expectMultiTenantUninstallBlockedWithExistingTenant(api, suffix, "tc211", true);
+    await expectMultiTenantForceUninstallBypassesGuard(api, suffix, "tc211");
   });
 }
 
@@ -1092,7 +1076,7 @@ export async function scenarioTC0213() {
           AND scope_nature = 'tenant_aware';
       `);
       await expectSuccess(
-        await api.put("plugins/org-center/tenant-provisioning-policy", {
+        await api.put("plugins/org-center/tenant-provisioning-policy/", {
           data: { autoEnableForNewTenants: true },
         }),
       );
@@ -1161,7 +1145,7 @@ export async function scenarioTC0215() {
 
 export async function scenarioTC0216() {
   await withAdmin(async ({ api, suffix }) => {
-    await expectMultiTenantUninstallBlockedWithExistingTenant(api, suffix, "tc216", true);
+    await expectMultiTenantForceUninstallBypassesGuard(api, suffix, "tc216");
   });
 }
 
@@ -1187,27 +1171,8 @@ export async function scenarioTC0217() {
 
 export async function scenarioTC0218() {
   await withAdmin(async ({ api }) => {
-    const before = scalarNumber(`
-      SELECT COUNT(1)
-      FROM sys_cache_revision
-      WHERE tenant_id = 0
-        AND domain = 'tenant-resolution'
-        AND scope = 'resolver-config';
-    `);
-    const config = await getResolverConfig(api);
-    await expectBusinessError(
-      await api.put("platform/tenant/resolver-config", {
-        data: { ...config, rootDomain: `cluster-${Date.now()}.test` },
-      }),
-    );
-    const after = scalarNumber(`
-      SELECT COUNT(1)
-      FROM sys_cache_revision
-      WHERE tenant_id = 0
-        AND domain = 'tenant-resolution'
-        AND scope = 'resolver-config';
-    `);
-    expect(after).toBe(before);
+    expectBuiltInResolverPolicyRemainsCodeOwned();
+    await expectResolverConfigEndpointRemoved(api);
   });
 }
 
@@ -1249,27 +1214,9 @@ async function scenarioSwitchToken(prefix: string) {
     const user = await createTenantUser(api, suffix, `${prefix}_user`, tenantA.id);
     let memberA = 0;
     let memberB = 0;
-    const grants: TenantUserGrant[] = [];
     try {
-      await getMenuIdsByPerms(api, ["system:tenant:member:query"]);
       memberA = (await addTenantMember(api, { tenantId: tenantA.id, userId: user.id })).id;
       memberB = (await addTenantMember(api, { tenantId: tenantB.id, userId: user.id })).id;
-      grants.push(
-        await grantTenantPermissions(api, {
-          roleKey: `${prefix}_query_${suffix}_${tenantA.id}`,
-          roleName: `${prefix} query ${tenantA.id}`,
-          tenantId: tenantA.id,
-          userId: user.id,
-          permissions: ["system:tenant:member:query"],
-        }),
-        await grantTenantPermissions(api, {
-          roleKey: `${prefix}_query_${suffix}_${tenantB.id}`,
-          roleName: `${prefix} query ${tenantB.id}`,
-          tenantId: tenantB.id,
-          userId: user.id,
-          permissions: ["system:tenant:member:query"],
-        }),
-      );
       const login = await loginRaw(user.username, password);
       const oldToken = await selectTenant(login.preToken!, tenantA.id);
       const tenantApi = await createTenantApiContext(oldToken);
@@ -1279,17 +1226,11 @@ async function scenarioSwitchToken(prefix: string) {
         );
         expect(switched.accessToken).toBeTruthy();
         expect(switched.accessToken).not.toBe(oldToken);
-        expect(
-          (
-            await tenantApi.get(`tenant/members/me?tenantId=${tenantA.id}&userId=${user.id}`)
-          ).status(),
-        ).toBe(401);
+        expect((await tenantApi.get("user/info")).status()).toBe(401);
         const switchedApi = await createTenantApiContext(switched.accessToken);
         try {
-          const member = await expectSuccess<{ tenantId: number }>(
-            await switchedApi.get(`tenant/members/me?tenantId=${tenantB.id}&userId=${user.id}`),
-          );
-          expect(member.tenantId).toBe(tenantB.id);
+          await expectSuccess(await switchedApi.get("user/info"));
+          await expectUserListContains(switchedApi, tenantB.id, user.username);
         } finally {
           await switchedApi.dispose();
         }
@@ -1297,7 +1238,6 @@ async function scenarioSwitchToken(prefix: string) {
         await tenantApi.dispose();
       }
     } finally {
-      revokeTenantPermissionGrants(grants);
       await cleanupTenantUser(api, user.id, memberA);
       if (memberB > 0) {
         await removeTenantMember(api, memberB).catch(() => {});

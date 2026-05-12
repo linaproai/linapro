@@ -233,6 +233,9 @@ func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 		"name: Duplicate Plugin",
 		"version: 0.1.0",
 		"type: source",
+		"scope_nature: tenant_aware",
+		"supports_multi_tenant: false",
+		"default_install_mode: global",
 		"description: Duplicate id test plugin",
 		"author: test-suite",
 		"license: Apache-2.0",
@@ -648,7 +651,7 @@ func TestScanEmbeddedSourcePluginManifestsUsesPluginEmbeddedFiles(t *testing.T) 
 	const pluginID = "plugin-embedded-manifest"
 	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
-		"plugin.yaml":                                &fstest.MapFile{Data: []byte("id: plugin-embedded-manifest\nname: Embedded Manifest Plugin\nversion: 0.1.0\ntype: source\n")},
+		"plugin.yaml":                                &fstest.MapFile{Data: []byte("id: plugin-embedded-manifest\nname: Embedded Manifest Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 		"frontend/pages/main-entry.vue":              &fstest.MapFile{Data: []byte("<template><div /></template>\n")},
 		"frontend/slots/layout.header.after/tip.vue": &fstest.MapFile{Data: []byte("<template><div /></template>\n")},
 		"manifest/sql/001-plugin-embedded-manifest.sql": &fstest.MapFile{
@@ -699,7 +702,7 @@ func TestResolvePluginSQLAssetsUsesEmbeddedSourcePluginFiles(t *testing.T) {
 		SourcePlugin: func() pluginhost.SourcePluginDefinition {
 			sourcePlugin := pluginhost.NewSourcePlugin("plugin-embedded-sql-assets")
 			sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
-				"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-embedded-sql-assets\nname: Embedded SQL Assets Plugin\nversion: 0.1.0\ntype: source\n")},
+				"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-embedded-sql-assets\nname: Embedded SQL Assets Plugin\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n")},
 				"manifest/sql/001-plugin-embedded-sql-assets.sql": &fstest.MapFile{
 					Data: []byte("SELECT 1;\n"),
 				},

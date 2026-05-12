@@ -1,21 +1,15 @@
 # LinaPro backend main CI workflow.
-# Runs on every push and pull request to main.
+# Runs on every push and pull request branch.
 name: Main CI
 
 on:
   push:
     branches:
-    - main
-    - develop
-    - feat/**
-    - fix/**
+    - '**'
 
   pull_request:
     branches:
-    - main
-    - develop
-    - feat/**
-    - fix/**
+    - '**'
 
   workflow_dispatch:
     inputs:
@@ -34,13 +28,21 @@ env:
   TZ: "Asia/Shanghai"
 
 jobs:
+  windows-command-smoke:
+    name: Windows command smoke
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+
   backend-unit-tests:
     name: Go unit tests
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      run-windows-command-smoke: false
 
   frontend-unit-tests:
     name: Frontend unit tests
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+    with:
+      run-windows-command-smoke: false
 
   # SQLite Backend Smoke Tests
   sqlite-smoke:

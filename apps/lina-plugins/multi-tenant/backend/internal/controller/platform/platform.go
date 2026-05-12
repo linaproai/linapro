@@ -8,17 +8,13 @@ import (
 	platformapi "lina-plugin-multi-tenant/backend/api/platform"
 	v1 "lina-plugin-multi-tenant/backend/api/platform/v1"
 	"lina-plugin-multi-tenant/backend/internal/service/impersonate"
-	"lina-plugin-multi-tenant/backend/internal/service/membership"
-	"lina-plugin-multi-tenant/backend/internal/service/resolverconfig"
 	tenantsvc "lina-plugin-multi-tenant/backend/internal/service/tenant"
 )
 
 // ControllerV1 is the platform multi-tenant controller.
 type ControllerV1 struct {
-	tenantSvc         tenantsvc.Service
-	membershipSvc     membership.Service
-	resolverConfigSvc resolverconfig.Service
-	impersonateSvc    impersonate.Service
+	tenantSvc      tenantsvc.Service
+	impersonateSvc impersonate.Service
 }
 
 // NewV1 creates and returns a new platform controller instance.
@@ -29,10 +25,8 @@ func NewV1() platformapi.IPlatformV1 {
 // NewControllerV1 creates and returns the concrete platform controller instance.
 func NewControllerV1() *ControllerV1 {
 	return &ControllerV1{
-		tenantSvc:         tenantsvc.New(),
-		membershipSvc:     membership.New(),
-		resolverConfigSvc: resolverconfig.New(),
-		impersonateSvc:    impersonate.New(),
+		tenantSvc:      tenantsvc.New(),
+		impersonateSvc: impersonate.New(),
 	}
 }
 
@@ -48,34 +42,5 @@ func toAPITenant(item *tenantsvc.Entity) *v1.TenantEntity {
 		Status:    item.Status,
 		Remark:    item.Remark,
 		CreatedAt: item.CreatedAt,
-	}
-}
-
-// toAPIMember converts a service membership into an API member DTO.
-func toAPIMember(item *membership.Entity) *v1.MemberEntity {
-	if item == nil {
-		return nil
-	}
-	return &v1.MemberEntity{
-		Id:       item.Id,
-		UserId:   item.UserID,
-		TenantId: item.TenantID,
-		Username: item.Username,
-		Nickname: item.Nickname,
-		Status:   item.Status,
-	}
-}
-
-// toAPIResolverConfig converts service resolver policy to API DTO.
-func toAPIResolverConfig(config *resolverconfig.Config) *v1.ResolverConfigEntity {
-	if config == nil {
-		return nil
-	}
-	return &v1.ResolverConfigEntity{
-		Chain:              config.Chain,
-		ReservedSubdomains: config.ReservedSubdomains,
-		RootDomain:         config.RootDomain,
-		OnAmbiguous:        config.OnAmbiguous,
-		Version:            config.Version,
 	}
 }

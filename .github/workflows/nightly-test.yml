@@ -19,13 +19,21 @@ env:
   TZ: "Asia/Shanghai"
 
 jobs:
+  windows-command-smoke:
+    name: Windows command smoke
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+
   backend-unit-tests:
     name: Go unit tests
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      run-windows-command-smoke: false
 
   frontend-unit-tests:
     name: Frontend unit tests
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+    with:
+      run-windows-command-smoke: false
 
   e2e-tests:
     name: Full E2E tests

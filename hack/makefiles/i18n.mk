@@ -7,11 +7,11 @@
 ## check-runtime-i18n: Scan runtime-visible hard-coded text
 .PHONY: check-runtime-i18n
 check-runtime-i18n:
-	@go run ./hack/tools/runtime-i18n scan
+	@go run ./hack/tools/linactl check-runtime-i18n
 
 # Validate runtime i18n message key coverage for host and plugin resources.
 # 校验宿主和插件运行时语言包的消息 key 覆盖情况。
 ## check-runtime-i18n-messages: Validate host and plugin runtime i18n message key coverage
 .PHONY: check-runtime-i18n-messages
 check-runtime-i18n-messages:
-	@go run ./hack/tools/runtime-i18n messages
+	@go run ./hack/tools/linactl check-runtime-i18n-messages

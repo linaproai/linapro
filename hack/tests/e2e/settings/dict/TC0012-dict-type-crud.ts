@@ -40,10 +40,10 @@ test.describe('TC0012 字典类型管理 CRUD', () => {
   test('TC0012d: 删除字典类型', async ({ adminPage }) => {
     const dictPage = new DictPage(adminPage);
     await dictPage.goto();
-    await dictPage.deleteType(`${testTypeName}修改`);
+    const deletedTypeName = `${testTypeName}修改`;
+    const response = await dictPage.deleteType(deletedTypeName);
 
-    await expect(adminPage.getByText(/删除成功|success/i)).toBeVisible({
-      timeout: 5000,
-    });
+    expect(response.status()).toBe(200);
+    expect(await dictPage.hasType(deletedTypeName)).toBeFalsy();
   });
 });

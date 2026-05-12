@@ -220,7 +220,7 @@ func TestBuildRuntimeWasmArtifactFromSourceFailsWhenEmbeddedResourcesOmitManifes
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-missing-embed\nname: Dynamic Missing Embed\nversion: v0.1.0\ntype: dynamic\n",
+		"id: plugin-dynamic-missing-embed\nname: Dynamic Missing Embed\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	mustWriteFile(
 		t,
@@ -248,7 +248,7 @@ func TestBuildRuntimeWasmArtifactFromSourceRejectsDeprecatedCapabilitiesDeclarat
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-legacy-db\nname: Dynamic Legacy DB\nversion: v0.1.0\ntype: dynamic\ncapabilities:\n  - host:runtime\n  - host:db:query\nhostServices:\n  - service: runtime\n    methods:\n      - info.uuid\n",
+		"id: plugin-dynamic-legacy-db\nname: Dynamic Legacy DB\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\ncapabilities:\n  - host:runtime\n  - host:db:query\nhostServices:\n  - service: runtime\n    methods:\n      - info.uuid\n",
 	)
 	mustWriteFile(
 		t,
@@ -281,7 +281,7 @@ func TestBuildRuntimeWasmArtifactFromSourceSkipsHiddenEmbeddedDirectoryEntries(t
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-hidden\nname: Dynamic Hidden\nversion: v0.1.0\ntype: dynamic\n",
+		"id: plugin-dynamic-hidden\nname: Dynamic Hidden\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	mustWriteFile(
 		t,
@@ -392,7 +392,7 @@ func TestBuildRuntimeWasmArtifactFromSourceCleansTemporaryGoMod(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-temp-gomod\nname: Dynamic Temp GoMod\nversion: v0.1.0\ntype: dynamic\n",
+		"id: plugin-dynamic-temp-gomod\nname: Dynamic Temp GoMod\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	mustWriteFile(
 		t,
@@ -423,7 +423,7 @@ func TestWriteRuntimeWasmArtifactFromSourceWritesGeneratedFile(t *testing.T) {
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-write\nname: Dynamic Write\nversion: v0.1.0\ntype: dynamic\n",
+		"id: plugin-dynamic-write\nname: Dynamic Write\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 
 	repoRoot, ok := findRuntimeBuildRepoRoot(".")
@@ -461,7 +461,7 @@ func TestWriteRuntimeWasmArtifactFromSourceSupportsExternalOutputDir(t *testing.
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-output\nname: Dynamic Output\nversion: v0.1.0\ntype: dynamic\n",
+		"id: plugin-dynamic-output\nname: Dynamic Output\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 
 	out, err := WriteRuntimeWasmArtifactFromSource(pluginDir, outputDir)
@@ -485,7 +485,7 @@ func TestWriteRuntimeWasmArtifactFromSourceSupportsRelativeOutputDir(t *testing.
 	mustWriteFile(
 		t,
 		filepath.Join(pluginDir, "plugin.yaml"),
-		"id: plugin-dynamic-relative-output\nname: Dynamic Relative Output\nversion: v0.1.0\ntype: dynamic\n",
+		"id: plugin-dynamic-relative-output\nname: Dynamic Relative Output\nversion: v0.1.0\ntype: dynamic\nscope_nature: tenant_aware\nsupports_multi_tenant: false\ndefault_install_mode: global\n",
 	)
 	mustWriteFile(
 		t,

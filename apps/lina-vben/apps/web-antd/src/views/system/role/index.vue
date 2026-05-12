@@ -23,9 +23,11 @@ import { $t } from '#/locales';
 import { pluginCapabilityKeys } from '#/plugins/plugin-capabilities';
 import {
   getPluginCapabilityStateMap,
+  getPluginStateMap,
   onPluginRegistryChanged,
 } from '#/plugins/slot-registry';
 import { useDictStore } from '#/store/dict';
+import { useTenantStore } from '#/store/tenant';
 
 import { DATA_SCOPE_DICT_TYPE, columns, querySchema } from './data';
 import RoleDrawer from './role-drawer.vue';
@@ -81,19 +83,30 @@ let disposePluginRegistryListener: null | (() => void) = null;
 
 // 加载字典数据
 const dictStore = useDictStore();
+const tenantStore = useTenantStore();
 const statusLabel = ref({
   checked: $t('pages.status.enabled'),
   unchecked: $t('pages.status.disabled'),
 });
 
+function isPluginRuntimeEnabled(value: unknown) {
+  return value === 1 || value === '1' || value === true;
+}
+
 async function syncRoleCapabilities(force = false) {
   const capabilityMap = await getPluginCapabilityStateMap(force);
+  const pluginStateMap = await getPluginStateMap();
+  const multiTenantState = pluginStateMap.get('multi-tenant');
+  const tenantManagementEnabled = multiTenantState
+    ? isPluginRuntimeEnabled(multiTenantState.installed) &&
+      isPluginRuntimeEnabled(multiTenantState.enabled)
+    : capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled ===
+        true || tenantStore.enabled;
   tableApi.setGridOptions({
     columns: columns(
       capabilityMap.get(pluginCapabilityKeys.organizationManagement)
         ?.enabled === true,
-      capabilityMap.get(pluginCapabilityKeys.tenantManagement)?.enabled ===
-        true,
+      tenantManagementEnabled,
     ),
   });
 }

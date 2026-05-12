@@ -196,11 +196,13 @@ export const useAuthStore = defineStore('auth', () => {
       accessStore.setAccessCodes(userInfo.permissions);
     }
     tenantStore.setTenantContext({
-      enabled: resolveTenantEnabled(
-        tenantStore.tenants,
-        userInfo,
-        tenantStore.currentTenant,
-      ),
+      enabled:
+        tenantStore.enabled ||
+        resolveTenantEnabled(
+          tenantStore.tenants,
+          userInfo,
+          tenantStore.currentTenant,
+        ),
     });
 
     return userInfo;
