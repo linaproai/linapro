@@ -27,6 +27,12 @@ func CleanupPluginGovernanceRowsHard(t *testing.T, ctx context.Context, pluginID
 		Delete(); err != nil {
 		t.Fatalf("failed to delete sys_plugin_resource_ref rows for %s: %v", pluginID, err)
 	}
+	if _, err := dao.SysPluginState.Ctx(ctx).
+		Unscoped().
+		Where(do.SysPluginState{PluginId: pluginID}).
+		Delete(); err != nil {
+		t.Fatalf("failed to delete sys_plugin_state rows for %s: %v", pluginID, err)
+	}
 	if _, err := dao.SysPluginMigration.Ctx(ctx).
 		Unscoped().
 		Where(do.SysPluginMigration{PluginId: pluginID}).

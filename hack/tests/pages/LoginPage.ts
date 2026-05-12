@@ -189,11 +189,10 @@ export class LoginPage {
     });
   }
 
-  async switchLanguage(label: "English" | "简体中文" | "繁體中文") {
+  async switchLanguage(label: "English" | "简体中文") {
     const localeMap = {
       English: "en-US",
       简体中文: "zh-CN",
-      繁體中文: "zh-TW",
     } as const;
     const locale = localeMap[label];
     await this.languageToggleTrigger.click();

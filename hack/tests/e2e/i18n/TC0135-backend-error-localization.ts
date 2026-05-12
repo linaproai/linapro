@@ -31,7 +31,6 @@ const errorCases = [
     messages: {
       "en-US": "Notice does not exist",
       "zh-CN": "通知公告不存在",
-      "zh-TW": "通知公告不存在",
     },
     path: "notice/99999999",
   },
@@ -41,7 +40,6 @@ const errorCases = [
     messages: {
       "en-US": "Department does not exist",
       "zh-CN": "部门不存在",
-      "zh-TW": "部門不存在",
     },
     path: "dept/99999999",
   },
@@ -51,7 +49,6 @@ const errorCases = [
     messages: {
       "en-US": "Post does not exist",
       "zh-CN": "岗位不存在",
-      "zh-TW": "崗位不存在",
     },
     path: "post/99999999",
   },
@@ -61,7 +58,6 @@ const errorCases = [
     messages: {
       "en-US": "Login log does not exist",
       "zh-CN": "登录日志不存在",
-      "zh-TW": "登錄日誌不存在",
     },
     path: "loginlog/99999999",
   },
@@ -71,7 +67,6 @@ const errorCases = [
     messages: {
       "en-US": "Operation log does not exist",
       "zh-CN": "操作日志不存在",
-      "zh-TW": "操作日誌不存在",
     },
     path: "operlog/99999999",
   },
@@ -116,7 +111,7 @@ test.describe("TC-135 Backend error localization", () => {
 
   test("TC-135a: business errors keep stable codes while messages follow request locale", async () => {
     for (const errorCase of errorCases) {
-      for (const locale of ["zh-CN", "en-US", "zh-TW"] as const) {
+      for (const locale of ["zh-CN", "en-US"] as const) {
         const payload = await expectBackendError(
           await adminApi.get(errorCase.path, {
             headers: { "Accept-Language": locale },
