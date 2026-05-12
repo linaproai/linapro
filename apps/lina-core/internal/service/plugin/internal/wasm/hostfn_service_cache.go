@@ -130,7 +130,7 @@ func buildCacheValueResponse(item *kvcache.Item) *bridgehostservice.HostServiceC
 	}
 
 	value := &bridgehostservice.HostServiceCacheValue{
-		ValueKind: int32(item.Kind),
+		ValueKind: int32(item.ValueKind),
 		Value:     item.Value,
 		IntValue:  item.IntValue,
 	}

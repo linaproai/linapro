@@ -11,14 +11,14 @@ import (
 
 // LeaseManager manages automatic lease renewal for a held lock instance.
 type LeaseManager struct {
-	instance    *LockInstance
+	instance    *Instance
 	renewIntvl  time.Duration
 	stopChan    chan struct{}
 	stoppedChan chan struct{}
 }
 
 // NewLeaseManager creates a new lease manager.
-func NewLeaseManager(instance *LockInstance, renewInterval time.Duration) *LeaseManager {
+func NewLeaseManager(instance *Instance, renewInterval time.Duration) *LeaseManager {
 	return &LeaseManager{
 		instance:    instance,
 		renewIntvl:  renewInterval,

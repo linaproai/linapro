@@ -37,9 +37,9 @@ type Item struct {
 	OwnerKey  string      // OwnerKey is the primary key of the owner.
 	Namespace string      // Namespace isolates entries within the same owner.
 	Key       string      // Key is the logical cache key.
-	Kind      int         // Kind indicates whether the value is a string or integer.
-	Value     string      // Value stores the string value (for Kind = ValueKindString).
-	IntValue  int64       // IntValue stores the integer value (for Kind = ValueKindInt).
+	ValueKind int         // ValueKind indicates whether the value is a string or integer.
+	Value     string      // Value stores the string value (for ValueKind = ValueKindString).
+	IntValue  int64       // IntValue stores the integer value (for ValueKind = ValueKindInt).
 	ExpireAt  *gtime.Time // ExpireAt is the absolute expiration time; nil means never expire.
 }
 
