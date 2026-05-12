@@ -6,7 +6,7 @@
 - [x] 1.4 保持 SQLite 方言强制 `cluster.enabled=false`，并确保 SQLite 模式即使配置 Redis coordination 也不连接 Redis
 - [x] 1.5 在 HTTP runtime 启动编排中加入 coordination 初始化阶段，确保 Redis 探活成功后才启动 cluster、cron、plugin runtime 和 HTTP 服务
 - [x] 1.6 为配置解析、非法 coordination、Redis address 缺失、timeout 非法、SQLite 忽略 Redis 配置添加单元测试
-- [ ] 1.7 定义启动期配置错误码或启动诊断错误，确保用户能明确看到失败字段与修复建议
+- [x] 1.7 定义启动期配置错误码或启动诊断错误，确保用户能明确看到失败字段与修复建议
 
 ## 2. Coordination Provider 抽象
 
@@ -26,8 +26,8 @@
 - [x] 3.5 实现 Redis `RevisionStore`：按 tenant/domain/scope 原子 Bump 和 Current，支持 cascade metadata
 - [x] 3.6 实现 Redis `EventBus`：发布 cache invalidation event、订阅循环、重复事件幂等处理、source node 识别
 - [x] 3.7 实现 Redis health snapshot：ping 状态、最近成功时间、最近错误、subscriber 状态、backend 名称
-- [ ] 3.8 添加 Redis 真连接集成测试，通过 `LINA_TEST_REDIS_ADDR` 显式启用，使用独立 namespace，禁止 `FLUSHDB`
-- [ ] 3.9 添加 Redis provider 故障测试，覆盖连接失败、超时、owner token 不匹配、event 发布失败和 context cancel
+- [x] 3.8 添加 Redis 真连接集成测试，通过 `LINA_TEST_REDIS_ADDR` 显式启用，使用独立 namespace，禁止 `FLUSHDB`
+- [x] 3.9 添加 Redis provider 故障测试，覆盖连接失败、超时、owner token 不匹配、event 发布失败和 context cancel
 
 ## 4. Cluster 与 Leader Election 迁移
 
@@ -40,12 +40,12 @@
 
 ## 5. Distributed Locker 与插件锁迁移
 
-- [ ] 5.1 修改 `internal/service/locker`，抽象出 coordination lock backed implementation 与现有 SQL implementation 的部署分支
-- [ ] 5.2 实现 Redis lock instance 的 Unlock、Renew、IsHeld，确保 release/renew 均校验 owner token
-- [ ] 5.3 修改插件 Wasm host lock service，使集群模式下插件锁走 coordination lock
-- [ ] 5.4 插件锁 key 必须包含插件 ID、租户维度和逻辑锁名，平台共享锁必须通过显式能力与审计
-- [ ] 5.5 为插件锁添加单元测试，覆盖不同插件同名锁隔离、不同租户同名锁隔离、非持有者释放失败、Redis 故障返回错误
-- [ ] 5.6 更新 `plugin-lock-service` 相关 apidoc 或 host service 文档，如响应错误语义发生变化则同步 i18n
+- [x] 5.1 修改 `internal/service/locker`，抽象出 coordination lock backed implementation 与现有 SQL implementation 的部署分支
+- [x] 5.2 实现 Redis lock instance 的 Unlock、Renew、IsHeld，确保 release/renew 均校验 owner token
+- [x] 5.3 修改插件 Wasm host lock service，使集群模式下插件锁走 coordination lock
+- [x] 5.4 插件锁 key 必须包含插件 ID、租户维度和逻辑锁名，平台共享锁必须通过显式能力与审计
+- [x] 5.5 为插件锁添加单元测试，覆盖不同插件同名锁隔离、不同租户同名锁隔离、非持有者释放失败、Redis 故障返回错误
+- [x] 5.6 更新 `plugin-lock-service` 相关 apidoc 或 host service 文档，如响应错误语义发生变化则同步 i18n
 
 ## 6. Cachecoord Redis Revision/Event 迁移
 
@@ -54,9 +54,9 @@
 - [x] 6.3 实现 `MarkTenantChanged` 的 Redis revision bump + event publish + local observed revision 更新流程
 - [x] 6.4 实现 `EnsureFresh` 的本地 revision TTL、Redis current revision 读取、refresher 调用、observed revision 更新和 domain failure strategy
 - [x] 6.5 确保 tenant scope、cascadeToTenants、tenant=-1 运维全清语义在 Redis key/event 中显式表达
-- [ ] 6.6 保持 `cachecoord.Snapshot` 可观测字段，增加 Redis backend、event 状态和最近错误
+- [x] 6.6 保持 `cachecoord.Snapshot` 可观测字段，增加 Redis backend、event 状态和最近错误
 - [x] 6.7 为 cachecoord 添加双实例 fake provider 测试，覆盖 event 收敛、event 丢失后 revision 兜底、重复事件幂等、权限 fail-closed
-- [ ] 6.8 为 Redis 真连接场景添加可选集成测试，覆盖并发 revision bump 和跨实例 event 通知
+- [x] 6.8 为 Redis 真连接场景添加可选集成测试，覆盖并发 revision bump 和跨实例 event 通知
 
 ## 7. Kvcache Coordination KV Backend
 
@@ -67,17 +67,17 @@
 - [x] 7.5 coordination KV backend 写失败、删除失败、递增失败必须返回结构化错误，不得伪装成功
 - [x] 7.6 更新 cron 内置任务投射逻辑，coordination KV backend 下不注册 `host:kvcache-cleanup-expired`
 - [x] 7.7 添加 kvcache coordination KV backend 单元测试，覆盖 string、int、TTL、incr 并发、Expire、Delete、类型冲突、Redis 故障
-- [ ] 7.8 更新插件 Wasm host cache service 测试，确认集群模式走 coordination KV backend 且租户 key 隔离
+- [x] 7.8 更新插件 Wasm host cache service 测试，确认集群模式走 coordination KV backend 且租户 key 隔离
 
 ## 8. Auth Token State 迁移
 
 - [x] 8.1 修改 JWT revoke store，集群模式使用 coordination KV 写入 revoked token，TTL 等于 JWT 剩余有效期
 - [x] 8.2 保留本地 memory revoke cache 作为当前节点加速层，但集群模式必须以 Redis revoke 状态为跨节点事实源
-- [ ] 8.3 实现 revoke 读取失败 fail-closed，禁止 Redis 故障时仅凭 JWT 签名放行
+- [x] 8.3 实现 revoke 读取失败 fail-closed，禁止 Redis 故障时仅凭 JWT 签名放行
 - [x] 8.4 将 `pre_token`、select-tenant single-use 状态和 replay marker 迁移到 coordination KV
-- [ ] 8.5 确认 logout、switch-tenant、force logout 均写 Redis revoke，并在写失败时返回结构化错误或明确部分失败
-- [ ] 8.6 添加 auth 单元测试，覆盖 logout revoke、switch-tenant 旧 token 失效、pre-token 单次使用、Redis 读取失败 fail-closed
-- [ ] 8.7 若登录/租户选择前端行为受到影响，更新对应 E2E 子断言；否则在验证结论中说明无前端可见变化
+- [x] 8.5 确认 logout、switch-tenant、force logout 均写 Redis revoke，并在写失败时返回结构化错误或明确部分失败
+- [x] 8.6 添加 auth 单元测试，覆盖 logout revoke、switch-tenant 旧 token 失效、pre-token 单次使用、Redis 读取失败 fail-closed
+- [x] 8.7 若登录/租户选择前端行为受到影响，更新对应 E2E 子断言；否则在验证结论中说明无前端可见变化
 
 ## 9. Session Hot State 迁移
 
@@ -155,3 +155,9 @@
 
 - [x] **FB-1**: Redis provider 包边界需要收敛到 `coordination/internal/redis`，`kvcache` 仅保留 coordination KV 适配层，避免业务缓存层直接表达 Redis 后端
 - [x] **FB-2**: 项目介绍文档仍将 `OpenSpec` 描述为内置必需工作流，应调整为可选但推荐的依赖组件，并说明框架提供良好支持
+- [x] **FB-3**: `lina-archive-consolidate` 未指定变更列表时应只读取以日期开头命名的归档变更，避免重复聚合已生成的聚合归档目录
+- [x] 2026-05-12: `lina-archive-consolidate` 默认归档读取边界修正验证通过:`rg -n '所有已归档|所有子目录|处理 .* 下的所有|日期开头|YYYY-MM-DD|非日期|显式指定' .agents/skills/lina-archive-consolidate/SKILL.md`;`openspec validate redis-cluster-coordination --strict`;`git diff --check -- .agents/skills/lina-archive-consolidate/SKILL.md openspec/changes/redis-cluster-coordination/tasks.md`。确认技能说明已将未指定变更列表时的默认输入集合收敛为目录名匹配 `^[0-9]{4}-[0-9]{2}-[0-9]{2}-` 的原始归档变更,并明确排除不以日期开头的既有聚合目录、手工汇总目录和临时目录;显式指定列表时仍允许处理用户点名的非日期目录。i18n 影响:本轮仅修改 agent skill 文档和 OpenSpec 任务记录,不新增或修改前端运行时语言包、manifest i18n、apidoc i18n、菜单、按钮、表单、接口文档或用户可见运行时文案。缓存一致性影响:本轮不修改运行时代码、不新增缓存、不改变缓存失效或跨实例同步逻辑。
+- [x] 2026-05-12: 本轮继续实现验证通过:`gofmt -w apps/lina-core/internal/service/config/config_cluster.go apps/lina-core/internal/service/config/config_cluster_test.go apps/lina-core/internal/service/coordination/coordination_test.go apps/lina-core/internal/service/coordination/coordination_redis_integration_test.go apps/lina-core/internal/service/cachecoord/cachecoord.go apps/lina-core/internal/service/cachecoord/cachecoord_revision.go apps/lina-core/internal/service/cachecoord/cachecoord_test.go apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_cache.go apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_cache_test.go`;`cd apps/lina-core && go test ./internal/service/config ./internal/cmd -run 'TestGetCluster|TestProductionPanicGovernance' -count=1`;`cd apps/lina-core && go test ./internal/service/coordination ./internal/service/cachecoord ./internal/service/kvcache ./internal/service/plugin/internal/wasm -count=1`。确认启动期 cluster 配置诊断错误包含失败字段与修复建议;Redis provider 新增默认可运行的连接关闭/超时故障测试,可选真连接集成测试通过 `LINA_TEST_REDIS_ADDR` 显式启用、独立 namespace 且只删除精确测试 key;`cachecoord.Snapshot` 暴露 coordination backend、health、event subscriber 和最后事件时间;Wasm cache host service 在 coordination KV backend 下按租户 identity 构造 tenant-aware cache key。i18n 影响:本轮仅修改后端诊断错误文本、内部测试和 OpenSpec 任务记录,不新增前端菜单/按钮/表单/接口文档字段、插件 manifest 文案、运行时 i18n JSON、manifest i18n 或 apidoc i18n。缓存一致性影响:本轮补强 cachecoord 可观测性和插件 cache 租户隔离测试;不改变 cachecoord revision/event 一致性模型,Redis 真连接集成测试保持显式启用且禁止 `FLUSHDB`。
+- [x] 2026-05-12: 插件锁 coordination 迁移验证通过:`gofmt -w apps/lina-core/internal/cmd/cmd_http_runtime.go apps/lina-core/internal/service/coordination/internal/core/core_memory.go apps/lina-core/internal/service/hostlock/hostlock.go apps/lina-core/internal/service/hostlock/hostlock_code.go apps/lina-core/internal/service/hostlock/hostlock_ticket.go apps/lina-core/internal/service/locker/locker.go apps/lina-core/internal/service/locker/locker_instance.go apps/lina-core/internal/service/locker/locker_coordination_test.go apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_lock.go apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_lock_test.go`;`python3 -m json.tool apps/lina-core/manifest/i18n/zh-CN/error.json >/dev/null && python3 -m json.tool apps/lina-core/manifest/i18n/en-US/error.json >/dev/null`;`cd apps/lina-core && go test ./internal/service/coordination ./internal/service/locker ./internal/service/hostlock ./internal/service/plugin/internal/wasm ./internal/cmd -count=1`。确认集群启动时 `locker` 切换到 coordination lock,单机恢复 SQL lock;coordination lock instance 的 `Unlock`/`Renew`/`IsHeld` 均使用 owner token 校验;Wasm 插件锁名包含 plugin ID、tenant ID 和逻辑锁名;不同插件同名锁、不同租户同名锁可并行持有,同插件同租户重复获取会 miss,跨租户 ticket release 被拒绝。i18n 影响:新增 `HOST_LOCK_TICKET_TENANT_MISMATCH` 业务错误码并同步 `manifest/i18n/zh-CN/error.json` 与 `manifest/i18n/en-US/error.json`;本轮未新增前端页面文案、apidoc 字段或插件 manifest 文案。缓存一致性影响:本轮不新增业务缓存;锁状态在 cluster 模式下以 coordination lock/Redis TTL 为权威,release/renew 幂等并按 owner token fail-closed,单机模式仍使用 `sys_locker`。
+- [x] 2026-05-12: Redis cachecoord 真连接集成测试验证通过:`gofmt -w apps/lina-core/internal/service/cachecoord/cachecoord_redis_integration_test.go`;`cd apps/lina-core && go test ./internal/service/cachecoord -count=1`。新增 `TestRedisCacheCoordIntegrationConcurrentRevisionAndEvent`,通过 `LINA_TEST_REDIS_ADDR` 显式启用,使用独立 Redis key namespace 和精确 revision key 删除,不使用 `FLUSHDB`;测试两个独立 Redis coordination service 模拟两个节点,覆盖并发 `MarkChanged` revision bump 不丢失、跨节点 `cache.invalidate` Pub/Sub 事件通知、事件驱动 `EnsureFresh` 收敛到最新 revision,并校验 `Snapshot` 中 Redis backend、订阅状态、最近事件时间、本地/共享 revision。i18n 影响:本轮仅新增后端可选集成测试和 OpenSpec 任务记录,不新增用户可见文案、前端语言包、manifest i18n 或 apidoc i18n。缓存一致性影响:本轮不改变生产一致性模型,补充验证 Redis revision 为权威事实源、Pub/Sub 为低延迟通知、`EnsureFresh` 读取 shared revision 完成事件丢失/乱序兜底;单机路径不受影响。
+- [x] 2026-05-12: Auth token state 迁移收敛验证通过:`gofmt -w apps/lina-core/internal/service/auth/auth.go apps/lina-core/internal/service/auth/auth_tenant_flow_test.go apps/lina-core/internal/controller/auth/auth_v1_logout.go`;`python3 -m json.tool apps/lina-core/manifest/i18n/en-US/error.json >/dev/null && python3 -m json.tool apps/lina-core/manifest/i18n/zh-CN/error.json >/dev/null && python3 -m json.tool apps/lina-core/internal/packed/manifest/i18n/en-US/error.json >/dev/null && python3 -m json.tool apps/lina-core/internal/packed/manifest/i18n/zh-CN/error.json >/dev/null`;`cd apps/lina-core && go test ./internal/service/auth ./internal/controller/auth ./pkg/pluginservice/session ./internal/service/middleware -count=1`;`cd apps/lina-plugins/monitor-online && go test ./backend/internal/service/monitor ./backend/internal/controller/monitor -count=1`。确认 `ParseToken` 在 shared revoke 读取失败时返回 `AUTH_TOKEN_STATE_UNAVAILABLE` 并 fail-closed;`logout`、`switch-tenant` 和 monitor-online force logout 所用 `RevokeSession` 均先写 shared revoke,成功后删除在线会话投影,写失败时返回结构化错误且保留 session projection 供重试;pre-token 单次使用已有共享 KV 测试覆盖。i18n 影响:补齐 `error.auth.token.state.unavailable` 中英文翻译并同步 packed manifest;未新增前端页面文案、按钮、表单、apidoc 字段或插件 manifest 文案。缓存一致性影响:cluster 模式下 revoked token 以 coordination KV/Redis TTL 为跨节点事实源,本地 memory revoke 仅作加速层;读取失败 fail-closed,写失败不删除 session projection 以避免“本地下线但共享 revoke 未写入”的不一致窗口。前端影响:登录、租户选择和切换租户响应结构未变化,只在 Redis token-state 故障时返回已有结构化错误,本轮不新增 E2E 子断言。
