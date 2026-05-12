@@ -6,12 +6,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
@@ -193,6 +196,145 @@ func TestExecutableNameAddsWindowsExtensionOnlyOnWindows(t *testing.T) {
 	if name != "lina" {
 		t.Fatalf("expected non-windows executable name, got %s", name)
 	}
+}
+
+func TestPrintStatusTableIncludesDevelopmentServiceDetails(t *testing.T) {
+	var stdout bytes.Buffer
+	err := printStatusTable(&stdout, []serviceStatusRow{
+		{
+			Service: "Backend",
+			Status:  "running",
+			URL:     "http://127.0.0.1:8080/",
+			PID:     "12345",
+			PIDFile: "temp/pids/backend.pid",
+			LogFile: "temp/lina-core.log",
+		},
+		{
+			Service: "Frontend",
+			Status:  "stopped",
+			URL:     "http://127.0.0.1:5666/",
+			PID:     "-",
+			PIDFile: "temp/pids/frontend.pid",
+			LogFile: "temp/lina-vben.log",
+		},
+	})
+	if err != nil {
+		t.Fatalf("printStatusTable returned error: %v", err)
+	}
+
+	output := stdout.String()
+	for _, expected := range []string{
+		"+",
+		"| Service",
+		"| Backend",
+		"| Frontend",
+		"| running",
+		"| stopped",
+		"temp/pids/backend.pid",
+		"temp/lina-vben.log",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("expected status table to contain %q, got:\n%s", expected, output)
+		}
+	}
+}
+
+func TestWaitHTTPAcceptsRedirectWithoutFollowingLoop(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "./", http.StatusMovedPermanently)
+	}))
+	defer server.Close()
+
+	pidFile := filepath.Join(t.TempDir(), "service.pid")
+	if err := os.WriteFile(pidFile, []byte("12345"), 0o644); err != nil {
+		t.Fatalf("write pid file: %v", err)
+	}
+	if err := waitHTTP("Backend", server.URL+"/", pidFile, "service.log", time.Second); err != nil {
+		t.Fatalf("waitHTTP should accept redirect readiness responses: %v", err)
+	}
+}
+
+func TestRunDevStartsServicesAsAsyncProcessesAndPrintsFinalStatus(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.work"), "go 1.25.0\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "config.template.yaml"), "template: true\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "metadata: true\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "sql", "001.sql"), "select 1;\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "i18n", "en-US", "framework.json"), "{}\n")
+	if err := os.MkdirAll(filepath.Join(root, "apps", "lina-vben", "apps", "web-antd"), 0o755); err != nil {
+		t.Fatalf("mkdir frontend workdir: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name == "go" && len(args) >= 1 && args[0] == "build" {
+			return exec.Command("true")
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperLongRunningProcess", "--")
+	}
+	application.waitHTTP = func(_ string, _ string, pidPath string, _ string, _ time.Duration) error {
+		if readPID(pidPath) == 0 {
+			return os.ErrNotExist
+		}
+		return nil
+	}
+
+	start := time.Now()
+	if err := runDev(context.Background(), application, commandInput{
+		Params: map[string]string{
+			"skip_wasm": "true",
+		},
+	}); err != nil {
+		t.Fatalf("runDev returned error: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("runDev appears to have waited for service processes to exit: %s", elapsed)
+	}
+	for _, path := range []string{
+		filepath.Join(root, "temp", "pids", "backend.pid"),
+		filepath.Join(root, "temp", "pids", "frontend.pid"),
+	} {
+		pid := readPID(path)
+		if pid == 0 {
+			t.Fatalf("expected pid file %s to contain a service process id", path)
+		}
+		process, err := os.FindProcess(pid)
+		if err == nil {
+			if killErr := process.Kill(); killErr != nil {
+				t.Logf("kill service process %d: %v", pid, killErr)
+			}
+		}
+		if err = os.Remove(path); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("remove pid file %s: %v", path, err)
+		}
+	}
+
+	output := stdout.String()
+	statusTitleIndex := strings.LastIndex(output, "LinaPro Framework Status")
+	if statusTitleIndex < 0 {
+		t.Fatalf("expected final status title in output:\n%s", output)
+	}
+	finalOutput := output[statusTitleIndex:]
+	for _, expected := range []string{
+		"| Service",
+		"| Backend",
+		"| Frontend",
+		"temp/pids/backend.pid",
+		"temp/lina-vben.log",
+	} {
+		if !strings.Contains(finalOutput, expected) {
+			t.Fatalf("expected final status output to contain %q, got:\n%s", expected, finalOutput)
+		}
+	}
+}
+
+func TestHelperLongRunningProcess(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+	time.Sleep(5 * time.Second)
 }
 
 type ioDiscard struct{}

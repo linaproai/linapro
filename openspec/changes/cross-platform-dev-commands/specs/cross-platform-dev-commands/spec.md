@@ -42,6 +42,11 @@
 - **WHEN** Linux/macOS 开发者执行现有 `make dev`、`make build`、`make init confirm=init` 等命令
 - **THEN** 系统 MUST 保持目标语义兼容，并通过跨平台命令主入口或等价跨平台工具实现任务编排
 
+#### Scenario: 开发服务异步启动与最终状态输出
+
+- **WHEN** 开发者执行 `make dev` 或跨平台命令主入口 `dev`
+- **THEN** 系统 MUST 将后端与前端作为可脱离当前命令生命周期的异步开发服务进程启动,记录对应 PID 文件,并在 readiness 检查完成后将当前前后端进程状态表作为终端最终输出
+
 #### Scenario: 薄包装一致性
 
 - **WHEN** 同一个目标同时支持 `make <target>`、`make.cmd <target>` 和跨平台命令主入口
@@ -79,6 +84,11 @@
 
 - **WHEN** 开发者执行 `status` 或 `stop`
 - **THEN** 系统 MUST 使用跨平台方式检查端口、PID 文件、进程启动记录和服务 readiness，并避免依赖 `lsof`、`pgrep`、`ps`、`kill`、`sed`、`head` 或 `tr`
+
+#### Scenario: 状态命令表格输出
+
+- **WHEN** 开发者执行 `status`，或 `dev` 在服务启动完成后展示最终状态
+- **THEN** 系统 MUST 以跨平台稳定的表格格式展示后端与前端的服务名、运行状态、URL、PID、PID 文件和日志路径
 
 #### Scenario: 帮助输出
 

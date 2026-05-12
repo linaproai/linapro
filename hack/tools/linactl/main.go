@@ -58,6 +58,7 @@ type app struct {
 	env  []string
 
 	execCommand func(context.Context, string, ...string) *exec.Cmd
+	waitHTTP    func(string, string, string, string, time.Duration) error
 }
 
 // rootConfig stores repository-level tool configuration from hack/config.yaml.
@@ -102,6 +103,16 @@ type serviceConfig struct {
 	StartArgs []string
 }
 
+// serviceStatusRow stores one printable development service status row.
+type serviceStatusRow struct {
+	Service string
+	Status  string
+	URL     string
+	PID     string
+	PIDFile string
+	LogFile string
+}
+
 // pluginManifest stores the plugin fields needed by linactl.
 type pluginManifest struct {
 	Type string `yaml:"type"`
@@ -126,6 +137,7 @@ func newApp(stdout io.Writer, stderr io.Writer, stdin io.Reader) *app {
 		stdin:       stdin,
 		env:         os.Environ(),
 		execCommand: exec.CommandContext,
+		waitHTTP:    waitHTTP,
 	}
 }
 
@@ -446,23 +458,36 @@ func runStatus(_ context.Context, a *app, input commandInput) error {
 	}
 	services := a.services(backendPort, frontendPort)
 
-	fmt.Fprintln(a.stdout, "")
-	fmt.Fprintln(a.stdout, "LinaPro Framework Status")
-	fmt.Fprintln(a.stdout, "------------------------")
+	if _, err = fmt.Fprintln(a.stdout, ""); err != nil {
+		return fmt.Errorf("write status output: %w", err)
+	}
+	if _, err = fmt.Fprintln(a.stdout, "LinaPro Framework Status"); err != nil {
+		return fmt.Errorf("write status title: %w", err)
+	}
+
+	rows := make([]serviceStatusRow, 0, len(services))
 	for _, service := range services {
 		status := "stopped"
 		if isTCPListening(service.Port) || serviceReady(service.URL, 2*time.Second) {
 			status = "running"
 		}
 		pid := readPID(service.PIDPath)
-		if pid == 0 {
-			fmt.Fprintf(a.stdout, "%-8s %s  %s\n", service.Name+":", status, service.URL)
-			continue
+		pidText := "-"
+		if pid > 0 {
+			pidText = strconv.Itoa(pid)
 		}
-		fmt.Fprintf(a.stdout, "%-8s %s  %s  pid=%d\n", service.Name+":", status, service.URL, pid)
+		rows = append(rows, serviceStatusRow{
+			Service: service.Name,
+			Status:  status,
+			URL:     service.URL,
+			PID:     pidText,
+			PIDFile: relativePath(a.root, service.PIDPath),
+			LogFile: relativePath(a.root, service.LogPath),
+		})
 	}
-	fmt.Fprintf(a.stdout, "\nBackend log:  %s\n", relativePath(a.root, services[0].LogPath))
-	fmt.Fprintf(a.stdout, "Frontend log: %s\n", relativePath(a.root, services[1].LogPath))
+	if err = printStatusTable(a.stdout, rows); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -477,7 +502,9 @@ func runStop(_ context.Context, a *app, input commandInput) error {
 		return err
 	}
 
-	fmt.Fprintln(a.stdout, "Stopping services...")
+	if _, err = fmt.Fprintln(a.stdout, "Stopping services..."); err != nil {
+		return fmt.Errorf("write stop output: %w", err)
+	}
 	for _, service := range a.services(backendPort, frontendPort) {
 		if err = stopService(a.stdout, service); err != nil {
 			return err
@@ -528,7 +555,9 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 	if err = os.Remove(backendBinary); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove existing backend binary: %w", err)
 	}
-	fmt.Fprintln(a.stdout, "Building backend...")
+	if _, err = fmt.Fprintln(a.stdout, "Building backend..."); err != nil {
+		return fmt.Errorf("write build output: %w", err)
+	}
 	if err = a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "apps", "lina-core")}, "go", "build", "-o", backendBinary, "."); err != nil {
 		return err
 	}
@@ -543,10 +572,12 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 	}
 
 	for _, service := range services {
-		if err = waitHTTP(service.Name, service.URL, service.PIDPath, service.LogPath, defaultWaitTimeout); err != nil {
+		if err = a.waitHTTP(service.Name, service.URL, service.PIDPath, service.LogPath, defaultWaitTimeout); err != nil {
 			return err
 		}
-		fmt.Fprintf(a.stdout, "%s is ready: %s\n", service.Name, service.URL)
+		if _, err = fmt.Fprintf(a.stdout, "%s is ready: %s\n", service.Name, service.URL); err != nil {
+			return fmt.Errorf("write readiness output: %w", err)
+		}
 	}
 
 	return runStatus(ctx, a, stopInput)
@@ -1224,6 +1255,82 @@ func (a *app) services(backendPort int, frontendPort int) []serviceConfig {
 	}
 }
 
+// printStatusTable renders development service status without terminal-specific dependencies.
+func printStatusTable(out io.Writer, rows []serviceStatusRow) error {
+	headers := []string{"Service", "Status", "URL", "PID", "PID File", "Log File"}
+	widths := make([]int, len(headers))
+	for i, header := range headers {
+		widths[i] = len(header)
+	}
+	for _, row := range rows {
+		values := row.values()
+		for i, value := range values {
+			if len(value) > widths[i] {
+				widths[i] = len(value)
+			}
+		}
+	}
+
+	if err := printTableBorder(out, widths); err != nil {
+		return err
+	}
+	if err := printTableRow(out, widths, headers); err != nil {
+		return err
+	}
+	if err := printTableBorder(out, widths); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if err := printTableRow(out, widths, row.values()); err != nil {
+			return err
+		}
+	}
+	if err := printTableBorder(out, widths); err != nil {
+		return err
+	}
+	return nil
+}
+
+// values returns the printable table cells for one service status row.
+func (r serviceStatusRow) values() []string {
+	return []string{r.Service, r.Status, r.URL, r.PID, r.PIDFile, r.LogFile}
+}
+
+// printTableBorder prints one ASCII border line for a table.
+func printTableBorder(out io.Writer, widths []int) error {
+	if _, err := fmt.Fprint(out, "+"); err != nil {
+		return fmt.Errorf("write table border: %w", err)
+	}
+	for _, width := range widths {
+		if _, err := fmt.Fprint(out, strings.Repeat("-", width+2)); err != nil {
+			return fmt.Errorf("write table border: %w", err)
+		}
+		if _, err := fmt.Fprint(out, "+"); err != nil {
+			return fmt.Errorf("write table border: %w", err)
+		}
+	}
+	if _, err := fmt.Fprintln(out); err != nil {
+		return fmt.Errorf("write table border: %w", err)
+	}
+	return nil
+}
+
+// printTableRow prints one padded ASCII table row.
+func printTableRow(out io.Writer, widths []int, values []string) error {
+	if _, err := fmt.Fprint(out, "|"); err != nil {
+		return fmt.Errorf("write table row: %w", err)
+	}
+	for i, value := range values {
+		if _, err := fmt.Fprintf(out, " %-*s |", widths[i], value); err != nil {
+			return fmt.Errorf("write table row: %w", err)
+		}
+	}
+	if _, err := fmt.Fprintln(out); err != nil {
+		return fmt.Errorf("write table row: %w", err)
+	}
+	return nil
+}
+
 // startService starts a development service and records its PID file.
 func startService(a *app, service serviceConfig) error {
 	if err := os.MkdirAll(filepath.Dir(service.PIDPath), 0o755); err != nil {
@@ -1290,7 +1397,7 @@ func stopService(out io.Writer, service serviceConfig) error {
 // waitHTTP waits for one service URL to become ready.
 func waitHTTP(name string, url string, pidPath string, logPath string, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	client := http.Client{Timeout: 2 * time.Second}
+	client := newReadinessHTTPClient(2 * time.Second)
 	for time.Now().Before(deadline) {
 		if readPID(pidPath) == 0 {
 			return fmt.Errorf("%s startup failed: PID file does not exist; check log: %s", name, logPath)
@@ -1311,7 +1418,7 @@ func waitHTTP(name string, url string, pidPath string, logPath string, timeout t
 
 // serviceReady reports whether an HTTP endpoint responds without server error.
 func serviceReady(url string, timeout time.Duration) bool {
-	client := http.Client{Timeout: timeout}
+	client := newReadinessHTTPClient(timeout)
 	resp, err := client.Get(url)
 	if err != nil {
 		return false
@@ -1320,6 +1427,16 @@ func serviceReady(url string, timeout time.Duration) bool {
 		return false
 	}
 	return resp.StatusCode < http.StatusInternalServerError
+}
+
+// newReadinessHTTPClient matches curl-style readiness by accepting redirects as responses.
+func newReadinessHTTPClient(timeout time.Duration) http.Client {
+	return http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 // isTCPListening reports whether localhost accepts TCP connections on a port.

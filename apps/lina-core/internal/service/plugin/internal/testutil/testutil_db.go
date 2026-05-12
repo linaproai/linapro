@@ -17,37 +17,37 @@ func CleanupPluginGovernanceRowsHard(t *testing.T, ctx context.Context, pluginID
 
 	if _, err := dao.SysPluginNodeState.Ctx(ctx).
 		Unscoped().
-		Where(do.SysPluginNodeState{PluginId: pluginID}).
+		Where(dao.SysPluginNodeState.Columns().PluginId, pluginID).
 		Delete(); err != nil {
 		t.Fatalf("failed to delete sys_plugin_node_state rows for %s: %v", pluginID, err)
 	}
 	if _, err := dao.SysPluginResourceRef.Ctx(ctx).
 		Unscoped().
-		Where(do.SysPluginResourceRef{PluginId: pluginID}).
+		Where(dao.SysPluginResourceRef.Columns().PluginId, pluginID).
 		Delete(); err != nil {
 		t.Fatalf("failed to delete sys_plugin_resource_ref rows for %s: %v", pluginID, err)
 	}
 	if _, err := dao.SysPluginState.Ctx(ctx).
 		Unscoped().
-		Where(do.SysPluginState{PluginId: pluginID}).
+		Where(dao.SysPluginState.Columns().PluginId, pluginID).
 		Delete(); err != nil {
 		t.Fatalf("failed to delete sys_plugin_state rows for %s: %v", pluginID, err)
 	}
 	if _, err := dao.SysPluginMigration.Ctx(ctx).
 		Unscoped().
-		Where(do.SysPluginMigration{PluginId: pluginID}).
+		Where(dao.SysPluginMigration.Columns().PluginId, pluginID).
 		Delete(); err != nil {
 		t.Fatalf("failed to delete sys_plugin_migration rows for %s: %v", pluginID, err)
 	}
 	if _, err := dao.SysPluginRelease.Ctx(ctx).
 		Unscoped().
-		Where(do.SysPluginRelease{PluginId: pluginID}).
+		Where(dao.SysPluginRelease.Columns().PluginId, pluginID).
 		Delete(); err != nil {
 		t.Fatalf("failed to delete sys_plugin_release rows for %s: %v", pluginID, err)
 	}
 	if _, err := dao.SysPlugin.Ctx(ctx).
 		Unscoped().
-		Where(do.SysPlugin{PluginId: pluginID}).
+		Where(dao.SysPlugin.Columns().PluginId, pluginID).
 		Delete(); err != nil {
 		t.Fatalf("failed to delete sys_plugin rows for %s: %v", pluginID, err)
 	}
