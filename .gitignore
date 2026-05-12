@@ -19,7 +19,6 @@ temp/
 # CodeBuddy plans
 .codebuddy/plan/
 
-
 # Backend
 apps/lina-core/temp/
 apps/lina-core/internal/packed/manifest/**
