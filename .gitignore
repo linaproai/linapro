@@ -18,6 +18,8 @@ temp/
 .codebuddy/plan/
 .agents/skills/goframe-v2/
 
+# CodeBuddy plans
+.codebuddy/plan/
 
 # Backend
 apps/lina-core/temp/
