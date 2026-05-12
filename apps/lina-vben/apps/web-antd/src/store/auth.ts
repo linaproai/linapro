@@ -166,12 +166,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  async function logout(redirect: boolean = true) {
-    try {
-      await logoutApi();
-    } catch {
-      // 不做任何处理
-    }
+  async function clearSession(redirect: boolean = true) {
     resetAllStores();
     tenantStore.$reset();
     accessStore.setLoginExpired(false);
@@ -185,6 +180,15 @@ export const useAuthStore = defineStore('auth', () => {
           }
         : {},
     });
+  }
+
+  async function logout(redirect: boolean = true) {
+    try {
+      await logoutApi();
+    } catch {
+      // 不做任何处理
+    }
+    await clearSession(redirect);
   }
 
   async function fetchUserInfo() {
@@ -215,6 +219,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     $reset,
     authLogin,
+    clearSession,
     fetchUserInfo,
     loginLoading,
     logout,
