@@ -17,9 +17,10 @@ func (c *ControllerV1) Login(ctx context.Context, req *v1.LoginReq) (res *v1.Log
 		return nil, err
 	}
 	return &v1.LoginRes{
-		AccessToken: out.AccessToken,
-		PreToken:    out.PreToken,
-		Tenants:     toLoginTenants(out.Tenants),
+		AccessToken:  out.AccessToken,
+		RefreshToken: out.RefreshToken,
+		PreToken:     out.PreToken,
+		Tenants:      toLoginTenants(out.Tenants),
 	}, nil
 }
 

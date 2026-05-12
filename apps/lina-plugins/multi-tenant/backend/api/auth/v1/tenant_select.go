@@ -13,5 +13,6 @@ type SelectTenantReq struct {
 
 // SelectTenantRes defines the selected tenant token response.
 type SelectTenantRes struct {
-	AccessToken string `json:"accessToken" dc:"Tenant-bound token" eg:"eyJhbGciOi..."`
+	AccessToken  string `json:"accessToken" dc:"Tenant-bound token" eg:"eyJhbGciOi..."`
+	RefreshToken string `json:"refreshToken" dc:"Tenant-bound refresh token" eg:"eyJhbGciOi..."`
 }

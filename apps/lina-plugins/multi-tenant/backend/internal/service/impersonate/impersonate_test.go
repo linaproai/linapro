@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"lina-core/pkg/authtoken"
 	"lina-core/pkg/bizerr"
 )
 
@@ -55,6 +56,9 @@ func TestJWTTokenSignerRoundTrip(t *testing.T) {
 	}
 	if claims.UserId != 7 || claims.TenantId != 42 || claims.ActingUserId != 7 {
 		t.Fatalf("unexpected claims: %#v", claims)
+	}
+	if claims.TokenType != authtoken.KindAccess {
+		t.Fatalf("expected host access token type, got %q", claims.TokenType)
 	}
 	if !claims.IsImpersonation {
 		t.Fatalf("expected impersonation claims, got %#v", claims)
