@@ -4,6 +4,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -347,6 +348,130 @@ func TestRefreshRejectsRevokedSession(t *testing.T) {
 	}
 }
 
+// TestRefreshRejectsNegativeTenantClaim verifies that a refresh token
+// claiming a negative/sentinel tenant ID — which the host signer never
+// issues — is treated as forged and the underlying session is torn down.
+func TestRefreshRejectsNegativeTenantClaim(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	username := fmt.Sprintf("tenant-neg-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, ctx, username, "admin123")
+	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+
+	// Forge a refresh token whose TenantId sits below PLATFORM. We bypass
+	// generateTokenPair because the production signer never emits such a
+	// value; the goal is to confirm the parser/refresh path rejects it.
+	const forgedTenantID = -1
+	tokenID := "forged-negative-tenant-token"
+	refreshToken, err := svc.signToken(ctx, user, forgedTenantID, tokenID, tokenKindRefresh, false, 0)
+	if err != nil {
+		t.Fatalf("sign forged refresh token: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: forgedTenantID, UserId: userID, Username: username}); err != nil {
+		t.Fatalf("seed forged session: %v", err)
+	}
+
+	if _, err = svc.Refresh(ctx, RefreshInput{RefreshToken: refreshToken}); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected negative tenant refresh to be rejected with CodeAuthTokenInvalid, got %v", err)
+	}
+	if active, sessErr := svc.sessionStore.TouchOrValidate(ctx, forgedTenantID, tokenID, time.Hour); sessErr != nil || active {
+		t.Fatalf("expected forged-tenant session removed, active=%v err=%v", active, sessErr)
+	}
+}
+
+// TestRefreshPreservesSessionOnTenantProviderInfraError verifies that a
+// transient infrastructure failure from the tenant provider (e.g., DB
+// outage) causes refresh to fail without tearing down the online session.
+// Access tokens are short-lived; once infra recovers the next refresh will
+// re-evaluate membership and revoke if the eviction turns out to be real.
+func TestRefreshPreservesSessionOnTenantProviderInfraError(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	svc.tenantSvc = enabledTenantAuthTestService{}
+
+	username := fmt.Sprintf("tenant-infra-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, ctx, username, "admin123")
+	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+
+	infraErr := errors.New("simulated tenant provider infra failure")
+	provider := &tenantAuthTestProvider{
+		tenantsByUser: map[int][]pkgtenantcap.TenantInfo{
+			userID: {{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"}},
+		},
+		validateErr: infraErr,
+	}
+	previous := pkgtenantcap.CurrentProvider()
+	pkgtenantcap.RegisterProvider(provider)
+	t.Cleanup(func() { pkgtenantcap.RegisterProvider(previous) })
+
+	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11)
+	if err != nil {
+		t.Fatalf("generate token pair: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
+		t.Fatalf("set refresh session: %v", err)
+	}
+
+	if _, err = svc.Refresh(ctx, RefreshInput{RefreshToken: refreshToken}); !errors.Is(err, infraErr) {
+		t.Fatalf("expected infra error to propagate from refresh, got %v", err)
+	}
+	if active, sessErr := svc.sessionStore.TouchOrValidate(ctx, 11, tokenID, time.Hour); sessErr != nil || !active {
+		t.Fatalf("expected session preserved on infra error, active=%v err=%v", active, sessErr)
+	}
+
+	// Once infra recovers, the next refresh should succeed without losing
+	// the session continuity.
+	provider.validateErr = nil
+	if _, err = svc.Refresh(ctx, RefreshInput{RefreshToken: refreshToken}); err != nil {
+		t.Fatalf("expected refresh to succeed after infra recovery: %v", err)
+	}
+}
+
+// TestRefreshRejectsAfterTenantMembershipRemoved verifies that revoking a
+// user's tenant membership immediately blocks refresh from minting fresh
+// tenant-scoped access tokens, even while the refresh JWT and online session
+// are still nominally valid.
+func TestRefreshRejectsAfterTenantMembershipRemoved(t *testing.T) {
+	ctx := context.Background()
+	svc := newTenantAuthTestService()
+	svc.tenantSvc = enabledTenantAuthTestService{}
+
+	username := fmt.Sprintf("tenant-evict-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, ctx, username, "admin123")
+	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+
+	provider := &tenantAuthTestProvider{tenantsByUser: map[int][]pkgtenantcap.TenantInfo{
+		userID: {{ID: 11, Code: "tenant-a", Name: "Tenant A", Status: "enabled"}},
+	}}
+	previous := pkgtenantcap.CurrentProvider()
+	pkgtenantcap.RegisterProvider(provider)
+	t.Cleanup(func() { pkgtenantcap.RegisterProvider(previous) })
+
+	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 11)
+	if err != nil {
+		t.Fatalf("generate token pair: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 11, UserId: userID, Username: username}); err != nil {
+		t.Fatalf("set refresh session: %v", err)
+	}
+
+	// Sanity check: while the user is still a tenant member, refresh succeeds.
+	if _, err = svc.Refresh(ctx, RefreshInput{RefreshToken: refreshToken}); err != nil {
+		t.Fatalf("baseline refresh before eviction: %v", err)
+	}
+
+	// Evict the user from the tenant: the refresh JWT and session still look
+	// valid, but membership lookups must now fail.
+	provider.tenantsByUser[userID] = nil
+
+	if _, err = svc.Refresh(ctx, RefreshInput{RefreshToken: refreshToken}); !bizerr.Is(err, CodeAuthTokenInvalid) {
+		t.Fatalf("expected refresh after tenant eviction to fail with CodeAuthTokenInvalid, got %v", err)
+	}
+	if active, sessErr := svc.sessionStore.TouchOrValidate(ctx, 11, tokenID, time.Hour); sessErr != nil || active {
+		t.Fatalf("expected evicted-tenant session removed, active=%v err=%v", active, sessErr)
+	}
+}
+
 // TestRevokeSharedStoreInvalidatesAcrossInstances verifies that one auth
 // instance can revoke a JWT and another instance rejects it through shared state.
 func TestRevokeSharedStoreInvalidatesAcrossInstances(t *testing.T) {
@@ -567,6 +692,10 @@ func (enabledTenantAuthTestService) ValidateUserMembershipStartupConsistency(con
 // tenantAuthTestProvider provides deterministic tenant memberships for auth tests.
 type tenantAuthTestProvider struct {
 	tenantsByUser map[int][]pkgtenantcap.TenantInfo
+	// validateErr, when non-nil, is returned by ValidateUserInTenant verbatim
+	// before the membership lookup. Used to simulate provider infrastructure
+	// failures (e.g., DB timeout) that surface as non-bizerr errors.
+	validateErr error
 }
 
 // ResolveTenant returns no request-derived tenant in auth tests.
@@ -576,6 +705,9 @@ func (p *tenantAuthTestProvider) ResolveTenant(context.Context, *ghttp.Request) 
 
 // ValidateUserInTenant verifies the user is a member of the requested tenant.
 func (p *tenantAuthTestProvider) ValidateUserInTenant(_ context.Context, userID int, tenantID pkgtenantcap.TenantID) error {
+	if p.validateErr != nil {
+		return p.validateErr
+	}
 	for _, tenant := range p.tenantsByUser[userID] {
 		if tenant.ID == tenantID {
 			return nil

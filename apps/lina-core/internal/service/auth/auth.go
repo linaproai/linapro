@@ -453,6 +453,46 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 		return nil, bizerr.NewCode(CodeAuthUserDisabled)
 	}
 
+	// The host signer only ever issues access/refresh tokens with
+	// TenantId == PLATFORM (single-tenant / platform login) or a real
+	// positive tenant ID. A refresh token claiming a negative/sentinel tenant
+	// ID never originates from the host, so treat it as forged or corrupt:
+	// tear down the session and reject the refresh.
+	if claims.TenantId < int(pkgtenantcap.PLATFORM) {
+		if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
+			logger.Warningf(ctx, "revoke invalid-tenant refresh session failed tokenId=%s userId=%d tenantId=%d err=%v", claims.TokenId, user.Id, claims.TenantId, revokeErr)
+		}
+		return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+	}
+	// Re-validate tenant membership so a user removed from the token's tenant
+	// cannot keep minting access tokens just because their refresh token JWT
+	// and online session row still exist. Platform-scoped tokens skip this
+	// check because they do not represent a tenant membership.
+	//
+	// We split the failure modes by error shape:
+	//   - bizerr.As(err) == true: the tenant provider made a definitive
+	//     authorization decision (CodeMembershipNotFound, CodeTenantUnavailable,
+	//     ...). Tear down the session so the user is forced through login.
+	//   - bizerr.As(err) == false: the provider hit an infrastructure error
+	//     (DB outage, timeout, plugin transport failure, ...). The membership
+	//     state is unknowable, so we surface the error to the client without
+	//     destroying the session — a transient blip should not kick every
+	//     active tenant user offline. Access tokens are short-lived; if the
+	//     eviction is real, the next refresh after infra recovery will see a
+	//     definitive bizerr and revoke at that point.
+	if claims.TenantId > int(pkgtenantcap.PLATFORM) {
+		if err = s.validateUserTenant(ctx, user.Id, claims.TenantId); err != nil {
+			if _, definitive := bizerr.As(err); definitive {
+				if revokeErr := s.RevokeSession(ctx, claims.TokenId); revokeErr != nil {
+					logger.Warningf(ctx, "revoke evicted-tenant refresh session failed tokenId=%s userId=%d tenantId=%d err=%v", claims.TokenId, user.Id, claims.TenantId, revokeErr)
+				}
+			} else {
+				logger.Warningf(ctx, "tenant membership lookup failed during refresh tokenId=%s userId=%d tenantId=%d err=%v", claims.TokenId, user.Id, claims.TenantId, err)
+			}
+			return nil, err
+		}
+	}
+
 	accessToken, err := s.signToken(ctx, user, claims.TenantId, claims.TokenId, tokenKindAccess, claims.IsImpersonation, claims.ActingUserId)
 	if err != nil {
 		return nil, err
