@@ -71,10 +71,25 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
   }
 
   /**
-   * Token refresh is not supported; re-authenticate directly.
+   * Refresh the access token by calling the backend refresh endpoint.
+   * Returns the new access token string, or empty string on failure.
    */
   async function doRefreshToken() {
-    return '';
+    const accessStore = useAccessStore();
+    try {
+      const resp = await client.post<{ data: { accessToken: string } }>(
+        '/auth/refresh',
+        {},
+        { __isRetryRequest: true } as any,
+      );
+      const newToken = resp?.data?.accessToken ?? '';
+      if (newToken) {
+        accessStore.setAccessToken(newToken);
+      }
+      return newToken;
+    } catch {
+      return '';
+    }
   }
 
   function formatToken(token: null | string) {
@@ -111,7 +126,7 @@ function createRequestClient(baseURL: string, options?: RequestClientOptions) {
       client,
       doReAuthenticate,
       doRefreshToken,
-      enableRefreshToken: false,
+      enableRefreshToken: true,
       formatToken,
     }),
   );

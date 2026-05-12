@@ -48,6 +48,8 @@ type Service interface {
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
 	// ParseToken parses and validates JWT token, returns claims.
 	ParseToken(ctx context.Context, tokenString string) (*Claims, error)
+	// RefreshToken validates the current token, revokes it, and issues a new JWT with a refreshed expiry.
+	RefreshToken(ctx context.Context, tokenString string) (string, error)
 	// HashPassword hashes password using bcrypt.
 	HashPassword(password string) (string, error)
 	// Logout records logout login log and removes session.
@@ -397,6 +399,42 @@ func (s *serviceImpl) ParseToken(ctx context.Context, tokenString string) (*Clai
 		return claims, nil
 	}
 	return nil, bizerr.NewCode(CodeAuthTokenInvalid)
+}
+
+// RefreshToken validates the current token, revokes it, and issues a new JWT with a refreshed expiry.
+// The caller must provide the current valid bearer token string. The old token session is revoked
+// and a new token is issued for the same user and tenant.
+func (s *serviceImpl) RefreshToken(ctx context.Context, tokenString string) (string, error) {
+	claims, err := s.ParseToken(ctx, tokenString)
+	if err != nil {
+		return "", bizerr.WrapCode(err, CodeAuthTokenInvalid)
+	}
+	// Revoke old token session.
+	if claims.ExpiresAt != nil {
+		if err = s.revoked.Add(ctx, claims.TokenId, claims.ExpiresAt.Time); err != nil {
+			return "", bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+		}
+	}
+	if err = s.RevokeSession(ctx, claims.TokenId); err != nil {
+		return "", bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+	}
+	// Issue a new token for the same user and tenant.
+	user := &entity.SysUser{Id: claims.UserId, Username: claims.Username, Status: claims.Status}
+	newToken, newTokenId, err := s.generateToken(ctx, user, claims.TenantId)
+	if err != nil {
+		return "", bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+	}
+	// Register new session for the refreshed token.
+	if err = s.sessionStore.Set(ctx, &session.Session{
+		TokenId:   newTokenId,
+		TenantId:  claims.TenantId,
+		UserId:    user.Id,
+		Username:  user.Username,
+		LoginTime: gtime.Now(),
+	}); err != nil {
+		return "", bizerr.WrapCode(err, CodeAuthTokenStateUnavailable)
+	}
+	return newToken, nil
 }
 
 // HashPassword hashes password using bcrypt.
