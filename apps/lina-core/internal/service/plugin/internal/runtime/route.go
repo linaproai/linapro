@@ -22,6 +22,7 @@ import (
 	"lina-core/internal/model/entity"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/authtoken"
 	"lina-core/pkg/logger"
 	bridgecodec "lina-core/pkg/pluginbridge/codec"
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
@@ -562,7 +563,7 @@ func (s *serviceImpl) parseDynamicRouteToken(ctx context.Context, tokenString st
 	if !ok || !token.Valid {
 		return nil, gerror.New("invalid token")
 	}
-	if claims.TokenType != "access" {
+	if claims.TokenType != authtoken.KindAccess {
 		return nil, gerror.New("invalid token")
 	}
 	return claims, nil

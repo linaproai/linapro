@@ -20,6 +20,7 @@ import (
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/datascope"
 	"lina-core/internal/service/plugin/internal/catalog"
+	"lina-core/pkg/authtoken"
 	bridgecontract "lina-core/pkg/pluginbridge/contract"
 )
 
@@ -191,7 +192,7 @@ func TestParseDynamicRouteTokenRejectsRefreshToken(t *testing.T) {
 		tokenType string
 	}{
 		{name: "missing token type", tokenType: ""},
-		{name: "refresh token", tokenType: "refresh"},
+		{name: "refresh token", tokenType: authtoken.KindRefresh},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
@@ -384,7 +385,7 @@ func signDynamicRouteAccessTestToken(
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
 		TokenId:   tokenID,
-		TokenType: "access",
+		TokenType: authtoken.KindAccess,
 		TenantId:  tenantID,
 		UserId:    userID,
 		Username:  "dynamic-route-access",
@@ -411,7 +412,7 @@ func signDynamicRouteImpersonationTestToken(
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dynamicRouteClaims{
 		TokenId:         tokenID,
-		TokenType:       "access",
+		TokenType:       authtoken.KindAccess,
 		TenantId:        tenantID,
 		UserId:          userID,
 		Username:        "dynamic-route-access",

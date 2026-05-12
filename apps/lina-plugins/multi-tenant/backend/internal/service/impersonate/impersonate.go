@@ -13,6 +13,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mssola/useragent"
 
+	"lina-core/pkg/authtoken"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginservice/bizctx"
 	"lina-core/pkg/pluginservice/config"
@@ -254,7 +255,7 @@ func (jwtTokenSigner) Sign(secret string, ttl time.Duration, user *userRow, tena
 	now := time.Now()
 	claims := tokenClaims{
 		TokenId:         tokenID,
-		TokenType:       "access",
+		TokenType:       authtoken.KindAccess,
 		UserId:          int(user.Id),
 		Username:        user.Username,
 		Status:          user.Status,
