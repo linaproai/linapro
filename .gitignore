@@ -16,6 +16,8 @@ assets/
 temp/
 .agents/skills/goframe-v2/
 
+# CodeBuddy plans
+.codebuddy/plan/
 
 # Backend
 apps/lina-core/temp/
