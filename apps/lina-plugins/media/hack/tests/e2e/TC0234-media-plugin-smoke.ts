@@ -57,6 +57,13 @@ type AliasDetail = {
   streamPath: string;
 };
 
+type TenantWhiteDetail = {
+  tenantId: string;
+  ip: string;
+  description: string;
+  enable: number;
+};
+
 async function expectPageHeightStable(page: any, pageName: string) {
   const samples = await page.evaluate(async () => {
     const values: number[] = [];
@@ -141,6 +148,10 @@ function rowKeyTenantDevice(tenantId: string, deviceId: string) {
   return `tenantDevice:${tenantId}:${deviceId}`;
 }
 
+function rowKeyTenantWhite(tenantId: string, ip: string) {
+  return `${tenantId}:${ip}`;
+}
+
 async function createStrategy(
   api: AdminApiContext,
   name: string,
@@ -161,6 +172,10 @@ async function createStrategy(
 
 function pathSegment(value: string) {
   return encodeURIComponent(value);
+}
+
+function ipv4OctetFromSuffix(suffix: string, offset: number) {
+  return ((Number(suffix.slice(-4)) + offset) % 200) + 1;
 }
 
 function hostStaticBaseURL() {
@@ -274,6 +289,18 @@ async function resolveStrategy(
   );
 }
 
+async function deleteTenantWhite(
+  api: AdminApiContext,
+  tenantId: string,
+  ip: string,
+) {
+  await expectSuccess(
+    await api.delete(
+      `media/tenant-whites/${pathSegment(tenantId)}/${pathSegment(ip)}`,
+    ),
+  );
+}
+
 test.describe("TC-234 media plugin owned E2E discovery", () => {
   test.beforeEach(async ({ adminPage }) => {
     await ensureSourcePluginEnabled(adminPage, "media");
@@ -359,6 +386,21 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     await waitForRouteReady(adminPage);
     await expect(adminPage.getByText("流别名").first()).toBeVisible();
     await expectPageHeightStable(adminPage, "流别名页签");
+
+    const tenantWhiteResponse = adminPage.waitForResponse(
+      (res) =>
+        res.url().includes("/api/v1/media/tenant-whites") &&
+        res.request().method() === "GET" &&
+        res.status() === 200,
+      { timeout: 15000 },
+    );
+    await adminPage
+      .getByRole("tab", { exact: true, name: "租户白名单" })
+      .click();
+    await tenantWhiteResponse;
+    await waitForRouteReady(adminPage);
+    await expect(adminPage.getByText("租户白名单").first()).toBeVisible();
+    await expectPageHeightStable(adminPage, "租户白名单页签");
 
     await expectNoPageErrors(pageErrors, /ResizeObserver loop/i);
   });
@@ -490,10 +532,24 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     const deviceId = `3402000000139${suffix.slice(-7).padStart(7, "0")}`;
     const tenantId = `tenant-api-${suffix}`;
     const alias = `e2e-api-alias-${suffix}`;
+    const whiteIp = `10.9.${ipv4OctetFromSuffix(
+      suffix,
+      0,
+    )}.${ipv4OctetFromSuffix(suffix, 1)}`;
+    const updatedWhiteIp = `10.10.${ipv4OctetFromSuffix(
+      suffix,
+      2,
+    )}.${ipv4OctetFromSuffix(suffix, 3)}`;
+    const updatedWhiteTenantId = `${tenantId}-white-updated`;
+    const ipv6WhiteTenantId = `tenant-ipv6-${suffix}`;
+    const ipv6WhiteIp = `2001:db8::${Number(suffix.slice(-4)).toString(16)}`;
 
     let strategyId = 0;
     let replacementStrategyId = 0;
     let aliasId = 0;
+    let tenantWhiteTenantId = "";
+    let tenantWhiteIp = "";
+    let ipv6TenantWhiteCreated = false;
 
     try {
       strategyId = await createStrategy(api, strategyName, strategyBody);
@@ -674,6 +730,143 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       aliasId = 0;
       await expectBusinessError(await api.get(`media/stream-aliases/${createdAlias.id}`));
 
+      await expectBusinessError(
+        await api.post("media/tenant-whites", {
+          data: {
+            tenantId,
+            ip: "999.999.999.999",
+            description: "非法白名单",
+            enable: 1,
+          },
+        }),
+      );
+
+      const createdWhite = await expectSuccess<TenantWhiteDetail>(
+        await api.post("media/tenant-whites", {
+          data: {
+            tenantId,
+            ip: whiteIp,
+            description: "接口白名单",
+            enable: 1,
+          },
+        }),
+      );
+      tenantWhiteTenantId = createdWhite.tenantId;
+      tenantWhiteIp = createdWhite.ip;
+      expect(createdWhite).toMatchObject({ tenantId, ip: whiteIp });
+
+      const createdIPv6White = await expectSuccess<TenantWhiteDetail>(
+        await api.post("media/tenant-whites", {
+          data: {
+            tenantId: ipv6WhiteTenantId,
+            ip: ipv6WhiteIp,
+            description: "IPv6白名单",
+            enable: 1,
+          },
+        }),
+      );
+      ipv6TenantWhiteCreated = true;
+      expect(createdIPv6White).toMatchObject({
+        tenantId: ipv6WhiteTenantId,
+        ip: ipv6WhiteIp,
+      });
+
+      const listedWhites = await expectSuccess<
+        ListResult<TenantWhiteDetail>
+      >(
+        await api.get(
+          `media/tenant-whites?pageNum=1&pageSize=20&keyword=${encodeURIComponent(tenantId)}`,
+        ),
+      );
+      expect(listedWhites.list).toEqual([
+        expect.objectContaining({
+          tenantId,
+          ip: whiteIp,
+          description: "接口白名单",
+          enable: 1,
+        }),
+      ]);
+
+      await expect(
+        expectSuccess<TenantWhiteDetail>(
+          await api.get(
+            `media/tenant-whites/${pathSegment(tenantId)}/${pathSegment(
+              whiteIp,
+            )}`,
+          ),
+        ),
+      ).resolves.toMatchObject({
+        tenantId,
+        ip: whiteIp,
+        description: "接口白名单",
+        enable: 1,
+      });
+
+      await expectBusinessError(
+        await api.put(
+          `media/tenant-whites/${pathSegment(tenantId)}/${pathSegment(
+            whiteIp,
+          )}`,
+          {
+            data: {
+              tenantId,
+              ip: "not-an-ip",
+              description: "非法更新",
+              enable: 1,
+            },
+          },
+        ),
+      );
+
+      const updatedWhite = await expectSuccess<TenantWhiteDetail>(
+        await api.put(
+          `media/tenant-whites/${pathSegment(tenantId)}/${pathSegment(
+            whiteIp,
+          )}`,
+          {
+            data: {
+              tenantId: updatedWhiteTenantId,
+              ip: updatedWhiteIp,
+              description: "接口白名单更新",
+              enable: 0,
+            },
+          },
+        ),
+      );
+      tenantWhiteTenantId = updatedWhite.tenantId;
+      tenantWhiteIp = updatedWhite.ip;
+      expect(updatedWhite).toMatchObject({
+        tenantId: updatedWhiteTenantId,
+        ip: updatedWhiteIp,
+      });
+      await expect(
+        expectSuccess<TenantWhiteDetail>(
+          await api.get(
+            `media/tenant-whites/${pathSegment(
+              updatedWhiteTenantId,
+            )}/${pathSegment(updatedWhiteIp)}`,
+          ),
+        ),
+      ).resolves.toMatchObject({
+        tenantId: updatedWhiteTenantId,
+        ip: updatedWhiteIp,
+        description: "接口白名单更新",
+        enable: 0,
+      });
+
+      await deleteTenantWhite(api, ipv6WhiteTenantId, ipv6WhiteIp);
+      ipv6TenantWhiteCreated = false;
+      await deleteTenantWhite(api, updatedWhiteTenantId, updatedWhiteIp);
+      tenantWhiteTenantId = "";
+      tenantWhiteIp = "";
+      await expectBusinessError(
+        await api.get(
+          `media/tenant-whites/${pathSegment(
+            updatedWhiteTenantId,
+          )}/${pathSegment(updatedWhiteIp)}`,
+        ),
+      );
+
       await expectSuccess(await api.delete(`media/strategies/${replacementStrategyId}`));
       replacementStrategyId = 0;
       await expectSuccess(await api.delete(`media/strategies/${strategyId}`));
@@ -684,6 +877,24 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       );
       await deleteTenantBinding(api, tenantId).catch(() => undefined);
       await deleteDeviceBinding(api, deviceId).catch(() => undefined);
+      if (tenantWhiteTenantId && tenantWhiteIp) {
+        await api
+          .delete(
+            `media/tenant-whites/${pathSegment(
+              tenantWhiteTenantId,
+            )}/${pathSegment(tenantWhiteIp)}`,
+          )
+          .catch(() => undefined);
+      }
+      if (ipv6TenantWhiteCreated) {
+        await api
+          .delete(
+            `media/tenant-whites/${pathSegment(
+              ipv6WhiteTenantId,
+            )}/${pathSegment(ipv6WhiteIp)}`,
+          )
+          .catch(() => undefined);
+      }
       if (aliasId > 0) {
         await api
           .delete(`media/stream-aliases/${aliasId}`)
@@ -755,6 +966,21 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     const createdAfterEditTenantId = `000-e2e-tenant-new-${suffix}`;
     const createdAfterEditTenantDeviceTenantId = `000-e2e-td-tenant-new-${suffix}`;
     const createdAfterEditTenantDeviceId = `000-e2e-td-device-new-${suffix}`;
+    const tenantWhiteTenantId = `000-e2e-white-tenant-${suffix}`;
+    const tenantWhiteIp = `10.20.${ipv4OctetFromSuffix(
+      suffix,
+      4,
+    )}.${ipv4OctetFromSuffix(suffix, 5)}`;
+    const updatedTenantWhiteTenantId = `000-e2e-white-updated-${suffix}`;
+    const updatedTenantWhiteIp = `10.21.${ipv4OctetFromSuffix(
+      suffix,
+      6,
+    )}.${ipv4OctetFromSuffix(suffix, 7)}`;
+    const createdAfterEditTenantWhiteTenantId = `000-e2e-white-new-${suffix}`;
+    const createdAfterEditTenantWhiteIp = `10.22.${ipv4OctetFromSuffix(
+      suffix,
+      8,
+    )}.${ipv4OctetFromSuffix(suffix, 9)}`;
 
     let strategyId = 0;
     let createdAfterEditStrategyId = 0;
@@ -762,6 +988,9 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
     let aliasId = 0;
     let createdAfterEditAliasId = 0;
     let previousGlobalStrategyId = 0;
+    let tenantWhiteCurrentTenantId = "";
+    let tenantWhiteCurrentIp = "";
+    let createdAfterEditTenantWhiteCreated = false;
 
     try {
       strategyId = await createStrategy(api, strategyName, strategyBody);
@@ -792,6 +1021,18 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
         }),
       );
       aliasId = createdAlias.id;
+      const createdTenantWhite = await expectSuccess<TenantWhiteDetail>(
+        await api.post("media/tenant-whites", {
+          data: {
+            tenantId: tenantWhiteTenantId,
+            ip: tenantWhiteIp,
+            description: "界面白名单",
+            enable: 1,
+          },
+        }),
+      );
+      tenantWhiteCurrentTenantId = createdTenantWhite.tenantId;
+      tenantWhiteCurrentIp = createdTenantWhite.ip;
 
       const strategyListResponse = adminPage.waitForResponse(
         (res) =>
@@ -1347,6 +1588,144 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
         streamPath: `live/${createdAfterEditAlias}`,
       });
 
+      const tenantWhiteListResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().includes("/api/v1/media/tenant-whites") &&
+          res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByRole("tab", { exact: true, name: "租户白名单" })
+        .click();
+      await expectApiResponseSuccess(await tenantWhiteListResponse);
+      const tenantWhiteRow = tableRowByText(adminPage, tenantWhiteIp);
+      await expect(tenantWhiteRow).toBeVisible();
+      const tenantWhiteDetailResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-whites/${pathSegment(
+                tenantWhiteTenantId,
+              )}/${pathSegment(tenantWhiteIp)}`,
+            ) && res.request().method() === "GET",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(
+          `media-tenant-white-edit-${rowKeyTenantWhite(
+            tenantWhiteTenantId,
+            tenantWhiteIp,
+          )}`,
+        )
+        .click();
+      await expectApiResponseSuccess(await tenantWhiteDetailResponse);
+      const tenantWhiteModal = visibleModalRoot(adminPage);
+      await expect(tenantWhiteModal.getByText("编辑租户白名单")).toBeVisible();
+      await expect(
+        tenantWhiteModal.getByTestId("media-tenant-white-tenant-id"),
+      ).toHaveValue(tenantWhiteTenantId);
+      await expect(
+        tenantWhiteModal.getByTestId("media-tenant-white-ip"),
+      ).toHaveValue(tenantWhiteIp);
+      await expect(
+        tenantWhiteModal.getByTestId("media-tenant-white-description"),
+      ).toHaveValue("界面白名单");
+      await expectCheckedRadioLabel(
+        tenantWhiteModal.getByTestId("media-tenant-white-enable"),
+        "开启",
+      );
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-tenant-id")
+        .fill(updatedTenantWhiteTenantId);
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-ip")
+        .fill(updatedTenantWhiteIp);
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-description")
+        .fill("界面白名单更新");
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-enable")
+        .getByText("关闭")
+        .click();
+      const tenantWhiteUpdateResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-whites/${pathSegment(
+                tenantWhiteTenantId,
+              )}/${pathSegment(tenantWhiteIp)}`,
+            ) && res.request().method() === "PUT",
+        { timeout: 15000 },
+      );
+      await confirmModal(tenantWhiteModal);
+      await expectApiResponseSuccess(await tenantWhiteUpdateResponse);
+      tenantWhiteCurrentTenantId = updatedTenantWhiteTenantId;
+      tenantWhiteCurrentIp = updatedTenantWhiteIp;
+      await expect(
+        adminPage.getByText("编辑租户白名单", { exact: true }),
+      ).toBeHidden({ timeout: 15000 });
+      await expect(
+        expectSuccess<TenantWhiteDetail>(
+          await api.get(
+            `media/tenant-whites/${pathSegment(
+              updatedTenantWhiteTenantId,
+            )}/${pathSegment(updatedTenantWhiteIp)}`,
+          ),
+        ),
+      ).resolves.toMatchObject({
+        tenantId: updatedTenantWhiteTenantId,
+        ip: updatedTenantWhiteIp,
+        description: "界面白名单更新",
+        enable: 0,
+      });
+
+      await adminPage.getByTestId("media-tenant-white-add").click();
+      await expect(tenantWhiteModal.getByText("新增租户白名单")).toBeVisible();
+      await expect(
+        tenantWhiteModal.getByTestId("media-tenant-white-tenant-id"),
+      ).toHaveValue("");
+      await expect(
+        tenantWhiteModal.getByTestId("media-tenant-white-ip"),
+      ).toHaveValue("");
+      await expect(
+        tenantWhiteModal.getByTestId("media-tenant-white-description"),
+      ).toHaveValue("");
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-tenant-id")
+        .fill(createdAfterEditTenantWhiteTenantId);
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-ip")
+        .fill("not-an-ip");
+      await confirmModal(tenantWhiteModal);
+      await expect(
+        tenantWhiteModal.getByText("白名单地址必须是有效的 IPv4 或 IPv6 地址"),
+      ).toBeVisible();
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-ip")
+        .fill(createdAfterEditTenantWhiteIp);
+      await tenantWhiteModal
+        .getByTestId("media-tenant-white-description")
+        .fill("界面新增白名单");
+      const tenantWhiteCreateResponse = adminPage.waitForResponse(
+        (res) =>
+          res.url().endsWith("/api/v1/media/tenant-whites") &&
+          res.request().method() === "POST",
+        { timeout: 15000 },
+      );
+      await confirmModal(tenantWhiteModal);
+      await expect(
+        await expectApiResponseSuccess(await tenantWhiteCreateResponse),
+      ).toMatchObject({
+        tenantId: createdAfterEditTenantWhiteTenantId,
+        ip: createdAfterEditTenantWhiteIp,
+      });
+      createdAfterEditTenantWhiteCreated = true;
+      await expect(
+        adminPage.getByText("新增租户白名单", { exact: true }),
+      ).toBeHidden({ timeout: 15000 });
+
       await adminPage.getByRole("tab", { exact: true, name: "设备绑定" }).click();
       const deviceDeleteResponse = adminPage.waitForResponse(
         (res) =>
@@ -1434,6 +1813,56 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       createdAfterEditAliasId = 0;
 
       await adminPage
+        .getByRole("tab", { exact: true, name: "租户白名单" })
+        .click();
+      const tenantWhiteCreatedDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-whites/${pathSegment(
+                createdAfterEditTenantWhiteTenantId,
+              )}/${pathSegment(createdAfterEditTenantWhiteIp)}`,
+            ) && res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(
+          `media-tenant-white-delete-${rowKeyTenantWhite(
+            createdAfterEditTenantWhiteTenantId,
+            createdAfterEditTenantWhiteIp,
+          )}`,
+        )
+        .click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await tenantWhiteCreatedDeleteResponse);
+      createdAfterEditTenantWhiteCreated = false;
+
+      const tenantWhiteDeleteResponse = adminPage.waitForResponse(
+        (res) =>
+          res
+            .url()
+            .includes(
+              `/api/v1/media/tenant-whites/${pathSegment(
+                updatedTenantWhiteTenantId,
+              )}/${pathSegment(updatedTenantWhiteIp)}`,
+            ) && res.request().method() === "DELETE",
+        { timeout: 15000 },
+      );
+      await adminPage
+        .getByTestId(
+          `media-tenant-white-delete-${rowKeyTenantWhite(
+            updatedTenantWhiteTenantId,
+            updatedTenantWhiteIp,
+          )}`,
+        )
+        .click();
+      await confirmPopconfirm(adminPage);
+      await expectApiResponseSuccess(await tenantWhiteDeleteResponse);
+      tenantWhiteCurrentTenantId = "";
+      tenantWhiteCurrentIp = "";
+
+      await adminPage
         .getByRole("tab", { exact: true, name: "策略管理" })
         .click();
       const strategyDeleteResponse = adminPage.waitForResponse(
@@ -1479,6 +1908,24 @@ test.describe("TC-234 media plugin owned E2E discovery", () => {
       );
       await deleteTenantBinding(api, tenantId).catch(() => undefined);
       await deleteDeviceBinding(api, deviceId).catch(() => undefined);
+      if (createdAfterEditTenantWhiteCreated) {
+        await api
+          .delete(
+            `media/tenant-whites/${pathSegment(
+              createdAfterEditTenantWhiteTenantId,
+            )}/${pathSegment(createdAfterEditTenantWhiteIp)}`,
+          )
+          .catch(() => undefined);
+      }
+      if (tenantWhiteCurrentTenantId && tenantWhiteCurrentIp) {
+        await api
+          .delete(
+            `media/tenant-whites/${pathSegment(
+              tenantWhiteCurrentTenantId,
+            )}/${pathSegment(tenantWhiteCurrentIp)}`,
+          )
+          .catch(() => undefined);
+      }
       if (createdAfterEditAliasId > 0) {
         await api
           .delete(`media/stream-aliases/${createdAfterEditAliasId}`)

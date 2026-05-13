@@ -58,9 +58,36 @@
 - [x] **FB-10**: media 数据库时间字段应保持 `media_v2.md` 给定的字段名和字段结构
 - [x] **FB-11**: 媒体策略新增失败，新增弹窗疑似复用旧编辑状态并调用更新接口
 - [x] **FB-12**: 仔细核实 media 每一个后端接口、前端页面和页面触发接口，确保模块完整且正确
+- [x] **FB-13**: 增加 `hg_tenant_white` 租户白名单表及相关业务逻辑
+- [x] **FB-14**: 租户白名单 IP 必须在后端校验为有效 IPv4 或 IPv6 地址
+- [x] **FB-15**: 优化媒体管理页面顶部 Tab 视觉效果
 
 ## Feedback 验证记录
 
+- [x] FB-15 将媒体管理顶部 Tab 优化为紧凑分段导航样式，增加图标、当前态背景和横向滚动容器，保留原有中文 tab 名称和切换行为。
+- [x] FB-15 修复 E2E 白名单 IP 数据生成逻辑，避免后端严格 IPv4 校验下生成带前导零的非法地址。
+- [x] 视觉探针通过：媒体管理页面渲染 7 个 `.media-tab-label` 与 7 个图标，tab 工具条高度 48px，页面高度采样稳定为 `900,900,900,900,900`，截图已保存至 `temp/media-tabs-optimized.png`。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd typecheck` 于 `apps/lina-vben` 通过。
+- [x] `./node_modules/.bin/tsc --noEmit --pretty false` 于 `hack/tests` 通过。
+- [x] `make dev` 通过，宿主内嵌静态资源已重新生成并启动后端 `8080`、前端 `5666`。
+- [x] `./node_modules/.bin/playwright test apps/lina-plugins/media/hack/tests/e2e/TC0234-media-plugin-smoke.ts` 通过，5 条用例全部通过。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd i18n:check` 于 `apps/lina-vben` 通过；本模块仍按用户要求中文-only，未新增 i18n 资源。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH node ./scripts/validate-e2e.mjs` 于 `hack/tests` 通过。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 通过。
+- [x] FB-14 在租户白名单后端服务层通过 `net.ParseIP` 统一校验自然键 IP，新增、修改、详情和删除接口均拒绝非法 IPv4/IPv6 地址。
+- [x] FB-14 前端“租户白名单”弹窗新增 IPv4/IPv6 表单校验，非法地址会在提交前显示“白名单地址必须是有效的 IPv4 或 IPv6 地址”。
+- [x] FB-14 更新 `TC0234-media-plugin-smoke.ts`，覆盖非法 IPv4 新增、非法字符串更新、合法 IPv6 新增，以及页面新增弹窗非法 IP 校验。
+- [x] `go test ./...` 于 `apps/lina-plugins/media` 通过。
+- [x] `go test ./...` 于 `apps/lina-plugins` 通过。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd typecheck` 于 `apps/lina-vben` 通过。
+- [x] `./node_modules/.bin/tsc --noEmit --pretty false` 于 `hack/tests` 通过。
+- [x] `make stop && make dev` 通过，后端与前端服务已重新加载租户白名单 IP 校验版本。
+- [x] `./node_modules/.bin/playwright test apps/lina-plugins/media/hack/tests/e2e/TC0234-media-plugin-smoke.ts` 通过，5 条用例全部通过。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd i18n:check` 于 `apps/lina-vben` 通过；本模块仍按用户要求中文-only，未新增 i18n 资源。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH node ./scripts/validate-e2e.mjs` 于 `hack/tests` 通过。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 通过。
 - [x] `corepack pnpm -F @lina/web-antd typecheck` 通过。
 - [x] `./node_modules/.bin/tsc --noEmit --pretty false` 于 `hack/tests` 通过。
 - [x] `./node_modules/.bin/playwright test apps/lina-plugins/media/hack/tests/e2e/TC0234-media-plugin-smoke.ts` 通过，覆盖媒体页面加载、三页签切换、前端未捕获异常、页面高度稳定性、策略绑定优先级、被引用策略删除保护和流别名 CRUD。
@@ -156,6 +183,22 @@
 - [x] `psql` 检查确认本地演示数据恢复为仅 `默认直播录制策略` 一条全局策略。
 - [x] 静态扫描 `rg -n 'host_tenant_id|bizTenantId|BizTenantId|created_at|updated_at|createdAt|updatedAt|media/bindings|BindingScope|CodeMediaBindingScopeInvalid' apps/lina-plugins/media -g '!backend/internal/dao/**' -g '!backend/internal/model/**'` 无命中，确认旧字段、旧接口和旧时间命名无残留。
 - [x] `make stop && make dev` 通过，宿主内嵌静态资源已重新生成；`apps/lina-core/internal/packed/public` 可命中 `media-strategy-toggle` 和 `media-device-binding-delete` 等最新页面标识。
+- [x] FB-13 新增 `hg_tenant_white` PostgreSQL 表，字段名保持 `tenant_id/ip/description/enable/creator_id/create_time/updater_id/update_time`，类型转换为 `varchar(64)`、`varchar(32)`、`varchar(32)`、`smallint`、`integer`、`timestamp`、`integer`、`timestamp`，并保留 `tenant_id + ip` 联合唯一约束。
+- [x] FB-13 新增租户白名单独立 REST 资源：`GET/POST /media/tenant-whites`、`GET/PUT/DELETE /media/tenant-whites/{tenantId}/{ip}`，未与策略绑定接口混用。
+- [x] FB-13 新增“租户白名单”独立页签和编辑弹窗，支持新增、编辑回显、自然键修改、启用状态、删除和案例数据展示。
+- [x] `psql` 结构断言通过：`hg_tenant_white` 字段为 `tenant_id:character varying:64:NO`、`ip:character varying:32:NO`、`description:character varying:32:YES`、`enable:smallint::NO`、`creator_id:integer::YES`、`create_time:timestamp without time zone::NO`、`updater_id:integer::YES`、`update_time:timestamp without time zone::YES`。
+- [x] `psql` 时间精度断言通过：`media_strategy.create_time` 和 `media_stream_alias.create_time` 保持 `datetime(3)` 对应的 `timestamp(3)`，`hg_tenant_white.create_time` 使用截图中 `datetime` 对应的 PostgreSQL `timestamp`。
+- [x] `psql` 约束断言通过：`hg_tenant_white` 存在 `uk_hg_tenant_white_tenant_ip` 唯一约束和 `ck_hg_tenant_white_enable` 检查约束。
+- [x] `psql` 连续执行 `manifest/sql/mock-data/001-media-mock-data.sql` 两次通过，租户白名单案例数据保持 3 条不重复写入。
+- [x] `go test ./...` 于 `apps/lina-plugins/media` 通过。
+- [x] `go test ./...` 于 `apps/lina-plugins` 通过。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd typecheck` 于 `apps/lina-vben` 通过。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd i18n:check` 于 `apps/lina-vben` 通过；本模块仍按用户要求中文-only，未新增 i18n 资源。
+- [x] `./node_modules/.bin/tsc --noEmit --pretty false` 于 `hack/tests` 通过。
+- [x] `./node_modules/.bin/playwright test apps/lina-plugins/media/hack/tests/e2e/TC0234-media-plugin-smoke.ts` 通过，5 条用例全部通过，覆盖白名单 API、页签加载、编辑回显、新增后状态重置、删除和 8080 宿主静态入口。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH node ./scripts/validate-e2e.mjs` 于 `hack/tests` 通过。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 通过。
 
 ## Review 验证记录
 

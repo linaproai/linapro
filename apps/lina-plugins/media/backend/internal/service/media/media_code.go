@@ -67,4 +67,30 @@ var (
 	CodeMediaAliasUpdateFailed = bizerr.MustDefine("MEDIA_ALIAS_UPDATE_FAILED", "更新流别名失败", gcode.CodeInternalError)
 	// CodeMediaAliasDeleteFailed reports that alias deletion failed.
 	CodeMediaAliasDeleteFailed = bizerr.MustDefine("MEDIA_ALIAS_DELETE_FAILED", "删除流别名失败", gcode.CodeInternalError)
+	// CodeMediaTenantWhiteTenantRequired reports that tenant whitelist tenant ID is missing.
+	CodeMediaTenantWhiteTenantRequired = bizerr.MustDefine("MEDIA_TENANT_WHITE_TENANT_REQUIRED", "租户ID不能为空", gcode.CodeInvalidParameter)
+	// CodeMediaTenantWhiteIPRequired reports that tenant whitelist IP is missing.
+	CodeMediaTenantWhiteIPRequired = bizerr.MustDefine("MEDIA_TENANT_WHITE_IP_REQUIRED", "白名单地址不能为空", gcode.CodeInvalidParameter)
+	// CodeMediaTenantWhiteIPInvalid reports that tenant whitelist IP is not a valid IPv4 or IPv6 address.
+	CodeMediaTenantWhiteIPInvalid = bizerr.MustDefine("MEDIA_TENANT_WHITE_IP_INVALID", "白名单地址必须是有效的 IPv4 或 IPv6 地址", gcode.CodeInvalidParameter)
+	// CodeMediaTenantWhiteDescriptionTooLong reports that tenant whitelist description is too long.
+	CodeMediaTenantWhiteDescriptionTooLong = bizerr.MustDefine("MEDIA_TENANT_WHITE_DESCRIPTION_TOO_LONG", "白名单描述长度不能超过32个字符", gcode.CodeInvalidParameter)
+	// CodeMediaTenantWhiteEnableInvalid reports that tenant whitelist enable value is invalid.
+	CodeMediaTenantWhiteEnableInvalid = bizerr.MustDefine("MEDIA_TENANT_WHITE_ENABLE_INVALID", "租户白名单启用状态只能是0或1", gcode.CodeInvalidParameter)
+	// CodeMediaTenantWhiteNotFound reports that a tenant whitelist entry does not exist.
+	CodeMediaTenantWhiteNotFound = bizerr.MustDefine("MEDIA_TENANT_WHITE_NOT_FOUND", "租户白名单不存在", gcode.CodeNotFound)
+	// CodeMediaTenantWhiteDuplicate reports that a tenant whitelist natural key already exists.
+	CodeMediaTenantWhiteDuplicate = bizerr.MustDefine("MEDIA_TENANT_WHITE_DUPLICATE", "租户白名单已存在", gcode.CodeInvalidParameter)
+	// CodeMediaTenantWhiteCountQueryFailed reports that tenant whitelist count query failed.
+	CodeMediaTenantWhiteCountQueryFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_COUNT_QUERY_FAILED", "查询租户白名单总数失败", gcode.CodeInternalError)
+	// CodeMediaTenantWhiteListQueryFailed reports that tenant whitelist list query failed.
+	CodeMediaTenantWhiteListQueryFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_LIST_QUERY_FAILED", "查询租户白名单列表失败", gcode.CodeInternalError)
+	// CodeMediaTenantWhiteDetailQueryFailed reports that tenant whitelist detail query failed.
+	CodeMediaTenantWhiteDetailQueryFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_DETAIL_QUERY_FAILED", "查询租户白名单详情失败", gcode.CodeInternalError)
+	// CodeMediaTenantWhiteCreateFailed reports that tenant whitelist creation failed.
+	CodeMediaTenantWhiteCreateFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_CREATE_FAILED", "创建租户白名单失败", gcode.CodeInternalError)
+	// CodeMediaTenantWhiteUpdateFailed reports that tenant whitelist update failed.
+	CodeMediaTenantWhiteUpdateFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_UPDATE_FAILED", "更新租户白名单失败", gcode.CodeInternalError)
+	// CodeMediaTenantWhiteDeleteFailed reports that tenant whitelist deletion failed.
+	CodeMediaTenantWhiteDeleteFailed = bizerr.MustDefine("MEDIA_TENANT_WHITE_DELETE_FAILED", "删除租户白名单失败", gcode.CodeInternalError)
 )

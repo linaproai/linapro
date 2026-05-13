@@ -13,6 +13,7 @@ import type {
   MediaStrategy,
   MediaTenantBinding,
   MediaTenantDeviceBinding,
+  MediaTenantWhite,
 } from "./media-client";
 
 import { nextTick, ref } from "vue";
@@ -41,17 +42,20 @@ import { useVbenVxeGrid } from "#/adapter/vxe-table";
 import AliasModal from "./components/alias-modal.vue";
 import BindingModal from "./components/binding-modal.vue";
 import StrategyModal from "./components/strategy-modal.vue";
+import TenantWhiteModal from "./components/tenant-white-modal.vue";
 import {
   deleteMediaAlias,
   deleteMediaDeviceBinding,
   deleteMediaStrategy,
   deleteMediaTenantBinding,
   deleteMediaTenantDeviceBinding,
+  deleteMediaTenantWhite,
   listMediaAliases,
   listMediaDeviceBindings,
   listMediaStrategies,
   listMediaTenantBindings,
   listMediaTenantDeviceBindings,
+  listMediaTenantWhites,
   resolveMediaStrategy,
   setGlobalMediaStrategy,
   updateMediaStrategyEnable,
@@ -74,6 +78,44 @@ const globalOptions = [
   { label: "否", value: 2 },
 ];
 
+const mediaTabs = [
+  {
+    key: "strategies",
+    label: "策略管理",
+    icon: "lucide:sliders-horizontal",
+  },
+  {
+    key: "deviceBindings",
+    label: "设备绑定",
+    icon: "lucide:cctv",
+  },
+  {
+    key: "tenantBindings",
+    label: "租户绑定",
+    icon: "lucide:building-2",
+  },
+  {
+    key: "tenantDeviceBindings",
+    label: "租户设备绑定",
+    icon: "lucide:network",
+  },
+  {
+    key: "resolve",
+    label: "策略解析",
+    icon: "lucide:radar",
+  },
+  {
+    key: "aliases",
+    label: "流别名",
+    icon: "lucide:route",
+  },
+  {
+    key: "tenantWhites",
+    label: "租户白名单",
+    icon: "lucide:shield-check",
+  },
+] as const;
+
 const activeTab = ref("strategies");
 const resolveForm = ref({
   tenantId: "",
@@ -92,6 +134,9 @@ const [BindingModalRef, bindingModalApi] = useVbenModal({
 });
 const [AliasModalRef, aliasModalApi] = useVbenModal({
   connectedComponent: AliasModal,
+});
+const [TenantWhiteModalRef, tenantWhiteModalApi] = useVbenModal({
+  connectedComponent: TenantWhiteModal,
 });
 
 const [StrategyGrid, strategyGridApi] = useVbenVxeGrid({
@@ -451,6 +496,95 @@ const [AliasGrid, aliasGridApi] = useVbenVxeGrid({
   },
 });
 
+const [TenantWhiteGrid, tenantWhiteGridApi] = useVbenVxeGrid({
+  formOptions: {
+    schema: [
+      {
+        component: "Input",
+        fieldName: "keyword",
+        label: "关键字",
+      },
+      {
+        component: "Select",
+        componentProps: {
+          allowClear: true,
+          options: [
+            { label: "开启", value: 1 },
+            { label: "关闭", value: 0 },
+          ],
+        },
+        fieldName: "enable",
+        label: "启用状态",
+      },
+    ],
+    commonConfig: {
+      componentProps: {
+        allowClear: true,
+      },
+      labelWidth: 72,
+    },
+    wrapperClass: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3",
+  },
+  gridOptions: {
+    columns: [
+      {
+        field: "tenantId",
+        minWidth: 170,
+        title: "租户 ID",
+      },
+      {
+        field: "ip",
+        minWidth: 150,
+        title: "白名单地址",
+      },
+      {
+        field: "description",
+        minWidth: 160,
+        title: "白名单描述",
+      },
+      {
+        field: "enable",
+        slots: { default: "tenantWhiteEnable" },
+        title: "启用状态",
+        width: 110,
+      },
+      {
+        field: "updateTime",
+        minWidth: 170,
+        title: "更新时间",
+      },
+      {
+        field: "action",
+        fixed: "right",
+        slots: { default: "tenantWhiteAction" },
+        title: "操作",
+        width: 170,
+      },
+    ],
+    height: "100%",
+    keepSource: true,
+    pagerConfig: {},
+    proxyConfig: {
+      ajax: {
+        query: async (
+          { page }: { page: { currentPage: number; pageSize: number } },
+          formValues: Record<string, any> = {},
+        ) => {
+          return await listMediaTenantWhites({
+            pageNum: page.currentPage,
+            pageSize: page.pageSize,
+            ...formValues,
+          });
+        },
+      },
+    },
+    rowConfig: {
+      keyField: "rowKey",
+    },
+    id: "media-tenant-white-grid",
+  },
+});
+
 function canAdd() {
   return hasAccessByCodes([accessCodes.add]);
 }
@@ -473,6 +607,7 @@ function activeGridApi() {
   if (activeTab.value === "tenantDeviceBindings")
     return tenantDeviceBindingGridApi;
   if (activeTab.value === "aliases") return aliasGridApi;
+  if (activeTab.value === "tenantWhites") return tenantWhiteGridApi;
   if (activeTab.value === "strategies") return strategyGridApi;
   return null;
 }
@@ -586,6 +721,26 @@ async function handleDeleteAlias(row: MediaAlias) {
   await aliasGridApi.query();
 }
 
+function tenantWhiteRowKey(row: Pick<MediaTenantWhite, "ip" | "tenantId">) {
+  return `${row.tenantId}:${row.ip}`;
+}
+
+function handleAddTenantWhite() {
+  tenantWhiteModalApi.setData({ ip: undefined, tenantId: undefined });
+  tenantWhiteModalApi.open();
+}
+
+function handleEditTenantWhite(row: MediaTenantWhite) {
+  tenantWhiteModalApi.setData({ ip: row.ip, tenantId: row.tenantId });
+  tenantWhiteModalApi.open();
+}
+
+async function handleDeleteTenantWhite(row: MediaTenantWhite) {
+  await deleteMediaTenantWhite(row.tenantId, row.ip);
+  message.success("租户白名单已删除");
+  await tenantWhiteGridApi.query();
+}
+
 function reloadStrategies() {
   strategyGridApi.query();
 }
@@ -603,6 +758,10 @@ function reloadBindings(kind?: MediaBindingKind) {
 function reloadAliases() {
   aliasGridApi.query();
 }
+
+function reloadTenantWhites() {
+  tenantWhiteGridApi.query();
+}
 </script>
 
 <template>
@@ -617,7 +776,19 @@ function reloadAliases() {
       class="media-tabs flex min-h-0 flex-1 flex-col overflow-hidden"
       @change="handleTabChange"
     >
-      <TabPane key="strategies" tab="策略管理">
+      <template #renderTabBar="{ DefaultTabBar, ...props }">
+        <div class="media-tabs-bar">
+          <component :is="DefaultTabBar" v-bind="props" />
+        </div>
+      </template>
+
+      <TabPane key="strategies">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[0].icon" />
+            <span>{{ mediaTabs[0].label }}</span>
+          </span>
+        </template>
         <div class="media-tab-pane">
           <StrategyGrid
             class="min-h-0 flex-1 overflow-hidden"
@@ -691,7 +862,13 @@ function reloadAliases() {
         </div>
       </TabPane>
 
-      <TabPane key="deviceBindings" tab="设备绑定">
+      <TabPane key="deviceBindings">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[1].icon" />
+            <span>{{ mediaTabs[1].label }}</span>
+          </span>
+        </template>
         <div class="media-tab-pane">
           <DeviceBindingGrid
             class="min-h-0 flex-1 overflow-hidden"
@@ -739,7 +916,13 @@ function reloadAliases() {
         </div>
       </TabPane>
 
-      <TabPane key="tenantBindings" tab="租户绑定">
+      <TabPane key="tenantBindings">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[2].icon" />
+            <span>{{ mediaTabs[2].label }}</span>
+          </span>
+        </template>
         <div class="media-tab-pane">
           <TenantBindingGrid
             class="min-h-0 flex-1 overflow-hidden"
@@ -787,7 +970,13 @@ function reloadAliases() {
         </div>
       </TabPane>
 
-      <TabPane key="tenantDeviceBindings" tab="租户设备绑定">
+      <TabPane key="tenantDeviceBindings">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[3].icon" />
+            <span>{{ mediaTabs[3].label }}</span>
+          </span>
+        </template>
         <div class="media-tab-pane">
           <TenantDeviceBindingGrid
             class="min-h-0 flex-1 overflow-hidden"
@@ -835,7 +1024,13 @@ function reloadAliases() {
         </div>
       </TabPane>
 
-      <TabPane key="resolve" tab="策略解析">
+      <TabPane key="resolve">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[4].icon" />
+            <span>{{ mediaTabs[4].label }}</span>
+          </span>
+        </template>
         <div class="media-tab-pane">
           <div
             class="flex-shrink-0 border border-solid border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900"
@@ -891,7 +1086,13 @@ function reloadAliases() {
         </div>
       </TabPane>
 
-      <TabPane key="aliases" tab="流别名">
+      <TabPane key="aliases">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[5].icon" />
+            <span>{{ mediaTabs[5].label }}</span>
+          </span>
+        </template>
         <div class="media-tab-pane">
           <AliasGrid
             class="min-h-0 flex-1 overflow-hidden"
@@ -944,24 +1145,184 @@ function reloadAliases() {
           </AliasGrid>
         </div>
       </TabPane>
+
+      <TabPane key="tenantWhites">
+        <template #tab>
+          <span class="media-tab-label">
+            <IconifyIcon :icon="mediaTabs[6].icon" />
+            <span>{{ mediaTabs[6].label }}</span>
+          </span>
+        </template>
+        <div class="media-tab-pane">
+          <TenantWhiteGrid
+            class="min-h-0 flex-1 overflow-hidden"
+            table-title="租户白名单"
+          >
+            <template #toolbar-tools>
+              <a-button
+                v-if="canAdd()"
+                data-testid="media-tenant-white-add"
+                type="primary"
+                @click="handleAddTenantWhite"
+              >
+                <template #icon>
+                  <IconifyIcon icon="lucide:shield-plus" />
+                </template>
+                新增白名单
+              </a-button>
+            </template>
+
+            <template #tenantWhiteEnable="{ row }">
+              <Tag :color="row.enable === 1 ? 'green' : 'default'">
+                {{ row.enable === 1 ? "开启" : "关闭" }}
+              </Tag>
+            </template>
+
+            <template #tenantWhiteAction="{ row }">
+              <Space>
+                <ghost-button
+                  v-if="canEdit()"
+                  :data-testid="`media-tenant-white-edit-${tenantWhiteRowKey(row)}`"
+                  @click.stop="handleEditTenantWhite(row)"
+                >
+                  编辑
+                </ghost-button>
+                <Popconfirm
+                  v-if="canRemove()"
+                  title="确认删除该租户白名单？"
+                  @confirm="handleDeleteTenantWhite(row)"
+                >
+                  <ghost-button
+                    danger
+                    :data-testid="`media-tenant-white-delete-${tenantWhiteRowKey(row)}`"
+                    @click.stop=""
+                  >
+                    删除
+                  </ghost-button>
+                </Popconfirm>
+              </Space>
+            </template>
+          </TenantWhiteGrid>
+        </div>
+      </TabPane>
     </Tabs>
 
     <StrategyModalRef @reload="reloadStrategies" />
     <BindingModalRef @reload="reloadBindings" />
     <AliasModalRef @reload="reloadAliases" />
+    <TenantWhiteModalRef @reload="reloadTenantWhites" />
   </Page>
 </template>
 
 <style scoped>
+.media-tabs-bar {
+  flex: 0 0 auto;
+  padding: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+}
+
 .media-tabs :deep(.ant-tabs-nav) {
   flex: 0 0 auto;
-  margin-bottom: 12px;
+  min-width: max-content;
+  margin: 0;
+}
+
+.media-tabs :deep(.ant-tabs-nav::before) {
+  display: none;
+}
+
+.media-tabs :deep(.ant-tabs-nav-wrap) {
+  min-height: 34px;
+}
+
+.media-tabs :deep(.ant-tabs-nav-list) {
+  gap: 4px;
+}
+
+.media-tabs :deep(.ant-tabs-tab) {
+  padding: 0;
+  margin: 0;
+  color: #475569;
+  border-radius: 6px;
+  transition:
+    background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.media-tabs :deep(.ant-tabs-tab:hover) {
+  color: #0f172a;
+  background: #eef2f7;
+}
+
+.media-tabs :deep(.ant-tabs-tab-btn) {
+  color: inherit;
+}
+
+.media-tabs :deep(.ant-tabs-tab-active) {
+  color: #0f172a;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 10%),
+    inset 0 0 0 1px rgb(37 99 235 / 16%);
+}
+
+.media-tabs :deep(.ant-tabs-tab-active .ant-tabs-tab-btn) {
+  color: inherit;
+}
+
+.media-tabs :deep(.ant-tabs-ink-bar) {
+  display: none;
+}
+
+.media-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 32px;
+  white-space: nowrap;
+}
+
+.media-tab-label :deep(.iconify) {
+  width: 15px;
+  height: 15px;
 }
 
 .media-tabs :deep(.ant-tabs-content-holder) {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+}
+
+:global(.dark) .media-tabs-bar {
+  background: #111827;
+  border-color: #334155;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+}
+
+:global(.dark) .media-tabs :deep(.ant-tabs-tab) {
+  color: #cbd5e1;
+}
+
+:global(.dark) .media-tabs :deep(.ant-tabs-tab:hover) {
+  color: #f8fafc;
+  background: #1e293b;
+}
+
+:global(.dark) .media-tabs :deep(.ant-tabs-tab-active) {
+  color: #f8fafc;
+  background: #0f172a;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 24%),
+    inset 0 0 0 1px rgb(96 165 250 / 26%);
 }
 
 .media-tabs :deep(.ant-tabs-content) {

@@ -53,6 +53,16 @@ type Service interface {
 	UpdateAlias(ctx context.Context, id int64, in AliasMutationInput) error
 	// DeleteAlias deletes one stream alias.
 	DeleteAlias(ctx context.Context, id int64) error
+	// ListTenantWhites returns paged tenant whitelist entries.
+	ListTenantWhites(ctx context.Context, in ListTenantWhitesInput) (*ListTenantWhitesOutput, error)
+	// GetTenantWhite returns one tenant whitelist entry by natural key.
+	GetTenantWhite(ctx context.Context, tenantID string, ip string) (*TenantWhiteOutput, error)
+	// CreateTenantWhite creates one tenant whitelist entry.
+	CreateTenantWhite(ctx context.Context, in TenantWhiteMutationInput) (*TenantWhiteMutationOutput, error)
+	// UpdateTenantWhite updates one tenant whitelist entry.
+	UpdateTenantWhite(ctx context.Context, tenantID string, ip string, in TenantWhiteMutationInput) (*TenantWhiteMutationOutput, error)
+	// DeleteTenantWhite deletes one tenant whitelist entry.
+	DeleteTenantWhite(ctx context.Context, tenantID string, ip string) (*TenantWhiteMutationOutput, error)
 }
 
 // Interface compliance assertion for the default media service implementation.

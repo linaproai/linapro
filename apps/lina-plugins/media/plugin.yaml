@@ -28,7 +28,7 @@ default_install_mode: global
 
 # Plugin capability summary for management pages, delivery notes, and developer context.
 # 插件能力说明，用于插件管理页、交付说明和开发者理解边界。
-description: 提供媒体策略、策略绑定和流别名管理的源码插件
+description: 提供媒体策略、策略绑定、流别名和租户白名单管理的源码插件
 
 # Plugin author or owning team.
 # 插件作者或归属团队。

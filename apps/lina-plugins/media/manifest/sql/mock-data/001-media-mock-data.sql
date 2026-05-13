@@ -211,3 +211,87 @@ WHERE NOT EXISTS (
     FROM media_stream_alias existing
     WHERE existing."alias" = 'temporary-event-room'
 );
+
+INSERT INTO hg_tenant_white (
+    "tenant_id",
+    "ip",
+    "description",
+    "enable",
+    "creator_id",
+    "create_time",
+    "updater_id",
+    "update_time"
+)
+SELECT
+    'tenant-retail-east',
+    '10.8.1.24',
+    '门店出口',
+    1,
+    admin."id",
+    '2026-05-13 10:20:00',
+    admin."id",
+    '2026-05-13 10:20:00'
+FROM sys_user admin
+WHERE admin."username" = 'admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_tenant_white existing
+      WHERE existing."tenant_id" = 'tenant-retail-east'
+        AND existing."ip" = '10.8.1.24'
+  );
+
+INSERT INTO hg_tenant_white (
+    "tenant_id",
+    "ip",
+    "description",
+    "enable",
+    "creator_id",
+    "create_time",
+    "updater_id",
+    "update_time"
+)
+SELECT
+    'tenant-park-security',
+    '172.16.20.8',
+    '园区出口',
+    1,
+    admin."id",
+    '2026-05-13 10:25:00',
+    admin."id",
+    '2026-05-13 10:25:00'
+FROM sys_user admin
+WHERE admin."username" = 'admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_tenant_white existing
+      WHERE existing."tenant_id" = 'tenant-park-security'
+        AND existing."ip" = '172.16.20.8'
+  );
+
+INSERT INTO hg_tenant_white (
+    "tenant_id",
+    "ip",
+    "description",
+    "enable",
+    "creator_id",
+    "create_time",
+    "updater_id",
+    "update_time"
+)
+SELECT
+    'tenant-temporary-event',
+    '203.0.113.18',
+    '临时活动',
+    0,
+    admin."id",
+    '2026-05-13 10:30:00',
+    admin."id",
+    '2026-05-13 10:30:00'
+FROM sys_user admin
+WHERE admin."username" = 'admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM hg_tenant_white existing
+      WHERE existing."tenant_id" = 'tenant-temporary-event'
+        AND existing."ip" = '203.0.113.18'
+  );

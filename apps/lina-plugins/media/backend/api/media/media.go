@@ -33,4 +33,9 @@ type IMediaV1 interface {
 	DeleteTenantDeviceBinding(ctx context.Context, req *v1.DeleteTenantDeviceBindingReq) (res *v1.DeleteTenantDeviceBindingRes, err error)
 	ListTenantDeviceBindings(ctx context.Context, req *v1.ListTenantDeviceBindingsReq) (res *v1.ListTenantDeviceBindingsRes, err error)
 	SaveTenantDeviceBinding(ctx context.Context, req *v1.SaveTenantDeviceBindingReq) (res *v1.SaveTenantDeviceBindingRes, err error)
+	CreateTenantWhite(ctx context.Context, req *v1.CreateTenantWhiteReq) (res *v1.CreateTenantWhiteRes, err error)
+	DeleteTenantWhite(ctx context.Context, req *v1.DeleteTenantWhiteReq) (res *v1.DeleteTenantWhiteRes, err error)
+	GetTenantWhite(ctx context.Context, req *v1.GetTenantWhiteReq) (res *v1.GetTenantWhiteRes, err error)
+	ListTenantWhites(ctx context.Context, req *v1.ListTenantWhitesReq) (res *v1.ListTenantWhitesRes, err error)
+	UpdateTenantWhite(ctx context.Context, req *v1.UpdateTenantWhiteReq) (res *v1.UpdateTenantWhiteRes, err error)
 }

@@ -91,6 +91,32 @@ export interface MediaAliasInput {
   streamPath: string;
 }
 
+export interface MediaTenantWhite {
+  rowKey?: string;
+  tenantId: string;
+  ip: string;
+  description: string;
+  enable: number;
+  creatorId: number;
+  createTime: string;
+  updaterId: number;
+  updateTime: string;
+}
+
+export interface MediaTenantWhiteListParams {
+  pageNum?: number;
+  pageSize?: number;
+  keyword?: string;
+  enable?: number;
+}
+
+export interface MediaTenantWhiteInput {
+  tenantId: string;
+  ip: string;
+  description: string;
+  enable: number;
+}
+
 export async function listMediaStrategies(params?: MediaStrategyListParams) {
   const res = await requestClient.get<{
     list: MediaStrategy[];
@@ -236,4 +262,56 @@ export function updateMediaAlias(id: number, data: MediaAliasInput) {
 
 export function deleteMediaAlias(id: number) {
   return requestClient.delete(`/media/stream-aliases/${id}`);
+}
+
+export async function listMediaTenantWhites(
+  params?: MediaTenantWhiteListParams,
+) {
+  const res = await requestClient.get<{
+    list: MediaTenantWhite[];
+    total: number;
+  }>("/media/tenant-whites", { params });
+  return {
+    items: res.list.map((item) => ({
+      ...item,
+      rowKey: `${item.tenantId}:${item.ip}`,
+    })),
+    total: res.total,
+  };
+}
+
+export function getMediaTenantWhite(tenantId: string, ip: string) {
+  return requestClient.get<MediaTenantWhite>(
+    `/media/tenant-whites/${encodePathSegment(
+      tenantId,
+    )}/${encodePathSegment(ip)}`,
+  );
+}
+
+export function createMediaTenantWhite(data: MediaTenantWhiteInput) {
+  return requestClient.post<{ tenantId: string; ip: string }>(
+    "/media/tenant-whites",
+    data,
+  );
+}
+
+export function updateMediaTenantWhite(
+  oldTenantId: string,
+  oldIp: string,
+  data: MediaTenantWhiteInput,
+) {
+  return requestClient.put<{ tenantId: string; ip: string }>(
+    `/media/tenant-whites/${encodePathSegment(
+      oldTenantId,
+    )}/${encodePathSegment(oldIp)}`,
+    data,
+  );
+}
+
+export function deleteMediaTenantWhite(tenantId: string, ip: string) {
+  return requestClient.delete(
+    `/media/tenant-whites/${encodePathSegment(
+      tenantId,
+    )}/${encodePathSegment(ip)}`,
+  );
 }

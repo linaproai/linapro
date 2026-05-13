@@ -24,6 +24,17 @@ const (
 	BinaryYes BinaryValue = 1
 )
 
+// WhiteEnableValue is the numeric on/off enum used by tenant whitelist records.
+type WhiteEnableValue int
+
+// Tenant whitelist enable values.
+const (
+	// WhiteDisabled means the tenant whitelist entry is disabled.
+	WhiteDisabled WhiteEnableValue = 0
+	// WhiteEnabled means the tenant whitelist entry is enabled.
+	WhiteEnabled WhiteEnableValue = 1
+)
+
 // StrategySource is the string enum returned by effective strategy resolution.
 type StrategySource string
 

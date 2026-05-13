@@ -39,3 +39,15 @@ CREATE TABLE `media_stream_alias` (
 PRIMARY KEY (`id`),
 UNIQUE KEY `uk_alias` (`alias`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='流别名表';
+
+CREATE TABLE `hg_tenant_white` (
+`tenant_id` varchar(64) NOT NULL COMMENT '租户id',
+`ip` varchar(32) NOT NULL COMMENT '白名单地址',
+`description` varchar(32) DEFAULT NULL COMMENT '白名单描述',
+`enable` tinyint(1) NOT NULL COMMENT '1开启，0关闭',
+`creator_id` int DEFAULT NULL COMMENT '创建人Id',
+`create_time` datetime NOT NULL COMMENT '创建时间',
+`updater_id` int DEFAULT NULL COMMENT '修改人Id',
+`update_time` datetime DEFAULT NULL COMMENT '修改时间',
+UNIQUE KEY `uk_tenant_ip` (`tenant_id`,`ip`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户白名单表';

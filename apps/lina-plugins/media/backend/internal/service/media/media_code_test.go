@@ -34,6 +34,18 @@ func TestMediaBusinessErrorMetadata(t *testing.T) {
 			runtimeCode: "MEDIA_ALIAS_NOT_FOUND",
 			messageKey:  "error.media.alias.not.found",
 		},
+		{
+			name:        "tenant whitelist duplicate",
+			code:        CodeMediaTenantWhiteDuplicate,
+			runtimeCode: "MEDIA_TENANT_WHITE_DUPLICATE",
+			messageKey:  "error.media.tenant.white.duplicate",
+		},
+		{
+			name:        "tenant whitelist ip invalid",
+			code:        CodeMediaTenantWhiteIPInvalid,
+			runtimeCode: "MEDIA_TENANT_WHITE_IP_INVALID",
+			messageKey:  "error.media.tenant.white.ip.invalid",
+		},
 	}
 
 	for _, testCase := range testCases {

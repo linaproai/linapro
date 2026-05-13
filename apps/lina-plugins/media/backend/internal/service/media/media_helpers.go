@@ -71,6 +71,7 @@ func formatTime(value *gtime.Time) string {
 // validateMediaTablesReady verifies plugin-owned tables exist before business operations continue.
 func validateMediaTablesReady(ctx context.Context) error {
 	tableNames := []string{
+		dao.HgTenantWhite.Table(),
 		dao.MediaStrategy.Table(),
 		dao.MediaStrategyDevice.Table(),
 		dao.MediaStrategyDeviceTenant.Table(),

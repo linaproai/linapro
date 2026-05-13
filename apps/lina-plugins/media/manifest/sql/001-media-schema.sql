@@ -1,6 +1,6 @@
 -- ------------------------------------------------------------
 -- 001 media schema SQL file
--- Purpose: Stores media strategies, strategy bindings, and stream aliases for the media source plugin.
+-- Purpose: Stores media strategies, strategy bindings, stream aliases, and tenant whitelist entries for the media source plugin.
 -- ------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS media_strategy (
@@ -104,3 +104,29 @@ COMMENT ON COLUMN media_stream_alias."stream_path" IS '真实流路径';
 COMMENT ON COLUMN media_stream_alias."create_time" IS '创建时间';
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_media_stream_alias_alias ON media_stream_alias ("alias");
+
+CREATE TABLE IF NOT EXISTS hg_tenant_white (
+    "tenant_id"   VARCHAR(64) NOT NULL,
+    "ip"          VARCHAR(32) NOT NULL,
+    "description" VARCHAR(32),
+    "enable"      SMALLINT NOT NULL DEFAULT 1,
+    "creator_id"  INTEGER,
+    "create_time" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updater_id"  INTEGER,
+    "update_time" TIMESTAMP,
+    CONSTRAINT uk_hg_tenant_white_tenant_ip UNIQUE ("tenant_id", "ip"),
+    CONSTRAINT ck_hg_tenant_white_enable CHECK ("enable" IN (0, 1))
+);
+
+COMMENT ON TABLE hg_tenant_white IS '租户白名单表';
+COMMENT ON COLUMN hg_tenant_white."tenant_id" IS '租户ID';
+COMMENT ON COLUMN hg_tenant_white."ip" IS '白名单地址';
+COMMENT ON COLUMN hg_tenant_white."description" IS '白名单描述';
+COMMENT ON COLUMN hg_tenant_white."enable" IS '1开启，0关闭';
+COMMENT ON COLUMN hg_tenant_white."creator_id" IS '创建人ID';
+COMMENT ON COLUMN hg_tenant_white."create_time" IS '创建时间';
+COMMENT ON COLUMN hg_tenant_white."updater_id" IS '修改人ID';
+COMMENT ON COLUMN hg_tenant_white."update_time" IS '修改时间';
+
+CREATE INDEX IF NOT EXISTS idx_hg_tenant_white_enable ON hg_tenant_white ("enable");
+CREATE INDEX IF NOT EXISTS idx_hg_tenant_white_ip ON hg_tenant_white ("ip");
