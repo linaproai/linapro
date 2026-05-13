@@ -15,8 +15,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new dictionary controller instance.
-func NewV1() dict.IDictV1 {
+func NewV1(dictSvc dictsvc.Service) dict.IDictV1 {
 	return &ControllerV1{
-		dictSvc: dictsvc.New(),
+		dictSvc: dictSvc,
 	}
 }

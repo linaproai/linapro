@@ -46,7 +46,7 @@ func (m *Main) Http(ctx context.Context, in HttpInput) (out *HttpOutput, err err
 		return nil, err
 	}
 
-	bindHostedOpenAPIDocs(startupCtx, s, runtime.apiDocSvc, runtime.serverCfg.ApiDocPath)
+	bindHostedOpenAPIDocs(startupCtx, s, runtime.apiDocSvc, runtime.serverCfg.ApiDocPath, runtime.i18nSvc)
 	logHTTPStartupSummary(startupCtx, startupCollector)
 	dispatchSystemStartedHook(ctx, runtime.pluginSvc)
 

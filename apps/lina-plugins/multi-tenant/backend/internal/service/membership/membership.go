@@ -9,7 +9,7 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginservice/bizctx"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 	"lina-plugin-multi-tenant/backend/internal/dao"
 	"lina-plugin-multi-tenant/backend/internal/model/do"
@@ -53,12 +53,12 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc bizctx.Service
+	bizCtxSvc plugincontract.BizCtxService
 }
 
 // New creates and returns a new membership Service instance.
-func New() Service {
-	return &serviceImpl{bizCtxSvc: bizctx.New()}
+func New(bizCtxSvc plugincontract.BizCtxService) Service {
+	return &serviceImpl{bizCtxSvc: bizCtxSvc}
 }
 
 // Entity is the service-layer membership projection.
@@ -238,7 +238,6 @@ func (s *serviceImpl) Current(ctx context.Context) (*Entity, error) {
 
 // GetByUserAndTenant returns one membership for a user and tenant.
 func (s *serviceImpl) GetByUserAndTenant(ctx context.Context, userID int64, tenantID int64) (*Entity, error) {
-	tenantID = s.effectiveTenantID(ctx, tenantID)
 	var row *membershipTenantRow
 	err := shared.Model(ctx, shared.TableMembership).
 		As("m").

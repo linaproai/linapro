@@ -14,7 +14,6 @@ import (
 	"lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/datascope"
-	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/orgcap"
 	"lina-core/internal/service/role"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
@@ -96,31 +95,17 @@ type serviceImpl struct {
 	tenantSvc tenantcapsvc.Service
 }
 
-// New creates and returns a new Service instance.
-// Pass a non-nil orgCapSvc when user management should bind to a caller-owned
-// organization capability service; pass nil to use the default disabled reader.
-func New(orgCapSvc orgcap.Service, tenantEnablementReaders ...tenantcapsvc.PluginEnablementReader) Service {
-	if orgCapSvc == nil {
-		orgCapSvc = orgcap.New(nil)
-	}
-	var tenantEnablementReader tenantcapsvc.PluginEnablementReader
-	if len(tenantEnablementReaders) > 0 {
-		tenantEnablementReader = tenantEnablementReaders[0]
-	}
-	svc := &serviceImpl{
-		authSvc:   auth.New(orgCapSvc),
-		bizCtxSvc: bizctx.New(),
-		i18nSvc:   i18nsvc.New(),
+// New creates and returns a new user service from explicit runtime-owned dependencies.
+func New(authSvc auth.Service, bizCtxSvc bizctx.Service, i18nSvc userI18nTranslator, orgCapSvc orgcap.Service, roleSvc role.Service, scopeSvc datascope.Service, tenantSvc tenantcapsvc.Service) Service {
+	return &serviceImpl{
+		authSvc:   authSvc,
+		bizCtxSvc: bizCtxSvc,
+		i18nSvc:   i18nSvc,
 		orgCapSvc: orgCapSvc,
-		roleSvc:   role.New(nil),
-		tenantSvc: tenantcapsvc.New(tenantEnablementReader),
+		roleSvc:   roleSvc,
+		scopeSvc:  scopeSvc,
+		tenantSvc: tenantSvc,
 	}
-	svc.scopeSvc = datascope.New(datascope.Dependencies{
-		BizCtxSvc: svc.bizCtxSvc,
-		RoleSvc:   svc.roleSvc,
-		OrgCapSvc: svc.orgCapSvc,
-	})
-	return svc
 }
 
 // ListInput defines input for List function.

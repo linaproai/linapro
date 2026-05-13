@@ -17,7 +17,7 @@ import (
 
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	tenantfilter "lina-core/pkg/pluginservice/tenantfilter"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-demo-source/backend/internal/dao"
 	"lina-plugin-demo-source/backend/internal/model/do"
 	entitymodel "lina-plugin-demo-source/backend/internal/model/entity"
@@ -131,7 +131,7 @@ func (s *serviceImpl) ListRecords(ctx context.Context, in *ListRecordsInput) (ou
 	}
 
 	pageNum, pageSize := normalizeListPagination(in)
-	model := tenantfilter.Apply(ctx, dao.PluginDemoSourceRecord.Ctx(ctx))
+	model := s.tenantFilter.Apply(ctx, dao.PluginDemoSourceRecord.Ctx(ctx))
 	keyword := strings.TrimSpace(in.Keyword)
 	if keyword != "" {
 		model = model.WhereLike(dao.PluginDemoSourceRecord.Columns().Title, "%"+keyword+"%")
@@ -196,7 +196,7 @@ func (s *serviceImpl) CreateRecord(ctx context.Context, in *CreateRecordInput) (
 	}
 
 	recordID, err := dao.PluginDemoSourceRecord.Ctx(ctx).Data(do.PluginDemoSourceRecord{
-		TenantId:       tenantfilter.Current(ctx),
+		TenantId:       s.tenantFilter.Current(ctx),
 		Title:          strings.TrimSpace(in.Title),
 		Content:        strings.TrimSpace(in.Content),
 		AttachmentName: stringPointer(attachmentName),
@@ -252,7 +252,7 @@ func (s *serviceImpl) UpdateRecord(ctx context.Context, in *UpdateRecordInput) (
 	}
 
 	_, err = dao.PluginDemoSourceRecord.Ctx(ctx).
-		Where(tenantfilter.Column, tenantfilter.Current(ctx)).
+		Where(plugincontract.TenantFilterColumn, s.tenantFilter.Current(ctx)).
 		Where(do.PluginDemoSourceRecord{Id: in.Id}).
 		Data(updateData).
 		Update()
@@ -276,7 +276,7 @@ func (s *serviceImpl) DeleteRecord(ctx context.Context, id int64) error {
 	}
 
 	_, err = dao.PluginDemoSourceRecord.Ctx(ctx).
-		Where(tenantfilter.Column, tenantfilter.Current(ctx)).
+		Where(plugincontract.TenantFilterColumn, s.tenantFilter.Current(ctx)).
 		Where(do.PluginDemoSourceRecord{Id: id}).
 		Delete()
 	if err != nil {
@@ -332,7 +332,7 @@ func (s *serviceImpl) getRecordEntity(ctx context.Context, id int64) (*demoRecor
 	}
 
 	var record *demoRecordEntity
-	err := tenantfilter.Apply(ctx, dao.PluginDemoSourceRecord.Ctx(ctx)).
+	err := s.tenantFilter.Apply(ctx, dao.PluginDemoSourceRecord.Ctx(ctx)).
 		Where(do.PluginDemoSourceRecord{Id: id}).
 		Scan(&record)
 	if err != nil {
@@ -426,7 +426,7 @@ func listAllAttachmentPaths(ctx context.Context) ([]string, error) {
 		return []string{}, nil
 	}
 
-	rows, err := tenantfilter.Apply(ctx, dao.PluginDemoSourceRecord.Ctx(ctx)).
+	rows, err := dao.PluginDemoSourceRecord.Ctx(ctx).
 		Fields(dao.PluginDemoSourceRecord.Columns().AttachmentPath).
 		All()
 	if err != nil {

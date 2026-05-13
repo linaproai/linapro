@@ -15,6 +15,14 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/orgcap"
+	rolesvc "lina-core/internal/service/role"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 )
 
@@ -36,10 +44,14 @@ func TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes(t *testing.T) {
 	t.Cleanup(func() { cleanupFileScopeRecords(t, ctx, []int64{visibleID, hiddenID}) })
 
 	storage := &fileDataScopeStorage{content: "visible-content"}
+	bizCtxSvc := fileScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	orgCapSvc := orgcap.New(nil)
+	roleSvc := newFileDataScopeRoleService(bizCtxSvc, orgCapSvc)
 	svc := &serviceImpl{
 		storage:   storage,
-		bizCtxSvc: fileScopeStaticBizCtx{ctx: &model.Context{UserId: currentUserID}},
+		bizCtxSvc: bizCtxSvc,
 		dictSvc:   nil,
+		scopeSvc:  datascope.New(bizCtxSvc, roleSvc, orgCapSvc),
 	}
 
 	out, err := svc.List(ctx, &ListInput{PageNum: 1, PageSize: 20})
@@ -70,6 +82,17 @@ func TestFileDataScopeFiltersListDetailDownloadDeleteAndSuffixes(t *testing.T) {
 	if len(suffixes) != 1 || suffixes[0].Value != "txt" {
 		t.Fatalf("expected only visible suffix txt, got %#v", suffixes)
 	}
+}
+
+// newFileDataScopeRoleService builds the explicit role dependency used by
+// file data-scope tests.
+func newFileDataScopeRoleService(bizCtxSvc bizctx.Service, orgCapSvc orgcap.Service) rolesvc.Service {
+	configSvc := hostconfig.New()
+	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
+	roleSvc := rolesvc.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
+	return roleSvc
 }
 
 // fileDataScopeStorage is a deterministic storage fake for data-scope tests.
@@ -117,7 +140,6 @@ func (s fileScopeStaticBizCtx) SetTenant(context.Context, int) {}
 
 // SetImpersonation is unused by file data-scope tests.
 func (s fileScopeStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
-
 
 // SetUserAccess is unused by file data-scope tests.
 func (s fileScopeStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}

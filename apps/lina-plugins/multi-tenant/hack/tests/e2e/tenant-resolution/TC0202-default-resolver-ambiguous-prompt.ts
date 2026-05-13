@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0202 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0202 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-202 default 解析器 ambiguous prompt', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

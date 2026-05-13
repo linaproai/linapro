@@ -30,6 +30,10 @@ const (
 	serviceMonitorCleanupDescription = "Cleans up expired server runtime metric snapshots for the monitor-server plugin."
 )
 
+// sharedMonitorSvc is the plugin-owned server monitor service shared by HTTP,
+// Cron, and startup hooks so sampling state is not split across callbacks.
+var sharedMonitorSvc = monitorsvc.New()
+
 // init registers the monitor-server source plugin and its host callbacks.
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
@@ -70,7 +74,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 				middlewares.Tenancy(),
 				middlewares.Permission(),
 			)
-			group.Bind(servercontroller.NewV1())
+			group.Bind(servercontroller.NewV1(sharedMonitorSvc))
 		})
 	})
 	return nil
@@ -78,12 +82,15 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 
 // registerBuiltinCrons contributes managed cron definitions for server-monitor collection and cleanup.
 func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistrar) error {
-	monitorCfg, err := monitorconfig.Load(ctx)
+	hostServices := registrar.HostServices()
+	if hostServices == nil || hostServices.Config() == nil {
+		panic("monitor-server cron requires host config service")
+	}
+	monitorCfg, err := monitorconfig.Load(ctx, hostServices.Config())
 	if err != nil {
 		return err
 	}
 	interval := monitorCfg.Interval
-	monitorSvc := monitorsvc.New()
 
 	if err := registrar.AddWithMetadata(
 		ctx,
@@ -92,7 +99,7 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 		serviceMonitorCollectorDisplayName,
 		serviceMonitorCollectorDescription,
 		func(ctx context.Context) error {
-			return collectSnapshot(ctx, monitorSvc)
+			return collectSnapshot(ctx, sharedMonitorSvc)
 		},
 	); err != nil {
 		return err
@@ -104,14 +111,14 @@ func registerBuiltinCrons(ctx context.Context, registrar pluginhost.CronRegistra
 		serviceMonitorCleanupDisplayName,
 		serviceMonitorCleanupDescription,
 		func(ctx context.Context) error {
-			return cleanupSnapshots(ctx, registrar, monitorSvc)
+			return cleanupSnapshots(ctx, registrar, sharedMonitorSvc)
 		},
 	)
 }
 
 // collectOnSystemStarted performs one eager collection after host startup so the page has an initial snapshot.
 func collectOnSystemStarted(ctx context.Context, payload pluginhost.HookPayload) error {
-	monitorsvc.New().CollectAndStore(ctx)
+	sharedMonitorSvc.CollectAndStore(ctx)
 	return nil
 }
 
@@ -127,7 +134,11 @@ func cleanupSnapshots(ctx context.Context, registrar pluginhost.CronRegistrar, m
 		return nil
 	}
 
-	monitorCfg, err := monitorconfig.Load(ctx)
+	hostServices := registrar.HostServices()
+	if hostServices == nil || hostServices.Config() == nil {
+		panic("monitor-server cleanup requires host config service")
+	}
+	monitorCfg, err := monitorconfig.Load(ctx, hostServices.Config())
 	if err != nil {
 		return err
 	}

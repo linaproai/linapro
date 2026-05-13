@@ -14,6 +14,8 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/pkg/pluginbridge"
 )
@@ -28,7 +30,7 @@ func TestBuildRuntimeMessagesIncludesEnabledDynamicPluginAssets(t *testing.T) {
 
 	var (
 		ctx      = context.Background()
-		svc      = New()
+		svc      = New(bizctx.New(), configsvc.New(), cachecoord.Default(nil))
 		pluginID = "plugin-i18n-dynamic-runtime"
 		key      = "plugin.plugin-i18n-dynamic-runtime.name"
 		value    = "Dynamic Runtime Plugin"
@@ -103,7 +105,7 @@ func TestTranslateDynamicPluginSourceTextUsesReleaseArtifactBeforeEnable(t *test
 
 	var (
 		ctx      = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: DefaultLocale})
-		svc      = New()
+		svc      = New(bizctx.New(), configsvc.New(), cachecoord.Default(nil))
 		pluginID = "plugin-i18n-dynamic-source-text"
 		key      = "job.handler.plugin.plugin-i18n-dynamic-source-text.cron.heartbeat.name"
 	)
@@ -147,7 +149,7 @@ func TestTranslateDynamicPluginSourceTextReloadsLatestRelease(t *testing.T) {
 
 	var (
 		ctx      = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: DefaultLocale})
-		svc      = New()
+		svc      = New(bizctx.New(), configsvc.New(), cachecoord.Default(nil))
 		pluginID = "plugin-i18n-dynamic-source-text-reload"
 		key      = "job.handler.plugin.plugin-i18n-dynamic-source-text-reload.cron.heartbeat.name"
 	)
@@ -210,7 +212,7 @@ func TestTranslateDynamicPluginSourceTextFallsBackToStagingArtifact(t *testing.T
 
 	var (
 		ctx          = context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
-		svc          = New()
+		svc          = New(bizctx.New(), configsvc.New(), cachecoord.Default(nil))
 		pluginID     = "plugin-i18n-dynamic-source-text-staging"
 		key          = "plugin.plugin-i18n-dynamic-source-text-staging.name"
 		storageDir   = t.TempDir()

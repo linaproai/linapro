@@ -10,9 +10,7 @@ import (
 
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/logger"
-	"lina-core/pkg/pluginservice/bizctx"
-	"lina-core/pkg/pluginservice/notify"
-	tenantfilter "lina-core/pkg/pluginservice/tenantfilter"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-content-notice/backend/internal/dao"
 	"lina-plugin-content-notice/backend/internal/model/do"
 	entitymodel "lina-plugin-content-notice/backend/internal/model/entity"
@@ -58,15 +56,21 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc bizctx.Service // Business context bridge
-	notifySvc notify.Service // Unified notify bridge
+	bizCtxSvc    plugincontract.BizCtxService       // Business context bridge
+	notifySvc    plugincontract.NotifyService       // Unified notify bridge
+	tenantFilter plugincontract.TenantFilterService // Tenant query filter bridge
 }
 
 // New creates and returns a new Service instance.
-func New() Service {
+func New(
+	bizCtxSvc plugincontract.BizCtxService,
+	notifySvc plugincontract.NotifyService,
+	tenantFilter plugincontract.TenantFilterService,
+) Service {
 	return &serviceImpl{
-		bizCtxSvc: bizctx.New(),
-		notifySvc: notify.New(),
+		bizCtxSvc:    bizCtxSvc,
+		notifySvc:    notifySvc,
+		tenantFilter: tenantFilter,
 	}
 }
 
@@ -98,7 +102,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 		userColumns   = dao.SysUser.Columns()
 	)
 
-	m := tenantfilter.Apply(ctx, dao.Notice.Ctx(ctx))
+	m := s.tenantFilter.Apply(ctx, dao.Notice.Ctx(ctx))
 
 	// Apply filters
 	if in.Title != "" {
@@ -109,7 +113,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	}
 	if in.CreatedBy != "" {
 		// Filter by creator username via subquery on sys_user.
-		subQuery := tenantfilter.Apply(ctx, dao.SysUser.Ctx(ctx)).
+		subQuery := s.tenantFilter.Apply(ctx, dao.SysUser.Ctx(ctx)).
 			Fields(userColumns.Id).
 			WhereLike(userColumns.Username, "%"+in.CreatedBy+"%")
 		m = m.Where(noticeColumns.CreatedBy+" IN (?)", subQuery)
@@ -144,7 +148,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 	userNameMap := make(map[int64]string)
 	if len(userIds) > 0 {
 		users := make([]*entitymodel.SysUser, 0)
-		err = tenantfilter.Apply(ctx, dao.SysUser.Ctx(ctx)).
+		err = s.tenantFilter.Apply(ctx, dao.SysUser.Ctx(ctx)).
 			Fields(userColumns.Id, userColumns.Username).
 			WhereIn(userColumns.Id, userIds).
 			Scan(&users)
@@ -178,7 +182,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int64) (*ListItem, error) 
 	)
 
 	var notice *NoticeEntity
-	err := tenantfilter.Apply(ctx, dao.Notice.Ctx(ctx)).
+	err := s.tenantFilter.Apply(ctx, dao.Notice.Ctx(ctx)).
 		Where(noticeColumns.Id, id).
 		Scan(&notice)
 	if err != nil {
@@ -193,7 +197,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int64) (*ListItem, error) 
 	// Resolve creator username
 	if notice.CreatedBy > 0 {
 		var user *entitymodel.SysUser
-		err = tenantfilter.Apply(ctx, dao.SysUser.Ctx(ctx)).
+		err = s.tenantFilter.Apply(ctx, dao.SysUser.Ctx(ctx)).
 			Fields(userColumns.Id, userColumns.Username).
 			Where(userColumns.Id, notice.CreatedBy).
 			Scan(&user)
@@ -222,7 +226,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (int64, error)
 
 	// Insert notice (GoFrame auto-fills created_at and updated_at).
 	id, err := dao.Notice.Ctx(ctx).Data(do.Notice{
-		TenantId:  tenantfilter.Current(ctx),
+		TenantId:  s.tenantFilter.Current(ctx),
 		Title:     in.Title,
 		Type:      in.Type,
 		Content:   in.Content,
@@ -263,7 +267,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 	// Check notice exists and get old status.
 	var oldNotice *NoticeEntity
-	err := tenantfilter.Apply(ctx, dao.Notice.Ctx(ctx)).
+	err := s.tenantFilter.Apply(ctx, dao.Notice.Ctx(ctx)).
 		Where(noticeColumns.Id, in.Id).
 		Scan(&oldNotice)
 	if err != nil {
@@ -298,7 +302,7 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateInput) error {
 
 	_, err = dao.Notice.Ctx(ctx).
 		OmitNilData().
-		Where(tenantfilter.Column, tenantfilter.Current(ctx)).
+		Where(plugincontract.TenantFilterColumn, s.tenantFilter.Current(ctx)).
 		Where(noticeColumns.Id, in.Id).
 		Data(data).
 		Update()
@@ -337,14 +341,14 @@ func (s *serviceImpl) Delete(ctx context.Context, ids string) error {
 
 	// Soft delete using GoFrame's auto soft-delete feature.
 	noticeColumns := dao.Notice.Columns()
-	_, err := tenantfilter.Apply(ctx, dao.Notice.Ctx(ctx)).
+	_, err := s.tenantFilter.Apply(ctx, dao.Notice.Ctx(ctx)).
 		WhereIn(noticeColumns.Id, idList).
 		Delete()
 	if err != nil {
 		return err
 	}
 
-	if cascadeErr := s.notifySvc.DeleteBySource(ctx, notify.SourceTypeNotice, idList); cascadeErr != nil {
+	if cascadeErr := s.notifySvc.DeleteBySource(ctx, plugincontract.SourceTypeNotice, idList); cascadeErr != nil {
 		logger.Errorf(ctx, "cascade delete notify deliveries failed for notice ids %s: %v", ids, cascadeErr)
 	}
 	return nil

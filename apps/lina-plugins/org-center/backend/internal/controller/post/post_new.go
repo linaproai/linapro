@@ -16,8 +16,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new post controller instance.
-func NewV1() postapi.IPostV1 {
-	return &ControllerV1{postSvc: postsvc.New()}
+func NewV1(postSvc postsvc.Service) postapi.IPostV1 {
+	return &ControllerV1{postSvc: postSvc}
 }
 
 // toAPIPostEntity converts the service-layer post entity into the API DTO projection.

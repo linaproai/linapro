@@ -17,7 +17,8 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	"lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
@@ -116,34 +117,17 @@ type authRoleService interface {
 	InvalidateTokenAccessContext(ctx context.Context, tokenID string)
 }
 
-// New creates and returns a new Service instance.
-// Pass a non-nil orgCapSvc to reuse a caller-owned organization capability
-// service; pass nil to create the default orgcap service bound to the default
-// plugin service instance.
-func New(orgCapSvc orgcap.Service) Service {
-	return newService(orgCapSvc)
-}
-
-// NewTenantTokenIssuer creates the narrowed tenant token issuer.
-func NewTenantTokenIssuer(orgCapSvc orgcap.Service) TenantTokenIssuer {
-	return newService(orgCapSvc)
-}
-
-// newService creates the concrete auth service implementation.
-func newService(orgCapSvc orgcap.Service) *serviceImpl {
-	pluginSvc := pluginsvc.New(nil)
-	if orgCapSvc == nil {
-		orgCapSvc = orgcap.New(pluginSvc)
-	}
+// New creates the concrete auth service from explicit runtime-owned dependencies.
+func New(configSvc authConfigService, pluginSvc pluginsvc.Service, orgCapSvc orgcap.Service, roleSvc authRoleService, tenantSvc tenantcapsvc.Service, sessionStore session.Store, kvCacheSvc kvcache.Service) Service {
 	return &serviceImpl{
-		configSvc:    config.New(),
+		configSvc:    configSvc,
 		orgCapSvc:    orgCapSvc,
 		pluginSvc:    pluginSvc,
-		roleSvc:      role.New(pluginSvc),
-		tenantSvc:    tenantcapsvc.New(pluginSvc),
-		sessionStore: session.NewDBStore(),
-		preTokens:    newPreTokenStore(),
-		revoked:      newRevokeList(),
+		roleSvc:      roleSvc,
+		tenantSvc:    tenantSvc,
+		sessionStore: sessionStore,
+		preTokens:    newKVPreTokenStore(kvCacheSvc),
+		revoked:      newLayeredRevokeStore(newMemoryRevokeStore(), newKVRevokeStore(kvCacheSvc)),
 	}
 }
 
@@ -492,7 +476,7 @@ func (s *serviceImpl) Refresh(ctx context.Context, in RefreshInput) (*RefreshOut
 		return nil, err
 	}
 	if s.roleSvc != nil {
-		if _, err = s.roleSvc.PrimeTokenAccessContext(ctx, claims.TokenId, user.Id); err != nil {
+		if _, err = s.roleSvc.PrimeTokenAccessContext(datascope.WithTenantScope(ctx, claims.TenantId), claims.TokenId, user.Id); err != nil {
 			return nil, err
 		}
 	}
@@ -767,6 +751,7 @@ func (s *serviceImpl) validateSwitchTenant(ctx context.Context, userID int, tena
 
 // createSession persists a tenant-bound online-session row.
 func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, tenantID int, tokenID string) error {
+	tenantScopedCtx := datascope.WithTenantScope(ctx, tenantID)
 	var ip, browser, osName string
 	if r := g.RequestFromCtx(ctx); r != nil {
 		ip = r.GetClientIp()
@@ -775,7 +760,7 @@ func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, t
 		browser = browserName + " " + browserVersion
 		osName = ua.OS()
 	}
-	deptName := s.getUserDeptName(ctx, user.Id)
+	deptName := s.getUserDeptName(tenantScopedCtx, user.Id)
 	if ttlSetter, ok := s.sessionStore.(interface{ SetDefaultTTL(time.Duration) }); ok {
 		timeout, err := s.configSvc.GetSessionTimeout(ctx)
 		if err != nil {
@@ -799,6 +784,6 @@ func (s *serviceImpl) createSession(ctx context.Context, user *entity.SysUser, t
 	if s.roleSvc == nil {
 		return nil
 	}
-	_, err := s.roleSvc.PrimeTokenAccessContext(ctx, tokenID, user.Id)
+	_, err := s.roleSvc.PrimeTokenAccessContext(tenantScopedCtx, tokenID, user.Id)
 	return err
 }

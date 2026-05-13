@@ -31,7 +31,7 @@ func TestTenantDictReadPrefersTenantOverrideWithPlatformFallback(t *testing.T) {
 	insertTenantFallbackDictData(t, ctx, 91, dictType, "shared", "Tenant Shared")
 	insertTenantFallbackDictData(t, ctx, datascope.PlatformTenantID, dictType, "platform-only", "Platform Only")
 
-	typeOut, err := New().List(tenantCtx, ListInput{Type: dictType})
+	typeOut, err := New(nil).List(tenantCtx, ListInput{Type: dictType})
 	if err != nil {
 		t.Fatalf("list tenant dict types: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestTenantDictReadPrefersTenantOverrideWithPlatformFallback(t *testing.T) {
 		t.Fatalf("expected tenant type override, got %q", tenantType)
 	}
 
-	dataList, err := New().DataByType(tenantCtx, dictType)
+	dataList, err := New(nil).DataByType(tenantCtx, dictType)
 	if err != nil {
 		t.Fatalf("list tenant dict data: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestTenantDictReadPrefersTenantOverrideWithPlatformFallback(t *testing.T) {
 		t.Fatalf("expected platform fallback data, got %q", label)
 	}
 
-	platformList, err := New().DataByType(ctx, dictType)
+	platformList, err := New(nil).DataByType(ctx, dictType)
 	if err != nil {
 		t.Fatalf("list platform dict data: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestTenantDictOverrideRequiresPlatformPermission(t *testing.T) {
 	dictType := fmt.Sprintf("tenant_override_denied_%d", time.Now().UnixNano())
 	insertTenantFallbackDictType(t, ctx, datascope.PlatformTenantID, dictType, "Platform", false)
 
-	_, err := New().Create(tenantCtx, CreateInput{
+	_, err := New(nil).Create(tenantCtx, CreateInput{
 		Name:   "Tenant denied",
 		Type:   dictType,
 		Status: 1,
@@ -86,7 +86,7 @@ func TestTenantDictOverrideRequiresPlatformPermission(t *testing.T) {
 		t.Fatalf("expected %s from type override, got %v", CodeDictTypeTenantOverrideDenied.RuntimeCode(), err)
 	}
 
-	_, err = New().DataCreate(tenantCtx, DataCreateInput{
+	_, err = New(nil).DataCreate(tenantCtx, DataCreateInput{
 		DictType: dictType,
 		Label:    "Tenant denied",
 		Value:    "tenant-denied",

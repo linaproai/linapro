@@ -17,12 +17,30 @@ import (
 	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/service/apidoc"
+	"lina-core/internal/service/auth"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/dict"
+	filesvc "lina-core/internal/service/file"
+	i18nsvc "lina-core/internal/service/i18n"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
+	"lina-core/internal/service/kvcache"
+	"lina-core/internal/service/menu"
 	"lina-core/internal/service/middleware"
+	"lina-core/internal/service/notify"
+	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/role"
+	"lina-core/internal/service/session"
+	"lina-core/internal/service/sysconfig"
+	sysinfosvc "lina-core/internal/service/sysinfo"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/internal/service/user"
+	"lina-core/internal/service/usermsg"
 )
 
 // fakeApiDocService is the apidoc stub used by hosted OpenAPI binding tests.
@@ -61,11 +79,13 @@ func TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath(t *
 	server.SetOpenApiPath("/legacy-api.json")
 	server.SetSwaggerPath("/swagger")
 
+	testI18nSvc := i18nsvc.New(bizctx.New(), config.New(), cachecoord.Default(cluster.New(config.New().GetCluster(context.Background()))))
 	bindHostedOpenAPIDocs(
 		context.Background(),
 		server,
 		&fakeApiDocService{document: &goai.OpenApiV3{}},
 		"/api.json",
+		testI18nSvc,
 	)
 
 	if server.GetOpenApiPath() != "" {
@@ -117,6 +137,7 @@ func TestBindHostedOpenAPIDocsUsesRequestOrigin(t *testing.T) {
 		},
 	}
 
+	testI18nSvc := i18nsvc.New(bizctx.New(), config.New(), cachecoord.Default(cluster.New(config.New().GetCluster(context.Background()))))
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			server := ghttp.GetServer("cmd-http-openapi-origin-" + guid.S())
@@ -134,6 +155,7 @@ func TestBindHostedOpenAPIDocsUsesRequestOrigin(t *testing.T) {
 					},
 				}},
 				"/api.json",
+				testI18nSvc,
 			)
 			if err := server.Start(); err != nil {
 				t.Fatalf("start OpenAPI origin test server: %v", err)
@@ -200,16 +222,7 @@ func TestUploadedFileAccessRouteIsPublic(t *testing.T) {
 	server.SetPort(0)
 	server.SetDumpRouterMap(false)
 
-	configSvc := config.New()
-	jobRegistry := jobhandlersvc.New()
-	runtime := &httpRuntime{
-		configSvc:     configSvc,
-		clusterSvc:    cluster.New(configSvc.GetCluster(ctx)),
-		pluginSvc:     pluginsvc.New(nil),
-		jobRegistry:   jobRegistry,
-		jobMgmtSvc:    jobmgmtsvc.New(configSvc, jobRegistry, nil),
-		middlewareSvc: middleware.New(),
-	}
+	runtime := newRouteBindingTestRuntime(ctx)
 	bindHostAPIRoutes(ctx, server, runtime)
 
 	if err := server.Start(); err != nil {
@@ -243,6 +256,60 @@ func TestUploadedFileAccessRouteIsPublic(t *testing.T) {
 	}
 	if !strings.Contains(userBatchUpdate.Middleware, "Service.Permission") {
 		t.Fatalf("expected user batch-update route to keep permission middleware, middleware=%s", userBatchUpdate.Middleware)
+	}
+}
+
+// newRouteBindingTestRuntime creates the shared service graph required by
+// route-binding tests without starting cluster, plugin, or cron lifecycles.
+func newRouteBindingTestRuntime(ctx context.Context) *httpRuntime {
+	configSvc := config.New()
+	clusterSvc := cluster.New(configSvc.GetCluster(ctx))
+	bizCtxSvc := bizctx.New()
+	sessionStore := session.NewDBStore()
+	cacheCoordSvc := cachecoord.Default(clusterSvc)
+	i18nService := i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
+	pluginSvc := pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nService, sessionStore)
+	orgCapSvc := orgcap.New(pluginSvc)
+	tenantSvc := tenantcapsvc.New(pluginSvc, bizCtxSvc)
+	pluginSvc.SetTenantCapability(tenantSvc)
+	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nService, nil, orgCapSvc, tenantSvc)
+	kvCacheSvc := kvcache.New()
+	dictSvc := dict.New(i18nService)
+	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	roleSvc.SetDataScopeService(scopeSvc)
+	menuSvc := menu.New(pluginSvc, i18nService, roleSvc)
+	notifySvc := notify.New(tenantSvc)
+	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+	fileSvc := filesvc.New(configSvc, filesvc.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
+	sysConfigSvc := sysconfig.New(configSvc, i18nService)
+	sysInfoSvc := sysinfosvc.New(configSvc, clusterSvc, nil, cacheCoordSvc)
+	userSvc := user.New(authSvc, bizCtxSvc, i18nService, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
+	userMsgSvc := usermsg.New(bizCtxSvc, notifySvc, i18nService)
+	jobRegistry := jobhandlersvc.New()
+	return &httpRuntime{
+		configSvc:       configSvc,
+		clusterSvc:      clusterSvc,
+		pluginSvc:       pluginSvc,
+		authSvc:         authSvc,
+		authTokenIssuer: authSvc.(auth.TenantTokenIssuer),
+		bizCtxSvc:       bizCtxSvc,
+		i18nSvc:         i18nService,
+		orgCapSvc:       orgCapSvc,
+		roleSvc:         roleSvc,
+		sessionStore:    sessionStore,
+		tenantSvc:       tenantSvc,
+		kvCacheSvc:      kvCacheSvc,
+		dictSvc:         dictSvc,
+		fileSvc:         fileSvc,
+		menuSvc:         menuSvc,
+		notifySvc:       notifySvc,
+		sysConfigSvc:    sysConfigSvc,
+		sysInfoSvc:      sysInfoSvc,
+		userSvc:         userSvc,
+		userMsgSvc:      userMsgSvc,
+		jobRegistry:     jobRegistry,
+		jobMgmtSvc:      jobmgmtsvc.New(bizCtxSvc, configSvc, i18nService, jobRegistry, nil, scopeSvc),
+		middlewareSvc:   middleware.New(authSvc, bizCtxSvc, configSvc, i18nService, pluginSvc, roleSvc, tenantSvc),
 	}
 }
 

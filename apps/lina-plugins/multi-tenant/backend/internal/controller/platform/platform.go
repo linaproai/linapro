@@ -18,15 +18,10 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new platform controller instance.
-func NewV1() platformapi.IPlatformV1 {
-	return NewControllerV1()
-}
-
-// NewControllerV1 creates and returns the concrete platform controller instance.
-func NewControllerV1() *ControllerV1 {
+func NewV1(tenantSvc tenantsvc.Service, impersonateSvc impersonate.Service) platformapi.IPlatformV1 {
 	return &ControllerV1{
-		tenantSvc:      tenantsvc.New(),
-		impersonateSvc: impersonate.New(),
+		tenantSvc:      tenantSvc,
+		impersonateSvc: impersonateSvc,
 	}
 }
 

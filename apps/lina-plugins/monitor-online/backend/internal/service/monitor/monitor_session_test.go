@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	sessionsvc "lina-core/pkg/pluginservice/session"
+	sessionsvc "lina-core/pkg/pluginservice/contract"
 )
 
 // TestListDelegatesToSessionService verifies online-user listing goes through

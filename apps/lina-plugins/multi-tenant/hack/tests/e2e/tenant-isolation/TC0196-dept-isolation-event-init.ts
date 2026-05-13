@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0196 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0196 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-196 部门跨租户隔离', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

@@ -8,8 +8,6 @@ import (
 	authapi "lina-core/api/auth"
 	authsvc "lina-core/internal/service/auth"
 	"lina-core/internal/service/bizctx"
-	"lina-core/internal/service/orgcap"
-	pluginsvc "lina-core/internal/service/plugin"
 )
 
 // ControllerV1 is the authentication controller.
@@ -19,11 +17,9 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new authentication controller instance.
-func NewV1() authapi.IAuthV1 {
-	pluginSvc := pluginsvc.New(nil)
-	orgCapSvc := orgcap.New(pluginSvc)
+func NewV1(authSvc authsvc.Service, bizCtxSvc bizctx.Service) authapi.IAuthV1 {
 	return &ControllerV1{
-		authSvc:   authsvc.New(orgCapSvc),
-		bizCtxSvc: bizctx.New(),
+		authSvc:   authSvc,
+		bizCtxSvc: bizCtxSvc,
 	}
 }

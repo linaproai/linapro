@@ -113,6 +113,7 @@ func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 		"test-plugin",
 		nil,
 		func() bool { return false },
+		nil,
 	)
 	if registrar.IsPrimaryNode() {
 		t.Fatalf("expected current node to be non-primary")
@@ -122,6 +123,7 @@ func TestCronRegistrarReportsPrimaryNode(t *testing.T) {
 		"test-plugin",
 		nil,
 		func() bool { return true },
+		nil,
 	)
 	if !registrar.IsPrimaryNode() {
 		t.Fatalf("expected current node to be primary")

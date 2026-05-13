@@ -29,7 +29,7 @@ const (
 )
 
 // PurgeStorageData clears plugin-owned attachment files before uninstall SQL drops the data table.
-func (s *serviceImpl) PurgeStorageData(ctx context.Context) error {
+func PurgeStorageData(ctx context.Context) error {
 	paths, err := listAllAttachmentPaths(ctx)
 	if err != nil {
 		return err
@@ -49,6 +49,12 @@ func (s *serviceImpl) PurgeStorageData(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// PurgeStorageData delegates service cleanup to the dependency-free storage
+// purge entry used by lifecycle callbacks.
+func (s *serviceImpl) PurgeStorageData(ctx context.Context) error {
+	return PurgeStorageData(ctx)
 }
 
 // saveDemoAttachmentFile stores one optional uploaded attachment into the

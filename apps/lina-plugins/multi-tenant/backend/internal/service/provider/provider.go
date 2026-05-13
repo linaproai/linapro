@@ -26,11 +26,11 @@ var _ pkgtenantcap.Provider = (*Provider)(nil)
 var _ pkgtenantcap.UserMembershipProvider = (*Provider)(nil)
 
 // New creates and returns a Provider instance.
-func New() *Provider {
+func New(membershipSvc membership.Service, resolverSvc resolver.Service, resolverConfigSvc resolverconfig.Service) *Provider {
 	return &Provider{
-		membershipSvc:     membership.New(),
-		resolverSvc:       resolver.New(),
-		resolverConfigSvc: resolverconfig.New(),
+		membershipSvc:     membershipSvc,
+		resolverSvc:       resolverSvc,
+		resolverConfigSvc: resolverConfigSvc,
 	}
 }
 

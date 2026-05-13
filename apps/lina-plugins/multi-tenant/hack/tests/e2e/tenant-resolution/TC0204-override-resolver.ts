@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0204 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0204 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-204 override 解析器', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

@@ -21,7 +21,7 @@ import {
   test,
   type TenantUserGrant,
   updateUserPrimaryTenant,
-} from '@host-tests/fixtures/multi-tenant';
+} from '../../support/multi-tenant';
 
 type APIRequestContext = Awaited<ReturnType<typeof createAdminApiContext>>;
 
@@ -145,16 +145,17 @@ test.describe("TC-187 用户跨租户隔离", () => {
         ? await selectTenant(login.preToken, tenantAId)
         : "";
     expect(tenantAToken).toBeTruthy();
-    tenantApi = await createTenantApiContext(tenantAToken);
+    const tenantContext = await createTenantApiContext(tenantAToken);
+    tenantApi = tenantContext;
 
-    const membersA = await listTenantMembers(tenantApi, tenantAId);
+    const membersA = await listTenantMembers(tenantContext, tenantAId);
     expect(membersA.list.map((member) => member.userId)).toContain(userAId);
     expect(membersA.list.map((member) => member.userId)).not.toContain(userBId);
 
     const tenantBListViaTenantAToken = await expectSuccess<{
       list: Array<{ id: number }>;
       total: number;
-    }>(await tenantApi.get(`user?pageNum=1&pageSize=100&tenantId=${tenantBId}`));
+    }>(await tenantContext.get(`user?pageNum=1&pageSize=100&tenantId=${tenantBId}`));
     expect(tenantBListViaTenantAToken.list.map((user) => user.id)).not.toContain(
       userBId,
     );

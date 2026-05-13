@@ -11,7 +11,6 @@ import (
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
-	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 )
@@ -51,15 +50,14 @@ type serviceImpl struct {
 // New creates and returns a new menu service instance.
 // Pass a non-nil menuFilter when menu listing must respect plugin-driven menu
 // visibility; pass nil to use the default no-op filter.
-func New(menuFilter MenuFilter) Service {
+func New(menuFilter MenuFilter, i18nSvc menuI18nTranslator, roleSvc role.Service) Service {
 	if menuFilter == nil {
 		menuFilter = noopMenuFilter{}
 	}
-	i18nSvc := i18nsvc.New()
 	return &serviceImpl{
 		menuFilter: menuFilter,
 		i18nSvc:    i18nSvc,
-		roleSvc:    role.New(nil),
+		roleSvc:    roleSvc,
 	}
 }
 

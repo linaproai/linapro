@@ -360,8 +360,8 @@ func New(
 	lifecycleSvc lifecycle.Service,
 	frontendSvc frontend.Service,
 	openapiSvc openapi.Service,
+	i18nSvc runtimeI18nService,
 ) Service {
-	i18nSvc := i18nsvc.New()
 	return &serviceImpl{
 		catalogSvc:                 catalogSvc,
 		lifecycleSvc:               lifecycleSvc,

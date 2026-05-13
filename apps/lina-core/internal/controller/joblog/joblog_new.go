@@ -6,7 +6,6 @@ import (
 	"lina-core/api/joblog"
 	"lina-core/internal/service/bizctx"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
-	pluginsvc "lina-core/internal/service/plugin"
 	rolesvc "lina-core/internal/service/role"
 )
 
@@ -18,11 +17,10 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns the v1 scheduled job log controller.
-func NewV1(jobMgmtSvc jobmgmtsvc.Service) joblog.IJoblogV1 {
-	pluginSvc := pluginsvc.New(nil)
+func NewV1(bizCtxSvc bizctx.Service, jobMgmtSvc jobmgmtsvc.Service, roleSvc rolesvc.Service) joblog.IJoblogV1 {
 	return &ControllerV1{
-		bizCtxSvc:  bizctx.New(),
+		bizCtxSvc:  bizCtxSvc,
 		jobMgmtSvc: jobMgmtSvc,
-		roleSvc:    rolesvc.New(pluginSvc),
+		roleSvc:    roleSvc,
 	}
 }

@@ -10,6 +10,8 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
+
+	configsvc "lina-core/pkg/pluginservice/config"
 )
 
 // TestLoadUsesDefaultsWhenUnset verifies monitor config defaults when config is absent.
@@ -19,7 +21,7 @@ server:
   address: ":8080"
 `)
 
-	cfg, err := Load(context.Background())
+	cfg, err := Load(context.Background(), configsvc.New())
 	if err != nil {
 		t.Fatalf("load monitor config: %v", err)
 	}
@@ -39,7 +41,7 @@ monitor:
   retentionMultiplier: 8
 `)
 
-	cfg, err := Load(context.Background())
+	cfg, err := Load(context.Background(), configsvc.New())
 	if err != nil {
 		t.Fatalf("load monitor config: %v", err)
 	}
@@ -58,7 +60,7 @@ monitor:
   interval: invalid
 `)
 
-	_, err := Load(context.Background())
+	_, err := Load(context.Background(), configsvc.New())
 	if err == nil {
 		t.Fatal("expected invalid duration error")
 	}
@@ -74,7 +76,7 @@ monitor:
   interval: 500ms
 `)
 
-	_, err := Load(context.Background())
+	_, err := Load(context.Background(), configsvc.New())
 	if err == nil {
 		t.Fatal("expected sub-second interval error")
 	}
@@ -90,7 +92,7 @@ monitor:
   interval: 1500ms
 `)
 
-	_, err := Load(context.Background())
+	_, err := Load(context.Background(), configsvc.New())
 	if err == nil {
 		t.Fatal("expected fractional-second interval error")
 	}

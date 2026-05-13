@@ -26,6 +26,14 @@ func (s *serviceImpl) RegisterCrons(ctx context.Context) error {
 	return s.integrationSvc.RegisterCrons(ctx)
 }
 
+// SetHostServices wires the host-published service directory used by source plugins.
+func (s *serviceImpl) SetHostServices(services pluginhost.HostServices) {
+	if s == nil || s.integrationSvc == nil {
+		return
+	}
+	s.integrationSvc.SetHostServices(services)
+}
+
 // ListManagedCronJobs returns plugin-owned cron definitions for scheduled-job projection.
 func (s *serviceImpl) ListManagedCronJobs(ctx context.Context) ([]ManagedCronJob, error) {
 	if err := s.ensureRuntimeCacheFresh(ctx); err != nil {

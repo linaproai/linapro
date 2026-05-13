@@ -25,6 +25,7 @@ func bindHostedOpenAPIDocs(
 	server *ghttp.Server,
 	apiDocSvc apidoc.Service,
 	apiDocPath string,
+	apiDocI18nSvc i18nsvc.Service,
 ) {
 	if server == nil {
 		return
@@ -39,7 +40,6 @@ func bindHostedOpenAPIDocs(
 	}
 
 	apiDocBizCtxSvc := bizctx.New()
-	apiDocI18nSvc := i18nsvc.New()
 	server.BindHandler(apiDocPath, func(r *ghttp.Request) {
 		apiDocBizCtxSvc.Init(r, &model.Context{})
 		locale := apiDocI18nSvc.ResolveRequestLocale(r)

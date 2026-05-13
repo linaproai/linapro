@@ -25,7 +25,7 @@ func TestTenantSysconfigReadPrefersTenantOverrideWithPlatformFallback(t *testing
 	insertTenantFallbackConfig(t, ctx, 93, key, "tenant-value")
 	insertTenantFallbackConfig(t, ctx, datascope.PlatformTenantID, key+".platform", "platform-only")
 
-	cfg, err := New().GetByKey(tenantCtx, key)
+	cfg, err := New(nil, nil).GetByKey(tenantCtx, key)
 	if err != nil {
 		t.Fatalf("get tenant fallback config by key: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestTenantSysconfigReadPrefersTenantOverrideWithPlatformFallback(t *testing
 		t.Fatalf("expected tenant config override, got value=%q tenant=%d", cfg.Value, cfg.TenantId)
 	}
 
-	out, err := New().List(tenantCtx, ListInput{Key: key})
+	out, err := New(nil, nil).List(tenantCtx, ListInput{Key: key})
 	if err != nil {
 		t.Fatalf("list tenant fallback configs: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestTenantSysconfigReadPrefersTenantOverrideWithPlatformFallback(t *testing
 		t.Fatalf("expected platform fallback config, got %q", value)
 	}
 
-	platformCfg, err := New().GetByKey(ctx, key)
+	platformCfg, err := New(nil, nil).GetByKey(ctx, key)
 	if err != nil {
 		t.Fatalf("get platform config by key: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestTenantSysconfigCreatePersistsCurrentTenant(t *testing.T) {
 	tenantCtx := datascope.WithTenantForTest(ctx, 94)
 	key := fmt.Sprintf("tenant.create.%d", time.Now().UnixNano())
 
-	createdID, err := New().Create(tenantCtx, CreateInput{
+	createdID, err := New(nil, nil).Create(tenantCtx, CreateInput{
 		Name:  "Tenant create",
 		Key:   key,
 		Value: "tenant-created",
@@ -80,7 +80,7 @@ func TestTenantSysconfigCreatePersistsCurrentTenant(t *testing.T) {
 		}
 	})
 
-	cfg, err := New().GetByKey(tenantCtx, key)
+	cfg, err := New(nil, nil).GetByKey(tenantCtx, key)
 	if err != nil {
 		t.Fatalf("get created tenant config: %v", err)
 	}

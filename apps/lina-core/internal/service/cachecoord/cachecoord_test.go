@@ -184,6 +184,30 @@ func TestDefaultReturnsSharedCoordinatorWithUpdatedTopology(t *testing.T) {
 	}
 }
 
+// TestDefaultAllowsRealSingleNodeTopologyToReplaceStaticClusterPlaceholder
+// verifies SQLite startup can downgrade an early static cluster placeholder to
+// the real single-node runtime topology.
+func TestDefaultAllowsRealSingleNodeTopologyToReplaceStaticClusterPlaceholder(t *testing.T) {
+	withResetDefaultCoordinator(t)
+
+	first := Default(NewStaticTopology(true))
+	impl, ok := first.(*serviceImpl)
+	if !ok {
+		t.Fatalf("expected default coordinator implementation, got %T", first)
+	}
+	if !impl.clusterEnabled() {
+		t.Fatal("expected static cluster placeholder to enable clustered cache coordination")
+	}
+
+	second := Default(defaultCoordinatorTestTopology{enabled: false})
+	if first != second {
+		t.Fatal("expected real single-node topology to reuse default coordinator")
+	}
+	if impl.clusterEnabled() {
+		t.Fatal("expected real single-node topology to replace static cluster placeholder")
+	}
+}
+
 // TestClusterMarkChangedPersistsAtomicRevision verifies concurrent clustered
 // publishers increment the same persistent row without losing revisions.
 func TestClusterMarkChangedPersistsAtomicRevision(t *testing.T) {
@@ -359,6 +383,23 @@ func TestSnapshotIncludesProcessStatusFromOtherInstances(t *testing.T) {
 		return
 	}
 	t.Fatalf("expected snapshot item for scope %q, got %#v", scope, items)
+}
+
+// withResetDefaultCoordinator clears the process-default coordinator around a
+// test that needs deterministic topology replacement behavior.
+func withResetDefaultCoordinator(t *testing.T) {
+	t.Helper()
+
+	processDefaultService.Lock()
+	previous := processDefaultService.service
+	processDefaultService.service = nil
+	processDefaultService.Unlock()
+
+	t.Cleanup(func() {
+		processDefaultService.Lock()
+		processDefaultService.service = previous
+		processDefaultService.Unlock()
+	})
 }
 
 // TestSnapshotIncludesCoordinationHealth verifies clustered cache diagnostics

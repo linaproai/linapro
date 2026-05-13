@@ -7,7 +7,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 
-	configsvc "lina-core/pkg/pluginservice/config"
+	"lina-core/pkg/pluginservice/contract"
 )
 
 // Monitor-server configuration keys and defaults.
@@ -36,13 +36,8 @@ type rawConfig struct {
 	RetentionMultiplier int `json:"retentionMultiplier"`
 }
 
-// Load reads and validates monitor-server configuration through the host plugin config service.
-func Load(ctx context.Context) (*Config, error) {
-	return loadWithReader(ctx, configsvc.New())
-}
-
-// loadWithReader reads monitor-server configuration using the provided generic reader.
-func loadWithReader(ctx context.Context, reader configsvc.Service) (*Config, error) {
+// Load reads and validates monitor-server configuration through an explicit host reader.
+func Load(ctx context.Context, reader contract.ConfigService) (*Config, error) {
 	if reader == nil {
 		return nil, gerror.New("monitor server config reader cannot be nil")
 	}

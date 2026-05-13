@@ -59,7 +59,7 @@ func TestSQLiteListLogsAcceptsScopedExistsChild(t *testing.T) {
 	logID := insertLogCleanupTestLog(t, ctx, jobID, "sqlite-list")
 
 	svc := newTestService(t)
-	svc.bizCtxSvc = jobmgmtStaticBizCtx{ctx: &model.Context{UserId: adminID}}
+	setJobMgmtTestBizCtx(svc, jobmgmtStaticBizCtx{ctx: &model.Context{UserId: adminID}})
 	out, err := svc.ListLogs(ctx, ListLogsInput{PageNum: 1, PageSize: 10})
 	if err != nil {
 		t.Fatalf("list SQLite execution logs: %v", err)

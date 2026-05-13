@@ -15,13 +15,6 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new tenant controller instance.
-func NewV1() tenantapi.ITenantV1 {
-	return NewControllerV1()
-}
-
-// NewControllerV1 creates and returns the concrete tenant controller instance.
-func NewControllerV1() *ControllerV1 {
-	return &ControllerV1{
-		tenantPluginSvc: tenantplugin.New(),
-	}
+func NewV1(tenantPluginSvc tenantplugin.Service) tenantapi.ITenantV1 {
+	return &ControllerV1{tenantPluginSvc: tenantPluginSvc}
 }

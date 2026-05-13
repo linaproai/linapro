@@ -1,0 +1,566 @@
+{
+  "version": 1,
+  "description": "Baseline for production critical service and controller constructor calls. Counts must not increase; migrate entries downward as explicit dependency injection tasks complete.",
+  "entries": [
+    {
+      "path": "apps/lina-core/internal/cmd/cmd_http_apidoc.go",
+      "maxCalls": 2,
+      "reason": "startup or route construction boundary; allowed as baseline while dependencies migrate to explicit injection"
+    },
+    {
+      "path": "apps/lina-core/internal/cmd/cmd_http_routes.go",
+      "maxCalls": 17,
+      "reason": "startup or route construction boundary; allowed as baseline while dependencies migrate to explicit injection"
+    },
+    {
+      "path": "apps/lina-core/internal/cmd/cmd_http_runtime.go",
+      "maxCalls": 13,
+      "reason": "startup or route construction boundary; allowed as baseline while dependencies migrate to explicit injection"
+    },
+    {
+      "path": "apps/lina-core/internal/cmd/cmd_http.go",
+      "maxCalls": 1,
+      "reason": "startup or route construction boundary; allowed as baseline while dependencies migrate to explicit injection"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/auth/auth_new.go",
+      "maxCalls": 6,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/config/config_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/dict/dict_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/file/file_new.go",
+      "maxCalls": 3,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/health/health_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/i18n/i18n_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/jobhandler/jobhandler_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/joblog/joblog_new.go",
+      "maxCalls": 3,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/menu/menu_new.go",
+      "maxCalls": 4,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/plugin/plugin_new.go",
+      "maxCalls": 5,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/publicconfig/publicconfig_new.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/role/role_new.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/sysinfo/sysinfo_new.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/user/user_new.go",
+      "maxCalls": 6,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/controller/usermsg/usermsg_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/apidoc/apidoc.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/auth/auth_pre_token.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/auth/auth_revoke.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/auth/auth.go",
+      "maxCalls": 8,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/config/config_runtime_params_revision.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/coordination/coordination.go",
+      "maxCalls": 3,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/coordination/internal/redis/redis.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/cron/cron.go",
+      "maxCalls": 4,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/datascope/datascope.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/dict/dict.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/file/file_data_scope.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/file/file.go",
+      "maxCalls": 6,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/hostlock/hostlock.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/i18n/i18n_locale.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/i18n/i18n.go",
+      "maxCalls": 5,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/jobmgmt/internal/shellexec/shellexec.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/jobmgmt/jobmgmt_data_scope.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/jobmgmt/jobmgmt.go",
+      "maxCalls": 8,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/kvcache/kvcache_backend.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/menu/menu.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/middleware/middleware.go",
+      "maxCalls": 9,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/notify/notify.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/integration/extensions.go",
+      "maxCalls": 7,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/runtime/runtime_reconciler_revision.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/runtime/runtime.go",
+      "maxCalls": 3,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/sourceupgrade/sourceupgrade.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/testutil/testutil_services.go",
+      "maxCalls": 8,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_cache.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_config.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_lock.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_notify.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/internal/wasm/hostfn_service_storage.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/plugin_lifecycle_source.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/plugin_runtime_cache.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/plugin_startup_consistency.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/plugin/plugin.go",
+      "maxCalls": 11,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/pluginhostservices/pluginhostservices.go",
+      "maxCalls": 10,
+      "reason": "source-plugin host service publication boundary; adapters are constructed once from runtime-owned dependencies and then exposed through pluginhost.HostServices"
+    },
+    {
+      "path": "apps/lina-core/internal/service/role/role_access_revision.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/role/role_data_scope.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/role/role.go",
+      "maxCalls": 8,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/sysconfig/sysconfig.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/sysinfo/sysinfo.go",
+      "maxCalls": 4,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/tenantcap/tenantcap.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/user/user_data_scope.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/user/user.go",
+      "maxCalls": 7,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/internal/service/usermsg/usermsg.go",
+      "maxCalls": 3,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/apidoc/apidoc.go",
+      "maxCalls": 2,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/auth/auth.go",
+      "maxCalls": 3,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/bizctx/bizctx.go",
+      "maxCalls": 1,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/i18n/i18n.go",
+      "maxCalls": 1,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/notify/notify.go",
+      "maxCalls": 2,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/pluginstate/pluginstate.go",
+      "maxCalls": 1,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/session/session.go",
+      "maxCalls": 9,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-core/pkg/pluginservice/tenantfilter/tenantfilter.go",
+      "maxCalls": 1,
+      "reason": "pre-existing plugin host service adapter construction pending host-published services migration"
+    },
+    {
+      "path": "apps/lina-plugins/content-notice/backend/internal/controller/notice/notice_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/content-notice/backend/internal/service/notice/notice.go",
+      "maxCalls": 2,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/content-notice/backend/plugin.go",
+      "maxCalls": 2,
+      "reason": "source plugin registration boundary constructs controller and service once from host-published services, including the explicit tenant-filter adapter"
+    },
+    {
+      "path": "apps/lina-plugins/demo-control/backend/internal/service/middleware/middleware.go",
+      "maxCalls": 2,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/demo-control/backend/plugin.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-loginlog/backend/internal/controller/loginlog/loginlog_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-loginlog/backend/internal/service/loginlog/loginlog.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-loginlog/backend/plugin.go",
+      "maxCalls": 3,
+      "reason": "source plugin route and hook registration boundary constructs controller and service once from host-published services, including the explicit tenant-filter adapter"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-online/backend/internal/controller/monitor/monitor_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-online/backend/internal/service/monitor/monitor.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-online/backend/plugin.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-operlog/backend/internal/controller/operlog/operlog_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-operlog/backend/internal/service/middleware/middleware.go",
+      "maxCalls": 3,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-operlog/backend/internal/service/operlog/operlog.go",
+      "maxCalls": 2,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-operlog/backend/plugin.go",
+      "maxCalls": 3,
+      "reason": "source plugin registration boundary constructs controller, middleware, and service once from host-published services, including the explicit tenant-filter adapter"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-server/backend/internal/controller/monitor/monitor_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-server/backend/internal/service/config/config.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/monitor-server/backend/plugin.go",
+      "maxCalls": 3,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/controller/auth/auth.go",
+      "maxCalls": 3,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/controller/platform/platform.go",
+      "maxCalls": 2,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/controller/tenant/tenant.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/service/impersonate/impersonate.go",
+      "maxCalls": 3,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/service/lifecycleguard/lifecycleguard.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/service/membership/membership.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/service/provider/provider.go",
+      "maxCalls": 3,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/service/resolver/resolver.go",
+      "maxCalls": 2,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/service/tenant/tenant.go",
+      "maxCalls": 3,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/internal/service/tenantplugin/tenantplugin.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/multi-tenant/backend/plugin.go",
+      "maxCalls": 5,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/org-center/backend/internal/controller/dept/dept_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/org-center/backend/internal/controller/post/post_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/org-center/backend/internal/service/post/post.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/org-center/backend/plugin.go",
+      "maxCalls": 4,
+      "reason": "source plugin registration boundary constructs controllers, services, and orgcap provider once from host-published services, including the explicit tenant-filter adapter"
+    },
+    {
+      "path": "apps/lina-plugins/org-center/backend/provider/orgcapadapter/orgcapadapter.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-dynamic/backend/internal/controller/dynamic/dynamic.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-dynamic/backend/plugin.go",
+      "maxCalls": 1,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-source/backend/internal/controller/demo/demo_new.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin controller construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-source/backend/internal/service/demo/demo.go",
+      "maxCalls": 1,
+      "reason": "pre-existing source plugin service construction pending registrar dependency injection migration"
+    },
+    {
+      "path": "apps/lina-plugins/plugin-demo-source/backend/plugin.go",
+      "maxCalls": 2,
+      "reason": "pre-existing critical service construction pending explicit dependency injection migration"
+    }
+  ]
+}

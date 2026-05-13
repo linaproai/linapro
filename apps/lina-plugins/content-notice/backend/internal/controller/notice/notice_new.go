@@ -16,15 +16,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new notice controller instance.
-func NewV1() noticeapi.INoticeV1 {
-	return NewControllerV1()
-}
-
-// NewControllerV1 creates and returns the concrete notice controller instance.
-func NewControllerV1() *ControllerV1 {
-	return &ControllerV1{
-		noticeSvc: noticesvc.New(),
-	}
+func NewV1(noticeSvc noticesvc.Service) noticeapi.INoticeV1 {
+	return &ControllerV1{noticeSvc: noticeSvc}
 }
 
 // toAPINoticeEntity converts the service-layer plugin-local notice entity into

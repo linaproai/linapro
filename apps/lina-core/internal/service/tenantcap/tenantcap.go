@@ -69,14 +69,14 @@ type serviceImpl struct {
 	bizCtxSvc        bizctx.Service
 }
 
-// New creates and returns a new optional tenant capability service.
-func New(enablementReader PluginEnablementReader) Service {
+// New creates and returns a new optional tenant capability service from explicit runtime-owned dependencies.
+func New(enablementReader PluginEnablementReader, bizCtxSvc bizctx.Service) Service {
 	if enablementReader == nil {
 		enablementReader = noopPluginEnablementReader{}
 	}
 	return &serviceImpl{
 		enablementReader: enablementReader,
-		bizCtxSvc:        bizctx.New(),
+		bizCtxSvc:        bizCtxSvc,
 	}
 }
 

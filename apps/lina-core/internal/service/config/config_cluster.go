@@ -114,6 +114,7 @@ func (s *serviceImpl) OverrideClusterEnabledForDialect(value bool) {
 		return
 	}
 	s.clusterOverride = &value
+	s.runtimeParamRevisionCtrl = newCacheCoordRuntimeParamRevisionController(value)
 }
 
 // mustValidateClusterConfig validates deployment-mode coordination settings.

@@ -193,7 +193,7 @@ func startDemoControlTestServer(t *testing.T, enabled bool) (string, func()) {
 	server.SetDumpRouterMap(false)
 	server.SetPort(0)
 
-	guardSvc := newWithEnablementReader(staticDemoControlEnablementReader(enabled))
+	guardSvc := New(nil, staticDemoControlEnablementReader(enabled))
 	server.BindMiddleware("/*", guardSvc.Guard)
 	server.Group("/api/v1", func(group *ghttp.RouterGroup) {
 		group.ALL("/ping", func(request *ghttp.Request) {

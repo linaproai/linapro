@@ -27,6 +27,7 @@ type runtimeBundleInvalidator interface {
 // controller used by the root plugin service.
 func newRuntimeCacheRevisionController(
 	topology Topology,
+	cacheCoordSvc cachecoord.Service,
 	integrationSvc pluginRuntimeIntegrationRefresher,
 	frontendSvc pluginRuntimeFrontendInvalidator,
 	i18nSvc runtimeBundleInvalidator,
@@ -37,7 +38,7 @@ func newRuntimeCacheRevisionController(
 	}
 	return pluginruntimecache.NewControllerWithCoordinator(
 		clusterEnabled,
-		cachecoord.Default(topology),
+		cacheCoordSvc,
 		pluginRuntimeCacheObservedRevision,
 		func(ctx context.Context) error {
 			if integrationSvc != nil {

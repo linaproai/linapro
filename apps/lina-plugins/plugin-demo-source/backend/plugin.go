@@ -30,7 +30,7 @@ func init() {
 		if !input.PurgeStorageData() {
 			return nil
 		}
-		return demosvc.New().PurgeStorageData(ctx)
+		return demosvc.PurgeStorageData(ctx)
 	})
 	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
@@ -49,10 +49,15 @@ func init() {
 // middleware directory so plugin traffic follows the same governance chain as
 // host-owned APIs.
 func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
+	hostServices := registrar.HostServices()
+	if hostServices == nil || hostServices.I18n() == nil || hostServices.TenantFilter() == nil {
+		panic("plugin-demo-source routes require host i18n and tenant-filter services")
+	}
+	demoSvc := demosvc.New(hostServices.I18n(), hostServices.TenantFilter())
 	var (
 		routes         = registrar.Routes()
 		middlewares    = routes.Middlewares()
-		demoController = democtrl.NewControllerV1()
+		demoController = democtrl.NewV1(demoSvc)
 	)
 	routes.Group("/api/v1", func(group pluginhost.RouteGroup) {
 		group.Middleware(

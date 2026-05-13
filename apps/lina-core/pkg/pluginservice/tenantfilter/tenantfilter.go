@@ -7,39 +7,39 @@ import (
 	"strings"
 
 	"github.com/gogf/gf/v2/database/gdb"
+	"github.com/gogf/gf/v2/errors/gerror"
 
-	"lina-core/pkg/pluginservice/bizctx"
+	"lina-core/pkg/pluginservice/contract"
 )
 
-// Column is the shared tenant column name used by tenant-scoped plugin tables.
-const Column = "tenant_id"
+// serviceImpl implements the tenant filter helper service.
+type serviceImpl struct {
+	bizCtxSvc       contract.BizCtxService
+	bypassEvaluator contract.PlatformBypassEvaluator
+}
 
-// Context carries the plugin-visible tenant and audit identity metadata.
-type Context struct {
-	// UserID is the authenticated user bound to the current request.
-	UserID int
-	// TenantID is the current request tenant.
-	TenantID int
-	// ActingUserID is the real actor to persist in audit records.
-	ActingUserID int
-	// OnBehalfOfTenantID is set only when the request acts on behalf of a tenant.
-	OnBehalfOfTenantID int
-	// ActingAsTenant reports whether the request acts through a tenant view.
-	ActingAsTenant bool
-	// IsImpersonation marks platform impersonation.
-	IsImpersonation bool
-	// PlatformBypass reports whether the request runs in platform scope.
-	PlatformBypass bool
+// New creates tenant filtering helpers from host-owned context dependencies.
+func New(
+	bizCtxSvc contract.BizCtxService,
+	bypassEvaluator contract.PlatformBypassEvaluator,
+) contract.TenantFilterService {
+	if bizCtxSvc == nil {
+		panic(gerror.New("tenantfilter requires host bizctx service"))
+	}
+	return &serviceImpl{
+		bizCtxSvc:       bizCtxSvc,
+		bypassEvaluator: bypassEvaluator,
+	}
 }
 
 // Current returns the current tenant ID from the host business context.
-func Current(ctx context.Context) int {
-	return CurrentContext(ctx).TenantID
+func (s *serviceImpl) Current(ctx context.Context) int {
+	return s.CurrentContext(ctx).TenantID
 }
 
 // CurrentContext returns tenant and impersonation metadata from host business context.
-func CurrentContext(ctx context.Context) Context {
-	current := bizctx.New().Current(ctx)
+func (s *serviceImpl) CurrentContext(ctx context.Context) contract.TenantFilterContext {
+	current := s.bizCtxSvc.Current(ctx)
 	actingUserID := current.ActingUserID
 	if actingUserID == 0 {
 		actingUserID = current.UserID
@@ -48,30 +48,38 @@ func CurrentContext(ctx context.Context) Context {
 	if current.IsImpersonation || current.ActingAsTenant {
 		onBehalfOfTenantID = current.TenantID
 	}
-	return Context{
+	platformBypass := current.PlatformBypass
+	if s.bypassEvaluator != nil {
+		platformBypass = s.bypassEvaluator.PlatformBypass(ctx)
+	}
+	return contract.TenantFilterContext{
 		UserID:             current.UserID,
 		TenantID:           current.TenantID,
 		ActingUserID:       actingUserID,
 		OnBehalfOfTenantID: onBehalfOfTenantID,
 		ActingAsTenant:     current.ActingAsTenant,
 		IsImpersonation:    current.IsImpersonation,
-		PlatformBypass:     current.PlatformBypass,
+		PlatformBypass:     platformBypass,
 	}
 }
 
 // Apply adds tenant filtering to one model using the conventional tenant column.
-func Apply(ctx context.Context, model *gdb.Model) *gdb.Model {
-	return ApplyColumn(ctx, model, Column)
+func (s *serviceImpl) Apply(ctx context.Context, model *gdb.Model) *gdb.Model {
+	return s.ApplyColumn(ctx, model, contract.TenantFilterColumn)
 }
 
 // ApplyColumn adds tenant filtering with an explicit column for joined queries.
-func ApplyColumn(ctx context.Context, model *gdb.Model, column string) *gdb.Model {
+func (s *serviceImpl) ApplyColumn(ctx context.Context, model *gdb.Model, column string) *gdb.Model {
 	if model == nil {
 		return nil
 	}
+	current := s.CurrentContext(ctx)
+	if current.PlatformBypass {
+		return model
+	}
 	tenantColumn := strings.TrimSpace(column)
 	if tenantColumn == "" {
-		tenantColumn = Column
+		tenantColumn = contract.TenantFilterColumn
 	}
-	return model.Where(tenantColumn, Current(ctx))
+	return model.Where(tenantColumn, current.TenantID)
 }

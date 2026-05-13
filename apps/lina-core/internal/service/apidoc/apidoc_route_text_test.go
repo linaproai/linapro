@@ -11,6 +11,10 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	configsvc "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 )
 
 // TestResolveRouteTextUsesApidocCatalog verifies route tags and summaries are
@@ -27,7 +31,7 @@ func TestResolveRouteTextUsesApidocCatalog(t *testing.T) {
 	})
 	defer restoreCatalog()
 
-	service := New(&testConfigProvider{}, &testPluginRouteProvider{}).(*serviceImpl)
+	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: "zh-CN"})
 	output := service.ResolveRouteText(ctx, RouteTextInput{
 		OperationKey:    operationKey,
@@ -51,7 +55,7 @@ func TestFindRouteTitleOperationKeys(t *testing.T) {
 	})
 	defer restoreCatalog()
 
-	service := New(&testConfigProvider{}, &testPluginRouteProvider{}).(*serviceImpl)
+	service := New(&testConfigProvider{}, bizctx.New(), i18nsvc.New(bizctx.New(), configsvc.New(), cachecoord.Default(nil)), &testPluginRouteProvider{}).(*serviceImpl)
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: "zh-CN"})
 	keys := service.FindRouteTitleOperationKeys(ctx, "动态")
 	expectedKey := "plugins.plugin_demo_dynamic.paths.get.backend_summary"

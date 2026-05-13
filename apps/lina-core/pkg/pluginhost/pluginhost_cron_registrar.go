@@ -25,6 +25,8 @@ type CronRegistrar interface {
 	AddWithMetadata(ctx context.Context, pattern string, name string, displayName string, description string, handler CronJobHandler) error
 	// IsPrimaryNode reports whether the current host node is the primary node.
 	IsPrimaryNode() bool
+	// HostServices returns the host-published service directory for source-plugin construction.
+	HostServices() HostServices
 }
 
 // cronRegistrar is the host-owned CronRegistrar implementation for one source
@@ -33,6 +35,7 @@ type cronRegistrar struct {
 	pluginID           string
 	enabledChecker     PluginEnabledChecker
 	primaryNodeChecker PrimaryNodeChecker
+	hostServices       HostServices
 }
 
 // NewCronRegistrar creates and returns a new CronRegistrar instance.
@@ -40,11 +43,13 @@ func NewCronRegistrar(
 	pluginID string,
 	enabledChecker PluginEnabledChecker,
 	primaryNodeChecker PrimaryNodeChecker,
+	hostServices HostServices,
 ) CronRegistrar {
 	return &cronRegistrar{
 		pluginID:           pluginID,
 		enabledChecker:     enabledChecker,
 		primaryNodeChecker: primaryNodeChecker,
+		hostServices:       hostServices,
 	}
 }
 
@@ -90,4 +95,12 @@ func (r *cronRegistrar) IsPrimaryNode() bool {
 		return true
 	}
 	return r.primaryNodeChecker()
+}
+
+// HostServices returns the host-published service directory for source-plugin construction.
+func (r *cronRegistrar) HostServices() HostServices {
+	if r == nil {
+		return nil
+	}
+	return r.hostServices
 }

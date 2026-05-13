@@ -24,7 +24,7 @@ func TestDeleteRejectsProtectedRuntimeParam(t *testing.T) {
 	ctx := context.Background()
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
 
-	err := New().Delete(ctx, int(runtimeParam.Id))
+	err := New(hostconfig.New(), nil).Delete(ctx, int(runtimeParam.Id))
 	if err == nil {
 		t.Fatal("expected deleting protected runtime param to fail")
 	}
@@ -36,7 +36,7 @@ func TestDeleteRejectsProtectedPublicFrontendSetting(t *testing.T) {
 	ctx := context.Background()
 	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
 
-	err := New().Delete(ctx, int(publicSetting.Id))
+	err := New(hostconfig.New(), nil).Delete(ctx, int(publicSetting.Id))
 	if err == nil {
 		t.Fatal("expected deleting protected public frontend setting to fail")
 	}
@@ -48,7 +48,7 @@ func TestDeleteRejectsBuiltInFlaggedSystemParameter(t *testing.T) {
 	ctx := context.Background()
 	record := insertConfigForBuiltInGuard(t, ctx, true)
 
-	err := New().Delete(ctx, int(record.Id))
+	err := New(hostconfig.New(), nil).Delete(ctx, int(record.Id))
 	if !bizerr.Is(err, CodeSysConfigBuiltinDeleteDenied) {
 		t.Fatalf("expected %s, got %v", CodeSysConfigBuiltinDeleteDenied.RuntimeCode(), err)
 	}
@@ -63,7 +63,7 @@ func TestUpdateAllowsBuiltInFlaggedSystemParameter(t *testing.T) {
 	record := insertConfigForBuiltInGuard(t, ctx, true)
 	updatedValue := "updated builtin value"
 
-	err := New().Update(ctx, UpdateInput{
+	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:    int(record.Id),
 		Value: &updatedValue,
 	})
@@ -94,7 +94,7 @@ func TestUpdateRejectsProtectedRuntimeParamRename(t *testing.T) {
 	runtimeParam := ensureRuntimeParamRecord(t, ctx, hostconfig.RuntimeParamKeyJWTExpire, "24h")
 	newKey := "sys.jwt.expire.renamed"
 
-	err := New().Update(ctx, UpdateInput{
+	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:  int(runtimeParam.Id),
 		Key: &newKey,
 	})
@@ -110,7 +110,7 @@ func TestUpdateRejectsProtectedPublicFrontendSettingRename(t *testing.T) {
 	publicSetting := ensureRuntimeParamRecord(t, ctx, hostconfig.PublicFrontendSettingKeyAppName, "LinaPro")
 	newKey := "sys.app.name.renamed"
 
-	err := New().Update(ctx, UpdateInput{
+	err := New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:  int(publicSetting.Id),
 		Key: &newKey,
 	})
@@ -162,7 +162,7 @@ func TestUpdateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 	}
 
 	updatedValue := "8h"
-	err = New().Update(ctx, UpdateInput{
+	err = New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:    int(runtimeParam.Id),
 		Value: &updatedValue,
 	})
@@ -190,7 +190,7 @@ func TestCreateProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 		t.Fatalf("get initial upload config: %v", err)
 	}
 
-	createdID, err := New().Create(ctx, CreateInput{
+	createdID, err := New(hostconfig.New(), nil).Create(ctx, CreateInput{
 		Name:   "文件管理-上传大小上限",
 		Key:    hostconfig.RuntimeParamKeyUploadMaxSize,
 		Value:  "3",
@@ -233,7 +233,7 @@ func TestUpdateProtectedPublicFrontendSettingRefreshesConfigSnapshot(t *testing.
 	}
 
 	updatedValue := "LinaPro Console"
-	err = New().Update(ctx, UpdateInput{
+	err = New(hostconfig.New(), nil).Update(ctx, UpdateInput{
 		Id:    int(publicSetting.Id),
 		Value: &updatedValue,
 	})
@@ -272,7 +272,7 @@ func TestImportProtectedRuntimeParamRefreshesConfigSnapshot(t *testing.T) {
 		"test import update",
 	})
 
-	result, err := New().Import(ctx, bytes.NewReader(importData), true)
+	result, err := New(hostconfig.New(), nil).Import(ctx, bytes.NewReader(importData), true)
 	if err != nil {
 		t.Fatalf("import protected runtime param: %v", err)
 	}

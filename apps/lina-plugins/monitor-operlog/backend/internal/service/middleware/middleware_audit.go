@@ -14,7 +14,7 @@ import (
 
 	"lina-core/pkg/logger"
 	"lina-core/pkg/pluginhost"
-	hostapidoc "lina-core/pkg/pluginservice/apidoc"
+	hostapidoc "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-monitor-operlog/backend/internal/model/operlogtype"
 	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
@@ -128,7 +128,7 @@ func (s *serviceImpl) resolveAuditRouteMetadata(request *ghttp.Request) auditRou
 	// Dynamic plugin routes enter through a fixed host dispatcher, so the GoFrame
 	// handler metadata describes the dispatcher instead of the matched plugin
 	// route. The host runtime stores the matched manifest route on the request
-	// context, and hostroute.Service exposes that projection to this source plugin.
+	// context, and the published route service exposes that projection to this source plugin.
 	// Non-empty dynamic fields therefore override the static dispatcher metadata.
 	if strings.TrimSpace(dynamicMetadata.Meta[routeMetaOperLog]) != "" {
 		metadata.operLogTag = dynamicMetadata.Meta[routeMetaOperLog]

@@ -9,7 +9,6 @@ import (
 	"lina-core/internal/service/i18n"
 	"lina-core/internal/service/menu"
 	"lina-core/internal/service/orgcap"
-	pluginsvc "lina-core/internal/service/plugin"
 	"lina-core/internal/service/role"
 	usersvc "lina-core/internal/service/user"
 )
@@ -24,14 +23,12 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new user controller instance.
-func NewV1() userapi.IUserV1 {
-	pluginSvc := pluginsvc.New(nil)
-	orgCapSvc := orgcap.New(pluginSvc)
+func NewV1(userSvc usersvc.Service, roleSvc role.Service, menuSvc menu.Service, orgCapSvc orgcap.Service, i18nSvc i18n.Translator) userapi.IUserV1 {
 	return &ControllerV1{
-		userSvc:   usersvc.New(orgCapSvc, pluginSvc),
-		roleSvc:   role.New(pluginSvc),
-		menuSvc:   menu.New(pluginSvc),
+		userSvc:   userSvc,
+		roleSvc:   roleSvc,
+		menuSvc:   menuSvc,
 		orgCapSvc: orgCapSvc,
-		i18nSvc:   i18n.New(),
+		i18nSvc:   i18nSvc,
 	}
 }

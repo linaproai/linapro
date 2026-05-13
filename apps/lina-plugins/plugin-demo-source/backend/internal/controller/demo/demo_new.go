@@ -5,7 +5,6 @@
 package demo
 
 import (
-	demoapi "lina-plugin-demo-source/backend/api/demo"
 	demosvc "lina-plugin-demo-source/backend/internal/service/demo"
 )
 
@@ -15,13 +14,6 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new plugin-demo-source controller instance.
-func NewV1() demoapi.IDemoV1 {
-	return NewControllerV1()
-}
-
-// NewControllerV1 creates and returns the concrete plugin-demo-source controller instance.
-func NewControllerV1() *ControllerV1 {
-	return &ControllerV1{
-		demoSvc: demosvc.New(),
-	}
+func NewV1(demoSvc demosvc.Service) *ControllerV1 {
+	return &ControllerV1{demoSvc: demoSvc}
 }

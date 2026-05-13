@@ -43,13 +43,6 @@ type AccessProvider interface {
 	GetUserDataScopeSnapshot(ctx context.Context, userID int) (*AccessSnapshot, error)
 }
 
-// Dependencies groups optional collaborators for the data-scope service.
-type Dependencies struct {
-	BizCtxSvc bizctx.Service // BizCtxSvc resolves the current authenticated user.
-	RoleSvc   AccessProvider // RoleSvc resolves effective role data-scope snapshots.
-	OrgCapSvc orgcap.Service // OrgCapSvc applies optional organization-aware constraints.
-}
-
 // Context stores the resolved data-permission snapshot for one request.
 type Context struct {
 	UserID       int   // UserID is the authenticated operator user ID.
@@ -80,17 +73,11 @@ type serviceImpl struct {
 }
 
 // New creates one shared data-scope service.
-func New(deps Dependencies) Service {
-	if deps.BizCtxSvc == nil {
-		deps.BizCtxSvc = bizctx.New()
-	}
-	if deps.OrgCapSvc == nil {
-		deps.OrgCapSvc = orgcap.New(nil)
-	}
+func New(bizCtxSvc bizctx.Service, roleSvc AccessProvider, orgCapSvc orgcap.Service) Service {
 	return &serviceImpl{
-		bizCtxSvc: deps.BizCtxSvc,
-		roleSvc:   deps.RoleSvc,
-		orgCapSvc: deps.OrgCapSvc,
+		bizCtxSvc: bizCtxSvc,
+		roleSvc:   roleSvc,
+		orgCapSvc: orgCapSvc,
 	}
 }
 

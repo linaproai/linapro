@@ -13,6 +13,9 @@ import (
 	"github.com/gogf/gf/v2/os/gctx"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/config"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginhost"
 )
@@ -36,7 +39,7 @@ func TestLocalizeErrorSupportsStructuredRuntimeMessages(t *testing.T) {
 		EnglishLocale: fmt.Sprintf(`{"test":{"structured":{"%s":"User {username} does not exist"}}}`, pluginID),
 	})
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		locale   string
 		expected string
@@ -62,7 +65,7 @@ func TestLocalizeErrorSupportsStructuredRuntimeMessages(t *testing.T) {
 func TestLocalizeErrorUsesStructuredFallback(t *testing.T) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 	code := bizerr.MustDefineWithKey(
 		"TEST_STRUCTURED_MISSING_KEY",
@@ -101,7 +104,7 @@ func TestLocalizeErrorUsesRuntimeBundleCache(t *testing.T) {
 	pluginhost.RegisterSourcePlugin(plugin)
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 	err := bizerr.NewCode(code, bizerr.P("value", "message"))
 	if actual := svc.LocalizeError(ctx, err); actual != "Cached message" {
@@ -116,7 +119,7 @@ func TestLocalizeErrorUsesHostDataScopeErrorResources(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		name     string
 		key      string
@@ -236,7 +239,7 @@ func TestLocalizeErrorUsesHostUserTenantMembershipErrorResources(t *testing.T) {
 	resetRuntimeBundleCache()
 	t.Cleanup(resetRuntimeBundleCache)
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		name     string
 		key      string
@@ -330,7 +333,7 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 		registerSourcePluginDirectoryI18N(t, repoRoot, pluginDir)
 	}
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	testCases := []struct {
 		name     string
 		key      string

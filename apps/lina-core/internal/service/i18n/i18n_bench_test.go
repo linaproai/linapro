@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/config"
 )
 
 var (
@@ -22,7 +25,7 @@ var (
 func BenchmarkTranslateHotPath(b *testing.B) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	// Warm up the merged catalog so the loop measures cache-hit cost only.
@@ -42,7 +45,7 @@ func BenchmarkTranslateHotPath(b *testing.B) {
 func BenchmarkTranslateBatch(b *testing.B) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	keys := []string{
@@ -81,7 +84,7 @@ func BenchmarkTranslateBatch(b *testing.B) {
 func BenchmarkTranslateCacheMissRebuild(b *testing.B) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	// Warm once so package-level plugin registrations and configuration readers
@@ -102,7 +105,7 @@ func BenchmarkTranslateCacheMissRebuild(b *testing.B) {
 func BenchmarkBuildRuntimeMessages(b *testing.B) {
 	resetRuntimeBundleCache()
 
-	svc := New()
+	svc := New(bizctx.New(), config.New(), cachecoord.Default(nil))
 	ctx := context.WithValue(context.Background(), gctx.StrKey("BizCtx"), &model.Context{Locale: EnglishLocale})
 
 	// Warm up so the loop measures the merge + clone + nest cost only.

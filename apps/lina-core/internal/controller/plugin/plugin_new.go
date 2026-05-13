@@ -19,15 +19,12 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new plugin controller instance.
-// Pass a non-nil topology for cluster-aware plugin orchestration; pass nil to
-// use the default single-node plugin topology.
-func NewV1(topology pluginsvc.Topology) pluginapi.IPluginV1 {
-	pluginSvc := pluginsvc.New(topology)
+func NewV1(pluginSvc pluginsvc.Service, bizCtxSvc bizctx.Service, configSvc configsvc.Service, i18nSvc i18nsvc.Translator, roleSvc role.Service) pluginapi.IPluginV1 {
 	return &ControllerV1{
 		pluginSvc: pluginSvc,
-		bizCtxSvc: bizctx.New(),
-		configSvc: configsvc.New(),
-		i18nSvc:   i18nsvc.New(),
-		roleSvc:   role.New(pluginSvc),
+		bizCtxSvc: bizCtxSvc,
+		configSvc: configSvc,
+		i18nSvc:   i18nSvc,
+		roleSvc:   roleSvc,
 	}
 }

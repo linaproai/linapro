@@ -20,8 +20,8 @@ type Guard struct {
 }
 
 // New creates and returns a lifecycle guard.
-func New() *Guard {
-	return &Guard{tenantSvc: tenant.New()}
+func New(tenantSvc tenant.Service) *Guard {
+	return &Guard{tenantSvc: tenantSvc}
 }
 
 // CanUninstall rejects uninstall while tenants exist.

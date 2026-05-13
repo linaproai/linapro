@@ -11,22 +11,39 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/service/apidoc"
+	"lina-core/internal/service/auth"
+	"lina-core/internal/service/bizctx"
 	"lina-core/internal/service/cachecoord"
 	"lina-core/internal/service/cluster"
 	"lina-core/internal/service/config"
 	"lina-core/internal/service/coordination"
 	"lina-core/internal/service/cron"
+	"lina-core/internal/service/datascope"
+	"lina-core/internal/service/dict"
+	"lina-core/internal/service/file"
+	"lina-core/internal/service/hostlock"
+	i18nsvc "lina-core/internal/service/i18n"
 	jobhandlersvc "lina-core/internal/service/jobhandler"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 	"lina-core/internal/service/kvcache"
 	"lina-core/internal/service/locker"
+	"lina-core/internal/service/menu"
 	"lina-core/internal/service/middleware"
+	"lina-core/internal/service/notify"
 	"lina-core/internal/service/orgcap"
 	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/pluginhostservices"
+	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	"lina-core/internal/service/startupstats"
+	"lina-core/internal/service/sysconfig"
+	sysinfosvc "lina-core/internal/service/sysinfo"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
+	"lina-core/internal/service/user"
+	"lina-core/internal/service/usermsg"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/logger"
+	"lina-core/pkg/pluginhost"
 )
 
 // httpRuntime groups long-lived services that must be shared across HTTP
@@ -36,7 +53,25 @@ type httpRuntime struct {
 	coordinationSvc coordination.Service // coordinationSvc owns Redis-backed distributed coordination resources.
 	clusterSvc      cluster.Service      // clusterSvc owns primary-election lifecycle for clustered deployments.
 	pluginSvc       pluginsvc.Service    // pluginSvc owns plugin lifecycle, runtime assets, routes, and hooks.
-	apiDocSvc       apidoc.Service       // apiDocSvc builds the host-managed OpenAPI document.
+	authSvc         auth.Service         // authSvc owns JWT, session, and token-state flows.
+	authTokenIssuer auth.TenantTokenIssuer
+	bizCtxSvc       bizctx.Service          // bizCtxSvc owns request-scoped business context mutation.
+	i18nSvc         i18nsvc.Service         // i18nSvc owns runtime language bundles and localization.
+	orgCapSvc       orgcap.Service          // orgCapSvc exposes optional organization capability.
+	roleSvc         role.Service            // roleSvc owns permission and access snapshot state.
+	sessionStore    session.Store           // sessionStore owns online-session persistence and hot state.
+	tenantSvc       tenantcapsvc.Service    // tenantSvc exposes optional multi-tenant capability.
+	kvCacheSvc      kvcache.Service         // kvCacheSvc owns runtime-selected KV backend.
+	hostServices    pluginhost.HostServices // hostServices publishes runtime-owned adapters to source plugins.
+	dictSvc         dict.Service            // dictSvc owns dictionary lookup and maintenance.
+	fileSvc         file.Service            // fileSvc owns file metadata and storage operations.
+	menuSvc         menu.Service            // menuSvc owns menu tree and permission menu lookup.
+	notifySvc       notify.Service          // notifySvc owns unified notification delivery.
+	sysConfigSvc    sysconfig.Service       // sysConfigSvc owns mutable runtime configuration records.
+	sysInfoSvc      sysinfosvc.Service      // sysInfoSvc owns runtime diagnostics projection.
+	userSvc         user.Service            // userSvc owns host user management operations.
+	userMsgSvc      usermsg.Service         // userMsgSvc owns current-user inbox operations.
+	apiDocSvc       apidoc.Service          // apiDocSvc builds the host-managed OpenAPI document.
 	jobRegistry     jobhandlersvc.Registry
 	jobMgmtSvc      jobmgmtsvc.Service
 	middlewareSvc   middleware.Service
@@ -136,12 +171,54 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	}
 
 	var (
-		pluginSvc     = pluginsvc.New(clusterSvc)
-		apiDocSvc     = apidoc.New(configSvc, pluginSvc)
+		bizCtxSvc     = bizctx.New()
+		sessionStore  = session.NewDBStore()
+		cacheCoordSvc = cachecoord.Default(clusterSvc)
+		i18nSvc       = i18nsvc.New(bizCtxSvc, configSvc, cacheCoordSvc)
+		pluginSvc     = pluginsvc.New(clusterSvc, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, sessionStore)
+		orgCapSvc     = orgcap.New(pluginSvc)
+		tenantSvc     = tenantcapsvc.New(pluginSvc, bizCtxSvc)
+		kvCacheSvc    = kvcache.New()
+		roleSvc       = role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+		scopeSvc      = datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+		dictSvc       = dict.New(i18nSvc)
+		menuSvc       = menu.New(pluginSvc, i18nSvc, roleSvc)
+		notifySvc     = notify.New(tenantSvc)
+		authSvc       = auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, sessionStore, kvCacheSvc)
+		fileSvc       = file.New(configSvc, file.NewLocalStorage(configSvc.GetUploadPath(ctx)), bizCtxSvc, dictSvc, scopeSvc)
+		sysConfigSvc  = sysconfig.New(configSvc, i18nSvc)
+		sysInfoSvc    = sysinfosvc.New(configSvc, clusterSvc, coordinationSvc, cacheCoordSvc)
+		userSvc       = user.New(authSvc, bizCtxSvc, i18nSvc, orgCapSvc, roleSvc, scopeSvc, tenantSvc)
+		userMsgSvc    = usermsg.New(bizCtxSvc, notifySvc, i18nSvc)
+		apiDocSvc     = apidoc.New(configSvc, bizCtxSvc, i18nSvc, pluginSvc)
+		authTokenSvc  = authSvc.(auth.TenantTokenIssuer)
 		jobRegistry   = jobhandlersvc.New()
 		jobScheduler  = jobmgmtsvc.NewScheduler(clusterSvc, jobRegistry, configSvc)
-		jobMgmtSvc    = jobmgmtsvc.New(configSvc, jobRegistry, jobScheduler, orgcap.New(pluginSvc))
-		middlewareSvc = middleware.New()
+		jobMgmtSvc    = jobmgmtsvc.New(bizCtxSvc, configSvc, i18nSvc, jobRegistry, jobScheduler, scopeSvc)
+		middlewareSvc = middleware.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
+		hostServices  = pluginhostservices.New(
+			apiDocSvc,
+			authSvc,
+			authTokenSvc,
+			bizCtxSvc,
+			i18nSvc,
+			orgCapSvc,
+			pluginSvc,
+			roleSvc,
+			sessionStore,
+			tenantSvc,
+			notifySvc,
+		)
+	)
+	roleSvc.SetDataScopeService(scopeSvc)
+	pluginSvc.SetHostServices(hostServices)
+	pluginSvc.SetTenantCapability(tenantSvc)
+	pluginsvc.ConfigureWasmHostServices(
+		kvCacheSvc,
+		hostlock.New(),
+		notifySvc,
+		configSvc,
+		hostServices.Config(),
 	)
 
 	// Host-owned handler definitions are registered before cron startup so the
@@ -162,19 +239,30 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 		coordinationSvc: coordinationSvc,
 		clusterSvc:      clusterSvc,
 		pluginSvc:       pluginSvc,
+		authSvc:         authSvc,
+		authTokenIssuer: authTokenSvc,
+		bizCtxSvc:       bizCtxSvc,
+		i18nSvc:         i18nSvc,
+		orgCapSvc:       orgCapSvc,
+		roleSvc:         roleSvc,
+		sessionStore:    sessionStore,
+		tenantSvc:       tenantSvc,
+		kvCacheSvc:      kvCacheSvc,
+		hostServices:    hostServices,
+		dictSvc:         dictSvc,
+		fileSvc:         fileSvc,
+		menuSvc:         menuSvc,
+		notifySvc:       notifySvc,
+		sysConfigSvc:    sysConfigSvc,
+		sysInfoSvc:      sysInfoSvc,
+		userSvc:         userSvc,
+		userMsgSvc:      userMsgSvc,
 		apiDocSvc:       apiDocSvc,
 		jobRegistry:     jobRegistry,
 		jobMgmtSvc:      jobMgmtSvc,
 		middlewareSvc:   middlewareSvc,
-		cronSvc: cron.New(
-			sessionCfg,
-			middlewareSvc.SessionStore(),
-			clusterSvc,
-			jobRegistry,
-			jobMgmtSvc,
-			jobScheduler,
-		),
-		serverCfg: configSvc.GetServerExtensions(ctx),
+		cronSvc:         cron.New(configSvc, roleSvc, kvCacheSvc, pluginSvc, sessionCfg, sessionStore, clusterSvc, jobRegistry, jobMgmtSvc, jobScheduler),
+		serverCfg:       configSvc.GetServerExtensions(ctx),
 	}, nil
 }
 

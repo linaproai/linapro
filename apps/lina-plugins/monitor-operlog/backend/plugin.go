@@ -8,6 +8,7 @@ import (
 	monitoroperlogplugin "lina-plugin-monitor-operlog"
 	operlogcontroller "lina-plugin-monitor-operlog/backend/internal/controller/operlog"
 	middlewaresvc "lina-plugin-monitor-operlog/backend/internal/service/middleware"
+	operlogsvc "lina-plugin-monitor-operlog/backend/internal/service/operlog"
 )
 
 // monitor-operlog plugin constants.
@@ -30,7 +31,17 @@ func init() {
 
 // registerRoutes binds operation-log governance routes and audit middleware through the published host HTTP registrars.
 func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
-	auditMiddlewareSvc := middlewaresvc.New()
+	hostServices := registrar.HostServices()
+	if hostServices == nil ||
+		hostServices.APIDoc() == nil ||
+		hostServices.BizCtx() == nil ||
+		hostServices.I18n() == nil ||
+		hostServices.Route() == nil ||
+		hostServices.TenantFilter() == nil {
+		panic("monitor-operlog routes require host apidoc, bizctx, i18n, route, and tenant-filter services")
+	}
+	operLogSvc := operlogsvc.New(hostServices.APIDoc(), hostServices.I18n(), hostServices.TenantFilter())
+	auditMiddlewareSvc := middlewaresvc.New(hostServices.Route(), hostServices.BizCtx(), operLogSvc)
 	registrar.GlobalMiddlewares().Bind("/*", auditMiddlewareSvc.Audit)
 
 	var (
@@ -51,7 +62,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 				middlewares.Tenancy(),
 				middlewares.Permission(),
 			)
-			group.Bind(operlogcontroller.NewV1())
+			group.Bind(operlogcontroller.NewV1(operLogSvc))
 		})
 	})
 	return nil

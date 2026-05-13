@@ -32,8 +32,8 @@ func TestUserDataScopeListSelfShowsOnlyCurrentUser(t *testing.T) {
 	})
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
 	if err != nil {
@@ -58,13 +58,13 @@ func TestUserDataScopeListDeptUsesOrgCap(t *testing.T) {
 	})
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
-	svc.orgCapSvc = userDataScopeStaticOrgCap{
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
+	setUserTestOrgCap(svc, userDataScopeStaticOrgCap{
 		enabled:     true,
 		userDeptIDs: map[int][]int{currentUserID: {101}},
 		deptUserIDs: map[int][]int{101: {currentUserID, deptMateUserID}},
-	}
+	})
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
 	if err != nil {
@@ -98,8 +98,8 @@ func TestUserDataScopeDeptUnavailableFallsBackToSelf(t *testing.T) {
 	})
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	out, err := svc.List(ctx, ListInput{PageNum: 1, PageSize: 20})
 	if err != nil {
@@ -126,8 +126,8 @@ func TestUserDataScopeResolvesWidestEnabledRole(t *testing.T) {
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, deptRoleID)
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, disabledAllRoleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	scope, userID, err := svc.currentUserDataScope(ctx)
 	if err != nil {
@@ -154,8 +154,8 @@ func TestUserDataScopeRejectsInvisibleStatusUpdate(t *testing.T) {
 	})
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	err := svc.UpdateStatus(ctx, targetUserID, StatusDisabled)
 	if err == nil {
@@ -183,13 +183,13 @@ func TestUserDataScopeBatchDeleteRejectsInvisibleTarget(t *testing.T) {
 	})
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
-	svc.orgCapSvc = userDataScopeStaticOrgCap{
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
+	setUserTestOrgCap(svc, userDataScopeStaticOrgCap{
 		enabled:     true,
 		userDeptIDs: map[int][]int{currentUserID: {201}},
 		deptUserIDs: map[int][]int{201: {currentUserID, deptMateUserID}},
-	}
+	})
 
 	err := svc.BatchDelete(ctx, []int{deptMateUserID, invisibleUserID})
 	if err == nil {
@@ -219,8 +219,8 @@ func TestUserDataScopeExportAllAppliesSelfScope(t *testing.T) {
 	})
 	insertUserDeleteTestUserRole(t, ctx, currentUserID, roleID)
 
-	svc := New(nil).(*serviceImpl)
-	svc.bizCtxSvc = userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	svc := newUserTestService().(*serviceImpl)
+	setUserTestBizCtx(svc, userDeleteStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	data, err := svc.Export(ctx, ExportInput{})
 	if err != nil {

@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
 	configsvc "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/frontend"
 	"lina-core/internal/service/plugin/internal/integration"
@@ -55,11 +57,13 @@ func NewServices() *Services {
 	var (
 		configProvider = configsvc.New()
 		bizCtxProvider = bizctx.New()
+		cacheCoordSvc  = cachecoord.Default(cachecoord.NewStaticTopology(false))
+		i18nService    = i18nsvc.New(bizCtxProvider, configProvider, cacheCoordSvc)
 		catalogSvc     = catalog.New(configProvider)
 		lifecycleSvc   = lifecycle.New(catalogSvc)
 		frontendSvc    = frontend.New(catalogSvc)
 		openapiSvc     = openapi.New(catalogSvc)
-		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc)
+		runtimeSvc     = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nService)
 		integrationSvc = integration.New(catalogSvc)
 		topology       = singleNodeTopology{}
 	)

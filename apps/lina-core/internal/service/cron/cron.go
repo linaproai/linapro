@@ -74,6 +74,10 @@ type serviceImpl struct {
 
 // New creates and returns a new Service instance.
 func New(
+	configSvc config.Service,
+	roleSvc rolesvc.Service,
+	kvCacheSvc kvcache.Service,
+	pluginSvc pluginsvc.Service,
 	sessionCfg *config.SessionConfig,
 	sessionStore session.Store,
 	clusterSvc cluster.Service,
@@ -81,14 +85,7 @@ func New(
 	builtinSyncer builtinJobSyncer,
 	persistentScheduler jobmgmtsvc.Scheduler,
 ) Service {
-	var (
-		configSvc      = config.New()
-		kvCacheSvc     = kvcache.New()
-		pluginSvc      = pluginsvc.New(clusterSvc)
-		roleSvc        = rolesvc.New(pluginSvc)
-		clusterEnabled = clusterSvc != nil && clusterSvc.IsEnabled()
-	)
-
+	clusterEnabled := clusterSvc != nil && clusterSvc.IsEnabled()
 	return &serviceImpl{
 		sessionCfg:          sessionCfg,
 		configSvc:           configSvc,

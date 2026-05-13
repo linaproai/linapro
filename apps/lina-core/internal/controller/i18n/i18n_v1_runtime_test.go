@@ -14,20 +14,40 @@ import (
 
 	v1 "lina-core/api/i18n/v1"
 	"lina-core/internal/model"
+	"lina-core/internal/service/auth"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	"lina-core/internal/service/cluster"
+	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
+	"lina-core/internal/service/kvcache"
 	middlewaresvc "lina-core/internal/service/middleware"
+	"lina-core/internal/service/orgcap"
+	pluginsvc "lina-core/internal/service/plugin"
+	"lina-core/internal/service/role"
+	"lina-core/internal/service/session"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 
-	_ "lina-core/pkg/dbdriver"
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/gctx"
+	_ "lina-core/pkg/dbdriver"
 )
+
+// newTestI18nService creates a standalone i18n service for tests.
+func newTestI18nService() i18nsvc.Service {
+	configSvc := hostconfig.New()
+	bizCtxSvc := bizctx.New()
+	clusterSvc := cluster.New(configSvc.GetCluster(context.Background()))
+	return i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(clusterSvc))
+}
 
 // TestRuntimeMessagesUsesExplicitLangOverride verifies that the runtime
 // messages endpoint honors the explicit lang query parameter.
 func TestRuntimeMessagesUsesExplicitLangOverride(t *testing.T) {
 	t.Parallel()
 
-	i18nSvc := i18nsvc.New()
+	i18nSvc := newTestI18nService()
 	controller := &ControllerV1{
 		localeResolver: i18nSvc,
 		bundleProvider: i18nSvc,
@@ -61,7 +81,7 @@ func TestRuntimeMessagesUsesExplicitLangOverride(t *testing.T) {
 func TestRuntimeLocalesReturnsLocalizedDescriptors(t *testing.T) {
 	t.Parallel()
 
-	i18nSvc := i18nsvc.New()
+	i18nSvc := newTestI18nService()
 	controller := &ControllerV1{
 		localeResolver: i18nSvc,
 		bundleProvider: i18nSvc,
@@ -369,7 +389,7 @@ func TestRuntimeMessagesEmitsETagAndShortCircuits304(t *testing.T) {
 
 	// Invalidate the host sector so the bundle version advances; the same
 	// If-None-Match should now miss and a fresh 200 must arrive.
-	i18nsvc.New().InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
+	newTestI18nService().InvalidateRuntimeBundleCache(i18nsvc.InvalidateScope{
 		Locales: []string{i18nsvc.EnglishLocale},
 		Sectors: []i18nsvc.Sector{i18nsvc.SectorHost},
 	})
@@ -445,7 +465,7 @@ func TestRuntimeMessagesWarmETagSkipsBundleBuild(t *testing.T) {
 // host response middleware on a randomly chosen port and returns the base URL.
 func startRuntimeMessagesTestServer(t *testing.T) string {
 	t.Helper()
-	return startRuntimeMessagesControllerTestServer(t, NewV1())
+	return startRuntimeMessagesControllerTestServer(t, NewV1(newTestI18nService()))
 }
 
 // startRuntimeMessagesControllerTestServer wires a supplied runtime i18n
@@ -458,7 +478,7 @@ func startRuntimeMessagesControllerTestServer(t *testing.T, controller any) stri
 	server.SetPort(0)
 	server.SetDumpRouterMap(false)
 
-	middlewareSvc := middlewaresvc.New()
+	middlewareSvc := newRuntimeMessagesTestMiddleware()
 	server.Group("/", func(group *ghttp.RouterGroup) {
 		group.Middleware(middlewareSvc.Response)
 		group.Bind(controller)
@@ -478,4 +498,20 @@ func startRuntimeMessagesControllerTestServer(t *testing.T, controller any) stri
 		t.Fatal("expected randomly allocated port to be positive")
 	}
 	return "http://127.0.0.1:" + strconv.Itoa(listenedPort)
+}
+
+// newRuntimeMessagesTestMiddleware constructs response middleware with
+// explicit dependencies so controller tests do not rely on disabled defaults.
+func newRuntimeMessagesTestMiddleware() middlewaresvc.Service {
+	configSvc := hostconfig.New()
+	bizCtxSvc := bizctx.New()
+	i18nSvc := newTestI18nService()
+	cacheCoordSvc := cachecoord.Default(nil)
+	pluginSvc := pluginsvc.New(nil, configSvc, bizCtxSvc, cacheCoordSvc, i18nSvc, session.NewDBStore())
+	orgCapSvc := orgcap.New(pluginSvc)
+	tenantSvc := tenantcapsvc.New(pluginSvc, nil)
+	roleSvc := role.New(pluginSvc, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	roleSvc.SetDataScopeService(datascope.New(bizCtxSvc, roleSvc, orgCapSvc))
+	authSvc := auth.New(configSvc, pluginSvc, orgCapSvc, roleSvc, tenantSvc, session.NewDBStore(), kvcache.New())
+	return middlewaresvc.New(authSvc, bizCtxSvc, configSvc, i18nSvc, pluginSvc, roleSvc, tenantSvc)
 }

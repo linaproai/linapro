@@ -14,11 +14,10 @@ import (
 var lockHostService = hostlock.New()
 
 // ConfigureLockHostService replaces the governed lock backend used by wasm
-// host calls. Passing nil restores the process default hostlock service.
+// host calls. The service must be non-nil.
 func ConfigureLockHostService(service hostlock.Service) {
 	if service == nil {
-		lockHostService = hostlock.New()
-		return
+		panic("wasm lock host service requires a non-nil lock service")
 	}
 	lockHostService = service
 }

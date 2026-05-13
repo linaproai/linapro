@@ -13,6 +13,19 @@ import (
 	"lina-core/pkg/pluginbridge"
 )
 
+// trackingStorageConfig records dynamic storage path reads for shared-instance
+// wiring tests.
+type trackingStorageConfig struct {
+	rootPath string
+	calls    int
+}
+
+// GetPluginDynamicStoragePath records and returns the configured root path.
+func (s *trackingStorageConfig) GetPluginDynamicStoragePath(context.Context) string {
+	s.calls++
+	return s.rootPath
+}
+
 // TestHandleHostServiceInvokeStorageLifecycle verifies storage put/get/list/
 // delete/stat behavior against the plugin-scoped storage root.
 func TestHandleHostServiceInvokeStorageLifecycle(t *testing.T) {
@@ -231,6 +244,58 @@ func TestHandleHostServiceInvokeStorageRejectsTargetMismatch(t *testing.T) {
 	if response.Status != pluginbridge.HostCallStatusInvalidRequest {
 		t.Fatalf("expected invalid request for target mismatch, got status=%d payload=%s", response.Status, string(response.Payload))
 	}
+}
+
+// TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig verifies
+// storage host service dispatch reuses the explicitly configured config reader.
+func TestHandleHostServiceInvokeStorageUsesConfiguredSharedConfig(t *testing.T) {
+	configSvc := &trackingStorageConfig{rootPath: t.TempDir()}
+	previousConfigSvc := storageConfigSvc
+	ConfigureStorageHostService(configSvc)
+	t.Cleanup(func() {
+		storageConfigSvc = previousConfigSvc
+	})
+
+	hcc := newStorageHostCallContext([]string{"reports/"})
+	response := invokeStorageHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodStoragePut,
+		"reports/demo.json",
+		pluginbridge.MarshalHostServiceStoragePutRequest(&pluginbridge.HostServiceStoragePutRequest{
+			Path: "reports/demo.json",
+			Body: []byte("shared"),
+		}),
+	)
+	if response.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("put through shared storage config: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	if configSvc.calls != 1 {
+		t.Fatalf("expected shared storage config to be read once, got %d", configSvc.calls)
+	}
+	absolutePath := filepath.Join(
+		configSvc.rootPath,
+		storageHostServiceRootDirName,
+		storageHostServiceDirName,
+		hcc.pluginID,
+		"reports",
+		"demo.json",
+	)
+	content, err := os.ReadFile(absolutePath)
+	if err != nil {
+		t.Fatalf("expected object under shared storage root: %v", err)
+	}
+	if string(content) != "shared" {
+		t.Fatalf("expected shared storage content, got %q", content)
+	}
+}
+
+// TestConfigureStorageHostServiceRejectsNil verifies missing runtime config
+// reader injection fails fast instead of silently constructing an isolated config service.
+func TestConfigureStorageHostServiceRejectsNil(t *testing.T) {
+	assertPanic(t, "wasm storage host service requires a non-nil config reader", func() {
+		ConfigureStorageHostService(nil)
+	})
 }
 
 // TestMatchAuthorizedStoragePath verifies logical prefix and exact-file path

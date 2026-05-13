@@ -6,12 +6,58 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gogf/gf/v2/container/gvar"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
 
 	"lina-core/pkg/pluginbridge"
 )
+
+// trackingConfigService records config reads while returning deterministic
+// values for shared-instance wiring tests.
+type trackingConfigService struct {
+	getCalls    int
+	existsCalls int
+	stringCalls int
+	lastKey     string
+}
+
+// Get records one raw config read.
+func (s *trackingConfigService) Get(_ context.Context, key string) (*gvar.Var, error) {
+	s.getCalls++
+	s.lastKey = key
+	return gvar.New("shared-value"), nil
+}
+
+// Exists records one config existence read.
+func (s *trackingConfigService) Exists(_ context.Context, key string) (bool, error) {
+	s.existsCalls++
+	s.lastKey = key
+	return true, nil
+}
+
+// Scan records no behavior for the shared config fake.
+func (s *trackingConfigService) Scan(context.Context, string, any) error { return nil }
+
+// String records one string config read.
+func (s *trackingConfigService) String(_ context.Context, key string, _ string) (string, error) {
+	s.stringCalls++
+	s.lastKey = key
+	return "shared-string", nil
+}
+
+// Bool returns a deterministic bool value.
+func (s *trackingConfigService) Bool(context.Context, string, bool) (bool, error) { return true, nil }
+
+// Int returns a deterministic int value.
+func (s *trackingConfigService) Int(context.Context, string, int) (int, error) { return 7, nil }
+
+// Duration returns a deterministic duration value.
+func (s *trackingConfigService) Duration(context.Context, string, time.Duration) (time.Duration, error) {
+	return 15 * time.Second, nil
+}
 
 // TestHandleHostServiceInvokeConfigReadsValues verifies dynamic plugins can
 // read arbitrary host configuration values through the config host service.
@@ -157,6 +203,39 @@ custom:
 			string(response.Payload),
 		)
 	}
+}
+
+// TestHandleHostServiceInvokeConfigUsesConfiguredSharedService verifies config
+// host service dispatch reuses the explicitly configured shared adapter.
+func TestHandleHostServiceInvokeConfigUsesConfiguredSharedService(t *testing.T) {
+	configSvc := &trackingConfigService{}
+	previousConfigSvc := configHostService
+	ConfigureConfigHostService(configSvc)
+	t.Cleanup(func() {
+		configHostService = previousConfigSvc
+	})
+
+	response := invokeConfigHostService(
+		t,
+		configHostCallContext(),
+		pluginbridge.HostServiceMethodConfigString,
+		"feature.name",
+	)
+	payload := decodeConfigResponse(t, response)
+	if !payload.Found || payload.Value != "shared-string" {
+		t.Fatalf("expected shared config string value, got %#v", payload)
+	}
+	if configSvc.existsCalls != 1 || configSvc.stringCalls != 1 || configSvc.lastKey != "feature.name" {
+		t.Fatalf("expected shared config adapter calls, got exists=%d string=%d key=%q", configSvc.existsCalls, configSvc.stringCalls, configSvc.lastKey)
+	}
+}
+
+// TestConfigureConfigHostServiceRejectsNil verifies missing runtime config
+// adapter injection fails fast instead of silently constructing an isolated adapter.
+func TestConfigureConfigHostServiceRejectsNil(t *testing.T) {
+	assertPanic(t, "wasm config host service requires a non-nil config adapter", func() {
+		ConfigureConfigHostService(nil)
+	})
 }
 
 // configHostCallContext builds an authorized config host service context.

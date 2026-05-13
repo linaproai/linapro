@@ -63,6 +63,32 @@ func TestSelectTenantConsumesPreTokenOnce(t *testing.T) {
 	}
 }
 
+// TestIssueTenantTokenPrimesAccessContextWithSelectedTenant verifies tenant
+// selection primes role access with the selected tenant instead of the caller
+// context tenant.
+func TestIssueTenantTokenPrimesAccessContextWithSelectedTenant(t *testing.T) {
+	ctx := datascope.WithTenantScope(context.Background(), 99)
+	svc := newTenantAuthTestService()
+	roleSvc := &trackingRoleTestService{}
+	svc.roleSvc = roleSvc
+
+	preToken, err := svc.preTokens.Create(ctx, preTokenRecord{
+		UserID:   101,
+		Username: "tenant-user",
+		Status:   1,
+	})
+	if err != nil {
+		t.Fatalf("create pre-token: %v", err)
+	}
+	if _, err = svc.IssueTenantToken(ctx, TenantTokenIssueInput{PreToken: preToken, TenantID: 11}); err != nil {
+		t.Fatalf("select tenant: %v", err)
+	}
+
+	if len(roleSvc.tenantIDs) != 1 || roleSvc.tenantIDs[0] != 11 {
+		t.Fatalf("expected role cache prime for tenant 11, got %v", roleSvc.tenantIDs)
+	}
+}
+
 // TestPreTokenTTLIsShortAndEnforced verifies pre-login tokens use the expected
 // short lifetime and expired records cannot be exchanged for a formal JWT.
 func TestPreTokenTTLIsShortAndEnforced(t *testing.T) {
@@ -315,6 +341,33 @@ func TestRefreshTokenIssuesFreshAccessToken(t *testing.T) {
 	}
 	if claims.TokenId != tokenID || claims.TokenType != tokenKindAccess || claims.UserId != userID || claims.TenantId != 11 {
 		t.Fatalf("unexpected refreshed claims: %#v", claims)
+	}
+}
+
+// TestRefreshPrimesAccessContextWithRefreshTokenTenant verifies refresh
+// token renewal primes role access using the tenant encoded in the JWT.
+func TestRefreshPrimesAccessContextWithRefreshTokenTenant(t *testing.T) {
+	ctx := datascope.WithTenantScope(context.Background(), 99)
+	svc := newTenantAuthTestService()
+	roleSvc := &trackingRoleTestService{}
+	svc.roleSvc = roleSvc
+	username := fmt.Sprintf("refresh-scope-%d", time.Now().UnixNano())
+	userID := insertAuthTestUser(t, context.Background(), username, "admin123")
+	user := &entity.SysUser{Id: userID, Username: username, Status: 1}
+
+	_, refreshToken, tokenID, err := svc.generateTokenPair(ctx, user, 22)
+	if err != nil {
+		t.Fatalf("generate token pair: %v", err)
+	}
+	if err = svc.sessionStore.Set(ctx, &session.Session{TokenId: tokenID, TenantId: 22, UserId: userID, Username: username}); err != nil {
+		t.Fatalf("set refresh session: %v", err)
+	}
+
+	if _, err = svc.Refresh(ctx, RefreshInput{RefreshToken: refreshToken}); err != nil {
+		t.Fatalf("refresh token: %v", err)
+	}
+	if len(roleSvc.tenantIDs) != 1 || roleSvc.tenantIDs[0] != 22 {
+		t.Fatalf("expected role cache prime for tenant 22, got %v", roleSvc.tenantIDs)
 	}
 }
 
@@ -710,8 +763,123 @@ func (roleTestService) PrimeTokenAccessContext(context.Context, string, int) (*r
 // InvalidateTokenAccessContext records no state in auth unit tests.
 func (roleTestService) InvalidateTokenAccessContext(context.Context, string) {}
 
+// trackingRoleTestService records the tenant scope used to prime token access
+// snapshots.
+type trackingRoleTestService struct {
+	tenantIDs []int
+}
+
+// PrimeTokenAccessContext records the current tenant and returns an empty
+// access snapshot.
+func (s *trackingRoleTestService) PrimeTokenAccessContext(ctx context.Context, _ string, _ int) (*role.UserAccessContext, error) {
+	s.tenantIDs = append(s.tenantIDs, datascope.CurrentTenantID(ctx))
+	return &role.UserAccessContext{}, nil
+}
+
+// InvalidateTokenAccessContext records no state for tenant-scope assertions.
+func (s *trackingRoleTestService) InvalidateTokenAccessContext(context.Context, string) {}
+
 // enabledTenantAuthTestService enables tenant provider validation for auth tests.
 type enabledTenantAuthTestService struct{}
+
+// disabledTenantAuthTestService keeps multi-tenancy disabled for tests that
+// only need the auth service to satisfy its explicit dependency contract.
+type disabledTenantAuthTestService struct{}
+
+// Enabled reports multi-tenancy as disabled.
+func (disabledTenantAuthTestService) Enabled(context.Context) bool {
+	return false
+}
+
+// Current returns platform tenant for disabled tenancy tests.
+func (disabledTenantAuthTestService) Current(context.Context) tenantcapsvc.TenantID {
+	return pkgtenantcap.PLATFORM
+}
+
+// Apply returns the input model unchanged when tenancy is disabled.
+func (disabledTenantAuthTestService) Apply(_ context.Context, model *gdb.Model, _ string) (*gdb.Model, error) {
+	return model, nil
+}
+
+// PlatformBypass reports platform bypass for disabled tenancy tests.
+func (disabledTenantAuthTestService) PlatformBypass(context.Context) bool {
+	return true
+}
+
+// EnsureTenantVisible accepts all tenants when tenancy is disabled.
+func (disabledTenantAuthTestService) EnsureTenantVisible(context.Context, tenantcapsvc.TenantID) error {
+	return nil
+}
+
+// ResolveTenant returns platform tenant for disabled tenancy tests.
+func (disabledTenantAuthTestService) ResolveTenant(context.Context, *ghttp.Request) (*pkgtenantcap.ResolverResult, error) {
+	return &pkgtenantcap.ResolverResult{TenantID: pkgtenantcap.PLATFORM, Matched: true}, nil
+}
+
+// ListUserTenants returns no tenant options when tenancy is disabled.
+func (disabledTenantAuthTestService) ListUserTenants(context.Context, int) ([]pkgtenantcap.TenantInfo, error) {
+	return []pkgtenantcap.TenantInfo{}, nil
+}
+
+// ReadWithPlatformFallback returns no rows in disabled tenancy tests.
+func (disabledTenantAuthTestService) ReadWithPlatformFallback(context.Context, tenantcapsvc.FallbackScanner[any]) ([]any, error) {
+	return nil, nil
+}
+
+// ApplyUserTenantScope returns the model unchanged when tenancy is disabled.
+func (disabledTenantAuthTestService) ApplyUserTenantScope(
+	_ context.Context,
+	model *gdb.Model,
+	_ string,
+) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
+// ApplyUserTenantFilter returns the model unchanged when tenancy is disabled.
+func (disabledTenantAuthTestService) ApplyUserTenantFilter(
+	_ context.Context,
+	model *gdb.Model,
+	_ string,
+	_ tenantcapsvc.TenantID,
+) (*gdb.Model, bool, error) {
+	return model, false, nil
+}
+
+// ListUserTenantProjections returns no projections when tenancy is disabled.
+func (disabledTenantAuthTestService) ListUserTenantProjections(
+	context.Context,
+	[]int,
+) (map[int]*pkgtenantcap.UserTenantProjection, error) {
+	return map[int]*pkgtenantcap.UserTenantProjection{}, nil
+}
+
+// ResolveUserTenantAssignment returns an empty assignment plan when tenancy is disabled.
+func (disabledTenantAuthTestService) ResolveUserTenantAssignment(
+	context.Context,
+	[]tenantcapsvc.TenantID,
+	pkgtenantcap.UserTenantAssignmentMode,
+) (*pkgtenantcap.UserTenantAssignmentPlan, error) {
+	return &pkgtenantcap.UserTenantAssignmentPlan{}, nil
+}
+
+// ReplaceUserTenantAssignments is a no-op when tenancy is disabled.
+func (disabledTenantAuthTestService) ReplaceUserTenantAssignments(
+	context.Context,
+	int,
+	*pkgtenantcap.UserTenantAssignmentPlan,
+) error {
+	return nil
+}
+
+// EnsureUsersInTenant accepts all users when tenancy is disabled.
+func (disabledTenantAuthTestService) EnsureUsersInTenant(context.Context, []int, tenantcapsvc.TenantID) error {
+	return nil
+}
+
+// ValidateUserMembershipStartupConsistency returns no details when tenancy is disabled.
+func (disabledTenantAuthTestService) ValidateUserMembershipStartupConsistency(context.Context) ([]string, error) {
+	return nil, nil
+}
 
 // Enabled reports multi-tenancy as enabled.
 func (enabledTenantAuthTestService) Enabled(context.Context) bool {

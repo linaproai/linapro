@@ -1,6 +1,6 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
+import { test, expect } from '../../support/multi-tenant';
 import { MultiTenantPage } from '@host-tests/pages/MultiTenantPage';
-import { scenarioTC0184 } from '@host-tests/support/multi-tenant-scenarios';
+import { scenarioTC0184 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-184 登录选择租户', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

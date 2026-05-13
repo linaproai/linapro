@@ -6,17 +6,26 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gogf/gf/v2/net/ghttp"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model"
 	"lina-core/internal/model/do"
 	"lina-core/internal/model/entity"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	hostconfig "lina-core/internal/service/config"
+	"lina-core/internal/service/datascope"
+	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
+	"lina-core/internal/service/orgcap"
+	"lina-core/internal/service/role"
+	tenantcapsvc "lina-core/internal/service/tenantcap"
 )
 
 // noopScheduler keeps job-management unit tests focused on validation and persistence.
@@ -62,7 +71,6 @@ func (s jobmgmtStaticBizCtx) SetTenant(context.Context, int) {}
 
 // SetImpersonation is unused by job-management service tests.
 func (s jobmgmtStaticBizCtx) SetImpersonation(context.Context, int, int, bool, bool) {}
-
 
 // SetUserAccess is unused by job-management service tests.
 func (s jobmgmtStaticBizCtx) SetUserAccess(context.Context, int, bool, int) {}
@@ -152,7 +160,7 @@ func newTestService(t *testing.T) *serviceImpl {
 	if err := jobhandler.RegisterHostHandlers(registry, noopCleaner{}); err != nil {
 		t.Fatalf("expected host handler registration to succeed, got error: %v", err)
 	}
-	return New(nil, registry, noopScheduler{}).(*serviceImpl)
+	return newTestServiceWithExplicitDependencies(t, registry, noopScheduler{})
 }
 
 // newTestServiceWithRegistry constructs one DB-backed job-management service with
@@ -170,7 +178,44 @@ func newTestServiceWithRegistry(
 	if scheduler == nil {
 		scheduler = &trackingScheduler{}
 	}
-	return New(nil, registry, scheduler).(*serviceImpl)
+	return newTestServiceWithExplicitDependencies(t, registry, scheduler)
+}
+
+// newTestServiceWithExplicitDependencies constructs job-management tests
+// through the same explicit dependency path used by HTTP startup.
+func newTestServiceWithExplicitDependencies(
+	t *testing.T,
+	registry jobhandler.Registry,
+	scheduler Scheduler,
+) *serviceImpl {
+	t.Helper()
+
+	bizCtxSvc := bizctx.New()
+	configSvc := hostconfig.New()
+	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+	orgCapSvc := orgcap.New(nil)
+	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
+	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	roleSvc.SetDataScopeService(scopeSvc)
+	return New(bizCtxSvc, configSvc, i18nSvc, registry, scheduler, scopeSvc).(*serviceImpl)
+}
+
+// setJobMgmtTestBizCtx replaces the context dependency and refreshes the
+// derived data-scope service used by scheduled-job tests.
+func setJobMgmtTestBizCtx(svc *serviceImpl, bizCtxSvc bizctx.Service) {
+	svc.bizCtxSvc = bizCtxSvc
+	configSvc := svc.configSvc
+	if configSvc == nil {
+		configSvc = hostconfig.New()
+	}
+	i18nSvc := i18nsvc.New(bizCtxSvc, configSvc, cachecoord.Default(nil))
+	orgCapSvc := orgcap.New(nil)
+	tenantSvc := tenantcapsvc.New(nil, bizCtxSvc)
+	roleSvc := role.New(nil, bizCtxSvc, configSvc, i18nSvc, nil, orgCapSvc, tenantSvc)
+	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
+	roleSvc.SetDataScopeService(scopeSvc)
+	svc.scopeSvc = scopeSvc
 }
 
 // defaultGroupID resolves the current default job group ID for tests.

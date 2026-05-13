@@ -12,7 +12,10 @@ import (
 	"lina-core/pkg/bizerr"
 	_ "lina-core/pkg/dbdriver"
 	"lina-core/pkg/pluginhost"
+	pluginbizctx "lina-core/pkg/pluginservice/bizctx"
+	"lina-plugin-multi-tenant/backend/internal/service/resolverconfig"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
+	"lina-plugin-multi-tenant/backend/internal/service/tenantplugin"
 )
 
 // tenantDeleteTestInsertData is the typed insert payload for tenant deletion tests.
@@ -55,7 +58,7 @@ func TestDeleteRunsLifecycleGuardBeforeSoftDelete(t *testing.T) {
 		}
 	})
 
-	err = New().Delete(ctx, tenantID)
+	err = New(pluginbizctx.New(nil), resolverconfig.New(), tenantplugin.New(pluginbizctx.New(nil))).Delete(ctx, tenantID)
 	if !bizerr.Is(err, CodeTenantDeleteGuardVetoed) {
 		t.Fatalf("expected guard veto error, got %v", err)
 	}

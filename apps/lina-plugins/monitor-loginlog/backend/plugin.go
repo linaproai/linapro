@@ -45,6 +45,11 @@ func init() {
 
 // registerRoutes binds login-log governance routes through the published host middleware set.
 func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
+	hostServices := registrar.HostServices()
+	if hostServices == nil || hostServices.I18n() == nil || hostServices.TenantFilter() == nil {
+		panic("monitor-loginlog routes require host i18n and tenant-filter services")
+	}
+	loginLogSvc := loginlogsvc.New(hostServices.I18n(), hostServices.TenantFilter())
 	routes := registrar.Routes()
 	middlewares := routes.Middlewares()
 	routes.Group("/api/v1", func(group pluginhost.RouteGroup) {
@@ -61,7 +66,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 				middlewares.Tenancy(),
 				middlewares.Permission(),
 			)
-			group.Bind(loginlogcontroller.NewV1())
+			group.Bind(loginlogcontroller.NewV1(loginLogSvc))
 		})
 	})
 	return nil
@@ -69,6 +74,10 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 
 // handleAuthEvent persists one host authentication lifecycle event into the login-log table owned by this plugin.
 func handleAuthEvent(ctx context.Context, payload pluginhost.HookPayload) error {
+	hostServices := payload.HostServices()
+	if hostServices == nil || hostServices.I18n() == nil || hostServices.TenantFilter() == nil {
+		panic("monitor-loginlog hook requires host i18n and tenant-filter services")
+	}
 	values := payload.Values()
 	status, _ := pluginhost.HookPayloadIntValue(values, pluginhost.HookPayloadKeyStatus)
 	message := pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyReason)
@@ -76,7 +85,7 @@ func handleAuthEvent(ctx context.Context, payload pluginhost.HookPayload) error 
 		message = pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyMessage)
 	}
 
-	return loginlogsvc.New().Create(ctx, loginlogsvc.CreateInput{
+	return loginlogsvc.New(hostServices.I18n(), hostServices.TenantFilter()).Create(ctx, loginlogsvc.CreateInput{
 		UserName: pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyUserName),
 		Status:   status,
 		Ip:       pluginhost.HookPayloadStringValue(values, pluginhost.HookPayloadKeyIP),

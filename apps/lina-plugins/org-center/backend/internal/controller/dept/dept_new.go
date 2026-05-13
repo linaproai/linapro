@@ -16,8 +16,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new department controller instance.
-func NewV1() deptapi.IDeptV1 {
-	return &ControllerV1{deptSvc: deptsvc.New()}
+func NewV1(deptSvc deptsvc.Service) deptapi.IDeptV1 {
+	return &ControllerV1{deptSvc: deptSvc}
 }
 
 // toAPIDeptEntity converts the service-layer department entity into the API DTO projection.

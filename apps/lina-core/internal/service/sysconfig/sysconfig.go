@@ -15,7 +15,6 @@ import (
 	"lina-core/internal/model/entity"
 	hostconfig "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/pkg/bizerr"
 )
 
@@ -52,11 +51,10 @@ type serviceImpl struct {
 	i18nSvc   sysconfigI18nTranslator
 }
 
-// New creates and returns a new sysconfig Service instance.
-func New() Service {
-	i18nSvc := i18nsvc.New()
+// New creates a sysconfig service from explicit runtime-owned dependencies.
+func New(configSvc hostconfig.Service, i18nSvc sysconfigI18nTranslator) Service {
 	return &serviceImpl{
-		configSvc: hostconfig.New(),
+		configSvc: configSvc,
 		i18nSvc:   i18nSvc,
 	}
 }

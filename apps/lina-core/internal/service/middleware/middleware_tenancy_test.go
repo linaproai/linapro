@@ -17,6 +17,10 @@ import (
 	"github.com/gogf/gf/v2/util/guid"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	hostconfig "lina-core/internal/service/config"
+	i18nsvc "lina-core/internal/service/i18n"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/bizerr"
 	pkgtenantcap "lina-core/pkg/tenantcap"
@@ -220,8 +224,12 @@ func TestTenancyResolverForbiddenErrorUsesForbidden(t *testing.T) {
 func runTenancyMiddlewareRequest(t *testing.T, tenantSvc tenantcapsvc.Service) (int, string) {
 	t.Helper()
 
-	svc := New().(*serviceImpl)
-	svc.tenantSvc = tenantSvc
+	svc := &serviceImpl{
+		bizCtxSvc: bizctx.New(),
+		configSvc: hostconfig.New(),
+		i18nSvc:   i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)),
+		tenantSvc: tenantSvc,
+	}
 	server := g.Server("middleware-tenancy-" + guid.S())
 	server.SetPort(0)
 	server.SetDumpRouterMap(false)

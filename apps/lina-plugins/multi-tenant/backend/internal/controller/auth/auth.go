@@ -5,7 +5,7 @@
 package auth
 
 import (
-	pluginauth "lina-core/pkg/pluginservice/auth"
+	pluginauth "lina-core/pkg/pluginservice/contract"
 	authapi "lina-plugin-multi-tenant/backend/api/auth"
 	v1 "lina-plugin-multi-tenant/backend/api/auth/v1"
 	"lina-plugin-multi-tenant/backend/internal/service/membership"
@@ -14,22 +14,17 @@ import (
 
 // ControllerV1 is the tenant auth controller.
 type ControllerV1 struct {
-	authSvc       pluginauth.Service
+	authSvc       pluginauth.AuthService
 	membershipSvc membership.Service
 	provider      *provider.Provider
 }
 
 // NewV1 creates and returns a new auth controller instance.
-func NewV1() authapi.IAuthV1 {
-	return NewControllerV1()
-}
-
-// NewControllerV1 creates and returns the concrete auth controller instance.
-func NewControllerV1() *ControllerV1 {
+func NewV1(authSvc pluginauth.AuthService, membershipSvc membership.Service, providerSvc *provider.Provider) authapi.IAuthV1 {
 	return &ControllerV1{
-		authSvc:       pluginauth.New(),
-		membershipSvc: membership.New(),
-		provider:      provider.New(),
+		authSvc:       authSvc,
+		membershipSvc: membershipSvc,
+		provider:      providerSvc,
 	}
 }
 

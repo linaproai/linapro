@@ -12,7 +12,7 @@ import (
 
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginhost"
-	"lina-core/pkg/pluginservice/bizctx"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-multi-tenant/backend/internal/dao"
 	"lina-plugin-multi-tenant/backend/internal/service/resolverconfig"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
@@ -51,17 +51,21 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc         bizctx.Service
+	bizCtxSvc         plugincontract.BizCtxService
 	resolverConfigSvc resolverconfig.Service
 	tenantPluginSvc   tenantplugin.Service
 }
 
 // New creates and returns a new tenant Service instance.
-func New() Service {
+func New(
+	bizCtxSvc plugincontract.BizCtxService,
+	resolverConfigSvc resolverconfig.Service,
+	tenantPluginSvc tenantplugin.Service,
+) Service {
 	return &serviceImpl{
-		bizCtxSvc:         bizctx.New(),
-		resolverConfigSvc: resolverconfig.New(),
-		tenantPluginSvc:   tenantplugin.New(),
+		bizCtxSvc:         bizCtxSvc,
+		resolverConfigSvc: resolverConfigSvc,
+		tenantPluginSvc:   tenantPluginSvc,
 	}
 }
 

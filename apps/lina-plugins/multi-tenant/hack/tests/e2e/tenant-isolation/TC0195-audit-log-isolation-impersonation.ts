@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0195 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0195 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-195 审计日志隔离与 impersonation 标记', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

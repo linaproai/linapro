@@ -9,7 +9,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginservice/bizctx"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-multi-tenant/backend/internal/dao"
 	"lina-plugin-multi-tenant/backend/internal/model/do"
 	"lina-plugin-multi-tenant/backend/internal/model/entity"
@@ -64,12 +64,12 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc bizctx.Service
+	bizCtxSvc plugincontract.BizCtxService
 }
 
 // New creates and returns a tenant plugin governance service.
-func New() Service {
-	return &serviceImpl{bizCtxSvc: bizctx.New()}
+func New(bizCtxSvc plugincontract.BizCtxService) Service {
+	return &serviceImpl{bizCtxSvc: bizCtxSvc}
 }
 
 // Entity is the tenant plugin-governance projection.

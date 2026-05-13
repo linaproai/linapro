@@ -15,8 +15,7 @@ import (
 
 	"lina-core/pkg/authtoken"
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginservice/bizctx"
-	"lina-core/pkg/pluginservice/config"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
 	tenantsvc "lina-plugin-multi-tenant/backend/internal/service/tenant"
 )
@@ -34,18 +33,22 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc   bizctx.Service
-	configSvc   config.Service
+	bizCtxSvc   plugincontract.BizCtxService
+	configSvc   plugincontract.ConfigService
 	tenantSvc   tenantsvc.Service
 	tokenSigner tokenSigner
 }
 
 // New creates and returns an impersonation service.
-func New() Service {
+func New(
+	bizCtxSvc plugincontract.BizCtxService,
+	configSvc plugincontract.ConfigService,
+	tenantSvc tenantsvc.Service,
+) Service {
 	return &serviceImpl{
-		bizCtxSvc:   bizctx.New(),
-		configSvc:   config.New(),
-		tenantSvc:   tenantsvc.New(),
+		bizCtxSvc:   bizCtxSvc,
+		configSvc:   configSvc,
+		tenantSvc:   tenantSvc,
 		tokenSigner: jwtTokenSigner{},
 	}
 }

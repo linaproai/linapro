@@ -5,7 +5,7 @@ package auth
 import (
 	"context"
 
-	pluginauth "lina-core/pkg/pluginservice/auth"
+	pluginauth "lina-core/pkg/pluginservice/contract"
 	v1 "lina-plugin-multi-tenant/backend/api/auth/v1"
 )
 

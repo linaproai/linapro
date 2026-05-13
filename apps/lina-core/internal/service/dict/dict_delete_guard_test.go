@@ -22,7 +22,7 @@ func TestDeleteRejectsBuiltInDictType(t *testing.T) {
 	ctx := context.Background()
 	record := insertDictTypeForDeleteGuard(t, ctx, true)
 
-	err := New().Delete(ctx, record.Id)
+	err := New(nil).Delete(ctx, record.Id)
 	if !bizerr.Is(err, CodeDictTypeBuiltinDeleteDenied) {
 		t.Fatalf("expected %s, got %v", CodeDictTypeBuiltinDeleteDenied.RuntimeCode(), err)
 	}
@@ -37,7 +37,7 @@ func TestDataDeleteRejectsBuiltInDictData(t *testing.T) {
 	dictType := insertDictTypeForDeleteGuard(t, ctx, false)
 	record := insertDictDataForDeleteGuard(t, ctx, dictType.Type, true)
 
-	err := New().DataDelete(ctx, record.Id)
+	err := New(nil).DataDelete(ctx, record.Id)
 	if !bizerr.Is(err, CodeDictDataBuiltinDeleteDenied) {
 		t.Fatalf("expected %s, got %v", CodeDictDataBuiltinDeleteDenied.RuntimeCode(), err)
 	}
@@ -52,7 +52,7 @@ func TestDeleteRejectsDictTypeContainingBuiltInData(t *testing.T) {
 	dictType := insertDictTypeForDeleteGuard(t, ctx, false)
 	record := insertDictDataForDeleteGuard(t, ctx, dictType.Type, true)
 
-	err := New().Delete(ctx, dictType.Id)
+	err := New(nil).Delete(ctx, dictType.Id)
 	if !bizerr.Is(err, CodeDictDataBuiltinDeleteDenied) {
 		t.Fatalf("expected %s, got %v", CodeDictDataBuiltinDeleteDenied.RuntimeCode(), err)
 	}

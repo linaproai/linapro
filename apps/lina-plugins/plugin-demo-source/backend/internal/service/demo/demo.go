@@ -5,7 +5,7 @@ package demo
 import (
 	"context"
 
-	hosti18n "lina-core/pkg/pluginservice/i18n"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 )
 
 // Service defines the demo service contract.
@@ -35,10 +35,14 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	i18nSvc hosti18n.Service // i18nSvc resolves plugin runtime translations.
+	i18nSvc      plugincontract.I18nService         // i18nSvc resolves plugin runtime translations.
+	tenantFilter plugincontract.TenantFilterService // tenantFilter constrains plugin-owned demo rows.
 }
 
 // New creates and returns a new demo service instance.
-func New() Service {
-	return &serviceImpl{i18nSvc: hosti18n.New()}
+func New(i18nSvc plugincontract.I18nService, tenantFilter plugincontract.TenantFilterService) Service {
+	return &serviceImpl{
+		i18nSvc:      i18nSvc,
+		tenantFilter: tenantFilter,
+	}
 }

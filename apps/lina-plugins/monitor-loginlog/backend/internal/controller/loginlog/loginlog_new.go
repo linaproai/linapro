@@ -13,8 +13,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new monitor-loginlog controller instance.
-func NewV1() loginlogapi.ILoginlogV1 {
-	return &ControllerV1{loginLogSvc: loginlogsvc.New()}
+func NewV1(loginLogSvc loginlogsvc.Service) loginlogapi.ILoginlogV1 {
+	return &ControllerV1{loginLogSvc: loginLogSvc}
 }
 
 // toAPILoginLogEntity converts one service-layer login-log entity into the API DTO projection.

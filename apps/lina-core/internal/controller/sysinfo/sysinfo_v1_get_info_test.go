@@ -15,6 +15,9 @@ import (
 	_ "lina-core/pkg/dbdriver"
 
 	"lina-core/internal/model"
+	"lina-core/internal/service/bizctx"
+	"lina-core/internal/service/cachecoord"
+	hostconfig "lina-core/internal/service/config"
 	i18nsvc "lina-core/internal/service/i18n"
 	sysinfosvc "lina-core/internal/service/sysinfo"
 )
@@ -88,7 +91,7 @@ func (f *fakeSysInfoService) GetInfo(_ context.Context) (*sysinfosvc.SystemInfo,
 func TestFormatRunDurationUsesRuntimeLocale(t *testing.T) {
 	t.Parallel()
 
-	controller := &ControllerV1{i18nSvc: i18nsvc.New()}
+	controller := &ControllerV1{i18nSvc: i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil))}
 
 	testCases := []struct {
 		name     string
@@ -125,7 +128,7 @@ func TestGetInfoMapsCacheCoordinationDiagnostics(t *testing.T) {
 	ctx := context.Background()
 	syncedAt := time.Date(2025, 1, 1, 8, 0, 0, 0, time.UTC)
 	controller := &ControllerV1{
-		i18nSvc: i18nsvc.New(),
+		i18nSvc: i18nsvc.New(bizctx.New(), hostconfig.New(), cachecoord.Default(nil)),
 		sysInfoSvc: &fakeSysInfoService{
 			info: &sysinfosvc.SystemInfo{
 				Framework: sysinfosvc.FrameworkInfo{Name: "LinaPro"},

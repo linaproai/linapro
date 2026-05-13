@@ -156,6 +156,22 @@ func (f *fakeCacheCoordService) Snapshot(_ context.Context) ([]cachecoord.Snapsh
 	return f.items, nil
 }
 
+// TestNewRejectsNilConfigService verifies sysinfo construction fails fast when
+// runtime-owned config dependencies are missing.
+func TestNewRejectsNilConfigService(t *testing.T) {
+	assertPanic(t, "sysinfo service requires a non-nil config service", func() {
+		New(nil, nil, nil, nil)
+	})
+}
+
+// TestNewRejectsNilCacheCoordinationService verifies sysinfo construction
+// fails fast when cache coordination diagnostics would use an isolated fallback.
+func TestNewRejectsNilCacheCoordinationService(t *testing.T) {
+	assertPanic(t, "sysinfo service requires a non-nil cache coordination service", func() {
+		New(config.New(), nil, nil, nil)
+	})
+}
+
 // TestLoadCacheCoordinationMapsSnapshot verifies cachecoord diagnostics are
 // exposed by sysinfo without changing their semantic fields.
 func TestLoadCacheCoordinationMapsSnapshot(t *testing.T) {

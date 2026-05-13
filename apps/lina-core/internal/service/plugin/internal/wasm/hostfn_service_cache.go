@@ -15,11 +15,10 @@ import (
 var cacheHostService = kvcache.New()
 
 // ConfigureCacheHostService replaces the governed cache backend used by wasm
-// host calls. Passing nil restores the process default kvcache service.
+// host calls. The service must be non-nil.
 func ConfigureCacheHostService(service kvcache.Service) {
 	if service == nil {
-		cacheHostService = kvcache.New()
-		return
+		panic("wasm cache host service requires a non-nil cache service")
 	}
 	cacheHostService = service
 }

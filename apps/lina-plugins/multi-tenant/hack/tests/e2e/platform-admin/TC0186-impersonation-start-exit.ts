@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0186 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0186 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-186 平台管理员 impersonation', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

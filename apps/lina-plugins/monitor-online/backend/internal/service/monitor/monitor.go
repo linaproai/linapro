@@ -6,7 +6,7 @@ package monitor
 import (
 	"context"
 
-	sessionsvc "lina-core/pkg/pluginservice/session"
+	sessionsvc "lina-core/pkg/pluginservice/contract"
 )
 
 // Service defines the monitor-online service contract.
@@ -22,12 +22,12 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	sessionSvc sessionsvc.Service // published host session service
+	sessionSvc sessionsvc.SessionService // published host session service
 }
 
 // New creates and returns a new monitor-online service instance.
-func New() Service {
-	return &serviceImpl{sessionSvc: sessionsvc.New()}
+func New(sessionSvc sessionsvc.SessionService) Service {
+	return &serviceImpl{sessionSvc: sessionSvc}
 }
 
 // ListInput defines the online-user list filter input.

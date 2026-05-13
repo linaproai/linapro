@@ -7,7 +7,7 @@ package notice
 import (
 	"context"
 
-	"lina-core/pkg/pluginservice/notify"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 )
 
 // Plugin-local notify category codes. The host notify service treats category
@@ -16,9 +16,9 @@ import (
 // `notify.category.{code}.label` / `.color` in its own manifest/i18n bundles.
 const (
 	// noticeCategoryCodeNotice is the opaque category code for general notice messages dispatched by this plugin.
-	noticeCategoryCodeNotice notify.CategoryCode = "notice"
+	noticeCategoryCodeNotice plugincontract.CategoryCode = "notice"
 	// noticeCategoryCodeAnnouncement is the opaque category code for announcement messages dispatched by this plugin.
-	noticeCategoryCodeAnnouncement notify.CategoryCode = "announcement"
+	noticeCategoryCodeAnnouncement plugincontract.CategoryCode = "announcement"
 )
 
 // dispatchPublishedNotice delivers one published notice into the unified inbox
@@ -31,7 +31,7 @@ func (s *serviceImpl) dispatchPublishedNotice(
 	noticeType int,
 	senderUserID int64,
 ) error {
-	_, err := s.notifySvc.SendNoticePublication(ctx, notify.NoticePublishInput{
+	_, err := s.notifySvc.SendNoticePublication(ctx, plugincontract.NoticePublishInput{
 		NoticeID:     noticeID,
 		Title:        title,
 		Content:      content,
@@ -43,7 +43,7 @@ func (s *serviceImpl) dispatchPublishedNotice(
 
 // noticeTypeToCategoryCode maps plugin-owned notice types to plugin-owned
 // notify inbox category codes.
-func (s *serviceImpl) noticeTypeToCategoryCode(noticeType int) notify.CategoryCode {
+func (s *serviceImpl) noticeTypeToCategoryCode(noticeType int) plugincontract.CategoryCode {
 	switch noticeType {
 	case NoticeTypeAnnouncement:
 		return noticeCategoryCodeAnnouncement

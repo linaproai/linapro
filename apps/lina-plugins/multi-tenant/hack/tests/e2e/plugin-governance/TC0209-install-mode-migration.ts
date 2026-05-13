@@ -10,7 +10,7 @@ import {
   ensureMultiTenantPluginEnabled,
   expect,
   test,
-} from '@host-tests/fixtures/multi-tenant';
+} from '../../support/multi-tenant';
 
 const pluginId = 'monitor-loginlog';
 const enablementKey = '__tenant_enabled__';

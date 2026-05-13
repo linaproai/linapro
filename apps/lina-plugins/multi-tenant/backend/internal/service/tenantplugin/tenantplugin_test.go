@@ -10,7 +10,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	_ "lina-core/pkg/dbdriver"
-	"lina-core/pkg/pluginservice/bizctx"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-multi-tenant/backend/internal/dao"
 	"lina-plugin-multi-tenant/backend/internal/model/do"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
@@ -18,11 +18,11 @@ import (
 
 // testBizContextService returns a stable plugin-visible business context.
 type testBizContextService struct {
-	current bizctx.CurrentContext
+	current plugincontract.CurrentContext
 }
 
 // Current returns the configured business context snapshot.
-func (s testBizContextService) Current(context.Context) bizctx.CurrentContext {
+func (s testBizContextService) Current(context.Context) plugincontract.CurrentContext {
 	return s.current
 }
 
@@ -76,7 +76,7 @@ func TestTenantPluginSetEnabledRequiresTenantContext(t *testing.T) {
 	ctx := context.Background()
 	configureTenantPluginTestDB(t, ctx)
 
-	err := New().SetEnabled(ctx, "missing", true)
+	err := New(testBizContextService{}).SetEnabled(ctx, "missing", true)
 	if err == nil {
 		t.Fatal("expected tenant context error")
 	}
@@ -143,7 +143,7 @@ func TestProvisionForTenantAutoEnablesPolicyEnabledTenantPlugins(t *testing.T) {
 		cleanupTenantPluginRows(t, ctx, defaultPluginID, manualPluginID)
 	})
 
-	if err := New().ProvisionForTenant(ctx, tenantID); err != nil {
+	if err := New(testBizContextService{}).ProvisionForTenant(ctx, tenantID); err != nil {
 		t.Fatalf("provision default tenant plugins failed: %v", err)
 	}
 
@@ -176,7 +176,7 @@ func TestProvisionForTenantSkipsAutoEnablePolicyWhenPluginDisabled(t *testing.T)
 		cleanupTenantPluginRows(t, ctx, pluginID)
 	})
 
-	if err := New().ProvisionForTenant(ctx, tenantID); err != nil {
+	if err := New(testBizContextService{}).ProvisionForTenant(ctx, tenantID); err != nil {
 		t.Fatalf("provision default tenant plugins failed: %v", err)
 	}
 
@@ -214,7 +214,7 @@ func insertTenantPluginRegistry(t *testing.T, ctx context.Context, pluginID stri
 
 // newTenantPluginTestService creates a service with a fixed tenant context.
 func newTenantPluginTestService(tenantID int) Service {
-	return &serviceImpl{bizCtxSvc: testBizContextService{current: bizctx.CurrentContext{TenantID: tenantID}}}
+	return &serviceImpl{bizCtxSvc: testBizContextService{current: plugincontract.CurrentContext{TenantID: tenantID}}}
 }
 
 // insertTenantPluginRegistryWithDefault creates one host plugin registry row for tests.

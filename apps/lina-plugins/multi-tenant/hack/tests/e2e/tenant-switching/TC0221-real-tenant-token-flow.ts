@@ -22,7 +22,7 @@ import {
   selectTenant,
   switchTenant,
   test,
-} from '@host-tests/fixtures/multi-tenant';
+} from '../../support/multi-tenant';
 
 type APIRequestContext = Awaited<ReturnType<typeof createAdminApiContext>>;
 
@@ -176,26 +176,28 @@ test.describe("TC-221 multi-tenant real token flow", () => {
     ]);
 
     const tenantAToken = await selectTenant(tenantLogin.preToken!, tenantAId);
-    tenantApi = await createTenantApiContext(tenantAToken);
+    const tenantContext = await createTenantApiContext(tenantAToken);
+    tenantApi = tenantContext;
 
-    await expectSuccess(await tenantApi.get("user/info"));
+    await expectSuccess(await tenantContext.get("user/info"));
 
-    const membersA = await listTenantMembers(tenantApi, tenantAId);
+    const membersA = await listTenantMembers(tenantContext, tenantAId);
     expect(membersA.list.map((item) => item.userId)).toContain(userId);
 
-    const switchResponse = await switchTenant(tenantApi, tenantBId);
+    const switchResponse = await switchTenant(tenantContext, tenantBId);
     const switchPayload = await expectSuccess<{ accessToken: string }>(
       switchResponse,
     );
     expect(switchPayload.accessToken).toBeTruthy();
     expect(switchPayload.accessToken).not.toBe(tenantAToken);
 
-    const revokedTokenResponse = await tenantApi.get("user/info");
+    const revokedTokenResponse = await tenantContext.get("user/info");
     expect(revokedTokenResponse.status()).toBe(401);
 
-    switchedApi = await createTenantApiContext(switchPayload.accessToken);
-    await expectSuccess(await switchedApi.get("user/info"));
-    const membersB = await listTenantMembers(switchedApi, tenantBId);
+    const switchedContext = await createTenantApiContext(switchPayload.accessToken);
+    switchedApi = switchedContext;
+    await expectSuccess(await switchedContext.get("user/info"));
+    const membersB = await listTenantMembers(switchedContext, tenantBId);
     expect(membersB.list.map((item) => item.userId)).toContain(userId);
   });
 });

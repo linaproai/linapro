@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0181 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0181 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-181 租户不暴露归档生命周期', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

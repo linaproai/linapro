@@ -30,7 +30,11 @@ func init() {
 // registerGlobalMiddleware binds the demo read-only guard into the host-wide
 // system request chain published to source plugins.
 func registerGlobalMiddleware(_ context.Context, registrar pluginhost.HTTPRegistrar) error {
-	guardSvc := middlewaresvc.New()
+	hostServices := registrar.HostServices()
+	if hostServices == nil || hostServices.I18n() == nil || hostServices.PluginState() == nil {
+		panic("demo-control middleware requires host i18n and plugin-state services")
+	}
+	guardSvc := middlewaresvc.New(hostServices.I18n(), hostServices.PluginState())
 	registrar.GlobalMiddlewares().Bind("/*", guardSvc.Guard)
 	return nil
 }

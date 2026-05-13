@@ -6,8 +6,10 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
@@ -16,6 +18,70 @@ import (
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
+
+// trackingCacheService records cache method calls while returning deterministic
+// responses for shared-instance wiring tests.
+type trackingCacheService struct {
+	getCalls    int
+	setCalls    int
+	deleteCalls int
+	incrCalls   int
+	expireCalls int
+	lastKey     string
+	value       string
+}
+
+// BackendName returns a deterministic backend name for assertions.
+func (s *trackingCacheService) BackendName() kvcache.BackendName {
+	return kvcache.BackendName("tracking")
+}
+
+// RequiresExpiredCleanup reports no cleanup requirement for the fake backend.
+func (s *trackingCacheService) RequiresExpiredCleanup() bool { return false }
+
+// Get records one cache read.
+func (s *trackingCacheService) Get(_ context.Context, _ kvcache.OwnerType, cacheKey string) (*kvcache.Item, bool, error) {
+	s.getCalls++
+	s.lastKey = cacheKey
+	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindString, Value: s.value}, true, nil
+}
+
+// GetInt records no dedicated behavior because host service dispatch uses Get.
+func (s *trackingCacheService) GetInt(context.Context, kvcache.OwnerType, string) (int64, bool, error) {
+	return 0, false, nil
+}
+
+// Set records one cache write.
+func (s *trackingCacheService) Set(_ context.Context, _ kvcache.OwnerType, cacheKey string, value string, _ time.Duration) (*kvcache.Item, error) {
+	s.setCalls++
+	s.lastKey = cacheKey
+	s.value = value
+	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindString, Value: value}, nil
+}
+
+// Delete records one cache delete.
+func (s *trackingCacheService) Delete(_ context.Context, _ kvcache.OwnerType, cacheKey string) error {
+	s.deleteCalls++
+	s.lastKey = cacheKey
+	return nil
+}
+
+// Incr records one cache increment.
+func (s *trackingCacheService) Incr(_ context.Context, _ kvcache.OwnerType, cacheKey string, delta int64, _ time.Duration) (*kvcache.Item, error) {
+	s.incrCalls++
+	s.lastKey = cacheKey
+	return &kvcache.Item{Key: cacheKey, ValueKind: kvcache.ValueKindInt, IntValue: delta}, nil
+}
+
+// Expire records one cache expiration update.
+func (s *trackingCacheService) Expire(_ context.Context, _ kvcache.OwnerType, cacheKey string, _ time.Duration) (bool, *gtime.Time, error) {
+	s.expireCalls++
+	s.lastKey = cacheKey
+	return true, nil, nil
+}
+
+// CleanupExpired records no behavior for the fake backend.
+func (s *trackingCacheService) CleanupExpired(context.Context) error { return nil }
 
 // createPluginKVCacheTableSQL prepares the governed plugin cache table for tests.
 const createPluginKVCacheTableSQL = `
@@ -200,13 +266,57 @@ func TestHandleHostServiceInvokeCacheRejectsUnauthorizedNamespace(t *testing.T) 
 	}
 }
 
+// TestHandleHostServiceInvokeCacheUsesConfiguredSharedService verifies cache
+// host service dispatch reuses the explicitly configured shared instance.
+func TestHandleHostServiceInvokeCacheUsesConfiguredSharedService(t *testing.T) {
+	cacheSvc := &trackingCacheService{}
+	previousCacheSvc := cacheHostService
+	ConfigureCacheHostService(cacheSvc)
+	t.Cleanup(func() {
+		cacheHostService = previousCacheSvc
+	})
+
+	hcc := newTenantCacheHostCallContext("test-plugin-cache-shared", "orders-cache", 77)
+	setResponse := invokeCacheHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodCacheSet,
+		"orders-cache",
+		pluginbridge.MarshalHostServiceCacheSetRequest(&pluginbridge.HostServiceCacheSetRequest{
+			Key:   "profile",
+			Value: "shared",
+		}),
+	)
+	if setResponse.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("set through shared cache: expected success, got status=%d payload=%s", setResponse.Status, string(setResponse.Payload))
+	}
+	getResponse := invokeCacheHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodCacheGet,
+		"orders-cache",
+		pluginbridge.MarshalHostServiceCacheGetRequest(&pluginbridge.HostServiceCacheGetRequest{Key: "profile"}),
+	)
+	if getResponse.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("get through shared cache: expected success, got status=%d payload=%s", getResponse.Status, string(getResponse.Payload))
+	}
+	if cacheSvc.setCalls != 1 || cacheSvc.getCalls != 1 {
+		t.Fatalf("expected shared cache to receive one set and one get, got set=%d get=%d", cacheSvc.setCalls, cacheSvc.getCalls)
+	}
+	expectedKey := kvcache.BuildTenantCacheKey(77, "plugin-cache", hcc.pluginID, "orders-cache", "profile")
+	if cacheSvc.lastKey != expectedKey {
+		t.Fatalf("expected tenant-scoped cache key %q, got %q", expectedKey, cacheSvc.lastKey)
+	}
+}
+
 // TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation verifies
 // the host cache service can run on coordination KV and keeps tenant keys apart.
 func TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation(t *testing.T) {
 	cacheSvc := kvcache.New(kvcache.WithProvider(kvcache.NewCoordinationKVProvider(coordination.NewMemory(nil))))
+	previousCacheSvc := cacheHostService
 	ConfigureCacheHostService(cacheSvc)
 	t.Cleanup(func() {
-		ConfigureCacheHostService(nil)
+		cacheHostService = previousCacheSvc
 	})
 
 	if cacheSvc.BackendName() != kvcache.BackendCoordinationKV {
@@ -223,6 +333,14 @@ func TestHandleHostServiceInvokeCacheUsesCoordinationKVAndTenantIsolation(t *tes
 
 	assertTenantCacheValue(t, tenantOne, namespace, "profile", "tenant-one")
 	assertTenantCacheValue(t, tenantTwo, namespace, "profile", "tenant-two")
+}
+
+// TestConfigureCacheHostServiceRejectsNil verifies missing runtime cache
+// injection fails fast instead of silently constructing an isolated backend.
+func TestConfigureCacheHostServiceRejectsNil(t *testing.T) {
+	assertPanic(t, "wasm cache host service requires a non-nil cache service", func() {
+		ConfigureCacheHostService(nil)
+	})
 }
 
 // ensurePluginKVCacheTable creates the plugin cache table needed by cache host call tests.

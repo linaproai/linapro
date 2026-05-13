@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0179 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0179 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-179 平台管理员创建租户', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

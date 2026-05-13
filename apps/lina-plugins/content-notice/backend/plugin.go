@@ -7,6 +7,7 @@ import (
 	"lina-core/pkg/pluginhost"
 	contentnotice "lina-plugin-content-notice"
 	noticecontroller "lina-plugin-content-notice/backend/internal/controller/notice"
+	noticesvc "lina-plugin-content-notice/backend/internal/service/notice"
 )
 
 // content-notice plugin constants.
@@ -31,6 +32,14 @@ func init() {
 func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
 	routes := registrar.Routes()
 	middlewares := routes.Middlewares()
+	hostServices := registrar.HostServices()
+	if hostServices == nil ||
+		hostServices.BizCtx() == nil ||
+		hostServices.Notify() == nil ||
+		hostServices.TenantFilter() == nil {
+		panic("content-notice routes require host bizctx, notify, and tenant-filter services")
+	}
+	noticeSvc := noticesvc.New(hostServices.BizCtx(), hostServices.Notify(), hostServices.TenantFilter())
 	routes.Group("/api/v1", func(group pluginhost.RouteGroup) {
 		group.Middleware(
 			middlewares.NeverDoneCtx(),
@@ -45,7 +54,7 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 				middlewares.Tenancy(),
 				middlewares.Permission(),
 			)
-			group.Bind(noticecontroller.NewV1())
+			group.Bind(noticecontroller.NewV1(noticeSvc))
 		})
 	})
 	return nil

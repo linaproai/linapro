@@ -14,8 +14,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new monitor-operlog controller instance.
-func NewV1() operlogapi.IOperlogV1 {
-	return &ControllerV1{operLogSvc: operlogsvc.New()}
+func NewV1(operLogSvc operlogsvc.Service) operlogapi.IOperlogV1 {
+	return &ControllerV1{operLogSvc: operLogSvc}
 }
 
 // toAPIOperLogEntity converts one service-layer operation-log entity into the API DTO projection.

@@ -9,6 +9,8 @@ import (
 	orgcenter "lina-plugin-org-center"
 	deptcontroller "lina-plugin-org-center/backend/internal/controller/dept"
 	postcontroller "lina-plugin-org-center/backend/internal/controller/post"
+	deptsvc "lina-plugin-org-center/backend/internal/service/dept"
+	postsvc "lina-plugin-org-center/backend/internal/service/post"
 	"lina-plugin-org-center/backend/provider/orgcapadapter"
 )
 
@@ -22,7 +24,6 @@ const (
 func init() {
 	plugin := pluginhost.NewSourcePlugin(pluginID)
 	plugin.Assets().UseEmbeddedFiles(orgcenter.EmbeddedFiles)
-	hostorgcap.RegisterProvider(orgcapadapter.New())
 	plugin.HTTP().RegisterRoutes(
 		pluginhost.ExtensionPointHTTPRouteRegister,
 		pluginhost.CallbackExecutionModeBlocking,
@@ -33,6 +34,13 @@ func init() {
 
 // registerRoutes binds department and post management routes through the published host middleware set.
 func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
+	hostServices := registrar.HostServices()
+	if hostServices == nil || hostServices.I18n() == nil || hostServices.TenantFilter() == nil {
+		panic("org-center routes require host i18n and tenant-filter services")
+	}
+	hostorgcap.RegisterProvider(orgcapadapter.New(hostServices.TenantFilter()))
+	deptSvc := deptsvc.New(hostServices.TenantFilter())
+	postSvc := postsvc.New(hostServices.I18n(), hostServices.TenantFilter())
 	routes := registrar.Routes()
 	middlewares := routes.Middlewares()
 	routes.Group("/api/v1", func(group pluginhost.RouteGroup) {
@@ -50,8 +58,8 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 				middlewares.Permission(),
 			)
 			group.Bind(
-				deptcontroller.NewV1(),
-				postcontroller.NewV1(),
+				deptcontroller.NewV1(deptSvc),
+				postcontroller.NewV1(postSvc),
 			)
 		})
 	})

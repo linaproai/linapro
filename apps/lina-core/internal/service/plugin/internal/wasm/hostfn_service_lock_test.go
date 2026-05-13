@@ -6,16 +6,52 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gtime"
 
 	"lina-core/internal/dao"
 	"lina-core/internal/model/do"
 	"lina-core/internal/service/coordination"
+	"lina-core/internal/service/hostlock"
 	"lina-core/internal/service/locker"
 	"lina-core/pkg/dialect"
 	"lina-core/pkg/pluginbridge"
 )
+
+// trackingLockService records lock operations while returning deterministic
+// tickets for shared-instance wiring tests.
+type trackingLockService struct {
+	acquireCalls int
+	renewCalls   int
+	releaseCalls int
+	lastInput    hostlock.AcquireInput
+}
+
+// Acquire records one lock acquisition request.
+func (s *trackingLockService) Acquire(_ context.Context, in hostlock.AcquireInput) (*hostlock.AcquireOutput, error) {
+	s.acquireCalls++
+	s.lastInput = in
+	return &hostlock.AcquireOutput{
+		Acquired: true,
+		Ticket:   "shared-lock-ticket",
+		ExpireAt: gtime.Now().Add(5 * time.Second),
+	}, nil
+}
+
+// Renew records one lock renewal request.
+func (s *trackingLockService) Renew(context.Context, string, int64, string, string) (*gtime.Time, error) {
+	s.renewCalls++
+	expireAt := gtime.Now().Add(5 * time.Second)
+	return expireAt, nil
+}
+
+// Release records one lock release request.
+func (s *trackingLockService) Release(context.Context, string, int64, string, string) error {
+	s.releaseCalls++
+	return nil
+}
 
 // createPluginLockerTableSQL prepares the governed lock table for tests.
 const createPluginLockerTableSQL = `
@@ -189,15 +225,52 @@ func TestHandleHostServiceInvokeLockRejectsUnauthorizedResource(t *testing.T) {
 	}
 }
 
+// TestHandleHostServiceInvokeLockUsesConfiguredSharedService verifies lock
+// host service dispatch reuses the explicitly configured shared instance.
+func TestHandleHostServiceInvokeLockUsesConfiguredSharedService(t *testing.T) {
+	lockSvc := &trackingLockService{}
+	previousLockSvc := lockHostService
+	ConfigureLockHostService(lockSvc)
+	t.Cleanup(func() {
+		lockHostService = previousLockSvc
+	})
+
+	hcc := newTenantLockHostCallContext("test-plugin-lock-shared", 88, "orders-sync")
+	response := invokeLockHostService(
+		t,
+		hcc,
+		pluginbridge.HostServiceMethodLockAcquire,
+		"orders-sync",
+		pluginbridge.MarshalHostServiceLockAcquireRequest(&pluginbridge.HostServiceLockAcquireRequest{LeaseMillis: 5000}),
+	)
+	if response.Status != pluginbridge.HostCallStatusSuccess {
+		t.Fatalf("acquire through shared lock: expected success, got status=%d payload=%s", response.Status, string(response.Payload))
+	}
+	payload, err := pluginbridge.UnmarshalHostServiceLockAcquireResponse(response.Payload)
+	if err != nil {
+		t.Fatalf("decode shared lock acquire: %v", err)
+	}
+	if payload.Ticket != "shared-lock-ticket" {
+		t.Fatalf("expected shared lock ticket, got %#v", payload)
+	}
+	if lockSvc.acquireCalls != 1 {
+		t.Fatalf("expected shared lock service to receive one acquire, got %d", lockSvc.acquireCalls)
+	}
+	if lockSvc.lastInput.PluginID != hcc.pluginID || lockSvc.lastInput.TenantID != 88 || lockSvc.lastInput.ResourceRef != "orders-sync" {
+		t.Fatalf("expected plugin/tenant/resource to be forwarded, got %#v", lockSvc.lastInput)
+	}
+}
+
 // TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation verifies
 // Wasm plugin locks use coordination locking and tenant-scoped lock names.
 func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testing.T) {
 	coordSvc := coordination.NewMemory(nil)
 	locker.ConfigureCoordination(coordSvc)
-	ConfigureLockHostService(nil)
+	previousLockSvc := lockHostService
+	ConfigureLockHostService(hostlock.New())
 	t.Cleanup(func() {
 		locker.ConfigureCoordination(nil)
-		ConfigureLockHostService(nil)
+		lockHostService = previousLockSvc
 	})
 
 	lockName := "orders-sync"
@@ -246,6 +319,14 @@ func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testin
 	if reacquiredTicket == "" {
 		t.Fatal("expected reacquired ticket")
 	}
+}
+
+// TestConfigureLockHostServiceRejectsNil verifies missing runtime lock
+// injection fails fast instead of silently constructing an isolated backend.
+func TestConfigureLockHostServiceRejectsNil(t *testing.T) {
+	assertPanic(t, "wasm lock host service requires a non-nil lock service", func() {
+		ConfigureLockHostService(nil)
+	})
 }
 
 // ensurePluginLockerTable creates the lock table needed by lock host call tests.

@@ -11,7 +11,7 @@ import (
 
 	"lina-core/pkg/bizerr"
 	_ "lina-core/pkg/dbdriver"
-	"lina-core/pkg/pluginservice/bizctx"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	pkgtenantcap "lina-core/pkg/tenantcap"
 	"lina-plugin-multi-tenant/backend/internal/model/do"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
@@ -20,18 +20,18 @@ import (
 // membershipTestBizCtxService returns a fixed business context snapshot for
 // membership tests that need tenant-scoped behavior.
 type membershipTestBizCtxService struct {
-	current bizctx.CurrentContext
+	current plugincontract.CurrentContext
 }
 
 // Current returns the configured test business context snapshot.
-func (s membershipTestBizCtxService) Current(context.Context) bizctx.CurrentContext {
+func (s membershipTestBizCtxService) Current(context.Context) plugincontract.CurrentContext {
 	return s.current
 }
 
 // membershipTestService creates a membership service with an explicit request
 // context snapshot, avoiding host-internal context-key dependencies in plugin tests.
 func membershipTestService(tenantID int, userID int) Service {
-	return &serviceImpl{bizCtxSvc: membershipTestBizCtxService{current: bizctx.CurrentContext{
+	return &serviceImpl{bizCtxSvc: membershipTestBizCtxService{current: plugincontract.CurrentContext{
 		TenantID: tenantID,
 		UserID:   userID,
 	}}}
@@ -88,7 +88,7 @@ func TestListCountsWithoutProjectedColumns(t *testing.T) {
 		t.Fatalf("insert test membership failed: %v", err)
 	}
 
-	out, err := New().List(ctx, ListInput{
+	out, err := New(membershipTestBizCtxService{}).List(ctx, ListInput{
 		PageNum:  1,
 		PageSize: 10,
 		TenantID: tenantID,
@@ -182,7 +182,7 @@ func TestAddRejectsUnavailableTenant(t *testing.T) {
 		}
 	})
 
-	_, err := New().Add(ctx, AddInput{TenantID: suspendedTenantID, UserID: userID})
+	_, err := New(membershipTestBizCtxService{}).Add(ctx, AddInput{TenantID: suspendedTenantID, UserID: userID})
 	if !bizerr.Is(err, CodeTenantUnavailable) {
 		t.Fatalf("expected unavailable tenant error, got %v", err)
 	}
@@ -310,7 +310,7 @@ func TestTenantAuthorizationOnlyAllowsActiveTenants(t *testing.T) {
 	insertMembershipTestRow(t, ctx, userID, activeTenantID)
 	insertMembershipTestRow(t, ctx, userID, suspendedTenantID)
 
-	svc := New()
+	svc := New(membershipTestBizCtxService{})
 	tenants, err := svc.ListUserTenants(ctx, userID)
 	if err != nil {
 		t.Fatalf("list user tenants failed: %v", err)
@@ -323,6 +323,42 @@ func TestTenantAuthorizationOnlyAllowsActiveTenants(t *testing.T) {
 	}
 	if _, err = svc.GetByUserAndTenant(ctx, userID, activeTenantID); err != nil {
 		t.Fatalf("expected active tenant membership to authorize, got %v", err)
+	}
+}
+
+// TestGetByUserAndTenantHonorsRequestedTenant verifies provider membership
+// checks validate the explicit target tenant even in a tenant-scoped request.
+func TestGetByUserAndTenantHonorsRequestedTenant(t *testing.T) {
+	ctx := context.Background()
+	configureMembershipTestDB(t, ctx)
+
+	const (
+		username = "membership_requested_tenant_test"
+		password = "$2a$10$6u4IIEd63chleDWJIY6.NewSU7YrpBQ0Tbp.KfLiG71NQrRlL9qTe"
+	)
+
+	tenantAID := insertMembershipTestTenant(t, ctx, "membership-requested-tenant-a", shared.TenantStatusActive)
+	tenantBID := insertMembershipTestTenant(t, ctx, "membership-requested-tenant-b", shared.TenantStatusActive)
+	userID := insertMembershipTestUser(t, ctx, username, password, tenantAID)
+	t.Cleanup(func() {
+		if _, err := shared.Model(ctx, shared.TableMembership).Unscoped().Where("user_id", userID).Delete(); err != nil {
+			t.Errorf("cleanup requested-tenant memberships failed: %v", err)
+		}
+		if _, err := shared.Model(ctx, shared.TableSysUser).Unscoped().Where("id", userID).Delete(); err != nil {
+			t.Errorf("cleanup requested-tenant user failed: %v", err)
+		}
+		if _, err := shared.Model(ctx, shared.TableTenant).Unscoped().WhereIn("id", []int64{tenantAID, tenantBID}).Delete(); err != nil {
+			t.Errorf("cleanup requested-tenant tenants failed: %v", err)
+		}
+	})
+
+	insertMembershipTestRow(t, ctx, userID, tenantAID)
+	svc := membershipTestService(int(tenantAID), int(userID))
+	if _, err := svc.GetByUserAndTenant(ctx, userID, tenantAID); err != nil {
+		t.Fatalf("expected current tenant membership to authorize: %v", err)
+	}
+	if _, err := svc.GetByUserAndTenant(ctx, userID, tenantBID); !bizerr.Is(err, CodeMembershipNotFound) {
+		t.Fatalf("expected requested tenant without membership to be rejected, got %v", err)
 	}
 }
 
@@ -395,7 +431,7 @@ func TestReplaceUserTenantAssignmentsCanClearPlatformUserMembership(t *testing.T
 		}
 	})
 
-	err := New().ReplaceUserTenantAssignments(ctx, int(userID), &pkgtenantcap.UserTenantAssignmentPlan{
+	err := New(membershipTestBizCtxService{}).ReplaceUserTenantAssignments(ctx, int(userID), &pkgtenantcap.UserTenantAssignmentPlan{
 		ShouldReplace: true,
 		PrimaryTenant: pkgtenantcap.PLATFORM,
 	})
@@ -441,7 +477,7 @@ func TestReplaceUserTenantAssignmentsDefaultMultiModeAllowsMultipleTenants(t *te
 		}
 	})
 
-	svc := New()
+	svc := New(membershipTestBizCtxService{})
 	err := svc.ReplaceUserTenantAssignments(ctx, int(userID), &pkgtenantcap.UserTenantAssignmentPlan{
 		TenantIDs: []pkgtenantcap.TenantID{
 			pkgtenantcap.TenantID(tenantAID),

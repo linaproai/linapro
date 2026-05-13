@@ -12,6 +12,6 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new monitor-online controller instance.
-func NewV1() monitorapi.IMonitorV1 {
-	return &ControllerV1{monitorSvc: monitorsvc.New()}
+func NewV1(monitorSvc monitorsvc.Service) monitorapi.IMonitorV1 {
+	return &ControllerV1{monitorSvc: monitorSvc}
 }

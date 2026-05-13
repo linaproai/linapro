@@ -10,7 +10,11 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 
 	_ "lina-core/pkg/dbdriver"
+	pluginbizctx "lina-core/pkg/pluginservice/bizctx"
+	"lina-plugin-multi-tenant/backend/internal/service/resolverconfig"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
+	"lina-plugin-multi-tenant/backend/internal/service/tenant"
+	"lina-plugin-multi-tenant/backend/internal/service/tenantplugin"
 )
 
 // lifecycleGuardTestTenantData is a typed insert payload for guard tests.
@@ -41,7 +45,7 @@ func TestGuardRejectsSuspendedTenantBeforePluginRemoval(t *testing.T) {
 		}
 	})
 
-	guard := New()
+	guard := New(tenant.New(pluginbizctx.New(nil), resolverconfig.New(), tenantplugin.New(pluginbizctx.New(nil))))
 	if ok, reason, err := guard.CanUninstall(ctx); err != nil || ok || reason != ReasonUninstallTenantsExist {
 		t.Fatalf("expected suspended tenant to block uninstall, ok=%v reason=%q err=%v", ok, reason, err)
 	}

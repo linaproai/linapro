@@ -8,7 +8,7 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 
 	"lina-core/pkg/bizerr"
-	"lina-core/pkg/pluginservice/bizctx"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-multi-tenant/backend/internal/service/membership"
 	"lina-plugin-multi-tenant/backend/internal/service/shared"
 )
@@ -59,16 +59,16 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	bizCtxSvc     bizctx.Service
+	bizCtxSvc     plugincontract.BizCtxService
 	membershipSvc membership.Service
 	resolvers     map[string]Resolver
 }
 
 // New creates and returns a resolver service with the built-in resolver set.
-func New() Service {
+func New(bizCtxSvc plugincontract.BizCtxService, membershipSvc membership.Service) Service {
 	s := &serviceImpl{
-		bizCtxSvc:     bizctx.New(),
-		membershipSvc: membership.New(),
+		bizCtxSvc:     bizCtxSvc,
+		membershipSvc: membershipSvc,
 		resolvers:     make(map[string]Resolver),
 	}
 	s.Register(overrideResolver{})

@@ -6,7 +6,6 @@ package role
 
 import (
 	"lina-core/api/role"
-	pluginsvc "lina-core/internal/service/plugin"
 	rolesvc "lina-core/internal/service/role"
 )
 
@@ -16,9 +15,8 @@ type ControllerV1 struct {
 }
 
 // NewV1 creates and returns a new role controller instance.
-func NewV1() role.IRoleV1 {
-	pluginSvc := pluginsvc.New(nil)
+func NewV1(roleSvc rolesvc.Service) role.IRoleV1 {
 	return &ControllerV1{
-		roleSvc: rolesvc.New(pluginSvc),
+		roleSvc: roleSvc,
 	}
 }

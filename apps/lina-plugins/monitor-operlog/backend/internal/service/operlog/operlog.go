@@ -17,9 +17,7 @@ import (
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/excelutil"
 	"lina-core/pkg/gdbutil"
-	hostapidoc "lina-core/pkg/pluginservice/apidoc"
-	hosti18n "lina-core/pkg/pluginservice/i18n"
-	tenantfilter "lina-core/pkg/pluginservice/tenantfilter"
+	plugincontract "lina-core/pkg/pluginservice/contract"
 	"lina-plugin-monitor-operlog/backend/internal/dao"
 	"lina-plugin-monitor-operlog/backend/internal/model/do"
 	entitymodel "lina-plugin-monitor-operlog/backend/internal/model/entity"
@@ -112,15 +110,21 @@ var _ Service = (*serviceImpl)(nil)
 
 // serviceImpl implements Service.
 type serviceImpl struct {
-	apiDocSvc hostapidoc.Service // host apidoc translation service
-	i18nSvc   hosti18n.Service   // host runtime translation service
+	apiDocSvc    plugincontract.APIDocService       // host apidoc translation service
+	i18nSvc      plugincontract.I18nService         // host runtime translation service
+	tenantFilter plugincontract.TenantFilterService // tenantFilter constrains plugin-owned operation-log rows.
 }
 
 // New creates and returns a new monitor-operlog service instance.
-func New() Service {
+func New(
+	apiDocSvc plugincontract.APIDocService,
+	i18nSvc plugincontract.I18nService,
+	tenantFilter plugincontract.TenantFilterService,
+) Service {
 	return &serviceImpl{
-		apiDocSvc: hostapidoc.New(),
-		i18nSvc:   hosti18n.New(),
+		apiDocSvc:    apiDocSvc,
+		i18nSvc:      i18nSvc,
+		tenantFilter: tenantFilter,
 	}
 }
 
@@ -216,6 +220,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) error {
 	}
 	auditContext := resolveAuditTenantContext(
 		ctx,
+		s.tenantFilter,
 		in.TenantID,
 		in.ActingUserID,
 		in.OnBehalfOfTenantID,
@@ -252,12 +257,13 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateInput) error {
 // resolveAuditTenantContext resolves tenant audit metadata from bizctx and explicit overrides.
 func resolveAuditTenantContext(
 	ctx context.Context,
+	tenantFilter plugincontract.TenantFilterService,
 	tenantID *int,
 	actingUserID *int,
 	onBehalfOfTenantID *int,
 	isImpersonation *bool,
 ) auditTenantContext {
-	current := tenantfilter.CurrentContext(ctx)
+	current := tenantFilter.CurrentContext(ctx)
 	result := auditTenantContext{
 		TenantID:           current.TenantID,
 		ActingUserID:       current.ActingUserID,
@@ -281,7 +287,7 @@ func resolveAuditTenantContext(
 
 // List queries the paginated operation-log list.
 func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, error) {
-	model := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx))
+	model := s.tenantFilter.Apply(ctx, dao.Operlog.Ctx(ctx))
 	titleOperationKeys := s.findLocalizedRouteTitleOperationKeys(ctx, in.Title)
 	model = applyOperLogFilters(model, in.Title, titleOperationKeys, in.OperName, in.OperType, in.Status, in.BeginTime, in.EndTime)
 
@@ -320,7 +326,7 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) (*ListOutput, erro
 // GetById retrieves one operation-log record by primary key.
 func (s *serviceImpl) GetById(ctx context.Context, id int) (*OperLogEntity, error) {
 	var record *OperLogEntity
-	err := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx)).Where(colID, id).Scan(&record)
+	err := s.tenantFilter.Apply(ctx, dao.Operlog.Ctx(ctx)).Where(colID, id).Scan(&record)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +339,7 @@ func (s *serviceImpl) GetById(ctx context.Context, id int) (*OperLogEntity, erro
 
 // Clean hard-deletes operation logs within one optional time range.
 func (s *serviceImpl) Clean(ctx context.Context, in CleanInput) (int, error) {
-	model := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx))
+	model := s.tenantFilter.Apply(ctx, dao.Operlog.Ctx(ctx))
 	hasFilter := false
 	if in.BeginTime != "" {
 		model = model.WhereGTE(colOperTime, in.BeginTime)
@@ -363,7 +369,7 @@ func (s *serviceImpl) DeleteByIds(ctx context.Context, ids []int) (int, error) {
 	if len(ids) == 0 {
 		return 0, nil
 	}
-	result, err := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx)).WhereIn(colID, ids).Delete()
+	result, err := s.tenantFilter.Apply(ctx, dao.Operlog.Ctx(ctx)).WhereIn(colID, ids).Delete()
 	if err != nil {
 		return 0, err
 	}
@@ -376,7 +382,7 @@ func (s *serviceImpl) DeleteByIds(ctx context.Context, ids []int) (int, error) {
 
 // Export generates an Excel workbook for operation logs.
 func (s *serviceImpl) Export(ctx context.Context, in ExportInput) (data []byte, err error) {
-	model := tenantfilter.Apply(ctx, dao.Operlog.Ctx(ctx))
+	model := s.tenantFilter.Apply(ctx, dao.Operlog.Ctx(ctx))
 	if len(in.Ids) > 0 {
 		model = model.WhereIn(colID, in.Ids)
 	} else {
@@ -562,13 +568,13 @@ func (s *serviceImpl) localizeRecords(ctx context.Context, records []*OperLogEnt
 		return
 	}
 
-	inputs := make([]hostapidoc.RouteTextInput, 0, len(records))
+	inputs := make([]plugincontract.RouteTextInput, 0, len(records))
 	targets := make([]*OperLogEntity, 0, len(records))
 	for _, record := range records {
 		if record == nil {
 			continue
 		}
-		inputs = append(inputs, hostapidoc.RouteTextInput{
+		inputs = append(inputs, plugincontract.RouteTextInput{
 			OperationKey:    record.RouteDocKey,
 			Method:          record.RouteMethod,
 			Path:            record.RoutePath,
@@ -599,7 +605,7 @@ func (s *serviceImpl) localizeRecord(ctx context.Context, record *OperLogEntity)
 	if s == nil || s.apiDocSvc == nil {
 		return
 	}
-	text := s.apiDocSvc.ResolveRouteText(ctx, hostapidoc.RouteTextInput{
+	text := s.apiDocSvc.ResolveRouteText(ctx, plugincontract.RouteTextInput{
 		OperationKey:    record.RouteDocKey,
 		Method:          record.RouteMethod,
 		Path:            record.RoutePath,

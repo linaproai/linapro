@@ -5,9 +5,6 @@ import (
 	"context"
 
 	"github.com/gogf/gf/v2/net/ghttp"
-
-	hosti18n "lina-core/pkg/pluginservice/i18n"
-	hostpluginstate "lina-core/pkg/pluginservice/pluginstate"
 )
 
 // demoControlPluginID is the immutable source-plugin identifier for this middleware.
@@ -41,14 +38,9 @@ type serviceImpl struct {
 }
 
 // New creates and returns a new demo-control middleware service.
-func New() Service {
-	return newWithEnablementReader(hostpluginstate.New())
-}
-
-// newWithEnablementReader creates a middleware service with a custom enablement reader.
-func newWithEnablementReader(enablementReader EnablementReader) Service {
+func New(i18nSvc Translator, enablementReader EnablementReader) Service {
 	return &serviceImpl{
-		i18nSvc:          hosti18n.New(),
+		i18nSvc:          i18nSvc,
 		enablementReader: enablementReader,
 	}
 }

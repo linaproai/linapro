@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { ensureMultiTenantPluginEnabled } from '@host-tests/fixtures/multi-tenant';
+import { test, expect } from '../../support/multi-tenant';
+import { ensureMultiTenantPluginEnabled } from '../../support/multi-tenant';
 import { PluginPage } from '@host-tests/pages/PluginPage';
 import {
   createAdminApiContext,
@@ -9,7 +9,7 @@ import {
   installPlugin,
   syncPlugins,
 } from '@host-tests/support/api/job';
-import { scenarioTC0207 } from '@host-tests/support/multi-tenant-scenarios';
+import { scenarioTC0207 } from '../../support/multi-tenant-scenarios';
 import { pgEscapeLiteral, queryPgScalar } from '@host-tests/support/postgres';
 
 const pluginId = 'monitor-server';

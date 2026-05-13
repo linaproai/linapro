@@ -44,33 +44,13 @@ type serviceImpl struct {
 	cacheCoordSvc   cachecoord.Service   // cacheCoordSvc exposes process-wide cache coordination diagnostics.
 }
 
-// New creates and returns a new Service instance.
-func New() Service {
-	configSvc := config.New()
-	return &serviceImpl{
-		startTime: time.Now(),
-		configSvc: configSvc,
-		cacheCoordSvc: cachecoord.Default(
-			cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background())),
-		),
-	}
-}
-
-// NewWithDiagnostics creates a sysinfo service using runtime-owned cluster and
-// coordination services so diagnostics report the actual HTTP process wiring.
-func NewWithDiagnostics(
-	configSvc config.Service,
-	clusterSvc cluster.Service,
-	coordinationSvc coordination.Service,
-	cacheCoordSvc cachecoord.Service,
-) Service {
+// New creates and returns a new sysinfo service from explicit runtime-owned dependencies.
+func New(configSvc config.Service, clusterSvc cluster.Service, coordinationSvc coordination.Service, cacheCoordSvc cachecoord.Service) Service {
 	if configSvc == nil {
-		configSvc = config.New()
+		panic("sysinfo service requires a non-nil config service")
 	}
 	if cacheCoordSvc == nil {
-		cacheCoordSvc = cachecoord.Default(
-			cachecoord.NewStaticTopology(configSvc.IsClusterEnabled(context.Background())),
-		)
+		panic("sysinfo service requires a non-nil cache coordination service")
 	}
 	return &serviceImpl{
 		startTime:       time.Now(),

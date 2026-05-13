@@ -1,4 +1,4 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
+import { test, expect } from '../../support/multi-tenant';
 import {
   createAdminApiContext,
   enablePlugin,
@@ -6,7 +6,7 @@ import {
   installPlugin,
   syncPlugins,
 } from '@host-tests/support/api/job';
-import { createTenant, deleteTenant } from '@host-tests/fixtures/multi-tenant';
+import { createTenant, deleteTenant } from '../../support/multi-tenant';
 import { PluginPage } from '@host-tests/pages/PluginPage';
 
 test.describe('TC-227 多租户插件卸载保护弹窗', () => {

@@ -21,13 +21,10 @@ import (
 	"lina-core/internal/service/cluster"
 	configsvc "lina-core/internal/service/config"
 	"lina-core/internal/service/datascope"
-	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/jobhandler"
 	"lina-core/internal/service/jobmeta"
 	internalscheduler "lina-core/internal/service/jobmgmt/internal/scheduler"
 	internalshellexec "lina-core/internal/service/jobmgmt/internal/shellexec"
-	"lina-core/internal/service/orgcap"
-	"lina-core/internal/service/role"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/gdbutil"
 	"lina-core/pkg/logger"
@@ -155,7 +152,6 @@ type serviceImpl struct {
 	i18nSvc   jobmgmtI18nTranslator // i18nSvc localizes backend-owned display metadata.
 	registry  jobhandler.Registry   // registry resolves handler definitions and validation schemas.
 	scheduler Scheduler             // scheduler keeps persistent jobs registered with gcron.
-	orgCapSvc orgcap.Service        // orgCapSvc provides optional department data-scope filtering.
 	scopeSvc  datascope.Service     // scopeSvc enforces user-owned scheduled-job boundaries.
 }
 
@@ -175,32 +171,21 @@ func NewScheduler(
 
 // New creates and returns one scheduled-job management service.
 func New(
+	bizCtxSvc bizctx.Service,
 	configSvc configsvc.Service,
+	i18nSvc jobmgmtI18nTranslator,
 	registry jobhandler.Registry,
 	scheduler Scheduler,
-	orgCapSvcs ...orgcap.Service,
+	scopeSvc datascope.Service,
 ) Service {
-	if configSvc == nil {
-		configSvc = configsvc.New()
-	}
-	orgCapSvc := orgcap.New(nil)
-	if len(orgCapSvcs) > 0 && orgCapSvcs[0] != nil {
-		orgCapSvc = orgCapSvcs[0]
-	}
-	i18nSvc := i18nsvc.New()
 	svc := &serviceImpl{
-		bizCtxSvc: bizctx.New(),
+		bizCtxSvc: bizCtxSvc,
 		configSvc: configSvc,
 		i18nSvc:   i18nSvc,
 		registry:  registry,
 		scheduler: scheduler,
-		orgCapSvc: orgCapSvc,
+		scopeSvc:  scopeSvc,
 	}
-	svc.scopeSvc = datascope.New(datascope.Dependencies{
-		BizCtxSvc: svc.bizCtxSvc,
-		RoleSvc:   role.New(nil),
-		OrgCapSvc: svc.orgCapSvc,
-	})
 	if registry != nil {
 		registry.SubscribeChanges(func(ref string, exists bool) {
 			if err := svc.syncHandlerAvailability(context.Background(), ref, exists); err != nil {

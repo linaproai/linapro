@@ -1,5 +1,5 @@
-import { test, expect } from '@host-tests/fixtures/multi-tenant';
-import { scenarioTC0201 } from '@host-tests/support/multi-tenant-scenarios';
+import { test, expect } from '../../support/multi-tenant';
+import { scenarioTC0201 } from '../../support/multi-tenant-scenarios';
 
 test.describe('TC-201 session 解析器', () => {
   test.use({ multiTenantMode: 'multi-tenant-enabled' });

@@ -42,7 +42,7 @@ func TestJobDataScopeFiltersUserJobsKeepsBuiltinsAndProtectsLogs(t *testing.T) {
 	})
 
 	svc := newTestService(t)
-	svc.bizCtxSvc = jobmgmtStaticBizCtx{ctx: &model.Context{UserId: currentUserID}}
+	setJobMgmtTestBizCtx(svc, jobmgmtStaticBizCtx{ctx: &model.Context{UserId: currentUserID}})
 
 	out, err := svc.ListJobs(ctx, ListJobsInput{PageNum: 1, PageSize: 50})
 	if err != nil {

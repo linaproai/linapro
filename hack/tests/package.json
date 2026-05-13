@@ -10,6 +10,7 @@
     "test:sqlite:e2e-smoke": "node ./scripts/run-sqlite-suite.mjs smoke",
     "test:full": "node ./scripts/run-suite.mjs full",
     "test:validate": "node ./scripts/validate-e2e.mjs",
+    "test:service-deps": "node ./scripts/validate-service-dependencies.mjs && node ./scripts/validate-service-dependencies-test.mjs",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
