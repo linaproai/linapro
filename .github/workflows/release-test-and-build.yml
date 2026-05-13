@@ -1,0 +1,357 @@
+# LinaPro release health test and multi-platform Docker image publishing workflow.
+name: Release Test and Build
+
+on:
+  push:
+    tags:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }} @ ${{ github.ref_name }}"
+  cancel-in-progress: false
+
+env:
+  TZ: "Asia/Shanghai"
+  IMAGE_NAME: "linapro"
+  PLATFORMS: "linux/amd64,linux/arm64"
+
+jobs:
+  windows-command-smoke:
+    name: Windows command smoke
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+    with:
+      submodules: recursive
+
+  backend-unit-tests:
+    name: Go unit tests
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      submodules: recursive
+
+  frontend-unit-tests:
+    name: Frontend unit tests
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+    with:
+      submodules: recursive
+
+  e2e-tests:
+    name: Full E2E tests
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Verify Official Plugin Workspace
+        run: |
+          if [ ! -d apps/lina-plugins ]; then
+            echo "Missing official plugin workspace: apps/lina-plugins" >&2
+            echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+            exit 1
+          fi
+
+          manifest_count="$(find apps/lina-plugins -mindepth 2 -maxdepth 2 -type f -name plugin.yaml | wc -l | tr -d '[:space:]')"
+          if [ "${manifest_count}" -eq 0 ]; then
+            echo "No official plugin manifests found under apps/lina-plugins/*/plugin.yaml" >&2
+            echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+            exit 1
+          fi
+
+          e2e_count="$(find apps/lina-plugins -path '*/hack/tests/e2e/*' -type f -name 'TC*.ts' | wc -l | tr -d '[:space:]')"
+          if [ "${e2e_count}" -eq 0 ]; then
+            echo "No official plugin E2E tests found under apps/lina-plugins/<plugin-id>/hack/tests/e2e/" >&2
+            echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+            exit 1
+          fi
+
+          echo "Found ${manifest_count} official plugin manifest(s) and ${e2e_count} plugin E2E test file(s)."
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      # make dev/stop/status use lsof to detect and clean processes bound to
+      # the backend and frontend ports. Keep this explicit because GitHub's
+      # ubuntu-latest runner image does not guarantee lsof is preinstalled.
+      - name: Install Runtime Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsof
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      - name: Install E2E Dependencies
+        working-directory: hack/tests
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        working-directory: hack/tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Initialize Database
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init rebuild=true
+          make mock confirm=mock
+
+      - name: Start Services
+        run: make dev
+
+      - name: Run Full E2E Suite
+        working-directory: hack/tests
+        env:
+          E2E_BASE_URL: "http://127.0.0.1:5666"
+          E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
+          E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
+          E2E_PARALLEL_WORKERS: "4"
+        run: pnpm test
+
+      - name: Stop Services
+        if: always()
+        run: make stop
+
+      - name: Upload E2E Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-e2e-report
+          path: |
+            hack/tests/playwright-report/
+            hack/tests/test-results/
+            temp/lina-core.log
+            temp/lina-vben.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+  redis-cluster-smoke:
+    name: Redis cluster smoke
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Run Redis Cluster Smoke
+        env:
+          # The smoke script requires an explicit DB link because it runs
+          # `make init rebuild=true`; do not let it fall back to a developer DB.
+          LINAPRO_REDIS_CLUSTER_SMOKE_DB_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
+          LINAPRO_REDIS_CLUSTER_SMOKE_REDIS_ADDR: "127.0.0.1:6379"
+        run: |
+          ./hack/tests/scripts/run-redis-cluster-smoke.sh
+
+      - name: Upload Redis Cluster Smoke Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-redis-cluster-smoke-log
+          path: |
+            temp/redis-cluster-smoke/lina-core.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+  release-image:
+    name: Build and publish release image
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    needs:
+      - windows-command-smoke
+      - backend-unit-tests
+      - frontend-unit-tests
+      - e2e-tests
+      - redis-cluster-smoke
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Verify Official Plugin Workspace
+        run: |
+          if [ ! -d apps/lina-plugins ]; then
+            echo "Missing official plugin workspace: apps/lina-plugins" >&2
+            echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+            exit 1
+          fi
+
+          manifest_count="$(find apps/lina-plugins -mindepth 2 -maxdepth 2 -type f -name plugin.yaml | wc -l | tr -d '[:space:]')"
+          if [ "${manifest_count}" -eq 0 ]; then
+            echo "No official plugin manifests found under apps/lina-plugins/*/plugin.yaml" >&2
+            echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+            exit 1
+          fi
+
+          echo "Found ${manifest_count} official plugin manifest(s)."
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Image Metadata
+        id: image
+        run: |
+          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          image_name="$(printf '%s' "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
+          registry="ghcr.io/${owner}"
+          release_tag="${GITHUB_REF_NAME}"
+          image_ref="${registry}/${image_name}"
+
+          if ! printf '%s' "${release_tag}" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
+            echo "Git tag ${release_tag} cannot be used as a Docker image tag." >&2
+            exit 1
+          fi
+
+          {
+            echo "registry=${registry}"
+            echo "image_name=${image_name}"
+            echo "release_tag=${release_tag}"
+            echo "image_ref=${image_ref}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Publishing ${image_ref}:${release_tag} and ${image_ref}:latest for ${PLATFORMS}"
+
+      - name: Build and Push Multi-Platform Image
+        run: |
+          make image \
+            config=".github/image/config.yaml" \
+            platforms="${PLATFORMS}" \
+            registry="${{ steps.image.outputs.registry }}" \
+            image="${{ steps.image.outputs.image_name }}" \
+            tag="${{ steps.image.outputs.release_tag }}" \
+            push=1
+
+      - name: Publish Latest Tag
+        run: |
+          docker buildx imagetools create \
+            --tag "${{ steps.image.outputs.image_ref }}:latest" \
+            "${{ steps.image.outputs.image_ref }}:${{ steps.image.outputs.release_tag }}"
+
+      - name: Inspect Published Manifest
+        run: |
+          docker buildx imagetools inspect "${{ steps.image.outputs.image_ref }}:${{ steps.image.outputs.release_tag }}"
+          docker buildx imagetools inspect "${{ steps.image.outputs.image_ref }}:latest"

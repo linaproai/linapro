@@ -3,6 +3,12 @@ name: Reusable Frontend Unit Tests
 
 on:
   workflow_call:
+    inputs:
+      submodules:
+        description: Checkout submodule strategy for actions/checkout.
+        required: false
+        type: string
+        default: "false"
 
 permissions:
   contents: read
@@ -24,6 +30,8 @@ jobs:
 
       - name: Checkout Repository
         uses: actions/checkout@v5
+        with:
+          submodules: ${{ inputs.submodules }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6

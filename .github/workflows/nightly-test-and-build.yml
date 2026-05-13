@@ -1,6 +1,6 @@
 # LinaPro nightly health test and multi-platform Docker image publishing workflow.
 # GitHub cron uses UTC. 16:00 UTC is 00:00 Asia/Shanghai.
-name: Nightly Build
+name: Nightly Test and Build
 
 on:
   schedule:
