@@ -1,0 +1,55 @@
+// This file verifies media structured business error metadata.
+
+package media
+
+import (
+	"testing"
+
+	"lina-core/pkg/bizerr"
+)
+
+// TestMediaBusinessErrorMetadata verifies media errors expose stable runtime codes and message keys.
+func TestMediaBusinessErrorMetadata(t *testing.T) {
+	testCases := []struct {
+		name        string
+		code        *bizerr.Code
+		runtimeCode string
+		messageKey  string
+	}{
+		{
+			name:        "strategy not found",
+			code:        CodeMediaStrategyNotFound,
+			runtimeCode: "MEDIA_STRATEGY_NOT_FOUND",
+			messageKey:  "error.media.strategy.not.found",
+		},
+		{
+			name:        "binding device required",
+			code:        CodeMediaBindingDeviceRequired,
+			runtimeCode: "MEDIA_BINDING_DEVICE_REQUIRED",
+			messageKey:  "error.media.binding.device.required",
+		},
+		{
+			name:        "alias not found",
+			code:        CodeMediaAliasNotFound,
+			runtimeCode: "MEDIA_ALIAS_NOT_FOUND",
+			messageKey:  "error.media.alias.not.found",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			err := bizerr.NewCode(testCase.code)
+			messageErr, ok := bizerr.As(err)
+			if !ok {
+				t.Fatalf("expected structured business error, got %T", err)
+			}
+			if messageErr.RuntimeCode() != testCase.runtimeCode {
+				t.Fatalf("expected runtime code %q, got %q", testCase.runtimeCode, messageErr.RuntimeCode())
+			}
+			if messageErr.MessageKey() != testCase.messageKey {
+				t.Fatalf("expected message key %q, got %q", testCase.messageKey, messageErr.MessageKey())
+			}
+		})
+	}
+}

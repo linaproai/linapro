@@ -5,6 +5,7 @@ use (
 	./apps/lina-plugins
 	./apps/lina-plugins/content-notice
 	./apps/lina-plugins/demo-control
+	./apps/lina-plugins/media
 	./apps/lina-plugins/monitor-loginlog
 	./apps/lina-plugins/monitor-online
 	./apps/lina-plugins/monitor-operlog

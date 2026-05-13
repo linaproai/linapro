@@ -54,6 +54,8 @@ const (
 	OrgCenter = orgcap.ProviderPluginID
 	// ContentNotice provides notice management.
 	ContentNotice = "content-notice"
+	// Media provides media strategy, binding, and stream alias management.
+	Media = "media"
 	// MonitorOnline provides online-user query and force-logout governance.
 	MonitorOnline = "monitor-online"
 	// MonitorServer provides server-monitor collection and query features.
@@ -69,6 +71,7 @@ const (
 var stableParentKeys = map[string][]string{
 	OrgCenter:       {Org},
 	ContentNotice:   {Content},
+	Media:           {Content},
 	MonitorOnline:   {Monitor},
 	MonitorServer:   {Monitor},
 	MonitorOperLog:  {Monitor},

@@ -6,6 +6,7 @@ require (
 	lina-plugin-content-notice v0.0.0
 	lina-plugin-demo-control v0.0.0
 	lina-plugin-demo-source v0.0.0
+	lina-plugin-media v0.0.0
 	lina-plugin-monitor-loginlog v0.0.0
 	lina-plugin-monitor-online v0.0.0
 	lina-plugin-monitor-operlog v0.0.0
@@ -82,6 +83,8 @@ replace lina-plugin-content-notice => ./content-notice
 replace lina-plugin-demo-control => ./demo-control
 
 replace lina-plugin-demo-source => ./plugin-demo-source
+
+replace lina-plugin-media => ./media
 
 replace lina-plugin-monitor-loginlog => ./monitor-loginlog
 
