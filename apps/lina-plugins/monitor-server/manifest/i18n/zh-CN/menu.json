@@ -1,7 +1,0 @@
-{
-  "menu": {
-    "plugin:monitor-server:server": {
-      "title": "服务监控"
-    }
-  }
-}
