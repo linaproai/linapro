@@ -547,6 +547,9 @@ func runDev(ctx context.Context, a *app, input commandInput) error {
 			return err
 		}
 	}
+	if err = ensureFrontendEmbedAssets(ctx, a, false); err != nil {
+		return err
+	}
 	if err = runPreparePackedAssets(ctx, a, commandInput{}); err != nil {
 		return err
 	}
@@ -638,22 +641,9 @@ func runBuild(ctx context.Context, a *app, input commandInput) error {
 		return fmt.Errorf("create build output directory: %w", err)
 	}
 
-	fmt.Fprintln(a.stdout, "Building frontend...")
-	if err = a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "apps", "lina-vben"), Quiet: !verbose}, "pnpm", "run", "build"); err != nil {
+	if err = ensureFrontendEmbedAssets(ctx, a, verbose); err != nil {
 		return err
 	}
-
-	embedDir := filepath.Join(a.root, "apps", "lina-core", "internal", "packed", "public")
-	if err = os.RemoveAll(embedDir); err != nil {
-		return fmt.Errorf("clean frontend embed directory: %w", err)
-	}
-	if err = os.MkdirAll(embedDir, 0o755); err != nil {
-		return fmt.Errorf("create frontend embed directory: %w", err)
-	}
-	if err = copyDirContents(filepath.Join(a.root, "apps", "lina-vben", "apps", "web-antd", "dist"), embedDir); err != nil {
-		return err
-	}
-	fmt.Fprintln(a.stdout, "Host frontend embedded assets generated")
 
 	if err = runPreparePackedAssets(ctx, a, commandInput{}); err != nil {
 		return err
@@ -967,6 +957,48 @@ func (a *app) runCommand(ctx context.Context, options commandOptions, name strin
 	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("run %s: %w", strings.Join(append([]string{name}, args...), " "), err)
+	}
+	return nil
+}
+
+// ensureFrontendEmbedAssets rebuilds the frontend bundle embedded by the host.
+func ensureFrontendEmbedAssets(ctx context.Context, a *app, verbose bool) error {
+	frontendDir := filepath.Join(a.root, "apps", "lina-vben")
+	webDistDir := filepath.Join(frontendDir, "apps", "web-antd", "dist")
+	embedDir := filepath.Join(a.root, "apps", "lina-core", "internal", "packed", "public")
+
+	var err error
+	if _, err = fmt.Fprintln(a.stdout, "Building frontend..."); err != nil {
+		return fmt.Errorf("write frontend build output: %w", err)
+	}
+	if err = os.RemoveAll(webDistDir); err != nil {
+		return fmt.Errorf("clean frontend dist directory: %w", err)
+	}
+	if err = a.runCommand(ctx, commandOptions{Dir: frontendDir, Quiet: !verbose}, "pnpm", "-F", "@lina/web-antd", "build"); err != nil {
+		return err
+	}
+	if err = refreshFrontendEmbedAssets(webDistDir, embedDir); err != nil {
+		return err
+	}
+	if _, err = fmt.Fprintln(a.stdout, "Host frontend embedded assets generated"); err != nil {
+		return fmt.Errorf("write frontend embed output: %w", err)
+	}
+	return nil
+}
+
+// refreshFrontendEmbedAssets copies the latest Vite dist into the host embed tree.
+func refreshFrontendEmbedAssets(distDir string, embedDir string) error {
+	if err := os.RemoveAll(embedDir); err != nil {
+		return fmt.Errorf("clean frontend embed directory: %w", err)
+	}
+	if err := os.MkdirAll(embedDir, 0o755); err != nil {
+		return fmt.Errorf("create frontend embed directory: %w", err)
+	}
+	if err := copyDirContents(distDir, embedDir); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(embedDir, ".gitkeep"), []byte{}, 0o644); err != nil {
+		return fmt.Errorf("write frontend embed .gitkeep: %w", err)
 	}
 	return nil
 }
