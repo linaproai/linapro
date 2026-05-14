@@ -8,7 +8,7 @@
 cd hack/tools/linactl
 go run . help
 go run . status
-go run . prepare-packed-assets
+go run . pack.assets
 go run . wasm p=plugin-demo-dynamic
 go run . plugins.status
 go run . i18n.check
@@ -26,6 +26,7 @@ The repository root also provides `make.cmd` as a thin Windows wrapper:
 ```cmd
 make.cmd help
 make.cmd status
+make.cmd pack.assets
 make.cmd plugins.status
 make.cmd i18n.check
 make.cmd init confirm=init
@@ -38,6 +39,7 @@ In PowerShell, run it with an explicit current-directory prefix:
 ```powershell
 .\make.cmd help
 .\make.cmd status
+.\make.cmd pack.assets
 .\make.cmd i18n.check
 .\make.cmd release.tag.check tag=v0.2.0
 ```

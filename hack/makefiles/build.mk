@@ -36,6 +36,13 @@ endif
 build:
 	@$(LINACTL) build $(BUILD_CONFIG_ARGS) verbose=$(verbose)
 
+# Prepare host manifest assets for Go embedding.
+# 准备宿主 manifest 资源，用于 Go 嵌入。
+## pack.assets: Prepare host manifest assets for embedding
+.PHONY: pack.assets
+pack.assets:
+	@$(LINACTL) pack.assets
+
 # Build runtime Wasm plugin artifacts into the shared output directory.
 # 将 runtime Wasm 插件产物构建到共享输出目录。
 ## wasm: Build runtime wasm plugins from the official plugin submodule, or use p=<plugin-id> for one plugin; outputs to temp/output, use verbose=1 or v=1 for detailed logs

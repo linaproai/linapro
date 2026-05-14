@@ -58,7 +58,7 @@ jobs:
         run: |
           go run ./hack/tools/linactl help
           go run ./hack/tools/linactl status
-          go run ./hack/tools/linactl prepare-packed-assets
+          go run ./hack/tools/linactl pack.assets
 
       # Verify plugin-only linactl commands when this workflow is called in plugin-full mode.
       # 当调用方使用插件完整模式时，验证插件专属 linactl 命令。
@@ -75,6 +75,7 @@ jobs:
         run: |
           make.cmd help
           make.cmd status
+          make.cmd pack.assets
 
       # Verify the same Windows batch wrapper from PowerShell.
       # 在 PowerShell 中验证同一个 Windows 批处理包装入口。
@@ -83,3 +84,4 @@ jobs:
         run: |
           .\make.cmd help
           .\make.cmd status
+          .\make.cmd pack.assets

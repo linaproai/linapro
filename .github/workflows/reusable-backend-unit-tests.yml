@@ -92,7 +92,7 @@ jobs:
       # 生成后端包测试所需的前端和插件嵌入资源。
       - name: Prepare Packed Assets
         run: |
-          make -C apps/lina-core prepare-packed-assets
+          make pack.assets
 
       # Run Go tests through linactl so host-only and plugin-full modes share one entry point.
       # 通过 linactl 运行 Go 测试，让宿主和插件完整模式共用同一入口。

@@ -72,6 +72,21 @@ func TestCommandRegistryUsesDottedImageBuildCommand(t *testing.T) {
 	}
 }
 
+// TestCommandRegistryUsesDottedPackAssetsCommand guards the public manifest
+// asset packing command name.
+func TestCommandRegistryUsesDottedPackAssetsCommand(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["pack.assets"]; !ok {
+		t.Fatalf("expected command %q to be registered", "pack.assets")
+	}
+	if _, ok := registry["prepare-packed-assets"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "prepare-packed-assets")
+	}
+	if normalized := normalizeCommandName("prepare-packed-assets"); normalized != "prepare-packed-assets" {
+		t.Fatalf("legacy command name should not be normalized to a public alias, got %q", normalized)
+	}
+}
+
 // TestCommandRegistryIncludesReleaseTagCheck verifies the public release
 // governance command name.
 func TestCommandRegistryIncludesReleaseTagCheck(t *testing.T) {
