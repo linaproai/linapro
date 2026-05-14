@@ -7,7 +7,7 @@ include ./hack/hack.mk
 # pack.assets: 准备宿主 manifest 与插件相关嵌入资源，供后续后端构建打包使用
 .PHONY: pack.assets
 pack.assets:
-	@go run ../../hack/tools/linactl prepare-packed-assets
+	@go run ../../hack/tools/linactl pack.assets
 
 # build: Prepare embedded assets, then build the host backend binary via GoFrame config
 # build: 先准备嵌入资源，再按 hack/config.yaml 调用 GoFrame 构建宿主后端二进制

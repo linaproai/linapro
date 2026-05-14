@@ -43,30 +43,13 @@ jobs:
         with:
           submodules: ${{ inputs.submodules }}
 
-      # Install Go so linactl can be executed through go run on Windows.
-      # 安装 Go，使 Windows 上可以通过 go run 执行 linactl。
+      # Install Go so make.cmd can execute linactl through go run on Windows.
+      # 安装 Go，使 make.cmd 可以在 Windows 上通过 go run 执行 linactl。
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache: false
-
-      # Verify the baseline linactl commands that should work without plugin sources.
-      # 验证无需插件源码也应可用的 linactl 基础命令。
-      - name: Verify linactl Basic Commands
-        shell: pwsh
-        run: |
-          go run ./hack/tools/linactl help
-          go run ./hack/tools/linactl status
-          go run ./hack/tools/linactl pack.assets
-
-      # Verify plugin-only linactl commands when this workflow is called in plugin-full mode.
-      # 当调用方使用插件完整模式时，验证插件专属 linactl 命令。
-      - name: Verify linactl Plugin Commands
-        if: ${{ inputs.plugins == '1' }}
-        shell: pwsh
-        run: |
-          go run ./hack/tools/linactl wasm dry-run=true
 
       # Verify the Windows batch wrapper from cmd.exe.
       # 在 cmd.exe 中验证 Windows 批处理包装入口。
@@ -85,3 +68,11 @@ jobs:
           .\make.cmd help
           .\make.cmd status
           .\make.cmd pack.assets
+
+      # Verify plugin-only make.cmd commands when this workflow is called in plugin-full mode.
+      # 当调用方使用插件完整模式时，验证插件专属 make.cmd 命令。
+      - name: Verify make.cmd Plugin Commands
+        if: ${{ inputs.plugins == '1' }}
+        shell: pwsh
+        run: |
+          .\make.cmd wasm dry-run=true

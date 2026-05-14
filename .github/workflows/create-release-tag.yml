@@ -52,9 +52,8 @@ jobs:
       - name: Prepare Release Tag
         id: release
         run: |
-          version="$(cd hack/tools/linactl && go run . release.tag.check print-version=1)"
-          cd hack/tools/linactl
-          go run . release.tag.check tag="${version}"
+          version="$(make release.tag.check print-version=1)"
+          make release.tag.check tag="${version}"
           {
             echo "tag=${version}"
             echo "sha=${GITHUB_SHA}"

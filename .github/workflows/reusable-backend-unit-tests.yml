@@ -14,10 +14,10 @@ on:
         required: false
         type: string
         default: "false"
-      # Passes the host-only or plugin-full mode into linactl test.go.
-      # 将宿主或插件完整模式传给 linactl test.go。
+      # Passes the host-only or plugin-full mode into make test.go.
+      # 将宿主或插件完整模式传给 make test.go。
       plugins:
-        description: Official plugin build mode for linactl test.go.
+        description: Official plugin build mode for make test.go.
         required: false
         type: string
         default: "0"
@@ -94,8 +94,8 @@ jobs:
         run: |
           make pack.assets
 
-      # Run Go tests through linactl so host-only and plugin-full modes share one entry point.
-      # 通过 linactl 运行 Go 测试，让宿主和插件完整模式共用同一入口。
+      # Run Go tests through the root make entry point so host-only and plugin-full modes share one wrapper.
+      # 通过根目录 make 入口运行 Go 测试，让宿主和插件完整模式共用同一包装入口。
       - name: Run Go Unit Tests
         env:
           # This link is intentionally provided as an explicit integration-test
@@ -108,4 +108,4 @@ jobs:
           # 环境变量作为显式开关，避免本地 go test 误连或改写开发/运行库。
           LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
         run: |
-          go run ./hack/tools/linactl test.go plugins="${{ inputs.plugins }}" race=true verbose=true
+          make test.go plugins="${{ inputs.plugins }}" race=true verbose=true

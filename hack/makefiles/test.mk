@@ -6,6 +6,12 @@ TEST_GO_ARGS :=
 ifneq ($(origin plugins), undefined)
 TEST_GO_ARGS += plugins=$(plugins)
 endif
+ifneq ($(origin race), undefined)
+TEST_GO_ARGS += race=$(race)
+endif
+ifneq ($(origin verbose), undefined)
+TEST_GO_ARGS += verbose=$(verbose)
+endif
 
 # Run the complete Playwright E2E test suite.
 # 运行完整的 Playwright E2E 测试套件。

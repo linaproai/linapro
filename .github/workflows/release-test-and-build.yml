@@ -29,8 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # Check out repository metadata so linactl can read framework.version.
-      # 拉取仓库元数据，供 linactl 读取 framework.version。
+      # Check out repository metadata so the release make target can read framework.version.
+      # 拉取仓库元数据，供 release make 指令读取 framework.version。
       - name: Checkout Repository
         uses: actions/checkout@v5
 
@@ -38,8 +38,7 @@ jobs:
       # 确保推送的标签与 apps/lina-core manifest 元数据完全一致。
       - name: Verify Release Tag Matches Framework Version
         run: |
-          cd hack/tools/linactl
-          go run . release.tag.check
+          make release.tag.check
 
   # Verifies host-only Windows command entry points before any release image can be published.
   # 在发布镜像前验证宿主模式 Windows 命令入口。
