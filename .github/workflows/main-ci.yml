@@ -42,7 +42,7 @@ jobs:
   # Reuses the Windows smoke workflow to verify cross-platform command entry points.
   # 复用 Windows 冒烟工作流，验证跨平台命令入口。
   windows-command-smoke:
-    name: Windows command smoke
+    name: Windows command smoke (host-only)
     uses: ./.github/workflows/reusable-windows-command-smoke.yml
     with:
       plugins: "0"
@@ -62,7 +62,7 @@ jobs:
   # Runs host-only Go unit tests against a PostgreSQL-backed reusable workflow.
   # 通过可复用工作流运行宿主模式 Go 单元测试，并使用 PostgreSQL。
   backend-unit-tests:
-    name: Go unit tests
+    name: Go unit tests (host-only)
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
     with:
       plugins: "0"
