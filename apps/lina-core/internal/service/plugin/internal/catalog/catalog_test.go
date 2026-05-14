@@ -70,6 +70,63 @@ func TestValidatePluginManifestRejectsMissingBackendEntryForSourcePlugin(t *test
 	}
 }
 
+// TestScanPluginManifestsReportsInvalidEmbeddedSourceManifest verifies an
+// invalid registered source plugin remains a hard scan failure.
+func TestScanPluginManifestsReportsInvalidEmbeddedSourceManifest(t *testing.T) {
+	svcs := testutil.NewServices()
+
+	const pluginID = "plugin-invalid-embedded"
+	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
+	sourcePlugin.Assets().UseEmbeddedFiles(fstest.MapFS{
+		"plugin.yaml": &fstest.MapFile{Data: []byte("id: plugin-invalid-embedded\nname: Invalid Plugin\nversion: invalid\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\n")},
+	})
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(sourcePlugin)
+	if err != nil {
+		t.Fatalf("failed to register invalid source plugin fixture: %v", err)
+	}
+	t.Cleanup(cleanup)
+
+	_, scanErr := svcs.Catalog.ScanManifests()
+	if scanErr == nil || !strings.Contains(scanErr.Error(), "version") {
+		t.Fatalf("expected invalid embedded source manifest error, got: %v", scanErr)
+	}
+}
+
+// TestValidateManifestUsesManifestRootDir verifies that source manifest
+// validation resolves SQL assets from the manifest root instead of the current
+// working directory.
+func TestValidateManifestUsesManifestRootDir(t *testing.T) {
+	svcs := testutil.NewServices()
+	pluginDir := testutil.CreateTestPluginDir(t, "plugin-manifest-rootdir")
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+
+	manifest := &catalog.Manifest{
+		ID:      "plugin-manifest-rootdir",
+		Name:    "Manifest RootDir Plugin",
+		Version: "0.1.0",
+		Type:    catalog.TypeSource.String(),
+	}
+	if err := os.Remove(filepath.Join(pluginDir, "manifest", "sql", "001-plugin-manifest-rootdir.sql")); err != nil {
+		t.Fatalf("failed to remove plugin install sql: %v", err)
+	}
+	if err := os.Remove(filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-plugin-manifest-rootdir.sql")); err != nil {
+		t.Fatalf("failed to remove plugin uninstall sql: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(pluginDir, "manifest", "sql"), 0o755); err != nil {
+		t.Fatalf("failed to recreate sql dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "manifest", "sql", "001-plugin-manifest-rootdir.sql"), []byte("SELECT 1;\n"), 0o644); err != nil {
+		t.Fatalf("failed to write plugin install sql: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "manifest", "sql", "uninstall", "001-plugin-manifest-rootdir.sql"), []byte("SELECT 1;\n"), 0o644); err != nil {
+		t.Fatalf("failed to write plugin uninstall sql: %v", err)
+	}
+
+	if err := svcs.Catalog.ValidateManifest(manifest, manifestPath); err != nil {
+		t.Fatalf("expected manifest validation to use plugin root dir, got error: %v", err)
+	}
+}
+
 // TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata verifies
 // that dynamic plugins validate from embedded runtime artifact metadata alone.
 func TestValidatePluginManifestAcceptsRuntimePluginWithEmbeddedWasmMetadata(t *testing.T) {
@@ -220,34 +277,14 @@ func TestValidatePluginManifestRejectsMismatchedRuntimeWasmManifest(t *testing.T
 	}
 }
 
-// TestScanPluginManifestsRejectsDuplicatePluginIDs verifies that source-plugin
-// discovery fails fast when duplicate plugin IDs are found.
+// TestScanPluginManifestsRejectsDuplicatePluginIDs verifies that discovery
+// fails fast when a registered source plugin and runtime artifact share an ID.
 func TestScanPluginManifestsRejectsDuplicatePluginIDs(t *testing.T) {
 	svcs := testutil.NewServices()
-	pluginDir := testutil.CreateTestPluginDir(t, "plugin-duplicate-id")
-	peerPluginDir := testutil.CreateTestPluginDir(t, "plugin-duplicate-id-peer")
+	pluginID := "plugin-duplicate-id"
 
-	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
-	manifestContent := strings.Join([]string{
-		"id: plugin-duplicate-id-shared",
-		"name: Duplicate Plugin",
-		"version: 0.1.0",
-		"type: source",
-		"scope_nature: tenant_aware",
-		"supports_multi_tenant: false",
-		"default_install_mode: global",
-		"description: Duplicate id test plugin",
-		"author: test-suite",
-		"license: Apache-2.0",
-		"",
-	}, "\n")
-	if err := os.WriteFile(manifestPath, []byte(manifestContent), 0o644); err != nil {
-		t.Fatalf("failed to write duplicate manifest: %v", err)
-	}
-	peerManifestPath := filepath.Join(peerPluginDir, "plugin.yaml")
-	if err := os.WriteFile(peerManifestPath, []byte(manifestContent), 0o644); err != nil {
-		t.Fatalf("failed to write duplicate peer manifest: %v", err)
-	}
+	testutil.CreateTestPluginDir(t, pluginID)
+	testutil.CreateTestRuntimeStorageArtifact(t, pluginID, "Duplicate Runtime Plugin", "v0.1.0", nil, nil)
 
 	_, err := svcs.Catalog.ScanManifests()
 	if err == nil || !strings.Contains(err.Error(), "plugin ID is duplicated") {

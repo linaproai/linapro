@@ -35,7 +35,7 @@ apps/                → MonoRepo项目目录
   lina-vben/         → 默认管理工作台（Vben5 前端 pnpm monorepo）
     apps/web-antd/   → 默认管理工作台应用（Ant Design Vue）
     packages/        → 共享库（@core, effects, stores, utils 等）
-  lina-plugins/      → 插件样例与插件开发参考入口
+  lina-plugins/      → 官方源码插件仓库 submodule 挂载入口
     <plugin-id>/     → 源码插件目录（统一结构）
       backend/       → 插件后端入口与实现
         api/         → 插件 API DTO 与路由接口定义
@@ -72,12 +72,13 @@ openspec/            → OpenSpec相关文档
 
 ```bash
 make dev                         # 启动前后端（前端:5666, 后端:8080）
+make dev plugins=0               # 强制宿主模式启动（不加载官方源码插件）
 make stop                        # 停止所有服务
 make status                      # 查看服务状态
 make test                        # 运行完整E2E测试
 make init                        # 初始化数据库（DDL + Seed 数据）
 make mock                        # 加载 Mock 演示数据（需先执行 init）
-make image tag=v0.6.0            # 构建生产 Docker 镜像，可追加 registry=ghcr.io/linaproai push=1 推送
+make image tag=v0.6.0            # 构建生产 Docker 镜像；检测到 apps/lina-plugins 插件清单时自动启用插件模式，可追加 registry=ghcr.io/linaproai push=1 推送
 # 升级框架/源码插件：通过 AI 工具调用 .claude/skills/lina-upgrade/ 技能，例如 "upgrade LinaPro framework to v0.6.0"
 make up                          # 默认用 claude 生成 commit message 并推送
 make up tool=codex               # 使用 codex 生成 commit message 并推送
@@ -117,6 +118,16 @@ pnpm report            # 查看 HTML 报告
 ```
 
 测试文件命名规范：`TC{NNNN}*.ts`（如 `TC0001-login.ts`）。宿主测试放在 `hack/tests/e2e/` 对应模块目录下；源码插件自有测试放在 `apps/lina-plugins/<plugin-id>/hack/tests/e2e/`，插件专属 POM/helper 放在同插件的 `hack/tests/pages/`、`hack/tests/support/`。
+
+## 官方插件工作区
+
+- 官方源码插件仓库独立维护在 `https://github.com/linaproai/official-plugins.git`
+- 主仓库通过 `apps/lina-plugins` submodule 挂载官方插件仓库
+- host-only 命令可在未初始化 submodule 时运行
+- `make dev`、`make build`、`make image` 和 `make image-build` 在未显式传入 `plugins` 时会自动检测 `apps/lina-plugins/*/plugin.yaml`；存在插件清单则启用插件完整模式，否则为宿主模式。需要强制宿主模式时传入 `plugins=0`
+- 插件完整模式会基于宿主专用的根目录 `go.work` 自动生成或刷新已忽略的 `temp/go.work.plugins`，并通过 `GOWORK` 解析源码插件 Go 模块；根目录 `go.work` 始终保持 host-only
+- 插件专属测试和插件 E2E 需要先执行 `git submodule update --init --recursive`
+- 本地 submodule 管理 remote 使用 `git@github.com:linaproai/official-plugins.git`
 
 # 文档编写规范
 

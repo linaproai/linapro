@@ -285,6 +285,9 @@ type RegistryQueryService interface {
 	WithStartupDataSnapshot(ctx context.Context) (context.Context, error)
 	// SyncSourcePlugins scans source plugin manifests and synchronizes default status.
 	SyncSourcePlugins(ctx context.Context) error
+	// SyncSourcePluginsStrict synchronizes source plugins discovered by the
+	// running host.
+	SyncSourcePluginsStrict(ctx context.Context) (*ListOutput, error)
 	// SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
 	// returns the combined list of source and dynamic plugin items.
 	SyncAndList(ctx context.Context) (*ListOutput, error)

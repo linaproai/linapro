@@ -18,6 +18,7 @@ import (
 	"lina-core/internal/service/config"
 	"lina-core/pkg/bizerr"
 	"lina-core/pkg/pluginhost"
+	"lina-core/pkg/testsupport"
 )
 
 // TestLocalizeErrorSupportsStructuredRuntimeMessages verifies structured
@@ -321,6 +322,9 @@ func TestLocalizeErrorUsesRealPluginErrorResources(t *testing.T) {
 	t.Cleanup(resetRuntimeBundleCache)
 
 	repoRoot := findRepoRootForI18NTest(t)
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
+	}
 	pluginDirs := []string{
 		"content-notice",
 		"org-center",
@@ -442,9 +446,7 @@ func findRepoRootForI18NTest(t *testing.T) string {
 	current := workingDir
 	for {
 		if _, statErr := os.Stat(filepath.Join(current, "apps", "lina-core", "go.mod")); statErr == nil {
-			if _, pluginErr := os.Stat(filepath.Join(current, "apps", "lina-plugins")); pluginErr == nil {
-				return current
-			}
+			return current
 		}
 		parent := filepath.Dir(current)
 		if parent == current {

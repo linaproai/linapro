@@ -23,6 +23,7 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 	}
 
 	pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "plugin-demo-dynamic")
+	prepareTemporaryPluginGoWorkForTest(t, repoRoot)
 	expectedFrontendAssets := mustCollectSourceFrontendAssets(t, pluginDir)
 	expectedInstallSQLAssets := mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql")
 	expectedUninstallSQLAssets := mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql/uninstall")
@@ -84,6 +85,166 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 		t.Fatalf("expected mock sql section json to unmarshal, got error: %v", err)
 	}
 	assertSQLAssetsMatchSource(t, expectedMockSQLAssets, mockSQLAssets)
+}
+
+// prepareTemporaryPluginGoWorkForTest mirrors linactl's ignored plugin
+// workspace generation for tests that call the builder package directly.
+func prepareTemporaryPluginGoWorkForTest(t *testing.T, repoRoot string) {
+	t.Helper()
+
+	rootContent, err := os.ReadFile(filepath.Join(repoRoot, "go.work"))
+	if err != nil {
+		t.Fatalf("failed to read root go.work: %v", err)
+	}
+	version := testGoWorkVersion(string(rootContent))
+	if version == "" {
+		t.Fatal("root go.work is missing a go version directive")
+	}
+
+	workspacePath := filepath.Join(repoRoot, "temp", "go.work.plugins")
+	uses := make([]string, 0)
+	seen := make(map[string]struct{})
+	addUse := func(use string) {
+		normalized := strings.TrimPrefix(filepath.ToSlash(filepath.Clean(use)), "./")
+		if normalized == "" || normalized == "apps/lina-plugins" || strings.HasPrefix(normalized, "apps/lina-plugins/") {
+			return
+		}
+		if _, ok := seen[normalized]; ok {
+			return
+		}
+		seen[normalized] = struct{}{}
+		uses = append(uses, normalized)
+	}
+	for _, use := range testGoWorkUses(string(rootContent)) {
+		addUse(use)
+	}
+
+	pluginUses := testPluginGoWorkUses(t, repoRoot)
+	for _, use := range pluginUses {
+		if _, ok := seen[use]; ok {
+			continue
+		}
+		seen[use] = struct{}{}
+		uses = append(uses, use)
+	}
+
+	var builder strings.Builder
+	builder.WriteString("go ")
+	builder.WriteString(version)
+	builder.WriteString("\n\nuse (\n")
+	for _, use := range uses {
+		modulePath := filepath.Join(repoRoot, filepath.FromSlash(use))
+		relativePath, err := filepath.Rel(filepath.Dir(workspacePath), modulePath)
+		if err != nil {
+			t.Fatalf("failed to render test plugin workspace path %s: %v", use, err)
+		}
+		builder.WriteString("\t")
+		builder.WriteString(filepath.ToSlash(relativePath))
+		builder.WriteString("\n")
+	}
+	builder.WriteString(")\n")
+
+	if err = os.MkdirAll(filepath.Dir(workspacePath), 0o755); err != nil {
+		t.Fatalf("failed to create test plugin workspace directory: %v", err)
+	}
+	if err = os.WriteFile(workspacePath, []byte(builder.String()), 0o644); err != nil {
+		t.Fatalf("failed to write test plugin workspace: %v", err)
+	}
+}
+
+// testPluginGoWorkUses discovers plugin modules for the test workspace.
+func testPluginGoWorkUses(t *testing.T, repoRoot string) []string {
+	t.Helper()
+
+	pluginRoot := filepath.Join(repoRoot, "apps", "lina-plugins")
+	uses := make([]string, 0)
+	if err := filepath.WalkDir(pluginRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || entry.Name() != "go.mod" {
+			return nil
+		}
+		relativePath, relErr := filepath.Rel(repoRoot, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
+		}
+		uses = append(uses, filepath.ToSlash(relativePath))
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to scan official plugin modules: %v", err)
+	}
+	sort.Slice(uses, func(left int, right int) bool {
+		leftDepth := strings.Count(uses[left], "/")
+		rightDepth := strings.Count(uses[right], "/")
+		if leftDepth != rightDepth {
+			return leftDepth < rightDepth
+		}
+		return uses[left] < uses[right]
+	})
+	return uses
+}
+
+// testGoWorkVersion extracts the go directive from test workspace content.
+func testGoWorkVersion(content string) string {
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(testStripGoWorkComment(line))
+		if len(fields) >= 2 && fields[0] == "go" {
+			return fields[1]
+		}
+	}
+	return ""
+}
+
+// testGoWorkUses extracts use directives from test workspace content.
+func testGoWorkUses(content string) []string {
+	var (
+		uses       []string
+		inUseBlock bool
+	)
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(testStripGoWorkComment(line))
+		if trimmed == "" {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "use (") {
+			inUseBlock = true
+			continue
+		}
+		if inUseBlock {
+			if trimmed == ")" {
+				inUseBlock = false
+				continue
+			}
+			if use := testFirstGoWorkField(trimmed); use != "" {
+				uses = append(uses, use)
+			}
+			continue
+		}
+		if strings.HasPrefix(trimmed, "use ") {
+			if use := testFirstGoWorkField(strings.TrimSpace(strings.TrimPrefix(trimmed, "use"))); use != "" && use != "(" {
+				uses = append(uses, use)
+			}
+		}
+	}
+	return uses
+}
+
+// testStripGoWorkComment removes simple line comments from go.work syntax.
+func testStripGoWorkComment(line string) string {
+	if index := strings.Index(line, "//"); index >= 0 {
+		return line[:index]
+	}
+	return line
+}
+
+// testFirstGoWorkField returns the first path-like token from one go.work line.
+func testFirstGoWorkField(line string) string {
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.Trim(fields[0], "\"")
 }
 
 // mustCollectSourceFrontendAssets loads plugin frontend source files using the

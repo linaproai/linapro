@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node ./scripts/run-suite.mjs full",
+    "test:host": "node ./scripts/run-suite.mjs host",
     "test:smoke": "node ./scripts/run-suite.mjs smoke",
     "test:module": "node ./scripts/run-suite.mjs module",
     "test:sqlite": "node ./scripts/run-sqlite-suite.mjs",

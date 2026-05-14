@@ -258,16 +258,19 @@ func shouldReplaceDefaultTopology(current Topology, next Topology) bool {
 	if current == nil {
 		return true
 	}
+	_, currentStatic := current.(staticTopology)
+	_, nextStatic := next.(staticTopology)
+	if currentStatic && !nextStatic {
+		return true
+	}
+	if !currentStatic && nextStatic {
+		return false
+	}
 	if current.IsEnabled() && !next.IsEnabled() {
 		return false
 	}
 	if !current.IsEnabled() && next.IsEnabled() {
 		return true
-	}
-	_, currentStatic := current.(staticTopology)
-	_, nextStatic := next.(staticTopology)
-	if !currentStatic && nextStatic {
-		return false
 	}
 	return true
 }

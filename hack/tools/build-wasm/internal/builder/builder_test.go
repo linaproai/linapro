@@ -520,6 +520,23 @@ func TestWriteRuntimeWasmArtifactFromSourceSupportsRelativeOutputDir(t *testing.
 	}
 }
 
+func TestSelectGuestRuntimeGoWorkUsesPluginWorkspaceOnlyForOfficialPlugins(t *testing.T) {
+	repoRoot, ok := findRuntimeBuildRepoRoot(".")
+	if !ok {
+		t.Fatal("expected builder test to resolve repo root")
+	}
+
+	officialPluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "plugin-demo-dynamic")
+	if got := selectGuestRuntimeGoWork(officialPluginDir); got != filepath.Join(repoRoot, "temp", "go.work.plugins") {
+		t.Fatalf("expected official plugin dir to use temporary plugin workspace, got %q", got)
+	}
+
+	syntheticPluginDir := t.TempDir()
+	if got := selectGuestRuntimeGoWork(syntheticPluginDir); got != "off" {
+		t.Fatalf("expected synthetic plugin dir to use workspace off, got %q", got)
+	}
+}
+
 func mustWriteFile(t *testing.T, filePath string, content string) {
 	t.Helper()
 

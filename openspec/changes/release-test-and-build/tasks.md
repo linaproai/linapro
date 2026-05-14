@@ -40,3 +40,12 @@
 ## 审查记录
 
 - [x] 2026-05-13: `lina-review` 审查完成。审查范围来源：`git status --short -- .github/workflows/release-build.yml .github/workflows/release-test-and-build.yml .github/workflows/reusable-backend-unit-tests.yml .github/workflows/reusable-frontend-unit-tests.yml .github/workflows/reusable-windows-command-smoke.yml openspec/changes/release-test-and-build`、`git diff`、未跟踪文件展开、`openspec status --change release-test-and-build --json`。确认 release workflow 已替换为 `Release Test and Build`，镜像发布 job 通过 `needs` 等待 Windows 命令冒烟、Go 单测、前端单测、完整 E2E 和 Redis cluster smoke；release checkout 使用递归 submodule；E2E 与镜像发布前包含官方插件工作区 preflight；完整 E2E 使用 `pnpm test` 覆盖宿主与插件范围；测试失败、取消或超时会阻止 GHCR 登录、镜像 push 和 `latest` 更新。`actionlint`、OpenSpec 严格校验、YAML 解析和空白检查均通过。本变更只修改 GitHub Actions 和 OpenSpec 文档，不新增业务 API、数据库 schema、前端运行时文案、运行时缓存或数据权限逻辑，因此无 i18n、缓存一致性或数据权限实现变更。严重问题 0；警告 0。
+
+## Feedback
+
+- [x] **FB-1**: `hack/tools/image-builder/main.go` 单文件内容过大，CLI、配置归一化、平台解析、镜像构建、文件 staging 和命令执行职责集中，影响维护和审查；已拆分为同一 `package main` 下的入口编排、配置、参数、平台、环境输出、镜像、产物 staging 和命令执行源码文件，未新增可被外部 import 的包边界
+
+## Feedback Verification
+
+- [x] 2026-05-14: FB-1 验证通过：`cd hack/tools/image-builder && go test ./... -count=1`、`go run ./hack/tools/image-builder --preflight --tag=test-preflight`、`go run ./hack/tools/image-builder --print-build-env --tag=test-preflight`。确认 `main.go` 从 745 行降至约 100 行，最大拆分文件约 265 行，工具仍通过同一 `go run ./hack/tools/image-builder` 入口使用。i18n 影响：仅拆分开发工具源码文件，不新增或修改前端运行时文案、接口文档、manifest i18n 或 apidoc i18n 资源。缓存一致性影响：不涉及运行时缓存、失效或跨实例一致性策略。数据权限影响：不新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。E2E 影响：无前端可见行为变化，使用工具单元测试、preflight 和 build env 输出验证覆盖。
+- [x] 2026-05-14: FB-1 `lina-review` 审查完成。审查范围来源：`git status --short -- hack/tools/image-builder openspec/changes/release-test-and-build/tasks.md`、`git ls-files --others --exclude-standard hack/tools/image-builder`、`git diff -- hack/tools/image-builder/main.go openspec/changes/release-test-and-build/tasks.md`、`openspec status --change release-test-and-build --json`。确认拆分仅改变 `image-builder` 源码组织方式，`main.go` 保留入口和流程编排，其余职责保持同一 `package main` 下的不可 import 文件；未新增后端运行期依赖、HTTP/API、数据库 schema、前端运行时文案、缓存控制或数据权限逻辑。新增源码文件具备文件职责注释，函数/类型注释完整，未发现直接 `g.Log()`、隐式关键服务构造、未处理错误或用户可见接口错误风险。严重问题 0；警告 0。

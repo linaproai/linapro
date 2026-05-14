@@ -9,7 +9,7 @@ import (
 	pluginsvc "lina-core/internal/service/plugin"
 )
 
-// UploadDynamicPackage uploads one dynamic wasm package into the plugin workspace.
+// UploadDynamicPackage uploads one dynamic wasm package into runtime storage.
 func (c *ControllerV1) UploadDynamicPackage(ctx context.Context, req *v1.UploadDynamicPackageReq) (res *v1.UploadDynamicPackageRes, err error) {
 	r := g.RequestFromCtx(ctx)
 	uploadFile := r.GetUploadFile("file")

@@ -125,6 +125,16 @@ Plugins are the primary extension point in `LinaPro`. Each plugin is a self-cont
 - Plugins run in isolated sandboxes with namespaced database and filesystem access, so plugins cannot interfere with each other
 - Each plugin independently declares its own API routes, business logic, database schema, frontend pages, and menu entries — fully self-contained with zero host intrusion
 
+## Official Plugin Workspace
+
+The official source plugins live in a separate repository and are mounted into this host at `apps/lina-plugins` from `https://github.com/linaproai/official-plugins.git`.
+
+- Initialize it after cloning with `git submodule update --init --recursive`
+- Host-only commands work without the submodule
+- `make dev`, `make build`, `make image`, and `make image-build` auto-enable plugin-full mode when `apps/lina-plugins` contains plugin manifests; pass `plugins=0` to force host-only mode
+- Plugin-full mode generates or refreshes the ignored `temp/go.work.plugins` workspace from the host-only root `go.work`, then uses it via `GOWORK`
+- Plugin-only tests and plugin E2E require the submodule to be initialized
+
 ## Enterprise-Grade Security
 
 - JWT authentication paired with a declarative RBAC permission system — permissions are declared as struct tags in the API definition layer, making the permission model inherently visible and auditable
@@ -210,9 +220,10 @@ corepack enable
 cd apps/lina-vben
 pnpm install
 cd ../..
-go run ./hack/tools/linactl init confirm=init
-go run ./hack/tools/linactl mock confirm=mock
-go run ./hack/tools/linactl dev
+cd hack/tools/linactl
+go run . init confirm=init
+go run . mock confirm=mock
+go run . dev
 ```
 
 Linux and macOS users can keep using the compatibility `Makefile` entrypoint:

@@ -6,6 +6,7 @@ import {
   loadManifest,
   playwrightFileArg,
   pluginTestEntry,
+  requirePluginWorkspace,
   resolveEntries,
   splitBySerial,
   summarizeIsolationCategories,
@@ -83,7 +84,15 @@ function resolveModuleEntries(scope) {
 
 let exitCode = 0;
 if (mode === 'full') {
+  try {
+    requirePluginWorkspace();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  }
   exitCode = runMode(['e2e', 'plugins'], 'full');
+} else if (mode === 'host') {
+  exitCode = runMode(['e2e'], 'host');
 } else if (mode === 'smoke') {
   exitCode = runMode(manifest.smoke ?? [], 'smoke');
 } else if (mode === 'module') {
@@ -105,6 +114,14 @@ if (mode === 'full') {
   }
   const resolvedEntries = resolveEntries(entries);
   const isPluginScope = /^plugin:[^:]+$/u.test(scope);
+  if (scope === pluginTestEntry || isPluginScope) {
+    try {
+      requirePluginWorkspace();
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
   if (resolvedEntries.length === 0 && scope !== pluginTestEntry) {
     console.error(`Module scope has no matching test files: ${scope}`);
     if (isPluginScope) {

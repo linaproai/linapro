@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"lina-core/pkg/testsupport"
 )
 
 // panicCategory names the approved semantic boundary for a production panic.
@@ -482,6 +484,9 @@ var productionPanicPolicy = panicAuditPolicy{
 // narrow and documented.
 func TestProductionPanicsMatchAllowlist(t *testing.T) {
 	repoRoot := repoRootFromTest(t)
+	if !testsupport.OfficialPluginsWorkspaceReady(repoRoot) {
+		t.Skip("official plugin workspace is not initialized")
+	}
 	found := scanProductionPanicCalls(t, repoRoot, productionPanicPolicy)
 	allowlist := buildPanicAllowlist(t, productionPanicPolicy.Allowances)
 

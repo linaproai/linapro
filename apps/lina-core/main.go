@@ -12,8 +12,6 @@ import (
 
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/os/gctx"
-
-	_ "lina-plugins"
 )
 
 // main loads bootstrap configuration, configures logging, and runs the command tree.

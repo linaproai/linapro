@@ -123,6 +123,16 @@ graph TB
 - 插件运行在独立隔离的沙箱，数据库与文件访问均通过命名空间隔离，插件间互不干扰
 - 每个插件可独立声明`API`路由、业务逻辑、数据库表结构、前端页面与菜单，自包含零侵入
 
+## 官方插件工作区
+
+官方源码插件放在独立仓库中，并通过 `apps/lina-plugins` 作为 `submodule` 挂载到宿主，远端地址为 `https://github.com/linaproai/official-plugins.git`。
+
+- 克隆主仓库后执行 `git submodule update --init --recursive` 初始化
+- `host-only` 命令在未初始化 `submodule` 时也可以运行
+- `make dev`、`make build`、`make image` 和 `make image-build` 会在 `apps/lina-plugins` 存在插件清单时自动启用插件完整模式；如需强制宿主模式，可传入 `plugins=0`
+- 插件完整模式会基于宿主专用的根目录 `go.work` 自动生成或刷新已忽略的 `temp/go.work.plugins`，并通过 `GOWORK` 使用该临时 `workspace`
+- 插件专属测试和插件 `E2E` 需要先初始化 `submodule`
+
 ## 企业级安全认证
 
 - `JWT`认证配合声明式`RBAC`权限体系，权限通过`API`定义层的标签声明，天然可见可审计
@@ -211,9 +221,10 @@ corepack enable
 cd apps/lina-vben
 pnpm install
 cd ../..
-go run ./hack/tools/linactl init confirm=init
-go run ./hack/tools/linactl mock confirm=mock
-go run ./hack/tools/linactl dev
+cd hack/tools/linactl
+go run . init confirm=init
+go run . mock confirm=mock
+go run . dev
 ```
 
 `Linux`和`macOS`用户可以继续使用兼容`Makefile`入口：

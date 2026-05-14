@@ -13,6 +13,7 @@ BACKEND_LOG   := $(TEMP_DIR)/lina-core.log
 FRONTEND_LOG  := $(TEMP_DIR)/lina-vben.log
 EMBED_DIR     := $(BACKEND_DIR)/internal/packed/public
 OUTPUT_DIR    := $(TEMP_DIR)/output
+LINACTL       := cd hack/tools/linactl && go run .
 
 # Include split makefile targets.
 # 引入拆分后的 Makefile 目标文件。

@@ -3,14 +3,18 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 
+cd "$ROOT_DIR/hack/tools/linactl"
+go run . help >/dev/null
+go run . status >/dev/null
+go run . wasm dry-run=true >/dev/null
+
 cd "$ROOT_DIR"
-
-go run ./hack/tools/linactl help >/dev/null
-go run ./hack/tools/linactl status >/dev/null
-go run ./hack/tools/linactl wasm dry-run=true >/dev/null
-
 if [ -f make.cmd ]; then
-  grep -Fq "go run ./hack/tools/linactl %*" make.cmd
+  grep -Fq 'go run . %*' make.cmd
+  if grep -Fq 'GOWORK=off' make.cmd; then
+    echo "make.cmd must not force GOWORK=off"
+    exit 1
+  fi
 else
   echo "make.cmd is missing"
   exit 1

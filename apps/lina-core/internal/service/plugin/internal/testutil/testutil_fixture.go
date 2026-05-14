@@ -11,6 +11,7 @@ import (
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
 	"lina-core/pkg/pluginbridge"
+	"lina-core/pkg/pluginhost"
 )
 
 // CreateTestPluginDir creates a source plugin directory with the default file layout.
@@ -18,7 +19,6 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 	t.Helper()
 
 	pluginDir := filepath.Join(testSourcePluginRootDir, pluginID)
-	catalog.SetPluginRootDirOverride(testSourcePluginRootDir)
 	if err := os.MkdirAll(filepath.Join(pluginDir, "backend"), 0o755); err != nil {
 		t.Fatalf("failed to create backend dir: %v", err)
 	}
@@ -30,7 +30,6 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 	}
 
 	t.Cleanup(func() {
-		catalog.SetPluginRootDirOverride("")
 		if cleanupErr := os.RemoveAll(pluginDir); cleanupErr != nil && !os.IsNotExist(cleanupErr) {
 			t.Fatalf("failed to remove test plugin dir %s: %v", pluginDir, cleanupErr)
 		}
@@ -46,6 +45,14 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 		filepath.Join(pluginDir, "plugin.yaml"),
 		"id: "+pluginID+"\nname: test\nversion: 0.1.0\ntype: source\nscope_nature: tenant_aware\nsupports_multi_tenant: true\ndefault_install_mode: tenant_scoped\n",
 	)
+
+	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
+	sourcePlugin.Assets().UseEmbeddedFiles(os.DirFS(pluginDir))
+	cleanup, err := pluginhost.RegisterSourcePluginForTest(sourcePlugin)
+	if err != nil {
+		t.Fatalf("failed to register source plugin fixture %s: %v", pluginID, err)
+	}
+	t.Cleanup(cleanup)
 
 	return pluginDir
 }

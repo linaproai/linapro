@@ -32,6 +32,13 @@ func (s *serviceImpl) SyncSourcePlugins(ctx context.Context) error {
 	return err
 }
 
+// SyncSourcePluginsStrict synchronizes source plugins discovered by the
+// running host. Tooling is responsible for official submodule preflight before
+// plugin-full operations reach the runtime API.
+func (s *serviceImpl) SyncSourcePluginsStrict(ctx context.Context) (*ListOutput, error) {
+	return s.SyncAndList(ctx)
+}
+
 // SyncAndList scans plugin manifests, synchronizes plugin registry rows, and
 // returns the combined list of source and dynamic plugin items.
 func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {

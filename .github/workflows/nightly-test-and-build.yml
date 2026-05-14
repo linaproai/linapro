@@ -33,6 +33,182 @@ jobs:
     name: Frontend unit tests
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
 
+  host-only-build-smoke:
+    name: Host-only build smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      - name: Initialize Database
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init rebuild=true
+          make mock confirm=mock
+
+      - name: Build Host-only Artifact
+        run: |
+          make build plugins=0 platforms=linux/amd64 output_dir=temp/host-only-output
+
+      - name: Run Host-only Artifact Smoke
+        run: |
+          mkdir -p temp/host-only-smoke
+          backend_pid=""
+          cleanup() {
+            if [ -n "$backend_pid" ] && kill -0 "$backend_pid" 2>/dev/null; then
+              kill "$backend_pid" 2>/dev/null || true
+              wait "$backend_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup EXIT INT TERM
+
+          pushd apps/lina-core >/dev/null
+          ../../temp/host-only-output/lina > ../../temp/host-only-smoke/lina-core.log 2>&1 &
+          backend_pid="$!"
+          popd >/dev/null
+
+          response=""
+          for _ in $(seq 1 90); do
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              echo "Host-only backend exited before health check passed" >&2
+              echo "Check log: temp/host-only-smoke/lina-core.log" >&2
+              exit 1
+            fi
+            response="$(curl -fsS "http://127.0.0.1:8080/api/v1/health" 2>/dev/null || true)"
+            if [ -n "$response" ] && HEALTH_RESPONSE="$response" python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = json.loads(os.environ["HEALTH_RESPONSE"])
+          data = payload.get("data", payload)
+          if payload.get("code", 0) == 0 and data.get("status") == "ok" and data.get("mode") == "single":
+              sys.exit(0)
+          sys.exit(1)
+          PY
+            then
+              break
+            fi
+            sleep 1
+          done
+
+          if [ -z "$response" ]; then
+            echo "Host-only backend did not return a health response" >&2
+            echo "Check log: temp/host-only-smoke/lina-core.log" >&2
+            exit 1
+          fi
+
+          HEALTH_RESPONSE="$response" python3 - <<'PY'
+          import json
+          import os
+
+          payload = json.loads(os.environ["HEALTH_RESPONSE"])
+          data = payload.get("data", payload)
+          if payload.get("code", 0) != 0:
+              raise SystemExit(f"health business code is not zero: {payload!r}")
+          if data.get("status") != "ok":
+              raise SystemExit(f"expected health status ok, got: {payload!r}")
+          if data.get("mode") != "single":
+              raise SystemExit(f"expected single-node host-only mode, got: {payload!r}")
+          PY
+
+          login_response="$(
+            curl -fsS \
+              -H "Content-Type: application/json" \
+              -d '{"username":"admin","password":"admin123"}' \
+              "http://127.0.0.1:8080/api/v1/auth/login"
+          )"
+          token="$(LOGIN_RESPONSE="$login_response" python3 - <<'PY'
+          import json
+          import os
+
+          payload = json.loads(os.environ["LOGIN_RESPONSE"])
+          data = payload.get("data", payload)
+          if payload.get("code", 0) != 0:
+              raise SystemExit(f"login business code is not zero: {payload!r}")
+          token = data.get("accessToken")
+          if not token:
+              raise SystemExit(f"login response did not contain accessToken: {payload!r}")
+          print(token)
+          PY
+          )"
+
+          plugins_response="$(
+            curl -fsS \
+              -H "Authorization: Bearer $token" \
+              "http://127.0.0.1:8080/api/v1/plugins?type=source"
+          )"
+          PLUGINS_RESPONSE="$plugins_response" python3 - <<'PY'
+          import json
+          import os
+
+          payload = json.loads(os.environ["PLUGINS_RESPONSE"])
+          data = payload.get("data", payload)
+          if payload.get("code", 0) != 0:
+              raise SystemExit(f"plugin list business code is not zero: {payload!r}")
+          plugin_items = data.get("list") or []
+          if plugin_items:
+              raise SystemExit(f"expected no source plugins in host-only artifact, got: {plugin_items!r}")
+          if data.get("total", 0) != 0:
+              raise SystemExit(f"expected source plugin total=0 in host-only artifact, got: {payload!r}")
+          PY
+
+      - name: Upload Host-only Smoke Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-host-only-build-smoke-log
+          path: |
+            temp/host-only-smoke/lina-core.log
+          if-no-files-found: ignore
+          retention-days: 14
+
   e2e-tests:
     name: Full E2E tests
     runs-on: ubuntu-latest
@@ -218,6 +394,7 @@ jobs:
       - windows-command-smoke
       - backend-unit-tests
       - frontend-unit-tests
+      - host-only-build-smoke
       - e2e-tests
       - redis-cluster-smoke
 
