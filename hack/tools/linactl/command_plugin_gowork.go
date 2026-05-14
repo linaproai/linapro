@@ -17,6 +17,14 @@ type goWorkUse struct {
 	Normalized string
 }
 
+// officialPluginBackendImport stores one source-plugin backend import path for
+// the generated aggregate module.
+type officialPluginBackendImport struct {
+	PluginID string
+	Module   string
+	Import   string
+}
+
 // officialPluginGoWorkUses discovers plugin module directories that must be
 // present in the temporary plugin workspace for plugin-full builds.
 func officialPluginGoWorkUses(root string, workspace officialPluginWorkspace) ([]string, error) {
@@ -63,6 +71,10 @@ func writeOfficialPluginWorkspace(root string, workspace officialPluginWorkspace
 	if err != nil {
 		return "", err
 	}
+	aggregateUse, err := writeOfficialPluginAggregateModule(root, workspace)
+	if err != nil {
+		return "", err
+	}
 	hostUses, err := readGoWorkUses(root)
 	if err != nil {
 		return "", err
@@ -89,6 +101,9 @@ func writeOfficialPluginWorkspace(root string, workspace officialPluginWorkspace
 	for _, use := range hostUses {
 		addUse(use.Raw)
 	}
+	if aggregateUse != "" {
+		addUse(aggregateUse)
+	}
 	for _, use := range pluginUses {
 		normalized := normalizeGoWorkUse(root, use)
 		if normalized == "" {
@@ -112,6 +127,125 @@ func writeOfficialPluginWorkspace(root string, workspace officialPluginWorkspace
 		return "", fmt.Errorf("write plugin workspace: %w", err)
 	}
 	return workspacePath, nil
+}
+
+// writeOfficialPluginAggregateModule generates a tiny module that satisfies the
+// host's `import _ "lina-plugins"` bridge and imports official source-plugin
+// backend packages for their init registrations.
+func writeOfficialPluginAggregateModule(root string, workspace officialPluginWorkspace) (string, error) {
+	imports, err := officialPluginBackendImports(workspace)
+	if err != nil {
+		return "", err
+	}
+	moduleDir := officialPluginAggregateModuleDir(root)
+	if err = os.RemoveAll(moduleDir); err != nil {
+		return "", fmt.Errorf("clean official plugin aggregate module: %w", err)
+	}
+	if err = os.MkdirAll(moduleDir, 0o755); err != nil {
+		return "", fmt.Errorf("create official plugin aggregate module: %w", err)
+	}
+	if err = os.WriteFile(filepath.Join(moduleDir, "go.mod"), []byte(renderOfficialPluginAggregateGoMod()), 0o644); err != nil {
+		return "", fmt.Errorf("write official plugin aggregate go.mod: %w", err)
+	}
+	if err = os.WriteFile(filepath.Join(moduleDir, "plugins.go"), []byte(renderOfficialPluginAggregateGo(imports)), 0o644); err != nil {
+		return "", fmt.Errorf("write official plugin aggregate imports: %w", err)
+	}
+	relativePath, err := filepath.Rel(root, moduleDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve official plugin aggregate module path: %w", err)
+	}
+	return "./" + filepath.ToSlash(relativePath), nil
+}
+
+// officialPluginBackendImports discovers source-plugin backend packages that
+// must be imported by the generated aggregate module.
+func officialPluginBackendImports(workspace officialPluginWorkspace) ([]officialPluginBackendImport, error) {
+	var imports []officialPluginBackendImport
+	err := filepath.WalkDir(workspace.Root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if entry.Name() != "go.mod" {
+			return nil
+		}
+		moduleDir := filepath.Dir(path)
+		manifestPath := filepath.Join(moduleDir, "plugin.yaml")
+		backendPath := filepath.Join(moduleDir, "backend", "plugin.go")
+		if !fileExists(manifestPath) || !fileExists(backendPath) {
+			return nil
+		}
+		manifest, err := readPluginManifest(manifestPath)
+		if err != nil {
+			return err
+		}
+		if !strings.EqualFold(strings.TrimSpace(manifest.Type), "source") {
+			return nil
+		}
+		moduleName, err := readGoModuleName(path)
+		if err != nil {
+			return err
+		}
+		pluginID := filepath.Base(moduleDir)
+		imports = append(imports, officialPluginBackendImport{
+			PluginID: pluginID,
+			Module:   moduleName,
+			Import:   moduleName + "/backend",
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("discover official source-plugin backend imports: %w", err)
+	}
+	sort.Slice(imports, func(left int, right int) bool {
+		return imports[left].PluginID < imports[right].PluginID
+	})
+	return imports, nil
+}
+
+// readGoModuleName reads the module directive from a go.mod file.
+func readGoModuleName(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		line = stripGoWorkLineComment(line)
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == "module" {
+			return fields[1], nil
+		}
+	}
+	return "", fmt.Errorf("%s is missing a module directive", path)
+}
+
+// renderOfficialPluginAggregateGoMod renders the generated aggregate go.mod.
+func renderOfficialPluginAggregateGoMod() string {
+	return fmt.Sprintf("module %s\n\ngo 1.25.0\n", officialPluginAggregateModuleName)
+}
+
+// renderOfficialPluginAggregateGo renders the generated aggregate import file.
+func renderOfficialPluginAggregateGo(imports []officialPluginBackendImport) string {
+	var builder strings.Builder
+	builder.WriteString("// This file is generated by linactl for plugin-full builds.\n\n")
+	builder.WriteString("package linaplugins\n")
+	if len(imports) == 0 {
+		return builder.String()
+	}
+	builder.WriteString("\nimport (\n")
+	for _, item := range imports {
+		fmt.Fprintf(&builder, "\t_ %q\n", item.Import)
+	}
+	builder.WriteString(")\n")
+	return builder.String()
+}
+
+// officialPluginAggregateModuleDir returns the generated module directory used
+// by plugin-full builds.
+func officialPluginAggregateModuleDir(root string) string {
+	return filepath.Join(root, "temp", officialPluginAggregateDir)
 }
 
 // officialPluginGoWorkPath returns the ignored temporary workspace path used by

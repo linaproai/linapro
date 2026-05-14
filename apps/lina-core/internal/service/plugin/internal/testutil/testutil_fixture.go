@@ -3,10 +3,13 @@
 package testutil
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gogf/gf/v2/errors/gerror"
 
 	"lina-core/internal/service/plugin/internal/catalog"
 	"lina-core/internal/service/plugin/internal/runtime"
@@ -48,6 +51,29 @@ func CreateTestPluginDir(t *testing.T, pluginID string) string {
 
 	sourcePlugin := pluginhost.NewSourcePlugin(pluginID)
 	sourcePlugin.Assets().UseEmbeddedFiles(os.DirFS(pluginDir))
+	sourcePlugin.Cron().RegisterCron(
+		pluginhost.ExtensionPointCronRegister,
+		pluginhost.CallbackExecutionModeBlocking,
+		func(ctx context.Context, registrar pluginhost.CronRegistrar) error {
+			hostServices := registrar.HostServices()
+			if hostServices == nil || hostServices.Config() == nil {
+				return gerror.New("test source plugin cron requires host config service")
+			}
+			if _, err := hostServices.Config().Exists(ctx, "monitor.interval"); err != nil {
+				return err
+			}
+			return registrar.AddWithMetadata(
+				ctx,
+				"# * * * * *",
+				pluginID+"-test-source-fixture-cron",
+				"Test Source Fixture Cron",
+				"Verifies source-plugin cron collection receives host services.",
+				func(ctx context.Context) error {
+					return nil
+				},
+			)
+		},
+	)
 	cleanup, err := pluginhost.RegisterSourcePluginForTest(sourcePlugin)
 	if err != nil {
 		t.Fatalf("failed to register source plugin fixture %s: %v", pluginID, err)

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -95,6 +96,17 @@ type pluginLockEntry struct {
 	ContentHash    string `yaml:"contentHash"`
 }
 
+// pluginStatusRow stores one printable configured plugin status row.
+type pluginStatusRow struct {
+	Plugin    string
+	Source    string
+	Version   string
+	Installed string
+	Dirty     string
+	Remote    string
+	Note      string
+}
+
 // runPluginsInit converts apps/lina-plugins from a submodule into an ordinary
 // source-plugin directory while preserving files.
 func runPluginsInit(ctx context.Context, a *app, _ commandInput) error {
@@ -155,14 +167,23 @@ func runPluginsStatus(ctx context.Context, a *app, input commandInput) error {
 	}
 	lockByID := lock.entriesByID()
 
-	checkouts, sourceErrors := checkoutPluginSources(ctx, a, plan.Items)
+	if _, err = fmt.Fprintln(a.stdout, "Querying configured plugin sources..."); err != nil {
+		return fmt.Errorf("write plugin status progress: %w", err)
+	}
+	checkouts, sourceErrors, err := checkoutPluginSources(ctx, a, plan.Items)
+	if err != nil {
+		return err
+	}
 	defer cleanupPluginSourceCheckouts(a, checkouts)
 	expandedPlan, expandErr := expandPluginPlanFromCheckouts(plan, checkouts)
 	if expandErr != nil {
 		return expandErr
 	}
 
-	fmt.Fprintln(a.stdout, "Configured plugins:")
+	if _, err = fmt.Fprintf(a.stdout, "Rendering status for %d configured plugin(s)...\n", len(expandedPlan.Items)); err != nil {
+		return fmt.Errorf("write plugin status progress: %w", err)
+	}
+	rows := make([]pluginStatusRow, 0, len(expandedPlan.Items))
 	for _, item := range expandedPlan.Items {
 		target := managedPluginPath(a.root, item.ID)
 		exists := dirExists(target)
@@ -188,9 +209,18 @@ func runPluginsStatus(ctx context.Context, a *app, input commandInput) error {
 		}
 
 		remote := "unknown"
+		note := ""
 		if sourceErr, ok := sourceErrors[item.Source]; ok {
-			remote = "unknown"
-			fmt.Fprintf(a.stdout, "  - %s source=%s version=%s installed=%t dirty=%s remote=%s error=%v\n", item.ID, item.Source, version, exists, dirty, remote, sourceErr)
+			note = sourceErr.Error()
+			rows = append(rows, pluginStatusRow{
+				Plugin:    item.ID,
+				Source:    item.Source,
+				Version:   version,
+				Installed: fmt.Sprintf("%t", exists),
+				Dirty:     dirty,
+				Remote:    remote,
+				Note:      note,
+			})
 			continue
 		}
 		if checkout, ok := checkouts[item.Source]; ok {
@@ -201,7 +231,21 @@ func runPluginsStatus(ctx context.Context, a *app, input commandInput) error {
 				remote = remoteStatus(lockByID[item.ID], contentHash, remoteHash)
 			}
 		}
-		fmt.Fprintf(a.stdout, "  - %s source=%s version=%s installed=%t dirty=%s remote=%s\n", item.ID, item.Source, version, exists, dirty, remote)
+		rows = append(rows, pluginStatusRow{
+			Plugin:    item.ID,
+			Source:    item.Source,
+			Version:   version,
+			Installed: fmt.Sprintf("%t", exists),
+			Dirty:     dirty,
+			Remote:    remote,
+			Note:      note,
+		})
+	}
+	if _, err = fmt.Fprintln(a.stdout, "Configured plugins:"); err != nil {
+		return fmt.Errorf("write plugin status progress: %w", err)
+	}
+	if err = printPluginStatusTable(a.stdout, rows); err != nil {
+		return err
 	}
 
 	if err = printUnconfiguredPluginStatus(a, expandedPlan, lockByID); err != nil {
@@ -242,7 +286,19 @@ func runPluginInstallOrUpdate(ctx context.Context, a *app, input commandInput, u
 		return err
 	}
 
-	checkouts, sourceErrors := checkoutPluginSources(ctx, a, plan.Items)
+	action := "Installing"
+	prepAction := "installation"
+	if update {
+		action = "Updating"
+		prepAction = "update"
+	}
+	if _, err = fmt.Fprintf(a.stdout, "Preparing plugin %s for %d configured item(s)...\n", prepAction, len(plan.Items)); err != nil {
+		return fmt.Errorf("write plugin progress: %w", err)
+	}
+	checkouts, sourceErrors, err := checkoutPluginSources(ctx, a, plan.Items)
+	if err != nil {
+		return err
+	}
 	defer cleanupPluginSourceCheckouts(a, checkouts)
 	if len(sourceErrors) > 0 {
 		return firstPluginSourceError(sourceErrors)
@@ -251,8 +307,14 @@ func runPluginInstallOrUpdate(ctx context.Context, a *app, input commandInput, u
 	if err != nil {
 		return err
 	}
-	for _, item := range plan.Items {
+	if _, err = fmt.Fprintf(a.stdout, "%s %d plugin(s)...\n", action, len(plan.Items)); err != nil {
+		return fmt.Errorf("write plugin progress: %w", err)
+	}
+	for index, item := range plan.Items {
 		checkout := checkouts[item.Source]
+		if _, err = fmt.Fprintf(a.stdout, "[%d/%d] %s plugin %s from %s...\n", index+1, len(plan.Items), strings.ToLower(action), item.ID, item.Source); err != nil {
+			return fmt.Errorf("write plugin progress: %w", err)
+		}
 		if err = applyPluginFromCheckout(ctx, a, item, checkout, &lock, update, force); err != nil {
 			return err
 		}
@@ -360,7 +422,7 @@ func validatePluginConfig(cfg pluginsConfig, input commandInput) (pluginPlan, er
 }
 
 // checkoutPluginSources checks out each configured source once.
-func checkoutPluginSources(ctx context.Context, a *app, items []pluginPlanItem) (map[string]pluginSourceCheckout, map[string]error) {
+func checkoutPluginSources(ctx context.Context, a *app, items []pluginPlanItem) (map[string]pluginSourceCheckout, map[string]error, error) {
 	checkouts := map[string]pluginSourceCheckout{}
 	sourceErrors := map[string]error{}
 	for _, item := range items {
@@ -370,14 +432,20 @@ func checkoutPluginSources(ctx context.Context, a *app, items []pluginPlanItem) 
 		if _, ok := sourceErrors[item.Source]; ok {
 			continue
 		}
+		if _, err := fmt.Fprintf(a.stdout, "Downloading plugin source %s from %s (%s)...\n", item.Source, item.Repo, item.Ref); err != nil {
+			return checkouts, sourceErrors, fmt.Errorf("write plugin source progress: %w", err)
+		}
 		checkout, err := checkoutPluginSource(ctx, a, item)
 		if err != nil {
 			sourceErrors[item.Source] = err
 			continue
 		}
 		checkouts[item.Source] = checkout
+		if _, err = fmt.Fprintf(a.stdout, "Resolved plugin source %s at %s\n", item.Source, checkout.Commit); err != nil {
+			return checkouts, sourceErrors, fmt.Errorf("write plugin source progress: %w", err)
+		}
 	}
-	return checkouts, sourceErrors
+	return checkouts, sourceErrors, nil
 }
 
 // cleanupPluginSourceCheckouts removes temporary source checkout directories.
@@ -694,7 +762,7 @@ func checkoutPluginSource(ctx context.Context, a *app, item pluginPlanItem) (plu
 			}
 		}
 	}()
-	if err = a.runCommand(ctx, commandOptions{Dir: a.root, Quiet: true}, "git", "clone", "--quiet", "--no-checkout", item.Repo, dir); err != nil {
+	if err = a.runCommand(ctx, commandOptions{Dir: a.root, Stderr: a.stdout}, "git", "clone", "--progress", "--no-checkout", item.Repo, dir); err != nil {
 		return pluginSourceCheckout{}, err
 	}
 	if err = a.runCommand(ctx, commandOptions{Dir: dir, Quiet: true}, "git", "checkout", "--quiet", item.Ref); err != nil {
@@ -913,6 +981,47 @@ func printUnconfiguredPluginStatus(a *app, plan pluginPlan, lockByID map[string]
 		fmt.Fprintf(a.stdout, "Orphaned lock entries: %s\n", strings.Join(orphaned, ", "))
 	}
 	return nil
+}
+
+// printPluginStatusTable renders configured plugin status as an aligned ASCII table.
+func printPluginStatusTable(out io.Writer, rows []pluginStatusRow) error {
+	headers := []string{"Plugin", "Source", "Version", "Installed", "Dirty", "Remote", "Note"}
+	widths := make([]int, len(headers))
+	for i, header := range headers {
+		widths[i] = len(header)
+	}
+	for _, row := range rows {
+		values := row.values()
+		for i, value := range values {
+			if len(value) > widths[i] {
+				widths[i] = len(value)
+			}
+		}
+	}
+
+	if err := printTableBorder(out, widths); err != nil {
+		return err
+	}
+	if err := printTableRow(out, widths, headers); err != nil {
+		return err
+	}
+	if err := printTableBorder(out, widths); err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if err := printTableRow(out, widths, row.values()); err != nil {
+			return err
+		}
+	}
+	if err := printTableBorder(out, widths); err != nil {
+		return err
+	}
+	return nil
+}
+
+// values returns the printable table cells for one configured plugin row.
+func (r pluginStatusRow) values() []string {
+	return []string{r.Plugin, r.Source, r.Version, r.Installed, r.Dirty, r.Remote, r.Note}
 }
 
 // remoteStatus compares local, lock, and remote content states.

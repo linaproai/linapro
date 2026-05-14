@@ -77,6 +77,10 @@
 - FB-1 tests: 已通过 `go test ./internal/service/plugin/internal/sourceupgrade ./internal/service/plugin -run 'TestBuildSourcePluginUpgradePendingErrorIncludesBulkCommand|TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade' -count=1`、`openspec validate plugin-workspace-management --strict`、残留静态扫描和 `git diff --check`。
 - [x] **FB-2**: 支持 `plugins.sources.<name>.items` 使用字符串 `"*"` 展开安装来源 root 下全部插件，禁止与显式插件 ID 混用
 - [x] **FB-3**: 将测试工具入口从 `make test-*` / `linactl test-*` 统一改为 `make test.*` / `linactl test.*`
+- [x] **FB-4**: 改进 `make plugins.install` 的终端过程信息，展示来源下载、插件安装进度和安装结果
+- [x] **FB-5**: 改进 `make plugins.status` 的终端过程信息，并使用对齐表格展示配置插件状态
+- [x] **FB-6**: 修复源码插件托管 cron 枚举单元测试缺少 host config service 注入导致官方插件注册 panic
+- [x] **FB-7**: 修复 plugin-full CI 中宿主导入 `lina-plugins` 聚合模块失败导致 Go 测试和 E2E 启动失败
 
 ### Feedback Verification Notes
 
@@ -92,3 +96,30 @@
 - FB-3 Dev tools: `make test.go`、`make test.host`、`make test.plugins`、`make test.scripts` 已替代旧的 `make test-go`、`make test-host`、`make test-plugins`、`make test-scripts`；`linactl` 同步提供 `test.go`、`test.host`、`test.plugins`、`test.scripts`，并用单元测试断言旧 hyphen 命令不再注册。
 - FB-3 Tests: 已通过 `cd hack/tools/linactl && go test ./... -count=1`、`make -n test.go test.host test.plugins test.scripts`、`make -n test.go plugins=0`、`make -n test-go` 确认旧目标不存在、`go run ./hack/tools/linactl test.scripts`、`go run ./hack/tools/linactl help`、`go run ./hack/tools/linactl help test.go` / `test.host` / `test.plugins` / `test.scripts`、`go run github.com/rhysd/actionlint/cmd/actionlint@latest .github/workflows/reusable-backend-unit-tests.yml`、`openspec validate plugin-workspace-management --strict`、旧命令名静态扫描和 `git diff --check`。
 - FB-3 Review: 已完成 `lina-review` 审查；确认 `hack/makefiles/test.mk` 只保留点号命名测试目标，`linactl` 命令注册表只暴露 `test.go`、`test.host`、`test.plugins`、`test.scripts`，旧 hyphen 命令仅作为单元测试负向断言和本任务说明出现。变更不新增 REST API、业务数据操作、运行时缓存或 i18n 资源。
+- FB-4 i18n: 仅调整开发工具终端输出，不新增前端运行时文案、接口文档、插件 manifest i18n 或 apidoc i18n。
+- FB-4 Cache: 不新增运行时缓存、缓存键、缓存失效路径、订阅或跨实例一致性逻辑。
+- FB-4 Data permission: 不新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
+- FB-4 RESTful API: 不新增后端 REST API。
+- FB-4 Dev tools: `plugins.install` / `plugins.update` 现在输出准备阶段、来源下载与解析、实际插件安装/更新总数以及逐插件 `[n/total]` 进度；Git clone 使用 `--progress` 并把进度输出到命令 stdout，避免长时间静默。
+- FB-4 Tests: 已通过 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test.scripts`、`openspec validate plugin-workspace-management --strict`、`git diff --check -- hack/tools/linactl/command_plugin_management.go hack/tools/linactl/command_plugin_management_test.go openspec/changes/plugin-workspace-management/tasks.md`。
+- FB-4 Review: 已完成 `lina-review` 审查；确认本次仅调整跨平台 Go 开发工具输出与测试断言，未新增平台专属脚本、REST API、业务数据操作、运行时缓存或 i18n 资源；新增 Go helper 均有职责注释且目标包编译通过。
+- FB-5 i18n: 仅调整开发工具终端输出，不新增前端运行时文案、接口文档、插件 manifest i18n 或 apidoc i18n。
+- FB-5 Cache: 不新增运行时缓存、缓存键、缓存失效路径、订阅或跨实例一致性逻辑。
+- FB-5 Data permission: 不新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
+- FB-5 RESTful API: 不新增后端 REST API。
+- FB-5 Dev tools: `plugins.status` 现在在远端查询前输出正在查询配置插件来源，查询完成后输出正在渲染配置插件数量，并使用与 `make status` 一致的 ASCII 对齐表格展示 Plugin、Source、Version、Installed、Dirty、Remote 与 Note。
+- FB-5 Tests: 已通过 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test.scripts`、`openspec validate plugin-workspace-management --strict`、`git diff --check -- hack/tools/linactl/command_plugin_management.go hack/tools/linactl/command_plugin_management_test.go openspec/changes/plugin-workspace-management/tasks.md`。
+- FB-5 Review: 已完成 `lina-review` 审查；确认状态命令仍保持只读诊断，不写入 `apps/lina-plugins`、`.gitmodules` 或锁文件，表格渲染复用既有 ASCII 表格工具函数，目标测试已单独重复运行通过。
+- FB-6 i18n: 仅调整 Go 单元测试夹具和测试覆盖，不新增前端运行时文案、接口文档、插件 manifest i18n 或 apidoc i18n。
+- FB-6 Cache: 不新增运行时缓存、缓存键、缓存失效路径、订阅或跨实例一致性逻辑。
+- FB-6 Data permission: 不新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
+- FB-6 RESTful API: 不新增后端 REST API。
+- FB-6 Dev tools: 不新增或修改开发工具、构建脚本、测试脚本或 CI 入口。
+- FB-6 Tests: 已通过 `cd apps/lina-core && go test ./internal/service/plugin/internal/integration -run TestListManagedCronJobsSkipsDynamicDiscoveryForSourcePlugins -count=1`、`go test ./internal/service/plugin/internal/integration ./internal/service/plugin/internal/testutil -count=1`、`go test ./internal/service/plugin/... -count=1`、`openspec validate plugin-workspace-management --strict`、`git diff --check -- apps/lina-core/internal/service/plugin/internal/testutil/testutil_services.go apps/lina-core/internal/service/plugin/internal/testutil/testutil_fixture.go apps/lina-core/internal/service/plugin/internal/integration/extensions_cron_test.go openspec/changes/plugin-workspace-management/tasks.md`。
+- FB-6 Review: 已完成 `lina-review` 审查；确认 `testutil.NewServices` 为源码插件 cron 收集注入最小 host config service，回归测试通过读取 host config 并断言 source plugin managed cron 被收集来覆盖原 panic 路径，未修改生产接口或运行时行为。
+- FB-7 i18n: 仅调整 Go 开发工具生成模块逻辑与 Go 测试夹具，不新增前端运行时文案、接口文档、插件 manifest i18n 或 apidoc i18n；auth 测试夹具复用既有 runtime i18n 服务适配源码插件 hook。
+- FB-7 Cache: 不新增运行时缓存、缓存键、缓存失效路径、订阅或跨实例一致性逻辑；生成的 `temp/official-plugins` 仅服务本地/CI 构建解析。
+- FB-7 Data permission: 不新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界；auth 测试夹具的 tenant-filter 仅用于源码插件登录日志 hook 在测试环境下的租户上下文解析。
+- FB-7 RESTful API: 不新增后端 REST API。
+- FB-7 Dev tools: `linactl` 在 plugin-full 模式下生成已忽略的 `temp/official-plugins` 聚合模块，模块名为 `lina-plugins`，并 blank import 官方 source plugin backend 注册包以满足宿主 `official_plugins` 构建；`test.go` 仍通过 `go.work.plugins` 编译宿主与插件模块，但跳过该生成聚合模块本身的独立 `go test ./...`。
+- FB-7 Tests: 已通过 `cd hack/tools/linactl && go test ./... -run 'TestGoWorkspaceModulesSkipsGeneratedOfficialPluginAggregate|TestOfficialPluginBackendImportsDiscoversSourcePlugins|TestPrepareOfficialPluginWorkspaceWritesTemporaryWorkspace|TestOfficialPluginGoWorkUsesDiscoversPluginModules|TestOfficialPluginBuildEnvSeparatesHostOnlyAndPluginFullModes' -count=1`、`cd apps/lina-core && GOWORK=<repo>/temp/go.work.plugins GOFLAGS='-tags=official_plugins' go test -race ./internal/service/auth -run TestLoginRejectsBlacklistedIP -count=1 -v`、`cd apps/lina-core && GOWORK=<repo>/temp/go.work.plugins GOFLAGS='-tags=official_plugins' go test -race ./internal/service/auth -count=1`、`cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test.scripts`、`make test.go plugins=1 race=true verbose=true`、`openspec validate plugin-workspace-management --strict`。

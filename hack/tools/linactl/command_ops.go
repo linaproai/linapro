@@ -240,9 +240,18 @@ func goWorkspaceModules(ctx context.Context, a *app) ([]string, error) {
 	var modules []string
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line != "" {
+		if line != "" && !isGeneratedOfficialPluginAggregateModule(a.root, line) {
 			modules = append(modules, line)
 		}
 	}
 	return modules, nil
+}
+
+// isGeneratedOfficialPluginAggregateModule reports whether a module directory
+// is the ignored aggregate bridge used only to satisfy host blank imports.
+func isGeneratedOfficialPluginAggregateModule(root string, moduleDir string) bool {
+	if strings.TrimSpace(moduleDir) == "" {
+		return false
+	}
+	return filepath.Clean(moduleDir) == filepath.Clean(officialPluginAggregateModuleDir(root))
 }

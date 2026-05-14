@@ -16,6 +16,9 @@ import (
 	"lina-core/internal/service/plugin/internal/lifecycle"
 	"lina-core/internal/service/plugin/internal/openapi"
 	"lina-core/internal/service/plugin/internal/runtime"
+	"lina-core/pkg/pluginhost"
+	pluginserviceconfig "lina-core/pkg/pluginservice/config"
+	"lina-core/pkg/pluginservice/contract"
 )
 
 // Services groups the wired plugin sub-services used by package-level tests.
@@ -82,6 +85,7 @@ func NewServices() *Services {
 
 	integrationSvc.SetBizCtxProvider(&bizCtxAdapter{svc: bizCtxProvider})
 	integrationSvc.SetDynamicCronExecutor(runtimeSvc)
+	integrationSvc.SetHostServices(newTestHostServices())
 	integrationSvc.SetTopologyProvider(topology)
 
 	runtimeSvc.SetMenuManager(integrationSvc)
@@ -101,6 +105,58 @@ func NewServices() *Services {
 		OpenAPI:     openapiSvc,
 	}
 }
+
+// testHostServices publishes the minimal host service directory needed by
+// source-plugin callbacks exercised in plugin service tests.
+type testHostServices struct {
+	// configSvc exposes read-only GoFrame configuration to source plugins.
+	configSvc contract.ConfigService
+}
+
+// Ensure testHostServices satisfies the source-plugin host service directory.
+var _ pluginhost.HostServices = (*testHostServices)(nil)
+
+// newTestHostServices creates a host service directory for integration tests.
+func newTestHostServices() pluginhost.HostServices {
+	return &testHostServices{
+		configSvc: pluginserviceconfig.New(),
+	}
+}
+
+// APIDoc returns no apidoc service for plugin integration tests.
+func (s *testHostServices) APIDoc() contract.APIDocService { return nil }
+
+// Auth returns no auth service for plugin integration tests.
+func (s *testHostServices) Auth() contract.AuthService { return nil }
+
+// BizCtx returns no bizctx service for plugin integration tests.
+func (s *testHostServices) BizCtx() contract.BizCtxService { return nil }
+
+// Config returns the test host configuration service.
+func (s *testHostServices) Config() contract.ConfigService {
+	if s == nil {
+		return nil
+	}
+	return s.configSvc
+}
+
+// I18n returns no i18n service for plugin integration tests.
+func (s *testHostServices) I18n() contract.I18nService { return nil }
+
+// Notify returns no notification service for plugin integration tests.
+func (s *testHostServices) Notify() contract.NotifyService { return nil }
+
+// PluginState returns no plugin-state service for plugin integration tests.
+func (s *testHostServices) PluginState() contract.PluginStateService { return nil }
+
+// Route returns no route service for plugin integration tests.
+func (s *testHostServices) Route() contract.RouteService { return nil }
+
+// Session returns no session service for plugin integration tests.
+func (s *testHostServices) Session() contract.SessionService { return nil }
+
+// TenantFilter returns no tenant-filter service for plugin integration tests.
+func (s *testHostServices) TenantFilter() contract.TenantFilterService { return nil }
 
 // jwtConfigAdapter exposes config service JWT settings through the runtime test seam.
 type jwtConfigAdapter struct {
