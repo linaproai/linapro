@@ -49,6 +49,26 @@ var (
 	CodeMediaBindingSaveFailed = bizerr.MustDefine("MEDIA_BINDING_SAVE_FAILED", "保存媒体策略绑定失败", gcode.CodeInternalError)
 	// CodeMediaBindingDeleteFailed reports that binding deletion failed.
 	CodeMediaBindingDeleteFailed = bizerr.MustDefine("MEDIA_BINDING_DELETE_FAILED", "删除媒体策略绑定失败", gcode.CodeInternalError)
+	// CodeMediaTietaTokenRequired reports that token-based media authorization is missing a Tieta token.
+	CodeMediaTietaTokenRequired = bizerr.MustDefine("MEDIA_TIETA_TOKEN_REQUIRED", "铁塔 token 不能为空", gcode.CodeNotAuthorized)
+	// CodeMediaTietaTokenInvalid reports that Tieta rejected the provided token.
+	CodeMediaTietaTokenInvalid = bizerr.MustDefine("MEDIA_TIETA_TOKEN_INVALID", "铁塔 token 无效：{message}", gcode.CodeNotAuthorized)
+	// CodeMediaTietaBaseURLMissing reports that the Tieta base URL has not been configured.
+	CodeMediaTietaBaseURLMissing = bizerr.MustDefine("MEDIA_TIETA_BASE_URL_MISSING", "铁塔系统 baseUrl 未配置", gcode.CodeInternalError)
+	// CodeMediaTietaUserInfoFailed reports that the Tieta user-info request failed.
+	CodeMediaTietaUserInfoFailed = bizerr.MustDefine("MEDIA_TIETA_USER_INFO_FAILED", "请求铁塔用户信息失败", gcode.CodeInternalError)
+	// CodeMediaTietaUserInfoInvalid reports that the Tieta user-info response cannot be parsed.
+	CodeMediaTietaUserInfoInvalid = bizerr.MustDefine("MEDIA_TIETA_USER_INFO_INVALID", "解析铁塔用户信息失败", gcode.CodeInternalError)
+	// CodeMediaTietaTenantMismatch reports that the requested tenant does not match the Tieta token tenant.
+	CodeMediaTietaTenantMismatch = bizerr.MustDefine("MEDIA_TIETA_TENANT_MISMATCH", "请求租户与铁塔 token 租户不一致", gcode.CodeNotAuthorized)
+	// CodeMediaTietaTenantMissing reports that the Tieta token did not return a tenant ID.
+	CodeMediaTietaTenantMissing = bizerr.MustDefine("MEDIA_TIETA_TENANT_MISSING", "铁塔 token 未返回租户ID", gcode.CodeNotAuthorized)
+	// CodeMediaTietaDevicePermissionFailed reports that the Tieta device-permission request failed.
+	CodeMediaTietaDevicePermissionFailed = bizerr.MustDefine("MEDIA_TIETA_DEVICE_PERMISSION_FAILED", "请求铁塔设备权限失败", gcode.CodeInternalError)
+	// CodeMediaTietaDevicePermissionInvalid reports that the Tieta device-permission response cannot be parsed.
+	CodeMediaTietaDevicePermissionInvalid = bizerr.MustDefine("MEDIA_TIETA_DEVICE_PERMISSION_INVALID", "解析铁塔设备权限失败", gcode.CodeInternalError)
+	// CodeMediaTietaDevicePermissionDenied reports that Tieta explicitly denied device access.
+	CodeMediaTietaDevicePermissionDenied = bizerr.MustDefine("MEDIA_TIETA_DEVICE_PERMISSION_DENIED", "铁塔设备权限校验失败：{message}", gcode.CodeNotAuthorized)
 	// CodeMediaAliasRequired reports that stream alias is missing.
 	CodeMediaAliasRequired = bizerr.MustDefine("MEDIA_ALIAS_REQUIRED", "流别名不能为空", gcode.CodeInvalidParameter)
 	// CodeMediaStreamPathRequired reports that stream path is missing.

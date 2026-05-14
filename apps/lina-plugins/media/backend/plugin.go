@@ -7,6 +7,7 @@ import (
 	"lina-core/pkg/pluginhost"
 	mediaplugin "lina-plugin-media"
 	mediacontroller "lina-plugin-media/backend/internal/controller/media"
+	mediaopencontroller "lina-plugin-media/backend/internal/controller/mediaopen"
 )
 
 // media plugin constants.
@@ -31,6 +32,8 @@ func init() {
 func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) error {
 	routes := registrar.Routes()
 	middlewares := routes.Middlewares()
+	publicController := mediaopencontroller.NewV1()
+	protectedController := mediacontroller.NewV1()
 	routes.Group("/api/v1", func(group pluginhost.RouteGroup) {
 		group.Middleware(
 			middlewares.NeverDoneCtx(),
@@ -40,12 +43,15 @@ func registerRoutes(ctx context.Context, registrar pluginhost.HTTPRegistrar) err
 			middlewares.Ctx(),
 		)
 		group.Group("/", func(group pluginhost.RouteGroup) {
+			group.Bind(publicController)
+		})
+		group.Group("/", func(group pluginhost.RouteGroup) {
 			group.Middleware(
 				middlewares.Auth(),
 				middlewares.Tenancy(),
 				middlewares.Permission(),
 			)
-			group.Bind(mediacontroller.NewV1())
+			group.Bind(protectedController)
 		})
 	})
 	return nil

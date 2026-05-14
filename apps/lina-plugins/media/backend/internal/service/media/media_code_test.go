@@ -64,6 +64,18 @@ func TestMediaBusinessErrorMetadata(t *testing.T) {
 			runtimeCode: "MEDIA_TENANT_STREAM_DUPLICATE",
 			messageKey:  "error.media.tenant.stream.duplicate",
 		},
+		{
+			name:        "tieta tenant mismatch",
+			code:        CodeMediaTietaTenantMismatch,
+			runtimeCode: "MEDIA_TIETA_TENANT_MISMATCH",
+			messageKey:  "error.media.tieta.tenant.mismatch",
+		},
+		{
+			name:        "tieta device permission denied",
+			code:        CodeMediaTietaDevicePermissionDenied,
+			runtimeCode: "MEDIA_TIETA_DEVICE_PERMISSION_DENIED",
+			messageKey:  "error.media.tieta.device.permission.denied",
+		},
 	}
 
 	for _, testCase := range testCases {

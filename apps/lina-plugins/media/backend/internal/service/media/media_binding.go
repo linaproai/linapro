@@ -80,8 +80,33 @@ type ResolveStrategyInput struct {
 	DeviceId string // DeviceId is the GB device ID.
 }
 
+// ResolveStrategyByTokenInput defines token-authenticated strategy resolution input.
+type ResolveStrategyByTokenInput struct {
+	Token         string // Token is the optional token body field.
+	Authorization string // Authorization is the optional HTTP Authorization header.
+	TenantId      string // TenantId optionally asserts the expected Tieta tenant ID.
+	DeviceId      string // DeviceId is the GB device ID.
+}
+
 // ResolveStrategyOutput defines effective strategy resolution output.
 type ResolveStrategyOutput struct {
+	Matched      bool   // Matched reports whether a strategy matched.
+	Source       string // Source is the matching strategy source.
+	SourceLabel  string // SourceLabel is the Chinese source label.
+	StrategyId   int64  // StrategyId is the matched strategy ID.
+	StrategyName string // StrategyName is the matched strategy name.
+	Strategy     string // Strategy is the matched YAML strategy body.
+}
+
+// ResolveStrategyByTokenOutput defines token-authenticated strategy resolution output.
+type ResolveStrategyByTokenOutput struct {
+	UserId       int64  // UserId is the Tieta user ID.
+	Username     string // Username is the Tieta login name.
+	RealName     string // RealName is the Tieta display name.
+	Mobile       string // Mobile is the Tieta mobile number.
+	TenantId     string // TenantId is the Tieta tenant ID.
+	DeviceId     string // DeviceId is the normalized GB device ID.
+	HasAccess    bool   // HasAccess reports Tieta tenant-device authorization result.
 	Matched      bool   // Matched reports whether a strategy matched.
 	Source       string // Source is the matching strategy source.
 	SourceLabel  string // SourceLabel is the Chinese source label.
@@ -322,6 +347,47 @@ func (s *serviceImpl) ResolveStrategy(ctx context.Context, in ResolveStrategyInp
 		return buildResolveOutput(StrategySourceGlobal, strategy), nil
 	}
 	return buildResolveOutput(StrategySourceNone, nil), nil
+}
+
+// ResolveStrategyByToken validates a Tieta token and resolves the effective strategy for its tenant/device pair.
+func (s *serviceImpl) ResolveStrategyByToken(
+	ctx context.Context,
+	in ResolveStrategyByTokenInput,
+) (*ResolveStrategyByTokenOutput, error) {
+	token := normalizeTietaToken(in.Token)
+	if token == "" {
+		token = normalizeTietaToken(in.Authorization)
+	}
+	user, err := mediaTietaClient.UserInfoByToken(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || user.Id <= 0 {
+		return nil, bizerr.NewCode(CodeMediaTietaTokenInvalid, bizerr.P("message", "用户信息为空"))
+	}
+	tenantID, err := resolveTietaTenantID(in.TenantId, user)
+	if err != nil {
+		return nil, err
+	}
+	deviceID, err := normalizeDeviceID(in.DeviceId)
+	if err != nil {
+		return nil, err
+	}
+	hasAccess, err := mediaTietaClient.CheckTenantHasDevice(ctx, token, tenantID, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	if !hasAccess {
+		return buildTokenResolveOutput(user, tenantID, deviceID, false, buildResolveOutput(StrategySourceNone, nil)), nil
+	}
+	resolved, err := s.ResolveStrategy(ctx, ResolveStrategyInput{
+		TenantId: tenantID,
+		DeviceId: deviceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return buildTokenResolveOutput(user, tenantID, deviceID, true, resolved), nil
 }
 
 // listDeviceBindings returns paged device bindings.
@@ -624,6 +690,52 @@ func buildResolveOutput(source StrategySource, strategy *strategyEntity) *Resolv
 		out.Strategy = strategy.Strategy
 	}
 	return out
+}
+
+// buildTokenResolveOutput combines Tieta user data with one strategy resolution result.
+func buildTokenResolveOutput(
+	user *TietaUser,
+	tenantID string,
+	deviceID string,
+	hasAccess bool,
+	resolved *ResolveStrategyOutput,
+) *ResolveStrategyByTokenOutput {
+	out := &ResolveStrategyByTokenOutput{
+		TenantId:  tenantID,
+		DeviceId:  deviceID,
+		HasAccess: hasAccess,
+	}
+	if user != nil {
+		out.UserId = user.Id
+		out.Username = user.Username
+		out.RealName = user.RealName
+		out.Mobile = user.Mobile
+	}
+	if resolved != nil {
+		out.Matched = resolved.Matched
+		out.Source = resolved.Source
+		out.SourceLabel = resolved.SourceLabel
+		out.StrategyId = resolved.StrategyId
+		out.StrategyName = resolved.StrategyName
+		out.Strategy = resolved.Strategy
+	}
+	return out
+}
+
+// resolveTietaTenantID returns the token tenant and rejects mismatched request tenant assertions.
+func resolveTietaTenantID(requestTenantID string, user *TietaUser) (string, error) {
+	if user == nil {
+		return "", bizerr.NewCode(CodeMediaTietaTokenInvalid, bizerr.P("message", "用户信息为空"))
+	}
+	tokenTenantID := strings.TrimSpace(user.TenantId)
+	if tokenTenantID == "" {
+		return "", bizerr.NewCode(CodeMediaTietaTenantMissing)
+	}
+	normalizedRequestTenantID := strings.TrimSpace(requestTenantID)
+	if normalizedRequestTenantID != "" && normalizedRequestTenantID != tokenTenantID {
+		return "", bizerr.NewCode(CodeMediaTietaTenantMismatch)
+	}
+	return tokenTenantID, nil
 }
 
 // strategySourceLabel returns the Chinese label for one strategy source.

@@ -147,6 +147,19 @@ upload:
   # 单个上传文件大小上限（MB）
   maxSize: 20
 
+# Tieta integration configuration used by media token authorization
+# 铁塔集成配置，供 media token 鉴权使用
+tieta:
+  # Tieta OpenAPI base URL; leave empty until the upstream service is available
+  # 铁塔 OpenAPI 基础地址；上游服务可用后再配置
+  baseUrl: ""
+  # Tieta request timeout as a duration string
+  # 铁塔请求超时时间（duration 字符串）
+  timeout: 3s
+  # Whether to use local mock Tieta identity and device-permission responses
+  # 是否启用本地 mock 铁塔身份和设备权限响应
+  mock: false
+
 # Plugin configuration
 # 插件配置
 plugin:

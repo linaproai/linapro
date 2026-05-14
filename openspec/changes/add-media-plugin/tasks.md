@@ -64,9 +64,20 @@
 - [x] **FB-16**: 增加 `media_tenant_stream_config`、`media_device_node`、`media_node` 表及相关业务逻辑
 - [x] **FB-17**: `media_device_node.device_id` 应按原表结构使用唯一约束而不是主键
 - [x] **FB-18**: 后续新增的 `hg_*` 媒体表统一改为 `media_*` 命名
+- [x] **FB-19**: media 策略解析需要支持通过铁塔 token 鉴权并校验租户设备权限
 
 ## Feedback 验证记录
 
+- [x] FB-19 新增 `POST /api/v1/media/strategy-authorizations` 公开鉴权资源接口，接口不走宿主 JWT 中间件，使用铁塔 token 换取用户租户身份，并校验租户设备权限后再按 media 本地策略优先级解析生效策略。
+- [x] FB-19 将 HotGo `tieta/token.go` 和 `tieta/device.go` 的必要鉴权逻辑迁移为 media 插件内 `tietaClient`：支持 `tieta.baseUrl`、`tieta.timeout`、`tieta.mock`，从请求体 token 或 `Authorization` 头读取 token，并调用铁塔用户信息与租户设备权限接口；未迁移 `gateway.go/strategy.go`，因为 LinaPro media 策略权威源已是本地 `media_*` 表；未迁移 `snapshot.go`，因为截图属于 water/水印处理边界。
+- [x] FB-19 新增后端单元测试覆盖：token 租户与请求租户一致时命中租户设备策略、请求租户与 token 租户不一致时返回结构化鉴权错误、铁塔设备权限拒绝时返回 `hasAccess=false` 且不泄露策略内容。
+- [x] `go test ./...` 于 `apps/lina-plugins/media` 通过。
+- [x] `go test ./internal/cmd -run TestSourcePluginProtectedRoutesIncludeTenancy` 于 `apps/lina-core` 通过，确认 media 新增公开接口不破坏已受保护源码插件路由的 Auth -> Tenancy -> Permission 审计。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 通过。
+- [x] i18n 影响评估：本模块仍按用户要求中文-only，FB-19 未新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：FB-19 不缓存铁塔 token 身份或设备权限，每次 token 鉴权以铁塔接口为准，不引入跨实例缓存一致性问题。
+- [x] 配置影响评估：宿主配置模板新增 `tieta.baseUrl`、`tieta.timeout`、`tieta.mock`，其中超时时间使用 `3s` duration 字符串；本地忽略文件 `config.yaml` 同步更新用于当前环境验证。
 - [x] FB-18 将后续新增的四张媒体表统一改为 `media_tenant_white`、`media_node`、`media_device_node`、`media_tenant_stream_config`，同步更新安装 SQL、卸载 SQL、mock 数据、`media_v2.md`、OpenSpec 规范、`gf gen dao` 配置和服务层 DAO/DO/Entity 引用。
 - [x] FB-18 删除旧 `hg_*` 生成文件并通过 `gf gen dao -c hack/config.yaml` 重新生成 `MediaTenantWhite`、`MediaNode`、`MediaDeviceNode`、`MediaTenantStreamConfig` 访问层。
 - [x] `psql` 重放旧 `hg_*` 本地清理、插件卸载 SQL、安装 SQL和 mock 数据两次通过；结构断言确认当前库存在 `media_tenant_white/media_node/media_device_node/media_tenant_stream_config`，且旧 `hg_*` 表不存在。

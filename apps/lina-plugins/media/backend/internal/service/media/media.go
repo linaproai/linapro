@@ -43,6 +43,8 @@ type Service interface {
 	DeleteTenantDeviceBinding(ctx context.Context, tenantID string, deviceID string) (*TenantDeviceBindingMutationOutput, error)
 	// ResolveStrategy resolves the effective strategy for one tenant/device pair.
 	ResolveStrategy(ctx context.Context, in ResolveStrategyInput) (*ResolveStrategyOutput, error)
+	// ResolveStrategyByToken validates a Tieta token and resolves the effective strategy for one device.
+	ResolveStrategyByToken(ctx context.Context, in ResolveStrategyByTokenInput) (*ResolveStrategyByTokenOutput, error)
 	// ListAliases returns paged stream aliases.
 	ListAliases(ctx context.Context, in ListAliasesInput) (*ListAliasesOutput, error)
 	// GetAlias returns one stream alias by ID.
