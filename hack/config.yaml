@@ -38,3 +38,19 @@ image:
   # Dockerfile path, relative to the repository root.
   # Dockerfile 路径，相对于仓库根目录。
   dockerfile: "hack/docker/Dockerfile"
+
+
+plugins:
+  # Source plugin repositories used by plugins.install, plugins.update, and plugins.status.
+  # apps/lina-plugins is the fixed local plugin workspace and is not configurable.
+  # plugins.install、plugins.update 和 plugins.status 使用的源码插件仓库来源。
+  # apps/lina-plugins 是固定本地插件工作区，不在这里配置路径。
+  sources:
+    official:
+      repo: "https://github.com/linaproai/official-plugins.git"
+      root: "."
+      ref: "main"
+      # Use "*" as a quoted string to install every plugin directory under root.
+      # 使用带引号的 "*" 可安装 root 下的全部插件目录。
+      items:
+        - "*"

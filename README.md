@@ -33,7 +33,7 @@ Teams skip the infrastructure bootstrapping phase and put AI to work on real bus
 `LinaPro` is designed for individual developers, engineering teams, and enterprises that need:
 
 - **AI-native R&D workflow**: `OpenSpec` is an optional but recommended dependency for specification-driven delivery. `LinaPro` provides first-class conventions, prompts, skills, and repository structure for it, so AI can lead analysis, design, and implementation while your team stays focused on direction rather than execution details.
-- **A rich AI skill ecosystem**: Over a dozen built-in AI skills cover the entire development lifecycle — backend development, frontend design, test writing, code review, performance auditing, version upgrades, and more. These skills are embedded directly in the framework's AI collaboration conventions, so AI automatically applies the right expertise in each context without requiring you to re-explain project rules in every session.
+- **A rich AI skill ecosystem**: Over a dozen built-in AI skills cover the entire development lifecycle — backend development, frontend design, test writing, code review, performance auditing, and more. These skills are embedded directly in the framework's AI collaboration conventions, so AI automatically applies the right expertise in each context without requiring you to re-explain project rules in every session.
 - **Fast business development**: A batteries-included management workspace and a rich set of built-in modules dramatically shorten the path from zero to production.
 - **Integrated full-stack design**: Frontend and backend are designed as a unified whole — API contracts, permission models, and design conventions are fully aligned, so there's no manual integration overhead.
 - **Complete API documentation**: All host and plugin API endpoints are automatically aggregated into a single browsable and debuggable doc site.
@@ -96,7 +96,7 @@ graph TB
 
 ## A Rich AI Skill Ecosystem
 
-`LinaPro` ships with over a dozen built-in AI skills covering the full development lifecycle — backend development, frontend design, test assurance, code review, performance auditing, version management, and more. These skills are embedded as domain knowledge directly in the framework's AI collaboration conventions. No separate installation is needed; AI tooling activates the relevant skill automatically when working in each context, ensuring that AI makes framework-aware decisions at every step without requiring repeated re-explanation of project rules in each session.
+`LinaPro` ships with over a dozen built-in AI skills covering the full development lifecycle — backend development, frontend design, test assurance, code review, performance auditing, and more. These skills are embedded as domain knowledge directly in the framework's AI collaboration conventions. No separate installation is needed; AI tooling activates the relevant skill automatically when working in each context, ensuring that AI makes framework-aware decisions at every step without requiring repeated re-explanation of project rules in each session.
 
 ## Decoupled Host and Workspace
 
@@ -131,9 +131,16 @@ The official source plugins live in a separate repository and are mounted into t
 
 - Initialize it after cloning with `git submodule update --init --recursive`
 - Host-only commands work without the submodule
-- `make dev`, `make build`, `make image`, and `make image-build` auto-enable plugin-full mode when `apps/lina-plugins` contains plugin manifests; pass `plugins=0` to force host-only mode
+- `make dev`, `make build`, `make image`, and `make image.build` auto-enable plugin-full mode when `apps/lina-plugins` contains plugin manifests; pass `plugins=0` to force host-only mode
 - Plugin-full mode generates or refreshes the ignored `temp/go.work.plugins` workspace from the host-only root `go.work`, then uses it via `GOWORK`
 - Plugin-only tests and plugin E2E require the submodule to be initialized
+
+User projects that want to maintain plugins directly in their own repository should convert `apps/lina-plugins` into a normal directory instead of keeping the official submodule. Configure plugin sources in `hack/config.yaml` under `plugins.sources`, then use:
+
+- `make plugins.init` to detach `apps/lina-plugins` from submodule metadata while preserving existing plugin code
+- `make plugins.install` to install configured plugins into `apps/lina-plugins/<plugin-id>`
+- `make plugins.update` to update configured plugins, with local changes blocked unless `force=1` is passed
+- `make plugins.status` to inspect workspace type, plugin versions, local changes, lock state, and remote update status
 
 ## Enterprise-Grade Security
 

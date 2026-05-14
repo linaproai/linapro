@@ -780,8 +780,8 @@
           "manifest": {
             "required": "源码插件清单不能为空"
           },
-          "pending": "检测到已安装源码插件存在待完成升级，宿主启动前必须先通过 AI 工具调用 lina-upgrade 技能。\n{items}",
-          "pendingWithBulk": "检测到已安装源码插件存在待完成升级，宿主启动前必须先通过 AI 工具调用 lina-upgrade 技能。\n{items}\n如需一次性处理全部待升级源码插件，请让 AI 工具执行：{bulkCommand}",
+          "pending": "检测到已安装源码插件存在待完成升级，宿主启动前必须先处理下列源码插件版本。\n{items}",
+          "pendingWithBulk": "检测到已安装源码插件存在待完成升级，宿主启动前必须先处理下列源码插件版本。\n{items}\n如需统一排查全部待升级源码插件：{bulkCommand}",
           "plugin": {
             "id": {
               "required": "源码插件 ID 不能为空"
@@ -818,6 +818,19 @@
           "policy": {
             "invalid": "插件 {pluginId} 必须支持多租户治理并以 tenant_scoped 模式安装，才能自动启用到新租户"
           }
+        }
+      },
+      "dependency": {
+        "blocked": "插件 {pluginId} 依赖检查失败：{blockers}",
+        "auto": {
+          "install": {
+            "failed": "插件 {pluginId} 自动安装依赖失败，失败插件：{failedPluginId}；已安装依赖：{installedDependencies}"
+          }
+        }
+      },
+      "reverse": {
+        "dependency": {
+          "blocked": "插件 {pluginId} 不能变更，因为已有已安装插件依赖它：{dependents}"
         }
       }
     },

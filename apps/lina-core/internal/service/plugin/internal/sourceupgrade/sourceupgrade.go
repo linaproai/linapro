@@ -39,6 +39,14 @@ type Service interface {
 	ValidateSourcePluginUpgradeReadiness(ctx context.Context) error
 }
 
+// DependencyValidator validates source-plugin upgrade candidates before the
+// upgrade service runs SQL, menu sync, or release switching.
+type DependencyValidator interface {
+	// ValidateSourcePluginUpgradeCandidate verifies candidate dependencies and
+	// reverse-dependency version safety for one source plugin upgrade.
+	ValidateSourcePluginUpgradeCandidate(ctx context.Context, manifest *catalog.Manifest) error
+}
+
 // Ensure serviceImpl satisfies Service.
 var _ Service = (*serviceImpl)(nil)
 
@@ -54,6 +62,8 @@ type serviceImpl struct {
 	integrationSvc integration.Service
 	// i18nSvc localizes operator-facing result messages.
 	i18nSvc sourceUpgradeI18nService
+	// dependencyValidator checks candidate release dependency constraints before upgrade side effects.
+	dependencyValidator DependencyValidator
 }
 
 // sourceUpgradeI18nService defines the narrow i18n capability needed by source upgrade.
@@ -69,13 +79,15 @@ func New(
 	runtimeSvc runtime.Service,
 	integrationSvc integration.Service,
 	i18nSvc sourceUpgradeI18nService,
+	dependencyValidator DependencyValidator,
 ) Service {
 	return &serviceImpl{
-		catalogSvc:     catalogSvc,
-		lifecycleSvc:   lifecycleSvc,
-		runtimeSvc:     runtimeSvc,
-		integrationSvc: integrationSvc,
-		i18nSvc:        i18nSvc,
+		catalogSvc:          catalogSvc,
+		lifecycleSvc:        lifecycleSvc,
+		runtimeSvc:          runtimeSvc,
+		integrationSvc:      integrationSvc,
+		i18nSvc:             i18nSvc,
+		dependencyValidator: dependencyValidator,
 	}
 }
 
@@ -191,6 +203,9 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 			bizerr.P("version", candidate.manifest.Version),
 		)
 	}
+	if err = s.validateCandidateDependencies(ctx, candidate.manifest); err != nil {
+		return nil, err
+	}
 
 	currentRelease, err := s.catalogSvc.GetRegistryRelease(ctx, candidate.registry)
 	if err != nil {
@@ -276,6 +291,15 @@ func (s *serviceImpl) UpgradeSourcePlugin(ctx context.Context, pluginID string) 
 		},
 	)
 	return result, nil
+}
+
+// validateCandidateDependencies delegates dependency checks through an explicit
+// optional seam so sourceupgrade stays decoupled from the root plugin facade.
+func (s *serviceImpl) validateCandidateDependencies(ctx context.Context, manifest *catalog.Manifest) error {
+	if s.dependencyValidator == nil {
+		return nil
+	}
+	return s.dependencyValidator.ValidateSourcePluginUpgradeCandidate(ctx, manifest)
 }
 
 // ValidateSourcePluginUpgradeReadiness fails fast when any installed source
@@ -510,11 +534,10 @@ func buildSourcePluginUpgradePendingError(pending []*SourceUpgradeStatus) error 
 		lines = append(
 			lines,
 			fmt.Sprintf(
-				"- plugin=%s current=%s discovered=%s action=use the lina-upgrade skill via your AI tooling, e.g. ask \"upgrade source plugin %s\"",
+				"- plugin=%s current=%s discovered=%s action=resolve the source-plugin version before startup",
 				item.PluginID,
 				item.EffectiveVersion,
 				item.DiscoveredVersion,
-				item.PluginID,
 			),
 		)
 	}
@@ -524,7 +547,7 @@ func buildSourcePluginUpgradePendingError(pending []*SourceUpgradeStatus) error 
 	}
 	if len(pending) > 1 {
 		code = CodePluginSourceUpgradePendingWithBulk
-		params = append(params, bizerr.P("bulkCommand", "upgrade all source plugins"))
+		params = append(params, bizerr.P("bulkCommand", "check all pending source-plugin upgrades"))
 	}
 	return bizerr.NewCode(code, params...)
 }

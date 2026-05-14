@@ -2,11 +2,12 @@
 import type {
   HostServicePermissionItem,
   PluginAuthorizationPayload,
+  PluginDependencyCheckResult,
   PluginRouteReviewItem,
   SystemPlugin,
 } from '#/api/system/plugin/model';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -20,9 +21,14 @@ import {
   Tooltip,
 } from 'ant-design-vue';
 
-import { pluginEnable, pluginInstall } from '#/api/system/plugin';
+import {
+  pluginDependencyCheck,
+  pluginEnable,
+  pluginInstall,
+} from '#/api/system/plugin';
 import { $t } from '#/locales';
 
+import PluginDependencySummary from './plugin-dependency-summary.vue';
 import PluginHostServiceCards from './plugin-host-service-cards.vue';
 import PluginRouteReviewList from './plugin-route-review-list.vue';
 import PluginSectionTitle from './plugin-section-title.vue';
@@ -43,6 +49,8 @@ const allowInstallAndEnable = ref(false);
 const submittingAction = ref<null | SubmitAction>(null);
 const installMockData = ref(false);
 const selectedInstallMode = ref<InstallMode>('tenant_scoped');
+const dependencyCheck = ref<null | PluginDependencyCheckResult>(null);
+const dependencyLoading = ref(false);
 
 const [BasicModal, modalApi] = useVbenModal({
   onClosed: handleClosed,
@@ -81,6 +89,30 @@ const hostServiceCards = computed(() => {
 
 const showInstallAndEnableAction = computed(() => {
   return currentMode.value === 'install' && allowInstallAndEnable.value;
+});
+
+const installDependencyBlocked = computed(() => {
+  return (
+    currentMode.value === 'install' &&
+    ((dependencyCheck.value?.blockers ?? []).length > 0 ||
+      dependencyLoading.value)
+  );
+});
+
+const showDependencySection = computed(() => {
+  if (currentMode.value !== 'install') {
+    return false;
+  }
+  return (
+    dependencyLoading.value ||
+    (dependencyCheck.value?.blockers ?? []).length > 0 ||
+    (dependencyCheck.value?.autoInstallPlan ?? []).length > 0 ||
+    (dependencyCheck.value?.autoInstalled ?? []).length > 0 ||
+    (dependencyCheck.value?.manualInstallRequired ?? []).length > 0 ||
+    (dependencyCheck.value?.softUnsatisfied ?? []).length > 0 ||
+    (dependencyCheck.value?.cycle ?? []).length > 0 ||
+    dependencyCheck.value?.framework?.status === 'unsatisfied'
+  );
 });
 
 const showMockDataOption = computed(() => {
@@ -160,6 +192,8 @@ const currentBannerMessage = computed(() => {
   return $t('pages.system.plugin.auth.enableBanner');
 });
 
+watch(installDependencyBlocked, updateConfirmDisabled);
+
 async function handleOpenChange(open: boolean) {
   if (!open) {
     return;
@@ -174,6 +208,9 @@ async function handleOpenChange(open: boolean) {
   allowInstallAndEnable.value = data?.allowInstallAndEnable === true;
   selectedInstallMode.value = resolveDefaultInstallMode(currentPlugin.value);
   installMockData.value = false;
+  dependencyCheck.value = currentPlugin.value?.dependencyCheck ?? null;
+  await refreshDependencyCheck();
+  updateConfirmDisabled();
 }
 
 function buildAuthorizationPayload(): PluginAuthorizationPayload | undefined {
@@ -218,6 +255,10 @@ async function handleSubmit(action: SubmitAction) {
   if (!currentPlugin.value || submittingAction.value) {
     return;
   }
+  if (installDependencyBlocked.value) {
+    message.warning($t('pages.system.plugin.dependency.resolveBeforeInstall'));
+    return;
+  }
   submittingAction.value = action;
   try {
     modalApi.lock(true);
@@ -225,7 +266,9 @@ async function handleSubmit(action: SubmitAction) {
     const payload = buildAuthorizationPayload();
     if (currentMode.value === 'install') {
       try {
-        await pluginInstall(pluginID, payload);
+        const installResult = await pluginInstall(pluginID, payload);
+        dependencyCheck.value = installResult?.dependencyCheck ?? dependencyCheck.value;
+        showAutoInstalledMessage(installResult?.dependencyCheck);
       } catch (error) {
         // Mock-data failure does NOT undo the install: the plugin is fully
         // registered, only the mock data was rolled back. Surface a precise
@@ -292,6 +335,43 @@ function handleMockDataFailure(error: unknown): boolean {
   return true;
 }
 
+async function refreshDependencyCheck() {
+  if (currentMode.value !== 'install' || !currentPlugin.value?.id) {
+    return;
+  }
+  dependencyLoading.value = true;
+  updateConfirmDisabled();
+  try {
+    dependencyCheck.value = await pluginDependencyCheck(currentPlugin.value.id);
+  } catch {
+    message.warning($t('pages.system.plugin.dependency.checkFailed'));
+  } finally {
+    dependencyLoading.value = false;
+    updateConfirmDisabled();
+  }
+}
+
+function showAutoInstalledMessage(
+  check?: null | PluginDependencyCheckResult,
+) {
+  const installed = check?.autoInstalled ?? [];
+  if (installed.length === 0) {
+    return;
+  }
+  message.success(
+    $t('pages.system.plugin.dependency.autoInstalledToast', {
+      plugins: installed
+        .map((item) => item.name || item.pluginId)
+        .filter(Boolean)
+        .join(', '),
+    }),
+  );
+}
+
+function updateConfirmDisabled() {
+  modalApi.setState({ confirmDisabled: installDependencyBlocked.value });
+}
+
 function extractMockDataFailureParams(
   error: unknown,
 ): MockDataFailureParams | null {
@@ -324,6 +404,9 @@ function handleClosed() {
   submittingAction.value = null;
   installMockData.value = false;
   selectedInstallMode.value = 'tenant_scoped';
+  dependencyCheck.value = null;
+  dependencyLoading.value = false;
+  updateConfirmDisabled();
 }
 
 function formatPluginType(type: string) {
@@ -369,7 +452,7 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
         v-if="showInstallAndEnableAction"
         data-testid="plugin-install-enable-button"
         type="primary"
-        :disabled="submittingAction !== null"
+        :disabled="submittingAction !== null || installDependencyBlocked"
         :loading="submittingAction === 'install-and-enable'"
         @click="() => handleSubmit('install-and-enable')"
       >
@@ -407,6 +490,18 @@ function resolveDefaultInstallMode(plugin: null | SystemPlugin): InstallMode {
           {{ currentPlugin.description || '-' }}
         </DescriptionsItem>
       </Descriptions>
+
+      <template v-if="showDependencySection">
+        <PluginSectionTitle test-id="plugin-dependency-section-title">
+          {{ $t('pages.system.plugin.dependency.title') }}
+        </PluginSectionTitle>
+
+        <PluginDependencySummary
+          :check="dependencyCheck"
+          :loading="dependencyLoading"
+          mode="install"
+        />
+      </template>
 
       <div
         v-if="showInstallModeOption"

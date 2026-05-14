@@ -118,7 +118,7 @@ write_sqlite_config
 
 make -C "$ROOT_DIR" init confirm=init rebuild=true
 make -C "$ROOT_DIR" mock confirm=mock
-make -C "$CORE_DIR" prepare-packed-assets
+make -C "$CORE_DIR" pack.assets
 (
   cd "$CORE_DIR"
   go build -o "$BACKEND_BINARY" .

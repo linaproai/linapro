@@ -76,14 +76,14 @@ var (
 	// CodePluginSourceUpgradePending reports startup detected pending source-plugin upgrades.
 	CodePluginSourceUpgradePending = bizerr.MustDefine(
 		"PLUGIN_SOURCE_UPGRADE_PENDING",
-		"Installed source plugins have pending upgrades. Use the lina-upgrade skill through your AI tooling before host startup.\n{items}",
+		"Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}",
 		gcode.CodeInvalidParameter,
 	)
 	// CodePluginSourceUpgradePendingWithBulk reports pending upgrades and includes the bulk command hint.
 	CodePluginSourceUpgradePendingWithBulk = bizerr.MustDefineWithKey(
 		"PLUGIN_SOURCE_UPGRADE_PENDING_WITH_BULK",
 		"error.plugin.source.upgrade.pendingWithBulk",
-		"Installed source plugins have pending upgrades. Use the lina-upgrade skill through your AI tooling before host startup.\n{items}\nTo process all pending source-plugin upgrades at once, ask your AI tooling: {bulkCommand}",
+		"Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}\nReview all pending source-plugin upgrades together: {bulkCommand}",
 		gcode.CodeInvalidParameter,
 	)
 )

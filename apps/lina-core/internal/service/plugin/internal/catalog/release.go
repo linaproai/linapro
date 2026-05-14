@@ -316,6 +316,7 @@ func (s *serviceImpl) buildManifestSnapshotModel(manifest *Manifest) (*ManifestS
 		Author:                    manifest.Author,
 		Homepage:                  manifest.Homepage,
 		License:                   manifest.License,
+		Dependencies:              CloneDependencySpec(manifest.Dependencies),
 		RuntimeKind:               buildDynamicKind(manifest),
 		RuntimeABIVersion:         buildDynamicABIVersion(manifest),
 		ManifestDeclared:          s.isManifestDeclared(manifest),

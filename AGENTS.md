@@ -79,7 +79,7 @@ make test                        # 运行完整E2E测试
 make init                        # 初始化数据库（DDL + Seed 数据）
 make mock                        # 加载 Mock 演示数据（需先执行 init）
 make image tag=v0.6.0            # 构建生产 Docker 镜像；检测到 apps/lina-plugins 插件清单时自动启用插件模式，可追加 registry=ghcr.io/linaproai push=1 推送
-# 升级框架/源码插件：通过 AI 工具调用 .claude/skills/lina-upgrade/ 技能，例如 "upgrade LinaPro framework to v0.6.0"
+make release.tag.check tag=v0.6.0 # 校验发布标签必须等于 metadata.yaml 中的 framework.version
 make up                          # 默认用 claude 生成 commit message 并推送
 make up tool=codex               # 使用 codex 生成 commit message 并推送
 make up t=codex                  # tool 的短别名
@@ -124,7 +124,7 @@ pnpm report            # 查看 HTML 报告
 - 官方源码插件仓库独立维护在 `https://github.com/linaproai/official-plugins.git`
 - 主仓库通过 `apps/lina-plugins` submodule 挂载官方插件仓库
 - host-only 命令可在未初始化 submodule 时运行
-- `make dev`、`make build`、`make image` 和 `make image-build` 在未显式传入 `plugins` 时会自动检测 `apps/lina-plugins/*/plugin.yaml`；存在插件清单则启用插件完整模式，否则为宿主模式。需要强制宿主模式时传入 `plugins=0`
+- `make dev`、`make build`、`make image` 和 `make image.build` 在未显式传入 `plugins` 时会自动检测 `apps/lina-plugins/*/plugin.yaml`；存在插件清单则启用插件完整模式，否则为宿主模式。需要强制宿主模式时传入 `plugins=0`
 - 插件完整模式会基于宿主专用的根目录 `go.work` 自动生成或刷新已忽略的 `temp/go.work.plugins`，并通过 `GOWORK` 解析源码插件 Go 模块；根目录 `go.work` 始终保持 host-only
 - 插件专属测试和插件 E2E 需要先执行 `git submodule update --init --recursive`
 - 本地 submodule 管理 remote 使用 `git@github.com:linaproai/official-plugins.git`
@@ -152,6 +152,7 @@ pnpm report            # 查看 HTML 报告
 - **活跃`OpenSpec`变更的判定以是否归档为准**：凡是仍位于`openspec/changes/`根目录下、且**未移动到**`openspec/changes/archive/`中的变更目录，都属于活跃变更；**即便该变更已经完成了全部任务、`openspec list --json`中显示为`status: complete`，只要尚未执行归档，仍然必须视为活跃变更**。
 - 当用户报告问题缺陷/改进建议时（无论中文或英文），如果当前项目存在活跃的`OpenSpec`变更，那么必须调用`lina-feedback`技能。
 - 审查技能`/lina-review`自动在以下节点触发：`/opsx:apply`任务完成后、`/opsx:feedback`任务完成后、`/opsx:archive`归档前。
+- **后端 Go 编译门禁要求**：任何新增或修改 `Go` 生产代码的任务，在标记完成和通过 `/lina-review` 前，必须基于当前工作区运行至少覆盖变更包的 `go test <changed-package> -count=1` 或等价编译烟测；涉及 `Controller` 构造函数、路由绑定、启动编排或 API 接口签名的变更，还必须运行对应宿主/插件启动绑定包测试（宿主为 `cd apps/lina-core && go test ./internal/cmd -count=1` 或更窄但能覆盖路由构造的测试）。不得仅依赖 `git diff --check`、静态扫描、OpenSpec 校验或历史验证记录来认定后端 Go 变更可编译。若某个包测试因外部依赖不可用无法运行，必须至少运行能完成编译的替代命令，并在任务记录和审查结论中说明阻断原因、替代覆盖范围和剩余风险。
 - 在执行任务时，如果存在适合通过`subagent`并行推进且能够明确提升执行效率的场景，必须优先评估并采用`subagent`协作方式执行，以降低上下文窗口溢出的风险；仅在任务强依赖串行上下文、拆分成本过高或引入明显协作风险时，才可不使用`subagent`。
 - **i18n持续治理要求**：所有功能改动都必须评估对`i18n`的影响面，包括新增功能、修改现有功能、删除功能、调整菜单/路由/按钮/表单/表格/提示文案、接口文档、插件清单与初始化资源等场景；在方案设计、任务拆分、代码实现、测试和审查中必须明确判断相关`i18n JSON`翻译内容是否需要新增、修改或删除，并同步维护前端运行时语言包、宿主/插件运行时`manifest/i18n`资源以及`apidoc i18n JSON`等对应资源，避免硬编码文案、遗漏翻译键或保留无效/过期翻译内容；若本次功能改动确认不影响`i18n`资源，也必须在任务执行或审查结论中明确记录该判断。新增内置语言必须通过新增对应`manifest/i18n/<locale>/*.json`、`manifest/i18n/<locale>/apidoc/**/*.json`资源以及默认配置文件中的`i18n.locales`元数据完成，禁止为了注册语言而修改后端`Go`枚举、宿主`SQL seed`或前端`TypeScript`语言清单；`i18n.enabled=false`时前端必须隐藏语言切换并按`i18n.default`展示。运行时翻译包缓存失效必须传入显式`scope`，按语言、扇区、插件或业务内容范围精细失效，禁止在普通业务路径中无理由清空所有语言和所有扇区。
 - **缓存一致性治理要求**：所有涉及缓存的设计、任务拆分和实现逻辑都必须明确评估分布式环境下的缓存一致性与可靠性问题，并给出对应解决方案。缓存控制逻辑必须复用宿主统一的集群模式开关与拓扑抽象（如 `cluster.enabled` 与 `cluster.Service`），将单机部署与分布式部署的策略显式区分：`cluster.enabled=false` 时可优先采用进程内缓存、本地失效和同步刷新，且不得强制依赖分布式协调组件；`cluster.enabled=true` 时必须启用跨实例失效、共享修订号、消息/事件广播、共享分布式缓存、主节点协调或等价机制，禁止退化为仅当前节点可见的本地缓存控制。新增或修改缓存时，必须说明缓存的权威数据源、一致性模型、失效/刷新触发点、跨实例同步机制、最大可接受陈旧时间和故障降级策略；禁止只依赖单机内存缓存、进程内状态或本地定时刷新来保证多实例一致性。涉及权限、配置、插件状态、租户隔离、字典、路由、国际化资源等关键运行时数据的缓存，必须采用显式作用域失效、版本化缓存键、共享分布式缓存、消息/事件广播、事务后失效或等价机制之一，并确保失效操作幂等、可重试、可观测；若业务允许短暂不一致，必须在设计和审查结论中写明可接受窗口、恢复路径和风险边界。
@@ -225,7 +226,7 @@ pnpm report            # 查看 HTML 报告
 - **开发工具和脚本必须跨平台执行**：所有新增或修改的开发、构建、测试、代码生成、资源打包、服务启停、CI 辅助和仓库治理入口，都必须能在 `Windows`、`Linux`、`macOS` 上执行，禁止依赖单一平台默认存在的命令或语义，例如 `bash`、`sh`、`sed`、`awk`、`grep`、`perl`、`lsof`、`pgrep`、`xargs`、`kill`、`rm`、`cp`、`mv`、`mkdir -p`、POSIX 路径分隔符、Unix 信号或 PowerShell 专属语法。确实只能在特定平台运行的操作必须写明平台边界、提供等价跨平台入口或在 CI/文档中显式标注为平台专属运维步骤，不能作为默认开发和测试入口。
 - **优先使用 Go 工具链实现仓库工具**：长期维护的开发工具和脚本应优先实现为 `Go` 工具，放在 `hack/tools/<tool>/` 并通过 `go run ./hack/tools/<tool>`、`linactl` 或薄包装入口调用。文件复制、目录遍历、配置改写、进程启停、端口探测、HTTP smoke、压缩/解压、模板渲染和静态扫描等逻辑应使用 Go 标准库或项目已有 Go 组件实现，避免用 Shell 管道拼接系统命令。根 `Makefile` 和 `make.cmd` 只允许作为兼容包装层，业务逻辑必须收敛到跨平台工具中。
 - **脚本目录治理**：`hack/scripts/` 不再作为长期维护开发工具目录；已有能力应迁移到 `hack/tools/linactl` 或独立 Go 工具。测试辅助入口若必须保留在 `hack/tests/scripts/`，应优先使用 `node` 或 `Go` 编写；新增或修改 `.sh`、`.ps1` 等平台脚本必须在变更记录和审查结论中说明无法使用 Go 工具链的原因、受支持平台、等价入口和验证方式。
-- **跨平台验证要求**：涉及开发工具或脚本的变更必须运行对应 Go 工具测试或跨平台 smoke（例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test-scripts`），并通过静态扫描确认默认开发路径没有新增平台专属命令依赖。若本次变更确认不影响开发工具或脚本，也应在任务记录或审查结论中明确说明。
+- **跨平台验证要求**：涉及开发工具或脚本的变更必须运行对应 Go 工具测试或跨平台 smoke（例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test.scripts`），并通过静态扫描确认默认开发路径没有新增平台专属命令依赖。若本次变更确认不影响开发工具或脚本，也应在任务记录或审查结论中明确说明。
 
 ## 后端代码规范
 

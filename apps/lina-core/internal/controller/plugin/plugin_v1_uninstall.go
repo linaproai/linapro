@@ -13,7 +13,7 @@ func (c *ControllerV1) Uninstall(ctx context.Context, req *v1.UninstallReq) (res
 		PurgeStorageData: resolvePurgeStorageData(req.PurgeStorageData),
 		Force:            req.Force,
 	}
-	if err = c.pluginSvc.UninstallWithOptions(ctx, req.Id, options); err != nil {
+	if err = c.pluginSvc.Uninstall(ctx, req.Id, options); err != nil {
 		return nil, err
 	}
 	c.roleSvc.NotifyAccessTopologyChanged(ctx)

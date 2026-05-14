@@ -35,6 +35,7 @@ type commandSpec struct {
 	Name        string
 	Description string
 	Usage       string
+	Internal    bool
 	Run         func(context.Context, *app, commandInput) error
 }
 
@@ -59,8 +60,9 @@ type app struct {
 
 // rootConfig stores repository-level tool configuration from hack/config.yaml.
 type rootConfig struct {
-	Build buildConfig `yaml:"build"`
-	Image imageConfig `yaml:"image"`
+	Build   buildConfig   `yaml:"build"`
+	Image   imageConfig   `yaml:"image"`
+	Plugins pluginsConfig `yaml:"plugins"`
 }
 
 // buildConfig stores user-facing build defaults.
@@ -79,6 +81,19 @@ type imageConfig struct {
 	Push       bool   `yaml:"push"`
 	BaseImage  string `yaml:"baseImage"`
 	Dockerfile string `yaml:"dockerfile"`
+}
+
+// pluginsConfig stores source-plugin workspace management configuration.
+type pluginsConfig struct {
+	Sources map[string]pluginSourceConfig `yaml:"sources"`
+}
+
+// pluginSourceConfig stores one configured plugin source repository.
+type pluginSourceConfig struct {
+	Repo  string   `yaml:"repo"`
+	Root  string   `yaml:"root"`
+	Ref   string   `yaml:"ref"`
+	Items []string `yaml:"items"`
 }
 
 // targetPlatform stores one normalized Go target platform.
@@ -132,5 +147,6 @@ type officialPluginWorkspace struct {
 
 // pluginManifest stores the plugin fields needed by linactl.
 type pluginManifest struct {
-	Type string `yaml:"type"`
+	Type    string `yaml:"type"`
+	Version string `yaml:"version"`
 }

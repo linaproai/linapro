@@ -45,6 +45,172 @@ func TestParseCommandInputSupportsMakeStyleParams(t *testing.T) {
 	}
 }
 
+// TestCommandRegistryUsesDottedTestCommands guards the public test command names.
+func TestCommandRegistryUsesDottedTestCommands(t *testing.T) {
+	registry := commandRegistry()
+	for _, name := range []string{"test.go", "test.host", "test.plugins", "test.scripts"} {
+		if _, ok := registry[name]; !ok {
+			t.Fatalf("expected command %q to be registered", name)
+		}
+	}
+	for _, name := range []string{"test-go", "test-host", "test-plugins", "test-scripts"} {
+		if _, ok := registry[name]; ok {
+			t.Fatalf("legacy command %q should not be registered", name)
+		}
+	}
+}
+
+// TestCommandRegistryUsesDottedImageBuildCommand guards the public image
+// staging command name.
+func TestCommandRegistryUsesDottedImageBuildCommand(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["image.build"]; !ok {
+		t.Fatalf("expected command %q to be registered", "image.build")
+	}
+	if _, ok := registry["image-build"]; ok {
+		t.Fatalf("legacy command %q should not be registered", "image-build")
+	}
+}
+
+// TestCommandRegistryIncludesReleaseTagCheck verifies the public release
+// governance command name.
+func TestCommandRegistryIncludesReleaseTagCheck(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["release.tag.check"]; !ok {
+		t.Fatalf("expected command %q to be registered", "release.tag.check")
+	}
+}
+
+// TestPrintHelpHidesInternalCommands verifies root make help lists only
+// repository-level commands by default.
+func TestPrintHelpHidesInternalCommands(t *testing.T) {
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+
+	if err := application.printHelp(false); err != nil {
+		t.Fatalf("printHelp returned error: %v", err)
+	}
+	output := stdout.String()
+	for _, command := range []string{"cli", "cli.install", "ctrl", "dao"} {
+		if strings.Contains(output, "\n  "+command+" ") {
+			t.Fatalf("root help should hide internal command %q:\n%s", command, output)
+		}
+	}
+	if !strings.Contains(output, "\n  build ") {
+		t.Fatalf("root help should still list build command:\n%s", output)
+	}
+}
+
+// TestPrintHelpAllIncludesInternalCommands verifies operators can still inspect
+// the full linactl command list explicitly.
+func TestPrintHelpAllIncludesInternalCommands(t *testing.T) {
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+
+	if err := application.printHelp(true); err != nil {
+		t.Fatalf("printHelp returned error: %v", err)
+	}
+	output := stdout.String()
+	for _, command := range []string{"cli", "cli.install", "ctrl", "dao"} {
+		if !strings.Contains(output, "\n  "+command+" ") {
+			t.Fatalf("full help should include internal command %q:\n%s", command, output)
+		}
+	}
+}
+
+// TestRunReleaseTagCheckAcceptsMatchingMetadataVersion verifies the happy path.
+func TestRunReleaseTagCheckAcceptsMatchingMetadataVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: \"v1.2.3\"\n")
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2.3"}})
+	if err != nil {
+		t.Fatalf("runReleaseTagCheck returned error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Release tag v1.2.3 matches framework.version") {
+		t.Fatalf("unexpected output: %s", stdout.String())
+	}
+}
+
+// TestRunReleaseTagCheckUsesGitHubRefNameFallback verifies tag workflow input.
+func TestRunReleaseTagCheckUsesGitHubRefNameFallback(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2.3-rc.1\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = setEnvValue(os.Environ(), "GITHUB_REF_NAME", "v1.2.3-rc.1")
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{})
+	if err != nil {
+		t.Fatalf("runReleaseTagCheck should use GITHUB_REF_NAME fallback: %v", err)
+	}
+}
+
+// TestRunReleaseTagCheckPrintsValidatedFrameworkVersion verifies automation output.
+func TestRunReleaseTagCheckPrintsValidatedFrameworkVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2.3\n")
+
+	var stdout bytes.Buffer
+	application := newApp(&stdout, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"print_version": "1"}})
+	if err != nil {
+		t.Fatalf("runReleaseTagCheck returned error: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) != "v1.2.3" {
+		t.Fatalf("expected printed version, got: %q", stdout.String())
+	}
+}
+
+// TestRunReleaseTagCheckRejectsMismatchedTag verifies equality enforcement.
+func TestRunReleaseTagCheckRejectsMismatchedTag(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2.3\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2.4"}})
+	if err == nil || !strings.Contains(err.Error(), `release tag "v1.2.4" must equal metadata framework.version "v1.2.3"`) {
+		t.Fatalf("expected mismatch error, got: %v", err)
+	}
+}
+
+// TestRunReleaseTagCheckRejectsInvalidFrameworkVersion verifies format enforcement.
+func TestRunReleaseTagCheckRejectsInvalidFrameworkVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  version: v1.2\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2"}})
+	if err == nil || !strings.Contains(err.Error(), "must match vMAJOR.MINOR.PATCH") {
+		t.Fatalf("expected invalid version error, got: %v", err)
+	}
+}
+
+// TestRunReleaseTagCheckRejectsMissingFrameworkVersion verifies metadata presence.
+func TestRunReleaseTagCheckRejectsMissingFrameworkVersion(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "manifest", "config", "metadata.yaml"), "framework:\n  name: LinaPro\n")
+
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+
+	err := runReleaseTagCheck(context.Background(), application, commandInput{Params: map[string]string{"tag": "v1.2.3"}})
+	if err == nil || !strings.Contains(err.Error(), "metadata framework.version is empty") {
+		t.Fatalf("expected missing version error, got: %v", err)
+	}
+}
+
 func TestDynamicPluginsScansYAMLManifests(t *testing.T) {
 	root := t.TempDir()
 	pluginRoot := filepath.Join(root, "apps", "lina-plugins")
@@ -236,6 +402,53 @@ func TestPrintStatusTableIncludesDevelopmentServiceDetails(t *testing.T) {
 	} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("expected status table to contain %q, got:\n%s", expected, output)
+		}
+	}
+}
+
+// TestRunI18nCheckRunsBothChecksWhenScanFails verifies merged checks still
+// report message coverage results when the scanner fails.
+func TestRunI18nCheckRunsBothChecksWhenScanFails(t *testing.T) {
+	root := t.TempDir()
+	toolDir := filepath.Join(root, "hack", "tools", "runtime-i18n")
+	if err := os.MkdirAll(toolDir, 0o755); err != nil {
+		t.Fatalf("mkdir runtime i18n tool dir: %v", err)
+	}
+
+	var calls []string
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		calls = append(calls, strings.Join(append([]string{name}, args...), " "))
+		if len(args) == 3 && args[0] == "run" && args[1] == "." && args[2] == "scan" {
+			return exec.Command(os.Args[0], "-test.run=TestHelperCommandFailure", "--")
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperCommandSuccess", "--")
+	}
+
+	err := runI18nCheck(context.Background(), application, commandInput{})
+	if err == nil {
+		t.Fatalf("expected i18n check to fail when scan fails")
+	}
+	expected := []string{
+		"go run . scan",
+		"go run . messages",
+	}
+	if strings.Join(calls, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("unexpected i18n check calls:\n%s", strings.Join(calls, "\n"))
+	}
+}
+
+// TestCommandRegistryUsesSingleI18nCheckEntry verifies the public command list
+// exposes only the merged i18n check entry.
+func TestCommandRegistryUsesSingleI18nCheckEntry(t *testing.T) {
+	registry := commandRegistry()
+	if _, ok := registry["i18n.check"]; !ok {
+		t.Fatalf("expected i18n.check command to be registered")
+	}
+	for _, removed := range []string{"check-runtime-i18n", "check-runtime-i18n-messages"} {
+		if _, ok := registry[removed]; ok {
+			t.Fatalf("expected old i18n command %s to be removed", removed)
 		}
 	}
 }
@@ -651,6 +864,21 @@ func TestHelperLongRunningProcess(t *testing.T) {
 		return
 	}
 	time.Sleep(5 * time.Second)
+}
+
+// TestHelperCommandSuccess exits successfully when invoked as a child command.
+func TestHelperCommandSuccess(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+}
+
+// TestHelperCommandFailure exits with failure when invoked as a child command.
+func TestHelperCommandFailure(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+	os.Exit(1)
 }
 
 // TestHelperRecordWorkingDirectory records the child process working directory

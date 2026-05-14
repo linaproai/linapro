@@ -330,6 +330,24 @@ export class PluginPage {
     return this.page.getByTestId("plugin-install-mode-description").last();
   }
 
+  pluginDependencySummary(): Locator {
+    return this.page.getByTestId("plugin-dependency-summary").last();
+  }
+
+  pluginDependencyAutoInstallPlan(): Locator {
+    return this.page
+      .getByTestId("plugin-dependency-auto-install-plan")
+      .last();
+  }
+
+  pluginDependencyBlockers(): Locator {
+    return this.page.getByTestId("plugin-dependency-blockers").last();
+  }
+
+  pluginDependencyReverseBlockers(): Locator {
+    return this.page.getByTestId("plugin-dependency-reverse-blockers").last();
+  }
+
   installModeStandaloneSelector(): Locator {
     return this.page.getByTestId("install-mode-selector").last();
   }
@@ -353,6 +371,12 @@ export class PluginPage {
   uninstallDialog(): Locator {
     return this.page
       .getByRole("dialog", { name: /卸载插件|Uninstall Plugin/iu })
+      .last();
+  }
+
+  uninstallConfirmButton(): Locator {
+    return this.uninstallDialog()
+      .getByRole("button", { name: confirmActionPattern })
       .last();
   }
 

@@ -30,9 +30,6 @@ import (
 )
 
 type (
-	// PluginItem is the display-ready projection of one plugin entry.
-	PluginItem = runtime.PluginItem
-
 	// DynamicUploadInput defines input for uploading a runtime WASM package.
 	DynamicUploadInput = runtime.DynamicUploadInput
 
@@ -75,6 +72,9 @@ type (
 		// database transaction; any failure rolls back only the mock load and leaves
 		// the install SQL phase results intact.
 		InstallMockData bool
+		// dependencyResult records the server-side dependency plan and automatic
+		// installation result produced during this install request.
+		dependencyResult *DependencyCheckResult
 	}
 
 	// HostServiceAuthorizationDecision narrows one authorized service snapshot.
@@ -84,6 +84,13 @@ type (
 	// the host can project into the unified scheduled-job management table.
 	ManagedCronJob = integration.ManagedCronJob
 )
+
+// PluginItem is the display-ready projection of one plugin entry.
+type PluginItem struct {
+	runtime.PluginItem
+	// DependencyCheck carries server-side dependency status for management UIs.
+	DependencyCheck *DependencyCheckResult
+}
 
 // UninstallOptions defines one plugin uninstall policy snapshot.
 type UninstallOptions struct {
@@ -218,20 +225,21 @@ type LifecycleManagementService interface {
 	// BootstrapAutoEnable synchronizes manifests and ensures every plugin listed
 	// in plugin.autoEnable is installed and enabled before later host wiring runs.
 	BootstrapAutoEnable(ctx context.Context) error
-	// Install executes the install lifecycle and optionally persists one host-confirmed
-	// host service authorization snapshot when the target is a dynamic plugin. When
-	// options.InstallMockData is true the optional mock-data load phase runs inside one
-	// database transaction after install SQL completes; any failure rolls back only the
-	// mock load and leaves the install results intact.
+	// Install executes the install lifecycle and returns the dependency plan/results
+	// produced before the target plugin side effects. It optionally persists one
+	// host-confirmed host service authorization snapshot when the target is a
+	// dynamic plugin. When options.InstallMockData is true the optional mock-data
+	// load phase runs inside one database transaction after install SQL completes;
+	// any failure rolls back only the mock load and leaves the install results intact.
 	Install(
 		ctx context.Context,
 		pluginID string,
 		options InstallOptions,
-	) error
-	// Uninstall executes the uninstall lifecycle for an installed plugin.
-	Uninstall(ctx context.Context, pluginID string) error
-	// UninstallWithOptions executes the uninstall lifecycle with one explicit policy snapshot.
-	UninstallWithOptions(ctx context.Context, pluginID string, options UninstallOptions) error
+	) (*DependencyCheckResult, error)
+	// Uninstall executes the uninstall lifecycle with one explicit policy snapshot.
+	Uninstall(ctx context.Context, pluginID string, options UninstallOptions) error
+	// CheckPluginDependencies evaluates dependency status for plugin management UI.
+	CheckPluginDependencies(ctx context.Context, pluginID string) (*DependencyCheckResult, error)
 	// UpdateStatus updates plugin status, where status is 1=enabled and 0=disabled,
 	// and optionally persists one host-confirmed host service authorization snapshot
 	// before enabling a dynamic plugin.
@@ -412,7 +420,6 @@ func New(
 		openapiSvc       = openapi.New(catalogSvc)
 		runtimeSvc       = runtime.New(catalogSvc, lifecycleSvc, frontendSvc, openapiSvc, i18nSvc)
 		integrationSvc   = integration.New(catalogSvc)
-		sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc, i18nSvc)
 		cacheRevisionCtl = newRuntimeCacheRevisionController(
 			topo,
 			cacheCoordSvc,
@@ -456,11 +463,12 @@ func New(
 		lifecycleSvc:             lifecycleSvc,
 		runtimeSvc:               runtimeSvc,
 		integrationSvc:           integrationSvc,
-		sourceUpgradeSvc:         sourceUpgradeSvc,
 		frontendSvc:              frontendSvc,
 		openapiSvc:               openapiSvc,
 		runtimeCacheRevisionCtrl: cacheRevisionCtl,
 	}
 	runtimeSvc.SetRuntimeCacheChangeNotifier(service)
+	runtimeSvc.SetDependencyValidator(service)
+	service.sourceUpgradeSvc = sourceupgradeinternal.New(catalogSvc, lifecycleSvc, runtimeSvc, integrationSvc, i18nSvc, service)
 	return service
 }

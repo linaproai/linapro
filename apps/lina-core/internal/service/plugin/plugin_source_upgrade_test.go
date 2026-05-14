@@ -42,7 +42,7 @@ func TestSourcePluginDiscoveryKeepsEffectiveVersionAfterHigherSourceVersion(t *t
 	if _, err := service.SyncAndList(ctx); err != nil {
 		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
 	}
-	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
@@ -148,7 +148,7 @@ func TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade(t *testing.T
 	if _, err := service.SyncAndList(ctx); err != nil {
 		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
 	}
-	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 
@@ -165,8 +165,8 @@ func TestValidateSourcePluginUpgradeReadinessFailsForPendingUpgrade(t *testing.T
 	if !strings.Contains(message, pluginID) ||
 		!strings.Contains(message, oldVersion) ||
 		!strings.Contains(message, newVersion) ||
-		!strings.Contains(message, "ask \"upgrade source plugin "+pluginID+"\"") {
-		t.Fatalf("expected startup validation error to include plugin, versions, and command hint, got %q", message)
+		!strings.Contains(message, "action=resolve the source-plugin version before startup") {
+		t.Fatalf("expected startup validation error to include plugin, versions, and action hint, got %q", message)
 	}
 }
 
@@ -198,7 +198,7 @@ func TestUpgradeSourcePluginAppliesPreparedRelease(t *testing.T) {
 	if _, err := service.SyncAndList(ctx); err != nil {
 		t.Fatalf("expected source plugin discovery to succeed, got error: %v", err)
 	}
-	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected source plugin install to succeed, got error: %v", err)
 	}
 	if err := service.Enable(ctx, pluginID); err != nil {

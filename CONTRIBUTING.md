@@ -8,6 +8,7 @@ Thank you for your interest in contributing to `LinaPro`! This guide explains ho
 - [Making Changes](#making-changes)
 - [Commit Guidelines](#commit-guidelines)
 - [Pull Request Process](#pull-request-process)
+- [Release Tags](#release-tags)
 - [Coding Standards](#coding-standards)
 - [Testing](#testing)
 - [i18n Guidelines](#i18n-guidelines)
@@ -227,6 +228,22 @@ Keep the summary line under 72 characters. Add a blank line before any extended 
 5. At least one maintainer approval is required before merging.
 
 ---
+
+## Release Tags
+
+Release tag names must match `apps/lina-core/manifest/config/metadata.yaml` `framework.version` exactly. Maintainers should check the target version locally before releasing:
+
+```bash
+make release.tag.check tag=v0.2.0
+```
+
+Use the `Create Release Tag` GitHub Actions workflow for normal releases. The workflow reads `framework.version`, validates it through `linactl release.tag.check`, refuses to move an existing tag, and creates the matching `Git` tag.
+
+Repository maintainers should configure a GitHub tag ruleset for release tags such as `v*`. The ruleset should block direct creation, updates, and deletion by ordinary users, then allow only the controlled release actor to bypass the rule.
+
+The controlled workflow creates a short-lived GitHub App installation token from repository variable `RELEASE_APP_CLIENT_ID` and repository secret `RELEASE_APP_PRIVATE_KEY`. The GitHub App must be installed on this repository and have `Contents` read/write permission.
+
+Ruleset bypass is granted to actors, not to token strings. Add the GitHub App used by the controlled workflow to the release tag ruleset bypass list. Tags pushed with the default `GITHUB_TOKEN` do not reliably trigger another workflow run, so the controlled workflow uses the GitHub App token to let the tag push trigger the downstream release workflow.
 
 ## Coding Standards
 

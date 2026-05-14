@@ -342,10 +342,10 @@ func TestSyncAndListDoesNotRestoreUninstalledDynamicGovernanceProjection(t *test
 	if _, err = service.syncPluginManifest(ctx, manifest); err != nil {
 		t.Fatalf("expected dynamic manifest sync to succeed, got error: %v", err)
 	}
-	if err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err = service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected dynamic plugin install to succeed, got error: %v", err)
 	}
-	if err = service.Uninstall(ctx, pluginID); err != nil {
+	if err = service.Uninstall(ctx, pluginID, UninstallOptions{PurgeStorageData: true}); err != nil {
 		t.Fatalf("expected dynamic plugin uninstall to succeed, got error: %v", err)
 	}
 

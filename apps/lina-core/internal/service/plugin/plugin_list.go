@@ -4,6 +4,7 @@ package plugin
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	"lina-core/internal/model/entity"
@@ -62,15 +63,15 @@ func (s *serviceImpl) SyncAndList(ctx context.Context) (*ListOutput, error) {
 		if syncErr != nil {
 			return nil, syncErr
 		}
-		items = append(items, s.runtimeSvc.BuildPluginItem(syncCtx, manifest, registry))
+		items = append(items, s.buildServicePluginItem(syncCtx, s.runtimeSvc.BuildPluginItem(syncCtx, manifest, registry)))
 	}
 
 	runtimeItems, err := s.runtimeSvc.BuildRuntimeItems(syncCtx, covered)
 	if err != nil {
 		return nil, err
 	}
-	items = append(items, runtimeItems...)
-	runtime.SortPluginItems(items)
+	items = append(items, s.buildServicePluginItems(syncCtx, runtimeItems)...)
+	sortServicePluginItems(items)
 	if err = s.integrationSvc.RefreshEnabledSnapshot(syncCtx); err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 			continue
 		}
 		covered[manifest.ID] = struct{}{}
-		if item := s.runtimeSvc.BuildPluginItem(readCtx, manifest, registryByPluginID[manifest.ID]); item != nil {
+		if item := s.buildServicePluginItem(readCtx, s.runtimeSvc.BuildPluginItem(readCtx, manifest, registryByPluginID[manifest.ID])); item != nil {
 			items = append(items, item)
 		}
 	}
@@ -144,8 +145,8 @@ func (s *serviceImpl) ReadOnlyList(ctx context.Context) (*ListOutput, error) {
 	if err != nil {
 		return nil, err
 	}
-	items = append(items, runtimeItems...)
-	runtime.SortPluginItems(items)
+	items = append(items, s.buildServicePluginItems(readCtx, runtimeItems)...)
+	sortServicePluginItems(items)
 	return &ListOutput{List: items, Total: len(items)}, nil
 }
 
@@ -159,6 +160,42 @@ func buildRegistryByPluginID(registries []*entity.SysPlugin) map[string]*entity.
 		result[registry.PluginId] = registry
 	}
 	return result
+}
+
+// buildServicePluginItems wraps runtime projections with facade-level metadata.
+func (s *serviceImpl) buildServicePluginItems(ctx context.Context, items []*runtime.PluginItem) []*PluginItem {
+	out := make([]*PluginItem, 0, len(items))
+	for _, item := range items {
+		if wrapped := s.buildServicePluginItem(ctx, item); wrapped != nil {
+			out = append(out, wrapped)
+		}
+	}
+	return out
+}
+
+// buildServicePluginItem wraps one runtime projection and attaches dependency status.
+func (s *serviceImpl) buildServicePluginItem(ctx context.Context, item *runtime.PluginItem) *PluginItem {
+	if item == nil {
+		return nil
+	}
+	out := &PluginItem{PluginItem: *item}
+	if dependencyCheck, err := s.CheckPluginDependencies(ctx, item.Id); err == nil {
+		out.DependencyCheck = dependencyCheck
+	}
+	return out
+}
+
+// sortServicePluginItems sorts facade plugin projections by plugin ID.
+func sortServicePluginItems(items []*PluginItem) {
+	sort.Slice(items, func(i int, j int) bool {
+		if items[i] == nil {
+			return false
+		}
+		if items[j] == nil {
+			return true
+		}
+		return items[i].Id < items[j].Id
+	})
 }
 
 // ListEnabledPluginIDs returns the IDs of plugins that are currently

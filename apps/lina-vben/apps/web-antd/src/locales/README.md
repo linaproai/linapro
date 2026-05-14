@@ -25,8 +25,7 @@ User-visible page copy must use `$t` or runtime i18n messages. Do not place lite
 Run these checks after changing frontend runtime copy:
 
 ```bash
-make check-runtime-i18n
-make check-runtime-i18n-messages
+make i18n.check
 ```
 
-`check-runtime-i18n` is intentionally strict and may still report existing backend or plugin findings while the active runtime-message governance cleanup is in progress.
+`i18n.check` is intentionally strict and may still report existing backend or plugin findings while the active runtime-message governance cleanup is in progress.

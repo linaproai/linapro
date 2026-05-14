@@ -7,8 +7,7 @@
 Preferred repository entry points:
 
 ```bash
-make check-runtime-i18n
-make check-runtime-i18n-messages
+make i18n.check
 ```
 
 Direct tool invocation:
@@ -25,6 +24,8 @@ go run ./hack/tools/runtime-i18n messages
 | --- | --- |
 | `scan` | Scans Go, Vue, and TypeScript files for high-risk runtime-visible hard-coded copy. |
 | `messages` | Validates host and plugin runtime i18n JSON key coverage and duplicate runtime keys. |
+
+`make i18n.check` runs both direct tool commands.
 
 The `scan` command blocks on non-allowlisted runtime-source findings. It also reports non-blocking statistics for generated source and test fixtures so review records can distinguish source-code violations from accepted generated/test data.
 

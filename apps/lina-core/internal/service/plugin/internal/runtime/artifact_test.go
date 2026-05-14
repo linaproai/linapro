@@ -197,6 +197,73 @@ func TestParseRuntimeArtifactLoadsRoutesAndBridgeSpec(t *testing.T) {
 	}
 }
 
+// TestParseRuntimeArtifactPreservesDependencies verifies dynamic artifacts
+// expose embedded dependency declarations through manifest loading.
+func TestParseRuntimeArtifactPreservesDependencies(t *testing.T) {
+	services := testutil.NewServices()
+	pluginDir := testutil.CreateTestRuntimePluginDir(
+		t,
+		"plugin-dynamic-dependencies",
+		"Runtime Dependency Plugin",
+		"v0.3.7",
+		nil,
+		nil,
+	)
+
+	artifactPath := filepath.Join(pluginDir, runtime.BuildArtifactRelativePath("plugin-dynamic-dependencies"))
+	testutil.WriteRuntimeWasmArtifact(
+		t,
+		artifactPath,
+		&catalog.ArtifactManifest{
+			ID:      "plugin-dynamic-dependencies",
+			Name:    "Runtime Dependency Plugin",
+			Version: "v0.3.7",
+			Type:    catalog.TypeDynamic.String(),
+			Dependencies: &catalog.DependencySpec{
+				Framework: &catalog.FrameworkDependencySpec{Version: ">=0.1.0 <1.0.0"},
+				Plugins: []*catalog.PluginDependencySpec{
+					{
+						ID:      "multi-tenant",
+						Version: ">=0.1.0",
+						Install: catalog.DependencyInstallModeAuto.String(),
+					},
+				},
+			},
+		},
+		&catalog.ArtifactSpec{
+			RuntimeKind: pluginbridge.RuntimeKindWasm,
+			ABIVersion:  pluginbridge.SupportedABIVersion,
+		},
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+
+	manifest, err := services.Catalog.LoadManifestFromArtifactPath(artifactPath)
+	if err != nil {
+		t.Fatalf("expected runtime artifact load to succeed, got error: %v", err)
+	}
+	if manifest.Dependencies == nil || manifest.Dependencies.Framework == nil {
+		t.Fatalf("expected dependencies to be restored, got %#v", manifest.Dependencies)
+	}
+	if manifest.Dependencies.Framework.Version != ">=0.1.0 <1.0.0" {
+		t.Fatalf("unexpected framework dependency: %#v", manifest.Dependencies.Framework)
+	}
+	if len(manifest.Dependencies.Plugins) != 1 {
+		t.Fatalf("expected one plugin dependency, got %#v", manifest.Dependencies.Plugins)
+	}
+	dependency := manifest.Dependencies.Plugins[0]
+	if dependency.ID != "multi-tenant" || dependency.Install != catalog.DependencyInstallModeAuto.String() {
+		t.Fatalf("unexpected plugin dependency: %#v", dependency)
+	}
+	if dependency.Required == nil || !*dependency.Required {
+		t.Fatalf("expected required default true, got %#v", dependency.Required)
+	}
+}
+
 // TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets verifies runtime UI
 // i18n assets can use the same nested JSON authoring format as source plugins.
 func TestParseRuntimeArtifactAcceptsNestedRuntimeI18NAssets(t *testing.T) {

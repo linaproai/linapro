@@ -780,8 +780,8 @@
           "manifest": {
             "required": "Source plugin manifest cannot be empty"
           },
-          "pending": "Installed source plugins have pending upgrades. Use the lina-upgrade skill through your AI tooling before host startup.\n{items}",
-          "pendingWithBulk": "Installed source plugins have pending upgrades. Use the lina-upgrade skill through your AI tooling before host startup.\n{items}\nTo process all pending source-plugin upgrades at once, ask your AI tooling: {bulkCommand}",
+          "pending": "Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}",
+          "pendingWithBulk": "Installed source plugins have pending upgrades. Resolve the listed source-plugin versions before host startup.\n{items}\nReview all pending source-plugin upgrades together: {bulkCommand}",
           "plugin": {
             "id": {
               "required": "Source plugin ID cannot be empty"
@@ -818,6 +818,19 @@
           "policy": {
             "invalid": "Plugin {pluginId} must support multi-tenant governance and be installed in tenant_scoped mode before it can be auto-enabled for new tenants"
           }
+        }
+      },
+      "dependency": {
+        "blocked": "Plugin {pluginId} dependency check failed: {blockers}",
+        "auto": {
+          "install": {
+            "failed": "Plugin {pluginId} automatic dependency installation failed at {failedPluginId}; installed dependencies: {installedDependencies}"
+          }
+        }
+      },
+      "reverse": {
+        "dependency": {
+          "blocked": "Plugin {pluginId} cannot be changed because installed plugins depend on it: {dependents}"
         }
       }
     },

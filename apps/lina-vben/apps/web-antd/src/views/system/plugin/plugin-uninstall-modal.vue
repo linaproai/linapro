@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import type { SystemPlugin } from '#/api/system/plugin/model';
+import type {
+  PluginDependencyCheckResult,
+  SystemPlugin,
+} from '#/api/system/plugin/model';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { useVbenModal } from '@vben/common-ui';
 
@@ -14,8 +17,10 @@ import {
   message,
 } from 'ant-design-vue';
 
-import { pluginUninstall } from '#/api/system/plugin';
+import { pluginDependencyCheck, pluginUninstall } from '#/api/system/plugin';
 import { $t } from '#/locales';
+
+import PluginDependencySummary from './plugin-dependency-summary.vue';
 
 const emit = defineEmits<{
   lifecycleGuard: [
@@ -29,6 +34,8 @@ const emit = defineEmits<{
 }>();
 
 const currentPlugin = ref<SystemPlugin | null>(null);
+const dependencyCheck = ref<null | PluginDependencyCheckResult>(null);
+const dependencyLoading = ref(false);
 const purgeStorageData = ref(true);
 
 const [BasicModal, modalApi] = useVbenModal({
@@ -45,6 +52,15 @@ const isAutoEnableManaged = computed(
 const supportsPurgeStorageData = computed(
   () => isSourcePlugin.value || isDynamicPlugin.value,
 );
+const reverseDependencyBlocked = computed(() => {
+  return (
+    dependencyLoading.value ||
+    (dependencyCheck.value?.reverseDependents ?? []).length > 0 ||
+    (dependencyCheck.value?.reverseBlockers ?? []).length > 0
+  );
+});
+
+watch(reverseDependencyBlocked, updateConfirmDisabled);
 
 async function handleOpenChange(open: boolean) {
   if (!open) {
@@ -52,10 +68,19 @@ async function handleOpenChange(open: boolean) {
   }
   const data = modalApi.getData<{ row: SystemPlugin }>();
   currentPlugin.value = data?.row ?? null;
+  dependencyCheck.value = currentPlugin.value?.dependencyCheck ?? null;
   purgeStorageData.value = supportsPurgeStorageData.value;
+  await refreshDependencyCheck();
+  updateConfirmDisabled();
 }
 
 async function handleConfirm() {
+  if (reverseDependencyBlocked.value) {
+    message.warning(
+      $t('pages.system.plugin.dependency.resolveBeforeUninstall'),
+    );
+    return;
+  }
   await submitUninstall(false);
 }
 
@@ -133,6 +158,26 @@ function handleLifecycleGuardVeto(
   return true;
 }
 
+async function refreshDependencyCheck() {
+  if (!currentPlugin.value?.id) {
+    return;
+  }
+  dependencyLoading.value = true;
+  updateConfirmDisabled();
+  try {
+    dependencyCheck.value = await pluginDependencyCheck(currentPlugin.value.id);
+  } catch {
+    message.warning($t('pages.system.plugin.dependency.checkFailed'));
+  } finally {
+    dependencyLoading.value = false;
+    updateConfirmDisabled();
+  }
+}
+
+function updateConfirmDisabled() {
+  modalApi.setState({ confirmDisabled: reverseDependencyBlocked.value });
+}
+
 function extractLifecycleGuardReasons(error: unknown): null | string[] {
   const envelope = extractRuntimeErrorEnvelope(error);
   if (envelope?.errorCode !== 'PLUGIN_LIFECYCLE_GUARD_VETOED') {
@@ -206,7 +251,10 @@ function normalizeLifecycleGuardReason(value: string) {
 function handleClosed() {
   modalApi.close();
   currentPlugin.value = null;
+  dependencyCheck.value = null;
+  dependencyLoading.value = false;
   purgeStorageData.value = true;
+  updateConfirmDisabled();
 }
 
 defineExpose({ forceUninstall });
@@ -271,6 +319,12 @@ defineExpose({ forceUninstall });
           </Tag>
         </DescriptionsItem>
       </Descriptions>
+
+      <PluginDependencySummary
+        :check="dependencyCheck"
+        :loading="dependencyLoading"
+        mode="uninstall"
+      />
 
       <Alert
         v-if="supportsPurgeStorageData"

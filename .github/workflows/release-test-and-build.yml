@@ -21,11 +21,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Verifies the Git tag name before any release validation or image publication starts.
+  # 在任何发布验证或镜像发布开始前校验 Git 标签名称。
+  release-tag-version-check:
+    name: Release tag version check
+    if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Check out repository metadata so linactl can read framework.version.
+      # 拉取仓库元数据，供 linactl 读取 framework.version。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      # Ensure the pushed tag exactly matches apps/lina-core manifest metadata.
+      # 确保推送的标签与 apps/lina-core manifest 元数据完全一致。
+      - name: Verify Release Tag Matches Framework Version
+        run: |
+          cd hack/tools/linactl
+          go run . release.tag.check
+
   # Verifies host-only Windows command entry points before any release image can be published.
   # 在发布镜像前验证宿主模式 Windows 命令入口。
   windows-command-smoke:
     name: Windows command smoke (host-only)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-windows-command-smoke.yml
     with:
       plugins: "0"
@@ -35,6 +57,8 @@ jobs:
   backend-unit-tests:
     name: Go unit tests (host-only)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
     with:
       plugins: "0"
@@ -44,6 +68,8 @@ jobs:
   frontend-unit-tests:
     name: Frontend unit tests (host-only)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
 
   # Verifies Windows command entry points with official plugin submodules checked out.
@@ -51,6 +77,8 @@ jobs:
   plugin-windows-command-smoke:
     name: Windows command smoke (plugin-full)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-windows-command-smoke.yml
     with:
       submodules: recursive
@@ -61,6 +89,8 @@ jobs:
   plugin-backend-unit-tests:
     name: Go unit tests (plugin-full)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
     with:
       submodules: recursive
@@ -71,6 +101,8 @@ jobs:
   plugin-frontend-unit-tests:
     name: Frontend unit tests (plugin-full)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
     with:
       submodules: recursive
@@ -80,6 +112,8 @@ jobs:
   host-only-build-smoke:
     name: Host-only build smoke
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-host-only-build-smoke.yml
     with:
       artifact-name: release-host-only-build-smoke-log
@@ -90,6 +124,8 @@ jobs:
   host-only-e2e-tests:
     name: E2E tests (host-only)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-e2e-tests.yml
     with:
       start-command: make dev plugins=0
@@ -102,6 +138,8 @@ jobs:
   plugin-full-e2e-tests:
     name: E2E tests (plugin-full)
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-e2e-tests.yml
     with:
       submodules: recursive
@@ -116,6 +154,8 @@ jobs:
   redis-cluster-smoke:
     name: Redis cluster smoke
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
+    needs:
+      - release-tag-version-check
     uses: ./.github/workflows/reusable-redis-cluster-smoke.yml
     with:
       submodules: recursive
@@ -128,6 +168,7 @@ jobs:
     name: Build and publish release image
     if: ${{ github.event.created == true && startsWith(github.ref, 'refs/tags/') }}
     needs:
+      - release-tag-version-check
       - windows-command-smoke
       - backend-unit-tests
       - frontend-unit-tests

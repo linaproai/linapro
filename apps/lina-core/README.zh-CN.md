@@ -114,10 +114,10 @@ cluster:
 
 源码插件现在采用显式的开发阶段升级流程，不再允许在宿主启动期间静默切换版本。
 
-- 宿主启动前会先扫描源码插件；如果某个已安装源码插件的 `plugin.yaml` 发现版本高于当前生效的 `sys_plugin.version`，启动会直接失败，直到显式升级命令执行完成。
-- 通过 AI 工具调用 `lina-upgrade` 技能升级单个插件，例如：`upgrade source plugin plugin-demo-source`。
-- 通过同一技能执行 `upgrade all source plugins`，可批量处理全部已安装且发现了更高版本的源码插件。
-- 动态插件继续使用现有的运行时 `upload + install/reconcile` 升级模型，不纳入开发态升级技能。
+- 宿主启动前会先扫描源码插件；如果某个已安装源码插件的 `plugin.yaml` 发现版本高于当前生效的 `sys_plugin.version`，启动会直接失败，直到版本差异处理完成。
+- 通过受支持的插件工作区更新流程刷新源码插件代码，再启动宿主。
+- 宿主启动前需要处理所有已安装且发现了更高版本的源码插件。
+- 动态插件继续使用现有的运行时 `upload + install/reconcile` 升级模型。
 
 ## 相关入口
 

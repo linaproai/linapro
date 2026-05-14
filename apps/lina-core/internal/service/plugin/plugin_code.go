@@ -206,6 +206,24 @@ var (
 		"Plugin lifecycle operation {operation} for {pluginId} was blocked by lifecycle guards: {reasons}",
 		gcode.CodeInvalidOperation,
 	)
+	// CodePluginDependencyBlocked reports that plugin dependency checks rejected a lifecycle action.
+	CodePluginDependencyBlocked = bizerr.MustDefine(
+		"PLUGIN_DEPENDENCY_BLOCKED",
+		"Plugin {pluginId} dependency check failed: {blockers}",
+		gcode.CodeInvalidParameter,
+	)
+	// CodePluginDependencyAutoInstallFailed reports that automatic dependency installation stopped.
+	CodePluginDependencyAutoInstallFailed = bizerr.MustDefine(
+		"PLUGIN_DEPENDENCY_AUTO_INSTALL_FAILED",
+		"Plugin {pluginId} automatic dependency installation failed at {failedPluginId}; installed dependencies: {installedDependencies}",
+		gcode.CodeInternalError,
+	)
+	// CodePluginReverseDependencyBlocked reports that installed downstream plugins depend on the target plugin.
+	CodePluginReverseDependencyBlocked = bizerr.MustDefine(
+		"PLUGIN_REVERSE_DEPENDENCY_BLOCKED",
+		"Plugin {pluginId} cannot be changed because installed plugins depend on it: {dependents}",
+		gcode.CodeInvalidOperation,
+	)
 	// CodePluginForceUninstallDisabled reports that force uninstall is not enabled in host configuration.
 	CodePluginForceUninstallDisabled = bizerr.MustDefine(
 		"PLUGIN_FORCE_UNINSTALL_DISABLED",

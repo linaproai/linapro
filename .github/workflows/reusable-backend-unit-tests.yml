@@ -14,10 +14,10 @@ on:
         required: false
         type: string
         default: "false"
-      # Passes the host-only or plugin-full mode into linactl test-go.
-      # 将宿主或插件完整模式传给 linactl test-go。
+      # Passes the host-only or plugin-full mode into linactl test.go.
+      # 将宿主或插件完整模式传给 linactl test.go。
       plugins:
-        description: Official plugin build mode for linactl test-go.
+        description: Official plugin build mode for linactl test.go.
         required: false
         type: string
         default: "0"
@@ -108,4 +108,4 @@ jobs:
           # 环境变量作为显式开关，避免本地 go test 误连或改写开发/运行库。
           LINA_TEST_PGSQL_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
         run: |
-          go run ./hack/tools/linactl test-go plugins="${{ inputs.plugins }}" race=true verbose=true
+          go run ./hack/tools/linactl test.go plugins="${{ inputs.plugins }}" race=true verbose=true

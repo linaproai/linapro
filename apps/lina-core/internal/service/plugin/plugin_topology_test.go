@@ -44,7 +44,7 @@ func TestSingleNodeModeSkipsPluginNodeProjection(t *testing.T) {
 		nil,
 	)
 
-	if err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
+	if _, err := service.Install(ctx, pluginID, InstallOptions{}); err != nil {
 		t.Fatalf("expected single-node install to succeed, got error: %v", err)
 	}
 	if err := service.Enable(ctx, pluginID); err != nil {

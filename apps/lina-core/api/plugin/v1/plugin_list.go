@@ -38,7 +38,73 @@ type PluginItem struct {
 	AuthorizationRequired   int                          `json:"authorizationRequired" dc:"Whether there is a hostServices resource application that needs to be confirmed during installation/activation: 1=Yes 0=No" eg:"1"`
 	AuthorizationStatus     string                       `json:"authorizationStatus" dc:"Current authorization status: not_required=no confirmation required pending=to be confirmed confirmed=confirmed" eg:"confirmed"`
 	HasMockData             int                          `json:"hasMockData" dc:"Whether the plugin ships any mock-data SQL files under manifest/sql/mock-data/: 1=yes 0=no. The frontend uses this to decide whether to render the optional Install mock data checkbox in the install dialog." eg:"1"`
+	DependencyCheck         *PluginDependencyCheckResult `json:"dependencyCheck,omitempty" dc:"Server-side dependency check result used by management UI for install/uninstall planning" eg:"{}"`
 	RequestedHostServices   []*HostServicePermissionItem `json:"requestedHostServices,omitempty" dc:"The hostServices application list declared by the current version of the plugin" eg:"[]"`
 	AuthorizedHostServices  []*HostServicePermissionItem `json:"authorizedHostServices,omitempty" dc:"HostServices authorization snapshot after final confirmation of the current release by the host" eg:"[]"`
 	DeclaredRoutes          []*PluginRouteReviewItem     `json:"declaredRoutes,omitempty" dc:"The dynamic route review list declared by the current release, only returned by dynamic plugins; used to display the real public routes that the plugin will expose before installation or activation." eg:"[]"`
+}
+
+// PluginDependencyCheckResult describes one server-side plugin dependency decision.
+type PluginDependencyCheckResult struct {
+	TargetId              string                              `json:"targetId" dc:"Checked plugin ID" eg:"plugin-demo-dynamic"`
+	Framework             PluginDependencyFrameworkCheck      `json:"framework" dc:"Framework compatibility check result" eg:"{}"`
+	Dependencies          []*PluginDependencyItem             `json:"dependencies" dc:"Direct and transitive plugin dependency checks" eg:"[]"`
+	AutoInstallPlan       []*PluginDependencyAutoInstallItem  `json:"autoInstallPlan" dc:"Dependency plugins that will be installed automatically before the target" eg:"[]"`
+	AutoInstalled         []*PluginDependencyAutoInstallItem  `json:"autoInstalled,omitempty" dc:"Dependency plugins installed automatically during the current install request" eg:"[]"`
+	ManualInstallRequired []*PluginDependencyItem             `json:"manualInstallRequired" dc:"Hard dependencies that must be installed manually first" eg:"[]"`
+	SoftUnsatisfied       []*PluginDependencyItem             `json:"softUnsatisfied" dc:"Soft dependencies that are currently missing or incompatible" eg:"[]"`
+	Blockers              []*PluginDependencyBlocker          `json:"blockers" dc:"Install-side hard dependency blockers that prevent install or upgrade side effects" eg:"[]"`
+	Cycle                 []string                            `json:"cycle,omitempty" dc:"Detected dependency cycle chain" eg:"[]"`
+	ReverseDependents     []*PluginDependencyReverseDependent `json:"reverseDependents" dc:"Installed downstream plugins depending on this plugin" eg:"[]"`
+	ReverseBlockers       []*PluginDependencyBlocker          `json:"reverseBlockers" dc:"Uninstall or downstream-version blockers for reverse dependency protection" eg:"[]"`
+}
+
+// PluginDependencyFrameworkCheck describes framework version compatibility.
+type PluginDependencyFrameworkCheck struct {
+	RequiredVersion string `json:"requiredVersion" dc:"Declared framework version range" eg:">=0.1.0 <1.0.0"`
+	CurrentVersion  string `json:"currentVersion" dc:"Current LinaPro framework version" eg:"v0.1.0"`
+	Status          string `json:"status" dc:"Compatibility state: not_declared, satisfied, unsatisfied" eg:"satisfied"`
+}
+
+// PluginDependencyItem describes one plugin dependency edge.
+type PluginDependencyItem struct {
+	OwnerId         string   `json:"ownerId" dc:"Plugin declaring the dependency" eg:"plugin-demo-dynamic"`
+	DependencyId    string   `json:"dependencyId" dc:"Depended-on plugin ID" eg:"plugin-demo-source"`
+	DependencyName  string   `json:"dependencyName" dc:"Depended-on plugin display name" eg:"Source Plugin Demo"`
+	RequiredVersion string   `json:"requiredVersion" dc:"Declared dependency version range" eg:">=0.1.0"`
+	CurrentVersion  string   `json:"currentVersion" dc:"Discovered or installed dependency version" eg:"v0.1.0"`
+	Required        bool     `json:"required" dc:"Whether this dependency blocks lifecycle when unsatisfied" eg:"true"`
+	InstallMode     string   `json:"installMode" dc:"Declared install strategy: manual or auto" eg:"auto"`
+	Installed       bool     `json:"installed" dc:"Whether the dependency plugin is installed" eg:"false"`
+	Discovered      bool     `json:"discovered" dc:"Whether the dependency plugin was found in the catalog" eg:"true"`
+	Status          string   `json:"status" dc:"Dependency state from the server resolver" eg:"auto_install_planned"`
+	Chain           []string `json:"chain,omitempty" dc:"Dependency chain leading to this edge" eg:"[]"`
+}
+
+// PluginDependencyAutoInstallItem describes one automatic dependency install.
+type PluginDependencyAutoInstallItem struct {
+	PluginId   string   `json:"pluginId" dc:"Dependency plugin ID" eg:"plugin-demo-source"`
+	Name       string   `json:"name" dc:"Dependency plugin display name" eg:"Source Plugin Demo"`
+	Version    string   `json:"version" dc:"Dependency version to install" eg:"v0.1.0"`
+	RequiredBy string   `json:"requiredBy" dc:"Direct parent plugin requesting the dependency" eg:"plugin-demo-dynamic"`
+	Chain      []string `json:"chain,omitempty" dc:"Dependency chain leading to this plan item" eg:"[]"`
+}
+
+// PluginDependencyBlocker describes one hard dependency failure.
+type PluginDependencyBlocker struct {
+	Code            string   `json:"code" dc:"Blocker category" eg:"dependency_missing"`
+	PluginId        string   `json:"pluginId" dc:"Plugin whose lifecycle is blocked" eg:"plugin-demo-dynamic"`
+	DependencyId    string   `json:"dependencyId" dc:"Dependency plugin when applicable" eg:"plugin-demo-source"`
+	RequiredVersion string   `json:"requiredVersion" dc:"Declared version range when applicable" eg:">=0.1.0"`
+	CurrentVersion  string   `json:"currentVersion" dc:"Observed version when applicable" eg:"v0.1.0"`
+	Chain           []string `json:"chain,omitempty" dc:"Dependency chain associated with this blocker" eg:"[]"`
+	Detail          string   `json:"detail" dc:"Concise operator diagnostic" eg:"dependency_missing"`
+}
+
+// PluginDependencyReverseDependent describes one installed downstream dependency.
+type PluginDependencyReverseDependent struct {
+	PluginId        string `json:"pluginId" dc:"Downstream plugin ID" eg:"content-notice"`
+	Name            string `json:"name" dc:"Downstream plugin display name" eg:"Content Notice"`
+	Version         string `json:"version" dc:"Downstream plugin version" eg:"v0.1.0"`
+	RequiredVersion string `json:"requiredVersion" dc:"Version range declared by downstream plugin" eg:">=0.1.0"`
 }
