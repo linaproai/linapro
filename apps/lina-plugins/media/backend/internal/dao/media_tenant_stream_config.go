@@ -8,15 +8,15 @@ import (
 	"lina-plugin-media/backend/internal/dao/internal"
 )
 
-// hgTenantWhiteDao is the data access object for the table hg_tenant_white.
+// mediaTenantStreamConfigDao is the data access object for the table media_tenant_stream_config.
 // You can define custom methods on it to extend its functionality as needed.
-type hgTenantWhiteDao struct {
-	*internal.HgTenantWhiteDao
+type mediaTenantStreamConfigDao struct {
+	*internal.MediaTenantStreamConfigDao
 }
 
 var (
-	// HgTenantWhite is a globally accessible object for table hg_tenant_white operations.
-	HgTenantWhite = hgTenantWhiteDao{internal.NewHgTenantWhiteDao()}
+	// MediaTenantStreamConfig is a globally accessible object for table media_tenant_stream_config operations.
+	MediaTenantStreamConfig = mediaTenantStreamConfigDao{internal.NewMediaTenantStreamConfigDao()}
 )
 
 // Add your custom methods and functionality below.

@@ -40,7 +40,7 @@ PRIMARY KEY (`id`),
 UNIQUE KEY `uk_alias` (`alias`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='流别名表';
 
-CREATE TABLE `hg_tenant_white` (
+CREATE TABLE `media_tenant_white` (
 `tenant_id` varchar(64) NOT NULL COMMENT '租户id',
 `ip` varchar(32) NOT NULL COMMENT '白名单地址',
 `description` varchar(32) DEFAULT NULL COMMENT '白名单描述',
@@ -52,7 +52,7 @@ CREATE TABLE `hg_tenant_white` (
 UNIQUE KEY `uk_tenant_ip` (`tenant_id`,`ip`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户白名单表';
 
-CREATE TABLE `hg_tenant_stream_config` (
+CREATE TABLE `media_tenant_stream_config` (
 `tenant_id` varchar(64) NOT NULL COMMENT '租户id',
 `max_concurrent` int NOT NULL COMMENT '最大并发数',
 `node_num` tinyint(1) NOT NULL COMMENT '节点编号',
@@ -65,13 +65,13 @@ PRIMARY KEY (`tenant_id`),
 UNIQUE KEY `uk_tenant` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户流配置表';
 
-CREATE TABLE `hg_device_node` (
+CREATE TABLE `media_device_node` (
 `device_id` varchar(64) NOT NULL COMMENT '设备国标id（对应device_code）',
 `node_num` tinyint(1) NOT NULL COMMENT '节点编号',
 UNIQUE KEY `uk_device` (`device_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='设备节点表';
 
-CREATE TABLE `hg_node` (
+CREATE TABLE `media_node` (
 `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT 'ID（自增，无符号）',
 `node_num` tinyint(1) NOT NULL COMMENT '节点编号',
 `name` varchar(32) NOT NULL COMMENT '节点名称',

@@ -57,7 +57,7 @@ type TenantWhiteMutationOutput struct {
 }
 
 // tenantWhiteEntity reuses the plugin-local generated tenant whitelist entity.
-type tenantWhiteEntity = entitymodel.HgTenantWhite
+type tenantWhiteEntity = entitymodel.MediaTenantWhite
 
 // ListTenantWhites returns paged tenant whitelist entries.
 func (s *serviceImpl) ListTenantWhites(ctx context.Context, in ListTenantWhitesInput) (*ListTenantWhitesOutput, error) {
@@ -66,8 +66,8 @@ func (s *serviceImpl) ListTenantWhites(ctx context.Context, in ListTenantWhitesI
 	}
 
 	pageNum, pageSize := normalizePagination(in.PageNum, in.PageSize)
-	columns := dao.HgTenantWhite.Columns()
-	model := dao.HgTenantWhite.Ctx(ctx)
+	columns := dao.MediaTenantWhite.Columns()
+	model := dao.MediaTenantWhite.Ctx(ctx)
 
 	keyword := strings.TrimSpace(in.Keyword)
 	if keyword != "" {
@@ -137,7 +137,7 @@ func (s *serviceImpl) CreateTenantWhite(ctx context.Context, in TenantWhiteMutat
 
 	actorID := int(s.currentActorID(ctx))
 	now := gtime.Now()
-	_, err = dao.HgTenantWhite.Ctx(ctx).Data(do.HgTenantWhite{
+	_, err = dao.MediaTenantWhite.Ctx(ctx).Data(do.MediaTenantWhite{
 		TenantId:    normalized.TenantId,
 		Ip:          normalized.Ip,
 		Description: normalized.Description,
@@ -176,9 +176,9 @@ func (s *serviceImpl) UpdateTenantWhite(ctx context.Context, tenantID string, ip
 		}
 	}
 
-	_, err = dao.HgTenantWhite.Ctx(ctx).
-		Where(do.HgTenantWhite{TenantId: normalizedTenantID, Ip: normalizedIP}).
-		Data(do.HgTenantWhite{
+	_, err = dao.MediaTenantWhite.Ctx(ctx).
+		Where(do.MediaTenantWhite{TenantId: normalizedTenantID, Ip: normalizedIP}).
+		Data(do.MediaTenantWhite{
 			TenantId:    normalized.TenantId,
 			Ip:          normalized.Ip,
 			Description: normalized.Description,
@@ -203,8 +203,8 @@ func (s *serviceImpl) DeleteTenantWhite(ctx context.Context, tenantID string, ip
 		return nil, err
 	}
 
-	_, err = dao.HgTenantWhite.Ctx(ctx).
-		Where(do.HgTenantWhite{TenantId: normalizedTenantID, Ip: normalizedIP}).
+	_, err = dao.MediaTenantWhite.Ctx(ctx).
+		Where(do.MediaTenantWhite{TenantId: normalizedTenantID, Ip: normalizedIP}).
 		Delete()
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaTenantWhiteDeleteFailed)
@@ -214,8 +214,8 @@ func (s *serviceImpl) DeleteTenantWhite(ctx context.Context, tenantID string, ip
 
 // tenantWhiteExists reports whether one tenant whitelist natural key exists.
 func (s *serviceImpl) tenantWhiteExists(ctx context.Context, tenantID string, ip string) (bool, error) {
-	count, err := dao.HgTenantWhite.Ctx(ctx).
-		Where(do.HgTenantWhite{TenantId: tenantID, Ip: ip}).
+	count, err := dao.MediaTenantWhite.Ctx(ctx).
+		Where(do.MediaTenantWhite{TenantId: tenantID, Ip: ip}).
 		Count()
 	if err != nil {
 		return false, bizerr.WrapCode(err, CodeMediaTenantWhiteDetailQueryFailed)
@@ -234,8 +234,8 @@ func (s *serviceImpl) getTenantWhiteEntity(ctx context.Context, tenantID string,
 	}
 
 	var record *tenantWhiteEntity
-	err = dao.HgTenantWhite.Ctx(ctx).
-		Where(do.HgTenantWhite{TenantId: normalizedTenantID, Ip: normalizedIP}).
+	err = dao.MediaTenantWhite.Ctx(ctx).
+		Where(do.MediaTenantWhite{TenantId: normalizedTenantID, Ip: normalizedIP}).
 		Scan(&record)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaTenantWhiteDetailQueryFailed)

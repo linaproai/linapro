@@ -8,8 +8,8 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// HgTenantWhite is the golang structure for table hg_tenant_white.
-type HgTenantWhite struct {
+// MediaTenantWhite is the golang structure for table media_tenant_white.
+type MediaTenantWhite struct {
 	TenantId    string      `json:"tenantId"    orm:"tenant_id"   description:"租户ID"`
 	Ip          string      `json:"ip"          orm:"ip"          description:"白名单地址"`
 	Description string      `json:"description" orm:"description" description:"白名单描述"`

@@ -129,9 +129,9 @@ type TenantStreamConfigMutationOutput struct {
 
 // Generated entity aliases for media node config tables.
 type (
-	nodeEntity               = entitymodel.HgNode
-	deviceNodeEntity         = entitymodel.HgDeviceNode
-	tenantStreamConfigEntity = entitymodel.HgTenantStreamConfig
+	nodeEntity               = entitymodel.MediaNode
+	deviceNodeEntity         = entitymodel.MediaDeviceNode
+	tenantStreamConfigEntity = entitymodel.MediaTenantStreamConfig
 )
 
 // ListNodes returns paged media nodes.
@@ -141,8 +141,8 @@ func (s *serviceImpl) ListNodes(ctx context.Context, in ListNodesInput) (*ListNo
 	}
 
 	pageNum, pageSize := normalizePagination(in.PageNum, in.PageSize)
-	columns := dao.HgNode.Columns()
-	model := dao.HgNode.Ctx(ctx)
+	columns := dao.MediaNode.Columns()
+	model := dao.MediaNode.Ctx(ctx)
 	if keyword := strings.TrimSpace(in.Keyword); keyword != "" {
 		likeKeyword := "%" + keyword + "%"
 		model = model.Where(
@@ -204,7 +204,7 @@ func (s *serviceImpl) CreateNode(ctx context.Context, in NodeMutationInput) (*No
 
 	actorID := int(s.currentActorID(ctx))
 	now := gtime.Now()
-	_, err = dao.HgNode.Ctx(ctx).Data(do.HgNode{
+	_, err = dao.MediaNode.Ctx(ctx).Data(do.MediaNode{
 		NodeNum:    normalized.NodeNum,
 		Name:       normalized.Name,
 		QnUrl:      normalized.QnUrl,
@@ -244,9 +244,9 @@ func (s *serviceImpl) UpdateNode(ctx context.Context, oldNodeNum int, in NodeMut
 		}
 	}
 
-	_, err = dao.HgNode.Ctx(ctx).
-		Where(do.HgNode{NodeNum: normalizedOldNodeNum}).
-		Data(do.HgNode{
+	_, err = dao.MediaNode.Ctx(ctx).
+		Where(do.MediaNode{NodeNum: normalizedOldNodeNum}).
+		Data(do.MediaNode{
 			NodeNum:    normalized.NodeNum,
 			Name:       normalized.Name,
 			QnUrl:      normalized.QnUrl,
@@ -279,8 +279,8 @@ func (s *serviceImpl) DeleteNode(ctx context.Context, nodeNum int) (*NodeMutatio
 		return nil, bizerr.NewCode(CodeMediaNodeReferenced)
 	}
 
-	_, err = dao.HgNode.Ctx(ctx).
-		Where(do.HgNode{NodeNum: normalizedNodeNum}).
+	_, err = dao.MediaNode.Ctx(ctx).
+		Where(do.MediaNode{NodeNum: normalizedNodeNum}).
 		Delete()
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaNodeDeleteFailed)
@@ -295,8 +295,8 @@ func (s *serviceImpl) ListDeviceNodes(ctx context.Context, in ListDeviceNodesInp
 	}
 
 	pageNum, pageSize := normalizePagination(in.PageNum, in.PageSize)
-	columns := dao.HgDeviceNode.Columns()
-	model := dao.HgDeviceNode.Ctx(ctx)
+	columns := dao.MediaDeviceNode.Columns()
+	model := dao.MediaDeviceNode.Ctx(ctx)
 	if keyword := strings.TrimSpace(in.Keyword); keyword != "" {
 		likeKeyword := "%" + keyword + "%"
 		model = model.Where(
@@ -364,7 +364,7 @@ func (s *serviceImpl) CreateDeviceNode(ctx context.Context, in DeviceNodeMutatio
 		return nil, bizerr.NewCode(CodeMediaDeviceNodeDuplicate)
 	}
 
-	_, err = dao.HgDeviceNode.Ctx(ctx).Data(do.HgDeviceNode{
+	_, err = dao.MediaDeviceNode.Ctx(ctx).Data(do.MediaDeviceNode{
 		DeviceId: normalized.DeviceId,
 		NodeNum:  normalized.NodeNum,
 	}).Insert()
@@ -400,9 +400,9 @@ func (s *serviceImpl) UpdateDeviceNode(ctx context.Context, oldDeviceID string, 
 		}
 	}
 
-	_, err = dao.HgDeviceNode.Ctx(ctx).
-		Where(do.HgDeviceNode{DeviceId: normalizedOldDeviceID}).
-		Data(do.HgDeviceNode{
+	_, err = dao.MediaDeviceNode.Ctx(ctx).
+		Where(do.MediaDeviceNode{DeviceId: normalizedOldDeviceID}).
+		Data(do.MediaDeviceNode{
 			DeviceId: normalized.DeviceId,
 			NodeNum:  normalized.NodeNum,
 		}).
@@ -423,8 +423,8 @@ func (s *serviceImpl) DeleteDeviceNode(ctx context.Context, deviceID string) (*D
 		return nil, err
 	}
 
-	_, err = dao.HgDeviceNode.Ctx(ctx).
-		Where(do.HgDeviceNode{DeviceId: normalizedDeviceID}).
+	_, err = dao.MediaDeviceNode.Ctx(ctx).
+		Where(do.MediaDeviceNode{DeviceId: normalizedDeviceID}).
 		Delete()
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaDeviceNodeDeleteFailed)
@@ -439,8 +439,8 @@ func (s *serviceImpl) ListTenantStreamConfigs(ctx context.Context, in ListTenant
 	}
 
 	pageNum, pageSize := normalizePagination(in.PageNum, in.PageSize)
-	columns := dao.HgTenantStreamConfig.Columns()
-	model := dao.HgTenantStreamConfig.Ctx(ctx)
+	columns := dao.MediaTenantStreamConfig.Columns()
+	model := dao.MediaTenantStreamConfig.Ctx(ctx)
 	if keyword := strings.TrimSpace(in.Keyword); keyword != "" {
 		likeKeyword := "%" + keyword + "%"
 		model = model.Where(
@@ -517,7 +517,7 @@ func (s *serviceImpl) CreateTenantStreamConfig(ctx context.Context, in TenantStr
 
 	actorID := int(s.currentActorID(ctx))
 	now := gtime.Now()
-	_, err = dao.HgTenantStreamConfig.Ctx(ctx).Data(do.HgTenantStreamConfig{
+	_, err = dao.MediaTenantStreamConfig.Ctx(ctx).Data(do.MediaTenantStreamConfig{
 		TenantId:      normalized.TenantId,
 		MaxConcurrent: normalized.MaxConcurrent,
 		NodeNum:       normalized.NodeNum,
@@ -559,9 +559,9 @@ func (s *serviceImpl) UpdateTenantStreamConfig(ctx context.Context, oldTenantID 
 		}
 	}
 
-	_, err = dao.HgTenantStreamConfig.Ctx(ctx).
-		Where(do.HgTenantStreamConfig{TenantId: normalizedOldTenantID}).
-		Data(do.HgTenantStreamConfig{
+	_, err = dao.MediaTenantStreamConfig.Ctx(ctx).
+		Where(do.MediaTenantStreamConfig{TenantId: normalizedOldTenantID}).
+		Data(do.MediaTenantStreamConfig{
 			TenantId:      normalized.TenantId,
 			MaxConcurrent: normalized.MaxConcurrent,
 			NodeNum:       normalized.NodeNum,
@@ -586,8 +586,8 @@ func (s *serviceImpl) DeleteTenantStreamConfig(ctx context.Context, tenantID str
 		return nil, err
 	}
 
-	_, err = dao.HgTenantStreamConfig.Ctx(ctx).
-		Where(do.HgTenantStreamConfig{TenantId: normalizedTenantID}).
+	_, err = dao.MediaTenantStreamConfig.Ctx(ctx).
+		Where(do.MediaTenantStreamConfig{TenantId: normalizedTenantID}).
 		Delete()
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaTenantStreamDeleteFailed)
@@ -597,8 +597,8 @@ func (s *serviceImpl) DeleteTenantStreamConfig(ctx context.Context, tenantID str
 
 // nodeExists reports whether one media node exists.
 func (s *serviceImpl) nodeExists(ctx context.Context, nodeNum int) (bool, error) {
-	count, err := dao.HgNode.Ctx(ctx).
-		Where(do.HgNode{NodeNum: nodeNum}).
+	count, err := dao.MediaNode.Ctx(ctx).
+		Where(do.MediaNode{NodeNum: nodeNum}).
 		Count()
 	if err != nil {
 		return false, bizerr.WrapCode(err, CodeMediaNodeDetailQueryFailed)
@@ -617,8 +617,8 @@ func (s *serviceImpl) getNodeEntity(ctx context.Context, nodeNum int) (*nodeEnti
 	}
 
 	var record *nodeEntity
-	err = dao.HgNode.Ctx(ctx).
-		Where(do.HgNode{NodeNum: normalizedNodeNum}).
+	err = dao.MediaNode.Ctx(ctx).
+		Where(do.MediaNode{NodeNum: normalizedNodeNum}).
 		Scan(&record)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaNodeDetailQueryFailed)
@@ -631,8 +631,8 @@ func (s *serviceImpl) getNodeEntity(ctx context.Context, nodeNum int) (*nodeEnti
 
 // nodeReferenced reports whether one node number is referenced by dependent tables.
 func (s *serviceImpl) nodeReferenced(ctx context.Context, nodeNum int) (bool, error) {
-	deviceCount, err := dao.HgDeviceNode.Ctx(ctx).
-		Where(do.HgDeviceNode{NodeNum: nodeNum}).
+	deviceCount, err := dao.MediaDeviceNode.Ctx(ctx).
+		Where(do.MediaDeviceNode{NodeNum: nodeNum}).
 		Count()
 	if err != nil {
 		return false, bizerr.WrapCode(err, CodeMediaDeviceNodeCountQueryFailed)
@@ -641,8 +641,8 @@ func (s *serviceImpl) nodeReferenced(ctx context.Context, nodeNum int) (bool, er
 		return true, nil
 	}
 
-	streamCount, err := dao.HgTenantStreamConfig.Ctx(ctx).
-		Where(do.HgTenantStreamConfig{NodeNum: nodeNum}).
+	streamCount, err := dao.MediaTenantStreamConfig.Ctx(ctx).
+		Where(do.MediaTenantStreamConfig{NodeNum: nodeNum}).
 		Count()
 	if err != nil {
 		return false, bizerr.WrapCode(err, CodeMediaTenantStreamCountQueryFailed)
@@ -652,8 +652,8 @@ func (s *serviceImpl) nodeReferenced(ctx context.Context, nodeNum int) (bool, er
 
 // deviceNodeExists reports whether one device-node mapping exists.
 func (s *serviceImpl) deviceNodeExists(ctx context.Context, deviceID string) (bool, error) {
-	count, err := dao.HgDeviceNode.Ctx(ctx).
-		Where(do.HgDeviceNode{DeviceId: deviceID}).
+	count, err := dao.MediaDeviceNode.Ctx(ctx).
+		Where(do.MediaDeviceNode{DeviceId: deviceID}).
 		Count()
 	if err != nil {
 		return false, bizerr.WrapCode(err, CodeMediaDeviceNodeDetailQueryFailed)
@@ -672,8 +672,8 @@ func (s *serviceImpl) getDeviceNodeEntity(ctx context.Context, deviceID string) 
 	}
 
 	var record *deviceNodeEntity
-	err = dao.HgDeviceNode.Ctx(ctx).
-		Where(do.HgDeviceNode{DeviceId: normalizedDeviceID}).
+	err = dao.MediaDeviceNode.Ctx(ctx).
+		Where(do.MediaDeviceNode{DeviceId: normalizedDeviceID}).
 		Scan(&record)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaDeviceNodeDetailQueryFailed)
@@ -686,8 +686,8 @@ func (s *serviceImpl) getDeviceNodeEntity(ctx context.Context, deviceID string) 
 
 // tenantStreamConfigExists reports whether one tenant stream config exists.
 func (s *serviceImpl) tenantStreamConfigExists(ctx context.Context, tenantID string) (bool, error) {
-	count, err := dao.HgTenantStreamConfig.Ctx(ctx).
-		Where(do.HgTenantStreamConfig{TenantId: tenantID}).
+	count, err := dao.MediaTenantStreamConfig.Ctx(ctx).
+		Where(do.MediaTenantStreamConfig{TenantId: tenantID}).
 		Count()
 	if err != nil {
 		return false, bizerr.WrapCode(err, CodeMediaTenantStreamDetailQueryFailed)
@@ -706,8 +706,8 @@ func (s *serviceImpl) getTenantStreamConfigEntity(ctx context.Context, tenantID 
 	}
 
 	var record *tenantStreamConfigEntity
-	err = dao.HgTenantStreamConfig.Ctx(ctx).
-		Where(do.HgTenantStreamConfig{TenantId: normalizedTenantID}).
+	err = dao.MediaTenantStreamConfig.Ctx(ctx).
+		Where(do.MediaTenantStreamConfig{TenantId: normalizedTenantID}).
 		Scan(&record)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaTenantStreamDetailQueryFailed)
@@ -727,9 +727,9 @@ func (s *serviceImpl) nodeNameMap(ctx context.Context, nodeNums []int) (map[int]
 	}
 
 	nodes := make([]*nodeEntity, 0)
-	err := dao.HgNode.Ctx(ctx).
-		Fields(dao.HgNode.Columns().NodeNum, dao.HgNode.Columns().Name).
-		WhereIn(dao.HgNode.Columns().NodeNum, uniqueNodeNums).
+	err := dao.MediaNode.Ctx(ctx).
+		Fields(dao.MediaNode.Columns().NodeNum, dao.MediaNode.Columns().Name).
+		WhereIn(dao.MediaNode.Columns().NodeNum, uniqueNodeNums).
 		Scan(&nodes)
 	if err != nil {
 		return nil, bizerr.WrapCode(err, CodeMediaNodeListQueryFailed)

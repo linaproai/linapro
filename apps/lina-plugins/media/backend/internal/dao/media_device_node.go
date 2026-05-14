@@ -8,15 +8,15 @@ import (
 	"lina-plugin-media/backend/internal/dao/internal"
 )
 
-// hgDeviceNodeDao is the data access object for the table hg_device_node.
+// mediaDeviceNodeDao is the data access object for the table media_device_node.
 // You can define custom methods on it to extend its functionality as needed.
-type hgDeviceNodeDao struct {
-	*internal.HgDeviceNodeDao
+type mediaDeviceNodeDao struct {
+	*internal.MediaDeviceNodeDao
 }
 
 var (
-	// HgDeviceNode is a globally accessible object for table hg_device_node operations.
-	HgDeviceNode = hgDeviceNodeDao{internal.NewHgDeviceNodeDao()}
+	// MediaDeviceNode is a globally accessible object for table media_device_node operations.
+	MediaDeviceNode = mediaDeviceNodeDao{internal.NewMediaDeviceNodeDao()}
 )
 
 // Add your custom methods and functionality below.

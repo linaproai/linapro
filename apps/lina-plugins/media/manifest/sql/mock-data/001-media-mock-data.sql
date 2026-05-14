@@ -212,7 +212,7 @@ WHERE NOT EXISTS (
     WHERE existing."alias" = 'temporary-event-room'
 );
 
-INSERT INTO hg_node (
+INSERT INTO media_node (
     "node_num",
     "name",
     "qn_url",
@@ -237,11 +237,11 @@ FROM sys_user admin
 WHERE admin."username" = 'admin'
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_node existing
+      FROM media_node existing
       WHERE existing."node_num" = 1
   );
 
-INSERT INTO hg_node (
+INSERT INTO media_node (
     "node_num",
     "name",
     "qn_url",
@@ -266,11 +266,11 @@ FROM sys_user admin
 WHERE admin."username" = 'admin'
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_node existing
+      FROM media_node existing
       WHERE existing."node_num" = 2
   );
 
-INSERT INTO hg_device_node (
+INSERT INTO media_device_node (
     "device_id",
     "node_num"
 )
@@ -279,16 +279,16 @@ SELECT
     1
 WHERE EXISTS (
     SELECT 1
-    FROM hg_node node
+    FROM media_node node
     WHERE node."node_num" = 1
 )
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_device_node existing
+      FROM media_device_node existing
       WHERE existing."device_id" = '34020000001320000001'
   );
 
-INSERT INTO hg_device_node (
+INSERT INTO media_device_node (
     "device_id",
     "node_num"
 )
@@ -297,16 +297,16 @@ SELECT
     2
 WHERE EXISTS (
     SELECT 1
-    FROM hg_node node
+    FROM media_node node
     WHERE node."node_num" = 2
 )
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_device_node existing
+      FROM media_device_node existing
       WHERE existing."device_id" = '34020000001320000002'
   );
 
-INSERT INTO hg_tenant_stream_config (
+INSERT INTO media_tenant_stream_config (
     "tenant_id",
     "max_concurrent",
     "node_num",
@@ -329,16 +329,16 @@ FROM sys_user admin
 WHERE admin."username" = 'admin'
   AND EXISTS (
       SELECT 1
-      FROM hg_node node
+      FROM media_node node
       WHERE node."node_num" = 1
   )
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_tenant_stream_config existing
+      FROM media_tenant_stream_config existing
       WHERE existing."tenant_id" = 'tenant-retail-east'
   );
 
-INSERT INTO hg_tenant_stream_config (
+INSERT INTO media_tenant_stream_config (
     "tenant_id",
     "max_concurrent",
     "node_num",
@@ -361,16 +361,16 @@ FROM sys_user admin
 WHERE admin."username" = 'admin'
   AND EXISTS (
       SELECT 1
-      FROM hg_node node
+      FROM media_node node
       WHERE node."node_num" = 2
   )
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_tenant_stream_config existing
+      FROM media_tenant_stream_config existing
       WHERE existing."tenant_id" = 'tenant-park-security'
   );
 
-INSERT INTO hg_tenant_white (
+INSERT INTO media_tenant_white (
     "tenant_id",
     "ip",
     "description",
@@ -393,12 +393,12 @@ FROM sys_user admin
 WHERE admin."username" = 'admin'
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_tenant_white existing
+      FROM media_tenant_white existing
       WHERE existing."tenant_id" = 'tenant-retail-east'
         AND existing."ip" = '10.8.1.24'
   );
 
-INSERT INTO hg_tenant_white (
+INSERT INTO media_tenant_white (
     "tenant_id",
     "ip",
     "description",
@@ -421,12 +421,12 @@ FROM sys_user admin
 WHERE admin."username" = 'admin'
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_tenant_white existing
+      FROM media_tenant_white existing
       WHERE existing."tenant_id" = 'tenant-park-security'
         AND existing."ip" = '172.16.20.8'
   );
 
-INSERT INTO hg_tenant_white (
+INSERT INTO media_tenant_white (
     "tenant_id",
     "ip",
     "description",
@@ -449,7 +449,7 @@ FROM sys_user admin
 WHERE admin."username" = 'admin'
   AND NOT EXISTS (
       SELECT 1
-      FROM hg_tenant_white existing
+      FROM media_tenant_white existing
       WHERE existing."tenant_id" = 'tenant-temporary-event'
         AND existing."ip" = '203.0.113.18'
   );

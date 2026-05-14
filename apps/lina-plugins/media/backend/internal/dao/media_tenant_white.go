@@ -8,15 +8,15 @@ import (
 	"lina-plugin-media/backend/internal/dao/internal"
 )
 
-// hgNodeDao is the data access object for the table hg_node.
+// mediaTenantWhiteDao is the data access object for the table media_tenant_white.
 // You can define custom methods on it to extend its functionality as needed.
-type hgNodeDao struct {
-	*internal.HgNodeDao
+type mediaTenantWhiteDao struct {
+	*internal.MediaTenantWhiteDao
 }
 
 var (
-	// HgNode is a globally accessible object for table hg_node operations.
-	HgNode = hgNodeDao{internal.NewHgNodeDao()}
+	// MediaTenantWhite is a globally accessible object for table media_tenant_white operations.
+	MediaTenantWhite = mediaTenantWhiteDao{internal.NewMediaTenantWhiteDao()}
 )
 
 // Add your custom methods and functionality below.

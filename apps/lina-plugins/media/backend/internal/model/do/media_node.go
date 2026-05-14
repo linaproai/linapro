@@ -9,9 +9,9 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// HgNode is the golang structure of table hg_node for DAO operations like Where/Data.
-type HgNode struct {
-	g.Meta     `orm:"table:hg_node, do:true"`
+// MediaNode is the golang structure of table media_node for DAO operations like Where/Data.
+type MediaNode struct {
+	g.Meta     `orm:"table:media_node, do:true"`
 	Id         any         // ID（自增，无符号）
 	NodeNum    any         // 节点编号
 	Name       any         // 节点名称

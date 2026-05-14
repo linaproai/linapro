@@ -11,16 +11,16 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// HgTenantStreamConfigDao is the data access object for the table hg_tenant_stream_config.
-type HgTenantStreamConfigDao struct {
-	table    string                      // table is the underlying table name of the DAO.
-	group    string                      // group is the database configuration group name of the current DAO.
-	columns  HgTenantStreamConfigColumns // columns contains all the column names of Table for convenient usage.
-	handlers []gdb.ModelHandler          // handlers for customized model modification.
+// MediaTenantStreamConfigDao is the data access object for the table media_tenant_stream_config.
+type MediaTenantStreamConfigDao struct {
+	table    string                         // table is the underlying table name of the DAO.
+	group    string                         // group is the database configuration group name of the current DAO.
+	columns  MediaTenantStreamConfigColumns // columns contains all the column names of Table for convenient usage.
+	handlers []gdb.ModelHandler             // handlers for customized model modification.
 }
 
-// HgTenantStreamConfigColumns defines and stores column names for the table hg_tenant_stream_config.
-type HgTenantStreamConfigColumns struct {
+// MediaTenantStreamConfigColumns defines and stores column names for the table media_tenant_stream_config.
+type MediaTenantStreamConfigColumns struct {
 	TenantId      string // 租户ID
 	MaxConcurrent string // 最大并发数
 	NodeNum       string // 节点编号
@@ -31,8 +31,8 @@ type HgTenantStreamConfigColumns struct {
 	UpdateTime    string // 修改时间
 }
 
-// hgTenantStreamConfigColumns holds the columns for the table hg_tenant_stream_config.
-var hgTenantStreamConfigColumns = HgTenantStreamConfigColumns{
+// mediaTenantStreamConfigColumns holds the columns for the table media_tenant_stream_config.
+var mediaTenantStreamConfigColumns = MediaTenantStreamConfigColumns{
 	TenantId:      "tenant_id",
 	MaxConcurrent: "max_concurrent",
 	NodeNum:       "node_num",
@@ -43,38 +43,38 @@ var hgTenantStreamConfigColumns = HgTenantStreamConfigColumns{
 	UpdateTime:    "update_time",
 }
 
-// NewHgTenantStreamConfigDao creates and returns a new DAO object for table data access.
-func NewHgTenantStreamConfigDao(handlers ...gdb.ModelHandler) *HgTenantStreamConfigDao {
-	return &HgTenantStreamConfigDao{
+// NewMediaTenantStreamConfigDao creates and returns a new DAO object for table data access.
+func NewMediaTenantStreamConfigDao(handlers ...gdb.ModelHandler) *MediaTenantStreamConfigDao {
+	return &MediaTenantStreamConfigDao{
 		group:    "default",
-		table:    "hg_tenant_stream_config",
-		columns:  hgTenantStreamConfigColumns,
+		table:    "media_tenant_stream_config",
+		columns:  mediaTenantStreamConfigColumns,
 		handlers: handlers,
 	}
 }
 
 // DB retrieves and returns the underlying raw database management object of the current DAO.
-func (dao *HgTenantStreamConfigDao) DB() gdb.DB {
+func (dao *MediaTenantStreamConfigDao) DB() gdb.DB {
 	return g.DB(dao.group)
 }
 
 // Table returns the table name of the current DAO.
-func (dao *HgTenantStreamConfigDao) Table() string {
+func (dao *MediaTenantStreamConfigDao) Table() string {
 	return dao.table
 }
 
 // Columns returns all column names of the current DAO.
-func (dao *HgTenantStreamConfigDao) Columns() HgTenantStreamConfigColumns {
+func (dao *MediaTenantStreamConfigDao) Columns() MediaTenantStreamConfigColumns {
 	return dao.columns
 }
 
 // Group returns the database configuration group name of the current DAO.
-func (dao *HgTenantStreamConfigDao) Group() string {
+func (dao *MediaTenantStreamConfigDao) Group() string {
 	return dao.group
 }
 
 // Ctx creates and returns a Model for the current DAO. It automatically sets the context for the current operation.
-func (dao *HgTenantStreamConfigDao) Ctx(ctx context.Context) *gdb.Model {
+func (dao *MediaTenantStreamConfigDao) Ctx(ctx context.Context) *gdb.Model {
 	model := dao.DB().Model(dao.table)
 	for _, handler := range dao.handlers {
 		model = handler(model)
@@ -88,6 +88,6 @@ func (dao *HgTenantStreamConfigDao) Ctx(ctx context.Context) *gdb.Model {
 //
 // Note: Do not commit or roll back the transaction in function f,
 // as it is automatically handled by this function.
-func (dao *HgTenantStreamConfigDao) Transaction(ctx context.Context, f func(ctx context.Context, tx gdb.TX) error) (err error) {
+func (dao *MediaTenantStreamConfigDao) Transaction(ctx context.Context, f func(ctx context.Context, tx gdb.TX) error) (err error) {
 	return dao.Ctx(ctx).Transaction(ctx, f)
 }

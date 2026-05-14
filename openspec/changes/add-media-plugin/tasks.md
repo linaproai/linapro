@@ -58,25 +58,42 @@
 - [x] **FB-10**: media 数据库时间字段应保持 `media_v2.md` 给定的字段名和字段结构
 - [x] **FB-11**: 媒体策略新增失败，新增弹窗疑似复用旧编辑状态并调用更新接口
 - [x] **FB-12**: 仔细核实 media 每一个后端接口、前端页面和页面触发接口，确保模块完整且正确
-- [x] **FB-13**: 增加 `hg_tenant_white` 租户白名单表及相关业务逻辑
+- [x] **FB-13**: 增加 `media_tenant_white` 租户白名单表及相关业务逻辑
 - [x] **FB-14**: 租户白名单 IP 必须在后端校验为有效 IPv4 或 IPv6 地址
 - [x] **FB-15**: 优化媒体管理页面顶部 Tab 视觉效果
-- [x] **FB-16**: 增加 `hg_tenant_stream_config`、`hg_device_node`、`hg_node` 表及相关业务逻辑
-- [x] **FB-17**: `hg_device_node.device_id` 应按原表结构使用唯一约束而不是主键
+- [x] **FB-16**: 增加 `media_tenant_stream_config`、`media_device_node`、`media_node` 表及相关业务逻辑
+- [x] **FB-17**: `media_device_node.device_id` 应按原表结构使用唯一约束而不是主键
+- [x] **FB-18**: 后续新增的 `hg_*` 媒体表统一改为 `media_*` 命名
 
 ## Feedback 验证记录
 
-- [x] FB-17 将 `hg_device_node.device_id` 从 PostgreSQL 主键改为普通非空字段，并新增 `uk_hg_device_node_device` 唯一约束，对齐 `media_v2.md` 中 `UNIQUE KEY uk_device(device_id)`。
-- [x] FB-17 插件安装 SQL 的重复执行修正段会移除旧本地库中的 `hg_device_node_pkey`，再重建 `uk_hg_device_node_device` 和节点外键，保证重放后结构一致。
-- [x] `psql` 约束断言通过：`hg_device_node` 当前 `primary_count=0`、`unique_count=1`，约束为 `uk_hg_device_node_device|UNIQUE (device_id)` 与 `fk_hg_device_node_node|ON UPDATE CASCADE ON DELETE RESTRICT`。
+- [x] FB-18 将后续新增的四张媒体表统一改为 `media_tenant_white`、`media_node`、`media_device_node`、`media_tenant_stream_config`，同步更新安装 SQL、卸载 SQL、mock 数据、`media_v2.md`、OpenSpec 规范、`gf gen dao` 配置和服务层 DAO/DO/Entity 引用。
+- [x] FB-18 删除旧 `hg_*` 生成文件并通过 `gf gen dao -c hack/config.yaml` 重新生成 `MediaTenantWhite`、`MediaNode`、`MediaDeviceNode`、`MediaTenantStreamConfig` 访问层。
+- [x] `psql` 重放旧 `hg_*` 本地清理、插件卸载 SQL、安装 SQL和 mock 数据两次通过；结构断言确认当前库存在 `media_tenant_white/media_node/media_device_node/media_tenant_stream_config`，且旧 `hg_*` 表不存在。
+- [x] `rg -n "hg_" apps/lina-plugins/media/manifest apps/lina-plugins/media/backend/hack apps/lina-plugins/media/backend/internal/service media_v2.md openspec/changes/add-media-plugin/specs/media-plugin/spec.md` 无命中，确认交付 SQL、codegen 配置、服务层与当前规范无旧物理表名残留。
+- [x] `go test ./...` 于 `apps/lina-plugins/media` 通过。
+- [x] `go test ./...` 于 `apps/lina-plugins` 通过。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd typecheck` 于 `apps/lina-vben` 通过。
+- [x] `PATH=/Users/wanna/Library/pnpm:$PATH pnpm -F @lina/web-antd i18n:check` 于 `apps/lina-vben` 通过；本模块仍按用户要求中文-only，未新增 i18n 资源。
+- [x] `./node_modules/.bin/tsc --noEmit --pretty false` 于 `hack/tests` 通过。
+- [x] `make stop && make dev` 通过，后端与前端服务重新加载 `media_*` 表名版本。
+- [x] `./node_modules/.bin/playwright test apps/lina-plugins/media/hack/tests/e2e/TC0234-media-plugin-smoke.ts -g "TC-234e"` 通过，覆盖页面编辑回显与接口执行。
+- [x] `./node_modules/.bin/playwright test apps/lina-plugins/media/hack/tests/e2e/TC0234-media-plugin-smoke.ts` 复跑通过，5 条用例全部通过。
+- [x] `openspec validate add-media-plugin --strict` 通过。
+- [x] `git diff --check` 通过。
+- [x] i18n 影响评估：本次仅调整表物理命名和生成访问层，本模块仍按用户要求中文-only，未新增运行时 i18n、manifest i18n 或 apidoc i18n 资源。
+- [x] 缓存影响评估：本次未新增缓存，media 页面和接口仍直接读写 PostgreSQL，不涉及跨实例缓存一致性问题。
+- [x] FB-17 将 `media_device_node.device_id` 从 PostgreSQL 主键改为普通非空字段，并新增 `uk_media_device_node_device` 唯一约束，对齐 `media_v2.md` 中 `UNIQUE KEY uk_device(device_id)`。
+- [x] FB-17 插件安装 SQL 的重复执行修正段会移除旧本地库中的 `media_device_node_pkey`，再重建 `uk_media_device_node_device` 和节点外键，保证重放后结构一致。
+- [x] `psql` 约束断言通过：`media_device_node` 当前 `primary_count=0`、`unique_count=1`，约束为 `uk_media_device_node_device|UNIQUE (device_id)` 与 `fk_media_device_node_node|ON UPDATE CASCADE ON DELETE RESTRICT`。
 - [x] `psql` 连续执行 `apps/lina-plugins/media/manifest/sql/001-media-schema.sql` 两次通过。
-- [x] FB-16 新增 `hg_node`、`hg_device_node`、`hg_tenant_stream_config` PostgreSQL 表，字段名保持截图中的 `tenant_id/device_id/node_num/create_time/update_time` 等原始命名，MySQL `tinyint(1)` 转为 `smallint`，`datetime` 转为 PostgreSQL `timestamp`。
+- [x] FB-16 新增 `media_node`、`media_device_node`、`media_tenant_stream_config` PostgreSQL 表，字段名保持截图中的 `tenant_id/device_id/node_num/create_time/update_time` 等原始命名，MySQL `tinyint(1)` 转为 `smallint`，`datetime` 转为 PostgreSQL `timestamp`。
 - [x] FB-16 新增节点、设备节点、租户流配置三组独立 REST 资源：`/media/nodes`、`/media/device-nodes`、`/media/tenant-stream-configs`，支持分页查询、新增、详情、修改、删除；设备节点和租户流配置均校验引用节点存在。
 - [x] FB-16 新增“节点管理”“设备节点”“租户流配置”独立页签和编辑弹窗，覆盖新增、编辑回显、自然键修改、节点选择、启用状态和删除；页面顶部 Tab 保持优化后的紧凑分段样式。
 - [x] FB-16 新增案例数据：`华东媒体节点`、`华北媒体节点`，设备 `34020000001320000001/34020000001320000002`，租户流配置 `tenant-retail-east/tenant-park-security`；`psql` 连续执行 `manifest/sql/mock-data/001-media-mock-data.sql` 两次通过，第二次全部 `INSERT 0 0`，不重复写入。
-- [x] `psql` 结构断言通过：`hg_node` 字段为 `id:integer:NO`、`node_num:smallint:NO`、`name:varchar(32):NO`、`qn_url/basic_url/dn_url:varchar(255):NO`、`creator_id:integer:YES`、`create_time:timestamp without time zone:NO`、`updater_id:integer:YES`、`update_time:timestamp without time zone:YES`。
-- [x] `psql` 结构断言通过：`hg_device_node` 字段为 `device_id:varchar(64):NO`、`node_num:smallint:NO`；`hg_tenant_stream_config` 字段为 `tenant_id:varchar(64):NO`、`max_concurrent:integer:NO`、`node_num:smallint:NO`、`enable:smallint:NO`、`creator_id:integer:YES`、`create_time:timestamp without time zone:NO`、`updater_id:integer:YES`、`update_time:timestamp without time zone:YES`。
-- [x] `psql` 外键断言通过：`fk_hg_device_node_node` 与 `fk_hg_tenant_stream_config_node` 均为 `ON UPDATE CASCADE ON DELETE RESTRICT`；插件安装 SQL 重复执行时会重建外键，避免旧本地约束保留 `NO ACTION`。
+- [x] `psql` 结构断言通过：`media_node` 字段为 `id:integer:NO`、`node_num:smallint:NO`、`name:varchar(32):NO`、`qn_url/basic_url/dn_url:varchar(255):NO`、`creator_id:integer:YES`、`create_time:timestamp without time zone:NO`、`updater_id:integer:YES`、`update_time:timestamp without time zone:YES`。
+- [x] `psql` 结构断言通过：`media_device_node` 字段为 `device_id:varchar(64):NO`、`node_num:smallint:NO`；`media_tenant_stream_config` 字段为 `tenant_id:varchar(64):NO`、`max_concurrent:integer:NO`、`node_num:smallint:NO`、`enable:smallint:NO`、`creator_id:integer:YES`、`create_time:timestamp without time zone:NO`、`updater_id:integer:YES`、`update_time:timestamp without time zone:YES`。
+- [x] `psql` 外键断言通过：`fk_media_device_node_node` 与 `fk_media_tenant_stream_config_node` 均为 `ON UPDATE CASCADE ON DELETE RESTRICT`；插件安装 SQL 重复执行时会重建外键，避免旧本地约束保留 `NO ACTION`。
 - [x] `go test ./...` 于 `apps/lina-plugins/media` 通过。
 - [x] `pnpm -C apps/lina-vben -F @lina/web-antd typecheck` 通过。
 - [x] `pnpm exec tsc -p tsconfig.json --noEmit --pretty false` 于 `hack/tests` 通过。
@@ -205,12 +222,12 @@
 - [x] `psql` 检查确认本地演示数据恢复为仅 `默认直播录制策略` 一条全局策略。
 - [x] 静态扫描 `rg -n 'host_tenant_id|bizTenantId|BizTenantId|created_at|updated_at|createdAt|updatedAt|media/bindings|BindingScope|CodeMediaBindingScopeInvalid' apps/lina-plugins/media -g '!backend/internal/dao/**' -g '!backend/internal/model/**'` 无命中，确认旧字段、旧接口和旧时间命名无残留。
 - [x] `make stop && make dev` 通过，宿主内嵌静态资源已重新生成；`apps/lina-core/internal/packed/public` 可命中 `media-strategy-toggle` 和 `media-device-binding-delete` 等最新页面标识。
-- [x] FB-13 新增 `hg_tenant_white` PostgreSQL 表，字段名保持 `tenant_id/ip/description/enable/creator_id/create_time/updater_id/update_time`，类型转换为 `varchar(64)`、`varchar(32)`、`varchar(32)`、`smallint`、`integer`、`timestamp`、`integer`、`timestamp`，并保留 `tenant_id + ip` 联合唯一约束。
+- [x] FB-13 新增 `media_tenant_white` PostgreSQL 表，字段名保持 `tenant_id/ip/description/enable/creator_id/create_time/updater_id/update_time`，类型转换为 `varchar(64)`、`varchar(32)`、`varchar(32)`、`smallint`、`integer`、`timestamp`、`integer`、`timestamp`，并保留 `tenant_id + ip` 联合唯一约束。
 - [x] FB-13 新增租户白名单独立 REST 资源：`GET/POST /media/tenant-whites`、`GET/PUT/DELETE /media/tenant-whites/{tenantId}/{ip}`，未与策略绑定接口混用。
 - [x] FB-13 新增“租户白名单”独立页签和编辑弹窗，支持新增、编辑回显、自然键修改、启用状态、删除和案例数据展示。
-- [x] `psql` 结构断言通过：`hg_tenant_white` 字段为 `tenant_id:character varying:64:NO`、`ip:character varying:32:NO`、`description:character varying:32:YES`、`enable:smallint::NO`、`creator_id:integer::YES`、`create_time:timestamp without time zone::NO`、`updater_id:integer::YES`、`update_time:timestamp without time zone::YES`。
-- [x] `psql` 时间精度断言通过：`media_strategy.create_time` 和 `media_stream_alias.create_time` 保持 `datetime(3)` 对应的 `timestamp(3)`，`hg_tenant_white.create_time` 使用截图中 `datetime` 对应的 PostgreSQL `timestamp`。
-- [x] `psql` 约束断言通过：`hg_tenant_white` 存在 `uk_hg_tenant_white_tenant_ip` 唯一约束和 `ck_hg_tenant_white_enable` 检查约束。
+- [x] `psql` 结构断言通过：`media_tenant_white` 字段为 `tenant_id:character varying:64:NO`、`ip:character varying:32:NO`、`description:character varying:32:YES`、`enable:smallint::NO`、`creator_id:integer::YES`、`create_time:timestamp without time zone::NO`、`updater_id:integer::YES`、`update_time:timestamp without time zone::YES`。
+- [x] `psql` 时间精度断言通过：`media_strategy.create_time` 和 `media_stream_alias.create_time` 保持 `datetime(3)` 对应的 `timestamp(3)`，`media_tenant_white.create_time` 使用截图中 `datetime` 对应的 PostgreSQL `timestamp`。
+- [x] `psql` 约束断言通过：`media_tenant_white` 存在 `uk_media_tenant_white_tenant_ip` 唯一约束和 `ck_media_tenant_white_enable` 检查约束。
 - [x] `psql` 连续执行 `manifest/sql/mock-data/001-media-mock-data.sql` 两次通过，租户白名单案例数据保持 3 条不重复写入。
 - [x] `go test ./...` 于 `apps/lina-plugins/media` 通过。
 - [x] `go test ./...` 于 `apps/lina-plugins` 通过。

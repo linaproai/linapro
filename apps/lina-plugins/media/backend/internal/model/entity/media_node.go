@@ -8,8 +8,8 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// HgNode is the golang structure for table hg_node.
-type HgNode struct {
+// MediaNode is the golang structure for table media_node.
+type MediaNode struct {
 	Id         int         `json:"id"         orm:"id"          description:"ID（自增，无符号）"`
 	NodeNum    int         `json:"nodeNum"    orm:"node_num"    description:"节点编号"`
 	Name       string      `json:"name"       orm:"name"        description:"节点名称"`

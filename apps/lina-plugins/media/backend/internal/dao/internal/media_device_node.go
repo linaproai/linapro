@@ -11,58 +11,58 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// HgDeviceNodeDao is the data access object for the table hg_device_node.
-type HgDeviceNodeDao struct {
-	table    string              // table is the underlying table name of the DAO.
-	group    string              // group is the database configuration group name of the current DAO.
-	columns  HgDeviceNodeColumns // columns contains all the column names of Table for convenient usage.
-	handlers []gdb.ModelHandler  // handlers for customized model modification.
+// MediaDeviceNodeDao is the data access object for the table media_device_node.
+type MediaDeviceNodeDao struct {
+	table    string                 // table is the underlying table name of the DAO.
+	group    string                 // group is the database configuration group name of the current DAO.
+	columns  MediaDeviceNodeColumns // columns contains all the column names of Table for convenient usage.
+	handlers []gdb.ModelHandler     // handlers for customized model modification.
 }
 
-// HgDeviceNodeColumns defines and stores column names for the table hg_device_node.
-type HgDeviceNodeColumns struct {
+// MediaDeviceNodeColumns defines and stores column names for the table media_device_node.
+type MediaDeviceNodeColumns struct {
 	DeviceId string // 设备国标ID（对应device_code）
 	NodeNum  string // 节点编号
 }
 
-// hgDeviceNodeColumns holds the columns for the table hg_device_node.
-var hgDeviceNodeColumns = HgDeviceNodeColumns{
+// mediaDeviceNodeColumns holds the columns for the table media_device_node.
+var mediaDeviceNodeColumns = MediaDeviceNodeColumns{
 	DeviceId: "device_id",
 	NodeNum:  "node_num",
 }
 
-// NewHgDeviceNodeDao creates and returns a new DAO object for table data access.
-func NewHgDeviceNodeDao(handlers ...gdb.ModelHandler) *HgDeviceNodeDao {
-	return &HgDeviceNodeDao{
+// NewMediaDeviceNodeDao creates and returns a new DAO object for table data access.
+func NewMediaDeviceNodeDao(handlers ...gdb.ModelHandler) *MediaDeviceNodeDao {
+	return &MediaDeviceNodeDao{
 		group:    "default",
-		table:    "hg_device_node",
-		columns:  hgDeviceNodeColumns,
+		table:    "media_device_node",
+		columns:  mediaDeviceNodeColumns,
 		handlers: handlers,
 	}
 }
 
 // DB retrieves and returns the underlying raw database management object of the current DAO.
-func (dao *HgDeviceNodeDao) DB() gdb.DB {
+func (dao *MediaDeviceNodeDao) DB() gdb.DB {
 	return g.DB(dao.group)
 }
 
 // Table returns the table name of the current DAO.
-func (dao *HgDeviceNodeDao) Table() string {
+func (dao *MediaDeviceNodeDao) Table() string {
 	return dao.table
 }
 
 // Columns returns all column names of the current DAO.
-func (dao *HgDeviceNodeDao) Columns() HgDeviceNodeColumns {
+func (dao *MediaDeviceNodeDao) Columns() MediaDeviceNodeColumns {
 	return dao.columns
 }
 
 // Group returns the database configuration group name of the current DAO.
-func (dao *HgDeviceNodeDao) Group() string {
+func (dao *MediaDeviceNodeDao) Group() string {
 	return dao.group
 }
 
 // Ctx creates and returns a Model for the current DAO. It automatically sets the context for the current operation.
-func (dao *HgDeviceNodeDao) Ctx(ctx context.Context) *gdb.Model {
+func (dao *MediaDeviceNodeDao) Ctx(ctx context.Context) *gdb.Model {
 	model := dao.DB().Model(dao.table)
 	for _, handler := range dao.handlers {
 		model = handler(model)
@@ -76,6 +76,6 @@ func (dao *HgDeviceNodeDao) Ctx(ctx context.Context) *gdb.Model {
 //
 // Note: Do not commit or roll back the transaction in function f,
 // as it is automatically handled by this function.
-func (dao *HgDeviceNodeDao) Transaction(ctx context.Context, f func(ctx context.Context, tx gdb.TX) error) (err error) {
+func (dao *MediaDeviceNodeDao) Transaction(ctx context.Context, f func(ctx context.Context, tx gdb.TX) error) (err error) {
 	return dao.Ctx(ctx).Transaction(ctx, f)
 }

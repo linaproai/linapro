@@ -83,7 +83,7 @@
 
 ### Requirement: 租户白名单管理
 
-系统 SHALL 按 `hg_tenant_white` 表结构提供租户白名单分页查询、新增、修改、启用状态切换和删除能力，并以 `tenant_id` 与 `ip` 的联合唯一键定位一条白名单记录。
+系统 SHALL 按 `media_tenant_white` 表结构提供租户白名单分页查询、新增、修改、启用状态切换和删除能力，并以 `tenant_id` 与 `ip` 的联合唯一键定位一条白名单记录。
 
 #### Scenario: 创建租户白名单
 
@@ -107,7 +107,7 @@
 
 ### Requirement: 媒体节点与流并发配置管理
 
-系统 SHALL 按 `hg_node`、`hg_device_node` 与 `hg_tenant_stream_config` 表结构提供节点、设备节点和租户流配置的分页查询、新增、修改、详情和删除能力，并将它们作为相互独立的 REST 资源管理。
+系统 SHALL 按 `media_node`、`media_device_node` 与 `media_tenant_stream_config` 表结构提供节点、设备节点和租户流配置的分页查询、新增、修改、详情和删除能力，并将它们作为相互独立的 REST 资源管理。
 
 #### Scenario: 管理节点
 

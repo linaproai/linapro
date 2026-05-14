@@ -9,9 +9,9 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// HgTenantWhite is the golang structure of table hg_tenant_white for DAO operations like Where/Data.
-type HgTenantWhite struct {
-	g.Meta      `orm:"table:hg_tenant_white, do:true"`
+// MediaTenantWhite is the golang structure of table media_tenant_white for DAO operations like Where/Data.
+type MediaTenantWhite struct {
+	g.Meta      `orm:"table:media_tenant_white, do:true"`
 	TenantId    any         // 租户ID
 	Ip          any         // 白名单地址
 	Description any         // 白名单描述

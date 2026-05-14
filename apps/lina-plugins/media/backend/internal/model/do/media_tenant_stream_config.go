@@ -9,9 +9,9 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// HgTenantStreamConfig is the golang structure of table hg_tenant_stream_config for DAO operations like Where/Data.
-type HgTenantStreamConfig struct {
-	g.Meta        `orm:"table:hg_tenant_stream_config, do:true"`
+// MediaTenantStreamConfig is the golang structure of table media_tenant_stream_config for DAO operations like Where/Data.
+type MediaTenantStreamConfig struct {
+	g.Meta        `orm:"table:media_tenant_stream_config, do:true"`
 	TenantId      any         // 租户ID
 	MaxConcurrent any         // 最大并发数
 	NodeNum       any         // 节点编号

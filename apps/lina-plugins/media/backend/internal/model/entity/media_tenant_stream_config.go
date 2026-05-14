@@ -8,8 +8,8 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
-// HgTenantStreamConfig is the golang structure for table hg_tenant_stream_config.
-type HgTenantStreamConfig struct {
+// MediaTenantStreamConfig is the golang structure for table media_tenant_stream_config.
+type MediaTenantStreamConfig struct {
 	TenantId      string      `json:"tenantId"      orm:"tenant_id"      description:"租户ID"`
 	MaxConcurrent int         `json:"maxConcurrent" orm:"max_concurrent" description:"最大并发数"`
 	NodeNum       int         `json:"nodeNum"       orm:"node_num"       description:"节点编号"`
