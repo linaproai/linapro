@@ -14,6 +14,14 @@
       }
     }
   },
+  "error": {
+    "auth": {
+      "login": {
+        "ipBlacklisted": "Login IP is blacklisted",
+        "updateLastLoginFailed": "Failed to update last login time"
+      }
+    }
+  },
   "locale": {
     "en-US": {
       "name": "English",

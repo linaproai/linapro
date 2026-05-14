@@ -6,7 +6,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gtime"
 	"github.com/gogf/gf/v2/util/guid"
@@ -512,7 +511,7 @@ func (s *serviceImpl) parseToken(ctx context.Context, tokenString string, expect
 func (s *serviceImpl) HashPassword(password string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return "", gerror.Wrap(err, "error.auth.password.hashFailed")
+		return "", bizerr.WrapCode(err, CodeAuthPasswordHashFailed)
 	}
 	return string(hash), nil
 }
