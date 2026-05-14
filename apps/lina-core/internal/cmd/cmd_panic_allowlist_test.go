@@ -170,6 +170,13 @@ var productionPanicPolicy = panicAuditPolicy{
 			Reason:   "tenant-filter service construction must fail fast when the host service directory omits the explicit bizctx adapter",
 		},
 		{
+			Path:     "apps/lina-core/internal/service/hostlock/hostlock.go",
+			Function: "New",
+			Count:    1,
+			Category: panicCategoryStartup,
+			Reason:   "hostlock must receive the runtime-owned locker service explicitly so dynamic plugin locks share the configured backend",
+		},
+		{
 			Path:     "apps/lina-core/internal/service/plugin/plugin.go",
 			Function: "New",
 			Count:    5,

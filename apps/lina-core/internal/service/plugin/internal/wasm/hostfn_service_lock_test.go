@@ -267,7 +267,7 @@ func TestHandleHostServiceInvokeLockUsesCoordinationAndTenantIsolation(t *testin
 	coordSvc := coordination.NewMemory(nil)
 	locker.ConfigureCoordination(coordSvc)
 	previousLockSvc := lockHostService
-	ConfigureLockHostService(hostlock.New())
+	ConfigureLockHostService(hostlock.New(locker.New()))
 	t.Cleanup(func() {
 		locker.ConfigureCoordination(nil)
 		lockHostService = previousLockSvc

@@ -102,3 +102,5 @@ plugin:
       withMockData: true
     - id: "org-center"
       withMockData: true
+    - id: "multi-tenant"
+      withMockData: true

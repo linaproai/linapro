@@ -241,6 +241,18 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 5. 验证缓存更新与成功的权威数据源写入耦合，而非在事务仍可能回滚前发出。遗漏的失效事件、进程重启和过期的分布式条目必须有恢复路径（如 TTL、版本检查、重建/穿透读取、对账或显式重载）。
 6. 测试或审查证据应在适当的风险级别覆盖变更的缓存行为，特别是单机与集群模式分支、多实例失效、有界陈旧性、重试/重建行为，以及缓存后端不可用时的面向调用方行为。
 
+#### 开发工具与脚本跨平台审查
+
+**触发条件**：任何修改 `Makefile`、`make.cmd`、`hack/makefiles/`、`hack/scripts/`、`hack/tests/scripts/`、`hack/tools/`、`.github/workflows/` 中开发/构建/测试入口，或新增/修改 `.sh`、`.ps1`、`.cmd`、`.mjs`、工具型 `Go` 代码的变更
+
+对每个开发工具或脚本变更，还需执行**跨平台执行审查**：
+1. 默认开发、构建、测试、代码生成、资源打包、服务启停、CI 辅助和仓库治理入口必须能在 `Windows`、`Linux`、`macOS` 上运行。标记依赖单一平台默认命令或语义的实现，例如 `bash`、`sh`、`sed`、`awk`、`grep`、`perl`、`lsof`、`pgrep`、`xargs`、`kill`、`rm`、`cp`、`mv`、`mkdir -p`、POSIX 路径分隔符、Unix 信号或 PowerShell 专属语法。
+2. 长期维护的仓库工具应优先实现为 `Go` 工具，并通过 `go run ./hack/tools/<tool>`、`linactl` 或薄包装入口调用。审查是否把文件复制、目录遍历、配置改写、进程启停、端口探测、HTTP smoke、压缩/解压、模板渲染和静态扫描等逻辑留在 Shell 管道中；能合理迁移到 Go 标准库或已有 Go 组件的，应报告为问题。
+3. `Makefile` 与 `make.cmd` 只能作为兼容包装层，不得承载复杂业务逻辑；二者应委托 `linactl` 或其他跨平台工具。标记在包装层新增不可移植命令、平台专属环境写法或与 Go workspace/plugin workspace 规则冲突的隐式覆盖。
+4. `hack/scripts/` 不应继续承载长期维护脚本。新增或保留 `.sh`、`.ps1` 等平台脚本时，审查结论必须说明无法使用 Go 工具链的原因、受支持平台、等价跨平台入口和验证方式；没有说明的平台脚本应标记为严重问题。
+5. 工具变更必须提供匹配验证证据，例如 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test-scripts`、目标 Go 工具单元测试、跨平台 smoke 或静态扫描。仅使用 `bash -n`、本机 Shell 试跑或单平台 workflow 不能证明跨平台合规。
+6. 如果变更无开发工具或脚本影响，审查结论应明确说明该判断。
+
 ### 6. SQL 规范审查
 
 **触发条件**：`apps/lina-core/manifest/sql/`、`apps/lina-core/manifest/sql/mock-data/`、`apps/lina-plugins/**/manifest/sql/` 下新增或修改的文件，或相关交付文档中嵌入的 `SQL` 片段
@@ -303,6 +315,9 @@ compatibility: 依赖 OpenSpec CLI、GoFrame v2 技能、lina-e2e 技能。
 
 ### 分布式缓存一致性审查
 ✓ 已审查分布式缓存一致性 / ⚠ 发现 N 个缓存一致性问题
+
+### 开发工具与脚本跨平台审查
+✓ 开发工具和脚本跨平台合规 / ⚠ 发现 N 个跨平台问题
 
 ### SQL 审查
 ✓ 无 SQL 变更 / ✓ SQL 变更合规 / ⚠ 发现 N 个 SQL 问题

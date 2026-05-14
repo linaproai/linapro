@@ -67,9 +67,12 @@ type AcquireOutput struct {
 }
 
 // New creates and returns a new plugin-facing host lock service instance.
-func New() Service {
+func New(lockerSvc locker.Service) Service {
+	if lockerSvc == nil {
+		panic("hostlock service requires a non-nil locker service")
+	}
 	return &serviceImpl{
-		lockerSvc: locker.New(),
+		lockerSvc: lockerSvc,
 	}
 }
 

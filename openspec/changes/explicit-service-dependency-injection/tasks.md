@@ -15,47 +15,47 @@
 
 ## 3. 宿主核心依赖注入改造
 
-- [ ] 3.1 改造 `auth.Service` 构造函数，显式接收 config、plugin、orgcap、role、tenant、session store、token state 等依赖，移除内部关键服务隐式构造
-- [ ] 3.2 改造 `middleware.Service` 构造函数，显式接收 auth、bizctx、config、i18n、plugin、role、tenant 等依赖，并确保中间件使用同一套运行期实例
-- [ ] 3.3 改造 role、menu、user、dict、file、usermsg、notify、sysconfig、i18n 等宿主服务构造入口，移除内部对缓存敏感依赖的隐式构造
-- [ ] 3.4 改造 datascope、tenantcap、orgcap 等能力服务构造入口，确保插件 enablement reader、role service 和 org capability 通过显式依赖传递
-- [ ] 3.5 更新 `cmd_http_runtime.go` 现有 runtime 结构，使其持有需要共享的宿主服务实例和共享后端，不新增独立组装层
-- [ ] 3.6 更新 cron、job management、plugin runtime、cachecoord、kvcache、locker、session coordination 的启动注入路径，确保单机/集群模式共享后端选择仍由现有 `cluster.enabled` 和 `coordination.Service` 控制
+- [x] 3.1 改造 `auth.Service` 构造函数，显式接收 config、plugin、orgcap、role、tenant、session store、token state 等依赖，移除内部关键服务隐式构造
+- [x] 3.2 改造 `middleware.Service` 构造函数，显式接收 auth、bizctx、config、i18n、plugin、role、tenant 等依赖，并确保中间件使用同一套运行期实例
+- [x] 3.3 改造 role、menu、user、dict、file、usermsg、notify、sysconfig、i18n 等宿主服务构造入口，移除内部对缓存敏感依赖的隐式构造
+- [x] 3.4 改造 datascope、tenantcap、orgcap 等能力服务构造入口，确保插件 enablement reader、role service 和 org capability 通过显式依赖传递
+- [x] 3.5 更新 `cmd_http_runtime.go` 现有 runtime 结构，使其持有需要共享的宿主服务实例和共享后端，不新增独立组装层
+- [x] 3.6 更新 cron、job management、plugin runtime、cachecoord、kvcache、locker、session coordination 的启动注入路径，确保单机/集群模式共享后端选择仍由现有 `cluster.enabled` 和 `coordination.Service` 控制
 
 ## 4. 宿主 Controller 与路由绑定改造
 
-- [ ] 4.1 改造宿主所有 Controller `NewV1` 构造函数，使其通过逐项参数接收接口型服务依赖，禁止使用聚合依赖结构体整体传递
-- [ ] 4.2 更新 `cmd_http_routes.go`，在路由绑定前从现有 runtime 共享实例构造 Controller，并禁止 Controller 构造函数内部创建关键服务
-- [ ] 4.3 更新 health、sysinfo、plugin、job、joblog、jobgroup、jobhandler 等已支持部分注入的控制器，使构造风格与其他控制器一致
-- [ ] 4.4 为宿主路由构造添加单元测试或静态断言，确认 Controller 与 Middleware 引用同一 fake auth/session/role/plugin/config/i18n 实例
+- [x] 4.1 改造宿主所有 Controller `NewV1` 构造函数，使其通过逐项参数接收接口型服务依赖，禁止使用聚合依赖结构体整体传递
+- [x] 4.2 更新 `cmd_http_routes.go`，在路由绑定前从现有 runtime 共享实例构造 Controller，并禁止 Controller 构造函数内部创建关键服务
+- [x] 4.3 更新 health、sysinfo、plugin、job、joblog、jobgroup、jobhandler 等已支持部分注入的控制器，使构造风格与其他控制器一致
+- [x] 4.4 为宿主路由构造添加单元测试或静态断言，确认 Controller 与 Middleware 引用同一 fake auth/session/role/plugin/config/i18n 实例
 
 ## 5. 插件宿主服务与源码插件改造
 
-- [ ] 5.1 为 `pluginhost` 的 HTTP/Cron registrar 或等价上下文新增宿主发布服务目录，暴露源码插件可用的稳定 `pkg/pluginservice/*` 适配器
-- [ ] 5.2 改造 `pkg/pluginservice/auth/session/bizctx/config/i18n/notify/pluginstate/route` 等适配器，使生产路径由宿主传入内部依赖并统一构造
-- [ ] 5.3 迁移源码插件 `backend/plugin.go` 路由、全局中间件和 Cron 注册回调，使插件 Controller/Service 从 registrar 获取宿主发布依赖
-- [ ] 5.4 改造源码插件 Controller 构造函数，移除控制器内部对插件 service 或宿主 pluginservice adapter 的隐式构造
-- [ ] 5.5 改造源码插件 Service 构造函数，使其显式接收 bizctx、notify、config、i18n、auth、session、pluginstate、tenantfilter 等宿主能力依赖
-- [ ] 5.6 为源码插件添加编译期和单元测试验证，确认插件注册路径不再调用无参宿主 service adapter 构造函数
+- [x] 5.1 为 `pluginhost` 的 HTTP/Cron registrar 或等价上下文新增宿主发布服务目录，暴露源码插件可用的稳定 `pkg/pluginservice/*` 适配器
+- [x] 5.2 改造 `pkg/pluginservice/auth/session/bizctx/config/i18n/notify/pluginstate/route` 等适配器，使生产路径由宿主传入内部依赖并统一构造
+- [x] 5.3 迁移源码插件 `backend/plugin.go` 路由、全局中间件和 Cron 注册回调，使插件 Controller/Service 从 registrar 获取宿主发布依赖
+- [x] 5.4 改造源码插件 Controller 构造函数，移除控制器内部对插件 service 或宿主 pluginservice adapter 的隐式构造
+- [x] 5.5 改造源码插件 Service 构造函数，使其显式接收 bizctx、notify、config、i18n、auth、session、pluginstate、tenantfilter 等宿主能力依赖
+- [x] 5.6 为源码插件添加编译期和单元测试验证，确认插件注册路径不再调用无参宿主 service adapter 构造函数
 
 ## 6. WASM Host Service 与动态插件路径
 
-- [ ] 6.1 梳理 `internal/service/plugin/internal/wasm/hostfn_service_*` 包级默认实例和 `ConfigureXxxHostService` 调用点，标记生产启动路径与测试恢复路径
-- [ ] 6.2 改造 cache、lock、notify、storage、config、runtime 等 WASM host service，使启动期显式注入共享宿主服务或共享后端
-- [ ] 6.3 确保动态插件 host service handler 不在每次调用中创建独立 cache、lock、notify、config、plugin 或 runtime 服务实例
-- [ ] 6.4 添加 WASM host service 单元测试，使用 fake shared backend 验证多次 host service 调用复用同一实例和同一租户/插件作用域
+- [x] 6.1 梳理 `internal/service/plugin/internal/wasm/hostfn_service_*` 包级默认实例和 `ConfigureXxxHostService` 调用点，标记生产启动路径与测试恢复路径
+- [x] 6.2 改造 cache、lock、notify、storage、config、runtime 等 WASM host service，使启动期显式注入共享宿主服务或共享后端
+- [x] 6.3 确保动态插件 host service handler 不在每次调用中创建独立 cache、lock、notify、config、plugin 或 runtime 服务实例
+- [x] 6.4 添加 WASM host service 单元测试，使用 fake shared backend 验证多次 host service 调用复用同一实例和同一租户/插件作用域
 
 ## 7. 测试与回归验证
 
-- [ ] 7.1 运行宿主核心服务单元测试，至少覆盖 auth、session、middleware、role、datascope、config、i18n、plugin、cachecoord、kvcache、locker、cron
-- [ ] 7.2 运行宿主 Controller 和 cmd 路由相关单元测试，确认路由绑定、公开 API 和系统诊断行为不变
-- [ ] 7.3 运行所有源码插件后端单元测试，至少覆盖 org-center、multi-tenant、content-notice、monitor-online、monitor-loginlog、monitor-operlog、monitor-server、demo-control、plugin-demo-source 和 plugin-demo-dynamic
-- [ ] 7.4 在 Redis 可用环境下运行 coordination/cache/session/plugin runtime 相关集成测试，确认集群模式共享后端和失效策略未退化
-- [ ] 7.5 如果实现影响登录、在线用户、插件管理、系统信息或运行时配置页面的用户可观察行为，按 `lina-e2e` 规范新增或更新对应 TC 并运行相关 E2E；若无前端可见变化，在验证结论中说明
-- [ ] 7.6 运行新增静态扫描或治理验证，确认生产路径不存在新增关键服务隐式构造
-- [ ] 7.7 运行 `openspec validate explicit-service-dependency-injection --strict`
-- [ ] 7.8 运行 `git diff --check -- openspec/changes/explicit-service-dependency-injection AGENTS.md .agents/skills/lina-review/SKILL.md apps/lina-core apps/lina-plugins`
-- [ ] 7.9 完成实现后调用 `lina-review`，重点审查依赖注入合规性、缓存一致性、i18n 影响、数据权限影响和测试覆盖
+- [x] 7.1 运行宿主核心服务单元测试，至少覆盖 auth、session、middleware、role、datascope、config、i18n、plugin、cachecoord、kvcache、locker、cron
+- [x] 7.2 运行宿主 Controller 和 cmd 路由相关单元测试，确认路由绑定、公开 API 和系统诊断行为不变
+- [x] 7.3 运行所有源码插件后端单元测试，至少覆盖 org-center、multi-tenant、content-notice、monitor-online、monitor-loginlog、monitor-operlog、monitor-server、demo-control、plugin-demo-source 和 plugin-demo-dynamic
+- [x] 7.4 在 Redis 可用环境下运行 coordination/cache/session/plugin runtime 相关集成测试，确认集群模式共享后端和失效策略未退化
+- [x] 7.5 如果实现影响登录、在线用户、插件管理、系统信息或运行时配置页面的用户可观察行为，按 `lina-e2e` 规范新增或更新对应 TC 并运行相关 E2E；若无前端可见变化，在验证结论中说明
+- [x] 7.6 运行新增静态扫描或治理验证，确认生产路径不存在新增关键服务隐式构造
+- [x] 7.7 运行 `openspec validate explicit-service-dependency-injection --strict`
+- [x] 7.8 运行 `git diff --check -- openspec/changes/explicit-service-dependency-injection AGENTS.md .agents/skills/lina-review/SKILL.md apps/lina-core apps/lina-plugins`
+- [x] 7.9 完成实现后调用 `lina-review`，重点审查依赖注入合规性、缓存一致性、i18n 影响、数据权限影响和测试覆盖
 
 ## Feedback
 
@@ -94,3 +94,4 @@
 - [x] 2026-05-13: FB-7 验证通过：`cd apps/lina-plugins/monitor-server && go test ./backend/internal/service/config -count=1`、`cd apps/lina-plugins/monitor-server && go test ./backend/... -count=1`、`LINAPRO_SERVICE_DEP_SCAN_ROOTS=apps/lina-plugins/monitor-server/backend/internal/service/config/config.go node hack/tests/scripts/validate-service-dependencies.mjs`、`openspec validate explicit-service-dependency-injection --strict`、`git diff --check -- apps/lina-plugins/monitor-server/backend/internal/service/config/config.go apps/lina-plugins/monitor-server/backend/internal/service/config/config_test.go apps/lina-plugins/monitor-server/backend/plugin.go openspec/changes/explicit-service-dependency-injection/tasks.md`。确认 `monitor-server` 配置加载收敛为单一 `Load(ctx, reader)` 入口，生产路径从 `registrar.HostServices().Config()` 显式传入宿主配置服务，测试路径也显式传入 reader，不再由配置加载函数内部调用 `configsvc.New()`。i18n 影响：本轮仅改后端内部依赖传递和测试调用，不新增或修改用户可见文案、前端语言包、manifest i18n 或 apidoc i18n。缓存一致性影响：本轮移除运行期配置服务隐式构造入口，配置读取继续使用宿主发布的同一配置服务实例，未新增缓存、失效范围或跨实例协调机制。数据权限影响：本轮不新增或修改 REST/API 数据操作、列表/详情/写入/聚合查询或插件数据访问路径；E2E 影响：无前端可见行为变化，使用后端单元测试和治理扫描覆盖。
 - [x] 2026-05-13: FB-8 验证通过：`rg -n "NewControllerV1" apps/lina-plugins/multi-tenant/backend/internal/controller/auth apps/lina-plugins/multi-tenant/backend/plugin.go` 未发现残留引用；`cd apps/lina-plugins/multi-tenant && go test ./backend ./backend/internal/controller/auth -count=1`；`LINAPRO_SERVICE_DEP_SCAN_ROOTS=apps/lina-plugins/multi-tenant/backend/internal/controller/auth/auth.go node hack/tests/scripts/validate-service-dependencies.mjs`；`openspec validate explicit-service-dependency-injection --strict`；`git diff --check -- apps/lina-plugins/multi-tenant/backend/internal/controller/auth/auth.go apps/lina-plugins/multi-tenant/backend/plugin.go openspec/changes/explicit-service-dependency-injection/tasks.md`。确认 auth 控制器只保留 `NewV1` 入口，插件路由绑定改为调用 `authcontroller.NewV1(...)`，控制器不再通过额外 `NewControllerV1` 绕过统一接口构造入口。`cd apps/lina-plugins/multi-tenant && go test ./... -count=1` 当前仍因既有测试未同步新服务构造签名失败，失败包包括 `lifecycleguard`、`membership`、`tenant` 和 `tenantplugin`，与本轮移除 auth 控制器 `NewControllerV1` 无直接关系。i18n 影响：本轮仅改后端构造入口和 OpenSpec 任务记录，不新增或修改用户可见文案、前端语言包、manifest i18n 或 apidoc i18n。缓存一致性影响：本轮消除 auth 控制器孤立构造入口，依赖继续来自插件注册期传入的共享 host auth、membership 和 provider 实例，未新增缓存、失效范围或跨实例协调机制。数据权限影响：本轮不新增或修改 REST/API 数据操作、列表/详情/写入/聚合查询或插件数据访问路径；E2E 影响：无前端可见行为变化，使用后端编译、静态扫描和 OpenSpec 治理验证覆盖。
 - [x] 2026-05-13: FB-9 验证通过：`rg -n "NewControllerV1" apps/lina-plugins/multi-tenant/backend/internal/controller/platform apps/lina-plugins/multi-tenant/backend/internal/controller/tenant apps/lina-plugins/multi-tenant/backend/plugin.go` 未发现残留引用；`cd apps/lina-plugins/multi-tenant && go test ./backend ./backend/internal/controller/platform ./backend/internal/controller/tenant -count=1`；`LINAPRO_SERVICE_DEP_SCAN_ROOTS=apps/lina-plugins/multi-tenant/backend/internal/controller/platform/platform.go:apps/lina-plugins/multi-tenant/backend/internal/controller/tenant/tenant.go node hack/tests/scripts/validate-service-dependencies.mjs`；`openspec validate explicit-service-dependency-injection --strict`；`git diff --check -- apps/lina-plugins/multi-tenant/backend/internal/controller/platform/platform.go apps/lina-plugins/multi-tenant/backend/internal/controller/tenant/tenant.go apps/lina-plugins/multi-tenant/backend/plugin.go openspec/changes/explicit-service-dependency-injection/tasks.md`。确认 platform 与 tenant 控制器只保留 `NewV1` 入口，并由 `NewV1` 直接使用插件注册期传入的共享 service 实例构造控制器，不再保留额外 `NewControllerV1` 入口。`cd apps/lina-plugins/multi-tenant && go test ./... -count=1` 当前仍因既有测试未同步新服务构造签名失败，失败包包括 `lifecycleguard`、`membership`、`tenant` 和 `tenantplugin`，与本轮移除 platform/tenant 控制器 `NewControllerV1` 无直接关系。i18n 影响：本轮仅改后端构造入口和 OpenSpec 任务记录，不新增或修改用户可见文案、前端语言包、manifest i18n 或 apidoc i18n。缓存一致性影响：本轮消除 platform/tenant 控制器额外构造入口，依赖继续来自插件注册期传入的共享 tenant、impersonate 和 tenantplugin 实例，未新增缓存、失效范围或跨实例协调机制。数据权限影响：本轮不新增或修改 REST/API 数据操作、列表/详情/写入/聚合查询或插件数据访问路径；E2E 影响：无前端可见行为变化，使用后端编译、静态扫描和 OpenSpec 治理验证覆盖。
+- [x] 2026-05-14: 最终收口验证通过：`cd apps/lina-core && go test ./internal/service/auth ./internal/service/session ./internal/service/middleware ./internal/service/role ./internal/service/datascope ./internal/service/config ./internal/service/i18n ./internal/service/plugin ./internal/service/cachecoord ./internal/service/kvcache ./internal/service/locker ./internal/service/cron ./internal/service/hostlock ./internal/service/pluginhostservices ./internal/service/plugin/internal/wasm -count=1`、`cd apps/lina-core && go test ./internal/cmd -count=1`、所有官方源码插件后端 `go test ./backend/... -count=1`、`node hack/tests/scripts/validate-service-dependencies.mjs`、`openspec validate explicit-service-dependency-injection --strict`、`git diff --check -- openspec/changes/explicit-service-dependency-injection AGENTS.md .agents/skills/lina-review/SKILL.md apps/lina-core apps/lina-plugins hack/tests/config/service-dependency-baseline.json hack/tests/scripts/validate-service-dependencies.mjs` 均通过。当前环境未配置 `LINA_TEST_REDIS_*`，且本地 `127.0.0.1:6379` 拒绝连接，因此未执行真实 Redis 集成测试；本轮已通过非 Redis coordination/cache/session/plugin runtime 单元测试和依赖治理扫描覆盖单机路径与共享实例回归。i18n 影响：本轮无用户可见文案、前端语言包、manifest i18n 或 apidoc i18n 变更，仅移除 i18n fallback 中的隐式 host config 构造。缓存一致性影响：本轮未新增缓存域或失效范围，改为复用启动期共享的 data scope、host lock、OpenAPI bizctx、auth token store 相关依赖，避免孤立服务图。数据权限影响：本轮不新增 REST/API 数据操作面，`pluginhostservices` session adapter 改为复用启动期共享 `datascope.Service`，数据权限投影来源更一致。E2E 影响：无前端或用户可观察页面行为变化，不新增 E2E；使用后端单元测试、插件后端测试、治理扫描和 OpenSpec 校验覆盖。

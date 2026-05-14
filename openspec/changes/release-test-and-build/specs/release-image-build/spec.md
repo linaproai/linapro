@@ -2,13 +2,18 @@
 
 ### Requirement: Release workflow 必须在镜像发布前完成完整测试门禁
 
-系统 SHALL 提供 `Release Test and Build` GitHub Actions workflow，用于替代只发布镜像的 release workflow。该 workflow 在 tag push 触发后 SHALL 先运行 Windows 命令冒烟、Go 单元测试、前端单元测试、完整 E2E 和 Redis cluster smoke；只有所有测试 job 成功后，才允许构建并推送 release 多架构镜像。
+系统 SHALL 提供 `Release Test and Build` GitHub Actions workflow，用于替代只发布镜像的 release workflow。该 workflow 在 tag push 触发后 SHALL 至少覆盖 `Nightly Test and Build` 中的测试验证面，包括 host-only 与 plugin-full 的 Windows 命令冒烟、Go 单元测试、前端单元测试、host-only build smoke、host-only E2E、plugin-full E2E 和 Redis cluster smoke；只有所有测试 job 成功后，才允许构建并推送 release 多架构镜像。
 
 #### Scenario: Release tag 触发完整测试后发布镜像
 - **WHEN** GitHub Actions 收到 tag push 事件
-- **THEN** release workflow 先并行或按依赖运行 Windows 命令冒烟、Go 单元测试、前端单元测试、完整 E2E 和 Redis cluster smoke
+- **THEN** release workflow 先并行或按依赖运行 host-only 与 plugin-full 的 Windows 命令冒烟、Go 单元测试、前端单元测试、host-only build smoke、host-only E2E、plugin-full E2E 和 Redis cluster smoke
 - **AND** release 镜像发布 job 通过 `needs` 依赖所有测试 job
 - **AND** 所有测试 job 成功后才执行 GHCR 登录、`make image push=1`、`latest` 标签发布和远端 manifest inspect
+
+#### Scenario: Release 覆盖 Nightly Host-only 验证
+- **WHEN** nightly workflow 维护 host-only 验证 job
+- **THEN** release workflow SHALL 包含等价的 host-only Windows 命令冒烟、Go 单元测试、前端单元测试、host-only build smoke 和 host-only E2E job
+- **AND** release 镜像发布 job SHALL 通过 `needs` 等待这些 host-only job 成功
 
 #### Scenario: 任一测试失败阻止 release 镜像推送
 - **WHEN** release workflow 中任一测试 job 失败、取消或超时

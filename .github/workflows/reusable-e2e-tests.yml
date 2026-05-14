@@ -1,0 +1,205 @@
+# Reusable LinaPro browser E2E workflow.
+# LinaPro 可复用浏览器 E2E 工作流。
+name: Reusable E2E Tests
+
+on:
+  # Expose the browser E2E runner as a reusable workflow with caller-provided commands.
+  # 将浏览器 E2E runner 暴露为可复用工作流，由调用方提供启动和测试命令。
+  workflow_call:
+    inputs:
+      # Controls whether official plugin submodules are checked out for plugin-full runs.
+      # 控制是否为插件完整模式检出官方插件 submodule。
+      submodules:
+        description: Checkout submodule strategy for actions/checkout.
+        required: false
+        type: string
+        default: "false"
+      # Requires plugin E2E files to exist before running plugin-full suites.
+      # 在运行插件完整套件前要求插件 E2E 文件存在。
+      require-plugin-e2e:
+        description: Whether official plugin E2E files must be present before running tests.
+        required: false
+        type: boolean
+        default: false
+      # Lets callers select the host-only or plugin-full development startup command.
+      # 允许调用方选择宿主或插件完整开发启动命令。
+      start-command:
+        description: Command used to start the LinaPro development services.
+        required: true
+        type: string
+      # Lets callers select the Playwright suite scope.
+      # 允许调用方选择 Playwright 套件范围。
+      test-command:
+        description: Command used to run the Playwright suite from hack/tests.
+        required: true
+        type: string
+      # Gives each caller a distinct artifact name for reports and logs.
+      # 为每个调用方提供独立的报告和日志 artifact 名称。
+      artifact-name:
+        description: Uploaded artifact name for Playwright reports and service logs.
+        required: true
+        type: string
+      # Controls how long E2E artifacts are retained by the caller.
+      # 控制调用方保留 E2E artifact 的天数。
+      retention-days:
+        description: Artifact retention in days.
+        required: false
+        type: number
+        default: 14
+
+# Browser E2E jobs only need read access to repository contents.
+# 浏览器 E2E job 只需要读取仓库内容。
+permissions:
+  contents: read
+
+# Keep browser logs, database timestamps, and test output in the project timezone.
+# 让浏览器日志、数据库时间戳和测试输出使用项目时区。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Starts LinaPro services and runs the requested Playwright E2E suite.
+  # 启动 LinaPro 服务并运行调用方指定的 Playwright E2E 套件。
+  e2e-tests:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    services:
+      # Provides the PostgreSQL database used by make init, mock data, and the backend service.
+      # 提供 make init、mock 数据和后端服务使用的 PostgreSQL 数据库。
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: linapro
+          TZ: Asia/Shanghai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      # Set the runner timezone before database and service startup.
+      # 在数据库和服务启动前设置 runner 时区。
+      - name: Setup Timezone
+        run: |
+          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+          echo Asia/Shanghai | sudo tee /etc/timezone
+
+      # Check out repository sources, optionally including official plugin submodules.
+      # 拉取仓库源码，并可按调用方要求包含官方插件 submodule。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: ${{ inputs.submodules }}
+
+      # Fail fast when plugin-full callers require official plugin manifests and E2E tests.
+      # 当插件完整调用方要求官方插件清单和 E2E 测试时快速失败。
+      - name: Verify Official Plugin Workspace
+        if: ${{ inputs.require-plugin-e2e }}
+        uses: ./.github/actions/verify-official-plugin-workspace
+        with:
+          require-e2e: "true"
+
+      # Install Go for backend startup and LinaPro tooling.
+      # 安装后端启动和 LinaPro 工具所需的 Go。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Install the pinned pnpm version without installing packages yet.
+      # 安装固定版本 pnpm，但暂不安装项目依赖。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      # Install the frontend Node version and configure pnpm dependency caching.
+      # 安装前端 Node 版本并配置 pnpm 依赖缓存。
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      # make dev/stop/status use lsof to detect and clean processes bound to
+      # the backend and frontend ports. Keep this explicit because GitHub's
+      # ubuntu-latest runner image does not guarantee lsof is preinstalled.
+      # make dev/stop/status 使用 lsof 检测并清理绑定后端和前端端口的进程。
+      # 这里显式安装，因为 GitHub ubuntu-latest runner 不保证预装 lsof。
+      - name: Install Runtime Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsof
+
+      # Install frontend workspace dependencies from the committed lockfile.
+      # 根据已提交的 lockfile 安装前端工作区依赖。
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      # Install Playwright test runner dependencies for the shared E2E workspace.
+      # 为共享 E2E 工作区安装 Playwright 测试运行依赖。
+      - name: Install E2E Dependencies
+        working-directory: hack/tests
+        run: npm ci
+
+      # Install Chromium and required OS packages for Playwright.
+      # 安装 Playwright 使用的 Chromium 和所需系统包。
+      - name: Install Playwright Browsers
+        working-directory: hack/tests
+        run: npx playwright install --with-deps chromium
+
+      # Rebuild the database and seed mock data for browser workflows.
+      # 重建数据库并为浏览器工作流加载 mock 数据。
+      - name: Initialize Database
+        run: |
+          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
+          make init confirm=init rebuild=true
+          make mock confirm=mock
+
+      # Start host-only or plugin-full services using the caller-provided command.
+      # 使用调用方提供的命令启动宿主或插件完整服务。
+      - name: Start Services
+        run: ${{ inputs.start-command }}
+
+      # Run the caller-selected Playwright suite against the local frontend and backend.
+      # 针对本地前端和后端运行调用方选择的 Playwright 套件。
+      - name: Run E2E Suite
+        working-directory: hack/tests
+        env:
+          E2E_BASE_URL: "http://127.0.0.1:5666"
+          E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
+          E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
+          E2E_PARALLEL_WORKERS: "4"
+        run: ${{ inputs.test-command }}
+
+      # Stop LinaPro services even when the E2E suite fails.
+      # 即使 E2E 套件失败，也停止 LinaPro 服务。
+      - name: Stop Services
+        if: always()
+        run: make stop
+
+      # Upload Playwright reports and service logs for failure diagnosis.
+      # 上传 Playwright 报告和服务日志，便于失败诊断。
+      - name: Upload E2E Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: |
+            hack/tests/playwright-report/
+            hack/tests/test-results/
+            temp/lina-core.log
+            temp/lina-vben.log
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.retention-days }}

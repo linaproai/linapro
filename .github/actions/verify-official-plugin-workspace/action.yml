@@ -1,0 +1,75 @@
+# Verify that the official plugin submodule workspace is properly checked out.
+# Fails fast if plugin manifests (and optionally E2E tests) are missing, with guidance on how to initialize.
+# 验证官方插件子模块工作区已正确签出。
+# 如果插件清单（以及可选的 E2E 测试文件）缺失则快速失败，并提供初始化指引。
+name: Verify Official Plugin Workspace
+description: Verify official plugin assets in Linux GitHub Actions jobs after checkout.
+
+# require-e2e: when true, also checks for plugin-level E2E test files.
+# require-e2e: 为 true 时同时检查插件级别的 E2E 测试文件。
+inputs:
+  require-e2e:
+    description: Require official plugin E2E test files in addition to plugin manifests.
+    required: false
+    default: "false"
+
+# manifest_count / e2e_count: counts consumed by downstream steps for conditional logic.
+# manifest_count / e2e_count: 供下游步骤用于条件逻辑的计数值。
+outputs:
+  manifest_count:
+    description: Number of official plugin manifests found.
+    value: ${{ steps.verify.outputs.manifest_count }}
+  e2e_count:
+    description: Number of official plugin E2E test files found.
+    value: ${{ steps.verify.outputs.e2e_count }}
+
+runs:
+  using: composite
+  steps:
+    # Check for the plugin workspace directory, plugin manifests, and optionally E2E test files.
+    # 检查插件工作区目录、插件清单，以及可选的 E2E 测试文件。
+    - name: Verify Official Plugin Workspace
+      id: verify
+      shell: bash
+      env:
+        REQUIRE_E2E: ${{ inputs.require-e2e }}
+      run: |
+        # Ensure the submodule directory exists.
+        # 确保子模块目录存在。
+        if [ ! -d apps/lina-plugins ]; then
+          echo "Missing official plugin workspace: apps/lina-plugins" >&2
+          echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+          exit 1
+        fi
+
+        # Count plugin.yaml manifests across all plugin directories.
+        # 统计所有插件目录中的 plugin.yaml 清单数量。
+        manifest_count="$(find apps/lina-plugins -mindepth 2 -maxdepth 2 -type f -name plugin.yaml | wc -l | tr -d '[:space:]')"
+        if [ "${manifest_count}" -eq 0 ]; then
+          echo "No official plugin manifests found under apps/lina-plugins/*/plugin.yaml" >&2
+          echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+          exit 1
+        fi
+
+        # Optionally verify that E2E test files exist for each plugin.
+        # 可选地验证每个插件的 E2E 测试文件是否存在。
+        e2e_count="0"
+        if [ "${REQUIRE_E2E}" = "true" ]; then
+          e2e_count="$(find apps/lina-plugins -path '*/hack/tests/e2e/*' -type f -name 'TC*.ts' | wc -l | tr -d '[:space:]')"
+          if [ "${e2e_count}" -eq 0 ]; then
+            echo "No official plugin E2E tests found under apps/lina-plugins/<plugin-id>/hack/tests/e2e/" >&2
+            echo "Initialize official plugins with: git submodule update --init --recursive" >&2
+            exit 1
+          fi
+        fi
+
+        # Export counts as step outputs for downstream consumption.
+        # 将计数值作为步骤输出导出供下游使用。
+        echo "manifest_count=${manifest_count}" >> "${GITHUB_OUTPUT}"
+        echo "e2e_count=${e2e_count}" >> "${GITHUB_OUTPUT}"
+
+        if [ "${REQUIRE_E2E}" = "true" ]; then
+          echo "Found ${manifest_count} official plugin manifest(s) and ${e2e_count} plugin E2E test file(s)."
+        else
+          echo "Found ${manifest_count} official plugin manifest(s)."
+        fi

@@ -86,6 +86,7 @@ func TestBindHostedOpenAPIDocsDisablesBuiltInEndpointsAndBindsConfiguredPath(t *
 		&fakeApiDocService{document: &goai.OpenApiV3{}},
 		"/api.json",
 		testI18nSvc,
+		bizctx.New(),
 	)
 
 	if server.GetOpenApiPath() != "" {
@@ -156,6 +157,7 @@ func TestBindHostedOpenAPIDocsUsesRequestOrigin(t *testing.T) {
 				}},
 				"/api.json",
 				testI18nSvc,
+				bizctx.New(),
 			)
 			if err := server.Start(); err != nil {
 				t.Fatalf("start OpenAPI origin test server: %v", err)

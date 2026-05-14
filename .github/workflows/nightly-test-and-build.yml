@@ -1,477 +1,145 @@
 # LinaPro nightly health test and multi-platform Docker image publishing workflow.
 # GitHub cron uses UTC. 16:00 UTC is 00:00 Asia/Shanghai.
+# LinaPro 夜间健康测试与多平台 Docker 镜像发布工作流。
+# GitHub cron 使用 UTC，16:00 UTC 对应北京时间 00:00。
 name: Nightly Test and Build
 
 on:
+  # Run the full nightly verification and image publishing chain every day.
+  # 每天运行完整夜间验证与镜像发布链路。
   schedule:
     - cron: "0 16 * * *"
 
+  # Allow maintainers to run the nightly chain manually for release diagnostics.
+  # 允许维护者为发布诊断手动运行夜间链路。
   workflow_dispatch:
 
+# The top-level workflow only needs repository read access; the image job narrows in write access locally.
+# 顶层工作流只需要读取仓库；镜像 job 会在自身范围内声明写包权限。
 permissions:
   contents: read
 
+# Keep nightly runs serialized so image tags and artifacts are not produced by overlapping runs.
+# 保持夜间任务串行，避免重叠运行同时产出镜像标签和 artifact。
 concurrency:
   group: "${{ github.workflow }} @ nightly"
   cancel-in-progress: false
 
-env:
-  TZ: "Asia/Shanghai"
-  IMAGE_NAME: "linapro"
-  PLATFORMS: "linux/amd64,linux/arm64"
-
 jobs:
+  # Verifies host-only command entry points on Windows without loading official plugins.
+  # 在 Windows 上验证宿主模式命令入口，不加载官方插件。
   windows-command-smoke:
-    name: Windows command smoke
+    name: Windows command smoke (host-only)
     uses: ./.github/workflows/reusable-windows-command-smoke.yml
+    with:
+      plugins: "0"
 
+  # Runs Go tests in host-only mode to catch core backend regressions.
+  # 以宿主模式运行 Go 测试，捕获核心后端回归。
   backend-unit-tests:
-    name: Go unit tests
+    name: Go unit tests (host-only)
     uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      plugins: "0"
 
+  # Runs frontend unit tests for the default workspace without plugin submodules.
+  # 在不初始化插件 submodule 的情况下运行默认工作台前端单测。
   frontend-unit-tests:
-    name: Frontend unit tests
+    name: Frontend unit tests (host-only)
     uses: ./.github/workflows/reusable-frontend-unit-tests.yml
 
+  # Verifies Windows command entry points when official plugin sources are present.
+  # 在官方插件源码存在时验证 Windows 命令入口。
+  plugin-windows-command-smoke:
+    name: Windows command smoke (plugin-full)
+    uses: ./.github/workflows/reusable-windows-command-smoke.yml
+    with:
+      submodules: recursive
+      plugins: "1"
+
+  # Runs Go tests with recursive submodules and plugin-full mode enabled.
+  # 递归初始化 submodule 并以插件完整模式运行 Go 测试。
+  plugin-backend-unit-tests:
+    name: Go unit tests (plugin-full)
+    uses: ./.github/workflows/reusable-backend-unit-tests.yml
+    with:
+      submodules: recursive
+      plugins: "1"
+
+  # Runs frontend unit tests with official plugin workspace files available.
+  # 在官方插件工作区文件可用时运行前端单测。
+  plugin-frontend-unit-tests:
+    name: Frontend unit tests (plugin-full)
+    uses: ./.github/workflows/reusable-frontend-unit-tests.yml
+    with:
+      submodules: recursive
+
+  # Builds a host-only backend artifact and verifies its health/login/plugin-list behavior.
+  # 构建宿主模式后端产物，并验证健康检查、登录和插件列表行为。
   host-only-build-smoke:
     name: Host-only build smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
+    uses: ./.github/workflows/reusable-host-only-build-smoke.yml
+    with:
+      artifact-name: nightly-host-only-build-smoke-log
+      retention-days: 14
 
-    services:
-      postgres:
-        image: postgres:14-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: linapro
-          TZ: Asia/Shanghai
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+  # Runs browser E2E against the host-only development stack.
+  # 面向宿主模式开发栈运行浏览器 E2E。
+  host-only-e2e-tests:
+    name: E2E tests (host-only)
+    uses: ./.github/workflows/reusable-e2e-tests.yml
+    with:
+      start-command: make dev plugins=0
+      test-command: pnpm test:host
+      artifact-name: nightly-host-only-e2e-report
+      retention-days: 14
 
-    steps:
-      - name: Setup Timezone
-        run: |
-          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-          echo Asia/Shanghai | sudo tee /etc/timezone
+  # Runs browser E2E with official plugin tests required and plugin-full services enabled.
+  # 以插件完整服务运行浏览器 E2E，并要求官方插件测试存在。
+  plugin-full-e2e-tests:
+    name: E2E tests (plugin-full)
+    uses: ./.github/workflows/reusable-e2e-tests.yml
+    with:
+      submodules: recursive
+      require-plugin-e2e: true
+      start-command: make dev plugins=1
+      test-command: pnpm test
+      artifact-name: nightly-plugin-full-e2e-report
+      retention-days: 14
 
-      - name: Checkout Repository
-        uses: actions/checkout@v5
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: "1.25"
-          cache: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: "10.30.3"
-          run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: "apps/lina-vben/.node-version"
-          cache: "pnpm"
-          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
-
-      - name: Install Frontend Dependencies
-        working-directory: apps/lina-vben
-        run: pnpm install --frozen-lockfile
-
-      - name: Initialize Database
-        run: |
-          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
-          make init confirm=init rebuild=true
-          make mock confirm=mock
-
-      - name: Build Host-only Artifact
-        run: |
-          make build plugins=0 platforms=linux/amd64 output_dir=temp/host-only-output
-
-      - name: Run Host-only Artifact Smoke
-        run: |
-          mkdir -p temp/host-only-smoke
-          backend_pid=""
-          cleanup() {
-            if [ -n "$backend_pid" ] && kill -0 "$backend_pid" 2>/dev/null; then
-              kill "$backend_pid" 2>/dev/null || true
-              wait "$backend_pid" 2>/dev/null || true
-            fi
-          }
-          trap cleanup EXIT INT TERM
-
-          pushd apps/lina-core >/dev/null
-          ../../temp/host-only-output/lina > ../../temp/host-only-smoke/lina-core.log 2>&1 &
-          backend_pid="$!"
-          popd >/dev/null
-
-          response=""
-          for _ in $(seq 1 90); do
-            if ! kill -0 "$backend_pid" 2>/dev/null; then
-              echo "Host-only backend exited before health check passed" >&2
-              echo "Check log: temp/host-only-smoke/lina-core.log" >&2
-              exit 1
-            fi
-            response="$(curl -fsS "http://127.0.0.1:8080/api/v1/health" 2>/dev/null || true)"
-            if [ -n "$response" ] && HEALTH_RESPONSE="$response" python3 - <<'PY'
-          import json
-          import os
-          import sys
-
-          payload = json.loads(os.environ["HEALTH_RESPONSE"])
-          data = payload.get("data", payload)
-          if payload.get("code", 0) == 0 and data.get("status") == "ok" and data.get("mode") == "single":
-              sys.exit(0)
-          sys.exit(1)
-          PY
-            then
-              break
-            fi
-            sleep 1
-          done
-
-          if [ -z "$response" ]; then
-            echo "Host-only backend did not return a health response" >&2
-            echo "Check log: temp/host-only-smoke/lina-core.log" >&2
-            exit 1
-          fi
-
-          HEALTH_RESPONSE="$response" python3 - <<'PY'
-          import json
-          import os
-
-          payload = json.loads(os.environ["HEALTH_RESPONSE"])
-          data = payload.get("data", payload)
-          if payload.get("code", 0) != 0:
-              raise SystemExit(f"health business code is not zero: {payload!r}")
-          if data.get("status") != "ok":
-              raise SystemExit(f"expected health status ok, got: {payload!r}")
-          if data.get("mode") != "single":
-              raise SystemExit(f"expected single-node host-only mode, got: {payload!r}")
-          PY
-
-          login_response="$(
-            curl -fsS \
-              -H "Content-Type: application/json" \
-              -d '{"username":"admin","password":"admin123"}' \
-              "http://127.0.0.1:8080/api/v1/auth/login"
-          )"
-          token="$(LOGIN_RESPONSE="$login_response" python3 - <<'PY'
-          import json
-          import os
-
-          payload = json.loads(os.environ["LOGIN_RESPONSE"])
-          data = payload.get("data", payload)
-          if payload.get("code", 0) != 0:
-              raise SystemExit(f"login business code is not zero: {payload!r}")
-          token = data.get("accessToken")
-          if not token:
-              raise SystemExit(f"login response did not contain accessToken: {payload!r}")
-          print(token)
-          PY
-          )"
-
-          plugins_response="$(
-            curl -fsS \
-              -H "Authorization: Bearer $token" \
-              "http://127.0.0.1:8080/api/v1/plugins?type=source"
-          )"
-          PLUGINS_RESPONSE="$plugins_response" python3 - <<'PY'
-          import json
-          import os
-
-          payload = json.loads(os.environ["PLUGINS_RESPONSE"])
-          data = payload.get("data", payload)
-          if payload.get("code", 0) != 0:
-              raise SystemExit(f"plugin list business code is not zero: {payload!r}")
-          plugin_items = data.get("list") or []
-          if plugin_items:
-              raise SystemExit(f"expected no source plugins in host-only artifact, got: {plugin_items!r}")
-          if data.get("total", 0) != 0:
-              raise SystemExit(f"expected source plugin total=0 in host-only artifact, got: {payload!r}")
-          PY
-
-      - name: Upload Host-only Smoke Log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-host-only-build-smoke-log
-          path: |
-            temp/host-only-smoke/lina-core.log
-          if-no-files-found: ignore
-          retention-days: 14
-
-  e2e-tests:
-    name: Full E2E tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-
-    services:
-      postgres:
-        image: postgres:14-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: linapro
-          TZ: Asia/Shanghai
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Setup Timezone
-        run: |
-          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-          echo Asia/Shanghai | sudo tee /etc/timezone
-
-      - name: Checkout Repository
-        uses: actions/checkout@v5
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: "1.25"
-          cache: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: "10.30.3"
-          run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: "apps/lina-vben/.node-version"
-          cache: "pnpm"
-          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
-
-      # make dev/stop/status use lsof to detect and clean processes bound to
-      # the backend and frontend ports. Keep this explicit because GitHub's
-      # ubuntu-latest runner image does not guarantee lsof is preinstalled.
-      - name: Install Runtime Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lsof
-
-      - name: Install Frontend Dependencies
-        working-directory: apps/lina-vben
-        run: pnpm install --frozen-lockfile
-
-      - name: Install E2E Dependencies
-        working-directory: hack/tests
-        run: npm ci
-
-      - name: Install Playwright Browsers
-        working-directory: hack/tests
-        run: npx playwright install --with-deps chromium
-
-      - name: Initialize Database
-        run: |
-          cp apps/lina-core/manifest/config/config.template.yaml apps/lina-core/manifest/config/config.yaml
-          make init confirm=init rebuild=true
-          make mock confirm=mock
-
-      - name: Start Services
-        run: make dev
-
-      - name: Run Full E2E Suite
-        working-directory: hack/tests
-        env:
-          E2E_BASE_URL: "http://127.0.0.1:5666"
-          E2E_API_BASE_URL: "http://127.0.0.1:8080/api/v1/"
-          E2E_PUBLIC_BASE_URL: "http://127.0.0.1:8080"
-          E2E_PARALLEL_WORKERS: "4"
-        run: pnpm test
-
-      - name: Stop Services
-        if: always()
-        run: make stop
-
-      - name: Upload E2E Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-e2e-report
-          path: |
-            hack/tests/playwright-report/
-            hack/tests/test-results/
-            temp/lina-core.log
-            temp/lina-vben.log
-          if-no-files-found: ignore
-          retention-days: 14
-
+  # Starts the backend in Redis-backed cluster mode and checks the coordination path.
+  # 以 Redis 支撑的集群模式启动后端，并检查协调链路。
   redis-cluster-smoke:
     name: Redis cluster smoke
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    uses: ./.github/workflows/reusable-redis-cluster-smoke.yml
+    with:
+      artifact-name: nightly-redis-cluster-smoke-log
+      retention-days: 14
 
-    # Full E2E keeps the default single-node deployment shape. This narrower
-    # smoke starts the backend with cluster.enabled=true so Redis coordination is
-    # exercised without making every nightly browser test depend on leader state.
-    services:
-      # The smoke rebuilds the schema and then starts a real backend process.
-      postgres:
-        image: postgres:14-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: linapro
-          TZ: Asia/Shanghai
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      # The backend refuses to start in cluster mode unless Redis is reachable at
-      # startup, so the service health check catches broken Redis containers early.
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
-    steps:
-      - name: Setup Timezone
-        run: |
-          sudo ln -snf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-          echo Asia/Shanghai | sudo tee /etc/timezone
-
-      - name: Checkout Repository
-        uses: actions/checkout@v5
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: "1.25"
-          cache: false
-
-      - name: Run Redis Cluster Smoke
-        env:
-          # The smoke script requires an explicit DB link because it runs
-          # `make init rebuild=true`; do not let it fall back to a developer DB.
-          LINAPRO_REDIS_CLUSTER_SMOKE_DB_LINK: "pgsql:postgres:postgres@tcp(127.0.0.1:5432)/linapro?sslmode=disable"
-          LINAPRO_REDIS_CLUSTER_SMOKE_REDIS_ADDR: "127.0.0.1:6379"
-        run: |
-          ./hack/tests/scripts/run-redis-cluster-smoke.sh
-
-      - name: Upload Redis Cluster Smoke Log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightly-redis-cluster-smoke-log
-          path: |
-            temp/redis-cluster-smoke/lina-core.log
-          if-no-files-found: ignore
-          retention-days: 14
-
+  # Publishes the nightly image only after every host-only, plugin-full, E2E, and Redis gate passes.
+  # 仅在所有宿主、插件完整、E2E 和 Redis 门禁通过后发布 nightly 镜像。
   nightly-image:
     name: Build and publish nightly image
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    permissions:
-      contents: read
-      packages: write
     needs:
       - windows-command-smoke
       - backend-unit-tests
       - frontend-unit-tests
+      - plugin-windows-command-smoke
+      - plugin-backend-unit-tests
+      - plugin-frontend-unit-tests
       - host-only-build-smoke
-      - e2e-tests
+      - host-only-e2e-tests
+      - plugin-full-e2e-tests
       - redis-cluster-smoke
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v5
-
-      - name: Setup Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: "1.25"
-          cache: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: "10.30.3"
-          run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@v5
-        with:
-          node-version-file: "apps/lina-vben/.node-version"
-          cache: "pnpm"
-          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
-
-      - name: Install Frontend Dependencies
-        working-directory: apps/lina-vben
-        run: pnpm install --frozen-lockfile
-
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Prepare Image Metadata
-        id: image
-        run: |
-          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          image_name="$(printf '%s' "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
-          registry="ghcr.io/${owner}"
-          date_tag="nightly-$(date +'%Y%m%d')"
-          image_ref="${registry}/${image_name}"
-
-          {
-            echo "registry=${registry}"
-            echo "image_name=${image_name}"
-            echo "date_tag=${date_tag}"
-            echo "image_ref=${image_ref}"
-          } >> "${GITHUB_OUTPUT}"
-
-          echo "Publishing ${image_ref}:${date_tag} for ${PLATFORMS}"
-
-      - name: Build and Push Multi-Platform Image
-        run: |
-          make image \
-            config=".github/image/config.yaml" \
-            platforms="${PLATFORMS}" \
-            registry="${{ steps.image.outputs.registry }}" \
-            image="${{ steps.image.outputs.image_name }}" \
-            tag="${{ steps.image.outputs.date_tag }}" \
-            push=1
-
-      - name: Publish Floating Nightly Tag
-        run: |
-          docker buildx imagetools create \
-            --tag "${{ steps.image.outputs.image_ref }}:nightly" \
-            "${{ steps.image.outputs.image_ref }}:${{ steps.image.outputs.date_tag }}"
-
-      - name: Inspect Published Manifest
-        run: |
-          docker buildx imagetools inspect "${{ steps.image.outputs.image_ref }}:${{ steps.image.outputs.date_tag }}"
+    # Image publication needs package write access, while other jobs stay read-only.
+    # 镜像发布需要包写权限，其他 job 保持只读权限。
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/reusable-image-publish.yml
+    with:
+      image-name: linapro
+      platforms: linux/amd64,linux/arm64
+      tag-mode: nightly
+      floating-tag: nightly
+      plugins: "1"

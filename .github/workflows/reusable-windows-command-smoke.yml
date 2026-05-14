@@ -1,50 +1,83 @@
 # Reusable LinaPro Windows command smoke workflow.
+# LinaPro 可复用 Windows 命令冒烟工作流。
 name: Reusable Windows Command Smoke
 
 on:
+  # Expose Windows command smoke checks as a reusable workflow.
+  # 将 Windows 命令冒烟检查暴露为可复用工作流。
   workflow_call:
     inputs:
+      # Controls whether official plugin submodules are checked out for plugin-full runs.
+      # 控制是否为插件完整模式检出官方插件 submodule。
       submodules:
         description: Checkout submodule strategy for actions/checkout.
         required: false
         type: string
         default: "false"
+      # Enables plugin-specific command checks when official plugins are present.
+      # 在官方插件存在时启用插件专属命令检查。
+      plugins:
+        description: Whether to run official-plugin-only command checks.
+        required: false
+        type: string
+        default: "0"
 
+# Command smoke checks only need read access to repository contents.
+# 命令冒烟检查只需要读取仓库内容。
 permissions:
   contents: read
 
 jobs:
+  # Verifies the cross-platform command wrappers on a Windows runner.
+  # 在 Windows runner 上验证跨平台命令包装入口。
   windows-command-smoke:
     name: Windows command smoke
     runs-on: windows-2025-vs2026
     timeout-minutes: 20
 
     steps:
+      # Check out repository sources, optionally including plugin submodules.
+      # 拉取仓库源码，并可按调用方要求包含插件 submodule。
       - name: Checkout Repository
         uses: actions/checkout@v5
         with:
           submodules: ${{ inputs.submodules }}
 
+      # Install Go so linactl can be executed through go run on Windows.
+      # 安装 Go，使 Windows 上可以通过 go run 执行 linactl。
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache: false
 
+      # Verify the baseline linactl commands that should work without plugin sources.
+      # 验证无需插件源码也应可用的 linactl 基础命令。
       - name: Verify linactl Basic Commands
         shell: pwsh
         run: |
           go run ./hack/tools/linactl help
           go run ./hack/tools/linactl status
           go run ./hack/tools/linactl prepare-packed-assets
+
+      # Verify plugin-only linactl commands when this workflow is called in plugin-full mode.
+      # 当调用方使用插件完整模式时，验证插件专属 linactl 命令。
+      - name: Verify linactl Plugin Commands
+        if: ${{ inputs.plugins == '1' }}
+        shell: pwsh
+        run: |
           go run ./hack/tools/linactl wasm dry-run=true
 
+      # Verify the Windows batch wrapper from cmd.exe.
+      # 在 cmd.exe 中验证 Windows 批处理包装入口。
       - name: Verify make.cmd From cmd.exe
         shell: cmd
         run: |
           make.cmd help
           make.cmd status
 
+      # Verify the same Windows batch wrapper from PowerShell.
+      # 在 PowerShell 中验证同一个 Windows 批处理包装入口。
       - name: Verify make.cmd From PowerShell
         shell: pwsh
         run: |

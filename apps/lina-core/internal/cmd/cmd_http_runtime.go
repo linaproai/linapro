@@ -201,10 +201,9 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 			authSvc,
 			authTokenSvc,
 			bizCtxSvc,
+			scopeSvc,
 			i18nSvc,
-			orgCapSvc,
 			pluginSvc,
-			roleSvc,
 			sessionStore,
 			tenantSvc,
 			notifySvc,
@@ -215,7 +214,7 @@ func newHTTPRuntime(ctx context.Context, configSvc config.Service) (*httpRuntime
 	pluginSvc.SetTenantCapability(tenantSvc)
 	pluginsvc.ConfigureWasmHostServices(
 		kvCacheSvc,
-		hostlock.New(),
+		hostlock.New(locker.New()),
 		notifySvc,
 		configSvc,
 		hostServices.Config(),

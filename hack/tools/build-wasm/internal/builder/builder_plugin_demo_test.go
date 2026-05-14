@@ -23,6 +23,7 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 	}
 
 	pluginDir := filepath.Join(repoRoot, "apps", "lina-plugins", "plugin-demo-dynamic")
+	requireOfficialPluginDemoDynamic(t, pluginDir)
 	prepareTemporaryPluginGoWorkForTest(t, repoRoot)
 	expectedFrontendAssets := mustCollectSourceFrontendAssets(t, pluginDir)
 	expectedInstallSQLAssets := mustCollectSourceSQLAssets(t, pluginDir, "manifest/sql")
@@ -85,6 +86,20 @@ func TestPluginDemoDynamicRuntimeArtifactEmbedsReviewedAssets(t *testing.T) {
 		t.Fatalf("expected mock sql section json to unmarshal, got error: %v", err)
 	}
 	assertSQLAssetsMatchSource(t, expectedMockSQLAssets, mockSQLAssets)
+}
+
+// requireOfficialPluginDemoDynamic skips plugin-full fixture checks when the
+// official plugin submodule is not initialized in a host-only checkout.
+func requireOfficialPluginDemoDynamic(t *testing.T, pluginDir string) {
+	t.Helper()
+
+	manifestPath := filepath.Join(pluginDir, "plugin.yaml")
+	if _, err := os.Stat(manifestPath); err != nil {
+		if os.IsNotExist(err) {
+			t.Skip("official plugin workspace is not initialized")
+		}
+		t.Fatalf("stat dynamic demo plugin manifest failed: %v", err)
+	}
 }
 
 // prepareTemporaryPluginGoWorkForTest mirrors linactl's ignored plugin

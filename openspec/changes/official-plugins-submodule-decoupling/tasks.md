@@ -60,6 +60,9 @@
 - [x] **FB-7**: `hack/tools/linactl/main.go` 单文件内容过大，命令编排、插件 workspace、构建、服务控制和通用工具职责集中在一个源码文件中，影响维护和审查；已按职责拆分为同一 `package main` 下的命令、插件 workspace、构建、服务控制、文件工具和通用工具源码文件，未新增外部可引用包边界
 - [x] **FB-8**: `hack/tools/build-wasm/builder` 作为独立可导入包暴露在工具模块根下，组件边界过宽；已迁移到 `hack/tools/build-wasm/internal/builder`，仅允许 `build-wasm` 工具模块内部引用
 - [x] **FB-9**: nightly CI 缺少针对 `make build plugins=0` 编译产物的启动与核心功能 smoke 验证，无法证明 host-only 发布产物在不启用官方插件时可独立运行；已新增独立 nightly `host-only-build-smoke` job，显式执行 `make build plugins=0`，启动编译产物并验证健康检查、管理员登录和源码插件列表为空
+- [x] **FB-10**: GitHub Actions 未在 host-only 与 plugin-full 路径中一致显式处理官方插件 submodule，导致 nightly full E2E 缺少 submodule 时失败、nightly image 静默退化为 host-only、backend unit 未覆盖插件 Go modules、Windows wasm smoke 默认依赖未初始化 submodule；已改为 reusable backend unit 通过 `linactl test-go plugins=<mode>` 生成对应 Go workspace，Windows wasm smoke 仅在插件模式运行，main/nightly 默认宿主路径显式 `plugins=0`，release 与 nightly full E2E/image 显式初始化 submodule 并强制 `plugins=1`
+- [x] **FB-11**: `hack/scripts` 仍保留已可由 `linactl` 覆盖的 Bash 脚本，项目规范和 `lina-review` 也缺少开发工具脚本必须跨平台、优先使用 Go 工具链实现的治理要求；已删除 `prepare-packed-assets.sh` 与 `stop-dev-services.sh`，对应能力由 `linactl prepare-packed-assets` 和 `linactl stop` 承载，`linactl test-scripts` 改为 Go 测试与 Go 静态治理检查，并删除已失效的 Bash smoke 脚本
+- [x] **FB-12**: nightly 每日测试与构建未将 host-only 和 plugin-full 测试矩阵单独运行，无法同时证明未初始化 submodule 与完整官方插件工作区两种质量边界；已新增 nightly host-only E2E、plugin-full Windows command smoke、plugin-full Go unit tests、plugin-full frontend unit tests，并将 plugin-full E2E 与 host-only E2E 使用独立 job 和独立报告产物，nightly image 发布依赖完整矩阵通过
 
 ## Verification Notes
 
@@ -72,6 +75,9 @@
 - i18n(FB-7): 仅拆分 `linactl` Go 源文件结构，不修改命令输出、用户可见文案、接口文档或插件 manifest 翻译资源。
 - i18n(FB-8): 仅迁移 `build-wasm` 内部 Go 包目录并更新导入路径，不修改命令输出、用户可见文案、接口文档或插件 manifest 翻译资源。
 - i18n(FB-9): 仅调整 GitHub Actions nightly 验证流程与 CI 步骤名称，不新增或修改前端运行时页面文案、接口文档或插件 manifest 翻译资源。
+- i18n(FB-10): 仅调整 GitHub Actions 工作流、开发工具测试入口和测试跳过条件，不新增或修改前端运行时页面文案、接口文档或插件 manifest 翻译资源。
+- i18n(FB-11): 仅调整开发工具入口、项目规范和审查标准，不新增或修改前端运行时页面文案、接口文档、manifest i18n 或插件清单文案。
+- i18n(FB-12): 仅调整 GitHub Actions nightly job 编排、job 名称和 artifact 名称，不新增或修改前端运行时页面文案、接口文档、manifest i18n 或插件清单文案。
 - Cache: 未新增缓存策略或缓存扇区，沿用现有插件发现与运行时缓存机制，未引入新的跨实例失效要求。
 - Cache(FB-2): 运行时源码插件发现改为读取进程内已注册插件定义，没有新增缓存、订阅或跨实例失效面。
 - Cache(FB-3): 测试支持组件迁移不涉及运行时缓存、订阅、失效或跨实例一致性策略。
@@ -81,6 +87,9 @@
 - Cache(FB-7): 仅拆分开发工具源码文件，不新增运行时缓存、失效或跨实例一致性影响。
 - Cache(FB-8): 仅收敛开发工具包导入边界，不新增运行时缓存、失效或跨实例一致性影响。
 - Cache(FB-9): 仅新增 CI 中的 host-only 编译产物启动验证，不修改运行时缓存、缓存失效或跨实例一致性策略。
+- Cache(FB-10): 仅调整 CI 编排和测试入口，不修改运行时缓存、缓存失效或跨实例一致性策略。
+- Cache(FB-11): 不新增或修改业务运行时缓存、缓存键、缓存失效路径、跨实例同步机制或故障降级策略。
+- Cache(FB-12): 仅调整 CI 测试矩阵和发布门禁，不修改运行时缓存、缓存失效或跨实例一致性策略。
 - Data permission: 未新增或扩大数据操作接口，沿用现有数据权限接入方式。
 - Data permission(FB-2): 未新增数据查询/写入接口，插件同步仍沿用既有权限 `plugin:install` 和现有 registry 同步路径。
 - Data permission(FB-3): 未新增或扩大数据操作接口，不涉及角色数据权限边界。
@@ -90,12 +99,18 @@
 - Data permission(FB-7): 未新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
 - Data permission(FB-8): 未新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
 - Data permission(FB-9): 未新增或修改 HTTP/API 数据操作接口；CI smoke 仅验证匿名健康检查和管理员登录，不改变角色数据权限边界。
+- Data permission(FB-10): 未新增或修改 HTTP/API 数据操作接口，不涉及角色数据权限边界。
+- Data permission(FB-11): 未新增或修改 HTTP/API 数据操作接口、服务数据访问路径或插件宿主数据访问路径，不涉及角色数据权限边界。
+- Data permission(FB-12): 未新增或修改 HTTP/API 数据操作接口、服务数据访问路径或插件宿主数据访问路径，不涉及角色数据权限边界。
 - Review: 已完成 `lina-review` 审查；修复了 `AGENTS.md` 目录树缩进与 submodule 语义说明、host-only 构建继承 `GOFLAGS=-tags=official_plugins` 时可能错误启用官方插件注册的问题，并补充 `linactl` 环境组装测试；同时显式处理 `build-wasm` 临时 `go.mod`/`go.sum` 清理错误。
 - Review(FB-5): 已完成最新 `lina-review` 审查；确认根目录 `go.work` 保持 host-only，插件模式只生成已忽略的 `temp/go.work.plugins` 并通过 `GOWORK` 使用，未发现新的 i18n、缓存一致性或数据权限影响。
 - Review(FB-6): 已完成最新 `lina-review` 审查；确认 `linactl` 直接运行示例、`Makefile` 和 `make.cmd` 不再强制 `GOWORK=off`，并将 `make.cmd` 调整为 `pushd/popd` 保留调用方工作目录；本次反馈不涉及后端运行时代码、API、缓存、i18n 资源或数据权限边界。
 - Review(FB-7): 已完成最新 `lina-review` 审查；确认拆分仅改变 `linactl` 源码组织方式，`main.go` 保留包入口，其余职责保持同包不可被外部 import，未改变命令行为、运行时依赖、API、缓存、i18n 资源或数据权限边界。
 - Review(FB-8): 已完成最新 `lina-review` 审查；确认 `builder` 只移动到 Go `internal` 包边界内，未改变命令行为、运行时依赖、API、缓存、i18n 资源或数据权限边界。
 - Review(FB-9): 已完成最新 `lina-review` 审查；确认本次仅调整 GitHub Actions nightly 编排，未修改后端运行时代码、REST API、缓存、i18n 资源或数据权限边界；新增 job 显式使用 `plugins=0`，并在镜像发布前作为 `needs` 门禁。
+- Review(FB-10): 已完成最新 `lina-review` 审查；确认 host-only 与 plugin-full CI 路径已显式区分，nightly full E2E 和 image 不再静默依赖插件自动探测，backend unit 的插件模式通过 `linactl` 生成临时 `temp/go.work.plugins`，未新增运行时 API、缓存、i18n 资源或数据权限影响。
+- Review(FB-11): 已完成最新 `lina-review` 审查；确认 `hack/scripts` 下两个 Bash 脚本均为已由 `linactl` Go 命令覆盖的遗留入口，删除后 `go run ./hack/tools/linactl prepare-packed-assets`、`cd apps/lina-core && make prepare-packed-assets`、`make stop`、`make status` 和 `make test-scripts` 仍委托 `linactl`；项目规范和审查技能已新增跨平台开发工具脚本要求。现存 `hack/tests/scripts/run-sqlite-smoke.sh`、`hack/tests/scripts/run-redis-cluster-smoke.sh` 与前端 Docker 构建脚本属于本轮未改动的既有平台脚本，后续新增或修改时必须按新规范迁移到 Go/Node 或记录平台边界。
+- Review(FB-12): 已完成最新 `lina-review` 审查；确认 nightly 已拆分 host-only 与 plugin-full 测试矩阵，host-only 路径不初始化 submodule 并运行 host-only Windows 命令 smoke、Go 单测、前端单测和 `pnpm test:host`，plugin-full 路径初始化 submodule 并运行 Windows 插件命令 smoke、Go 插件模式单测、前端单测和 full E2E，nightly image 发布前依赖两套测试矩阵全部通过。
 - Tests: 已完成宿主后端构建、插件相关单测、前端 typecheck/build、前端 build、E2E 治理校验、宿主 E2E 校验与 plugin-full 构建验证。
 - Tests(FB-2): 已通过 `go test ./apps/lina-core/internal/service/plugin/internal/catalog -count=1`、`go test ./apps/lina-core/internal/service/plugin/internal/testutil -count=1`、`go test ./apps/lina-core/pkg/pluginhost -count=1`、`go test ./apps/lina-core/internal/service/plugin -count=1`、`go test ./apps/lina-core/internal/service/plugin/internal/integration -count=1`、`go test ./apps/lina-core/internal/service/plugin/internal/runtime -count=1`、`go test ./apps/lina-core/internal/controller/plugin -count=1`、`go test ./hack/tools/build-wasm/... -count=1`、`go test ./apps/lina-core/internal/service/apidoc ./apps/lina-core/internal/service/i18n -count=1`、`go build ./apps/lina-core`、`openspec validate official-plugins-submodule-decoupling --strict`。
 - Tests(FB-3): 已通过 `go test ./apps/lina-core/pkg/testsupport -count=1`、`go test ./apps/lina-core/pkg/dialect -count=1`、`go test ./apps/lina-core/internal/cmd -count=1`、`go test ./apps/lina-core/internal/service/i18n ./apps/lina-core/internal/service/apidoc -count=1`、`openspec validate official-plugins-submodule-decoupling --strict`、`git diff --check -- apps/lina-core openspec/changes/official-plugins-submodule-decoupling/tasks.md`；静态扫描确认无 `internal/testsupport` 残留，`pkg/testsupport` 仅被 `_test.go` 文件导入。
@@ -105,3 +120,6 @@
 - Tests(FB-7): 已通过 `cd hack/tools/linactl && goimports -w *.go && go test ./... -count=1`、`bash hack/tests/scripts/test-linactl-cross-platform.sh`、`make -n status`、`openspec validate official-plugins-submodule-decoupling --strict`、`git diff --check -- hack/tools/linactl openspec/changes/official-plugins-submodule-decoupling/tasks.md`；生产 Go 文件函数注释扫描无遗漏，`main.go` 已从 2183 行降至 21 行，拆分后最大生产文件为 398 行。`go run ./hack/tools/image-builder --preflight --tag=test-preflight` 未作为本次通过项记录，因为当前工作区已删除无关的 `hack/tools/image-builder/main.go`，该工具目录没有非测试入口文件。
 - Tests(FB-8): 已通过 `go test ./hack/tools/build-wasm/... -count=1`、`cd hack/tools/build-wasm && go test ./... -count=1`；`rg -n '"build-wasm/builder"|go test \./builder|hack/tools/build-wasm/builder' hack/tools/build-wasm README.md README.zh-CN.md CONTRIBUTING.md AGENTS.md .agents --glob '!**/node_modules/**' --glob '!**/.git/**'` 无输出，确认旧路径无代码或项目文档引用残留。
 - Tests(FB-9): 已通过 `go run github.com/rhysd/actionlint/cmd/actionlint@latest -no-color .github/workflows/nightly-test-and-build.yml`、`ruby -e 'require "yaml"; YAML.load_file(".github/workflows/nightly-test-and-build.yml"); puts "workflow yaml ok"'`、抽取 `.github/workflows/nightly-test-and-build.yml` 所有 `run: |` block 后执行 `bash -n`、`openspec validate official-plugins-submodule-decoupling --strict`、`git diff --check -- .github/workflows/nightly-test-and-build.yml openspec/changes/official-plugins-submodule-decoupling/tasks.md`。
+- Tests(FB-10): 已通过 `go run github.com/rhysd/actionlint/cmd/actionlint@latest -no-color .github/workflows/main-ci.yml .github/workflows/nightly-test-and-build.yml .github/workflows/release-test-and-build.yml .github/workflows/reusable-backend-unit-tests.yml .github/workflows/reusable-windows-command-smoke.yml`、Ruby YAML 解析上述 5 个 workflow、抽取上述 workflow 所有非 `pwsh`/`cmd` 的 `run` block 后执行 `bash -n`、`go test ./hack/tools/build-wasm/... -count=1`、`openspec validate official-plugins-submodule-decoupling --strict`、`git diff --check -- .github/workflows/main-ci.yml .github/workflows/nightly-test-and-build.yml .github/workflows/release-test-and-build.yml .github/workflows/reusable-backend-unit-tests.yml .github/workflows/reusable-windows-command-smoke.yml hack/tools/build-wasm/internal/builder/builder_plugin_demo_test.go openspec/changes/official-plugins-submodule-decoupling/tasks.md`。补充验证 `go run ./hack/tools/linactl test-go plugins=0 race=false verbose=false` 已进入 host-only 模式并完成除既有 `apps/lina-core/internal/cmd` panic allowlist 外的包测试；当前失败项为既有未纳入本次变更的 `apps/lina-core/internal/service/hostlock/hostlock.go:New` panic allowlist 缺口。
+- Tests(FB-11): 已通过 `cd hack/tools/linactl && go test ./... -count=1`、`go run ./hack/tools/linactl test-scripts`、`find hack/scripts -maxdepth 1 -type f -print | wc -l` 输出 `0`、旧入口残留静态扫描无输出（`hack/scripts/(prepare-packed-assets|stop-dev-services).sh`、`test-scripts requires POSIX`、`filepath.Glob(...*.sh)`、`"bash", script`）、`rg --files -g '*.sh' -g '*.ps1' -g '*.cmd'` 确认默认仓库工具入口仅剩 `make.cmd`，其余 `.sh` 为既有 CI/前端专用脚本。
+- Tests(FB-12): 已通过 `go run github.com/rhysd/actionlint/cmd/actionlint@latest -no-color .github/workflows/nightly-test-and-build.yml`、Ruby YAML 解析 `.github/workflows/nightly-test-and-build.yml`、抽取 `.github/workflows/nightly-test-and-build.yml` 所有 Bash `run` block 执行 `bash -n`、`openspec validate official-plugins-submodule-decoupling --strict`、`git diff --check -- .github/workflows/nightly-test-and-build.yml openspec/changes/official-plugins-submodule-decoupling/tasks.md`。

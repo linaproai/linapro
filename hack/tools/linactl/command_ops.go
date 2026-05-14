@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"strings"
 	"time"
 )
@@ -120,21 +119,44 @@ func runTestGo(ctx context.Context, a *app, input commandInput) error {
 	return nil
 }
 
-// runTestScripts runs legacy shell smoke checks on POSIX systems.
+// runTestScripts runs cross-platform repository tooling smoke checks.
 func runTestScripts(ctx context.Context, a *app, _ commandInput) error {
-	if runtime.GOOS == "windows" {
-		return errors.New("test-scripts requires POSIX shell scripts; use Go tests on Windows")
-	}
-	scripts, err := filepath.Glob(filepath.Join(a.root, "hack", "tests", "scripts", "*.sh"))
-	if err != nil {
+	if err := validateRepositoryTooling(a.root); err != nil {
 		return err
 	}
-	sort.Strings(scripts)
-	for _, script := range scripts {
-		fmt.Fprintf(a.stdout, "==> %s\n", relativePath(a.root, script))
-		if err = a.runCommand(ctx, commandOptions{Dir: a.root}, "bash", script); err != nil {
-			return err
+	fmt.Fprintln(a.stdout, "==> go test . (hack/tools/linactl)")
+	if err := a.runCommand(ctx, commandOptions{Dir: filepath.Join(a.root, "hack", "tools", "linactl")}, "go", "test", ".", "-count=1"); err != nil {
+		return err
+	}
+	fmt.Fprintln(a.stdout, "repository tool smoke checks passed")
+	return nil
+}
+
+// validateRepositoryTooling checks that local tooling entrypoints stay portable.
+func validateRepositoryTooling(root string) error {
+	makeCmd := filepath.Join(root, "make.cmd")
+	content, err := os.ReadFile(makeCmd)
+	if err != nil {
+		return fmt.Errorf("read make.cmd wrapper: %w", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "go run . %*") {
+		return errors.New("make.cmd must delegate to linactl through go run . %*")
+	}
+	if strings.Contains(text, "GOWORK=off") {
+		return errors.New("make.cmd must not force GOWORK=off")
+	}
+
+	legacyDir := filepath.Join(root, "hack", "scripts")
+	entries, err := os.ReadDir(legacyDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
 		}
+		return fmt.Errorf("read legacy hack/scripts directory: %w", err)
+	}
+	if len(entries) > 0 {
+		return fmt.Errorf("hack/scripts contains legacy script %q; move maintained tooling into hack/tools/linactl or another Go tool", entries[0].Name())
 	}
 	return nil
 }

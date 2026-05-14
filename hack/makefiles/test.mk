@@ -14,9 +14,9 @@ endif
 test:
 	@$(LINACTL) test scope="$(scope)"
 
-# Run shell script unit and smoke tests for repository tooling.
-# 运行仓库工具脚本的单元与 smoke 测试。
-## test-scripts: Run shell script unit and smoke tests
+# Run cross-platform repository tool smoke checks.
+# 运行跨平台仓库工具 smoke 检查。
+## test-scripts: Run cross-platform repository tool smoke checks
 .PHONY: test-scripts
 test-scripts:
 	@$(LINACTL) test-scripts

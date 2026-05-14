@@ -11,8 +11,6 @@ import (
 	"lina-core/internal/service/datascope"
 	i18nsvc "lina-core/internal/service/i18n"
 	"lina-core/internal/service/notify"
-	"lina-core/internal/service/orgcap"
-	"lina-core/internal/service/role"
 	"lina-core/internal/service/session"
 	tenantcapsvc "lina-core/internal/service/tenantcap"
 	"lina-core/pkg/pluginhost"
@@ -52,16 +50,14 @@ func New(
 	authSvc auth.Service,
 	authTokenIssuer auth.TenantTokenIssuer,
 	bizCtxSvc bizctx.Service,
+	scopeSvc datascope.Service,
 	i18nSvc i18nsvc.Service,
-	orgCapSvc orgcap.Service,
 	pluginStateReader PluginStateReader,
-	roleSvc role.Service,
 	sessionStore session.Store,
 	tenantSvc tenantcapsvc.Service,
 	notifySvc notify.Service,
 ) pluginhost.HostServices {
 	bizCtxAdapter := newBizCtxAdapter(bizCtxSvc)
-	scopeSvc := datascope.New(bizCtxSvc, roleSvc, orgCapSvc)
 	return &directory{
 		apiDoc:       newAPIDocAdapter(apiDocSvc),
 		auth:         newAuthAdapter(authTokenIssuer),

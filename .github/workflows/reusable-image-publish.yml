@@ -1,0 +1,214 @@
+# Reusable LinaPro multi-platform image publishing workflow.
+# LinaPro 可复用多平台镜像发布工作流。
+name: Reusable Image Publish
+
+on:
+  # Expose image publication as a reusable workflow for nightly and release callers.
+  # 将镜像发布暴露为可复用工作流，供 nightly 和 release 调用。
+  workflow_call:
+    inputs:
+      # Selects the GHCR image name below the repository owner namespace.
+      # 选择仓库 owner 命名空间下的 GHCR 镜像名称。
+      image-name:
+        description: Container image name.
+        required: false
+        type: string
+        default: linapro
+      # Selects the target architectures for docker buildx.
+      # 选择 docker buildx 的目标架构。
+      platforms:
+        description: Comma-separated target platforms for docker buildx.
+        required: false
+        type: string
+        default: linux/amd64,linux/arm64
+      # Controls whether the immutable tag is date-based nightly or the Git release tag.
+      # 控制不可变标签使用日期型 nightly 还是 Git 发布标签。
+      tag-mode:
+        description: "Image tag strategy: nightly or release."
+        required: true
+        type: string
+      # Publishes an additional moving tag such as nightly or latest.
+      # 额外发布一个可移动标签，例如 nightly 或 latest。
+      floating-tag:
+        description: Floating tag to publish after the immutable tag.
+        required: true
+        type: string
+      # Lets release callers verify the moving tag after it is updated.
+      # 允许 release 调用方在移动标签更新后执行检查。
+      inspect-floating-tag:
+        description: Whether to inspect the floating tag after publication.
+        required: false
+        type: boolean
+        default: false
+      # Passes host-only or plugin-full mode into make image.
+      # 将宿主或插件完整模式传给 make image。
+      plugins:
+        description: Official plugin build mode passed to make image.
+        required: false
+        type: string
+        default: "1"
+      # Requires official plugin manifests before building plugin-full images.
+      # 在构建插件完整镜像前要求官方插件清单存在。
+      require-plugin-workspace:
+        description: Whether official plugin manifests must be present before image build.
+        required: false
+        type: boolean
+        default: true
+
+# Image publication needs repository read access and package write access for GHCR.
+# 镜像发布需要读取仓库，并需要 GHCR 包写权限。
+permissions:
+  contents: read
+  packages: write
+
+# Keep image metadata, logs, and generated nightly dates aligned with the project timezone.
+# 让镜像元数据、日志和生成的 nightly 日期与项目时区保持一致。
+env:
+  TZ: "Asia/Shanghai"
+
+jobs:
+  # Builds and pushes the immutable image tag, then updates the requested floating tag.
+  # 构建并推送不可变镜像标签，然后更新调用方指定的移动标签。
+  image:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      # Check out repository sources and official plugin submodules for full image builds.
+      # 拉取仓库源码和官方插件 submodule，用于完整镜像构建。
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      # Fail fast when plugin-full image publication cannot see official plugin manifests.
+      # 当插件完整镜像发布看不到官方插件清单时快速失败。
+      - name: Verify Official Plugin Workspace
+        if: ${{ inputs.require-plugin-workspace }}
+        uses: ./.github/actions/verify-official-plugin-workspace
+
+      # Install Go for backend build tooling and image-builder helpers.
+      # 安装后端构建工具和 image-builder helper 所需的 Go。
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: false
+
+      # Install the pinned pnpm version without installing packages yet.
+      # 安装固定版本 pnpm，但暂不安装项目依赖。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: "10.30.3"
+          run_install: false
+
+      # Install the frontend Node version and configure pnpm dependency caching.
+      # 安装前端 Node 版本并配置 pnpm 依赖缓存。
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: "apps/lina-vben/.node-version"
+          cache: "pnpm"
+          cache-dependency-path: "apps/lina-vben/pnpm-lock.yaml"
+
+      # Install frontend dependencies needed by the image build.
+      # 安装镜像构建所需的前端依赖。
+      - name: Install Frontend Dependencies
+        working-directory: apps/lina-vben
+        run: pnpm install --frozen-lockfile
+
+      # Enable emulation for non-native target platforms.
+      # 为非本机目标平台启用模拟。
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Create the Docker Buildx builder used for multi-platform image output.
+      # 创建用于多平台镜像输出的 Docker Buildx builder。
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to GitHub Container Registry using the workflow token.
+      # 使用工作流 token 登录 GitHub Container Registry。
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Normalize registry names and compute the immutable image tag for nightly or release publishing.
+      # 归一化 registry 名称，并计算 nightly 或 release 发布使用的不可变镜像标签。
+      - name: Prepare Image Metadata
+        id: image
+        env:
+          IMAGE_NAME: ${{ inputs.image-name }}
+          PLATFORMS: ${{ inputs.platforms }}
+          TAG_MODE: ${{ inputs.tag-mode }}
+          FLOATING_TAG: ${{ inputs.floating-tag }}
+        run: |
+          owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          image_name="$(printf '%s' "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
+          registry="ghcr.io/${owner}"
+          image_ref="${registry}/${image_name}"
+
+          case "${TAG_MODE}" in
+            nightly)
+              image_tag="nightly-$(date +'%Y%m%d')"
+              ;;
+            release)
+              image_tag="${GITHUB_REF_NAME}"
+              if ! printf '%s' "${image_tag}" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
+                echo "Git tag ${image_tag} cannot be used as a Docker image tag." >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Unsupported tag mode: ${TAG_MODE}" >&2
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "registry=${registry}"
+            echo "image_name=${image_name}"
+            echo "image_tag=${image_tag}"
+            echo "image_ref=${image_ref}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Publishing ${image_ref}:${image_tag} and ${image_ref}:${FLOATING_TAG} for ${PLATFORMS}"
+
+      # Build and push the multi-platform image through the project image target.
+      # 通过项目镜像目标构建并推送多平台镜像。
+      - name: Build and Push Multi-Platform Image
+        run: |
+          make image \
+            config=".github/image/config.yaml" \
+            platforms="${{ inputs.platforms }}" \
+            registry="${{ steps.image.outputs.registry }}" \
+            image="${{ steps.image.outputs.image_name }}" \
+            tag="${{ steps.image.outputs.image_tag }}" \
+            plugins="${{ inputs.plugins }}" \
+            push=1
+
+      # Point the moving tag at the just-published immutable image tag.
+      # 将移动标签指向刚发布的不可变镜像标签。
+      - name: Publish Floating Tag
+        run: |
+          docker buildx imagetools create \
+            --tag "${{ steps.image.outputs.image_ref }}:${{ inputs.floating-tag }}" \
+            "${{ steps.image.outputs.image_ref }}:${{ steps.image.outputs.image_tag }}"
+
+      # Inspect the immutable manifest so platform metadata is visible in logs.
+      # 检查不可变 manifest，让平台元数据出现在日志中。
+      - name: Inspect Published Manifest
+        run: |
+          docker buildx imagetools inspect "${{ steps.image.outputs.image_ref }}:${{ steps.image.outputs.image_tag }}"
+
+      # Optionally inspect the moving manifest, used by release to verify latest.
+      # 可选检查移动 manifest，release 用它验证 latest。
+      - name: Inspect Floating Manifest
+        if: ${{ inputs.inspect-floating-tag }}
+        run: |
+          docker buildx imagetools inspect "${{ steps.image.outputs.image_ref }}:${{ inputs.floating-tag }}"

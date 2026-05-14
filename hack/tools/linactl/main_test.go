@@ -537,6 +537,39 @@ use (
 	}
 }
 
+func TestValidateRepositoryToolingAllowsEmptyLegacyScriptDirectory(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\npushd \"%~dp0hack\\tools\\linactl\" || exit /b 1\r\ngo run . %*\r\n")
+	if err := os.MkdirAll(filepath.Join(root, "hack", "scripts"), 0o755); err != nil {
+		t.Fatalf("mkdir hack/scripts: %v", err)
+	}
+
+	if err := validateRepositoryTooling(root); err != nil {
+		t.Fatalf("validateRepositoryTooling returned error: %v", err)
+	}
+}
+
+func TestValidateRepositoryToolingRejectsLegacyScripts(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\ngo run . %*\r\n")
+	writeFile(t, filepath.Join(root, "hack", "scripts", "legacy.sh"), "#!/usr/bin/env bash\n")
+
+	err := validateRepositoryTooling(root)
+	if err == nil || !strings.Contains(err.Error(), "hack/scripts contains legacy script") {
+		t.Fatalf("expected legacy script validation error, got %v", err)
+	}
+}
+
+func TestValidateRepositoryToolingRejectsStaleMakeCmdWorkspaceOverride(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "make.cmd"), "@echo off\r\nset GOWORK=off\r\ngo run . %*\r\n")
+
+	err := validateRepositoryTooling(root)
+	if err == nil || !strings.Contains(err.Error(), "must not force GOWORK=off") {
+		t.Fatalf("expected stale GOWORK validation error, got %v", err)
+	}
+}
+
 func TestHelperLongRunningProcess(t *testing.T) {
 	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
 		return

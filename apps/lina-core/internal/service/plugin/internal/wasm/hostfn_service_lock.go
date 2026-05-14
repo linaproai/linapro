@@ -6,12 +6,13 @@ import (
 	"context"
 
 	"lina-core/internal/service/hostlock"
+	"lina-core/internal/service/locker"
 	bridgehostcall "lina-core/pkg/pluginbridge/hostcall"
 	bridgehostservice "lina-core/pkg/pluginbridge/hostservice"
 )
 
 // lockHostService is the shared governed lock backend used by wasm host calls.
-var lockHostService = hostlock.New()
+var lockHostService = hostlock.New(locker.New())
 
 // ConfigureLockHostService replaces the governed lock backend used by wasm
 // host calls. The service must be non-nil.
