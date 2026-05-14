@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/util/grand"
 
 	"lina-core/internal/service/datascope"
+	"lina-core/pkg/bizerr"
 	"lina-core/pkg/closeutil"
 )
 
@@ -54,7 +55,10 @@ func (s *LocalStorage) Put(ctx context.Context, filename string, data io.Reader)
 
 	if _, err = io.Copy(f, data); err != nil {
 		if removeErr := os.Remove(fullPath); removeErr != nil && !os.IsNotExist(removeErr) {
-			return "", fmt.Errorf("write upload target file failed: %w; cleanup error: %v", err, removeErr)
+			return "", bizerr.WrapCode(
+					fmt.Errorf("write upload target file failed: %w; cleanup error: %v", err, removeErr),
+					CodeFileStoreFailed,
+				)
 		}
 		return "", err
 	}
