@@ -20,5 +20,10 @@ func (c *ControllerV1) InfoByIds(ctx context.Context, req *v1.InfoByIdsReq) (res
 	if err != nil {
 		return nil, err
 	}
-	return &v1.InfoByIdsRes{List: files}, nil
+	list := make([]*v1.FileItem, 0, len(files))
+	for _, file := range files {
+		item := fileItem(file)
+		list = append(list, &item)
+	}
+	return &v1.InfoByIdsRes{List: list}, nil
 }

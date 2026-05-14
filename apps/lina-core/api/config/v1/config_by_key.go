@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // Config ByKey API
 
@@ -16,5 +12,5 @@ type ByKeyReq struct {
 
 // ByKeyRes is the response for getting config by key.
 type ByKeyRes struct {
-	*entity.SysConfig `dc:"Parameter setting information" eg:""`
+	ConfigItem
 }

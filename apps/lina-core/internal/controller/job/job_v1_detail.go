@@ -15,7 +15,7 @@ func (c *ControllerV1) Detail(ctx context.Context, req *v1.DetailReq) (res *v1.D
 		return nil, err
 	}
 	return &v1.DetailRes{
-		SysJob:    out.SysJob,
+		JobItem:   jobItem(out.SysJob),
 		GroupCode: out.GroupCode,
 		GroupName: out.GroupName,
 	}, nil

@@ -44,7 +44,6 @@ function formatFileSize(bytes: number): string {
       <template v-if="detail">
         <Descriptions :column="2" bordered size="middle" :label-style="{ minWidth: '120px' }" :content-style="{ minWidth: '120px' }">
           <DescriptionsItem :label="$t('pages.system.file.detail.fileId')">{{ detail.id }}</DescriptionsItem>
-          <DescriptionsItem :label="$t('pages.system.file.detail.engine')">{{ detail.engine }}</DescriptionsItem>
           <DescriptionsItem :label="$t('pages.system.file.fields.originalName')" :span="2">
             {{ detail.original }}
           </DescriptionsItem>
@@ -62,9 +61,6 @@ function formatFileSize(bytes: number): string {
             <a :href="detail.url" target="_blank" rel="noopener noreferrer">
               {{ detail.url }}
             </a>
-          </DescriptionsItem>
-          <DescriptionsItem :label="$t('pages.system.file.detail.hash')" :span="2">
-            {{ detail.hash }}
           </DescriptionsItem>
           <DescriptionsItem :label="$t('pages.system.file.fields.uploader')">
             {{ detail.createdByName || '-' }}

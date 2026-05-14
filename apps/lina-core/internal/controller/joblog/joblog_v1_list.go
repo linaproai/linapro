@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"lina-core/api/joblog/v1"
+	"lina-core/internal/model/entity"
 	"lina-core/internal/service/jobmeta"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 )
@@ -33,9 +34,31 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			continue
 		}
 		items = append(items, &v1.ListItem{
-			SysJobLog: item.SysJobLog,
-			JobName:   item.JobName,
+			JobLogItem: jobLogItem(item.SysJobLog),
+			JobName:    item.JobName,
 		})
 	}
 	return &v1.ListRes{List: items, Total: out.Total}, nil
+}
+
+// jobLogItem maps a scheduled-job log entity to the API-safe response DTO.
+func jobLogItem(log *entity.SysJobLog) v1.JobLogItem {
+	if log == nil {
+		return v1.JobLogItem{}
+	}
+	return v1.JobLogItem{
+		Id:             log.Id,
+		JobId:          log.JobId,
+		JobSnapshot:    log.JobSnapshot,
+		NodeId:         log.NodeId,
+		Trigger:        log.Trigger,
+		ParamsSnapshot: log.ParamsSnapshot,
+		StartAt:        log.StartAt,
+		EndAt:          log.EndAt,
+		DurationMs:     log.DurationMs,
+		Status:         log.Status,
+		ErrMsg:         log.ErrMsg,
+		ResultJson:     log.ResultJson,
+		CreatedAt:      log.CreatedAt,
+	}
 }

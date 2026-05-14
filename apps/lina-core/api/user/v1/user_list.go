@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // ListReq defines the request for querying the user list.
 type ListReq struct {
@@ -26,7 +22,7 @@ type ListReq struct {
 
 // ListItem represents a single user in the user list.
 type ListItem struct {
-	*entity.SysUser
+	UserItem
 	DeptId      int      `json:"deptId" dc:"Department ID" eg:"100"`
 	DeptName    string   `json:"deptName" dc:"Department name" eg:"Technology Department"`
 	RoleIds     []int    `json:"roleIds" dc:"Role ID list" eg:"[1,2]"`

@@ -6,6 +6,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -483,6 +484,81 @@ func TestOfficialPluginGoWorkUsesDiscoversPluginModules(t *testing.T) {
 	}
 }
 
+// TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs verifies tidy scans
+// maintained source modules without entering generated or dependency trees.
+func TestDiscoverGoModuleDirsSkipsGeneratedAndDependencyDirs(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-plugins", "plugin-a", "go.mod"), "module plugin-a\n")
+	writeFile(t, filepath.Join(root, "hack", "tools", "linactl", "go.mod"), "module linactl\n")
+	writeFile(t, filepath.Join(root, "temp", "clone", "go.mod"), "module temp-clone\n")
+	writeFile(t, filepath.Join(root, ".tmp", "spike", "go.mod"), "module spike\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "node_modules", "dep", "go.mod"), "module dep\n")
+	writeFile(t, filepath.Join(root, "apps", "lina-vben", "dist", "go.mod"), "module dist\n")
+
+	modules, err := discoverGoModuleDirs(root)
+	if err != nil {
+		t.Fatalf("discoverGoModuleDirs returned error: %v", err)
+	}
+
+	var rel []string
+	for _, module := range modules {
+		rel = append(rel, relativePath(root, module))
+	}
+	got := strings.Join(rel, ",")
+	expected := "apps/lina-core,apps/lina-plugins/plugin-a,hack/tools/linactl"
+	if got != expected {
+		t.Fatalf("unexpected module directories: got %s expected %s", got, expected)
+	}
+}
+
+// TestRunTidyExecutesGoModTidyForEachModule verifies tidy runs in each module
+// directory so the adjacent go.sum file is the dependency checksum target.
+func TestRunTidyExecutesGoModTidyForEachModule(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "apps", "lina-core", "go.mod"), "module lina-core\n")
+	writeFile(t, filepath.Join(root, "hack", "tools", "linactl", "go.mod"), "module linactl\n")
+
+	capturePath := filepath.Join(root, "tidy-dirs.txt")
+	application := newApp(ioDiscard{}, ioDiscard{}, strings.NewReader(""))
+	application.root = root
+	application.env = append(os.Environ(), "LINACTL_TEST_CAPTURE_DIRS="+capturePath)
+	application.execCommand = func(_ context.Context, name string, args ...string) *exec.Cmd {
+		if name != "go" || strings.Join(args, " ") != "mod tidy" {
+			t.Fatalf("unexpected tidy command: %s %s", name, strings.Join(args, " "))
+		}
+		return exec.Command(os.Args[0], "-test.run=TestHelperRecordWorkingDirectory", "--")
+	}
+
+	if err := runTidy(context.Background(), application, commandInput{}); err != nil {
+		t.Fatalf("runTidy returned error: %v", err)
+	}
+
+	content, err := os.ReadFile(capturePath)
+	if err != nil {
+		t.Fatalf("read captured tidy dirs: %v", err)
+	}
+	realRoot := root
+	if evaluatedRoot, evalErr := filepath.EvalSymlinks(root); evalErr == nil {
+		realRoot = evaluatedRoot
+	}
+	var dirs []string
+	for _, line := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+		if line != "" {
+			realLine := line
+			if evaluatedLine, evalErr := filepath.EvalSymlinks(line); evalErr == nil {
+				realLine = evaluatedLine
+			}
+			dirs = append(dirs, relativePath(realRoot, realLine))
+		}
+	}
+	got := strings.Join(dirs, ",")
+	expected := "apps/lina-core,hack/tools/linactl"
+	if got != expected {
+		t.Fatalf("unexpected tidy directories: got %s expected %s", got, expected)
+	}
+}
+
 func TestPrepareOfficialPluginWorkspaceWritesTemporaryWorkspace(t *testing.T) {
 	root := t.TempDir()
 	content := `go 1.25.0
@@ -575,6 +651,34 @@ func TestHelperLongRunningProcess(t *testing.T) {
 		return
 	}
 	time.Sleep(5 * time.Second)
+}
+
+// TestHelperRecordWorkingDirectory records the child process working directory
+// for command execution tests.
+func TestHelperRecordWorkingDirectory(t *testing.T) {
+	if len(os.Args) < 2 || os.Args[len(os.Args)-1] != "--" {
+		return
+	}
+	capturePath := os.Getenv("LINACTL_TEST_CAPTURE_DIRS")
+	if capturePath == "" {
+		t.Fatalf("LINACTL_TEST_CAPTURE_DIRS is empty")
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	file, err := os.OpenFile(capturePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("open capture file: %v", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Fatalf("close capture file: %v", closeErr)
+		}
+	}()
+	if _, err = fmt.Fprintln(file, wd); err != nil {
+		t.Fatalf("write capture file: %v", err)
+	}
 }
 
 type ioDiscard struct{}

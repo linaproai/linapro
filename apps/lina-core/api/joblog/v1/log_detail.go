@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // DetailReq defines the request for querying one scheduled job log detail.
 type DetailReq struct {
@@ -14,6 +10,6 @@ type DetailReq struct {
 
 // DetailRes defines the response for querying one scheduled job log detail.
 type DetailRes struct {
-	*entity.SysJobLog `dc:"Execution log details" eg:""`
-	JobName           string `json:"jobName" dc:"Task name" eg:"Task log cleaning"`
+	JobLogItem
+	JobName string `json:"jobName" dc:"Task name" eg:"Task log cleaning"`
 }

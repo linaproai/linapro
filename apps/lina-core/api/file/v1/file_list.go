@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // ListReq defines the request for querying the file list.
 type ListReq struct {
@@ -29,6 +25,6 @@ type ListRes struct {
 
 // ListItem represents a single file list item.
 type ListItem struct {
-	*entity.SysFile
+	FileItem
 	CreatedByName string `json:"createdByName" dc:"Uploader username" eg:"admin"`
 }

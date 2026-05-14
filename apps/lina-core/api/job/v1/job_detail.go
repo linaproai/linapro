@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // DetailReq defines the request for querying one scheduled job detail.
 type DetailReq struct {
@@ -14,7 +10,7 @@ type DetailReq struct {
 
 // DetailRes defines the response for querying one scheduled job detail.
 type DetailRes struct {
-	*entity.SysJob `dc:"Job details" eg:""`
-	GroupCode      string `json:"groupCode" dc:"The group code to which it belongs" eg:"default"`
-	GroupName      string `json:"groupName" dc:"Group name" eg:"Default grouping"`
+	JobItem
+	GroupCode string `json:"groupCode" dc:"The group code to which it belongs" eg:"default"`
+	GroupName string `json:"groupName" dc:"Group name" eg:"Default grouping"`
 }

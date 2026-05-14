@@ -12,5 +12,5 @@ func (c *ControllerV1) DataGet(ctx context.Context, req *v1.DataGetReq) (res *v1
 	if err != nil {
 		return nil, err
 	}
-	return &v1.DataGetRes{SysDictData: dictData}, nil
+	return &v1.DataGetRes{DictDataItem: dictDataItem(dictData)}, nil
 }

@@ -495,10 +495,8 @@
       "detail": {
         "title": "文件详情",
         "fileId": "文件ID",
-        "engine": "存储引擎",
         "storedName": "存储文件名",
-        "url": "文件URL",
-        "hash": "文件哈希"
+        "url": "文件URL"
       },
       "messages": {
         "deleteSelectedConfirm": "确认删除选中的{count}条记录吗？",

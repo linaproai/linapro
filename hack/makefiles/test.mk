@@ -28,6 +28,13 @@ test-scripts:
 test-go:
 	@$(LINACTL) test-go $(TEST_GO_ARGS)
 
+# Run go mod tidy in every maintained Go module directory.
+# 在每个受维护的 Go 模块目录下运行 go mod tidy。
+## tidy: Run go mod tidy in every Go module
+.PHONY: tidy
+tidy:
+	@$(LINACTL) tidy
+
 # Run only host-owned Playwright E2E tests. This target does not require the
 # official plugin submodule.
 ## test-host: Run host-owned Playwright E2E tests without requiring official plugins

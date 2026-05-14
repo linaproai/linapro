@@ -35,7 +35,7 @@ func (c *ControllerV1) Get(ctx context.Context, req *v1.GetReq) (res *v1.GetRes,
 		return nil, err
 	}
 	return &v1.GetRes{
-		SysUser:     user,
+		UserItem:    userItem(user),
 		DeptId:      deptId,
 		DeptName:    deptName,
 		PostIds:     postIds,

@@ -12,5 +12,10 @@ func (c *ControllerV1) DataByType(ctx context.Context, req *v1.DataByTypeReq) (r
 	if err != nil {
 		return nil, err
 	}
-	return &v1.DataByTypeRes{List: list}, nil
+	items := make([]*v1.DictDataItem, 0, len(list))
+	for _, row := range list {
+		item := dictDataItem(row)
+		items = append(items, &item)
+	}
+	return &v1.DataByTypeRes{List: items}, nil
 }

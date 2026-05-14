@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // DataByTypeReq defines the request for querying dictionary data by type.
 type DataByTypeReq struct {
@@ -14,5 +10,5 @@ type DataByTypeReq struct {
 
 // DataByTypeRes defines the response for querying dictionary data by type.
 type DataByTypeRes struct {
-	List []*entity.SysDictData `json:"list" dc:"Dictionary data list" eg:"[]"`
+	List []*DictDataItem `json:"list" dc:"Dictionary data list" eg:"[]"`
 }

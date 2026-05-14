@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // ListReq defines the request for querying scheduled job groups.
 type ListReq struct {
@@ -19,7 +15,7 @@ type ListReq struct {
 
 // ListItem represents one scheduled job group row in the list response.
 type ListItem struct {
-	*entity.SysJobGroup
+	JobGroupItem
 	JobCount int64 `json:"jobCount" dc:"The number of tasks in the current group" eg:"3"`
 }
 

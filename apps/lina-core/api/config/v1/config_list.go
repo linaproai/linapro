@@ -1,10 +1,6 @@
 package v1
 
-import (
-	"lina-core/internal/model/entity"
-
-	"github.com/gogf/gf/v2/frame/g"
-)
+import "github.com/gogf/gf/v2/frame/g"
 
 // Config List API
 
@@ -21,6 +17,6 @@ type ListReq struct {
 
 // ListRes is the config list response.
 type ListRes struct {
-	List  []*entity.SysConfig `json:"list" dc:"Parameter setting list" eg:"[]"`
-	Total int                 `json:"total" dc:"Total number of items" eg:"10"`
+	List  []*ConfigItem `json:"list" dc:"Parameter setting list" eg:"[]"`
+	Total int           `json:"total" dc:"Total number of items" eg:"10"`
 }

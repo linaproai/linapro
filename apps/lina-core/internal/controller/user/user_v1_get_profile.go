@@ -12,5 +12,5 @@ func (c *ControllerV1) GetProfile(ctx context.Context, req *v1.GetProfileReq) (r
 	if err != nil {
 		return nil, err
 	}
-	return &v1.GetProfileRes{SysUser: user}, nil
+	return &v1.GetProfileRes{UserItem: userItem(user)}, nil
 }

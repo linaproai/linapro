@@ -27,6 +27,7 @@ func commandRegistry() map[string]commandSpec {
 		{Name: "mock", Description: "Load optional mock demo data.", Usage: "linactl mock confirm=mock", Run: runMock},
 		{Name: "test", Description: "Run the Playwright E2E test suite.", Usage: "linactl test [scope=full|host|plugins|plugin:<id>]", Run: runTest},
 		{Name: "test-go", Description: "Run Go unit tests for workspace modules.", Usage: "linactl test-go [plugins=auto|0|1] [race=true] [verbose=true]", Run: runTestGo},
+		{Name: "tidy", Description: "Run go mod tidy in every maintained Go module directory.", Usage: "linactl tidy", Run: runTidy},
 		{Name: "test-scripts", Description: "Run repository tool smoke tests.", Usage: "linactl test-scripts", Run: runTestScripts},
 		{Name: "check-runtime-i18n", Description: "Scan runtime-visible code for hard-coded text.", Usage: "linactl check-runtime-i18n", Run: runCheckRuntimeI18n},
 		{Name: "check-runtime-i18n-messages", Description: "Validate runtime i18n message key coverage.", Usage: "linactl check-runtime-i18n-messages", Run: runCheckRuntimeI18nMessages},

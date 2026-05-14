@@ -11,6 +11,7 @@ go run . status
 go run . prepare-packed-assets
 go run . wasm p=plugin-demo-dynamic
 go run . init confirm=init
+go run . tidy
 go run . build platforms=linux/amd64,linux/arm64
 ```
 
@@ -22,6 +23,7 @@ go run . build platforms=linux/amd64,linux/arm64
 make.cmd help
 make.cmd status
 make.cmd init confirm=init
+make.cmd tidy
 ```
 
 在`PowerShell`中，需要显式添加当前目录前缀：

@@ -6,6 +6,7 @@ import (
 	"context"
 
 	"lina-core/api/jobgroup/v1"
+	"lina-core/internal/model/entity"
 	jobmgmtsvc "lina-core/internal/service/jobmgmt"
 )
 
@@ -28,9 +29,26 @@ func (c *ControllerV1) List(ctx context.Context, req *v1.ListReq) (res *v1.ListR
 			continue
 		}
 		items = append(items, &v1.ListItem{
-			SysJobGroup: item.SysJobGroup,
-			JobCount:    item.JobCount,
+			JobGroupItem: jobGroupItem(item.SysJobGroup),
+			JobCount:     item.JobCount,
 		})
 	}
 	return &v1.ListRes{List: items, Total: out.Total}, nil
+}
+
+// jobGroupItem maps a scheduled-job group entity to the API-safe response DTO.
+func jobGroupItem(group *entity.SysJobGroup) v1.JobGroupItem {
+	if group == nil {
+		return v1.JobGroupItem{}
+	}
+	return v1.JobGroupItem{
+		Id:        group.Id,
+		Code:      group.Code,
+		Name:      group.Name,
+		Remark:    group.Remark,
+		SortOrder: group.SortOrder,
+		IsDefault: group.IsDefault,
+		CreatedAt: group.CreatedAt,
+		UpdatedAt: group.UpdatedAt,
+	}
 }

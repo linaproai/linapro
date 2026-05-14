@@ -11,6 +11,7 @@ go run . status
 go run . prepare-packed-assets
 go run . wasm p=plugin-demo-dynamic
 go run . init confirm=init
+go run . tidy
 go run . build platforms=linux/amd64,linux/arm64
 ```
 
@@ -22,6 +23,7 @@ The repository root also provides `make.cmd` as a thin Windows wrapper:
 make.cmd help
 make.cmd status
 make.cmd init confirm=init
+make.cmd tidy
 ```
 
 In PowerShell, run it with an explicit current-directory prefix:
